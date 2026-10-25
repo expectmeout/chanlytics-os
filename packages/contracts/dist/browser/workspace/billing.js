@@ -13,6 +13,7 @@ export const BILLING_STATUSES = [
   "paused"
 ];
 export const BILLING_TRIAL_DAYS = 14;
+export const FIRST_RUN_TRIAL_DAYS = 0;
 export function receptionistOn(status) {
   return status === "trialing" || status === "active" || status === "past_due" || status === "incomplete" || status === "none";
 }

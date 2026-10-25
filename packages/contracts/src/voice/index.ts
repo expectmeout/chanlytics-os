@@ -40,8 +40,16 @@ export {
   FORWARDING_TEST_WINDOW_MS,
   isCarrier,
   isForwardingMode,
+  forwardingCarrierOf,
+  PHONE_WAYS,
+  PHONE_RINGS,
 } from "./forwarding";
 export type {
+  PhoneWay,
+  PhonePick,
+  PhoneRings,
+  PhoneChoice,
+  PhoneCompany,
   Carrier,
   ForwardingMode,
   ForwardingCode,
@@ -52,6 +60,7 @@ export type {
 export { greetingFor, pausedGreetingFor, GREETING_DEFAULT } from "./greeting";
 export {
   PHONE_VOICES,
+  PHONE_VOICES_NATIVE_TO,
   PHONE_VOICE_DEFAULT,
   PHONE_VOICE_SAMPLES_ORIGIN,
   PHONE_VOICE_WORDS,
@@ -59,6 +68,8 @@ export {
   phoneVoiceShown,
 } from "./phone-voices";
 export type { PhoneVoice } from "./phone-voices";
+export { PHONE_PACES, PHONE_PACE_WORDS, phonePaceOf, phonePaceShown, phonePaceSpeed } from "./phone-pace";
+export type { PhonePace } from "./phone-pace";
 export {
   greetingOf,
   greetingNotes,

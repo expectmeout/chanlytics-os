@@ -1,22 +1,29 @@
 import { billingDoorOpen, maySpend, priceWords, CHECKOUT_OUTCOME_WORDS } from "../workspace/billing.js";
-import { formatPhoneDisplay, normalizePhone } from "../shared/phone.js";
+import { areaCodeOf, formatPhoneDisplay, normalizePhone } from "../shared/phone.js";
 import { agoWords, DAY_MS } from "../shared/time.js";
-import { CARRIER_WORDS, forwardingCodes, isCarrier, isForwardingMode } from "../voice/forwarding.js";
+import {
+  CARRIER_WORDS,
+  forwardingCarrierOf,
+  forwardingCodes,
+  isCarrier,
+  isForwardingMode,
+  PHONE_RINGS
+} from "../voice/forwarding.js";
 import {
   lineStuckProvisioning,
   SETUP_STATE_WORDS
 } from "./setup.js";
-export const PHONE_WAYS = ["keep", "new", "move"];
-export const PHONE_RINGS = ["mobile", "landline", "office"];
-export function forwardingCarrierOf(rings, company) {
-  if (rings === "office") return "office";
-  if (rings === "landline") return "other";
-  if (rings === "mobile") return company ?? null;
-  return null;
-}
-export const FORWARDING_WAIT_WORDS = "Until it is set up, only calls to your receptionist's own number are answered.";
+import { FORWARDING_WAIT_WORDS } from "./setup-put-off.js";
 export const FIRST_RUN_PHONE_WORDS = {
   chooseHeading: "How should calls reach your receptionist?",
+  /** Where it answers' tile (canvas 4). */
+  calls: "Calls",
+  mode: { unanswered: "When nobody picks up", always: "Every call" },
+  orNew: "get a new number",
+  orMove: "move it to Chanlytics",
+  /** Under the calls choice: when the receptionist's line is bought, kept or moved (it answers what is forwarded) or new. */
+  ownLater: "Your receptionist answers on a line of its own, bought when you go live.",
+  newLater: "The number is bought when you go live, not before.",
   chooseLead: "Most businesses keep the number customers already know. Your team still answers first, and your receptionist gets the rest.",
   readyHeading: "Getting your receptionist's number ready",
   readyLeadForwarded: "Customers never see this number: the calls nobody picks up at yours are sent to it.",
@@ -45,12 +52,10 @@ export const FIRST_RUN_PHONE_WORDS = {
     pick: "Pick a number first."
   },
   cta: {
-    planKeep: "Start my plan",
-    planNew: (number) => number ? `Start my plan with ${number}` : "Start my plan",
-    planMove: "Start my plan and ask for the move",
-    keep: "Keep this number",
-    new: (number) => number ? `Get ${number}` : "Get this number",
-    move: "Ask for the move"
+    /** Go live's press (canvas 5A): the plan started by checkout, a trial's plan started now, or the number bought. */
+    plan: "Start my plan",
+    startNow: "Start my plan and go live",
+    buy: "Go live"
   },
   planOffer: (price) => price ? `${price}, starting today` : "Your plan, starting today",
   planNote: "Your number is included. The first charge is today, and you can cancel anytime from Billing.",
@@ -122,12 +127,10 @@ export const FIRST_RUN_PHONE_WORDS = {
   withMeSent: "We'll email you to find a time for a call.",
   notForwarded: "Forwarding not saved"
 };
-export function areaCodeOf(raw) {
-  const e164 = normalizePhone(raw);
-  return e164 && /^\+1\d{10}$/.test(e164) ? e164.slice(2, 5) : null;
-}
-export function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }) {
-  const s = phoneStepOf({ dto, vm, choice, returned, nowMs });
+export function firstRunPhoneOf(input) {
+  const { dto } = input;
+  const s = phoneStepOf(input);
+  if (input.at === "channels") return channelsStageOf(s);
   if (dto.channels.voice.present) return answeringStageOf(s);
   if (s.ownLine) return onItsWayStageOf(s, s.ownLine);
   return noLineYetStageOf(s);
@@ -384,6 +387,28 @@ function onItsWayStageOf(s, ownLine) {
     cta: s.questions ? showCtaOf(s, false) : null
   };
 }
+function channelsStageOf(s) {
+  const { dto } = s;
+  if (dto.channels.voice.present || s.ownLine) return s.rows;
+  if (!dto.lines?.ready || dto.requests.line || dto.requests.port) return s.rows;
+  const boxProblem = boxProblemOf(s);
+  return {
+    ...s.base,
+    stage: "choose",
+    heading: FIRST_RUN_PHONE_WORDS.calls,
+    lead: FIRST_RUN_PHONE_WORDS.chooseLead,
+    plan: null,
+    boxProblem,
+    cta: null,
+    held: ctaHeldOf(s, boxProblem),
+    status: null,
+    questions: null,
+    code: null,
+    forwardFrom: null,
+    saved: null,
+    keepCode: null
+  };
+}
 function noLineYetStageOf(s) {
   const { dto, choice, returned } = s;
   if (!dto.lines?.ready || dto.requests.line || dto.requests.port) return s.rows;
@@ -392,7 +417,7 @@ function noLineYetStageOf(s) {
   if (!s.canSpend && !plan) return s.rows;
   if (plan && returned) return startingStageOf(s);
   if (s.canSpend && choice?.pending) return buyingStageOf(s);
-  return chooseStageOf(s, plan, onTrial);
+  return goStageOf(s, plan, onTrial);
 }
 function phonePlanOf(billing, onTrial) {
   const W = FIRST_RUN_PHONE_WORDS;
@@ -419,20 +444,21 @@ function buyingStageOf(s) {
 function waitingOn(sentence, detail) {
   return { state: "waiting_them", words: SETUP_STATE_WORDS.waiting_them, sentence, detail };
 }
-function chooseStageOf(s, plan, onTrial) {
+function goStageOf(s, plan, onTrial) {
   const W = FIRST_RUN_PHONE_WORDS;
   const boxProblem = boxProblemOf(s);
+  const act = plan ? onTrial ? "startNow" : "plan" : "buy";
   return {
     ...s.base,
-    stage: "choose",
+    stage: "go",
     heading: W.chooseHeading,
     lead: W.chooseLead,
     plan,
     boxProblem,
     cta: {
-      label: ctaLabelOf(s.way, plan, s.picked),
+      label: ctaLabelOf(act),
       held: ctaHeldOf(s, boxProblem),
-      act: plan ? onTrial ? "startNow" : "plan" : "buy"
+      act
     },
     status: null,
     questions: null,
@@ -451,9 +477,6 @@ function ctaHeldOf(s, boxProblem) {
   if (s.way === "new") return s.pick ? null : W.held.pick;
   return boxProblem ?? (!s.number ? W.held.number : areaCodeOf(s.number) ? null : W.held.us);
 }
-function ctaLabelOf(way, plan, picked) {
-  const W = FIRST_RUN_PHONE_WORDS;
-  if (way === "keep") return plan ? W.cta.planKeep : W.cta.keep;
-  if (way === "new") return plan ? W.cta.planNew(picked) : W.cta.new(picked);
-  return plan ? W.cta.planMove : W.cta.move;
+function ctaLabelOf(act) {
+  return FIRST_RUN_PHONE_WORDS.cta[act];
 }

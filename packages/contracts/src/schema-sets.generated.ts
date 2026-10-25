@@ -12,6 +12,7 @@ export const SCHEMA_SETS = {
   "ai_usage.purpose": [
     "receptionist", "reply_draft", "ask", "lead_json", "template_draft", "review_reply", "lead_judge",
     "note_suggest", "reach_out_check", "reply_read", "booking_read", "lead_suggest", "ask_journal",
+    "receptionist_review", "fix_route", "website_read",
   ],
   "appointment_notices.hold_reason": [
     "no_model", "may_not_spend", "unreadable", "not_a_booking", "no_time", "no_client", "gone",
@@ -30,6 +31,7 @@ export const SCHEMA_SETS = {
     "paused",
   ],
   "billing_events.state": ["claimed", "applied"],
+  "business_reads.source": ["google_profile", "website"],
   "business_records.business_type": [
     "Co-operative", "Corporation", "Limited Liability Corporation", "Non-profit Corporation",
     "Partnership",
@@ -80,12 +82,17 @@ export const SCHEMA_SETS = {
   "fact_suggestions.source": ["steer", "reply"],
   "fact_suggestions.state": ["nothing", "suggested", "kept", "dismissed"],
   "google_reviews.origin": ["places", "profile"],
+  "imports.source": [
+    "google_reviews", "calendar", "clients_file", "mailbox", "contacts", "whatsapp_contacts",
+    "whatsapp_history",
+  ],
+  "imports.state": ["queued", "running", "done", "failed"],
   "invitations.role": ["operator", "viewer"],
   "job_capacity.scope": ["workspace", "provider", "domain"],
   "jobs.kind": [
     "outbound_send", "broadcast_send", "line_provision", "email_ingest", "lead_round_start",
     "lead_collect", "lead_check", "push_send", "push_receipts", "reply_read", "event_deliver",
-    "booking_read", "inbound_answer",
+    "booking_read", "inbound_answer", "history_import", "website_read",
   ],
   "jobs.state": ["scheduled", "fired", "done", "canceled", "failed"],
   "lead_counters.kind": ["allowance", "budget", "day"],
@@ -180,6 +187,7 @@ export const SCHEMA_SETS = {
   "privacy_requests.kind": ["delete_workspace", "delete_person", "copy"],
   "provider_events.provider": ["meta", "twilio", "retell", "resend", "stripe"],
   "push_devices.platform": ["ios", "android"],
+  "rehearsals.kind": ["call", "typed", "call_review"],
   "sequence_batches.state": ["pending_approval", "scheduled", "sending", "sent", "canceled", "failed"],
   "sequence_enrollments.state": ["in", "done", "left"],
   "sequence_replies.claim": ["person", "automated", "auto_reply", "owner"],

@@ -9,6 +9,32 @@ import { recordEvent } from "@chanlytics/db";
 import { log } from "@/server/log";
 import type { RouteContext } from "@/server/with-route";
 import { serviceDb } from "@/server/service-db";
+import { callEdge, edgeConfigured } from "@/server/edge";
+
+/** How long the edge has to queue a read of the website: one insert. */
+const WEBSITE_ASK_MS = 5_000;
+
+/** The website a config names (brain.profile.website), or null. */
+function websiteIn(config: unknown): string | null {
+  const brain = config && typeof config === "object" ? (config as { brain?: unknown }).brain : null;
+  const profile = brain && typeof brain === "object" ? (brain as { profile?: unknown }).profile : null;
+  const site = profile && typeof profile === "object" ? (profile as { website?: unknown }).website : null;
+  return typeof site === "string" && site.trim() ? site.trim() : null;
+}
+
+/**
+ * A website newly named is read for the first run's Check (decision 0073, R10): its services, prices and rules, offered
+ * for the owner to tap in. Asked of the edge, which holds the reader and the model; best effort, never the save's failure.
+ */
+async function askWebsiteRead(ctx: RouteContext, tenantId: string): Promise<void> {
+  if (!edgeConfigured()) return;
+  const a = await callEdge(
+    "/api/admin/imports/website-read",
+    { tenant_id: tenantId, user_id: ctx.userId },
+    { workspace: tenantId, user: ctx.userId, timeoutMs: WEBSITE_ASK_MS },
+  );
+  if (a.status !== 200) log.warn("website_read_unasked", { tenant_id: tenantId, status: a.status });
+}
 
 /**
  * The two ways a versioned write fails, which used to share one message. Telling an owner "someone else saved
@@ -46,4 +72,6 @@ export async function recordSettingsChanged(
   });
   // Under its own name, as it always was: the name is what alerting greps for.
   if (error) log.error("settings_event_failed", { error });
+  const site = websiteIn(after);
+  if (site && site !== websiteIn(before)) await askWebsiteRead(ctx, tenantId);
 }

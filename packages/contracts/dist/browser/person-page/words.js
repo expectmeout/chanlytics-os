@@ -171,6 +171,13 @@ export const ORIGIN_WORDS = {
   /** "We wrote first by text · Sep 20": the wire as a sentence says it (CONSENT_CHANNEL_WORDS). */
   weWroteFirstOn: (on, day) => `We wrote first ${on} \xB7 ${day}`
 };
+export const BEFORE_WORDS = {
+  label: "Before Chanlytics",
+  visits: (n) => plural(n, "visit"),
+  last: (day) => `last ${day}`,
+  birthday: (day) => `birthday ${day}`,
+  from: (tool) => tool ? `from ${tool}'s file` : "from your file"
+};
 export const CALL_FACT_WORDS = {
   name: (name) => `Gave their name as ${name}`,
   onTheCall: (day) => `on the call ${day}`,

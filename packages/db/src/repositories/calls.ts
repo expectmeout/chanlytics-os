@@ -131,6 +131,51 @@ export async function linkCallMessage(db: Db, tenantId: string, callId: string, 
 }
 
 /**
+ * The settings version a call was composed from (decision 0069, R6), as its metadata carried it from the inbound
+ * webhook: written once, on the row the ingest made, so a review judges the call against what it knew. A row already
+ * stamped keeps its version; a call with no row yet is stamped on the next delivery's ingest.
+ */
+export async function stampCallConfigVersion(
+  db: Db,
+  tenantId: string,
+  retellCallId: string,
+  version: number,
+): Promise<boolean> {
+  const { data, error } = await db
+    .from("calls")
+    .update({ config_version: version })
+    .eq("tenant_id", tenantId)
+    .eq("retell_call_id", retellCallId)
+    .is("config_version", null)
+    .select("id");
+  if (error) throw new Error(`stampCallConfigVersion: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+
+/** A call as its review reads it: its words, what it was composed from, the agent, and whose it is. */
+export async function callForReview(
+  db: Db,
+  tenantId: string,
+  callId: string,
+): Promise<{
+  id: string;
+  agent_id: string | null;
+  config_version: number | null;
+  transcript_object: Json | null;
+  transcript: string | null;
+  created_at: string;
+} | null> {
+  const { data, error } = await db
+    .from("calls")
+    .select("id, agent_id, config_version, transcript_object, transcript, created_at")
+    .eq("tenant_id", tenantId)
+    .eq("id", callId)
+    .maybeSingle();
+  if (error) throw new Error(`callForReview: ${error.message}`);
+  return data ?? null;
+}
+
+/**
  * What these calls' lines showed, by id -- the number (from_e164) and what the line handed over raw (from_raw), which
  * contracts' callerName names a call by -- in one read for a hundred ids or fewer (IDS_PER_READ), under the caller's row
  * security and the workspace's own filter: a call the caller cannot read is not answered. A read that fails THROWS.

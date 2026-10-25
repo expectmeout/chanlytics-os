@@ -214,6 +214,18 @@ export const ORIGIN_WORDS = {
 } as const;
 
 /**
+ * What another system said of them before Chanlytics (decision 0073, R22), one line under where they came from:
+ * "Before Chanlytics · 12 visits · last Apr 23 · birthday Mar 14 · from Vagaro's file". Never counted as today's.
+ */
+export const BEFORE_WORDS = {
+  label: "Before Chanlytics",
+  visits: (n: number) => plural(n, "visit"),
+  last: (day: string) => `last ${day}`,
+  birthday: (day: string) => `birthday ${day}`,
+  from: (tool: string | null) => (tool ? `from ${tool}'s file` : "from your file"),
+} as const;
+
+/**
  * What a call left that the page can use (canvas A, C10): the name they gave, an address they spelled out, a next step
  * the receptionist noted. Each a notice at its home, offered and never applied by itself.
  */

@@ -17,6 +17,13 @@
  * credential. From then on the receptionist answers on this number with this
  * business's token, never the environment's.
  *
+ * A business that keeps its WhatsApp Business app (`keep_app`, coexistence:
+ * decision 0073, R12) went through Meta's own flow for it: the number is
+ * already registered and is never registered again (a PIN of ours would trip
+ * the app's own two-step verification), and once it routes, the app's
+ * contacts and chats of the last six months are asked for, inside the day
+ * Meta allows (R21; lib/imports/whatsapp-history.ts).
+ *
  * Signed admin token only: the dashboard is the sole caller, as for steer.
  */
 import { json, refuse } from "../http.js";
@@ -39,6 +46,7 @@ import {
   wabaPhoneNumbers,
 } from "./meta-graph.js";
 import { readAndKeepStanding } from "./number-standing.js";
+import { startWhatsappHistory } from "../imports/history-import.js";
 import { env } from "../env.js";
 import { logger } from "../log.js";
 import { UUID } from "../packages/contracts.js";
@@ -49,6 +57,7 @@ interface ConnectBody {
   code?: string;
   phone_number_id?: string;
   waba_id?: string;
+  keep_app?: boolean;
 }
 
 /**
@@ -256,6 +265,28 @@ async function idsOf(
   return { phoneNumberId, wabaId, from: "token" };
 }
 
+/**
+ * Registered for Cloud API messaging. Registration belongs to the number, not to the app: a number Meta already reports
+ * on Cloud API is left alone, since re-registering it with a fresh PIN would only trip its two-step verification, and a
+ * number that keeps its Business app (coexistence) was registered by Meta's own flow. A fresh number gets a PIN we keep.
+ * A number whose own PIN stands in the way is named as such, not as a generic failure.
+ */
+async function registeredFor(
+  token: string,
+  phoneNumberId: string,
+  n: { cloud: boolean; keepApp: boolean },
+  L: Log,
+): Promise<{ pin: string | null; registration: "registered" | "already_registered" | "coexistence" } | Response> {
+  if (n.keepApp) return { pin: null, registration: "coexistence" };
+  if (n.cloud) return { pin: null, registration: "already_registered" };
+  const pin = newPin();
+  const reg = await registerNumber(token, phoneNumberId, pin);
+  if (reg.ok) return { pin, registration: "registered" };
+  if (alreadyRegistered(reg)) return { pin, registration: "already_registered" };
+  L.info("wa_connect_register_failed", { error: reg.error, code: reg.code });
+  return refuse(502, pinMismatch(reg) ? "pin_required" : "register_failed", reg.error);
+}
+
 /** An id the window gave that is not Meta's; an absent one is not wrong, it is looked up. */
 const badId = (id: string): boolean => id !== "" && !ID.test(id);
 
@@ -335,19 +366,11 @@ export async function connectWhatsAppNumber(auth: Admitted, body: Partial<Connec
     return refuse(502, "subscribe_failed", sub.error);
   }
 
-  // 4. Registered for Cloud API messaging. Registration belongs to the
-  // number, not to the app: a number Meta already reports on Cloud API is
-  // left alone, since re-registering it with a fresh PIN would only trip its
-  // two-step verification. A fresh number gets a PIN we keep. A number whose
-  // own PIN stands in the way is named as such, not as a generic failure.
-  const onCloud = num.data.platform_type === "CLOUD_API";
-  const pin = onCloud ? null : newPin();
-  const reg = pin ? await registerNumber(token, phoneNumberId, pin) : null;
-  if (reg && !reg.ok && !alreadyRegistered(reg)) {
-    L.info("wa_connect_register_failed", { error: reg.error, code: reg.code });
-    return refuse(502, pinMismatch(reg) ? "pin_required" : "register_failed", reg.error);
-  }
-  const registration = reg?.ok ? "registered" : "already_registered";
+  // 4. Registered for Cloud API messaging (registeredFor).
+  const keepApp = body.keep_app === true;
+  const reg = await registeredFor(token, phoneNumberId, { cloud: num.data.platform_type === "CLOUD_API", keepApp }, L);
+  if (reg instanceof Response) return reg;
+  const { pin, registration } = reg;
 
   // One writer for the row's status, so the only word a crash between the writes can leave is "disabled".
   const setStatus = (id: string, status: "active" | "disabled") =>
@@ -361,6 +384,8 @@ export async function connectWhatsAppNumber(auth: Admitted, body: Partial<Connec
     connected_at: new Date().toISOString(),
     connected_by: userId,
     registration,
+    // The business answers from its WhatsApp Business app too (coexistence): its replies there arrive as echoes.
+    ...(keepApp ? { coexistence: true } : {}),
   };
   const row = await writeChannelRow(db, L, {
     tenant_id: tenantId,
@@ -393,6 +418,8 @@ export async function connectWhatsAppNumber(auth: Admitted, body: Partial<Connec
   }
 
   await connected(db, tenantId, row.id, { phoneNumberId, wabaId, e164, name: config.verified_name, by: userId, token });
+  // The kept app's contacts and chats, asked for while Meta allows (never throws: the connect stands either way).
+  if (keepApp) await startWhatsappHistory(db, { tenantId, channelId: row.id, nowMs: Date.now(), log: L });
   L.info("wa_connected", { channel_id: row.id, number: e164, registration: config.registration, ids_from: ids.from });
   return json(200, {
     ok: true,

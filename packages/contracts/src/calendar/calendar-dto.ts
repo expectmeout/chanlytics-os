@@ -137,6 +137,8 @@ export interface CalendarFeedDto {
   checked_at?: string | null;
   /** The owner said nothing books for them (config.bookings.by_hand): no page offers to connect a calendar then. */
   by_hand?: boolean;
+  /** Read through a connected mailbox's grant (decision 0073, R20), not a link: `source` names its provider's calendar. */
+  granted?: boolean;
   /**
    * The booking notices the workspace's address has taken in (docs/plans/2026-10-07-bookings-arrive-by-email.md): the
    * tool the latest came from, when, how many visits they hold in this span, and how many a person must look at. Absent

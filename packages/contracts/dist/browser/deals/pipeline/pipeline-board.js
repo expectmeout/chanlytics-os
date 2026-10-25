@@ -1,6 +1,6 @@
 import { DEAL_LOST_REASONS, DEAL_LOST_REASON_WORDS } from "../deal-words.js";
 import { GROUP_WORDS, PIPELINE_WORDS } from "./pipeline-words.js";
-import { csvCell } from "../../shared/csv.js";
+import { csvCell } from "../../imports/csv.js";
 export function pipelineMove(from, to, row) {
   if (from === to) return null;
   const deal = row.deal;

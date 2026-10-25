@@ -11,14 +11,25 @@
 import type { SchemaSet } from "../shared/schema-sets";
 import { lineCredentialFailure } from "../lines/line-failure";
 import { formatPhoneDisplay, normalizePhone } from "../shared/phone";
+import {
+  CARRIERS,
+  PHONE_RINGS,
+  PHONE_WAYS,
+  type PhoneCompany,
+  type PhoneRings,
+  type PhoneWay,
+} from "../voice/forwarding";
 import type { FactConflict } from "../config/facts";
-import { agoWords, DAY_MS, MIN_MS } from "../shared/time";
+import { agoWords, MIN_MS } from "../shared/time";
 import type { SetupGoogleFacts } from "../google/google";
 import { maySpend, type SetupBillingFacts } from "../workspace/billing";
 import { SOLE_PROP_LIMITS } from "../lines/registration-path";
 import type { ActivationRecord, CapabilityStatus } from "./capabilities";
 import type { EmailSetupDto } from "../email/mailbox";
 import type { ReceptionistState } from "../config/workspace-config/config-schema";
+import type { ImportRowDto } from "../imports/ledger";
+import type { SetupRests } from "./setup-put-off";
+import type { BusinessReadDto } from "../imports/business-reads";
 
 export interface SetupDto {
   business: {
@@ -67,6 +78,12 @@ export interface SetupDto {
     emails?: { address: boolean; forwarding: boolean; last_at: string | null; held: number } | null;
     /** Whether the receptionist has a booking link to send. */
     booking_link?: boolean;
+    /**
+     * Read through a connected mailbox (decision 0073, R20) rather than a link, and the calendar it is ("Google
+     * Calendar", "Outlook"). Absent on a read from before it.
+     */
+    granted?: boolean;
+    source?: string | null;
   };
   team: {
     /**
@@ -137,6 +154,18 @@ export interface SetupDto {
   billing?: SetupBillingFacts;
   /** The owner's activations (00108), one per capability, as recorded. */
   activations?: ActivationRecord[];
+  /**
+   * The rehearsals (decision 0069): the conversations reviewed (rehearsed, typed or a real call), the changes kept from
+   * them, and when the newest was made. The first run's Rehearse step is done at the first review (decision 0073).
+   * Absent on a read from before them, which reads as none.
+   */
+  rehearsal?: { reviewed: number; kept: number; last_at: string | null };
+  /** What was brought in, one row per source (decision 0073, the imports ledger). Absent reads as nothing yet. */
+  imports?: ImportRowDto[];
+  /** What the Business Profile and the website said, for Check to offer (decision 0073, R10, R17). Absent: none read. */
+  reads?: BusinessReadDto[];
+  /** How many people the workspace holds (decision 0073: the dashboard filling in, Live's yes count); absent where unread. */
+  people?: number;
 }
 
 /** A line as the page may see it — states in words, never a provider id. */
@@ -281,8 +310,10 @@ export interface SetupInputs extends SetupDto {
   later: string[];
   /** The rows this member put off for a week, each with when it comes back (setupRestsOf), from the same view. */
   rests: SetupRests;
-  /** The number this member said they keep or move (setupPhoneWantOf), from the same view; absent reads as none. */
+  /** The number this member said they keep, move or get (setupPhoneWantOf), from the same view; absent reads as none. */
   want?: SetupPhoneWant | null;
+  /** The rest of what the first run's Where it answers chose (setupChoicesOf), from the same view; absent reads as none. */
+  choices?: SetupChoices | null;
 }
 
 export type SetupState = "not_started" | "waiting_you" | "waiting_them" | "ready";
@@ -350,9 +381,30 @@ export interface SetupVM {
   /**
    * The member chose to keep or move a number (their saved view's `phone`), and no forwarding is saved for one yet,
    * nor has "The number you already have" ever been put off (a week that ended still said it can wait): the first
-   * run's phone step is not done, whatever answers.
+   * run's Go live is not done, whatever answers.
    */
   forwardingOwed: boolean;
+  /** The member went on from the first run's Your receptionist (RECEPTIONIST_MET in their put-off rows, decision 0073). */
+  receptionistMet: boolean;
+  /** The member skipped the first run's Rehearse after its one nudge (REHEARSE_SKIPPED, decision 0073). */
+  rehearseSkipped: boolean;
+  /**
+   * The first run's Connect it to Google (decision 0073, R17): offered where profiles connect here, a listing is linked
+   * and none is connected, until the member says Not now (GOOGLE_CONNECT_LATER); `connected` once a location is bound.
+   */
+  googleConnect: { offered: boolean; connected: boolean; email: string | null };
+  /** The rehearsals reviewed and the changes kept from them (SetupDto.rehearsal), none where it was not read. */
+  rehearsal: { reviewed: number; kept: number };
+  /** What Where it answers chose beyond the number (the member's saved view), none before a choice. */
+  choices: SetupChoices;
+  /** The number the member chose at Where it answers (their saved view's `phone`): kept, moved or new; null before one. */
+  want: SetupPhoneWant | null;
+  /** A line of the workspace's own is on its way or answering, or a person was asked for one: nothing left to choose. */
+  lineUnderway: boolean;
+  /** Numbers can be bought here (SetupDto.lines.ready); without, Where it answers is the member's going on (CHANNELS_SEEN). */
+  numbersHere: boolean;
+  /** The member went on from the first run's Where it answers with no number to choose (CHANNELS_SEEN, decision 0073). */
+  channelsSeen: boolean;
   /**
    * A calendar link is connected (the setup read's `calendar.state` is not "none"), whether or not it reads just now:
    * the fact Campaigns' moments read as a calendar (playbook-triggers.ts momentOffered's `calendarOn`, core's refusal).
@@ -611,35 +663,68 @@ export function rowContextOf(i: SetupInputs, nowMs: number): SetupRowContext {
 }
 
 /**
- * The rows a member put off for good, as their saved Setup view keeps them (`memberships.views.setup.later`, the door
- * People's own view goes through): short ids, each once, nothing else. A view somebody hand-edited is no rows, never a
- * throw. Every row put off before a put-off could rest (25 Oct 2026) is here, so it stays put off, as it always was.
- */
-export function setupLaterOf(view: unknown): string[] {
-  const later = view && typeof view === "object" ? (view as { later?: unknown }).later : null;
-  if (!Array.isArray(later)) return [];
-  return [...new Set(later.filter((x): x is string => typeof x === "string" && x.length > 0 && x.length <= 40))];
-}
-
-/**
  * The number the owner said they keep, or are moving here, on the first run's phone step: the way and the number,
  * E.164. Kept in their saved Setup view beside the rows they put off (`memberships.views.setup.phone`), because the
  * choice was the tab's alone: a reload, another tab or a return from checkout lost it, the step read as done the
  * moment the receptionist's own number answered, and the forwarding the owner chose was never asked for.
  */
 export interface SetupPhoneWant {
-  way: "keep" | "move";
+  /**
+   * Keep the number customers call, or move it here (both forwarded until then), or a new one: since decision 0073 the
+   * first run chooses at Where it answers and buys at Go live, so a new number's pick is kept too.
+   */
+  way: PhoneWay;
+  /** The number kept or moved, or the new number picked, E.164. */
   number: string;
+  /** Which calls a number kept or moved sends on: the ones nobody picks up (absent), or every one. */
+  mode?: "always";
+  /**
+   * What rings at a number kept or moved, and a mobile's company: from the carrier's own records where it was looked up
+   * (decision 0073, R11), else as the owner answered. Go live's code is chosen by them, with no question asked.
+   */
+  rings?: PhoneRings;
+  company?: PhoneCompany;
 }
 
-/** The owner's kept or moved number as their saved Setup view holds it; null for none, and for anything hand-edited. */
+/** The ways, what a number kept rings, and its carrier, each read off its one list (forwarding.ts). */
+const isPhoneWay = (v: unknown): v is PhoneWay => (PHONE_WAYS as readonly unknown[]).includes(v);
+const isRings = (v: unknown): v is PhoneRings => (PHONE_RINGS as readonly unknown[]).includes(v);
+const isCompany = (v: unknown): v is PhoneCompany => v !== "office" && (CARRIERS as readonly unknown[]).includes(v);
+
+/** The owner's number as their saved Setup view holds it; null for none, and for anything hand-edited. */
 export function setupPhoneWantOf(view: unknown): SetupPhoneWant | null {
   const phone = view && typeof view === "object" ? (view as { phone?: unknown }).phone : null;
   if (!phone || typeof phone !== "object") return null;
-  const { way, number } = phone as { way?: unknown; number?: unknown };
-  if ((way !== "keep" && way !== "move") || typeof number !== "string") return null;
+  const { way, number, mode, rings, company } = phone as Record<string, unknown>;
+  if (!isPhoneWay(way) || typeof number !== "string") return null;
   const e164 = normalizePhone(number);
-  return e164 ? { way, number: e164 } : null;
+  if (!e164) return null;
+  if (way === "new") return { way, number: e164 };
+  return {
+    way,
+    number: e164,
+    ...(mode === "always" ? { mode } : {}),
+    ...(isRings(rings) ? { rings } : {}),
+    ...(isCompany(company) ? { company } : {}),
+  };
+}
+
+/**
+ * Where WhatsApp answers, as Where it answers chose it (decision 0073): on the number customers call, the business
+ * keeping its WhatsApp Business app (coexistence, R12); on the receptionist's own number; or later.
+ */
+const WHATSAPP_CHOICES = ["same", "own", "later"] as const;
+export type WhatsappChoice = (typeof WHATSAPP_CHOICES)[number];
+
+/** What Where it answers chose beyond the number, kept in the member's saved Setup view beside it. */
+export interface SetupChoices {
+  whatsapp: WhatsappChoice | null;
+}
+
+/** The member's choices as their saved Setup view holds them; none for anything hand-edited. */
+export function setupChoicesOf(view: unknown): SetupChoices {
+  const wa = view && typeof view === "object" ? (view as { whatsapp?: unknown }).whatsapp : null;
+  return { whatsapp: (WHATSAPP_CHOICES as readonly unknown[]).includes(wa) ? (wa as WhatsappChoice) : null };
 }
 
 /**
@@ -666,130 +751,3 @@ export function keptPhoneKind(line: LineDto | null | undefined): "mobile" | "off
   if (carrier === "office") return "office";
   return carrier && MOBILE_CARRIERS.includes(carrier) ? "mobile" : "unknown";
 }
-
-/**
- * What skipping the first run's test call puts off (the member's own, as a row put off is): not the `try` row itself,
- * which Today keeps showing until a call comes in, but the first run's wait for it.
- */
-export const TRY_SKIPPED = "try-skipped";
-
-/**
- * What skipping Today's offer of the day-before reminder puts off (the member's own, as a row put off is). The offer is
- * no row of Setup's, so it has no row id to put off: this names it in the same list.
- */
-export const REMIND_SKIPPED = "remind-skipped";
-
-/**
- * Setup's row for the number the business keeps and forwards ("The number you already have"): putting it off is how
- * an owner who chose to keep a number says its forwarding can wait, and the first run's phone step lets them go on.
- */
-export const KEEP_ROW = "keep";
-
-/**
- * How long a "not now" puts a row off the first time (Today's Skip and Hide, the first run's Later): a week, and then it
- * is back where it was, and the next one is for good (putOffEnds). Skipped was for ever, and "It stays in Setting up"
- * pointed at a page with no way to it once the first run was done.
- */
-export const SETUP_REST_MS = 7 * DAY_MS;
-
-/** The rows a member put off for a week, by id, each with the moment it comes back (ISO): their saved view's `rests`. */
-export type SetupRests = Readonly<Record<string, string>>;
-
-/** At most this many rests are read: there are fewer rows than this, so more is a view somebody hand-edited. */
-const SETUP_RESTS_MAX = 20;
-
-/**
- * The rows a member put off for a week, as their saved Setup view keeps them (`memberships.views.setup.rests`): a short
- * id and a moment that reads as one. Anything else is no rest, never a throw.
- */
-export function setupRestsOf(view: unknown): Record<string, string> {
-  const rests = view && typeof view === "object" ? (view as { rests?: unknown }).rests : null;
-  if (!rests || typeof rests !== "object" || Array.isArray(rests)) return {};
-  const kept = Object.entries(rests).filter(
-    (e): e is [string, string] =>
-      e[0].length > 0 && e[0].length <= 40 && typeof e[1] === "string" && Number.isFinite(Date.parse(e[1])),
-  );
-  return Object.fromEntries(kept.slice(0, SETUP_RESTS_MAX));
-}
-
-/** What a member has put off: for good (`later`) and for a week (`rests`), as their saved Setup view keeps both. */
-export interface SetupPutOff {
-  later: readonly string[];
-  rests: SetupRests;
-}
-
-/** When a row put off for a week comes back, epoch ms; null for one with no rest. */
-const restUntil = (s: SetupPutOff, id: string): number | null => {
-  const until = new Map(Object.entries(s.rests)).get(id);
-  return until === undefined ? null : Date.parse(until);
-};
-
-/** Off the card and the first run's open rows just now: put off for good, or for a week that has not ended. */
-export function setupOffNow(s: SetupPutOff, id: string, nowMs: number): boolean {
-  const until = restUntil(s, id);
-  return s.later.includes(id) || (until !== null && until > nowMs);
-}
-
-/** Put off for a week, and back since it ended: drawn again, and its next put-off is for good (putOffEnds). */
-export function setupBack(s: SetupPutOff, id: string, nowMs: number): boolean {
-  const until = restUntil(s, id);
-  return !s.later.includes(id) && until !== null && until <= nowMs;
-}
-
-/**
- * Put off at all, for good or for a week, ended or not: the member said it can wait. The first run's phone step reads
- * it, so a kept number's forwarding back on Today after its week does not open that step again.
- */
-export function setupPutOffEver(s: SetupPutOff, id: string): boolean {
-  return s.later.includes(id) || restUntil(s, id) !== null;
-}
-
-/**
- * What a "not now" does to a row: rests it a week, or, once it is back from one, puts it off for good. Every row alike:
- * "The number you already have" rested every week until its forwarding had a page of its own beside Setup's rows
- * (Settings › How it answers › On calls, 25 Oct 2026).
- */
-export function putOffEnds(back: boolean): "week" | "good" {
-  return back ? "good" : "week";
-}
-
-/**
- * Why a row is put off: `rest`, a "not now" (Today's Skip and Hide, the first run's Later), which putOffEnds decides;
- * `answer`, the member said it is not theirs (not on Google, a new number and none kept, the test call skipped), which
- * is for good at once.
- */
-export type SetupPutOffWhy = "rest" | "answer";
-
-/** A put-off asked for: rows put off, and why; or taken back. */
-export type SetupPutOffChange = { on: true; why: SetupPutOffWhy } | { on: false };
-
-/**
- * The member's put-off rows once `ids` are put off, or taken back. Taking back undoes the last put-off: a row put off
- * for good is back from its week where it had one, and a row resting is as if it had never been put off. A row already
- * off stays as it is.
- */
-export function setupPutOffNext(
-  s: SetupPutOff,
-  ids: readonly string[],
-  change: SetupPutOffChange,
-  nowMs: number,
-): SetupPutOff {
-  const later = new Set(s.later);
-  const rests = new Map(Object.entries(s.rests));
-  for (const id of ids) {
-    if (!change.on) {
-      if (later.has(id)) later.delete(id);
-      else rests.delete(id);
-    } else if (!setupOffNow(s, id, nowMs)) {
-      if (change.why === "answer" || putOffEnds(setupBack(s, id, nowMs)) === "good") later.add(id);
-      else rests.set(id, new Date(nowMs + SETUP_REST_MS).toISOString());
-    }
-  }
-  return { later: [...later], rests: Object.fromEntries(rests) };
-}
-
-/** Why putting a row off, or back, did not start: nothing was saved, and the rows stay as they were. */
-export const SETUP_LATER_REFUSED = {
-  reading: "Setting up is still being read. Try again in a moment.",
-  unread: "What you put off could not be read just now, so nothing changed. Try again in a moment.",
-} as const;

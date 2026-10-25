@@ -9,12 +9,20 @@ import type { MailboxProvider } from "../../packages/contracts.js";
 import type { MailboxOAuthClient } from "../../packages/channels.js";
 import { env } from "../../env.js";
 
-/** One provider's OAuth client, or null when this deployment does not offer it. */
+/**
+ * One provider's OAuth client, or null when this deployment does not offer it. Google's is the mailbox's own pair where
+ * one is set, else the Business Profile's (decision 0073, R18: one Google app, every scope filed once), as a pair: never
+ * one app's id with the other's secret.
+ */
 export function mailboxClient(provider: MailboxProvider): MailboxOAuthClient | null {
   const redirectUri = env.MAILBOX_OAUTH_REDIRECT;
+  const mailPair = [env.GOOGLE_MAIL_CLIENT_ID, env.GOOGLE_MAIL_CLIENT_SECRET] as const;
+  const profilePair = [env.GOOGLE_OAUTH_CLIENT_ID, env.GOOGLE_OAUTH_CLIENT_SECRET] as const;
   const [clientId, clientSecret] =
     provider === "google"
-      ? [env.GOOGLE_MAIL_CLIENT_ID, env.GOOGLE_MAIL_CLIENT_SECRET]
+      ? mailPair[0] && mailPair[1]
+        ? mailPair
+        : profilePair
       : [env.MICROSOFT_MAIL_CLIENT_ID, env.MICROSOFT_MAIL_CLIENT_SECRET];
   return clientId && clientSecret && redirectUri ? { clientId, clientSecret, redirectUri } : null;
 }

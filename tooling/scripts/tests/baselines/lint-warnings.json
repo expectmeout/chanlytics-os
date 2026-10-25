@@ -14,9 +14,6 @@
   "apps/dashboard/app/api/v1/contacts/[id]/notes/remove/route.ts": {
     "@typescript-eslint/no-deprecated": 1
   },
-  "apps/dashboard/app/api/v1/contacts/import/route.ts": {
-    "@typescript-eslint/no-deprecated": 1
-  },
   "apps/dashboard/app/api/v1/leads/[id]/exclude/route.ts": {
     "@typescript-eslint/no-deprecated": 1
   },

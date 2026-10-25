@@ -6,6 +6,8 @@ const Query = z.object({
   provider: z.enum(["google", "microsoft"]),
   mailbox_id: z.uuid().optional(),
   admin: z.enum(["1"]).optional(),
+  /** Back to the first run that asked (decision 0073), not to Connections. */
+  back: z.enum(["start"]).optional(),
 });
 
 /**
@@ -24,5 +26,9 @@ export const GET = read({
   rate: "settings",
   query: Query,
   handle: ({ ctx, member, input }) =>
-    startMailboxConnect(ctx, member, input.provider, { mailboxId: input.mailbox_id, admin: input.admin === "1" }),
+    startMailboxConnect(ctx, member, input.provider, {
+      mailboxId: input.mailbox_id,
+      admin: input.admin === "1",
+      back: input.back ?? null,
+    }),
 });

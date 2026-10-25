@@ -27,6 +27,7 @@ export type TwilioHttp = (
 ) => Promise<TwilioAnswer>;
 
 const API = "https://api.twilio.com/2010-04-01";
+const LOOKUPS = "https://lookups.twilio.com/v2";
 const TRUNKING = "https://trunking.twilio.com/v1";
 const MESSAGING = "https://messaging.twilio.com/v1";
 /**
@@ -53,7 +54,31 @@ export const twilioUrls = {
   messagingServices: `${MESSAGING}/Services`,
   serviceNumbers: (serviceSid: string) => `${MESSAGING}/Services/${serviceSid}/PhoneNumbers`,
   messages: (sid: string) => `${API}/Accounts/${sid}/Messages.json`,
+  lookup: (e164: string) => `${LOOKUPS}/PhoneNumbers/${encodeURIComponent(e164)}?Fields=line_type_intelligence`,
 };
+
+/** What Twilio Lookup said of a number's line (line type intelligence): its type and its carrier, as Twilio words them. */
+export interface LineTypeAnswer {
+  type: string | null;
+  carrier: string | null;
+}
+
+/**
+ * A number's line, by the carrier's own records (decision 0073, R11: Twilio Lookup v2, line_type_intelligence): mobile,
+ * landline, fixed or non-fixed VoIP and the rest, and the carrier. A few cents a number, asked once at step 4. Null when
+ * Twilio could not say (no answer, a refusal, or a number it has no record of); never throws.
+ */
+export async function lookupLineType(acct: ProviderAccount, e164: string): Promise<LineTypeAnswer | null> {
+  const a = await twilioRequest(acct, "GET", twilioUrls.lookup(e164));
+  if (a.outcome !== "ok") return null;
+  const lti = answerObject(a)?.line_type_intelligence;
+  if (!lti || typeof lti !== "object" || Array.isArray(lti)) return null;
+  const o = lti as Record<string, unknown>;
+  return {
+    type: typeof o.type === "string" ? o.type : null,
+    carrier: typeof o.carrier_name === "string" ? o.carrier_name : null,
+  };
+}
 
 /** A provider refusal as an error the saga records: status, Twilio's code, its message. */
 export class TwilioError extends Error {

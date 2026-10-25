@@ -188,6 +188,7 @@ const { BusinessRecordForm } = await import(`${SETTINGS}/record-form.tsx`);
 const { businessRecord } = await import(`${SETTINGS}/record.ts`);
 const { connectedMailboxes } = await import(`${SETTINGS}/connected-mailboxes.ts`);
 const { mailbox } = await import(`${SETTINGS}/mailbox.ts`);
+const { EmailSetupForm } = await import(`${SETTINGS}/email-setup.tsx`);
 const { waConnect, lineCodes, waStanding } = await import(`${SETTINGS}/whatsapp.ts`);
 const { googleVerbs } = await import("../../../../apps/dashboard/src/legacy-bridge/google.ts");
 const { MoreMenu } = await import("../../../../apps/dashboard/src/surfaces/kit/more-menu/more-menu.tsx");
@@ -695,7 +696,7 @@ test("REGRESSION (S17): 'Disconnect instead' asks first, as the row's own Discon
   assert.deepEqual(done, ["disconnect"], "and Yes disconnects, once");
 });
 
-test("the email row's form: offered from the business's name, judged under its own box before anything is asked, a taken address said there too, and closed by the yes", async () => {
+test("no new hosted address on Connections (decision 0073, R13); the form a workspace once chose one with, drawn alone: offered from the business's name, judged under its own box before anything is asked, a taken address said there too, and closed by the yes", async () => {
   asRole("owner");
   const asked = [];
   let answer = {
@@ -729,29 +730,34 @@ test("the email row's form: offered from the business's name, judged under its o
     },
   });
   Object.assign(globalThis.window, { refusalToast: (r) => ({ tone: "danger", msg: r.message }) });
-  let tree = render(Connections);
-  assert.equal(byTestId(tree, "email-setup"), null, "the form waits for its verb");
-  press(byTestId(tree, "connection-email-verb"));
-  tree = settle(Connections);
+  const pane = render(Connections);
+  assert.equal(byTestId(pane, "connection-email-verb"), null, "no address is made any more: the row offers nothing");
+  assert.equal(byTestId(pane, "email-setup"), null);
+  assert.equal(byTestId(pane, "connection-email").props["data-state"], "later", "no mailbox to connect here: later");
+  // The form stays, with its routes, until they are retired: drawn alone, as the row drew it.
+  const closed = [];
+  const Form = () =>
+    EmailSetupForm({ email, businessName: "Best Movers", flash: () => {}, onClose: () => closed.push(1) });
+  let tree = render(Form);
   const box = () => find(byTestId(tree, "email-local"), (n) => n.type === "input");
   assert.equal(box().props.value, "best-movers", "an address to start from, never a blank box");
   assert.match(textOf(byTestId(tree, "email-local")), /@mail\.chanlytics\.com/);
   assert.match(textOf(byTestId(tree, "email-local")), /can't be changed later/);
 
   box().props.onChange({ target: { value: "best movers" } });
-  tree = settle(Connections);
+  tree = settle(Form);
   press(byTestId(tree, "email-save"));
   await flush();
-  tree = settle(Connections);
+  tree = settle(Form);
   assert.match(textOf(byTestId(tree, "email-local-problem")), /letters, numbers and hyphens only/);
   assert.equal(box().props["aria-invalid"], true);
   assert.deepEqual(asked, [], "nothing is asked about what the rules already refuse");
 
   box().props.onChange({ target: { value: "bestmovers" } });
-  tree = settle(Connections);
+  tree = settle(Form);
   press(byTestId(tree, "email-save"));
   await flush();
-  tree = settle(Connections);
+  tree = settle(Form);
   assert.deepEqual(asked, [{ localPart: "bestmovers", fromName: "Best Movers" }]);
   assert.equal(
     textOf(byTestId(tree, "email-local-problem")),
@@ -771,11 +777,10 @@ test("the email row's form: offered from the business's name, judged under its o
     },
   };
   box().props.onChange({ target: { value: "bestmovers2" } });
-  tree = settle(Connections);
+  tree = settle(Form);
   press(byTestId(tree, "email-save"));
   await flush();
-  tree = settle(Connections);
-  assert.equal(byTestId(tree, "email-setup"), null, "the form closes; the row repaints from Setup's re-read");
+  assert.deepEqual(closed, [1], "the form closes; the row repaints from Setup's re-read");
 });
 
 /* ------------------------------ what Connections asks while it is open ------------------------------ */
@@ -1403,7 +1408,7 @@ test("the mailboxes you write from: under their own row, each in contracts' word
   const block = byTestId(tree, "connected-mailboxes");
   assert.ok(block, "drawn under its row, with no hosted mailbox needed");
   const row = byTestId(tree, "connection-mailbox");
-  assert.match(textOf(row), /Mailboxes you write from/);
+  assert.match(textOf(row), /Your mailbox/);
   assert.equal(row.props["data-state"], "attention", "one held and one signed out: the row says so, not a green On");
   assert.match(textOf(row), /2 to look at/);
   const sam = byTestId(tree, "mailbox-sam@getharbor.com");

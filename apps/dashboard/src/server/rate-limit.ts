@@ -114,6 +114,10 @@ export const RATE = {
   step_test: { limit: 10, windowMs: HOUR_MS, noun: "tests" },
   /** A message tried on the receptionist from Settings › How it answers: one model answer each, nothing sent. */
   receptionist_try: { limit: 30, windowMs: HOUR_MS, noun: "tries" },
+  /** A rehearsal's call in the browser (decision 0069): its minutes are counted at the edge; this holds the presses. */
+  receptionist_call: { limit: 10, windowMs: HOUR_MS, noun: "rehearsal calls" },
+  /** A conversation reviewed, or a fix routed: one model answer each. */
+  receptionist_review: { limit: 30, windowMs: HOUR_MS, noun: "reviews" },
   /** A member's own seen and unread marks on people: one as each thread or person is opened. */
   seen_mark: { limit: 240, windowMs: MIN_MS, noun: "read marks" },
   setup_request: { limit: 5, windowMs: HOUR_MS, noun: "setup requests" },

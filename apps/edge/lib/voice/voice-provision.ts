@@ -32,7 +32,7 @@ import { workspaceFor, type Admitted } from "../admin-auth.js";
 import { edgeFnUrl } from "../dashboard-origin.js";
 import { pg } from "../pg.js";
 import { recordNotification } from "../ops/notify.js";
-import { emitEvent } from "../packages/db.js";
+import { emitEvent, voiceAgentOf } from "../packages/db.js";
 import { FIRST_RUN_ROUTE, formatPhoneDisplay, isE164, type EdgeErrorCode } from "../packages/contracts.js";
 import { createVoiceAgent } from "./voice-agent.js";
 import {
@@ -167,17 +167,26 @@ async function readWorkspaceLine(db: ProvisionDb, tenantId: string) {
     .limit(1)
     .maybeSingle();
   if (existing.error) return refuse(503, "read_failed", existing.error.message);
-  return { tenant: tenant.data, existing: existing.data };
+  // The agent made before any number (a rehearsal's, decision 0069): adopted by a run that names none, so the number
+  // answers in the agent the owner already heard.
+  let before: Awaited<ReturnType<typeof voiceAgentOf>>;
+  try {
+    before = await voiceAgentOf(db, tenantId);
+  } catch (e) {
+    return refuse(503, "read_failed", e instanceof Error ? e.message : String(e));
+  }
+  return { tenant: tenant.data, existing: existing.data, before };
 }
 
 type WorkspaceLine = Exclude<Awaited<ReturnType<typeof readWorkspaceLine>>, Response>;
 
 /** The request as the plan reads it, the plan, and what the door answers about it before anything is applied. */
 function planAnswerFor(
-  { tenant, existing }: WorkspaceLine,
+  { tenant, existing, before }: WorkspaceLine,
   knock: ProvisionKnock,
 ): { req: VoiceProvisionRequest; plan: VoiceProvisionPlan; out: PlanAnswer } {
-  const req = requestOf(knock.body);
+  const asked = requestOf(knock.body);
+  const req = asked.agentId || asked.llmId || !before ? asked : { ...asked, agentId: before.agentId };
   const plan = planVoiceProvision({
     tenant: { id: tenant.id, name: tenant.name },
     channel: existing

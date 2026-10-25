@@ -51,9 +51,11 @@ declare const TenantConfigWriteSchema: z.ZodPipe<z.ZodUnknown, z.ZodObject<{
             }, z.core.$strip>>;
             escalate_when: z.ZodOptional<z.ZodArray<z.ZodString>>;
             tone: z.ZodOptional<z.ZodString>;
+            assistant_name: z.ZodCatch<z.ZodOptional<z.ZodString>>;
             handoff_number: z.ZodOptional<z.ZodString>;
             phone_greeting: z.ZodCatch<z.ZodOptional<z.ZodString>>;
             phone_voice: z.ZodCatch<z.ZodOptional<z.ZodString>>;
+            phone_pace: z.ZodCatch<z.ZodOptional<z.ZodString>>;
             website: z.ZodOptional<z.ZodString>;
             notes: z.ZodOptional<z.ZodArray<z.ZodObject<{
                 title: z.ZodString;
@@ -67,6 +69,11 @@ declare const TenantConfigWriteSchema: z.ZodPipe<z.ZodUnknown, z.ZodObject<{
                 slot_min: z.ZodOptional<z.ZodNumber>;
                 consult_first: z.ZodOptional<z.ZodArray<z.ZodString>>;
                 party_max: z.ZodOptional<z.ZodNumber>;
+                walk_ins: z.ZodOptional<z.ZodEnum<{
+                    yes: "yes";
+                    room: "room";
+                    no: "no";
+                }>>;
                 ask_email: z.ZodOptional<z.ZodBoolean>;
                 notes: z.ZodOptional<z.ZodArray<z.ZodString>>;
             }, z.core.$strip>>;
@@ -88,6 +95,13 @@ declare const TenantConfigWriteSchema: z.ZodPipe<z.ZodUnknown, z.ZodObject<{
     }, z.core.$strip>>;
     calendar: z.ZodOptional<z.ZodObject<{
         ical_url: z.ZodString;
+    }, z.core.$strip>>;
+    calendar_grant: z.ZodOptional<z.ZodObject<{
+        mailbox_id: z.ZodUUID;
+        provider: z.ZodEnum<{
+            google: "google";
+            microsoft: "microsoft";
+        }>;
     }, z.core.$strip>>;
     bookings: z.ZodOptional<z.ZodObject<{
         tool: z.ZodOptional<z.ZodString>;

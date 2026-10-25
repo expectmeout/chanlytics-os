@@ -15,6 +15,7 @@ import { bookingToolName } from "../calendar/booking-notice.js";
 import { calendarSourceFacts, calendarSourceOf } from "./calendar-source.js";
 import { emailRow, mailboxRow } from "./connection-email.js";
 import { firstRunStepRoute, FIRST_RUN_FIND_ROUTE } from "./first-run-route.js";
+import { importNotesOf } from "../imports/ledger.js";
 export const CONNECTION_KINDS = [
   "whatsapp",
   "phone",
@@ -193,6 +194,14 @@ function signupLeftOpenNotes(startedAt, nowMs) {
   const age = startedAt ? nowMs - Date.parse(startedAt) : Number.NaN;
   return age >= 0 && age < SIGNUP_LEFT_OPEN_WITHIN_MS ? [{ text: SIGNUP_LEFT_OPEN_NOTE, live: true }] : [];
 }
+const KEEP_APP_VERB = {
+  label: "Keep the WhatsApp Business app",
+  to: "verb:whatsapp-connect-keep",
+  who: "owner"
+};
+const KEEP_APP_NOTE = {
+  text: "Already answering on the WhatsApp Business app? Keep the app: you go on using it, the receptionist answers what you don't, and your contacts and last six months of chats come in if you share them in the app."
+};
 const LIBRARY = { label: "Messages", to: MESSAGES_ROUTE, who: "operator" };
 function whatsappNumberRow(base, wa, nowMs) {
   const row2 = { ...base, detail: wa.number };
@@ -254,7 +263,12 @@ function whatsappRow(i, { wa, own, nowMs }) {
       stateWords: "Not connected",
       sentence: "Sign in to Meta, pick the number, and the receptionist answers on it. Nothing here touches a phone line.",
       verb: { label: "Connect WhatsApp", to: "verb:whatsapp-connect", who: "owner" },
-      notes: [...signupLeftOpenNotes(i.signupLeftOpenAt, nowMs), ...whatsappConnectNotes(own)]
+      ...i.whatsapp.keep_app ? { also: KEEP_APP_VERB } : {},
+      notes: [
+        ...signupLeftOpenNotes(i.signupLeftOpenAt, nowMs),
+        ...i.whatsapp.keep_app ? [KEEP_APP_NOTE] : [],
+        ...whatsappConnectNotes(own)
+      ]
     };
   }
   const why = i.whatsapp?.reason === "no_config_id" ? " \u2014 the Embedded Signup configuration is missing on the Chanlytics side" : i.whatsapp?.reason === "preview" ? " \u2014 only on the production dashboard" : "";
@@ -307,7 +321,7 @@ function phoneRow(i, { voice, own, nowMs }) {
       state: "none",
       stateWords: "Not connected",
       sentence: "Get a number the receptionist answers, or keep the one you have.",
-      verb: { label: "Get a line", to: firstRunStepRoute("phone"), who: "owner" }
+      verb: { label: "Get a line", to: firstRunStepRoute("channels"), who: "owner" }
     };
   }
   return {
@@ -316,7 +330,7 @@ function phoneRow(i, { voice, own, nowMs }) {
     state: "none",
     stateWords: "Not connected",
     sentence: "We set up your phone line with you.",
-    verb: { label: "Ask for a line", to: firstRunStepRoute("phone"), who: "owner" }
+    verb: { label: "Ask for a line", to: firstRunStepRoute("channels"), who: "owner" }
   };
 }
 function smsRow(i, { own, nowMs }) {
@@ -401,7 +415,14 @@ function googleListingRow(i, { connection: c, listing: l, nowMs }) {
 function calendarRow(i) {
   const s = calendarSourceOf(calendarSourceFacts(i.calendar ?? { state: "none" }));
   const tool = bookingToolName(i.calendar?.tool);
-  const DETAIL = { both: `${tool} \xB7 calendar link`, link: "Calendar link", emails: tool, hand: null, nothing: null };
+  const granted = i.calendar?.granted ? `${i.calendar.source ?? "Your calendar"} \xB7 through your mailbox` : null;
+  const DETAIL = {
+    both: `${tool} \xB7 ${granted ?? "calendar link"}`,
+    link: granted ?? "Calendar link",
+    emails: tool,
+    hand: null,
+    nothing: null
+  };
   const detail = DETAIL[s.by];
   return {
     kind: "calendar",
@@ -459,9 +480,19 @@ const ROW_BUILDERS = [
   mailboxRow,
   depositsRow
 ];
+const BROUGHT_BY = {
+  google_profile: ["google_reviews"],
+  calendar: ["calendar", "clients_file"],
+  mailbox: ["mailbox", "contacts"],
+  whatsapp: ["whatsapp_contacts", "whatsapp_history"]
+};
 export function connectionRows(i, nowMs = Date.now()) {
   const facts = connectionFactsOf(i, nowMs);
-  return ROW_BUILDERS.map((build) => row(build(i, facts))).sort((a, b) => ORDER[a.kind] - ORDER[b.kind]);
+  return ROW_BUILDERS.map((build) => {
+    const r = row(build(i, facts));
+    const brought = importNotesOf(BROUGHT_BY[r.kind], i.imports);
+    return brought.length ? { ...r, notes: [...r.notes, ...brought] } : r;
+  }).sort((a, b) => ORDER[a.kind] - ORDER[b.kind]);
 }
 export const CONNECTION_GROUP_WORDS = {
   connected: {

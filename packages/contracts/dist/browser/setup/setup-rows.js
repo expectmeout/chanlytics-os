@@ -15,20 +15,27 @@ import { EMAIL_ELSEWHERE_SENTENCE, EMAIL_NOT_ANSWERED_SENTENCE } from "../email/
 import { NO_NUMBER_REACH } from "../people/people-lists.js";
 import { GET_YES_ROUTE } from "../people/lists/people-route.js";
 import { lensRoute } from "../reports/lenses.js";
-import { FIRST_RUN_FIND_ROUTE } from "./first-run-route.js";
+import { FIRST_RUN_FIND_ROUTE, firstRunStepRoute } from "./first-run-route.js";
+import { viaWords } from "../imports/csv.js";
 import {
   activationWords,
   rowContextOf,
   BROKEN_CONFIG_WORDS,
-  KEEP_ROW,
-  REMIND_SKIPPED,
   SETUP_STATE_WORDS,
+  forwardedLineOf
+} from "./setup.js";
+import {
+  KEEP_ROW,
+  RECEPTIONIST_MET,
+  CHANNELS_SEEN,
+  REHEARSE_SKIPPED,
+  GOOGLE_CONNECT_LATER,
+  REMIND_SKIPPED,
   TRY_SKIPPED,
-  forwardedLineOf,
   setupBack,
   setupOffNow,
   setupPutOffEver
-} from "./setup.js";
+} from "./setup-put-off.js";
 import { lineRow, receptionistRow, tryRow, keepRow } from "./setup-rows-phone.js";
 import { SEQUENCES_ROUTE } from "../sequences/sequence-address.js";
 function billingRow(i, ctx) {
@@ -259,10 +266,37 @@ function whatsappRow(i, ctx) {
   };
 }
 function emailRow(i, ctx) {
-  if (!i.email?.ready) return null;
   const { nowMs } = ctx;
-  const mb = i.email.mailbox;
-  return mb ? {
+  const mb = i.email?.mailbox ?? null;
+  const sending = i.email?.sending ?? null;
+  const own = sending?.mailboxes?.[0] ?? null;
+  if (!mb && own)
+    return {
+      id: "email",
+      icon: "mail",
+      title: "Email",
+      state: own.state === "reconnect" ? "waiting_you" : "ready",
+      required: false,
+      sentence: own.state === "reconnect" ? `${own.address} signed out. Connect it again so email from people keeps coming into your Inbox.` : `Email people write to ${own.address} comes into your Inbox.`,
+      details: [EMAIL_NOT_ANSWERED_SENTENCE],
+      verb: {
+        label: own.state === "reconnect" ? "Connect it again" : "Open the Inbox",
+        to: own.state === "reconnect" ? "admin/integrations" : "inbox"
+      }
+    };
+  if (!mb && sending && sending.providers.length > 0)
+    return {
+      id: "email",
+      icon: "mail",
+      title: "Email",
+      state: "not_started",
+      required: false,
+      sentence: "Connect the mailbox customers write to. Six months of email from people comes into your Inbox, and new email arrives there.",
+      details: [EMAIL_NOT_ANSWERED_SENTENCE],
+      verb: { label: "Connect your mailbox", to: firstRunStepRoute("channels") }
+    };
+  if (!mb) return null;
+  return {
     id: "email",
     icon: "mail",
     title: "Email",
@@ -279,15 +313,6 @@ function emailRow(i, ctx) {
       EMAIL_ELSEWHERE_SENTENCE
     ],
     verb: { label: "Open the Inbox", to: "inbox" }
-  } : {
-    id: "email",
-    icon: "mail",
-    title: "Email",
-    state: "not_started",
-    required: false,
-    sentence: "Give customers an address to write to. Their emails arrive in your Inbox, and you reply from there.",
-    details: [EMAIL_NOT_ANSWERED_SENTENCE],
-    verb: { label: "Choose the address", to: "admin/integrations" }
   };
 }
 const SETUP_STATE_OF = {
@@ -435,6 +460,31 @@ function googleRow(i, ctx) {
     verb: { label: "Connect", to: "admin/integrations" }
   };
 }
+function clientsRow(i) {
+  if (!i.imports) return null;
+  const row = i.imports.find((r) => r.source === "clients_file") ?? null;
+  const base = { id: "clients", icon: "users", title: "Your clients", required: false, details: [] };
+  if (row?.state === "done")
+    return {
+      ...base,
+      state: "ready",
+      sentence: `${plural(row.counts.people ?? 0, "client")} brought in from ${viaWords(row.via) ? `${viaWords(row.via)}'s file` : "your file"}.`,
+      verb: null
+    };
+  if (row?.state === "failed")
+    return {
+      ...base,
+      state: "waiting_you",
+      sentence: row.last_error ?? "Bringing your clients in stopped part way. What came in is kept.",
+      verb: { label: "Try again", to: firstRunStepRoute("channels") }
+    };
+  return {
+    ...base,
+    state: row?.state === "running" ? "waiting_them" : "not_started",
+    sentence: row?.state === "running" ? "Bringing your clients in." : "Bring your client list from your booking tool, so People starts with your real customers.",
+    verb: row?.state === "running" ? null : { label: "Bring your clients", to: firstRunStepRoute("channels") }
+  };
+}
 const SETUP_ROWS = [
   billingRow,
   factsRow,
@@ -446,6 +496,7 @@ const SETUP_ROWS = [
   whatsappRow,
   emailRow,
   calendarRow,
+  clientsRow,
   teamRow,
   yesRow,
   googleRow
@@ -457,11 +508,57 @@ const checkFactsOf = (i) => ({
   type: i.google?.type ?? null,
   bookingPage: bookingPageOffered(i.google?.bookingPage, i.business.bookingLink)
 });
-const forwardingOwedOf = (i, off) => !!i.want && !forwardedLineOf(i.lines) && !setupPutOffEver(off, KEEP_ROW);
+const forwardingOwedOf = (i, off) => !!i.want && i.want.way !== "new" && !forwardedLineOf(i.lines) && !setupPutOffEver(off, KEEP_ROW);
+function readinessSentenceOf(i, ctx) {
+  const { waReady, voiceReady, waNum, voiceNum, texting } = ctx;
+  const seriousConflict = (i.conflicts ?? []).find((k) => k.severity === "serious") ?? null;
+  if (seriousConflict) return seriousConflict.sentence;
+  if (waReady && voiceReady)
+    return `Your receptionist answers calls on ${voiceNum} and WhatsApp on ${waNum}. ${texting.sentence}`;
+  if (voiceReady)
+    return `Your receptionist answers calls on ${voiceNum}. WhatsApp is not connected. ${texting.sentence}`;
+  if (waReady) return `Your receptionist answers WhatsApp on ${waNum}. No phone line yet.`;
+  return "Your receptionist is not answering yet.";
+}
+function tryItOf(ctx) {
+  const { wa, voice, waReady, voiceReady, answering, waNum, voiceNum } = ctx;
+  if (!answering) return null;
+  return {
+    voice: voiceReady ? voice.number : null,
+    voiceLabel: voiceReady ? voiceNum : null,
+    whatsapp: waReady ? wa.number : null,
+    whatsappLabel: waReady ? waNum : null
+  };
+}
+function firstRunFactsOf(i, ctx, off, nowMs) {
+  const google = i.google;
+  return {
+    findable: !!google?.ready && google.places !== false && !google.listing,
+    trySkipped: setupOffNow(off, TRY_SKIPPED, nowMs),
+    remindSkipped: setupOffNow(off, REMIND_SKIPPED, nowMs),
+    remindBack: setupBack(off, REMIND_SKIPPED, nowMs),
+    dayBeforeOn: i.reminders?.day_before === true,
+    forwardingOwed: forwardingOwedOf(i, off),
+    receptionistMet: setupPutOffEver(off, RECEPTIONIST_MET),
+    rehearseSkipped: setupPutOffEver(off, REHEARSE_SKIPPED),
+    googleConnect: {
+      offered: google?.profile === true && !!google.listing && !google.connected && !setupPutOffEver(off, GOOGLE_CONNECT_LATER),
+      connected: !!google?.connected,
+      email: google?.connection?.google_email ?? null
+    },
+    rehearsal: { reviewed: i.rehearsal?.reviewed ?? 0, kept: i.rehearsal?.kept ?? 0 },
+    choices: i.choices ?? { whatsapp: null },
+    want: i.want ?? null,
+    lineUnderway: !!ctx.ownLine || ctx.voice.present || !!i.requests.line || !!i.requests.port,
+    numbersHere: !!i.lines?.ready,
+    channelsSeen: setupPutOffEver(off, CHANNELS_SEEN),
+    calendarLinked: i.calendar.state !== "none",
+    check: checkFactsOf(i)
+  };
+}
 export function setupSteps(i, nowMs = Date.now()) {
   const off = { later: i.later ?? [], rests: i.rests ?? {} };
   const ctx = rowContextOf(i, nowMs);
-  const { wa, voice, waReady, voiceReady, answering, waNum, voiceNum, texting } = ctx;
   const rows = [];
   for (const build of SETUP_ROWS) {
     const r = build(i, ctx);
@@ -477,31 +574,13 @@ export function setupSteps(i, nowMs = Date.now()) {
   const nextRow = open.find((r) => r.verb) ?? null;
   const next = nextRow && nextRow.verb ? { label: nextRow.verb.label, to: nextRow.verb.to, row: nextRow.id, title: nextRow.title } : null;
   const done = rows.filter((r) => r.state === "ready").length;
-  const seriousConflict = (i.conflicts ?? []).find((k) => k.severity === "serious") ?? null;
-  const sentence = seriousConflict ? (
-    // "Answering" and "answering correctly" are different claims, and the top
-    // line of Setup is where an owner reads the second one.
-    seriousConflict.sentence
-  ) : waReady && voiceReady ? `Your receptionist answers calls on ${voiceNum} and WhatsApp on ${waNum}. ${texting.sentence}` : voiceReady ? `Your receptionist answers calls on ${voiceNum}. WhatsApp is not connected. ${texting.sentence}` : waReady ? `Your receptionist answers WhatsApp on ${waNum}. No phone line yet.` : "Your receptionist is not answering yet.";
   return {
     rows,
-    readiness: { answering, sentence },
+    readiness: { answering: ctx.answering, sentence: readinessSentenceOf(i, ctx) },
     next,
     done,
     total: rows.length,
-    tryIt: answering ? {
-      voice: voiceReady ? voice.number : null,
-      voiceLabel: voiceReady ? voiceNum : null,
-      whatsapp: waReady ? wa.number : null,
-      whatsappLabel: waReady ? waNum : null
-    } : null,
-    findable: !!i.google?.ready && i.google.places !== false && !i.google.listing,
-    trySkipped: setupOffNow(off, TRY_SKIPPED, nowMs),
-    remindSkipped: setupOffNow(off, REMIND_SKIPPED, nowMs),
-    remindBack: setupBack(off, REMIND_SKIPPED, nowMs),
-    dayBeforeOn: i.reminders?.day_before === true,
-    forwardingOwed: forwardingOwedOf(i, off),
-    calendarLinked: i.calendar.state !== "none",
-    check: checkFactsOf(i)
+    tryIt: tryItOf(ctx),
+    ...firstRunFactsOf(i, ctx, off, nowMs)
   };
 }

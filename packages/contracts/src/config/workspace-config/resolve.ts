@@ -5,7 +5,7 @@
  */
 import { resolveFacts, type KnownFacts } from "../facts";
 import { samePhone } from "../../shared/phone";
-import { NO_WAY_TO_SEND_LINK, offersBookingLink, offersLinkOn } from "../no-booking-link";
+import { cannotSendLink, offersBookingLink, offersLinkOn } from "../no-booking-link";
 import { BASELINE_CLOSING, BASELINE_OPENING, isBaselinePrompt } from "./brain-config";
 import type { BrainConfig } from "./brain-config-schema";
 import type { BusinessProfile } from "./business-profile";
@@ -145,8 +145,8 @@ export function resolveSystemPrompt(
     // The standing rules (the money row, the fence) are said to every prompt, so the rules always follow it.
     const link = !offersBookingLink(brain)
       ? [noLinkBooking(channel)]
-      : channel === "voice" && !offersLinkOn("call", brain, facts.whatsapp_line.value)
-        ? [NO_WAY_TO_SEND_LINK]
+      : channel === "voice" && !offersLinkOn("call", brain, facts.whatsapp_line.value, known?.booking_message)
+        ? [cannotSendLink(facts.whatsapp_line.value)]
         : [];
     const rules = [...link, ...standingRules(policy, channel, audience)];
     return `${brain.system_prompt}\n\n${PROMPT_OPENINGS.rules}\n${rules.map((r) => `- ${r}`).join("\n")}`;
@@ -164,6 +164,8 @@ export function resolveSystemPrompt(
     booking_link: facts.booking_link.value ?? brain.booking_link ?? null,
     // Provisioned or nothing, never typed (facts.ts): the ask for the yes to offers is composed only where there is one.
     whatsapp_line: facts.whatsapp_line.value,
+    // Whether Meta approved the message a call sends the link in (R14); not read, offered as before.
+    booking_message: known?.booking_message ?? null,
   };
   // NOTHING a workspace already had may be lost by filling in a form.
   //

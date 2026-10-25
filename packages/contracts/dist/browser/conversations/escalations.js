@@ -97,7 +97,7 @@ export const ESCALATION_SUMMARIES = {
   callback: "They phoned and are still owed a call: the call didn't connect, they hung up without a word, or the receptionist couldn't finish it.",
   paused: "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings \u203A Billing, or answer this one yourself.",
   carriers: "This text arrived before the carriers approved your line for texting, so the receptionist did not answer. Answer it yourself, or wait for the approval on Setup.",
-  email_review: "They wrote by email. The receptionist does not answer email yet, so nothing was sent. Read it and reply from here.",
+  email_review: "They wrote by email. Nothing was sent: a reply is drafted for you in Need you, to change or send from here.",
   booking_request: "They picked a time the calendar shows open, and the receptionist told them the team will confirm it. That's you: Booked it, or Can't and reply.",
   booking_reply: "They asked to book a time, and the receptionist told them the team will confirm. Reply with a time that works.",
   wrote_while_held: "They wrote again while your team had this thread, so the receptionist stayed out. Nothing was sent \u2014 answer them yourself, or hand the thread back."

@@ -1,4 +1,4 @@
-import { COLUMN_SHARE, columnShare, isHeaderRow, parseCsv, phoneShaped } from "../shared/csv.js";
+import { COLUMN_SHARE, columnShare, isHeaderRow, parseCsv, phoneShaped } from "../imports/csv.js";
 import { normalizeEmail } from "../shared/email-address.js";
 import { normalizePhone } from "../shared/phone.js";
 import { plural } from "../shared/words.js";

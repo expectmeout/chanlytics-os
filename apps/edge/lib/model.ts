@@ -62,6 +62,9 @@ const ASKED_BY_A_PERSON: ReadonlySet<ModelPurpose> = new Set<ModelPurpose>([
   "note_suggest",
   // Ask's journal (decision 0070): a paused, ended or unbilled workspace's day is not written.
   "ask_journal",
+  // A rehearsal's review and the fix router (decision 0069): the owner's press, spent as Try it's is.
+  "receptionist_review",
+  "fix_route",
 ]);
 
 let deps: ModelDeps = {};

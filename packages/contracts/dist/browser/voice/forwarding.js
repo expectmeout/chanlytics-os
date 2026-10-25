@@ -110,3 +110,11 @@ export function forwardingTestOpen(facts, nowMs = Date.now()) {
   const until = typeof facts.test_until === "string" ? Date.parse(facts.test_until) : NaN;
   return !Number.isNaN(until) && until > nowMs;
 }
+export const PHONE_WAYS = ["keep", "new", "move"];
+export const PHONE_RINGS = ["mobile", "landline", "office"];
+export function forwardingCarrierOf(rings, company) {
+  if (rings === "office") return "office";
+  if (rings === "landline") return "other";
+  if (rings === "mobile") return company ?? null;
+  return null;
+}

@@ -53,6 +53,8 @@ export const BOOKING_LINK_MAX = 500;
 export const ASK_GOAL_MAX = 200;
 export const PROFILE_LIMITS = {
   tone: 200,
+  /** The receptionist's own name (decision 0073): a first name, said in the greeting. */
+  assistantName: 40,
   services: 60,
   serviceName: 80,
   serviceMinutes: 1440,

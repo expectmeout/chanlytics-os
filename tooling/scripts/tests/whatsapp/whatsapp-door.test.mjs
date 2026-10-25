@@ -2078,3 +2078,70 @@ test("an answer job says it is about to speak before Meta is called, on its own 
   );
   assert.equal(atTheWire.length, 1, "nothing more was said");
 });
+
+/* ------------------------------------------------- what a kept WhatsApp Business app shares (decision 0073, R21) */
+
+/** The key the intake ledger keeps a delivery under: the body's digest (intake/keep.ts digestId). */
+const digestOf = (raw) => "sha256:" + crypto.createHash("sha256").update(raw).digest("hex");
+
+test("a kept app's chats and contacts: kept as they came and handed to the history job by the delivery's key, the same bytes again scheduling nothing twice; a number no workspace holds has nothing to bring", async () => {
+  const w = world();
+  Object.assign(w.tables, { provider_events: [], jobs: [] });
+  w.open();
+  const chats = JSON.stringify(
+    w.change(
+      { history: [{ metadata: { phase: 0, progress: 10 }, threads: [{ id: w.customer(), messages: [] }] }] },
+      { field: "history" },
+    ),
+  );
+  const key = digestOf(chats);
+  assert.deepEqual(await answer(await knock(chats)), [200, { ok: true }]);
+  assert.deepEqual(
+    w.tables.provider_events.map((e) => [e.provider, e.provider_event_id]),
+    [["meta", key]],
+    "the copy the job brings it from",
+  );
+  assert.deepEqual(
+    w.tables.jobs.map((j) => [j.tenant_id, j.kind, j.payload.source, j.payload.connection_id, j.payload.seq]),
+    [[w.T, "history_import", "whatsapp_history", key, `${key.slice(7, 23)}:1`]],
+  );
+  // Meta sends the same bytes again: the same run, scheduled once.
+  assert.deepEqual(await answer(await knock(chats)), [200, { ok: true }]);
+  assert.equal(w.tables.jobs.length, 1);
+  // The contacts: the same road, as their own source.
+  const contacts = w.change(
+    {
+      state_sync: [
+        { type: "contact", action: "add", contact: { full_name: "Dana Reyes", phone_number: w.customer() } },
+      ],
+    },
+    { field: "smb_app_state_sync" },
+  );
+  assert.deepEqual(await answer(await deliver(contacts)), [200, { ok: true }]);
+  assert.deepEqual(
+    w.tables.jobs.map((j) => j.payload.source),
+    ["whatsapp_history", "whatsapp_contacts"],
+  );
+  // A number no workspace holds: acknowledged, and nothing to bring.
+  assert.deepEqual(await answer(await deliver(w.change({ history: [] }, { field: "history", phoneId: w.stranger }))), [
+    200,
+    { ok: true },
+  ]);
+  assert.equal(w.tables.jobs.length, 2);
+});
+
+test("a kept app's history whose copy could not be taken is not acknowledged, so Meta sends it again; nor is one whose number the database could not route", async () => {
+  const notKept = world();
+  Object.assign(notKept.tables, { provider_events: [], jobs: [] });
+  notKept.open({ "provider_events.upsert": { message: "connection terminated unexpectedly" } });
+  const body = notKept.change({ history: [{ metadata: { phase: 0 }, threads: [] }] }, { field: "history" });
+  assert.deepEqual(await answer(await deliver(body)), [503, { ok: false, unrecorded: 1 }]);
+  assert.equal(notKept.tables.jobs.length, 0, "a part with no copy to bring from would bring nothing");
+
+  const unread = world();
+  Object.assign(unread.tables, { provider_events: [], jobs: [] });
+  unread.open({ "tenant_channels.select": { message: "connection terminated unexpectedly" } });
+  const contacts = unread.change({ state_sync: [] }, { field: "smb_app_state_sync" });
+  assert.deepEqual(await answer(await deliver(contacts)), [503, { ok: false, unrecorded: 1 }]);
+  assert.equal(unread.tables.jobs.length, 0);
+});

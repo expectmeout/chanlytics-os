@@ -80,9 +80,23 @@ export type { AskSuggestion, SuggestionInput } from "./ask-suggestions";
 export { dayFromQuestion, askIntent, callsToday, quickAnswerOf } from "./ask-fast-paths";
 export type { FastCall, AskIntent } from "./ask-fast-paths";
 export { callJumpSub, askCallOutcome } from "./ask-calls";
-export { applySettingsChange, describeSettingsChange, ASK_ANSWERS_ROWS } from "./ask-settings-change";
-export { AskSettingsChangeSchema } from "./ask-schemas";
-export type { AskSettingsChange, AskAnswersChange, AskMessageKey } from "./ask-settings-change";
+export {
+  applySettingsChange,
+  describeSettingsChange,
+  ASK_ANSWERS_PANE,
+  ASK_ANSWERS_ROWS,
+  GUARDRAIL_RULES,
+  GUARDRAIL_RULE_WORDS,
+} from "./ask-settings-change";
+export { AskSettingsChangeSchema, FixChangeSchema } from "./ask-schemas";
+export type { FixChange } from "./ask-schemas";
+export type {
+  AskSettingsChange,
+  AskAnswersChange,
+  AskFixChange,
+  AskMessageKey,
+  GuardrailRule,
+} from "./ask-settings-change";
 export {
   emptyReadSet,
   noteRows,

@@ -41,5 +41,5 @@ export function suggestLocalPart(businessName) {
   const s = (businessName ?? "").normalize("NFKD").replace(/\p{M}+/gu, "").toLowerCase().replace(/['’]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, MAILBOX_LOCAL_PART_MAX).replace(/-+$/g, "");
   return s && whyNotALocalPart(s) === null ? s : null;
 }
-export const EMAIL_NOT_ANSWERED_SENTENCE = "The receptionist does not answer email yet: every email waits for you in the Inbox.";
+export const EMAIL_NOT_ANSWERED_SENTENCE = "Nothing is sent by email without you: each email waits in Need you with a reply drafted for you to change or send.";
 export const EMAIL_ELSEWHERE_SENTENCE = "Replies you send from another mail app do not show here.";

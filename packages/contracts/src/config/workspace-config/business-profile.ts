@@ -133,6 +133,10 @@ export const NoteSchema = z
   .strip();
 export type Note = z.infer<typeof NoteSchema>;
 
+/** Whether the business takes walk-ins (booking_rules.walk_ins): yes, when there is room, or no. */
+export const WALK_INS = ["yes", "room", "no"] as const;
+export type WalkIns = (typeof WALK_INS)[number];
+
 /** A booking rule's whole number, in its range (BOOKING_RULE_BOUNDS). */
 const rule = (key: BookingRuleKey) =>
   z.number().int().min(BOOKING_RULE_BOUNDS[key].min).max(BOOKING_RULE_BOUNDS[key].max).optional();
@@ -154,6 +158,11 @@ export const BookingRulesSchema = z
     /** Services that need a consultation before they can be booked. */
     consult_first: z.array(z.string().min(1).max(L.consultFirstLine)).max(L.consultFirst).optional(),
     party_max: rule("party_max"),
+    /**
+     * Whether the business takes walk-ins (the first run's Your receptionist, decision 0073): yes, when there's room, or
+     * no, one sentence of the booking rules. Absent says nothing, as before it.
+     */
+    walk_ins: z.enum(WALK_INS).optional(),
     /**
      * Ask, once, for an email when sending the booking link -- for the confirmation, and for the campaigns that follow
      * (Part 0 of the campaigns-on-every-channel spec). Absent = no.
@@ -178,6 +187,12 @@ export const BusinessProfileSchema = z
     escalate_when: z.array(z.string().min(1).max(L.reason)).max(L.reasons).optional(),
     tone: z.string().max(L.tone).optional(),
     /**
+     * The receptionist's own name (decision 0073): "I'm Ava, the automated assistant" in the standard greeting, and the
+     * prompt's first line. Absent, it has none, and every line is as it was. A first name, never a claim to be a person:
+     * the greeting says it is automated beside it whatever the name (decision 0051).
+     */
+    assistant_name: z.string().trim().min(1).max(L.assistantName).optional().catch(undefined),
+    /**
      * The line a PERSON answers. The phone receptionist warm-transfers here
      * during opening hours; absent, it takes a message instead. Never the
      * receptionist's own line — that would ring itself.
@@ -199,6 +214,12 @@ export const BusinessProfileSchema = z
      * the composed prompt.
      */
     phone_voice: z.string().max(64).optional().catch(undefined),
+    /**
+     * How fast the voice speaks (decision 0073, R7): each call's agent_override voice_speed, as the voice is (voice/
+     * phone-pace.ts PHONE_PACES). Absent is the line's own pace. Kept as a string the list reads, so a pace retired from
+     * the list never leaves a config that cannot be parsed. Never part of the composed prompt.
+     */
+    phone_pace: z.string().max(24).optional().catch(undefined),
     website: z.string().url().max(500).optional(),
     notes: z.array(NoteSchema).max(L.notes).optional(),
     booking_rules: BookingRulesSchema.optional(),

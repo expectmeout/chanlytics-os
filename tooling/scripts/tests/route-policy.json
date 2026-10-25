@@ -16,6 +16,13 @@
       "rate": null,
       "spend": false
     },
+    "POST ask/idea": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "ask",
+      "spend": false
+    },
     "PATCH ask/memory/[id]": {
       "kind": "write",
       "scope": "workspace",
@@ -70,13 +77,6 @@
       "scope": "workspace",
       "role": null,
       "rate": "aggregate",
-      "spend": false
-    },
-    "POST ask/idea": {
-      "kind": "write",
-      "scope": "workspace",
-      "role": "partner",
-      "rate": "ask",
       "spend": false
     },
     "POST ask/quick": {
@@ -604,13 +604,6 @@
       "rate": "person_draft",
       "spend": false
     },
-    "GET conversations/drafts": {
-      "kind": "read",
-      "scope": "workspace",
-      "role": null,
-      "rate": null,
-      "spend": false
-    },
     "GET conversations/[id]/export": {
       "kind": "read",
       "scope": "workspace",
@@ -659,6 +652,13 @@
       "scope": "row",
       "role": "operator",
       "rate": "thread_state",
+      "spend": false
+    },
+    "GET conversations/drafts": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
       "spend": false
     },
     "GET conversations": {
@@ -801,6 +801,13 @@
       "scope": "account",
       "role": null,
       "rate": "handover_answer",
+      "spend": false
+    },
+    "POST imports/again": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
       "spend": false
     },
     "POST lead-operations/[id]/undo": {
@@ -1048,6 +1055,13 @@
       "scope": "workspace",
       "role": "partner",
       "rate": "lines_forwarding",
+      "spend": false
+    },
+    "POST lines/lookup": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "lines_search",
       "spend": false
     },
     "POST lines/register": {
@@ -1756,6 +1770,48 @@
       "role": null,
       "rate": null,
       "spend": false
+    },
+    "POST receptionist/agent": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "receptionist_call",
+      "spend": false
+    },
+    "POST receptionist/fix": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "receptionist_review",
+      "spend": true
+    },
+    "POST receptionist/keep": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
+    "GET receptionist/rehearsals/[id]": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "POST receptionist/rehearsals": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "receptionist_call",
+      "spend": true
+    },
+    "POST receptionist/review": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "receptionist_review",
+      "spend": true
     },
     "POST receptionist/try": {
       "kind": "write",

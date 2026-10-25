@@ -18,6 +18,8 @@ export interface BillingBody {
   email?: string;
   /** Where Checkout comes back to: a place on contracts' closed list, or Billing. */
   return?: unknown;
+  /** Checkout made in the page (decision 0073, R16): the session's client secret and the key, not a page to go to. */
+  embedded?: boolean;
   /** The member the dashboard acted for, where its token names none (admin-auth.ts personFor). */
   user_id?: string;
 }

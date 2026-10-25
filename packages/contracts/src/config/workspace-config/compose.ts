@@ -4,14 +4,8 @@
  * beside them (describeNow).
  * Which instructions a workspace is actually given is resolve.ts; the week's lines are prompt-hours.ts.
  */
-import {
-  NO_LINK_DETAILS,
-  NO_WAY_TO_SEND_LINK,
-  offersBookingLink,
-  offersLinkOn,
-  priceNextStep,
-} from "../no-booking-link";
-import type { BookingRules, BusinessProfile, Closure, Note } from "./business-profile";
+import { NO_LINK_DETAILS, cannotSendLink, offersBookingLink, offersLinkOn, priceNextStep } from "../no-booking-link";
+import type { BookingRules, BusinessProfile, Closure, Note, WalkIns } from "./business-profile";
 import { guardrailsInForce } from "./config-rules";
 import { bookingHeld, policyRules } from "./policy-classes";
 import { DATA_NOT_INSTRUCTIONS } from "../../ai/fence";
@@ -257,12 +251,15 @@ export function composeSystemPrompt(
    * `booking_link` null for a business that quotes each job: the prompt then says what the receptionist takes instead.
    * `whatsapp_line` is the WhatsApp number the platform provisioned (facts.ts), or null: only a workspace with one is
    * told to ask for the yes to offers, which goes by WhatsApp alone (offers-ask.ts). Required, so a caller says.
+   * `booking_message` is whether Meta approved the message a call sends the link in (facts.ts; R14): false, a call
+   * offers no link; absent or null, not read, and offered as before.
    */
   base: {
     business_name: string;
     phone_display?: string | null;
     booking_link: string | null;
     whatsapp_line: string | null;
+    booking_message?: boolean | null;
   },
   profile: BusinessProfile,
   /** Where it answers: a text is a chat, as WhatsApp is, and is told it is answering texts. */
@@ -291,6 +288,7 @@ function composeSystemPromptWith(
     phone_display?: string | null;
     booking_link: string | null;
     whatsapp_line: string | null;
+    booking_message?: boolean | null;
   },
   profile: BusinessProfile,
   wire: "whatsapp" | "sms" | "voice",
@@ -306,7 +304,9 @@ function composeSystemPromptWith(
   // it was.
   const link = offersBookingLink(base) ? base.booking_link : null;
   // The link it may offer to hand over here: in chat any link, on a call only one WhatsApp can carry (offersLinkOn).
-  const handed = offersLinkOn(channel === "voice" ? "call" : "chat", base, base.whatsapp_line) ? link : null;
+  const handed = offersLinkOn(channel === "voice" ? "call" : "chat", base, base.whatsapp_line, base.booking_message)
+    ? link
+    : null;
   const hrs = hoursLines(profile.hours);
   // EVERY upcoming closure, not the first handful. A cap here and a larger cap
   // on the schema is a silent divergence between what an owner can store and
@@ -382,6 +382,10 @@ function identitySection({ base, profile, channel, wire }: SectionFacts): string
   // The wire it answers on, never one it does not: a text was told it answered over WhatsApp until 11 Oct 2026.
   const medium = wire === "voice" ? "on the phone" : wire === "sms" ? "by text message" : "over WhatsApp";
   s.push(`You are the assistant for ${base.business_name}, answering customers ${medium}.`);
+  // The receptionist's own name (decision 0073): said in the greeting, and how it introduces itself; never a claim to
+  // be a person (standingRules says it is the business's automated assistant, whatever its name).
+  const named = (profile.assistant_name ?? "").trim();
+  if (named) s.push(`Your name is ${named}. Introduce yourself by it, as the business's automated assistant.`);
   if (profile.tone) s.push(`Tone: ${profile.tone}`);
   if (profile.languages?.length) {
     const list = profile.languages.join(", ");
@@ -473,13 +477,25 @@ function bookingRulesSection({ profile }: SectionFacts): string[] {
   const br = profile.booking_rules;
   if (
     br &&
-    (br.lead_hours !== undefined || br.consult_first?.length || br.party_max || br.notes?.length || br.ask_email)
+    (br.lead_hours !== undefined ||
+      br.consult_first?.length ||
+      br.party_max ||
+      br.notes?.length ||
+      br.ask_email ||
+      br.walk_ins)
   ) {
     const lines = bookingRuleLines(br);
     s.push(`\n${PROMPT_OPENINGS.bookingRules}\n${lines.map((l) => `- ${l}`).join("\n")}`);
   }
   return s;
 }
+
+/** Walk-ins, in a line each answer says (booking_rules.walk_ins). */
+const WALK_IN_LINES: Readonly<Record<WalkIns, string>> = {
+  yes: "Walk-ins are welcome during opening hours.",
+  room: "Walk-ins are taken when there's room; never promise one. Suggest booking ahead to be sure.",
+  no: "No walk-ins: customers book ahead.",
+};
 
 /** What each booking rule that is set says, a line each, in the order the section lists them. */
 function bookingRuleLines(br: BookingRules): string[] {
@@ -493,6 +509,8 @@ function bookingRuleLines(br: BookingRules): string[] {
   }
   if (br.consult_first?.length)
     lines.push(`These need a consultation before they can be booked: ${br.consult_first.join(", ")}.`);
+  // Walk-ins (decision 0073): the owner's answer at the first run, said as it is, never a promise of a free chair.
+  if (br.walk_ins) lines.push(WALK_IN_LINES[br.walk_ins]);
   if (br.party_max)
     lines.push(
       `Up to ${br.party_max} ${br.party_max === 1 ? "person" : "people"} per booking; larger groups go to a person.`,
@@ -582,15 +600,18 @@ function callToolsSection({ base, channel, link, handed }: SectionFacts): string
     s.push(
       `\n${PROMPT_OPENINGS.callTools} before offering a time — it reads the calendar as it is at that moment (a list at the end of these instructions, if any, is from the start of the call). Ask which service first when you can, so only windows long enough are offered.\n` +
         (handed
-          ? "Booking: when the caller wants to book, use send_booking_link — it sends the booking link to the caller's WhatsApp, on the number they are calling from, " +
+          ? // Asked first (decision 0073, R14): the link only arrives on a number that has WhatsApp, and a caller who says
+            // no is never sent a message that cannot reach them.
+            'Booking: when the caller wants to book, first ask "Do you use WhatsApp on this number?" ' +
+            "If they do, use send_booking_link — it sends the booking link to the caller's WhatsApp, on the number they are calling from, " +
             "so do not ask them for a number unless they want it sent somewhere else. " +
-            "Tell them it comes by WhatsApp, not as a text message: it only arrives if that number has WhatsApp. Then confirm it was sent. " +
+            "Tell them it comes by WhatsApp, not as a text message. Then say what the tool answers: it waits a moment for WhatsApp's own answer, so it tells you whether it arrived. " +
             // A number to give only where there is one other than the line they are ringing (resolveSystemPrompt).
             (base.phone_display
-              ? "If it fails, or they do not have WhatsApp on that number, give the phone number above and offer to have someone follow up.\n"
-              : "If it fails, or they do not have WhatsApp on that number, offer to have someone follow up.\n")
+              ? `If they do not use WhatsApp there, or it fails, take ${NO_LINK_DETAILS}, give the phone number above, and offer to have someone follow up.\n`
+              : `If they do not use WhatsApp there, or it fails, take ${NO_LINK_DETAILS} and offer to have someone follow up.\n`)
           : link
-            ? `${NO_WAY_TO_SEND_LINK}\n`
+            ? `${cannotSendLink(base.whatsapp_line)}\n`
             : `${noLinkBooking("voice")}\n`) +
         "Ending: once the caller has said goodbye, use end_call.",
     );

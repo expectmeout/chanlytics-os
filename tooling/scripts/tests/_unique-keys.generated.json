@@ -270,6 +270,21 @@
       "where": null
     },
     {
+      "table": "business_reads",
+      "name": "business_reads_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "source"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "business_records",
       "name": "business_records_pkey",
       "primary": true,
@@ -287,6 +302,21 @@
       "primary": true,
       "nullsNotDistinct": false,
       "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "calls",
+      "name": "calls_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
         {
           "column": "id"
         }
@@ -833,6 +863,21 @@
         },
         {
           "column": "key"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "imports",
+      "name": "imports_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "source"
         }
       ],
       "where": null
@@ -2209,6 +2254,30 @@
       "where": null
     },
     {
+      "table": "rehearsals",
+      "name": "rehearsals_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "rehearsals",
+      "name": "rehearsals_retell_call_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "retell_call_id"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "reply_turns",
       "name": "reply_turns_pkey",
       "primary": true,
@@ -2860,6 +2929,30 @@
       "keys": [
         {
           "column": "slug"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "voice_agents",
+      "name": "voice_agents_agent_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "agent_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "voice_agents",
+      "name": "voice_agents_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
         }
       ],
       "where": null

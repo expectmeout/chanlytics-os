@@ -10,6 +10,8 @@ export function profileRefusal(key, seen, of) {
   const lines = (max, one, many) => `At most ${pluralGrouped(max, one, many)}, one to a line${seen === void 0 ? "." : ` \u2014 this is ${count(seen)}.`}`;
   const words = {
     tone: () => chars(L.tone),
+    // The name it goes by (decision 0073), said beside "the automated assistant", never instead of it.
+    assistantName: () => chars(L.assistantName),
     services: () => `At most ${pluralGrouped(L.services, "service", "services")}.`,
     serviceName: () => chars(L.serviceName),
     serviceMinutes: () => `At most ${count(L.serviceMinutes)} minutes, a whole day.`,

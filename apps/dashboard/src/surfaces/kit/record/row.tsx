@@ -322,18 +322,21 @@ export function RecordChips({
   chips = [],
   more = null,
   max = null,
+  phrases = false,
   testid = null,
 }: {
   chips?: Array<{ label: ReactNode; meta?: ReactNode }>;
   more?: ReactNode | ((cut: number) => ReactNode);
   max?: number | null;
+  /** Phrases rather than names (the rules it keeps): parted by a dot, so each keeps its capital. */
+  phrases?: boolean;
   testid?: string | null;
 }) {
   const capped = typeof max === "number" && chips.length > max ? chips.slice(0, max) : chips;
   const cut = chips.length - capped.length;
   const said = typeof more === "function" ? (cut > 0 ? more(cut) : null) : more;
   return (
-    <span className="rec-chips" data-testid={testid || undefined}>
+    <span className={phrases ? "rec-chips rec-chips-phrases" : "rec-chips"} data-testid={testid || undefined}>
       {capped.map((c, i) => (
         <span key={i} className="chip rec-chip">
           {c.label}

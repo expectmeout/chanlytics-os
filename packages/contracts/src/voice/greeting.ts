@@ -20,8 +20,18 @@
  * will say (first-run.ts); the voice shell (packages/channels voice-shell.ts)
  * re-exports it, so the phone and the page say one sentence.
  */
-export function greetingFor(name: string | null): string {
-  return `${opening(name)} I'm the automated assistant, and calls are recorded. How can I help?`;
+export function greetingFor(name: string | null, assistant: string | null = null): string {
+  return `${opening(name)} ${iAm(assistant)}, and calls are recorded. How can I help?`;
+}
+
+/**
+ * Who answers, said with the disclosure: "I'm the automated assistant", or, where the owner named their receptionist
+ * (profile.assistant_name, decision 0073), "I'm Ava, the automated assistant". A name is never said without the
+ * disclosure beside it (decision 0051's one rule).
+ */
+function iAm(assistant: string | null): string {
+  const n = (assistant ?? "").replace(/\s+/g, " ").trim();
+  return n ? `I'm ${n}, the automated assistant` : "I'm the automated assistant";
 }
 
 /**
@@ -39,8 +49,8 @@ function opening(name: string | null): string {
  * The opening line while the workspace is paused (billing stopped): the same two disclosures, and, before the caller
  * asks for anything, that today it only takes a message -- rather than "how can I help you today?" and a refusal after.
  */
-export function pausedGreetingFor(name: string | null): string {
-  return `${opening(name)} I'm the automated assistant, and calls are recorded. Today I can only take a message for the team.`;
+export function pausedGreetingFor(name: string | null, assistant: string | null = null): string {
+  return `${opening(name)} ${iAm(assistant)}, and calls are recorded. Today I can only take a message for the team.`;
 }
 
 /**

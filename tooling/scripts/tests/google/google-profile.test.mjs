@@ -847,7 +847,7 @@ test("the dashboard: the way there is signed, the way back is proven before anyt
   );
   assert.ok(
     connect.includes('role: "partner",') &&
-      /signState\(secret, \{\s*t: member\.tenantId,\s*u: ctx\.userId,\s*n: newNonce\(\),\s*exp: Date\.now\(\) \+ STATE_TTL_MS,?\s*\}\)/.test(
+      /signState\(secret, \{\s*t: member\.tenantId,\s*u: ctx\.userId,\s*n: newNonce\(\),\s*exp: Date\.now\(\) \+ STATE_TTL_MS,(?:\s*\/\/[^\n]*)?\s*(?:\.\.\.\(back \? \{ b: back \} : \{\}\),?)?\s*\}\)/.test(
         connect,
       ),
   );
@@ -891,7 +891,9 @@ test("the dashboard: the way there is signed, the way back is proven before anyt
   assert.ok(rate.includes("google_reply: {"));
   const bridge = readCode("apps/dashboard/src/legacy-bridge/google.ts");
   assert.ok(
-    bridge.includes('window.location.assign(api().url("GET google/connect"));') &&
+    // The way there, with the first run's way back where it asked (decision 0073, R17: `back: "start"`).
+    /window\.location\.assign\(\s*api\(\)\.url\("GET google\/connect"/.test(bridge) &&
+      bridge.includes("query: o?.back ? { back: o.back } : undefined") &&
       bridge.includes("outcomeWords: CONNECT_OUTCOME_WORDS"),
   );
   // The card is TSX now: the pane (its note and its rows), the row (its verbs and its Confirm) and the location choice.

@@ -640,7 +640,7 @@ test("the count above the work sees every wire, and calls each one what the owne
   assert.ok(only.quiet.proof.some((p) => p.label === "Email" && p.value === "bestmovers@mail.chanlytics.com · on"));
   // and it is not congratulated: the receptionist does not answer email.
   assert.equal(only.queue.empty.testid, "today-queue-empty-unanswered");
-  assert.match(only.queue.empty.title, /every email waits for you in the Inbox/);
+  assert.match(only.queue.empty.title, /each email waits in Need you/);
   assert.equal(
     only.queue.empty.sub,
     "nothing in the queue",

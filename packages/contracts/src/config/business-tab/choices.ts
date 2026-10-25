@@ -144,3 +144,31 @@ export const PRICE_CHOICE_WORDS = {
   },
   saved: (to: PriceChoice) => `When someone asks a price: ${PRICE_CHOICE_WORDS.options[to].label.toLowerCase()}.`,
 } as const;
+
+/* ------------------------------------ walk-ins ------------------------------------ */
+
+/**
+ * The third question asked this way (decision 0073, R7): whether the business takes walk-ins (booking_rules.walk_ins),
+ * one sentence of the booking rules the composer says (compose.ts WALK_IN_LINES). "unset" is none said: the key taken
+ * away, and nothing said of walk-ins, as before the question.
+ */
+export const WALK_INS_CHOICES = ["yes", "room", "no", "unset"] as const;
+export type WalkInsChoice = (typeof WALK_INS_CHOICES)[number];
+
+/** The answer a stored value is: one of the three, else none said. */
+export const walkInsChoiceOf = (stored: unknown): WalkInsChoice =>
+  stored === "yes" || stored === "room" || stored === "no" ? stored : "unset";
+
+export const WALK_IN_WORDS = {
+  label: "Walk-ins",
+  ask: "Do you take walk-ins?",
+  options: {
+    yes: { label: "Yes", says: "It tells customers walk-ins are welcome in opening hours." },
+    room: { label: "When there's room", says: "Taken when there's room. It never promises one and suggests booking." },
+    no: { label: "No", says: "It tells customers to book ahead." },
+    unset: { label: "Not said", says: "It says nothing about walk-ins." },
+  },
+  gate: "say whether you take walk-ins",
+  saved: (to: WalkInsChoice) =>
+    to === "unset" ? "Walk-ins: nothing said." : `Walk-ins: ${WALK_IN_WORDS.options[to].label.toLowerCase()}.`,
+} as const;

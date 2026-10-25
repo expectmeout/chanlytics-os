@@ -8,10 +8,11 @@
  *   1. the chain writes to four businesses by Part 4's path: the step's run, approved, checked and claimed, its jobs
  *      run through the one door from the connected mailbox, each email stamped with the Message-ID and the thread Gmail
  *      kept, the clock reading them sent;
- *   2. each replies into the mailbox, in the thread of the email it answers; the mailbox's sync reads those threads
- *      (only those) and hands each reply to the intake's own job (email_ingest from the mailbox: core ingestEmail
- *      through packages/jobs, over the edge's mailbox intake reading it from Gmail): one interested and one no, from a
- *      person; one automatic out-of-office that names the day they are back; one automatic "remove us";
+ *   2. each replies into the mailbox, in the thread of the email it answers; the mailbox's sync hands each reply to the
+ *      intake's own job (email_ingest from the mailbox: core ingestEmail through packages/jobs, over the edge's mailbox
+ *      intake reading it from Gmail): one interested and one no, from a person; one automatic out-of-office that names
+ *      the day they are back; one automatic "remove us". A person's email outside those threads is taken in too, on a
+ *      thread of its own and never read as a reply (decision 0073, R13);
  *   3. the reply_read jobs the intake scheduled run, over the edge's reader (lib/reach-out/reply-read.ts) with its ask
  *      scripted and its draft the edge's drafter (lib/reach-out/reply-draft.ts) over a scripted brain, so the spend,
  *      the draft's gates and the notice (notifyOnce) are the real ones. Interested is Talking, with a draft kept and one
@@ -517,7 +518,8 @@ test(
   "2. each replies into the mailbox; its sync hands each to the intake's own job, threaded under the email it answers",
   { skip },
   async () => {
-    // Something else the business received meanwhile, in a thread no reach-out started: never read.
+    // Something else the business received meanwhile, in a thread no reach-out started: a person's email, taken in on a
+    // thread of its own (decision 0073, R13), and never read as a reply.
     gmail.received.push(
       gmailReceived({
         id: `elsewhere-${stamp}`,
@@ -532,21 +534,39 @@ test(
     for (const key of Object.keys(BUSINESSES)) gmail.received.push(receivedFrom(key));
     const box = ok(await db.from("mailbox_connections").select("*").eq("id", mailbox).single());
     const synced = await lib.syncMailbox(db, box, L);
-    assert.deepEqual([synced.outcome, synced.read, synced.replies, synced.bounced], ["synced", 4, 4, 0]);
+    assert.deepEqual(
+      [synced.outcome, synced.read, synced.replies, synced.people, synced.bounced],
+      ["synced", 5, 4, 1, 0],
+      "four replies, and the supplier's email as a person's",
+    );
     const ingest = ok(await db.from("jobs").select("payload").eq("tenant_id", A).eq("kind", "email_ingest"));
     assert.deepEqual(
       ingest.map((j) => [j.payload.source, j.payload.mailbox_id, j.payload.received_id]).sort(),
-      Object.keys(BUSINESSES)
-        .map((k) => ["mailbox", mailbox, `received-${k}-${stamp}`])
-        .sort(),
-      "one intake job each, and none for the supplier's",
+      [
+        ...Object.keys(BUSINESSES).map((k) => ["mailbox", mailbox, `received-${k}-${stamp}`]),
+        ["mailbox", mailbox, `elsewhere-${stamp}`],
+      ].sort(),
+      "one intake job each, the supplier's among them",
     );
     assert.equal(
       ok(await db.from("mailbox_connections").select("sync_cursor").eq("id", mailbox).single()).sync_cursor,
       String(100 + gmail.received.length),
       "read up to here",
     );
-    assert.equal(await runJobs("email_ingest"), 4);
+    assert.equal(await runJobs("email_ingest"), 5);
+    const [supplier] = ok(
+      await db
+        .from("messages")
+        .select("*")
+        .eq("tenant_id", A)
+        .eq("direction", "inbound")
+        .eq("meta->email->>message_id", `<order-${stamp}@supplier-${stamp}.example>`),
+    );
+    assert.ok(supplier, "the supplier's email was kept");
+    assert.ok(
+      !Object.values(firstEmail).some((m) => m.conversation_id === supplier.conversation_id),
+      "on a thread of its own, never a reach-out's",
+    );
     for (const key of Object.keys(BUSINESSES)) {
       const [m] = ok(
         await db
@@ -571,7 +591,7 @@ test(
       Object.values(replyOf)
         .map((m) => m.id)
         .sort(),
-      "one reading each, scheduled by the intake",
+      "one reading each, scheduled by the intake; none for the supplier's, which is no reply",
     );
   },
 );

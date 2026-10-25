@@ -2,9 +2,11 @@ import { neverConnected } from "../conversations/call-dto.js";
 import { isTheirOwnWords, writtenChannelOf } from "../conversations/thread-channel.js";
 import { messageAt } from "../conversations/thread-dto.js";
 import { CONSENT_CHANNEL_WORDS } from "../consent/consent-channels.js";
+import { viaWords } from "../imports/csv.js";
 import { clockDate } from "../shared/clock.js";
+import { formatterOnUse } from "../shared/time.js";
 import { samePhone } from "../shared/phone.js";
-import { ORIGIN_WORDS, REACH_SOURCE_WORDS } from "./words.js";
+import { BEFORE_WORDS, ORIGIN_WORDS, REACH_SOURCE_WORDS } from "./words.js";
 export function contactEvidenceOf(d, first) {
   const reachOut = d.lead?.reach_out ?? null;
   return {
@@ -90,4 +92,17 @@ export function personOriginOf(e, tz, nowMs) {
   }
   const added = day(e.added?.ms ?? null) ?? (e.first.ts !== null ? firstLowered(e.first.label) : null);
   return added ? W[from](added) : null;
+}
+const MONTH_DAY = formatterOnUse("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+export function personBeforeOf(before, nowMs) {
+  if (!before) return null;
+  const W = BEFORE_WORDS;
+  const [, mm, dd] = (before.birthday ? /(\d{2})-(\d{2})$/.exec(before.birthday) : null) ?? [];
+  const parts = [
+    before.visits !== void 0 && before.visits > 0 ? W.visits(before.visits) : null,
+    before.last_visit ? W.last(clockDate(Date.parse(`${before.last_visit}T12:00:00Z`), "UTC", nowMs)) : null,
+    mm && dd ? W.birthday(MONTH_DAY.format(new Date(Date.UTC(2e3, +mm - 1, +dd)))) : null
+  ].filter((x) => !!x);
+  if (!parts.length) return null;
+  return [W.label, ...parts, W.from(viaWords(before.via ?? null))].join(" \xB7 ");
 }

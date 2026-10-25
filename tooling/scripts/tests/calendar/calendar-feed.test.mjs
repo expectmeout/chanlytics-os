@@ -72,15 +72,15 @@ test("three windows, named, and every call site's old arithmetic lands on the sa
   // What the receptionist may offer: yesterday, for a visit already under way,
   // through the last day it is allowed to book into.
   assert.deepEqual(offeringHorizon(NOW, 14), { from: t - DAY, to: t + 15 * DAY });
-  // A season either side. The board read plus-or-minus ninety days, which is
-  // exactly this rule with no offering window.
-  assert.deepEqual(seasonHorizon(NOW), { from: t - 90 * DAY, to: t + 90 * DAY });
+  // A season either side: six months back (decision 0073, R20: what a calendar brings when it is connected) and
+  // ninety days ahead, which is exactly this rule with no offering window.
+  assert.deepEqual(seasonHorizon(NOW), { from: t - 180 * DAY, to: t + 90 * DAY });
   // The edge's own horizonFor and the prompt preview's inline copy were this,
   // byte for byte, in two runtimes, with nothing saying they were meant to be.
-  assert.deepEqual(seasonHorizon(NOW, 14), { from: t - 90 * DAY, to: t + 90 * DAY });
+  assert.deepEqual(seasonHorizon(NOW, 14), { from: t - 180 * DAY, to: t + 90 * DAY });
   assert.deepEqual(
     seasonHorizon(NOW, 200),
-    { from: t - 90 * DAY, to: t + 201 * DAY },
+    { from: t - 180 * DAY, to: t + 201 * DAY },
     "a workspace booking further out than a season widens the window, or the board and the receptionist disagree about a day it can offer",
   );
   // A month, to prove an address works: the preview answers "is this the right

@@ -1699,8 +1699,9 @@ test("the page is its bands and nothing seeded", () => {
   const work = find(tree, (n) => classes(n).includes("dash-a-v2-work"));
   // And what goes on its own today sits above the queue, over what waits for your OK (decision 0064). What Ask would do
   // is in the queue itself since decision 0071 (Need you, with Ask): its ideas are rows after the people, so nothing it
-  // suggests outranks a person who has been waiting (decision 0070), and it has no band of its own.
-  assert.deepEqual(work.props.children.map(name), ["TodaySetup", "TodayGoing", "AgentCommand"]);
+  // suggests outranks a person who has been waiting (decision 0070), and it has no band of its own. What came in before
+  // Chanlytics stands under what is left to set up, for its first week (decision 0073, T-today), and draws nothing else.
+  assert.deepEqual(work.props.children.map(name), ["TodaySetup", "TodayBroughtIn", "TodayGoing", "AgentCommand"]);
   assert.equal(
     buttons(byTestId(tree, "today-card"), "Reports").length,
     1,

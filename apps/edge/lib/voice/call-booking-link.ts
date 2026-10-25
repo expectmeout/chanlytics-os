@@ -35,10 +35,12 @@
  */
 import { json } from "../http.js";
 import { pg } from "../pg.js";
+import { isRehearsalCall, rehearsalOfToolCall, rehearsalRouting } from "./rehearsal-call.js";
 import { loadTenantRuntime, waCfgFor } from "../tenant-runtime.js";
 import { effectiveReplyMode, deliver, whatsappSender } from "../packages/core.js";
 import {
   emitEvent,
+  messageByExternalId,
   resolveChannel,
   resolveOutboundTarget,
   countSentToday,
@@ -56,6 +58,8 @@ import {
   renderTemplate,
   resolveFacts,
   resolveParams,
+  REHEARSAL_TOOL_WORDS,
+  SECOND_MS,
 } from "../packages/contracts.js";
 import { outboundGate, refusalScript, type OutboundRefusal } from "../packages/core.js";
 import { refusedOutLoud, voiceDoorAuth } from "./voice-door-auth.js";
@@ -95,6 +99,58 @@ const VOICE_SEND_SOURCE = "voice_booking_link";
 
 /** Per THREAD per day. A caller asking twice in one call is normal; thirty is not. */
 const VOICE_SENDS_PER_DAY = 3;
+
+/**
+ * How long the tool waits for WhatsApp's own answer about the send before it speaks (decision 0073, R14), and how often
+ * it looks. Meta takes the message at once and says a moment later whether it reached the phone; a number with no
+ * WhatsApp is refused in that moment. Said while the caller is still on the line, a failure is one they can act on.
+ */
+const RECEIPT_WAIT_MS = 3 * SECOND_MS;
+const RECEIPT_LOOK_MS = SECOND_MS / 2;
+
+/** What WhatsApp said of the send within the wait: it reached the phone, it failed, or nothing yet. */
+type Receipt = "delivered" | "failed" | null;
+
+/**
+ * WhatsApp's answer about a send, waited for (RECEIPT_WAIT_MS): the receipt door (inbound webhook) moves the message's
+ * status as Meta's statuses arrive, and this reads it back. A read that fails is no answer, never a failure.
+ */
+async function sendReceiptOf(db: Db, tenantId: string, wamid: string): Promise<Receipt> {
+  const until = Date.now() + RECEIPT_WAIT_MS;
+  while (Date.now() < until) {
+    await new Promise((r) => setTimeout(r, RECEIPT_LOOK_MS));
+    const m = await messageByExternalId(db, tenantId, wamid).catch(() => null);
+    if (m?.status === "failed") return "failed";
+    if (m?.status === "delivered" || m?.status === "read") return "delivered";
+  }
+  return null;
+}
+
+/** Spoken when WhatsApp refused the send in the moment after it was taken: the number most likely has no WhatsApp. */
+const notDelivered = (publishedNumber: string | null) =>
+  publishedNumber
+    ? `The WhatsApp message could not be delivered — that number may not have WhatsApp. Tell the caller they can book online, or reach us on ${publishedNumber}, and take ${NO_LINK_DETAILS} so the team can follow up.`
+    : `The WhatsApp message could not be delivered — that number may not have WhatsApp. Tell the caller they can book online, and take ${NO_LINK_DETAILS} so the team can follow up.`;
+
+/**
+ * What the receptionist says once Meta took the message: Meta's own answer is waited for a moment (R14), so a number
+ * with no WhatsApp is said while the caller is on the line, and one that reached the phone is said as there.
+ */
+async function sentOutLoud(
+  db: Db,
+  L: Logger,
+  s: { tenantId: string; wamid: string | null; publishedNumber: string | null },
+): Promise<Response> {
+  const receipt = s.wamid ? await sendReceiptOf(db, s.tenantId, s.wamid) : null;
+  L.info("retell_fn_sent", { tenant_id: s.tenantId, wamid: s.wamid, receipt });
+  if (receipt === "failed") return json(200, { result: notDelivered(s.publishedNumber) });
+  return json(200, {
+    result:
+      receipt === "delivered"
+        ? "Booking link delivered to their WhatsApp. Tell them it is on their phone now."
+        : "Booking link sent to their WhatsApp. Confirm they should see it momentarily.",
+  });
+}
 
 /**
  * The link to the caller answers them; to a number they named it starts a conversation. Either way it is about the call
@@ -151,14 +207,13 @@ async function refusedOnTheCall(db: Db, L: Logger, refusal: OutboundRefusal, at:
   return json(200, { result: refusalScript(refusal, at.publishedNumber) });
 }
 
-export async function sendBookingLinkOnCall(request: Request): Promise<Response> {
-  const raw = await request.text();
-  // The signature, or the tool's x-fn-secret header while this door still reads one. Whether Retell signs
-  // custom-function calls is what the log answers (voice-door-auth.ts); this file used to say it did not.
-  if (!voiceDoorAuth("fn", request, raw).ok) return refusedOutLoud("fn", KNOCK_REFUSED);
-
+/** The tool call as Retell sends it, the call and what the agent filled in; a body that is not JSON is an empty one. */
+function toolCallOf(raw: string): {
+  call: { call_id?: string; from_number?: string; agent_id?: string; call_type?: string };
+  args: { phone_number?: string };
+} {
   let body: {
-    call?: { call_id?: string; from_number?: string; agent_id?: string };
+    call?: { call_id?: string; from_number?: string; agent_id?: string; call_type?: string };
     args?: { phone_number?: string };
   } = {};
   try {
@@ -166,8 +221,38 @@ export async function sendBookingLinkOnCall(request: Request): Promise<Response>
   } catch {
     /* fall through with empty body */
   }
-  const call = body.call || {};
-  const args = body.args || {};
+  return { call: body.call || {}, args: body.args || {} };
+}
+
+/**
+ * The booking-link tool on a rehearsal: nothing sent, nobody's number read (decision 0069, D4). The link is on the
+ * owner's screen, and the receptionist says it is on its way, as on a call on the line; a workspace with no link is
+ * told so, as on the line; a web call no rehearsal is (the provider's own test) is told nothing can be sent.
+ */
+async function rehearsalBookingLink(
+  call: { call_id?: string; call_type?: string },
+  L: ReturnType<typeof logger>,
+): Promise<Response> {
+  const db = pg();
+  const r = db ? await rehearsalOfToolCall(db, call) : null;
+  if (!db || !r) {
+    L.info("retell_fn_rehearsal", { shown: false });
+    return json(200, { result: CANNOT_SEND });
+  }
+  const rt = await loadTenantRuntime(db, rehearsalRouting(r.tenant_id));
+  if (!rt.brain) return json(200, { result: CANNOT_SEND });
+  if (!offersBookingLink(rt.brain)) return json(200, { result: NO_LINK });
+  L.info("retell_fn_rehearsal", { tenant_id: r.tenant_id, shown: true });
+  return json(200, { result: REHEARSAL_TOOL_WORDS.bookingLink });
+}
+
+export async function sendBookingLinkOnCall(request: Request): Promise<Response> {
+  const raw = await request.text();
+  // The signature, or the tool's x-fn-secret header while this door still reads one. Whether Retell signs
+  // custom-function calls is what the log answers (voice-door-auth.ts); this file used to say it did not.
+  if (!voiceDoorAuth("fn", request, raw).ok) return refusedOutLoud("fn", KNOCK_REFUSED);
+
+  const { call, args } = toolCallOf(raw);
 
   // normalizePhone, not a hand-rolled digit strip. `args.phone_number` is a
   // free-text field the voice model fills from whatever the caller SAYS out
@@ -186,6 +271,8 @@ export async function sendBookingLinkOnCall(request: Request): Promise<Response>
   const isCaller = !!target && target === caller;
 
   const L = logger({ call_id: call.call_id, agent_id: call.agent_id });
+
+  if (isRehearsalCall(call)) return rehearsalBookingLink(call, L);
 
   if (!target) {
     // normalizePhone already rejects anything that cannot be a phone number,
@@ -402,15 +489,10 @@ export async function sendBookingLinkOnCall(request: Request): Promise<Response>
         return json(200, { result: refusalScript("policy_hold", publishedNumber) });
       }
       L.error("booking_link_send_failed", { tenant_id: routed.tenantId, status: out.status, reason: out.reason });
-      return json(200, {
-        result: publishedNumber
-          ? `The WhatsApp message could not be delivered — that number may not have WhatsApp. Tell the caller they can book online, or reach us on ${publishedNumber}.`
-          : "The WhatsApp message could not be delivered — that number may not have WhatsApp. Tell the caller they can book online, and take their name.",
-      });
+      return json(200, { result: notDelivered(publishedNumber) });
     }
 
-    L.info("retell_fn_sent", { tenant_id: routed.tenantId, wamid: out.externalId });
-    return json(200, { result: "Booking link sent to their WhatsApp. Confirm they should see it momentarily." });
+    return await sentOutLoud(db, L, { tenantId: routed.tenantId, wamid: out.externalId ?? null, publishedNumber });
   } catch (e) {
     // A thrown repository call must not become a 500: the voice agent would go
     // silent mid-sentence with a customer on the line.

@@ -89,7 +89,7 @@ export function feedBodyProblem(text) {
 export function offeringHorizon(now, daysAhead) {
   return { from: now.getTime() - DAY_MS, to: now.getTime() + (daysAhead + 1) * DAY_MS };
 }
-export const SEASON_BACK_DAYS = 90;
+export const SEASON_BACK_DAYS = 180;
 export function seasonHorizon(now, daysAhead = 0) {
   return {
     from: now.getTime() - DAY_MS * SEASON_BACK_DAYS,
@@ -98,4 +98,14 @@ export function seasonHorizon(now, daysAhead = 0) {
 }
 export function previewHorizon(now) {
   return { from: now.getTime() - DAY_MS, to: now.getTime() + 30 * DAY_MS };
+}
+const MAILBOX_CALENDAR = "mailbox-calendar:";
+export function calendarFeedKeyOf(cfg) {
+  const granted = cfg?.calendar_grant?.mailbox_id;
+  if (granted) return `${MAILBOX_CALENDAR}${cfg?.calendar_grant?.provider ?? "google"}:${granted}`;
+  return cfg?.calendar?.ical_url?.trim() || null;
+}
+export function mailboxCalendarOf(key) {
+  if (!key?.startsWith(MAILBOX_CALENDAR)) return null;
+  return key.slice(key.lastIndexOf(":") + 1) || null;
 }

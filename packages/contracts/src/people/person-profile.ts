@@ -69,7 +69,7 @@ import { personVisitsOf, type PersonVisitsVM } from "../person-page/visits";
 import { callBackWaits } from "../person-page/call";
 import { holderOf } from "./person-state";
 import { callFactsOf } from "../person-page/call-facts";
-import { contactEvidenceOf, personOriginOf, reachRowsOf } from "../person-page/origin";
+import { contactEvidenceOf, personBeforeOf, personOriginOf, reachRowsOf } from "../person-page/origin";
 import { WORKS_AT_WORDS } from "../person-page/words";
 
 /* -------------------------------- profile -------------------------------- */
@@ -205,6 +205,8 @@ export interface PersonVM extends PersonRowVM {
   reach: { phone: string; email: string };
   /** Where they came from, in one line (personOriginOf); null where nothing says. */
   origin: string | null;
+  /** What another system said of them before Chanlytics, in one line (personBeforeOf); null where none did. */
+  before: string | null;
 }
 
 /**
@@ -555,7 +557,8 @@ type PersonPageKeys =
   | "lastWords"
   | "tabs"
   | "reach"
-  | "origin";
+  | "origin"
+  | "before";
 
 /** "3 min" or "45 s": a call's length said as the figures say it. */
 function callLength(seconds: number): string {
@@ -677,6 +680,7 @@ function personPageOf(
     tabs: { desk: personTabsOf(tabFacts, false), phone: personTabsOf(tabFacts, true) },
     reach: reachRowsOf(evidence, tz, nowMs),
     origin: personOriginOf(evidence, tz, nowMs),
+    before: personBeforeOf(d.before, nowMs),
   };
 }
 

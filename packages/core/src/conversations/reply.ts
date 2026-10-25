@@ -132,6 +132,11 @@ export interface EmailParentFacts {
   rfcMessageId: string | null;
   references: string[];
   subject: string | null;
+  /**
+   * Who it was addressed to (its To and Cc, lower-cased), where the row kept them: an email that came to a mailbox the
+   * business connected is answered from that mailbox (decision 0073, R13). Absent on a row from before it was kept.
+   */
+  to?: string[];
 }
 
 /**

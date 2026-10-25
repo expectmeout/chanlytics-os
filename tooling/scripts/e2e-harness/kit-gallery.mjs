@@ -1869,6 +1869,16 @@ export const FAMILIES = [
         ),
       },
       {
+        // Phrases, not names (the rules it keeps): parted by a dot, each with its capital.
+        id: "rec-row-chips-phrases",
+        html: recCard(
+          `<div class="rec-row rec-row-top" data-empty="false" data-act="true"><span class="rec-row-key">Rules it always keeps</span>` +
+            `<div class="rec-row-val"><span class="rec-chips rec-chips-phrases">` +
+            `<span class="chip rec-chip">Never confirms a booking</span>` +
+            `<span class="chip rec-chip">Says it's an assistant</span></span></div>${recAct("Change")}</div>`,
+        ),
+      },
+      {
         id: "rec-row-settled",
         html: recCard(
           `<div class="rec-row" data-empty="false" data-act="true" data-settled="true"><span class="rec-row-key">Tone</span>` +

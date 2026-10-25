@@ -440,12 +440,15 @@ test("a count of who said yes that cannot be read fails Setup's read -- a zero i
       },
     );
   };
-  // Setup reads contacts only to count the answers: to messages, to offers, and to offers with a number.
+  // Setup reads contacts to count the people the workspace holds (decision 0073: quietly, a count it could not take is
+  // none said, never a zero), and then the answers: to messages, to offers, and to offers with a number.
   const seen = fakeDb(tables());
   await setupDtoFor(seen, T, { kind: "back_office" }, new Date(NOW));
   const counts = seen.seen.filter((q) => q.table === "contacts").length;
-  assert.equal(counts, 3);
-  for (let k = 1; k <= counts; k++) {
+  assert.equal(counts, 4);
+  const unread = await setupDtoFor(fakeDb(tables(), failing(1)), T, { kind: "back_office" }, new Date(NOW));
+  assert.equal(unread.people, undefined, "the people the workspace holds, not counted: none said, not a zero");
+  for (let k = 2; k <= counts; k++) {
     await assert.rejects(
       setupDtoFor(fakeDb(tables(), failing(k)), T, { kind: "back_office" }, new Date(NOW)),
       /statement timeout/,
@@ -480,6 +483,12 @@ test("Setup asks for each source once, in one order, whichever viewer reads -- a
       "mailbox_connections.select",
       // Whether a day-before reminder runs (runningStepsOn): Today's card stops offering one.
       "sequence_steps.select",
+      // The first run's (decision 0073), each read quietly: the rehearsals reviewed, what was brought in, the people the
+      // workspace holds, and what the profile and the website say.
+      "rehearsals.select",
+      "imports.select",
+      "contacts.select",
+      "business_reads.select",
       "tenant_channels.select",
       "templates.select",
       "contacts.select",
@@ -511,9 +520,9 @@ test("Setup asks for each source once, in one order, whichever viewer reads -- a
       ["messages.select", 1],
       ["calls.select", 1],
       ["templates.select", 1],
-      ["contacts.select", 1],
       ["contacts.select", 2],
       ["contacts.select", 3],
+      ["contacts.select", 4],
       ["events.select", 1],
       ["capability_activations.select", 1],
     ];
@@ -1084,6 +1093,9 @@ test("the wiring for lines: routes owner-only and rate-limited, the setup route 
       "conversation",
       // A sequence turned on: Today's card stops offering the day-before reminder (SetupDto.reminders).
       "campaign",
+      // What is brought in and what the profile and the website say, and a rehearsal (decision 0073, 0069).
+      "brought",
+      "rehearsal",
     ],
     "every kind of record a row derives from repaints the page (the tables are derived: declared-reads-are-what-was-heard.test.mjs)",
   );
@@ -1124,7 +1136,7 @@ test("the words: four states, no jargon, no trade", () => {
     ]
       .map((f) => readCode(f))
       .join("\n") +
-    ["rows", "acts", "card-row", "line-chooser", "forwarding", "try"]
+    ["rows", "acts", "card-row", "line-chooser", "forwarding"]
       .map((f) => readCode(`apps/dashboard/src/surfaces/setup/rows/${f}.tsx`))
       .join("\n");
   const words = [...src.matchAll(/(["'`])((?:\\.|(?!\1)[^\\])*)\1/g)].map((m) => m[2]).join("\n");
@@ -1252,7 +1264,7 @@ test("a workspace that cannot spend AND has no card door is offered the thing th
   for (const status of ["none", "trialing"]) {
     const w = withBilling({ mode: "stripe", status, ready: true, trial_days: 14 });
     assert.match(lineRow(w).sentence, /it starts your plan/, status);
-    assert.equal(lineRow(w).verb.to, "start/phone", status);
+    assert.equal(lineRow(w).verb.to, "start/channels", status);
     assert.ok(billingRow(w), `${status}: and the billing row is drawn`);
   }
 

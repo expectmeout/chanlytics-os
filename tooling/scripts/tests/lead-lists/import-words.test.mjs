@@ -32,7 +32,7 @@ import {
   isHeaderRow,
   matchColumns,
   phoneShaped,
-} from "../../../../packages/contracts/src/shared/csv.ts";
+} from "../../../../packages/contracts/src/imports/csv.ts";
 import { leadImportColumns } from "../../../../packages/contracts/src/leads/lead-import.ts";
 
 const TZ = "America/Chicago";
@@ -283,7 +283,7 @@ test("a lead a list brought is from your list, never from Google Maps, and a cho
 
 test("REGRESSION: a list of leads finds its columns by People's CSV rules: one header rule, one share, one phone shape", () => {
   // leadImportColumns copied matchColumns' header rule, its 0.6 share and its two helpers word for word (scorecard row
-  // 67), so a fix to how a phone column is recognised landed in one import and not the other. Both read shared/csv's
+  // 67), so a fix to how a phone column is recognised landed in one import and not the other. Both read imports/csv's
   // now; each decision below is the shared function's, made by both readers over the same file.
   assert.equal(COLUMN_SHARE, 0.6);
   const cell = (i) => (i < 6 ? `(512) 555-01${String(10 + i)}` : "n/a");

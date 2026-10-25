@@ -48,7 +48,7 @@ import { personVisitsOf } from "../person-page/visits.js";
 import { callBackWaits } from "../person-page/call.js";
 import { holderOf } from "./person-state.js";
 import { callFactsOf } from "../person-page/call-facts.js";
-import { contactEvidenceOf, personOriginOf, reachRowsOf } from "../person-page/origin.js";
+import { contactEvidenceOf, personBeforeOf, personOriginOf, reachRowsOf } from "../person-page/origin.js";
 import { WORKS_AT_WORDS } from "../person-page/words.js";
 export const TIMELINE_FILTERS = [
   { id: "all", label: "All", kinds: null },
@@ -366,7 +366,8 @@ function personPageOf(p, d, tz, now) {
     lastWords: lastWordsOf(past),
     tabs: { desk: personTabsOf(tabFacts, false), phone: personTabsOf(tabFacts, true) },
     reach: reachRowsOf(evidence, tz, nowMs),
-    origin: personOriginOf(evidence, tz, nowMs)
+    origin: personOriginOf(evidence, tz, nowMs),
+    before: personBeforeOf(d.before, nowMs)
   };
 }
 function pageNoticesOf(f) {

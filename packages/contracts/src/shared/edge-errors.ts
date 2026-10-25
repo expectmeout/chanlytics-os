@@ -136,6 +136,8 @@ export const EDGE_ERROR_CODES = [
   "record_incomplete",
   "register_failed",
   "registration_pending",
+  "rehearsal_empty",
+  "rehearsal_minutes_used",
   "replace_failed",
   "resubmit_failed",
   "review_read_failed",

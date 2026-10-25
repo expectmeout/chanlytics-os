@@ -529,6 +529,48 @@ test("the first run's checkout takes no trial: it is the phone step's, and a num
   assert.deepEqual(billing.subscription_data, { metadata: { tenant_id: A }, trial_period_days: 14 });
 });
 
+test("the first run pays in the page (decision 0073, R16): a session made embedded, back by itself where Stripe can and to the step where a bank's page must, answered with its secret and the publishable key; without the key, the hosted page", async () => {
+  const PK = "pk_test_made_up_for_this_file";
+  const made = async (session, body) => {
+    use(tables());
+    const s = stripe({
+      "customers.create": async () => ({ id: "cus_new", object: "customer" }),
+      "checkout.sessions.create": async () => session,
+    });
+    const out = await answer(await knock({ op: "checkout", email: "ada@example.com", return: "start", ...body }));
+    return [out, s.asked("checkout.sessions.create")[0]?.[0] ?? null];
+  };
+  await withEnv({ STRIPE_PUBLISHABLE_KEY: PK }, async () => {
+    const [out, asked] = await made({ id: "cs_e", client_secret: "cs_e_secret_abc" }, { embedded: true });
+    assert.deepEqual(out, [200, { ok: true, client_secret: "cs_e_secret_abc", publishable_key: PK }]);
+    assert.deepEqual(
+      [asked.ui_mode, asked.redirect_on_completion, asked.return_url, "success_url" in asked, "cancel_url" in asked],
+      ["embedded", "if_required", "https://dash.test/w/harbor?billing=success#/start", false, false],
+      "made in the page: no hosted page's addresses, the step's own where a redirect is needed",
+    );
+    // A session Stripe made without its secret is no way to pay: said, never an empty mount.
+    const [refusedOut] = await made({ id: "cs_x" }, { embedded: true });
+    assert.equal(refusedOut[0], 502);
+    assert.deepEqual(refusedOut[1], { ok: false, error: "stripe_refused", detail: "no client secret on the session" });
+    // Not asked for in the page (Billing's own): the hosted page, the key or not.
+    const [hosted, hostedAsked] = await made({ url: "https://checkout.stripe.test/cs_h" }, {});
+    assert.deepEqual(hosted, [200, { ok: true, url: "https://checkout.stripe.test/cs_h" }]);
+    assert.equal(hostedAsked.ui_mode, undefined);
+  });
+  await withEnv({ STRIPE_PUBLISHABLE_KEY: undefined }, async () => {
+    const [out, asked] = await made({ url: "https://checkout.stripe.test/cs_n" }, { embedded: true });
+    assert.deepEqual(
+      out,
+      [200, { ok: true, url: "https://checkout.stripe.test/cs_n" }],
+      "no publishable key on this deployment: the hosted page, which the page goes to",
+    );
+    assert.deepEqual(
+      [asked.success_url, asked.ui_mode],
+      ["https://dash.test/w/harbor?billing=success#/start", undefined],
+    );
+  });
+});
+
 test("checkout is refused in the door's words -- no such workspace, no billing row, a workspace invoiced by hand, one already subscribed in any live state, a deployment not ready, and Stripe saying no -- and nothing is written for any of them", async () => {
   const s = stripe({
     "customers.create": async () => {

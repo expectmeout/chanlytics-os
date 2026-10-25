@@ -114,7 +114,7 @@ export function emailWaitingMessage(n: EmailWaiting): NotifyMessage {
     body:
       `${n.preview?.trim() ? `They wrote: “${n.preview.trim()}”\n\n` : ""}` +
       `Email · ${n.from}\n` +
-      "The receptionist does not answer email yet, so nothing was sent. Reply from the Inbox.",
+      "Nothing was sent: a reply is drafted for you in Need you, to change or send from the Inbox.",
     redactedBody: "An email arrived for a workspace and nobody could be told.",
   };
 }

@@ -18,12 +18,14 @@ interface SignupConfig {
   graph_version: string;
   ready: boolean;
   reason: string | null;
+  /** The configuration offers keeping the WhatsApp Business app (coexistence, decision 0073, R12). */
+  keep_app: boolean;
 }
 
 /** What the browser needs to start Embedded Signup; honest about what is missing. */
 export async function whatsappSignupConfig(asker: { workspace: string; user: string }): Promise<SignupConfig> {
   if (!deployment.providersLive)
-    return { app_id: null, config_id: null, graph_version: "v25.0", ready: false, reason: "preview" };
+    return { app_id: null, config_id: null, graph_version: "v25.0", ready: false, reason: "preview", keep_app: false };
   // The platform's app config, about no workspace; the token still says who asked for which (defect 25).
   const r = await callEdge("/api/admin/whatsapp/signup-config", null, {
     ...asker,
@@ -33,7 +35,7 @@ export async function whatsappSignupConfig(asker: { workspace: string; user: str
   const j = r.body as (SignupConfig & { ok?: boolean }) | null;
   if (!edgeAnswered(r) || !j?.ok) {
     const said = typeof r.body?.detail === "string" && r.status >= 503 ? r.body.detail : `edge ${r.status}`;
-    return { app_id: null, config_id: null, graph_version: "v25.0", ready: false, reason: said };
+    return { app_id: null, config_id: null, graph_version: "v25.0", ready: false, reason: said, keep_app: false };
   }
   return {
     app_id: j.app_id,
@@ -41,6 +43,7 @@ export async function whatsappSignupConfig(asker: { workspace: string; user: str
     graph_version: j.graph_version,
     ready: j.ready,
     reason: j.reason,
+    keep_app: j.keep_app === true,
   };
 }
 
@@ -61,12 +64,13 @@ type ConnectOutcome =
 
 /**
  * The owner's number becomes a channel: the edge exchanges the code, finds an id the browser did not hear from the token's
- * own grant, registers the number and stores the token.
+ * own grant, registers the number and stores the token. A number that keeps the WhatsApp Business app (`keep_app`,
+ * coexistence: decision 0073, R12) is already registered, and the edge asks Meta for the app's contacts and chats (R21).
  */
 export async function connectWhatsApp(
   tenantId: string,
   userId: string,
-  body: { code: string; phone_number_id?: string; waba_id?: string },
+  body: { code: string; phone_number_id?: string; waba_id?: string; keep_app?: true },
 ): Promise<ConnectOutcome> {
   if (!deployment.providersLive) return { ok: false, reason: "preview" };
   const r = await callEdge(

@@ -41,19 +41,20 @@ import {
   type Shared,
 } from "./answers";
 import { BtCanCard } from "./can";
-import { BtBookingChoiceRow, BtPriceChoiceRow } from "./choices/rows";
+import { BtBookingChoiceRow, BtPriceChoiceRow, BtWalkInsRow } from "./choices/rows";
 import { BtBookingRuleRows, BtOfferCard } from "./offer";
 import { BtOpenCard } from "./open";
 import { BtBookingTool } from "./open-bookings";
 import { greetingFold } from "./phone/greeting";
 import { BtKeptNumberRow } from "./phone/kept-number";
 import { BtVoiceRow } from "./phone/voice";
+import { BtAssistantNameRow, BtPaceRow } from "./phone/name-and-pace";
 import { BtPromptSheet, BtPromptTold, useBtPromptSheet } from "./prompt";
 import type { BtPromptHold } from "./prompt";
 import type { Brain, Config, Saver } from "./save";
 import { businessTabSave } from "./saver";
 import { BtServicesSheet } from "./services";
-import { BtTryIt } from "./try/try-it";
+import { BtRehearse } from "./rehearse/rehearse";
 import { policiesNow, settingsNow } from "./shell";
 import { BtBookingLinkRow, BtGoalCard, BtTransferNumberRow, BtWhoCard } from "./who";
 import { LearnedFromYou } from "../autonomy/learned";
@@ -115,7 +116,7 @@ const btaCard = (id: string, title: string, sub: string, rows: ReactNode) => (
 );
 
 /**
- * How it talks: its voice and the languages. The first card of How it answers (Ruben, 17 Oct 2026, the "Settings,
+ * How it talks: its name, its voice and the languages. The first card of How it answers (Ruben, 17 Oct 2026, the "Settings,
  * split" canvas), which was one card of eight rows that held its limits too. What a fold opens with and saves onto is
  * the saver's base (BtFold asks for it).
  */
@@ -125,8 +126,10 @@ const BtTalksCard = ({ brain, base = null, config = null, canEdit, flash, saver 
   return btaCard(
     "answers",
     "How it talks",
-    "Its voice, and the languages it speaks",
+    "Its name, its voice, and the languages it speaks",
     <>
+      {/* Its name (decision 0073): in the greeting and the prompt's first line, beside the automated-assistant clause. */}
+      <BtAssistantNameRow brain={brain} {...shared} />
       {toneFold(shared, a.tone)}
       <BtLanguagesRow brain={brain} {...shared} />
     </>,
@@ -153,6 +156,8 @@ const BtCallsCard = ({ brain, base = null, config = null, canEdit, flash, saver 
       {/* The voice it speaks in, chosen from the provider's list (the Settings wiring review, item 11): only where a
           line answers calls, as the greeting. */}
       {a.calls ? <BtVoiceRow brain={brain} {...shared} /> : null}
+      {/* How fast it speaks (decision 0073, R7), beside the voice and only where a line answers calls, as the voice. */}
+      {a.calls ? <BtPaceRow brain={brain} {...shared} /> : null}
       <BtTransferNumberRow brain={brain} base={base} {...shared} />
       {/* The number the business keeps, forwarded to the line: only where a line answers calls, as the greeting. */}
       {a.calls ? <BtKeptNumberRow flash={flash} /> : null}
@@ -229,6 +234,9 @@ const BtBookingCard = ({
     <BtBookingLinkRow brain={brain} base={base} canEdit={canEdit} flash={flash} saver={saver} />
 
     <BtBookingChoiceRow brain={brain} config={config} canEdit={canEdit} flash={flash} />
+
+    {/* Whether walk-ins are taken (decision 0073): the first run's question, kept as an answer to change. */}
+    <BtWalkInsRow brain={brain} canEdit={canEdit} flash={flash} />
 
     <BtBookingRuleRows brain={brain} canEdit={canEdit} flash={flash} saver={saver} />
   </section>
@@ -486,8 +494,9 @@ export const BusinessTab = ({
           <BtCanCard brain={brain} config={config} canEdit={canEdit} door={btDoorFrom(parts)} flash={flash} />
           {/* What the receptionist is told, at rest: a title, who reads it, and the door to the sheet. Hookless. */}
           <BtPromptTold prompt={prompt} />
-          {/* Try it: a message written as a customer would, the answer and why (try/try-it.tsx). Holds its own state. */}
-          <BtTryIt canEdit={canEdit} />
+          {/* Rehearse: talk or type to it as a customer would, see how it did, fix it (rehearse/rehearse.tsx, decision
+              0069). Holds its own state. */}
+          <BtRehearse canEdit={canEdit} bookingLink={brain.booking_link ?? null} />
         </>
       ) : null}
       {/* The sheets, LAST, after every card, through one slot (BtSheetSlot says why). Whatever card comes next goes above

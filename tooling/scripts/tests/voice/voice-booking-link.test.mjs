@@ -59,9 +59,11 @@ test("on the phone the booking link goes to the caller's WhatsApp, on the number
     booking.includes("do not ask them for a number unless they want it sent somewhere else"),
     "the number they are calling from is still the default",
   );
+  // A number with no WhatsApp receives nothing (decision 0073, R14): asked first, and told whether it arrived.
+  assert.ok(booking.includes('first ask "Do you use WhatsApp on this number?"'), booking);
   assert.ok(
-    booking.includes("only arrives if that number has WhatsApp"),
-    "a number with no WhatsApp receives nothing, and the agent knows it",
+    booking.includes("it waits a moment for WhatsApp's own answer, so it tells you whether it arrived"),
+    booking,
   );
   assert.doesNotMatch(
     voice,
@@ -73,7 +75,7 @@ test("on the phone the booking link goes to the caller's WhatsApp, on the number
 test("a caller the link cannot reach -- the send failed, or there is no WhatsApp on their number -- is given the business's number and a follow-up", () => {
   assert.ok(
     booking.includes(
-      "If it fails, or they do not have WhatsApp on that number, give the phone number above and offer to have someone follow up.",
+      "If they do not use WhatsApp there, or it fails, take their name, what they need, and where and when, give the phone number above, and offer to have someone follow up.",
     ),
     booking,
   );
@@ -154,6 +156,22 @@ test("the availability tool offers the link on WhatsApp when there is no calenda
         tenant_config: [{ tenant_id: T, config: {} }],
         policies: [],
         google_listings: [],
+        // The message that carries the link on a call, approved by Meta (decision 0073, R14): a call sends it only then.
+        templates: [
+          {
+            id: "tpl-1",
+            tenant_id: T,
+            channel: "whatsapp",
+            name: "booking_link",
+            language: "en_US",
+            category: "utility",
+            meta_status: "approved",
+            body_preview: "Here is the link to book.",
+            title: null,
+            variables: [{ position: 1 }, { position: 2 }, { position: 3 }],
+            components: null,
+          },
+        ],
       },
       {},
       { runtime_stamp: () => "stamp-1" },

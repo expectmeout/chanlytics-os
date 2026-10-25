@@ -8,17 +8,53 @@
  * Mail.Send and Mail.ReadWrite (a draft is made from the MIME, its Message-ID read, then sent), and offline_access for a
  * lasting grant. The state that rides the way out and back is google-oauth.ts's (signState, verifyState), with the
  * provider in it.
+ *
+ * Asked beside them, never required (decision 0073, R18 to R20): the owner's contacts and the people they wrote to, and
+ * their calendars, read-only, so what the mailbox connects brings its people and its visits too. The owner may untick
+ * either on Google's screen; the mailbox still connects, and what it holds is asked of the grant (grantHolds). Google's
+ * screen keeps what an earlier consent gave (include_granted_scopes), so one app files every scope once.
  */
 import type { MailboxProvider } from "@chanlytics/contracts";
 import { parseTokenResponse, type TokenGrant } from "../google/google-oauth";
 
 const GMAIL_SEND_SCOPE = "https://www.googleapis.com/auth/gmail.send";
 const GMAIL_READ_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
+const CONTACTS_SCOPE = "https://www.googleapis.com/auth/contacts.readonly";
+const OTHER_CONTACTS_SCOPE = "https://www.googleapis.com/auth/contacts.other.readonly";
+const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.readonly";
 
 /** What each provider is asked for. */
 export const MAILBOX_SCOPES: Record<MailboxProvider, readonly string[]> = {
-  google: ["openid", "email", "profile", GMAIL_SEND_SCOPE, GMAIL_READ_SCOPE],
-  microsoft: ["offline_access", "openid", "email", "profile", "User.Read", "Mail.ReadWrite", "Mail.Send"],
+  google: [
+    "openid",
+    "email",
+    "profile",
+    GMAIL_SEND_SCOPE,
+    GMAIL_READ_SCOPE,
+    CONTACTS_SCOPE,
+    OTHER_CONTACTS_SCOPE,
+    CALENDAR_SCOPE,
+  ],
+  microsoft: [
+    "offline_access",
+    "openid",
+    "email",
+    "profile",
+    "User.Read",
+    "Mail.ReadWrite",
+    "Mail.Send",
+    "Contacts.Read",
+    "Calendars.Read",
+  ],
+};
+
+/** What a grant may bring beside its mail, each read only where the owner left it ticked (grantHolds). */
+export type MailboxReach = "contacts" | "other_contacts" | "calendar";
+
+const REACH: Record<MailboxProvider, Readonly<Partial<Record<MailboxReach, string>>>> = {
+  google: { contacts: CONTACTS_SCOPE, other_contacts: OTHER_CONTACTS_SCOPE, calendar: CALENDAR_SCOPE },
+  // Graph keeps no "other contacts": the people the owner wrote to come in with the mail itself.
+  microsoft: { contacts: "contacts.read", calendar: "calendars.read" },
 };
 
 /** What a grant must hold for its mailbox to send and be read; the rest (who it is) only names it. */
@@ -77,7 +113,8 @@ export function mailboxAuthorizeUrl(
   if (provider === "google") {
     q.set("access_type", "offline");
     q.set("prompt", "consent");
-    q.set("include_granted_scopes", "false");
+    // What an earlier consent to this app gave stays given (decision 0073, R18): one app, every scope filed once.
+    q.set("include_granted_scopes", "true");
   } else {
     q.set("response_mode", "query");
     q.set("prompt", "select_account");
@@ -171,4 +208,16 @@ export function grantScopesMissing(provider: MailboxProvider, granted: string): 
 /** The grant's scopes, as the row keeps them. */
 export function grantScopes(granted: string): string[] {
   return [...new Set(granted.split(/\s+/).filter(Boolean))].slice(0, 20);
+}
+
+/** Whether a grant (its scopes, as a string or as the row keeps them) reaches beyond the mail to this. */
+export function grantHolds(
+  provider: MailboxProvider,
+  granted: string | readonly string[],
+  reach: MailboxReach,
+): boolean {
+  const scope = REACH[provider][reach];
+  if (!scope) return false;
+  const list = typeof granted === "string" ? granted.split(/\s+/) : granted;
+  return list.some((s) => scopeKey(s) === scopeKey(scope));
 }

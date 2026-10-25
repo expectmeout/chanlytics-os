@@ -137,6 +137,9 @@ export const MODEL_PURPOSES = [
   "booking_read",
   "lead_suggest",
   "ask_journal",
+  "receptionist_review",
+  "fix_route",
+  "website_read",
 ] as const;
 export type ModelPurpose = (typeof MODEL_PURPOSES)[number];
 
@@ -177,6 +180,12 @@ const JUDGE_TRY_MS = 28_000;
 const NOTE_TRY_MS = 20_000;
 /** A reach-out's opening check and a reply's reading: each inside a tick or a job with its own deadline. */
 const READ_TRY_MS = 8_000;
+/** A rehearsal's review: the owner waits on the page for it, inside the edge's minute (decision 0069). */
+const REVIEW_CONVERSATION_TRY_MS = 40_000;
+/** A fix routed to its field: the owner waits on the press. */
+const FIX_ROUTE_TRY_MS = 12_000;
+/** A website's pages read into Check's facts: a job of its own, while the owner goes on through Check. */
+const WEBSITE_READ_TRY_MS = 25_000;
 
 export const MODEL_ROUTES = {
   // Its intent, the class that intent falls under, and whether the customer asked to stop, are closed sets.
@@ -222,6 +231,19 @@ export const MODEL_ROUTES = {
   // sweep inside its minute, asked at low effort (its thinking counts against the tokens). No retry: a day not written
   // in time is let go as failed, never asked twice.
   ask_journal: { model: SONNET_5_5, fallback: SONNET_5, timeoutMs: NOTE_TRY_MS, retries: 0, maxTokens: 1500 },
+  // A rehearsal's review (decision 0069, D3): every answer of a conversation judged against what it was told, Sonnet
+  // 5.5 for the judgement; and the owner's correction routed to its field, the smallest model, its answer checked in code.
+  receptionist_review: {
+    model: SONNET_5_5,
+    fallback: SONNET_5,
+    timeoutMs: REVIEW_CONVERSATION_TRY_MS,
+    retries: 0,
+    maxTokens: 4000,
+  },
+  fix_route: { model: HAIKU_4_5, fallback: SONNET_5, timeoutMs: FIX_ROUTE_TRY_MS, retries: 1, maxTokens: 400 },
+  // The business's website read for Check (decision 0073, R10): a few pages into a fixed shape, the smallest model, its
+  // answer checked in code (contracts businessReadFactsOf) and every price confirmed by the owner's tap.
+  website_read: { model: HAIKU_5_5, fallback: SONNET_5, timeoutMs: WEBSITE_READ_TRY_MS, retries: 0, maxTokens: 2500 },
 } as const satisfies Record<ModelPurpose, ModelRoute>;
 
 /** A purpose's route. */

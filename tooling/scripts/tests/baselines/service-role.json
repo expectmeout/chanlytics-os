@@ -32,6 +32,7 @@
   "apps/dashboard/src/server/public/public-facts.ts": 1,
   "apps/dashboard/src/server/public/unsubscribe.ts": 2,
   "apps/dashboard/src/server/rate-limit.ts": 1,
+  "apps/dashboard/src/server/receptionist/rehearsal.ts": 1,
   "apps/dashboard/src/server/workspace/capabilities.ts": 2,
   "apps/dashboard/src/server/workspace/config-row.ts": 1,
   "apps/dashboard/src/server/workspace/handover.ts": 1,

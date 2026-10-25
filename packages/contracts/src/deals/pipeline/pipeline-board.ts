@@ -8,7 +8,7 @@ import type { DealVM } from "../deal-vm";
 import type { DealSheetMode } from "../sheet/deal-acts";
 import type { PipelineGroupKey, PipelineSource, PipelineVM } from "./pipeline-vm";
 import { GROUP_WORDS, PIPELINE_WORDS } from "./pipeline-words";
-import { csvCell } from "../../shared/csv";
+import { csvCell } from "../../imports/csv";
 
 /* ------------------------------------------------ the Pipeline as a workspace: the peek and the board's moves */
 

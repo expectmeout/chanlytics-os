@@ -1,13 +1,15 @@
 /**
- * Try it (canvas R6–R8, P6, P7, V7, V8; contracts first-run-try.ts; moved from legacy/pages/first-run.jsx, decision 0015):
- * the owner calls the number customers call, and the page follows the call on the Live page's own read -- listening, "It
- * picked up" the moment it starts, the words a turn behind, then the whole call and where a caller who asks for a person
- * goes. `tr` is the step as contracts say it. For a kept number not yet proven, the test window opens as the screen does
- * (the call webhook proves forwarding only inside one). The transfer saves through the Business tab's one saver, as that
- * tab's row does; the skip asks once (V8), then puts the wait off for this member (TRY_SKIPPED), and Today keeps its row.
+ * Try it (canvas R6–R8, P6, P7, V7, V8, 5B; contracts first-run-try.ts; moved from legacy/pages/first-run.jsx, decision
+ * 0015): the owner calls the number customers call, and the page follows the call on the Live page's own read --
+ * listening, "It picked up" the moment it starts, the words a turn behind, then the whole call and where a caller who asks
+ * for a person goes. Since decision 0073 it is Go live's "Check my line", in Switch it on's list, so it says its own
+ * heading and lead. `tr` is the step as contracts say it. For a kept number not yet proven, the test window opens as the
+ * screen does (the call webhook proves forwarding only inside one). The transfer saves through the Business tab's one
+ * saver, as that tab's row does; the skip asks once (V8), then puts the wait off for this member (TRY_SKIPPED), and Today
+ * keeps its row.
  *
- * The step draws its own foot at every stage: Back, and on a phone the number as a press that dials it (`tr.dial`), since
- * the phone the page is read on is most often the phone the call is made from.
+ * It draws its own foot at every stage: Back where it has one, and on a phone the number as a press that dials it
+ * (`tr.dial`), since the phone the page is read on is most often the phone the call is made from.
  */
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { TRY_SKIPPED, type FIRST_RUN_TRY_WORDS, type FirstRunTryVM } from "@chanlytics/contracts";
@@ -30,6 +32,8 @@ interface TryProps {
   leave: (to: string) => void;
   back: string | null;
   backLabel: string;
+  /** "Show me the code again", where the code is drawn beside it (Go live's forwarding row): back to it. */
+  onShowCode?: () => void;
 }
 
 /** The step's way back, where it has one. */
@@ -57,20 +61,33 @@ function turnsOf(tr: FirstRunTryVM): ReactNode {
   ) : null;
 }
 
+/** What it says it is doing, over each stage: listening, it picked up, that's your receptionist. */
+function tryHead(tr: FirstRunTryVM): ReactNode {
+  return (
+    <div className="fr-try-head">
+      <h3 className="fr-sub" data-testid="fr-try-heading">
+        {tr.heading}
+      </h3>
+      {tr.lead ? <p className="fr-quiet">{tr.lead}</p> : null}
+    </div>
+  );
+}
+
 /** Listening, or still nothing: the number to call, why nothing may have come, and the skip. */
 function listenStage(o: {
   tr: FirstRunTryVM;
   W: TryWords;
-  go: (to: string) => void;
+  showCode: () => void;
   help: () => void;
   busy: boolean;
   skipper: ReactNode;
   back: ReactNode;
 }) {
-  const { tr, W, go, help, busy, skipper, back } = o;
+  const { tr, W, showCode, help, busy, skipper, back } = o;
   const l = tr.listening;
   return (
     <div className="fr-line-step" data-testid="fr-try" data-stage={tr.stage}>
+      {tryHead(tr)}
       <div className="panel fr-pane">
         <span className="fr-dial tabular" data-testid="fr-try-number">
           {tr.number}
@@ -99,7 +116,7 @@ function listenStage(o: {
       {tr.stage === "quiet" ? (
         <div className="fr-links">
           {tr.forwarded ? (
-            <button type="button" className="link-btn" onClick={() => go("start/phone")} data-testid="fr-try-code">
+            <button type="button" className="link-btn" onClick={showCode} data-testid="fr-try-code">
               {W.showCode}
             </button>
           ) : null}
@@ -145,6 +162,7 @@ function doneStage(o: {
   const { tr, t, value, W, choose, go, leave, back } = o;
   return (
     <div className="fr-line-step" data-testid="fr-try" data-stage="done">
+      {tryHead(tr)}
       <div className="panel fr-pane">
         <p className="fr-detail" data-testid="fr-try-meta">
           {tr.call && tr.call.line}
@@ -215,7 +233,7 @@ function useTestWindow(tr: FirstRunTryVM, flash: (f: LegacyFlash) => void) {
   }, [tr.openTest, tr.stage]);
 }
 
-export const FrTry = ({ tr, W, flash, go, leave, back, backLabel }: TryProps) => {
+export const FrTry = ({ tr, W, flash, go, leave, back, backLabel, onShowCode }: TryProps) => {
   const [nudged, setNudged] = useState(false);
   const [busy, setBusy] = useState(false);
   // The choice pressed, shown until Setup's read says the same (the save re-reads it), or let go on a refusal. Saved once
@@ -302,10 +320,19 @@ export const FrTry = ({ tr, W, flash, go, leave, back, backLabel }: TryProps) =>
   );
   const way = backOf(back, backLabel, go);
   if (tr.stage === "listen" || tr.stage === "quiet")
-    return listenStage({ tr, W, go, help: () => void help(), busy, skipper, back: way });
+    return listenStage({
+      tr,
+      W,
+      showCode: onShowCode ?? (() => go("start/live")),
+      help: () => void help(),
+      busy,
+      skipper,
+      back: way,
+    });
   if (tr.stage === "call") {
     return (
       <div className="fr-line-step" data-testid="fr-try" data-stage="call">
+        {tryHead(tr)}
         <div className="panel fr-pane">
           <p className="fr-proof" data-testid="fr-try-proof">
             <Icon name="check" size={12} />

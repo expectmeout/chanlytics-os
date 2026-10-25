@@ -16,7 +16,7 @@
  * The standard line, the paused line and the nameless line are greeting.ts's, unchanged: the shell's default greeting
  * on every Retell agent is GREETING_DEFAULT, and a change to it is a converger run on every agent.
  */
-import { GREETING_DEFAULT, greetingFor, pausedGreetingFor } from "./greeting";
+import { greetingFor, pausedGreetingFor } from "./greeting";
 
 /** Where the greeting a caller hears came from: the retell_inbound log line says it, so a call can be traced. */
 export type GreetingSource = "standard" | "owner" | "owner_disclosed" | "paused" | "standard_denied";
@@ -167,13 +167,16 @@ export function greetingOf(input: {
   name: string | null | undefined;
   stored: string | null | undefined;
   paused: boolean;
+  /** The receptionist's own name (profile.assistant_name, decision 0073), said in the standard line; absent, none. */
+  assistant?: string | null;
 }): { text: string; source: GreetingSource } {
   const name = spokenNameOf(input.name);
-  if (input.paused) return { text: pausedGreetingFor(name), source: "paused" };
+  const assistant = input.assistant ?? null;
+  if (input.paused) return { text: pausedGreetingFor(name, assistant), source: "paused" };
   const raw = (input.stored ?? "").replace(/\{\{/g, "{").replace(/\}\}/g, "}").trim();
-  if (!raw) return { text: greetingFor(name), source: "standard" };
-  if (deniesAutomated(raw, name)) return { text: greetingFor(name), source: "standard_denied" };
-  if (raw.includes(GREETING_NAME_SLOT) && !name) return { text: GREETING_DEFAULT, source: "standard" };
+  if (!raw) return { text: greetingFor(name, assistant), source: "standard" };
+  if (deniesAutomated(raw, name)) return { text: greetingFor(name, assistant), source: "standard_denied" };
+  if (raw.includes(GREETING_NAME_SLOT) && !name) return { text: greetingFor(null, assistant), source: "standard" };
   const filled = name ? raw.split(GREETING_NAME_SLOT).join(name) : raw;
   return statesAutomated(raw, name)
     ? { text: filled, source: "owner" }

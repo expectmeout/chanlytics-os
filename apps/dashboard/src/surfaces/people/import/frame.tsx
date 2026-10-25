@@ -21,6 +21,11 @@ interface ImportSourceWords {
   read: string;
 }
 
+/** The files a CSV reader takes. */
+const CSV_FILES = ".csv,text/csv,text/plain";
+/** And with an Excel workbook (decision 0073, R22: Vagaro exports nothing else). */
+export const CSV_OR_EXCEL_FILES = `${CSV_FILES},.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`;
+
 /**
  * Where the rows come from: a file, chosen from the kit's button over the browser's own picker (its "Choose File · No
  * file chosen" was the one control on the sheet the kit did not draw), or rows pasted, read as they are pasted, the
@@ -36,6 +41,7 @@ export function ImportSource({
   onRead,
   testid,
   children = null,
+  accept = CSV_FILES,
 }: {
   words: ImportSourceWords;
   text: string;
@@ -47,6 +53,8 @@ export function ImportSource({
   /** The prefix of each part's test id: `import` on People, `lead-import` on Leads. */
   testid: string;
   children?: ReactNode;
+  /** The files the picker offers: a CSV, or a CSV and an Excel workbook where the reader takes one (xlsx.ts). */
+  accept?: string;
 }) {
   const picker = useRef<HTMLInputElement | null>(null);
   const pasted = useRef(false);
@@ -55,7 +63,7 @@ export function ImportSource({
       <input
         ref={picker}
         type="file"
-        accept=".csv,text/csv,text/plain"
+        accept={accept}
         hidden
         onChange={onFile}
         disabled={busy}

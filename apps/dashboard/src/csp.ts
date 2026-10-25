@@ -29,11 +29,15 @@
  *                SCRIPT is.
  *   connect-src  the app plane is same-origin; Supabase for auth, storage and
  *                Realtime (its websocket); Meta's SDK talks to facebook.com;
- *                the voice agent's socket and its WebRTC signalling (0026).
+ *                the voice agent's socket and its WebRTC signalling (0026);
+ *                a rehearsal's call, signalled on Retell's API or LiveKit (0069).
  *   img / media  signed URLs from the private media bucket (inbound photos,
  *                call recordings) live on the Supabase origin; a listing photo
  *                Google hands back lives on googleusercontent.com.
- *   frame-src    Meta's SDK plants a hidden iframe under its root element.
+ *   frame-src    Meta's SDK plants a hidden iframe under its root element; Stripe's embedded Checkout is a frame of
+ *                its own, and a bank's check one more (0073).
+ *   stripe       the first run's Go live pays in the page (decision 0073, R16): Stripe.js from js.stripe.com, and the
+ *                origins Stripe's own CSP guide names for it and for embedded Checkout (script, frame, connect, img).
  *   fonts        self-hosted by next/font, so no font host is named; only the
  *                standalone harness (Chanlytics.html, never served by the app)
  *                still reaches Google Fonts.
@@ -65,7 +69,7 @@ const META = [
   "https://www.facebook.com",
   "https://web.facebook.com",
   "https://graph.facebook.com",
-];
+] as const;
 const GOOGLE_PHOTOS = "https://*.googleusercontent.com";
 /**
  * The voice agent (docs/decisions/0026): the browser's WebSocket to ElevenLabs for a conversation's events, and the
@@ -86,6 +90,30 @@ const VOICE_AGENT = [
   "https://*.elevenlabs.io",
   "wss://*.elevenlabs.io",
 ];
+/**
+ * A rehearsal's call in the browser (docs/decisions/0069): the vendor's web client (retell-client-js-sdk 3.0.2) signals
+ * its call on the provider's API (`https://api.retellai.com/webrtc-proxy/...`, with the call's own short-lived token;
+ * the account's key never reaches the browser, legacy-bridge/rehearse/call.ts), or joins it on the provider's LiveKit
+ * project (`wss://retell-ai-4ihahnq7.livekit.cloud`), whose client first asks the project's regions over https and then
+ * joins a regional host under it. So the API's origin, and LiveKit's cloud over both schemes.
+ */
+const REHEARSAL_CALL = ["https://api.retellai.com", "https://*.livekit.cloud", "wss://*.livekit.cloud"];
+/**
+ * Paying in the page (docs/decisions/0073, R16): Stripe.js, loaded from Stripe's own host on Go live (Stripe requires it
+ * be loaded from there, legacy-bridge/billing/embedded.ts), mounts embedded Checkout as Stripe's frame; Stripe's CSP
+ * guide names these origins for the two. No key but the publishable one reaches the browser.
+ */
+const STRIPE = {
+  script: ["https://js.stripe.com", "https://*.js.stripe.com", "https://checkout.stripe.com"],
+  frame: [
+    "https://js.stripe.com",
+    "https://*.js.stripe.com",
+    "https://hooks.stripe.com",
+    "https://checkout.stripe.com",
+  ],
+  connect: ["https://api.stripe.com", "https://checkout.stripe.com"],
+  img: ["https://*.stripe.com"],
+};
 
 function originOf(url: string | null | undefined): string | null {
   if (!url) return null;
@@ -104,19 +132,35 @@ export function contentSecurityPolicy(o: CspInputs): string {
   const leadMap = originOf(o.leadMapBase);
   const directives: Array<[string, string[]]> = [
     ["default-src", ["'self'"]],
-    ["script-src", ["'self'", "'unsafe-inline'", ...(o.dev ? ["'unsafe-eval'"] : []), META[0]]],
+    ["script-src", ["'self'", "'unsafe-inline'", ...(o.dev ? ["'unsafe-eval'"] : []), META[0], ...STRIPE.script]],
     ["style-src", ["'self'", "'unsafe-inline'"]],
     ["font-src", ["'self'"]],
     [
       "img-src",
-      ["'self'", "data:", "blob:", ...(supabase ? [supabase] : []), GOOGLE_PHOTOS, ...(leadMap ? [leadMap] : [])],
+      [
+        "'self'",
+        "data:",
+        "blob:",
+        ...(supabase ? [supabase] : []),
+        GOOGLE_PHOTOS,
+        ...STRIPE.img,
+        ...(leadMap ? [leadMap] : []),
+      ],
     ],
     ["media-src", ["'self'", "blob:", ...(supabase ? [supabase] : []), VOICE_SAMPLES]],
     [
       "connect-src",
-      ["'self'", ...(supabase ? [supabase, supabaseWs!] : []), ...META, ...VOICE_AGENT, ...(leadMap ? [leadMap] : [])],
+      [
+        "'self'",
+        ...(supabase ? [supabase, supabaseWs!] : []),
+        ...META,
+        ...VOICE_AGENT,
+        ...REHEARSAL_CALL,
+        ...STRIPE.connect,
+        ...(leadMap ? [leadMap] : []),
+      ],
     ],
-    ["frame-src", [META[1], META[2]]],
+    ["frame-src", [META[1], META[2], ...STRIPE.frame]],
     ["worker-src", ["'self'", "blob:"]],
     ["manifest-src", ["'self'"]],
     ["object-src", ["'none'"]],

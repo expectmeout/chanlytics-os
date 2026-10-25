@@ -27,6 +27,9 @@ export const UNKNOWN_MEMBER_WORD = "Someone";
 /** The first letter upper-cased, the rest as written; an empty string stays empty. */
 export const capitalize = (s: string): string => (s ? s[0].toUpperCase() + s.slice(1) : s);
 
+/** A name as the one something belongs to: "Harbor Salon's", and "Lantern Barbers'" for a name that ends in s. */
+export const possessive = (name: string): string => (/s$/i.test(name) ? `${name}'` : `${name}'s`);
+
 /** Words as a list in a sentence: "a", "a and b", "a, b and c". An empty list is an empty string. */
 export const joinWords = (items: readonly string[]): string =>
   items.length <= 1 ? (items[0] ?? "") : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;

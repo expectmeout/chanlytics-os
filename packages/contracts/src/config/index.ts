@@ -93,11 +93,13 @@ export {
   GuardrailsSchema,
   NoteSchema,
   BookingRulesSchema,
+  WALK_INS,
   BusinessProfileSchema,
 } from "./workspace-config/business-profile";
 export type {
   Note,
   BookingRules,
+  WalkIns,
   BusinessProfile,
   Hours,
   Service,
@@ -122,6 +124,7 @@ export {
 export type {
   NotificationsConfig,
   CalendarConfig,
+  CalendarGrantConfig,
   FeaturesConfig,
   TenantConfig,
   TenantConfigParse,
@@ -205,8 +208,10 @@ export {
   fallbacksWords,
   COMMON_LANGUAGES,
   TONE_PRESETS,
+  personalityOf,
+  ASSISTANT_NAME_WORDS,
 } from "./business-tab/how-it-answers";
-export type { NotesWordsVM, InstructionsWordsVM, FallbacksWordsVM } from "./business-tab/how-it-answers";
+export type { NotesWordsVM, InstructionsWordsVM, FallbacksWordsVM, Personality } from "./business-tab/how-it-answers";
 export { TRY_IT_WORDS, TRY_IT_MAX_CHARS, TRY_IT_MAX_EXCHANGES, SPEND_TRY, tryItVM } from "./business-tab/try-it";
 export type { TryItAnswer, TryItThen, TryItVM } from "./business-tab/try-it";
 export {
@@ -219,8 +224,18 @@ export {
   PRICE_CHOICE_WORDS,
   priceChoiceOf,
   priceChoiceWrites,
+  WALK_INS_CHOICES,
+  WALK_IN_WORDS,
+  walkInsChoiceOf,
 } from "./business-tab/choices";
-export type { BookingChoice, BookingFacts, ChoiceWrite, PriceChoice, PriceFacts } from "./business-tab/choices";
+export type {
+  BookingChoice,
+  BookingFacts,
+  ChoiceWrite,
+  PriceChoice,
+  PriceFacts,
+  WalkInsChoice,
+} from "./business-tab/choices";
 export { ASK_GOAL_WORDS, askGoalRefusal, askGoalSaved } from "./business-tab/goal";
 export {
   handoffChatWords,
@@ -240,6 +255,7 @@ export {
   priceNextStep,
   NO_LINK_DETAILS,
   NO_WAY_TO_SEND_LINK,
+  cannotSendLink,
 } from "./no-booking-link";
 export {
   brainMetaOf,

@@ -8,7 +8,7 @@
  */
 import type { Tone } from "../shell/tone";
 import { CONSOLE_PATH } from "./console-path";
-import { csvCell } from "../shared/csv";
+import { csvCell } from "../imports/csv";
 import { agoWords, DAY_MS, HOUR_MS, MIN_MS, WEEK_MS } from "../shared/time";
 import {
   PLATFORM_VERDICTS,
@@ -263,7 +263,7 @@ const TARGET_WORDS: Record<ActTarget, string> = {
 
 /**
  * The log as a CSV file, its columns as the database keeps them: the Admin log's Download. Its cells are the product's
- * one CSV cell (shared/csv.ts), so a note typed as a formula opens as text.
+ * one CSV cell (imports/csv.ts), so a note typed as a formula opens as text.
  */
 export function actsCsv(rows: readonly PlatformActDto[]): string {
   const head = ["at", "who", "role", "act", "workspace", "reason", "ticket", "note", "outcome", "outcome_note"];

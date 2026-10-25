@@ -83,18 +83,32 @@ const connections = (email) =>
     NOW,
   ).find((r) => r.kind === "email");
 
-test("Connections: later where the deployment has no email, a form where it has, the address once it is the workspace's; and it never says the receptionist answers", () => {
+test("Connections: no new hosted address (decision 0073, R13) -- the business's email is its own mailbox, later where none can connect; an address a workspace has stays; and it never says the receptionist answers", () => {
   for (const off of [undefined, null, { ready: false, domain: null, mailbox: null }]) {
     assert.deepEqual([connections(off).state, connections(off).verb, connections(off).body], ["later", null, null]);
   }
-  const open = connections({ ready: true, domain: "mail.chanlytics.com", mailbox: null });
+  // The hosted domain is ready, but no address is made any more: with no mailbox to connect here, later.
+  const hosted = connections({ ready: true, domain: "mail.chanlytics.com", mailbox: null });
   assert.deepEqual(
-    [open.state, open.group, open.stateWords, open.body],
-    ["none", "available", "Not set up", "email_setup"],
+    [hosted.state, hosted.stateWords, hosted.verb, hosted.sentence],
+    [
+      "later",
+      "Later",
+      null,
+      "Email from customers will come in through your own Google Workspace or Microsoft 365 mailbox.",
+    ],
   );
-  assert.deepEqual(open.verb, { label: "Choose the address", to: "verb:email-setup", who: "owner" });
-  assert.ok(open.sentence.endsWith(EMAIL_NOT_ANSWERED_SENTENCE));
+  // A mailbox can be connected here: the row says email comes through it, and the mailbox row below does the connecting.
+  const viaMailbox = connections({
+    ready: true,
+    domain: "mail.chanlytics.com",
+    mailbox: null,
+    sending: { providers: ["google"], mailboxes: [] },
+  });
+  assert.deepEqual([viaMailbox.state, viaMailbox.stateWords, viaMailbox.verb], ["none", "Through your mailbox", null]);
+  assert.ok(viaMailbox.sentence.endsWith(EMAIL_NOT_ANSWERED_SENTENCE));
 
+  // A workspace that has a hosted address keeps it, as it was.
   const on = connections({ ready: true, domain: "mail.chanlytics.com", mailbox: MAILBOX });
   assert.deepEqual([on.state, on.group, on.detail, on.stateWords], ["connected", "connected", MAILBOX.address, "On"]);
   assert.equal(
@@ -107,7 +121,7 @@ test("Connections: later where the deployment has no email, a form where it has,
       .sentence,
     /Last email/,
   );
-  for (const r of [connections(undefined), open, on])
+  for (const r of [connections(undefined), hosted, viaMailbox, on])
     assert.doesNotMatch(
       r.sentence,
       /receptionist answers/,
@@ -141,12 +155,43 @@ const bare = (email) => ({
 });
 const setupRow = (email) => setupSteps(bare(email), NOW).rows.find((r) => r.id === "email");
 
-test("Setup: no row where the deployment has no email; never required; the same two sentences Connections reads", () => {
+test("Setup: the business's own mailbox -- connect it where it can be, said once connected or signed out; no row with no verb that can work; never required", () => {
   assert.equal(setupRow(undefined), undefined, "a row must never draw a verb that cannot work");
   assert.equal(setupRow({ ready: false, domain: null, mailbox: null }), undefined);
-  const open = setupRow({ ready: true, domain: "mail.chanlytics.com", mailbox: null });
+  assert.equal(
+    setupRow({ ready: true, domain: "mail.chanlytics.com", mailbox: null }),
+    undefined,
+    "no hosted address is made any more, and no mailbox can be connected here",
+  );
+  const open = setupRow({
+    ready: true,
+    domain: null,
+    mailbox: null,
+    sending: { providers: ["google", "microsoft"], mailboxes: [] },
+  });
   assert.deepEqual([open.state, open.required, open.details], ["not_started", false, [EMAIL_NOT_ANSWERED_SENTENCE]]);
-  assert.deepEqual(open.verb, { label: "Choose the address", to: "admin/integrations" });
+  assert.deepEqual(open.verb, { label: "Connect your mailbox", to: "start/channels" });
+  const box = { address: "dana@getharbor.example", provider: "google", state: "ok" };
+  const own = setupRow({
+    ready: true,
+    domain: null,
+    mailbox: null,
+    sending: { providers: ["google"], mailboxes: [box] },
+  });
+  assert.deepEqual(
+    [own.state, own.sentence],
+    ["ready", "Email people write to dana@getharbor.example comes into your Inbox."],
+  );
+  assert.deepEqual(own.verb, { label: "Open the Inbox", to: "inbox" });
+  const out = setupRow({
+    ready: true,
+    domain: null,
+    mailbox: null,
+    sending: { providers: ["google"], mailboxes: [{ ...box, state: "reconnect" }] },
+  });
+  assert.deepEqual([out.state, out.verb], ["waiting_you", { label: "Connect it again", to: "admin/integrations" }]);
+  assert.match(out.sentence, /^dana@getharbor\.example signed out\./);
+  // A hosted address a workspace already has: kept, and said as it was.
   const on = setupRow({ ready: true, domain: "mail.chanlytics.com", mailbox: MAILBOX });
   assert.deepEqual([on.state, on.required], ["ready", false]);
   assert.equal(on.sentence, `Customers write to ${MAILBOX.address}, and their emails arrive in your Inbox.`);
@@ -156,7 +201,10 @@ test("Setup: no row where the deployment has no email; never required; the same 
     "what the product cannot see is said where email is set up",
   );
   const before = setupSteps(bare(undefined), NOW);
-  const after = setupSteps(bare({ ready: true, domain: "mail.chanlytics.com", mailbox: null }), NOW);
+  const after = setupSteps(
+    bare({ ready: true, domain: null, mailbox: null, sending: { providers: ["google"], mailboxes: [box] } }),
+    NOW,
+  );
   assert.equal(
     after.readiness.answering,
     before.readiness.answering,

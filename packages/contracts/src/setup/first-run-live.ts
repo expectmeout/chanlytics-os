@@ -5,6 +5,7 @@
  * card (business-can.jsx), drawn as it is there. Every sentence is here; the page and the edge compose.
  */
 import { formatPhoneDisplay } from "../shared/phone";
+import { possessive } from "../shared/words";
 import { greetingOf } from "../voice/greeting-owner";
 import { forwardedLineOf, type SetupDto } from "./setup";
 
@@ -29,7 +30,7 @@ export interface FirstRunLiveVM {
 
 export const FIRST_RUN_LIVE_WORDS = {
   heading: (business: string | null) =>
-    business ? `${business}'s receptionist is answering` : "Your receptionist is answering",
+    business ? `${possessive(business)} receptionist is answering` : "Your receptionist is answering",
   lead: "Every call shows up on Today and in your Inbox.",
   answers: "Answers",
   answersKept: (kept: string) => `${kept}, when nobody picks up`,
@@ -47,7 +48,9 @@ export const FIRST_RUN_LIVE_WORDS = {
   finishNote: "We'll email you a copy of this.",
   /** The "you're live" email (canvas C2, decision 4): sent once, on the workspace's first activation of its calls. */
   emailSubject: (business: string | null) =>
-    business ? `Your receptionist is answering ${business}'s calls` : "Your receptionist is answering your calls",
+    business
+      ? `Your receptionist is answering ${possessive(business)} calls`
+      : "Your receptionist is answering your calls",
   emailTest: (length: string | null, from: string | null, through: string | null) =>
     `It answered your test call${length ? ` (${length})` : ""}${from ? ` from ${from}` : ""}${through ? ` through ${through}` : ""}.`,
   emailFrom: (kept: string | null, own: string | null, always = false) =>
@@ -78,9 +81,11 @@ export interface FirstRunLiveInput {
   business: string | null;
   /** An owner is looking: only an owner's Finish switches calls on (the capability route is an owner's). */
   owner: boolean;
+  /** The receptionist's own name (profile.assistant_name, decision 0073), said in the greeting; absent for none. */
+  assistant?: string | null;
 }
 
-export function firstRunLiveOf({ dto, emails, business, owner }: FirstRunLiveInput): FirstRunLiveVM {
+export function firstRunLiveOf({ dto, emails, business, owner, assistant }: FirstRunLiveInput): FirstRunLiveVM {
   const W = FIRST_RUN_LIVE_WORDS;
   const own = dto.channels.voice.active ? formatPhoneDisplay(dto.channels.voice.number) : null;
   // The kept number is said to reach it only once a call proved the forwarding (as Try it says it), and as the mode
@@ -127,7 +132,10 @@ export function firstRunLiveOf({ dto, emails, business, owner }: FirstRunLiveInp
         change: { label: W.change, to: "admin/workspace" },
       },
     ],
-    greeting: W.greeting(greetingOf({ name: business, stored: dto.business.phone_greeting, paused: false }).text),
+    greeting: W.greeting(
+      greetingOf({ name: business, stored: dto.business.phone_greeting, paused: false, assistant: assistant ?? null })
+        .text,
+    ),
     // The email goes with the first run's first activation of calls (the capability route, first_run): said only
     // where it will go.
     finish: {

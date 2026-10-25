@@ -229,8 +229,15 @@ export async function removeMailbox(tenantId: string, userId: string, id: string
 }
 
 /** Where the browser lands after the provider: Connections, with the outcome in a word the block reads once. */
-function afterMailbox(origin: string, outcome: string, why?: string | null, slug?: string | null): string {
-  return `${origin}${appLink(slug, "admin/integrations", { mailbox: outcome, why: why || null })}`;
+function afterMailbox(
+  origin: string,
+  outcome: string,
+  why?: string | null,
+  to: { slug?: string | null; backTo?: string | null } = {},
+): string {
+  // The first run's Where it answers asked (decision 0073): back to its tile, the outcome said there.
+  const page = to.backTo === "start" ? "start/channels" : "admin/integrations";
+  return `${origin}${appLink(to.slug, page, { mailbox: outcome, why: why || null })}`;
 }
 
 /**
@@ -244,7 +251,7 @@ export async function startMailboxConnect(
   ctx: RouteContext,
   member: Member,
   provider: string,
-  opts: { mailboxId?: string | null; admin?: boolean } = {},
+  opts: { mailboxId?: string | null; admin?: boolean; back?: "start" | null } = {},
 ): Promise<{ url: string }> {
   if (!isProvider(provider)) throw new AppError("validation", "Connect a Google or a Microsoft mailbox.", 400);
   if (opts.admin && provider !== "microsoft")
@@ -267,6 +274,7 @@ export async function startMailboxConnect(
     p: provider,
     ...(opts.mailboxId ? { m: opts.mailboxId } : {}),
     ...(opts.admin ? { a: 1 } : {}),
+    ...(opts.back === "start" ? { b: "start" } : {}),
   });
   const cfg = { clientId: oauth.client_id, redirectUri: oauth.redirect_uri };
   return {
@@ -289,8 +297,9 @@ export async function mailboxCallback(ctx: RouteContext, req: Request) {
   const url = new URL(req.url);
   const origin = url.origin;
   let slug: string | null = null;
+  let backTo: string | null = null;
   const back = (outcome: string, why?: string | null) =>
-    new Response(null, { status: 302, headers: { location: afterMailbox(origin, outcome, why, slug) } });
+    new Response(null, { status: 302, headers: { location: afterMailbox(origin, outcome, why, { slug, backTo }) } });
 
   const refused = url.searchParams.get("error");
   // A Microsoft 365 admin back from approving Chanlytics for their organisation (Entra's v2 admin consent): its answer
@@ -305,6 +314,7 @@ export async function mailboxCallback(ctx: RouteContext, req: Request) {
   if (!secret) return back("error", "not_available");
   const proof = await verifyState(secret, url.searchParams.get("state"), Date.now());
   if (!proof.ok) return back("error", "failed");
+  backTo = proof.state.b === "start" ? "start" : null;
   if (proof.state.u !== ctx.userId || !isProvider(proof.state.p)) return back("error", "failed");
   const provider = proof.state.p;
 

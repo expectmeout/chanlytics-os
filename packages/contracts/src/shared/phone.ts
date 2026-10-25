@@ -169,3 +169,9 @@ export function formatPhoneDisplay(e164: string | null | undefined): string | nu
   if (digits.length < 7) return `+${digits}`;
   return `+${digits.replace(/(\d{1,3})(?=(\d{3})+$)/g, "$1 ").trim()}`;
 }
+
+/** The three digits a US number is bought in: `+13055550100` → `305`; null for anything else. */
+export function areaCodeOf(raw: string | null | undefined): string | null {
+  const e164 = normalizePhone(raw);
+  return e164 && /^\+1\d{10}$/.test(e164) ? e164.slice(2, 5) : null;
+}

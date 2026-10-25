@@ -29,6 +29,7 @@ export type ProfileCrossing = keyof typeof PROFILE_CROSSING_WORDS;
 /** What `profileRefusal` will say a sentence for: the caps a fold refuses AT, and the one range a language sits in. */
 export type ProfileRefusalKey =
   | "tone"
+  | "assistantName"
   | "services"
   | "serviceName"
   | "serviceMinutes"
@@ -67,6 +68,8 @@ export function profileRefusal(key: ProfileRefusalKey, seen?: number, of?: strin
     `At most ${pluralGrouped(max, one, many)}, one to a line${seen === undefined ? "." : ` — this is ${count(seen)}.`}`;
   const words: Record<ProfileRefusalKey, () => string> = {
     tone: () => chars(L.tone),
+    // The name it goes by (decision 0073), said beside "the automated assistant", never instead of it.
+    assistantName: () => chars(L.assistantName),
     services: () => `At most ${pluralGrouped(L.services, "service", "services")}.`,
     serviceName: () => chars(L.serviceName),
     serviceMinutes: () => `At most ${count(L.serviceMinutes)} minutes, a whole day.`,

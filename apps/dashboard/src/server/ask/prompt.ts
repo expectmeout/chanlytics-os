@@ -22,6 +22,7 @@ import {
   parseTenantConfig,
   promptSafeName,
   type TenantConfig,
+  calendarFeedKeyOf,
 } from "@chanlytics/contracts";
 import type { MembershipRole, Note } from "@chanlytics/contracts";
 import type { AskColumn, AskMessageVM, AskProposal, AskProposalOutcome, AskScope } from "@chanlytics/contracts";
@@ -280,7 +281,7 @@ export interface WorkspaceFacts {
 const calendarFactsOf = (
   cfg: TenantConfig | null,
 ): Pick<WorkspaceFacts, "hasCalendar" | "bookingTool" | "booksByHand"> => ({
-  hasCalendar: !!cfg?.calendar?.ical_url,
+  hasCalendar: !!calendarFeedKeyOf(cfg),
   bookingTool: bookingToolName(cfg?.bookings?.tool),
   booksByHand: !!cfg?.bookings?.by_hand,
 });

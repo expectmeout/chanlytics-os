@@ -217,3 +217,54 @@ export function forwardingTestOpen(facts: ForwardingFacts, nowMs: number = Date.
   const until = typeof facts.test_until === "string" ? Date.parse(facts.test_until) : NaN;
   return !Number.isNaN(until) && until > nowMs;
 }
+
+/* ---- the owner's phone choice (the first run's Where it answers, decision 0073) ---- */
+
+export const PHONE_WAYS = ["keep", "new", "move"] as const;
+export type PhoneWay = (typeof PHONE_WAYS)[number];
+
+/** A number offered to buy, as the search route answers it. Said through formatPhoneDisplay, never Twilio's `friendly`. */
+export interface PhonePick {
+  e164: string;
+  friendly: string;
+}
+
+/** Which phone rings when customers call the number kept (canvas R4, V6). */
+export const PHONE_RINGS = ["mobile", "landline", "office"] as const;
+export type PhoneRings = (typeof PHONE_RINGS)[number];
+
+/**
+ * What the owner chose, as the tab keeps it: the way, the number they keep or move (as typed), the new number picked,
+ * and whether they pressed the step's button, so the buy goes on once the plan lets it. For a number kept or moved,
+ * the two answers that choose its code (which phone rings, and a mobile's phone company), and `redo` once the owner
+ * asked to change them after the code was shown.
+ */
+export interface PhoneChoice {
+  way: PhoneWay;
+  number: string | null;
+  pick: PhonePick | null;
+  pending: boolean;
+  rings?: PhoneRings | null;
+  company?: PhoneCompany | null;
+  redo?: boolean;
+  /** Which calls a number kept or moved sends on (Where it answers, decision 0073): nobody picks up (absent), or every one. */
+  mode?: "always" | null;
+}
+
+/** A mobile's phone company, as the question asks it. */
+export type PhoneCompany = Exclude<Carrier, "office">;
+
+/**
+ * The carrier whose codes a phone takes: a mobile's own company's; a landline's the landline codes whoever runs it
+ * (forwarding.ts `other`: most landlines take *92 and *72), since the mobile networks' codes are not a landline's; an
+ * office phone system's none, since it forwards in its own settings (`office`, 00173).
+ */
+export function forwardingCarrierOf(
+  rings: PhoneRings | null | undefined,
+  company: PhoneCompany | null | undefined,
+): Carrier | null {
+  if (rings === "office") return "office";
+  if (rings === "landline") return "other";
+  if (rings === "mobile") return company ?? null;
+  return null;
+}

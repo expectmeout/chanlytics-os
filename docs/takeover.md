@@ -34,38 +34,38 @@ rows (`docs/debt.md`).
 <!-- measured:start -->
 
 ```text
-functions over the limit             51   of which over 200 lines: 4
-files over 800 lines                  1
-directories over 20 modules           3
+functions over the limit             49   of which over 200 lines: 4
+files over 800 lines                  2
+directories over 20 modules           2
 window globals                       54   names
 window publishers                    67   sites in 25 files
 copies                               67   of 19 names
 as unknown as                       120
 as never                             12
 non-null assertions, x!              93
-index reads the compiler lets pass  421   in 112 files
+index reads the compiler lets pass  412   in 111 files
 table names outside packages/db     418
-SQL functions outside packages/db   120   called by .rpc
+SQL functions outside packages/db   119   called by .rpc
 edge statements naming no workspace   27   in 14 files
-service-role reaches, dashboard      79   in 40 files
+service-role reaches, dashboard      80   in 41 files
 doors importing db or channels        0   imports in 0 files
 unnamed durations                    56   in 27 files
 event-shaped clocks                   5   of the registered clocks (invariant 6)
-tables with more than one writer     60   478 writers among them
-doors writing a record with no event   96   writing 111 tables (invariant 2)
+tables with more than one writer     60   482 writers among them
+doors writing a record with no event   97   writing 112 tables (invariant 2)
 personal columns with no erasure strategy    2   in 1 table
-breakpoints outside the set          31   in 11 files
+breakpoints outside the set          29   in 11 files
 literal style values                813   in 22 stylesheets
 primitives outside the kit         1521   selectors naming 646 classes
 inline style props                   67   in 37 files
 wire names not in snake_case         54   in 27 routes
-dead exports, types and modules     256
+dead exports, types and modules     253
 source-text reads in tests          734
-lint warnings                       277   in 124 files, 33 of them exhaustive-deps
+lint warnings                       276   in 123 files, 33 of them exhaustive-deps
 route JS ceiling, KB gzipped       1024   the shell included
 route CSS ceiling, KB gzipped       192
 each page's own JS ceiling, KB      256   gzipped, beyond the route
-trees the lint's limits hold         72   18 of them with max-params waiting
+trees the lint's limits hold         77   18 of them with max-params waiting
 ```
 
 <!-- measured:end -->

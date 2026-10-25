@@ -213,14 +213,22 @@ export function parseSignupMessage(origin: string, data: unknown): SignupSaid | 
 const signupConfig = () => read("GET channels/whatsapp/signup");
 
 /**
+ * What a sign-up asks Meta for: `keepApp` keeps the business on the WhatsApp Business app it already uses (coexistence,
+ * decision 0073, R12): Meta's own "onboarding business app users" flow, which also offers to share the chat history.
+ */
+interface SignupAsk {
+  keepApp?: boolean;
+}
+
+/**
  * The sign-up, marked while it runs and unmarked however it ends (connected, cancelled, failed): a mark still there on the next
  * load is a sign-up the page that began it never finished (signupLeftOpenAt).
  */
-async function startSignup(win: Window = window): Promise<ConnectResult> {
+async function startSignup(win: Window = window, ask: SignupAsk = {}): Promise<ConnectResult> {
   signupRunning = true;
   markSignup(win);
   try {
-    return await runSignup(win);
+    return await runSignup(win, ask);
   } finally {
     signupRunning = false;
     clearSignupMark(win);
@@ -262,7 +270,7 @@ async function fetchForSignup(win: Window): Promise<InHand | Refused> {
 }
 
 /** The sign-up window, opened and followed to its end; the code and the ids go to the app's own route. */
-async function runSignup(win: Window): Promise<ConnectResult> {
+async function runSignup(win: Window, ask: SignupAsk = {}): Promise<ConnectResult> {
   if (onHomeScreen(win))
     // What to do is said first, here and where a window is refused: a phone's toast is one line, and cuts the rest.
     return {
@@ -295,7 +303,15 @@ async function runSignup(win: Window): Promise<ConnectResult> {
       config_id: held.configId,
       response_type: "code",
       override_default_response_type: true,
-      extras: { setup: {}, featureType: "", sessionInfoVersion: "3" },
+      // Which Embedded Signup this is (v4 since v2 and v3 retired on 15 Oct 2026) is the login configuration's own
+      // (`config_id`, made in Meta's dashboard), never a field here. The feature selector is: keeping the WhatsApp
+      // Business app is Meta's "onboarding business app users" flow (decision 0073, R12); a number of the business's own
+      // on Chanlytics is the plain one. sessionInfoVersion is as Meta's coexistence page still shows it.
+      extras: {
+        setup: {},
+        featureType: ask.keepApp ? "whatsapp_business_app_onboarding" : "",
+        sessionInfoVersion: "3",
+      },
     }),
   );
   if (given === false) {
@@ -324,6 +340,8 @@ async function runSignup(win: Window): Promise<ConnectResult> {
       code,
       ...(heard?.phone_number_id ? { phone_number_id: heard.phone_number_id } : {}),
       ...(heard?.waba_id ? { waba_id: heard.waba_id } : {}),
+      // The app kept (coexistence): the edge asks Meta for the contacts and the chat history within its 24 hours (R21).
+      ...(ask.keepApp ? { keep_app: true } : {}),
     },
   });
   if (!r.ok) return { ok: false, reason: "failed", message: r.message };
@@ -339,7 +357,7 @@ async function runSignup(win: Window): Promise<ConnectResult> {
 export const waConnect = {
   config: signupConfig,
   prepare: (door: Partial<SignupDoor> | null | undefined) => prepareSignup(door),
-  start: () => startSignup(),
+  start: (ask?: SignupAsk) => startSignup(window, ask),
 };
 
 /** The codes sent to the line lately, newest first: the edge reads them from the provider's own record on every call. */

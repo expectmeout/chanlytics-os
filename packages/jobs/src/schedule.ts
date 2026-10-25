@@ -57,6 +57,13 @@ function dedupeKeyOf({ tenantId, kind, payload }: ScheduleParams): string | null
       return field("received_id") ? `booking_read:${tenantId}:${field("received_id")}` : null;
     case "inbound_answer":
       return field("message_id") ? `inbound_answer:${field("message_id")}` : null;
+    // One part of one source's history per workspace (00478): a connect told twice, or a part's next scheduled twice,
+    // finds it already on the ledger.
+    case "history_import":
+      return field("source") && field("seq") ? `history_import:${tenantId}:${field("source")}:${field("seq")}` : null;
+    // One read of a workspace's website waiting at a time (00479): a link and a save told together read it once.
+    case "website_read":
+      return `website_read:${tenantId}`;
     default:
       return null;
   }

@@ -105,6 +105,7 @@ export const ASK_GOAL_MAX = 200;
 /** Everything `PROFILE_LIMITS` holds a number for; `profileRefusal` (business-tab/fold-limits.ts) says what each one refuses in. */
 export type ProfileLimitKey =
   | "tone"
+  | "assistantName"
   | "services"
   | "serviceName"
   | "serviceMinutes"
@@ -140,6 +141,8 @@ export type ProfileLimitKey =
  */
 export const PROFILE_LIMITS: Readonly<Record<ProfileLimitKey, number>> = {
   tone: 200,
+  /** The receptionist's own name (decision 0073): a first name, said in the greeting. */
+  assistantName: 40,
   services: 60,
   serviceName: 80,
   serviceMinutes: 1440,

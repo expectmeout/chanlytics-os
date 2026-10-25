@@ -466,7 +466,7 @@ async function platformDay(db, day) {
 
 // src/erasure-registry.ts
 var ERASURE_LEGS = {
-  erase_contact: "erase_contact: the person's calls, messages, conversations and identities deleted, scheduled jobs and decision payloads scrubbed, the tombstone written (00027, 00151)",
+  erase_contact: "erase_contact: the person's calls (and a review of one, by its key: 00476), messages, conversations and identities deleted, scheduled jobs and decision payloads scrubbed, the tombstone written (00027, 00151)",
   notes_trigger: "person_notes_erase_on_contact: their own notes deleted, the old notes field cleared, a note_for_you about them removed (00158)",
   events_trigger: "contact_events_on_erase: an event that named them cut to who did it and from where (00131)",
   consent_trigger: "erase_marketing_consent, consent_channels_on_erase, email_marketing_on_erase: their answers and where they came from cleared (00101)",
@@ -481,7 +481,8 @@ var ERASURE_LEGS = {
   deliveries_scrub: "provider_events_scrub: a kept delivery that names them deleted (00336)",
   notes_scrub: "person_notes_scrub: their numbers and addresses overwritten in other people's notes (00341)",
   turns_scrub: "model_turns_scrub: the receptionist's kept turns that name them, in anyone's thread, deleted (00401); their own went with their conversation",
-  appointments_scrub: "appointments_scrub: their visits keep their time and service and lose the client's name, number, address and note; the notices that made them, and any whose subject names them, lose the name (00345)"
+  appointments_scrub: "appointments_scrub: their visits keep their time and service and lose the client's name, number, address and note; the notices that made them, and any whose subject names them, lose the name (00345)",
+  before_trigger: "contacts_before_erased: what another system said of them before Chanlytics (a client file's visits, last visit and birthday) cleared (00477)"
 };
 var withPerson = (by) => ({ kind: "with_person", by });
 var scrubbedBy = (...by) => ({ kind: "scrubbed", by });
@@ -571,6 +572,13 @@ var ERASURE_STRATEGIES = {
     "analysis"
   ),
   contact_identities: all(withPerson("erase_contact"), "external_id", "raw"),
+  // A conversation rehearsed or a real call reviewed (decision 0069). A review of a real call holds that call's words and
+  // goes with the call (its key cascades, 00476); a rehearsal is the owner speaking or typing as a customer, which names
+  // nobody the workspace serves, and leaves with the workspace. The provider's ids and the end's word are nobody's.
+  rehearsals: {
+    ...all(withPerson("erase_contact"), "transcript", "instructions", "review", "fixes"),
+    ...all(NOT_PERSONAL, "retell_call_id", "agent_id", "end_reason")
+  },
   contacts: {
     phone_e164: scrubbedBy("erase_contact"),
     display_name: scrubbedBy("erase_contact"),
@@ -587,8 +595,16 @@ var ERASURE_STRATEGIES = {
     erased_phone_hash: DIGEST,
     erased_email_hash: DIGEST,
     // The line or the ad a person came by, never the person (its column comment).
-    acquired_ref: NOT_PERSONAL
+    acquired_ref: NOT_PERSONAL,
+    // What a client file said of them before Chanlytics (00477, decision 0073): cleared as the row is tombstoned.
+    before: scrubbedBy("before_trigger")
   },
+  // What was brought in (00477, decision 0073): a source's counts, where its job stands (a mailbox's id, a provider's page
+  // token, Meta's request id), the tool it came from and our words for a stop. None of it names a person.
+  imports: all(NOT_PERSONAL, "counts", "job_cursor", "last_error", "via"),
+  // What the business's own profile and website say (00479): its services, prices, closures, rules and description, the
+  // page it was read from, and our words for a read that failed. The business's public facts, not a customer's.
+  business_reads: all(NOT_PERSONAL, "facts", "read_from", "error"),
   conversations: all(withPerson("erase_contact"), "control_kind", "control_ref"),
   // Ask's draft written ahead for a thread waiting on a person (00475): its key names the thread, so the row goes with it
   // when erase_contact deletes their conversation (on delete cascade).
@@ -923,6 +939,8 @@ var ERASURE_STRATEGIES = {
   ),
   // The workspace's channels: their configuration, its own numbers and the provider's ids.
   tenant_channels: all(NOT_PERSONAL, "config", "credentials_ref", "external_id", "number_e164", "waba_id"),
+  // The workspace's receptionist at the provider, made before its number (decision 0069): the provider's ids.
+  voice_agents: all(NOT_PERSONAL, "agent_id", "llm_id"),
   // The receptionist's configuration, which names the addresses the workspace is alerted at.
   tenant_config: { config: WITH_WORKSPACE }
 };
@@ -2690,6 +2708,17 @@ async function stampEmailFromMailbox(db, p) {
   if (error) throw new Error(`cannot stamp the email the mailbox sent: ${error.message}`);
   return data === true;
 }
+async function noteCalendarGrant(db, p) {
+  const { data, error } = await db.rpc("calendar_grant_note", {
+    p_tenant_id: p.tenantId,
+    p_mailbox_id: p.mailboxId,
+    p_provider: p.provider,
+    p_on: p.on,
+    ...p.by ? { p_by: p.by } : {}
+  });
+  if (error) throw new Error(`calendar_grant_note: ${error.message}`);
+  return data === true;
+}
 
 // src/repositories/email.ts
 async function mailboxById(db, id) {
@@ -2794,12 +2823,15 @@ async function lastInboundEmail(db, tenantId, conversationId) {
   if (!data) return null;
   const e = data.meta?.email ?? {};
   const str = (v) => typeof v === "string" && v ? v : null;
+  const list = (v) => Array.isArray(v) ? v.filter((r) => typeof r === "string").map((r) => r.toLowerCase()) : [];
   return {
     messageId: data.id,
     from: str(e.from),
     rfcMessageId: str(e.message_id),
     references: Array.isArray(e.references) ? e.references.filter((r) => typeof r === "string") : [],
-    subject: str(e.subject)
+    subject: str(e.subject),
+    // Who it was written to: a mailbox the business connected among them answers it (decision 0073, R13).
+    to: [...list(e.to), ...list(e.cc)]
   };
 }
 async function lastOutboundEmailSubject(db, tenantId, conversationId) {
@@ -5062,6 +5094,16 @@ async function linkCallMessage(db, tenantId, callId, messageId) {
   else if (!data || data.length === 0)
     dbLog().error("link_call_message_noop", { tenant_id: tenantId, call_id: callId });
 }
+async function stampCallConfigVersion(db, tenantId, retellCallId, version) {
+  const { data, error } = await db.from("calls").update({ config_version: version }).eq("tenant_id", tenantId).eq("retell_call_id", retellCallId).is("config_version", null).select("id");
+  if (error) throw new Error(`stampCallConfigVersion: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+async function callForReview(db, tenantId, callId) {
+  const { data, error } = await db.from("calls").select("id, agent_id, config_version, transcript_object, transcript, created_at").eq("tenant_id", tenantId).eq("id", callId).maybeSingle();
+  if (error) throw new Error(`callForReview: ${error.message}`);
+  return data ?? null;
+}
 async function callersOf(db, tenantId, ids) {
   const out = [];
   for (let i = 0; i < ids.length; i += IDS_PER_READ2) {
@@ -6687,7 +6729,14 @@ var WATCHED = [
   // The workspace paused or resumed (billing, the back office), renamed, its zone, its word for a booking or its logo
   // changed: the shell, the sidebar and Today's band repaint. Told when one of those moved (00431, 00458). The
   // receptionist's stamp reads the row.
-  { table: "tenants", events: UPDATES }
+  { table: "tenants", events: UPDATES },
+  // What a connection brought in, a part at a time (the mailbox's months, its people and calendar, WhatsApp's chats), and
+  // what the Business Profile and the website say: the first run's "Bringing it in", Found for you, Today's "Brought in"
+  // and Connections' sentences repaint (00480, decision 0073).
+  { table: "imports", events: EVERY },
+  { table: "business_reads", events: EVERY },
+  // A rehearsal made, heard and reviewed (decision 0069): the first run's Rehearse step and Today's card repaint (00480).
+  { table: "rehearsals", events: EVERY }
 ];
 var NARROWED_UPDATES = {
   // A notice closed when what it asked for ended (00421): the bell reads it as read, on every tab.
@@ -7351,6 +7400,299 @@ async function heldDraftsByIntent(db, tenantId, days) {
   }));
 }
 
+// src/repositories/facts/rehearsals.ts
+var ROLES = /* @__PURE__ */ new Set(["agent", "user", "tool"]);
+var REHEARSAL_COLUMNS = "id, tenant_id, kind, retell_call_id, call_id, agent_id, config_version, instructions, transcript, started_at, ended_at, seconds, end_reason, review, reviewed_at, fixes, created_by, created_at";
+var rehearsalTurnsOf = (v) => Array.isArray(v) ? v.flatMap(
+  (t) => t && typeof t === "object" && ROLES.has(t.role) && typeof t.content === "string" ? [{ role: t.role, content: t.content }] : []
+) : [];
+var rehearsalFixesOf = (v) => Array.isArray(v) ? v.flatMap((f) => {
+  if (!f || typeof f !== "object") return [];
+  const { op, field, said, version, at } = f;
+  return typeof op === "string" && typeof field === "string" && typeof said === "string" && typeof version === "number" && typeof at === "string" ? [{ op, field, said, version, at }] : [];
+}) : [];
+var transcriptJson = (turns) => turns.map((t) => ({ role: t.role, content: t.content }));
+function rehearsalOf(r) {
+  return {
+    id: r.id,
+    tenant_id: r.tenant_id,
+    kind: r.kind,
+    retell_call_id: r.retell_call_id,
+    call_id: r.call_id,
+    agent_id: r.agent_id,
+    config_version: r.config_version,
+    instructions: r.instructions,
+    transcript: rehearsalTurnsOf(r.transcript),
+    started_at: r.started_at,
+    ended_at: r.ended_at,
+    seconds: r.seconds,
+    end_reason: r.end_reason,
+    review: r.review,
+    reviewed_at: r.reviewed_at,
+    fixes: rehearsalFixesOf(r.fixes),
+    created_by: r.created_by,
+    created_at: r.created_at
+  };
+}
+async function rehearsalById(db, tenantId, id) {
+  const { data, error } = await tenantDb(db, tenantId).from("rehearsals").select(REHEARSAL_COLUMNS).eq("id", id).maybeSingle();
+  if (error) throw new Error(`cannot read the rehearsal: ${error.message}`);
+  return data ? rehearsalOf(data) : null;
+}
+async function rehearsalByCall(db, retellCallId) {
+  const { data, error } = await db.from("rehearsals").select(REHEARSAL_COLUMNS).eq("retell_call_id", retellCallId).maybeSingle();
+  if (error) throw new Error(`cannot read the rehearsal of a call: ${error.message}`);
+  return data ? rehearsalOf(data) : null;
+}
+async function callReviewOf(db, tenantId, callId) {
+  const { data, error } = await tenantDb(db, tenantId).from("rehearsals").select(REHEARSAL_COLUMNS).eq("kind", "call_review").eq("call_id", callId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (error) throw new Error(`cannot read the call's review: ${error.message}`);
+  return data ? rehearsalOf(data) : null;
+}
+async function rehearsalSpokenMs(db, tenantId, o) {
+  let q = tenantDb(db, tenantId).from("rehearsals").select("created_at, ended_at, seconds").eq("kind", "call");
+  if (o.since) q = q.gte("created_at", o.since);
+  const { data, error } = await q;
+  if (error) throw new Error(`cannot read the rehearsals' minutes: ${error.message}`);
+  let spentMs = 0;
+  let running = false;
+  for (const r of data ?? []) {
+    if (r.ended_at || r.seconds !== null) spentMs += Math.max(0, r.seconds ?? 0) * 1e3;
+    else if (o.now.getTime() - Date.parse(r.created_at) < o.runningMs) {
+      running = true;
+      spentMs += o.callMs;
+    }
+  }
+  return { spentMs, running };
+}
+async function rehearsalTally(db, tenantId) {
+  const { data, error } = await tenantDb(db, tenantId).from("rehearsals").select("created_at, reviewed_at, fixes").order("created_at", { ascending: false }).limit(500);
+  if (error) throw new Error(`cannot read the rehearsals: ${error.message}`);
+  const rows = data ?? [];
+  return {
+    reviewed: rows.filter((r) => r.reviewed_at !== null).length,
+    kept: rows.reduce((n, r) => n + (Array.isArray(r.fixes) ? r.fixes.length : 0), 0),
+    last_at: rows[0]?.created_at ?? null
+  };
+}
+async function keepRehearsalCall(db, r) {
+  const { error } = await tenantDb(db, r.tenantId).from("rehearsals").insert({
+    id: r.id,
+    tenant_id: r.tenantId,
+    kind: "call",
+    retell_call_id: r.retellCallId,
+    agent_id: r.agentId,
+    config_version: r.configVersion,
+    instructions: r.instructions,
+    created_by: r.createdBy
+  });
+  if (error) throw new Error(`cannot keep the rehearsal: ${error.message}`);
+}
+async function writeRehearsalTranscript(db, tenantId, retellCallId, turns, startedAt) {
+  const { data, error } = await tenantDb(db, tenantId).from("rehearsals").update({ transcript: transcriptJson(turns), ...startedAt ? { started_at: startedAt } : {} }).eq("retell_call_id", retellCallId).is("ended_at", null).select("id");
+  if (error) throw new Error(`cannot write the rehearsal's words: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+async function endRehearsal(db, tenantId, retellCallId, e) {
+  const { data, error } = await tenantDb(db, tenantId).from("rehearsals").update({
+    ...e.turns.length ? { transcript: transcriptJson(e.turns) } : {},
+    ...e.startedAt ? { started_at: e.startedAt } : {},
+    ended_at: e.endedAt,
+    seconds: Math.max(0, Math.round(e.seconds)),
+    end_reason: e.reason ? e.reason.slice(0, 64) : null
+  }).eq("retell_call_id", retellCallId).select("id");
+  if (error) throw new Error(`cannot end the rehearsal: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+async function keepTypedRehearsal(db, r) {
+  const { data, error } = await tenantDb(db, r.tenantId).from("rehearsals").insert({
+    tenant_id: r.tenantId,
+    kind: "typed",
+    transcript: transcriptJson(r.turns),
+    config_version: r.configVersion,
+    instructions: r.instructions,
+    created_by: r.createdBy
+  }).select("id").single();
+  if (error) throw new Error(`cannot keep the typed rehearsal: ${error.message}`);
+  return data.id;
+}
+async function keepCallReview(db, r) {
+  const { data, error } = await tenantDb(db, r.tenantId).from("rehearsals").insert({
+    tenant_id: r.tenantId,
+    kind: "call_review",
+    call_id: r.callId,
+    agent_id: r.agentId,
+    config_version: r.configVersion,
+    instructions: r.instructions,
+    transcript: transcriptJson(r.turns),
+    created_by: r.createdBy
+  }).select("id").single();
+  if (error) throw new Error(`cannot keep the call's review: ${error.message}`);
+  return data.id;
+}
+async function keepRehearsalReview(db, tenantId, id, review) {
+  const { error } = await tenantDb(db, tenantId).from("rehearsals").update({ review, reviewed_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", id);
+  if (error) throw new Error(`cannot keep the review: ${error.message}`);
+}
+async function keepRehearsalFix(db, tenantId, id, fix) {
+  const t = tenantDb(db, tenantId);
+  const kept = { op: fix.op, field: fix.field, said: fix.said, version: fix.version, at: fix.at };
+  const { data, error } = await t.from("rehearsals").select("fixes").eq("id", id).maybeSingle();
+  if (error) throw new Error(`cannot read the rehearsal's fixes: ${error.message}`);
+  if (!data) throw new Error("no such rehearsal");
+  const fixes = Array.isArray(data.fixes) ? [...data.fixes, kept] : [kept];
+  const w = await t.from("rehearsals").update({ fixes }).eq("id", id);
+  if (w.error) throw new Error(`cannot keep the fix: ${w.error.message}`);
+}
+async function voiceAgentOf(db, tenantId) {
+  const { data, error } = await tenantDb(db, tenantId).from("voice_agents").select("agent_id, llm_id").maybeSingle();
+  if (error) throw new Error(`cannot read the workspace's voice agent: ${error.message}`);
+  return data ? { agentId: data.agent_id, llmId: data.llm_id } : null;
+}
+async function keepVoiceAgent(db, a) {
+  const t = tenantDb(db, a.tenantId);
+  const { error } = await t.from("voice_agents").upsert(
+    { tenant_id: a.tenantId, agent_id: a.agentId, llm_id: a.llmId },
+    { onConflict: "tenant_id", ignoreDuplicates: true }
+  );
+  if (error) throw new Error(`cannot keep the workspace's voice agent: ${error.message}`);
+  const kept = await voiceAgentOf(db, a.tenantId);
+  if (!kept) throw new Error("the workspace's voice agent was not kept");
+  return kept;
+}
+async function voiceAgentsBeforeANumber(db) {
+  const { data, error } = await platformWide(db).from("voice_agents").select("agent_id");
+  if (error) throw new Error(`cannot read the voice agents: ${error.message}`);
+  return (data ?? []).map((r) => r.agent_id);
+}
+async function configAtVersion(db, tenantId, version) {
+  const { data, error } = await tenantDb(db, tenantId).from("tenant_config_versions").select("config").eq("version", version).maybeSingle();
+  if (error) throw new Error(`cannot read the settings at version ${version}: ${error.message}`);
+  return data?.config ?? null;
+}
+
+// src/repositories/imports/ledger.ts
+function ledgerCountsOf(raw) {
+  const out = {};
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return out;
+  for (const [k, v] of Object.entries(raw)) if (typeof v === "number" && Number.isFinite(v)) out[k] = v;
+  return out;
+}
+async function importsOf(db, tenantId) {
+  const { data, error } = await tenantDb(db, tenantId).from("imports").select("source, state, counts, parts_done, parts_total, oldest, started_at, finished_at, last_error, via");
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((r) => ({ ...r, counts: ledgerCountsOf(r.counts) }));
+}
+async function noteImport(db, n) {
+  const { error } = await db.rpc("import_ledger_note", {
+    p_tenant_id: n.tenantId,
+    p_source: n.source,
+    p_state: n.state,
+    p_counts: n.counts ?? {},
+    p_add: n.add ?? false,
+    p_parts_done: n.partsDone ?? void 0,
+    p_parts_total: n.partsTotal ?? void 0,
+    p_oldest: n.oldest ?? void 0,
+    p_via: n.via ?? void 0,
+    p_error: n.error ?? void 0,
+    p_cursor: n.cursor ?? void 0
+  });
+  if (error) throw new Error(error.message);
+}
+async function importCursorOf(db, tenantId, source) {
+  const { data, error } = await tenantDb(db, tenantId).from("imports").select("job_cursor, state").eq("source", source).maybeSingle();
+  if (error) throw new Error(error.message);
+  return data?.job_cursor ?? null;
+}
+
+// src/repositories/imports/before.ts
+async function keepBefore(db, m) {
+  const { data, error } = await db.rpc("ingest_before", {
+    p_tenant_id: m.tenantId,
+    p_channel: m.channel,
+    p_external: m.external,
+    p_phone: m.phone ?? "",
+    p_email: m.email ?? "",
+    p_name: m.name ?? "",
+    p_message_external_id: m.messageId,
+    p_direction: m.direction,
+    p_type: m.type ?? "text",
+    p_body: m.body ?? "",
+    p_channel_ts: m.at,
+    p_meta: m.meta ?? {}
+  });
+  if (error) throw Object.assign(new Error(`ingest_before: ${error.message}`), { code: error.code });
+  const o = data ?? {};
+  if (o.erased === true) return { kept: false, erased: true, conversationId: null, contactId: null, newPerson: false };
+  return {
+    kept: o.is_new === true,
+    erased: false,
+    conversationId: typeof o.conversation_id === "string" ? o.conversation_id : null,
+    contactId: typeof o.contact_id === "string" ? o.contact_id : null,
+    newPerson: o.person === "new"
+  };
+}
+async function importPerson(db, tenantId, p) {
+  const { data, error } = await db.rpc("import_person", {
+    p_tenant_id: tenantId,
+    p_name: p.name,
+    p_phone_e164: p.phone ?? "",
+    p_email: p.email ?? ""
+  });
+  if (error) return { ok: false, code: error.code, message: error.message };
+  return { ok: true, made: importedOf(data) };
+}
+function importedOf(data) {
+  const o = data && typeof data === "object" && !Array.isArray(data) ? data : {};
+  const email = o.email === "set" || o.email === "kept" || o.email === "taken" ? o.email : null;
+  return { contact_id: typeof o.contact_id === "string" ? o.contact_id : "", existed: o.existed === true, email };
+}
+async function peopleCount(db, tenantId) {
+  const { count: count2, error } = await tenantDb(db, tenantId).from("contacts").select("id", { count: "exact", head: true }).is("erased_at", null).is("merged_into_contact_id", null);
+  if (error) throw new Error(`cannot count the people: ${error.message}`);
+  return count2 ?? 0;
+}
+async function personBeforeNote(db, tenantId, contactId, before, notes) {
+  const { error } = await db.rpc("person_before_note", {
+    p_tenant_id: tenantId,
+    p_contact_id: contactId,
+    p_before: before,
+    p_notes: notes ?? void 0
+  });
+  if (error) throw new Error(error.message);
+}
+
+// src/repositories/imports/business-reads.ts
+async function businessReadsOf(db, tenantId) {
+  const { data, error } = await tenantDb(db, tenantId).from("business_reads").select("source, facts, read_from, read_at, error");
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+async function keepBusinessRead(db, r) {
+  const { error } = await db.from("business_reads").upsert(
+    {
+      tenant_id: r.tenantId,
+      source: r.source,
+      facts: r.facts,
+      read_from: r.readFrom,
+      read_at: (/* @__PURE__ */ new Date()).toISOString(),
+      error: r.error ? r.error.slice(0, 300) : null
+    },
+    { onConflict: "tenant_id,source" }
+  );
+  if (error) throw new Error(`business_reads: ${error.message}`);
+}
+async function listingFactsStored(db, tenantId) {
+  const { data, error } = await tenantDb(db, tenantId).from("google_listings").select("facts").maybeSingle();
+  if (error) throw new Error(`google_listings: ${error.message}`);
+  return data ? data.facts ?? null : null;
+}
+async function linkedPlaceOf(db, tenantId) {
+  const { data, error } = await tenantDb(db, tenantId).from("google_listings").select("place_id").maybeSingle();
+  if (error) throw new Error(`google_listings: ${error.message}`);
+  return data?.place_id ?? null;
+}
+
 // src/repositories/ask/memory.ts
 var memorySource = (v) => v === "pane" ? "pane" : "ask";
 async function askMemoryLines(db, tenantId, limit) {
@@ -7610,7 +7952,10 @@ export {
   becomePartner,
   bookedVisitsOf,
   businessOnRecordOf,
+  businessReadsOf,
   callBackMessage,
+  callForReview,
+  callReviewOf,
   callerNameOf,
   callersOf,
   callsOwedAnAnalysis,
@@ -7637,6 +7982,7 @@ export {
   clearForwardingConfirmation,
   closeMendedNotices,
   closedRunSends,
+  configAtVersion,
   connectMailbox,
   contactEmailOf,
   contactIdByEmail,
@@ -7680,6 +8026,7 @@ export {
   emailWordsOf,
   emitEvent,
   endMailboxSync,
+  endRehearsal,
   endVoiceSession,
   erasureDigests,
   eventOfDelivery,
@@ -7750,6 +8097,9 @@ export {
   ideaCustomerRows,
   ideasBasis,
   ideasClockAndLanguage,
+  importCursorOf,
+  importPerson,
+  importsOf,
   ingestCall,
   ingestInbound,
   ingestInboundEmail,
@@ -7765,6 +8115,9 @@ export {
   keepAppointmentNotice,
   keepAskJournal,
   keepAskMemory,
+  keepBefore,
+  keepBusinessRead,
+  keepCallReview,
   keepChannelQuality,
   keepChannelStanding,
   keepClientError,
@@ -7777,6 +8130,11 @@ export {
   keepModelTurn,
   keepOnceDraft,
   keepProviderEvent,
+  keepRehearsalCall,
+  keepRehearsalFix,
+  keepRehearsalReview,
+  keepTypedRehearsal,
+  keepVoiceAgent,
   keptPersonOf,
   knownThreads,
   lastClosedHolds,
@@ -7803,6 +8161,7 @@ export {
   letClaimGo,
   lineForwardingSet,
   linkCallMessage,
+  linkedPlaceOf,
   listActs,
   listMemberIds,
   listPolicies,
@@ -7810,6 +8169,7 @@ export {
   listRequests,
   listRow,
   listSecondFactors,
+  listingFactsStored,
   liveClaims,
   liveMailboxByAddress,
   logPersonCall,
@@ -7859,6 +8219,8 @@ export {
   namedFetch,
   namesOfPeople,
   narrowedUpdates,
+  noteCalendarGrant,
+  noteImport,
   notePageVitals,
   notedOver,
   notesForReceptionist,
@@ -7892,11 +8254,13 @@ export {
   pauseConversation,
   pauseEmailOffers,
   peopleAtLead,
+  peopleCount,
   peopleCursorOf,
   peopleHandRun,
   peopleOnTheirOwnMode,
   peoplePage,
   peopleSeries,
+  personBeforeNote,
   personDecisions,
   personEmail,
   personExportPages,
@@ -7972,6 +8336,10 @@ export {
   recordWhatsAppOffersStop,
   redriveDeliveries,
   refreshWaitlistRow,
+  rehearsalByCall,
+  rehearsalById,
+  rehearsalSpokenMs,
+  rehearsalTally,
   relayEvents,
   releaseControl,
   releaseIdempotencyKey,
@@ -8074,6 +8442,7 @@ export {
   signersOf,
   staffStateOf,
   staleSends,
+  stampCallConfigVersion,
   stampEmailComplaint,
   stampEmailFromMailbox,
   stampEmailLeftAs,
@@ -8130,6 +8499,8 @@ export {
   updatePlaybook,
   visitOrigins,
   visitsOver,
+  voiceAgentOf,
+  voiceAgentsBeforeANumber,
   waitingPlaybookRuns,
   waitingRunsOf,
   waitlistWaiting,
@@ -8157,6 +8528,7 @@ export {
   workspacePublicSlug,
   workspaceZoneOf,
   writePlaybookChange,
+  writeRehearsalTranscript,
   writtenEmail,
   writtenEmails,
   yesesSince

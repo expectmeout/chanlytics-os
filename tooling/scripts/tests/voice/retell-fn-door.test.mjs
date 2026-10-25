@@ -819,8 +819,9 @@ test("every number a caller is told is the one the resolver publishes: with none
         assert.equal(
           await spoken(await knock(ask)),
           published
-            ? `The WhatsApp message could not be delivered — that number may not have WhatsApp. Tell the caller they can book online, or reach us on ${published}.`
-            : "The WhatsApp message could not be delivered — that number may not have WhatsApp. Tell the caller they can book online, and take their name.",
+            ? // Decision 0073, R14: the details taken too, so the team can follow up.
+              `The WhatsApp message could not be delivered — that number may not have WhatsApp. Tell the caller they can book online, or reach us on ${published}, and take their name, what they need, and where and when so the team can follow up.`
+            : "The WhatsApp message could not be delivered — that number may not have WhatsApp. Tell the caller they can book online, and take their name, what they need, and where and when so the team can follow up.",
           `a failed delivery: ${why}`,
         );
         graphReply = null;
@@ -915,8 +916,9 @@ test("the send: the approved template on the workspace's own WhatsApp number and
       [[w.T, "message.sent", "message", id, { sender: "ai" }]],
     );
     assert.ok(thread.last_message_at, "the thread is stamped");
+    // Meta's own answer, waited for a moment (decision 0073, R14): none yet here.
     assert.deepEqual(log.fields("retell_fn_sent"), [
-      { call_id: ask.call.call_id, agent_id: w.AGENT, tenant_id: w.T, wamid: row.external_id },
+      { call_id: ask.call.call_id, agent_id: w.AGENT, tenant_id: w.T, wamid: row.external_id, receipt: null },
     ]);
 
     // A first-time caller: made a contact with a thread of their own, and sent

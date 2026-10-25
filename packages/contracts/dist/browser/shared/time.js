@@ -1,3 +1,4 @@
+export const SECOND_MS = 1e3;
 export const MIN_MS = 6e4;
 export const HOUR_MS = 36e5;
 export const DAY_MS = 864e5;

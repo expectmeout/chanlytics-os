@@ -105,6 +105,7 @@ function rowsOf(
       email: S ? (S.dto.email ?? null) : null,
       codes: asked.codes,
       signupLeftOpenAt: asked.signupLeftOpenAt,
+      imports: S ? (S.dto.imports ?? null) : null,
     },
     Date.now(),
   );
@@ -132,14 +133,16 @@ async function runVerb(
   const verb = r.verb;
   if (!verb) return;
   switch (verb.to) {
-    case "verb:whatsapp-connect": {
+    case "verb:whatsapp-connect":
+    case "verb:whatsapp-connect-keep": {
       k.setBusy(true);
       // Meta's window is open from here to the end of the sign-up: the page asks for the codes sent to the line while it is, and a
       // sign-up an earlier page left behind is no longer what this row has to say.
       k.forgetLeftOpen();
       k.setSignupSaid(null);
       k.setSignup(true);
-      const res = await waConnect.start();
+      // Keeping the WhatsApp Business app is Meta's own flow for it (coexistence, decision 0073, R12).
+      const res = await waConnect.start(verb.to === "verb:whatsapp-connect-keep" ? { keepApp: true } : {});
       k.setSignup(false);
       k.setBusy(false);
       if (!res.ok && res.reason !== "cancelled") k.setSignupSaid(res.message);

@@ -44,7 +44,7 @@ import {
   newDraftNote,
   type LiveAgentSettings,
 } from "../packages/channels.js";
-import { resolveChannel } from "../packages/db.js";
+import { resolveChannel, voiceAgentsBeforeANumber } from "../packages/db.js";
 import { loadTenantRuntime } from "../tenant-runtime.js";
 import { env } from "../env.js";
 import { logger } from "../log.js";
@@ -62,7 +62,10 @@ function forRecord(a: Record<string, unknown>): Record<string, unknown> {
   return { ...a, webhook_url: url };
 }
 
-/** Which agents: the one named, else every voice channel's (or the refusal to read them). */
+/**
+ * Which agents: the one named, else every voice channel's, and every agent made before its number (voice_agents,
+ * decision 0069), so the number bought later answers in an agent on the shell (or the refusal to read them).
+ */
 async function agentsNamed(body: Body): Promise<string[] | Response> {
   if (typeof body.agent_id === "string" && /^agent_[a-z0-9]+$/i.test(body.agent_id)) return [body.agent_id];
   const db = pg();
@@ -73,7 +76,14 @@ async function agentsNamed(body: Body): Promise<string[] | Response> {
     .eq("kind", "voice")
     .eq("status", "active");
   if (error) return refuse(503, "read_failed", error.message);
-  return (data ?? []).map((r) => r.external_id).filter((id): id is string => typeof id === "string");
+  let before: string[];
+  try {
+    before = await voiceAgentsBeforeANumber(db);
+  } catch (e) {
+    return refuse(503, "read_failed", e instanceof Error ? e.message : String(e));
+  }
+  const lines = (data ?? []).map((r) => r.external_id).filter((id): id is string => typeof id === "string");
+  return [...new Set([...lines, ...before])];
 }
 
 /**

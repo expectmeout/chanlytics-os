@@ -33,13 +33,14 @@
 .fr-brand { display: inline-flex; align-items: center; gap: 8px; font-size: var(--text-md); font-weight: var(--weight-semibold); }
 .fr-rail { display: flex; align-items: center; margin: 0 auto; padding: 0; list-style: none; }
 .fr-rail-step { display: flex; align-items: center; }
-.fr-rail-step + .fr-rail-step::before { content: ""; width: 28px; height: 1px; margin: 0 8px; background: var(--line); }
+.fr-rail-step + .fr-rail-step::before { content: ""; width: 20px; height: 1px; margin: 0 6px; background: var(--line); }
 /* A step is the kit's quiet button where it opens, and its name alone where it is not reached. The step ON SCREEN is
    the strong one, wherever the workspace stands: Check kept on screen after its last fact, the code after the line
    answers, Try it after the call. The filled number once followed where the workspace stands, so the rail named the
    step after the one drawn. */
 .fr-rail-step > * { gap: 8px; color: var(--ink-dim); }
-.fr-rail-ahead { display: inline-flex; align-items: center; padding: 0 11px; font-size: var(--text-sm); color: var(--ink-faint); }
+/* As tall as the button it becomes once reached, so the rail holds still when a step opens. */
+.fr-rail-ahead { display: inline-flex; align-items: center; min-height: var(--control-h-sm); padding: 0 11px; font-size: var(--text-sm); color: var(--ink-faint); }
 .fr-rail-n {
   display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: var(--radius-full);
   border: 1px solid var(--line-strong); font-size: var(--text-xs); font-variant-numeric: tabular-nums;
@@ -72,7 +73,17 @@
 .fr-held, .fr-foot-note { flex: 1 1 auto; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); text-align: right; }
 /* The way on, held: in reach, with why beside it. Its words may fold on a narrow screen (a number picked is in them). */
 .fr-go { height: auto; min-height: var(--control-h-lg); padding-block: 8px; white-space: normal; text-align: center; }
-.fr-go[aria-disabled="true"] { opacity: 0.5; cursor: default; }
+/* Held, it is no longer the accent: the secondary's ground and quiet ink, no depth, under the pointer too (the kit's rule
+   for a primary that cannot be pressed). A coral at half strength read as live and as broken at once. */
+.fr-go[aria-disabled="true"] { cursor: default; background: var(--secondary-fill); border-color: var(--line); color: var(--quiet-ink); box-shadow: none; }
+@media (hover: hover) {
+  .fr-go[aria-disabled="true"]:hover { background: var(--secondary-fill); border-color: var(--line); color: var(--quiet-ink); box-shadow: none; }
+}
+/* A press whose words change while it works ("Building…"): both sets of words hold the one place, the press as wide as
+   the wider, and the shown one fades in over the other, so nothing beside it moves (parts.tsx SteadyLabel). */
+.fr-steady { display: inline-grid; }
+.fr-steady > * { grid-area: 1 / 1; text-align: center; transition: opacity var(--duration-fast) var(--ease-out); }
+.fr-steady > [aria-hidden="true"] { opacity: 0; }
 /* What the press starts charging, said in the foot on a phone, and the press that dials: a desk has the plan's pane
    over its foot, and nothing to dial with. */
 .fr-price, .fr-call { display: none; }
@@ -93,8 +104,11 @@
 .fr-links { display: flex; flex-wrap: wrap; gap: 16px; }
 .fr-proof { display: flex; align-items: center; gap: 6px; margin: 0; font-size: var(--text-base); color: var(--ink-dim); }
 
-/* Find (canvas R1, P1): Google's answer as one choice, the best match first; the owner's own words under it. */
+/* Find (canvas R1, P1): Google's answer as one choice, the best match first; the owner's own words under it. While Google
+   is asked, the pane its answer comes in stands already, saying so, as tall as three matches on a desk and the best one
+   on a phone, so the search and the foot under it never jump down when the answer lands. */
 .fr-find-more { display: none; }
+.fr-find-looking { display: flex; align-items: center; gap: 10px; min-height: 196px; }
 .fr-find-form { display: flex; align-items: flex-end; gap: 8px; width: 100%; max-width: 460px; }
 .fr-find-form > :first-child { flex: 1 1 auto; min-width: 0; }
 .fr-legal { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--ink-faint); }
@@ -161,6 +175,96 @@
 .fr-rcp-none { color: var(--ink-faint); }
 .fr-rcp-foot { margin: 0; font-size: var(--text-sm); color: var(--ink-faint); line-height: var(--leading-relaxed); }
 
+/* The five steps (decision 0073): every step but Your business lays out its own two columns, the step and what stands
+   beside it (how it sounds, what it reads, the dashboard filling in, Ask getting it ready), so the body is one column at
+   the page's measure and the receptionist card is the phone's strip alone. */
+.fr-body[data-wide] { grid-template-columns: minmax(0, var(--measure-page)); }
+.fr-body[data-wide] > .fr-rcp { display: none; }
+.fr-receptionist, .fr-rehearse, .fr-channels, .fr-pay, .fr-on {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 340px); align-items: start; gap: 32px;
+}
+.fr-receptionist-main, .fr-rehearse-main, .fr-channels-list, .fr-pay-main, .fr-on-main { display: grid; gap: 16px; min-width: 0; }
+.fr-sounds-aside { position: sticky; top: 24px; }
+/* An aside that is a pane itself takes the kit's `position: relative` with it, which wins on equal weight: two of the
+   page's own classes keep it held beside the step as the step scrolls. */
+.fr-rehearse > .fr-using, .fr-channels > .fr-filling, .fr-on > .fr-on-ask { position: sticky; top: 24px; }
+.fr-receptionist-main > .fr-sounds-strip { display: none; }
+.fr-golive { display: grid; gap: 16px; }
+.fr-live { grid-template-columns: minmax(0, var(--measure-prose)); }
+
+/* Your receptionist (canvas 2): the greeting, the two things only you know, how it sounds. */
+.fr-greet .fr-sentence { line-height: var(--leading-relaxed); }
+.fr-only-you { display: grid; gap: 10px; }
+/* Found for you (decision 0073, R10, R17): what the profile and the website say, a press each. */
+.fr-found { display: grid; gap: 10px; }
+.fr-found-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.fr-found-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.fr-found-words { display: grid; gap: 2px; min-width: 0; }
+/* Connect it to Google (decision 0073, R17; canvas 1B·g, 1B·h, 1B·i): what one sign-in brings, and its way back. */
+.fr-google { display: grid; gap: 16px; }
+.fr-google-brings { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; font-size: var(--text-base); line-height: var(--leading-normal); }
+.fr-google-brings > li { display: flex; align-items: baseline; gap: 8px; }
+.fr-google-brings > li > svg { flex: 0 0 auto; color: var(--ok-ink); }
+/* Your workspace, building (canvas 1B): over the receptionist card beside Find and Connect it to Google, a desk's alone. */
+.fr-building { margin-bottom: 8px; }
+.fr-building-lines { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; font-size: var(--text-base); line-height: var(--leading-normal); }
+.fr-building-line { display: grid; grid-template-columns: 16px minmax(0, 1fr); align-items: baseline; gap: 8px; }
+.fr-building-line[data-state="ahead"] { color: var(--ink-dim); }
+.fr-building-sign { display: inline-flex; align-items: center; justify-content: center; align-self: center; color: var(--ok-ink); }
+.fr-building-dot { width: 6px; height: 6px; border-radius: var(--radius-full); background: var(--ink-faint); }
+.fr-sounds { display: grid; gap: 12px; }
+.fr-voices { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; width: 100%; }
+.fr-voice { display: flex; align-items: center; gap: 6px; }
+.fr-voice-pick { flex: 1 1 auto; justify-content: space-between; min-width: 0; }
+.fr-voice-pick[aria-pressed="true"] { background: var(--selected-fill); }
+.fr-voice-name { font-weight: var(--weight-medium); }
+.fr-quote { margin: 0; font-size: var(--text-base); line-height: var(--leading-relaxed); color: var(--ink-dim); }
+.fr-accent { display: grid; gap: 4px; justify-items: start; }
+.fr-sounds-strip { justify-content: flex-start; gap: 10px; width: 100%; }
+
+/* Rehearse (canvas 3, 3R): the call or the typing, how it did, and what it reads beside them. */
+.fr-rehearse-pane { justify-items: stretch; }
+.fr-using { display: grid; gap: 10px; }
+.fr-asks { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* Where it answers (canvas 4): a box a choice, and the dashboard filling in beside them. */
+.fr-place { justify-items: stretch; }
+.fr-filling { display: grid; gap: 12px; }
+.fr-filling-rows { margin: 0; display: grid; gap: 10px; }
+.fr-filling-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.fr-filling-row dt { display: grid; gap: 2px; min-width: 0; }
+.fr-filling-row dd { margin: 0; font-size: var(--text-lg); font-weight: var(--weight-semibold); }
+.fr-imports { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+.fr-import { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.fr-import-words { display: grid; gap: 2px; min-width: 0; }
+.fr-import-stand { flex: 0 0 auto; font-size: var(--text-sm); color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.fr-import[data-state="failed"] .fr-detail { color: var(--danger-ink); }
+.fr-clients { display: grid; gap: 14px; }
+.fr-clients-foot { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* Go live (canvas 5A–5C): what starts, the card, the list that fills in, and Ask's moves. */
+.fr-starts { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+.fr-start { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
+.fr-pay-box { justify-items: stretch; }
+.fr-checkout { min-height: 360px; width: 100%; }
+.fr-on-items { margin: 0; padding: 0; list-style: none; display: grid; gap: 14px; }
+.fr-on-item { display: grid; grid-template-columns: 28px minmax(0, 1fr); column-gap: 10px; row-gap: 10px; align-items: start; }
+.fr-on-item > :nth-child(n + 3) { grid-column: 2; }
+.fr-on-state { display: inline-grid; place-items: center; min-height: 22px; color: var(--ink-dim); }
+.fr-on-item[data-state="done"] .fr-on-state { color: var(--ok-ink); }
+.fr-on-words { display: grid; gap: 2px; }
+.fr-needs { font-size: var(--text-xs); font-weight: var(--weight-medium); color: var(--warn-ink); }
+.fr-on-ask { display: grid; gap: 8px; }
+.fr-wa-steps, .fr-forward { display: grid; gap: 12px; }
+/* The kept app's chats in Meta's three parts (canvas 5B·i): a part still to come reads quieter than one in. */
+.fr-chat-parts { display: grid; gap: 10px; }
+.fr-chat-parts .fr-import[data-state="next"] { color: var(--ink-dim); }
+.fr-moves { display: grid; gap: 8px; }
+.fr-move-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+.fr-move { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.fr-move-words { display: grid; gap: 2px; min-width: 0; }
+.fr-note-pane { gap: 4px; }
+
 @media (max-width: 900px) {
   /* On a phone the page's top is plain paper under the phone's bar, as the app root's is (tokens.css). */
   .fr-shell { background-image: var(--surface-page-top), var(--surface-page-light); }
@@ -180,7 +284,7 @@
   .fr-body { grid-template-columns: minmax(0, 1fr); gap: 16px; padding: 20px 16px calc(112px + env(safe-area-inset-bottom, 0px)); }
   .fr-rcp { position: static; order: -1; display: none; }
   .fr-rcp[data-open="true"] { display: grid; }
-  .fr-rcp-cap, .fr-rcp-foot { display: none; }
+  .fr-rcp-cap, .fr-rcp-foot, .fr-building { display: none; }
   .fr-find-form { max-width: none; }
   /* A question's answers one above the other on a phone: three across in a pane, their words folded in two. By
      position, as the stack is: the group is the kit's. */
@@ -199,6 +303,9 @@
     border-radius: var(--surface-control-radius);
     box-shadow: var(--surface-control-depth);
   }
+  /* A foot with no way on (Rehearse before its call, Pay, whose press is in its card) holds Back alone: it stays at the
+     step's end, not a capsule floating over the step for one quiet button. */
+  .fr-foot:not(:has(.fr-go)) { position: static; padding: 0; background: none; backdrop-filter: none; box-shadow: none; }
   /* No Back on the first step: its empty place is not kept, or the button starts a gap in from the page's edge. */
   .fr-foot > span:empty { display: none; }
   .fr-go { flex: 1 1 auto; justify-content: center; }
@@ -207,8 +314,15 @@
   .fr-price { display: block; font-size: var(--text-base); font-weight: var(--weight-medium); color: var(--ink); }
   .fr-call { display: inline-flex; }
   .fr-summary-row { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  /* The five steps on a phone: one column, what stands beside the step under it (how it sounds is the strip's sheet). */
+  .fr-receptionist, .fr-rehearse, .fr-channels, .fr-pay, .fr-on { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .fr-sounds-aside, .fr-rehearse > .fr-using, .fr-channels > .fr-filling, .fr-on > .fr-on-ask { position: static; }
+  .fr-find-looking { min-height: 88px; }
+  .fr-sounds-aside { display: none; }
+  .fr-receptionist-main > .fr-sounds-strip { display: flex; }
 }
 @media (prefers-reduced-motion: reduce) {
   .fr-pulse { animation: none; }
   .fr-bar > span { transition: none; }
+  .fr-steady > * { transition: none; }
 }

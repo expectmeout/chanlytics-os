@@ -125,6 +125,7 @@ export {
   dropMailboxCredentials,
   mailboxCountsOf,
   stampEmailFromMailbox,
+  noteCalendarGrant,
 } from "./repositories/mailboxes/connections";
 export type { MailboxConnectionRow, ConnectRefusal } from "./repositories/mailboxes/connections";
 export {
@@ -401,6 +402,8 @@ export {
   claimCallActivity,
   callerNameOf,
   isWorkspaceCall,
+  stampCallConfigVersion,
+  callForReview,
 } from "./repositories/calls";
 export type { NormalizedCallInput, IngestCallResult } from "./repositories/calls";
 export {
@@ -782,6 +785,36 @@ export {
 } from "./repositories/facts/fact-suggestions";
 export type { FactCorrectionRow, FactSuggestionRow } from "./repositories/facts/fact-suggestions";
 export { heldDraftsByIntent } from "./repositories/facts/held-drafts";
+export {
+  rehearsalById,
+  rehearsalByCall,
+  callReviewOf,
+  rehearsalSpokenMs,
+  rehearsalTally,
+  keepRehearsalCall,
+  writeRehearsalTranscript,
+  endRehearsal,
+  keepTypedRehearsal,
+  keepCallReview,
+  keepRehearsalReview,
+  keepRehearsalFix,
+  voiceAgentOf,
+  keepVoiceAgent,
+  voiceAgentsBeforeANumber,
+  configAtVersion,
+} from "./repositories/facts/rehearsals";
+export type { RehearsalRow } from "./repositories/facts/rehearsals";
+export { importsOf, noteImport, importCursorOf } from "./repositories/imports/ledger";
+export { importPerson, keepBefore, peopleCount, personBeforeNote } from "./repositories/imports/before";
+export {
+  businessReadsOf,
+  keepBusinessRead,
+  listingFactsStored,
+  linkedPlaceOf,
+} from "./repositories/imports/business-reads";
+export type { BusinessReadRow } from "./repositories/imports/business-reads";
+export type { BeforeMessage, BeforeKept } from "./repositories/imports/before";
+export type { ImportLedgerRow, ImportNote } from "./repositories/imports/ledger";
 export type { HeldDraftsRow } from "./repositories/facts/held-drafts";
 export {
   askMemoryLines,

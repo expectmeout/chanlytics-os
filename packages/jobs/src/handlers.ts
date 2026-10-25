@@ -540,6 +540,22 @@ async function inboundAnswer(ctx: JobContext, job: ClaimedJob): Promise<void> {
   await ctx.inbound.answer(job);
 }
 
+/**
+ * history_import: one part of a connection's history brought in (00478, decision 0073), through what the edge injects.
+ * payload: { source, seq, connection_id? }. Every write it makes is once by the provider's id, so a part claimed again
+ * keeps nothing twice.
+ */
+async function historyImport(ctx: JobContext, job: ClaimedJob): Promise<void> {
+  if (!ctx.imports) throw new Error("history_import: this runtime holds no importer");
+  await ctx.imports.part(job, ctx.deadline);
+}
+
+/** website_read: the business's website read for Check (00479, decision 0073), through what the edge injects. payload: { url }. */
+async function websiteRead(ctx: JobContext, job: ClaimedJob): Promise<void> {
+  if (!ctx.website) throw new Error("website_read: this runtime holds no website reader");
+  await ctx.website.read(job, ctx.deadline);
+}
+
 const HANDLERS: Record<JobKind, Handler> = {
   outbound_send: outboundSend,
   broadcast_send: broadcastSend,
@@ -554,6 +570,8 @@ const HANDLERS: Record<JobKind, Handler> = {
   event_deliver: eventDeliver,
   booking_read: bookingRead,
   inbound_answer: inboundAnswer,
+  history_import: historyImport,
+  website_read: websiteRead,
 };
 
 export async function dispatchJob(ctx: JobContext, job: ClaimedJob): Promise<"done" | "unknown_kind"> {

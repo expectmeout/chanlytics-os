@@ -57,6 +57,8 @@ export interface StoredRules {
   notes?: string[];
   ask_email?: boolean;
   consult_first?: string[];
+  /** Whether walk-ins are taken (decision 0073): yes, room or no; absent for none said. */
+  walk_ins?: string;
 }
 
 /** The business profile, as far as the tab reads it; any other key it keeps is kept (the index). */
@@ -67,6 +69,9 @@ export interface Profile {
   handoff_number?: string;
   tone?: string;
   phone_greeting?: string;
+  /** The receptionist's own name and how fast it speaks on calls (decision 0073); absent for none, and the line's own. */
+  assistant_name?: string;
+  phone_pace?: string;
   hours?: Record<string, StoredDay | undefined>;
   closures?: StoredClosure[];
   services?: StoredService[];
