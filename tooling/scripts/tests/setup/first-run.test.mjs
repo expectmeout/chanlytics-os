@@ -26,6 +26,7 @@ import {
   setupRestsOf,
   setupPutOffNext,
   putOffEnds,
+  keptNumberRowOf,
   SETUP_REST_MS,
   setupPhoneWantOf,
   keptPhoneKind,
@@ -406,15 +407,60 @@ test("each row put off for good says where it is set up from then: the page its 
   assert.equal(invite.team, "Off your list. It's in Settings › Team.", "alerts set: the row asks for a teammate");
 });
 
-test("the number you already have rests a week every time: its forwarding is set up nowhere else", () => {
-  assert.deepEqual([putOffEnds("calendar", false), putOffEnds("calendar", true)], ["week", "good"]);
-  assert.deepEqual([putOffEnds(KEEP_ROW, false), putOffEnds(KEEP_ROW, true)], ["week", "week"]);
+test("the number you already have goes for good as every row does, now that How it answers holds it, and says what waiting costs", () => {
+  assert.deepEqual([putOffEnds(false), putOffEnds(true)], ["week", "good"]);
+  const first = setupCardOf(setupSteps(live(), NOW)).rows.find((r) => r.id === KEEP_ROW);
+  assert.equal(first.said, `Put off for a week. ${WAITING}`);
   const back = setupCardOf(setupSteps(live({ rests: { [KEEP_ROW]: ENDED } }), NOW));
   const keep = back.rows.find((r) => r.id === KEEP_ROW);
   assert.equal(keep.back, true, "back after its week, and said to be");
-  assert.equal(keep.said, `Put off for a week. ${WAITING}`, "and put off for a week again, with what it costs");
+  assert.equal(keep.said, `Off your list. It's in Settings › How it answers. ${WAITING}`, "for good, with its home");
   const next = setupPutOffNext({ later: [], rests: { [KEEP_ROW]: ENDED } }, [KEEP_ROW], { on: true, why: "rest" }, NOW);
-  assert.deepEqual(next, { later: [], rests: { [KEEP_ROW]: new Date(NOW + SETUP_REST_MS).toISOString() } });
+  assert.deepEqual(next, { later: [KEEP_ROW], rests: { [KEEP_ROW]: ENDED } });
+});
+
+test("Settings' row for the number kept is Setup's own: its name, its sentence and its act, the number once one is saved", () => {
+  const vm = setupSteps(live(), NOW);
+  const keep = vm.rows.find((r) => r.id === KEEP_ROW);
+  assert.deepEqual(keptNumberRowOf(vm, undefined), {
+    label: "The number you already have",
+    value: null,
+    empty: "Not forwarded",
+    hint: keep.sentence,
+    act: "Set up forwarding",
+    close: "Close",
+  });
+  const forwarded = {
+    id: "fw",
+    e164: "+13055550100",
+    kind: "forwarded",
+    provider: "carrier",
+    area_code: 305,
+    voice_state: "none",
+    sms_state: "none",
+    whatsapp_state: "none",
+    port_state: "none",
+    forwarding_state: "instructed",
+    step: null,
+    last_error: null,
+    state_since: "2026-09-07T14:00:00Z",
+    created_at: "2026-09-07T14:00:00Z",
+    forwarding: {
+      carrier: "verizon",
+      mode: "unanswered",
+      destination_e164: VOICE,
+      test_until: null,
+      verified_at: null,
+    },
+  };
+  const lines = { rows: [forwarded], ready: true, provider: "twilio", costs: { local_number_month_usd: 1.15 } };
+  const saved = setupSteps(live({ lines }), NOW);
+  const row = keptNumberRowOf(saved, lines);
+  assert.equal(row.value, "+1 (305) 555-0100");
+  assert.equal(row.hint, saved.rows.find((r) => r.id === KEEP_ROW).sentence, "Today's card and Settings say one thing");
+  assert.equal(row.act, "Test it");
+  // No line to forward to yet: nothing to set up there, and no row.
+  assert.equal(keptNumberRowOf(setupSteps(empty(), NOW), undefined), null);
 });
 
 test("what Hide says counts each row as its own Skip would put it: a week, or for good", () => {

@@ -4556,8 +4556,8 @@ function setupBack(s, id, nowMs) {
 function setupPutOffEver(s, id) {
   return s.later.includes(id) || restUntil(s, id) !== null;
 }
-function putOffEnds(id, back) {
-  return back && id !== KEEP_ROW ? "good" : "week";
+function putOffEnds(back) {
+  return back ? "good" : "week";
 }
 function setupPutOffNext(s, ids, change, nowMs) {
   const later = new Set(s.later);
@@ -4567,7 +4567,7 @@ function setupPutOffNext(s, ids, change, nowMs) {
       if (later.has(id)) later.delete(id);
       else rests.delete(id);
     } else if (!setupOffNow(s, id, nowMs)) {
-      if (change.why === "answer" || putOffEnds(id, setupBack(s, id, nowMs)) === "good") later.add(id);
+      if (change.why === "answer" || putOffEnds(setupBack(s, id, nowMs)) === "good") later.add(id);
       else rests.set(id, new Date(nowMs + SETUP_REST_MS).toISOString());
     }
   }
@@ -57776,6 +57776,19 @@ function keepRow(_i, ctx) {
     verb: { label: "Set up forwarding", to: "verb:forwarding" }
   };
 }
+function keptNumberRowOf(vm, lines) {
+  const row2 = vm.rows.find((r2) => r2.id === KEEP_ROW);
+  if (!row2 || !row2.verb) return null;
+  const kept = lines?.rows.find((l) => l.kind === "forwarded")?.e164 ?? null;
+  return {
+    label: row2.title,
+    value: kept ? formatPhoneDisplay(kept) ?? kept : null,
+    empty: "Not forwarded",
+    hint: row2.sentence,
+    act: row2.verb.label,
+    close: "Close"
+  };
+}
 
 // src/setup/setup-rows.ts
 function billingRow(i, ctx) {
@@ -59902,7 +59915,7 @@ var CARD_PUT_OFF = {
   backShort: "Back",
   week: "Put off for a week.",
   good: "Off your list.",
-  // "The number you already have" rests every time (setup.ts putOffEnds): what waiting costs, said with each Skip.
+  // What waiting on "The number you already have" costs, said with each of its Skips.
   keep: FORWARDING_WAIT_WORDS
 };
 var CARD_SKIP = { put: CARD_PUT_OFF.put, back: CARD_PUT_OFF.back, backShort: CARD_PUT_OFF.backShort };
@@ -59912,13 +59925,14 @@ var CARD_HOMES = {
   calendar: () => "It's in Settings \u203A Hours & booking.",
   team: (r2) => r2.verb?.to === "admin/notifications" ? "It's in Settings \u203A Notifications." : "It's in Settings \u203A Team.",
   handoff: () => "It's in Settings \u203A How it answers.",
+  keep: () => "It's in Settings \u203A How it answers.",
   google: () => "It's in Settings \u203A Connections.",
   email: () => "It's in Settings \u203A Connections.",
   yes: () => "It's in People \u203A Get their yes."
 };
 function skipSaid(id, r2) {
-  if (id === KEEP_ROW) return `${CARD_PUT_OFF.week} ${CARD_PUT_OFF.keep}`;
-  return putOffEnds(id, r2.back) === "good" ? `${CARD_PUT_OFF.good} ${CARD_HOMES[id](r2)}` : CARD_PUT_OFF.week;
+  const said = putOffEnds(r2.back) === "good" ? `${CARD_PUT_OFF.good} ${CARD_HOMES[id](r2)}` : CARD_PUT_OFF.week;
+  return id === KEEP_ROW ? `${said} ${CARD_PUT_OFF.keep}` : said;
 }
 function hideSaid(drawn) {
   const [only] = drawn;
@@ -59981,7 +59995,7 @@ function setupCardOf(vm) {
   });
   if (!rows2.length) return null;
   const calendar = rowOf(vm, "calendar");
-  const remindGood = putOffEnds(REMIND_SKIPPED, vm.remindBack) === "good";
+  const remindGood = putOffEnds(vm.remindBack) === "good";
   const remind = vm.calendarLinked && calendar?.state === "ready" && !vm.remindSkipped && !vm.dayBeforeOn ? {
     id: CARD_REMIND.id,
     name: CARD_REMIND.name,
@@ -59993,7 +60007,7 @@ function setupCardOf(vm) {
     back: vm.remindBack
   } : null;
   const drawn = [
-    ...rows2.map((r2) => ({ id: r2.id, good: putOffEnds(r2.id, r2.back) === "good", said: r2.said ?? "" })),
+    ...rows2.map((r2) => ({ id: r2.id, good: putOffEnds(r2.back) === "good", said: r2.said ?? "" })),
     ...remind ? [{ id: remind.id, good: remindGood, said: remind.said }] : []
   ];
   return {
@@ -67999,6 +68013,7 @@ export {
   judgeSystemPrompt,
   judgeUserContent,
   keepsValues,
+  keptNumberRowOf,
   keptPhoneKind,
   keptUnreadOf,
   kindListDoor,

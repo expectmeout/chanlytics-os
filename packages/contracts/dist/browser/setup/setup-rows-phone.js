@@ -14,6 +14,7 @@ import {
   forwardedLineOf,
   keptPhoneKind,
   lineStuckProvisioning,
+  KEEP_ROW,
   LINE_STEP_WORDS
 } from "./setup.js";
 export function lineRow(i, ctx) {
@@ -378,5 +379,18 @@ export function keepRow(_i, ctx) {
     sentence: `Keep the number your customers know: forward its calls to ${dest}.`,
     details: ["You keep your phone, your carrier and your texts"],
     verb: { label: "Set up forwarding", to: "verb:forwarding" }
+  };
+}
+export function keptNumberRowOf(vm, lines) {
+  const row = vm.rows.find((r) => r.id === KEEP_ROW);
+  if (!row || !row.verb) return null;
+  const kept = lines?.rows.find((l) => l.kind === "forwarded")?.e164 ?? null;
+  return {
+    label: row.title,
+    value: kept ? formatPhoneDisplay(kept) ?? kept : null,
+    empty: "Not forwarded",
+    hint: row.sentence,
+    act: row.verb.label,
+    close: "Close"
   };
 }
