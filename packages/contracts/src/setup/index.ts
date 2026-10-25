@@ -4,6 +4,10 @@ export {
   lineRetryRefusal,
   textingWords,
   setupLaterOf,
+  setupRestsOf,
+  setupPutOffNext,
+  putOffEnds,
+  SETUP_REST_MS,
   setupPhoneWantOf,
   setupChoicesOf,
   forwardedLineOf,
@@ -43,6 +47,10 @@ export type {
   SetupPhoneWant,
   SetupChoices,
   WhatsappChoice,
+  SetupRests,
+  SetupPutOff,
+  SetupPutOffWhy,
+  SetupPutOffChange,
 } from "./setup";
 export { capabilityStatus, CAPABILITY_KINDS } from "./capabilities";
 export type {
@@ -80,7 +88,7 @@ export {
   FIRST_RUN_WORDS,
 } from "./first-run";
 export { setupCardOf, SETUP_CARD_WORDS } from "./first-run-card";
-export type { SetupCardVM, SetupCardWho } from "./first-run-card";
+export type { SetupCardVM, SetupCardRowVM, SetupCardWho } from "./first-run-card";
 export { businessNameOf, receptionistCardOf, soundsWords } from "./first-run-receptionist";
 export type { ReceptionistCardInputs, ReceptionistCardVM } from "./first-run-receptionist";
 export { FIRST_RUN_HELPERS } from "./first-run-helpers";

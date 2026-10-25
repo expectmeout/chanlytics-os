@@ -29,7 +29,10 @@ import {
   REMIND_SKIPPED,
   SETUP_STATE_WORDS,
   TRY_SKIPPED,
-  forwardedLineOf
+  forwardedLineOf,
+  setupBack,
+  setupOffNow,
+  setupPutOffEver
 } from "./setup.js";
 import { lineRow, receptionistRow, tryRow, keepRow } from "./setup-rows-phone.js";
 import { SEQUENCES_ROUTE } from "../sequences/sequence-address.js";
@@ -503,7 +506,7 @@ const checkFactsOf = (i) => ({
   type: i.google?.type ?? null,
   bookingPage: bookingPageOffered(i.google?.bookingPage, i.business.bookingLink)
 });
-const forwardingOwedOf = (i, later) => !!i.want && i.want.way !== "new" && !forwardedLineOf(i.lines) && !later.has(KEEP_ROW);
+const forwardingOwedOf = (i, off) => !!i.want && i.want.way !== "new" && !forwardedLineOf(i.lines) && !setupPutOffEver(off, KEEP_ROW);
 function readinessSentenceOf(i, ctx) {
   const { waReady, voiceReady, waNum, voiceNum, texting } = ctx;
   const seriousConflict = (i.conflicts ?? []).find((k) => k.severity === "serious") ?? null;
@@ -525,18 +528,19 @@ function tryItOf(ctx) {
     whatsappLabel: waReady ? waNum : null
   };
 }
-function firstRunFactsOf(i, ctx, later) {
+function firstRunFactsOf(i, ctx, off, nowMs) {
   const google = i.google;
   return {
     findable: !!google?.ready && google.places !== false && !google.listing,
-    trySkipped: later.has(TRY_SKIPPED),
-    remindSkipped: later.has(REMIND_SKIPPED),
+    trySkipped: setupOffNow(off, TRY_SKIPPED, nowMs),
+    remindSkipped: setupOffNow(off, REMIND_SKIPPED, nowMs),
+    remindBack: setupBack(off, REMIND_SKIPPED, nowMs),
     dayBeforeOn: i.reminders?.day_before === true,
-    forwardingOwed: forwardingOwedOf(i, later),
-    receptionistMet: later.has(RECEPTIONIST_MET),
-    rehearseSkipped: later.has(REHEARSE_SKIPPED),
+    forwardingOwed: forwardingOwedOf(i, off),
+    receptionistMet: setupPutOffEver(off, RECEPTIONIST_MET),
+    rehearseSkipped: setupPutOffEver(off, REHEARSE_SKIPPED),
     googleConnect: {
-      offered: google?.profile === true && !!google.listing && !google.connected && !later.has(GOOGLE_CONNECT_LATER),
+      offered: google?.profile === true && !!google.listing && !google.connected && !setupPutOffEver(off, GOOGLE_CONNECT_LATER),
       connected: !!google?.connected,
       email: google?.connection?.google_email ?? null
     },
@@ -545,13 +549,13 @@ function firstRunFactsOf(i, ctx, later) {
     want: i.want ?? null,
     lineUnderway: !!ctx.ownLine || ctx.voice.present || !!i.requests.line || !!i.requests.port,
     numbersHere: !!i.lines?.ready,
-    channelsSeen: later.has(CHANNELS_SEEN),
+    channelsSeen: setupPutOffEver(off, CHANNELS_SEEN),
     calendarLinked: i.calendar.state !== "none",
     check: checkFactsOf(i)
   };
 }
 export function setupSteps(i, nowMs = Date.now()) {
-  const later = new Set(i.later ?? []);
+  const off = { later: i.later ?? [], rests: i.rests ?? {} };
   const ctx = rowContextOf(i, nowMs);
   const rows = [];
   for (const build of SETUP_ROWS) {
@@ -560,7 +564,8 @@ export function setupSteps(i, nowMs = Date.now()) {
       rows.push({
         ...r,
         stateWords: r.stateWords ?? SETUP_STATE_WORDS[r.state],
-        later: !r.required && later.has(r.id)
+        later: !r.required && setupOffNow(off, r.id, nowMs),
+        back: !r.required && setupBack(off, r.id, nowMs)
       });
   }
   const open = rows.filter((r) => r.state !== "ready" && !r.later);
@@ -574,6 +579,6 @@ export function setupSteps(i, nowMs = Date.now()) {
     done,
     total: rows.length,
     tryIt: tryItOf(ctx),
-    ...firstRunFactsOf(i, ctx, later)
+    ...firstRunFactsOf(i, ctx, off, nowMs)
   };
 }

@@ -405,7 +405,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST sequences/[id]/move": () => [...runsAndChains(), leadsOverride, sequencesOverride],
   // Its save writes each step's words as a template, and its auto-add switch puts the search's ready leads in it.
   "PUT sequences/[id]/chain": () => [...runsAndChains(), sequencesOverride, leadsOverride, ...templates()],
-  "DELETE sequences/[id]": () => [...runsAndChains(), sequencesOverride],
+  // A sequence to leads let go of (0072) takes its leads' places with it: Leads' "Where they stand" and its "Adds go to".
+  "DELETE sequences/[id]": () => [...runsAndChains(), sequencesOverride, leadsOverride],
   // A reach-out is a chain of playbooks over a search's leads (Part 4): its runs are broadcasts, its answers move leads,
   // and its chain is the reach-outs surface (Playbooks' row, and Templates' email rows drawn from it). Its own save writes the chain,
   // its runs and its words and no lead, and an answer that moves a lead is the lead's own write. Leads draws which reach-out a

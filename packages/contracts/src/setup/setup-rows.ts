@@ -7,7 +7,8 @@
  * templates, the calendar feed, the team, the consent rows. Nothing stores a
  * "done" flag; a row is ready because the thing it names exists. "Later" is
  * the member's own (their saved view, on every device): it puts an optional
- * row off Today's card, and nothing else.
+ * row off Today's card for a week, then for good (setup.ts setupPutOffNext),
+ * and nothing else.
  */
 import { calendarSourceFacts, calendarSourceOf, type CalendarSourceState } from "./calendar-source";
 import { agoWords } from "../shared/time";
@@ -41,7 +42,11 @@ import {
   SETUP_STATE_WORDS,
   TRY_SKIPPED,
   forwardedLineOf,
+  setupBack,
+  setupOffNow,
+  setupPutOffEver,
   type SetupInputs,
+  type SetupPutOff,
   type SetupRowBuilder,
   type SetupRowContext,
   type SetupRowDraft,
@@ -668,10 +673,11 @@ const checkFactsOf = (i: SetupInputs): SetupVM["check"] => ({
 
 /**
  * A number the member chose to keep or move, with no forwarding saved for one yet, and "The number you already have"
- * not put off: the first run's Go live still owes its forwarding (first-run.ts stepDone). A new number owes none.
+ * never put off: the first run's Go live still owes its forwarding (first-run.ts stepDone). A new number owes none. A
+ * put-off whose week ended still said the forwarding can wait, so the row back on Today does not reopen the step.
  */
-const forwardingOwedOf = (i: SetupInputs, later: ReadonlySet<string>): boolean =>
-  !!i.want && i.want.way !== "new" && !forwardedLineOf(i.lines) && !later.has(KEEP_ROW);
+const forwardingOwedOf = (i: SetupInputs, off: SetupPutOff): boolean =>
+  !!i.want && i.want.way !== "new" && !forwardedLineOf(i.lines) && !setupPutOffEver(off, KEEP_ROW);
 
 /** Setup's top line: a serious conflict first ("answering" and "answering correctly" differ), else what answers where. */
 function readinessSentenceOf(i: SetupInputs, ctx: SetupRowContext): string {
@@ -700,20 +706,28 @@ function tryItOf(ctx: SetupRowContext): SetupVM["tryIt"] {
 
 /**
  * What the first run reads of Setup beside its rows (decision 0073): what can be found on Google, the member's own
- * put-offs and choices, the forwarding still owed, the rehearsal, Connect it to Google, and Check's facts.
+ * put-offs and choices, the forwarding still owed, the rehearsal, Connect it to Google, and Check's facts. The first
+ * run's own marks (its receptionist met, the rehearsal skipped, Where it answers seen, Google's connect put off) are
+ * answers, written for good; each is read as put off at all (setupPutOffEver), so a step once done is never opened
+ * again by a week that ended.
  */
-function firstRunFactsOf(i: SetupInputs, ctx: SetupRowContext, later: ReadonlySet<string>) {
+function firstRunFactsOf(i: SetupInputs, ctx: SetupRowContext, off: SetupPutOff, nowMs: number) {
   const google = i.google;
   return {
     findable: !!google?.ready && google.places !== false && !google.listing,
-    trySkipped: later.has(TRY_SKIPPED),
-    remindSkipped: later.has(REMIND_SKIPPED),
+    trySkipped: setupOffNow(off, TRY_SKIPPED, nowMs),
+    remindSkipped: setupOffNow(off, REMIND_SKIPPED, nowMs),
+    remindBack: setupBack(off, REMIND_SKIPPED, nowMs),
     dayBeforeOn: i.reminders?.day_before === true,
-    forwardingOwed: forwardingOwedOf(i, later),
-    receptionistMet: later.has(RECEPTIONIST_MET),
-    rehearseSkipped: later.has(REHEARSE_SKIPPED),
+    forwardingOwed: forwardingOwedOf(i, off),
+    receptionistMet: setupPutOffEver(off, RECEPTIONIST_MET),
+    rehearseSkipped: setupPutOffEver(off, REHEARSE_SKIPPED),
     googleConnect: {
-      offered: google?.profile === true && !!google.listing && !google.connected && !later.has(GOOGLE_CONNECT_LATER),
+      offered:
+        google?.profile === true &&
+        !!google.listing &&
+        !google.connected &&
+        !setupPutOffEver(off, GOOGLE_CONNECT_LATER),
       connected: !!google?.connected,
       email: google?.connection?.google_email ?? null,
     },
@@ -722,18 +736,20 @@ function firstRunFactsOf(i: SetupInputs, ctx: SetupRowContext, later: ReadonlySe
     want: i.want ?? null,
     lineUnderway: !!ctx.ownLine || ctx.voice.present || !!i.requests.line || !!i.requests.port,
     numbersHere: !!i.lines?.ready,
-    channelsSeen: later.has(CHANNELS_SEEN),
+    channelsSeen: setupPutOffEver(off, CHANNELS_SEEN),
     calendarLinked: i.calendar.state !== "none",
     check: checkFactsOf(i),
   };
 }
 
 /**
- * The fold over SETUP_ROWS: the rows drawn, each with its state's words and whether this member put it off; the
- * readiness they add up to; the first open verb; and what the first run's Check reads beside them.
+ * The fold over SETUP_ROWS: the rows drawn, each with its state's words and whether this member has it put off or back
+ * from a week put off; the readiness they add up to; the first open verb; and what the first run's Check reads beside
+ * them.
  */
 export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
-  const later = new Set(i.later ?? []);
+  // A fixture written before rests carries none: no rows rest.
+  const off: SetupPutOff = { later: i.later ?? [], rests: i.rests ?? {} };
   const ctx = rowContextOf(i, nowMs);
   const rows: SetupRowVM[] = [];
   for (const build of SETUP_ROWS) {
@@ -742,7 +758,8 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
       rows.push({
         ...r,
         stateWords: r.stateWords ?? SETUP_STATE_WORDS[r.state],
-        later: !r.required && later.has(r.id),
+        later: !r.required && setupOffNow(off, r.id, nowMs),
+        back: !r.required && setupBack(off, r.id, nowMs),
       });
   }
 
@@ -760,6 +777,6 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
     done,
     total: rows.length,
     tryIt: tryItOf(ctx),
-    ...firstRunFactsOf(i, ctx, later),
+    ...firstRunFactsOf(i, ctx, off, nowMs),
   };
 }

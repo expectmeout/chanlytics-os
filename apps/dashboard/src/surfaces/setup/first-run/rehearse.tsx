@@ -59,7 +59,7 @@ function Skip({ fr, flash, go }: { fr: FirstRunVM; flash: (f: LegacyFlash) => vo
     if (!nudged) return setNudged(true);
     if (busy) return;
     setBusy(true);
-    const r = await setupVerbs.later(FIRST_RUN_HELPERS.rehearseSkipped, true);
+    const r = await setupVerbs.later(FIRST_RUN_HELPERS.rehearseSkipped, { on: true, why: "answer" });
     setBusy(false);
     if (!r.ok) return flash(refusalToast(r, FIRST_RUN_HELPERS.words.find.notSaved));
     go("start");

@@ -18,7 +18,7 @@ const G = FIRST_RUN_HELPERS.words.google;
 
 /** Not now: Your business goes on, and Setup's Google row keeps Connect for later. */
 async function notNow(flash: (f: LegacyFlash) => void, goOn: () => void): Promise<void> {
-  const r = await setupVerbs.later(FIRST_RUN_HELPERS.googleConnectLater, true);
+  const r = await setupVerbs.later(FIRST_RUN_HELPERS.googleConnectLater, { on: true, why: "answer" });
   if (!r.ok) return flash(refusalToast(r, W.find.notSaved));
   goOn();
 }

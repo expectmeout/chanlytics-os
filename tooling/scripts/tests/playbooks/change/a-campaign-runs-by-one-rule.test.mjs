@@ -161,7 +161,7 @@ const OTHER_STATES = {
   },
   "apps/dashboard/src/surfaces/console/health/background.tsx": {
     n: 1,
-    why: "A clock's state on Health's background list (sweep_status): a sweep running, not a campaign.",
+    why: "A Health clock's sweep (sweep_status), running or idle as it should be on the Console, not a campaign.",
   },
   "packages/contracts/src/imports/ledger.ts": {
     n: 3,

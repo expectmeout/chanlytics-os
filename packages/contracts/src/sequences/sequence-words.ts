@@ -479,14 +479,6 @@ export function sequenceWhoApprovesHint(mode: string | null): string {
 }
 
 /**
- * Whether a one-off may still be let go of (the run's cancel door, asked first): one scheduled for its day. One waiting
- * for an OK is skipped from its notice; one going, gone, canceled or failed has nothing left to cancel. No door moves a
- * one-off to another day or other people: it is canceled and made again.
- */
-export const sequenceCancels = (row: SequenceRowDto): boolean =>
-  row.starts === "date" && row.date?.state === "scheduled";
-
-/**
  * The one notice a sequence shows (D8): the most pressing thing that needs you, with its act. Null when nothing does.
  * `words` is the whole sentence (a desk's notice, Ask); `line` and `fact` are a phone's dock, its line and the one fact
  * under it, so the dock says each once and stays one capsule high.

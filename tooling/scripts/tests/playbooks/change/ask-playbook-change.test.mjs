@@ -252,16 +252,21 @@ test("a change is refused in words before any card: not an id, not this workspac
   const step = tables({
     playbooks: [playbookRow({ id: STEP, kind: "reach_out", trigger: "lead_first", name: "Movers" })],
   });
-  // A sequence to leads is paused or resumed here as its page does it (decision 0060: Ask runs every sequence), in its
-  // page's words and never under a class's mode; anything else of it is its page's.
+  // A sequence to leads is paused, resumed or renamed here as its page does it (decision 0060: Ask runs every sequence;
+  // 0072), in its page's words and never under a class's mode; anything else of it is its page's.
   const paused = await change({ playbook_id: STEP, state: "paused" }, step);
   assert.deepEqual(
     [paused.proposal?.kind, paused.proposal?.summary, paused.proposal?.payload.state, paused.proposal?.payload.was],
     ["playbook_change", PLAYBOOK_PATCH_WORDS.paused, "paused", { state: "running" }],
   );
+  const renamed = await change({ playbook_id: STEP, name: "Movers again" }, step);
+  assert.deepEqual(
+    [renamed.proposal?.summary, renamed.proposal?.payload.name, renamed.proposal?.payload.was],
+    [PLAYBOOK_PATCH_WORDS.name("Movers again"), "Movers again", { name: "Movers" }],
+  );
   assert.match(
-    said(await change({ playbook_id: STEP, name: "Movers again" }, step)),
-    /only paused, resumed or given its mode here/,
+    said(await change({ playbook_id: STEP, run_hour: 9 }, step)),
+    /only paused, resumed, renamed or given its mode here/,
   );
   assert.equal(said(await change({ run_hour: 7 })), "The hour must be a whole number from 9 to 20.");
   assert.equal(said(await change({ name: "x".repeat(81) })), PLAYBOOK_PATCH_WORDS.nameLong(80));

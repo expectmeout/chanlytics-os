@@ -173,7 +173,7 @@ export const FrFind = ({ W, flash, done, go, make, onFound }: FindProps) => {
   const notOnGoogle = async () => {
     if (busy) return;
     setBusy(true);
-    const r = await setupVerbs.later("google", true);
+    const r = await setupVerbs.later("google", { on: true, why: "answer" });
     setBusy(false);
     if (!r.ok) {
       flash(refusalToast(r, W.notSaved));

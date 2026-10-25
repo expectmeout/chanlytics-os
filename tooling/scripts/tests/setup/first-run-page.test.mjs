@@ -360,7 +360,7 @@ test("Find: not on Google puts Google's row off, the member's own choice", async
     const { tree } = await findOn();
     const before = asks.receptionist.length;
     await byTestId(tree, "fr-find-not").props.onClick();
-    assert.deepEqual(said, [["google", true]]);
+    assert.deepEqual(said, [["google", { on: true, why: "answer" }]], "an answer: for good at once");
     await tick();
     assert.equal(asks.receptionist.length, before + 1, "and the receptionist is set up with the name typed at sign-up");
   } finally {
@@ -498,7 +498,7 @@ test("Connect it to Google: Not now keeps the public listing watched, the member
   let tree = open();
   went.length = 0;
   await byTestId(tree, "fr-google-not-now").props.onClick();
-  assert.deepEqual(said, [[GOOGLE_CONNECT_LATER, true]]);
+  assert.deepEqual(said, [[GOOGLE_CONNECT_LATER, { on: true, why: "answer" }]]);
   assert.equal(replaced.at(-1), "start/business", "the bare address being left is named for its step");
   assert.equal(went.at(-1), "start/receptionist", "and on to Your receptionist, a new entry");
   setupVerbs.later = async () => ({ ok: false, message: "Your settings could not be saved." });
@@ -529,7 +529,11 @@ test("Connect it to Google: Someone else manages it says who can add the owner, 
   byTestId(tree, "fr-google-try-another").props.onClick();
   assert.deepEqual(asked, [{ back: "start" }]);
   await byTestId(tree, "fr-google-go-on").props.onClick();
-  assert.deepEqual(said, [[GOOGLE_CONNECT_LATER, true]], "on without it: the same Later, the public listing watched");
+  assert.deepEqual(
+    said,
+    [[GOOGLE_CONNECT_LATER, { on: true, why: "answer" }]],
+    "on without it: the same Later, the public listing watched",
+  );
 });
 
 test("back from Google: what came in, a line each with where it stands, and Continue goes on", async (t) => {
@@ -783,7 +787,7 @@ test("Rehearse (canvas 3): talk to it, what it reads from beside, and the skip a
   tree = mount();
   went.length = 0;
   await byTestId(tree, "fr-rehearse-skip-go").props.onClick();
-  assert.deepEqual(said, [[REHEARSE_SKIPPED, true]]);
+  assert.deepEqual(said, [[REHEARSE_SKIPPED, { on: true, why: "answer" }]]);
   assert.equal(replaced.at(-1), "start/rehearse", "the bare address being left is named for its step");
   assert.equal(went.at(-1), "start/channels", "and on to Where it answers");
 });

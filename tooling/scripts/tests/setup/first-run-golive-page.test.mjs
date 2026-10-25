@@ -553,10 +553,14 @@ test("a number kept is the member's own choice, on any tab: Go live asks its for
   flashes.length = 0;
   await off.props.onClick();
   await tick();
-  assert.deepEqual(asked.later, [[KEEP_ROW, true]], "Setup's own Later, on the number kept");
+  assert.deepEqual(
+    asked.later,
+    [[KEEP_ROW, { on: true, why: "rest" }]],
+    "Setup's own Later, on the number kept: a week, then back on Today",
+  );
   assert.equal(
     textOf(flashes.at(-1).msg),
-    "Put off. Until it is set up, only calls to your receptionist's own number are answered.",
+    "Put off for a week, then it's back on Today. Until it is set up, only calls to your receptionist's own number are answered.",
   );
   assert.equal(replaced.at(-1), "start/live", "Go live still: the owner's own call is next");
   const after = mount();
@@ -670,12 +674,16 @@ test("Check my line (canvas R6): calls answered and none yet, it listens for the
   assert.deepEqual(asked.later, [], "one nudge first");
   await byTestId(tree, "fr-try-skip-go").props.onClick();
   await tick();
-  assert.deepEqual(asked.later, [[TRY_SKIPPED, true]], "then the wait is put off for this member");
+  assert.deepEqual(
+    asked.later,
+    [[TRY_SKIPPED, { on: true, why: "answer" }]],
+    "then the wait is put off for this member",
+  );
   // Check my line's other way: Do it later, from the row itself.
   const later = tryWorld(t);
   tree = open();
   await byTestId(tree, "fr-check-later").props.onClick();
-  assert.deepEqual(later.later, [[TRY_SKIPPED, true]]);
+  assert.deepEqual(later.later, [[TRY_SKIPPED, { on: true, why: "answer" }]]);
 });
 
 test("Check my line (canvas R7, R8): it picked up with the words, then the call and the transfer saved through the Business tab's saver", async (t) => {

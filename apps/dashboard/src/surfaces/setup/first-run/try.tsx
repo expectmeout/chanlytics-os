@@ -252,7 +252,7 @@ export const FrTry = ({ tr, W, flash, go, leave, back, backLabel, onShowCode }: 
     }
     if (busy) return;
     setBusy(true);
-    const r = await setupVerbs.later(TRY_SKIPPED, true);
+    const r = await setupVerbs.later(TRY_SKIPPED, { on: true, why: "answer" });
     setBusy(false);
     if (!r.ok) {
       flash(refusalToast(r, W.notSaved));

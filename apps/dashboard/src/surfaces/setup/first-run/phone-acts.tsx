@@ -162,7 +162,7 @@ export async function copyCode(k: PhoneActs, text: string): Promise<void> {
 export async function putOff(k: PhoneActs): Promise<void> {
   if (k.busy) return;
   k.setBusy(true);
-  const r = await setupVerbs.later(KEEP_ROW, true);
+  const r = await setupVerbs.later(KEEP_ROW, { on: true, why: "rest" });
   k.setBusy(false);
   if (!r.ok) {
     k.flash(refusalToast(r, k.W.notForwarded));

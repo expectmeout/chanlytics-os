@@ -144,6 +144,12 @@ export interface FirstRunPhoneVM {
   status: { state: SetupState; words: string; sentence: string; detail: string } | null;
 }
 
+/**
+ * What waiting on a kept number's forwarding costs, said wherever it is put off: the phone step's "Set up forwarding
+ * later" and Today's Skip of "The number you already have", which comes back every week (setup.ts putOffEnds).
+ */
+export const FORWARDING_WAIT_WORDS = "Until it is set up, only calls to your receptionist's own number are answered.";
+
 export const FIRST_RUN_PHONE_WORDS = {
   chooseHeading: "How should calls reach your receptionist?",
   /** Where it answers' tile (canvas 4). */
@@ -245,7 +251,7 @@ export const FIRST_RUN_PHONE_WORDS = {
   keepCode: "Keep what I have",
   /** The forwarding put off from the questions: what the link says, and what the page says once it is. */
   putOff: "Set up forwarding later",
-  putOffSaid: "Put off. Until it is set up, only calls to your receptionist's own number are answered.",
+  putOffSaid: `Put off for a week, then it's back on Today. ${FORWARDING_WAIT_WORDS}`,
   /** The code, or the number to forward to, copied for the phone it is typed on. */
   copy: "Copy",
   copied: "Copied",

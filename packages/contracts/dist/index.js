@@ -4680,6 +4680,48 @@ var CHANNELS_SEEN = "channels-seen";
 var GOOGLE_CONNECT_LATER = "google-connect-later";
 var REMIND_SKIPPED = "remind-skipped";
 var KEEP_ROW = "keep";
+var SETUP_REST_MS = 7 * DAY_MS;
+var SETUP_RESTS_MAX = 20;
+function setupRestsOf(view) {
+  const rests = view && typeof view === "object" ? view.rests : null;
+  if (!rests || typeof rests !== "object" || Array.isArray(rests)) return {};
+  const kept = Object.entries(rests).filter(
+    (e) => e[0].length > 0 && e[0].length <= 40 && typeof e[1] === "string" && Number.isFinite(Date.parse(e[1]))
+  );
+  return Object.fromEntries(kept.slice(0, SETUP_RESTS_MAX));
+}
+var restUntil = (s, id) => {
+  const until = new Map(Object.entries(s.rests)).get(id);
+  return until === void 0 ? null : Date.parse(until);
+};
+function setupOffNow(s, id, nowMs) {
+  const until = restUntil(s, id);
+  return s.later.includes(id) || until !== null && until > nowMs;
+}
+function setupBack(s, id, nowMs) {
+  const until = restUntil(s, id);
+  return !s.later.includes(id) && until !== null && until <= nowMs;
+}
+function setupPutOffEver(s, id) {
+  return s.later.includes(id) || restUntil(s, id) !== null;
+}
+function putOffEnds(id, back) {
+  return back && id !== KEEP_ROW ? "good" : "week";
+}
+function setupPutOffNext(s, ids, change, nowMs) {
+  const later = new Set(s.later);
+  const rests = new Map(Object.entries(s.rests));
+  for (const id of ids) {
+    if (!change.on) {
+      if (later.has(id)) later.delete(id);
+      else rests.delete(id);
+    } else if (!setupOffNow(s, id, nowMs)) {
+      if (change.why === "answer" || putOffEnds(id, setupBack(s, id, nowMs)) === "good") later.add(id);
+      else rests.set(id, new Date(nowMs + SETUP_REST_MS).toISOString());
+    }
+  }
+  return { later: [...later], rests: Object.fromEntries(rests) };
+}
 var SETUP_LATER_REFUSED = {
   reading: "Setting up is still being read. Try again in a moment.",
   unread: "What you put off could not be read just now, so nothing changed. Try again in a moment."
@@ -24101,7 +24143,7 @@ function leadCheckWord(search, key, answer) {
   const plan = search?.plan;
   const cap3 = (s) => s.charAt(0).toUpperCase() + s.slice(1);
   const low = (s) => s[1] && s[1] === s[1].toLowerCase() ? s.charAt(0).toLowerCase() + s.slice(1) : s;
-  const said = (yes, no) => answer === "yes" ? yes : answer === "no" ? no : `${yes}: ${LEAD_CHECK_UNSURE_WORD}`;
+  const said = (yes, no2) => answer === "yes" ? yes : answer === "no" ? no2 : `${yes}: ${LEAD_CHECK_UNSURE_WORD}`;
   if (key === LEAD_KIND_KEY && plan) return said(`One of the ${plan.name}`, leadKindWord(plan.name));
   const cr = plan?.criteria.find((c) => c.key === key);
   if (cr) return said(cap3(cr.text), `${cap3(cr.text)}: no`);
@@ -29044,7 +29086,6 @@ function sequenceWhoApprovesHint(mode) {
   const how = sequenceApprovalWords(mode);
   return how.charAt(0).toUpperCase() + how.slice(1);
 }
-var sequenceCancels = (row2) => row2.starts === "date" && row2.date?.state === "scheduled";
 var noticeOf = (n) => ({
   batchId: null,
   stepId: null,
@@ -29850,7 +29891,6 @@ var WHY = {
   made: "Ask makes a sequence with its own card, from the draft it wrote in the conversation; New's Keep and Start make the one the owner shaped on the page",
   learned: "a note the owner's correction suggested is kept beside what they wrote, on Settings \u203A Autonomy; Ask adds a note of its own with a settings card",
   test: "it mails a step's message to the member who presses it, beside the step on its page",
-  end: "it ends a sequence for good, which is asked and confirmed on its page, beside the history it keeps",
   add: "Ask adds leads to a sequence with a card of its own on the same door (reach_out_add); the page's Add, Move and pick are the lead sheet's presses, beside the lead and the search they act on",
   stop: "it stops a reply in the minutes before it posts, under the review on Reports, where the reply and its time are",
   memory: "it changes or forgets a line of what Ask remembers, which a member does on Settings \u203A Memory where every line is listed; Ask keeps a line with its own card and its Undo"
@@ -29969,8 +30009,7 @@ var ASK_GUIDE_PAGES = [
     pageOnly: [
       { what: "Draft a sequence from a line on the page", why: WHY.draft },
       { what: "Keep or start what New drafted", why: WHY.made },
-      { what: "Send yourself a test of a step's message", why: WHY.test },
-      { what: "End a sequence for good", why: WHY.end }
+      { what: "Send yourself a test of a step's message", why: WHY.test }
     ]
   },
   {
@@ -30009,7 +30048,6 @@ var ASK_PAGE_ONLY_VERBS = {
   sequence_new: WHY.made,
   fact_suggestion: WHY.learned,
   sequence_test: WHY.test,
-  sequence_end: WHY.end,
   sequence_add: WHY.add,
   sequence_move: WHY.add,
   lead_search_aim: WHY.add,
@@ -55374,46 +55412,6 @@ function historyDayWords(b, place) {
   };
 }
 
-// src/sequences/sequence-acts.ts
-var SEQUENCE_ACT_WORDS = {
-  more: (name) => `More for ${name}`,
-  /** The head's More where no act stands to carry it as a caret (Ruben, 20 Oct 2026: no three dots): its word. */
-  moreWord: "More",
-  askAbout: "Ask about it",
-  runNow: "Run now",
-  runNowTip: "Runs its first step now, as your decision: it goes without waiting for an OK, and outside the sending hours it goes when they open",
-  rename: "Rename",
-  /** A one-off that went, sent again: New's Send once, filled with what it sent (its message, who it went to, its values). */
-  sendAgain: "Send it again",
-  sendAgainTip: "A new one-off, filled with what this one sent: its message, who it went to and its values",
-  name: "Name",
-  save: "Save",
-  cancel: "Cancel",
-  resumeAsk: (name) => `Turn ${name} on?`,
-  resumeYes: "Yes, turn it on"
-};
-function sequenceRunsNow(row2, at3) {
-  const first = row2.first;
-  if (!first || row2.starts !== "moment" && row2.starts !== "list" || row2.needs.waiting > 0) return false;
-  return campaignRunsOn(first, { tz: at3.tz, now: new Date(at3.nowMs) });
-}
-function sequenceResumeAsk(rec2, reach, at3) {
-  const W = LIFECYCLE_WORDS.ledger.resume;
-  const { name, starts, first, mode } = rec2.sequence;
-  const step2 = first && reach ? {
-    run_hour: first.run_hour,
-    last_run_for: rec2.last_run_for ?? null,
-    trigger: first.trigger,
-    until: first.until,
-    candidates: reach.candidates,
-    cap_per_run: reach.cap_per_run,
-    mode,
-    words_ok_at: first.words_ok_at
-  } : null;
-  const detail = starts === "leads" ? W.chain : step2 ? resumeDetailOf(step2, { ...at3, paused: reach?.paused === true }) : null;
-  return { question: SEQUENCE_ACT_WORDS.resumeAsk(name), detail, yes: SEQUENCE_ACT_WORDS.resumeYes };
-}
-
 // src/sequences/sequence-lead-build.ts
 var LEAD_BUILD_WORDS = {
   /** The Start row: who joins, then the line under it. */
@@ -55678,6 +55676,140 @@ function leadPreviewEmailOf(p) {
     blocked: blocked || null,
     instead: null
   };
+}
+
+// src/sequences/sequence-acts.ts
+var SEQUENCE_ACT_WORDS = {
+  more: (name) => `More for ${name}`,
+  /** The head's More where no act stands to carry it as a caret (Ruben, 20 Oct 2026: no three dots): its word. */
+  moreWord: "More",
+  askAbout: "Ask about it",
+  runNow: "Run now",
+  runNowTip: "Runs its first step now, as your decision: it goes without waiting for an OK, and outside the sending hours it goes when they open",
+  rename: "Rename",
+  /** A one-off that went, sent again: New's Send once, filled with what it sent (its message, who it went to, its values). */
+  sendAgain: "Send it again",
+  sendAgainTip: "A new one-off, filled with what this one sent: its message, who it went to and its values",
+  name: "Name",
+  save: "Save",
+  cancel: "Cancel",
+  resumeAsk: (name) => `Turn ${name} on?`,
+  resumeYes: "Yes, turn it on"
+};
+var SEQUENCE_ACTS = [
+  "start",
+  "pause",
+  "turn_on",
+  "end",
+  "discard",
+  "run_now",
+  "rename",
+  "cancel_send",
+  "send_again"
+];
+var SEQUENCE_ACT_REASONS = [
+  "one_off",
+  "not_a_one_off",
+  "to_leads",
+  "ended",
+  "not_a_draft",
+  "email_to_write",
+  "not_on",
+  "not_paused",
+  "never_ran",
+  "ran",
+  "wrote",
+  "unread",
+  "batch_waiting",
+  "not_today",
+  "not_scheduled",
+  "not_sent"
+];
+var SEQUENCE_ACT_WHY = {
+  one_off: "A one-off goes once, on its day.",
+  not_a_one_off: "Only a one-off is cancelled or sent again.",
+  to_leads: "A sequence to leads goes on its own days: it is paused, never ended or run by hand.",
+  ended: "It has ended.",
+  not_a_draft: "It has been on already.",
+  email_to_write: "An email of it is still to write.",
+  not_on: "It is not on.",
+  not_paused: "It is not paused.",
+  never_ran: "It never ran, so nothing of it would be kept.",
+  ran: "It has run, and what it sent stays in its History.",
+  wrote: "It has written to leads, and what it sent stays.",
+  unread: "What it has sent could not be read just now.",
+  batch_waiting: "A batch of it waits for your OK.",
+  not_today: "It runs nothing today.",
+  not_scheduled: "It is not waiting for its day any more.",
+  not_sent: "It has not gone yet."
+};
+var OK = { ok: true };
+var no = (because, instead) => instead ? { ok: false, because, instead } : { ok: false, because };
+function runsToday(row2, at3) {
+  return !!row2.first && campaignRunsOn(row2.first, { tz: at3.tz, now: new Date(at3.nowMs) });
+}
+function sequenceActsOf(rec2, at3) {
+  const row2 = rec2.sequence;
+  const draft = row2.state === "draft";
+  if (row2.starts === "date")
+    return {
+      start: no("one_off"),
+      pause: no("one_off"),
+      turn_on: no("one_off"),
+      end: no("one_off"),
+      discard: draft && row2.once ? OK : no("one_off"),
+      run_now: no("one_off"),
+      rename: no("one_off"),
+      cancel_send: row2.date?.state === "scheduled" ? OK : no("not_scheduled"),
+      send_again: row2.last ? OK : no("not_sent")
+    };
+  const leads = row2.starts === "leads";
+  const notOnce = no("not_a_one_off");
+  if (row2.state === "ended") {
+    const ended = no("ended");
+    return {
+      start: ended,
+      pause: ended,
+      turn_on: ended,
+      end: ended,
+      discard: ended,
+      run_now: ended,
+      rename: ended,
+      cancel_send: notOnce,
+      send_again: notOnce
+    };
+  }
+  const ran = draft ? false : rec2.ran;
+  const wrote = draft ? false : rec2.wrote;
+  const discard = leads ? wrote === void 0 ? no("unread") : wrote ? no("wrote", "pause") : OK : ran === void 0 ? no("unread") : ran ? no("ran", "end") : OK;
+  return {
+    start: !draft ? no("not_a_draft", row2.state === "paused" ? "turn_on" : void 0) : leadDraftDockOf(row2, rec2.chain) ? no("email_to_write") : OK,
+    pause: row2.state === "on" ? OK : no("not_on"),
+    turn_on: row2.state === "paused" ? OK : no("not_paused", draft ? "start" : void 0),
+    // One that never ran goes whole either way (its first step's trigger): it is offered as Discard, not End.
+    end: leads ? no("to_leads", "pause") : ran === false ? no("never_ran", "discard") : OK,
+    discard,
+    run_now: leads ? no("to_leads") : row2.needs.waiting > 0 ? no("batch_waiting") : runsToday(row2, at3) ? OK : no("not_today"),
+    rename: OK,
+    cancel_send: notOnce,
+    send_again: notOnce
+  };
+}
+function sequenceResumeAsk(rec2, reach, at3) {
+  const W = LIFECYCLE_WORDS.ledger.resume;
+  const { name, starts, first, mode } = rec2.sequence;
+  const step2 = first && reach ? {
+    run_hour: first.run_hour,
+    last_run_for: rec2.last_run_for ?? null,
+    trigger: first.trigger,
+    until: first.until,
+    candidates: reach.candidates,
+    cap_per_run: reach.cap_per_run,
+    mode,
+    words_ok_at: first.words_ok_at
+  } : null;
+  const detail = starts === "leads" ? W.chain : step2 ? resumeDetailOf(step2, { ...at3, paused: reach?.paused === true }) : null;
+  return { question: SEQUENCE_ACT_WORDS.resumeAsk(name), detail, yes: SEQUENCE_ACT_WORDS.resumeYes };
 }
 
 // src/sequences/sequence-draft.ts
@@ -59705,7 +59837,7 @@ var checkFactsOf = (i) => ({
   type: i.google?.type ?? null,
   bookingPage: bookingPageOffered(i.google?.bookingPage, i.business.bookingLink)
 });
-var forwardingOwedOf = (i, later) => !!i.want && i.want.way !== "new" && !forwardedLineOf(i.lines) && !later.has(KEEP_ROW);
+var forwardingOwedOf = (i, off) => !!i.want && i.want.way !== "new" && !forwardedLineOf(i.lines) && !setupPutOffEver(off, KEEP_ROW);
 function readinessSentenceOf(i, ctx) {
   const { waReady, voiceReady, waNum, voiceNum, texting } = ctx;
   const seriousConflict = (i.conflicts ?? []).find((k) => k.severity === "serious") ?? null;
@@ -59727,18 +59859,19 @@ function tryItOf(ctx) {
     whatsappLabel: waReady ? waNum : null
   };
 }
-function firstRunFactsOf(i, ctx, later) {
+function firstRunFactsOf(i, ctx, off, nowMs) {
   const google = i.google;
   return {
     findable: !!google?.ready && google.places !== false && !google.listing,
-    trySkipped: later.has(TRY_SKIPPED),
-    remindSkipped: later.has(REMIND_SKIPPED),
+    trySkipped: setupOffNow(off, TRY_SKIPPED, nowMs),
+    remindSkipped: setupOffNow(off, REMIND_SKIPPED, nowMs),
+    remindBack: setupBack(off, REMIND_SKIPPED, nowMs),
     dayBeforeOn: i.reminders?.day_before === true,
-    forwardingOwed: forwardingOwedOf(i, later),
-    receptionistMet: later.has(RECEPTIONIST_MET),
-    rehearseSkipped: later.has(REHEARSE_SKIPPED),
+    forwardingOwed: forwardingOwedOf(i, off),
+    receptionistMet: setupPutOffEver(off, RECEPTIONIST_MET),
+    rehearseSkipped: setupPutOffEver(off, REHEARSE_SKIPPED),
     googleConnect: {
-      offered: google?.profile === true && !!google.listing && !google.connected && !later.has(GOOGLE_CONNECT_LATER),
+      offered: google?.profile === true && !!google.listing && !google.connected && !setupPutOffEver(off, GOOGLE_CONNECT_LATER),
       connected: !!google?.connected,
       email: google?.connection?.google_email ?? null
     },
@@ -59747,13 +59880,13 @@ function firstRunFactsOf(i, ctx, later) {
     want: i.want ?? null,
     lineUnderway: !!ctx.ownLine || ctx.voice.present || !!i.requests.line || !!i.requests.port,
     numbersHere: !!i.lines?.ready,
-    channelsSeen: later.has(CHANNELS_SEEN),
+    channelsSeen: setupPutOffEver(off, CHANNELS_SEEN),
     calendarLinked: i.calendar.state !== "none",
     check: checkFactsOf(i)
   };
 }
 function setupSteps2(i, nowMs = Date.now()) {
-  const later = new Set(i.later ?? []);
+  const off = { later: i.later ?? [], rests: i.rests ?? {} };
   const ctx = rowContextOf(i, nowMs);
   const rows2 = [];
   for (const build of SETUP_ROWS) {
@@ -59762,7 +59895,8 @@ function setupSteps2(i, nowMs = Date.now()) {
       rows2.push({
         ...r2,
         stateWords: r2.stateWords ?? SETUP_STATE_WORDS[r2.state],
-        later: !r2.required && later.has(r2.id)
+        later: !r2.required && setupOffNow(off, r2.id, nowMs),
+        back: !r2.required && setupBack(off, r2.id, nowMs)
       });
   }
   const open = rows2.filter((r2) => r2.state !== "ready" && !r2.later);
@@ -59776,7 +59910,7 @@ function setupSteps2(i, nowMs = Date.now()) {
     done,
     total: rows2.length,
     tryIt: tryItOf(ctx),
-    ...firstRunFactsOf(i, ctx, later)
+    ...firstRunFactsOf(i, ctx, off, nowMs)
   };
 }
 
@@ -60835,281 +60969,8 @@ function firstRunOf(vm, at3, who) {
   };
 }
 
-// src/setup/first-run-card.ts
-var GO_LIVE = /* @__PURE__ */ firstRunStepDefOf("live");
-var SETUP_CARD_ORDER = [
-  "try",
-  "whatsapp",
-  "clients",
-  "calendar",
-  "team",
-  "handoff",
-  "keep",
-  "google",
-  "email",
-  "yes"
-];
-var CARD_SKIP = { put: "Skip", said: "Put off. It stays in Setting up for when you're ready." };
-var CARD_REMIND = {
-  id: REMIND_SKIPPED,
-  name: "The day-before reminder",
-  stateWords: SETUP_STATE_WORDS.not_started,
-  words: "Your calendar is in. Remind each customer the day before.",
-  said: "Put off. Turn it on any time in Sequences.",
-  label: "Turn on",
-  // New sequence on the day-before moment, its line written in (sequence-address.ts newSequenceRoute): the composer's
-  // Turn on went with its moment mode (the closed-loop audit of 17 Oct 2026, G).
-  to: "campaigns/sequences/new:moment:visit_tomorrow"
-};
-var CARD_BILLING = { title: "Your plan", left: "Needs you" };
-var SETUP_CARD_WORDS = {
-  startCta: "Continue setting up",
-  startShort: "Continue",
-  notAnswering: "Not answering yet",
-  answering: "Answering",
-  callsNotAnswered: "Calls aren't answered yet",
-  next: (name) => `Next: ${name.toLowerCase()}`,
-  keptTitle: "Kept for you",
-  goingLive: "Finish going live",
-  needYou: (n) => `${n} need${n === 1 ? "s" : ""} you`,
-  doneTitle: "Already done",
-  /** What is kept, in the order the steps made it. */
-  kept: {
-    business: (name, listed) => listed ? `${name}, read from Google` : name,
-    sounds: (sounds) => `Your receptionist: ${sounds}`,
-    taught: (n) => `${n} ${n === 1 ? "thing" : "things"} you taught it`,
-    rehearsed: "Your rehearsal, reviewed",
-    keeping: (n) => `Keeping ${n}, when you go live`,
-    moving: (n) => `Moving ${n} to Chanlytics, when you go live`,
-    newNumber: (n) => `Its own number, ${n}, when you go live`
-  },
-  done: {
-    line: (n) => `Its number, ${n}`
-  }
-};
-var cardRowOf = (vm, id) => vm.rows.find((r2) => r2.id === id) ?? null;
-function keptForYouOf(vm, who) {
-  const K2 = SETUP_CARD_WORDS.kept;
-  const n = vm.want ? formatPhoneDisplay(vm.want.number) ?? vm.want.number : null;
-  return [
-    who?.business && vm.check.receptionist === "set" ? K2.business(who.business, vm.check.listed) : null,
-    who?.sounds && vm.receptionistMet ? K2.sounds(who.sounds) : null,
-    vm.rehearsal.kept ? K2.taught(vm.rehearsal.kept) : null,
-    vm.rehearsal.reviewed ? K2.rehearsed : null,
-    vm.want && n ? vm.want.way === "keep" ? K2.keeping(n) : vm.want.way === "move" ? K2.moving(n) : K2.newNumber(n) : null
-  ].filter((x) => !!x);
-}
-var GOING_LIVE_ROWS = ["keep", "try", "whatsapp"];
-function setupCardOf(vm, who) {
-  const W = SETUP_CARD_WORDS;
-  const billing = cardRowOf(vm, "billing");
-  if (billing && billing.state === "waiting_you" && billing.verb)
-    return {
-      ...CARD_BILLING,
-      start: null,
-      kept: [],
-      rows: [billing],
-      done: [],
-      hide: null,
-      skip: CARD_SKIP,
-      remind: null
-    };
-  const fr = firstRunOf(vm);
-  const paid = !billing || billing.state === "ready";
-  if (!fr.complete && (fr.current !== "live" || !paid)) {
-    const left2 = fr.steps.filter((s) => s.state !== "done").length;
-    const def = firstRunStepDefOf(fr.current);
-    return {
-      title: FINISH_SETTING_UP,
-      left: `${left2} ${left2 === 1 ? "step" : "steps"} left`,
-      start: {
-        // Said as it is: nothing answers yet; WhatsApp answers and calls do not; or calls are answered and a step is open.
-        name: !vm.readiness.answering ? W.notAnswering : vm.tryIt?.voice ? W.answering : W.callsNotAnswered,
-        sentence: def.lead,
-        status: W.next(def.name),
-        cta: W.startCta,
-        ctaShort: W.startShort,
-        to: FIRST_RUN_ROUTE
-      },
-      kept: keptForYouOf(vm, who),
-      rows: [],
-      done: [],
-      hide: null,
-      skip: CARD_SKIP,
-      remind: null
-    };
-  }
-  if (!fr.complete) {
-    const rows3 = GOING_LIVE_ROWS.map((id) => cardRowOf(vm, id)).filter(
-      (r2) => r2 !== null && r2.state !== "ready" && r2.state !== "waiting_them" && !!r2.verb
-    );
-    const line = vm.tryIt?.voiceLabel ?? null;
-    return {
-      title: W.goingLive,
-      left: rows3.length ? W.needYou(rows3.length) : W.next(GO_LIVE.name),
-      // Nothing of the owner's left on Go live (the number still on its way): the one row back to it.
-      start: rows3.length ? null : {
-        name: W.callsNotAnswered,
-        sentence: GO_LIVE.lead,
-        status: W.next(GO_LIVE.name),
-        cta: W.startCta,
-        ctaShort: W.startShort,
-        to: firstRunStepRoute("live")
-      },
-      kept: [],
-      rows: rows3,
-      done: line ? [W.done.line(line)] : [],
-      hide: null,
-      skip: null,
-      remind: null
-    };
-  }
-  const rows2 = SETUP_CARD_ORDER.map((id) => cardRowOf(vm, id)).filter(
-    (r2) => r2 !== null && r2.state !== "ready" && r2.state !== "waiting_them" && !r2.later && !!r2.verb
-  );
-  if (!rows2.length) return null;
-  const calendar = cardRowOf(vm, "calendar");
-  const remind = vm.calendarLinked && calendar?.state === "ready" && !vm.remindSkipped && !vm.dayBeforeOn ? { ...CARD_REMIND } : null;
-  const left = rows2.length + (remind ? 1 : 0);
-  const said = left === 1 ? CARD_SKIP.said : remind ? `All ${left} put off. They stay in Setting up, and the reminder in Sequences.` : `All ${left} put off. They stay in Setting up for when you're ready.`;
-  return {
-    title: FINISH_SETTING_UP,
-    left: `${left} left`,
-    start: null,
-    kept: [],
-    rows: rows2,
-    done: [],
-    hide: { put: "Hide", said },
-    skip: CARD_SKIP,
-    remind
-  };
-}
-
-// src/setup/check-chips.ts
-var SUGGESTIONS = {
-  hair_salon: [
-    "Haircut",
-    // trade-word: a hair salon's own service, suggested only where Google lists a hair salon
-    "Color",
-    "Highlights",
-    "Balayage",
-    // trade-word: a hair salon's own service, suggested only where Google lists a hair salon
-    "Blowout",
-    // trade-word: a hair salon's own service, suggested only where Google lists a hair salon
-    "Keratin treatment",
-    // trade-word: a hair salon's own service, suggested only where Google lists a hair salon
-    "Extensions"
-  ],
-  barber_shop: [
-    "Haircut",
-    // trade-word: a barber's own service, suggested only where Google lists a barber shop
-    "Beard trim",
-    "Hot towel shave",
-    "Fade",
-    "Kids' cut",
-    "Line-up"
-  ],
-  beauty_salon: [
-    "Haircut",
-    // trade-word: a beauty salon's own service, suggested only where Google lists one or a beautician
-    "Color",
-    "Manicure",
-    "Pedicure",
-    "Facial",
-    "Waxing",
-    "Brow shaping",
-    "Makeup"
-  ],
-  nail_salon: ["Manicure", "Pedicure", "Gel manicure", "Acrylic set", "Dip powder", "Nail art", "Fill"],
-  spa: ["Massage", "Facial", "Body scrub", "Hot stone massage", "Couples massage", "Body wrap"],
-  skin_care_clinic: ["Facial", "Chemical peel", "Microneedling", "Dermaplaning", "Acne treatment", "Consultation"],
-  makeup_artist: ["Bridal makeup", "Event makeup", "Makeup lesson", "Airbrush makeup", "Trial session"],
-  tanning_studio: ["Spray tan", "Tanning session", "Tanning package", "Rapid tan"],
-  body_art_service: ["Tattoo", "Piercing", "Touch-up", "Cover-up", "Consultation"],
-  dentist: ["Cleaning", "Checkup", "Whitening", "Filling", "Crown", "Emergency visit"],
-  // trade-word: a dentist's own service, suggested only where Google lists a dentist
-  chiropractor: ["New patient exam", "Adjustment", "Massage", "Spinal decompression", "Consultation"],
-  physiotherapist: [
-    "Evaluation",
-    "Physical therapy session",
-    "Sports injury rehab",
-    "Post-surgery rehab",
-    "Dry needling"
-  ],
-  doctor: ["New patient visit", "Annual physical", "Sick visit", "Follow-up", "Telehealth visit", "Vaccination"],
-  // trade-word: a doctor's own services, suggested only where Google lists a doctor
-  foot_care: ["Foot exam", "Nail care", "Callus removal", "Orthotics fitting", "Diabetic foot check"],
-  wellness_center: ["Consultation", "Massage", "Acupuncture", "IV drip", "Membership"],
-  veterinary_care: ["Wellness exam", "Vaccinations", "Dental cleaning", "Spay or neuter", "Sick visit", "Microchip"],
-  // trade-word: a vet's own service, suggested only where Google lists a vet
-  pet_care: ["Full groom", "Bath and brush", "Nail trim", "Boarding", "Daycare", "Dog walking"],
-  fitness_center: ["Personal training", "Group class", "Membership", "Day pass", "Nutrition coaching"],
-  yoga_studio: ["Drop-in class", "Class pack", "Private session", "Beginners series", "Membership"],
-  car_repair: ["Oil change", "Brake service", "Diagnostics", "Tire rotation", "Inspection", "AC repair"],
-  car_wash: ["Exterior wash", "Full detail", "Interior cleaning", "Wax", "Monthly plan"],
-  tire_shop: ["Tire installation", "Rotation", "Balancing", "Alignment", "Flat repair"],
-  moving_company: ["Local move", "Long-distance move", "Packing", "Storage", "Piano move", "Office move"],
-  plumber: ["Leak repair", "Drain cleaning", "Water heater", "Toilet repair", "Emergency call-out", "Inspection"],
-  electrician: [
-    "Outlet installation",
-    "Panel upgrade",
-    "Lighting installation",
-    "EV charger installation",
-    "Troubleshooting",
-    "Inspection"
-  ],
-  roofing_contractor: ["Roof inspection", "Roof repair", "Roof replacement", "Gutter repair", "Estimate"],
-  painter: ["Interior painting", "Exterior painting", "Cabinet painting", "Drywall repair", "Estimate"],
-  locksmith: ["Lockout", "Rekey", "Lock installation", "Key cutting", "Car lockout"],
-  laundry: ["Wash and fold", "Dry cleaning", "Pickup and delivery", "Alterations"],
-  tailor: ["Alterations", "Hemming", "Suit tailoring", "Repairs", "Custom fitting"],
-  florist: ["Bouquet", "Wedding flowers", "Event flowers", "Sympathy flowers", "Delivery"],
-  lawyer: ["Consultation", "Contract review", "Estate planning", "Family law", "Business formation"],
-  insurance_agency: ["Quote", "Auto insurance", "Home insurance", "Life insurance", "Policy review"],
-  real_estate_agency: ["Home valuation", "Buyer consultation", "Listing appointment", "Showing", "Rental help"],
-  catering_service: ["Event catering", "Tasting", "Corporate lunch", "Wedding catering", "Drop-off catering"],
-  child_care_agency: ["Tour", "Full-time care", "Part-time care", "After-school care", "Drop-in care"]
-};
-var SAME_AS = {
-  hair_care: "hair_salon",
-  beautician: "beauty_salon",
-  massage: "spa",
-  massage_spa: "spa",
-  dental_clinic: "dentist",
-  medical_clinic: "doctor",
-  medical_center: "doctor",
-  gym: "fitness_center",
-  pet_boarding_service: "pet_care"
-};
-var SERVICE_SUGGESTION_TYPES = /* @__PURE__ */ (() => Object.keys(SUGGESTIONS))();
-function serviceSuggestionsOf(type) {
-  const t = (type ?? "").trim();
-  return SUGGESTIONS[SAME_AS[t] ?? t] ?? [];
-}
-function checkChipsOf(i) {
-  const listed = (Array.isArray(i.services) ? i.services : []).map((s) => s && typeof s.name === "string" ? s.name.trim() : "").filter(Boolean);
-  const chosen = (Array.isArray(i.languages) ? i.languages : []).filter((l) => typeof l === "string" && l.trim() !== "").map((l) => l.trim());
-  const has3 = (list2, name) => list2.some((x) => sameListed(x, name));
-  const besides = chosen.filter((l, k) => !has3(COMMON_LANGUAGES, l) && !has3(chosen.slice(0, k), l));
-  const set = (key, chips, count2) => count2 >= PROFILE_LIMITS[key] && chips.some((c) => !c.on) ? { chips: chips.filter((c) => c.on), full: profileRefusal(key) } : { chips, full: null };
-  return {
-    services: set(
-      "services",
-      serviceSuggestionsOf(i.type).map((name) => ({ name, on: has3(listed, name) })),
-      listed.length
-    ),
-    languages: set(
-      "languages",
-      [
-        ...COMMON_LANGUAGES.map((name) => ({ name, on: has3(chosen, name) })),
-        ...besides.map((name) => ({ name, on: true }))
-      ],
-      chosen.length
-    )
-  };
-}
-
 // src/setup/first-run-phone.ts
+var FORWARDING_WAIT_WORDS = "Until it is set up, only calls to your receptionist's own number are answered.";
 var FIRST_RUN_PHONE_WORDS = {
   chooseHeading: "How should calls reach your receptionist?",
   /** Where it answers' tile (canvas 4). */
@@ -61199,7 +61060,7 @@ var FIRST_RUN_PHONE_WORDS = {
   keepCode: "Keep what I have",
   /** The forwarding put off from the questions: what the link says, and what the page says once it is. */
   putOff: "Set up forwarding later",
-  putOffSaid: "Put off. Until it is set up, only calls to your receptionist's own number are answered.",
+  putOffSaid: `Put off for a week, then it's back on Today. ${FORWARDING_WAIT_WORDS}`,
   /** The code, or the number to forward to, copied for the phone it is typed on. */
   copy: "Copy",
   copied: "Copied",
@@ -61579,6 +61440,327 @@ function ctaHeldOf(s, boxProblem) {
 }
 function ctaLabelOf(act2) {
   return FIRST_RUN_PHONE_WORDS.cta[act2];
+}
+
+// src/setup/first-run-card.ts
+var GO_LIVE = /* @__PURE__ */ firstRunStepDefOf("live");
+var SETUP_CARD_ORDER = [
+  "try",
+  "whatsapp",
+  "clients",
+  "calendar",
+  "team",
+  "handoff",
+  "keep",
+  "google",
+  "email",
+  "yes"
+];
+var CARD_PUT_OFF = {
+  put: "Skip",
+  hide: "Hide",
+  back: "Back after a week",
+  backShort: "Back",
+  week: "Put off for a week.",
+  good: "Off your list.",
+  // "The number you already have" rests every time (setup.ts putOffEnds): what waiting costs, said with each Skip.
+  keep: FORWARDING_WAIT_WORDS
+};
+var CARD_SKIP = { put: CARD_PUT_OFF.put, back: CARD_PUT_OFF.back, backShort: CARD_PUT_OFF.backShort };
+var CARD_HOMES = {
+  try: () => "Call your number any time to hear it.",
+  whatsapp: () => "It's in Settings \u203A Connections.",
+  clients: () => "It's in People \u203A Add people.",
+  calendar: () => "It's in Settings \u203A Hours & booking.",
+  team: (r2) => r2.verb?.to === "admin/notifications" ? "It's in Settings \u203A Notifications." : "It's in Settings \u203A Team.",
+  handoff: () => "It's in Settings \u203A How it answers.",
+  google: () => "It's in Settings \u203A Connections.",
+  email: () => "It's in Settings \u203A Connections.",
+  yes: () => "It's in People \u203A Get their yes."
+};
+function skipSaid(id, r2) {
+  if (id === KEEP_ROW) return `${CARD_PUT_OFF.week} ${CARD_PUT_OFF.keep}`;
+  return putOffEnds(id, r2.back) === "good" ? `${CARD_PUT_OFF.good} ${CARD_HOMES[id](r2)}` : CARD_PUT_OFF.week;
+}
+function hideSaid(drawn) {
+  const [only] = drawn;
+  if (drawn.length === 1 && only) return only.said;
+  const good = drawn.filter((d) => d.good).length;
+  const week = drawn.length - good;
+  const head = good === 0 ? `All ${drawn.length} put off for a week.` : week === 0 ? `All ${drawn.length} off your list.` : `${week} put off for a week, ${good} off your list.`;
+  return drawn.some((d) => d.id === KEEP_ROW) ? `${head} ${CARD_PUT_OFF.keep}` : head;
+}
+var CARD_REMIND = {
+  id: REMIND_SKIPPED,
+  name: "The day-before reminder",
+  stateWords: SETUP_STATE_WORDS.not_started,
+  words: "Your calendar is in. Remind each customer the day before.",
+  home: "Turn it on any time in Sequences.",
+  label: "Turn on",
+  // New sequence on the day-before moment, its line written in (sequence-address.ts newSequenceRoute): the composer's
+  // Turn on went with its moment mode (the closed-loop audit of 17 Oct 2026, G).
+  to: "campaigns/sequences/new:moment:visit_tomorrow"
+};
+var CARD_BILLING = { title: "Your plan", left: "Needs you" };
+var SETUP_CARD_WORDS = {
+  startCta: "Continue setting up",
+  startShort: "Continue",
+  notAnswering: "Not answering yet",
+  answering: "Answering",
+  callsNotAnswered: "Calls aren't answered yet",
+  next: (name) => `Next: ${name.toLowerCase()}`,
+  keptTitle: "Kept for you",
+  goingLive: "Finish going live",
+  needYou: (n) => `${n} need${n === 1 ? "s" : ""} you`,
+  doneTitle: "Already done",
+  /** What is kept, in the order the steps made it. */
+  kept: {
+    business: (name, listed) => listed ? `${name}, read from Google` : name,
+    sounds: (sounds) => `Your receptionist: ${sounds}`,
+    taught: (n) => `${n} ${n === 1 ? "thing" : "things"} you taught it`,
+    rehearsed: "Your rehearsal, reviewed",
+    keeping: (n) => `Keeping ${n}, when you go live`,
+    moving: (n) => `Moving ${n} to Chanlytics, when you go live`,
+    newNumber: (n) => `Its own number, ${n}, when you go live`
+  },
+  done: {
+    line: (n) => `Its number, ${n}`
+  }
+};
+var cardRowOf = (vm, id) => vm.rows.find((r2) => r2.id === id) ?? null;
+function keptForYouOf(vm, who) {
+  const K2 = SETUP_CARD_WORDS.kept;
+  const n = vm.want ? formatPhoneDisplay(vm.want.number) ?? vm.want.number : null;
+  return [
+    who?.business && vm.check.receptionist === "set" ? K2.business(who.business, vm.check.listed) : null,
+    who?.sounds && vm.receptionistMet ? K2.sounds(who.sounds) : null,
+    vm.rehearsal.kept ? K2.taught(vm.rehearsal.kept) : null,
+    vm.rehearsal.reviewed ? K2.rehearsed : null,
+    vm.want && n ? vm.want.way === "keep" ? K2.keeping(n) : vm.want.way === "move" ? K2.moving(n) : K2.newNumber(n) : null
+  ].filter((x) => !!x);
+}
+var GOING_LIVE_ROWS = ["keep", "try", "whatsapp"];
+function setupCardOf(vm, who) {
+  const W = SETUP_CARD_WORDS;
+  const billing = cardRowOf(vm, "billing");
+  if (billing && billing.state === "waiting_you" && billing.verb)
+    return {
+      ...CARD_BILLING,
+      start: null,
+      kept: [],
+      rows: [{ ...billing, said: null }],
+      done: [],
+      hide: null,
+      skip: CARD_SKIP,
+      remind: null
+    };
+  const fr = firstRunOf(vm);
+  const paid = !billing || billing.state === "ready";
+  if (!fr.complete && (fr.current !== "live" || !paid)) {
+    const left = fr.steps.filter((s) => s.state !== "done").length;
+    const def = firstRunStepDefOf(fr.current);
+    return {
+      title: FINISH_SETTING_UP,
+      left: `${left} ${left === 1 ? "step" : "steps"} left`,
+      start: {
+        // Said as it is: nothing answers yet; WhatsApp answers and calls do not; or calls are answered and a step is open.
+        name: !vm.readiness.answering ? W.notAnswering : vm.tryIt?.voice ? W.answering : W.callsNotAnswered,
+        sentence: def.lead,
+        status: W.next(def.name),
+        cta: W.startCta,
+        ctaShort: W.startShort,
+        to: FIRST_RUN_ROUTE
+      },
+      kept: keptForYouOf(vm, who),
+      rows: [],
+      done: [],
+      hide: null,
+      skip: CARD_SKIP,
+      remind: null
+    };
+  }
+  if (!fr.complete) {
+    const rows3 = GOING_LIVE_ROWS.flatMap((id) => {
+      const r2 = cardRowOf(vm, id);
+      return r2 && r2.state !== "ready" && r2.state !== "waiting_them" && r2.verb ? [{ ...r2, said: null }] : [];
+    });
+    const line = vm.tryIt?.voiceLabel ?? null;
+    return {
+      title: W.goingLive,
+      left: rows3.length ? W.needYou(rows3.length) : W.next(GO_LIVE.name),
+      // Nothing of the owner's left on Go live (the number still on its way): the one row back to it.
+      start: rows3.length ? null : {
+        name: W.callsNotAnswered,
+        sentence: GO_LIVE.lead,
+        status: W.next(GO_LIVE.name),
+        cta: W.startCta,
+        ctaShort: W.startShort,
+        to: firstRunStepRoute("live")
+      },
+      kept: [],
+      rows: rows3,
+      done: line ? [W.done.line(line)] : [],
+      hide: null,
+      skip: null,
+      remind: null
+    };
+  }
+  const rows2 = SETUP_CARD_ORDER.flatMap((id) => {
+    const r2 = cardRowOf(vm, id);
+    return r2 && r2.state !== "ready" && r2.state !== "waiting_them" && !r2.later && r2.verb ? [{ ...r2, said: skipSaid(id, r2) }] : [];
+  });
+  if (!rows2.length) return null;
+  const calendar = cardRowOf(vm, "calendar");
+  const remindGood = putOffEnds(REMIND_SKIPPED, vm.remindBack) === "good";
+  const remind = vm.calendarLinked && calendar?.state === "ready" && !vm.remindSkipped && !vm.dayBeforeOn ? {
+    id: CARD_REMIND.id,
+    name: CARD_REMIND.name,
+    stateWords: CARD_REMIND.stateWords,
+    words: CARD_REMIND.words,
+    label: CARD_REMIND.label,
+    to: CARD_REMIND.to,
+    said: remindGood ? `${CARD_PUT_OFF.good} ${CARD_REMIND.home}` : CARD_PUT_OFF.week,
+    back: vm.remindBack
+  } : null;
+  const drawn = [
+    ...rows2.map((r2) => ({ id: r2.id, good: putOffEnds(r2.id, r2.back) === "good", said: r2.said ?? "" })),
+    ...remind ? [{ id: remind.id, good: remindGood, said: remind.said }] : []
+  ];
+  return {
+    title: FINISH_SETTING_UP,
+    left: `${drawn.length} left`,
+    start: null,
+    kept: [],
+    rows: rows2,
+    done: [],
+    hide: { put: CARD_PUT_OFF.hide, said: hideSaid(drawn) },
+    skip: CARD_SKIP,
+    remind
+  };
+}
+
+// src/setup/check-chips.ts
+var SUGGESTIONS = {
+  hair_salon: [
+    "Haircut",
+    // trade-word: a hair salon's own service, suggested only where Google lists a hair salon
+    "Color",
+    "Highlights",
+    "Balayage",
+    // trade-word: a hair salon's own service, suggested only where Google lists a hair salon
+    "Blowout",
+    // trade-word: a hair salon's own service, suggested only where Google lists a hair salon
+    "Keratin treatment",
+    // trade-word: a hair salon's own service, suggested only where Google lists a hair salon
+    "Extensions"
+  ],
+  barber_shop: [
+    "Haircut",
+    // trade-word: a barber's own service, suggested only where Google lists a barber shop
+    "Beard trim",
+    "Hot towel shave",
+    "Fade",
+    "Kids' cut",
+    "Line-up"
+  ],
+  beauty_salon: [
+    "Haircut",
+    // trade-word: a beauty salon's own service, suggested only where Google lists one or a beautician
+    "Color",
+    "Manicure",
+    "Pedicure",
+    "Facial",
+    "Waxing",
+    "Brow shaping",
+    "Makeup"
+  ],
+  nail_salon: ["Manicure", "Pedicure", "Gel manicure", "Acrylic set", "Dip powder", "Nail art", "Fill"],
+  spa: ["Massage", "Facial", "Body scrub", "Hot stone massage", "Couples massage", "Body wrap"],
+  skin_care_clinic: ["Facial", "Chemical peel", "Microneedling", "Dermaplaning", "Acne treatment", "Consultation"],
+  makeup_artist: ["Bridal makeup", "Event makeup", "Makeup lesson", "Airbrush makeup", "Trial session"],
+  tanning_studio: ["Spray tan", "Tanning session", "Tanning package", "Rapid tan"],
+  body_art_service: ["Tattoo", "Piercing", "Touch-up", "Cover-up", "Consultation"],
+  dentist: ["Cleaning", "Checkup", "Whitening", "Filling", "Crown", "Emergency visit"],
+  // trade-word: a dentist's own service, suggested only where Google lists a dentist
+  chiropractor: ["New patient exam", "Adjustment", "Massage", "Spinal decompression", "Consultation"],
+  physiotherapist: [
+    "Evaluation",
+    "Physical therapy session",
+    "Sports injury rehab",
+    "Post-surgery rehab",
+    "Dry needling"
+  ],
+  doctor: ["New patient visit", "Annual physical", "Sick visit", "Follow-up", "Telehealth visit", "Vaccination"],
+  // trade-word: a doctor's own services, suggested only where Google lists a doctor
+  foot_care: ["Foot exam", "Nail care", "Callus removal", "Orthotics fitting", "Diabetic foot check"],
+  wellness_center: ["Consultation", "Massage", "Acupuncture", "IV drip", "Membership"],
+  veterinary_care: ["Wellness exam", "Vaccinations", "Dental cleaning", "Spay or neuter", "Sick visit", "Microchip"],
+  // trade-word: a vet's own service, suggested only where Google lists a vet
+  pet_care: ["Full groom", "Bath and brush", "Nail trim", "Boarding", "Daycare", "Dog walking"],
+  fitness_center: ["Personal training", "Group class", "Membership", "Day pass", "Nutrition coaching"],
+  yoga_studio: ["Drop-in class", "Class pack", "Private session", "Beginners series", "Membership"],
+  car_repair: ["Oil change", "Brake service", "Diagnostics", "Tire rotation", "Inspection", "AC repair"],
+  car_wash: ["Exterior wash", "Full detail", "Interior cleaning", "Wax", "Monthly plan"],
+  tire_shop: ["Tire installation", "Rotation", "Balancing", "Alignment", "Flat repair"],
+  moving_company: ["Local move", "Long-distance move", "Packing", "Storage", "Piano move", "Office move"],
+  plumber: ["Leak repair", "Drain cleaning", "Water heater", "Toilet repair", "Emergency call-out", "Inspection"],
+  electrician: [
+    "Outlet installation",
+    "Panel upgrade",
+    "Lighting installation",
+    "EV charger installation",
+    "Troubleshooting",
+    "Inspection"
+  ],
+  roofing_contractor: ["Roof inspection", "Roof repair", "Roof replacement", "Gutter repair", "Estimate"],
+  painter: ["Interior painting", "Exterior painting", "Cabinet painting", "Drywall repair", "Estimate"],
+  locksmith: ["Lockout", "Rekey", "Lock installation", "Key cutting", "Car lockout"],
+  laundry: ["Wash and fold", "Dry cleaning", "Pickup and delivery", "Alterations"],
+  tailor: ["Alterations", "Hemming", "Suit tailoring", "Repairs", "Custom fitting"],
+  florist: ["Bouquet", "Wedding flowers", "Event flowers", "Sympathy flowers", "Delivery"],
+  lawyer: ["Consultation", "Contract review", "Estate planning", "Family law", "Business formation"],
+  insurance_agency: ["Quote", "Auto insurance", "Home insurance", "Life insurance", "Policy review"],
+  real_estate_agency: ["Home valuation", "Buyer consultation", "Listing appointment", "Showing", "Rental help"],
+  catering_service: ["Event catering", "Tasting", "Corporate lunch", "Wedding catering", "Drop-off catering"],
+  child_care_agency: ["Tour", "Full-time care", "Part-time care", "After-school care", "Drop-in care"]
+};
+var SAME_AS = {
+  hair_care: "hair_salon",
+  beautician: "beauty_salon",
+  massage: "spa",
+  massage_spa: "spa",
+  dental_clinic: "dentist",
+  medical_clinic: "doctor",
+  medical_center: "doctor",
+  gym: "fitness_center",
+  pet_boarding_service: "pet_care"
+};
+var SERVICE_SUGGESTION_TYPES = /* @__PURE__ */ (() => Object.keys(SUGGESTIONS))();
+function serviceSuggestionsOf(type) {
+  const t = (type ?? "").trim();
+  return SUGGESTIONS[SAME_AS[t] ?? t] ?? [];
+}
+function checkChipsOf(i) {
+  const listed = (Array.isArray(i.services) ? i.services : []).map((s) => s && typeof s.name === "string" ? s.name.trim() : "").filter(Boolean);
+  const chosen = (Array.isArray(i.languages) ? i.languages : []).filter((l) => typeof l === "string" && l.trim() !== "").map((l) => l.trim());
+  const has3 = (list2, name) => list2.some((x) => sameListed(x, name));
+  const besides = chosen.filter((l, k) => !has3(COMMON_LANGUAGES, l) && !has3(chosen.slice(0, k), l));
+  const set = (key, chips, count2) => count2 >= PROFILE_LIMITS[key] && chips.some((c) => !c.on) ? { chips: chips.filter((c) => c.on), full: profileRefusal(key) } : { chips, full: null };
+  return {
+    services: set(
+      "services",
+      serviceSuggestionsOf(i.type).map((name) => ({ name, on: has3(listed, name) })),
+      listed.length
+    ),
+    languages: set(
+      "languages",
+      [
+        ...COMMON_LANGUAGES.map((name) => ({ name, on: has3(chosen, name) })),
+        ...besides.map((name) => ({ name, on: true }))
+      ],
+      chosen.length
+    )
+  };
 }
 
 // src/setup/first-run-channels.ts
@@ -69460,6 +69642,9 @@ export {
   SEND_WINDOW_MARGIN_MIN,
   SENTENCE,
   SEQUENCES_ROUTE,
+  SEQUENCE_ACTS,
+  SEQUENCE_ACT_REASONS,
+  SEQUENCE_ACT_WHY,
   SEQUENCE_ACT_WORDS,
   SEQUENCE_DRAFT_THEN_MAX,
   SEQUENCE_EDIT_WORDS,
@@ -69496,6 +69681,7 @@ export {
   SETUP_CARD_WORDS,
   SETUP_LATER_REFUSED,
   SETUP_REQUEST_KINDS,
+  SETUP_REST_MS,
   SETUP_STATE_WORDS,
   SHADOW_CALL,
   SHADOW_CONFIDENT,
@@ -71211,6 +71397,7 @@ export {
   pushFor,
   pushOffOf,
   pushesFor,
+  putOffEnds,
   quantile,
   questionAfterProbe,
   quickAnswerOf,
@@ -71491,7 +71678,7 @@ export {
   sentByWords,
   sentResultsOfSource,
   sentenceParts,
-  sequenceCancels,
+  sequenceActsOf,
   sequenceChannelsWords,
   sequenceGroupOf,
   sequenceHeadLine,
@@ -71508,7 +71695,6 @@ export {
   sequenceRouteBack,
   sequenceRowLine,
   sequenceRowState,
-  sequenceRunsNow,
   sequenceStartWords,
   sequenceStartsSentence,
   sequenceStateTone,
@@ -71537,6 +71723,8 @@ export {
   setupChoicesOf,
   setupLaterOf,
   setupPhoneWantOf,
+  setupPutOffNext,
+  setupRestsOf,
   setupSteps2 as setupSteps,
   sha256Hex,
   shadowBodies,

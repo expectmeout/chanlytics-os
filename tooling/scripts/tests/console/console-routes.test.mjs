@@ -574,8 +574,8 @@ function supportWorld() {
         tenant_id: T2,
         kind: "setup.requested",
         data: { what: "line", by: OTHER },
-        // Four days back holds at least two business days whatever today is: the promise is a business day (a Friday's
-        // ask two days later, on a Sunday, is not late yet).
+        // Four days: an ask is due 24 business hours after it came in (supportDueAt), at most three days on, so it is
+        // past its day whatever today is. Two days was not, on a Sunday (an ask of Friday is due on Monday).
         created_at: ago(4 * DAY_MS),
       },
     ],

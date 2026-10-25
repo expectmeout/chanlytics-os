@@ -225,7 +225,11 @@ test("Check stays on screen once its last fact lands, and Rehearse it now goes o
     byTestId(tree, "fr-onward").props.onClick();
     await settle();
     assert.deepEqual(sent, [], "nothing of how customers buy is sent");
-    assert.deepEqual(met.at(-1), [FIRST_RUN_HELPERS.receptionistMet, true], "kept as met, the member's own mark");
+    assert.deepEqual(
+      met.at(-1),
+      [FIRST_RUN_HELPERS.receptionistMet, { on: true, why: "answer" }],
+      "kept as met, the member's own mark",
+    );
     assert.equal(replaced.at(-1), "start/receptionist", "the bare address being left is named for its step");
     assert.equal(went.at(-1), "start/rehearse", "and the way on is a new entry: Rehearse");
   } finally {

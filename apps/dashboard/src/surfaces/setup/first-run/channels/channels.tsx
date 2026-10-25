@@ -327,7 +327,7 @@ export function FrChannels(o: {
     // No number to choose here (it is on its way, or the deployment sells none): the member's going on is the step.
     if (!choosing) {
       setBusy(true);
-      const seen = await setupVerbs.later(FIRST_RUN_HELPERS.channelsSeen, true);
+      const seen = await setupVerbs.later(FIRST_RUN_HELPERS.channelsSeen, { on: true, why: "answer" });
       setBusy(false);
       if (!seen.ok) return flash(refusalToast(seen, W.find.notSaved));
       return go("start");
@@ -335,7 +335,10 @@ export function FrChannels(o: {
     const want = wantOf(ph, choice);
     if (!want) return;
     setBusy(true);
-    const [w] = await Promise.all([setupVerbs.want(want), setupVerbs.later(KEEP_ROW, want.way === "new")]);
+    const [w] = await Promise.all([
+      setupVerbs.want(want),
+      setupVerbs.later(KEEP_ROW, want.way === "new" ? { on: true, why: "answer" } : { on: false }),
+    ]);
     setBusy(false);
     if (!w.ok) return flash(refusalToast(w, W.find.notSaved));
     go("start");

@@ -94,7 +94,11 @@ test("Where it answers (canvas 4): the calls tile keeps the listing's number fir
   await onward.props.onClick();
   await tick();
   assert.deepEqual(asked.want, [{ way: "keep", number: "+13055550100", mode: "always" }]);
-  assert.deepEqual(asked.later, [[KEEP_ROW, false]], "a number kept asks for its forwarding, wherever it was put off");
+  assert.deepEqual(
+    asked.later,
+    [[KEEP_ROW, { on: false }]],
+    "a number kept asks for its forwarding, wherever it was put off",
+  );
   assert.equal(replaced.at(-1), "start/channels", "the bare address being left is named for its step");
   assert.equal(went.at(-1), "start/live", "and on to Go live, a new entry");
   assert.deepEqual([asked.checkout, asked.buy], [[], []], "nothing is bought here");
@@ -115,7 +119,11 @@ test("Where it answers on a deployment that sells no numbers: no calls tile, and
   went.length = 0;
   await byTestId(tree, "fr-onward").props.onClick();
   await tick();
-  assert.deepEqual(asked.later, [[FIRST_RUN_HELPERS.channelsSeen, true]], "the member's going on, kept as theirs");
+  assert.deepEqual(
+    asked.later,
+    [[FIRST_RUN_HELPERS.channelsSeen, { on: true, why: "answer" }]],
+    "the member's going on, kept as theirs",
+  );
   assert.deepEqual(asked.want, [], "no number chosen, none said");
   assert.equal(went.at(-1), "start/live", "and on to Go live");
 });
@@ -176,7 +184,11 @@ test("Where it answers: a new number is picked from its area code, and Continue 
   await byTestId(tree, "fr-onward").props.onClick();
   await tick();
   assert.deepEqual(asked.want, [{ way: "new", number: "+13055550142" }]);
-  assert.deepEqual(asked.later, [[KEEP_ROW, true]], "a new number keeps none: Today's card stops asking for it");
+  assert.deepEqual(
+    asked.later,
+    [[KEEP_ROW, { on: true, why: "answer" }]],
+    "a new number keeps none: Today's card stops asking for it",
+  );
   assert.deepEqual(asked.buy, [], "and nothing is bought until Go live");
   // No number free in an area code: said once, in the toast, and nothing to pick.
   phoneWorld({ numbers: [] });

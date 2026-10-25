@@ -79,7 +79,10 @@ function ForwardBody(o: {
   const [checking, setChecking] = useState(false);
   const callCame = !!tr && (tr.stage === "call" || tr.stage === "done");
   const later = async () => {
-    const r = await setupVerbs.later(kept ? KEEP_ROW : FIRST_RUN_HELPERS.trySkipped, true);
+    const r = await setupVerbs.later(kept ? KEEP_ROW : FIRST_RUN_HELPERS.trySkipped, {
+      on: true,
+      why: kept ? "rest" : "answer",
+    });
     if (!r.ok) flash(refusalToast(r, W.find.notSaved));
   };
   if (tr && (checking || callCame))

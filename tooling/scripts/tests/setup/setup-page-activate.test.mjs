@@ -63,7 +63,7 @@ const dto = {
   },
   activations: [],
 };
-const vm = setupSteps({ ...dto, later: [] }, NOW);
+const vm = setupSteps({ ...dto, later: [], rests: {} }, NOW);
 
 test("the contract: a tested, unactivated receptionist offers Activate and says so", () => {
   const r = vm.rows.find((x) => x.id === "receptionist");
@@ -205,9 +205,10 @@ const { setupVerbs } = await importSrc("apps/dashboard/src/surfaces/setup/surfac
 const { setSurfaceValue, surfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
 const { SetupRows } = await importSrc("apps/dashboard/src/surfaces/setup/rows/rows.tsx");
 Object.assign(setupVerbs, {
-  later: async (ids, on) => {
-    calls.later.push([ids, on]);
-    return { ok: true, message: "" };
+  later: async (ids, change) => {
+    calls.later.push([ids, change]);
+    // A put-off saved hands back its own undo, which puts its rows back as they stood (surface.ts writeEntries).
+    return { ok: true, message: "", undo: async () => (calls.later.push([ids, "undo"]), { ok: true, message: "" }) };
   },
   activate: async (kind) => {
     calls.activate.push(kind);
@@ -399,7 +400,7 @@ test("the page: a row that dials is not itself a dial; an activated row offers t
 
 test("the page: Later puts a row off through the bridge, and waits for it like any other press", async () => {
   // The fixture, as the failed-read test used to leave it for the tests after it.
-  setSurfaceValue("setup", { dto, role: "owner", later: [], vm, fetchedAt: NOW });
+  setSurfaceValue("setup", { dto, role: "owner", later: [], rests: {}, vm, fetchedAt: NOW });
   fresh();
   const tree = mount();
   let row = null;
@@ -411,7 +412,7 @@ test("the page: Later puts a row off through the bridge, and waits for it like a
   assert.equal(row.also.testid, "setup-later-keep");
   await row.also.onClick();
   await tick();
-  assert.deepEqual(calls.later.at(-1), ["keep", true]);
+  assert.deepEqual(calls.later.at(-1), ["keep", { on: true, why: "rest" }], "a 'not now', as Today's Skip is");
   let facts = null;
   walk(tree, (n) => {
     if (!facts && n.props?.testid === "setup-row-facts") facts = n.props;
@@ -419,11 +420,15 @@ test("the page: Later puts a row off through the bridge, and waits for it like a
   assert.equal(facts.also, null, "a row the receptionist needs is never put off");
 });
 
-test("the page as Today draws it: Skip says so in the card's own toast, whose Undo takes the row back", async () => {
-  setSurfaceValue("setup", { dto, role: "owner", later: [], vm, fetchedAt: NOW });
+test("the page as Today draws it: Skip says the row's own words in the card's toast, whose Undo puts the row back as it stood", async () => {
+  setSurfaceValue("setup", { dto, role: "owner", later: [], rests: {}, vm, fetchedAt: NOW });
   const lent = [];
+  const said = "Put off for a week. Until it is set up, only calls to your receptionist's own number are answered.";
   drawAs = {
-    later: { put: "Skip", said: "Put off. It stays in Setting up for when you're ready." },
+    // Today's card hands each row its toast's words (contracts SetupCardRowVM.said), and a row back from its week a word.
+    rows: vm.rows.map((r) => ({ ...r, said: r.id === "keep" ? said : null, back: r.id === "keep" })),
+    later: { put: "Skip", back: "Back after a week", backShort: "Back" },
+    look: "card",
     flash: (m) => lent.push(m),
   };
   try {
@@ -432,15 +437,16 @@ test("the page as Today draws it: Skip says so in the card's own toast, whose Un
     walk(mount(), (n) => {
       if (!row && n.props?.testid === "setup-row-keep") row = n.props;
     });
+    assert.deepEqual(row.note, { long: "Back after a week", short: "Back" }, "back from its week: said by its name");
     assert.equal(row.also.label, "Skip");
     const own = calls.flash.length;
     await row.also.onClick();
     await tick();
-    assert.deepEqual(calls.later.at(-1), ["keep", true]);
+    assert.deepEqual(calls.later.at(-1), ["keep", { on: true, why: "rest" }]);
     assert.equal(calls.flash.length, own, "said in the toast the card lent, which outlives the row");
-    assert.equal(textOf(lent.at(-1).msg), "Put off. It stays in Setting up for when you're ready.");
+    assert.equal(textOf(lent.at(-1).msg), said);
     await lent.at(-1).undo();
-    assert.deepEqual(calls.later.at(-1), ["keep", false], "Undo takes it back");
+    assert.deepEqual(calls.later.at(-1), ["keep", "undo"], "Undo is the put-off's own: the row as it stood");
   } finally {
     drawAs = { later: FIRST_RUN_WORDS.putOff };
   }
@@ -450,7 +456,7 @@ test("the page: the one coral button is the row the caller names, and every othe
   const kinds = (primary) => {
     // The harness's page names `vm.next`'s row as the primary one, as the first run names its step's first open row.
     const next = primary ? { label: "Set up forwarding", to: "verb:forwarding", row: primary, title: "Keep" } : null;
-    setSurfaceValue("setup", { dto, role: "owner", later: [], vm: { ...vm, next }, fetchedAt: NOW });
+    setSurfaceValue("setup", { dto, role: "owner", later: [], rests: {}, vm: { ...vm, next }, fetchedAt: NOW });
     fresh();
     const tree = mount();
     const out = {};
@@ -498,7 +504,7 @@ test("the page: the chooser finds numbers in an area code, a pick opens the conf
   setSurfaceValue("setup", {
     dto: noLine,
     role: "owner",
-    vm: setupSteps({ ...noLine, later: [] }, NOW),
+    vm: setupSteps({ ...noLine, later: [], rests: {} }, NOW),
     fetchedAt: NOW,
   });
   let tree = mount();
@@ -677,7 +683,7 @@ test("the page: the forwarding card saves the number, the carrier and the mode t
   setSurfaceValue("setup", {
     dto: saved,
     role: "owner",
-    vm: setupSteps({ ...saved, later: [] }, NOW),
+    vm: setupSteps({ ...saved, later: [], rests: {} }, NOW),
     fetchedAt: NOW,
   });
   tree = mount();
@@ -708,7 +714,7 @@ test("the page: the Google row's Find it opens the first run's Find, and only an
   setSurfaceValue("setup", {
     dto: google,
     role: "owner",
-    vm: setupSteps({ ...google, later: [] }, NOW),
+    vm: setupSteps({ ...google, later: [], rests: {} }, NOW),
     fetchedAt: NOW,
   });
   const googleRow = () => {
@@ -787,7 +793,7 @@ test("REGRESSION (S16): Setup's own checks wear their tones -- a refused area co
   setSurfaceValue("setup", {
     dto: noLine,
     role: "owner",
-    vm: setupSteps({ ...noLine, later: [] }, NOW),
+    vm: setupSteps({ ...noLine, later: [], rests: {} }, NOW),
     fetchedAt: NOW,
   });
   let tree = mount();
@@ -868,7 +874,7 @@ test("REGRESSION (the gate): Enter in the area code is the gated button's press,
   setSurfaceValue("setup", {
     dto: noLine,
     role: "owner",
-    vm: setupSteps({ ...noLine, later: [] }, NOW),
+    vm: setupSteps({ ...noLine, later: [], rests: {} }, NOW),
     fetchedAt: NOW,
   });
   let tree = mount();
@@ -903,7 +909,7 @@ test("REGRESSION (S14): Bring my number asks for a port, and says so -- its Ask 
   setSurfaceValue("setup", {
     dto: noLine,
     role: "owner",
-    vm: setupSteps({ ...noLine, later: [] }, NOW),
+    vm: setupSteps({ ...noLine, later: [], rests: {} }, NOW),
     fetchedAt: NOW,
   });
   const asked = [];
@@ -939,7 +945,7 @@ test("REGRESSION (S8): a broken configuration's row asks for a repair, and says 
   setSurfaceValue("setup", {
     dto: broken,
     role: "owner",
-    vm: setupSteps({ ...broken, later: [] }, NOW),
+    vm: setupSteps({ ...broken, later: [], rests: {} }, NOW),
     fetchedAt: NOW,
   });
   const asked = [];
@@ -975,7 +981,8 @@ test("Google's row says a Business Profile that stopped syncing as Connections d
     last_synced_at: ago(72),
     sync_error: "invalid_grant",
   };
-  const rowOf = (google) => setupSteps({ ...dto, google, later: [] }, NOW).rows.find((r) => r.id === "google");
+  const rowOf = (google) =>
+    setupSteps({ ...dto, google, later: [], rests: {} }, NOW).rows.find((r) => r.id === "google");
   const broken = rowOf({ ready: true, places: true, listing, connected: true, connection });
   assert.equal(
     broken.state,

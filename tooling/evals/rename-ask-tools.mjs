@@ -66,6 +66,8 @@ export const ADDED_SINCE = [
   "propose_sequence.cold_email",
   "propose_sequence.decide",
   "propose_sequence.discard",
+  // Decision 0072: a sequence's End it, as its page ends one.
+  "propose_sequence.end",
   "propose_sequence.leave",
   "propose_sequence.make",
   "propose_sequence.run_now",
