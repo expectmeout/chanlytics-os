@@ -11,7 +11,6 @@ const WHY = {
   made: "Ask makes a sequence with its own card, from the draft it wrote in the conversation; New's Keep and Start make the one the owner shaped on the page",
   learned: "a note the owner's correction suggested is kept beside what they wrote, on Settings \u203A Autonomy; Ask adds a note of its own with a settings card",
   test: "it mails a step's message to the member who presses it, beside the step on its page",
-  end: "it ends a sequence for good, which is asked and confirmed on its page, beside the history it keeps",
   add: "Ask adds leads to a sequence with a card of its own on the same door (reach_out_add); the page's Add, Move and pick are the lead sheet's presses, beside the lead and the search they act on",
   stop: "it stops a reply in the minutes before it posts, under the review on Reports, where the reply and its time are",
   memory: "it changes or forgets a line of what Ask remembers, which a member does on Settings \u203A Memory where every line is listed; Ask keeps a line with its own card and its Undo"
@@ -130,8 +129,7 @@ export const ASK_GUIDE_PAGES = [
     pageOnly: [
       { what: "Draft a sequence from a line on the page", why: WHY.draft },
       { what: "Keep or start what New drafted", why: WHY.made },
-      { what: "Send yourself a test of a step's message", why: WHY.test },
-      { what: "End a sequence for good", why: WHY.end }
+      { what: "Send yourself a test of a step's message", why: WHY.test }
     ]
   },
   {
@@ -170,7 +168,6 @@ export const ASK_PAGE_ONLY_VERBS = {
   sequence_new: WHY.made,
   fact_suggestion: WHY.learned,
   sequence_test: WHY.test,
-  sequence_end: WHY.end,
   sequence_add: WHY.add,
   sequence_move: WHY.add,
   lead_search_aim: WHY.add,

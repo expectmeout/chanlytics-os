@@ -8,12 +8,17 @@
  *   4. A step's message changes at once where WhatsApp approved it, and otherwise waits with its own values until it does.
  *   5. The leave door takes out only their places in the sequence named, with its decision.
  *   6. A batch is canceled through its door, only from the state it was read in; a member no longer writes its row.
+ *   7. Discard is one door for every sequence (0072): a sequence to leads goes by its own, the reach-out's, while it has
+ *      written nothing, and one that wrote is refused in that door's words.
+ *   8. What its record says a sequence has done is what those doors count (0072): a batch made, a cancelled one too, and
+ *      an email to a lead written.
  *
  * Local stack only: it makes two workspaces, members, people, templates and steps with the service key, removes them after.
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
+import { importSrc } from "../_source.mjs";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -528,5 +533,157 @@ test(
     assert.equal(kept.error?.code, "P0001");
     const elsewhere = await stranger.rpc("sequence_discard", { p_tenant_id: otherTenant, p_sequence_id: sent.id });
     assert.equal(elsewhere.error?.code, "P0002", "another workspace's sequence is none of theirs");
+  },
+);
+
+test(
+  "Discard lets go of a sequence to leads by its own door while it has written nothing, and refuses one that wrote in that door's words (0072)",
+  { skip },
+  async () => {
+    const { REACH_OUT_REFUSALS } = await import("@chanlytics/contracts");
+    const { sequenceRow } = await import("@chanlytics/db");
+    const { discardSequenceNow } = await importSrc("apps/dashboard/src/server/sequences/doors.ts");
+    const userId = (await operator.auth.getUser()).data.user.id;
+    // The member's own session, as DELETE sequences/:id hands its handler one, and the row its scope reads.
+    const ctx = { supabase: operator, userId, email: undefined, metadata: {}, via: null };
+    const leadsDraft = async (name) => {
+      const made = ok(
+        await operator.rpc("sequence_create", {
+          p_tenant_id: tenantId,
+          p_first: { starts: "leads", name: `${name} ${stamp}` },
+          p_then: [],
+          p_start: false,
+        }),
+        `the sequence to leads ${name}`,
+      );
+      assert.equal(made.state, "draft");
+      const row = await sequenceRow(operator, made.id);
+      assert.equal(row.starts, "leads");
+      return row;
+    };
+
+    // A draft that never wrote: taken away whole, its steps with it, and its line in the ledger.
+    const draft = await leadsDraft("Movers");
+    const gone = await discardSequenceNow(ctx, draft);
+    assert.equal(gone.id, draft.id);
+    assert.equal(ok(await db.from("sequences").select("id").eq("id", draft.id)).length, 0, "the draft is gone");
+    assert.equal(ok(await db.from("sequence_steps").select("id").eq("sequence_id", draft.id)).length, 0);
+    const lines = ok(
+      await db.from("decisions").select("verb, payload").eq("tenant_id", tenantId).eq("subject_id", draft.id),
+    );
+    // Its making, then its letting go, as a reach-out's removal is written.
+    assert.deepEqual(lines.map((l) => l.verb).sort(), ["make_sequence", "pause_playbook"]);
+    const letGo = lines.find((l) => l.verb === "pause_playbook");
+    assert.deepEqual([letGo.payload.deleted, gone.decision_id !== undefined], [true, true]);
+
+    // One that wrote an email keeps it: refused in the reach-out door's words, its first step still there.
+    const wrote = await leadsDraft("Roofers");
+    const lead = ok(
+      await db
+        .from("leads")
+        .insert({
+          tenant_id: tenantId,
+          place_id: `ChIJsequenceDoors${stamp}`,
+          business_name: "Austin Roofers",
+          city: "Austin",
+          region: "TX",
+          email: `owner@austin-roofers-${stamp}.example`,
+          email_state: "ok",
+          stage: "ready",
+        })
+        .select("id")
+        .single(),
+      "the lead",
+    ).id;
+    const batch = await batchOf(wrote.id, "sent");
+    ok(
+      await db.from("sequence_sends").insert({
+        batch_id: batch,
+        lead_id: lead,
+        tenant_id: tenantId,
+        state: "sent",
+        sent_at: new Date().toISOString(),
+      }),
+      "the email it sent",
+    );
+    await assert.rejects(discardSequenceNow(ctx, wrote), (e) => {
+      assert.equal(e.message, REACH_OUT_REFUSALS.wrote);
+      assert.equal(e.status, 409);
+      return true;
+    });
+    assert.equal(ok(await db.from("sequence_steps").select("id").eq("id", wrote.id)).length, 1, "it stands");
+  },
+);
+
+test(
+  "what its record says a sequence has done is what its doors count: a batch made, a cancelled one too, and an email to a lead written (0072)",
+  { skip },
+  async () => {
+    const { sequenceRecordFacts } = await import("@chanlytics/db");
+    const done = async (id) => (await sequenceRecordFacts(operator, tenantId, id)).history;
+    const first = {
+      name: "Quiet clients",
+      trigger: "quiet_30",
+      template_id: templateId,
+      template_name: "come_back",
+      params: [],
+      policy_class: "reengage",
+      run_hour: 10,
+      cap_per_run: 25,
+      channels: ["whatsapp"],
+    };
+    // On, and nothing made yet: it never ran, and its door takes it away whole.
+    const fresh = ok(await operator.rpc("sequence_create", { p_tenant_id: tenantId, p_first: first, p_start: true }));
+    assert.deepEqual(await done(fresh.id), { ran: false, wrote: false });
+    ok(await operator.rpc("sequence_discard", { p_tenant_id: tenantId, p_sequence_id: fresh.id }), "it goes");
+
+    // A batch cancelled before it went still ran: the record says so, and the door keeps it.
+    const once = ok(
+      await operator.rpc("sequence_create", {
+        p_tenant_id: tenantId,
+        p_first: { ...first, name: "Quiet clients again" },
+        p_start: true,
+      }),
+    );
+    await batchOf(once.id, "canceled");
+    assert.deepEqual(await done(once.id), { ran: true, wrote: false });
+    const kept = await operator.rpc("sequence_discard", { p_tenant_id: tenantId, p_sequence_id: once.id });
+    assert.equal(kept.error?.code, "P0001", "a sequence that made a batch is not taken away");
+
+    // A sequence to leads: nothing written while it is a draft; an email sent, written.
+    const leads = ok(
+      await operator.rpc("sequence_create", {
+        p_tenant_id: tenantId,
+        p_first: { starts: "leads", name: `Painters ${stamp}` },
+        p_then: [],
+        p_start: false,
+      }),
+    );
+    assert.deepEqual(await done(leads.id), { ran: false, wrote: false });
+    const lead = ok(
+      await db
+        .from("leads")
+        .insert({
+          tenant_id: tenantId,
+          place_id: `ChIJsequenceFacts${stamp}`,
+          business_name: "Austin Painters",
+          email: `owner@austin-painters-${stamp}.example`,
+          email_state: "ok",
+          stage: "ready",
+        })
+        .select("id")
+        .single(),
+    ).id;
+    const batch = await batchOf(leads.id, "sent");
+    ok(
+      await db.from("sequence_sends").insert({
+        batch_id: batch,
+        lead_id: lead,
+        tenant_id: tenantId,
+        state: "sent",
+        sent_at: new Date().toISOString(),
+      }),
+    );
+    assert.deepEqual(await done(leads.id), { ran: true, wrote: true });
   },
 );
