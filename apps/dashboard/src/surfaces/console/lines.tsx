@@ -190,7 +190,7 @@ export function SetupAndLines({
   // The customer's own rows, from the customer's own function. No verbs: the buttons on Setup act on the SIGNED-IN
   // workspace, and this is not it. The LINE rows below are different -- those are the ops door, and every one of them is
   // written down against the person who pressed it, with why.
-  const vm = P.steps({ ...setup, later: [] });
+  const vm = P.steps({ ...setup, later: [], rests: {} });
   const lines = (setup.lines && setup.lines.rows) || [];
   return (
     <>

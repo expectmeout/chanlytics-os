@@ -8,7 +8,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { FIRST_RUN_LANDED_KEY, SETUP_LATER_REFUSED } from "@chanlytics/contracts";
+import { FIRST_RUN_LANDED_KEY, SETUP_LATER_REFUSED, SETUP_REST_MS } from "@chanlytics/contracts";
 import { importSrc } from "../_source.mjs";
 
 /* ------------------------------- the window ------------------------------ */
@@ -128,11 +128,11 @@ test("the surface reads the member's put-off rows with the workspace's facts, an
 });
 
 test("Later saves the member's whole list through the views door; taking one back saves the rest", async () => {
-  const r = await setupVerbs.later("team", true);
+  const r = await setupVerbs.later("team", { on: true, why: "answer" });
   assert.equal(r.ok, true);
   assert.deepEqual(asked.at(-1), ["PUT", "/api/v1/views/setup", { view: { later: ["calendar", "team"] } }]);
   assert.deepEqual(surfaceValue("setup").later, ["calendar", "team"]);
-  await setupVerbs.later(["calendar"], false);
+  await setupVerbs.later(["calendar"], { on: false });
   assert.deepEqual(asked.at(-1)[2], { view: { later: ["team"] } });
   assert.deepEqual(surfaceValue("setup").later, ["team"]);
 });
@@ -141,7 +141,7 @@ test("a save the server refuses puts the rows back as they were, and says why", 
   wire.putOk = false;
   try {
     const before = [...surfaceValue("setup").later];
-    const r = await setupVerbs.later("keep", true);
+    const r = await setupVerbs.later("keep", { on: true, why: "answer" });
     assert.equal(r.ok, false);
     assert.match(r.message, /try again/);
     assert.deepEqual(surfaceValue("setup").later, before, "not put off, since it was not kept");
@@ -155,8 +155,8 @@ test("two presses save one at a time, each with the list as it stands, and a ref
   wire.gate = () => new Promise((r) => gates.push(r));
   try {
     const sent = saves().length;
-    const first = setupVerbs.later("keep", true);
-    const second = setupVerbs.later("google", true);
+    const first = setupVerbs.later("keep", { on: true, why: "answer" });
+    const second = setupVerbs.later("google", { on: true, why: "answer" });
     assert.deepEqual(surfaceValue("setup").later, ["team", "keep", "google"], "both rows go at once");
     await settle(() => gates.length > 0);
     await settle();
@@ -189,7 +189,11 @@ test("a re-read whose views read fails keeps the rows the member put off", async
   try {
     await setupOverride.apply();
     assert.deepEqual(surfaceValue("setup").later, before);
-    assert.equal((await setupVerbs.later("team", false)).ok, true, "and a press still saves, the list being known");
+    assert.equal(
+      (await setupVerbs.later("team", { on: false })).ok,
+      true,
+      "and a press still saves, the list being known",
+    );
   } finally {
     wire.viewsFail = false;
   }
@@ -205,7 +209,7 @@ test("a first read without the member's view puts nothing off, and refuses to sa
     assert.deepEqual(surfaceValue("setup").later, []);
     assert.ok(surfaceValue("setup").vm.rows.length > 0, "the rows are Setup's all the same");
     const sent = saves().length;
-    const r = await setupVerbs.later("keep", true);
+    const r = await setupVerbs.later("keep", { on: true, why: "answer" });
     assert.deepEqual(r, { ok: false, message: SETUP_LATER_REFUSED.unread });
     assert.equal(saves().length, sent, "nothing saved: the save would have replaced the member's list with less");
     assert.deepEqual(surfaceValue("setup").later, []);
@@ -213,7 +217,7 @@ test("a first read without the member's view puts nothing off, and refuses to sa
     wire.viewsFail = false;
   }
   await setupOverride.apply();
-  assert.equal((await setupVerbs.later("keep", true)).ok, true, "read again, the list is known");
+  assert.equal((await setupVerbs.later("keep", { on: true, why: "answer" })).ok, true, "read again, the list is known");
 });
 
 test("an owner whose receptionist answers nowhere lands on the first run, once a session", async () => {
@@ -246,7 +250,7 @@ test("the number the owner keeps is the member's too: read with their view, save
     assert.deepEqual(surfaceValue("setup").want, { way: "keep", number: "+13055550100" });
     assert.equal(surfaceValue("setup").vm.forwardingOwed, true, "the rows are told: the phone step is not done");
     // A row put off saves the whole view, the number kept with it: a save replaces the view.
-    await setupVerbs.later("team", true);
+    await setupVerbs.later("team", { on: true, why: "answer" });
     assert.deepEqual(saves().at(-1)[2], {
       view: { later: ["calendar", "team"], phone: { way: "keep", number: "+13055550100" } },
     });
@@ -335,4 +339,43 @@ test("the first run asks for the receptionist through its route: written, nothin
       .map((o) => o.key)
       .filter((key) => key !== "workspace"),
   );
+});
+
+test("a 'not now' rests a row a week in the member's view beside the rows put off for good, and the toast's undo puts it back as it stood", async () => {
+  const before = wire.views;
+  const ended = new Date(Date.now() - 1000).toISOString();
+  wire.views = { views: { setup: { later: ["team"], rests: { calendar: ended } } } };
+  try {
+    await setupOverride.apply();
+    assert.deepEqual(surfaceValue("setup").rests, { calendar: ended }, "read with the rows put off for good");
+    const row = (id) => surfaceValue("setup").vm.rows.find((r) => r.id === id);
+    assert.deepEqual([row("calendar").later, row("calendar").back], [false, true], "its week ended: back");
+
+    // A first "not now": a week from the press, saved beside the rest of the view.
+    const t0 = Date.now();
+    const kept = await setupVerbs.later("keep", { on: true, why: "rest" });
+    assert.equal(kept.ok, true);
+    const view = saves().at(-1)[2].view;
+    assert.deepEqual(view.later, ["team"]);
+    assert.deepEqual(Object.keys(view.rests).sort(), ["calendar", "keep"]);
+    const until = Date.parse(view.rests.keep);
+    assert.ok(until >= t0 + SETUP_REST_MS && until <= Date.now() + SETUP_REST_MS, "a week from the press");
+    assert.equal(row("keep").later, true, "off while it rests");
+
+    // Back from its week, the next "not now" is for good; its undo puts the row back as it stood: back.
+    const good = await setupVerbs.later("calendar", { on: true, why: "rest" });
+    assert.deepEqual(surfaceValue("setup").later, ["team", "calendar"]);
+    assert.equal((await good.undo()).ok, true);
+    assert.deepEqual(surfaceValue("setup").later, ["team"]);
+    assert.deepEqual(surfaceValue("setup").rests.calendar, ended, "its ended week kept");
+    assert.deepEqual([row("calendar").later, row("calendar").back], [false, true]);
+    assert.deepEqual(saves().at(-1)[2].view.rests.calendar, ended, "and saved as it stood");
+
+    // The first's undo: as if it had never been put off.
+    assert.equal((await kept.undo()).ok, true);
+    assert.equal(Object.hasOwn(surfaceValue("setup").rests, "keep"), false);
+  } finally {
+    wire.views = before;
+    await setupOverride.apply();
+  }
 });

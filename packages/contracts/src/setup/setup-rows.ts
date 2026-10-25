@@ -7,7 +7,8 @@
  * templates, the calendar feed, the team, the consent rows. Nothing stores a
  * "done" flag; a row is ready because the thing it names exists. "Later" is
  * the member's own (their saved view, on every device): it puts an optional
- * row off Today's card, and nothing else.
+ * row off Today's card for a week, then for good (setup.ts setupPutOffNext),
+ * and nothing else.
  */
 import { calendarSourceFacts, calendarSourceOf, type CalendarSourceState } from "./calendar-source";
 import { agoWords } from "../shared/time";
@@ -36,7 +37,11 @@ import {
   SETUP_STATE_WORDS,
   TRY_SKIPPED,
   forwardedLineOf,
+  setupBack,
+  setupOffNow,
+  setupPutOffEver,
   type SetupInputs,
+  type SetupPutOff,
   type SetupRowBuilder,
   type SetupRowContext,
   type SetupRowDraft,
@@ -608,17 +613,20 @@ const checkFactsOf = (i: SetupInputs): SetupVM["check"] => ({
 
 /**
  * A number the member chose to keep or move, with no forwarding saved for one yet, and "The number you already have"
- * not put off: the first run's phone step still owes its forwarding (first-run.ts stepDone).
+ * never put off: the first run's phone step still owes its forwarding (first-run.ts stepDone). A put-off whose week
+ * ended still said the forwarding can wait, so the row back on Today does not reopen the step.
  */
-const forwardingOwedOf = (i: SetupInputs, later: ReadonlySet<string>): boolean =>
-  !!i.want && !forwardedLineOf(i.lines) && !later.has(KEEP_ROW);
+const forwardingOwedOf = (i: SetupInputs, off: SetupPutOff): boolean =>
+  !!i.want && !forwardedLineOf(i.lines) && !setupPutOffEver(off, KEEP_ROW);
 
 /**
- * The fold over SETUP_ROWS: the rows drawn, each with its state's words and whether this member put it off; the
- * readiness they add up to; the first open verb; and what the first run's Check reads beside them.
+ * The fold over SETUP_ROWS: the rows drawn, each with its state's words and whether this member has it put off or back
+ * from a week put off; the readiness they add up to; the first open verb; and what the first run's Check reads beside
+ * them.
  */
 export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
-  const later = new Set(i.later ?? []);
+  // A fixture written before rests carries none: no rows rest.
+  const off: SetupPutOff = { later: i.later ?? [], rests: i.rests ?? {} };
   const ctx = rowContextOf(i, nowMs);
   const { wa, voice, waReady, voiceReady, answering, waNum, voiceNum, texting } = ctx;
   const rows: SetupRowVM[] = [];
@@ -628,7 +636,8 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
       rows.push({
         ...r,
         stateWords: r.stateWords ?? SETUP_STATE_WORDS[r.state],
-        later: !r.required && later.has(r.id),
+        later: !r.required && setupOffNow(off, r.id, nowMs),
+        back: !r.required && setupBack(off, r.id, nowMs),
       });
   }
 
@@ -666,10 +675,11 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
         }
       : null,
     findable: !!i.google?.ready && i.google.places !== false && !i.google.listing,
-    trySkipped: later.has(TRY_SKIPPED),
-    remindSkipped: later.has(REMIND_SKIPPED),
+    trySkipped: setupOffNow(off, TRY_SKIPPED, nowMs),
+    remindSkipped: setupOffNow(off, REMIND_SKIPPED, nowMs),
+    remindBack: setupBack(off, REMIND_SKIPPED, nowMs),
     dayBeforeOn: i.reminders?.day_before === true,
-    forwardingOwed: forwardingOwedOf(i, later),
+    forwardingOwed: forwardingOwedOf(i, off),
     calendarLinked: i.calendar.state !== "none",
     check: checkFactsOf(i),
   };

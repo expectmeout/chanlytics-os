@@ -46,6 +46,7 @@ function remindRow(
         tone=""
         stateWords={remind.stateWords}
         name={remind.name}
+        note={remind.back ? { long: skip.back, short: skip.backShort } : null}
         sentence={remind.words}
         cta={{ label: remind.label, onClick: () => nav(remind.to) }}
         also={{ label: skip.put, onClick: putOff, testid: "today-setup-remind-skip" }}
@@ -76,25 +77,25 @@ function optionalRows(S: SetupSurface, card: SetupCardVM, flash: (flash: Flash) 
 // What is left to set up, as one card above the queue in its column (the first run's Today card, canvas R10 and P9):
 // while a step is open, the one row that opens the first run; after, Setup's own optional rows in the order they help
 // most, each with its act and a Skip this person keeps on every device (their saved view), and the reminder's row last.
-// Gone once nothing is left. Every word is contracts' (first-run.ts setupCardOf); the rows are Setup's own, drawn as
-// the card's compact rows (setup/rows SetupRows look="card", SetupCardRow). A phone draws the same rows and acts as a
-// desk, each row without its sentence (mobile.css).
+// A Skip puts a row off for a week, and once it is back, for good (contracts setupPutOffNext); Hide does the same to
+// every row at once. Gone once nothing is left. Every word is contracts' (first-run.ts setupCardOf); the rows are
+// Setup's own, drawn as the card's compact rows (setup/rows SetupRows look="card", SetupCardRow). A phone draws the same
+// rows and acts as a desk, each row without its sentence (mobile.css), and a row back from its week says so by its name.
 export const TodaySetupCard = ({ S }: { S: SetupSurface }) => {
   // The card's toast, lent to its rows: a Skip or a Hide can take the card away while its Undo is still up.
   const [toastNode, flash] = useToast();
   const card = FIRST_RUN_HELPERS.todayCard(S.vm);
   if (!card) return toastNode;
   const nav = (to: string) => appNavigate(to);
-  const put = (ids: string[], on: boolean) => setupVerbs.later(ids, on);
-  // Put off, said in the card's toast with its Undo: every row at once (Hide, the reminder's row with them), or the
-  // reminder's alone (its Skip; Setup's rows skip through SetupRows).
+  // Put off as a "not now", said in the card's toast with its Undo, which puts every row back as it stood: every row at
+  // once (Hide, the reminder's row with them), or the reminder's alone (its Skip; Setup's rows skip through SetupRows).
   const putAway = async (ids: string[], said: string | undefined) => {
-    const r = await put(ids, true);
+    const r = await setupVerbs.later(ids, { on: true, why: "rest" });
     if (!r.ok) return flash(refusalFlash(r, "Not saved"));
     flash({
       msg: <>{said}</>,
       undo: () =>
-        put(ids, false).then((u) => {
+        r.undo().then((u) => {
           if (!u.ok) flash(refusalFlash(u, "Not saved"));
         }),
     });
