@@ -575,13 +575,39 @@ export function rpcNames(sf) {
   return n;
 }
 
+// `.rpc("x")`, or `rpc("x")` through a client's rpc bound to a name (people/person-details.ts): the bound calls went
+// uncounted until 25 Oct 2026, and the setup review read three of People's doors as reached by nothing.
 const isRpcCall = (m) =>
   ts.isCallExpression(m) &&
-  ts.isPropertyAccessExpression(m.expression) &&
-  m.expression.name.text === "rpc" &&
+  ((ts.isPropertyAccessExpression(m.expression) && m.expression.name.text === "rpc") ||
+    (ts.isIdentifier(m.expression) && m.expression.text === "rpc")) &&
   m.arguments.length >= 1 &&
   ts.isStringLiteralLike(m.arguments[0]) &&
   /^[a-z][a-z0-9_]*$/.test(m.arguments[0].text);
+
+/** The dashboard's service-role client: RLS off, its tenant fence written by hand at each place that takes it. */
+const SERVICE_ROLE = new Set(["serviceDb", "serviceDbIfConfigured"]);
+
+/**
+ * Each place this file takes the service-role client: a call of `serviceDb()` or `serviceDbIfConfigured()`, or the
+ * function handed on as a value. An import names it without taking it, and its own module declares it.
+ */
+export function serviceRoleReaches(sf) {
+  let n = 0;
+  const visit = (m) => {
+    if (ts.isImportDeclaration(m)) return;
+    if (
+      ts.isIdentifier(m) &&
+      SERVICE_ROLE.has(m.text) &&
+      !(ts.isFunctionDeclaration(m.parent) && m.parent.name === m) &&
+      !(ts.isPropertyAccessExpression(m.parent) && m.parent.name === m)
+    )
+      n++;
+    ts.forEachChild(m, visit);
+  };
+  visit(sf);
+  return n;
+}
 
 /**
  * The modules a file names: each `import … from`, `export … from`, `import("…")` with a literal, and

@@ -37,6 +37,7 @@ import {
   tableNames,
   tablesWrittenIn,
   rpcNames,
+  serviceRoleReaches,
   importsMatching,
   workspacelessStatements,
   headerOf,
@@ -522,6 +523,19 @@ export const MEASURES = [
     },
     advice:
       "A table, and a SQL function, is named once, in packages/db (CLAUDE.md, what not to introduce): add a repository or a reader there and call it.",
+  },
+  {
+    // The dashboard's own code (the edge is the service role's by design): each place a module takes the client with
+    // RLS off, so a read or write there is fenced to its workspace by hand, not by the database (the setup review's B2).
+    name: "service-role reaches in the dashboard",
+    file: "service-role.json",
+    measure: () =>
+      perFile(
+        SRC.filter((f) => f.startsWith("apps/dashboard/") && f !== "apps/dashboard/src/server/service-db.ts"),
+        serviceRoleReaches,
+      ),
+    advice:
+      "Read and write as the member (the route's session client, where RLS fences the workspace) or through a SQL door that checks it. The service role is for what no member may do: a cross-workspace read for the platform, an invite before the person is a member, a provider's callback.",
   },
   {
     name: "route files that hold a repository or a provider client",
