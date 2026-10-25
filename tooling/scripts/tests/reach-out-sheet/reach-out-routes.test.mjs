@@ -505,7 +505,11 @@ test("GET reach-outs/[id] reads its report and its search's reach; DELETE goes t
 
   const removed = [];
   const ok = ctxFor(tables(), { id: ROOT_ID }, { reach_out_remove: (a) => (removed.push(a), { root_id: ROOT_ID }) });
-  assert.deepEqual(await chain.DELETE.run(send("DELETE"), ok), { removed: true, id: ROOT_ID });
+  // The answer names the decision the delete wrote (0072: one judge for a record's acts), so the page and Ask say the
+  // same pause.
+  const answer = await chain.DELETE.run(send("DELETE"), ok);
+  assert.deepEqual(answer, { removed: true, id: ROOT_ID, decision_id: answer.decision_id });
+  assert.match(answer.decision_id, /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
   assert.deepEqual(removed, [{ p_tenant_id: A, p_root_id: ROOT_ID }]);
   const wrote = ctxFor(
     tables(),
