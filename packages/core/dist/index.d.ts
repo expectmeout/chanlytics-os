@@ -1,5 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js';
-import { ResendConfig, EmailSendsAs, EmailRequest, SendResult, WaConfig, ResendLimit, ApifyClient, LeadJudge, NormalizedInbound, CarrierConsent } from '@chanlytics/channels';
+import { ResendConfig, EmailSendsAs, EmailRequest, SendResult, WaConfig, ResendLimit, ApifyClient, LeadJudge, NormalizedInbound, CarrierConsent, InboundMessage } from '@chanlytics/channels';
 import { SendPurpose, MessageAbout, DeliveryRefusal, TenantId, DecisionSubject, DecisionVerb, ContactId, ConsentChannel, WriteRow, ChannelsReady, WriteWay, AppointmentState, FeedNames, JobNews, EmailClaim, BookingTool, DraftWhy, ReplyIntent, Unread, ReplyClaim, ReplyReading, ReadingPlan, PurposeRefusal, PurposeBearing, AskedPurpose, AppointmentStatus, NoticeHold, ParamSpec, Audience, PersonRowVM, ListRef, NumberHealth, PersonVisitsDto, Membership, DealPaceVM, CampaignMessage, CampaignHow, AppointmentWord, PlaybookTrigger, PlaybookPolicyClass, PlaybookState, SequenceMode, triggerOf, PlaybookPatch, PLAYBOOK_LIMITS, StepHand, TimetableSender, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadFacts, CompanyFitAnswer, LeadRoundPurpose, LeadSearchPlan, LeadPeoplePlan, PlaceFacts, ProbeMember, BrainMeta, NotificationsConfig, BrainConfig, CalendarConfig, CalendarGrantConfig, FeaturesConfig, PolicyLimits, KnownFacts, BookingRequestTerms, Handled, BrainIntent, EventSubscriber, HoldFacts, OptOutPerson, BookedVisit, MemberJoined } from '@chanlytics/contracts';
 export { AppointmentStatus, DeliveryRefusal, EmailClaim, SEND_GRACE_MS } from '@chanlytics/contracts';
 import { Json, Database, MessageVersionRow, RoutedChannel, LeadContext, IngestResult, DeliveredEvent } from '@chanlytics/db';
@@ -4823,27 +4823,44 @@ interface InboundCarrier {
     /** What the carrier itself decided about the text: its STOP or START outranks our reading of the words. */
     consent?: CarrierConsent | null;
 }
-/** One inbound message, as the door's adapter hands it over. */
-interface InboundInput {
+/**
+ * The raw fields this body still reads off the provider's own shape: the message id and the sender for the log envelope
+ * and the wire, the raw type for the words an owner reads ("Customer sent a sticker message"), and the provider's
+ * timestamp for the staleness check. Everything else is read from the normalised record.
+ */
+interface InboundRaw {
+    id: string;
+    from: string;
+    type: string;
+    timestamp: string | number | null;
+}
+/**
+ * One inbound message, as the door's adapter hands it over, in either shape for one release (decision 0001, step 2):
+ * WhatsApp's normalised message with the raw fields it still reads, as the doors hand it today, or the one inbound shape
+ * (channels InboundMessage), which ./context.ts converts where it enters. A message in the one shape says its own wire,
+ * and its carrier is that wire's: none for WhatsApp, the line's for a text.
+ */
+type InboundInput = InboundAt & ({
     /** withCarrierConsent(normalizeInbound(m, value), carrier?.consent ?? null), done by the adapter. */
     message: NormalizedInbound;
-    /**
-     * The raw fields this body still reads off the provider's own shape: the
-     * message id and the sender for the log envelope and the wire, the raw type
-     * for the words an owner reads ("Customer sent a sticker message"), and the
-     * provider's timestamp for the staleness check. Everything else is read from
-     * the normalised record above.
-     */
-    raw: {
-        id: string;
-        from: string;
-        type: string;
-        timestamp: string | number | null;
+    raw: InboundRaw;
+    carrier: InboundCarrier | null;
+} | {
+    inbound: InboundMessage & {
+        channel: "whatsapp";
     };
+    carrier: null;
+} | {
+    inbound: InboundMessage & {
+        channel: "sms";
+    };
+    carrier: InboundCarrier;
+});
+/** Where a message arrived, whatever shape it came in. */
+interface InboundAt {
     tenantId: string | null;
     routed: RoutedChannel | null;
     isEnvDefault: boolean;
-    carrier: InboundCarrier | null;
     /**
      * The job that answers a text after its acknowledgement (recordInbound recorded it in the door): its ingest is a
      * redelivery, and the message is answered while it is unprocessed and no reply names it yet.

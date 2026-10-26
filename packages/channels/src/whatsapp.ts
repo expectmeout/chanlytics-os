@@ -7,6 +7,7 @@ import { CONVERSATION_OPT_IN_PATTERN, MARKETING_OPT_IN_PATTERN, REFERRAL_ID_MAX 
 import { asksToStop } from "./stop-request";
 import { answerObject, providerFetch, type SendOutcome } from "./provider-fetch";
 import { errField, logger } from "./log/logger";
+import type { InboundMessage } from "./inbound";
 
 const GRAPH = "https://graph.facebook.com/v25.0";
 
@@ -410,6 +411,28 @@ export function normalizeInbound(m: WaRawMessage, value: WaChangeValue): Normali
     optIn: isText && matches(CONVERSATION_OPT_IN_PATTERN),
     optInMarketing: isText && matches(MARKETING_OPT_IN_PATTERN),
     referral: adReferralOf(m.referral),
+  };
+}
+
+/**
+ * A WhatsApp message as the one inbound shape (inbound.ts, decision 0001): the normaliser's reading of it, on its wire,
+ * by its person. The sender's id is their identity on WhatsApp, and the digits Meta sent it from their number.
+ */
+export function inboundFromWhatsapp(m: WaRawMessage, value: WaChangeValue): InboundMessage {
+  const n = normalizeInbound(m, value);
+  return {
+    channel: "whatsapp",
+    externalId: n.messageId,
+    identity: { externalId: n.waId, phoneE164: n.phoneDigits ? `+${n.phoneDigits}` : null, email: null },
+    profileName: n.profileName,
+    type: n.type,
+    kind: n.kind,
+    rawType: n.rawType,
+    body: n.body,
+    channelTsIso: n.channelTsIso,
+    media: n.media,
+    consent: { optOut: n.optOut, optIn: n.optIn, optInMarketing: n.optInMarketing },
+    referral: n.referral,
   };
 }
 

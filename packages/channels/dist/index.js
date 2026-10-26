@@ -1072,6 +1072,23 @@ function normalizeInbound(m, value) {
     referral: adReferralOf(m.referral)
   };
 }
+function inboundFromWhatsapp(m, value) {
+  const n = normalizeInbound(m, value);
+  return {
+    channel: "whatsapp",
+    externalId: n.messageId,
+    identity: { externalId: n.waId, phoneE164: n.phoneDigits ? `+${n.phoneDigits}` : null, email: null },
+    profileName: n.profileName,
+    type: n.type,
+    kind: n.kind,
+    rawType: n.rawType,
+    body: n.body,
+    channelTsIso: n.channelTsIso,
+    media: n.media,
+    consent: { optOut: n.optOut, optIn: n.optIn, optInMarketing: n.optInMarketing },
+    referral: n.referral
+  };
+}
 var PRICING_WORD = /^[A-Za-z0-9_-]{1,40}$/;
 function waPricingOf(raw) {
   if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return null;
@@ -2937,7 +2954,13 @@ async function channelStep(run) {
 }
 
 // src/lines/sms.ts
-import { LINE_CODES_MAX, LINE_CODES_WITHIN_MS, utf8Bytes } from "../../contracts/dist/index.js";
+import {
+  CONVERSATION_OPT_IN_PATTERN as CONVERSATION_OPT_IN_PATTERN2,
+  LINE_CODES_MAX,
+  LINE_CODES_WITHIN_MS,
+  MARKETING_OPT_IN_PATTERN as MARKETING_OPT_IN_PATTERN2,
+  utf8Bytes
+} from "../../contracts/dist/index.js";
 function smsInboundFrom(form3) {
   const messageSid = form3.MessageSid || form3.SmsSid || "";
   const from = form3.From || "";
@@ -2963,18 +2986,39 @@ function smsInboundFrom(form3) {
   };
 }
 function smsAsWaMessage(s, nowMs = Date.now()) {
-  const digits = s.from.replace(/[^\d]/g, "");
-  const words = s.body.trim();
-  const base = { from: digits, id: s.messageSid, timestamp: String(Math.floor(nowMs / 1e3)) };
-  if (words)
-    return {
-      ...base,
-      type: "text",
-      text: {
-        body: s.numMedia > 0 ? `${words} [with ${s.numMedia === 1 ? "a picture" : `${s.numMedia} pictures`}]` : words
-      }
-    };
+  const words = textWithPictures(s);
+  const base = { from: senderDigits(s), id: s.messageSid, timestamp: String(Math.floor(nowMs / 1e3)) };
+  if (words) return { ...base, type: "text", text: { body: words } };
   return { ...base, type: s.numMedia > 0 ? "image" : "unsupported" };
+}
+var senderDigits = (s) => s.from.replace(/[^\d]/g, "");
+function textWithPictures(s) {
+  const words = s.body.trim();
+  if (!words) return null;
+  return s.numMedia > 0 ? `${words} [with ${s.numMedia === 1 ? "a picture" : `${s.numMedia} pictures`}]` : words;
+}
+function inboundFromSms(s, nowMs = Date.now()) {
+  const digits = senderDigits(s);
+  const body = textWithPictures(s);
+  const carrier = mergeConsent(carrierConsent(s), smsKeywordConsent(s.body));
+  return {
+    channel: "sms",
+    externalId: s.messageSid,
+    identity: { externalId: digits, phoneE164: digits ? `+${digits}` : null, email: null },
+    profileName: null,
+    type: body ? "text" : "media",
+    kind: body ? "text" : "unsupported",
+    rawType: body ? "text" : s.numMedia > 0 ? "image" : "unsupported",
+    body,
+    channelTsIso: new Date(Math.floor(nowMs / 1e3) * 1e3).toISOString(),
+    media: null,
+    consent: {
+      optOut: !!carrier?.optOut,
+      optIn: body !== null && CONVERSATION_OPT_IN_PATTERN2.test(body) || !!carrier?.optIn,
+      optInMarketing: body !== null && MARKETING_OPT_IN_PATTERN2.test(body)
+    },
+    referral: null
+  };
 }
 function carrierConsent(s) {
   if (s.optOutType === "STOP") return { optOut: true, optIn: false };
@@ -6972,6 +7016,8 @@ export {
   idTokenClaims,
   imageBytes,
   importPhoneNumber,
+  inboundFromSms,
+  inboundFromWhatsapp,
   isAreaCode,
   isBrandNotReady,
   isEmailRequest,
