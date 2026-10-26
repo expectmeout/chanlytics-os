@@ -2,8 +2,8 @@
 
 **Status:** Decided by Ruben on 23 October 2026 ("yes all approved end to end including any additional refinements you
 see along the way"), on the canvas's merged page (https://claude.ai/artifact/DSxMfT3KXmhhGdxrFHCeg3, boards N0 to N5b,
-calls E1 to E8). Built on the lane `today/need-you-with-ask` from main's `d35e72f5d`, not yet merged: its migration's
-working name is 00475, numbered at push. Where this note and the code disagree, the code wins.
+calls E1 to E8). Built on the lane `today/need-you-with-ask` from main's `d35e72f5d`, merged in #1820 on 24 October
+2026 with its migration, 00475. Where this note and the code disagree, the code wins. The status was read again at `e9d6325f0` (26 October 2026).
 
 ## Context
 

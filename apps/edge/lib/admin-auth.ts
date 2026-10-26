@@ -13,7 +13,7 @@
  *     a body opens the door for that body only (`token_body`);
  *   - the edge has the secret and no token: the key opens nothing, unless
  *     the door names the platform's key as its credential for this knock
- *     (`platformKey`: the diagnostic, which nothing mints a token for).
+ *     (`platformKey`: the diagnostic and the pager, which nothing mints a token for).
  *     Either way the knock logs
  *     `admin_door_key_only` with the door and whether it came in, so what
  *     still relies on the key can be read off the log;

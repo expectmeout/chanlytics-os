@@ -1,9 +1,9 @@
 # 0063 · An owner's correction is kept
 
 **Status:** Decided 16 October 2026, and built on the lane `learning/an-owners-correction-is-kept` from main's
-`6bafb6dc3`, as migration 00448. This is the AI-native plan's item 3, the learning loop: "an owner's edit becomes a
+`6bafb6dc3`, as migration 00448, merged in #1639 the same day. This is the AI-native plan's item 3, the learning loop: "an owner's edit becomes a
 suggested fact to Keep, as notes do; the edit rate per class beside the autonomy matrix". Ruben approved the plan on 9
-October 2026 and picked the next lane on 16 October ("continue as you suggest"). The number is the next free one after 0062. Where this note and the code disagree, the code wins.
+October 2026 and picked the next lane on 16 October ("continue as you suggest"). The number is the next free one after 0062. Where this note and the code disagree, the code wins. The status was read again at `e9d6325f0` (26 October 2026).
 
 ## Context
 

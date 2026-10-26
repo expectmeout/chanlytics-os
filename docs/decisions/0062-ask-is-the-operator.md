@@ -1,8 +1,9 @@
 # 0062 · Ask is the operator: every page's verbs, read across pages, plans that cross them
 
 **Status:** Approved by Ruben on 15 October 2026: "all is approved as you best recommend" (the operator design, D1 to
-D13, `Claude Video/docs/2026-10-15-ask-operator-design.md`). Built on the lane `ask/operator` from main's `2eda129a7`.
-Where this note and the code disagree, the code wins.
+D13, `Claude Video/docs/2026-10-15-ask-operator-design.md`). Built on the lane `ask/operator` from main's `2eda129a7`,
+and merged in #1620 the same day.
+Where this note and the code disagree, the code wins. The status was read again at `e9d6325f0` (26 October 2026).
 
 ## Context
 

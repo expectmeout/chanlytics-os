@@ -5,11 +5,12 @@ then "go ahead as you recommend"): step 1 (#1565, 00412) the shell's own measure
 they were of, Server-Timing by reader and by database call, and the back office's card; step 2 for Today, one read for
 its first screen, and the boot's accept no longer asking every read again. Step 3 is deferred on the numbers. Step 5 is
 built (12 and 13 October 2026; Ruben: "go ahead with step 5 as you recommend", then "continue as you suggest your best
-approach"): the warms kept warm, and the signed-in frame one prerender for everyone, its gate the proxy;
-`partialPrefetching` is not taken, on the numbers. Steps 4 and 6 to 10 are decided, each its own change, ordered by
+approach"): the warms kept warm, and the signed-in frame one prerender for everyone, its gate the proxy (#1572);
+`partialPrefetching`, not taken then on the numbers, is on since #1600 (14 October 2026), where Next 16.4 asks for the
+switch. Steps 4 and 6 to 10 are decided, each its own change, ordered by
 what the numbers say.
 Written against commit `b220a8b74` (main, 12 October 2026, after #1563). Where this note and the code disagree, the
-code wins.
+code wins. The status was read again at `e9d6325f0` (26 October 2026).
 
 ## Context
 

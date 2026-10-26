@@ -24,12 +24,13 @@ A notice's row carries its client's number where an event carries one, so a numb
 (`indexFeed`). A run that drew a notice's booking asks that row again at the send (`appointmentStates` by
 `recordKeyOf`), as it asks a feed event's. A record that cannot be read is the calendar unavailable, logged
 (`visits_record_read_failed`), as a feed is. The record joins only where a calendar is read: a workspace with notices
-and no calendar link keeps its visit moments off until Ruben says otherwise. Left: the receptionist's request (answer
-5), and a row linked to a person by `contact_id` alone (the board finds it; the pools find a row by number or address). The paths below are the ones at `e3d9dc6c`; `packages/contracts/src/calendar/`
+and no calendar link keeps its visit moments off until Ruben says otherwise. The receptionist's request (answer 5) is
+[0061](0061-a-booking-the-receptionist-asks-for-is-held-for-the-owner.md), merged in #1615 (00443, 15 October 2026).
+Left: a row linked to a person by `contact_id` alone (the board finds it; the pools find a row by number or address). The paths below are the ones at `e3d9dc6c`; `packages/contracts/src/calendar/`
 holds what `availability.ts` and `calendar-people.ts` held. Written against commit `b729bdf` (21 September 2026) and refreshed against `e3d9dc6c` (PR #885, 23 September 2026): every file
 and line below was re-read at that commit, with deals (0004), the proposal link
 and smart lists on main. _What has changed since it was written_ says what moved
-around it. Where this note and the code disagree, the code wins.
+around it. Where this note and the code disagree, the code wins. The status was read again at `e9d6325f0` (26 October 2026).
 
 ## Context
 

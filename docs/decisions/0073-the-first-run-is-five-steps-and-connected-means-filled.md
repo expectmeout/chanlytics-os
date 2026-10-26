@@ -1,10 +1,11 @@
 # 0073 · The first run is five steps, and connected means filled
 
 **Status:** Decided 25 October 2026, and built on the lane `onboarding/rewired-end-to-end` from main's `4b19a8457`
-(#1821), with decision 0069 (lanes 1 and 2) carried in. These are lanes 3 to 7 of the onboarding rewiring plan (21 Oct
-2026, "Hear it, fix it, go live", Version 5), and Version 23 of the onboarding canvas's copy is what each screen draws.
-Ruben, 25 October: "continue locally … until fully complete all lanes in full with all bells and whistles nothing
-missed". Where this note and the code disagree, the code wins.
+(#1821), with decision 0069 (lanes 1 and 2) carried in, and merged with it in #1829 on 25 October 2026 (its migrations
+00477 to 00480; 0069's is 00476). These are lanes 3 to 7 of the onboarding rewiring plan (21 Oct 2026, "Hear it, fix
+it, go live", Version 5), and Version 23 of the onboarding canvas's copy is what each screen draws. Ruben, 25 October:
+"continue locally … until fully complete all lanes in full with all bells and whistles nothing missed". Where this note
+and the code disagree, the code wins. The status was read again at `e9d6325f0` (26 October 2026).
 
 ## Context
 

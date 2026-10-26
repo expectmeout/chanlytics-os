@@ -5,8 +5,8 @@ things stay open and are named under "Not decided here": the price, health and c
 email, and the consent line's wording, which is counsel's. This is the records half of Campaigns › Ads on the Wiring
 Blueprint (`Claude Video/docs/2026-10-11-chanlytics-wiring-blueprint.md`); 0050 decides how money is spent. It leans on
 0047 (a page hears the record it draws) and 0048 (one list of what needs you), both drafted in another lane and not on
-main yet; each place that depends on one says so. Written against commit `132ab95eb` (main, 11 October 2026), and the
-paths below were read at it. Where this note and the code disagree, the code wins.
+main when this was written (#1564 built both, 12 October 2026); each place that depends on one says so. Written against commit `132ab95eb` (main, 11 October 2026), and the
+paths below were read at it. Where this note and the code disagree, the code wins. The status was read again at `e9d6325f0` (26 October 2026).
 
 ## Context
 

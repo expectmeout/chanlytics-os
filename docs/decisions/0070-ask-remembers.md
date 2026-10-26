@@ -2,9 +2,9 @@
 
 **Status:** Decided by Ruben on 21 October 2026 ("Build the whole of option 2 in one lane: memory, recall, journal, and
 the morning turn on Today with the lead ideas inside it"), and built on the lane `ask/remembers` from main's
-`b53a1b0ef`, not yet merged: its migration's working name is 00470, numbered at push. The analysis, checked against the
+`b53a1b0ef`, merged in #1792 on 22 October 2026 with its migration, 00470. The analysis, checked against the
 code and the API's own guidance: https://claude.ai/artifact/1cz1AjLDCE4sNBMQCWADNo. The lead ideas' part is option B of
-https://claude.ai/artifact/QR4t5xUSHRGGmrr1mKgHyU. Where this note and the code disagree, the code wins.
+https://claude.ai/artifact/QR4t5xUSHRGGmrr1mKgHyU. Where this note and the code disagree, the code wins. The status was read again at `e9d6325f0` (26 October 2026).
 
 ## Context
 

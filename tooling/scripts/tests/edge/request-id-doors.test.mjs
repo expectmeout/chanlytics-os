@@ -15,6 +15,7 @@ import path from "node:path";
 import { signEdgeToken } from "@chanlytics/channels";
 import { ROOT, importSrc } from "../_source.mjs";
 import { logLineOf } from "../_log-lines.mjs";
+import { METHODS, doorFiles } from "./doors/_doors.mjs";
 
 const SECRET = "edge-secret-for-this-file";
 process.env.EDGE_CALL_SECRET = SECRET;
@@ -159,15 +160,6 @@ test("an admin door is named by what its token signed: a header cannot rename a 
   });
 });
 
-/** Every file under apps/edge/api, as a repo-relative path: one door each. */
-function doorFiles(dir = "apps/edge/api") {
-  return fs.readdirSync(path.join(ROOT, dir), { withFileTypes: true }).flatMap((e) => {
-    const rel = `${dir}/${e.name}`;
-    if (e.isDirectory()) return doorFiles(rel);
-    return e.name.endsWith(".ts") ? [rel] : [];
-  });
-}
-
 test("every door names its request: each handler under apps/edge/api answers x-request-id, the platform's own for a provider's delivery and the dashboard's for an admin door", async () => {
   const PLATFORM_ID = "iad1::platform-0123456789";
   const files = doorFiles();
@@ -176,7 +168,7 @@ test("every door names its request: each handler under apps/edge/api answers x-r
   let handlers = 0;
   for (const file of files) {
     const mod = await importSrc(file);
-    const methods = ["GET", "POST", "PUT", "PATCH", "DELETE"].filter((m) => typeof mod[m] === "function");
+    const methods = METHODS.filter((m) => typeof mod[m] === "function");
     if (methods.length === 0) wrong.push(`${file}: exports no handler`);
     const admin = file.startsWith("apps/edge/api/admin/");
     for (const method of methods) {

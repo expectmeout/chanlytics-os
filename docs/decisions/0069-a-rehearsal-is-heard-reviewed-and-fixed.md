@@ -1,11 +1,12 @@
 # 0069 · A rehearsal is heard, reviewed and fixed
 
 **Status:** Decided 21 October 2026, and built on the lane `receptionist/hear-it-and-the-loop` from main's `9381ed0c3`,
-brought onto main's `fbf72c019` on 22 October (Ask remembers, 0070, and the Supabase review had landed beside it).
-These are lanes 1 and 2 of the onboarding rewiring plan (21 Oct 2026, "Hear it, fix it, go live"): R1, R6 and R2 (hear
+brought onto main's `fbf72c019` on 22 October (Ask remembers, 0070, and the Supabase review had landed beside it), and
+merged with decision 0073 in #1829 on 25 October 2026 as migration 00476; a fix kept from a rehearsal goes through the
+member's own door since #1834 (00481, 26 October 2026). These are lanes 1 and 2 of the onboarding rewiring plan (21 Oct 2026, "Hear it, fix it, go live"): R1, R6 and R2 (hear
 it), R3, R4 and R5 (the loop). Ruben picked them on 21 October ("Build lanes 1 and 2 first"), with the plan's
 recommendations for its decisions D1 and D3 to D7. The number is the next free one after 0068. Where this note and the
-code disagree, the code wins.
+code disagree, the code wins. The status was read again at `e9d6325f0` (26 October 2026).
 
 ## Context
 

@@ -2,7 +2,7 @@
 
 **Status:** Decided by Ruben on 24 October 2026 (the architecture review's candidate 1, settled in three rounds of
 questions the same day). Built on the lane `sequences/acts-judged-once` from main's `4b19a8457`, the commit this note
-was written and checked against, not yet merged; no migration. Where this note and the code disagree, the code wins.
+was written and checked against, and merged in #1824 on 25 October 2026; no migration. Where this note and the code disagree, the code wins. The status was read again at `e9d6325f0` (26 October 2026).
 
 ## Context
 

@@ -63,7 +63,7 @@ export async function reportLineFailed(
     {
       kind: "alert",
       subject: `Line failed · ${tenant.name}`,
-      body: `${tenant.name} (${tenant.id}) — line ${line.id} for ${line.e164 ?? "no number"} stopped at step "${at}" (started by ${by}).\n\n${error}\n\nRetry: POST /api/admin/lines { "op": "retry", "tenant_id": "${tenant.id}", "line_id": "${line.id}" } (x-diag-key).`,
+      body: `${tenant.name} (${tenant.id}) — line ${line.id} for ${line.e164 ?? "no number"} stopped at step "${at}" (started by ${by}).\n\n${error}\n\nRetry: in the Console, open this workspace's Setup and lines and press Retry setting up.`,
     },
   );
   await emitEvent(db, tenant.id, "line.failed", "line", line.id, {

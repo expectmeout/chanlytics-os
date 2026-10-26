@@ -1,12 +1,12 @@
 # 0061 · A booking the receptionist asks for is held for the owner
 
 **Status:** Decided 15 October 2026, and built on the lane `receptionist/a-booking-request` from main's `e88afd8d2`, as
-migration 00443. This is
+migration 00443, merged in #1615 the same day. This is
 the AI-native plan's item 4, "the receptionist may REQUEST a booking that an owner confirms, never confirm one itself",
 which Ruben approved on 9 October 2026. It is the first step of the appointment spine the second-pass engine review drew
 (`Claude Video/docs/2026-10-11-chanlytics-engine-review-second-pass.md`, 4.6 and Lane 9). Ruben picked it on 15 October,
 with the review's open points answered as recommended (its Part 7, item 10). The number is the next free one after 0060,
-which the Sequences lane holds. Where this note and the code disagree, the code wins.
+which the Sequences lane holds. Where this note and the code disagree, the code wins. The status was read again at `e9d6325f0` (26 October 2026).
 
 ## Context
 

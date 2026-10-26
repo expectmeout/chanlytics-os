@@ -1,10 +1,12 @@
 # 0056 · A cold email leaves from a mailbox the business connected
 
-**Status:** Built on the lane `reach-out/own-mailboxes`, 13 October 2026, and not yet merged. Decided the same day.
+**Status:** Built on the lane `reach-out/own-mailboxes`, 13 October 2026, and merged in #1580 the same day (00423 to
+00425); the deep review's fixes followed in #1766 (00466, 20 October 2026), and #1797 (00472, 22 October 2026) dropped
+the cold lane's own sending domains, whose SQL this left inert. Decided the same day.
 Ruben: "resend is a scrapped project we must remove from chanlytics it is more
 likely to damage our domain than benefiting users. your plan is approved end to end". The plan is
 `Claude Video/docs/2026-10-13-chanlytics-cold-email-own-mailbox-review.md`. Written against commit `38d3f2529`
-(main, 13 October 2026, after #1578). Where this note and the code disagree, the code wins.
+(main, 13 October 2026, after #1578). Where this note and the code disagree, the code wins. The status was read again at `e9d6325f0` (26 October 2026).
 
 The cold lane's SQL this note left inert (the sending domains and their days, a send's `domain_id`, a step's
 `domain_ids`, and the six doors only an edge from before it called) was dropped by 00472 on 22 October 2026, once
