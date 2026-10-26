@@ -124,6 +124,8 @@ interface ThreadPaneProps {
   mock?: Partial<InboxThreadProps> | null;
   /** The message it opens at instead of its newest -- a call, opened from Conversations. */
   focusMessageId?: string | null;
+  /** What the pane says with nobody open, by the bucket beside it (InboxThread's `nothingOpen`). */
+  nothingOpen?: InboxThreadProps["nothingOpen"];
 }
 
 /** Asked for by id before the Inbox's read has it: say it is on its way, and open nobody else's in its place. */
@@ -281,7 +283,16 @@ export const ThreadPane = (props: ThreadPaneProps) => {
   const labels = inboxData().CHANNEL_LABELS || {};
   if (!t) {
     // An empty bucket in the Inbox: the thread's own empty state.
-    if (!threadId) return <InboxThread thread={null} onBack={onBack} channelLabels={labels} {...(mock || {})} />;
+    if (!threadId)
+      return (
+        <InboxThread
+          thread={null}
+          onBack={onBack}
+          channelLabels={labels}
+          nothingOpen={props.nothingOpen}
+          {...(mock || {})}
+        />
+      );
     return opening();
   }
 

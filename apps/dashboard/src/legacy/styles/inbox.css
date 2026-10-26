@@ -366,6 +366,38 @@
 .inbox > .ix-zero { justify-content: flex-start; min-height: 0; }
 .inbox > .ix-zero::before { content: ""; flex: 2 1 0; }
 .inbox > .ix-zero::after { content: ""; flex: 3 1 0; }
+/* On a desk the room beside the list is the thread's pane whether a thread is open or not, so it keeps the pane's glass
+   (I1: .ix-thread-pane's, below) with nobody in it: it stood bare on the page's light while Live's empty pane wore it,
+   and the pane came and went as a bucket emptied. Its ::after draws the rim there, as the pane's does, so the words are
+   hung by the rows instead of the two spacers: two parts of the room above them, three below, as before.
+   Needs you's own card in the list steps aside for "Inbox zero" there (inbox-list.tsx saidBeside): the page said
+   "Nobody's waiting on you" and "Inbox zero" side by side. */
+@media (width > 900px) {
+  .inbox > .ix-zero {
+    position: relative;
+    display: grid;
+    grid-template-rows: 2fr auto auto auto 3fr;
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    border-radius: var(--surface-pane-radius);
+    background: var(--surface-pane-fill);
+    box-shadow: var(--surface-pane-depth);
+  }
+  .inbox > .ix-zero::after {
+    position: absolute;
+    inset: 0;
+    padding: 1px;
+    border-radius: inherit;
+    background: var(--surface-pane-rim);
+    mask:
+      linear-gradient(#000 0 0) content-box exclude,
+      linear-gradient(#000 0 0);
+    pointer-events: none;
+  }
+  .inbox:has(> [data-testid="inbox-empty"]) .ix-zero-beside {
+    display: none;
+  }
+}
 .ix-empty-mini { border: 0; background: transparent; align-items: center; text-align: center; padding: 56px 24px; }
 .ix-empty-mini .empty-body { max-width: 220px; }
 
@@ -1064,7 +1096,11 @@ html.legacy-on .tl-msg-quote-toggle { position: relative; min-height: 0; }
 .tl-call-play:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 /* A finger's reach without a finger's size: 44px to press, 22px to see. */
 .tl-call-play::after { content: ""; position: absolute; inset: -11px; border-radius: var(--radius-full); }
-.tl-call-file { display: grid; place-items: center; flex: none; width: 22px; height: 22px; border-radius: var(--radius-full); color: var(--ink-dim); }
+/* Under the end line, the call's acts in one centred row: the transcript's file and Review this call; a review the press
+   brought takes the row's width under them. */
+.tl-call-acts { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 4px 16px; }
+.tl-call-acts > :not(.tl-call-file, .bt-try-acts) { flex-basis: 100%; }
+.tl-call-file { display: inline-flex; align-items: center; gap: 5px; flex: none; height: 22px; padding: 0 8px; border-radius: var(--radius-full); font-size: var(--text-xs); color: var(--ink-dim); text-decoration: none; }
 @media (hover: hover) { .tl-call-file:hover { color: var(--ink); background: color-mix(in oklab, var(--ink) 7%, transparent); } }
 .tl-call-file:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
@@ -2164,6 +2200,30 @@ button.ix-ctx { text-align: left; cursor: pointer; transition: background 100ms;
 .ix-threads {
   order: 4;
 }
+/* A pick on a desk stands in the buckets' row while it lasts, at its height and on its hairline: the bar was a row of its
+   own under them, and every row moved 41px down from under the pointer that picked one. A bucket pressed ends a pick
+   anyway (inbox-page.tsx handleBucket), and Clear gives the buckets back. Conversations' channels the same. */
+@media (width > 900px) {
+  .ix-list:has(> .ix-list-head > .ix-bulk) > .ix-buckets,
+  .cv-list:has(> .ix-list-head > .ix-bulk) > .cv-filters {
+    display: none;
+  }
+  .ix-list > .ix-list-head:has(> .ix-bulk) {
+    order: 2;
+    box-sizing: border-box;
+    height: 38px;
+    min-height: 0;
+    padding-block: 0;
+    border-bottom-color: var(--line);
+  }
+  .cv-list > .ix-list-head:has(> .ix-bulk) {
+    box-sizing: border-box;
+    height: 37px;
+    min-height: 0;
+    padding-block: 0;
+    border-bottom-color: var(--line);
+  }
+}
 /* The runs waiting, a line over the rows: the list has no sides of its own (each row brings its 8px and its 12px), so the
    line stood on the pane's edge, its door wrapped under it there (the sample walk, 18 Oct 2026). Its glyph stands where a
    row's face does, and its words end where a row's do. */
@@ -2522,6 +2582,21 @@ button.ix-ctx { text-align: left; cursor: pointer; transition: background 100ms;
 .ix-th-status + .ix-composer.ix-composer-row {
   margin-top: 12px;
   padding-top: 6px;
+}
+/* On a wide desk the conversation and what stands under it read at the prose measure, centred in the pane; the head and
+   the band keep the pane's width. At 1920 the customer's words stood at the pane's left and the replies 1,200px away
+   at its right, over a reply box as wide. While the pane is narrower than the measure and its sides (a 1440 window's
+   764) the sides are the pane's own, as they were. A percentage on these sides is the pane's width. */
+@media (width > 900px) {
+  .ix-thread-pane > .ix-th-scroll {
+    padding-inline: max(24px, (100% - var(--measure-prose)) / 2);
+  }
+  .ix-thread-pane > .ix-th-foot > :is(.ix-th-status, .ix-th-reply, .ix-composer:not(.ix-composer-row)) {
+    padding-inline: max(20px, (100% - var(--measure-prose)) / 2);
+  }
+  .ix-thread-pane > .ix-th-foot > .ix-composer.ix-composer-row {
+    margin-inline: max(20px, (100% - var(--measure-prose)) / 2);
+  }
 }
 .ix-composer.ix-composer-row::after {
   content: "";
@@ -3056,17 +3131,6 @@ button.tl-stamp:focus-visible {
     .ix-th-status
     + .ix-composer.ix-composer-row {
     margin-top: 8px;
-  }
-  /* A message that never reached them: the bubble itself is the dashed, dimmed one, not a dashed box round the bubble
-     and its two lines of meta (conversations.css draws that one, for a desk). */
-  :is(.inbox, .conversations)[data-takeover] .tl-msg.undelivered .tl-msg-bubble {
-    border: 0;
-    opacity: 1;
-  }
-  :is(.inbox, .conversations)[data-takeover] .tl-msg.undelivered .tl-msg-body {
-    border: 1px dashed var(--line-strong);
-    background: transparent;
-    opacity: 0.7;
   }
 }
 

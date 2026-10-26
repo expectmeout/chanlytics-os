@@ -101,6 +101,11 @@
 .ny-room {
   flex: 1 1 auto;
 }
+/* The press at the left (Not today, Not now) is a quiet word: it hangs into the button's own 11px side (kit.css .btn), so
+   its words start where the row's do, as the answer's sentence over it does. They stood 12px in. */
+.ny-acts > :first-child:not(.ny-room) {
+  margin-inline-start: -11px;
+}
 .ny-picks {
   display: flex;
   flex-wrap: wrap;

@@ -420,5 +420,5 @@ test("the Conversations viewer runs a real live call's clock from its start, and
   const src = readRaw("apps/dashboard/src/surfaces/inbox/pages/conversations-page.tsx");
   assert.ok(src.includes("Math.floor((Date.now() - started) / 1000)"));
   assert.ok(!src.includes("Listen in"), "there is no audio to listen to; the button opens Live");
-  assert.ok(src.includes('outcome === "missed"'));
+  // A missed call saying so on its row is drawn, not read: the-pages-say-only-what-is-true.test.mjs runs the row's pill.
 });

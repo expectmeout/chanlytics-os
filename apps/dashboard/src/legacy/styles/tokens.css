@@ -78,10 +78,12 @@
   --rail-nav: 220px;
 
   /* ---------- Breakpoints (the widths the layout changes at) ----------
-     Two widths are the real kinds --
+     Three widths are the real kinds --
 
        phone  -- one pane at a time (the Inbox's list or its thread), the tab bar
        narrow -- the sidebar becomes a drawer, a list takes the phone's row
+       desk   -- at or under it a desk is a small one: the sidebar stands as its rail (shell-hooks.ts useDeskSidebar), since
+                 at 1024px the open sidebar left a thread 348px beside a 360px list and People's table half its columns
 
      -- and a layout changes at one of them, from either side: (max-width:
      720px), or (min-width: 721px) and (width > 720px). A media query cannot
@@ -94,6 +96,7 @@
      these. */
   --bp-phone: 720px;
   --bp-narrow: 900px;
+  --bp-desk: 1280px;
 
   /* ---------- A list row on a phone (900px and under) ----------
      Four lists show a person, a lead, a conversation and a call, and each had

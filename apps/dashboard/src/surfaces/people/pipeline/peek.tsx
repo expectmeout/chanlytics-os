@@ -49,6 +49,8 @@ const WALK_WORDS = { ...P.words.sheet.walk, at: (at: number, of: number) => `${a
 
 export interface PipelinePeekProps {
   vm: PipelinePeekVM | null;
+  /** Its mount's hold on a desk's aside, which plays it out as the sheet closes (peek/peek-leaves.ts). */
+  asideRef?: (el: HTMLElement | null) => void;
   /** The row the sheet is of, as the Pipeline draws it now: its deal, its steps, its chip. */
   row: PipelineRowVM | null;
   person?: PersonVM | null;
@@ -106,7 +108,13 @@ function DeskPeek(p: PipelinePeekProps & { c: DealSheetCtx; foot: ReturnType<typ
   const { vm } = c;
   const to = toTheirPage(vm, p.onOpenPage);
   return (
-    <aside className="pk pl-peek pipe-peek" role="dialog" aria-label={vm.name} data-testid="pipeline-peek">
+    <aside
+      ref={p.asideRef}
+      className="pk pl-peek pipe-peek"
+      role="dialog"
+      aria-label={vm.name}
+      data-testid="pipeline-peek"
+    >
       <div className="pk-head">
         <SheetOpens to={to} mark>
           <Face person={{ name: vm.name, initials: vm.initials }} size="lg" />
@@ -210,7 +218,13 @@ export function PipelinePeek(props: PipelinePeekProps) {
   const sheet = sheetOf(row, person);
   if (!row || !sheet) {
     return (
-      <aside className="pk pl-peek pipe-peek" role="dialog" aria-label={vm.name} data-testid="pipeline-peek">
+      <aside
+        ref={props.asideRef}
+        className="pk pl-peek pipe-peek"
+        role="dialog"
+        aria-label={vm.name}
+        data-testid="pipeline-peek"
+      >
         <FailedRead kind="card" what={P.words.peek.what} onRetry={props.onRetry} testid="pipeline-peek-failed" />
       </aside>
     );

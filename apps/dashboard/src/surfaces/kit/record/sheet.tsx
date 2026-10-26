@@ -92,6 +92,11 @@ interface RecordSheetProps {
    * The keyboard still takes from it (kit.css, "A steady sheet").
    */
   steady?: boolean;
+  /**
+   * On a desk it is as tall as what it holds, its foot under its last row, never past the window's height: a short job
+   * (Add people's one person) stood in a window-tall pane, its foot 430px under the form (kit.css, "A fitted sheet").
+   */
+  fit?: boolean;
 }
 
 // The sheet rises from the bottom at the kit's one phone width (record.css, focus.ts recPhoneQuery): there a pull down
@@ -202,6 +207,7 @@ function sheetNode(props: RecordSheetProps, h: SheetHooks) {
         // and record.css lets it be as tall as what it holds, its height gliding as that changes (place, below).
         data-phone={h.phone ? "true" : undefined}
         data-steady={props.steady ? "true" : undefined}
+        data-fit={props.fit ? "true" : undefined}
         role="dialog"
         aria-modal={true}
         aria-labelledby={titleId}

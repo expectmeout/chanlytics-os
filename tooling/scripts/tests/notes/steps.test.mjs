@@ -289,6 +289,16 @@ test("a note with a day is a step on the page: its day, and once done, who did i
     vm({ due_on: "2026-09-23", done_at: "2026-09-22T14:15:00Z", done_by_name: "Sam" }).step.doneWords,
     "Done by Sam · Sep 22",
   );
+  // Done by the one who wrote it: the note names its writer beside it, so the step says only when.
+  assert.equal(
+    vm({ due_on: "2026-09-23", done_at: doneAt, mine: true, done_by_me: true }).step.doneWords,
+    "Done · 10:15 AM",
+    "REGRESSION: 'You · Done by you'",
+  );
+  assert.equal(
+    vm({ due_on: "2026-09-23", done_at: "2026-09-22T14:15:00Z", done_by_name: "Maria" }).step.doneWords,
+    "Done · Sep 22",
+  );
   const gone = vm({ due_on: "2026-09-23", done_at: doneAt, done_by_name: null });
   assert.deepEqual(
     [gone.step.words, gone.step.done, gone.step.doneWords],

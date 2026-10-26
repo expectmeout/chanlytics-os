@@ -27,7 +27,7 @@ import { clockDate, clockNear, clockNearWhen } from "../../shared/clock";
 import { plural } from "../../shared/words";
 import { DEAL_CARD_WORDS } from "../sheet/deal-card";
 import { amountTotalsWords } from "../deal-amount";
-import { dealIsOpen, wholeDaysSince, type DealVM } from "../deal-vm";
+import { daysInStageWords, dealIsOpen, wholeDaysSince, type DealVM } from "../deal-vm";
 import { heardSinceProposal, proposalTone, waitingOnProposal, type DealPaceVM } from "../deal-waits";
 import { consultationsWithoutProposal, consultsHeldWords, dealStageOf } from "../deal-consultations";
 import { stepDayOf } from "../../notes/steps";
@@ -49,8 +49,8 @@ import { GROUP_WORDS, PIPELINE_WORDS } from "./pipeline-words";
 import { serviceOf, stepDue, type PipelineView } from "./pipeline-views";
 
 const upper = (s: string): string => (s ? `${s[0].toUpperCase()}${s.slice(1)}` : s);
-/** A time in stage in words, "8 d", from the one count of whole days (wholeDaysSince); "" without one. */
-const daysWords = (days: number | null): string => (days === null ? "" : `${days} d`);
+/** A time in stage in words, "8 d" or "today", from the one count of whole days (wholeDaysSince); "" without one. */
+const daysWords = (days: number | null): string => (days === null ? "" : daysInStageWords(days));
 /** A visit is said by the calendar's own clock, as People says it (PersonRowVM.nextVisit). */
 const zoneOf = (r: PipelineSource, tz: string): string => r.calendarTz || tz;
 

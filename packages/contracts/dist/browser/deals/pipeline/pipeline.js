@@ -3,7 +3,7 @@ import { clockDate, clockNear, clockNearWhen } from "../../shared/clock.js";
 import { plural } from "../../shared/words.js";
 import { DEAL_CARD_WORDS } from "../sheet/deal-card.js";
 import { amountTotalsWords } from "../deal-amount.js";
-import { dealIsOpen, wholeDaysSince } from "../deal-vm.js";
+import { daysInStageWords, dealIsOpen, wholeDaysSince } from "../deal-vm.js";
 import { heardSinceProposal, proposalTone, waitingOnProposal } from "../deal-waits.js";
 import { consultationsWithoutProposal, consultsHeldWords, dealStageOf } from "../deal-consultations.js";
 import { stepDayOf } from "../../notes/steps.js";
@@ -12,7 +12,7 @@ import { pipelineRowId } from "./pipeline-vm.js";
 import { GROUP_WORDS, PIPELINE_WORDS } from "./pipeline-words.js";
 import { serviceOf, stepDue } from "./pipeline-views.js";
 const upper = (s) => s ? `${s[0].toUpperCase()}${s.slice(1)}` : s;
-const daysWords = (days) => days === null ? "" : `${days} d`;
+const daysWords = (days) => days === null ? "" : daysInStageWords(days);
 const zoneOf = (r, tz) => r.calendarTz || tz;
 const followUpOfRow = (r, d) => d === r.deal || d.id !== null && d.id === r.deal?.id ? r.followUp : null;
 function proposalChip(r, d, tz, nowMs, pace) {

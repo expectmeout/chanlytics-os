@@ -1526,10 +1526,13 @@ a.more-item {
   background: transparent;
 }
 
-/* Menus float above their backdrop and never extend past reach */
+/* Menus float above their backdrop and never extend past reach: as tall as the room beside their button, which Base UI's
+   positioner says (--available-height), and the old cap only where nothing says it. A fixed 340px hid a desk's last items
+   behind a scroll with the window to spare (the thread's Export transcript, a person's Delete, the Columns menu's
+   density and its way back). */
 .more-menu {
   z-index: 250;
-  max-height: min(340px, 72vh);
+  max-height: var(--available-height, min(340px, 72vh));
   overflow-y: auto;
 }
 
@@ -5677,6 +5680,16 @@ footer.rec-sheet-foot .btn {
 .rec-sheet[data-phone="true"][data-steady="true"] .rec-sheet-body {
   --rec-gutter: 16px;
 }
+/* ---- A fitted sheet (Sheet and RecordSheet `fit`: the Calendar's Hours and rules, Add people) ----
+   On a desk a short job stood in a pane as tall as the window, its foot 430px under its last field. Fitted, it is as tall
+   as what it holds, from the top of its edge, and never past the window's height less its two gaps; past that its body
+   scrolls, as any sheet's does. */
+@media (width > 900px) {
+  :is(.sheet, .rec-sheet)[data-fit="true"] {
+    bottom: auto;
+    max-height: calc(100% - 28px);
+  }
+}
 /* A choice on the title's line (`toolsInLine`: One person | A list) is the Close's height, as a kicker's tools are. */
 .rec-sheet-line .rec-seg {
   padding: 2px;
@@ -6044,6 +6057,8 @@ textarea.rec-input,
 }
 .pg-sentence {
   line-height: 1.45;
+  /* A sentence at the prose measure: Today's ran 1,112px at 1440 and 1,259 at 1920, a line past reading. */
+  max-width: var(--measure-prose);
 }
 @media (max-width: 900px) {
   .pg-title {
@@ -6208,6 +6223,22 @@ textarea.rec-input,
 }
 .pill-accent {
   color: var(--accent-ink);
+}
+/* A pill that gives way on a desk, in a line it shares with a name (a list row's first line): it shrinks before the name
+   does and its words end in an ellipsis, the dot kept. A flex line cannot end a pill's words in one, so the pill is a
+   block there, its dot inline. On a phone a row's line is the row's own (mobile.css), and the class draws nothing. */
+@media (width > 900px) {
+  .pill-fit {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .pill-fit::before {
+    display: inline-block;
+    margin-right: 6px;
+    vertical-align: 1px;
+  }
 }
 
 /* ---------- Figure: a number, what it counts, the period before beside it, one line under ----------

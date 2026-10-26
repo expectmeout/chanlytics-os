@@ -26209,12 +26209,14 @@ function noteStepOf(n, tz, nowMs) {
   const doneMs = n.done_at ? Date.parse(n.done_at) : NaN;
   if (!Number.isFinite(doneMs)) return { day: day2, due: day2.due, words: day2.words, done: false, doneWords: null };
   const who = n.done_by_me ? "you" : (n.done_by_name ?? "").trim() || "a former teammate";
+  const byWriter = n.author_kind === "member" && (n.mine ? !!n.done_by_me : !n.done_by_me && !!n.done_by_name && n.done_by_name.trim() === n.author_name?.trim());
+  const when = clockShort(doneMs, tz, nowMs);
   return {
     day: day2,
     due: day2.due,
     words: NOTE_WORDS.done,
     done: true,
-    doneWords: `${NOTE_WORDS.done} by ${who} \xB7 ${clockShort(doneMs, tz, nowMs)}`
+    doneWords: byWriter ? `${NOTE_WORDS.done} \xB7 ${when}` : `${NOTE_WORDS.done} by ${who} \xB7 ${when}`
   };
 }
 function personNotesVM(notes, tz, nowMs) {
@@ -31337,6 +31339,7 @@ function proposalLinkOf(current, personLink) {
 function wholeDaysSince(atMs, nowMs) {
   return atMs === null ? null : Math.max(0, Math.floor((nowMs - atMs) / DAY_MS));
 }
+var daysInStageWords = (days) => days === 0 ? "today" : `${days} d`;
 function dealSinceMs(d) {
   const at3 = d.stage === "proposed" ? d.proposed_at : d.stage === "ended" ? d.ended_at : d.decided_at ?? d.proposed_at;
   const ms3 = at3 ? Date.parse(at3) : NaN;
@@ -31362,7 +31365,7 @@ function toDealVM(d, tz, nowMs) {
   const said = [word, since, amount].filter((x) => !!x).join(" \xB7 ");
   const line = [d.service, said].filter((x) => !!x).join(" \xB7 ");
   const facts = [d.service, since, amount].filter((x) => !!x).join(" \xB7 ");
-  const brief = d.stage === "proposed" ? `${word} \xB7 ${waitingDays ?? 0} d` : d.stage === "won" ? [word, d.service].filter((x) => !!x).join(" \xB7 ") : null;
+  const brief = d.stage === "proposed" ? `${word} \xB7 ${daysInStageWords(waitingDays ?? 0)}` : d.stage === "won" ? [word, d.service].filter((x) => !!x).join(" \xB7 ") : null;
   return {
     id: d.id ?? null,
     version: d.version ?? null,
@@ -41614,7 +41617,7 @@ function dealSheetRefusal(message) {
 
 // src/deals/pipeline/pipeline.ts
 var upper2 = (s) => s ? `${s[0].toUpperCase()}${s.slice(1)}` : s;
-var daysWords2 = (days) => days === null ? "" : `${days} d`;
+var daysWords2 = (days) => days === null ? "" : daysInStageWords(days);
 var zoneOf = (r2, tz) => r2.calendarTz || tz;
 var followUpOfRow = (r2, d) => d === r2.deal || d.id !== null && d.id === r2.deal?.id ? r2.followUp : null;
 function proposalChip(r2, d, tz, nowMs, pace) {
