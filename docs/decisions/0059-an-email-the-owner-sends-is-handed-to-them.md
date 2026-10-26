@@ -1,10 +1,10 @@
 # 0059 · An email the owner sends is handed to them
 
-**Status:** Built on the lane `reach-out/drafts-you-send` from main's `ca41d8e6f`, 13 October 2026, and not yet merged
-(the lead workbench's calls 7 and 10, which Ruben approved with canvas B v16 on 13 October 2026 and decision 0057 left
+**Status:** Built on the lane `reach-out/drafts-you-send` from main's `ca41d8e6f`, 13 October 2026, and merged in #1588
+on 14 October 2026 with 00429 (the lead workbench's calls 7 and 10, which Ruben approved with canvas B v16 on 13 October 2026 and decision 0057 left
 owed as a lane of their own; the 4 October spec, `docs/superpowers/specs/2026-10-04-reach-out-drafts-the-owner-sends-design.md`,
 approved as recommended, is the design). The number is the next free one after 0058 (hearing is a table, #1583). Where this note and the code
-disagree, the code wins.
+disagree, the code wins. The status was read again at `e9d6325f0` (26 October 2026).
 
 ## Context
 

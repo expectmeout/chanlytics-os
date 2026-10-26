@@ -1,10 +1,11 @@
 # 0055 · A plan is steps the server expands
 
-**Status:** Built on the lane `ask/the-marketing-manager`, 10 to 12 October 2026, and not yet merged (Ruben approved its
+**Status:** Built on the lane `ask/the-marketing-manager`, 10 to 12 October 2026, and merged in #1568 on 12 October
+2026 with 00415 and 00416 (Ruben approved its
 spec on 10 October 2026, "i approve", and on 11 October 2026 said "go with best suggestions as the senior dev and
 continue", under which the review's calls below were taken as recommended). Written against commit `5e178d62c` on that
 branch: the lane with main's `425d8a52d` merged in. The number is the next free one after main's 0054, and is
-checked again at the pull request. Where this note and the code disagree, the code wins.
+checked again at the pull request. Where this note and the code disagree, the code wins. The status was read again at `e9d6325f0` (26 October 2026).
 
 ## Context
 

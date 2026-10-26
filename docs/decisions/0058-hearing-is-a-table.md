@@ -1,10 +1,11 @@
 # 0058 · Hearing is a table
 
-**Status:** Built on the lane `wiring/hearing-is-a-table` from main's `ca41d8e6f`, 13 October 2026: lane R4 of the
+**Status:** Built on the lane `wiring/hearing-is-a-table` from main's `ca41d8e6f`, 13 October 2026, and merged in #1583:
+lane R4 of the
 wiring's second audit (`Claude Video/docs/2026-10-12-chanlytics-wiring-second-audit.md`, findings S3-8 and X2-4),
 taken up as the next lane after R1, R2, R3 and R12 merged (Ruben, 13 October 2026: "continue where the other agent left off"). Amends 0047, point 4 (the coverage test) and the rule behind
 `onlyOnItsPage`. The number is the next free one after the lead workbench's 0057. Where this note and the code disagree,
-the code wins.
+the code wins. The status was read again at `e9d6325f0` (26 October 2026).
 
 ## Context
 

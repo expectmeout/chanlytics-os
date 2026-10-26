@@ -1,0 +1,581 @@
+{
+  "note": "Written by edge/doors/door-policy.test.mjs (UPDATE_DOOR_POLICY=1). A change here is a change to who may knock on the edge: which wrapper names the request, which checks a door reaches and where each is called, and what the door hands them (an admin door's audience, the platform's key). Whether every path passes the check is each door's own tests'. Review it as one.",
+  "doors": {
+    "POST /api/admin/billing": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/billing.ts",
+      "knock_args": {
+        "aud": "/api/admin/billing"
+      }
+    },
+    "POST /api/admin/calendar/feed": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/calendar/feed.ts",
+      "knock_args": {
+        "aud": "/api/admin/calendar/feed"
+      }
+    },
+    "POST /api/admin/email/alert-test": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/email/alert-test.ts",
+      "knock_args": {
+        "aud": "/api/admin/email/alert-test"
+      }
+    },
+    "POST /api/admin/email/test-to-self": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/email/test-to-self.ts",
+      "knock_args": {
+        "aud": "/api/admin/email/test-to-self"
+      }
+    },
+    "POST /api/admin/email/wire": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/email/wire.ts",
+      "knock_args": {
+        "aud": "/api/admin/email/wire"
+      }
+    },
+    "POST /api/admin/eval": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/eval.ts",
+      "knock_args": {
+        "aud": "/api/admin/eval"
+      }
+    },
+    "POST /api/admin/google": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/google.ts",
+      "knock_args": {
+        "aud": "/api/admin/google"
+      }
+    },
+    "POST /api/admin/hand-over": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/hand-over.ts",
+      "knock_args": {
+        "aud": "/api/admin/hand-over"
+      }
+    },
+    "POST /api/admin/handover-invite": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/handover-invite.ts",
+      "knock_args": {
+        "aud": "/api/admin/handover-invite"
+      }
+    },
+    "POST /api/admin/imports/again": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/imports/again.ts",
+      "knock_args": {
+        "aud": "/api/admin/imports/again"
+      }
+    },
+    "POST /api/admin/imports/website-read": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/imports/website-read.ts",
+      "knock_args": {
+        "aud": "/api/admin/imports/website-read"
+      }
+    },
+    "POST /api/admin/intake/replay": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/intake/replay.ts",
+      "knock_args": {
+        "aud": "/api/admin/intake/replay"
+      }
+    },
+    "POST /api/admin/lines": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/lines.ts",
+      "knock_args": {
+        "aud": "/api/admin/lines"
+      }
+    },
+    "GET /api/admin/lines/codes": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "GET in apps/edge/api/admin/lines/codes.ts",
+      "knock_args": {
+        "aud": "/api/admin/lines/codes"
+      }
+    },
+    "POST /api/admin/llm": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/llm.ts",
+      "knock_args": {
+        "aud": "/api/admin/llm"
+      }
+    },
+    "POST /api/admin/mailboxes": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/mailboxes.ts",
+      "knock_args": {
+        "aud": "/api/admin/mailboxes",
+        "opts": {
+          "body": {
+            "expr": "raw"
+          }
+        }
+      }
+    },
+    "POST /api/admin/page": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/page.ts",
+      "knock_args": {
+        "aud": "/api/admin/page",
+        "opts": {
+          "platformKey": true
+        }
+      }
+    },
+    "POST /api/admin/partner-invite": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/partner-invite.ts",
+      "knock_args": {
+        "aud": "/api/admin/partner-invite"
+      }
+    },
+    "POST /api/admin/playbooks-run": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/playbooks-run.ts",
+      "knock_args": {
+        "aud": "/api/admin/playbooks-run"
+      }
+    },
+    "POST /api/admin/reach-out-preview": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/reach-out-preview.ts",
+      "knock_args": {
+        "aud": "/api/admin/reach-out-preview"
+      }
+    },
+    "POST /api/admin/rehearsal/agent": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/rehearsal/agent.ts",
+      "knock_args": {
+        "aud": "/api/admin/rehearsal/agent"
+      }
+    },
+    "POST /api/admin/rehearsal/call": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/rehearsal/call.ts",
+      "knock_args": {
+        "aud": "/api/admin/rehearsal/call"
+      }
+    },
+    "POST /api/admin/rehearsal/fix": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/rehearsal/fix.ts",
+      "knock_args": {
+        "aud": "/api/admin/rehearsal/fix"
+      }
+    },
+    "POST /api/admin/rehearsal/review": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/rehearsal/review.ts",
+      "knock_args": {
+        "aud": "/api/admin/rehearsal/review"
+      }
+    },
+    "POST /api/admin/setup-request": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/setup-request.ts",
+      "knock_args": {
+        "aud": "/api/admin/setup-request"
+      }
+    },
+    "POST /api/admin/signup-notify": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/signup-notify.ts",
+      "knock_args": {
+        "aud": "/api/admin/signup-notify"
+      }
+    },
+    "POST /api/admin/steer": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/steer.ts",
+      "knock_args": {
+        "aud": "/api/admin/steer"
+      }
+    },
+    "POST /api/admin/stop-call": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/stop-call.ts",
+      "knock_args": {
+        "aud": "/api/admin/stop-call"
+      }
+    },
+    "POST /api/admin/support/report": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/support/report.ts",
+      "knock_args": {
+        "aud": "/api/admin/support/report"
+      }
+    },
+    "POST /api/admin/voice-converge": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/voice-converge.ts",
+      "knock_args": {
+        "aud": "/api/admin/voice-converge"
+      }
+    },
+    "POST /api/admin/voice-provision": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/voice-provision.ts",
+      "knock_args": {
+        "aud": "/api/admin/voice-provision"
+      }
+    },
+    "POST /api/admin/voice/session": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/voice/session.ts",
+      "knock_args": {
+        "aud": "/api/admin/voice/session"
+      }
+    },
+    "POST /api/admin/voice/speech": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/voice/speech.ts",
+      "knock_args": {
+        "aud": "/api/admin/voice/speech"
+      }
+    },
+    "POST /api/admin/whatsapp/connect": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/whatsapp/connect.ts",
+      "knock_args": {
+        "aud": "/api/admin/whatsapp/connect"
+      }
+    },
+    "GET /api/admin/whatsapp/signup-config": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "GET in apps/edge/api/admin/whatsapp/signup-config.ts",
+      "knock_args": {
+        "aud": "/api/admin/whatsapp/signup-config"
+      }
+    },
+    "POST /api/admin/whatsapp/standing": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/whatsapp/standing.ts",
+      "knock_args": {
+        "aud": "/api/admin/whatsapp/standing"
+      }
+    },
+    "POST /api/admin/whatsapp/templates-create": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/whatsapp/templates-create.ts",
+      "knock_args": {
+        "aud": "/api/admin/whatsapp/templates-create"
+      }
+    },
+    "POST /api/admin/whatsapp/templates-delete": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/whatsapp/templates-delete.ts",
+      "knock_args": {
+        "aud": "/api/admin/whatsapp/templates-delete"
+      }
+    },
+    "POST /api/admin/whatsapp/templates-sync": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/whatsapp/templates-sync.ts",
+      "knock_args": {
+        "aud": "/api/admin/whatsapp/templates-sync"
+      }
+    },
+    "POST /api/admin/whisper": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/whisper.ts",
+      "knock_args": {
+        "aud": "/api/admin/whisper"
+      }
+    },
+    "POST /api/admin/you-are-live": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/you-are-live.ts",
+      "knock_args": {
+        "aud": "/api/admin/you-are-live"
+      }
+    },
+    "POST /api/apify-webhook": {
+      "wrapper": "door",
+      "verb": "receiveApifyDelivery in apps/edge/lib/leads/apify-delivery.ts",
+      "knock": "tokenMatches",
+      "knock_in": "receiveApifyDelivery in apps/edge/lib/leads/apify-delivery.ts"
+    },
+    "POST /api/cron/calendar": {
+      "wrapper": "sweepDoor",
+      "sweep": "calendar",
+      "verb": "sweepCalendar in apps/edge/lib/calendar/calendar-sweep.ts",
+      "knock": "authorizeCron",
+      "knock_in": "sweepDoor in apps/edge/lib/ops/sweep-door.ts"
+    },
+    "POST /api/cron/calls": {
+      "wrapper": "sweepDoor",
+      "sweep": "calls",
+      "sweep_options": {
+        "noDbEvent": "calls_sweep_no_db"
+      },
+      "verb": "sweepCalls in apps/edge/lib/voice/calls-sweep.ts",
+      "knock": "authorizeCron",
+      "knock_in": "sweepDoor in apps/edge/lib/ops/sweep-door.ts"
+    },
+    "POST /api/cron/channel-quality": {
+      "wrapper": "door",
+      "knock": "authorizeCron",
+      "knock_in": "POST in apps/edge/api/cron/channel-quality.ts"
+    },
+    "POST /api/cron/deadman": {
+      "wrapper": "sweepDoor",
+      "sweep": "deadman",
+      "sweep_options": {
+        "noDbEvent": "deadman_no_db"
+      },
+      "verb": "sweepDeadman in apps/edge/lib/receptionist/deadman-sweep.ts",
+      "knock": "authorizeCron",
+      "knock_in": "sweepDoor in apps/edge/lib/ops/sweep-door.ts"
+    },
+    "POST /api/cron/google": {
+      "wrapper": "sweepDoor",
+      "sweep": "google",
+      "verb": "sweepGoogle in apps/edge/lib/google/google-sweep.ts",
+      "knock": "authorizeCron",
+      "knock_in": "sweepDoor in apps/edge/lib/ops/sweep-door.ts"
+    },
+    "POST /api/cron/health": {
+      "wrapper": "sweepDoor",
+      "sweep": "health",
+      "sweep_options": {
+        "noDbEvent": "sweep_health_no_db"
+      },
+      "verb": "sweepHealth in apps/edge/lib/ops/health-sweep.ts",
+      "knock": "authorizeCron",
+      "knock_in": "sweepDoor in apps/edge/lib/ops/sweep-door.ts"
+    },
+    "POST /api/cron/leads": {
+      "wrapper": "sweepDoor",
+      "sweep": "leads",
+      "verb": "sweepLeads in apps/edge/lib/leads/leads-sweep.ts",
+      "knock": "authorizeCron",
+      "knock_in": "sweepDoor in apps/edge/lib/ops/sweep-door.ts"
+    },
+    "POST /api/cron/lines": {
+      "wrapper": "sweepDoor",
+      "sweep": "lines",
+      "verb": "sweepLines in apps/edge/lib/lines/lines-sweep.ts",
+      "knock": "authorizeCron",
+      "knock_in": "sweepDoor in apps/edge/lib/ops/sweep-door.ts"
+    },
+    "POST /api/cron/mailboxes": {
+      "wrapper": "sweepDoor",
+      "sweep": "mailboxes",
+      "sweep_options": {
+        "noDbEvent": "mailboxes_no_db"
+      },
+      "verb": "sweepMailboxes in apps/edge/lib/email/mailbox/mailbox-sweep.ts",
+      "knock": "authorizeCron",
+      "knock_in": "sweepDoor in apps/edge/lib/ops/sweep-door.ts"
+    },
+    "POST /api/cron/notes": {
+      "wrapper": "sweepDoor",
+      "sweep": "notes",
+      "sweep_options": {
+        "noDbEvent": "notes_no_db"
+      },
+      "verb": "sweepNotes in apps/edge/lib/receptionist/notes-sweep.ts",
+      "knock": "authorizeCron",
+      "knock_in": "sweepDoor in apps/edge/lib/ops/sweep-door.ts"
+    },
+    "POST /api/cron/partners": {
+      "wrapper": "sweepDoor",
+      "sweep": "partners",
+      "sweep_options": {
+        "noDbEvent": "partners_no_db"
+      },
+      "verb": "sweepPartners in apps/edge/lib/partners/partners-sweep.ts",
+      "knock": "authorizeCron",
+      "knock_in": "sweepDoor in apps/edge/lib/ops/sweep-door.ts"
+    },
+    "POST /api/cron/playbooks": {
+      "wrapper": "sweepDoor",
+      "sweep": "playbooks",
+      "verb": "sweepPlaybooks in apps/edge/lib/reach-out/playbooks-sweep.ts",
+      "knock": "authorizeCron",
+      "knock_in": "sweepDoor in apps/edge/lib/ops/sweep-door.ts"
+    },
+    "POST /api/cron/reach-out-check": {
+      "wrapper": "sweepDoor",
+      "sweep": "reach_out_check",
+      "sweep_options": {
+        "noDbEvent": "reach_out_check_no_db"
+      },
+      "verb": "sweepReachOutChecks in apps/edge/lib/reach-out/check-sweep.ts",
+      "knock": "authorizeCron",
+      "knock_in": "sweepDoor in apps/edge/lib/ops/sweep-door.ts"
+    },
+    "POST /api/cron/reach-out": {
+      "wrapper": "sweepDoor",
+      "sweep": "reach_out",
+      "verb": "sweepReachOut in apps/edge/lib/reach-out/reach-out-sweep.ts",
+      "knock": "authorizeCron",
+      "knock_in": "sweepDoor in apps/edge/lib/ops/sweep-door.ts"
+    },
+    "POST /api/cron/registrations": {
+      "wrapper": "sweepDoor",
+      "sweep": "registrations",
+      "verb": "sweepRegistrations in apps/edge/lib/lines/registrations-sweep.ts",
+      "knock": "authorizeCron",
+      "knock_in": "sweepDoor in apps/edge/lib/ops/sweep-door.ts"
+    },
+    "GET /api/diag": {
+      "wrapper": "door",
+      "knock": "authorizeAdmin",
+      "knock_in": "GET in apps/edge/api/diag.ts",
+      "knock_args": {
+        "aud": "/api/diag",
+        "opts": {
+          "platformKey": true
+        }
+      }
+    },
+    "POST /api/elevenlabs-webhook": {
+      "wrapper": "door",
+      "knock": "askVoiceWebhookSigned",
+      "knock_in": "POST in apps/edge/api/elevenlabs-webhook.ts"
+    },
+    "GET /api/health": {
+      "wrapper": "door",
+      "knock": null
+    },
+    "POST /api/inbound-sms": {
+      "wrapper": "door",
+      "verb": "receiveInboundText in apps/edge/lib/sms/inbound-text.ts",
+      "knock": "verifyTwilioSignature",
+      "knock_in": "planSmsIngress in apps/edge/lib/sms/sms-ingress.ts"
+    },
+    "POST /api/jobs/tick": {
+      "wrapper": "sweepDoor",
+      "sweep": "jobs",
+      "verb": "tickJobs in apps/edge/lib/ops/jobs-tick.ts",
+      "knock": "authorizeCron",
+      "knock_in": "sweepDoor in apps/edge/lib/ops/sweep-door.ts"
+    },
+    "POST /api/mailbox/gmail": {
+      "wrapper": "door",
+      "verb": "receiveGmailPush in apps/edge/lib/email/mailbox/mailbox-push.ts",
+      "knock": "verifyGooglePushToken",
+      "knock_in": "receiveGmailPush in apps/edge/lib/email/mailbox/mailbox-push.ts"
+    },
+    "POST /api/mailbox/graph": {
+      "wrapper": "door",
+      "verb": "receiveGraphPush in apps/edge/lib/email/mailbox/mailbox-push.ts",
+      "knock": "clientStateMatches",
+      "knock_in": "receiveGraphPush in apps/edge/lib/email/mailbox/mailbox-push.ts"
+    },
+    "POST /api/resend-webhook": {
+      "wrapper": "door",
+      "verb": "receiveResendEvent in apps/edge/lib/email/resend-event.ts",
+      "knock": "verifyResendWebhook",
+      "knock_in": "planResendEvent in apps/edge/lib/email/email-ingress.ts"
+    },
+    "POST /api/retell-availability": {
+      "wrapper": "door",
+      "verb": "availabilityTool in apps/edge/lib/voice/availability-tool.ts",
+      "knock": "voiceDoorAuth",
+      "knock_in": "availabilityTool in apps/edge/lib/voice/availability-tool.ts",
+      "knock_args": {
+        "door": "availability"
+      }
+    },
+    "POST /api/retell-fn": {
+      "wrapper": "door",
+      "verb": "sendBookingLinkOnCall in apps/edge/lib/voice/call-booking-link.ts",
+      "knock": "voiceDoorAuth",
+      "knock_in": "sendBookingLinkOnCall in apps/edge/lib/voice/call-booking-link.ts",
+      "knock_args": {
+        "door": "fn"
+      }
+    },
+    "POST /api/retell-inbound": {
+      "wrapper": "door",
+      "verb": "receiveInboundCall in apps/edge/lib/voice/inbound-call.ts",
+      "knock": "voiceDoorAuth",
+      "knock_in": "receiveInboundCall in apps/edge/lib/voice/inbound-call.ts",
+      "knock_args": {
+        "door": "inbound"
+      }
+    },
+    "POST /api/retell-webhook": {
+      "wrapper": "door",
+      "verb": "receiveCallEvent in apps/edge/lib/voice/call-webhook.ts",
+      "knock": "retellSigned",
+      "knock_in": "admitted in apps/edge/lib/voice/call-webhook.ts"
+    },
+    "POST /api/sms-status": {
+      "wrapper": "door",
+      "verb": "receiveSmsStatus in apps/edge/lib/sms/sms-status.ts",
+      "knock": "verifyTwilioSignature",
+      "knock_in": "receiveSmsStatus in apps/edge/lib/sms/sms-status.ts"
+    },
+    "POST /api/stripe-webhook": {
+      "wrapper": "door",
+      "verb": "receiveStripeEvent in apps/edge/lib/billing/stripe-event.ts",
+      "knock": "constructEvent",
+      "knock_in": "receiveStripeEvent in apps/edge/lib/billing/stripe-event.ts"
+    },
+    "GET /api/version": {
+      "wrapper": "door",
+      "knock": null
+    },
+    "GET /api/whatsapp": {
+      "wrapper": "door",
+      "knock": null
+    },
+    "POST /api/whatsapp": {
+      "wrapper": "door",
+      "verb": "receiveWhatsappEvent in apps/edge/lib/whatsapp/webhook.ts",
+      "knock": "signedByMeta",
+      "knock_in": "receiveWhatsappEvent in apps/edge/lib/whatsapp/webhook.ts"
+    }
+  }
+}

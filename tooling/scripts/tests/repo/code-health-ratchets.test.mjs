@@ -13,19 +13,36 @@
  * nine times. Each ratchet below is still its own pair of tests, named for the
  * number it holds. The wire's names are held beside the routes, by the same
  * ratchet (routes/wire-casing.test.mjs): they need the type checker's program over
- * the dashboard, not these syntax trees.
+ * the dashboard, not these syntax trees. The suite's own test files are held here
+ * too, by their length (test-length.json, below): the one measure this file
+ * defines, since nothing else reads it.
  *
  *   UPDATE_BASELINES=1 pnpm test       # bank a reduction, and nothing else
  *   UPDATE_BASELINES=raise pnpm test   # raise a number, or seed a baseline (argued in docs/debt.md)
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { ratchet } from "../_ratchet.mjs";
 import { MEASURES, ROUTES } from "../_measures.mjs";
-import { parse, functionsIn, durationsIn, seedReadsOutsideADemo, needsHumanReads, resumesUnasked } from "../_ast.mjs";
+import { ROOT } from "../_source.mjs";
+import { SUITES } from "../../checks/test.mjs";
+import {
+  parse,
+  functionsIn,
+  durationsIn,
+  seedReadsOutsideADemo,
+  needsHumanReads,
+  resumesUnasked,
+  repoFiles,
+  linesOf,
+} from "../_ast.mjs";
 
-for (const m of MEASURES) ratchet(m);
+/** What each ratchet measured, by its baseline: the test files' ratchet below leaves to file-length.json what it holds. */
+const MEASURED = Object.fromEntries(MEASURES.map((m) => [m.file, ratchet(m).now]));
 
 // The measure the limits above rest on, kept honest: if the compiler ever stops
 // parsing the shell's script-mode JSX, the numbers would quietly drop to zero and
@@ -215,5 +232,76 @@ test("the duration measure counts lengths of time and nothing else", () => {
   assert.deepEqual(
     durationsIn(sf).map((d) => d.line),
     marked,
+  );
+});
+
+/*
+ * The suite's own test files, held by their length as file-length.json holds the code that ships. The largest cannot
+ * be reviewed, and running one of their cases runs all of them: the runner's unit is the file. A test file's limit is
+ * twice a module's: a case writes its world and its assertions out longhand, and the suite's median file ran about
+ * twice the median module's length on 26 October 2026, at e9d6325f0, with the limit above nineteen files in twenty, so
+ * it holds the tail and not the body. A file file-length.json already holds is left to it: the phone app's tests
+ * (apps/mobile/test) ship with the app and meet a module's limit there first, so each file answers to one limit.
+ */
+const TEST_FILE_LIMIT = 1600;
+
+/**
+ * The node suite's own test files, tracked, as its launcher globs them (`SUITES.test`, checks/test.mjs): git's
+ * `:(glob)` pathspec reads `**` and `*` as the runner does. A glob that lists nothing stops this file here, before its
+ * ratchet runs: an empty listing would leave every offender "gone", and a bank would write the baseline empty.
+ * repoFiles' walk of the disk, where git cannot run, takes a tree's name and not a pathspec, so it lists nothing here.
+ */
+const SUITE_FILES = SUITES.test.flatMap((glob) => {
+  const found = repoFiles([`:(glob)${glob}`]);
+  if (!found.length) {
+    throw new Error(
+      `git ls-files lists nothing for the launcher's ${glob}: the test-length measure has nothing to read`,
+    );
+  }
+  return found;
+});
+
+/**
+ * A file's text as `linesOf` reads a syntax tree (_ast.mjs, file-length.json's measure): TypeScript's own line map of
+ * it, and no parse. A length needs no tree, and parsing every test file to count its lines would cost the run seconds
+ * and hold each tree in memory.
+ */
+const lineMapOf = (text) => ({
+  text,
+  end: text.length,
+  getLineAndCharacterOfPosition: (pos) => ts.getLineAndCharacterOfPosition({ text }, pos),
+});
+const testLength = (file) => linesOf(lineMapOf(fs.readFileSync(path.join(ROOT, file), "utf8")));
+
+ratchet({
+  name: "test files over the limit",
+  file: "test-length.json",
+  measure: () =>
+    Object.fromEntries(
+      SUITE_FILES.filter((f) => !(f in MEASURED["file-length.json"]))
+        .map((f) => [f, testLength(f)])
+        .filter(([, n]) => n > TEST_FILE_LIMIT),
+    ),
+  advice: `Split it by concern: a file each, named for what it proves, the world they share in their folder's _<name>.mjs, and a folder of their own where this one is at its limit of modules (tree-shape.json). A test file over ${TEST_FILE_LIMIT} lines is two files.`,
+});
+
+// The length measure, kept honest: it counts what the file-length ratchet counts over a parse, whatever a file's last
+// line and line endings. That each of the launcher's globs lists something is checked where the listing is made, since
+// a bank runs before any test does.
+test("the test-length measure counts a file's lines as file-length does, over the suite's test files", () => {
+  for (const text of ["", "a", "a\n", "a\nb", "a\nb\n", "a\n\n", "a\r\nb\r\n", "a\r\nb", "a\rb"]) {
+    const sf = ts.createSourceFile("fixture.mjs", text, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+    assert.equal(linesOf(lineMapOf(text)), linesOf(sf), JSON.stringify(text));
+  }
+  const self = path
+    .relative(ROOT, fileURLToPath(import.meta.url))
+    .split(path.sep)
+    .join("/");
+  assert.equal(testLength(self), linesOf(parse(self)), "this file, by its line map and by its parse");
+  assert.ok(SUITE_FILES.includes(self), "this file is one of the suite's");
+  assert.deepEqual(
+    SUITE_FILES.filter((f) => !f.endsWith(".test.mjs")),
+    [],
+    "only test files",
   );
 });

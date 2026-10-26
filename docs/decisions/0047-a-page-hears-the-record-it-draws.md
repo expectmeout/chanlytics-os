@@ -1,12 +1,16 @@
 # 0047 · A page hears the record it draws
 
-**Status:** Decided on 11 October 2026 (Ruben: "all approved end to end as you suggest"), not built. Lanes 2 and 3 of the
-Wiring Blueprint of 11 October 2026 (`Claude Video/docs/2026-10-11-chanlytics-wiring-blueprint.md`). Amends 0019 (what a
-notice carries and which tables are told) and builds the coverage test the 4 October Campaigns wiring review decided
-(its lane W3). Written against commit `132ab95eb` (main, 11 October 2026). Where this note and the code disagree, the
-code wins. Amended on 13 October 2026 by 0058: which page hears what is one table (`PAGE_HEARS`), an omit covers no table
-the surface's own routes read, the baseline says what kind each exception is, and the tracer lives at
-`tooling/scripts/trace-routes.mjs`.
+**Status:** Decided on 11 October 2026 (Ruben: "all approved end to end as you suggest"), and built in part with 0048
+in #1564 (12 October 2026, 00408 to 00411): steps 1 to 3, the silent tables join the feed, the surfaces hear them, and
+each surface declares the record kinds it reads under the coverage test and its baseline. Decision item 6, the live
+feed raised from the events ledger, waits for `tooling/scripts/tests/baselines/doors-without-events.json` and
+`tooling/scripts/tests/baselines/ts-only-events.json` to empty. Lanes 2 and 3 of the Wiring Blueprint of 11 October
+2026 (`Claude Video/docs/2026-10-11-chanlytics-wiring-blueprint.md`). Amends 0019 (what a notice carries and which
+tables are told) and builds the coverage test the 4 October Campaigns wiring review decided (its lane W3). Written
+against commit `132ab95eb` (main, 11 October 2026). Where this note and the code disagree, the code wins. Amended on 13
+October 2026 by 0058: which page hears what is one table (`PAGE_HEARS`), an omit covers no table the surface's own
+routes read, the baseline says what kind each exception is, and the tracer lives at `tooling/scripts/trace-routes.mjs`.
+The status was read again at `e9d6325f0` (26 October 2026).
 
 ## Context
 

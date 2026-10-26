@@ -2,8 +2,8 @@
 
 **Status:** Decided by Ruben on 21 October 2026 ("all approved as you suggest end to end": the plan's three steps and
 its calls D1 to D6 as recommended), and built on the lane `console/health-sees-what-broke` from main's `9381ed0c3`:
-the three steps in one change, its migration 00469. Plan, written against main's `01de97952` and production's rows of
-21 October: https://claude.ai/artifact/Xx3cHR4xuJJ2T9XHp45U5N. Where this note and the code disagree, the code wins.
+the three steps in one change, its migration 00469, merged in #1775 (`1672337c5`) the same day. Plan, written against main's `01de97952` and production's rows of
+21 October: https://claude.ai/artifact/Xx3cHR4xuJJ2T9XHp45U5N. Where this note and the code disagree, the code wins. The status was read again at `e9d6325f0` (26 October 2026).
 
 ## Context
 

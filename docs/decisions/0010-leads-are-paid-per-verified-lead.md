@@ -1,10 +1,13 @@
 # 0010 · Leads are paid for per verified lead
 
-**Status:** decided, not built. The lead code was read at commit `ebb4bff2` (PR #1029, 25 September 2026); where this
-note and the code disagree, the code wins. Ruben's calls, 25 September: "only charge for actual verified leads … if
-they pay for 50 leads and we scrape 150 to find the 50 accurate leads then we only charge for that 50"; "the pro plan
-should have x amount of leads included per month" (250); packs beyond it; and on what verified means, "as long as a
-number or email is verified then it may count … a sophisticated solution without complicated extra steps to the user".
+**Status:** decided. L1 built with this note (#1033, 25 September 2026: a lead counts with one verified way to reach
+it, `packages/contracts/src/leads/search/class.ts`); L2 to L4 (the plan's allowance, packs, the guards) to come. The
+lead code was read at commit `ebb4bff2` (PR #1029, 25 September 2026); where this note and the code disagree, the code
+wins. Ruben's calls, 25 September: "only charge for actual verified leads … if they pay for 50 leads and we scrape 150
+to find the 50 accurate leads then we only charge for that 50"; "the pro plan should have x amount of leads included
+per month" (250); packs beyond it; and on what verified means, "as long as a number or email is verified then it may
+count … a sophisticated solution without complicated extra steps to the user". The status was read again at
+`e9d6325f0` (26 October 2026).
 
 ## Context
 

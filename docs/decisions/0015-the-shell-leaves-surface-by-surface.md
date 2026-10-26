@@ -1,14 +1,17 @@
 # 0015 · The shell leaves, one surface at a time
 
 **Status:** Accepted by Ruben, 28 Sep 2026. Built: steps 1 to 11 of the order, the address and every surface but Ask
-(each has its _Built_ section below, the last of them Settings' frame on 4 October 2026); step 12 (Ask) and step 13
-(the frame, then the tree) to come. Ruben left the open questions to be settled by analysis (27 September); the
+(each has its _Built_ section below, the last of them Settings' frame on 4 October 2026), and the first half of step 13,
+the frame: TSX in `apps/dashboard/src/surfaces/frame/` since #1748 (20 October 2026, wave 2a of
+`docs/plans/2026-10-19-one-system.md`, which refines steps 12 and 13), the demo surfaces' mockups gone before it (#1695,
+17 October 2026). Step 12 (Ask's Line, `apps/dashboard/src/legacy/pages/ask-*.jsx`) and the rest of step 13 (the
+manifest, `seed-globals.ts`, `Chanlytics.html`, then the tree) to come. Ruben left the open questions to be settled by analysis (27 September); the
 answers close the note, and he accepted it with one amendment, which follows them. Written against commit `519724e9c` (main, 27 September 2026, after the organization
 program merged in #1161), and every file and line below was read at it. Where this note and the code
 disagree, the code wins. It is the exit the plan `docs/plans/2026-09-26-organization-and-code-health.md` asks for
 (§2, 40 · Technical debt: "an exit path written for the largest item") and the register names in its shell rows
 (`docs/debt.md`). The next free number was 0014, which #1165 took for a partner who hears what changed, so this
-note takes 0015.
+note takes 0015. The status was read again at `e9d6325f0` (26 October 2026).
 
 ## Context
 

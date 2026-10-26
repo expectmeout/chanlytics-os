@@ -1,10 +1,11 @@
 # 0026 · A provider calls the dashboard
 
 **Status:** Decided and built, on 3 October 2026 by the Ask-spoken lane
-(`docs/superpowers/specs/2026-10-03-ask-spoken-design.md`), local to its branch; Ruben's verification owed before
-anything is pushed (his rule of 2 October), and a microphone run owed to the spike's last questions. Written against
-`8f49c1269` (`ask-voice/1-ground`, 3 October 2026, the spike's answers recorded) and verified against the code at
-it; where this note and the code disagree, the code wins. The fifth door of `docs/architecture.md`.
+(`docs/superpowers/specs/2026-10-03-ask-spoken-design.md`), its four steps on one branch and merged together in #1371
+the same day (00287 to 00289), with a microphone run owed to the spike's last questions. Written against `8f49c1269`
+(`ask-voice/1-ground`, 3 October 2026, the spike's answers recorded) and verified against the code at it; where this
+note and the code disagree, the code wins. The fifth door of `docs/architecture.md`. The status was read again at
+`e9d6325f0` (26 October 2026).
 
 **Amended 5 October 2026, evening: no hold calls the door.** Ruben chose to answer a held question the typed way and
 read the answer aloud in Ask's one voice (the spec's §3.5, as amended that evening): spoken through the agent, every

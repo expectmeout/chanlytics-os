@@ -1,9 +1,10 @@
 # 0052 · A person found as a lead keeps the business and earns a name
 
 **Status:** Decided on 12 October 2026 (Ruben, on canvas A v3.1 of the person page and its ten calls: "all approved as
-you best suggest"), built on 12 October 2026 in the lane `person/the-record` (not yet merged; see Built, below). Written against commit `132ab95eb` (main, 11 October 2026) with the
+you best suggest"), built on 12 October 2026 in the lane `person/the-record` and merged in #1566 the same day (00413,
+00414), its deferred list in #1569 (see Built, below). Written against commit `132ab95eb` (main, 11 October 2026) with the
 `wiring/records-not-pages` lane's tree applied (decisions 0047 and 0048, migrations 00408 to 00410), which this lands
-after. Where this note and the code disagree, the code wins.
+after. Where this note and the code disagree, the code wins. The status was read again at `e9d6325f0` (26 October 2026).
 
 ## Context
 

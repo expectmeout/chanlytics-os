@@ -1,10 +1,10 @@
 # 0066 · The Console
 
 **Status:** Decided by Ruben on 21 October 2026, and built on the lane `console/before-launch` from main's `20f5dd3af`: the
-before-launch tier, in one change, its migration 00467. The Console canvas was approved first ("Approved. Plan the
+before-launch tier, in one change, its migration 00467, merged in #1770 (`29071de24`) the same day. The Console canvas was approved first ("Approved. Plan the
 before-launch tier as one lane"), then the lane plan and its five calls ("Yes to all five"). Canvas:
 https://claude.ai/artifact/AUv63RTL9knuG3JYSSgJ7x; plan: `Claude Video/docs/2026-10-21-console-before-launch-plan/index.html`,
-written against main's `b2c29fd73`. Where this note and the code disagree, the code wins.
+written against main's `b2c29fd73`. Where this note and the code disagree, the code wins. The status was read again at `e9d6325f0` (26 October 2026).
 
 ## Context
 

@@ -1,9 +1,11 @@
 # 0048 · One list of what needs you
 
-**Status:** Decided on 11 October 2026 (Ruben: "all approved end to end as you suggest"), not built. 0046 lane A step 4
+**Status:** Decided on 11 October 2026 (Ruben: "all approved end to end as you suggest"), and built with 0047 in #1564
+(12 October 2026): a STOP is news, one count, the bell closes what is done. Its amendments are built too: 13 October's
+in #1579 (00421), 14 October's in #1595. 0046 lane A step 4
 ("one record for every wait on a person, begun as one read over the four that exist") and lane 5 of the Wiring
 Blueprint of 11 October 2026. Written against commit `132ab95eb` (main, 11 October 2026). Where this note and the code
-disagree, the code wins.
+disagree, the code wins. The status was read again at `e9d6325f0` (26 October 2026).
 
 ## Context
 

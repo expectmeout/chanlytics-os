@@ -1,9 +1,9 @@
 # 0057 · A reach-out takes the leads you add
 
-**Status:** Built on the lane `leads/workbench` from main's `38d3f2529`, 13 October 2026, and merged in its pull request
-(Ruben chose canvas B v2 of the lead workbench on 13 October 2026, https://claude.ai/artifact/9WafSeCumGch2fNCEFf4Dy,
+**Status:** Built on the lane `leads/workbench` from main's `38d3f2529`, 13 October 2026, and merged in its pull request,
+#1581 (Ruben chose canvas B v2 of the lead workbench on 13 October 2026, https://claude.ai/artifact/9WafSeCumGch2fNCEFf4Dy,
 version 16, approved every call on its Model board, and asked for it built end to end; "continue and merge" the same
-day). The number is the next free one after main's 0055 and the cold-email lane's 0056, claimed before it. Where this note and the code disagree, the code wins.
+day). The number is the next free one after main's 0055 and the cold-email lane's 0056, claimed before it. Where this note and the code disagree, the code wins. The status was read again at `e9d6325f0` (26 October 2026).
 
 ## Context
 

@@ -1,13 +1,14 @@
 # 0067 · Support is the help desk
 
 **Status:** Decided by Ruben on 21 October 2026, and built on the lane `console/support-help-desk` from main's
-`01de97952`: step 1, the queue and the door, in one change, its migration 00468. Step 2, worth reaching out, is to come.
+`01de97952`: step 1, the queue and the door, in one change, its migration 00468, merged in #1774 the same day. Step 2,
+worth reaching out, is to come.
 The Support review's second pass set the rule ("the app should be working so we only want to have support in regards
 to helping users take advantage of the app properly or set up their agent better … not helping with like ux ui broken
 issues as via the health page we will be analyzing these things separately later"), and his answers set the inbox
 (hi@chanlytics.agency, hi@chanlytics.com later) and the promise ("We answer within 24 hours on business days").
 Review: https://claude.ai/artifact/J9YfCMDPLEFDkFN8oxmAbc, written against main's `29071de24`. Where this note and the
-code disagree, the code wins.
+code disagree, the code wins. The status was read again at `e9d6325f0` (26 October 2026).
 
 ## Context
 

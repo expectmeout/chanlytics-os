@@ -5,8 +5,9 @@ things stay open and are named under "Not decided here": the price, health and c
 email, and the consent line's wording, which is counsel's. This is the spending half of Campaigns › Ads; 0049 decides
 the records and how a person is counted, and this note leans on it. It also leans on 0035 (a keyed write is answered
 once), 0040 (each alert says where it goes) and 0018 (a reply goes first, each workspace takes its turn), and on 0047 and
-0048, both drafted in another lane and not on main yet; each place that depends on one says so. Written against commit
-`132ab95eb` (main, 11 October 2026). Where this note and the code disagree, the code wins.
+0048, both drafted in another lane and not on main when this was written (#1564 built both, 12 October 2026); each
+place that depends on one says so. Written against commit
+`132ab95eb` (main, 11 October 2026). Where this note and the code disagree, the code wins. The status was read again at `e9d6325f0` (26 October 2026).
 
 ## Context
 

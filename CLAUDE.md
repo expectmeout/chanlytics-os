@@ -23,7 +23,7 @@ of the public will experience.
    versus _person_. `docs/naming.md` is the grammar every name follows.
 3. `docs/architecture.md`: how it is wired, and where to look for each concern.
 4. `docs/runbook.md`: run it, test it, deploy it, roll it back.
-5. `docs/decisions/`: what is decided and not yet built. Read the relevant note before
+5. `docs/decisions/`: what is decided, and in its README which of it is built. Read the relevant note before
    touching the inbound path, appointments, or assignment.
 6. `docs/takeover.md`: the codebase quality checklist, scored, with what to do next.
 
@@ -109,6 +109,9 @@ Each of these is enforced by a test or a workflow. Breaking one is a red build, 
 - **One send door.** Everything a customer receives leaves through `packages/core/src/deliver.ts`.
 - **Every route declares its policy** with `route()`: scope, role, rate, spend, input.
   `route-policy.json` pins the declarations; a change there is a change to who may do what.
+- **Every edge door's knock is pinned.** `tooling/scripts/tests/edge/door-policy.json` holds the checks each door
+  under `apps/edge/api` reaches, read from the syntax tree by `tooling/scripts/tests/edge/doors/door-policy.test.mjs`;
+  a change there is a change to who may knock, and the platform's key opens only the doors its `PLATFORM_KEY` names.
 - **RLS is the floor, the role check is the door.** Both are needed; a forbidden UPDATE does not
   raise, so a permission-sensitive update selects and counts.
 - **Verbs over ports.** A use case in `packages/core` takes a ports object and a command and returns
@@ -123,7 +126,7 @@ Each of these is enforced by a test or a workflow. Breaking one is a red build, 
   `source-scan-baseline.json` may only fall.
 - **What is measured may only fall.** `docs/debt.md` names every number the build holds and the
   baseline under `tooling/scripts/tests/baselines/` that holds it: functions over 150 lines, 30
-  branches or 5 levels; files over 800 lines; directories over 20 modules; window globals and
+  branches or 5 levels; files over 800 lines, and the suite's test files over 1600; directories over 20 modules; window globals and
   publishers; a helper declared in three files; `as unknown as`, `as never` and `x!`; an index read
   the compiler lets pass; a table name, or a SQL function called by name, outside `packages/db`; a route file that
   imports a repository or a provider client; dead exports; a duration written as a

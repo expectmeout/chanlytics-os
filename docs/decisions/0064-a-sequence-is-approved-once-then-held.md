@@ -2,9 +2,9 @@
 
 **Status:** Decided 19 October 2026 (Ruben: "all approved as you best suggest", on the One hold review of 18 October,
 `Claude Video/docs/2026-10-18-chanlytics-one-hold-review/index.html`), with its six calls as recommended. Built in part on
-the lane `sequences/one-hold` from main's `d2dd2c3e5`: steps 1, 2, 3, 5 and 6 in one change (00462 before the merge,
+the lane `sequences/one-hold` from main's `d2dd2c3e5`, merged in #1730 the same day: steps 1, 2, 3, 5 and 6 in one change (00462 before the merge,
 00463 after its deploys); step 4 is its own change, after this one is on production. Where this note and the code
-disagree, the code wins.
+disagree, the code wins. The status was read again at `e9d6325f0` (26 October 2026).
 
 ## Context
 
