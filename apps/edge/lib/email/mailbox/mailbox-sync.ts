@@ -28,16 +28,16 @@ import {
   gmailHistory,
   gmailMessage,
   gmailProfile,
-  gmailReadRefusal,
+  gmailReadVerdict,
   gmailReports,
   graphDelta,
   graphEmailOf,
   graphJunkSince,
   graphMessage,
-  graphReadRefusal,
+  graphReadVerdict,
   type EmailReceipt,
   type MailboxEmail,
-  type ReadRefusal,
+  type ReadVerdict,
 } from "../../packages/channels.js";
 import { MIN_MS, DAY_MS } from "../../packages/contracts.js";
 import {
@@ -233,12 +233,12 @@ async function graphChanges(
 
 /**
  * One message, in full, as the intake reads any email: the email; gone, when the provider has it no longer (or answered
- * nothing an email can be read from); or refused,
- * when the provider will not hand over that one message (channels gmailReadRefusal, graphReadRefusal), which a reader
- * goes on without and says so. Anything else (the grant, a pace of requests, the provider's bad minute) throws, and the
- * read is asked again.
+ * nothing an email can be read from); refused, when the provider will not hand over that one message, which a reader
+ * goes on without and says so; or paced, the provider's pace or quota of requests, which is no failure: a reader rests,
+ * then reads it again (channels gmailReadVerdict, graphReadVerdict). Anything else (the grant, the provider's bad
+ * minute) throws with the provider's reason, and the read is asked again.
  */
-type EmailRead = { email: MailboxEmail } | { gone: true } | { refused: ReadRefusal };
+type EmailRead = { email: MailboxEmail } | { gone: true } | { refused: ReadVerdict } | { paced: ReadVerdict };
 
 export async function readEmail(row: MailboxConnectionRow, token: string, id: string): Promise<EmailRead> {
   const microsoft = row.provider === "microsoft";
@@ -248,9 +248,11 @@ export async function readEmail(row: MailboxConnectionRow, token: string, id: st
     return email ? { email } : { gone: true };
   }
   if (r.status === 404) return { gone: true };
-  const refused = microsoft ? graphReadRefusal(r) : gmailReadRefusal(r);
-  if (refused) return { refused };
-  throw new Error(`cannot read message ${id}: ${r.status}`);
+  const v = microsoft ? graphReadVerdict(r) : gmailReadVerdict(r);
+  if (v.verdict === "refused") return { refused: v };
+  if (v.verdict === "paced") return { paced: v };
+  const why = v.reason ?? r.error;
+  throw new Error(`cannot read message ${id}: ${r.status}${why ? ` (${why})` : ""}`);
 }
 
 /** How long a mailbox rests when a report says its own provider refused it for its quota: the provider's rolling day. */
@@ -321,10 +323,10 @@ async function reportReceipt(
 }
 
 /**
- * What one arrival came to: gone, refused by the provider (gone on without), read and left, a report applied, left
- * where it is, or handed to the intake.
+ * What one arrival came to: gone, refused by the provider (gone on without), the provider's pace (the sync stops and
+ * the next reads on from the cursor), read and left, a report applied, left where it is, or handed to the intake.
  */
-type ArrivalTaken = "gone" | "unreadable" | "left" | "bounced" | "dropped" | "reply" | "person";
+type ArrivalTaken = "gone" | "unreadable" | "paced" | "left" | "bounced" | "dropped" | "reply" | "person";
 
 /** The count each arrival adds to, where it adds to one beyond `read`. */
 const COUNTED: Partial<Record<ArrivalTaken, "bounced" | "dropped" | "replies" | "people">> = {
@@ -351,6 +353,11 @@ async function takeArrival(
   if ("refused" in read) {
     p.log.warn("mailbox_message_unreadable", { mailbox: row.id, message: a.id, stage: "sync", ...read.refused });
     return "unreadable";
+  }
+  if ("paced" in read) {
+    const { status, reason } = read.paced;
+    p.log.warn("mailbox_sync_failed", { mailbox: row.id, stage: "paced", message: a.id, status, reason });
+    return "paced";
   }
   const e = read.email;
   if (e.from?.address.toLowerCase() === own) return "left";
@@ -447,6 +454,11 @@ export async function syncMailbox(
       seen.add(a.id);
       try {
         const got = await takeArrival(db, { row, token: t.token, ours, own, at, now, log }, a);
+        if (got === "paced") {
+          // The provider's pace: what is left waits for the next sync, from the cursor where it was.
+          behind = true;
+          break;
+        }
         if (got === "unreadable") result.unreadable++;
         else if (got !== "gone") result.read++;
         const counted = COUNTED[got];

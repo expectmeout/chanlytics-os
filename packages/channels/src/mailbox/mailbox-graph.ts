@@ -6,13 +6,7 @@
  */
 import { DAY_MS } from "@chanlytics/contracts";
 import { providerFetch, type ProviderReply, type SendOutcome } from "../provider-fetch";
-import {
-  FIND_SENT_SLACK_MS,
-  MAILBOX_READ_MS,
-  oneMessageRefused,
-  type FoundSent,
-  type ReadRefusal,
-} from "./mailbox-read";
+import { FIND_SENT_SLACK_MS, MAILBOX_READ_MS, readVerdictOf, type FoundSent, type ReadVerdict } from "./mailbox-read";
 
 export const GRAPH_API = "https://graph.microsoft.com/v1.0";
 /** A send's bound, for each of its two calls. */
@@ -59,14 +53,11 @@ export function graphSignedOut(r: Pick<ProviderReply, "status" | "json">): boole
 }
 
 /**
- * Graph refusing one message for good (mailbox-read.ts oneMessageRefused), with its code for the log; null when the read
- * is to be asked again. Graph says a pace with 429, and a limit's code names it.
+ * Graph's refusal of one message's read, judged (mailbox-read.ts readVerdictOf), with its code: Graph says a pace with
+ * 429 and Retry-After, and a limit's code names it.
  */
-export function graphReadRefusal(r: Pick<ProviderReply, "status" | "json">): ReadRefusal | null {
-  const reason = graphReasonOf(r);
-  return oneMessageRefused(r.status) && !/throttl|limit|quota/i.test(reason ?? "")
-    ? { status: r.status, reason }
-    : null;
+export function graphReadVerdict(r: Pick<ProviderReply, "status" | "json" | "retryAfterMs">): ReadVerdict {
+  return readVerdictOf(r, graphReasonOf(r), /throttl|limit|quota/i);
 }
 
 /** Who the grant is: the account's id, its address and its name; null when Graph could not say. */

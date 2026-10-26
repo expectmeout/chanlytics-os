@@ -11,6 +11,7 @@ import { MIN_MS } from "@chanlytics/contracts";
 import { addressOf, addressesOf, messageIdHeader } from "../email/header-values";
 import type { ReceivedEmail } from "../email/intake";
 import { unb64url } from "../google/google-oauth";
+import type { ProviderReply } from "../provider-fetch";
 
 /** A received email from a mailbox, with the provider's thread it sits in and every report part's words. */
 export interface MailboxEmail extends ReceivedEmail {
@@ -25,19 +26,36 @@ const dec = new TextDecoder();
 /** Each try of a read of a mailbox, at either provider (a page of history or delta, a message, a profile). */
 export const MAILBOX_READ_MS = 10_000;
 
-/** A provider refusing one message for good, as the log says it: its status and its own word for why. */
-export interface ReadRefusal {
+/**
+ * What a provider's refusal of one message's read means for a reader (gmailReadVerdict, graphReadVerdict), with its
+ * status and the provider's own word for why, for the log and the error:
+ *   refused  that one message, for good: a reader goes on without it
+ *   paced    a pace or a quota of requests: no failure; a reader rests, then reads it again
+ *   again    anything else (the grant, a timeout, the provider's bad minute): asked again later
+ */
+export interface ReadVerdict {
+  verdict: "refused" | "paced" | "again";
   status: number;
   reason: string | null;
+  /** How long the provider asked a reader to wait (Retry-After), in ms, when it said. */
+  retryAfterMs: number | null;
 }
 
 /**
- * Whether an answer to a read of one message may be the provider refusing that message for good: one in the 400s that
- * is not the grant's (401), the message gone (404), a timeout (408) or a pace of requests (429). Each provider then
- * leaves out the reasons that name a limit (gmailReadRefusal, graphReadRefusal); what is left, a reader goes on without.
+ * The verdict on a refused read, given the provider's reason and the words its limits use: a 429, or any answer in the
+ * 400s whose reason names a limit (Gmail says one as a 403), is a pace; one in the 400s that is not the grant's (401),
+ * the message gone (404) or a timeout (408) is that message refused; anything else is asked again.
  */
-export function oneMessageRefused(status: number): boolean {
-  return status >= 400 && status < 500 && status !== 401 && status !== 404 && status !== 408 && status !== 429;
+export function readVerdictOf(
+  r: Pick<ProviderReply, "status" | "retryAfterMs">,
+  reason: string | null,
+  limit: RegExp,
+): ReadVerdict {
+  const said = { status: r.status, reason, retryAfterMs: r.retryAfterMs ?? null };
+  const in400s = r.status >= 400 && r.status < 500;
+  if (r.status === 429 || (in400s && limit.test(reason ?? ""))) return { verdict: "paced", ...said };
+  if (in400s && r.status !== 401 && r.status !== 404 && r.status !== 408) return { verdict: "refused", ...said };
+  return { verdict: "again", ...said };
 }
 
 /**

@@ -236,6 +236,7 @@ export const LOG_EVENTS = [
   "handover_invite_sent",
   "history_part",
   "history_part_failed",
+  "history_part_paced",
   "history_start_failed",
   "inbound_ctx_failed",
   "inbound_ctx_unrouted",

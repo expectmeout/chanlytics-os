@@ -22,9 +22,9 @@ import {
   FIND_SENT_LOOKS,
   FIND_SENT_SLACK_MS,
   MAILBOX_READ_MS,
-  oneMessageRefused,
+  readVerdictOf,
   type FoundSent,
-  type ReadRefusal,
+  type ReadVerdict,
 } from "./mailbox-read";
 
 const GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me";
@@ -74,14 +74,11 @@ export function gmailSignedOut(r: Pick<ProviderReply, "status" | "json">): boole
 }
 
 /**
- * Gmail refusing one message for good (mailbox-read.ts oneMessageRefused), with its reason for the log; null when the
- * read is to be asked again. Gmail says a pace or a quota of requests as a 403 too, and its reason names it.
+ * Gmail's refusal of one message's read, judged (mailbox-read.ts readVerdictOf), with its reason: Gmail says a pace or a
+ * quota of requests as a 403 too (rateLimitExceeded, userRateLimitExceeded), and its reason names it.
  */
-export function gmailReadRefusal(r: Pick<ProviderReply, "status" | "json">): ReadRefusal | null {
-  const reason = gmailReasonOf(r);
-  return oneMessageRefused(r.status) && !/limit|quota|exhausted/i.test(reason ?? "")
-    ? { status: r.status, reason }
-    : null;
+export function gmailReadVerdict(r: Pick<ProviderReply, "status" | "json" | "retryAfterMs">): ReadVerdict {
+  return readVerdictOf(r, gmailReasonOf(r), /limit|quota|exhausted/i);
 }
 
 export interface GmailSent {
