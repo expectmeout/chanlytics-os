@@ -8,20 +8,57 @@
  */
 import { phoneTail, fallbackMessages, pauseHoursOf, pauseMsOf } from "@chanlytics/contracts";
 import type { BrainConfig, NotificationsConfig, SendPurpose } from "@chanlytics/contracts";
+// TYPES ONLY: the one inbound shape is the channels package's, and a value from there would be a provider in a verb.
+import type { InboundMessage, NormalizedInbound } from "@chanlytics/channels";
 import type { IngestResult, Json } from "@chanlytics/db";
 import type { Delivered } from "../deliver";
 import { replyPosture } from "./reply-posture";
 import type { EscalateOutcome, InboundHandoff, InboundPorts, InboundSink } from "./ports";
 import { MAX_REPLIES_PER_DAY } from "./steps";
 import type { ThreadState } from "./thread";
-import type { InboundInput } from "./answer";
+import type { InboundInput, InboundRaw } from "./answer";
 
 /** What a phase returns when the message goes on to the next one. A phase that stops the message returns nothing. */
 export const GO = Symbol("go on");
 
+/**
+ * A message in the one inbound shape, as the phases read a message today: WhatsApp's normalised record and the raw
+ * fields beside it (decision 0001, step 2). Exact, field for field, for what the doors make of WhatsApp and of a text
+ * (tooling/scripts/tests/inbound): the sender's digits are their number without its "+", and the provider's timestamp
+ * is the second the message carries, as a number's words.
+ */
+function readAsToday(m: InboundMessage): { message: NormalizedInbound; raw: InboundRaw } {
+  const digits = m.identity.phoneE164?.replace(/^\+/, "") ?? "";
+  return {
+    message: {
+      waId: m.identity.externalId,
+      phoneDigits: digits,
+      profileName: m.profileName,
+      messageId: m.externalId,
+      type: m.type,
+      kind: m.kind,
+      rawType: m.rawType,
+      body: m.body,
+      channelTsIso: m.channelTsIso,
+      media: m.media,
+      optOut: m.consent.optOut,
+      optIn: m.consent.optIn,
+      optInMarketing: m.consent.optInMarketing,
+      referral: m.referral,
+    },
+    raw: {
+      id: m.externalId,
+      from: digits,
+      type: m.rawType,
+      timestamp: m.channelTsIso === null ? null : String(Date.parse(m.channelTsIso) / 1000),
+    },
+  };
+}
+
 /** The control plane, read once, and everything that is fixed for this whole message. */
 export async function openInbound(input: InboundInput, ports: InboundPorts) {
-  const { message: n, raw, tenantId, routed, isEnvDefault, carrier } = input;
+  const { tenantId, routed, isEnvDefault, carrier } = input;
+  const { message: n, raw } = "inbound" in input ? readAsToday(input.inbound) : input;
   const from = raw.from;
   const channel: "whatsapp" | "sms" = carrier?.channel ?? "whatsapp";
   const db = ports.db();

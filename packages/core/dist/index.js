@@ -39187,8 +39187,36 @@ function toBase64(bytes) {
 // src/inbound/context.ts
 import { phoneTail, fallbackMessages, pauseHoursOf, pauseMsOf } from "../../contracts/dist/index.js";
 var GO = /* @__PURE__ */ Symbol("go on");
+function readAsToday(m) {
+  const digits = m.identity.phoneE164?.replace(/^\+/, "") ?? "";
+  return {
+    message: {
+      waId: m.identity.externalId,
+      phoneDigits: digits,
+      profileName: m.profileName,
+      messageId: m.externalId,
+      type: m.type,
+      kind: m.kind,
+      rawType: m.rawType,
+      body: m.body,
+      channelTsIso: m.channelTsIso,
+      media: m.media,
+      optOut: m.consent.optOut,
+      optIn: m.consent.optIn,
+      optInMarketing: m.consent.optInMarketing,
+      referral: m.referral
+    },
+    raw: {
+      id: m.externalId,
+      from: digits,
+      type: m.rawType,
+      timestamp: m.channelTsIso === null ? null : String(Date.parse(m.channelTsIso) / 1e3)
+    }
+  };
+}
 async function openInbound(input, ports) {
-  const { message: n, raw, tenantId, routed, isEnvDefault, carrier } = input;
+  const { tenantId, routed, isEnvDefault, carrier } = input;
+  const { message: n, raw } = "inbound" in input ? readAsToday(input.inbound) : input;
   const from = raw.from;
   const channel = carrier?.channel ?? "whatsapp";
   const db = ports.db();

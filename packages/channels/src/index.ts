@@ -23,8 +23,10 @@ export type {
 } from "./models/anthropic";
 export { askSystemOne, SYSTEM_ONE_URL } from "./models/typesafe";
 export type { SystemOneAsk, SystemOneReply } from "./models/typesafe";
+export type { InboundMessage } from "./inbound";
 export {
   normalizeInbound,
+  inboundFromWhatsapp,
   waPricingOf,
   waStoppedMarketing,
   graphThrottled,
@@ -191,6 +193,7 @@ export type { LineStep, LineVoiceState, LineRow, LineSecrets, LinePorts, SagaRes
 export {
   smsInboundFrom,
   smsAsWaMessage,
+  inboundFromSms,
   carrierConsent,
   smsKeywordConsent,
   mergeConsent,
