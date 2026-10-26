@@ -8,7 +8,8 @@
  *     (`keepTypedRehearsal`), and a reviewed call (`keepCallReview`).
  *   - The free minutes are read as the window's spoken seconds (`rehearsalSpokenMs`): a call still running counts whole.
  *   - The dashboard reads a rehearsal under the member's own session (RLS), and appends a fix kept from it
- *     (`keepRehearsalFix`) through the service role once the settings write has gone through.
+ *     (`keepRehearsalFix`) through its door, `rehearsal_fix_keep` (00481), on that session once the settings write has
+ *     gone through.
  *   - `voiceAgentOf` / `keepVoiceAgent`: the agent before the number. The service role alone.
  * Every statement on a workspace's table goes through `tenantDb`, so none can reach another workspace's row by an id.
  */
@@ -348,18 +349,24 @@ export async function keepRehearsalReview(db: Db, tenantId: string, id: string, 
 }
 
 /**
- * A change kept from a rehearsal, appended to its fixes (the count "Trained: 3 things" reads). Read and written once:
- * two Keeps at once on one rehearsal are one person's two presses, and the second reads the first's.
+ * A change kept from a rehearsal, appended to its fixes (the count "Trained: 3 things" reads) through its door,
+ * `rehearsal_fix_keep` (00481), on the member's session: the door asks that they may change the workspace's settings,
+ * locks the row so two Keeps at once each append theirs, stamps the moment and writes `settings.fix_kept`. Answers how
+ * many fixes the rehearsal now keeps. A refusal throws.
  */
-export async function keepRehearsalFix(db: Db, tenantId: string, id: string, fix: RehearsalFixRow): Promise<void> {
-  const t = tenantDb(db, tenantId);
-  const kept = { op: fix.op, field: fix.field, said: fix.said, version: fix.version, at: fix.at };
-  const { data, error } = await t.from("rehearsals").select("fixes").eq("id", id).maybeSingle();
-  if (error) throw new Error(`cannot read the rehearsal's fixes: ${error.message}`);
-  if (!data) throw new Error("no such rehearsal");
-  const fixes = Array.isArray(data.fixes) ? [...data.fixes, kept] : [kept];
-  const w = await t.from("rehearsals").update({ fixes }).eq("id", id);
-  if (w.error) throw new Error(`cannot keep the fix: ${w.error.message}`);
+export async function keepRehearsalFix(
+  db: Db,
+  tenantId: string,
+  id: string,
+  fix: Omit<RehearsalFixRow, "at">,
+): Promise<number> {
+  const { data, error } = await db.rpc("rehearsal_fix_keep", {
+    p_tenant_id: tenantId,
+    p_rehearsal_id: id,
+    p_fix: { op: fix.op, field: fix.field, said: fix.said, version: fix.version },
+  });
+  if (error) throw new Error(`cannot keep the fix: ${error.message}`);
+  return data;
 }
 
 /* ------------------------------------------------------------------------ the agent before the number -- */

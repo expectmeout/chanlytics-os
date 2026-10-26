@@ -16452,6 +16452,8 @@ var EVENT_KINDS = [
   "settings.fact_suggested",
   "settings.fact_kept",
   "settings.fact_dismissed",
+  // A change kept from a rehearsal (00481, decision 0069): { rehearsal_id, op, field, version, by }, never the words.
+  "settings.fix_kept",
   // What Ask remembers (00470, decision 0070): a line kept, changed or forgotten, never its words; a journal day, a morning.
   "ask.memory_kept",
   "ask.memory_changed",
@@ -66964,6 +66966,7 @@ var WORDS2 = {
   "settings.fact_suggested": "The receptionist suggested a note from your correction",
   "settings.fact_kept": "A note from a correction was kept",
   "settings.fact_dismissed": "A note from a correction was dismissed",
+  "settings.fix_kept": "A change from a rehearsal was kept",
   "ask.memory_kept": "Ask kept something to remember",
   "ask.memory_changed": "Something Ask remembers was changed",
   "ask.memory_forgotten": "Something Ask remembered was forgotten",
@@ -68085,6 +68088,8 @@ var WORKSPACE_CHANGE_DOORS = /* @__PURE__ */ new Map([
   ["settings.fact_suggested", addressOf({ kind: "rules" })],
   ["settings.fact_kept", addressOf({ kind: "rules" })],
   ["settings.fact_dismissed", addressOf({ kind: "rules" })],
+  // A change kept from a rehearsal landed in How it answers, where the settings it changed are (decision 0069).
+  ["settings.fix_kept", addressOf({ kind: "facts" })],
   // What Ask remembers is listed, changed and forgotten on Settings › Memory (decision 0070).
   ["ask.memory_kept", MEMORY],
   ["ask.memory_changed", MEMORY],
@@ -68134,6 +68139,7 @@ var FOLD_WORDS = {
   "settings.fact_suggested": rows((n) => `The receptionist suggested ${n} notes from your corrections`),
   "settings.fact_kept": rows((n) => `${n} notes from corrections were kept`),
   "settings.fact_dismissed": rows((n) => `${n} notes from corrections were dismissed`),
+  "settings.fix_kept": rows((n) => `${n} changes from rehearsals were kept`),
   "ask.memory_kept": rows((n) => `Ask kept ${n} things to remember`),
   "ask.memory_changed": rows((n) => `${n} things Ask remembers were changed`),
   "ask.memory_forgotten": rows((n) => `${n} things Ask remembered were forgotten`),

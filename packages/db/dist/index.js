@@ -7535,14 +7535,13 @@ async function keepRehearsalReview(db, tenantId, id, review) {
   if (error) throw new Error(`cannot keep the review: ${error.message}`);
 }
 async function keepRehearsalFix(db, tenantId, id, fix) {
-  const t = tenantDb(db, tenantId);
-  const kept = { op: fix.op, field: fix.field, said: fix.said, version: fix.version, at: fix.at };
-  const { data, error } = await t.from("rehearsals").select("fixes").eq("id", id).maybeSingle();
-  if (error) throw new Error(`cannot read the rehearsal's fixes: ${error.message}`);
-  if (!data) throw new Error("no such rehearsal");
-  const fixes = Array.isArray(data.fixes) ? [...data.fixes, kept] : [kept];
-  const w = await t.from("rehearsals").update({ fixes }).eq("id", id);
-  if (w.error) throw new Error(`cannot keep the fix: ${w.error.message}`);
+  const { data, error } = await db.rpc("rehearsal_fix_keep", {
+    p_tenant_id: tenantId,
+    p_rehearsal_id: id,
+    p_fix: { op: fix.op, field: fix.field, said: fix.said, version: fix.version }
+  });
+  if (error) throw new Error(`cannot keep the fix: ${error.message}`);
+  return data;
 }
 async function voiceAgentOf(db, tenantId) {
   const { data, error } = await tenantDb(db, tenantId).from("voice_agents").select("agent_id, llm_id").maybeSingle();

@@ -92,6 +92,8 @@ says how it did or lets them fix it there.
   write), and `calls.config_version`. `ai_usage` purposes `receptionist_review` and `fix_route`. One migration,
   `00476` (00470 is Ask remembers', decision 0070, 00471 and 00472 the Supabase review's, 00473 to 00475 Leads' first day's and Need you's), whose
   purpose check restates 00470's set with the two.
+  A fix kept is appended by the member's own door, `rehearsal_fix_keep` (00481), which asks that they may change the
+  settings and writes `settings.fix_kept`; at first the dashboard appended it through the service role.
 - **Doors:** the edge's `rehearsal/call`, `rehearsal/review` and `rehearsal/fix` (admin doors with a member's token, as
   eval's); the dashboard's `POST receptionist/rehearsals` (start), `GET receptionist/rehearsals/[id]` (its words, read
   while the call runs), `POST receptionist/review` (a rehearsal, a real call or typed turns), `POST receptionist/fix`

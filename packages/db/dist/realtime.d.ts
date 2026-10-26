@@ -10705,6 +10705,14 @@ type Database = {
                 };
                 Returns: boolean;
             };
+            rehearsal_fix_keep: {
+                Args: {
+                    p_fix: Json;
+                    p_rehearsal_id: string;
+                    p_tenant_id: string;
+                };
+                Returns: number;
+            };
             relay_events: {
                 Args: {
                     p_limit?: number;

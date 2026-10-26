@@ -179,6 +179,8 @@ export const EVENT_KINDS = [
   "settings.fact_suggested",
   "settings.fact_kept",
   "settings.fact_dismissed",
+  // A change kept from a rehearsal (00481, decision 0069): { rehearsal_id, op, field, version, by }, never the words.
+  "settings.fix_kept",
   // What Ask remembers (00470, decision 0070): a line kept, changed or forgotten, never its words; a journal day, a morning.
   "ask.memory_kept",
   "ask.memory_changed",

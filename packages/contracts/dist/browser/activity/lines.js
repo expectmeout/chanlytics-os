@@ -37,6 +37,7 @@ const FOLD_WORDS = {
   "settings.fact_suggested": rows((n) => `The receptionist suggested ${n} notes from your corrections`),
   "settings.fact_kept": rows((n) => `${n} notes from corrections were kept`),
   "settings.fact_dismissed": rows((n) => `${n} notes from corrections were dismissed`),
+  "settings.fix_kept": rows((n) => `${n} changes from rehearsals were kept`),
   "ask.memory_kept": rows((n) => `Ask kept ${n} things to remember`),
   "ask.memory_changed": rows((n) => `${n} things Ask remembers were changed`),
   "ask.memory_forgotten": rows((n) => `${n} things Ask remembered were forgotten`),
