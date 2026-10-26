@@ -78,7 +78,6 @@ export {
   noticeAnswerOf,
   clientKeyOf,
   appointmentKey,
-  SAME_VISIT_MS,
   sameVisitOnRecord,
   bookingCopyTest,
   BOOKING_TOOL_IDS,
@@ -228,8 +227,9 @@ export {
   guessName,
   peopleFromItems,
   afterPersonRefused,
-  bookedAfterAsk,
+  SAME_VISIT_MS,
 } from "./calendar-people";
+export { bookedAfterAsk } from "./visit/booked-after-ask";
 export type {
   EventContacts,
   PersonLike,

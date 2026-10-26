@@ -59,7 +59,7 @@ export const BUILTIN_LISTS = [
     group: "journey",
     rule: r({ field: "booked", op: "is", yes: true })
   },
-  // Reports' rule (calendar-people.ts visitAnswersAsk): asked in 30 days and nothing on the calendar answers it.
+  // Reports' rule (visit/booked-after-ask.ts visitAnswersAsk): asked in 30 days and nothing on the calendar answers it.
   {
     id: "asked_never_booked",
     label: "Asked, never booked",

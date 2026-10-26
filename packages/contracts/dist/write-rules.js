@@ -1,5 +1,4 @@
 // src/shared/time.ts
-var MIN_MS = 6e4;
 var HOUR_MS = 36e5;
 var DAY_MS = 864e5;
 var WEEK_MS = 7 * DAY_MS;
@@ -74,7 +73,6 @@ var BOOKING_TOOLS = [
 var isBookingTool = (v) => BOOKING_TOOLS.some((t) => t.tool === v);
 var NOTICE_LENGTH_MAX_MS = 12 * HOUR_MS;
 var NOTICE_TIME_REACH_MS = 400 * DAY_MS;
-var SAME_VISIT_MS = 15 * MIN_MS;
 
 // src/config/workspace-config/config-schema.ts
 import { z as z3 } from "zod";

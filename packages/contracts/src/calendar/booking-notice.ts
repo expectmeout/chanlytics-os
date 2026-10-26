@@ -11,7 +11,7 @@
  */
 import { localToUtcMs } from "./zone-math";
 import type { FeedItem } from "./feed";
-import { extractContacts, type OwnAddresses } from "./calendar-people";
+import { extractContacts, sameVisitStart, type OwnAddresses } from "./calendar-people";
 import { normalizeEmail } from "../shared/email-address";
 import { normalizePhone } from "../shared/phone";
 import { DAY_MS, HOUR_MS, MIN_MS } from "../shared/time";
@@ -358,21 +358,19 @@ export function appointmentKey(
   return `${tool}:${clientKeyOf(client)}:${Math.floor(startMs / MIN_MS) * MIN_MS}`;
 }
 
-/** Two visits are the same one when they are the same client's and start within this of each other. */
-export const SAME_VISIT_MS = 15 * MIN_MS;
-
 /*
  * When two sightings of a visit are one visit (decision 0002): a booking tool that both emails the owner and writes their
  * calendar puts the same visit on the record twice, once as the booking's own row (booking_email, booking_tool) and once
  * as the calendar feed's. The board draws it once (appointment-item.ts withoutVisitsRowsDraw), the hourly sweep marks the
  * feed's copy so the bell does not tell it again (feed-appointments.ts, `twin`), and a visit told as one sighting is not
- * told again as the other (packages/db twinTold). One rule for all three, here.
+ * told again as the other (packages/db twinTold). One rule for all three, here; and the pools that say a person's
+ * visits (calendar-people.ts personVisits) fold a copy by its person by the same nearness (sameVisitStart).
  *
- * Two sightings are one visit when they are the same client's and start within SAME_VISIT_MS of each other. A calendar's
- * event says its client by the number or the address in it (the way the panel finds them, extractContacts); a row of the
- * record by the person it is linked to. The board folds by the number or the address alone, since it matches no event to
- * a person before it draws; the sweep, which has, also by the person. So a copy that names its client only by name is one
- * visit on the bell and two on the board.
+ * Two sightings are one visit when they are the same client's and start within SAME_VISIT_MS (calendar-people.ts) of
+ * each other. A calendar's event says its client by the number or the address in it (the way the panel finds them,
+ * extractContacts); a row of the record by the person it is linked to. The board folds by the number or the address
+ * alone, since it matches no event to a person before it draws; the sweep, which has, also by the person. So a copy that
+ * names its client only by name is one visit on the bell and two on the board.
  */
 
 /** A booking's row as the rule reads it: its client's number and address, the person it is linked to, and its start. */
@@ -392,7 +390,7 @@ export interface VisitOnRecord {
 }
 
 const near = (starts: readonly number[] | undefined, at: number): boolean =>
-  !!starts?.some((s) => Math.abs(s - at) <= SAME_VISIT_MS);
+  !!starts?.some((s) => sameVisitStart(s, at));
 
 /**
  * Whether two visits on the record are one: linked to the same person, and starting within SAME_VISIT_MS of each other.
@@ -400,9 +398,7 @@ const near = (starts: readonly number[] | undefined, at: number): boolean =>
  */
 export function sameVisitOnRecord(a: VisitOnRecord, b: VisitOnRecord): boolean {
   return (
-    !!a.contact_id &&
-    a.contact_id === b.contact_id &&
-    Math.abs(Date.parse(a.starts_at) - Date.parse(b.starts_at)) <= SAME_VISIT_MS
+    !!a.contact_id && a.contact_id === b.contact_id && sameVisitStart(Date.parse(a.starts_at), Date.parse(b.starts_at))
   );
 }
 

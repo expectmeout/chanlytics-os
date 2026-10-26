@@ -2814,19 +2814,23 @@ function soleAtBusiness(people) {
   return people.flatMap((p) => key(p) && n.get(key(p)) === 1 ? [{ ...p, name: p.business?.trim() ?? "" }] : []);
 }
 var NEAR_VISIT_MS = 3 * DAY_MS;
+var isBookingRow = (it) => !!it.uid && recordIdOf(it.uid) !== null;
 function indexFeed(items, own) {
   const byPhone = /* @__PURE__ */ new Map();
   const byEmail = /* @__PURE__ */ new Map();
+  const byContact = /* @__PURE__ */ new Map();
   const texts = [];
   for (const it of items) {
     const c = extractContacts(it, own);
     for (const ph of c.phones) byPhone.set(ph, [...byPhone.get(ph) ?? [], it]);
     for (const em of c.emails) byEmail.set(em, [...byEmail.get(em) ?? [], it]);
-    if (!it.uid || recordIdOf(it.uid) === null)
-      texts.push({ item: it, text: [it.title, ...c.names, it.description ?? ""].join("\n") });
+    if (it.contactId) byContact.set(it.contactId, [...byContact.get(it.contactId) ?? [], it]);
+    if (!isBookingRow(it)) texts.push({ item: it, text: [it.title, ...c.names, it.description ?? ""].join("\n") });
   }
-  return { byPhone, byEmail, texts, own };
+  return { byPhone, byEmail, byContact, texts, own };
 }
+var SAME_VISIT_MS = 15 * MIN_MS;
+var sameVisitStart = (a, b) => Math.abs(a - b) <= SAME_VISIT_MS;
 var visitOf = (it, via) => ({
   id: it.uid ? `${it.uid}:${it.start}` : `ev:${it.start}`,
   key: appointmentKeyOf(it),
@@ -2838,50 +2842,61 @@ var visitOf = (it, via) => ({
   ...it.said ? { said: it.said } : {},
   ...it.recordId ? { recordId: it.recordId } : {}
 });
-function allVisitsIn(index, person) {
+function namesThemFirst(it, via, person, own) {
+  if (via !== "phone" && via !== "email" || isBookingRow(it)) return false;
+  const c = extractContacts(it, own);
+  if (via === "phone") return c.phones[0] === person.phone;
+  return !c.phones.length && c.emails[0] === person.email?.toLowerCase();
+}
+function personVisits(index, person) {
   if (isOwn(index.own, person)) return [];
-  const out = [];
-  const seen = /* @__PURE__ */ new Set();
-  const take = (it, via) => {
-    if (seen.has(it)) return;
-    seen.add(it);
-    out.push(visitOf(it, via));
+  const taken = /* @__PURE__ */ new Map();
+  const take = (items, via) => {
+    for (const it of items ?? []) if (!taken.has(it)) taken.set(it, via);
   };
-  if (person.phone) for (const it of index.byPhone.get(person.phone) ?? []) take(it, "phone");
-  if (person.email) for (const it of index.byEmail.get(person.email.toLowerCase()) ?? []) take(it, "email");
-  for (const em of person.businessEmails ?? []) for (const it of index.byEmail.get(em) ?? []) take(it, "business");
+  take(index.byContact.get(person.id), "record");
+  if (person.phone) take(index.byPhone.get(person.phone), "phone");
+  if (person.email) take(index.byEmail.get(person.email.toLowerCase()), "email");
+  for (const em of person.businessEmails ?? []) take(index.byEmail.get(em), "business");
   const re = nameMatcher(person.name);
   if (re) {
-    for (const { item, text } of index.texts) if (!seen.has(item) && re.test(text)) take(item, "name");
+    for (const { item, text } of index.texts) if (!taken.has(item) && re.test(text)) taken.set(item, "name");
   }
-  return out.sort((a, b) => a.start - b.start);
+  const linked = index.byContact.get(person.id) ?? [];
+  const gap = (a, b) => Math.abs(a.start - b.start);
+  const copies = [];
+  for (const [it, via] of taken) {
+    if (!namesThemFirst(it, via, person, index.own)) continue;
+    const near3 = linked.filter((b) => sameVisitStart(b.start, it.start)).sort((a, b) => gap(a, it) - gap(b, it));
+    if (near3[0]) copies.push({ it, of: near3[0] });
+  }
+  const words3 = /* @__PURE__ */ new Map();
+  for (const { it, of } of copies.sort((a, b) => gap(a.it, a.of) - gap(b.it, b.of)))
+    if (it.said && !of.said && !words3.has(of)) words3.set(of, it.said);
+  const left = new Set(copies.map((c) => c.it));
+  return [...taken].flatMap(([it, via]) => {
+    if (left.has(it)) return [];
+    const said = words3.get(it);
+    return [said ? { ...visitOf(it, via), said } : visitOf(it, via)];
+  });
+}
+function allVisitsIn(index, person) {
+  return personVisits(index, person).sort((a, b) => a.start - b.start);
 }
 function visitsIn(index, person, nowMs) {
-  if (isOwn(index.own, person)) return { next: null, last: null, near: [], missed: null };
   let next = null;
   let last = null;
   let missed = null;
   const near3 = [];
-  const seen = /* @__PURE__ */ new Set();
-  const take = (it, via) => {
-    if (seen.has(it)) return;
-    seen.add(it);
-    const v = visitOf(it, via);
+  for (const v of personVisits(index, person)) {
     if (v.said === "missed") {
       if (!missed || v.start > missed.start) missed = v;
-      return;
+      continue;
     }
-    if (it.end >= nowMs) {
+    if (v.end >= nowMs) {
       if (!next || v.start < next.start) next = v;
     } else if (!last || v.end > last.end) last = v;
     if (Math.abs(v.start - nowMs) <= NEAR_VISIT_MS) near3.push(v);
-  };
-  if (person.phone) for (const it of index.byPhone.get(person.phone) ?? []) take(it, "phone");
-  if (person.email) for (const it of index.byEmail.get(person.email.toLowerCase()) ?? []) take(it, "email");
-  for (const em of person.businessEmails ?? []) for (const it of index.byEmail.get(em) ?? []) take(it, "business");
-  const re = nameMatcher(person.name);
-  if (re) {
-    for (const { item, text } of index.texts) if (!seen.has(item) && re.test(text)) take(item, "name");
   }
   return { next, last, near: near3.sort((a, b) => a.start - b.start), missed };
 }
@@ -3010,22 +3025,6 @@ function peopleFromItems(items, services, nowMs, window = {}) {
 }
 function afterPersonRefused(code2) {
   return code2 === "22023" || code2 === "PE001" ? "skip" : "stop";
-}
-function bookedAfterAsk(visits, askedMs) {
-  if (!visits) return false;
-  return visitAnswersAsk(visitStartOf(visits.next), begunOf(visits.last, visits.missed), askedMs);
-}
-function visitStartOf(v) {
-  const t = v ? ms(v.start) : NaN;
-  return Number.isFinite(t) ? t : null;
-}
-function begunOf(last, missed) {
-  const starts = [visitStartOf(last), visitStartOf(missed)].filter((t) => t !== null);
-  return starts.length ? Math.max(...starts) : null;
-}
-function visitAnswersAsk(nextStartMs, lastStartMs, askedMs) {
-  if (nextStartMs !== null) return true;
-  return lastStartMs !== null && lastStartMs >= askedMs - DAY_MS;
 }
 
 // src/calendar/booking-notice.ts
@@ -3231,10 +3230,9 @@ function clientKeyOf(client) {
 function appointmentKey(tool, client, startMs) {
   return `${tool}:${clientKeyOf(client)}:${Math.floor(startMs / MIN_MS) * MIN_MS}`;
 }
-var SAME_VISIT_MS = 15 * MIN_MS;
-var near = (starts, at3) => !!starts?.some((s) => Math.abs(s - at3) <= SAME_VISIT_MS);
+var near = (starts, at3) => !!starts?.some((s) => sameVisitStart(s, at3));
 function sameVisitOnRecord(a, b) {
-  return !!a.contact_id && a.contact_id === b.contact_id && Math.abs(Date.parse(a.starts_at) - Date.parse(b.starts_at)) <= SAME_VISIT_MS;
+  return !!a.contact_id && a.contact_id === b.contact_id && sameVisitStart(Date.parse(a.starts_at), Date.parse(b.starts_at));
 }
 function bookingCopyTest(bookings, own) {
   if (!bookings.length) return null;
@@ -14322,7 +14320,7 @@ var BUILTIN_LISTS = [
     group: "journey",
     rule: r({ field: "booked", op: "is", yes: true })
   },
-  // Reports' rule (calendar-people.ts visitAnswersAsk): asked in 30 days and nothing on the calendar answers it.
+  // Reports' rule (visit/booked-after-ask.ts visitAnswersAsk): asked in 30 days and nothing on the calendar answers it.
   {
     id: "asked_never_booked",
     label: "Asked, never booked",
@@ -31722,7 +31720,10 @@ function feedItemOfAppointment(row2) {
     location: null,
     attendees: row2.client_email ? [{ name: row2.client_name, email: row2.client_email }] : [],
     organizer: null,
-    recordId: row2.id
+    recordId: row2.id,
+    // And the person it is linked to, so a booking whose number and address are not theirs (a merge moved it, a request
+    // came from a thread with neither) is still their visit.
+    ...row2.contact_id ? { contactId: row2.contact_id } : {}
   };
 }
 function personOfAppointment(row2, people) {
@@ -33312,6 +33313,24 @@ function calendarRunMarksOf(dto, now) {
 }
 function runMarkShown(m, show) {
   return m.cold ? show.cold : show.campaigns;
+}
+
+// src/calendar/visit/booked-after-ask.ts
+function bookedAfterAsk(visits, askedMs) {
+  if (!visits) return false;
+  return visitAnswersAsk(visitStartOf(visits.next), begunOf(visits.last, visits.missed), askedMs);
+}
+function visitStartOf(v) {
+  const t = !v ? NaN : typeof v.start === "number" ? v.start : Date.parse(v.start);
+  return Number.isFinite(t) ? t : null;
+}
+function begunOf(last, missed) {
+  const starts = [visitStartOf(last), visitStartOf(missed)].filter((t) => t !== null);
+  return starts.length ? Math.max(...starts) : null;
+}
+function visitAnswersAsk(nextStartMs, lastStartMs, askedMs) {
+  if (nextStartMs !== null) return true;
+  return lastStartMs !== null && lastStartMs >= askedMs - DAY_MS;
 }
 
 // src/config/workspace-config/role-perms.ts

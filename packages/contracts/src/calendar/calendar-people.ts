@@ -24,7 +24,7 @@ import { appointmentKeyOf, recordIdOf } from "./appointment-key";
 import { normalizeEmail } from "../shared/email-address";
 import { alertAddressesOf } from "../config/workspace-config/alerts";
 import { formatPhoneDisplay, normalizePhone } from "../shared/phone";
-import { dateFormat, DAY_MS } from "../shared/time";
+import { dateFormat, DAY_MS, MIN_MS } from "../shared/time";
 
 export interface EventContacts {
   /** E.164. */
@@ -373,32 +373,43 @@ const NEAR_VISIT_MS = 3 * DAY_MS;
 export interface FeedIndex {
   byPhone: Map<string, FeedItem[]>;
   /**
-   * Lower-cased, as extractContacts gives them: every address the event
-   * carried except the organiser's (#626) and the business's own (`own`). An
-   * owner who is in People used to take every appointment they were a guest
-   * on; the organiser rule covered them as organiser, and `own` as guest.
+   * Lower-cased, as extractContacts gives them: every address the event carried except the organiser's (#626) and the
+   * business's own (`own`). An owner who is in People used to take every appointment they were a guest on; the organiser
+   * rule covered them as organiser, and `own` as guest.
    */
   byEmail: Map<string, FeedItem[]>;
+  /** A booking's rows by the person each is linked to (FeedItem.contactId): found first, as the board finds them. */
+  byContact: Map<string, FeedItem[]>;
   texts: Array<{ item: FeedItem; text: string }>;
   /** The business's own addresses: taken off every event, and a person held under one has no visits. */
   own: OwnAddresses;
 }
 
+/** A booking's own row, joined to the feed (feedItemOfAppointment), rather than a calendar's event. */
+const isBookingRow = (it: FeedItem): boolean => !!it.uid && recordIdOf(it.uid) !== null;
+
 export function indexFeed(items: FeedItem[], own: OwnAddresses): FeedIndex {
   const byPhone = new Map<string, FeedItem[]>();
   const byEmail = new Map<string, FeedItem[]>();
+  const byContact = new Map<string, FeedItem[]>();
   const texts: FeedIndex["texts"] = [];
   for (const it of items) {
     const c = extractContacts(it, own);
     for (const ph of c.phones) byPhone.set(ph, [...(byPhone.get(ph) ?? []), it]);
     for (const em of c.emails) byEmail.set(em, [...(byEmail.get(em) ?? []), it]);
+    if (it.contactId) byContact.set(it.contactId, [...(byContact.get(it.contactId) ?? []), it]);
     // A booking's row is its client's by their number or address, never by name (personOfAppointment): a notice for an
     // unsaved Maria Lopez is not the saved Maria Lopez's visit.
-    if (!it.uid || recordIdOf(it.uid) === null)
-      texts.push({ item: it, text: [it.title, ...c.names, it.description ?? ""].join("\n") });
+    if (!isBookingRow(it)) texts.push({ item: it, text: [it.title, ...c.names, it.description ?? ""].join("\n") });
   }
-  return { byPhone, byEmail, texts, own };
+  return { byPhone, byEmail, byContact, texts, own };
 }
+
+/** Two visits are the same one when they are the same client's and start within this of each other. */
+export const SAME_VISIT_MS = 15 * MIN_MS;
+
+/** Whether two starts (epoch ms) are one visit's, the client being the same: booking-notice.ts and the visits index. */
+export const sameVisitStart = (a: number, b: number): boolean => Math.abs(a - b) <= SAME_VISIT_MS;
 
 /** One feed item as a visit of the person it was matched to, by the route it was matched by. */
 const visitOf = (it: FeedItem, via: MatchVia): Visit => ({
@@ -413,54 +424,82 @@ const visitOf = (it: FeedItem, via: MatchVia): Visit => ({
   ...(it.recordId ? { recordId: it.recordId } : {}),
 });
 
-/** Every appointment of one person against an indexed feed, oldest first: their number first, their address second, their whole name third. */
-export function allVisitsIn(index: FeedIndex, person: PersonLike): Visit[] {
-  // By every route, not only the address: a named owner would otherwise take
-  // "Meeting with Ruben Segura" by the words in its title.
-  if (isOwn(index.own, person)) return [];
-  const out: Visit[] = [];
-  const seen = new Set<FeedItem>();
-  const take = (it: FeedItem, via: MatchVia) => {
-    if (seen.has(it)) return;
-    seen.add(it);
-    out.push(visitOf(it, via));
-  };
-  if (person.phone) for (const it of index.byPhone.get(person.phone) ?? []) take(it, "phone");
-  if (person.email) for (const it of index.byEmail.get(person.email.toLowerCase()) ?? []) take(it, "email");
-  for (const em of person.businessEmails ?? []) for (const it of index.byEmail.get(em) ?? []) take(it, "business");
-  const re = nameMatcher(person.name);
-  if (re) for (const { item, text } of index.texts) if (!seen.has(item) && re.test(text)) take(item, "name");
-  return out.sort((a, b) => a.start - b.start);
+/**
+ * Whether a calendar's event (never a booking's row) found for a person by their number, or with no number in it by their
+ * address, names them first: the person the sweep matches it to (matchPerson takes an event's numbers in order), so it
+ * is never another client's.
+ */
+function namesThemFirst(it: FeedItem, via: MatchVia, person: PersonLike, own: OwnAddresses): boolean {
+  if ((via !== "phone" && via !== "email") || isBookingRow(it)) return false;
+  const c = extractContacts(it, own);
+  if (via === "phone") return c.phones[0] === person.phone;
+  return !c.phones.length && c.emails[0] === person.email?.toLowerCase();
 }
 
-/** One person's next and last appointment against an indexed feed: their number first, their address second, their whole name third. */
+/**
+ * One person's appointments against an indexed feed, each once: the bookings linked to them first, then by their number,
+ * their address, their business's addresses and their whole name. A calendar's event that names them first by number or
+ * address (namesThemFirst) and starts as near a booking linked to them as one visit's (sameVisitStart) is that booking's
+ * copy, the sweep's rule for a copy by its person (booking-notice.ts bookingCopyTest) read only where the match is not a
+ * guess: left out for the nearest such booking, its word kept on the booking where the booking has none. One found by
+ * their business or their name stands as its own visit, as the board draws it.
+ */
+function personVisits(index: FeedIndex, person: PersonLike): Visit[] {
+  // By every route, not only the address: a named owner would otherwise take "Meeting with Ruben Segura" by its words.
+  if (isOwn(index.own, person)) return [];
+  const taken = new Map<FeedItem, MatchVia>();
+  const take = (items: readonly FeedItem[] | undefined, via: MatchVia) => {
+    for (const it of items ?? []) if (!taken.has(it)) taken.set(it, via);
+  };
+  take(index.byContact.get(person.id), "record");
+  if (person.phone) take(index.byPhone.get(person.phone), "phone");
+  if (person.email) take(index.byEmail.get(person.email.toLowerCase()), "email");
+  for (const em of person.businessEmails ?? []) take(index.byEmail.get(em), "business");
+  const re = nameMatcher(person.name);
+  if (re) for (const { item, text } of index.texts) if (!taken.has(item) && re.test(text)) taken.set(item, "name");
+  const linked = index.byContact.get(person.id) ?? [];
+  const gap = (a: FeedItem, b: FeedItem) => Math.abs(a.start - b.start);
+  const copies: Array<{ it: FeedItem; of: FeedItem }> = [];
+  for (const [it, via] of taken) {
+    if (!namesThemFirst(it, via, person, index.own)) continue;
+    const near = linked.filter((b) => sameVisitStart(b.start, it.start)).sort((a, b) => gap(a, it) - gap(b, it));
+    if (near[0]) copies.push({ it, of: near[0] });
+  }
+  // The nearest copy's word first, so a word said of one visit is not laid on the booking beside it.
+  const words = new Map<FeedItem, "kept" | "missed">();
+  for (const { it, of } of copies.sort((a, b) => gap(a.it, a.of) - gap(b.it, b.of)))
+    if (it.said && !of.said && !words.has(of)) words.set(of, it.said);
+  const left = new Set(copies.map((c) => c.it));
+  return [...taken].flatMap(([it, via]) => {
+    if (left.has(it)) return [];
+    const said = words.get(it);
+    return [said ? { ...visitOf(it, via), said } : visitOf(it, via)];
+  });
+}
+
+/** Every appointment of one person against an indexed feed, oldest first (personVisits). */
+export function allVisitsIn(index: FeedIndex, person: PersonLike): Visit[] {
+  return personVisits(index, person).sort((a, b) => a.start - b.start);
+}
+
+/** One person's next and last appointment against an indexed feed (personVisits). */
 export function visitsIn(index: FeedIndex, person: PersonLike, nowMs: number): Visits {
-  if (isOwn(index.own, person)) return { next: null, last: null, near: [], missed: null };
   let next: Visit | null = null;
   let last: Visit | null = null;
   let missed: Visit | null = null;
   const near: Visit[] = [];
-  const seen = new Set<FeedItem>();
-  const take = (it: FeedItem, via: MatchVia) => {
-    if (seen.has(it)) return;
-    seen.add(it);
-    const v = visitOf(it, via);
+  for (const v of personVisits(index, person)) {
     // A visit said missed is none of their visits: not the next, not the last, no day a moment is keyed to. It is the
     // one a win-back reads instead.
     if (v.said === "missed") {
       if (!missed || v.start > missed.start) missed = v;
-      return;
+      continue;
     }
-    if (it.end >= nowMs) {
+    if (v.end >= nowMs) {
       if (!next || v.start < next.start) next = v;
     } else if (!last || v.end > last.end) last = v;
     if (Math.abs(v.start - nowMs) <= NEAR_VISIT_MS) near.push(v);
-  };
-  if (person.phone) for (const it of index.byPhone.get(person.phone) ?? []) take(it, "phone");
-  if (person.email) for (const it of index.byEmail.get(person.email.toLowerCase()) ?? []) take(it, "email");
-  for (const em of person.businessEmails ?? []) for (const it of index.byEmail.get(em) ?? []) take(it, "business");
-  const re = nameMatcher(person.name);
-  if (re) for (const { item, text } of index.texts) if (!seen.has(item) && re.test(text)) take(item, "name");
+  }
   return { next, last, near: near.sort((a, b) => a.start - b.start), missed };
 }
 
@@ -735,8 +774,6 @@ export function peopleFromItems(
     .sort((a, b) => a.start - b.start);
 }
 
-/* ------------------------------------------------- asked, then booked */
-
 /**
  * What a refusal from `create_person` means for the rest of the batch.
  *
@@ -758,43 +795,4 @@ export function afterPersonRefused(code: string | null | undefined): "skip" | "s
   // 22023: the door refused this number's shape. PE001: this number's person asked to be forgotten (00331). Either
   // is one person, not everyone behind them.
   return code === "22023" || code === "PE001" ? "skip" : "stop";
-}
-
-/**
- * Whether someone who reached out has an appointment that answers it: one
- * upcoming, or one held since they got in touch. The conversion Chanlytics
- * counts is the booking, not a stage somebody moved a card into, so a visit a
- * member said they missed answers it too: they booked (0002's readers).
- */
-export function bookedAfterAsk(
-  visits: { next: Started | null; last: Started | null; missed?: Started | null } | null | undefined,
-  askedMs: number,
-): boolean {
-  if (!visits) return false;
-  return visitAnswersAsk(visitStartOf(visits.next), begunOf(visits.last, visits.missed), askedMs);
-}
-
-/** A visit as a parse (ms) or the wire (ISO) carries it: its start is all the ask's rule reads. */
-type Started = { start: number | string };
-
-/** A visit's start in ms; null for none, or one that is not a time. */
-function visitStartOf(v: Started | null | undefined): number | null {
-  const t = v ? ms(v.start) : NaN;
-  return Number.isFinite(t) ? t : null;
-}
-
-/** The start of the latest visit begun, kept or missed or neither (null: none): what an ask is answered by since. */
-function begunOf(last: Started | null | undefined, missed: Started | null | undefined): number | null {
-  const starts = [visitStartOf(last), visitStartOf(missed)].filter((t): t is number => t !== null);
-  return starts.length ? Math.max(...starts) : null;
-}
-
-/**
- * The rule over the moments: a visit ahead, or one begun no more than a day before they asked. Reports' booking line
- * and People's "Asked, never booked" both read it through bookedAfterAsk, so Today's line that prints the two numbers
- * side by side counts one rule twice, never two rules once (decision 0009).
- */
-function visitAnswersAsk(nextStartMs: number | null, lastStartMs: number | null, askedMs: number): boolean {
-  if (nextStartMs !== null) return true;
-  return lastStartMs !== null && lastStartMs >= askedMs - DAY_MS;
 }

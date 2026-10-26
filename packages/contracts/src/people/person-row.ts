@@ -23,7 +23,6 @@ import { PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS, type PersonCameFrom, type
 import { isOptedOutContact } from "../consent/consent";
 import type { FollowUpStand } from "../playbooks/playbooks";
 import {
-  bookedAfterAsk,
   visitDateKey,
   visitDay,
   visitLine,
@@ -32,6 +31,7 @@ import {
   type MatchVia,
   type VisitDto,
 } from "../calendar/calendar-people";
+import { bookedAfterAsk } from "../calendar/visit/booked-after-ask";
 import { visitDoor } from "../calendar/appointment-key";
 import { visitTitleWithout } from "../calendar/visit/visit-service";
 import { visitLineOf, visitMarkOfDto, type VisitLineVM } from "../calendar/calendar-words";
@@ -243,7 +243,7 @@ export interface PersonRowVM {
   askedMs: number | null;
   /**
    * Wrote or called in the last 30 days, and nothing on the calendar answers it: a visit ahead, or one since they
-   * asked (calendar-people.ts visitAnswersAsk, Reports' rule too).
+   * asked (visit/booked-after-ask.ts visitAnswersAsk, Reports' rule too).
    */
   askedNotBooked: boolean;
   nextVisitMs: number | null;

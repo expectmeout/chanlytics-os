@@ -51,6 +51,12 @@ export interface FeedItem extends BusyBlock {
    * (feedWithRecord), and absent for an event the hourly sync has not kept a row for.
    */
   recordId?: string;
+  /**
+   * The person a booking's row is linked to (appointments.contact_id: the read's match, a request's person, a merge's
+   * keeper), so the visits index finds the row by its person as the board does (personOfAppointment). Never read from a
+   * calendar; set only on a booking's own row where the record joins the feed (feedItemOfAppointment).
+   */
+  contactId?: string;
 }
 
 export interface ParsedFeed {

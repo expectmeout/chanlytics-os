@@ -879,7 +879,7 @@ inbound pipeline (0001): its step 1, the extraction into
 appointment as a first-class record (0002): built in part, the record with its
 writers, the board, a member's word on a visit and the readers beside the
 calendar feed, and the receptionist's request (0061); a row linked to a person
-by `contact_id` alone is left. Assignment for a team (0003): decided, not built.
+by `contact_id` alone is found by that person, as the board finds it. Assignment for a team (0003): decided, not built.
 The shell leaving surface by surface (0015): every surface but Ask has left it,
 and the frame after them (#1748); Ask's Line (step 12) and the rest of the tree
 (step 13: the manifest, `apps/dashboard/src/legacy-bridge/seed-globals.ts`, the
