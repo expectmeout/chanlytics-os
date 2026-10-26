@@ -10,6 +10,10 @@
  * The window ends where the mailbox connected, and the live read (mailbox-sync.ts) starts there: nothing is read twice
  * and nothing between them is missed. The cursor (the ledger's job_cursor) is the window, the provider's page and how
  * far into it a part got, so a part that stops mid-page picks up at the next message.
+ *
+ * A message the mailbox refuses to hand over (mailbox-sync.ts readEmail) is counted unreadable and gone on without, so
+ * one odd message never holds the rest back. A provider that cannot be asked now throws, after the part notes what it
+ * brought and where it stood, and the job ledger tries it again from there (RETRY_WAITS_MS).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -35,10 +39,16 @@ import {
 } from "../packages/db.js";
 import { tokenFor } from "../email/mailbox/mailbox-credentials.js";
 import { markSignedOut } from "../email/mailbox/mailbox-wire.js";
-import { fetchEmail } from "../email/mailbox/mailbox-sync.js";
+import { readEmail } from "../email/mailbox/mailbox-sync.js";
 import type { Part, PartOutcome } from "./history-import.js";
 
 type Db = SupabaseClient<Database>;
+
+/**
+ * How many messages in a row the mailbox may refuse before the part stops and is tried again: one odd message is gone
+ * on without, counted and said; a run of them is the grant or the provider.
+ */
+const REFUSED_IN_A_ROW = 3;
 
 /**
  * Where the read stands: the mailbox it reads (Try again finds it there), its window, the provider's page it is on (null
@@ -112,6 +122,105 @@ async function mailStopped(db: Db, part: Part, error: string): Promise<PartOutco
   return { more: false };
 }
 
+/** One part's read of the mailbox: what it reads through, and the window it reads. */
+interface MailRead {
+  db: Db;
+  part: Part;
+  row: MailboxConnectionRow;
+  token: string;
+  window: MailWindow;
+}
+
+/** What a part brought: its counts, and the oldest message it kept. */
+interface MailTally {
+  counts: { messages: number; people: number; dropped: number; unreadable?: number };
+  oldest: number | null;
+}
+
+/**
+ * Where a part stands, on its row: as it ends (its number among the parts done), and before it throws, so the next
+ * part or try reads on from here.
+ */
+function noteMail(
+  r: MailRead,
+  tally: MailTally,
+  where: { page: string | null; at: number },
+  end: { state: "running" | "done"; partsDone?: number },
+): Promise<void> {
+  return noteImport(r.db, {
+    tenantId: r.part.tenantId,
+    source: "mailbox",
+    state: end.state,
+    counts: tally.counts,
+    add: true,
+    ...(end.partsDone ? { partsDone: end.partsDone } : {}),
+    oldest: tally.oldest === null ? null : new Date(tally.oldest).toISOString(),
+    via: r.row.provider,
+    cursor: { connection: r.row.id, window: { from: r.window.from, to: r.window.to }, ...where },
+  });
+}
+
+/** A provider that could not be asked now: what came in is noted, and the job ledger tries the part again. */
+async function askAgain(
+  r: MailRead,
+  tally: MailTally,
+  where: { page: string | null; at: number },
+  why: string,
+): Promise<never> {
+  await noteMail(r, tally, where, { state: "running" });
+  throw new Error(why);
+}
+
+/**
+ * One listed message: read, and kept in its person's thread as before Chanlytics, or left and counted. Refused when the
+ * mailbox will not hand it over (said here; the part counts it). Throws when the provider could not be asked now.
+ */
+async function takeListed(r: MailRead, tally: MailTally, l: { id: string; from?: string | null }) {
+  const { counts } = tally;
+  // Graph names the sender before the message is read: a delivery report or the mailbox's own bulk is not read.
+  if (l.from && /^(mailer-daemon|postmaster)@/.test(l.from)) {
+    counts.dropped++;
+    return "taken";
+  }
+  const read = await readEmail(r.row, r.token, l.id);
+  if ("gone" in read) return "taken";
+  if ("refused" in read) {
+    r.part.log.warn("mailbox_message_unreadable", {
+      mailbox: r.row.id,
+      message: l.id,
+      stage: "history",
+      ...read.refused,
+    });
+    return "refused";
+  }
+  const e = read.email;
+  const who = mailPersonOf(e, r.row.address.toLowerCase());
+  if (!who) {
+    counts.dropped++;
+    return "taken";
+  }
+  const when = e.createdAt ?? r.window.to;
+  const kept = await keepBefore(r.db, {
+    tenantId: r.part.tenantId,
+    channel: "email",
+    external: who.address,
+    phone: null,
+    email: who.address,
+    name: who.name,
+    messageId: e.id,
+    direction: who.out ? "outbound" : "inbound",
+    body: e.text ? e.text.slice(0, EMAIL_BODY_MAX) : null,
+    at: when,
+    meta: mailMetaOf(e, r.row),
+  });
+  if (kept.erased) return "taken";
+  if (kept.kept) counts.messages++;
+  if (kept.newPerson) counts.people++;
+  const ms = Date.parse(when);
+  if (Number.isFinite(ms)) tally.oldest = tally.oldest === null ? ms : Math.min(tally.oldest, ms);
+  return "taken";
+}
+
 export async function mailHistoryPart(db: Db, part: Part): Promise<PartOutcome> {
   if (!part.connectionId) return mailStopped(db, part, IMPORT_STOPPED_WORDS.removed);
   const row = await mailboxConnectionOf(db, part.tenantId, part.connectionId);
@@ -129,9 +238,8 @@ export async function mailHistoryPart(db: Db, part: Part): Promise<PartOutcome> 
   };
   await noteImport(db, { tenantId: part.tenantId, source: "mailbox", state: "running", via: row.provider, add: true });
 
-  const own = row.address.toLowerCase();
-  const counts = { messages: 0, people: 0, dropped: 0 };
-  let oldest: number | null = null;
+  const r: MailRead = { db, part, row, token: t.token, window: cur.window };
+  const tally: MailTally = { counts: { messages: 0, people: 0, dropped: 0 }, oldest: null };
   let { page, at } = cur;
   let done = false;
   pages: while (Date.now() < part.until) {
@@ -145,44 +253,36 @@ export async function mailHistoryPart(db: Db, part: Part): Promise<PartOutcome> 
         await markSignedOut(db, row, part.log, Date.now());
         return mailStopped(db, part, IMPORT_STOPPED_WORDS.signedOut);
       }
-      // A provider that could not be asked now: the part is tried again (the job ledger), from the cursor it left.
-      throw new Error(`the mailbox's past could not be listed: ${listed.reply.status}`);
+      return askAgain(r, tally, { page, at }, `the mailbox's past could not be listed: ${listed.reply.status}`);
     }
+    let refusedInARow = 0;
     for (; at < listed.listed.length; at++) {
       if (Date.now() >= part.until) break pages;
       const l = listed.listed[at];
       if (!l) continue;
-      // Graph names the sender before the message is read: a delivery report or the mailbox's own bulk is not read.
-      if (l.from && /^(mailer-daemon|postmaster)@/.test(l.from)) {
-        counts.dropped++;
+      let took: "taken" | "refused";
+      try {
+        took = await takeListed(r, tally, l);
+      } catch (err) {
+        return askAgain(r, tally, { page, at }, err instanceof Error ? err.message : String(err));
+      }
+      if (took === "taken") {
+        refusedInARow = 0;
         continue;
       }
-      const e = await fetchEmail(row, t.token, l.id);
-      if (!e) continue;
-      const who = mailPersonOf(e, own);
-      if (!who) {
-        counts.dropped++;
+      if (++refusedInARow < REFUSED_IN_A_ROW) {
+        tally.counts.unreadable = (tally.counts.unreadable ?? 0) + 1;
         continue;
       }
-      const when = e.createdAt ?? cur.window.to;
-      const kept = await keepBefore(db, {
-        tenantId: part.tenantId,
-        channel: "email",
-        external: who.address,
-        phone: null,
-        email: who.address,
-        name: who.name,
-        messageId: e.id,
-        direction: who.out ? "outbound" : "inbound",
-        body: e.text ? e.text.slice(0, EMAIL_BODY_MAX) : null,
-        at: when,
-        meta: mailMetaOf(e, row),
-      });
-      if (kept.erased) continue;
-      if (kept.kept) counts.messages++;
-      if (kept.newPerson) counts.people++;
-      const ms = Date.parse(when);
-      if (Number.isFinite(ms)) oldest = oldest === null ? ms : Math.min(oldest, ms);
+      // A run of them is the grant or the provider, not the messages: none is counted, and the next try reads the run.
+      tally.counts.unreadable = (tally.counts.unreadable ?? 0) - (refusedInARow - 1);
+      if (!tally.counts.unreadable) delete tally.counts.unreadable;
+      return askAgain(
+        r,
+        tally,
+        { page, at: at - (refusedInARow - 1) },
+        `the mailbox refused ${refusedInARow} messages in a row`,
+      );
     }
     page = listed.next;
     at = 0;
@@ -191,16 +291,6 @@ export async function mailHistoryPart(db: Db, part: Part): Promise<PartOutcome> 
       break;
     }
   }
-  await noteImport(db, {
-    tenantId: part.tenantId,
-    source: "mailbox",
-    state: done ? "done" : "running",
-    counts,
-    add: true,
-    partsDone: part.n,
-    oldest: oldest === null ? null : new Date(oldest).toISOString(),
-    via: row.provider,
-    cursor: { connection: row.id, window: { from: cur.window.from, to: cur.window.to }, page, at },
-  });
+  await noteMail(r, tally, { page, at }, { state: done ? "done" : "running", partsDone: part.n });
   return { more: !done };
 }

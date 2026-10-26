@@ -3449,6 +3449,7 @@ function senderAuthenticated(e) {
   if (!said || !oneMailbox(e.from) || !oneMailbox(own) || own.address !== e.from.address) return false;
   return said.dmarc === "pass" || said.dkim === "pass" && DMARC_SAID_NOTHING.has(said.dmarc);
 }
+var NO_REPLY = /(?:^|[-_.+])(?:no[-_.]?reply|do[-_.]?not[-_.]?reply)(?:[-_.+]|$)/i;
 function classifyReceived(e) {
   const h = e.headers;
   const local = e.from?.address.split("@")[0] ?? "";
@@ -3458,7 +3459,7 @@ function classifyReceived(e) {
   const auto = (h["auto-submitted"] ?? "").trim().toLowerCase();
   if (auto.startsWith("auto-replied") || "x-autoreply" in h || "x-autorespond" in h || /^auto[_-]?reply$/i.test((h.precedence ?? "").trim()))
     return "auto_reply";
-  if (auto && auto !== "no" || /^(bulk|list|junk)$/i.test((h.precedence ?? "").trim()) || "list-id" in h || "list-unsubscribe" in h)
+  if (auto && auto !== "no" || /^(bulk|list|junk)$/i.test((h.precedence ?? "").trim()) || "list-id" in h || "list-unsubscribe" in h || NO_REPLY.test(local))
     return "automated";
   return "person";
 }
@@ -3990,6 +3991,9 @@ function grantHolds(provider, granted, reach) {
 import { MIN_MS as MIN_MS3 } from "../../contracts/dist/index.js";
 var dec2 = new TextDecoder();
 var MAILBOX_READ_MS = 1e4;
+function oneMessageRefused(status) {
+  return status >= 400 && status < 500 && status !== 401 && status !== 404 && status !== 408 && status !== 429;
+}
 var FIND_SENT_SLACK_MS = 2 * MIN_MS3;
 var FIND_SENT_LOOKS = 3;
 function decodedText(bytes, charset) {
@@ -4177,6 +4181,10 @@ function graphDayUsed(r) {
 function graphSignedOut(r) {
   const code = graphReasonOf(r) ?? "";
   return r.status === 401 || /InvalidAuthenticationToken|MailboxNotEnabledForRESTAPI|ErrorAccessDenied|ErrorSendAsDenied/i.test(code);
+}
+function graphReadRefusal(r) {
+  const reason = graphReasonOf(r);
+  return oneMessageRefused(r.status) && !/throttl|limit|quota/i.test(reason ?? "") ? { status: r.status, reason } : null;
 }
 async function graphMe(token, deps) {
   const r = await providerFetch(
@@ -4875,6 +4883,10 @@ function gmailWordsOf(r) {
 }
 function gmailSignedOut(r) {
   return r.status === 401 || r.status === 403 && /insufficientPermissions|forbidden/i.test(gmailReasonOf(r) ?? "");
+}
+function gmailReadRefusal(r) {
+  const reason = gmailReasonOf(r);
+  return oneMessageRefused(r.status) && !/limit|quota|exhausted/i.test(reason ?? "") ? { status: r.status, reason } : null;
 }
 async function gmailSend(token, mime, threadId, p = {}, deps) {
   const reply = await providerFetch(
@@ -6974,6 +6986,7 @@ export {
   gmailNoMailbox,
   gmailProfile,
   gmailPushOf,
+  gmailReadRefusal,
   gmailReports,
   gmailSend,
   gmailSentIds,
@@ -7004,6 +7017,7 @@ export {
   graphMessage,
   graphNoMailbox,
   graphNotificationsOf,
+  graphReadRefusal,
   graphRenew,
   graphSend,
   graphSignedOut,

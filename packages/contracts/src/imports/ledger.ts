@@ -61,7 +61,7 @@ export interface ImportCounts {
   reviews?: number;
   /** Reviews that wait for a reply. */
   unanswered?: number;
-  /** Rows of a file that had neither a number nor an address. */
+  /** Rows of a file that had neither a number nor an address; emails the mailbox refused to hand over. */
   unreadable?: number;
 }
 
@@ -152,6 +152,7 @@ function saysOf(r: ImportRowDto): string {
       return [
         `Email from people${r.oldest ? `, ${backTo(r.oldest)}` : ""}`,
         c.dropped ? `${c.dropped.toLocaleString()} others dropped` : null,
+        c.unreadable ? `${c.unreadable.toLocaleString()} couldn't be read` : null,
       ]
         .filter(Boolean)
         .join(" · ");

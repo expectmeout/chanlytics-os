@@ -4,7 +4,8 @@
  * fetched; a reply there becomes one intake job, once; a delivery report about one of our emails is applied as the
  * bounce it reports (the row failed, the address stopped, the lead's address marked); a delay is nothing yet. One sync
  * at a time (its lease); a cursor the provider no longer keeps starts again from now; a message that could not be read
- * leaves the cursor where it was, so the next sync reads it again.
+ * leaves the cursor where it was, so the next sync reads it again, unless the provider refused that one message for
+ * good, which is said and gone on without.
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
@@ -12,7 +13,7 @@ import { buildEmailRequest, connectedIdentity, mailboxMessageId } from "@chanlyt
 import { importSrc } from "../../_source.mjs";
 import { fakeDb } from "../../_fake-db.mjs";
 import { rows } from "../../_rows.mjs";
-import { withoutRequestId } from "../../_log-lines.mjs";
+import { fieldsOf, linesOf, withoutRequestId } from "../../_log-lines.mjs";
 import { MAILBOX_ENV, b64url, liveCredentials, providers, vault, withEnv } from "./_mailbox-world.mjs";
 
 const restore = withEnv(MAILBOX_ENV);
@@ -182,7 +183,7 @@ test("a sync reads what arrived from its cursor (decision 0073, R13): a reply in
   });
   try {
     const out = await syncMailbox(w.db, w.mailbox, logger({ tenant_id: T }));
-    assert.deepEqual(out, { outcome: "synced", read: 4, bounced: 1, replies: 1, people: 1, dropped: 1 });
+    assert.deepEqual(out, { outcome: "synced", read: 4, bounced: 1, replies: 1, people: 1, dropped: 1, unreadable: 0 });
     assert.deepEqual(
       w.tables.jobs.map((j) => [j.kind, withoutRequestId(j.payload)]),
       [
@@ -285,6 +286,73 @@ test("a cursor Gmail no longer keeps starts again from now; a mailbox with none 
     assert.deepEqual(broken.tables.jobs, []);
   } finally {
     flaky.restore();
+  }
+});
+
+test("a message the mailbox refuses for good is said and gone on without, so the cursor moves on; a pace of requests keeps the cursor", async () => {
+  // Two arrivals in the reach-out's thread: Gmail will not hand over the first, the second is a reply.
+  const answer = (refusal) => (c) => {
+    const reports = reportsList(c);
+    if (reports) return reports;
+    if (c.url.includes("/history?"))
+      return {
+        json: {
+          history: [
+            {
+              messagesAdded: [
+                { message: { id: "r1", threadId: "g-thread" } },
+                { message: { id: "r2", threadId: "g-thread" } },
+              ],
+            },
+          ],
+          historyId: "130",
+        },
+      };
+    if (c.url.includes("/messages/r1?")) return refusal;
+    if (c.url.includes("/messages/r2?")) return { json: gmailMessage("r2", "g-thread") };
+    return { status: 404 };
+  };
+  const refused = world();
+  const net = providers(
+    answer({
+      status: 403,
+      json: { error: { code: 403, status: "PERMISSION_DENIED", errors: [{ reason: "forbidden" }] } },
+    }),
+  );
+  try {
+    const { result: out, lines } = await linesOf(() =>
+      syncMailbox(refused.db, refused.mailbox, logger({ tenant_id: T })),
+    );
+    assert.deepEqual(
+      [out.unreadable, out.replies, out.read],
+      [1, 1, 1],
+      "the refused one counted apart, the reply read",
+    );
+    assert.equal(refused.tables.mailbox_connections[0].sync_cursor, "130", "the cursor moves on past it");
+    assert.deepEqual(
+      refused.tables.jobs.map((j) => j.payload.received_id),
+      ["r2"],
+      "the reply after it taken in",
+    );
+    const said = lines.filter((l) => l.event === "mailbox_message_unreadable").map(fieldsOf);
+    assert.deepEqual(
+      said.map((l) => [l.message, l.stage, l.status, l.reason]),
+      [["r1", "sync", 403, "forbidden"]],
+      "said once, with Gmail's own reason",
+    );
+  } finally {
+    net.restore();
+  }
+  // Gmail says a pace of requests as a 403 too: that is no refusal of the message, and the next sync reads it again.
+  const paced = world();
+  const slow = providers(
+    answer({ status: 403, json: { error: { code: 403, errors: [{ reason: "userRateLimitExceeded" }] } } }),
+  );
+  try {
+    await linesOf(() => syncMailbox(paced.db, paced.mailbox, logger()));
+    assert.equal(paced.tables.mailbox_connections[0].sync_cursor, "100", "read again next time");
+  } finally {
+    slow.restore();
   }
 });
 

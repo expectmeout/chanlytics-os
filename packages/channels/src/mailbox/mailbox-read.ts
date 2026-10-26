@@ -25,6 +25,21 @@ const dec = new TextDecoder();
 /** Each try of a read of a mailbox, at either provider (a page of history or delta, a message, a profile). */
 export const MAILBOX_READ_MS = 10_000;
 
+/** A provider refusing one message for good, as the log says it: its status and its own word for why. */
+export interface ReadRefusal {
+  status: number;
+  reason: string | null;
+}
+
+/**
+ * Whether an answer to a read of one message may be the provider refusing that message for good: one in the 400s that
+ * is not the grant's (401), the message gone (404), a timeout (408) or a pace of requests (429). Each provider then
+ * leaves out the reasons that name a limit (gmailReadRefusal, graphReadRefusal); what is left, a reader goes on without.
+ */
+export function oneMessageRefused(status: number): boolean {
+  return status >= 400 && status < 500 && status !== 401 && status !== 404 && status !== 408 && status !== 429;
+}
+
 /**
  * What a look in a mailbox for an email it may have sent found (gmailFindSent, graphFindSent): the email, with the id,
  * thread and Message-ID it went under; or nothing, with the draft it left behind when there is one (Graph's), which
