@@ -1,7 +1,7 @@
 # 0001 · A channel-neutral inbound pipeline
 
 **Status:** decided. Step 1 built (28 September 2026: the extraction into `packages/core/src/inbound/`, "As built"
-below); steps 2 to 8 to come. Written against commit `b729bdf`, and verified
+below); steps 2 to 8 to come. Its five questions answered 26 October 2026 (below). Written against commit `b729bdf`, and verified
 against the code at it, with the working tree as it stood. Where this note and
 the code disagree, the code wins.
 
@@ -357,3 +357,26 @@ moves, the assertions do not.
    and then texts has their email answered by text.
 5. **How long may step 4's dual write stand?** It is the only thing making the
    column change safe in both deploy orders, and also a second copy of one fact.
+
+### Answered, 26 October 2026
+
+Ruben: "Take all ten as you recommend". Each answer as recommended, read against `a8d4a5144`.
+
+1. **Never on its own.** This confirms decision 0073 (R15): every email waits in Need you with a reply drafted in the
+   owner's voice (decision 0071), and it leaves from their mailbox on their press. No setting turns it up:
+   `mailboxes.reply_mode`'s `'veto'` and `'auto'` (00126) stay unread by anything that sends. Step 6 keeps
+   `mayAutoSend: false`, and is smaller than written where 0071 built the drafts.
+2. **The sweep does not own email.** `INLINE_INTAKE` (`apps/edge/lib/receptionist/unfinished.ts`) stays WhatsApp and
+   SMS, so its words stay true of the channels meant to answer, and step 6 does not add `"email"` to it. An email's
+   watch is the job ledger, where `email_ingest` is retried and a job that gives up is marked failed and told to its
+   workspace's owner and to the platform (`apps/edge/lib/ops/jobs-tick.ts`), and the mailbox's own health.
+3. **Apart, until somebody says so.** A DM makes its own person, found by its account's id and never joined to another
+   by a name. A member who knows the two for one person combines them (00326, 00420), and their threads, visits and
+   messages move with them. Step 8 is built so.
+4. **Each message on its own channel; a member's reply where they last wrote, said and changeable.** The receptionist
+   answers on the channel a message came by, as it does. A member's reply goes where the customer last wrote
+   (`replyChannelOf`, `apps/dashboard/src/server/verbs.ts`), with that channel named on the send button and switchable
+   where the person has written on more than one: a change of its own after step 5, which gives it the per-channel fact.
+5. **Fourteen days.** Step 4's double write stands until step 5 has been on production in both apps for fourteen days,
+   with a test pinning that nothing but its one accessor reads `last_wa_inbound_at`; then step 7 drops the column, alone.
+   The day step 5 deploys goes into this note's status, so the second copy has an end.
