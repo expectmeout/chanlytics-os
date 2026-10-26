@@ -154,7 +154,7 @@ type Channel = "whatsapp" | "sms" | "email";
  *  - "reply": a person's own words in a conversation; every pause exists for
  *    them, so none holds it.
  *  - "draft": the receptionist's held reply, queued; a person speaking since
- *    retires it, and the pause it now meets does not.
+ *    retires it, as does the reply horizon passing; the pause it now meets does not.
  *  - "broadcast": proactive and automated; it respects every pause like the
  *    machine it is.
  *  - "system": words the rules require of us -- an opt-in confirmation naming
@@ -918,6 +918,8 @@ interface SendQueuedPorts {
     deliver: Door;
     /** The thread flagged for a person, with why; how it landed (jobs upsertEscalation: a hold is told once). */
     escalate(conversationId: string, reason: string, details: string): Promise<"opened" | "changed" | "refreshed" | "failed">;
+    /** The reason the thread waits for a person now (its open escalation), null when nothing holds it; unreadable throws. */
+    openHold(conversationId: string): Promise<string | null>;
     /** Tell this workspace's people. The news says what it IS (contracts JobNews); a caller cannot leave that to the sender. */
     alert(news: JobNews): Promise<void>;
     /** The platform's own pager, for a provider refusing every send on a wire. */
@@ -1867,7 +1869,8 @@ interface AppointmentPatch {
 }
 /**
  * What became of a notice, as the ledger keeps it (appointment_notices.outcome). `dismissed` is one set aside: by a
- * person, from the held list, or by the read itself, for a tool's email that is about no booking.
+ * person, from the held list, or by the read itself, for a tool's email that is about no booking, or a cancellation of
+ * a visit a member already said was kept or missed, which the visit's guard refuses.
  */
 type NoticeOutcome = "booked" | "changed" | "cancelled" | "held" | "dismissed";
 interface NoticeLedgerRow {
@@ -1897,8 +1900,10 @@ interface BookingNoticePorts {
     /** The row under this key (appointments_source_uq, source booking_email), or null. */
     byKey(tenantId: string, externalId: string): Promise<StoredAppointment | null>;
     /**
-     * The live row (proposed or booked) this client has that starts within `withinMs` of `startMs`, soonest first, or
-     * null: how a change finds the booking it moves, and a cancellation the one it ends, when the key does not.
+     * The live row (proposed or booked) this client has that starts within `withinMs` of `startMs`, the nearest first, or
+     * null: how a change finds the booking it moves, and a cancellation the one it ends, when the key does not. Only a
+     * row this tool's notices wrote (source booking_email, under this tool): a request the receptionist took is the
+     * owner's to book (decision 0061), and another tool's visit is that tool's word.
      */
     byClientStart(tenantId: string, client: NoticeClient, startMs: number, withinMs: number): Promise<StoredAppointment | null>;
     insert(row: NewAppointment): Promise<{
@@ -3481,6 +3486,11 @@ interface LeadCheckerRunner {
      */
     buildId: string;
     buildInput(emails: string[]): unknown;
+    /**
+     * The addresses an input of buildInput's names, read back from the provider's copy of it: what a run was given. Null
+     * when it names none.
+     */
+    emailsOf(input: unknown): string[] | null;
     mapItem(item: unknown): {
         email: string;
         state: Exclude<LeadEmailState, "none" | "checking">;

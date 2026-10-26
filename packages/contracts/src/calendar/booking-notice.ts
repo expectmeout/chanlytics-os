@@ -555,7 +555,9 @@ export const NOTICE_HOLD_WORDS: Record<NoticeHold, string> = {
   no_model: "The reader was unavailable. Press Read again.",
   may_not_spend: "The workspace's AI spend is paused. Read again once it is on.",
   unreadable: "It could not be read as a booking.",
-  // Kept on the ledger and set aside, never held: nobody is asked to look at a tool's receipt or its newsletter.
+  // Kept on the ledger and set aside, never held: nobody is asked to look at a tool's receipt or its newsletter. A
+  // cancellation the visit's guard refused is set aside under this reason too, until the ledger has a word of its own
+  // (core ledgerOutcomeOf), so this sentence is not true of every row set aside with it.
   not_a_booking: "It is from your booking tool, but not about one booking.",
   no_time: "No time for the booking could be read from it.",
   no_client: "No client could be read from it.",

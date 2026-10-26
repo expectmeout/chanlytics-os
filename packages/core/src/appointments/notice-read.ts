@@ -31,7 +31,14 @@ import {
   type NoticeHold,
   type NoticeReading,
 } from "@chanlytics/contracts";
-import type { BookingNoticePorts, NewAppointment, NoticeClient, NoticeEmail, StoredAppointment } from "./ports";
+import type {
+  BookingNoticePorts,
+  NewAppointment,
+  NoticeClient,
+  NoticeEmail,
+  NoticeOutcome,
+  StoredAppointment,
+} from "./ports";
 
 export interface ReadBookingNoticeCommand {
   tenantId: string;
@@ -128,12 +135,7 @@ export async function readBookingNotice(
     ...stated,
   });
   const keep = async (outcome: Written[0], id: string | null) => {
-    await ports.keepNotice({
-      ...ledger,
-      outcome: outcome.startsWith("booked") ? "booked" : outcome.startsWith("changed") ? "changed" : "cancelled",
-      holdReason: null,
-      appointmentId: id,
-    });
+    await ports.keepNotice({ ...ledger, ...ledgerOutcomeOf(outcome), appointmentId: id });
     return outcome;
   };
 
@@ -164,6 +166,18 @@ type Visit = {
   stated: Stated;
   ahead: boolean;
 };
+
+/**
+ * What the ledger keeps of a run that read a booking. A cancellation the visit's guard refused (a member already said
+ * kept or missed, and that is final) cancelled nothing: it is set aside, so neither the ledger nor Activity says a
+ * visit was cancelled that stands. The ledger has no word of its own for it yet, and a notice set aside carries a
+ * reason (appointment_notices_check), so it carries the one the read sets aside with.
+ */
+function ledgerOutcomeOf(outcome: Written[0]): { outcome: NoticeOutcome; holdReason: NoticeHold | null } {
+  if (outcome === "cancel_refused") return { outcome: "dismissed", holdReason: "not_a_booking" };
+  const said = outcome.startsWith("booked") ? "booked" : outcome.startsWith("changed") ? "changed" : "cancelled";
+  return { outcome: said, holdReason: null };
+}
 
 /**
  * The visit written anew over a row that ended under its key (withdrawn, or long past): the ended row keeps its

@@ -1,3 +1,5 @@
+import { audienceTrigger } from "../broadcasts/broadcast-audience.js";
+import { batchWaitWords } from "../playbooks/playbook-triggers.js";
 import { isReachOutRun } from "../reach-out/reach-out-rules.js";
 import { RUN_WAITING_WORDS, heldEmailsWords, runApprovedTail, runStopWords } from "../shell/campaign-rooms.js";
 import { plural } from "../shared/words.js";
@@ -11,7 +13,8 @@ export function todayRunWords(r) {
   const sent = `${r.counts.sent} sent`;
   const held = `${heldEmailsWords(r.held ?? 0)}. The rest of the run goes as planned.`;
   const drafted = `${plural(r.drafted ?? 0, "email", "emails")} to send from your inbox, each written and checked.`;
-  const waiting = `${people}. ${waitEndsWords(!reach && r.playbook_id ? "batch_ask" : "leads_batch")}.`;
+  const ends = !reach && r.playbook_id ? batchWaitWords(audienceTrigger(r.audience)) : waitEndsWords("leads_batch");
+  const waiting = `${people}. ${ends}.`;
   return {
     people,
     waiting: {

@@ -39,6 +39,7 @@ import {
   resendHandover,
 } from "@chanlytics/db";
 import { requireUuid } from "@/server/request-guards";
+import { notifyPlatformSignup } from "@/server/platform/signup";
 import { handoverRefusal, sendHandoverInvite } from "@/server/workspace/handover";
 import type { Params } from "@/server/route";
 import type { z } from "zod";
@@ -151,7 +152,13 @@ export async function setUpWorkspaceForBusiness(
     ownerEmail: input.email,
   });
   if (!r.ok) throw handoverRefusal(r);
-  const sent = await sendHandoverInvite(r.value.id, input.email, ctx.userId);
+  // The platform mailbox hears of this workspace as it hears of one an owner makes (workspace-create.ts). Its owner is
+  // the address it waits for, never the partner, who never owns it (0016). Best effort, and sent beside the
+  // invitation: each is bounded by its own timeout and neither throws, so the partner waits only for the longer.
+  const [, sent] = await Promise.all([
+    notifyPlatformSignup(r.value.id, input.email, ctx.userId),
+    sendHandoverInvite(r.value.id, input.email, ctx.userId),
+  ]);
   return { workspace: r.value, sent };
 }
 

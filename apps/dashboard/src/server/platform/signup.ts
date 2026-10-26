@@ -171,8 +171,9 @@ export async function joinWaitlist(input: { email: string; name?: string; source
 
 /**
  * The platform mailbox hears about a new workspace through the edge, which
- * holds the email key. Called where workspaces are made, /api/v1/workspaces/create,
- * for the first one and every one after. A failure is a shrug.
+ * holds the email key. Called where workspaces are made: /api/v1/workspaces/create,
+ * for the first one and every one after, and POST partner/workspaces, for one a
+ * partner sets up for a business (0016). A failure is a shrug.
  */
 export async function notifyPlatformSignup(tenantId: string, email: string, userId: string): Promise<void> {
   if (!edgeConfigured() || !deployment.providersLive) return;

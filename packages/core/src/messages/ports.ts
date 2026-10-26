@@ -48,6 +48,8 @@ export interface SendQueuedPorts {
     reason: string,
     details: string,
   ): Promise<"opened" | "changed" | "refreshed" | "failed">;
+  /** The reason the thread waits for a person now (its open escalation), null when nothing holds it; unreadable throws. */
+  openHold(conversationId: string): Promise<string | null>;
   /** Tell this workspace's people. The news says what it IS (contracts JobNews); a caller cannot leave that to the sender. */
   alert(news: JobNews): Promise<void>;
   /** The platform's own pager, for a provider refusing every send on a wire. */

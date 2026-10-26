@@ -36,6 +36,16 @@ export function ageVerdict(
 }
 
 /**
+ * Whether words for a message sent at `atMs` (epoch ms) would reach the customer past the reply horizon if they left
+ * at `now`: what the send door asks of the receptionist's held draft (deliver.ts). The verdict above, from the same
+ * horizon, so a reply held through an outage is a person's exactly as a message that came in that late is. A moment
+ * nobody knows (null) is not late.
+ */
+export function pastReplyHorizon(atMs: number | null, now: number): boolean {
+  return atMs !== null && ageVerdict(atMs / 1000, now).verdict === "stale";
+}
+
+/**
  * How long the reply waits before it goes out, and why.
  *
  * Under 'veto' every reply waits in the configured window so the business

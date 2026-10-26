@@ -1,9 +1,11 @@
 /**
  * Whether somebody holds the thread, or its pause stands, for one send (deliver.ts): what a draft, a system message, an
- * answer and a broadcast each meet. Pure, so the door reads one answer and its length stays its own.
+ * answer and a broadcast each meet; and whether the receptionist's draft is too late to send, which holds it for a
+ * person too. Pure, so the door reads one answer and its length stays its own.
  */
 import { passesHandoverPause, type DeliveryRefusal } from "@chanlytics/contracts";
 import type { SendKind } from "./deliver";
+import { pastReplyHorizon } from "./inbound/steps";
 
 /** The thread's live hold (00132) and its pause, as the door read them at the wire. */
 interface HoldFacts {
@@ -52,4 +54,23 @@ export function heldByThread(d: Held, f: HoldFacts, nowMs: number, kind: SendKin
   const paused = !!f.pausedUntil && nowMs < new Date(f.pausedUntil).getTime() && !passesHandoverPause(d.trigger);
   if (kind !== "draft" && kind !== "system" && (held || paused)) return "human_has_it";
   return null;
+}
+
+/**
+ * The receptionist's draft that would reach them past the reply horizon after the message it answers (`answeredAt`,
+ * epoch ms, as the door read it): a person's to send now, exactly as that message would be had it come in this late
+ * (inbound steps.ts pastReplyHorizon, the one statement of the horizon). A reply held through an outage used to go out
+ * hours late, "3pm is free today" at the end of the day. Asked once nothing else holds the draft and no person has
+ * spoken since; the job hands its thread over (messages/send.ts). A person's own reply, a system message and a
+ * broadcast never meet it: a person chose those words, and the rules require the rest. A steered draft (the owner's
+ * line, the receptionist's rewrite, edge steer.ts) meets it, measured from the message it still answers: it waits its
+ * own window like the draft it replaced, and no person chose its words.
+ */
+export function lateDraft(
+  d: { sender: string },
+  answeredAt: number | null,
+  nowMs: number,
+  kind: SendKind,
+): DeliveryRefusal | null {
+  return kind === "draft" && d.sender === "ai" && pastReplyHorizon(answeredAt, nowMs) ? "too_late" : null;
 }

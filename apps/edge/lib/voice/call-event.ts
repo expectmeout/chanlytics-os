@@ -320,8 +320,11 @@ export function planCallEvent(e: CallEvent, f: CallEventFacts): CallEventPlan {
   // while they are on the phone. A call that is over lets it go; a call
   // still running renews it, which is what keeps a long one from lapsing
   // mid-sentence. Only ever its OWN hold: a person who took the thread over
-  // during the call keeps it, because release names the holder.
-  if (res.conversation_id) {
+  // during the call keeps it, because release names the holder. A delivery
+  // older than the row (skipped above) says nothing about the call now: a
+  // retried call_started after the end would renew a hold the end let go,
+  // and the caller's next text would go unanswered for fifteen minutes.
+  if (res.conversation_id && !res.skipped) {
     steps.push({
       kind: "hold",
       conversationId: res.conversation_id,

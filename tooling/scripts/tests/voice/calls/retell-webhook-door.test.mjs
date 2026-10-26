@@ -500,6 +500,90 @@ test("call_ended: no note without a summary; the recording is copied on the webh
   }
 });
 
+/**
+ * The thread's live hold, as 00132's two doors keep it on the conversation row: a holder renews its own, a call never
+ * takes one somebody else holds, and a release clears only the holder it names. `asked` is every claim and release, in
+ * order, by the call that made it.
+ */
+function threadHolds(tables) {
+  const asked = [];
+  const row = (a) => tables.conversations.find((c) => c.id === a.p_conversation_id && c.tenant_id === a.p_tenant_id);
+  const sameHolder = (c, a) =>
+    c.control_kind === a.p_kind && (c.control_by ?? null) === (a.p_by ?? null) && (c.control_ref ?? null) === a.p_ref;
+  return {
+    asked,
+    rpcs: {
+      claim_conversation_control: (a) => {
+        asked.push(["claim", a.p_ref]);
+        const c = row(a);
+        if (!c) return "gone";
+        const live = c.control_until != null && Date.parse(c.control_until) >= Date.now();
+        const same = sameHolder(c, a);
+        if (live && !same && a.p_kind !== "person") return "held";
+        const until = iso(Date.now() + a.p_seconds * 1000);
+        Object.assign(c, { control_kind: a.p_kind, control_by: a.p_by, control_ref: a.p_ref, control_until: until });
+        return live && same ? "renewed" : "claimed";
+      },
+      release_conversation_control: (a) => {
+        asked.push(["release", a.p_ref]);
+        const c = row(a);
+        if (!c || !sameHolder(c, a)) return false;
+        Object.assign(c, { control_kind: null, control_by: null, control_ref: null, control_until: null });
+        return true;
+      },
+    },
+  };
+}
+
+test("REGRESSION: a call_started or transcript_updated retried after the call ended takes no hold back: the thread stays free for the text receptionist", async () => {
+  // A late delivery is older than the row, so ingest_call declines it, but its answer still names the caller's thread.
+  // The hold step ran anyway, as a renewal (its status is not an end), and took the thread for another fifteen minutes:
+  // the caller's next text was answered by nobody, set aside at the send door as human_has_it (the flow maps, 25 Oct).
+  const w = world();
+  const holds = threadHolds(w.tables);
+  w.open({}, holds.rpcs);
+  const line = wire();
+  try {
+    const id = w.callId("late");
+    const thread = () => w.tables.conversations[0];
+    await deliver("call_started", w.call(id, { call_status: "ongoing", start_timestamp: NOW - 130_000 }));
+    assert.equal(thread().control_ref, id, "the call holds its caller's thread while it runs");
+    await deliver(
+      "call_ended",
+      w.call(id, {
+        call_status: "ended",
+        start_timestamp: NOW - 130_000,
+        end_timestamp: NOW - 5_000,
+        duration_ms: 125_000,
+        disconnection_reason: "user_hangup",
+      }),
+    );
+    assert.equal(thread().control_until, null, "the end lets it go");
+
+    // Retell retries a delivery it heard no 2xx for, so these can land after the end.
+    const late = [
+      ["call_started", w.call(id, { call_status: "ongoing", start_timestamp: NOW - 130_000 })],
+      ["transcript_updated", w.call(id, { start_timestamp: NOW - 130_000, transcript: "Agent: Hello." })],
+    ];
+    for (const [event, call] of late) {
+      const res = await deliver(event, call);
+      assert.deepEqual([res.status, await res.json()], [200, { ok: true }]);
+      assert.equal(kind(w.tables, "webhook.delivery").at(-1).data.skipped, true, `${event} is older than the row`);
+    }
+    assert.deepEqual(
+      holds.asked,
+      [
+        ["claim", id],
+        ["release", id],
+      ],
+      "only the call's own start and end touched the hold",
+    );
+    assert.equal(thread().control_until, null, "nobody holds the thread: the receptionist may answer the next text");
+  } finally {
+    line.restore();
+  }
+});
+
 test("the note waits for the SUMMARY, not for the analysis: a call_ended that already carries one is noted and linked, and so is a call that reached voicemail -- and neither rings the bell", async () => {
   // The condition has three doors: call_analyzed, a summary already on the
   // call, or voicemail. The call_ended case above proves the plain one stays

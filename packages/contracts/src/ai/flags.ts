@@ -138,7 +138,9 @@ export const FLAGS: readonly Flag[] = [
     weaker: {
       allows:
         "On an edge without EDGE_CALL_SECRET (a preview: a production edge refuses to boot without it), the platform " +
-        "key alone opens every admin door (lib/admin-auth.ts).",
+        "key alone opens every admin door (lib/admin-auth.ts). The live-call doors then refuse what it asks, as it " +
+        "names no workspace (25 October 2026): a rehearsal pair that acts on a live call holds the secret on both " +
+        "projects.",
       readiness: {
         event: "admin_door_key_only",
         when: "no ok: true line but the diagnostic's and the pager's, read from 3 October 2026",
@@ -171,12 +173,13 @@ export const FLAGS: readonly Flag[] = [
     sunset: "2026-10-13",
     weaker: {
       allows:
-        "A per-call token with no body hash is accepted on a POST, and one with no workspace on a door that must check " +
-        "whose row it acts on (the live-call doors and steer: tokenWorkspace in lib/admin-auth.ts), so a dashboard built " +
-        "before this may still call an edge that reads them. A token about no workspace is otherwise a platform " +
-        "operator's on purpose (the runbook's knock), so only these doors say it.",
+        "A per-call token with no body hash is accepted on a POST, and one with no workspace on the steer, a door " +
+        "that must check whose row it acts on (tokenWorkspace in lib/admin-auth.ts; the live-call doors refuse one " +
+        "since 25 October 2026), so a dashboard built before this may still call an edge that reads them. A token " +
+        "about no workspace is otherwise a platform operator's on purpose (the runbook's knock), so only the doors " +
+        "that ask tokenWorkspace say it.",
       readiness: { event: "edge_token_unbound", when: "no line for a day after both projects deploy" },
-      closes: "The change that refuses a token with no body hash on a POST, and one with no workspace on those doors.",
+      closes: "The change that refuses a token with no body hash on a POST, and one with no workspace on the steer.",
     },
   },
   {

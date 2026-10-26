@@ -1039,6 +1039,46 @@ test("a run that waits for a person tells them WHICH run: the bell's row is abou
   );
 });
 
+test("REGRESSION: a reminder nobody approved by 21:00 is skipped, and its owner was told its people were in line for its next batch, which names the next day's appointments: the bell says it did not reach them, to write to them from the run, and why the next day's waits too; a win-back skipped past its day says they are in line, and why its next batch waits", async () => {
+  // Past the day's sending hours, before midnight: a visit's run made for today can no longer go today.
+  const LATE = zoneWhere((h) => h >= 21 && h <= 22);
+  const w = world();
+  workspace(w.tables, A, LATE, "ask");
+  const today = localDate(LATE, new Date());
+  const yesterday = localDate(LATE, new Date(Date.now() - D));
+  const waiting = (id, runFor, trigger, label, n) => ({
+    id,
+    tenant_id: A,
+    playbook_id: `pb-${id}`,
+    name: `${label} · ${runFor}`,
+    state: "pending_approval",
+    run_for: runFor,
+    audience: { kind: "playbook", id: `pb-${id}`, label, trigger },
+    recipient_count: n,
+    created_at: iso(12 * H),
+  });
+  w.tables.broadcasts.push(
+    waiting("run-reminder", today, "visit_tomorrow", "Appointment reminder", 3),
+    waiting("run-winback", yesterday, "quiet_30", "Win-back", 2),
+  );
+  const [status, body] = await answer(await w.tick());
+  assert.equal(status, 200);
+  assert.equal(body.ended, 2, "both skipped, as the system");
+  assert.deepEqual(
+    w.tables.broadcasts.map((b) => b.state),
+    ["canceled", "canceled"],
+  );
+  const told = Object.fromEntries(bellOf(w, A).map((n) => [n.subject_id, [n.title, n.body]]));
+  assert.deepEqual(told["run-reminder"], [
+    "“Appointment reminder” didn’t go: nobody approved it",
+    "3 people waited for your OK until 21:00, and it did not reach them: no later batch sends it in its place. Open it to see who, and write to them yourself. The next day’s “Appointment reminder” waits for your OK too, until 21:00: its batches wait until you approve one, and every one waits while “Before each batch” in its How it runs says to ask.",
+  ]);
+  assert.deepEqual(told["run-winback"], [
+    "“Win-back” didn’t go: nobody approved it",
+    "2 people waited for your OK until the day ended, and nothing was sent. They are in line for its next batch, which waits for your OK too: its batches wait until you approve one, and every one waits while “Before each batch” in its How it runs says to ask.",
+  ]);
+});
+
 test("two playbooks due in the same hour keep the week's breath between them: the second leaves out whoever the first just enrolled, and keeps whoever it did not (P1 3)", async () => {
   // The first reaches one person (its cap); the second would reach all three, and is left with the two the first did not.
   let w = world({ people: { [A]: [person("c1"), person("c2"), person("c3")] } });

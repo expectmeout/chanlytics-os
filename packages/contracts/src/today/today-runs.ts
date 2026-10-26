@@ -3,6 +3,8 @@
  * toast when a waiting run is approved. The page decides which runs wait; it composes none of their words.
  */
 
+import { audienceTrigger } from "../broadcasts/broadcast-audience";
+import { batchWaitWords } from "../playbooks/playbook-triggers";
 import { isReachOutRun } from "../reach-out/reach-out-rules";
 import { RUN_WAITING_WORDS, heldEmailsWords, runApprovedTail, runStopWords } from "../shell/campaign-rooms";
 import { plural } from "../shared/words";
@@ -18,9 +20,15 @@ export interface RunLike {
   /** "today 9:00 AM" / "Sep 12 · 10:00 AM", by the business's clock (toBroadcastVM). */
   when: string;
   counts: { sent: number; replied: number };
-  /** Whom it goes to: a reach-out's run (kind `reach_out`) writes to businesses, and says so. */
+  /**
+   * Whom it goes to: a reach-out's run (kind `reach_out`) writes to businesses, and says so. Its moment (`trigger`) says
+   * how a customer batch's wait ends: a visit's with the day's sending hours.
+   */
   audience?: unknown;
-  /** The sequence step that made it: a customer batch's waits until its day ends; a one-off's or a reach-out's has no day. */
+  /**
+   * The sequence step that made it: a customer batch's waits until its day ends (a visit's, its sending hours); a
+   * one-off's or a reach-out's has no day.
+   */
   playbook_id?: string | null;
   /** How many of a going run's emails the check holds for your say (waits.ts runHeldEmails). */
   held?: number | null;
@@ -73,9 +81,10 @@ export function todayRunWords(r: RunLike): TodayRunWordsVM {
   const sent = `${r.counts.sent} sent`;
   const held = `${heldEmailsWords(r.held ?? 0)}. The rest of the run goes as planned.`;
   const drafted = `${plural(r.drafted ?? 0, "email", "emails")} to send from your inbox, each written and checked.`;
-  // How its wait ends, by the wait rule (decision 0064): a customer batch's until its day ends, then skipped and told; a
-  // reach-out's or a one-off's until it is answered.
-  const waiting = `${people}. ${waitEndsWords(!reach && r.playbook_id ? "batch_ask" : "leads_batch")}.`;
+  // How its wait ends, by the wait rule (decision 0064): a customer batch's until its day ends, then skipped and told, a
+  // visit's until 21:00, as its notice says (batchWaitWords); a reach-out's or a one-off's until it is answered.
+  const ends = !reach && r.playbook_id ? batchWaitWords(audienceTrigger(r.audience)) : waitEndsWords("leads_batch");
+  const waiting = `${people}. ${ends}.`;
   return {
     people,
     waiting: {

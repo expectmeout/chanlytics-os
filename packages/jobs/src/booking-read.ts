@@ -16,6 +16,7 @@ import {
   readBookingNotice,
   type AppointmentPatch,
   type AppointmentStatus,
+  type BookingNoticePorts,
   type NewAppointment,
   type NoticeLedgerRow,
   type NoticeOutcome,
@@ -75,6 +76,23 @@ function stored(r: AppointmentRow): StoredAppointment {
     ends_at: r.ends_at,
     external_id: r.external_id,
     contact_id: r.contact_id,
+  };
+}
+
+/**
+ * The row a notice of `tool` finds by client and time when its key misses: one a notice of that tool wrote, never a
+ * request the receptionist took (the owner's to book, decision 0061) nor another tool's visit.
+ */
+function byClientStartOf(db: JobContext["db"], tool: string): BookingNoticePorts["byClientStart"] {
+  return async (tenantId, client, startMs, withinMs) => {
+    const r = await appointmentByClientStart(db, tenantId, {
+      source: "booking_email",
+      tool,
+      client,
+      startMs,
+      withinMs,
+    });
+    return r ? stored(r) : null;
   };
 }
 
@@ -202,10 +220,7 @@ export async function bookingRead(ctx: JobContext, job: ClaimedJob): Promise<voi
         const r = await appointmentByKey(db, tenantId, "booking_email", key);
         return r ? stored(r) : null;
       },
-      byClientStart: async (tenantId, client, startMs, withinMs) => {
-        const r = await appointmentByClientStart(db, tenantId, client, startMs, withinMs);
-        return r ? stored(r) : null;
-      },
+      byClientStart: byClientStartOf(db, notice.tool),
       insert: (a) => insertAppointment(db, appointmentRowOf(a)),
       update: (tenantId, id, patch) => updateAppointment(db, tenantId, id, patchOf(patch)),
       personFor: bookings.personFor,

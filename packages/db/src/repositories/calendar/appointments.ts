@@ -3,8 +3,8 @@
  * source stated it. Groups, top to bottom:
  *
  *   one visit           appointmentByKey (the row under a source's key), appointmentByClientStart (the live row a
- *                       client holds near an instant), insertAppointment, updateAppointment ("refused" when the row's
- *                       guard will not take the move: a finished visit cancelled).
+ *                       source wrote for a client near an instant), insertAppointment, updateAppointment ("refused"
+ *                       when the row's guard will not take the move: a finished visit cancelled).
  *   the board           appointmentsBetween (the live rows over a span the feed does not already draw), appointmentsForClient
  *                       (one person's, by their number or address, from an instant on), earlierVisitRows (one person's
  *                       from before a season, said or standing booked), visitsOver (a span's rows, and
@@ -77,22 +77,32 @@ export async function appointmentByKey(
 }
 
 /**
- * The live row this client holds that starts within `withinMs` of `startMs`, the nearest first; null when the client
- * is named by neither a number nor an address, or holds none there.
+ * The live row one source wrote for this client under one tool that starts within `withinMs` of `startMs`, the nearest
+ * first. Null when the client is named by neither a number nor an address, or holds none there. A row is its source's
+ * word: a booking tool's notice that missed its key finds its own visit by client and time, never a request the
+ * receptionist took (decision 0061, the owner's to book) or another tool's visit, which it would otherwise move, rename
+ * and book. Every row a notice writes names its tool (booking_read), so a row that names none is no notice's.
  */
 export async function appointmentByClientStart(
   db: Db,
   tenantId: string,
-  client: { phone: string | null; email: string | null },
-  startMs: number,
-  withinMs: number,
+  near: {
+    source: AppointmentRow["source"];
+    tool: string;
+    client: { phone: string | null; email: string | null };
+    startMs: number;
+    withinMs: number;
+  },
 ): Promise<AppointmentRow | null> {
+  const { source, tool, client, startMs, withinMs } = near;
   const who = clientFilter(client);
   if (!who) return null;
   const { data, error } = await db
     .from("appointments")
     .select("*")
     .eq("tenant_id", tenantId)
+    .eq("source", source)
+    .eq("tool", tool)
     .in("status", [...LIVE_STATUSES])
     .gte("starts_at", new Date(startMs - withinMs).toISOString())
     .lte("starts_at", new Date(startMs + withinMs).toISOString())

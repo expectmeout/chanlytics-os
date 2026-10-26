@@ -141,6 +141,9 @@ export const PLAYBOOK_DEFAULTS = { runHour: 10, capPerRun: 25, gapDays: 90, cade
 
 export const PLAYBOOK_HOURS = { min: 9, max: 20 } as const;
 
+/** The hour the day's sending hours end at (21): nextOpenMoment moves to the next day from it (sendingEndsAt). */
+export const SENDING_HOURS_END = PLAYBOOK_HOURS.max + 1;
+
 /**
  * The whole numbers a playbook keeps, each with its range and the words a refusal names it by: what a new playbook's
  * check (core checkPlaybook), a change's (core checkPlaybookPatch) and Ask's starter card read, so a bound is written once.
@@ -158,13 +161,18 @@ export const PLAYBOOK_LIMITS = {
  */
 export const PLAYBOOK_CAP_CHOICES: readonly number[] = [5, 10, 25, 50, 100, 250, 500];
 
-/** The hours a send may go out in, as the pages say them: "9:00–20:59", "between 9:00 and 20:59", and the hour a moved send waits for. */
+/**
+ * The hours a send may go out in, as the pages say them: "9:00–20:59", "between 9:00 and 20:59", the hour a moved send
+ * waits for, and the hour they end at ("21:00"), when a visit's batch made for today can no longer go today
+ * (sendingEndsAt).
+ */
 export const SENDING_HOURS_WORDS = {
   min: PLAYBOOK_HOURS.min,
   max: PLAYBOOK_HOURS.max,
   first: `${PLAYBOOK_HOURS.min}:00`,
   range: `${PLAYBOOK_HOURS.min}:00–${PLAYBOOK_HOURS.max}:59`,
   between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`,
+  end: `${SENDING_HOURS_END}:00`,
 } as const;
 
 /**
@@ -240,14 +248,39 @@ export const PLAYBOOK_VETO_DELAY_WORDS = delayWords(PLAYBOOK_VETO_DELAY_MS);
 export const SEND_ONCE_STOP_WORDS = delayWords(SEND_ONCE_STOP_MS);
 
 /**
- * What the owner is told when a customer's batch waits for their OK (decision 0064: its sequence asks, or its step's words
- * are new): who it reaches, and how the wait ends (contracts waitEndsWords, batch_ask). Its title is the one Today's away card
- * and the bell's close find a waiting run by ("Campaign “X” is ready").
+ * Whether a batch of this moment (`trigger`, its audience's) can be approved only while the day's sending hours last: a
+ * visit's, whose words name the day ("tomorrow at 2:00 PM"), so that approved after them it would go a day late. THE
+ * reading of it, for the approve verb's refusal (contracts runApprovalRefusal) and for the words of its wait
+ * (batchWaitWords) and of its skip (skippedRunNotice), so a notice says 21:00 for exactly the batches refused then.
  */
-export function readyRunNotice(name: string, people: number): { subject: string; body: string } {
+export function approvalEndsWithSendingHours(trigger: string | null | undefined): boolean {
+  return triggerOf(trigger ?? "")?.kind === "visit";
+}
+
+/**
+ * How a customer's batch waiting for an OK ends, by its wait rule (contracts waitEndsWords): a visit's with the day's
+ * sending hours, after which it reaches nobody (visit_ask), any other's with its day (batch_ask). The ready notice and
+ * Today's row (contracts todayRunWords) both say it from here.
+ */
+export function batchWaitWords(trigger: string | null | undefined): string {
+  return approvalEndsWithSendingHours(trigger)
+    ? waitEndsWords("visit_ask", SENDING_HOURS_WORDS.end)
+    : waitEndsWords("batch_ask");
+}
+
+/**
+ * What the owner is told when a customer's batch waits for their OK (decision 0064: its sequence asks, or its step's words
+ * are new): who it reaches, and how the wait ends (batchWaitWords). Its title is the one Today's away card and the bell's
+ * close find a waiting run by ("Campaign “X” is ready").
+ */
+export function readyRunNotice(
+  name: string,
+  people: number,
+  trigger: string | null,
+): { subject: string; body: string } {
   return {
     subject: `Campaign “${name}” is ready: ${plural(people, "person", "people")}`,
-    body: `${plural(people, "person has", "people have")} become eligible for “${name}”. Approve or skip it from your Inbox or Today. ${waitEndsWords("batch_ask")}.`,
+    body: `${plural(people, "person has", "people have")} become eligible for “${name}”. Approve or skip it from your Inbox or Today. ${batchWaitWords(trigger)}.`,
   };
 }
 
@@ -264,14 +297,35 @@ export function vetoRunNotice(name: string, people: number, when: string): { sub
 }
 
 /**
+ * Why a skipped batch's next one waits too, said for every mode, since the sweep's row knows neither the mode nor whether
+ * its words are new: a skip leaves both as they were. One approval ends the wait of new words, and under Ask me every
+ * batch waits (batchModeOf), so it says both.
+ */
+const NEXT_BATCH_WAITS =
+  "its batches wait until you approve one, and every one waits while “Before each batch” in its How it runs says to ask";
+
+/**
  * What the owner is told when the sweep skips a customer's batch that waited for an OK past its day (decision 0064):
  * it did not go, because nobody approved it, and its people are in line for the sequence's next batch (00453 puts them
- * back). Said on the bell and by mail, as its "is ready" was, so a skip is never silent.
+ * back; a skipped run touched nobody). A visit's are not (approvalEndsWithSendingHours): the next day's batch names the
+ * next day's, so it says it did not reach them, that they can be written to by hand from the run, which lists them, and
+ * that the next day's waits until 21:00 too. Said on the bell and by mail, as its "is ready" was, so a skip is never silent.
  */
-export function skippedRunNotice(name: string, people: number): { subject: string; body: string } {
+export function skippedRunNotice(
+  name: string,
+  people: number,
+  trigger: string | null,
+): { subject: string; body: string } {
+  const who = plural(people, "person", "people");
+  const subject = `“${name}” didn’t go: nobody approved it`;
+  if (approvalEndsWithSendingHours(trigger))
+    return {
+      subject,
+      body: `${who} waited for your OK until ${SENDING_HOURS_WORDS.end}, and it did not reach them: no later batch sends it in its place. Open it to see who, and write to them yourself. The next day’s “${name}” waits for your OK too, until ${SENDING_HOURS_WORDS.end}: ${NEXT_BATCH_WAITS}.`,
+    };
   return {
-    subject: `“${name}” didn’t go: nobody approved it`,
-    body: `${plural(people, "person", "people")} waited for your OK until the day ended, and nothing was sent. They are in line for its next batch. To stop being asked each time, change “Before each batch” in its How it runs.`,
+    subject,
+    body: `${who} waited for your OK until the day ended, and nothing was sent. They are in line for its next batch, which waits for your OK too: ${NEXT_BATCH_WAITS}.`,
   };
 }
 

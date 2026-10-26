@@ -639,6 +639,36 @@ test("ask: the row waits, nobody is scheduled, the owner is told in these words,
   assert.match(one.of("notify")[0][2], /^1 person has become eligible/);
 });
 
+test("REGRESSION: a reminder whose words are new waits for an OK even under Send it, and its owner was told it waits until its day ends, when it is skipped at 21:00 and reaches nobody: the notice says so, by the visit's wait rule", async () => {
+  const next = visit("2026-09-07T18:00:00Z", "Cut"); // tomorrow, 2:00 PM in New York
+  const read = { timezone: TZ, source: "calendar", state: "ok", next, last: null };
+  const { ports, of } = fakes();
+  const r = await runPlaybook(
+    ports,
+    cmd({
+      playbook: playbook({
+        name: "Appointment reminder",
+        trigger: "visit_tomorrow",
+        policy_class: "booking",
+        mode: "auto",
+        words_ok_at: null,
+      }),
+      ctx: context({
+        calendar: "ok",
+        people: [toPersonRowVM(dto("a", { visits: read }), TZ, NOW)],
+        visits: new Map([["a", read]]),
+      }),
+    }),
+  );
+  assert.equal(r.outcome, "held");
+  assert.deepEqual(of("notify")[0], [
+    "notify",
+    "Campaign “Appointment reminder” is ready: 1 person",
+    "1 person has become eligible for “Appointment reminder”. Approve or skip it from your Inbox or Today. Goes only if you approve it before 21:00 by your clock; after that it is skipped, and it does not reach them.",
+    "b1",
+  ]);
+});
+
 test("a visit run keeps each person's words on their row, from the visit the run read", async () => {
   const next = visit("2026-09-07T18:00:00Z", "Balayage"); // tomorrow, 2:00 PM in New York
   const row = toPersonRowVM(
