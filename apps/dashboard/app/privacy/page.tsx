@@ -26,17 +26,89 @@ const DOWNLOAD_WORDS =
 const THEIR_COPY_WORDS =
   "Its owner can download one file of the records it keeps about you, which names what it leaves out and why.";
 
+/**
+ * What Google's review reads against the consent screen: each scope the app asks for, named with what it is used for
+ * (channels MAILBOX_SCOPES; decision 0073, 18 to 22: the mail, the contacts, the calendar), and the Limited Use
+ * commitments spelled out, not only linked. Removing a mailbox revokes the grant at Google and drops its credentials
+ * (edge mailboxRemove), which is what the paragraph on the access says.
+ */
+function GoogleUserData() {
+  return (
+    <>
+      <h2>Google user data</h2>
+      <p>
+        <b>Business Profile.</b> When a workspace owner connects a Google Business Profile, we ask Google for permission
+        to manage that business's listings. We use it to read the business's reviews, to show them to the owner, and to
+        post the replies the owner writes or approves.
+      </p>
+      <p>
+        <b>A mailbox.</b> When an owner connects a Google Workspace mailbox, we ask Google for permission to send and
+        read its email and, where the owner leaves them ticked, to read its contacts and its calendar:
+      </p>
+      <ul>
+        <li>
+          <b>Email</b>: we send from the mailbox the emails the owner writes, approves or schedules in Chanlytics, and
+          we read its email with people, the last six months and then as it arrives, so the conversations, the replies
+          and the bounces show in the workspace. Newsletters, receipts and other automated mail are set aside and not
+          kept.
+        </li>
+        <li>
+          <b>Contacts</b>: the mailbox's contacts and other contacts are added to the workspace's people. Being in a
+          contact list never counts as agreeing to receive offers.
+        </li>
+        <li>
+          <b>Calendar</b>: its events, from 180 days back to 90 days ahead, show the business's bookings, its free times
+          and who visited when.
+        </li>
+      </ul>
+      <p>
+        To draft a reply to an email, its text goes to the AI model providers named above, which process it only to
+        write the draft. Nothing leaves the mailbox unless the owner wrote, approved or scheduled it.
+      </p>
+      <p>
+        We store the access Google grants in a vault the product's pages cannot read, so the connection keeps working.
+        When the owner disconnects a Business Profile or removes a mailbox, we stop using it and delete that access; for
+        a mailbox we also revoke it at Google. What a mailbox already brought in stays in the workspace, like its other
+        records, until the owner deletes it or the workspace.
+      </p>
+      <p>
+        Chanlytics' use and transfer to any other app of information received from Google APIs will adhere to the{" "}
+        <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noreferrer">
+          Google API Services User Data Policy
+        </a>
+        , including the Limited Use requirements. For the data we receive from Google, that means:
+      </p>
+      <ul>
+        <li>We use it only to provide the features described here, which the owner can see and turn off.</li>
+        <li>
+          We transfer it to no one except the services named in this policy, to run those features, or where the law
+          requires it.
+        </li>
+        <li>We never use it for advertising, and we never sell it.</li>
+        <li>
+          No one at Chanlytics reads it unless the owner asks us to look at specific messages, it is needed for
+          security, or the law requires it.
+        </li>
+        <li>
+          We do not use it to develop, improve or train generalized AI or machine-learning models, and neither do the AI
+          model providers that write drafts for us.
+        </li>
+      </ul>
+    </>
+  );
+}
+
 export default function PrivacyPage() {
   return (
     <main className="legal">
       <h1>Privacy policy</h1>
-      <p className="legal-meta">Chanlytics · last updated October 14, 2026</p>
+      <p className="legal-meta">Chanlytics · last updated October 26, 2026</p>
 
       <p>
         Chanlytics is a receptionist for small businesses: it answers a business's customers on WhatsApp, by phone and
-        by text, keeps the conversations where the owner can read them, and helps the owner reply to reviews and reach
-        customers who asked to hear from them. This policy says what we hold to do that, why, who else touches it, and
-        what you can do about it.
+        by text, keeps the conversations where the owner can read them, and helps the owner reply to reviews, answer
+        email from their own mailbox and reach customers who asked to hear from them. This policy says what we hold to
+        do that, why, who else touches it, and what you can do about it.
       </p>
 
       {/*
@@ -89,7 +161,7 @@ export default function PrivacyPage() {
         <li>
           <b>Connected services</b>: what a connected service tells us — a WhatsApp number's status, a phone line's
           state, a Google Business Profile's reviews and the replies posted to them, the events in a calendar feed the
-          owner pastes.
+          owner pastes, and a connected mailbox's email, contacts and calendar.
         </li>
         <li>
           <b>Billing</b>: the plan, the subscription's status and the card's brand and last four digits. Card numbers
@@ -108,8 +180,12 @@ export default function PrivacyPage() {
         </li>
         <li>To show the owner what was said and done, and to let a person take over a conversation.</li>
         <li>
-          To send messages the owner asked us to send, only to people who agreed to receive them, with a way to stop at
+          To send offers the owner asked us to send, only to people who agreed to receive them, with a way to stop at
           any time.
+        </li>
+        <li>
+          To send, from the owner's own connected mailbox, the emails the owner writes or approves. A first email to
+          another business always carries a way to stop hearing from it.
         </li>
         <li>To bill the workspace, to secure the service, and to meet legal obligations.</li>
       </ul>
@@ -132,23 +208,15 @@ export default function PrivacyPage() {
         </li>
         <li>Meta (WhatsApp Business Platform) for WhatsApp messages and templates.</li>
         <li>Twilio for phone numbers and text messages, and Retell for phone calls.</li>
-        <li>Google (Business Profile and Maps) for reviews and replies, when the owner connects them.</li>
+        <li>
+          Google (Business Profile and Maps) for reviews and replies, and Google (Gmail, Contacts and Calendar) for a
+          mailbox, when the owner connects them.
+        </li>
         <li>Anthropic and OpenAI for the receptionist's drafts.</li>
         <li>Stripe for billing, and Resend for the emails we send you.</li>
       </ul>
 
-      <h2>Google user data</h2>
-      <p>
-        When a workspace owner connects a Google Business Profile, we ask Google for permission to manage that
-        business's listings. We use it to read the business's reviews, to show them to the owner, and to post the
-        replies the owner writes or approves. We store the access Google grants so the connection keeps working, and we
-        remove it when the owner disconnects. Chanlytics' use and transfer to any other app of information received from
-        Google APIs will adhere to the{" "}
-        <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noreferrer">
-          Google API Services User Data Policy
-        </a>
-        , including the Limited Use requirements.
-      </p>
+      <GoogleUserData />
 
       {/*
         The clauses come from contracts, not from this file, because every
