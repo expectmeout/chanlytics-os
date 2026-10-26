@@ -160,6 +160,7 @@ export function PeopleAddSheet({
     <RecordSheet
       backCloses
       steady
+      fit
       id="people-add"
       title={picking ? pickTitle(back) : "Add people"}
       tools={

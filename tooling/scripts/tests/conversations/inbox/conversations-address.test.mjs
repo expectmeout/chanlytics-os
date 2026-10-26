@@ -54,7 +54,8 @@ Object.assign(globalThis, {
   },
 });
 const S = "../../../../../apps/dashboard/src";
-const { ConversationsPage, OutcomePill } = await import(`${S}/surfaces/inbox/pages/conversations-page.tsx`);
+const { ConversationsPage } = await import(`${S}/surfaces/inbox/pages/conversations-page.tsx`);
+const { OutcomePill } = await import(`${S}/surfaces/inbox/pages/outcome-pill.tsx`);
 const { SubTabs } = await import(`${S}/surfaces/kit/sub-tabs/sub-tabs.tsx`);
 const cvRules = await import(`${S}/surfaces/inbox/cv-rules.ts`);
 const { cvRoute: route, cvAddress: address } = cvRules;

@@ -522,7 +522,8 @@ function monthCellWords(d: CalendarFrame, taken: number, open: number, feedOk: b
     <span className="cal-month-counts">
       {taken > 0 && <span className="cal-month-taken">{taken} taken</span>}
       {showOpen && <span className="cal-month-open">{open} open</span>}
-      {taken === 0 && !showOpen && <span className="cal-month-none">—</span>}
+      {/* A day with nothing says nothing under its date (its label says so for a screen reader, crCellLabel): a dash under
+          every empty date drew a column of them down the month. */}
     </span>
   );
 }
@@ -744,8 +745,9 @@ function agendaFoot(d: CalendarFrame, p: AgendaProps, empty: boolean) {
 /** One day of the agenda: its heading (Today and Tomorrow said), its rows and campaigns, and what it says under them. */
 function agendaDay(d: CalendarFrame, p: AgendaProps) {
   const rows = agendaRowsOf(d, p);
-  // A day with nothing on it, no open time drawn and nothing to say, is one slim line (CAL-26).
-  const quiet = !rows.length && agendaReadable(d) && !d.today && !(p.openOn && p.feedOk && !d.past);
+  // A day with nothing on it, no open time drawn and nothing to say, is one slim line (CAL-26). Today too, where no
+  // calendar is read: its foot says "Nothing on the calendar." only over a feed, and it said nothing at all without one.
+  const quiet = !rows.length && agendaReadable(d) && !(d.today && p.feedOk) && !(p.openOn && p.feedOk && !d.past);
   return (
     <div
       key={d.key}

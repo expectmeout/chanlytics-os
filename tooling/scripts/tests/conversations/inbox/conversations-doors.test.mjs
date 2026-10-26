@@ -183,7 +183,8 @@ Object.assign(globalThis, {
   },
 });
 const S = "../../../../../apps/dashboard/src";
-const { ConversationsPage, OutcomePill } = await import(`${S}/surfaces/inbox/pages/conversations-page.tsx`);
+const { ConversationsPage } = await import(`${S}/surfaces/inbox/pages/conversations-page.tsx`);
+const { OutcomePill } = await import(`${S}/surfaces/inbox/pages/outcome-pill.tsx`);
 // The one thread, which Conversations mounts for a conversation row (thread-pane.tsx).
 const { InboxThread } = await import(`${S}/surfaces/inbox/thread/thread.tsx`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);

@@ -1376,7 +1376,9 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 .dash-a-v2-glass > :is(.today-alert, .today-strip, .dash-a-v2-bottom, .tsec.tp) { grid-column: 1 / -1; }
 .dash-a-v2-glass > .dash-a-v2-work { grid-column: span 8; gap: 14px; }
 .dash-a-v2-glass > .dash-a-v2-work > .today-queue { flex: 1 1 auto; display: flex; flex-direction: column; }
-.dash-a-v2-glass .today-queue > .tq-foot { margin-top: auto; }
+/* The foot follows the last row, the room the queue stands tall by under it: pinned to the bottom, it stood 130px under
+   a short queue's last row, a gap that read as a row missing. */
+.dash-a-v2-glass .today-queue > .tq-foot { margin-top: 0; }
 .dash-a-v2-glass > .dash-a-v2-side { grid-column: span 4; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 /* The side's last pane reaches the queue's bottom edge (E3's right column fills its row): with one row in the bell the
    column stopped 160px short and the page showed through. */
@@ -1625,7 +1627,7 @@ a.ts-next { text-decoration: none; }
 .dash-a-v2 .tc-fig { padding: 4px 16px 4px 0; }
 .dash-a-v2 .tc-fig + .tc-fig { border-left: 1px solid var(--line); padding-left: 16px; }
 .dash-a-v2 .tc-fig-n { font-size: var(--text-figure); font-weight: var(--weight-medium); letter-spacing: -0.035em; line-height: 1; }
-.dash-a-v2 .tc-fig-w { margin-top: 6px; font-size: var(--text-base); font-weight: var(--weight-semibold); color: var(--ink); }
+.dash-a-v2 .tc-fig-w { margin-top: 6px; font-size: var(--text-base); font-weight: var(--weight-semibold); color: var(--ink); text-wrap: balance; }
 .dash-a-v2 .tc-fig-m { font-size: var(--text-sm); }
 /* A phone stands the figures two a row (above), so the line is between the two of a row: the third begins its row at
    the card's edge, as the first does. A line before every figure after the first drew the third 16px in, a line at

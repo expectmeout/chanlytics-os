@@ -335,11 +335,12 @@ export function CallAct({
         <Icon name="phone" size={16} />
       </Button>
     );
-  // A desk's dock draws it as its circles are drawn (the Pipeline's deal sheet), the popover hanging from it as from the head's.
+  // A desk's dock draws it as its circles are drawn (the Pipeline's deal sheet, at a desk's large size, peek-foot.tsx
+  // footSize), the popover hanging from it as from the head's.
   const trigger: ReactElement = round ? (
     <Button
       iconOnly
-      size="touch"
+      size="lg"
       variant="quiet"
       className={className}
       aria-label={W.call}

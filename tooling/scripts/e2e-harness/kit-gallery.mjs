@@ -1231,7 +1231,8 @@ export const FAMILIES = [
     about:
       "A state, as StatePill draws it: at rest its dot and its word (plain, ok); asking to be seen, its tone's ground " +
       "(warn, info, danger, the live accent, with its live dot); a glyph in place of the dot; a dot drawn by hand, " +
-      "which the pill hides; and the live dot on its own.",
+      "which the pill hides; one that gives way to a name in a narrow line, its words ending in an ellipsis on a " +
+      "desk; and the live dot on its own.",
     entries: [
       { id: "pill", html: `<span class="pill" data-tone="plain">Draft</span>` },
       { id: "pill-ok", html: `<span class="pill pill-ok" data-tone="ok">Confirmed</span>` },
@@ -1244,6 +1245,10 @@ export const FAMILIES = [
       },
       { id: "pill-glyph", html: `<span class="pill pill-ok" data-tone="ok">${icon("check", 11)}Sent</span>` },
       { id: "pill-dot", html: `<span class="pill pill-ok" data-tone="ok"><span class="dot"></span>Confirmed</span>` },
+      {
+        id: "pill-fit",
+        html: `<div class="gx-row" style="width: 120px;"><span class="pill pill-fit" data-tone="plain">Receptionist replied</span></div>`,
+      },
       { id: "live-dot", html: `<div class="gx-row"><span class="live-dot"></span>On a call now</div>` },
     ],
   },

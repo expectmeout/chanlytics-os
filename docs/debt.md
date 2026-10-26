@@ -355,7 +355,7 @@ event-shaped clocks                   5   of the registered clocks (invariant 6)
 tables with more than one writer     61   484 writers among them
 doors writing a record with no event   97   writing 112 tables (invariant 2)
 personal columns with no erasure strategy    2   in 1 table
-breakpoints outside the set          29   in 11 files
+breakpoints outside the set          28   in 11 files
 literal style values                813   in 22 stylesheets
 primitives outside the kit         1521   selectors naming 646 classes
 inline style props                   67   in 37 files

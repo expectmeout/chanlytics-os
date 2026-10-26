@@ -20,6 +20,8 @@ interface StatePillProps {
   value: unknown;
   /** Words of the page's own, over the family's. */
   label?: ReactNode;
+  /** On a desk, gives way to a name in a line both share: shrinks first, its words end in an ellipsis (kit.css .pill-fit). */
+  fit?: boolean;
   className?: string;
   title?: string | null;
   tip?: string | null;
@@ -30,6 +32,7 @@ export function StatePill({
   kind,
   value,
   label = null,
+  fit = false,
   className = "",
   title = null,
   tip = null,
@@ -39,7 +42,7 @@ export function StatePill({
   const tone = said.tone;
   return (
     <span
-      className={`pill${tone === "plain" ? "" : ` pill-${tone}`}${className ? ` ${className}` : ""}`}
+      className={`pill${tone === "plain" ? "" : ` pill-${tone}`}${fit ? " pill-fit" : ""}${className ? ` ${className}` : ""}`}
       data-state={value}
       data-tone={tone}
       title={title || undefined}

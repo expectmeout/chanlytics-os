@@ -1,3 +1,24 @@
+/** A desk page's own scroller, under the top bar or its strip: the frame's, a report's, a Settings pane's, a person's. */
+const DESK_SCROLLERS = ".main-scroll, .rpt, .set-pane, .cl-profile";
+
+/**
+ * On a desk the window never scrolls; a page scrolls in its own box under the top bar (Today) or its strip (Reports,
+ * Settings), and what passed under its top edge was cut there, a card's title halved. A box that has moved wears
+ * `data-scrolled`, and its edge fades (components.css): only then, since a fade is a mask, and a mask makes the box a
+ * backdrop root, so the glass in a page at rest (every page's panes and capsules) reads the page as it always did. One
+ * listener for the document's life, on scrolls caught on their way down. Answers how to stop.
+ */
+export function watchPageEdges(): () => void {
+  const moved = (e: Event) => {
+    const box = e.target;
+    if (!(box instanceof HTMLElement) || !box.matches(DESK_SCROLLERS)) return;
+    const now = box.scrollTop > 0;
+    if (now !== box.hasAttribute("data-scrolled")) box.toggleAttribute("data-scrolled", now);
+  };
+  document.addEventListener("scroll", moved, { capture: true, passive: true });
+  return () => document.removeEventListener("scroll", moved, { capture: true });
+}
+
 /** The tops watched now, each with the measure that sets its height. */
 const watched = new Map<HTMLElement, () => void>();
 /** Whether the top's height is held where it is (holdFrameTop). */

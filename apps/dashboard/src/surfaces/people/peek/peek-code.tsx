@@ -9,12 +9,17 @@ import { PERSON_PEEK_WORDS } from "@chanlytics/contracts";
 import { codeOnce } from "@/lib/code-once";
 import { useCode } from "@/lib/use-code";
 import type { PersonPeekProps } from "./person-peek";
+import { usePeekLeaves } from "./peek-leaves";
 
 export const peekCode = codeOnce(() => import("./person-peek").then(({ PersonPeek }) => ({ PersonPeek })));
 
 export function PersonPeekWhenRead(p: PersonPeekProps) {
+  // On a desk the peek leaves as a side sheet does, as this mount goes (peek-leaves.ts).
+  const asideRef = usePeekLeaves();
   const Peek = useCode(peekCode, true).loaded?.PersonPeek;
-  if (Peek) return <Peek {...p} />;
+  if (Peek) return <Peek {...p} asideRef={asideRef} />;
   const name = p.person?.head.name ?? p.row?.name ?? "";
-  return <aside className="pk pl-peek pp-peek" aria-label={PERSON_PEEK_WORDS.label(name)} aria-busy="true" />;
+  return (
+    <aside ref={asideRef} className="pk pl-peek pp-peek" aria-label={PERSON_PEEK_WORDS.label(name)} aria-busy="true" />
+  );
 }

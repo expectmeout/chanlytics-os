@@ -27,6 +27,8 @@ import { LastWords, UpNext } from "../person/overview";
 
 export interface PersonPeekProps {
   id: string;
+  /** Its mount's hold on the aside, which plays it out on a desk as the peek closes (peek-leaves.ts). */
+  asideRef?: (el: HTMLElement | null) => void;
   row: PersonRowVM | null;
   person: PersonVM | null;
   failed: string | null;
@@ -109,7 +111,13 @@ export function PersonPeek(p: PersonPeekProps) {
   const name = p.person?.head.name ?? p.row?.name ?? "";
   const cta = p.person ? threadCtaOf({ p: p.person }) : null;
   return (
-    <aside className="pk pl-peek pp-peek" role="dialog" aria-label={W.label(name)} data-testid="person-peek">
+    <aside
+      ref={p.asideRef}
+      className="pk pl-peek pp-peek"
+      role="dialog"
+      aria-label={W.label(name)}
+      data-testid="person-peek"
+    >
       {peekHead(p)}
       <div className="pk-body pp-glance-body">{peekBody(p)}</div>
       <div className="pp-glance-foot">

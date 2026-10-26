@@ -175,19 +175,26 @@ const NOTE_FROM: Record<PersonNoteDto["source"], string | null> = {
   reach_out: "From a sequence to leads",
 };
 
-/** A note's step: its day, and once done, who did it and when ("Done by Maria · Sep 24"). Null for a note. */
+/**
+ * A note's step: its day, and once done, who did it and when ("Done by Maria · Sep 24"). Null for a note. Done by the one
+ * who wrote it, it says only when ("Done · Sep 24"): the note names its writer beside it, and read "You · Done by you".
+ */
 function noteStepOf(n: PersonNoteDto, tz: string, nowMs: number): PersonNoteVM["step"] {
   const day = stepDayOf(n.due_on, tz, nowMs);
   if (!day) return null;
   const doneMs = n.done_at ? Date.parse(n.done_at) : NaN;
   if (!Number.isFinite(doneMs)) return { day, due: day.due, words: day.words, done: false, doneWords: null };
   const who = n.done_by_me ? "you" : (n.done_by_name ?? "").trim() || "a former teammate";
+  const byWriter =
+    n.author_kind === "member" &&
+    (n.mine ? !!n.done_by_me : !n.done_by_me && !!n.done_by_name && n.done_by_name.trim() === n.author_name?.trim());
+  const when = clockShort(doneMs, tz, nowMs);
   return {
     day,
     due: day.due,
     words: NOTE_WORDS.done,
     done: true,
-    doneWords: `${NOTE_WORDS.done} by ${who} · ${clockShort(doneMs, tz, nowMs)}`,
+    doneWords: byWriter ? `${NOTE_WORDS.done} · ${when}` : `${NOTE_WORDS.done} by ${who} · ${when}`,
   };
 }
 

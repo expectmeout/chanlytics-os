@@ -465,20 +465,21 @@ function callOpened(c: CallDraw) {
         </div>
         <div className="tl-call-mark end" data-testid="tl-call-end">
           <span className="tl-call-ended">{["Call ended", ...facts].join(" · ")}</span>
-          {file && (
-            <a
-              className="tl-call-file"
-              href={file}
-              download
-              aria-label="Download the transcript"
-              title="Download the transcript"
-            >
-              <Icon name="download" size={11} />
-            </a>
-          )}
         </div>
-        {/* How it did, judged as a rehearsal is (decision 0069): its own state, so this card's hooks stay as they were. */}
-        {reviewId && <CallReview callId={reviewId} />}
+        {/* What can be done with the call, centred under where it ended: its transcript, and how it did, judged as a
+            rehearsal is (decision 0069: its own state, so this card's hooks stay as they were). The file's glyph stood
+            alone after "No recording", which read as a recording to download, and Review sat at the pane's left edge. */}
+        {(file || reviewId) && (
+          <div className="tl-call-acts">
+            {file && (
+              <a className="tl-call-file" href={file} download title="Download the transcript">
+                <Icon name="download" size={11} />
+                Download transcript
+              </a>
+            )}
+            {reviewId && <CallReview callId={reviewId} />}
+          </div>
+        )}
       </>
     )
   );

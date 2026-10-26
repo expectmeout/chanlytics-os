@@ -8,12 +8,15 @@
 import { codeOnce } from "@/lib/code-once";
 import { useCode } from "@/lib/use-code";
 import type { PipelinePeekProps } from "./peek";
+import { usePeekLeaves } from "../peek/peek-leaves";
 
 export const dealSheetCode = codeOnce(() => import("./peek").then(({ PipelinePeek }) => ({ PipelinePeek })));
 
 export function PipelinePeekWhenRead(p: PipelinePeekProps) {
+  // On a desk the sheet leaves as a side sheet does, as this mount goes (peek/peek-leaves.ts).
+  const asideRef = usePeekLeaves();
   const Sheet = useCode(dealSheetCode, !!p.vm).loaded?.PipelinePeek;
-  if (Sheet) return <Sheet {...p} />;
+  if (Sheet) return <Sheet {...p} asideRef={asideRef} />;
   if (!p.vm || p.phone) return null;
-  return <aside className="pk pl-peek pipe-peek" aria-label={p.vm.name} aria-busy="true" />;
+  return <aside ref={asideRef} className="pk pl-peek pipe-peek" aria-label={p.vm.name} aria-busy="true" />;
 }

@@ -630,6 +630,14 @@
 }
 
 /* ---- The month: one pane ---- */
+/* It fills the room the page leaves at every width, its six rows sharing it, as the phone's does (below, where a month
+   of dots keeps its own height): a desk's stood 160px short of the window's foot. */
+.main-scroll > .calendar .cal-body > .cal-month {
+  flex: 1 1 auto;
+}
+.main-scroll > .calendar .cal-month-row {
+  flex: 1 1 0;
+}
 .main-scroll > .calendar .cal-month {
   position: relative;
   border: 0;
@@ -986,6 +994,21 @@
 /* ---- The agenda: a day with nothing to say is one slim line (CAL-26) ---- */
 .cal-agenda-day[data-quiet] { padding-top: var(--space-1); padding-bottom: var(--space-1); }
 .cal-agenda-day[data-quiet] .cal-agenda-head { color: var(--ink-dim); }
+/* On a desk a quiet day is its line on the page, at the panes' inner edge, and only a day that holds something is a
+   pane: fourteen panes 1,138px wide stood there, thirteen of them saying nothing was on the calendar. */
+@media (width > 900px) {
+  .main-scroll > .calendar .cal-agenda-day[data-quiet] {
+    padding-block: var(--space-1);
+    background: none;
+    box-shadow: none;
+  }
+  .main-scroll > .calendar .cal-agenda-day[data-quiet]::after {
+    content: none;
+  }
+  .main-scroll > .calendar .cal-agenda-day[data-quiet] .cal-agenda-head .cal-date {
+    font-size: var(--text-base);
+  }
+}
 
 /* ---- The bar on the frame's row of views (board-parts.tsx calendarAct) ----
    The page's act, where Reports' period stands: on a desk the whole bar, its steps and range after the views and Show,

@@ -641,6 +641,7 @@ export function rulesSheet(p: {
       title="Hours and rules"
       sub={`Times are ${vm.zoneCity} time`}
       close={{ label: "Close", glyph: <Icon name="x" size={13} /> }}
+      fit
       testid="cal-rules"
     >
       <dl className="cal-rules-list">

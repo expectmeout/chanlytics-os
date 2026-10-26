@@ -43,6 +43,7 @@ export function proposalLinkOf(current, personLink) {
 export function wholeDaysSince(atMs, nowMs) {
   return atMs === null ? null : Math.max(0, Math.floor((nowMs - atMs) / DAY_MS));
 }
+export const daysInStageWords = (days) => days === 0 ? "today" : `${days} d`;
 export function dealSinceMs(d) {
   const at = d.stage === "proposed" ? d.proposed_at : d.stage === "ended" ? d.ended_at : d.decided_at ?? d.proposed_at;
   const ms = at ? Date.parse(at) : NaN;
@@ -68,7 +69,7 @@ export function toDealVM(d, tz, nowMs) {
   const said = [word, since, amount].filter((x) => !!x).join(" \xB7 ");
   const line = [d.service, said].filter((x) => !!x).join(" \xB7 ");
   const facts = [d.service, since, amount].filter((x) => !!x).join(" \xB7 ");
-  const brief = d.stage === "proposed" ? `${word} \xB7 ${waitingDays ?? 0} d` : d.stage === "won" ? [word, d.service].filter((x) => !!x).join(" \xB7 ") : null;
+  const brief = d.stage === "proposed" ? `${word} \xB7 ${daysInStageWords(waitingDays ?? 0)}` : d.stage === "won" ? [word, d.service].filter((x) => !!x).join(" \xB7 ") : null;
   return {
     id: d.id ?? null,
     version: d.version ?? null,

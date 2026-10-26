@@ -277,8 +277,9 @@ export function startersOffer({ S, langs, busy, addingAll, addStarters, hasNumbe
         tone="plain"
         lead={`The starter set is ${tplSpell(S.list.length)} messages for the moments Chanlytics acts on.`}
         act={
+          // The page's coral is New template, in its head: the banner's act is the second (two stood side by side).
           <Button
-            variant="primary"
+            variant="secondary"
             disabled={busy}
             onClick={() =>
               addStarters(

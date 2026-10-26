@@ -1109,13 +1109,15 @@
 .cl-prof-deck {
   min-height: var(--tab-room, 0px);
 }
-/* Beside the work from 880 of its column, the rail 296 wide; from 1240 a third column (person-real.tsx WIDE_PX, which reads
-   the same width) for their notes, the rail 272 and the notes 288 (canvas A, D7 at 1680). Under 880, one column, the rail over the work. */
+/* Beside the work from 880 of its column, the rail 320 wide; from 1240 a third column (person-real.tsx WIDE_PX, which reads
+   the same width) for their notes, the notes 288 (canvas A, D7 at 1680). Under 880, one column, the rail over the work.
+   The canvas's rail was 296, and 272 beside the notes: a name beside the face had 171px at the hero size there, and
+   "Robin Example" broke in two (26 Oct 2026); at 320 a first and last name stand on one line. */
 @container record (width > 880px) {
-  .cl-prof-record { grid-template-columns: 296px minmax(0, 1fr); }
+  .cl-prof-record { grid-template-columns: 320px minmax(0, 1fr); }
 }
 @container record (width >= 1240px) {
-  .cl-prof-record { grid-template-columns: 272px minmax(0, 1fr) 288px; }
+  .cl-prof-record { grid-template-columns: 320px minmax(0, 1fr) 288px; }
 }
 
 .cl-prof-rail {
@@ -2344,12 +2346,14 @@
        and the table, carries its own gap instead.
    The rest is the same room taken back on both: the line 12px down, the controls row 8px each side of a search
    exactly as tall as the 26px buttons beside it (it was ~30px, so the row was sized by its tallest thing and the
-   buttons floated in it), and the list's name 12px under the rule. A phone's head is its own (PeoplePhoneBar). */
+   buttons floated in it), and the list's name 12px under the rule. A phone's head is its own (PeoplePhoneBar). The
+   search's 26px went on 26 Oct 2026: in Glass it is the 36px capsule (the Glass block below), which this rule's stronger
+   selector had kept at 26 beside 32px buttons. */
 @media (min-width: 901px) {
   .pl-standing { padding-top: 12px; line-height: 20px; }
   .pl-standing-needs { min-height: 24px; margin-block: -2px; }
   .clients .cl-controls { padding-top: 8px; padding-bottom: 8px; }
-  .clients .cl-controls .cl-search-wrap { height: 26px; padding-top: 0; padding-bottom: 0; }
+  .clients .cl-controls .cl-search-wrap { padding-top: 0; padding-bottom: 0; }
   .clients .cl-section { padding-top: 12px; padding-bottom: 0; }
   .clients .cl-list-action { margin-bottom: 8px; }
   .clients .ld-list-head { padding-top: 12px; }
@@ -2894,6 +2898,11 @@
 .pipe-deal-lead > .pipe-deal-lead-act:not(:only-child) { border-radius: var(--radius-full) 0 0 var(--radius-full); }
 .pipe-deal-lead > .pipe-deal-lead-more { flex: none; width: 46px; min-width: 46px; border-left: 1px solid var(--line-strong); border-radius: 0 var(--radius-full) var(--radius-full) 0; }
 .pipe-deal-lead-alone { flex: 1 1 auto; }
+/* On a desk the foot is the large size, not a thumb's (peek-foot.tsx footSize): the caret and the words a desk's. */
+@media (width > 900px) {
+  .pipe-deal-lead > .pipe-deal-lead-act { font-size: var(--text-base); }
+  .pipe-deal-lead > .pipe-deal-lead-more { width: 40px; min-width: 40px; }
+}
 /* Message and Call bare in the foot's glass (Ruben, 21 Oct 2026): a filled disc on the filled capsule read as two layers. */
 .pipe-deal-circle { flex: none; }
 /* While the caret's sheet stands over a phone's foot, the foot steps out from under its glass. */
@@ -3075,17 +3084,27 @@
     height: 15px;
     color: var(--ink-dim);
   }
+  /* Squeezed by an open peek, its words end in an ellipsis, never cut mid-word ("…numbers and er"). */
   .main-scroll .cl-controls > :first-child > input {
+    min-width: 0;
     font-size: var(--text-base);
+    text-overflow: ellipsis;
   }
-  .main-scroll .cl-controls .cl-controls-right > :not([data-testid="add-person"]) > button {
-    height: var(--control-h-md);
+  /* One height for the row: the search's 36, its word buttons and the Pipeline's List and Board beside it. An older desk
+     rule above (22 Sep, Classic's row) held the search to 26px with a stronger selector than this block's, so the row
+     stood at 26, 32 and 38 (the switch's buttons took the word buttons' 32 inside its own frame). */
+  .main-scroll .cl-controls .cl-controls-right > :not([data-testid="add-person"], .pipe-views) > button {
+    height: var(--control-h-lg);
     padding: 0 10px;
     border: 0;
     border-radius: var(--radius-full);
     font-size: var(--text-base);
     font-weight: var(--weight-medium);
     color: var(--ink-muted);
+  }
+  .main-scroll .pipe-views {
+    box-sizing: border-box;
+    height: var(--control-h-lg);
   }
   .main-scroll .cl-section {
     padding: 4px 18px 12px;
@@ -5015,6 +5034,23 @@ a.cl-prof-word:focus-visible > .cl-prof-word-text {
     box-shadow: var(--surface-pane-depth);
     overflow: hidden;
   }
+  /* A peek closing plays out as a side sheet does (people/peek/peek-leaves.ts), as a still copy over the table that takes
+     its room back under it: where it stood, on the pane's solid, since rows pass under it now. It went in one frame. */
+  .main-scroll :is(.pipe-scope, .pp-scope) .cl-main > .pk[data-leaving="true"] {
+    position: absolute;
+    top: 0;
+    right: 0;
+    border: 0;
+    border-radius: var(--surface-pane-radius);
+    background: var(--surface-pane-solid);
+    box-shadow: var(--surface-pane-depth);
+    overflow: hidden;
+    animation: side-out 180ms var(--ease-in) forwards;
+  }
+  .main-scroll .pipe-scope .cl-main > .pk[data-leaving="true"] {
+    bottom: auto;
+    max-height: 100%;
+  }
   /* The Pipeline's deal stands as tall as what it holds, its foot under its last part (the compact sheet, 21 Oct 2026):
      its pane is there only while a deal is open, so the rule names the pane alone. */
   .main-scroll .pipe-scope .cl-main > .pk {
@@ -5033,7 +5069,8 @@ a.cl-prof-word:focus-visible > .cl-prof-word-text {
   .main-scroll .pipe-scope .cl-main:has(.pipe-board)::after {
     content: none;
   }
-  .main-scroll .pipe-scope .cl-main:has(.pipe-board) .cl-controls {
+  .main-scroll .pipe-scope .cl-main:has(.pipe-board) .cl-controls,
+  .main-scroll .pipe-scope .cl-main:has(.pipe-board) .cl-section {
     padding-inline: 0;
   }
   .main-scroll .pipe-board {

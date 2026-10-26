@@ -312,7 +312,7 @@ for (const k of [
 ])
   shellDoors[k] = globalThis.window[k];
 globalThis.StatePill = kitPages.StatePill;
-const { OutcomePill } = await import("../../../../apps/dashboard/src/surfaces/inbox/pages/conversations-page.tsx");
+const { OutcomePill } = await import("../../../../apps/dashboard/src/surfaces/inbox/pages/outcome-pill.tsx");
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
@@ -332,6 +332,8 @@ const pillClass = (n) => (n.rendered ?? n).props.className;
 test("Conversations draws a call's own story in amber -- 'Asked for a call back', 'Hung up early' -- and keeps 'Receptionist handled it' for the calls it describes", () => {
   const callback = OutcomePill({ outcome: toCallVM(call(), ZONE, NOW).outcome, channel: "phone" });
   assert.equal(textOf(callback), "Asked for a call back");
+  // A missed call says so on its row (call-lifecycle.test.mjs read the page's source for it before the pill moved out).
+  assert.equal(OutcomePill({ outcome: "missed", channel: "phone" }).props.value, "missed");
   assert.ok(pillClass(callback).includes("pill-warn"), pillClass(callback));
 
   const quick = OutcomePill({
