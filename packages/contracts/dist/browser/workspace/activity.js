@@ -212,6 +212,7 @@ const WORDS = {
   "settings.fact_suggested": "The receptionist suggested a note from your correction",
   "settings.fact_kept": "A note from a correction was kept",
   "settings.fact_dismissed": "A note from a correction was dismissed",
+  "settings.fix_kept": "A change from a rehearsal was kept",
   "ask.memory_kept": "Ask kept something to remember",
   "ask.memory_changed": "Something Ask remembers was changed",
   "ask.memory_forgotten": "Something Ask remembered was forgotten",

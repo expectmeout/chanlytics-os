@@ -59,6 +59,8 @@ const WORKSPACE_CHANGE_DOORS = /* @__PURE__ */ new Map([
   ["settings.fact_suggested", addressOf({ kind: "rules" })],
   ["settings.fact_kept", addressOf({ kind: "rules" })],
   ["settings.fact_dismissed", addressOf({ kind: "rules" })],
+  // A change kept from a rehearsal landed in How it answers, where the settings it changed are (decision 0069).
+  ["settings.fix_kept", addressOf({ kind: "facts" })],
   // What Ask remembers is listed, changed and forgotten on Settings › Memory (decision 0070).
   ["ask.memory_kept", MEMORY],
   ["ask.memory_changed", MEMORY],

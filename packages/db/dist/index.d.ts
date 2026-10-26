@@ -10708,6 +10708,14 @@ type Database = {
                 };
                 Returns: boolean;
             };
+            rehearsal_fix_keep: {
+                Args: {
+                    p_fix: Json;
+                    p_rehearsal_id: string;
+                    p_tenant_id: string;
+                };
+                Returns: number;
+            };
             relay_events: {
                 Args: {
                     p_limit?: number;
@@ -23132,6 +23140,14 @@ declare function builderOf<T extends TenantTable>(db: Db$X, table: T): _supabase
                 p_call_id: string;
             };
             Returns: boolean;
+        };
+        rehearsal_fix_keep: {
+            Args: {
+                p_fix: Json;
+                p_rehearsal_id: string;
+                p_tenant_id: string;
+            };
+            Returns: number;
         };
         relay_events: {
             Args: {
@@ -51558,7 +51574,8 @@ declare function heldDraftsByIntent(db: Db$8, tenantId: string, days: number): P
  *     (`keepTypedRehearsal`), and a reviewed call (`keepCallReview`).
  *   - The free minutes are read as the window's spoken seconds (`rehearsalSpokenMs`): a call still running counts whole.
  *   - The dashboard reads a rehearsal under the member's own session (RLS), and appends a fix kept from it
- *     (`keepRehearsalFix`) through the service role once the settings write has gone through.
+ *     (`keepRehearsalFix`) through its door, `rehearsal_fix_keep` (00481), on that session once the settings write has
+ *     gone through.
  *   - `voiceAgentOf` / `keepVoiceAgent`: the agent before the number. The service role alone.
  * Every statement on a workspace's table goes through `tenantDb`, so none can reach another workspace's row by an id.
  */
@@ -51674,10 +51691,12 @@ declare function keepCallReview(db: Db$7, r: {
 /** The review, kept on its rehearsal, so a second look costs nothing. */
 declare function keepRehearsalReview(db: Db$7, tenantId: string, id: string, review: Json): Promise<void>;
 /**
- * A change kept from a rehearsal, appended to its fixes (the count "Trained: 3 things" reads). Read and written once:
- * two Keeps at once on one rehearsal are one person's two presses, and the second reads the first's.
+ * A change kept from a rehearsal, appended to its fixes (the count "Trained: 3 things" reads) through its door,
+ * `rehearsal_fix_keep` (00481), on the member's session: the door asks that they may change the workspace's settings,
+ * locks the row so two Keeps at once each append theirs, stamps the moment and writes `settings.fix_kept`. Answers how
+ * many fixes the rehearsal now keeps. A refusal throws.
  */
-declare function keepRehearsalFix(db: Db$7, tenantId: string, id: string, fix: RehearsalFixRow): Promise<void>;
+declare function keepRehearsalFix(db: Db$7, tenantId: string, id: string, fix: Omit<RehearsalFixRow, "at">): Promise<number>;
 /** The workspace's receptionist at Retell, made before any number: null where none was. A read that fails throws. */
 declare function voiceAgentOf(db: Db$7, tenantId: string): Promise<{
     agentId: string;

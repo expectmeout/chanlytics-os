@@ -9746,6 +9746,10 @@ export type Database = {
         Returns: boolean
       }
       recording_opened: { Args: { p_call_id: string }; Returns: boolean }
+      rehearsal_fix_keep: {
+        Args: { p_fix: Json; p_rehearsal_id: string; p_tenant_id: string }
+        Returns: number
+      }
       relay_events: { Args: { p_limit?: number }; Returns: number }
       release_conversation_control: {
         Args: {

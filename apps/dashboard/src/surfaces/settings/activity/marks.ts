@@ -57,6 +57,7 @@ const KIND_MARK: Partial<Record<string, string>> = {
   "settings.fact_suggested": "pencil",
   "settings.fact_kept": "pencil",
   "settings.fact_dismissed": "pencil",
+  "settings.fix_kept": "pencil",
   "contact.note_done": "check",
   "contact.note_undone": "undo",
   "contact.note_seen": "check",

@@ -16,7 +16,6 @@ import {
   withStoredKeysKept,
   type AskSettingsChange,
   type FixChange,
-  type RehearsalFixDto,
   type ReviewDto,
 } from "@chanlytics/contracts";
 import { keepRehearsalFix, listPolicies, putTenantConfig, rehearsalById } from "@chanlytics/db";
@@ -27,7 +26,6 @@ import { recordSettingsChanged } from "../workspace/settings-write";
 import { judgeChangedHandoff } from "../workspace/settings-save";
 import { knownFacts } from "../readers/settings";
 import { composePromptPreview } from "./prompt-preview";
-import { serviceDb } from "../service-db";
 import type { RouteContext } from "../with-route";
 import type { Member } from "../route";
 
@@ -273,16 +271,16 @@ export async function keepRehearsalChange(
   await recordSettingsChanged({ ...ctx, via: k.via }, member.tenantId, before.config, next, result.row.version);
   const field = fixField(k.change);
   const line = fixLine(k.change);
-  const fix: RehearsalFixDto = {
-    op: k.change.op,
-    field,
-    said: line,
-    version: result.row.version,
-    at: new Date().toISOString(),
-  };
+  // Its door's count once kept (two Keeps at once each count the other's); the count read with the rehearsal if not.
+  let fixes = (Array.isArray(r.fixes) ? r.fixes.length : 0) + 1;
   try {
-    // Through the service role, the route having checked the role: members read rehearsals, the doors write them.
-    await keepRehearsalFix(serviceDb(), member.tenantId, r.id, fix);
+    // Through its door, as the member (00481): it asks that they may change the settings, and stamps the moment.
+    fixes = await keepRehearsalFix(ctx.supabase, member.tenantId, r.id, {
+      op: k.change.op,
+      field,
+      said: line,
+      version: result.row.version,
+    });
   } catch (e) {
     // The settings are kept; the count is what is short. Said in the log, never as a refusal of what was written.
     log.error("rehearsal_keep_failed", {
@@ -292,6 +290,5 @@ export async function keepRehearsalChange(
     });
   }
   const shown = await nowReads(ctx, member.tenantId, k.change, { before: before.config, after: next }, k.channel);
-  const fixes = (Array.isArray(r.fixes) ? r.fixes.length : 0) + 1;
   return { version: result.row.version, field, line, now_reads: shown, fixes };
 }
