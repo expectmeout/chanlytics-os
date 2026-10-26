@@ -1,7 +1,8 @@
 # 0001 · A channel-neutral inbound pipeline
 
-**Status:** decided. Step 1 built (28 September 2026: the extraction into `packages/core/src/inbound/`, "As built"
-below); steps 2 to 8 to come. Its five questions answered 26 October 2026 (below). Written against commit `b729bdf`, and verified
+**Status:** decided. Steps 1 and 2 built: the extraction into `packages/core/src/inbound/` (28 September 2026, "As
+built" below), and the one inbound shape, which the message path takes beside WhatsApp's (26 October 2026, "As built,
+step 2" below); steps 3 to 8 to come. Its five questions answered 26 October 2026 (below). Written against commit `b729bdf`, and verified
 against the code at it, with the working tree as it stood. Where this note and
 the code disagree, the code wins.
 
