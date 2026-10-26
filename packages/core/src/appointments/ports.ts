@@ -71,7 +71,8 @@ export interface AppointmentPatch {
 
 /**
  * What became of a notice, as the ledger keeps it (appointment_notices.outcome). `dismissed` is one set aside: by a
- * person, from the held list, or by the read itself, for a tool's email that is about no booking.
+ * person, from the held list, or by the read itself, for a tool's email that is about no booking, or a cancellation of
+ * a visit a member already said was kept or missed, which the visit's guard refuses.
  */
 export type NoticeOutcome = "booked" | "changed" | "cancelled" | "held" | "dismissed";
 
@@ -103,8 +104,10 @@ export interface BookingNoticePorts {
   /** The row under this key (appointments_source_uq, source booking_email), or null. */
   byKey(tenantId: string, externalId: string): Promise<StoredAppointment | null>;
   /**
-   * The live row (proposed or booked) this client has that starts within `withinMs` of `startMs`, soonest first, or
-   * null: how a change finds the booking it moves, and a cancellation the one it ends, when the key does not.
+   * The live row (proposed or booked) this client has that starts within `withinMs` of `startMs`, the nearest first, or
+   * null: how a change finds the booking it moves, and a cancellation the one it ends, when the key does not. Only a
+   * row this tool's notices wrote (source booking_email, under this tool): a request the receptionist took is the
+   * owner's to book (decision 0061), and another tool's visit is that tool's word.
    */
   byClientStart(
     tenantId: string,

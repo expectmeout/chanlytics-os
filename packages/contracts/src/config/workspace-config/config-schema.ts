@@ -13,7 +13,7 @@ import { isBookingTool } from "../../calendar/booking-notice";
 import { normalizeEmail } from "../../shared/email-address";
 import { z } from "zod";
 import { keysLeftOut, refuseUnknownFields, withKeysLeftOut } from "../unknown-keys";
-import { ALERT_ADDRESSES_MAX, ALERT_ADDRESSES_MIN } from "./alerts";
+import { ALERT_ADDRESSES_MAX, ALERT_ADDRESSES_MIN, withAlertAddress } from "./alerts";
 import { BrainConfigSchema } from "./brain-config-schema";
 import type { Closure, Hours } from "./business-profile";
 import { ASK_GOAL_MAX, MAX_CLOSURES, dayProblems, isRealDate } from "./config-rules";
@@ -302,5 +302,23 @@ export function withFirstAlertAddress(config: unknown, email: string | null | un
     ...current.config,
     notifications: { escalation_emails: [address] },
   });
+  return next.success ? withStoredKeysKept(next.data, config) : null;
+}
+
+/**
+ * The owner's address on the alert list as they accept a workspace a partner set up (decision 0016): added beside any
+ * address the partner chose, never in its place, so the business hears about its own customers from the first day.
+ *
+ * Returns the config to save, or null when there is nothing to do: the address is on the list already, the list is
+ * full, the config will not parse, or the write schema refuses the address.
+ */
+export function withOwnerAlertAddress(config: unknown, email: string | null | undefined): TenantConfig | null {
+  const current = parseTenantConfigResult(config ?? {});
+  if (!current.ok) return null;
+  const address = normalizeEmail(email);
+  if (!address) return null;
+  const added = withAlertAddress(current.config.notifications, address, true);
+  if (!added.ok || !added.changed) return null;
+  const next = TenantConfigWriteSchema.safeParse({ ...current.config, notifications: added.notifications });
   return next.success ? withStoredKeysKept(next.data, config) : null;
 }

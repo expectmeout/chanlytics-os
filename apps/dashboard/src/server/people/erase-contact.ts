@@ -6,13 +6,16 @@
  * `media` bucket, and the scheduled jobs that would still speak to them. ORDER IS THE DESIGN. The keys are read first
  * (reads only, retryable with nothing to undo). Then the BLOCK (beginErasure, 00124): from that moment the wire refuses
  * the person and the passive doors will not bring them back, whatever happens to the legs below. Then the copies keyed
- * on the number (Ask turns, finished jobs) are scrubbed while the number is still in hand, fail-closed, because nothing
- * after the tombstone can find them again. Storage objects go next, before the rows that name their paths, and a
- * Storage failure STOPS there rather than running the irreversible delete; the person is blocked meanwhile, not live.
- * The rows go LAST, in one transaction. A crash at any point leaves the request retryable.
+ * on the number (Ask turns, finished jobs, kept deliveries, other people's notes, the receptionist's kept turns) are
+ * scrubbed while the number is still in hand, fail-closed, because nothing after the tombstone can find them again.
+ * Storage objects go next, before the rows that name their paths, and a Storage failure STOPS there rather than
+ * running the irreversible delete; the person is blocked meanwhile, not live. The rows go LAST, in one transaction. A
+ * crash at any point leaves the request retryable.
  *
- * The legs that use the service role (the block, Storage, the jobs scrub) are people/erasure.ts's; this module is the
- * order they run in, on the session's client for the rest.
+ * This module is the order the legs run in. The block, Storage and the jobs scrub are people/erasure.ts's, on the
+ * service role; the deliveries, notes, turns and visits scrubs run on it too, from here, because their functions are
+ * granted to the service role alone. The key reads, the Ask scrub, the policy delete, erase_contact and the ledger's
+ * late row run on the session's client.
  */
 import { AppError } from "@chanlytics/contracts";
 import { appointmentsScrub, scrubModelTurns, scrubPersonNotes, scrubProviderEvents, type Json } from "@chanlytics/db";
@@ -163,7 +166,7 @@ async function blockErasure(contact: ErasedContact): Promise<void> {
 }
 
 /* ---- 2. the copies keyed on the number, while the number is still in hand ---- */
-// FAIL CLOSED, and BEFORE anything is destroyed. An Ask turn that quoted
+// FAIL CLOSED, and BEFORE the rows are destroyed. An Ask turn that quoted
 // the number and a finished job that carried it (`to_phone` in a done
 // outbound_send) are found by digits the tombstone will not hold and
 // contact_identities will no longer have, so a re-driven erasure could
@@ -172,6 +175,9 @@ async function blockErasure(contact: ErasedContact): Promise<void> {
 // kept for ever. Scheduled jobs are left to erase_contact, which cancels
 // and scrubs them in the same transaction as the delete; one in flight
 // finishes first, and the best-effort pass after step 4 reaches it.
+// Each leg commits on its own, so only the Ask scrub, one function that
+// commits whole, can stop with nothing removed; a leg after it stops with
+// what the legs before it removed already gone (stoppedPartway).
 async function scrubCopiesFirst(ctx: RouteContext, contact: ErasedContact, keys: ErasureKeys): Promise<void> {
   const { error: askErr } = await scrubAskTurns(ctx, contact, keys.needles);
   if (askErr) {
@@ -188,7 +194,7 @@ async function scrubCopiesFirst(ctx: RouteContext, contact: ErasedContact, keys:
     log.error("erase_jobs_prescrub_failed", { contact: contact.id, error: e });
     throw new AppError(
       "internal",
-      "The finished jobs that carried this person's number could not be scrubbed, so nothing was deleted. Try again.",
+      stoppedPartway("The finished jobs that carried this person's number could not be scrubbed"),
       500,
     );
   }
@@ -200,7 +206,7 @@ async function scrubCopiesFirst(ctx: RouteContext, contact: ErasedContact, keys:
     log.error("erase_deliveries_prescrub_failed", { contact: contact.id, error: e });
     throw new AppError(
       "internal",
-      "The deliveries kept for replay that carried this person's number could not be scrubbed, so nothing was deleted. Try again.",
+      stoppedPartway("The deliveries kept for replay that carried this person's number could not be scrubbed"),
       500,
     );
   }
@@ -212,7 +218,7 @@ async function scrubCopiesFirst(ctx: RouteContext, contact: ErasedContact, keys:
     log.error("erase_notes_prescrub_failed", { contact: contact.id, error: e });
     throw new AppError(
       "internal",
-      "The notes that carried this person's number or address could not be scrubbed, so nothing was deleted. Try again.",
+      stoppedPartway("The notes that carried this person's number or address could not be scrubbed"),
       500,
     );
   }
@@ -224,10 +230,23 @@ async function scrubCopiesFirst(ctx: RouteContext, contact: ErasedContact, keys:
     log.error("erase_turns_prescrub_failed", { contact: contact.id, error: e });
     throw new AppError(
       "internal",
-      "The receptionist's kept turns that named this person could not be scrubbed, so nothing was deleted. Try again.",
+      stoppedPartway("The receptionist's kept turns that named this person could not be scrubbed"),
       500,
     );
   }
+}
+
+/**
+ * What a leg says when it stops an erasure after the Ask scrub. The copies the legs before it removed stay removed
+ * (each committed on its own), so "nothing was deleted" would be false, and an owner who believed it could leave a
+ * person half erased. The person is held meanwhile, and a second request repeats every leg and finishes. It says what
+ * it had removed without claiming there was any: a person no leg before it found has nothing removed yet.
+ */
+function stoppedPartway(what: string): string {
+  return (
+    `${what}, so the erasure stopped partway. What it had already removed stays removed, and nothing more was ` +
+    "deleted. Delete them again to finish."
+  );
 }
 
 /* ---- 3. Storage, before the rows that name it ---- */
@@ -237,14 +256,10 @@ async function removeStoredObjects(contact: ErasedContact, paths: string[]): Pro
   if (storage.error) {
     // Step 4 is irreversible and it deletes the only rows that still name these
     // objects. Stop while the request is entirely retryable rather than leaving
-    // a recording behind with nothing pointing at it.
+    // a recording behind with nothing pointing at it. Every copy leg has run by
+    // now, so it says what stays removed.
     log.error("erase_storage_failed", { contact: id, error: storage.error });
-    throw new AppError(
-      "internal",
-      "The stored recordings and media could not be removed, so the erasure was not " +
-        "completed. Nothing has been deleted, and repeating this request finishes the job.",
-      500,
-    );
+    throw new AppError("internal", stoppedPartway("The stored recordings and media could not be removed"), 500);
   }
   return storage;
 }

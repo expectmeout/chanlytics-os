@@ -9,7 +9,7 @@ import { runApproveWords } from "../shell/campaign-rooms.js";
 import { isReachOutRun } from "../reach-out/reach-out-rules.js";
 import { capitalize } from "../shared/words.js";
 import { messageAboutOfTrigger } from "./playbook-purpose.js";
-import { triggerOf } from "./playbook-triggers.js";
+import { approvalEndsWithSendingHours, triggerOf } from "./playbook-triggers.js";
 import { localDate, nextOpenMoment } from "./playbook-schedule.js";
 import { PARAM_SOURCE_LABELS } from "../templates/templates.js";
 export function poolWords(trigger, word) {
@@ -135,8 +135,7 @@ export function runDaysAt(tz, now) {
   return { today: localDate(tz, now), sendsOn: localDate(tz, nextOpenMoment(tz, now).at) };
 }
 function visitRunTooLate(run, days) {
-  const moment = triggerOf(audienceTrigger(run.audience) ?? "");
-  return moment?.kind === "visit" && !!run.run_for && days.sendsOn > run.run_for;
+  return approvalEndsWithSendingHours(audienceTrigger(run.audience)) && !!run.run_for && days.sendsOn > run.run_for;
 }
 export function runApprovalRefusal(run, days) {
   if (isReachOutRun(run.audience)) return null;

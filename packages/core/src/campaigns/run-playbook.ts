@@ -505,8 +505,9 @@ async function sayTheRun(run: Run, made: { madeId: string; n: number; at: Date |
   if (!at) {
     // A person reads "campaign", never "playbook" (decision 19): Today's away card finds the queue's run in this title,
     // and reads the old word too (contracts today-away.ts), since the bell keeps rows written before. How its wait ends is
-    // the wait rule's (contracts waitEndsWords: until the end of its day, then skipped and told).
-    const told = readyRunNotice(p.name, n);
+    // the wait rule's (contracts batchWaitWords: until the end of its day, then skipped and told), but for a visit's, which
+    // ends with the day's sending hours and reaches nobody after: its moment says which.
+    const told = readyRunNotice(p.name, n, p.trigger);
     await ports.notify(told.subject, told.body, made.madeId);
     return;
   }

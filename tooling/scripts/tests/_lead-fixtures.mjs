@@ -308,6 +308,7 @@ export function fakeApify({ datasets = {}, runs = {} } = {}) {
     },
     async runInput(id) {
       calls.push({ op: "runInput", id });
+      fail("runInput");
       return state.runs[id]?.input ?? null;
     },
     async listItems(datasetId, offset, limit, fields) {

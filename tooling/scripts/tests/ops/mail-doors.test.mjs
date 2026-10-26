@@ -471,10 +471,16 @@ test("signup-notify: a workspace on record and its owner's address, or nothing; 
       `Harbor Moving (harbor-moving) signed up.\nOwner: owner@example.com\nTime zone: America/New_York\nWorkspace id: ${A}\nCreated: 2026-09-13T14:00:00Z\n\nTheir Setup page tells them what to do next; nothing is provisioned until they ask.\n`,
       "the owner's address as given, trimmed; the workspace's own facts; no customer content exists yet and none is here",
     );
-    assert.deepEqual(asked(db).slice(readsBefore), ["tenants.select"], "the workspace's row is the only thing read");
+    assert.deepEqual(
+      asked(db).slice(readsBefore),
+      ["tenants.select", "partner_tenants.select"],
+      "the workspace's row and whether it waits for an owner are the only things read",
+    );
     assert.ok(
-      asked(db).every((q) => q === "tenants.select"),
-      "and nothing else was, for any refusal either",
+      asked(db)
+        .slice(0, readsBefore)
+        .every((q) => q === "tenants.select"),
+      "and for any refusal, the workspace's row alone, if anything",
     );
     assert.deepEqual(tables.notifications, [], "a platform notice has no workspace and so no bell");
 
@@ -486,6 +492,46 @@ test("signup-notify: a workspace on record and its owner's address, or nothing; 
     });
     assert.equal(net.mail()[1].subject, "New workspace: Billing probe");
     assert.match(net.mail()[1].text, /\nOwner: b@example\.com\nTime zone: Europe\/Madrid\n/);
+  } finally {
+    net.restore();
+  }
+});
+
+test("REGRESSION: signup-notify: a workspace a partner set up is said to be one, waiting for the address it was handed to -- the notice called it a sign-up and that address its owner", async () => {
+  // The handover as 0016 writes it at creation: open, to the address the partner gave, until its fourteen days run out.
+  const until = new Date(Date.now() + 14 * 86_400_000).toISOString();
+  const handover = {
+    tenant_id: A,
+    origin: "handover",
+    handover_email: "owner@example.com",
+    handover_expires_at: until,
+    handover_accepted_at: null,
+    handover_declined_at: null,
+    tenants: { name: "Harbor Moving" },
+    partners: { code: "ada-co" },
+  };
+  const db = use(world({ partner_tenants: [handover] }));
+  const net = wire();
+  try {
+    assert.deepEqual(await answer(await knock(SIGNUP, { email: "owner@example.com" })), [
+      200,
+      { ok: true, tenant: "harbor-moving" },
+    ]);
+    const [m] = net.mail();
+    assert.equal(m.subject, "New workspace: Harbor Moving");
+    assert.equal(
+      m.text,
+      `Harbor Moving (harbor-moving) was set up by partner ada-co, for its owner to accept.\nWaiting for: owner@example.com, until ${until}\nTime zone: America/New_York\nWorkspace id: ${A}\nCreated: 2026-09-13T14:00:00Z\n\nNobody owns it until they accept. The partner sets it up meanwhile; nothing is provisioned until it is asked for.\n`,
+      "who set it up, and that the address has not taken it: nobody signed up, and nobody owns it yet",
+    );
+    assert.deepEqual(asked(db), ["tenants.select", "partner_tenants.select"], "the workspace's row, then its handover");
+
+    // Once accepted, the handover holds no address (00392): the workspace has its owner, and is said as any other.
+    use(
+      world({ partner_tenants: [{ ...handover, handover_email: null, handover_accepted_at: "2026-09-14T09:00:00Z" }] }),
+    );
+    await knock(SIGNUP, { email: "owner@example.com" });
+    assert.match(net.mail()[1].text, /^Harbor Moving \(harbor-moving\) signed up\.\nOwner: owner@example\.com\n/);
   } finally {
     net.restore();
   }

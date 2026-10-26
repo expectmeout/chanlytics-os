@@ -210,6 +210,23 @@ test("a cancellation ends the row the time names; a finished visit is not moved;
   assert.equal(twice.calls("update").length, 0);
 });
 
+test("REGRESSION: a cancellation the visit's guard refuses is set aside on the ledger, on the visit it named -- it was kept as cancelled, and Activity said so of a visit that stood", async () => {
+  // A member said the visit was kept (or missed): that is final, and the tool's late word moves nothing. The run says
+  // so for the log; the ledger keeps what became of the notice, and "cancelled" is what did not.
+  const w = world({
+    byKey: { id: "a1", status: "missed", starts_at: THU_3PM, ends_at: THU_5PM, external_id: KEY, contact_id: "p1" },
+    ask: answer({ kind: "cancelled" }),
+    update: "refused",
+  });
+  assert.equal(await run(w), "cancel_refused");
+  assert.deepEqual(w.calls("update")[0].slice(2), ["a1", { status: "cancelled" }], "the guard was asked, and refused");
+  const [, kept] = w.calls("keepNotice")[0];
+  assert.equal(kept.outcome, "dismissed");
+  // The ledger pairs a set-aside notice with a reason, and has none of its own for this one yet: the read's own.
+  assert.equal(kept.holdReason, "not_a_booking");
+  assert.equal(kept.appointmentId, "a1");
+});
+
 test("what is held, with its reason on the ledger and no row written: no model, no spend, an answer with no time or no shape", async () => {
   for (const [over, reason] of [
     [{ mayRead: "no_model" }, "no_model"],

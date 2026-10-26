@@ -3,11 +3,12 @@
  * answers are read by the collect (collect.ts).
  */
 
-import { LEAD_CARDS, LEAD_ESTIMATE_MARGIN } from "@chanlytics/contracts";
+import { LEAD_CARDS, LEAD_ESTIMATE_MARGIN, PEOPLE_RUN_FLOOR_USD } from "@chanlytics/contracts";
 import { APIFY_RUN_END_EVENTS } from "@chanlytics/channels";
 import { CARDS, CHECKER_RUN_TIMEOUT_SECS } from "../cards";
+import { FINAL_RUN_STATES } from "../endings";
 import { runIdFor, sha256Hex } from "../ids";
-import type { LeadMemberRow, LeadPorts, LeadRunRow } from "../ports";
+import type { LeadMemberRow, LeadPorts, LeadRoundRow, LeadRunRow } from "../ports";
 import { claimOrRecover, startFailed } from "./claim";
 import {
   CHECK_BATCH,
@@ -36,6 +37,27 @@ export type CheckAgain = { nonce: string; leadIds: string[] };
 /** A run started by Check again: the door's nonce is in its term, so the round may have ended by the time it commits. */
 export const isAgainRun = (run: Pick<LeadRunRow, "purpose" | "term">): boolean =>
   run.purpose === "check" && (run.term ?? "").startsWith("again:");
+
+/**
+ * What a checker run may charge (its cap): its addresses at the card's price, with the estimate's room, held to what
+ * the round has left of its reservation once its other checks still out keep their own caps, as a discovery run's cap
+ * is (sizing.ts runCaps, people.ts capOf). Never under the floor every run takes (contracts PEOPLE_RUN_FLOOR_USD, the
+ * checker's as much as the provider's), so the addresses the round found are checked even when discovery used its
+ * room. A Check again runs after the round gave its reservation back, so nothing of the round holds it: the door that
+ * asked for it read whether the workspace may spend, and its addresses are capped at their price with room.
+ */
+async function checkerCapOf(p: LeadPorts, round: LeadRoundRow, runId: string, addresses: number): Promise<number> {
+  const brief = LEAD_CARDS.find((c) => c.id === round.plan.card);
+  const want = addresses * (brief?.checkPerEmailUsd ?? 0.00089) * LEAD_ESTIMATE_MARGIN;
+  const out = (await p.db.runsOfRound(round.id)).filter(
+    (r) => r.purpose === "check" && r.id !== runId && !FINAL_RUN_STATES.has(r.state),
+  );
+  const left =
+    round.state === "ended"
+      ? want
+      : round.cost_reserved_usd - round.cost_usd - out.reduce((sum, r) => sum + (r.cap_usd ?? 0), 0);
+  return Math.round(Math.max(PEOPLE_RUN_FLOOR_USD, Math.min(left, want)) * 100) / 100;
+}
 
 /** The members whose picked address still waits for its check, in one fixed order. */
 export function checkable(members: LeadMemberRow[]): LeadMemberRow[] {
@@ -84,11 +106,7 @@ export async function check(
   const id = await runIdFor(round.id, "check", term);
   const token = await p.webhookToken(id);
   const emails = [...new Set(slice.map((m) => m.email as string))];
-  const brief = LEAD_CARDS.find((c) => c.id === round.plan.card);
-  const capUsd = Math.max(
-    0.5,
-    Math.round(emails.length * (brief?.checkPerEmailUsd ?? 0.00089) * LEAD_ESTIMATE_MARGIN * 100) / 100,
-  );
+  const capUsd = await checkerCapOf(p, round, id, emails.length);
   const rows = await p.db.runsEnsure([
     {
       id,

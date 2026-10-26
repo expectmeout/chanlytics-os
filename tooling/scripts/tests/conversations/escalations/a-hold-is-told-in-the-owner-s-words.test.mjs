@@ -100,7 +100,7 @@ test("the notice: who, their words, the receptionist's, the hold's own, where to
       { type: "conversation", id: "c0c0c0c0-c0c0-4c0c-8c0c-c0c0c0c0c0c0" },
     ],
   );
-  assert.equal(n.subject, "Rosa Diaz needs a person — arrived hours late");
+  assert.equal(n.subject, "Rosa Diaz needs a person — too late for an automatic reply");
   assert.equal(
     n.body,
     [
@@ -112,7 +112,10 @@ test("the notice: who, their words, the receptionist's, the hold's own, where to
       "Reply from the Inbox — the receptionist is paused on this thread for 24h.",
     ].join("\n"),
   );
-  assert.equal(n.redactedBody, "A Text conversation needed a person (arrived hours late), and nobody could be told.");
+  assert.equal(
+    n.redactedBody,
+    "A Text conversation needed a person (too late for an automatic reply), and nobody could be told.",
+  );
   assert.match(
     holdNotice(facts({ who: null })).subject,
     /^\+1 \(305\) 555-0142 needs a person/,
@@ -126,7 +129,7 @@ test("the notice: who, their words, the receptionist's, the hold's own, where to
 
 test("someone erased is a customer: no name, no words, no number, no hold's words", () => {
   const n = holdNotice(facts({ erased: true, replyWords: "We open at 10." }));
-  assert.equal(n.subject, "A customer needs a person — arrived hours late");
+  assert.equal(n.subject, "A customer needs a person — too late for an automatic reply");
   assert.equal(n.body, "Text conversation\nReply from the Inbox.");
 });
 

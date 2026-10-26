@@ -125,6 +125,11 @@ export interface LeadCheckerRunner {
    */
   buildId: string;
   buildInput(emails: string[]): unknown;
+  /**
+   * The addresses an input of buildInput's names, read back from the provider's copy of it: what a run was given. Null
+   * when it names none.
+   */
+  emailsOf(input: unknown): string[] | null;
   mapItem(item: unknown): { email: string; state: Exclude<LeadEmailState, "none" | "checking"> } | null;
   fields: readonly string[];
 }
@@ -196,6 +201,10 @@ const CHECKER: LeadCheckerRunner = {
   fields: CHECKER_FIELDS,
   buildInput(emails) {
     return { emails, skipInvalidSyntax: true };
+  },
+  emailsOf(input) {
+    const emails = recordOrNull(input)?.emails;
+    return Array.isArray(emails) ? emails.filter((e): e is string => typeof e === "string") : null;
   },
   mapItem(item) {
     // The checker's item: `status` with `is_catch_all` (read from the calibration's 141 items, Appendix B).

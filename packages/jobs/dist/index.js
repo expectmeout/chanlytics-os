@@ -251,7 +251,8 @@ import {
   memberJoinedOf,
   memberEmailOf,
   noticeKept,
-  unreadOfReaders
+  unreadOfReaders,
+  threadDraftFacts
 } from "../../db/dist/index.js";
 
 // src/escalate.ts
@@ -809,6 +810,18 @@ function stored(r) {
     contact_id: r.contact_id
   };
 }
+function byClientStartOf(db, tool) {
+  return async (tenantId, client, startMs, withinMs) => {
+    const r = await appointmentByClientStart(db, tenantId, {
+      source: "booking_email",
+      tool,
+      client,
+      startMs,
+      withinMs
+    });
+    return r ? stored(r) : null;
+  };
+}
 function ledgerOf(row) {
   if (!isOutcome(row.outcome)) throw new Error(`booking_read: a notice became ${row.outcome}`);
   if (row.hold_reason !== null && !isNoticeHold(row.hold_reason))
@@ -918,10 +931,7 @@ async function bookingRead(ctx, job) {
         const r = await appointmentByKey(db, tenantId, "booking_email", key);
         return r ? stored(r) : null;
       },
-      byClientStart: async (tenantId, client, startMs, withinMs) => {
-        const r = await appointmentByClientStart(db, tenantId, client, startMs, withinMs);
-        return r ? stored(r) : null;
-      },
+      byClientStart: byClientStartOf(db, notice.tool),
       insert: (a) => insertAppointment(db, appointmentRowOf(a)),
       update: (tenantId, id, patch) => updateAppointment(db, tenantId, id, patchOf(patch)),
       personFor: bookings.personFor,
@@ -1036,6 +1046,8 @@ async function outboundSend(ctx, job) {
       release: (id) => releaseQueuedSend2(ctx.db, job.tenant_id, id),
       deliver: (d) => deliver2({ db: ctx.db, wire: ctx.wire }, d),
       escalate: (conversationId, reason, details) => upsertEscalation(ctx.db, job.tenant_id, conversationId, reason, details),
+      // The thread's open hold, read as the dashboard's draft for a person reads it (db threadDraftFacts).
+      openHold: async (conversationId) => (await threadDraftFacts(ctx.db, job.tenant_id, conversationId)).reason,
       alert: ctx.alert,
       ...ctx.page ? { page: ctx.page } : {},
       // The same send as a fresh row, through the same door a broadcast's next batch takes: this job completes, and

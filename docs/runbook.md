@@ -47,6 +47,9 @@ corepack pnpm --filter @chanlytics/dashboard dev
 `VERCEL_ENV` is a laptop, never production (`src/server/env.ts`): every
 call that would reach a provider through the edge answers "not here" unless
 `EDGE_PROVIDERS=live` and `EDGE_URL` point at an edge holding sandbox keys.
+A pair that ends, whispers into or hands over a live call holds
+`EDGE_CALL_SECRET` on both projects: the live-call doors refuse `DIAG_KEY`
+alone, which names no workspace (`apps/edge/lib/voice/live-call-door.ts`).
 
 **The edge.** It has no dev server script. Its doors are standard
 `Request`/`Response` handlers under `apps/edge/api`, so `vercel dev` inside

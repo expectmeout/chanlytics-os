@@ -15,6 +15,22 @@ export function logLineOf(args) {
   }
 }
 
+/** Every logger line written while `fn` ran, parsed, kept instead of printed, beside what `fn` returned. */
+export async function linesOf(fn) {
+  const lines = [];
+  const real = { log: console.log, warn: console.warn, error: console.error };
+  for (const level of Object.keys(real))
+    console[level] = (...args) => {
+      const line = logLineOf(args);
+      if (line) lines.push(line);
+    };
+  try {
+    return { result: await fn(), lines };
+  } finally {
+    Object.assign(console, real);
+  }
+}
+
 /**
  * A line's own fields: the envelope (level, event, request_id) left out, and the stacks (`<key>_stack`, which an error
  * line carries beside the error and which name this machine's paths): a case compares what the line means to say.

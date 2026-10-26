@@ -417,6 +417,7 @@ export {
   searchMessages,
   messageSenders,
   repliedTo,
+  replyAnswersAt,
   failedMessageErrors,
 } from "./repositories/thread";
 export type { ThreadTurn, PgThreadState, LeadContext, MessageHit, MessageSender } from "./repositories/thread";
@@ -782,7 +783,6 @@ export {
 } from "./repositories/facts/fact-suggestions";
 export type { FactCorrectionRow, FactSuggestionRow } from "./repositories/facts/fact-suggestions";
 export { heldDraftsByIntent } from "./repositories/facts/held-drafts";
-export type { HeldDraftsRow } from "./repositories/facts/held-drafts";
 export {
   askMemoryLines,
   askJournalDays,

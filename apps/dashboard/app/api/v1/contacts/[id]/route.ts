@@ -21,7 +21,8 @@ import { eraseContact } from "@/server/people/erase-contact";
  * nothing to undo). Then the BLOCK (beginErasure, 00124): from that moment the
  * wire refuses the person and the passive doors will not bring them back,
  * whatever happens to the legs below. Then the copies keyed on the number
- * (Ask turns, finished jobs) are scrubbed while the number is still in hand,
+ * (Ask turns, finished jobs, kept deliveries, other people's notes, the
+ * receptionist's kept turns) are scrubbed while the number is still in hand,
  * fail-closed, because nothing after the tombstone can find them again.
  * Storage objects go next, before the rows that name their paths, and a
  * Storage failure STOPS there rather than running the irreversible delete;

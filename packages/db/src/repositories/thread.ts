@@ -14,7 +14,8 @@
  *     voice call start and steer door; the availability door asks readDealForPhone.
  *   - Finding words (searchMessages, messageSenders): Ask's message search, called by the dashboard's message reader.
  *   - Whether a message has its answer (repliedTo): a reply that names it (meta.reply_to), whatever became of it. What a
- *     text's answer taken up again after its runner died asks before it speaks twice.
+ *     text's answer taken up again after its runner died asks before it speaks twice. And when the message a reply
+ *     answers was sent (replyAnswersAt), which the send door measures a held draft's lateness from.
  * Every read names the tenant, so a service-role caller cannot cross workspaces and a session client is narrowed by
  * RLS as well. A failed read throws, because a thread the database could not produce is unknown and never empty (a
  * blank thread reads as no pause, nothing said and no replies spent: core's inbound/thread.ts); only a lead's deal and
@@ -715,6 +716,38 @@ export async function repliedTo(db: Db, tenantId: string, conversationId: string
     .limit(1);
   if (error) throw new Error(`repliedTo: ${error.message}`);
   return (data ?? []).length > 0;
+}
+
+/**
+ * When the customer sent the message a reply answers (its `meta.reply_to`, in the reply's own thread), as the provider
+ * stamped it or else as it came in (effectiveAt); for a reply that names none, or one no longer there, when the reply
+ * itself was written; null for no reply to measure. What the send door measures a held draft's lateness from (core
+ * deliver.ts). Throws when it cannot be read: a reply whose age could not be read is not one known to be on time.
+ */
+export async function replyAnswersAt(
+  db: Db,
+  p: { tenantId: string; conversationId: string; messageId?: string | null },
+): Promise<number | null> {
+  if (!p.messageId) return null;
+  const { data: reply, error } = await db
+    .from("messages")
+    .select("created_at, meta")
+    .eq("tenant_id", p.tenantId)
+    .eq("id", p.messageId)
+    .maybeSingle();
+  if (error) throw new Error(`replyAnswersAt: ${error.message}`);
+  if (!reply) return null;
+  const answers = (reply.meta as { reply_to?: unknown } | null)?.reply_to;
+  if (typeof answers !== "string" || !answers) return Date.parse(reply.created_at);
+  const { data: asked, error: askedError } = await db
+    .from("messages")
+    .select("channel_ts, created_at")
+    .eq("tenant_id", p.tenantId)
+    .eq("conversation_id", p.conversationId)
+    .eq("id", answers)
+    .maybeSingle();
+  if (askedError) throw new Error(`replyAnswersAt: ${askedError.message}`);
+  return effectiveAt(asked ?? { channel_ts: null, created_at: reply.created_at });
 }
 
 /**

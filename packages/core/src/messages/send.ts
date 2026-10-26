@@ -1,4 +1,11 @@
-import { isCampaignEmail, jittered, MIN_MS, type SendPurpose } from "@chanlytics/contracts";
+import {
+  holdNotice,
+  isCampaignEmail,
+  jittered,
+  MIN_MS,
+  PURPOSE_REFUSALS,
+  type SendPurpose,
+} from "@chanlytics/contracts";
 import type { Channel, Delivered } from "../deliver";
 import {
   isNotTakenError,
@@ -119,8 +126,49 @@ export async function sendQueued(ports: SendQueuedPorts, cmd: SendQueuedCommand)
     await resendLater(ports, cmd, channel, e);
     return;
   }
+  if (out.outcome === "refused" && out.reason === "too_late") return handItOver(ports, cmd, { channel, to });
   if (out.outcome !== "failed") return;
   await sayItFailed(ports, cmd, { msg, channel, purpose, to, out });
+}
+
+/**
+ * The receptionist's reply the door held back as too late (deliver.ts too_late): it would have reached them past the
+ * reply horizon after the message it answers, so it is a person's to send, exactly as that message would have been had
+ * it come in this late (inbound reply-gates.ts tooLate). The row keeps the words, canceled, for whoever answers. A
+ * thread nothing holds is held under the same reason, `stale`, and told from its event, once per hold. A hold that
+ * could not be written is told here, in the notice its event would have given, since nothing will say it again.
+ */
+async function handItOver(
+  ports: SendQueuedPorts,
+  cmd: SendQueuedCommand,
+  f: { channel: Channel; to: string },
+): Promise<void> {
+  const conversationId = cmd.payload.conversation_id;
+  // A thread already held keeps its hold: its reason, its act and its one notice. The receptionist's own escalation
+  // queues its holding message as a draft and opens the hold in the same breath (inbound dispatch.ts heldOrKept), and
+  // 'stale' replacing a booking's hold lost its act and told the owner again. A hold that cannot be read is not one
+  // known to be open: the thread is handed over, since a second notice is better than a thread nobody holds.
+  if (await ports.openHold(conversationId).catch(() => null)) return;
+  const details = PURPOSE_REFUSALS.too_late;
+  const held = await ports.escalate(conversationId, "stale", details);
+  if (toldFromItsEvent(held)) return;
+  await ports.alert(
+    holdNotice({
+      conversationId,
+      reason: "stale",
+      details,
+      who: null,
+      address: f.to,
+      channel: f.channel,
+      // Not read again on a path the database just failed: the thread, one tap away, has their words. Nor the
+      // draft's: the hold's own notice names only words that reached them (db holdFactsOf), and these never did.
+      customerWords: null,
+      replyWords: null,
+      pausedHours: null,
+      // The door refuses an erased person before it asks how late a draft is, so this one is not.
+      erased: false,
+    }),
+  );
 }
 
 /** How many fresh jobs this send already is the result of (payload.resumes). */

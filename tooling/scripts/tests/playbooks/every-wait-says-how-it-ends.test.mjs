@@ -10,6 +10,7 @@ import assert from "node:assert/strict";
 import {
   ALERT_TOPICS,
   GOING_TODAY_WORDS,
+  PLAYBOOK_TRIGGERS,
   NOTHING_WAITS_KNOWN,
   NOTICE_ENDS,
   PUSH_KINDS,
@@ -22,6 +23,8 @@ import {
   heldReplyNotice,
   noticeStillWaits,
   readyRunNotice,
+  runApprovalRefusal,
+  runDaysAt,
   serverNotificationRows,
   skippedRunNotice,
   todayRunWords,
@@ -43,6 +46,8 @@ test("every wait has a rule: what makes it go, when it ends unanswered, and the 
   for (const k of ["reply", "batch_hold", "review_hold", "one_off"])
     assert.deepEqual(waitRuleOf(k), { goes: "on_its_own", ends: "at_its_time", act: "stop" }, k);
   assert.deepEqual(waitRuleOf("batch_ask"), { goes: "with_your_ok", ends: "end_of_its_day", act: "approve" });
+  // A visit's batch names the day ("tomorrow at 2:00 PM"), so its wait ends sooner, with the day's sending hours.
+  assert.deepEqual(waitRuleOf("visit_ask"), { goes: "with_your_ok", ends: "end_of_sending_hours", act: "approve" });
   for (const k of ["leads_batch", "review_ask"])
     assert.deepEqual(waitRuleOf(k), { goes: "with_your_ok", ends: "never", act: "approve" }, k);
   assert.deepEqual(waitRuleOf("to_send").act, "send");
@@ -56,21 +61,30 @@ test("each rule ends in one sentence, the same wherever it is said", () => {
     waitEndsWords("batch_ask"),
     "Waits for your OK until the end of its day; then it is skipped, and you are told",
   );
+  assert.equal(
+    waitEndsWords("visit_ask", "21:00"),
+    "Goes only if you approve it before 21:00 by your clock; after that it is skipped, and it does not reach them",
+  );
+  assert.equal(
+    waitEndsWords("visit_ask"),
+    "Goes only if you approve it before the day's sending hours end; after that it is skipped, and it does not reach them",
+    "no hour known: never a made-up one",
+  );
   assert.equal(waitEndsWords("leads_batch"), "Waits for your OK; nothing goes until you give it");
   assert.equal(waitEndsWords("to_send"), "Waits for you to send it from your own inbox");
   assert.equal(waitEndsWords("hold"), "Waits for you; nothing more goes until you answer");
 });
 
 test("the notices of a batch say its wait by the rule: ready (until its day ends), held for a stop (goes at its time), skipped (told, never silent)", () => {
-  const ready = readyRunNotice("Win-back", 4);
+  const ready = readyRunNotice("Win-back", 4, "quiet_30");
   // The title the bell's close and Today's away card find a waiting run by.
   assert.equal(ready.subject, "Campaign “Win-back” is ready: 4 people");
   assert.ok(ready.body.endsWith(`${waitEndsWords("batch_ask")}.`), ready.body);
-  assert.equal(readyRunNotice("Win-back", 1).subject, "Campaign “Win-back” is ready: 1 person");
+  assert.equal(readyRunNotice("Win-back", 1, "quiet_30").subject, "Campaign “Win-back” is ready: 1 person");
   const held = vetoRunNotice("Win-back", 2, "today 10:30 AM");
   assert.equal(held.subject, "Campaign “Win-back” sends today 10:30 AM: 2 people");
   assert.ok(held.body.includes(waitEndsWords("batch_hold", "today 10:30 AM")), held.body);
-  const skipped = skippedRunNotice("Win-back", 3);
+  const skipped = skippedRunNotice("Win-back", 3, "quiet_30");
   assert.equal(skipped.subject, "“Win-back” didn’t go: nobody approved it");
   assert.match(skipped.body, /^3 people waited for your OK until the day ended, and nothing was sent\./);
   // Today's row for the waiting run says its wait by the same rule: a customer batch's ends with its day, a reach-out's
@@ -88,6 +102,80 @@ test("the notices of a batch say its wait by the rule: ready (until its day ends
     todayRunWords({ ...row, playbook_id: "p2", audience: { kind: "reach_out" } }).waiting.sentence,
     `4 businesses. ${waitEndsWords("leads_batch")}.`,
   );
+});
+
+test("REGRESSION: a reminder nobody approved told its owner its people were in line for its next batch, and the next batch names the next day's appointments, so they were never reminded: a visit's batch says, by its wait rule, that it goes only with an OK before 21:00, Today's row says the same, and its skip says it did not reach them, how to reach them by hand, and why the next day's waits too", () => {
+  const ready = readyRunNotice("Appointment reminder", 3, "visit_tomorrow");
+  assert.equal(
+    ready.subject,
+    "Campaign “Appointment reminder” is ready: 3 people",
+    "the title a waiting run is found by",
+  );
+  assert.equal(
+    ready.body,
+    "3 people have become eligible for “Appointment reminder”. Approve or skip it from your Inbox or Today. Goes only if you approve it before 21:00 by your clock; after that it is skipped, and it does not reach them.",
+  );
+  // Today's row, which the notice sends the owner to, says its wait the one way (and so does Coming up, which reads it).
+  const row = { state: "pending_approval", recipient_count: 3, when: "today", counts: { sent: 0, replied: 0 } };
+  const reminder = { ...row, playbook_id: "p1", audience: { kind: "playbook", trigger: "visit_tomorrow" } };
+  assert.equal(todayRunWords(reminder).waiting.sentence, `3 people. ${waitEndsWords("visit_ask", "21:00")}.`);
+  assert.ok(ready.body.endsWith(`${waitEndsWords("visit_ask", "21:00")}.`), ready.body);
+  const skipped = skippedRunNotice("Appointment reminder", 3, "visit_tomorrow");
+  assert.equal(skipped.subject, "“Appointment reminder” didn’t go: nobody approved it");
+  assert.equal(
+    skipped.body,
+    "3 people waited for your OK until 21:00, and it did not reach them: no later batch sends it in its place. Open it to see who, and write to them yourself. The next day’s “Appointment reminder” waits for your OK too, until 21:00: its batches wait until you approve one, and every one waits while “Before each batch” in its How it runs says to ask.",
+  );
+  // The message the day after one ends the same way, at the same hour, in the same words.
+  assert.ok(
+    readyRunNotice("After the appointment", 1, "visited").body.endsWith(`${waitEndsWords("visit_ask", "21:00")}.`),
+  );
+  assert.match(
+    skippedRunNotice("After the appointment", 1, "visited").body,
+    /^1 person waited for your OK until 21:00, and it did not reach them: no later batch sends it in its place\. /,
+  );
+  // Every other moment's batch waits until its day ends, and its skip is drawn again on the next batch (a skipped run
+  // touched nobody, 00453 gives back its places); so is a step after the first, and a run whose moment is not known. Its
+  // skip says why the next batch waits too, whatever the mode: a change of mode alone does not end the wait of new words.
+  for (const trigger of [
+    "quiet_30",
+    "lapsed",
+    "saved_list",
+    "everyone_monthly",
+    "proposal_waiting",
+    "after_step",
+    null,
+  ]) {
+    assert.equal(
+      readyRunNotice("Win-back", 4, trigger).body,
+      "4 people have become eligible for “Win-back”. Approve or skip it from your Inbox or Today. Waits for your OK until the end of its day; then it is skipped, and you are told.",
+      String(trigger),
+    );
+    assert.equal(
+      todayRunWords({ ...row, playbook_id: "p1", audience: { kind: "playbook", trigger } }).waiting.sentence,
+      `3 people. ${waitEndsWords("batch_ask")}.`,
+      String(trigger),
+    );
+    assert.equal(
+      skippedRunNotice("Win-back", 3, trigger).body,
+      "3 people waited for your OK until the day ended, and nothing was sent. They are in line for its next batch, which waits for your OK too: its batches wait until you approve one, and every one waits while “Before each batch” in its How it runs says to ask.",
+      String(trigger),
+    );
+  }
+});
+
+test("a notice says 21:00 for exactly the batches the approve verb refuses at 21:00: every moment, one rule", () => {
+  // Monday 19 October 2026 in New York: 8:30 PM, then 9:30 PM, for a batch made that day.
+  const before = runDaysAt(TZ, new Date("2026-10-20T00:30:00Z"));
+  const after = runDaysAt(TZ, new Date("2026-10-20T01:30:00Z"));
+  assert.deepEqual([before.today, after.today], ["2026-10-19", "2026-10-19"]);
+  for (const { id } of PLAYBOOK_TRIGGERS) {
+    const run = { playbook_id: "p1", run_for: "2026-10-19", audience: { kind: "playbook", trigger: id } };
+    assert.equal(runApprovalRefusal(run, before), null, `${id}: approvable at 8:30 PM`);
+    const refused = runApprovalRefusal(run, after) !== null;
+    assert.equal(readyRunNotice("X", 2, id).body.includes("before 21:00"), refused, `${id}: its ready notice`);
+    assert.equal(skippedRunNotice("X", 2, id).body.includes("until 21:00"), refused, `${id}: its skip`);
+  }
 });
 
 test("a reply waiting to go in the owner's name is told once, on the bell and the phone and never by mail, with when it goes and why it waits", () => {

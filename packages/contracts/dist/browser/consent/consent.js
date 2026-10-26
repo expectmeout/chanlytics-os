@@ -65,6 +65,8 @@ export const DELIVERY_REFUSALS = [
   "paused",
   "human_has_it",
   "superseded_by_human",
+  // The receptionist's held reply would reach them past the reply horizon after the message it answers: a person's now.
+  "too_late",
   "sms_carries_no_promotions",
   // A text needs its line active with the carriers and not a test filing (step 3): the inbound door holds the same.
   "sms_line_not_active",
@@ -108,6 +110,7 @@ export const PURPOSE_REFUSALS = {
   paused: "The workspace is paused, so nothing automatic was sent.",
   human_has_it: "Someone on your team has this conversation, so nothing automatic was sent.",
   superseded_by_human: "Someone on your team answered first, so this was not sent.",
+  too_late: "The receptionist's reply would have reached them hours after they wrote, so it was not sent. Its words are kept in the thread, for you to send or answer in your own.",
   // Reach out's, at the wire (deliver.ts): a cold email goes only as the rules it was built under allow.
   unsubscribed: "This person unsubscribed from your marketing emails. No offers or first emails go to them by email; replies, reminders and confirmations still can.",
   outreach_is_email_only: "Cold messages go only by email: never by text or WhatsApp.",

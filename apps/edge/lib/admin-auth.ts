@@ -156,10 +156,11 @@ export function personFor(auth: Admitted, bodyUser: unknown): string | null {
 }
 
 /**
- * The workspace a door that acts on one workspace's row must be told by the token (the live-call doors, the steer):
- * the token's. A key-authorised knock (a preview, which holds no secret) names none and acts as before. A token from
- * a dashboard deployed before these tokens named their workspace is let in while EDGE_TOKEN_UNBOUND stands, and said;
- * the door then cannot check whose row it acts on, which is what the switch dates.
+ * The workspace a door that acts on one workspace's row must be told by the token (the live-call doors, the steer, the
+ * line codes): the token's. A key-authorised knock (a preview, which holds no secret) names none. A token from a
+ * dashboard deployed before these tokens named their workspace is said here; the live-call doors and the line codes
+ * refuse either (voice/live-call-door.ts, lines/line-codes.ts), and the steer still acts as before while
+ * EDGE_TOKEN_UNBOUND stands, unable to check whose row it acts on, which is what the switch dates.
  */
 export function tokenWorkspace(auth: Admitted, aud: string): string | null {
   if (auth.via === "token" && !auth.workspace) logger().info("edge_token_unbound", { door: aud, missing: "workspace" });

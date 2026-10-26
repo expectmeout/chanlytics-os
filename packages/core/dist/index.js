@@ -24,6 +24,7 @@ import {
   stampEmailLeftAs,
   recordCarrierOptOut,
   recordOutbound,
+  replyAnswersAt,
   textLineFacts,
   wireRowOf
 } from "../../db/dist/index.js";
@@ -54,6 +55,89 @@ function assertFrozenFor(d) {
 
 // src/deliver-hold.ts
 import { passesHandoverPause } from "../../contracts/dist/index.js";
+
+// src/inbound/steps.ts
+import {
+  replyDelayMs,
+  priceBreach,
+  priceAllowance,
+  namesMoney,
+  heldLine,
+  policyAskClass,
+  resolveFacts
+} from "../../contracts/dist/index.js";
+var MAX_REPLIES_PER_DAY = 20;
+var STALE_MS = 10 * 60 * 1e3;
+var STALE_REPLY_MS = 2 * 60 * 60 * 1e3;
+function ageVerdict(timestampS, now = Date.now()) {
+  const ageMs = timestampS ? now - Number(timestampS) * 1e3 : 0;
+  return { ageMs, verdict: ageMs > STALE_REPLY_MS ? "stale" : ageMs > STALE_MS ? "late" : "fresh" };
+}
+function pastReplyHorizon(atMs, now) {
+  return atMs !== null && ageVerdict(atMs / 1e3, now).verdict === "stale";
+}
+function holdPlan(replyMode, replyLimits, brainMeta) {
+  let delayMs = replyDelayMs(replyMode, replyLimits);
+  const minConfidence = typeof replyLimits?.min_confidence === "number" ? replyLimits.min_confidence : 0;
+  const heldForConfidence = replyMode === "auto" && minConfidence > 0 && typeof brainMeta?.confidence === "number" && brainMeta.confidence < minConfidence;
+  if (heldForConfidence) delayMs = replyDelayMs("veto", replyLimits);
+  return { delayMs, heldForConfidence, source: heldForConfidence ? "low_confidence" : "veto_window", minConfidence };
+}
+function urgentPhone(x) {
+  return resolveFacts(x.brainCfg, x.known).phone_display.value ?? null;
+}
+function layerTwo(x) {
+  let { replyText, escalate, escalationReason } = x;
+  const phone = urgentPhone(x);
+  let priceBlocked = false;
+  const moneyHeld = x.intent === "money" || namesMoney(replyText);
+  if (priceBreach(replyText, priceAllowance(x.brainCfg, x.tz, x.now))) {
+    priceBlocked = true;
+    replyText = heldLine("price", x.language, phone);
+    escalate = true;
+    escalationReason = "policy_block";
+  }
+  const askClass = moneyHeld ? "money" : policyAskClass(x.policy, x.intent);
+  let complied = null;
+  if (askClass) {
+    const carriesLink = !!x.brainCfg.booking_link && replyText.includes(x.brainCfg.booking_link);
+    complied = askClass === "booking" ? !carriesLink : escalate;
+    if (askClass === "money" && !priceBlocked) {
+      replyText = heldLine("money", x.language, phone);
+    } else if (askClass === "booking" && carriesLink) {
+      replyText = heldLine("booking", x.language, phone);
+    } else if (askClass === "faq" && !escalate) {
+      replyText = heldLine("faq", x.language, phone);
+    }
+    escalate = true;
+    escalationReason = "policy_ask";
+  }
+  return { replyText, escalate, escalationReason, priceBlocked, moneyHeld, askClass, complied };
+}
+function holdCopy(x) {
+  const personHold = !!x.brainCfg && !!x.personMode;
+  const details = x.brainCfg ? personHold ? `You set the receptionist to '${x.replyMode}' for this person \u2014 it stays out of the thread; answer them yourself.` : `Reply mode is '${x.replyMode}' \u2014 the receptionist holds everything for a human.` : x.configBroken ? "This workspace's settings could not be read, so the receptionist stayed silent. The saved configuration has an invalid field." : x.loadFailed ? "This workspace's settings could not be reached just now, so the receptionist stayed silent rather than answer in a voice that might not be yours. Nothing is wrong with your configuration and nothing needs changing; the next message tries again." : "No brain profile configured \u2014 the receptionist stays silent until Settings fills one in.";
+  const botText = personHold ? "(held \u2014 you handle this person yourself)" : "(held \u2014 no auto-reply for this workspace)";
+  const why = x.brainCfg ? personHold ? `this person is set to ${x.replyMode}` : `reply mode ${x.replyMode}` : x.configBroken ? "settings could not be read" : x.loadFailed ? "the workspace's settings could not be reached" : "no persona configured";
+  return { personHold, reason: personHold ? "person_hold" : "policy_block", details, botText, why };
+}
+var NO_MODEL_PAGE = {
+  key: "brain_unavailable",
+  subject: "The receptionist has no model key",
+  body: "ANTHROPIC_API_KEY is not set on the edge. Every reply is the workspace's generic greeting, labelled a fallback, and every thread is handed to a person until the key is back."
+};
+function noModelPlan(fallbacks) {
+  return {
+    replyText: fallbacks.greeting,
+    meta: { ack: true, fallback: "no_model" },
+    escalate: true,
+    escalationReason: "brain_error",
+    escalationDetails: (customerText) => `the receptionist has no model key \u2014 "${customerText}"`,
+    alertReason: "no model"
+  };
+}
+
+// src/deliver-hold.ts
 function heldByThread(d, f, nowMs, kind) {
   const ownCall = f.control?.kind === "call" && !!d.onCall && f.control.ref === d.onCall;
   const held = !!f.control && nowMs < new Date(f.control.until).getTime() && !ownCall;
@@ -61,6 +145,9 @@ function heldByThread(d, f, nowMs, kind) {
   const paused = !!f.pausedUntil && nowMs < new Date(f.pausedUntil).getTime() && !passesHandoverPause(d.trigger);
   if (kind !== "draft" && kind !== "system" && (held || paused)) return "human_has_it";
   return null;
+}
+function lateDraft(d, answeredAt, nowMs, kind) {
+  return kind === "draft" && d.sender === "ai" && pastReplyHorizon(answeredAt, nowMs) ? "too_late" : null;
 }
 
 // src/deliver-text.ts
@@ -306,6 +393,9 @@ async function overtakenByHuman(db, d) {
   const spoke = (newer ?? []).find((m) => !isAutomatedSend(m.meta));
   return spoke ? spoke.id : null;
 }
+async function draftTooLate(db, d, nowMs) {
+  return kindOf(d) === "draft" ? lateDraft(d, await replyAnswersAt(db, d), nowMs, kindOf(d)) : null;
+}
 function event(db, d, kind, messageId, data) {
   return emitEvent(db, d.tenantId, kind, "message", messageId, data);
 }
@@ -360,7 +450,7 @@ async function deliver(ports, d) {
   const outreach = d.purpose === "outreach" && d.channel === "email" ? await outreachFacts(ports.db, d, facts) : null;
   const refusal = refusalFor(d, facts, nowMs, outreach);
   const overtakenBy = !refusal && kindOf(d) === "draft" ? await overtakenByHuman(ports.db, d) : null;
-  const reason = refusal ?? (overtakenBy ? "superseded_by_human" : null);
+  const reason = refusal ?? (overtakenBy ? "superseded_by_human" : await draftTooLate(ports.db, d, nowMs));
   const refuse = async (why, now = {}, said = {}) => {
     if (d.messageId) {
       const contact = { ...facts.contact, ...now };
@@ -881,7 +971,13 @@ async function beginConversation(ports, cmd) {
 }
 
 // src/messages/send.ts
-import { isCampaignEmail, jittered, MIN_MS as MIN_MS2 } from "../../contracts/dist/index.js";
+import {
+  holdNotice as holdNotice2,
+  isCampaignEmail,
+  jittered,
+  MIN_MS as MIN_MS2,
+  PURPOSE_REFUSALS as PURPOSE_REFUSALS2
+} from "../../contracts/dist/index.js";
 
 // src/messages/provider-page.ts
 async function pageTheProvider(pager, f, about) {
@@ -1084,8 +1180,33 @@ async function sendQueued(ports, cmd) {
     await resendLater(ports, cmd, channel, e);
     return;
   }
+  if (out.outcome === "refused" && out.reason === "too_late") return handItOver(ports, cmd, { channel, to });
   if (out.outcome !== "failed") return;
   await sayItFailed(ports, cmd, { msg, channel, purpose, to, out });
+}
+async function handItOver(ports, cmd, f) {
+  const conversationId = cmd.payload.conversation_id;
+  if (await ports.openHold(conversationId).catch(() => null)) return;
+  const details = PURPOSE_REFUSALS2.too_late;
+  const held = await ports.escalate(conversationId, "stale", details);
+  if (toldFromItsEvent(held)) return;
+  await ports.alert(
+    holdNotice2({
+      conversationId,
+      reason: "stale",
+      details,
+      who: null,
+      address: f.to,
+      channel: f.channel,
+      // Not read again on a path the database just failed: the thread, one tap away, has their words. Nor the
+      // draft's: the hold's own notice names only words that reached them (db holdFactsOf), and these never did.
+      customerWords: null,
+      replyWords: null,
+      pausedHours: null,
+      // The door refuses an erased person before it asks how late a draft is, so this one is not.
+      erased: false
+    })
+  );
 }
 function resumesOf(p) {
   return typeof p.resumes === "number" && p.resumes > 0 ? Math.floor(p.resumes) : 0;
@@ -2447,18 +2568,18 @@ async function readBookingNotice(ports, cmd) {
     ...stated
   });
   const keep = async (outcome, id) => {
-    await ports.keepNotice({
-      ...ledger,
-      outcome: outcome.startsWith("booked") ? "booked" : outcome.startsWith("changed") ? "changed" : "cancelled",
-      holdReason: null,
-      appointmentId: id
-    });
+    await ports.keepNotice({ ...ledger, ...ledgerOutcomeOf(outcome), appointmentId: id });
     return outcome;
   };
   const visit = { tenantId, key, r, fresh, stated, ahead: r.start > nowMs };
   if (r.kind === "booked") return keep(...await booked(ports, visit));
   if (r.kind === "changed") return keep(...await changed(ports, visit));
   return keep(...await cancelled(ports, visit));
+}
+function ledgerOutcomeOf(outcome) {
+  if (outcome === "cancel_refused") return { outcome: "dismissed", holdReason: "not_a_booking" };
+  const said = outcome.startsWith("booked") ? "booked" : outcome.startsWith("changed") ? "changed" : "cancelled";
+  return { outcome: said, holdReason: null };
 }
 async function bookedAgainOver(ports, { tenantId, key, fresh }, ended) {
   await ports.update(tenantId, ended.id, { externalId: asideKey(key, ended) });
@@ -2904,7 +3025,7 @@ async function sayTheRun(run, made) {
   const { ports, p, ctx, by, mode } = run;
   const { n, at } = made;
   if (!at) {
-    const told = readyRunNotice(p.name, n);
+    const told = readyRunNotice(p.name, n, p.trigger);
     await ports.notify(told.subject, told.body, made.madeId);
     return;
   }
@@ -37121,6 +37242,10 @@ var CHECKER = {
   buildInput(emails) {
     return { emails, skipInvalidSyntax: true };
   },
+  emailsOf(input) {
+    const emails = recordOrNull(input)?.emails;
+    return Array.isArray(emails) ? emails.filter((e) => typeof e === "string") : null;
+  },
   mapItem(item) {
     const o = recordOrNull(item);
     const email = trimmedOrNull(o?.email)?.toLowerCase() ?? null;
@@ -38520,9 +38645,18 @@ async function startRound(p, roundId, owner, resume = false) {
 import { peoplePlanOf as peoplePlanOf3 } from "../../contracts/dist/index.js";
 
 // src/leads/runner/check.ts
-import { LEAD_CARDS as LEAD_CARDS2, LEAD_ESTIMATE_MARGIN as LEAD_ESTIMATE_MARGIN2 } from "../../contracts/dist/index.js";
+import { LEAD_CARDS as LEAD_CARDS2, LEAD_ESTIMATE_MARGIN as LEAD_ESTIMATE_MARGIN2, PEOPLE_RUN_FLOOR_USD as PEOPLE_RUN_FLOOR_USD2 } from "../../contracts/dist/index.js";
 import { APIFY_RUN_END_EVENTS as APIFY_RUN_END_EVENTS3 } from "../../channels/dist/index.js";
 var isAgainRun = (run) => run.purpose === "check" && (run.term ?? "").startsWith("again:");
+async function checkerCapOf(p, round, runId, addresses) {
+  const brief = LEAD_CARDS2.find((c) => c.id === round.plan.card);
+  const want = addresses * (brief?.checkPerEmailUsd ?? 89e-5) * LEAD_ESTIMATE_MARGIN2;
+  const out = (await p.db.runsOfRound(round.id)).filter(
+    (r) => r.purpose === "check" && r.id !== runId && !FINAL_RUN_STATES.has(r.state)
+  );
+  const left = round.state === "ended" ? want : round.cost_reserved_usd - round.cost_usd - out.reduce((sum, r) => sum + (r.cap_usd ?? 0), 0);
+  return Math.round(Math.max(PEOPLE_RUN_FLOOR_USD2, Math.min(left, want)) * 100) / 100;
+}
 function checkable(members) {
   return members.filter((m) => m.email !== null && m.email_state === "checking").sort((a, b) => a.lead_id < b.lead_id ? -1 : a.lead_id > b.lead_id ? 1 : 0);
 }
@@ -38554,11 +38688,7 @@ async function check(p, roundId, batch, owner, again = null) {
   const id = await runIdFor(round.id, "check", term);
   const token = await p.webhookToken(id);
   const emails = [...new Set(slice.map((m) => m.email))];
-  const brief = LEAD_CARDS2.find((c) => c.id === round.plan.card);
-  const capUsd = Math.max(
-    0.5,
-    Math.round(emails.length * (brief?.checkPerEmailUsd ?? 89e-5) * LEAD_ESTIMATE_MARGIN2 * 100) / 100
-  );
+  const capUsd = await checkerCapOf(p, round, id, emails.length);
   const rows = await p.db.runsEnsure([
     {
       id,
@@ -38944,14 +39074,15 @@ async function collectCheck(p, round, run, owner) {
       if (r) byEmail.set(r.email, r.state);
     }
     const waiting = checkable(await p.db.membersOfRound(round.id));
-    const results = waiting.filter((m) => state !== "succeeded" || byEmail.has(m.email)).map((m) => ({
+    const others = (await p.db.runsOfRound(round.id)).filter((r) => r.purpose === "check" && r.id !== run.id);
+    const last = !again && others.every((r) => FINAL_RUN_STATES.has(r.state));
+    const given = !last && state !== "succeeded" ? await addressesGiven(p, card.checker, run) : null;
+    const answers = (email) => last || (state === "succeeded" ? byEmail.has(email) : given ? given.has(email) : again);
+    const results = waiting.filter((m) => answers(m.email)).map((m) => ({
       lead_id: m.lead_id,
       email_state: byEmail.get(m.email) ?? "unknown",
       checked_at: iso(p.now())
     }));
-    const others = (await p.db.runsOfRound(round.id)).filter((r) => r.purpose === "check" && r.id !== run.id);
-    const answered = new Set(results.map((r) => r.lead_id));
-    const last = !again && others.every((r) => FINAL_RUN_STATES.has(r.state)) && waiting.every((m) => answered.has(m.lead_id));
     const commit = await p.db.collectCommit(run.id, owner, gen, run.read_offset, run.read_offset + items.length, {
       judgment: null,
       places: [],
@@ -38966,6 +39097,17 @@ async function collectCheck(p, round, run, owner) {
     return { kind: "checked", results: results.length, last };
   } finally {
     await p.db.runRelease(run.id, owner, gen);
+  }
+}
+async function addressesGiven(p, checker, run) {
+  if (!run.apify_run_id) return null;
+  if (outOfTime(p)) throw new LeadRetry("out of time before reading what the checker was given");
+  try {
+    const emails = checker.emailsOf(await p.apify.runInput(run.apify_run_id));
+    return emails ? new Set(emails) : null;
+  } catch (e) {
+    if (!isRefused(e)) throw e;
+    return null;
   }
 }
 
@@ -39038,84 +39180,6 @@ function photoUserText(caption, prices) {
 }
 function toBase64(bytes) {
   return Buffer.from(bytes).toString("base64");
-}
-
-// src/inbound/steps.ts
-import {
-  replyDelayMs,
-  priceBreach,
-  priceAllowance,
-  namesMoney,
-  heldLine,
-  policyAskClass,
-  resolveFacts
-} from "../../contracts/dist/index.js";
-var MAX_REPLIES_PER_DAY = 20;
-var STALE_MS = 10 * 60 * 1e3;
-var STALE_REPLY_MS = 2 * 60 * 60 * 1e3;
-function ageVerdict(timestampS, now = Date.now()) {
-  const ageMs = timestampS ? now - Number(timestampS) * 1e3 : 0;
-  return { ageMs, verdict: ageMs > STALE_REPLY_MS ? "stale" : ageMs > STALE_MS ? "late" : "fresh" };
-}
-function holdPlan(replyMode, replyLimits, brainMeta) {
-  let delayMs = replyDelayMs(replyMode, replyLimits);
-  const minConfidence = typeof replyLimits?.min_confidence === "number" ? replyLimits.min_confidence : 0;
-  const heldForConfidence = replyMode === "auto" && minConfidence > 0 && typeof brainMeta?.confidence === "number" && brainMeta.confidence < minConfidence;
-  if (heldForConfidence) delayMs = replyDelayMs("veto", replyLimits);
-  return { delayMs, heldForConfidence, source: heldForConfidence ? "low_confidence" : "veto_window", minConfidence };
-}
-function urgentPhone(x) {
-  return resolveFacts(x.brainCfg, x.known).phone_display.value ?? null;
-}
-function layerTwo(x) {
-  let { replyText, escalate, escalationReason } = x;
-  const phone = urgentPhone(x);
-  let priceBlocked = false;
-  const moneyHeld = x.intent === "money" || namesMoney(replyText);
-  if (priceBreach(replyText, priceAllowance(x.brainCfg, x.tz, x.now))) {
-    priceBlocked = true;
-    replyText = heldLine("price", x.language, phone);
-    escalate = true;
-    escalationReason = "policy_block";
-  }
-  const askClass = moneyHeld ? "money" : policyAskClass(x.policy, x.intent);
-  let complied = null;
-  if (askClass) {
-    const carriesLink = !!x.brainCfg.booking_link && replyText.includes(x.brainCfg.booking_link);
-    complied = askClass === "booking" ? !carriesLink : escalate;
-    if (askClass === "money" && !priceBlocked) {
-      replyText = heldLine("money", x.language, phone);
-    } else if (askClass === "booking" && carriesLink) {
-      replyText = heldLine("booking", x.language, phone);
-    } else if (askClass === "faq" && !escalate) {
-      replyText = heldLine("faq", x.language, phone);
-    }
-    escalate = true;
-    escalationReason = "policy_ask";
-  }
-  return { replyText, escalate, escalationReason, priceBlocked, moneyHeld, askClass, complied };
-}
-function holdCopy(x) {
-  const personHold = !!x.brainCfg && !!x.personMode;
-  const details = x.brainCfg ? personHold ? `You set the receptionist to '${x.replyMode}' for this person \u2014 it stays out of the thread; answer them yourself.` : `Reply mode is '${x.replyMode}' \u2014 the receptionist holds everything for a human.` : x.configBroken ? "This workspace's settings could not be read, so the receptionist stayed silent. The saved configuration has an invalid field." : x.loadFailed ? "This workspace's settings could not be reached just now, so the receptionist stayed silent rather than answer in a voice that might not be yours. Nothing is wrong with your configuration and nothing needs changing; the next message tries again." : "No brain profile configured \u2014 the receptionist stays silent until Settings fills one in.";
-  const botText = personHold ? "(held \u2014 you handle this person yourself)" : "(held \u2014 no auto-reply for this workspace)";
-  const why = x.brainCfg ? personHold ? `this person is set to ${x.replyMode}` : `reply mode ${x.replyMode}` : x.configBroken ? "settings could not be read" : x.loadFailed ? "the workspace's settings could not be reached" : "no persona configured";
-  return { personHold, reason: personHold ? "person_hold" : "policy_block", details, botText, why };
-}
-var NO_MODEL_PAGE = {
-  key: "brain_unavailable",
-  subject: "The receptionist has no model key",
-  body: "ANTHROPIC_API_KEY is not set on the edge. Every reply is the workspace's generic greeting, labelled a fallback, and every thread is handed to a person until the key is back."
-};
-function noModelPlan(fallbacks) {
-  return {
-    replyText: fallbacks.greeting,
-    meta: { ack: true, fallback: "no_model" },
-    escalate: true,
-    escalationReason: "brain_error",
-    escalationDetails: (customerText) => `the receptionist has no model key \u2014 "${customerText}"`,
-    alertReason: "no model"
-  };
 }
 
 // src/inbound/context.ts

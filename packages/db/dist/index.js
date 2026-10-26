@@ -4539,6 +4539,17 @@ async function repliedTo(db, tenantId, conversationId, messageId) {
   if (error) throw new Error(`repliedTo: ${error.message}`);
   return (data ?? []).length > 0;
 }
+async function replyAnswersAt(db, p) {
+  if (!p.messageId) return null;
+  const { data: reply, error } = await db.from("messages").select("created_at, meta").eq("tenant_id", p.tenantId).eq("id", p.messageId).maybeSingle();
+  if (error) throw new Error(`replyAnswersAt: ${error.message}`);
+  if (!reply) return null;
+  const answers = reply.meta?.reply_to;
+  if (typeof answers !== "string" || !answers) return Date.parse(reply.created_at);
+  const { data: asked, error: askedError } = await db.from("messages").select("channel_ts, created_at").eq("tenant_id", p.tenantId).eq("conversation_id", p.conversationId).eq("id", answers).maybeSingle();
+  if (askedError) throw new Error(`replyAnswersAt: ${askedError.message}`);
+  return effectiveAt(asked ?? { channel_ts: null, created_at: reply.created_at });
+}
 async function textReached(db, tenantId, conversationId) {
   const { data, error } = await db.from("messages").select("id").eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("direction", "outbound").eq("channel", "sms").in("status", DELIVERED).limit(1);
   if (error) throw new Error(`textReached: ${error.message}`);
@@ -6991,10 +7002,11 @@ async function appointmentByKey(db, tenantId, source, externalId) {
   if (error) throw new Error(`appointment_by_key: ${error.message}`);
   return data;
 }
-async function appointmentByClientStart(db, tenantId, client, startMs, withinMs) {
+async function appointmentByClientStart(db, tenantId, near) {
+  const { source, tool, client, startMs, withinMs } = near;
   const who = clientFilter(client);
   if (!who) return null;
-  const { data, error } = await db.from("appointments").select("*").eq("tenant_id", tenantId).in("status", [...LIVE_STATUSES]).gte("starts_at", new Date(startMs - withinMs).toISOString()).lte("starts_at", new Date(startMs + withinMs).toISOString()).or(who).order("starts_at", { ascending: true }).limit(10);
+  const { data, error } = await db.from("appointments").select("*").eq("tenant_id", tenantId).eq("source", source).eq("tool", tool).in("status", [...LIVE_STATUSES]).gte("starts_at", new Date(startMs - withinMs).toISOString()).lte("starts_at", new Date(startMs + withinMs).toISOString()).or(who).order("starts_at", { ascending: true }).limit(10);
   if (error) throw new Error(`appointment_by_client_start: ${error.message}`);
   const rows = data ?? [];
   rows.sort((a, b) => Math.abs(Date.parse(a.starts_at) - startMs) - Math.abs(Date.parse(b.starts_at) - startMs));
@@ -7983,6 +7995,7 @@ export {
   renameList,
   repliedTo,
   repliesFor,
+  replyAnswersAt,
   replyReadingOf,
   replyReadingRefOf,
   replySaid,

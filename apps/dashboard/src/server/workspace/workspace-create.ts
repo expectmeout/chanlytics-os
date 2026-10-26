@@ -94,9 +94,10 @@ export async function createWorkspace(ctx: RouteContext, req: Request) {
   // A call that raised nothing answers one row; none is the database's fault, not a workspace to hand over.
   if (!data) throw new Error("create_workspace answered no row");
 
-  // The platform mailbox hears about a new workspace from the one place
-  // workspaces are made. Bounded and best-effort: the workspace exists whether
-  // or not the notice gets through.
+  // The platform mailbox hears about a new workspace from here, and from the
+  // partner's door for one set up for a business (partner-account.ts, 0016).
+  // Bounded and best-effort: the workspace exists whether or not the notice
+  // gets through.
   await notifyPlatformSignup(data.id, ctx.email ?? "", ctx.userId);
 
   // The creator hears from their own workspace: their address is its first alert

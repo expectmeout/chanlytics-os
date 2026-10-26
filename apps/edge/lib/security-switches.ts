@@ -19,7 +19,8 @@ const OPEN: Readonly<Record<string, () => boolean>> = {
   RETELL_WEBHOOK_KEY: () => !env.RETELL_WEBHOOK_KEY,
   // Without the secret, the key alone opens every admin door (admin-auth.ts).
   DIAG_KEY: () => !env.EDGE_CALL_SECRET && !!env.DIAG_KEY,
-  // A token with no body hash, or no workspace on a live-call door, is still accepted (admin-auth.ts).
+  // A token with no body hash, or no workspace on the steer, is still accepted (admin-auth.ts; the live-call doors
+  // refuse one).
   EDGE_TOKEN_UNBOUND: () => !!env.EDGE_CALL_SECRET,
 };
 

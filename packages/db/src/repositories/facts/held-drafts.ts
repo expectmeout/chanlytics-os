@@ -8,7 +8,7 @@ import type { Database } from "../../database.types";
 type Db = SupabaseClient<Database>;
 
 /** One intent's held drafts: how many, and how many were sent as written, rewritten, stopped, or answered first. */
-export interface HeldDraftsRow {
+interface HeldDraftsRow {
   intent: string;
   held: number;
   sent: number;

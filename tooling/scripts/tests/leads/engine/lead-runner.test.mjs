@@ -5,6 +5,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import { startRound } from "../../../../../packages/core/src/leads/runner/start.ts";
 import { collect } from "../../../../../packages/core/src/leads/runner/collect.ts";
 import { check } from "../../../../../packages/core/src/leads/runner/check.ts";
@@ -796,6 +797,194 @@ test("Check again: after the round ended, a re-check runs under it with a run id
     ["qualified", true, []],
     "Qualified, and counted through the month",
   );
+  assert.deepEqual([w.round().state, w.round().ending], ["ended", "stopped"], "neither ended twice nor reopened");
+});
+
+/** A round gone to its checks with `n` more addresses waiting than it found: copies of a found lead, each its own place and address. */
+async function checkingWith(n) {
+  const x = await probed({ plan: { ...PLAN, contact: "email" } });
+  const { w, p } = x;
+  const [r1, r2] = w.runs();
+  await collect(p("c1"), r1.id, "p0", "c1");
+  w.rpcs.lead_round_stop({ p_search_id: w.search().id });
+  await collect(p("s1"), r2.id, "stop", "s1");
+  const lead = w.T.leads.find((l) => l.email && l.email_state === "checking");
+  const member = w.members().find((m) => m.lead_id === lead.id);
+  for (let i = 1; i <= n; i += 1) {
+    const id = randomUUID();
+    const four = String(i).padStart(4, "0");
+    w.T.leads.push({ ...lead, id, place_id: `ChIJextra${four}`, email: `hello@extra${four}.example` });
+    w.T.lead_search_members.push({ ...member, id: randomUUID(), lead_id: id });
+  }
+  return x;
+}
+
+test("REGRESSION: a checker batch that fails says \"Couldn't check\" for the addresses it was given, never another batch's: the round's second batch, still running, lands its answers and ends the round", async () => {
+  // 25 Oct 2026 (the code map, leads-check-fail-all): a failed checker run marked every address still checking in the
+  // whole round, so the batch of 500 beside it, paid for and answered, found nothing left to answer when it collected,
+  // and its leads stayed in Needs review.
+  const { w, p } = await checkingWith(600);
+  const waiting = w.T.leads.filter((l) => l.email_state === "checking").length;
+  const first = await check(p("k0"), w.round().id, 0, "k0");
+  assert.deepEqual([first.kind, first.emails, first.more], ["started", 500, true]);
+  const second = await check(p("k1"), w.round().id, 1, "k1");
+  assert.deepEqual([second.kind, second.emails, second.more], ["started", waiting - 500, false]);
+  const batch = (n) => w.runs().find((r) => r.purpose === "check" && r.term === `batch:${n}`);
+  const givenTo = (run) =>
+    new Set(w.apify.calls.find((c) => c.op === "startRun" && c.input[INPUT_MARKER] === run.id).input.emails);
+  const [mine, theirs] = [givenTo(batch(0)), givenTo(batch(1))];
+  // The first batch fails at the provider while the second still runs.
+  w.apify.finish(batch(0).apify_run_id, "FAILED", 0.01);
+  const failed = await collect(p("c5"), batch(0).id, "final", "c5");
+  assert.ok(
+    w.T.leads.filter((l) => theirs.has(l.email)).every((l) => l.email_state === "checking"),
+    "the other batch's addresses still wait for their own answers",
+  );
+  assert.deepEqual([failed.kind, failed.results, failed.last], ["checked", 500, false]);
+  assert.ok(
+    w.T.leads.filter((l) => mine.has(l.email)).every((l) => l.email_state === "unknown"),
+    "the failed batch's own addresses could not be checked",
+  );
+  w.apify.finish(batch(1).apify_run_id, "SUCCEEDED", 0.05);
+  const done = await collect(p("c6"), batch(1).id, "final", "c6");
+  assert.deepEqual([done.kind, done.results, done.last], ["checked", waiting - 500, true]);
+  assert.ok(
+    w.T.leads.filter((l) => theirs.has(l.email)).every((l) => l.email_state === "ok"),
+    "the second batch's answers land",
+  );
+  assert.equal(w.T.leads.filter((l) => l.email_state === "unknown").length, 500);
+  assert.deepEqual([w.round().state, w.round().ending], ["ended", "stopped"]);
+});
+
+test("REGRESSION: the checker's cap is held to what the round has left of its reservation, a batch still out keeping its own, and never goes under the provider's floor", async () => {
+  // 25 Oct 2026 (the code map, leads-check-cap): every checker run was capped at its addresses' price with room,
+  // whatever the round had left, where a discovery run's cap never passes it (sizing.ts runCaps, people.ts capOf).
+  const { w, p } = await checkingWith(940);
+  const capOf = (n) =>
+    w.apify.calls.find(
+      (c) => c.op === "startRun" && c.input[INPUT_MARKER] === w.runs().find((r) => r.term === `batch:${n}`)?.id,
+    )?.opts.maxTotalChargeUsd;
+  // 500 addresses want $0.58 (500 x $0.00089 x 1.3); the round has $0.55 left.
+  w.round().cost_usd = Math.round((w.round().cost_reserved_usd - 0.55) * 100) / 100;
+  assert.equal((await check(p("k0"), w.round().id, 0, "k0")).emails, 500);
+  assert.equal(capOf(0), 0.55, "held to what is left");
+  assert.equal(w.runs().find((r) => r.term === "batch:0").cap_usd, 0.55, "and the row says the same");
+  // The second batch's 452 want $0.52, and find the first one's cap kept: nothing is left, and the floor still starts it.
+  assert.equal((await check(p("k1"), w.round().id, 1, "k1")).emails, 452);
+  assert.equal(capOf(1), 0.5, "never under the floor: the addresses the round found are checked");
+  // A round with room to spare caps a batch at what its addresses want, as before.
+  const { w: w2, p: p2 } = await checkingWith(500);
+  await check(p2("k0"), w2.round().id, 0, "k0");
+  assert.equal(
+    w2.apify.calls.filter((c) => c.op === "startRun").at(-1).opts.maxTotalChargeUsd,
+    0.58,
+    "500 addresses at their price, with room",
+  );
+  // A Check again runs under a round that ended and gave its reservation back, so nothing of the round holds it: its
+  // addresses at their price with room, as before, and the floor for a few.
+  const { w: w3, p: p3 } = await checkingWith(500);
+  Object.assign(w3.round(), { state: "ended", ending: "stopped" });
+  const named = w3.T.leads.filter((l) => l.email_state === "checking").map((l) => l.id);
+  assert.equal((await check(p3("k0"), w3.round().id, 0, "k0", { nonce: "n1", leadIds: named })).emails, 500);
+  assert.equal(w3.apify.calls.filter((c) => c.op === "startRun").at(-1).opts.maxTotalChargeUsd, 0.58);
+  assert.equal(
+    (await check(p3("k1"), w3.round().id, 1, "k1", { nonce: "n1", leadIds: named })).emails,
+    named.length - 500,
+  );
+  assert.equal(w3.apify.calls.filter((c) => c.op === "startRun").at(-1).opts.maxTotalChargeUsd, 0.5);
+});
+
+test("REGRESSION: the round's last check out says \"Couldn't check\" for every address still waiting, whatever its state, so the round ends: a lone batch that fails, and a batch whose checker skipped an address", async () => {
+  // 25 Oct 2026 (review of leads-check-fail-all): a run that succeeded answered only what its checker returned, so an
+  // address it skipped (skipInvalidSyntax) stayed checking, the round never ended, and the sweep ended it an hour
+  // later "the source failed". Held to its own addresses, a failed batch collected first left that to the next batch.
+  const lone = await checkingWith(0);
+  const found = lone.w.T.leads.filter((l) => l.email_state === "checking").map((l) => l.id);
+  assert.equal((await check(lone.p("k0"), lone.w.round().id, 0, "k0")).kind, "started");
+  const run = lone.w.runs().find((r) => r.purpose === "check");
+  lone.w.apify.finish(run.apify_run_id, "FAILED", 0.01);
+  const alone = await collect(lone.p("c5"), run.id, "final", "c5");
+  assert.deepEqual([alone.kind, alone.results, alone.last], ["checked", found.length, true]);
+  assert.ok(
+    lone.w.T.leads.filter((l) => found.includes(l.id)).every((l) => l.email_state === "unknown"),
+    "every address the round found could not be checked",
+  );
+  assert.deepEqual([lone.w.round().state, lone.w.round().ending], ["ended", "stopped"]);
+  // Two batches: the first fails and is collected first, the second's checker skips one address it was given.
+  const { w, p } = await checkingWith(600);
+  const waiting = w.T.leads.filter((l) => l.email_state === "checking").length;
+  await check(p("k0"), w.round().id, 0, "k0");
+  await check(p("k1"), w.round().id, 1, "k1");
+  const batch = (n) => w.runs().find((r) => r.purpose === "check" && r.term === `batch:${n}`);
+  const skipped = w.apify.state.datasets[batch(1).dataset_id].pop().email;
+  w.apify.finish(batch(0).apify_run_id, "FAILED", 0.01);
+  assert.equal((await collect(p("c5"), batch(0).id, "final", "c5")).last, false);
+  w.apify.finish(batch(1).apify_run_id, "SUCCEEDED", 0.05);
+  const done = await collect(p("c6"), batch(1).id, "final", "c6");
+  assert.deepEqual([done.kind, done.results, done.last], ["checked", waiting - 500, true]);
+  assert.equal(w.T.leads.find((l) => l.email === skipped).email_state, "unknown", "the skipped address says so");
+  assert.equal(w.T.leads.filter((l) => l.email_state === "ok").length, waiting - 501, "and the answers land");
+  assert.deepEqual([w.round().state, w.round().ending], ["ended", "stopped"]);
+});
+
+test('a failed batch whose input the provider will not give back says nothing while another batch is out, and the last one out says "Couldn\'t check" for its addresses', async () => {
+  const { w, p } = await checkingWith(600);
+  const waiting = w.T.leads.filter((l) => l.email_state === "checking").length;
+  await check(p("k0"), w.round().id, 0, "k0");
+  await check(p("k1"), w.round().id, 1, "k1");
+  const batch = (n) => w.runs().find((r) => r.purpose === "check" && r.term === `batch:${n}`);
+  const givenTo = (run) =>
+    new Set(w.apify.calls.find((c) => c.op === "startRun" && c.input[INPUT_MARKER] === run.id).input.emails);
+  const [mine, theirs] = [givenTo(batch(0)), givenTo(batch(1))];
+  w.apify.faults.runInput = new ApifyRefused(404, "the provider refused: record-not-found");
+  w.apify.finish(batch(0).apify_run_id, "FAILED", 0.01);
+  const failed = await collect(p("c5"), batch(0).id, "final", "c5");
+  assert.deepEqual([failed.kind, failed.results, failed.last], ["checked", 0, false]);
+  assert.equal(
+    w.T.leads.filter((l) => l.email_state === "checking").length,
+    waiting,
+    "it cannot say which were its own, and the other batch's answers are on their way",
+  );
+  w.apify.finish(batch(1).apify_run_id, "SUCCEEDED", 0.05);
+  const done = await collect(p("c6"), batch(1).id, "final", "c6");
+  assert.deepEqual([done.kind, done.results, done.last], ["checked", waiting, true]);
+  assert.ok(w.T.leads.filter((l) => theirs.has(l.email)).every((l) => l.email_state === "ok"));
+  assert.ok(w.T.leads.filter((l) => mine.has(l.email)).every((l) => l.email_state === "unknown"));
+  assert.deepEqual([w.round().state, w.round().ending], ["ended", "stopped"]);
+});
+
+test("Check again: a re-check that fails says \"Couldn't check\" for its own leads only, another press's still on its way; one whose input cannot be read says it for every lead still waiting, since nothing after it would", async () => {
+  const { w, p } = await probed({ plan: { ...PLAN, contact: "email" } });
+  const [r1, r2] = w.runs();
+  await collect(p("c1"), r1.id, "p0", "c1");
+  w.rpcs.lead_round_stop({ p_search_id: w.search().id });
+  await collect(p("s1"), r2.id, "stop", "s1");
+  await check(p("k1"), w.round().id, 0, "k1");
+  w.finishRuns();
+  await collect(p("c2"), w.runs().find((r) => r.purpose === "check").id, "final", "c2");
+  assert.equal(w.round().state, "ended");
+  // Two presses, each on its own lead, as lead_check_ask leaves them: checking, with a job of their own.
+  const [a, b] = w.T.leads.filter((l) => l.email);
+  const press = async (lead, nonce) => {
+    lead.email_state = "checking";
+    assert.equal((await check(p(nonce), w.round().id, 0, nonce, { nonce, leadIds: [lead.id] })).kind, "started");
+    return w.runs().find((r) => r.term === `again:${nonce}:0`);
+  };
+  const [ra, rb] = [await press(a, "n1"), await press(b, "n2")];
+  w.apify.finish(ra.apify_run_id, "FAILED", 0.01);
+  const failed = await collect(p("c3"), ra.id, "final", "c3");
+  assert.deepEqual([failed.kind, failed.results, failed.last], ["checked", 1, false]);
+  assert.deepEqual([a.email_state, b.email_state], ["unknown", "checking"], "the other press's lead still waits");
+  w.apify.finish(rb.apify_run_id, "SUCCEEDED", 0.05);
+  await collect(p("c4"), rb.id, "final", "c4");
+  assert.equal(b.email_state, "ok", "and its answer lands");
+  // A press whose run the provider will not give the input of: its lead would otherwise wait for good.
+  const rc = await press(a, "n3");
+  w.apify.faults.runInput = new ApifyRefused(404, "the provider refused: record-not-found");
+  w.apify.finish(rc.apify_run_id, "FAILED", 0.01);
+  const blind = await collect(p("c5"), rc.id, "final", "c5");
+  assert.deepEqual([blind.kind, blind.results, blind.last], ["checked", 1, false]);
+  assert.equal(a.email_state, "unknown");
   assert.deepEqual([w.round().state, w.round().ending], ["ended", "stopped"], "neither ended twice nor reopened");
 });
 

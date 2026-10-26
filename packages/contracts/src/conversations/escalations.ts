@@ -35,7 +35,9 @@ export const ESCALATION_REASON_LABELS: Record<EscalationReason, string> = {
   manual: "Flagged manually",
   opt_out: STOP_WORDS.said(),
   state_unavailable: "The receptionist could not read this thread — needs a human",
-  stale: "Arrived hours late — too old to answer automatically",
+  // True of both ways a reply comes too late: their message reached us hours after they sent it (the inbound gate), or
+  // the receptionist's held reply could not leave until then (the send door's too_late). The hold's details say which.
+  stale: "Too late for an automatic reply — hours passed before one could go out",
   budget: "The day's model budget is used up — the receptionist paused itself",
   callback: "Needs a call back — they phoned and are still owed a call",
   paused: "Held — the workspace is paused until billing resumes",
@@ -65,7 +67,7 @@ export const ESCALATION_REASON_SHORT: Record<EscalationReason, string> = {
   manual: "flagged by hand",
   opt_out: STOP_WORDS.short,
   state_unavailable: "the receptionist could not read this thread",
-  stale: "arrived hours late",
+  stale: "too late for an automatic reply",
   budget: "the day's model budget is used up",
   callback: "needs a call back",
   paused: "the workspace is paused until billing resumes",
@@ -102,7 +104,7 @@ const ESCALATION_REASON_WHY: Record<EscalationReason, string> = {
   manual: "because it was flagged by hand",
   opt_out: `because they ${STOP_WORDS.short}`,
   state_unavailable: "because it could not read the thread",
-  stale: "because a message arrived too late to answer",
+  stale: "because hours passed before a reply could go",
   budget: "because the day's model budget ran out",
   callback: "because they need a call back",
   paused: "because the workspace is paused",
@@ -148,7 +150,7 @@ export const ESCALATION_SUMMARIES: Record<EscalationReason, string> = {
   opt_out: `${STOP_WORDS.said("They")}. Nothing was sent, and nothing may be.`,
   state_unavailable: "The receptionist couldn't read this thread, so it stayed quiet. No reply went out.",
   stale:
-    "This reached us hours after they sent it, too late to answer automatically. Nothing was sent — they have been waiting since then.",
+    "Hours passed between their message and any reply we could send, so the receptionist did not answer. Nothing was sent — they have been waiting since they wrote.",
   budget:
     "The day's model budget is used up, so the receptionist paused itself. Nothing was sent — answer them yourself, or raise the budget under Settings › Autonomy.",
   callback:

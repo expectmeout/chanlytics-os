@@ -179,6 +179,7 @@ var MOMENT_TRIGGERS = PLAYBOOK_TRIGGERS.filter(
   (t) => t.kind !== "reach_out"
 );
 var PLAYBOOK_HOURS = { min: 9, max: 20 };
+var SENDING_HOURS_END = PLAYBOOK_HOURS.max + 1;
 var PLAYBOOK_LIMITS = {
   run_hour: { min: PLAYBOOK_HOURS.min, max: PLAYBOOK_HOURS.max, what: "The hour" },
   cap_per_run: { min: 1, max: 500, what: "The cap" },
@@ -190,7 +191,8 @@ var SENDING_HOURS_WORDS = {
   max: PLAYBOOK_HOURS.max,
   first: `${PLAYBOOK_HOURS.min}:00`,
   range: `${PLAYBOOK_HOURS.min}:00\u2013${PLAYBOOK_HOURS.max}:59`,
-  between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
+  between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`,
+  end: `${SENDING_HOURS_END}:00`
 };
 var SENDING_NOW_WORDS = "sending now";
 var PLAYBOOK_VETO_DELAY_MS = 30 * MIN_MS;

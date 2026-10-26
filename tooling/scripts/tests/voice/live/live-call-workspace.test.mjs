@@ -11,9 +11,10 @@
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { verifyEdgeToken, edgeBodyMatches } from "@chanlytics/channels";
+import { verifyEdgeToken, edgeBodyMatches, signEdgeToken } from "@chanlytics/channels";
 import { importSrc } from "../../_source.mjs";
 import { fakeDb } from "../../_fake-db.mjs";
+import { linesOf, fieldsOf } from "../../_log-lines.mjs";
 
 const SECRET = "edge-secret-for-this-file";
 process.env.EDGE_CALL_SECRET = SECRET;
@@ -101,6 +102,40 @@ const CALLS = {
   "/api/admin/hand-over": (call, who) => live.handOverLiveCall(call, LINE, who),
 };
 
+/** Each door's body for the call given, as the dashboard sends it. */
+const BODIES = {
+  "/api/admin/whisper": (call) => ({ call_id: call, text: "Offer them the 4:30", trigger: false }),
+  "/api/admin/stop-call": (call) => ({ call_id: call }),
+  "/api/admin/hand-over": (call) => ({ call_id: call, line: LINE }),
+};
+
+/** A knock straight at the edge's door, with the credential given: what a holder of the platform's secrets can send. */
+const knockAt = (path, body, headers) =>
+  DOORS[path].POST(
+    new Request(`https://edge.test${path}`, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...headers },
+      body,
+    }),
+  );
+
+/** Set variables for one call and put every one of them back afterwards; `undefined` unsets. */
+async function withEnv(vars, fn) {
+  const before = Object.fromEntries(Object.keys(vars).map((k) => [k, process.env[k]]));
+  for (const [k, v] of Object.entries(vars)) {
+    if (v === undefined) delete process.env[k];
+    else process.env[k] = v;
+  }
+  try {
+    return await fn();
+  } finally {
+    for (const [k, v] of Object.entries(before)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
+}
+
 after(() => setPg(null));
 
 test("the dashboard's token names the workspace, the person and the body; the edge door opens for the workspace's own call", async () => {
@@ -137,6 +172,69 @@ test("another workspace's call is not found, on each door, and nothing reaches t
       // B's own token still opens B's call: the refusal is about whose it is, not about the call.
       assert.deepEqual(await act(CALL_B, asker(B)), { ok: true }, `${path}: B acts on B's call`);
       assert.equal(w.provider.length, 1);
+    } finally {
+      w.restore();
+    }
+  }
+});
+
+test("REGRESSION: a knock that names no workspace reached the provider for any call id, unchecked; each door now refuses it before the provider is asked, and says so", async () => {
+  // Until 25 Oct 2026 the door checked whose call it was only when the token named a workspace: a signed token about
+  // none (or a blank one), or the platform's key on an edge without the secret, whispered into, ended or handed over
+  // any workspace's call through the provider's key. A token whose workspace is not a workspace's id reached the read
+  // and came back as the platform's failure (503 read_failed on Postgres), not as the credential's. A dashboard that
+  // signs always names the call's workspace; a rehearsal pair holding only DIAG_KEY knocks with the key and is refused
+  // here too, and no script or operator's command knocks on these doors.
+  const REFUSED = {
+    ok: false,
+    error: "bad_tenant",
+    detail: "this door acts only for a workspace its credential names, and this one names none",
+  };
+  for (const path of Object.keys(CALLS)) {
+    for (const call of [CALL_A, CALL_B]) {
+      setPg(world());
+      const w = wire();
+      try {
+        const body = JSON.stringify(BODIES[path](call));
+        const signed = (workspace) => ({ "x-edge-token": signEdgeToken(SECRET, path, { workspace, user: ME, body }) });
+        const knocks = [
+          ["a token about no workspace", "token", () => knockAt(path, body, signed(null))],
+          ["a token whose workspace is blank", "token", () => knockAt(path, body, signed(""))],
+          ["a token whose workspace is whitespace", "token", () => knockAt(path, body, signed(" "))],
+          ["a token whose workspace is not a workspace's id", "token", () => knockAt(path, body, signed("x"))],
+          [
+            "the platform's key, on an edge without the secret",
+            "key",
+            () =>
+              withEnv({ EDGE_CALL_SECRET: undefined, DIAG_KEY: "diag-key-for-this-file" }, () =>
+                knockAt(path, body, { "x-diag-key": "diag-key-for-this-file" }),
+              ),
+          ],
+        ];
+        for (const [what, via, send] of knocks) {
+          const { result, lines } = await linesOf(send);
+          assert.deepEqual([result.status, await result.json()], [400, REFUSED], `${path}, ${call}: ${what}`);
+          const said = lines.find((l) => l.event === "live_call_unbound_refused");
+          assert.ok(said, `${path}, ${call}: ${what}: the refusal is a line`);
+          assert.equal(said.level, "warn");
+          assert.deepEqual(fieldsOf(said), { door: path, via, call_id: call }, `${path}: ${what}: what the line says`);
+        }
+        assert.equal(w.provider.length, 0, `${path}, ${call}: the provider was never spoken to`);
+      } finally {
+        w.restore();
+      }
+    }
+    // The workspace's own token still opens its own call: the refusal is about the knock, not the call.
+    setPg(world());
+    const w = wire();
+    try {
+      const body = JSON.stringify(BODIES[path](CALL_A));
+      const own = { "x-edge-token": signEdgeToken(SECRET, path, { workspace: A, user: ME, body }) };
+      assert.deepEqual(
+        [(await knockAt(path, body, own)).status, w.provider.length],
+        [200, 1],
+        `${path}: A acts on A's call`,
+      );
     } finally {
       w.restore();
     }
