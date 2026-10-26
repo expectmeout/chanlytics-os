@@ -71,6 +71,7 @@ import {
   memberEmailOf,
   noticeKept,
   unreadOfReaders,
+  threadDraftFacts,
 } from "@chanlytics/db";
 import { upsertEscalation, type EscalationOutcome } from "./escalate";
 import { broadcastSend } from "./broadcast-send";
@@ -123,6 +124,8 @@ async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
       deliver: (d) => deliver({ db: ctx.db, wire: ctx.wire }, d),
       escalate: (conversationId, reason, details) =>
         upsertEscalation(ctx.db, job.tenant_id, conversationId, reason, details),
+      // The thread's open hold, read as the dashboard's draft for a person reads it (db threadDraftFacts).
+      openHold: async (conversationId) => (await threadDraftFacts(ctx.db, job.tenant_id, conversationId)).reason,
       alert: ctx.alert,
       ...(ctx.page ? { page: ctx.page } : {}),
       // The same send as a fresh row, through the same door a broadcast's next batch takes: this job completes, and

@@ -57,6 +57,7 @@ import {
   stampEmailLeftAs,
   recordCarrierOptOut,
   recordOutbound,
+  replyAnswersAt,
   textLineFacts,
   wireRowOf,
   type Database,
@@ -64,7 +65,7 @@ import {
   type Json,
 } from "@chanlytics/db";
 import { assertFrozenFor, offerFacts, offerRefusal, type OfferFacts } from "./deliver-email";
-import { heldByThread } from "./deliver-hold";
+import { heldByThread, lateDraft } from "./deliver-hold";
 import { textRefusal } from "./deliver-text";
 import { namedFailure, putOnWire, type WireUnavailable } from "./wire-senders";
 
@@ -84,7 +85,7 @@ export type Channel = "whatsapp" | "sms" | "email";
  *  - "reply": a person's own words in a conversation; every pause exists for
  *    them, so none holds it.
  *  - "draft": the receptionist's held reply, queued; a person speaking since
- *    retires it, and the pause it now meets does not.
+ *    retires it, as does the reply horizon passing; the pause it now meets does not.
  *  - "broadcast": proactive and automated; it respects every pause like the
  *    machine it is.
  *  - "system": words the rules require of us -- an opt-in confirmation naming
@@ -515,6 +516,11 @@ async function overtakenByHuman(db: Db, d: Delivery): Promise<string | null> {
   return spoke ? spoke.id : null;
 }
 
+/** Asked last (deliver): how late a draft would be, the message it answers read only then (db replyAnswersAt). */
+async function draftTooLate(db: Db, d: Delivery, nowMs: number): Promise<DeliveryRefusal | null> {
+  return kindOf(d) === "draft" ? lateDraft(d, await replyAnswersAt(db, d), nowMs, kindOf(d)) : null;
+}
+
 /** The message kinds the send door writes. */
 type MessageKind = "message.send_blocked" | "message.send_raced_cancel" | "message.sent" | "message.send_failed";
 
@@ -610,7 +616,7 @@ export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Deliver
 
   const refusal = refusalFor(d, facts, nowMs, outreach);
   const overtakenBy = !refusal && kindOf(d) === "draft" ? await overtakenByHuman(ports.db, d) : null;
-  const reason = refusal ?? (overtakenBy ? "superseded_by_human" : null);
+  const reason = refusal ?? (overtakenBy ? "superseded_by_human" : await draftTooLate(ports.db, d, nowMs));
   // A queued row is canceled with its reason, so the thread shows why the
   // words never left; a send with no row yet leaves none, and the caller
   // records the refusal where it lives (a recipient's row, a spoken reply).

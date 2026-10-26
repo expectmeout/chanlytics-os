@@ -1,6 +1,6 @@
 import { shiftKey, zoneMidnight } from "../calendar/day-keys.js";
 import { appointmentWords } from "../journey/appointment-word.js";
-import { PLAYBOOK_HOURS, PLAYBOOK_VETO_DELAY_MS, triggerOf } from "./playbook-triggers.js";
+import { PLAYBOOK_HOURS, PLAYBOOK_VETO_DELAY_MS, SENDING_HOURS_END, triggerOf } from "./playbook-triggers.js";
 import { clockDate, clockHour } from "../shared/clock.js";
 import { dateFormat, HOUR_MS } from "../shared/time.js";
 export function campaignEnded(p, day) {
@@ -54,7 +54,7 @@ export function nextOpenMoment(tz, when) {
 export function sendingEndsAt(tz, now) {
   const { date, hour } = parts(tz, now);
   if (hour > PLAYBOOK_HOURS.max) return null;
-  const end = PLAYBOOK_HOURS.max + 1;
+  const end = SENDING_HOURS_END;
   let at = zoneMidnight(tz, date) + end * HOUR_MS;
   const landed = parts(tz, new Date(at)).hour;
   if (landed !== end) at += (end - landed) * HOUR_MS;

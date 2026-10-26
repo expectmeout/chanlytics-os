@@ -25,7 +25,13 @@ const { whatsappSender, wireUnavailable } = await import(
 );
 
 const T = "t1";
-const WRITTEN = "2026-09-10T10:00:00.000Z";
+const MIN = 60_000;
+const HOUR = 60 * MIN;
+/** A moment this long before the run: the door asks how late a held draft would be, so the fixtures' times are its. */
+const ago = (ms) => new Date(Date.now() - ms).toISOString();
+const WRITTEN = ago(MIN);
+/** A moment this long after the fixtures' rows were written (before it, for a negative one). */
+const writtenPlus = (ms) => new Date(Date.parse(WRITTEN) + ms).toISOString();
 const tables = (over = {}) => ({
   messages: [
     {
@@ -220,7 +226,7 @@ test("the receptionist's held draft is retired when a person answered after it w
           sender: "human",
           channel: "whatsapp",
           direction: "outbound",
-          created_at: "2026-09-10T10:00:20.000Z",
+          created_at: writtenPlus(20_000),
           meta: { echo: true },
         },
       ],
@@ -345,7 +351,7 @@ test("a person's OLDER words do not retire the draft, and a person's own reply i
           sender: "human",
           channel: "whatsapp",
           direction: "outbound",
-          created_at: "2026-09-10T09:00:00.000Z",
+          created_at: writtenPlus(-HOUR),
         },
       ],
     }),
@@ -376,7 +382,7 @@ test("a person's OLDER words do not retire the draft, and a person's own reply i
           sender: "human",
           channel: "whatsapp",
           direction: "outbound",
-          created_at: "2026-09-10T10:00:05.000Z",
+          created_at: writtenPlus(5_000),
         },
       ],
     }),
@@ -532,7 +538,7 @@ test("a reach-out's email written after the receptionist's draft is no person sp
           sender: "human",
           channel: "email",
           direction: "outbound",
-          created_at: "2026-09-10T10:00:20.000Z",
+          created_at: writtenPlus(20_000),
           meta: { source: "reach_out" },
         },
       ],
@@ -630,4 +636,215 @@ test("a cold email's job asks the door about the lead its row was written for (m
   assert.equal(asked[0].p_lead_id, "l-closed", "the row's own lead");
   assert.equal(sent.length, 0, "nothing reaches the wire");
   assert.deepEqual([t.messages[0].status, t.messages[0].error], ["canceled", { reason: "outreach_lead_closed" }]);
+});
+
+/*
+ * A reply held through an outage. The receptionist's draft waits out its veto window (or its low-confidence hold) as a
+ * job; when the ledger stalls for hours the job is claimed late, and the draft used to go: "we have 3pm free today" at
+ * the end of the day. The inbound gate hands a message older than the reply horizon to a person (core inbound steps.ts
+ * STALE_REPLY_MS); the door asks the same of the draft, from when the message it answers was sent.
+ */
+const customerAsked = (at) => ({
+  id: "in1",
+  tenant_id: T,
+  conversation_id: "c1",
+  status: "received",
+  body: "Is 3pm free today?",
+  sender: "customer",
+  channel: "whatsapp",
+  direction: "inbound",
+  channel_ts: at,
+  created_at: at,
+});
+const heldDraft = (at, meta = { source: "veto_window", delay_ms: MIN, reply_to: "in1" }) => ({
+  id: "m1",
+  tenant_id: T,
+  conversation_id: "c1",
+  status: "queued",
+  body: "We have 3pm free today!",
+  sender: "ai",
+  channel: "whatsapp",
+  direction: "outbound",
+  created_at: at,
+  meta,
+});
+const holds = (db) => db.tables.escalations.map((e) => [e.conversation_id, e.reason, e.state ?? "open"]);
+const opened = (db) => db.tables.events.filter((e) => e.kind === "escalation.opened").map((e) => e.subject_id);
+
+test("REGRESSION: the receptionist's reply held through an outage is not sent hours late: the thread is a person's, told once, and its words are kept", async () => {
+  // It went. Nothing on the send path asked how late a queued send was, so a job claimed three hours after the customer
+  // wrote put the receptionist's answer on their phone as though it were still the moment they asked.
+  graph.length = 0;
+  const db = wrap(tables({ messages: [heldDraft(ago(3 * HOUR - 30_000)), customerAsked(ago(3 * HOUR))] }));
+  const { ctx, alerts } = ctxFor(db);
+  assert.equal(await dispatchJob(ctx, job({ body: "We have 3pm free today!" })), "done");
+  assert.equal(graph.length, 0, "nothing reaches the customer");
+  assert.deepEqual([message(db).status, message(db).error], ["canceled", { reason: "too_late" }]);
+  assert.equal(message(db).body, "We have 3pm free today!", "the words are kept, for the person who answers");
+  assert.deepEqual(
+    blocked(db).map((d) => d.reason),
+    ["too_late"],
+  );
+  assert.deepEqual(holds(db), [["c1", "stale", "open"]], "held for a person under the inbound gate's own reason");
+  assert.deepEqual(opened(db), ["c1"], "the owner is told by the hold's event (decision 0043, owner_notice)");
+  assert.deepEqual(alerts, [], "and not by the send as well");
+});
+
+test("a held draft is measured from when the customer wrote, not from when the draft was written", async () => {
+  // Their message reached us late but inside the horizon and was answered; the draft was written an hour and fifty
+  // minutes ago, and the customer wrote two hours and ten minutes ago: it would reach them past the horizon.
+  graph.length = 0;
+  const db = wrap(tables({ messages: [heldDraft(ago(110 * MIN)), customerAsked(ago(130 * MIN))] }));
+  assert.equal(await dispatchJob(ctxFor(db).ctx, job({ body: "We have 3pm free today!" })), "done");
+  assert.equal(graph.length, 0);
+  assert.deepEqual(message(db).error, { reason: "too_late" });
+  assert.deepEqual(holds(db), [["c1", "stale", "open"]]);
+});
+
+test("a held draft that names no message it answers is measured from when it was written", async () => {
+  graph.length = 0;
+  const db = wrap(tables({ messages: [heldDraft(ago(3 * HOUR), { source: "low_confidence", delay_ms: MIN })] }));
+  assert.equal(await dispatchJob(ctxFor(db).ctx, job({ body: "We have 3pm free today!" })), "done");
+  assert.equal(graph.length, 0);
+  assert.deepEqual(message(db).error, { reason: "too_late" });
+  assert.deepEqual(holds(db), [["c1", "stale", "open"]]);
+});
+
+test("the receptionist's held draft inside the horizon goes, and a member's own reply goes however late", async () => {
+  graph.length = 0;
+  const fresh = wrap(tables({ messages: [heldDraft(ago(29 * MIN)), customerAsked(ago(30 * MIN))] }));
+  assert.equal(await dispatchJob(ctxFor(fresh).ctx, job({ body: "We have 3pm free today!" })), "done");
+  assert.equal(graph.length, 1, "half an hour after they wrote, the answer still belongs to their conversation");
+  assert.equal(message(fresh).status, "sent");
+  assert.deepEqual(fresh.tables.escalations, []);
+
+  // A person chose those words, and the pauses exist for them: the horizon is the receptionist's, never theirs.
+  graph.length = 0;
+  const reply = { ...heldDraft(ago(3 * HOUR - 30_000)), sender: "human", body: "Sorry for the wait, 3pm is yours" };
+  const member = wrap(tables({ messages: [reply, customerAsked(ago(3 * HOUR))] }));
+  assert.equal(await dispatchJob(ctxFor(member).ctx, job({ body: "Sorry for the wait, 3pm is yours" })), "done");
+  assert.equal(graph.length, 1, "the member's reply leaves");
+  assert.equal(message(member).status, "sent");
+  assert.deepEqual(member.tables.escalations, []);
+});
+
+test("a late draft whose hold could not be written is told by the job itself, in the notice the hold would have given", async () => {
+  graph.length = 0;
+  const t = tables({ messages: [heldDraft(ago(3 * HOUR - 30_000)), customerAsked(ago(3 * HOUR))] });
+  const db = fakeDb(t, { "escalations.insert": { message: "the database is restarting" } });
+  db.tables = t;
+  const { ctx, alerts } = ctxFor(db);
+  assert.equal(await dispatchJob(ctx, job({ body: "We have 3pm free today!" })), "done");
+  assert.equal(graph.length, 0);
+  assert.equal(message(db).status, "canceled");
+  assert.deepEqual(t.escalations, [], "nothing was held");
+  assert.equal(alerts.length, 1, "so the owner is told here, once");
+  assert.equal(alerts[0].kind, "handoff");
+  assert.equal(alerts[0].route, "inbox/th-c1");
+  assert.match(alerts[0].subject, /needs a person/);
+  // The hold's own notice never puts an undelivered draft under "The receptionist:" (db holdFactsOf reads words that
+  // reached them), so this one does not either: those words were never said to the customer.
+  assert.doesNotMatch(alerts[0].body, /The receptionist: /, "the unsent words are not told as said");
+  assert.doesNotMatch(alerts[0].body, /We have 3pm free today!/);
+  assert.match(alerts[0].body, /so it was not sent\. Its words are kept in the thread/, "the hold's details say so");
+});
+
+test("REGRESSION: a late holding message keeps the hold it was queued with: its reason, its act and its one notice", async () => {
+  // The receptionist's own escalation queues its holding message as a draft and opens its hold in the same breath
+  // (core inbound dispatch.ts heldOrKept). Released hours late, the draft is not sent, and the hold it belongs to stays
+  // as it was: it was replaced by 'stale' (escalation.changed), which lost the booking's act and told the owner again.
+  graph.length = 0;
+  const t = tables({
+    messages: [
+      heldDraft(ago(3 * HOUR - 30_000), { source: "veto_window", delay_ms: MIN, reply_to: "in1", escalate: true }),
+      customerAsked(ago(3 * HOUR)),
+    ],
+    escalations: [
+      {
+        id: "e1",
+        tenant_id: T,
+        conversation_id: "c1",
+        reason: "booking_request",
+        details: "asked to book Saturday at 3",
+        state: "open",
+        created_at: ago(3 * HOUR - 30_000),
+      },
+    ],
+  });
+  t.conversations[0].paused_until = new Date(Date.now() + 20 * HOUR).toISOString();
+  const db = wrap(t);
+  const { ctx, alerts } = ctxFor(db);
+  assert.equal(await dispatchJob(ctx, job({ body: "We have 3pm free today!" })), "done");
+  assert.equal(graph.length, 0, "nothing reaches the customer");
+  assert.deepEqual([message(db).status, message(db).error], ["canceled", { reason: "too_late" }]);
+  assert.deepEqual(holds(db), [["c1", "booking_request", "open"]], "the hold keeps its own reason");
+  assert.equal(t.escalations[0].details, "asked to book Saturday at 3", "and its own words");
+  assert.deepEqual(
+    t.events.filter((e) => e.kind.startsWith("escalation.")),
+    [],
+    "nothing changed or opened, so nothing tells the owner again",
+  );
+  assert.deepEqual(alerts, []);
+});
+
+test("a late draft a person already answered is retired as theirs, and nobody is handed anything", async () => {
+  // The order the door asks in: a person speaking since is asked before lateness, so their answer stands alone.
+  graph.length = 0;
+  const answered = {
+    id: "m2",
+    tenant_id: T,
+    conversation_id: "c1",
+    status: "sent",
+    body: "3pm is yours",
+    sender: "human",
+    channel: "whatsapp",
+    direction: "outbound",
+    // Half a minute after the draft was written, inside its window.
+    created_at: ago(3 * HOUR - 60_000),
+  };
+  const db = wrap(tables({ messages: [heldDraft(ago(3 * HOUR - 30_000)), customerAsked(ago(3 * HOUR)), answered] }));
+  assert.equal(await dispatchJob(ctxFor(db).ctx, job({ body: "We have 3pm free today!" })), "done");
+  assert.equal(graph.length, 0);
+  assert.deepEqual(message(db).error, { reason: "superseded_by_human" });
+  assert.deepEqual(db.tables.escalations, []);
+});
+
+test("a late draft on a thread a person holds is theirs already: it meets the hold, and nobody is handed anything", async () => {
+  graph.length = 0;
+  const t = tables({ messages: [heldDraft(ago(3 * HOUR - 30_000)), customerAsked(ago(3 * HOUR))] });
+  Object.assign(t.conversations[0], {
+    control_kind: "person",
+    control_until: new Date(Date.now() + HOUR).toISOString(),
+  });
+  const db = wrap(t);
+  assert.equal(await dispatchJob(ctxFor(db).ctx, job({ body: "We have 3pm free today!" })), "done");
+  assert.equal(graph.length, 0);
+  assert.deepEqual(message(db).error, { reason: "human_has_it" });
+  assert.deepEqual(db.tables.escalations, []);
+});
+
+test("the horizon is the inbound gate's two hours: a draft just inside it goes, one just past it is held", async () => {
+  graph.length = 0;
+  const inside = wrap(tables({ messages: [heldDraft(ago(118 * MIN)), customerAsked(ago(119 * MIN))] }));
+  assert.equal(await dispatchJob(ctxFor(inside).ctx, job({ body: "We have 3pm free today!" })), "done");
+  assert.equal(graph.length, 1);
+  assert.equal(message(inside).status, "sent");
+
+  graph.length = 0;
+  const past = wrap(tables({ messages: [heldDraft(ago(120 * MIN)), customerAsked(ago(121 * MIN))] }));
+  assert.equal(await dispatchJob(ctxFor(past).ctx, job({ body: "We have 3pm free today!" })), "done");
+  assert.equal(graph.length, 0);
+  assert.deepEqual(message(past).error, { reason: "too_late" });
+});
+
+test("a steered draft is still the receptionist's reply, measured from the message it answers", async () => {
+  // The owner's line rewrote it, and the rewrite waits its own window like the first; a person did not choose these
+  // words, so a steer held through an outage is a person's to send, as the draft it replaced would have been.
+  graph.length = 0;
+  const steered = { source: "steered", delay_ms: MIN, steer: "shorter", steered_from: "m0", reply_to: "in1" };
+  const db = wrap(tables({ messages: [heldDraft(ago(10 * MIN), steered), customerAsked(ago(3 * HOUR))] }));
+  assert.equal(await dispatchJob(ctxFor(db).ctx, job({ body: "We have 3pm free today!" })), "done");
+  assert.equal(graph.length, 0);
+  assert.deepEqual(message(db).error, { reason: "too_late" });
+  assert.deepEqual(holds(db), [["c1", "stale", "open"]]);
 });

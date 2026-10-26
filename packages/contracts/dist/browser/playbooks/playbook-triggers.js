@@ -107,6 +107,7 @@ export function isPlaybookState(v) {
 }
 export const PLAYBOOK_DEFAULTS = { runHour: 10, capPerRun: 25, gapDays: 90, cadenceDays: 30 };
 export const PLAYBOOK_HOURS = { min: 9, max: 20 };
+export const SENDING_HOURS_END = PLAYBOOK_HOURS.max + 1;
 export const PLAYBOOK_LIMITS = {
   run_hour: { min: PLAYBOOK_HOURS.min, max: PLAYBOOK_HOURS.max, what: "The hour" },
   cap_per_run: { min: 1, max: 500, what: "The cap" },
@@ -119,7 +120,8 @@ export const SENDING_HOURS_WORDS = {
   max: PLAYBOOK_HOURS.max,
   first: `${PLAYBOOK_HOURS.min}:00`,
   range: `${PLAYBOOK_HOURS.min}:00\u2013${PLAYBOOK_HOURS.max}:59`,
-  between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
+  between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`,
+  end: `${SENDING_HOURS_END}:00`
 };
 export const sendsWaitWords = (hours = SENDING_HOURS_WORDS) => `sends wait for ${hours.range}`;
 export const SENDING_NOW_WORDS = "sending now";
@@ -144,10 +146,16 @@ export function delayWords(ms) {
 }
 export const PLAYBOOK_VETO_DELAY_WORDS = delayWords(PLAYBOOK_VETO_DELAY_MS);
 export const SEND_ONCE_STOP_WORDS = delayWords(SEND_ONCE_STOP_MS);
-export function readyRunNotice(name, people) {
+export function approvalEndsWithSendingHours(trigger) {
+  return triggerOf(trigger ?? "")?.kind === "visit";
+}
+export function batchWaitWords(trigger) {
+  return approvalEndsWithSendingHours(trigger) ? waitEndsWords("visit_ask", SENDING_HOURS_WORDS.end) : waitEndsWords("batch_ask");
+}
+export function readyRunNotice(name, people, trigger) {
   return {
     subject: `Campaign \u201C${name}\u201D is ready: ${plural(people, "person", "people")}`,
-    body: `${plural(people, "person has", "people have")} become eligible for \u201C${name}\u201D. Approve or skip it from your Inbox or Today. ${waitEndsWords("batch_ask")}.`
+    body: `${plural(people, "person has", "people have")} become eligible for \u201C${name}\u201D. Approve or skip it from your Inbox or Today. ${batchWaitWords(trigger)}.`
   };
 }
 export function vetoRunNotice(name, people, when) {
@@ -157,10 +165,18 @@ export function vetoRunNotice(name, people, when) {
     body: `${who} will be sent \u201C${name}\u201D. ${waitEndsWords("batch_hold", when)}, from Today or its run.`
   };
 }
-export function skippedRunNotice(name, people) {
+const NEXT_BATCH_WAITS = "its batches wait until you approve one, and every one waits while \u201CBefore each batch\u201D in its How it runs says to ask";
+export function skippedRunNotice(name, people, trigger) {
+  const who = plural(people, "person", "people");
+  const subject = `\u201C${name}\u201D didn\u2019t go: nobody approved it`;
+  if (approvalEndsWithSendingHours(trigger))
+    return {
+      subject,
+      body: `${who} waited for your OK until ${SENDING_HOURS_WORDS.end}, and it did not reach them: no later batch sends it in its place. Open it to see who, and write to them yourself. The next day\u2019s \u201C${name}\u201D waits for your OK too, until ${SENDING_HOURS_WORDS.end}: ${NEXT_BATCH_WAITS}.`
+    };
   return {
-    subject: `\u201C${name}\u201D didn\u2019t go: nobody approved it`,
-    body: `${plural(people, "person", "people")} waited for your OK until the day ended, and nothing was sent. They are in line for its next batch. To stop being asked each time, change \u201CBefore each batch\u201D in its How it runs.`
+    subject,
+    body: `${who} waited for your OK until the day ended, and nothing was sent. They are in line for its next batch, which waits for your OK too: ${NEXT_BATCH_WAITS}.`
   };
 }
 export const PLAYBOOK_NAME_MAX = 80;

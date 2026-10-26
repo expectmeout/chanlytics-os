@@ -962,7 +962,7 @@ test("the answered receipt is a sentence at every count: both times, each time, 
   );
   assert.equal(
     once("stale"),
-    "Handed over once, because a message arrived too late to answer. The rest it answered itself.",
+    "Handed over once, because hours passed before a reply could go. The rest it answered itself.",
   );
   assert.equal(once("paused"), "Handed over once, because the workspace is paused. The rest it answered itself.");
   assert.equal(

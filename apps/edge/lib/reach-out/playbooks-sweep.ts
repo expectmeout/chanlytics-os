@@ -34,7 +34,8 @@
  * DAY_PASSED_BATCH a tick and until DAY_PASSED_UNTIL_MS. A paused or ended workspace's are skipped too: the day passed
  * whatever the standing. Its "is ready" line on the bell reads as read (contracts notice-closes.ts), and the owner is
  * told it did not go (contracts skippedRunNotice, decision 0064: nothing is skipped in silence), on the bell and by mail
- * as the ready line was; its people are in line again (00453). A read that fails is logged (runs_day_passed_read_failed)
+ * as the ready line was; its people are in line again (00453), but for a visit's, whom no later batch names: its notice
+ * says it did not reach them. A read that fails is logged (runs_day_passed_read_failed)
  * and the moments still run (the wiring's second audit, S7-3).
  *
  * `remaining` is what was due beyond the two pages plus the steps yielded before. noteBacklog (note_sweep_backlog,
@@ -71,6 +72,7 @@ import { cancelBroadcast } from "../packages/core.js";
 import {
   AppError,
   addressOf,
+  audienceTrigger,
   localDate,
   runDaysAt,
   runDueNow,
@@ -164,7 +166,12 @@ async function endRunsWhoseDayPassed(tick: Tick): Promise<void> {
  */
 async function tellSkipped(db: Tick["db"], r: Awaited<ReturnType<typeof waitingPlaybookRuns>>[number], L: Logger) {
   const about = r.audience && typeof r.audience === "object" ? (r.audience as { label?: unknown }).label : null;
-  const told = skippedRunNotice(typeof about === "string" && about ? about : r.name, r.recipient_count);
+  // Its moment, as the run kept it: a visit's people are not in line for a later batch, and the notice says so.
+  const told = skippedRunNotice(
+    typeof about === "string" && about ? about : r.name,
+    r.recipient_count,
+    audienceTrigger(r.audience),
+  );
   try {
     const target = await loadTenantNotifications(db, r.tenant_id);
     await notify(

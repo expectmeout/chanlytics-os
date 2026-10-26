@@ -5,7 +5,7 @@
  */
 
 import { peoplePlanOf, type LeadEmailState, type LeadRoundState, type LeadRunState } from "@chanlytics/contracts";
-import { CARDS, areaCenter } from "../cards";
+import { CARDS, areaCenter, type LeadCheckerRunner } from "../cards";
 import { FINAL_RUN_STATES, runStateOf } from "../endings";
 import { inArea } from "../geo";
 import { runIdFor } from "../ids";
@@ -378,18 +378,24 @@ async function collectCheck(
       if (r) byEmail.set(r.email, r.state);
     }
     const waiting = checkable(await p.db.membersOfRound(round.id));
-    // A run that succeeded answers the addresses it was given; one that did not leaves every address still waiting "Couldn't check".
+    const others = (await p.db.runsOfRound(round.id)).filter((r) => r.purpose === "check" && r.id !== run.id);
+    // A round's last check out answers for every address still waiting, whatever its state: its own answers, and
+    // "Couldn't check" for the rest (an address its checker skipped, or one a failed batch could not say was its own),
+    // so the round ends. Before that, a run answers only for its own: the round's batches of 500 run side by side, and
+    // another's answers may still be on their way. One that succeeded answers what it read; one that did not, what it
+    // was given, read back from its input, or nothing when that cannot be read. A Check again is never the last; one
+    // whose input cannot be read says "Couldn't check" for every lead still waiting, since nothing after it would.
+    const last = !again && others.every((r) => FINAL_RUN_STATES.has(r.state));
+    const given = !last && state !== "succeeded" ? await addressesGiven(p, card.checker, run) : null;
+    const answers = (email: string): boolean =>
+      last || (state === "succeeded" ? byEmail.has(email) : given ? given.has(email) : again);
     const results = waiting
-      .filter((m) => state !== "succeeded" || byEmail.has(m.email as string))
+      .filter((m) => answers(m.email as string))
       .map((m) => ({
         lead_id: m.lead_id,
         email_state: byEmail.get(m.email as string) ?? ("unknown" as const),
         checked_at: iso(p.now()),
       }));
-    const others = (await p.db.runsOfRound(round.id)).filter((r) => r.purpose === "check" && r.id !== run.id);
-    const answered = new Set(results.map((r) => r.lead_id));
-    const last =
-      !again && others.every((r) => FINAL_RUN_STATES.has(r.state)) && waiting.every((m) => answered.has(m.lead_id));
     const commit = await p.db.collectCommit(run.id, owner, gen, run.read_offset, run.read_offset + items.length, {
       judgment: null,
       places: [],
@@ -405,5 +411,18 @@ async function collectCheck(
     return { kind: "checked", results: results.length, last };
   } finally {
     await p.db.runRelease(run.id, owner, gen);
+  }
+}
+
+/** The addresses a checker run was given, from the input the provider keeps for it; null when there is none to read. */
+async function addressesGiven(p: LeadPorts, checker: LeadCheckerRunner, run: LeadRunRow): Promise<Set<string> | null> {
+  if (!run.apify_run_id) return null;
+  if (outOfTime(p)) throw new LeadRetry("out of time before reading what the checker was given");
+  try {
+    const emails = checker.emailsOf(await p.apify.runInput(run.apify_run_id));
+    return emails ? new Set(emails) : null;
+  } catch (e) {
+    if (!isRefused(e)) throw e;
+    return null;
   }
 }

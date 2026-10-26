@@ -265,6 +265,8 @@ export const HELD_REASONS: Record<DeliveryRefusal, string> & Record<string, stri
   human_has_it: "a person had the thread",
   paused: "the workspace was paused",
   superseded_by_human: "a person answered first",
+  // The receptionist's held reply, past the reply horizon after the message it answers: a person answers instead.
+  too_late: "too late to send automatically",
   sms_carries_no_promotions: "no offers by text",
   // The campaigns domain offers leave from is not this deployment's to use, or the provider does not verify it: the business's
   // news by email is an offer at the door (decision D2), so it waits as an offer does. Each person's own skip, final.

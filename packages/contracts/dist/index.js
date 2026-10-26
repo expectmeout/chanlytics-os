@@ -3344,7 +3344,9 @@ var NOTICE_HOLD_WORDS = {
   no_model: "The reader was unavailable. Press Read again.",
   may_not_spend: "The workspace's AI spend is paused. Read again once it is on.",
   unreadable: "It could not be read as a booking.",
-  // Kept on the ledger and set aside, never held: nobody is asked to look at a tool's receipt or its newsletter.
+  // Kept on the ledger and set aside, never held: nobody is asked to look at a tool's receipt or its newsletter. A
+  // cancellation the visit's guard refused is set aside under this reason too, until the ledger has a word of its own
+  // (core ledgerOutcomeOf), so this sentence is not true of every row set aside with it.
   not_a_booking: "It is from your booking tool, but not about one booking.",
   no_time: "No time for the booking could be read from it.",
   no_client: "No client could be read from it.",
@@ -6853,6 +6855,8 @@ var DELIVERY_REFUSALS = [
   "paused",
   "human_has_it",
   "superseded_by_human",
+  // The receptionist's held reply would reach them past the reply horizon after the message it answers: a person's now.
+  "too_late",
   "sms_carries_no_promotions",
   // A text needs its line active with the carriers and not a test filing (step 3): the inbound door holds the same.
   "sms_line_not_active",
@@ -6896,6 +6900,7 @@ var PURPOSE_REFUSALS = {
   paused: "The workspace is paused, so nothing automatic was sent.",
   human_has_it: "Someone on your team has this conversation, so nothing automatic was sent.",
   superseded_by_human: "Someone on your team answered first, so this was not sent.",
+  too_late: "The receptionist's reply would have reached them hours after they wrote, so it was not sent. Its words are kept in the thread, for you to send or answer in your own.",
   // Reach out's, at the wire (deliver.ts): a cold email goes only as the rules it was built under allow.
   unsubscribed: "This person unsubscribed from your marketing emails. No offers or first emails go to them by email; replies, reminders and confirmations still can.",
   outreach_is_email_only: "Cold messages go only by email: never by text or WhatsApp.",
@@ -6951,7 +6956,9 @@ var ESCALATION_REASON_LABELS = {
   manual: "Flagged manually",
   opt_out: STOP_WORDS.said(),
   state_unavailable: "The receptionist could not read this thread \u2014 needs a human",
-  stale: "Arrived hours late \u2014 too old to answer automatically",
+  // True of both ways a reply comes too late: their message reached us hours after they sent it (the inbound gate), or
+  // the receptionist's held reply could not leave until then (the send door's too_late). The hold's details say which.
+  stale: "Too late for an automatic reply \u2014 hours passed before one could go out",
   budget: "The day's model budget is used up \u2014 the receptionist paused itself",
   callback: "Needs a call back \u2014 they phoned and are still owed a call",
   paused: "Held \u2014 the workspace is paused until billing resumes",
@@ -6975,7 +6982,7 @@ var ESCALATION_REASON_SHORT = {
   manual: "flagged by hand",
   opt_out: STOP_WORDS.short,
   state_unavailable: "the receptionist could not read this thread",
-  stale: "arrived hours late",
+  stale: "too late for an automatic reply",
   budget: "the day's model budget is used up",
   callback: "needs a call back",
   paused: "the workspace is paused until billing resumes",
@@ -7003,7 +7010,7 @@ var ESCALATION_REASON_WHY = {
   manual: "because it was flagged by hand",
   opt_out: `because they ${STOP_WORDS.short}`,
   state_unavailable: "because it could not read the thread",
-  stale: "because a message arrived too late to answer",
+  stale: "because hours passed before a reply could go",
   budget: "because the day's model budget ran out",
   callback: "because they need a call back",
   paused: "because the workspace is paused",
@@ -7030,7 +7037,7 @@ var ESCALATION_SUMMARIES = {
   manual: "Flagged by hand for a human.",
   opt_out: `${STOP_WORDS.said("They")}. Nothing was sent, and nothing may be.`,
   state_unavailable: "The receptionist couldn't read this thread, so it stayed quiet. No reply went out.",
-  stale: "This reached us hours after they sent it, too late to answer automatically. Nothing was sent \u2014 they have been waiting since then.",
+  stale: "Hours passed between their message and any reply we could send, so the receptionist did not answer. Nothing was sent \u2014 they have been waiting since they wrote.",
   budget: "The day's model budget is used up, so the receptionist paused itself. Nothing was sent \u2014 answer them yourself, or raise the budget under Settings \u203A Autonomy.",
   callback: "They phoned and are still owed a call: the call didn't connect, they hung up without a word, or the receptionist couldn't finish it.",
   paused: "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings \u203A Billing, or answer this one yourself.",
@@ -8363,6 +8370,7 @@ var WAIT_KINDS = [
   "reply",
   "hold",
   "batch_ask",
+  "visit_ask",
   "batch_hold",
   "leads_batch",
   "held_email",
@@ -8375,6 +8383,7 @@ var WAIT_RULES = {
   reply: { goes: "on_its_own", ends: "at_its_time", act: "stop" },
   hold: { goes: "by_you", ends: "never", act: "answer" },
   batch_ask: { goes: "with_your_ok", ends: "end_of_its_day", act: "approve" },
+  visit_ask: { goes: "with_your_ok", ends: "end_of_sending_hours", act: "approve" },
   batch_hold: { goes: "on_its_own", ends: "at_its_time", act: "stop" },
   leads_batch: { goes: "with_your_ok", ends: "never", act: "approve" },
   held_email: { goes: "by_you", ends: "never", act: "answer" },
@@ -8397,6 +8406,10 @@ function waitEndsWords(kind, at3) {
   if (r2.ends === "at_its_time") return `Goes ${at3 ?? "at its time"} unless you stop it`;
   if (r2.ends === "end_of_its_day")
     return "Waits for your OK until the end of its day; then it is skipped, and you are told";
+  if (r2.ends === "end_of_sending_hours") {
+    const before = at3 ? `before ${at3} by your clock` : "before the day's sending hours end";
+    return `Goes only if you approve it ${before}; after that it is skipped, and it does not reach them`;
+  }
   if (r2.goes === "with_your_ok") return "Waits for your OK; nothing goes until you give it";
   if (r2.act === "send") return "Waits for you to send it from your own inbox";
   return "Waits for you; nothing more goes until you answer";
@@ -8523,6 +8536,7 @@ function isPlaybookState(v) {
 }
 var PLAYBOOK_DEFAULTS = { runHour: 10, capPerRun: 25, gapDays: 90, cadenceDays: 30 };
 var PLAYBOOK_HOURS = { min: 9, max: 20 };
+var SENDING_HOURS_END = PLAYBOOK_HOURS.max + 1;
 var PLAYBOOK_LIMITS = {
   run_hour: { min: PLAYBOOK_HOURS.min, max: PLAYBOOK_HOURS.max, what: "The hour" },
   cap_per_run: { min: 1, max: 500, what: "The cap" },
@@ -8535,7 +8549,8 @@ var SENDING_HOURS_WORDS = {
   max: PLAYBOOK_HOURS.max,
   first: `${PLAYBOOK_HOURS.min}:00`,
   range: `${PLAYBOOK_HOURS.min}:00\u2013${PLAYBOOK_HOURS.max}:59`,
-  between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
+  between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`,
+  end: `${SENDING_HOURS_END}:00`
 };
 var sendsWaitWords = (hours = SENDING_HOURS_WORDS) => `sends wait for ${hours.range}`;
 var SENDING_NOW_WORDS = "sending now";
@@ -8559,10 +8574,16 @@ function delayWords(ms3) {
 }
 var PLAYBOOK_VETO_DELAY_WORDS = delayWords(PLAYBOOK_VETO_DELAY_MS);
 var SEND_ONCE_STOP_WORDS = delayWords(SEND_ONCE_STOP_MS);
-function readyRunNotice(name, people) {
+function approvalEndsWithSendingHours(trigger) {
+  return triggerOf(trigger ?? "")?.kind === "visit";
+}
+function batchWaitWords(trigger) {
+  return approvalEndsWithSendingHours(trigger) ? waitEndsWords("visit_ask", SENDING_HOURS_WORDS.end) : waitEndsWords("batch_ask");
+}
+function readyRunNotice(name, people, trigger) {
   return {
     subject: `Campaign \u201C${name}\u201D is ready: ${plural(people, "person", "people")}`,
-    body: `${plural(people, "person has", "people have")} become eligible for \u201C${name}\u201D. Approve or skip it from your Inbox or Today. ${waitEndsWords("batch_ask")}.`
+    body: `${plural(people, "person has", "people have")} become eligible for \u201C${name}\u201D. Approve or skip it from your Inbox or Today. ${batchWaitWords(trigger)}.`
   };
 }
 function vetoRunNotice(name, people, when) {
@@ -8572,10 +8593,18 @@ function vetoRunNotice(name, people, when) {
     body: `${who} will be sent \u201C${name}\u201D. ${waitEndsWords("batch_hold", when)}, from Today or its run.`
   };
 }
-function skippedRunNotice(name, people) {
+var NEXT_BATCH_WAITS = "its batches wait until you approve one, and every one waits while \u201CBefore each batch\u201D in its How it runs says to ask";
+function skippedRunNotice(name, people, trigger) {
+  const who = plural(people, "person", "people");
+  const subject = `\u201C${name}\u201D didn\u2019t go: nobody approved it`;
+  if (approvalEndsWithSendingHours(trigger))
+    return {
+      subject,
+      body: `${who} waited for your OK until ${SENDING_HOURS_WORDS.end}, and it did not reach them: no later batch sends it in its place. Open it to see who, and write to them yourself. The next day\u2019s \u201C${name}\u201D waits for your OK too, until ${SENDING_HOURS_WORDS.end}: ${NEXT_BATCH_WAITS}.`
+    };
   return {
-    subject: `\u201C${name}\u201D didn\u2019t go: nobody approved it`,
-    body: `${plural(people, "person", "people")} waited for your OK until the day ended, and nothing was sent. They are in line for its next batch. To stop being asked each time, change \u201CBefore each batch\u201D in its How it runs.`
+    subject,
+    body: `${who} waited for your OK until the day ended, and nothing was sent. They are in line for its next batch, which waits for your OK too: ${NEXT_BATCH_WAITS}.`
   };
 }
 var PLAYBOOK_NAME_MAX = 80;
@@ -11943,7 +11972,7 @@ var FLAGS = [
     owner: "Ruben",
     sunset: "2026-10-17",
     weaker: {
-      allows: "On an edge without EDGE_CALL_SECRET (a preview: a production edge refuses to boot without it), the platform key alone opens every admin door (lib/admin-auth.ts).",
+      allows: "On an edge without EDGE_CALL_SECRET (a preview: a production edge refuses to boot without it), the platform key alone opens every admin door (lib/admin-auth.ts). The live-call doors then refuse what it asks, as it names no workspace (25 October 2026): a rehearsal pair that acts on a live call holds the secret on both projects.",
       readiness: {
         event: "admin_door_key_only",
         when: "no ok: true line but the diagnostic's and the pager's, read from 3 October 2026"
@@ -11970,9 +11999,9 @@ var FLAGS = [
     owner: "platform",
     sunset: "2026-10-13",
     weaker: {
-      allows: "A per-call token with no body hash is accepted on a POST, and one with no workspace on a door that must check whose row it acts on (the live-call doors and steer: tokenWorkspace in lib/admin-auth.ts), so a dashboard built before this may still call an edge that reads them. A token about no workspace is otherwise a platform operator's on purpose (the runbook's knock), so only these doors say it.",
+      allows: "A per-call token with no body hash is accepted on a POST, and one with no workspace on the steer, a door that must check whose row it acts on (tokenWorkspace in lib/admin-auth.ts; the live-call doors refuse one since 25 October 2026), so a dashboard built before this may still call an edge that reads them. A token about no workspace is otherwise a platform operator's on purpose (the runbook's knock), so only the doors that ask tokenWorkspace say it.",
       readiness: { event: "edge_token_unbound", when: "no line for a day after both projects deploy" },
-      closes: "The change that refuses a token with no body hash on a POST, and one with no workspace on those doors."
+      closes: "The change that refuses a token with no body hash on a POST, and one with no workspace on the steer."
     }
   },
   {
@@ -19793,6 +19822,8 @@ var HELD_REASONS = {
   human_has_it: "a person had the thread",
   paused: "the workspace was paused",
   superseded_by_human: "a person answered first",
+  // The receptionist's held reply, past the reply horizon after the message it answers: a person answers instead.
+  too_late: "too late to send automatically",
   sms_carries_no_promotions: "no offers by text",
   // The campaigns domain offers leave from is not this deployment's to use, or the provider does not verify it: the business's
   // news by email is an offer at the door (decision D2), so it waits as an offer does. Each person's own skip, final.
@@ -21553,7 +21584,7 @@ function nextOpenMoment(tz, when) {
 function sendingEndsAt(tz, now) {
   const { date, hour } = parts(tz, now);
   if (hour > PLAYBOOK_HOURS.max) return null;
-  const end = PLAYBOOK_HOURS.max + 1;
+  const end = SENDING_HOURS_END;
   let at3 = zoneMidnight(tz, date) + end * HOUR_MS;
   const landed = parts(tz, new Date(at3)).hour;
   if (landed !== end) at3 += (end - landed) * HOUR_MS;
@@ -27127,8 +27158,7 @@ function runDaysAt(tz, now) {
   return { today: localDate(tz, now), sendsOn: localDate(tz, nextOpenMoment(tz, now).at) };
 }
 function visitRunTooLate(run, days) {
-  const moment2 = triggerOf(audienceTrigger(run.audience) ?? "");
-  return moment2?.kind === "visit" && !!run.run_for && days.sendsOn > run.run_for;
+  return approvalEndsWithSendingHours(audienceTrigger(run.audience)) && !!run.run_for && days.sendsOn > run.run_for;
 }
 function runApprovalRefusal(run, days) {
   if (isReachOutRun(run.audience)) return null;
@@ -33843,6 +33873,16 @@ function withFirstAlertAddress(config, email) {
     ...current.config,
     notifications: { escalation_emails: [address] }
   });
+  return next.success ? withStoredKeysKept(next.data, config) : null;
+}
+function withOwnerAlertAddress(config, email) {
+  const current = parseTenantConfigResult(config ?? {});
+  if (!current.ok) return null;
+  const address = normalizeEmail(email);
+  if (!address) return null;
+  const added = withAlertAddress(current.config.notifications, address, true);
+  if (!added.ok || !added.changed) return null;
+  const next = TenantConfigWriteSchema.safeParse({ ...current.config, notifications: added.notifications });
   return next.success ? withStoredKeysKept(next.data, config) : null;
 }
 
@@ -52772,7 +52812,8 @@ function todayRunWords(r2) {
   const sent = `${r2.counts.sent} sent`;
   const held = `${heldEmailsWords(r2.held ?? 0)}. The rest of the run goes as planned.`;
   const drafted2 = `${plural(r2.drafted ?? 0, "email", "emails")} to send from your inbox, each written and checked.`;
-  const waiting = `${people}. ${waitEndsWords(!reach && r2.playbook_id ? "batch_ask" : "leads_batch")}.`;
+  const ends = !reach && r2.playbook_id ? batchWaitWords(audienceTrigger(r2.audience)) : waitEndsWords("leads_batch");
+  const waiting = `${people}. ${ends}.`;
   return {
     people,
     waiting: {
@@ -72136,6 +72177,7 @@ export {
   withAnswerLanded,
   withFirstAlertAddress,
   withIdeaCarried,
+  withOwnerAlertAddress,
   withReplies,
   withSteps,
   withStoredKeysKept,

@@ -293,6 +293,7 @@ export const LOG_EVENTS = [
   "lines_sweep_resume_threw",
   "link_call_message_failed",
   "link_call_message_noop",
+  "live_call_unbound_refused",
   "mail_domain_unreadable",
   "mailbox_calendar_truncated",
   "mailbox_calendar_unreadable",

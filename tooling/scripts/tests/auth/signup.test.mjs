@@ -190,8 +190,10 @@ test("the wiring: two public paths, the guards on the route, a service role that
     "and the queue, which makes no account, is never asked for one",
   );
   assert.ok(!route.includes("notifyPlatformSignup"), "the public route has no workspace to tell anyone about");
-  // Every workspace starts in one place, the first one included, and that
-  // place tells the mailbox and hands the create screen what sign-up kept.
+  // An owner's workspace starts in one place, the first one included, and that
+  // place tells the mailbox and hands the create screen what sign-up kept (a
+  // partner's is told from partner-account.ts, which
+  // partners/a-handed-over-workspace-has-alerts.test.mjs runs).
   const create = readCode(
     "apps/dashboard/app/api/v1/workspaces/create/route.ts",
     "apps/dashboard/src/server/workspace/workspace-create.ts",

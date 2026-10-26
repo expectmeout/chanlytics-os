@@ -45,6 +45,8 @@ var HELD_REASONS = {
   human_has_it: "a person had the thread",
   paused: "the workspace was paused",
   superseded_by_human: "a person answered first",
+  // The receptionist's held reply, past the reply horizon after the message it answers: a person answers instead.
+  too_late: "too late to send automatically",
   sms_carries_no_promotions: "no offers by text",
   // The campaigns domain offers leave from is not this deployment's to use, or the provider does not verify it: the business's
   // news by email is an offer at the door (decision D2), so it waits as an offer does. Each person's own skip, final.
@@ -1142,6 +1144,7 @@ var MOMENT_TRIGGERS = PLAYBOOK_TRIGGERS.filter(
   (t) => t.kind !== "reach_out"
 );
 var PLAYBOOK_HOURS = { min: 9, max: 20 };
+var SENDING_HOURS_END = PLAYBOOK_HOURS.max + 1;
 var PLAYBOOK_LIMITS = {
   run_hour: { min: PLAYBOOK_HOURS.min, max: PLAYBOOK_HOURS.max, what: "The hour" },
   cap_per_run: { min: 1, max: 500, what: "The cap" },
@@ -1153,7 +1156,8 @@ var SENDING_HOURS_WORDS = {
   max: PLAYBOOK_HOURS.max,
   first: `${PLAYBOOK_HOURS.min}:00`,
   range: `${PLAYBOOK_HOURS.min}:00\u2013${PLAYBOOK_HOURS.max}:59`,
-  between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
+  between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`,
+  end: `${SENDING_HOURS_END}:00`
 };
 var PLAYBOOK_VETO_DELAY_MS = 30 * MIN_MS;
 var SEND_ONCE_STOP_MS = 10 * MIN_MS;

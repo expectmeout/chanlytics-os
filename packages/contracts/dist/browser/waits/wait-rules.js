@@ -3,6 +3,7 @@ export const WAIT_KINDS = [
   "reply",
   "hold",
   "batch_ask",
+  "visit_ask",
   "batch_hold",
   "leads_batch",
   "held_email",
@@ -15,6 +16,7 @@ export const WAIT_RULES = {
   reply: { goes: "on_its_own", ends: "at_its_time", act: "stop" },
   hold: { goes: "by_you", ends: "never", act: "answer" },
   batch_ask: { goes: "with_your_ok", ends: "end_of_its_day", act: "approve" },
+  visit_ask: { goes: "with_your_ok", ends: "end_of_sending_hours", act: "approve" },
   batch_hold: { goes: "on_its_own", ends: "at_its_time", act: "stop" },
   leads_batch: { goes: "with_your_ok", ends: "never", act: "approve" },
   held_email: { goes: "by_you", ends: "never", act: "answer" },
@@ -37,6 +39,10 @@ export function waitEndsWords(kind, at) {
   if (r.ends === "at_its_time") return `Goes ${at ?? "at its time"} unless you stop it`;
   if (r.ends === "end_of_its_day")
     return "Waits for your OK until the end of its day; then it is skipped, and you are told";
+  if (r.ends === "end_of_sending_hours") {
+    const before = at ? `before ${at} by your clock` : "before the day's sending hours end";
+    return `Goes only if you approve it ${before}; after that it is skipped, and it does not reach them`;
+  }
   if (r.goes === "with_your_ok") return "Waits for your OK; nothing goes until you give it";
   if (r.act === "send") return "Waits for you to send it from your own inbox";
   return "Waits for you; nothing more goes until you answer";

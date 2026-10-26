@@ -16,7 +16,7 @@ import { isReachOutRun } from "../reach-out/reach-out-rules";
 import { capitalize } from "../shared/words";
 import { messageAboutOfTrigger } from "./playbook-purpose";
 import type { RunReach } from "./playbook-reach";
-import { triggerOf } from "./playbook-triggers";
+import { approvalEndsWithSendingHours, triggerOf } from "./playbook-triggers";
 import { localDate, nextOpenMoment } from "./playbook-schedule";
 import type { PlaybookDto } from "./playbooks";
 import { PARAM_SOURCE_LABELS, type ParamSpec } from "../templates/templates";
@@ -286,11 +286,10 @@ export function runDaysAt(tz: string, now: Date): { today: string; sendsOn: stri
  * Whether a visit's run, made for today, would go out on a later day than the one it was made for: approved after the
  * last sending hour it waits for nine the next morning, and its words (the visit's time as the calendar said it when the
  * run was made, "tomorrow at 2:00 PM") are that day's, so they would reach the customer on the morning of the visit. Any
- * other moment's words do not name a day.
+ * other moment's words do not name a day (approvalEndsWithSendingHours, the rule its notices say 21:00 by).
  */
 function visitRunTooLate(run: { run_for?: string | null; audience?: unknown }, days: ApprovalDays): boolean {
-  const moment = triggerOf(audienceTrigger(run.audience) ?? "");
-  return moment?.kind === "visit" && !!run.run_for && days.sendsOn > run.run_for;
+  return approvalEndsWithSendingHours(audienceTrigger(run.audience)) && !!run.run_for && days.sendsOn > run.run_for;
 }
 
 /**

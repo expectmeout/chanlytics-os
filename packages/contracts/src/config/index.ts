@@ -114,6 +114,7 @@ export {
   receptionistOf,
   parseTenantConfig,
   withFirstAlertAddress,
+  withOwnerAlertAddress,
   withStoredKeysKept,
   NotificationsConfigSchema,
   CalendarConfigSchema,

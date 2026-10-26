@@ -4,7 +4,7 @@
  */
 import { shiftKey, zoneMidnight } from "../calendar/day-keys";
 import { appointmentWords, type AppointmentWord } from "../journey/appointment-word";
-import { PLAYBOOK_HOURS, PLAYBOOK_VETO_DELAY_MS, triggerOf } from "./playbook-triggers";
+import { PLAYBOOK_HOURS, PLAYBOOK_VETO_DELAY_MS, SENDING_HOURS_END, triggerOf } from "./playbook-triggers";
 import type { PlaybookDto } from "./playbooks";
 import { clockDate, clockHour } from "../shared/clock";
 import { dateFormat, HOUR_MS } from "../shared/time";
@@ -109,7 +109,7 @@ export function nextOpenMoment(tz: string, when: Date): { at: Date; moved: boole
 export function sendingEndsAt(tz: string, now: Date): Date | null {
   const { date, hour } = parts(tz, now);
   if (hour > PLAYBOOK_HOURS.max) return null;
-  const end = PLAYBOOK_HOURS.max + 1;
+  const end = SENDING_HOURS_END;
   // The hour read back and corrected, as nextOpenMoment does, for a day the clocks change.
   let at = zoneMidnight(tz, date) + end * HOUR_MS;
   const landed = parts(tz, new Date(at)).hour;

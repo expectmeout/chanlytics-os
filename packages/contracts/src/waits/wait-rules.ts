@@ -8,6 +8,8 @@
  *   reply         a reply counting down to go in the owner's name (the hold window, or the confidence dial)
  *   hold          a thread handed to a person: nothing more is said until someone answers
  *   batch_ask     a customer batch waiting for an OK: it waits until its day ends, then it is skipped and the owner told
+ *   visit_ask     a visit's batch waiting for an OK: its words name the day, so it waits only until the day's sending
+ *                 hours end, then it is skipped and reaches nobody (contracts runApprovalRefusal)
  *   batch_hold    a customer batch held for a stop: it goes at its time unless stopped
  *   leads_batch   a batch to leads waiting for an OK: it has no day to pass, so it waits until answered
  *   held_email    an email the check held in a going reach-out run: it waits for the owner's say
@@ -24,6 +26,7 @@ export const WAIT_KINDS = [
   "reply",
   "hold",
   "batch_ask",
+  "visit_ask",
   "batch_hold",
   "leads_batch",
   "held_email",
@@ -38,8 +41,11 @@ export type WaitKind = (typeof WAIT_KINDS)[number];
 export interface WaitRule {
   /** What makes it go: nothing (it goes at its time), a person's OK, or the person doing it. */
   goes: "on_its_own" | "with_your_ok" | "by_you";
-  /** When the wait ends without an answer: at its time (it goes), at the end of its day (it is skipped), or never. */
-  ends: "at_its_time" | "end_of_its_day" | "never";
+  /**
+   * When the wait ends without an answer: at its time (it goes), at the end of its day or of its day's sending hours (it
+   * is skipped), or never.
+   */
+  ends: "at_its_time" | "end_of_its_day" | "end_of_sending_hours" | "never";
   /** The one act that answers it. */
   act: "stop" | "approve" | "answer" | "send";
 }
@@ -49,6 +55,7 @@ export const WAIT_RULES: Record<WaitKind, WaitRule> = {
   reply: { goes: "on_its_own", ends: "at_its_time", act: "stop" },
   hold: { goes: "by_you", ends: "never", act: "answer" },
   batch_ask: { goes: "with_your_ok", ends: "end_of_its_day", act: "approve" },
+  visit_ask: { goes: "with_your_ok", ends: "end_of_sending_hours", act: "approve" },
   batch_hold: { goes: "on_its_own", ends: "at_its_time", act: "stop" },
   leads_batch: { goes: "with_your_ok", ends: "never", act: "approve" },
   held_email: { goes: "by_you", ends: "never", act: "answer" },
@@ -73,15 +80,21 @@ export const WAIT_ACT_WORDS: Record<WaitRule["act"], string> = {
 
 /**
  * How a wait ends, in one sentence without its full stop: "Goes at 10:32 AM unless you stop it", "Waits for your OK
- * until the end of its day; then it is skipped, and you are told", "Waits for your OK; nothing goes until you give it",
+ * until the end of its day; then it is skipped, and you are told", "Goes only if you approve it before 21:00 by your
+ * clock; after that it is skipped, and it does not reach them", "Waits for your OK; nothing goes until you give it",
  * "Waits for you; nothing more goes until you answer", "Waits for you to send it from your own inbox". `at` is when one
- * that goes on its own goes, in the business's words ("at 10:32 AM", "today 10:30 AM"); without it, "at its time".
+ * that goes on its own goes, in the business's words ("at 10:32 AM", "today 10:30 AM"); without it, "at its time". For
+ * one that ends with the sending hours it is the hour they end ("21:00", contracts SENDING_HOURS_WORDS.end).
  */
 export function waitEndsWords(kind: WaitKind, at?: string | null): string {
   const r = WAIT_RULES[kind];
   if (r.ends === "at_its_time") return `Goes ${at ?? "at its time"} unless you stop it`;
   if (r.ends === "end_of_its_day")
     return "Waits for your OK until the end of its day; then it is skipped, and you are told";
+  if (r.ends === "end_of_sending_hours") {
+    const before = at ? `before ${at} by your clock` : "before the day's sending hours end";
+    return `Goes only if you approve it ${before}; after that it is skipped, and it does not reach them`;
+  }
   if (r.goes === "with_your_ok") return "Waits for your OK; nothing goes until you give it";
   if (r.act === "send") return "Waits for you to send it from your own inbox";
   return "Waits for you; nothing more goes until you answer";
