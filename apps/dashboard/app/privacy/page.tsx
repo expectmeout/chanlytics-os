@@ -49,16 +49,16 @@ function GoogleUserData() {
         <li>
           <b>Email</b>: we send from the mailbox the emails the owner writes, approves or schedules in Chanlytics, and
           we read its email with people, the last six months and then as it arrives, so the conversations, the replies
-          and the bounces show in the workspace. Newsletters, receipts and other automated mail are set aside and not
-          kept.
+          and the bounces show in the workspace. Mail that marks itself as automated, such as newsletters and
+          auto-replies, is set aside and not kept.
         </li>
         <li>
           <b>Contacts</b>: the mailbox's contacts and other contacts are added to the workspace's people. Being in a
           contact list never counts as agreeing to receive offers.
         </li>
         <li>
-          <b>Calendar</b>: its events, from 180 days back to 90 days ahead, show the business's bookings, its free times
-          and who visited when.
+          <b>Calendar</b>: its events, from 180 days back to 90 days ahead, show the business's appointments, its free
+          times and each person's past appointments.
         </li>
       </ul>
       <p>
