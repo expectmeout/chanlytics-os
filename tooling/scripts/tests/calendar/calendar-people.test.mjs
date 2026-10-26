@@ -1310,7 +1310,7 @@ test("Booked and Asked-never-booked are facts from the calendar on the row: the 
   const gap = toPersonRowVM({ ...asked, visits: cal({}) }, TZ, now);
   assert.equal(gap.askedNotBooked, true, "wrote this month, the calendar never had them");
   assert.equal(gap.askedMs, Date.parse("2026-09-04T12:00:00.000Z"));
-  // Reports' rule (calendar-people.ts visitAnswersAsk, decision 0009): a visit before they asked does not answer it.
+  // Reports' rule (visit/booked-after-ask.ts visitAnswersAsk, decision 0009): a visit before they asked does not answer it.
   const visited = toPersonRowVM({ ...asked, id: "v", visits: cal({ last }) }, TZ, now);
   assert.equal(visited.askedNotBooked, true, "a visit before they asked does not answer it");
   assert.equal(visited.lastVisit, "Thu, Aug 20 · 10:00 AM – 12:00 PM · Colour");

@@ -4,7 +4,7 @@ import { appointmentKeyOf, recordIdOf } from "./appointment-key.js";
 import { normalizeEmail } from "../shared/email-address.js";
 import { alertAddressesOf } from "../config/workspace-config/alerts.js";
 import { formatPhoneDisplay, normalizePhone } from "../shared/phone.js";
-import { dateFormat, DAY_MS } from "../shared/time.js";
+import { dateFormat, DAY_MS, MIN_MS } from "../shared/time.js";
 const MATCH_WORDS = {
   phone: "matched by phone",
   email: "matched by email",
@@ -136,19 +136,23 @@ function soleAtBusiness(people) {
   return people.flatMap((p) => key(p) && n.get(key(p)) === 1 ? [{ ...p, name: p.business?.trim() ?? "" }] : []);
 }
 const NEAR_VISIT_MS = 3 * DAY_MS;
+const isBookingRow = (it) => !!it.uid && recordIdOf(it.uid) !== null;
 export function indexFeed(items, own) {
   const byPhone = /* @__PURE__ */ new Map();
   const byEmail = /* @__PURE__ */ new Map();
+  const byContact = /* @__PURE__ */ new Map();
   const texts = [];
   for (const it of items) {
     const c = extractContacts(it, own);
     for (const ph of c.phones) byPhone.set(ph, [...byPhone.get(ph) ?? [], it]);
     for (const em of c.emails) byEmail.set(em, [...byEmail.get(em) ?? [], it]);
-    if (!it.uid || recordIdOf(it.uid) === null)
-      texts.push({ item: it, text: [it.title, ...c.names, it.description ?? ""].join("\n") });
+    if (it.contactId) byContact.set(it.contactId, [...byContact.get(it.contactId) ?? [], it]);
+    if (!isBookingRow(it)) texts.push({ item: it, text: [it.title, ...c.names, it.description ?? ""].join("\n") });
   }
-  return { byPhone, byEmail, texts, own };
+  return { byPhone, byEmail, byContact, texts, own };
 }
+export const SAME_VISIT_MS = 15 * MIN_MS;
+export const sameVisitStart = (a, b) => Math.abs(a - b) <= SAME_VISIT_MS;
 const visitOf = (it, via) => ({
   id: it.uid ? `${it.uid}:${it.start}` : `ev:${it.start}`,
   key: appointmentKeyOf(it),
@@ -160,50 +164,61 @@ const visitOf = (it, via) => ({
   ...it.said ? { said: it.said } : {},
   ...it.recordId ? { recordId: it.recordId } : {}
 });
-export function allVisitsIn(index, person) {
+function namesThemFirst(it, via, person, own) {
+  if (via !== "phone" && via !== "email" || isBookingRow(it)) return false;
+  const c = extractContacts(it, own);
+  if (via === "phone") return c.phones[0] === person.phone;
+  return !c.phones.length && c.emails[0] === person.email?.toLowerCase();
+}
+function personVisits(index, person) {
   if (isOwn(index.own, person)) return [];
-  const out = [];
-  const seen = /* @__PURE__ */ new Set();
-  const take = (it, via) => {
-    if (seen.has(it)) return;
-    seen.add(it);
-    out.push(visitOf(it, via));
+  const taken = /* @__PURE__ */ new Map();
+  const take = (items, via) => {
+    for (const it of items ?? []) if (!taken.has(it)) taken.set(it, via);
   };
-  if (person.phone) for (const it of index.byPhone.get(person.phone) ?? []) take(it, "phone");
-  if (person.email) for (const it of index.byEmail.get(person.email.toLowerCase()) ?? []) take(it, "email");
-  for (const em of person.businessEmails ?? []) for (const it of index.byEmail.get(em) ?? []) take(it, "business");
+  take(index.byContact.get(person.id), "record");
+  if (person.phone) take(index.byPhone.get(person.phone), "phone");
+  if (person.email) take(index.byEmail.get(person.email.toLowerCase()), "email");
+  for (const em of person.businessEmails ?? []) take(index.byEmail.get(em), "business");
   const re = nameMatcher(person.name);
   if (re) {
-    for (const { item, text } of index.texts) if (!seen.has(item) && re.test(text)) take(item, "name");
+    for (const { item, text } of index.texts) if (!taken.has(item) && re.test(text)) taken.set(item, "name");
   }
-  return out.sort((a, b) => a.start - b.start);
+  const linked = index.byContact.get(person.id) ?? [];
+  const gap = (a, b) => Math.abs(a.start - b.start);
+  const copies = [];
+  for (const [it, via] of taken) {
+    if (!namesThemFirst(it, via, person, index.own)) continue;
+    const near = linked.filter((b) => sameVisitStart(b.start, it.start)).sort((a, b) => gap(a, it) - gap(b, it));
+    if (near[0]) copies.push({ it, of: near[0] });
+  }
+  const words = /* @__PURE__ */ new Map();
+  for (const { it, of } of copies.sort((a, b) => gap(a.it, a.of) - gap(b.it, b.of)))
+    if (it.said && !of.said && !words.has(of)) words.set(of, it.said);
+  const left = new Set(copies.map((c) => c.it));
+  return [...taken].flatMap(([it, via]) => {
+    if (left.has(it)) return [];
+    const said = words.get(it);
+    return [said ? { ...visitOf(it, via), said } : visitOf(it, via)];
+  });
+}
+export function allVisitsIn(index, person) {
+  return personVisits(index, person).sort((a, b) => a.start - b.start);
 }
 export function visitsIn(index, person, nowMs) {
-  if (isOwn(index.own, person)) return { next: null, last: null, near: [], missed: null };
   let next = null;
   let last = null;
   let missed = null;
   const near = [];
-  const seen = /* @__PURE__ */ new Set();
-  const take = (it, via) => {
-    if (seen.has(it)) return;
-    seen.add(it);
-    const v = visitOf(it, via);
+  for (const v of personVisits(index, person)) {
     if (v.said === "missed") {
       if (!missed || v.start > missed.start) missed = v;
-      return;
+      continue;
     }
-    if (it.end >= nowMs) {
+    if (v.end >= nowMs) {
       if (!next || v.start < next.start) next = v;
     } else if (!last || v.end > last.end) last = v;
     if (Math.abs(v.start - nowMs) <= NEAR_VISIT_MS) near.push(v);
-  };
-  if (person.phone) for (const it of index.byPhone.get(person.phone) ?? []) take(it, "phone");
-  if (person.email) for (const it of index.byEmail.get(person.email.toLowerCase()) ?? []) take(it, "email");
-  for (const em of person.businessEmails ?? []) for (const it of index.byEmail.get(em) ?? []) take(it, "business");
-  const re = nameMatcher(person.name);
-  if (re) {
-    for (const { item, text } of index.texts) if (!seen.has(item) && re.test(text)) take(item, "name");
   }
   return { next, last, near: near.sort((a, b) => a.start - b.start), missed };
 }
@@ -332,20 +347,4 @@ export function peopleFromItems(items, services, nowMs, window = {}) {
 }
 export function afterPersonRefused(code) {
   return code === "22023" || code === "PE001" ? "skip" : "stop";
-}
-export function bookedAfterAsk(visits, askedMs) {
-  if (!visits) return false;
-  return visitAnswersAsk(visitStartOf(visits.next), begunOf(visits.last, visits.missed), askedMs);
-}
-function visitStartOf(v) {
-  const t = v ? ms(v.start) : NaN;
-  return Number.isFinite(t) ? t : null;
-}
-function begunOf(last, missed) {
-  const starts = [visitStartOf(last), visitStartOf(missed)].filter((t) => t !== null);
-  return starts.length ? Math.max(...starts) : null;
-}
-function visitAnswersAsk(nextStartMs, lastStartMs, askedMs) {
-  if (nextStartMs !== null) return true;
-  return lastStartMs !== null && lastStartMs >= askedMs - DAY_MS;
 }

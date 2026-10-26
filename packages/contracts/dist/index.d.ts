@@ -10608,6 +10608,12 @@ interface FeedItem extends BusyBlock {
      * (feedWithRecord), and absent for an event the hourly sync has not kept a row for.
      */
     recordId?: string;
+    /**
+     * The person a booking's row is linked to (appointments.contact_id: the read's match, a request's person, a merge's
+     * keeper), so the visits index finds the row by its person as the board does (personOfAppointment). Never read from a
+     * calendar; set only on a booking's own row where the record joins the feed (feedItemOfAppointment).
+     */
+    contactId?: string;
 }
 interface ParsedFeed {
     busy: BusyBlock[];
@@ -10926,8 +10932,6 @@ declare function appointmentKey(tool: string, client: {
     phone: string | null;
     email: string | null;
 }, startMs: number): string;
-/** Two visits are the same one when they are the same client's and start within this of each other. */
-declare const SAME_VISIT_MS: number;
 /** A booking's row as the rule reads it: its client's number and address, the person it is linked to, and its start. */
 interface BookingSighting {
     client_phone: string | null;
@@ -18232,12 +18236,13 @@ interface Visits {
 interface FeedIndex {
     byPhone: Map<string, FeedItem[]>;
     /**
-     * Lower-cased, as extractContacts gives them: every address the event
-     * carried except the organiser's (#626) and the business's own (`own`). An
-     * owner who is in People used to take every appointment they were a guest
-     * on; the organiser rule covered them as organiser, and `own` as guest.
+     * Lower-cased, as extractContacts gives them: every address the event carried except the organiser's (#626) and the
+     * business's own (`own`). An owner who is in People used to take every appointment they were a guest on; the organiser
+     * rule covered them as organiser, and `own` as guest.
      */
     byEmail: Map<string, FeedItem[]>;
+    /** A booking's rows by the person each is linked to (FeedItem.contactId): found first, as the board finds them. */
+    byContact: Map<string, FeedItem[]>;
     texts: Array<{
         item: FeedItem;
         text: string;
@@ -18246,9 +18251,11 @@ interface FeedIndex {
     own: OwnAddresses;
 }
 declare function indexFeed(items: FeedItem[], own: OwnAddresses): FeedIndex;
-/** Every appointment of one person against an indexed feed, oldest first: their number first, their address second, their whole name third. */
+/** Two visits are the same one when they are the same client's and start within this of each other. */
+declare const SAME_VISIT_MS: number;
+/** Every appointment of one person against an indexed feed, oldest first (personVisits). */
 declare function allVisitsIn(index: FeedIndex, person: PersonLike): Visit[];
-/** One person's next and last appointment against an indexed feed: their number first, their address second, their whole name third. */
+/** One person's next and last appointment against an indexed feed (personVisits). */
 declare function visitsIn(index: FeedIndex, person: PersonLike, nowMs: number): Visits;
 /** One person's next and last appointment in a parsed feed. */
 declare function visitsOf(items: FeedItem[], person: PersonLike, nowMs: number, own: OwnAddresses): Visits;
@@ -18372,21 +18379,6 @@ declare function peopleFromItems(items: FeedItem[], services: string[], nowMs: n
  * and the safe unknown is the one that does less.
  */
 declare function afterPersonRefused(code: string | null | undefined): "skip" | "stop";
-/**
- * Whether someone who reached out has an appointment that answers it: one
- * upcoming, or one held since they got in touch. The conversion Chanlytics
- * counts is the booking, not a stage somebody moved a card into, so a visit a
- * member said they missed answers it too: they booked (0002's readers).
- */
-declare function bookedAfterAsk(visits: {
-    next: Started | null;
-    last: Started | null;
-    missed?: Started | null;
-} | null | undefined, askedMs: number): boolean;
-/** A visit as a parse (ms) or the wire (ISO) carries it: its start is all the ask's rule reads. */
-type Started = {
-    start: number | string;
-};
 
 /**
  * A list's reference and its token (decision 0009): how the address, a saved view, a pin and a playbook name a list, read
@@ -20005,7 +19997,7 @@ interface PersonRowVM {
     askedMs: number | null;
     /**
      * Wrote or called in the last 30 days, and nothing on the calendar answers it: a visit ahead, or one since they
-     * asked (calendar-people.ts visitAnswersAsk, Reports' rule too).
+     * asked (visit/booked-after-ask.ts visitAnswersAsk, Reports' rule too).
      */
     askedNotBooked: boolean;
     nextVisitMs: number | null;
@@ -28113,6 +28105,22 @@ declare const BOOKING_REQUEST_REFUSALS: {
 };
 /** The sentence for a refusal the answer door gave, or null for one the set does not know (logged where it is met). */
 declare function bookingRequestRefusalOf(code: string | null | undefined): string | null;
+
+/**
+ * Whether someone who reached out has an appointment that answers it: one
+ * upcoming, or one held since they got in touch. The conversion Chanlytics
+ * counts is the booking, not a stage somebody moved a card into, so a visit a
+ * member said they missed answers it too: they booked (0002's readers).
+ */
+declare function bookedAfterAsk(visits: {
+    next: Started | null;
+    last: Started | null;
+    missed?: Started | null;
+} | null | undefined, askedMs: number): boolean;
+/** A visit as a parse (ms) or the wire (ISO) carries it: its start is all the ask's rule reads. */
+type Started = {
+    start: number | string;
+};
 
 /**
  * Layer-2 policy enforcement (Blueprint §6): deterministic post-generation

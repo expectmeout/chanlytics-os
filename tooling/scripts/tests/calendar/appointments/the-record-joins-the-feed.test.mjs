@@ -223,6 +223,218 @@ test("a booking's row is its client's by their number or address, never by name:
   assert.equal(byName.get("p-maria")?.next?.via, "name");
 });
 
+/** Everyone's visits from the record alone, as People and a playbook's run read them (peopleVisitsOf). */
+const poolOf = (items, rows, record) =>
+  peopleVisitsOf(
+    items,
+    rows,
+    { timezone: TZ, source: "calendar", own: NO_OWN, services: [], rules: null, record },
+    NOW,
+  );
+const KEPT = { id: "p-keep", display_name: "Ana Ruiz", wa_profile_name: null, phone_e164: ANA, email: null };
+/** The number a combined person's booking still carries: the person merged away's, nobody's now. */
+const GONE = "+13055550177";
+
+test("a booking linked to its person is theirs by the link, whatever number it carries: a request from a thread with none, a visit a merge moved", () => {
+  const record = {
+    noted: [
+      booking("r-asked", NOW + 2 * D, "booked", null, {
+        source: "receptionist",
+        client_name: null,
+        contact_id: "p-keep",
+      }),
+      booking("r-moved", NOW - 4 * D, "booked", GONE, { contact_id: "p-keep" }),
+    ],
+    marks: new Map(),
+  };
+  const v = poolOf([], [KEPT], record).get("p-keep");
+  assert.deepEqual(
+    [v.next?.record_id, v.next?.via, v.last?.record_id, v.last?.via],
+    ["r-asked", "record", "r-moved", "record"],
+    "the board draws both as Ana's (personOfAppointment); People and the playbooks now read them as hers too",
+  );
+  const all = allVisitsIn(indexFeed(feedWithRecord([], record, NO_OWN), NO_OWN), {
+    id: "p-keep",
+    name: "Ana Ruiz",
+    phone: ANA,
+    email: null,
+  });
+  assert.deepEqual(
+    all.map((x) => x.recordId),
+    ["r-moved", "r-asked"],
+    "and her page's timeline",
+  );
+  // A booking linked to nobody is still found by its number alone, as before.
+  const unlinked = poolOf([], [KEPT], { noted: [booking("r-n", NOW + D, "booked", ANA)], marks: new Map() });
+  assert.equal(unlinked.get("p-keep").next?.via, "phone");
+});
+
+test("a calendar's copy of a booking of theirs is one visit: within fifteen minutes it is the booking's, and a word said of the copy rides on it", () => {
+  const items = [
+    event("ev-copy", NOW + 2 * D + 10 * 60_000, ANA), // the tool's calendar copy, by her current number
+    event("ev-apart", NOW + 2 * D + 20 * 60_000, ANA), // twenty minutes on: a visit of its own
+    event("ev-past", NOW - 3 * D + 5 * 60_000, ANA), // the copy of a past booking, said missed on the Calendar
+  ];
+  const record = {
+    noted: [
+      booking("r-ahead", NOW + 2 * D, "booked", GONE, { contact_id: "p-keep" }),
+      booking("r-past", NOW - 3 * D, "booked", GONE, { contact_id: "p-keep" }),
+    ],
+    marks: feedMarksOf([
+      {
+        id: "f-past",
+        status: "missed",
+        external_id: "ev-past",
+        starts_at: new Date(NOW - 3 * D + 5 * 60_000).toISOString(),
+      },
+    ]),
+  };
+  const all = allVisitsIn(indexFeed(feedWithRecord(items, record, NO_OWN), NO_OWN), {
+    id: "p-keep",
+    name: "Ana Ruiz",
+    phone: ANA,
+    email: null,
+  });
+  assert.deepEqual(
+    all.map((x) => [x.recordId ?? x.id, x.said ?? null]),
+    [
+      ["r-past", "missed"],
+      ["r-ahead", null],
+      [`ev-apart:${NOW + 2 * D + 20 * 60_000}`, null],
+    ],
+    "each copy left out for its booking, the missed one's word kept; the event twenty minutes on stands",
+  );
+  const v = poolOf(items, [KEPT], record).get("p-keep");
+  assert.equal(v.next?.record_id, "r-ahead", "the next visit is the booking, not its copy");
+  assert.equal(v.last, null, "a visit said missed on its copy is no last visit");
+  assert.equal(v.missed?.record_id, "r-past", "but the one a win-back reads");
+});
+
+test("only a copy by its person folds, as the sweep's rule has it: an event found by a guess stands, and a word goes to the nearest booking", () => {
+  const ana = (over = {}) => ({ id: "p-keep", name: "Ana Ruiz", phone: ANA, email: null, ...over });
+  const visitsOf = (items, noted, person, marks = new Map()) =>
+    allVisitsIn(indexFeed(feedWithRecord(items, { noted, marks }, NO_OWN), NO_OWN), person).map((x) => [
+      x.recordId ?? x.id,
+      x.via,
+      x.said ?? null,
+    ]);
+  const at = NOW - D;
+  const iso = (ms) => new Date(ms).toISOString();
+  // Another client's event at the same hour, found for Ana only by the name in its title, said missed on the Calendar.
+  const otherAna = event("ev-other", at, BEA, "Colour · Ana Ruiz");
+  const mine = booking("r-mine", at, "booked", ANA, { contact_id: "p-keep" });
+  assert.deepEqual(
+    visitsOf(
+      [otherAna],
+      [mine],
+      ana(),
+      feedMarksOf([{ id: "f-o", status: "missed", external_id: "ev-other", starts_at: iso(at) }]),
+    ),
+    [
+      ["r-mine", "record", null],
+      ["f-o", "name", "missed"],
+    ],
+    "the other client's event and its word are not laid on Ana's booking",
+  );
+  // A booking found only by the address of the business Ana works at, beside her own event: neither is the other's.
+  const byBusiness = booking("r-office", at, "booked", null, {
+    client_email: "office@example.com",
+    client_name: "Quinn Diaz",
+  });
+  assert.deepEqual(
+    visitsOf([event("ev-own", at + 5 * 60_000, ANA)], [byBusiness], ana({ businessEmails: ["office@example.com"] })),
+    [
+      ["r-office", "business", null],
+      [`ev-own:${at + 5 * 60_000}`, "phone", null],
+    ],
+    "her own event, found by her number, stays hers",
+  );
+  // Two bookings fifteen minutes apart, each with its copy; the second copy is said missed.
+  const cut = booking("r-cut", at, "booked", GONE, { contact_id: "p-keep" });
+  const brows = booking("r-brows", at + 15 * 60_000, "booked", GONE, { contact_id: "p-keep" });
+  assert.deepEqual(
+    visitsOf(
+      [event("c-cut", at, ANA), event("c-brows", at + 15 * 60_000, ANA)],
+      [cut, brows],
+      ana(),
+      feedMarksOf([{ id: "f-b", status: "missed", external_id: "c-brows", starts_at: iso(at + 15 * 60_000) }]),
+    ),
+    [
+      ["r-cut", "record", null],
+      ["r-brows", "record", "missed"],
+    ],
+    "the word said of the brows goes on the brows",
+  );
+  // A booking linked to her and carrying her number is said as the board says it: linked on the booking.
+  assert.deepEqual(visitsOf([], [booking("r-both", at, "booked", ANA, { contact_id: "p-keep" })], ana()), [
+    ["r-both", "record", null],
+  ]);
+  const linkedAt = (id, start, status = "booked") => booking(id, start, status, GONE, { contact_id: "p-keep" });
+  const said = (id, external_id, start, status) => ({ id, status, external_id, starts_at: iso(start) });
+  // Bea's own event, which names Ana's number second ("mum"), said kept: the sweep matches it to Bea, so it is not Ana's copy.
+  const bea = { ...event("ev-bea", at, null, "Colour · Bea Diaz"), description: `Bea Diaz ${BEA}, mum ${ANA}` };
+  assert.deepEqual(
+    visitsOf([bea], [linkedAt("r-ana", at)], ana(), feedMarksOf([said("f-bea", "ev-bea", at, "kept")])),
+    [
+      ["r-ana", "record", null],
+      ["f-bea", "phone", "kept"],
+    ],
+    "an event that names another client first keeps its word, and Ana's booking hers",
+  );
+  // An event found by the address of her business is a guess, and stands; one found by her own address is her copy.
+  const guest = (uid, start, email) => ({
+    ...event(uid, start, null),
+    description: null,
+    attendees: [{ name: null, email }],
+  });
+  assert.deepEqual(
+    visitsOf(
+      [guest("ev-office", at + 5 * 60_000, "office@example.com")],
+      [linkedAt("r-mine", at)],
+      ana({ businessEmails: ["office@example.com"] }),
+    ),
+    [
+      ["r-mine", "record", null],
+      [`ev-office:${at + 5 * 60_000}`, "business", null],
+    ],
+  );
+  assert.deepEqual(
+    visitsOf(
+      [guest("c-mail", at + 5 * 60_000, "ana@example.com")],
+      [linkedAt("r-mine", at)],
+      ana({ email: "ana@example.com" }),
+    ),
+    [["r-mine", "record", null]],
+  );
+  // A booking's own word stands over its copy's; and a booking's row is never another booking's copy.
+  assert.deepEqual(
+    visitsOf(
+      [event("c", at + 5 * 60_000, ANA)],
+      [linkedAt("r-k", at, "kept")],
+      ana(),
+      feedMarksOf([said("f-c", "c", at + 5 * 60_000, "missed")]),
+    ),
+    [["r-k", "record", "kept"]],
+  );
+  assert.deepEqual(
+    visitsOf([], [linkedAt("r-linked", at), booking("r-other", at + 5 * 60_000, "booked", ANA)], ana()),
+    [
+      ["r-linked", "record", null],
+      ["r-other", "phone", null],
+    ],
+  );
+  // Two copies of one booking, each said something: the nearer copy's word is the visit's, whichever comes first.
+  const twoWords = (near, far) =>
+    visitsOf(
+      [event("c-near", at + 2 * 60_000, ANA), event("c-far", at - 10 * 60_000, ANA)],
+      [linkedAt("r-mine", at)],
+      ana(),
+      feedMarksOf([said("f-n", "c-near", at + 2 * 60_000, near), said("f-f", "c-far", at - 10 * 60_000, far)]),
+    );
+  assert.deepEqual(twoWords("kept", "missed"), [["r-mine", "record", "kept"]]);
+  assert.deepEqual(twoWords("missed", "kept"), [["r-mine", "record", "missed"]]);
+});
+
 test("asked, then booked: a visit since they asked answers it, kept, missed or neither; a request or a cancellation does not", () => {
   const asked = NOW - 5 * D;
   const v = (start) => ({ start, end: start + H });

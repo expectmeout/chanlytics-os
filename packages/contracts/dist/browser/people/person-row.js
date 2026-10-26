@@ -4,13 +4,13 @@ import { personName } from "./person-name.js";
 import { PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS } from "./person-words.js";
 import { isOptedOutContact } from "../consent/consent.js";
 import {
-  bookedAfterAsk,
   visitDateKey,
   visitDay,
   visitLine,
   visitTime,
   visitsAt
 } from "../calendar/calendar-people.js";
+import { bookedAfterAsk } from "../calendar/visit/booked-after-ask.js";
 import { visitDoor } from "../calendar/appointment-key.js";
 import { visitTitleWithout } from "../calendar/visit/visit-service.js";
 import { visitLineOf, visitMarkOfDto } from "../calendar/calendar-words.js";

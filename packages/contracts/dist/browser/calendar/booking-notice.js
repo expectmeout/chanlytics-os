@@ -1,5 +1,5 @@
 import { localToUtcMs } from "./zone-math.js";
-import { extractContacts } from "./calendar-people.js";
+import { extractContacts, sameVisitStart } from "./calendar-people.js";
 import { normalizeEmail } from "../shared/email-address.js";
 import { normalizePhone } from "../shared/phone.js";
 import { DAY_MS, HOUR_MS, MIN_MS } from "../shared/time.js";
@@ -205,10 +205,9 @@ export function clientKeyOf(client) {
 export function appointmentKey(tool, client, startMs) {
   return `${tool}:${clientKeyOf(client)}:${Math.floor(startMs / MIN_MS) * MIN_MS}`;
 }
-export const SAME_VISIT_MS = 15 * MIN_MS;
-const near = (starts, at) => !!starts?.some((s) => Math.abs(s - at) <= SAME_VISIT_MS);
+const near = (starts, at) => !!starts?.some((s) => sameVisitStart(s, at));
 export function sameVisitOnRecord(a, b) {
-  return !!a.contact_id && a.contact_id === b.contact_id && Math.abs(Date.parse(a.starts_at) - Date.parse(b.starts_at)) <= SAME_VISIT_MS;
+  return !!a.contact_id && a.contact_id === b.contact_id && sameVisitStart(Date.parse(a.starts_at), Date.parse(b.starts_at));
 }
 export function bookingCopyTest(bookings, own) {
   if (!bookings.length) return null;

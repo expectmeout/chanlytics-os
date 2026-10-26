@@ -73,6 +73,9 @@ export function feedItemOfAppointment(row: AppointmentLike): FeedItem {
     attendees: row.client_email ? [{ name: row.client_name, email: row.client_email }] : [],
     organizer: null,
     recordId: row.id,
+    // And the person it is linked to, so a booking whose number and address are not theirs (a merge moved it, a request
+    // came from a thread with neither) is still their visit.
+    ...(row.contact_id ? { contactId: row.contact_id } : {}),
   };
 }
 

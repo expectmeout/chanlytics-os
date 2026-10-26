@@ -1,7 +1,7 @@
 /**
  * Asked, then booked: Reports' one conversion line (the dashboard's bookingReport counts it, readers/report.ts). Of the
  * people who wrote or called in the period, how many have an appointment on the calendar, by the visits' own rule
- * (calendar-people.ts visitAnswersAsk, which People's "Asked, never booked" reads too). Its shape on the wire, and
+ * (visit/booked-after-ask.ts visitAnswersAsk, which People's "Asked, never booked" reads too). Its shape on the wire, and
  * every word the page says of it. Out of calendar-people.ts (9 Oct 2026), which is the match of an appointment to a
  * person: this is what Reports says of the count.
  */
