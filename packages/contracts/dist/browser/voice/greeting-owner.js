@@ -1,4 +1,4 @@
-import { GREETING_DEFAULT, greetingFor, pausedGreetingFor } from "./greeting.js";
+import { greetingFor, pausedGreetingFor } from "./greeting.js";
 const GREETING_NAME_SLOT = "{business}";
 const AI_CLAUSE = { en: "I'm the automated assistant.", es: "Soy el asistente autom\xE1tico." };
 export const GREETING_TEMPLATE = greetingFor(GREETING_NAME_SLOT);
@@ -78,11 +78,12 @@ function withAiClause(text, clause) {
 }
 export function greetingOf(input) {
   const name = spokenNameOf(input.name);
-  if (input.paused) return { text: pausedGreetingFor(name), source: "paused" };
+  const assistant = input.assistant ?? null;
+  if (input.paused) return { text: pausedGreetingFor(name, assistant), source: "paused" };
   const raw = (input.stored ?? "").replace(/\{\{/g, "{").replace(/\}\}/g, "}").trim();
-  if (!raw) return { text: greetingFor(name), source: "standard" };
-  if (deniesAutomated(raw, name)) return { text: greetingFor(name), source: "standard_denied" };
-  if (raw.includes(GREETING_NAME_SLOT) && !name) return { text: GREETING_DEFAULT, source: "standard" };
+  if (!raw) return { text: greetingFor(name, assistant), source: "standard" };
+  if (deniesAutomated(raw, name)) return { text: greetingFor(name, assistant), source: "standard_denied" };
+  if (raw.includes(GREETING_NAME_SLOT) && !name) return { text: greetingFor(null, assistant), source: "standard" };
   const filled = name ? raw.split(GREETING_NAME_SLOT).join(name) : raw;
   return statesAutomated(raw, name) ? { text: filled, source: "owner" } : { text: withAiClause(filled, clauseFor(raw, name)), source: "owner_disclosed" };
 }

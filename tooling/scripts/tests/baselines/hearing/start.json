@@ -96,6 +96,15 @@
     "invitations INSERT": "settings setup · 6 routes",
     "invitations UPDATE": "settings setup · 6 routes",
     "invitations DELETE": "settings setup · 6 routes",
-    "tenants UPDATE": "workspace · 1 route"
+    "tenants UPDATE": "workspace · 1 route",
+    "imports INSERT": "setup · 2 routes",
+    "imports UPDATE": "setup · 2 routes",
+    "imports DELETE": "setup · 2 routes",
+    "business_reads INSERT": "setup · 2 routes",
+    "business_reads UPDATE": "setup · 2 routes",
+    "business_reads DELETE": "setup · 2 routes",
+    "rehearsals INSERT": "setup · 2 routes",
+    "rehearsals UPDATE": "setup · 2 routes",
+    "rehearsals DELETE": "setup · 2 routes"
   }
 }

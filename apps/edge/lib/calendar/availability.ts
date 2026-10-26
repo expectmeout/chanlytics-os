@@ -18,6 +18,8 @@
  * below): the bookings a tool emailed are subtracted from what is offered.
  */
 import {
+  calendarFeedKeyOf,
+  mailboxCalendarOf,
   parseIcs,
   freeWindows,
   describeOpenings,
@@ -50,6 +52,7 @@ import { publicFetcher } from "../packages/channels.js";
 import { appointmentsBetween, appointmentsForClient, feedWordsOver } from "../packages/db.js";
 import { pg } from "../pg.js";
 import type { TenantRuntime } from "../tenant-runtime.js";
+import { mailboxCalendarText } from "./mailbox-calendar.js";
 import { logger, errField } from "../log.js";
 
 const CACHE_MS = 5 * MIN_MS;
@@ -91,12 +94,34 @@ function httpsUrl(u: string): string {
   return u.replace(/^webcal:\/\//i, "https://");
 }
 
+/**
+ * A calendar read through a connected mailbox's grant (decision 0073, R20): its events over the season, as iCal
+ * (mailbox-calendar.ts). Null where it cannot be read now, as a link that does not answer is.
+ */
+async function grantFeed(tenantId: string, mailboxId: string, daysAhead: number): Promise<string | null> {
+  const db = pg();
+  if (!db) return null;
+  return mailboxCalendarText(db, tenantId, mailboxId, seasonHorizon(new Date(), daysAhead));
+}
+
 async function fetchFeed(tenantId: string, url: string, tz: string, daysAhead: number): Promise<string | null> {
   const L = logger({ tenant_id: tenantId });
   const key = cacheKey(tenantId, url);
   const hit = feeds.get(key);
   if (hit && Date.now() - hit.at < CACHE_MS) return hit.text;
   let text: string | null = null;
+  const granted = mailboxCalendarOf(url);
+  if (granted) {
+    try {
+      text = await grantFeed(tenantId, granted, daysAhead);
+    } catch (e) {
+      L.error("availability_feed_failed", { error: errField(e), via: "mailbox" });
+    }
+    const at = Date.now();
+    prune(at);
+    feeds.set(key, { text, at, parsed: null, tz, daysAhead });
+    return text;
+  }
   try {
     // The same address rule the dashboard's preview and save keep: never a
     // private address, however it reached the config.
@@ -160,6 +185,10 @@ async function parsedFeedOf(
   return parsed;
 }
 
+/** The workspace's calendar as every reader here asks it: the grant's where one is read, else the link (contracts). */
+export const feedKeyOf = (rt: Pick<TenantRuntime, "calendar" | "calendarGrant">): string | null =>
+  calendarFeedKeyOf({ calendar: rt.calendar, calendar_grant: rt.calendarGrant ?? null });
+
 /** How far ahead the workspace books: what its feed is parsed to (seasonHorizon), and the record read beside it. */
 const daysAheadOf = (rt: TenantRuntime): number =>
   rt.brain?.profile?.booking_rules?.max_days_ahead ?? BOOKING_DEFAULTS.max_days_ahead;
@@ -198,7 +227,7 @@ export async function openingsData(
   mine: string | null = null,
 ): Promise<OpeningsData | null> {
   const L = logger({ tenant_id: rt.tenantId });
-  const url = rt.calendar?.ical_url;
+  const url = feedKeyOf(rt);
   const profile = rt.brain?.profile;
   if (!url || !profile || !rt.timezone) return null;
   try {
@@ -263,7 +292,7 @@ async function recordBusy(
  * only one WhatsApp can carry (contracts offersLinkOn).
  */
 export function linkOfferedOn(on: "call" | "chat", rt: Pick<TenantRuntime, "brain" | "known">): boolean {
-  return offersLinkOn(on, rt.brain, resolveFacts(rt.brain, rt.known).whatsapp_line.value);
+  return offersLinkOn(on, rt.brain, resolveFacts(rt.brain, rt.known).whatsapp_line.value, rt.known.booking_message);
 }
 
 /**
@@ -336,7 +365,7 @@ export async function visitsFor(
   now = new Date(),
 ): Promise<string | null> {
   const L = logger({ tenant_id: rt.tenantId });
-  const url = rt.calendar?.ical_url;
+  const url = feedKeyOf(rt);
   if (!rt.timezone || (!who.phone && !who.name)) return null;
   try {
     // The feed's events, when there is a feed, and the record joined to them as People and the playbooks join it

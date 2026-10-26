@@ -1,6 +1,6 @@
 /**
  * The plumbing every domain uses: time and the clock, the three normalizers, what an id looks like, the small words,
- * HTML escaping, CSV, reading a value from outside, bytes and sums, the envelope and its errors, the closed sets.
+ * HTML escaping, reading a value from outside, bytes and sums, the envelope and its errors, the closed sets.
  */
 export { ok, err, SERVED_AT_HEADER } from "./envelope";
 export type { Ok, Err, Envelope } from "./envelope";
@@ -9,6 +9,7 @@ export type { ErrorCode } from "./errors";
 export { EDGE_ERROR_CODES } from "./edge-errors";
 export type { EdgeAnswerBody, EdgeAnswerCode, EdgeCallCode, EdgeErrorCode, EdgeRefusal } from "./edge-errors";
 export {
+  areaCodeOf,
   normalizePhone,
   samePhone,
   shortCode,
@@ -82,6 +83,7 @@ export type {
   TemplateStatus,
 } from "./enums";
 export {
+  SECOND_MS,
   MIN_MS,
   HOUR_MS,
   DAY_MS,
@@ -125,8 +127,6 @@ export { escapeHtml } from "./html";
 export { finiteOrNull, finiteOrZero, trimmedOrNull, nonBlankOrNull, recordOrNull, lineOrNull } from "./unknown";
 export { utf8Bytes, hexOf } from "./bytes";
 export { sumOf } from "./numbers";
-export { csvCell, parseCsv, matchColumns, importRowsOf, importCounts } from "./csv";
-export type { CsvCell, ImportColumns, ImportRow } from "./csv";
 export { SCHEMA_SETS } from "../schema-sets.generated";
 export { ROUTE_KEYS } from "../route-keys.generated";
 export type { ApiRouteKey } from "../route-keys.generated";

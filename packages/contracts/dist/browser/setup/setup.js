@@ -1,6 +1,11 @@
 import { lineCredentialFailure } from "../lines/line-failure.js";
 import { formatPhoneDisplay, normalizePhone } from "../shared/phone.js";
-import { agoWords, DAY_MS, MIN_MS } from "../shared/time.js";
+import {
+  CARRIERS,
+  PHONE_RINGS,
+  PHONE_WAYS
+} from "../voice/forwarding.js";
+import { agoWords, MIN_MS } from "../shared/time.js";
 import { maySpend } from "../workspace/billing.js";
 import { SOLE_PROP_LIMITS } from "../lines/registration-path.js";
 export const PROVISIONING_DEADLINE_MS = 5 * MIN_MS;
@@ -135,18 +140,29 @@ export function rowContextOf(i, nowMs) {
     lineNum
   };
 }
-export function setupLaterOf(view) {
-  const later = view && typeof view === "object" ? view.later : null;
-  if (!Array.isArray(later)) return [];
-  return [...new Set(later.filter((x) => typeof x === "string" && x.length > 0 && x.length <= 40))];
-}
+const isPhoneWay = (v) => PHONE_WAYS.includes(v);
+const isRings = (v) => PHONE_RINGS.includes(v);
+const isCompany = (v) => v !== "office" && CARRIERS.includes(v);
 export function setupPhoneWantOf(view) {
   const phone = view && typeof view === "object" ? view.phone : null;
   if (!phone || typeof phone !== "object") return null;
-  const { way, number } = phone;
-  if (way !== "keep" && way !== "move" || typeof number !== "string") return null;
+  const { way, number, mode, rings, company } = phone;
+  if (!isPhoneWay(way) || typeof number !== "string") return null;
   const e164 = normalizePhone(number);
-  return e164 ? { way, number: e164 } : null;
+  if (!e164) return null;
+  if (way === "new") return { way, number: e164 };
+  return {
+    way,
+    number: e164,
+    ...mode === "always" ? { mode } : {},
+    ...isRings(rings) ? { rings } : {},
+    ...isCompany(company) ? { company } : {}
+  };
+}
+const WHATSAPP_CHOICES = ["same", "own", "later"];
+export function setupChoicesOf(view) {
+  const wa = view && typeof view === "object" ? view.whatsapp : null;
+  return { whatsapp: WHATSAPP_CHOICES.includes(wa) ? wa : null };
 }
 export function forwardedLineOf(lines) {
   return lines?.rows.find((l) => l.kind === "forwarded" && l.forwarding_state !== "none") ?? null;
@@ -158,52 +174,3 @@ export function keptPhoneKind(line) {
   if (carrier === "office") return "office";
   return carrier && MOBILE_CARRIERS.includes(carrier) ? "mobile" : "unknown";
 }
-export const TRY_SKIPPED = "try-skipped";
-export const REMIND_SKIPPED = "remind-skipped";
-export const KEEP_ROW = "keep";
-export const SETUP_REST_MS = 7 * DAY_MS;
-const SETUP_RESTS_MAX = 20;
-export function setupRestsOf(view) {
-  const rests = view && typeof view === "object" ? view.rests : null;
-  if (!rests || typeof rests !== "object" || Array.isArray(rests)) return {};
-  const kept = Object.entries(rests).filter(
-    (e) => e[0].length > 0 && e[0].length <= 40 && typeof e[1] === "string" && Number.isFinite(Date.parse(e[1]))
-  );
-  return Object.fromEntries(kept.slice(0, SETUP_RESTS_MAX));
-}
-const restUntil = (s, id) => {
-  const until = new Map(Object.entries(s.rests)).get(id);
-  return until === void 0 ? null : Date.parse(until);
-};
-export function setupOffNow(s, id, nowMs) {
-  const until = restUntil(s, id);
-  return s.later.includes(id) || until !== null && until > nowMs;
-}
-export function setupBack(s, id, nowMs) {
-  const until = restUntil(s, id);
-  return !s.later.includes(id) && until !== null && until <= nowMs;
-}
-export function setupPutOffEver(s, id) {
-  return s.later.includes(id) || restUntil(s, id) !== null;
-}
-export function putOffEnds(back) {
-  return back ? "good" : "week";
-}
-export function setupPutOffNext(s, ids, change, nowMs) {
-  const later = new Set(s.later);
-  const rests = new Map(Object.entries(s.rests));
-  for (const id of ids) {
-    if (!change.on) {
-      if (later.has(id)) later.delete(id);
-      else rests.delete(id);
-    } else if (!setupOffNow(s, id, nowMs)) {
-      if (change.why === "answer" || putOffEnds(setupBack(s, id, nowMs)) === "good") later.add(id);
-      else rests.set(id, new Date(nowMs + SETUP_REST_MS).toISOString());
-    }
-  }
-  return { later: [...later], rests: Object.fromEntries(rests) };
-}
-export const SETUP_LATER_REFUSED = {
-  reading: "Setting up is still being read. Try again in a moment.",
-  unread: "What you put off could not be read just now, so nothing changed. Try again in a moment."
-};

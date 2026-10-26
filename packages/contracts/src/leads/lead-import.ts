@@ -2,13 +2,13 @@
  * A list of your own (Reach out, Part 7; docs/superpowers/plans/2026-09-28-reach-out-part-7-bring-your-own-list.md,
  * J1-J12): a file of businesses read as leads, and leads chosen on Leads, each a search a reach-out writes to.
  *
- * Pure. The file is read here, the way People's import reads a client list (shared/csv.ts), with the columns a
+ * Pure. The file is read here, the way People's import reads a client list (imports/csv.ts), with the columns a
  * business has: its name, an email, a phone, a website, a city, a state and a category. Every sentence the import
  * sheet, *Write to them* and a list's own strip say is spelled once; the two doors' bodies are checked by
  * lead-import-schema.ts.
  * The doors (00242 lead_search_import, lead_search_choose) read every row again.
  */
-import { COLUMN_SHARE, columnShare, isHeaderRow, parseCsv, phoneShaped } from "../shared/csv";
+import { COLUMN_SHARE, columnShare, isHeaderRow, parseCsv, phoneShaped } from "../imports/csv";
 import { normalizeEmail } from "../shared/email-address";
 import { normalizePhone } from "../shared/phone";
 import { plural } from "../shared/words";

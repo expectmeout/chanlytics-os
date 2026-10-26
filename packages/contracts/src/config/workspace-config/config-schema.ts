@@ -72,6 +72,21 @@ export const CalendarConfigSchema = z
 export type CalendarConfig = z.infer<typeof CalendarConfigSchema>;
 
 /**
+ * The calendar read through a connected mailbox's grant (decision 0073, R20): which mailbox, and its provider. A section
+ * of its own, never a key of `calendar`: a build from before it leaves out a section it has never heard of and keeps
+ * answering, where an address `calendar` could not parse would mute the receptionist. Where both are set, this is the
+ * calendar read: it holds every calendar of the account, where a link holds one. Written by the edge when a mailbox
+ * connects with its calendar ticked (calendar_grant_note, 00478), taken away when that mailbox is removed.
+ */
+const CalendarGrantConfigSchema = z
+  .object({
+    mailbox_id: z.uuid(),
+    provider: z.enum(["google", "microsoft"]),
+  })
+  .strip();
+export type CalendarGrantConfig = z.infer<typeof CalendarGrantConfigSchema>;
+
+/**
  * Where the bookings come from (00345): the booking tool the owner named (contracts BOOKING_TOOLS), whose emails the
  * intake then reads as bookings. A section of its own, never a key of `calendar`: a build from before it leaves out a
  * section it has never heard of and keeps answering, where a calendar section with no address would have failed its
@@ -119,6 +134,7 @@ export const TenantConfigSchema = z.object({
   ask: AskConfigSchema.optional(),
   notifications: NotificationsConfigSchema.optional(),
   calendar: CalendarConfigSchema.optional(),
+  calendar_grant: CalendarGrantConfigSchema.optional(),
   bookings: BookingsConfigSchema.optional(),
   features: FeaturesConfigSchema.optional(),
 });

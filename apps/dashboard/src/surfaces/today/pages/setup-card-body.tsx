@@ -6,7 +6,9 @@
  * The rows are Setup's own (surfaces/setup/rows: `SetupCardRow`, `SetupRows`), imported.
  */
 import type { ReactNode } from "react";
-import { FIRST_RUN_HELPERS, type SetupCardVM } from "@chanlytics/contracts";
+import { FIRST_RUN_HELPERS, SETUP_CARD_WORDS, type SetupCardVM, type SetupCardWho } from "@chanlytics/contracts";
+import { Icon } from "../../kit/icon/icon";
+import { surfaceValue } from "../../surface-values";
 import { SetupCardRow } from "../../setup/rows/card-row";
 import { SetupRows } from "../../setup/rows/rows";
 import { setupVerbs, type SetupSurface } from "../../setup/surface";
@@ -30,13 +32,42 @@ function startRow(start: NonNullable<SetupCardVM["start"]>, left: string, nav: (
   );
 }
 
+/** A line each, under a quiet title: what the first run kept (canvas T·a), or what is already done going live (T·c). */
+function ticks(title: string, lines: readonly string[], testid: string): ReactNode {
+  if (!lines.length) return null;
+  return (
+    <div className="today-setup-ticks" data-testid={testid}>
+      <span className="setup-card-title">{title}</span>
+      <ul className="today-setup-tick-list">
+        {lines.map((l) => (
+          <li key={l}>
+            <Icon name="check" size={12} />
+            <span>{l}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/**
+ * What the card knows beyond Setup: the business's name, and how the receptionist sounds where the settings read is
+ * already in (never read for the card alone: Today does not draw Settings).
+ */
+function setupWhoOf(S: SetupSurface): SetupCardWho {
+  const read = surfaceValue("settings");
+  const cfg = read && read.settings ? read.settings.config : null;
+  const profile = cfg && cfg.brain ? cfg.brain.profile : null;
+  return { business: S.dto.business.name, sounds: profile ? FIRST_RUN_HELPERS.sounds(profile) : null };
+}
+
 /**
  * After the first run, with the calendar in: the one door to the appointment reminder (decision 22), as the card's last
  * row in Setup's list, drawn as Setup's are: its dot, its name over its sentence, its button and its Skip.
  */
 function remindRow(
   remind: NonNullable<SetupCardVM["remind"]>,
-  skip: SetupCardVM["skip"],
+  skip: NonNullable<SetupCardVM["skip"]>,
   nav: (to: string) => void,
   putOff: () => void,
 ) {
@@ -66,7 +97,8 @@ function optionalRows(S: SetupSurface, card: SetupCardVM, flash: (flash: Flash) 
       look="card"
       primary={card.rows[0]?.id ?? null}
       left={card.left}
-      later={card.skip}
+      // Going live, the rows that need the owner can't be skipped: they are Go live's (the code, WhatsApp).
+      later={card.skip ?? { put: "" }}
       flash={flash}
       tail={tail}
       testid="today-setup-rows"
@@ -84,7 +116,7 @@ function optionalRows(S: SetupSurface, card: SetupCardVM, flash: (flash: Flash) 
 export const TodaySetupCard = ({ S }: { S: SetupSurface }) => {
   // The card's toast, lent to its rows: a Skip or a Hide can take the card away while its Undo is still up.
   const [toastNode, flash] = useToast();
-  const card = FIRST_RUN_HELPERS.todayCard(S.vm);
+  const card = FIRST_RUN_HELPERS.todayCard(S.vm, setupWhoOf(S));
   if (!card) return toastNode;
   const nav = (to: string) => appNavigate(to);
   // Put off as a "not now", said in the card's toast with its Undo, which puts every row back as it stood: every row at
@@ -122,14 +154,18 @@ export const TodaySetupCard = ({ S }: { S: SetupSurface }) => {
           </button>
         ) : null}
       </div>
+      {card.start ? startRow(card.start, card.left, nav) : null}
       {card.start
-        ? startRow(card.start, card.left, nav)
+        ? ticks(SETUP_CARD_WORDS.keptTitle, card.kept, "today-setup-kept")
         : optionalRows(
             S,
             card,
             flash,
-            remind ? remindRow(remind, card.skip, nav, () => void putAway([remind.id], remind.said)) : null,
+            remind && card.skip
+              ? remindRow(remind, card.skip, nav, () => void putAway([remind.id], remind.said))
+              : null,
           )}
+      {ticks(SETUP_CARD_WORDS.doneTitle, card.done, "today-setup-done")}
       {toastNode}
     </section>
   );

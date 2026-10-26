@@ -32,11 +32,19 @@ export {
   sendTemplate,
   fetchMediaBytes,
   WHATSAPP_SEND_TIMEOUT_MS,
+  WA_HISTORY_NOT_SHARED,
+  sharedHistoryOf,
+  contactsSyncedOf,
 } from "./whatsapp";
 export type {
   WaConfig,
   WaRawMessage,
   WaChangeValue,
+  WaHistoryChunk,
+  WaHistoryRead,
+  WaHistoryOf,
+  WaStateSyncItem,
+  WaSyncedContact,
   WaPricing,
   WaMediaRef,
   NormalizedInbound,
@@ -67,6 +75,9 @@ export {
   getRetellLlm,
   fetchRecording,
   verifyRetellSignature,
+  webCallBody,
+  webCallMadeOf,
+  createWebCall,
 } from "./voice/voice-retell";
 export type {
   RetellConfig,
@@ -80,6 +91,7 @@ export type {
   LiveCallControl,
   RetellLlmConfig,
   RecordingFetch,
+  WebCallMade,
 } from "./voice/voice-retell";
 export {
   availabilityUrl,
@@ -252,9 +264,24 @@ export {
   parseMailboxGrant,
   grantScopesMissing,
   grantScopes,
+  grantHolds,
 } from "./mailbox/mailbox-oauth";
-export type { MailboxOAuthClient, MailboxRequest, MailboxGrant } from "./mailbox/mailbox-oauth";
+export type { MailboxOAuthClient, MailboxRequest, MailboxGrant, MailboxReach } from "./mailbox/mailbox-oauth";
+export { gmailListSince, graphListSince } from "./mailbox/mailbox-history";
+export type { ListedMail, MailPage, MailWindow } from "./mailbox/mailbox-history";
+export { googleContacts, googleOtherContacts, graphContacts } from "./mailbox/mailbox-people";
+export type { KnownPerson, PeoplePage } from "./mailbox/mailbox-people";
+export {
+  googleCalendarIds,
+  googleEvents,
+  graphCalendarIds,
+  graphEvents,
+  calendarIcs,
+} from "./mailbox/mailbox-calendar";
+export type { CalendarEvent, EventsPage, CalendarIds } from "./mailbox/mailbox-calendar";
 export { mailboxMessageId, buildMime } from "./mailbox/mailbox-mime";
+export { lookupLineType } from "./lines/lines-twilio";
+export type { LineTypeAnswer } from "./lines/lines-twilio";
 export {
   gmailDayUsed,
   gmailSignedOut,
@@ -416,9 +443,18 @@ export {
   GBP_LOCATIONS_READ_MASK,
   GBP_REVIEWS_PAGE,
   GBP_REVIEWS_MAX_PAGES,
+  GBP_REVIEWS_FIRST_PAGES,
   GBP_REPLY_MAX,
+  readLocationDetails,
 } from "./google/google-profile";
-export type { GbpAccount, GbpLocation, GbpReview, GbpReviewsPage } from "./google/google-profile";
+export type {
+  GbpAccount,
+  GbpLocation,
+  GbpReview,
+  GbpReviewsPage,
+  GbpLocationDetails,
+  GbpPeriod,
+} from "./google/google-profile";
 export { signEdgeToken, verifyEdgeToken, edgeBodyMatches, EDGE_TOKEN_TTL_MS } from "./tokens/edge-token";
 export { requestIdOf, requestIdShaped, REQUEST_ID_HEADER } from "./tokens/request-id";
 export { logger, errField } from "./log/logger";

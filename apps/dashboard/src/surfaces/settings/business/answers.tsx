@@ -570,6 +570,7 @@ export const BtRulesRow = ({
             chips={ruleChips}
             max={BUSINESS_TAB.CHIPS_SHOWN}
             more={BUSINESS_TAB.chipsMoreWords}
+            phrases
             testid="rec-rules-chips"
           />
         ) : null,

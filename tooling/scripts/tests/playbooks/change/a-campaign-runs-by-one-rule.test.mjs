@@ -163,6 +163,14 @@ const OTHER_STATES = {
     n: 1,
     why: "A Health clock's sweep (sweep_status), running or idle as it should be on the Console, not a campaign.",
   },
+  "packages/contracts/src/imports/ledger.ts": {
+    n: 3,
+    why: "The imports ledger's own run (decision 0073, R23): a connection's history coming in, and Meta's parts of it.",
+  },
+  "packages/contracts/src/setup/setup-rows.ts": {
+    n: 3,
+    why: "Setup's clients' file row: the imports ledger's run of the file, not a campaign.",
+  },
 };
 
 /** Whether a node is the string "running". */

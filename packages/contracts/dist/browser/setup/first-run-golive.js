@@ -1,0 +1,348 @@
+import { formatPhoneDisplay } from "../shared/phone.js";
+import { billingDoorOpen, dayWords, priceWords, FIRST_RUN_TRIAL_DAYS } from "../workspace/billing.js";
+import { GET_YES_ROUTE } from "../people/lists/people-route.js";
+import { newSequenceRoute } from "../sequences/sequence-address.js";
+import { forwardedLineOf } from "./setup.js";
+import { importLinesOf, whatsappPartsOf } from "../imports/ledger.js";
+export const FIRST_RUN_GOLIVE_WORDS = {
+  lead: (n) => n ? `Everything you chose starts at once. ${n === 1 ? "One thing needs" : `${n === 2 ? "Two" : "Three"} things need`} you for a minute after.` : "Everything you chose starts at once.",
+  starts: {
+    calls: (kept, always, own) => kept ? `Calls to ${kept} ${always ? "\xB7 every one" : "nobody picks up"}` : own ? `Calls to its own number, ${own}` : "Calls to its own number",
+    callsAfter: (kept) => kept ? "one code, then one call" : "about a minute",
+    whatsappSame: "WhatsApp on the same number, keeping the app",
+    whatsappOwn: "WhatsApp on its own number",
+    whatsappAfter: "approve on your phone, after",
+    bookings: (tool) => tool ? `Bookings from your ${tool} calendar` : "Bookings from your calendar",
+    bookingsAfter: "nothing to do",
+    email: (address) => `Email at ${address}`,
+    emailAfter: "connected"
+  },
+  price: (price) => price,
+  trial: (days) => days ? `${days} days free` : "Charged today",
+  note: (days, firstCharge) => days ? `Its number, calls and WhatsApp included. First charge on ${firstCharge ?? `day ${days + 1}`}. Cancel anytime from Billing.` : "Its number, calls and WhatsApp included. Cancel anytime from Billing.",
+  afterTitle: "After you press",
+  after: {
+    number: "Its number is bought for you",
+    template: "Your booking-link message goes to Meta for approval \xB7 minutes to a day",
+    hands: (code, wa) => `Then on your phone: ${[code ? "dial one code" : null, code ? "call your number once" : null, wa ? "approve WhatsApp" : null].filter(Boolean).join(", ")}`
+  },
+  card: "Your card",
+  /** Stripe's checkout could not be mounted in the page (Stripe.js refused, or blocked). */
+  checkoutFailed: "Stripe's checkout couldn't open here. Try again in a moment; nothing was charged.",
+  secured: (days) => days ? "Nothing is charged today \xB7 secured by Stripe" : "Secured by Stripe",
+  confirming: "Confirming with your bank\u2026",
+  confirmingLead: "Some banks ask you to approve in their app. This page moves on by itself.",
+  confirmingFoot: "Usually a few seconds",
+  noProvider: {
+    heading: "We set up your line with you",
+    lead: "Phone lines aren't automatic here yet. A person at Chanlytics sets yours up and writes to you within a day.",
+    /** What goes live now without the line, of what is connected: WhatsApp's number, a mailbox's mail; null for none. */
+    now: (whatsapp, email) => whatsapp && email ? "WhatsApp goes live now; emails keep coming to the Inbox" : whatsapp ? "WhatsApp goes live now" : email ? "Emails keep coming to the Inbox" : null,
+    calls: "Calls, once your line is ready",
+    ask: "Ask for my line",
+    without: "Go live without calls"
+  },
+  switchOn: {
+    heading: "Everything is connecting",
+    lead: "Stay and watch, or leave: it keeps going, and Today shows this same list.",
+    plan: (price, firstCharge, days) => `Plan started${price ? ` \xB7 ${price}` : ""}${days ? `, ${days} days free` : ""}${firstCharge ? ` \xB7 first charge ${firstCharge}` : ""}`,
+    planSub: "Paid here, with Stripe",
+    number: (n) => `Its number \xB7 ${n}`,
+    /** Before its number is known (bought in the area code of the number kept): the row's name alone. */
+    numberUnknown: "Its number",
+    numberReady: "Bought",
+    numberComing: "On its way",
+    forward: (kept, carrier) => `Send missed calls to it \xB7 on ${kept}${carrier ? `, ${carrier}` : ""}`,
+    forwardAll: (kept, carrier) => `Send every call to it \xB7 on ${kept}${carrier ? `, ${carrier}` : ""}`,
+    check: (kept) => `Then call ${kept} from any other phone and let it ring. When it answers, forwarding is proved.`,
+    checkOwn: (own) => `Call ${own} once from your cell. When it answers, it's live.`,
+    later: "Do it later",
+    checkLine: "Check my line",
+    proved: "Forwarding works",
+    answered: "It answered",
+    whatsapp: "WhatsApp \xB7 approve the connection in WhatsApp Business on that phone",
+    whatsappOwn: "WhatsApp \xB7 connect it on its own number",
+    whatsappGo: "Connect WhatsApp",
+    /** Meta's own steps for keeping the WhatsApp Business app (canvas 5B·g), said before its window opens (R12, R21). */
+    keepApp: "Connect WhatsApp, keep the app",
+    keepAppSteps: (n) => [
+      `In Meta's window, ${n ?? "your number"} is filled in. Copy the code it shows.`,
+      "In WhatsApp Business, open the message from Facebook Business and tap Connect.",
+      "When the app asks to share your chat history, say yes: your one-to-one chats of the last 6 months come into Inbox. Group chats stay in the app.",
+      "Paste the code in Meta's window. Done."
+    ],
+    keepAppAfter: "You keep using the app. Your receptionist answers what you don't; your replies from the app show in Inbox too, and your WhatsApp contacts come into People.",
+    ifNot: "If you'd rather not share your chats",
+    ifNotSays: [
+      "WhatsApp still connects, and you keep the app.",
+      "Every chat from now on comes into Inbox, and your receptionist answers what you don't.",
+      "Your older chats stay only in the app. Meta offers the history once, while the number connects; to bring it later, WhatsApp has to be connected again from Settings."
+    ],
+    openMeta: "Open Meta's window",
+    skipWhatsapp: "Skip WhatsApp for now",
+    template: "Your booking-link message \xB7 Meta is reviewing it \xB7 until then it takes a caller's details",
+    templateOk: "Your booking-link message \xB7 approved",
+    needsYou: "Needs you",
+    open: "Open Today, it keeps going",
+    askTitle: (name) => `Getting ${name ?? "your receptionist"} ready`,
+    askDone: (done, of) => `${done} of ${of} done`,
+    answersTitle: (name) => `${name ?? "It"} answers`,
+    answers: {
+      email: "Waits for you in the Inbox",
+      whatsapp: "Once you approve",
+      whatsappOn: "On",
+      calls: "Once your line is proved",
+      callsOn: "On"
+    }
+  },
+  live: {
+    since: (time) => `Answering since ${time}`,
+    channels: (parts) => parts.join(" \xB7 "),
+    callsKept: (kept, always) => always ? `Every call to ${kept}` : `Calls to ${kept} nobody picks up`,
+    callsOwn: (own) => `Calls to ${own}`,
+    whatsappSame: "WhatsApp on the same number",
+    whatsappOn: (n) => `WhatsApp on ${n}`,
+    email: "your emails in the Inbox",
+    movesTitle: "Ask's first three moves",
+    movesLead: "Drafted from what's connected; each waits for your yes",
+    yes: {
+      title: "Ask your customers for their yes",
+      says: (yes, of) => `A sign-up QR for the desk, and it asks once at the end of a chat \xB7 ${of ? `${yes} of ${of.toLocaleString()} said yes` : `${yes} said yes`}`,
+      act: "Get the QR"
+    },
+    remind: {
+      title: "Remind each customer the day before",
+      says: "By email to those with an address, by WhatsApp to those who say yes",
+      act: "Turn on"
+    },
+    winBack: {
+      title: "Win back the ones you haven't seen in a while, by email",
+      says: "To those with an address who have been in before \xB7 WhatsApp offers don't reach US numbers",
+      act: "See the draft"
+    },
+    brief: "Hear your first brief",
+    briefSays: "Ask, in its own voice \xB7 15 seconds",
+    team: "Invite your team",
+    /** Where the two quiet presses go: Team, and Today, where Ask's brief is heard. */
+    teamTo: "admin/team",
+    briefTo: "today",
+    whatsappWaiting: "WhatsApp \xB7 Meta is approving",
+    whatsappWaitingSays: "Usually a few minutes, sometimes a day. Nothing to do: it switches on by itself, and your chat history comes in with it.",
+    whatsappLater: "WhatsApp \xB7 later",
+    whatsappLaterSays: "Without WhatsApp it can't send a caller your booking link: it takes their details for you, or points them to your website. Connect any time from Today; your last six months of chats come in then.",
+    whatsappConnect: "Connect WhatsApp now",
+    /** Chosen at Where it answers and not connected yet: everything else answers, and WhatsApp joins once approved. */
+    whatsappConnectSays: "Calls and email answer now. WhatsApp joins once you approve it on your phone; Today keeps this until then."
+  }
+};
+function answeringSince(dto) {
+  const act = (dto.activations ?? []).find((a) => a.capability === "voice" && !a.deactivated_at);
+  if (act?.activated_at) return act.activated_at;
+  const line = dto.lines?.rows.find((l) => l.voice_state === "answering");
+  return line?.state_since ?? null;
+}
+function timeWords(iso, tz) {
+  if (!iso) return null;
+  const ms = Date.parse(iso);
+  if (Number.isNaN(ms)) return null;
+  try {
+    return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: tz }).format(new Date(ms));
+  } catch {
+    return null;
+  }
+}
+function goLiveFactsOf(i) {
+  const { dto, vm } = i;
+  const want = vm.want;
+  const kept = want && want.way !== "new" ? formatPhoneDisplay(want.number) : null;
+  const waOn = dto.channels.whatsapp.present;
+  const waChosen = i.whatsapp === "same" || i.whatsapp === "own";
+  return {
+    kept,
+    always: want?.mode === "always",
+    own: formatPhoneDisplay(dto.channels.voice.number ?? (want?.way === "new" ? want.number : null)),
+    waOn,
+    waChosen,
+    hands: (kept ? 1 : 0) + (waChosen && !waOn ? 1 : 0),
+    price: priceWords(dto.billing?.price ?? null) || null,
+    firstCharge: dto.billing?.current_period_end ? dayWords(dto.billing.current_period_end) : null
+  };
+}
+function startsOf(i, f) {
+  const W = FIRST_RUN_GOLIVE_WORDS.starts;
+  const mailbox = i.dto.email?.sending?.mailboxes[0] ?? null;
+  const out = [
+    { key: "calls", label: W.calls(f.kept, f.always, f.own), after: W.callsAfter(!!f.kept) }
+  ];
+  if (f.waChosen)
+    out.push({
+      key: "whatsapp",
+      label: i.whatsapp === "same" ? W.whatsappSame : W.whatsappOwn,
+      after: W.whatsappAfter
+    });
+  if (i.dto.calendar.state === "ok")
+    out.push({ key: "bookings", label: W.bookings(i.toolName), after: W.bookingsAfter });
+  if (mailbox) out.push({ key: "email", label: W.email(mailbox.address), after: W.emailAfter });
+  return out;
+}
+function payOf(i, f) {
+  const W = FIRST_RUN_GOLIVE_WORDS;
+  const days = FIRST_RUN_TRIAL_DAYS;
+  const after = [W.after.number];
+  if (f.waChosen) after.push(W.after.template);
+  if (f.hands) after.push(W.after.hands(!!f.kept, f.waChosen && !f.waOn));
+  return {
+    starts: startsOf(i, f),
+    price: f.price,
+    trial: W.trial(days),
+    note: W.note(days, null),
+    after,
+    secured: W.secured(days)
+  };
+}
+function forwardItemOf(i, f, proof) {
+  const W = FIRST_RUN_GOLIVE_WORDS.switchOn;
+  if (f.kept) {
+    const later = i.vm.rows.find((r) => r.id === "keep")?.later;
+    return {
+      key: "forward",
+      state: proof.proved ? "done" : later ? "later" : "needs",
+      label: f.always ? W.forwardAll(f.kept, null) : W.forward(f.kept, null),
+      sub: proof.proved ? W.proved : W.check(f.kept)
+    };
+  }
+  if (!f.own) return null;
+  return {
+    key: "forward",
+    state: proof.tested ? "done" : i.vm.trySkipped ? "later" : "needs",
+    label: W.checkOwn(f.own),
+    sub: proof.tested ? W.answered : null
+  };
+}
+function importItemsOf(dto) {
+  const chats = whatsappPartsOf((dto.imports ?? []).find((r) => r.source === "whatsapp_history"));
+  return importLinesOf(dto.imports, { whatsappWaiting: false }).lines.map((l) => {
+    const state = l.state === "done" ? "done" : l.state !== "failed" ? "waiting" : l.retry ? "needs" : "stopped";
+    const parts = l.source === "whatsapp_history" && chats.length ? { parts: chats } : {};
+    return { key: "imports", state, label: `${l.title} \xB7 ${l.says}`, sub: null, ...parts };
+  });
+}
+function switchItemsOf(i, f, proof) {
+  const W = FIRST_RUN_GOLIVE_WORDS.switchOn;
+  const voice = i.dto.channels.voice.present;
+  const approved = i.dto.templates.startersApproved > 0;
+  const items = [
+    {
+      key: "number",
+      state: voice ? "done" : "waiting",
+      label: f.own ? W.number(f.own) : W.numberUnknown,
+      sub: voice ? W.numberReady : W.numberComing
+    }
+  ];
+  const forward = forwardItemOf(i, f, proof);
+  if (forward) items.push(forward);
+  if (f.waChosen)
+    items.push({
+      key: "whatsapp",
+      state: f.waOn ? "done" : "needs",
+      label: i.whatsapp === "same" ? W.whatsapp : W.whatsappOwn,
+      sub: null
+    });
+  if (f.waOn || f.waChosen)
+    items.push({
+      key: "template",
+      state: approved ? "done" : "waiting",
+      label: approved ? W.templateOk : W.template,
+      sub: null
+    });
+  return [...items, ...importItemsOf(i.dto)];
+}
+function switchOnOf(i, f) {
+  const W = FIRST_RUN_GOLIVE_WORDS.switchOn;
+  const { dto } = i;
+  const fw = forwardedLineOf(dto.lines);
+  const proof = { proved: !!fw && fw.forwarding_state === "verified", tested: !!dto.channels.voice.lastInboundAt };
+  const items = switchItemsOf(i, f, proof);
+  const callsOn = f.kept ? proof.proved : proof.tested;
+  const answers = [
+    { key: "email", label: "Email", value: W.answers.email }
+  ];
+  if (f.waChosen)
+    answers.push({ key: "whatsapp", label: "WhatsApp", value: f.waOn ? W.answers.whatsappOn : W.answers.whatsapp });
+  answers.push({ key: "calls", label: "Calls", value: callsOn ? W.answers.callsOn : W.answers.calls });
+  const billing = dto.billing;
+  const started = billingDoorOpen(billing) && (billing.status === "active" || billing.status === "trialing");
+  const plan = started ? W.plan(f.price, f.firstCharge, billing.status === "trialing" ? FIRST_RUN_TRIAL_DAYS : 0) : null;
+  return {
+    plan,
+    items,
+    needs: items.filter((x) => x.state === "needs").length,
+    done: items.filter((x) => x.state === "done").length + (plan ? 1 : 0),
+    of: items.length + (plan ? 1 : 0),
+    answers
+  };
+}
+export function firstRunGoLiveOf(i) {
+  const { dto, phone } = i;
+  const f = goLiveFactsOf(i);
+  const hands = f.hands;
+  const none = { pay: null, switchOn: null, live: null, noProvider: null, hands, rows: [] };
+  if (i.complete) return { ...none, stage: "live", live: liveOf(i, f) };
+  if (phone.stage === "rows" && !dto.channels.voice.present && (!dto.lines?.ready || dto.requests.line)) {
+    const email = !!dto.email?.mailbox || (dto.email?.sending?.mailboxes.length ?? 0) > 0;
+    const now = FIRST_RUN_GOLIVE_WORDS.noProvider.now(f.waOn, email);
+    return { ...none, stage: "noProvider", noProvider: { now } };
+  }
+  if (phone.stage === "starting") return { ...none, stage: "confirming", pay: payOf(i, f) };
+  if (phone.stage === "go") return { ...none, stage: "pay", pay: payOf(i, f) };
+  const rows = phone.stage === "rows" ? i.vm.rows.filter((r) => (r.id === "billing" || r.id === "line") && r.state !== "ready").map((r) => r.id) : [];
+  return { ...none, stage: "switch", switchOn: switchOnOf(i, f), rows };
+}
+function liveOf(i, n) {
+  const L = FIRST_RUN_GOLIVE_WORDS.live;
+  const { dto, vm } = i;
+  const parts = [
+    n.kept ? L.callsKept(n.kept, n.always) : n.own ? L.callsOwn(n.own) : null,
+    n.waOn ? i.whatsapp === "same" ? L.whatsappSame : L.whatsappOn(formatPhoneDisplay(dto.channels.whatsapp.number) ?? "") : null,
+    L.email
+  ].filter((x) => !!x);
+  const moves = [
+    { key: "yes", title: L.yes.title, says: L.yes.says(dto.consent.yes, i.people), act: L.yes.act, to: GET_YES_ROUTE }
+  ];
+  if (vm.calendarLinked && !vm.dayBeforeOn)
+    moves.push({
+      key: "remind",
+      title: L.remind.title,
+      says: L.remind.says,
+      act: L.remind.act,
+      to: newSequenceRoute("visit_tomorrow")
+    });
+  moves.push({
+    key: "winBack",
+    title: L.winBack.title,
+    says: L.winBack.says,
+    act: L.winBack.act,
+    to: newSequenceRoute(vm.calendarLinked ? "lapsed" : "quiet_30")
+  });
+  const notes = [];
+  const waChosen = i.whatsapp === "same" || i.whatsapp === "own";
+  const SO = FIRST_RUN_GOLIVE_WORDS.switchOn;
+  if (n.waOn && !dto.channels.whatsapp.active)
+    notes.push({ key: "whatsapp_waiting", title: L.whatsappWaiting, says: L.whatsappWaitingSays, act: null });
+  if (!n.waOn && waChosen)
+    notes.push({
+      key: "whatsapp_connect",
+      title: i.whatsapp === "same" ? SO.whatsapp : SO.whatsappOwn,
+      says: L.whatsappConnectSays,
+      act: { kind: "connect", label: SO.whatsappGo }
+    });
+  if (!n.waOn && !waChosen)
+    notes.push({
+      key: "whatsapp_later",
+      title: L.whatsappLater,
+      says: L.whatsappLaterSays,
+      act: { kind: "choose", label: L.whatsappConnect }
+    });
+  const since = timeWords(answeringSince(dto), i.tz);
+  return { since: since ? L.since(since) : null, channels: L.channels(parts), moves, notes };
+}

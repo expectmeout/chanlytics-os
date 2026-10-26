@@ -19,18 +19,43 @@ export const COMMON_LANGUAGES = [
 ];
 export const TONE_PRESETS = [
   {
-    label: "Warm and brief",
-    tone: "Warm and brief. Friendly, a sentence or two at a time, and straight to what the customer asked."
+    key: "warm",
+    label: "Warm",
+    tone: "Warm and friendly. A sentence or two at a time, like a front desk that knows its regulars.",
+    sample: "Oh, lovely, Saturday at 11 is open. Want to book it?"
   },
   {
-    label: "Professional, no small talk",
-    tone: "Professional and to the point. Polite and clear, with no small talk and no exclamation marks."
+    key: "polished",
+    label: "Polished",
+    tone: "Polished and courteous. Clear and complete, with no small talk and no exclamation marks.",
+    sample: "Certainly. Saturday at 11 is available. Would you like the link to book it?"
   },
   {
-    label: "Chatty, first names",
-    tone: "Chatty and relaxed. Uses the customer's first name when it has one, and sounds like a friendly front desk."
+    key: "upbeat",
+    label: "Upbeat",
+    tone: "Upbeat and quick. Cheerful, short sentences, and straight to what the customer asked.",
+    sample: "Good news, Saturday at 11 is free! Want the link?"
+  },
+  {
+    key: "calm",
+    label: "Calm",
+    tone: "Calm and unhurried. Reassuring, plain words, one thing at a time.",
+    sample: "Saturday at 11 is open. Would you like the link to book it?"
   }
 ];
+export const ASSISTANT_NAME_WORDS = {
+  label: "Its name",
+  empty: "No name",
+  placeholder: "Ava",
+  hint: "Callers always hear that it's the automated assistant, so the greeting says it beside the name.",
+  gate: "give it a name",
+  saved: (name) => name ? `It introduces itself as ${name}.` : "It has no name now.",
+  tooLong: (max) => `A name is at most ${max} characters.`
+};
+export function personalityOf(tone) {
+  const t = (tone ?? "").trim();
+  return t ? TONE_PRESETS.find((p) => p.tone === t)?.key ?? null : null;
+}
 const cutAtWord = (text, max) => {
   const t = text.replace(/\s+/g, " ").trim();
   if (t.length <= max) return t;

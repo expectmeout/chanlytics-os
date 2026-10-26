@@ -9,9 +9,9 @@
    one leading tile. The panes had grown five kinds of row at 7, 8, 9, 10 and
    12px of padding and seven sizes of type between 10 and 13px, which is what
    "cluttered" was: nothing wrong with any one row, no two alike. Setup's rows
-   and their Try card keep it wherever they are drawn (the first run, Today's card), so their
+   keep it wherever they are drawn (the first run, Today's card), so their
    rules read one scale inside Settings and out. */
-.settings, .setup-rows, .setup-try {
+.settings, .setup-rows {
   --set-title: var(--text-md);
   --set-label: var(--text-base);
   --set-hint: var(--text-sm);
@@ -1088,22 +1088,6 @@ p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wra
 
 /* Setup's rows, wherever they are drawn: the first run (first-run.jsx) and Today's card. The rows are the attention
    row People and Today share (attention-bits.jsx). A row put off for later fades. */
-.setup-try-rows { display: grid; gap: 4px; padding-bottom: 8px; }
-/* The page is its rows: the meter, then the work, and on a phone the Try card after the rows rather than a screen
-   of it before them (feedback: a phone shows the work first). */
-@media (max-width: 640px) { .setup-try { order: 3; } }
-/* The number, then what to do with it. On a phone the acts take the next line
-   rather than each wrapping alone: at 390px the row broke into four lines, one
-   of them a lone arrow. */
-.setup-try-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; padding: 8px 0; font-size: var(--set-label); }
-.setup-try-row .icon { flex: none; color: var(--ink-dim); }
-.setup-try-num { font-variant-numeric: tabular-nums; font-weight: 600; }
-@media (max-width: 640px) {
-  /* The number takes the first line, both verbs the second, side by side: at
-     390px each verb had been wrapping onto a line of its own. */
-  .setup-try-num { flex: 1 0 calc(100% - 28px); }
-}
-
 /* The rows are the attention row Today and People share (attention-bits.jsx), so
    everything here is scoped to Setup and those two are untouched. What it takes
    from the rest of Settings: the row's height and gutter, the leading tile, the
@@ -1469,13 +1453,27 @@ p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wra
 .bt-gap { margin: 0; display: flex; align-items: flex-start; gap: 10px; font-size: var(--text-sm); line-height: var(--leading-normal); }
 .bt-gap-dot { flex: none; width: 8px; height: 8px; margin-top: 6px; border-radius: var(--radius-full); background: var(--warn); }
 .bt-gap-words, .bt-gap-door { font-weight: var(--weight-medium); color: var(--warn-ink); text-wrap: pretty; }
-/* How it answers, Try it (business/try/try-it.tsx): each message tried and what came back stack as the card's rows, and
+/* How it answers, Rehearse's Type (business/rehearse/rehearse.tsx, once Try it): each message tried and what came back
+   stack as the card's rows, and
    the box sits under them with its acts beside it, under it on a phone. The box is the form's first child, so no rule
    here names the kit's field. */
 .bt-try-turn { display: grid; }
 .bt-try-ask { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 12px; padding-top: 12px; }
 .bt-try-ask > :first-child { flex: 1 1 260px; min-width: 0; }
 .bt-try-acts { display: flex; align-items: center; gap: 12px; min-height: 32px; }
+/* Rehearse (business/rehearse, decision 0069): Talk or Type over the fold, a call's words as they come, then How it did,
+   each answer judged in a group of its own, its pill and where it came from on one line, its fix under it. A real
+   call's Review this call (inbox/thread/call.tsx) draws the same review, under the call's end line. */
+.bt-rh-modes { align-self: flex-start; margin-bottom: 12px; }
+.bt-rh-talk { display: grid; gap: 4px; }
+.bt-rh-status { margin: 0; font-size: var(--text-sm); color: var(--ink-dim); }
+.bt-rh-review { display: grid; gap: 16px; padding-top: 16px; }
+.bt-rh-item { display: grid; gap: 4px; padding-top: 12px; border-top: 1px solid var(--line); }
+.bt-rh-verdict { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.bt-rh-why { margin: 0; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink); text-wrap: pretty; }
+.bt-rh-line { flex: 1 1 260px; min-width: 0; margin: 0; font-size: var(--text-base); color: var(--ink); }
+.bt-rh-now { display: grid; gap: 6px; padding-top: 8px; }
+.bt-rh-next { display: grid; gap: 4px; padding-top: 12px; }
 .bt-gap-door { display: inline; line-height: inherit; text-align: left; text-decoration: underline; text-decoration-color: color-mix(in oklab, var(--warn) 50%, transparent); text-underline-offset: 3px; border-radius: var(--radius-xs); }
 .bt-gap-door:hover { text-decoration-color: currentColor; }
 

@@ -1,6 +1,6 @@
 import { resolveFacts } from "../facts.js";
 import { samePhone } from "../../shared/phone.js";
-import { NO_WAY_TO_SEND_LINK, offersBookingLink, offersLinkOn } from "../no-booking-link.js";
+import { cannotSendLink, offersBookingLink, offersLinkOn } from "../no-booking-link.js";
 import { BASELINE_CLOSING, BASELINE_OPENING, isBaselinePrompt } from "./brain-config.js";
 import { composeSystemPrompt, noLinkBooking, standingRules, PROMPT_OPENINGS } from "./compose.js";
 export function instructionsDraft(brain) {
@@ -18,7 +18,7 @@ export function resolveSystemPrompt(brain, wire = "whatsapp", tz, now = /* @__PU
   const channel = wire === "voice" ? "voice" : "whatsapp";
   const facts = resolveFacts(brain, known);
   if (!hasProfile(brain.profile)) {
-    const link = !offersBookingLink(brain) ? [noLinkBooking(channel)] : channel === "voice" && !offersLinkOn("call", brain, facts.whatsapp_line.value) ? [NO_WAY_TO_SEND_LINK] : [];
+    const link = !offersBookingLink(brain) ? [noLinkBooking(channel)] : channel === "voice" && !offersLinkOn("call", brain, facts.whatsapp_line.value, known?.booking_message) ? [cannotSendLink(facts.whatsapp_line.value)] : [];
     const rules = [...link, ...standingRules(policy, channel, audience)];
     return `${brain.system_prompt}
 
@@ -32,7 +32,9 @@ ${rules.map((r) => `- ${r}`).join("\n")}`;
     phone_display: ringing ? null : facts.phone_display.value,
     booking_link: facts.booking_link.value ?? brain.booking_link ?? null,
     // Provisioned or nothing, never typed (facts.ts): the ask for the yes to offers is composed only where there is one.
-    whatsapp_line: facts.whatsapp_line.value
+    whatsapp_line: facts.whatsapp_line.value,
+    // Whether Meta approved the message a call sends the link in (R14); not read, offered as before.
+    booking_message: known?.booking_message ?? null
   };
   const carried = { ...profile, extra_instructions: ownWordsOf(brain) ?? void 0 };
   return composeSystemPrompt(resolved, carried, wire, tz, now, policy, audience);

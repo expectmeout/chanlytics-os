@@ -17,28 +17,27 @@ export function emailRow(i, { nowMs }) {
       body: "email_setup"
     };
   }
-  if (i.email?.ready) {
+  const sending = i.email?.sending ?? null;
+  if (!sending?.mailboxes.length && !sending?.providers.length)
     return {
       ...base,
       detail: null,
-      state: "none",
-      stateWords: "Not set up",
-      sentence: `Give customers an address to write to. ${EMAIL_NOT_ANSWERED_SENTENCE}`,
-      verb: { label: "Choose the address", to: "verb:email-setup", who: "owner" },
-      body: "email_setup"
+      state: "later",
+      stateWords: "Later",
+      sentence: "Email from customers will come in through your own Google Workspace or Microsoft 365 mailbox.",
+      verb: null
     };
-  }
   return {
     ...base,
     detail: null,
-    state: "later",
-    stateWords: "Later",
-    sentence: "An address customers write to, answered from your Inbox.",
+    state: "none",
+    stateWords: "Through your mailbox",
+    sentence: `Email from customers comes in through the mailbox you connect below. ${EMAIL_NOT_ANSWERED_SENTENCE}`,
     verb: null
   };
 }
 export function mailboxRow(i) {
-  const base = { kind: "mailbox", icon: "send", title: "Mailboxes you write from" };
+  const base = { kind: "mailbox", icon: "send", title: "Your mailbox" };
   const sending = i.email?.sending ?? null;
   const boxes = sending?.mailboxes ?? [];
   if (boxes.length > 0) {
@@ -49,7 +48,7 @@ export function mailboxRow(i) {
       detail: one ? boxes[0]?.address ?? null : `${boxes.length} mailboxes`,
       state: needs ? "attention" : "connected",
       stateWords: needs ? `${needs} to look at` : "On",
-      sentence: `Sequences to leads write from ${one ? "it" : "them"}, and replies come back to ${one ? "it" : "them"} and to your Inbox.`,
+      sentence: `Email people write to ${one ? "it" : "them"} comes into your Inbox, six months of it with it, and sequences to leads write from ${one ? "it" : "them"}.`,
       verb: null,
       body: "mailboxes"
     };
@@ -60,7 +59,7 @@ export function mailboxRow(i) {
       detail: null,
       state: "none",
       stateWords: "Not connected",
-      sentence: "Send sequences to leads from your own Google Workspace or Microsoft 365 mailbox; replies come back to it and to your Inbox.",
+      sentence: "Connect your Google Workspace or Microsoft 365 mailbox: email from people comes into your Inbox, six months of it with it, and sequences to leads write from it.",
       verb: null,
       body: "mailboxes"
     };

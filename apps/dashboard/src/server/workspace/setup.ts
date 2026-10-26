@@ -37,7 +37,16 @@ import "server-only";
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, MailboxRow } from "@chanlytics/db";
-import { getTenantConfig, mailboxOfTenant, offersEmailReach, runningStepsOn } from "@chanlytics/db";
+import {
+  getTenantConfig,
+  importsOf,
+  businessReadsOf,
+  mailboxOfTenant,
+  offersEmailReach,
+  peopleCount,
+  rehearsalTally,
+  runningStepsOn,
+} from "@chanlytics/db";
 import { configRowOf } from "./config-row";
 import {
   emailOffersOpen,
@@ -55,6 +64,13 @@ import {
   memberWords,
   type SetupDto,
   type CapabilityKind,
+  IMPORT_SOURCES,
+  BUSINESS_READ_SOURCES,
+  businessReadFactsOf,
+  type BusinessReadSource,
+  IMPORT_STATES,
+  type ImportSource,
+  type ImportState,
 } from "@chanlytics/contracts";
 import { calendarWeek } from "../calendar/calendar-week";
 import { teamRoster } from "./team";
@@ -346,7 +362,22 @@ function askSetup(supabase: SupabaseClient<Database>, tenantId: string, viewer: 
     emailSetupFor(supabase, tenantId, mailbox),
     offersByEmailOf(supabase, tenantId, settings, mailbox),
     dayBeforeRunning(supabase, tenantId),
+    // What the first run's five steps read beside the rows (decision 0073): the rehearsals, what was brought in, the
+    // people. Each is its own fact: one that cannot be read is left out, never a zero, and never fails Setup.
+    quietly(rehearsalTally(supabase, tenantId)),
+    quietly(importsOf(supabase, tenantId)),
+    quietly(peopleCount(supabase, tenantId)),
+    // What the Business Profile and the website say, for Check to offer (decision 0073, R10, R17).
+    quietly(businessReadsOf(supabase, tenantId)),
   ]);
+}
+
+/** A read Setup can do without: its answer, or null where it failed (said in the log, never as a refusal). */
+function quietly<T>(read: Promise<T>): Promise<T | null> {
+  return read.catch((e: unknown) => {
+    log.warn("setup_read_skipped", { error: e instanceof Error ? e.message : String(e) });
+    return null;
+  });
 }
 
 /**
@@ -378,6 +409,10 @@ async function setupReads(supabase: SupabaseClient<Database>, tenantId: string, 
     email,
     offersByEmail,
     dayBefore,
+    rehearsal,
+    imports,
+    people,
+    reads,
   ] = await askSetup(supabase, tenantId, viewer, now);
   // A count that could not be read is not a zero: read as one, the row says nobody has said yes.
   for (const read of [channels, lastMsg, lastCall, templates, yes, offersSaid, offersReach, requested, activations])
@@ -406,6 +441,10 @@ async function setupReads(supabase: SupabaseClient<Database>, tenantId: string, 
     email,
     offersByEmail,
     dayBefore,
+    rehearsal,
+    imports,
+    people,
+    reads,
   };
 }
 
@@ -534,6 +573,8 @@ function calendarSection(calendar: SetupReads["calendar"], now: Date): SetupDto[
         }
       : null,
     booking_link: !!calendar?.booking_link,
+    granted: !!feed?.granted,
+    source: feed?.source ?? null,
   };
 }
 
@@ -579,6 +620,7 @@ function googleSection(
   return {
     ready: google.places || google.profile,
     places: google.places,
+    profile: google.profile,
     listing: listing
       ? {
           name: listing.name,
@@ -627,6 +669,32 @@ function billingSection({ billingRow, billingReady }: SetupReads): SetupDto["bil
     : undefined;
 }
 
+/** The ledger's rows, as contracts' closed sets read them: a source or state the page does not know is left out. */
+function importsSection(rows: NonNullable<SetupReads["imports"]>): NonNullable<SetupDto["imports"]> {
+  return rows.flatMap((r) =>
+    (IMPORT_SOURCES as readonly string[]).includes(r.source) && (IMPORT_STATES as readonly string[]).includes(r.state)
+      ? [{ ...r, source: r.source as ImportSource, state: r.state as ImportState }]
+      : [],
+  );
+}
+
+/** What the profile and the website said, each read for what it is (contracts businessReadFactsOf). */
+function readsSection(rows: NonNullable<SetupReads["reads"]>): NonNullable<SetupDto["reads"]> {
+  return rows.flatMap((r) =>
+    (BUSINESS_READ_SOURCES as readonly string[]).includes(r.source)
+      ? [
+          {
+            source: r.source as BusinessReadSource,
+            facts: businessReadFactsOf(r.facts),
+            read_from: r.read_from,
+            read_at: r.read_at,
+            error: r.error,
+          },
+        ]
+      : [],
+  );
+}
+
 function activationsSection(activations: SetupReads["activations"]): SetupDto["activations"] {
   return (activations.data ?? []).map((a) => ({
     capability: a.capability as CapabilityKind,
@@ -673,6 +741,10 @@ export async function setupDtoFor(
     activations: activationsSection(read.activations),
     // Said only where it was read: unread, the card offers the reminder as a read from before the field does.
     ...(read.dayBefore === null ? {} : { reminders: { day_before: read.dayBefore } }),
+    ...(read.rehearsal ? { rehearsal: read.rehearsal } : {}),
+    ...(read.imports ? { imports: importsSection(read.imports) } : {}),
+    ...(read.people === null ? {} : { people: read.people }),
+    ...(read.reads ? { reads: readsSection(read.reads) } : {}),
   };
   return setup;
 }

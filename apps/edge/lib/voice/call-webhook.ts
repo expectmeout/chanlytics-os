@@ -58,11 +58,13 @@ import {
   emitEvent,
   claimControl,
   releaseControl,
+  stampCallConfigVersion,
   CALL_CONTROL_S,
   type ChannelLookup,
   type RoutedChannel,
 } from "../packages/db.js";
 import { copyRecording, WEBHOOK_COPY_TIMEOUT_MS } from "./call-recording.js";
+import { isRehearsalCall, settleRehearsalEvent } from "./rehearsal-call.js";
 import { markForwardingVerified } from "./forwarding.js";
 import { tellPhonesCallStarted } from "./call-activity.js";
 import { apns, apnsKeys } from "../ops/apns.js";
@@ -363,6 +365,21 @@ async function tellPhones(db: Db, tenantId: string, s: Extract<CallStep, { kind:
   }
 }
 
+/**
+ * The settings version the call was composed from, as the inbound webhook answered it in the call's metadata, written
+ * on the row the ingest made (decision 0069, R6). Never fatal: a call that cannot be stamped is a call reviewed against
+ * the settings as they stand, and says so.
+ */
+async function stampConfigVersion(db: Db, tenantId: string, retellCallId: string, call: RetellCall): Promise<void> {
+  const v = call.metadata?.config_version;
+  if (typeof v !== "number" || !Number.isInteger(v) || v < 1) return;
+  try {
+    await stampCallConfigVersion(db, tenantId, retellCallId, v);
+  } catch (e) {
+    logger({ tenant_id: tenantId }).error("call_version_stamp_failed", { call_id: retellCallId, error: errField(e) });
+  }
+}
+
 /** A call nobody's agent owns: dead-lettered under the platform, never guessed into a tenant. */
 async function deadLetter(db: Db, n: NormalizedCall): Promise<void> {
   const L = logger();
@@ -611,6 +628,13 @@ export async function receiveCallEvent(request: Request): Promise<Response> {
     L.error("retell_no_database", { call_id: n.retellCallId, retell_event: event });
     return refuse(503, "no_database");
   }
+  // A web call is a rehearsal (decision 0069, D4): an owner in the browser, never a customer. It is kept out of the
+  // call pipeline -- no row in calls, no note, no hold, no escalation, no email, nothing in People or Reports -- and
+  // its words, its end and its seconds are its rehearsal's. Before the routing, which a rehearsal's agent may not have.
+  if (isRehearsalCall(call)) {
+    const settled = await settleRehearsalEvent(db, event ?? null, call);
+    return settled === "unreadable" ? refuse(503, "read_failed") : json(200, { ok: true, rehearsal: settled });
+  }
   // Whose call this is, decided ONCE and before anything is written. A read
   // that FAILED is not "nobody's agent": the dead letter below is for a
   // database that ANSWERED, and a blip is a 503 -- nothing is written, and
@@ -683,6 +707,7 @@ export async function settleCall(db: Db, routed: RoutedChannel | null, delivery:
     if (!routed) await deadLetter(db, n);
     else {
       const res = await ingestCall(db, routed.tenantId, n, call);
+      await stampConfigVersion(db, routed.tenantId, n.retellCallId, call);
       const plan = planCallEvent(
         { ...delivery, n },
         {

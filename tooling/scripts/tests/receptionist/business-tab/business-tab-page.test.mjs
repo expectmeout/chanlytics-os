@@ -127,6 +127,8 @@ test("On calls holds what a caller hears and who it puts them through to, and sa
   assert.deepEqual(all(card, (n) => classes(n).includes("rec-row-key")).map(textOf), [
     "Greets every caller with",
     "Voice",
+    // Each call's voice speed (decision 0073, R7).
+    "Pace",
     "Transfer number",
   ]);
   const row = byTestId(card, "rec-row-handoff_number");
@@ -167,6 +169,7 @@ test("On calls holds the number the business keeps: Setup's own row, by its own 
     assert.deepEqual(all(card, (n) => classes(n).includes("rec-row-key")).map(textOf), [
       "Greets every caller with",
       "Voice",
+      "Pace",
       "Transfer number",
       "The number you already have",
     ]);
@@ -2749,6 +2752,8 @@ test("at rest a whole record draws every row's act, quietly, and five controls a
       "rec-who-carriers",
       // When someone wants to book: the answer is the row's value, and a press of it offers the three (18 Oct 2026).
       "booking_choice-menu",
+      // Walk-ins (decision 0073): the answer is the row's value, as the booking row's is.
+      "walk_ins-menu",
       // Look at a photo: its switch, on its ability's row (18 Oct 2026: it sat in the rules fold, among limits).
       "rec-can-vision-switch",
       // Read it: what the receptionist is told.
@@ -2780,7 +2785,7 @@ test("at rest an empty record adds only what is empty or missing, and the gap li
           ? "a row's act, drawn at rest"
           : /^rec-can-door-/.test(c.id)
             ? "missing"
-            : c.id === "booking_choice-menu" || c.id === "price_choice-menu"
+            : c.id === "booking_choice-menu" || c.id === "price_choice-menu" || c.id === "walk_ins-menu"
               ? "a question's answer, drawn as its row's value"
               : c.id === "rec-can-vision-switch"
                 ? "the photo switch, on its ability's row"

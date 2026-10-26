@@ -41,6 +41,7 @@ for (const k of ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "EDGE_CALL_SECRET", 
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
+// Base 36: letters and digits, as Retell's own ids are after their prefix (voice_agents' CHECK, 00476).
 const stamp = Date.now().toString(36);
 const NUMBER = "+12145550177";
 
@@ -69,16 +70,16 @@ function stubRetell() {
     if (u.startsWith("https://api.retellai.com/")) {
       const p = new URL(u).pathname;
       retellCalls.push(`${init?.method ?? "GET"} ${p}`);
-      if (p === "/create-retell-llm") return reply(201, { llm_id: `llm_fixture_${stamp}`, version: 0 });
+      if (p === "/create-retell-llm") return reply(201, { llm_id: `llm_fixture${stamp}`, version: 0 });
       if (p === "/create-agent")
-        return reply(201, { agent_id: `agent_fixture_${stamp}`, version: 0, is_published: false });
+        return reply(201, { agent_id: `agent_fixture${stamp}`, version: 0, is_published: false });
       if (p.startsWith("/publish-agent-version/")) return reply(200, {});
       if (p.startsWith("/get-agent/"))
         return reply(200, {
           agent_id: p.split("/").pop(),
           version: 0,
           is_published: true,
-          response_engine: { type: "retell-llm", llm_id: `llm_fixture_${stamp}`, version: 0 },
+          response_engine: { type: "retell-llm", llm_id: `llm_fixture${stamp}`, version: 0 },
         });
       if (p === "/import-phone-number") {
         const how = importScript.length > 1 ? importScript.shift() : importScript[0];
@@ -212,7 +213,7 @@ test(
     line = await lineRow(lineId);
     assert.deepEqual([line.voice_state, line.step], ["failed", "import"], "failed at the step that failed");
     assert.match(line.last_error ?? "", /could not be imported/);
-    assert.equal(line.retell_agent_id, `agent_fixture_${stamp}`, "what the run made stays on the row");
+    assert.equal(line.retell_agent_id, `agent_fixture${stamp}`, "what the run made stays on the row");
     const failed = ok(await db.from("events").select("data").eq("tenant_id", T).eq("kind", "line.failed"));
     assert.deepEqual(
       failed.map((e) => e.data.step),

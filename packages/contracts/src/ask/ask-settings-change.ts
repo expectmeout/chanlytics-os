@@ -12,6 +12,8 @@ import { FALLBACK_DEFAULTS, FALLBACK_ROWS } from "../config/workspace-config/fal
 import { instructionsDraft } from "../config/workspace-config/resolve";
 import { formatPhoneDisplay, handoffE164 } from "../shared/phone";
 import { phoneVoiceOf } from "../voice/phone-voices";
+import { PHONE_PACE_WORDS, type PhonePace } from "../voice/phone-pace";
+import { WALK_IN_WORDS, type WalkInsChoice } from "../config/business-tab/choices";
 
 /** How much of a note's text its card quotes, in characters, before it is cut on a whole word. */
 const NOTE_TEXT_SAID_MAX = 160;
@@ -29,11 +31,32 @@ export type AskSettingsChange =
   | { op: "add_closure"; date: string; until?: string; note?: string }
   | { op: "set_hours"; day: string; open: string | null; close: string | null }
   | { op: "add_note"; title: string; text: string; until?: string }
-  | { op: "add_service"; name: string; duration_min?: number }
+  | { op: "add_service"; name: string; duration_min?: number; price_note?: string }
   | { op: "set_goal"; goal: string }
   /** The booking link {{booking link}} fills (a sequence to leads' step sheet puts it in where it is not set). */
   | { op: "set_booking_link"; link: string }
+  | AskFixChange
   | AskAnswersChange;
+
+/**
+ * The changes a rehearsal's fix makes beside the cards' (decision 0069, R4: rehearsal/fix-router.ts): a service already
+ * listed given its minutes or its price, a reason a customer must reach a person, and one of the owner's switches.
+ */
+export type AskFixChange =
+  | { op: "set_service"; name: string; duration_min?: number; price_note?: string }
+  | { op: "add_escalate_when"; reason: string }
+  | { op: "set_guardrail"; rule: GuardrailRule; on: boolean };
+
+/** The owner's switches a fix may flip (business-profile.ts GuardrailsSchema): `disclose_ai` is never the owner's to flip. */
+export const GUARDRAIL_RULES = ["never_quote_prices", "never_confirm_booking", "no_health_advice"] as const;
+export type GuardrailRule = (typeof GUARDRAIL_RULES)[number];
+
+/** Each switch as the owner reads it: what it does when on. */
+export const GUARDRAIL_RULE_WORDS: Record<GuardrailRule, { on: string; off: string }> = {
+  never_quote_prices: { on: "It never says a price", off: "It says the prices on your list" },
+  never_confirm_booking: { on: "It never confirms a booking itself", off: "It may confirm a booking itself" },
+  no_health_advice: { on: "It gives no health advice", off: "It may answer health questions" },
+};
 
 /** Which of the three messages sent in the business's name a change rewrites. */
 export type AskMessageKey = (typeof FALLBACK_ROWS)[number]["key"];
@@ -41,8 +64,9 @@ export type AskMessageKey = (typeof FALLBACK_ROWS)[number]["key"];
 /**
  * A change to a row of How it answers, as its fold saves it: its voice (tone), the languages, what callers hear first,
  * the voice they hear it in, the transfer number, words added to the owner's own, one of the three messages, and the
- * photo switch. An empty value is the row emptied: no voice, the standard greeting, a message instead of a transfer,
- * the product's wording.
+ * photo switch; and the first run's three (decision 0073, R7): its name, how fast it speaks on calls, and walk-ins. An
+ * empty value is the row emptied: no voice, the standard greeting, a message instead of a transfer, the product's
+ * wording, no name; natural is the line's own pace, and "unset" says nothing of walk-ins.
  */
 export type AskAnswersChange =
   | { op: "set_tone"; tone: string }
@@ -52,7 +76,10 @@ export type AskAnswersChange =
   | { op: "set_transfer_number"; number: string }
   | { op: "add_own_words"; text: string }
   | { op: "set_message"; which: AskMessageKey; text: string }
-  | { op: "set_photos"; on: boolean };
+  | { op: "set_photos"; on: boolean }
+  | { op: "set_assistant_name"; name: string }
+  | { op: "set_phone_pace"; pace: PhonePace }
+  | { op: "set_walk_ins"; walk_ins: WalkInsChoice };
 
 /**
  * Each op of How it answers, with the row its card opens (Settings' address, admin/receptionist/<row>), or none: the
@@ -67,7 +94,13 @@ export const ASK_ANSWERS_ROWS: Readonly<Record<AskAnswersChange["op"], string | 
   add_own_words: "extra_instructions",
   set_message: "fallbacks",
   set_photos: null,
+  set_assistant_name: "assistant_name",
+  set_phone_pace: "phone_pace",
+  set_walk_ins: "walk_ins",
 };
+
+/** The page a row of How it answers is on when it is not How it answers itself: walk-ins is Hours & booking's. */
+export const ASK_ANSWERS_PANE: Readonly<Partial<Record<AskAnswersChange["op"], string>>> = { set_walk_ins: "hours" };
 
 /** A list of languages as a row keeps it: each trimmed, none twice, none empty. */
 const languagesOf = (list: readonly string[]): string[] => [
@@ -102,6 +135,10 @@ export function applySettingsChange<C extends Cfg>(config: C, change: AskSetting
   }
   const brain = { ...(config.brain ?? {}) } as NonNullable<C["brain"]>;
   const profile = { ...((brain.profile ?? {}) as Record<string, unknown>) };
+  if (isFixChange(change)) {
+    brain.profile = profileWithFix(profile, change);
+    return { ...config, brain };
+  }
   switch (change.op) {
     case "add_closure": {
       const closures = [...((profile.closures as unknown[]) ?? [])];
@@ -129,13 +166,63 @@ export function applySettingsChange<C extends Cfg>(config: C, change: AskSetting
     }
     case "add_service": {
       const services = [...((profile.services as unknown[]) ?? [])];
-      services.push({ name: change.name, ...(change.duration_min ? { duration_min: change.duration_min } : {}) });
+      services.push({
+        name: change.name,
+        ...(change.duration_min ? { duration_min: change.duration_min } : {}),
+        ...(change.price_note ? { price_note: change.price_note } : {}),
+      });
       profile.services = services;
       break;
     }
   }
   brain.profile = profile;
   return { ...config, brain };
+}
+
+/** A stored object as its keys, and anything else as none. */
+const storedKeysOf = (v: unknown): Record<string, unknown> =>
+  v && typeof v === "object" ? (v as Record<string, unknown>) : {};
+/** A stored value's words when it is a string, and none otherwise. */
+const storedWordsOf = (v: unknown): string => (typeof v === "string" ? v : "");
+
+/** A rehearsal's fix (AskFixChange, decision 0069), told apart from the cards' changes by its op. */
+function isFixChange(change: AskSettingsChange): change is AskFixChange {
+  return change.op === "set_service" || change.op === "add_escalate_when" || change.op === "set_guardrail";
+}
+
+/** A fix on the profile: a listed service's minutes or price, a reason a customer must reach a person, a switch. */
+function profileWithFix(profile: Record<string, unknown>, change: AskFixChange): Record<string, unknown> {
+  switch (change.op) {
+    case "set_service":
+      return { ...profile, services: servicesWith(profile.services, change) };
+    case "add_escalate_when": {
+      const reasons = [...((profile.escalate_when as string[] | undefined) ?? [])];
+      const reason = change.reason.trim();
+      if (reason && !reasons.some((r) => r.trim().toLowerCase() === reason.toLowerCase())) reasons.push(reason);
+      return { ...profile, escalate_when: reasons };
+    }
+    case "set_guardrail":
+      return { ...profile, guardrails: { ...storedKeysOf(profile.guardrails), [change.rule]: change.on } };
+  }
+}
+
+/**
+ * The services with one already listed given its minutes or its price: found by its name as the owner reads it (case
+ * and spacing aside); a name not listed is added, as add_service would.
+ */
+function servicesWith(list: unknown, change: Extract<AskFixChange, { op: "set_service" }>): unknown[] {
+  const services = [...((list as unknown[] | undefined) ?? [])];
+  const key = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
+  const at = services.findIndex(
+    (s) => !!s && typeof s === "object" && key(storedWordsOf((s as { name?: unknown }).name)) === key(change.name),
+  );
+  const fields = {
+    ...(change.duration_min ? { duration_min: change.duration_min } : {}),
+    ...(change.price_note ? { price_note: change.price_note } : {}),
+  };
+  if (at < 0) services.push({ name: change.name, ...fields });
+  else services[at] = { ...(services[at] as Record<string, unknown>), ...fields };
+  return services;
 }
 
 type BrainChange = Exclude<AskAnswersChange, { op: "set_photos" }>;
@@ -147,6 +234,9 @@ const BRAIN_OPS: ReadonlySet<string> = new Set<BrainChange["op"]>([
   "set_transfer_number",
   "add_own_words",
   "set_message",
+  "set_assistant_name",
+  "set_phone_pace",
+  "set_walk_ins",
 ]);
 const isAnswersBrainChange = (change: AskSettingsChange): change is BrainChange => BRAIN_OPS.has(change.op);
 
@@ -201,6 +291,20 @@ function applyAnswersChange<C extends Cfg>(config: C, change: BrainChange): C {
         [change.which]: change.text.trim() || FALLBACK_DEFAULTS[change.which],
       };
       break;
+    case "set_assistant_name":
+      putKey(profile, "assistant_name", change.name.replace(/\s+/g, " ").trim() || undefined);
+      break;
+    // Natural is no key: the line keeps its own pace (phone-pace.ts), as Settings' row stores it.
+    case "set_phone_pace":
+      putKey(profile, "phone_pace", change.pace === "natural" ? undefined : change.pace);
+      break;
+    // One key of the booking rules, the rest kept; "unset" takes it away (choices.ts WALK_INS_CHOICES).
+    case "set_walk_ins": {
+      const rules = { ...storedKeysOf(profile.booking_rules) };
+      putKey(rules, "walk_ins", change.walk_ins === "unset" ? undefined : change.walk_ins);
+      putKey(profile, "booking_rules", Object.keys(rules).length ? rules : undefined);
+      break;
+    }
   }
   brain.profile = profile;
   return { ...config, brain };
@@ -242,7 +346,28 @@ function describeAnswersChange(change: AskAnswersChange): string {
     }
     case "set_photos":
       return VISION_SWITCH_WORDS.saved(change.on);
+    case "set_assistant_name": {
+      const name = change.name.replace(/\s+/g, " ").trim();
+      return name ? `It introduces itself as ${name}` : "It has no name: it says it's the automated assistant";
+    }
+    case "set_phone_pace":
+      return PHONE_PACE_WORDS.saved(change.pace).replace(/\.$/, "");
+    case "set_walk_ins":
+      return WALK_IN_WORDS.saved(change.walk_ins).replace(/\.$/, "");
   }
+}
+
+/** A service's minutes and price, as its line says them after its name: " · $180 · about 3 h". */
+export function serviceTail(s: { duration_min?: number; price_note?: string }): string {
+  const minutes = s.duration_min
+    ? s.duration_min >= 60 && s.duration_min % 30 === 0
+      ? `about ${s.duration_min / 60} h`
+      : `${s.duration_min} min`
+    : null;
+  return [s.price_note?.trim() || null, minutes]
+    .filter(Boolean)
+    .map((p) => ` · ${p}`)
+    .join("");
 }
 
 /** One line for a card: what the change does, in the person's words. */
@@ -262,7 +387,13 @@ export function describeSettingsChange(change: AskSettingsChange): string {
       return `Note for the receptionist: “${change.title}”${change.until ? `, until ${change.until}` : ""}${text ? ` — “${text}”` : ""}`;
     }
     case "add_service":
-      return `New service: ${change.name}${change.duration_min ? ` (${change.duration_min} min)` : ""}`;
+      return `New service: ${change.name}${serviceTail(change)}`;
+    case "set_service":
+      return `${change.name}${serviceTail(change) || ", as it is"}`;
+    case "add_escalate_when":
+      return `Put through to you: ${quoted(change.reason)}`;
+    case "set_guardrail":
+      return GUARDRAIL_RULE_WORDS[change.rule][change.on ? "on" : "off"];
     case "set_goal":
       return change.goal.trim() ? `Your goal: “${change.goal.trim()}”` : "Your goal, taken away";
     case "set_booking_link":

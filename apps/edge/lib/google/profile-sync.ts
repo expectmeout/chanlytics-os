@@ -5,8 +5,10 @@
  * last the listing's review link read again from its location (00415).
  * The hourly sweep, "Check now" and a location's bind call it.
  */
-import { emitEvent, reviewLinkOf, type Database } from "../packages/db.js";
+import { emitEvent, noteImport, reviewLinkOf, type Database } from "../packages/db.js";
 import {
+  GBP_REVIEWS_FIRST_PAGES,
+  GBP_REVIEWS_MAX_PAGES,
   listReviews,
   planProfileSync,
   readLocation,
@@ -31,6 +33,31 @@ import { tokenFor } from "./profile-credentials.js";
 import { causeOfRead, causeOfToken, syncMended, tellSyncStopped, type SyncCause } from "./sync-notice.js";
 import { answerNewReviews } from "./review-answers.js";
 import type { CheckResult } from "./listing-check.js";
+
+/** The reviews a sync read, on the imports ledger: the count Google gives (else those read), unanswered, the oldest. */
+async function noteReviews(db: Db, tenantId: string, plan: ProfileSyncPlan): Promise<void> {
+  const oldest = plan.reviews
+    .map((r) => (r.created_at ? Date.parse(r.created_at) : NaN))
+    .filter((ms) => Number.isFinite(ms))
+    .reduce<number | null>((a, b) => (a === null ? b : Math.min(a, b)), null);
+  await noteImport(db, {
+    tenantId,
+    source: "google_reviews",
+    state: plan.complete ? "done" : "running",
+    counts: {
+      reviews: plan.listing?.review_count ?? plan.reviews.length,
+      unanswered: plan.reviews.filter((r) => !r.reply_text).length,
+    },
+    oldest: oldest === null ? null : new Date(oldest).toISOString(),
+    via: "google",
+  });
+}
+
+/**
+ * How many pages of reviews a sync reads: a first sync every review the location has, as far as one sync can (decision
+ * 0073, R17); later ones the newest pages.
+ */
+const reviewPagesOf = (first: boolean): number => (first ? GBP_REVIEWS_FIRST_PAGES : GBP_REVIEWS_MAX_PAGES);
 
 /** A token refusal's words for the connection's `sync_error`: Google's, when it gave some, else the code. */
 const syncErrorOf = (r: EdgeRefusal): string => r.detail ?? r.error;
@@ -219,13 +246,13 @@ export async function syncProfile(
   };
   const t = await tokenFor(db, conn.tenant_id, now.getTime(), net);
   if (!t.ok) return failed(syncErrorOf(t), causeOfToken(t));
+  const first = !conn.last_synced_at;
   let page;
   try {
-    page = await listReviews(net, t.token, reviewParent(conn.account_name, conn.location_name));
+    page = await listReviews(net, t.token, reviewParent(conn.account_name, conn.location_name), reviewPagesOf(first));
   } catch (e) {
     return failed(e instanceof Error ? e.message : String(e), causeOfRead(e));
   }
-  const first = !conn.last_synced_at;
   // Read before anything is written: whether a notice of a breakage could be open, which the sync that works closes.
   const wasFailing = !!conn.sync_error;
   const known = await readAllRows<{
@@ -308,6 +335,11 @@ export async function syncProfile(
       review_count: plan.listing?.review_count ?? null,
     }).catch(() => {});
   }
+  // What came in, on the imports ledger as Google's reviews (decision 0073, R23): every one on record, those waiting for a
+  // reply, and how far back the oldest goes. A note that fails is logged: the reviews are kept all the same.
+  await noteReviews(db, conn.tenant_id, plan).catch((e: unknown) =>
+    L.warn("google_profile_sync_failed", { error: errField(e), cause: "ledger" }),
+  );
   // Last, once the reviews are kept, rung and told: a slow or killed read of the link costs only the link.
   await keepReviewLink(db, conn, { token: t.token, first, net, L, location: conn.location_name });
   L.info("google_profile_synced", {

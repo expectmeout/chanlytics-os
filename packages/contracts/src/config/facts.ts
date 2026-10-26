@@ -72,6 +72,12 @@ export interface KnownFacts {
    * customers already call, and the line those calls reach when nobody picks up.
    */
   forwarding?: ReadonlyArray<{ from_e164: string | null; to_e164?: string | null }> | null;
+  /**
+   * Whether the workspace has a booking-link WhatsApp message Meta approved and this product can send whole (contracts
+   * bookingTemplate over its templates; decision 0073, R14): a call offers the link only with one. Absent or null where
+   * it was not read, which offers it as before, and the tool says so when there is none.
+   */
+  booking_message?: boolean | null;
 }
 
 /** The brain fields this resolves over. A subset, so callers need not have parsed everything. */

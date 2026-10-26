@@ -1,295 +1,74 @@
 /**
- * The first run's page (/start), drawn without a browser: Setup's rows one step at a time, the rail, the phone's step
- * line, the receptionist card, Finish later, a step already reached opened in place, a failed read and its retry.
- * The steps and every word are contracts' (first-run.ts); the page runs for real under a stub React -- the TSX page
- * (surfaces/setup/first-run/page.tsx, decision 0015 step 10) with the Setup rows it draws (surfaces/setup/rows) imported
- * beside it, as the app imports them.
- *
- * What the page reads is the seam's, typed: Setup, the settings read and Live through `useSurface` (so a test sets them
- * with `setSurfaceValue`, never by assigning a window global, which is only the seam's mirror), and Setup's verbs through
- * the module object `setupVerbs` (surfaces/setup/surface.ts), which a test stubs by assigning onto it. The tab's drafts are
- * `tabMemoryFor(window)` over the window's sessionStorage, keyed by the workspace in the address. What still comes off the
- * window is the shell's: Google and Stripe's doors, the Business tab's saver, the role gate and the toast.
+ * The first run's page (/start), drawn without a browser: the frame (the rail, the phone's step line, the receptionist
+ * card, Finish later, a step already reached opened in place, a failed read and its retry), Your business (Find, the one
+ * press that sets the receptionist up, Connect it to Google and its two answers, Your workspace building beside them),
+ * Your receptionist (the greeting, walk-ins, How it sounds) and Rehearse (what it reads from, the skip asked once, How it
+ * did and the way on). Where it answers and Go live have suites of their own (first-run-channels-page.test.mjs,
+ * first-run-golive-page.test.mjs); the world all three draw in is _first-run-world.mjs.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { setupSteps, FIRST_RUN_HELPERS, FIRST_RUN_LANDED_KEY } from "@chanlytics/contracts";
-import { hookFrames } from "../_hook-frames.mjs";
-import { useStubHooks } from "../_legacy-react.mjs";
-import { importSrc } from "../_source.mjs";
-
-const NOW = Date.parse("2026-09-07T15:00:00Z");
-const blank = {
-  business: {
-    name: null,
-    hours: false,
-    services: 0,
-    bookingLink: false,
-    address: false,
-    handoff: null,
-    broken: false,
-    receptionist: "none",
-  },
-  channels: {
-    whatsapp: { present: false, active: false, number: null, quality: null, lastInboundAt: null },
-    voice: { present: false, active: false, number: null, lastInboundAt: null },
-  },
-  templates: { approved: 0, pending: 0, startersApproved: 0 },
-  calendar: { state: "none" },
-  team: { members: 1, invitesOpen: 0, alertEmails: 1 },
-  consent: { yes: 0, offers: 0, offersSaidYes: 0 },
-  requests: { line: null },
-};
-const withFacts = {
-  ...blank,
-  business: {
-    name: "Harbor Moving",
-    hours: true,
-    services: 2,
-    bookingLink: true,
-    address: true,
-    handoff: null,
-    broken: false,
-    receptionist: "set",
-  },
-};
-const answering = {
-  ...withFacts,
-  channels: {
-    ...blank.channels,
-    voice: { present: true, active: true, number: "+13055550123", lastInboundAt: "2026-09-07T14:00:00Z" },
-  },
-  calendar: { state: "ok" },
-};
-const surface = (dto) => ({
-  dto,
-  role: "owner",
-  later: [],
-  vm: setupSteps({ ...dto, later: [] }, NOW),
-  fetchedAt: NOW,
-});
-
-/* ---- the window the page draws in ---- */
-const went = [];
-const replaced = [];
-const store = {};
-let refreshed = 0;
-/** The first receptionist's asks, and what the route answers next (made, unless a test says). */
-const receptionistAsked = [];
-let receptionistSays = null;
-// The stub React's element: a TSX module draws elements as it loads (a constant sentence is a fragment), so it is in place
-// before any of them is imported; mount() adds the hooks.
-const frames = hookFrames();
-globalThis.React = {
-  Fragment: "Fragment",
-  createElement: (type, p, ...kids) => {
-    const props = { ...(p || {}), children: kids.flat(Infinity) };
-    const node = { type, props };
-    if (typeof type === "function") node.rendered = frames.render(type, props);
-    return node;
-  },
-};
-globalThis.window = {
-  // The address names the workspace the tab's drafts are kept for (tab-memory.ts: /w/<slug>/...).
-  location: { hash: "#/start", pathname: "/w/harbor/start" },
-  sessionStorage: {
-    getItem: (k) => store[k] ?? null,
-    setItem: (k, v) => {
-      store[k] = String(v);
-    },
-    removeItem: (k) => {
-      delete store[k];
-    },
-  },
-  __WORKSPACES: [{ id: "w1", name: "Harbor Moving", timezone: "America/New_York" }],
-  __ACTIVE_WORKSPACE: "w1",
-  __DEMO_MODE: false,
-  usePPToast: () => [null, () => {}],
-  appNavigate: () => {},
-  canDo: () => true,
-  addEventListener() {},
-  removeEventListener() {},
-};
-globalThis.document ??= {
-  body: {},
-  addEventListener() {},
-  createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
-};
-globalThis.ReactDOM ??= { createPortal: (node) => node };
-// The shell's role gate, refusal toast and the rest of what a surface still asks of it by name (legacy-verbs.ts).
-(await import("../../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
-// frame-globals publishes the shell's toast hook; this harness keeps its own, which remembers what was said.
-const flashes = [];
-globalThis.window.usePPToast = () => [null, (m) => flashes.push(m)];
-
-// The page, the seam's store, Setup's verbs and the tab's memory: one instance of each, the one the page itself imports.
-const { FirstRun } = await importSrc("apps/dashboard/src/surfaces/setup/first-run/page.tsx");
-const { setSurfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
-const { setupVerbs } = await importSrc("apps/dashboard/src/surfaces/setup/surface.ts");
-// The Business tab's saver, as the first run imports it (setup/shell.ts): Try it's world stubs its sends in place.
-const { businessTabSave } = await importSrc("apps/dashboard/src/surfaces/settings/business/saver.ts");
-const tabSaver = { save: businessTabSave.saver.save, base: businessTabSave.saver.base };
-const { tabMemoryFor, clearTabMemory } = await importSrc("apps/dashboard/src/legacy-bridge/tab-memory.ts");
-
-/** Setup's read as the page draws it: a value, undefined while it is read, null where it failed. */
-const setSetup = (value) => setSurfaceValue("setup", value);
-/** The settings read as the page draws it (`settings` is what the Business tab holds, `facts` the resolved numbers), or none. */
-const setSettings = (settings, facts = null) =>
-  setSurfaceValue(
-    "settings",
-    settings
-      ? { settings, facts, channels: null, templatesAll: null, templateUse: null, templateSent: null }
-      : undefined,
-  );
-/** The Live page's calls as the page draws them, or none. */
-const setLive = (live) => setSurfaceValue("live", live);
-
-// Setup's verbs are the module's own object, stubbed by assigning onto it (the `lines`, `request` and `forwarding` a test
-// needs are set by its world, and `window.__setup` is the same object, so a test reads and sets them there). Finish on
-// Live switches calls on by `activate`: a stub that is always ready, which the tests that prove it replace and put back.
-const readyActivate = async () => ({ ok: true, message: "" });
-Object.assign(setupVerbs, {
-  refresh: async () => {
-    refreshed += 1;
-  },
-  later: async () => ({ ok: true, message: "" }),
-  receptionist: async () => {
-    receptionistAsked.push(1);
-    return receptionistSays ?? { ok: true, wrote: true, message: "" };
-  },
-  activate: readyActivate,
-});
-globalThis.window.__setup = setupVerbs;
-// The billing verbs are the module's object too (surfaces/settings/billing/surface.ts), which `__billing` is: a world
-// stubs Stripe by assigning onto it.
-const { billingVerbs, installBilling } = await importSrc("apps/dashboard/src/surfaces/settings/billing/surface.ts");
-installBilling(globalThis.window);
-// And Google's (legacy-bridge/google.ts `googleVerbs`), which Find imports: a world stubs Google by assigning onto it.
-const { googleVerbs } = await importSrc("apps/dashboard/src/legacy-bridge/google.ts");
-// The tab's drafts, read and written through the window's sessionStorage, where the page reads them.
-globalThis.window.__tabMemory = tabMemoryFor(globalThis.window);
-
-/* ---- a stub React: the Setup page test's, with this page as the one drawn ---- */
-let param = null;
-// A step move replaces the address (the shell's navigate with { replace: true }); a way out is a new entry.
-const Page = () => FirstRun({ param, onNavigate: (to, opts) => (opts && opts.replace ? replaced : went).push(to) });
-let cells = [];
-const fresh = () => {
-  cells = [];
-};
-function mount() {
-  Object.assign(globalThis.React, {
-    useMemo: (fn) => {
-      const k = frames.key();
-      if (!(k in cells)) cells[k] = fn();
-      return cells[k];
-    },
-    useState: (init) => {
-      const k = frames.key();
-      if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
-      return [
-        cells[k],
-        (v) => {
-          cells[k] = typeof v === "function" ? v(cells[k]) : v;
-        },
-      ];
-    },
-    useCallback: (fn) => fn,
-    // The seam's hook (use-surface.ts) reads the store as it stands: this stub draws when a test asks, not on a notice.
-    useSyncExternalStore: (subscribe, snapshot) => snapshot(),
-    useId: () => {
-      const k = frames.key();
-      if (!(k in cells)) cells[k] = `:r${k}:`;
-      return cells[k];
-    },
-    useRef: (init) => {
-      const k = frames.key();
-      if (!(k in cells)) cells[k] = { current: init };
-      return cells[k];
-    },
-    useReducer: (red, init) => {
-      const k = frames.key();
-      if (!(k in cells)) cells[k] = init;
-      return [
-        cells[k],
-        (a) => {
-          cells[k] = red(cells[k], a);
-        },
-      ];
-    },
-    useEffect: (fn) => {
-      const k = frames.key();
-      if (!(k in cells)) {
-        cells[k] = true;
-        fn();
-      }
-    },
-  });
-  useStubHooks();
-  frames.begin();
-  return Page();
-}
-const walk = (n, fn) => {
-  if (n == null || typeof n !== "object") return;
-  fn(n);
-  for (const k of n.props?.children ?? []) walk(k, fn);
-  if (n.rendered) walk(n.rendered, fn);
-};
-const byTestId = (tree, id) => {
-  let hit = null;
-  walk(tree, (n) => {
-    if (!hit && n.props?.["data-testid"] === id) hit = n;
-  });
-  return hit;
-};
-const textOf = (n) => {
-  if (n == null || typeof n === "boolean") return "";
-  if (typeof n === "string" || typeof n === "number") return String(n);
-  if (Array.isArray(n)) return n.map(textOf).join("");
-  // A component's words are what it drew (the kit's button draws its children inside its own element): never both.
-  if (n.rendered !== undefined) return textOf(n.rendered);
-  return textOf(n.props?.children);
-};
-/** The options of one of the kit's choices (the record kit's group, by its test id): its radios, as drawn. */
-const optionsOf = (tree, id) => {
-  const out = [];
-  walk(byTestId(tree, id), (n) => {
-    if (n.type === "button" && n.props.role === "radio") out.push(n);
-  });
-  return out;
-};
-/** The box of one of the kit's fields (by the field's test id): the input it drew. */
-const boxOf = (tree, id) => {
-  let hit = null;
-  walk(byTestId(tree, id), (n) => {
-    if (!hit && n.type === "input") hit = n;
-  });
-  return hit;
-};
-/** An element by its id: what a field says is wrong with it is named by the field's (`rec-<id>-problem`). */
-const byId = (tree, id) => {
-  let hit = null;
-  walk(tree, (n) => {
-    if (!hit && n.props?.id === id && typeof n.type === "string") hit = n;
-  });
-  return hit;
-};
+import {
+  TONE_PRESETS,
+  FIRST_RUN_HELPERS,
+  FIRST_RUN_LANDED_KEY,
+  FIRST_RUN_STEPS,
+  GOOGLE_CONNECT_LATER,
+  RECEPTIONIST_MET,
+  REHEARSE_SKIPPED,
+} from "@chanlytics/contracts";
+import {
+  answering,
+  asks,
+  blank,
+  boxOf,
+  byTestId,
+  flashes,
+  fresh,
+  googleVerbs,
+  mount,
+  open,
+  optionsOf,
+  page,
+  pick,
+  readyLater,
+  replaced,
+  saidOf,
+  saverWorld,
+  setSettings,
+  setSetup,
+  setupVerbs,
+  store,
+  surface,
+  textOf,
+  tick,
+  walk,
+  went,
+  withFacts,
+} from "./_first-run-world.mjs";
 
 test("a new workspace opens on its business: the rail says where it is, the step is Check, whose one press sets the receptionist up, and nothing answers yet", () => {
   setSetup(surface(blank));
-  param = null;
-  fresh();
-  const tree = mount();
-  assert.equal(textOf(byTestId(tree, "fr-heading")), "Tell us the basics", "nothing on Google here: the basics");
+  const tree = open();
+  assert.equal(
+    textOf(byTestId(tree, "fr-heading")),
+    "Build your receptionist",
+    "nothing on Google here: the heading says what its one press does",
+  );
   assert.ok(byTestId(tree, "fr-rail-business"), "the step on screen is a button on the rail");
-  assert.equal(byTestId(tree, "fr-rail-phone"), null, "a step not reached is only its name");
+  assert.equal(byTestId(tree, "fr-rail-receptionist"), null, "a step not reached is only its name");
+  assert.deepEqual(
+    FIRST_RUN_STEPS.map((s) => s.name),
+    ["Your business", "Your receptionist", "Rehearse", "Where it answers", "Go live"],
+    "five steps (decision 0073)",
+  );
   assert.equal(byTestId(tree, "fr-rows"), null, "Check, not Setup's rows");
   assert.equal(
-    textOf(byTestId(tree, "fr-check-make")),
-    "Your receptionist starts with the name Harbor Moving, and you add the rest here.Set up your receptionist",
+    saidOf(byTestId(tree, "fr-check-make")),
+    "It starts with the name Harbor Moving, and you add the rest next.Build my receptionist",
     "the name typed at sign-up, and the step's one coral button",
   );
-  assert.equal(textOf(byTestId(tree, "fr-phone-line")), "Step 1 of 4 · Your business");
+  assert.equal(textOf(byTestId(tree, "fr-phone-line")), "1 of 5 · Your business");
   const status = byTestId(tree, "fr-card-status");
   assert.equal(textOf(status), "Not answering yet");
   assert.equal(status.props["data-state"], "not_started", "the status is the state pill, toned by Setup's own states");
@@ -300,42 +79,45 @@ test("a new workspace opens on its business: the rail says where it is, the step
 
 test("a step already reached opens in place from the rail, and its onward goes on to where the workspace is", () => {
   setSetup(surface(withFacts));
-  param = "business";
-  fresh();
-  const tree = mount();
-  assert.equal(textOf(byTestId(tree, "fr-heading")), "Tell us the basics");
+  const tree = open("business");
   assert.equal(
-    textOf(byTestId(tree, "fr-check-reading")),
-    "Reading your receptionist…",
-    "set up, and the settings read not landed: its rows wait for it",
+    textOf(byTestId(tree, "fr-heading")),
+    "Your business",
+    "set up and looked at again: the step's own name",
   );
-  assert.equal(textOf(byTestId(tree, "fr-onward")), "Looks right", "a step done: its one coral button");
+  assert.ok(byTestId(tree, "fr-rows"), "Setup's own rows, where the step has nothing of its own left to ask");
+  assert.equal(textOf(byTestId(tree, "fr-onward")), "Continue", "a step done: its one coral button");
   assert.equal(byTestId(tree, "fr-held"), null, "nothing holds it");
   went.length = 0;
   byTestId(tree, "fr-onward").props.onClick();
-  assert.equal(went.at(-1), "start/phone", "on to where the workspace is, as a new entry named for its step");
-  byTestId(tree, "fr-rail-phone").props.onClick();
-  assert.equal(went.at(-1), "start/phone", "the rail's step too: an entry the browser's Back returns to");
+  assert.equal(went.at(-1), "start/receptionist", "on to where the workspace is, as a new entry named for its step");
+  byTestId(tree, "fr-rail-receptionist").props.onClick();
+  assert.equal(went.at(-1), "start/receptionist", "the rail's step too: an entry the browser's Back returns to");
   assert.equal(went.length, 2, "each a pushed entry, so Back walks the steps taken");
-  param = null;
-  fresh();
-  const phone = mount();
-  assert.equal(textOf(byTestId(phone, "fr-heading")), "Your phone");
-  byTestId(phone, "fr-back").props.onClick();
-  assert.equal(replaced.at(-1), "start/phone", "the bare address being left is named for its step first");
+  assert.equal(byTestId(tree, "fr-rail-rehearse"), null, "a step not reached yet");
+  const meet = open();
+  assert.equal(textOf(byTestId(meet, "fr-heading")), "Meet Harbor Moving's receptionist");
+  assert.equal(textOf(byTestId(meet, "fr-phone-line")), "2 of 5 · Your receptionist");
+  assert.equal(
+    textOf(byTestId(meet, "fr-check-reading")),
+    "Reading your receptionist…",
+    "set up, and the settings read not landed: its rows wait for it",
+  );
+  byTestId(meet, "fr-back").props.onClick();
+  assert.equal(replaced.at(-1), "start/receptionist", "the bare address being left is named for its step first");
   assert.equal(went.at(-1), "start/business", "then Back opens the step before, as a new entry");
 });
 
-test("answering: Live, with what is left, and Finish goes to Today", async () => {
+test("answering already: Go live says what answers, and Open Today goes to Today", async () => {
   setSetup(surface(answering));
-  param = null;
-  fresh();
-  const tree = mount();
-  assert.equal(textOf(byTestId(tree, "fr-heading")), "Harbor Moving's receptionist is answering");
+  const tree = open();
+  assert.equal(byTestId(tree, "first-run").props["data-step"], "live", "calls answering count as met and rehearsed");
+  assert.equal(textOf(byTestId(tree, "fr-heading")), "Your receptionist is answering for Harbor Moving");
+  assert.ok(byTestId(tree, "fr-youre-live"));
   const onward = byTestId(tree, "fr-onward");
-  assert.equal(textOf(onward), "Finish");
+  assert.equal(textOf(onward), "Open Today");
   onward.props.onClick();
-  // Finish switches calls on first (the page awaits Setup's `activate`, here always ready), then goes to Today.
+  // Open Today switches calls on first (the page awaits Setup's `activate`, here always ready), then goes to Today.
   await tick();
   assert.equal(went.at(-1), "today");
   assert.equal(textOf(byTestId(tree, "fr-card-status")), "Answering", "Live comes after a call came in");
@@ -343,7 +125,7 @@ test("answering: Live, with what is left, and Finish goes to Today", async () =>
 
 test("Finish later leaves for Today", () => {
   setSetup(surface(blank));
-  param = null;
+  page.param = null;
   fresh();
   byTestId(mount(), "fr-later").props.onClick();
   assert.equal(went.at(-1), "today");
@@ -356,7 +138,7 @@ test("the card fills in from the settings read once it lands", () => {
     { facts: { voice_line: { value: null }, kept_line: { value: null }, handoff_number: { value: "+13055550100" } } },
   );
   try {
-    param = null;
+    page.param = null;
     fresh();
     const tree = mount();
     assert.equal(textOf(byTestId(tree, "fr-card-books")), "Books withharbor.example/book");
@@ -373,14 +155,13 @@ test("a failed read says so, and the retry reads again; before the read, Reading
   const failed = mount();
   assert.ok(byTestId(failed, "fr-failed"));
   byTestId(failed, "fr-retry").props.onClick();
-  assert.equal(refreshed, 1);
+  assert.equal(asks.refreshed, 1);
   setSetup(undefined);
   fresh();
   assert.equal(textOf(byTestId(mount(), "fr-reading")), "Reading your workspace…");
 });
 
 /* ---- Find: the business step while an owner can link a listing ---- */
-const tick = () => new Promise((r) => setTimeout(r, 0));
 const findable = { ...blank, google: { ready: true, places: true, listing: null, connected: false } };
 const HARBOR = {
   place_id: "p-harbor",
@@ -414,7 +195,7 @@ const googleSays = (answers) => {
 const found = (candidates, query = "Harbor Moving") => ({ ok: true, candidates, query, fromFacts: true, message: "" });
 const findOn = async () => {
   setSetup(surface(findable));
-  param = null;
+  page.param = null;
   fresh();
   const first = mount();
   await tick();
@@ -425,6 +206,9 @@ test("Find: the business step opens on what Google has for the name on record, t
   const asked = googleSays([found([HARBOR, WAREHOUSE])]);
   const { first, tree } = await findOn();
   assert.equal(textOf(byTestId(first, "fr-find-reading")), "Looking on Google…", "asked on arrival");
+  // The way on is drawn while Google is asked, held, so the foot keeps its shape as the answer lands.
+  assert.equal(byTestId(first, "fr-find-yes")?.props.disabled, true, "held until a listing is picked");
+  assert.equal(byTestId(tree, "fr-find-yes")?.props.disabled, false, "the best match checked, it can be pressed");
   assert.deepEqual(asked.find, [null], "with the name on record, no words of the owner's");
   assert.equal(textOf(byTestId(tree, "fr-heading")), "Is this Harbor Moving?", "the name typed at sign-up");
   assert.equal(byTestId(tree, "fr-rows"), null, "Find draws in place of the step's rows");
@@ -454,11 +238,11 @@ test("Find: another one checked, Yes links it, and the page says so, since Find 
 test("Find: Yes links it, then asks for the receptionist to be set up from what Google says", async () => {
   const asked = googleSays([found([HARBOR])]);
   const { tree } = await findOn();
-  const before = receptionistAsked.length;
+  const before = asks.receptionist.length;
   await byTestId(tree, "fr-find-yes").props.onClick();
   assert.deepEqual(asked.link, ["p-harbor"]);
   await tick();
-  assert.equal(receptionistAsked.length, before + 1, "once, after the link was taken");
+  assert.equal(asks.receptionist.length, before + 1, "once, after the link was taken");
 });
 
 test("Find: a link refused asks for nothing more", async () => {
@@ -469,44 +253,45 @@ test("Find: a link refused asks for nothing more", async () => {
     message: "Google could not read that listing.",
   });
   const { tree } = await findOn();
-  const before = receptionistAsked.length;
+  const before = asks.receptionist.length;
   await byTestId(tree, "fr-find-yes").props.onClick();
   await tick();
-  assert.equal(receptionistAsked.length, before);
+  assert.equal(asks.receptionist.length, before);
 });
 
 test("Check with no receptionist: the owner's press asks for it, once while it is out, and a refusal is said in its words", async () => {
   setSetup(surface(blank));
-  param = null;
+  page.param = null;
   fresh();
   const tree = mount();
-  const before = receptionistAsked.length;
+  const before = asks.receptionist.length;
   let answer;
-  receptionistSays = new Promise((r) => {
+  asks.receptionistSays = new Promise((r) => {
     answer = r;
   });
   const press = byTestId(tree, "fr-check-make-press");
   press.props.onClick();
   const busy = byTestId(mount(), "fr-check-make-press");
   assert.equal(busy.props["aria-busy"], true);
-  assert.equal(textOf(busy), "Setting up…");
+  assert.equal(saidOf(busy), "Building…");
+  assert.equal(textOf(busy), "Build my receptionistBuilding…", "both words stay drawn, so the press keeps its width");
   busy.props.onClick();
-  assert.equal(receptionistAsked.length, before + 1, "a second press while it is out asks for nothing");
+  assert.equal(asks.receptionist.length, before + 1, "a second press while it is out asks for nothing");
   answer({ ok: false, wrote: false, message: "Only an owner can do this." });
   // The press does not hand its promise on (the page lends Check `() => void make()`), so wait for the answer to be taken.
   await tick();
-  receptionistSays = null;
+  asks.receptionistSays = null;
   assert.equal(textOf(flashes.at(-1).msg), "Not set up — Only an owner can do this.");
   assert.equal(
-    textOf(byTestId(mount(), "fr-check-make-press")),
-    "Set up your receptionist",
+    saidOf(byTestId(mount(), "fr-check-make-press")),
+    "Build my receptionist",
     "and it can be pressed again",
   );
 });
 
-test("Check's rows wait for the settings read, and a read that failed offers its retry", () => {
+test("Check's rows, on Your receptionist, wait for the settings read, and a read that failed offers its retry", () => {
   setSetup(surface(withFacts));
-  param = "business";
+  page.param = "receptionist";
   const again = [];
   globalThis.window.__refreshSurface = (s) => again.push(s);
   globalThis.window.__surfaceFailed = (page, pane) => page === "admin" && pane === "workspace";
@@ -573,11 +358,11 @@ test("Find: not on Google puts Google's row off, the member's own choice", async
   };
   try {
     const { tree } = await findOn();
-    const before = receptionistAsked.length;
+    const before = asks.receptionist.length;
     await byTestId(tree, "fr-find-not").props.onClick();
     assert.deepEqual(said, [["google", { on: true, why: "answer" }]], "an answer: for good at once");
     await tick();
-    assert.equal(receptionistAsked.length, before + 1, "and the receptionist is set up with the name typed at sign-up");
+    assert.equal(asks.receptionist.length, before + 1, "and the receptionist is set up with the name typed at sign-up");
   } finally {
     globalThis.window.__setup.later = was;
   }
@@ -589,13 +374,13 @@ test("Find is for whoever may set the workspace up (an owner, or the partner who
   globalThis.window.canDo = (a) => a === "approve" || a === "autonomy"; // an operator, exactly (contracts ROLE_PERMS)
   try {
     setSetup(surface(findable));
-    param = null;
+    page.param = null;
     fresh();
     const tree = mount();
     assert.equal(byTestId(tree, "fr-find"), null);
     assert.equal(textOf(byTestId(tree, "fr-check-waiting")), "An owner sets up the receptionist here.");
     assert.equal(byTestId(tree, "fr-check-make"), null, "no press to offer");
-    assert.equal(textOf(byTestId(tree, "fr-heading")), "Tell us the basics");
+    assert.equal(textOf(byTestId(tree, "fr-heading")), "Build your receptionist");
     assert.deepEqual(asked.find, [], "and nothing is searched");
   } finally {
     globalThis.window.canDo = was;
@@ -604,12 +389,12 @@ test("Find is for whoever may set the workspace up (an owner, or the partner who
 
 test("Find it asks for Find by name, even after not on Google; not on Google again goes to the step's own address", async () => {
   googleSays([found([HARBOR])]);
-  const putOff = { ...surface(findable), later: ["google"], vm: setupSteps({ ...findable, later: ["google"] }, NOW) };
+  const putOff = surface(findable, { later: ["google"] });
   setSetup(putOff);
-  param = null;
+  page.param = null;
   fresh();
   assert.equal(byTestId(mount(), "fr-find"), null, "the plain address: put off, so the step's rows");
-  param = "find";
+  page.param = "find";
   fresh();
   mount();
   await tick();
@@ -636,1047 +421,411 @@ test("Find on a phone: the best match alone until the owner asks for more, and t
   assert.deepEqual(links, ["Terms of service", "Privacy policy"]);
 });
 
-// (Removed with the move to TSX: "without the bridge the page says nothing of its own" took `window.__firstRun` away to show
-// that every word was contracts'. The page now imports contracts' FIRST_RUN_HELPERS and there is no bridge to take away.)
-
-/* ---- Your phone (PR 4a): the three ways, the trial, and the buy once the trial lets it ---- */
-// The page looks again when a buy's mark goes stale (minutes away); this stub never clears an effect, so a wait that
-// long is held here rather than keeping the run open. A test reads what was asked for.
-const heldWaits = [];
-const shortTimeout = globalThis.setTimeout;
-globalThis.setTimeout = (fn, ms, ...rest) =>
-  ms > 1000 ? (heldWaits.push({ fn, ms }), 0) : shortTimeout(fn, ms, ...rest);
-// Try it's clock ticks each second while a call is on screen; the stub never clears it, so the interval is held too.
-const heldTicks = [];
-globalThis.setInterval = (fn, ms) => (heldTicks.push({ fn, ms }), 0);
-globalThis.clearInterval = () => {};
-const PRICE = { id: "price_example", currency: "usd", unit_amount: 4900, interval: "month", product_name: "Plan" };
-const phoneReady = (billing = {}) => ({
+/* ---- Connect it to Google (decision 0073, R17): after the listing is linked, for an owner who manages the profile ---- */
+const LISTING = {
+  place_id: "p-harbor",
+  name: "Harbor Moving",
+  address: "1 Main St, Brooklyn, NY 11201",
+  maps_uri: "https://maps.google.com/?cid=1",
+  category: "Moving company",
+  rating: 4.7,
+  review_count: 212,
+};
+const managed = (over = {}) => ({
   ...withFacts,
-  lines: { rows: [], ready: true, provider: "twilio", costs: { local_number_month_usd: 1.15 } },
-  google: { ready: true, places: true, listing: null, connected: false, phone: "+13055550100" },
-  billing: {
-    ready: true,
-    livemode: true,
-    mode: "stripe",
-    status: "none",
-    trial_end: null,
-    current_period_end: null,
-    trial_days: 14,
-    price: PRICE,
-    ...billing,
-  },
+  google: { ready: true, places: true, profile: true, listing: LISTING, connected: false, ...over },
 });
-/** What the tab has kept under a draft's name, read where the page keeps it (the window's sessionStorage). */
-const draftOf = (kind) => globalThis.window.__tabMemory.draft(kind);
-/** A tab with nothing kept in it: the drafts the last world left are gone, as a new world's own were. */
-const emptyTab = () => clearTabMemory(globalThis.window.sessionStorage);
-/** The tab's drafts (empty), Stripe and the line doors, each remembering what it was asked. */
-const phoneWorld = ({
-  outcome = null,
-  numbers = [{ e164: "+13055550142", friendly: "(305) 555-0142" }],
-  startNow = { ok: true, message: "" },
-} = {}) => {
-  const asked = { checkout: [], search: [], buy: [], request: [], startNow: 0 };
-  emptyTab();
-  Object.assign(billingVerbs, {
-    outcome: () => outcome,
-    checkout: async (back) => {
-      asked.checkout.push(back);
-      return { ok: true, message: "" };
-    },
-    startNow: async () => {
-      asked.startNow += 1;
-      return startNow;
-    },
-  });
-  globalThis.window.__setup.lines = {
-    search: async (area) => {
-      asked.search.push(area);
-      return { ok: true, numbers, message: "" };
-    },
-    buy: async (e164, area) => {
-      asked.buy.push([e164, area]);
-      return { ok: true, queued: true, message: "" };
-    },
-  };
-  globalThis.window.__setup.request = async (what) => {
-    asked.request.push(what);
-    return { ok: true, already: false, message: "" };
-  };
-  return { asked };
-};
-/** The three ways, in the order the step draws them. */
-const WAYS = ["keep", "new", "move"];
-const wayOf = (tree, way) => optionsOf(tree, "fr-ways")[WAYS.indexOf(way)];
-
-test("your phone (canvas R3): keeping the listing's number first, the plan the number starts at Stripe's price, and the button goes to Stripe and back to this step", async () => {
-  const { asked } = phoneWorld();
-  setSetup(surface(phoneReady()));
-  param = null;
-  fresh();
-  const tree = mount();
-  assert.equal(textOf(byTestId(tree, "fr-heading")), "How should calls reach your receptionist?");
-  assert.equal(byTestId(tree, "fr-rows"), null, "the step's own screen, not Setup's rows");
-  assert.equal(wayOf(tree, "keep").props["aria-checked"], true, "keeping is the default");
-  assert.match(textOf(wayOf(tree, "keep")), /^Keep \+1 \(305\) 555-0100Recommended/);
-  assert.equal(boxOf(tree, "fr-phone-number-box").props.value, "+1 (305) 555-0100", "from the listing");
-  // What the press starts charging is said in the foot too: on a phone the plan's pane may be under it.
-  assert.equal(textOf(byTestId(tree, "fr-phone-price")), "$49.00 a month, starting today");
-  // A number is a cost on our account whether or not a trial pays: it starts the plan, and the step says so.
-  assert.equal(
-    textOf(byTestId(tree, "fr-plan")),
-    "$49.00 a month, starting todayYour number is included. The first charge is today, and you can cancel anytime from Billing.",
-  );
-  const go = byTestId(tree, "fr-phone-go");
-  assert.equal(textOf(go), "Start my plan");
-  assert.ok(byTestId(tree, "fr-back"), "Back, in the step's own foot");
-  await go.props.onClick();
-  // The choice is said to the member's view first (the number, and the kept number's row), then Stripe.
-  await tick();
-  assert.deepEqual(asked.checkout, ["start"], "Stripe comes back to the first run");
-  assert.equal(replaced.at(-1), "start/phone", "the step's own address, so it stays once its line answers");
-  assert.equal(draftOf("first-run-phone").pending, true, "the choice waits in the tab for Stripe's round trip");
-  assert.deepEqual(asked.buy, [], "nothing is bought before the plan");
-});
-
-test("(D) your phone: what is wrong is said on the field it is about -- the area code once Find is pressed, the number once the box is left -- not in a toast", async () => {
-  phoneWorld();
-  setSetup(surface(phoneReady({ status: "active" })));
-  param = "phone";
-  fresh();
-  flashes.length = 0;
-  let tree = mount();
-  // The number kept: something typed that is not a US number with its area code.
-  const box = () => boxOf(tree, "fr-phone-number-box");
-  const NUMBER_PROBLEM = "rec-fr-phone-number-problem";
-  const AREA_PROBLEM = "rec-fr-phone-area-problem";
-  box().props.onChange({ target: { value: "12" } });
-  tree = mount();
-  assert.equal(byId(tree, NUMBER_PROBLEM), null, "not at the first keystroke");
-  assert.equal(box().props["aria-invalid"], undefined);
-  box().props.onBlur();
-  tree = mount();
-  const us = FIRST_RUN_HELPERS.phoneWords.held.us;
-  assert.equal(textOf(byId(tree, NUMBER_PROBLEM)), us, "left: said under the box");
-  assert.deepEqual([box().props["aria-invalid"], box().props["aria-describedby"]], [true, NUMBER_PROBLEM]);
-  assert.equal(textOf(byTestId(tree, "fr-phone-held")), us, "and beside the button, the same words");
-  box().props.onChange({ target: { value: "(305) 555-0177" } });
-  tree = mount();
-  assert.equal(byId(tree, NUMBER_PROBLEM), null, "a number it can forward says nothing");
-
-  // A new number: the area code, checked as Find is pressed.
-  wayOf(tree, "new").props.onClick();
-  tree = mount();
-  boxOf(tree, "fr-phone-area").props.onChange({ target: { value: "30" } });
-  tree = mount();
-  let form = null;
-  walk(tree, (n) => {
-    if (!form && n.type === "form") form = n;
-  });
-  await form.props.onSubmit({ preventDefault() {} });
-  tree = mount();
-  assert.equal(textOf(byId(tree, AREA_PROBLEM)), FIRST_RUN_HELPERS.phoneWords.threeDigits);
-  assert.deepEqual(
-    [boxOf(tree, "fr-phone-area").props["aria-invalid"], boxOf(tree, "fr-phone-area").props["aria-describedby"]],
-    [true, AREA_PROBLEM],
-  );
-  assert.deepEqual(flashes, [], "nothing said in a toast");
-  boxOf(tree, "fr-phone-area").props.onChange({ target: { value: "305" } });
-  tree = mount();
-  assert.equal(byId(tree, AREA_PROBLEM), null, "typing again takes it away");
-});
-
-test("your phone on a free trial: the trial covers no number, so the button starts the plan now -- then the buy; a start Stripe refuses is said, and nothing is bought", async () => {
-  const { asked } = phoneWorld();
-  setSetup(surface(phoneReady({ status: "trialing", trial_end: "2026-09-21T15:00:00Z" })));
-  param = "phone";
-  fresh();
-  let tree = mount();
-  assert.equal(
-    textOf(byTestId(tree, "fr-plan")),
-    "$49.00 a month, starting todayYour free trial ends today and your plan starts, on the card you gave. Your number is included.",
-  );
-  const go = byTestId(tree, "fr-phone-go");
-  assert.equal(textOf(go), "Start my plan");
-  await go.props.onClick();
-  await tick();
-  assert.equal(asked.startNow, 1, "the plan started from here, not Stripe's checkout");
-  assert.deepEqual(asked.checkout, []);
-  assert.equal(draftOf("first-run-phone").pending, true, "the choice waits for the plan");
-  assert.deepEqual(asked.buy, [], "nothing bought on the trial");
-  // The start taken: Setup reads the plan, and the page buys.
-  setSetup(surface(phoneReady({ status: "active" })));
-  fresh();
-  mount();
-  await tick();
-  await tick();
-  assert.deepEqual(asked.buy, [["+13055550142", "305"]]);
-
-  // Stripe refuses (a card that did not pay): said, and the choice lets go.
-  const refused = phoneWorld({
-    startNow: { ok: false, message: "Your plan started, but the charge did not go through." },
-  });
-  setSetup(surface(phoneReady({ status: "trialing", trial_end: "2026-09-21T15:00:00Z" })));
-  flashes.length = 0;
-  fresh();
-  tree = mount();
-  await byTestId(tree, "fr-phone-go").props.onClick();
-  // The press says the number kept to the member's saved view first, then asks Stripe: a turn more than it took.
-  await tick();
-  assert.equal(draftOf("first-run-phone").pending, false);
-  assert.equal(textOf(flashes.at(-1).msg), "Your plan started, but the charge did not go through.");
-  assert.deepEqual(refused.asked.buy, []);
-});
-
-test("your phone: back from Stripe before the trial lands, then the buy in the kept number's area code, once", async () => {
-  const { asked } = phoneWorld({ outcome: "success" });
-  globalThis.window.__tabMemory.keepDraft("first-run-phone", { way: "keep", number: null, pick: null, pending: true });
-  setSetup(surface(phoneReady()));
-  param = null;
-  fresh();
-  mount();
-  assert.equal(replaced.at(-1), "start/phone", "Stripe returns to the bare address; the step it left is the phone's");
-  param = "phone";
-  // Stripe's answer is read in an effect, after the first draw, as React draws again once it is kept.
-  const starting = mount();
-  assert.equal(byTestId(starting, "fr-phone").props["data-stage"], "starting");
-  // A reload before the webhook lands: the tab remembers the card was given, and offers no second checkout.
-  globalThis.window.__billing.outcome = () => null;
-  fresh();
-  assert.equal(
-    byTestId(mount(), "fr-phone").props["data-stage"],
-    "starting",
-    "a reload says starting, not the trial again",
-  );
-  globalThis.window.__billing.outcome = () => "success";
-  assert.match(textOf(byTestId(starting, "fr-phone-status")), /Starting your plan…/);
-  assert.deepEqual(asked.buy, []);
-  // The webhook lands: the trial is on, and the page buys. (This stub runs an effect on a component's first draw only,
-  // where React runs it again when the stage it depends on moves: a fresh draw stands in for that.)
-  setSetup(surface(phoneReady({ status: "active" })));
-  fresh();
-  const buying = mount();
-  await tick();
-  await tick();
-  assert.equal(byTestId(buying, "fr-phone").props["data-stage"], "buying");
-  assert.deepEqual(asked.search, ["305"]);
-  assert.deepEqual(asked.buy, [["+13055550142", "305"]], "the first number offered: customers never see it");
-  // A new draw of the page (the tab reloaded, the step opened again) before the line reaches Setup: the tab says the buy
-  // went out, so nothing is sent again.
-  fresh();
-  mount();
-  await tick();
-  assert.equal(asked.buy.length, 1, "a draw before the line reaches Setup sends nothing again");
-  assert.deepEqual(asked.request, [], "keeping asks nobody to move anything");
-});
-
-test("your phone: a new number is picked from its area code; moving one buys a line too, and asks a person", async () => {
-  const { asked } = phoneWorld();
-  setSetup(surface(phoneReady({ status: "active" })));
-  param = "phone";
-  fresh();
-  let tree = mount();
-  wayOf(tree, "new").props.onClick();
-  tree = mount();
-  assert.equal(textOf(byTestId(tree, "fr-phone-held")), "Pick a number first.");
-  assert.equal(boxOf(tree, "fr-phone-area").props.value, "305", "the listing's area code");
-  let form = null;
-  walk(tree, (n) => {
-    if (!form && n.type === "form") form = n;
-  });
-  await form.props.onSubmit({ preventDefault() {} });
-  tree = mount();
-  optionsOf(tree, "fr-phone-numbers")[0].props.onClick();
-  tree = mount();
-  const go = byTestId(tree, "fr-phone-go");
-  assert.equal(textOf(go), "Get +1 (305) 555-0142", "no trial to start: the button buys, named for the result");
-  await go.props.onClick();
-  fresh();
-  mount();
-  await tick();
-  await tick();
-  assert.deepEqual(asked.buy, [["+13055550142", "305"]]);
-
-  const moving = phoneWorld();
-  globalThis.window.__tabMemory.keepDraft("first-run-phone", { way: "move", number: null, pick: null, pending: true });
-  fresh();
-  mount();
-  await tick();
-  await tick();
-  await tick();
-  assert.deepEqual(moving.asked.buy, [["+13055550142", "305"]], "a move forwards meanwhile, so it buys a line too");
-  assert.deepEqual(moving.asked.request, ["port"], "and asks a person to file the move");
-});
-
-test("your phone: Stripe closed before finishing says so, and the choice waits for another press", () => {
-  phoneWorld({ outcome: "cancel" });
-  globalThis.window.__tabMemory.keepDraft("first-run-phone", { way: "keep", number: null, pick: null, pending: true });
-  flashes.length = 0;
-  setSetup(surface(phoneReady()));
-  param = "phone";
-  fresh();
-  mount();
-  const tree = mount();
-  assert.equal(draftOf("first-run-phone").pending, false);
-  assert.equal(textOf(flashes.at(-1).msg), "Checkout was closed before finishing; nothing was charged.");
-  assert.equal(byTestId(tree, "fr-phone").props["data-stage"], "choose");
-});
-
-test("your phone: what the step does not draw is Setup's rows, under the page's own foot", () => {
-  phoneWorld();
-  setSetup(surface({ ...phoneReady(), lines: { ...phoneReady().lines, ready: false } }));
-  param = null;
-  fresh();
-  const tree = mount();
-  assert.equal(byTestId(tree, "fr-phone"), null);
-  assert.ok(byTestId(tree, "fr-rows"), "no line provider here: a person sets it up, as the row says");
-  assert.equal(textOf(byTestId(tree, "fr-heading")), "Your phone");
-});
-
-test("your phone: a buy marked sent long ago never landed (its tab closed on it), so the step sends it again", async () => {
-  const { asked } = phoneWorld();
-  const choice = { way: "keep", number: null, pick: null, pending: true };
-  heldWaits.length = 0;
-  globalThis.window.__tabMemory.keepDraft("first-run-phone", { ...choice, sent: Date.now() - 10_000 });
-  setSetup(surface(phoneReady({ status: "active" })));
-  param = "phone";
-  fresh();
-  mount();
-  await tick();
-  await tick();
-  assert.deepEqual(asked.buy, [], "sent seconds ago: on its way");
-  assert.equal(heldWaits.length, 1, "and the step looks again once the mark goes stale");
-  const left = heldWaits[0].ms;
-  assert.ok(left > 100_000 && left <= 110_100, `about 110 s left of the two minutes, not ${left}`);
-  globalThis.window.__tabMemory.keepDraft("first-run-phone", { ...choice, sent: Date.now() - 600_000 });
-  fresh();
-  mount();
-  await tick();
-  await tick();
-  assert.deepEqual(asked.buy, [["+13055550142", "305"]], "ten minutes and no line: it never landed");
-});
-
-test("your phone: a buy refused (the number was taken) says so, and the next press buys", async () => {
-  const { asked } = phoneWorld();
-  let refuse = true;
-  const buy = globalThis.window.__setup.lines.buy;
-  globalThis.window.__setup.lines.buy = async (e164, area) => {
-    if (!refuse) return buy(e164, area);
-    asked.buy.push(["refused", e164]);
-    return { ok: false, queued: false, message: "That number was just taken. Pick another.", code: "conflict" };
-  };
-  flashes.length = 0;
-  globalThis.window.__tabMemory.keepDraft("first-run-phone", { way: "keep", number: null, pick: null, pending: true });
-  setSetup(surface(phoneReady({ status: "active" })));
-  param = "phone";
-  fresh();
-  mount();
-  await tick();
-  await tick();
-  assert.deepEqual(asked.buy, [["refused", "+13055550142"]]);
-  assert.match(textOf(flashes.at(-1).msg), /That number was just taken/);
-  // Still mounted: the owner presses again, and this time it goes.
-  const tree = mount();
-  assert.equal(byTestId(tree, "fr-phone").props["data-stage"], "choose", "back to the choice");
-  refuse = false;
-  await byTestId(tree, "fr-phone-go").props.onClick();
-  // The same mount, as React keeps it; its effect runs again as the stage moves (this stub needs a fresh frame for it).
-  fresh();
-  mount();
-  await tick();
-  await tick();
-  assert.deepEqual(asked.buy.at(-1), ["+13055550142", "305"], "the second press buys");
-});
-
-/* ---- 4b: the two questions while the number gets ready, and the code ---- */
-const VOICE_LINE = "+13055550142";
-const answeringLine = (extra = []) => ({
-  ...phoneReady({ status: "active" }),
-  channels: { ...withFacts.channels, voice: { present: true, active: true, number: VOICE_LINE, lastInboundAt: null } },
-  lines: {
-    rows: [
-      {
-        id: "line-1",
-        e164: VOICE_LINE,
-        kind: "chanlytics",
-        provider: "twilio",
-        area_code: 305,
-        voice_state: "answering",
-        sms_state: "none",
-        whatsapp_state: "none",
-        port_state: "none",
-        forwarding_state: "none",
-        step: null,
-        last_error: null,
-        state_since: "2026-09-07T14:00:00Z",
-        created_at: "2026-09-07T14:00:00Z",
-      },
-      ...extra,
-    ],
-    ready: true,
-    provider: "twilio",
-    costs: { local_number_month_usd: 1.15 },
-  },
-});
-const forwardedRow = (carrier) => ({
-  id: "fw-1",
-  e164: "+13055550100",
-  kind: "forwarded",
-  provider: "carrier",
-  area_code: 305,
-  voice_state: "none",
-  sms_state: "none",
-  whatsapp_state: "none",
-  port_state: "none",
-  forwarding_state: "instructed",
-  step: null,
-  last_error: null,
-  state_since: "2026-09-07T14:30:00Z",
-  created_at: "2026-09-07T14:30:00Z",
-  forwarding: {
-    carrier,
-    mode: "unanswered",
-    destination_e164: VOICE_LINE,
-    test_until: null,
-    verified_at: null,
-  },
-});
-/** A question's answer pressed, by its words: the record kit's radiogroup, as the page draws it. */
-const choose = (tree, key, words) => {
-  let hit = null;
-  walk(byTestId(tree, `fr-q-${key}`), (n) => {
-    if (!hit && n.props?.role === "radio" && textOf(n) === words) hit = n;
-  });
-  assert.ok(hit, `no ${words} under ${key}`);
-  hit.props.onClick();
-  return hit;
-};
-const chosen = (tree, key) => {
-  let hit = null;
-  walk(byTestId(tree, `fr-q-${key}`), (n) => {
-    if (!hit && n.props?.role === "radio" && n.props["aria-checked"]) hit = textOf(n);
-  });
-  return hit;
-};
-const forwardingSays = () => {
-  const saved = [];
-  globalThis.window.__setup.forwarding = {
-    set: async (o) => {
-      saved.push(o);
-      return { ok: true, message: "" };
-    },
-  };
-  return saved;
-};
-
-test("your phone (canvas R4): while the number gets ready, the two questions, kept as they are answered, the buy still on", async () => {
-  phoneWorld();
-  globalThis.window.__tabMemory.keepDraft("first-run-phone", {
-    way: "keep",
-    number: null,
-    pick: null,
-    pending: true,
-    sent: Date.now(),
-  });
-  setSetup(surface(phoneReady({ status: "active" })));
-  param = "phone";
-  fresh();
-  let tree = mount();
-  assert.equal(byTestId(tree, "fr-phone").props["data-stage"], "buying");
-  assert.equal(
-    textOf(byTestId(tree, "fr-phone-questions")),
-    "Which phone rings when customers call +1 (305) 555-0100?A mobileA landlineAn office phone system",
-  );
-  assert.equal(textOf(byTestId(tree, "fr-phone-held")), "Ready in a moment");
-  choose(tree, "rings", "A mobile");
-  tree = mount();
-  choose(tree, "company", "T-Mobile");
-  tree = mount();
-  assert.equal(chosen(tree, "company"), "T-Mobile");
-  const kept = draftOf("first-run-phone");
-  assert.deepEqual(
-    [kept.rings, kept.company, kept.pending],
-    ["mobile", "tmobile", true],
-    "the buy is still on its way",
-  );
-  assert.equal(byTestId(tree, "fr-back") !== null, true, "the step's own foot, with Back");
-});
-
-test("your phone: the line answers, and Show me what to dial saves the forwarding the answers choose", async () => {
-  phoneWorld();
-  const saved = forwardingSays();
-  globalThis.window.__tabMemory.keepDraft("first-run-phone", {
-    way: "keep",
-    number: null,
-    pick: null,
-    pending: false,
-    rings: "landline",
-  });
-  setSetup(surface(answeringLine()));
-  param = "phone";
-  fresh();
-  const tree = mount();
-  assert.equal(byTestId(tree, "fr-phone").props["data-stage"], "ask");
-  const go = byTestId(tree, "fr-phone-go");
-  assert.equal(textOf(go), "Show me what to dial");
-  await go.props.onClick();
-  assert.deepEqual(saved, [{ number: "+13055550100", carrier: "other", mode: "unanswered" }], "a landline's codes");
-});
-
-test("your phone (canvas R5, P5): the code from the forwarding saved, its help, changing the answers, and on to Try it", async () => {
-  phoneWorld();
-  forwardingSays();
-  globalThis.window.__tabMemory.keepDraft("first-run-phone", {
-    way: "keep",
-    number: null,
-    pick: null,
-    pending: false,
-    rings: "mobile",
-    company: "tmobile",
-  });
-  setSetup(surface(answeringLine([forwardedRow("tmobile")])));
-  param = "phone";
-  fresh();
-  let tree = mount();
-  assert.equal(byTestId(tree, "fr-phone").props["data-stage"], "code");
-  assert.equal(textOf(byTestId(tree, "fr-heading")), "Dial this on the phone customers call");
-  const dial = byTestId(tree, "fr-phone-dial");
-  assert.equal(textOf(dial), "**004*+13055550142#");
-  assert.equal(
-    dial.props.href,
-    undefined,
-    "words to dial: an iPhone refuses a link with * or #, and a desk has no dialer",
-  );
-  assert.equal(byTestId(tree, "fr-phone-tap"), null, "no tap where the phone cannot dial one");
-  const ua = Object.getOwnPropertyDescriptor(globalThis, "navigator");
-  Object.defineProperty(globalThis, "navigator", {
-    value: { userAgent: "Mozilla/5.0 (Linux; Android 14)" },
-    configurable: true,
-  });
-  try {
-    assert.equal(
-      byTestId(mount(), "fr-phone-tap").props.href,
-      "tel:**004*%2B13055550142%23",
-      "Android's dialer takes it",
-    );
-  } finally {
-    if (ua) Object.defineProperty(globalThis, "navigator", ua);
-    else delete globalThis.navigator;
-  }
-  assert.match(textOf(byTestId(tree, "fr-phone-warn")), /^Voicemail on this phone\?/);
-  assert.equal(byTestId(tree, "fr-phone-notes"), null);
-  byTestId(tree, "fr-phone-help").props.onClick();
-  tree = mount();
-  assert.match(textOf(byTestId(tree, "fr-phone-notes")), /T-Mobile takes the number with \+1 in front\./);
-  const done = byTestId(tree, "fr-phone-go");
-  assert.equal(textOf(done), "Done, let's try it");
-  await done.props.onClick();
-  assert.equal(went.at(-1), "start/try", "on to where the workspace is, Try it, as a new entry");
-  byTestId(tree, "fr-phone-change").props.onClick();
-  tree = mount();
-  assert.equal(byTestId(tree, "fr-phone").props["data-stage"], "ask", "the answers asked again");
-  // The same answers again: nothing is saved (it would drop what a test call proved), and the code comes back.
-  const saved = forwardingSays();
-  await byTestId(tree, "fr-phone-go").props.onClick();
-  assert.deepEqual(saved, []);
-  assert.equal(byTestId(mount(), "fr-phone").props["data-stage"], "code");
-});
-
-test("your phone: asked again with the answers lost, the questions are about the number forwarded, and Keep the code goes back", async () => {
-  phoneWorld();
-  const saved = forwardingSays();
-  globalThis.window.__tabMemory.keepDraft("first-run-phone", { way: "keep", number: null, pick: null, pending: false });
-  const row = { ...forwardedRow("other"), e164: "+13055550177" };
-  setSetup(surface(answeringLine([row])));
-  param = "phone";
-  fresh();
-  let tree = mount();
-  assert.equal(
-    textOf(byTestId(tree, "fr-phone-code")).startsWith("Another carrier or a landline"),
-    true,
-    "neither said",
-  );
-  byTestId(tree, "fr-phone-change").props.onClick();
-  tree = mount();
-  assert.match(textOf(byTestId(tree, "fr-q-rings")), /\+1 \(305\) 555-0177/, "the forwarded number, not the listing's");
-  choose(tree, "rings", "A mobile");
-  tree = mount();
-  choose(tree, "company", "Verizon");
-  tree = mount();
-  await byTestId(tree, "fr-phone-go").props.onClick();
-  assert.deepEqual(saved, [{ number: "+13055550177", carrier: "verizon", mode: "unanswered" }]);
-  globalThis.window.__tabMemory.keepDraft("first-run-phone", {
-    way: "keep",
-    number: null,
-    pick: null,
-    pending: false,
-    redo: true,
-  });
-  fresh();
-  tree = mount();
-  byTestId(tree, "fr-phone-keep").props.onClick();
-  assert.equal(byTestId(mount(), "fr-phone").props["data-stage"], "code", "back to the code, nothing saved");
-});
-
-test("your phone: a role that may not save the forwarding sees the questions with the page's own foot, and goes on", () => {
-  phoneWorld();
-  globalThis.window.__tabMemory.keepDraft("first-run-phone", { way: "keep", number: null, pick: null, pending: false });
-  setSetup(surface(answeringLine()));
-  // The line's presses are the channel permission (contracts ROLE_PERMS `disconnect`), which an operator lacks.
-  globalThis.window.canDo = (what) => what === "approve" || what === "autonomy";
-  try {
-    param = "phone";
-    fresh();
-    const tree = mount();
-    assert.equal(byTestId(tree, "fr-phone").props["data-stage"], "ask");
-    assert.equal(byTestId(tree, "fr-phone-go"), null, "no button it may not press");
-    assert.equal(textOf(byTestId(tree, "fr-onward")), "Continue", "the step is done: its line answers");
-  } finally {
-    globalThis.window.canDo = () => true;
-  }
-});
-
-test("your phone (canvas V6): an office phone system is shown the number, and Do it with me asks a person", async () => {
-  const { asked } = phoneWorld();
-  forwardingSays();
-  flashes.length = 0;
-  globalThis.window.__tabMemory.keepDraft("first-run-phone", {
-    way: "keep",
-    number: null,
-    pick: null,
-    pending: false,
-    rings: "office",
-  });
-  setSetup(surface(answeringLine([forwardedRow("office")])));
-  param = "phone";
-  fresh();
-  const tree = mount();
-  assert.equal(textOf(byTestId(tree, "fr-heading")), "Forward missed calls in your phone system");
-  assert.equal(textOf(byTestId(tree, "fr-phone-dial")), "+1 (305) 555-0142");
-  await byTestId(tree, "fr-phone-with-me-go").props.onClick();
-  assert.deepEqual(asked.request, ["forwarding"]);
-  assert.equal(textOf(flashes.at(-1).msg), "We'll email you to find a time for a call.");
-  const later = surface({
-    ...answeringLine([forwardedRow("office")]),
-    requests: { line: null, forwarding: new Date(Date.now() - 3_600_000).toISOString() },
-  });
-  setSetup(later);
-  fresh();
-  const asked2 = mount();
-  assert.equal(byTestId(asked2, "fr-phone-with-me-go"), null);
-  assert.match(textOf(byTestId(asked2, "fr-phone-with-me-asked")), /^Asked /);
-});
-
-/* ---- PR 5a: Try it ---- */
-test("a number kept is the member's own choice, on any tab: the step is drawn from their saved view, asks its forwarding, and Set up forwarding later puts it off by name", async () => {
-  // A tab with nothing kept: the choice was made somewhere else (a reload, another device, checkout's way back).
-  phoneWorld();
-  const want = { way: "keep", number: "+13055550100" };
-  const line = answeringLine();
-  const owed = { ...surface(line), want, vm: setupSteps({ ...line, later: [], want }, NOW) };
-  setSetup(owed);
-  param = null;
-  fresh();
-  const tree = mount();
-  // The receptionist's own number answers: before the choice was kept with the member, the first run went on to Try it
-  // from here, and the forwarding the owner chose was never asked for.
-  assert.equal(byTestId(tree, "first-run").props["data-step"], "phone", "not done: its forwarding is owed");
-  assert.equal(byTestId(tree, "fr-phone").props["data-stage"], "ask");
-  assert.match(textOf(byTestId(tree, "fr-q-rings")), /^Which phone rings when customers call \+1 \(305\) 555-0100\?/);
-  const off = byTestId(tree, "fr-phone-put-off");
-  assert.equal(textOf(off), "Set up forwarding later");
-  const later = [];
-  const was = globalThis.window.__setup.later;
-  globalThis.window.__setup.later = async (id, on) => {
-    later.push([id, on]);
-    // Setup's own verb shows a row put off at once (surface.ts): the page goes on from what it published.
-    setSetup({ ...owed, later: [id], vm: setupSteps({ ...line, later: [id], want }, NOW) });
-    return { ok: true, message: "" };
-  };
-  try {
-    flashes.length = 0;
-    await off.props.onClick();
-    await tick();
-    assert.deepEqual(
-      later,
-      [["keep", { on: true, why: "rest" }]],
-      "Setup's own Later, on the number kept: a week, then back on Today",
-    );
-    assert.equal(
-      textOf(flashes.at(-1).msg),
-      "Put off for a week, then it's back on Today. Until it is set up, only calls to your receptionist's own number are answered.",
-    );
-    assert.equal(went.at(-1), "start/try", "and the first run goes on");
-  } finally {
-    globalThis.window.__setup.later = was;
-  }
-});
-
-test("the number kept is said to the member's saved view BEFORE checkout leaves the page, and a new number takes it back", async () => {
-  const { asked } = phoneWorld();
-  const order = [];
-  const wasWant = setupVerbs.want;
-  const wasLater = setupVerbs.later;
-  const checkout = billingVerbs.checkout;
-  setupVerbs.want = async (w) => {
-    order.push(["want", w]);
-    return { ok: true, message: "" };
-  };
-  setupVerbs.later = async (ids, on) => {
-    order.push(["later", ids, on]);
-    return { ok: true, message: "" };
-  };
-  billingVerbs.checkout = async (back) => {
-    order.push(["checkout", back]);
-    return checkout(back);
-  };
-  try {
-    setSetup(surface(phoneReady()));
-    param = "phone";
-    fresh();
-    let tree = mount();
-    await byTestId(tree, "fr-phone-go").props.onClick();
-    await tick();
-    assert.deepEqual(
-      order,
-      [
-        ["want", { way: "keep", number: "+13055550100" }],
-        // A number kept asks for its forwarding again, wherever a new number had put it off.
-        ["later", "keep", { on: false }],
-        ["checkout", "start"],
-      ],
-      "kept first: a save still out when checkout leaves would be dropped with the page",
-    );
-    assert.deepEqual(asked.checkout, ["start"]);
-    // A new number forwards nothing: the choice is taken back.
-    phoneWorld();
-    order.length = 0;
-    setSetup(surface(phoneReady({ status: "active" })));
-    fresh();
-    tree = mount();
-    wayOf(tree, "new").props.onClick();
-    tree = mount();
-    let form = null;
-    walk(tree, (n) => {
-      if (!form && n.type === "form") form = n;
-    });
-    await form.props.onSubmit({ preventDefault() {} });
-    tree = mount();
-    optionsOf(tree, "fr-phone-numbers")[0].props.onClick();
-    tree = mount();
-    await byTestId(tree, "fr-phone-go").props.onClick();
-    await tick();
-    // A new number keeps none: the choice puts "The number you already have" off, so Today's card stops asking.
-    assert.deepEqual(order, [
-      ["want", null],
-      ["later", "keep", { on: true, why: "answer" }],
-    ]);
-  } finally {
-    setupVerbs.want = wasWant;
-    setupVerbs.later = wasLater;
-  }
-});
-
-test("the code is a press to copy, for the phone it is typed on; a browser that will not copy says so", async () => {
-  phoneWorld();
-  forwardingSays();
-  globalThis.window.__tabMemory.keepDraft("first-run-phone", {
-    way: "keep",
-    number: null,
-    pick: null,
-    pending: false,
-    rings: "mobile",
-    company: "tmobile",
-  });
-  setSetup(surface(answeringLine([forwardedRow("tmobile")])));
-  param = "phone";
-  fresh();
-  const tree = mount();
-  const copy = byTestId(tree, "fr-phone-copy");
-  assert.equal(textOf(copy), "Copy");
-  const nav = Object.getOwnPropertyDescriptor(globalThis, "navigator");
-  const copied = [];
-  try {
-    Object.defineProperty(globalThis, "navigator", {
-      configurable: true,
-      value: { userAgent: "", clipboard: { writeText: async (text) => void copied.push(text) } },
-    });
-    flashes.length = 0;
-    await copy.props.onClick();
-    await tick();
-    assert.deepEqual(copied, ["**004*+13055550142#"], "the code as it is dialled");
-    assert.equal(textOf(flashes.at(-1).msg), "Copied");
-    Object.defineProperty(globalThis, "navigator", { configurable: true, value: { userAgent: "" } });
-    await copy.props.onClick();
-    await tick();
-    assert.equal(textOf(flashes.at(-1).msg), "Not copied. Select the code and copy it yourself.");
-  } finally {
-    if (nav) Object.defineProperty(globalThis, "navigator", nav);
-    else delete globalThis.navigator;
-  }
-});
-
-test("a step that waits looks again at its own pace: the number on its way asks Setup, quietly, and a step with nothing to wait for asks nothing", () => {
-  phoneWorld();
-  const looked = [];
-  const wasPeek = setupVerbs.peek;
-  setupVerbs.peek = async () => void looked.push("setup");
-  try {
-    // Choosing: nothing is on its way, so nothing is looked for.
-    setSetup(surface(phoneReady({ status: "active" })));
-    param = "phone";
-    heldTicks.length = 0;
-    fresh();
-    mount();
-    assert.equal(heldTicks.filter((t) => t.ms === 6000).length, 0, "no look while the owner is choosing");
-    // The number is on its way: the live feed says when it lands, and the page looks too, in case it did not.
-    const provisioning = answeringLine();
-    provisioning.channels = {
-      ...provisioning.channels,
-      voice: { present: false, active: false, number: null, lastInboundAt: null },
-    };
-    provisioning.lines = {
-      ...provisioning.lines,
-      rows: [
-        {
-          ...provisioning.lines.rows[0],
-          voice_state: "provisioning",
-          step: "number",
-          state_since: new Date().toISOString(),
-        },
-      ],
-    };
-    setSetup(surface(provisioning));
-    heldTicks.length = 0;
-    fresh();
-    const tree = mount();
-    assert.equal(byTestId(tree, "fr-phone").props["data-stage"], "getting");
-    const look = heldTicks.find((t) => t.ms === 6000);
-    assert.ok(look, "a look every six seconds while the step waits");
-    look.fn();
-    assert.deepEqual(looked, ["setup"], "Setup's quiet look: one that fails changes nothing on screen");
-  } finally {
-    setupVerbs.peek = wasPeek;
-  }
-});
-
-const untried = {
-  ...withFacts,
-  channels: { ...blank.channels, voice: { present: true, active: true, number: "+13055550123", lastInboundAt: null } },
-  lines: { rows: [], ready: true, provider: "twilio", costs: { local_number_month_usd: 1.15 } },
-};
-const liveCall = (over = {}) => ({
-  callId: "c1",
-  cvId: "cv-c1",
-  number: "+1 (786) 555-0199",
-  from: "+17865550199",
-  direction: "inbound",
-  status: "ongoing",
-  live: true,
-  missed: false,
-  startedAtMs: Date.now() - 20_000,
-  startedLabel: "2:59 PM",
-  duration: null,
-  lengthWords: null,
-  transcript: [
-    { speaker: "agent", text: "Thank you for calling Harbor Moving!", t: "0:01" },
-    { speaker: "client", text: "Are you open on Sunday?", t: "0:05" },
-  ],
-  ...over,
-});
-/** Try it's world: Setup's verbs and the tab's saver answer here, the saver's own put back once the test is over. */
-const tryWorld = (t) => {
-  const asked = { later: [], saves: [], request: [] };
-  t.after(() => Object.assign(businessTabSave.saver, tabSaver));
-  emptyTab();
-  globalThis.window.__setup.later = async (id, on) => {
-    asked.later.push([id, on]);
-    return { ok: true, message: "" };
-  };
-  globalThis.window.__setup.request = async (what) => {
-    asked.request.push(what);
-    return { ok: true, already: false, message: "" };
-  };
-  // A save is counted, never sent, over a settings read that is in; the patch is the tab's own.
-  Object.assign(businessTabSave.saver, { save: (job) => asked.saves.push(job), base: () => ({ brain: {} }) });
+/** Google's door, remembering where it was sent, and what it came back with (nothing, unless a test says). */
+const googleConnects = (t, back = null) => {
+  const asked = [];
+  const was = { connect: googleVerbs.connect, outcome: googleVerbs.outcome };
+  t.after(() => Object.assign(googleVerbs, was));
+  Object.assign(googleVerbs, { connect: (o) => asked.push(o ?? null), outcome: () => back });
   return asked;
 };
-
-test("Try it (canvas R6): calls answered and none yet, the step listens for the test call, and skipping asks once first", async (t) => {
-  const asked = tryWorld(t);
-  setLive({ now: [], recent: [] });
-  setSetup(surface(untried));
-  param = null;
-  fresh();
-  let tree = mount();
-  assert.equal(textOf(byTestId(tree, "fr-heading")), "Call your receptionist from your cell.");
-  assert.equal(byTestId(tree, "fr-try").props["data-stage"], "listen");
-  assert.equal(textOf(byTestId(tree, "fr-try-number")), "+1 (305) 555-0123");
-  // The number is a press that dials it (a phone's foot draws it; a desk has nothing to dial with).
-  const dial = byTestId(tree, "fr-try-dial");
-  assert.equal(textOf(dial), "Call +1 (305) 555-0123");
-  assert.equal(dial.props.href, "tel:+13055550123");
-  await byTestId(tree, "fr-try-skip-go").props.onClick();
-  tree = mount();
-  assert.match(textOf(byTestId(tree, "fr-try-nudge")), /^Most owners call once/);
-  assert.deepEqual(asked.later, [], "one nudge first");
-  // Setup's own verb shows a row put off at once (surface.ts): the stand-in does the same, so the page goes on from it.
-  const sayLater = globalThis.window.__setup.later;
-  globalThis.window.__setup.later = async (id, on) => {
-    setSetup({ ...surface(untried), later: [id], vm: setupSteps({ ...untried, later: [id] }, NOW) });
-    return sayLater(id, on);
-  };
-  await byTestId(tree, "fr-try-skip-go").props.onClick();
-  await tick();
-  assert.deepEqual(
-    asked.later,
-    [["try-skipped", { on: true, why: "answer" }]],
-    "then the wait is put off for this member",
-  );
-  assert.equal(replaced.at(-1), "start/try", "the bare address being left is named for its step");
-  assert.equal(went.at(-1), "start/live", "and the first run goes on to Live, a new entry");
-});
-
-test("Try it (canvas R7, R8): it picked up with the words, then the call and the transfer saved through the Business tab's saver", async (t) => {
-  const asked = tryWorld(t);
-  setSetup(surface(untried));
-  setLive({ now: [liveCall()], recent: [] });
-  param = "try";
-  fresh();
-  let tree = mount();
-  assert.equal(textOf(byTestId(tree, "fr-heading")), "It picked up.");
-  assert.match(textOf(byTestId(tree, "fr-try-proof")), /^Your receptionist answered · on the call now · 0:[12]\d$/);
-  assert.equal(
-    textOf(byTestId(tree, "fr-try-turns")),
-    "ReceptionistThank you for calling Harbor Moving!YouAre you open on Sunday?",
-  );
-  setLive({ now: [], recent: [liveCall({ live: false, status: "ended", duration: "0:48" })] });
-  tree = mount();
-  assert.equal(textOf(byTestId(tree, "fr-heading")), "That's your receptionist.");
-  assert.equal(textOf(byTestId(tree, "fr-try-meta")), "0:48 · from +1 (786) 555-0199 · 2:59 PM");
-  // Arrow keys move the choice and change it: shown at once, saved once they settle, the last one only.
-  // Where a caller goes is the kit's choice of a few: the phone they called from first, a message last.
-  const transfer = (tree0, key) => {
-    const options = optionsOf(tree0, "fr-try-transfer");
-    return key === "caller" ? options[0] : options.at(-1);
-  };
-  const choose = (key) => transfer(mount(), key).props.onClick();
-  choose("message");
-  choose("caller");
-  tree = mount();
-  assert.equal(transfer(tree, "caller").props["aria-checked"], true, "shown at once");
-  assert.equal(asked.saves.length, 0, "nothing sent while the keys still move");
-  await new Promise((r) => setTimeout(r, 650));
-  assert.equal(asked.saves.length, 1, "one save, of the last choice");
-  assert.equal(asked.saves[0].row, "handoff_number");
-  const brain = asked.saves[0].change({}, {});
-  assert.equal(brain.profile.handoff_number, "+17865550199", "the phone they called from");
-  byTestId(tree, "fr-try-inbox").props.onClick();
-  assert.equal(went.at(-1), "conversations/cv-c1", "the call itself, in the Inbox");
-  // The call reached the receptionist, and Setup has read it: the step is done, and Continue goes on to Live.
-  setSetup(surface(answering));
-  byTestId(tree, "fr-try-go").props.onClick();
-  assert.equal(went.at(-1), "start/live", "on to Live, a new entry");
-  setSetup(surface(untried));
-  // The settings read not in yet: the saver would send nothing, so the page says so rather than showing a choice.
-  businessTabSave.saver.base = () => null;
-  flashes.length = 0;
-  fresh();
-  tree = mount();
-  transfer(tree, "caller").props.onClick();
-  assert.equal(asked.saves.length, 1, "nothing sent");
-  assert.equal(textOf(flashes.at(-1).msg), "Your settings are still being read. Try again in a moment.");
-  setLive(undefined);
-});
-
-test("Try it stays on screen at the bare address when Setup learns of the call mid-call: the words and the transfer are still to come", (t) => {
-  tryWorld(t);
-  setSetup(surface(untried));
-  setLive({ now: [liveCall()], recent: [] });
-  param = null;
-  fresh();
-  assert.equal(textOf(byTestId(mount(), "fr-heading")), "It picked up.");
-  // The call reached the receptionist: Setup reads it, and the step is done (Live is where #/start now opens).
-  setSetup(
-    surface({
-      ...untried,
-      channels: { ...untried.channels, voice: { ...untried.channels.voice, lastInboundAt: new Date().toISOString() } },
-    }),
-  );
-  setLive({ now: [], recent: [liveCall({ live: false, status: "ended", duration: "0:48" })] });
-  const after = mount();
-  assert.equal(textOf(byTestId(after, "fr-heading")), "That's your receptionist.", "not jumped on to Live");
-  assert.ok(byTestId(after, "fr-try-transfer"), "where transfers go is asked");
-  setLive(undefined);
-});
-
-test("Live (canvas R9): the four lines and the greeting, and Finish switches calls on before Today", async () => {
-  const activated = [];
-  globalThis.window.__setup.activate = async (kind) => {
-    activated.push(kind);
-    return { ok: true, message: "" };
-  };
-  setSetup(surface(answering));
-  setSettings({
-    config: { brain: { business_name: "Harbor Moving" }, notifications: { escalation_emails: ["owner@example.com"] } },
+/** Setup's Later, as Setup's own verb shows it (the row put off at once), remembering what was put off. */
+const laterShows = (t, dto, answer = { ok: true, message: "" }) => {
+  const said = [];
+  t.after(() => {
+    setupVerbs.later = readyLater;
   });
-  try {
-    param = null;
-    fresh();
-    const tree = mount();
-    assert.equal(
-      textOf(byTestId(tree, "fr-live-emails")),
-      "Emails you atowner@example.com, when someone needs youChange",
-    );
-    assert.match(
-      textOf(byTestId(tree, "fr-live-greeting")),
-      /^Every caller hears “Hi, Harbor Moving\. I'm the automated assistant, and calls are recorded\./,
-    );
-    assert.equal(textOf(byTestId(tree, "fr-live-note")), "We'll email you a copy of this.");
-    await byTestId(tree, "fr-onward").props.onClick();
-    await new Promise((r) => setTimeout(r, 0));
-    assert.deepEqual(activated, ["voice"], "the owner's own act, recorded");
-    assert.equal(went.at(-1), "today");
-  } finally {
-    setSettings(null);
-    setupVerbs.activate = readyActivate;
-  }
-});
-
-test("Live: a refused Finish stays and says why, and Finish again goes on; a teammate's Live promises no email", async () => {
-  let answer = { ok: false, message: "Not ready to activate: the line is switched off." };
-  const asked = [];
-  globalThis.window.__setup.activate = async (kind, opts) => {
-    asked.push([kind, opts]);
+  setupVerbs.later = async (id, on) => {
+    said.push([id, on]);
+    if (answer.ok) setSetup(surface(dto, { later: on ? [id] : [] }));
     return answer;
   };
-  setSetup(surface(answering));
-  setSettings({
-    config: { brain: { business_name: "Harbor Moving" }, notifications: { escalation_emails: ["owner@example.com"] } },
-  });
-  try {
-    param = null;
-    fresh();
-    flashes.length = 0;
-    const before = went.length;
-    let tree = mount();
-    await byTestId(tree, "fr-onward").props.onClick();
-    assert.deepEqual(asked, [["voice", { firstRun: true }]], "the first run's own Finish, so its first time emails");
-    assert.equal(went.length, before, "refused: the step stays, so the refusal is read");
-    assert.match(textOf(flashes.at(-1).msg), /line is switched off/);
-    tree = mount();
-    await byTestId(tree, "fr-onward").props.onClick();
-    assert.equal(asked.length, 1, "not asked again");
-    assert.equal(went.at(-1), "today", "Finish again goes on");
-    // A teammate: Finish switches nothing on (the channel permission), so nothing promises an email.
-    globalThis.window.canDo = (what) => what === "approve" || what === "autonomy";
-    fresh();
-    assert.equal(byTestId(mount(), "fr-live-note"), null);
-  } finally {
-    globalThis.window.canDo = () => true;
-    setSettings(null);
-    setupVerbs.activate = readyActivate;
-    answer = null;
-  }
+  return said;
+};
+
+test("Connect it to Google (canvas 1B·g): what one sign-in brings, said before Google's window, and Connect goes there and back to Your business", (t) => {
+  const asked = googleConnects(t);
+  setSetup(surface(managed()));
+  const tree = open();
+  assert.equal(byTestId(tree, "first-run").props["data-step"], "business", "not done until it is answered");
+  assert.equal(textOf(byTestId(tree, "fr-heading")), "Do you manage it on Google?");
+  assert.match(
+    textOf(byTestId(tree, "first-run")),
+    /Sign in with the Google account that manages Harbor Moving, and it comes in as you keep it there:/,
+  );
+  assert.equal(textOf(byTestId(tree, "fr-google-listing")), "Harbor Moving · 4.7 ★ · 212 reviews");
+  const ask = textOf(byTestId(tree, "fr-google-connect"));
+  for (const brings of FIRST_RUN_HELPERS.words.google.brings) assert.ok(ask.includes(brings), brings);
+  assert.match(
+    ask,
+    /Your receptionist drafts the replies, and nothing is posted until you say so\. Disconnect it any time in Settings\./,
+  );
+  assert.equal(byTestId(tree, "fr-onward"), null, "its own three ways on, so no page foot");
+  // Beside it, the workspace building: each line a fact the page holds.
+  const lines = (id) => [
+    textOf(byTestId(tree, `fr-building-${id}`)),
+    byTestId(tree, `fr-building-${id}`)?.props["data-state"],
+  ];
+  assert.deepEqual(lines("made"), ["Workspace made · Harbor Moving", "done"]);
+  assert.deepEqual(lines("confirm"), ["Your listing, confirmed", "done"]);
+  assert.deepEqual(lines("connect"), ["Connect your Business Profile", "ahead"]);
+  assert.deepEqual(lines("write"), ["Your receptionist, written", "done"]);
+  assert.equal(byTestId(tree, "fr-building-found"), null, "linked: nothing left to search");
+  assert.match(textOf(byTestId(tree, "fr-building")), /Until you connect it, it reads only what's public/);
+  byTestId(tree, "fr-google-connect-press").props.onClick();
+  assert.deepEqual(asked, [{ back: "start" }], "Google's window, and back to the first run's Your business");
 });
+
+test("Connect it to Google: Not now keeps the public listing watched, the member's own Later, and goes on; a Later refused stays and says so", async (t) => {
+  googleConnects(t);
+  const dto = managed();
+  const said = laterShows(t, dto);
+  setSetup(surface(dto));
+  let tree = open();
+  went.length = 0;
+  await byTestId(tree, "fr-google-not-now").props.onClick();
+  assert.deepEqual(said, [[GOOGLE_CONNECT_LATER, { on: true, why: "answer" }]]);
+  assert.equal(replaced.at(-1), "start/business", "the bare address being left is named for its step");
+  assert.equal(went.at(-1), "start/receptionist", "and on to Your receptionist, a new entry");
+  setupVerbs.later = async () => ({ ok: false, message: "Your settings could not be saved." });
+  setSetup(surface(dto));
+  flashes.length = 0;
+  went.length = 0;
+  tree = open();
+  await byTestId(tree, "fr-google-not-now").props.onClick();
+  assert.equal(textOf(flashes.at(-1).msg), "Not saved — Your settings could not be saved.");
+  assert.deepEqual(went, [], "still asked");
+});
+
+test("Connect it to Google: Someone else manages it says who can add the owner, with another account or the way on without it", async (t) => {
+  const asked = googleConnects(t);
+  const dto = managed();
+  const said = laterShows(t, dto);
+  globalThis.window.__ME = { email: "owner@example.com" };
+  t.after(() => delete globalThis.window.__ME);
+  setSetup(surface(dto));
+  let tree = open();
+  byTestId(tree, "fr-google-someone").props.onClick();
+  tree = mount();
+  const who = byTestId(tree, "fr-google-not-manager");
+  assert.match(textOf(who), /^Someone else manages it on Google/);
+  assert.match(textOf(who), /That account doesn't manage Harbor Moving\. Whoever does can add you in a minute:/);
+  assert.match(textOf(who), /In People and access, they add owner@example\.com as an owner or manager\./);
+  assert.match(textOf(who), /Until then your receptionist reads your public listing/);
+  byTestId(tree, "fr-google-try-another").props.onClick();
+  assert.deepEqual(asked, [{ back: "start" }]);
+  await byTestId(tree, "fr-google-go-on").props.onClick();
+  assert.deepEqual(
+    said,
+    [[GOOGLE_CONNECT_LATER, { on: true, why: "answer" }]],
+    "on without it: the same Later, the public listing watched",
+  );
+});
+
+test("back from Google: what came in, a line each with where it stands, and Continue goes on", async (t) => {
+  googleConnects(t, { outcome: "connected", why: null });
+  const reviews = {
+    source: "google_reviews",
+    state: "done",
+    counts: { reviews: 212, unanswered: 9 },
+    parts_done: 1,
+    parts_total: 1,
+    oldest: "2019-04-02T00:00:00Z",
+    started_at: "2026-09-07T14:59:00Z",
+    finished_at: "2026-09-07T15:00:00Z",
+    last_error: null,
+    via: "google",
+  };
+  const profile = {
+    source: "google_profile",
+    facts: {
+      services: [
+        { name: "Local moves", price_note: "from $300", duration_min: null },
+        { name: "Packing", price_note: null, duration_min: null },
+        { name: "Storage", price_note: null, duration_min: null },
+      ],
+      closed: [],
+      rules: [],
+      answers: [],
+      description: null,
+    },
+    read_from: null,
+    read_at: "2026-09-07T15:00:00Z",
+    error: null,
+  };
+  const dto = {
+    ...managed({ connected: true, connection: { google_email: "owner@example.com" } }),
+    imports: [reviews],
+    reads: [profile],
+  };
+  setSetup(surface(dto));
+  // Google returns to Your business by name (afterGoogle: `start/business`), where the step is done: the summary is drawn.
+  // Google's answer is read in an effect, after the first draw, as React draws again once it is kept.
+  open("business");
+  const tree = mount();
+  const back = byTestId(tree, "fr-google-connected");
+  assert.match(textOf(back), /^Harbor Moving is connected/);
+  assert.match(textOf(back), /Google · owner@example\.com · just now/);
+  assert.equal(textOf(byTestId(tree, "fr-google-reviews")), "ReviewsAll 212 · back to 2019 · 9 wait for a replyIn");
+  assert.equal(textOf(byTestId(tree, "fr-google-services")), "Services and prices3, for you to check nextIn");
+  assert.equal(textOf(byTestId(tree, "fr-google-news")), "New reviewsRead every hour; your bell ringsOn");
+  went.length = 0;
+  byTestId(tree, "fr-google-continue").props.onClick();
+  assert.equal(went.at(-1), "start/receptionist", "on to where the workspace is now");
+});
+
+test("back from Google with an account that manages no such place: who can add them; any other refusal is said in Connections' words", (t) => {
+  googleConnects(t, { outcome: "error", why: "no_locations" });
+  setSetup(surface(managed()));
+  open();
+  assert.ok(byTestId(mount(), "fr-google-not-manager"), "the account manages no location of this business");
+  googleVerbs.outcome = () => ({ outcome: "error", why: "declined" });
+  flashes.length = 0;
+  open();
+  const tree = mount();
+  assert.equal(textOf(flashes.at(-1).msg), "Google did not connect: the sign-in was declined.");
+  assert.ok(byTestId(tree, "fr-google-connect"), "and the ask stays, to press again");
+  googleVerbs.outcome = () => ({ outcome: "error", why: "something_new" });
+  open();
+  assert.equal(textOf(flashes.at(-1).msg), "Google did not connect. Try again.", "a refusal with no words of its own");
+});
+
+test("Your workspace, building, beside Find: searching while Google is asked, then what it found and what waits on the owner", async () => {
+  googleSays([found([HARBOR, WAREHOUSE])]);
+  setSetup(surface(findable));
+  open();
+  // Find asks on arrival (its effect): drawn again before Google answers, the line says it is searching.
+  const asking = mount();
+  assert.deepEqual(
+    [textOf(byTestId(asking, "fr-building-found")), byTestId(asking, "fr-building-found").props["data-state"]],
+    ["Searching Google", "waiting"],
+  );
+  assert.deepEqual(
+    [textOf(byTestId(asking, "fr-building-confirm")), byTestId(asking, "fr-building-confirm").props["data-state"]],
+    ["Confirm your listing", "ahead"],
+    "the confirming said as a line to come, so the list keeps its length as Google answers",
+  );
+  await tick();
+  await tick();
+  const tree = mount();
+  assert.deepEqual(
+    ["found", "confirm", "write"].map((id) => textOf(byTestId(tree, `fr-building-${id}`))),
+    ["Found on Google · 2 matches", "Waiting for you to confirm it", "Write your receptionist"],
+  );
+  assert.equal(byTestId(tree, "fr-building-connect"), null, "nothing to connect before a listing is linked");
+});
+
+/* ---- Your receptionist (decision 0073, canvas 2): meet it, make it yours ---- */
+const brainSettings = (profile = {}) => ({
+  config: { brain: { business_name: "Harbor Moving", profile: { phone_voice: "minimax-Grace", ...profile } } },
+});
+/** Audio that plays at once and remembers what it was asked to play. */
+const audioWorld = (t) => {
+  const played = [];
+  const was = globalThis.Audio;
+  t.after(() => {
+    globalThis.Audio = was;
+  });
+  globalThis.Audio = class {
+    constructor(src) {
+      this.src = src;
+      played.push(src);
+    }
+    play() {
+      return Promise.resolve();
+    }
+    pause() {}
+  };
+  return played;
+};
+
+test("Your receptionist (canvas 2): the greeting every caller hears in the voice chosen, walk-ins kept as a booking rule, and how it sounds one line away", (t) => {
+  const saves = saverWorld(t);
+  const played = audioWorld(t);
+  setSetup(surface(withFacts));
+  setSettings(brainSettings());
+  t.after(() => setSettings(null));
+  let tree = open();
+  assert.equal(byTestId(tree, "first-run").props["data-step"], "receptionist");
+  const greeting = byTestId(tree, "fr-greeting");
+  assert.match(textOf(greeting), /^Greets every caller with“Hi, Harbor Moving\./);
+  assert.match(textOf(greeting), /Your own words any time; the automated-assistant line always stays\.$/);
+  const hear = byTestId(tree, "fr-greeting-hear");
+  assert.equal(textOf(hear), "Hear Grace");
+  hear.props.onClick();
+  assert.equal(played.length, 1, "the chosen voice's own sample");
+  assert.equal(textOf(byTestId(mount(), "fr-greeting-hear")), "Stop");
+  // Walk-ins: the owner's answer, saved through the Business tab's one saver as the booking rule it is.
+  const W = FIRST_RUN_HELPERS.words.check.walkIns;
+  tree = mount();
+  assert.match(textOf(byTestId(tree, "fr-walk-ins")), new RegExp(`^${W.label.replace("?", "\\?")}`));
+  pick(tree, "fr-walk-ins-pick", W.options.no);
+  assert.equal(saves.length, 1);
+  assert.equal(saves[0].row, "walk_ins");
+  assert.equal(saves[0].said, "Kept.");
+  assert.equal(saves[0].change({}, {}).profile.booking_rules.walk_ins, "no");
+  // How it sounds: beside the step on a desk, and one line that opens it as a sheet on a phone.
+  assert.ok(byTestId(tree, "fr-sounds"), "the panel beside the step");
+  const strip = byTestId(tree, "fr-sounds-open");
+  assert.equal(textOf(strip), "How it soundsGraceChange");
+  assert.equal(sheetOf(tree, "fr-sounds-sheet").props.open, false);
+  strip.props.onClick();
+  assert.equal(sheetOf(mount(), "fr-sounds-sheet").props.open, true);
+  assert.match(textOf(tree), /Next: talk to it as a customer would, then fix what it gets wrong\./);
+});
+
+test("How it sounds: a voice picked saves at once and is heard in its sample, the personality writes the tone and says a reply in it, the pace, and the name kept as the box is left", (t) => {
+  const saves = saverWorld(t);
+  const played = audioWorld(t);
+  setSetup(surface(withFacts));
+  setSettings(brainSettings({ tone: TONE_PRESETS[0].tone }));
+  t.after(() => setSettings(null));
+  let tree = open();
+  const panel = byTestId(tree, "fr-sounds");
+  assert.equal(textOf(byTestId(panel, "fr-sounds-line")), "Grace · Warm");
+  assert.equal(byTestId(panel, "fr-voice-grace").props["aria-pressed"], true, "the voice chosen");
+  byTestId(panel, "fr-voice-nia").props.onClick();
+  assert.equal(saves.at(-1).row, "phone_voice");
+  assert.equal(saves.at(-1).said, "Callers hear Nia from their next call.");
+  assert.equal(saves.at(-1).change({}, {}).profile.phone_voice, "minimax-Nia");
+  byTestId(panel, "fr-voice-hear-nia").props.onClick();
+  assert.equal(played.length, 1);
+  assert.equal(byTestId(byTestId(mount(), "fr-sounds"), "fr-voice-hear-nia").props["aria-label"], "Stop");
+  // The personality: a preset written into the tone, with a reply said in it.
+  tree = mount();
+  assert.equal(textOf(byTestId(tree, "fr-sounds-sample")), `“${TONE_PRESETS[0].sample}”`);
+  pick(byTestId(tree, "fr-sounds"), "fr-sounds-personality", TONE_PRESETS[1].label);
+  assert.equal(saves.at(-1).row, "tone");
+  assert.equal(saves.at(-1).change({}, {}).profile.tone, TONE_PRESETS[1].tone);
+  // The pace: natural is no setting at all.
+  pick(byTestId(tree, "fr-sounds"), "fr-sounds-pace", "A bit slower");
+  assert.equal(saves.at(-1).change({}, {}).profile.phone_pace, "a_bit_slower");
+  pick(byTestId(tree, "fr-sounds"), "fr-sounds-pace", "Natural");
+  assert.equal("phone_pace" in saves.at(-1).change({}, { phone_pace: "faster" }).profile, false);
+  // The name, kept as the box is left: tidied, and nothing saved where it did not change.
+  const before = saves.length;
+  boxOf(byTestId(tree, "fr-sounds"), "fr-sounds-name").props.onChange({ target: { value: "  Ava   Marie " } });
+  tree = mount();
+  boxOf(byTestId(tree, "fr-sounds"), "fr-sounds-name").props.onBlur();
+  assert.equal(saves.length, before + 1);
+  assert.equal(saves.at(-1).said, "Ava Marie. Kept.");
+  assert.equal(saves.at(-1).change({}, {}).profile.assistant_name, "Ava Marie");
+});
+
+test("How it sounds: where the business answers in Spanish first and the voice is not native to it, the native voices are offered, one press to use one", (t) => {
+  const saves = saverWorld(t);
+  setSetup(surface(withFacts));
+  setSettings(brainSettings({ phone_voice: "minimax-Tamsin", languages: ["Spanish", "English"] }));
+  t.after(() => setSettings(null));
+  const tree = open();
+  const panel = byTestId(tree, "fr-sounds");
+  assert.equal(
+    textOf(byTestId(panel, "fr-accent")).replace(/Use Claudia$/, ""),
+    "Tamsin speaks Spanish with an accent. Claudia or Alejandro sound native to Spanish-speaking callers.",
+  );
+  byTestId(panel, "fr-accent-use").props.onClick();
+  assert.equal(saves.at(-1).change({}, {}).profile.phone_voice, "minimax-Claudia");
+  setSettings(brainSettings({ phone_voice: "minimax-Claudia", languages: ["Spanish"] }));
+  assert.equal(byTestId(byTestId(open(), "fr-sounds"), "fr-accent"), null, "a native voice: nothing to suggest");
+});
+
+/* ---- Rehearse (decision 0073, canvas 3): talk to it as a customer would, then fix what it gets wrong ---- */
+test("Rehearse (canvas 3): talk to it, what it reads from beside, and the skip asked once before it puts the wait off", async (t) => {
+  const dto = withFacts;
+  setSetup(surface(dto, { later: [RECEPTIONIST_MET] }));
+  setSettings(brainSettings({ assistant_name: "Ava" }));
+  t.after(() => setSettings(null));
+  const said = [];
+  t.after(() => {
+    setupVerbs.later = readyLater;
+  });
+  setupVerbs.later = async (id, on) => {
+    said.push([id, on]);
+    setSetup(surface(dto, { later: [RECEPTIONIST_MET, id] }));
+    return { ok: true, message: "" };
+  };
+  let tree = open();
+  assert.equal(byTestId(tree, "first-run").props["data-step"], "rehearse");
+  assert.equal(textOf(byTestId(tree, "fr-heading")), "Talk to Ava as a customer would");
+  assert.equal(textOf(byTestId(tree, "fr-phone-line")), "3 of 5 · Rehearse");
+  assert.equal(byTestId(tree, "fr-onward"), null, "nothing to go on with before a review");
+  assert.equal(textOf(byTestId(tree, "fr-rehearse-trained")), "Trained so far: nothing yet.");
+  assert.deepEqual(
+    chipWords(byTestId(tree, "fr-asks")),
+    FIRST_RUN_HELPERS.words.rehearse.asks,
+    "questions to try, beside the call",
+  );
+  assert.match(textOf(byTestId(tree, "fr-using")), /Never in Reports, never in People\.$/);
+  // Type instead, and back.
+  byTestId(tree, "fr-rehearse-mode").props.onClick();
+  tree = mount();
+  assert.equal(byTestId(tree, "fr-rehearse").props["data-mode"], "type");
+  assert.equal(textOf(byTestId(tree, "fr-rehearse-mode")), "Talk instead");
+  // The skip: one nudge first, Stay takes it back, and Skip anyway puts the wait off for this member.
+  byTestId(tree, "fr-rehearse-skip-go").props.onClick();
+  tree = mount();
+  assert.match(textOf(byTestId(tree, "fr-rehearse-skip")), /^Most owners talk to it once\./);
+  assert.deepEqual(said, [], "one nudge first");
+  byTestId(tree, "fr-rehearse-stay").props.onClick();
+  tree = mount();
+  assert.equal(textOf(byTestId(tree, "fr-rehearse-skip-go")), "Can't talk right now? Skip for now");
+  byTestId(tree, "fr-rehearse-skip-go").props.onClick();
+  tree = mount();
+  went.length = 0;
+  await byTestId(tree, "fr-rehearse-skip-go").props.onClick();
+  assert.deepEqual(said, [[REHEARSE_SKIPPED, { on: true, why: "answer" }]]);
+  assert.equal(replaced.at(-1), "start/rehearse", "the bare address being left is named for its step");
+  assert.equal(went.at(-1), "start/channels", "and on to Where it answers");
+});
+
+test("Rehearse stays on screen once its first review lands, says how it did, and Looks good goes on to Where it answers", (t) => {
+  const reviewed = { ...withFacts, rehearsal: { reviewed: 1, kept: 2 } };
+  setSettings(brainSettings({ assistant_name: "Ava" }));
+  t.after(() => setSettings(null));
+  setSetup(surface(withFacts, { later: [RECEPTIONIST_MET] }));
+  open();
+  // The review lands while the owner reads it: the step is done, and the bare address would open Where it answers.
+  setSetup(surface(reviewed, { later: [RECEPTIONIST_MET] }));
+  const tree = mount();
+  assert.equal(byTestId(tree, "first-run").props["data-step"], "rehearse", "not jumped on");
+  assert.equal(textOf(byTestId(tree, "fr-heading")), "How Ava did");
+  assert.equal(textOf(byTestId(tree, "fr-rehearse-trained")), "Trained: 2 things so far.");
+  assert.equal(byTestId(tree, "fr-rehearse-skip"), null, "nothing to skip once it has been heard");
+  const onward = byTestId(tree, "fr-onward");
+  assert.equal(textOf(onward), "Looks good, go on");
+  went.length = 0;
+  onward.props.onClick();
+  assert.equal(went.at(-1), "start/channels");
+});
+
+/** A kit sheet by the test id it is given (it names its own parts by it once open). */
+function sheetOf(tree, id) {
+  let hit = null;
+  walk(tree, (n) => {
+    if (!hit && n.props?.testid === id) hit = n;
+  });
+  return hit;
+}
+
+/** The chips a list draws, by their words. */
+function chipWords(list) {
+  const out = [];
+  walk(list, (n) => {
+    if (n.type === "li") out.push(textOf(n));
+  });
+  return out;
+}

@@ -28,6 +28,7 @@ what the script writes.
 | [`billing_accounts`](#billing_accounts) | `packages/db/src/ai-usage.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out.ts` | on, 1 policy |
 | [`billing_card_marks`](#billing_card_marks) | none | on, no policy, so only the service role reaches it |
 | [`billing_events`](#billing_events) | none | on, no policy, so only the service role reaches it |
+| [`business_reads`](#business_reads) | `packages/db/src/repositories/imports/business-reads.ts` | on, 1 policy |
 | [`business_records`](#business_records) | `packages/db/src/lines.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out.ts` | on, 1 policy |
 | [`calls`](#calls) | `packages/db/src/events.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 1 policy |
 | [`capability_activations`](#capability_activations) | none | on, 2 policies |
@@ -35,7 +36,7 @@ what the script writes.
 | [`contact_identities`](#contact_identities) | none | on, 1 policy |
 | [`contact_marks`](#contact_marks) | none | on, 1 policy |
 | [`contact_reads`](#contact_reads) | none | on, 1 policy |
-| [`contacts`](#contacts) | `packages/db/src/events.ts`, `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
+| [`contacts`](#contacts) | `packages/db/src/events.ts`, `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/imports/before.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
 | [`conversation_drafts`](#conversation_drafts) | `packages/db/src/repositories/ask/reply-drafts.ts` | on, 1 policy |
 | [`conversations`](#conversations) | `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/repositories/waiting-on-you.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 2 policies |
 | [`deals`](#deals) | `packages/db/src/events.ts`, `packages/db/src/repositories/deals.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
@@ -49,9 +50,10 @@ what the script writes.
 | [`fact_suggestions`](#fact_suggestions) | `packages/db/src/repositories/facts/fact-suggestions.ts` | on, 1 policy |
 | [`google_connections`](#google_connections) | none | on, 1 policy |
 | [`google_listing_days`](#google_listing_days) | none | on, 1 policy |
-| [`google_listings`](#google_listings) | `packages/db/src/repositories/campaigns/workspace.ts` | on, 1 policy |
+| [`google_listings`](#google_listings) | `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/imports/business-reads.ts` | on, 1 policy |
 | [`google_reviews`](#google_reviews) | `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
 | [`idempotency_keys`](#idempotency_keys) | `packages/db/src/repositories/idempotency.ts` | on, 1 policy |
+| [`imports`](#imports) | `packages/db/src/repositories/imports/ledger.ts` | on, 1 policy |
 | [`invitations`](#invitations) | `packages/db/src/repositories/notices/notifications.ts` | on, 1 policy |
 | [`job_capacity`](#job_capacity) | none | on, no policy, so only the service role reaches it |
 | [`jobs`](#jobs) | `packages/db/src/jobs.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/console/health.ts`, `packages/db/src/repositories/reach-out.ts` | on, no policy, so only the service role reaches it |
@@ -101,6 +103,7 @@ what the script writes.
 | [`push_devices`](#push_devices) | `packages/db/src/repositories/notices/member-alerts.ts` | on, 1 policy |
 | [`rate_hits`](#rate_hits) | none | on, no policy, so only the service role reaches it |
 | [`reach_out_check_spend`](#reach_out_check_spend) | none | on, no policy, so only the service role reaches it |
+| [`rehearsals`](#rehearsals) | `packages/db/src/repositories/facts/rehearsals.ts` | on, 1 policy |
 | [`reply_turns`](#reply_turns) | none | on, no policy, so only the service role reaches it |
 | [`segment_members`](#segment_members) | `packages/db/src/repositories/lists.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 3 policies |
 | [`segments`](#segments) | `packages/db/src/events.ts`, `packages/db/src/repositories/lists.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 4 policies |
@@ -115,8 +118,9 @@ what the script writes.
 | [`templates`](#templates) | `packages/db/src/events.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/templates.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
 | [`tenant_channels`](#tenant_channels) | `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/routing.ts`, `packages/db/src/sweeps.ts` | on, 1 policy |
 | [`tenant_config`](#tenant_config) | `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 2 policies |
-| [`tenant_config_versions`](#tenant_config_versions) | none | on, no policy, so only the service role reaches it |
+| [`tenant_config_versions`](#tenant_config_versions) | `packages/db/src/repositories/facts/rehearsals.ts` | on, no policy, so only the service role reaches it |
 | [`tenants`](#tenants) | `packages/db/src/ai-usage.ts`, `packages/db/src/ops.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/console/health.ts`, `packages/db/src/repositories/console/staff.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/notices/member-alerts.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 2 policies |
+| [`voice_agents`](#voice_agents) | `packages/db/src/repositories/facts/rehearsals.ts` | on, no policy, so only the service role reaches it |
 | [`waitlist`](#waitlist) | `packages/db/src/waitlist.ts` | on, no policy, so only the service role reaches it |
 | [`lead_searches_view`](#lead_searches_view) (view) | none | |
 | [`usage_ledger`](#usage_ledger) (view) | none | |
@@ -507,6 +511,31 @@ Foreign keys:
 
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete set null
 
+### business_reads
+
+What the Business Profile and the website say, one row per workspace and source (decision 0073, R10, R17): services and prices, hours and days closed, booking rules, questions answered, words, for the owner to check at Check. Nothing here reaches a customer until the owner taps it into the record. Members read their workspace's; the edge writes.
+
+- Owned by: `packages/db/src/repositories/imports/business-reads.ts`
+- Primary key: `tenant_id`, `source`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `tenant_id` | uuid | no |  |  |
+| `source` | text | no |  |  |
+| `facts` | jsonb | no | `'{}'::jsonb` |  |
+| `read_from` | text | yes |  |  |
+| `read_at` | timestamp with time zone | no | `now()` |  |
+| `error` | text | yes |  |  |
+
+Foreign keys:
+
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `business_reads_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+
 ### business_records
 
 What every carrier registration asks of a business, kept once per workspace. Members read; the edge writes.
@@ -596,6 +625,7 @@ Foreign keys:
 | `analysis` | jsonb | yes |  |  |
 | `note_checked_at` | timestamp with time zone | yes |  | When the note sweep looked at this call (0007): once, after its analysis; null until then. |
 | `activity_started_at` | timestamp with time zone | yes |  | When the call's Live Activity was started on the workspace's phones. Set once by an UPDATE ... WHERE activity_started_at IS NULL, so a redelivered call_started starts nothing twice. |
+| `config_version` | integer | yes |  | The settings version the call was composed from (tenant_config_versions), as the inbound webhook answered it in the call's metadata (decision 0069): what a review judges the call against. Null for calls before 00476, and for one whose start could not be planned. |
 
 Foreign keys:
 
@@ -735,7 +765,7 @@ Foreign keys:
 
 ### contacts
 
-- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/repositories/workspace-export.ts`
+- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/imports/before.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/repositories/workspace-export.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -779,6 +809,7 @@ Foreign keys:
 | `lead_settled_at` | timestamp with time zone | yes |  | When a member said where this person works (person_join_lead, person_leave_lead): their lead_id then never moves by itself (0052). |
 | `name_source` | text | yes |  | Where display_name came from (0052): typed, import, calendar, signature, wire or lead. Null when no name was set (the WhatsApp name or the number shows) or for a name set before this, whose source is not known. The engine replaces only a strictly lower rank (person_name_rank) and never a settled name. |
 | `name_settled_at` | timestamp with time zone | yes |  | When a member settled the name (typed it, took a signer's, put the business's back, or declined a signer, 0052): automatic naming never moves it. |
+| `before` | jsonb | yes |  | What another system said of the person before Chanlytics (decision 0073, R22): { via, last_visit, visits, birthday } from a client file. Shown as before Chanlytics; never counted as today's, never a yes. Filled only where empty (person_before_note); scrubbed when the person is erased. |
 
 Foreign keys:
 
@@ -1163,7 +1194,7 @@ Foreign keys:
 
 A workspace's business on Google Maps, as the public listing says it: the place, the rating, the count, when it was last read. Members read; the edge writes.
 
-- Owned by: `packages/db/src/repositories/campaigns/workspace.ts`
+- Owned by: `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/imports/business-reads.ts`
 - Primary key: `tenant_id`
 - Row-level security: on, 1 policy
 
@@ -1256,6 +1287,39 @@ Foreign keys:
 | --- | --- | --- | --- | --- |
 | `idempotency_acting_member_all` | all | authenticated | `is_acting_member(tenant_id)` | `is_acting_member(tenant_id)` |
 
+### imports
+
+What was brought in, one row per workspace and source (decision 0073, R23): its state, counts, reach, parts and last error. Everything it counts is before Chanlytics: shown, never counted as today's, never answered, never a yes. Members read their workspace's; the jobs and the clients' file import write through import_ledger_note.
+
+- Owned by: `packages/db/src/repositories/imports/ledger.ts`
+- Primary key: `tenant_id`, `source`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `tenant_id` | uuid | no |  |  |
+| `source` | text | no |  |  |
+| `state` | text | no | `'queued'::text` |  |
+| `counts` | jsonb | no | `'{}'::jsonb` |  |
+| `parts_done` | integer | no | `0` |  |
+| `parts_total` | integer | yes |  |  |
+| `oldest` | timestamp with time zone | yes |  |  |
+| `via` | text | yes |  |  |
+| `job_cursor` | jsonb | yes |  |  |
+| `started_at` | timestamp with time zone | yes |  |  |
+| `finished_at` | timestamp with time zone | yes |  |  |
+| `last_error` | text | yes |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+| `updated_at` | timestamp with time zone | no | `now()` |  |
+
+Foreign keys:
+
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `imports_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+
 ### invitations
 
 - Owned by: `packages/db/src/repositories/notices/notifications.ts`
@@ -1319,7 +1383,7 @@ How many jobs naming a capacity key (scope:key in payload.capacity) may be fired
 | `updated_at` | timestamp with time zone | no | `now()` |  |
 | `lease_until` | timestamp with time zone | yes |  | While in the future, a run holds this row. Once past, the run is presumed dead and claim_due_jobs() may take the row again with attempts + 1; whether that run goes ahead or gives up is verdictFor() in packages/jobs/src/ledger.ts. |
 | `dedupe_key` | text | yes |  | What makes this row once-only while it is scheduled or fired (jobs_dedupe_live, 00333): a caller that must not schedule twice passes it (email_ingest:<mailbox>:<received>, lead_collect:<run>:<seq>, reply_read:<message>:<stage>, deliver:<event>:<subscriber>). Null for a row nobody keyed. |
-| `lane` | smallint | yes | `generated: CASE WHEN (kind = 'inbound_answer'::text) THEN 0 WHEN ((kind = ANY (ARRAY['outbound_send'::text, 'email_ingest'::text, 'push_send'::text])) AND (COALESCE((payload ->> 'purpose'::text), ''::text) <> 'outreach'::text)) THEN 0 WHEN (kind = ANY (ARRAY['line_provision'::text, 'reply_read'::text, 'booking_read'::text])) THEN 1 WHEN (kind = ANY (ARRAY['broadcast_send'::text, 'outbound_send'::text, 'lead_round_start'::text, 'lead_collect'::text, 'lead_check'::text, 'push_receipts'::text])) THEN 2 WHEN (kind = 'event_deliver'::text) THEN CASE WHEN ((payload ->> 'lane'::text) ~ '^[0-2]$'::text) THEN (((payload ->> 'lane'::text))::smallint)::integer ELSE 2 END ELSE NULL::integer END` | Which work a claim takes first (decision 0018): 0 a reply, 1 someone waiting who is not a customer (a line bought, a lead's reply read, a booking notice read), 2 bulk. Generated from kind and payload; an event_deliver runs in its subscription's lane (payload.lane, 00334), a text's answer in a reply's (inbound_answer, 00347); null for a kind the case does not name, claimed last. |
+| `lane` | smallint | yes | `generated: CASE WHEN (kind = 'inbound_answer'::text) THEN 0 WHEN ((kind = ANY (ARRAY['outbound_send'::text, 'email_ingest'::text, 'push_send'::text])) AND (COALESCE((payload ->> 'purpose'::text), ''::text) <> 'outreach'::text)) THEN 0 WHEN (kind = ANY (ARRAY['line_provision'::text, 'reply_read'::text, 'booking_read'::text, 'website_read'::text])) THEN 1 WHEN (kind = ANY (ARRAY['broadcast_send'::text, 'outbound_send'::text, 'lead_round_start'::text, 'lead_collect'::text, 'lead_check'::text, 'push_receipts'::text, 'history_import'::text])) THEN 2 WHEN (kind = 'event_deliver'::text) THEN CASE WHEN ((payload ->> 'lane'::text) ~ '^[0-2]$'::text) THEN (((payload ->> 'lane'::text))::smallint)::integer ELSE 2 END ELSE NULL::integer END` | Which work a claim takes first (decision 0018): 0 a reply, 1 someone waiting who is not a customer (a line bought, a lead's reply read, a booking notice read, a website read for Check, 00479), 2 bulk (a history brought in, 00478, among it). Generated from kind and payload; an event_deliver runs in its subscription's lane (payload.lane, 00334), a text's answer in a reply's (inbound_answer, 00347); null for a kind the case does not name, claimed last. |
 | `spoke_at` | timestamp with time zone | yes |  | When this job put words on a wire (00352): written the moment before the provider is called. A job that spoke is never run again, whatever its kind: a second claim gives up and a throw is not retried, because a second run could reach the person a second time. Null for a job that has not, and for a kind that speaks on every run (outbound_send, broadcast_send), which the ledger never runs twice anyway. |
 
 Foreign keys:
@@ -2730,6 +2794,46 @@ Foreign keys:
 
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
+### rehearsals
+
+A conversation the owner rehearsed (spoken in the browser, or typed) or a real call reviewed (decision 0069): what it ran on, what was said, how long, how it did, and what was fixed from it. Members read their workspace's; the doors write. A spoken one's seconds are the free minutes counted.
+
+- Owned by: `packages/db/src/repositories/facts/rehearsals.ts`
+- Primary key: `id`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `tenant_id` | uuid | no |  |  |
+| `kind` | text | no |  |  |
+| `retell_call_id` | text | yes |  |  |
+| `call_id` | uuid | yes |  |  |
+| `agent_id` | text | yes |  |  |
+| `config_version` | integer | yes |  |  |
+| `instructions` | text | yes |  |  |
+| `transcript` | jsonb | no | `'[]'::jsonb` |  |
+| `started_at` | timestamp with time zone | yes |  |  |
+| `ended_at` | timestamp with time zone | yes |  |  |
+| `seconds` | integer | yes |  |  |
+| `end_reason` | text | yes |  |  |
+| `review` | jsonb | yes |  |  |
+| `reviewed_at` | timestamp with time zone | yes |  |  |
+| `fixes` | jsonb | no | `'[]'::jsonb` |  |
+| `created_by` | uuid | yes |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+| `updated_at` | timestamp with time zone | no | `now()` |  |
+
+Foreign keys:
+
+- `tenant_id`, `call_id` → [`calls`](#calls) (`tenant_id`, `id`), on delete cascade
+- `created_by` → `auth.users` (`id`), on delete set null
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `rehearsals_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+
 ### reply_turns
 
 Whose reply a thread is waiting on: the message claim_reply_turn() gave the turn to. Service role only (core inbound/turn.ts).
@@ -3265,7 +3369,7 @@ Foreign keys:
 
 A workspace's settings as they stood at each version (decision 0039, step 3): what a reply's meta.config_version opens. Written by the trigger on tenant_config alone, in the save's own transaction; no session reads it. A version is kept while it is in force and RETENTION_DAYS.tenant_config_versions after it is replaced (purge_config_versions).
 
-- Owned by: none
+- Owned by: `packages/db/src/repositories/facts/rehearsals.ts`
 - Primary key: `tenant_id`, `version`
 - Row-level security: on, no policy, so only the service role reaches it
 
@@ -3308,6 +3412,25 @@ Foreign keys:
 | --- | --- | --- | --- | --- |
 | `tenants_member_select` | select | authenticated | `(id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 | `tenants_owner_update` | update | authenticated | `caller_has_permission(id, 'settings'::text)` | `caller_has_permission(id, 'settings'::text)` |
+
+### voice_agents
+
+The workspace's receptionist at Retell (decision 0069): the agent and its LLM, made the first time one is needed (a rehearsal in the browser, or a number's purchase), so a number bought later answers in the agent the owner already heard. The voice row in tenant_channels is still what routes a call and what says a line answers. The service role alone.
+
+- Owned by: `packages/db/src/repositories/facts/rehearsals.ts`
+- Primary key: `tenant_id`
+- Row-level security: on, no policy, so only the service role reaches it
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `tenant_id` | uuid | no |  |  |
+| `agent_id` | text | no |  |  |
+| `llm_id` | text | yes |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+
+Foreign keys:
+
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
 ### waitlist
 

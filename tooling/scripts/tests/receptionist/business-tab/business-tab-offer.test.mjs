@@ -204,6 +204,8 @@ test("What you offer draws two rows under its title, and Booking the rules, in o
     "Booking tool",
     "Booking link",
     "When someone wants to book",
+    // Decision 0073: one of the two things only the owner knows, asked at the first run's Your receptionist too.
+    "Walk-ins",
     "Booking rules",
     "Needs a consult first",
   ]);

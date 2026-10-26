@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-317 handlers in 51 domains.
+325 handlers in 52 domains.
 
 ## activity
 
@@ -199,6 +199,7 @@ Writes; for a member of the workspace the request names, owner or above; counts 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `return` | one of `"billing"`, `"start"` | no |  |
+| `embedded` | boolean | no |  |
 
 ### `GET /api/v1/billing/invoices`
 
@@ -666,6 +667,8 @@ Writes; for a member of the workspace the request names, owner or above; counts 
 | --- | --- | --- | --- |
 | `import_id` | string (uuid) | yes |  |
 | `rows` | array of object | yes | at least 1; at most 50 |
+| `part` | object | no |  |
+| `via` | string | no | matches `^[a-z][a-z0-9_-]{0,39}$` |
 
 ### `PUT /api/v1/contacts/marketing-consent`
 
@@ -840,7 +843,9 @@ Declares no query schema: it takes none beyond the workspace, or reads its own (
 
 Reads; for a member of the workspace the request names, partner or above; counts against the `google_link` rate; spends nothing.
 
-Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/google/connect/route.ts`).
+| Query field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `back` | one of `"start"` | no |  |
 
 ### `DELETE /api/v1/google/connection`
 
@@ -915,6 +920,16 @@ Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/ap
 Writes; for any signed-in person, for themselves; counts against the `handover_answer` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/handovers/[id]/decline/route.ts`).
+
+## imports
+
+### `POST /api/v1/imports/again`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `source` | one of `"google_reviews"`, `"calendar"`, `"clients_file"`, `"mailbox"`, `"contacts"`, `"whatsapp_contacts"`, `"whatsapp_history"` | yes |  |
 
 ## lead-operations
 
@@ -1264,6 +1279,14 @@ Writes; for a member of the workspace the request names, partner or above; count
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/lines/forwarding/test/route.ts`).
 
+### `POST /api/v1/lines/lookup`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `lines_search` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `number` | string | yes | at least 7 characters; at most 32 characters |
+
 ### `POST /api/v1/lines/register`
 
 Writes; for a member of the workspace the request names, partner or above; counts against the `lines_register` rate; may spend the workspace's money.
@@ -1336,6 +1359,7 @@ Reads; for a member of the workspace the request names, partner or above; counts
 | `provider` | one of `"google"`, `"microsoft"` | yes |  |
 | `mailbox_id` | string (uuid) | no |  |
 | `admin` | one of `"1"` | no |  |
+| `back` | one of `"start"` | no |  |
 
 ## mailboxes
 
@@ -2141,6 +2165,72 @@ Reads; for a member of the workspace the request names; no rate bucket; spends n
 Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/reach-outs/sources/route.ts`).
 
 ## receptionist
+
+### `POST /api/v1/receptionist/agent`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `receptionist_call` rate; spends nothing.
+
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/receptionist/agent/route.ts`).
+
+### `POST /api/v1/receptionist/fix`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `receptionist_review` rate; may spend the workspace's money.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `kind` | one of `"hours"`, `"closure"`, `"service"`, `"booking_link"`, `"note"`, `"tone"`, `"own_words"`, `"handoff"`, `"guardrail"`, `"languages"`, `"none"` | yes |  |
+| `words` | string | yes | at most 2000 characters |
+| `customer` | string | yes | at most 2000 characters |
+| `answer` | string | yes | at most 4000 characters |
+| `rule` | string or null | yes |  |
+
+### `POST /api/v1/receptionist/keep`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `rehearsal_id` | string (uuid) | yes |  |
+| `change` | object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object | yes |  |
+| `via` | one of `"rehearsal"`, `"call_review"` | yes |  |
+| `channel` | one of `"whatsapp"`, `"voice"` | yes |  |
+
+### `POST /api/v1/receptionist/rehearsals`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `receptionist_call` rate; may spend the workspace's money.
+
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/receptionist/rehearsals/route.ts`).
+
+### `GET /api/v1/receptionist/rehearsals/[id]`
+
+Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/receptionist/rehearsals/[id]/route.ts`).
+
+### `POST /api/v1/receptionist/review`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `receptionist_review` rate; may spend the workspace's money.
+
+One of 3 bodies.
+
+Body 1:
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `rehearsal_id` | string (uuid) | yes |  |
+
+Body 2:
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `call_id` | string (uuid) | yes |  |
+
+Body 3:
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `turns` | array of object | yes | at least 2; at most 12 |
+| `config_version` | integer or null | yes |  |
 
 ### `POST /api/v1/receptionist/try`
 

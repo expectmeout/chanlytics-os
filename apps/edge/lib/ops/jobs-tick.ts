@@ -23,6 +23,8 @@ import { whatsappWireForTenant } from "../tenant-runtime.js";
 import { smsSenderForTenant } from "../sms/sms.js";
 import { emailBoundFor, emailIntake } from "../email/email.js";
 import { mailboxIntake } from "../email/mailbox/mailbox-intake.js";
+import { historyImports } from "../imports/history-import.js";
+import { websiteReader } from "../imports/website-read.js";
 import { campaignsBinding } from "../email/campaigns-domain.js";
 import { isWireUnavailable } from "../packages/core.js";
 import { pageOperator } from "./page-operator.js";
@@ -92,6 +94,15 @@ const pagerOf =
   (db: SweepTick["db"]) =>
   async (key: string, subject: string, body: string, tenantId?: string | null): Promise<unknown> =>
     tenantId && (await workspaceIsOurs(db, tenantId)) ? "ours" : pageOperator({ db }, key, subject, body);
+
+/**
+ * What the jobs bring in (decision 0073): a connection's history a part at a time (the mailbox's six months, its people,
+ * its calendar, WhatsApp's), with the grants that live here, and the business's website read for Check (R10).
+ */
+const broughtIn = (db: Parameters<typeof historyImports>[0]) => ({
+  imports: historyImports(db),
+  website: websiteReader(db),
+});
 
 export async function tickJobs({ db, L, started }: SweepTick): Promise<Response> {
   try {
@@ -167,6 +178,7 @@ export async function tickJobs({ db, L, started }: SweepTick): Promise<Response>
               // A message its door recorded and acknowledged, answered here: a text (decision 0031, Phase 2), or a
               // WhatsApp message of a workspace the edge names for it (Phase 3).
               inbound: { answer: (claimed) => answerInboundJob(db, claimed) },
+              ...broughtIn(db),
               // A job that continues itself (a broadcast's next batch) is one
               // more row, as this job's tenant.
               schedule: async (kind, dueAt, payload) => {

@@ -17,6 +17,8 @@ import {
   BOOKING_CHOICE_WORDS,
   PRICE_CHOICES,
   PRICE_CHOICE_WORDS,
+  WALK_INS_CHOICES,
+  WALK_IN_WORDS,
   bookingChoiceNeeds,
   bookingChoiceOf,
   bookingChoiceWrites,
@@ -25,8 +27,10 @@ import {
   policyAskClass,
   priceChoiceOf,
   priceChoiceWrites,
+  walkInsChoiceOf,
   type BusinessProfile,
   type ChoiceWrite,
+  type WalkInsChoice,
 } from "@chanlytics/contracts";
 import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
 import { MoreMenu } from "../../../kit/more-menu/more-menu";
@@ -205,6 +209,51 @@ export function BtPriceChoiceRow({ canEdit, flash }: { canEdit: boolean; flash: 
       canEdit={canEdit}
       gateWords="change what it says when someone asks a price"
       pick={(to) => chosen("price_choice", priceChoiceWrites(to, facts), PRICE_CHOICE_WORDS.saved(to), flash)}
+    />
+  );
+}
+
+/**
+ * Whether the business takes walk-ins (decision 0073, R7): the first run asks it on Check, and here it stays an answer
+ * to change, as the booking and price questions are. A pick is one key of the booking rules through the tab's one saver,
+ * the rest of the rules kept; "Not said" takes the key away.
+ */
+export function BtWalkInsRow({ brain, canEdit, flash }: { brain: Brain; canEdit: boolean; flash: Flash }) {
+  const current = walkInsChoiceOf(brain.profile?.booking_rules?.walk_ins);
+  const pick = (to: WalkInsChoice) =>
+    new Promise<void>((settle) => {
+      const saver = businessTabSave.saver;
+      if (!saver.base()) return settle();
+      saver.save({
+        row: "walk_ins",
+        patch: (c: Config): Config => {
+          const b = c.brain || {};
+          const profile = b.profile || {};
+          const rules = { ...(profile.booking_rules || {}) };
+          if (to === "unset") delete rules.walk_ins;
+          else rules.walk_ins = to;
+          return { ...c, brain: { ...b, profile: { ...profile, booking_rules: rules } } };
+        },
+        said: WALK_IN_WORDS.saved(to),
+        done: () => settle(),
+        flash: (f) => {
+          flash(f);
+          settle();
+        },
+      });
+    });
+  return (
+    <ChoiceRow
+      id="walk_ins"
+      label={WALK_IN_WORDS.label}
+      choices={WALK_INS_CHOICES}
+      current={current}
+      words={WALK_IN_WORDS.options}
+      needs={() => null}
+      hint={null}
+      canEdit={canEdit}
+      gateWords={WALK_IN_WORDS.gate}
+      pick={pick}
     />
   );
 }

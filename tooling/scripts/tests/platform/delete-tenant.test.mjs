@@ -115,6 +115,7 @@ test("it refuses to strand what the cascade cannot reach", () => {
     ["a Stripe customer or subscription", 'byTable.get("billing_accounts")'],
     ["a Google grant", 'byTable.get("google_connections")'],
     ["an active provider binding", 'byTable.get("tenant_channels")'],
+    ["a Retell agent made before any number (00476)", 'byTable.get("voice_agents")'],
   ]) {
     assert.ok(script.includes(needle), `${what} must be counted as an orphan`);
   }

@@ -159,11 +159,11 @@ test("a workspace the state names and the person is not in is no workspace to re
 
 test("the address afterGoogle writes is contracts' appLink on the request's own origin", () => {
   assert.equal(
-    afterGoogle("https://app.example.test", "connected", undefined, "acme"),
+    afterGoogle("https://app.example.test", "connected", undefined, { slug: "acme" }),
     "https://app.example.test/w/acme/settings/integrations?google=connected",
   );
   assert.equal(
-    afterGoogle("https://app.example.test", "error", "state expired", "acme"),
+    afterGoogle("https://app.example.test", "error", "state expired", { slug: "acme" }),
     "https://app.example.test/w/acme/settings/integrations?google=error&why=state%20expired",
     "a reason is encoded",
   );
@@ -173,7 +173,7 @@ test("the address afterGoogle writes is contracts' appLink on the request's own 
     "with no workspace, the front door as it always was",
   );
   assert.equal(
-    afterGoogle("https://app.example.test", "error", "", null),
+    afterGoogle("https://app.example.test", "error", "", { slug: null }),
     "https://app.example.test/?google=error#/admin/integrations",
   );
 });

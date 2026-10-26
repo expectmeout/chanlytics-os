@@ -8,7 +8,9 @@ import { lensRoute, reviewRoute } from "../reports/lenses.js";
 import { messageRoute, runRoute, sequenceRoute } from "../sequences/sequence-address.js";
 export const RECORDS_WITHOUT_AN_ADDRESS = {
   notification: "a kept notice opens where its own row says (noticeRoute), which is the address of the record it is about; the notice has no page of its own",
-  workspace: "the workspace has no page of its own: what is about it is the business's facts, its rules, its lines, its team and its bill, each a kind with its address"
+  workspace: "the workspace has no page of its own: what is about it is the business's facts, its rules, its lines, its team and its bill, each a kind with its address",
+  brought: "what a connection brought in, and what the profile and the website say, have no page of their own: they are said in the first run's Bringing it in, Today's Brought in and Check, and what came in is each person's, thread's and appointment's own (decision 0073)",
+  rehearsal: "a rehearsal has no page of its own: it is heard and reviewed where it was held, the Business tab's Try it and the first run's Rehearse, and what it fixed is the business's facts (decision 0069)"
 };
 const PANE = { channel: "admin/integrations", team: "admin/team", billing: "admin/billing" };
 export function addressOf(ref) {

@@ -51,6 +51,8 @@ import {
   markOn,
   type FeedMark,
   feedMarksOf,
+  calendarFeedKeyOf,
+  mailboxCalendarOf,
 } from "@chanlytics/contracts";
 import {
   appointmentNoticesOf,
@@ -365,6 +367,7 @@ function weekBeforeReading(
       stale: false,
       dropped: 0,
       by_hand: !!cfg?.bookings?.by_hand,
+      granted: !!mailboxCalendarOf(url),
     },
     hours: profile?.hours ?? null,
     closures: profile?.closures ?? [],
@@ -410,7 +413,8 @@ export async function calendarSources(
   // The settings whole, the feed's address with them, for any member: the server reads the feed (config-row.ts).
   const raw = opts.config === undefined ? await storedConfigOf(ctx.supabase, tenantId) : opts.config;
   const { cfg, lostCalendar } = readSettings(tenantId, raw);
-  const url = cfg?.calendar?.ical_url ?? null;
+  // The grant's calendar where one is read, else the link (contracts calendarFeedKeyOf).
+  const url = calendarFeedKeyOf(cfg);
   const profile = cfg?.brain?.profile ?? null;
   const rules: BookingRules | null = profile?.booking_rules ?? null;
   const to = shiftKey(span.from, span.days - 1);

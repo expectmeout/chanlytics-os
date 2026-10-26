@@ -521,8 +521,6 @@ const NOT_READ = {
     "The row says the lead's own rows list its people (0052); they are People's rows (leads/peek/people.tsx), which the row re-reads, and the trace finds no read of contacts under Leads, so it is probably premature. Owed: drop leads() from the row once the peek is seen to redraw from People's re-read alone.",
   "POST settings/receptionist -> reports_campaigns":
     "channelChange() names the Campaigns lens for the connected number's health; the first receptionist writes tenant_config (the hours, the postal address), which the lens does not read. Premature. Owed: drop reportsCampaigns() from settingsWrite, with CAMPAIGNS_WRITES in refresh-coverage.test.mjs.",
-  "PATCH workspaces -> calendar":
-    "The board's times and its 'today' are the workspace's zone, which the calendar's read takes through tenantFacts (server/tenant.ts, by readers/facts.ts), a file the trace leaves to the wrapper (WRAPPER: every route reads the caller's seat through it), so it finds no read of tenants under GET calendar. The read is real: a zone saved left the board on the old one's times for up to five minutes (W-visit-deal-4). Owed: the trace enters tenantFacts where a reader calls it.",
   "POST calendar/visits/[id] -> reports_people":
     "visits() names the People lens with the other readers of a visit; the lens's read (GET reports/people) reads no appointment. Premature. Owed: drop reportsPeople() from visits(), with its assertions in a-visit-reaches-every-reader.test.mjs.",
 };

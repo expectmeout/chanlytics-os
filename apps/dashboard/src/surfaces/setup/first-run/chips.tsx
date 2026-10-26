@@ -90,7 +90,8 @@ interface ChipsProps {
 /**
  * One list of chips, under its own words: a toggle each (aria-pressed), gated as a change to the settings (`doing` says
  * what it changes), and, for a role that may change the business, the way to the Business tab's own editor for what the
- * chips do not name. At the profile's cap the chips that are off are not drawn, and the cap's sentence stands where they
+ * chips do not name. Off, a chip says it adds (a plus); on, it is ticked: the two glyphs are one size, so a chip turning
+ * on as its save lands never widens and pushes the chips after it along the row. At the profile's cap the chips that are off are not drawn, and the cap's sentence stands where they
  * were (check-chips.ts). Hookless, since the languages' is drawn as its fold's rest.
  */
 export const FrChips = ({ list, label, set, doing, canEdit, flash, words, more, moreTestid }: ChipsProps) => (
@@ -110,7 +111,7 @@ export const FrChips = ({ list, label, set, doing, canEdit, flash, words, more, 
           {...gate("settings", doing)}
           data-testid={`fr-chip-${list}-${c.name}`}
         >
-          {c.on ? <Icon name="check" size={11} /> : null}
+          <Icon name={c.on ? "check" : "plus"} size={11} />
           {c.name}
         </button>
       ))}

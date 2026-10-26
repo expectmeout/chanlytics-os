@@ -5,7 +5,15 @@ import { FALLBACK_DEFAULTS, FALLBACK_ROWS } from "../config/workspace-config/fal
 import { instructionsDraft } from "../config/workspace-config/resolve.js";
 import { formatPhoneDisplay, handoffE164 } from "../shared/phone.js";
 import { phoneVoiceOf } from "../voice/phone-voices.js";
+import { PHONE_PACE_WORDS } from "../voice/phone-pace.js";
+import { WALK_IN_WORDS } from "../config/business-tab/choices.js";
 const NOTE_TEXT_SAID_MAX = 160;
+export const GUARDRAIL_RULES = ["never_quote_prices", "never_confirm_booking", "no_health_advice"];
+export const GUARDRAIL_RULE_WORDS = {
+  never_quote_prices: { on: "It never says a price", off: "It says the prices on your list" },
+  never_confirm_booking: { on: "It never confirms a booking itself", off: "It may confirm a booking itself" },
+  no_health_advice: { on: "It gives no health advice", off: "It may answer health questions" }
+};
 export const ASK_ANSWERS_ROWS = {
   set_tone: "tone",
   set_languages: "languages",
@@ -14,8 +22,12 @@ export const ASK_ANSWERS_ROWS = {
   set_transfer_number: "handoff_number",
   add_own_words: "extra_instructions",
   set_message: "fallbacks",
-  set_photos: null
+  set_photos: null,
+  set_assistant_name: "assistant_name",
+  set_phone_pace: "phone_pace",
+  set_walk_ins: "walk_ins"
 };
+export const ASK_ANSWERS_PANE = { set_walk_ins: "hours" };
 const languagesOf = (list) => [
   ...new Set(list.map((l) => l.trim()).filter((l) => l !== ""))
 ];
@@ -42,6 +54,10 @@ export function applySettingsChange(config, change) {
   }
   const brain = { ...config.brain ?? {} };
   const profile = { ...brain.profile ?? {} };
+  if (isFixChange(change)) {
+    brain.profile = profileWithFix(profile, change);
+    return { ...config, brain };
+  }
   switch (change.op) {
     case "add_closure": {
       const closures = [...profile.closures ?? []];
@@ -67,13 +83,50 @@ export function applySettingsChange(config, change) {
     }
     case "add_service": {
       const services = [...profile.services ?? []];
-      services.push({ name: change.name, ...change.duration_min ? { duration_min: change.duration_min } : {} });
+      services.push({
+        name: change.name,
+        ...change.duration_min ? { duration_min: change.duration_min } : {},
+        ...change.price_note ? { price_note: change.price_note } : {}
+      });
       profile.services = services;
       break;
     }
   }
   brain.profile = profile;
   return { ...config, brain };
+}
+const storedKeysOf = (v) => v && typeof v === "object" ? v : {};
+const storedWordsOf = (v) => typeof v === "string" ? v : "";
+function isFixChange(change) {
+  return change.op === "set_service" || change.op === "add_escalate_when" || change.op === "set_guardrail";
+}
+function profileWithFix(profile, change) {
+  switch (change.op) {
+    case "set_service":
+      return { ...profile, services: servicesWith(profile.services, change) };
+    case "add_escalate_when": {
+      const reasons = [...profile.escalate_when ?? []];
+      const reason = change.reason.trim();
+      if (reason && !reasons.some((r) => r.trim().toLowerCase() === reason.toLowerCase())) reasons.push(reason);
+      return { ...profile, escalate_when: reasons };
+    }
+    case "set_guardrail":
+      return { ...profile, guardrails: { ...storedKeysOf(profile.guardrails), [change.rule]: change.on } };
+  }
+}
+function servicesWith(list, change) {
+  const services = [...list ?? []];
+  const key = (s) => s.replace(/\s+/g, " ").trim().toLowerCase();
+  const at = services.findIndex(
+    (s) => !!s && typeof s === "object" && key(storedWordsOf(s.name)) === key(change.name)
+  );
+  const fields = {
+    ...change.duration_min ? { duration_min: change.duration_min } : {},
+    ...change.price_note ? { price_note: change.price_note } : {}
+  };
+  if (at < 0) services.push({ name: change.name, ...fields });
+  else services[at] = { ...services[at], ...fields };
+  return services;
 }
 const BRAIN_OPS = /* @__PURE__ */ new Set([
   "set_tone",
@@ -82,7 +135,10 @@ const BRAIN_OPS = /* @__PURE__ */ new Set([
   "set_phone_voice",
   "set_transfer_number",
   "add_own_words",
-  "set_message"
+  "set_message",
+  "set_assistant_name",
+  "set_phone_pace",
+  "set_walk_ins"
 ]);
 const isAnswersBrainChange = (change) => BRAIN_OPS.has(change.op);
 const putKey = (profile, key, value) => {
@@ -125,6 +181,20 @@ function applyAnswersChange(config, change) {
         [change.which]: change.text.trim() || FALLBACK_DEFAULTS[change.which]
       };
       break;
+    case "set_assistant_name":
+      putKey(profile, "assistant_name", change.name.replace(/\s+/g, " ").trim() || void 0);
+      break;
+    // Natural is no key: the line keeps its own pace (phone-pace.ts), as Settings' row stores it.
+    case "set_phone_pace":
+      putKey(profile, "phone_pace", change.pace === "natural" ? void 0 : change.pace);
+      break;
+    // One key of the booking rules, the rest kept; "unset" takes it away (choices.ts WALK_INS_CHOICES).
+    case "set_walk_ins": {
+      const rules = { ...storedKeysOf(profile.booking_rules) };
+      putKey(rules, "walk_ins", change.walk_ins === "unset" ? void 0 : change.walk_ins);
+      putKey(profile, "booking_rules", Object.keys(rules).length ? rules : void 0);
+      break;
+    }
   }
   brain.profile = profile;
   return { ...config, brain };
@@ -158,7 +228,19 @@ function describeAnswersChange(change) {
     }
     case "set_photos":
       return VISION_SWITCH_WORDS.saved(change.on);
+    case "set_assistant_name": {
+      const name = change.name.replace(/\s+/g, " ").trim();
+      return name ? `It introduces itself as ${name}` : "It has no name: it says it's the automated assistant";
+    }
+    case "set_phone_pace":
+      return PHONE_PACE_WORDS.saved(change.pace).replace(/\.$/, "");
+    case "set_walk_ins":
+      return WALK_IN_WORDS.saved(change.walk_ins).replace(/\.$/, "");
   }
+}
+export function serviceTail(s) {
+  const minutes = s.duration_min ? s.duration_min >= 60 && s.duration_min % 30 === 0 ? `about ${s.duration_min / 60} h` : `${s.duration_min} min` : null;
+  return [s.price_note?.trim() || null, minutes].filter(Boolean).map((p) => ` \xB7 ${p}`).join("");
 }
 export function describeSettingsChange(change) {
   switch (change.op) {
@@ -171,7 +253,13 @@ export function describeSettingsChange(change) {
       return `Note for the receptionist: \u201C${change.title}\u201D${change.until ? `, until ${change.until}` : ""}${text ? ` \u2014 \u201C${text}\u201D` : ""}`;
     }
     case "add_service":
-      return `New service: ${change.name}${change.duration_min ? ` (${change.duration_min} min)` : ""}`;
+      return `New service: ${change.name}${serviceTail(change)}`;
+    case "set_service":
+      return `${change.name}${serviceTail(change) || ", as it is"}`;
+    case "add_escalate_when":
+      return `Put through to you: ${quoted(change.reason)}`;
+    case "set_guardrail":
+      return GUARDRAIL_RULE_WORDS[change.rule][change.on ? "on" : "off"];
     case "set_goal":
       return change.goal.trim() ? `Your goal: \u201C${change.goal.trim()}\u201D` : "Your goal, taken away";
     case "set_booking_link":

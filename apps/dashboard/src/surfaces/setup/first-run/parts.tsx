@@ -1,8 +1,10 @@
 /**
  * The first run's frame parts (moved from legacy/pages/first-run.jsx, decision 0015): Live's summary (canvas R9, P8), the
- * rail of four steps across the top, and the owner's receptionist so far, beside the step on a desktop and under the strip
+ * rail of five steps across the top, and the owner's receptionist so far, beside the step on a desktop and under the strip
  * on a phone. Each is the kit's own: a pane, a quiet button, a face (by their classes: page.tsx says why), a state's pill.
+ * And a press's words that change while it works, held to one width (SteadyLabel).
  */
+import type { ReactNode } from "react";
 import type { FirstRunLiveVM, FirstRunVM, ReceptionistCardVM } from "@chanlytics/contracts";
 import type { WorkspaceSettings } from "@/legacy-bridge/surfaces/settings";
 import { Icon } from "../../kit/icon/icon";
@@ -24,6 +26,17 @@ interface LiveProps {
  * caller hears, and what it will and will not do -- the Business tab's own card (setup/shell.ts),
  * reading calls as live since Finish is what records them so. Setup's optional rows follow, as they did.
  */
+/**
+ * A press's words and its words while it works ("Build my receptionist", "Building…"), in one place: the press is as wide
+ * as the wider, the shown words fade in over the others, and only they are read out (first-run.css .fr-steady).
+ */
+export const SteadyLabel = ({ busy, idle, doing }: { busy: boolean; idle: ReactNode; doing: ReactNode }) => (
+  <span className="fr-steady">
+    <span aria-hidden={busy || undefined}>{idle}</span>
+    <span aria-hidden={!busy || undefined}>{doing}</span>
+  </span>
+);
+
 export const FrLive = ({ lv, config, brain, canEdit, owner, leave }: LiveProps) => {
   return (
     <div className="fr-line-step" data-testid="fr-live">
@@ -53,7 +66,7 @@ export const FrLive = ({ lv, config, brain, canEdit, owner, leave }: LiveProps) 
 };
 
 /**
- * The four steps across the top: a step done or reached opens in place; a step not reached is only its name. The step on
+ * The five steps across the top: a step done or reached opens in place; a step not reached is only its name. The step on
  * screen is the strong one (first-run.css, `aria-current`), wherever the workspace stands.
  */
 export const FrRail = ({ fr, go, label }: { fr: FirstRunVM; go: (to: string) => void; label: string }) => (
@@ -92,9 +105,13 @@ export const FrRail = ({ fr, go, label }: { fr: FirstRunVM; go: (to: string) => 
   </ol>
 );
 
-/** The owner's receptionist, so far: beside the step on a desktop; under the strip, once opened, on a phone. */
-export const FrCard = ({ card, open }: { card: ReceptionistCardVM; open: boolean }) => (
+/**
+ * The owner's receptionist, so far: beside the step on a desktop; under the strip, once opened, on a phone. `beside` is
+ * what stands over it on a desktop alone (Your workspace, building, beside Find and Connect it to Google).
+ */
+export const FrCard = ({ card, open, beside }: { card: ReceptionistCardVM; open: boolean; beside?: ReactNode }) => (
   <aside className="fr-rcp" data-open={open ? "true" : undefined} aria-label={card.caption} data-testid="fr-card">
+    {beside}
     <div className="fr-rcp-cap">{card.caption}</div>
     <div className="panel fr-rcp-pane">
       <div className="fr-rcp-head">

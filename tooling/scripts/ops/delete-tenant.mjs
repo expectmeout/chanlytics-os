@@ -154,6 +154,11 @@ const TABLES = [
   "provider_events",
   "policies",
   "reach_out_check_spend",
+  // A conversation rehearsed or a real call reviewed (00476, decision 0069).
+  "rehearsals",
+  // What was brought in, and what the profile and the website say (00477, 00479; decision 0073).
+  "imports",
+  "business_reads",
   "reply_turns",
   "segment_members",
   "segments",
@@ -168,6 +173,8 @@ const TABLES = [
   "tenant_config",
   // The settings as they stood at each version (00402, decision 0039).
   "tenant_config_versions",
+  // The workspace's receptionist at Retell, made before any number (00476, decision 0069).
+  "voice_agents",
 ];
 
 /** Survives the delete with a null tenant_id, deliberately. */
@@ -278,6 +285,11 @@ for (const c of byTable.get("tenant_channels") ?? []) {
     orphans.push(
       `an active channel binding ${c.external_id ?? "(no id)"} at its provider, and its channel-credentials Vault secret.`,
     );
+}
+// The receptionist's agent and its LLM at Retell (00476): made by a rehearsal before any number, so a workspace with no
+// line can still have one. Its row goes with the cascade; the agent does not.
+for (const a of byTable.get("voice_agents") ?? []) {
+  orphans.push(`a Retell agent ${a.agent_id}${a.llm_id ? ` and its LLM ${a.llm_id}` : ""}. Delete them at Retell.`);
 }
 
 // The workspace's logo (00407) is a file in a public bucket, which no cascade reaches. Its folder is read here, said with

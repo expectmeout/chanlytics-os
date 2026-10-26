@@ -217,3 +217,22 @@ export async function stampEmailFromMailbox(
   if (error) throw new Error(`cannot stamp the email the mailbox sent: ${error.message}`);
   return data === true;
 }
+
+/**
+ * The calendar a connected mailbox reads, set on the workspace's settings or taken away (calendar_grant_note, 00478,
+ * decision 0073 R20): on as the mailbox connects with its calendar ticked, off as it goes. True when something changed.
+ */
+export async function noteCalendarGrant(
+  db: Db,
+  p: { tenantId: string; mailboxId: string; provider: "google" | "microsoft"; on: boolean; by: string | null },
+): Promise<boolean> {
+  const { data, error } = await db.rpc("calendar_grant_note", {
+    p_tenant_id: p.tenantId,
+    p_mailbox_id: p.mailboxId,
+    p_provider: p.provider,
+    p_on: p.on,
+    ...(p.by ? { p_by: p.by } : {}),
+  });
+  if (error) throw new Error(`calendar_grant_note: ${error.message}`);
+  return data === true;
+}

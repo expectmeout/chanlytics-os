@@ -138,6 +138,13 @@ function dedupeKeyOf({ tenantId, kind, payload }) {
       return field("received_id") ? `booking_read:${tenantId}:${field("received_id")}` : null;
     case "inbound_answer":
       return field("message_id") ? `inbound_answer:${field("message_id")}` : null;
+    // One part of one source's history per workspace (00478): a connect told twice, or a part's next scheduled twice,
+    // finds it already on the ledger.
+    case "history_import":
+      return field("source") && field("seq") ? `history_import:${tenantId}:${field("source")}:${field("seq")}` : null;
+    // One read of a workspace's website waiting at a time (00479): a link and a save told together read it once.
+    case "website_read":
+      return `website_read:${tenantId}`;
     default:
       return null;
   }
@@ -1347,6 +1354,14 @@ async function inboundAnswer(ctx, job) {
   if (!ctx.inbound) throw new Error("inbound_answer: this runtime holds no receptionist");
   await ctx.inbound.answer(job);
 }
+async function historyImport(ctx, job) {
+  if (!ctx.imports) throw new Error("history_import: this runtime holds no importer");
+  await ctx.imports.part(job, ctx.deadline);
+}
+async function websiteRead(ctx, job) {
+  if (!ctx.website) throw new Error("website_read: this runtime holds no website reader");
+  await ctx.website.read(job, ctx.deadline);
+}
 var HANDLERS = {
   outbound_send: outboundSend,
   broadcast_send: broadcastSend,
@@ -1360,7 +1375,9 @@ var HANDLERS = {
   reply_read: replyRead,
   event_deliver: eventDeliver,
   booking_read: bookingRead,
-  inbound_answer: inboundAnswer
+  inbound_answer: inboundAnswer,
+  history_import: historyImport,
+  website_read: websiteRead
 };
 async function dispatchJob(ctx, job) {
   const handler = HANDLERS[job.kind];
@@ -1375,7 +1392,7 @@ import { isCampaignEmail } from "../../contracts/dist/index.js";
 import { logger as logger7 } from "../../channels/dist/index.js";
 import { emitEvent as emitEvent3, failQueuedSend } from "../../db/dist/index.js";
 var NEVER_SENT = "the job that would have sent this never ran";
-var EMAIL_UNFINISHED = "An email arrived and could not be taken in \u2014 the receptionist does not answer email, and this one did not finish being filed either. Read it here and reply from the Inbox.";
+var EMAIL_UNFINISHED = "An email arrived and could not be taken in: it did not finish being filed, and no reply was drafted. Read it here and reply from the Inbox.";
 var MAY_HAVE_SENT = "the run that was sending this did not finish";
 var MAILBOX_INTAKE_FAILED = "An email could not be taken in. Anything since then is in your Inbox as usual.";
 function idFrom(payload, key) {

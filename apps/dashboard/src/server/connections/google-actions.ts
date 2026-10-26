@@ -44,8 +44,9 @@ export async function googleCallback(ctx: RouteContext, req: Request) {
   // it: the browser returns to that workspace's own page. Until then (a declined consent, a state that does not prove
   // itself, someone else's) there is none to name, and the front door carries the tab to the last workspace it used.
   let slug: string | null = null;
+  let backTo: string | null = null;
   const back = (outcome: string, why?: string) =>
-    new Response(null, { status: 302, headers: { location: afterGoogle(origin, outcome, why, slug) } });
+    new Response(null, { status: 302, headers: { location: afterGoogle(origin, outcome, why, { slug, backTo }) } });
 
   const refused = url.searchParams.get("error");
   if (refused) return back("error", refused === "access_denied" ? "declined" : refused.slice(0, 60));
@@ -53,6 +54,7 @@ export async function googleCallback(ctx: RouteContext, req: Request) {
   if (!secret) return back("error", "not_available");
   const proof = await verifyState(secret, url.searchParams.get("state"), Date.now());
   if (!proof.ok) return back("error", `state_${proof.reason}`);
+  backTo = proof.state.b === "start" ? "start" : null;
   if (proof.state.u !== ctx.userId) return back("error", "someone_else");
   // A mailbox's connect signs its state with the same key and names its provider: it is never this door's.
   if (proof.state.p) return back("error", "state_malformed");
@@ -86,7 +88,7 @@ export async function googleCallback(ctx: RouteContext, req: Request) {
   return back(b.pending === true ? "choose" : "connected");
 }
 
-export async function startGoogleConnect(ctx: RouteContext, member: Member) {
+export async function startGoogleConnect(ctx: RouteContext, member: Member, back: "start" | null = null) {
   const ready = await googleReadiness();
   const secret = stateSecret();
   if (!ready.profile || !ready.oauth || !secret)
@@ -96,6 +98,8 @@ export async function startGoogleConnect(ctx: RouteContext, member: Member) {
     u: ctx.userId,
     n: newNonce(),
     exp: Date.now() + STATE_TTL_MS,
+    // The first run asked (decision 0073, R17): the callback returns there.
+    ...(back ? { b: back } : {}),
   });
   const url = authorizeUrl(
     { clientId: ready.oauth.client_id, redirectUri: ready.oauth.redirect_uri },

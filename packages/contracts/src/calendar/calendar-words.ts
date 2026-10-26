@@ -460,6 +460,9 @@ export function spanLabel(t1: number, t2: number): string {
 /** Which calendar the feed comes from, from its address alone — the address itself never leaves the server. */
 export function feedSourceLabel(url: string | null | undefined): string {
   if (!url) return "your calendar";
+  // A calendar read through a connected mailbox (feed-url.ts calendarFeedKeyOf): its provider's own name.
+  if (url.startsWith("mailbox-calendar:google:")) return "Google Calendar";
+  if (url.startsWith("mailbox-calendar:microsoft:")) return "Outlook";
   let host: string;
   try {
     host = new URL(url.replace(/^webcal:\/\//i, "https://")).hostname.toLowerCase();

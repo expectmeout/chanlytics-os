@@ -14,7 +14,8 @@ import { useEffect, useRef, useState, type CSSProperties, type RefObject, type S
 import { callAttemptWords, callNoteLines, mmss } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
 import { StatePill } from "../../kit/pill/state-pill";
-import { demoSession } from "../shell";
+import { CallReview } from "../../settings/business/rehearse/review";
+import { canDo, demoSession } from "../shell";
 import { hasHref, hrefOf } from "./shell-thread";
 import { conversationsData } from "../store";
 import type { CallLine, ConversationRow } from "../types";
@@ -232,6 +233,8 @@ interface CallDraw extends CallWords {
   lines: CallLine[] | null;
   /** The lines a list's call came without, read as it opens (call-turns.ts): the folded card counts them meanwhile. */
   owed: number;
+  /** The call Review this call judges: a real call, for whoever may change what the receptionist is told. */
+  reviewId: string | null;
   active: number;
   open: boolean;
   listening: boolean;
@@ -451,7 +454,7 @@ function notedLines(c: CallDraw) {
 
 /** The call's lines, and the quiet line where it ended, once it is opened. */
 function callOpened(c: CallDraw) {
-  const { lines, open, turnsRef, facts, file, noted } = c;
+  const { lines, open, turnsRef, facts, file, noted, reviewId } = c;
   return (
     lines &&
     open && (
@@ -474,6 +477,8 @@ function callOpened(c: CallDraw) {
             </a>
           )}
         </div>
+        {/* How it did, judged as a rehearsal is (decision 0069): its own state, so this card's hooks stay as they were. */}
+        {reviewId && <CallReview callId={reviewId} />}
       </>
     )
   );
@@ -515,6 +520,11 @@ interface ThreadCallProps {
 // `call`: the call itself, when it has been read; `note`: the words it left on the thread, which are all an older call
 // has. `open`: its lines shown -- the thread's newest spoken entry, or the call Conversations opened it at. On the side
 // it came from, for its direction; drawn across the thread, for it is neither side's words.
+/** The call Review this call judges: a real call, outside a demo, for whoever may change what the receptionist is told. */
+function callReviewIdOf(call: ConversationRow | null): string | null {
+  return call && call.real && call.callId && !demoSession() && canDo("settings") ? call.callId : null;
+}
+
 export const ThreadCall = ({
   call = null,
   note = null,
@@ -553,6 +563,7 @@ export const ThreadCall = ({
     at,
     lines,
     owed,
+    reviewId: callReviewIdOf(call),
     active,
     open,
     listening,

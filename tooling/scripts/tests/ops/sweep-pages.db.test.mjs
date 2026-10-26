@@ -447,7 +447,7 @@ test(
 /* ------------------------------------------------------------ calendars */
 
 test(
-  "calendars_due: a feed's address never read or last read before the hour, never read first; a row whose calendar has no address is not a feed; a feed read this hour is neither in the page nor counted",
+  "calendars_due: a feed's address, or a mailbox's calendar grant (00478), never read or last read before the hour, never read first; a row whose calendar has no address is not a feed; a feed read this hour is neither in the page nor counted",
   { skip },
   async () => {
     const at = Date.now();
@@ -460,6 +460,8 @@ test(
     const blank = await workspace("cal-blank", "America/Chicago");
     const none = await workspace("cal-none", "America/Chicago");
     const mars = await workspace("cal-mars", "Mars/Olympus");
+    const granted = await workspace("cal-granted", "America/Chicago");
+    const unnamed = await workspace("cal-unnamed", "America/Chicago");
     const feed = (ws) => ({ calendar: { ical_url: `https://cal.example/${ws.id}.ics` } });
     // Every workspace has its config row from the tenants trigger (00017); these give some of them a calendar.
     const set = async (ws, config, checked) =>
@@ -481,6 +483,10 @@ test(
     await set(half, { calendar: {} }, null);
     await set(blank, { calendar: { ical_url: "  " } }, null);
     await set(mars, feed(mars), null);
+    // A calendar read through a connected mailbox (00478 calendar_grant): due as a link is; a grant naming no mailbox is not.
+    const grant = (id) => ({ calendar_grant: { mailbox_id: id, provider: "google" } });
+    await set(granted, grant("d1111111-1111-4111-8111-111111111111"), iso(at - 4 * H));
+    await set(unnamed, grant(" "), null);
 
     const one = async (ws) => ok(await db.rpc("calendars_due", { p_before: before, p_limit: 10, p_tenant_id: ws.id }));
     assert.deepEqual(
@@ -498,21 +504,27 @@ test(
       [old.id],
       "read two hours ago: due",
     );
+    assert.deepEqual(
+      (await one(granted)).map((r) => [r.tenant_id, r.config.calendar_grant.mailbox_id]),
+      [[granted.id, "d1111111-1111-4111-8111-111111111111"]],
+      "a calendar read through a mailbox: due, with its grant as stored",
+    );
     for (const [ws, why] of [
       [fresh, "read ten minutes ago"],
       [half, "a calendar with no address"],
       [blank, "a calendar with a blank address"],
       [none, "no calendar at all"],
+      [unnamed, "a grant naming no mailbox"],
     ])
       assert.deepEqual(await one(ws), [], `${why}: not in the page, not counted`);
 
     // Across every workspace, as the sweep asks: never read first, then the least recently read.
-    const mine = new Set([never, older, old, fresh, half, blank, none, mars].map((w) => w.id));
+    const mine = new Set([never, older, old, fresh, half, blank, none, mars, granted, unnamed].map((w) => w.id));
     const all = ok(await db.rpc("calendars_due", { p_before: before, p_limit: 1000 }));
     assert.deepEqual(
       all.filter((r) => mine.has(r.tenant_id)).map((r) => r.tenant_id),
       // Two never read, in the order of their ids (a uuid orders as its hex does); then the oldest read.
-      [...[never.id, mars.id].sort(), older.id, old.id],
+      [...[never.id, mars.id].sort(), granted.id, older.id, old.id],
       "never read first, then the oldest; the fresh one and the rows without an address are not the queue",
     );
     assert.ok(
@@ -524,9 +536,9 @@ test(
     assert.equal(whole.remaining, 0);
     const first = await dueCalendars(db, { before: new Date(before), limit: 1 });
     assert.equal(first.rows.length, 1);
-    // Four of this suite's own are due (never, mars, older, old), so at least three are beyond a page of one; the
+    // Five of this suite's own are due (never, mars, granted, older, old), so at least four are beyond a page of one; the
     // exact figure is another call's, and the suites beside this one may add feeds between the two.
-    assert.ok(first.remaining >= 3, `what is left beyond a page of one: ${first.remaining}`);
+    assert.ok(first.remaining >= 4, `what is left beyond a page of one: ${first.remaining}`);
     const kept = await dueCalendars(db, { before: new Date(before), limit: 1, tenantId: old.id });
     // And since when its reads have failed (00435): null, as nothing here has failed.
     assert.deepEqual(kept, {

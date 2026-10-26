@@ -148,16 +148,17 @@ const bounce = report("failed", "5.1.1");
 const reportsList = (c, ids = []) =>
   c.url.includes("/messages?q=from") ? { json: { messages: ids.map((id) => ({ id, threadId: `t-${id}` })) } } : null;
 
-test("a sync reads from its cursor only the threads a reach-out started: a reply becomes one intake job, a report the bounce it reports", async () => {
+test("a sync reads what arrived from its cursor (decision 0073, R13): a reply in a thread a reach-out started and an email a person wrote are each one intake job, a report the bounce it reports, and a list's email is read and left where it is (D9)", async () => {
   const w = world();
   const net = providers((c) => {
     if (c.url.includes("/history?"))
       return {
         json: {
           history: [
-            { messagesAdded: [{ message: { id: "r1", threadId: "g-thread" } }] },
-            { messagesAdded: [{ message: { id: "x1", threadId: "someone-elses" } }] },
-            { messagesAdded: [{ message: { id: "b1", threadId: "g-thread" } }] },
+            { messagesAdded: [{ message: { id: "r1", threadId: "g-thread", labelIds: ["INBOX"] } }] },
+            { messagesAdded: [{ message: { id: "x1", threadId: "someone-elses", labelIds: ["INBOX"] } }] },
+            { messagesAdded: [{ message: { id: "p1", threadId: "a-new-one", labelIds: ["INBOX"] } }] },
+            { messagesAdded: [{ message: { id: "b1", threadId: "g-thread", labelIds: ["INBOX"] } }] },
           ],
           historyId: "120",
         },
@@ -165,20 +166,30 @@ test("a sync reads from its cursor only the threads a reach-out started: a reply
     const reports = reportsList(c, ["b1"]);
     if (reports) return reports;
     if (c.url.includes("/messages/r1")) return { json: gmailMessage("r1", "g-thread") };
+    if (c.url.includes("/messages/x1"))
+      return {
+        json: gmailMessage("x1", "someone-elses", {
+          from: "Shop News <news@shop.example>",
+          headers: [{ name: "List-Unsubscribe", value: "<mailto:leave@shop.example>" }],
+        }),
+      };
+    if (c.url.includes("/messages/p1"))
+      return {
+        json: gmailMessage("p1", "a-new-one", { from: "Rosa Diaz <rosa@example.com>", text: "Do you move pianos?" }),
+      };
     if (c.url.includes("/messages/b1")) return { json: bounce };
     return { status: 404 };
   });
   try {
     const out = await syncMailbox(w.db, w.mailbox, logger({ tenant_id: T }));
-    assert.deepEqual(out, { outcome: "synced", read: 2, bounced: 1, replies: 1 });
-    assert.equal(
-      net.calls.filter((c) => c.url.includes("/messages/x1")).length,
-      0,
-      "nothing else the business receives is read",
-    );
+    assert.deepEqual(out, { outcome: "synced", read: 4, bounced: 1, replies: 1, people: 1, dropped: 1 });
     assert.deepEqual(
       w.tables.jobs.map((j) => [j.kind, withoutRequestId(j.payload)]),
-      [["email_ingest", { source: "mailbox", mailbox_id: w.mailbox.id, received_id: "r1" }]],
+      [
+        ["email_ingest", { source: "mailbox", mailbox_id: w.mailbox.id, received_id: "r1" }],
+        ["email_ingest", { source: "mailbox", mailbox_id: w.mailbox.id, received_id: "p1" }],
+      ],
+      "the list's email is never taken in",
     );
     const m = w.tables.messages[0];
     assert.deepEqual([m.status, m.error?.provider, m.error?.kind], ["failed", "bounced", "Permanent"]);
@@ -189,9 +200,9 @@ test("a sync reads from its cursor only the threads a reach-out started: a reply
     assert.deepEqual([box.sync_cursor, box.sync_lease_until, box.last_error], ["120", null, null]);
     assert.ok(box.synced_at);
 
-    // The same changes again: one job still (the ledger's key), the row already failed.
+    // The same changes again: each job once still (the ledger's key), the row already failed.
     await syncMailbox(w.db, { ...w.mailbox, sync_cursor: "100" }, logger({ tenant_id: T }));
-    assert.equal(w.tables.jobs.length, 1);
+    assert.equal(w.tables.jobs.length, 2);
   } finally {
     net.restore();
   }
@@ -316,12 +327,25 @@ test("a Graph mailbox reads its delta from its link, and a report from Exchange'
           internetMessageHeaders: [],
         },
       };
+    if (c.url.includes("/me/messages/y1"))
+      return {
+        json: {
+          id: "y1",
+          conversationId: "conv-other",
+          subject: "This week's deals",
+          from: { emailAddress: { address: "news@shop.example" } },
+          body: { contentType: "text", content: "Save 20% this week." },
+          internetMessageHeaders: [{ name: "List-Unsubscribe", value: "<mailto:leave@shop.example>" }],
+        },
+      };
     return { status: 404 };
   });
   try {
     const out = await syncMailbox(w.db, w.mailbox, logger());
-    assert.deepEqual([out.read, out.bounced, out.replies], [1, 1, 0]);
-    assert.equal(net.calls.filter((c) => c.url.includes("/me/messages/y1")).length, 0, "a newsletter is never read");
+    // The newsletter is read for what it claims (decision 0073, R13) and left where it is, counted (D9): never taken in.
+    assert.deepEqual([out.read, out.bounced, out.replies, out.people, out.dropped], [2, 1, 0, 0, 1]);
+    assert.equal(net.calls.filter((c) => c.url.includes("/me/messages/y1")).length, 1);
+    assert.equal(w.tables.jobs.length, 0, "a newsletter is never taken in");
     assert.equal(w.tables.messages[0].status, "failed");
     assert.match(w.tables.mailbox_connections[0].sync_cursor, /deltatoken=d2$/);
   } finally {
@@ -391,6 +415,45 @@ test("whose fault a bounce is decides what follows: a refused sender stops no ad
   const forwarded = await sync(report("failed", "5.1.1", { recipient: "old-office@elsewhere.example" }));
   assert.equal(forwarded.tables.messages[0].error?.kind, "Transient", "a forward's dead address");
   assert.equal(forwarded.tables.contacts[0].email_suppressed_reason, null, "stops nothing of ours");
+});
+
+test("Gmail: the mailbox's own sends and drafts are never read, nor spam outside a thread of ours; a reply Gmail took for spam is read", async () => {
+  const w = world();
+  const net = providers((c) => {
+    if (c.url.includes("/history?"))
+      return {
+        json: {
+          history: [
+            { messagesAdded: [{ message: { id: "s1", threadId: "g-thread", labelIds: ["SENT"] } }] },
+            { messagesAdded: [{ message: { id: "d1", threadId: "a-draft", labelIds: ["DRAFT"] } }] },
+            { messagesAdded: [{ message: { id: "z1", threadId: "spam-thread", labelIds: ["SPAM"] } }] },
+            { messagesAdded: [{ message: { id: "t1", threadId: "trash-thread", labelIds: ["TRASH"] } }] },
+            { messagesAdded: [{ message: { id: "r9", threadId: "g-thread", labelIds: ["SPAM"] } }] },
+          ],
+          historyId: "121",
+        },
+      };
+    const reports = reportsList(c);
+    if (reports) return reports;
+    if (c.url.includes("/messages/r9")) return { json: gmailMessage("r9", "g-thread") };
+    return { json: gmailMessage("other", "other", { from: "Rosa Diaz <rosa@example.com>" }) };
+  });
+  try {
+    const out = await syncMailbox(w.db, w.mailbox, logger({ tenant_id: T }));
+    for (const id of ["s1", "d1", "z1", "t1"])
+      assert.equal(net.calls.filter((c) => c.url.includes(`/messages/${id}`)).length, 0, `${id} is never read`);
+    assert.deepEqual(
+      [out.read, out.replies, out.people],
+      [1, 1, 0],
+      "the reply taken for spam is a reply all the same",
+    );
+    assert.deepEqual(
+      w.tables.jobs.map((j) => withoutRequestId(j.payload).received_id),
+      ["r9"],
+    );
+  } finally {
+    net.restore();
+  }
 });
 
 test("Graph: a reply Exchange took for junk is read from Junk Email since the last read, when it is in a thread of ours", async () => {

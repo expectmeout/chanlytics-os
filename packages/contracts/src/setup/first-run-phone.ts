@@ -1,7 +1,8 @@
 /**
- * The first run's phone step (docs/superpowers/plans/2026-09-24-first-run-4-phone.md, canvas R3–R5, V4, V5): how calls
- * reach the receptionist, the plan the number starts at its own price, and the receptionist's number on its way. Every sentence
- * is here; the page composes (first-run.jsx FrPhone).
+ * The first run's phone (docs/superpowers/plans/2026-09-24-first-run-4-phone.md, canvas R3–R5, V4, V5; split in two by
+ * decision 0073): how calls reach the receptionist, chosen at Where it answers (`at: "channels"`, nothing bought), and,
+ * at Go live (`at: "live"`), the plan the number starts at its own price, the receptionist's number on its way, and the
+ * code that forwards to it. Every sentence is here; the page composes.
  *
  * Every way buys the receptionist a number of its own. Customers call a new one directly; a number kept or being moved
  * forwards the calls nobody picks up to it (line_forwarding_set needs a line that answers), so customers never see it.
@@ -11,9 +12,22 @@
  * a line a person was asked for, a line that answers -- is `rows`, where Setup's own rows say it as they always have.
  */
 import { billingDoorOpen, maySpend, priceWords, CHECKOUT_OUTCOME_WORDS } from "../workspace/billing";
-import { formatPhoneDisplay, normalizePhone } from "../shared/phone";
+import { areaCodeOf, formatPhoneDisplay, normalizePhone } from "../shared/phone";
 import { agoWords, DAY_MS } from "../shared/time";
-import { CARRIER_WORDS, forwardingCodes, isCarrier, isForwardingMode, type Carrier } from "../voice/forwarding";
+import {
+  CARRIER_WORDS,
+  forwardingCarrierOf,
+  forwardingCodes,
+  isCarrier,
+  isForwardingMode,
+  PHONE_RINGS,
+  type Carrier,
+  type PhoneChoice,
+  type PhoneCompany,
+  type PhonePick,
+  type PhoneRings,
+  type PhoneWay,
+} from "../voice/forwarding";
 import {
   lineStuckProvisioning,
   SETUP_STATE_WORDS,
@@ -23,55 +37,13 @@ import {
   type SetupState,
   type SetupVM,
 } from "./setup";
-
-export const PHONE_WAYS = ["keep", "new", "move"] as const;
-export type PhoneWay = (typeof PHONE_WAYS)[number];
-
-/** A number offered to buy, as the search route answers it. Said through formatPhoneDisplay, never Twilio's `friendly`. */
-export interface PhonePick {
-  e164: string;
-  friendly: string;
-}
-
-/** Which phone rings when customers call the number kept (canvas R4, V6). */
-export const PHONE_RINGS = ["mobile", "landline", "office"] as const;
-export type PhoneRings = (typeof PHONE_RINGS)[number];
+import { FORWARDING_WAIT_WORDS } from "./setup-put-off";
 
 /**
- * What the owner chose, as the tab keeps it: the way, the number they keep or move (as typed), the new number picked,
- * and whether they pressed the step's button, so the buy goes on once the plan lets it. For a number kept or moved,
- * the two answers that choose its code (which phone rings, and a mobile's phone company), and `redo` once the owner
- * asked to change them after the code was shown.
+ * `choose` is Where it answers' (decision 0073): the ways, the number, nothing bought. `go` is Go live's press before the
+ * number is bought (the plan, or the buy itself); the rest are Go live's as they always were the phone step's.
  */
-export interface PhoneChoice {
-  way: PhoneWay;
-  number: string | null;
-  pick: PhonePick | null;
-  pending: boolean;
-  rings?: PhoneRings | null;
-  company?: PhoneCompany | null;
-  redo?: boolean;
-}
-
-/** A mobile's phone company, as the question asks it. */
-export type PhoneCompany = Exclude<Carrier, "office">;
-
-/**
- * The carrier whose codes a phone takes: a mobile's own company's; a landline's the landline codes whoever runs it
- * (forwarding.ts `other`: most landlines take *92 and *72), since the mobile networks' codes are not a landline's; an
- * office phone system's none, since it forwards in its own settings (`office`, 00173).
- */
-export function forwardingCarrierOf(
-  rings: PhoneRings | null | undefined,
-  company: PhoneCompany | null | undefined,
-): Carrier | null {
-  if (rings === "office") return "office";
-  if (rings === "landline") return "other";
-  if (rings === "mobile") return company ?? null;
-  return null;
-}
-
-export type FirstRunPhoneStage = "choose" | "starting" | "buying" | "getting" | "ask" | "code" | "rows";
+export type FirstRunPhoneStage = "choose" | "go" | "starting" | "buying" | "getting" | "ask" | "code" | "rows";
 
 /** One question with its answers as a row of choices (canvas R4), and the one picked. */
 export interface FirstRunPhoneQuestion<K extends string> {
@@ -145,6 +117,11 @@ export interface FirstRunPhoneVM {
    * save the forwarding (the answers' code), or go on to Try it.
    */
   cta: { label: string; held: string | null; act: "plan" | "startNow" | "buy" | "forward" | "onward" } | null;
+  /**
+   * Where it answers: why the choice cannot be kept yet (no number to keep, not a US number, no new number picked), the
+   * step's own onward held by it; null when it can, and at Go live.
+   */
+  held?: string | null;
   /** The two questions, for a number kept or moved, from the moment the number is on its way. */
   questions: { rings: FirstRunPhoneQuestion<PhoneRings>; company: FirstRunPhoneQuestion<PhoneCompany> | null } | null;
   /** The code to dial, once the forwarding is saved. */
@@ -168,14 +145,16 @@ export interface FirstRunPhoneVM {
   status: { state: SetupState; words: string; sentence: string; detail: string } | null;
 }
 
-/**
- * What waiting on a kept number's forwarding costs, said wherever it is put off: the phone step's "Set up forwarding
- * later" and Today's Skip of "The number you already have", for a week or for good (setup.ts putOffEnds).
- */
-export const FORWARDING_WAIT_WORDS = "Until it is set up, only calls to your receptionist's own number are answered.";
-
 export const FIRST_RUN_PHONE_WORDS = {
   chooseHeading: "How should calls reach your receptionist?",
+  /** Where it answers' tile (canvas 4). */
+  calls: "Calls",
+  mode: { unanswered: "When nobody picks up", always: "Every call" },
+  orNew: "get a new number",
+  orMove: "move it to Chanlytics",
+  /** Under the calls choice: when the receptionist's line is bought, kept or moved (it answers what is forwarded) or new. */
+  ownLater: "Your receptionist answers on a line of its own, bought when you go live.",
+  newLater: "The number is bought when you go live, not before.",
   chooseLead:
     "Most businesses keep the number customers already know. Your team still answers first, and your receptionist gets the rest.",
   readyHeading: "Getting your receptionist's number ready",
@@ -206,12 +185,10 @@ export const FIRST_RUN_PHONE_WORDS = {
     pick: "Pick a number first.",
   },
   cta: {
-    planKeep: "Start my plan",
-    planNew: (number: string | null) => (number ? `Start my plan with ${number}` : "Start my plan"),
-    planMove: "Start my plan and ask for the move",
-    keep: "Keep this number",
-    new: (number: string | null) => (number ? `Get ${number}` : "Get this number"),
-    move: "Ask for the move",
+    /** Go live's press (canvas 5A): the plan started by checkout, a trial's plan started now, or the number bought. */
+    plan: "Start my plan",
+    startNow: "Start my plan and go live",
+    buy: "Go live",
   },
   planOffer: (price: string) => (price ? `${price}, starting today` : "Your plan, starting today"),
   planNote: "Your number is included. The first charge is today, and you can cancel anytime from Billing.",
@@ -294,12 +271,6 @@ export const FIRST_RUN_PHONE_WORDS = {
   notForwarded: "Forwarding not saved",
 } as const;
 
-/** The three digits a US number is bought in: `+13055550100` → `305`; null for anything else. */
-export function areaCodeOf(raw: string | null | undefined): string | null {
-  const e164 = normalizePhone(raw);
-  return e164 && /^\+1\d{10}$/.test(e164) ? e164.slice(2, 5) : null;
-}
-
 export interface FirstRunPhoneInput {
   dto: SetupDto;
   vm: SetupVM;
@@ -308,10 +279,14 @@ export interface FirstRunPhoneInput {
   /** This tab came back from checkout with a card given, and the plan has not landed yet. */
   returned: boolean;
   nowMs: number;
+  /** Which step asks (decision 0073): Where it answers chooses, Go live spends. Absent is Go live. */
+  at?: "channels" | "live";
 }
 
-export function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }: FirstRunPhoneInput): FirstRunPhoneVM {
-  const s = phoneStepOf({ dto, vm, choice, returned, nowMs });
+export function firstRunPhoneOf(input: FirstRunPhoneInput): FirstRunPhoneVM {
+  const { dto } = input;
+  const s = phoneStepOf(input);
+  if (input.at === "channels") return channelsStageOf(s);
   // Where the receptionist's line stands decides the stage: it answers, it is on its way, or there is none yet.
   if (dto.channels.voice.present) return answeringStageOf(s);
   if (s.ownLine) return onItsWayStageOf(s, s.ownLine);
@@ -688,7 +663,34 @@ function onItsWayStageOf(s: PhoneStep, ownLine: LineDto): FirstRunPhoneVM {
   };
 }
 
-/** No line yet: Setup's rows, the plan starting, the number being bought, or the choosing. */
+/**
+ * Where it answers (decision 0073): the choosing, with nothing to pay and nothing bought; held while the choice cannot
+ * be kept. A line already on its way, no provider here, or a line a person was asked for: Setup's rows say it.
+ */
+function channelsStageOf(s: PhoneStep): FirstRunPhoneVM {
+  const { dto } = s;
+  if (dto.channels.voice.present || s.ownLine) return s.rows;
+  if (!dto.lines?.ready || dto.requests.line || dto.requests.port) return s.rows;
+  const boxProblem = boxProblemOf(s);
+  return {
+    ...s.base,
+    stage: "choose",
+    heading: FIRST_RUN_PHONE_WORDS.calls,
+    lead: FIRST_RUN_PHONE_WORDS.chooseLead,
+    plan: null,
+    boxProblem,
+    cta: null,
+    held: ctaHeldOf(s, boxProblem),
+    status: null,
+    questions: null,
+    code: null,
+    forwardFrom: null,
+    saved: null,
+    keepCode: null,
+  };
+}
+
+/** No line yet, at Go live: Setup's rows, the plan starting, the number being bought, or the press that starts it. */
 function noLineYetStageOf(s: PhoneStep): FirstRunPhoneVM {
   const { dto, choice, returned } = s;
   // No provider here, or a person was asked for a line: the row says who has it.
@@ -698,7 +700,7 @@ function noLineYetStageOf(s: PhoneStep): FirstRunPhoneVM {
   if (!s.canSpend && !plan) return s.rows;
   if (plan && returned) return startingStageOf(s);
   if (s.canSpend && choice?.pending) return buyingStageOf(s);
-  return chooseStageOf(s, plan, onTrial);
+  return goStageOf(s, plan, onTrial);
 }
 
 /**
@@ -742,21 +744,25 @@ function waitingOn(sentence: string, detail: string): NonNullable<FirstRunPhoneV
   return { state: "waiting_them", words: SETUP_STATE_WORDS.waiting_them, sentence, detail };
 }
 
-/** Choosing (canvas R3): the three ways, the plan the number starts, and the one button, held until it can go. */
-function chooseStageOf(s: PhoneStep, plan: FirstRunPhoneVM["plan"], onTrial: boolean): FirstRunPhoneVM {
+/**
+ * Go live's press (canvas 5A): the plan the number starts, and the one button, held where the choice kept cannot be
+ * bought (a tab that lost it, a number no US company forwards: Where it answers says it, and Back goes there).
+ */
+function goStageOf(s: PhoneStep, plan: FirstRunPhoneVM["plan"], onTrial: boolean): FirstRunPhoneVM {
   const W = FIRST_RUN_PHONE_WORDS;
   const boxProblem = boxProblemOf(s);
+  const act = plan ? (onTrial ? "startNow" : "plan") : "buy";
   return {
     ...s.base,
-    stage: "choose",
+    stage: "go",
     heading: W.chooseHeading,
     lead: W.chooseLead,
     plan,
     boxProblem,
     cta: {
-      label: ctaLabelOf(s.way, plan, s.picked),
+      label: ctaLabelOf(act),
       held: ctaHeldOf(s, boxProblem),
-      act: plan ? (onTrial ? "startNow" : "plan") : "buy",
+      act,
     },
     status: null,
     questions: null,
@@ -783,10 +789,7 @@ function ctaHeldOf(s: PhoneStep, boxProblem: string | null): string | null {
   return boxProblem ?? (!s.number ? W.held.number : areaCodeOf(s.number) ? null : W.held.us);
 }
 
-/** The button named for the result, per way: starting the plan, or, once it runs, the number kept, got or moved. */
-function ctaLabelOf(way: PhoneWay, plan: FirstRunPhoneVM["plan"], picked: string | null): string {
-  const W = FIRST_RUN_PHONE_WORDS;
-  if (way === "keep") return plan ? W.cta.planKeep : W.cta.keep;
-  if (way === "new") return plan ? W.cta.planNew(picked) : W.cta.new(picked);
-  return plan ? W.cta.planMove : W.cta.move;
+/** Go live's press, named for what it does: start the plan by checkout, start a trial's plan now, or buy the number. */
+function ctaLabelOf(act: "plan" | "startNow" | "buy"): string {
+  return FIRST_RUN_PHONE_WORDS.cta[act];
 }

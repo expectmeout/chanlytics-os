@@ -41,6 +41,8 @@ export function authorizeUrl(
     scope: PROFILE_SCOPES.join(" "),
     access_type: "offline",
     prompt: "consent",
+    // The profile's token holds the profile's scope alone, whatever else this account gave the app (its mailbox, R18):
+    // each connection is kept with only what it needs.
     include_granted_scopes: "false",
     state,
   });
@@ -173,6 +175,11 @@ export interface OAuthState {
   m?: string;
   /** 1 when the way out is a Microsoft admin's consent for their organisation, not a member's sign-in. */
   a?: number;
+  /**
+   * Where the owner comes back to, when it is not the connection's own Settings page: `start`, the first run that asked
+   * (decision 0073: Where it answers' tiles, Your business's Connect Google).
+   */
+  b?: string;
 }
 
 async function hmac(secret: string, data: string): Promise<string> {

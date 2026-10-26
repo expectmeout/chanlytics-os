@@ -1414,6 +1414,55 @@ COMMENT ON FUNCTION public.booking_request_open(p_tenant_id uuid, p_conversation
 
 
 --
+-- Name: calendar_grant_note(uuid, uuid, text, boolean, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.calendar_grant_note(p_tenant_id uuid, p_mailbox_id uuid, p_provider text, p_on boolean, p_by uuid DEFAULT NULL::uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_changed boolean;
+begin
+  if p_tenant_id is null or p_mailbox_id is null then
+    raise exception 'A workspace and a mailbox are needed.' using errcode = '22023';
+  end if;
+  if p_on and (p_provider is null or p_provider not in ('google', 'microsoft')) then
+    raise exception 'A calendar is read through Google or Microsoft.' using errcode = '22023';
+  end if;
+  if p_on then
+    update public.tenant_config c
+       set config = jsonb_set(coalesce(c.config, '{}'::jsonb), '{calendar_grant}',
+                              jsonb_build_object('mailbox_id', p_mailbox_id, 'provider', p_provider))
+     where c.tenant_id = p_tenant_id
+       and c.config->'calendar_grant' is distinct from
+           jsonb_build_object('mailbox_id', p_mailbox_id, 'provider', p_provider);
+  else
+    update public.tenant_config c
+       set config = c.config - 'calendar_grant'
+     where c.tenant_id = p_tenant_id
+       and c.config->'calendar_grant'->>'mailbox_id' = p_mailbox_id::text;
+  end if;
+  v_changed := found;
+  -- The settings moved: which field, and who connected or removed the mailbox (decision 0031, invariant 2).
+  if v_changed then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'settings.changed', 'system', 'workspace', p_tenant_id,
+            jsonb_build_object('fields', jsonb_build_array('calendar_grant'), 'by', coalesce(p_by::text, 'system'),
+                               'version', null, 'via', 'mailbox'));
+  end if;
+  return v_changed;
+end $$;
+
+
+--
+-- Name: FUNCTION calendar_grant_note(p_tenant_id uuid, p_mailbox_id uuid, p_provider text, p_on boolean, p_by uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.calendar_grant_note(p_tenant_id uuid, p_mailbox_id uuid, p_provider text, p_on boolean, p_by uuid) IS 'The calendar read through a connected mailbox (decision 0073, R20): p_on sets config.calendar_grant to {mailbox_id, provider}; off takes it away where it names this mailbox. The settings take a new version, as any change does, and a change writes settings.changed {fields: [calendar_grant], by: p_by, via: mailbox} beside it. True when something changed. The service role''s alone: the edge, as a mailbox connects or is removed.';
+
+
+--
 -- Name: calendars_due(timestamp with time zone, integer, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1425,7 +1474,8 @@ CREATE FUNCTION public.calendars_due(p_before timestamp with time zone, p_limit 
     from public.tenant_config c
     join public.tenants t on t.id = c.tenant_id
     cross join lateral (select public.safe_zone(coalesce(nullif(btrim(t.timezone), ''), 'America/New_York')) as tz) z
-   where nullif(btrim(c.config->'calendar'->>'ical_url'), '') is not null
+   where (nullif(btrim(c.config->'calendar'->>'ical_url'), '') is not null
+          or nullif(btrim(c.config->'calendar_grant'->>'mailbox_id'), '') is not null)
      and (p_tenant_id is null or c.tenant_id = p_tenant_id)
      and (c.calendar_checked_at is null or c.calendar_checked_at < p_before)
    order by c.calendar_checked_at nulls first, c.tenant_id
@@ -1437,7 +1487,7 @@ $$;
 -- Name: FUNCTION calendars_due(p_before timestamp with time zone, p_limit integer, p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.calendars_due(p_before timestamp with time zone, p_limit integer, p_tenant_id uuid) IS 'The workspaces with a calendar feed never read or last read before p_before, never read first, then least recently read, each with its zone and since when its reads have failed (null while they work, 00435), with due_total the count of all that were due. The calendar sweep''s page (00245).';
+COMMENT ON FUNCTION public.calendars_due(p_before timestamp with time zone, p_limit integer, p_tenant_id uuid) IS 'The workspaces with a calendar to read (a feed''s link, or a calendar read through a connected mailbox, 00478) never read or last read before p_before, never read first, then least recently read, each with its zone and since when its reads have failed (null while they work, 00435), with due_total the count of all that were due. The calendar sweep''s page (00245).';
 
 
 --
@@ -2722,8 +2772,8 @@ CREATE TABLE public.jobs (
 CASE
     WHEN (kind = 'inbound_answer'::text) THEN 0
     WHEN ((kind = ANY (ARRAY['outbound_send'::text, 'email_ingest'::text, 'push_send'::text])) AND (COALESCE((payload ->> 'purpose'::text), ''::text) <> 'outreach'::text)) THEN 0
-    WHEN (kind = ANY (ARRAY['line_provision'::text, 'reply_read'::text, 'booking_read'::text])) THEN 1
-    WHEN (kind = ANY (ARRAY['broadcast_send'::text, 'outbound_send'::text, 'lead_round_start'::text, 'lead_collect'::text, 'lead_check'::text, 'push_receipts'::text])) THEN 2
+    WHEN (kind = ANY (ARRAY['line_provision'::text, 'reply_read'::text, 'booking_read'::text, 'website_read'::text])) THEN 1
+    WHEN (kind = ANY (ARRAY['broadcast_send'::text, 'outbound_send'::text, 'lead_round_start'::text, 'lead_collect'::text, 'lead_check'::text, 'push_receipts'::text, 'history_import'::text])) THEN 2
     WHEN (kind = 'event_deliver'::text) THEN
     CASE
         WHEN ((payload ->> 'lane'::text) ~ '^[0-2]$'::text) THEN (((payload ->> 'lane'::text))::smallint)::integer
@@ -2732,7 +2782,7 @@ CASE
     ELSE NULL::integer
 END) STORED,
     spoke_at timestamp with time zone,
-    CONSTRAINT jobs_kind_check CHECK ((kind = ANY (ARRAY['outbound_send'::text, 'broadcast_send'::text, 'line_provision'::text, 'email_ingest'::text, 'lead_round_start'::text, 'lead_collect'::text, 'lead_check'::text, 'push_send'::text, 'push_receipts'::text, 'reply_read'::text, 'event_deliver'::text, 'booking_read'::text, 'inbound_answer'::text]))),
+    CONSTRAINT jobs_kind_check CHECK ((kind = ANY (ARRAY['outbound_send'::text, 'broadcast_send'::text, 'line_provision'::text, 'email_ingest'::text, 'lead_round_start'::text, 'lead_collect'::text, 'lead_check'::text, 'push_send'::text, 'push_receipts'::text, 'reply_read'::text, 'event_deliver'::text, 'booking_read'::text, 'inbound_answer'::text, 'history_import'::text, 'website_read'::text]))),
     CONSTRAINT jobs_state_check CHECK ((state = ANY (ARRAY['scheduled'::text, 'fired'::text, 'done'::text, 'canceled'::text, 'failed'::text])))
 );
 
@@ -2755,7 +2805,7 @@ COMMENT ON COLUMN public.jobs.dedupe_key IS 'What makes this row once-only while
 -- Name: COLUMN jobs.lane; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.jobs.lane IS 'Which work a claim takes first (decision 0018): 0 a reply, 1 someone waiting who is not a customer (a line bought, a lead''s reply read, a booking notice read), 2 bulk. Generated from kind and payload; an event_deliver runs in its subscription''s lane (payload.lane, 00334), a text''s answer in a reply''s (inbound_answer, 00347); null for a kind the case does not name, claimed last.';
+COMMENT ON COLUMN public.jobs.lane IS 'Which work a claim takes first (decision 0018): 0 a reply, 1 someone waiting who is not a customer (a line bought, a lead''s reply read, a booking notice read, a website read for Check, 00479), 2 bulk (a history brought in, 00478, among it). Generated from kind and payload; an event_deliver runs in its subscription''s lane (payload.lane, 00334), a text''s answer in a reply''s (inbound_answer, 00347); null for a kind the case does not name, claimed last.';
 
 
 --
@@ -3251,6 +3301,22 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.contact_stop_ends_offers_yes() IS 'After a person''s consent becomes opted_out while an answer about offers is a yes (00323): marketing_consent and email_marketing, where opted_in, go back to unknown with the source stop, and a contact.consent_changed entry with the purpose named says so for each (00297''s trigger then empties marketing_channels). A no to offers and an unsubscribe are left as they are. Whichever door recorded the stop: ingest_inbound, stop_all_messages, set_contact_consent or the carrier''s report. A failure warns and never refuses the stop.';
+
+
+--
+-- Name: contacts_before_erased(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.contacts_before_erased() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+begin
+  if new.erased_at is not null then
+    new.before := null;
+  end if;
+  return new;
+end $$;
 
 
 --
@@ -6117,8 +6183,10 @@ CREATE TABLE public.contacts (
     lead_settled_at timestamp with time zone,
     name_source text,
     name_settled_at timestamp with time zone,
+    before jsonb,
     CONSTRAINT contacts_acquired_ref_check CHECK (((acquired_ref IS NULL) OR ((acquired_via IS NOT NULL) AND ((char_length(acquired_ref) >= 1) AND (char_length(acquired_ref) <= 200))))),
     CONSTRAINT contacts_acquired_via_check CHECK (((acquired_via IS NULL) OR (acquired_via = ANY (ARRAY['whatsapp'::text, 'sms'::text, 'email'::text, 'call'::text, 'ad'::text, 'calendar'::text, 'import'::text, 'lead'::text, 'manual'::text])))),
+    CONSTRAINT contacts_before_check CHECK (((before IS NULL) OR ((jsonb_typeof(before) = 'object'::text) AND ((NOT (before ? 'last_visit'::text)) OR ((before ->> 'last_visit'::text) ~ '^\d{4}-\d{2}-\d{2}$'::text)) AND ((NOT (before ? 'birthday'::text)) OR ((before ->> 'birthday'::text) ~ '^(\d{4}|-)-\d{2}-\d{2}$'::text)) AND ((NOT (before ? 'visits'::text)) OR ((jsonb_typeof((before -> 'visits'::text)) = 'number'::text) AND ((((before ->> 'visits'::text))::numeric >= (0)::numeric) AND (((before ->> 'visits'::text))::numeric <= (999999)::numeric)))) AND ((NOT (before ? 'via'::text)) OR ((char_length((before ->> 'via'::text)) >= 1) AND (char_length((before ->> 'via'::text)) <= 40)))))),
     CONSTRAINT contacts_consent_check CHECK ((consent = ANY (ARRAY['unknown'::text, 'opted_in'::text, 'opted_out'::text]))),
     CONSTRAINT contacts_email_check CHECK (((email IS NULL) OR ((email = lower(btrim(email))) AND ((char_length(email) >= 3) AND (char_length(email) <= 254)) AND (email ~ '^[^[:space:]@<>]+@[^[:space:]@<>]+\.[^[:space:]@<>]+$'::text)))),
     CONSTRAINT contacts_email_marketing_check CHECK ((email_marketing = ANY (ARRAY['unknown'::text, 'opted_in'::text, 'opted_out'::text]))),
@@ -6271,6 +6339,13 @@ COMMENT ON COLUMN public.contacts.name_settled_at IS 'When a member settled the 
 
 
 --
+-- Name: COLUMN contacts.before; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.contacts.before IS 'What another system said of the person before Chanlytics (decision 0073, R22): { via, last_visit, visits, birthday } from a client file. Shown as before Chanlytics; never counted as today''s, never a yes. Filled only where empty (person_before_note); scrubbed when the person is erased.';
+
+
+--
 -- Name: has_relationship(public.contacts); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -6399,6 +6474,62 @@ COMMENT ON FUNCTION public.holds_reply_turn(p_conversation uuid, p_message uuid)
 
 
 --
+-- Name: import_ledger_note(uuid, text, text, jsonb, boolean, integer, integer, timestamp with time zone, text, text, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.import_ledger_note(p_tenant_id uuid, p_source text, p_state text, p_counts jsonb DEFAULT '{}'::jsonb, p_add boolean DEFAULT false, p_parts_done integer DEFAULT NULL::integer, p_parts_total integer DEFAULT NULL::integer, p_oldest timestamp with time zone DEFAULT NULL::timestamp with time zone, p_via text DEFAULT NULL::text, p_error text DEFAULT NULL::text, p_cursor jsonb DEFAULT NULL::jsonb) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_service boolean := coalesce((select auth.role()), '') = 'service_role';
+  v_counts  jsonb := coalesce(p_counts, '{}'::jsonb);
+begin
+  if not v_service then
+    if (select auth.uid()) is null then
+      raise exception 'Sign in required.' using errcode = '28000';
+    end if;
+    if p_source <> 'clients_file' or p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
+      raise exception 'Not yours to write.' using errcode = '42501';
+    end if;
+  end if;
+  if jsonb_typeof(v_counts) <> 'object' then
+    raise exception 'Counts are an object.' using errcode = '22023';
+  end if;
+  insert into public.imports as i (tenant_id, source, state, counts, parts_done, parts_total, oldest, via, job_cursor,
+                                   started_at, finished_at, last_error)
+  values (p_tenant_id, p_source, p_state, v_counts, coalesce(p_parts_done, 0), p_parts_total, p_oldest,
+          nullif(btrim(coalesce(p_via, '')), ''), p_cursor,
+          case when p_state in ('running', 'done', 'failed') then now() end,
+          case when p_state in ('done', 'failed') then now() end,
+          left(nullif(btrim(coalesce(p_error, '')), ''), 500))
+  on conflict (tenant_id, source) do update set
+    state       = excluded.state,
+    counts      = case when p_add then
+                    (select coalesce(jsonb_object_agg(k, coalesce((i.counts->>k)::numeric, 0) + coalesce((v_counts->>k)::numeric, 0)), '{}'::jsonb)
+                       from (select jsonb_object_keys(i.counts) as k union select jsonb_object_keys(v_counts)) keys)
+                  else v_counts end,
+    parts_done  = coalesce(p_parts_done, i.parts_done),
+    parts_total = coalesce(p_parts_total, i.parts_total),
+    oldest      = case when p_oldest is null then i.oldest when i.oldest is null then p_oldest else least(i.oldest, p_oldest) end,
+    via         = coalesce(excluded.via, i.via),
+    job_cursor  = coalesce(p_cursor, i.job_cursor),
+    -- A run that starts again starts its clock again; one still running keeps the clock it started.
+    started_at  = case when i.state in ('done', 'failed') and excluded.state in ('queued', 'running') then now()
+                       else coalesce(i.started_at, excluded.started_at) end,
+    finished_at = case when excluded.state in ('done', 'failed') then now() else null end,
+    last_error  = case when excluded.state = 'failed' then excluded.last_error else null end;
+end $$;
+
+
+--
+-- Name: FUNCTION import_ledger_note(p_tenant_id uuid, p_source text, p_state text, p_counts jsonb, p_add boolean, p_parts_done integer, p_parts_total integer, p_oldest timestamp with time zone, p_via text, p_error text, p_cursor jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.import_ledger_note(p_tenant_id uuid, p_source text, p_state text, p_counts jsonb, p_add boolean, p_parts_done integer, p_parts_total integer, p_oldest timestamp with time zone, p_via text, p_error text, p_cursor jsonb) IS 'A run of bringing history in, recorded in imports (decision 0073, R23): its state, counts (added or set), parts, reach, cursor and error. The service role writes any source; an acting member of the workspace only its clients'' file.';
+
+
+--
 -- Name: import_person(uuid, text, text, text, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -6442,6 +6573,83 @@ end $_$;
 --
 
 COMMENT ON FUNCTION public.import_person(p_tenant_id uuid, p_name text, p_phone_e164 text, p_email text, p_phone_digest text, p_email_digest text) IS 'One line of an imported client list, through resolve_person (00342): find by number, then address (two numbers are two people); fill what is empty; never a yes; the erased stay erased (PE001).';
+
+
+--
+-- Name: ingest_before(uuid, text, text, text, text, text, text, text, text, text, timestamp with time zone, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ingest_before(p_tenant_id uuid, p_channel text, p_external text, p_phone text, p_email text, p_name text, p_message_external_id text, p_direction text, p_type text, p_body text, p_channel_ts timestamp with time zone, p_meta jsonb DEFAULT '{}'::jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_person   jsonb;
+  v_contact  uuid;
+  v_conv     uuid;
+  v_message  uuid;
+  v_inbound  boolean := p_direction = 'inbound';
+begin
+  if p_tenant_id is null then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  if p_channel is null or p_channel not in ('email', 'whatsapp') then
+    raise exception 'What came before comes by email or WhatsApp.' using errcode = '22023';
+  end if;
+  if p_direction is null or p_direction not in ('inbound', 'outbound') then
+    raise exception 'A message came in or went out.' using errcode = '22023';
+  end if;
+  if nullif(btrim(coalesce(p_message_external_id, '')), '') is null or p_channel_ts is null then
+    raise exception 'A message from before needs its provider id and its moment.' using errcode = '22023';
+  end if;
+  if p_meta is not null and jsonb_typeof(p_meta) <> 'object' then
+    raise exception 'The meta is an object.' using errcode = '22023';
+  end if;
+
+  -- The one door a person passes (00413), as a client list's: asserted, so the erased stay erased (PE001, which the
+  -- caller counts and moves past), the wire's identity kept, and a name ranked as an import's.
+  begin
+    v_person := public.resolve_person(
+      p_tenant_id, p_channel, p_external, p_phone, p_email, p_name, 'asserted', 'import',
+      jsonb_build_object('before', true), p_channel_ts);
+  exception when sqlstate 'PE001' then
+    return jsonb_build_object('erased', true);
+  end;
+  v_contact := (v_person->>'contact_id')::uuid;
+
+  -- The thread, made or found. Its recency only ever moves forward, and what came before never reopens one a person
+  -- archived or snoozed: it is history, not something waiting.
+  insert into conversations (tenant_id, contact_id, last_message_at, last_inbound_at)
+  values (p_tenant_id, v_contact, p_channel_ts, case when v_inbound then p_channel_ts end)
+  on conflict (tenant_id, contact_id)
+    do update set last_message_at = greatest(conversations.last_message_at, excluded.last_message_at),
+                  last_inbound_at = case when v_inbound
+                                         then greatest(conversations.last_inbound_at, excluded.last_inbound_at)
+                                         else conversations.last_inbound_at end
+  returning id into v_conv;
+
+  -- Once by the provider's id (the replay gate every inbound door keeps): a part run again keeps nothing twice.
+  insert into messages (tenant_id, conversation_id, contact_id, channel, direction, sender,
+                        type, body, external_id, channel_ts, status, meta)
+  values (p_tenant_id, v_conv, v_contact, p_channel, p_direction,
+          case when v_inbound then 'customer' else 'human' end,
+          coalesce(nullif(p_type, ''), 'text'), nullif(p_body, ''), p_message_external_id, p_channel_ts,
+          case when v_inbound then 'received' else 'delivered' end,
+          coalesce(p_meta, '{}'::jsonb) || jsonb_build_object('backfill', true, 'processed_at', now()))
+  on conflict (tenant_id, external_id) where external_id is not null do nothing
+  returning id into v_message;
+
+  return jsonb_build_object(
+    'message_id', v_message, 'conversation_id', v_conv, 'contact_id', v_contact,
+    'is_new', v_message is not null, 'person', v_person->>'outcome');
+end $$;
+
+
+--
+-- Name: FUNCTION ingest_before(p_tenant_id uuid, p_channel text, p_external text, p_phone text, p_email text, p_name text, p_message_external_id text, p_direction text, p_type text, p_body text, p_channel_ts timestamp with time zone, p_meta jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ingest_before(p_tenant_id uuid, p_channel text, p_external text, p_phone text, p_email text, p_name text, p_message_external_id text, p_direction text, p_type text, p_body text, p_channel_ts timestamp with time zone, p_meta jsonb) IS 'A message from before Chanlytics (decision 0073, R19 and R21): an email the connected mailbox held, a chat WhatsApp synced with its app kept. The person is resolved as a client list''s (resolve_person, asserted, source import: the erased stay erased, answered {erased: true}); the thread is made or found, its recency moved only forward, never reopened; the message kept once by its provider id, inbound from the customer or outbound by a person, marked meta.backfill and handled (meta.processed_at). No consent changes, no event, no metering, nobody told: shown, never counted as today''s, never answered, never a yes. The service role''s alone. Answers {message_id (null when already kept), conversation_id, contact_id, is_new, person}.';
 
 
 --
@@ -16198,6 +16406,47 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.people_series(p_tenant_id uuid, p_days integer, p_end date) IS 'Reports › People: who reached the business over p_days and the same number of days before them, as people and never as messages (distinct live people with an inbound message in their own words on WhatsApp, SMS or email, or an inbound call that connected; new where contact_first_moments, 00394, puts their first reach-in in the same period), on which channel, how the new ones first came (contacts.acquired_via, 00306; null is unknown), the yeses and stops recorded (contact.consent_changed events, one per person, kind of message and answer, a merge and a stop that ends a yes to offers left out; by source and kind of message in the window, in totals before it), the email addresses that stopped working (contact.email_suppressed events, once a person), and the steps done (person_notes with a day, done in the window) and how many on their day or before by the workspace''s own day. Counts only. SECURITY INVOKER: the caller''s RLS decides what a member reads. `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today.';
+
+
+--
+-- Name: person_before_note(uuid, uuid, jsonb, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.person_before_note(p_tenant_id uuid, p_contact_id uuid, p_before jsonb DEFAULT NULL::jsonb, p_notes text DEFAULT NULL::text) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_notes  text := left(nullif(btrim(regexp_replace(coalesce(p_notes, ''), '\s+', ' ', 'g')), ''), 600);
+  v_before jsonb;
+begin
+  if (select auth.uid()) is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  if p_before is not null and jsonb_typeof(p_before) <> 'object' then
+    raise exception 'What came before is an object.' using errcode = '22023';
+  end if;
+  -- Only the keys the column holds.
+  select coalesce(jsonb_object_agg(key, value), '{}'::jsonb) into v_before
+    from jsonb_each(coalesce(p_before, '{}'::jsonb))
+   where key in ('via', 'last_visit', 'visits', 'birthday');
+  update public.contacts c
+     set notes  = coalesce(c.notes, v_notes),
+         before = case when v_before = '{}'::jsonb then c.before else v_before || coalesce(c.before, '{}'::jsonb) end
+   where c.id = p_contact_id
+     and c.tenant_id = p_tenant_id
+     and c.erased_at is null;
+end $$;
+
+
+--
+-- Name: FUNCTION person_before_note(p_tenant_id uuid, p_contact_id uuid, p_before jsonb, p_notes text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.person_before_note(p_tenant_id uuid, p_contact_id uuid, p_before jsonb, p_notes text) IS 'One line of a client file, beyond who the person is (decision 0073, R22): their notes where none are on file, and the last visit, visits, birthday and tool in contacts.before, each where not already there. An acting member; never a yes.';
 
 
 --
@@ -30901,7 +31150,7 @@ CREATE TABLE public.ai_usage (
     CONSTRAINT ai_usage_output_tokens_check CHECK ((output_tokens >= 0)),
     CONSTRAINT ai_usage_port_check CHECK ((port = ANY (ARRAY['anthropic'::text, 'typesafe'::text]))),
     CONSTRAINT ai_usage_prompt_hash_check CHECK (((prompt_hash IS NULL) OR (prompt_hash ~ '^[0-9a-f]{16,64}$'::text))),
-    CONSTRAINT ai_usage_purpose_check CHECK ((purpose = ANY (ARRAY['receptionist'::text, 'reply_draft'::text, 'ask'::text, 'lead_json'::text, 'template_draft'::text, 'review_reply'::text, 'lead_judge'::text, 'note_suggest'::text, 'reach_out_check'::text, 'reply_read'::text, 'booking_read'::text, 'lead_suggest'::text, 'ask_journal'::text]))),
+    CONSTRAINT ai_usage_purpose_check CHECK ((purpose = ANY (ARRAY['receptionist'::text, 'reply_draft'::text, 'ask'::text, 'lead_json'::text, 'template_draft'::text, 'review_reply'::text, 'lead_judge'::text, 'note_suggest'::text, 'reach_out_check'::text, 'reply_read'::text, 'booking_read'::text, 'lead_suggest'::text, 'ask_journal'::text, 'receptionist_review'::text, 'fix_route'::text, 'website_read'::text]))),
     CONSTRAINT ai_usage_shadow_check CHECK (((shadow AND (port <> 'anthropic'::text)) OR ((NOT shadow) AND (question IS NULL) AND (primary_answer IS NULL) AND (shadow_answer IS NULL) AND (shadow_confidence IS NULL) AND (confident IS NULL) AND (agrees IS NULL)))),
     CONSTRAINT ai_usage_shadow_words_check CHECK (((char_length(COALESCE(question, ''::text)) <= 80) AND (char_length(COALESCE(primary_answer, ''::text)) <= 80) AND (char_length(COALESCE(shadow_answer, ''::text)) <= 80) AND ((shadow_confidence IS NULL) OR ((shadow_confidence >= (0)::numeric) AND (shadow_confidence <= (1)::numeric))))),
     CONSTRAINT ai_usage_usd_check CHECK (((usd IS NULL) OR (usd >= (0)::numeric)))
@@ -31305,6 +31554,31 @@ COMMENT ON COLUMN public.billing_events.currency IS 'The invoice''s currency as 
 
 
 --
+-- Name: business_reads; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.business_reads (
+    tenant_id uuid NOT NULL,
+    source text NOT NULL,
+    facts jsonb DEFAULT '{}'::jsonb NOT NULL,
+    read_from text,
+    read_at timestamp with time zone DEFAULT now() NOT NULL,
+    error text,
+    CONSTRAINT business_reads_error_check CHECK (((error IS NULL) OR (char_length(error) <= 300))),
+    CONSTRAINT business_reads_facts_check CHECK ((jsonb_typeof(facts) = 'object'::text)),
+    CONSTRAINT business_reads_read_from_check CHECK (((read_from IS NULL) OR (char_length(read_from) <= 2000))),
+    CONSTRAINT business_reads_source_check CHECK ((source = ANY (ARRAY['google_profile'::text, 'website'::text])))
+);
+
+
+--
+-- Name: TABLE business_reads; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.business_reads IS 'What the Business Profile and the website say, one row per workspace and source (decision 0073, R10, R17): services and prices, hours and days closed, booking rules, questions answered, words, for the owner to check at Check. Nothing here reaches a customer until the owner taps it into the record. Members read their workspace''s; the edge writes.';
+
+
+--
 -- Name: business_records; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -31403,6 +31677,8 @@ CREATE TABLE public.calls (
     analysis jsonb,
     note_checked_at timestamp with time zone,
     activity_started_at timestamp with time zone,
+    config_version integer,
+    CONSTRAINT calls_config_version_check CHECK (((config_version IS NULL) OR (config_version >= 1))),
     CONSTRAINT calls_direction_check CHECK ((direction = ANY (ARRAY['inbound'::text, 'outbound'::text]))),
     CONSTRAINT calls_outcome_check CHECK (((outcome IS NULL) OR (outcome = ANY (ARRAY['answered'::text, 'booking_link_sent'::text, 'callback_needed'::text, 'voicemail'::text, 'no_request'::text, 'other'::text])))),
     CONSTRAINT calls_status_check CHECK ((status = ANY (ARRAY['registered'::text, 'ongoing'::text, 'ended'::text, 'error'::text, 'not_connected'::text])))
@@ -31456,6 +31732,13 @@ COMMENT ON COLUMN public.calls.note_checked_at IS 'When the note sweep looked at
 --
 
 COMMENT ON COLUMN public.calls.activity_started_at IS 'When the call''s Live Activity was started on the workspace''s phones. Set once by an UPDATE ... WHERE activity_started_at IS NULL, so a redelivered call_started starts nothing twice.';
+
+
+--
+-- Name: COLUMN calls.config_version; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.calls.config_version IS 'The settings version the call was composed from (tenant_config_versions), as the inbound webhook answered it in the call''s metadata (decision 0069): what a review judges the call against. Null for calls before 00476, and for one whose start could not be planned.';
 
 
 --
@@ -32158,6 +32441,43 @@ CREATE TABLE public.idempotency_keys (
     response jsonb,
     created_at timestamp with time zone DEFAULT now() NOT NULL
 );
+
+
+--
+-- Name: imports; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.imports (
+    tenant_id uuid NOT NULL,
+    source text NOT NULL,
+    state text DEFAULT 'queued'::text NOT NULL,
+    counts jsonb DEFAULT '{}'::jsonb NOT NULL,
+    parts_done integer DEFAULT 0 NOT NULL,
+    parts_total integer,
+    oldest timestamp with time zone,
+    via text,
+    job_cursor jsonb,
+    started_at timestamp with time zone,
+    finished_at timestamp with time zone,
+    last_error text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT imports_counts_check CHECK ((jsonb_typeof(counts) = 'object'::text)),
+    CONSTRAINT imports_job_cursor_check CHECK (((job_cursor IS NULL) OR (jsonb_typeof(job_cursor) = 'object'::text))),
+    CONSTRAINT imports_last_error_check CHECK (((last_error IS NULL) OR (char_length(last_error) <= 500))),
+    CONSTRAINT imports_parts_done_check CHECK ((parts_done >= 0)),
+    CONSTRAINT imports_parts_total_check CHECK (((parts_total IS NULL) OR (parts_total >= 1))),
+    CONSTRAINT imports_source_check CHECK ((source = ANY (ARRAY['google_reviews'::text, 'calendar'::text, 'clients_file'::text, 'mailbox'::text, 'contacts'::text, 'whatsapp_contacts'::text, 'whatsapp_history'::text]))),
+    CONSTRAINT imports_state_check CHECK ((state = ANY (ARRAY['queued'::text, 'running'::text, 'done'::text, 'failed'::text]))),
+    CONSTRAINT imports_via_check CHECK (((via IS NULL) OR ((char_length(via) >= 1) AND (char_length(via) <= 40))))
+);
+
+
+--
+-- Name: TABLE imports; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.imports IS 'What was brought in, one row per workspace and source (decision 0073, R23): its state, counts, reach, parts and last error. Everything it counts is before Chanlytics: shown, never counted as today''s, never answered, never a yes. Members read their workspace''s; the jobs and the clients'' file import write through import_ledger_note.';
 
 
 --
@@ -34246,6 +34566,49 @@ COMMENT ON COLUMN public.reach_out_check_spend.reads IS 'Reach out Part 5: the r
 
 
 --
+-- Name: rehearsals; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.rehearsals (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    kind text NOT NULL,
+    retell_call_id text,
+    call_id uuid,
+    agent_id text,
+    config_version integer,
+    instructions text,
+    transcript jsonb DEFAULT '[]'::jsonb NOT NULL,
+    started_at timestamp with time zone,
+    ended_at timestamp with time zone,
+    seconds integer,
+    end_reason text,
+    review jsonb,
+    reviewed_at timestamp with time zone,
+    fixes jsonb DEFAULT '[]'::jsonb NOT NULL,
+    created_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT rehearsals_config_version_check CHECK (((config_version IS NULL) OR (config_version >= 1))),
+    CONSTRAINT rehearsals_end_reason_check CHECK (((end_reason IS NULL) OR (char_length(end_reason) <= 64))),
+    CONSTRAINT rehearsals_fixes_check CHECK ((jsonb_typeof(fixes) = 'array'::text)),
+    CONSTRAINT rehearsals_kind_check CHECK ((kind = ANY (ARRAY['call'::text, 'typed'::text, 'call_review'::text]))),
+    CONSTRAINT rehearsals_kind_names_its_source CHECK ((((kind = 'call'::text) AND (retell_call_id IS NOT NULL) AND (call_id IS NULL)) OR ((kind = 'typed'::text) AND (retell_call_id IS NULL) AND (call_id IS NULL)) OR ((kind = 'call_review'::text) AND (retell_call_id IS NULL) AND (call_id IS NOT NULL)))),
+    CONSTRAINT rehearsals_review_check CHECK (((review IS NULL) OR (jsonb_typeof(review) = 'object'::text))),
+    CONSTRAINT rehearsals_reviewed CHECK (((review IS NULL) = (reviewed_at IS NULL))),
+    CONSTRAINT rehearsals_seconds_check CHECK (((seconds IS NULL) OR (seconds >= 0))),
+    CONSTRAINT rehearsals_transcript_check CHECK ((jsonb_typeof(transcript) = 'array'::text))
+);
+
+
+--
+-- Name: TABLE rehearsals; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.rehearsals IS 'A conversation the owner rehearsed (spoken in the browser, or typed) or a real call reviewed (decision 0069): what it ran on, what was said, how long, how it did, and what was fixed from it. Members read their workspace''s; the doors write. A spoken one''s seconds are the free minutes counted.';
+
+
+--
 -- Name: reply_turns; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -35157,6 +35520,27 @@ COMMENT ON VIEW public.usage_ledger IS 'A workspace''s metered use, one row per 
 
 
 --
+-- Name: voice_agents; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.voice_agents (
+    tenant_id uuid NOT NULL,
+    agent_id text NOT NULL,
+    llm_id text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT voice_agents_agent_id_check CHECK ((agent_id ~ '^agent_[A-Za-z0-9]+$'::text)),
+    CONSTRAINT voice_agents_llm_id_check CHECK (((llm_id IS NULL) OR (llm_id ~ '^llm_[A-Za-z0-9]+$'::text)))
+);
+
+
+--
+-- Name: TABLE voice_agents; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.voice_agents IS 'The workspace''s receptionist at Retell (decision 0069): the agent and its LLM, made the first time one is needed (a rehearsal in the browser, or a number''s purchase), so a number bought later answers in the agent the owner already heard. The voice row in tenant_channels is still what routes a call and what says a line answers. The service role alone.';
+
+
+--
 -- Name: waitlist; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -35305,6 +35689,14 @@ ALTER TABLE ONLY public.billing_events
 
 
 --
+-- Name: business_reads business_reads_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.business_reads
+    ADD CONSTRAINT business_reads_pkey PRIMARY KEY (tenant_id, source);
+
+
+--
 -- Name: business_records business_records_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -35318,6 +35710,14 @@ ALTER TABLE ONLY public.business_records
 
 ALTER TABLE ONLY public.calls
     ADD CONSTRAINT calls_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: calls calls_tenant_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.calls
+    ADD CONSTRAINT calls_tenant_id_id_key UNIQUE (tenant_id, id);
 
 
 --
@@ -35590,6 +35990,14 @@ ALTER TABLE ONLY public.idempotency_keys
 
 ALTER TABLE ONLY public.idempotency_keys
     ADD CONSTRAINT idempotency_keys_tenant_id_key_key UNIQUE (tenant_id, key);
+
+
+--
+-- Name: imports imports_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.imports
+    ADD CONSTRAINT imports_pkey PRIMARY KEY (tenant_id, source);
 
 
 --
@@ -36137,6 +36545,22 @@ ALTER TABLE ONLY public.reach_out_check_spend
 
 
 --
+-- Name: rehearsals rehearsals_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.rehearsals
+    ADD CONSTRAINT rehearsals_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: rehearsals rehearsals_retell_call_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.rehearsals
+    ADD CONSTRAINT rehearsals_retell_call_id_key UNIQUE (retell_call_id);
+
+
+--
 -- Name: reply_turns reply_turns_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -36366,6 +36790,22 @@ ALTER TABLE ONLY public.tenants
 
 ALTER TABLE ONLY public.tenants
     ADD CONSTRAINT tenants_slug_key UNIQUE (slug);
+
+
+--
+-- Name: voice_agents voice_agents_agent_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.voice_agents
+    ADD CONSTRAINT voice_agents_agent_id_key UNIQUE (agent_id);
+
+
+--
+-- Name: voice_agents voice_agents_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.voice_agents
+    ADD CONSTRAINT voice_agents_pkey PRIMARY KEY (tenant_id);
 
 
 --
@@ -37602,6 +38042,20 @@ CREATE INDEX rate_hits_key ON public.rate_hits USING btree (bucket, actor, at);
 
 
 --
+-- Name: rehearsals_call; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX rehearsals_call ON public.rehearsals USING btree (tenant_id, call_id) WHERE (call_id IS NOT NULL);
+
+
+--
+-- Name: rehearsals_tenant_kind_created; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX rehearsals_tenant_kind_created ON public.rehearsals USING btree (tenant_id, kind, created_at DESC);
+
+
+--
 -- Name: segment_members_contact; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -38113,6 +38567,13 @@ CREATE TRIGGER calls_set_updated_at BEFORE UPDATE ON public.calls FOR EACH ROW E
 
 
 --
+-- Name: contacts contacts_before_erased; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER contacts_before_erased BEFORE UPDATE OF erased_at, before ON public.contacts FOR EACH ROW EXECUTE FUNCTION public.contacts_before_erased();
+
+
+--
 -- Name: contacts contacts_change_settles_doubts; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -38362,6 +38823,13 @@ CREATE TRIGGER google_connections_set_updated_at BEFORE UPDATE ON public.google_
 --
 
 CREATE TRIGGER google_listings_set_updated_at BEFORE UPDATE ON public.google_listings FOR EACH ROW EXECUTE FUNCTION extensions.moddatetime('updated_at');
+
+
+--
+-- Name: imports imports_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER imports_set_updated_at BEFORE UPDATE ON public.imports FOR EACH ROW EXECUTE FUNCTION extensions.moddatetime('updated_at');
 
 
 --
@@ -38666,6 +39134,13 @@ CREATE TRIGGER profiles_set_updated_at BEFORE UPDATE ON public.profiles FOR EACH
 
 
 --
+-- Name: rehearsals rehearsals_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER rehearsals_set_updated_at BEFORE UPDATE ON public.rehearsals FOR EACH ROW EXECUTE FUNCTION extensions.moddatetime('updated_at');
+
+
+--
 -- Name: segments segments_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -38918,6 +39393,13 @@ CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.billing_accounts REF
 
 
 --
+-- Name: business_reads workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.business_reads REFERENCING OLD TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
 -- Name: business_records workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -38971,6 +39453,13 @@ CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.google_connections R
 --
 
 CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.google_listings REFERENCING OLD TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: imports workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.imports REFERENCING OLD TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
 
 
 --
@@ -39041,6 +39530,13 @@ CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.person_notes REFEREN
 --
 
 CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.policies REFERENCING OLD TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: rehearsals workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.rehearsals REFERENCING OLD TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
 
 
 --
@@ -39121,6 +39617,13 @@ CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.billing_accounts REF
 
 
 --
+-- Name: business_reads workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.business_reads REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
 -- Name: business_records workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -39188,6 +39691,13 @@ CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.google_listings REFE
 --
 
 CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.google_reviews REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: imports workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.imports REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
 
 
 --
@@ -39282,6 +39792,13 @@ CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.policies REFERENCING
 
 
 --
+-- Name: rehearsals workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.rehearsals REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
 -- Name: segment_members workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -39359,6 +39876,13 @@ CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.billing_accounts REF
 
 
 --
+-- Name: business_reads workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.business_reads REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
 -- Name: business_records workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -39426,6 +39950,13 @@ CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.google_listings REFE
 --
 
 CREATE TRIGGER workspace_tell_update AFTER UPDATE OF reply_text, replied_at, draft_text, posts_at ON public.google_reviews FOR EACH ROW WHEN (((old.reply_text IS DISTINCT FROM new.reply_text) OR (old.replied_at IS DISTINCT FROM new.replied_at) OR (old.draft_text IS DISTINCT FROM new.draft_text) OR (old.posts_at IS DISTINCT FROM new.posts_at))) EXECUTE FUNCTION public.workspace_tell_row_change();
+
+
+--
+-- Name: imports workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.imports REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
 
 
 --
@@ -39517,6 +40048,13 @@ CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.person_notes REFEREN
 --
 
 CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.policies REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: rehearsals workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.rehearsals REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
 
 
 --
@@ -39803,6 +40341,14 @@ ALTER TABLE ONLY public.billing_card_marks
 
 ALTER TABLE ONLY public.billing_events
     ADD CONSTRAINT billing_events_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE SET NULL;
+
+
+--
+-- Name: business_reads business_reads_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.business_reads
+    ADD CONSTRAINT business_reads_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
 
 
 --
@@ -40171,6 +40717,14 @@ ALTER TABLE ONLY public.google_reviews
 
 ALTER TABLE ONLY public.idempotency_keys
     ADD CONSTRAINT idempotency_keys_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: imports imports_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.imports
+    ADD CONSTRAINT imports_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
 
 
 --
@@ -40854,6 +41408,30 @@ ALTER TABLE ONLY public.reach_out_check_spend
 
 
 --
+-- Name: rehearsals rehearsals_call_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.rehearsals
+    ADD CONSTRAINT rehearsals_call_id_same_workspace FOREIGN KEY (tenant_id, call_id) REFERENCES public.calls(tenant_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: rehearsals rehearsals_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.rehearsals
+    ADD CONSTRAINT rehearsals_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: rehearsals rehearsals_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.rehearsals
+    ADD CONSTRAINT rehearsals_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: reply_turns reply_turns_conversation_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -41310,6 +41888,14 @@ ALTER TABLE ONLY public.tenant_config_versions
 
 
 --
+-- Name: voice_agents voice_agents_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.voice_agents
+    ADD CONSTRAINT voice_agents_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: waitlist waitlist_invited_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -41545,6 +42131,21 @@ ALTER TABLE public.billing_card_marks ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.billing_events ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: business_reads; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.business_reads ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: business_reads business_reads_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY business_reads_member_select ON public.business_reads FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
 
 --
 -- Name: business_records; Type: ROW SECURITY; Schema: public; Owner: -
@@ -41897,6 +42498,21 @@ CREATE POLICY idempotency_acting_member_all ON public.idempotency_keys TO authen
 --
 
 ALTER TABLE public.idempotency_keys ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: imports; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.imports ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: imports imports_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY imports_member_select ON public.imports FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
 
 --
 -- Name: invitations; Type: ROW SECURITY; Schema: public; Owner: -
@@ -42524,6 +43140,21 @@ ALTER TABLE public.rate_hits ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reach_out_check_spend ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: rehearsals; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.rehearsals ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: rehearsals rehearsals_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rehearsals_member_select ON public.rehearsals FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
 -- Name: reply_turns; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -42830,6 +43461,12 @@ CREATE POLICY tenants_owner_update ON public.tenants FOR UPDATE TO authenticated
 
 
 --
+-- Name: voice_agents; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.voice_agents ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: waitlist; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -43075,6 +43712,14 @@ GRANT ALL ON FUNCTION public.booking_request_answer(p_appointment_id uuid, p_boo
 
 REVOKE ALL ON FUNCTION public.booking_request_open(p_tenant_id uuid, p_conversation_id uuid, p_contact_id uuid, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_service text, p_timezone text, p_words text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.booking_request_open(p_tenant_id uuid, p_conversation_id uuid, p_contact_id uuid, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_service text, p_timezone text, p_words text) TO service_role;
+
+
+--
+-- Name: FUNCTION calendar_grant_note(p_tenant_id uuid, p_mailbox_id uuid, p_provider text, p_on boolean, p_by uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.calendar_grant_note(p_tenant_id uuid, p_mailbox_id uuid, p_provider text, p_on boolean, p_by uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.calendar_grant_note(p_tenant_id uuid, p_mailbox_id uuid, p_provider text, p_on boolean, p_by uuid) TO service_role;
 
 
 --
@@ -43366,6 +44011,15 @@ GRANT ALL ON FUNCTION public.contact_seen(p_tenant_id uuid, p_contact_ids uuid[]
 
 REVOKE ALL ON FUNCTION public.contact_stop_ends_offers_yes() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.contact_stop_ends_offers_yes() TO service_role;
+
+
+--
+-- Name: FUNCTION contacts_before_erased(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contacts_before_erased() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contacts_before_erased() TO authenticated;
+GRANT ALL ON FUNCTION public.contacts_before_erased() TO service_role;
 
 
 --
@@ -43935,12 +44589,29 @@ GRANT ALL ON FUNCTION public.holds_reply_turn(p_conversation uuid, p_message uui
 
 
 --
+-- Name: FUNCTION import_ledger_note(p_tenant_id uuid, p_source text, p_state text, p_counts jsonb, p_add boolean, p_parts_done integer, p_parts_total integer, p_oldest timestamp with time zone, p_via text, p_error text, p_cursor jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.import_ledger_note(p_tenant_id uuid, p_source text, p_state text, p_counts jsonb, p_add boolean, p_parts_done integer, p_parts_total integer, p_oldest timestamp with time zone, p_via text, p_error text, p_cursor jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.import_ledger_note(p_tenant_id uuid, p_source text, p_state text, p_counts jsonb, p_add boolean, p_parts_done integer, p_parts_total integer, p_oldest timestamp with time zone, p_via text, p_error text, p_cursor jsonb) TO authenticated;
+GRANT ALL ON FUNCTION public.import_ledger_note(p_tenant_id uuid, p_source text, p_state text, p_counts jsonb, p_add boolean, p_parts_done integer, p_parts_total integer, p_oldest timestamp with time zone, p_via text, p_error text, p_cursor jsonb) TO service_role;
+
+
+--
 -- Name: FUNCTION import_person(p_tenant_id uuid, p_name text, p_phone_e164 text, p_email text, p_phone_digest text, p_email_digest text); Type: ACL; Schema: public; Owner: -
 --
 
 REVOKE ALL ON FUNCTION public.import_person(p_tenant_id uuid, p_name text, p_phone_e164 text, p_email text, p_phone_digest text, p_email_digest text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.import_person(p_tenant_id uuid, p_name text, p_phone_e164 text, p_email text, p_phone_digest text, p_email_digest text) TO authenticated;
 GRANT ALL ON FUNCTION public.import_person(p_tenant_id uuid, p_name text, p_phone_e164 text, p_email text, p_phone_digest text, p_email_digest text) TO service_role;
+
+
+--
+-- Name: FUNCTION ingest_before(p_tenant_id uuid, p_channel text, p_external text, p_phone text, p_email text, p_name text, p_message_external_id text, p_direction text, p_type text, p_body text, p_channel_ts timestamp with time zone, p_meta jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ingest_before(p_tenant_id uuid, p_channel text, p_external text, p_phone text, p_email text, p_name text, p_message_external_id text, p_direction text, p_type text, p_body text, p_channel_ts timestamp with time zone, p_meta jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ingest_before(p_tenant_id uuid, p_channel text, p_external text, p_phone text, p_email text, p_name text, p_message_external_id text, p_direction text, p_type text, p_body text, p_channel_ts timestamp with time zone, p_meta jsonb) TO service_role;
 
 
 --
@@ -45402,6 +46073,15 @@ GRANT ALL ON FUNCTION public.people_page(p_tenant_id uuid, p_contact_id uuid, p_
 REVOKE ALL ON FUNCTION public.people_series(p_tenant_id uuid, p_days integer, p_end date) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.people_series(p_tenant_id uuid, p_days integer, p_end date) TO authenticated;
 GRANT ALL ON FUNCTION public.people_series(p_tenant_id uuid, p_days integer, p_end date) TO service_role;
+
+
+--
+-- Name: FUNCTION person_before_note(p_tenant_id uuid, p_contact_id uuid, p_before jsonb, p_notes text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.person_before_note(p_tenant_id uuid, p_contact_id uuid, p_before jsonb, p_notes text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.person_before_note(p_tenant_id uuid, p_contact_id uuid, p_before jsonb, p_notes text) TO authenticated;
+GRANT ALL ON FUNCTION public.person_before_note(p_tenant_id uuid, p_contact_id uuid, p_before jsonb, p_notes text) TO service_role;
 
 
 --
@@ -48033,6 +48713,14 @@ GRANT ALL ON TABLE public.billing_events TO service_role;
 
 
 --
+-- Name: TABLE business_reads; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.business_reads TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.business_reads TO service_role;
+
+
+--
 -- Name: TABLE business_records; Type: ACL; Schema: public; Owner: -
 --
 
@@ -48412,6 +49100,14 @@ GRANT INSERT(response) ON TABLE public.idempotency_keys TO authenticated;
 --
 
 GRANT INSERT(created_at) ON TABLE public.idempotency_keys TO authenticated;
+
+
+--
+-- Name: TABLE imports; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.imports TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.imports TO service_role;
 
 
 --
@@ -48943,6 +49639,14 @@ GRANT ALL ON TABLE public.reach_out_check_spend TO service_role;
 
 
 --
+-- Name: TABLE rehearsals; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.rehearsals TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.rehearsals TO service_role;
+
+
+--
 -- Name: TABLE reply_turns; Type: ACL; Schema: public; Owner: -
 --
 
@@ -49372,6 +50076,13 @@ GRANT UPDATE(appointment_word) ON TABLE public.tenants TO authenticated;
 
 GRANT ALL ON TABLE public.usage_ledger TO service_role;
 GRANT SELECT ON TABLE public.usage_ledger TO authenticated;
+
+
+--
+-- Name: TABLE voice_agents; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.voice_agents TO service_role;
 
 
 --

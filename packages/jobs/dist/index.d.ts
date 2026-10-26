@@ -510,6 +510,27 @@ interface JobContext {
         answer: (job: ClaimedJob) => Promise<void>;
     };
     /**
+     * A connection's history brought in a part at a time (00478, decision 0073, R19 to R21), as the edge holds it: the
+     * mailbox's grant, Meta's token and the ledger's cursor live there. INJECTED like the receptionist. Optional so a test
+     * context need not supply one; a history_import job in a runtime without it fails loudly rather than guessing.
+     */
+    imports?: {
+        /**
+         * One part of the job's source, the ledger noted and the next scheduled; no provider call starts after `deadline`.
+         * Throws when the provider could not be asked.
+         */
+        part: (job: ClaimedJob, deadline: number) => Promise<void>;
+    };
+    /**
+     * The business's website read for Check (00479, decision 0073, R10), as the edge holds it: the public fetcher, the
+     * model's key and the workspace's spend live there. INJECTED like the importer; a website_read job in a runtime
+     * without it fails loudly.
+     */
+    website?: {
+        /** The site read and its facts kept (business_reads); no call starts after `deadline`. Throws on a failed read. */
+        read: (job: ClaimedJob, deadline: number) => Promise<void>;
+    };
+    /**
      * Schedule a job of this tenant — how a broadcast continues itself, one
      * batch after another, through the same door the dashboard uses.
      */

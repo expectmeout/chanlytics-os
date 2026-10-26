@@ -329,6 +329,9 @@ const PURPOSE_WORDS: Record<ModelPurpose | "ask_warm", string> = {
   booking_read: "Reading booking notices",
   lead_suggest: "Lead search suggestions",
   ask_journal: "Ask's journal",
+  receptionist_review: "Reviews of rehearsals and calls",
+  fix_route: "Finding where a fix goes",
+  website_read: "Reading websites",
 };
 
 function purposeWords(purpose: string): string {

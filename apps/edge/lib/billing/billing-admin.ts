@@ -118,7 +118,7 @@ async function checkout(c: BillingCall): Promise<BillingOutcome | Response> {
   const tenant = workspaceRow(read);
   if (!tenant.ok) return tenant.response;
   const { email, back } = checkoutRequest(c.body.email, c.body.return);
-  return checkoutFor(c.db, c.tenantId, tenant.row.name, email, tenant.row.slug ?? null, back);
+  return checkoutFor(c.db, c.tenantId, tenant.row.name, email, tenant.row.slug ?? null, back, c.body.embedded === true);
 }
 
 async function portal(c: BillingCall): Promise<BillingOutcome> {

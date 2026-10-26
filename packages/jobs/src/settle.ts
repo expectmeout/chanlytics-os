@@ -72,7 +72,7 @@ const NEVER_SENT = "the job that would have sent this never ran";
 
 /** What the thread says when the intake died: the email is here, and it is a person’s. */
 const EMAIL_UNFINISHED =
-  "An email arrived and could not be taken in — the receptionist does not answer email, and this one did not finish being filed either. Read it here and reply from the Inbox.";
+  "An email arrived and could not be taken in: it did not finish being filed, and no reply was drafted. Read it here and reply from the Inbox.";
 const MAY_HAVE_SENT = "the run that was sending this did not finish";
 
 /**

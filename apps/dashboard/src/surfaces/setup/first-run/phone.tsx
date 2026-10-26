@@ -1,12 +1,11 @@
 /**
- * Your phone (canvas R3, V4, V5, P3; contracts first-run-phone.ts; moved from legacy/pages/first-run.jsx, decision 0015):
- * how calls reach the receptionist -- keep the number customers know, a new one, or move it here -- and the trial with the
- * plan's own price, then the number on its way. `ph` is the step as contracts say it over Setup and the owner's `choice`,
- * which the page holds and keeps in the tab (memory.ts), or reads from their saved view where the tab holds none.
- *
- * The button, where a card is still to be given, goes to Stripe (checkout returns to the first run); once the workspace
- * may spend, the buy goes on by itself, once (phone-acts.tsx). Every control is the kit's: the three ways and the numbers
- * to pick are its choice of a few, the boxes its field, the plan and the code its panes.
+ * The phone's parts (canvas R3, R4, R5, V6, P5; contracts first-run-phone.ts; moved from legacy/pages/first-run.jsx,
+ * decision 0015). Where it answers draws the choosing from them (channels/calls.tsx: the three ways, the number box, a new
+ * number's pick); Go live draws the rest in Switch it on's list: the number on its way, which this buys once the workspace
+ * may spend (phone-acts.tsx), and the forwarding of the number kept, its two questions and its code. `ph` is the step as
+ * contracts say it over Setup and the owner's `choice`, which the page holds and keeps in the tab (memory.ts), or reads
+ * from their saved view where the tab holds none. Every control is the kit's: the ways and the numbers to pick are its
+ * choice of a few, the boxes its field, the code its pane.
  */
 import { useEffect, useReducer, useRef, useState, type ReactNode } from "react";
 import { formatPhoneDisplay, type FirstRunPhoneCodeVM, type FirstRunPhoneVM } from "@chanlytics/contracts";
@@ -17,6 +16,7 @@ import { gate, type LegacyFlash } from "../../legacy-verbs";
 import type { LineChoice } from "../surface";
 import { markedLabel } from "./find";
 import { PHONE_SENT_MS, type KeptPhoneChoice } from "./memory";
+import { SteadyLabel } from "./parts";
 import {
   answer,
   buy,
@@ -37,45 +37,32 @@ interface PhoneProps {
   W: PhoneWords;
   flash: (f: LegacyFlash) => void;
   go: (to: string) => void;
-  back: string | null;
-  backLabel: string;
-  ownFoot: boolean;
+  /**
+   * Which row of Switch it on's list draws it (decision 0073). `number`: the number on its way, which it buys, once; the
+   * one part that buys, so a list drawing both never sends two. `forward`: the number kept's two questions and its code,
+   * the forwarding saved by itself once the line answers where they are already answered (looked up at Where it answers,
+   * R11), so the code is shown with no question asked.
+   */
+  part: "number" | "forward";
 }
 
-/**
- * The step's foot, drawn here whenever the step's button is this one's (FirstRun draws no other then). On a phone the
- * foot is held at the screen's edge and the plan's pane may be under it, so what the press starts charging is said in
- * the foot too, beside the button: the price is never out of sight of the press that starts it.
- */
-function phoneFoot(o: { ph: FirstRunPhoneVM; k: PhoneActs; back: string | null; backLabel: string }): ReactNode {
-  const { ph, k, back, backLabel } = o;
+/** The forwarding's button (Show me what to dial), and why it waits: the line on its way, or a question unanswered. */
+function phoneFoot(ph: FirstRunPhoneVM, k: PhoneActs): ReactNode {
   const cta = ph.cta;
-  if (!cta) return null;
+  if (!cta || cta.act !== "forward") return null;
   const g = PHONE_GATES[cta.act];
   const gated = g ? gate(g[0], g[1]) : {};
   return (
     <div className="fr-foot">
-      {back ? (
-        <button type="button" className="btn btn-sm btn-ghost" onClick={() => k.go(back)} data-testid="fr-back">
-          {backLabel}
-        </button>
-      ) : (
-        <span />
-      )}
+      <span />
       {cta.held ? (
         <span className="fr-held" id="fr-phone-held" data-testid="fr-phone-held">
           {cta.held}
         </span>
       ) : null}
-      {ph.plan && !cta.held ? (
-        <span className="fr-price" data-testid="fr-phone-price">
-          {ph.plan.offer}
-        </span>
-      ) : null}
       <button
         type="button"
         className="btn btn-lg btn-primary fr-go"
-
         onClick={() => void press(k)}
         aria-disabled={cta.held ? true : undefined}
         aria-describedby={cta.held ? "fr-phone-held" : undefined}
@@ -263,10 +250,10 @@ function codeStage(o: {
   );
 }
 
-/** While the number is on its way: where it stands, the questions, and the foot. */
-function statusStage(ph: FirstRunPhoneVM, questions: ReactNode, foot: ReactNode) {
+/** The number on its way: where it stands, in the line row's own words. */
+function statusStage(ph: FirstRunPhoneVM) {
   return (
-    <div className="fr-line-step" data-testid="fr-phone" data-stage={ph.stage}>
+    <div className="fr-line-step" data-testid="fr-number" data-stage={ph.stage}>
       {ph.status ? (
         <div className="panel fr-pane fr-status" role="status" data-testid="fr-phone-status">
           <StatePill kind="setup" value={ph.status.state} label={ph.status.words} />
@@ -274,14 +261,12 @@ function statusStage(ph: FirstRunPhoneVM, questions: ReactNode, foot: ReactNode)
           <span className="fr-detail">{ph.status.detail}</span>
         </div>
       ) : null}
-      {questions}
-      {foot}
     </div>
   );
 }
 
 /** A new number: the area code, and the three free in it to pick from. */
-function newNumber(o: {
+export function newNumber(o: {
   W: PhoneWords;
   k: PhoneActs;
   setArea: (a: string) => void;
@@ -321,7 +306,7 @@ function newNumber(o: {
           data-testid="fr-phone-find"
           {...gate("disconnect", "find a number")}
         >
-          {k.busy ? W.finding : W.find}
+          <SteadyLabel busy={k.busy} idle={W.find} doing={W.finding} />
         </button>
       </form>
       {numbers && numbers.length ? (
@@ -346,7 +331,7 @@ function newNumber(o: {
 }
 
 /** The number kept or moved, typed: what is wrong with it said once the owner has left the box. */
-function keptNumber(o: {
+export function keptNumber(o: {
   W: PhoneWords;
   ph: FirstRunPhoneVM;
   c: KeptPhoneChoice;
@@ -373,7 +358,7 @@ function keptNumber(o: {
 }
 
 /** The ways calls reach the receptionist, as one choice: each way and what it means, the one most take marked. */
-function phoneWays(ph: FirstRunPhoneVM, busy: boolean, change: (p: Partial<KeptPhoneChoice>) => void) {
+export function phoneWays(ph: FirstRunPhoneVM, busy: boolean, change: (p: Partial<KeptPhoneChoice>) => void) {
   return (
     <div className="fr-stack">
       <RecordToggleGroup<FirstRunPhoneVM["way"]>
@@ -393,15 +378,34 @@ function phoneWays(ph: FirstRunPhoneVM, busy: boolean, change: (p: Partial<KeptP
   );
 }
 
+/**
+ * The forwarding saved once, by itself, where the questions are already answered (decision 0073): the step's own press,
+ * as the owner would make it. A refusal is said by the press and the questions stay, to answer by hand.
+ */
+function useAutoForward(k: PhoneActs, on: boolean) {
+  const tried = useRef(false);
+  const { ph } = k;
+  // Answered and not saved yet: the press the owner would make, made once, with the acts as they stand then.
+  const ready = on && ph.stage === "ask" && !!ph.cta && !ph.cta.held && !ph.saved;
+  const acts = useRef(k);
+  acts.current = k;
+  useEffect(() => {
+    if (!ready || tried.current) return;
+    tried.current = true;
+    void press(acts.current);
+  }, [ready]);
+}
+
 /** A beat past a buy's mark going stale, so the step drawn then finds it stale. */
 const RECHECK_AFTER_MS = 50;
 
 /** The buy that goes on by itself once the plan lets it, once; and the choice let go of once the line is here. */
-function usePhoneBuy(k: PhoneActs, fresh: boolean, sentAge: number | null) {
+function usePhoneBuy(k: PhoneActs, fresh: boolean, sentAge: number | null, on: boolean) {
   const { ph, c } = k;
   // Draws the step again once a buy's mark goes stale, so a buy that never landed is sent again (PHONE_SENT_MS).
   const [, recheck] = useReducer((n: number) => n + 1, 0);
   useEffect(() => {
+    if (!on) return undefined;
     if (ph.stage === "buying" && !k.sent.current && !fresh) {
       k.sent.current = true;
       k.setChoice({ ...c, sent: Date.now() });
@@ -415,17 +419,11 @@ function usePhoneBuy(k: PhoneActs, fresh: boolean, sentAge: number | null) {
       return () => clearTimeout(t);
     }
     return undefined;
-  }, [ph.stage, fresh]);
+  }, [ph.stage, fresh, on]);
 }
 
-export const FrPhone = ({ ph, choice, setChoice, W, flash, go, back, backLabel, ownFoot }: PhoneProps) => {
+export const FrPhone = ({ ph, choice, setChoice, W, flash, go, part }: PhoneProps) => {
   const [busy, setBusy] = useState(false);
-  const [numbers, setNumbers] = useState<LineChoice[] | null>(null);
-  const [area, setArea] = useState(ph.area || "");
-  // What is wrong with the area code, said under it once Find is pressed, and gone as it is typed again.
-  const [areaProblem, setAreaProblem] = useState<string | null>(null);
-  // Whether the owner has left the number box: what is wrong with it is said then, not at the first keystroke.
-  const [boxLeft, setBoxLeft] = useState(false);
   const sent = useRef(false);
   const [help, setHelp] = useState(false);
   // A press that moved the step (a forwarding saved) is done once the step it moved to is drawn.
@@ -433,8 +431,7 @@ export const FrPhone = ({ ph, choice, setChoice, W, flash, go, back, backLabel, 
     setBusy(false);
   }, [ph.stage]);
   const c: KeptPhoneChoice = choice || { way: ph.way, number: null, pick: null, pending: false };
-  const change = (patch: Partial<KeptPhoneChoice>) =>
-    setChoice({ ...c, ...patch, pending: false, sent: false, returnedAt: null });
+  // The choosing is Where it answers' (calls.tsx): nothing here searches an area code.
   const k: PhoneActs = {
     ph,
     c,
@@ -445,32 +442,21 @@ export const FrPhone = ({ ph, choice, setChoice, W, flash, go, back, backLabel, 
     busy,
     setBusy,
     sent,
-    area,
-    setAreaProblem,
-    setNumbers,
+    area: ph.area || "",
+    setAreaProblem: () => undefined,
+    setNumbers: () => undefined,
     setHelp,
   };
   const sentAge = c.sent ? Date.now() - c.sent : null;
   const fresh = sentAge !== null && sentAge < PHONE_SENT_MS;
-  usePhoneBuy(k, fresh, sentAge);
-  const foot = ownFoot && ph.cta ? phoneFoot({ ph, k, back, backLabel }) : null;
-  const questions = phoneQuestions(ph, k);
+  usePhoneBuy(k, fresh, sentAge, part === "number");
+  useAutoForward(k, part === "forward");
+  if (part === "number") return statusStage(ph);
+  const foot = phoneFoot(ph, k);
   if (ph.stage === "code" && ph.code) return codeStage({ code: ph.code, k, help, setHelp, foot });
-  if (ph.stage !== "choose") return statusStage(ph, questions, foot);
   return (
-    <div className="fr-line-step" data-testid="fr-phone" data-stage="choose">
-      <div className="panel fr-pane">
-        {phoneWays(ph, busy, change)}
-        {ph.way === "new"
-          ? newNumber({ W, k, setArea, areaProblem, numbers, change })
-          : keptNumber({ W, ph, c, change, boxLeft, leftBox: () => setBoxLeft(true) })}
-      </div>
-      {ph.plan ? (
-        <div className="panel fr-plan" data-testid="fr-plan">
-          <span className="fr-plan-offer">{ph.plan.offer}</span>
-          <span className="fr-detail">{ph.plan.note}</span>
-        </div>
-      ) : null}
+    <div className="fr-line-step" data-testid="fr-phone" data-stage={ph.stage}>
+      {phoneQuestions(ph, k)}
       {foot}
     </div>
   );

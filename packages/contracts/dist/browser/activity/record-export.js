@@ -56,6 +56,18 @@ export const EXPORT_OF = {
       what: "The subscription and its invoices",
       why: "The payment provider holds them; Settings \u203A Billing opens them."
     }
+  },
+  brought: {
+    not_exported: {
+      what: "How far bringing your history in has come, and what your Business Profile and website said",
+      why: "What was brought is in the file's people, conversations and bookings, and what you kept of the profile and the website is in its business section; the rest is a progress record and a copy of what is public."
+    }
+  },
+  rehearsal: {
+    not_exported: {
+      what: "Your rehearsals with the receptionist",
+      why: "They are you playing a customer, not a customer's record; what you kept from them is in the file's business section."
+    }
   }
 };
 const LEFT_OUT_BESIDE_THE_KINDS = [

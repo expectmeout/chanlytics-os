@@ -1515,10 +1515,11 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
     calendars_due: ({ p_before, p_limit, p_tenant_id }) => {
       const due = (tables.tenant_config ?? [])
         .filter((c) => {
-          const url = c.config && typeof c.config === "object" ? c.config.calendar?.ical_url : undefined;
+          const cfg = c.config && typeof c.config === "object" ? c.config : {};
+          // A feed's link, or a calendar read through a connected mailbox's grant (00478).
+          const named = (v) => v != null && String(v).trim() !== "";
           return (
-            url != null &&
-            String(url).trim() !== "" &&
+            (named(cfg.calendar?.ical_url) || named(cfg.calendar_grant?.mailbox_id)) &&
             (p_tenant_id == null || c.tenant_id === p_tenant_id) &&
             (c.calendar_checked_at == null || c.calendar_checked_at < p_before)
           );

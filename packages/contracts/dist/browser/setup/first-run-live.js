@@ -1,8 +1,9 @@
 import { formatPhoneDisplay } from "../shared/phone.js";
+import { possessive } from "../shared/words.js";
 import { greetingOf } from "../voice/greeting-owner.js";
 import { forwardedLineOf } from "./setup.js";
 export const FIRST_RUN_LIVE_WORDS = {
-  heading: (business) => business ? `${business}'s receptionist is answering` : "Your receptionist is answering",
+  heading: (business) => business ? `${possessive(business)} receptionist is answering` : "Your receptionist is answering",
   lead: "Every call shows up on Today and in your Inbox.",
   answers: "Answers",
   answersKept: (kept) => `${kept}, when nobody picks up`,
@@ -19,7 +20,7 @@ export const FIRST_RUN_LIVE_WORDS = {
   greeting: (words) => `Every caller hears \u201C${words}\u201D`,
   finishNote: "We'll email you a copy of this.",
   /** The "you're live" email (canvas C2, decision 4): sent once, on the workspace's first activation of its calls. */
-  emailSubject: (business) => business ? `Your receptionist is answering ${business}'s calls` : "Your receptionist is answering your calls",
+  emailSubject: (business) => business ? `Your receptionist is answering ${possessive(business)} calls` : "Your receptionist is answering your calls",
   emailTest: (length, from, through) => `It answered your test call${length ? ` (${length})` : ""}${from ? ` from ${from}` : ""}${through ? ` through ${through}` : ""}.`,
   emailFrom: (kept, own, always = false) => kept ? always ? `From now on, every call to ${kept} reaches your receptionist.` : `From now on, calls to ${kept} that nobody picks up reach your receptionist.` : own ? `From now on, calls to ${own} reach your receptionist.` : "From now on, your receptionist answers your calls.",
   emailThrough: (to) => to ? `A caller who asks for a person is put through to ${to}.` : "A caller who asks for a person leaves a message.",
@@ -30,7 +31,7 @@ function listWords(parts) {
   if (parts.length <= 1) return parts[0] ?? "";
   return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
 }
-export function firstRunLiveOf({ dto, emails, business, owner }) {
+export function firstRunLiveOf({ dto, emails, business, owner, assistant }) {
   const W = FIRST_RUN_LIVE_WORDS;
   const own = dto.channels.voice.active ? formatPhoneDisplay(dto.channels.voice.number) : null;
   const fw = forwardedLineOf(dto.lines);
@@ -75,7 +76,9 @@ export function firstRunLiveOf({ dto, emails, business, owner }) {
         change: { label: W.change, to: "admin/workspace" }
       }
     ],
-    greeting: W.greeting(greetingOf({ name: business, stored: dto.business.phone_greeting, paused: false }).text),
+    greeting: W.greeting(
+      greetingOf({ name: business, stored: dto.business.phone_greeting, paused: false, assistant: assistant ?? null }).text
+    ),
     // The email goes with the first run's first activation of calls (the capability route, first_run): said only
     // where it will go.
     finish: {

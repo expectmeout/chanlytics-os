@@ -1316,7 +1316,9 @@ import { logger as logger2 } from "../../channels/dist/index.js";
 var emailLog = logger2();
 var EMAIL_BODY_MAX = 2e4;
 var EMAIL_REVIEW_WORDS = {
-  person: "An email arrived. The receptionist does not answer email yet, so nothing was sent: read it and reply from here.",
+  // Nothing sends an email on its own (decision 0073, R15): Need you drafts the reply in the owner's voice (decision
+  // 0071), and it leaves from their mailbox on their press.
+  person: "An email arrived. Nothing was sent: a reply is drafted for you in Need you, to change or send from here.",
   automated: "An automated email arrived (a form, a notification or a list). Nothing answers those: read it, and reply from here if a person is waiting behind it.",
   // A reply to a reach-out (Reach out Part 5): the reading tells the owner what it meant, so this flag says only where.
   reach_out: "They wrote back to your sequence. Nothing is sent without you: read it here, with the receptionist's draft when it wrote one."
@@ -40196,6 +40198,63 @@ function bookingPageLinkedFrom(html, pageUrl) {
     if (page) return page;
   }
 }
+
+// src/site-pages.ts
+var SAYS_SERVICES = /\b(services?|prices?|pricing|menu|rates?|treatments?|packages?|servicios|precios|tarifas|men[uú])\b/i;
+var SAYS_ABOUT = /\b(about|faq|faqs|questions|policy|policies|info|nosotros|preguntas|pol[ií]ticas?)\b/i;
+var TAG_MAX2 = 2e3;
+var WORDS_MAX2 = 300;
+var LINKS_MAX = 400;
+function sameSite(href, home) {
+  let u;
+  try {
+    u = new URL(decodeEntities(href), home);
+  } catch {
+    return null;
+  }
+  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+  const bare = (h) => h.toLowerCase().replace(/^www\./, "");
+  if (bare(u.hostname) !== bare(home.hostname)) return null;
+  u.hash = "";
+  return u.toString();
+}
+function sitePagesLinkedFrom(html, pageUrl, max = 2) {
+  let home;
+  try {
+    home = new URL(pageUrl);
+  } catch {
+    return [];
+  }
+  const services = [];
+  const about = [];
+  const self = sameSite(pageUrl, home);
+  const start = /<a[\s>]/gi;
+  for (let at = 0, n = 0; n < LINKS_MAX; n++) {
+    start.lastIndex = at;
+    const m = start.exec(html);
+    if (!m) break;
+    const close = html.indexOf(">", m.index);
+    if (close === -1) break;
+    at = close + 1;
+    if (close - m.index > TAG_MAX2) continue;
+    const attrs = attrsOf(html.slice(m.index + 2, close));
+    if (!attrs.href) continue;
+    const tail = html.slice(at, at + WORDS_MAX2);
+    const end = tail.search(/<\/a\s*>/i);
+    const words = decodeEntities(
+      [
+        end === -1 ? "" : tail.slice(0, end).replace(/<[^>]*>/g, " "),
+        attrs["aria-label"] ?? "",
+        attrs.title ?? ""
+      ].join(" ")
+    );
+    const page = sameSite(attrs.href, home);
+    if (!page || page === self || services.includes(page) || about.includes(page)) continue;
+    if (SAYS_SERVICES.test(words)) services.push(page);
+    else if (SAYS_ABOUT.test(words)) about.push(page);
+  }
+  return [...services, ...about].slice(0, Math.max(0, max));
+}
 export {
   BROADCAST_STALLS_MAX,
   BROADCAST_STALL_RETRY_MS,
@@ -40353,6 +40412,7 @@ export {
   sha256Hex,
   shareKeysOf,
   sharesWithin,
+  sitePagesLinkedFrom,
   snooze,
   startRound,
   takeBatch,

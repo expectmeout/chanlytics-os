@@ -46,7 +46,7 @@
   },
   "apps/dashboard/src/server/readers/person.ts::read#1": {
     "lines": 209,
-    "branches": 32,
+    "branches": 28,
     "depth": 1
   },
   "apps/edge/lib/leads/lead-db.ts::leadDb#1": {
@@ -84,24 +84,19 @@
     "branches": 34,
     "depth": 1
   },
-  "apps/edge/lib/tenant-runtime.ts::loadTenantRuntime#1": {
-    "lines": 113,
-    "branches": 33,
-    "depth": 2
-  },
   "apps/edge/lib/voice/call-booking-link.ts::sendBookingLinkOnCall#1": {
-    "lines": 267,
-    "branches": 40,
+    "lines": 254,
+    "branches": 38,
     "depth": 3
   },
   "apps/edge/lib/voice/call-start.ts::planCallStart#1": {
-    "lines": 139,
-    "branches": 24,
+    "lines": 138,
+    "branches": 23,
     "depth": 6
   },
   "apps/edge/lib/whatsapp/connect-number.ts::connectWhatsAppNumber#1": {
-    "lines": 138,
-    "branches": 42,
+    "lines": 134,
+    "branches": 37,
     "depth": 1
   },
   "apps/edge/lib/whatsapp/persist.ts::pgSink#1": {
@@ -195,13 +190,8 @@
     "depth": 1
   },
   "packages/contracts/src/setup/first-run.ts::firstRunOf#1": {
-    "lines": 104,
-    "branches": 47,
-    "depth": 0
-  },
-  "packages/contracts/src/setup/first-run.ts::receptionistCardOf#1": {
-    "lines": 51,
-    "branches": 35,
+    "lines": 59,
+    "branches": 31,
     "depth": 0
   },
   "packages/contracts/src/shell/refusal.ts::refusalOf#1": {

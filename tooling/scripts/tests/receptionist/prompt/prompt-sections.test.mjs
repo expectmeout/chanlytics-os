@@ -240,7 +240,8 @@ const SALON_VOICE = [
     "callTools",
     [
       "Open times: use check_availability before offering a time — it reads the calendar as it is at that moment (a list at the end of these instructions, if any, is from the start of the call). Ask which service first when you can, so only windows long enough are offered.",
-      "Booking: when the caller wants to book, use send_booking_link — it sends the booking link to the caller's WhatsApp, on the number they are calling from, so do not ask them for a number unless they want it sent somewhere else. Tell them it comes by WhatsApp, not as a text message: it only arrives if that number has WhatsApp. Then confirm it was sent. If it fails, or they do not have WhatsApp on that number, give the phone number above and offer to have someone follow up.",
+      // Asked first (decision 0073, R14): the link only arrives on a number that has WhatsApp, and the tool says whether it did.
+      "Booking: when the caller wants to book, first ask \"Do you use WhatsApp on this number?\" If they do, use send_booking_link — it sends the booking link to the caller's WhatsApp, on the number they are calling from, so do not ask them for a number unless they want it sent somewhere else. Tell them it comes by WhatsApp, not as a text message. Then say what the tool answers: it waits a moment for WhatsApp's own answer, so it tells you whether it arrived. If they do not use WhatsApp there, or it fails, take their name, what they need, and where and when, give the phone number above, and offer to have someone follow up.",
       "Ending: once the caller has said goodbye, use end_call.",
     ],
   ],

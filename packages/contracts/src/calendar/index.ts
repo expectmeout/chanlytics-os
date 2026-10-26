@@ -61,6 +61,8 @@ export {
   FEED_GUIDES,
   FEED_CHECK_WORDS,
   FEED_MAX_BYTES,
+  calendarFeedKeyOf,
+  mailboxCalendarOf,
 } from "./feed-url";
 export type { FeedFailure, FeedHorizon } from "./feed-url";
 export {

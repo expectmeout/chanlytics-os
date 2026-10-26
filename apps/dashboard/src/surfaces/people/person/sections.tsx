@@ -199,30 +199,38 @@ function reachGroup(c: PageCtx) {
 
 /**
  * Where they came from (canvas A, C3): one line, how they first reached you or came to be here and when (contracts
- * personOriginOf), else the About fact it replaces, and the way back to the lead the finder found them as.
+ * personOriginOf), else the About fact it replaces, and the way back to the lead the finder found them as; under it,
+ * what another system said of them before Chanlytics (decision 0073, R22: personBeforeOf), where one did.
  */
 function originGroup(c: PageCtx) {
   const { p } = c;
   const fact = factOf(c, "Added") ?? factOf(c, "First contact");
   const line = p.origin ?? (fact && fact.v !== "—" ? fact.v : null);
-  if (!line) return null;
+  if (!line && !p.before) return null;
   const lead = p.lead;
   return (
     <section className="cl-prof-rail-section" aria-labelledby="person-from-title" data-testid="person-from">
       <h3 className="cl-prof-rail-label" id="person-from-title">
         {PERSON_ABOUT_WORDS.cameFrom}
       </h3>
-      <p className="cl-prof-fromline">
-        {line}
-        {lead ? (
-          <>
-            {" "}
-            <LinkButton {...routeDoor(lead.to)} title={lead.name} data-testid="fact-lead">
-              {PERSON_ABOUT_WORDS.openLead} <Icon name="chevron" size={10} />
-            </LinkButton>
-          </>
-        ) : null}
-      </p>
+      {line ? (
+        <p className="cl-prof-fromline">
+          {line}
+          {lead ? (
+            <>
+              {" "}
+              <LinkButton {...routeDoor(lead.to)} title={lead.name} data-testid="fact-lead">
+                {PERSON_ABOUT_WORDS.openLead} <Icon name="chevron" size={10} />
+              </LinkButton>
+            </>
+          ) : null}
+        </p>
+      ) : null}
+      {p.before ? (
+        <p className="cl-prof-fromline cl-prof-before" data-testid="person-before">
+          {p.before}
+        </p>
+      ) : null}
     </section>
   );
 }

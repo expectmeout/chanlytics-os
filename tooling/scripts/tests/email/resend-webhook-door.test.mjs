@@ -201,7 +201,8 @@ test("what the workspace's people are told: who wrote and about what, the first 
   assert.deepEqual(m.about, { type: "conversation", id: "c1" });
   assert.match(m.body, /They wrote: “Can you do Saturday at 9\?”/);
   assert.match(m.body, /Email · ana@example\.com/);
-  assert.match(m.body, /Reply from the Inbox\./);
+  // Decision 0073, R15: nothing goes by email on its own; the reply waits drafted in Need you (decision 0071).
+  assert.match(m.body, /Nothing was sent: a reply is drafted for you in Need you, to change or send from the Inbox\./);
   assert.doesNotMatch(m.redactedBody, /ana|Quote|Saturday/i);
   assert.equal(
     emailWaitingMessage({ ...note, fromName: null, subject: null, preview: null }).subject,

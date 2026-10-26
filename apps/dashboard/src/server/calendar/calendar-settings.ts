@@ -40,6 +40,7 @@ import {
   type TenantConfig,
   ownAddressesOf,
   type OwnAddresses,
+  calendarFeedKeyOf,
 } from "@chanlytics/contracts";
 import type { RouteContext } from "@/server/with-route";
 import { tenantFacts } from "@/server/tenant";
@@ -66,8 +67,11 @@ import { storedConfigOf } from "@/server/workspace/config-row";
 export function readSettings(tenantId: string, raw: unknown): { cfg: TenantConfig | null; lostCalendar: boolean } {
   const r = parseTenantConfigResult(raw);
   if (r.ok) return { cfg: r.config, lostCalendar: false };
-  const named = (raw as { calendar?: { ical_url?: unknown } } | null)?.calendar?.ical_url;
-  const lostCalendar = typeof named === "string" && named.trim() !== "";
+  const said = raw as { calendar?: { ical_url?: unknown }; calendar_grant?: { mailbox_id?: unknown } } | null;
+  const named = said?.calendar?.ical_url;
+  const granted = said?.calendar_grant?.mailbox_id;
+  const lostCalendar =
+    (typeof named === "string" && named.trim() !== "") || (typeof granted === "string" && granted.trim() !== "");
   log.error("tenant_config_unreadable", { tenant_id: tenantId, lostCalendar, issues: r.issues.slice(0, 8) });
   return { cfg: null, lostCalendar };
 }
@@ -108,7 +112,8 @@ export async function calendarOf(
     raw = config;
   }
   const { cfg, lostCalendar } = readSettings(tenantId, raw);
-  const url = cfg?.calendar?.ical_url ?? null;
+  // The grant's calendar where one is read, else the link (contracts calendarFeedKeyOf).
+  const url = calendarFeedKeyOf(cfg);
   const bookingLink = cfg?.brain?.booking_link?.trim() || null;
   // Server-side only: the address feeds the reads in this module and is never part of a response.
   // The business's own addresses (contracts ownAddressesOf): where it is alerted,

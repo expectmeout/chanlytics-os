@@ -457,7 +457,6 @@ var SETUP_STATE_WORDS = {
 };
 var SOLE_PROP_CEILING_SENTENCE = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
 var SOLE_PROP_TEXTING_SENTENCE = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE}`;
-var SETUP_REST_MS = 7 * DAY_MS;
 
 // src/setup/calendar-source.ts
 var CALENDAR_OWED_WORD = SETUP_STATE_WORDS.waiting_you;

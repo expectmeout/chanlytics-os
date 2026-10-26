@@ -32,24 +32,60 @@ export const COMMON_LANGUAGES: readonly string[] = [
 ];
 
 /**
- * The three voices the voice's fold offers to start from (the canvas's Group-Answers board): a press puts the sentence
- * in the box, and the owner makes it their own from there. Each is what the prompt then says after "Tone: ", for any
- * trade, and well inside the 200 characters the profile keeps (BusinessProfileSchema.tone; a vm test holds them to it).
+ * The personalities to start from (the first run's Your receptionist, decision 0073, and the voice's fold on How it
+ * answers, one list): a press puts the sentence in the tone, and the owner makes it their own from there. Each is what
+ * the prompt then says after "Tone: ", for any trade, well inside the 200 characters the profile keeps
+ * (BusinessProfileSchema.tone; a vm test holds them to it), with a reply the page shows in it.
  */
-export const TONE_PRESETS: readonly { label: string; tone: string }[] = [
+export type Personality = "warm" | "polished" | "upbeat" | "calm";
+
+export const TONE_PRESETS: readonly { key: Personality; label: string; tone: string; sample: string }[] = [
   {
-    label: "Warm and brief",
-    tone: "Warm and brief. Friendly, a sentence or two at a time, and straight to what the customer asked.",
+    key: "warm",
+    label: "Warm",
+    tone: "Warm and friendly. A sentence or two at a time, like a front desk that knows its regulars.",
+    sample: "Oh, lovely, Saturday at 11 is open. Want to book it?",
   },
   {
-    label: "Professional, no small talk",
-    tone: "Professional and to the point. Polite and clear, with no small talk and no exclamation marks.",
+    key: "polished",
+    label: "Polished",
+    tone: "Polished and courteous. Clear and complete, with no small talk and no exclamation marks.",
+    sample: "Certainly. Saturday at 11 is available. Would you like the link to book it?",
   },
   {
-    label: "Chatty, first names",
-    tone: "Chatty and relaxed. Uses the customer's first name when it has one, and sounds like a friendly front desk.",
+    key: "upbeat",
+    label: "Upbeat",
+    tone: "Upbeat and quick. Cheerful, short sentences, and straight to what the customer asked.",
+    sample: "Good news, Saturday at 11 is free! Want the link?",
+  },
+  {
+    key: "calm",
+    label: "Calm",
+    tone: "Calm and unhurried. Reassuring, plain words, one thing at a time.",
+    sample: "Saturday at 11 is open. Would you like the link to book it?",
   },
 ];
+
+/**
+ * The receptionist's own name (decision 0073, R7: profile.assistant_name), as the first run's How it sounds and
+ * Settings' How it talks ask it. Absent, every greeting and prompt is what it was; named, the greeting still says it is
+ * the automated assistant (0051).
+ */
+export const ASSISTANT_NAME_WORDS = {
+  label: "Its name",
+  empty: "No name",
+  placeholder: "Ava",
+  hint: "Callers always hear that it's the automated assistant, so the greeting says it beside the name.",
+  gate: "give it a name",
+  saved: (name: string | null) => (name ? `It introduces itself as ${name}.` : "It has no name now."),
+  tooLong: (max: number) => `A name is at most ${max} characters.`,
+} as const;
+
+/** The personality a stored tone is, by its words; null for the owner's own words (or none). */
+export function personalityOf(tone: string | null | undefined): Personality | null {
+  const t = (tone ?? "").trim();
+  return t ? (TONE_PRESETS.find((p) => p.tone === t)?.key ?? null) : null;
+}
 
 /**
  * Words cut to at most `max` characters at a word boundary, with an ellipsis where anything was cut: a row at rest

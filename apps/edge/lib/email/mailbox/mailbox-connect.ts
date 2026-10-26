@@ -12,7 +12,8 @@
  *                    event said. A mailbox on the domain the business's own website is on is its customer domain,
  *                    kept to 20 a day (decision 0056, 4); with no website on file, it is taken to be.
  *   mailboxRemove    the grant given back where the provider has a way to, the watch ended, the token dropped, the row
- *                    removed (kept so a send and a report still name it).
+ *                    removed (kept so a send and a report still name it), and the calendar read through it, where it
+ *                    was the workspace's, taken away (decision 0073, R20).
  *   mailboxPause, mailboxUnpause, mailboxResume
  *                    its owner's; a Resume lifts a hold and starts the count again, the ramp where it was.
  *   mailboxSettings  the name it sends as, its signature, its owner's cap.
@@ -47,6 +48,7 @@ import {
   dropMailboxCredentials,
   emitEvent,
   mailboxConnectionOf,
+  noteCalendarGrant,
   patchMailboxConnection,
   workspaceNameAndConfig,
   type Database,
@@ -57,6 +59,7 @@ import { grantOf, storeMailboxCredentials, tokenFor } from "./mailbox-credential
 import { readMailboxDns } from "./mailbox-dns.js";
 import { endWatch, keepWatch } from "./mailbox-watch.js";
 import { mendWarnings } from "../../ops/notify.js";
+import { startMailboxHistory } from "../../imports/history-import.js";
 import { errField, type Logger } from "../../log.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -270,6 +273,17 @@ export async function mailboxConnect(
   });
   // Connected again, its sign-out's warning is mended (contracts NOTICE_MENDS).
   if (!made.made) await mendMailbox(p.db, i.tenantId, made.id, "mailbox_connection.connected");
+  // What it brings beside its mail (decision 0073, R19, R20): its six months, its people and its calendar, while the
+  // owner goes on; a reconnect starts again what stopped.
+  await startMailboxHistory(p.db, {
+    tenantId: i.tenantId,
+    mailboxId: made.id,
+    provider: i.provider,
+    scopes: grantScopes(grant.scope),
+    first: made.made,
+    by: i.userId,
+    log: p.log,
+  });
   return { ok: true, id: made.id, made: made.made, address };
 }
 
@@ -291,6 +305,16 @@ export async function mailboxRemove(p: MailboxPorts, row: MailboxConnectionRow, 
     by,
   });
   await mendMailbox(p.db, row.tenant_id, row.id, "mailbox_connection.removed");
+  // Its calendar, where the workspace read it, goes with it: the link, if one is set, is read again.
+  await noteCalendarGrant(p.db, {
+    tenantId: row.tenant_id,
+    mailboxId: row.id,
+    provider: row.provider === "microsoft" ? "microsoft" : "google",
+    on: false,
+    by,
+  }).catch((e: unknown) =>
+    p.log.error("mailbox_door_failed", { mailbox: row.id, stage: "calendar", error: errField(e) }),
+  );
 }
 
 /** A mailbox's held or signed-out warning closed by the change that mends it (contracts NOTICE_MENDS). */

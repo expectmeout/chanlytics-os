@@ -234,3 +234,127 @@ test("more than fifty rows, or none, is refused before the door", async () => {
     (e) => e.code === "validation",
   );
 });
+
+test("what a client file says beyond who the person is is kept as their before (decision 0073, R22): the dates and visits with the tool, the notes apart; a row with none asks nothing more", async () => {
+  const before = [];
+  const ctx = ctxFor({
+    import_person: (args) => ({ contact_id: `k-${args.p_phone_e164}`, existed: false, email: null }),
+    person_before_note: (args) => {
+      before.push(args);
+      return null;
+    },
+  });
+  await route.POST.run(
+    post({
+      import_id: IMPORT,
+      via: "vagaro",
+      rows: [
+        {
+          name: "Ana Ruiz",
+          phone: "+16465550101",
+          facts: { last_visit: "2026-09-30", visits: 12, birthday: "--04-23", notes: "Likes the window seat" },
+        },
+        { name: "Dee", phone: "+16465550102", facts: { birthday: "1975-04-23" } },
+        { name: "Eve", phone: "+16465550103" },
+      ],
+    }),
+    ctx,
+  );
+  assert.deepEqual(
+    before.map((b) => [b.p_tenant_id, b.p_contact_id, b.p_before, b.p_notes]),
+    [
+      [
+        A,
+        "k-+16465550101",
+        { last_visit: "2026-09-30", visits: 12, birthday: "--04-23", via: "vagaro" },
+        "Likes the window seat",
+      ],
+      [A, "k-+16465550102", { birthday: "1975-04-23", via: "vagaro" }, undefined],
+    ],
+    "kept on the person the door found or made; Eve's file said nothing more of her",
+  );
+});
+
+test("a before the database will not keep keeps the person: counted as brought in, the refusal said in the log with no name", async () => {
+  const said = [];
+  const error = console.error;
+  console.error = (...a) => said.push(asEventAndJson(a));
+  let out;
+  try {
+    out = await route.POST.run(
+      post({ import_id: IMPORT, rows: [{ phone: "+16465550101", facts: { visits: 3 } }] }),
+      ctxFor({
+        import_person: () => ({ contact_id: "k", existed: false, email: null }),
+        person_before_note: () => {
+          throw Object.assign(new Error("lock timeout"), { code: "55P03" });
+        },
+      }),
+    );
+  } finally {
+    console.error = error;
+  }
+  assert.deepEqual([out.added, out.stopped, out.failed], [1, false, []]);
+  assert.deepEqual(
+    said.map(([event, json]) => [event, JSON.parse(json).step]),
+    [["import_decision_failed", "before"]],
+  );
+});
+
+test("the record of what was brought in counts the file once across its parts (R23): the first sets, each after adds, the last says done, a part that stopped says the file stopped; no part, no record", async () => {
+  const notes = [];
+  const rpcs = {
+    import_person: (args) =>
+      args.p_phone_e164 === "+16465550109"
+        ? (() => {
+            throw Object.assign(new Error("permission denied for function import_person"), { code: "42501" });
+          })()
+        : { contact_id: "k", existed: args.p_phone_e164 === "+16465550102", email: null },
+    import_ledger_note: (a) => {
+      notes.push(a);
+      return null;
+    },
+  };
+  const part = (n, of, rows) =>
+    route.POST.run(post({ import_id: IMPORT, via: "booksy", part: { n, of }, rows }), ctxFor(rpcs));
+  await part(1, 3, [{ phone: "+16465550101" }, { phone: "+16465550102" }, { name: "Nobody" }]);
+  await part(2, 3, [{ phone: "+16465550103" }]);
+  await part(3, 3, [{ phone: "+16465550104" }]);
+  assert.deepEqual(
+    notes.map((n) => [n.p_source, n.p_state, n.p_counts, n.p_add, n.p_parts_done, n.p_parts_total, n.p_via, n.p_error]),
+    [
+      ["clients_file", "running", { people: 2, unreadable: 1 }, false, 1, 3, "booksy", undefined],
+      ["clients_file", "running", { people: 1, unreadable: 0 }, true, 2, 3, "booksy", undefined],
+      ["clients_file", "done", { people: 1, unreadable: 0 }, true, 3, 3, "booksy", undefined],
+    ],
+  );
+  notes.length = 0;
+  await part(2, 4, [{ phone: "+16465550109" }]);
+  assert.deepEqual(
+    notes.map((n) => [n.p_state, n.p_parts_done, n.p_error]),
+    [["failed", 2, "permission denied for function import_person"]],
+    "the file stopped, in the door's own words",
+  );
+  notes.length = 0;
+  await route.POST.run(post({ import_id: IMPORT, rows: [{ phone: "+16465550101" }] }), ctxFor(rpcs));
+  assert.deepEqual(notes, [], "an older page that sends no part writes no record");
+});
+
+test("a file's facts are taken only as the door knows them: a key it does not, a date not a day, a visits count not a count, a tool's name not a word -- refused before the door", async () => {
+  const ctx = ctxFor({ import_person: () => ({ contact_id: "k", existed: false, email: null }) });
+  for (const [facts, via] of [
+    [{ allergies: "nuts" }, undefined],
+    [{ last_visit: "Sept 30" }, undefined],
+    [{ visits: -1 }, undefined],
+    [{ birthday: "04/23" }, undefined],
+    [{ notes: "x".repeat(601) }, undefined],
+    [{ visits: 2 }, "Vagaro Pro!"],
+  ])
+    await assert.rejects(
+      route.POST.run(
+        post({ import_id: IMPORT, ...(via ? { via } : {}), rows: [{ phone: "+16465550101", facts }] }),
+        ctx,
+      ),
+      (e) => e.code === "validation",
+      JSON.stringify([facts, via]),
+    );
+});

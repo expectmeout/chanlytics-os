@@ -2,7 +2,7 @@ import { agoShort as spanAgo, MIN_MS } from "../shared/time";
 import { callAttemptWords } from "../conversations/call-dto";
 import { replyWaitsOnYou } from "../conversations/standing";
 import { missedCallIsNews, type LiveCallVM } from "../voice/live";
-import { FINISH_SETTING_UP } from "../setup/first-run-door";
+import { FINISH_SETTING_UP } from "../setup/first-run-route";
 import { lensRoute } from "../reports/lenses";
 import { firstLine } from "./push";
 import type { JobKind } from "../shared/enums";
@@ -398,11 +398,10 @@ export function settledRow<T extends NotificationRow>(row: T): T {
 export type JobEnd = "failed" | "unfinished" | "unknown_kind";
 
 /**
- * What each kind of job was doing, said as the owner's work, and the page that work lives on.
- *
- * The runner used to title every one `A lead_collect job failed`, open its body with the job's id, and send it to
- * the Inbox. On the salon's phone the bell's first screen was eight of those: an internal name, a uuid, and a door
- * to a page that had nothing to do with a search.
+ * What each kind of job was doing, said as the owner's work, and the page that work lives on. The runner used to title
+ * every one `A lead_collect job failed`, open its body with the job's id, and send it to the Inbox. On the salon's
+ * phone the bell's first screen was eight of those: an internal name, a uuid, and a door to a page that had nothing to
+ * do with a search.
  */
 const JOB_WORK: Record<JobKind, { stopped: string; to: string }> = {
   outbound_send: { stopped: "A message may not have been sent", to: "inbox" },
@@ -426,6 +425,8 @@ const JOB_WORK: Record<JobKind, { stopped: string; to: string }> = {
   // A text the door kept and the receptionist could not answer. Not sent (packages/jobs TOLD_ELSEWHERE): the deadman
   // sweep flags the thread and tells the owner with the customer's words, so these are the words should it ever be.
   inbound_answer: { stopped: "A text could not be answered", to: "inbox" },
+  history_import: { stopped: "Bringing your history in stopped partway", to: "admin/integrations" },
+  website_read: { stopped: "Your website could not be read", to: "admin/receptionist" },
 };
 
 /** A job this runner has no words for: said as what it is, on the page that says what happened today. */

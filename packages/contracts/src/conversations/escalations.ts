@@ -160,7 +160,7 @@ export const ESCALATION_SUMMARIES: Record<EscalationReason, string> = {
   carriers:
     "This text arrived before the carriers approved your line for texting, so the receptionist did not answer. Answer it yourself, or wait for the approval on Setup.",
   email_review:
-    "They wrote by email. The receptionist does not answer email yet, so nothing was sent. Read it and reply from here.",
+    "They wrote by email. Nothing was sent: a reply is drafted for you in Need you, to change or send from here.",
   booking_request:
     "They picked a time the calendar shows open, and the receptionist told them the team will confirm it. That's you: Booked it, or Can't and reply.",
   booking_reply:

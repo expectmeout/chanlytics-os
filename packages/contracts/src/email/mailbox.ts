@@ -115,8 +115,12 @@ export interface EmailSetupDto {
   sending?: { providers: MailboxProvider[]; mailboxes: MailboxConnectionDto[] } | null;
 }
 
-/** What Setup and Connections both say while the receptionist does not answer email: one sentence, so the two pages cannot drift apart. */
+/**
+ * What Setup and Connections both say of email (decision 0073, R15): the receptionist sends no email on its own; each
+ * one from a person waits for you with a reply drafted in your voice (Need you's drafts, decision 0071), which you change
+ * or send from your mailbox. One sentence, so the two pages cannot drift apart.
+ */
 export const EMAIL_NOT_ANSWERED_SENTENCE =
-  "The receptionist does not answer email yet: every email waits for you in the Inbox.";
+  "Nothing is sent by email without you: each email waits in Need you with a reply drafted for you to change or send.";
 /** The one thing the product cannot see, said where the owner sets email up (the plan's §9). */
 export const EMAIL_ELSEWHERE_SENTENCE = "Replies you send from another mail app do not show here.";

@@ -32,6 +32,7 @@ import { calendarSourceFacts, calendarSourceOf, type CalendarSourceState } from 
 import type { EmailSetupDto } from "../email/mailbox";
 import { emailRow, mailboxRow } from "./connection-email";
 import { firstRunStepRoute, FIRST_RUN_FIND_ROUTE } from "./first-run-route";
+import { importNotesOf, type ImportRowDto, type ImportSource } from "../imports/ledger";
 
 export type ConnectionKind =
   | "whatsapp"
@@ -88,6 +89,8 @@ export interface ConnectionRow {
   /** One line, in the owner's words, with "since" on every wait. */
   sentence: string;
   verb: ConnectionVerb | null;
+  /** A second way to join, beside Connect: WhatsApp's keeping the Business app (coexistence, decision 0073, R12). */
+  also?: ConnectionVerb;
   /** The page's own hook for the parts a row cannot say in one line: a choice of locations, a form. */
   body: "google_choose" | "business_record" | "email_setup" | "mailboxes" | null;
   /**
@@ -101,8 +104,11 @@ export interface ConnectionRow {
 export interface ConnectionInputs {
   /** The rows of tenant_channels as the page already shows them. */
   channels: ChannelVM[];
-  /** Meta's Embedded Signup: whether this deployment can start it. `undefined` = still asking. */
-  whatsapp: { ready: boolean; reason: string | null } | null | undefined;
+  /**
+   * Meta's Embedded Signup: whether this deployment can start it, and whether its configuration offers keeping the
+   * WhatsApp Business app (`keep_app`, coexistence). `undefined` = still asking.
+   */
+  whatsapp: { ready: boolean; reason: string | null; keep_app?: boolean } | null | undefined;
   lines: { rows: LineDto[]; ready: boolean };
   /** When the owner asked a person at Chanlytics for a line; null = never. */
   lineRequestedAt: string | null;
@@ -123,6 +129,8 @@ export interface ConnectionInputs {
    * null or absent where there is none. Said by the WhatsApp row for an hour, while the workspace has no number.
    */
   signupLeftOpenAt?: string | null;
+  /** What each connection brought in (decision 0073, the imports ledger, SetupDto.imports); absent reads as nothing. */
+  imports?: readonly ImportRowDto[] | null;
 }
 
 const TONE: Record<ConnectionState, ConnectionTone> = {
@@ -406,6 +414,16 @@ function signupLeftOpenNotes(startedAt: string | null | undefined, nowMs: number
   return age >= 0 && age < SIGNUP_LEFT_OPEN_WITHIN_MS ? [{ text: SIGNUP_LEFT_OPEN_NOTE, live: true }] : [];
 }
 
+/** Keeping the WhatsApp Business app (coexistence, decision 0073, R12, R21): Meta's own flow, beside Connect. */
+const KEEP_APP_VERB: ConnectionVerb = {
+  label: "Keep the WhatsApp Business app",
+  to: "verb:whatsapp-connect-keep",
+  who: "owner",
+};
+const KEEP_APP_NOTE: ConnectionNote = {
+  text: "Already answering on the WhatsApp Business app? Keep the app: you go on using it, the receptionist answers what you don't, and your contacts and last six months of chats come in if you share them in the app.",
+};
+
 /** The WhatsApp row's own verb: the Library, what the receptionist and the campaigns send on the number. */
 const LIBRARY: ConnectionVerb = { label: "Messages", to: MESSAGES_ROUTE, who: "operator" };
 
@@ -480,7 +498,12 @@ function whatsappRow(i: ConnectionInputs, { wa, own, nowMs }: ConnectionFacts): 
       sentence:
         "Sign in to Meta, pick the number, and the receptionist answers on it. Nothing here touches a phone line.",
       verb: { label: "Connect WhatsApp", to: "verb:whatsapp-connect", who: "owner" },
-      notes: [...signupLeftOpenNotes(i.signupLeftOpenAt, nowMs), ...whatsappConnectNotes(own)],
+      ...(i.whatsapp.keep_app ? { also: KEEP_APP_VERB } : {}),
+      notes: [
+        ...signupLeftOpenNotes(i.signupLeftOpenAt, nowMs),
+        ...(i.whatsapp.keep_app ? [KEEP_APP_NOTE] : []),
+        ...whatsappConnectNotes(own),
+      ],
     };
   }
   const why =
@@ -542,7 +565,7 @@ function phoneRow(i: ConnectionInputs, { voice, own, nowMs }: ConnectionFacts): 
       state: "none",
       stateWords: "Not connected",
       sentence: "Get a number the receptionist answers, or keep the one you have.",
-      verb: { label: "Get a line", to: firstRunStepRoute("phone"), who: "owner" },
+      verb: { label: "Get a line", to: firstRunStepRoute("channels"), who: "owner" },
     };
   }
   return {
@@ -551,7 +574,7 @@ function phoneRow(i: ConnectionInputs, { voice, own, nowMs }: ConnectionFacts): 
     state: "none",
     stateWords: "Not connected",
     sentence: "We set up your phone line with you.",
-    verb: { label: "Ask for a line", to: firstRunStepRoute("phone"), who: "owner" },
+    verb: { label: "Ask for a line", to: firstRunStepRoute("channels"), who: "owner" },
   };
 }
 
@@ -651,7 +674,15 @@ function calendarRow(i: ConnectionInputs): Draft {
   // What makes the row this workspace's: the tool it books with, the link it reads, or both. A business that books by
   // hand has neither, and its own word is the row's state: said here too, the row read "Booked by hand" twice, beside
   // its name and in its pill (seen on a real save, 8 Oct 2026).
-  const DETAIL = { both: `${tool} · calendar link`, link: "Calendar link", emails: tool, hand: null, nothing: null };
+  // A calendar read through the mailbox (decision 0073, R20) names its provider's calendar, never "link".
+  const granted = i.calendar?.granted ? `${i.calendar.source ?? "Your calendar"} · through your mailbox` : null;
+  const DETAIL = {
+    both: `${tool} · ${granted ?? "calendar link"}`,
+    link: granted ?? "Calendar link",
+    emails: tool,
+    hand: null,
+    nothing: null,
+  };
   const detail = DETAIL[s.by];
   return {
     kind: "calendar",
@@ -720,10 +751,26 @@ const ROW_BUILDERS: readonly ConnectionRowBuilder[] = [
   depositsRow,
 ];
 
+/**
+ * The sources of the imports ledger each connection brought (decision 0073, R23): Google's reviews on the profile, the
+ * visits and the clients' file on the calendar (the booking tool's own), the mail and the contacts on the mailbox, and
+ * WhatsApp's contacts and chats on WhatsApp.
+ */
+const BROUGHT_BY: Readonly<Partial<Record<ConnectionKind, readonly ImportSource[]>>> = {
+  google_profile: ["google_reviews"],
+  calendar: ["calendar", "clients_file"],
+  mailbox: ["mailbox", "contacts"],
+  whatsapp: ["whatsapp_contacts", "whatsapp_history"],
+};
+
 /** The fold over ROW_BUILDERS: every connection's row, drawn from one set of facts, in the page's order. */
 export function connectionRows(i: ConnectionInputs, nowMs = Date.now()): ConnectionRow[] {
   const facts = connectionFactsOf(i, nowMs);
-  return ROW_BUILDERS.map((build) => row(build(i, facts))).sort((a, b) => ORDER[a.kind] - ORDER[b.kind]);
+  return ROW_BUILDERS.map((build) => {
+    const r = row(build(i, facts));
+    const brought = importNotesOf(BROUGHT_BY[r.kind], i.imports);
+    return brought.length ? { ...r, notes: [...r.notes, ...brought] } : r;
+  }).sort((a, b) => ORDER[a.kind] - ORDER[b.kind]);
 }
 
 export const CONNECTION_GROUP_WORDS: Record<

@@ -69,8 +69,8 @@
   "setup": "live settings setup",
   "setup/first-run": "live settings setup",
   "setup/rows": "",
-  "today": "ask_morning broadcasts calendar google live people playbooks reach_out_replies reports_headline setup today today_pins workspace",
+  "today": "ask_morning broadcasts calendar google live people playbooks reach_out_replies reports_headline settings setup today today_pins workspace",
   "today/need-you": "",
-  "today/pages": "ask_morning broadcasts calendar google live people playbooks reach_out_replies reports_headline setup today today_pins",
+  "today/pages": "ask_morning broadcasts calendar google live people playbooks reach_out_replies reports_headline settings setup today today_pins",
   "waits": "today"
 }

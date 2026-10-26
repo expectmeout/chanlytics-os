@@ -27,6 +27,14 @@ export type BillingStatus = (typeof BILLING_STATUSES)[number];
 /** The trial a new workspace gets at Checkout, in days. */
 export const BILLING_TRIAL_DAYS = 14;
 
+/**
+ * The trial a plan started from the first run's Go live gets, in days (decision 0073, item 12): none, since the number
+ * Go live buys is a cost on Chanlytics' account whether or not a trial ever pays (maySpend; Ruben, 25 Sep 2026). The
+ * edge's checkout reads it, and every screen of Go live says it, so a screen never promises a trial the checkout does not
+ * give. Fourteen days with the number is this one line, and his call.
+ */
+export const FIRST_RUN_TRIAL_DAYS = 0;
+
 export interface BillingAccountDto {
   mode: BillingMode;
   status: BillingStatus;

@@ -66,6 +66,12 @@ test("published for the page", () => {
 test("Live (canvas R9): the four lines, the greeting word for word, and Finish's email said before the first activation", () => {
   const vm = firstRunLiveOf({ dto: dtoOf(), emails: ["owner@example.com"], business: "Harbor Moving", owner: true });
   assert.equal(vm.heading, "Harbor Moving's receptionist is answering");
+  const plural = firstRunLiveOf({ dto: dtoOf(), emails: [], business: "Lantern Barbers", owner: true });
+  assert.equal(
+    plural.heading,
+    "Lantern Barbers' receptionist is answering",
+    "a name ending in s takes the apostrophe alone",
+  );
   assert.equal(vm.lead, "Every call shows up on Today and in your Inbox.");
   assert.deepEqual(
     vm.summary.map((r) => [r.label, r.value, r.change && r.change.to]),

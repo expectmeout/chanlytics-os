@@ -78,7 +78,23 @@ export const JOB_KINDS = [
    * 'inbound_answer:<message>' (jobs.dedupe_key), in the reply lane. A runner killed mid-turn leaves it to be claimed
    * again: the message is answered while it is unprocessed and no reply names it, so a second claim never texts twice.
    */
-  "inbound_answer"
+  "inbound_answer",
+  /**
+   * One part of a connection's history brought in (00478, decision 0073, R19 to R21): the mailbox's six months of mail
+   * from people, its contacts, a calendar read through its grant, WhatsApp's contacts and chats asked of Meta. payload
+   * { source (contracts IMPORT_SOURCES), seq, connection_id? }, keyed 'history_import:<workspace>:<source>:<seq>'
+   * (jobs.dedupe_key), in the bulk lane. A part reads from the imports ledger's cursor, notes the ledger and schedules
+   * the next while there is more; a provider that cannot be asked throws and the part is tried again. Written to be run
+   * again: every write is once by the provider's id.
+   */
+  "history_import",
+  /**
+   * The business's website read for the first run's Check (00479, decision 0073, R10): its home page and up to two pages
+   * it links to, through the public fetcher's address rule, its services, prices, booking rules and answers drawn out by
+   * the model into business_reads. payload { url }, keyed 'website_read:<workspace>' (jobs.dedupe_key) while one waits,
+   * in the lane of someone waiting. Written to be run again: the read is kept whole, the newest standing.
+   */
+  "website_read"
 ];
 export const EVENT_SUBSCRIBERS = [
   "reach_out_booked",

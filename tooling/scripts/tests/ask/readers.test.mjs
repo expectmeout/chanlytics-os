@@ -1391,6 +1391,8 @@ const PERSON_KEYS = [
   "workspace_reply_mode",
   "visits",
   "notes",
+  // 25 Oct 2026 (decision 0073, R22): what a booking tool's client file said of them before Chanlytics, beside the notes.
+  "before",
   "person_notes",
   "proposal_url",
   "booking_link",

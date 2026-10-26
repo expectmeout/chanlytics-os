@@ -620,6 +620,7 @@ apps/edge/lib/
   calendar/
   email/
   google/
+  imports/
   intake/
   leads/
   lines/
@@ -676,10 +677,12 @@ apps/dashboard/src/server/
   workspace/
 apps/dashboard/src/legacy-bridge/
   ask/
+  billing/
   hearing/
   invitations/
   mascot/
   reach-out/
+  rehearse/
   surfaces/
   verbs/
 apps/dashboard/src/legacy/
@@ -717,6 +720,7 @@ packages/contracts/src/
   deals/
   email/
   google/
+  imports/
   journey/
   leads/
   lines/
@@ -730,6 +734,7 @@ packages/contracts/src/
   person-page/
   playbooks/
   reach-out/
+  rehearsal/
   reports/
   sequences/
   setup/

@@ -377,7 +377,7 @@ test("create once: another workspace, from inside the app, is never made on arri
 test("V1: a first workspace with no name kept from sign-up (a Google sign-up) is asked for the business, and nothing else", () => {
   globalThis.window = standIn(MADE);
   const tree = render({ email: "owner@luna.example", posture: "open", onCreated() {} });
-  assert.equal(textOf(byTestId(tree, "cw-kicker")), "Step 1 of 4 · Your business", "the first run's first step, begun");
+  assert.equal(textOf(byTestId(tree, "cw-kicker")), "1 of 5 · Your business", "the first run's first step, begun");
   assert.equal(textOf(find(tree, (n) => n.type === "h1")), SIGNUP_WORDS.nameTitle);
   assert.equal(
     find(tree, (n) => n.type === "select"),

@@ -218,6 +218,8 @@ export function spanLabel(t1, t2) {
 }
 export function feedSourceLabel(url) {
   if (!url) return "your calendar";
+  if (url.startsWith("mailbox-calendar:google:")) return "Google Calendar";
+  if (url.startsWith("mailbox-calendar:microsoft:")) return "Outlook";
   let host;
   try {
     host = new URL(url.replace(/^webcal:\/\//i, "https://")).hostname.toLowerCase();

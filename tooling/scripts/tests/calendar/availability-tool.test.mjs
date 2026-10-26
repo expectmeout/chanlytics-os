@@ -509,7 +509,25 @@ let heldSeq = 0;
  * its opening hours; `whatsapp` whether a WhatsApp line answers, which a call sends the link by (contracts offersLinkOn).
  * The database is handed to the door here.
  */
-function heldWorkspace({ booking = null, calendar = "feed", hours = EVERY_DAY, whatsapp = true } = {}) {
+/**
+ * The message that carries the booking link on a call, approved by Meta (decision 0073, R14): a call sends the link only
+ * once it is, so a workspace here has it unless a test says the approval is still to come.
+ */
+const approvedLinkMessage = (tenantId) => ({
+  id: `tpl-${tenantId}`,
+  tenant_id: tenantId,
+  channel: "whatsapp",
+  name: "booking_link",
+  language: "en_US",
+  category: "utility",
+  meta_status: "approved",
+  body_preview: "Here is the link to book.",
+  title: null,
+  variables: [{ position: 1 }, { position: 2 }, { position: 3 }],
+  components: null,
+});
+
+function heldWorkspace({ booking = null, calendar = "feed", hours = EVERY_DAY, whatsapp = true, message = true } = {}) {
   const i = ++heldSeq;
   const T = `cccccccc-0000-4000-8000-00000000d${String(i).padStart(3, "0")}`;
   const agent = `agent_availability_held_${i}`;
@@ -557,6 +575,7 @@ function heldWorkspace({ booking = null, calendar = "feed", hours = EVERY_DAY, w
             ]
           : [],
         google_listings: [],
+        templates: whatsapp && message ? [approvedLinkMessage(T)] : [],
       },
       {},
       { runtime_stamp: () => `stamp-held-${i}` },
@@ -653,6 +672,15 @@ test("a workspace with a booking link and no WhatsApp line: the times end in the
     assert.doesNotMatch(said, A_TIME, `${calendar}: no time guessed`);
     assert.ok(!/WhatsApp|booking link/i.test(said), `${calendar}: nothing it cannot send is offered: ${said}`);
   }
+});
+
+test("a call whose booking-link message Meta has not approved yet: the times end in the caller's details, and no link is promised (decision 0073, R14)", async () => {
+  const said = await askedHeld(heldWorkspace({ message: false }));
+  assert.match(said, A_TIME, "the times are still said");
+  assert.match(said, /take their name, what they need, and where and when/, said);
+  assert.ok(!/send the booking link/i.test(said), `nothing it cannot send yet is offered: ${said}`);
+  const approved = await askedHeld(heldWorkspace());
+  assert.match(approved, /then send the booking link to lock one in\./, "approved: the link follows the times");
 });
 
 test("under a hold, a fortnight with nothing open is said without the link", async () => {

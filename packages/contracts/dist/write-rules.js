@@ -167,6 +167,8 @@ var BOOKING_LINK_MAX = 500;
 var ASK_GOAL_MAX = 200;
 var PROFILE_LIMITS = {
   tone: 200,
+  /** The receptionist's own name (decision 0073): a first name, said in the greeting. */
+  assistantName: 40,
   services: 60,
   serviceName: 80,
   serviceMinutes: 1440,
@@ -249,6 +251,7 @@ var NoteSchema = z.object({
   text: z.string().min(1).max(PROFILE_LIMITS.noteText),
   until: DATE.optional()
 }).strip();
+var WALK_INS = ["yes", "room", "no"];
 var rule = (key) => z.number().int().min(BOOKING_RULE_BOUNDS[key].min).max(BOOKING_RULE_BOUNDS[key].max).optional();
 var BookingRulesSchema = z.object({
   /** Least notice for a slot, in hours. Absent = 2. */
@@ -262,6 +265,11 @@ var BookingRulesSchema = z.object({
   /** Services that need a consultation before they can be booked. */
   consult_first: z.array(z.string().min(1).max(PROFILE_LIMITS.consultFirstLine)).max(PROFILE_LIMITS.consultFirst).optional(),
   party_max: rule("party_max"),
+  /**
+   * Whether the business takes walk-ins (the first run's Your receptionist, decision 0073): yes, when there's room, or
+   * no, one sentence of the booking rules. Absent says nothing, as before it.
+   */
+  walk_ins: z.enum(WALK_INS).optional(),
   /**
    * Ask, once, for an email when sending the booking link -- for the confirmation, and for the campaigns that follow
    * (Part 0 of the campaigns-on-every-channel spec). Absent = no.
@@ -281,6 +289,12 @@ var BusinessProfileSchema = z.object({
   /** What must reach a person. One short line each. */
   escalate_when: z.array(z.string().min(1).max(PROFILE_LIMITS.reason)).max(PROFILE_LIMITS.reasons).optional(),
   tone: z.string().max(PROFILE_LIMITS.tone).optional(),
+  /**
+   * The receptionist's own name (decision 0073): "I'm Ava, the automated assistant" in the standard greeting, and the
+   * prompt's first line. Absent, it has none, and every line is as it was. A first name, never a claim to be a person:
+   * the greeting says it is automated beside it whatever the name (decision 0051).
+   */
+  assistant_name: z.string().trim().min(1).max(PROFILE_LIMITS.assistantName).optional().catch(void 0),
   /**
    * The line a PERSON answers. The phone receptionist warm-transfers here
    * during opening hours; absent, it takes a message instead. Never the
@@ -303,6 +317,12 @@ var BusinessProfileSchema = z.object({
    * the composed prompt.
    */
   phone_voice: z.string().max(64).optional().catch(void 0),
+  /**
+   * How fast the voice speaks (decision 0073, R7): each call's agent_override voice_speed, as the voice is (voice/
+   * phone-pace.ts PHONE_PACES). Absent is the line's own pace. Kept as a string the list reads, so a pace retired from
+   * the list never leaves a config that cannot be parsed. Never part of the composed prompt.
+   */
+  phone_pace: z.string().max(24).optional().catch(void 0),
   website: z.string().url().max(500).optional(),
   notes: z.array(NoteSchema).max(PROFILE_LIMITS.notes).optional(),
   booking_rules: BookingRulesSchema.optional(),
@@ -383,6 +403,10 @@ var NotificationsConfigSchema = z3.object({
 var CalendarConfigSchema = z3.object({
   ical_url: z3.string().max(2e3).refine((u) => /^(https?|webcal):\/\/\S+$/i.test(u), "An https:// or webcal:// address")
 }).strip();
+var CalendarGrantConfigSchema = z3.object({
+  mailbox_id: z3.uuid(),
+  provider: z3.enum(["google", "microsoft"])
+}).strip();
 var BookingsConfigSchema = z3.object({ tool: z3.string().max(40).optional(), by_hand: z3.boolean().optional() }).strip();
 var FeaturesConfigSchema = z3.object({
   vision: z3.boolean().optional(),
@@ -400,6 +424,7 @@ var TenantConfigSchema = z3.object({
   ask: AskConfigSchema.optional(),
   notifications: NotificationsConfigSchema.optional(),
   calendar: CalendarConfigSchema.optional(),
+  calendar_grant: CalendarGrantConfigSchema.optional(),
   bookings: BookingsConfigSchema.optional(),
   features: FeaturesConfigSchema.optional()
 });

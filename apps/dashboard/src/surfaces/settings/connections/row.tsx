@@ -41,6 +41,7 @@ const VERB_TESTID: Record<string, string> = {
   "verb:google-connect": "google-connect",
   "verb:google-disconnect": "google-disconnect",
   "verb:whatsapp-connect": "connect-whatsapp-btn",
+  "verb:whatsapp-connect-keep": "connect-whatsapp-keep-btn",
   messages: "channel-messages",
 };
 /** What a verb does, for the gate's sentence: the retry of a line carries the line's id, so it is found by its prefix. */
@@ -54,6 +55,7 @@ const VERB_DOING: Record<string, string> = {
   "verb:google-connect": "connect Google",
   "verb:google-disconnect": "disconnect Google",
   "verb:whatsapp-connect": "connect WhatsApp",
+  "verb:whatsapp-connect-keep": "connect WhatsApp",
   "verb:business-record": "fill in the business record",
   "verb:email-setup": "set up email",
 };
@@ -263,6 +265,17 @@ function rowButton(
           run,
           busy,
           named: `Connect ${r.title}`,
+        })}
+      {/* The second way to join, beside Connect (keeping the WhatsApp Business app): run as the row's verb would be. */}
+      {press === "connect" &&
+        r.also &&
+        verbButton({
+          r,
+          verb: r.also,
+          label: r.also.label,
+          variant: "secondary",
+          run: (row) => run({ ...row, verb: row.also ?? null }),
+          busy,
         })}
       {press === "settings" && (
         <Button

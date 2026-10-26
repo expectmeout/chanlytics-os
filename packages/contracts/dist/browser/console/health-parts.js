@@ -150,7 +150,10 @@ const PURPOSE_WORDS = {
   reply_read: "Reading leads' replies",
   booking_read: "Reading booking notices",
   lead_suggest: "Lead search suggestions",
-  ask_journal: "Ask's journal"
+  ask_journal: "Ask's journal",
+  receptionist_review: "Reviews of rehearsals and calls",
+  fix_route: "Finding where a fix goes",
+  website_read: "Reading websites"
 };
 function purposeWords(purpose) {
   return PURPOSE_WORDS[purpose] ?? purpose.replace(/_/g, " ");

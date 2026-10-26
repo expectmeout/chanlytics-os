@@ -23,6 +23,27 @@
           "api/admin/llm.ts": {
             "maxDuration": 60
           },
+          "api/admin/rehearsal/agent.ts": {
+            "maxDuration": 30
+          },
+          "api/admin/imports/again.ts": {
+            "maxDuration": 30
+          },
+          "api/admin/imports/website-read.ts": {
+            "maxDuration": 15
+          },
+          "api/admin/calendar/feed.ts": {
+            "maxDuration": 30
+          },
+          "api/admin/rehearsal/call.ts": {
+            "maxDuration": 60
+          },
+          "api/admin/rehearsal/fix.ts": {
+            "maxDuration": 30
+          },
+          "api/admin/rehearsal/review.ts": {
+            "maxDuration": 60
+          },
           "api/admin/reach-out-preview.ts": {
             "maxDuration": 30
           },

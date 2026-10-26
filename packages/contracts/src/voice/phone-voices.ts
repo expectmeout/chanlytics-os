@@ -42,6 +42,14 @@ export const PHONE_VOICES: readonly PhoneVoice[] = [
   voice("minimax-Alejandro", "Alejandro", "Man · Mexican, younger", "minimax-Alejandro.mp3"),
 ];
 
+/**
+ * The voices native to a language a business may answer in first, by the language's name as the profile keeps it: Spanish's
+ * are the two Mexican ones. The first run's How it sounds suggests them where the voice chosen is not one of them.
+ */
+export const PHONE_VOICES_NATIVE_TO: Readonly<Record<string, readonly string[]>> = {
+  Spanish: ["minimax-Claudia", "minimax-Alejandro"],
+};
+
 /** The product's voice: every line provisioned speaks in it (packages/channels VOICE_AGENT_DEFAULTS). */
 export const PHONE_VOICE_DEFAULT = "minimax-Tamsin";
 

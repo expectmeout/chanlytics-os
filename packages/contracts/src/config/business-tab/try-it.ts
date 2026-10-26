@@ -9,7 +9,7 @@ import { replyWhy } from "../brain";
 import { reasonLabelOf } from "../../conversations/escalations";
 import { POLICY_CLASS_WORDS, POLICY_MODE_WORDS, type PolicyMode } from "../workspace-config/policy-classes";
 import { delayWords } from "../../playbooks/playbook-triggers";
-import { MIN_MS } from "../../shared/time";
+import { MIN_MS, SECOND_MS } from "../../shared/time";
 import type { SpendWords } from "../../workspace/billing";
 
 /** The longest message a try may be: the eval door's own bound. */
@@ -73,9 +73,6 @@ export interface TryItVM {
   /** `sends`: it goes on its own now; `waits`: it waits for you first; `yours`: it stays with a person. */
   then: { words: string; tone: "sends" | "waits" | "yours" };
 }
-
-/** A second, for a hold shorter than the minute delayWords counts in. */
-const SECOND_MS = MIN_MS / 60;
 
 /** A hold as a sentence says it: "30 seconds", "2 minutes". delayWords counts whole minutes, which a hold is not. */
 const tryHoldWords = (ms: number): string => {

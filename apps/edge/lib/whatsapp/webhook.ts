@@ -11,7 +11,10 @@
  * and escalation alerts via Resend.
  *
  * Shape: this file is the webhook — verification, the signature, routing by
- * phone number id, and echoes; the statuses are lib/whatsapp/receipts.ts. The
+ * phone number id, and echoes; the statuses are lib/whatsapp/receipts.ts. What
+ * a kept WhatsApp Business app shares (its contacts, its chats' history:
+ * decision 0073, R21) is handed on by the kept delivery's key, and brought in
+ * parts by lib/imports/whatsapp-history.ts. The
  * message path is lib/whatsapp/inbound.ts, the edge's adapter onto the
  * receptionist verb in packages/core/src/inbound; its Postgres bookkeeping
  * lib/whatsapp/persist.ts; the people it tells lib/whatsapp/alerts.ts; its
@@ -48,6 +51,7 @@ import type { WaChangeValue } from "../packages/channels.js";
 import { resolveChannelDetailed, recordEchoAndPause, emitEvent, type RoutedChannel } from "../packages/db.js";
 import { loadTenantRuntime } from "../tenant-runtime.js";
 import { answerHereOrLater } from "./answer-later.js";
+import { handDeliveryOn } from "../imports/history-import.js";
 import { recordReceipts } from "./receipts.js";
 import { pgSafe, IngestFailed } from "./persist.js";
 import { alertUnroutable } from "./alerts.js";
@@ -72,20 +76,65 @@ function signedByMeta(request: Request, raw: string): boolean {
 
 /**
  * Kept as it came, before the verdict (decision 0032, 00336). Meta names no delivery, and a batch may span
- * workspaces: the key is the body's digest, and the workspace is none.
+ * workspaces: the key is the body's digest, and the workspace is none. Says the key and whether the copy was taken:
+ * the kept app's history is brought from that copy, so one not taken is not acknowledged.
  */
-async function keepMetaDelivery(request: Request, raw: string): Promise<void> {
+async function keepMetaDelivery(request: Request, raw: string): Promise<{ key: string; kept: boolean }> {
+  const key = digestId(raw);
   const ledger = pg();
-  if (!ledger) return;
-  await keepDelivery(ledger, {
+  if (!ledger) return { key, kept: false };
+  const kept = await keepDelivery(ledger, {
     provider: "meta",
-    id: digestId(raw),
+    id: key,
     door: "/api/whatsapp",
     url: request.url,
     tenantId: null,
     headers: signatureHeaders(request, ["x-hub-signature-256"]),
     body: raw,
   });
+  return { key, kept };
+}
+
+/** What a kept WhatsApp Business app shares as its number connects (decision 0073, R21): its contacts, and its chats. */
+const HISTORY_FIELDS: ReadonlySet<string> = new Set(["history", "smb_app_state_sync"]);
+
+/**
+ * What a kept WhatsApp Business app shares (decision 0073, R21): its contacts (`smb_app_state_sync`) or a chunk of its
+ * chats (`history`), handed to the history job by the kept delivery's key, which brings it in parts. How many the door
+ * must not acknowledge (0 or 1): one whose number could not be routed, whose copy was not taken, or whose part could not
+ * be scheduled, is Meta's to send again, and the same bytes are the same run (handDeliveryOn), so a redelivery schedules
+ * nothing twice. A number no workspace holds has nothing to bring. The database's to keep, as a message is.
+ */
+async function handHistory(
+  db: ReturnType<typeof pg>,
+  named: string | undefined,
+  delivery: { key: string; kept: boolean },
+  at: { tenantId: string | null; unroutable: boolean; routingFailed: boolean; phoneNumberId: string | undefined },
+): Promise<number> {
+  const field = String(named);
+  if (at.routingFailed) {
+    L.error("wa_skip_routing_failed", { phone_number_id: at.phoneNumberId, [field]: 1 });
+    return 1;
+  }
+  const tenantId = at.unroutable ? null : at.tenantId;
+  if (!db || !tenantId) {
+    L.info("wa_history_unroutable", { field });
+    return 0;
+  }
+  const log = logger({ tenant_id: tenantId });
+  if (!delivery.kept) {
+    log.error("wa_history_not_kept", { field });
+    return 1;
+  }
+  try {
+    const source = field === "history" ? "whatsapp_history" : "whatsapp_contacts";
+    await handDeliveryOn(db, { tenantId, source, deliveryKey: delivery.key });
+    log.info("wa_history_handed", { field });
+    return 0;
+  } catch (e) {
+    log.error("wa_history_not_handed", { field, error: errField(e) });
+    return 1;
+  }
 }
 
 type Echo = NonNullable<WaChangeValue["message_echoes"]>[number];
@@ -140,7 +189,7 @@ async function recordEchoes(db: ReturnType<typeof pg>, routed: RoutedChannel | n
 export async function receiveWhatsappEvent(request: Request): Promise<Response> {
   const raw = await request.text();
   if (!signedByMeta(request, raw)) return refuse(401, "bad_signature");
-  await keepMetaDelivery(request, raw);
+  const delivery = await keepMetaDelivery(request, raw);
 
   interface WebhookBody {
     entry?: Array<{ id?: string; changes?: Array<{ field?: string; value?: WaChangeValue }> }>;
@@ -256,8 +305,8 @@ export async function receiveWhatsappEvent(request: Request): Promise<Response> 
             L.error("wa_skip_routing_failed", { phone_number_id: phoneNumberId, [echoes ? "echoes" : "receipts"]: n });
           } else if (echoes) unrecorded += await recordEchoes(db, routedChannel, echoes);
           else unrecorded += await recordReceipts(db, tenantId, v.statuses ?? []);
-        } else if (field === "history") {
-          L.info("wa_history_sync_batch");
+        } else if (HISTORY_FIELDS.has(String(field))) {
+          unrecorded += await handHistory(db, field, delivery, { tenantId, unroutable, routingFailed, phoneNumberId });
         } else {
           L.info("wa_event", { field });
         }

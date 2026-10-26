@@ -184,11 +184,11 @@ test("Setup does not offer a button the server will refuse", async () => {
   const lineRow = (vm) => vm.rows.find((r) => r.id === "line");
 
   // No plan yet, or a free trial: the number starts the plan, and the row says so and goes where both happen -- the
-  // first run's phone step, whose checkout takes no trial and which starts a trial's plan -- rather than offering a
-  // number the route will refuse with a 402.
+  // first run's Where it answers, where the number is chosen, then Go live, whose checkout starts the plan and which
+  // starts a trial's plan (decision 0073) -- rather than offering a number the route will refuse with a 402.
   for (const status of ["none", "trialing"]) {
     const row = lineRow(setupSteps({ ...base, billing: bill(status) }, Date.now()));
-    assert.deepEqual(row.verb, { label: "Get a number", to: "start/phone" }, status);
+    assert.deepEqual(row.verb, { label: "Get a number", to: "start/channels" }, status);
     assert.equal(row.sentence, "Get a number for calls: it starts your plan.", status);
     assert.doesNotMatch(row.details.join(" "), /trial/i, `${status}: no free number is promised`);
   }

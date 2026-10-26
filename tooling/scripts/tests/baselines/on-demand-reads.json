@@ -210,6 +210,11 @@
     "fresh": "A link to the workspace's file, made when it is fetched.",
     "why": "A file to keep, made when it is fetched: nothing on the page is drawn from it, so there is nothing to keep fresh."
   },
+  "apps/dashboard/src/surfaces/settings/business/rehearse/verbs.ts GET receptionist/rehearsals/[id]": {
+    "kind": "on-open",
+    "fresh": "Read every two seconds while its call runs, and once more as it ends (decision 0069).",
+    "why": "A rehearsal is the owner's own call, three minutes at most, and only the Rehearse card that started it draws it: no other page reads one, so no feed has to tell anyone about it."
+  },
   "apps/dashboard/src/surfaces/campaigns/sequences/leads/reads.ts GET leads/[id]": {
     "kind": "on-open",
     "fresh": "Read as a draft's step sheet previews a lead in it, one lead at a time as ‹ › reaches it, and kept for the tab.",

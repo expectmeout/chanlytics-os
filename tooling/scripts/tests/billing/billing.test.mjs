@@ -404,8 +404,10 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
     "Checkout in subscription mode, the trial applied, the workspace on the subscription",
   );
   assert.ok(
-    lib.includes('const trial = row.stripe_subscription_id || back === "start" ? 0 : trialDays();'),
-    "the trial applies once, and never to the first run's checkout: a number starts the plan",
+    lib.includes(
+      'const trial = row.stripe_subscription_id ? 0 : back === "start" ? FIRST_RUN_TRIAL_DAYS : trialDays();',
+    ),
+    "the trial applies once, and the first run's Go live takes FIRST_RUN_TRIAL_DAYS (decision 0073, D2), as its pane says it",
   );
   // Number("") is 0, not NaN, so a variable created in Vercel and left blank —
   // which is exactly what copying .env.example gives you — read as a deliberate

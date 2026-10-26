@@ -2,7 +2,7 @@ import { replyWhy } from "../brain.js";
 import { reasonLabelOf } from "../../conversations/escalations.js";
 import { POLICY_CLASS_WORDS, POLICY_MODE_WORDS } from "../workspace-config/policy-classes.js";
 import { delayWords } from "../../playbooks/playbook-triggers.js";
-import { MIN_MS } from "../../shared/time.js";
+import { MIN_MS, SECOND_MS } from "../../shared/time.js";
 export const TRY_IT_MAX_CHARS = 500;
 export const TRY_IT_MAX_EXCHANGES = 6;
 export const TRY_IT_WORDS = {
@@ -27,7 +27,6 @@ export const TRY_IT_WORDS = {
   noPersona: "There is nothing for it to answer from yet: fill in Details first."
 };
 export const SPEND_TRY = { before: "trying your receptionist", can: "try your receptionist" };
-const SECOND_MS = MIN_MS / 60;
 const tryHoldWords = (ms) => {
   if (ms >= MIN_MS) return delayWords(ms);
   const s = Math.max(1, Math.round(ms / SECOND_MS));

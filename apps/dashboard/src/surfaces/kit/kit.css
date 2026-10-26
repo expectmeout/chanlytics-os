@@ -2045,6 +2045,8 @@ a.more-item {
 .rec-row-value {
   min-width: 0;
   overflow-wrap: anywhere;
+  /* A value that folds keeps a word or two for its last line: a week of hours never ends on "closed" alone. */
+  text-wrap: pretty;
 }
 .rec-row-empty {
   color: var(--ink-dim);
@@ -2207,6 +2209,11 @@ a.more-item {
 }
 .rec-chips .rec-chip + .rec-chip:not([data-more="true"])::before {
   content: ", ";
+}
+/* Phrases rather than names (the rules a receptionist keeps): parted by a dot, as a row's own value parts its facts, so
+   each keeps its capital and none reads as the middle of a sentence. */
+.rec-chips-phrases .rec-chip + .rec-chip:not([data-more="true"])::before {
+  content: " · ";
 }
 .rec-chips .rec-chip[data-more="true"] {
   color: var(--ink-dim);
@@ -2898,6 +2905,10 @@ a.more-item {
   background: var(--bg-raised);
   font-size: var(--text-base);
   color: var(--ink);
+  /* The hairline and its wash ease in as the box takes the keys, as a button's ground does: no snap. Named, never `all`. */
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
 }
 /* A box that holds the keys: its hairline in the accent and a soft wash around it (tokens.css, --focus-field), over
    the specular edge it keeps. One line; the keyboard's ring over an accent border was two. */
@@ -3847,6 +3858,8 @@ select.rec-input :is(option, optgroup) {
   font-size: var(--text-xs);
   color: var(--quiet-ink);
   cursor: pointer;
+  /* Its ink eases to the hover's, as a button's does. */
+  transition: color var(--duration-fast) var(--ease-out);
 }
 .link-btn-danger {
   color: var(--danger);
