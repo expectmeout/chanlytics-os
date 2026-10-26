@@ -19,6 +19,7 @@ import { frameChrome, frameSurfaceHook, fromWindow } from "./frame-window";
 import { drawRoute } from "./route-table";
 import { appChrome, firstRunScreen, sharedViewer } from "./shell-chrome";
 import {
+  useDeskSidebar,
   useInboxNeeds,
   useNavDrawer,
   usePageFocus,
@@ -79,8 +80,8 @@ export function ChanlyticsApp({
   onTheme,
   look,
   onLook,
-  sidebar = "open",
-  onSidebar = () => {},
+  sidebar: keptSidebar = "open",
+  onSidebar: keepSidebar = () => {},
   inboxDensity,
   showInboxAgentRail,
   routePage = null,
@@ -89,6 +90,8 @@ export function ChanlyticsApp({
   routeNow = null,
   fillDoors = null,
 }: ChanlyticsAppProps) {
+  // The member's kept choice on a wide desk; on a small one, its rail until they open it (shell-hooks.ts useDeskSidebar).
+  const { sidebar, onSidebar } = useDeskSidebar(keptSidebar, keepSidebar);
   const [heard, setRoute] = useState<ShellRoute>(parseRoute());
   const route = routeNow !== null ? routeParts(routeNow) : heard;
   const [askOpen, setAskOpen] = useState(false);

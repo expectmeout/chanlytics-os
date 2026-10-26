@@ -13,9 +13,14 @@ import { SetupCardRow } from "../../setup/rows/card-row";
 import { SetupRows } from "../../setup/rows/rows";
 import { setupVerbs, type SetupSurface } from "../../setup/surface";
 import { appNavigate, refusalFlash, useToast, type Flash } from "../shell";
+import { useNeedsYou } from "../../needs-you";
 
-/** While a step is open: the one row that opens the first run. */
-function startRow(start: NonNullable<SetupCardVM["start"]>, left: string, nav: (to: string) => void) {
+/**
+ * While a step is open: the one row that opens the first run. Its act is the page's coral while nobody waits on the
+ * owner; while someone does, the queue's first act is (need-you/people-rows.tsx actKindOf) and this one is the quiet
+ * kind, since the coral is for what is now (Today stood with Continue setting up and Answer both in it).
+ */
+function startRow(start: NonNullable<SetupCardVM["start"]>, left: string, nav: (to: string) => void, quiet: boolean) {
   return (
     <div className="tq-list">
       <SetupCardRow
@@ -24,7 +29,12 @@ function startRow(start: NonNullable<SetupCardVM["start"]>, left: string, nav: (
         name={start.name}
         sentence={start.sentence}
         left={left}
-        cta={{ label: start.cta, short: start.ctaShort, kind: "primary", onClick: () => nav(start.to) }}
+        cta={{
+          label: start.cta,
+          short: start.ctaShort,
+          kind: quiet ? "ghost" : "primary",
+          onClick: () => nav(start.to),
+        }}
         testid="today-setup-start"
         ctaTestid="today-setup-go"
       />
@@ -116,6 +126,8 @@ function optionalRows(S: SetupSurface, card: SetupCardVM, flash: (flash: Flash) 
 export const TodaySetupCard = ({ S }: { S: SetupSurface }) => {
   // The card's toast, lent to its rows: a Skip or a Hide can take the card away while its Undo is still up.
   const [toastNode, flash] = useToast();
+  // Anyone waiting on the owner (surfaces/needs-you.ts): the queue then holds the page's coral.
+  const waiting = (useNeedsYou() ?? 0) > 0;
   const card = FIRST_RUN_HELPERS.todayCard(S.vm, setupWhoOf(S));
   if (!card) return toastNode;
   const nav = (to: string) => appNavigate(to);
@@ -154,7 +166,7 @@ export const TodaySetupCard = ({ S }: { S: SetupSurface }) => {
           </button>
         ) : null}
       </div>
-      {card.start ? startRow(card.start, card.left, nav) : null}
+      {card.start ? startRow(card.start, card.left, nav, waiting) : null}
       {card.start
         ? ticks(SETUP_CARD_WORDS.keptTitle, card.kept, "today-setup-kept")
         : optionalRows(

@@ -181,9 +181,11 @@ export const settingsOnPhone = (): boolean =>
  * Settings itself uses (SET_TAB), so the two cannot say different things about one route. The bare route is the list
  * of sections on a phone, which is Settings itself and has no way back of its own, and Details on a desk; a retired
  * route answers under its own name, and the back office is found only for the people it exists for -- anyone else
- * lands on Profile, and so does the crumb. On a phone the way back from a section is the crumb before it: the list.
+ * lands on Profile, and so does the crumb. On a phone the way back from a section is the crumb before it: the list. On a
+ * desk the sections are the rail beside the pane, so "Settings" is words with no address, and the frame draws no way
+ * back: it went to the bare address, which on a desk is Details, so "‹ Settings" over Details went nowhere.
  */
 export const settingsCrumbs = (param: string | null) =>
   !param && settingsOnPhone()
     ? ["Settings"]
-    : [{ label: "Settings", to: "admin" }, SET_TAB(param || DETAILS_TAB.id).label];
+    : [settingsOnPhone() ? { label: "Settings", to: "admin" } : "Settings", SET_TAB(param || DETAILS_TAB.id).label];

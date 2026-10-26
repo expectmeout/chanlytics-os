@@ -556,10 +556,13 @@ function emptyThreads(L: ListCtx) {
     title: "Nothing in this view",
     body: "No threads match this saved view right now.",
   };
+  // Needs you with nobody in it and nothing typed is what the pane beside says, as "Inbox zero" (thread.tsx InboxEmpty):
+  // where that pane stands (a desk), this card steps aside for it (inbox.css, .ix-zero-beside), so the page says it once.
+  const saidBeside = activeBucket === "escalated" && !query && !activeView;
   return (
     <EmptyState
       kind="card"
-      className="ix-empty-mini"
+      className={`ix-empty-mini${saidBeside ? " ix-zero-beside" : ""}`}
       glyph={query ? "search" : meta.icon || "check"}
       tone={query ? null : "ok"}
       title={query ? `No matches for "${query}"` : meta.title || "All clear"}

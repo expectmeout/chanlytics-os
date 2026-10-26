@@ -158,6 +158,19 @@
   flex: 1;
 }
 .cv-row-at { font-size: 10.5px; color: var(--ink-dim); flex-shrink: 0; }
+/* On a desk the name keeps its words and the pill gives way (StatePill fit): the line is 278px beside a thread, and
+   "Robin Exa…" stood beside a whole "Receptionist replied". A name longer than two thirds of the line still ends in an
+   ellipsis; the pill stands at the line's end, by the time, as it did. */
+@media (width > 900px) {
+  .cv-row-who {
+    flex: none;
+    max-width: 65%;
+  }
+  .cv-row-state {
+    flex: 1 1 auto;
+    text-align: right;
+  }
+}
 .cv-row-snippet {
   font-size: 11.5px;
   color: var(--ink-dim);
@@ -213,9 +226,12 @@
    must not look like part of the conversation. They were indistinguishable:
    a live account showed the same text twice, and one of the two had been
    canceled before it ever left. Dashed and dimmed, with the reason in the
-   meta line — legible, but visibly not something anyone read. */
-.tl-msg.undelivered .tl-msg-bubble {
-  opacity: 0.62;
+   meta line — legible, but visibly not something anyone read. The bubble
+   itself is the dashed one, at every width: the bubble's frame stands as wide
+   as the thread (inbox.css .ix-thread-pane .tl-msg-bubble), so a dashed frame
+   drew a box across the whole conversation on a desk. */
+.tl-msg.undelivered .tl-msg-body {
+  opacity: 0.7;
   border: 1px dashed var(--line-strong);
   background: transparent;
 }

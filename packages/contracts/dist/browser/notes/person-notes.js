@@ -91,12 +91,14 @@ function noteStepOf(n, tz, nowMs) {
   const doneMs = n.done_at ? Date.parse(n.done_at) : NaN;
   if (!Number.isFinite(doneMs)) return { day, due: day.due, words: day.words, done: false, doneWords: null };
   const who = n.done_by_me ? "you" : (n.done_by_name ?? "").trim() || "a former teammate";
+  const byWriter = n.author_kind === "member" && (n.mine ? !!n.done_by_me : !n.done_by_me && !!n.done_by_name && n.done_by_name.trim() === n.author_name?.trim());
+  const when = clockShort(doneMs, tz, nowMs);
   return {
     day,
     due: day.due,
     words: NOTE_WORDS.done,
     done: true,
-    doneWords: `${NOTE_WORDS.done} by ${who} \xB7 ${clockShort(doneMs, tz, nowMs)}`
+    doneWords: byWriter ? `${NOTE_WORDS.done} \xB7 ${when}` : `${NOTE_WORDS.done} by ${who} \xB7 ${when}`
   };
 }
 export function personNotesVM(notes, tz, nowMs) {

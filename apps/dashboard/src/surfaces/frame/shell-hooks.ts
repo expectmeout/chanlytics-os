@@ -19,6 +19,29 @@ const ROUTE_UNAVAILABLE_MS = 8000;
 const ROUTE_WAIT_FALLBACK_MS = 3000;
 /** Where the sidebar stands beside the page. */
 const DESK_MIN_PX = 900;
+/** A small desk: over the phone's drawer, and at or under tokens.css --bp-desk. */
+const SMALL_DESK_QUERY = "(width > 900px) and (width <= 1280px)";
+
+/**
+ * Where the sidebar stands, as the frame draws it: the member's kept choice on a wide desk, and on a small one its rail
+ * until they open it for this visit, so the page keeps its room. At 1024px the open sidebar left the Inbox's thread 348px
+ * beside its 360px list, and People's table showed half its columns. A press there is the visit's and is not kept, so
+ * their choice for a wide desk stands.
+ */
+export function useDeskSidebar(sidebar: string, onSidebar: (v: string) => void) {
+  const smallDesk = () => typeof window.matchMedia === "function" && window.matchMedia(SMALL_DESK_QUERY).matches;
+  const [small, setSmall] = useState(smallDesk);
+  const [here, setHere] = useState("rail");
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return undefined;
+    const list = window.matchMedia(SMALL_DESK_QUERY);
+    const hear = () => setSmall(list.matches);
+    list.addEventListener("change", hear);
+    return () => list.removeEventListener("change", hear);
+  }, []);
+  const choose = useCallback((v: string) => (small ? setHere(v) : onSidebar(v)), [small, onSidebar]);
+  return { sidebar: small ? here : sidebar, onSidebar: choose };
+}
 
 /**
  * What needs you, for the sidebar's and the phone bar's count and the tab's title: the one number every surface says

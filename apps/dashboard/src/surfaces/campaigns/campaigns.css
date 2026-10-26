@@ -2598,6 +2598,19 @@ section:has(> .tpl-composer:not(.is-translate)) {
 .cm-split[data-open] {
   grid-template-columns: var(--rail-list) minmax(0, 1fr);
 }
+/* A list that keeps the Inbox's column with nothing open (CmSplit keepPane: Sequences) stands beside an empty pane on a
+   desk, so opening a sequence fills the pane rather than snapping the list from the page's width to 360 and back. A
+   phone's list is the screen, and draws no empty pane. */
+@media (width > 900px) {
+  .cm-split[data-keep-pane] {
+    grid-template-columns: var(--rail-list) minmax(0, 1fr);
+  }
+}
+@media (max-width: 900px) {
+  .cm-split > .cm-pane.cm-pane-none {
+    display: none;
+  }
+}
 .cm-split > :is(.cm-list, .cm-pane) {
   display: flex;
   flex-direction: column;

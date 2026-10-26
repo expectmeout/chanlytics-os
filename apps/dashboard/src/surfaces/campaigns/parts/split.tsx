@@ -81,13 +81,19 @@ interface CmSplitProps {
    * side it comes in from (people/scope-view.ts), on the root, which is the view the deck moves.
    */
   view?: CmView;
+  /**
+   * On a desk the list keeps the Inbox's column with nothing open, an empty pane beside it, as the Inbox's list does
+   * (Sequences: a list of two-line rows that stood 1,138px wide at 1440, then snapped to 360 as a sequence opened and back
+   * as it closed). A list that is a wide table of its own (Messages) leaves it off and takes the room.
+   */
+  keepPane?: boolean;
 }
 
 /**
  * The page: the list's pane and, while something is open, its pane. The root is the page's (the direct child of the
  * frame's .main-scroll), so it is what says the screen is taken over.
  */
-export function CmSplit({ list, open, className, testid, view }: CmSplitProps) {
+export function CmSplit({ list, open, className, testid, view, keepPane = false }: CmSplitProps) {
   const opened = open !== null && open !== undefined && open !== false;
   return (
     <div
@@ -95,13 +101,18 @@ export function CmSplit({ list, open, className, testid, view }: CmSplitProps) {
       data-slide={view?.slide}
       className={cx("cm-split", className)}
       data-open={opened ? "true" : undefined}
+      data-keep-pane={keepPane ? "true" : undefined}
       data-takeover={opened && view?.shown !== false ? "true" : undefined}
       data-testid={testid}
     >
       <Panel as="section" size="flush" className="cm-list">
         {list}
       </Panel>
-      {opened ? open : null}
+      {opened ? (
+        open
+      ) : keepPane ? (
+        <Panel as="section" size="flush" className="cm-pane cm-pane-none" aria-hidden />
+      ) : null}
     </div>
   );
 }

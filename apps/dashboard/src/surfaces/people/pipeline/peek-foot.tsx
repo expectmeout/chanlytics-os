@@ -103,6 +103,12 @@ function caretOf(c: DealSheetCtx, trigger: ReactElement): ReactElement | null {
   return <Menu label={S.more(c.vm.sub)} groups={groups} trigger={trigger} />;
 }
 
+/**
+ * The foot's buttons: a thumb's height on a phone; on a desk the large size a page's head act takes (the person page's
+ * Open the thread), since a pointer needs no 44px and the pane stood with a 44px coral bar under 300px of deal.
+ */
+const footSize = (c: DealSheetCtx): "touch" | "lg" => (c.phone ? "touch" : "lg");
+
 /** The one act, its caret beside it in the same pill; a client's is Message; with neither, the caret alone as More. */
 function leadPill(c: DealSheetCtx): ReactElement | null {
   const { lead, card } = c.sheet;
@@ -111,7 +117,7 @@ function leadPill(c: DealSheetCtx): ReactElement | null {
     <Button
       variant="primary"
       iconOnly
-      size="touch"
+      size={footSize(c)}
       className="pipe-deal-lead-more"
       aria-label={more}
       data-testid="pipeline-peek-more"
@@ -123,7 +129,7 @@ function leadPill(c: DealSheetCtx): ReactElement | null {
   if (!lead && !message) {
     return caretOf(
       c,
-      <Button size="touch" className="pipe-deal-lead-alone" data-testid="pipeline-peek-more">
+      <Button size={footSize(c)} className="pipe-deal-lead-alone" data-testid="pipeline-peek-more">
         {more} <Icon name="chevron-down" size={14} />
       </Button>,
     );
@@ -134,7 +140,7 @@ function leadPill(c: DealSheetCtx): ReactElement | null {
     <span className="pipe-deal-lead" data-testid="pipeline-peek-lead">
       <Button
         variant="primary"
-        size="touch"
+        size={footSize(c)}
         className="pipe-deal-lead-act"
         title={lead?.act.hint || undefined}
         onClick={press}
@@ -201,7 +207,7 @@ export function dealFoot(c: DealSheetCtx, call: CallCtx, passing: boolean, endPa
       {!leadIsMessage && mayMessage(c) ? (
         <Button
           iconOnly
-          size="touch"
+          size={footSize(c)}
           variant="quiet"
           className="pipe-deal-circle"
           aria-label={S.message}

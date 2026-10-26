@@ -135,6 +135,7 @@ export function SequencesPage({ route, view }: { route: string; view?: CmView })
       testid="sq-page"
       className="sq-page"
       view={view}
+      keepPane
       list={<SequencesListPane openId={place.view === "record" ? place.id : null} />}
       open={open}
     />

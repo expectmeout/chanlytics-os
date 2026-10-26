@@ -43,6 +43,14 @@
 /* The page region and its heading take focus when a move to another page puts it there (surfaces/frame/shell-hooks.ts focusPage): a place
    to read from, not a control, so no ring drawn round the whole page. */
 .main-scroll:focus, .main-scroll :is(h1, h2, [role="heading"])[tabindex="-1"]:focus { outline: none; }
+/* A desk's page that has scrolled under the top bar or its strip fades out there, as a phone's does under its top
+   (mobile.css .frame-top[data-under]): it was cut at a hard edge, a card's title halved under Reports' strip and
+   Today's bar. Only while scrolled (frame-top.ts watchPageEdges): a mask makes the box a backdrop root. */
+@media (width > 900px) {
+  :is(.main-scroll, .rpt, .set-pane, .cl-profile)[data-scrolled] {
+    mask-image: linear-gradient(to bottom, transparent, #000 18px);
+  }
+}
 /* The first stop for Tab, a way past the sidebar and the bars to the page: drawn only while it has focus. */
 .skip-link { position: absolute; left: 12px; top: 12px; z-index: 500; padding: 8px 14px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); color: var(--ink); font-size: var(--text-sm); box-shadow: var(--shadow-md); }
 .skip-link:not(:focus) { width: 1px; height: 1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; box-shadow: none; }

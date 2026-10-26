@@ -166,6 +166,34 @@ function phoneBarWords(s: PipelineState) {
   );
 }
 
+/**
+ * Which view is open, as People's and Leads' heads say which list is (.cl-section-head, the same classes): its name, and
+ * the way back to every deal. The Pipeline had none on a desk, so its table started 33px higher than the two tabs' beside
+ * it, and a change of tab moved the head of the table.
+ */
+function listHead(s: PipelineState) {
+  const { r, pickView } = s;
+  return (
+    <div className="cl-section">
+      <div className="cl-section-head" data-testid="pipeline-list-head">
+        <div className="cl-section-lead">
+          <span className="cl-section-title">{P.viewLabel(r.view, r.pace)}</span>
+          {r.view !== "all" ? (
+            <button
+              type="button"
+              className="cl-bucket-link"
+              onClick={() => pickView("all")}
+              data-testid="pipeline-show-all"
+            >
+              Show all deals
+            </button>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** The controls row: the search, which columns show, the list or the board, and the page's one filled button. */
 function controlsRow(s: PipelineState) {
   const { f, r } = s;
@@ -433,6 +461,7 @@ export function pipelineScreen(s: PipelineState) {
         <div className="cl-main-scroll pl-main" ref={scrollRef}>
           {phone ? phoneFilters(s) : standingLine(s)}
           {!phone && controlsRow(s)}
+          {!phone && listHead(s)}
           {rowsView(s)}
         </div>
         {peekBlock(s)}

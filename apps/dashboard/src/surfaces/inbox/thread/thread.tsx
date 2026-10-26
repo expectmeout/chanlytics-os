@@ -107,6 +107,11 @@ export interface InboxThreadProps {
   onPlanParam?: (i: number) => void;
   notice?: ReactNode;
   focusMessageId?: string | null;
+  /**
+   * What the pane says with no thread open: `zero` under Needs you, the Inbox's "Inbox zero"; `quiet` under any other
+   * bucket or a saved view, an empty pane, since the list beside it says what is empty there in that bucket's words.
+   */
+  nothingOpen?: "zero" | "quiet";
 }
 
 /** The props with what the page did without each: its Back none, its handlers nothing, its countdown unread. */
@@ -424,7 +429,7 @@ export const InboxThread = (props: InboxThreadProps) => {
   }, [real, entries]);
   // A long thread is drawn from its newest entries, and the ones before as its top is scrolled near (earlier.ts).
   const earlier = useEarlierAsScrolled(thread, focusMessageId, scrollRef);
-  if (!thread) return <InboxEmpty />;
+  if (!thread) return <InboxEmpty quiet={props.nothingOpen === "quiet"} />;
 
   const decided = !!thread.resolution;
   const newestSaid = ixNewestSaid(thread.timeline);
@@ -496,8 +501,11 @@ export const InboxThread = (props: InboxThreadProps) => {
 // the search, clear of the tab bar. It stood in the middle of the pane on a desk, under the window's own middle, and at
 // the foot of a phone's screen with its button under the tab bar (Ruben, 7 Oct 2026). While a campaign run waits for your
 // say (a row of Needs you, pages/inbox-runs.tsx) it says so, with the door to the one run: it said "Inbox zero" beside it.
-const InboxEmpty = () => {
+// Under another bucket the pane stands empty (`quiet`): it said "Inbox zero" beside "Nothing snoozed". Its act is the
+// quiet one: the page's one coral is New conversation, above it.
+const InboxEmpty = ({ quiet = false }: { quiet?: boolean }) => {
   const runs = useNeedsYouParts()?.runs ?? 0;
+  if (quiet) return <EmptyState kind="page" className="ix-zero" testid="inbox-nothing-open" />;
   const [only] = runs === 1 ? waitingRunsNow() : [];
   if (runs > 0)
     return (
@@ -518,7 +526,7 @@ const InboxEmpty = () => {
       glyph="inbox"
       title="Inbox zero"
       body="The receptionist is handling everything. Anything that needs your call appears here."
-      action={{ label: "See what it handled", to: "conversations" }}
+      also={{ label: "See what it handled", to: "conversations" }}
       testid="inbox-empty"
     />
   );

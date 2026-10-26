@@ -123,6 +123,11 @@ export type SheetProps = SheetShape & {
    * (`note:<person>`, so a reload opens it again). Left off where the page's own address already holds the sheet.
    */
   backCloses?: boolean | string;
+  /**
+   * On a desk it is as tall as what it holds, never past the window's height: a short read (the Calendar's Hours and
+   * rules) stood in a pane as tall as the window, 700px of it empty (kit.css, "A fitted sheet").
+   */
+  fit?: boolean;
 };
 
 /** Base UI's closing state, in the kit's word for it: a sheet on its way out (kit.css, `[data-leaving]`). */
@@ -293,6 +298,7 @@ export function Sheet(props: SheetProps) {
           initialFocus={initialFocus ?? firstFocus}
           className={cx("sheet", shown.kicker && "sheet-kicker", shown.rest && "sheet-rests", className)}
           data-foot-closes={shown.footCloses ? "true" : undefined}
+          data-fit={shown.fit ? "true" : undefined}
           data-rest={shown.rest ? shown.rest.at : undefined}
           data-testid={testid}
           {...(shown.rest

@@ -13,7 +13,7 @@ import { useEffect, useLayoutEffect, useState, useSyncExternalStore } from "reac
 import { createPortal } from "react-dom";
 import { knownZone } from "@/legacy-bridge/zone";
 import { pageDatelineParts, useMinute } from "./dateline";
-import { watchFrameTop } from "./frame-top";
+import { watchFrameTop, watchPageEdges } from "./frame-top";
 import { watchPageGive } from "../motion/page-give";
 import { PageHead } from "./page-head";
 import { crumbLabel, useCrumbsShown, useStandingSaid } from "./standing";
@@ -236,6 +236,8 @@ export function FrameHead({ look }: { look: string }) {
   useLayoutEffect(() => (column && typeof ResizeObserver === "function" ? watchFrameTop(column) : undefined), [column]);
   // And the top holds under a pull past the page's end, where the page gives way by itself (page-give.ts).
   useEffect(() => (column ? watchPageGive(window) : undefined), [column]);
+  // A desk's page fades out under the bar or its strip once it has scrolled (frame-top.ts watchPageEdges).
+  useEffect(() => watchPageEdges(), []);
   if (!places || !places.head) return null;
   return (
     <>

@@ -295,6 +295,8 @@ function threadPane(ix: InboxRecord, onOpenClient: NonNullable<InboxProps["onOpe
       thread={activeThread}
       onBack={closeThread}
       onOpenClient={onOpenClient}
+      // Nobody open: "Inbox zero" under Needs you alone; any other bucket's list says its own empty in its words.
+      nothingOpen={ix.activeBucket === "escalated" && !ix.activeView ? "zero" : "quiet"}
       flash={ppFlash}
       mock={{
         stale: stale && activeThread && stale.threadId === activeThread.id ? stale : null,

@@ -146,6 +146,9 @@ export function wholeDaysSince(atMs: number | null, nowMs: number): number | nul
   return atMs === null ? null : Math.max(0, Math.floor((nowMs - atMs) / DAY_MS));
 }
 
+/** That count in words, "8 d", and "today" on the day it began: "Proposal out · 0 d" read as a fault (26 Oct 2026). */
+export const daysInStageWords = (days: number): string => (days === 0 ? "today" : `${days} d`);
+
 /** When the stage began: the proposal's send, the answer, or the end. */
 export function dealSinceMs(d: DealFacts): number | null {
   const at =
@@ -230,7 +233,7 @@ export function toDealVM(
   const facts = [d.service, since, amount].filter((x): x is string => !!x).join(" · ");
   const brief =
     d.stage === "proposed"
-      ? `${word} · ${waitingDays ?? 0} d`
+      ? `${word} · ${daysInStageWords(waitingDays ?? 0)}`
       : d.stage === "won"
         ? [word, d.service].filter((x): x is string => !!x).join(" · ")
         : null;
