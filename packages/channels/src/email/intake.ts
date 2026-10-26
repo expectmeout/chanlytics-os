@@ -211,6 +211,14 @@ export function senderAuthenticated(e: Pick<ReceivedEmail, "from" | "headers" | 
   return said.dmarc === "pass" || (said.dkim === "pass" && DMARC_SAID_NOTHING.has(said.dmarc));
 }
 
+/**
+ * A sender that says nobody reads what is sent back: no-reply and do-not-reply, however spelled, as a word of the
+ * address's local part (noreply@, noreply-dmarc-support@, workspace-noreply@, no-reply-7uz…@). Google's DMARC reports
+ * and account alerts carry none of the automated headers, and a mailbox's first six months took them in as people
+ * (26 Oct 2026).
+ */
+const NO_REPLY = /(?:^|[-_.+])(?:no[-_.]?reply|do[-_.]?not[-_.]?reply)(?:[-_.+]|$)/i;
+
 export function classifyReceived(e: Pick<ReceivedEmail, "headers" | "from" | "subject" | "text">): EmailClaim {
   const h = e.headers;
   const local = e.from?.address.split("@")[0] ?? "";
@@ -233,7 +241,8 @@ export function classifyReceived(e: Pick<ReceivedEmail, "headers" | "from" | "su
     (auto && auto !== "no") ||
     /^(bulk|list|junk)$/i.test((h.precedence ?? "").trim()) ||
     "list-id" in h ||
-    "list-unsubscribe" in h
+    "list-unsubscribe" in h ||
+    NO_REPLY.test(local)
   )
     return "automated";
   return "person";

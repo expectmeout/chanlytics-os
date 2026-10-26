@@ -60,6 +60,11 @@ test("a source's line says what came and how far back, in its own words, and whe
     importLineOf(row("mailbox", "running", { messages: 300, dropped: 1200 }, { oldest: "2026-03-07T00:00:00Z" })).says,
     `Email from people, back to ${back} · 1,200 others dropped`,
   );
+  assert.equal(
+    importLineOf(row("mailbox", "done", { messages: 96, dropped: 4, unreadable: 1 })).says,
+    "Email from people · 4 others dropped · 1 couldn't be read",
+    "a message the mailbox refused to hand over, counted apart",
+  );
   assert.equal(importLineOf(row("whatsapp_contacts", "done", { people: 30 })).says, "30, into People");
   assert.equal(importLineOf(row("whatsapp_history", "running")).says, "Chats from the last six months");
   assert.equal(

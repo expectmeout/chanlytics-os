@@ -1072,6 +1072,23 @@ function normalizeInbound(m, value) {
     referral: adReferralOf(m.referral)
   };
 }
+function inboundFromWhatsapp(m, value) {
+  const n = normalizeInbound(m, value);
+  return {
+    channel: "whatsapp",
+    externalId: n.messageId,
+    identity: { externalId: n.waId, phoneE164: n.phoneDigits ? `+${n.phoneDigits}` : null, email: null },
+    profileName: n.profileName,
+    type: n.type,
+    kind: n.kind,
+    rawType: n.rawType,
+    body: n.body,
+    channelTsIso: n.channelTsIso,
+    media: n.media,
+    consent: { optOut: n.optOut, optIn: n.optIn, optInMarketing: n.optInMarketing },
+    referral: n.referral
+  };
+}
 var PRICING_WORD = /^[A-Za-z0-9_-]{1,40}$/;
 function waPricingOf(raw) {
   if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return null;
@@ -2937,7 +2954,13 @@ async function channelStep(run) {
 }
 
 // src/lines/sms.ts
-import { LINE_CODES_MAX, LINE_CODES_WITHIN_MS, utf8Bytes } from "../../contracts/dist/index.js";
+import {
+  CONVERSATION_OPT_IN_PATTERN as CONVERSATION_OPT_IN_PATTERN2,
+  LINE_CODES_MAX,
+  LINE_CODES_WITHIN_MS,
+  MARKETING_OPT_IN_PATTERN as MARKETING_OPT_IN_PATTERN2,
+  utf8Bytes
+} from "../../contracts/dist/index.js";
 function smsInboundFrom(form3) {
   const messageSid = form3.MessageSid || form3.SmsSid || "";
   const from = form3.From || "";
@@ -2963,18 +2986,39 @@ function smsInboundFrom(form3) {
   };
 }
 function smsAsWaMessage(s, nowMs = Date.now()) {
-  const digits = s.from.replace(/[^\d]/g, "");
-  const words = s.body.trim();
-  const base = { from: digits, id: s.messageSid, timestamp: String(Math.floor(nowMs / 1e3)) };
-  if (words)
-    return {
-      ...base,
-      type: "text",
-      text: {
-        body: s.numMedia > 0 ? `${words} [with ${s.numMedia === 1 ? "a picture" : `${s.numMedia} pictures`}]` : words
-      }
-    };
+  const words = textWithPictures(s);
+  const base = { from: senderDigits(s), id: s.messageSid, timestamp: String(Math.floor(nowMs / 1e3)) };
+  if (words) return { ...base, type: "text", text: { body: words } };
   return { ...base, type: s.numMedia > 0 ? "image" : "unsupported" };
+}
+var senderDigits = (s) => s.from.replace(/[^\d]/g, "");
+function textWithPictures(s) {
+  const words = s.body.trim();
+  if (!words) return null;
+  return s.numMedia > 0 ? `${words} [with ${s.numMedia === 1 ? "a picture" : `${s.numMedia} pictures`}]` : words;
+}
+function inboundFromSms(s, nowMs = Date.now()) {
+  const digits = senderDigits(s);
+  const body = textWithPictures(s);
+  const carrier = mergeConsent(carrierConsent(s), smsKeywordConsent(s.body));
+  return {
+    channel: "sms",
+    externalId: s.messageSid,
+    identity: { externalId: digits, phoneE164: digits ? `+${digits}` : null, email: null },
+    profileName: null,
+    type: body ? "text" : "media",
+    kind: body ? "text" : "unsupported",
+    rawType: body ? "text" : s.numMedia > 0 ? "image" : "unsupported",
+    body,
+    channelTsIso: new Date(Math.floor(nowMs / 1e3) * 1e3).toISOString(),
+    media: null,
+    consent: {
+      optOut: !!carrier?.optOut,
+      optIn: body !== null && CONVERSATION_OPT_IN_PATTERN2.test(body) || !!carrier?.optIn,
+      optInMarketing: body !== null && MARKETING_OPT_IN_PATTERN2.test(body)
+    },
+    referral: null
+  };
 }
 function carrierConsent(s) {
   if (s.optOutType === "STOP") return { optOut: true, optIn: false };
@@ -3405,6 +3449,7 @@ function senderAuthenticated(e) {
   if (!said || !oneMailbox(e.from) || !oneMailbox(own) || own.address !== e.from.address) return false;
   return said.dmarc === "pass" || said.dkim === "pass" && DMARC_SAID_NOTHING.has(said.dmarc);
 }
+var NO_REPLY = /(?:^|[-_.+])(?:no[-_.]?reply|do[-_.]?not[-_.]?reply)(?:[-_.+]|$)/i;
 function classifyReceived(e) {
   const h = e.headers;
   const local = e.from?.address.split("@")[0] ?? "";
@@ -3414,7 +3459,7 @@ function classifyReceived(e) {
   const auto = (h["auto-submitted"] ?? "").trim().toLowerCase();
   if (auto.startsWith("auto-replied") || "x-autoreply" in h || "x-autorespond" in h || /^auto[_-]?reply$/i.test((h.precedence ?? "").trim()))
     return "auto_reply";
-  if (auto && auto !== "no" || /^(bulk|list|junk)$/i.test((h.precedence ?? "").trim()) || "list-id" in h || "list-unsubscribe" in h)
+  if (auto && auto !== "no" || /^(bulk|list|junk)$/i.test((h.precedence ?? "").trim()) || "list-id" in h || "list-unsubscribe" in h || NO_REPLY.test(local))
     return "automated";
   return "person";
 }
@@ -3946,6 +3991,9 @@ function grantHolds(provider, granted, reach) {
 import { MIN_MS as MIN_MS3 } from "../../contracts/dist/index.js";
 var dec2 = new TextDecoder();
 var MAILBOX_READ_MS = 1e4;
+function oneMessageRefused(status) {
+  return status >= 400 && status < 500 && status !== 401 && status !== 404 && status !== 408 && status !== 429;
+}
 var FIND_SENT_SLACK_MS = 2 * MIN_MS3;
 var FIND_SENT_LOOKS = 3;
 function decodedText(bytes, charset) {
@@ -4133,6 +4181,10 @@ function graphDayUsed(r) {
 function graphSignedOut(r) {
   const code = graphReasonOf(r) ?? "";
   return r.status === 401 || /InvalidAuthenticationToken|MailboxNotEnabledForRESTAPI|ErrorAccessDenied|ErrorSendAsDenied/i.test(code);
+}
+function graphReadRefusal(r) {
+  const reason = graphReasonOf(r);
+  return oneMessageRefused(r.status) && !/throttl|limit|quota/i.test(reason ?? "") ? { status: r.status, reason } : null;
 }
 async function graphMe(token, deps) {
   const r = await providerFetch(
@@ -4831,6 +4883,10 @@ function gmailWordsOf(r) {
 }
 function gmailSignedOut(r) {
   return r.status === 401 || r.status === 403 && /insufficientPermissions|forbidden/i.test(gmailReasonOf(r) ?? "");
+}
+function gmailReadRefusal(r) {
+  const reason = gmailReasonOf(r);
+  return oneMessageRefused(r.status) && !/limit|quota|exhausted/i.test(reason ?? "") ? { status: r.status, reason } : null;
 }
 async function gmailSend(token, mime, threadId, p = {}, deps) {
   const reply = await providerFetch(
@@ -6930,6 +6986,7 @@ export {
   gmailNoMailbox,
   gmailProfile,
   gmailPushOf,
+  gmailReadRefusal,
   gmailReports,
   gmailSend,
   gmailSentIds,
@@ -6960,6 +7017,7 @@ export {
   graphMessage,
   graphNoMailbox,
   graphNotificationsOf,
+  graphReadRefusal,
   graphRenew,
   graphSend,
   graphSignedOut,
@@ -6972,6 +7030,8 @@ export {
   idTokenClaims,
   imageBytes,
   importPhoneNumber,
+  inboundFromSms,
+  inboundFromWhatsapp,
   isAreaCode,
   isBrandNotReady,
   isEmailRequest,

@@ -1,7 +1,8 @@
 /**
  * SMS on a Chanlytics line, the pure parts: Twilio's inbound webhook read
  * into one shape, that shape handed to the WhatsApp handler as the message
- * it already knows how to answer, the signature every inbound request must
+ * it already knows how to answer, or made into the one inbound shape without
+ * it (inboundFromSms, decision 0001), the signature every inbound request must
  * carry, the footer the first reply carries, and the words a held text
  * shows. Nothing here touches the network; the edge supplies fetch and the
  * vault, the tests supply fixtures.
@@ -12,9 +13,17 @@
  * exact URL plus every POST field sorted by name with its value appended,
  * keyed with the auth token of the account the number belongs to, base64.
  */
-import { LINE_CODES_MAX, LINE_CODES_WITHIN_MS, utf8Bytes, type LineCodeDto } from "@chanlytics/contracts";
+import {
+  CONVERSATION_OPT_IN_PATTERN,
+  LINE_CODES_MAX,
+  LINE_CODES_WITHIN_MS,
+  MARKETING_OPT_IN_PATTERN,
+  utf8Bytes,
+  type LineCodeDto,
+} from "@chanlytics/contracts";
 import type { ReceivedText } from "./lines";
 import type { NormalizedInbound, WaRawMessage } from "../whatsapp";
+import type { InboundMessage } from "../inbound";
 import { asksToStop } from "../stop-request";
 
 /** Twilio's inbound message, the fields the product reads. */
@@ -66,18 +75,51 @@ export function smsInboundFrom(form: Record<string, string>): SmsInbound | null 
  * WhatsApp id takes, so one person is one thread across both channels.
  */
 export function smsAsWaMessage(s: SmsInbound, nowMs = Date.now()): WaRawMessage {
-  const digits = s.from.replace(/[^\d]/g, "");
-  const words = s.body.trim();
-  const base = { from: digits, id: s.messageSid, timestamp: String(Math.floor(nowMs / 1000)) };
-  if (words)
-    return {
-      ...base,
-      type: "text",
-      text: {
-        body: s.numMedia > 0 ? `${words} [with ${s.numMedia === 1 ? "a picture" : `${s.numMedia} pictures`}]` : words,
-      },
-    };
+  const words = textWithPictures(s);
+  const base = { from: senderDigits(s), id: s.messageSid, timestamp: String(Math.floor(nowMs / 1000)) };
+  if (words) return { ...base, type: "text", text: { body: words } };
   return { ...base, type: s.numMedia > 0 ? "image" : "unsupported" };
+}
+
+/** The sender's digits: the thread key, the same form a WhatsApp id takes, so one person is one thread on both wires. */
+const senderDigits = (s: SmsInbound): string => s.from.replace(/[^\d]/g, "");
+
+/** What a text says: its words, with its pictures noted after them; null when it has no words. */
+function textWithPictures(s: SmsInbound): string | null {
+  const words = s.body.trim();
+  if (!words) return null;
+  return s.numMedia > 0 ? `${words} [with ${s.numMedia === 1 ? "a picture" : `${s.numMedia} pictures`}]` : words;
+}
+
+/**
+ * The inbound text as the one inbound shape (inbound.ts, decision 0001), read from Twilio's fields with no WhatsApp
+ * message on the way, and exactly what that road made of it (smsAsWaMessage, the normaliser, the carrier's verdict).
+ * Words are a text; a picture alone, or nothing, is "unsupported", which the receptionist acknowledges as it does a
+ * sticker. It came the second it reached us. A stop is the carriers' own words for a line, which hold every word and
+ * sentence the normaliser reads as one and more (stop-request.ts), or the carrier's verdict, which outranks the words.
+ */
+export function inboundFromSms(s: SmsInbound, nowMs = Date.now()): InboundMessage {
+  const digits = senderDigits(s);
+  const body = textWithPictures(s);
+  const carrier = mergeConsent(carrierConsent(s), smsKeywordConsent(s.body));
+  return {
+    channel: "sms",
+    externalId: s.messageSid,
+    identity: { externalId: digits, phoneE164: digits ? `+${digits}` : null, email: null },
+    profileName: null,
+    type: body ? "text" : "media",
+    kind: body ? "text" : "unsupported",
+    rawType: body ? "text" : s.numMedia > 0 ? "image" : "unsupported",
+    body,
+    channelTsIso: new Date(Math.floor(nowMs / 1000) * 1000).toISOString(),
+    media: null,
+    consent: {
+      optOut: !!carrier?.optOut,
+      optIn: (body !== null && CONVERSATION_OPT_IN_PATTERN.test(body)) || !!carrier?.optIn,
+      optInMarketing: body !== null && MARKETING_OPT_IN_PATTERN.test(body),
+    },
+    referral: null,
+  };
 }
 
 /**

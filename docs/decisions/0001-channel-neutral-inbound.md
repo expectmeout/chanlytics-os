@@ -1,7 +1,8 @@
 # 0001 · A channel-neutral inbound pipeline
 
-**Status:** decided. Step 1 built (28 September 2026: the extraction into `packages/core/src/inbound/`, "As built"
-below); steps 2 to 8 to come. Written against commit `b729bdf`, and verified
+**Status:** decided. Steps 1 and 2 built: the extraction into `packages/core/src/inbound/` (28 September 2026, "As
+built" below), and the one inbound shape, which the message path takes beside WhatsApp's (26 October 2026, "As built,
+step 2" below); steps 3 to 8 to come. Its five questions answered 26 October 2026 (below). Written against commit `b729bdf`, and verified
 against the code at it, with the working tree as it stood. Where this note and
 the code disagree, the code wins.
 
@@ -180,6 +181,25 @@ export interface InboundMessage {
 already, minus the channel and with `waId`/`phoneDigits` in place of
 `identity`. The adapter is a rename plus a widening, not an invention.
 
+**As built, step 2** (26 October 2026, against `a8d4a5144`): `InboundMessage` is in
+`packages/channels/src/inbound.ts`, with two changes to the shape above. It has no
+`extra`: nothing reads one yet, so an email's headers or a DM's story reply arrive
+typed, with the step that reads them. It has `referral`, the ad or post a WhatsApp
+message came from (K3), which the normaliser gained after this note. Its channel is
+every `ChannelKind` but `voice`, with no name of its own, so core's two-valued
+`InboundChannel` (`packages/core/src/inbound/ports.ts`) keeps its name and widens at
+step 6 alone; its media is `WaMediaRef` as it is. `inboundFromWhatsapp` is the
+normaliser renamed and widened. `inboundFromSms` reads Twilio's fields with no
+WhatsApp message on the way and makes, field for field, what `smsAsWaMessage`, the
+normaliser and the carrier's verdict made of the same text; `smsAsWaMessage` stays
+until step 3. The message path takes either shape: `InboundInput` is today's
+`{ message, raw }` or `{ inbound }`, the one shape with its own wire's carrier (none
+for WhatsApp, the line's for a text: `answer.type-test.ts`), and `openInbound` reads
+the one shape as the phases read a message today (`readAsToday` in `context.ts`), so
+no phase changed. `tooling/scripts/tests/inbound/inbound-shape.test.mjs` holds the
+adapters to today's road, and `either-shape.test.mjs` beside it runs the verb over
+the same messages in both shapes and finds the same calls across every port.
+
 ### The module layout
 
 ```
@@ -258,7 +278,14 @@ exported type changes no wire and no row.
 `inboundFromSms` and stops passing `{}` as a Meta envelope;
 `apps/edge/api/whatsapp.ts` calls `inboundFromWhatsapp` inside its existing
 per-message `try`, keeping the `IngestFailed` count and the 503 (`:217`).
-_Both orders:_ the dashboard is not involved.
+_Both orders:_ the dashboard is not involved. _Where it lands now_ (26 October 2026):
+each door is `door(verb)`, and the verbs are `apps/edge/lib/sms/inbound-text.ts` and
+`apps/edge/lib/whatsapp/webhook.ts` with `answer-later.ts`. A message answered after
+its acknowledgement (decision 0031) is recorded in the door and answered by an
+`inbound_answer` job whose payload keeps the provider's own fields (Twilio's form, or
+Meta's message and its envelope), so the job converts with the same adapter and no
+payload changes: a job written before the deploy is read by the one after it. The
+adapter's entries in `apps/edge/lib/whatsapp/inbound.ts` are the ones that move.
 
 **4 · The per-channel row.** Ship the migration and have `ingest_inbound` write
 `conversation_channel_state` **in addition to** `last_wa_inbound_at`. Nothing
@@ -357,3 +384,26 @@ moves, the assertions do not.
    and then texts has their email answered by text.
 5. **How long may step 4's dual write stand?** It is the only thing making the
    column change safe in both deploy orders, and also a second copy of one fact.
+
+### Answered, 26 October 2026
+
+Ruben: "Take all ten as you recommend". Each answer as recommended, read against `a8d4a5144`.
+
+1. **Never on its own.** This confirms decision 0073 (R15): every email waits in Need you with a reply drafted in the
+   owner's voice (decision 0071), and it leaves from their mailbox on their press. No setting turns it up:
+   `mailboxes.reply_mode`'s `'veto'` and `'auto'` (00126) stay unread by anything that sends. Step 6 keeps
+   `mayAutoSend: false`, and is smaller than written where 0071 built the drafts.
+2. **The sweep does not own email.** `INLINE_INTAKE` (`apps/edge/lib/receptionist/unfinished.ts`) stays WhatsApp and
+   SMS, so its words stay true of the channels meant to answer, and step 6 does not add `"email"` to it. An email's
+   watch is the job ledger, where `email_ingest` is retried and a job that gives up is marked failed and told to its
+   workspace's owner and to the platform (`apps/edge/lib/ops/jobs-tick.ts`), and the mailbox's own health.
+3. **Apart, until somebody says so.** A DM makes its own person, found by its account's id and never joined to another
+   by a name. A member who knows the two for one person combines them (00326, 00420), and their threads, visits and
+   messages move with them. Step 8 is built so.
+4. **Each message on its own channel; a member's reply where they last wrote, said and changeable.** The receptionist
+   answers on the channel a message came by, as it does. A member's reply goes where the customer last wrote
+   (`replyChannelOf`, `apps/dashboard/src/server/verbs.ts`), with that channel named on the send button and switchable
+   where the person has written on more than one: a change of its own after step 5, which gives it the per-channel fact.
+5. **Fourteen days.** Step 4's double write stands until step 5 has been on production in both apps for fourteen days,
+   with a test pinning that nothing but its one accessor reads `last_wa_inbound_at`; then step 7 drops the column, alone.
+   The day step 5 deploys goes into this note's status, so the second copy has an end.

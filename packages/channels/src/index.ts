@@ -23,8 +23,10 @@ export type {
 } from "./models/anthropic";
 export { askSystemOne, SYSTEM_ONE_URL } from "./models/typesafe";
 export type { SystemOneAsk, SystemOneReply } from "./models/typesafe";
+export type { InboundMessage } from "./inbound";
 export {
   normalizeInbound,
+  inboundFromWhatsapp,
   waPricingOf,
   waStoppedMarketing,
   graphThrottled,
@@ -191,6 +193,7 @@ export type { LineStep, LineVoiceState, LineRow, LineSecrets, LinePorts, SagaRes
 export {
   smsInboundFrom,
   smsAsWaMessage,
+  inboundFromSms,
   carrierConsent,
   smsKeywordConsent,
   mergeConsent,
@@ -285,6 +288,7 @@ export type { LineTypeAnswer } from "./lines/lines-twilio";
 export {
   gmailDayUsed,
   gmailSignedOut,
+  gmailReadRefusal,
   gmailSend,
   gmailThreadOf,
   gmailSentIds,
@@ -301,6 +305,7 @@ export type { GmailSent, GmailHistory } from "./mailbox/mailbox-gmail";
 export {
   graphDayUsed,
   graphSignedOut,
+  graphReadRefusal,
   graphMe,
   graphInbox,
   graphNoMailbox,
@@ -316,7 +321,7 @@ export {
 } from "./mailbox/mailbox-graph";
 export type { GraphSent, GraphDelta } from "./mailbox/mailbox-graph";
 export { gmailEmailOf, graphEmailOf, rowIdOfMessageId, deliveryReportOf } from "./mailbox/mailbox-read";
-export type { MailboxEmail, DeliveryReport, BounceClass, FoundSent } from "./mailbox/mailbox-read";
+export type { MailboxEmail, DeliveryReport, BounceClass, FoundSent, ReadRefusal } from "./mailbox/mailbox-read";
 export { sendFromMailbox } from "./mailbox/mailbox-send";
 export type { MailboxSendInput, MailboxSendResult } from "./mailbox/mailbox-send";
 export {

@@ -42421,7 +42421,8 @@ function saysOf(r2) {
     case "mailbox":
       return [
         `Email from people${r2.oldest ? `, ${backTo(r2.oldest)}` : ""}`,
-        c.dropped ? `${c.dropped.toLocaleString()} others dropped` : null
+        c.dropped ? `${c.dropped.toLocaleString()} others dropped` : null,
+        c.unreadable ? `${c.unreadable.toLocaleString()} couldn't be read` : null
       ].filter(Boolean).join(" \xB7 ");
     case "whatsapp_contacts":
       return c.people !== void 0 ? `${c.people.toLocaleString()}, into People` : "Reading them";

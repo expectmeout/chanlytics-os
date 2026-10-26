@@ -1,6 +1,7 @@
 # 0003 · Team assignment
 
-**Status:** decided, not built. Written against commit `b729bdf`, and verified
+**Status:** decided, its five questions answered 26 October 2026 (below); its steps not built, though its claim and
+release stand as take-over and hand-back (00386). Written against commit `b729bdf`, and verified
 against the code at it, with the working tree as it stood. Where this note and
 the code disagree, the code wins.
 
@@ -354,3 +355,29 @@ workspace: review it as one"_.
    else. Should a new message wake the assignment, or clear it?
 5. **Which address is a member's?** The account's, or one they set per
    workspace? The second is a new fact and a new place to keep it current.
+
+### Answered, 26 October 2026
+
+Ruben: "Take all ten as you recommend". Each answer as recommended, read against `a8d4a5144`, where part of this note
+stands under other names. A member's take-over is the claim, and hand-back the release: one transaction each (00386)
+sets or clears the thread's `assignee_user_id` with the pause that quiets the receptionist. Who has a thread is said
+("You have it", or the teammate's name: `HELD_WORDS` in `packages/contracts/src/conversations/standing.ts`, `holderOf`
+in `packages/contracts/src/people/person-state.ts`). Today's queue leaves out a handoff somebody has taken over, and
+each member chooses which alerts reach their own phone. What the steps add is giving a thread to somebody else, the
+"mine" scope, the holder told first, a member's own email, and routing.
+
+1. **An operator may give a thread to a teammate,** as the note says: a front desk passes work to whoever does it. The
+   decision row says who gave it to whom, and the receiver is told on their phone. A partner and a viewer may not.
+2. **Yes: giving a thread is a take-over on the teammate's behalf.** This turns the note's no around. When it was
+   written nobody had a thread; now "has it" means the receptionist is quiet until the thread is handed back, and a
+   second meaning under the same words (has it, and the receptionist answers) would be two products behind one pill. A
+   thread given to somebody ends as a taken one does: they hand it back.
+3. **As today.** A thread somebody has leaves the shared queue, is in their You have it, and stays in the Inbox under
+   their name. One its holder leaves unanswered is told to them first and to everyone after a second window (step 4).
+4. **It stands, and its holder is told.** A new message on a thread somebody has keeps it theirs and tells them, since
+   they are mid-conversation. It ends when they hand it back or archive it. A thread reopened from the archive comes
+   back to the shared queue with nobody holding it: archived is done.
+5. **The account's own address, and the phone they already chose.** The sign-in address is verified and kept by the
+   account, so it is no new fact to keep current, and a member already chooses what reaches their phone. The
+   workspace's alert addresses stay the fallback, and the only route for a thread nobody has. An address per workspace
+   waits for somebody to ask for one.

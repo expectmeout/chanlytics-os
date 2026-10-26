@@ -40,7 +40,7 @@ import { claimTheTurn, stillOurs } from "./turn";
 // TYPES ONLY: the normalised message is the channels package's shape and this
 // verb speaks it. A VALUE from channels would be a provider inside a verb —
 // that is a port, not a widening (hygiene.test.mjs).
-import type { CarrierConsent, NormalizedInbound, SendResult } from "@chanlytics/channels";
+import type { CarrierConsent, InboundMessage, NormalizedInbound, SendResult } from "@chanlytics/channels";
 import type { IngestResult, RoutedChannel } from "@chanlytics/db";
 import type { InboundPorts } from "./ports";
 
@@ -61,22 +61,41 @@ export interface InboundCarrier {
   consent?: CarrierConsent | null;
 }
 
-/** One inbound message, as the door's adapter hands it over. */
-export interface InboundInput {
-  /** withCarrierConsent(normalizeInbound(m, value), carrier?.consent ?? null), done by the adapter. */
-  message: NormalizedInbound;
-  /**
-   * The raw fields this body still reads off the provider's own shape: the
-   * message id and the sender for the log envelope and the wire, the raw type
-   * for the words an owner reads ("Customer sent a sticker message"), and the
-   * provider's timestamp for the staleness check. Everything else is read from
-   * the normalised record above.
-   */
-  raw: { id: string; from: string; type: string; timestamp: string | number | null };
+/**
+ * The raw fields this body still reads off the provider's own shape: the message id and the sender for the log envelope
+ * and the wire, the raw type for the words an owner reads ("Customer sent a sticker message"), and the provider's
+ * timestamp for the staleness check. Everything else is read from the normalised record.
+ */
+export interface InboundRaw {
+  id: string;
+  from: string;
+  type: string;
+  timestamp: string | number | null;
+}
+
+/**
+ * One inbound message, as the door's adapter hands it over, in either shape for one release (decision 0001, step 2):
+ * WhatsApp's normalised message with the raw fields it still reads, as the doors hand it today, or the one inbound shape
+ * (channels InboundMessage), which ./context.ts converts where it enters. A message in the one shape says its own wire,
+ * and its carrier is that wire's: none for WhatsApp, the line's for a text.
+ */
+export type InboundInput = InboundAt &
+  (
+    | {
+        /** withCarrierConsent(normalizeInbound(m, value), carrier?.consent ?? null), done by the adapter. */
+        message: NormalizedInbound;
+        raw: InboundRaw;
+        carrier: InboundCarrier | null;
+      }
+    | { inbound: InboundMessage & { channel: "whatsapp" }; carrier: null }
+    | { inbound: InboundMessage & { channel: "sms" }; carrier: InboundCarrier }
+  );
+
+/** Where a message arrived, whatever shape it came in. */
+interface InboundAt {
   tenantId: string | null;
   routed: RoutedChannel | null;
   isEnvDefault: boolean;
-  carrier: InboundCarrier | null;
   /**
    * The job that answers a text after its acknowledgement (recordInbound recorded it in the door): its ingest is a
    * redelivery, and the message is answered while it is unprocessed and no reply names it yet.

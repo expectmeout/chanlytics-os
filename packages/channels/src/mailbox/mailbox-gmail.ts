@@ -18,7 +18,14 @@
 import { DAY_MS } from "@chanlytics/contracts";
 import { b64url } from "../google/google-oauth";
 import { providerFetch, type ProviderReply, type SendOutcome } from "../provider-fetch";
-import { FIND_SENT_LOOKS, FIND_SENT_SLACK_MS, MAILBOX_READ_MS, type FoundSent } from "./mailbox-read";
+import {
+  FIND_SENT_LOOKS,
+  FIND_SENT_SLACK_MS,
+  MAILBOX_READ_MS,
+  oneMessageRefused,
+  type FoundSent,
+  type ReadRefusal,
+} from "./mailbox-read";
 
 const GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me";
 /** A send's bound: Gmail answers a send in a second or two; a send past this is unknown, never repeated blind. */
@@ -64,6 +71,17 @@ function gmailWordsOf(r: Pick<ProviderReply, "json" | "text">): string {
 /** Whether the grant is gone (revoked, expired for good, the account suspended): the owner connects it again. */
 export function gmailSignedOut(r: Pick<ProviderReply, "status" | "json">): boolean {
   return r.status === 401 || (r.status === 403 && /insufficientPermissions|forbidden/i.test(gmailReasonOf(r) ?? ""));
+}
+
+/**
+ * Gmail refusing one message for good (mailbox-read.ts oneMessageRefused), with its reason for the log; null when the
+ * read is to be asked again. Gmail says a pace or a quota of requests as a 403 too, and its reason names it.
+ */
+export function gmailReadRefusal(r: Pick<ProviderReply, "status" | "json">): ReadRefusal | null {
+  const reason = gmailReasonOf(r);
+  return oneMessageRefused(r.status) && !/limit|quota|exhausted/i.test(reason ?? "")
+    ? { status: r.status, reason }
+    : null;
 }
 
 export interface GmailSent {

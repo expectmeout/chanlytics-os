@@ -96,6 +96,19 @@ test("an intake that threw waits five minutes, then thirty, and its last try is 
   }
 });
 
+test("a part of a connection's history that threw waits two minutes, then ten, and its last try is not waited on", () => {
+  // A mailbox's six months stopped for good on Gmail's first 403 (26 Oct 2026): the kind had no waits, so a provider's
+  // pace failed the job on the spot, though the part was written to be tried again.
+  const none = () => 0;
+  assert.equal(retryWait({ kind: "history_import", attempts: 1 }, none), 2 * 60_000);
+  assert.equal(retryWait({ kind: "history_import", attempts: 2 }, none), 10 * 60_000);
+  assert.equal(
+    retryWait({ kind: "history_import", attempts: MAX_ATTEMPTS }),
+    null,
+    "the last try says so on the source's row (history-import.ts)",
+  );
+});
+
 test("a wait is drawn up to a fifth longer at random, never shorter, so the jobs one outage failed are claimed apart", () => {
   const job = { kind: "email_ingest", attempts: 1 };
   assert.equal(

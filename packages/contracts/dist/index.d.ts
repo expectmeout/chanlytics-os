@@ -7472,7 +7472,7 @@ interface ImportCounts {
     reviews?: number;
     /** Reviews that wait for a reply. */
     unanswered?: number;
-    /** Rows of a file that had neither a number nor an address. */
+    /** Rows of a file that had neither a number nor an address; emails the mailbox refused to hand over. */
     unreadable?: number;
 }
 /** One source's row in the ledger, as the page reads it. */
