@@ -288,7 +288,7 @@ export type { LineTypeAnswer } from "./lines/lines-twilio";
 export {
   gmailDayUsed,
   gmailSignedOut,
-  gmailReadRefusal,
+  gmailReadVerdict,
   gmailSend,
   gmailThreadOf,
   gmailSentIds,
@@ -305,7 +305,7 @@ export type { GmailSent, GmailHistory } from "./mailbox/mailbox-gmail";
 export {
   graphDayUsed,
   graphSignedOut,
-  graphReadRefusal,
+  graphReadVerdict,
   graphMe,
   graphInbox,
   graphNoMailbox,
@@ -321,7 +321,7 @@ export {
 } from "./mailbox/mailbox-graph";
 export type { GraphSent, GraphDelta } from "./mailbox/mailbox-graph";
 export { gmailEmailOf, graphEmailOf, rowIdOfMessageId, deliveryReportOf } from "./mailbox/mailbox-read";
-export type { MailboxEmail, DeliveryReport, BounceClass, FoundSent, ReadRefusal } from "./mailbox/mailbox-read";
+export type { MailboxEmail, DeliveryReport, BounceClass, FoundSent, ReadVerdict } from "./mailbox/mailbox-read";
 export { sendFromMailbox } from "./mailbox/mailbox-send";
 export type { MailboxSendInput, MailboxSendResult } from "./mailbox/mailbox-send";
 export {

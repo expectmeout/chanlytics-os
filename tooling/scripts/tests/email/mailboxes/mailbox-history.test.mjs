@@ -282,6 +282,8 @@ const REFUSED = {
   json: { error: { code: 403, status: "PERMISSION_DENIED", errors: [{ reason: "forbidden" }] } },
 };
 const PACED = { status: 403, json: { error: { code: 403, errors: [{ reason: "userRateLimitExceeded" }] } } };
+/** Gmail's bad minute: no answer about the message at all. */
+const DOWN = { status: 500, json: { error: { code: 500, errors: [{ reason: "backendError" }] } } };
 
 /** The window's list, and each message as Gmail answers it, but the ids `odd` answers otherwise. */
 const gmailWith = (listed, odd = {}) =>
@@ -320,25 +322,26 @@ test("a message the mailbox refuses for good is counted, said and gone on withou
 test("a part the provider stops part way notes what it brought and where it stood; the job ledger tries it again from there, and its last try says so on the row, with Try again", async () => {
   const w = world();
   const listed = [MESSAGES.p1, MESSAGES.o1, { id: "x1", threadId: "t8" }, MESSAGES.n1];
-  const paced = gmailWith(listed, { x1: PACED });
+  const down = gmailWith(listed, { x1: DOWN });
   try {
     await assert.rejects(
       linesOf(() => part(w, "mailbox")),
-      /cannot read message x1: 403/,
+      /cannot read message x1: 500 \(backendError\)/,
+      "the error carries Gmail's own reason",
     );
   } finally {
-    paced.restore();
+    down.restore();
   }
   let row = ledger(w, "mailbox");
   assert.equal(row.state, "running", "a first try: the ledger tries it again");
   assert.deepEqual(row.counts, { messages: 2, people: 1, dropped: 0 }, "what came in before it stopped, counted");
   assert.equal(row.job_cursor.at, 2, "where it stood: the message it could not read");
   // The try the ledger will not repeat: the row says it stopped, with Try again beside it.
-  const last = gmailWith(listed, { x1: PACED });
+  const last = gmailWith(listed, { x1: DOWN });
   try {
     await assert.rejects(
       linesOf(() => part(w, "mailbox", 1, undefined, 3)),
-      /cannot read message x1: 403/,
+      /cannot read message x1: 500/,
     );
   } finally {
     last.restore();
@@ -361,6 +364,61 @@ test("a part the provider stops part way notes what it brought and where it stoo
     "the first two not read again",
   );
   assert.deepEqual(row.counts, { messages: 2, people: 1, dropped: 1 }, "the list after it, dropped");
+});
+
+test("the mailbox's pace is no failure: the part notes where it stood and ends, and the next part reads on after a rest; one that read nothing rests ten minutes", async () => {
+  // Three 403s on 26 Oct, each a different message every hundred or so reads: Gmail's pace, not the messages.
+  const w = world();
+  const listed = [MESSAGES.p1, MESSAGES.o1, { id: "x1", threadId: "t8" }, MESSAGES.n1];
+  const paced = gmailWith(listed, { x1: PACED });
+  const before = Date.now();
+  let lines;
+  try {
+    ({ lines } = await linesOf(() => part(w, "mailbox")));
+  } finally {
+    paced.restore();
+  }
+  let row = ledger(w, "mailbox");
+  assert.deepEqual([row.state, row.last_error], ["running", null], "no stop, and no try used");
+  assert.deepEqual(row.counts, { messages: 2, people: 1, dropped: 0 });
+  assert.equal(row.job_cursor.at, 2, "where it stood: the message Gmail paced");
+  assert.deepEqual(
+    w.tables.jobs.map((j) => j.payload.seq),
+    ["run:2"],
+    "the next part, scheduled",
+  );
+  const rest = Date.parse(w.tables.jobs[0].due_at) - before;
+  assert.ok(rest >= 60_000 && rest < 70_000, `a minute's rest (${rest} ms)`);
+  assert.deepEqual(
+    lines
+      .filter((l) => l.event === "history_part_paced")
+      .map(fieldsOf)
+      .map((l) => [l.status, l.reason, l.rest_ms]),
+    [[403, "userRateLimitExceeded", 60_000]],
+    "said, with Gmail's reason",
+  );
+  // Paced again before it read anything: a quota that has run out is not asked every minute.
+  w.tables.jobs.length = 0;
+  const still = gmailWith(listed, { x1: PACED });
+  try {
+    await linesOf(() => part(w, "mailbox", 2));
+  } finally {
+    still.restore();
+  }
+  const rested = Date.parse(w.tables.jobs[0].due_at) - Date.now();
+  assert.ok(rested > 9 * 60_000, `ten minutes after a part that read nothing (${rested} ms)`);
+  // Gmail answers: the next part reads on from the message it paced, nothing kept twice.
+  w.tables.jobs.length = 0;
+  const again = gmailWith(listed);
+  try {
+    await part(w, "mailbox", 3);
+  } finally {
+    again.restore();
+  }
+  row = ledger(w, "mailbox");
+  assert.equal(row.state, "done");
+  assert.deepEqual(keptIds(w), ["p1", "o1"]);
+  assert.deepEqual(row.counts, { messages: 2, people: 1, dropped: 1 });
 });
 
 test("three messages refused in a row is the grant or the provider, not the messages: the part stops, and the next try reads the run again", async () => {

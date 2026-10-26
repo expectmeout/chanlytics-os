@@ -343,14 +343,27 @@ test("a message the mailbox refuses for good is said and gone on without, so the
   } finally {
     net.restore();
   }
-  // Gmail says a pace of requests as a 403 too: that is no refusal of the message, and the next sync reads it again.
+  // Gmail says a pace of requests as a 403 too: that is no refusal of the message. The sync stops reading at it, and
+  // the next sync reads on from the cursor where it was.
   const paced = world();
   const slow = providers(
     answer({ status: 403, json: { error: { code: 403, errors: [{ reason: "userRateLimitExceeded" }] } } }),
   );
   try {
-    await linesOf(() => syncMailbox(paced.db, paced.mailbox, logger()));
+    const { lines } = await linesOf(() => syncMailbox(paced.db, paced.mailbox, logger()));
     assert.equal(paced.tables.mailbox_connections[0].sync_cursor, "100", "read again next time");
+    assert.deepEqual(paced.tables.jobs, [], "nothing after the pace read");
+    assert.equal(
+      slow.calls.filter((c) => c.url.includes("/messages/r2?")).length,
+      0,
+      "the message after it not asked for",
+    );
+    assert.deepEqual(
+      lines
+        .filter((l) => l.event === "mailbox_sync_failed" && l.stage === "paced")
+        .map((l) => [l.message, l.status, l.reason]),
+      [["r1", 403, "userRateLimitExceeded"]],
+    );
   } finally {
     slow.restore();
   }

@@ -50,6 +50,8 @@ export interface Part {
 /** What a part came to: more to read (its next is scheduled), or the source is done or stopped (noted already). */
 export interface PartOutcome {
   more: boolean;
+  /** How long the next part waits: the provider paced the reads (mail-history.ts restAfterPace). Absent, it runs now. */
+  restMs?: number;
 }
 
 type Runner = (db: Db, part: Part) => Promise<PartOutcome>;
@@ -264,7 +266,10 @@ export function historyImports(db: Db): NonNullable<JobContext["imports"]> {
         throw err;
       });
       log.info("history_part", { source, run: runId, n, more: out.more });
-      if (out.more) await schedulePart(db, { tenantId: job.tenant_id, source, run: runId, n: n + 1, connectionId });
+      // A part the provider paced ends as one that ran out of time does: no failed try, and the next waits its rest.
+      const dueAt = out.restMs ? new Date(Date.now() + out.restMs) : undefined;
+      if (out.more)
+        await schedulePart(db, { tenantId: job.tenant_id, source, run: runId, n: n + 1, connectionId, dueAt });
     },
   };
 }
