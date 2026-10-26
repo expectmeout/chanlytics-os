@@ -10,6 +10,10 @@
  * The window ends where the mailbox connected, and the live read (mailbox-sync.ts) starts there: nothing is read twice
  * and nothing between them is missed. The cursor (the ledger's job_cursor) is the window, the provider's page and how
  * far into it a part got, so a part that stops mid-page picks up at the next message.
+ *
+ * A message the mailbox refuses to hand over (mailbox-sync.ts readEmail) is counted unreadable and gone on without, so
+ * one odd message never holds the rest back. A provider that cannot be asked now throws, after the part notes what it
+ * brought and where it stood, and the job ledger tries it again from there (RETRY_WAITS_MS).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -35,10 +39,16 @@ import {
 } from "../packages/db.js";
 import { tokenFor } from "../email/mailbox/mailbox-credentials.js";
 import { markSignedOut } from "../email/mailbox/mailbox-wire.js";
-import { fetchEmail } from "../email/mailbox/mailbox-sync.js";
+import { readEmail } from "../email/mailbox/mailbox-sync.js";
 import type { Part, PartOutcome } from "./history-import.js";
 
 type Db = SupabaseClient<Database>;
+
+/**
+ * How many messages in a row the mailbox may refuse before the part stops and is tried again: one odd message is gone
+ * on without, counted and said; a run of them is the grant or the provider.
+ */
+const REFUSED_IN_A_ROW = 3;
 
 /**
  * Where the read stands: the mailbox it reads (Try again finds it there), its window, the provider's page it is on (null
@@ -130,10 +140,32 @@ export async function mailHistoryPart(db: Db, part: Part): Promise<PartOutcome> 
   await noteImport(db, { tenantId: part.tenantId, source: "mailbox", state: "running", via: row.provider, add: true });
 
   const own = row.address.toLowerCase();
-  const counts = { messages: 0, people: 0, dropped: 0 };
+  const counts: { messages: number; people: number; dropped: number; unreadable?: number } = {
+    messages: 0,
+    people: 0,
+    dropped: 0,
+  };
   let oldest: number | null = null;
   let { page, at } = cur;
   let done = false;
+  /** Where this part stands, on its row: as it ends, and before it throws, so the next try reads on from here. */
+  const note = (state: "running" | "done", partsDone?: number) =>
+    noteImport(db, {
+      tenantId: part.tenantId,
+      source: "mailbox",
+      state,
+      counts,
+      add: true,
+      ...(partsDone ? { partsDone } : {}),
+      oldest: oldest === null ? null : new Date(oldest).toISOString(),
+      via: row.provider,
+      cursor: { connection: row.id, window: { from: cur.window.from, to: cur.window.to }, page, at },
+    });
+  /** A provider that could not be asked now: what came in is noted, and the job ledger tries the part again. */
+  const askAgain = async (why: string): Promise<never> => {
+    await note("running");
+    throw new Error(why);
+  };
   pages: while (Date.now() < part.until) {
     const listed =
       row.provider === "microsoft"
@@ -145,9 +177,9 @@ export async function mailHistoryPart(db: Db, part: Part): Promise<PartOutcome> 
         await markSignedOut(db, row, part.log, Date.now());
         return mailStopped(db, part, IMPORT_STOPPED_WORDS.signedOut);
       }
-      // A provider that could not be asked now: the part is tried again (the job ledger), from the cursor it left.
-      throw new Error(`the mailbox's past could not be listed: ${listed.reply.status}`);
+      return askAgain(`the mailbox's past could not be listed: ${listed.reply.status}`);
     }
+    let refusedInARow = 0;
     for (; at < listed.listed.length; at++) {
       if (Date.now() >= part.until) break pages;
       const l = listed.listed[at];
@@ -157,8 +189,29 @@ export async function mailHistoryPart(db: Db, part: Part): Promise<PartOutcome> 
         counts.dropped++;
         continue;
       }
-      const e = await fetchEmail(row, t.token, l.id);
-      if (!e) continue;
+      const read = await readEmail(row, t.token, l.id).catch((err: unknown) =>
+        askAgain(err instanceof Error ? err.message : String(err)),
+      );
+      if ("gone" in read) continue;
+      if ("refused" in read) {
+        part.log.warn("mailbox_message_unreadable", {
+          mailbox: row.id,
+          message: l.id,
+          stage: "history",
+          ...read.refused,
+        });
+        if (++refusedInARow < REFUSED_IN_A_ROW) {
+          counts.unreadable = (counts.unreadable ?? 0) + 1;
+          continue;
+        }
+        // A run of them is the grant or the provider, not the messages: the next try reads the run again.
+        counts.unreadable = (counts.unreadable ?? 0) - (refusedInARow - 1);
+        if (!counts.unreadable) delete counts.unreadable;
+        at -= refusedInARow - 1;
+        return askAgain(`the mailbox refused ${refusedInARow} messages in a row`);
+      }
+      refusedInARow = 0;
+      const e = read.email;
       const who = mailPersonOf(e, own);
       if (!who) {
         counts.dropped++;
@@ -191,16 +244,6 @@ export async function mailHistoryPart(db: Db, part: Part): Promise<PartOutcome> 
       break;
     }
   }
-  await noteImport(db, {
-    tenantId: part.tenantId,
-    source: "mailbox",
-    state: done ? "done" : "running",
-    counts,
-    add: true,
-    partsDone: part.n,
-    oldest: oldest === null ? null : new Date(oldest).toISOString(),
-    via: row.provider,
-    cursor: { connection: row.id, window: { from: cur.window.from, to: cur.window.to }, page, at },
-  });
+  await note(done ? "done" : "running", part.n);
   return { more: !done };
 }

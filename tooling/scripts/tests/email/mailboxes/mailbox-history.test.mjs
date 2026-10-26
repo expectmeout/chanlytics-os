@@ -12,6 +12,7 @@ import { DAY_MS, HISTORY_BACK_DAYS, IMPORT_STOPPED_WORDS } from "@chanlytics/con
 import { importSrc } from "../../_source.mjs";
 import { fakeDb } from "../../_fake-db.mjs";
 import { rows } from "../../_rows.mjs";
+import { fieldsOf, linesOf } from "../../_log-lines.mjs";
 import { MAILBOX_ENV, gmailReceived, liveCredentials, providers, vault, withEnv } from "./_mailbox-world.mjs";
 
 const restore = withEnv(MAILBOX_ENV);
@@ -95,14 +96,15 @@ function world({ box = {}, credentials = liveCredentials("ya29.sam") } = {}) {
   return { db, tables, kept, people, mailbox };
 }
 
-/** One part, as the job runner hands it. */
-const part = (w, source, n = 1, deadline = Date.now() + 30_000) =>
+/** One part, as the job runner hands it: which try it is, as the claim counts them. */
+const part = (w, source, n = 1, deadline = Date.now() + 30_000, attempts = 1) =>
   historyImports(w.db).part(
     {
       id: `job-${source}-${n}`,
       tenant_id: T,
       kind: "history_import",
       payload: { source, seq: `run:${n}`, connection_id: w.mailbox.id },
+      attempts,
     },
     deadline,
   );
@@ -272,6 +274,139 @@ test("a mailbox removed, or signed out, stops its history and says so on its row
     down.restore();
   }
   assert.equal(ledger(busy, "mailbox").state, "running");
+});
+
+/** Gmail refusing one message's read; and a pace of requests, which Gmail says as a 403 too. */
+const REFUSED = {
+  status: 403,
+  json: { error: { code: 403, status: "PERMISSION_DENIED", errors: [{ reason: "forbidden" }] } },
+};
+const PACED = { status: 403, json: { error: { code: 403, errors: [{ reason: "userRateLimitExceeded" }] } } };
+
+/** The window's list, and each message as Gmail answers it, but the ids `odd` answers otherwise. */
+const gmailWith = (listed, odd = {}) =>
+  providers((c) => {
+    if (c.url.startsWith(`${GMAIL}/messages?`)) return { json: mail(listed) };
+    const id = /\/messages\/([a-z0-9]+)\?/.exec(c.url)?.[1];
+    if (id && odd[id]) return odd[id];
+    const m = listed.find((x) => x.id === id && x.payload);
+    return m ? { json: m } : { status: 404 };
+  });
+const keptIds = (w) => w.kept.map((k) => k.p_message_external_id);
+
+test("a message the mailbox refuses for good is counted, said and gone on without: the rest of the six months comes in", async () => {
+  const w = world();
+  const net = gmailWith([MESSAGES.p1, { id: "r1", threadId: "t9" }, MESSAGES.o1], { r1: REFUSED });
+  let lines;
+  try {
+    ({ lines } = await linesOf(() => part(w, "mailbox")));
+  } finally {
+    net.restore();
+  }
+  assert.deepEqual(keptIds(w), ["p1", "o1"], "the message after it kept");
+  const row = ledger(w, "mailbox");
+  assert.equal(row.state, "done");
+  assert.deepEqual(row.counts, { messages: 2, people: 1, dropped: 0, unreadable: 1 });
+  assert.deepEqual(
+    lines
+      .filter((l) => l.event === "mailbox_message_unreadable")
+      .map(fieldsOf)
+      .map((l) => [l.message, l.stage, l.status, l.reason]),
+    [["r1", "history", 403, "forbidden"]],
+    "said, with Gmail's own reason",
+  );
+});
+
+test("a part the provider stops part way notes what it brought and where it stood; the job ledger tries it again from there, and its last try says so on the row, with Try again", async () => {
+  const w = world();
+  const listed = [MESSAGES.p1, MESSAGES.o1, { id: "x1", threadId: "t8" }, MESSAGES.n1];
+  const paced = gmailWith(listed, { x1: PACED });
+  try {
+    await assert.rejects(
+      linesOf(() => part(w, "mailbox")),
+      /cannot read message x1: 403/,
+    );
+  } finally {
+    paced.restore();
+  }
+  let row = ledger(w, "mailbox");
+  assert.equal(row.state, "running", "a first try: the ledger tries it again");
+  assert.deepEqual(row.counts, { messages: 2, people: 1, dropped: 0 }, "what came in before it stopped, counted");
+  assert.equal(row.job_cursor.at, 2, "where it stood: the message it could not read");
+  // The try the ledger will not repeat: the row says it stopped, with Try again beside it.
+  const last = gmailWith(listed, { x1: PACED });
+  try {
+    await assert.rejects(
+      linesOf(() => part(w, "mailbox", 1, undefined, 3)),
+      /cannot read message x1: 403/,
+    );
+  } finally {
+    last.restore();
+  }
+  row = ledger(w, "mailbox");
+  assert.deepEqual([row.state, row.last_error], ["failed", IMPORT_STOPPED_WORDS.failed]);
+  // Gmail answers again: read on from the message it stopped at, nothing kept or read twice.
+  const again = gmailWith(listed);
+  try {
+    await part(w, "mailbox", 1, undefined, 2);
+  } finally {
+    again.restore();
+  }
+  row = ledger(w, "mailbox");
+  assert.equal(row.state, "done");
+  assert.deepEqual(keptIds(w), ["p1", "o1"]);
+  assert.equal(
+    again.calls.filter((c) => /\/messages\/(p1|o1)\?/.test(c.url)).length,
+    0,
+    "the first two not read again",
+  );
+  assert.deepEqual(row.counts, { messages: 2, people: 1, dropped: 1 }, "the list after it, dropped");
+});
+
+test("three messages refused in a row is the grant or the provider, not the messages: the part stops, and the next try reads the run again", async () => {
+  const w = world();
+  const run = ["r1", "r2", "r3"].map((id) => ({ id, threadId: "t9" }));
+  const net = gmailWith([MESSAGES.p1, ...run, MESSAGES.o1], { r1: REFUSED, r2: REFUSED, r3: REFUSED });
+  try {
+    await assert.rejects(
+      linesOf(() => part(w, "mailbox")),
+      /refused 3 messages in a row/,
+    );
+  } finally {
+    net.restore();
+  }
+  const row = ledger(w, "mailbox");
+  assert.equal(row.state, "running");
+  assert.deepEqual(row.counts, { messages: 1, people: 1, dropped: 0 }, "none of the run counted as unreadable");
+  assert.equal(row.job_cursor.at, 1, "the run read again from its first");
+});
+
+test("mail from a no-reply sender is left and counted, however Google's reports and alerts spell it", async () => {
+  const w = world();
+  const robots = [
+    "noreply-dmarc-support@google.com",
+    "workspace-noreply@google.com",
+    "The Google Accounts team <no-reply@accounts.google.com>",
+    "no-reply-7uztp@mail.example.com",
+  ].map((from, i) =>
+    gmailReceived({
+      id: `z${i}`,
+      threadId: `tz${i}`,
+      from,
+      to: OWN,
+      subject: "Report domain: getharbor.example",
+      messageId: `<z${i}@example.com>`,
+      text: "Automated.",
+    }),
+  );
+  const net = gmailWith([...robots, MESSAGES.p1]);
+  try {
+    await part(w, "mailbox");
+  } finally {
+    net.restore();
+  }
+  assert.deepEqual(keptIds(w), ["p1"], "only what a person wrote");
+  assert.deepEqual(ledger(w, "mailbox").counts, { messages: 1, people: 1, dropped: 4 });
 });
 
 test("the mailbox's people: its contacts and the people it wrote to, through the one person door, a page at a time, never the mailbox's own address", async () => {

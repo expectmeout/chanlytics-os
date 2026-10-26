@@ -28,13 +28,16 @@ import {
   gmailHistory,
   gmailMessage,
   gmailProfile,
+  gmailReadRefusal,
   gmailReports,
   graphDelta,
   graphEmailOf,
   graphJunkSince,
   graphMessage,
+  graphReadRefusal,
   type EmailReceipt,
   type MailboxEmail,
+  type ReadRefusal,
 } from "../../packages/channels.js";
 import { MIN_MS, DAY_MS } from "../../packages/contracts.js";
 import {
@@ -126,6 +129,8 @@ interface SyncOutcome {
   people: number;
   /** Emails read and left where they are: a list, a receipt, a notification, an automatic reply. */
   dropped: number;
+  /** Emails the provider refused to hand over, gone on without (readEmail). */
+  unreadable: number;
 }
 
 const none = (outcome: SyncOutcome["outcome"]): SyncOutcome => ({
@@ -135,6 +140,7 @@ const none = (outcome: SyncOutcome["outcome"]): SyncOutcome => ({
   replies: 0,
   people: 0,
   dropped: 0,
+  unreadable: 0,
 });
 
 /** A sender that writes delivery reports: what Graph names as a message's sender, read before the message is. */
@@ -225,14 +231,26 @@ async function graphChanges(
   return { ok: true, arrived, cursor: link ?? cursor ?? "", started };
 }
 
-/** One message, in full, as the intake reads any email; null when the provider has it no longer. */
-export async function fetchEmail(row: MailboxConnectionRow, token: string, id: string): Promise<MailboxEmail | null> {
-  const r = row.provider === "microsoft" ? await graphMessage(token, id) : await gmailMessage(token, id);
-  if (r.outcome !== "ok") {
-    if (r.status === 404) return null;
-    throw new Error(`cannot read message ${id}: ${r.status}`);
+/**
+ * One message, in full, as the intake reads any email: the email; gone, when the provider has it no longer (or answered
+ * nothing an email can be read from); or refused,
+ * when the provider will not hand over that one message (channels gmailReadRefusal, graphReadRefusal), which a reader
+ * goes on without and says so. Anything else (the grant, a pace of requests, the provider's bad minute) throws, and the
+ * read is asked again.
+ */
+export type EmailRead = { email: MailboxEmail } | { gone: true } | { refused: ReadRefusal };
+
+export async function readEmail(row: MailboxConnectionRow, token: string, id: string): Promise<EmailRead> {
+  const microsoft = row.provider === "microsoft";
+  const r = microsoft ? await graphMessage(token, id) : await gmailMessage(token, id);
+  if (r.outcome === "ok") {
+    const email = microsoft ? graphEmailOf(r.json) : gmailEmailOf(r.json);
+    return email ? { email } : { gone: true };
   }
-  return row.provider === "microsoft" ? graphEmailOf(r.json) : gmailEmailOf(r.json);
+  if (r.status === 404) return { gone: true };
+  const refused = microsoft ? graphReadRefusal(r) : gmailReadRefusal(r);
+  if (refused) return { refused };
+  throw new Error(`cannot read message ${id}: ${r.status}`);
 }
 
 /** How long a mailbox rests when a report says its own provider refused it for its quota: the provider's rolling day. */
@@ -302,8 +320,11 @@ async function reportReceipt(
   };
 }
 
-/** What one arrival came to: gone, read and left, a report applied, left where it is, or handed to the intake. */
-type ArrivalTaken = "gone" | "left" | "bounced" | "dropped" | "reply" | "person";
+/**
+ * What one arrival came to: gone, refused by the provider (gone on without), read and left, a report applied, left
+ * where it is, or handed to the intake.
+ */
+type ArrivalTaken = "gone" | "unreadable" | "left" | "bounced" | "dropped" | "reply" | "person";
 
 /** The count each arrival adds to, where it adds to one beyond `read`. */
 const COUNTED: Partial<Record<ArrivalTaken, "bounced" | "dropped" | "replies" | "people">> = {
@@ -317,15 +338,21 @@ const COUNTED: Partial<Record<ArrivalTaken, "bounced" | "dropped" | "replies" | 
  * One arrival, read in full and taken: the mailbox's own send and a report that names nothing of ours are left; a
  * report is applied as a receipt; inside a thread of ours anything is a reply; outside one, only what a person wrote is
  * taken in (R13), and a report, a list, a receipt, a notification or an automatic reply is left where it is, counted.
+ * One the provider refuses to hand over is said and gone on without, so it never holds the cursor back.
  */
 async function takeArrival(
   db: Db,
-  p: { row: MailboxConnectionRow; token: string; ours: Set<string>; own: string; at: Date; now: number },
+  p: { row: MailboxConnectionRow; token: string; ours: Set<string>; own: string; at: Date; now: number; log: Logger },
   a: Arrived,
 ): Promise<ArrivalTaken> {
   const { row, ours, own, at } = p;
-  const e = await fetchEmail(row, p.token, a.id);
-  if (!e) return "gone";
+  const read = await readEmail(row, p.token, a.id);
+  if ("gone" in read) return "gone";
+  if ("refused" in read) {
+    p.log.warn("mailbox_message_unreadable", { mailbox: row.id, message: a.id, stage: "sync", ...read.refused });
+    return "unreadable";
+  }
+  const e = read.email;
   if (e.from?.address.toLowerCase() === own) return "left";
   const receipt = await reportReceipt(db, row, e, p.now);
   if (receipt === "none") return "left";
@@ -419,8 +446,9 @@ export async function syncMailbox(
       if (seen.has(a.id)) continue;
       seen.add(a.id);
       try {
-        const got = await takeArrival(db, { row, token: t.token, ours, own, at, now }, a);
-        if (got !== "gone") result.read++;
+        const got = await takeArrival(db, { row, token: t.token, ours, own, at, now, log }, a);
+        if (got === "unreadable") result.unreadable++;
+        else if (got !== "gone") result.read++;
         const counted = COUNTED[got];
         if (counted) result[counted]++;
       } catch (err) {

@@ -268,6 +268,23 @@ test("what a message claims to be: a report and an automatic reply before the ge
   assert.equal(claim({ precedence: "bulk" }), "automated");
   assert.equal(claim({ "list-id": "<news.brand.example>" }), "automated");
   assert.equal(claim({ "list-unsubscribe": "<mailto:u@brand.example>" }), "automated");
+  // A sender that says nobody reads what is sent back, however spelled: Google's DMARC reports and account alerts carry
+  // none of the marks above, and a mailbox's six months took them in as people (26 Oct 2026). A word of the address's
+  // local part, so a name that only holds the letters is still a person.
+  for (const robot of [
+    "noreply@brand.example",
+    "no-reply@accounts.google.com",
+    "noreply-dmarc-support@google.com",
+    "workspace-noreply@google.com",
+    "no_reply@shop.example",
+    "donotreply@bank.example",
+    "do-not-reply@bank.example",
+    "no-reply-7uztp@mail.example.com",
+    "noreply+bounces@brand.example",
+  ])
+    assert.equal(claim({}, robot), "automated", robot);
+  for (const person of ["noreen@example.com", "reply@example.com", "norma.replyson@example.com"])
+    assert.equal(claim({}, person), "person", person);
 });
 
 test("every claim the intake answers is one contracts' EMAIL_CLAIMS declares, the set is no larger, and a person's words are what it marks them", () => {
