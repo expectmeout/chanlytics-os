@@ -238,7 +238,7 @@ async function graphChanges(
  * goes on without and says so. Anything else (the grant, a pace of requests, the provider's bad minute) throws, and the
  * read is asked again.
  */
-export type EmailRead = { email: MailboxEmail } | { gone: true } | { refused: ReadRefusal };
+type EmailRead = { email: MailboxEmail } | { gone: true } | { refused: ReadRefusal };
 
 export async function readEmail(row: MailboxConnectionRow, token: string, id: string): Promise<EmailRead> {
   const microsoft = row.provider === "microsoft";
