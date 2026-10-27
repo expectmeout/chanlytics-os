@@ -274,6 +274,7 @@ test("a reply read back from Gmail and from Graph is the intake's email, with it
   const g = gmailEmailOf({
     id: "g-9",
     threadId: "g-thread",
+    labelIds: ["INBOX", "CATEGORY_PERSONAL", 7],
     internalDate: String(Date.parse("2026-10-13T16:00:00Z")),
     payload: {
       mimeType: "multipart/alternative",
@@ -305,6 +306,7 @@ test("a reply read back from Gmail and from Graph is the intake's email, with it
     ],
   );
   assert.equal(g.createdAt, "2026-10-13T16:00:00.000Z");
+  assert.deepEqual(g.labels, ["INBOX", "CATEGORY_PERSONAL"], "Gmail's labels, as words");
   const m = graphEmailOf({
     id: "AAMk-9",
     conversationId: "conv-1",
@@ -317,8 +319,8 @@ test("a reply read back from Gmail and from Graph is the intake's email, with it
     internetMessageHeaders: [{ name: "In-Reply-To", value: "<cl.x@getharbor.example>" }],
   });
   assert.deepEqual(
-    [m.threadId, m.text, m.html, m.from.name, m.reportText],
-    ["conv-1", "Not interested, thanks.", null, "Owner", null],
+    [m.threadId, m.text, m.html, m.from.name, m.reportText, m.labels],
+    ["conv-1", "Not interested, thanks.", null, "Owner", null, []],
   );
   assert.equal(gmailEmailOf({ nothing: true }), null);
 });

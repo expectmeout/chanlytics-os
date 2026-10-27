@@ -32,9 +32,10 @@ const SCOPES = {
 
 /**
  * The world a mailbox's history runs in: its row and token, the imports ledger as import_ledger_note keeps it, what
- * ingest_before was handed (a person new the first time an address is seen), and resolve_person's people.
+ * ingest_before was handed (a person new the first time an address is seen), resolve_person's people, and the threads
+ * a reach-out started (`reached`), with the ones asked about.
  */
-function world({ box = {}, credentials = liveCredentials("ya29.sam") } = {}) {
+function world({ box = {}, credentials = liveCredentials("ya29.sam"), reached = [] } = {}) {
   const mailbox = rows.mailboxConnection({
     tenant_id: T,
     provider: "google",
@@ -46,6 +47,7 @@ function world({ box = {}, credentials = liveCredentials("ya29.sam") } = {}) {
   const v = vault(credentials ? { [mailbox.id]: credentials } : {});
   const kept = [];
   const people = [];
+  const asked = [];
   const tables = { mailbox_connections: [mailbox], imports: [], jobs: [], events: [] };
   const db = fakeDb(
     tables,
@@ -67,6 +69,11 @@ function world({ box = {}, credentials = liveCredentials("ya29.sam") } = {}) {
         const seen = people.some((p) => (p.p_email || p.p_phone) === key);
         people.push(a);
         return { contact_id: `p-${key}`, outcome: seen ? "matched" : "new" };
+      },
+      // 00424: of the threads asked about, the ones holding an email this workspace sent.
+      mailbox_threads_known: (a) => {
+        asked.push(...a.p_thread_ids);
+        return a.p_thread_ids.filter((t) => reached.includes(t));
       },
       import_ledger_note: (a) => {
         const i = tables.imports.findIndex((r) => r.tenant_id === a.p_tenant_id && r.source === a.p_source);
@@ -93,7 +100,7 @@ function world({ box = {}, credentials = liveCredentials("ya29.sam") } = {}) {
       },
     },
   );
-  return { db, tables, kept, people, mailbox };
+  return { db, tables, kept, people, asked, mailbox };
 }
 
 /** One part, as the job runner hands it: which try it is, as the claim counts them. */
@@ -465,6 +472,105 @@ test("mail from a no-reply sender is left and counted, however Google's reports 
   }
   assert.deepEqual(keptIds(w), ["p1"], "only what a person wrote");
   assert.deepEqual(ledger(w, "mailbox").counts, { messages: 1, people: 1, dropped: 4 });
+});
+
+/** A received message with the labels Gmail filed it under. */
+const filed = (labels, m) => ({ ...gmailReceived(m), labelIds: ["INBOX", ...labels] });
+
+test("what came in as people on 26 and 27 Oct 2026 is left and counted: DMARC reports by their shape, Amazon's newsletter by the tab Gmail filed it under, social and forums alike", async () => {
+  const w = world();
+  const robots = [
+    // None carries an automated header or a no-reply address.
+    gmailReceived({
+      id: "dm1",
+      threadId: "tdm1",
+      from: "DMARC Aggregate Report <dmarcreport@microsoft.com>",
+      to: OWN,
+      subject: "Report Domain: getharbor.example Submitter: protection.outlook.com Report-ID: 7d6c4a1e2b3f",
+      messageId: "<dm1@microsoft.com>",
+      text: "This is a DMARC aggregate report from Microsoft Corporation.",
+    }),
+    // Rackspace's, by its sender alone.
+    gmailReceived({
+      id: "dm2",
+      threadId: "tdm2",
+      from: "DMARC Report <dmarc_reports@reports.emailsrvr.com>",
+      to: OWN,
+      subject: "Aggregate report for getharbor.example",
+      messageId: "<dm2@reports.emailsrvr.com>",
+      text: "Attached.",
+    }),
+    filed(["CATEGORY_PROMOTIONS"], {
+      id: "am1",
+      threadId: "tam1",
+      from: "Amazon.com <store-news@amazon.com>",
+      to: OWN,
+      subject: "Deals picked for you",
+      messageId: "<am1@amazon.com>",
+      text: "Today's deals.",
+    }),
+    filed(["CATEGORY_SOCIAL"], {
+      id: "so1",
+      threadId: "tso1",
+      from: "Pat on Social <pat@social.example>",
+      to: OWN,
+      subject: "Pat tagged you",
+      messageId: "<so1@social.example>",
+      text: "See the photo.",
+    }),
+    filed(["CATEGORY_FORUMS"], {
+      id: "fo1",
+      threadId: "tfo1",
+      from: "Movers Circle <circle@forum.example>",
+      to: OWN,
+      subject: "New topic: winter rates",
+      messageId: "<fo1@forum.example>",
+      text: "A new topic.",
+    }),
+  ];
+  const net = gmailWith([...robots, MESSAGES.p1]);
+  try {
+    await part(w, "mailbox");
+  } finally {
+    net.restore();
+  }
+  assert.deepEqual(keptIds(w), ["p1"], "only what a person wrote");
+  assert.deepEqual(ledger(w, "mailbox").counts, { messages: 1, people: 1, dropped: 5 });
+  assert.deepEqual(w.asked, ["tam1", "tso1", "tfo1"], "whether a reach-out started it, asked of a tab's message alone");
+});
+
+test("Gmail's tabs never leave a reply in a thread a reach-out started, nor a person Gmail filed under Updates", async () => {
+  const w = world({ reached: ["g-reach"] });
+  const net = gmailWith([
+    // A mailbox connected again reads back over its earlier connection's months, a reach-out's thread among them.
+    filed(["CATEGORY_PROMOTIONS"], {
+      id: "re1",
+      threadId: "g-reach",
+      from: "Owner <office@fixture-movers.example>",
+      to: OWN,
+      subject: "Re: A quick one",
+      messageId: "<re1@fixture-movers.example>",
+      text: "Sure, call me Thursday.",
+    }),
+    // Updates holds what a person sends through a tool beside the receipts: it is no tab of bulk.
+    filed(["CATEGORY_UPDATES"], {
+      id: "up1",
+      threadId: "tup1",
+      from: "Rosa Diaz <rosa@example.com>",
+      to: OWN,
+      subject: "Signed: moving quote",
+      messageId: "<up1@example.com>",
+      text: "Signed and sent back.",
+    }),
+  ]);
+  try {
+    await part(w, "mailbox");
+  } finally {
+    net.restore();
+  }
+  assert.deepEqual(keptIds(w), ["re1", "up1"]);
+  assert.deepEqual(ledger(w, "mailbox").counts, { messages: 2, people: 2, dropped: 0 });
+  assert.deepEqual(w.asked, ["g-reach"], "Updates asks nothing");
 });
 
 test("the mailbox's people: its contacts and the people it wrote to, through the one person door, a page at a time, never the mailbox's own address", async () => {

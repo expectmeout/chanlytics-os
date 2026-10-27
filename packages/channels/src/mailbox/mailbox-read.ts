@@ -19,6 +19,30 @@ export interface MailboxEmail extends ReceivedEmail {
   threadId: string | null;
   /** The delivery-status and original-headers parts of a report, as text; null for an email that carries none. */
   reportText: string | null;
+  /** Gmail's labels on the message (its labelIds: INBOX, CATEGORY_PROMOTIONS, ...); none from Graph. */
+  labels: string[];
+}
+
+/**
+ * Gmail's tabs that hold nobody's words to the business, in Google's own description of each: Promotions ("deals,
+ * offers, and other promotional emails"), Social ("messages from social networks and media-sharing sites") and Forums
+ * ("messages from online groups, discussion boards, and mailing lists"). Amazon's newsletter carries none of the
+ * automated headers and came in as a person (26 Oct 2026).
+ *
+ * Updates is left out. Google calls it "automated confirmations, notifications, statements, and reminders that may not
+ * need immediate attention", but Gmail sorts each message by a model it does not publish, and what a person sends
+ * through a tool (a signature request, a booking form, a help desk's reply, a supplier's invoice) is filed there with
+ * the receipts. A person dropped is lost without a word; a sender kept by mistake is in plain sight.
+ */
+const GMAIL_BULK_TABS: ReadonlySet<string> = new Set(["CATEGORY_PROMOTIONS", "CATEGORY_SOCIAL", "CATEGORY_FORUMS"]);
+
+/**
+ * Whether Gmail filed a message under one of the tabs above. A mailbox's own sorting, read only from a mailbox (never
+ * by the hosted intake, which has none), and never inside a thread a reach-out started: a reply there is a reply,
+ * whatever Gmail calls it.
+ */
+export function filedAsBulk(e: Pick<MailboxEmail, "labels">): boolean {
+  return e.labels.some((l) => GMAIL_BULK_TABS.has(l));
 }
 
 const dec = new TextDecoder();
@@ -114,7 +138,13 @@ const bodyText = (p: GmailPart): string | null =>
 
 /** Gmail's message, read in full (users.messages.get, format=full); null for an answer that is not one. */
 export function gmailEmailOf(json: unknown): MailboxEmail | null {
-  const m = json as { id?: unknown; threadId?: unknown; internalDate?: unknown; payload?: GmailPart } | null;
+  const m = json as {
+    id?: unknown;
+    threadId?: unknown;
+    labelIds?: unknown;
+    internalDate?: unknown;
+    payload?: GmailPart;
+  } | null;
   if (!m || typeof m.id !== "string" || !m.payload) return null;
   const top = m.payload;
   const headers = headersOfList(top.headers);
@@ -161,6 +191,7 @@ export function gmailEmailOf(json: unknown): MailboxEmail | null {
         size: typeof p.body?.size === "number" ? p.body.size : null,
       })),
     reportText: report || null,
+    labels: Array.isArray(m.labelIds) ? m.labelIds.filter((l): l is string => typeof l === "string") : [],
   };
 }
 
@@ -220,6 +251,7 @@ export function graphEmailOf(json: unknown): MailboxEmail | null {
     createdAt: typeof m.receivedDateTime === "string" ? m.receivedDateTime : null,
     attachments: [],
     reportText: looksReport ? content : null,
+    labels: [],
   };
 }
 

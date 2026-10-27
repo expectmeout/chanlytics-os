@@ -537,6 +537,56 @@ test("Gmail: the mailbox's own sends and drafts are never read, nor spam outside
   }
 });
 
+test("Gmail's tabs: what it filed as promotions outside a thread of ours is read and left; a reply it filed there is a reply all the same, and a person under Updates is a person", async () => {
+  const w = world();
+  const tabbed = (labels, id, threadId, opts) => ({
+    ...gmailMessage(id, threadId, opts),
+    labelIds: ["INBOX", ...labels],
+  });
+  const net = providers((c) => {
+    if (c.url.includes("/history?"))
+      return {
+        json: {
+          history: [
+            { messagesAdded: [{ message: { id: "r7", threadId: "g-thread", labelIds: ["CATEGORY_PROMOTIONS"] } }] },
+            { messagesAdded: [{ message: { id: "a7", threadId: "a-shop", labelIds: ["CATEGORY_PROMOTIONS"] } }] },
+            { messagesAdded: [{ message: { id: "u7", threadId: "a-quote", labelIds: ["CATEGORY_UPDATES"] } }] },
+          ],
+          historyId: "122",
+        },
+      };
+    const reports = reportsList(c);
+    if (reports) return reports;
+    if (c.url.includes("/messages/r7")) return { json: tabbed(["CATEGORY_PROMOTIONS"], "r7", "g-thread") };
+    if (c.url.includes("/messages/a7"))
+      return {
+        json: tabbed(["CATEGORY_PROMOTIONS"], "a7", "a-shop", {
+          from: "Amazon.com <store-news@amazon.com>",
+          text: "Today's deals.",
+        }),
+      };
+    if (c.url.includes("/messages/u7"))
+      return {
+        json: tabbed(["CATEGORY_UPDATES"], "u7", "a-quote", {
+          from: "Rosa Diaz <rosa@example.com>",
+          text: "Signed and sent back.",
+        }),
+      };
+    return { status: 404 };
+  });
+  try {
+    const out = await syncMailbox(w.db, w.mailbox, logger({ tenant_id: T }));
+    assert.deepEqual(out, { outcome: "synced", read: 3, bounced: 0, replies: 1, people: 1, dropped: 1, unreadable: 0 });
+    assert.deepEqual(
+      w.tables.jobs.map((j) => withoutRequestId(j.payload).received_id),
+      ["r7", "u7"],
+      "the newsletter is never taken in",
+    );
+  } finally {
+    net.restore();
+  }
+});
+
 test("Graph: a reply Exchange took for junk is read from Junk Email since the last read, when it is in a thread of ours", async () => {
   const w = world({
     box: { provider: "microsoft", address: "dana@getharbor.example", provider_account: "acct-dana" },

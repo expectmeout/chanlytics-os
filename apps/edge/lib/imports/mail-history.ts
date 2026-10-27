@@ -3,9 +3,10 @@
  * time through its own grant, each message sorted as the intake sorts any email (channels classifyReceived). An email a
  * person wrote, and one the owner sent to one person, is kept in that person's thread as before Chanlytics (db
  * keepBefore, ingest_before: the person resolved as a client list's would be, the message once by its provider id, never
- * answered, never a yes, never today's); everything else (lists, receipts, notifications, automatic replies, mail to
- * many) is left where it is and counted as dropped. A booking tool's notice is dropped too: a mailbox hands over no proof
- * of who sent it (channels mailbox-read.ts), so it is never read as a booking; the calendar brings the visits.
+ * answered, never a yes, never today's); everything else (lists, receipts, notifications, automatic replies, what Gmail
+ * filed as promotions, social or forums, mail to many) is left where it is and counted as dropped. A booking tool's
+ * notice is dropped too: a mailbox hands over no proof of who sent it (channels mailbox-read.ts), so it is never read as
+ * a booking; the calendar brings the visits.
  *
  * The window ends where the mailbox connected, and the live read (mailbox-sync.ts) starts there: nothing is read twice
  * and nothing between them is missed. The cursor (the ledger's job_cursor) is the window, the provider's page and how
@@ -20,6 +21,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   classifyReceived,
+  filedAsBulk,
   gmailListSince,
   gmailSignedOut,
   graphListSince,
@@ -34,6 +36,7 @@ import { EMAIL_BODY_MAX } from "../packages/core.js";
 import {
   importCursorOf,
   keepBefore,
+  knownThreads,
   mailboxConnectionOf,
   noteImport,
   type Database,
@@ -97,6 +100,16 @@ function mailPersonOf(e: MailboxEmail, own: string): { address: string; name: st
     return to.length === 1 && only ? { address: only, name: null, out: true } : null;
   }
   return classifyReceived(e) === "person" ? { address: from, name: e.from?.name ?? null, out: false } : null;
+}
+
+/**
+ * Whether Gmail filed what a person wrote as promotions, social or forums (channels filedAsBulk) outside a thread a
+ * reach-out started: a reply there is a reply, whatever Gmail calls it. A mailbox connected again reads back over its
+ * earlier connection's months, reach-outs among them; the threads are asked only when a tab alone would leave one.
+ */
+async function filedAway(r: MailRead, e: MailboxEmail): Promise<boolean> {
+  if (!filedAsBulk(e)) return false;
+  return !e.threadId || !(await knownThreads(r.db, r.part.tenantId, [e.threadId])).has(e.threadId);
 }
 
 /** What the row keeps of an email beside its words, as the intake keeps it: enough to thread under it and say who. */
@@ -227,7 +240,7 @@ async function takeListed(
   if ("paced" in read) return read.paced;
   const e = read.email;
   const who = mailPersonOf(e, r.row.address.toLowerCase());
-  if (!who) {
+  if (!who || (!who.out && (await filedAway(r, e)))) {
     counts.dropped++;
     return "taken";
   }

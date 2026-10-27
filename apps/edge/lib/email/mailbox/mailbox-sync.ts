@@ -3,8 +3,9 @@
  * since its cursor, under any label or folder (a reply a rule filed away, or one taken for junk, is a reply all the
  * same). What sits in a thread a reach-out started (00424 mailbox_threads_known) is read whatever it is, a delivery
  * report is applied, and anything else is read for what it claims to be (channels classifyReceived, the intake's own
- * sorting): an email a person wrote is taken in, as the hosted mailbox takes one in, and the rest (lists, receipts,
- * notifications, automatic replies) is left where it is and counted. Gmail's reports are found by who wrote them (a
+ * sorting) and for where Gmail filed it (channels filedAsBulk: Promotions, Social, Forums): an email a person wrote is
+ * taken in, as the hosted mailbox takes one in, and the rest (lists, receipts, notifications, automatic replies) is
+ * left where it is and counted. Gmail's reports are found by who wrote them (a
  * report seldom joins the thread it is about); Graph names a message's sender before it is read, and its Junk Email is
  * asked since the last read, Graph keeping no delta of it.
  *
@@ -24,6 +25,7 @@
 import {
   classifyReceived,
   deliveryReportOf,
+  filedAsBulk,
   gmailEmailOf,
   gmailHistory,
   gmailMessage,
@@ -338,8 +340,9 @@ const COUNTED: Partial<Record<ArrivalTaken, "bounced" | "dropped" | "replies" | 
 
 /**
  * One arrival, read in full and taken: the mailbox's own send and a report that names nothing of ours are left; a
- * report is applied as a receipt; inside a thread of ours anything is a reply; outside one, only what a person wrote is
- * taken in (R13), and a report, a list, a receipt, a notification or an automatic reply is left where it is, counted.
+ * report is applied as a receipt; inside a thread of ours anything is a reply, whatever tab Gmail filed it under;
+ * outside one, only what a person wrote is taken in (R13), and a report, a list, a receipt, a notification, an
+ * automatic reply or what Gmail filed as promotions, social or forums is left where it is, counted.
  * One the provider refuses to hand over is said and gone on without, so it never holds the cursor back.
  */
 async function takeArrival(
@@ -368,8 +371,8 @@ async function takeArrival(
     return "bounced";
   }
   const inOurs = (!!a.threadId && ours.has(a.threadId)) || (!!e.threadId && ours.has(e.threadId));
-  if (!inOurs && (a.report || (a.from !== null && REPORTER.test(a.from)) || classifyReceived(e) !== "person"))
-    return "dropped";
+  const automated = classifyReceived(e) !== "person" || filedAsBulk(e);
+  if (!inOurs && (a.report || (a.from !== null && REPORTER.test(a.from)) || automated)) return "dropped";
   await scheduleJobOnce(db, {
     tenantId: row.tenant_id,
     kind: "email_ingest",

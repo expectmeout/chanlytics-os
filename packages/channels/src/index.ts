@@ -320,7 +320,7 @@ export {
   graphUnsubscribe,
 } from "./mailbox/mailbox-graph";
 export type { GraphSent, GraphDelta } from "./mailbox/mailbox-graph";
-export { gmailEmailOf, graphEmailOf, rowIdOfMessageId, deliveryReportOf } from "./mailbox/mailbox-read";
+export { gmailEmailOf, graphEmailOf, filedAsBulk, rowIdOfMessageId, deliveryReportOf } from "./mailbox/mailbox-read";
 export type { MailboxEmail, DeliveryReport, BounceClass, FoundSent, ReadVerdict } from "./mailbox/mailbox-read";
 export { sendFromMailbox } from "./mailbox/mailbox-send";
 export type { MailboxSendInput, MailboxSendResult } from "./mailbox/mailbox-send";
