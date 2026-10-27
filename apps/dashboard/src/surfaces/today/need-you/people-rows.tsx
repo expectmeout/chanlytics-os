@@ -67,6 +67,7 @@ export function needYouRows(rows: readonly TodayQueueRowVM[], c: NeedYouRowsCtx)
       meta: [r.channel, r.via, r.when].filter(Boolean).join(", "),
       sentence: r.sentence,
       quoted: r.quoted,
+      lead: r.lead,
       status: r.status,
       tone: r.tone,
       testid: `queue-${r.kind}`,

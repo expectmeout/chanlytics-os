@@ -85,6 +85,8 @@ export interface TodayQueueRowVM {
   when: string;
   sentence: string;
   quoted: boolean;
+  /** What their email was about, said before their words (its subject without "Re:"); absent on every other wire. */
+  lead?: string;
   status: string[];
   tone: "escalated" | "warn";
   warn: boolean;

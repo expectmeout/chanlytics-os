@@ -8903,6 +8903,101 @@ function splitQuotedReply(body) {
   if (!text || !quoted2) return { text: body, quoted: null };
   return { text, quoted: quoted2 };
 }
+var SIG_DASHES = /^--\s*$/;
+var IMAGE_STAND_IN = /\[image:[^\]\n]*\]/i;
+var LABELLED = /^[A-Za-z][\w ./-]{0,30}:\s+\S/;
+var SIGN_OFF = /^(thanks|thank you|many thanks|best|best regards|kind regards|regards|warm regards|warmly|cheers|sincerely|talk soon|all the best|take care|gracias|saludos|un saludo|atentamente)\b[^.?]*$/i;
+var CONTACT = /(https?:\/\/|www\.|\b[\w-]+\.(com|io|co|net|org|agency|us|ca|uk|app|dev|info|biz)\b|@[\w-]+\.|\+?\d[\d\s().-]{6,}\d)/i;
+var NAME_LIKE = /^[A-Z][\p{L}'’.-]+(?:\s+[A-Z][\p{L}'’.-]+){0,3}$/u;
+var SENT_FROM = /^(sent from my\b|get outlook for\b|enviado desde mi\b)/i;
+var SIG_MAX_LINES = 8;
+var SIG_LINE_MAX = 90;
+var SIG_LINE_PARTS = 3;
+var blankLine = (l) => l.trim() === "";
+function namesSender(line, fromName) {
+  if (!fromName || /[?!]/.test(line) || line.split(/\s+/).length > 5) return false;
+  const words3 = fromName.toLowerCase().split(/[^\p{L}'’-]+/u).filter((w) => w.length > 1);
+  const said = line.toLowerCase();
+  return words3.some((w) => said.includes(w));
+}
+function signatureStart(lines, fromName) {
+  const first = lines.findIndex((l) => !blankLine(l));
+  if (first < 0) return null;
+  for (let i = first + 1; i < lines.length; i++) if (SIG_DASHES.test(lines[i])) return i;
+  let last = lines.length - 1;
+  while (last > first && blankLine(lines[last])) last--;
+  if (last > first && SENT_FROM.test(lines[last].trim())) return last;
+  let blank = -1;
+  for (let i = last; i > first; i--)
+    if (blankLine(lines[i])) {
+      blank = i;
+      break;
+    }
+  if (blank < 0) return null;
+  let start = blank + 1;
+  const block = lines.slice(start, last + 1).map((l) => l.trim());
+  if (block.length > SIG_MAX_LINES || block.some((l) => l.length > SIG_LINE_MAX || LABELLED.test(l))) return null;
+  if (SIGN_OFF.test(block[0]) || block[0].endsWith(",")) {
+    start++;
+    block.shift();
+  }
+  if (block.length === 0) return null;
+  const pictured = block.some((l) => IMAGE_STAND_IN.test(l));
+  const named = block.length >= 2 && namesSender(block[0], fromName);
+  const card = NAME_LIKE.test(block[0]) && block.slice(1).some((l) => CONTACT.test(l));
+  return pictured || named || card ? start : null;
+}
+var bareAddress = (s) => s.toLowerCase().replace(/^(https?:\/\/|mailto:)/, "").replace(/^www\./, "").replace(/\/$/, "");
+function tidyEmailWords(text) {
+  const lines = text.replace(/\r\n?/g, "\n").split("\n");
+  const kept = [];
+  for (const line of lines) {
+    const pictured = IMAGE_STAND_IN.test(line);
+    const tidy = line.replace(/\[image:[^\]\n]*\](?:[ \t]*<(?:https?:|mailto:)[^>\s]*>)?/gi, "").replace(/(\S+)[ \t]*<((?:https?:\/\/|mailto:)[^>\s]+)>/gi, (_, word, url) => {
+      const address = url.replace(/^mailto:/i, "");
+      return bareAddress(word) === bareAddress(url) ? address : `${word} ${address}`;
+    }).replace(/<((?:https?:\/\/|mailto:)[^>\s]+)>/gi, (_, url) => url.replace(/^mailto:/i, "")).replace(/[ \t]+$/, "");
+    if (pictured && blankLine(tidy)) continue;
+    kept.push(blankLine(tidy) ? "" : tidy);
+  }
+  return kept.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+function emailPartsOf(body, fromName) {
+  const { text, quoted: quoted2 } = splitQuotedReply(body.replace(/\r\n?/g, "\n"));
+  const lines = text.split("\n");
+  const at3 = fromName === null ? null : signatureStart(lines, fromName);
+  const said = tidyEmailWords(at3 === null ? text : lines.slice(0, at3).join("\n"));
+  if (at3 === null || !said) return { said: tidyEmailWords(text), signature: null, quoted: quoted2 && tidyEmailWords(quoted2) };
+  const signed2 = lines.slice(SIG_DASHES.test(lines[at3]) ? at3 + 1 : at3).join("\n");
+  return { said, signature: tidyEmailWords(signed2) || null, quoted: quoted2 && tidyEmailWords(quoted2) };
+}
+function emailSignatureLine(signature) {
+  return signature.split(/\n|[ \t]+\|[ \t]+/).map((p) => p.trim()).filter(Boolean).slice(0, SIG_LINE_PARTS).join(" \xB7 ");
+}
+var REPLY_PREFIX = /^((re|fwd?|fw|aw|sv|tr)\s*:\s*)+/i;
+var subjectKey = (s) => s.replace(REPLY_PREFIX, "").trim().toLowerCase();
+function emailSubjectsOf(messages) {
+  let thread = null;
+  let key = "";
+  const changed = /* @__PURE__ */ new Map();
+  for (const m of messages) {
+    const subject = m.channel === "email" ? emailSubjectOf(m) : null;
+    if (!subject) continue;
+    if (thread === null) thread = emailTopicOf(m);
+    else if (subjectKey(subject) !== key) changed.set(m.id, subject);
+    key = subjectKey(subject);
+  }
+  return { thread, changed };
+}
+function emailTopicOf(m) {
+  const subject = m.channel === "email" ? emailSubjectOf(m) : null;
+  return subject ? subject.replace(REPLY_PREFIX, "").trim() || subject : null;
+}
+function emailFromNameOf(m) {
+  if (m.sender !== "customer") return null;
+  const name = m.meta?.email?.from_name;
+  return typeof name === "string" && name.trim() ? name.trim() : "";
+}
 
 // src/config/intent-labels.ts
 var INTENT_LABELS = {
@@ -9262,7 +9357,7 @@ function draftSendsAtMs(m) {
   return new Date(m.created_at).getTime() + delay;
 }
 function messageWords(m) {
-  return m.channel === "email" ? splitQuotedReply(messageText(m)).text : messageText(m);
+  return m.channel === "email" ? emailPartsOf(messageText(m), emailFromNameOf(m)).said : messageText(m);
 }
 function messageText(m) {
   if (m.type === "call_summary" && m.body) {
@@ -11140,7 +11235,7 @@ var QUOTE_HEAD = /^(on|el|le|am|il|em|op)\b.*\b(wrote|escribió|a écrit|schrieb
 var QUOTE_OPEN = /^(on|el|le|am|il|em|op)\b/i;
 var ORIGINAL = /^-{2,}\s*(original message|forwarded message|mensaje original)\s*-{2,}$/i;
 var OUTLOOK_RULE = /^_{10,}$/;
-var SENT_FROM = /^(sent from my\b|get outlook for\b|enviado desde mi\b)/i;
+var SENT_FROM2 = /^(sent from my\b|get outlook for\b|enviado desde mi\b)/i;
 function ownLines(lines, pastHeads) {
   const kept = [];
   for (let i = 0; i < lines.length; i++) {
@@ -11154,7 +11249,7 @@ function ownLines(lines, pastHeads) {
       if (twoLines) i++;
       continue;
     }
-    if (t.startsWith(">") || SENT_FROM.test(t)) continue;
+    if (t.startsWith(">") || SENT_FROM2.test(t)) continue;
     kept.push(lines[i]);
   }
   return kept.join("\n").trim();
@@ -40003,7 +40098,7 @@ function replyFromLineOf(from, mailbox) {
   const box = mailbox ?? "your mailbox";
   return from.because === "own_not_sending" ? `${from.own} isn't sending right now, so this goes from ${box}.` : `${from.own} was removed, so this goes from ${box}.`;
 }
-var bareAddress = (from) => {
+var bareAddress2 = (from) => {
   if (typeof from !== "string" || !from.trim()) return null;
   const m = /<([^<>]+)>\s*$/.exec(from);
   return (m ? m[1] : from).trim().toLowerCase();
@@ -40011,8 +40106,8 @@ var bareAddress = (from) => {
 function replyLeftAsOf(meta) {
   const email = meta?.email;
   if (!email || email.left_as !== "mailbox") return null;
-  const went = bareAddress(email.request?.from);
-  const own = bareAddress(email.own_request?.from);
+  const went = bareAddress2(email.request?.from);
+  const own = bareAddress2(email.own_request?.from);
   if (!went) return null;
   if (!own) return `Went from ${went}.`;
   return email.left_as_why === "own_not_sending" ? `Went from ${went}: ${own} isn't sending right now.` : `Went from ${went}: ${own} could not send it.`;
@@ -40146,6 +40241,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     ...hasChat || !hasCalls ? [chatChannel, ...written.filter((c) => c !== chatChannel)] : [],
     ...hasCalls ? ["phone"] : []
   ];
+  const subjects2 = emailSubjectsOf(dto.messages);
   const timeline = dto.messages.map((m) => {
     if (m.type === "note") {
       return {
@@ -40158,20 +40254,21 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     const onPhone = m.type === "call_summary";
     const media = mediaVM(m);
     const why = messageWhy(m);
-    const subject = m.channel === "email" ? emailSubjectOf(m) : null;
+    const subject = subjects2.changed.get(m.id) ?? null;
     const leftOut2 = m.channel === "email" ? emailLeftOutOf(m.meta) ?? replyLeftAsOf(m.meta) : null;
-    const said = m.channel === "email" ? splitQuotedReply(messageText(m)) : null;
+    const said = m.channel === "email" ? emailPartsOf(messageText(m), emailFromNameOf(m)) : null;
     return {
       type: "msg",
       messageId: m.id,
       from: m.sender === "customer" ? "client" : "agent",
       channel: onPhone ? "phone" : writtenChannelOf(m.channel),
-      // An email's subject line, above its words.
+      // An email's subject line, above its words, where it changes from the thread's.
       ...subject ? { subject } : {},
       ...leftOut2 ? { leftOut: leftOut2 } : {},
       ...bubbleWhen(messageAt(m), tz, now),
-      body: said ? said.text : messageText(m),
-      ...said && said.quoted ? { quoted: said.quoted } : {},
+      body: said ? said.said : messageText(m),
+      ...said?.quoted ? { quoted: said.quoted } : {},
+      ...said?.signature ? { signature: { line: emailSignatureLine(said.signature), full: said.signature } } : {},
       ...media ? { media } : {},
       ...why ? { why } : {},
       // Who said it, per BUBBLE. The thread carries one agent identity, and the
@@ -40256,6 +40353,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     // the last thing that happened. The subject said "A teammate is answering this" under a pill naming the teammate,
     // "You're answering this one" under "You have it", and a quiet thread's last words twice when they wrote last.
     subject: reasonLabel ?? "",
+    ...subjects2.thread ? { emailSubject: subjects2.thread } : {},
     preview: preview.text,
     previewChannel: preview.channel,
     // A thread a teammate has is theirs to answer: the reason's sentence ("they're
@@ -48306,6 +48404,7 @@ function escalationRecords(openEsc, byConv, callByConv, tz, now) {
       since: tzSince(e.created_at, tz, now) ?? "",
       // her own words, never a generated characterization of them
       quote: lastCustomer ? clipAtWord(messageWords(lastCustomer), QUOTE_MAX) : "",
+      subject: lastCustomer ? emailTopicOf(lastCustomer) : null,
       who: conv ? contactName(conv) : call ? toCallVM(call, tz, now).who : e.reason === "callback" ? "Unknown caller" : "Unknown",
       closes: win?.open ? tzClock(win.closesAtIso, tz, now) : null
     };
@@ -48591,6 +48690,8 @@ function handoffOf(r2, f) {
     when: `waited ${formatWaited(r2.waitedMs)}`,
     sentence: r2.quote || reasonLabelOf(e.reason),
     quoted: !!r2.quote,
+    // An email says what it is about before its words: "test need you — “needs you test”".
+    ...r2.quote && r2.subject ? { lead: r2.subject } : {},
     status: [
       "Escalated",
       reasonShort(e.reason) || e.reason,
@@ -70723,9 +70824,12 @@ export {
   emailLeftOutOf,
   emailNotConfirmed,
   emailOffersOpen,
+  emailPartsOf,
   emailRowWrittenOf,
   emailRunStop,
+  emailSignatureLine,
   emailStoppedWords,
+  emailSubjectsOf,
   emailTemplateRowsOf,
   emailTemplateWords,
   emailWires,
@@ -72298,6 +72402,7 @@ export {
   threadWaitsOf,
   threadsWaitingOnYou,
   tidyCallSummary,
+  tidyEmailWords,
   tilesOf,
   timeOf,
   timelineFilterLabel,

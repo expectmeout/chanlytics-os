@@ -9,6 +9,7 @@ import { toCallVM } from "../conversations/call-vm";
 import { waitsOnAPerson, type EscalationDto } from "../conversations/escalations";
 import { threadWaitsOf } from "../conversations/inbox-thread";
 import { lastExchanged, messageWords, clipAtWord } from "../conversations/message-words";
+import { emailTopicOf } from "../conversations/message-email";
 import { contactName } from "../conversations/thread-contact";
 import { isOptedOut, type ConversationDto } from "../conversations/thread-dto";
 import { waWindow } from "../config/policy";
@@ -76,6 +77,8 @@ export interface EscalationRecord {
   since: string;
   /** Her own words, never a generated characterization of them. */
   quote: string;
+  /** What her email was about, when the words came by email: its subject without "Re:" (emailTopicOf). */
+  subject: string | null;
   who: string;
   /** When the free reply window closes, while it is open. */
   closes: string | null;
@@ -179,6 +182,7 @@ function escalationRecords(
       since: tzSince(e.created_at, tz, now) ?? "",
       // her own words, never a generated characterization of them
       quote: lastCustomer ? clipAtWord(messageWords(lastCustomer), QUOTE_MAX) : "",
+      subject: lastCustomer ? emailTopicOf(lastCustomer) : null,
       who: conv
         ? contactName(conv)
         : call

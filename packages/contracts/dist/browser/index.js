@@ -145,7 +145,7 @@ export { REFERRAL_ID_MAX } from "./conversations/first-touch.js";
 export { HANDLED_OUTCOMES } from "./conversations/handled.js";
 export { threadStanding, conversationWaitsOnYou, threadsWaitingOnYou, threadWaitsOf, heldThreadIds, HELD_BY_ID_MAX, snoozedThreadWords, heldDraftWaits, THREAD_PANE_WORDS, theyWroteLast, toInboxThreadVM } from "./conversations/inbox-thread.js";
 export { EMAIL_CLAIMS, isAutomatedSend, isPersonsWords, messageVia, messageAuthor, messageWhy } from "./conversations/message-author.js";
-export { emailLeftOutOf, splitQuotedReply } from "./conversations/message-email.js";
+export { emailLeftOutOf, emailPartsOf, emailSignatureLine, emailSubjectsOf, splitQuotedReply, tidyEmailWords } from "./conversations/message-email.js";
 export { mediaKind, mediaVM } from "./conversations/message-media.js";
 export { messageStatusLabel, sendFailureWords, failureWordsOf, providerCodeOf, reachedCustomer, isHeldDraft, heldDraftOf, draftSendsAtMs, messageWords, messageText } from "./conversations/message-words.js";
 export { standingOf, standingOfThread, replyWaitsOnYou, HELD_WORDS, NEEDS_YOU_WORD, INBOX_BUCKET_WORDS, inboxBucketWord, heldPill, seenBy, isUnseen, readingOf } from "./conversations/standing.js";

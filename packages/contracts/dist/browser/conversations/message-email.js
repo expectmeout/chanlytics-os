@@ -29,3 +29,98 @@ export function splitQuotedReply(body) {
   if (!text || !quoted) return { text: body, quoted: null };
   return { text, quoted };
 }
+const SIG_DASHES = /^--\s*$/;
+const IMAGE_STAND_IN = /\[image:[^\]\n]*\]/i;
+const LABELLED = /^[A-Za-z][\w ./-]{0,30}:\s+\S/;
+const SIGN_OFF = /^(thanks|thank you|many thanks|best|best regards|kind regards|regards|warm regards|warmly|cheers|sincerely|talk soon|all the best|take care|gracias|saludos|un saludo|atentamente)\b[^.?]*$/i;
+const CONTACT = /(https?:\/\/|www\.|\b[\w-]+\.(com|io|co|net|org|agency|us|ca|uk|app|dev|info|biz)\b|@[\w-]+\.|\+?\d[\d\s().-]{6,}\d)/i;
+const NAME_LIKE = /^[A-Z][\p{L}'’.-]+(?:\s+[A-Z][\p{L}'’.-]+){0,3}$/u;
+const SENT_FROM = /^(sent from my\b|get outlook for\b|enviado desde mi\b)/i;
+const SIG_MAX_LINES = 8;
+const SIG_LINE_MAX = 90;
+const SIG_LINE_PARTS = 3;
+const blankLine = (l) => l.trim() === "";
+function namesSender(line, fromName) {
+  if (!fromName || /[?!]/.test(line) || line.split(/\s+/).length > 5) return false;
+  const words = fromName.toLowerCase().split(/[^\p{L}'’-]+/u).filter((w) => w.length > 1);
+  const said = line.toLowerCase();
+  return words.some((w) => said.includes(w));
+}
+function signatureStart(lines, fromName) {
+  const first = lines.findIndex((l) => !blankLine(l));
+  if (first < 0) return null;
+  for (let i = first + 1; i < lines.length; i++) if (SIG_DASHES.test(lines[i])) return i;
+  let last = lines.length - 1;
+  while (last > first && blankLine(lines[last])) last--;
+  if (last > first && SENT_FROM.test(lines[last].trim())) return last;
+  let blank = -1;
+  for (let i = last; i > first; i--)
+    if (blankLine(lines[i])) {
+      blank = i;
+      break;
+    }
+  if (blank < 0) return null;
+  let start = blank + 1;
+  const block = lines.slice(start, last + 1).map((l) => l.trim());
+  if (block.length > SIG_MAX_LINES || block.some((l) => l.length > SIG_LINE_MAX || LABELLED.test(l))) return null;
+  if (SIGN_OFF.test(block[0]) || block[0].endsWith(",")) {
+    start++;
+    block.shift();
+  }
+  if (block.length === 0) return null;
+  const pictured = block.some((l) => IMAGE_STAND_IN.test(l));
+  const named = block.length >= 2 && namesSender(block[0], fromName);
+  const card = NAME_LIKE.test(block[0]) && block.slice(1).some((l) => CONTACT.test(l));
+  return pictured || named || card ? start : null;
+}
+const bareAddress = (s) => s.toLowerCase().replace(/^(https?:\/\/|mailto:)/, "").replace(/^www\./, "").replace(/\/$/, "");
+export function tidyEmailWords(text) {
+  const lines = text.replace(/\r\n?/g, "\n").split("\n");
+  const kept = [];
+  for (const line of lines) {
+    const pictured = IMAGE_STAND_IN.test(line);
+    const tidy = line.replace(/\[image:[^\]\n]*\](?:[ \t]*<(?:https?:|mailto:)[^>\s]*>)?/gi, "").replace(/(\S+)[ \t]*<((?:https?:\/\/|mailto:)[^>\s]+)>/gi, (_, word, url) => {
+      const address = url.replace(/^mailto:/i, "");
+      return bareAddress(word) === bareAddress(url) ? address : `${word} ${address}`;
+    }).replace(/<((?:https?:\/\/|mailto:)[^>\s]+)>/gi, (_, url) => url.replace(/^mailto:/i, "")).replace(/[ \t]+$/, "");
+    if (pictured && blankLine(tidy)) continue;
+    kept.push(blankLine(tidy) ? "" : tidy);
+  }
+  return kept.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+export function emailPartsOf(body, fromName) {
+  const { text, quoted } = splitQuotedReply(body.replace(/\r\n?/g, "\n"));
+  const lines = text.split("\n");
+  const at = fromName === null ? null : signatureStart(lines, fromName);
+  const said = tidyEmailWords(at === null ? text : lines.slice(0, at).join("\n"));
+  if (at === null || !said) return { said: tidyEmailWords(text), signature: null, quoted: quoted && tidyEmailWords(quoted) };
+  const signed = lines.slice(SIG_DASHES.test(lines[at]) ? at + 1 : at).join("\n");
+  return { said, signature: tidyEmailWords(signed) || null, quoted: quoted && tidyEmailWords(quoted) };
+}
+export function emailSignatureLine(signature) {
+  return signature.split(/\n|[ \t]+\|[ \t]+/).map((p) => p.trim()).filter(Boolean).slice(0, SIG_LINE_PARTS).join(" \xB7 ");
+}
+const REPLY_PREFIX = /^((re|fwd?|fw|aw|sv|tr)\s*:\s*)+/i;
+const subjectKey = (s) => s.replace(REPLY_PREFIX, "").trim().toLowerCase();
+export function emailSubjectsOf(messages) {
+  let thread = null;
+  let key = "";
+  const changed = /* @__PURE__ */ new Map();
+  for (const m of messages) {
+    const subject = m.channel === "email" ? emailSubjectOf(m) : null;
+    if (!subject) continue;
+    if (thread === null) thread = emailTopicOf(m);
+    else if (subjectKey(subject) !== key) changed.set(m.id, subject);
+    key = subjectKey(subject);
+  }
+  return { thread, changed };
+}
+export function emailTopicOf(m) {
+  const subject = m.channel === "email" ? emailSubjectOf(m) : null;
+  return subject ? subject.replace(REPLY_PREFIX, "").trim() || subject : null;
+}
+export function emailFromNameOf(m) {
+  if (m.sender !== "customer") return null;
+  const name = m.meta?.email?.from_name;
+  return typeof name === "string" && name.trim() ? name.trim() : "";
+}

@@ -40,6 +40,8 @@ interface AttnRowProps {
   meta?: string;
   sentence?: string;
   quoted?: boolean;
+  /** What the sentence is about, said before it in bold: an email's subject, before the words they wrote. */
+  lead?: string;
   status?: readonly ReactNode[];
   /** The facts worth having once: shown behind the row's mark, never printed in the line. */
   note?: string;
@@ -116,6 +118,7 @@ export function AttnRow({
   meta = "",
   sentence = "",
   quoted = false,
+  lead = "",
   status = [],
   note = "",
   tone = "answering",
@@ -163,7 +166,15 @@ export function AttnRow({
           </span>
           {meta ? <span className="cl-attn-meta">{meta}</span> : null}
         </div>
-        <div className={`cl-attn-sentence ${quoted ? "quoted" : ""}`}>{quoted ? `“${sentence}”` : sentence}</div>
+        {lead ? (
+          <div className={`cl-attn-sentence ${quoted ? "quoted" : ""}`}>
+            <b>{lead}</b>
+            {" — "}
+            {quoted ? `“${sentence}”` : sentence}
+          </div>
+        ) : (
+          <div className={`cl-attn-sentence ${quoted ? "quoted" : ""}`}>{quoted ? `“${sentence}”` : sentence}</div>
+        )}
         <div className="cl-attn-status">
           {status.map((seg, i) => (
             <span key={i} className={i === 0 ? "lead" : ""}>

@@ -10,7 +10,7 @@ import { contactName, contactMeta, emailStoppedWords, initialsOf } from "./threa
 import { shortTime, bubbleTime, inboxThreadClock, waitedSince } from "./thread-clock.js";
 import { clockDate, clockHistoryDay, clockTime } from "../shared/clock.js";
 import { mediaVM } from "./message-media.js";
-import { emailSubjectOf, emailLeftOutOf, splitQuotedReply } from "./message-email.js";
+import { emailLeftOutOf, emailFromNameOf, emailPartsOf, emailSignatureLine, emailSubjectsOf } from "./message-email.js";
 import { replyLeftAsOf } from "../reach-out/reach-out-reply-words.js";
 import {
   sentFactsOf,
@@ -152,6 +152,7 @@ export function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new D
     ...hasChat || !hasCalls ? [chatChannel, ...written.filter((c) => c !== chatChannel)] : [],
     ...hasCalls ? ["phone"] : []
   ];
+  const subjects = emailSubjectsOf(dto.messages);
   const timeline = dto.messages.map((m) => {
     if (m.type === "note") {
       return {
@@ -164,20 +165,21 @@ export function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new D
     const onPhone = m.type === "call_summary";
     const media = mediaVM(m);
     const why = messageWhy(m);
-    const subject = m.channel === "email" ? emailSubjectOf(m) : null;
+    const subject = subjects.changed.get(m.id) ?? null;
     const leftOut = m.channel === "email" ? emailLeftOutOf(m.meta) ?? replyLeftAsOf(m.meta) : null;
-    const said = m.channel === "email" ? splitQuotedReply(messageText(m)) : null;
+    const said = m.channel === "email" ? emailPartsOf(messageText(m), emailFromNameOf(m)) : null;
     return {
       type: "msg",
       messageId: m.id,
       from: m.sender === "customer" ? "client" : "agent",
       channel: onPhone ? "phone" : writtenChannelOf(m.channel),
-      // An email's subject line, above its words.
+      // An email's subject line, above its words, where it changes from the thread's.
       ...subject ? { subject } : {},
       ...leftOut ? { leftOut } : {},
       ...bubbleWhen(messageAt(m), tz, now),
-      body: said ? said.text : messageText(m),
-      ...said && said.quoted ? { quoted: said.quoted } : {},
+      body: said ? said.said : messageText(m),
+      ...said?.quoted ? { quoted: said.quoted } : {},
+      ...said?.signature ? { signature: { line: emailSignatureLine(said.signature), full: said.signature } } : {},
       ...media ? { media } : {},
       ...why ? { why } : {},
       // Who said it, per BUBBLE. The thread carries one agent identity, and the
@@ -262,6 +264,7 @@ export function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new D
     // the last thing that happened. The subject said "A teammate is answering this" under a pill naming the teammate,
     // "You're answering this one" under "You have it", and a quiet thread's last words twice when they wrote last.
     subject: reasonLabel ?? "",
+    ...subjects.thread ? { emailSubject: subjects.thread } : {},
     preview: preview.text,
     previewChannel: preview.channel,
     // A thread a teammate has is theirs to answer: the reason's sentence ("they're

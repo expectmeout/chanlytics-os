@@ -130,6 +130,8 @@ export interface InboxThreadVM {
   agent: { name: string; glyph: string };
   /** Why a person is needed, as the list's row says it: the reason's label, or empty when nobody is. */
   subject: string;
+  /** What the thread's emails are about: its first email's subject, without "Re:", said once in its head. */
+  emailSubject?: string;
   /** The last thing that happened: the newest message that came in or reached them, never a draft. */
   preview: string;
   /**
@@ -179,10 +181,12 @@ export interface InboxThreadVM {
         day: string;
         time: string;
         body: string;
-        /** An email's subject line; absent on every other wire. */
+        /** An email's subject line, where it changes from the thread's (emailSubjectsOf); absent on every other wire. */
         subject?: string;
         /** The chain an email quoted back at us, when it did: kept, and shown on a tap. */
         quoted?: string;
+        /** The signature under an email of theirs: one line, and the whole of it on a tap (emailPartsOf). */
+        signature?: { line: string; full: string };
         /** What an email carried that is not shown: files whose names alone were kept, words past the bound (emailLeftOutOf). */
         leftOut?: string;
         /** The attachment, when the message is one. */

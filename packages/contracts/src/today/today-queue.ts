@@ -178,6 +178,8 @@ function handoffOf(r: EscalationRecord, f: TodayFacts): TodayQueueRowVM {
     when: `waited ${formatWaited(r.waitedMs)}`,
     sentence: r.quote || reasonLabelOf(e.reason),
     quoted: !!r.quote,
+    // An email says what it is about before its words: "test need you — “needs you test”".
+    ...(r.quote && r.subject ? { lead: r.subject } : {}),
     status: [
       "Escalated",
       reasonShort(e.reason) || e.reason,

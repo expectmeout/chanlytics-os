@@ -15,7 +15,7 @@ import { contactName, contactMeta, emailStoppedWords, initialsOf } from "./threa
 import { shortTime, bubbleTime, inboxThreadClock, waitedSince, type ThreadMoments } from "./thread-clock";
 import { clockDate, clockHistoryDay, clockTime } from "../shared/clock";
 import { mediaVM } from "./message-media";
-import { emailSubjectOf, emailLeftOutOf, splitQuotedReply } from "./message-email";
+import { emailLeftOutOf, emailFromNameOf, emailPartsOf, emailSignatureLine, emailSubjectsOf } from "./message-email";
 import { replyLeftAsOf } from "../reach-out/reach-out-reply-words";
 import {
   sentFactsOf,
@@ -306,6 +306,7 @@ export function toInboxThreadVM(
     ...(hasCalls ? ["phone"] : []),
   ];
 
+  const subjects = emailSubjectsOf(dto.messages);
   const timeline: InboxThreadVM["timeline"] = dto.messages.map((m) => {
     // A note the platform wrote on the thread is a line between the words, not a bubble: drawn as a bubble it read
     // "by WhatsApp Receptionist · Delivered", a reply the customer never got (the 2 Oct 2026 audit).
@@ -320,21 +321,22 @@ export function toInboxThreadVM(
     const onPhone = m.type === "call_summary";
     const media = mediaVM(m);
     const why = messageWhy(m);
-    const subject = m.channel === "email" ? emailSubjectOf(m) : null;
+    const subject = subjects.changed.get(m.id) ?? null;
     const leftOut = m.channel === "email" ? (emailLeftOutOf(m.meta) ?? replyLeftAsOf(m.meta)) : null;
-    // Only an email quotes; a WhatsApp message that happens to start a line with ">" is words.
-    const said = m.channel === "email" ? splitQuotedReply(messageText(m)) : null;
+    // Only an email quotes and signs; a WhatsApp message that happens to start a line with ">" is words.
+    const said = m.channel === "email" ? emailPartsOf(messageText(m), emailFromNameOf(m)) : null;
     return {
       type: "msg" as const,
       messageId: m.id,
       from: m.sender === "customer" ? ("client" as const) : ("agent" as const),
       channel: onPhone ? "phone" : writtenChannelOf(m.channel),
-      // An email's subject line, above its words.
+      // An email's subject line, above its words, where it changes from the thread's.
       ...(subject ? { subject } : {}),
       ...(leftOut ? { leftOut } : {}),
       ...bubbleWhen(messageAt(m), tz, now),
-      body: said ? said.text : messageText(m),
-      ...(said && said.quoted ? { quoted: said.quoted } : {}),
+      body: said ? said.said : messageText(m),
+      ...(said?.quoted ? { quoted: said.quoted } : {}),
+      ...(said?.signature ? { signature: { line: emailSignatureLine(said.signature), full: said.signature } } : {}),
       ...(media ? { media } : {}),
       ...(why ? { why } : {}),
       // Who said it, per BUBBLE. The thread carries one agent identity, and the
@@ -429,6 +431,7 @@ export function toInboxThreadVM(
     // the last thing that happened. The subject said "A teammate is answering this" under a pill naming the teammate,
     // "You're answering this one" under "You have it", and a quiet thread's last words twice when they wrote last.
     subject: reasonLabel ?? "",
+    ...(subjects.thread ? { emailSubject: subjects.thread } : {}),
     preview: preview.text,
     previewChannel: preview.channel,
     // A thread a teammate has is theirs to answer: the reason's sentence ("they're
