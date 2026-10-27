@@ -6,9 +6,17 @@
  * the dashboard's own, the key that signs the OAuth state (google.ts stateSecret).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { mailboxCapacityOf, mailboxConnectionsOf, mailboxCountsOf, type Database } from "@chanlytics/db";
+import {
+  mailboxCapacityOf,
+  mailboxConnectionsOf,
+  mailboxCountsOf,
+  mailboxLeftSince,
+  mailboxPeopleSince,
+  type Database,
+} from "@chanlytics/db";
 import {
   AppError,
+  DAY_MS,
   MAILBOX_DAILY_CAP_MAX,
   MAILBOX_PROVIDERS,
   ROLE_PERMS,
@@ -47,10 +55,11 @@ export async function mailboxConnectionsFor(
 }
 
 /**
- * The same, each live one with its day and its health beside it: what it sent in the last day (mailbox_capacity) and
- * what its emails came to since it was counted clean (mailbox_connection_counts), as Connections says them. Both are
- * the service role's to ask; the rows they are asked of are the ones this member's own read returned. A count that
- * cannot be read is left out, never Setup's failure, and a deployment without the service role's keys reads none.
+ * The same, each live one with its day beside it: the people whose email came in through it in the last day, on this
+ * member's own read; what it sent in that day (mailbox_capacity) and what its emails came to since it was counted clean
+ * (mailbox_connection_counts), which are the service role's to ask, of the rows this member's own read returned. A
+ * count that cannot be read is left out, never Setup's failure, and a deployment without the service role's keys reads
+ * only who wrote.
  */
 export async function mailboxConnectionsWithDaysFor(
   db: SupabaseClient<Database>,
@@ -59,16 +68,27 @@ export async function mailboxConnectionsWithDaysFor(
 ): Promise<MailboxConnectionDto[]> {
   const rows = await mailboxConnectionsOf(db, tenantId);
   const svc = serviceDbIfConfigured();
+  const since = new Date(now.getTime() - DAY_MS);
   return Promise.all(
     rows.map(async (r) => {
-      if (!svc || r.state === "removed" || r.state === "reconnect") return mailboxConnectionDtoOf(r);
-      const [day, counts] = await Promise.all([
-        mailboxCapacityOf(svc, r.id, now).catch(() => null),
-        mailboxCountsOf(svc, r.id, r.counted_since).catch(() => null),
+      if (r.state === "removed" || r.state === "reconnect") return mailboxConnectionDtoOf(r);
+      const [cameIn, day, counts] = await Promise.all([
+        mailboxPeopleSince(db, tenantId, r.id, since).catch(() => null),
+        svc ? mailboxCapacityOf(svc, r.id, now).catch(() => null) : null,
+        svc ? mailboxCountsOf(svc, r.id, r.counted_since).catch(() => null) : null,
       ]);
-      return mailboxConnectionDtoOf(r, { sent_today: day?.sent_today ?? null, counts });
+      return mailboxConnectionDtoOf(r, { sent_today: day?.sent_today ?? null, counts, came_in: cameIn });
     }),
   );
+}
+
+/** The senders whose mail the workspace's mailboxes left there in the last day (00483), on this member's read; null unread. */
+export async function mailboxesLeftTodayFor(
+  db: SupabaseClient<Database>,
+  tenantId: string,
+  now = new Date(),
+): Promise<number | null> {
+  return mailboxLeftSince(db, tenantId, new Date(now.getTime() - DAY_MS)).catch(() => null);
 }
 
 /** One call to the edge's mailboxes door. Never throws: a failure is a status the caller reads. */

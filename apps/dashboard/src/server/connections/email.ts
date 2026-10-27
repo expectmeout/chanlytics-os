@@ -35,7 +35,12 @@ import {
 import { answeredReachOutEmail, mailboxOfTenant, type Database, type Json, type MailboxRow } from "@chanlytics/db";
 import type { EmailReplyPorts } from "@chanlytics/core";
 import { dbRefusal, type RouteContext } from "../with-route";
-import { mailboxConnectionsFor, mailboxConnectionsWithDaysFor, mailboxesReadiness } from "./mailbox-connections";
+import {
+  mailboxConnectionsFor,
+  mailboxConnectionsWithDaysFor,
+  mailboxesLeftTodayFor,
+  mailboxesReadiness,
+} from "./mailbox-connections";
 import { env } from "../env";
 
 /** The deployment's mail domain, lower-cased; null when email is off here (contracts emailDomainOf, as the edge reads it). */
@@ -218,14 +223,21 @@ export async function emailSetupFor(
 ): Promise<EmailSetupDto> {
   // The mailboxes a reach-out writes from (decision 0056) are the business's own, through Google or Microsoft, so they
   // are read whatever the hosted mailbox. A read that fails draws no block rather than failing Setup.
-  const [line, mailboxes, ready] = await Promise.all([
+  // What the mailboxes left is read only where there is a mailbox to have left it.
+  const [line, read, ready] = await Promise.all([
     emailLineFor(supabase, tenantId, mailbox),
-    mailboxConnectionsWithDaysFor(supabase, tenantId).catch(() => null),
+    mailboxConnectionsWithDaysFor(supabase, tenantId)
+      .then(async (ms) => ({ ms, left: ms.length ? await mailboxesLeftTodayFor(supabase, tenantId) : null }))
+      .catch(() => null),
     mailboxesReadiness().catch(() => ({ providers: [], audience: null })),
   ]);
+  const mailboxes = read?.ms ?? null;
+  const leftToday = read?.left ?? null;
   return {
     ...line,
-    sending: mailboxes ? { providers: ready.providers, mailboxes, google_audience: ready.audience } : null,
+    sending: mailboxes
+      ? { providers: ready.providers, mailboxes, google_audience: ready.audience, left_today: leftToday }
+      : null,
   };
 }
 

@@ -1895,6 +1895,27 @@ html.legacy-on .bt-link { position: relative; }
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+/* A mailbox's act and the rest on its caret, one split pill with a hairline between (mailboxes-block.tsx
+   mailboxActions; Ruben, 20 Oct 2026: no three dots), as a sequence's head draws its act and its More. */
+.set-mbx-acts {
+  display: inline-flex;
+  align-items: stretch;
+}
+.set-mbx-acts > :first-child:not(:last-child) {
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+}
+.set-mbx-acts .set-mbx-caret {
+  justify-content: center;
+  width: 28px;
+  padding: 0;
+}
+.set-mbx-acts > :last-child:not(:first-child) .set-mbx-caret {
+  margin-left: -1px;
+  border-left-color: var(--line-strong);
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+}
 /* The records to publish, as a registrar's form asks for them: what each is for, its type, the part before the
    domain, the value, the priority. Each name and value copies on its own; a quiet dot says whether it reads yet. */
 .set-records {

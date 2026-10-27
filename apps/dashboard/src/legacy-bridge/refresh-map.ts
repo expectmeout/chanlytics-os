@@ -606,9 +606,10 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // answer lands (ingest_before): the person made or found as a client list's is, and their thread made or moved, shown but never
   // counted as today's, never answered, never a yes. So People's rows, the audiences and the book the People lens counts move, and
   // the Inbox's and Conversations' rows; not Today, nor a lens that counts replies. A sender said to be automated, or taken back,
-  // moves nothing on screen (only what their next email does), and the list under the mailbox reads itself again behind each
-  // press (left-senders.tsx).
-  "POST mailbox-senders": () => [...peopleAndAudiences(), inboxOverride, conversationsOverride],
+  // moves nothing else on screen (only what their next email does), and the list under the mailbox reads itself again behind each
+  // press (left-senders.tsx). Setup counts the senders left today less those said to be people, beside the list's title, where
+  // Setup is drawn.
+  "POST mailbox-senders": () => [...peopleAndAudiences(), inboxOverride, conversationsOverride, ...setupIfDrawn()],
   "POST billing/resume": billing,
   "POST billing/sync": billing,
   // The plan starting now ends the trial: the pane's rows and Setup's billing row.

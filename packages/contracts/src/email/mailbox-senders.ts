@@ -77,6 +77,8 @@ export const MAILBOX_LEFT_WHY_WORDS: Readonly<Record<MailboxLeftWhy, string>> = 
 /** The list's words, and "Not a person" on a person's page. */
 export const MAILBOX_SENDERS_WORDS = {
   title: "Left in your mailbox",
+  /** Beside the title: the senders left in the last day, as a mailbox's row counts who wrote. */
+  today: (n: number) => (n === 0 ? "none today" : `${n} sender${n === 1 ? "" : "s"} today`),
   lead: "Mail that isn't from a person stays in your mailbox, out of Chanlytics. If anyone here is a person, bring them in.",
   empty: "Nothing has been left yet.",
   emails: (n: number) => `${n} email${n === 1 ? "" : "s"}`,

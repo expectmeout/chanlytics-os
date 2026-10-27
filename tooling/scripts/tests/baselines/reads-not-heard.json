@@ -379,6 +379,21 @@
     },
     {
       "kind": "unfed",
+      "why": "The senders a connected mailbox left in its mailbox today, on Connections' Left in your mailbox (mailboxLeftSince over mailbox_left, less a sender mailbox_senders says is a person, 00483). The feed tells neither table: the sync that notes a sender left ends by stamping its mailbox's row (synced_at), which Setup hears, so the count is read again with each sync, every five minutes.",
+      "reads": {
+        "setup": [
+          "mailbox_left",
+          "mailbox_senders"
+        ]
+      },
+      "heardWith": {
+        "setup": [
+          "mailbox_connections"
+        ]
+      }
+    },
+    {
+      "kind": "unfed",
       "why": "The place a lead was found at (leads_page joins lead_places) and the ideas for a new search (lead_suggestions: written when a read asks the model for them, kept until a round ends or the line is saved). Neither is told by the feed: a round commits the lead, which Leads hears (heardWith), and saving the business line (PUT lead-suggestions) re-reads Leads.",
       "reads": {
         "leads": [

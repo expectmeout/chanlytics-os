@@ -44,5 +44,5 @@
   "tooling/scripts/tests/whatsapp/inbound-executed.test.mjs": 2073,
   "tooling/scripts/tests/whatsapp/whatsapp-door.test.mjs": 2147,
   "tooling/scripts/tests/workspace/exports.test.mjs": 2022,
-  "tooling/scripts/tests/workspace/settings-doors.test.mjs": 1692
+  "tooling/scripts/tests/workspace/settings-doors.test.mjs": 1601
 }
