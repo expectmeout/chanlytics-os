@@ -714,6 +714,46 @@ test("what the workspace said of a sender stands: a person comes in whatever the
   }
 });
 
+test("an owner's alert that reaches their connected mailbox is left there, as the mail Chanlytics sent says it is, never taken in as a person's email and flagged again (27 Oct 2026)", async () => {
+  const { postMail } = await importSrc("apps/edge/lib/ops/notify.ts");
+  const ALERTS = "alerts@chanlytics.example";
+  const resend = providers(() => ({ json: { id: "em_1" } }));
+  const keyed = withEnv({ RESEND_API_KEY: "re_test" });
+  try {
+    await postMail({
+      from: `Chanlytics <${ALERTS}>`,
+      to: ["sam@getharbor.example"],
+      subject: "Rosa Diaz wrote by email: Tuesday?",
+      text: "They wrote: “Is Tuesday free?”",
+    });
+  } finally {
+    keyed();
+    resend.restore();
+  }
+  // The headers the alert left with, as the mailbox's copy of it carries them.
+  const sent = Object.entries(JSON.parse(resend.calls[0].body).headers).map(([name, value]) => ({ name, value }));
+  assert.deepEqual(sent, [{ name: "Auto-Submitted", value: "auto-generated" }]);
+  const alert = { from: `Chanlytics <${ALERTS}>`, text: "They wrote: “Is Tuesday free?”" };
+  const w = world();
+  const net = arrivals([
+    tabbed([], "al1", "a-alert", { ...alert, headers: sent }),
+    // The same alert as it left before it said so: a person's email to the mailbox's reading.
+    tabbed([], "al0", "a-alert-before", alert),
+  ]);
+  try {
+    const out = await syncMailbox(w.db, w.mailbox, logger({ tenant_id: T }));
+    assert.deepEqual([out.people, out.dropped], [1, 1]);
+    assert.deepEqual(
+      w.tables.jobs.map((j) => withoutRequestId(j.payload).received_id),
+      ["al0"],
+      "the alert that says what it is is never taken in",
+    );
+    assert.deepEqual(w.left, [[ALERTS, "automated"]], "it is on the owner's list of what was left, with why");
+  } finally {
+    net.restore();
+  }
+});
+
 test("what the owner wrote from Gmail to a person the workspace knows is kept in their thread and answers what waited there; to someone it does not know, to many, an automatic one and Chanlytics' own are left", async () => {
   const w = world();
   // A person who wrote, waiting in Need you since an hour ago, on the thread the reach-out started.
