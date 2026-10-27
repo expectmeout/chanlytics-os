@@ -1129,7 +1129,7 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 .today-brought-state[data-tone="ok"] svg { color: var(--ok-ink); }
 .today-brought-state[data-tone="stopped"] { color: var(--danger-ink); }
 .today-brought-chevron { flex: none; color: var(--ink-dim); transition: rotate var(--duration-base) var(--ease-out); }
-.today-brought-head:hover .today-brought-chevron { color: var(--ink); }
+@media (hover: hover) { .today-brought-head:hover .today-brought-chevron { color: var(--ink); } }
 .today-brought.open .today-brought-chevron { rotate: 180deg; }
 .today-brought-fold { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--duration-base) var(--ease-out); }
 .today-brought-fold > div { min-height: 0; overflow: hidden; }

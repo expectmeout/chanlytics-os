@@ -60,7 +60,7 @@ export const IMPORT_WORDS = {
 };
 const since = (oldest) => oldest ? `since ${dayWords(oldest)}` : null;
 const joined = (...parts) => parts.filter(Boolean).join(" \xB7 ");
-const people = (n) => groupedPlural(n, "person", "people");
+const countOfPeople = (n) => groupedPlural(n, "person", "people");
 function mailSaysOf(r) {
   const c = r.counts;
   const n = c.messages ?? 0;
@@ -87,27 +87,27 @@ function saysOf(r) {
         c.coming ? `${c.coming} coming up` : null
       );
     case "clients_file":
-      return c.people === void 0 ? "Reading your file" : joined(people(c.people), via ? `from ${via}'s file` : "from your file");
+      return c.people === void 0 ? "Reading your file" : joined(countOfPeople(c.people), via ? `from ${via}'s file` : "from your file");
     case "contacts":
-      return c.people === void 0 ? "Reading them" : joined(people(c.people), via);
+      return c.people === void 0 ? "Reading them" : joined(countOfPeople(c.people), via);
     case "mailbox":
       return mailSaysOf(r);
     case "whatsapp_contacts":
-      return c.people === void 0 ? "Reading them" : people(c.people);
+      return c.people === void 0 ? "Reading them" : countOfPeople(c.people);
     case "whatsapp_history":
       return r.oldest ? `Back to ${dayWords(r.oldest)} so far` : "Chats from the last six months";
   }
 }
-function keptOf(r) {
+function stoppedKept(r) {
   const c = r.counts;
   if (r.source === "mailbox") return c.messages ? groupedPlural(c.messages, "email") : null;
-  if (c.people) return people(c.people);
+  if (c.people) return countOfPeople(c.people);
   if (c.reviews) return groupedPlural(c.reviews, "review");
   return c.past ? groupedPlural(c.past, "past appointment") : null;
 }
 function stoppedSaysOf(r) {
   if (r.last_error && r.last_error !== IMPORT_STOPPED_WORDS.failed) return r.last_error;
-  const kept = keptOf(r);
+  const kept = stoppedKept(r);
   return joined(IMPORT_WORDS.stoppedPartWay, kept ? `${kept} kept` : null);
 }
 function shareOf(r) {
@@ -122,7 +122,8 @@ function standOf(r, share) {
   if (r.state === "done") return W.in;
   if (r.state === "failed") return W.stopped;
   if (r.state === "queued") return W.queued;
-  if (r.source === "whatsapp_history" && r.parts_total && r.parts_total > 1) return `${r.parts_done} of ${r.parts_total}`;
+  if (r.source === "whatsapp_history" && r.parts_total && r.parts_total > 1)
+    return `${r.parts_done} of ${r.parts_total}`;
   return share === null ? "\u2026" : `${Math.round(share * 100)}%`;
 }
 export function importLineOf(r) {
@@ -135,7 +136,7 @@ export function importLineOf(r) {
     state: r.state,
     retry: r.state === "failed" && !ONCE_ONLY.has(r.source),
     share,
-    aside: r.source === "mailbox" && r.counts.dropped ? IMPORT_WORDS.setAside(r.counts.dropped) : null
+    aside: r.source === "mailbox" && r.state !== "failed" && r.counts.dropped ? IMPORT_WORDS.setAside(r.counts.dropped) : null
   };
 }
 export const WHATSAPP_PART_WORDS = {
@@ -208,7 +209,7 @@ export function broughtInCardOf(rows, count) {
   const mail = by("mailbox");
   const cal = by("calendar");
   const first = joined(
-    count ? people(count) : null,
+    count ? countOfPeople(count) : null,
     reviews?.counts.reviews ? groupedPlural(reviews.counts.reviews, "review") : null
   );
   const facts = [];

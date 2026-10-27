@@ -21,7 +21,7 @@ import { setupVerbs } from "../../surface";
 const IW = FIRST_RUN_HELPERS.importWords;
 
 /** Each source's glyph, beside its title. */
-const GLYPH: Record<ImportSource, string> = {
+const SOURCE_GLYPH: Record<ImportSource, string> = {
   google_reviews: "star",
   calendar: "calendar",
   clients_file: "users",
@@ -91,7 +91,7 @@ function ImportLine({ line, flash }: { line: ImportLineVM; flash: (f: LegacyFlas
   return (
     <li className="fr-import fr-source" data-state={line.state} data-testid={`fr-import-${line.source}`}>
       <span className="fr-import-glyph" aria-hidden="true">
-        <Icon name={GLYPH[line.source]} size={16} />
+        <Icon name={SOURCE_GLYPH[line.source]} size={16} />
       </span>
       <span className="fr-import-words">
         <b>{line.title}</b>

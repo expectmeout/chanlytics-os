@@ -134,7 +134,7 @@ export const IMPORT_WORDS = {
 const since = (oldest: string | null): string | null => (oldest ? `since ${dayWords(oldest)}` : null);
 /** The parts of a line that have something to say, one " · " apart. */
 const joined = (...parts: (string | null | undefined)[]): string => parts.filter(Boolean).join(" · ");
-const people = (n: number): string => groupedPlural(n, "person", "people");
+const countOfPeople = (n: number): string => groupedPlural(n, "person", "people");
 
 /** What the mailbox brought: the emails from people (so far, while it reads), since when, and any it could not read. */
 function mailSaysOf(r: ImportRowDto): string {
@@ -171,23 +171,23 @@ function saysOf(r: ImportRowDto): string {
     case "clients_file":
       return c.people === undefined
         ? "Reading your file"
-        : joined(people(c.people), via ? `from ${via}'s file` : "from your file");
+        : joined(countOfPeople(c.people), via ? `from ${via}'s file` : "from your file");
     case "contacts":
-      return c.people === undefined ? "Reading them" : joined(people(c.people), via);
+      return c.people === undefined ? "Reading them" : joined(countOfPeople(c.people), via);
     case "mailbox":
       return mailSaysOf(r);
     case "whatsapp_contacts":
-      return c.people === undefined ? "Reading them" : people(c.people);
+      return c.people === undefined ? "Reading them" : countOfPeople(c.people);
     case "whatsapp_history":
       return r.oldest ? `Back to ${dayWords(r.oldest)} so far` : "Chats from the last six months";
   }
 }
 
 /** What a run that stopped kept, counted as its line counts it: "130 emails", or null where nothing came. */
-function keptOf(r: ImportRowDto): string | null {
+function stoppedKept(r: ImportRowDto): string | null {
   const c = r.counts;
   if (r.source === "mailbox") return c.messages ? groupedPlural(c.messages, "email") : null;
-  if (c.people) return people(c.people);
+  if (c.people) return countOfPeople(c.people);
   if (c.reviews) return groupedPlural(c.reviews, "review");
   return c.past ? groupedPlural(c.past, "past appointment") : null;
 }
@@ -198,7 +198,7 @@ function keptOf(r: ImportRowDto): string | null {
  */
 function stoppedSaysOf(r: ImportRowDto): string {
   if (r.last_error && r.last_error !== IMPORT_STOPPED_WORDS.failed) return r.last_error;
-  const kept = keptOf(r);
+  const kept = stoppedKept(r);
   return joined(IMPORT_WORDS.stoppedPartWay, kept ? `${kept} kept` : null);
 }
 
@@ -238,7 +238,10 @@ export function importLineOf(r: ImportRowDto): ImportLineVM {
     state: r.state,
     retry: r.state === "failed" && !ONCE_ONLY.has(r.source),
     share,
-    aside: r.source === "mailbox" && r.counts.dropped ? IMPORT_WORDS.setAside(r.counts.dropped) : null,
+    aside:
+      r.source === "mailbox" && r.state !== "failed" && r.counts.dropped
+        ? IMPORT_WORDS.setAside(r.counts.dropped)
+        : null,
   };
 }
 
@@ -376,7 +379,7 @@ export function broughtInCardOf(
   const mail = by("mailbox");
   const cal = by("calendar");
   const first = joined(
-    count ? people(count) : null,
+    count ? countOfPeople(count) : null,
     reviews?.counts.reviews ? groupedPlural(reviews.counts.reviews, "review") : null,
   );
   const facts: BroughtInFactVM[] = [];
