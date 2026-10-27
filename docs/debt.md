@@ -353,7 +353,7 @@ service-role reaches, dashboard      79   in 40 files
 doors importing db or channels        0   imports in 0 files
 unnamed durations                    56   in 27 files
 event-shaped clocks                   5   of the registered clocks (invariant 6)
-tables with more than one writer     61   484 writers among them
+tables with more than one writer     61   487 writers among them
 doors writing a record with no event   97   writing 112 tables (invariant 2)
 personal columns with no erasure strategy    2   in 1 table
 breakpoints outside the set          28   in 11 files
