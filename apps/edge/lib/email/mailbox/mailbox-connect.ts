@@ -178,6 +178,8 @@ export async function mailboxConnect(
     userId: string | null;
     provider: MailboxProvider;
     code: string;
+    /** PKCE's verifier, where the consent was asked with its challenge (Google's). */
+    verifier?: string | null;
     /** The mailbox a Reconnect is for: the account that comes back must be that one. */
     mailboxId?: string | null;
   },
@@ -186,7 +188,7 @@ export async function mailboxConnect(
 > {
   const client = mailboxClient(i.provider);
   if (!client) return { ok: false, why: "not_available" };
-  const got = await grantOf(i.provider, mailboxTokenRequest(i.provider, client, i.code));
+  const got = await grantOf(i.provider, mailboxTokenRequest(i.provider, client, i.code, i.verifier));
   if (!got.ok) return { ok: false, why: "failed", detail: got.why.slice(0, 200) };
   const grant = got.grant;
   const missing = grantScopesMissing(i.provider, grant.scope);

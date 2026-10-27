@@ -23,6 +23,8 @@ import {
 import {
   mailboxAdminConsentUrl,
   mailboxAuthorizeUrl,
+  mailboxPkceChallenge,
+  mailboxPkceVerifier,
   newNonce,
   signState,
   verifyState,
@@ -274,10 +276,11 @@ export async function startMailboxConnect(
     if (!was || was.provider !== provider) throw new AppError("not_found", "That mailbox isn't this workspace's.", 404);
     loginHint = was.address;
   }
+  const nonce = newNonce();
   const state = await signState(secret, {
     t: member.tenantId,
     u: ctx.userId,
-    n: newNonce(),
+    n: nonce,
     exp: Date.now() + (opts.admin ? ADMIN_STATE_TTL_MS : STATE_TTL_MS),
     p: provider,
     ...(opts.mailboxId ? { m: opts.mailboxId } : {}),
@@ -285,9 +288,10 @@ export async function startMailboxConnect(
     ...(opts.back === "start" ? { b: "start" } : {}),
   });
   const cfg = { clientId: oauth.client_id, redirectUri: oauth.redirect_uri };
-  return {
-    url: opts.admin ? mailboxAdminConsentUrl(cfg, state) : mailboxAuthorizeUrl(provider, cfg, state, loginHint),
-  };
+  if (opts.admin) return { url: mailboxAdminConsentUrl(cfg, state) };
+  // Google's consent is asked with PKCE's challenge; its verifier is made again from the nonce at the callback.
+  const challenge = provider === "google" ? await mailboxPkceChallenge(await mailboxPkceVerifier(secret, nonce)) : null;
+  return { url: mailboxAuthorizeUrl(provider, cfg, state, { loginHint, challenge }) };
 }
 
 /** How long an admin's link lasts: it is sent to someone else, who opens it when they can. */
@@ -349,6 +353,7 @@ export async function mailboxCallback(ctx: RouteContext, req: Request) {
       user_id: ctx.userId,
       provider,
       code,
+      ...(provider === "google" ? { code_verifier: await mailboxPkceVerifier(secret, proof.state.n) } : {}),
       ...(proof.state.m ? { mailbox_id: proof.state.m } : {}),
     },
     55_000,

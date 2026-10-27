@@ -229,8 +229,14 @@ test("connect: the code exchanged, the mailbox's row made, its token in Vault an
     );
     const exchange = Object.fromEntries(new URLSearchParams(net.calls[0].body));
     assert.deepEqual([exchange.code, exchange.grant_type], ["4/code", "authorization_code"]);
-    // The same account again is the same row, connected again.
-    const [, again] = await ask({ op: "connect", provider: "google", code: "4/again" });
+    assert.equal(exchange.code_verifier, undefined, "no verifier handed, none sent");
+    // The same account again is the same row, connected again; Google's consent asked with PKCE carries its verifier.
+    const verifier = "v".repeat(43);
+    const [, again] = await ask({ op: "connect", provider: "google", code: "4/again", code_verifier: verifier });
+    const exchanged = net.calls.filter((c) => c.url === "https://oauth2.googleapis.com/token").at(-1);
+    assert.equal(Object.fromEntries(new URLSearchParams(exchanged.body)).code_verifier, verifier);
+    const [bad] = await ask({ op: "connect", provider: "google", code: "4/x", code_verifier: "short" });
+    assert.equal(bad, 400, "a verifier that is not one is refused before Google is asked");
     assert.equal(again.made, false);
     assert.equal(w.tables.mailbox_connections.length, 1);
   } finally {

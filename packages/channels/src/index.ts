@@ -260,6 +260,8 @@ export type { ResendConfig, ResendAnswer, SendEmailOptions } from "./email/email
 export {
   MAILBOX_SCOPES,
   mailboxAuthorizeUrl,
+  mailboxPkceVerifier,
+  mailboxPkceChallenge,
   mailboxAdminConsentUrl,
   mailboxTokenRequest,
   mailboxRefreshRequest,

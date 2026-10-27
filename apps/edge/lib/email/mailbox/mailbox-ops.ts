@@ -7,7 +7,7 @@
  * bytes) and asks who is knocking (authorizeAdmin); everything after is here.
  *
  *   { op: "readiness" }                                     → which providers this deployment offers, and their public half
- *   { op: "connect", tenant_id, user_id, provider, code, mailbox_id? }
+ *   { op: "connect", tenant_id, user_id, provider, code, code_verifier?, mailbox_id? }
  *                                                           → the grant exchanged and checked, the mailbox's row (a
  *                                                             Reconnect's mailbox_id: that mailbox's account or none)
  *   { op: "remove" | "pause" | "unpause" | "resume" | "check" | "test", tenant_id, mailbox_id }
@@ -53,6 +53,8 @@ export interface Body {
   mailbox_id?: unknown;
   provider?: unknown;
   code?: unknown;
+  /** PKCE's verifier, where the consent was asked with its challenge (Google's). */
+  code_verifier?: unknown;
   from_name?: unknown;
   signature?: unknown;
   daily_cap?: unknown;
@@ -101,7 +103,17 @@ async function connectOp(p: MailboxPorts, tenantId: string, by: string | null, b
   // A Reconnect names the mailbox it is for (the dashboard's signed state carried it there and back).
   const reconnecting = stringOf(body.mailbox_id);
   if (reconnecting && !UUID.test(reconnecting)) return refuse(400, "bad_request", "mailbox_id is a mailbox's id");
-  const out = await mailboxConnect(p, { tenantId, userId: by, provider, code, mailboxId: reconnecting || null });
+  const verifier = stringOf(body.code_verifier);
+  if (verifier && !/^[A-Za-z0-9._~-]{43,128}$/.test(verifier))
+    return refuse(400, "bad_request", "code_verifier is PKCE's verifier");
+  const out = await mailboxConnect(p, {
+    tenantId,
+    userId: by,
+    provider,
+    code,
+    verifier: verifier || null,
+    mailboxId: reconnecting || null,
+  });
   if (out.ok) {
     const row = await mailboxConnectionOf(p.db, tenantId, out.id);
     return json(200, { ok: true, made: out.made, mailbox: row ? mailboxConnectionDtoOf(row) : null });
