@@ -90,8 +90,10 @@ interface MailboxReadiness {
   oauth: Partial<Record<MailboxProvider, { client_id: string; redirect_uri: string }>>;
   /** Google's consent screen for the app, where Google is offered (the edge's GOOGLE_OAUTH_AUDIENCE). */
   audience: GoogleAudience | null;
+  /** The edge passes a connect's PKCE verifier on; until it says so, Google's consent is asked without a challenge. */
+  pkce: boolean;
 }
-const NONE_OFFERED: MailboxReadiness = { providers: [], oauth: {}, audience: null };
+const NONE_OFFERED: MailboxReadiness = { providers: [], oauth: {}, audience: null, pkce: false };
 
 let readyCache: { at: number; ready: MailboxReadiness } | null = null;
 /** A "none offered" answer is kept briefly: a client set a minute ago must not hide Connect for five. */
@@ -123,6 +125,7 @@ export async function mailboxesReadiness(now = Date.now()): Promise<MailboxReadi
       providers: providers.filter((p) => oauth[p]),
       oauth,
       audience: audience === "testing" || audience === "unverified" || audience === "verified" ? audience : null,
+      pkce: a.body.pkce === true,
     };
   }
   readyCache = { at: now, ready };
@@ -277,6 +280,9 @@ export async function startMailboxConnect(
     loginHint = was.address;
   }
   const nonce = newNonce();
+  // Google's consent is asked with PKCE's challenge once the edge passes the verifier on (either deploy order works);
+  // the verifier is made again from the nonce at the callback.
+  const pkce = provider === "google" && ready.pkce && !opts.admin;
   const state = await signState(secret, {
     t: member.tenantId,
     u: ctx.userId,
@@ -286,11 +292,11 @@ export async function startMailboxConnect(
     ...(opts.mailboxId ? { m: opts.mailboxId } : {}),
     ...(opts.admin ? { a: 1 } : {}),
     ...(opts.back === "start" ? { b: "start" } : {}),
+    ...(pkce ? { k: 1 } : {}),
   });
   const cfg = { clientId: oauth.client_id, redirectUri: oauth.redirect_uri };
   if (opts.admin) return { url: mailboxAdminConsentUrl(cfg, state) };
-  // Google's consent is asked with PKCE's challenge; its verifier is made again from the nonce at the callback.
-  const challenge = provider === "google" ? await mailboxPkceChallenge(await mailboxPkceVerifier(secret, nonce)) : null;
+  const challenge = pkce ? await mailboxPkceChallenge(await mailboxPkceVerifier(secret, nonce)) : null;
   return { url: mailboxAuthorizeUrl(provider, cfg, state, { loginHint, challenge }) };
 }
 
@@ -353,7 +359,7 @@ export async function mailboxCallback(ctx: RouteContext, req: Request) {
       user_id: ctx.userId,
       provider,
       code,
-      ...(provider === "google" ? { code_verifier: await mailboxPkceVerifier(secret, proof.state.n) } : {}),
+      ...(proof.state.k === 1 ? { code_verifier: await mailboxPkceVerifier(secret, proof.state.n) } : {}),
       ...(proof.state.m ? { mailbox_id: proof.state.m } : {}),
     },
     55_000,

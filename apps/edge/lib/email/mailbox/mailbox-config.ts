@@ -42,13 +42,15 @@ export function mailboxReadiness(): {
   providers: MailboxProvider[];
   oauth: Partial<Record<MailboxProvider, { client_id: string; redirect_uri: string }>>;
   audience: GoogleAudience | null;
+  pkce: true;
 } {
   const oauth: Partial<Record<MailboxProvider, { client_id: string; redirect_uri: string }>> = {};
   for (const p of mailboxProviders()) {
     const c = mailboxClient(p);
     if (c) oauth[p] = { client_id: c.clientId, redirect_uri: c.redirectUri };
   }
-  return { providers: mailboxProviders(), oauth, audience: oauth.google ? googleAudience() : null };
+  // pkce: this edge passes a connect's code_verifier to Google, so the dashboard may ask its consent with a challenge.
+  return { providers: mailboxProviders(), oauth, audience: oauth.google ? googleAudience() : null, pkce: true };
 }
 
 /**

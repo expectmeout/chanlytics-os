@@ -2680,6 +2680,8 @@ interface OAuthState {
      * (decision 0073: Where it answers' tiles, Your business's Connect Google).
      */
     b?: string;
+    /** 1 when the consent was asked with PKCE's challenge: the way back sends its verifier (an edge that passes it on). */
+    k?: number;
 }
 declare function signState(secret: string, s: OAuthState): Promise<string>;
 /** The state back from Google: its signature, its expiry, then its claims — or the reason it is refused. */

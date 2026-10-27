@@ -64,6 +64,7 @@ const READY = {
     },
     microsoft: { client_id: "ms-client", redirect_uri: "https://app.example.test/api/v1/mailbox-connections/callback" },
   },
+  pkce: true,
 };
 beforeEach(() => {
   setRateStore(memoryStore());
@@ -146,10 +147,22 @@ test("Connect: to the provider's own consent screen, with its client, its scopes
       g.searchParams.get("code_challenge"),
       await mailboxPkceChallenge(await mailboxPkceVerifier(SECRET, gp.state.n)),
     );
+    assert.equal(gp.state.k, 1, "the state says the way back sends the verifier");
+    assert.equal(proof.state.k, undefined);
     await refused(connect.GET.run(send("GET", null, "&provider=yahoo"), ctx()), "validation");
     await refused(connect.GET.run(send("GET", null, "&provider=google"), ctx("operator")), "forbidden");
   } finally {
     net.restore();
+  }
+  // An edge that does not yet pass the verifier on (deployed after the dashboard): Google's consent without a challenge.
+  const older = edge(() => [200, { ...READY, pkce: undefined }]);
+  try {
+    forgetMailboxesReadiness();
+    const g = wayTo(await connect.GET.run(send("GET", null, "&provider=google"), ctx()));
+    assert.equal(g.searchParams.has("code_challenge"), false);
+    assert.equal((await verifyState(SECRET, g.searchParams.get("state"), Date.now())).state.k, undefined);
+  } finally {
+    older.restore();
   }
   const none = edge(() => [200, { ok: true, providers: [], oauth: {} }]);
   try {
@@ -230,7 +243,7 @@ test("the way back: nothing trusted before the state proves itself; the code to 
   const net = edge((b) => [200, b.op === "connect" ? { ok: true, made: true, mailbox: DTO } : READY]);
   const nonce = newNonce();
   const state = (p = "google", u = USER, n = nonce) =>
-    signState(SECRET, { t: A, u, n, exp: Date.now() + STATE_TTL_MS, p });
+    signState(SECRET, { t: A, u, n, exp: Date.now() + STATE_TTL_MS, p, k: 1 });
   const back = async (q, c = ctx()) => {
     const res = await callback.GET.run(
       new Request(`https://app.example.test/api/v1/mailbox-connections/callback${q}`),
@@ -255,6 +268,11 @@ test("the way back: nothing trusted before the state proves itself; the code to 
     });
     const v = verifyEdgeToken(process.env.EDGE_CALL_SECRET, c.token, "/api/admin/mailboxes");
     assert.deepEqual([v.ok, v.claims.ws, v.claims.user], [true, A, USER]);
+    // A consent asked without a challenge (the state unmarked) is exchanged without a verifier.
+    net.calls.length = 0;
+    const plain = await signState(SECRET, { t: A, u: USER, n: nonce, exp: Date.now() + STATE_TTL_MS, p: "google" });
+    assert.equal((await back(`?state=${plain}&code=c`)).searchParams.get("mailbox"), "connected");
+    assert.equal(net.calls[0].body.code_verifier, undefined);
 
     net.calls.length = 0;
     const declined = await back("?error=access_denied");

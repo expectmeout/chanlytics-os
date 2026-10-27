@@ -183,6 +183,7 @@ test("readiness: the providers offered here, and only the public half of each cl
   });
   assert.ok(!JSON.stringify(body).includes(MAILBOX_ENV.GOOGLE_MAIL_CLIENT_SECRET), "never a secret");
   assert.equal(body.audience, null, "Google's consent screen unsaid where the deployment says nothing of it");
+  assert.equal(body.pkce, true, "a connect's PKCE verifier is passed on to Google");
   const said = withEnv({ GOOGLE_OAUTH_AUDIENCE: "unverified" });
   try {
     assert.equal((await ask({ op: "readiness" }))[1].audience, "unverified", "the Business Profile app's own (R18)");
