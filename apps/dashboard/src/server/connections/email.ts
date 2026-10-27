@@ -115,7 +115,14 @@ export async function replyIdentitiesOf(
     conversations.map(async (id) => {
       const parent = await lastInboundEmail(ctx.supabase, tenantId, id);
       const references = parent ? [...parent.references, ...(parent.rfcMessageId ? [parent.rfcMessageId] : [])] : [];
-      const who = await replyIdentityOf(ctx.supabase, { tenantId, conversationId: id, references, mailboxes });
+      // Who it was written to, as the freeze reads it (addressedTo): an email to a connected mailbox is answered from it.
+      const who = await replyIdentityOf(ctx.supabase, {
+        tenantId,
+        conversationId: id,
+        references,
+        addressedTo: parent?.to ?? [],
+        mailboxes,
+      });
       return [id, who] as const;
     }),
   );
