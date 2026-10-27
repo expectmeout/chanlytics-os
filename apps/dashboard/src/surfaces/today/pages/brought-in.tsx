@@ -1,52 +1,73 @@
 /**
  * Brought in (decision 0073, R23, canvas T-today and T·g): Today's small card of what came in before Chanlytics, from the
- * imports ledger Setup reads: the people, the reviews, how far back email reached, the visits, and the one source still
- * coming in. A press opens the sources one by one (the first run's own lines, setup/first-run/channels/brought.tsx).
- * Drawn while anything is coming in, a source stopped, or for the first week after (contracts broughtInShown).
+ * imports ledger Setup reads. Closed, where it all stands in its head ("Bringing it in · 2 of 3", "All in", "1 stopped")
+ * and a fact or three under it: the people and the reviews, how far back email reached, the calendar. A press opens it
+ * in place, the facts folding into the sources one by one (the first run's own lines, setup/first-run/channels/brought.tsx),
+ * each with how far it has come and Try again where one stopped (Ruben, 27 Oct 2026: the sheet was a near-empty pane
+ * and too wordy). Drawn while anything is coming in, a source stopped, or for the first week after (contracts
+ * broughtInShown).
  */
-import { useState } from "react";
-import { FIRST_RUN_HELPERS, broughtInCardOf, broughtInShown } from "@chanlytics/contracts";
-import { FrBringing } from "../../setup/first-run/channels/brought";
+import { useId, useState } from "react";
+import { FIRST_RUN_HELPERS, broughtInCardOf, broughtInShown, type BroughtInFactVM } from "@chanlytics/contracts";
+import { Icon } from "../../kit/icon/icon";
+import { ImportFoot, ImportLines } from "../../setup/first-run/channels/brought";
 import { useSurface } from "../../use-surface";
 import { useToast } from "../shell";
+
+/** Each fact's glyph, before its words. */
+const FACT_GLYPH: Record<BroughtInFactVM["key"], string> = { people: "users", mail: "mail", calendar: "calendar" };
+/** The head's glyph for where it stands; still coming is the live dot instead. */
+const STATE_GLYPH = { ok: "check", stopped: "alert" } as const;
 
 export const TodayBroughtIn = () => {
   const S = useSurface("setup");
   const [open, setOpen] = useState(false);
   const [toastNode, flash] = useToast();
+  const sources = useId();
   if (!S || !broughtInShown(S.dto.imports, Date.now())) return null;
   const card = broughtInCardOf(S.dto.imports, S.dto.people ?? null);
   if (!card) return null;
-  const lines = FIRST_RUN_HELPERS.imports(S.dto.imports).lines;
+  const { lines, running } = FIRST_RUN_HELPERS.imports(S.dto.imports);
+  const { tone, words } = card.state;
   return (
-    <section className="tq today-brought" data-testid="today-brought-in">
+    <section className={`tq today-brought${open ? " open" : ""}`} data-testid="today-brought-in">
       <button
         type="button"
-        className="today-brought-open"
-        onClick={() => setOpen(true)}
+        className="today-brought-head"
+        onClick={() => setOpen(!open)}
+        aria-expanded={open}
+        aria-controls={sources}
         data-testid="today-brought-open"
       >
         <span className="setup-card-title">{card.title}</span>
-        {card.lines.map((l) => (
-          <span key={l} className="today-brought-line">
-            {l}
-          </span>
-        ))}
-        {card.coming ? (
-          <span className="today-brought-line" data-testid="today-brought-coming">
+        <span className="today-brought-state" data-tone={tone} data-testid="today-brought-state">
+          {tone === "live" ? (
             <span className="fr-pulse" aria-hidden="true" />
-            {card.coming}
-          </span>
-        ) : null}
+          ) : (
+            <Icon name={STATE_GLYPH[tone]} size={14} />
+          )}
+          {words}
+        </span>
+        <Icon name="chevron-down" size={14} className="today-brought-chevron" />
       </button>
-      <FrBringing
-        open={open}
-        onClose={() => setOpen(false)}
-        lines={lines}
-        flash={flash}
-        title={FIRST_RUN_HELPERS.importWords.broughtHeading}
-        foot={FIRST_RUN_HELPERS.importWords.broughtFoot}
-      />
+      <div className="today-brought-fold today-brought-closed" aria-hidden={open} inert={open}>
+        <div>
+          <p className="today-brought-facts" data-testid="today-brought-facts">
+            {card.facts.map((f) => (
+              <span key={f.key}>
+                <Icon name={FACT_GLYPH[f.key]} size={14} />
+                {f.text}
+              </span>
+            ))}
+          </p>
+        </div>
+      </div>
+      <div className="today-brought-fold today-brought-sources" id={sources} aria-hidden={!open} inert={!open}>
+        <div>
+          <ImportLines lines={lines} flash={flash} />
+          <ImportFoot running={running} className="today-brought-foot" />
+        </div>
+      </div>
       {toastNode}
     </section>
   );
