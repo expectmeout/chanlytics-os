@@ -26,7 +26,6 @@ import {
   gmailSignedOut,
   graphListSince,
   graphSignedOut,
-  messageIdsIn,
   type MailboxEmail,
   type MailWindow,
   type ReadVerdict,
@@ -45,7 +44,7 @@ import {
 } from "../packages/db.js";
 import { tokenFor } from "../email/mailbox/mailbox-credentials.js";
 import { markSignedOut } from "../email/mailbox/mailbox-wire.js";
-import { readEmail } from "../email/mailbox/mailbox-sync.js";
+import { mailboxEmailMeta, readEmail } from "../email/mailbox/mailbox-sync.js";
 import type { Part, PartOutcome } from "./history-import.js";
 
 type Db = SupabaseClient<Database>;
@@ -110,29 +109,6 @@ function mailPersonOf(e: MailboxEmail, own: string): { address: string; name: st
 async function filedAway(r: MailRead, e: MailboxEmail): Promise<boolean> {
   if (!filedAsBulk(e)) return false;
   return !e.threadId || !(await knownThreads(r.db, r.part.tenantId, [e.threadId])).has(e.threadId);
-}
-
-/** What the row keeps of an email beside its words, as the intake keeps it: enough to thread under it and say who. */
-function mailMetaOf(e: MailboxEmail, row: MailboxConnectionRow): Json {
-  return {
-    email: {
-      subject: e.subject,
-      message_id: e.messageId,
-      in_reply_to: e.headers["in-reply-to"] ?? null,
-      references: messageIdsIn(e.headers.references).slice(-20),
-      from: e.from?.address ?? null,
-      from_name: e.from?.name ?? null,
-      to: e.to,
-      cc: e.cc,
-      claim: "person",
-      attachments: e.attachments.slice(0, 5),
-      more_attachments: Math.max(0, e.attachments.length - 5),
-      truncated: (e.text?.length ?? 0) > EMAIL_BODY_MAX,
-    },
-    source: "mailbox",
-    mailbox_id: row.id,
-    thread_id: e.threadId,
-  };
 }
 
 /** The mailbox's history stopped: said on its row, with Try again; nothing more is scheduled. */
@@ -256,7 +232,7 @@ async function takeListed(
     direction: who.out ? "outbound" : "inbound",
     body: e.text ? e.text.slice(0, EMAIL_BODY_MAX) : null,
     at: when,
-    meta: mailMetaOf(e, r.row),
+    meta: mailboxEmailMeta(e, r.row.id),
   });
   if (kept.erased) return "taken";
   if (kept.kept) counts.messages++;

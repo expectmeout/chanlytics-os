@@ -8402,6 +8402,18 @@ export type Database = {
         Args: { p_mailbox_id: string; p_since: string }
         Returns: Json
       }
+      mailbox_owner_wrote: {
+        Args: {
+          p_address: string
+          p_body: string
+          p_channel_ts: string
+          p_external_id: string
+          p_meta: Json
+          p_reasons: string[]
+          p_tenant_id: string
+        }
+        Returns: Json
+      }
       mailbox_threads_known: {
         Args: { p_tenant_id: string; p_thread_ids: string[] }
         Returns: string[]

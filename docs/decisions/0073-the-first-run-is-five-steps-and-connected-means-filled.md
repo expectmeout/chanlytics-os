@@ -123,7 +123,10 @@ and the code disagree, the code wins. The status was read again at `e9d6325f0` (
     dropped, and counted. Mail the owner sent to one person is kept as theirs, outbound.
 20. **From now on**, the mailbox's sync takes in people's mail outside known threads too (R13). Nothing is sent: each
     email waits in Need you with a reply drafted (decision 0071's drafts ahead, which is R15 built), and the reply goes
-    from the mailbox the email came to.
+    from the mailbox the email came to. What the owner answers from Gmail itself, to a person the workspace knows, is
+    read from the mailbox's Sent and kept in that person's thread, and resolves the holds that waited on it, as a reply
+    typed in the WhatsApp Business app does (00482 `mailbox_owner_wrote`, 27 October 2026). Outlook's Sent Items wait
+    on Graph's second delta.
 21. **Its people:** Google's contacts and other contacts, Outlook's contacts, into People as a client list's are, never a
     yes.
 22. **The calendar by consent (R20):** a mailbox connected with its calendar ticked becomes the workspace's calendar
