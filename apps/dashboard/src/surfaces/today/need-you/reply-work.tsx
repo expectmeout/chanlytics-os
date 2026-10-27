@@ -5,7 +5,13 @@
  * until a time on the business's clock, and their next message brings it back sooner (00005); Wake undoes it.
  */
 import { useMemo, useState, type ReactNode } from "react";
-import { NEED_YOU_WORDS as W, notNowChoices, type TodayQueueRowVM } from "@chanlytics/contracts";
+import {
+  NEED_YOU_WORDS as W,
+  THREAD_CHANNEL_WORDS,
+  emailSignatureLine,
+  notNowChoices,
+  type TodayQueueRowVM,
+} from "@chanlytics/contracts";
 import { commitVerb, undoVerb } from "@/legacy-bridge/verbs/commit";
 import { carryReply } from "../../inbox/carried-reply";
 import { Button } from "../../kit";
@@ -13,6 +19,9 @@ import { appNavigate, gate } from "../shell";
 import { useDraft, type DraftWant } from "./drafts";
 import { Acts, Done, Editor, Going, Note, NotNow, Words, Writing, type WorkProps } from "./parts";
 import { clearSend, sendWords, undoSend, useSend } from "./sends";
+
+/** Where a mailbox's signature is chosen: Settings › Connections, its row's settings (00487). */
+const SIGNATURE_ROUTE = "admin/integrations";
 
 /** The clock a sent reply's line says it went at: the business's, as the row's other times. */
 function clockAt(tz: string, atMs: number): string {
@@ -228,12 +237,19 @@ export function ReplyWork(p: WorkProps & { by?: string; start?: ReactNode }) {
         editing={editing}
         onChange={setMine}
         onEdit={may ? edit : null}
+        signed={wire === THREAD_CHANNEL_WORDS.email ? signedLineOf(draft) : null}
       />
       {refused ? <Note tone={refused.confirmTo ? "warn" : "danger"}>{refused.message}</Note> : null}
       {!may ? <Note>{W.viewer}</Note> : null}
       <Acts start={start} end={words || closed || !may ? sendButton : writeIt} />
     </>
   );
+}
+
+/** The signature an email reply from this draft leaves with, in one line, where the drafts read said one (00487). */
+function signedLineOf(draft: ReturnType<typeof useDraft>): string | null {
+  const signed = draft?.state === "ready" ? draft.draft.signed : undefined;
+  return signed ? emailSignatureLine(signed) : null;
 }
 
 /** What stands where a reply's words go: the member's editor, the prepared words, or what Ask is doing about them. */
@@ -245,10 +261,21 @@ function WordsPart(p: {
   editing: boolean;
   onChange: (text: string) => void;
   onEdit: (() => void) | null;
+  signed: string | null;
 }) {
   const { draft } = p;
   if (p.editing) return <Editor who={p.who} value={p.words} onChange={p.onChange} />;
-  if (p.words) return <Words by={p.by} text={p.words} who={p.who} onEdit={p.onEdit} />;
+  if (p.words)
+    return (
+      <Words
+        by={p.by}
+        text={p.words}
+        who={p.who}
+        onEdit={p.onEdit}
+        signed={p.signed}
+        onSigned={p.signed ? () => appNavigate(SIGNATURE_ROUTE) : null}
+      />
+    );
   if (draft?.state === "writing") return <Writing />;
   if (draft?.state === "asks") return <Note>{W.asks(draft.question)}</Note>;
   if (draft?.state === "failed") return <Note>{draft.why}</Note>;

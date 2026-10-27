@@ -98,6 +98,11 @@ export function emailPartsOf(body, fromName) {
 export function emailSignatureLine(signature) {
   return signature.split(/\n|[ \t]+\|[ \t]+/).map((p) => p.trim()).filter(Boolean).slice(0, SIG_LINE_PARTS).join(" \xB7 ");
 }
+export function emailSignedWithOf(m) {
+  if (m.sender === "customer") return null;
+  const signed = m.meta?.email?.signature;
+  return typeof signed === "string" && signed.trim() ? signed.trim() : null;
+}
 const REPLY_PREFIX = /^((re|fwd?|fw|aw|sv|tr)\s*:\s*)+/i;
 const subjectKey = (s) => s.replace(REPLY_PREFIX, "").trim().toLowerCase();
 export function emailSubjectsOf(messages) {

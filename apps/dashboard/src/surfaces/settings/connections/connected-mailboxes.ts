@@ -13,13 +13,16 @@ import {
   MAILBOX_CONNECTIONS_MAX,
   MAILBOX_DAILY_CAP_MAX,
   MAILBOX_PROVIDER_WORDS,
+  MAILBOX_SIGNATURE_WORDS,
   customerDomainWords,
   mailboxActs,
   mailboxConnectOk,
   mailboxConnectWords,
+  mailboxGmailSignsWords,
   mailboxRecordRows,
   mailboxRowWords,
   mailboxSendingLines,
+  mailboxSignsChoiceOf,
   mailboxesFootWords,
   type MailboxProvider,
 } from "@chanlytics/contracts";
@@ -37,7 +40,13 @@ interface ConnectedMailboxesApi {
   adminLink(): Promise<ApiResult<{ url: string }>>;
   set(
     id: string,
-    s: { paused?: boolean; from_name?: string; signature?: string | null; daily_cap?: number },
+    s: {
+      paused?: boolean;
+      from_name?: string;
+      signature?: string | null;
+      signature_off?: boolean;
+      daily_cap?: number;
+    },
   ): Promise<ApiResult<unknown>>;
   resume(id: string): Promise<ApiResult<unknown>>;
   check(id: string): Promise<ApiResult<unknown>>;
@@ -47,6 +56,12 @@ interface ConnectedMailboxesApi {
   outcome(): { ok: boolean; words: string; code: string | null } | null;
   row: typeof mailboxRowWords;
   sending: typeof mailboxSendingLines;
+  /** What it signs with (00487): the choice it stands on, what the Gmail choice says, and Settings' words. */
+  signs: {
+    choiceOf: typeof mailboxSignsChoiceOf;
+    gmail: typeof mailboxGmailSignsWords;
+    words: typeof MAILBOX_SIGNATURE_WORDS;
+  };
   acts: typeof mailboxActs;
   records: typeof mailboxRecordRows;
   foot: typeof mailboxesFootWords;
@@ -92,6 +107,7 @@ export const connectedMailboxes: ConnectedMailboxesApi = {
     }
   },
   row: mailboxRowWords,
+  signs: { choiceOf: mailboxSignsChoiceOf, gmail: mailboxGmailSignsWords, words: MAILBOX_SIGNATURE_WORDS },
   sending: mailboxSendingLines,
   acts: mailboxActs,
   records: mailboxRecordRows,

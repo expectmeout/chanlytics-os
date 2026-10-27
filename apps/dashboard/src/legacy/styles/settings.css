@@ -1897,6 +1897,29 @@ html.legacy-on .bt-link { position: relative; }
 }
 /* A mailbox's act and the rest on its caret, one split pill with a hairline between (mailboxes-block.tsx
    mailboxActions; Ruben, 20 Oct 2026: no three dots), as a sequence's head draws its act and its More. */
+/* What a mailbox signs with, under its choice in its settings (00487): Gmail's signature as words, never its markup, and
+   when it was read; or that none goes. */
+.set-mbx-signs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-inset-fill);
+}
+.set-mbx-signs-words {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.set-mbx-signs-read {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
 .set-mbx-acts {
   display: inline-flex;
   align-items: stretch;

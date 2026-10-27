@@ -19,7 +19,6 @@ import {
   type ReplyUndoRefusal,
 } from "@chanlytics/contracts";
 import {
-  lastInboundEmail,
   reachOutStepsOf,
   repliesFor,
   replyUndoableOf,
@@ -29,8 +28,7 @@ import {
   type ReplyListRow,
 } from "@chanlytics/db";
 import type { RouteContext } from "../with-route";
-import { mailboxAddressOf, replyFromOf, replyIdentityOf } from "../connections/email";
-import { mailboxConnectionsFor } from "../connections/mailbox-connections";
+import { mailboxAddressOf, replyFromOf, replyIdentitiesOf } from "../connections/email";
 
 /** A chain's name and the step's place in it, 1 for its first email, by walking back to the chain's first step. */
 function stepOf(
@@ -49,23 +47,14 @@ function stepOf(
   return { chain: at.name, step: n };
 }
 
-/** Where an answer on each thread goes out from, as the freeze will decide it: once per thread, the mailboxes read once. */
+/** Where an answer on each thread goes out from, as the freeze will decide it (connections/email.ts replyIdentitiesOf). */
 async function replyFromByThread(
   ctx: RouteContext,
   tenantId: string,
   conversations: string[],
 ): Promise<Map<string, ReplyFrom>> {
-  if (conversations.length === 0) return new Map();
-  const mailboxes = await mailboxConnectionsFor(ctx.supabase, tenantId);
-  const each = await Promise.all(
-    conversations.map(async (id) => {
-      const parent = await lastInboundEmail(ctx.supabase, tenantId, id);
-      const references = parent ? [...parent.references, ...(parent.rfcMessageId ? [parent.rfcMessageId] : [])] : [];
-      const who = await replyIdentityOf(ctx.supabase, { tenantId, conversationId: id, references, mailboxes });
-      return [id, replyFromOf(who)] as const;
-    }),
-  );
-  return new Map(each);
+  const who = await replyIdentitiesOf(ctx, tenantId, conversations);
+  return new Map([...who].map(([id, w]) => [id, replyFromOf(w)] as const));
 }
 
 /**

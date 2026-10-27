@@ -4209,6 +4209,8 @@ type Database = {
                     dns: Json;
                     dns_checked_at: string | null;
                     from_name: string;
+                    gmail_signature: string | null;
+                    gmail_signature_at: string | null;
                     held_at: string | null;
                     held_why: string | null;
                     host: string;
@@ -4224,6 +4226,7 @@ type Database = {
                     sent_at: string | null;
                     sent_days: number;
                     signature: string | null;
+                    signature_off: boolean;
                     state: string;
                     sync_cursor: string | null;
                     sync_lease_until: string | null;
@@ -4246,6 +4249,8 @@ type Database = {
                     dns?: Json;
                     dns_checked_at?: string | null;
                     from_name: string;
+                    gmail_signature?: string | null;
+                    gmail_signature_at?: string | null;
                     held_at?: string | null;
                     held_why?: string | null;
                     host: string;
@@ -4261,6 +4266,7 @@ type Database = {
                     sent_at?: string | null;
                     sent_days?: number;
                     signature?: string | null;
+                    signature_off?: boolean;
                     state?: string;
                     sync_cursor?: string | null;
                     sync_lease_until?: string | null;
@@ -4283,6 +4289,8 @@ type Database = {
                     dns?: Json;
                     dns_checked_at?: string | null;
                     from_name?: string;
+                    gmail_signature?: string | null;
+                    gmail_signature_at?: string | null;
                     held_at?: string | null;
                     held_why?: string | null;
                     host?: string;
@@ -4298,6 +4306,7 @@ type Database = {
                     sent_at?: string | null;
                     sent_days?: number;
                     signature?: string | null;
+                    signature_off?: boolean;
                     state?: string;
                     sync_cursor?: string | null;
                     sync_lease_until?: string | null;
@@ -16946,6 +16955,8 @@ declare function builderOf<T extends TenantTable>(db: Db$_, table: T): _supabase
                 dns: Json;
                 dns_checked_at: string | null;
                 from_name: string;
+                gmail_signature: string | null;
+                gmail_signature_at: string | null;
                 held_at: string | null;
                 held_why: string | null;
                 host: string;
@@ -16961,6 +16972,7 @@ declare function builderOf<T extends TenantTable>(db: Db$_, table: T): _supabase
                 sent_at: string | null;
                 sent_days: number;
                 signature: string | null;
+                signature_off: boolean;
                 state: string;
                 sync_cursor: string | null;
                 sync_lease_until: string | null;
@@ -16983,6 +16995,8 @@ declare function builderOf<T extends TenantTable>(db: Db$_, table: T): _supabase
                 dns?: Json;
                 dns_checked_at?: string | null;
                 from_name: string;
+                gmail_signature?: string | null;
+                gmail_signature_at?: string | null;
                 held_at?: string | null;
                 held_why?: string | null;
                 host: string;
@@ -16998,6 +17012,7 @@ declare function builderOf<T extends TenantTable>(db: Db$_, table: T): _supabase
                 sent_at?: string | null;
                 sent_days?: number;
                 signature?: string | null;
+                signature_off?: boolean;
                 state?: string;
                 sync_cursor?: string | null;
                 sync_lease_until?: string | null;
@@ -17020,6 +17035,8 @@ declare function builderOf<T extends TenantTable>(db: Db$_, table: T): _supabase
                 dns?: Json;
                 dns_checked_at?: string | null;
                 from_name?: string;
+                gmail_signature?: string | null;
+                gmail_signature_at?: string | null;
                 held_at?: string | null;
                 held_why?: string | null;
                 host?: string;
@@ -17035,6 +17052,7 @@ declare function builderOf<T extends TenantTable>(db: Db$_, table: T): _supabase
                 sent_at?: string | null;
                 sent_days?: number;
                 signature?: string | null;
+                signature_off?: boolean;
                 state?: string;
                 sync_cursor?: string | null;
                 sync_lease_until?: string | null;
@@ -28726,6 +28744,8 @@ declare function builderOf<T extends TenantTable>(db: Db$_, table: T): _supabase
             dns: Json;
             dns_checked_at: string | null;
             from_name: string;
+            gmail_signature: string | null;
+            gmail_signature_at: string | null;
             held_at: string | null;
             held_why: string | null;
             host: string;
@@ -28741,6 +28761,7 @@ declare function builderOf<T extends TenantTable>(db: Db$_, table: T): _supabase
             sent_at: string | null;
             sent_days: number;
             signature: string | null;
+            signature_off: boolean;
             state: string;
             sync_cursor: string | null;
             sync_lease_until: string | null;
@@ -28763,6 +28784,8 @@ declare function builderOf<T extends TenantTable>(db: Db$_, table: T): _supabase
             dns?: Json;
             dns_checked_at?: string | null;
             from_name: string;
+            gmail_signature?: string | null;
+            gmail_signature_at?: string | null;
             held_at?: string | null;
             held_why?: string | null;
             host: string;
@@ -28778,6 +28801,7 @@ declare function builderOf<T extends TenantTable>(db: Db$_, table: T): _supabase
             sent_at?: string | null;
             sent_days?: number;
             signature?: string | null;
+            signature_off?: boolean;
             state?: string;
             sync_cursor?: string | null;
             sync_lease_until?: string | null;
@@ -28800,6 +28824,8 @@ declare function builderOf<T extends TenantTable>(db: Db$_, table: T): _supabase
             dns?: Json;
             dns_checked_at?: string | null;
             from_name?: string;
+            gmail_signature?: string | null;
+            gmail_signature_at?: string | null;
             held_at?: string | null;
             held_why?: string | null;
             host?: string;
@@ -28815,6 +28841,7 @@ declare function builderOf<T extends TenantTable>(db: Db$_, table: T): _supabase
             sent_at?: string | null;
             sent_days?: number;
             signature?: string | null;
+            signature_off?: boolean;
             state?: string;
             sync_cursor?: string | null;
             sync_lease_until?: string | null;
@@ -35654,6 +35681,8 @@ declare function builderOf<T extends TenantTable>(db: Db$_, table: T): _supabase
             dns: Json;
             dns_checked_at: string | null;
             from_name: string;
+            gmail_signature: string | null;
+            gmail_signature_at: string | null;
             held_at: string | null;
             held_why: string | null;
             host: string;
@@ -35669,6 +35698,7 @@ declare function builderOf<T extends TenantTable>(db: Db$_, table: T): _supabase
             sent_at: string | null;
             sent_days: number;
             signature: string | null;
+            signature_off: boolean;
             state: string;
             sync_cursor: string | null;
             sync_lease_until: string | null;
@@ -35691,6 +35721,8 @@ declare function builderOf<T extends TenantTable>(db: Db$_, table: T): _supabase
             dns?: Json;
             dns_checked_at?: string | null;
             from_name: string;
+            gmail_signature?: string | null;
+            gmail_signature_at?: string | null;
             held_at?: string | null;
             held_why?: string | null;
             host: string;
@@ -35706,6 +35738,7 @@ declare function builderOf<T extends TenantTable>(db: Db$_, table: T): _supabase
             sent_at?: string | null;
             sent_days?: number;
             signature?: string | null;
+            signature_off?: boolean;
             state?: string;
             sync_cursor?: string | null;
             sync_lease_until?: string | null;
@@ -35728,6 +35761,8 @@ declare function builderOf<T extends TenantTable>(db: Db$_, table: T): _supabase
             dns?: Json;
             dns_checked_at?: string | null;
             from_name?: string;
+            gmail_signature?: string | null;
+            gmail_signature_at?: string | null;
             held_at?: string | null;
             held_why?: string | null;
             host?: string;
@@ -35743,6 +35778,7 @@ declare function builderOf<T extends TenantTable>(db: Db$_, table: T): _supabase
             sent_at?: string | null;
             sent_days?: number;
             signature?: string | null;
+            signature_off?: boolean;
             state?: string;
             sync_cursor?: string | null;
             sync_lease_until?: string | null;
@@ -42582,6 +42618,8 @@ declare function builderOf<T extends TenantTable>(db: Db$_, table: T): _supabase
             dns: Json;
             dns_checked_at: string | null;
             from_name: string;
+            gmail_signature: string | null;
+            gmail_signature_at: string | null;
             held_at: string | null;
             held_why: string | null;
             host: string;
@@ -42597,6 +42635,7 @@ declare function builderOf<T extends TenantTable>(db: Db$_, table: T): _supabase
             sent_at: string | null;
             sent_days: number;
             signature: string | null;
+            signature_off: boolean;
             state: string;
             sync_cursor: string | null;
             sync_lease_until: string | null;
@@ -42619,6 +42658,8 @@ declare function builderOf<T extends TenantTable>(db: Db$_, table: T): _supabase
             dns?: Json;
             dns_checked_at?: string | null;
             from_name: string;
+            gmail_signature?: string | null;
+            gmail_signature_at?: string | null;
             held_at?: string | null;
             held_why?: string | null;
             host: string;
@@ -42634,6 +42675,7 @@ declare function builderOf<T extends TenantTable>(db: Db$_, table: T): _supabase
             sent_at?: string | null;
             sent_days?: number;
             signature?: string | null;
+            signature_off?: boolean;
             state?: string;
             sync_cursor?: string | null;
             sync_lease_until?: string | null;
@@ -42656,6 +42698,8 @@ declare function builderOf<T extends TenantTable>(db: Db$_, table: T): _supabase
             dns?: Json;
             dns_checked_at?: string | null;
             from_name?: string;
+            gmail_signature?: string | null;
+            gmail_signature_at?: string | null;
             held_at?: string | null;
             held_why?: string | null;
             host?: string;
@@ -42671,6 +42715,7 @@ declare function builderOf<T extends TenantTable>(db: Db$_, table: T): _supabase
             sent_at?: string | null;
             sent_days?: number;
             signature?: string | null;
+            signature_off?: boolean;
             state?: string;
             sync_cursor?: string | null;
             sync_lease_until?: string | null;

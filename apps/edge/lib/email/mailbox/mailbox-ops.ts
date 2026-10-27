@@ -11,12 +11,12 @@
  *                                                           → the grant exchanged and checked, the mailbox's row (a
  *                                                             Reconnect's mailbox_id: that mailbox's account or none)
  *   { op: "remove" | "pause" | "unpause" | "resume" | "check" | "test", tenant_id, mailbox_id }
- *   { op: "settings", tenant_id, mailbox_id, from_name?, signature?, daily_cap? }
+ *   { op: "settings", tenant_id, mailbox_id, from_name?, signature?, signature_off?, daily_cap? }
  *   { op: "bring_in", tenant_id, address }                  → a sender the owner said is a person: their mail of the
  *                                                             mailboxes' six months and since kept in their thread
  *                                                             (imports/mail-history.ts bringInSender), how many
  *
- * A row's answer is its page row (contracts mailboxConnectionDtoOf). A connect that did not finish answers its reason
+ * A row's answer is its page row (channels mailboxDtoOf, its Gmail signature said in words). A connect that did not finish answers its reason
  * (contracts MAILBOX_CONNECT_WORDS says each) beside the code a caller compares.
  */
 import { json, refuse } from "../../http.js";
@@ -24,13 +24,8 @@ import { personFor, workspaceFor, type Admitted } from "../../admin-auth.js";
 import { pg } from "../../pg.js";
 import { errField, logger } from "../../log.js";
 import { mailboxConnectionOf, mailboxConnectionsOf, type MailboxConnectionRow } from "../../packages/db.js";
-import {
-  MAILBOX_PROVIDERS,
-  UUID,
-  mailboxConnectionDtoOf,
-  normalizeEmail,
-  type MailboxProvider,
-} from "../../packages/contracts.js";
+import { MAILBOX_PROVIDERS, UUID, normalizeEmail, type MailboxProvider } from "../../packages/contracts.js";
+import { mailboxDtoOf } from "../../packages/channels.js";
 import { bringInSender } from "../../imports/mail-history.js";
 import { tokenFor } from "./mailbox-credentials.js";
 import { mailboxReadiness } from "./mailbox-config.js";
@@ -57,6 +52,7 @@ export interface Body {
   code_verifier?: unknown;
   from_name?: unknown;
   signature?: unknown;
+  signature_off?: unknown;
   daily_cap?: unknown;
   address?: unknown;
 }
@@ -116,17 +112,23 @@ async function connectOp(p: MailboxPorts, tenantId: string, by: string | null, b
   });
   if (out.ok) {
     const row = await mailboxConnectionOf(p.db, tenantId, out.id);
-    return json(200, { ok: true, made: out.made, mailbox: row ? mailboxConnectionDtoOf(row) : null });
+    return json(200, { ok: true, made: out.made, mailbox: row ? mailboxDtoOf(row) : null });
   }
   p.log.warn("mailbox_connect_refused", { reason: out.why, detail: out.detail ?? null });
   return connectRefused(out.why);
 }
 
-/** What an owner's settings may change: the name it sends as, its signature (null clears it), its daily cap. */
-function settingsOf(body: Partial<Body>): { from_name?: string; signature?: string | null; daily_cap?: number } {
+/** What an owner's settings may change: the name it sends as, its signature (null clears it) or none, its daily cap. */
+function settingsOf(body: Partial<Body>): {
+  from_name?: string;
+  signature?: string | null;
+  signature_off?: boolean;
+  daily_cap?: number;
+} {
   return {
     ...(typeof body.from_name === "string" ? { from_name: body.from_name } : {}),
     ...(body.signature === null || typeof body.signature === "string" ? { signature: body.signature } : {}),
+    ...(typeof body.signature_off === "boolean" ? { signature_off: body.signature_off } : {}),
     ...(body.daily_cap !== undefined ? { daily_cap: Number(body.daily_cap) } : {}),
   };
 }
@@ -153,7 +155,7 @@ async function rowOp(
   // The row as it stands after a move that took: its page row.
   const answer = async () => {
     const now = await mailboxConnectionOf(p.db, tenantId, row.id);
-    return json(200, { ok: true, mailbox: now ? mailboxConnectionDtoOf(now) : null });
+    return json(200, { ok: true, mailbox: now ? mailboxDtoOf(now) : null });
   };
   switch (op) {
     case "remove":
@@ -170,7 +172,7 @@ async function rowOp(
     case "settings": {
       const out = await mailboxSettings(p, row, settingsOf(body));
       if ("error" in out) return refuse(400, "invalid", out.error);
-      return json(200, { ok: true, mailbox: mailboxConnectionDtoOf(out) });
+      return json(200, { ok: true, mailbox: mailboxDtoOf(out) });
     }
     default:
       return testOp(p, row);

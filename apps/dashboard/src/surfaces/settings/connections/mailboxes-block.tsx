@@ -10,7 +10,13 @@
  * the JSX, called and not drawn, as the block before it did. `MailboxRecords` and `MailboxSettings` are components.
  */
 import { Fragment, useState } from "react";
-import type { MailboxConnectionDto, MailboxProvider, MailboxRecordRow, SetupDto } from "@chanlytics/contracts";
+import type {
+  MailboxConnectionDto,
+  MailboxProvider,
+  MailboxRecordRow,
+  MailboxSignsChoice,
+  SetupDto,
+} from "@chanlytics/contracts";
 import type { ApiResult } from "@/client/api";
 import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
@@ -19,6 +25,7 @@ import { LinkButton } from "../../kit/link-button/link-button";
 import { MoreMenu } from "../../kit/more-menu/more-menu";
 import { StatePill } from "../../kit/pill/state-pill";
 import { RecordField } from "../../kit/record/field";
+import { Segmented } from "../../kit/segmented/segmented";
 import { canDo, gate, gateTitle, refusalToast, type LegacyFlash } from "../../legacy-verbs";
 import { connectedMailboxes } from "./connected-mailboxes";
 import { LeftSenders } from "./left-senders";
@@ -129,12 +136,42 @@ interface SettingsProps {
   onClose: () => void;
 }
 
+/** Settings' words for what a mailbox signs with (contracts MAILBOX_SIGNATURE_WORDS). */
+const SIGNS = MAILBOXES.signs.words;
+
+/**
+ * What the Gmail choice signs with, as words (Gmail's own markup is never drawn here), and when it was read; or that
+ * none goes. Their own words are the field above, where they write them.
+ */
+const SignsSaid = ({ m, choice }: { m: MailboxConnectionDto; choice: MailboxSignsChoice }) => {
+  if (choice === "none")
+    return (
+      <p className="set-mbx-signs-read" data-testid="mailbox-signs-said">
+        {SIGNS.none_says}
+      </p>
+    );
+  const said = MAILBOXES.signs.gmail(m);
+  return (
+    <div className="set-mbx-signs" data-testid="mailbox-signs-said">
+      <p className="set-mbx-signs-words">{said.words}</p>
+      <p className="set-mbx-signs-read">{said.read}</p>
+    </div>
+  );
+};
+
 /** What is wrong with each box, in the owner's words; a box with nothing wrong has no key. */
 type SettingsProblems = { name?: string; signature?: string; cap?: string };
 
-/** The name it sends as, its signature and the most it sends a day, as its owner sets them. */
+/** What a save sends of what it signs with (00487): Gmail's clears their words, none keeps them for another day. */
+const signsPatch = (choice: MailboxSignsChoice, signature: string) =>
+  choice === "none"
+    ? { signature_off: true }
+    : { signature_off: false, signature: choice === "own" ? signature.trim() || null : null };
+
+/** The name it sends as, what it signs with and the most it sends a day, as its owner sets them. */
 const MailboxSettings = ({ m, flash, onClose }: SettingsProps) => {
   const [name, setName] = useState(m.from_name);
+  const [signs, setSigns] = useState<MailboxSignsChoice>(MAILBOXES.signs.choiceOf(m));
   const [signature, setSignature] = useState(m.signature ?? "");
   const [cap, setCap] = useState(String(m.daily_cap));
   const [problems, setProblems] = useState<SettingsProblems>({});
@@ -144,11 +181,12 @@ const MailboxSettings = ({ m, flash, onClose }: SettingsProps) => {
     const n = Number(cap);
     if (!name.trim() || name.trim().length > 80) found.name = "Give the name people see, 80 characters at most.";
     if (signature.length > 1000) found.signature = "A signature is 1,000 characters at most.";
+    if (signs === "own" && !signature.trim()) found.signature = SIGNS.ownEmpty;
     if (!Number.isInteger(n) || n < 1 || n > MAILBOXES.capMax) found.cap = `Between 1 and ${MAILBOXES.capMax} a day.`;
     setProblems(found);
     if (found.name || found.signature || found.cap) return;
     setBusy(true);
-    const r = await MAILBOXES.set(m.id, { from_name: name.trim(), signature: signature.trim() || null, daily_cap: n });
+    const r = await MAILBOXES.set(m.id, { from_name: name.trim(), ...signsPatch(signs, signature), daily_cap: n });
     setBusy(false);
     if (!r.ok) {
       flash(refusalToast(r, "Not saved"));
@@ -169,17 +207,36 @@ const MailboxSettings = ({ m, flash, onClose }: SettingsProps) => {
           problem={problems.name}
           disabled={busy}
         />
-        <RecordField
-          id={`mailbox-signature-${m.id}`}
-          testid="mailbox-signature"
-          label="Its signature"
-          value={signature}
-          onChange={setSignature}
-          rows={3}
-          hint="Under every email it writes, above the foot the law asks for."
-          problem={problems.signature}
-          disabled={busy}
+        <Segmented
+          label={SIGNS.label}
+          value={signs}
+          onValueChange={setSigns}
+          readOnly={busy}
+          options={[
+            {
+              value: "gmail",
+              label: m.provider === "google" ? SIGNS.gmail : SIGNS.name,
+              testid: "mailbox-signs-gmail",
+            },
+            { value: "own", label: SIGNS.own, testid: "mailbox-signs-own" },
+            { value: "none", label: SIGNS.none, testid: "mailbox-signs-none" },
+          ]}
         />
+        {signs === "own" ? (
+          <RecordField
+            id={`mailbox-signature-${m.id}`}
+            testid="mailbox-signature"
+            label={SIGNS.ownLabel}
+            value={signature}
+            onChange={setSignature}
+            rows={3}
+            hint={SIGNS.ownHint}
+            problem={problems.signature}
+            disabled={busy}
+          />
+        ) : (
+          <SignsSaid m={m} choice={signs} />
+        )}
         <RecordField
           id={`mailbox-cap-${m.id}`}
           testid="mailbox-cap"

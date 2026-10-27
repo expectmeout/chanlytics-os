@@ -8972,6 +8972,11 @@ function emailPartsOf(body, fromName) {
 function emailSignatureLine(signature) {
   return signature.split(/\n|[ \t]+\|[ \t]+/).map((p) => p.trim()).filter(Boolean).slice(0, SIG_LINE_PARTS).join(" \xB7 ");
 }
+function emailSignedWithOf(m) {
+  if (m.sender === "customer") return null;
+  const signed2 = m.meta?.email?.signature;
+  return typeof signed2 === "string" && signed2.trim() ? signed2.trim() : null;
+}
 var REPLY_PREFIX = /^((re|fwd?|fw|aw|sv|tr)\s*:\s*)+/i;
 var subjectKey = (s) => s.replace(REPLY_PREFIX, "").trim().toLowerCase();
 function emailSubjectsOf(messages) {
@@ -40227,12 +40232,13 @@ function bubbleWordsOf(m, changed) {
   const parts2 = emailPartsOf(messageText(m), emailFromNameOf(m));
   const subject = changed.get(m.id);
   const leftOut2 = emailLeftOutOf(m.meta) ?? replyLeftAsOf(m.meta);
+  const signed2 = parts2.signature ?? emailSignedWithOf(m);
   return {
     body: parts2.said,
     ...subject ? { subject } : {},
     ...leftOut2 ? { leftOut: leftOut2 } : {},
     ...parts2.quoted ? { quoted: parts2.quoted } : {},
-    ...parts2.signature ? { signature: { line: emailSignatureLine(parts2.signature), full: parts2.signature } } : {}
+    ...signed2 ? { signature: { line: emailSignatureLine(signed2), full: signed2 } } : {}
   };
 }
 var headSubjectOf = (thread) => thread ? { emailSubject: thread } : {};
@@ -42238,9 +42244,18 @@ function mailboxSendsNow(m, nowMs) {
 function reachOutWritesFrom(m, named) {
   return m.state !== "removed" && (named.length === 0 || named.includes(m.id));
 }
+function mailboxSignsOf(r2, gmailWords) {
+  const gmail_read_at = r2.gmail_signature_at ?? null;
+  const gmail = gmailWords?.trim() || null;
+  if (r2.signature_off === true) return { from: "none", words: null, gmail_read_at, gmail };
+  const own = r2.signature?.trim();
+  if (own) return { from: "own", words: own, gmail_read_at, gmail };
+  if (gmail) return { from: "gmail", words: gmail, gmail_read_at, gmail };
+  return { from: "name", words: r2.from_name.trim() || null, gmail_read_at, gmail };
+}
 var SPF_RECORD_MAX = 4096;
 var SPF_RECORDS_JOIN = " | ";
-function mailboxConnectionDtoOf(r2, day2 = null) {
+function mailboxConnectionDtoOf(r2, day2 = null, gmailWords = null) {
   const dns = {};
   const raw = r2.dns && typeof r2.dns === "object" ? r2.dns : {};
   for (const k of MAILBOX_DNS_RECORDS) {
@@ -42273,7 +42288,8 @@ function mailboxConnectionDtoOf(r2, day2 = null) {
     synced_at: r2.synced_at,
     sent_today: day2?.sent_today ?? null,
     counts: day2?.counts ?? null,
-    came_in: day2?.came_in ?? null
+    came_in: day2?.came_in ?? null,
+    signs: mailboxSignsOf(r2, gmailWords)
   };
 }
 var COUNT_FLOOR = 150;
@@ -42369,6 +42385,25 @@ var CLOCK_FMT = formatterOnUse("en-US", { weekday: "short", hour: "numeric", min
 var clockOf = (iso) => CLOCK_FMT.format(new Date(iso));
 var TIME_FMT = formatterOnUse("en-US", { hour: "numeric", minute: "2-digit" });
 var MAILBOX_READ_LATE_MS = 20 * MIN_MS;
+var mailboxSignsChoiceOf = (m) => m.signs.from === "none" ? "none" : m.signs.from === "own" ? "own" : "gmail";
+var MAILBOX_SIGNATURE_WORDS = {
+  label: "It signs its emails with",
+  gmail: "From Gmail",
+  name: "Its name",
+  own: "Write one",
+  none: "None",
+  ownLabel: "Its signature",
+  ownHint: "Under every email it sends.",
+  ownEmpty: "Write the signature, or choose another.",
+  none_says: "Nothing goes under its emails, not even its name."
+};
+function mailboxGmailSignsWords(m) {
+  const gmailWords = m.signs.gmail;
+  if (m.provider !== "google") return { words: m.from_name, read: "Its emails end with the name it sends as." };
+  const at3 = m.signs.gmail_read_at;
+  const read = at3 ? `Read from Gmail at ${clockOf(at3)}. Saving reads it again.` : "Saving reads it from Gmail now.";
+  return gmailWords ? { words: gmailWords, read } : { words: m.from_name, read: `Gmail has none for this address, so its emails end with its name. ${read}` };
+}
 function mailboxReadWords(syncedAt, nowMs) {
   if (!syncedAt) return "Not read yet";
   return nowMs - Date.parse(syncedAt) > MAILBOX_READ_LATE_MS ? `Not read since ${clockOf(syncedAt)}` : `Read at ${TIME_FMT.format(new Date(syncedAt))}`;
@@ -48111,6 +48146,10 @@ var NEED_YOU_WORDS = {
   asks: (question) => `Ask needs to know: ${question}`,
   edit: "Edit",
   editDraft: (who) => `Ask's draft to ${who}. Press to change it.`,
+  /** The signature an email reply leaves with (00487), under the draft: what is sent is what is seen. */
+  signedWith: (line) => `Signed: ${line}`,
+  changeSignature: "Change",
+  changeSignatureTip: "Change what this mailbox signs with, in Settings \u203A Connections",
   yourWords: (who) => `Your words to ${who}`,
   yours: "Your words",
   writeItMyself: "Write it myself",
@@ -69611,6 +69650,7 @@ export {
   MAILBOX_RAMP,
   MAILBOX_RESERVED,
   MAILBOX_SENDERS_WORDS,
+  MAILBOX_SIGNATURE_WORDS,
   MARKETING_OPT_IN_PATTERN,
   MAX_CLOSURES,
   MAX_INTERVALS_PER_DAY,
@@ -71414,6 +71454,7 @@ export {
   mailboxConnectWords,
   mailboxConnectionDtoOf,
   mailboxDailyCap,
+  mailboxGmailSignsWords,
   mailboxHealthWords,
   mailboxHoldFixWords,
   mailboxHoldOf,
@@ -71423,6 +71464,8 @@ export {
   mailboxRowWords,
   mailboxSendingLines,
   mailboxSendsNow,
+  mailboxSignsChoiceOf,
+  mailboxSignsOf,
   mailboxWords,
   mailboxesFootWords,
   mailtoOf,

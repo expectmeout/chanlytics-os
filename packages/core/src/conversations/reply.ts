@@ -161,7 +161,7 @@ export interface EmailReplyPorts {
    * The request this reply leaves as, frozen, and the subject it carries; null when the workspace has no mailbox to send
    * from. A reply to a reach-out from a mailbox the business connected, that sends now, is frozen a second time on
    * that mailbox (`own`, C15): the edge sends it when that route still holds it, and the hosted mailbox's request
-   * otherwise (N5).
+   * otherwise (N5). `signature`: the words the mailbox signed it with (00487), kept on the row for the thread to say.
    */
   freeze(input: {
     tenantId: TenantId;
@@ -170,7 +170,7 @@ export interface EmailReplyPorts {
     to: string;
     parent: EmailParentFacts;
     body: string;
-  }): Promise<{ request: Json; subject: string; own?: Json | null } | null>;
+  }): Promise<{ request: Json; subject: string; own?: Json | null; signature?: string | null } | null>;
   /**
    * The request a first email leaves as, frozen, and the subject it carries: an email that answers none of theirs, so
    * it names its own subject and threads under nothing. Null when the workspace has no mailbox to send from.
@@ -349,6 +349,7 @@ async function shapeEmailReply(
         in_reply_to: parent.rfcMessageId,
         request: frozen.request,
         ...(frozen.own ? { own_request: frozen.own } : {}),
+        ...(frozen.signature ? { signature: frozen.signature } : {}),
       },
     } as Json,
   };

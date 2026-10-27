@@ -3654,6 +3654,18 @@ function autoSubmittedOf(i) {
   if (i.campaign || i.actor === "ai" && !i.parent) return "auto-generated";
   return i.actor === "ai" ? "auto-replied" : null;
 }
+function htmlOf(i, footerHtml, text) {
+  const signed = i.signatureHtml?.trim();
+  if (!signed)
+    return footerHtml ? `${emailHtml([i.body.trim(), i.signature?.trim()].filter(Boolean).join("\n\n"))}
+${footerHtml}` : emailHtml(text);
+  const foot = footerHtml ?? (i.campaign ? emailHtml(i.campaign.footer.trim()) : "");
+  return [
+    emailHtml(i.body.trim()),
+    `<div class="gmail_signature" data-smartmail="gmail_signature">${signed}</div>`,
+    foot
+  ].filter(Boolean).join("\n");
+}
 function buildEmailRequest(i) {
   const subject = i.parent ? replySubject(i.parent.subject) : oneLine(i.subject ?? "").slice(0, SUBJECT_MAX);
   if (!subject) throw new Error("buildEmailRequest: a first email names its subject");
@@ -3665,8 +3677,7 @@ function buildEmailRequest(i) {
   const footerHtml = i.campaign?.footerHtml?.trim() || null;
   if (footerHtml && !footerHtml.includes(`href="${escapeHtml(i.campaign.unsubscribeUrl.trim())}"`))
     throw new Error("buildEmailRequest: a campaign's HTML footer carries its unsubscribe link");
-  const html = i.plain ? "" : footerHtml ? `${emailHtml([i.body.trim(), i.signature?.trim()].filter(Boolean).join("\n\n"))}
-${footerHtml}` : emailHtml(text);
+  const html = i.plain ? "" : htmlOf(i, footerHtml, text);
   const inReplyTo = i.parent ? messageIdHeader(i.parent.rfcMessageId) : null;
   const references = i.parent ? referencesFor(i.parent) : [];
   const autoSubmitted = autoSubmittedOf(i);
@@ -5377,6 +5388,18 @@ async function gmailProfile(token, deps) {
     deps
   );
 }
+async function gmailSignature(token, address, deps) {
+  const r = await providerFetch(
+    "google",
+    `${GMAIL_API2}/settings/sendAs/${encodeURIComponent(address)}`,
+    { headers: auth2(token), timeoutMs: MAILBOX_READ_MS, idempotent: true, tries: 2 },
+    deps
+  );
+  if (r.status === 404) return { ok: true, html: null };
+  if (r.outcome !== "ok") return { ok: false, reply: r };
+  const html = r.json?.signature;
+  return { ok: true, html: typeof html === "string" && html.trim() ? html : null };
+}
 function gmailNoMailbox(r) {
   return r.status === 400 && /failedPrecondition|FAILED_PRECONDITION/.test(gmailReasonOf(r) ?? "");
 }
@@ -5509,6 +5532,41 @@ async function gmailStop(token, deps) {
     { method: "POST", headers: auth2(token), timeoutMs: MAILBOX_READ_MS, idempotent: true, tries: 1 },
     deps
   );
+}
+
+// src/mailbox/mailbox-signature.ts
+import { convert as convert2 } from "html-to-text";
+import { mailboxConnectionDtoOf, mailboxSignsOf } from "../../contracts/dist/index.js";
+var GMAIL_SIGNATURE_MAX = 1e4;
+var DROPPED = "script|style|iframe|object|embed|form|frameset|frame|meta|link|base|svg|math";
+var DROPPED_ELEMENTS = new RegExp(`<(${DROPPED})\\b[^>]*>[\\s\\S]*?<\\/\\1\\s*>`, "gi");
+var DROPPED_TAGS = new RegExp(`<\\/?(?:${DROPPED})\\b[^>]*>`, "gi");
+var HANDLERS = /\s+on[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi;
+var SCRIPT_LINKS = /\s+(href|src)\s*=\s*("\s*(?:javascript|vbscript|data):[^"]*"|'\s*(?:javascript|vbscript|data):[^']*')/gi;
+function cleanGmailSignature(html) {
+  const clean = (html ?? "").replace(DROPPED_ELEMENTS, "").replace(DROPPED_TAGS, "").replace(HANDLERS, "").replace(SCRIPT_LINKS, "").trim();
+  if (!clean || clean.length > GMAIL_SIGNATURE_MAX || !gmailSignatureWords(clean)) return null;
+  return clean;
+}
+function gmailSignatureWords(html) {
+  if (!html?.trim()) return null;
+  const words = convert2(html, {
+    wordwrap: false,
+    selectors: [
+      { selector: "img", format: "skip" },
+      { selector: "a", options: { ignoreHref: true } },
+      { selector: "p", options: { leadingLineBreaks: 1, trailingLineBreaks: 1 } }
+    ]
+  }).split("\n").map((l) => l.replace(/[ \t]+$/, "")).join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  return words || null;
+}
+function mailboxSignatureOf(row) {
+  const signs = mailboxSignsOf(row, gmailSignatureWords(row.gmail_signature));
+  if (signs.from === "none" || !signs.words) return null;
+  return { text: signs.words, html: signs.from === "gmail" ? cleanGmailSignature(row.gmail_signature) : null };
+}
+function mailboxDtoOf(row, day = null) {
+  return mailboxConnectionDtoOf(row, day, gmailSignatureWords(row.gmail_signature));
 }
 
 // src/mailbox/mailbox-send.ts
@@ -7287,6 +7345,7 @@ export {
   GBP_REVIEWS_MAX_PAGES,
   GBP_REVIEWS_PAGE,
   GBP_V4_BASE,
+  GMAIL_SIGNATURE_MAX,
   GOOGLE_AUTH_URL,
   GOOGLE_REVOKE_URL,
   GOOGLE_TOKEN_URL,
@@ -7368,6 +7427,7 @@ export {
   carrierConsent,
   chooseLineProvider,
   classifyReceived,
+  cleanGmailSignature,
   cleanReply,
   clientStateMatches,
   connectedIdentity,
@@ -7426,6 +7486,8 @@ export {
   gmailReports,
   gmailSend,
   gmailSentIds,
+  gmailSignature,
+  gmailSignatureWords,
   gmailSignedOut,
   gmailStop,
   gmailThreadOf,
@@ -7502,12 +7564,14 @@ export {
   mailDomainsFrom,
   mailboxAdminConsentUrl,
   mailboxAuthorizeUrl,
+  mailboxDtoOf,
   mailboxHeader,
   mailboxMessageId,
   mailboxPkceChallenge,
   mailboxPkceVerifier,
   mailboxRefreshRequest,
   mailboxRevokeRequest,
+  mailboxSignatureOf,
   mailboxTokenRequest,
   mergeConsent,
   messageIdHeader,

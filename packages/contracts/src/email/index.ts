@@ -30,6 +30,10 @@ export {
   mailboxSendsNow,
   reachOutWritesFrom,
   mailboxConnectionDtoOf,
+  mailboxSignsOf,
+  mailboxSignsChoiceOf,
+  mailboxGmailSignsWords,
+  MAILBOX_SIGNATURE_WORDS,
   mailboxHoldOf,
   MAILBOX_PROVIDER_WORDS,
   mailboxHealthWords,
@@ -58,6 +62,9 @@ export type {
   MailboxWords,
   MailboxRowWords,
   MailboxRecordRow,
+  MailboxSigns,
+  MailboxSignsFrom,
+  MailboxSignsChoice,
 } from "./mailbox-connections";
 export { isFreeMail } from "./free-mail";
 export { posesAsReply } from "./email-subject";

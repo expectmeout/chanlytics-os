@@ -20,6 +20,7 @@ import { createHash } from "node:crypto";
 import {
   buildEmailRequest,
   connectedIdentity,
+  mailboxSignatureOf,
   signUnsubscribeToken,
   unsubscribeUrl,
   type EmailParent,
@@ -52,7 +53,15 @@ export interface RequestInput {
   /** The opening the check wrote for this send; null when it has none. */
   opening: string | null;
   /** The mailbox it leaves from: the name it sends as, its address, and the signature its owner gave it. */
-  from: { address: string; from_name: string; signature: string | null };
+  /** The mailbox it leaves from, and what that mailbox signs with (00487, channels mailboxSignatureOf). */
+  from: {
+    address: string;
+    from_name: string;
+    signature: string | null;
+    signature_off?: boolean;
+    gmail_signature?: string | null;
+    gmail_signature_at?: string | null;
+  };
   unsubscribe: { secret: string; origin: string };
   /** The lead's email on the step before, for a step after the first; null for the first. */
   parent: EmailParent | null;
@@ -175,7 +184,7 @@ export function reachOutRequest(
       parent: i.parent,
       ...(words.subject !== null ? { subject: words.subject } : {}),
       body: words.body,
-      signature: i.from.signature,
+      signature: mailboxSignatureOf(i.from)?.text ?? null,
       // The owner's words, from the owner's own mailbox: one person's email, so it is marked as nothing else.
       actor: "human",
       plain: true,

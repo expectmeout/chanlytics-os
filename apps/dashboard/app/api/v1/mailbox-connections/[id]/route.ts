@@ -7,14 +7,16 @@ const Body = z
     paused: z.boolean().optional(),
     from_name: z.string().max(200).optional(),
     signature: z.string().max(2000).nullable().optional(),
+    signature_off: z.boolean().optional(),
     daily_cap: z.number().int().optional(),
   })
   .strict();
 
 /**
- * PATCH /api/v1/mailbox-connections/:id — { paused?, from_name?, signature?, daily_cap? }
+ * PATCH /api/v1/mailbox-connections/:id — { paused?, from_name?, signature?, signature_off?, daily_cap? }
  *
- * The owner's say over a mailbox: pause it or let it send again, and the name it sends as, its signature and the most
+ * The owner's say over a mailbox: pause it or let it send again, and the name it sends as, what it signs with (its own
+ * words, none, or with neither the signature they keep in Gmail, read again as they choose it: 00487) and the most
  * it sends a day (never past its ramp or its domain's ceiling: contracts mailboxDailyCap). The edge judges each.
  */
 export const PATCH = write({

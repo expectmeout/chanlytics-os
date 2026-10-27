@@ -15,7 +15,14 @@ import { contactName, contactMeta, emailStoppedWords, initialsOf } from "./threa
 import { shortTime, bubbleTime, inboxThreadClock, waitedSince, type ThreadMoments } from "./thread-clock";
 import { clockDate, clockHistoryDay, clockTime } from "../shared/clock";
 import { mediaVM } from "./message-media";
-import { emailLeftOutOf, emailFromNameOf, emailPartsOf, emailSignatureLine, emailSubjectsOf } from "./message-email";
+import {
+  emailLeftOutOf,
+  emailFromNameOf,
+  emailPartsOf,
+  emailSignatureLine,
+  emailSignedWithOf,
+  emailSubjectsOf,
+} from "./message-email";
 import { replyLeftAsOf } from "../reach-out/reach-out-reply-words";
 import {
   sentFactsOf,
@@ -280,12 +287,14 @@ function bubbleWordsOf(
   const parts = emailPartsOf(messageText(m), emailFromNameOf(m));
   const subject = changed.get(m.id);
   const leftOut = emailLeftOutOf(m.meta) ?? replyLeftAsOf(m.meta);
+  // Theirs is found in their words; ours is what the mailbox signed it with, kept as it left (00487).
+  const signed = parts.signature ?? emailSignedWithOf(m);
   return {
     body: parts.said,
     ...(subject ? { subject } : {}),
     ...(leftOut ? { leftOut } : {}),
     ...(parts.quoted ? { quoted: parts.quoted } : {}),
-    ...(parts.signature ? { signature: { line: emailSignatureLine(parts.signature), full: parts.signature } } : {}),
+    ...(signed ? { signature: { line: emailSignatureLine(signed), full: signed } } : {}),
   };
 }
 

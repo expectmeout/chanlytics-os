@@ -22,7 +22,6 @@ import {
   ROLE_PERMS,
   WEEK_MS,
   appLink,
-  mailboxConnectionDtoOf,
   type EdgeErrorCode,
   type GoogleAudience,
   type MailboxConnectionDto,
@@ -31,6 +30,7 @@ import {
 import {
   mailboxAdminConsentUrl,
   mailboxAuthorizeUrl,
+  mailboxDtoOf,
   mailboxPkceChallenge,
   mailboxPkceVerifier,
   newNonce,
@@ -51,7 +51,7 @@ export async function mailboxConnectionsFor(
   db: SupabaseClient<Database>,
   tenantId: string,
 ): Promise<MailboxConnectionDto[]> {
-  return (await mailboxConnectionsOf(db, tenantId)).map((r) => mailboxConnectionDtoOf(r));
+  return (await mailboxConnectionsOf(db, tenantId)).map((r) => mailboxDtoOf(r));
 }
 
 /**
@@ -71,13 +71,13 @@ export async function mailboxConnectionsWithDaysFor(
   const since = new Date(now.getTime() - DAY_MS);
   return Promise.all(
     rows.map(async (r) => {
-      if (r.state === "removed" || r.state === "reconnect") return mailboxConnectionDtoOf(r);
+      if (r.state === "removed" || r.state === "reconnect") return mailboxDtoOf(r);
       const [cameIn, day, counts] = await Promise.all([
         mailboxPeopleSince(db, tenantId, r.id, since).catch(() => null),
         svc ? mailboxCapacityOf(svc, r.id, now).catch(() => null) : null,
         svc ? mailboxCountsOf(svc, r.id, r.counted_since).catch(() => null) : null,
       ]);
-      return mailboxConnectionDtoOf(r, { sent_today: day?.sent_today ?? null, counts, came_in: cameIn });
+      return mailboxDtoOf(r, { sent_today: day?.sent_today ?? null, counts, came_in: cameIn });
     }),
   );
 }
@@ -236,12 +236,12 @@ export async function checkMailbox(tenantId: string, userId: string, id: string)
   );
 }
 
-/** The name it sends as, its signature, its owner's cap. */
+/** The name it sends as, what it signs with (its own words, none, or Gmail's: 00487), its owner's cap. */
 export async function setMailbox(
   tenantId: string,
   userId: string,
   id: string,
-  s: { from_name?: string; signature?: string | null; daily_cap?: number },
+  s: { from_name?: string; signature?: string | null; signature_off?: boolean; daily_cap?: number },
 ) {
   return mailboxAnswered(
     await edgeMailboxes({ op: "settings", tenant_id: tenantId, user_id: userId, mailbox_id: id, ...s }),

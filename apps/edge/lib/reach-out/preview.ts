@@ -60,7 +60,8 @@ export interface Preview {
 
 // Stand-ins for what only a real send has: the preview's email is assembled, read, and dropped.
 const STAND_IN = {
-  from: { address: "preview@preview.invalid", from_name: "Preview", signature: null },
+  // No mailbox stands behind a preview: it signs with none.
+  from: { address: "preview@preview.invalid", from_name: "Preview", signature: null, signature_off: true },
   origin: "https://preview.invalid",
 };
 

@@ -33,6 +33,7 @@ import { tendMailboxHealth } from "./mailbox-health.js";
 import { reconcileMailbox } from "./mailbox-reconcile.js";
 import { syncMailbox } from "./mailbox-sync.js";
 import { keepWatch, watchDue } from "./mailbox-watch.js";
+import { gmailSignatureDue, keepGmailSignature } from "./mailbox-signature.js";
 import { markSignedOut } from "./mailbox-wire.js";
 import { errField, type Logger } from "../../log.js";
 import type { SweepTick } from "../../ops/sweep-door.js";
@@ -79,6 +80,11 @@ async function tend(tick: SweepTick, row: MailboxConnectionRow, counts: Counts):
         await markSignedOut(db, row, log, now);
         return;
       }
+    }
+    // Its Gmail signature, once a day, so what it sends is signed as its owner signs in Gmail (00487).
+    if (gmailSignatureDue(current, now) && Date.now() < until) {
+      const t = await tokenFor(db, current, now);
+      if (t.ok) current = await keepGmailSignature(db, current, t.token, log, now);
     }
     const s = Date.now() < until ? await syncMailbox(db, current, log, now, until) : null;
     if (!s) return;
