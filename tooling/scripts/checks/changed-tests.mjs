@@ -59,6 +59,10 @@ export const TESTED_IN = {
   // The model gateway every purpose asks through: the lead drafts' rules are proved in tests/leads/engine
   // (lead-gateway.test.mjs), which #1675's change to it never ran (17 Oct 2026).
   "apps/edge/lib/ask-gateway.ts": ["leads"],
+  // Leads and the Pipeline are People's scopes: each draws through surfaces/people (the table, its controls, the rail,
+  // the sheets), and their tests are tests/leads and tests/deals. #1849 changed the table's sort for People, desk Leads
+  // opened Z to A by name on production, and its tests never ran (27 Oct 2026).
+  "apps/dashboard/src/surfaces/people/": ["leads", "deals"],
 };
 
 /**
