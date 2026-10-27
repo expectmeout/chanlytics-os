@@ -1981,6 +1981,9 @@ A mailbox a business connected to write from (decision 0056): its provider (goog
 | `removed_at` | timestamp with time zone | yes |  |  |
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `updated_at` | timestamp with time zone | no | `now()` |  |
+| `gmail_signature` | text | yes |  | The signature its owner keeps in Gmail for this address, as Gmail keeps it (HTML), read at connect and once a day; null where Gmail has none or it was not read. Sent as it is in what the mailbox sends; drawn in the app only as words. |
+| `gmail_signature_at` | timestamp with time zone | yes |  | When its Gmail signature was last read; null until it is. |
+| `signature_off` | boolean | no | `false` | Its owner sends no signature: neither Gmail's nor their own. |
 
 Foreign keys:
 
