@@ -2451,54 +2451,6 @@ async function keepMessageCost(db, tenantId, externalId, pricing) {
   if (error) throw new Error(`message_keep_cost: ${error.message}`);
   return data === true;
 }
-async function recordEchoAndPause(db, p) {
-  const phone = `+${p.customerPhoneDigits.replace(/^\+/, "")}`;
-  let contact;
-  try {
-    contact = await getOrCreateContact(db, p.tenantId, phone);
-  } catch (e) {
-    dbLog().error("record_echo_contact_failed", {
-      tenant_id: p.tenantId,
-      error: e instanceof Error ? e.message : String(e)
-    });
-    return false;
-  }
-  const { data: conv, error: verr } = await db.from("conversations").upsert({ tenant_id: p.tenantId, contact_id: contact.id }, { onConflict: "tenant_id,contact_id" }).select("id").single();
-  if (verr || !conv) {
-    dbLog().error("record_echo_conv_failed", { tenant_id: p.tenantId, error: verr?.message ?? "no row" });
-    return false;
-  }
-  const { error } = await db.from("messages").insert({
-    tenant_id: p.tenantId,
-    conversation_id: conv.id,
-    contact_id: contact.id,
-    channel: "whatsapp",
-    direction: "outbound",
-    sender: "human",
-    type: "text",
-    body: p.body,
-    external_id: p.externalId,
-    status: "sent",
-    meta: { echo: true }
-  });
-  if (error && error.code !== "23505")
-    dbLog().error("record_echo_failed", { tenant_id: p.tenantId, conversation_id: conv.id, error: error.message });
-  if (error?.code === "23505" && p.externalId) return settleByEcho(db, p);
-  const { error: perr } = await db.from("conversations").update(conversationPatch("owner_echo", { until: p.pausedUntilIso, now: (/* @__PURE__ */ new Date()).toISOString() })).eq("id", conv.id).eq("tenant_id", p.tenantId);
-  if (perr) {
-    const unwound = !error && p.externalId ? !(await db.from("messages").delete().eq("tenant_id", p.tenantId).eq("external_id", p.externalId)).error : null;
-    dbLog().error("record_echo_pause_failed", {
-      tenant_id: p.tenantId,
-      conversation_id: conv.id,
-      error: perr.message,
-      unwound
-    });
-    return false;
-  }
-  await emitEvent(db, p.tenantId, "conversation.owner_replied", "conversation", conv.id, { until: p.pausedUntilIso });
-  if (error) return false;
-  return settleByEcho(db, p);
-}
 async function pauseConversation(db, tenantId, conversationId, pausedUntilIso, opts = {}) {
   const { data, error } = await db.from("conversations").update(conversationPatch("hand_off", { until: pausedUntilIso })).eq("id", conversationId).eq("tenant_id", tenantId).select("id");
   if (error) {
@@ -4466,16 +4418,16 @@ var EMPTY_LEAD = {
   history: [],
   optedOut: false
 };
-async function readLeadContext(db, tenantId, phoneE164, historyLimit = 16, answering) {
+async function readLeadContext(db, tenantId, who, historyLimit = 16, answering) {
   const withAnswer = await db.from("contacts").select(
     "id, display_name, wa_profile_name, name_source, last_seen_at, consent, dnc, notes, proposal_url, email, marketing_consent, marketing_channels, offers_asked_at"
-  ).eq("tenant_id", tenantId).eq("phone_e164", phoneE164).maybeSingle();
+  ).eq("tenant_id", tenantId).eq(typeof who === "string" ? "phone_e164" : "id", typeof who === "string" ? who : who.contactId).maybeSingle();
   let contact = withAnswer.data;
   let cErr = withAnswer.error;
   if (cErr && noOffersColumns(cErr.message)) {
     const unasked = await db.from("contacts").select(
       "id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, email, marketing_consent"
-    ).eq("tenant_id", tenantId).eq("phone_e164", phoneE164).maybeSingle();
+    ).eq("tenant_id", tenantId).eq(typeof who === "string" ? "phone_e164" : "id", typeof who === "string" ? who : who.contactId).maybeSingle();
     contact = unasked.data;
     cErr = unasked.error;
   }
@@ -5095,7 +5047,148 @@ async function momentSchedules(db, tenantId) {
   );
 }
 
-// src/repositories/routing.ts
+// src/repositories/channels/instagram.ts
+async function activeInstagramAccounts(db) {
+  const { data, error } = await db.from("tenant_channels").select("id, tenant_id, external_id, credentials_ref, config").eq("kind", "instagram").eq("status", "active").order("created_at", { ascending: true });
+  if (error) throw new Error(`activeInstagramAccounts: ${error.message}`);
+  return data ?? [];
+}
+async function readChannelSecret(db, channelId) {
+  const { data, error } = await db.rpc("get_channel_credentials", { p_channel_id: channelId });
+  if (error) throw new Error(`readChannelSecret: ${error.message}`);
+  return data ?? null;
+}
+async function putChannelSecret(db, channelId, secret) {
+  const { error } = await db.rpc("put_channel_credentials", { p_channel_id: channelId, p_secret: secret });
+  if (error) throw new Error(`putChannelSecret: ${error.message}`);
+}
+async function instagramAccountHolder(db, accountId) {
+  const { data, error } = await db.from("tenant_channels").select("id, tenant_id").eq("kind", "instagram").eq("external_id", accountId).maybeSingle();
+  if (error) throw new Error(`instagramAccountHolder: ${error.message}`);
+  return data;
+}
+async function writeInstagramAccount(db, fields) {
+  const row = {
+    tenant_id: fields.tenantId,
+    kind: "instagram",
+    external_id: fields.accountId,
+    number_e164: null,
+    waba_id: null,
+    config: fields.config
+  };
+  const mine = await db.from("tenant_channels").update(row).eq("kind", "instagram").eq("external_id", fields.accountId).eq("tenant_id", fields.tenantId).select("id").maybeSingle();
+  if (mine.error) return { failed: mine.error.message };
+  if (mine.data) return mine.data;
+  const made = await db.from("tenant_channels").insert({ ...row, status: "disabled" }).select("id").single();
+  if (made.error?.code === "23505") {
+    const holder = await instagramAccountHolder(db, fields.accountId).catch(() => null);
+    return holder?.tenant_id === fields.tenantId ? { id: holder.id } : "taken";
+  }
+  if (made.error || !made.data) return { failed: made.error?.message ?? "no row" };
+  return made.data;
+}
+async function setInstagramStatus(db, tenantId, channelId, status) {
+  const { data, error } = await db.from("tenant_channels").update({ status }).eq("id", channelId).eq("tenant_id", tenantId).eq("kind", "instagram").select("id");
+  return !error && !!data?.length;
+}
+async function noteInstagramToken(db, channelId, config, note) {
+  const base = config && typeof config === "object" && !Array.isArray(config) ? config : {};
+  const { data, error } = await db.from("tenant_channels").update({ config: { ...base, ...note } }).eq("id", channelId).eq("kind", "instagram").select("id");
+  if (error) throw new Error(`noteInstagramToken: ${error.message}`);
+  return !!data?.length;
+}
+async function messageUnsent(db, tenantId, externalId) {
+  const { data, error } = await db.rpc("message_unsent", { p_tenant_id: tenantId, p_external_id: externalId });
+  if (error) throw new Error(`message_unsent: ${error.message}`);
+  const o = data && typeof data === "object" && !Array.isArray(data) ? data : {};
+  if (o.outcome !== "forgot") return { outcome: "none" };
+  return { outcome: "forgot", storagePath: typeof o.storage_path === "string" ? o.storage_path : null };
+}
+async function instagramIdOf(db, tenantId, contactId) {
+  const { data, error } = await db.from("contact_identities").select("external_id").eq("tenant_id", tenantId).eq("contact_id", contactId).eq("channel", "instagram").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (error) throw Object.assign(new Error(`instagramIdOf: ${error.message}`), { code: error.code });
+  return data?.external_id ?? null;
+}
+async function personOfInstagramId(db, tenantId, igsid) {
+  const { data, error } = await db.from("contact_identities").select("contact_id, contacts (merged_into_contact_id, erased_at)").eq("tenant_id", tenantId).eq("channel", "instagram").eq("external_id", igsid).limit(1).maybeSingle();
+  if (error) throw Object.assign(new Error(`personOfInstagramId: ${error.message}`), { code: error.code });
+  if (!data || data.contacts?.erased_at) return null;
+  return data.contacts?.merged_into_contact_id ?? data.contact_id;
+}
+async function lastDmsSentTo(db, tenantId, contactId) {
+  const threads = await db.from("conversations").select("id").eq("tenant_id", tenantId).eq("contact_id", contactId);
+  if (threads.error) throw new Error(`lastDmsSentTo: ${threads.error.message}`);
+  const ids = (threads.data ?? []).map((c) => c.id);
+  if (!ids.length) return [];
+  const { data, error } = await db.from("messages").select("body").eq("tenant_id", tenantId).in("conversation_id", ids).eq("channel", "instagram").eq("direction", "outbound").order("created_at", { ascending: false }).limit(DMS_TO_COMPARE);
+  if (error) throw new Error(`lastDmsSentTo: ${error.message}`);
+  return (data ?? []).flatMap((m) => m.body ? [m.body] : []);
+}
+var DMS_TO_COMPARE = 5;
+async function lastInboundOn(db, tenantId, channel) {
+  const { data, error } = await db.from("messages").select("channel_ts, created_at").eq("tenant_id", tenantId).eq("direction", "inbound").eq("channel", channel).order("channel_ts", { ascending: false, nullsFirst: false }).limit(1).maybeSingle();
+  if (error) throw new Error(`lastInboundOn: ${error.message}`);
+  return data?.channel_ts ?? data?.created_at ?? null;
+}
+async function removeStoredMedia(db, path) {
+  const { error } = await db.storage.from("media").remove([path]);
+  return !error;
+}
+
+// src/repositories/channels/echoes.ts
+import { conversationPatch as conversationPatch3 } from "../../contracts/dist/index.js";
+async function recordEchoAndPause(db, p) {
+  let contact;
+  try {
+    if (p.customerId) contact = { id: p.customerId };
+    else if (p.customerPhoneDigits)
+      contact = await getOrCreateContact(db, p.tenantId, `+${p.customerPhoneDigits.replace(/^\+/, "")}`);
+    else throw new Error("an echo names neither the number nor the person it was written to");
+  } catch (e) {
+    dbLog().error("record_echo_contact_failed", {
+      tenant_id: p.tenantId,
+      error: e instanceof Error ? e.message : String(e)
+    });
+    return false;
+  }
+  const { data: conv, error: verr } = await db.from("conversations").upsert({ tenant_id: p.tenantId, contact_id: contact.id }, { onConflict: "tenant_id,contact_id" }).select("id").single();
+  if (verr || !conv) {
+    dbLog().error("record_echo_conv_failed", { tenant_id: p.tenantId, error: verr?.message ?? "no row" });
+    return false;
+  }
+  const { error } = await db.from("messages").insert({
+    tenant_id: p.tenantId,
+    conversation_id: conv.id,
+    contact_id: contact.id,
+    channel: p.channel ?? "whatsapp",
+    direction: "outbound",
+    sender: "human",
+    type: "text",
+    body: p.body,
+    external_id: p.externalId,
+    status: "sent",
+    meta: { echo: true }
+  });
+  if (error && error.code !== "23505")
+    dbLog().error("record_echo_failed", { tenant_id: p.tenantId, conversation_id: conv.id, error: error.message });
+  if (error?.code === "23505" && p.externalId) return settleByEcho(db, p);
+  const { error: perr } = await db.from("conversations").update(conversationPatch3("owner_echo", { until: p.pausedUntilIso, now: (/* @__PURE__ */ new Date()).toISOString() })).eq("id", conv.id).eq("tenant_id", p.tenantId);
+  if (perr) {
+    const unwound = !error && p.externalId ? !(await db.from("messages").delete().eq("tenant_id", p.tenantId).eq("external_id", p.externalId)).error : null;
+    dbLog().error("record_echo_pause_failed", {
+      tenant_id: p.tenantId,
+      conversation_id: conv.id,
+      error: perr.message,
+      unwound
+    });
+    return false;
+  }
+  await emitEvent(db, p.tenantId, "conversation.owner_replied", "conversation", conv.id, { until: p.pausedUntilIso });
+  if (error) return false;
+  return settleByEcho(db, p);
+}
+
+// src/repositories/channels/routing.ts
 import { MIN_MS as MIN_MS3 } from "../../contracts/dist/index.js";
 var POS_TTL_MS = 5 * MIN_MS3;
 var NEG_TTL_MS = MIN_MS3;
@@ -5135,13 +5228,20 @@ async function resolveChannel(db, kind, externalId) {
   return (await resolveChannelDetailed(db, kind, externalId)).channel;
 }
 async function activeWhatsappNumbers(db, tenantId) {
-  const { data, error } = await db.from("tenant_channels").select("id, credentials_ref, external_id").eq("tenant_id", tenantId).eq("kind", "whatsapp").eq("status", "active").order("created_at", { ascending: true });
-  if (error) throw new Error(`cannot read the workspace's WhatsApp numbers: ${error.message}`);
+  return activeChannelRows(db, tenantId, "whatsapp");
+}
+var CHANNEL_ROWS_WORDS = { whatsapp: "WhatsApp numbers", instagram: "Instagram accounts" };
+async function activeChannelRows(db, tenantId, kind) {
+  const { data, error } = await db.from("tenant_channels").select("id, credentials_ref, external_id").eq("tenant_id", tenantId).eq("kind", kind).eq("status", "active").order("created_at", { ascending: true });
+  if (error) throw new Error(`cannot read the workspace's ${CHANNEL_ROWS_WORDS[kind]}: ${error.message}`);
   return data ?? [];
 }
 async function whatsappLineOf(db, tenantId, conversationId) {
-  const { data, error } = await db.from("messages").select("meta").eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("channel", "whatsapp").eq("direction", "inbound").order("created_at", { ascending: false }).limit(1).maybeSingle();
-  if (error) throw new Error(`cannot read the WhatsApp number this thread was written to: ${error.message}`);
+  return lineWrittenTo(db, tenantId, conversationId, "whatsapp");
+}
+async function lineWrittenTo(db, tenantId, conversationId, channel) {
+  const { data, error } = await db.from("messages").select("meta").eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("channel", channel).eq("direction", "inbound").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (error) throw new Error(`cannot read the ${channel} line this thread was written to: ${error.message}`);
   const meta = data?.meta;
   const line = meta && typeof meta === "object" && !Array.isArray(meta) ? meta.line : null;
   return typeof line === "string" && line ? line : null;
@@ -8004,6 +8104,8 @@ export {
   ReportWindowNotReadable,
   acceptHandover,
   acceptPartnerInvite,
+  activeChannelRows,
+  activeInstagramAccounts,
   activeWhatsappNumbers,
   activitySubjects,
   activityTokensOf,
@@ -8201,6 +8303,8 @@ export {
   insertAppointment,
   insertQueuedEmail,
   insertVoiceSession,
+  instagramAccountHolder,
+  instagramIdOf,
   invitePartner,
   inviteUserByEmail,
   isMissingDoor,
@@ -8234,7 +8338,9 @@ export {
   keptPersonOf,
   knownThreads,
   lastClosedHolds,
+  lastDmsSentTo,
   lastInboundEmail,
+  lastInboundOn,
   lastOutboundEmailSubject,
   leadAddressBounced,
   leadAddresseeChoose,
@@ -8256,6 +8362,7 @@ export {
   leaveSequence,
   letClaimGo,
   lineForwardingSet,
+  lineWrittenTo,
   linkCallMessage,
   linkedPlaceOf,
   listActs,
@@ -8308,6 +8415,7 @@ export {
   messageByExternalId,
   messageSenders,
   messageSlots,
+  messageUnsent,
   messageVersionRowsOf,
   migrationHead,
   modelSpend,
@@ -8321,6 +8429,7 @@ export {
   narrowedUpdates,
   noteCalendarGrant,
   noteImport,
+  noteInstagramToken,
   noteMailboxLeft,
   notePageVitals,
   notedOver,
@@ -8366,6 +8475,7 @@ export {
   personEmail,
   personExportPages,
   personFactsOf,
+  personOfInstagramId,
   personReplyMode,
   personReplyModes,
   personRow,
@@ -8381,6 +8491,7 @@ export {
   purgeAiUsage,
   pushNamesFor,
   putBackInSequence,
+  putChannelSecret,
   putMailboxCredentials,
   putTenantConfig,
   queuedOutcomes,
@@ -8406,6 +8517,7 @@ export {
   reachOutStepsOf,
   readAllRows,
   readAllRowsByKey,
+  readChannelSecret,
   readDealForPhone,
   readIdeaHistory,
   readJobToRequeue,
@@ -8448,6 +8560,7 @@ export {
   releaseUnavailableHolds,
   removePlaybook,
   removeSequenceStep,
+  removeStoredMedia,
   removeTemplateVersion,
   renameList,
   repliedTo,
@@ -8524,6 +8637,7 @@ export {
   setChainSource,
   setEmailOffersYes,
   setEmailUnsubscribed,
+  setInstagramStatus,
   setListRule,
   setMemberPushOff,
   setMemberView,
@@ -8630,6 +8744,7 @@ export {
   workspacePaused,
   workspacePublicSlug,
   workspaceZoneOf,
+  writeInstagramAccount,
   writePlaybookChange,
   writeRehearsalTranscript,
   writtenEmail,

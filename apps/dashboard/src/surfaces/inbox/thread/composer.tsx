@@ -143,6 +143,19 @@ function emailStoppedComposer(words: string) {
   );
 }
 
+// A DM thread past Instagram's day: a business may not write at all, and has no approved message to write with, so the
+// box says so and offers nothing to send (contracts THREAD_PANE_WORDS.dmClosedWhy; core reply.ts refuses the same).
+function dmClosedComposer() {
+  return (
+    <div className="ix-composer" data-testid="ix-composer-dm-closed">
+      <div className="ix-composer-banner">
+        <Icon name="lock" size={11} />
+        <span>{THREAD_PANE_WORDS.dmClosedWhy}</span>
+      </div>
+    </div>
+  );
+}
+
 // A caller with no WhatsApp thread: the window never opened, so the honest
 // verbs are the phone and an approved message that starts a thread.
 function noChatComposer(thread: Thread, onSend: OnSend) {
@@ -366,7 +379,8 @@ export const Composer = ({ thread, reply, hasApproval, onType = null, onSend = (
   if (thread.real && thread.optedOut) return optedOutComposer(thread);
   if (thread.real && thread.emailStopped) return emailStoppedComposer(thread.emailStopped);
   if (thread.real && thread.hasChat === false) return noChatComposer(thread, onSend);
-  if (thread.real && thread.windowOpen === false) return closedComposer(thread, onSend);
+  if (thread.real && thread.windowOpen === false)
+    return thread.primaryChannel === "instagram" ? dmClosedComposer() : closedComposer(thread, onSend);
   const c: ComposerDraw = {
     thread,
     reply,

@@ -203,10 +203,16 @@ export function waWindow(lastWaInboundAtIso, now = /* @__PURE__ */ new Date()) {
 export function replyWindow(replyChannel, lastWaInboundAtIso, now = /* @__PURE__ */ new Date()) {
   return replyChannel === "sms" || replyChannel === "email" ? { open: true, closesAtIso: null } : waWindow(lastWaInboundAtIso, now);
 }
+export function windowClockOf(replyChannel, clocks) {
+  if (replyChannel === "instagram") return clocks.instagram ?? null;
+  return replyChannel === "sms" || replyChannel === "email" ? null : clocks.whatsapp ?? null;
+}
 export const REPLY_LIMITS = {
   whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
   sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
-  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
+  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." },
+  // Instagram takes 1000 bytes a DM; a longer reply leaves as several (channels instagramDmChunks), up to this.
+  instagram: { max: 2e3, refusal: "An Instagram reply can be at most 2000 characters." }
 };
 export const REPLY_MAX_ANY = Math.max(...Object.values(REPLY_LIMITS).map((l) => l.max));
 export const SEND_GRACE_MS = 15e3;

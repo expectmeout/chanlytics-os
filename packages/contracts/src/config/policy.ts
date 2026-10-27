@@ -413,7 +413,10 @@ export function waWindow(lastWaInboundAtIso: string | null | undefined, now = ne
  * Whether a reply may be written freely, on the channel it goes out on.
  *
  * A reply goes back where the customer last wrote. A text has no window and no
- * templates; WhatsApp's is 24 hours from the customer's last WhatsApp message.
+ * templates; WhatsApp's is 24 hours from the customer's last WhatsApp message,
+ * and an Instagram DM's 24 hours from their last DM (Meta's standard messaging
+ * window: past it a business may not write at all, and has no template to write
+ * with). The second argument is that wire's own clock (windowClockOf).
  * The reply route enforces it and the composer and the assistant display it,
  * so all three ask here: with separate expressions, the assistant's card told
  * an operator a texting thread was closed while the route would have sent.
@@ -423,15 +426,28 @@ export function replyWindow(
   lastWaInboundAtIso: string | null | undefined,
   now = new Date(),
 ): WaWindow {
-  // Only WhatsApp has a window: a text and an email may be answered whenever.
+  // WhatsApp and Instagram have a window: a text and an email may be answered whenever.
   return replyChannel === "sms" || replyChannel === "email"
     ? { open: true, closesAtIso: null }
     : waWindow(lastWaInboundAtIso, now);
 }
 
 /**
+ * The clock a wire's reply window reads (decision 0001, steps 5 and 8): when the thread's person last wrote on that wire.
+ * WhatsApp's from its accessor, an Instagram DM's from its own; a wire with no window reads none. Every reader of a
+ * window hands replyWindow the clock this picks, so a DM thread is never judged by a WhatsApp message, or one by the other.
+ */
+export function windowClockOf(
+  replyChannel: string | null | undefined,
+  clocks: { whatsapp?: string | null; instagram?: string | null },
+): string | null {
+  if (replyChannel === "instagram") return clocks.instagram ?? null;
+  return replyChannel === "sms" || replyChannel === "email" ? null : (clocks.whatsapp ?? null);
+}
+
+/**
  * How long one reply may be on each wire, and the sentence for one that is
- * longer. WhatsApp's and the carriers' limits are theirs; email's is ours, the
+ * longer. WhatsApp's and the carriers' limits are theirs, as Instagram's per DM is; email's and a DM reply's whole are ours, the
  * same bound an email taken in is kept to. Asked before anything is queued: a
  * reply over WhatsApp's limit was once stored, reported queued, and failed
  * fifteen seconds later as an escalation and an alert.
@@ -440,6 +456,8 @@ export const REPLY_LIMITS = {
   whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
   sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
   email: { max: 20000, refusal: "An email reply can be at most 20,000 characters." },
+  // Instagram takes 1000 bytes a DM; a longer reply leaves as several (channels instagramDmChunks), up to this.
+  instagram: { max: 2000, refusal: "An Instagram reply can be at most 2000 characters." },
 } as const;
 /** The longest reply any wire takes: what a route may accept before it knows the wire. */
 export const REPLY_MAX_ANY = Math.max(...Object.values(REPLY_LIMITS).map((l) => l.max));

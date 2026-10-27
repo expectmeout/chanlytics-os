@@ -5,6 +5,7 @@
 import type { ReplyWhyVM } from "../config/brain";
 import type { HoldAct } from "./escalations";
 import type { MediaVM } from "./message-media";
+import type { ThreadChannel } from "./thread-channel";
 
 /* ---- Inbox ThreadVM (Blueprint §7): escalations + conversations mapped into
    the mockup's thread shape. Fed fields only — approvals/confidence/$ are
@@ -59,7 +60,7 @@ export interface InboxThreadVM {
     label: string;
     text: string;
     quoted: boolean;
-    channel: "whatsapp" | "phone" | "sms" | "email";
+    channel: ThreadChannel;
   } | null;
   /** Archived: closed, not handled. The pane says so, and that a new message brings it back. */
   archived: boolean;
@@ -114,7 +115,7 @@ export interface InboxThreadVM {
   veto?: { window: number; draft: string; endsAtMs: number; messageId: string; why?: ReplyWhyVM };
   /** The channels the thread has actually used: "whatsapp", "phone", or both. */
   channels: string[];
-  primaryChannel: "whatsapp" | "phone" | "sms" | "email";
+  primaryChannel: ThreadChannel;
   /** That channel in the words a reply box names it by: "WhatsApp", "Text", "Email". One map, so a new wire is one entry and not a ternary per screen. */
   replyVia: string;
   /** A WhatsApp thread exists. False for a caller who has only ever phoned: no reply window, phone verbs. */
@@ -136,7 +137,7 @@ export interface InboxThreadVM {
    * for every wire the thread had used, and WhatsApp and a text are both the chat bubble, so a person on both with a
    * call read bubble, bubble, phone. Every wire is said once, in words, under the name in the thread's header.
    */
-  previewChannel: "whatsapp" | "phone" | "sms" | "email" | null;
+  previewChannel: ThreadChannel | null;
   summary: string;
   lastAt: string;
   lastAtFull: string;

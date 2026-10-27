@@ -43,7 +43,7 @@ export function personOfAppointment(row, people) {
     id: found.id,
     name: found.name || row.client_name || "",
     via,
-    ...found.thread !== void 0 ? { thread: found.thread, wa_inbound_at: found.waInboundAt ?? null } : {},
+    ...found.thread !== void 0 ? { thread: found.thread, wa_inbound_at: found.waInboundAt ?? null, ig_inbound_at: found.igInboundAt ?? null } : {},
     ...replyFactsOf(found)
   };
 }

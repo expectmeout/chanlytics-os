@@ -13,10 +13,9 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import {
   smsInboundFrom,
-  smsAsWaMessage,
+  inboundFromSms,
   smsBody,
   carrierConsent,
-  withCarrierConsent,
   smsKeywordConsent,
   mergeConsent,
   smsRefusalOf,
@@ -63,27 +62,22 @@ test("Twilio's webhook becomes one shape; a picture with words is its words, a p
     accountSid: "AC1",
   });
   assert.equal(smsInboundFrom({ Body: "x" }), null, "not a message");
-  const m = smsAsWaMessage(s, Date.parse("2026-09-07T15:00:00Z"));
-  assert.deepEqual(m, {
-    from: "16465550123",
-    id: "SM0001",
-    timestamp: "1788793200",
-    type: "text",
-    text: { body: "Are you open Saturday?" },
-  });
-  const n = normalizeInbound(m, {});
+  const n = inboundFromSms(s, Date.parse("2026-09-07T15:00:00Z"));
+  assert.equal(n.channel, "sms");
+  assert.equal(n.externalId, "SM0001");
+  assert.equal(n.channelTsIso, "2026-09-07T15:00:00.000Z");
   assert.equal(n.kind, "text");
   assert.equal(n.body, "Are you open Saturday?");
-  assert.equal(n.phoneDigits, "16465550123");
-  const pic = smsAsWaMessage(
+  assert.deepEqual(n.identity, { externalId: "16465550123", phoneE164: "+16465550123", email: null });
+  const pic = inboundFromSms(
     smsInboundFrom({ ...FORM, Body: "this one", NumMedia: "1", MediaContentType0: "image/jpeg" }),
   );
-  assert.equal(pic.text.body, "this one [with a picture]");
-  const alone = normalizeInbound(smsAsWaMessage(smsInboundFrom({ ...FORM, Body: "", NumMedia: "2" })), {});
+  assert.equal(pic.body, "this one [with a picture]");
+  const alone = inboundFromSms(smsInboundFrom({ ...FORM, Body: "", NumMedia: "2" }));
   assert.equal(alone.kind, "unsupported");
   assert.notEqual(alone.type, "text");
-  const stop = normalizeInbound(smsAsWaMessage(smsInboundFrom({ ...FORM, Body: "STOP", OptOutType: "STOP" })), {});
-  assert.equal(stop.optOut, true, "the consent gate sees it as it sees a WhatsApp STOP");
+  const stop = inboundFromSms(smsInboundFrom({ ...FORM, Body: "STOP", OptOutType: "STOP" }));
+  assert.equal(stop.consent.optOut, true, "the consent gate sees it as it sees a WhatsApp STOP");
   assert.equal(smsInboundFrom({ ...FORM, OptOutType: "start" }).optOutType, "START");
 });
 
@@ -92,13 +86,7 @@ test("the carrier's own verdict outranks our reading of the words", () => {
   // OptOutType. A body our pattern does not match is still an opt-out when
   // the carrier says it was -- the number is blocked there whatever we record.
   const said = (body, type) =>
-    withCarrierConsent(
-      normalizeInbound(
-        smsAsWaMessage(smsInboundFrom({ ...FORM, Body: body, ...(type ? { OptOutType: type } : {}) })),
-        {},
-      ),
-      carrierConsent(smsInboundFrom({ ...FORM, Body: body, ...(type ? { OptOutType: type } : {}) })),
-    );
+    inboundFromSms(smsInboundFrom({ ...FORM, Body: body, ...(type ? { OptOutType: type } : {}) })).consent;
   assert.equal(said("please stop", "STOP").optOut, true, "the carrier's STOP");
   assert.equal(said("please stop", null).optOut, false, "the same words with no carrier verdict are a sentence");
   assert.equal(said("start", "START").optIn, true, "the carrier's START");
@@ -120,9 +108,13 @@ test("on a texting line the carriers' words opt out, whole-message, and merge wi
     optOut: true,
     optIn: true,
   });
-  const n = normalizeInbound(smsAsWaMessage(smsInboundFrom({ ...FORM, Body: "cancel" })), {});
-  assert.equal(n.optOut, false, "the shared WhatsApp reading does not know the word");
-  assert.equal(withCarrierConsent(n, smsKeywordConsent("cancel")).optOut, true, "the texting line's reading does");
+  const wa = normalizeInbound({ from: "16465550123", id: "wamid.1", type: "text", text: { body: "cancel" } }, {});
+  assert.equal(wa.optOut, false, "WhatsApp's reading does not know the word");
+  assert.equal(
+    inboundFromSms(smsInboundFrom({ ...FORM, Body: "cancel" })).consent.optOut,
+    true,
+    "the texting line's reading does",
+  );
 });
 
 test("the footer rides the first reply only, never twice, never over the ceiling", () => {
@@ -372,16 +364,18 @@ test("the wiring: proven before trusted, held before spoken, the channel on ever
   // nothing about the one that might have dropped the channel.
   assert.equal(
     (code.match(/ports\.persist\.ingest\(/g) ?? []).length,
-    (code.match(/ports\.persist\.ingest\(\s*db,\s*tenantId,\s*n,\s*channel[,)]/g) ?? []).length,
-    "every ingest carries the channel (and the line it came in on, as its fifth argument: run in inbound-executed.test.mjs)",
+    (code.match(/ports\.persist\.ingest\(\s*db,\s*tenantId,\s*n[,)]/g) ?? []).length,
+    "every ingest hands over the message, which says its own wire (and the line it came in on, as its fourth argument: run in inbound-executed.test.mjs)",
   );
   assert.ok(
-    code.includes("...(carrier ? { sms: (to: string, p: { body: string }) => carrier.send(to, p.body) } : {}),") &&
+    code.includes(
+      "...(carrier ? { [carrier.channel]: (to: string, p: { body: string }) => carrier.send(to, p.body) } : {}),",
+    ) &&
       /const send = \(text: string, meta\?: Record<string, Json>, purpose\?: SendPurpose, kind\?: "system"\) =>\s*sink\.deliver\(from, wire\(text\), meta, purpose, kind\);/.test(
         code,
       ) &&
       !code.includes("sendText("),
-    "one door out: the carrier is this message's sms wire, and the sink's door sends on it",
+    "one door out: the carrier is this message's own wire (a text's, a DM's), and the sink's door sends on it",
   );
   assert.ok(
     /queueReply\(\s*db,\s*tenantId,\s*ing,\s*from,\s*wire\(replyText\),\s*delayMs,\s*L,\s*plan\.source,\s*brainMeta,\s*channel,?\s*\)/.test(
@@ -391,7 +385,7 @@ test("the wiring: proven before trusted, held before spoken, the channel on ever
   );
   const persist = readCode("apps/edge/lib/whatsapp/persist.ts");
   assert.ok(
-    persist.includes('channel: "whatsapp" | "sms" = "whatsapp"') &&
+    persist.includes('channel: InboundChannel = "whatsapp"') &&
       /to,\s*channel,\s*sender: "ai",\s*purpose,\s*\.\.\.AN_ANSWER,/.test(persist) &&
       // An answer, about something of theirs (contracts MessageAbout), and no playbook's run: no conversation started.
       persist.includes('const AN_ANSWER = { proactive: false, about: "theirs", trigger: null } as const;'),
@@ -418,8 +412,8 @@ test("the wiring: proven before trusted, held before spoken, the channel on ever
   assert.ok(
     reply.includes("const channel = await ports.replyChannel(conv);") &&
       reply.includes("channel,\n    sent_by: cmd.userId,") &&
-      reply.includes("const window = replyWindow(channel, conv.last_wa_inbound_at, new Date(now));"),
-    "a person replies where the customer last wrote, with no window on a text (core-reply.test.mjs runs the texting line)",
+      reply.includes("const window = replyWindow(channel, windowClockOf(channel, clocks), new Date(now));"),
+    "a person replies where the customer last wrote, under that wire's own clock, with no window on a text (core-reply.test.mjs runs the texting line)",
   );
   const sql = readRaw("supabase/migrations/00074_texting.sql");
   assert.ok(sql.includes("'messaging'") && sql.includes("'carriers'"));

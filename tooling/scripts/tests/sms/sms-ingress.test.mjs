@@ -237,7 +237,7 @@ test("a channel lookup that FAILED is 503, because that one is ours to retry", a
   assert.notEqual(v.status, 200);
 });
 
-test("the carrier is this message's wire: the footer once, the hold's words, the carrier's own STOP", async () => {
+test("the carrier is this message's wire: the footer once, the hold's words, and no consent of its own", async () => {
   const sent = [];
   const sender = {
     send: async (to, body) => {
@@ -246,7 +246,7 @@ test("the carrier is this message's wire: the footer once, the hold's words, the
     },
   };
 
-  const open = carrierFor(inboundOf(form("+13055550100")), false, sender);
+  const open = carrierFor(false, sender);
   assert.equal(open.channel, "sms");
   assert.equal(open.held, null);
   assert.equal(open.body("We open at 9.", true), `We open at 9.\n${SMS_FOOTER}`, "the first reply carries the footer");
@@ -256,20 +256,13 @@ test("the carrier is this message's wire: the footer once, the hold's words, the
 
   // Held: no sender at all, so a send is a refusal with a status rather than a
   // silent success some branch could mistake for a delivery.
-  const held = carrierFor(inboundOf(form("+13055550100")), true, null);
+  const held = carrierFor(true, null);
   assert.deepEqual(held.held, { reason: SMS_HELD_REASON, details: SMS_HELD_DETAILS });
   assert.deepEqual(await held.send("16465550123", "hello"), { ok: false, wamid: null, status: 503 });
 
-  // The carrier's verdict and the carriers' words both reach the consent gate.
-  assert.deepEqual(carrierFor(inboundOf(form("+1", { OptOutType: "STOP" })), false, sender).consent, {
-    optOut: true,
-    optIn: false,
-  });
-  assert.deepEqual(carrierFor(inboundOf(form("+1", { Body: "CANCEL" })), false, sender).consent, {
-    optOut: true,
-    optIn: false,
-  });
-  assert.equal(carrierFor(inboundOf(form("+1", { Body: "hello" })), false, sender).consent, null);
+  // The carrier's verdict and the carriers' words are the message's own consent now (inboundFromSms, decision 0001 step 3,
+  // inbound/inbound-shape.test.mjs): the wire carries none beside it.
+  assert.equal("consent" in open, false);
 });
 
 test("after the handler throws, only an unrecorded text is worth redelivering", async () => {

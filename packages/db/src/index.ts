@@ -50,7 +50,6 @@ export {
   recordStatusByExternalId,
   messageByExternalId,
   keepMessageCost,
-  recordEchoAndPause,
   pauseConversation,
 } from "./repositories/ingest";
 export type { IngestInboundParams, IngestResult, OutboundTarget } from "./repositories/ingest";
@@ -372,12 +371,31 @@ export {
 export type { PeopleHandItem, SequenceDoorAnswer, SequenceMoveAnswer } from "./repositories/campaigns/sequences";
 export type { MomentScheduleRow, SpanRunRow } from "./repositories/campaigns/calendar-runs";
 export {
+  activeInstagramAccounts,
+  readChannelSecret,
+  putChannelSecret,
+  instagramAccountHolder,
+  writeInstagramAccount,
+  setInstagramStatus,
+  noteInstagramToken,
+  instagramIdOf,
+  personOfInstagramId,
+  lastDmsSentTo,
+  messageUnsent,
+  lastInboundOn,
+  removeStoredMedia,
+} from "./repositories/channels/instagram";
+export type { InstagramAccountRow } from "./repositories/channels/instagram";
+export { recordEchoAndPause } from "./repositories/channels/echoes";
+export {
   resolveChannelDetailed,
   resolveChannel,
   oldestActiveChannel,
   activeWhatsappNumbers,
   whatsappLineOf,
-} from "./repositories/routing";
+  activeChannelRows,
+  lineWrittenTo,
+} from "./repositories/channels/routing";
 export {
   whatsappChannelFacts,
   textLineFacts,
@@ -391,7 +409,7 @@ export {
   campaignMonthSent,
   holdRecipients,
 } from "./repositories/campaigns/campaign-channels";
-export type { RoutedChannel, ChannelLookup, WhatsappNumberRow } from "./repositories/routing";
+export type { RoutedChannel, ChannelLookup, WhatsappNumberRow } from "./repositories/channels/routing";
 export {
   ingestCall,
   linkCallMessage,

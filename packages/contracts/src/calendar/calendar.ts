@@ -211,6 +211,7 @@ function toBlock(item: CalendarItemDto, tz: string, dayStartMs: number, dayEndMs
               wire:
                 item.person.reply_wire !== undefined ? item.person.reply_wire : item.person.thread ? "whatsapp" : null,
               waInboundAt: item.person.wa_inbound_at,
+              igInboundAt: item.person.ig_inbound_at ?? null,
               emailStopped: !!item.person.email_stopped,
               optedOut: !!item.person.opted_out,
               who: item.person.name,

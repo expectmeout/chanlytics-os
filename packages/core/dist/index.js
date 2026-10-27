@@ -672,6 +672,7 @@ import {
   renderTemplate,
   REPLY_LIMITS,
   replyWindow,
+  windowClockOf,
   resolveParams,
   slotToWrite,
   TEMPLATE_WORDS_MAX,
@@ -682,6 +683,7 @@ import {
 var IDEMPOTENCY_WINDOW_MS = 30 * 1e3;
 var HOLD_EXPIRY_MS = 2 * MIN_MS;
 var REPLY_IN_PROGRESS_REFUSAL = "This reply is already being sent. Give it a moment, then check the thread before sending it again.";
+var DM_WINDOW_CLOSED_REFUSAL = "It's been more than a day since their last message, and Instagram lets you reply only once they write again. Nothing was sent.";
 async function shapeEmailReply(ports, conv, to, { text, agreedTo, subject }) {
   if (isEmailStopped2(conv)) throw new AppError8("conflict", PURPOSE_REFUSALS.email_suppressed);
   const parent = await ports.email.parent(conv);
@@ -733,14 +735,16 @@ async function replyToConversation(ports, cmd) {
   if (isOptedOutContact(conv)) throw new AppError8("conflict", OPT_OUT_REFUSAL);
   const now = ports.now();
   const channel = await ports.replyChannel(conv);
-  const to = channel === "email" ? conv.email ?? null : conv.phone_e164;
+  const to = channel === "email" ? conv.email ?? null : channel === "instagram" ? conv.instagram_id ?? null : conv.phone_e164;
   if (!to) {
     throw new AppError8(
       "conflict",
-      channel === "email" ? "This person has no email address on their page, so an email reply cannot reach them. Add it there first." : "This person has no phone number, so a WhatsApp or text reply cannot reach them."
+      channel === "email" ? "This person has no email address on their page, so an email reply cannot reach them. Add it there first." : channel === "instagram" ? "This person's Instagram account is not on record, so a DM reply cannot reach them." : "This person has no phone number, so a WhatsApp or text reply cannot reach them."
     );
   }
-  const window = replyWindow(channel, conv.last_wa_inbound_at, new Date(now));
+  const clocks = { whatsapp: conv.last_wa_inbound_at, instagram: conv.last_ig_inbound_at };
+  const window = replyWindow(channel, windowClockOf(channel, clocks), new Date(now));
+  if (channel === "instagram" && !window.open) throw new AppError8("conflict", DM_WINDOW_CLOSED_REFUSAL);
   const idemKey = cmd.idempotencyKey ? `${cmd.userId}:${cmd.idempotencyKey}` : null;
   const intentHash = ports.hash(JSON.stringify(body));
   const nowIso = new Date(now).toISOString();
@@ -889,7 +893,7 @@ async function queueReply(ports, cmd, facts) {
     await ports.schedule(conv.tenant_id, dueAt, {
       message_id,
       conversation_id: conv.id,
-      ...channel === "email" ? { to_email: to } : { to_phone: to },
+      ...channel === "email" ? { to_email: to } : channel === "instagram" ? { to_instagram: to } : { to_phone: to },
       ...template ? { template: template.job } : { body: messageBody },
       ...cmd.starts ? { starts: true } : {}
     });
@@ -1137,10 +1141,10 @@ async function sendQueued(ports, cmd) {
   const fromTemplate = await ports.purposeOf(p.template);
   const purpose = p.purpose === "outreach" ? "outreach" : p.purpose === "marketing" ? "marketing" : fromTemplate;
   const channel = msg.channel ?? "whatsapp";
-  const to = channel === "email" ? p.to_email : p.to_phone;
+  const to = channel === "email" ? p.to_email : channel === "instagram" ? p.to_instagram : p.to_phone;
   if (!to)
     throw new Error(
-      `outbound_send: message ${p.message_id} goes out by ${channel} and the job names no ${channel === "email" ? "address" : "number"}`
+      `outbound_send: message ${p.message_id} goes out by ${channel} and the job names no ${channel === "email" ? "address" : channel === "instagram" ? "Instagram id" : "number"}`
     );
   const resumes = resumesOf(p);
   const starts = p.starts === true && (msg.sender ?? "human") === "human";
@@ -39191,41 +39195,16 @@ function toBase64(bytes) {
 // src/inbound/context.ts
 import { phoneTail, fallbackMessages, pauseHoursOf, pauseMsOf } from "../../contracts/dist/index.js";
 var GO = /* @__PURE__ */ Symbol("go on");
-function readAsToday(m) {
-  const digits = m.identity.phoneE164?.replace(/^\+/, "") ?? "";
-  return {
-    message: {
-      waId: m.identity.externalId,
-      phoneDigits: digits,
-      profileName: m.profileName,
-      messageId: m.externalId,
-      type: m.type,
-      kind: m.kind,
-      rawType: m.rawType,
-      body: m.body,
-      channelTsIso: m.channelTsIso,
-      media: m.media,
-      optOut: m.consent.optOut,
-      optIn: m.consent.optIn,
-      optInMarketing: m.consent.optInMarketing,
-      referral: m.referral
-    },
-    raw: {
-      id: m.externalId,
-      from: digits,
-      type: m.rawType,
-      timestamp: m.channelTsIso === null ? null : String(Date.parse(m.channelTsIso) / 1e3)
-    }
-  };
+function replyAddressOf(n) {
+  return n.identity.phoneE164?.replace(/^\+/, "") ?? n.identity.externalId;
 }
 async function openInbound(input, ports) {
-  const { tenantId, routed, isEnvDefault, carrier } = input;
-  const { message: n, raw } = "inbound" in input ? readAsToday(input.inbound) : input;
-  const from = raw.from;
+  const { inbound: n, tenantId, routed, isEnvDefault, carrier } = input;
+  const from = replyAddressOf(n);
   const channel = carrier?.channel ?? "whatsapp";
   const db = ports.db();
   const t0 = Date.now();
-  const L = ports.log({ tenant_id: tenantId, wamid: raw.id, from_tail: phoneTail(from), type: raw.type });
+  const L = ports.log({ tenant_id: tenantId, wamid: n.externalId, from_tail: phoneTail(from), type: n.rawType });
   const rt = db && routed ? await ports.runtime(db, routed) : null;
   const posture = replyPosture({
     runtimeUsable: !!rt && !rt.loadFailed,
@@ -39248,7 +39227,6 @@ async function openInbound(input, ports) {
   return {
     ports,
     n,
-    raw,
     tenantId,
     routed,
     isEnvDefault,
@@ -39295,13 +39273,12 @@ async function noteHandledAfter(sink, asked2, reply, intent = null) {
 // src/inbound/ingest.ts
 import { errField as errField8 } from "../../channels/dist/index.js";
 async function ingestOrSay(cx, jobFollows = false) {
-  const { ports, db, tenantId, n, channel, from, raw, notifyTarget, L } = cx;
+  const { ports, db, tenantId, n, from, notifyTarget, L, channel } = cx;
   try {
     return await ports.persist.ingest(
       db,
       tenantId,
       n,
-      channel,
       cx.routed?.channelId ?? null,
       jobFollows ? { jobFollows } : void 0
     );
@@ -39310,7 +39287,7 @@ async function ingestOrSay(cx, jobFollows = false) {
       try {
         await ports.alertStaff(
           from,
-          n.body ?? `[${raw.type} message]`,
+          n.body ?? `[${n.rawType} message]`,
           "(NOT recorded: the database did not accept the message; the provider will retry)",
           "message not recorded",
           { target: notifyTarget, channel, who: n.profileName ?? null }
@@ -39385,7 +39362,7 @@ async function ingestMessage(cx, resume = false) {
   const ingestMs = Date.now() - t0;
   const wires = {
     whatsapp: ports.sender(ports.waCfg(rt, isEnvDefault)),
-    ...carrier ? { sms: (to, p) => carrier.send(to, p.body) } : {}
+    ...carrier ? { [carrier.channel]: (to, p) => carrier.send(to, p.body) } : {}
   };
   const sink = ports.persist.sink(db, tenantId, ing, rt, channel, wires);
   if (ing && n.kind === "text") {
@@ -39430,7 +39407,7 @@ async function modeInForce(cx, ing) {
   return { replyMode, personMode };
 }
 async function firstGates(at) {
-  const { thread, L, sink, tell, n, raw, ing, carrier } = at;
+  const { thread, L, sink, tell, n, ing, carrier } = at;
   if (isThreadUnknown(thread)) {
     L.error("wa_state_unavailable");
     const asked2 = sink.escalate(
@@ -39440,7 +39417,7 @@ async function firstGates(at) {
     await Promise.all([
       asked2,
       tell(asked2, {
-        said: n.body ?? `[${raw.type}]`,
+        said: n.body ?? `[${n.rawType}]`,
         answered: "(no reply sent \u2014 the receptionist could not read the thread state)",
         why: "state unavailable"
       }),
@@ -39449,8 +39426,8 @@ async function firstGates(at) {
     return;
   }
   const consent = resolveConsent({
-    optOutNow: n.optOut,
-    optInNow: n.optIn,
+    optOutNow: n.consent.optOut,
+    optInNow: n.consent.optIn,
     // Absence is not an answer. `consent` and `dnc` are optional on the ingest
     // result (packages/db ingest.ts) — "readers must treat absence as 'nothing
     // on record', never as a block" — and a row carrying neither read as
@@ -39463,7 +39440,7 @@ async function firstGates(at) {
   if (optedOut) {
     await processedAfter(sink, null, "none");
     L.info("wa_skip_opt_out", {
-      this_message: n.optOut,
+      this_message: n.consent.optOut,
       on_record: ing?.consent ?? null,
       decided_by: consent.source
     });
@@ -39474,7 +39451,7 @@ async function firstGates(at) {
     await Promise.all([
       asked2,
       tell(asked2, {
-        said: n.body ?? `[${raw.type}]`,
+        said: n.body ?? `[${n.rawType}]`,
         answered: "(no reply sent \u2014 the carriers have not approved this line for texting yet)",
         why: "carriers"
       }),
@@ -39492,7 +39469,7 @@ async function firstGates(at) {
     const asked2 = sink.escalate("non_text", `${n.body} \u2014 needs a person.`);
     await Promise.all([
       asked2,
-      tell(asked2, { said: n.body ?? `[${raw.type}]`, answered: "(no reply sent \u2014 passed to a human)", why: n.kind }),
+      tell(asked2, { said: n.body ?? `[${n.rawType}]`, answered: "(no reply sent \u2014 passed to a human)", why: n.kind }),
       processedAfter(sink, asked2, "none")
     ]);
     L.info("wa_escalate_readable_nontext", { kind: n.kind });
@@ -39503,18 +39480,18 @@ async function firstGates(at) {
 
 // src/inbound/unreadable.ts
 function seeingOf(at) {
-  const { n, rt, brainCfg, replyMode, thread, send, fallbacks, personMode, pauseMs, sink, raw, tell, pauseHours, L } = at;
+  const { n, rt, brainCfg, replyMode, thread, send, fallbacks, personMode, pauseMs, sink, tell, pauseHours, L } = at;
   const maySee = n.type === "media" && !!n.media && !!rt?.features?.vision && isVisionMime(n.media.mime_type) && !!brainCfg && speaksUnattended(replyMode) && Date.now() > thread.pausedUntil;
   const sayUnreadable = async (pausedUntilNow) => {
     if (Date.now() <= pausedUntilNow) {
       const asked3 = sink.escalate(
         "wrote_while_held",
-        `They sent a ${raw.type} message while your team had this thread. Open it and answer them, or hand the thread back.`
+        `They sent a ${n.rawType} message while your team had this thread. Open it and answer them, or hand the thread back.`
       );
       await Promise.all([
         asked3,
         tell(asked3, {
-          said: `[${raw.type} message]`,
+          said: `[${n.rawType} message]`,
           answered: "(no reply sent \u2014 a person on your team has this thread)",
           why: "wrote while held"
         })
@@ -39528,12 +39505,12 @@ function seeingOf(at) {
     ) : false;
     const pausedUntil = acked ? Date.now() + pauseMs : 0;
     const why = acked ? "auto-acknowledged, bot paused" : mayAck ? "the acknowledgement could not be sent \u2014 the customer has heard nothing back" : !brainCfg ? "no auto-reply configured" : personMode ? `no acknowledgement \u2014 this person is set to '${replyMode}'` : `no acknowledgement \u2014 reply mode is '${replyMode}'`;
-    const asked2 = sink.escalate("non_text", `Customer sent a ${raw.type} message \u2014 ${why}.`);
+    const asked2 = sink.escalate("non_text", `Customer sent a ${n.rawType} message \u2014 ${why}.`);
     await Promise.all([
       ...pausedUntil ? [sink.pause(new Date(pausedUntil).toISOString())] : [],
       asked2,
       tell(asked2, {
-        said: `[${raw.type} message]`,
+        said: `[${n.rawType} message]`,
         answered: `(${why})`,
         why: "non-text message",
         pausedHours: pausedUntil ? pauseHours : null
@@ -39586,10 +39563,13 @@ import {
   confirmationNameOf,
   offersAfterStart,
   optInConfirmation,
+  dmBackOnConfirmation,
+  SECOND_MS,
   tokenBudgetSpent,
   tokenCapOf,
   YES_WHILE_PAUSED
 } from "../../contracts/dist/index.js";
+var sentAtSecondsOf = (iso2) => iso2 === null ? void 0 : Date.parse(iso2) / SECOND_MS;
 async function offersNoteFor(at) {
   const { db, tenantId, ing, ports, channel, L } = at;
   if (channel !== "whatsapp" || !db || !tenantId || !ing?.contact_id) return null;
@@ -39623,8 +39603,8 @@ async function offersTakenBack(at) {
   }
 }
 async function tooLate(at) {
-  const { raw, sink, tell, n, L } = at;
-  const { ageMs, verdict: age } = ageVerdict(raw.timestamp ?? void 0);
+  const { sink, tell, n, L } = at;
+  const { ageMs, verdict: age } = ageVerdict(sentAtSecondsOf(n.channelTsIso));
   if (age === "stale") {
     const asked2 = sink.escalate(
       "stale",
@@ -39633,7 +39613,7 @@ async function tooLate(at) {
     await Promise.all([
       asked2,
       tell(asked2, {
-        said: n.body ?? `[${raw.type}]`,
+        said: n.body ?? `[${n.rawType}]`,
         answered: "(no reply sent \u2014 arrived too late to answer automatically)",
         why: "late message"
       }),
@@ -39648,9 +39628,9 @@ async function tooLate(at) {
 }
 async function confirmedYes(at, bodyText) {
   const { sink, tell, n, L, channel, brainCfg, rt, send } = at;
-  if (n.optIn || n.optInMarketing && channel === "whatsapp") {
-    const purpose = n.optInMarketing ? "marketing" : "conversational";
-    if (n.optInMarketing && await offersTakenBack(at)) {
+  if (n.consent.optIn || n.consent.optInMarketing && channel === "whatsapp") {
+    const purpose = n.consent.optInMarketing ? "marketing" : "conversational";
+    if (n.consent.optInMarketing && await offersTakenBack(at)) {
       L.info("wa_opt_in_confirmed", { purpose, channel, sent: false, why: "offers_taken_back" });
       await processedAfter(sink, null, "none");
       return;
@@ -39661,8 +39641,8 @@ async function confirmedYes(at, bodyText) {
       workspace: rt?.known?.workspace?.name ?? null,
       receptionist: brainCfg?.business_name ?? null
     });
-    const filed = optInConfirmation(name, purpose);
-    const offers = n.optInMarketing ? null : await offersNoteFor(at);
+    const filed = channel === "instagram" ? dmBackOnConfirmation(name) : optInConfirmation(name, purpose);
+    const offers = n.consent.optInMarketing ? null : await offersNoteFor(at);
     const words = offers ? `${filed} ${offers}` : filed;
     const confirmed = await send(words, { ack: true, confirmation: purpose }, purpose, "system");
     let asked2 = null;
@@ -39830,12 +39810,13 @@ import {
 } from "../../contracts/dist/index.js";
 import { errField as errField10 } from "../../channels/dist/index.js";
 async function leadNoteFor(at) {
-  const { db, tenantId, from, ports, rt, L, channel, ing } = at;
+  const { db, tenantId, from, ports, rt, L, channel, ing, n } = at;
   let leadNote;
   if (db && tenantId) {
     try {
-      const e164 = from.startsWith("+") ? from : `+${from}`;
-      const lead = await ports.leads.read(db, tenantId, e164, 1, ing?.message_id);
+      const byRow = !n.identity.phoneE164 && ing?.contact_id && ports.leads.readById ? ing.contact_id : null;
+      const e164 = byRow ? null : from.startsWith("+") ? from : `+${from}`;
+      const lead = byRow && ports.leads.readById ? await ports.leads.readById(db, tenantId, byRow, 1, ing?.message_id) : await ports.leads.read(db, tenantId, e164 ?? from, 1, ing?.message_id);
       leadNote = ports.leads.describe(lead, /* @__PURE__ */ new Date(), rt?.timezone ?? "UTC", channel);
       const visits = rt ? await ports.calendar.visits(rt, { phone: e164, name: lead.name }) : null;
       if (visits) leadNote = `${leadNote}
@@ -40296,6 +40277,7 @@ export {
   CHECK_BATCH,
   CLOSED_REASON,
   DEADLINE_MARGIN_MS,
+  DM_WINDOW_CLOSED_REFUSAL,
   DUPLICATE_REASON,
   EMAIL_BODY_MAX,
   EMAIL_REVIEW_WORDS,

@@ -30,7 +30,7 @@ export function shortName(name: string): string {
 /** The "WhatsApp · +1 …" subtitle line, same source as the thread viewmodel; "Phone · …" for a caller with no thread. */
 export function contactMeta(
   dto: ConversationDto,
-  channel: "WhatsApp" | "Phone" | "Text" | "Email" = "WhatsApp",
+  channel: "WhatsApp" | "Phone" | "Text" | "Email" | "Instagram" = "WhatsApp",
 ): string {
   // The identifier under the name: the number, else the address. When it IS
   // the name, the line says so instead of repeating it.

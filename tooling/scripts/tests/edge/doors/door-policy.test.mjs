@@ -67,6 +67,7 @@ const KNOCKS = {
   verifyGooglePushToken: { from: CHANNELS }, // the token Google signs on a Gmail push
   clientStateMatches: { from: CHANNELS }, // the secret a Graph subscription echoes on each notification
   signedByMeta: { from: "apps/edge/lib/whatsapp/webhook.ts" }, // Meta's HMAC over the raw body
+  signedByInstagramApp: { from: "apps/edge/lib/instagram/webhook.ts" }, // the same HMAC, with the Instagram app's secret or the Meta app's
   askVoiceWebhookSigned: { from: "apps/edge/lib/voice/ask-voice.ts" }, // ElevenLabs' HMAC over the raw body
   verifyResendWebhook: { from: CHANNELS }, // svix's signature over Resend's event
   constructEvent: { on: "webhooks" }, // Stripe's own library: Stripe's signature
@@ -85,6 +86,8 @@ const OPEN = {
   "GET /api/health": "the outside monitor's probe: 200 or 503, never a workspace's name or a secret",
   "GET /api/version": "the commit the deployment was built from: a commit is not a secret",
   "GET /api/whatsapp": "Meta's handshake: the challenge is echoed only for WHATSAPP_VERIFY_TOKEN, compared in the door",
+  "GET /api/instagram":
+    "Meta's handshake: the challenge is echoed only for INSTAGRAM_VERIFY_TOKEN, compared in the door",
 };
 
 /**

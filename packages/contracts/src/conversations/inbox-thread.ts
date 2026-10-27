@@ -5,7 +5,7 @@
  */
 import { formatPhoneDisplay } from "../shared/phone";
 import { replyWhy, type ReplyWhyVM } from "../config/brain";
-import { replyWindow } from "../config/policy";
+import { replyWindow, windowClockOf } from "../config/policy";
 import { needsYouCount, threadWait, threadWaits, type WaitingThread, type Waits } from "../waits/waits";
 import { HELD_WORDS, readingOf, replyWaitsOnYou, standingOfThread } from "./standing";
 import { messageAt, isOptedOut, type ConversationDto, type MessageDto } from "./thread-dto";
@@ -191,6 +191,8 @@ export const THREAD_PANE_WORDS = {
   chatClosed: "Chat closed",
   chatClosedWhy:
     "A day after their last message, WhatsApp delivers only an approved message. Sending one reopens the chat.",
+  /** Instagram's window, shut: a business may not write at all, and has no approved message to write with. */
+  dmClosedWhy: "A day after their last message, Instagram lets you reply only once they write again.",
   /** The dock's acts on a thread left unanswered (THREAD_PANE_WORDS.unanswered). "No reply needed" archives it. */
   call: "Call",
   noReplyNeeded: "No reply needed",
@@ -262,6 +264,9 @@ function inboxReading(dto: ConversationDto): Pick<InboxThreadVM, "unread" | "hea
   return { unread: unseen, heardAtMs, markAtMs };
 }
 
+/** A thread's two clocks, each its wire's window reads (contracts windowClockOf). */
+const clocksOf = (dto: ConversationDto) => ({ whatsapp: dto.last_wa_inbound_at, instagram: dto.last_ig_inbound_at });
+
 export function toInboxThreadVM(
   dto: ConversationDto,
   escalation: EscalationDto | null,
@@ -286,7 +291,7 @@ export function toInboxThreadVM(
   // replyWindow(), the rule the reply route enforces, on the wire it sends on. This decides whether the composer tells
   // the operator they can write freely; with two expressions those answers drift the moment either moves, and the
   // operator is told they can send something the server refuses. A text has no window, so the composer is open.
-  const win = replyWindow(chatChannel, dto.last_wa_inbound_at, now).open;
+  const win = replyWindow(chatChannel, windowClockOf(chatChannel, clocksOf(dto)), now).open;
   // The channels the thread has actually used: a call note is the phone, any
   // other row is WhatsApp. A caller with no thread on WhatsApp gets phone
   // verbs, not a notice about a reply window that never opened.

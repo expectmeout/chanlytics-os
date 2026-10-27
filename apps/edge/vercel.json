@@ -11,6 +11,9 @@
           "api/admin/google.ts": {
             "maxDuration": 60
           },
+          "api/admin/instagram/account.ts": {
+            "maxDuration": 60
+          },
           "api/admin/intake/replay.ts": {
             "maxDuration": 60
           },
@@ -95,6 +98,9 @@
           "api/cron/google.ts": {
             "maxDuration": 60
           },
+          "api/cron/instagram-tokens.ts": {
+            "maxDuration": 60
+          },
           "api/cron/health.ts": {
             "maxDuration": 60
           },
@@ -135,6 +141,9 @@
             "maxDuration": 30
           },
           "api/whatsapp.ts": {
+            "maxDuration": 60
+          },
+          "api/instagram.ts": {
             "maxDuration": 60
           },
           "api/health.ts": {

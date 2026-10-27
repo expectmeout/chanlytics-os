@@ -2696,8 +2696,8 @@ function matchWordsOf(via) {
 function isGuess(via) {
   return via === "name" || via === "business";
 }
-function threadOf(p) {
-  return p.thread ? { thread: p.thread, wa_inbound_at: p.waInboundAt ?? null } : {};
+function threadOf({ thread, waInboundAt, igInboundAt }) {
+  return thread ? { thread, wa_inbound_at: waInboundAt ?? null, ig_inbound_at: igInboundAt ?? null } : {};
 }
 function replyFactsOf(p) {
   return p.reach ? { reply_wire: p.reach.wire, email_stopped: p.reach.emailStopped, opted_out: p.reach.optedOut } : {};
@@ -6762,6 +6762,7 @@ function isConsentChannel(c) {
   return !!c && CONSENT_CHANNELS.includes(c);
 }
 function channelsOfYes(purpose, source, channel) {
+  if (source === "customer_message" && channel === "instagram") return [];
   if (purpose === "marketing" && source === "customer_message" && (channel === "sms" || channel === "email"))
     return ["whatsapp", channel];
   if (source === "customer_message" && isConsentChannel(channel)) return [channel];
@@ -9064,15 +9065,22 @@ var AGENTS = {
   whatsapp: { glyph: "W", name: "WhatsApp Receptionist" },
   sms: { glyph: "T", name: "Text Receptionist" },
   email: { glyph: "Y", name: "Your team" },
+  instagram: { glyph: "I", name: "Instagram Receptionist" },
   phone: { glyph: "P", name: "Phone Receptionist" }
 };
 function agentFor(channel) {
   return AGENTS[channel] ?? AGENTS.whatsapp;
 }
 function writtenChannelOf(channel) {
-  return channel === "sms" ? "sms" : channel === "email" ? "email" : "whatsapp";
+  return channel === "sms" || channel === "email" || channel === "instagram" ? channel : "whatsapp";
 }
-var THREAD_CHANNEL_WORDS = { whatsapp: "WhatsApp", phone: "Phone", sms: "Text", email: "Email" };
+var THREAD_CHANNEL_WORDS = {
+  whatsapp: "WhatsApp",
+  phone: "Phone",
+  sms: "Text",
+  email: "Email",
+  instagram: "Instagram"
+};
 function lastWroteOn(messages) {
   const theirs3 = [...messages].reverse().find(isTheirOwnWords);
   return theirs3 ? writtenChannelOf(theirs3.channel) : null;
@@ -10023,10 +10031,16 @@ function waWindow(lastWaInboundAtIso, now = /* @__PURE__ */ new Date()) {
 function replyWindow(replyChannel, lastWaInboundAtIso, now = /* @__PURE__ */ new Date()) {
   return replyChannel === "sms" || replyChannel === "email" ? { open: true, closesAtIso: null } : waWindow(lastWaInboundAtIso, now);
 }
+function windowClockOf(replyChannel, clocks) {
+  if (replyChannel === "instagram") return clocks.instagram ?? null;
+  return replyChannel === "sms" || replyChannel === "email" ? null : clocks.whatsapp ?? null;
+}
 var REPLY_LIMITS = {
   whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
   sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
-  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
+  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." },
+  // Instagram takes 1000 bytes a DM; a longer reply leaves as several (channels instagramDmChunks), up to this.
+  instagram: { max: 2e3, refusal: "An Instagram reply can be at most 2000 characters." }
 };
 var REPLY_MAX_ANY = Math.max(...Object.values(REPLY_LIMITS).map((l) => l.max));
 var SEND_GRACE_MS = 15e3;
@@ -16303,7 +16317,7 @@ var MEMBERSHIP_ROLES = ["owner", "operator", "partner", "viewer"];
 var CHANNEL_KINDS = ["whatsapp", "voice", "sms", "email", "instagram"];
 var IDENTITY_ASSURANCES = ["observed", "asserted", "found"];
 var CONVERSATION_STATES = ["open", "needs_human", "snoozed", "archived"];
-var MESSAGE_CHANNELS = ["whatsapp", "voice", "sms", "email", "system"];
+var MESSAGE_CHANNELS = ["whatsapp", "voice", "sms", "email", "system", "instagram"];
 var MESSAGE_DIRECTIONS = ["inbound", "outbound"];
 var MESSAGE_SENDERS = ["customer", "ai", "human", "system"];
 var MESSAGE_TYPES = ["text", "template", "media", "call_summary", "note"];
@@ -16922,11 +16936,13 @@ var FACT = /* @__PURE__ */ (() => ({
   no: "Said no to offers.",
   never: "Has not been asked for the yes to offers.",
   asked: (on) => `Asked for the yes to offers${on ? ` on ${on}` : ""}; has not said it.`,
-  text: "This conversation is by text message, not WhatsApp."
+  text: "This conversation is by text message, not WhatsApp.",
+  dm: "This conversation is by Instagram direct message, not WhatsApp."
 }))();
 function offersFacts(p, channel, now, tz) {
   const out = [];
   if (channel === "sms") out.push(FACT.text);
+  if (channel === "instagram") out.push(FACT.dm);
   const asked = p.offersAskedAt;
   const open = p.marketingConsent === "unknown" || p.marketingConsent === "opted_in" && !yesCovers(p.marketingChannels, "whatsapp");
   if (p.marketingConsent === "opted_in" && !open) out.push(FACT.yes);
@@ -17093,7 +17109,7 @@ var PROMPT_SECTIONS = [
 ];
 function identitySection({ base, profile, channel, wire }) {
   const s = [];
-  const medium = wire === "voice" ? "on the phone" : wire === "sms" ? "by text message" : "over WhatsApp";
+  const medium = wire === "voice" ? "on the phone" : wire === "sms" ? "by text message" : wire === "instagram" ? "in Instagram direct messages" : "over WhatsApp";
   s.push(`You are the assistant for ${base.business_name}, answering customers ${medium}.`);
   const named = (profile.assistant_name ?? "").trim();
   if (named) s.push(`Your name is ${named}. Introduce yourself by it, as the business's automated assistant.`);
@@ -19685,23 +19701,27 @@ function playbookName(trigger, tpl) {
 var REPLY_VIA = {
   whatsapp: "WhatsApp",
   sms: "Text",
-  email: "Email"
+  email: "Email",
+  instagram: "Instagram"
 };
 var REPLY_WIRE = {
   WhatsApp: "whatsapp",
   Text: "sms",
-  Email: "email"
+  Email: "email",
+  Instagram: "instagram"
 };
 var PERSON_CHANNEL_WORDS = {
   whatsapp: "WhatsApp",
   sms: "Text",
   voice: "Phone",
-  email: "Email"
+  email: "Email",
+  instagram: "Instagram"
 };
 var PERSON_CAME_FROM_WORDS = {
   whatsapp: REPLY_VIA.whatsapp,
   sms: REPLY_VIA.sms,
   email: REPLY_VIA.email,
+  instagram: REPLY_VIA.instagram,
   call: PERSON_CHANNEL_WORDS.voice,
   calendar: "Your calendar",
   manual: "Added by hand",
@@ -20495,8 +20515,8 @@ function reachFor(r2, purpose, o) {
     (c) => o.channels.includes(c) && o.ready[c].ready && channelRefuses(c, purpose, o.about, o.ready) === null
   );
   if (usable.length === 0) return { channel: null, held: "no_channel" };
-  const last = r2.lastChannel ?? null;
-  const order = last && usable.includes(last) ? [last, ...usable.filter((c) => c !== last)] : usable;
+  const last = usable.find((c) => c === r2.lastChannel) ?? null;
+  const order = last ? [last, ...usable.filter((c) => c !== last)] : usable;
   const why = [];
   for (const c of order) {
     const w = whyNotReceive(r2, purpose, c, o.about);
@@ -31741,7 +31761,7 @@ function personOfAppointment(row2, people) {
     id: found.id,
     name: found.name || row2.client_name || "",
     via,
-    ...found.thread !== void 0 ? { thread: found.thread, wa_inbound_at: found.waInboundAt ?? null } : {},
+    ...found.thread !== void 0 ? { thread: found.thread, wa_inbound_at: found.waInboundAt ?? null, ig_inbound_at: found.igInboundAt ?? null } : {},
     ...replyFactsOf(found)
   };
 }
@@ -31847,6 +31867,8 @@ function bookingLinkAction(reach, stop) {
   if (via === "Email")
     return reach.emailStopped ? notReady(EMAIL_CANT_REACH, false) : ready2("Email", "Opens the thread with the link ready to send by email");
   if (via === "Text") return ready2("Text", "Opens the thread with the link ready to send as a text");
+  if (via === "Instagram")
+    return win && win.open ? ready2("DM", `Opens the thread with the link ready to send by DM \xB7 for ${win.hoursLeft}h more`) : notReady(DM_CLOSED, false);
   if (win && win.open)
     return ready2("Text", `Opens the thread with the link ready to send \xB7 any message for ${win.hoursLeft}h more`);
   return notReady(
@@ -31861,7 +31883,7 @@ function replyReachOf(p, now) {
       replyVia: null,
       bookingLinkAction: bookingLinkAction({ via: null, window: null, emailStopped: p.emailStopped }, stop)
     };
-  const w = replyWindow(p.wire, p.waInboundAt, now);
+  const w = replyWindow(p.wire, windowClockOf(p.wire, { whatsapp: p.waInboundAt, instagram: p.igInboundAt }), now);
   const win = {
     open: w.open,
     hoursLeft: w.closesAtIso ? Math.max(0, Math.round((new Date(w.closesAtIso).getTime() - now.getTime()) / HOUR_MS)) : 0
@@ -31908,13 +31930,14 @@ function repliesWords(via, window, stop) {
   if (stop.optedOut) return optOutWords(stop.who);
   if (via === "Email") return stop.emailStopped ? EMAIL_CANT_REACH : "Any time, by email";
   if (via === "Text") return "Any time, by text";
-  if (via !== "WhatsApp" || !window) return null;
-  if (!window.open) return "Approved messages only, until they write again";
+  if (via !== "WhatsApp" && via !== "Instagram" || !window) return null;
+  if (!window.open) return via === "Instagram" ? DM_CLOSED : "Approved messages only, until they write again";
   const h = window.hoursLeft;
   return h >= 1 ? `Any message, for ${h} more ${h === 1 ? "hour" : "hours"}` : "Any message, for less than an hour";
 }
 var EMAIL_STOPPED_SHORT = "Stopped accepting mail";
-var WRITTEN_WIRES = ["whatsapp", "sms", "email"];
+var WRITTEN_WIRES = ["whatsapp", "sms", "email", "instagram"];
+var DM_CLOSED = "Nothing until they write again, on Instagram";
 function rowReachWords(p, named) {
   const wrote = p.lastChannel ?? WRITTEN_WIRES.find((c) => p.channels.includes(c)) ?? null;
   const via = wrote ? REPLY_VIA[wrote] : null;
@@ -32069,6 +32092,7 @@ function toBlock(item, tz, dayStartMs, dayEndMs, now) {
           // before: a person with a thread is reached on WhatsApp, held by its window.
           wire: item.person.reply_wire !== void 0 ? item.person.reply_wire : item.person.thread ? "whatsapp" : null,
           waInboundAt: item.person.wa_inbound_at,
+          igInboundAt: item.person.ig_inbound_at ?? null,
           emailStopped: !!item.person.email_stopped,
           optedOut: !!item.person.opted_out,
           who: item.person.name
@@ -32487,6 +32511,7 @@ var ORIGIN_WORDS = {
   whatsapp: (day2) => `Wrote on WhatsApp \xB7 ${day2}`,
   sms: (day2) => `Texted you \xB7 ${day2}`,
   email: (day2) => `Wrote by email \xB7 ${day2}`,
+  instagram: (day2) => `Wrote on Instagram \xB7 ${day2}`,
   calendar: (day2) => `From your calendar \xB7 ${day2}`,
   manual: (day2) => `Added by hand \xB7 ${day2}`,
   import: (day2) => `Imported \xB7 ${day2}`,
@@ -35594,6 +35619,10 @@ function confirmationNameOf(o) {
 function optInConfirmation(businessName, purpose) {
   const name = businessName.trim() || "This business";
   return purpose === "marketing" ? `${name}: you're signed up for offers and news. A few messages a month. Msg & data rates may apply. Reply HELP for help, STOP to cancel.` : `${name}: you'll get texts about your appointments. Msg frequency varies. Msg & data rates may apply. Reply HELP for help, STOP to cancel.`;
+}
+function dmBackOnConfirmation(businessName) {
+  const name = businessName.trim() || "This business";
+  return `${name}: you'll hear from us here again. Reply STOP any time to stop.`;
 }
 function verbalOptInScript(businessName) {
   const name = businessName.trim() || "us";
@@ -40046,6 +40075,8 @@ var THREAD_PANE_WORDS = {
   /** WhatsApp's window, shut: the bar's one quiet fact, and why a press away. */
   chatClosed: "Chat closed",
   chatClosedWhy: "A day after their last message, WhatsApp delivers only an approved message. Sending one reopens the chat.",
+  /** Instagram's window, shut: a business may not write at all, and has no approved message to write with. */
+  dmClosedWhy: "A day after their last message, Instagram lets you reply only once they write again.",
   /** The dock's acts on a thread left unanswered (THREAD_PANE_WORDS.unanswered). "No reply needed" archives it. */
   call: "Call",
   noReplyNeeded: "No reply needed",
@@ -40097,6 +40128,7 @@ function inboxReading(dto) {
   const { unseen, heardAtMs, markAtMs } = readingOf(dto.last_inbound_at, dto);
   return { unread: unseen, heardAtMs, markAtMs };
 }
+var clocksOf2 = (dto) => ({ whatsapp: dto.last_wa_inbound_at, instagram: dto.last_ig_inbound_at });
 function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) {
   const who = contactName(dto);
   const { state, takenOver, needsYou, claimedByOther } = threadStanding(dto, escalation, now);
@@ -40105,7 +40137,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
   const reasonLabel = escalation ? reasonLabelOf(escalation.reason) : null;
   const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
   const chatChannel = answerWireOf(dto.messages);
-  const win = replyWindow(chatChannel, dto.last_wa_inbound_at, now).open;
+  const win = replyWindow(chatChannel, windowClockOf(chatChannel, clocksOf2(dto)), now).open;
   const hasCalls = dto.messages.some((m) => m.type === "call_summary");
   const hasChat = !!dto.last_wa_inbound_at || dto.messages.some(isChatMessage);
   const primaryChannel = hasChat || !hasCalls ? chatChannel : "phone";
@@ -40448,6 +40480,8 @@ function cameFromSaid(key, n) {
       return "came by text";
     case "email":
       return "came by email";
+    case "instagram":
+      return "came from Instagram";
     case "call":
       return "came by phone";
     case "calendar":
@@ -46480,6 +46514,8 @@ function toChannelVM(dto, now = /* @__PURE__ */ new Date()) {
     standing: dto.standing ?? null,
     standingReadAt: dto.standing_read_at ?? null,
     connectedAt: dto.connected_at ?? null,
+    handle: dto.handle ?? null,
+    lapsedAt: dto.lapsed_at ?? null,
     created_at: dto.created_at
   };
 }
@@ -49789,8 +49825,9 @@ function channelsOf2(r2) {
   if (wrote ? wrote.includes("whatsapp") : r2.has_chat) set.add("whatsapp");
   if (wrote?.includes("sms")) set.add("sms");
   if (wrote?.includes("email")) set.add("email");
+  if (wrote?.includes("instagram")) set.add("instagram");
   if ((r2.call_count ?? 0) > 0) set.add("voice");
-  const order = ["whatsapp", "sms", "voice", "email"];
+  const order = ["whatsapp", "sms", "voice", "email", "instagram"];
   return order.filter((c) => set.has(c));
 }
 function replyChannelOfRow(r2) {
@@ -49802,6 +49839,9 @@ function replyChannelOfRow(r2) {
   if (only) return only;
   if (wrote && wrote.includes("email") && !wrote.some((c) => c === "whatsapp" || c === "sms")) return "email";
   return "whatsapp";
+}
+function igClockOfRow(r2) {
+  return r2.last_inbound_channel === "instagram" ? r2.last_wrote_at ?? null : null;
 }
 function cameFromOf(r2) {
   const k = r2.came_from;
@@ -49866,7 +49906,7 @@ function consultationKeysOf(v, nextVisitMs) {
   };
 }
 function lastChannelOf(c) {
-  return c === "whatsapp" || c === "sms" || c === "email" ? c : null;
+  return c === "whatsapp" || c === "sms" || c === "email" || c === "instagram" ? c : null;
 }
 function rowReachOf(r2, consent, ready2) {
   const facts = { lastChannel: lastChannelOf(r2.last_inbound_channel), emailSuppressed: isEmailStopped(r2) };
@@ -49877,6 +49917,7 @@ function rowReplyOf(r2, now, emailStopped, who) {
     {
       wire: replyChannelOfRow(r2),
       waInboundAt: r2.latest_wa_inbound_at,
+      igInboundAt: igClockOfRow(r2),
       emailStopped,
       optedOut: isOptedOutContact({ consent: r2.consent, dnc: r2.dnc }),
       who
@@ -50310,7 +50351,9 @@ function firstChannelOf(d, base) {
 function replyOf(d, row2, base, now, nowMs) {
   const rowVia = base.replyVia ? REPLY_WIRE[base.replyVia] : null;
   const via = replyChannelOfThreads(d.conversations) ?? (base.lastChannel ? rowVia : null) ?? ourWireOfThreads(d.conversations) ?? rowVia;
-  const exactWindow = via ? replyWindow(via, row2.latest_wa_inbound_at, now) : null;
+  const dmClock = d.conversations.map((c) => c.last_ig_inbound_at ?? "").filter(Boolean).sort().at(-1) ?? igClockOfRow(row2);
+  const clocks = { whatsapp: row2.latest_wa_inbound_at, instagram: dmClock };
+  const exactWindow = via ? replyWindow(via, windowClockOf(via, clocks), now) : null;
   if (!via || !exactWindow) return null;
   const hoursLeft = exactWindow.closesAtIso ? Math.max(0, Math.round((new Date(exactWindow.closesAtIso).getTime() - nowMs) / HOUR_MS)) : 0;
   return { via, window: { open: exactWindow.open, hoursLeft } };
@@ -51727,8 +51770,9 @@ function oursFirst(e) {
   const call = e.calls.find((k) => moment(k.started_at) === at3);
   if (call) return call.direction === "outbound" ? { call: true } : null;
   const m = e.messages.find((x) => moment(messageAt(x)) === at3);
-  return m && m.direction === "outbound" ? { on: CONSENT_CHANNEL_WORDS[writtenChannelOf(m.channel)] } : null;
+  return m && m.direction === "outbound" ? { on: FIRST_WRITTEN_ON[writtenChannelOf(m.channel)] } : null;
 }
+var FIRST_WRITTEN_ON = { ...CONSENT_CHANNEL_WORDS, instagram: "by Instagram DM" };
 var firstLowered = (s) => `${s.charAt(0).toLowerCase()}${s.slice(1)}`;
 function personOriginOf(e, tz, nowMs) {
   const from = e.first.cameFrom;
@@ -51827,6 +51871,7 @@ var PERSON_DELETE_WORDS = {
 };
 function threadOff(p) {
   if (!p.openThread) return PERSON_ACT_WORDS.noThread;
+  if (p.replyVia === "Instagram") return p.replyWindow && !p.replyWindow.open ? DM_CLOSED : null;
   return p.replyVia ? wayOff(p.ways, REPLY_WIRE[p.replyVia]) : null;
 }
 function personActs(p) {
@@ -52318,6 +52363,10 @@ function personLikeOf(p) {
     email: p.email ?? null,
     thread: p.has_chat && p.latest_conversation_id ? p.latest_conversation_id : null,
     waInboundAt: p.latest_wa_inbound_at ?? null,
+    igInboundAt: igClockOfRow({
+      last_inbound_channel: p.last_inbound_channel ?? null,
+      last_wrote_at: p.last_wrote_at ?? null
+    }),
     // What a reply to them is judged by, from the same row and the same functions the People row asks (person-row.ts), so the
     // board's block offers the booking link, or does not, as the row does. A row without the columns says no stop: absence is
     // no opt-out (consent.ts).
@@ -57610,7 +57659,8 @@ var ONLY_WIRE = {
   whatsapp: "whatsapp_only",
   sms: "sms_only",
   voice: "phone_only",
-  email: "email_only"
+  email: "email_only",
+  instagram: "instagram_only"
 };
 function wireBucketOf(channels) {
   const first = channels.at(0);
@@ -57618,7 +57668,7 @@ function wireBucketOf(channels) {
   return channels.length > 1 ? "several" : ONLY_WIRE[first];
 }
 function wireCountsOf(vms) {
-  const wires = { whatsapp_only: 0, sms_only: 0, phone_only: 0, email_only: 0, several: 0, none: 0 };
+  const wires = { whatsapp_only: 0, sms_only: 0, phone_only: 0, email_only: 0, instagram_only: 0, several: 0, none: 0 };
   for (const v of vms) wires[wireBucketOf(v.channels)] += 1;
   return wires;
 }
@@ -57779,6 +57829,7 @@ var WIRE_ROWS = [
   ["sms_only", `${PERSON_CHANNEL_WORDS.sms} only`],
   ["phone_only", `${PERSON_CHANNEL_WORDS.voice} only`],
   ["email_only", `${PERSON_CHANNEL_WORDS.email} only`],
+  ["instagram_only", `${PERSON_CHANNEL_WORDS.instagram} only`],
   ["several", "More than one way"],
   ["none", "None yet"]
 ];
@@ -60162,7 +60213,7 @@ function setupSteps2(i, nowMs = Date.now()) {
   };
 }
 
-// src/setup/connection-email.ts
+// src/setup/connection-rows.ts
 function emailRow2(i, { nowMs }) {
   const base = { kind: "email", icon: "mail", title: "Email" };
   const mailbox = i.email?.mailbox ?? null;
@@ -60234,6 +60285,46 @@ function mailboxRow(i) {
     state: "later",
     stateWords: "Later",
     sentence: "Sequences to leads will send from your own Google Workspace or Microsoft 365 mailbox. Until then, each email is handed to you to send.",
+    verb: null
+  };
+}
+function instagramRow(i, { ig }) {
+  const base = { kind: "instagram", icon: "instagram", title: "Instagram" };
+  const detail = ig?.handle ? `@${ig.handle}` : null;
+  const connect = { label: "Connect Instagram", to: "verb:instagram-connect", who: "owner" };
+  if (ig?.on && ig.lapsedAt)
+    return {
+      ...base,
+      detail,
+      state: "attention",
+      stateWords: "Needs connecting again",
+      sentence: "Instagram stopped accepting the connection, so its DMs are not being answered. Connect it again.",
+      verb: { ...connect, label: "Connect again" }
+    };
+  if (ig?.on)
+    return {
+      ...base,
+      detail,
+      state: "connected",
+      stateWords: "Connected",
+      sentence: `${ig.healthLabel}. The receptionist answers its DMs within a day of each one, as Instagram allows.`,
+      verb: { label: "Disconnect", to: "verb:instagram-disconnect", who: "owner" }
+    };
+  if (i.instagram?.ready)
+    return {
+      ...base,
+      detail,
+      state: "none",
+      stateWords: "Not connected",
+      sentence: "Sign in with your Instagram professional account; the receptionist answers its DMs as it answers WhatsApp.",
+      verb: ig ? { ...connect, label: "Connect again" } : connect
+    };
+  return {
+    ...base,
+    detail: null,
+    state: "later",
+    stateWords: "Later",
+    sentence: "Direct messages, answered by the receptionist like WhatsApp.",
     verb: null
   };
 }
@@ -60385,6 +60476,7 @@ function connectionFactsOf(i, nowMs) {
     nowMs,
     wa: channel("whatsapp"),
     voice: channel("voice"),
+    ig: channel("instagram"),
     own: i.lines.rows.find((l) => l.provider !== "carrier") ?? null,
     connection: i.google?.connection ?? null,
     listing: i.google?.listing ?? null
@@ -60660,18 +60752,6 @@ var CONNECTION_STATE_OF = {
   hand: "none",
   none: "none"
 };
-function instagramRow() {
-  return {
-    kind: "instagram",
-    icon: "instagram",
-    title: "Instagram",
-    detail: null,
-    state: "later",
-    stateWords: "Later",
-    sentence: "Direct messages, answered by the receptionist like WhatsApp.",
-    verb: null
-  };
-}
 function depositsRow() {
   return {
     kind: "deposits",
@@ -63046,6 +63126,9 @@ var EDGE_ERROR_CODES = [
   "grant_unreadable",
   "in_flight",
   "ingest_failed",
+  "instagram_account_taken",
+  "instagram_account_unreadable",
+  "instagram_messages_not_granted",
   "invalid",
   "key_unavailable",
   "lane_unset",
@@ -63241,11 +63324,23 @@ var SCHEMA_SETS = {
   "capability_activations.capability": ["voice", "whatsapp", "sms"],
   "contact_identities.assurance": ["observed", "asserted", "found"],
   "contact_identities.channel": ["whatsapp", "voice", "sms", "email", "instagram"],
-  "contacts.acquired_via": ["whatsapp", "sms", "email", "call", "ad", "calendar", "import", "lead", "manual"],
+  "contacts.acquired_via": [
+    "whatsapp",
+    "sms",
+    "email",
+    "instagram",
+    "call",
+    "ad",
+    "calendar",
+    "import",
+    "lead",
+    "manual"
+  ],
   "contacts.consent": ["unknown", "opted_in", "opted_out"],
   "contacts.email_marketing": ["unknown", "opted_in", "opted_out"],
   "contacts.marketing_consent": ["unknown", "opted_in", "opted_out"],
   "contacts.name_source": ["typed", "import", "calendar", "signature", "wire", "lead"],
+  "conversation_channel_state.channel": ["whatsapp", "sms", "email", "instagram"],
   "conversation_drafts.kind": ["reply", "brief"],
   "conversations.state": ["open", "needs_human", "snoozed", "archived"],
   "deals.lost_reason": ["price", "timing", "elsewhere", "no_reply", "not_a_fit", "other"],
@@ -63492,7 +63587,7 @@ var SCHEMA_SETS = {
   "mailboxes.offers_paused_reason": ["complaints", "bounces"],
   "mailboxes.reply_mode": ["draft", "veto", "auto"],
   "memberships.role": ["owner", "operator", "partner", "viewer"],
-  "messages.channel": ["whatsapp", "voice", "sms", "email", "system"],
+  "messages.channel": ["whatsapp", "voice", "sms", "email", "system", "instagram"],
   "messages.direction": ["inbound", "outbound"],
   "messages.sender": ["customer", "ai", "human", "system"],
   "messages.status": ["received", "queued", "sent", "delivered", "read", "failed", "canceled"],
@@ -63664,6 +63759,9 @@ var ROUTE_KEYS = [
   "GET calls/[id]/export",
   "GET calls/[id]/recording",
   "GET channels",
+  "GET channels/instagram",
+  "GET channels/instagram/callback",
+  "GET channels/instagram/connect",
   "GET channels/whatsapp/signup",
   "GET consent/qr",
   "GET contacts",
@@ -63778,6 +63876,7 @@ var ROUTE_KEYS = [
   "POST calls/[id]/hand-over",
   "POST calls/[id]/whisper",
   "POST capabilities/[kind]",
+  "POST channels/instagram/disconnect",
   "POST channels/whatsapp/connect",
   "POST channels/whatsapp/standing",
   "POST client-errors",
@@ -70566,6 +70665,7 @@ export {
   deviceTimezone,
   disclosureFacts,
   divertedNumbers,
+  dmBackOnConfirmation,
   dollarsWords,
   doorNeeds,
   draftAd,
@@ -72373,6 +72473,7 @@ export {
   whyNotReceive,
   whyWords,
   winBackWords,
+  windowClockOf,
   windowFor,
   wireFailure,
   withAlertAddress,

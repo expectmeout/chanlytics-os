@@ -708,18 +708,21 @@ function toReceptionistReportVM(dto, opts) {
 var REPLY_VIA = {
   whatsapp: "WhatsApp",
   sms: "Text",
-  email: "Email"
+  email: "Email",
+  instagram: "Instagram"
 };
 var PERSON_CHANNEL_WORDS = {
   whatsapp: "WhatsApp",
   sms: "Text",
   voice: "Phone",
-  email: "Email"
+  email: "Email",
+  instagram: "Instagram"
 };
 var PERSON_CAME_FROM_WORDS = {
   whatsapp: REPLY_VIA.whatsapp,
   sms: REPLY_VIA.sms,
   email: REPLY_VIA.email,
+  instagram: REPLY_VIA.instagram,
   call: PERSON_CHANNEL_WORDS.voice,
   calendar: "Your calendar",
   manual: "Added by hand",
@@ -842,6 +845,7 @@ var WIRE_ROWS = [
   ["sms_only", `${PERSON_CHANNEL_WORDS.sms} only`],
   ["phone_only", `${PERSON_CHANNEL_WORDS.voice} only`],
   ["email_only", `${PERSON_CHANNEL_WORDS.email} only`],
+  ["instagram_only", `${PERSON_CHANNEL_WORDS.instagram} only`],
   ["several", "More than one way"],
   ["none", "None yet"]
 ];
@@ -2438,7 +2442,7 @@ function broadcastFailureWords(failure) {
 
 // src/conversations/thread-channel.ts
 function writtenChannelOf(channel) {
-  return channel === "sms" ? "sms" : channel === "email" ? "email" : "whatsapp";
+  return channel === "sms" || channel === "email" || channel === "instagram" ? channel : "whatsapp";
 }
 
 // src/conversations/message-words.ts

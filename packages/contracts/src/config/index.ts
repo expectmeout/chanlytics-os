@@ -10,6 +10,7 @@ export {
   guardSpokenTurns,
   waWindow,
   replyWindow,
+  windowClockOf,
   isLiveCall,
   hardLimitsWords,
   replyDelayMs,
@@ -145,6 +146,7 @@ export { allowedPrices, priceAllowance } from "./workspace-config/price-allowanc
 export type { AllowedPrice } from "./workspace-config/price-allowance";
 export { disclosureFacts, CONVERSATION_UNDER_WAY, CONVERSATION_GAP_MS } from "./workspace-config/assistant-disclosure";
 export type { LeadChannel } from "./workspace-config/offers-ask";
+export type { PromptWire } from "./workspace-config/compose";
 export {
   instructionsDraft,
   hasProfile,

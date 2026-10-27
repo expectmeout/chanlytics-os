@@ -27,7 +27,8 @@
  * the text; the owner reads it from there (lib/lines/line-codes.ts), so a code is neither lost nor stored here: not as a
  * message, and not as a kept delivery either (a code's delivery is the one the intake ledger never keeps).
  *
- * An accepted text then takes the same road a WhatsApp message takes, with the line as its carrier (carrierFor) --
+ * An accepted text is made into the one inbound shape (inboundFromSms, decision 0001 step 3), in the door and in its job
+ * alike, and takes the same road a WhatsApp message takes, with the line as its carrier (carrierFor) --
  * answered by the same brain under the same Autonomy rules, with the two things a text does differently: the first
  * reply carries SMS_FOOTER, and a line the carriers have not approved yet (sms_state is not 'active') holds every text
  * for a person instead of answering. The carrier's opt-out and the STOP words are read as the person's consent.
@@ -53,7 +54,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { text } from "../http.js";
 import { pg } from "../pg.js";
 import { keepDelivery, signatureHeaders } from "../intake/keep.js";
-import { oneTimeCodeOf, smsInboundFrom, smsAsWaMessage, type SmsInbound } from "../packages/channels.js";
+import { oneTimeCodeOf, smsInboundFrom, inboundFromSms, type SmsInbound } from "../packages/channels.js";
 import type { Database, IngestResult, Json } from "../packages/db.js";
 import { markSpoke, scheduleJobOnce, type ClaimedJob } from "../packages/jobs.js";
 import { smsSenderFor, type SmsSender } from "./sms.js";
@@ -130,10 +131,10 @@ export async function receiveInboundText(request: Request): Promise<Response> {
   }
 
   const { line, acct, routed, held } = verdict;
-  const carrier = carrierFor(inbound, held, held ? null : smsSenderFor(line, acct));
+  const carrier = carrierFor(held, held ? null : smsSenderFor(line, acct));
   L.info("sms_inbound", { held, opt: inbound.optOutType, media: inbound.numMedia });
   const receivedAt = Date.now();
-  const message = smsAsWaMessage(inbound, receivedAt);
+  const message = inboundFromSms(inbound, receivedAt);
   try {
     // Recorded, then answered by its job; answered here only when the database refused the job's kind.
     const ing = await recordInboundMessage(message, routed.tenantId, routed, carrier);
@@ -236,8 +237,8 @@ export async function answerText(db: Db, job: ClaimedJob): Promise<void> {
   if (routed.tenantId !== job.tenant_id)
     throw new Error("inbound_answer: the number texted is another workspace's now");
   const sender = held ? null : smsSenderFor(line, acct);
-  const carrier = carrierFor(inbound, held, sender && speakingOnce(db, job, sender));
+  const carrier = carrierFor(held, sender && speakingOnce(db, job, sender));
   const L = logger({ tenant_id: job.tenant_id, sid: inbound.messageSid, to_tail: phoneTail(inbound.to) });
   L.info("sms_answer_taken_up", { held });
-  await resumeInbound(smsAsWaMessage(inbound, receivedAt), routed.tenantId, routed, carrier);
+  await resumeInbound(inboundFromSms(inbound, receivedAt), routed.tenantId, routed, carrier);
 }

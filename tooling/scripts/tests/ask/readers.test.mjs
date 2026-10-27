@@ -3257,6 +3257,7 @@ test("the People lens carries the series as the database gave it and the book as
     sms_only: 0,
     phone_only: 0,
     email_only: 0,
+    instagram_only: 0,
     several: 1,
     none: 0,
   });

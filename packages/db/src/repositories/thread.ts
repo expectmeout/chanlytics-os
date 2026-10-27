@@ -290,7 +290,7 @@ const EMPTY_LEAD: LeadContext = {
 export async function readLeadContext(
   db: Db,
   tenantId: string,
-  phoneE164: string,
+  who: string | { contactId: string }, // the number they write from; on a wire with none (a DM), their own row
   historyLimit = 16,
   /** The message being answered, stored before they were read: not their history, nor their last touch (none on a call). */
   answering?: string,
@@ -306,7 +306,7 @@ export async function readLeadContext(
       "id, display_name, wa_profile_name, name_source, last_seen_at, consent, dnc, notes, proposal_url, email, marketing_consent, marketing_channels, offers_asked_at",
     )
     .eq("tenant_id", tenantId)
-    .eq("phone_e164", phoneE164)
+    .eq(typeof who === "string" ? "phone_e164" : "id", typeof who === "string" ? who : who.contactId)
     .maybeSingle();
   let contact: {
     id: string;
@@ -331,7 +331,7 @@ export async function readLeadContext(
         "id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, email, marketing_consent",
       )
       .eq("tenant_id", tenantId)
-      .eq("phone_e164", phoneE164)
+      .eq(typeof who === "string" ? "phone_e164" : "id", typeof who === "string" ? who : who.contactId)
       .maybeSingle();
     contact = unasked.data;
     cErr = unasked.error;

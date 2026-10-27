@@ -5,8 +5,7 @@
  */
 import { renderTemplate } from "../broadcasts/broadcasts";
 import { clipAtWord } from "../conversations/message-words";
-import { THREAD_CHANNEL_WORDS } from "../conversations/thread-channel";
-import type { ConsentChannel } from "../consent/consent-channels";
+import { THREAD_CHANNEL_WORDS, type WrittenChannel } from "../conversations/thread-channel";
 import { inboxSlots } from "../templates/inbox-templates";
 import { resolveParams } from "../templates/templates";
 import { PLAN_NOTE_MAX, type PersonReachDto } from "./person-draft";
@@ -164,7 +163,7 @@ export function approvedWordsFor(
 }
 
 /** A wire's short name, for a control that has no room for more. */
-export const writeWireName = (wire: ConsentChannel): string => THREAD_CHANNEL_WORDS[wire];
+export const writeWireName = (wire: WrittenChannel): string => THREAD_CHANNEL_WORDS[wire];
 
 /**
  * The note the receptionist reads when nobody wrote one: the day in its own words (a note has no end, so it says when it

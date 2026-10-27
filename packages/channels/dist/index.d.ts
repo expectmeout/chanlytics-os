@@ -4,7 +4,7 @@ import { ModelPurpose, ModelSpeed, ModelUsage, SystemOneQuestion, SystemOneAnswe
 export { EmailClaim, GREETING_DEFAULT, greetingFor } from '@chanlytics/contracts';
 
 /** Every provider a call leaves for: the breaker keeps one state per name. */
-declare const PROVIDER_NAMES: readonly ["meta", "twilio", "retell", "resend", "google", "apify", "expo", "anthropic", "typesafe", "elevenlabs", "microsoft"];
+declare const PROVIDER_NAMES: readonly ["meta", "twilio", "retell", "resend", "google", "apify", "expo", "anthropic", "typesafe", "elevenlabs", "microsoft", "instagram"];
 type Provider = (typeof PROVIDER_NAMES)[number];
 /** What a call to a provider came to (the header says each). */
 type SendOutcome = "ok" | "refused" | "retryable" | "unknown";
@@ -543,12 +543,20 @@ interface NormalizedInbound {
         sourceType: string | null;
     } | null;
 }
+/**
+ * A referral's id and kind as a message may carry them, by the rules above: the id trimmed and kept only when it can
+ * always be written, the kind only when it is a plain word. Every wire's adapter reads its own referral through this
+ * one rule (an Instagram DM's ad or link too, instagram/instagram-events.ts). Never throws.
+ */
+declare function storableReferral(rawId: unknown, rawKind: unknown): NormalizedInbound["referral"];
 declare function normalizeInbound(m: WaRawMessage, value: WaChangeValue): NormalizedInbound;
 /**
  * A WhatsApp message as the one inbound shape (inbound.ts, decision 0001): the normaliser's reading of it, on its wire,
  * by its person. The sender's id is their identity on WhatsApp, and the digits Meta sent it from their number.
  */
-declare function inboundFromWhatsapp(m: WaRawMessage, value: WaChangeValue): InboundMessage;
+declare function inboundFromWhatsapp(m: WaRawMessage, value: WaChangeValue): InboundMessage & {
+    channel: "whatsapp";
+};
 /**
  * What Meta says a message was billed as, on a `sent`, `delivered` or `read` receipt (K8): whether it is billable, the
  * model that priced it and its category and type. Meta sends no amount and no currency, so none is kept: the operator
@@ -575,6 +583,8 @@ interface SendResult {
     errorBody?: string;
     /** The provider's own error code when it gives one: a text's carrier says 21610 for a person who opted out (sms.ts smsRefusalOf). */
     code?: number | null;
+    /** Graph's error_subcode, where it gives one: Instagram's refusal of a DM outside its window is code 10, subcode 2018278. */
+    subcode?: number | null;
     /**
      * A person's email reply only (core emailSender): whether it left by the connected mailbox it was frozen with, or as
      * the workspace's hosted mailbox's request, and why not by its own when it could not.
@@ -642,23 +652,39 @@ declare function fetchMediaBytes(cfg: WaConfig, providerMediaId: string): Promis
 
 /**
  * One inbound customer message, whatever brought it (decision 0001): the shape each channel's adapter makes at its door
- * and the message path reads. A WhatsApp message (whatsapp.ts inboundFromWhatsapp) and a text (lines/sms.ts
- * inboundFromSms) are made into it today; an email and a Meta DM join it at the decision's steps 6 and 8.
+ * and the message path reads. A WhatsApp message (whatsapp.ts inboundFromWhatsapp), a text (lines/sms.ts
+ * inboundFromSms) and an Instagram DM (instagram/instagram-events.ts inboundFromInstagram) are made into it; email keeps
+ * its own intake (decision 0001, step 6, met by 0071).
  *
  * It is NormalizedInbound (whatsapp.ts) with the wire it came on, and the person as an identity rather than WhatsApp's
- * own two words for them: a wa_id, and the digits a message was sent from, mean nothing in a mailbox. The rest reads as
- * the normaliser reads it, field for field, so the message path can take either for the one release the doors take to
- * move onto this one (core inbound/context.ts).
+ * own two words for them: a wa_id, and the digits a message was sent from, mean nothing in a mailbox or a DM. The rest
+ * reads as the normaliser reads it, field for field.
  */
 
+/**
+ * An attachment a wire hands over as a link to its bytes rather than an id to ask for them (an Instagram DM's photo, on
+ * Meta's CDN): fetched by the link, which expires, so at ingest as WhatsApp's are. Otherwise as WaMediaRef.
+ */
+interface LinkedMediaRef {
+    url: string;
+    mime_type: string | null;
+    caption: string | null;
+    filename: string | null;
+    fetch_state: "pending" | "stored" | "failed";
+    storage_path?: string;
+}
+/** An attachment as a message carries it: by the provider's id (WhatsApp), or by a link to it (an Instagram DM). */
+type MediaRef = WaMediaRef | LinkedMediaRef;
+/** Whether an attachment is reached by its link rather than asked for by the provider's id. */
+declare const isLinkedMedia: (m: MediaRef) => m is LinkedMediaRef;
 interface InboundMessage {
     /** The wire it came on: every channel a person writes on, which is every channel kind but a call. */
     channel: Exclude<ChannelKind, "voice">;
     /** The provider's id for this delivery: the replay gate. */
     externalId: string;
     /**
-     * How this person is known here: their id on the wire (a wa_id, a number's digits), their number in E.164 when the wire
-     * has one, their address when it is a mailbox.
+     * How this person is known here: their id on the wire (a wa_id, a number's digits, an Instagram-scoped id), their
+     * number in E.164 when the wire has one, their address when it is a mailbox.
      */
     identity: {
         externalId: string;
@@ -668,22 +694,256 @@ interface InboundMessage {
     profileName: string | null;
     /** Text or attachment: what messages.type stores. */
     type: NormalizedInbound["type"];
-    /** What KIND arrived, which is not the same question (whatsapp.ts NormalizedInbound.kind). */
-    kind: NormalizedInbound["kind"];
+    /**
+     * What KIND arrived, which is not the same question (whatsapp.ts NormalizedInbound.kind). A `share` is a post or a reel
+     * a person passed on in a DM: legible to a person, with its link in the words, and not the receptionist's to answer.
+     */
+    kind: NormalizedInbound["kind"] | "share";
     /** The provider's own word for it, for the words an owner reads ("Customer sent a sticker message"). */
     rawType: string;
     body: string | null;
     channelTsIso: string | null;
-    media: WaMediaRef | null;
+    media: MediaRef | null;
     /** What the person said about being written to: the wire's own words for stop and start, and its carrier's verdict. */
     consent: {
         optOut: boolean;
         optIn: boolean;
         optInMarketing: boolean;
     };
-    /** The ad or post this person clicked to write, when the wire says (K3). */
+    /** The ad, post or link this person came from, when the wire says (K3). */
     referral: NormalizedInbound["referral"];
 }
+
+/** The header Meta signs a delivery under. */
+declare const META_SIGNATURE_HEADER = "x-hub-signature-256";
+/** Whether `header` is Meta's signature of `raw` under one of `secrets`; an unset or blank secret proves nothing. */
+declare function metaSignatureValid(raw: string, header: string | null | undefined, secrets: ReadonlyArray<string | null | undefined>): boolean;
+
+/** A referral as an Instagram message carries it: a click-to-Instagram ad's id, or an ig.me link's `ref`. */
+interface IgReferral {
+    source?: string;
+    type?: string;
+    ad_id?: string;
+    ref?: string;
+}
+/** One `messaging[]` item, as Meta documents it; every field optional, as a payload read defensively is. */
+interface IgMessaging {
+    sender?: {
+        id?: string;
+    };
+    recipient?: {
+        id?: string;
+    };
+    /** Epoch milliseconds. */
+    timestamp?: number;
+    message?: {
+        mid?: string;
+        text?: string;
+        is_echo?: boolean;
+        is_deleted?: boolean;
+        is_unsupported?: boolean;
+        attachments?: Array<{
+            type?: string;
+            payload?: {
+                url?: string;
+                title?: string;
+            };
+        }>;
+        reply_to?: {
+            mid?: string;
+            story?: {
+                id?: string;
+                url?: string;
+            };
+        };
+        quick_reply?: {
+            payload?: string;
+        };
+        referral?: IgReferral;
+    };
+    postback?: {
+        mid?: string;
+        title?: string;
+        payload?: string;
+    };
+    reaction?: {
+        mid?: string;
+        action?: string;
+        reaction?: string;
+        emoji?: string;
+    };
+    read?: {
+        mid?: string;
+    };
+    message_edit?: {
+        mid?: string;
+        text?: string;
+        num_edit?: number;
+    };
+    referral?: IgReferral;
+}
+/**
+ * What one item of a delivery is, for the door:
+ *  - message: a person wrote (or tapped): answered through the one shape.
+ *  - echo: the business's own message on the thread, from the Instagram app or from us.
+ *  - unsent: the person took a message back; its words are not kept.
+ *  - ignored: asks nothing of anyone (a reaction, a read, an edit), or is not a message at all.
+ */
+type InstagramEvent = {
+    kind: "message";
+    account: string;
+    from: string;
+    mid: string;
+    item: IgMessaging;
+} | {
+    kind: "echo";
+    account: string;
+    to: string;
+    mid: string;
+    text: string | null;
+    atIso: string | null;
+} | {
+    kind: "unsent";
+    account: string;
+    from: string;
+    mid: string;
+} | {
+    kind: "ignored";
+    account: string;
+    what: "reaction" | "read" | "edit" | "unknown";
+};
+/** Every item of an Instagram delivery, in the order Meta sent them; anything that is not its envelope is none. */
+declare function instagramEventsOf(body: unknown): InstagramEvent[];
+/**
+ * A person's DM as the one inbound shape: the item's `mid` is the replay gate, the sender's IGSID their identity (no
+ * number, no address), and what they called themselves is the door's to hand in (Meta's webhook carries no name; the
+ * door reads it from the person's profile). Typed words, a quick reply's words and a tapped icebreaker's title are words,
+ * answered; an attachment is what attachmentOf says. A stop in words stops, START is the way back (both as WhatsApp's
+ * reading, stop-request.ts); a DM is never a yes to offers, which go by WhatsApp alone. Null for an item with no id or
+ * no sender: there is no replay gate, and nobody to answer.
+ */
+declare function inboundFromInstagram(item: IgMessaging, profileName: string | null): (InboundMessage & {
+    channel: "instagram";
+}) | null;
+
+/** The longest text one DM may hold, in UTF-8 bytes. */
+declare const INSTAGRAM_DM_MAX_BYTES = 1000;
+/** One request, as the wire will make it. */
+interface InstagramRequest {
+    url: string;
+    method: "GET" | "POST";
+    headers?: Record<string, string>;
+    body?: string;
+}
+/** The app as the way in knows it: its Instagram app id, its secret, and the address Meta sends the person back to. */
+interface InstagramApp {
+    clientId: string;
+    clientSecret: string;
+    redirectUri: string;
+}
+/** A business's account as a send needs it: its Instagram account id (`/me`'s user_id), and its token. */
+interface InstagramConfig {
+    accountId: string;
+    accessToken: string;
+}
+/** Instagram's consent screen, for the business's professional account, with the signed state that brings it back. */
+declare function instagramAuthorizeUrl(app: Pick<InstagramApp, "clientId" | "redirectUri">, state: string): string;
+/** The code as Meta hands it back: it may end in `#_`, which is not part of it. */
+declare const instagramCodeOf: (raw: string | null | undefined) => string;
+/** The code (valid for an hour, once) traded for a short-lived token. */
+declare function instagramCodeRequest(app: InstagramApp, code: string): InstagramRequest;
+/** A short-lived token traded for a long-lived one (60 days). */
+declare function instagramLongLivedRequest(clientSecret: string, shortToken: string): InstagramRequest;
+/** A long-lived token refreshed for another 60 days: at least a day old, and not yet expired. */
+declare function instagramRefreshRequest(token: string): InstagramRequest;
+/** The account the token speaks for: its Instagram account id (the webhooks' `entry.id`), its handle and its name. */
+declare function instagramMeRequest(token: string): InstagramRequest;
+/** The account's DMs sent to this app's webhook. */
+declare function instagramSubscribeRequest(token: string, accountId: string): InstagramRequest;
+/** Graph's own error, when it gave one: its code, subcode and words. */
+interface InstagramGraphError {
+    code: number | null;
+    subcode: number | null;
+    message: string;
+}
+declare function instagramErrorOf(json: unknown): InstagramGraphError | null;
+/** What the code exchange gave: the short token, the account's app-scoped id, and what it was granted. */
+interface InstagramCodeGrant {
+    accessToken: string;
+    userId: string;
+    permissions: string[];
+}
+/** The code exchange's answer (Meta documents it as `data[0]`, and has answered it flat); throws with Meta's words when none. */
+declare function parseInstagramCodeGrant(json: unknown): InstagramCodeGrant;
+/** A long-lived token's answer, from the exchange or a refresh; throws with Meta's words when none. */
+declare function parseInstagramToken(json: unknown): {
+    accessToken: string;
+    expiresInS: number;
+};
+/** The account `/me` names: its Instagram account id is what its webhooks are addressed to. Throws when it names none. */
+declare function parseInstagramMe(json: unknown): {
+    accountId: string;
+    username: string | null;
+    name: string | null;
+};
+/** What a person is called, from their profile: their name, else their handle, else nothing said. */
+declare function instagramNameOf(json: unknown): string | null;
+/** What a call to Instagram's Graph came to: providerFetch's answer, and its JSON as an object. */
+interface InstagramAnswer {
+    outcome: SendOutcome;
+    status: number;
+    json: Record<string, unknown> | null;
+    error: string | null;
+}
+/** The test's network, or the real one. */
+interface InstagramDeps {
+    fetch?: typeof fetch;
+    now?: () => number;
+}
+/** One request to Instagram, bounded and never thrown. A read may be asked twice; a write once. */
+declare function instagramCall(req: InstagramRequest, opts?: {
+    timeoutMs?: number;
+    send?: boolean;
+}, deps?: InstagramDeps): Promise<InstagramAnswer>;
+/** A person's name as their profile has it, or null when it could not be read (never a reason to hold a message). */
+declare function readInstagramName(token: string, igsid: string, deps?: InstagramDeps): Promise<string | null>;
+/** Whether Instagram refused a send as too many, too fast. */
+declare function instagramThrottled(r: {
+    ok: boolean;
+    status: number;
+    code?: number | null;
+}): boolean;
+/**
+ * What Instagram's refusal of a send was, named at the wire so a caller says it in words:
+ *  - window_closed: the person last wrote more than 24 hours ago (code 10, subcode 2018278).
+ *  - not_reachable: the person cannot be written to now: blocked us, left, or is not found (551; 100 with 2018001).
+ *  - token: the business's token is no longer good (190): reconnect.
+ * Null for any other failure, and for a send that went.
+ */
+declare function instagramRefusalOf(r: Pick<SendResult, "ok" | "code" | "subcode">): "window_closed" | "not_reachable" | "token" | null;
+/**
+ * A reply as the DMs that carry it: one when it fits, else parts of at most `maxBytes` UTF-8 bytes, each ended at the
+ * latest paragraph, sentence or word in its second half (else at the room's end), and never inside a character as a
+ * person sees one (a grapheme: an accented letter, a flag, a family emoji). Blank parts are not sent.
+ */
+declare function instagramDmChunks(words: string, maxBytes?: number): string[];
+/**
+ * A reply sent as one DM or several, in order (instagramDmChunks), from the business's account to the person's IGSID.
+ * Its id is the first DM's. A first part that fails is the send's failure as Instagram said it; a later one is a reply
+ * the person has the start of: failed, outcome `unknown`, its words saying how many parts left. No part starts once
+ * INSTAGRAM_SEND_DEADLINE_MS is spent.
+ */
+declare function sendInstagramText(cfg: InstagramConfig, to: string, words: string, deps?: InstagramDeps): Promise<SendResult>;
+/**
+ * An attachment's bytes by its link (a DM's photo or voice note: LinkedMediaRef), or null: a link that is not Meta's CDN's,
+ * an answer that is not a 2xx, a body past LINKED_MEDIA_MAX_BYTES (refused from its length up front, or cut off), or any
+ * fault. `fetchImpl` is the guarded public fetch (public-fetch.ts), so a link that resolves inside our network is never
+ * read. Never throws: the caller stores a 'failed' fetch_state, and the thread still reaches a person.
+ */
+declare function fetchLinkedMedia(url: string, fetchImpl: typeof fetch): Promise<{
+    bytes: ArrayBuffer;
+    mime: string | null;
+} | null>;
 
 /**
  * Retell voice adapter (Blueprint P2) — the second channel, mirroring the
@@ -1887,9 +2147,8 @@ declare function runLineSaga(start: LineRow, ports: LinePorts): Promise<SagaResu
 
 /**
  * SMS on a Chanlytics line, the pure parts: Twilio's inbound webhook read
- * into one shape, that shape handed to the WhatsApp handler as the message
- * it already knows how to answer, or made into the one inbound shape without
- * it (inboundFromSms, decision 0001), the signature every inbound request must
+ * into one shape and made into the one inbound shape the receptionist reads
+ * (inboundFromSms, decision 0001), the signature every inbound request must
  * carry, the footer the first reply carries, and the words a held text
  * shows. Nothing here touches the network; the edge supplies fetch and the
  * vault, the tests supply fixtures.
@@ -1918,21 +2177,16 @@ interface SmsInbound {
 /** The form fields of one inbound webhook as one object; null when it is not a message. */
 declare function smsInboundFrom(form: Record<string, string>): SmsInbound | null;
 /**
- * The inbound text as the WhatsApp handler's message. Words are words; a
- * picture with words is answered for its words and the picture is noted; a
- * picture alone is "unsupported", which the handler acknowledges as it does
- * a sticker. The sender's digits are the thread key, the same form a
- * WhatsApp id takes, so one person is one thread across both channels.
+ * The inbound text as the one inbound shape (inbound.ts, decision 0001), read from Twilio's fields. Words are a text,
+ * and a picture with words is answered for its words with the picture noted; a picture alone, or nothing, is
+ * "unsupported", which the receptionist acknowledges as it does a sticker. The sender's digits are their id, the same
+ * form a WhatsApp id takes, so one person is one thread across both wires. It came the second it reached us. A stop is
+ * the carriers' own words for a line, which hold every word and sentence the normaliser reads as one and more
+ * (stop-request.ts), or the carrier's verdict, which outranks the words.
  */
-declare function smsAsWaMessage(s: SmsInbound, nowMs?: number): WaRawMessage;
-/**
- * The inbound text as the one inbound shape (inbound.ts, decision 0001), read from Twilio's fields with no WhatsApp
- * message on the way, and exactly what that road made of it (smsAsWaMessage, the normaliser, the carrier's verdict).
- * Words are a text; a picture alone, or nothing, is "unsupported", which the receptionist acknowledges as it does a
- * sticker. It came the second it reached us. A stop is the carriers' own words for a line, which hold every word and
- * sentence the normaliser reads as one and more (stop-request.ts), or the carrier's verdict, which outranks the words.
- */
-declare function inboundFromSms(s: SmsInbound, nowMs?: number): InboundMessage;
+declare function inboundFromSms(s: SmsInbound, nowMs?: number): InboundMessage & {
+    channel: "sms";
+};
 /**
  * What the carrier already decided about this text, and what the carriers'
  * own words say.
@@ -1955,8 +2209,6 @@ declare function carrierConsent(s: Pick<SmsInbound, "optOutType">): CarrierConse
  */
 declare function smsKeywordConsent(body: string | null | undefined): CarrierConsent | null;
 declare function mergeConsent(a: CarrierConsent | null, b: CarrierConsent | null): CarrierConsent | null;
-/** The normalized message with the carrier's verdict added to its own. Either source is enough. */
-declare function withCarrierConsent(n: NormalizedInbound, c: CarrierConsent | null): NormalizedInbound;
 /**
  * Whether a text is a one-time code some service sent (Meta's, when an owner connects the line's number to WhatsApp), and
  * which. The receptionist never answers one, no person or message is made of it, and its delivery is not kept
@@ -4359,4 +4611,4 @@ interface LeadJudge {
 }
 declare function leadJudge(client: LeadJudgeClient, model: string, fallbacks: boolean): LeadJudge;
 
-export { type A2PAnswer, type A2PPorts, type A2PRequest, type A2PResult, type A2PState, type A2PStep, A2P_POLICIES, A2P_STEPS, APIFY_BASE, APIFY_RUN_END_EVENTS, APIFY_TIMEOUT_MS, type AgentPlan, type ApifyClient, ApifyRefused, ApifyRetryable, type ApifyRun, type AvailableNumber, BOT_USER_AGENT, type BounceClass, type BrandType, type BusinessRecord, CALLER_UNKNOWN, CALL_ANALYSIS_FIELDS, type CalendarEvent, type CalendarIds, type CampaignError, type CampaignFacts, type CarrierConsent, type CompanyJudgeAnswer, type ConversationMint, DKIM_SELECTORS, type DeliveryReport, type DryCall, type DryProvider, EDGE_TOKEN_TTL_MS, ELEVENLABS_SIGNATURE_HEADER, ELEVENLABS_WEBHOOK_TOLERANCE_S, EMPTY_A2P_STATE, type EdgeClaims, type EdgeTokenVerdict, type ElevenLabsConfig, type EmailCampaign, type EmailIdentity, type EmailLeftAsWhy, type EmailParent, type EmailReceipt, type EmailReceiptEffect, type EmailReceiptType, type EmailReceivedEvent, type EmailRequest, type EmailRequestInput, type EmailSendsAs, type EmailSuppressionReason, type EventsPage, FACTS_UNAVAILABLE, FRESH_SLACK_MS, type FoundSent, GBP_ACCOUNTS_URL, GBP_INFO_BASE, GBP_LOCATIONS_READ_MASK, GBP_REPLY_MAX, GBP_REVIEWS_FIRST_PAGES, GBP_REVIEWS_MAX_PAGES, GBP_REVIEWS_PAGE, GBP_V4_BASE, GOOGLE_AUTH_URL, GOOGLE_REVOKE_URL, GOOGLE_TOKEN_URL, type GbpAccount, type GbpLocation, type GbpLocationDetails, type GbpPeriod, type GbpReview, type GbpReviewsPage, type GmailHistory, type GmailSent, type GraphDelta, type GraphSent, HANDOFF_VAR, type InboundMessage, type KnownPerson, type KnownReview, LEAD_JUDGE_DEFAULT_MODEL, LEAD_JUDGE_FALLBACK_BETA, LEAD_JUDGE_MAX_TOKENS, LINE_COSTS, LINE_STEPS, LOW_VOLUME_USECASE, type LeadJudge, type LeadJudgeAnswer, type LeadJudgeClient, type LinePorts, type LineProvider, type LineProviderName, type LineRow, type LineSecrets, type LineStep, type LineTypeAnswer, type LineVoiceState, type ListCallsPage, type ListedMail, type ListingBefore, type ListingCheckPlan, type LiveAgentSettings, type LiveCallControl, type LiveVoiceLlm, type LogFields, type LogLevel, type Logger, MAILBOX_SCOPES, MESSAGING, type MailCapability, type MailDomainFacts, type MailPage, type MailWindow, type MailboxEmail, type MailboxGrant, type MailboxOAuthClient, type MailboxReach, type MailboxRequest, type MailboxSendInput, type MailboxSendResult, type ModelAsk, type ModelBlock, type ModelDeps, type ModelMessage, type ModelOutcome, type ModelReply, type ModelStreamReply, type NormalizedCall, type NormalizedInbound, NotPublicError, type OAuthClient, type OAuthState, PLACES_BASE, PLACES_DETAILS_MASK, PLACES_SEARCH_LIMIT, PLACES_SEARCH_MASK, PLACES_TIMEOUT_MS, PLACE_ID, PROFILE_SCOPES, type PeoplePage, type PlaceCandidate, type PlaceDetails, type PlaceReview, PlacesError, type PlacesHttp, type PlacesRequest, type PlatformRecipient, type ProfileBefore, type ProfileSyncPlan, type Provider, type ProviderAccount, type ProviderCall, type ProviderReply, type ProvisionAction, type ProvisionSecrets, type ProvisionStep, type ProvisionStepId, type PublicFetchDeps, type PushTokenRefusal, REQUEST_ID_HEADER, RETELL_ORIGINATION, REVIEW_BELL_MAX, type ReadVerdict, type ReceivedEmail, type ReceivedText, type RecordingFetch, type RequestTiming, type ResendAnswer, type ResendConfig, type ResendLimit, type Resolve, type Resolved, type RetellAgentConfig, type RetellCall, type RetellCallRead, type RetellConfig, type RetellLlmConfig, type RetellTool, type RetellTranscriptTurn, type RetellWrite, type ReviewBell, SEND_DEADLINE_MS, SEND_MIN_MS, SMS_FOOTER, SMS_HELD_DETAILS, SMS_HELD_REASON, SMS_MAX_CHARS, SMS_OPTED_OUT_CODE, SPF_INCLUDES, STATE_TTL_MS, SYSTEM_ONE_URL, type SagaResult, type SendEmailOptions, type SendOutcome, type SendResult, type SmsInbound, type SmsRegistrationState, type SmsSendResult, type SmsStatus, type SpeechStream, type SvixHeaders, type SystemOneAsk, type SystemOneReply, TRUSTHUB, TWILIO_TIMEOUT_MS, type TokenGrant, type TwilioAnswer, TwilioError, type TwilioHttp, type TxtAnswer, UNSUBSCRIBE_PATH, type UnsubscribeClaims, VOICE_AGENT_DEFAULTS, VOICE_LLM_DEFAULTS, VOICE_NUMBER_DEFAULTS, VOICE_SHELL_BEGIN, VOICE_SHELL_PROMPT, VOICE_WEBHOOK_EVENTS, VOICE_WEBHOOK_TIMEOUT_MS, type VoiceConvergencePlan, type VoiceProvisionPlan, type VoiceProvisionRequest, type VoiceProvisionState, type VoiceShellTarget, WA_HISTORY_NOT_SHARED, WEBHOOK_TOLERANCE_S, WHATSAPP_SEND_TIMEOUT_MS, type WaChangeValue, type WaConfig, type WaHistoryChunk, type WaHistoryOf, type WaHistoryRead, type WaMediaRef, type WaPricing, type WaRawMessage, type WaStateSyncItem, type WaSyncedContact, type WebCallMade, a2pProfileEndUserRequest, a2pProfileRequest, accountsRequest, addressOf, addressRequest, agentSettingsDrift, answerObject, apifyClient, askModel, askSystemOne, assignRequest, authorizeUrl, availabilityUrl, b64url, brandNameOf, brandRequest, brandTypeFor, breakerOf, breakerStates, buildEmailRequest, buildMime, businessAttributes, businessEndUserRequest, calendarIcs, callSummaryLine, campaignRequest, campaignsIdentity, carrierConsent, chooseLineProvider, classifyReceived, cleanReply, clientStateMatches, connectedIdentity, contactsSyncedOf, createAgent, createAgentVersion, createPhoneNumber, createRetellLlm, createWebCall, customerProfileRequest, deleteCampaignRequest, deleteConversation, deletePhoneNumber, deleteReplyRequest, deliveryReportOf, desiredVoiceShell, dkimOf, dmarcOf, dryProvider, edgeBodyMatches, elevenLabsWebhookSignature, emailHtml, emailPlainText, emailReceiptEffect, emailReceiptFrom, emailReceivedEventFrom, encodeForm, errField, evaluateRequest, evaluateTrustProductRequest, fetchMailDomains, fetchMediaBytes, fetchReceivedEmail, fetchRecording, fetchTwilio, filedAsBulk, filedUnderUpdates, formatRejected, getAgent, getAgentRaw, getCall, getPhoneNumber, getPlace, getRetellLlm, gmailDayUsed, gmailEmailOf, gmailFindSent, gmailHistory, gmailListSince, gmailMessage, gmailNoMailbox, gmailProfile, gmailPushOf, gmailReadVerdict, gmailReports, gmailSend, gmailSentIds, gmailSignedOut, gmailStop, gmailThreadOf, gmailWatch, googleCalendarIds, googleContacts, googleEvents, grantHasScope, grantHolds, grantScopes, grantScopesMissing, graphCalendarIds, graphContacts, graphDayUsed, graphDeleteMessage, graphDelta, graphEmailOf, graphEvents, graphFindSent, graphInbox, graphJunkSince, graphListSince, graphMe, graphMessage, graphNoMailbox, graphNotificationsOf, graphReadVerdict, graphRenew, graphSend, graphSignedOut, graphSubscribe, graphThrottled, graphUnsubscribe, hostedAddress, hostedIdentity, idTokenClaims, imageBytes, importPhoneNumber, inboundFromSms, inboundFromWhatsapp, isAreaCode, isBrandNotReady, isEmailRequest, isPublicAddress, isValidSipPassword, keywordsFor, leadJudge, lineCodesFrom, listAccounts, listCalls, listLocations, listReviews, liveTurns, locationsRequest, logger, lookupLineType, mailDomainsFrom, mailboxAdminConsentUrl, mailboxAuthorizeUrl, mailboxHeader, mailboxMessageId, mailboxPkceChallenge, mailboxPkceVerifier, mailboxRefreshRequest, mailboxRevokeRequest, mailboxTokenRequest, mergeConsent, messageIdHeader, messageIdsIn, mintConversationToken, newDraftNote, newNonce, nextA2PStep, nextLineStep, normalizeCall, normalizeInbound, noteTenant, noteTiming, noteTouch, oneLine, oneTimeCodeOf, pageText, parseAccounts, parseLocations, parseMailboxGrant, parsePlaceDetails, parsePlacesSearch, parseReviewsPage, parseTokenResponse, parseTranscriptText, placesDetailsRequest, placesFetch, placesSearchRequest, planAgentSettings, planListingCheck, planProfileSync, planVoiceConvergence, planVoiceProvision, platformRecipient, providerFetch, publicFetch, publicFetcher, publicLookup, publishAgentVersion, readLocation, readLocationDetails, receivedEmailFrom, referencesFor, refusalWords, registrationVerdict, replyRequest, replyRouteAddress, replySubject, replyToReview, representativeAttributes, representativeEndUserRequest, requestId, requestIdOf, requestIdShaped, requestLeavesAs, requestTenant, requestTimings, requestTouches, resendLimitOf, resendWebhookSignature, resetBreakers, resetFastHolds, retellImportBody, retellLocalesFor, reviewBells, reviewIdOf, reviewParent, reviewsRequest, revokeRequest, rowIdOfMessageId, runA2PSaga, runLineSaga, sameSignature, searchPlaces, sendEmail, sendFromMailbox, sendTemplate, sendText, senderAuthenticated, sendsAs, sendsAsCampaigns, sendsAsConnected, setPublicFetch, sharedHistoryOf, signEdgeToken, signState, signUnsubscribeToken, sipPassword, sipUsername, smsAsWaMessage, smsBody, smsInboundFrom, smsInboundUrl, smsKeywordConsent, smsRefusalOf, smsStateFor, smsStatusFrom, smsStatusToRow, smsStatusUrl, soleProprietorEndUserRequest, soleProprietorProfileRequest, speakText, spfNamesProvider, spfRecordsOf, spfTermsOf, starRatingNumber, starterAttributes, starterEndUserRequest, starterProfileRequest, stopCall, streamModel, stripKey, subaccountName, submitProfileRequest, submitTrustProductRequest, supportingDocumentRequest, tokenExchangeRequest, tokenRefreshRequest, trunkDomain, trustProductAssignRequest, twilioProvider, twilioRequest, twilioSignature, twilioSignedString, twilioUrls, unb64url, unpublishedLatestNote, unsubscribeUrl, updateAgent, updateCampaignRequest, updateEndUserRequest, updateLiveCall, updatePhoneNumber, verifyEdgeToken, verifyElevenLabsWebhook, verifyGooglePushToken, verifyResendWebhook, verifyRetellSignature, verifyState, verifyTwilioSignature, verifyUnsubscribeToken, voiceAgentCreateBody, voiceEndpoints, voiceLlmCreateBody, voiceNumberBindBody, voiceNumberBinding, voiceNumberCreateBody, voiceShellDrift, voiceShellTools, waPricingOf, waStoppedMarketing, webCallBody, webCallMadeOf, withCarrierConsent, withKey, withRequestId };
+export { type A2PAnswer, type A2PPorts, type A2PRequest, type A2PResult, type A2PState, type A2PStep, A2P_POLICIES, A2P_STEPS, APIFY_BASE, APIFY_RUN_END_EVENTS, APIFY_TIMEOUT_MS, type AgentPlan, type ApifyClient, ApifyRefused, ApifyRetryable, type ApifyRun, type AvailableNumber, BOT_USER_AGENT, type BounceClass, type BrandType, type BusinessRecord, CALLER_UNKNOWN, CALL_ANALYSIS_FIELDS, type CalendarEvent, type CalendarIds, type CampaignError, type CampaignFacts, type CarrierConsent, type CompanyJudgeAnswer, type ConversationMint, DKIM_SELECTORS, type DeliveryReport, type DryCall, type DryProvider, EDGE_TOKEN_TTL_MS, ELEVENLABS_SIGNATURE_HEADER, ELEVENLABS_WEBHOOK_TOLERANCE_S, EMPTY_A2P_STATE, type EdgeClaims, type EdgeTokenVerdict, type ElevenLabsConfig, type EmailCampaign, type EmailIdentity, type EmailLeftAsWhy, type EmailParent, type EmailReceipt, type EmailReceiptEffect, type EmailReceiptType, type EmailReceivedEvent, type EmailRequest, type EmailRequestInput, type EmailSendsAs, type EmailSuppressionReason, type EventsPage, FACTS_UNAVAILABLE, FRESH_SLACK_MS, type FoundSent, GBP_ACCOUNTS_URL, GBP_INFO_BASE, GBP_LOCATIONS_READ_MASK, GBP_REPLY_MAX, GBP_REVIEWS_FIRST_PAGES, GBP_REVIEWS_MAX_PAGES, GBP_REVIEWS_PAGE, GBP_V4_BASE, GOOGLE_AUTH_URL, GOOGLE_REVOKE_URL, GOOGLE_TOKEN_URL, type GbpAccount, type GbpLocation, type GbpLocationDetails, type GbpPeriod, type GbpReview, type GbpReviewsPage, type GmailHistory, type GmailSent, type GraphDelta, type GraphSent, HANDOFF_VAR, INSTAGRAM_DM_MAX_BYTES, type IgMessaging, type IgReferral, type InboundMessage, type InstagramAnswer, type InstagramApp, type InstagramCodeGrant, type InstagramConfig, type InstagramDeps, type InstagramEvent, type InstagramGraphError, type InstagramRequest, type KnownPerson, type KnownReview, LEAD_JUDGE_DEFAULT_MODEL, LEAD_JUDGE_FALLBACK_BETA, LEAD_JUDGE_MAX_TOKENS, LINE_COSTS, LINE_STEPS, LOW_VOLUME_USECASE, type LeadJudge, type LeadJudgeAnswer, type LeadJudgeClient, type LinePorts, type LineProvider, type LineProviderName, type LineRow, type LineSecrets, type LineStep, type LineTypeAnswer, type LineVoiceState, type LinkedMediaRef, type ListCallsPage, type ListedMail, type ListingBefore, type ListingCheckPlan, type LiveAgentSettings, type LiveCallControl, type LiveVoiceLlm, type LogFields, type LogLevel, type Logger, MAILBOX_SCOPES, MESSAGING, META_SIGNATURE_HEADER, type MailCapability, type MailDomainFacts, type MailPage, type MailWindow, type MailboxEmail, type MailboxGrant, type MailboxOAuthClient, type MailboxReach, type MailboxRequest, type MailboxSendInput, type MailboxSendResult, type MediaRef, type ModelAsk, type ModelBlock, type ModelDeps, type ModelMessage, type ModelOutcome, type ModelReply, type ModelStreamReply, type NormalizedCall, type NormalizedInbound, NotPublicError, type OAuthClient, type OAuthState, PLACES_BASE, PLACES_DETAILS_MASK, PLACES_SEARCH_LIMIT, PLACES_SEARCH_MASK, PLACES_TIMEOUT_MS, PLACE_ID, PROFILE_SCOPES, type PeoplePage, type PlaceCandidate, type PlaceDetails, type PlaceReview, PlacesError, type PlacesHttp, type PlacesRequest, type PlatformRecipient, type ProfileBefore, type ProfileSyncPlan, type Provider, type ProviderAccount, type ProviderCall, type ProviderReply, type ProvisionAction, type ProvisionSecrets, type ProvisionStep, type ProvisionStepId, type PublicFetchDeps, type PushTokenRefusal, REQUEST_ID_HEADER, RETELL_ORIGINATION, REVIEW_BELL_MAX, type ReadVerdict, type ReceivedEmail, type ReceivedText, type RecordingFetch, type RequestTiming, type ResendAnswer, type ResendConfig, type ResendLimit, type Resolve, type Resolved, type RetellAgentConfig, type RetellCall, type RetellCallRead, type RetellConfig, type RetellLlmConfig, type RetellTool, type RetellTranscriptTurn, type RetellWrite, type ReviewBell, SEND_DEADLINE_MS, SEND_MIN_MS, SMS_FOOTER, SMS_HELD_DETAILS, SMS_HELD_REASON, SMS_MAX_CHARS, SMS_OPTED_OUT_CODE, SPF_INCLUDES, STATE_TTL_MS, SYSTEM_ONE_URL, type SagaResult, type SendEmailOptions, type SendOutcome, type SendResult, type SmsInbound, type SmsRegistrationState, type SmsSendResult, type SmsStatus, type SpeechStream, type SvixHeaders, type SystemOneAsk, type SystemOneReply, TRUSTHUB, TWILIO_TIMEOUT_MS, type TokenGrant, type TwilioAnswer, TwilioError, type TwilioHttp, type TxtAnswer, UNSUBSCRIBE_PATH, type UnsubscribeClaims, VOICE_AGENT_DEFAULTS, VOICE_LLM_DEFAULTS, VOICE_NUMBER_DEFAULTS, VOICE_SHELL_BEGIN, VOICE_SHELL_PROMPT, VOICE_WEBHOOK_EVENTS, VOICE_WEBHOOK_TIMEOUT_MS, type VoiceConvergencePlan, type VoiceProvisionPlan, type VoiceProvisionRequest, type VoiceProvisionState, type VoiceShellTarget, WA_HISTORY_NOT_SHARED, WEBHOOK_TOLERANCE_S, WHATSAPP_SEND_TIMEOUT_MS, type WaChangeValue, type WaConfig, type WaHistoryChunk, type WaHistoryOf, type WaHistoryRead, type WaMediaRef, type WaPricing, type WaRawMessage, type WaStateSyncItem, type WaSyncedContact, type WebCallMade, a2pProfileEndUserRequest, a2pProfileRequest, accountsRequest, addressOf, addressRequest, agentSettingsDrift, answerObject, apifyClient, askModel, askSystemOne, assignRequest, authorizeUrl, availabilityUrl, b64url, brandNameOf, brandRequest, brandTypeFor, breakerOf, breakerStates, buildEmailRequest, buildMime, businessAttributes, businessEndUserRequest, calendarIcs, callSummaryLine, campaignRequest, campaignsIdentity, carrierConsent, chooseLineProvider, classifyReceived, cleanReply, clientStateMatches, connectedIdentity, contactsSyncedOf, createAgent, createAgentVersion, createPhoneNumber, createRetellLlm, createWebCall, customerProfileRequest, deleteCampaignRequest, deleteConversation, deletePhoneNumber, deleteReplyRequest, deliveryReportOf, desiredVoiceShell, dkimOf, dmarcOf, dryProvider, edgeBodyMatches, elevenLabsWebhookSignature, emailHtml, emailPlainText, emailReceiptEffect, emailReceiptFrom, emailReceivedEventFrom, encodeForm, errField, evaluateRequest, evaluateTrustProductRequest, fetchLinkedMedia, fetchMailDomains, fetchMediaBytes, fetchReceivedEmail, fetchRecording, fetchTwilio, filedAsBulk, filedUnderUpdates, formatRejected, getAgent, getAgentRaw, getCall, getPhoneNumber, getPlace, getRetellLlm, gmailDayUsed, gmailEmailOf, gmailFindSent, gmailHistory, gmailListSince, gmailMessage, gmailNoMailbox, gmailProfile, gmailPushOf, gmailReadVerdict, gmailReports, gmailSend, gmailSentIds, gmailSignedOut, gmailStop, gmailThreadOf, gmailWatch, googleCalendarIds, googleContacts, googleEvents, grantHasScope, grantHolds, grantScopes, grantScopesMissing, graphCalendarIds, graphContacts, graphDayUsed, graphDeleteMessage, graphDelta, graphEmailOf, graphEvents, graphFindSent, graphInbox, graphJunkSince, graphListSince, graphMe, graphMessage, graphNoMailbox, graphNotificationsOf, graphReadVerdict, graphRenew, graphSend, graphSignedOut, graphSubscribe, graphThrottled, graphUnsubscribe, hostedAddress, hostedIdentity, idTokenClaims, imageBytes, importPhoneNumber, inboundFromInstagram, inboundFromSms, inboundFromWhatsapp, instagramAuthorizeUrl, instagramCall, instagramCodeOf, instagramCodeRequest, instagramDmChunks, instagramErrorOf, instagramEventsOf, instagramLongLivedRequest, instagramMeRequest, instagramNameOf, instagramRefreshRequest, instagramRefusalOf, instagramSubscribeRequest, instagramThrottled, isAreaCode, isBrandNotReady, isEmailRequest, isLinkedMedia, isPublicAddress, isValidSipPassword, keywordsFor, leadJudge, lineCodesFrom, listAccounts, listCalls, listLocations, listReviews, liveTurns, locationsRequest, logger, lookupLineType, mailDomainsFrom, mailboxAdminConsentUrl, mailboxAuthorizeUrl, mailboxHeader, mailboxMessageId, mailboxPkceChallenge, mailboxPkceVerifier, mailboxRefreshRequest, mailboxRevokeRequest, mailboxTokenRequest, mergeConsent, messageIdHeader, messageIdsIn, metaSignatureValid, mintConversationToken, newDraftNote, newNonce, nextA2PStep, nextLineStep, normalizeCall, normalizeInbound, noteTenant, noteTiming, noteTouch, oneLine, oneTimeCodeOf, pageText, parseAccounts, parseInstagramCodeGrant, parseInstagramMe, parseInstagramToken, parseLocations, parseMailboxGrant, parsePlaceDetails, parsePlacesSearch, parseReviewsPage, parseTokenResponse, parseTranscriptText, placesDetailsRequest, placesFetch, placesSearchRequest, planAgentSettings, planListingCheck, planProfileSync, planVoiceConvergence, planVoiceProvision, platformRecipient, providerFetch, publicFetch, publicFetcher, publicLookup, publishAgentVersion, readInstagramName, readLocation, readLocationDetails, receivedEmailFrom, referencesFor, refusalWords, registrationVerdict, replyRequest, replyRouteAddress, replySubject, replyToReview, representativeAttributes, representativeEndUserRequest, requestId, requestIdOf, requestIdShaped, requestLeavesAs, requestTenant, requestTimings, requestTouches, resendLimitOf, resendWebhookSignature, resetBreakers, resetFastHolds, retellImportBody, retellLocalesFor, reviewBells, reviewIdOf, reviewParent, reviewsRequest, revokeRequest, rowIdOfMessageId, runA2PSaga, runLineSaga, sameSignature, searchPlaces, sendEmail, sendFromMailbox, sendInstagramText, sendTemplate, sendText, senderAuthenticated, sendsAs, sendsAsCampaigns, sendsAsConnected, setPublicFetch, sharedHistoryOf, signEdgeToken, signState, signUnsubscribeToken, sipPassword, sipUsername, smsBody, smsInboundFrom, smsInboundUrl, smsKeywordConsent, smsRefusalOf, smsStateFor, smsStatusFrom, smsStatusToRow, smsStatusUrl, soleProprietorEndUserRequest, soleProprietorProfileRequest, speakText, spfNamesProvider, spfRecordsOf, spfTermsOf, starRatingNumber, starterAttributes, starterEndUserRequest, starterProfileRequest, stopCall, storableReferral, streamModel, stripKey, subaccountName, submitProfileRequest, submitTrustProductRequest, supportingDocumentRequest, tokenExchangeRequest, tokenRefreshRequest, trunkDomain, trustProductAssignRequest, twilioProvider, twilioRequest, twilioSignature, twilioSignedString, twilioUrls, unb64url, unpublishedLatestNote, unsubscribeUrl, updateAgent, updateCampaignRequest, updateEndUserRequest, updateLiveCall, updatePhoneNumber, verifyEdgeToken, verifyElevenLabsWebhook, verifyGooglePushToken, verifyResendWebhook, verifyRetellSignature, verifyState, verifyTwilioSignature, verifyUnsubscribeToken, voiceAgentCreateBody, voiceEndpoints, voiceLlmCreateBody, voiceNumberBindBody, voiceNumberBinding, voiceNumberCreateBody, voiceShellDrift, voiceShellTools, waPricingOf, waStoppedMarketing, webCallBody, webCallMadeOf, withKey, withRequestId };

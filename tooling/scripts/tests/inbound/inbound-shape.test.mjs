@@ -1,26 +1,19 @@
 /**
- * One inbound message, whatever brought it (decision 0001, step 2): a WhatsApp message and a text each become the one
- * shape, InboundMessage (packages/channels/src/inbound.ts), by their own adapter.
+ * One inbound message, whatever brought it (decision 0001): a WhatsApp message and a text each become the one shape,
+ * InboundMessage (packages/channels/src/inbound.ts), by their own adapter, and the doors hand nothing else to the
+ * receptionist.
  *
  * The WhatsApp adapter is the normaliser renamed and widened: what normalizeInbound reads, with the wire it came on and
- * the person's identity in place of `waId` and `phoneDigits`. The text's adapter reads Twilio's fields straight, with no
- * WhatsApp message on the way, and it must make exactly what today's road makes of the same text (smsAsWaMessage, the
- * normaliser, the carrier's verdict and the carriers' words): the doors move onto it in step 3, and a word read
- * differently there is a person answered who asked to stop.
+ * the person's identity in place of `waId` and `phoneDigits`. The text's adapter reads Twilio's fields straight. What it
+ * makes of each text below is what the road it replaced made of it (Twilio's fields as a WhatsApp message, the
+ * normaliser, the carrier's verdict and the carriers' words), read off that road before it was deleted (step 3): a word
+ * read differently here is a person answered who asked to stop.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  inboundFromSms,
-  inboundFromWhatsapp,
-  normalizeInbound,
-  smsInboundFrom,
-  smsAsWaMessage,
-  withCarrierConsent,
-  carrierConsent,
-  smsKeywordConsent,
-  mergeConsent,
-} from "@chanlytics/channels";
+import * as channels from "@chanlytics/channels";
+
+const { inboundFromSms, inboundFromWhatsapp, normalizeInbound, smsInboundFrom } = channels;
 
 const FROM = "16465550123";
 const value = { metadata: { phone_number_id: "p1" }, contacts: [{ wa_id: FROM, profile: { name: "Dana" } }] };
@@ -58,13 +51,6 @@ const oneShapeOf = (n, channel) => ({
   consent: { optOut: n.optOut, optIn: n.optIn, optInMarketing: n.optInMarketing },
   referral: n.referral,
 });
-
-/** Today's road for a text: Twilio's fields as a WhatsApp message, normalised, with the carrier's verdict and the carriers' words. */
-const todaysText = (s, nowMs) =>
-  withCarrierConsent(
-    normalizeInbound(smsAsWaMessage(s, nowMs), {}),
-    mergeConsent(carrierConsent(s), smsKeywordConsent(s.body)),
-  );
 
 test("a WhatsApp message becomes the one shape: its wire, its person, and its words as the normaliser reads them", () => {
   assert.deepEqual(inboundFromWhatsapp(wa(), value), {
@@ -108,7 +94,11 @@ test("a WhatsApp message becomes the one shape: its wire, its person, and its wo
   assert.equal(inboundFromWhatsapp(wa(), batch).profileName, null);
 });
 
-test("a text becomes the one shape with no WhatsApp message on the way: field for field what today's road makes of it", () => {
+/** What a text says, and how it says it: the fields that differ from text to text below. */
+const said = (body, kind = "text", type = "text", rawType = "text") => ({ body, kind, type, rawType });
+const NO = { optOut: false, optIn: false, optInMarketing: false };
+
+test("a text becomes the one shape with no WhatsApp message on the way: each text as the road it replaced made it", () => {
   assert.deepEqual(inboundFromSms(smsInboundFrom(FORM), NOW), {
     channel: "sms",
     externalId: "SM0001",
@@ -120,35 +110,58 @@ test("a text becomes the one shape with no WhatsApp message on the way: field fo
     body: "Are you open Saturday?",
     channelTsIso: "2026-09-07T15:00:00.000Z",
     media: null,
-    consent: { optOut: false, optIn: false, optInMarketing: false },
+    consent: NO,
     referral: null,
   });
-  const forms = [
-    FORM,
-    { ...FORM, Body: "  Are you open Saturday?  " },
-    { ...FORM, Body: "this one", NumMedia: "1", MediaContentType0: "image/jpeg" },
-    { ...FORM, Body: "these", NumMedia: "2", MediaContentType0: "image/jpeg", MediaContentType1: "image/png" },
-    { ...FORM, Body: "", NumMedia: "1", MediaContentType0: "image/jpeg" },
-    { ...FORM, Body: "", NumMedia: "0" },
-    { ...FORM, Body: "STOP", OptOutType: "STOP" },
-    { ...FORM, Body: "please stop", OptOutType: "STOP" },
-    { ...FORM, Body: "please stop" },
-    { ...FORM, Body: "stop texting me" },
-    { ...FORM, Body: "cancel" },
-    { ...FORM, Body: "can you cancel my 4pm?" },
-    { ...FORM, Body: "Stop by the salon at 4" },
-    { ...FORM, Body: "START", OptOutType: "START" },
-    { ...FORM, Body: "start" },
-    { ...FORM, Body: "YES OFFERS" },
-    { ...FORM, Body: "hello", OptOutType: "HELP" },
-    { ...FORM, From: "+1 (646) 555-0123" },
+  const texts = [
+    ["words", {}, said("Are you open Saturday?"), NO],
+    ["words with spaces around them", { Body: "  Are you open Saturday?  " }, said("Are you open Saturday?"), NO],
+    ["words and a picture", { Body: "this one", NumMedia: "1" }, said("this one [with a picture]"), NO],
+    ["words and two pictures", { Body: "these", NumMedia: "2" }, said("these [with 2 pictures]"), NO],
+    ["a picture alone", { Body: "", NumMedia: "1" }, said(null, "unsupported", "media", "image"), NO],
+    ["nothing at all", { Body: "" }, said(null, "unsupported", "media", "unsupported"), NO],
+    ["STOP, with the carrier's verdict", { Body: "STOP", OptOutType: "STOP" }, said("STOP"), { ...NO, optOut: true }],
+    [
+      "a sentence the carrier took for a STOP",
+      { Body: "please stop", OptOutType: "STOP" },
+      said("please stop"),
+      { ...NO, optOut: true },
+    ],
+    ["the same sentence with no verdict", { Body: "please stop" }, said("please stop"), NO],
+    ["a request to stop, as a sentence", { Body: "stop texting me" }, said("stop texting me"), { ...NO, optOut: true }],
+    ["the carriers' word", { Body: "cancel" }, said("cancel"), { ...NO, optOut: true }],
+    ["the word inside a question", { Body: "can you cancel my 4pm?" }, said("can you cancel my 4pm?"), NO],
+    ["stop as an ordinary word", { Body: "Stop by the salon at 4" }, said("Stop by the salon at 4"), NO],
+    [
+      "START, with the carrier's verdict",
+      { Body: "START", OptOutType: "START" },
+      said("START"),
+      { ...NO, optIn: true },
+    ],
+    ["start, in their own words", { Body: "start" }, said("start"), { ...NO, optIn: true }],
+    ["YES OFFERS", { Body: "YES OFFERS" }, said("YES OFFERS"), { ...NO, optInMarketing: true }],
+    ["HELP is no answer either way", { Body: "hello", OptOutType: "HELP" }, said("hello"), NO],
+    ["a number written with spaces and brackets", { From: "+1 (646) 555-0123" }, said("Are you open Saturday?"), NO],
   ];
-  for (const form of forms) {
-    const s = smsInboundFrom(form);
-    assert.deepEqual(inboundFromSms(s, NOW), oneShapeOf(todaysText(s, NOW), "sms"), JSON.stringify(form));
+  for (const [name, fields, words, consent] of texts) {
+    const n = inboundFromSms(smsInboundFrom({ ...FORM, ...fields }), NOW);
+    const { body, kind, type, rawType } = n;
+    assert.deepEqual({ body, kind, type, rawType }, words, name);
+    assert.deepEqual(n.consent, consent, `${name}: what they said about being written to`);
+    assert.deepEqual(n.identity, { externalId: FROM, phoneE164: `+${FROM}`, email: null }, `${name}: one person`);
+    assert.deepEqual(
+      [n.media, n.referral, n.profileName],
+      [null, null, null],
+      `${name}: nothing a text does not carry`,
+    );
   }
-  // The time it came is the second it came in, as today's road keeps it.
+  // The time it came is the second it came in.
   assert.equal(inboundFromSms(smsInboundFrom(FORM), NOW).channelTsIso, "2026-09-07T15:00:00.000Z");
+});
+
+test("the WhatsApp-shaped road is gone: no text becomes a WhatsApp message, and no carrier adds a consent of its own", () => {
+  assert.equal(channels.smsAsWaMessage, undefined);
+  assert.equal(channels.withCarrierConsent, undefined);
 });
 
 test("the same words on the two wires are one message, but for the wire, the person and each wire's own word for stop", () => {

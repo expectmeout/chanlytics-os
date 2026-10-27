@@ -201,6 +201,7 @@ export const ORIGIN_WORDS = {
   whatsapp: (day: string) => `Wrote on WhatsApp · ${day}`,
   sms: (day: string) => `Texted you · ${day}`,
   email: (day: string) => `Wrote by email · ${day}`,
+  instagram: (day: string) => `Wrote on Instagram · ${day}`,
   calendar: (day: string) => `From your calendar · ${day}`,
   manual: (day: string) => `Added by hand · ${day}`,
   import: (day: string) => `Imported · ${day}`,

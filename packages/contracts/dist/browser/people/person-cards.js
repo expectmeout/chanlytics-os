@@ -18,11 +18,11 @@ import {
 import { ago } from "./person-row-facts.js";
 import { holderOf, personStanding } from "./person-state.js";
 import { bookingLinkAction, emailFactWords, repliesWords } from "./person-reach.js";
-import { toPersonRowVM } from "./person-row.js";
+import { igClockOfRow, toPersonRowVM } from "./person-row.js";
 import { visitTitleWithout } from "../calendar/visit/visit-service.js";
 import { addedBy, ourWireOfThreads, proposalSending, proposalSent, replyChannelOfThreads, ts } from "./person-helpers.js";
 import { PERSON_CHANNEL_WORDS, REPLY_VIA, REPLY_WIRE } from "./person-words.js";
-import { replyWindow } from "../config/policy.js";
+import { replyWindow, windowClockOf } from "../config/policy.js";
 import { messageAt } from "../conversations/thread-dto.js";
 import { messageText, messageWords } from "../conversations/message-words.js";
 import { reasonShort, reasonSummaryOf } from "../conversations/escalations.js";
@@ -61,7 +61,9 @@ function firstChannelOf(d, base) {
 function replyOf(d, row, base, now, nowMs) {
   const rowVia = base.replyVia ? REPLY_WIRE[base.replyVia] : null;
   const via = replyChannelOfThreads(d.conversations) ?? (base.lastChannel ? rowVia : null) ?? ourWireOfThreads(d.conversations) ?? rowVia;
-  const exactWindow = via ? replyWindow(via, row.latest_wa_inbound_at, now) : null;
+  const dmClock = d.conversations.map((c) => c.last_ig_inbound_at ?? "").filter(Boolean).sort().at(-1) ?? igClockOfRow(row);
+  const clocks = { whatsapp: row.latest_wa_inbound_at, instagram: dmClock };
+  const exactWindow = via ? replyWindow(via, windowClockOf(via, clocks), now) : null;
   if (!via || !exactWindow) return null;
   const hoursLeft = exactWindow.closesAtIso ? Math.max(0, Math.round((new Date(exactWindow.closesAtIso).getTime() - nowMs) / HOUR_MS)) : 0;
   return { via, window: { open: exactWindow.open, hoursLeft } };

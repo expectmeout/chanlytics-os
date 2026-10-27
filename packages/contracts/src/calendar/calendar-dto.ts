@@ -9,6 +9,7 @@ import type { FeedFailure } from "./feed-url";
 import type { NoticeHold } from "./booking-notice";
 import type { AppointmentStatus } from "./feed-appointments";
 import type { CalendarPersonFactsDto } from "./visit/calendar-person-facts";
+import type { WrittenChannel } from "../conversations/thread-channel";
 
 /** The record's row for a visit the board draws, and how it stands (decision 0002): what a member's word is said on. */
 export interface VisitMark {
@@ -48,8 +49,9 @@ export interface CalendarItemDto {
     via?: MatchVia;
     thread?: string | null;
     wa_inbound_at?: string | null;
+    ig_inbound_at?: string | null;
     /** The wire a reply goes out on, and the two stops, as their People row says them (calendar-people.ts PersonLike.reach). */
-    reply_wire?: "whatsapp" | "sms" | "email" | null;
+    reply_wire?: WrittenChannel | null;
     email_stopped?: boolean;
     opted_out?: boolean;
     /**

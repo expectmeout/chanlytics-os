@@ -34,6 +34,10 @@ export const CLOCKS = {
   },
   google: { kind: "reconcile", why: "reads each workspace's listings and profiles from Google" },
   health: { kind: "judge", why: "judges every clock, and mails and pages when one falls silent" },
+  instagram_tokens: {
+    kind: "reconcile",
+    why: "keeps each connected Instagram account's sixty-day token alive with Instagram, refreshing it once it is a week old",
+  },
   jobs: {
     kind: "reconcile",
     why: "the ledger's backstop: a written job wakes the runner (00333), and the tick claims what a wake missed",

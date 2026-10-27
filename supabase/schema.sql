@@ -2989,6 +2989,9 @@ CREATE FUNCTION public.consent_channels_of(p_purpose text, p_source text, p_chan
     AS $$
   -- contracts' channelsOfYes, row by row of its table. A purpose that is not 'marketing' is the conversational one.
   select case
+    -- A yes in their own DM covers no wire a conversation is started on: Instagram lets a business start none, and a DM
+    -- is no yes for a wire it did not come on (00486). It still lifts a stop, which is the consent column's, not this.
+    when p_source = 'customer_message' and p_channel = 'instagram' then '{}'::text[]
     -- A yes to offers in their own message, by text or email, covers WhatsApp too: offers go by WhatsApp alone, and the
     -- confirmation they are sent says so. (Their own message on WhatsApp is WhatsApp alone, below.)
     when p_purpose = 'marketing' and p_source = 'customer_message' and p_channel in ('sms', 'email')
@@ -6185,7 +6188,7 @@ CREATE TABLE public.contacts (
     name_settled_at timestamp with time zone,
     before jsonb,
     CONSTRAINT contacts_acquired_ref_check CHECK (((acquired_ref IS NULL) OR ((acquired_via IS NOT NULL) AND ((char_length(acquired_ref) >= 1) AND (char_length(acquired_ref) <= 200))))),
-    CONSTRAINT contacts_acquired_via_check CHECK (((acquired_via IS NULL) OR (acquired_via = ANY (ARRAY['whatsapp'::text, 'sms'::text, 'email'::text, 'call'::text, 'ad'::text, 'calendar'::text, 'import'::text, 'lead'::text, 'manual'::text])))),
+    CONSTRAINT contacts_acquired_via_check CHECK (((acquired_via IS NULL) OR (acquired_via = ANY (ARRAY['whatsapp'::text, 'sms'::text, 'email'::text, 'instagram'::text, 'call'::text, 'ad'::text, 'calendar'::text, 'import'::text, 'lead'::text, 'manual'::text])))),
     CONSTRAINT contacts_before_check CHECK (((before IS NULL) OR ((jsonb_typeof(before) = 'object'::text) AND ((NOT (before ? 'last_visit'::text)) OR ((before ->> 'last_visit'::text) ~ '^\d{4}-\d{2}-\d{2}$'::text)) AND ((NOT (before ? 'birthday'::text)) OR ((before ->> 'birthday'::text) ~ '^(\d{4}|-)-\d{2}-\d{2}$'::text)) AND ((NOT (before ? 'visits'::text)) OR ((jsonb_typeof((before -> 'visits'::text)) = 'number'::text) AND ((((before ->> 'visits'::text))::numeric >= (0)::numeric) AND (((before ->> 'visits'::text))::numeric <= (999999)::numeric)))) AND ((NOT (before ? 'via'::text)) OR ((char_length((before ->> 'via'::text)) >= 1) AND (char_length((before ->> 'via'::text)) <= 40)))))),
     CONSTRAINT contacts_consent_check CHECK ((consent = ANY (ARRAY['unknown'::text, 'opted_in'::text, 'opted_out'::text]))),
     CONSTRAINT contacts_email_check CHECK (((email IS NULL) OR ((email = lower(btrim(email))) AND ((char_length(email) >= 3) AND (char_length(email) <= 254)) AND (email ~ '^[^[:space:]@<>]+@[^[:space:]@<>]+\.[^[:space:]@<>]+$'::text)))),
@@ -6300,7 +6303,7 @@ COMMENT ON COLUMN public.contacts.offers_asked_at IS 'When the receptionist firs
 -- Name: COLUMN contacts.acquired_via; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.contacts.acquired_via IS 'How the person first reached the workspace, written once (person_set_first_touch): whatsapp, sms, email or call for the wire of the message or call that made them, ad for a WhatsApp click-to-chat ad (a referral whose source_type is ad; a post or any other referral is the wire''s), calendar, import, lead or manual for the door that added them (00307). Null for a person from before it was kept, and wherever nothing says: unknown, never a guess.';
+COMMENT ON COLUMN public.contacts.acquired_via IS 'How the person first reached the workspace, written once (person_set_first_touch): whatsapp, sms, email, instagram or call for the wire of the message or call that made them, ad for a click-to-chat ad on WhatsApp or Instagram (a referral whose source_type is ad; a post, a link or any other referral is the wire''s), calendar, import, lead or manual for the door that added them (00307, 00486). Null for a person from before it was kept, and wherever nothing says: unknown, never a guess.';
 
 
 --
@@ -6961,6 +6964,17 @@ begin
      where id = v_conversation_id;
   end if;
 
+  -- When this person last wrote on this wire (decision 0001, step 4), for every wire a person writes on, beside
+  -- last_wa_inbound_at above, which is written as it was until no reader is left on it (step 7). The same clock the
+  -- column takes, and as monotone: a replayed or late message never rewinds it. A wire this door has never taken is
+  -- skipped, never refused: the message is already kept.
+  if p_channel in ('whatsapp', 'sms', 'email', 'instagram') then
+    insert into conversation_channel_state (tenant_id, conversation_id, channel, last_inbound_at)
+    values (p_tenant_id, v_conversation_id, p_channel, v_ts)
+    on conflict on constraint conversation_channel_state_one_per_wire
+      do update set last_inbound_at = greatest(conversation_channel_state.last_inbound_at, excluded.last_inbound_at);
+  end if;
+
   insert into events (tenant_id, kind, category, subject_type, subject_id, data)
   values (p_tenant_id, 'message.received', 'message', 'message', v_message_id,
           jsonb_build_object('channel', p_channel, 'type', p_type));
@@ -7113,6 +7127,96 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.jobs_wake() IS 'After a statement writes jobs: a row scheduled and due within two seconds asks for the tick through request_sweep, at most once a second (sweep_status.woken_at), never waiting on another asker (00333, decision 0033).';
+
+
+--
+-- Name: conversations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.conversations (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    contact_id uuid NOT NULL,
+    state text DEFAULT 'open'::text NOT NULL,
+    paused_until timestamp with time zone,
+    snooze_until timestamp with time zone,
+    assignee_user_id uuid,
+    last_message_at timestamp with time zone,
+    last_inbound_at timestamp with time zone,
+    last_wa_inbound_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    control_kind text,
+    control_by uuid,
+    control_ref text,
+    control_until timestamp with time zone,
+    note_checked_at timestamp with time zone,
+    CONSTRAINT conversations_control_check CHECK ((((control_kind IS NULL) = (control_until IS NULL)) AND ((control_kind IS NULL) OR (control_kind = ANY (ARRAY['person'::text, 'call'::text]))) AND ((control_kind IS DISTINCT FROM 'person'::text) OR (control_by IS NOT NULL)) AND ((control_kind IS DISTINCT FROM 'call'::text) OR (control_ref IS NOT NULL)) AND ((control_kind IS NOT NULL) OR ((control_by IS NULL) AND (control_ref IS NULL))))),
+    CONSTRAINT conversations_state_check CHECK ((state = ANY (ARRAY['open'::text, 'needs_human'::text, 'snoozed'::text, 'archived'::text])))
+);
+
+
+--
+-- Name: COLUMN conversations.control_kind; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.conversations.control_kind IS 'Who is answering on this thread right now: person, call, or nobody. Apart from assignee_user_id, which is who is RESPONSIBLE and may outlive the exchange.';
+
+
+--
+-- Name: COLUMN conversations.control_until; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.conversations.control_until IS 'When the hold lapses on its own. A hold with no expiry is how a thread ends up held for ever by somebody who has gone.';
+
+
+--
+-- Name: COLUMN conversations.note_checked_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.conversations.note_checked_at IS 'When the note sweep last read this conversation (0007): it reads again only after newer customer messages have gone quiet.';
+
+
+--
+-- Name: last_inbound_on_instagram(public.conversations); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.last_inbound_on_instagram(public.conversations) RETURNS timestamp with time zone
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $_$
+  select s.last_inbound_at
+    from public.conversation_channel_state s
+   where s.tenant_id = $1.tenant_id and s.conversation_id = $1.id and s.channel = 'instagram'
+$_$;
+
+
+--
+-- Name: FUNCTION last_inbound_on_instagram(public.conversations); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.last_inbound_on_instagram(public.conversations) IS 'When a thread''s person last wrote by Instagram DM (decision 0001, step 8): the per-channel fact (conversation_channel_state, 00484), served with a thread as a computed column. Instagram''s 24-hour reply window reads it (contracts replyWindow).';
+
+
+--
+-- Name: last_inbound_on_whatsapp(public.conversations); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.last_inbound_on_whatsapp(public.conversations) RETURNS timestamp with time zone
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $_$
+  select s.last_inbound_at
+    from public.conversation_channel_state s
+   where s.tenant_id = $1.tenant_id and s.conversation_id = $1.id and s.channel = 'whatsapp'
+$_$;
+
+
+--
+-- Name: FUNCTION last_inbound_on_whatsapp(public.conversations); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.last_inbound_on_whatsapp(public.conversations) IS 'When a thread''s person last wrote on WhatsApp (decision 0001, step 5): the per-channel fact (conversation_channel_state, 00484), served with a thread as a computed column. The one accessor the reply window''s readers read in place of conversations.last_wa_inbound_at.';
 
 
 --
@@ -13042,6 +13146,14 @@ begin
                             else greatest(k_conv.snooze_until, m_conv.snooze_until)
                           end
      where id = k_conv.id;
+    -- When this person last wrote on each wire (decision 0001, step 4): the kept thread takes the later of each, as it
+    -- takes last_wa_inbound_at above. The merged thread's own rows go with it.
+    insert into conversation_channel_state (tenant_id, conversation_id, channel, last_inbound_at)
+    select s.tenant_id, k_conv.id, s.channel, s.last_inbound_at
+      from conversation_channel_state s
+     where s.tenant_id = v_tenant and s.conversation_id = m_conv.id
+    on conflict on constraint conversation_channel_state_one_per_wire
+      do update set last_inbound_at = greatest(conversation_channel_state.last_inbound_at, excluded.last_inbound_at);
     delete from conversations where id = m_conv.id;
     v_counts := v_counts || jsonb_build_object('threads', 'folded');
   end if;
@@ -13423,6 +13535,48 @@ COMMENT ON FUNCTION public.message_stamp_handled(p_tenant_id uuid, p_message_id 
 
 
 --
+-- Name: message_unsent(uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.message_unsent(p_tenant_id uuid, p_external_id text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_id    uuid;
+  v_media jsonb;
+begin
+  select m.id, m.media into v_id, v_media
+    from messages m
+   where m.tenant_id = p_tenant_id and m.external_id = p_external_id
+     and m.channel = 'instagram' and m.direction = 'inbound' and m.sender = 'customer'
+   for update;
+  if v_id is null then
+    return jsonb_build_object('outcome', 'none');
+  end if;
+  update messages
+     set body = null,
+         media = null,
+         meta = coalesce(meta, '{}'::jsonb)
+                || jsonb_build_object('unsent_at', now())
+                || case when coalesce(meta, '{}'::jsonb) ? 'processed_at' then '{}'::jsonb
+                        else jsonb_build_object('processed_at', now()) end
+   where id = v_id;
+  update jobs
+     set payload = payload #- '{ig,item,message,text}' #- '{ig,item,message,attachments}'
+   where tenant_id = p_tenant_id and kind = 'inbound_answer' and payload ->> 'message_id' = v_id::text;
+  return jsonb_build_object('outcome', 'forgot', 'message_id', v_id, 'storage_path', v_media ->> 'storage_path');
+end $$;
+
+
+--
+-- Name: FUNCTION message_unsent(p_tenant_id uuid, p_external_id text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.message_unsent(p_tenant_id uuid, p_external_id text) IS 'A person''s Instagram DM they unsent (decision 0001, step 8; Meta''s is_deleted): its row keeps that it came and loses its words and attachment (unsent_at), it is marked processed so it is never answered after, and its answer''s job keeps the words no longer. Answers outcome none (no such DM here) or forgot, with the message''s id and its stored attachment''s path for the edge to remove. Service role.';
+
+
+--
 -- Name: messages_guard(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -13450,7 +13604,11 @@ begin
      or NEW.direction   is distinct from OLD.direction
      or NEW.sender      is distinct from OLD.sender
      or NEW.type        is distinct from OLD.type
-     or NEW.body        is distinct from OLD.body
+     or (NEW.body is distinct from OLD.body
+         -- A person's own DM they took back (00486, message_unsent): its words may become nothing, once, in the write
+         -- that marks it unsent. Nothing else ever changes a message's words.
+         and not (NEW.body is null and OLD.channel = 'instagram' and OLD.direction = 'inbound' and OLD.sender = 'customer'
+                  and coalesce(NEW.meta, '{}'::jsonb) ? 'unsent_at' and not coalesce(OLD.meta, '{}'::jsonb) ? 'unsent_at'))
      or NEW.template_name is distinct from OLD.template_name
      or NEW.channel_ts  is distinct from OLD.channel_ts
      or NEW.created_at  is distinct from OLD.created_at
@@ -13555,7 +13713,7 @@ end $$;
 -- Name: FUNCTION messages_note_first_touch(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.messages_note_first_touch() IS 'The first touch of the person an inbound customer message made (K3): its wire, or the ad it came from (meta.referral.source_id, when meta.referral.source_type is ad; a post or any other referral is the wire''s), with the line it came in on (meta.line). Never fails the insert: a failure is a warning.';
+COMMENT ON FUNCTION public.messages_note_first_touch() IS 'The first touch of the person an inbound customer message made (K3): its wire, or the ad it came from (meta.referral.source_id, when meta.referral.source_type is ad, on WhatsApp or Instagram; a post, a link or any other referral is the wire''s), with the line it came in on (meta.line). Never fails the insert: a failure is a warning.';
 
 
 --
@@ -16083,7 +16241,7 @@ CREATE FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid DEFAULT N
     coalesce(cvs.needs_human, false),
     oe.reason,
     oe.created_at,
-    lc.id, lc.state, lc.paused_until, lc.assignee_user_id, lc.snooze_until, lc.last_wa_inbound_at,
+    lc.id, lc.state, lc.paused_until, lc.assignee_user_id, lc.snooze_until, lc.wa_heard_at,
     ma.last_at, ma.last_direction, ma.last_sender,
     ma.last_in_body, ma.last_in_at, ma.last_wrote_on,
     ma.last_wrote_at,
@@ -16104,7 +16262,7 @@ CREATE FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid DEFAULT N
       when ch.acquired_via in ('calendar', 'lead', 'import', 'manual') then ch.acquired_via
       when coalesce(ma.has_backfill, false) then case when ma.backfill_first in ('call', 'whatsapp', 'sms', 'email') then ma.backfill_first else 'import' end
       when lk.first_at is not null and (ma.first_at is null or lk.first_at <= ma.first_at) then 'call'
-      when ma.first_channel in ('whatsapp', 'sms', 'email') then ma.first_channel
+      when ma.first_channel in ('whatsapp', 'sms', 'email', 'instagram') then ma.first_channel
     end,
     dl.id, dl.stage, dl.service, dl.proposed_at, dl.decided_at, dl.ended_at, dl.amount_cents, dl.per,
     dl.proposal_url, dl.valid_until, dl.lost_reason,
@@ -16170,7 +16328,9 @@ CREATE FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid DEFAULT N
      limit 1
   ) oe on true
   left join lateral (
-    select cv.id, cv.state, cv.paused_until, cv.assignee_user_id, cv.snooze_until, cv.last_wa_inbound_at
+    select cv.id, cv.state, cv.paused_until, cv.assignee_user_id, cv.snooze_until,
+           -- The WhatsApp clock, from the per-channel fact through its one accessor (decision 0001, step 5).
+           public.last_inbound_on_whatsapp(cv) as wa_heard_at
       from conversations cv
      where cv.contact_id = c.id
      order by cv.last_message_at desc nulls last, cv.created_at desc
@@ -16282,7 +16442,7 @@ $$;
 -- Name: FUNCTION people_list(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid) IS 'Everyone this workspace has ever heard from, with both consent answers: `consent` for conversation and their own appointments, `marketing_consent` for offers. Two answers because the carriers require them collected separately (error 30913). `came_from` says where each first came from: the door that added them (calendar, lead, import, manual); else a history moved in from before the database says how it began, in the thread''s own order (a call''s note is call, anything else its wire; import only when it names none); else their first call (call) or the wire of their first message (whatsapp, sms, email); null when nothing says. p_query matches a name, a WhatsApp name, an email address or three digits of the number; p_contact_id names one person, their row alone. The page is chosen before it is read (0021, people_page): its people come from person_moments in one whole order, latest contact first (in_touch_at, -infinity for never), then the newest added (added_at), then the id, falling, at most p_limit (1000) of them after p_offset or after the cursor p_after_at, p_after_added, p_after_id (the last row''s in_touch_at, added_at and id); every other column is read for them alone. The deal_* columns carry the newest open or current deal, else the newest of any (0004), with its link, its valid-until day and why they passed (0008); `open_deals` carries every open deal (proposed or won, one per service), newest first, in the same fields (0029), null with none open. The step_* columns carry their next step: the earliest open note with a day (0007, amended), by its day and then as written. `consent_channels` and `marketing_channels` are the channels each yes covers (00297; null: a yes recorded before the channels were kept, which covers WhatsApp alone) and `offers_asked_at` is when the receptionist first asked for the yes to offers. `last_inbound_channel` is the channel of the last written message they sent themselves (their own words: not an automatic reply or a list''s mail) (whatsapp, sms or email; null when they have sent none): the channel a campaign reaches them on first (00298, contracts'' reachFor). `last_wrote_at` is when they last wrote words that were a person''s own, an automatic reply, a list''s mail or a delivery report left out (00299, message_is_a_persons_words): the fact of "they wrote" that contracts'' relationshipOnRecord reads. `email_suppressed_at` is when their address stopped being sent to (a bounce, a complaint; null while it is good): a campaign does not pick email for a person who has it. `email_marketing`, `email_marketing_source` and `email_marketing_updated_at` are the person''s own answer about offers by email (00174, 00299): an offer by email goes to someone who has not unsubscribed and who asked for offers by email or has a relationship with the business on record (contracts'' mayMessageFor). `lead_id`, `lead_name` and `lead_gone` are the business they work at (0052: the lead, its name while it stands, and whether it was erased or blanked since); p_query matches its name too. `lead_emails` is that lead''s own addresses (its email and the other ones the finder read off its site, lower-cased) on its own person''s row alone, while it stands: a calendar booking from one of them is theirs, matched by their business (0052, I24). `name_source` is where their name came from (typed, import, calendar, signature, wire, lead) and `name_settled_at` when a member settled it. `signer_*` is the newest reply signer offered as their name (the notice Use this name), null with none.';
+COMMENT ON FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid) IS 'Everyone this workspace has ever heard from, with both consent answers: `consent` for conversation and their own appointments, `marketing_consent` for offers. Two answers because the carriers require them collected separately (error 30913). `came_from` says where each first came from: the door that added them (calendar, lead, import, manual); else a history moved in from before the database says how it began, in the thread''s own order (a call''s note is call, anything else its wire; import only when it names none); else their first call (call) or the wire of their first message (whatsapp, sms, email, instagram); null when nothing says. p_query matches a name, a WhatsApp name, an email address or three digits of the number; p_contact_id names one person, their row alone. The page is chosen before it is read (0021, people_page): its people come from person_moments in one whole order, latest contact first (in_touch_at, -infinity for never), then the newest added (added_at), then the id, falling, at most p_limit (1000) of them after p_offset or after the cursor p_after_at, p_after_added, p_after_id (the last row''s in_touch_at, added_at and id); every other column is read for them alone. The deal_* columns carry the newest open or current deal, else the newest of any (0004), with its link, its valid-until day and why they passed (0008); `open_deals` carries every open deal (proposed or won, one per service), newest first, in the same fields (0029), null with none open. The step_* columns carry their next step: the earliest open note with a day (0007, amended), by its day and then as written. `consent_channels` and `marketing_channels` are the channels each yes covers (00297; null: a yes recorded before the channels were kept, which covers WhatsApp alone) and `offers_asked_at` is when the receptionist first asked for the yes to offers. `last_inbound_channel` is the channel of the last written message they sent themselves (their own words: not an automatic reply or a list''s mail) (whatsapp, sms, email or instagram; null when they have sent none): the channel a campaign reaches them on first (00298, contracts'' reachFor). `last_wrote_at` is when they last wrote words that were a person''s own, an automatic reply, a list''s mail or a delivery report left out (00299, message_is_a_persons_words): the fact of "they wrote" that contracts'' relationshipOnRecord reads. `email_suppressed_at` is when their address stopped being sent to (a bounce, a complaint; null while it is good): a campaign does not pick email for a person who has it. `email_marketing`, `email_marketing_source` and `email_marketing_updated_at` are the person''s own answer about offers by email (00174, 00299): an offer by email goes to someone who has not unsubscribed and who asked for offers by email or has a relationship with the business on record (contracts'' mayMessageFor). `lead_id`, `lead_name` and `lead_gone` are the business they work at (0052: the lead, its name while it stands, and whether it was erased or blanked since); p_query matches its name too. `lead_emails` is that lead''s own addresses (its email and the other ones the finder read off its site, lower-cased) on its own person''s row alone, while it stands: a calendar booking from one of them is theirs, matched by their business (0052, I24). `name_source` is where their name came from (typed, import, calendar, signature, wire, lead) and `name_settled_at` when a member settled it. `signer_*` is the newest reply signer offered as their name (the notice Use this name), null with none.';
 
 
 --
@@ -30717,6 +30877,31 @@ COMMENT ON FUNCTION public.trigger_google_sweep() IS 'Asks the edge to read each
 
 
 --
+-- Name: trigger_instagram_token_sweep(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.trigger_instagram_token_sweep() RETURNS bigint
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions'
+    AS $$
+begin
+  if exists (select 1 from public.tenant_channels c where c.kind = 'instagram' and c.status = 'active') then
+    return public.request_sweep('instagram_tokens', '/api/cron/instagram-tokens');
+  end if;
+  insert into public.sweep_status (sweep, requested_at) values ('instagram_tokens', now())
+  on conflict (sweep) do update set requested_at = excluded.requested_at;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION trigger_instagram_token_sweep(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.trigger_instagram_token_sweep() IS 'The Instagram token sweep''s clock (decision 0001, step 8). Calls the edge (/api/cron/instagram-tokens) only when an active Instagram channel exists; otherwise records that it looked.';
+
+
+--
 -- Name: trigger_jobs_tick(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -32137,6 +32322,27 @@ COMMENT ON TABLE public.contact_reads IS 'Per member of a workspace: every messa
 
 
 --
+-- Name: conversation_channel_state; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.conversation_channel_state (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    conversation_id uuid NOT NULL,
+    channel text NOT NULL,
+    last_inbound_at timestamp with time zone NOT NULL,
+    CONSTRAINT conversation_channel_state_channel_check CHECK ((channel = ANY (ARRAY['whatsapp'::text, 'sms'::text, 'email'::text, 'instagram'::text])))
+);
+
+
+--
+-- Name: TABLE conversation_channel_state; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.conversation_channel_state IS 'When a thread''s person last wrote on each wire (decision 0001, step 4): one row a thread and wire, the fact a per-channel reply window reads. Written by ingest_inbound for every message it takes in, beside conversations.last_wa_inbound_at until step 7; a merged thread''s rows fold into the kept one''s (merge_people). Members read their workspace''s.';
+
+
+--
 -- Name: conversation_drafts; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -32158,54 +32364,6 @@ CREATE TABLE public.conversation_drafts (
 --
 
 COMMENT ON TABLE public.conversation_drafts IS 'Ask''s drafts written ahead for a thread waiting on a person (decision 0071): a reply to their newest message, or the brief for a call back, one a thread and kind, kept until they write again. Text only; nothing is sent by it. Members read their workspace''s; written through conversation_draft_keep.';
-
-
---
--- Name: conversations; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.conversations (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    tenant_id uuid NOT NULL,
-    contact_id uuid NOT NULL,
-    state text DEFAULT 'open'::text NOT NULL,
-    paused_until timestamp with time zone,
-    snooze_until timestamp with time zone,
-    assignee_user_id uuid,
-    last_message_at timestamp with time zone,
-    last_inbound_at timestamp with time zone,
-    last_wa_inbound_at timestamp with time zone,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    control_kind text,
-    control_by uuid,
-    control_ref text,
-    control_until timestamp with time zone,
-    note_checked_at timestamp with time zone,
-    CONSTRAINT conversations_control_check CHECK ((((control_kind IS NULL) = (control_until IS NULL)) AND ((control_kind IS NULL) OR (control_kind = ANY (ARRAY['person'::text, 'call'::text]))) AND ((control_kind IS DISTINCT FROM 'person'::text) OR (control_by IS NOT NULL)) AND ((control_kind IS DISTINCT FROM 'call'::text) OR (control_ref IS NOT NULL)) AND ((control_kind IS NOT NULL) OR ((control_by IS NULL) AND (control_ref IS NULL))))),
-    CONSTRAINT conversations_state_check CHECK ((state = ANY (ARRAY['open'::text, 'needs_human'::text, 'snoozed'::text, 'archived'::text])))
-);
-
-
---
--- Name: COLUMN conversations.control_kind; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.conversations.control_kind IS 'Who is answering on this thread right now: person, call, or nobody. Apart from assignee_user_id, which is who is RESPONSIBLE and may outlive the exchange.';
-
-
---
--- Name: COLUMN conversations.control_until; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.conversations.control_until IS 'When the hold lapses on its own. A hold with no expiry is how a thread ends up held for ever by somebody who has gone.';
-
-
---
--- Name: COLUMN conversations.note_checked_at; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.conversations.note_checked_at IS 'When the note sweep last read this conversation (0007): it reads again only after newer customer messages have gone quiet.';
 
 
 --
@@ -33856,7 +34014,7 @@ CREATE TABLE public.messages (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     sending_at timestamp with time zone,
     sent_at timestamp with time zone,
-    CONSTRAINT messages_channel_check CHECK ((channel = ANY (ARRAY['whatsapp'::text, 'voice'::text, 'sms'::text, 'email'::text, 'system'::text]))),
+    CONSTRAINT messages_channel_check CHECK ((channel = ANY (ARRAY['whatsapp'::text, 'voice'::text, 'sms'::text, 'email'::text, 'system'::text, 'instagram'::text]))),
     CONSTRAINT messages_direction_check CHECK ((direction = ANY (ARRAY['inbound'::text, 'outbound'::text]))),
     CONSTRAINT messages_sender_check CHECK ((sender = ANY (ARRAY['customer'::text, 'ai'::text, 'human'::text, 'system'::text]))),
     CONSTRAINT messages_status_check CHECK ((status = ANY (ARRAY['received'::text, 'queued'::text, 'sent'::text, 'delivered'::text, 'read'::text, 'failed'::text, 'canceled'::text]))),
@@ -36104,6 +36262,22 @@ ALTER TABLE ONLY public.contacts
 
 ALTER TABLE ONLY public.contacts
     ADD CONSTRAINT contacts_tenant_id_id_key UNIQUE (tenant_id, id);
+
+
+--
+-- Name: conversation_channel_state conversation_channel_state_one_per_wire; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.conversation_channel_state
+    ADD CONSTRAINT conversation_channel_state_one_per_wire UNIQUE (tenant_id, conversation_id, channel);
+
+
+--
+-- Name: conversation_channel_state conversation_channel_state_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.conversation_channel_state
+    ADD CONSTRAINT conversation_channel_state_pkey PRIMARY KEY (id);
 
 
 --
@@ -39327,21 +39501,21 @@ CREATE TRIGGER messages_guard BEFORE UPDATE ON public.messages FOR EACH ROW EXEC
 -- Name: messages messages_note_booking_link; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER messages_note_booking_link AFTER INSERT ON public.messages FOR EACH ROW WHEN (((new.direction = 'outbound'::text) AND (new.status = 'sent'::text) AND (new.channel = ANY (ARRAY['whatsapp'::text, 'sms'::text])) AND (NOT public.automated_send(new.meta)) AND (COALESCE((new.meta ->> 'backfill'::text), 'false'::text) <> 'true'::text))) EXECUTE FUNCTION public.messages_note_booking_link();
+CREATE TRIGGER messages_note_booking_link AFTER INSERT ON public.messages FOR EACH ROW WHEN (((new.direction = 'outbound'::text) AND (new.status = 'sent'::text) AND (new.channel = ANY (ARRAY['whatsapp'::text, 'sms'::text, 'instagram'::text])) AND (NOT public.automated_send(new.meta)) AND (COALESCE((new.meta ->> 'backfill'::text), 'false'::text) <> 'true'::text))) EXECUTE FUNCTION public.messages_note_booking_link();
 
 
 --
 -- Name: messages messages_note_booking_link_on_send; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER messages_note_booking_link_on_send AFTER UPDATE OF status ON public.messages FOR EACH ROW WHEN (((new.direction = 'outbound'::text) AND (new.status = 'sent'::text) AND (old.status IS DISTINCT FROM 'sent'::text) AND (new.channel = ANY (ARRAY['whatsapp'::text, 'sms'::text])) AND (NOT public.automated_send(new.meta)) AND (COALESCE((new.meta ->> 'backfill'::text), 'false'::text) <> 'true'::text))) EXECUTE FUNCTION public.messages_note_booking_link();
+CREATE TRIGGER messages_note_booking_link_on_send AFTER UPDATE OF status ON public.messages FOR EACH ROW WHEN (((new.direction = 'outbound'::text) AND (new.status = 'sent'::text) AND (old.status IS DISTINCT FROM 'sent'::text) AND (new.channel = ANY (ARRAY['whatsapp'::text, 'sms'::text, 'instagram'::text])) AND (NOT public.automated_send(new.meta)) AND (COALESCE((new.meta ->> 'backfill'::text), 'false'::text) <> 'true'::text))) EXECUTE FUNCTION public.messages_note_booking_link();
 
 
 --
 -- Name: messages messages_note_first_touch; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER messages_note_first_touch AFTER INSERT ON public.messages FOR EACH ROW WHEN (((new.direction = 'inbound'::text) AND (new.sender = 'customer'::text) AND (new.contact_id IS NOT NULL) AND (new.channel = ANY (ARRAY['whatsapp'::text, 'sms'::text, 'email'::text])) AND (COALESCE((new.meta ->> 'backfill'::text), 'false'::text) <> 'true'::text))) EXECUTE FUNCTION public.messages_note_first_touch();
+CREATE TRIGGER messages_note_first_touch AFTER INSERT ON public.messages FOR EACH ROW WHEN (((new.direction = 'inbound'::text) AND (new.sender = 'customer'::text) AND (new.contact_id IS NOT NULL) AND (new.channel = ANY (ARRAY['whatsapp'::text, 'sms'::text, 'email'::text, 'instagram'::text])) AND (COALESCE((new.meta ->> 'backfill'::text), 'false'::text) <> 'true'::text))) EXECUTE FUNCTION public.messages_note_first_touch();
 
 
 --
@@ -40837,6 +41011,22 @@ ALTER TABLE ONLY public.contacts
 
 ALTER TABLE ONLY public.contacts
     ADD CONSTRAINT contacts_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: conversation_channel_state conversation_channel_state_conversation_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.conversation_channel_state
+    ADD CONSTRAINT conversation_channel_state_conversation_same_workspace FOREIGN KEY (tenant_id, conversation_id) REFERENCES public.conversations(tenant_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: conversation_channel_state conversation_channel_state_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.conversation_channel_state
+    ADD CONSTRAINT conversation_channel_state_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
 
 
 --
@@ -42625,6 +42815,21 @@ ALTER TABLE public.contacts ENABLE ROW LEVEL SECURITY;
 --
 
 CREATE POLICY contacts_member_select ON public.contacts FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
+-- Name: conversation_channel_state; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.conversation_channel_state ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: conversation_channel_state conversation_channel_state_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY conversation_channel_state_member_select ON public.conversation_channel_state FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
    FROM public.memberships m
   WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
 
@@ -45081,6 +45286,67 @@ GRANT ALL ON FUNCTION public.jobs_wake() TO service_role;
 
 
 --
+-- Name: TABLE conversations; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.conversations TO authenticated;
+GRANT ALL ON TABLE public.conversations TO service_role;
+
+
+--
+-- Name: COLUMN conversations.state; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(state) ON TABLE public.conversations TO authenticated;
+
+
+--
+-- Name: COLUMN conversations.paused_until; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(paused_until) ON TABLE public.conversations TO authenticated;
+
+
+--
+-- Name: COLUMN conversations.snooze_until; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(snooze_until) ON TABLE public.conversations TO authenticated;
+
+
+--
+-- Name: COLUMN conversations.assignee_user_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(assignee_user_id) ON TABLE public.conversations TO authenticated;
+
+
+--
+-- Name: COLUMN conversations.last_message_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(last_message_at) ON TABLE public.conversations TO authenticated;
+
+
+--
+-- Name: FUNCTION last_inbound_on_instagram(public.conversations); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.last_inbound_on_instagram(public.conversations) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.last_inbound_on_instagram(public.conversations) TO authenticated;
+GRANT ALL ON FUNCTION public.last_inbound_on_instagram(public.conversations) TO service_role;
+
+
+--
+-- Name: FUNCTION last_inbound_on_whatsapp(public.conversations); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.last_inbound_on_whatsapp(public.conversations) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.last_inbound_on_whatsapp(public.conversations) TO authenticated;
+GRANT ALL ON FUNCTION public.last_inbound_on_whatsapp(public.conversations) TO service_role;
+
+
+--
 -- Name: FUNCTION lead_address_in_people(p_tenant_id uuid, p_address text); Type: ACL; Schema: public; Owner: -
 --
 
@@ -46048,6 +46314,14 @@ GRANT ALL ON FUNCTION public.message_moment(p_meta jsonb, p_channel_ts timestamp
 
 REVOKE ALL ON FUNCTION public.message_stamp_handled(p_tenant_id uuid, p_message_id uuid, p_handled text, p_intent text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.message_stamp_handled(p_tenant_id uuid, p_message_id uuid, p_handled text, p_intent text) TO service_role;
+
+
+--
+-- Name: FUNCTION message_unsent(p_tenant_id uuid, p_external_id text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.message_unsent(p_tenant_id uuid, p_external_id text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.message_unsent(p_tenant_id uuid, p_external_id text) TO service_role;
 
 
 --
@@ -48722,6 +48996,14 @@ GRANT ALL ON FUNCTION public.trigger_google_sweep() TO service_role;
 
 
 --
+-- Name: FUNCTION trigger_instagram_token_sweep(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.trigger_instagram_token_sweep() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.trigger_instagram_token_sweep() TO service_role;
+
+
+--
 -- Name: FUNCTION trigger_jobs_tick(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -49258,54 +49540,19 @@ GRANT ALL ON TABLE public.contact_reads TO service_role;
 
 
 --
+-- Name: TABLE conversation_channel_state; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.conversation_channel_state TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.conversation_channel_state TO service_role;
+
+
+--
 -- Name: TABLE conversation_drafts; Type: ACL; Schema: public; Owner: -
 --
 
 GRANT SELECT ON TABLE public.conversation_drafts TO authenticated;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.conversation_drafts TO service_role;
-
-
---
--- Name: TABLE conversations; Type: ACL; Schema: public; Owner: -
---
-
-GRANT SELECT ON TABLE public.conversations TO authenticated;
-GRANT ALL ON TABLE public.conversations TO service_role;
-
-
---
--- Name: COLUMN conversations.state; Type: ACL; Schema: public; Owner: -
---
-
-GRANT UPDATE(state) ON TABLE public.conversations TO authenticated;
-
-
---
--- Name: COLUMN conversations.paused_until; Type: ACL; Schema: public; Owner: -
---
-
-GRANT UPDATE(paused_until) ON TABLE public.conversations TO authenticated;
-
-
---
--- Name: COLUMN conversations.snooze_until; Type: ACL; Schema: public; Owner: -
---
-
-GRANT UPDATE(snooze_until) ON TABLE public.conversations TO authenticated;
-
-
---
--- Name: COLUMN conversations.assignee_user_id; Type: ACL; Schema: public; Owner: -
---
-
-GRANT UPDATE(assignee_user_id) ON TABLE public.conversations TO authenticated;
-
-
---
--- Name: COLUMN conversations.last_message_at; Type: ACL; Schema: public; Owner: -
---
-
-GRANT UPDATE(last_message_at) ON TABLE public.conversations TO authenticated;
 
 
 --

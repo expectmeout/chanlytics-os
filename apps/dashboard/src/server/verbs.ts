@@ -13,6 +13,7 @@ import {
   REPLY_UNDO_REFUSALS,
   isPersonsWords,
   writtenChannelOf,
+  type WrittenChannel,
   type DecisionVerb,
   type DecisionSubject,
   type TenantId,
@@ -44,6 +45,8 @@ export interface VerbConversation {
   snooze_until: string | null;
   assignee_user_id: string | null;
   last_wa_inbound_at: string | null;
+  /** When they last wrote by Instagram DM (00486's accessor): that wire's 24-hour window reads it. */
+  last_ig_inbound_at: string | null;
   last_message_at: string | null;
   /**
    * When something last came from their side, a message or a call: stamped by the two doors those come through
@@ -53,6 +56,8 @@ export interface VerbConversation {
   last_inbound_at: string | null;
   contact_id: string;
   phone_e164: string | null;
+  /** Their Instagram-scoped id, where they wrote by DM (contact_identities, the newest): where a DM reply goes. */
+  instagram_id: string | null;
   display_name: string | null;
   wa_profile_name: string | null;
   /** Where the name came from and whether a member settled it (0052): a stand-in is greeted "there" (firstNameOf). */
@@ -69,6 +74,16 @@ export interface VerbConversation {
   email_suppressed_at: string | null;
 }
 
+/** A person's newest Instagram-scoped id among their identities, where a merge left them more than one; null with none. */
+function newestInstagramId(
+  identities: ReadonlyArray<{ channel: string; external_id: string; created_at: string }>,
+): string | null {
+  const dms = identities
+    .filter((i) => i.channel === "instagram")
+    .sort((a, b) => b.created_at.localeCompare(a.created_at));
+  return dms[0]?.external_id ?? null;
+}
+
 export async function loadConversation(ctx: RouteContext, id: string): Promise<VerbConversation> {
   // The chokepoint every conversation verb goes through, so the id is checked
   // once here rather than remembered per route. A malformed id used to reach
@@ -78,7 +93,7 @@ export async function loadConversation(ctx: RouteContext, id: string): Promise<V
   const { data, error } = await ctx.supabase
     .from("conversations")
     .select(
-      "id, tenant_id, state, paused_until, snooze_until, assignee_user_id, last_wa_inbound_at, last_message_at, last_inbound_at, contact_id, contacts (phone_e164, display_name, wa_profile_name, name_source, name_settled_at, consent, dnc, marketing_consent, email, email_suppressed_at)",
+      "id, tenant_id, state, paused_until, snooze_until, assignee_user_id, last_wa_inbound_at:last_inbound_on_whatsapp, last_ig_inbound_at:last_inbound_on_instagram, last_message_at, last_inbound_at, contact_id, contacts (phone_e164, display_name, wa_profile_name, name_source, name_settled_at, consent, dnc, marketing_consent, email, email_suppressed_at, contact_identities (channel, external_id, created_at))",
     )
     .eq("id", convId)
     .maybeSingle();
@@ -93,10 +108,12 @@ export async function loadConversation(ctx: RouteContext, id: string): Promise<V
     snooze_until: data.snooze_until,
     assignee_user_id: data.assignee_user_id,
     last_wa_inbound_at: data.last_wa_inbound_at,
+    last_ig_inbound_at: data.last_ig_inbound_at,
     last_message_at: data.last_message_at,
     last_inbound_at: data.last_inbound_at,
     contact_id: data.contact_id,
     phone_e164: data.contacts?.phone_e164 ?? null,
+    instagram_id: newestInstagramId(data.contacts?.contact_identities ?? []),
     display_name: data.contacts?.display_name ?? null,
     wa_profile_name: data.contacts?.wa_profile_name ?? null,
     name_source: data.contacts?.name_source ?? null,
@@ -219,7 +236,7 @@ const LAST_WROTE_LOOKBACK = 20;
 export async function replyChannelOf(
   ctx: RouteContext,
   conv: { id: string; tenant_id: string },
-): Promise<"whatsapp" | "sms" | "email"> {
+): Promise<WrittenChannel> {
   const { data, error } = await ctx.supabase
     .from("messages")
     .select("channel, meta")

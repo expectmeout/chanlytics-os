@@ -2,7 +2,12 @@ import { resolveFacts } from "../facts.js";
 import { samePhone } from "../../shared/phone.js";
 import { cannotSendLink, offersBookingLink, offersLinkOn } from "../no-booking-link.js";
 import { BASELINE_CLOSING, BASELINE_OPENING, isBaselinePrompt } from "./brain-config.js";
-import { composeSystemPrompt, noLinkBooking, standingRules, PROMPT_OPENINGS } from "./compose.js";
+import {
+  composeSystemPrompt,
+  noLinkBooking,
+  standingRules,
+  PROMPT_OPENINGS
+} from "./compose.js";
 export function instructionsDraft(brain) {
   const whose = whoseWords(brain);
   if (whose.kind === "own") return { text: whose.text, carried: false };

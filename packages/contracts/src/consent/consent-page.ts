@@ -211,6 +211,15 @@ export function optInConfirmation(businessName: string, purpose: AskedPurpose): 
 }
 
 /**
+ * A START in an Instagram DM, confirmed in a DM's own words (decision 0001, step 8): there is no carrier's program to name,
+ * no rates and no HELP line on Instagram. It lifts their stop on this business and covers no other wire (00486).
+ */
+export function dmBackOnConfirmation(businessName: string): string {
+  const name = businessName.trim() || "This business";
+  return `${name}: you'll hear from us here again. Reply STOP any time to stop.`;
+}
+
+/**
  * The words staff say when they ask for a yes in person or on the phone.
  *
  * A spoken yes is an opt-in method the campaign has to describe, and the

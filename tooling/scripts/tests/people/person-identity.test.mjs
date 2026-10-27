@@ -225,7 +225,13 @@ test("REGRESSION: their page does not hold a reply behind a window email does no
 });
 
 test("the page takes its words for a wire from the one table", () => {
-  assert.deepEqual(PERSON_CHANNEL_WORDS, { whatsapp: "WhatsApp", sms: "Text", voice: "Phone", email: "Email" });
+  assert.deepEqual(PERSON_CHANNEL_WORDS, {
+    whatsapp: "WhatsApp",
+    sms: "Text",
+    voice: "Phone",
+    email: "Email",
+    instagram: "Instagram",
+  });
 });
 
 test("the profile answers the reply wire from the messages, where a row can only guess", () => {

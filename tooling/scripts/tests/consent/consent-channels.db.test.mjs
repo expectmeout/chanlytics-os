@@ -165,7 +165,7 @@ test(
   async () => {
     const purposes = ["conversational", "marketing"];
     const sources = ["in_person", "phone", "form", "customer_message", "operator", "carrier", null];
-    const channels = ["whatsapp", "sms", "email", "voice", null];
+    const channels = ["whatsapp", "sms", "email", "instagram", "voice", null];
     let cases = 0;
     for (const purpose of purposes) {
       for (const source of sources) {
@@ -185,7 +185,7 @@ test(
         }
       }
     }
-    assert.equal(cases, 70, "every case was asked");
+    assert.equal(cases, 84, "every case was asked");
     // The order is the contract's: whatsapp, sms, email.
     assert.deepEqual([...CONSENT_CHANNELS], ["whatsapp", "sms", "email"]);
   },

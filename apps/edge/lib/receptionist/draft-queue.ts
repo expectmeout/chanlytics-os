@@ -14,6 +14,7 @@ import type { Database } from "../packages/db.js";
 import { recordOutbound, withdrawQueued } from "../packages/db.js";
 import { scheduleJob } from "../packages/jobs.js";
 import type { BrainMeta } from "../packages/contracts.js";
+import type { InboundChannel } from "../packages/core.js";
 import type { LogEvent } from "../log.js";
 
 export type DraftSource = "veto_window" | "low_confidence" | "steered";
@@ -22,7 +23,8 @@ interface DraftArgs {
   tenantId: string;
   conversationId: string;
   contactId: string | null;
-  toPhone: string;
+  /** Where it goes: the number on a phone's wire (with or without its "+"), the person's Instagram-scoped id on a DM's. */
+  to: string;
   body: string;
   delayMs: number;
   /** Why the draft waits. */
@@ -32,7 +34,7 @@ interface DraftArgs {
   /** Anything else the row should carry (a steer's instruction, its origin). */
   extra?: Record<string, unknown>;
   /** The wire the draft goes out on; WhatsApp unless said. */
-  channel?: "whatsapp" | "sms";
+  channel?: InboundChannel;
 }
 
 interface DraftLog {
@@ -69,7 +71,8 @@ export async function queueDraft(db: SupabaseClient<Database>, a: DraftArgs, L: 
       payload: {
         message_id: messageId,
         conversation_id: a.conversationId,
-        to_phone: `+${a.toPhone.replace(/^\+/, "")}`,
+        // An address never travels in a field read as a number: a DM's is its own (core SendPayload).
+        ...(a.channel === "instagram" ? { to_instagram: a.to } : { to_phone: `+${a.to.replace(/^\+/, "")}` }),
         body: a.body,
       },
     });

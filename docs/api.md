@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-328 handlers in 53 domains.
+332 handlers in 53 domains.
 
 ## activity
 
@@ -408,6 +408,32 @@ Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/ap
 Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
 
 Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/channels/route.ts`).
+
+### `GET /api/v1/channels/instagram`
+
+Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/channels/instagram/route.ts`).
+
+### `GET /api/v1/channels/instagram/callback`
+
+Reads; for any signed-in person, for themselves; no rate bucket; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/channels/instagram/callback/route.ts`).
+
+### `GET /api/v1/channels/instagram/connect`
+
+Reads; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/channels/instagram/connect/route.ts`).
+
+### `POST /api/v1/channels/instagram/disconnect`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `channel_id` | string (uuid) | yes |  |
 
 ### `POST /api/v1/channels/whatsapp/connect`
 

@@ -572,6 +572,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // Library's and the composers' repaint, and the Campaigns lens's "your number" (numberHealthOfConfig reads the same config) is
   // read again where it is drawn.
   "POST channels/whatsapp/standing": () => [channelsOverride, ...reportsCampaigns()],
+  // An Instagram account turned off: Connections' row (the channels read) and the Setup row that says what answers.
+  "POST channels/instagram/disconnect": () => [channelsOverride, setupOverride],
   "PUT notifications": () => [notificationsOverride],
   // Setup, lines, billing, Google.
   "POST capabilities/[kind]": setup,

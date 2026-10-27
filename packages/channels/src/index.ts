@@ -23,10 +23,46 @@ export type {
 } from "./models/anthropic";
 export { askSystemOne, SYSTEM_ONE_URL } from "./models/typesafe";
 export type { SystemOneAsk, SystemOneReply } from "./models/typesafe";
-export type { InboundMessage } from "./inbound";
+export type { InboundMessage, MediaRef, LinkedMediaRef } from "./inbound";
+export { isLinkedMedia } from "./inbound";
+export { metaSignatureValid, META_SIGNATURE_HEADER } from "./meta-signature";
+export { instagramEventsOf, inboundFromInstagram } from "./instagram/instagram-events";
+export type { IgMessaging, IgReferral, InstagramEvent } from "./instagram/instagram-events";
+export {
+  instagramAuthorizeUrl,
+  instagramCodeOf,
+  instagramCodeRequest,
+  instagramLongLivedRequest,
+  instagramRefreshRequest,
+  instagramMeRequest,
+  instagramSubscribeRequest,
+  instagramErrorOf,
+  parseInstagramCodeGrant,
+  parseInstagramToken,
+  parseInstagramMe,
+  instagramNameOf,
+  instagramCall,
+  readInstagramName,
+  instagramThrottled,
+  instagramRefusalOf,
+  instagramDmChunks,
+  sendInstagramText,
+  fetchLinkedMedia,
+  INSTAGRAM_DM_MAX_BYTES,
+} from "./instagram/instagram-graph";
+export type {
+  InstagramRequest,
+  InstagramApp,
+  InstagramConfig,
+  InstagramGraphError,
+  InstagramCodeGrant,
+  InstagramAnswer,
+  InstagramDeps,
+} from "./instagram/instagram-graph";
 export {
   normalizeInbound,
   inboundFromWhatsapp,
+  storableReferral,
   waPricingOf,
   waStoppedMarketing,
   graphThrottled,
@@ -192,12 +228,10 @@ export { retellImportBody, nextLineStep, runLineSaga, LINE_STEPS } from "./lines
 export type { LineStep, LineVoiceState, LineRow, LineSecrets, LinePorts, SagaResult } from "./lines/lines-saga";
 export {
   smsInboundFrom,
-  smsAsWaMessage,
   inboundFromSms,
   carrierConsent,
   smsKeywordConsent,
   mergeConsent,
-  withCarrierConsent,
   oneTimeCodeOf,
   lineCodesFrom,
   smsRefusalOf,

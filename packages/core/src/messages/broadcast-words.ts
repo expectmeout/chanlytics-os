@@ -2,7 +2,7 @@
  * What a broadcast says to its owner when it stops on a wire, in the owner's words, one set per channel (broadcast.ts).
  */
 import { audienceTrigger, playbookRunNext, type PlaybookRunNextBy, type RunStop } from "@chanlytics/contracts";
-import type { Channel } from "../deliver";
+import type { BroadcastChannel as Channel } from "./broadcast-channels";
 
 /**
  * What a run says of each wire it goes out on, in the owner's words: the credentials it could not read, why the wire is

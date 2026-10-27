@@ -360,10 +360,11 @@ function receptionist({
     persist: {
       thread: async () => thread(),
       // The message id is what a redelivery is recognised by: a text's job ingests what its door kept, and is told so.
-      ingest: async (_db, tenantId, n, channel) => {
-        const isNew = !kept.has(n.messageId);
-        kept.add(n.messageId);
-        if (isNew) seen.ingested.push({ tenantId, channel, body: n.body });
+      // The wire is the message's own (decision 0001): the text's door makes it into the one shape, on its line.
+      ingest: async (_db, tenantId, n) => {
+        const isNew = !kept.has(n.externalId);
+        kept.add(n.externalId);
+        if (isNew) seen.ingested.push({ tenantId, channel: n.channel, body: n.body });
         ingest(n);
         return tenantId
           ? {

@@ -1,7 +1,10 @@
 import { clockDate, inLocalWeek, localDaysBetween } from "../shared/clock.js";
 import { formatPhoneDisplay } from "../shared/phone.js";
 import { personName } from "./person-name.js";
-import { PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS } from "./person-words.js";
+import {
+  PERSON_CAME_FROM_WORDS,
+  PERSON_CHANNEL_WORDS
+} from "./person-words.js";
 import { isOptedOutContact } from "../consent/consent.js";
 import {
   visitDateKey,
@@ -64,8 +67,9 @@ function channelsOf(r) {
   if (wrote ? wrote.includes("whatsapp") : r.has_chat) set.add("whatsapp");
   if (wrote?.includes("sms")) set.add("sms");
   if (wrote?.includes("email")) set.add("email");
+  if (wrote?.includes("instagram")) set.add("instagram");
   if ((r.call_count ?? 0) > 0) set.add("voice");
-  const order = ["whatsapp", "sms", "voice", "email"];
+  const order = ["whatsapp", "sms", "voice", "email", "instagram"];
   return order.filter((c) => set.has(c));
 }
 export function replyChannelOfRow(r) {
@@ -77,6 +81,9 @@ export function replyChannelOfRow(r) {
   if (only) return only;
   if (wrote && wrote.includes("email") && !wrote.some((c) => c === "whatsapp" || c === "sms")) return "email";
   return "whatsapp";
+}
+export function igClockOfRow(r) {
+  return r.last_inbound_channel === "instagram" ? r.last_wrote_at ?? null : null;
 }
 export function cameFromOf(r) {
   const k = r.came_from;
@@ -141,7 +148,7 @@ function consultationKeysOf(v, nextVisitMs) {
   };
 }
 function lastChannelOf(c) {
-  return c === "whatsapp" || c === "sms" || c === "email" ? c : null;
+  return c === "whatsapp" || c === "sms" || c === "email" || c === "instagram" ? c : null;
 }
 function rowReachOf(r, consent, ready) {
   const facts = { lastChannel: lastChannelOf(r.last_inbound_channel), emailSuppressed: isEmailStopped(r) };
@@ -152,6 +159,7 @@ function rowReplyOf(r, now, emailStopped, who) {
     {
       wire: replyChannelOfRow(r),
       waInboundAt: r.latest_wa_inbound_at,
+      igInboundAt: igClockOfRow(r),
       emailStopped,
       optedOut: isOptedOutContact({ consent: r.consent, dnc: r.dnc }),
       who

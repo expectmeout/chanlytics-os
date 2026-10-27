@@ -116,6 +116,7 @@ const WIRE_ROWS = [
   ["sms_only", `${PERSON_CHANNEL_WORDS.sms} only`],
   ["phone_only", `${PERSON_CHANNEL_WORDS.voice} only`],
   ["email_only", `${PERSON_CHANNEL_WORDS.email} only`],
+  ["instagram_only", `${PERSON_CHANNEL_WORDS.instagram} only`],
   ["several", "More than one way"],
   ["none", "None yet"]
 ];

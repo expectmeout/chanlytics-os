@@ -18,8 +18,8 @@ export function matchWordsOf(via) {
 export function isGuess(via) {
   return via === "name" || via === "business";
 }
-function threadOf(p) {
-  return p.thread ? { thread: p.thread, wa_inbound_at: p.waInboundAt ?? null } : {};
+function threadOf({ thread, waInboundAt, igInboundAt }) {
+  return thread ? { thread, wa_inbound_at: waInboundAt ?? null, ig_inbound_at: igInboundAt ?? null } : {};
 }
 export function replyFactsOf(p) {
   return p.reach ? { reply_wire: p.reach.wire, email_stopped: p.reach.emailStopped, opted_out: p.reach.optedOut } : {};

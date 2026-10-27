@@ -20,6 +20,7 @@ import { json, refuse } from "../http.js";
 import { errField } from "../log.js";
 import { alertFor } from "./job-alert.js";
 import { whatsappWireForTenant } from "../tenant-runtime.js";
+import { instagramWireForTenant } from "../instagram/credentials.js";
 import { smsSenderForTenant } from "../sms/sms.js";
 import { emailBoundFor, emailIntake } from "../email/email.js";
 import { mailboxIntake } from "../email/mailbox/mailbox-intake.js";
@@ -104,6 +105,27 @@ const broughtIn = (db: Parameters<typeof historyImports>[0]) => ({
   website: websiteReader(db),
 });
 
+/**
+ * A job's wires but email's, bound where the credentials are: the TENANT's WhatsApp credentials, never the environment's
+ * (a second business's reply must not leave from the first one's number), each send from the number its person last
+ * wrote to where the workspace has two (whatsappWireForTenant); the texting line's sender when the workspace has one; and
+ * its Instagram account's, a member's reply and a held draft by DM leaving from the account the person last wrote to
+ * (lib/instagram). Null on any is a refusal at the door, not a guess; a read that FAILED is neither (core
+ * WireUnavailable): the reply waits for a heartbeat that can read the vault. Email's wire is bound to the workspace's own
+ * addresses (its hosted mailbox, each mailbox it connected): it sends a frozen request only when it leaves as one.
+ */
+async function phoneWires(db: SweepTick["db"], tenantId: string) {
+  const line = await smsSenderForTenant(db, tenantId);
+  return {
+    whatsapp: await whatsappWireForTenant(db, tenantId),
+    instagram: await instagramWireForTenant(db, tenantId),
+    sms:
+      line === null || isWireUnavailable(line)
+        ? line
+        : (to: string, p: { body: string }) => line.send(to.startsWith("+") ? to : `+${to}`, p.body),
+  };
+}
+
 export async function tickJobs({ db, L, started }: SweepTick): Promise<Response> {
   try {
     // The relay first (decision 0032, 00334): the outbox's events become deliveries and jobs, which this same tick then
@@ -118,17 +140,7 @@ export async function tickJobs({ db, L, started }: SweepTick): Promise<Response>
       {
         claim: (lease) => claimNext(db, lease),
         dispatch: async (job, deadline) => {
-          // The job's wires, bound here where the credentials are: the
-          // TENANT's WhatsApp credentials, never the environment's (a second
-          // business's reply must not leave from the first one's number), each
-          // send from the number its person last wrote to where the workspace
-          // has two (whatsappWireForTenant), and the texting line's sender when
-          // the workspace has one. Null on either is a refusal at the door, not
-          // a guess; a read that FAILED is neither (core WireUnavailable): the
-          // reply waits for a heartbeat that can read the vault. Email's wire is bound to the workspace's own addresses
-          // (its hosted mailbox, each mailbox it connected): it sends a frozen request only when it leaves as one.
-          const line = await smsSenderForTenant(db, job.tenant_id);
-          // Each wire is bound on its own: a mailbox that could not be read is email's wire unbound (core
+          // Each wire is bound on its own (phoneWires): a mailbox that could not be read is email's wire unbound (core
           // WireUnavailable), never a throw that fails a WhatsApp or SMS reply that needed no email at all.
           // A broadcast's batch may send OFFERS by email: only for that job is the campaigns domain asked about (it is
           // kept five minutes) and bound, as the wire's route and the intake's lane; every other job never sees it. For a
@@ -141,14 +153,7 @@ export async function tickJobs({ db, L, started }: SweepTick): Promise<Response>
           const intake = emailIntake(db, campaigns, closed, unread);
           // The lead finder's pipeline: absent without APIFY_TOKEN, and a lead job then fails by name.
           const leads = leadPipeline();
-          const wire = {
-            whatsapp: await whatsappWireForTenant(db, job.tenant_id),
-            sms:
-              line === null || isWireUnavailable(line)
-                ? line
-                : (to: string, p: { body: string }) => line.send(to.startsWith("+") ? to : `+${to}`, p.body),
-            ...(email !== undefined ? { email } : {}),
-          };
+          const wire = { ...(await phoneWires(db, job.tenant_id)), ...(email !== undefined ? { email } : {}) };
           // The job as its handler holds it. What the handler says of it (that it spoke: ledger markSpoke) is carried
           // back to the claim once it returns or throws, where the ledger judges a retry from it.
           const claimed: ClaimedJob = {

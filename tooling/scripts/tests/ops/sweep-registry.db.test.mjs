@@ -102,6 +102,9 @@ const EVERY_CLOCK = {
   purge_jobs: "purge-jobs",
   // How fast the pages were (00255): nightly, after thirty days.
   purge_page_vitals: "purge-page-vitals",
+  // A connected Instagram account's token (00486, decision 0001 step 8): a daily clock that asks the edge only when an
+  // account is connected, and records that it looked otherwise.
+  instagram_tokens: "instagram-token-sweep",
   // Each workspace's day, counted (00277): nightly at 00:17 UTC, judged by its run.
   platform_metrics_roll: "platform-metrics-roll",
   // A voice conversation's row, a day after its token expired (00288): nightly, judged by its run.
@@ -334,6 +337,9 @@ test(
       -- channel quality: a connected WhatsApp number.
       insert into public.tenant_channels (tenant_id, kind, status, external_id)
            values (t, 'whatsapp', 'active', 'every-clock-' || tag);
+      -- instagram tokens: a connected Instagram account.
+      insert into public.tenant_channels (tenant_id, kind, status, external_id)
+           values (t, 'instagram', 'active', 'every-clock-ig-' || tag);
       -- mailboxes: a mailbox the business connected.
       insert into public.mailbox_connections (tenant_id, provider, provider_account, address, host, from_name)
            values (t, 'google', 'every-clock-' || tag, 'hello@every-clock-' || tag || '.example.com',
