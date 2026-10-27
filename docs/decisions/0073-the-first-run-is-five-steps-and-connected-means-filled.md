@@ -112,8 +112,8 @@ and the code disagree, the code wins. The status was read again at `e9d6325f0` (
 
 ### The mailbox brings six months, its people and its calendar (R13, R19, R20)
 
-18. **One consent, what was ticked.** Connecting Gmail or Outlook asks for the contacts, the other contacts and the
-    calendar beside the mail; none is required, and only what the owner left ticked is read (channels `grantHolds`).
+18. **One consent, what was ticked.** Connecting Gmail or Outlook asks for the contacts and the calendar beside the
+    mail; none is required, and only what the owner left ticked is read (channels `grantHolds`).
     Google keeps one app: every consent adds to the grants already given (`include_granted_scopes`, R18).
 19. **Six months of mail from people** are read a page at a time (Gmail's `after:`/`before:`, Graph's
     `receivedDateTime`), as parts of the `history_import` job (00478; a part reads 40 seconds, then hands on). Each
@@ -132,8 +132,9 @@ and the code disagree, the code wins. The status was read again at `e9d6325f0` (
     read from the mailbox's Sent and kept in that person's thread, and resolves the holds that waited on it, as a reply
     typed in the WhatsApp Business app does (00482 `mailbox_owner_wrote`, 27 October 2026). Outlook's Sent Items wait
     on Graph's second delta.
-21. **Its people:** Google's contacts and other contacts, Outlook's contacts, into People as a client list's are, never a
-    yes.
+21. **Its people:** Google's contacts and Outlook's contacts, into People as a client list's are, never a yes. Google's
+    "other contacts" (everyone the owner ever wrote to) are no longer asked for (27 October 2026): they filled People
+    with every passing address, and the people the owner wrote to in the six months come in with their threads.
 22. **The calendar by consent (R20):** a mailbox connected with its calendar ticked becomes the workspace's calendar
     (`calendar_grant` in the config, written by `calendar_grant_note`; a grant wins over a link, and removing the
     mailbox takes it away). It is read as a feed made from the provider's events (Google's calendar list and single
@@ -201,7 +202,7 @@ and the code disagree, the code wins. The status was read again at `e9d6325f0` (
 
 - His word on the trial (12), and `STRIPE_PUBLISHABLE_KEY` set on the edge for the embedded checkout (13).
 - Google's and Microsoft's app filings for the scopes asked (18, R18): Google `business.manage`, `calendar.readonly`,
-  `contacts.readonly`, `contacts.other.readonly`, `gmail.readonly`, `gmail.send`; Microsoft `Mail.ReadWrite`, `Mail.Send`,
+  `contacts.readonly`, `gmail.readonly`, `gmail.send`; Microsoft `Mail.ReadWrite`, `Mail.Send`,
   `Calendars.Read`, `Contacts.Read`.
 - Meta: a v4 Embedded Signup configuration offering the business app, `META_ES_KEEP_APP=1` on the edge, and the app's
   webhook subscribed to `history`, `smb_app_state_sync`, `smb_message_echoes` and `account_update` (30, 31).

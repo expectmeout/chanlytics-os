@@ -53,8 +53,8 @@ function GoogleUserData() {
           auto-replies, is set aside and not kept.
         </li>
         <li>
-          <b>Contacts</b>: the mailbox's contacts and other contacts are added to the workspace's people. Being in a
-          contact list never counts as agreeing to receive offers.
+          <b>Contacts</b>: the mailbox's contacts are added to the workspace's people. Being in a contact list never
+          counts as agreeing to receive offers.
         </li>
         <li>
           <b>Calendar</b>: its events, from 180 days back to 90 days ahead, show the business's appointments, its free

@@ -140,8 +140,7 @@ export async function startMailboxHistory(
   },
 ): Promise<void> {
   const wanted: ImportSource[] = ["mailbox"];
-  if (grantHolds(p.provider, p.scopes, "contacts") || grantHolds(p.provider, p.scopes, "other_contacts"))
-    wanted.push("contacts");
+  if (grantHolds(p.provider, p.scopes, "contacts")) wanted.push("contacts");
   const calendar = grantHolds(p.provider, p.scopes, "calendar");
   if (calendar) wanted.push("calendar");
   try {

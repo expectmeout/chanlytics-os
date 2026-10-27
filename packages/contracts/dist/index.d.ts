@@ -7086,6 +7086,8 @@ interface EmailSetupDto {
     sending?: {
         providers: MailboxProvider[];
         mailboxes: MailboxConnectionDto[];
+        /** Google's consent screen for the app, where Google is offered: its warning is said before Connect. */
+        google_audience?: GoogleAudience | null;
     } | null;
 }
 /**
@@ -35057,6 +35059,11 @@ declare const BOOKING_PLATFORM_HOSTS: readonly string[];
  */
 declare function bookingPageOf(raw: string | null | undefined): string | null;
 
+/** Google's consent screen for Chanlytics' app, as the person about to press Connect needs to hear it. */
+
+/** What Google's audience means for the person about to press Connect. */
+declare function googleAudienceWords(a: GoogleAudience | null | undefined): string | null;
+
 /** What a CSV cell may hold before it is spelled. */
 type CsvCell = string | number | boolean | null | undefined;
 /**
@@ -50639,8 +50646,6 @@ type ConnectionDraft = Omit<ConnectionRow, "group" | "tone" | "body" | "notes"> 
     notes?: ConnectionNote[];
 };
 type Draft = ConnectionDraft;
-/** What Google's audience means for the person about to press Connect. */
-declare function googleAudienceWords(a: GoogleAudience | null | undefined): string | null;
 /** The texting states of a line, in the owner's words. The carriers' vocabulary stays out. */
 declare function smsStateRow(line: LineDto | null, nowMs: number): Draft;
 /** The fold over ROW_BUILDERS: every connection's row, drawn from one set of facts, in the page's order. */

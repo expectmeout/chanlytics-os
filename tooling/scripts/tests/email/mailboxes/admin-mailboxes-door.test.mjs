@@ -182,6 +182,13 @@ test("readiness: the providers offered here, and only the public half of each cl
     redirect_uri: MAILBOX_ENV.MAILBOX_OAUTH_REDIRECT,
   });
   assert.ok(!JSON.stringify(body).includes(MAILBOX_ENV.GOOGLE_MAIL_CLIENT_SECRET), "never a secret");
+  assert.equal(body.audience, null, "Google's consent screen unsaid where the deployment says nothing of it");
+  const said = withEnv({ GOOGLE_OAUTH_AUDIENCE: "unverified" });
+  try {
+    assert.equal((await ask({ op: "readiness" }))[1].audience, "unverified", "the Business Profile app's own (R18)");
+  } finally {
+    said();
+  }
   const back = withEnv({ MICROSOFT_MAIL_CLIENT_SECRET: null });
   try {
     assert.deepEqual(

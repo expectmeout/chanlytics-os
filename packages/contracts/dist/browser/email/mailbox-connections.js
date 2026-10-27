@@ -230,7 +230,7 @@ export function mailboxRecordRows(m) {
 }
 const CONNECT_FAILED = "That didn't go through. Try again in a minute.";
 export const MAILBOX_CONNECT_WORDS = {
-  connected: "Connected. Its ramp starts at 10 a day.",
+  connected: "Connected: email from people comes into your Inbox, and its last six months are on their way.",
   reconnected: "Connected again: its emails go on where they waited.",
   declined: "Nothing was connected: the sign-in was cancelled.",
   scopes_missing: "Nothing was connected: send and read access are both needed. Connect again and leave both ticked.",
@@ -261,7 +261,7 @@ export function mailboxConnectWords(code) {
 export function mailboxesFootWords(count) {
   if (count >= MAILBOX_CONNECTIONS_MAX) return `${MAILBOX_CONNECTIONS_MAX} is the most. Remove one to add another.`;
   if (count === 0)
-    return `A sequence to leads writes from your own mailbox, through Google or Microsoft, so every email is yours and every reply comes back to it. A mailbox on the domain your customers write to sends ${CUSTOMER_DOMAIN_DAILY_MAX} a day at most; for more, use a second domain such as get<yourbusiness>.com.`;
+    return `Email people write to your mailbox comes into your Inbox, and sequences to leads write from it through Google or Microsoft, so every email is yours and every reply comes back to it. A mailbox on the domain your customers write to sends ${CUSTOMER_DOMAIN_DAILY_MAX} a day at most to leads; for more, use a second domain such as get<yourbusiness>.com.`;
   return `A new mailbox starts at ${MAILBOX_RAMP[0].perDay} a day and grows with the days it sends, to ${Math.max(...MAILBOX_RAMP.map((s) => s.perDay))}. Replies come back to it, and to your Inbox here.`;
 }
 export function customerDomainWords(host) {
