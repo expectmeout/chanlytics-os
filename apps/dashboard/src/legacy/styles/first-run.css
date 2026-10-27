@@ -241,12 +241,21 @@
 .fr-import[data-state="failed"] .fr-detail { color: var(--danger-ink); }
 /* A source brought in (brought.tsx ImportLines): its glyph, its words with how far it has come and what was set aside,
    and where it stands at its end, a tick once in (Ruben, 27 Oct 2026: "In" on every line read as clutter). */
-.fr-source { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; }
+.fr-source { display: grid; grid-template-columns: minmax(0, 1fr) auto; row-gap: 2px; }
+/* The glyph and the words, a link to their page on Today (brought.tsx `doors`): the title's quiet chevron says so. */
+.fr-import-door { display: grid; grid-template-columns: 32px minmax(0, 1fr); align-items: center; gap: 12px; min-width: 0; color: inherit; text-decoration: none; border-radius: var(--radius-md); }
 .fr-import-glyph { width: 32px; height: 32px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-sunken); color: var(--ink-dim); }
+.fr-import-title { display: inline-flex; align-items: center; gap: 4px; }
+.fr-import-chevron { color: var(--ink-faint); }
 .fr-source .fr-import-stand { justify-self: end; display: inline-flex; align-items: center; }
 .fr-source[data-state="done"] .fr-import-stand { color: var(--ok-ink); }
 .fr-import-bar { width: min(240px, 100%); margin-top: 6px; }
-.fr-import-aside { font-size: var(--text-xs); color: var(--ink-faint); }
+/* What the mailbox set aside, under the words (past the glyph's 32 and the gap's 12), a link to where it is listed. */
+.fr-import-aside { grid-column: 1; justify-self: start; margin-left: 44px; display: inline-flex; align-items: center; gap: 2px; font-size: var(--text-xs); color: var(--ink-faint); text-decoration: none; border-radius: var(--radius-sm); }
+a.fr-import-door:focus-visible, a.fr-import-aside:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (hover: hover) {
+  a.fr-import-door:hover .fr-import-chevron, a.fr-import-aside:hover { color: var(--ink); }
+}
 .fr-clients { display: grid; gap: 14px; }
 .fr-clients-foot { display: flex; justify-content: flex-end; gap: 8px; }
 

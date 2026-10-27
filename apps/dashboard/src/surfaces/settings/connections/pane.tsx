@@ -12,6 +12,7 @@ import { Fragment, Suspense, lazy, useEffect, useMemo, useState, type ReactNode 
 import {
   CONNECTION_GROUP_WORDS,
   connectionRows,
+  MAILBOX_LEFT_ROW,
   tryItLink,
   type ConnectionGroup,
   type ConnectionRow as Row,
@@ -255,7 +256,8 @@ function groupCard(o: {
   );
 }
 
-export const PaneIntegrationsReal = () => {
+/** Connections, and the row its address names, open (`integrations/left`: the mailbox's left senders). */
+export const PaneIntegrationsReal = ({ row: named = null }: { row?: string | null }) => {
   const C = useSurface("channels");
   const S = useSurface("setup");
   const G = useSurface("google");
@@ -373,7 +375,13 @@ export const PaneIntegrationsReal = () => {
       )}
       {/* A Later row has no block, but what a connect came back with is still said under it. */}
       {((r.body === "mailboxes" && S && email) || (r.kind === "mailbox" && mailboxNote)) && (
-        <ConnectedMailboxes email={email} flash={flash} note={mailboxNote} onNote={() => setMailboxNote(null)} />
+        <ConnectedMailboxes
+          email={email}
+          flash={flash}
+          note={mailboxNote}
+          onNote={() => setMailboxNote(null)}
+          openLeft={named === MAILBOX_LEFT_ROW}
+        />
       )}
     </Fragment>
   );

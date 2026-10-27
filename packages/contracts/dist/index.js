@@ -42493,6 +42493,17 @@ var IMPORT_STOPPED_WORDS = {
 };
 var ONCE_ONLY = /* @__PURE__ */ new Set(["whatsapp_contacts", "whatsapp_history"]);
 var IMPORT_STATES = ["queued", "running", "done", "failed"];
+var IMPORT_DOORS = {
+  google_reviews: lensRoute("reviews"),
+  calendar: "calendar",
+  clients_file: "clients",
+  mailbox: "inbox",
+  contacts: "clients",
+  whatsapp_contacts: "clients",
+  whatsapp_history: "inbox"
+};
+var MAILBOX_LEFT_ROW = "left";
+var MAILBOX_LEFT_ROUTE = "admin/integrations/left";
 var IMPORT_WORDS = {
   titles: {
     google_reviews: "Reviews",
@@ -42592,8 +42603,17 @@ function standOf(r2, share2) {
     return `${r2.parts_done} of ${r2.parts_total}`;
   return share2 === null ? "\u2026" : `${Math.round(share2 * 100)}%`;
 }
+function leadCountOf(r2) {
+  const c = r2.counts;
+  if (r2.state === "failed") return null;
+  if (r2.source === "mailbox") return c.messages || null;
+  if (r2.source === "google_reviews") return c.reviews || null;
+  if (r2.source === "calendar") return c.past || null;
+  return r2.source === "whatsapp_history" ? null : c.people ?? null;
+}
 function importLineOf(r2) {
   const share2 = shareOf(r2);
+  const aside = r2.source === "mailbox" && r2.state !== "failed" && r2.counts.dropped ? IMPORT_WORDS.setAside(r2.counts.dropped) : null;
   return {
     source: r2.source,
     title: IMPORT_WORDS.titles[r2.source],
@@ -42602,7 +42622,10 @@ function importLineOf(r2) {
     state: r2.state,
     retry: r2.state === "failed" && !ONCE_ONLY.has(r2.source),
     share: share2,
-    aside: r2.source === "mailbox" && r2.state !== "failed" && r2.counts.dropped ? IMPORT_WORDS.setAside(r2.counts.dropped) : null
+    aside,
+    door: IMPORT_DOORS[r2.source],
+    asideDoor: aside ? MAILBOX_LEFT_ROUTE : null,
+    count: leadCountOf(r2)
   };
 }
 var WHATSAPP_PART_WORDS = {
@@ -42662,7 +42685,10 @@ function importLinesOf(rows2, o = { whatsappWaiting: false }) {
       state: "waiting",
       retry: false,
       share: null,
-      aside: null
+      aside: null,
+      door: null,
+      asideDoor: null,
+      count: null
     });
   const done = lines.filter((l) => l.state === "done").length;
   return { lines, done, of: lines.length, running: lines.some((l) => l.state === "running" || l.state === "queued") };
@@ -69373,6 +69399,7 @@ export {
   MAILBOX_DAILY_CAP_MAX,
   MAILBOX_FROM_NAME_MAX,
   MAILBOX_HOLDS,
+  MAILBOX_LEFT_ROW,
   MAILBOX_LEFT_WHY_WORDS,
   MAILBOX_LOCAL_PART_MAX,
   MAILBOX_PROVIDERS,

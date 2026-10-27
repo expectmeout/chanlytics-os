@@ -93,7 +93,7 @@ function SetPane({ id, row, flash }: { id: string; row: string | null; flash: Fl
         <PaneWorkspace flash={flash} row={row} part={id} />
       )}
       {id === "autonomy" && <PaneAutonomyReal flash={flash} row={row} />}
-      {id === "integrations" && <PaneIntegrationsReal />}
+      {id === "integrations" && <PaneIntegrationsReal row={row} />}
       {/* What Ask remembers about the business, and its journal (decision 0070). */}
       {id === "memory" && <PaneMemory flash={flash} />}
       {id === "notifications" && <PaneNotificationsReal flash={flash} />}
