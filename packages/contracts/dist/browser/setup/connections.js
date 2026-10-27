@@ -6,6 +6,7 @@ import { codeNotes } from "../lines/line-codes.js";
 import { standingNotes, standingRow } from "../lines/number-standing.js";
 import { whatsappCostNotes } from "../lines/whatsapp-cost.js";
 import { tryItNotes } from "../lines/whatsapp-try-it.js";
+import { googleAudienceWords } from "../google/audience.js";
 import { SETUP_STATE_WORDS, textingWords, SOLE_PROP_CEILING_SENTENCE, TEXTING_NEEDS_RECORD_SENTENCE } from "./setup.js";
 import { ownLineStandOf } from "./setup-rows-phone.js";
 import { agoWords, HOUR_MS } from "../shared/time.js";
@@ -61,13 +62,6 @@ const ORDER = {
 };
 function row(d) {
   return { ...d, group: GROUP[d.state], tone: TONE[d.state], body: d.body ?? null, notes: d.notes ?? [] };
-}
-export function googleAudienceWords(a) {
-  if (a === "testing")
-    return "Google is reviewing Chanlytics; until then Connect works for invited Google accounts only.";
-  if (a === "unverified")
-    return "Google shows a warning until its review of Chanlytics is done \u2014 choose Advanced, then Go to Chanlytics.";
-  return null;
 }
 export function smsStateRow(line, nowMs) {
   const num = line ? formatPhoneDisplay(line.e164) : null;

@@ -1,6 +1,6 @@
 /**
  * The people a connected mailbox's grant knows (decision 0073, R19): the owner's contacts (Google's People API, Graph's
- * contacts) and, at Google, the people the owner wrote to that Google keeps as "other contacts". Each a name, the
+ * contacts); never Google's "other contacts", everyone the owner ever wrote to. Each a name, the
  * addresses and the numbers as the provider holds them; the edge brings them into People as a client list's are, never
  * a yes. A page at a time; every call returns what it came to and never throws (provider-fetch.ts).
  */
@@ -66,13 +66,6 @@ export function googleContacts(token: string, pageToken: string | null, deps?: D
   const q = new URLSearchParams({ personFields: "names,emailAddresses,phoneNumbers", pageSize: PEOPLE_PAGE });
   if (pageToken) q.set("pageToken", pageToken);
   return googlePage(token, `${PEOPLE_API}/people/me/connections?${q.toString()}`, "connections", deps);
-}
-
-/** The people the owner wrote to that Google keeps as other contacts (contacts.other.readonly), a page at a time. */
-export function googleOtherContacts(token: string, pageToken: string | null, deps?: Deps): Promise<PeoplePage> {
-  const q = new URLSearchParams({ readMask: "names,emailAddresses,phoneNumbers", pageSize: PEOPLE_PAGE });
-  if (pageToken) q.set("pageToken", pageToken);
-  return googlePage(token, `${PEOPLE_API}/otherContacts?${q.toString()}`, "otherContacts", deps);
 }
 
 /** The owner's Outlook contacts (Contacts.Read), a page at a time; `link` is the page Graph named next. */

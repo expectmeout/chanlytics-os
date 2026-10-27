@@ -3861,19 +3861,9 @@ function newNonce() {
 var GMAIL_SEND_SCOPE = "https://www.googleapis.com/auth/gmail.send";
 var GMAIL_READ_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
 var CONTACTS_SCOPE = "https://www.googleapis.com/auth/contacts.readonly";
-var OTHER_CONTACTS_SCOPE = "https://www.googleapis.com/auth/contacts.other.readonly";
 var CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.readonly";
 var MAILBOX_SCOPES = {
-  google: [
-    "openid",
-    "email",
-    "profile",
-    GMAIL_SEND_SCOPE,
-    GMAIL_READ_SCOPE,
-    CONTACTS_SCOPE,
-    OTHER_CONTACTS_SCOPE,
-    CALENDAR_SCOPE
-  ],
+  google: ["openid", "email", "profile", GMAIL_SEND_SCOPE, GMAIL_READ_SCOPE, CONTACTS_SCOPE, CALENDAR_SCOPE],
   microsoft: [
     "offline_access",
     "openid",
@@ -3887,8 +3877,9 @@ var MAILBOX_SCOPES = {
   ]
 };
 var REACH = {
-  google: { contacts: CONTACTS_SCOPE, other_contacts: OTHER_CONTACTS_SCOPE, calendar: CALENDAR_SCOPE },
-  // Graph keeps no "other contacts": the people the owner wrote to come in with the mail itself.
+  // Google's "other contacts" (everyone the owner ever wrote to) is not asked for: the people the owner wrote to in the
+  // six months come in with their mail, in their threads, and the rest would fill People with every passing address.
+  google: { contacts: CONTACTS_SCOPE, calendar: CALENDAR_SCOPE },
   microsoft: { contacts: "contacts.read", calendar: "calendars.read" }
 };
 var REQUIRED = {
@@ -4530,11 +4521,6 @@ function googleContacts(token, pageToken, deps) {
   const q = new URLSearchParams({ personFields: "names,emailAddresses,phoneNumbers", pageSize: PEOPLE_PAGE });
   if (pageToken) q.set("pageToken", pageToken);
   return googlePage(token, `${PEOPLE_API}/people/me/connections?${q.toString()}`, "connections", deps);
-}
-function googleOtherContacts(token, pageToken, deps) {
-  const q = new URLSearchParams({ readMask: "names,emailAddresses,phoneNumbers", pageSize: PEOPLE_PAGE });
-  if (pageToken) q.set("pageToken", pageToken);
-  return googlePage(token, `${PEOPLE_API}/otherContacts?${q.toString()}`, "otherContacts", deps);
 }
 async function graphContacts(token, link, deps) {
   const url = link ?? `${GRAPH_API}/me/contacts?$select=displayName,emailAddresses,mobilePhone,businessPhones,homePhones&$top=${CONTACTS_PAGE}`;
@@ -7013,7 +6999,6 @@ export {
   googleCalendarIds,
   googleContacts,
   googleEvents,
-  googleOtherContacts,
   grantHasScope,
   grantHolds,
   grantScopes,

@@ -27,7 +27,6 @@ const PEOPLE = "https://people.googleapis.com/v1";
 const SCOPES = {
   mail: ["https://www.googleapis.com/auth/gmail.send", "https://www.googleapis.com/auth/gmail.readonly"],
   contacts: "https://www.googleapis.com/auth/contacts.readonly",
-  other: "https://www.googleapis.com/auth/contacts.other.readonly",
 };
 
 /**
@@ -41,7 +40,7 @@ function world({ box = {}, credentials = liveCredentials("ya29.sam"), reached = 
     provider: "google",
     address: OWN,
     connected_at: CONNECTED,
-    scopes: [...SCOPES.mail, SCOPES.contacts, SCOPES.other],
+    scopes: [...SCOPES.mail, SCOPES.contacts],
     ...box,
   });
   const v = vault(credentials ? { [mailbox.id]: credentials } : {});
@@ -619,7 +618,7 @@ test("Gmail's tabs never leave a reply in a thread a reach-out started; under Up
   assert.deepEqual(w.asked, ["g-reach", "tup2"], "a reach-out's thread is asked only of what a tab alone would leave");
 });
 
-test("the mailbox's people: its contacts and the people it wrote to, through the one person door, a page at a time, never the mailbox's own address", async () => {
+test("the mailbox's people: its own contacts, through the one person door, a page at a time; Google's other contacts never asked", async () => {
   const w = world();
   const net = providers((c) => {
     if (c.url.startsWith(`${PEOPLE}/people/me/connections`))
@@ -638,15 +637,6 @@ test("the mailbox's people: its contacts and the people it wrote to, through the
               nextPageToken: "p2",
             },
           };
-    if (c.url.startsWith(`${PEOPLE}/otherContacts`))
-      return {
-        json: {
-          otherContacts: [
-            { emailAddresses: [{ value: OWN }, { value: "kim@example.com" }] },
-            { emailAddresses: [{ value: "rosa@example.com" }] },
-          ],
-        },
-      };
     return { status: 404 };
   });
   try {
@@ -659,13 +649,16 @@ test("the mailbox's people: its contacts and the people it wrote to, through the
     [
       ["rosa@example.com", null, "Rosa Diaz", "asserted", "import"],
       [null, "+13055550102", "Ben Ode", "asserted", "import"],
-      ["kim@example.com", null, null, "asserted", "import"],
-      ["rosa@example.com", null, null, "asserted", "import"],
     ],
-    "an address that is none left out; the mailbox's own never a person; Rosa matched the second time",
+    "an address that is none left out",
+  );
+  assert.equal(
+    net.calls.filter((c) => c.url.includes("/otherContacts")).length,
+    0,
+    "everyone the owner ever wrote to is not People: the six months bring the ones they wrote to, with their threads",
   );
   const row = ledger(w, "contacts");
-  assert.deepEqual([row.state, row.counts], ["done", { people: 3 }]);
+  assert.deepEqual([row.state, row.counts], ["done", { people: 2 }]);
 });
 
 test("the mailbox's people: only the lists the owner left ticked are read, and with none ticked the row says how to bring them", async () => {
@@ -678,11 +671,6 @@ test("the mailbox's people: only the lists the owner left ticked are read, and w
   } finally {
     net.restore();
   }
-  assert.equal(
-    net.calls.filter((c) => c.url.startsWith(`${PEOPLE}/otherContacts`)).length,
-    0,
-    "other contacts left unticked: never asked",
-  );
   assert.equal(ledger(onlyMine, "contacts").state, "done");
   const none = world({ box: { scopes: SCOPES.mail } });
   await part(none, "contacts");

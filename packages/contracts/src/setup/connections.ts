@@ -21,6 +21,7 @@ import { standingNotes, standingRow } from "../lines/number-standing";
 import { whatsappCostNotes } from "../lines/whatsapp-cost";
 import { tryItNotes } from "../lines/whatsapp-try-it";
 import type { GoogleListingDto, GoogleConnectionDto, GoogleAudience } from "../google/google";
+import { googleAudienceWords } from "../google/audience";
 import type { LineDto, SetupDto } from "./setup";
 import { SETUP_STATE_WORDS, textingWords, SOLE_PROP_CEILING_SENTENCE, TEXTING_NEEDS_RECORD_SENTENCE } from "./setup";
 import { ownLineStandOf } from "./setup-rows-phone";
@@ -176,15 +177,6 @@ type Draft = ConnectionDraft;
 
 function row(d: Draft): ConnectionRow {
   return { ...d, group: GROUP[d.state], tone: TONE[d.state], body: d.body ?? null, notes: d.notes ?? [] };
-}
-
-/** What Google's audience means for the person about to press Connect. */
-export function googleAudienceWords(a: GoogleAudience | null | undefined): string | null {
-  if (a === "testing")
-    return "Google is reviewing Chanlytics; until then Connect works for invited Google accounts only.";
-  if (a === "unverified")
-    return "Google shows a warning until its review of Chanlytics is done — choose Advanced, then Go to Chanlytics.";
-  return null;
 }
 
 /** The texting states of a line, in the owner's words. The carriers' vocabulary stays out. */

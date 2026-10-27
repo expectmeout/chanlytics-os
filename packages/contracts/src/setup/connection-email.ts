@@ -6,6 +6,7 @@
  */
 import { agoWords } from "../shared/time";
 import { EMAIL_NOT_ANSWERED_SENTENCE } from "../email/mailbox";
+import { googleAudienceWords } from "../google/audience";
 import { SETUP_STATE_WORDS } from "./setup";
 import type { ConnectionDraft, ConnectionInputs } from "./connections";
 
@@ -84,13 +85,16 @@ export function mailboxRow(i: ConnectionInputs): ConnectionDraft {
     };
   }
   if (sending && sending.providers.length > 0) {
+    // Google's mailbox connect is the Business Profile app's (decision 0073, R18): its consent screen's warning is said
+    // here too, where the owner is about to press Connect Google.
+    const audience = sending.google_audience ?? i.google?.ready.audience;
+    const note = sending.providers.includes("google") ? googleAudienceWords(audience) : null;
     return {
       ...base,
       detail: null,
       state: "none",
       stateWords: "Not connected",
-      sentence:
-        "Connect your Google Workspace or Microsoft 365 mailbox: email from people comes into your Inbox, six months of it with it, and sequences to leads write from it.",
+      sentence: `Connect your Google Workspace or Microsoft 365 mailbox: email from people comes into your Inbox, six months of it with it, and sequences to leads write from it.${note ? ` ${note}` : ""}`,
       verb: null,
       body: "mailboxes",
     };
