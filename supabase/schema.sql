@@ -49694,16 +49694,16 @@ GRANT ALL ON TABLE public.mailbox_connections TO service_role;
 -- Name: TABLE mailbox_left; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.mailbox_left TO service_role;
 GRANT SELECT ON TABLE public.mailbox_left TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.mailbox_left TO service_role;
 
 
 --
 -- Name: TABLE mailbox_senders; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.mailbox_senders TO service_role;
 GRANT SELECT ON TABLE public.mailbox_senders TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.mailbox_senders TO service_role;
 
 
 --

@@ -821,6 +821,16 @@ const TENANT_TABLES = {
       from_name: "Stranger",
     }),
   ],
+  // What a workspace said of a sender of its mailbox's mail, and what the mailbox left, one row a sender (00483): members
+  // read their workspace's; the member's door and the edge's service role write.
+  mailbox_senders: [
+    "member",
+    () => ({ tenant_id: A, sender: `stranger-${Date.now().toString(36)}.example`, verdict: "automated" }),
+  ],
+  mailbox_left: [
+    "member",
+    () => ({ tenant_id: A, address: `x-${Date.now().toString(36)}@stranger.example`, why: "updates" }),
+  ],
   // A mailbox a business connected (00423, decision 0056): members read their workspace's, and only the edge's service
   // role writes one, once the provider's grant is in hand.
   mailbox_connections: [
