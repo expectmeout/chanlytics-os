@@ -244,6 +244,13 @@ test("last contact says who and how long ago, and the newer of message vs call w
     ).lastContact.label,
     "Your team replied · 3d ago",
   );
+  // To someone never heard from nothing was replied to: the row said "Not heard from" beside "Your team replied".
+  const unheard = { last_inbound_at: null, last_inbound_call_at: null, last_message_at: iso(3 * D) };
+  const first = (sender) =>
+    toPersonRowVM(row({ ...unheard, last_message_direction: "outbound", last_message_sender: sender }), ZONE, NOW);
+  assert.equal(first("human").lastContact.label, "Your team wrote · 3d ago");
+  assert.equal(first("ai").lastContact.label, "Receptionist wrote · 3d ago");
+  assert.equal(first("human").state, "unheard", "the pill beside it says Not heard from, by the same rule");
   const called = toPersonRowVM(row({ last_call_at: iso(H), last_inbound_call_at: iso(H) }), ZONE, NOW).lastContact;
   assert.equal(called.kind, "call");
   assert.equal(called.label, "Phoned · 1h ago");

@@ -5035,11 +5035,13 @@ a.cl-prof-word:focus-visible > .cl-prof-word-text {
     overflow: hidden;
   }
   /* A peek closing plays out as a side sheet does (people/peek/peek-leaves.ts), as a still copy over the table that takes
-     its room back under it: where it stood, on the pane's solid, since rows pass under it now. It went in one frame. */
+     its room back under it: where it stood, on the pane's solid, since rows pass under it now. It went in one frame.
+     People's peek stands the pane's height, so its copy does (it stood as tall as its words, its foot halfway up). */
   .main-scroll :is(.pipe-scope, .pp-scope) .cl-main > .pk[data-leaving="true"] {
     position: absolute;
     top: 0;
     right: 0;
+    bottom: 0;
     border: 0;
     border-radius: var(--surface-pane-radius);
     background: var(--surface-pane-solid);

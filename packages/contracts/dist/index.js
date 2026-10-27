@@ -25857,6 +25857,10 @@ function theirTurnWords(last) {
   if (last.who !== "they") return null;
   return last.kind === "call" ? "they called last" : "they wrote last";
 }
+function heardAt(r2) {
+  const at3 = [ts(r2.last_inbound_at), ts(r2.last_inbound_call_at ?? null)].filter((x) => x !== null);
+  return at3.length ? Math.max(...at3) : null;
+}
 function lastContactOf(r2, tz, nowMs) {
   const m = ts(r2.last_message_at);
   const k = ts(r2.last_call_at);
@@ -25886,7 +25890,8 @@ function lastContactOf(r2, tz, nowMs) {
     };
   }
   const who = r2.last_message_direction === "inbound" ? "they" : r2.last_message_sender === "human" ? "team" : r2.last_message_sender === "ai" ? "receptionist" : "system";
-  const verb = who === "they" ? "They wrote" : who === "team" ? "Your team replied" : who === "receptionist" ? "Receptionist replied" : "We sent";
+  const answered = heardAt(r2) !== null;
+  const verb = who === "they" ? "They wrote" : who === "team" ? answered ? "Your team replied" : "Your team wrote" : who === "receptionist" ? answered ? "Receptionist replied" : "Receptionist wrote" : "We sent";
   const when = ago(m, tz, nowMs);
   return { ts: m, at: r2.last_message_at, kind: "message", who, by: verb, when, label: `${verb} \xB7 ${when}` };
 }
@@ -26004,10 +26009,6 @@ function attentionOf(r2, nowMs, viewerId = null) {
   const v = personStanding(r2, nowMs, viewerId);
   if (v.standing === "needs_you" || replyWaitsOnYou({ queued: !!r2.queued_reply_at }, nowMs)) return "needs_you";
   return v.takenOver ? "waiting_on_you" : null;
-}
-function heardAt(r2) {
-  const at3 = [ts(r2.last_inbound_at), ts(r2.last_inbound_call_at ?? null)].filter((x) => x !== null);
-  return at3.length ? Math.max(...at3) : null;
 }
 function holderOf(r2, nowMs, viewerId) {
   const v = personStanding(r2, nowMs, viewerId);

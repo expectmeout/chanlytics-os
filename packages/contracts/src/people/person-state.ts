@@ -12,9 +12,8 @@ import {
   type StandingVerdict,
 } from "../conversations/standing";
 import { isOptedOutContact, STOP_WORDS } from "../consent/consent";
-import { ts } from "./person-helpers";
 import type { PersonRowDto } from "./person-dto";
-import { firstContactOf } from "./person-row-facts";
+import { firstContactOf, heardAt } from "./person-row-facts";
 
 /* -------------------------------- states --------------------------------- */
 
@@ -96,11 +95,8 @@ export function attentionOf(
   return v.takenOver ? "waiting_on_you" : null;
 }
 
-/** When they last wrote or called: their message, or a call they placed. A call the owner made is not them asking. */
-export function heardAt(r: PersonRowDto): number | null {
-  const at = [ts(r.last_inbound_at), ts(r.last_inbound_call_at ?? null)].filter((x): x is number => x !== null);
-  return at.length ? Math.max(...at) : null;
-}
+/** When they last wrote or called (person-row-facts.ts, where the row's last contact reads it too). */
+export { heardAt };
 
 /** Who has a person's latest thread, as the member looking is told it: they do, a teammate does, or a person not named. */
 export type ThreadHolder = "yours" | "theirs" | "someone";

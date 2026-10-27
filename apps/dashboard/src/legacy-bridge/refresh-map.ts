@@ -224,6 +224,19 @@ const setup = () => [setupOverride];
 // elsewhere (the wiring's second audit, S4-3).
 const setupIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? drawnHere([setupOverride]) : []);
 const setupAndReadiness = () => [setupOverride, ...channelChange()];
+// A person erased takes their messages, calls and threads with them (erase_contact deletes the rows, which the feed is not told
+// of): the counts the report and Setup's rows make of them fall, where those are drawn. The one list for Delete person and Not a
+// person (00483), which deletes as it does, so the two cannot drift apart.
+const erased = () => [
+  ...personAndThreads(),
+  // Their messages too: what Sent's runs count of them (their replies, the month's), where the runs are drawn.
+  ...composersIfDrawn(),
+  ...reportsPeople(),
+  ...reportsIfDrawn(),
+  ...setupIfDrawn(),
+  ...pinsIfDrawn(),
+  ...sequencesIfDrawn(),
+];
 // The listing and its reviews are the Reviews lens's read too, and the lens is never the page a link, a refresh or a disconnect is made from
 // (Settings' Connections pane, the first run's Find): its read is forgotten, as a template written is for the Inbox, and read as the lens
 // comes on screen, not read from there. Settings too: whether the listing has a review link is a fact of its read, by which the Library
@@ -281,18 +294,10 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST messages/[id]/steer": thread,
   "POST messages/[id]/cancel-send": thread,
   // People.
-  // A person erased takes their messages, calls and threads with them (erase_contact deletes the rows, which the feed is not told
-  // of): the counts the report and Setup's rows make of them fall, where those are drawn.
-  "DELETE contacts/[id]": () => [
-    ...personAndThreads(),
-    // Their messages too: what Sent's runs count of them (their replies, the month's), where the runs are drawn.
-    ...composersIfDrawn(),
-    ...reportsPeople(),
-    ...reportsIfDrawn(),
-    ...setupIfDrawn(),
-    ...pinsIfDrawn(),
-    ...sequencesIfDrawn(),
-  ],
+  "DELETE contacts/[id]": erased,
+  // Not a person (00483): their address or domain said to be automated, which moves nothing on screen (their next email stays
+  // in the mailbox), then the person deleted as Delete person deletes them.
+  "POST contacts/[id]/not-a-person": erased,
   // Two records became one (0028): the kept person's page and People, the threads that folded, and every count by
   // consent, Reports' included: the merge may change an answer, as a consent write does. The bell's lines about the folded thread
   // now name the kept one (their address moves; the feed is told of a line's arrival, not of its change).
@@ -599,6 +604,13 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST mailbox-connections/[id]/resume": setup,
   "POST mailbox-connections/[id]/test": setup,
   "DELETE mailbox-connections/[id]": setup,
+  // What a member says of a sender of the mailbox's mail (00483). A person said of an address brings their mail in before the
+  // answer lands (ingest_before): the person made or found as a client list's is, and their thread made or moved, shown but never
+  // counted as today's, never answered, never a yes. So People's rows, the audiences and the book the People lens counts move, and
+  // the Inbox's and Conversations' rows; not Today, nor a lens that counts replies. A sender said to be automated, or taken back,
+  // moves nothing on screen (only what their next email does), and the list under the mailbox reads itself again behind each
+  // press (left-senders.tsx).
+  "POST mailbox-senders": () => [...peopleAndAudiences(), inboxOverride, conversationsOverride],
   "POST billing/resume": billing,
   "POST billing/sync": billing,
   // The plan starting now ends the trial: the pane's rows and Setup's billing row.
