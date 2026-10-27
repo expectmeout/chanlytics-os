@@ -11,12 +11,12 @@
 --                           domain (b.example), is automated (its mail stays in the mailbox) or a person (its mail comes
 --                           in whatever it looks like). Members read their workspace's; mailbox_sender_sort writes it.
 --   mailbox_left            what a connected mailbox left where it was, one row a sender: the name it gave, why (the
---                           latest), how many, and when first and last. Members read their workspace's; the edge's sync
---                           and import write it through mailbox_left_note.
+--                           latest), how many, and when first and last. Members read their workspace's (a reader leaves
+--                           out a sender since said to be a person); the edge's sync and import write it through
+--                           mailbox_left_note, its one writer.
 --   mailbox_sender_sort     a member who may change the workspace's settings says it of an address or a domain, or
---                           takes it back (a null verdict); a person said of an address takes its row off mailbox_left.
---                           Its line on the ledger, mailbox_connection.sender_sorted, says which kind and what verdict,
---                           never the address.
+--                           takes it back (a null verdict). Its line on the ledger, mailbox_connection.sender_sorted,
+--                           says which kind and what verdict, never the address.
 --   mailbox_left_note       the service role's: one more email left from a sender, its name and why the newest.
 --   mailbox_senders_on_erase
 --                           a person erased takes their address off mailbox_left, and a "person" said of it with it.
@@ -108,10 +108,6 @@ begin
     values (p_tenant_id, v_sender, p_verdict, v_actor, now())
     on conflict (tenant_id, sender)
       do update set verdict = excluded.verdict, set_by = excluded.set_by, set_at = excluded.set_at;
-    -- A person's mail comes in from now on: their address is no longer something the mailbox left.
-    if p_verdict = 'person' and v_kind = 'address' then
-      delete from public.mailbox_left where tenant_id = p_tenant_id and address = v_sender;
-    end if;
   end if;
   insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
   values (p_tenant_id, 'mailbox_connection.sender_sorted', 'setup', 'workspace', p_tenant_id,
@@ -121,7 +117,7 @@ end $$;
 revoke all on function public.mailbox_sender_sort(uuid, text, text) from public, anon;
 grant execute on function public.mailbox_sender_sort(uuid, text, text) to authenticated;
 comment on function public.mailbox_sender_sort(uuid, text, text) is
-  'What the workspace says of a sender of mail to its connected mailbox (00483): an address or a domain is automated or a person, or taken back (null). A member who may change the settings. A person said of an address takes its row off mailbox_left. Its line, mailbox_connection.sender_sorted, names the kind and the verdict, never the address. Answers sender, kind, verdict.';
+  'What the workspace says of a sender of mail to its connected mailbox (00483): an address or a domain is automated or a person, or taken back (null). A member who may change the settings. Its line, mailbox_connection.sender_sorted, names the kind and the verdict, never the address. Answers sender, kind, verdict.';
 
 create or replace function public.mailbox_left_note(
   p_tenant_id uuid,

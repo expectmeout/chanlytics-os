@@ -1,8 +1,8 @@
 /**
  * A sender the owner sorted stays sorted, and what the mailbox left is listed (00483) -- on a real database. What only
  * Postgres can answer: mailbox_sender_sort writes what a member who may change the settings said of an address or a
- * domain, takes it back, refuses a viewer, a stranger and a sender that is neither, takes a person's address off the
- * list of what was left, and writes its line without the address; mailbox_left_note counts a sender's emails as one row
+ * domain, takes it back, refuses a viewer, a stranger and a sender that is neither, and writes its line without the
+ * address, never touching the list of what was left (its one writer is mailbox_left_note); mailbox_left_note counts a sender's emails as one row
  * and is the service role's alone; members read their own workspace's rows and write none; and an erasure takes a
  * person's address off both lists, keeping what was said of a robot.
  *
@@ -118,7 +118,7 @@ test(
 );
 
 test(
-  "a member who may change the settings sorts an address or a domain, and takes it back; a person's address leaves the list; the line names no address",
+  "a member who may change the settings sorts an address or a domain, and takes it back; the list of what was left keeps its row; the line names no address",
   { skip },
   async () => {
     await note(A, "rosa@example.com", "updates", "Rosa Diaz");
@@ -130,7 +130,7 @@ test(
     assert.equal(person.error, null, person.error?.message);
     assert.deepEqual(person.data, { sender: "rosa@example.com", kind: "address", verdict: "person" });
     const left = await db.from("mailbox_left").select("address").eq("tenant_id", A).eq("address", "rosa@example.com");
-    assert.deepEqual(left.data, [], "a person's mail comes in from now on: off the list");
+    assert.equal(left.data.length, 1, "what was left stays on the record; the list's reader leaves out a person");
 
     const domain = await owner.rpc("mailbox_sender_sort", {
       p_tenant_id: A,

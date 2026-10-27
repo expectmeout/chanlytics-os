@@ -12445,10 +12445,6 @@ begin
     values (p_tenant_id, v_sender, p_verdict, v_actor, now())
     on conflict (tenant_id, sender)
       do update set verdict = excluded.verdict, set_by = excluded.set_by, set_at = excluded.set_at;
-    -- A person's mail comes in from now on: their address is no longer something the mailbox left.
-    if p_verdict = 'person' and v_kind = 'address' then
-      delete from public.mailbox_left where tenant_id = p_tenant_id and address = v_sender;
-    end if;
   end if;
   insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
   values (p_tenant_id, 'mailbox_connection.sender_sorted', 'setup', 'workspace', p_tenant_id,
@@ -12461,7 +12457,7 @@ end $_$;
 -- Name: FUNCTION mailbox_sender_sort(p_tenant_id uuid, p_sender text, p_verdict text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.mailbox_sender_sort(p_tenant_id uuid, p_sender text, p_verdict text) IS 'What the workspace says of a sender of mail to its connected mailbox (00483): an address or a domain is automated or a person, or taken back (null). A member who may change the settings. A person said of an address takes its row off mailbox_left. Its line, mailbox_connection.sender_sorted, names the kind and the verdict, never the address. Answers sender, kind, verdict.';
+COMMENT ON FUNCTION public.mailbox_sender_sort(p_tenant_id uuid, p_sender text, p_verdict text) IS 'What the workspace says of a sender of mail to its connected mailbox (00483): an address or a domain is automated or a person, or taken back (null). A member who may change the settings. Its line, mailbox_connection.sender_sorted, names the kind and the verdict, never the address. Answers sender, kind, verdict.';
 
 
 --
@@ -49698,16 +49694,16 @@ GRANT ALL ON TABLE public.mailbox_connections TO service_role;
 -- Name: TABLE mailbox_left; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT ON TABLE public.mailbox_left TO authenticated;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.mailbox_left TO service_role;
+GRANT SELECT ON TABLE public.mailbox_left TO authenticated;
 
 
 --
 -- Name: TABLE mailbox_senders; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT ON TABLE public.mailbox_senders TO authenticated;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.mailbox_senders TO service_role;
+GRANT SELECT ON TABLE public.mailbox_senders TO authenticated;
 
 
 --

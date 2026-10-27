@@ -16556,9 +16556,8 @@ var EVENT_KINDS = [
   /** A gate paused the workspace's offers by email (complaints or bounces over their limits), and the back office turned them back on (00299). The reason, never an address. */
   "mailbox.offers_paused",
   "mailbox.offers_resumed",
-  /** A mailbox the business writes cold email from (00423, decision 0056): connected (or connected again), signed out
-   * by its provider, held for its own mail, resumed by its owner, paused and unpaused by its owner, removed. Its
-   * address and the reason, never its token. */
+  /** A mailbox the business connected (00423, decision 0056), by its address and the reason, never its token; and
+   * what the workspace said of a sender of its mail (00483: address or domain, and the verdict, never the address). */
   "mailbox_connection.connected",
   "mailbox_connection.signed_out",
   "mailbox_connection.held",
@@ -16566,8 +16565,6 @@ var EVENT_KINDS = [
   "mailbox_connection.paused",
   "mailbox_connection.unpaused",
   "mailbox_connection.removed",
-  /** What the workspace said of a sender of its mailbox's mail (00483): automated, a person, or taken back. The kind
-   * (an address or a domain) and the verdict, never the address. */
   "mailbox_connection.sender_sorted",
   /** A lead search's round started, waited, or ended with one of the nine endings (00140). */
   "lead.round",
