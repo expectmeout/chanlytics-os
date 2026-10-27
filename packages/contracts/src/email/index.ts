@@ -34,6 +34,8 @@ export {
   MAILBOX_PROVIDER_WORDS,
   mailboxHealthWords,
   mailboxWords,
+  mailboxRowWords,
+  mailboxSendingLines,
   mailboxActs,
   DMARC_RECOMMENDED,
   mailboxRecordRows,
@@ -54,6 +56,7 @@ export type {
   MailboxConnectionDto,
   MailboxCounts,
   MailboxWords,
+  MailboxRowWords,
   MailboxRecordRow,
 } from "./mailbox-connections";
 export { isFreeMail } from "./free-mail";

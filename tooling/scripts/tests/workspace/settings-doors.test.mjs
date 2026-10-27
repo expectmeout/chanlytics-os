@@ -1411,19 +1411,10 @@ test("the mailboxes you write from: under their own row, each in contracts' word
   assert.match(textOf(row), /Your mailbox/);
   assert.equal(row.props["data-state"], "attention", "one held and one signed out: the row says so, not a green On");
   assert.match(textOf(row), /2 to look at/);
-  const sam = byTestId(tree, "mailbox-sam@getharbor.com");
-  // The ramp reads the days it sent (D15): nine, so its second step's 20 a day, and 30 after five more.
-  assert.match(textOf(sam), /Up to 20 a day/);
-  assert.match(textOf(sam), /Day 10 of its ramp · 20 a day, 30 after 5 more days of sending/);
-  assert.match(textOf(sam), /Connected/);
-  assert.ok(byTestId(tree, "mailbox-test-sam@getharbor.com"), "a sending mailbox can send a test to itself");
-  assert.ok(byTestId(tree, "mailbox-pause-sam@getharbor.com"));
-  assert.match(textOf(byTestId(tree, "mailbox-dana@getharbor.com")), /Microsoft signed it out/);
+  // What each mailbox's row says and offers is its own test's (email/mailboxes/mailbox-row.test.mjs).
+  assert.ok(byTestId(tree, "mailbox-sam@getharbor.com"));
   press(byTestId(tree, "mailbox-reconnect-dana@getharbor.com"));
   assert.deepEqual(went, [["microsoft", "m2"]], "Reconnect goes back to its own provider, for its own mailbox");
-  assert.match(textOf(byTestId(tree, "mailbox-kim@getharbor.com")), /more than 3% of its recent emails bounced/);
-  assert.ok(byTestId(tree, "mailbox-resume-kim@getharbor.com"), "the owner resumes a hold");
-  assert.equal(byTestId(tree, "mailbox-test-kim@getharbor.com"), null, "a held mailbox sends nothing, not even a test");
   press(byTestId(tree, "mailbox-connect-google"));
   press(byTestId(tree, "mailbox-connect-microsoft"));
   assert.deepEqual(went, [
@@ -1466,106 +1457,24 @@ test("no provider offered and none connected: the row is there, Later and greyed
   assert.match(textOf(byTestId(tree, "connected-mailboxes")), /10 is the most/);
 });
 
-test("its domain's records draw while one is missing: SPF and DMARC to copy, DKIM where to turn it on, each found or not", () => {
-  asRole("owner");
-  emailSeam({
-    providers: ["google"],
-    mailboxes: [mbx({ dns: { spf: "found", dkim: "missing", dmarc: "missing" } })],
-  });
-  const tree = render(Connections);
-  const table = byTestId(tree, "mailbox-records-sam@getharbor.com");
-  assert.ok(table, "the records are drawn");
-  const text = textOf(table);
-  assert.match(text, /Sender \(SPF\)/);
-  assert.match(text, /include:_spf\.google\.com/);
-  assert.match(text, /Signing \(DKIM\)/);
-  assert.match(text, /Google Admin console/);
-  assert.match(text, /v=DMARC1; p=none;/);
-  assert.ok(byTestId(tree, "mailbox-copy-spf"), "SPF has its Copy");
-  assert.ok(byTestId(tree, "mailbox-copy-dmarc"), "and DMARC");
-  assert.equal(byTestId(tree, "mailbox-copy-dkim"), null, "DKIM is made where the mailbox lives: nothing to paste");
-  assert.ok(byTestId(tree, "mailbox-check-sam@getharbor.com"), "and Check reads them again now");
-  assert.match(textOf(byTestId(tree, "mailbox-sam@getharbor.com")), /Add its DKIM and DMARC record below/);
-});
-
-test("the owner's acts: pause at once, settings judged before they are sent, remove asked first; a non-owner is told once why they can't act", async () => {
-  const set = [];
-  const removed = [];
-  Object.assign(connectedMailboxes, {
-    set: async (id, s) => (set.push([id, s]), { ok: true, data: { mailbox: null } }),
-    remove: async (id) => (removed.push(id), { ok: true, data: { removed: true } }),
-  });
-  asRole("owner");
+test("a non-owner is told once why they can't act; the partner, who sets the workspace up, is not gated", () => {
+  const caret = (tree) => find(tree, (n) => n.type === MoreMenu && n.props.testid === "mailbox-more-sam@getharbor.com");
+  const words = (tree) => caret(tree).props.items.flatMap((it) => (it.label ? [it.label] : []));
   emailSeam({ providers: ["google"], mailboxes: [mbx()] });
-  let tree = render(Connections);
-  press(byTestId(tree, "mailbox-pause-sam@getharbor.com"));
-  await flush();
-  assert.deepEqual(set, [["m1", { paused: true }]]);
-
-  tree = settle(Connections);
-  press(byTestId(tree, "mailbox-settings-open-sam@getharbor.com"));
-  tree = settle(Connections);
-  const field = (id) => find(byTestId(tree, id), (n) => n.type === "input" || n.type === "textarea");
-  field("mailbox-cap").props.onChange({ target: { value: "80" } });
-  tree = settle(Connections);
-  press(byTestId(tree, "mailbox-save"));
-  await flush();
-  tree = settle(Connections);
-  assert.match(textOf(byTestId(tree, "mailbox-cap")), /Between 1 and 40 a day/, "judged under its box");
-  assert.equal(set.length, 1, "nothing is sent that the rules already refuse");
-  field("mailbox-cap").props.onChange({ target: { value: "25" } });
-  field("mailbox-signature").props.onChange({ target: { value: "Sam · Harbor Moving" } });
-  tree = settle(Connections);
-  press(byTestId(tree, "mailbox-save"));
-  await flush();
-  assert.deepEqual(set[1], ["m1", { from_name: "Sam at Harbor", signature: "Sam · Harbor Moving", daily_cap: 25 }]);
-
-  tree = settle(Connections);
-  press(byTestId(tree, "mailbox-remove-sam@getharbor.com"));
-  tree = settle(Connections);
-  assert.deepEqual(removed, [], "asked first");
-  assert.match(textOf(tree), /Remove sam@getharbor\.com\?/);
-
   asRole("operator");
-  tree = render(Connections);
+  let tree = render(Connections);
   assert.match(
     textOf(byTestId(tree, "connected-mailboxes")),
     /Only an owner can connect, pause, resume or remove a mailbox/,
   );
-  assert.equal(byTestId(tree, "mailbox-remove-sam@getharbor.com"), null);
+  assert.deepEqual(words(tree), ["Sending", "Pause sending"], "no Settings, no Remove");
+  assert.ok(caret(tree).props.items[1].gate["aria-disabled"], "Pause says why it can't");
   // The partner sets the workspace up (ROLE_PERMS settings), as the doors' own role check admits them: nothing gated.
   asRole("partner");
   tree = render(Connections);
-  assert.ok(byTestId(tree, "mailbox-remove-sam@getharbor.com"));
-  assert.equal(byTestId(tree, "mailbox-pause-sam@getharbor.com").props["data-gated"], undefined);
+  assert.ok(words(tree).includes("Remove…"));
+  assert.deepEqual(caret(tree).props.items[1].gate, {});
   asRole("owner");
-});
-
-test("a mailbox's row says its day and its health; an SPF record its domain has is offered back changed, never a second one", () => {
-  asRole("owner");
-  emailSeam({
-    providers: ["google"],
-    mailboxes: [
-      mbx({
-        sent_today: 12,
-        counts: { sent: 250, bounced: 1, blocked: 0, complained: 0, unsubscribed: 0, said_no: 2 },
-        dns: { spf: "missing", dkim: "found", dmarc: "found" },
-        spf_record: "v=spf1 include:mailgun.org ~all",
-        spf_lookups: 2,
-      }),
-    ],
-  });
-  const tree = render(Connections);
-  const sam = byTestId(tree, "mailbox-sam@getharbor.com");
-  assert.match(textOf(sam), /12 of 20 today/);
-  assert.equal(
-    textOf(byTestId(tree, "mailbox-health-sam@getharbor.com")),
-    "0.4% bounced · 2 said no · none marked as spam",
-  );
-  assert.match(textOf(sam), /Change its SPF record below/);
-  const table = byTestId(tree, "mailbox-records-sam@getharbor.com");
-  assert.match(textOf(table), /v=spf1 include:mailgun\.org include:_spf\.google\.com ~all/);
-  assert.match(textOf(byTestId(tree, "mailbox-record-note-spf")), /may have only one/);
 });
 
 test("back from the provider: what it came to is said once under the mailboxes' row, in contracts' words, even a Later one", () => {

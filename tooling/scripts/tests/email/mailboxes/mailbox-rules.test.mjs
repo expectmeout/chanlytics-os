@@ -30,6 +30,8 @@ import {
   mailboxHoldWords,
   mailboxRampShare,
   mailboxRecordRows,
+  mailboxRowWords,
+  mailboxSendingLines,
   mailboxSendsNow,
   mailboxWords,
   mailboxesFootWords,
@@ -245,6 +247,74 @@ test("what each row says and offers, from its state: sending, done for the day, 
   assert.equal(mailboxActs(row({ state: "paused" })).unpause, true);
 });
 
+test("the row says what came in through it, never its ramp: when it was read, who wrote, and what keeps it from sending", () => {
+  const read = new Date(NOW - 3 * 60_000).toISOString();
+  const at = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date(read));
+  const live = mailboxRowWords(row({ synced_at: read, came_in: 3, sent_days: 9, sent_today: 20 }), NOW);
+  assert.deepEqual(
+    live,
+    { pill: "Connected", tone: "ok", cameIn: `Read at ${at} · 3 people wrote today`, standing: null, fix: null },
+    "a mailbox at its sending cap still reads: Connected, and nothing of its day",
+  );
+  assert.equal(
+    mailboxRowWords(row({ synced_at: read, came_in: 1 }), NOW).cameIn,
+    `Read at ${at} · 1 person wrote today`,
+  );
+  assert.equal(mailboxRowWords(row({ synced_at: read, came_in: 0 }), NOW).cameIn, `Read at ${at} · No one wrote today`);
+  assert.equal(mailboxRowWords(row({ synced_at: read }), NOW).cameIn, `Read at ${at}`, "an unread count is left out");
+  assert.equal(mailboxRowWords(row(), NOW).cameIn, "Not read yet");
+  const late = mailboxRowWords(row({ synced_at: new Date(NOW - 45 * 60_000).toISOString(), came_in: 2 }), NOW);
+  assert.match(
+    late.cameIn,
+    /^Not read since \w{3} \d{1,2}:\d{2} [AP]M · 2 people wrote today$/,
+    "past 20 minutes, since when",
+  );
+  const resting = mailboxRowWords(
+    row({ synced_at: read, resting_until: new Date(NOW + 3_600_000).toISOString() }),
+    NOW,
+  );
+  assert.deepEqual(
+    [resting.pill, resting.standing],
+    ["Connected", null],
+    "Google's day for sending is its Sending lines'",
+  );
+  const paused = mailboxRowWords(row({ state: "paused", synced_at: read }), NOW);
+  assert.deepEqual(
+    [paused.pill, paused.standing],
+    ["Paused", "You paused its sending: what people write still comes in."],
+  );
+  assert.match(paused.cameIn, /^Read at /, "a paused mailbox is still read");
+  const held = mailboxRowWords(row({ state: "held", held_why: "complaint", held_at: "2026-10-12T09:00:00.000Z" }), NOW);
+  assert.deepEqual([held.pill, held.tone], ["Held", "warn"]);
+  assert.match(held.standing, /^Its sending is held since Oct 12: someone marked an email from it as spam\.$/);
+  assert.equal(held.fix, mailboxHoldFixWords("complaint"));
+  const out = mailboxRowWords(row({ provider: "google", state: "reconnect", synced_at: read, came_in: 4 }), NOW);
+  assert.deepEqual([out.pill, out.tone, out.cameIn], ["Reconnect", "danger", null], "signed out: nothing is read");
+  assert.match(out.standing, /^Google signed it out: nothing is read from it or sent/);
+  assert.equal(
+    mailboxRowWords(row({ dns: { spf: "found", dkim: "missing", dmarc: "missing" } }), NOW).fix,
+    "Add its DKIM and DMARC record below.",
+  );
+});
+
+test("its Sending lines: its day while it sends, its ramp, its health, the customer domain's ceiling, and the ramp's rule", () => {
+  const counts = { sent: 250, bounced: 1, blocked: 0, complained: 0, unsubscribed: 0, said_no: 2 };
+  assert.deepEqual(mailboxSendingLines(row({ sent_days: 9, sent_today: 12, counts }), NOW), [
+    "12 of 20 today",
+    "Day 10 of its ramp · 20 a day, 30 after 5 more days of sending",
+    "0.4% bounced · 2 said no · none marked as spam",
+    "A new mailbox starts at 10 a day and grows with the days it sends, to 40.",
+  ]);
+  const customer = mailboxSendingLines(row({ customer_domain: true, sent_days: 30 }), NOW);
+  assert.ok(customer.includes(customerDomainWords("getharbor.example")), "the customer domain's ceiling, said once");
+  const paused = mailboxSendingLines(row({ state: "paused" }), NOW);
+  assert.equal(
+    paused[0],
+    "New: its ramp starts today · 10 a day, 20 after 7 more days of sending",
+    "its row says it's paused",
+  );
+});
+
 test("the records its domain needs, for the provider it is at, each found or not", () => {
   const g = mailboxRecordRows({ provider: "google", dns: { spf: "found", dkim: "missing" } });
   assert.deepEqual(
@@ -319,7 +389,8 @@ test("a connect come back, in words: each reason the edge answers, and the rule 
   assert.equal(mailboxConnectWords("something_new"), MAILBOX_CONNECT_WORDS.failed);
   assert.equal(mailboxConnectWords(null), MAILBOX_CONNECT_WORDS.failed);
   assert.match(mailboxesFootWords(0), /through Google or Microsoft/);
-  assert.match(mailboxesFootWords(3), /starts at 10 a day/);
+  assert.match(mailboxesFootWords(3), /comes into your Inbox/);
+  assert.doesNotMatch(mailboxesFootWords(3), /a day/, "its ramp is its Sending lines', not the foot's");
   assert.equal(mailboxesFootWords(MAILBOX_CONNECTIONS_MAX), "10 is the most. Remove one to add another.");
   assert.match(customerDomainWords("getharbor.example"), /20 a day at most.*getgetharbor\.example/);
 });

@@ -135,8 +135,8 @@ export {
   sentEmailIdByMessageId,
 } from "./repositories/mailboxes/sync";
 export { unknownMailboxEmails, requestMailboxesSweep } from "./repositories/mailboxes/reconcile";
-export { mailboxSenderVerdicts, noteMailboxLeft } from "./repositories/mailboxes/senders";
-export { mailboxSendersOf, sortMailboxSender } from "./repositories/mailboxes/senders";
+export { mailboxSenderVerdicts, noteMailboxLeft, mailboxLeftSince } from "./repositories/mailboxes/senders";
+export { mailboxSendersOf, sortMailboxSender, mailboxPeopleSince } from "./repositories/mailboxes/senders";
 export type { UnknownMailboxEmail } from "./repositories/mailboxes/reconcile";
 export {
   outreachFactsOf,

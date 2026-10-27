@@ -6,7 +6,7 @@
  * dashboard tells the page (server/connections/mailbox-connections.ts).
  */
 import type { Tone } from "../shell/tone";
-import { formatterOnUse } from "../shared/time";
+import { MIN_MS, formatterOnUse } from "../shared/time";
 import {
   CUSTOMER_DOMAIN_DAILY_MAX,
   MAILBOX_HOLDS,
@@ -89,10 +89,14 @@ export interface MailboxConnectionDto {
   last_error: string | null;
   connected_at: string;
   sent_at: string | null;
+  /** When its mail was last read (the mailboxes sweep, every five minutes, or a push); null before the first read. */
+  synced_at: string | null;
   /** What it sent in the last day (mailbox_capacity), when the page's read could ask; null otherwise. */
   sent_today: number | null;
   /** What its emails came to since it was counted clean (mailbox_connection_counts), when read; null otherwise. */
   counts: MailboxCounts | null;
+  /** The people whose email came in through it in the last day, when the page's read could ask; null otherwise. */
+  came_in: number | null;
 }
 
 /** The longest SPF text a row keeps, every record of the domain's together: a TXT answer is never longer. */
@@ -121,8 +125,9 @@ export function mailboxConnectionDtoOf(
     last_error: string | null;
     connected_at: string;
     sent_at: string | null;
+    synced_at: string | null;
   },
-  day: Pick<MailboxConnectionDto, "sent_today" | "counts"> | null = null,
+  day: Partial<Pick<MailboxConnectionDto, "sent_today" | "counts" | "came_in">> | null = null,
 ): MailboxConnectionDto {
   const dns: Partial<Record<MailboxDnsRecord, DnsRecordState>> = {};
   const raw = r.dns && typeof r.dns === "object" ? (r.dns as Record<string, unknown>) : {};
@@ -156,8 +161,10 @@ export function mailboxConnectionDtoOf(
     last_error: r.last_error,
     connected_at: r.connected_at,
     sent_at: r.sent_at,
+    synced_at: r.synced_at,
     sent_today: day?.sent_today ?? null,
     counts: day?.counts ?? null,
+    came_in: day?.came_in ?? null,
   };
 }
 
@@ -313,6 +320,93 @@ export function mailboxWords(
 
 const CLOCK_FMT = formatterOnUse("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" });
 const clockOf = (iso: string): string => CLOCK_FMT.format(new Date(iso));
+const TIME_FMT = formatterOnUse("en-US", { hour: "numeric", minute: "2-digit" });
+
+/** Past this, a read is late (the sweep's own health wants one every 20 minutes, 00423), and the row says since when. */
+const MAILBOX_READ_LATE_MS = 20 * MIN_MS;
+
+/**
+ * What a mailbox's row says on Connections: what came in through it, not what it sends (its day, its ramp and its health
+ * are its Sending lines, mailboxSendingLines). Its pill is the mailbox's: Connected while it reads, whatever its day.
+ */
+export interface MailboxRowWords {
+  pill: string;
+  tone: Tone;
+  /** "Read at 9:47 AM · 3 people wrote today": null where nothing is read from it (signed out). */
+  cameIn: string | null;
+  /** Why it is not doing all it does (signed out, its sending paused or held), or null. */
+  standing: string | null;
+  /** What to do, when there is something: reconnect, resume, a record to add. */
+  fix: string | null;
+}
+
+/** "Read at 9:47 AM", or, past a late read, "Not read since Mon 9:47 PM"; "Not read yet" before the first. */
+function mailboxReadWords(syncedAt: string | null, nowMs: number): string {
+  if (!syncedAt) return "Not read yet";
+  return nowMs - Date.parse(syncedAt) > MAILBOX_READ_LATE_MS
+    ? `Not read since ${clockOf(syncedAt)}`
+    : `Read at ${TIME_FMT.format(new Date(syncedAt))}`;
+}
+
+/** "3 people wrote today": the people whose email came in through it in the last day, as its `day` counts its sends. */
+function mailboxWroteWords(people: number): string {
+  if (people === 0) return "No one wrote today";
+  return `${people} ${people === 1 ? "person" : "people"} wrote today`;
+}
+
+/** What a mailbox's row says (MailboxRowWords): its mail read, who wrote, and what keeps it from sending. */
+export function mailboxRowWords(m: MailboxConnectionDto, nowMs: number): MailboxRowWords {
+  const w = mailboxWords(m, nowMs);
+  if (m.state === "reconnect" || m.state === "removed")
+    return {
+      pill: w.pill,
+      tone: w.tone,
+      cameIn: null,
+      standing:
+        m.state === "removed"
+          ? w.day
+          : `${MAILBOX_PROVIDER_WORDS[m.provider]} signed it out: nothing is read from it or sent until it's connected again.`,
+      fix: w.fix,
+    };
+  const cameIn = [mailboxReadWords(m.synced_at ?? null, nowMs), m.came_in == null ? null : mailboxWroteWords(m.came_in)]
+    .filter(Boolean)
+    .join(" · ");
+  if (m.state === "paused")
+    return {
+      pill: w.pill,
+      tone: w.tone,
+      cameIn,
+      standing: "You paused its sending: what people write still comes in.",
+      fix: null,
+    };
+  if (m.state === "held") {
+    const since = m.held_at ? DAY_FMT.format(new Date(m.held_at)) : null;
+    return {
+      pill: w.pill,
+      tone: w.tone,
+      cameIn,
+      standing: `Its sending is held${since ? ` since ${since}` : ""}: ${mailboxHoldWords(m.held_why)}.`,
+      fix: w.fix,
+    };
+  }
+  return { pill: "Connected", tone: "ok", cameIn, standing: null, fix: w.fix };
+}
+
+/**
+ * What its sending stands at, a line each, under the row when asked for: its day (while it sends), its ramp, its
+ * health, the customer domain's ceiling, and the ramp's rule. A paused or held mailbox's row says why already.
+ */
+export function mailboxSendingLines(m: MailboxConnectionDto, nowMs: number): string[] {
+  const w = mailboxWords(m, nowMs);
+  const top = Math.max(...MAILBOX_RAMP.map((s) => s.perDay));
+  return [
+    m.state === "connected" ? w.day : null,
+    w.ramp,
+    w.health,
+    m.customer_domain && m.state === "connected" ? customerDomainWords(m.host) : null,
+    `A new mailbox starts at ${MAILBOX_RAMP[0].perDay} a day and grows with the days it sends, to ${top}.`,
+  ].filter((line): line is string => !!line);
+}
 
 /** What the page may do with a mailbox, from its state (the edge's doors hold the same rules). */
 export function mailboxActs(m: Pick<MailboxConnectionDto, "state">): {
@@ -502,12 +596,12 @@ export function mailboxConnectWords(code: string | null | undefined): string {
   return (code && MAILBOX_CONNECT_WORDS[code]) || CONNECT_FAILED;
 }
 
-/** The foot of the mailboxes block: the rule once, and the advice on a second domain. */
+/** The foot of the mailboxes block: what a mailbox does, before the first; then where its mail goes (its ramp is its Sending lines'). */
 export function mailboxesFootWords(count: number): string {
   if (count >= MAILBOX_CONNECTIONS_MAX) return `${MAILBOX_CONNECTIONS_MAX} is the most. Remove one to add another.`;
   if (count === 0)
     return `Email people write to your mailbox comes into your Inbox, and sequences to leads write from it through Google or Microsoft, so every email is yours and every reply comes back to it. A mailbox on the domain your customers write to sends ${CUSTOMER_DOMAIN_DAILY_MAX} a day at most to leads; for more, use a second domain such as get<yourbusiness>.com.`;
-  return `A new mailbox starts at ${MAILBOX_RAMP[0].perDay} a day and grows with the days it sends, to ${Math.max(...MAILBOX_RAMP.map((s) => s.perDay))}. Replies come back to it, and to your Inbox here.`;
+  return "Email people write to it comes into your Inbox; sequences to leads write from it, and their replies come back here.";
 }
 
 /** The note shown once a mailbox on the customer domain is connected. */

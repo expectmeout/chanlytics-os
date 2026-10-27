@@ -42168,8 +42168,10 @@ function mailboxConnectionDtoOf(r2, day2 = null) {
     last_error: r2.last_error,
     connected_at: r2.connected_at,
     sent_at: r2.sent_at,
+    synced_at: r2.synced_at,
     sent_today: day2?.sent_today ?? null,
-    counts: day2?.counts ?? null
+    counts: day2?.counts ?? null,
+    came_in: day2?.came_in ?? null
   };
 }
 var COUNT_FLOOR = 150;
@@ -42263,6 +42265,58 @@ function mailboxWords(m, nowMs, sentToday = m.sent_today ?? null) {
 }
 var CLOCK_FMT = formatterOnUse("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" });
 var clockOf = (iso) => CLOCK_FMT.format(new Date(iso));
+var TIME_FMT = formatterOnUse("en-US", { hour: "numeric", minute: "2-digit" });
+var MAILBOX_READ_LATE_MS = 20 * MIN_MS;
+function mailboxReadWords(syncedAt, nowMs) {
+  if (!syncedAt) return "Not read yet";
+  return nowMs - Date.parse(syncedAt) > MAILBOX_READ_LATE_MS ? `Not read since ${clockOf(syncedAt)}` : `Read at ${TIME_FMT.format(new Date(syncedAt))}`;
+}
+function mailboxWroteWords(people) {
+  if (people === 0) return "No one wrote today";
+  return `${people} ${people === 1 ? "person" : "people"} wrote today`;
+}
+function mailboxRowWords(m, nowMs) {
+  const w = mailboxWords(m, nowMs);
+  if (m.state === "reconnect" || m.state === "removed")
+    return {
+      pill: w.pill,
+      tone: w.tone,
+      cameIn: null,
+      standing: m.state === "removed" ? w.day : `${MAILBOX_PROVIDER_WORDS[m.provider]} signed it out: nothing is read from it or sent until it's connected again.`,
+      fix: w.fix
+    };
+  const cameIn2 = [mailboxReadWords(m.synced_at ?? null, nowMs), m.came_in == null ? null : mailboxWroteWords(m.came_in)].filter(Boolean).join(" \xB7 ");
+  if (m.state === "paused")
+    return {
+      pill: w.pill,
+      tone: w.tone,
+      cameIn: cameIn2,
+      standing: "You paused its sending: what people write still comes in.",
+      fix: null
+    };
+  if (m.state === "held") {
+    const since2 = m.held_at ? DAY_FMT.format(new Date(m.held_at)) : null;
+    return {
+      pill: w.pill,
+      tone: w.tone,
+      cameIn: cameIn2,
+      standing: `Its sending is held${since2 ? ` since ${since2}` : ""}: ${mailboxHoldWords(m.held_why)}.`,
+      fix: w.fix
+    };
+  }
+  return { pill: "Connected", tone: "ok", cameIn: cameIn2, standing: null, fix: w.fix };
+}
+function mailboxSendingLines(m, nowMs) {
+  const w = mailboxWords(m, nowMs);
+  const top = Math.max(...MAILBOX_RAMP.map((s) => s.perDay));
+  return [
+    m.state === "connected" ? w.day : null,
+    w.ramp,
+    w.health,
+    m.customer_domain && m.state === "connected" ? customerDomainWords(m.host) : null,
+    `A new mailbox starts at ${MAILBOX_RAMP[0].perDay} a day and grows with the days it sends, to ${top}.`
+  ].filter((line) => !!line);
+}
 function mailboxActs(m) {
   return {
     reconnect: m.state === "reconnect",
@@ -42378,7 +42432,7 @@ function mailboxesFootWords(count2) {
   if (count2 >= MAILBOX_CONNECTIONS_MAX) return `${MAILBOX_CONNECTIONS_MAX} is the most. Remove one to add another.`;
   if (count2 === 0)
     return `Email people write to your mailbox comes into your Inbox, and sequences to leads write from it through Google or Microsoft, so every email is yours and every reply comes back to it. A mailbox on the domain your customers write to sends ${CUSTOMER_DOMAIN_DAILY_MAX} a day at most to leads; for more, use a second domain such as get<yourbusiness>.com.`;
-  return `A new mailbox starts at ${MAILBOX_RAMP[0].perDay} a day and grows with the days it sends, to ${Math.max(...MAILBOX_RAMP.map((s) => s.perDay))}. Replies come back to it, and to your Inbox here.`;
+  return "Email people write to it comes into your Inbox; sequences to leads write from it, and their replies come back here.";
 }
 function customerDomainWords(host) {
   return `Your customers write to ${host}, so this mailbox sends ${CUSTOMER_DOMAIN_DAILY_MAX} a day at most to keep their mail and bookings safe. For more, connect a mailbox on a second domain, such as get${host}.`;
@@ -42408,6 +42462,8 @@ var MAILBOX_LEFT_WHY_WORDS = {
 };
 var MAILBOX_SENDERS_WORDS = {
   title: "Left in your mailbox",
+  /** Beside the title: the senders left in the last day, as a mailbox's row counts who wrote. */
+  today: (n) => n === 0 ? "none today" : `${n} sender${n === 1 ? "" : "s"} today`,
   lead: "Mail that isn't from a person stays in your mailbox, out of Chanlytics. If anyone here is a person, bring them in.",
   empty: "Nothing has been left yet.",
   emails: (n) => `${n} email${n === 1 ? "" : "s"}`,
@@ -71229,6 +71285,8 @@ export {
   mailboxHoldWords,
   mailboxRampShare,
   mailboxRecordRows,
+  mailboxRowWords,
+  mailboxSendingLines,
   mailboxSendsNow,
   mailboxWords,
   mailboxesFootWords,

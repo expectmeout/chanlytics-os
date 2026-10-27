@@ -1109,10 +1109,15 @@ function incomingEmailOf(e) {
     senderAuthenticated: senderAuthenticated(e)
   };
 }
+function mailboxStamped(meta, mailboxId) {
+  const own = meta && typeof meta === "object" && !Array.isArray(meta) ? meta : {};
+  return { ...own, source: "mailbox", mailbox_id: mailboxId };
+}
 async function mailboxIngest(ctx, job) {
   const intake = ctx.mailboxIntake;
   if (!intake) throw new Error("email_ingest: this runtime holds no mailbox intake");
   const { db } = ctx;
+  const mailboxId = typeof job.payload.mailbox_id === "string" ? job.payload.mailbox_id : "";
   const outcome = await ingestEmail(
     {
       mailbox: async (id) => {
@@ -1120,7 +1125,6 @@ async function mailboxIngest(ctx, job) {
         return m && m.state !== "removed" ? { id: m.id, tenant_id: m.tenant_id, address: m.address } : null;
       },
       fetch: async (providerId) => {
-        const mailboxId = typeof job.payload.mailbox_id === "string" ? job.payload.mailbox_id : "";
         const e = await intake.fetch(mailboxId, providerId);
         return e ? incomingEmailOf(e) : null;
       },
@@ -1130,7 +1134,7 @@ async function mailboxIngest(ctx, job) {
       keepForwarding: () => Promise.resolve(void 0),
       erasedBefore: intake.erasedBefore,
       ours: (tenantId, rfcMessageId) => sentEmailWithMessageId(db, tenantId, rfcMessageId),
-      record: (p) => ingestInboundEmail(db, p),
+      record: (p) => ingestInboundEmail(db, { ...p, meta: mailboxStamped(p.meta, mailboxId) }),
       escalate: (tenantId, conversationId, reason, details) => upsertEscalation(db, tenantId, conversationId, reason, details),
       tell: intake.tell,
       reachOutReply: async (tenantId, messageId) => await reachOutReplyOf2(db, { tenantId, messageId, days: REACH_OUT_REPLY_DAYS2 }) !== null,

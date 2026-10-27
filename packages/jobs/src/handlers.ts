@@ -186,6 +186,15 @@ export function incomingEmailOf(e: ReceivedEmail): IncomingEmail {
 }
 
 /**
+ * A mailbox's email as its row keeps it: stamped with the mailbox it came through, as its import's are (the edge's
+ * mailboxEmailMeta), so Connections counts who wrote to each mailbox.
+ */
+function mailboxStamped(meta: Json, mailboxId: string): Json {
+  const own = meta && typeof meta === "object" && !Array.isArray(meta) ? meta : {};
+  return { ...own, source: "mailbox", mailbox_id: mailboxId };
+}
+
+/**
  * email_ingest from a mailbox the business connected (decision 0056): the same verb, over the mailbox's row and its
  * own provider. The sync schedules one only for a message in a thread a reach-out started, so what it reads is a reply
  * (or a report about one of its emails, which the sync applies itself and never schedules). A booking notice, a
@@ -195,6 +204,7 @@ async function mailboxIngest(ctx: JobContext, job: ClaimedJob): Promise<void> {
   const intake = ctx.mailboxIntake;
   if (!intake) throw new Error("email_ingest: this runtime holds no mailbox intake");
   const { db } = ctx;
+  const mailboxId = typeof job.payload.mailbox_id === "string" ? job.payload.mailbox_id : "";
   const outcome = await ingestEmail(
     {
       mailbox: async (id) => {
@@ -202,7 +212,6 @@ async function mailboxIngest(ctx: JobContext, job: ClaimedJob): Promise<void> {
         return m && m.state !== "removed" ? { id: m.id, tenant_id: m.tenant_id, address: m.address } : null;
       },
       fetch: async (providerId) => {
-        const mailboxId = typeof job.payload.mailbox_id === "string" ? job.payload.mailbox_id : "";
         const e = await intake.fetch(mailboxId, providerId);
         return e ? incomingEmailOf(e) : null;
       },
@@ -212,7 +221,7 @@ async function mailboxIngest(ctx: JobContext, job: ClaimedJob): Promise<void> {
       keepForwarding: () => Promise.resolve(undefined),
       erasedBefore: intake.erasedBefore,
       ours: (tenantId, rfcMessageId) => sentEmailWithMessageId(db, tenantId, rfcMessageId),
-      record: (p) => ingestInboundEmail(db, p),
+      record: (p) => ingestInboundEmail(db, { ...p, meta: mailboxStamped(p.meta, mailboxId) }),
       escalate: (tenantId, conversationId, reason, details) =>
         upsertEscalation(db, tenantId, conversationId, reason, details),
       tell: intake.tell,

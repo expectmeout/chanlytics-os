@@ -1,7 +1,8 @@
 /**
  * The senders of a connected mailbox's mail (00483): what the workspace said of them (mailbox_senders), and what the
  * mailbox left where it was, one row a sender (mailbox_left). The edge's sync and import read the first and note the
- * second as the service role; a member reads both and says what a sender is on their own session.
+ * second as the service role; a member reads both and says what a sender is on their own session. And what came in
+ * today, as Connections' row says it: the people who wrote through a mailbox, and the senders it left.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -91,4 +92,43 @@ export async function sortMailboxSender(
     p_verdict: p.verdict as string,
   });
   if (error) throw Object.assign(new Error(error.message), { code: error.code });
+}
+
+/** The most rows a count reads: past it, the count is this many (a mailbox's day is a few dozen). */
+const CAME_IN_READ_MAX = 1000;
+
+/**
+ * The people whose email came in through this mailbox since `since`: its import's and its sync's alike, each stamped
+ * with the mailbox (meta.mailbox_id), by when the email was written.
+ */
+export async function mailboxPeopleSince(db: Db, tenantId: string, mailboxId: string, since: Date): Promise<number> {
+  const { data, error } = await db
+    .from("messages")
+    .select("contact_id")
+    .eq("tenant_id", tenantId)
+    .eq("channel", "email")
+    .eq("direction", "inbound")
+    .gte("channel_ts", since.toISOString())
+    .contains("meta", { mailbox_id: mailboxId })
+    .limit(CAME_IN_READ_MAX);
+  if (error) throw new Error(`cannot read who wrote to the mailbox: ${error.message}`);
+  return new Set((data ?? []).map((r) => r.contact_id)).size;
+}
+
+/**
+ * The senders whose mail the workspace's mailboxes left where it was since `since`, leaving out one since said to be a
+ * person, as the list under the mailbox does (mailboxSendersOf).
+ */
+export async function mailboxLeftSince(db: Db, tenantId: string, since: Date): Promise<number> {
+  const [left, verdicts] = await Promise.all([
+    db
+      .from("mailbox_left")
+      .select("address")
+      .eq("tenant_id", tenantId)
+      .gte("last_at", since.toISOString())
+      .limit(CAME_IN_READ_MAX),
+    mailboxSenderVerdicts(db, tenantId),
+  ]);
+  if (left.error) throw new Error(`cannot read what the mailbox left: ${left.error.message}`);
+  return (left.data ?? []).filter((r) => senderVerdictOf(verdicts, r.address) !== "person").length;
 }
