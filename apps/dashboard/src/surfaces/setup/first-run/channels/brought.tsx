@@ -12,7 +12,9 @@ import {
   type ImportLineVM,
   type ImportSource,
 } from "@chanlytics/contracts";
-import { Button, Meter } from "../../../kit";
+// Each part from its own module, never the kit's index: the index brings every part on Base UI into the first run's
+// and Today's pages (+21 KB and +10 KB gzipped, #1854's first build), and the first run draws its buttons by class.
+import { Meter } from "../../../kit/meter/meter";
 import { Icon } from "../../../kit/icon/icon";
 import { Sheet } from "../../../kit/sheet/sheet";
 import { refusalToast, type LegacyFlash } from "../../../legacy-verbs";
@@ -53,8 +55,9 @@ function LineStand({ line, flash }: { line: ImportLineVM; flash: (f: LegacyFlash
   };
   if (line.retry)
     return (
-      <Button
-        size="sm"
+      <button
+        type="button"
+        className="btn btn-sm"
         onClick={() => void again()}
         disabled={starting}
         aria-busy={starting || undefined}
@@ -68,7 +71,7 @@ function LineStand({ line, flash }: { line: ImportLineVM; flash: (f: LegacyFlash
         ) : (
           IW.retry
         )}
-      </Button>
+      </button>
     );
   if (line.state === "done")
     return (
