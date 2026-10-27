@@ -18,7 +18,16 @@ export {
   HISTORY_BACK_DAYS,
   IMPORT_STOPPED_WORDS,
 } from "./ledger";
-export type { ImportSource, ImportState, ImportCounts, ImportRowDto, ImportLineVM, WhatsappPartVM } from "./ledger";
+export type {
+  ImportSource,
+  ImportState,
+  ImportCounts,
+  ImportRowDto,
+  ImportLineVM,
+  WhatsappPartVM,
+  BroughtInFactVM,
+  BroughtInStateVM,
+} from "./ledger";
 export { BUSINESS_READ_SOURCES, FOUND_WORDS, businessReadFactsOf, foundOf } from "./business-reads";
 export type { BusinessReadSource, BusinessReadFacts, BusinessReadDto, FoundVM } from "./business-reads";
 export { WEBSITE_READ_SYSTEM, WEBSITE_READ_SCHEMA, WEBSITE_UNREAD_WORDS } from "./business-reads";
