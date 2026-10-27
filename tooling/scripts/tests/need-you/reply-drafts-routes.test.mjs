@@ -10,6 +10,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
+import { rows } from "../_rows.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -160,6 +161,41 @@ test("the kept drafts of the threads asked for, this workspace's only, current o
     d.drafts.map((x) => [x.conversation_id, x.words.text]),
     [[C1, "Friday works."]],
     "a thread of another workspace's is none of this read's",
+  );
+  assert.equal(writes(ctx), 0, "a read writes nothing");
+});
+
+test("a reply to an email written to the connected mailbox is read as signed with that mailbox's signature (00487, R13)", async () => {
+  const C3 = "cccccccc-cccc-4ccc-8ccc-ccccccccccc3";
+  const email = (id, conv, to) => ({
+    ...said(id, conv, "2026-10-23T11:00:00Z"),
+    channel: "email",
+    channel_ts: "2026-10-23T11:00:00Z",
+    meta: { email: { from: "office@example.com", message_id: `<${id}@example.com>`, to: [to] } },
+  });
+  const ctx = ctxFor({
+    memberships: [membership("operator")],
+    mailbox_connections: [
+      rows.mailboxConnection({
+        tenant_id: A,
+        address: "sam@owndomain.example.com",
+        host: "owndomain.example.com",
+        from_name: "Sam at Harbor",
+        gmail_signature: "Sam Reyes<br>Harbor Moving",
+      }),
+    ],
+    // One written to the connected mailbox, as the address arrives (its case kept); one written to someone else.
+    messages: [email(M1, C1, "Sam@OwnDomain.example.com"), email(M2, C3, "office@example.com")],
+    conversation_drafts: [kept(C1, M1, "Friday works."), kept(C3, M2, "Thursday then.")],
+  });
+  const d = await dataOf(await drafts.GET.run(get(`ids=${C1},${C3}`), ctx));
+  assert.deepEqual(
+    d.drafts.map((x) => [x.conversation_id, x.signed ?? null]),
+    [
+      [C1, "Sam Reyes\nHarbor Moving"],
+      [C3, null],
+    ],
+    "the line under the card says what the send will sign with, and none where it leaves from the hosted mailbox",
   );
   assert.equal(writes(ctx), 0, "a read writes nothing");
 });
