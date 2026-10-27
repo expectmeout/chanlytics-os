@@ -207,36 +207,6 @@ const MailboxSettings = ({ m, flash, onClose }: SettingsProps) => {
           problem={problems.name}
           disabled={busy}
         />
-        <Segmented
-          label={SIGNS.label}
-          value={signs}
-          onValueChange={setSigns}
-          readOnly={busy}
-          options={[
-            {
-              value: "gmail",
-              label: m.provider === "google" ? SIGNS.gmail : SIGNS.name,
-              testid: "mailbox-signs-gmail",
-            },
-            { value: "own", label: SIGNS.own, testid: "mailbox-signs-own" },
-            { value: "none", label: SIGNS.none, testid: "mailbox-signs-none" },
-          ]}
-        />
-        {signs === "own" ? (
-          <RecordField
-            id={`mailbox-signature-${m.id}`}
-            testid="mailbox-signature"
-            label={SIGNS.ownLabel}
-            value={signature}
-            onChange={setSignature}
-            rows={3}
-            hint={SIGNS.ownHint}
-            problem={problems.signature}
-            disabled={busy}
-          />
-        ) : (
-          <SignsSaid m={m} choice={signs} />
-        )}
         <RecordField
           id={`mailbox-cap-${m.id}`}
           testid="mailbox-cap"
@@ -249,6 +219,42 @@ const MailboxSettings = ({ m, flash, onClose }: SettingsProps) => {
           problem={problems.cap}
           disabled={busy}
         />
+        {/* What it signs with: a row of its own across the form, named, the choice over what it signs with. */}
+        <div className="biz-cell biz-cell-wide set-mbx-signs-group" data-testid="mailbox-signs">
+          <span className="biz-label" id={`mailbox-signs-label-${m.id}`}>
+            {SIGNS.label}
+          </span>
+          <Segmented
+            labelledBy={`mailbox-signs-label-${m.id}`}
+            value={signs}
+            onValueChange={setSigns}
+            readOnly={busy}
+            options={[
+              {
+                value: "gmail",
+                label: m.provider === "google" ? SIGNS.gmail : SIGNS.name,
+                testid: "mailbox-signs-gmail",
+              },
+              { value: "own", label: SIGNS.own, testid: "mailbox-signs-own" },
+              { value: "none", label: SIGNS.none, testid: "mailbox-signs-none" },
+            ]}
+          />
+          {signs === "own" ? (
+            <RecordField
+              id={`mailbox-signature-${m.id}`}
+              testid="mailbox-signature"
+              label={SIGNS.ownLabel}
+              value={signature}
+              onChange={setSignature}
+              rows={3}
+              hint={SIGNS.ownHint}
+              problem={problems.signature}
+              disabled={busy}
+            />
+          ) : (
+            <SignsSaid m={m} choice={signs} />
+          )}
+        </div>
       </div>
       <div className="set-acts">
         <Button size="sm" variant="primary" onClick={() => void save()} disabled={busy} data-testid="mailbox-save">
