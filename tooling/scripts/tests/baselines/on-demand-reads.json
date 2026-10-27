@@ -280,5 +280,10 @@
     "kind": "on-open",
     "fresh": "Read as Today's Need you draws its rows, and again whenever the threads it draws or the newest message on one of them changes (useDraftsAhead's key, pages/queue.tsx), so a draft for an older message is asked for again.",
     "why": "A kept draft is words nothing sends: it is read for the rows on screen, and a Send goes through the reply's own door with whatever words the row holds by then; the feed moves the rows, and the rows ask again."
+  },
+  "apps/dashboard/src/surfaces/settings/connections/left-senders.tsx GET mailbox-senders": {
+    "kind": "search",
+    "fresh": "Read on the owner's press (Show who), and again after each of its own presses (It's a person, Undo).",
+    "why": "A list to act on in the moment: the mailbox adds to it as mail arrives, which the next press reads; nothing else on the page is drawn from it, and it is never kept."
   }
 }

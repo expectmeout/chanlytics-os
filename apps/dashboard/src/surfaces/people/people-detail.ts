@@ -270,7 +270,20 @@ export async function deletePerson(id: string): Promise<DeleteResult> {
   return r;
 }
 
-/** The people this tab deleted (deletePerson). */
+/**
+ * Not a person (00483): their address, or every address at their domain, said to be a sender of automated mail, then
+ * deleted as deletePerson deletes them; owner-only on the server, on a fresh session, and never undone.
+ */
+export async function notAPerson(id: string, scope: "address" | "domain"): Promise<DeleteResult> {
+  const r = await api()("POST contacts/[id]/not-a-person", { params: { id }, body: { scope } });
+  if (r.ok) {
+    people().forget(id);
+    deletedHere.add(id);
+  }
+  return r;
+}
+
+/** The people this tab deleted (deletePerson, notAPerson). */
 const deletedHere = new Set<string>();
 
 /**

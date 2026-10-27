@@ -10,6 +10,9 @@ import type { PersonCallCtl } from "./call";
 
 /** The typed-name confirmation to delete a person: open, what was typed, whether the delete is out, and what went wrong. */
 export interface DelState {
+  /** Not a person (00483): their mail is automated, kept in the mailbox from now on; and their whole domain's too. */
+  bot?: boolean;
+  domain?: boolean;
   open: boolean;
   typed: string;
   busy: boolean;

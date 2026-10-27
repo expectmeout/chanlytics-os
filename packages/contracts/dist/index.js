@@ -42361,6 +42361,45 @@ function senderVerdictOf(said, address) {
   }
   return null;
 }
+var MAILBOX_LEFT_WHY_WORDS = {
+  automated: "Marked as automated",
+  auto_reply: "An automatic reply",
+  report: "A delivery report",
+  booking_notice: "A booking tool's notice",
+  forwarding_confirmation: "Gmail's forwarding check",
+  gmail_tab: "Gmail: Promotions, Social or Forums",
+  updates: "Gmail: Updates, from someone new",
+  said: "You said it's not a person"
+};
+var MAILBOX_SENDERS_WORDS = {
+  title: "Left in your mailbox",
+  lead: "Mail that isn't from a person stays in your mailbox, out of Chanlytics. If anyone here is a person, bring them in.",
+  empty: "Nothing has been left yet.",
+  emails: (n) => `${n} email${n === 1 ? "" : "s"}`,
+  bringIn: "It's a person",
+  broughtIn: (who) => `${who} is a person: their mail comes in from now on, and their last six months with it.`,
+  saidTitle: "Said not to be people",
+  undo: "Undo",
+  undone: (sender) => `${sender}: its mail is sorted as it comes again.`,
+  more: (n) => `and ${n} more`,
+  /** Delete person's sheet, for someone with an email address: they are a sender of automated mail. */
+  notAPerson: "Not a person: their mail stays in your mailbox from now on",
+  wholeDomain: (domain) => `Everything from ${domain}, too`,
+  done: (who) => `${who}: not a person. Deleted, and their mail stays in your mailbox.`,
+  show: "Show who",
+  failed: "Could not change this."
+};
+var domainOf = (address) => address.slice(address.lastIndexOf("@") + 1).trim().toLowerCase();
+function senderDomainOffered(address, ownHosts) {
+  const domain = domainOf(address);
+  if (!domain.includes(".") || isFreeMail(domain)) return null;
+  return ownHosts.some((h) => h.trim().toLowerCase() === domain) ? null : domain;
+}
+function senderSortRefusal(sender, verdict, ownHosts) {
+  const s = sender.trim().toLowerCase();
+  if (verdict !== "automated" || s.includes("@")) return null;
+  return senderDomainOffered(`x@${s}`, ownHosts) ? null : `${s} is many people's: mark one address instead.`;
+}
 
 // src/imports/ledger.ts
 var IMPORT_SOURCES = [
@@ -63550,6 +63589,7 @@ var ROUTE_KEYS = [
   "GET lines/codes",
   "GET mailbox-connections/callback",
   "GET mailbox-connections/connect",
+  "GET mailbox-senders",
   "GET me/alerts",
   "GET messages/[id]/media",
   "GET metrics",
@@ -63647,6 +63687,7 @@ var ROUTE_KEYS = [
   "POST contacts/[id]/deal",
   "POST contacts/[id]/doubts/dismiss",
   "POST contacts/[id]/merge",
+  "POST contacts/[id]/not-a-person",
   "POST contacts/[id]/notes",
   "POST contacts/[id]/notes/decide",
   "POST contacts/[id]/notes/done",
@@ -63704,6 +63745,7 @@ var ROUTE_KEYS = [
   "POST mailbox-connections/[id]/check",
   "POST mailbox-connections/[id]/resume",
   "POST mailbox-connections/[id]/test",
+  "POST mailbox-senders",
   "POST mailboxes",
   "POST me/invitations/accept",
   "POST messages/[id]/cancel-send",
@@ -69232,11 +69274,13 @@ export {
   MAILBOX_DAILY_CAP_MAX,
   MAILBOX_FROM_NAME_MAX,
   MAILBOX_HOLDS,
+  MAILBOX_LEFT_WHY_WORDS,
   MAILBOX_LOCAL_PART_MAX,
   MAILBOX_PROVIDERS,
   MAILBOX_PROVIDER_WORDS,
   MAILBOX_RAMP,
   MAILBOX_RESERVED,
+  MAILBOX_SENDERS_WORDS,
   MARKETING_OPT_IN_PATTERN,
   MAX_CLOSURES,
   MAX_INTERVALS_PER_DAY,
@@ -71780,7 +71824,9 @@ export {
   sendOnceRoute,
   sendWindowsOf,
   sendableTemplates,
+  senderDomainOffered,
   senderLanguage,
+  senderSortRefusal,
   senderVerdictOf,
   senderWords,
   sendingEndsAt,

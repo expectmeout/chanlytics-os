@@ -4444,7 +4444,7 @@ var MAIL_PAGE = 50;
 var seconds = (iso) => Math.max(0, Math.floor(Date.parse(iso) / 1e3));
 async function gmailListSince(token, window, pageToken, deps) {
   const q = new URLSearchParams({
-    q: `after:${seconds(window.from)} before:${seconds(window.to)}`,
+    q: `after:${seconds(window.from)} before:${seconds(window.to)}${window.sender ? ` from:${window.sender}` : ""}`,
     maxResults: GMAIL_PAGE
   });
   if (pageToken) q.set("pageToken", pageToken);
@@ -4465,8 +4465,9 @@ async function gmailListSince(token, window, pageToken, deps) {
   };
 }
 async function graphListSince(token, window, link, deps) {
+  const from = window.sender ? ` and from/emailAddress/address eq '${window.sender.replace(/'/g, "''")}'` : "";
   const filter = encodeURIComponent(
-    `receivedDateTime ge ${window.from} and receivedDateTime lt ${window.to} and isDraft eq false`
+    `receivedDateTime ge ${window.from} and receivedDateTime lt ${window.to} and isDraft eq false${from}`
   );
   const url = link ?? `${GRAPH_API}/me/messages?$filter=${filter}&$select=id,conversationId,from,receivedDateTime&$orderby=receivedDateTime desc&$top=${MAIL_PAGE}`;
   const r = await providerFetch(
