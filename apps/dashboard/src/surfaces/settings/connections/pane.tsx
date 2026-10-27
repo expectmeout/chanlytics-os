@@ -328,6 +328,9 @@ export const PaneIntegrationsReal = ({ row: named = null }: { row?: string | nul
   const [note, setNote] = useState<string | null>(googleNote);
   // What the browser came back from a mailbox's provider with, said once under the mailboxes' row.
   const [mailboxNote, setMailboxNote] = useState(() => connectedMailboxes.outcome());
+  const dropNote = () => setMailboxNote(null);
+  // The address named "Left in your mailbox" (Today's Brought in links to it): the mailbox block opens its list.
+  const leftOpen = named === MAILBOX_LEFT_ROW;
   // Meta's sign-up window is open (this page began it and it has not ended), and the sign-up an earlier page began on this tab and
   // never finished, read once as this page opens: nothing a later press of Connect should bring back.
   const [signup, setSignup] = useState(false);
@@ -439,13 +442,7 @@ export const PaneIntegrationsReal = ({ row: named = null }: { row?: string | nul
       {r.kind === "instagram" && <InstagramNote note={ig.note} onOk={ig.clearNote} />}
       {/* A Later row has no block, but what a connect came back with is still said under it. */}
       {((r.body === "mailboxes" && S && email) || (r.kind === "mailbox" && mailboxNote)) && (
-        <ConnectedMailboxes
-          email={email}
-          flash={flash}
-          note={mailboxNote}
-          onNote={() => setMailboxNote(null)}
-          openLeft={named === MAILBOX_LEFT_ROW}
-        />
+        <ConnectedMailboxes email={email} flash={flash} note={mailboxNote} onNote={dropNote} openLeft={leftOpen} />
       )}
     </Fragment>
   );
