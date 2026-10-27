@@ -5,7 +5,7 @@
 import type { MessageDto } from "./thread-dto";
 
 /** An email's subject, as the intake kept it (core email-ingest.ts). */
-export function emailSubjectOf(m: MessageDto): string | null {
+function emailSubjectOf(m: MessageDto): string | null {
   const email = (m.meta as { email?: { subject?: unknown } } | null)?.email;
   return typeof email?.subject === "string" && email.subject.trim() ? email.subject.trim() : null;
 }

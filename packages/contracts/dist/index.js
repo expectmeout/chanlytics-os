@@ -40235,6 +40235,7 @@ function bubbleWordsOf(m, changed) {
     ...parts2.signature ? { signature: { line: emailSignatureLine(parts2.signature), full: parts2.signature } } : {}
   };
 }
+var headSubjectOf = (thread) => thread ? { emailSubject: thread } : {};
 function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) {
   const who = contactName(dto);
   const { state, takenOver, needsYou, claimedByOther } = threadStanding(dto, escalation, now);
@@ -40356,7 +40357,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     // the last thing that happened. The subject said "A teammate is answering this" under a pill naming the teammate,
     // "You're answering this one" under "You have it", and a quiet thread's last words twice when they wrote last.
     subject: reasonLabel ?? "",
-    ...subjects2.thread ? { emailSubject: subjects2.thread } : {},
+    ...headSubjectOf(subjects2.thread),
     preview: preview.text,
     previewChannel: preview.channel,
     // A thread a teammate has is theirs to answer: the reason's sentence ("they're
