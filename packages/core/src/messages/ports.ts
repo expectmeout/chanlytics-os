@@ -71,12 +71,16 @@ export interface SendQueuedPorts {
 /** The command sendQueued takes: here rather than in send.ts, so the port above can name its payload without a cycle. */
 export interface SendQueuedCommand {
   tenantId: string;
-  /** `to_phone` on a phone's wire, `to_email` on email's: an address never travels in a field read as a number. */
+  /**
+   * `to_phone` on a phone's wire, `to_email` on email's, `to_instagram` (the person's Instagram-scoped id) on a DM's:
+   * an address never travels in a field read as a number.
+   */
   payload: {
     message_id: string;
     conversation_id: string;
     to_phone?: string;
     to_email?: string;
+    to_instagram?: string;
     body?: string;
     template?: { name: string; language: string; params: string[] };
     /**

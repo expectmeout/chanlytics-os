@@ -30,17 +30,17 @@ import {
 import { ago } from "./person-row-facts";
 import { holderOf, personStanding } from "./person-state";
 import { bookingLinkAction, emailFactWords, type PersonProposalVM, repliesWords } from "./person-reach";
-import { toPersonRowVM, type PersonRowVM } from "./person-row";
+import { igClockOfRow, toPersonRowVM, type PersonRowVM } from "./person-row";
 import { visitTitleWithout } from "../calendar/visit/visit-service";
 import { addedBy, ourWireOfThreads, proposalSending, proposalSent, replyChannelOfThreads, ts } from "./person-helpers";
 import { PERSON_CHANNEL_WORDS, REPLY_VIA, REPLY_WIRE } from "./person-words";
-import { replyWindow } from "../config/policy";
+import { replyWindow, windowClockOf } from "../config/policy";
 import { messageAt, type MessageDto } from "../conversations/thread-dto";
 import { messageText, messageWords } from "../conversations/message-words";
 import { reasonShort, reasonSummaryOf } from "../conversations/escalations";
 import { neverConnected } from "../conversations/call-dto";
 import { shortTime } from "../conversations/thread-clock";
-import { writtenChannelOf } from "../conversations/thread-channel";
+import { writtenChannelOf, type WrittenChannel } from "../conversations/thread-channel";
 import { HOUR_MS } from "../shared/time";
 
 export interface PersonRightNow {
@@ -75,7 +75,7 @@ export interface PersonLastExchange {
 
 /** The wire a reply goes out on, exactly, and WhatsApp's window on it as the row says it. */
 interface PersonReply {
-  via: "whatsapp" | "sms" | "email";
+  via: WrittenChannel;
   window: { open: boolean; hoursLeft: number };
 }
 
@@ -199,7 +199,15 @@ function replyOf(
     (base.lastChannel ? rowVia : null) ??
     ourWireOfThreads(d.conversations) ??
     rowVia;
-  const exactWindow = via ? replyWindow(via, row.latest_wa_inbound_at, now) : null;
+  // Each wire's window by its own clock: a DM's from the threads that hold one (their accessor), else the row's.
+  const dmClock =
+    d.conversations
+      .map((c) => c.last_ig_inbound_at ?? "")
+      .filter(Boolean)
+      .sort()
+      .at(-1) ?? igClockOfRow(row);
+  const clocks = { whatsapp: row.latest_wa_inbound_at, instagram: dmClock };
+  const exactWindow = via ? replyWindow(via, windowClockOf(via, clocks), now) : null;
   if (!via || !exactWindow) return null;
   const hoursLeft = exactWindow.closesAtIso
     ? Math.max(0, Math.round((new Date(exactWindow.closesAtIso).getTime() - nowMs) / HOUR_MS))

@@ -55,6 +55,10 @@ test("which channels each way of saying yes covers", () => {
     "a call is no channel a yes covers",
   );
   assert.deepEqual(channelsOfYes("marketing", "customer_message", null), ["whatsapp"]);
+  // A yes in their own DM (decision 0001, step 8) covers no wire a conversation is started on: Instagram lets a business
+  // start none, and a DM is no yes for a wire it did not come on. It still lifts their stop.
+  assert.deepEqual(channelsOfYes("conversational", "customer_message", "instagram"), []);
+  assert.deepEqual(channelsOfYes("marketing", "customer_message", "instagram"), []);
 });
 
 test("a yes recorded before the channels were covers WhatsApp alone, the reach it had; a kept list is read as kept", () => {

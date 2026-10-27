@@ -764,7 +764,9 @@ const DROPPED = {
 const LATER = {
   outreach_lead_facts: "00451",
   lead_set_stage: "00413",
-  ingest_inbound: "00361",
+  // 00484 adds the per-channel row (decision 0001, step 4); inbound/a-thread-keeps-when-each-wire-last-heard.db.test.mjs
+  // proves it 00361's body but for that block.
+  ingest_inbound: "00484",
   // 00459 draws a sequence's leads from the search it draws from too (auto-add): one-road-to-a-sequence.db.test.mjs.
   reach_out_audience: "00459",
   // A company's addressee is the person, by the name their source gave, and People is asked once (lead_address_in_people):

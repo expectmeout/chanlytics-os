@@ -28,6 +28,7 @@ import {
   requestedBookingOf,
   takesBookingRequests,
 } from "@chanlytics/contracts";
+import { inboundFromWhatsapp } from "@chanlytics/channels";
 import { fakeDb } from "../../_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
@@ -297,7 +298,9 @@ function world({ answer, takes = true, terms = TERMS, withRequest = true }) {
     }),
     env: { allowlist: "", modelKey: "sk-test" },
   };
-  return { seen, run: (body) => handleInbound(message(body), value, "t1", routed, false, null, ports) };
+  // The message as its door hands it over (decision 0001, step 3): WhatsApp's own, in the one shape.
+  const inbound = (body) => inboundFromWhatsapp(message(body), value);
+  return { seen, run: (body) => handleInbound({ inbound: inbound(body), carrier: null }, "t1", routed, false, ports) };
 }
 
 test("a time the code finds open: the request and its hold through the sink's door, the reply as written, the thread a person's", async () => {

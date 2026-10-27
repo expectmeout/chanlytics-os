@@ -483,6 +483,9 @@
     "00478_what_came_before_is_kept_and_brought_in_parts.sql": "8c653e49c9ce32d0fa9e661b12c7870afa97d4745ecf3e71912306bf8abb5a4e",
     "00479_what_the_profile_and_the_website_say.sql": "ea7af629adb40534b256acd9713ab7155846cbdfd0fe9aa767ac17f5d11d8178",
     "00480_what_is_brought_in_is_told_to_its_workspace.sql": "faa2c7b864fc07404c1f0b92ba89d106b7b913dbc1abc6ce16241468422c63c4",
-    "00481_a_kept_fix_goes_through_its_door.sql": "dccff695c584ba9de2fe03d63dd422b7e25e0aaecf573765737f50abad9faa11"
+    "00481_a_kept_fix_goes_through_its_door.sql": "dccff695c584ba9de2fe03d63dd422b7e25e0aaecf573765737f50abad9faa11",
+    "00484_a_thread_keeps_when_each_wire_last_heard_from_its_person.sql": "5bde939c91886202238662bfe13827ee218ca78f25e7689edb0f5c1d5f81b537",
+    "00485_a_reply_window_reads_its_own_wire_s_clock.sql": "28359066ad60f205b0a2ab6198315686dd4f68008a2777979583d7fb91c09908",
+    "00486_an_instagram_dm_is_a_message_the_business_answers.sql": "922c69b0a00e55c48d39164ffa673485473646d171f0b06bc479b17b813199e0"
   }
 }

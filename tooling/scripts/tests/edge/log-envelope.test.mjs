@@ -167,7 +167,7 @@ test("the converted message-path lines carry the tenant", () => {
   const src = pathSrc();
   assert.match(
     src,
-    /const L = ports\.log\(\{ tenant_id: tenantId, wamid: raw\.id, from_tail: phoneTail\(from\), type: raw\.type \}\)/,
+    /const L = ports\.log\(\{ tenant_id: tenantId, wamid: n\.externalId, from_tail: phoneTail\(from\), type: n\.rawType \}\)/,
     "answerInbound must bind the tenant into its logger",
   );
   for (const call of ['L.info("wa_replied"', 'L.info("wa_skip_opt_out"', 'L.error("wa_state_unavailable"']) {

@@ -10,6 +10,7 @@ import type { PersonProposalVM } from "./person-reach";
 import { adRoute } from "../ads/address";
 import { PERSON_AD_ON, PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS, type PersonChannel } from "./person-words";
 import type { ConversationDto } from "../conversations/thread-dto";
+import type { WrittenChannel } from "../conversations/thread-channel";
 import {
   THREAD_CHANNEL_WORDS,
   isChatMessage,
@@ -41,9 +42,7 @@ export function fmtDate(ms: number, tz: string, nowMs: number): string {
  * contracts isTheirOwnWords): their newest own words across their threads, and for a person who has written none, the
  * newest written thing from their side (a program at their address is still their address). Null for neither.
  */
-export function replyChannelOfThreads(
-  conversations: ReadonlyArray<ConversationDto>,
-): "whatsapp" | "sms" | "email" | null {
+export function replyChannelOfThreads(conversations: ReadonlyArray<ConversationDto>): WrittenChannel | null {
   type Latest = { at: number; channel: string | null | undefined } | null;
   let own: Latest = null;
   let any: Latest = null;
@@ -65,7 +64,7 @@ export function replyChannelOfThreads(
  * threads, as the Inbox's reply box and the reply route read it (thread-channel.ts answerWireOf, the dashboard's
  * replyChannelOf), so a person a member wrote to first reads the same wire on their page. Null where it wrote none.
  */
-export function ourWireOfThreads(conversations: ReadonlyArray<ConversationDto>): "whatsapp" | "sms" | "email" | null {
+export function ourWireOfThreads(conversations: ReadonlyArray<ConversationDto>): WrittenChannel | null {
   let last: { at: number; channel: string | null | undefined } | null = null;
   for (const c of conversations) {
     for (const m of c.messages) {

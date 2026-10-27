@@ -71,14 +71,17 @@ interface TableData {
   /** The owner switched what the workspace answers on or off: which (voice, whatsapp, sms), and who. */
   "capability.activated": { capability: string; by: string };
   "capability.deactivated": { capability: string; by: string };
-  "channel.connected": {
-    kind: "whatsapp";
-    phone_number_id: string;
-    waba_id: string;
-    number_e164: string | null;
-    verified_name: string | null;
-    by: string | null;
-  };
+  /** A channel connected: a WhatsApp number (its ids and what Meta calls it), or an Instagram account (decision 0001, step 8). */
+  "channel.connected":
+    | {
+        kind: "whatsapp";
+        phone_number_id: string;
+        waba_id: string;
+        number_e164: string | null;
+        verified_name: string | null;
+        by: string | null;
+      }
+    | { kind: "instagram"; account_id: string; username: string | null; by: string | null };
   /** Three kinds have SQL writers too: their one shape and version are contracts' (workspace/event-data.ts). */
   "contact.added": ContactAddedData;
   "contact.consent_changed": ContactConsentChangedData;
@@ -104,7 +107,7 @@ interface TableData {
   "google.unlinked": { place_id: string; name: string | null; had_profile: boolean; by?: string | null };
   "ingest.allowlist_skip": Nothing;
   "ingest.unreachable_sender": Nothing;
-  "ingest.unroutable": { channel: "email" | "voice" | "whatsapp" } & JsonObject;
+  "ingest.unroutable": { channel: "email" | "voice" | "whatsapp" | "instagram" } & JsonObject;
   "lead.emailed": { by: "reach_out"; send_id: string };
   "lead.excluded": LeadTriageData;
   "lead.kept": LeadTriageData;

@@ -125,6 +125,7 @@ function toBlock(item, tz, dayStartMs, dayEndMs, now) {
           // before: a person with a thread is reached on WhatsApp, held by its window.
           wire: item.person.reply_wire !== void 0 ? item.person.reply_wire : item.person.thread ? "whatsapp" : null,
           waInboundAt: item.person.wa_inbound_at,
+          igInboundAt: item.person.ig_inbound_at ?? null,
           emailStopped: !!item.person.email_stopped,
           optedOut: !!item.person.opted_out,
           who: item.person.name

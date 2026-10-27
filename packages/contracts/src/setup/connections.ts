@@ -30,7 +30,7 @@ import { formatPhoneDisplay } from "../shared/phone";
 import { bookingToolName } from "../calendar/booking-notice";
 import { calendarSourceFacts, calendarSourceOf, type CalendarSourceState } from "./calendar-source";
 import type { EmailSetupDto } from "../email/mailbox";
-import { emailRow, mailboxRow } from "./connection-email";
+import { emailRow, instagramRow, mailboxRow } from "./connection-rows";
 import { firstRunStepRoute, FIRST_RUN_FIND_ROUTE } from "./first-run-route";
 import { importNotesOf, type ImportRowDto, type ImportSource } from "../imports/ledger";
 
@@ -131,6 +131,11 @@ export interface ConnectionInputs {
   signupLeftOpenAt?: string | null;
   /** What each connection brought in (decision 0073, the imports ledger, SetupDto.imports); absent reads as nothing. */
   imports?: readonly ImportRowDto[] | null;
+  /**
+   * Whether this deployment can connect an Instagram account (the edge holds the app: decision 0001, step 8). Absent,
+   * null or still asking (`undefined`) reads as not yet: the row says Later.
+   */
+  instagram?: { ready: boolean } | null;
 }
 
 const TONE: Record<ConnectionState, ConnectionTone> = {
@@ -343,6 +348,7 @@ interface ConnectionFacts {
   nowMs: number;
   wa: ChannelVM | null;
   voice: ChannelVM | null;
+  ig: ChannelVM | null;
   own: LineDto | null;
   connection: GoogleConnectionDto | null;
   listing: GoogleListingDto | null;
@@ -357,6 +363,7 @@ function connectionFactsOf(i: ConnectionInputs, nowMs: number): ConnectionFacts 
     nowMs,
     wa: channel("whatsapp"),
     voice: channel("voice"),
+    ig: channel("instagram"),
     own: i.lines.rows.find((l) => l.provider !== "carrier") ?? null,
     connection: i.google?.connection ?? null,
     listing: i.google?.listing ?? null,
@@ -706,20 +713,6 @@ const CONNECTION_STATE_OF: Record<CalendarSourceState, ConnectionState> = {
   hand: "none",
   none: "none",
 };
-
-/** Instagram: not built yet, so always later. */
-function instagramRow(): Draft {
-  return {
-    kind: "instagram",
-    icon: "instagram",
-    title: "Instagram",
-    detail: null,
-    state: "later",
-    stateWords: "Later",
-    sentence: "Direct messages, answered by the receptionist like WhatsApp.",
-    verb: null,
-  };
-}
 
 /** Deposits: not built yet, so always later. */
 function depositsRow(): Draft {

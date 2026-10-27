@@ -40,6 +40,8 @@ const VERB_TESTID: Record<string, string> = {
   "verb:google-check": "google-check",
   "verb:google-connect": "google-connect",
   "verb:google-disconnect": "google-disconnect",
+  "verb:instagram-connect": "instagram-connect",
+  "verb:instagram-disconnect": "instagram-disconnect",
   "verb:whatsapp-connect": "connect-whatsapp-btn",
   "verb:whatsapp-connect-keep": "connect-whatsapp-keep-btn",
   messages: "channel-messages",
@@ -54,6 +56,8 @@ const VERB_DOING: Record<string, string> = {
   "verb:google-check": "read Google again",
   "verb:google-connect": "connect Google",
   "verb:google-disconnect": "disconnect Google",
+  "verb:instagram-connect": "connect Instagram",
+  "verb:instagram-disconnect": "disconnect Instagram",
   "verb:whatsapp-connect": "connect WhatsApp",
   "verb:whatsapp-connect-keep": "connect WhatsApp",
   "verb:business-record": "fill in the business record",
@@ -66,7 +70,10 @@ const verbGate = (verb: ConnectionVerb) =>
  * The verbs of a joined row that do not mend it: they stay its acts in Settings, and a row that has only one of them,
  * whatever is wrong, is not offered a Fix (its state says who has it).
  */
-const NOT_A_MEND = new Set(["verb:google-disconnect", "verb:email-setup", MESSAGES_ROUTE]);
+const NOT_A_MEND = new Set(["verb:google-disconnect", "verb:instagram-disconnect", "verb:email-setup", MESSAGES_ROUTE]);
+
+/** The verbs that disconnect, each asked about on its row first (rowAsk): Google's Business Profile, an Instagram account. */
+const DISCONNECTS: ReadonlySet<string> = new Set(["verb:google-disconnect", "verb:instagram-disconnect"]);
 
 /**
  * The one word a row's button says. Connect where there is a way in from here; Fix, the coral one, where a connection
@@ -320,7 +327,7 @@ function rowSettings(
 ): ReactNode {
   const { r, run, busy, setArm, says, panelId, owner, armed, fixing } = o;
   const verb = r.verb;
-  const disconnects = verb?.to === "verb:google-disconnect";
+  const disconnects = !!verb && DISCONNECTS.has(verb.to);
   const removable = r.kind === "google_listing" && owner && (r.state === "connected" || r.state === "attention");
   const act =
     verb && !disconnects
@@ -358,7 +365,7 @@ function rowSettings(
               tone="danger"
               onClick={() => run(r)}
               disabled={busy}
-              data-testid="google-disconnect"
+              data-testid={VERB_TESTID[verb.to]}
               {...verbGate(verb)}
             >
               Disconnect
@@ -384,8 +391,25 @@ function rowSettings(
  * The question a row asks before it disconnects, on a line of its own under the row (settings.css, .set-row-ask), as
  * the team's does: in the row's body it stood in what a phone leaves between the tile and the pill.
  */
-function rowAsk(o: Pick<ConnectionRowProps, "busy" | "setArm" | "confirm"> & { armed: string | null }): ReactNode {
-  const { busy, setArm, confirm, armed } = o;
+function rowAsk(
+  o: Pick<ConnectionRowProps, "busy" | "setArm" | "confirm"> & { armed: string | null; kind: string },
+): ReactNode {
+  const { busy, setArm, confirm, armed, kind } = o;
+  if (armed === "disconnect" && kind === "instagram") {
+    return (
+      <Confirm
+        className="set-row-ask"
+        question="Disconnect Instagram?"
+        detail="Its DMs stop being answered here until you connect it again. Its threads stay."
+        yes="Yes, disconnect"
+        danger
+        busy={busy}
+        onYes={() => confirm("disconnect")}
+        onNo={() => setArm(null)}
+        testid="instagram-disconnect"
+      />
+    );
+  }
   if (armed === "remove") {
     return (
       <Confirm
@@ -513,7 +537,7 @@ export const ConnectionRow = (props: ConnectionRowProps) => {
         </span>
       )}
       {settingsOpen && rowSettings({ ...props, says, panelId, owner, armed, fixing: press === "fix" })}
-      {rowAsk({ busy, setArm, confirm, armed })}
+      {rowAsk({ busy, setArm, confirm, armed, kind: r.kind })}
     </div>
   );
 };

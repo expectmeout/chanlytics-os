@@ -370,6 +370,34 @@
       "rate": "settings",
       "spend": false
     },
+    "GET channels/instagram/callback": {
+      "kind": "read",
+      "scope": "account",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "GET channels/instagram/connect": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
+    "POST channels/instagram/disconnect": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
+    "GET channels/instagram": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
     "GET channels": {
       "kind": "read",
       "scope": "workspace",

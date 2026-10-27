@@ -25,7 +25,7 @@ export type IdentityAssurance = (typeof IDENTITY_ASSURANCES)[number];
 export const CONVERSATION_STATES = ["open", "needs_human", "snoozed", "archived"] as const;
 export type ConversationState = (typeof CONVERSATION_STATES)[number];
 
-export const MESSAGE_CHANNELS = ["whatsapp", "voice", "sms", "email", "system"] as const;
+export const MESSAGE_CHANNELS = ["whatsapp", "voice", "sms", "email", "system", "instagram"] as const;
 export type MessageChannel = (typeof MESSAGE_CHANNELS)[number];
 
 export const MESSAGE_DIRECTIONS = ["inbound", "outbound"] as const;

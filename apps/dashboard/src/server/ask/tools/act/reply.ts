@@ -11,6 +11,7 @@ import {
   mayMessageFor,
   namesMoney,
   replyWindow,
+  windowClockOf,
   slotShort,
   violatesNoPrices,
   type ConsentChannel,
@@ -61,7 +62,7 @@ async function threadOnCard(t: ToolContext, id: string) {
   const { data: conv, error } = await t.ctx.supabase
     .from("conversations")
     .select(
-      "id, tenant_id, contact_id, state, last_inbound_at, last_wa_inbound_at, contacts (id, display_name, wa_profile_name, phone_e164, email, consent, dnc)",
+      "id, tenant_id, contact_id, state, last_inbound_at, last_wa_inbound_at:last_inbound_on_whatsapp, last_ig_inbound_at:last_inbound_on_instagram, contacts (id, display_name, wa_profile_name, phone_e164, email, consent, dnc)",
     )
     .eq("id", id)
     .eq("tenant_id", t.tenantId)
@@ -107,10 +108,17 @@ async function draftReply(
   if (!may.ok) return refuse(`${who} opted out; nothing can be sent to them`);
   // The window the reply route will enforce, on the channel it will send on:
   // a texting thread has none, and this card used to call one closed.
-  const win = replyWindow(channel, conv.last_wa_inbound_at, t.now);
+  const clocks = { whatsapp: conv.last_wa_inbound_at, instagram: conv.last_ig_inbound_at };
+  const win = replyWindow(channel, windowClockOf(channel, clocks), t.now);
+  // Past Instagram's day nothing can go by DM, and there is no approved message to send instead: said at the draft.
+  if (channel === "instagram" && !win.open)
+    return refuse(
+      `${who} last wrote by DM more than a day ago, and Instagram lets a reply go only once they write again`,
+    );
   // Nothing has come to this thread from their side (the reply route's own test), so what is approved is a first
-  // message, and what that would be refused for is said here, at the draft, not at the commit (defect 32).
-  if (!conv.last_inbound_at) {
+  // message, and what that would be refused for is said here, at the draft, not at the commit (defect 32). A DM thread
+  // always began with their own DM, so it is never one.
+  if (!conv.last_inbound_at && channel !== "instagram") {
     const held = await startRefusal(t, { personId: conv.contact_id, conversationId: id, wire: channel, text });
     if (held)
       return refuse(

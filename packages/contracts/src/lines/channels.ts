@@ -34,6 +34,10 @@ export interface ChannelDto {
   /** When the number last connected (the row's config, written by each connection): a number connected again keeps its
    *  row, so `created_at` is its first connection's. Null on a row no connection has stamped. */
   connected_at?: string | null;
+  /** An Instagram account's handle (the row's config, as its connection read it); absent on every other kind. */
+  handle?: string | null;
+  /** When Instagram stopped taking the account's token (the token sweep): it answers nothing until connected again. */
+  lapsed_at?: string | null;
 }
 
 /**
@@ -101,6 +105,9 @@ export interface ChannelVM {
   standingReadAt: string | null;
   /** When the number last connected (the row's config); null on a row no connection has stamped. */
   connectedAt: string | null;
+  /** An Instagram account's handle, and when its connection lapsed: null on every other kind, and on a live account. */
+  handle: string | null;
+  lapsedAt: string | null;
   /** When the row was made. Carried so `channelFor` can break a tie the same way on
    *  either shape; the DTO has always had it. */
   created_at: string;
@@ -217,6 +224,8 @@ export function toChannelVM(dto: ChannelDto, now = new Date()): ChannelVM {
     standing: dto.standing ?? null,
     standingReadAt: dto.standing_read_at ?? null,
     connectedAt: dto.connected_at ?? null,
+    handle: dto.handle ?? null,
+    lapsedAt: dto.lapsed_at ?? null,
     created_at: dto.created_at,
   };
 }

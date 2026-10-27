@@ -41,7 +41,7 @@ export async function modeInForce(cx: InboundContext, ing: IngestResult | null):
 
 /** A thread that could not be read, consent, the carriers' hold and what kind of message arrived, in that order. */
 export async function firstGates(at: Answering): Promise<typeof GO | undefined> {
-  const { thread, L, sink, tell, n, raw, ing, carrier } = at;
+  const { thread, L, sink, tell, n, ing, carrier } = at;
   // The memory could not be read, and there is no second copy to ask. We do
   // not know whether a human has taken this thread over, what was already
   // said, or how many replies have gone out today — so every gate below would
@@ -56,7 +56,7 @@ export async function firstGates(at: Answering): Promise<typeof GO | undefined> 
     await Promise.all([
       asked,
       tell(asked, {
-        said: n.body ?? `[${raw.type}]`,
+        said: n.body ?? `[${n.rawType}]`,
         answered: "(no reply sent — the receptionist could not read the thread state)",
         why: "state unavailable",
       }),
@@ -72,7 +72,7 @@ export async function firstGates(at: Answering): Promise<typeof GO | undefined> 
   // the same request.
   //
   // Two independent sources, and either is enough:
-  //   n.optOut  — THIS message is the opt-out. Local knowledge, no database
+  //   n.consent.optOut  — THIS message is the opt-out. Local knowledge, no database
   //               needed, so it holds even when Postgres is unreachable.
   //   ing.dnc   — they opted out earlier, per Postgres, which owns consent.
   //
@@ -80,8 +80,8 @@ export async function firstGates(at: Answering): Promise<typeof GO | undefined> 
   // acknowledgement is a config item, and inventing copy in the salon's voice
   // is exactly what the brain profile exists to prevent.
   const consent = resolveConsent({
-    optOutNow: n.optOut,
-    optInNow: n.optIn,
+    optOutNow: n.consent.optOut,
+    optInNow: n.consent.optIn,
     // Absence is not an answer. `consent` and `dnc` are optional on the ingest
     // result (packages/db ingest.ts) — "readers must treat absence as 'nothing
     // on record', never as a block" — and a row carrying neither read as
@@ -101,7 +101,7 @@ export async function firstGates(at: Answering): Promise<typeof GO | undefined> 
     await processedAfter(sink, null, "none");
     // `decided_by` matters after the fact: which of the two sources held them out.
     L.info("wa_skip_opt_out", {
-      this_message: n.optOut,
+      this_message: n.consent.optOut,
       on_record: ing?.consent ?? null,
       decided_by: consent.source,
     });
@@ -117,7 +117,7 @@ export async function firstGates(at: Answering): Promise<typeof GO | undefined> 
     await Promise.all([
       asked,
       tell(asked, {
-        said: n.body ?? `[${raw.type}]`,
+        said: n.body ?? `[${n.rawType}]`,
         answered: "(no reply sent — the carriers have not approved this line for texting yet)",
         why: "carriers",
       }),
@@ -154,7 +154,7 @@ export async function firstGates(at: Answering): Promise<typeof GO | undefined> 
     const asked = sink.escalate("non_text", `${n.body} — needs a person.`);
     await Promise.all([
       asked,
-      tell(asked, { said: n.body ?? `[${raw.type}]`, answered: "(no reply sent — passed to a human)", why: n.kind }),
+      tell(asked, { said: n.body ?? `[${n.rawType}]`, answered: "(no reply sent — passed to a human)", why: n.kind }),
       processedAfter(sink, asked, "none"),
     ]);
     L.info("wa_escalate_readable_nontext", { kind: n.kind });

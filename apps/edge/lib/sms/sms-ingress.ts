@@ -31,9 +31,6 @@ import type { RoutedChannel } from "../packages/db.js";
 import {
   verifyTwilioSignature,
   smsBody,
-  carrierConsent,
-  smsKeywordConsent,
-  mergeConsent,
   oneTimeCodeOf,
   SMS_HELD_REASON,
   SMS_HELD_DETAILS,
@@ -41,7 +38,7 @@ import {
 import type { ProviderAccount, SmsInbound } from "../packages/channels.js";
 import { lineByNumber, lineAccount } from "./sms.js";
 import type { SmsLine, SmsSender } from "./sms.js";
-import type { InboundCarrier } from "../whatsapp/inbound.js";
+import type { InboundCarrier } from "../packages/core.js";
 import type { LogEvent } from "../log.js";
 
 type Db = SupabaseClient<Database>;
@@ -201,9 +198,11 @@ export async function lineForAnswer(
  *
  * Pure: the sender is handed in, so a held line is expressed as no sender at
  * all rather than as a flag some branch might forget to read. A send with no
- * sender is a refusal with a status, never a silent success.
+ * sender is a refusal with a status, never a silent success. What the person
+ * said about being written to (the carrier's verdict, the carriers' words) is
+ * the message's own: inboundFromSms reads it into the text (decision 0001).
  */
-export function carrierFor(inbound: SmsInbound, held: boolean, sender: SmsSender | null): InboundCarrier {
+export function carrierFor(held: boolean, sender: SmsSender | null): InboundCarrier<"sms"> {
   return {
     channel: "sms",
     send: async (to, body) => {
@@ -212,8 +211,6 @@ export function carrierFor(inbound: SmsInbound, held: boolean, sender: SmsSender
     },
     body: (text, isFirstReply) => smsBody(text, isFirstReply),
     held: held ? { reason: SMS_HELD_REASON, details: SMS_HELD_DETAILS } : null,
-    // The carrier's own verdict and the carriers' words, for this wire only.
-    consent: mergeConsent(carrierConsent(inbound), smsKeywordConsent(inbound.body)),
   };
 }
 

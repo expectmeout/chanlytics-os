@@ -206,8 +206,8 @@ test("a held thread says why, to the Inbox and to the alert, and a broken config
 test("the shape: the webhook, the message path, the bookkeeping, the alerts, the steps — each in its file, the path using the steps", () => {
   // The webhook's GET and POST are imported and run in whatsapp-door.test.mjs.
   // The message path is a verb over ports now, and apps/edge/lib/whatsapp/inbound.ts
-  // is its adapter: handleInbound keeps its name and its seven parameters, which
-  // whatsapp-door.test.mjs and inbound-executed.test.mjs CALL rather than read.
+  // is its adapter: handleInbound takes the one inbound shape (decision 0001, step 3),
+  // which whatsapp-door.test.mjs and inbound-executed.test.mjs CALL rather than read.
   // The verb is answer.ts's order of phases, each declared in a module beside it
   // (decision 0001), in the order it calls them; what each one does is run there.
   const HOME = {
@@ -245,7 +245,7 @@ test("the shape: the webhook, the message path, the bookkeeping, the alerts, the
     assert.ok(new RegExp(`export (async )?function ${f}\\(`).test(src[m]), `${f} is ${m}.ts's`);
   // Each phase asks the steps (steps.ts) for its decisions.
   for (const [m, s] of [
-    ["reply-gates", "const { ageMs, verdict: age } = ageVerdict(raw.timestamp ?? undefined);"],
+    ["reply-gates", "const { ageMs, verdict: age } = ageVerdict(sentAtSecondsOf(n.channelTsIso));"],
     ["reply-gates", "const held = unattendedHold({"],
     ["dispatch", "const plan = holdPlan(replyMode, replyLimits, brainMeta);"],
     ["model-turn", "const two = layerTwo({"],

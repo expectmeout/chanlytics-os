@@ -70,11 +70,11 @@ export async function sendQueued(ports: SendQueuedPorts, cmd: SendQueuedCommand)
   // loudly, leaving the customer un-messaged rather than reached over the
   // wrong wire.
   const channel = (msg.channel ?? "whatsapp") as Channel;
-  const to = channel === "email" ? p.to_email : p.to_phone;
+  const to = channel === "email" ? p.to_email : channel === "instagram" ? p.to_instagram : p.to_phone;
   // A job that does not say where its words go was scheduled wrongly: it fails, and the tick settles the row and tells the owner.
   if (!to)
     throw new Error(
-      `outbound_send: message ${p.message_id} goes out by ${channel} and the job names no ${channel === "email" ? "address" : "number"}`,
+      `outbound_send: message ${p.message_id} goes out by ${channel} and the job names no ${channel === "email" ? "address" : channel === "instagram" ? "Instagram id" : "number"}`,
     );
   const resumes = resumesOf(p);
   // A person's own message that begins a conversation (payload.starts, core conversations/begin.ts): a start at the

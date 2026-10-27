@@ -1373,6 +1373,45 @@ type Database = {
                     }
                 ];
             };
+            conversation_channel_state: {
+                Row: {
+                    channel: string;
+                    conversation_id: string;
+                    id: string;
+                    last_inbound_at: string;
+                    tenant_id: string;
+                };
+                Insert: {
+                    channel: string;
+                    conversation_id: string;
+                    id?: string;
+                    last_inbound_at: string;
+                    tenant_id: string;
+                };
+                Update: {
+                    channel?: string;
+                    conversation_id?: string;
+                    id?: string;
+                    last_inbound_at?: string;
+                    tenant_id?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "conversation_channel_state_conversation_same_workspace";
+                        columns: ["tenant_id", "conversation_id"];
+                        isOneToOne: false;
+                        referencedRelation: "conversations";
+                        referencedColumns: ["tenant_id", "id"];
+                    },
+                    {
+                        foreignKeyName: "conversation_channel_state_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
             conversation_drafts: {
                 Row: {
                     conversation_id: string;
@@ -1440,6 +1479,8 @@ type Database = {
                     state: string;
                     tenant_id: string;
                     updated_at: string;
+                    last_inbound_on_instagram: string | null;
+                    last_inbound_on_whatsapp: string | null;
                 };
                 Insert: {
                     assignee_user_id?: string | null;
@@ -8211,6 +8252,22 @@ type Database = {
                 };
                 Returns: number;
             };
+            last_inbound_on_instagram: {
+                Args: {
+                    "": Database["public"]["Tables"]["conversations"]["Row"];
+                };
+                Returns: {
+                    error: true;
+                } & "the function public.last_inbound_on_instagram with parameter or with a single unnamed json/jsonb parameter, but no matches were found in the schema cache";
+            };
+            last_inbound_on_whatsapp: {
+                Args: {
+                    "": Database["public"]["Tables"]["conversations"]["Row"];
+                };
+                Returns: {
+                    error: true;
+                } & "the function public.last_inbound_on_whatsapp with parameter or with a single unnamed json/jsonb parameter, but no matches were found in the schema cache";
+            };
             lead_address_in_people: {
                 Args: {
                     p_address: string;
@@ -9033,6 +9090,13 @@ type Database = {
                     p_tenant_id: string;
                 };
                 Returns: undefined;
+            };
+            message_unsent: {
+                Args: {
+                    p_external_id: string;
+                    p_tenant_id: string;
+                };
+                Returns: Json;
             };
             metrics_summary: {
                 Args: {
@@ -11811,6 +11875,10 @@ type Database = {
                 Returns: number;
             };
             trigger_google_sweep: {
+                Args: never;
+                Returns: number;
+            };
+            trigger_instagram_token_sweep: {
                 Args: never;
                 Returns: number;
             };

@@ -41,13 +41,12 @@
  *      ANTHROPIC_API_KEY, RESEND_API_KEY + LEAD_TO/LEAD_FROM,
  *      SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY.
  */
-import crypto from "node:crypto";
+import { metaSignatureValid, META_SIGNATURE_HEADER, type WaChangeValue } from "../packages/channels.js";
 import { phoneTail, pauseMsOf, WAITING_REASONS } from "../packages/contracts.js";
 import { WABA_FIELDS, accountOf, handleWabaChange, notificationsFor } from "./waba-events.js";
 import { json, refuse } from "../http.js";
 import { pg } from "../pg.js";
 import { digestId, keepDelivery, signatureHeaders } from "../intake/keep.js";
-import type { WaChangeValue } from "../packages/channels.js";
 import { resolveChannelDetailed, recordEchoAndPause, emitEvent, type RoutedChannel } from "../packages/db.js";
 import { loadTenantRuntime } from "../tenant-runtime.js";
 import { answerHereOrLater } from "./answer-later.js";
@@ -60,18 +59,17 @@ import { logger, errField } from "../log.js";
 
 const L = logger();
 
-/** Meta's signature over the raw body, with the app's secret. Fail-closed: a missing secret is a config error, never a verification skip. */
+/**
+ * Meta's signature over the raw body, with the app's secret (channels metaSignatureValid, the one check both Meta
+ * webhooks ask). Fail-closed: a missing secret is a config error, never a verification skip.
+ */
 function signedByMeta(request: Request, raw: string): boolean {
   const secret = env.META_APP_SECRET;
   if (!secret) {
     L.error("wa_missing_app_secret");
     return false;
   }
-  const sig = String(request.headers.get("x-hub-signature-256") || "");
-  const expected = "sha256=" + crypto.createHmac("sha256", secret).update(raw).digest("hex");
-  const a = Buffer.from(sig);
-  const b = Buffer.from(expected);
-  return a.length === b.length && crypto.timingSafeEqual(a, b);
+  return metaSignatureValid(raw, request.headers.get(META_SIGNATURE_HEADER), [secret]);
 }
 
 /**

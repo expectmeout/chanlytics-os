@@ -7,7 +7,7 @@ import { MERGE_WORDS } from "./person-merge.js";
 import { DOUBT_WORDS } from "./person-doubts.js";
 import { personName } from "./person-name.js";
 import { formatPhoneDisplay } from "../shared/phone.js";
-import { mayReach, proposalAction } from "./person-reach.js";
+import { DM_CLOSED, mayReach, proposalAction } from "./person-reach.js";
 import { campaignsOf, inSequencesOf, ts } from "./person-helpers.js";
 import { personNotesVM } from "../notes/person-notes.js";
 import { PERSON_CHANNEL_WORDS, REPLY_WIRE } from "./person-words.js";
@@ -110,6 +110,7 @@ export const PERSON_DELETE_WORDS = {
 };
 function threadOff(p) {
   if (!p.openThread) return PERSON_ACT_WORDS.noThread;
+  if (p.replyVia === "Instagram") return p.replyWindow && !p.replyWindow.open ? DM_CLOSED : null;
   return p.replyVia ? wayOff(p.ways, REPLY_WIRE[p.replyVia]) : null;
 }
 export function personActs(p) {

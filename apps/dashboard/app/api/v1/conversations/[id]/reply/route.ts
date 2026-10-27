@@ -86,11 +86,16 @@ export const POST = write({
     if (row.last_inbound_at) {
       return replyToConversation(replyPorts(ctx), { conv, userId: ctx.userId, body: input, idempotencyKey });
     }
+    const wire = await replyChannelOf(ctx, row);
+    // A DM thread began with their own DM, so it is never a first message: answered as a reply, which Instagram's window
+    // then holds (core reply.ts).
+    if (wire === "instagram")
+      return replyToConversation(replyPorts(ctx), { conv, userId: ctx.userId, body: input, idempotencyKey });
     return beginConversation(beginPorts(ctx), {
       tenantId: row.tenant_id,
       personId: row.contact_id,
       userId: ctx.userId,
-      wire: await replyChannelOf(ctx, row),
+      wire,
       body: input,
       then: "me",
       conv,

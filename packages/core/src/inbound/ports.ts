@@ -28,16 +28,16 @@ import type {
   PolicyLimits,
   SendPurpose,
 } from "@chanlytics/contracts";
-// TYPES ONLY, and only these: the normalised message is the channels package's
-// shape and the verb speaks it, but a value from channels would be a provider
+// TYPES ONLY, and only these: the one inbound shape is the channels package's
+// and the verb speaks it, but a value from channels would be a provider
 // inside a verb. That is a port, not a widening (hygiene.test.mjs).
-import type { NormalizedInbound, WaConfig } from "@chanlytics/channels";
+import type { InboundMessage, WaConfig } from "@chanlytics/channels";
 import type { IngestResult, Json, LeadContext, RoutedChannel } from "@chanlytics/db";
 import type { Delivered, SendKind, Sender, Wire } from "../deliver";
 import type { ThreadState, ThreadTurn } from "./thread";
 
-/** The text channels a thread can arrive on (the edge's alerts.ts says them in an owner's words). */
-export type InboundChannel = "whatsapp" | "sms";
+/** The written channels a thread is answered on (the edge's alerts.ts says them in an owner's words). */
+export type InboundChannel = "whatsapp" | "sms" | "instagram";
 
 /**
  * The database handle, opaque here on purpose.
@@ -260,7 +260,7 @@ export interface InboundSink {
    */
   request?(req: BookingRequestHold, details: string): Promise<EscalateOutcome>;
   /** Download from the provider, upload to storage, record where it went. The bytes when they were fetched. */
-  media(n: NormalizedInbound): Promise<{ bytes: ArrayBuffer; mime: string | null } | null | undefined>;
+  media(n: InboundMessage): Promise<{ bytes: ArrayBuffer; mime: string | null } | null | undefined>;
 }
 
 /** How a hold landed (packages/jobs EscalationOutcome), or nothing where no database keeps it. */
@@ -280,6 +280,17 @@ export interface InboundPorts {
       db: InboundDb,
       tenantId: string,
       phoneE164: string,
+      historyLimit?: number,
+      answering?: string,
+    ): Promise<LeadContext>;
+    /**
+     * The same reader, by the person's own row: what a wire with no number reads (an Instagram DM, whose person ingest
+     * found by their Instagram-scoped id). Absent in an adapter that has none: such a person is then read as nobody.
+     */
+    readById?(
+      db: InboundDb,
+      tenantId: string,
+      contactId: string,
       historyLimit?: number,
       answering?: string,
     ): Promise<LeadContext>;
@@ -333,12 +344,11 @@ export interface InboundPorts {
   persist: {
     /** The rows as memory, or an UNKNOWN thread when they cannot be produced. */
     thread(db: InboundDb | null, tenantId: string | null, ing: IngestResult | null): Promise<ThreadState>;
-    /** Persist first. Null when there is nothing to record for; IngestFailed when the write FAILED. */
+    /** Persist first, on the message's own wire. Null when there is nothing to record for; IngestFailed when the write FAILED. */
     ingest(
       db: InboundDb | null,
       tenantId: string | null,
-      n: NormalizedInbound,
-      channel?: InboundChannel,
+      n: InboundMessage & { channel: InboundChannel },
       /** The line the message came in on, a tenant_channels id: the first touch of the person it makes carries it (K3). */
       line?: string | null,
       /** A job takes this message up next (a door that records it and schedules its answer): a yes that fails here is left owed to that job. */

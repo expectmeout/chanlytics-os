@@ -190,6 +190,16 @@
     "fresh": "The address the browser is sent to, to sign in with the mailbox's provider.",
     "why": "A step away to the provider's own sign-in, not a read the page draws; the mailbox it connects is told by the feed (mailbox_connections)."
   },
+  "apps/dashboard/src/surfaces/settings/connections/instagram.ts GET channels/instagram": {
+    "kind": "on-open",
+    "fresh": "Read each time Settings › Connections opens; the edge's answer is kept five minutes (READY_TTL_MS).",
+    "why": "It says whether this deployment can connect an Instagram account and whether this member may: the app as configured on the edge, which changes with a deploy, not with a record; the account it connects is told by the feed (tenant_channels)."
+  },
+  "apps/dashboard/src/surfaces/settings/connections/instagram.ts GET channels/instagram/connect": {
+    "kind": "link",
+    "fresh": "The address the browser is sent to, to sign in with Instagram.",
+    "why": "A step away to Instagram's own consent screen, not a read the page draws; the account it connects is told by the feed (tenant_channels)."
+  },
   "apps/dashboard/src/surfaces/settings/connections/record.ts GET business-record": {
     "kind": "on-open",
     "fresh": "Read as the business record's sheet opens.",

@@ -44,14 +44,14 @@ as unknown as                       120
 as never                             12
 non-null assertions, x!              93
 index reads the compiler lets pass  412   in 111 files
-table names outside packages/db     418
+table names outside packages/db     417
 SQL functions outside packages/db   119   called by .rpc
 edge statements naming no workspace   27   in 14 files
 service-role reaches, dashboard      79   in 40 files
 doors importing db or channels        0   imports in 0 files
 unnamed durations                    56   in 27 files
 event-shaped clocks                   5   of the registered clocks (invariant 6)
-tables with more than one writer     61   484 writers among them
+tables with more than one writer     62   491 writers among them
 doors writing a record with no event   97   writing 112 tables (invariant 2)
 personal columns with no erasure strategy    2   in 1 table
 breakpoints outside the set          28   in 11 files
@@ -65,7 +65,7 @@ lint warnings                       276   in 123 files, 33 of them exhaustive-de
 route JS ceiling, KB gzipped       1024   the shell included
 route CSS ceiling, KB gzipped       192
 each page's own JS ceiling, KB      256   gzipped, beyond the route
-trees the lint's limits hold         77   18 of them with max-params waiting
+trees the lint's limits hold         78   18 of them with max-params waiting
 ```
 
 <!-- measured:end -->

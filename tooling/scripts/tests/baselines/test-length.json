@@ -8,7 +8,7 @@
   "tooling/scripts/tests/ask/ask.test.mjs": 2382,
   "tooling/scripts/tests/ask/eval-ask-context.test.mjs": 2024,
   "tooling/scripts/tests/ask/plan/plan-of.test.mjs": 1709,
-  "tooling/scripts/tests/ask/readers.test.mjs": 6885,
+  "tooling/scripts/tests/ask/readers.test.mjs": 6886,
   "tooling/scripts/tests/broadcasts/broadcasts-honest.test.mjs": 2771,
   "tooling/scripts/tests/broadcasts/core-broadcast.test.mjs": 3062,
   "tooling/scripts/tests/broadcasts/core-campaigns.test.mjs": 2217,
@@ -41,7 +41,7 @@
   "tooling/scripts/tests/templates/message-versions-page.test.mjs": 1885,
   "tooling/scripts/tests/today/today-page.test.mjs": 2149,
   "tooling/scripts/tests/voice/calls/retell-webhook-door.test.mjs": 1685,
-  "tooling/scripts/tests/whatsapp/inbound-executed.test.mjs": 2073,
+  "tooling/scripts/tests/whatsapp/inbound-executed.test.mjs": 1752,
   "tooling/scripts/tests/whatsapp/whatsapp-door.test.mjs": 2147,
   "tooling/scripts/tests/workspace/exports.test.mjs": 2022,
   "tooling/scripts/tests/workspace/settings-doors.test.mjs": 1692

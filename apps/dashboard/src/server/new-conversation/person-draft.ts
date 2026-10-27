@@ -28,6 +28,7 @@ import {
   type PersonDraftAnswer,
   type PersonDraftDto,
   type PersonDraftInput,
+  type WrittenChannel,
   type PersonVM,
 } from "@chanlytics/contracts";
 import { askForJson } from "../model-json";
@@ -72,7 +73,7 @@ const RULES = [
   DATA_NOT_INSTRUCTIONS,
 ];
 
-function shapeRules(input: PersonDraftInput): string[] {
+function shapeRules(input: DraftInput): string[] {
   if (input.how === "call")
     return [
       "The owner will phone them. Leave `text` and `subject` empty and write the brief:",
@@ -121,7 +122,7 @@ function businessLines(b: DraftKnown["business"]): string {
     .join("\n");
 }
 
-function askedOf(known: DraftKnown, input: PersonDraftInput): string {
+function askedOf(known: DraftKnown, input: DraftInput): string {
   const answered = (input.answers ?? []).map((a) => `You asked: ${a.question}\nThe owner answered: ${a.words}`);
   const again = input.previous
     ? [
@@ -155,7 +156,7 @@ function unasked(written: string, given: string): "priced" | "money" | null {
 }
 
 /** What is kept of the model's answer: questions alone, or the words, or the brief; a note with no price in it. */
-function draftKept(answer: PersonDraftAnswer, known: DraftKnown, input: PersonDraftInput): PersonDraftDto {
+function draftKept(answer: PersonDraftAnswer, known: DraftKnown, input: DraftInput): PersonDraftDto {
   const lines = known.who.facts.slice(0, FACTS_SHOWN).map((f) => `${f.label}: ${f.value}`);
   const wrote = input.how === "call" ? !!answer.opening || answer.points.length > 0 : !!answer.text;
   // A question is asked alone. One the member already answered, beside words that were written, is let go.
@@ -199,7 +200,7 @@ function draftKept(answer: PersonDraftAnswer, known: DraftKnown, input: PersonDr
 }
 
 /** The draft from what is known: one model call, and what is kept of its answer. */
-export async function draftFrom(known: DraftKnown, input: PersonDraftInput): Promise<PersonDraftDto> {
+export async function draftFrom(known: DraftKnown, input: DraftInput): Promise<PersonDraftDto> {
   const answer = await askForJson(
     {
       tenantId: known.tenantId,
@@ -218,8 +219,14 @@ export async function draftFrom(known: DraftKnown, input: PersonDraftInput): Pro
   return draftKept(answer, known, input);
 }
 
+/**
+ * What a draft is asked for: the route's input (a first message goes by a wire a yes covers), or a thread's reply, which
+ * goes where they last wrote, an Instagram DM among them (drafts.ts draftForThread).
+ */
+type DraftInput = Omit<PersonDraftInput, "wire"> & { wire?: WrittenChannel };
+
 /** The route's handle: the person as their page reads them, the business as its settings say it, then the draft. */
-export async function draftForPerson(rc: ReaderContext, id: string, input: PersonDraftInput): Promise<PersonDraftDto> {
+export async function draftForPerson(rc: ReaderContext, id: string, input: DraftInput): Promise<PersonDraftDto> {
   const [read, config, names] = await Promise.all([
     load(rc, person, { id }),
     load(rc, facts.config, undefined),

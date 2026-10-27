@@ -26,7 +26,7 @@ import { isConsultationTitle } from "../deals/deal-consultations";
 import type { ListContext } from "./lists/lists";
 import type { PersonRowDto } from "./person-dto";
 import type { HolderNames } from "./person-receptionist";
-import { replyChannelOfRow, toPersonRowVM, type PersonRowVM } from "./person-row";
+import { igClockOfRow, replyChannelOfRow, toPersonRowVM, type PersonRowVM } from "./person-row";
 
 /** A People row as the calendar matches it: a name a human gave, their number, their address. */
 export function personLikeOf(
@@ -39,6 +39,7 @@ export function personLikeOf(
         | "latest_conversation_id"
         | "latest_wa_inbound_at"
         | "last_inbound_channel"
+        | "last_wrote_at"
         | "message_channels"
         | "email_suppressed_at"
         | "consent"
@@ -59,6 +60,10 @@ export function personLikeOf(
     email: p.email ?? null,
     thread: p.has_chat && p.latest_conversation_id ? p.latest_conversation_id : null,
     waInboundAt: p.latest_wa_inbound_at ?? null,
+    igInboundAt: igClockOfRow({
+      last_inbound_channel: p.last_inbound_channel ?? null,
+      last_wrote_at: p.last_wrote_at ?? null,
+    }),
     // What a reply to them is judged by, from the same row and the same functions the People row asks (person-row.ts), so the
     // board's block offers the booking link, or does not, as the row does. A row without the columns says no stop: absence is
     // no opt-out (consent.ts).

@@ -204,7 +204,9 @@ var PROVIDER_NAMES = [
   "typesafe",
   "elevenlabs",
   // A connected Microsoft 365 mailbox's mail (Graph, decision 0056); a Gmail mailbox's is Google's.
-  "microsoft"
+  "microsoft",
+  // An Instagram account's DMs and its way in (graph.instagram.com: the Instagram API with Instagram Login).
+  "instagram"
 ];
 var BREAKER_FAILURES = 5;
 var BREAKER_OPEN_MS = 3e4;
@@ -878,8 +880,23 @@ async function askSystemOne(key, ask, deps = {}) {
   };
 }
 
-// src/whatsapp.ts
-import { CONVERSATION_OPT_IN_PATTERN, MARKETING_OPT_IN_PATTERN, REFERRAL_ID_MAX } from "../../contracts/dist/index.js";
+// src/inbound.ts
+var isLinkedMedia = (m) => "url" in m;
+
+// src/meta-signature.ts
+import crypto2 from "crypto";
+var META_SIGNATURE_HEADER = "x-hub-signature-256";
+function metaSignatureValid(raw, header, secrets) {
+  const given = Buffer.from(String(header ?? ""));
+  return secrets.some((secret) => {
+    if (!secret) return false;
+    const expected = Buffer.from("sha256=" + crypto2.createHmac("sha256", secret).update(raw).digest("hex"));
+    return given.length === expected.length && crypto2.timingSafeEqual(given, expected);
+  });
+}
+
+// src/instagram/instagram-events.ts
+import { CONVERSATION_OPT_IN_PATTERN as CONVERSATION_OPT_IN_PATTERN2 } from "../../contracts/dist/index.js";
 
 // src/stop-request.ts
 import { OPT_OUT_PATTERN, SMS_OPT_OUT_PATTERN } from "../../contracts/dist/index.js";
@@ -931,6 +948,7 @@ function asksToStop(words, wire) {
 }
 
 // src/whatsapp.ts
+import { CONVERSATION_OPT_IN_PATTERN, MARKETING_OPT_IN_PATTERN, REFERRAL_ID_MAX } from "../../contracts/dist/index.js";
 var GRAPH = "https://graph.facebook.com/v25.0";
 var WA_HISTORY_NOT_SHARED = 2593109;
 var digitsOf = (v) => (v ?? "").replace(/\D/g, "");
@@ -994,9 +1012,12 @@ var UNSTORABLE_IN_ID = /[\p{Cc}\p{Cs}]/u;
 var REFERRAL_KIND = /^[\p{L}\p{N}_-]{1,32}$/u;
 function adReferralOf(r) {
   if (typeof r !== "object" || r === null) return null;
-  const id = "source_id" in r && typeof r.source_id === "string" ? r.source_id.trim() : "";
+  return storableReferral("source_id" in r ? r.source_id : null, "source_type" in r ? r.source_type : null);
+}
+function storableReferral(rawId, rawKind) {
+  const id = typeof rawId === "string" ? rawId.trim() : "";
   if (id.length < 1 || id.length > REFERRAL_ID_MAX || UNSTORABLE_IN_ID.test(id)) return null;
-  const kind = "source_type" in r && typeof r.source_type === "string" ? r.source_type.trim() : "";
+  const kind = typeof rawKind === "string" ? rawKind.trim() : "";
   return { sourceId: id, sourceType: REFERRAL_KIND.test(kind) ? kind : null };
 }
 function chosenReply(m) {
@@ -1189,8 +1210,412 @@ async function fetchMediaBytes(cfg, providerMediaId) {
   }
 }
 
+// src/instagram/instagram-events.ts
+var trimmed = (v) => typeof v === "string" ? v.trim() : "";
+var isObject = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
+function atIsoOf(item) {
+  const ms = item.timestamp;
+  return typeof ms === "number" && Number.isFinite(ms) && ms > 0 ? new Date(ms).toISOString() : null;
+}
+function eventOf(account, item) {
+  const from = trimmed(item.sender?.id);
+  const to = trimmed(item.recipient?.id);
+  const message = isObject(item.message) ? item.message : null;
+  const mid = trimmed(message?.mid) || trimmed(item.postback?.mid);
+  if (message && from && (message.is_echo === true || from === account))
+    return mid ? { kind: "echo", account, to, mid, text: trimmed(message.text) || null, atIso: atIsoOf(item) } : { kind: "ignored", account, what: "unknown" };
+  if (message?.is_deleted === true && from && mid) return { kind: "unsent", account, from, mid };
+  if ((message || isObject(item.postback)) && from && mid) return { kind: "message", account, from, mid, item };
+  if (isObject(item.reaction)) return { kind: "ignored", account, what: "reaction" };
+  if (isObject(item.read)) return { kind: "ignored", account, what: "read" };
+  if (isObject(item.message_edit)) return { kind: "ignored", account, what: "edit" };
+  return { kind: "ignored", account, what: "unknown" };
+}
+function instagramEventsOf(body) {
+  if (!isObject(body) || body.object !== "instagram" || !Array.isArray(body.entry)) return [];
+  const events = [];
+  for (const entry of body.entry) {
+    if (!isObject(entry)) continue;
+    const account = trimmed(entry.id);
+    if (!account || !Array.isArray(entry.messaging)) continue;
+    for (const item of entry.messaging) if (isObject(item)) events.push(eventOf(account, item));
+  }
+  return events;
+}
+var MEDIA_KINDS = /* @__PURE__ */ new Set(["image", "animated_image", "video", "audio", "file"]);
+var SHARED_AS = {
+  share: "a post",
+  ig_post: "a post",
+  post: "a post",
+  ig_reel: "a reel",
+  reel: "a reel",
+  story: "a story"
+};
+function attachmentOf(a) {
+  const rawType = trimmed(a?.type) || "attachment";
+  const url = trimmed(a?.payload?.url);
+  const title = trimmed(a?.payload?.title);
+  if (MEDIA_KINDS.has(rawType) && url)
+    return {
+      kind: "media",
+      rawType,
+      body: null,
+      media: {
+        url,
+        mime_type: rawType === "image" ? "image/jpeg" : null,
+        caption: null,
+        filename: null,
+        fetch_state: "pending"
+      }
+    };
+  const shared = SHARED_AS[rawType];
+  if (shared && url)
+    return { kind: "share", rawType, body: `Shared ${shared}${title ? ` (${title})` : ""}: ${url}`, media: null };
+  if (rawType === "story_mention")
+    return { kind: "system", rawType, body: "Mentioned you in their story", media: null };
+  return { kind: "unsupported", rawType, body: null, media: null };
+}
+function referralOf(item) {
+  const r = isObject(item.message?.referral) ? item.message.referral : isObject(item.referral) ? item.referral : null;
+  if (!r) return null;
+  if (r.ad_id !== void 0) return storableReferral(r.ad_id, "ad");
+  return r.ref !== void 0 ? storableReferral(r.ref, "link") : null;
+}
+function inboundFromInstagram(item, profileName) {
+  const from = trimmed(item.sender?.id);
+  const said = whatWasSaid(item);
+  if (!from || !said) return null;
+  const { kind, body, attached } = said;
+  return {
+    channel: "instagram",
+    externalId: said.mid,
+    identity: { externalId: from, phoneE164: null, email: null },
+    profileName,
+    type: kind === "text" || body !== null && kind !== "media" ? "text" : "media",
+    kind,
+    rawType: said.rawType,
+    body,
+    channelTsIso: atIsoOf(item),
+    media: attached?.media ?? null,
+    consent: consentOf(kind, said.consentText),
+    referral: referralOf(item)
+  };
+}
+function whatWasSaid(item) {
+  const message = isObject(item.message) ? item.message : null;
+  const tapped = !message && isObject(item.postback) ? item.postback : null;
+  const mid = trimmed(message?.mid) || trimmed(tapped?.mid);
+  if (!mid) return null;
+  const typed = trimmed(message?.text);
+  const words = typed || trimmed(tapped?.title);
+  const attached = !words && message?.attachments?.length ? attachmentOf(message.attachments[0]) : null;
+  const kind = words ? "text" : attached?.kind ?? "unsupported";
+  const rawType = typed ? "text" : tapped ? "postback" : message?.is_unsupported ? "unsupported" : attached?.rawType ?? "unsupported";
+  const consentText = [words, trimmed(tapped?.payload)].filter(Boolean);
+  return { mid, kind, rawType, body: words || attached?.body || null, attached, consentText };
+}
+function consentOf(kind, consentText) {
+  const isText = kind === "text";
+  return {
+    optOut: isText && consentText.some((s) => asksToStop(s, "whatsapp")),
+    optIn: isText && consentText.some((s) => CONVERSATION_OPT_IN_PATTERN2.test(s)),
+    optInMarketing: false
+  };
+}
+
+// src/instagram/instagram-graph.ts
+import { utf8Bytes } from "../../contracts/dist/index.js";
+var INSTAGRAM_GRAPH = "https://graph.instagram.com/v26.0";
+var INSTAGRAM_AUTHORIZE_URL = "https://www.instagram.com/oauth/authorize";
+var INSTAGRAM_TOKEN_URL = "https://api.instagram.com/oauth/access_token";
+var INSTAGRAM_TOKEN_BASE = "https://graph.instagram.com";
+var INSTAGRAM_SCOPES = ["instagram_business_basic", "instagram_business_manage_messages"];
+var INSTAGRAM_DM_MAX_BYTES = 1e3;
+var INSTAGRAM_SEND_TIMEOUT_MS = 1e4;
+var INSTAGRAM_SEND_DEADLINE_MS = 25e3;
+var INSTAGRAM_PROFILE_TIMEOUT_MS = 2500;
+var INSTAGRAM_CONNECT_TIMEOUT_MS = 1e4;
+var FORM_ENCODED = { "Content-Type": "application/x-www-form-urlencoded" };
+var query = (params) => new URLSearchParams(params).toString();
+function instagramAuthorizeUrl(app, state) {
+  return `${INSTAGRAM_AUTHORIZE_URL}?${query({
+    client_id: app.clientId,
+    redirect_uri: app.redirectUri,
+    response_type: "code",
+    scope: INSTAGRAM_SCOPES.join(","),
+    state
+  })}`;
+}
+var instagramCodeOf = (raw) => String(raw ?? "").trim().replace(/#_$/, "");
+function instagramCodeRequest(app, code) {
+  return {
+    url: INSTAGRAM_TOKEN_URL,
+    method: "POST",
+    headers: FORM_ENCODED,
+    body: query({
+      client_id: app.clientId,
+      client_secret: app.clientSecret,
+      grant_type: "authorization_code",
+      redirect_uri: app.redirectUri,
+      code: instagramCodeOf(code)
+    })
+  };
+}
+function instagramLongLivedRequest(clientSecret, shortToken) {
+  return {
+    url: `${INSTAGRAM_TOKEN_BASE}/access_token?${query({ grant_type: "ig_exchange_token", client_secret: clientSecret, access_token: shortToken })}`,
+    method: "GET"
+  };
+}
+function instagramRefreshRequest(token) {
+  return {
+    url: `${INSTAGRAM_TOKEN_BASE}/refresh_access_token?${query({ grant_type: "ig_refresh_token", access_token: token })}`,
+    method: "GET"
+  };
+}
+function instagramMeRequest(token) {
+  return {
+    url: `${INSTAGRAM_GRAPH}/me?${query({ fields: "user_id,username,name,account_type", access_token: token })}`,
+    method: "GET"
+  };
+}
+function instagramSubscribeRequest(token, accountId) {
+  return {
+    url: `${INSTAGRAM_GRAPH}/${encodeURIComponent(accountId)}/subscribed_apps?${query({ subscribed_fields: "messages", access_token: token })}`,
+    method: "POST"
+  };
+}
+function instagramProfileRequest(token, igsid) {
+  return {
+    url: `${INSTAGRAM_GRAPH}/${encodeURIComponent(igsid)}?${query({ fields: "name,username", access_token: token })}`,
+    method: "GET"
+  };
+}
+function instagramSendRequest(cfg, to, text) {
+  return {
+    url: `${INSTAGRAM_GRAPH}/${encodeURIComponent(cfg.accountId)}/messages`,
+    method: "POST",
+    headers: { Authorization: `Bearer ${cfg.accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ recipient: { id: to }, message: { text } })
+  };
+}
+var valueAt = (o, k) => o ? o[k] : void 0;
+var asText = (v) => typeof v === "string" ? v : typeof v === "number" ? String(v) : "";
+function instagramErrorOf(json) {
+  const o = json && typeof json === "object" ? json : null;
+  const e = valueAt(o, "error");
+  if (!e || typeof e !== "object") {
+    const flat = asText(valueAt(o, "error_message"));
+    return flat ? {
+      code: typeof valueAt(o, "code") === "number" ? valueAt(o, "code") : null,
+      subcode: null,
+      message: flat
+    } : null;
+  }
+  const err = e;
+  return {
+    code: typeof err.code === "number" ? err.code : null,
+    subcode: typeof err.error_subcode === "number" ? err.error_subcode : null,
+    message: asText(err.message) || asText(err.error_user_msg) || "Instagram refused the request"
+  };
+}
+function parseInstagramCodeGrant(json) {
+  const o = json && typeof json === "object" ? json : null;
+  const data = valueAt(o, "data");
+  const g = Array.isArray(data) && data[0] && typeof data[0] === "object" ? data[0] : o;
+  const accessToken = asText(valueAt(g, "access_token"));
+  if (!accessToken) throw new Error(instagramErrorOf(json)?.message ?? "Instagram answered without a token");
+  const p = valueAt(g, "permissions");
+  const permissions = (Array.isArray(p) ? p.map(asText) : asText(p).split(",")).map((s) => s.trim()).filter(Boolean);
+  return { accessToken, userId: asText(valueAt(g, "user_id")), permissions };
+}
+function parseInstagramToken(json) {
+  const o = json && typeof json === "object" ? json : null;
+  const accessToken = asText(valueAt(o, "access_token"));
+  if (!accessToken) throw new Error(instagramErrorOf(json)?.message ?? "Instagram answered without a token");
+  const s = valueAt(o, "expires_in");
+  return { accessToken, expiresInS: typeof s === "number" && s > 0 ? s : 0 };
+}
+function parseInstagramMe(json) {
+  const o = json && typeof json === "object" ? json : null;
+  const accountId = asText(valueAt(o, "user_id"));
+  if (!/^\d{5,32}$/.test(accountId))
+    throw new Error(instagramErrorOf(json)?.message ?? "Instagram did not name the account");
+  return { accountId, username: asText(valueAt(o, "username")) || null, name: asText(valueAt(o, "name")) || null };
+}
+function instagramNameOf(json) {
+  const o = json && typeof json === "object" ? json : null;
+  const name = asText(valueAt(o, "name")).trim();
+  const handle = asText(valueAt(o, "username")).trim();
+  return (name || (handle ? `@${handle}` : "")).slice(0, 80) || null;
+}
+async function instagramCall(req, opts = {}, deps = {}) {
+  const a = await providerFetch(
+    "instagram",
+    req.url,
+    {
+      method: req.method,
+      ...req.headers ? { headers: req.headers } : {},
+      ...req.body !== void 0 ? { body: req.body } : {},
+      timeoutMs: opts.timeoutMs ?? INSTAGRAM_CONNECT_TIMEOUT_MS,
+      ...req.method === "GET" ? { idempotent: true, tries: 2 } : {},
+      // A DM is always put on the wire: another call's timeouts never fail it (provider-fetch's breaker).
+      ...opts.send ? { breaker: "count" } : {}
+    },
+    deps.fetch ? { fetch: deps.fetch } : {}
+  );
+  return { outcome: a.outcome, status: a.status, json: answerObject(a), error: a.error };
+}
+async function readInstagramName(token, igsid, deps = {}) {
+  const a = await instagramCall(
+    instagramProfileRequest(token, igsid),
+    { timeoutMs: INSTAGRAM_PROFILE_TIMEOUT_MS },
+    deps
+  );
+  return a.outcome === "ok" ? instagramNameOf(a.json) : null;
+}
+var INSTAGRAM_THROTTLE_CODES = [4, 17, 32, 613, 80002];
+function instagramThrottled(r) {
+  if (r.ok) return false;
+  return r.status === 429 || typeof r.code === "number" && INSTAGRAM_THROTTLE_CODES.includes(r.code);
+}
+function instagramRefusalOf(r) {
+  if (r.ok) return null;
+  if (r.code === 10 && r.subcode === 2018278) return "window_closed";
+  if (r.code === 551 || r.code === 100 && r.subcode === 2018001) return "not_reachable";
+  if (r.code === 190) return "token";
+  return null;
+}
+var segmenter = new Intl.Segmenter(void 0, { granularity: "grapheme" });
+var bytesOf = (s) => utf8Bytes(s).length;
+function breakIn(part) {
+  const paragraph = part.lastIndexOf("\n\n");
+  if (paragraph > 0) return paragraph + 2;
+  let sentence = -1;
+  for (const m of part.matchAll(/[.!?…](?=\s)/g)) sentence = (m.index ?? -1) + 1;
+  if (sentence > 0) return sentence;
+  const space = part.search(/\s\S*$/);
+  return space > 0 ? space + 1 : -1;
+}
+function instagramDmChunks(words, maxBytes = INSTAGRAM_DM_MAX_BYTES) {
+  const parts = [];
+  let rest = words.trim();
+  while (rest) {
+    if (bytesOf(rest) <= maxBytes) {
+      parts.push(rest);
+      break;
+    }
+    let used = 0;
+    let room = "";
+    for (const { segment } of segmenter.segment(rest)) {
+      const b = bytesOf(segment);
+      if (used + b > maxBytes && room) break;
+      used += b;
+      room += segment;
+    }
+    const at = breakIn(room);
+    const part = at > room.length / 2 ? room.slice(0, at) : room;
+    if (part.trim()) parts.push(part.trim());
+    rest = rest.slice(part.length).trim();
+  }
+  return parts;
+}
+function sentOf(a) {
+  if (a.status === 0)
+    return { ok: false, wamid: null, status: 0, errorBody: a.error ?? "no answer", outcome: a.outcome };
+  const ok2 = a.outcome === "ok";
+  const err = ok2 ? null : instagramErrorOf(a.json);
+  const sent = {
+    ok: ok2,
+    wamid: ok2 ? asText(valueAt(a.json, "message_id")) || null : null,
+    status: a.status,
+    errorBody: ok2 ? void 0 : JSON.stringify(a.json ?? {}).slice(0, 200),
+    code: err?.code ?? null,
+    subcode: err?.subcode ?? null
+  };
+  return { ...sent, outcome: instagramThrottled(sent) ? "retryable" : a.outcome };
+}
+async function sendInstagramText(cfg, to, words, deps = {}) {
+  const parts = instagramDmChunks(words);
+  if (parts.length === 0) return { ok: false, wamid: null, status: 0, errorBody: "empty_message" };
+  const now = deps.now ?? Date.now;
+  const started = now();
+  let first = null;
+  for (const [i, part] of parts.entries()) {
+    if (i > 0 && now() - started > INSTAGRAM_SEND_DEADLINE_MS)
+      return {
+        ok: false,
+        wamid: first,
+        status: 0,
+        errorBody: `partial: ${i} of ${parts.length} parts sent; out of time`,
+        outcome: "unknown"
+      };
+    const sent = sentOf(
+      await instagramCall(
+        instagramSendRequest(cfg, to, part),
+        { timeoutMs: INSTAGRAM_SEND_TIMEOUT_MS, send: true },
+        deps
+      )
+    );
+    if (!sent.ok)
+      return i === 0 ? sent : {
+        ...sent,
+        wamid: first,
+        errorBody: `partial: ${i} of ${parts.length} parts sent; ${sent.errorBody ?? ""}`,
+        outcome: "unknown"
+      };
+    first ??= sent.wamid;
+  }
+  return { ok: true, wamid: first, status: 200, outcome: "ok" };
+}
+var META_CDN = /(^|\.)(fbsbx\.com|fbcdn\.net|cdninstagram\.com)$/i;
+var LINKED_MEDIA_TIMEOUT_MS = 15e3;
+var LINKED_MEDIA_MAX_BYTES = 25 * 1024 * 1024;
+function isMetaCdnLink(url) {
+  try {
+    const u = new URL(url);
+    return u.protocol === "https:" && META_CDN.test(u.hostname);
+  } catch {
+    return false;
+  }
+}
+async function fetchLinkedMedia(url, fetchImpl) {
+  if (!isMetaCdnLink(url)) return null;
+  try {
+    const res = await fetchImpl(url, { signal: AbortSignal.timeout(LINKED_MEDIA_TIMEOUT_MS), redirect: "follow" });
+    if (!res.ok || !res.body) return null;
+    if (Number(res.headers.get("content-length") ?? 0) > LINKED_MEDIA_MAX_BYTES) {
+      await res.body.cancel().catch(() => void 0);
+      return null;
+    }
+    const reader = res.body.getReader();
+    const parts = [];
+    let size = 0;
+    for (; ; ) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > LINKED_MEDIA_MAX_BYTES) {
+        await reader.cancel().catch(() => void 0);
+        return null;
+      }
+      parts.push(value);
+    }
+    const out = new Uint8Array(size);
+    let at = 0;
+    for (const part of parts) {
+      out.set(part, at);
+      at += part.byteLength;
+    }
+    const mime = res.headers.get("content-type")?.split(";")[0]?.trim() || null;
+    return { bytes: out.buffer, mime };
+  } catch {
+    return null;
+  }
+}
+
 // src/voice/voice-retell.ts
-import crypto2 from "crypto";
+import crypto3 from "crypto";
 import { callOutcomeWords, isE164 } from "../../contracts/dist/index.js";
 var API = "https://api.retellai.com";
 function plainObject(v) {
@@ -1486,10 +1911,10 @@ function verifyRetellSignature(rawBody, header, apiKey) {
   if (!m) return false;
   const [, ts = "", digest = ""] = m;
   if (Math.abs(Date.now() - Number(ts)) > 5 * 60 * 1e3) return false;
-  const expected = crypto2.createHmac("sha256", apiKey).update(rawBody + ts).digest("hex");
+  const expected = crypto3.createHmac("sha256", apiKey).update(rawBody + ts).digest("hex");
   const a = Buffer.from(digest.toLowerCase());
   const b = Buffer.from(expected);
-  return a.length === b.length && crypto2.timingSafeEqual(a, b);
+  return a.length === b.length && crypto3.timingSafeEqual(a, b);
 }
 
 // src/voice/voice-shell.ts
@@ -2955,11 +3380,11 @@ async function channelStep(run) {
 
 // src/lines/sms.ts
 import {
-  CONVERSATION_OPT_IN_PATTERN as CONVERSATION_OPT_IN_PATTERN2,
+  CONVERSATION_OPT_IN_PATTERN as CONVERSATION_OPT_IN_PATTERN3,
   LINE_CODES_MAX,
   LINE_CODES_WITHIN_MS,
   MARKETING_OPT_IN_PATTERN as MARKETING_OPT_IN_PATTERN2,
-  utf8Bytes
+  utf8Bytes as utf8Bytes2
 } from "../../contracts/dist/index.js";
 function smsInboundFrom(form3) {
   const messageSid = form3.MessageSid || form3.SmsSid || "";
@@ -2985,12 +3410,6 @@ function smsInboundFrom(form3) {
     accountSid: form3.AccountSid || null
   };
 }
-function smsAsWaMessage(s, nowMs = Date.now()) {
-  const words = textWithPictures(s);
-  const base = { from: senderDigits(s), id: s.messageSid, timestamp: String(Math.floor(nowMs / 1e3)) };
-  if (words) return { ...base, type: "text", text: { body: words } };
-  return { ...base, type: s.numMedia > 0 ? "image" : "unsupported" };
-}
 var senderDigits = (s) => s.from.replace(/[^\d]/g, "");
 function textWithPictures(s) {
   const words = s.body.trim();
@@ -3014,7 +3433,7 @@ function inboundFromSms(s, nowMs = Date.now()) {
     media: null,
     consent: {
       optOut: !!carrier?.optOut,
-      optIn: body !== null && CONVERSATION_OPT_IN_PATTERN2.test(body) || !!carrier?.optIn,
+      optIn: body !== null && CONVERSATION_OPT_IN_PATTERN3.test(body) || !!carrier?.optIn,
       optInMarketing: body !== null && MARKETING_OPT_IN_PATTERN2.test(body)
     },
     referral: null
@@ -3033,10 +3452,6 @@ function mergeConsent(a, b) {
   if (!a) return b;
   if (!b) return a;
   return { optOut: a.optOut || b.optOut, optIn: a.optIn || b.optIn };
-}
-function withCarrierConsent(n, c) {
-  if (!c) return n;
-  return { ...n, optOut: n.optOut || c.optOut, optIn: n.optIn || c.optIn };
 }
 var ONE_TIME_CODE_MAX_CHARS = 320;
 var CODE_DIGITS = String.raw`(\d{3,4}[ -]\d{3,4}|\d{4,8})`;
@@ -3153,10 +3568,10 @@ function twilioSignedString(url, form3) {
   return url + Object.keys(form3).sort().map((k) => `${k}${form3[k]}`).join("");
 }
 async function twilioSignature(authToken, url, form3) {
-  const key = await crypto.subtle.importKey("raw", utf8Bytes(authToken), { name: "HMAC", hash: "SHA-1" }, false, [
+  const key = await crypto.subtle.importKey("raw", utf8Bytes2(authToken), { name: "HMAC", hash: "SHA-1" }, false, [
     "sign"
   ]);
-  const mac = await crypto.subtle.sign("HMAC", key, utf8Bytes(twilioSignedString(url, form3)));
+  const mac = await crypto.subtle.sign("HMAC", key, utf8Bytes2(twilioSignedString(url, form3)));
   return btoa(String.fromCharCode(...new Uint8Array(mac)));
 }
 function sameSignature(a, b) {
@@ -3720,7 +4135,7 @@ async function fetchMailDomains(cfg) {
 }
 
 // src/google/google-oauth.ts
-import { MIN_MS as MIN_MS2, utf8Bytes as utf8Bytes2 } from "../../contracts/dist/index.js";
+import { MIN_MS as MIN_MS2, utf8Bytes as utf8Bytes3 } from "../../contracts/dist/index.js";
 var GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 var GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 var GOOGLE_REVOKE_URL = "https://oauth2.googleapis.com/revoke";
@@ -3794,7 +4209,7 @@ function grantHasScope(grant, scope) {
 }
 var dec = new TextDecoder();
 function b64url(bytes) {
-  const b = typeof bytes === "string" ? utf8Bytes2(bytes) : bytes;
+  const b = typeof bytes === "string" ? utf8Bytes3(bytes) : bytes;
   let s = "";
   for (const x of b) s += String.fromCharCode(x);
   return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -3817,10 +4232,10 @@ function idTokenClaims(idToken) {
   }
 }
 async function hmac(secret, data) {
-  const key = await crypto.subtle.importKey("raw", utf8Bytes2(secret), { name: "HMAC", hash: "SHA-256" }, false, [
+  const key = await crypto.subtle.importKey("raw", utf8Bytes3(secret), { name: "HMAC", hash: "SHA-256" }, false, [
     "sign"
   ]);
-  const sig = await crypto.subtle.sign("HMAC", key, utf8Bytes2(data));
+  const sig = await crypto.subtle.sign("HMAC", key, utf8Bytes3(data));
   return b64url(new Uint8Array(sig));
 }
 async function signState(secret, s) {
@@ -5883,13 +6298,13 @@ var PlacesError = class extends Error {
 function headers(key, mask, json = false) {
   return { "X-Goog-Api-Key": key, "X-Goog-FieldMask": mask, ...json ? { "Content-Type": "application/json" } : {} };
 }
-function placesSearchRequest(key, query, opts = {}) {
+function placesSearchRequest(key, query2, opts = {}) {
   const pageSize = Math.max(1, Math.min(20, opts.limit ?? PLACES_SEARCH_LIMIT));
   return {
     url: `${PLACES_BASE}/places:searchText`,
     method: "POST",
     headers: headers(key, PLACES_SEARCH_MASK, true),
-    body: JSON.stringify({ textQuery: query, pageSize, languageCode: opts.languageCode ?? "en" })
+    body: JSON.stringify({ textQuery: query2, pageSize, languageCode: opts.languageCode ?? "en" })
   };
 }
 function placesDetailsRequest(key, placeId, opts = {}) {
@@ -6017,8 +6432,8 @@ async function call(http2, req) {
     throw new PlacesError(502, "Google answered with something other than JSON");
   }
 }
-async function searchPlaces(http2, key, query, opts = {}) {
-  return parsePlacesSearch(await call(http2, placesSearchRequest(key, query, opts)));
+async function searchPlaces(http2, key, query2, opts = {}) {
+  return parsePlacesSearch(await call(http2, placesSearchRequest(key, query2, opts)));
 }
 async function getPlace(http2, key, placeId, opts = {}) {
   return parsePlaceDetails(await call(http2, placesDetailsRequest(key, placeId, opts)));
@@ -6517,7 +6932,7 @@ var VERSION = 1;
 var PAYLOAD_BYTES = 1 + 16 * 3;
 var MAC_BYTES = 16;
 var TOKEN = /^[A-Za-z0-9_-]{87}$/;
-var bytesOf = (uuid) => Buffer.from(uuid.replace(/-/g, ""), "hex");
+var bytesOf2 = (uuid) => Buffer.from(uuid.replace(/-/g, ""), "hex");
 var uuidOf = (b) => {
   const h = b.toString("hex");
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
@@ -6529,9 +6944,9 @@ function signUnsubscribeToken(secret, c) {
     if (!UUID2.test(id)) throw new Error("signUnsubscribeToken: the workspace, the person and the email are uuids");
   const payload = Buffer.concat([
     Buffer.from([VERSION]),
-    bytesOf(c.tenantId),
-    bytesOf(c.contactId),
-    bytesOf(c.messageId)
+    bytesOf2(c.tenantId),
+    bytesOf2(c.contactId),
+    bytesOf2(c.messageId)
   ]);
   return Buffer.concat([payload, macOf(secret, payload)]).toString("base64url");
 }
@@ -6863,6 +7278,14 @@ export {
   GOOGLE_TOKEN_URL,
   GREETING_DEFAULT,
   HANDOFF_VAR,
+  INSTAGRAM_AUTHORIZE_URL,
+  INSTAGRAM_DM_MAX_BYTES,
+  INSTAGRAM_GRAPH,
+  INSTAGRAM_PROFILE_TIMEOUT_MS,
+  INSTAGRAM_SCOPES,
+  INSTAGRAM_SEND_DEADLINE_MS,
+  INSTAGRAM_SEND_TIMEOUT_MS,
+  INSTAGRAM_TOKEN_URL,
   LEAD_JUDGE_DEFAULT_MODEL,
   LEAD_JUDGE_FALLBACK_BETA,
   LEAD_JUDGE_MAX_TOKENS,
@@ -6871,6 +7294,7 @@ export {
   LOW_VOLUME_USECASE,
   MAILBOX_SCOPES,
   MESSAGING2 as MESSAGING,
+  META_SIGNATURE_HEADER,
   NotPublicError,
   PLACES_BASE,
   PLACES_DETAILS_MASK,
@@ -6967,6 +7391,7 @@ export {
   errField,
   evaluateRequest,
   evaluateTrustProductRequest,
+  fetchLinkedMedia,
   fetchMailDomains,
   fetchMediaBytes,
   fetchReceivedEmail,
@@ -7032,11 +7457,30 @@ export {
   idTokenClaims,
   imageBytes,
   importPhoneNumber,
+  inboundFromInstagram,
   inboundFromSms,
   inboundFromWhatsapp,
+  instagramAuthorizeUrl,
+  instagramCall,
+  instagramCodeOf,
+  instagramCodeRequest,
+  instagramDmChunks,
+  instagramErrorOf,
+  instagramEventsOf,
+  instagramLongLivedRequest,
+  instagramMeRequest,
+  instagramNameOf,
+  instagramProfileRequest,
+  instagramRefreshRequest,
+  instagramRefusalOf,
+  instagramSendRequest,
+  instagramSubscribeRequest,
+  instagramThrottled,
   isAreaCode,
   isBrandNotReady,
   isEmailRequest,
+  isLinkedMedia,
+  isMetaCdnLink,
   isPublicAddress,
   isValidSipPassword,
   keywordsFor,
@@ -7061,6 +7505,7 @@ export {
   mergeConsent,
   messageIdHeader,
   messageIdsIn,
+  metaSignatureValid,
   mintConversationToken,
   newDraftNote,
   newNonce,
@@ -7075,6 +7520,9 @@ export {
   oneTimeCodeOf,
   pageText,
   parseAccounts,
+  parseInstagramCodeGrant,
+  parseInstagramMe,
+  parseInstagramToken,
   parseLocations,
   parseMailboxGrant,
   parsePlaceDetails,
@@ -7096,6 +7544,7 @@ export {
   publicFetcher,
   publicLookup,
   publishAgentVersion,
+  readInstagramName,
   readLocation,
   readLocationDetails,
   receivedEmailFrom,
@@ -7133,6 +7582,7 @@ export {
   searchPlaces,
   sendEmail,
   sendFromMailbox,
+  sendInstagramText,
   sendTemplate,
   sendText,
   senderAuthenticated,
@@ -7146,7 +7596,6 @@ export {
   signUnsubscribeToken,
   sipPassword,
   sipUsername,
-  smsAsWaMessage,
   smsBody,
   smsInboundFrom,
   smsInboundUrl,
@@ -7167,6 +7616,7 @@ export {
   starterEndUserRequest,
   starterProfileRequest,
   stopCall,
+  storableReferral,
   streamModel,
   stripKey,
   subaccountName,
@@ -7210,7 +7660,6 @@ export {
   waStoppedMarketing,
   webCallBody,
   webCallMadeOf,
-  withCarrierConsent,
   withKey,
   withRequestId
 };

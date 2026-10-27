@@ -44,14 +44,15 @@ export interface PersonLike {
   email: string | null;
   /** Their latest conversation, when they have one: the thread a booking link is texted into. */
   thread?: string | null;
-  /** When they last wrote on WhatsApp, for the reply window. */
+  /** When they last wrote on WhatsApp, and by Instagram DM (person-row.ts igClockOfRow): each its reply window's clock. */
   waInboundAt?: string | null;
+  igInboundAt?: string | null;
   /**
    * What a reply to them is judged by, as their People row says it (people/person-row.ts replyChannelOfRow, isEmailStopped,
    * isOptedOutContact): the wire a reply goes out on, whether mail to their address has stopped, whether they asked to
    * stop or are on do-not-contact. The board's block asks the booking link's rule (people/person-reach.ts) of these.
    */
-  reach?: { wire: "whatsapp" | "sms" | "email" | null; emailStopped: boolean; optedOut: boolean };
+  reach?: { wire: "whatsapp" | "sms" | "email" | "instagram" | null; emailStopped: boolean; optedOut: boolean };
   /** The business they work at, while it stands (0052): a booking that names it is theirs, where nobody else works there. */
   business?: string | null;
   /**
@@ -96,18 +97,19 @@ export interface PersonMatch {
   id: string;
   name: string;
   via: MatchVia;
-  /** Present only when the person has a thread: its conversation id, and their last WhatsApp message for the reply window. */
+  /** Present only when the person has a thread: its conversation id, and their last WhatsApp message and DM: the windows. */
   thread?: string | null;
   wa_inbound_at?: string | null;
+  ig_inbound_at?: string | null;
   /** Present only when the person's row said it (PersonLike.reach): the wire a reply goes out on, and the two stops. */
-  reply_wire?: "whatsapp" | "sms" | "email" | null;
+  reply_wire?: "whatsapp" | "sms" | "email" | "instagram" | null;
   email_stopped?: boolean;
   opted_out?: boolean;
 }
 
 /** The thread facts a match carries, when the person has one; nothing otherwise, so a match without a thread is unchanged. */
-function threadOf(p: PersonLike): Pick<PersonMatch, "thread" | "wa_inbound_at"> {
-  return p.thread ? { thread: p.thread, wa_inbound_at: p.waInboundAt ?? null } : {};
+function threadOf({ thread, waInboundAt, igInboundAt }: PersonLike) {
+  return thread ? { thread, wa_inbound_at: waInboundAt ?? null, ig_inbound_at: igInboundAt ?? null } : {};
 }
 
 /** The reach facts a match carries when the row said them, whether or not there is a thread: a stop is a stop. */

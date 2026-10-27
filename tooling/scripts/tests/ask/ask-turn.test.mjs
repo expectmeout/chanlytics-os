@@ -151,7 +151,7 @@ const conversation = (id, over = {}) => ({
   // Something has come to the thread from their side, and the row says when, as ingest_inbound stamps it: a thread
   // nothing has come to is a first message's, and the reply card asks more of it (conversations/reply-window.test.mjs).
   last_inbound_at: iso(NOW.getTime() - 3600_000),
-  last_wa_inbound_at: iso(NOW.getTime() - 3600_000),
+  last_inbound_on_whatsapp: iso(NOW.getTime() - 3600_000),
   last_message_at: iso(NOW.getTime() - 3600_000),
   contacts: contact,
   ...over,
@@ -5073,7 +5073,7 @@ test("REGRESSION: Today's reply-window rows are the opposite of drafts -- the cu
   // assistant reported a customer being IGNORED as a reply already on its way
   // out, and the owner's correct action was the opposite of the implied one.
   const closing = conversation(C2, {
-    last_wa_inbound_at: iso(NOW.getTime() - 22 * 3600_000),
+    last_inbound_on_whatsapp: iso(NOW.getTime() - 22 * 3600_000),
     last_message_at: iso(NOW.getTime() - 22 * 3600_000),
   });
   const theirs = message(M2, C2, {
@@ -5232,8 +5232,8 @@ test("inbox.thread and calls.get read through the readers (ledger #5): the threa
   const OLDER = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee8";
   const H = 3600_000;
   const earlier = (ms) => iso(NOW.getTime() - ms);
-  // A text thread whose WhatsApp window, read from last_wa_inbound_at, closed a day ago: a text has no window.
-  const texting = conversation(C2, { last_wa_inbound_at: earlier(48 * H), last_message_at: earlier(46 * H) });
+  // A text thread whose WhatsApp window, read from its WhatsApp clock, closed a day ago: a text has no window.
+  const texting = conversation(C2, { last_inbound_on_whatsapp: earlier(48 * H), last_message_at: earlier(46 * H) });
   const texted = [
     message(M2, C2, {
       sender: "customer",
@@ -5271,10 +5271,10 @@ test("inbox.thread and calls.get read through the readers (ledger #5): the threa
     conversations: [
       conversation(C1),
       texting,
-      conversation(C3, { last_wa_inbound_at: null }),
+      conversation(C3, { last_inbound_on_whatsapp: null }),
       conversation(C4, { tenant_id: B }),
       conversation(C5, {
-        last_wa_inbound_at: null,
+        last_inbound_on_whatsapp: null,
         contacts: { ...contact, display_name: null, phone_e164: null, email: "rosa@example.com" },
       }),
     ],

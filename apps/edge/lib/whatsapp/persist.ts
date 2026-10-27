@@ -9,7 +9,14 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { pg } from "../pg.js";
-import { fetchMediaBytes, type NormalizedInbound } from "../packages/channels.js";
+import {
+  fetchLinkedMedia,
+  fetchMediaBytes,
+  isLinkedMedia,
+  publicFetcher,
+  type InboundMessage,
+  type WaMediaRef,
+} from "../packages/channels.js";
 import {
   AnswerNotKept,
   claimReplyTurn,
@@ -33,6 +40,7 @@ import {
   unreadableThread,
   type BookingRequestHold,
   type Delivered,
+  type InboundChannel,
   type SendKind,
   type ThreadState,
   type Wire,
@@ -100,7 +108,8 @@ export async function queueReply(
   db: ReturnType<typeof pg>,
   tenantId: string | null,
   ing: IngestResult | null,
-  toPhone: string,
+  /** Where the draft goes: the number on a phone's wire, the person's Instagram-scoped id on a DM's. */
+  to: string,
   body: string,
   delayMs: number,
   L: ReturnType<typeof logger>,
@@ -109,7 +118,7 @@ export async function queueReply(
   /** What the row remembers about the answer (contracts/brain.ts). */
   brainMeta?: BrainMeta,
   /** The wire the draft will go out on. */
-  channel: "whatsapp" | "sms" = "whatsapp",
+  channel: InboundChannel = "whatsapp",
 ): Promise<string | null> {
   if (!db || !tenantId || !ing) {
     L.warn("wa_queue_unavailable", {
@@ -127,7 +136,7 @@ export async function queueReply(
       tenantId,
       conversationId: ing.conversation_id,
       contactId: ing.contact_id,
-      toPhone,
+      to,
       body,
       delayMs,
       source,
@@ -182,8 +191,8 @@ export async function pgAnswered(
 export async function pgIngest(
   db: SupabaseClient<Database> | null,
   tenantId: string | null,
-  n: NormalizedInbound,
-  channel: "whatsapp" | "sms" = "whatsapp",
+  /** The message in the one inbound shape, on its own wire (decision 0001). */
+  n: InboundMessage & { channel: InboundChannel },
   line: string | null = null,
   /** A job takes this message up next (the door that records it and schedules its answer): see db ingestInbound. */
   opts: { jobFollows?: boolean } = {},
@@ -192,11 +201,11 @@ export async function pgIngest(
   try {
     return await ingestInbound(db, {
       tenantId,
-      channel,
-      identityExternalId: n.waId,
-      phoneE164: n.phoneDigits ? `+${n.phoneDigits.replace(/^\+/, "")}` : null,
+      channel: n.channel,
+      identityExternalId: n.identity.externalId,
+      phoneE164: n.identity.phoneE164,
       waProfileName: n.profileName,
-      messageExternalId: n.messageId,
+      messageExternalId: n.externalId,
       type: n.type,
       body: n.body,
       channelTs: n.channelTsIso,
@@ -208,13 +217,13 @@ export async function pgIngest(
         ...(line ? { line } : {}),
         ...(n.referral ? { referral: { source_id: n.referral.sourceId, source_type: n.referral.sourceType } } : {}),
       },
-      optOut: n.optOut,
-      optIn: n.optIn,
-      optInMarketing: n.optInMarketing,
+      optOut: n.consent.optOut,
+      optIn: n.consent.optIn,
+      optInMarketing: n.consent.optInMarketing,
       ...(opts.jobFollows ? { jobFollows: true } : {}),
     });
   } catch (e) {
-    logger().error("ingest_pg_failed", { tenant_id: tenantId, message: n.messageId, error: errField(e) });
+    logger().error("ingest_pg_failed", { tenant_id: tenantId, message: n.externalId, error: errField(e) });
     // A yes the message carried that did not land (AnswerNotKept) is a message that IS kept: the provider is told to send
     // it again, or the job is tried again, and the words are not said to be lost (core ingestOrSay).
     throw new IngestFailed(e instanceof Error ? e.message : String(e), e instanceof AnswerNotKept);
@@ -398,13 +407,26 @@ async function requestOpened(
   return upsertEscalation(db, tenantId, ing.conversation_id, "booking_reply", details.slice(0, 400));
 }
 
+/** A WhatsApp attachment's bytes, asked for by its id with the workspace's own token; nothing without one, said. */
+async function whatsappMediaOf(
+  rt: TenantRuntime | null | undefined,
+  ref: WaMediaRef,
+  said: { tenant_id: string; message: string },
+): Promise<{ bytes: ArrayBuffer; mime: string | null } | null> {
+  const cfg = waCfg(rt);
+  // Nothing threw, so pgSafe logs nothing: without this line a tenant whose vault read failed, or an SMS-only one, has
+  // every photo and voice note their customers send stamped "failed" forever with no trace of why.
+  if (!cfg) logger().error("media_no_credentials", said);
+  return cfg ? await fetchMediaBytes(cfg, ref.provider_media_id) : null;
+}
+
 export function pgSink(
   db: SupabaseClient<Database> | null,
   tenantId: string | null,
   ing: IngestResult | null,
   rt?: TenantRuntime | null,
   /** The wire this message's replies go out on. */
-  channel: "whatsapp" | "sms" = "whatsapp",
+  channel: InboundChannel = "whatsapp",
   /** This message's wires, bound by the handler where the credentials are. */
   wire: Wire = {},
 ) {
@@ -539,18 +561,17 @@ export function pgSink(
       on ? pgSafe("booking_request", () => requestOpened(db, tenantId, ing, req, details)) : Promise.resolve(undefined),
     /** Download from Meta, upload to storage, record where it went. Resolves
      *  to the bytes when they were fetched — a photo the receptionist looks
-     *  at reads them — and to nothing on failure. */
-    media: (n: NormalizedInbound) =>
+     *  at reads them — and to nothing on failure. A DM's attachment is a link to
+     *  Meta's CDN, fetched by it (channels fetchLinkedMedia, through the guarded
+     *  public fetch); WhatsApp's is asked for by its id with the tenant's token. */
+    media: (n: InboundMessage) =>
       on && n.media
         ? pgSafe("media_fetch", async () => {
-            const cfg = waCfg(rt);
-            // Nothing threw, so pgSafe logs nothing: without this line a tenant
-            // whose vault read failed, or an SMS-only one, has every photo and
-            // voice note their customers send stamped "failed" forever with no
-            // trace of why.
-            if (!cfg) logger().error("media_no_credentials", { tenant_id: tenantId, message: ing.message_id });
-            const got = cfg ? await fetchMediaBytes(cfg, n.media!.provider_media_id) : null;
-            const mediaOut = { ...n.media } as Record<string, unknown>;
+            const ref = n.media!;
+            const got = isLinkedMedia(ref)
+              ? await fetchLinkedMedia(ref.url, publicFetcher())
+              : await whatsappMediaOf(rt, ref, { tenant_id: tenantId, message: ing.message_id });
+            const mediaOut = { ...ref } as Record<string, unknown>;
             if (got) {
               const ext = MIME_EXT[got.mime || ""] || "bin";
               const path = `${tenantId}/${ing.conversation_id}/${ing.message_id}.${ext}`;

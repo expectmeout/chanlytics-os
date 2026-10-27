@@ -96,7 +96,9 @@ export function personOfAppointment(row: AppointmentLike, people: PersonLike[]):
     id: found.id,
     name: found.name || row.client_name || "",
     via,
-    ...(found.thread !== undefined ? { thread: found.thread, wa_inbound_at: found.waInboundAt ?? null } : {}),
+    ...(found.thread !== undefined
+      ? { thread: found.thread, wa_inbound_at: found.waInboundAt ?? null, ig_inbound_at: found.igInboundAt ?? null }
+      : {}),
     ...replyFactsOf(found),
   };
 }

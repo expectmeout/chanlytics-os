@@ -39,7 +39,8 @@ const ONLY_WIRE = {
   whatsapp: "whatsapp_only",
   sms: "sms_only",
   voice: "phone_only",
-  email: "email_only"
+  email: "email_only",
+  instagram: "instagram_only"
 };
 function wireBucketOf(channels) {
   const first = channels.at(0);
@@ -47,7 +48,7 @@ function wireBucketOf(channels) {
   return channels.length > 1 ? "several" : ONLY_WIRE[first];
 }
 function wireCountsOf(vms) {
-  const wires = { whatsapp_only: 0, sms_only: 0, phone_only: 0, email_only: 0, several: 0, none: 0 };
+  const wires = { whatsapp_only: 0, sms_only: 0, phone_only: 0, email_only: 0, instagram_only: 0, several: 0, none: 0 };
   for (const v of vms) wires[wireBucketOf(v.channels)] += 1;
   return wires;
 }

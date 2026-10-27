@@ -43,6 +43,9 @@ export const ROUTES = {
   "GET calls/[id]/export": { method: "GET", path: "/api/v1/calls/[id]/export" },
   "GET calls/[id]/recording": { method: "GET", path: "/api/v1/calls/[id]/recording" },
   "GET channels": { method: "GET", path: "/api/v1/channels" },
+  "GET channels/instagram": { method: "GET", path: "/api/v1/channels/instagram" },
+  "GET channels/instagram/callback": { method: "GET", path: "/api/v1/channels/instagram/callback" },
+  "GET channels/instagram/connect": { method: "GET", path: "/api/v1/channels/instagram/connect" },
   "GET channels/whatsapp/signup": { method: "GET", path: "/api/v1/channels/whatsapp/signup" },
   "GET consent/qr": { method: "GET", path: "/api/v1/consent/qr" },
   "GET contacts": { method: "GET", path: "/api/v1/contacts" },
@@ -156,6 +159,7 @@ export const ROUTES = {
   "POST calls/[id]/hand-over": { method: "POST", path: "/api/v1/calls/[id]/hand-over" },
   "POST calls/[id]/whisper": { method: "POST", path: "/api/v1/calls/[id]/whisper" },
   "POST capabilities/[kind]": { method: "POST", path: "/api/v1/capabilities/[kind]" },
+  "POST channels/instagram/disconnect": { method: "POST", path: "/api/v1/channels/instagram/disconnect" },
   "POST channels/whatsapp/connect": { method: "POST", path: "/api/v1/channels/whatsapp/connect" },
   "POST channels/whatsapp/standing": { method: "POST", path: "/api/v1/channels/whatsapp/standing" },
   "POST client-errors": { method: "POST", path: "/api/v1/client-errors" },
@@ -372,6 +376,9 @@ export type Routes = {
   "GET calls/[id]/export": typeof import("../../app/api/v1/calls/[id]/export/route").GET;
   "GET calls/[id]/recording": typeof import("../../app/api/v1/calls/[id]/recording/route").GET;
   "GET channels": typeof import("../../app/api/v1/channels/route").GET;
+  "GET channels/instagram": typeof import("../../app/api/v1/channels/instagram/route").GET;
+  "GET channels/instagram/callback": typeof import("../../app/api/v1/channels/instagram/callback/route").GET;
+  "GET channels/instagram/connect": typeof import("../../app/api/v1/channels/instagram/connect/route").GET;
   "GET channels/whatsapp/signup": typeof import("../../app/api/v1/channels/whatsapp/signup/route").GET;
   "GET consent/qr": typeof import("../../app/api/v1/consent/qr/route").GET;
   "GET contacts": typeof import("../../app/api/v1/contacts/route").GET;
@@ -485,6 +492,7 @@ export type Routes = {
   "POST calls/[id]/hand-over": typeof import("../../app/api/v1/calls/[id]/hand-over/route").POST;
   "POST calls/[id]/whisper": typeof import("../../app/api/v1/calls/[id]/whisper/route").POST;
   "POST capabilities/[kind]": typeof import("../../app/api/v1/capabilities/[kind]/route").POST;
+  "POST channels/instagram/disconnect": typeof import("../../app/api/v1/channels/instagram/disconnect/route").POST;
   "POST channels/whatsapp/connect": typeof import("../../app/api/v1/channels/whatsapp/connect/route").POST;
   "POST channels/whatsapp/standing": typeof import("../../app/api/v1/channels/whatsapp/standing/route").POST;
   "POST client-errors": typeof import("../../app/api/v1/client-errors/route").POST;

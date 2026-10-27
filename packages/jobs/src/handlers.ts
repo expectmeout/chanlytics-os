@@ -81,7 +81,7 @@ import { deliveryPage, deliveryPageKey } from "./delivery-page";
 import { type ClaimedJob, type JobContext, must, type PushTicket } from "./context";
 export type { PushReceipt, PushPort, JobContext, ClaimedJob } from "./context";
 
-/** outbound_send: core's sendQueued, over this runtime's ports. payload: { message_id, conversation_id, to_phone | to_email, body?, template?, purpose? (marketing, or outreach: a cold email), proactive? } */
+/** outbound_send: core's sendQueued, over this runtime's ports. payload: { message_id, conversation_id, to_phone | to_email | to_instagram, body?, template?, purpose? (marketing, or outreach: a cold email), proactive? } */
 async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
   await sendQueued(
     {

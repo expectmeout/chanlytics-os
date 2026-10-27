@@ -13,6 +13,7 @@ export {
   threadChannelWords,
   THREAD_CHANNEL_WORDS,
 } from "./thread-channel";
+export type { WrittenChannel, ThreadChannel } from "./thread-channel";
 export {
   contactName,
   isIdentifierName,

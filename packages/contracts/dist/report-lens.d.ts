@@ -361,6 +361,7 @@ interface PeopleNowDto {
         sms_only: number;
         phone_only: number;
         email_only: number;
+        instagram_only: number;
         several: number;
         none: number;
     };

@@ -1,8 +1,11 @@
 # 0001 · A channel-neutral inbound pipeline
 
-**Status:** decided. Steps 1 and 2 built: the extraction into `packages/core/src/inbound/` (28 September 2026, "As
-built" below), and the one inbound shape, which the message path takes beside WhatsApp's (26 October 2026, "As built,
-step 2" below); steps 3 to 8 to come. Its five questions answered 26 October 2026 (below). Written against commit `b729bdf`, and verified
+**Status:** decided. Steps 1 to 6 and 8 built: the extraction into `packages/core/src/inbound/` (28 September 2026, "As
+built" below), the one inbound shape, which the message path takes beside WhatsApp's (26 October 2026, "As built, step
+2" below), the doors handing it over, with WhatsApp's own shape gone from the message path, the per-channel row (00484)
+and its readers (00485) (26 October 2026, "As built, step 3, 4, 5" below), step 6 met by 0071 (below), and Instagram DMs
+(00486, 27 October 2026, "As built, step 8" below), which answer only once Meta's App Review allows; step 7 to come,
+fourteen days after step 5 is on production. Its five questions answered 26 October 2026 (below). Written against commit `b729bdf`, and verified
 against the code at it, with the working tree as it stood. Where this note and
 the code disagree, the code wins.
 
@@ -287,6 +290,25 @@ Meta's message and its envelope), so the job converts with the same adapter and 
 payload changes: a job written before the deploy is read by the one after it. The
 adapter's entries in `apps/edge/lib/whatsapp/inbound.ts` are the ones that move.
 
+**As built, step 3** (26 October 2026, against `6f035ab88`): each door, and each door's
+job, makes its message with its own wire's adapter and hands the verb the one shape:
+`apps/edge/lib/whatsapp/answer-later.ts` with `inboundFromWhatsapp` (answered in the
+request, recorded at the door, and taken up by its job), `apps/edge/lib/sms/inbound-text.ts`
+with `inboundFromSms` (at the door and in its job). The edge's adapter takes the one
+shape in all five entries: `handleInbound` a message with its own wire's carrier, the
+two text entries a text and its line's carrier, the two WhatsApp entries a WhatsApp
+message. The adapters say their wire in their return types, so a door that handed over
+WhatsApp's raw shape, or a text without its carrier, does not compile. No job payload
+changed, and the webhook's per-message `try`, its `IngestFailed` count and its 503 are
+as they were. The verb then reads the one shape itself: core's `{ message, raw }` input,
+its `readAsToday`, `smsAsWaMessage`, `withCarrierConsent` and the carrier's `consent` are
+deleted (Ruben, 26 October 2026: every step built before anything ships, so the release
+step 2 promised the old shape is the same one that takes it away). A reply goes to the
+number the message came from, as digits, or the person's own id on a wire with no
+number; the persist port takes the message, which says its own wire, in place of a
+separate channel. The executed test's world moved to
+`tooling/scripts/tests/inbound/_world.mjs`, which hands each fixture over in the one shape.
+
 **4 · The per-channel row.** Ship the migration and have `ingest_inbound` write
 `conversation_channel_state` **in addition to** `last_wa_inbound_at`. Nothing
 reads it yet. _Both orders:_ both apps ignore a table they have never heard of,
@@ -294,12 +316,44 @@ and the column they do read keeps its old value and its old writer. This is the
 step that makes the column change safe in either direction, and the reason the
 column is not dropped here.
 
+**As built, step 4** (26 October 2026, 00484): `conversation_channel_state` has its own
+`id` and one row a thread and wire as a named unique constraint beside it, keyed to its
+thread by the workspace too (00279), so a deleted thread takes its rows and PostgREST
+reads no join between conversations and tenants (#1820). Members read their
+workspace's; nothing but the two functions writes it. Its CHECK is the four wires a
+person writes on, held to `InboundMessage["channel"]` by
+`packages/channels/src/inbound.type-test.ts`. `ingest_inbound` writes the row for a new
+message on any of them, on the clock it gives `last_wa_inbound_at` and as monotone, and
+skips a wire it has never taken rather than refuse a message already kept;
+`merge_people` folds a merged thread's rows into the kept one's, the later clock winning
+on each wire, as it does for the column. Both are re-created from their latest bodies
+(00361, 00451) with that one block added. The rows as they stand are backfilled:
+WhatsApp's from the column itself, so step 5 reads the window read today, and a text's
+and an email's from the person's own messages. Proved on a replayed stack by
+`tooling/scripts/tests/inbound/a-thread-keeps-when-each-wire-last-heard.db.test.mjs`.
+The table has the column's two writers, argued under Rises in `docs/debt.md` until step 7.
+
 **5 · Readers move.** `packages/core/src/conversations/reply.ts:170`,
 `packages/contracts/src/viewmodels.ts:695`, `packages/contracts/src/people.ts`
 (`:815`, `:1479`) and `apps/dashboard/src/server/ask/proposals.ts:200` read the
 new fact through one accessor; `replyWindow`'s signature does not change.
 _Both orders:_ an older edge still writes both facts, an older dashboard still
 reads the column, and the column is still written.
+
+**As built, step 5** (26 October 2026, 00485): the one accessor is
+`last_inbound_on_whatsapp(conversations)`, a computed column PostgREST serves with a
+thread, read from the per-channel row under the member's own RLS. The dashboard's three
+reads of a thread (`server/dto.ts`, `server/verbs.ts`, Ask's reply tool) name it where
+they named the column, aliased to the field their pages read
+(`last_wa_inbound_at:last_inbound_on_whatsapp`), so every view model, `replyWindow` and
+core's reply read the new fact unchanged, and a page still hears the thread's own
+changes, which every message makes (no new table is read, so nothing new is heard).
+`people_list` reads a person's latest thread's clock through it. The readers this note
+named at `b729bdf` read those fields since. Two tests hold that nothing reads the column
+for the fourteen days before step 7: `a-reply-window-reads-its-own-wire.db.test.mjs`
+(no live function, view or policy but its two writers names it) and
+`a-reply-window-reads-its-own-wire.test.mjs` (no string the apps or the packages write
+reads it, off the syntax tree). The day step 5 deploys goes into this note's status.
 
 **6 · Email joins the pipeline in draft mode.** `ingestEmail` keeps its replay
 gate and its `email_review` flag and gains a branch: when `mailboxes.reply_mode`
@@ -311,12 +365,51 @@ union is narrow because the capability is. Add `"email"` to `INLINE_INTAKE`
 (`unfinished.ts:58`) **only here**, after deciding what the sweep says about an
 email — G11 is the record of getting that wrong once.
 
+**Met by 0071** (Ruben, 26 October 2026: "Done by 0071"): every email from a person
+already waits in Need you with a reply drafted, Ask's draft written ahead on a member's
+visit and kept on the thread (decision 0071, E2; 0073's R15), and it leaves from the
+mailbox it came to on a person's press. That is this step's product, so no second
+drafting road is built at intake: nothing sends itself (the first answer), no model is
+asked for a thread nobody opens, and email keeps its own intake (`ingestEmail`, its
+replay gate and `email_review`). `INLINE_INTAKE` stays WhatsApp and SMS (the second
+answer); `draft-queue.ts` and `persist.ts` stay narrow, since the capability they guard
+did not widen.
+
 **7 · Drop the column.** Only once step 5 has stood long enough that no
 deployed dashboard reads it, and after `ingest_inbound` stops writing it. A
 separate change, shipped alone.
 
 **8 · Meta DMs.** Widen `messages.channel` to accept `'instagram'`, add
 `inboundFromMetaDm`, add the door. The pipeline needs no change if 1-6 landed.
+
+**As built, step 8** (27 October 2026; Ruben: "Instagram Login", Instagram DMs only, no Messenger): the Instagram API
+with Instagram Login, so a business needs no Facebook Page, and nothing answers until Meta's App Review grants
+`instagram_business_basic` and `instagram_business_manage_messages` for accounts we do not own.
+
+- **The wire** (`packages/channels/src/instagram/`): `instagramEventsOf` reads a delivery's items (a person's message,
+  the business's echo, an unsend, and what asks nothing); `inboundFromInstagram` (the note's `inboundFromMetaDm`)
+  makes a person's DM the one shape: their Instagram-scoped id, no number; words, a quick reply or a tapped icebreaker's
+  title as text; a photo as media fetched by its link (`LinkedMediaRef`, Meta's CDN only); a shared post or reel as a new
+  kind, `share`, legible to a person and handed over as a location is; a story mention set aside. The Graph wire sends a
+  reply as DMs of at most 1000 bytes, cut at a sentence; `metaSignatureValid` is the one check both Meta webhooks ask.
+- **The road** (`apps/edge/lib/instagram/`): `api/instagram.ts` verifies, routes by `entry.id` on `tenant_channels`
+  (kind `instagram`), records each DM through the receptionist's own ingest and answers it by an `inbound_answer` job
+  (payload `ig`), the text's road: a new door has no frozen contract to keep. The carrier is the account's
+  (`InboundCarrier<"instagram">`); the job runner's DM wire sends from the account the person wrote to. An echo of a DM
+  we sent changes nothing; one from the Instagram app is a person on the team, kept and pausing the receptionist, as a
+  WhatsApp Business app echo does. An unsend blanks the DM (`message_unsent`). The deadman sweep owns DMs as it owns texts.
+- **Consent** needed no new rule: `mayMessageFor` refuses a proactive or marketing send on a wire no yes covers, and a
+  DM's own yes covers none (`consent_channels_of`, 00486). A stop in words stops (WhatsApp's reading); START lifts it and is
+  confirmed in a DM's words; a DM is never a yes to offers.
+- **The window** is Instagram's own 24 hours, read from the DM clock (`last_inbound_on_instagram`, 00486) by
+  `windowClockOf`; past it a member's reply is refused in words, since Instagram has no approved message to send
+  instead (the 7-day human-agent tag needs its own review, and is not asked for).
+- **Connect**: Settings › Connections signs a state, Instagram's consent screen hands back a code, and the edge's
+  `/api/admin/instagram/account` trades it for a 60-day token, subscribes the account, keeps the token in the Vault
+  and only then turns the row on. A daily sweep (`instagram_tokens`) refreshes each token once it is a week old, and a
+  token Instagram refuses marks the row and tells the workspace once.
+- **A DM's person** is made by their id alone and joined to nobody by a name (the third answer); People says they came
+  from Instagram, or from the ad they tapped (`acquired_via`, 00486); the receptionist reads them by their row.
 
 ## Tests
 

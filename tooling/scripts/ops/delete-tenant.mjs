@@ -94,6 +94,8 @@ const TABLES = [
   "contact_marks",
   "contact_reads",
   "contacts",
+  // When a thread's person last wrote on each wire (00484, decision 0001).
+  "conversation_channel_state",
   // Ask's drafts written ahead for a thread waiting on a person (00475, decision 0071).
   "conversation_drafts",
   "conversations",

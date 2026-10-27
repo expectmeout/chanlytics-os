@@ -1,13 +1,15 @@
 /**
- * Connections' two email rows (connections.ts folds them with the others): the hosted address customers write to, kept
- * only where a workspace already has one, and the business's own mailbox (decision 0056; decision 0073, R13: the
- * business's email is its mailbox, the email people write to it comes into the Inbox, and sequences to leads write from
- * it). Their own module because they read the same email line of Setup (mailbox.ts) and nothing else of the page's facts.
+ * Connections' rows that read one line of the page's facts each (connections.ts folds them with the others). The two email
+ * rows: the hosted address customers write to, kept only where a workspace already has one, and the business's own
+ * mailbox (decision 0056; decision 0073, R13: the business's email is its mailbox, the email people write to it comes into
+ * the Inbox, and sequences to leads write from it), both from the same email line of Setup (mailbox.ts). And Instagram's
+ * (decision 0001, step 8), from its account's channel and whether this deployment holds the app.
  */
 import { agoWords } from "../shared/time";
 import { EMAIL_NOT_ANSWERED_SENTENCE } from "../email/mailbox";
 import { SETUP_STATE_WORDS } from "./setup";
-import type { ConnectionDraft, ConnectionInputs } from "./connections";
+import type { ConnectionDraft, ConnectionInputs, ConnectionVerb } from "./connections";
+import type { ChannelVM } from "../lines/channels";
 
 /**
  * Email: the workspace's address when it has one, the form that makes one when this deployment has the
@@ -102,6 +104,53 @@ export function mailboxRow(i: ConnectionInputs): ConnectionDraft {
     stateWords: "Later",
     sentence:
       "Sequences to leads will send from your own Google Workspace or Microsoft 365 mailbox. Until then, each email is handed to you to send.",
+    verb: null,
+  };
+}
+
+/**
+ * Instagram (decision 0001, step 8): an account connected answers its DMs, and says how recently one came; one whose
+ * token Instagram stopped taking answers nothing until it is connected again, and says so; with none, Connect, where this
+ * deployment holds the app, and Later where it does not.
+ */
+export function instagramRow(i: ConnectionInputs, { ig }: { ig: ChannelVM | null }): ConnectionDraft {
+  const base = { kind: "instagram" as const, icon: "instagram", title: "Instagram" };
+  const detail = ig?.handle ? `@${ig.handle}` : null;
+  const connect: ConnectionVerb = { label: "Connect Instagram", to: "verb:instagram-connect", who: "owner" };
+  if (ig?.on && ig.lapsedAt)
+    return {
+      ...base,
+      detail,
+      state: "attention",
+      stateWords: "Needs connecting again",
+      sentence: "Instagram stopped accepting the connection, so its DMs are not being answered. Connect it again.",
+      verb: { ...connect, label: "Connect again" },
+    };
+  if (ig?.on)
+    return {
+      ...base,
+      detail,
+      state: "connected",
+      stateWords: "Connected",
+      sentence: `${ig.healthLabel}. The receptionist answers its DMs within a day of each one, as Instagram allows.`,
+      verb: { label: "Disconnect", to: "verb:instagram-disconnect", who: "owner" },
+    };
+  if (i.instagram?.ready)
+    return {
+      ...base,
+      detail,
+      state: "none",
+      stateWords: "Not connected",
+      sentence:
+        "Sign in with your Instagram professional account; the receptionist answers its DMs as it answers WhatsApp.",
+      verb: ig ? { ...connect, label: "Connect again" } : connect,
+    };
+  return {
+    ...base,
+    detail: null,
+    state: "later",
+    stateWords: "Later",
+    sentence: "Direct messages, answered by the receptionist like WhatsApp.",
     verb: null,
   };
 }

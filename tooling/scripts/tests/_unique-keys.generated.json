@@ -491,6 +491,36 @@
       }
     },
     {
+      "table": "conversation_channel_state",
+      "name": "conversation_channel_state_one_per_wire",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "conversation_id"
+        },
+        {
+          "column": "channel"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "conversation_channel_state",
+      "name": "conversation_channel_state_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "conversation_drafts",
       "name": "conversation_drafts_one_a_thread_and_kind",
       "primary": false,

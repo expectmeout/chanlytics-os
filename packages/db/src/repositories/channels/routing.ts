@@ -4,9 +4,9 @@
  * Cross-workspace: a webhook finds its workspace by the provider's id (kind, external_id) on tenant_channels.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../database.types";
+import type { Database, Json } from "../../database.types";
 import { MIN_MS } from "@chanlytics/contracts";
-import { dbLog } from "../observe";
+import { dbLog } from "../../observe";
 
 export interface RoutedChannel {
   channelId: string;
@@ -136,14 +136,29 @@ export async function activeWhatsappNumbers(
   db: SupabaseClient<Database>,
   tenantId: string,
 ): Promise<WhatsappNumberRow[]> {
+  return activeChannelRows(db, tenantId, "whatsapp");
+}
+
+/** What a failed read says it could not read, in the words a person searching the logs knows. */
+const CHANNEL_ROWS_WORDS = { whatsapp: "WhatsApp numbers", instagram: "Instagram accounts" } as const;
+
+/**
+ * A workspace's active channels of a kind that sends (its WhatsApp numbers, its Instagram accounts), oldest first, as a
+ * send from one needs the row. A read that fails throws.
+ */
+export async function activeChannelRows(
+  db: SupabaseClient<Database>,
+  tenantId: string,
+  kind: "whatsapp" | "instagram",
+): Promise<WhatsappNumberRow[]> {
   const { data, error } = await db
     .from("tenant_channels")
     .select("id, credentials_ref, external_id")
     .eq("tenant_id", tenantId)
-    .eq("kind", "whatsapp")
+    .eq("kind", kind)
     .eq("status", "active")
     .order("created_at", { ascending: true });
-  if (error) throw new Error(`cannot read the workspace's WhatsApp numbers: ${error.message}`);
+  if (error) throw new Error(`cannot read the workspace's ${CHANNEL_ROWS_WORDS[kind]}: ${error.message}`);
   return data ?? [];
 }
 
@@ -157,17 +172,31 @@ export async function whatsappLineOf(
   tenantId: string,
   conversationId: string,
 ): Promise<string | null> {
+  return lineWrittenTo(db, tenantId, conversationId, "whatsapp");
+}
+
+/**
+ * The channel a thread's person last wrote to on a wire that may have several (a WhatsApp number, an Instagram account,
+ * whose ids for a person are its own): the line their newest message on that wire came in on (meta.line). Null when
+ * nothing says. A read that fails throws.
+ */
+export async function lineWrittenTo(
+  db: SupabaseClient<Database>,
+  tenantId: string,
+  conversationId: string,
+  channel: "whatsapp" | "instagram",
+): Promise<string | null> {
   const { data, error } = await db
     .from("messages")
     .select("meta")
     .eq("tenant_id", tenantId)
     .eq("conversation_id", conversationId)
-    .eq("channel", "whatsapp")
+    .eq("channel", channel)
     .eq("direction", "inbound")
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (error) throw new Error(`cannot read the WhatsApp number this thread was written to: ${error.message}`);
+  if (error) throw new Error(`cannot read the ${channel} line this thread was written to: ${error.message}`);
   const meta = data?.meta;
   const line = meta && typeof meta === "object" && !Array.isArray(meta) ? meta.line : null;
   return typeof line === "string" && line ? line : null;

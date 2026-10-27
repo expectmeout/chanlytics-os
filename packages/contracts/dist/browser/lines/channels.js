@@ -86,6 +86,8 @@ export function toChannelVM(dto, now = /* @__PURE__ */ new Date()) {
     standing: dto.standing ?? null,
     standingReadAt: dto.standing_read_at ?? null,
     connectedAt: dto.connected_at ?? null,
+    handle: dto.handle ?? null,
+    lapsedAt: dto.lapsed_at ?? null,
     created_at: dto.created_at
   };
 }

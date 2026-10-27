@@ -10,6 +10,7 @@ import { waitingOnProposal, type DealPaceVM } from "../deal-waits";
 import type { VisitMark } from "../../calendar/calendar-dto";
 import { consultationHappened, consultServiceOf, noProposalSince } from "../deal-consultations";
 import { EMAIL_CANT_REACH, mayReach, proposalAction, proposalMessage } from "../../people/person-reach";
+import type { ReplyVia } from "../../people/person-words";
 import type { PersonNoteVM } from "../../notes/person-notes";
 import type { FollowUpStand } from "../../playbooks/playbooks";
 
@@ -42,7 +43,7 @@ export interface DealPerson {
    * their current deal's card says when its run goes, and leads with no nudge of its own. Absent elsewhere.
    */
   followUp?: FollowUpStand | null;
-  replyVia: "WhatsApp" | "Text" | "Email" | null;
+  replyVia: ReplyVia | null;
   replyWindow: { open: boolean; hoursLeft: number } | null;
   /** Mail to their address has stopped (isEmailStopped): where a reply goes by email, it cannot be sent. */
   emailSuppressed: boolean;

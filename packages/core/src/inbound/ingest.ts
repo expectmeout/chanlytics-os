@@ -42,7 +42,7 @@ import type { HoldWords, InboundContext, Ingested } from "./context";
 // Meta redelivers (the ingest's is_new gate makes that idempotent). Twilio
 // retries nothing, so the SMS ingress alerts the platform on the same signal.
 async function ingestOrSay(cx: InboundContext, jobFollows = false): Promise<IngestResult | null> {
-  const { ports, db, tenantId, n, channel, from, raw, notifyTarget, L } = cx;
+  const { ports, db, tenantId, n, from, notifyTarget, L, channel } = cx;
   try {
     // The line it came in on (the routed channel) travels with the message: the person it makes keeps it (K3). A door
     // that schedules the message's answer says so (jobFollows): a yes the message carried that fails to land here is
@@ -51,7 +51,6 @@ async function ingestOrSay(cx: InboundContext, jobFollows = false): Promise<Inge
       db,
       tenantId,
       n,
-      channel,
       cx.routed?.channelId ?? null,
       jobFollows ? { jobFollows } : undefined,
     );
@@ -63,7 +62,7 @@ async function ingestOrSay(cx: InboundContext, jobFollows = false): Promise<Inge
       try {
         await ports.alertStaff(
           from,
-          n.body ?? `[${raw.type} message]`,
+          n.body ?? `[${n.rawType} message]`,
           "(NOT recorded: the database did not accept the message; the provider will retry)",
           "message not recorded",
           { target: notifyTarget, channel, who: n.profileName ?? null },
@@ -214,11 +213,11 @@ export async function ingestMessage(cx: InboundContext, resume = false): Promise
   const ingestMs = Date.now() - t0;
   // This message's wires: WhatsApp on the tenant's credentials (the
   // environment's pair only for the environment's own number), or the
-  // carrier that brought the text in. Bound here, where the credentials
-  // are; the door refuses when the wire for this channel is missing.
+  // carrier that brought the message in (a texting line, an Instagram account), on its own wire. Bound here, where the
+  // credentials are; the door refuses when the wire for this channel is missing.
   const wires: Wire = {
     whatsapp: ports.sender(ports.waCfg(rt, isEnvDefault)),
-    ...(carrier ? { sms: (to: string, p: { body: string }) => carrier.send(to, p.body) } : {}),
+    ...(carrier ? { [carrier.channel]: (to: string, p: { body: string }) => carrier.send(to, p.body) } : {}),
   };
   const sink = ports.persist.sink(db, tenantId, ing, rt, channel, wires);
   // An address a customer gives in their own words is kept, the way YES OFFERS is read from their words: the message

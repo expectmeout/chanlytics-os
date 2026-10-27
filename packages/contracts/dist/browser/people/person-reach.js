@@ -1,5 +1,5 @@
 import { optOutWords } from "../consent/consent.js";
-import { replyWindow } from "../config/policy.js";
+import { replyWindow, windowClockOf } from "../config/policy.js";
 import { HOUR_MS } from "../shared/time.js";
 import { PERSON_CHANNEL_WORDS, REPLY_VIA } from "./person-words.js";
 const EMAIL_STOPPED_TAG = "stopped accepting mail";
@@ -26,6 +26,8 @@ export function bookingLinkAction(reach, stop) {
   if (via === "Email")
     return reach.emailStopped ? notReady(EMAIL_CANT_REACH, false) : ready("Email", "Opens the thread with the link ready to send by email");
   if (via === "Text") return ready("Text", "Opens the thread with the link ready to send as a text");
+  if (via === "Instagram")
+    return win && win.open ? ready("DM", `Opens the thread with the link ready to send by DM \xB7 for ${win.hoursLeft}h more`) : notReady(DM_CLOSED, false);
   if (win && win.open)
     return ready("Text", `Opens the thread with the link ready to send \xB7 any message for ${win.hoursLeft}h more`);
   return notReady(
@@ -40,7 +42,7 @@ export function replyReachOf(p, now) {
       replyVia: null,
       bookingLinkAction: bookingLinkAction({ via: null, window: null, emailStopped: p.emailStopped }, stop)
     };
-  const w = replyWindow(p.wire, p.waInboundAt, now);
+  const w = replyWindow(p.wire, windowClockOf(p.wire, { whatsapp: p.waInboundAt, instagram: p.igInboundAt }), now);
   const win = {
     open: w.open,
     hoursLeft: w.closesAtIso ? Math.max(0, Math.round((new Date(w.closesAtIso).getTime() - now.getTime()) / HOUR_MS)) : 0
@@ -87,13 +89,14 @@ export function repliesWords(via, window, stop) {
   if (stop.optedOut) return optOutWords(stop.who);
   if (via === "Email") return stop.emailStopped ? EMAIL_CANT_REACH : "Any time, by email";
   if (via === "Text") return "Any time, by text";
-  if (via !== "WhatsApp" || !window) return null;
-  if (!window.open) return "Approved messages only, until they write again";
+  if (via !== "WhatsApp" && via !== "Instagram" || !window) return null;
+  if (!window.open) return via === "Instagram" ? DM_CLOSED : "Approved messages only, until they write again";
   const h = window.hoursLeft;
   return h >= 1 ? `Any message, for ${h} more ${h === 1 ? "hour" : "hours"}` : "Any message, for less than an hour";
 }
 const EMAIL_STOPPED_SHORT = "Stopped accepting mail";
-const WRITTEN_WIRES = ["whatsapp", "sms", "email"];
+const WRITTEN_WIRES = ["whatsapp", "sms", "email", "instagram"];
+export const DM_CLOSED = "Nothing until they write again, on Instagram";
 export function rowReachWords(p, named) {
   const wrote = p.lastChannel ?? WRITTEN_WIRES.find((c) => p.channels.includes(c)) ?? null;
   const via = wrote ? REPLY_VIA[wrote] : null;

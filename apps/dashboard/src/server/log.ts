@@ -151,6 +151,7 @@ export const DASHBOARD_LOG_EVENTS = [
   "import_again_failed",
   "import_decision_failed",
   "inbox_escalated_fetch_failed",
+  "instagram_connect_failed",
   "lead_door_refusal_unknown",
   "lead_ideas_customers_unread",
   "lead_ideas_written",

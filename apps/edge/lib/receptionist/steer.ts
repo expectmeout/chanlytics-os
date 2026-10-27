@@ -25,7 +25,15 @@ import { json, refuse } from "../http.js";
 import { tokenWorkspace, type Admitted } from "../admin-auth.js";
 import { pg } from "../pg.js";
 import { loadTenantRuntime, type TenantRuntime } from "../tenant-runtime.js";
-import { readThreadState, readLeadContext, describeLead, oldestActiveChannel, withdrawQueued } from "../packages/db.js";
+import {
+  readThreadState,
+  readLeadContext,
+  describeLead,
+  instagramIdOf,
+  oldestActiveChannel,
+  withdrawQueued,
+} from "../packages/db.js";
+import type { InboundChannel } from "../packages/core.js";
 import {
   resolveSystemPrompt,
   describeNow,
@@ -115,17 +123,37 @@ function replyToOf(meta: unknown): string | undefined {
 async function leadNoteOf(
   db: NonNullable<ReturnType<typeof pg>>,
   m: { tenant_id: string; meta: unknown },
-  phone: string,
+  who: { phone: string | null; contactId: string | null },
   timezone: string,
-  channel: "whatsapp" | "sms",
+  channel: InboundChannel,
 ): Promise<string | undefined> {
   try {
-    const lead = await readLeadContext(db, m.tenant_id, phone, 1, replyToOf(m.meta));
+    // By the number, or, for a person with none (a DM's), by their own row: as the receptionist reads them (model-turn.ts).
+    const lead = who.phone
+      ? await readLeadContext(db, m.tenant_id, who.phone, 1, replyToOf(m.meta))
+      : who.contactId
+        ? await readLeadContext(db, m.tenant_id, { contactId: who.contactId }, 1, replyToOf(m.meta))
+        : null;
+    if (!lead) return undefined;
     return describeLead(lead, undefined, timezone, channel);
   } catch (e) {
     steerLog.warn("steer_lead_context_unavailable", { error: errField(e) });
     return undefined;
   }
+}
+
+/** The wire a held draft is on: a text's and a DM's are their own, anything else WhatsApp's. */
+const draftChannelOf = (c: string | null): InboundChannel => (c === "sms" || c === "instagram" ? c : "whatsapp");
+
+/** Where a rewrite goes: the number on a phone's wire, the person's Instagram-scoped id on a DM's; null for neither. */
+async function draftAddressOf(
+  db: NonNullable<ReturnType<typeof pg>>,
+  channel: InboundChannel,
+  m: { tenant_id: string; contact_id: string | null },
+  phone: string | null,
+): Promise<string | null> {
+  if (channel !== "instagram") return phone;
+  return m.contact_id ? instagramIdOf(db, m.tenant_id, m.contact_id).catch(() => null) : null;
 }
 
 function draftOf(db: NonNullable<ReturnType<typeof pg>>, messageId: string, workspace: string | null) {
@@ -152,7 +180,7 @@ function notRewritable(m: { sender: string; status: string; sending_at: string |
  * carrier's ceiling. Queued as the model wrote them, a steered first text went out without the line the carriers'
  * filing promises.
  */
-function wordsForTheWire(channel: "whatsapp" | "sms", text: string, textedBefore: boolean): string {
+function wordsForTheWire(channel: InboundChannel, text: string, textedBefore: boolean): string {
   return channel === "sms" ? smsBody(text, !textedBefore) : text;
 }
 
@@ -225,14 +253,14 @@ export async function steerHeldDraft(
     .eq("id", m.conversation_id)
     .eq("tenant_id", m.tenant_id)
     .maybeSingle();
-  const phone = conv?.contacts?.phone_e164 ?? null;
-  if (!phone) return refuse(409, "no_phone");
-
   // The wire the draft is already on. A held reply to a text is an `sms` row,
   // and looking the tenant up on WhatsApp alone both refused every steer for a
   // texting-only workspace and, where a WhatsApp channel happened to exist,
-  // rewrote the reply against the wrong channel.
-  const channel: "whatsapp" | "sms" = m.channel === "sms" ? "sms" : "whatsapp";
+  // rewrote the reply against the wrong channel. A DM's goes back by DM.
+  const channel = draftChannelOf(m.channel);
+  const phone = conv?.contacts?.phone_e164 ?? null;
+  const to = await draftAddressOf(db, channel, m, phone);
+  if (!to) return refuse(409, "no_phone");
   // Its oldest active one, where a workspace holds two of the kind; a read that failed finds none, as it always did.
   const routed = await oldestActiveChannel(db, m.tenant_id, channel).catch(() => null);
   if (!routed) return refuse(409, "no_channel");
@@ -246,7 +274,7 @@ export async function steerHeldDraft(
   const lastUser = [...thread.history].reverse().find((t) => t.role === "user");
   if (!lastUser) return refuse(409, "nothing_to_answer");
 
-  const leadNote = await leadNoteOf(db, m, phone, rt.timezone ?? "UTC", channel);
+  const leadNote = await leadNoteOf(db, m, { phone, contactId: m.contact_id }, rt.timezone ?? "UTC", channel);
 
   const now = new Date(); // the rewrite's one clock: its prompt, its price check (steerAllowance) and its timing
   let r: Awaited<ReturnType<typeof generateReply>>;
@@ -282,7 +310,7 @@ export async function steerHeldDraft(
       tenantId: m.tenant_id,
       conversationId: m.conversation_id,
       contactId: m.contact_id,
-      toPhone: phone,
+      to,
       body: words,
       delayMs,
       source: "steered",
