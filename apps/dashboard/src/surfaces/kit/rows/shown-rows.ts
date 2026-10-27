@@ -10,8 +10,8 @@
  * list must always have drawn (`keep`: the keyboard's cursor, the row open beside the list) are drawn wherever they are,
  * so a key that moves to one finds it, and focus never lands on nothing.
  *
- * Where the list scrolls is found, never told: the nearest box that scrolls it, else the window (a phone, where the window
- * scrolls the page). The virtualizer is @tanstack/react-virtual's (its core, which it re-exports), the job's standard,
+ * Where the list scrolls is found, never told: the list's own element where it scrolls its rows itself, else the nearest
+ * box that scrolls it, else the window (a phone, where the window scrolls the page). The virtualizer is @tanstack/react-virtual's (its core, which it re-exports), the job's standard,
  * here and nowhere else.
  */
 import { useLayoutEffect, useReducer, useRef, useState } from "react";
@@ -65,16 +65,20 @@ interface Told {
 }
 
 /**
- * The nearest box that scrolls the list down its length, or the window when none does (a phone's): page-scroll.ts's
- * `movingScrollerOf`, as the virtualizer is told it.
+ * The box that scrolls the list down its length, or the window when none does (a phone's): page-scroll.ts's
+ * `movingScrollerOf`, as the virtualizer is told it, asked from the list's own element. Conversations' rows box scrolls
+ * itself (conversations.css .cv-rows); asked from its parent, nothing above it scrolled on a desk, the window was heard,
+ * which never moves there, and the first screen's rows stayed drawn under a scrolled box (27 Oct 2026).
  */
 function listScrollerOf(el: Element): Scroller {
-  const box = movingScrollerOf(el);
+  const box = movingScrollerOf(el, { self: true });
   return isDocumentScroller(box) ? window : box;
 }
 
 /** Where the list starts in what its scroller scrolls: the room above it, which the rows' own offsets count from. */
 function marginOf(el: Element, scroller: Scroller): number {
+  // A list that scrolls itself starts under its own padding, however far it is scrolled.
+  if (scroller === el) return Number.parseFloat(getComputedStyle(el).paddingTop) || 0;
   const top = el.getBoundingClientRect().top;
   if (scroller instanceof Window) return top + window.scrollY;
   return top - scroller.getBoundingClientRect().top + scroller.scrollTop;

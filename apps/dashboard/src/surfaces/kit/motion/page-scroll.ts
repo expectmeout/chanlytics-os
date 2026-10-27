@@ -122,13 +122,15 @@ export function scrollerOf(node: Element | null | undefined, { self = false }: {
 }
 
 /**
- * The box that moves `node` as it scrolls now: the nearest above it that scrolls itself AND holds more than it shows, else
- * the document's scroller. A box that scrolls only across (a wide table's) has a computed overflow down its length too,
- * but grows with its rows and holds no more than it shows: passed over, as a phone's table is.
+ * The box that moves `node` as it scrolls now: the nearest above it that scrolls itself AND holds more than it shows,
+ * `node` itself where `self` says so, else the document's scroller. A box that scrolls only across (a wide table's) has a
+ * computed overflow down its length too, but grows with its rows and holds no more than it shows: passed over, as a
+ * phone's table is.
  */
-export function movingScrollerOf(node: Element): HTMLElement {
-  for (let n = node.parentElement; n && n !== document.body && n !== document.documentElement; n = n.parentElement)
-    if (scrollsItself(n) && n.scrollHeight > n.clientHeight + 1) return n;
+export function movingScrollerOf(node: Element, { self = false }: { self?: boolean } = {}): HTMLElement {
+  const body = document.body;
+  for (let n = self ? node : node.parentElement; n && n !== body && n !== document.documentElement; n = n.parentElement)
+    if (scrollsItself(n) && n.scrollHeight > n.clientHeight + 1) return n as HTMLElement;
   return documentScroller();
 }
 
