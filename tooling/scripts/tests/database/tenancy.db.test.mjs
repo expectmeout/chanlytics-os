@@ -138,6 +138,9 @@ before(async () => {
   // and only the doors and the service role write.
   await seed("imports", { tenant_id: A, source: "calendar", state: "done" }, null);
   await seed("business_reads", { tenant_id: A, source: "website", facts: {} }, null);
+  // What the workspace said of a sender, and what its mailbox left (00483): members read theirs, the doors write.
+  await seed("mailbox_senders", { tenant_id: A, sender: "news.example", verdict: "automated" }, null);
+  await seed("mailbox_left", { tenant_id: A, address: "deals@news.example", why: "gmail_tab" }, null);
   await seed("escalations", { tenant_id: A, conversation_id: ctx.conversation, reason: "manual", details: "tenancy" });
   // Ask's reply drafted ahead on the thread (00475); the stranger's attempt is a brief, so one a thread and kind refuses
   // nothing on its own.
