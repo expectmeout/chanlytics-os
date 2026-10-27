@@ -817,6 +817,8 @@ button { cursor: pointer; background: none; border: none; padding: 0; }
 /* Scrollbar — quiet */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
+/* Where a box scrolls both ways (People's table) the two bars meet; left unstyled, that square is white in the dark. */
+::-webkit-scrollbar-corner { background: transparent; }
 ::-webkit-scrollbar-thumb {
   background: var(--line-strong);
   border-radius: 999px;

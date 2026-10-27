@@ -41,6 +41,24 @@ export const plFirstDir = (columns: readonly Pick<AnyColumn, "key" | "sortFirst"
   columns.find((c) => c.key === key)?.sortFirst ?? "desc";
 
 /**
+ * The order a desk's table stands in, one its member can see: their sort while its column shows, else the page's first
+ * sort, else the first column shown that sorts, each its own way; it comes back with its column. People read "Sorted by
+ * next step" over a table with no Next step (27 Oct 2026). `shown` is the desk's columns drawn; `all`, every one it has.
+ */
+export const plSortShown = (
+  shown: readonly ColumnLike[],
+  all: readonly Pick<AnyColumn, "key" | "sortFirst">[],
+  chosen: { by: string; dir: string },
+  first: { by: string; dir: string },
+): { by: string; dir: string } => {
+  const keys = plSortKeys(shown);
+  if (keys.includes(chosen.by) || !keys.length) return chosen;
+  if (keys.includes(first.by)) return first;
+  const [by] = keys;
+  return by === undefined ? chosen : { by, dir: plFirstDir(all, by) };
+};
+
+/**
  * The columns a desktop draws: every one this workspace can show (Visits needs a calendar) that the member has not
  * turned off. A phone draws one card a row instead (PL_PHONE_COLUMNS), whatever was chosen, so a member's choices are a
  * desktop's and a card keeps the facts it draws by default.

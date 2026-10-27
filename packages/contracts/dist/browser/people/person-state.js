@@ -6,8 +6,7 @@ import {
   standingOf
 } from "../conversations/standing.js";
 import { isOptedOutContact, STOP_WORDS } from "../consent/consent.js";
-import { ts } from "./person-helpers.js";
-import { firstContactOf } from "./person-row-facts.js";
+import { firstContactOf, heardAt } from "./person-row-facts.js";
 export const PERSON_STATE_LABELS = {
   needs_you: NEEDS_YOU_WORD,
   waiting_on_you: HELD_WORDS.yours.pill,
@@ -45,10 +44,7 @@ export function attentionOf(r, nowMs, viewerId = null) {
   if (v.standing === "needs_you" || replyWaitsOnYou({ queued: !!r.queued_reply_at }, nowMs)) return "needs_you";
   return v.takenOver ? "waiting_on_you" : null;
 }
-export function heardAt(r) {
-  const at = [ts(r.last_inbound_at), ts(r.last_inbound_call_at ?? null)].filter((x) => x !== null);
-  return at.length ? Math.max(...at) : null;
-}
+export { heardAt };
 export function holderOf(r, nowMs, viewerId) {
   const v = personStanding(r, nowMs, viewerId);
   return v.claimedByOther ? "theirs" : v.takenOver ? viewerId ? "yours" : "someone" : null;

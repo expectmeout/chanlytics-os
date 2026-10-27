@@ -17736,6 +17736,34 @@ interface SeenReading {
 /** A row's reading, from when its person was last heard from and what the read said of the member's marks. */
 declare function readingOf(heardAt: string | number | null | undefined, seen: SeenOf): SeenReading;
 
+/** "just now" · "5m ago" · "3h ago" · "2d ago", the business's date past a week — the one family (time.ts, clock.ts). */
+declare function ago(ms: number, tz: string, nowMs: number): string;
+interface PersonLastContact {
+    ts: number | null;
+    at: string | null;
+    kind: "message" | "call" | null;
+    who: "they" | "receptionist" | "team" | "system" | null;
+    /**
+     * Who spoke: "They wrote", "Receptionist replied", "Your team replied", "Phoned", "We called"; "No contact recorded"
+     * with none; "Receptionist wrote" and "Your team wrote" to someone never heard from, as nothing was replied to. A
+     * person's reply is the team's, never "You": the row does not say which member sent it (messageAuthor).
+     */
+    by: string;
+    /** How long ago: "2h ago", the business's date past a week; empty with none. The table's first line (8 Oct 2026). */
+    when: string;
+    /** "They wrote · 2h ago": by and when, the one sentence the CSV and a phone's card say. */
+    label: string;
+}
+interface PersonFirstContact {
+    ts: number | null;
+    /** "Jul 14", "Before Aug 27", or "—" */
+    label: string;
+    /** True when the only history is an undated import: we know a floor, not a date. */
+    estimate: boolean;
+    /** True when this date may count as "new" (no imported history). */
+    evidence: boolean;
+}
+
 type PersonState = "needs_you" | "waiting_on_you" | "opted_out" | "new" | "quiet" | "active" | "unheard";
 /**
  * The words of each state, each from the constant that owns it so a word means one thing (D1-waiting-on-you): "Needs you"
@@ -17768,6 +17796,7 @@ declare function personStanding(r: StandingRow, nowMs: number, viewerId?: string
  * unknown so). People's Needs you and You have it lists, and the row's pill, are this.
  */
 declare function attentionOf(r: PersonRowDto, nowMs: number, viewerId?: string | null): "needs_you" | "waiting_on_you" | null;
+
 /** Who has a person's latest thread, as the member looking is told it: they do, a teammate does, or a person not named. */
 type ThreadHolder = "yours" | "theirs" | "someone";
 /**
@@ -19581,33 +19610,6 @@ interface PersonReceptionist {
  * the roster is unread or they have left the team, and then the words say "A teammate", never a name made up (heldPill).
  */
 type HolderNames = (userId: string) => string | null | undefined;
-
-/** "just now" · "5m ago" · "3h ago" · "2d ago", the business's date past a week — the one family (time.ts, clock.ts). */
-declare function ago(ms: number, tz: string, nowMs: number): string;
-interface PersonLastContact {
-    ts: number | null;
-    at: string | null;
-    kind: "message" | "call" | null;
-    who: "they" | "receptionist" | "team" | "system" | null;
-    /**
-     * Who spoke: "They wrote", "Receptionist replied", "Your team replied", "Phoned", "We called"; "No contact recorded"
-     * with none. A person's reply is the team's, never "You": the row does not say which member sent it (messageAuthor).
-     */
-    by: string;
-    /** How long ago: "2h ago", the business's date past a week; empty with none. The table's first line (8 Oct 2026). */
-    when: string;
-    /** "They wrote · 2h ago": by and when, the one sentence the CSV and a phone's card say. */
-    label: string;
-}
-interface PersonFirstContact {
-    ts: number | null;
-    /** "Jul 14", "Before Aug 27", or "—" */
-    label: string;
-    /** True when the only history is an undated import: we know a floor, not a date. */
-    estimate: boolean;
-    /** True when this date may count as "new" (no imported history). */
-    evidence: boolean;
-}
 
 /**
  * One reachability rule everywhere (One message, every channel, the review's item 7). A campaign reaches each person on

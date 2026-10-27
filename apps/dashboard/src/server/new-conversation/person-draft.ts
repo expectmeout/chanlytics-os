@@ -76,7 +76,9 @@ function shapeRules(input: PersonDraftInput): string[] {
   if (input.how === "call")
     return [
       "The owner will phone them. Leave `text` and `subject` empty and write the brief:",
-      "`opening`: the first sentence to say, naming the business.",
+      // Who phones is not known when the brief is written (Today's queue drafts it ahead), and a name may not be invented:
+      // the opening read "Hi, this is calling from Chanlytics" (27 Oct 2026).
+      '`opening`: the first sentence to say, naming the business. Who will phone is not known: name nobody, and leave no place for a name ("Hi, it\'s <the business>, returning your call").',
       "`points`: two to four things to say, each one short line.",
       "`avoid`: what to leave out, such as a price they were not given or anything the facts do not support.",
       "`ask`: the one thing to ask for.",

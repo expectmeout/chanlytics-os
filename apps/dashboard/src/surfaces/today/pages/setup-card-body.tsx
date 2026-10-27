@@ -14,6 +14,7 @@ import { SetupRows } from "../../setup/rows/rows";
 import { setupVerbs, type SetupSurface } from "../../setup/surface";
 import { appNavigate, refusalFlash, useToast, type Flash } from "../shell";
 import { useNeedsYou } from "../../needs-you";
+import { useQueueHoldsCoral } from "../queue-coral";
 
 /**
  * While a step is open: the one row that opens the first run. Its act is the page's coral while nobody waits on the
@@ -99,13 +100,19 @@ function remindRow(
 }
 
 /** After: Setup's own optional rows, each with its Skip, and the reminder's row under them. */
-function optionalRows(S: SetupSurface, card: SetupCardVM, flash: (flash: Flash) => void, tail: ReactNode) {
+function optionalRows(
+  S: SetupSurface,
+  card: SetupCardVM,
+  flash: (flash: Flash) => void,
+  { tail, quiet }: { tail: ReactNode; quiet: boolean },
+) {
   return (
     <SetupRows
       S={S}
       rows={card.rows}
       look="card"
-      primary={card.rows[0]?.id ?? null}
+      // The first row's act is the coral while nobody waits, as the first run's row is (startRow).
+      primary={quiet ? null : (card.rows[0]?.id ?? null)}
       left={card.left}
       // Going live, the rows that need the owner can't be skipped: they are Go live's (the code, WhatsApp).
       later={card.skip ?? { put: "" }}
@@ -126,8 +133,11 @@ function optionalRows(S: SetupSurface, card: SetupCardVM, flash: (flash: Flash) 
 export const TodaySetupCard = ({ S }: { S: SetupSurface }) => {
   // The card's toast, lent to its rows: a Skip or a Hide can take the card away while its Undo is still up.
   const [toastNode, flash] = useToast();
-  // Anyone waiting on the owner (surfaces/needs-you.ts): the queue then holds the page's coral.
-  const waiting = (useNeedsYou() ?? 0) > 0;
+  // Anyone waiting on the owner (surfaces/needs-you.ts), or any row the queue drew with its coral (a step due, a visit to
+  // mark: queue-coral.ts): the queue then holds the page's coral. The count alone is known before the queue draws.
+  const needs = (useNeedsYou() ?? 0) > 0;
+  const queued = useQueueHoldsCoral();
+  const waiting = needs || queued;
   const card = FIRST_RUN_HELPERS.todayCard(S.vm, setupWhoOf(S));
   if (!card) return toastNode;
   const nav = (to: string) => appNavigate(to);
@@ -169,14 +179,13 @@ export const TodaySetupCard = ({ S }: { S: SetupSurface }) => {
       {card.start ? startRow(card.start, card.left, nav, waiting) : null}
       {card.start
         ? ticks(SETUP_CARD_WORDS.keptTitle, card.kept, "today-setup-kept")
-        : optionalRows(
-            S,
-            card,
-            flash,
-            remind && card.skip
-              ? remindRow(remind, card.skip, nav, () => void putAway([remind.id], remind.said))
-              : null,
-          )}
+        : optionalRows(S, card, flash, {
+            tail:
+              remind && card.skip
+                ? remindRow(remind, card.skip, nav, () => void putAway([remind.id], remind.said))
+                : null,
+            quiet: waiting,
+          })}
       {ticks(SETUP_CARD_WORDS.doneTitle, card.done, "today-setup-done")}
       {toastNode}
     </section>

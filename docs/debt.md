@@ -364,7 +364,7 @@ inline style props                   67   in 37 files
 wire names not in snake_case         54   in 27 routes
 dead exports, types and modules     253
 source-text reads in tests          734
-lint warnings                       276   in 123 files, 33 of them exhaustive-deps
+lint warnings                       274   in 123 files, 33 of them exhaustive-deps
 route JS ceiling, KB gzipped       1024   the shell included
 route CSS ceiling, KB gzipped       192
 each page's own JS ceiling, KB      256   gzipped, beyond the route

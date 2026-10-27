@@ -267,6 +267,8 @@
               color var(--duration-fast) var(--ease-out);
   position: relative;
   white-space: nowrap;
+  /* A place is a link (sidebar.tsx): it keeps the row's ink, never a link's underline. */
+  text-decoration: none;
 }
 @media (hover: hover) { .nav-item:hover { color: var(--ink); } }
 .nav-item.active {
@@ -2002,6 +2004,13 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   background: var(--selected-fill);
   box-shadow: var(--selected-depth);
   font-weight: var(--weight-semibold);
+}
+/* A place is a link Tab reaches (sidebar.tsx): its ring over the lit row's depth, which took the house's (the :where()
+   rule is zero specificity). */
+.nav-item:focus-visible,
+.nav-item.urgent.active:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 /* On the light side the picked place's glyph is the tab's coral, as the phone's tab bar lights its picked place (kit.css
    .tab-bar-glyph); the dark side keeps its white lozenge alone. */

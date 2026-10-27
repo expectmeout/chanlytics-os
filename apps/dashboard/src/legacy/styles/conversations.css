@@ -160,7 +160,7 @@
 .cv-row-at { font-size: 10.5px; color: var(--ink-dim); flex-shrink: 0; }
 /* On a desk the name keeps its words and the pill gives way (StatePill fit): the line is 278px beside a thread, and
    "Robin Exa…" stood beside a whole "Receptionist replied". A name longer than two thirds of the line still ends in an
-   ellipsis; the pill stands at the line's end, by the time, as it did. */
+   ellipsis; the pill stands at the line's end, by the time, its words there when they fit and its dot alone when not. */
 @media (width > 900px) {
   .cv-row-who {
     flex: none;
@@ -168,7 +168,7 @@
   }
   .cv-row-state {
     flex: 1 1 auto;
-    text-align: right;
+    justify-content: flex-end;
   }
 }
 .cv-row-snippet {

@@ -158,8 +158,8 @@
     "jsx-a11y-x/interactive-supports-focus": 1
   },
   "apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx": {
-    "jsx-a11y-x/click-events-have-key-events": 3,
-    "jsx-a11y-x/no-static-element-interactions": 3
+    "jsx-a11y-x/click-events-have-key-events": 2,
+    "jsx-a11y-x/no-static-element-interactions": 2
   },
   "apps/dashboard/src/surfaces/frame/topbar/bell-demo-acts.tsx": {
     "react-hooks/exhaustive-deps": 1

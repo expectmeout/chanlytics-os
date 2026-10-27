@@ -11,6 +11,10 @@ export function theirTurnWords(last) {
   if (last.who !== "they") return null;
   return last.kind === "call" ? "they called last" : "they wrote last";
 }
+export function heardAt(r) {
+  const at = [ts(r.last_inbound_at), ts(r.last_inbound_call_at ?? null)].filter((x) => x !== null);
+  return at.length ? Math.max(...at) : null;
+}
 export function lastContactOf(r, tz, nowMs) {
   const m = ts(r.last_message_at);
   const k = ts(r.last_call_at);
@@ -40,7 +44,8 @@ export function lastContactOf(r, tz, nowMs) {
     };
   }
   const who = r.last_message_direction === "inbound" ? "they" : r.last_message_sender === "human" ? "team" : r.last_message_sender === "ai" ? "receptionist" : "system";
-  const verb = who === "they" ? "They wrote" : who === "team" ? "Your team replied" : who === "receptionist" ? "Receptionist replied" : "We sent";
+  const answered = heardAt(r) !== null;
+  const verb = who === "they" ? "They wrote" : who === "team" ? answered ? "Your team replied" : "Your team wrote" : who === "receptionist" ? answered ? "Receptionist replied" : "Receptionist wrote" : "We sent";
   const when = ago(m, tz, nowMs);
   return { ts: m, at: r.last_message_at, kind: "message", who, by: verb, when, label: `${verb} \xB7 ${when}` };
 }

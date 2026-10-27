@@ -12,7 +12,7 @@
  * a count badge over a list that already says its count. The seed left with the mockup's stand-in: the mockup drew
  * this page from its sample (legacy-bridge/today-sample.ts), which is gone.
  */
-import { useEffect, useState, type ReactElement } from "react";
+import { useEffect, useLayoutEffect, useState, type ReactElement } from "react";
 import {
   DEFAULT_TIMEZONE,
   NEED_YOU_WORDS,
@@ -35,6 +35,7 @@ import { needsYouOnToday, useNeedsYouParts } from "../../needs-you";
 import { surfaceValue } from "../../surface-values";
 import { usePartShown } from "../../use-surface";
 import { askMorningOverride } from "../ask-morning-surface";
+import { queueHoldsCoral } from "../queue-coral";
 import { TODAY_HELPERS } from "../helpers";
 import { appNavigate, canDo, doorGlyph, surfaceFailed, useMoved, useToast, workspaceClock } from "../shell";
 import { useDayVm } from "./day";
@@ -407,6 +408,12 @@ const TodayQueue = ({ vm }: { vm: TodayVM }) => {
     count: runsCount,
     cut: runsCut,
   } = waitRows({ nav, flash: ppFlash, verbKind, acting }, Math.max(0, CARD_MAX - drawn.length));
+  // Every row has asked for its act by now: whether one took the coral, for the setup card above (queue-coral.ts).
+  const holdsCoral = !primaryLeft;
+  useLayoutEffect(() => {
+    queueHoldsCoral(holdsCoral);
+  }, [holdsCoral]);
+  useLayoutEffect(() => () => queueHoldsCoral(false), []);
   const parts = needsYouOnToday(vm, live);
   // What the card could not hold is counted, never dropped: the rows past the cap and the ones the view
   // model already counted for the Inbox are the same kind of thing to a reader. The PEOPLE among them, since the foot
