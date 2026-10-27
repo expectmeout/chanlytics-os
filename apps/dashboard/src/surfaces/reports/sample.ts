@@ -584,6 +584,7 @@ const BOOK_WIRES: Readonly<Record<keyof PeopleNowDto["wires"], number>> = {
   sms_only: 5,
   phone_only: 10,
   email_only: 7,
+  instagram_only: 0,
   several: 16,
   none: 4,
 };

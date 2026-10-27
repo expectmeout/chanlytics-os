@@ -12,6 +12,7 @@
  * | their own message, on WhatsApp       | WhatsApp               | WhatsApp                                                 |
  * | their own message, by text           | text                   | WhatsApp, and text (a text's is refused at send)         |
  * | their own message, by email          | email                  | (not here: see below)                                    |
+ * | their own message, by Instagram DM   | (none; lifts a stop)   | (none)                                                   |
  * | the sign-up page or the signed form  | WhatsApp and text      | WhatsApp                                                 |
  * | the phone, by the spoken script      | WhatsApp and text      | (never: a yes to offers is in writing)                   |
  * | in person, or set by the team        | WhatsApp               | (never)                                                  |
@@ -57,6 +58,9 @@ export function channelsOfYes(
   source: string | null | undefined,
   channel: string | null | undefined,
 ): ConsentChannel[] {
+  // Their own yes in an Instagram DM covers no wire a conversation is started on (00486): Instagram lets a business start
+  // none, and a DM is no yes for a wire it did not come on. It lifts their stop all the same: that is the consent's.
+  if (source === "customer_message" && channel === "instagram") return [];
   // Their own YES OFFERS by text: offers go by WhatsApp alone, so it covers WhatsApp too, WhatsApp first. (The same
   // answer for the email channel, which the database's table gives and no door asks: the header says why.)
   if (purpose === "marketing" && source === "customer_message" && (channel === "sms" || channel === "email"))

@@ -275,9 +275,18 @@ const REFERRAL_KIND = /^[\p{L}\p{N}_-]{1,32}$/u;
  */
 function adReferralOf(r: unknown): NormalizedInbound["referral"] {
   if (typeof r !== "object" || r === null) return null;
-  const id = "source_id" in r && typeof r.source_id === "string" ? r.source_id.trim() : "";
+  return storableReferral("source_id" in r ? r.source_id : null, "source_type" in r ? r.source_type : null);
+}
+
+/**
+ * A referral's id and kind as a message may carry them, by the rules above: the id trimmed and kept only when it can
+ * always be written, the kind only when it is a plain word. Every wire's adapter reads its own referral through this
+ * one rule (an Instagram DM's ad or link too, instagram/instagram-events.ts). Never throws.
+ */
+export function storableReferral(rawId: unknown, rawKind: unknown): NormalizedInbound["referral"] {
+  const id = typeof rawId === "string" ? rawId.trim() : "";
   if (id.length < 1 || id.length > REFERRAL_ID_MAX || UNSTORABLE_IN_ID.test(id)) return null;
-  const kind = "source_type" in r && typeof r.source_type === "string" ? r.source_type.trim() : "";
+  const kind = typeof rawKind === "string" ? rawKind.trim() : "";
   return { sourceId: id, sourceType: REFERRAL_KIND.test(kind) ? kind : null };
 }
 
@@ -418,7 +427,7 @@ export function normalizeInbound(m: WaRawMessage, value: WaChangeValue): Normali
  * A WhatsApp message as the one inbound shape (inbound.ts, decision 0001): the normaliser's reading of it, on its wire,
  * by its person. The sender's id is their identity on WhatsApp, and the digits Meta sent it from their number.
  */
-export function inboundFromWhatsapp(m: WaRawMessage, value: WaChangeValue): InboundMessage {
+export function inboundFromWhatsapp(m: WaRawMessage, value: WaChangeValue): InboundMessage & { channel: "whatsapp" } {
   const n = normalizeInbound(m, value);
   return {
     channel: "whatsapp",
@@ -494,6 +503,8 @@ export interface SendResult {
   errorBody?: string;
   /** The provider's own error code when it gives one: a text's carrier says 21610 for a person who opted out (sms.ts smsRefusalOf). */
   code?: number | null;
+  /** Graph's error_subcode, where it gives one: Instagram's refusal of a DM outside its window is code 10, subcode 2018278. */
+  subcode?: number | null;
   /**
    * A person's email reply only (core emailSender): whether it left by the connected mailbox it was frozen with, or as
    * the workspace's hosted mailbox's request, and why not by its own when it could not.

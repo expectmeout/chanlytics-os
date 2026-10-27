@@ -36,7 +36,7 @@ export interface Turn {
 
 /** Who this person is and their visits, for the model; nothing when they cannot be read, which is never fatal. */
 async function leadNoteFor(at: Answering): Promise<string | undefined> {
-  const { db, tenantId, from, ports, rt, L, channel, ing } = at;
+  const { db, tenantId, from, ports, rt, L, channel, ing, n } = at;
   // The same description the voice agent is given, from the same reader.
   // One receptionist means one account of who this person is — not a name
   // on the phone and an anonymous stranger over text.
@@ -46,9 +46,14 @@ async function leadNoteFor(at: Answering): Promise<string | undefined> {
   let leadNote: string | undefined;
   if (db && tenantId) {
     try {
-      const e164 = from.startsWith("+") ? from : `+${from}`;
+      // A wire with no number (a DM) knows its person by the row ingest found for them, never by a number.
+      const byRow = !n.identity.phoneE164 && ing?.contact_id && ports.leads.readById ? ing.contact_id : null;
+      const e164 = byRow ? null : from.startsWith("+") ? from : `+${from}`;
       // The message being answered is not their history: it was stored before they were read.
-      const lead = await ports.leads.read(db, tenantId, e164, 1, ing?.message_id);
+      const lead =
+        byRow && ports.leads.readById
+          ? await ports.leads.readById(db, tenantId, byRow, 1, ing?.message_id)
+          : await ports.leads.read(db, tenantId, e164 ?? from, 1, ing?.message_id);
       // The conversation's channel rides along: the prompt says WhatsApp even on a text, and the ask for the yes to offers
       // is for WhatsApp alone (contracts offers-ask.ts).
       leadNote = ports.leads.describe(lead, new Date(), rt?.timezone ?? "UTC", channel);

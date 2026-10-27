@@ -1,8 +1,7 @@
 /**
  * SMS on a Chanlytics line, the pure parts: Twilio's inbound webhook read
- * into one shape, that shape handed to the WhatsApp handler as the message
- * it already knows how to answer, or made into the one inbound shape without
- * it (inboundFromSms, decision 0001), the signature every inbound request must
+ * into one shape and made into the one inbound shape the receptionist reads
+ * (inboundFromSms, decision 0001), the signature every inbound request must
  * carry, the footer the first reply carries, and the words a held text
  * shows. Nothing here touches the network; the edge supplies fetch and the
  * vault, the tests supply fixtures.
@@ -22,7 +21,6 @@ import {
   type LineCodeDto,
 } from "@chanlytics/contracts";
 import type { ReceivedText } from "./lines";
-import type { NormalizedInbound, WaRawMessage } from "../whatsapp";
 import type { InboundMessage } from "../inbound";
 import { asksToStop } from "../stop-request";
 
@@ -67,20 +65,6 @@ export function smsInboundFrom(form: Record<string, string>): SmsInbound | null 
   };
 }
 
-/**
- * The inbound text as the WhatsApp handler's message. Words are words; a
- * picture with words is answered for its words and the picture is noted; a
- * picture alone is "unsupported", which the handler acknowledges as it does
- * a sticker. The sender's digits are the thread key, the same form a
- * WhatsApp id takes, so one person is one thread across both channels.
- */
-export function smsAsWaMessage(s: SmsInbound, nowMs = Date.now()): WaRawMessage {
-  const words = textWithPictures(s);
-  const base = { from: senderDigits(s), id: s.messageSid, timestamp: String(Math.floor(nowMs / 1000)) };
-  if (words) return { ...base, type: "text", text: { body: words } };
-  return { ...base, type: s.numMedia > 0 ? "image" : "unsupported" };
-}
-
 /** The sender's digits: the thread key, the same form a WhatsApp id takes, so one person is one thread on both wires. */
 const senderDigits = (s: SmsInbound): string => s.from.replace(/[^\d]/g, "");
 
@@ -92,13 +76,14 @@ function textWithPictures(s: SmsInbound): string | null {
 }
 
 /**
- * The inbound text as the one inbound shape (inbound.ts, decision 0001), read from Twilio's fields with no WhatsApp
- * message on the way, and exactly what that road made of it (smsAsWaMessage, the normaliser, the carrier's verdict).
- * Words are a text; a picture alone, or nothing, is "unsupported", which the receptionist acknowledges as it does a
- * sticker. It came the second it reached us. A stop is the carriers' own words for a line, which hold every word and
- * sentence the normaliser reads as one and more (stop-request.ts), or the carrier's verdict, which outranks the words.
+ * The inbound text as the one inbound shape (inbound.ts, decision 0001), read from Twilio's fields. Words are a text,
+ * and a picture with words is answered for its words with the picture noted; a picture alone, or nothing, is
+ * "unsupported", which the receptionist acknowledges as it does a sticker. The sender's digits are their id, the same
+ * form a WhatsApp id takes, so one person is one thread across both wires. It came the second it reached us. A stop is
+ * the carriers' own words for a line, which hold every word and sentence the normaliser reads as one and more
+ * (stop-request.ts), or the carrier's verdict, which outranks the words.
  */
-export function inboundFromSms(s: SmsInbound, nowMs = Date.now()): InboundMessage {
+export function inboundFromSms(s: SmsInbound, nowMs = Date.now()): InboundMessage & { channel: "sms" } {
   const digits = senderDigits(s);
   const body = textWithPictures(s);
   const carrier = mergeConsent(carrierConsent(s), smsKeywordConsent(s.body));
@@ -157,12 +142,6 @@ export function mergeConsent(a: CarrierConsent | null, b: CarrierConsent | null)
   if (!a) return b;
   if (!b) return a;
   return { optOut: a.optOut || b.optOut, optIn: a.optIn || b.optIn };
-}
-
-/** The normalized message with the carrier's verdict added to its own. Either source is enough. */
-export function withCarrierConsent(n: NormalizedInbound, c: CarrierConsent | null): NormalizedInbound {
-  if (!c) return n;
-  return { ...n, optOut: n.optOut || c.optOut, optIn: n.optIn || c.optIn };
 }
 
 /* ---- A one-time code texted to a line by some other service ---- */

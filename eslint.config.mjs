@@ -391,6 +391,7 @@ export const LIMITED_TREES = [
   "apps/edge/lib/email",
   "apps/edge/lib/google",
   "apps/edge/lib/imports",
+  "apps/edge/lib/instagram",
   "apps/edge/lib/intake",
   "apps/edge/lib/lines",
   "apps/edge/lib/ops",

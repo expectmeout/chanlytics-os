@@ -21,6 +21,7 @@ import {
   type PurposeBearing,
 } from "../consent/consent";
 import { CONSENT_CHANNELS, CONSENT_CHANNEL_WORDS, type ConsentChannel } from "../consent/consent-channels";
+import type { WrittenChannel } from "../conversations/thread-channel";
 import { STOP_WORDS } from "../consent/consent";
 import { replyWindow } from "../config/policy";
 import type { ChannelsReady } from "../broadcasts/reach-for";
@@ -198,7 +199,7 @@ export function defaultWriteWire(
 }
 
 /** Why a message cannot go by this wire now, in the sheet's own words; null where it can (a person's page's More). */
-export function wayOff(ways: readonly WriteWay[], wire: ConsentChannel): string | null {
+export function wayOff(ways: readonly WriteWay[], wire: WrittenChannel): string | null {
   const w = ways.find((x) => x.wire === wire);
   return w && !w.ok ? (w.why ?? WRITE_WAY_REFUSED) : null;
 }

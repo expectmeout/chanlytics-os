@@ -1,6 +1,6 @@
 /**
  * The message path: one inbound customer message, from the tenant's runtime
- * to a reply, a hold or a handoff. WhatsApp and text both, and the verb the
+ * to a reply, a hold or a handoff. WhatsApp, text and Instagram DMs alike, and the verb the
  * doors' adapters call (apps/edge/lib/whatsapp/inbound.ts).
  *
  * This file is the order, and only the order: each step is a function in a
@@ -37,61 +37,43 @@ import { tooLate, confirmedYes, heldForThePerson } from "./reply-gates";
 import { modelTurn } from "./model-turn";
 import { planTheHold, heldOrKept, sendNow } from "./dispatch";
 import { claimTheTurn, stillOurs } from "./turn";
-// TYPES ONLY: the normalised message is the channels package's shape and this
-// verb speaks it. A VALUE from channels would be a provider inside a verb —
-// that is a port, not a widening (hygiene.test.mjs).
-import type { CarrierConsent, InboundMessage, NormalizedInbound, SendResult } from "@chanlytics/channels";
+// TYPES ONLY: the one inbound shape is the channels package's, and this verb speaks it. A VALUE from channels would be a
+// provider inside a verb — that is a port, not a widening (hygiene.test.mjs).
+import type { InboundMessage, SendResult } from "@chanlytics/channels";
 import type { IngestResult, RoutedChannel } from "@chanlytics/db";
-import type { InboundPorts } from "./ports";
+import type { InboundChannel, InboundPorts } from "./ports";
 
 /**
- * A channel other than WhatsApp riding the same road. It says how a reply
- * goes out, what the words become on its wire (a text's first reply to a
- * person carries the footer), and whether every message is held for a
- * person for now (a line the carriers have not approved for texting).
- * Null = WhatsApp, on the tenant's credentials, as before.
+ * A channel other than WhatsApp riding the same road: a texting line, or an Instagram account's DMs. It says how a reply
+ * goes out, what the words become on its wire (a text's first reply to a person carries the footer; a DM's are as
+ * written), and whether every message is held for a person for now (a line the carriers have not approved for texting).
+ * Null = WhatsApp, on the tenant's credentials, as before. What the person said about being written to is the message's
+ * own (InboundMessage.consent): the carrier's verdict is read into it by the text's adapter.
  */
-export interface InboundCarrier {
-  channel: "sms";
+export interface InboundCarrier<C extends CarriedChannel = CarriedChannel> {
+  channel: C;
   /** The provider's answer, its own code with it: the door tells the carrier's no on the person's behalf (21610) from a failure of ours. */
   send(to: string, body: string): Promise<SendResult>;
   body(text: string, isFirstReply: boolean): string;
   held: { reason: string; details: string } | null;
-  /** What the carrier itself decided about the text: its STOP or START outranks our reading of the words. */
-  consent?: CarrierConsent | null;
 }
 
-/**
- * The raw fields this body still reads off the provider's own shape: the message id and the sender for the log envelope
- * and the wire, the raw type for the words an owner reads ("Customer sent a sticker message"), and the provider's
- * timestamp for the staleness check. Everything else is read from the normalised record.
- */
-export interface InboundRaw {
-  id: string;
-  from: string;
-  type: string;
-  timestamp: string | number | null;
-}
+/** The wires a carrier brings a message in on: every inbound wire but WhatsApp, which rides the tenant's credentials. */
+export type CarriedChannel = Exclude<InboundChannel, "whatsapp">;
 
 /**
- * One inbound message, as the door's adapter hands it over, in either shape for one release (decision 0001, step 2):
- * WhatsApp's normalised message with the raw fields it still reads, as the doors hand it today, or the one inbound shape
- * (channels InboundMessage), which ./context.ts converts where it enters. A message in the one shape says its own wire,
- * and its carrier is that wire's: none for WhatsApp, the line's for a text.
+ * One inbound message, as its door hands it over (decision 0001, step 3): in the one inbound shape (channels
+ * InboundMessage), made by its wire's own adapter, with the carrier of that wire: none for WhatsApp, the line's for a
+ * text, the account's for a DM (step 8).
  */
 export type InboundInput = InboundAt &
   (
-    | {
-        /** withCarrierConsent(normalizeInbound(m, value), carrier?.consent ?? null), done by the adapter. */
-        message: NormalizedInbound;
-        raw: InboundRaw;
-        carrier: InboundCarrier | null;
-      }
     | { inbound: InboundMessage & { channel: "whatsapp" }; carrier: null }
-    | { inbound: InboundMessage & { channel: "sms" }; carrier: InboundCarrier }
+    | { inbound: InboundMessage & { channel: "sms" }; carrier: InboundCarrier<"sms"> }
+    | { inbound: InboundMessage & { channel: "instagram" }; carrier: InboundCarrier<"instagram"> }
   );
 
-/** Where a message arrived, whatever shape it came in. */
+/** Where a message arrived. */
 interface InboundAt {
   tenantId: string | null;
   routed: RoutedChannel | null;

@@ -16,7 +16,7 @@ import { DOUBT_WORDS, type DoubtSeen } from "./person-doubts";
 import { personName } from "./person-name";
 import { formatPhoneDisplay } from "../shared/phone";
 import type { HolderNames, PersonMode } from "./person-receptionist";
-import { mayReach, type PersonProposalVM, proposalAction } from "./person-reach";
+import { DM_CLOSED, mayReach, type PersonProposalVM, proposalAction } from "./person-reach";
 import type { PersonRowVM } from "./person-row";
 import { campaignsOf, inSequencesOf, ts } from "./person-helpers";
 import { personNotesVM, type PersonNoteTeamDto, type PersonNoteVM } from "../notes/person-notes";
@@ -312,6 +312,8 @@ export const PERSON_DELETE_WORDS = {
  */
 function threadOff(p: Omit<PersonVM, "acts" | PersonPageKeys>): string | null {
   if (!p.openThread) return PERSON_ACT_WORDS.noThread;
+  // A DM is no way a conversation begins: it goes into their thread while Instagram's day is open, and nothing goes after.
+  if (p.replyVia === "Instagram") return p.replyWindow && !p.replyWindow.open ? DM_CLOSED : null;
   return p.replyVia ? wayOff(p.ways, REPLY_WIRE[p.replyVia]) : null;
 }
 

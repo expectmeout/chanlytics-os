@@ -1,7 +1,7 @@
 {
-  "rows": 147,
+  "rows": 148,
   "same": 6,
-  "differ": 141,
+  "differ": 142,
   "writes": {
     "DELETE ask/memory/[id]": {
       "changes": "ask_memory_lines INSERT UPDATE"
@@ -464,6 +464,14 @@
       "changes": "capability_activations INSERT UPDATE",
       "doors": "billing_accounts · business_reads · business_records · contacts · conversations · google_connections · google_listings · google_reviews · imports · leads · lines · mailbox_connections · mailbox_left · messages · notifications · person_doubts · tenant_channels · tenant_config · tenants"
     },
+    "POST channels/instagram/disconnect": {
+      "changes": "",
+      "doors": "tenant_channels",
+      "door": {
+        "channels": "every page",
+        "setup": "every page"
+      }
+    },
     "POST channels/whatsapp/connect": {
       "changes": "",
       "doors": "imports · tenant_channels",
@@ -556,7 +564,7 @@
       }
     },
     "POST contacts/[id]/merge": {
-      "changes": "appointments UPDATE · calls UPDATE · contacts UPDATE · conversations DELETE UPDATE · deals UPDATE · escalations UPDATE · leads UPDATE · messages UPDATE · notifications UPDATE · person_notes UPDATE · policies DELETE INSERT UPDATE · reply_turns DELETE UPDATE · segment_members DELETE INSERT · sequence_enrollments INSERT UPDATE · sequence_replies UPDATE · sequence_sends UPDATE",
+      "changes": "appointments UPDATE · calls UPDATE · contacts UPDATE · conversation_channel_state INSERT UPDATE · conversations DELETE UPDATE · deals UPDATE · escalations UPDATE · leads UPDATE · messages UPDATE · notifications UPDATE · person_notes UPDATE · policies DELETE INSERT UPDATE · reply_turns DELETE UPDATE · segment_members DELETE INSERT · sequence_enrollments INSERT UPDATE · sequence_replies UPDATE · sequence_sends UPDATE",
       "tells": "contacts · notifications",
       "extra": {
         "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"

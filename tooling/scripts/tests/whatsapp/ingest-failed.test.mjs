@@ -15,20 +15,20 @@ const { pgIngest, IngestFailed } = await import(
   pathToFileURL(path.join(ROOT, "apps/edge/lib/whatsapp/persist.ts")).href
 );
 
+/** A WhatsApp message in the one inbound shape, as its door hands it over (decision 0001, step 3). */
 const n = {
-  waId: "13475550101",
-  phoneDigits: "13475550101",
+  channel: "whatsapp",
+  externalId: "wamid.1",
+  identity: { externalId: "13475550101", phoneE164: "+13475550101", email: null },
   profileName: "Dana",
-  messageId: "wamid.1",
   type: "text",
   kind: "text",
   rawType: "text",
   body: "hi",
   channelTsIso: null,
   media: null,
-  optOut: false,
-  optIn: false,
-  optInMarketing: false,
+  consent: { optOut: false, optIn: false, optInMarketing: false },
+  referral: null,
 };
 const row = {
   message_id: "m1",

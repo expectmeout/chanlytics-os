@@ -22,7 +22,7 @@ import { clockDate } from "../../shared/clock";
 import { OFFERS_OPT_IN_PHRASES } from "../../shared/enums";
 
 /** The channel of the conversation a note about a person is read in. */
-export type LeadChannel = "whatsapp" | "sms" | "voice";
+export type LeadChannel = "whatsapp" | "sms" | "instagram" | "voice";
 
 /**
  * The facts, one sentence each. Built inside a call marked pure: a table with a function in it is an expression the
@@ -34,6 +34,7 @@ const FACT = /* @__PURE__ */ (() => ({
   never: "Has not been asked for the yes to offers.",
   asked: (on: string | null) => `Asked for the yes to offers${on ? ` on ${on}` : ""}; has not said it.`,
   text: "This conversation is by text message, not WhatsApp.",
+  dm: "This conversation is by Instagram direct message, not WhatsApp.",
 }))();
 
 /**
@@ -66,6 +67,7 @@ export function offersFacts(
 ): string[] {
   const out: string[] = [];
   if (channel === "sms") out.push(FACT.text);
+  if (channel === "instagram") out.push(FACT.dm);
   const asked = p.offersAskedAt;
   // Offers go by WhatsApp, so a yes counts where it covers WhatsApp (yesCovers, the one reading of a row's channels): a
   // yes kept for text alone is not said on WhatsApp, and reads like no answer yet.

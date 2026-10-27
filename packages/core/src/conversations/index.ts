@@ -18,6 +18,7 @@ export {
   IDEMPOTENCY_WINDOW_MS,
   HOLD_EXPIRY_MS,
   REPLY_IN_PROGRESS_REFUSAL,
+  DM_WINDOW_CLOSED_REFUSAL,
 } from "./reply";
 export type {
   ReplyBody,

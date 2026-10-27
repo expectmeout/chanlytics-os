@@ -669,6 +669,7 @@ apps/edge/lib/
   email/
   google/
   imports/
+  instagram/
   intake/
   leads/
   lines/
@@ -744,6 +745,7 @@ apps/mobile/src/
 packages/channels/src/
   email/
   google/
+  instagram/
   leads/
   lines/
   log/

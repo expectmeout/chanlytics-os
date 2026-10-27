@@ -39,6 +39,14 @@ export interface InboundPorts extends Omit<CoreInboundPorts, "log" | "waCfg" | "
   runtime: typeof loadTenantRuntime;
   leads: {
     read: typeof readLeadContext;
+    /** By the person's own row, for a wire with no number (a DM); a test's world may leave it out. */
+    readById?: (
+      db: SupabaseClient<Database>,
+      tenantId: string,
+      contactId: string,
+      historyLimit?: number,
+      answering?: string,
+    ) => ReturnType<typeof readLeadContext>;
     personReplyMode: typeof personReplyMode;
     offersAnswer?: typeof offersAnswerOf;
   };
@@ -100,7 +108,13 @@ export function realPorts(): InboundPorts {
   return {
     db: pg,
     runtime: loadTenantRuntime,
-    leads: { read: readLeadContext, personReplyMode, offersAnswer: offersAnswerOf },
+    leads: {
+      read: readLeadContext,
+      readById: (db, tenantId, contactId, limit, answering) =>
+        readLeadContext(db, tenantId, { contactId }, limit, answering),
+      personReplyMode,
+      offersAnswer: offersAnswerOf,
+    },
     filing: { names: filedNamesOf },
     // A chat: what follows an opening or a visit may offer any link (calendar/availability.ts linkOfferedOn).
     calendar: {

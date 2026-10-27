@@ -16,16 +16,19 @@
  *
  * The job carries the message as Meta sent it and the two facts of its envelope the normaliser reads (the number it
  * was written to and the sender's profile), and names the message, its thread and its person, so an erasure cancels a
- * job still waiting and scrubs one finished (erase_contact, scrubErasedJobs).
+ * job still waiting and scrubs one finished (erase_contact, scrubErasedJobs). The door and the job make it into the one
+ * inbound shape with the same adapter (inboundFromWhatsapp, decision 0001 step 3), so a job a door wrote before a deploy
+ * is read as one written after it.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { WaChangeValue, WaRawMessage } from "../packages/channels.js";
+import { inboundFromWhatsapp, type WaChangeValue, type WaRawMessage } from "../packages/channels.js";
 import { resolveChannelDetailed, type Database, type Json, type RoutedChannel } from "../packages/db.js";
 import { markSpoke, scheduleJobOnce, type ClaimedJob } from "../packages/jobs.js";
 import { phoneTail } from "../packages/contracts.js";
 import { env } from "../env.js";
 import { errField, logger } from "../log.js";
 import { answerText } from "../sms/inbound-text.js";
+import { answerDm } from "../instagram/dm-answer.js";
 import { pg } from "../pg.js";
 import { handleInbound, recordWhatsappInbound, resumeWhatsappInbound } from "./inbound.js";
 import { realPorts, type InboundPorts } from "./ports.js";
@@ -65,7 +68,7 @@ export function answerHereOrLater(
   const db = pg();
   return db && routed && answersLater(tenantId)
     ? recordThenAnswerLater(db, m, value, routed, isEnvDefault)
-    : handleInbound(m, value, tenantId, routed, isEnvDefault);
+    : handleInbound({ inbound: inboundFromWhatsapp(m, value), carrier: null }, tenantId, routed, isEnvDefault);
 }
 
 /**
@@ -81,7 +84,7 @@ async function recordThenAnswerLater(
   routed: RoutedChannel,
   isEnvDefault: boolean,
 ): Promise<void> {
-  const ing = await recordWhatsappInbound(m, value, routed, isEnvDefault);
+  const ing = await recordWhatsappInbound(inboundFromWhatsapp(m, value), routed, isEnvDefault);
   if (!ing) return;
   const payload: Json = {
     wa: asKept({ message: m, value: envelopeOf(value) }),
@@ -136,10 +139,14 @@ async function answerWhatsapp(db: Db, job: ClaimedJob): Promise<void> {
     throw new Error("inbound_answer: the number written to is another workspace's now");
   logger({ tenant_id: job.tenant_id }).info("wa_answer_taken_up", { id: m.id, from_tail: phoneTail(m.from) });
   const isEnvDefault = phoneNumberId === (env.WHATSAPP_PHONE_ID || "");
-  await resumeWhatsappInbound(m, value, routed, isEnvDefault, speakingOnce(db, job, realPorts()));
+  await resumeWhatsappInbound(inboundFromWhatsapp(m, value), routed, isEnvDefault, speakingOnce(db, job, realPorts()));
 }
 
-/** An answer job, by what its door recorded: a WhatsApp message (`wa`), or a text (lib/sms/inbound-text.ts). */
+/**
+ * An answer job, by what its door recorded: a WhatsApp message (`wa`), an Instagram DM (`ig`,
+ * lib/instagram/dm-answer.ts), or a text (lib/sms/inbound-text.ts).
+ */
 export function answerInboundJob(db: Db, job: ClaimedJob): Promise<void> {
-  return job.payload.wa ? answerWhatsapp(db, job) : answerText(db, job);
+  if (job.payload.wa) return answerWhatsapp(db, job);
+  return job.payload.ig ? answerDm(db, job) : answerText(db, job);
 }

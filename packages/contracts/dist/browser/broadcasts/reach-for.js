@@ -88,8 +88,8 @@ export function reachFor(r, purpose, o) {
     (c) => o.channels.includes(c) && o.ready[c].ready && channelRefuses(c, purpose, o.about, o.ready) === null
   );
   if (usable.length === 0) return { channel: null, held: "no_channel" };
-  const last = r.lastChannel ?? null;
-  const order = last && usable.includes(last) ? [last, ...usable.filter((c) => c !== last)] : usable;
+  const last = usable.find((c) => c === r.lastChannel) ?? null;
+  const order = last ? [last, ...usable.filter((c) => c !== last)] : usable;
   const why = [];
   for (const c of order) {
     const w = whyNotReceive(r, purpose, c, o.about);

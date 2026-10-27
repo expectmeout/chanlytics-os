@@ -1,6 +1,6 @@
 import { formatPhoneDisplay } from "../shared/phone.js";
 import { replyWhy } from "../config/brain.js";
-import { replyWindow } from "../config/policy.js";
+import { replyWindow, windowClockOf } from "../config/policy.js";
 import { needsYouCount, threadWait, threadWaits } from "../waits/waits.js";
 import { HELD_WORDS, readingOf, replyWaitsOnYou, standingOfThread } from "./standing.js";
 import { messageAt, isOptedOut } from "./thread-dto.js";
@@ -81,6 +81,8 @@ export const THREAD_PANE_WORDS = {
   /** WhatsApp's window, shut: the bar's one quiet fact, and why a press away. */
   chatClosed: "Chat closed",
   chatClosedWhy: "A day after their last message, WhatsApp delivers only an approved message. Sending one reopens the chat.",
+  /** Instagram's window, shut: a business may not write at all, and has no approved message to write with. */
+  dmClosedWhy: "A day after their last message, Instagram lets you reply only once they write again.",
   /** The dock's acts on a thread left unanswered (THREAD_PANE_WORDS.unanswered). "No reply needed" archives it. */
   call: "Call",
   noReplyNeeded: "No reply needed",
@@ -132,6 +134,7 @@ function inboxReading(dto) {
   const { unseen, heardAtMs, markAtMs } = readingOf(dto.last_inbound_at, dto);
   return { unread: unseen, heardAtMs, markAtMs };
 }
+const clocksOf = (dto) => ({ whatsapp: dto.last_wa_inbound_at, instagram: dto.last_ig_inbound_at });
 export function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) {
   const who = contactName(dto);
   const { state, takenOver, needsYou, claimedByOther } = threadStanding(dto, escalation, now);
@@ -140,7 +143,7 @@ export function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new D
   const reasonLabel = escalation ? reasonLabelOf(escalation.reason) : null;
   const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
   const chatChannel = answerWireOf(dto.messages);
-  const win = replyWindow(chatChannel, dto.last_wa_inbound_at, now).open;
+  const win = replyWindow(chatChannel, windowClockOf(chatChannel, clocksOf(dto)), now).open;
   const hasCalls = dto.messages.some((m) => m.type === "call_summary");
   const hasChat = !!dto.last_wa_inbound_at || dto.messages.some(isChatMessage);
   const primaryChannel = hasChat || !hasCalls ? chatChannel : "phone";

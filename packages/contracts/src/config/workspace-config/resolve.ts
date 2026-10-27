@@ -9,7 +9,14 @@ import { cannotSendLink, offersBookingLink, offersLinkOn } from "../no-booking-l
 import { BASELINE_CLOSING, BASELINE_OPENING, isBaselinePrompt } from "./brain-config";
 import type { BrainConfig } from "./brain-config-schema";
 import type { BusinessProfile } from "./business-profile";
-import { composeSystemPrompt, noLinkBooking, standingRules, PROMPT_OPENINGS, type PromptAudience } from "./compose";
+import {
+  composeSystemPrompt,
+  noLinkBooking,
+  standingRules,
+  PROMPT_OPENINGS,
+  type PromptAudience,
+  type PromptWire,
+} from "./compose";
 
 /**
  * What the Business form's instructions box opens with (S4).
@@ -111,8 +118,8 @@ export function hasProfile(p: BusinessProfile | undefined | null): boolean {
  */
 export function resolveSystemPrompt(
   brain: BrainConfig,
-  /** Where it answers. A text is a chat, as WhatsApp is, and its prompt says it answers texts (compose.ts). */
-  wire: "whatsapp" | "sms" | "voice" = "whatsapp",
+  /** Where it answers. A text and a DM are chats, as WhatsApp is, and each prompt says its wire (compose.ts). */
+  wire: PromptWire = "whatsapp",
   /** IANA zone from `tenants.timezone`. Labels the hours; never a second copy. */
   tz?: string | null,
   /** Only used to drop closures, and notes with a last day, that have already passed. */

@@ -7,11 +7,13 @@ const FACT = /* @__PURE__ */ (() => ({
   no: "Said no to offers.",
   never: "Has not been asked for the yes to offers.",
   asked: (on) => `Asked for the yes to offers${on ? ` on ${on}` : ""}; has not said it.`,
-  text: "This conversation is by text message, not WhatsApp."
+  text: "This conversation is by text message, not WhatsApp.",
+  dm: "This conversation is by Instagram direct message, not WhatsApp."
 }))();
 export function offersFacts(p, channel, now, tz) {
   const out = [];
   if (channel === "sms") out.push(FACT.text);
+  if (channel === "instagram") out.push(FACT.dm);
   const asked = p.offersAskedAt;
   const open = p.marketingConsent === "unknown" || p.marketingConsent === "opted_in" && !yesCovers(p.marketingChannels, "whatsapp");
   if (p.marketingConsent === "opted_in" && !open) out.push(FACT.yes);

@@ -31,4 +31,4 @@ export {
 } from "./steps";
 export type { LayerTwoIn, LayerTwoOut } from "./steps";
 export { answerInbound, recordInbound } from "./answer";
-export type { InboundCarrier, InboundInput } from "./answer";
+export type { InboundCarrier, InboundInput, CarriedChannel } from "./answer";

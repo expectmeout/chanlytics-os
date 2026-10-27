@@ -9,7 +9,7 @@
  * newest calls and messages, so where People's first contact is exact for a wire it lowers that wire's day to it.
  */
 import { neverConnected, type CallDto } from "../conversations/call-dto";
-import { isTheirOwnWords, writtenChannelOf } from "../conversations/thread-channel";
+import { isTheirOwnWords, writtenChannelOf, type WrittenChannel } from "../conversations/thread-channel";
 import { messageAt, type MessageDto } from "../conversations/thread-dto";
 import { CONSENT_CHANNEL_WORDS } from "../consent/consent-channels";
 import type { PersonBeforeDto, PersonDetailDto } from "../people/person-dto";
@@ -140,8 +140,11 @@ function oursFirst(e: ContactEvidence): { call: true } | { on: string } | null {
   const call = e.calls.find((k) => moment(k.started_at) === at);
   if (call) return call.direction === "outbound" ? { call: true } : null;
   const m = e.messages.find((x) => moment(messageAt(x)) === at);
-  return m && m.direction === "outbound" ? { on: CONSENT_CHANNEL_WORDS[writtenChannelOf(m.channel)] } : null;
+  return m && m.direction === "outbound" ? { on: FIRST_WRITTEN_ON[writtenChannelOf(m.channel)] } : null;
 }
+
+/** How our first written words went, in a sentence: as a yes is said for the three a yes covers, and a DM by its own words. */
+const FIRST_WRITTEN_ON: Record<WrittenChannel, string> = { ...CONSENT_CHANNEL_WORDS, instagram: "by Instagram DM" };
 
 const firstLowered = (s: string) => `${s.charAt(0).toLowerCase()}${s.slice(1)}`;
 

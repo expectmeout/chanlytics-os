@@ -3,15 +3,22 @@ const AGENTS = {
   whatsapp: { glyph: "W", name: "WhatsApp Receptionist" },
   sms: { glyph: "T", name: "Text Receptionist" },
   email: { glyph: "Y", name: "Your team" },
+  instagram: { glyph: "I", name: "Instagram Receptionist" },
   phone: { glyph: "P", name: "Phone Receptionist" }
 };
 export function agentFor(channel) {
   return AGENTS[channel] ?? AGENTS.whatsapp;
 }
 export function writtenChannelOf(channel) {
-  return channel === "sms" ? "sms" : channel === "email" ? "email" : "whatsapp";
+  return channel === "sms" || channel === "email" || channel === "instagram" ? channel : "whatsapp";
 }
-export const THREAD_CHANNEL_WORDS = { whatsapp: "WhatsApp", phone: "Phone", sms: "Text", email: "Email" };
+export const THREAD_CHANNEL_WORDS = {
+  whatsapp: "WhatsApp",
+  phone: "Phone",
+  sms: "Text",
+  email: "Email",
+  instagram: "Instagram"
+};
 export function lastWroteOn(messages) {
   const theirs = [...messages].reverse().find(isTheirOwnWords);
   return theirs ? writtenChannelOf(theirs.channel) : null;

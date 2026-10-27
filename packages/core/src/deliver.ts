@@ -77,7 +77,7 @@ const deliverLog = logger();
 export type Db = SupabaseClient<Database>;
 type MessagePatch = Database["public"]["Tables"]["messages"]["Update"];
 
-export type Channel = "whatsapp" | "sms" | "email";
+export type Channel = "whatsapp" | "sms" | "email" | "instagram";
 
 /**
  * What a send IS, for the door's rules -- never read off `sender`, which is a

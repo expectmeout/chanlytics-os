@@ -1,43 +1,44 @@
 /**
- * The WhatsApp door's adapter onto the receptionist.
+ * The doors' adapter onto the receptionist.
  *
  * The message path itself -- persist, the memory, the gates in order, the
  * brain, layer two, the hold window -- is answerInbound in
  * packages/core/src/inbound/answer.ts, a verb over ports. This file is what
- * the edge brings to it: Meta's own shapes, normalised here at the boundary,
- * and the real modules behind ./ports.ts.
+ * the edge brings to it: the real modules behind ./ports.ts.
  *
- * The signature is unchanged, deliberately. Both doors (api/whatsapp.ts, api/inbound-sms.ts) call it as they did,
- * tooling/scripts/ops/golden-edge.mjs sees the same surface, and the tests that inject a world through setInboundPorts
- * hand in the same object they always have. A text is answered after its acknowledgement (decision 0031, Phase 2): its
- * door records it through recordInboundMessage, and its job answers it through resumeInbound. A WhatsApp message is
- * too, for the workspaces the edge names (Phase 3, lib/whatsapp/answer-later.ts): recordWhatsappInbound, then
- * resumeWhatsappInbound.
+ * Each door makes its message into the one inbound shape with its own wire's adapter (decision 0001, step 3): the
+ * WhatsApp webhook with inboundFromWhatsapp (lib/whatsapp/answer-later.ts), a text's door with inboundFromSms
+ * (lib/sms/inbound-text.ts), the Instagram webhook with inboundFromInstagram (lib/instagram/dm-answer.ts). So a message
+ * reaches the verb as what it is, with the carrier of its own wire: none for WhatsApp, the line's for a text, the
+ * account's for a DM, which is recorded by its door and answered by its job as a text is (recordDmInbound, resumeDmInbound). A text is answered after its acknowledgement (decision 0031, Phase 2): its door records
+ * it through recordInboundMessage, and its job answers it through resumeInbound. A WhatsApp message is too, for the
+ * workspaces the edge names (Phase 3, lib/whatsapp/answer-later.ts): recordWhatsappInbound, then resumeWhatsappInbound.
  */
-import { normalizeInbound, withCarrierConsent, type WaChangeValue, type WaRawMessage } from "../packages/channels.js";
+import type { InboundMessage } from "../packages/channels.js";
 import type { IngestResult, RoutedChannel } from "../packages/db.js";
 import { answerInbound, recordInbound, type InboundCarrier } from "../packages/core.js";
 import { corePorts, realPorts, type InboundPorts } from "./ports.js";
 
-/**
- * A channel other than WhatsApp riding the same road: how a reply goes out,
- * what the words become on its wire, and whether every message is held for a
- * person for now. It travels with the verb (packages/core inbound/answer.ts);
- * re-exported here because the SMS ingress names it by this module.
- */
-export type { InboundCarrier };
+/** A WhatsApp message in the one shape, as inboundFromWhatsapp makes it. */
+type OnWhatsapp = InboundMessage & { channel: "whatsapp" };
+/** A text in the one shape, as inboundFromSms makes it. */
+type OnText = InboundMessage & { channel: "sms" };
+/** An Instagram DM in the one shape, as inboundFromInstagram makes it. */
+type OnInstagram = InboundMessage & { channel: "instagram" };
 
+/**
+ * A message answered here, in its door's request (the WhatsApp webhook's own road), with its own wire's carrier: none
+ * for WhatsApp, the line's for a text.
+ */
 export async function handleInbound(
-  m: WaRawMessage,
-  value: WaChangeValue,
+  arrival: { inbound: OnWhatsapp; carrier: null } | { inbound: OnText; carrier: InboundCarrier<"sms"> },
   tenantId: string | null,
   routed: RoutedChannel | null,
   isEnvDefault: boolean,
-  carrier: InboundCarrier | null = null,
   /** Everything outside the verb: the real modules unless a test says otherwise (./ports.ts). */
   ports: InboundPorts = realPorts(),
 ): Promise<void> {
-  return answerInbound(inputOf(m, value, tenantId, routed, isEnvDefault, carrier), corePorts(ports));
+  return answerInbound({ ...arrival, tenantId, routed, isEnvDefault }, corePorts(ports));
 }
 
 /**
@@ -46,13 +47,13 @@ export async function handleInbound(
  * reply names it (answerInbound with `resume`).
  */
 export async function resumeInbound(
-  m: WaRawMessage,
+  inbound: OnText,
   tenantId: string,
   routed: RoutedChannel,
-  carrier: InboundCarrier,
+  carrier: InboundCarrier<"sms">,
   ports: InboundPorts = realPorts(),
 ): Promise<void> {
-  return answerInbound({ ...inputOf(m, {}, tenantId, routed, false, carrier), resume: true }, corePorts(ports));
+  return answerInbound({ inbound, carrier, tenantId, routed, isEnvDefault: false, resume: true }, corePorts(ports));
 }
 
 /**
@@ -61,13 +62,44 @@ export async function resumeInbound(
  * redelivery, or there is nowhere to record it. Throws IngestFailed when the write failed.
  */
 export async function recordInboundMessage(
-  m: WaRawMessage,
+  inbound: OnText,
   tenantId: string,
   routed: RoutedChannel,
-  carrier: InboundCarrier,
+  carrier: InboundCarrier<"sms">,
   ports: InboundPorts = realPorts(),
 ): Promise<IngestResult | null> {
-  return recordInbound(inputOf(m, {}, tenantId, routed, false, carrier), corePorts(ports));
+  return recordInbound({ inbound, carrier, tenantId, routed, isEnvDefault: false }, corePorts(ports));
+}
+
+/**
+ * The door's half of an Instagram DM (lib/instagram/webhook.ts): recorded, or set aside, and nothing answered; its job
+ * answers it (resumeDmInbound). The ingest's row when it waits for its answer; null when it was set aside, is a
+ * redelivery, or there is nowhere to record it. Throws IngestFailed when the write failed, which the door answers 503.
+ */
+export async function recordDmInbound(
+  inbound: OnInstagram,
+  routed: RoutedChannel,
+  carrier: InboundCarrier<"instagram">,
+  ports: InboundPorts = realPorts(),
+): Promise<IngestResult | null> {
+  return recordInbound({ inbound, carrier, tenantId: routed.tenantId, routed, isEnvDefault: false }, corePorts(ports));
+}
+
+/**
+ * An Instagram DM taken up by its job: its door recorded it, so its ingest is a redelivery, and core answers it while it
+ * is unprocessed and no reply names it (answerInbound with `resume`). The carrier's sender marks the job as having spoken
+ * before Instagram is called.
+ */
+export async function resumeDmInbound(
+  inbound: OnInstagram,
+  routed: RoutedChannel,
+  carrier: InboundCarrier<"instagram">,
+  ports: InboundPorts = realPorts(),
+): Promise<void> {
+  return answerInbound(
+    { inbound, carrier, tenantId: routed.tenantId, routed, isEnvDefault: false, resume: true },
+    corePorts(ports),
+  );
 }
 
 /**
@@ -76,13 +108,12 @@ export async function recordInboundMessage(
  * aside, is a redelivery, or there is nowhere to record it. Throws IngestFailed when the write failed.
  */
 export async function recordWhatsappInbound(
-  m: WaRawMessage,
-  value: WaChangeValue,
+  inbound: OnWhatsapp,
   routed: RoutedChannel,
   isEnvDefault: boolean,
   ports: InboundPorts = realPorts(),
 ): Promise<IngestResult | null> {
-  return recordInbound(inputOf(m, value, routed.tenantId, routed, isEnvDefault, null), corePorts(ports));
+  return recordInbound({ inbound, carrier: null, tenantId: routed.tenantId, routed, isEnvDefault }, corePorts(ports));
 }
 
 /**
@@ -91,35 +122,13 @@ export async function recordWhatsappInbound(
  * whose sender marks the job as having spoken before Meta is called.
  */
 export async function resumeWhatsappInbound(
-  m: WaRawMessage,
-  value: WaChangeValue,
+  inbound: OnWhatsapp,
   routed: RoutedChannel,
   isEnvDefault: boolean,
   ports: InboundPorts,
 ): Promise<void> {
   return answerInbound(
-    { ...inputOf(m, value, routed.tenantId, routed, isEnvDefault, null), resume: true },
+    { inbound, carrier: null, tenantId: routed.tenantId, routed, isEnvDefault, resume: true },
     corePorts(ports),
   );
-}
-
-function inputOf(
-  m: WaRawMessage,
-  value: WaChangeValue,
-  tenantId: string | null,
-  routed: RoutedChannel | null,
-  isEnvDefault: boolean,
-  carrier: InboundCarrier | null,
-) {
-  return {
-    message: withCarrierConsent(normalizeInbound(m, value), carrier?.consent ?? null),
-    // The raw fields the body still reads: the id and the sender for the log
-    // envelope and the wire, the provider's own type for the words an owner
-    // reads, and its timestamp for the staleness check.
-    raw: { id: m.id, from: m.from, type: m.type, timestamp: m.timestamp ?? null },
-    tenantId,
-    routed,
-    isEnvDefault,
-    carrier,
-  };
 }

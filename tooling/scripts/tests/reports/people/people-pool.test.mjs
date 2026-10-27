@@ -180,7 +180,7 @@ test("the book as the pool counts it: freshness is how long since they wrote or 
     lists: { opted_in: 0, offers_ok: 0, opted_out: 0, quiet: 0 },
     steps: { overdue: 0, due_today: 0 },
     email_stopped: 0,
-    wires: { whatsapp_only: 0, sms_only: 0, phone_only: 0, email_only: 0, several: 0, none: 0 },
+    wires: { whatsapp_only: 0, sms_only: 0, phone_only: 0, email_only: 0, instagram_only: 0, several: 0, none: 0 },
   });
 });
 
@@ -246,11 +246,13 @@ test("channels per person: one wire alone, several, or none", () => {
     });
   };
   const wires = (...people) => count(people).wires;
-  const none = { whatsapp_only: 0, sms_only: 0, phone_only: 0, email_only: 0, several: 0, none: 0 };
+  const none = { whatsapp_only: 0, sms_only: 0, phone_only: 0, email_only: 0, instagram_only: 0, several: 0, none: 0 };
   assert.deepEqual(wires(wired(["whatsapp"])), { ...none, whatsapp_only: 1 });
   assert.deepEqual(wires(wired(["sms"])), { ...none, sms_only: 1 });
   assert.deepEqual(wires(wired(["voice"])), { ...none, phone_only: 1 }, "a person who only phoned");
   assert.deepEqual(wires(wired(["email"])), { ...none, email_only: 1 });
+  assert.deepEqual(wires(wired(["instagram"])), { ...none, instagram_only: 1 }, "a person who only wrote by DM");
+  assert.deepEqual(wires(wired(["instagram", "whatsapp"])), { ...none, several: 1 });
   assert.deepEqual(wires(wired(["whatsapp", "voice"])), { ...none, several: 1 });
   assert.deepEqual(wires(wired(["sms", "email", "voice"])), { ...none, several: 1 });
   assert.deepEqual(wires(wired([])), { ...none, none: 1 }, "no way in on record");
@@ -268,6 +270,7 @@ test("channels per person: one wire alone, several, or none", () => {
     wired(["sms"]),
     wired(["voice"]),
     wired(["email"]),
+    wired(["instagram"]),
     wired([]),
   ];
   assert.deepEqual(wires(...book), {
@@ -275,6 +278,7 @@ test("channels per person: one wire alone, several, or none", () => {
     sms_only: 1,
     phone_only: 1,
     email_only: 1,
+    instagram_only: 1,
     several: 0,
     none: 1,
   });

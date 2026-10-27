@@ -54,19 +54,18 @@ let phones = 400;
 async function customerWrites(words, digits) {
   phones += 1;
   const ing = await persist.pgIngest(db, T, {
-    waId: digits,
-    phoneDigits: digits,
+    channel: "whatsapp",
+    externalId: `wamid.in.${stamp}.${phones}`,
+    identity: { externalId: digits, phoneE164: `+${digits}`, email: null },
     profileName: "Fixture Customer",
-    messageId: `wamid.in.${stamp}.${phones}`,
     type: "text",
     kind: "text",
     rawType: "text",
     body: words,
     channelTsIso: new Date().toISOString(),
     media: null,
-    optOut: false,
-    optIn: false,
-    optInMarketing: false,
+    consent: { optOut: false, optIn: false, optInMarketing: false },
+    referral: null,
   });
   assert.ok(ing, "the message was taken in");
   return ing;

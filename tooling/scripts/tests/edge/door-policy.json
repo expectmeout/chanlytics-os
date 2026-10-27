@@ -89,6 +89,19 @@
         "aud": "/api/admin/imports/website-read"
       }
     },
+    "POST /api/admin/instagram/account": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/instagram/account.ts",
+      "knock_args": {
+        "aud": "/api/admin/instagram/account",
+        "opts": {
+          "body": {
+            "expr": "raw"
+          }
+        }
+      }
+    },
     "POST /api/admin/intake/replay": {
       "wrapper": "adminDoor",
       "knock": "authorizeAdmin",
@@ -392,6 +405,12 @@
       "knock": "authorizeCron",
       "knock_in": "sweepDoor in apps/edge/lib/ops/sweep-door.ts"
     },
+    "POST /api/cron/instagram-tokens": {
+      "wrapper": "sweepDoor",
+      "sweep": "instagram_tokens",
+      "knock": "authorizeCron",
+      "knock_in": "sweepDoor in apps/edge/lib/ops/sweep-door.ts"
+    },
     "POST /api/cron/leads": {
       "wrapper": "sweepDoor",
       "sweep": "leads",
@@ -492,6 +511,16 @@
       "verb": "receiveInboundText in apps/edge/lib/sms/inbound-text.ts",
       "knock": "verifyTwilioSignature",
       "knock_in": "planSmsIngress in apps/edge/lib/sms/sms-ingress.ts"
+    },
+    "GET /api/instagram": {
+      "wrapper": "door",
+      "knock": null
+    },
+    "POST /api/instagram": {
+      "wrapper": "door",
+      "verb": "receiveInstagramEvent in apps/edge/lib/instagram/webhook.ts",
+      "knock": "signedByInstagramApp",
+      "knock_in": "receiveWith in apps/edge/lib/instagram/webhook.ts"
     },
     "POST /api/jobs/tick": {
       "wrapper": "sweepDoor",

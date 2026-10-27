@@ -111,7 +111,7 @@ const conversation = (id, tenant_id, over = {}) => ({
   paused_until: null,
   snooze_until: null,
   assignee_user_id: null,
-  last_wa_inbound_at: ago(HOUR),
+  last_inbound_on_whatsapp: ago(HOUR),
   last_message_at: ago(HOUR),
   // They wrote: the door their message came through stamps it (ingest_inbound), as it stamps the WhatsApp one.
   last_inbound_at: ago(HOUR),
@@ -398,7 +398,7 @@ test("a reply: a viewer is refused as a viewer whatever the body says, the body 
   await refused(reply.POST.run(post({ text: "hi" }), dnc), "conflict");
   assert.equal(writes(dnc), 0, "nothing queued for a person who said stop");
   // Outside the 24-hour window, words alone are refused: an approved template is the only way.
-  const stale = { ...tables, conversations: [conversation(C2, B, { last_wa_inbound_at: ago(48 * HOUR) })] };
+  const stale = { ...tables, conversations: [conversation(C2, B, { last_inbound_on_whatsapp: ago(48 * HOUR) })] };
   await refused(reply.POST.run(post({ text: "hi" }), ctxFor(stale, { id: C2 })), "window_closed");
   await refused(
     reply.POST.run(post({ text: "hi" }), ctxFor(tables, { id: "cccccccc-cccc-4ccc-8ccc-ccccccccccc9" })),
@@ -607,7 +607,7 @@ test("ending a call and passing it to the business: the call is the row, only a 
 
 test("a reply on a thread nothing has come to is a start, and is judged as one before anything is written", async () => {
   // A campaign's recipient, a business a reach-out wrote to, a person a member wrote to first: nobody to answer.
-  const unheard = conversation(C2, B, { last_inbound_at: null, last_wa_inbound_at: null });
+  const unheard = conversation(C2, B, { last_inbound_at: null, last_inbound_on_whatsapp: null });
   const tables = { memberships: both("viewer", "operator"), conversations: [unheard], messages: [] };
   const asked = [];
   const ctx = ctxFor(
@@ -626,7 +626,7 @@ test("a reply on a thread nothing has come to is a start, and is judged as one b
   assert.equal(writes(ctx), 0, "refused before a row is written");
   // The same words on a thread they wrote on answer them, by the reply verb, and People is never asked.
   const heard = ctxFor(
-    { ...tables, conversations: [conversation(C2, B, { last_wa_inbound_at: ago(48 * HOUR) })] },
+    { ...tables, conversations: [conversation(C2, B, { last_inbound_on_whatsapp: ago(48 * HOUR) })] },
     {
       id: C2,
     },
