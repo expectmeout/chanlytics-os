@@ -18,7 +18,7 @@ import { stateSecret } from "./google";
 const PROVIDER = "instagram";
 
 /** The edge's Instagram door, behind the dashboard's own credential, for the workspace and the person it acts for. */
-export async function edgeInstagram(body: Record<string, unknown>, timeoutMs = 20_000): Promise<EdgeAnswer> {
+async function edgeInstagram(body: Record<string, unknown>, timeoutMs = 20_000): Promise<EdgeAnswer> {
   if (!edgeConfigured()) return { status: 503, body: { ok: false, error: "no_edge_credential" } };
   // A preview never reaches Instagram under a business's name, as no provider door does.
   if (!deployment.providersLive) return { status: 503, body: { ok: false, error: "preview" } };
@@ -38,7 +38,7 @@ const NOT_CONNECTABLE: InstagramReadiness = { ready: false, app: null };
 let readyCache: { at: number; value: InstagramReadiness } | null = null;
 
 /** The edge's word on the app, kept READY_TTL_MS: a page's Connections asks it on every open. */
-export async function instagramReadiness(now = Date.now()): Promise<InstagramReadiness> {
+async function instagramReadiness(now = Date.now()): Promise<InstagramReadiness> {
   if (readyCache && now - readyCache.at < READY_TTL_MS) return readyCache.value;
   const a = await edgeInstagram({ op: "status" }, 4_000);
   const b = a.body ?? {};
@@ -66,7 +66,7 @@ export async function readInstagram(member: Member): Promise<{ ready: boolean; c
  * Where the browser lands after Instagram: Connections, with the outcome in a word the row reads once, on the workspace's
  * own address once the signed state has proved whose workspace it was (contracts appLink), else on the front door.
  */
-export function afterInstagram(origin: string, outcome: string, why?: string, slug?: string | null): string {
+function afterInstagram(origin: string, outcome: string, why?: string, slug?: string | null): string {
   return `${origin}${appLink(slug, "admin/integrations", { instagram: outcome, why: why || null })}`;
 }
 

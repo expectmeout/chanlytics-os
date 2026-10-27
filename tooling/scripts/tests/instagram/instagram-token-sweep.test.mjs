@@ -15,9 +15,7 @@ for (const k of ["RESEND_API_KEY", "SUPABASE_URL"]) delete process.env[k];
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setPg } = await import(at("apps/edge/lib/pg.ts"));
-const { sweepInstagramTokens, REFRESH_AFTER_MS, YIELD_AT_MS } = await import(
-  at("apps/edge/lib/instagram/token-sweep.ts")
-);
+const { sweepInstagramTokens } = await import(at("apps/edge/lib/instagram/token-sweep.ts"));
 
 const DAY = 24 * 3600 * 1000;
 const NOW = Date.parse("2026-10-27T06:23:00Z");
@@ -109,7 +107,6 @@ test("a token a week old is refreshed and kept with its new clock; a younger one
   assert.equal(w.rows[0].config.token_expires_at, new Date(NOW + 5184000 * 1000).toISOString());
   assert.equal(w.rows[0].config.username, "studio0", "merged beside the config, never over it");
   assert.equal(w.vault[w.rows[1].id].access_token, `old-${w.rows[1].id}`);
-  assert.ok(REFRESH_AFTER_MS >= DAY, "never asked before Instagram's own day");
 });
 
 test("a token Instagram refuses is marked lapsed and its workspace told once; no answer is left for tomorrow", async () => {
@@ -143,7 +140,8 @@ test("an account with nothing in the Vault is counted, a round past its budget l
   resetBreakers();
   refresh = () => [200, { access_token: "fresh-token", token_type: "bearer", expires_in: 5184000 }];
   const w = world([null, 9]);
-  const [, out] = await run(w, NOW - YIELD_AT_MS - 1);
+  // A round begun a minute ago, a whole function's life, is past any budget a refresh may start within.
+  const [, out] = await run(w, NOW - 60_000);
   assert.equal(out.left, 2, "past the budget, nothing starts");
   const [, again] = await run(w);
   assert.equal(again.no_token, 1);

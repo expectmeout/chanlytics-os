@@ -36,9 +36,9 @@ import type { InstagramSecret } from "./credentials.js";
 type Db = SupabaseClient<Database>;
 
 /** A token this old is refreshed: Meta's floor is a day, its life sixty, so a week keeps fifty-three days in hand. */
-export const REFRESH_AFTER_MS = 7 * DAY_MS;
+const REFRESH_AFTER_MS = 7 * DAY_MS;
 /** No refresh starts after this, counted from the door's first line: each is one call, bounded under ten seconds. */
-export const YIELD_AT_MS = 40_000;
+const YIELD_AT_MS = 40_000;
 
 /** What became of one account this round. */
 type Swept = "refreshed" | "fresh" | "lapsed" | "unanswered" | "no_token" | "unreadable";

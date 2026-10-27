@@ -61,7 +61,7 @@ export interface InstagramBody {
 }
 
 /** The app as this deployment holds it, or null when any of the three is not set (Connect Instagram says so). */
-export function instagramApp(): InstagramApp | null {
+function instagramApp(): InstagramApp | null {
   const clientId = env.INSTAGRAM_APP_ID;
   const clientSecret = env.INSTAGRAM_APP_SECRET;
   const redirectUri = env.INSTAGRAM_REDIRECT_URI;

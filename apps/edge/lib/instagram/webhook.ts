@@ -65,7 +65,7 @@ const doorLog = logger();
  * How long an echo whose id is not kept yet waits before it is taken for the team's own: our send's row is written the
  * moment Instagram answers it, and Meta's echo can arrive in between. Asked once more after this.
  */
-export const ECHO_SETTLE_MS = 1_500;
+const ECHO_SETTLE_MS = 1_500;
 
 /** A person's name, read from their profile, kept for a while per account: one read per person, not one per DM. */
 const NAME_TTL_MS = HOUR_MS;

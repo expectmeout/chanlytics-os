@@ -18,19 +18,19 @@ import { utf8Bytes } from "@chanlytics/contracts";
 import { answerObject, providerFetch, type ProviderReply, type SendOutcome } from "../provider-fetch";
 import type { SendResult } from "../whatsapp";
 
-export const INSTAGRAM_GRAPH = "https://graph.instagram.com/v26.0";
-export const INSTAGRAM_AUTHORIZE_URL = "https://www.instagram.com/oauth/authorize";
-export const INSTAGRAM_TOKEN_URL = "https://api.instagram.com/oauth/access_token";
+const INSTAGRAM_GRAPH = "https://graph.instagram.com/v26.0";
+const INSTAGRAM_AUTHORIZE_URL = "https://www.instagram.com/oauth/authorize";
+const INSTAGRAM_TOKEN_URL = "https://api.instagram.com/oauth/access_token";
 const INSTAGRAM_TOKEN_BASE = "https://graph.instagram.com";
 /** What the business is asked for: its account, and its DMs. Both need Meta's App Review for accounts we do not own. */
-export const INSTAGRAM_SCOPES = ["instagram_business_basic", "instagram_business_manage_messages"] as const;
+const INSTAGRAM_SCOPES = ["instagram_business_basic", "instagram_business_manage_messages"] as const;
 /** The longest text one DM may hold, in UTF-8 bytes. */
 export const INSTAGRAM_DM_MAX_BYTES = 1000;
 /** One DM's bound; a reply in several parts stops starting parts once INSTAGRAM_SEND_DEADLINE_MS is spent. */
-export const INSTAGRAM_SEND_TIMEOUT_MS = 10_000;
-export const INSTAGRAM_SEND_DEADLINE_MS = 25_000;
+const INSTAGRAM_SEND_TIMEOUT_MS = 10_000;
+const INSTAGRAM_SEND_DEADLINE_MS = 25_000;
 /** A person's profile is read inside the door's request, for their name: short, and never worth a retry. */
-export const INSTAGRAM_PROFILE_TIMEOUT_MS = 2_500;
+const INSTAGRAM_PROFILE_TIMEOUT_MS = 2_500;
 /** The way in's calls (the code, the token, `/me`, the subscription), each read by a person waiting on a redirect. */
 const INSTAGRAM_CONNECT_TIMEOUT_MS = 10_000;
 
@@ -124,7 +124,7 @@ export function instagramSubscribeRequest(token: string, accountId: string): Ins
 }
 
 /** A person who wrote to the account, as they call themselves there (only once they have written: their consent). */
-export function instagramProfileRequest(token: string, igsid: string): InstagramRequest {
+function instagramProfileRequest(token: string, igsid: string): InstagramRequest {
   return {
     url: `${INSTAGRAM_GRAPH}/${encodeURIComponent(igsid)}?${query({ fields: "name,username", access_token: token })}`,
     method: "GET",
@@ -132,7 +132,7 @@ export function instagramProfileRequest(token: string, igsid: string): Instagram
 }
 
 /** One DM of text to a person, from the account. */
-export function instagramSendRequest(cfg: InstagramConfig, to: string, text: string): InstagramRequest {
+function instagramSendRequest(cfg: InstagramConfig, to: string, text: string): InstagramRequest {
   return {
     url: `${INSTAGRAM_GRAPH}/${encodeURIComponent(cfg.accountId)}/messages`,
     method: "POST",
@@ -421,7 +421,7 @@ const LINKED_MEDIA_TIMEOUT_MS = 15_000;
 const LINKED_MEDIA_MAX_BYTES = 25 * 1024 * 1024;
 
 /** Whether a link is one of Meta's CDN's, over https. */
-export function isMetaCdnLink(url: string): boolean {
+function isMetaCdnLink(url: string): boolean {
   try {
     const u = new URL(url);
     return u.protocol === "https:" && META_CDN.test(u.hostname);
