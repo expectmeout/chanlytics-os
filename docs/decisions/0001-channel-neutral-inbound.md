@@ -4,8 +4,9 @@
 built" below), the one inbound shape, which the message path takes beside WhatsApp's (26 October 2026, "As built, step
 2" below), the doors handing it over, with WhatsApp's own shape gone from the message path, the per-channel row (00484)
 and its readers (00485) (26 October 2026, "As built, step 3, 4, 5" below), step 6 met by 0071 (below), and Instagram DMs
-(00486, 27 October 2026, "As built, step 8" below), which answer only once Meta's App Review allows; step 7 to come,
-fourteen days after step 5 is on production. Its five questions answered 26 October 2026 (below). Written against commit `b729bdf`, and verified
+(00486, 27 October 2026, "As built, step 8" below), which answer only once Meta's App Review allows. Step 5 is on
+production in both apps since 27 October 2026 (#1853, both deployed by 14:59 UTC), so step 7 comes on or after 10
+November 2026, fourteen days on. Its five questions answered 26 October 2026 (below). Written against commit `b729bdf`, and verified
 against the code at it, with the working tree as it stood. Where this note and
 the code disagree, the code wins.
 
