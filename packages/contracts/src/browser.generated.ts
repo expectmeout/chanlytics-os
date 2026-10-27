@@ -186,7 +186,7 @@ export { MAILBOX_PROVIDERS, MAILBOX_CONNECTION_STATES, MAILBOX_CONNECTIONS_MAX, 
 export { senderVerdictOf, senderDomainOffered, senderSortRefusal, MAILBOX_LEFT_WHY_WORDS, MAILBOX_SENDERS_WORDS } from "./email/mailbox-senders";
 export { MAILBOX_HOLDS, MAILBOX_DAILY_CAP_MAX, CUSTOMER_DOMAIN_DAILY_MAX, MAILBOX_RAMP, mailboxRampShare, mailboxDailyCap, mailboxHoldWords, mailboxHoldFixWords } from "./email/mailbox-standing";
 export { onDomain, bookingPageOf, bookingToolOfLink, BOOKING_PLATFORM_HOSTS, BOOKING_PLATFORM_TOOLS } from "./google/booking-page";
-export { listingFactsOf, bookingPageKept, bookingPageOffered, hoursFromGoogle, placesQueryOf, ratingWords, starsOf, reviewsWords, listingLine, checkedWords, connectionWords, reviewSnippet, reviewIsNew, reviewNoticeIsAbout, NEW_REVIEW_NEWS, toGoogleReviewVM, gainedOver, toGoogleVM, GOOGLE_SHOWN_REVIEWS, REVIEW_NEWS_MS, REVIEW_NEWS_MAX_AGE_MS } from "./google/google";
+export { listingFactsOf, bookingPageKept, bookingPageOffered, hoursFromGoogle, placesQueryOf, ratingWords, starsOf, reviewsWords, listingLine, checkedWords, connectionWords, googleAudienceWords, reviewSnippet, reviewIsNew, reviewNoticeIsAbout, NEW_REVIEW_NEWS, toGoogleReviewVM, gainedOver, toGoogleVM, GOOGLE_SHOWN_REVIEWS, REVIEW_NEWS_MS, REVIEW_NEWS_MAX_AGE_MS } from "./google/google";
 export { reviewReplyModeOf, reviewReplyPrompt, cleanDraft, autoReplyCandidates, autoReplyBell, reviewDraftsBell, heldReviewReplyOf, reviewHeldReplyWords, REVIEW_HOLD_MS, REVIEW_REPLY_HELD_TITLE, autoReplyHold, reviewHeldWords, reviewReplyWords, REVIEW_REPLY_MAX_WORDS, REVIEW_REPLY_MAX_CHARS, REVIEW_AUTO_REPLIES_PER_SYNC, REVIEW_AUTO_REPLY_MAX_AGE_MS } from "./google/review-reply";
 export { BUSINESS_READ_SOURCES, FOUND_WORDS, businessReadFactsOf, foundOf, WEBSITE_READ_SYSTEM, WEBSITE_READ_SCHEMA, WEBSITE_UNREAD_WORDS } from "./imports/business-reads";
 export { csvCell, parseCsv, matchColumns, importRowsOf, importCounts, fileDateOf, viaWords } from "./imports/csv";
@@ -378,7 +378,7 @@ export { SEQUENCE_WORDS, SEQUENCE_FLOW_WORDS, stepApprovalOf, takesFollowUps, le
 export { CALENDAR_SETTING_ROUTE, bookingEmailsHeldWords, bookingEmailsStep, calendarSourceOf, calendarSourceFacts, forwardStillAsked, BOOKS_WITH_CALENDAR, BOOKS_BY_HAND, BOOKING_TOOL_WORDS, booksWithOptions, booksWithOf, booksWithName, calendarLinkShown, calendarLinkNote, BOOKED_NEEDS_A_LINK } from "./setup/calendar-source";
 export { capabilityStatus, CAPABILITY_KINDS } from "./setup/capabilities";
 export { serviceSuggestionsOf, checkChipsOf, SERVICE_SUGGESTION_TYPES } from "./setup/check-chips";
-export { googleAudienceWords, smsStateRow, connectionRows, CONNECTION_KINDS, CONNECTION_GROUP_WORDS } from "./setup/connections";
+export { smsStateRow, connectionRows, CONNECTION_KINDS, CONNECTION_GROUP_WORDS } from "./setup/connections";
 export { unsureHoursWords, firstRunKicker, firstRunOf, FIRST_RUN_STEPS, FIRST_RUN_WORDS } from "./setup/first-run";
 export { setupCardOf, SETUP_CARD_WORDS } from "./setup/first-run-card";
 export { firstRunChannelsOf, FIRST_RUN_CHANNELS_WORDS, lineLookupOf } from "./setup/first-run-channels";

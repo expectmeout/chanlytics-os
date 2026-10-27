@@ -20,21 +20,11 @@ import { parseTokenResponse, type TokenGrant } from "../google/google-oauth";
 const GMAIL_SEND_SCOPE = "https://www.googleapis.com/auth/gmail.send";
 const GMAIL_READ_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
 const CONTACTS_SCOPE = "https://www.googleapis.com/auth/contacts.readonly";
-const OTHER_CONTACTS_SCOPE = "https://www.googleapis.com/auth/contacts.other.readonly";
 const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.readonly";
 
 /** What each provider is asked for. */
 export const MAILBOX_SCOPES: Record<MailboxProvider, readonly string[]> = {
-  google: [
-    "openid",
-    "email",
-    "profile",
-    GMAIL_SEND_SCOPE,
-    GMAIL_READ_SCOPE,
-    CONTACTS_SCOPE,
-    OTHER_CONTACTS_SCOPE,
-    CALENDAR_SCOPE,
-  ],
+  google: ["openid", "email", "profile", GMAIL_SEND_SCOPE, GMAIL_READ_SCOPE, CONTACTS_SCOPE, CALENDAR_SCOPE],
   microsoft: [
     "offline_access",
     "openid",
@@ -49,11 +39,12 @@ export const MAILBOX_SCOPES: Record<MailboxProvider, readonly string[]> = {
 };
 
 /** What a grant may bring beside its mail, each read only where the owner left it ticked (grantHolds). */
-export type MailboxReach = "contacts" | "other_contacts" | "calendar";
+export type MailboxReach = "contacts" | "calendar";
 
 const REACH: Record<MailboxProvider, Readonly<Partial<Record<MailboxReach, string>>>> = {
-  google: { contacts: CONTACTS_SCOPE, other_contacts: OTHER_CONTACTS_SCOPE, calendar: CALENDAR_SCOPE },
-  // Graph keeps no "other contacts": the people the owner wrote to come in with the mail itself.
+  // Google's "other contacts" (everyone the owner ever wrote to) is not asked for: the people the owner wrote to in the
+  // six months come in with their mail, in their threads, and the rest would fill People with every passing address.
+  google: { contacts: CONTACTS_SCOPE, calendar: CALENDAR_SCOPE },
   microsoft: { contacts: "contacts.read", calendar: "calendars.read" },
 };
 

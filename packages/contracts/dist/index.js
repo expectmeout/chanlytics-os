@@ -35007,6 +35007,13 @@ function hoursFromGoogle(periods) {
   }
   return { hours, unsure: DAYS.filter((d) => unsure.has(d)) };
 }
+function googleAudienceWords(a) {
+  if (a === "testing")
+    return "Google is reviewing Chanlytics; until then Connect works for invited Google accounts only.";
+  if (a === "unverified")
+    return "Google shows a warning until its review of Chanlytics is done \u2014 choose Advanced, then Go to Chanlytics.";
+  return null;
+}
 function placesQueryOf(words3) {
   const w = words3.replace(/\s+/g, " ").trim();
   return /^[\d\s().+-]+$/.test(w) ? normalizePhone(w) ?? w : w;
@@ -42311,7 +42318,7 @@ function mailboxRecordRows(m) {
 }
 var CONNECT_FAILED = "That didn't go through. Try again in a minute.";
 var MAILBOX_CONNECT_WORDS = {
-  connected: "Connected. Its ramp starts at 10 a day.",
+  connected: "Connected: email from people comes into your Inbox, and its last six months are on their way.",
   reconnected: "Connected again: its emails go on where they waited.",
   declined: "Nothing was connected: the sign-in was cancelled.",
   scopes_missing: "Nothing was connected: send and read access are both needed. Connect again and leave both ticked.",
@@ -42342,7 +42349,7 @@ function mailboxConnectWords(code2) {
 function mailboxesFootWords(count2) {
   if (count2 >= MAILBOX_CONNECTIONS_MAX) return `${MAILBOX_CONNECTIONS_MAX} is the most. Remove one to add another.`;
   if (count2 === 0)
-    return `A sequence to leads writes from your own mailbox, through Google or Microsoft, so every email is yours and every reply comes back to it. A mailbox on the domain your customers write to sends ${CUSTOMER_DOMAIN_DAILY_MAX} a day at most; for more, use a second domain such as get<yourbusiness>.com.`;
+    return `Email people write to your mailbox comes into your Inbox, and sequences to leads write from it through Google or Microsoft, so every email is yours and every reply comes back to it. A mailbox on the domain your customers write to sends ${CUSTOMER_DOMAIN_DAILY_MAX} a day at most to leads; for more, use a second domain such as get<yourbusiness>.com.`;
   return `A new mailbox starts at ${MAILBOX_RAMP[0].perDay} a day and grows with the days it sends, to ${Math.max(...MAILBOX_RAMP.map((s) => s.perDay))}. Replies come back to it, and to your Inbox here.`;
 }
 function customerDomainWords(host) {
@@ -60113,12 +60120,13 @@ function mailboxRow(i) {
     };
   }
   if (sending && sending.providers.length > 0) {
+    const note = sending.providers.includes("google") ? googleAudienceWords(i.google?.ready.audience) : null;
     return {
       ...base,
       detail: null,
       state: "none",
       stateWords: "Not connected",
-      sentence: "Connect your Google Workspace or Microsoft 365 mailbox: email from people comes into your Inbox, six months of it with it, and sequences to leads write from it.",
+      sentence: `Connect your Google Workspace or Microsoft 365 mailbox: email from people comes into your Inbox, six months of it with it, and sequences to leads write from it.${note ? ` ${note}` : ""}`,
       verb: null,
       body: "mailboxes"
     };
@@ -60179,13 +60187,6 @@ var ORDER2 = {
 };
 function row(d) {
   return { ...d, group: GROUP2[d.state], tone: TONE[d.state], body: d.body ?? null, notes: d.notes ?? [] };
-}
-function googleAudienceWords(a) {
-  if (a === "testing")
-    return "Google is reviewing Chanlytics; until then Connect works for invited Google accounts only.";
-  if (a === "unverified")
-    return "Google shows a warning until its review of Chanlytics is done \u2014 choose Advanced, then Go to Chanlytics.";
-  return null;
 }
 function smsStateRow(line, nowMs) {
   const num2 = line ? formatPhoneDisplay(line.e164) : null;

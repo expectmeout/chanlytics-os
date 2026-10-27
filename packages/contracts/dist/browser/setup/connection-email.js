@@ -1,5 +1,6 @@
 import { agoWords } from "../shared/time.js";
 import { EMAIL_NOT_ANSWERED_SENTENCE } from "../email/mailbox.js";
+import { googleAudienceWords } from "../google/google.js";
 import { SETUP_STATE_WORDS } from "./setup.js";
 export function emailRow(i, { nowMs }) {
   const base = { kind: "email", icon: "mail", title: "Email" };
@@ -54,12 +55,13 @@ export function mailboxRow(i) {
     };
   }
   if (sending && sending.providers.length > 0) {
+    const note = sending.providers.includes("google") ? googleAudienceWords(i.google?.ready.audience) : null;
     return {
       ...base,
       detail: null,
       state: "none",
       stateWords: "Not connected",
-      sentence: "Connect your Google Workspace or Microsoft 365 mailbox: email from people comes into your Inbox, six months of it with it, and sequences to leads write from it.",
+      sentence: `Connect your Google Workspace or Microsoft 365 mailbox: email from people comes into your Inbox, six months of it with it, and sequences to leads write from it.${note ? ` ${note}` : ""}`,
       verb: null,
       body: "mailboxes"
     };

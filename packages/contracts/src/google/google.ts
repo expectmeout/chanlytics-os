@@ -232,6 +232,15 @@ export interface GoogleConnectionDto {
 /** Google's consent-screen audience for our app, as the operator set it on the edge; null = nothing to say. */
 export type GoogleAudience = "testing" | "unverified" | "verified";
 
+/** What Google's audience means for the person about to press Connect. */
+export function googleAudienceWords(a: GoogleAudience | null | undefined): string | null {
+  if (a === "testing")
+    return "Google is reviewing Chanlytics; until then Connect works for invited Google accounts only.";
+  if (a === "unverified")
+    return "Google shows a warning until its review of Chanlytics is done — choose Advanced, then Go to Chanlytics.";
+  return null;
+}
+
 /** What the database holds of Google for a workspace, as the dashboard reads it (the Google reader): everything `GET /api/v1/google` returns but what the deployment can do. */
 export interface GoogleReadDto {
   listing: GoogleListingDto | null;

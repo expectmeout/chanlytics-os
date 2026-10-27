@@ -1,6 +1,7 @@
 /**
- * The people a connected mailbox's grant knows, into People (decision 0073, R19): the owner's contacts, and at Google
- * the people they wrote to that Google keeps as other contacts, a page at a time. Each through the one door a person
+ * The people a connected mailbox's grant knows, into People (decision 0073, R19): the owner's own contacts, a page at
+ * a time. Google's "other contacts" (everyone the owner ever wrote to) are not read: the people they wrote to in the six
+ * months come in with their mail, in their threads (mail-history.ts). Each through the one door a person
  * passes (db resolvePerson, as a client list's: asserted, source import, so the erased stay erased and a name ranks as
  * a list's), filling what is empty and never overwriting; a number or an address that is not one is left out rather
  * than refused. Never a yes: a contact is someone the owner knows, not someone who asked to hear from the business.
@@ -11,7 +12,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   googleContacts,
-  googleOtherContacts,
   graphContacts,
   gmailSignedOut,
   graphSignedOut,
@@ -37,9 +37,9 @@ import type { Part, PartOutcome } from "./history-import.js";
 type Db = SupabaseClient<Database>;
 
 /** The lists a provider keeps, in the order they are read. */
-type ContactList = Extract<MailboxReach, "contacts" | "other_contacts">;
+type ContactList = Extract<MailboxReach, "contacts">;
 const LISTS: Record<"google" | "microsoft", readonly ContactList[]> = {
-  google: ["contacts", "other_contacts"],
+  google: ["contacts"],
   microsoft: ["contacts"],
 };
 
@@ -51,7 +51,7 @@ interface PeopleCursor {
 
 function cursorOf(raw: Json | null): PeopleCursor | null {
   const c = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null;
-  if (c?.list !== "contacts" && c?.list !== "other_contacts") return null;
+  if (c?.list !== "contacts") return null;
   return { list: c.list, page: typeof c.page === "string" ? c.page : null };
 }
 
@@ -62,9 +62,9 @@ const providerOf = (row: MailboxConnectionRow): "google" | "microsoft" =>
 const listsOf = (row: MailboxConnectionRow): ContactList[] =>
   LISTS[providerOf(row)].filter((l) => grantHolds(providerOf(row), row.scopes ?? [], l));
 
-async function contactsPageOf(row: MailboxConnectionRow, token: string, list: ContactList, page: string | null) {
+async function contactsPageOf(row: MailboxConnectionRow, token: string, page: string | null) {
   if (row.provider === "microsoft") return graphContacts(token, page);
-  return list === "other_contacts" ? googleOtherContacts(token, page) : googleContacts(token, page);
+  return googleContacts(token, page);
 }
 
 /**
@@ -119,7 +119,7 @@ export async function contactsPart(db: Db, part: Part): Promise<PartOutcome> {
   let added = 0;
   let done = false;
   while (Date.now() < part.until) {
-    const got = await contactsPageOf(row, t.token, cur.list, cur.page);
+    const got = await contactsPageOf(row, t.token, cur.page);
     if (!got.ok) {
       if (row.provider === "microsoft" ? graphSignedOut(got.reply) : gmailSignedOut(got.reply)) {
         await markSignedOut(db, row, part.log, Date.now());

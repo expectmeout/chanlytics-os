@@ -6216,6 +6216,8 @@ interface GoogleConnectionDto {
 }
 /** Google's consent-screen audience for our app, as the operator set it on the edge; null = nothing to say. */
 type GoogleAudience = "testing" | "unverified" | "verified";
+/** What Google's audience means for the person about to press Connect. */
+declare function googleAudienceWords(a: GoogleAudience | null | undefined): string | null;
 /** What the database holds of Google for a workspace, as the dashboard reads it (the Google reader): everything `GET /api/v1/google` returns but what the deployment can do. */
 interface GoogleReadDto {
     listing: GoogleListingDto | null;
@@ -50639,8 +50641,6 @@ type ConnectionDraft = Omit<ConnectionRow, "group" | "tone" | "body" | "notes"> 
     notes?: ConnectionNote[];
 };
 type Draft = ConnectionDraft;
-/** What Google's audience means for the person about to press Connect. */
-declare function googleAudienceWords(a: GoogleAudience | null | undefined): string | null;
 /** The texting states of a line, in the owner's words. The carriers' vocabulary stays out. */
 declare function smsStateRow(line: LineDto | null, nowMs: number): Draft;
 /** The fold over ROW_BUILDERS: every connection's row, drawn from one set of facts, in the page's order. */
