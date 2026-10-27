@@ -6,22 +6,22 @@
  */
 import { useEffect, useState } from "react";
 
-let holds = false;
+let coralHeld = false;
 const hearing = new Set<(on: boolean) => void>();
 
 /** The queue drew (or let go of) the coral. */
 export function queueHoldsCoral(on: boolean): void {
-  if (on === holds) return;
-  holds = on;
+  if (on === coralHeld) return;
+  coralHeld = on;
   for (const hear of hearing) hear(on);
 }
 
 /** Whether the queue holds the coral now, redrawn when that changes. */
 export function useQueueHoldsCoral(): boolean {
-  const [on, setOn] = useState(holds);
+  const [on, setOn] = useState(coralHeld);
   useEffect(() => {
     hearing.add(setOn);
-    setOn(holds);
+    setOn(coralHeld);
     return () => {
       hearing.delete(setOn);
     };
