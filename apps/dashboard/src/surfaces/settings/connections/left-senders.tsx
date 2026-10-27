@@ -3,9 +3,11 @@
  * why, newest first; and the senders the workspace said are not people. Read on a press: the list is written as mail
  * arrives, and nothing on the page's first load waits for it. "It's a person" brings a sender in (their mail from now on,
  * and their last six months with it); Undo takes back what was said of a sender. Its words are contracts'
- * (email/mailbox-senders.ts); who may change it is the block's own gate (the settings permission).
+ * (email/mailbox-senders.ts); who may change it is the block's own gate (the settings permission). Its own address
+ * (`admin/integrations/left`, contracts MAILBOX_LEFT_ROW; Today's Brought in links to it) reads it at once and brings it
+ * into view, as a press of Show would.
  */
-import { useId, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import { useEffect, useId, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import {
   MAILBOX_LEFT_WHY_WORDS,
   MAILBOX_SENDERS_WORDS as W,
@@ -29,15 +31,18 @@ function senderRow({
   sub,
   acts,
   testid,
+  at,
 }: {
   key: string;
   says: string;
   sub: string;
   acts: ReactNode;
   testid: string;
+  /** Where the row is once drawn, for the list's own address to bring it into view. */
+  at?: (el: HTMLDivElement | null) => void;
 }) {
   return (
-    <div key={key} className="set-dom set-dom-note" data-testid={testid}>
+    <div key={key} ref={at} className="set-dom set-dom-note" data-testid={testid}>
       <span />
       <span className="t">
         <span>{says}</span>
@@ -54,11 +59,14 @@ export function LeftSenders({
   owner,
   flash,
   today,
+  open = false,
 }: {
   owner: boolean;
   flash: (f: LegacyFlash) => void;
   /** The senders left in the last day, as Setup read them; null when unread. */
   today: number | null;
+  /** Its own address was opened: the list read at once and brought into view. */
+  open?: boolean;
 }) {
   const [list, setList] = useState<MailboxSendersDto | null>(null);
   const title = today === null ? W.title : `${W.title} · ${W.today(today)}`;
@@ -68,6 +76,20 @@ export function LeftSenders({
     if (r.ok) setList(r.data);
     else flash(refusalToast(r, W.failed));
   };
+  // Opened by its address: read once, as Show would be pressed, and the row brought into view once it is drawn.
+  const reading = useRef(load);
+  reading.current = load;
+  useEffect(() => {
+    if (open) void reading.current();
+  }, [open]);
+  const shown = useRef(false);
+  const at = open
+    ? (el: HTMLDivElement | null) => {
+        if (!el || shown.current || typeof el.scrollIntoView !== "function") return;
+        shown.current = true;
+        el.scrollIntoView({ block: "center", behavior: "smooth" });
+      }
+    : undefined;
   const sort = async (sender: string, verdict: MailboxSenderVerdict | null) => {
     setBusy(sender);
     const r = await api()("POST mailbox-senders", { body: { sender, verdict } });
@@ -87,6 +109,7 @@ export function LeftSenders({
         </LinkButton>
       ),
       testid: "mailbox-left",
+      at,
     });
   const said = list.said.filter((s) => s.verdict === "automated");
   return (

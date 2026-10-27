@@ -64,7 +64,7 @@ export const TodayBroughtIn = () => {
       </div>
       <div className="today-brought-fold today-brought-sources" id={sources} aria-hidden={!open} inert={!open}>
         <div>
-          <ImportLines lines={lines} flash={flash} />
+          <ImportLines lines={lines} flash={flash} doors />
           <ImportFoot running={running} className="today-brought-foot" />
         </div>
       </div>

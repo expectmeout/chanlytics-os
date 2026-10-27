@@ -4137,9 +4137,17 @@ a.list-row {
 .meter-sm {
   height: 4px;
 }
+/* A share that changes as it is read again (a run's bar filling, the Brought in card's inbox) glides to its new size
+   rather than jumping (Ruben, 27 Oct 2026); a meter's first draw has nothing to glide from. */
 .meter-part {
   display: block;
   min-width: 3px;
+  transition: flex-grow var(--duration-slow) var(--ease-out);
+}
+@media (prefers-reduced-motion: reduce) {
+  .meter-part {
+    transition: none;
+  }
 }
 .meter-part:first-child {
   border-radius: var(--radius-xs) 0 0 var(--radius-xs);

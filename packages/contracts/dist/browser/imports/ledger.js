@@ -2,6 +2,7 @@ import { dayWords } from "../workspace/billing.js";
 import { groupedPlural } from "../shared/words.js";
 import { DAY_MS } from "../shared/time.js";
 import { viaWords } from "./csv.js";
+import { lensRoute } from "../reports/lenses.js";
 export const IMPORT_SOURCES = [
   "google_reviews",
   "calendar",
@@ -27,6 +28,17 @@ export const IMPORT_STOPPED_WORDS = {
 };
 const ONCE_ONLY = /* @__PURE__ */ new Set(["whatsapp_contacts", "whatsapp_history"]);
 export const IMPORT_STATES = ["queued", "running", "done", "failed"];
+const IMPORT_DOORS = {
+  google_reviews: lensRoute("reviews"),
+  calendar: "calendar",
+  clients_file: "clients",
+  mailbox: "inbox",
+  contacts: "clients",
+  whatsapp_contacts: "clients",
+  whatsapp_history: "inbox"
+};
+export const MAILBOX_LEFT_ROW = "left";
+const MAILBOX_LEFT_ROUTE = "admin/integrations/left";
 export const IMPORT_WORDS = {
   titles: {
     google_reviews: "Reviews",
@@ -126,8 +138,17 @@ function standOf(r, share) {
     return `${r.parts_done} of ${r.parts_total}`;
   return share === null ? "\u2026" : `${Math.round(share * 100)}%`;
 }
+function leadCountOf(r) {
+  const c = r.counts;
+  if (r.state === "failed") return null;
+  if (r.source === "mailbox") return c.messages || null;
+  if (r.source === "google_reviews") return c.reviews || null;
+  if (r.source === "calendar") return c.past || null;
+  return r.source === "whatsapp_history" ? null : c.people ?? null;
+}
 export function importLineOf(r) {
   const share = shareOf(r);
+  const aside = r.source === "mailbox" && r.state !== "failed" && r.counts.dropped ? IMPORT_WORDS.setAside(r.counts.dropped) : null;
   return {
     source: r.source,
     title: IMPORT_WORDS.titles[r.source],
@@ -136,7 +157,10 @@ export function importLineOf(r) {
     state: r.state,
     retry: r.state === "failed" && !ONCE_ONLY.has(r.source),
     share,
-    aside: r.source === "mailbox" && r.state !== "failed" && r.counts.dropped ? IMPORT_WORDS.setAside(r.counts.dropped) : null
+    aside,
+    door: IMPORT_DOORS[r.source],
+    asideDoor: aside ? MAILBOX_LEFT_ROUTE : null,
+    count: leadCountOf(r)
   };
 }
 export const WHATSAPP_PART_WORDS = {
@@ -196,7 +220,10 @@ export function importLinesOf(rows, o = { whatsappWaiting: false }) {
       state: "waiting",
       retry: false,
       share: null,
-      aside: null
+      aside: null,
+      door: null,
+      asideDoor: null,
+      count: null
     });
   const done = lines.filter((l) => l.state === "done").length;
   return { lines, done, of: lines.length, running: lines.some((l) => l.state === "running" || l.state === "queued") };
