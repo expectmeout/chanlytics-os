@@ -35,7 +35,7 @@
   "tooling/scripts/tests/receptionist/business-tab/business-tab-offer.test.mjs": 1749,
   "tooling/scripts/tests/receptionist/business-tab/business-tab-open.test.mjs": 2575,
   "tooling/scripts/tests/receptionist/business-tab/business-tab-page.test.mjs": 2825,
-  "tooling/scripts/tests/reports/reports-page.test.mjs": 2468,
+  "tooling/scripts/tests/reports/reports-page.test.mjs": 2471,
   "tooling/scripts/tests/shell/record-kit.test.mjs": 3605,
   "tooling/scripts/tests/shell/surfaces/shell-status.test.mjs": 2164,
   "tooling/scripts/tests/templates/message-versions-page.test.mjs": 1885,

@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { apiGet } from "../workspace";
 import { routeOf } from "../address";
+import { expectLit } from "../shell/places";
 
 /**
  * A person's page on its path (decision 0015, step 5): `/w/<slug>/people/<id>` is an App Router page, the frame draws its
@@ -35,7 +36,7 @@ test.describe("A person's page on its path", () => {
     await page.goto("/api/version");
     await page.goto(`/w/${slug}/people/${id}`);
     await expect(page.getByTestId("sidebar")).toBeVisible({ timeout: 30_000 });
-    await expect(page.locator('.nav-item[aria-current="page"]')).toContainText("People");
+    await expectLit(page, "People");
     await expect(page.getByTestId("person-now")).toBeVisible();
     expect(routeOf(page.url())).toBe(`clients/${id}`);
 
@@ -62,6 +63,6 @@ test.describe("A person's page on its path", () => {
     await page.goto(`/w/${slug}/people/00000000-0000-4000-8000-000000000000`);
     await expect(page.getByTestId("sidebar")).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText("This person is not in your workspace")).toBeVisible();
-    await expect(page.locator('.nav-item[aria-current="page"]')).toContainText("People");
+    await expectLit(page, "People");
   });
 });

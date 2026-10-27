@@ -2,6 +2,7 @@ import { test, expect, type Locator, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
 import { apiGet } from "./workspace";
 import { routeOf } from "./address";
+import { expectLit, placeRow } from "./shell/places";
 
 /**
  * Reports, on a real workspace: one App Router page of lenses (`/w/<slug>/reports`, the Overview, and
@@ -440,12 +441,12 @@ test.describe("Reports on a real workspace", () => {
     await page.goto("/api/version");
     await page.goto(`/w/${slug}/reports`);
     await expect(page.getByTestId("sidebar")).toBeVisible({ timeout: 30_000 });
-    await expect(page.locator('.nav-item[aria-current="page"]')).toContainText("Reports");
+    await expectLit(page, "Reports");
     await expect(page.getByTestId("reports-real")).toBeVisible();
     expect(routeOf(page.url())).toBe("reports");
 
     // Away to a route the frame's own table draws, and Back: the router lands on Reports again, and the page is there.
-    await page.locator(".nav-item", { hasText: "Today" }).click();
+    await placeRow(page, "Today").click();
     await expect.poll(() => routeOf(page.url())).toBe("today");
     await expect(page.getByTestId("reports-real")).toHaveCount(0);
     await page.goBack();
@@ -455,10 +456,10 @@ test.describe("Reports on a real workspace", () => {
     await expect.poll(() => routeOf(page.url())).toBe("today");
 
     // And to Reports by the sidebar: a route with a page of its own asks the router, and the frame stays.
-    await page.locator(".nav-item", { hasText: "Reports" }).click();
+    await placeRow(page, "Reports").click();
     await expect.poll(() => routeOf(page.url())).toBe("reports");
     await expect(page.getByTestId("reports-real")).toBeVisible();
-    await expect(page.locator('.nav-item[aria-current="page"]')).toContainText("Reports");
+    await expectLit(page, "Reports");
 
     // A lens is an address on this one page: the strip's tabs are links, and a press moves the address without a request for a page.
     const documents: string[] = [];

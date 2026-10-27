@@ -9,6 +9,9 @@ import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
  */
 test.describe("sidebar on a real workspace", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
+  // A wide desk's sidebar: the member's kept choice, open by default, its places in words. At or under 1280px (Desktop
+  // Chrome's width) it opens as its rail and a press there is the visit's, never kept (shell-hooks.ts useDeskSidebar).
+  test.use({ viewport: { width: 1440, height: 900 } });
 
   test("account menu, theme, workspace menu, rail, sheet", async ({ page }) => {
     await signIn(page);

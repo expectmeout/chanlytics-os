@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { routeOf } from "../address";
+import { expectLit } from "../shell/places";
 import { apiGet } from "../workspace";
 
 /**
@@ -33,7 +34,7 @@ test.describe("People's list is a page of its own", () => {
   /** The frame is up and People is the item it lights. */
   async function expectPeopleFrame(page: Page): Promise<void> {
     await expect(page.getByTestId("sidebar")).toBeVisible({ timeout: 30_000 });
-    await expect(page.locator('.nav-item[aria-current="page"]')).toContainText("People");
+    await expectLit(page, "People");
   }
 
   test("/w/<slug>/people draws the list inside the frame, and a reload keeps the path", async ({ page }) => {

@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { routeOf } from "../address";
+import { expectLit, placeRow } from "./places";
 
 /**
  * The address of a page, in a real browser (decision 0015, "The address first").
@@ -28,7 +29,7 @@ test.describe("the address of a page", () => {
   /** The frame is up, on the route: its sidebar drawn and its current item the one the route lights. */
   async function expectFrameOn(page: Page, place: string): Promise<void> {
     await expect(page.getByTestId("sidebar")).toBeVisible({ timeout: 30_000 });
-    await expect(page.locator('.nav-item[aria-current="page"]')).toContainText(place);
+    await expectLit(page, place);
   }
 
   /** A new document, from anywhere but the address being asked for: a same-document move would never load the frame. */
@@ -96,12 +97,12 @@ test.describe("the address of a page", () => {
     });
     const alive = () => page.evaluate(() => (window as unknown as { __addressSpec?: boolean }).__addressSpec === true);
 
-    await page.locator(".nav-item", { hasText: "Reports" }).click();
+    await placeRow(page, "Reports").click();
     await page.waitForURL((u) => u.pathname === `/w/${slug}/reports`);
     await expectFrameOn(page, "Reports");
     expect(await alive(), "the move loaded no page").toBe(true);
 
-    await page.locator(".nav-item", { hasText: "People" }).click();
+    await placeRow(page, "People").click();
     await page.waitForURL((u) => routeOf(u) === "clients");
     await expectFrameOn(page, "People");
 

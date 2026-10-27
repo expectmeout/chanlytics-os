@@ -171,6 +171,10 @@ const OTHER_STATES = {
     n: 3,
     why: "Setup's clients' file row: the imports ledger's run of the file, not a campaign.",
   },
+  "apps/dashboard/src/surfaces/setup/first-run/channels/brought.tsx": {
+    n: 3,
+    why: "Brought in's lines (#1854): each source's run in the imports ledger, coming in or queued, not a campaign.",
+  },
 };
 
 /** Whether a node is the string "running". */
