@@ -133,6 +133,7 @@ export {
   endMailboxSync,
   keepMailboxWatch,
   knownThreads,
+  keepOwnerEmail,
   mailboxConnectionById,
   sentEmailIdByMessageId,
 } from "./repositories/mailboxes/sync";

@@ -12289,6 +12289,100 @@ end $$;
 
 
 --
+-- Name: mailbox_owner_wrote(uuid, text, text, text, timestamp with time zone, jsonb, text[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.mailbox_owner_wrote(p_tenant_id uuid, p_address text, p_external_id text, p_body text, p_channel_ts timestamp with time zone, p_meta jsonb, p_reasons text[]) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_address  text := nullif(lower(btrim(coalesce(p_address, ''))), '');
+  v_contact  uuid;
+  v_conv     uuid;
+  v_message  uuid;
+  v_ids      uuid[];
+  v_decision jsonb;
+begin
+  if p_tenant_id is null or v_address is null or nullif(btrim(coalesce(p_external_id, '')), '') is null
+     or p_channel_ts is null then
+    raise exception 'mailbox_owner_wrote: a workspace, the address it went to, the provider''s id and when it was sent'
+      using errcode = '22004';
+  end if;
+  -- Who it went to, as resolve_person matches an address (00413): the email identity, then the address on a living
+  -- record. Nobody is made: an address the workspace does not know is the owner's own business.
+  select coalesce(c.merged_into_contact_id, c.id)
+    into v_contact
+    from public.contact_identities i
+    join public.contacts c on c.id = i.contact_id
+   where i.tenant_id = p_tenant_id and i.channel = 'email' and i.external_id = v_address
+     and c.erased_at is null
+   limit 1;
+  if v_contact is null then
+    select c.id
+      into v_contact
+      from public.contacts c
+     where c.tenant_id = p_tenant_id and c.email = v_address
+       and c.erased_at is null and c.merged_into_contact_id is null
+     limit 1;
+  end if;
+  if v_contact is null then
+    return jsonb_build_object('kept', false, 'why', 'not_known');
+  end if;
+
+  -- Their thread, made where there is none yet, its recency moved only forward.
+  insert into public.conversations (tenant_id, contact_id, last_message_at)
+  values (p_tenant_id, v_contact, p_channel_ts)
+  on conflict (tenant_id, contact_id)
+    do update set last_message_at = greatest(conversations.last_message_at, excluded.last_message_at)
+  returning id into v_conv;
+
+  -- Once by the provider's id: a sync that reads the same email again keeps nothing twice.
+  insert into public.messages (tenant_id, conversation_id, contact_id, channel, direction, sender,
+                               type, body, external_id, channel_ts, status, meta)
+  values (p_tenant_id, v_conv, v_contact, 'email', 'outbound', 'human',
+          'text', nullif(p_body, ''), p_external_id, p_channel_ts, 'sent', coalesce(p_meta, '{}'::jsonb))
+  on conflict (tenant_id, external_id) where external_id is not null do nothing
+  returning id into v_message;
+  if v_message is null then
+    return jsonb_build_object('kept', false, 'why', 'already', 'conversation_id', v_conv);
+  end if;
+
+  -- The holds it answers: open, waiting on a person, opened before it was sent. Locked, so two syncs of one email cannot
+  -- both resolve them and write two decisions.
+  select array_agg(h.id)
+    into v_ids
+    from (
+      select e.id
+        from public.escalations e
+       where e.tenant_id = p_tenant_id
+         and e.conversation_id = v_conv
+         and e.state = 'open'
+         and e.reason = any(coalesce(p_reasons, '{}'::text[]))
+         and e.created_at < p_channel_ts
+       for update
+    ) h;
+  if v_ids is null then
+    return jsonb_build_object('kept', true, 'message_id', v_message, 'conversation_id', v_conv, 'resolved', 0);
+  end if;
+  v_decision := public.team_decision(p_tenant_id, null, 'conversation', v_conv, 'resolve',
+                                     jsonb_build_object('message_id', v_message), 'mailbox', null);
+  update public.escalations
+     set state = 'resolved', decision_id = (v_decision ->> 'decision_id')::uuid
+   where id = any(v_ids) and state = 'open';
+  return jsonb_build_object('kept', true, 'message_id', v_message, 'conversation_id', v_conv,
+                            'resolved', cardinality(v_ids)) || v_decision;
+end $$;
+
+
+--
+-- Name: FUNCTION mailbox_owner_wrote(p_tenant_id uuid, p_address text, p_external_id text, p_body text, p_channel_ts timestamp with time zone, p_meta jsonb, p_reasons text[]); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.mailbox_owner_wrote(p_tenant_id uuid, p_address text, p_external_id text, p_body text, p_channel_ts timestamp with time zone, p_meta jsonb, p_reasons text[]) IS 'An email the owner sent from their connected mailbox, not through Chanlytics (00482): kept in the thread of the one person it went to when the workspace knows them (the email identity, else the address on a living record; nobody is made), once by the provider''s id, outbound by a person; and the open holds on that thread that wait on a person (p_reasons) and opened before it was sent, resolved by one resolve decision with no member, via mailbox. Returns kept, why (not_known, already) when not kept, message_id, conversation_id, resolved, and decision_id when it resolved any. Service role only.';
+
+
+--
 -- Name: mailbox_threads_known(uuid, text[]); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -45529,6 +45623,14 @@ GRANT ALL ON FUNCTION public.mailbox_connection_counts(p_mailbox_id uuid, p_sinc
 
 REVOKE ALL ON FUNCTION public.mailbox_connections_within_limit() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.mailbox_connections_within_limit() TO service_role;
+
+
+--
+-- Name: FUNCTION mailbox_owner_wrote(p_tenant_id uuid, p_address text, p_external_id text, p_body text, p_channel_ts timestamp with time zone, p_meta jsonb, p_reasons text[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.mailbox_owner_wrote(p_tenant_id uuid, p_address text, p_external_id text, p_body text, p_channel_ts timestamp with time zone, p_meta jsonb, p_reasons text[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.mailbox_owner_wrote(p_tenant_id uuid, p_address text, p_external_id text, p_body text, p_channel_ts timestamp with time zone, p_meta jsonb, p_reasons text[]) TO service_role;
 
 
 --

@@ -87,6 +87,8 @@ function world({ box = {}, cursor = "100" } = {}) {
     events: [],
     jobs: [],
   };
+  /** What the door for the owner's emails was handed (00482), each call. */
+  const owned = [];
   const rpcs = {
     ...v.rpcs,
     // 00424: of the threads that changed, the ones holding an email this workspace sent.
@@ -94,6 +96,39 @@ function world({ box = {}, cursor = "100" } = {}) {
       a.p_thread_ids.filter((t) =>
         tables.messages.some((m) => m.tenant_id === a.p_tenant_id && m.meta?.email?.thread_id === t),
       ),
+    // 00482: the owner's email from the mailbox, kept in the thread of the one person it went to when the workspace knows
+    // them, once by its provider id, and the holds that waited on a person there and opened before it, resolved.
+    mailbox_owner_wrote: (a) => {
+      owned.push(a);
+      const who = tables.contacts.find((c) => c.tenant_id === a.p_tenant_id && c.email === a.p_address);
+      if (!who) return { kept: false, why: "not_known" };
+      if (tables.messages.some((m) => m.tenant_id === a.p_tenant_id && m.external_id === a.p_external_id))
+        return { kept: false, why: "already" };
+      const conversation = tables.messages.find((m) => m.contact_id === who.id)?.conversation_id ?? `c-${who.id}`;
+      tables.messages.push({
+        id: `m-${a.p_external_id}`,
+        tenant_id: a.p_tenant_id,
+        conversation_id: conversation,
+        contact_id: who.id,
+        channel: "email",
+        direction: "outbound",
+        sender: "human",
+        status: "sent",
+        external_id: a.p_external_id,
+        body: a.p_body,
+        error: null,
+        meta: a.p_meta,
+      });
+      const open = tables.escalations.filter(
+        (e) =>
+          e.conversation_id === conversation &&
+          e.state === "open" &&
+          a.p_reasons.includes(e.reason) &&
+          e.created_at < a.p_channel_ts,
+      );
+      for (const e of open) e.state = "resolved";
+      return { kept: true, message_id: `m-${a.p_external_id}`, conversation_id: conversation, resolved: open.length };
+    },
     // 00128, as the receipts suite models it.
     stamp_email_sent: (a) => {
       const m = tables.messages.find((x) => x.id === a.p_message_id && x.tenant_id === a.p_tenant_id);
@@ -102,7 +137,7 @@ function world({ box = {}, cursor = "100" } = {}) {
       return [{ status: m.status, conversation_id: m.conversation_id }];
     },
   };
-  return { mailbox, tables, db: fakeDb(tables, {}, rpcs) };
+  return { mailbox, tables, owned, db: fakeDb(tables, {}, rpcs) };
 }
 
 const gmailMessage = (id, threadId, { from = OWNER, text = "Sure, call me Thursday.", headers = [], parts } = {}) => ({
@@ -119,6 +154,31 @@ const gmailMessage = (id, threadId, { from = OWNER, text = "Sure, call me Thursd
       ...headers,
     ],
     ...(parts ? { parts } : { body: { data: b64url(text) } }),
+  },
+});
+/**
+ * An email the mailbox sent, as Gmail's Sent holds it: from the mailbox, to whom it names, under its own Message-ID
+ * (one Chanlytics minted, or Gmail's when the owner wrote it there).
+ */
+const sentByMailbox = (
+  id,
+  threadId,
+  { to = OWNER, messageId = `<${id}@mail.gmail.com>`, text = "Thursday works.", headers = [] } = {},
+) => ({
+  id,
+  threadId,
+  labelIds: ["SENT"],
+  internalDate: String(Date.now()),
+  payload: {
+    mimeType: "text/plain",
+    headers: [
+      { name: "From", value: "Sam <sam@getharbor.example>" },
+      { name: "To", value: to },
+      { name: "Subject", value: "Re: A quick one" },
+      { name: "Message-ID", value: messageId },
+      ...headers,
+    ],
+    body: { data: b64url(text) },
   },
 });
 /** A delivery report about our email, from the receiving server's postmaster: `action` and `status` as RFC 3464 says them. */
@@ -183,7 +243,16 @@ test("a sync reads what arrived from its cursor (decision 0073, R13): a reply in
   });
   try {
     const out = await syncMailbox(w.db, w.mailbox, logger({ tenant_id: T }));
-    assert.deepEqual(out, { outcome: "synced", read: 4, bounced: 1, replies: 1, people: 1, dropped: 1, unreadable: 0 });
+    assert.deepEqual(out, {
+      outcome: "synced",
+      read: 4,
+      bounced: 1,
+      replies: 1,
+      people: 1,
+      owner: 0,
+      dropped: 1,
+      unreadable: 0,
+    });
     assert.deepEqual(
       w.tables.jobs.map((j) => [j.kind, withoutRequestId(j.payload)]),
       [
@@ -498,7 +567,7 @@ test("whose fault a bounce is decides what follows: a refused sender stops no ad
   assert.equal(forwarded.tables.contacts[0].email_suppressed_reason, null, "stops nothing of ours");
 });
 
-test("Gmail: the mailbox's own sends and drafts are never read, nor spam outside a thread of ours; a reply Gmail took for spam is read", async () => {
+test("Gmail: the mailbox's drafts are never read, nor spam outside a thread of ours; a reply Gmail took for spam is read, and what the mailbox sent is read for the owner's words", async () => {
   const w = world();
   const net = providers((c) => {
     if (c.url.includes("/history?"))
@@ -517,17 +586,20 @@ test("Gmail: the mailbox's own sends and drafts are never read, nor spam outside
     const reports = reportsList(c);
     if (reports) return reports;
     if (c.url.includes("/messages/r9")) return { json: gmailMessage("r9", "g-thread") };
+    // The reach-out's own email, as Gmail's Sent holds it: under the Message-ID it went with.
+    if (c.url.includes("/messages/s1")) return { json: sentByMailbox("s1", "g-thread", { messageId: OURS }) };
     return { json: gmailMessage("other", "other", { from: "Rosa Diaz <rosa@example.com>" }) };
   });
   try {
     const out = await syncMailbox(w.db, w.mailbox, logger({ tenant_id: T }));
-    for (const id of ["s1", "d1", "z1", "t1"])
+    for (const id of ["d1", "z1", "t1"])
       assert.equal(net.calls.filter((c) => c.url.includes(`/messages/${id}`)).length, 0, `${id} is never read`);
     assert.deepEqual(
-      [out.read, out.replies, out.people],
-      [1, 1, 0],
-      "the reply taken for spam is a reply all the same",
+      [out.read, out.replies, out.people, out.owner],
+      [2, 1, 0, 0],
+      "the reply taken for spam is a reply all the same; the reach-out's own email, read, is its row already",
     );
+    assert.deepEqual(w.owned, [], "an email Chanlytics sent never reaches the owner's door");
     assert.deepEqual(
       w.tables.jobs.map((j) => withoutRequestId(j.payload).received_id),
       ["r9"],
@@ -576,12 +648,95 @@ test("Gmail's tabs: what it filed as promotions outside a thread of ours is read
   });
   try {
     const out = await syncMailbox(w.db, w.mailbox, logger({ tenant_id: T }));
-    assert.deepEqual(out, { outcome: "synced", read: 3, bounced: 0, replies: 1, people: 1, dropped: 1, unreadable: 0 });
+    assert.deepEqual(out, {
+      outcome: "synced",
+      read: 3,
+      bounced: 0,
+      replies: 1,
+      people: 1,
+      owner: 0,
+      dropped: 1,
+      unreadable: 0,
+    });
     assert.deepEqual(
       w.tables.jobs.map((j) => withoutRequestId(j.payload).received_id),
       ["r7", "u7"],
       "the newsletter is never taken in",
     );
+  } finally {
+    net.restore();
+  }
+});
+
+test("what the owner wrote from Gmail to a person the workspace knows is kept in their thread and answers what waited there; to someone it does not know, to many, an automatic one and Chanlytics' own are left", async () => {
+  const w = world();
+  // A person who wrote, waiting in Need you since an hour ago, on the thread the reach-out started.
+  w.tables.escalations.push({
+    id: "x-wait",
+    tenant_id: T,
+    conversation_id: "c1",
+    reason: "email_review",
+    state: "open",
+    created_at: new Date(Date.now() - 60 * 60_000).toISOString(),
+  });
+  const sent = {
+    o1: sentByMailbox("o1", "g-thread", { text: "Thursday at 10 works. See you then." }),
+    o2: sentByMailbox("o2", "a-supplier", { to: "orders@supplier.example" }),
+    o3: sentByMailbox("o3", "a-crowd", { to: `${OWNER}, b@example.com` }),
+    o4: sentByMailbox("o4", "a-merge", {
+      headers: [{ name: "List-Unsubscribe", value: "<mailto:leave@getharbor.example>" }],
+    }),
+    o5: sentByMailbox("o5", "g-thread", { messageId: OURS }),
+  };
+  const net = providers((c) => {
+    if (c.url.includes("/history?"))
+      return {
+        json: {
+          history: [
+            ...Object.keys(sent).map((id) => ({
+              messagesAdded: [{ message: { id, threadId: sent[id].threadId, labelIds: ["SENT"] } }],
+            })),
+            { messagesAdded: [{ message: { id: "d2", threadId: "g-thread", labelIds: ["DRAFT"] } }] },
+          ],
+          historyId: "123",
+        },
+      };
+    const reports = reportsList(c);
+    if (reports) return reports;
+    const id = /\/messages\/([a-z0-9]+)\?/.exec(c.url)?.[1];
+    return id && sent[id] ? { json: sent[id] } : { status: 404 };
+  });
+  try {
+    const out = await syncMailbox(w.db, w.mailbox, logger({ tenant_id: T }));
+    assert.deepEqual(
+      [out.read, out.owner, out.replies, out.people, out.dropped],
+      [5, 1, 0, 0, 0],
+      "five sent read, the draft never; one kept as the owner's",
+    );
+    assert.equal(net.calls.filter((c) => c.url.includes("/messages/d2")).length, 0, "a draft is never read");
+    assert.deepEqual(
+      w.owned.map((a) => [a.p_address, a.p_external_id]),
+      [
+        [OWNER, "o1"],
+        ["orders@supplier.example", "o2"],
+      ],
+      "only mail to one person, written by a person, and not Chanlytics' own, asks the door",
+    );
+    const [kept] = w.owned;
+    assert.equal(kept.p_body, "Thursday at 10 works. See you then.");
+    assert.ok(kept.p_reasons.includes("email_review"), "the holds a reply settles, as a typed reply settles them");
+    assert.equal(kept.p_meta.owner_wrote, true);
+    assert.equal(kept.p_meta.source, "mailbox");
+    assert.equal(kept.p_meta.thread_id, "g-thread");
+    assert.equal(kept.p_meta.email.message_id, "<o1@mail.gmail.com>");
+    const mine = w.tables.messages.find((m) => m.external_id === "o1");
+    assert.deepEqual([mine.direction, mine.sender, mine.conversation_id], ["outbound", "human", "c1"]);
+    assert.equal(w.tables.escalations[0].state, "resolved", "Need you stops asking: the owner answered");
+    assert.equal(w.tables.jobs.length, 0, "nothing of the owner's is handed to the intake");
+
+    // The same changes again: kept once, nothing resolved twice.
+    await syncMailbox(w.db, { ...w.mailbox, sync_cursor: "100" }, logger({ tenant_id: T }));
+    assert.equal(w.tables.messages.filter((m) => m.external_id === "o1").length, 1);
   } finally {
     net.restore();
   }

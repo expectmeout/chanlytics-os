@@ -72,14 +72,16 @@ function stampOf(tables) {
 
 /**
  * A column, or a JSON path the way PostgREST spells one: `recording->>fetch_state`
- * reads the key inside the object. Modelled for the recordings purge, whose
- * candidates are "stored" rows -- a state that lives inside a jsonb column.
+ * reads the key inside the object, and `meta->email->>message_id` walks down to it.
+ * Modelled for the recordings purge, whose candidates are "stored" rows -- a state
+ * that lives inside a jsonb column -- and for a sent email found by its Message-ID.
  */
 function cell(row, col) {
-  if (typeof col === "string" && col.includes("->>")) {
-    const [base, key] = col.split("->>");
-    const v = row[base];
-    return v && typeof v === "object" ? v[key] : undefined;
+  if (typeof col === "string" && col.includes("->")) {
+    const [base, ...keys] = col.split(/->>?/);
+    let v = row[base];
+    for (const key of keys) v = v && typeof v === "object" ? v[key] : undefined;
+    return v;
   }
   return row[col];
 }

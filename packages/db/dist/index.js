@@ -3318,6 +3318,21 @@ async function knownThreads(db, tenantId, threadIds) {
   if (error) throw new Error(`cannot read which threads are the workspace's: ${error.message}`);
   return new Set(data ?? []);
 }
+async function keepOwnerEmail(db, p) {
+  const { data, error } = await db.rpc("mailbox_owner_wrote", {
+    p_tenant_id: p.tenantId,
+    p_address: p.address,
+    p_external_id: p.externalId,
+    p_body: p.body ?? "",
+    p_channel_ts: p.channelTs,
+    p_meta: p.meta,
+    p_reasons: [...p.settles]
+  });
+  if (error) throw new Error(`cannot keep the owner's email: ${error.message}`);
+  const out = data ?? {};
+  if (out.kept === true) return { kept: true, resolved: typeof out.resolved === "number" ? out.resolved : 0 };
+  return { kept: false, why: out.why === "already" ? "already" : "not_known" };
+}
 
 // src/repositories/mailboxes/reconcile.ts
 import { MIN_MS } from "../../contracts/dist/index.js";
@@ -8140,6 +8155,7 @@ export {
   keepMessageCost,
   keepModelTurn,
   keepOnceDraft,
+  keepOwnerEmail,
   keepProviderEvent,
   keepRehearsalCall,
   keepRehearsalFix,

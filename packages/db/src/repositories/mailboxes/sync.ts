@@ -4,7 +4,7 @@
  * ever fetched. The edge's sync (lib/email/mailbox/mailbox-sync.ts) asks these as the service role.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../database.types";
+import type { Database, Json } from "../../database.types";
 import type { MailboxConnectionRow } from "./connections";
 
 type Db = SupabaseClient<Database>;
@@ -89,4 +89,41 @@ export async function knownThreads(db: Db, tenantId: string, threadIds: string[]
   });
   if (error) throw new Error(`cannot read which threads are the workspace's: ${error.message}`);
   return new Set(data ?? []);
+}
+
+/** What became of an email the owner sent from their mailbox (00482): kept, with the holds it answered, or why not. */
+export type OwnerEmailKept = { kept: true; resolved: number } | { kept: false; why: "not_known" | "already" };
+
+/**
+ * An email the owner sent from their connected mailbox, not through Chanlytics (00482 mailbox_owner_wrote): kept in the
+ * thread of the one person it went to when the workspace knows them (never one made from an address alone), once by the
+ * provider's id, as a person's words; and the holds on that thread of the reasons `settles` names (contracts
+ * WAITING_REASONS) that opened before it was sent, resolved. Throws when the database refused: the sync keeps its cursor
+ * and reads it again, and the door keeps nothing twice.
+ */
+export async function keepOwnerEmail(
+  db: Db,
+  p: {
+    tenantId: string;
+    address: string;
+    externalId: string;
+    body: string | null;
+    channelTs: string;
+    meta: Json;
+    settles: readonly string[];
+  },
+): Promise<OwnerEmailKept> {
+  const { data, error } = await db.rpc("mailbox_owner_wrote", {
+    p_tenant_id: p.tenantId,
+    p_address: p.address,
+    p_external_id: p.externalId,
+    p_body: p.body ?? "",
+    p_channel_ts: p.channelTs,
+    p_meta: p.meta,
+    p_reasons: [...p.settles],
+  });
+  if (error) throw new Error(`cannot keep the owner's email: ${error.message}`);
+  const out = (data ?? {}) as { kept?: unknown; why?: unknown; resolved?: unknown };
+  if (out.kept === true) return { kept: true, resolved: typeof out.resolved === "number" ? out.resolved : 0 };
+  return { kept: false, why: out.why === "already" ? "already" : "not_known" };
 }
