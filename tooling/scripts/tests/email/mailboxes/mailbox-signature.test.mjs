@@ -73,7 +73,7 @@ test("what it signs with: none where it is off, their own words, Gmail's, else t
 
 test("Gmail's signature as words: its lines, its links by their words, its logo left out", () => {
   assert.equal(
-    gmailSignatureWords(GMAIL)?.replace(/ /g, " "),
+    gmailSignatureWords(GMAIL)?.replace(/\u00a0/g, " "),
     "Ruben Segura\nFounder, Chanlytics\nchanlytics.agency | hi@chanlytics.agency",
   );
   assert.equal(gmailSignatureWords("<div><br></div>"), null, "a signature of nothing is none");

@@ -5557,7 +5557,7 @@ function gmailSignatureWords(html) {
       { selector: "a", options: { ignoreHref: true } },
       { selector: "p", options: { leadingLineBreaks: 1, trailingLineBreaks: 1 } }
     ]
-  }).split("\n").map((l) => l.replace(/[ \t ]+$/, "")).filter((l) => l.trim() !== "").join("\n").trim();
+  }).split("\n").map((l) => l.replace(/[ \t\u00a0]+$/, "")).filter((l) => l.trim() !== "").join("\n").trim();
   return words || null;
 }
 function mailboxSignatureOf(row) {
@@ -7345,7 +7345,6 @@ export {
   GBP_REVIEWS_MAX_PAGES,
   GBP_REVIEWS_PAGE,
   GBP_V4_BASE,
-  GMAIL_SIGNATURE_MAX,
   GOOGLE_AUTH_URL,
   GOOGLE_REVOKE_URL,
   GOOGLE_TOKEN_URL,

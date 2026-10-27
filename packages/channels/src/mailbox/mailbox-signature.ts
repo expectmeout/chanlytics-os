@@ -8,7 +8,7 @@ import { convert } from "html-to-text";
 import { mailboxConnectionDtoOf, mailboxSignsOf, type MailboxConnectionDto } from "@chanlytics/contracts";
 
 /** The longest Gmail signature a mailbox keeps (00487's check): a longer one is not kept, never cut through its markup. */
-export const GMAIL_SIGNATURE_MAX = 10_000;
+const GMAIL_SIGNATURE_MAX = 10_000;
 
 /** What an email never carries, whoever wrote it: a script, a frame, a form, a style sheet, and a handler or a script link. */
 const DROPPED = "script|style|iframe|object|embed|form|frameset|frame|meta|link|base|svg|math";
@@ -46,7 +46,7 @@ export function gmailSignatureWords(html: string | null | undefined): string | n
     ],
   })
     .split("\n")
-    .map((l) => l.replace(/[ \t ]+$/, ""))
+    .map((l) => l.replace(/[ \t\u00a0]+$/, ""))
     // A block that held only the logo is a blank line once it is skipped: a signature's lines close up.
     .filter((l) => l.trim() !== "")
     .join("\n")

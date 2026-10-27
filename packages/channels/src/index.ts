@@ -344,7 +344,6 @@ export {
   gmailSignatureWords,
   mailboxSignatureOf,
   mailboxDtoOf,
-  GMAIL_SIGNATURE_MAX,
 } from "./mailbox/mailbox-signature";
 export {
   graphDayUsed,
