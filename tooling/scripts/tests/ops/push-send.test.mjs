@@ -82,7 +82,10 @@ const ctx = (db, p) => ({
   ...p,
 });
 
-test("every member's every phone hears a workspace row, in the bell's words; another workspace's phone does not", async () => {
+test("every member's every phone hears a workspace row, in the bell's words; another workspace's phone does not", async (t) => {
+  // The row is dated 26 September and the badge counts the bell's last thirty days (BELL_WINDOW_DAYS): read on the
+  // real clock, it left the window on 26 October and the badge read 0.
+  t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-09-28T17:00:00Z") });
   const { db } = world();
   const p = port();
   assert.equal(await dispatchJob(ctx(db, { push: p.push }), job), "done");
@@ -378,7 +381,9 @@ test("before 00372 there is no push_off to read, and every member is told as bef
   assert.deepEqual(p.sent.map((m) => m.to).sort(), ["tok-u1-a", "tok-u1-b", "tok-u2"]);
 });
 
-test("a member of two workspaces is told which business it is about, and their icon keeps the number it had (R11 S8-7)", async () => {
+test("a member of two workspaces is told which business it is about, and their icon keeps the number it had (R11 S8-7)", async (t) => {
+  // u2's badge counts the row dated 26 September, so the clock is held inside the bell's thirty days, as above.
+  t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-09-28T17:00:00Z") });
   const db = fakeDb({
     notifications: [row()],
     tenants: [
