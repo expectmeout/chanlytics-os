@@ -1,7 +1,7 @@
 {
-  "rows": 145,
+  "rows": 147,
   "same": 6,
-  "differ": 139,
+  "differ": 141,
   "writes": {
     "DELETE ask/memory/[id]": {
       "changes": "ask_memory_lines INSERT UPDATE"
@@ -578,6 +578,25 @@
         "settings": "every page",
         "setup": "admin/integrations, start, today",
         "today_pins": "today"
+      }
+    },
+    "POST contacts/[id]/not-a-person": {
+      "changes": "appointment_notices UPDATE · appointments UPDATE · ask_journal_days DELETE · ask_memory_lines DELETE · ask_messages DELETE UPDATE · ask_threads DELETE UPDATE · calls DELETE · contacts UPDATE · conversations DELETE · mailbox_senders DELETE INSERT UPDATE · messages DELETE · person_notes UPDATE · policies DELETE",
+      "tells": "contacts",
+      "missing": {
+        "ask_memory": "admin/memory",
+        "ask_morning": "today",
+        "calendar": "every page",
+        "calendar_runs": "calendar",
+        "channels": "admin/integrations, broadcasts, campaigns/messages, campaigns/sequences/new, live, messages, outbound, today",
+        "google": "admin, admin/activity, admin/autonomy, admin/billing, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, segments, start, today",
+        "live": "every page",
+        "people": "admin, admin/activity, admin/autonomy, admin/billing, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients/leads, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, start",
+        "person": "clients/person",
+        "reach_out_replies": "inbox, today",
+        "reach_outs": "every page",
+        "reports_reviews": "reports/reviews",
+        "settings": "every page"
       }
     },
     "POST contacts/[id]/notes": {
@@ -1324,6 +1343,18 @@
       "doors": "contacts · conversations · imports · leads · mailbox_connections · mailbox_left · messages · notifications · person_doubts · tenant_config",
       "door": {
         "setup": "every page"
+      }
+    },
+    "POST mailbox-senders": {
+      "changes": "mailbox_senders DELETE INSERT UPDATE",
+      "doors": "contacts · conversations · imports · leads · mailbox_connections · mailbox_left · messages · notifications · person_doubts · tenant_config",
+      "door": {
+        "audiences": "broadcasts",
+        "conversations": "every page",
+        "inbox": "every page",
+        "people": "clients, clients/get-yes, clients/person, segments, today",
+        "playbooks": "broadcasts, campaigns/messages, campaigns/sequences/new, messages, outbound, today",
+        "reports_people": "reports/people"
       }
     },
     "POST mailboxes": {
