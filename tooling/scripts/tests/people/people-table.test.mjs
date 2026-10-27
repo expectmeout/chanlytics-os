@@ -135,23 +135,34 @@ test("the helpers take the column list: sort keys, shown columns, first directio
 
 test("REGRESSION: a sort by a column turned off gives way on a desk -- People read Sorted by next step over a table with no Next step", () => {
   const shown = plShownColumns(COLS, { state: false }, { withCalendar: true });
-  const all = [{ key: "name", sortFirst: "asc" }, { key: "state" }, { key: "visits", sortFirst: "asc" }];
   const chosen = { by: "state", dir: "asc" };
   assert.deepEqual(
-    plSortShown(shown, all, chosen, { by: "visits", dir: "desc" }),
+    plSortShown(shown, chosen, { by: "visits", dir: "desc" }),
     { by: "visits", dir: "desc" },
     "to the page's first sort, its own way",
   );
-  assert.deepEqual(
-    plSortShown(shown, all, chosen, { by: "state", dir: "desc" }),
-    { by: "name", dir: "asc" },
-    "else the first column shown that sorts, the way its first press goes",
-  );
   const back = plShownColumns(COLS, {}, { withCalendar: true });
   assert.deepEqual(
-    plSortShown(back, all, chosen, { by: "visits", dir: "desc" }),
+    plSortShown(back, chosen, { by: "visits", dir: "desc" }),
     chosen,
     "and the member's own sort comes back with its column",
+  );
+});
+
+test("REGRESSION: the page's first sort stands with its column off -- a desk's Leads, Best fit first, opened Z to A by name", () => {
+  // Leads' Fit column is off until asked for (leads/cells/columns.tsx), and its first sort is Best fit first: here State.
+  const shown = plShownColumns(COLS, { state: false, visits: false }, { withCalendar: true });
+  const first = { by: "state", dir: "asc" };
+  assert.deepEqual(plSortShown(shown, first, first), first, "the page's own order, though no heading shows it");
+  assert.deepEqual(
+    plSortShown(shown, { by: "state", dir: "desc" }, first),
+    { by: "state", dir: "desc" },
+    "turned round, it stays the member's",
+  );
+  assert.deepEqual(
+    plSortShown(shown, { by: "visits", dir: "desc" }, first),
+    first,
+    "and a sort whose column is off gives way to it, not to the first column shown (Person)",
   );
 });
 
