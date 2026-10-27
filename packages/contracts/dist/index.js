@@ -529,7 +529,7 @@ var HEAD = {
   /** With no calendar link, the booked half waits. */
   touchOnly: (n) => ({ strong: `${n}`, rest: " new people got in touch through your ads." }),
   read: (time) => `Last 30 days \xB7 read ${time}`,
-  v0Read: (since) => `Last 30 days \xB7 counted from ${since}`,
+  v0Read: (since2) => `Last 30 days \xB7 counted from ${since2}`,
   /** The pane line while an account is being read: `Reading Meta and Google…`. */
   reading: (list2) => `Reading ${list2}\u2026`,
   accounts: "Accounts",
@@ -4510,8 +4510,8 @@ var REGISTRATION_COST_WORDS = {
 var PROVISIONING_DEADLINE_MS = 5 * MIN_MS;
 function lineStuckProvisioning(l, nowMs) {
   if (!l || l.voice_state !== "provisioning") return false;
-  const since = Date.parse(l.state_since);
-  return Number.isFinite(since) && nowMs - since > PROVISIONING_DEADLINE_MS;
+  const since2 = Date.parse(l.state_since);
+  return Number.isFinite(since2) && nowMs - since2 > PROVISIONING_DEADLINE_MS;
 }
 function lineRetryRefusal(l, nowMs) {
   if (!l) return "no such line";
@@ -5518,12 +5518,12 @@ function adsModel(read, config, by = "door") {
   const p = pageTotals(read);
   const rv = readViewOf(read);
   const reading = rv.reading.length > 0;
-  const since = read.firstTouch ? dayShort(read.firstTouch.since) : null;
+  const since2 = read.firstTouch ? dayShort(read.firstTouch.since) : null;
   const groupBy = groupByOf(read, by);
   const base = {
     mode,
     head: pageHead(mode, p, read),
-    pane: reading ? HEAD.reading(ownersOf(rv.reading)) : mode === "v0" && since !== null ? HEAD.v0Read(since) : HEAD.read(readTime(read)),
+    pane: reading ? HEAD.reading(ownersOf(rv.reading)) : mode === "v0" && since2 !== null ? HEAD.v0Read(since2) : HEAD.read(readTime(read)),
     standing: pageStanding(read),
     figures: [],
     counted: null,
@@ -14556,8 +14556,8 @@ function movedAddress(address) {
   if (!name) return null;
   const own = at3 < 0 ? "" : route.slice(at3 + 1);
   const search = address.search ?? "";
-  const joined = own ? search ? `${search}&${own}` : `?${own}` : search;
-  return `/w/${m[1] ?? ""}/${pathRoute(retiredRouteOf(name) ?? name)}${joined}`;
+  const joined2 = own ? search ? `${search}&${own}` : `?${own}` : search;
+  return `/w/${m[1] ?? ""}/${pathRoute(retiredRouteOf(name) ?? name)}${joined2}`;
 }
 function workspacePath(slug, route = "") {
   return `/w/${encodeURIComponent(slug)}${route ? `/${pathRoute(retiredRouteOf(route) ?? route)}` : ""}`;
@@ -24722,7 +24722,7 @@ var leftOut = (parts2) => {
   return said.length ? `Left out: ${said.join(", ")}.` : null;
 };
 function leadImportAnswerWords(a, leftByPage = 0) {
-  const joined = a.checking + a.counted;
+  const joined2 = a.checking + a.counted;
   const lines = [
     a.checking ? `Checking ${plural(a.checking, "address", "addresses")} now: each one that checks out joins Ready, usually within a few minutes.` : null,
     a.counted ? `${plural(a.counted, "lead")} already counted joined as ${a.counted === 1 ? "it is" : "they are"}.` : null,
@@ -24734,7 +24734,7 @@ function leadImportAnswerWords(a, leftByPage = 0) {
       [a.left_out.elsewhere ?? 0, "being checked in another search", "being checked in another search"]
     ])
   ].filter((l) => !!l);
-  return { title: `${plural(joined, "business", "businesses")} on the list`, lines };
+  return { title: `${plural(joined2, "business", "businesses")} on the list`, lines };
 }
 function leadChooseAnswerWords(a) {
   const off = leftOut([
@@ -28207,7 +28207,7 @@ var REACH_OUT_TO_SEND_LABELS = {
   noReplyYes: "No reply: it went",
   sentDone: (name) => `${name}: sent from your inbox`,
   /** Sent, and recorded, though its lead would be refused now (reach_out_send_said's since). */
-  sentSince: (name, since) => `${name}: sent from your inbox. ${SENT_SINCE_WORDS[since] ?? "Nothing more is written to them."}`,
+  sentSince: (name, since2) => `${name}: sent from your inbox. ${SENT_SINCE_WORDS[since2] ?? "Nothing more is written to them."}`,
   skippedDone: (name) => `${name}: left out. Nothing more is written to them.`,
   /** Left out by the clock or a reply before the owner said a word: why, in the skip's own words. */
   leftOut: (name, why) => `${name} was left out already: they ${why}.`,
@@ -31357,15 +31357,15 @@ function validUntilOf(day2, tz, nowMs) {
 function toDealVM(d, tz, nowMs) {
   if (!isDealStage(d.stage)) return null;
   const sinceMs = dealSinceMs(d);
-  const since = sinceMs === null ? "" : `since ${clockDate(sinceMs, tz, nowMs)}`;
+  const since2 = sinceMs === null ? "" : `since ${clockDate(sinceMs, tz, nowMs)}`;
   const waitingDays = d.stage === "proposed" ? wholeDaysSince(sinceMs, nowMs) : null;
   const amount = amountWords(d.amount_cents, d.per, d.currency ?? "USD");
   const url = d.proposal_url?.trim() || null;
   const proposedMs = d.proposed_at ? Date.parse(d.proposed_at) : NaN;
   const word = DEAL_STAGE_WORDS[d.stage];
-  const said = [word, since, amount].filter((x) => !!x).join(" \xB7 ");
+  const said = [word, since2, amount].filter((x) => !!x).join(" \xB7 ");
   const line = [d.service, said].filter((x) => !!x).join(" \xB7 ");
-  const facts = [d.service, since, amount].filter((x) => !!x).join(" \xB7 ");
+  const facts = [d.service, since2, amount].filter((x) => !!x).join(" \xB7 ");
   const brief = d.stage === "proposed" ? `${word} \xB7 ${daysInStageWords(waitingDays ?? 0)}` : d.stage === "won" ? [word, d.service].filter((x) => !!x).join(" \xB7 ") : null;
   return {
     id: d.id ?? null,
@@ -31374,7 +31374,7 @@ function toDealVM(d, tz, nowMs) {
     word,
     service: d.service,
     sinceMs,
-    since,
+    since: since2,
     said,
     line,
     facts,
@@ -31454,10 +31454,10 @@ function dealSentence(d, nowMs, tz = "UTC", opts = {}) {
   const svc = d.service ? ` (${d.service})` : "";
   const sinceMs = dealSinceMs(d);
   const on = sinceMs === null ? "" : ` on ${clockDate(sinceMs, tz, nowMs)}`;
-  const since = sinceMs === null ? "" : `, since ${clockDate(sinceMs, tz, nowMs)}`;
+  const since2 = sinceMs === null ? "" : `, since ${clockDate(sinceMs, tz, nowMs)}`;
   switch (d.stage) {
     case "won":
-      return `They are a client${svc}${since}. Offer them the service itself, not a consultation. Anything about their engagement or what it costs goes to a person: say someone will follow up, and hand over.`;
+      return `They are a client${svc}${since2}. Offer them the service itself, not a consultation. Anything about their engagement or what it costs goes to a person: say someone will follow up, and hand over.`;
     case "proposed":
       return opts.hasLink ? `A proposal${svc} went out to them${on} and is waiting on their answer. If they ask about it, send them the proposal link and state none of its figures, then hand over.` : `A proposal${svc} went out to them${on} and is waiting on their answer. If they ask about it, say the person who sent it will follow up, and hand over. Never discuss its price.`;
     case "lost":
@@ -34373,14 +34373,14 @@ function bookingRulesWords(rules) {
   if (isNumber(r2.max_days_ahead)) parts2.push(`up to ${pluralGrouped(r2.max_days_ahead, "day", "days")} ahead`);
   if (isNumber(r2.party_max)) parts2.push(`up to ${pluralGrouped(r2.party_max, "person", "people")}`);
   if (r2.ask_email) parts2.push("asks for an email when sending the booking link");
-  const joined = parts2.join(" \xB7 ");
+  const joined2 = parts2.join(" \xB7 ");
   const notes = (Array.isArray(r2.notes) ? r2.notes : []).filter((x) => typeof x === "string" && x.trim() !== "").map((x) => {
     const t = x.trim();
     return /[.!?…]$/.test(t) ? t : `${t}.`;
   });
   const d = BOOKING_DEFAULTS;
   return {
-    line: joined ? `${joined[0].toUpperCase()}${joined.slice(1)}` : null,
+    line: joined2 ? `${joined2[0].toUpperCase()}${joined2.slice(1)}` : null,
     notes: notes.length ? notes.join(" ") : null,
     none: `The calendar's own \u2014 at least ${pluralGrouped(d.lead_hours, "hour's", "hours'")} notice, up to ${pluralGrouped(d.max_days_ahead, "day", "days")} ahead, in ${count(d.slot_min)}-minute slots`
   };
@@ -35126,25 +35126,25 @@ function gainedOver(days, periodDays) {
   const sorted = [...days].sort((a, b) => a.day < b.day ? -1 : a.day > b.day ? 1 : 0);
   if (sorted.length < 2) return { current: noGained(), previous: null };
   const last = sorted[sorted.length - 1];
-  const since = shiftKey(last.day, -(periodDays - 1));
-  const before = sorted.filter((d) => d.day < since);
-  const inside = sorted.filter((d) => d.day >= since);
+  const since2 = shiftKey(last.day, -(periodDays - 1));
+  const before = sorted.filter((d) => d.day < since2);
+  const inside = sorted.filter((d) => d.day >= since2);
   const baseline = before.length ? before[before.length - 1] : inside[0];
   const total = last.review_count - baseline.review_count;
   const sinceLabel = before.length ? null : fmtDay(baseline.day);
   const byDay = new Map(sorted.map((d) => [d.day, d.review_count]));
   const points = [];
   let prev = before.length ? baseline.review_count : null;
-  for (let day2 = since; day2 <= last.day; day2 = shiftKey(day2, 1)) {
+  for (let day2 = since2; day2 <= last.day; day2 = shiftKey(day2, 1)) {
     const count2 = byDay.get(day2);
     const gained = count2 !== void 0 && prev !== null ? Math.max(0, count2 - prev) : 0;
     if (count2 !== void 0) prev = count2;
     points.push({ ...dayPointOf(day2), gained });
   }
   const max = Math.max(0, ...points.map((p) => p.gained));
-  const prevSince = shiftKey(since, -periodDays);
+  const prevSince = shiftKey(since2, -periodDays);
   const prevBefore = sorted.filter((d) => d.day < prevSince);
-  const prevInside = sorted.filter((d) => d.day >= prevSince && d.day < since);
+  const prevInside = sorted.filter((d) => d.day >= prevSince && d.day < since2);
   const previous = prevBefore.length && prevInside.length ? prevInside[prevInside.length - 1].review_count - prevBefore[prevBefore.length - 1].review_count : null;
   return { current: { points, max, total: before.length || inside.length >= 2 ? total : null, sinceLabel }, previous };
 }
@@ -35188,8 +35188,8 @@ function toGoogleVM(dto, period, nowMs, tz) {
   const countSpark = inPeriod.map((d) => d.review_count);
   const baselineRating = (() => {
     if (!days.length) return null;
-    const since = shiftKey(days[days.length - 1].day, -(periodDays - 1));
-    const before = days.filter((d) => d.day < since);
+    const since2 = shiftKey(days[days.length - 1].day, -(periodDays - 1));
+    const before = days.filter((d) => d.day < since2);
     return before.length ? before[before.length - 1].rating : null;
   })();
   const rangeLabel = rangeLabelOf(periodDays);
@@ -37269,10 +37269,10 @@ function supportDue(rows2, nowMs) {
 }
 function answeredMedianMs(rows2, acts, nowMs) {
   const firsts = firstAnswers(acts);
-  const since = nowMs - SUPPORT_DONE_DAYS * DAY_MS;
+  const since2 = nowMs - SUPPORT_DONE_DAYS * DAY_MS;
   const spans = rows2.flatMap((r2) => {
     const at3 = firsts.get(r2.id);
-    return at3 !== void 0 && at3 >= since ? [Math.max(0, at3 - r2.atMs)] : [];
+    return at3 !== void 0 && at3 >= since2 ? [Math.max(0, at3 - r2.atMs)] : [];
   }).sort((a, b) => a - b);
   if (!spans.length) return null;
   const mid = Math.floor(spans.length / 2);
@@ -40544,8 +40544,8 @@ function medianWait(waits) {
   return m === null ? null : Math.round(m);
 }
 function dealPaceFrom(rows2, nowMs) {
-  const since = nowMs - PACE_WINDOW_DAYS * DAY_MS;
-  const waits = yesWaits(rows2.filter((d) => d.decided_at !== null && Date.parse(d.decided_at) >= since));
+  const since2 = nowMs - PACE_WINDOW_DAYS * DAY_MS;
+  const waits = yesWaits(rows2.filter((d) => d.decided_at !== null && Date.parse(d.decided_at) >= since2));
   return { median_days: medianWait(waits), yeses: waits.length };
 }
 
@@ -40827,13 +40827,13 @@ function followUpKey(about) {
 }
 function followUpCovers(d, had) {
   if (!had.keys) return had.at !== void 0 && followUpIsFor({ deal: d }, had.at);
-  const since = d.sinceMs ?? Number.POSITIVE_INFINITY;
+  const since2 = d.sinceMs ?? Number.POSITIVE_INFINITY;
   const at3 = [
     d.id ? had.keys.get(followUpKey({ deal: d.id, link: null })) : void 0,
     d.proposal?.url ? had.keys.get(followUpKey({ deal: null, link: d.proposal.url })) : void 0,
     had.keys.get(followUpKey({ deal: null, link: null }))
   ];
-  return at3.some((x) => x !== void 0 && x >= since);
+  return at3.some((x) => x !== void 0 && x >= since2);
 }
 function followUpDealOf(r2, nowMs, pace, had) {
   const open = r2.openDeals && r2.openDeals.length ? r2.openDeals : r2.deal ? [r2.deal] : [];
@@ -42187,11 +42187,11 @@ function mailboxWords(m, nowMs, sentToday = m.sent_today ?? null) {
       fix: null
     };
   if (m.state === "held") {
-    const since = m.held_at ? DAY_FMT.format(new Date(m.held_at)) : null;
+    const since2 = m.held_at ? DAY_FMT.format(new Date(m.held_at)) : null;
     return {
       pill: "Held",
       tone: "warn",
-      day: `${since ? `Held since ${since}` : "Held"}: ${mailboxHoldWords(m.held_why)}.`,
+      day: `${since2 ? `Held since ${since2}` : "Held"}: ${mailboxHoldWords(m.held_why)}.`,
       ramp: null,
       health,
       fix: mailboxHoldFixWords(m.held_why)
@@ -42452,64 +42452,101 @@ var IMPORT_WORDS = {
   queued: "Starting",
   atGoLive: "At Go live",
   retry: "Try again",
+  /** Try again, pressed, until the run is heard starting. */
+  starting: "Starting",
   heading: "Coming in while you go on",
-  broughtHeading: "What came in before Chanlytics",
-  foot: "It shows on each person as before Chanlytics: never counted as today's, never answered.",
-  broughtFoot: "Each person shows it as before Chanlytics. It's never counted as today's, never answered, and never a yes.",
-  keepsGoing: "It keeps going if you leave",
+  /** Under the sources, once: what came in is history on each person, never answered (decision 0073, D15 and D16). */
+  foot: "Shown on each person as history, never answered.",
+  /** Said only while something is still coming in. */
+  keepsGoing: "Keeps going if you leave.",
   bringing: (done, of) => `Bringing it in \xB7 ${done} of ${of}`,
+  allIn: "All in",
+  stoppedCount: (n) => `${n} stopped`,
+  /** A run that stopped part way (IMPORT_STOPPED_WORDS.failed), said on its line with what it kept. */
+  stoppedPartWay: "Stopped part way",
+  setAside: (n) => `${n.toLocaleString("en-US")} newsletters and notices set aside`,
   card: "Brought in",
   whatsappLater: "Contacts and chats, once you approve"
 };
-var backTo = (oldest) => oldest ? `back to ${dayWords(oldest)}` : "";
+var since = (oldest) => oldest ? `since ${dayWords(oldest)}` : null;
+var joined = (...parts2) => parts2.filter(Boolean).join(" \xB7 ");
+var countOfPeople = (n) => groupedPlural(n, "person", "people");
+function mailSaysOf(r2) {
+  const c = r2.counts;
+  const n = c.messages ?? 0;
+  const read = n ? `${groupedPlural(n, "email")}${r2.state === "done" ? "" : " so far"}` : null;
+  return joined(
+    read ?? (r2.state === "done" ? "No email from people" : "Reading your inbox"),
+    since(r2.oldest),
+    c.unreadable ? `${c.unreadable.toLocaleString("en-US")} couldn't be read` : null
+  );
+}
 function saysOf(r2) {
   const c = r2.counts;
   const via = viaWords(r2.via);
   switch (r2.source) {
     case "google_reviews":
-      return [
-        c.reviews ? `All ${c.reviews.toLocaleString()}${r2.oldest ? `, ${backTo(r2.oldest)}` : ""}` : "Reading them",
+      return c.reviews ? joined(
+        groupedPlural(c.reviews, "review"),
+        since(r2.oldest),
         c.unanswered ? `${c.unanswered} wait for a reply` : null
-      ].filter(Boolean).join(" \xB7 ");
+      ) : "Reading them";
     case "calendar":
-      return [
-        c.past !== void 0 ? `${c.past.toLocaleString()} ${backTo(r2.oldest)}`.trim() : "Reading your calendar",
+      return c.past === void 0 ? "Reading your calendar" : joined(
+        c.past ? groupedPlural(c.past, "past appointment") : "No past appointments",
         c.coming ? `${c.coming} coming up` : null
-      ].filter(Boolean).join(", ");
+      );
     case "clients_file":
-      return c.people !== void 0 ? `${c.people.toLocaleString()}${via ? `, from ${via}'s file` : ", from your file"}` : "Reading your file";
+      return c.people === void 0 ? "Reading your file" : joined(countOfPeople(c.people), via ? `from ${via}'s file` : "from your file");
     case "contacts":
-      return c.people !== void 0 ? `${c.people.toLocaleString()}${via ? `, from ${via}` : ""}` : "Reading them";
+      return c.people === void 0 ? "Reading them" : joined(countOfPeople(c.people), via);
     case "mailbox":
-      return [
-        `Email from people${r2.oldest ? `, ${backTo(r2.oldest)}` : ""}`,
-        c.dropped ? `${c.dropped.toLocaleString()} others dropped` : null,
-        c.unreadable ? `${c.unreadable.toLocaleString()} couldn't be read` : null
-      ].filter(Boolean).join(" \xB7 ");
+      return mailSaysOf(r2);
     case "whatsapp_contacts":
-      return c.people !== void 0 ? `${c.people.toLocaleString()}, into People` : "Reading them";
+      return c.people === void 0 ? "Reading them" : countOfPeople(c.people);
     case "whatsapp_history":
-      return r2.oldest ? `${backTo(r2.oldest).replace(/^b/, "B")} so far` : "Chats from the last six months";
+      return r2.oldest ? `Back to ${dayWords(r2.oldest)} so far` : "Chats from the last six months";
   }
 }
-function standOf(r2) {
+function stoppedKept(r2) {
+  const c = r2.counts;
+  if (r2.source === "mailbox") return c.messages ? groupedPlural(c.messages, "email") : null;
+  if (c.people) return countOfPeople(c.people);
+  if (c.reviews) return groupedPlural(c.reviews, "review");
+  return c.past ? groupedPlural(c.past, "past appointment") : null;
+}
+function stoppedSaysOf(r2) {
+  if (r2.last_error && r2.last_error !== IMPORT_STOPPED_WORDS.failed) return r2.last_error;
+  const kept = stoppedKept(r2);
+  return joined(IMPORT_WORDS.stoppedPartWay, kept ? `${kept} kept` : null);
+}
+function shareOf(r2) {
+  if (r2.state !== "running") return null;
+  if (r2.parts_total && r2.parts_total > 1) return Math.min(0.99, r2.parts_done / r2.parts_total);
+  if (r2.source !== "mailbox" || !r2.oldest || !r2.started_at) return null;
+  const read = (Date.parse(r2.started_at) - Date.parse(r2.oldest)) / (HISTORY_BACK_DAYS * DAY_MS);
+  return Number.isFinite(read) ? Math.min(0.99, Math.max(0, read)) : null;
+}
+function standOf(r2, share2) {
   const W = IMPORT_WORDS;
   if (r2.state === "done") return W.in;
   if (r2.state === "failed") return W.stopped;
   if (r2.state === "queued") return W.queued;
-  if (r2.parts_total && r2.parts_total > 1) {
-    return r2.source === "whatsapp_history" ? `${r2.parts_done} of ${r2.parts_total}` : `${Math.min(99, Math.round(r2.parts_done / r2.parts_total * 100))}%`;
-  }
-  return "\u2026";
+  if (r2.source === "whatsapp_history" && r2.parts_total && r2.parts_total > 1)
+    return `${r2.parts_done} of ${r2.parts_total}`;
+  return share2 === null ? "\u2026" : `${Math.round(share2 * 100)}%`;
 }
 function importLineOf(r2) {
+  const share2 = shareOf(r2);
   return {
     source: r2.source,
     title: IMPORT_WORDS.titles[r2.source],
-    says: r2.state === "failed" && r2.last_error ? r2.last_error : saysOf(r2),
-    stand: standOf(r2),
+    says: r2.state === "failed" ? stoppedSaysOf(r2) : saysOf(r2),
+    stand: standOf(r2, share2),
     state: r2.state,
-    retry: r2.state === "failed" && !ONCE_ONLY.has(r2.source)
+    retry: r2.state === "failed" && !ONCE_ONLY.has(r2.source),
+    share: share2,
+    aside: r2.source === "mailbox" && r2.state !== "failed" && r2.counts.dropped ? IMPORT_WORDS.setAside(r2.counts.dropped) : null
   };
 }
 var WHATSAPP_PART_WORDS = {
@@ -42567,33 +42604,33 @@ function importLinesOf(rows2, o = { whatsappWaiting: false }) {
       says: IMPORT_WORDS.whatsappLater,
       stand: IMPORT_WORDS.atGoLive,
       state: "waiting",
-      retry: false
+      retry: false,
+      share: null,
+      aside: null
     });
   const done = lines.filter((l) => l.state === "done").length;
   return { lines, done, of: lines.length, running: lines.some((l) => l.state === "running" || l.state === "queued") };
 }
-function broughtInCardOf(rows2, people) {
+function broughtInCardOf(rows2, count2) {
   const got = rows2 ?? [];
   if (!got.length) return null;
   const by = (s) => got.find((r2) => r2.source === s) ?? null;
   const reviews = by("google_reviews");
   const mail = by("mailbox");
   const cal = by("calendar");
-  const wa = by("whatsapp_history");
-  const first = [
-    people ? plural(people, "person", "people") : null,
-    reviews?.counts.reviews ? plural(reviews.counts.reviews, "review") : null
-  ].filter(Boolean);
-  const lines = [
-    first.length ? first.join(" \xB7 ") : null,
-    mail?.oldest ? `Email ${backTo(mail.oldest)}` : null,
-    cal && cal.counts.past !== void 0 ? [
-      `${cal.counts.past.toLocaleString()} on your calendar before today`,
-      cal.counts.coming ? `${cal.counts.coming} coming up` : null
-    ].filter(Boolean).join(" \xB7 ") : null
-  ].filter((x) => !!x);
-  const coming = wa && wa.state === "running" && wa.parts_total ? `WhatsApp chats \xB7 ${wa.parts_done} of ${wa.parts_total} parts` : null;
-  return { title: IMPORT_WORDS.card, lines, coming };
+  const first = joined(
+    count2 ? countOfPeople(count2) : null,
+    reviews?.counts.reviews ? groupedPlural(reviews.counts.reviews, "review") : null
+  );
+  const facts = [];
+  if (first) facts.push({ key: "people", text: first });
+  if (mail?.oldest) facts.push({ key: "mail", text: `Email ${since(mail.oldest)}` });
+  if (cal && cal.counts.past !== void 0) facts.push({ key: "calendar", text: saysOf(cal) });
+  const stopped = got.filter((r2) => r2.state === "failed").length;
+  const { done, of, running: running2 } = importLinesOf(got);
+  const W = IMPORT_WORDS;
+  const state = stopped ? { tone: "stopped", words: W.stoppedCount(stopped) } : running2 ? { tone: "live", words: W.bringing(done, of) } : { tone: "ok", words: W.allIn };
+  return { title: W.card, state, facts };
 }
 var BROUGHT_IN_SHOWN_MS = 7 * DAY_MS;
 function broughtInShown(rows2, nowMs) {
@@ -44154,9 +44191,9 @@ function ideaPlaces(home, searches) {
 }
 var ideaWhere = (i) => (i.plan ?? i.people)?.area.label ?? null;
 function ideaPassed(prev, searches) {
-  const since = Date.parse(prev.madeAt);
+  const since2 = Date.parse(prev.madeAt);
   const startedSince = (key, place) => searches.some(
-    (s) => s.kind === key && !!s.area && s.area.label.toLowerCase() === place && (!Number.isFinite(since) || Date.parse(s.at) >= since)
+    (s) => s.kind === key && !!s.area && s.area.label.toLowerCase() === place && (!Number.isFinite(since2) || Date.parse(s.at) >= since2)
   );
   const out = /* @__PURE__ */ new Map();
   for (const x of prev.passed) out.set(`${x.key}@${x.place}`, { ...x });
@@ -45145,12 +45182,12 @@ function leftOutWords(a) {
   );
 }
 function reachOutAddWords(a, chainName) {
-  const joined = a.dry ? a.would_add ?? 0 : a.added;
+  const joined2 = a.dry ? a.would_add ?? 0 : a.added;
   const left = Object.values(a.left_out).reduce((n, x) => n + (x ?? 0), 0);
-  const head = joined === 0 ? `None can be added to \u201C${chainName}\u201D` : `${a.dry ? "Adds" : "Added"} ${plural(joined, "lead", "leads")} to \u201C${chainName}\u201D`;
+  const head = joined2 === 0 ? `None can be added to \u201C${chainName}\u201D` : `${a.dry ? "Adds" : "Added"} ${plural(joined2, "lead", "leads")} to \u201C${chainName}\u201D`;
   return {
     text: left > 0 ? `${head} \xB7 ${left} left out: ${leftOutWords(a).join(", ")}` : head,
-    tone: joined === 0 ? "warn" : a.dry ? "plain" : "good"
+    tone: joined2 === 0 ? "warn" : a.dry ? "plain" : "good"
   };
 }
 function askedDayOf(atMs, tz, nowMs) {
@@ -45801,11 +45838,11 @@ function placeRailOf(p) {
       hand: !!s.hand
     };
   });
-  const joined = p.place ? p.place.joined : null;
-  const joinedAt = joined && joined.at ? Date.parse(joined.at) : NaN;
+  const joined2 = p.place ? p.place.joined : null;
+  const joinedAt = joined2 && joined2.at ? Date.parse(joined2.at) : NaN;
   const date = Number.isFinite(joinedAt) ? clockDate(joinedAt, p.clock.tz, p.clock.nowMs) : null;
   const start = p.lens === "preview" ? { head: W.joinsWhenAdded, sub: W.checked } : {
-    head: date ? joined && joined.auto ? W.joinedOn(date) : W.addedOn(date) : W.added,
+    head: date ? joined2 && joined2.auto ? W.joinedOn(date) : W.addedOn(date) : W.added,
     sub: W.checked
   };
   return { start, steps, end: { head: W.stops, sub: p.readsReplies ? W.readFrom : W.toldBy } };
@@ -48509,8 +48546,8 @@ function earRow(r2, f) {
 function searchRow(s, now) {
   const r2 = s.round;
   if (!r2 || r2.state !== "waiting_on_owner" || !r2.question) return null;
-  const since = r2.waiting_since ? new Date(r2.waiting_since).getTime() : now.getTime();
-  const waitedMs = Math.max(0, now.getTime() - since);
+  const since2 = r2.waiting_since ? new Date(r2.waiting_since).getTime() : now.getTime();
+  const waitedMs = Math.max(0, now.getTime() - since2);
   return {
     id: `q-s-${s.id}`,
     kind: "search",
@@ -49267,8 +49304,8 @@ function whyNotLook(f) {
   if (f.source === "call" && (f.seconds ?? 0) < L2.callMinSeconds) return "short_call";
   if (customerWords(f.turns) < L2.minCustomerWords) return "few_words";
   if (f.lastSuggestedAt) {
-    const since = f.nowMs - Date.parse(f.lastSuggestedAt);
-    if (Number.isFinite(since) && since < L2.cooldownDays * DAY_MS) return "cooldown";
+    const since2 = f.nowMs - Date.parse(f.lastSuggestedAt);
+    if (Number.isFinite(since2) && since2 < L2.cooldownDays * DAY_MS) return "cooldown";
   }
   if (f.workspaceToday >= L2.perWorkspaceDay) return "workspace_cap";
   return null;
@@ -50322,13 +50359,13 @@ function rightNowOf({
   }
   const asked = askedFor(r2);
   if (asked) {
-    const since = r2.open_escalation_since ? shortTime(r2.open_escalation_since, tz, now) : null;
+    const since2 = r2.open_escalation_since ? shortTime(r2.open_escalation_since, tz, now) : null;
     return {
       tone: "escalated",
       title: `Escalated \xB7 ${reasonShort(asked)}`,
       // The operator's first sentence for the reason (the Inbox's own): "Paused until someone answers" was appended to
       // every reason, over a person who had asked to stop, where nothing may be answered (the 2 Oct 2026 audit).
-      detail: `${since ? `Since ${since}. ` : ""}${reasonSummaryOf(asked)}`,
+      detail: `${since2 ? `Since ${since2}. ` : ""}${reasonSummaryOf(asked)}`,
       cta: openThread
     };
   }
@@ -53166,9 +53203,9 @@ function wentAt(r2) {
 function cameBack(input, days) {
   const b = input.broadcasts;
   if (!b) return [];
-  const since = input.nowMs - days * DAY_MS;
+  const since2 = input.nowMs - days * DAY_MS;
   const names3 = new Map((input.playbooks?.rows ?? []).map((p) => [p.id, p.name]));
-  return b.rows.filter((r2) => r2.state === "sent" && wentAt(r2) >= since).sort((a, c) => wentAt(c) - wentAt(a)).slice(0, RUNS_SHOWN).map((r2) => ({
+  return b.rows.filter((r2) => r2.state === "sent" && wentAt(r2) >= since2).sort((a, c) => wentAt(c) - wentAt(a)).slice(0, RUNS_SHOWN).map((r2) => ({
     id: r2.id,
     name: (r2.playbook_id ? names3.get(r2.playbook_id) : null) ?? r2.name,
     words: `${r2.when} \xB7 ${r2.counts.sent} sent`,
@@ -55403,14 +55440,14 @@ function historySince(period, tz, nowMs) {
   const p = SEQUENCE_HISTORY_PERIODS.find((x) => x.id === period);
   return p && p.days !== null ? zoneDayKey(nowMs - (p.days - 1) * DAY_MS, tz) : null;
 }
-function historyIn(batches2, since, tz) {
-  return since === null ? [...batches2] : batches2.filter((b) => (b.run_for ?? zoneDayKey(Date.parse(b.at), tz)) >= since);
+function historyIn(batches2, since2, tz) {
+  return since2 === null ? [...batches2] : batches2.filter((b) => (b.run_for ?? zoneDayKey(Date.parse(b.at), tz)) >= since2);
 }
-function historyCovers(h, since, tz) {
+function historyCovers(h, since2, tz) {
   if (!h.more) return true;
-  if (since === null) return false;
+  if (since2 === null) return false;
   const last = h.batches[h.batches.length - 1];
-  return !!last && (last.run_for ?? zoneDayKey(Date.parse(last.at), tz)) < since;
+  return !!last && (last.run_for ?? zoneDayKey(Date.parse(last.at), tz)) < since2;
 }
 function historyFigures(batches2) {
   const went = batches2.filter(batchWent);
@@ -56855,8 +56892,8 @@ function reviewsAreOnRecord(google) {
   return google.listing !== null && reviewsFromProfile(google.connection);
 }
 function reviewsWindowOf(last, days) {
-  const since = periodSince(last, days);
-  return { since, priorSince: periodSince(shiftKey(since, -1), days) };
+  const since2 = periodSince(last, days);
+  return { since: since2, priorSince: periodSince(shiftKey(since2, -1), days) };
 }
 function reviewsHistoryOf(ledger, connection, tz) {
   if (ledger.on_record.complete) return { complete: true, from: null };
@@ -56885,10 +56922,10 @@ function reviewsStarMixOf(current) {
     }
   };
 }
-function reviewsWeeksOf(perDay, since, today, h) {
+function reviewsWeeksOf(perDay, since2, today, h) {
   const weeks = [];
-  for (let monday = mondayOf(since); monday <= today; monday = shiftKey(monday, 7)) {
-    const first = monday < since ? since : monday;
+  for (let monday = mondayOf(since2); monday <= today; monday = shiftKey(monday, 7)) {
+    const first = monday < since2 ? since2 : monday;
     if (!historyReaches(h, first)) continue;
     const sunday = shiftKey(monday, 6);
     const last = sunday > today ? today : sunday;
@@ -56899,12 +56936,12 @@ function reviewsWeeksOf(perDay, since, today, h) {
   return weeks;
 }
 function reviewsPeriodOf(ledger, history, { last, days, until }) {
-  const { since, priorSince } = reviewsWindowOf(last, days);
-  const current = ledger.written.filter((r2) => r2.d >= since && r2.d <= last);
+  const { since: since2, priorSince } = reviewsWindowOf(last, days);
+  const current = ledger.written.filter((r2) => r2.d >= since2 && r2.d <= last);
   const perDay = /* @__PURE__ */ new Map();
   for (const r2 of current) perDay.set(r2.d, (perDay.get(r2.d) ?? 0) + 1);
-  const weeks = reviewsWeeksOf(perDay, since, last, history);
-  if (!historyReaches(history, since)) return { period: { exact: false, days, until, history }, weeks };
+  const weeks = reviewsWeeksOf(perDay, since2, last, history);
+  if (!historyReaches(history, since2)) return { period: { exact: false, days, until, history }, weeks };
   const answered = current.filter((r2) => r2.replied);
   const waits = answered.flatMap((r2) => r2.secs === null ? [] : [r2.secs]).sort((a, b) => a - b);
   const mix = reviewsStarMixOf(current);
@@ -56915,7 +56952,7 @@ function reviewsPeriodOf(ledger, history, { last, days, until }) {
       until,
       history,
       written: current.length,
-      prior: historyReaches(history, priorSince) ? ledger.written.filter((r2) => r2.d >= priorSince && r2.d < since).length : null,
+      prior: historyReaches(history, priorSince) ? ledger.written.filter((r2) => r2.d >= priorSince && r2.d < since2).length : null,
       answered: answered.length,
       receptionist: answered.filter((r2) => r2.by === "receptionist").length,
       timed: waits.length,
@@ -56923,7 +56960,7 @@ function reviewsPeriodOf(ledger, history, { last, days, until }) {
       rated: mix.rated,
       good: mix.good,
       mix,
-      daily: Array.from({ length: days }, (_, i) => perDay.get(shiftKey(since, i)) ?? 0)
+      daily: Array.from({ length: days }, (_, i) => perDay.get(shiftKey(since2, i)) ?? 0)
     },
     weeks
   };
@@ -57027,11 +57064,11 @@ function reviewsMixLine(p) {
   const of = p.rated === p.written ? plural(p.rated, "review") : plural(p.rated, "rated review");
   return `${p.good} of the ${of} written ${within2} ${p.rated === 1 ? "is" : "are"} 4 or 5 stars.`;
 }
-function reviewsWeeklyLine(p, weeks, since) {
+function reviewsWeeklyLine(p, weeks, since2) {
   const total = sumOf(weeks.map((w) => w.written));
   if (total) {
     const first = weeks.at(0);
-    const over = first && first.day > since ? `since ${first.label}` : withinWords(p.days, p.until);
+    const over = first && first.day > since2 ? `since ${first.label}` : withinWords(p.days, p.until);
     return `${total} written ${over}`;
   }
   return p.exact && !p.written ? NOTHING_WRITTEN : null;
@@ -58397,8 +58434,8 @@ function mailboxStateWords(d, nowMs, tz) {
   if (d.state === "connected") return "Connected";
   if (d.state === "held") {
     const held = d.held_at ? Date.parse(d.held_at) : NaN;
-    const since = Number.isFinite(held) ? ` since ${clockNear(held, tz, nowMs)}` : "";
-    return `Held${since}: ${mailboxHoldWords(d.held_why)}`;
+    const since2 = Number.isFinite(held) ? ` since ${clockNear(held, tz, nowMs)}` : "";
+    return `Held${since2}: ${mailboxHoldWords(d.held_why)}`;
   }
   if (d.state === "reconnect") return "Signed out: reconnect it";
   return "Paused";
@@ -60194,7 +60231,7 @@ function row(d) {
 }
 function smsStateRow(line, nowMs) {
   const num2 = line ? formatPhoneDisplay(line.e164) : null;
-  const since = line ? agoWords(Date.parse(line.state_since), nowMs) : null;
+  const since2 = line ? agoWords(Date.parse(line.state_since), nowMs) : null;
   const base = { kind: "sms", icon: "chat", title: "Texting", detail: num2, verb: null };
   const ready2 = line?.voice_state === "answering";
   if (ready2 && (!line?.sms_state || line.sms_state === "none")) {
@@ -60228,7 +60265,7 @@ function smsStateRow(line, nowMs) {
         ...base,
         state: "waiting_them",
         stateWords: "Waiting on carriers",
-        sentence: `Your business is approved. One last check on the line is with the carriers \u2014 usually days, and texting switches itself on${since ? `; approved ${since}` : ""}.`
+        sentence: `Your business is approved. One last check on the line is with the carriers \u2014 usually days, and texting switches itself on${since2 ? `; approved ${since2}` : ""}.`
       };
     case "needs_record":
       return line?.last_error ? {
@@ -60259,7 +60296,7 @@ function smsStateRow(line, nowMs) {
         ...base,
         state: "waiting_them",
         stateWords: "Waiting on carriers",
-        sentence: `The carriers are registering your line, since ${since} \xB7 usually a week.`
+        sentence: `The carriers are registering your line, since ${since2} \xB7 usually a week.`
       };
     case "rejected":
       return {
@@ -62489,8 +62526,8 @@ function liveOf(i, n) {
       says: L2.whatsappLaterSays,
       act: { kind: "choose", label: L2.whatsappConnect }
     });
-  const since = timeWords(answeringSince(dto), i.tz);
-  return { since: since ? L2.since(since) : null, channels: L2.channels(parts2), moves, notes };
+  const since2 = timeWords(answeringSince(dto), i.tz);
+  return { since: since2 ? L2.since(since2) : null, channels: L2.channels(parts2), moves, notes };
 }
 
 // src/setup/first-run-try.ts
@@ -62574,7 +62611,7 @@ function listenWordsOf(rings, shown2, quiet) {
   const said = rings === null ? { heading: W.listenOwn, lead: W.lead, route: null } : rings === "office" ? { heading: W.listenForwarded, lead: W.lead, route: W.route(number2) } : { heading: W.listenForwardedOther, lead: W.leadOther, route: W.routeOther(number2) };
   return quiet ? { heading: W.quietHeading, lead: "", route: said.route } : said;
 }
-function firstRunTryOf({ dto, calls, since, nowMs }) {
+function firstRunTryOf({ dto, calls, since: since2, nowMs }) {
   const W = FIRST_RUN_TRY_WORDS;
   const voice2 = dto.channels.voice;
   const own = voice2.active ? normalizePhone(voice2.number) : null;
@@ -62600,11 +62637,11 @@ function firstRunTryOf({ dto, calls, since, nowMs }) {
   if (!own) return { ...base, stage: "rows", heading: "", lead: "" };
   const tested = !!voice2.lastInboundAt;
   const inbound = calls.filter((c) => c.direction === "inbound" && !c.missed && c.startedAtMs !== null).sort((a, b) => (b.startedAtMs ?? 0) - (a.startedAtMs ?? 0));
-  const call = inbound.find((c) => (c.startedAtMs ?? 0) >= since - TRY_SLACK_MS) ?? (tested ? inbound[0] ?? null : null);
+  const call = inbound.find((c) => (c.startedAtMs ?? 0) >= since2 - TRY_SLACK_MS) ?? (tested ? inbound[0] ?? null : null);
   if (!call) {
     const open = !!f0 && fw.forwarding_state !== "verified" && forwardingTestOpen(f0, nowMs);
     const left = open && f0.test_until ? Math.max(1, Math.ceil((Date.parse(f0.test_until) - nowMs) / MIN_MS)) : null;
-    const quiet = nowMs - since >= TRY_QUIET_AFTER_MS;
+    const quiet = nowMs - since2 >= TRY_QUIET_AFTER_MS;
     const said = listenWordsOf(keptPhoneKind(fw), shown2, quiet);
     return {
       ...base,
@@ -62619,7 +62656,7 @@ function firstRunTryOf({ dto, calls, since, nowMs }) {
       causes: quiet ? forwarded ? W.causesForwarded.map((c) => ({ ...c })) : [W.causeOwn(formatPhoneDisplay(own) ?? own)] : []
     };
   }
-  const test = (call.startedAtMs ?? 0) >= since - TRY_SLACK_MS;
+  const test = (call.startedAtMs ?? 0) >= since2 - TRY_SLACK_MS;
   const turns = call.transcript.filter((t) => t.speaker === "agent" || t.speaker === "client").map((t) => ({
     who: t.speaker === "agent" ? W.receptionist : test ? W.caller : W.someone,
     text: t.text,
@@ -65109,8 +65146,8 @@ function consultsWaitingLeak({ people, dealsAt }) {
 function proposalsWaitingWords(n, pace, po, inHand) {
   const ago3 = pace ? `${pace.waitDays} days` : "a week";
   const text = pace?.longerThanUsual ? `${n} proposal${n === 1 ? " has" : "s have"} waited longer than usual with nothing back.` : `${n} proposal${n === 1 ? "" : "s"} went out more than ${ago3} ago with nothing back.`;
-  const since = pace ? `${pace.words.charAt(0).toLowerCase()}${pace.words.slice(1)} \xB7 nothing heard since it went` : "nothing heard since it went";
-  const counted3 = po ? `${po.count} on Proposal out \xB7 ${since}` : since;
+  const since2 = pace ? `${pace.words.charAt(0).toLowerCase()}${pace.words.slice(1)} \xB7 nothing heard since it went` : "nothing heard since it went";
+  const counted3 = po ? `${po.count} on Proposal out \xB7 ${since2}` : since2;
   const math = inHand ? `${counted3} \xB7 the follow-up has ${inHand} more` : counted3;
   return { text, math };
 }

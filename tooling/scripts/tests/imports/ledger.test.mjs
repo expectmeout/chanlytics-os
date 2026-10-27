@@ -41,31 +41,45 @@ test("a source's line says what came and how far back, in its own words, and whe
     {
       source: "google_reviews",
       title: "Reviews",
-      says: `All 212, back to ${back} · 9 wait for a reply`,
+      says: `212 reviews · since ${back} · 9 wait for a reply`,
       stand: "In",
       state: "done",
       retry: false,
+      share: null,
+      aside: null,
     },
   );
   assert.equal(
-    importLineOf(row("calendar", "done", { past: 412, coming: 9 }, { oldest: "2026-03-07T00:00:00Z" })).says,
-    `412 back to ${back}, 9 coming up`,
+    importLineOf(row("calendar", "done", { past: 412, coming: 9 })).says,
+    "412 past appointments · 9 coming up",
   );
+  assert.equal(
+    importLineOf(row("calendar", "done", { past: 0, coming: 0 })).says,
+    "No past appointments",
+    "a calendar with nothing before today says so in words, never a bare 0",
+  );
+  assert.equal(importLineOf(row("calendar", "done", { past: 1, coming: 2 })).says, "1 past appointment · 2 coming up");
   assert.equal(
     importLineOf(row("clients_file", "done", { people: 640 }, { via: "vagaro" })).says,
-    "640, from Vagaro's file",
+    "640 people · from Vagaro's file",
   );
-  assert.equal(importLineOf(row("clients_file", "done", { people: 1 })).says, "1, from your file");
+  assert.equal(importLineOf(row("clients_file", "done", { people: 1 })).says, "1 person · from your file");
+  assert.equal(
+    importLineOf(row("contacts", "done", { people: 2490 }, { via: "google" })).says,
+    "2,490 people · Google",
+  );
   assert.equal(
     importLineOf(row("mailbox", "running", { messages: 300, dropped: 1200 }, { oldest: "2026-03-07T00:00:00Z" })).says,
-    `Email from people, back to ${back} · 1,200 others dropped`,
+    `300 emails so far · since ${back}`,
   );
   assert.equal(
     importLineOf(row("mailbox", "done", { messages: 96, dropped: 4, unreadable: 1 })).says,
-    "Email from people · 4 others dropped · 1 couldn't be read",
+    "96 emails · 1 couldn't be read",
     "a message the mailbox refused to hand over, counted apart",
   );
-  assert.equal(importLineOf(row("whatsapp_contacts", "done", { people: 30 })).says, "30, into People");
+  assert.equal(importLineOf(row("mailbox", "running", {})).says, "Reading your inbox");
+  assert.equal(importLineOf(row("mailbox", "done", { dropped: 3 })).says, "No email from people");
+  assert.equal(importLineOf(row("whatsapp_contacts", "done", { people: 30 })).says, "30 people");
   assert.equal(importLineOf(row("whatsapp_history", "running")).says, "Chats from the last six months");
   assert.equal(
     importLineOf(row("whatsapp_history", "running", {}, { oldest: "2026-03-07T00:00:00Z" })).says,
@@ -77,8 +91,42 @@ test("a source's line says what came and how far back, in its own words, and whe
   assert.equal(importLineOf(row("calendar", "queued")).stand, "Starting");
 });
 
+test("what the mailbox set aside is said apart, under its line, and only for the mailbox", () => {
+  assert.equal(
+    importLineOf(row("mailbox", "done", { messages: 414, dropped: 195 })).aside,
+    "195 newsletters and notices set aside",
+  );
+  assert.equal(
+    importLineOf(row("mailbox", "running", { messages: 3, dropped: 1200 })).aside,
+    "1,200 newsletters and notices set aside",
+  );
+  assert.equal(importLineOf(row("mailbox", "done", { messages: 4 })).aside, null, "nothing set aside: no line");
+  assert.equal(
+    importLineOf(row("mailbox", "failed", { messages: 130, dropped: 111 })).aside,
+    null,
+    "stopped: the line says what it kept and Try again, nothing more",
+  );
+  assert.equal(importLineOf(row("contacts", "done", { people: 4, dropped: 2 })).aside, null);
+});
+
+test("how far a run has come: the mailbox by how far back it has read of its six months, never whole before it is in", () => {
+  const started = "2026-10-27T00:37:00Z";
+  const mail = (oldest, state = "running") =>
+    importLineOf(row("mailbox", state, { messages: 214 }, { started_at: started, oldest, parts_total: null }));
+  const at = mail("2026-07-01T00:00:00Z");
+  const days = (Date.parse(started) - Date.parse("2026-07-01T00:00:00Z")) / DAY;
+  assert.ok(Math.abs(at.share - days / 180) < 1e-9, `read back ${days} of 180 days: ${at.share}`);
+  assert.equal(at.stand, "66%");
+  assert.equal(mail(null).share, null, "nothing kept yet: nothing to say how far");
+  assert.equal(mail(null).stand, "…");
+  assert.equal(mail("2026-01-01T00:00:00Z").share, 0.99, "past the six months it reaches: never 100 before it is in");
+  assert.equal(mail("2026-07-01T00:00:00Z", "done").share, null, "in: the tick says it");
+  assert.equal(importLineOf(row("contacts", "running")).share, null, "a source with one part says nothing of how far");
+});
+
 test("where a run stands: Meta's three parts as parts, a mailbox's pages as a share that never says 100 before it is in", () => {
-  assert.equal(importLineOf(row("whatsapp_history", "running", {}, { parts_done: 2, parts_total: 3 })).stand, "2 of 3");
+  const chats = importLineOf(row("whatsapp_history", "running", {}, { parts_done: 2, parts_total: 3 }));
+  assert.deepEqual([chats.stand, Math.round(chats.share * 100)], ["2 of 3", 67]);
   assert.equal(importLineOf(row("mailbox", "running", {}, { parts_done: 3, parts_total: 5 })).stand, "60%");
   assert.equal(importLineOf(row("mailbox", "running", {}, { parts_done: 199, parts_total: 200 })).stand, "99%");
   assert.equal(importLineOf(row("contacts", "running")).stand, "…", "one part: nothing to count");
@@ -93,9 +141,15 @@ test("a run that stopped says why, offers Try again -- except what Meta offers o
     assert.equal(l.says, IMPORT_STOPPED_WORDS.offeredOnce);
   }
   assert.equal(
-    importLineOf(row("calendar", "failed")).says,
-    "Reading your calendar",
-    "no words of its own: what it was doing",
+    importLineOf(row("mailbox", "failed", { messages: 130, dropped: 111 }, { last_error: IMPORT_STOPPED_WORDS.failed }))
+      .says,
+    "Stopped part way · 130 emails kept",
+    "stopped part way: said with what it kept, never the run's sentence in place of it",
+  );
+  assert.equal(importLineOf(row("calendar", "failed")).says, "Stopped part way", "no words of its own, nothing kept");
+  assert.equal(
+    importLineOf(row("contacts", "failed", { people: 12 }, { last_error: IMPORT_STOPPED_WORDS.failed })).says,
+    "Stopped part way · 12 people kept",
   );
 });
 
@@ -121,6 +175,8 @@ test("Bringing it in: a line a source in the order they are said, WhatsApp's wai
     stand: "At Go live",
     state: "waiting",
     retry: false,
+    share: null,
+    aside: null,
   });
   assert.deepEqual([waiting.done, waiting.of, waiting.running], [1, 2, false]);
   assert.equal(
@@ -138,8 +194,8 @@ test("Connections' notes: a line a source the connection brought, where it stand
     row("google_reviews", "done", { reviews: 5 }),
   ];
   assert.deepEqual(importNotesOf(["mailbox", "contacts"], rows), [
-    { text: "Your inbox: Email from people · 25%", live: true },
-    { text: "Your contacts: 80, from Google", live: true },
+    { text: "Your inbox: 40 emails so far · 25%", live: true },
+    { text: "Your contacts: 80 people · Google", live: true },
   ]);
   assert.deepEqual(importNotesOf(undefined, rows), [], "a row that brings nothing in");
   assert.deepEqual(importNotesOf(["mailbox"], null), []);
@@ -173,26 +229,35 @@ test("the kept app's chats in Meta's three parts: in, coming in, next, each said
   assert.deepEqual(whatsappPartsOf(null), []);
 });
 
-test("Today's Brought in card: the people and the reviews, how far back email reached, the calendar, and what is still coming", () => {
+test("Today's Brought in card: where it all stands in one place, and closed, the people, how far back email reached, the calendar", () => {
   const rows = [
     row("google_reviews", "done", { reviews: 212 }),
     row("mailbox", "done", { messages: 300 }, { oldest: "2026-03-07T00:00:00Z" }),
-    row("calendar", "done", { past: 412, coming: 9 }),
+    row("calendar", "done", { past: 0, coming: 9 }),
     row("whatsapp_history", "running", {}, { parts_done: 1, parts_total: 3 }),
   ];
   assert.deepEqual(broughtInCardOf(rows, 640), {
     title: "Brought in",
-    lines: [
-      "640 people · 212 reviews",
-      `Email back to ${dayWords("2026-03-07T00:00:00Z")}`,
-      "412 on your calendar before today · 9 coming up",
+    state: { tone: "live", words: "Bringing it in · 3 of 4" },
+    facts: [
+      { key: "people", text: "640 people · 212 reviews" },
+      { key: "mail", text: `Email since ${dayWords("2026-03-07T00:00:00Z")}` },
+      { key: "calendar", text: "No past appointments · 9 coming up" },
     ],
-    coming: "WhatsApp chats · 1 of 3 parts",
   });
   assert.deepEqual(broughtInCardOf([row("contacts", "done", { people: 1 })], 1), {
     title: "Brought in",
-    lines: ["1 person"],
-    coming: null,
+    state: { tone: "ok", words: "All in" },
+    facts: [{ key: "people", text: "1 person" }],
+  });
+  assert.deepEqual(
+    broughtInCardOf([row("mailbox", "failed"), row("calendar", "failed"), row("contacts", "running")], 3).state,
+    { tone: "stopped", words: "2 stopped" },
+    "a source stopped is said before one still coming: its Try again is the act",
+  );
+  assert.deepEqual(broughtInCardOf([row("calendar", "queued")], null).state, {
+    tone: "live",
+    words: "Bringing it in · 0 of 1",
   });
   assert.equal(broughtInCardOf([], 10), null, "nothing came: no card");
 });

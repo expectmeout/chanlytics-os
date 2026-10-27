@@ -1,13 +1,25 @@
 /**
  * Today's Brought in (decision 0073, R23, canvas T-today and T·g; today/pages/brought-in.tsx), drawn without a browser:
- * the small card of what came in before Chanlytics, from the imports ledger Setup reads, and the sources one by one in
- * the first run's own lines; drawn while anything is coming in, a source stopped, or for a week after. The world is the
- * first run's (_first-run-world.mjs): the card reads the same Setup surface.
+ * the small card of what came in before Chanlytics, from the imports ledger Setup reads: where it all stands in its head,
+ * a few facts closed, and opened in place the sources one by one in the first run's own lines, with Try again that
+ * answers at the press; drawn while anything is coming in, a source stopped, or for a week after. The world is the first
+ * run's (_first-run-world.mjs): the card reads the same Setup surface.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../_source.mjs";
-import { byTestId, mountWith, setSetup, setupVerbs, surface, textOf, walk, withFacts } from "./_first-run-world.mjs";
+import {
+  byTestId,
+  flashes,
+  fresh,
+  mountWith,
+  saidOf,
+  setSetup,
+  setupVerbs,
+  surface,
+  textOf,
+  withFacts,
+} from "./_first-run-world.mjs";
 
 const { TodayBroughtIn } = await importSrc("apps/dashboard/src/surfaces/today/pages/brought-in.tsx");
 const DAY = 86_400_000;
@@ -24,17 +36,16 @@ const row = (source, state, counts, over = {}) => ({
   via: null,
   ...over,
 });
-const sheetOf = (tree, id) => {
-  let hit = null;
-  walk(tree, (n) => {
-    if (!hit && n.props?.testid === id) hit = n;
-  });
-  return hit;
-};
-/** Today's card drawn fresh, as the page draws it, over Setup as the seam holds it. */
+/** Today's card drawn, as the page draws it, over Setup as the seam holds it (its own state kept across draws). */
 const draw = () => mountWith(TodayBroughtIn);
+/** Today's card drawn as a page opened again: every hook's cell empty. */
+const drawFresh = () => {
+  fresh();
+  return draw();
+};
+const settled = () => new Promise((r) => setImmediate(r));
 
-test("Today's Brought in: the people and the reviews, how far back email reached, the calendar, and the chats still coming", () => {
+test("Today's Brought in, closed: where it all stands in its head, then the people, how far back email reached, the calendar", () => {
   const imports = [
     row("google_reviews", "done", { reviews: 212 }),
     row("mailbox", "done", { messages: 300 }, { oldest: "2026-03-07T00:00:00Z" }),
@@ -42,40 +53,116 @@ test("Today's Brought in: the people and the reviews, how far back email reached
     row("whatsapp_history", "running", {}, { parts_done: 1, parts_total: 3 }),
   ];
   setSetup(surface({ ...withFacts, imports, people: 640 }));
-  const tree = draw();
+  const tree = drawFresh();
   const card = byTestId(tree, "today-brought-in");
   assert.ok(card);
-  assert.match(textOf(byTestId(card, "today-brought-open")), /^Brought in640 people · 212 reviewsEmail back to /);
-  assert.match(textOf(card), /412 on your calendar before today · 9 coming up/);
-  assert.equal(textOf(byTestId(card, "today-brought-coming")), "WhatsApp chats · 1 of 3 parts");
+  const head = byTestId(card, "today-brought-open");
+  assert.equal(head.props["aria-expanded"], false, "closed until pressed");
+  const state = byTestId(card, "today-brought-state");
+  assert.equal(state.props["data-tone"], "live");
+  assert.equal(saidOf(state), "Bringing it in · 3 of 4", "one place says where it all stands, the live dot beside it");
+  assert.match(
+    textOf(byTestId(card, "today-brought-facts")),
+    /^640 people · 212 reviewsEmail since .+412 past appointments · 9 coming up$/,
+  );
+  assert.doesNotMatch(textOf(card), / In$|\bIn\b(?! )/, "no line says In: a tick does");
 });
 
-test("Today's Brought in opens the sources one by one, in Today's own words, with Try again where one stopped", async (t) => {
+test("Today's Brought in opens in place: the facts fold, the sources unfold, and the foot says it keeps going only while it does", () => {
+  setSetup(
+    surface({
+      ...withFacts,
+      imports: [
+        row("contacts", "done", { people: 249 }, { via: "google" }),
+        row(
+          "mailbox",
+          "running",
+          { messages: 214, dropped: 131 },
+          { oldest: "2026-07-01T00:00:00Z", parts_total: null },
+        ),
+      ],
+      people: 282,
+    }),
+  );
+  let tree = drawFresh();
+  let card = byTestId(tree, "today-brought-in");
+  assert.doesNotMatch(card.props.className, /\bopen\b/);
+  const sources = byTestId(card, "fr-bringing-lines");
+  assert.ok(sources, "the sources are in the card, folded away while it is closed");
+  byTestId(tree, "today-brought-open").props.onClick();
+  tree = draw();
+  card = byTestId(tree, "today-brought-in");
+  assert.match(card.props.className, /\bopen\b/);
+  assert.equal(byTestId(card, "today-brought-open").props["aria-expanded"], true);
+  const inbox = byTestId(card, "fr-import-mailbox");
+  assert.match(textOf(inbox), /^Your inbox214 emails so far · since .+131 newsletters and notices set aside$/);
+
+  assert.match(textOf(card), /Keeps going if you leave\. Shown on each person as history, never answered\.$/);
+  byTestId(tree, "today-brought-open").props.onClick();
+  tree = draw();
+  assert.doesNotMatch(byTestId(tree, "today-brought-in").props.className, /\bopen\b/, "a second press closes it");
+});
+
+test("Try again answers at the press: Starting, and still, until the run is heard; a refusal gives the press back and says why", async (t) => {
   const again = [];
+  let answer = { ok: true, message: "" };
   t.after(() => delete setupVerbs.importAgain);
   setupVerbs.importAgain = async (source) => {
     again.push(source);
-    return { ok: true, message: "" };
+    return answer;
   };
   setSetup(
     surface({
       ...withFacts,
       imports: [
         row("google_reviews", "done", { reviews: 3 }),
-        row("calendar", "failed", {}, { last_error: "It stopped part way. What came in is kept." }),
+        row("mailbox", "failed", { messages: 130 }, { last_error: "It stopped part way. What came in is kept." }),
       ],
       people: 3,
     }),
   );
-  let tree = draw();
-  const sheet = sheetOf(tree, "fr-bringing");
-  assert.equal(sheet.props.open, false);
-  assert.equal(sheet.props.title, "What came in before Chanlytics");
-  byTestId(tree, "today-brought-open").props.onClick();
-  tree = mountWith(TodayBroughtIn);
-  assert.equal(sheetOf(tree, "fr-bringing").props.open, true);
-  await byTestId(tree, "fr-import-again-calendar").props.onClick();
-  assert.deepEqual(again, ["calendar"]);
+  let tree = drawFresh();
+  assert.equal(saidOf(byTestId(tree, "today-brought-state")), "1 stopped");
+  assert.match(textOf(byTestId(tree, "fr-import-mailbox")), /Stopped part way · 130 emails kept/);
+  const press = byTestId(tree, "fr-import-again-mailbox");
+  assert.equal(textOf(press), "Try again");
+  press.props.onClick();
+  await settled();
+  assert.deepEqual(again, ["mailbox"]);
+  tree = draw();
+  const busy = byTestId(tree, "fr-import-again-mailbox");
+  assert.equal(saidOf(busy), "Starting");
+  assert.equal(busy.props.disabled, true, "a second press does nothing while the first is on its way");
+  // The run is heard starting: the line is a bar now, and no press is drawn.
+  setSetup(
+    surface({
+      ...withFacts,
+      imports: [
+        row("google_reviews", "done", { reviews: 3 }),
+        row("mailbox", "running", { messages: 130 }, { oldest: "2026-07-01T00:00:00Z", parts_total: null }),
+      ],
+      people: 3,
+    }),
+  );
+  tree = draw();
+  assert.equal(byTestId(tree, "fr-import-again-mailbox"), null);
+  assert.equal(saidOf(byTestId(tree, "today-brought-state")), "Bringing it in · 1 of 2");
+  // A press the door refuses: Try again again, and the refusal in a toast.
+  answer = { ok: false, message: "Your mailbox signed out." };
+  setSetup(
+    surface({
+      ...withFacts,
+      imports: [row("mailbox", "failed", {}, { last_error: "It stopped part way. What came in is kept." })],
+      people: 3,
+    }),
+  );
+  tree = drawFresh();
+  flashes.length = 0;
+  byTestId(tree, "fr-import-again-mailbox").props.onClick();
+  await settled();
+  tree = draw();
+  assert.equal(textOf(byTestId(tree, "fr-import-again-mailbox")), "Try again");
+  assert.equal(flashes.length, 1, "the refusal said once");
 });
 
 test("Today's Brought in is drawn while it helps: nothing before anything came, and nothing a week after the last source finished", () => {
