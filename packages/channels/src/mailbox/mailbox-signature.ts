@@ -46,9 +46,10 @@ export function gmailSignatureWords(html: string | null | undefined): string | n
     ],
   })
     .split("\n")
-    .map((l) => l.replace(/[ \t]+$/, ""))
+    .map((l) => l.replace(/[ \t ]+$/, ""))
+    // A block that held only the logo is a blank line once it is skipped: a signature's lines close up.
+    .filter((l) => l.trim() !== "")
     .join("\n")
-    .replace(/\n{3,}/g, "\n\n")
     .trim();
   return words || null;
 }

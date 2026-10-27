@@ -5557,7 +5557,7 @@ function gmailSignatureWords(html) {
       { selector: "a", options: { ignoreHref: true } },
       { selector: "p", options: { leadingLineBreaks: 1, trailingLineBreaks: 1 } }
     ]
-  }).split("\n").map((l) => l.replace(/[ \t]+$/, "")).join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  }).split("\n").map((l) => l.replace(/[ \t ]+$/, "")).filter((l) => l.trim() !== "").join("\n").trim();
   return words || null;
 }
 function mailboxSignatureOf(row) {

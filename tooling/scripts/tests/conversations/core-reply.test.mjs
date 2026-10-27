@@ -865,6 +865,12 @@ test("a reply by email goes to the address on the person's page; its request is 
   await replyToConversation(owned.ports, cmd({ conv: byEmail() }));
   const kept = owned.call("queue")[1].meta.email;
   assert.deepEqual([kept.request, kept.own_request], [FROZEN.request, twin]);
+  assert.equal(kept.signature, undefined, "a reply frozen with no signature keeps none");
+
+  // What the mailbox signed it with is kept on the row as it left, for the thread to say under it (00487).
+  const signed = emailFakes({ queue: (row) => row.id }, { freeze: { ...FROZEN, own: twin, signature: "Sam\nHarbor" } });
+  await replyToConversation(signed.ports, cmd({ conv: byEmail() }));
+  assert.equal(signed.call("queue")[1].meta.email.signature, "Sam\nHarbor");
 
   const both = emailFakes();
   await replyToConversation(both.ports, cmd({ conv: byEmail({ phone_e164: "+15550000001" }) }));

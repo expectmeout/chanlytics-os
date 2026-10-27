@@ -506,3 +506,28 @@ test("emailSubjectsOf: 'Re:' and 'Fwd:' are the same subject; a thread of no ema
     changed: new Map(),
   });
 });
+
+test("our reply says what it was signed with, as it left (00487 meta.email.signature): one line, the whole on a tap", () => {
+  const thread = toInboxThreadVM(
+    conversation([
+      email("m1", "customer", "needs you test", "test need you", { at: "2026-10-27T17:42:03Z" }),
+      {
+        ...email("m2", "human", "Hi Ruben,\n\nThanks.\n\nTalk soon,", "Re: test need you", {
+          at: "2026-10-27T17:55:42Z",
+        }),
+        meta: {
+          email: { subject: "Re: test need you", signature: "Ruben Segura\nFounder, Chanlytics\nchanlytics.agency" },
+        },
+      },
+    ]),
+    null,
+    "America/New_York",
+    new Date("2026-10-27T18:20:00Z"),
+  );
+  const ours = thread.timeline.filter((e) => e.type === "msg")[1];
+  assert.equal(ours.body, "Hi Ruben,\n\nThanks.\n\nTalk soon,", "what was typed");
+  assert.deepEqual(ours.signature, {
+    line: "Ruben Segura · Founder, Chanlytics · chanlytics.agency",
+    full: "Ruben Segura\nFounder, Chanlytics\nchanlytics.agency",
+  });
+});

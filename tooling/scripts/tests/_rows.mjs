@@ -171,6 +171,7 @@ const DEFAULTS = {
     state: "connected",
     daily_cap: 40,
     customer_domain: false,
+    signature_off: false,
     clean_since: AT,
     counted_since: AT,
     sent_days: 0,

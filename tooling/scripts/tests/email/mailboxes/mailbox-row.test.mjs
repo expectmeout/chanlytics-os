@@ -14,6 +14,7 @@ const CONNECTIONS = "../../../../../apps/dashboard/src/surfaces/settings/connect
 const { ConnectedMailboxes } = await import(`${CONNECTIONS}/mailboxes-block.tsx`);
 const { connectedMailboxes } = await import(`${CONNECTIONS}/connected-mailboxes.ts`);
 const { MoreMenu } = await import("../../../../../apps/dashboard/src/surfaces/kit/more-menu/more-menu.tsx");
+const { Segmented } = await import("../../../../../apps/dashboard/src/surfaces/kit/segmented/segmented.tsx");
 
 // Who is acting: the frame's gate asks the role store; here an owner, or a member who may not change the mailboxes.
 const role = { owner: true };
@@ -49,6 +50,7 @@ const mbx = (over = {}) => ({
   sent_today: null,
   counts: null,
   came_in: null,
+  signs: { from: "name", words: "Sam at Harbor", gmail_read_at: null, gmail: null },
   ...over,
 });
 
@@ -222,7 +224,11 @@ test("the owner's acts from the caret: pause at once, settings judged before the
   tree = redraw();
   press(byTestId(tree, "mailbox-save"));
   await settle();
-  assert.deepEqual(set[1], ["m1", { from_name: "Sam at Harbor", signature: null, daily_cap: 25 }]);
+  // With nothing of its own written, it stands on Gmail's (00487): a save keeps it there, and the edge reads it again.
+  assert.deepEqual(set[1], [
+    "m1",
+    { from_name: "Sam at Harbor", signature: null, signature_off: false, daily_cap: 25 },
+  ]);
   tree = choose(redraw(), SAM, "Remove…");
   assert.deepEqual(removed, [], "asked first");
   assert.match(said(tree), /Remove sam@getharbor\.example\?/);
@@ -288,4 +294,69 @@ test("Settings reads the address: Connections opens, its row named Left in your 
   assert.equal(SET_TAB(`integrations/${MAILBOX_LEFT_ROW}`).id, "integrations");
   assert.equal(settingsRowOf(`integrations/${MAILBOX_LEFT_ROW}`), MAILBOX_LEFT_ROW);
   assert.equal(settingsRowOf("integrations"), null, "the page alone names no row");
+});
+
+test("what it signs with (00487): Gmail's, said as words with when it was read; their own words; or none", async () => {
+  const set = [];
+  Object.assign(connectedMailboxes, {
+    set: async (id, s) => (set.push([id, s]), { ok: true, data: { mailbox: null } }),
+  });
+  const read = "2026-10-27T17:55:00.000Z";
+  const gmail = "Sam Reyes\nHarbor Moving";
+  const signs = { from: "gmail", words: gmail, gmail_read_at: read, gmail };
+  let tree = choose(open([mbx({ signs })]), SAM, "Settings");
+  const choice = () => find(tree, (n) => n.type === Segmented);
+  assert.equal(choice().props.value, "gmail", "it stands on Gmail's");
+  assert.deepEqual(
+    choice().props.options.map((o) => o.label),
+    ["From Gmail", "Write one", "None"],
+  );
+  const shown = said(byTestId(tree, "mailbox-signs-said"));
+  assert.match(shown, /^Sam Reyes Harbor Moving/, "Gmail's signature, as words");
+  assert.match(shown, /Read from Gmail at .+\. Saving reads it again\./);
+  assert.equal(byTestId(tree, "mailbox-signature"), null, "their own words' box is for Write one");
+
+  choice().props.onValueChange("own");
+  tree = redraw();
+  press(byTestId(tree, "mailbox-save"));
+  await settle();
+  tree = redraw();
+  assert.match(said(byTestId(tree, "mailbox-signature")), /Write the signature, or choose another\./);
+  assert.equal(set.length, 0, "an empty signature of their own is not sent");
+  find(byTestId(tree, "mailbox-signature"), (n) => n.type === "textarea").props.onChange({
+    target: { value: "Sam · Harbor" },
+  });
+  tree = redraw();
+  press(byTestId(tree, "mailbox-save"));
+  await settle();
+  assert.deepEqual(set[0][1], {
+    from_name: "Sam at Harbor",
+    signature: "Sam · Harbor",
+    signature_off: false,
+    daily_cap: 40,
+  });
+
+  const own = { ...signs, from: "own", words: "Sam · Harbor" };
+  tree = choose(open([mbx({ signs: own, signature: "Sam · Harbor" })]), SAM, "Settings");
+  assert.equal(choice().props.value, "own", "the page's row says what it signs with now");
+  choice().props.onValueChange("none");
+  tree = redraw();
+  assert.match(said(byTestId(tree, "mailbox-signs-said")), /Nothing goes under its emails, not even its name\./);
+  press(byTestId(tree, "mailbox-save"));
+  await settle();
+  assert.deepEqual(
+    set[1][1],
+    { from_name: "Sam at Harbor", signature_off: true, daily_cap: 40 },
+    "their words are kept",
+  );
+});
+
+test("a mailbox whose Gmail has no signature ends its emails with its name, and says so", () => {
+  const tree = choose(open([mbx()]), SAM, "Settings");
+  const shown = said(byTestId(tree, "mailbox-signs-said"));
+  assert.match(shown, /^Sam at Harbor/);
+  assert.match(
+    shown,
+    /Gmail has none for this address, so its emails end with its name\. Saving reads it from Gmail now\./,
+  );
 });
