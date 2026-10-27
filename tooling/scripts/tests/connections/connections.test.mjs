@@ -608,6 +608,45 @@ test("the mailboxes sequences write from are a row of their own: Later and greye
     [offered.group, offered.state, offered.stateWords, offered.body],
     ["available", "none", "Not connected", "mailboxes"],
   );
+  // Google's mailbox connect is the Business Profile app (R18): its unverified screen is warned of where Connect is,
+  // and only when Google is offered.
+  const unverified = {
+    ready: { places: true, profile: true, audience: "unverified" },
+    listing: null,
+    connection: null,
+  };
+  const warned = by(
+    connectionRows(
+      {
+        ...base(),
+        google: unverified,
+        email: {
+          ready: true,
+          domain: "mail.chanlytics.com",
+          mailbox,
+          sending: { providers: ["google"], mailboxes: [] },
+        },
+      },
+      NOW,
+    ),
+  ).mailbox;
+  assert.match(warned.sentence, /choose Advanced, then Go to Chanlytics\.$/);
+  const microsoftOnly = by(
+    connectionRows(
+      {
+        ...base(),
+        google: unverified,
+        email: {
+          ready: true,
+          domain: "mail.chanlytics.com",
+          mailbox,
+          sending: { providers: ["microsoft"], mailboxes: [] },
+        },
+      },
+      NOW,
+    ),
+  ).mailbox;
+  assert.doesNotMatch(microsoftOnly.sentence, /choose Advanced/, "Microsoft's connect has no Google screen");
 
   // Connected: the address, and a held or signed-out one is the row's attention, never a green On.
   const held = { id: "d1", address: "sam@getbestmovers.com", state: "held", held_why: "complaint" };

@@ -8,6 +8,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import {
   MAILBOX_SCOPES,
   buildEmailRequest,
@@ -19,6 +20,8 @@ import {
   graphEmailOf,
   mailboxAdminConsentUrl,
   mailboxAuthorizeUrl,
+  mailboxPkceChallenge,
+  mailboxPkceVerifier,
   mailboxMessageId,
   mailboxRefreshRequest,
   mailboxRevokeRequest,
@@ -69,7 +72,7 @@ function stub(answer) {
 }
 
 test("the way to consent: each provider's scopes, offline access, and the token requests that come back with a code", () => {
-  const g = new URL(mailboxAuthorizeUrl("google", CLIENT, "state-1", "sam@getharbor.example"));
+  const g = new URL(mailboxAuthorizeUrl("google", CLIENT, "state-1", { loginHint: "sam@getharbor.example" }));
   assert.equal(g.origin + g.pathname, "https://accounts.google.com/o/oauth2/v2/auth");
   assert.equal(g.searchParams.get("scope"), MAILBOX_SCOPES.google.join(" "));
   assert.deepEqual(
@@ -95,6 +98,26 @@ test("the way to consent: each provider's scopes, offline access, and the token 
   assert.match(r.scope, /Mail\.Send/, "Microsoft is asked for the scopes again at each refresh");
   assert.equal(mailboxRevokeRequest("microsoft", "t"), null, "Microsoft has no single token to give back");
   assert.match(mailboxRevokeRequest("google", "t").url, /oauth2\.googleapis\.com\/revoke/);
+});
+
+test("Google's consent is asked with PKCE (S256): the verifier made again from the state's nonce with the dashboard's key, the challenge its SHA-256, the exchange carrying the verifier", async () => {
+  const verifier = await mailboxPkceVerifier("state-secret", "nonce-1");
+  assert.match(verifier, /^[A-Za-z0-9_-]{43}$/, "43 characters of base64url, RFC 7636's shortest");
+  assert.equal(await mailboxPkceVerifier("state-secret", "nonce-1"), verifier, "the same nonce, the same verifier");
+  assert.notEqual(await mailboxPkceVerifier("state-secret", "nonce-2"), verifier);
+  assert.notEqual(await mailboxPkceVerifier("another-secret", "nonce-1"), verifier, "nobody without the key makes it");
+  const challenge = await mailboxPkceChallenge(verifier);
+  assert.equal(challenge, createHash("sha256").update(verifier).digest("base64url"), "S256, as node computes it");
+  const g = new URL(mailboxAuthorizeUrl("google", CLIENT, "state-1", { challenge }));
+  assert.deepEqual(
+    [g.searchParams.get("code_challenge"), g.searchParams.get("code_challenge_method")],
+    [challenge, "S256"],
+  );
+  assert.equal(g.searchParams.has("code_verifier"), false, "the verifier never travels in the URL");
+  const m = new URL(mailboxAuthorizeUrl("microsoft", CLIENT, "state-2", { challenge }));
+  assert.equal(m.searchParams.has("code_challenge"), false, "Microsoft's path is left as it was");
+  const t = Object.fromEntries(new URLSearchParams(mailboxTokenRequest("google", CLIENT, "code-1", verifier).body));
+  assert.equal(t.code_verifier, verifier);
 });
 
 test("a grant that lacks send or read is no mailbox; Graph's scopes are read without their resource or case", () => {

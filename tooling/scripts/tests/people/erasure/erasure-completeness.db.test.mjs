@@ -555,6 +555,13 @@ async function seed() {
     await db.from("ask_journal_days").insert({ tenant_id: T, day: "2026-10-20", state: "written", text: WORDS }),
     "ask_journal_days",
   );
+  // What their mail to a connected mailbox left there, and the workspace's word that they are a person (00483): both
+  // go with them by the erasure's trigger.
+  ok(
+    await db.from("mailbox_left").insert({ tenant_id: T, address: EMAIL, name: WORDS, why: "updates" }),
+    "mailbox_left",
+  );
+  ok(await db.from("mailbox_senders").insert({ tenant_id: T, sender: EMAIL, verdict: "person" }), "mailbox_senders");
 
   const pe = `pe-${RUN}`;
   made.providerEvents.push(pe);

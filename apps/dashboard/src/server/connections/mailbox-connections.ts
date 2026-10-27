@@ -16,12 +16,15 @@ import {
   appLink,
   mailboxConnectionDtoOf,
   type EdgeErrorCode,
+  type GoogleAudience,
   type MailboxConnectionDto,
   type MailboxProvider,
 } from "@chanlytics/contracts";
 import {
   mailboxAdminConsentUrl,
   mailboxAuthorizeUrl,
+  mailboxPkceChallenge,
+  mailboxPkceVerifier,
   newNonce,
   signState,
   verifyState,
@@ -85,8 +88,12 @@ export async function edgeMailboxes(body: Record<string, unknown>, timeoutMs = 2
 interface MailboxReadiness {
   providers: MailboxProvider[];
   oauth: Partial<Record<MailboxProvider, { client_id: string; redirect_uri: string }>>;
+  /** Google's consent screen for the app, where Google is offered (the edge's GOOGLE_OAUTH_AUDIENCE). */
+  audience: GoogleAudience | null;
+  /** The edge passes a connect's PKCE verifier on; until it says so, Google's consent is asked without a challenge. */
+  pkce: boolean;
 }
-const NONE_OFFERED: MailboxReadiness = { providers: [], oauth: {} };
+const NONE_OFFERED: MailboxReadiness = { providers: [], oauth: {}, audience: null, pkce: false };
 
 let readyCache: { at: number; ready: MailboxReadiness } | null = null;
 /** A "none offered" answer is kept briefly: a client set a minute ago must not hide Connect for five. */
@@ -113,7 +120,13 @@ export async function mailboxesReadiness(now = Date.now()): Promise<MailboxReadi
       if (typeof o?.client_id === "string" && typeof o.redirect_uri === "string")
         oauth[p] = { client_id: o.client_id, redirect_uri: o.redirect_uri };
     }
-    ready = { providers: providers.filter((p) => oauth[p]), oauth };
+    const audience = a.body.audience;
+    ready = {
+      providers: providers.filter((p) => oauth[p]),
+      oauth,
+      audience: audience === "testing" || audience === "unverified" || audience === "verified" ? audience : null,
+      pkce: a.body.pkce === true,
+    };
   }
   readyCache = { at: now, ready };
   return ready;
@@ -266,20 +279,25 @@ export async function startMailboxConnect(
     if (!was || was.provider !== provider) throw new AppError("not_found", "That mailbox isn't this workspace's.", 404);
     loginHint = was.address;
   }
+  const nonce = newNonce();
+  // Google's consent is asked with PKCE's challenge once the edge passes the verifier on (either deploy order works);
+  // the verifier is made again from the nonce at the callback.
+  const pkce = provider === "google" && ready.pkce && !opts.admin;
   const state = await signState(secret, {
     t: member.tenantId,
     u: ctx.userId,
-    n: newNonce(),
+    n: nonce,
     exp: Date.now() + (opts.admin ? ADMIN_STATE_TTL_MS : STATE_TTL_MS),
     p: provider,
     ...(opts.mailboxId ? { m: opts.mailboxId } : {}),
     ...(opts.admin ? { a: 1 } : {}),
     ...(opts.back === "start" ? { b: "start" } : {}),
+    ...(pkce ? { k: 1 } : {}),
   });
   const cfg = { clientId: oauth.client_id, redirectUri: oauth.redirect_uri };
-  return {
-    url: opts.admin ? mailboxAdminConsentUrl(cfg, state) : mailboxAuthorizeUrl(provider, cfg, state, loginHint),
-  };
+  if (opts.admin) return { url: mailboxAdminConsentUrl(cfg, state) };
+  const challenge = pkce ? await mailboxPkceChallenge(await mailboxPkceVerifier(secret, nonce)) : null;
+  return { url: mailboxAuthorizeUrl(provider, cfg, state, { loginHint, challenge }) };
 }
 
 /** How long an admin's link lasts: it is sent to someone else, who opens it when they can. */
@@ -341,6 +359,7 @@ export async function mailboxCallback(ctx: RouteContext, req: Request) {
       user_id: ctx.userId,
       provider,
       code,
+      ...(proof.state.k === 1 ? { code_verifier: await mailboxPkceVerifier(secret, proof.state.n) } : {}),
       ...(proof.state.m ? { mailbox_id: proof.state.m } : {}),
     },
     55_000,

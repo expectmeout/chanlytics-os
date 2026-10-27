@@ -182,6 +182,14 @@ test("readiness: the providers offered here, and only the public half of each cl
     redirect_uri: MAILBOX_ENV.MAILBOX_OAUTH_REDIRECT,
   });
   assert.ok(!JSON.stringify(body).includes(MAILBOX_ENV.GOOGLE_MAIL_CLIENT_SECRET), "never a secret");
+  assert.equal(body.audience, null, "Google's consent screen unsaid where the deployment says nothing of it");
+  assert.equal(body.pkce, true, "a connect's PKCE verifier is passed on to Google");
+  const said = withEnv({ GOOGLE_OAUTH_AUDIENCE: "unverified" });
+  try {
+    assert.equal((await ask({ op: "readiness" }))[1].audience, "unverified", "the Business Profile app's own (R18)");
+  } finally {
+    said();
+  }
   const back = withEnv({ MICROSOFT_MAIL_CLIENT_SECRET: null });
   try {
     assert.deepEqual(
@@ -222,8 +230,14 @@ test("connect: the code exchanged, the mailbox's row made, its token in Vault an
     );
     const exchange = Object.fromEntries(new URLSearchParams(net.calls[0].body));
     assert.deepEqual([exchange.code, exchange.grant_type], ["4/code", "authorization_code"]);
-    // The same account again is the same row, connected again.
-    const [, again] = await ask({ op: "connect", provider: "google", code: "4/again" });
+    assert.equal(exchange.code_verifier, undefined, "no verifier handed, none sent");
+    // The same account again is the same row, connected again; Google's consent asked with PKCE carries its verifier.
+    const verifier = "v".repeat(43);
+    const [, again] = await ask({ op: "connect", provider: "google", code: "4/again", code_verifier: verifier });
+    const exchanged = net.calls.filter((c) => c.url === "https://oauth2.googleapis.com/token").at(-1);
+    assert.equal(Object.fromEntries(new URLSearchParams(exchanged.body)).code_verifier, verifier);
+    const [bad] = await ask({ op: "connect", provider: "google", code: "4/x", code_verifier: "short" });
+    assert.equal(bad, 400, "a verifier that is not one is refused before Google is asked");
     assert.equal(again.made, false);
     assert.equal(w.tables.mailbox_connections.length, 1);
   } finally {

@@ -260,6 +260,8 @@ export type { ResendConfig, ResendAnswer, SendEmailOptions } from "./email/email
 export {
   MAILBOX_SCOPES,
   mailboxAuthorizeUrl,
+  mailboxPkceVerifier,
+  mailboxPkceChallenge,
   mailboxAdminConsentUrl,
   mailboxTokenRequest,
   mailboxRefreshRequest,
@@ -272,7 +274,7 @@ export {
 export type { MailboxOAuthClient, MailboxRequest, MailboxGrant, MailboxReach } from "./mailbox/mailbox-oauth";
 export { gmailListSince, graphListSince } from "./mailbox/mailbox-history";
 export type { ListedMail, MailPage, MailWindow } from "./mailbox/mailbox-history";
-export { googleContacts, googleOtherContacts, graphContacts } from "./mailbox/mailbox-people";
+export { googleContacts, graphContacts } from "./mailbox/mailbox-people";
 export type { KnownPerson, PeoplePage } from "./mailbox/mailbox-people";
 export {
   googleCalendarIds,

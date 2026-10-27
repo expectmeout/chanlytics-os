@@ -180,6 +180,8 @@ export interface OAuthState {
    * (decision 0073: Where it answers' tiles, Your business's Connect Google).
    */
   b?: string;
+  /** 1 when the consent was asked with PKCE's challenge: the way back sends its verifier (an edge that passes it on). */
+  k?: number;
 }
 
 async function hmac(secret: string, data: string): Promise<string> {

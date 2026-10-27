@@ -3861,19 +3861,9 @@ function newNonce() {
 var GMAIL_SEND_SCOPE = "https://www.googleapis.com/auth/gmail.send";
 var GMAIL_READ_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
 var CONTACTS_SCOPE = "https://www.googleapis.com/auth/contacts.readonly";
-var OTHER_CONTACTS_SCOPE = "https://www.googleapis.com/auth/contacts.other.readonly";
 var CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.readonly";
 var MAILBOX_SCOPES = {
-  google: [
-    "openid",
-    "email",
-    "profile",
-    GMAIL_SEND_SCOPE,
-    GMAIL_READ_SCOPE,
-    CONTACTS_SCOPE,
-    OTHER_CONTACTS_SCOPE,
-    CALENDAR_SCOPE
-  ],
+  google: ["openid", "email", "profile", GMAIL_SEND_SCOPE, GMAIL_READ_SCOPE, CONTACTS_SCOPE, CALENDAR_SCOPE],
   microsoft: [
     "offline_access",
     "openid",
@@ -3887,8 +3877,9 @@ var MAILBOX_SCOPES = {
   ]
 };
 var REACH = {
-  google: { contacts: CONTACTS_SCOPE, other_contacts: OTHER_CONTACTS_SCOPE, calendar: CALENDAR_SCOPE },
-  // Graph keeps no "other contacts": the people the owner wrote to come in with the mail itself.
+  // Google's "other contacts" (everyone the owner ever wrote to) is not asked for: the people the owner wrote to in the
+  // six months come in with their mail, in their threads, and the rest would fill People with every passing address.
+  google: { contacts: CONTACTS_SCOPE, calendar: CALENDAR_SCOPE },
   microsoft: { contacts: "contacts.read", calendar: "calendars.read" }
 };
 var REQUIRED = {
@@ -3907,7 +3898,18 @@ var MAILBOX_TOKEN_URL = {
 var GOOGLE_REVOKE_URL2 = "https://oauth2.googleapis.com/revoke";
 var FORM2 = { "Content-Type": "application/x-www-form-urlencoded" };
 var form2 = (p) => new URLSearchParams(p).toString();
-function mailboxAuthorizeUrl(provider, cfg, state, loginHint) {
+var b64urlOf = (bytes) => btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+async function mailboxPkceVerifier(secret, nonce) {
+  const enc2 = new TextEncoder();
+  const key = await crypto.subtle.importKey("raw", enc2.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, [
+    "sign"
+  ]);
+  return b64urlOf(await crypto.subtle.sign("HMAC", key, enc2.encode(`mailbox-pkce:${nonce}`)));
+}
+async function mailboxPkceChallenge(verifier) {
+  return b64urlOf(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)));
+}
+function mailboxAuthorizeUrl(provider, cfg, state, opts = {}) {
   const q = new URLSearchParams({
     client_id: cfg.clientId,
     redirect_uri: cfg.redirectUri,
@@ -3919,11 +3921,15 @@ function mailboxAuthorizeUrl(provider, cfg, state, loginHint) {
     q.set("access_type", "offline");
     q.set("prompt", "consent");
     q.set("include_granted_scopes", "true");
+    if (opts.challenge) {
+      q.set("code_challenge", opts.challenge);
+      q.set("code_challenge_method", "S256");
+    }
   } else {
     q.set("response_mode", "query");
     q.set("prompt", "select_account");
   }
-  if (loginHint) q.set("login_hint", loginHint);
+  if (opts.loginHint) q.set("login_hint", opts.loginHint);
   return `${MAILBOX_AUTH_URL[provider]}?${q.toString()}`;
 }
 function mailboxAdminConsentUrl(cfg, state) {
@@ -3938,7 +3944,7 @@ function mailboxAdminConsentUrl(cfg, state) {
   });
   return `https://login.microsoftonline.com/organizations/v2.0/adminconsent?${q.toString()}`;
 }
-function mailboxTokenRequest(provider, cfg, code) {
+function mailboxTokenRequest(provider, cfg, code, verifier) {
   return {
     url: MAILBOX_TOKEN_URL[provider],
     method: "POST",
@@ -3949,6 +3955,7 @@ function mailboxTokenRequest(provider, cfg, code) {
       client_secret: cfg.clientSecret,
       redirect_uri: cfg.redirectUri,
       grant_type: "authorization_code",
+      ...verifier ? { code_verifier: verifier } : {},
       ...provider === "microsoft" ? { scope: MAILBOX_SCOPES.microsoft.join(" ") } : {}
     })
   };
@@ -4530,11 +4537,6 @@ function googleContacts(token, pageToken, deps) {
   const q = new URLSearchParams({ personFields: "names,emailAddresses,phoneNumbers", pageSize: PEOPLE_PAGE });
   if (pageToken) q.set("pageToken", pageToken);
   return googlePage(token, `${PEOPLE_API}/people/me/connections?${q.toString()}`, "connections", deps);
-}
-function googleOtherContacts(token, pageToken, deps) {
-  const q = new URLSearchParams({ readMask: "names,emailAddresses,phoneNumbers", pageSize: PEOPLE_PAGE });
-  if (pageToken) q.set("pageToken", pageToken);
-  return googlePage(token, `${PEOPLE_API}/otherContacts?${q.toString()}`, "otherContacts", deps);
 }
 async function graphContacts(token, link, deps) {
   const url = link ?? `${GRAPH_API}/me/contacts?$select=displayName,emailAddresses,mobilePhone,businessPhones,homePhones&$top=${CONTACTS_PAGE}`;
@@ -7013,7 +7015,6 @@ export {
   googleCalendarIds,
   googleContacts,
   googleEvents,
-  googleOtherContacts,
   grantHasScope,
   grantHolds,
   grantScopes,
@@ -7069,6 +7070,8 @@ export {
   mailboxAuthorizeUrl,
   mailboxHeader,
   mailboxMessageId,
+  mailboxPkceChallenge,
+  mailboxPkceVerifier,
   mailboxRefreshRequest,
   mailboxRevokeRequest,
   mailboxTokenRequest,
