@@ -78,6 +78,22 @@ export const leaveOverlay = (node: Element | null | undefined, wash: Element | n
   playOut(copy);
 };
 
+/**
+ * A node's leaving copied as React lets go of it, and played where it stood only when asked: for a caller that knows
+ * once the commit is over whether the leaving is its own. A peek whose page goes with it is carried out in the page's
+ * own copy (view-deck.ts keptCopy), which took the peek's copy along when it was put in at once (27 Oct 2026).
+ */
+export const leaveLater = (node: Element | null | undefined): (() => void) | null => {
+  const parent = node && node.parentNode;
+  if (!node || !parent || typeof node.cloneNode !== "function" || motionReduced()) return null;
+  const next = node.nextSibling;
+  const copy = stillCopy(node);
+  return () => {
+    parent.insertBefore(copy, next && next.parentNode === parent ? next : null);
+    playOut(copy);
+  };
+};
+
 const leavingRefs = new Map<string, (el: HTMLElement | null) => void>();
 
 /** The callback ref that plays its element out as React lets go of it: one per key, the same on every draw. */

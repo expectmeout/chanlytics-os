@@ -1247,7 +1247,9 @@ export const FAMILIES = [
       { id: "pill-dot", html: `<span class="pill pill-ok" data-tone="ok"><span class="dot"></span>Confirmed</span>` },
       {
         id: "pill-fit",
-        html: `<div class="gx-row" style="width: 120px;"><span class="pill pill-fit" data-tone="plain">Receptionist replied</span></div>`,
+        html:
+          `<div class="gx-row" style="width: 160px;"><span class="pill pill-fit" data-tone="plain">Receptionist replied</span></div>` +
+          `<div class="gx-row" style="width: 90px;"><span class="pill pill-fit" data-tone="plain">Receptionist replied</span></div>`,
       },
       { id: "live-dot", html: `<div class="gx-row"><span class="live-dot"></span>On a call now</div>` },
     ],

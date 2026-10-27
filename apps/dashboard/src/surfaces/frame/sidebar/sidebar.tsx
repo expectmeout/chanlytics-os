@@ -7,8 +7,10 @@
  * KIT_PENDING); its inline styles and its nav's clickable rows moved with it, none new.
  */
 import { useEffect, useState } from "react";
+import { routeDoor } from "../../frame-doors";
 import type { LegacyFlash } from "../../legacy-verbs";
 import { frameGlyph, isDemoFrame } from "../frame-window";
+import { NAV_ROUTE } from "../shell-routes";
 import { SbMenu, UserMenu, WorkspaceMenu, useSbMenu } from "./sidebar-menus";
 import { SbWorkspaceFace, sbTeamSub, sbWho, sbWorkspace, sbWorkspaceName, type SbWho } from "./sidebar-who";
 
@@ -152,12 +154,19 @@ function SidebarRow({
   const badge = badges[item.id] !== undefined ? badges[item.id] : item.badge;
   const tip = collapsed ? (badge ? `${item.label} · ${badge}` : item.label) : undefined;
   const open = !collapsed && item.expandable;
+  // A place is a door (frame-doors.ts routeDoor): Tab reaches it, Enter opens it, and a middle press or a new tab opens its
+  // address. Every row was a div that only a pointer could press (27 Oct 2026). The shell's own way there stays the press.
+  const route = item.expandable ? null : NAV_ROUTE[item.id] || null;
+  const door = route ? routeDoor(route, () => onNavigate(item.id)) : null;
   return (
     <>
-      <div
+      <a
         className={`nav-item ${active === item.id ? "active" : ""} ${parentActive === item.id ? "parent-active" : ""} ${item.urgent ? "urgent" : ""}`}
         style={collapsed ? undefined : { paddingLeft: 10 + depth * 16 }}
-        onClick={() => (item.expandable ? onToggle(item.id) : onNavigate(item.id))}
+        href={door ? door.href : undefined}
+        onClick={door ? door.onClick : () => onToggle(item.id)}
+        onFocus={door ? door.onFocus : undefined}
+        aria-label={tip}
         data-tip={tip}
         data-tip-side="right"
         aria-current={active === item.id ? "page" : undefined}
@@ -179,7 +188,7 @@ function SidebarRow({
             }}
           />
         )}
-      </div>
+      </a>
       {open && expanded && <RowChildren item={item} active={active} onNavigate={onNavigate} />}
     </>
   );

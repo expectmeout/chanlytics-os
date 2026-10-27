@@ -26,7 +26,8 @@ export interface PersonLastContact {
   who: "they" | "receptionist" | "team" | "system" | null;
   /**
    * Who spoke: "They wrote", "Receptionist replied", "Your team replied", "Phoned", "We called"; "No contact recorded"
-   * with none. A person's reply is the team's, never "You": the row does not say which member sent it (messageAuthor).
+   * with none; "Receptionist wrote" and "Your team wrote" to someone never heard from, as nothing was replied to. A
+   * person's reply is the team's, never "You": the row does not say which member sent it (messageAuthor).
    */
   by: string;
   /** How long ago: "2h ago", the business's date past a week; empty with none. The table's first line (8 Oct 2026). */
@@ -45,6 +46,12 @@ export function theirTurnWords(last: Pick<PersonLastContact, "who" | "kind">): s
   return last.kind === "call" ? "they called last" : "they wrote last";
 }
 
+/** When they last wrote or called: their message, or a call they placed. A call the owner made is not them asking. */
+export function heardAt(r: PersonRowDto): number | null {
+  const at = [ts(r.last_inbound_at), ts(r.last_inbound_call_at ?? null)].filter((x): x is number => x !== null);
+  return at.length ? Math.max(...at) : null;
+}
+
 export function lastContactOf(r: PersonRowDto, tz: string, nowMs: number): PersonLastContact {
   const m = ts(r.last_message_at);
   const k = ts(r.last_call_at);
@@ -61,7 +68,7 @@ export function lastContactOf(r: PersonRowDto, tz: string, nowMs: number): Perso
   }
   if (k !== null && (m === null || k > m)) {
     // "Phoned" only when THEY did: last_call_at holds the receptionist's own outbound calls too, and the row said
-    // "Phoned" over a call we placed (the 2 Oct 2026 audit). heardAt (person-state.ts) already reads it this way.
+    // "Phoned" over a call we placed (the 2 Oct 2026 audit). heardAt (above) already reads it this way.
     const theirs = ts(r.last_inbound_call_at) === k;
     const by = theirs ? "Phoned" : "We called";
     const when = ago(k, tz, nowMs);
@@ -83,13 +90,20 @@ export function lastContactOf(r: PersonRowDto, tz: string, nowMs: number): Perso
         : r.last_message_sender === "ai"
           ? "receptionist"
           : "system";
+  // A reply answers something: to someone who never wrote or called, the team and the receptionist wrote first. The row
+  // said "Not heard from" beside "Your team replied" for the people a cold email reached (27 Oct 2026).
+  const answered = heardAt(r) !== null;
   const verb =
     who === "they"
       ? "They wrote"
       : who === "team"
-        ? "Your team replied"
+        ? answered
+          ? "Your team replied"
+          : "Your team wrote"
         : who === "receptionist"
-          ? "Receptionist replied"
+          ? answered
+            ? "Receptionist replied"
+            : "Receptionist wrote"
           : "We sent";
   const when = ago(m as number, tz, nowMs);
   return { ts: m, at: r.last_message_at, kind: "message", who, by: verb, when, label: `${verb} · ${when}` };

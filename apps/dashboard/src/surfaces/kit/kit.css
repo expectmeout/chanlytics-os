@@ -6225,19 +6225,22 @@ textarea.rec-input,
   color: var(--accent-ink);
 }
 /* A pill that gives way on a desk, in a line it shares with a name (a list row's first line): it shrinks before the name
-   does and its words end in an ellipsis, the dot kept. A flex line cannot end a pill's words in one, so the pill is a
-   block there, its dot inline. On a phone a row's line is the row's own (mobile.css), and the class draws nothing. */
+   does, and its words stand whole or not at all, the dot kept. Cut, they read "• N…" beside a long name on the 360px
+   list (27 Oct 2026). One line tall and wrapping, its words go to a second line it does not show when they do not fit
+   beside the dot; a screen reader still reads them. On a phone a row's line is the row's own (mobile.css), and the class
+   draws nothing. */
 @media (width > 900px) {
   .pill-fit {
-    display: block;
+    display: flex;
+    flex-wrap: wrap;
+    align-content: flex-start;
     min-width: 0;
+    height: 1lh;
     overflow: hidden;
-    text-overflow: ellipsis;
   }
+  /* The dot's line is as tall as the words' would be, so the dot alone stands where it stands beside them. */
   .pill-fit::before {
-    display: inline-block;
-    margin-right: 6px;
-    vertical-align: 1px;
+    margin-block: calc((1lh - 6px) / 2);
   }
 }
 

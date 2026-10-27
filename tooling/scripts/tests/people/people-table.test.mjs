@@ -16,7 +16,7 @@ import { importSrc } from "../_source.mjs";
 // both taken from the modules it imports, so the stub's hooks go on the react module first (installLegacyReact does it).
 installLegacyReact();
 const { PeopleTable } = await importSrc("apps/dashboard/src/surfaces/people/table/table.tsx");
-const { plColumnChoices, plColumnOptions, plFirstDir, plShownColumns, plSortKeys } = await importSrc(
+const { plColumnChoices, plColumnOptions, plFirstDir, plShownColumns, plSortKeys, plSortShown } = await importSrc(
   "apps/dashboard/src/surfaces/people/table/columns.ts",
 );
 const { resolveColumnWidths } = await importSrc("apps/dashboard/src/surfaces/people/table/layout.ts");
@@ -130,6 +130,28 @@ test("the helpers take the column list: sort keys, shown columns, first directio
       ["email", false, false],
     ],
     "the fixed column is not offered; the pinned one is locked",
+  );
+});
+
+test("REGRESSION: a sort by a column turned off gives way on a desk -- People read Sorted by next step over a table with no Next step", () => {
+  const shown = plShownColumns(COLS, { state: false }, { withCalendar: true });
+  const all = [{ key: "name", sortFirst: "asc" }, { key: "state" }, { key: "visits", sortFirst: "asc" }];
+  const chosen = { by: "state", dir: "asc" };
+  assert.deepEqual(
+    plSortShown(shown, all, chosen, { by: "visits", dir: "desc" }),
+    { by: "visits", dir: "desc" },
+    "to the page's first sort, its own way",
+  );
+  assert.deepEqual(
+    plSortShown(shown, all, chosen, { by: "state", dir: "desc" }),
+    { by: "name", dir: "asc" },
+    "else the first column shown that sorts, the way its first press goes",
+  );
+  const back = plShownColumns(COLS, {}, { withCalendar: true });
+  assert.deepEqual(
+    plSortShown(back, all, chosen, { by: "visits", dir: "desc" }),
+    chosen,
+    "and the member's own sort comes back with its column",
   );
 });
 
