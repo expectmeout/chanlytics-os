@@ -5,7 +5,8 @@
  * reach). A provider whose client is unset is not offered; a push that is unset leaves a mailbox to the five-minute
  * sweep, which reads every one whatever its push.
  */
-import type { MailboxProvider } from "../../packages/contracts.js";
+import type { GoogleAudience, MailboxProvider } from "../../packages/contracts.js";
+import { googleAudience } from "../../google/google-config.js";
 import type { MailboxOAuthClient } from "../../packages/channels.js";
 import { env } from "../../env.js";
 
@@ -32,17 +33,22 @@ function mailboxProviders(): MailboxProvider[] {
   return (["google", "microsoft"] as const).filter((p) => mailboxClient(p) !== null);
 }
 
-/** What the dashboard is told to start a connect with: the public half of each client offered. */
+/**
+ * What the dashboard is told to start a connect with: the public half of each client offered, and, where Google is,
+ * its consent screen's audience (the Business Profile app's own, decision 0073 R18), so the page says Google's warning
+ * before Connect.
+ */
 export function mailboxReadiness(): {
   providers: MailboxProvider[];
   oauth: Partial<Record<MailboxProvider, { client_id: string; redirect_uri: string }>>;
+  audience: GoogleAudience | null;
 } {
   const oauth: Partial<Record<MailboxProvider, { client_id: string; redirect_uri: string }>> = {};
   for (const p of mailboxProviders()) {
     const c = mailboxClient(p);
     if (c) oauth[p] = { client_id: c.clientId, redirect_uri: c.redirectUri };
   }
-  return { providers: mailboxProviders(), oauth };
+  return { providers: mailboxProviders(), oauth, audience: oauth.google ? googleAudience() : null };
 }
 
 /** Gmail's push: the topic it publishes to, and the audience its subscription's token is signed for. */

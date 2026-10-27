@@ -16,6 +16,7 @@ import {
   appLink,
   mailboxConnectionDtoOf,
   type EdgeErrorCode,
+  type GoogleAudience,
   type MailboxConnectionDto,
   type MailboxProvider,
 } from "@chanlytics/contracts";
@@ -85,8 +86,10 @@ export async function edgeMailboxes(body: Record<string, unknown>, timeoutMs = 2
 interface MailboxReadiness {
   providers: MailboxProvider[];
   oauth: Partial<Record<MailboxProvider, { client_id: string; redirect_uri: string }>>;
+  /** Google's consent screen for the app, where Google is offered (the edge's GOOGLE_OAUTH_AUDIENCE). */
+  audience: GoogleAudience | null;
 }
-const NONE_OFFERED: MailboxReadiness = { providers: [], oauth: {} };
+const NONE_OFFERED: MailboxReadiness = { providers: [], oauth: {}, audience: null };
 
 let readyCache: { at: number; ready: MailboxReadiness } | null = null;
 /** A "none offered" answer is kept briefly: a client set a minute ago must not hide Connect for five. */
@@ -113,7 +116,12 @@ export async function mailboxesReadiness(now = Date.now()): Promise<MailboxReadi
       if (typeof o?.client_id === "string" && typeof o.redirect_uri === "string")
         oauth[p] = { client_id: o.client_id, redirect_uri: o.redirect_uri };
     }
-    ready = { providers: providers.filter((p) => oauth[p]), oauth };
+    const audience = a.body.audience;
+    ready = {
+      providers: providers.filter((p) => oauth[p]),
+      oauth,
+      audience: audience === "testing" || audience === "unverified" || audience === "verified" ? audience : null,
+    };
   }
   readyCache = { at: now, ready };
   return ready;

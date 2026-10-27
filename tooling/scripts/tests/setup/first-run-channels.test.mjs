@@ -199,6 +199,21 @@ test("the mailbox: connected, the providers this deployment connects, or coming 
   ]);
   const on = channels(dtoOf(sending(["google"], [{ address: "owner@harbor.example" }]))).email;
   assert.deepEqual([on.state, on.says, on.providers], ["connected", "owner@harbor.example is connected", []]);
+  // Google's app unverified: its warning is said before Connect Gmail, and only where Gmail is offered.
+  const warned = channels(
+    dtoOf({ email: { sending: { providers: ["google"], mailboxes: [], google_audience: "unverified" } } }),
+  ).email;
+  assert.equal(warned.state, "connect");
+  assert.ok(warned.says.startsWith(CW.email.says), "the tile's own sentence first");
+  assert.match(warned.says, /choose Advanced, then Go to Chanlytics\.$/);
+  const verified = channels(
+    dtoOf({ email: { sending: { providers: ["google"], mailboxes: [], google_audience: "verified" } } }),
+  ).email;
+  assert.equal(verified.says, CW.email.says, "a verified app warns of nothing");
+  const outlookOnly = channels(
+    dtoOf({ email: { sending: { providers: ["microsoft"], mailboxes: [], google_audience: "unverified" } } }),
+  ).email;
+  assert.equal(outlookOnly.says, CW.email.says);
   const soon = channels(dtoOf()).email;
   assert.deepEqual([soon.state, soon.says], ["soon", CW.email.soonSays]);
   assert.equal(soon.note, CW.email.notAnswered, "the receptionist never answers email, said once on the tile");

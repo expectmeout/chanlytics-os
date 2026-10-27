@@ -11,6 +11,7 @@
  */
 
 import type { MailboxConnectionDto, MailboxProvider } from "./mailbox-connections";
+import type { GoogleAudience } from "../google/google";
 
 /** Addresses a mail system or a person expects to mean something else; "r" is the reply route (r+<token>@). 00126's list. */
 export const MAILBOX_RESERVED: ReadonlySet<string> = new Set([
@@ -112,7 +113,12 @@ export interface EmailSetupDto {
    * can connect (the edge holds each one's OAuth client), and the ones it has, removed ones aside. Null where it could
    * not be read.
    */
-  sending?: { providers: MailboxProvider[]; mailboxes: MailboxConnectionDto[] } | null;
+  sending?: {
+    providers: MailboxProvider[];
+    mailboxes: MailboxConnectionDto[];
+    /** Google's consent screen for the app, where Google is offered: its warning is said before Connect. */
+    google_audience?: GoogleAudience | null;
+  } | null;
 }
 
 /**

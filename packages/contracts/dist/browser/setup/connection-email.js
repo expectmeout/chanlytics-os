@@ -55,7 +55,8 @@ export function mailboxRow(i) {
     };
   }
   if (sending && sending.providers.length > 0) {
-    const note = sending.providers.includes("google") ? googleAudienceWords(i.google?.ready.audience) : null;
+    const audience = sending.google_audience ?? i.google?.ready.audience;
+    const note = sending.providers.includes("google") ? googleAudienceWords(audience) : null;
     return {
       ...base,
       detail: null,

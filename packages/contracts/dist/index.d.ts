@@ -7086,6 +7086,8 @@ interface EmailSetupDto {
     sending?: {
         providers: MailboxProvider[];
         mailboxes: MailboxConnectionDto[];
+        /** Google's consent screen for the app, where Google is offered: its warning is said before Connect. */
+        google_audience?: GoogleAudience | null;
     } | null;
 }
 /**

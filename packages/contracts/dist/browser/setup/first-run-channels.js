@@ -1,6 +1,7 @@
 import { formatPhoneDisplay } from "../shared/phone.js";
 import { bookingToolName } from "../calendar/booking-notice.js";
 import { bookingToolOfLink } from "../google/booking-page.js";
+import { googleAudienceWords } from "../google/audience.js";
 import { EMAIL_NOT_ANSWERED_SENTENCE } from "../email/mailbox.js";
 import { CARRIER_WORDS } from "../voice/forwarding.js";
 import { importLinesOf } from "../imports/ledger.js";
@@ -192,10 +193,11 @@ function emailOf(i) {
   const sending = i.dto.email?.sending ?? null;
   const on = sending?.mailboxes[0] ?? null;
   const providers = (sending?.providers ?? []).map((p) => ({ key: p, label: p === "google" ? W.google : W.microsoft }));
+  const warning = sending?.providers.includes("google") ? googleAudienceWords(sending.google_audience) : null;
   return {
     title: W.title,
     state: on ? "connected" : providers.length ? "connect" : "soon",
-    says: on ? W.connected(on.address) : providers.length ? W.says : W.soonSays,
+    says: on ? W.connected(on.address) : providers.length ? `${W.says}${warning ? ` ${warning}` : ""}` : W.soonSays,
     providers: on ? [] : providers,
     note: W.notAnswered
   };

@@ -221,9 +221,12 @@ export async function emailSetupFor(
   const [line, mailboxes, ready] = await Promise.all([
     emailLineFor(supabase, tenantId, mailbox),
     mailboxConnectionsWithDaysFor(supabase, tenantId).catch(() => null),
-    mailboxesReadiness().catch(() => ({ providers: [] })),
+    mailboxesReadiness().catch(() => ({ providers: [], audience: null })),
   ]);
-  return { ...line, sending: mailboxes ? { providers: ready.providers, mailboxes } : null };
+  return {
+    ...line,
+    sending: mailboxes ? { providers: ready.providers, mailboxes, google_audience: ready.audience } : null,
+  };
 }
 
 /** An owner gives the workspace its address (00129). Judged here first, so the refusal says which kind of not-an-address it was. */

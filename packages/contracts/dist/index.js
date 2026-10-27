@@ -60122,7 +60122,8 @@ function mailboxRow(i) {
     };
   }
   if (sending && sending.providers.length > 0) {
-    const note = sending.providers.includes("google") ? googleAudienceWords(i.google?.ready.audience) : null;
+    const audience = sending.google_audience ?? i.google?.ready.audience;
+    const note = sending.providers.includes("google") ? googleAudienceWords(audience) : null;
     return {
       ...base,
       detail: null,
@@ -62087,10 +62088,11 @@ function emailOf(i) {
   const sending = i.dto.email?.sending ?? null;
   const on = sending?.mailboxes[0] ?? null;
   const providers = (sending?.providers ?? []).map((p) => ({ key: p, label: p === "google" ? W.google : W.microsoft }));
+  const warning = sending?.providers.includes("google") ? googleAudienceWords(sending.google_audience) : null;
   return {
     title: W.title,
     state: on ? "connected" : providers.length ? "connect" : "soon",
-    says: on ? W.connected(on.address) : providers.length ? W.says : W.soonSays,
+    says: on ? W.connected(on.address) : providers.length ? `${W.says}${warning ? ` ${warning}` : ""}` : W.soonSays,
     providers: on ? [] : providers,
     note: W.notAnswered
   };

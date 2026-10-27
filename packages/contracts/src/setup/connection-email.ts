@@ -87,7 +87,8 @@ export function mailboxRow(i: ConnectionInputs): ConnectionDraft {
   if (sending && sending.providers.length > 0) {
     // Google's mailbox connect is the Business Profile app's (decision 0073, R18): its consent screen's warning is said
     // here too, where the owner is about to press Connect Google.
-    const note = sending.providers.includes("google") ? googleAudienceWords(i.google?.ready.audience) : null;
+    const audience = sending.google_audience ?? i.google?.ready.audience;
+    const note = sending.providers.includes("google") ? googleAudienceWords(audience) : null;
     return {
       ...base,
       detail: null,
