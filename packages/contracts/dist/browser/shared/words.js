@@ -1,5 +1,5 @@
 export const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
-const groupedPlural = (n, one, many = `${one}s`) => `${n.toLocaleString("en-US")} ${n === 1 ? one : many}`;
+export const groupedPlural = (n, one, many = `${one}s`) => `${n.toLocaleString("en-US")} ${n === 1 ? one : many}`;
 export const reviewsPhrase = (n) => groupedPlural(n, "review");
 export const UNKNOWN_MEMBER_WORD = "Someone";
 export const capitalize = (s) => s ? s[0].toUpperCase() + s.slice(1) : s;

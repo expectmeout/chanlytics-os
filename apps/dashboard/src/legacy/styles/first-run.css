@@ -239,6 +239,14 @@
 .fr-import-words { display: grid; gap: 2px; min-width: 0; }
 .fr-import-stand { flex: 0 0 auto; font-size: var(--text-sm); color: var(--ink-dim); font-variant-numeric: tabular-nums; }
 .fr-import[data-state="failed"] .fr-detail { color: var(--danger-ink); }
+/* A source brought in (brought.tsx ImportLines): its glyph, its words with how far it has come and what was set aside,
+   and where it stands at its end, a tick once in (Ruben, 27 Oct 2026: "In" on every line read as clutter). */
+.fr-source { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; }
+.fr-import-glyph { width: 32px; height: 32px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-sunken); color: var(--ink-dim); }
+.fr-source .fr-import-stand { justify-self: end; display: inline-flex; align-items: center; }
+.fr-source[data-state="done"] .fr-import-stand { color: var(--ok-ink); }
+.fr-import-bar { width: min(240px, 100%); margin-top: 6px; }
+.fr-import-aside { font-size: var(--text-xs); color: var(--ink-faint); }
 .fr-clients { display: grid; gap: 14px; }
 .fr-clients-foot { display: flex; justify-content: flex-end; gap: 8px; }
 

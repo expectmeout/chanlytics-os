@@ -10,7 +10,7 @@
 export const plural = (n: number, one: string, many = `${one}s`): string => `${n} ${n === 1 ? one : many}`;
 
 /** plural() for a count that can run to thousands, grouped as the product groups one: "1 review" · "1,284 reviews". */
-const groupedPlural = (n: number, one: string, many = `${one}s`): string =>
+export const groupedPlural = (n: number, one: string, many = `${one}s`): string =>
   `${n.toLocaleString("en-US")} ${n === 1 ? one : many}`;
 
 /** A place's reviews, ours (the Google card) or another business's (the Leads peek and card): "1 review" · "1,284 reviews". */

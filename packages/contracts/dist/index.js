@@ -529,7 +529,7 @@ var HEAD = {
   /** With no calendar link, the booked half waits. */
   touchOnly: (n) => ({ strong: `${n}`, rest: " new people got in touch through your ads." }),
   read: (time) => `Last 30 days \xB7 read ${time}`,
-  v0Read: (since) => `Last 30 days \xB7 counted from ${since}`,
+  v0Read: (since2) => `Last 30 days \xB7 counted from ${since2}`,
   /** The pane line while an account is being read: `Reading Meta and Google…`. */
   reading: (list2) => `Reading ${list2}\u2026`,
   accounts: "Accounts",
@@ -1353,7 +1353,7 @@ var NEW_AD = {
     estimate: (o) => `About ${o.lo} to ${o.hi} chats over the ${o.days} days \xB7 Meta's estimate, not a promise.`,
     noEstimate: "Meta can't estimate this yet. The first days will tell us.",
     googleEstimate: (o) => `About ${o.clicks[0]} to ${o.clicks[1]} clicks a month at this amount, usually ${o.from} to ${o.to} a click \xB7 Google's estimate`,
-    history: (each, people) => `Your earlier ads cost about ${each} for each person who booked (${people} people).`,
+    history: (each, people2) => `Your earlier ads cost about ${each} for each person who booked (${people2} people).`,
     more: "More choices",
     /** Only while the business is open: the switch, and why it is off or not a switch. */
     openOnly: (hours) => `Only while you're open (${hours})`,
@@ -1499,7 +1499,7 @@ function appointmentWords(word) {
   const f = FORMS[word];
   const Title = capitalize(word);
   const many = `${word}s`;
-  const people = (n) => plural(n, "person", "people");
+  const people2 = (n) => plural(n, "person", "people");
   return {
     word,
     one: word,
@@ -1519,8 +1519,8 @@ function appointmentWords(word) {
     whoYesterday: `who ${f.had} yesterday`,
     eachTomorrow: `each has ${f.a} tomorrow on the calendar`,
     eachYesterday: `each ${f.had} yesterday and has nothing booked next`,
-    offTomorrow: (n) => `Off \xB7 ${people(n)} ${n === 1 ? f.has : f.have} tomorrow`,
-    offYesterday: (n) => `Off \xB7 ${people(n)} ${f.had} yesterday`,
+    offTomorrow: (n) => `Off \xB7 ${people2(n)} ${n === 1 ? f.has : f.have} tomorrow`,
+    offYesterday: (n) => `Off \xB7 ${people2(n)} ${f.had} yesterday`,
     startsWith: `${f.a} tomorrow, ${f.a} yesterday`,
     byMany: `by ${many}`,
     needsCalendar: `${capitalize(many)} are read from your calendar, and none is connected. Connect one under Settings \u203A Hours & booking.`,
@@ -2766,9 +2766,9 @@ function nameMatcher(name) {
   if (n.length < 4 || isIdentifierName(n)) return null;
   return new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRe(n)}(?=$|[^\\p{L}\\p{N}])`, "iu");
 }
-function personInText(text, people) {
+function personInText(text, people2) {
   let best = null;
-  for (const p of people) {
+  for (const p of people2) {
     const re = nameMatcher(p.name);
     if (re && re.test(text) && (!best || p.name.trim().length > best.name.trim().length)) best = p;
   }
@@ -2777,10 +2777,10 @@ function personInText(text, people) {
 var labelOf = (p) => p.name.trim() || formatPhoneDisplay(p.phone) || p.email || "Unknown";
 function matchPerson(item, everyone, own) {
   const c = extractContacts(item, own);
-  const people = everyone.filter((p2) => !isOwn(own, p2));
+  const people2 = everyone.filter((p2) => !isOwn(own, p2));
   if (c.phones.length) {
     const byPhone = /* @__PURE__ */ new Map();
-    for (const p2 of people) if (p2.phone) byPhone.set(p2.phone, p2);
+    for (const p2 of people2) if (p2.phone) byPhone.set(p2.phone, p2);
     for (const ph of c.phones) {
       const p2 = byPhone.get(ph);
       if (p2) return { id: p2.id, name: labelOf(p2), via: "phone", ...threadOf(p2), ...replyFactsOf(p2) };
@@ -2788,30 +2788,30 @@ function matchPerson(item, everyone, own) {
   }
   if (c.emails.length) {
     const byEmail = /* @__PURE__ */ new Map();
-    for (const p2 of people) if (p2.email) byEmail.set(p2.email.toLowerCase(), p2);
+    for (const p2 of people2) if (p2.email) byEmail.set(p2.email.toLowerCase(), p2);
     for (const em of c.emails) {
       const p2 = byEmail.get(em);
       if (p2) return { id: p2.id, name: labelOf(p2), via: "email", ...threadOf(p2), ...replyFactsOf(p2) };
     }
     const byBusiness2 = /* @__PURE__ */ new Map();
-    for (const p2 of people) for (const em of p2.businessEmails ?? []) byBusiness2.set(em, p2);
+    for (const p2 of people2) for (const em of p2.businessEmails ?? []) byBusiness2.set(em, p2);
     for (const em of c.emails) {
       const p2 = byBusiness2.get(em);
       if (p2) return { id: p2.id, name: labelOf(p2), via: "business", ...threadOf(p2), ...replyFactsOf(p2) };
     }
   }
   const words3 = [item.title, ...c.names, item.description ?? ""].join("\n");
-  const p = personInText(words3, people);
+  const p = personInText(words3, people2);
   if (p) return { id: p.id, name: labelOf(p), via: "name", ...threadOf(p), ...replyFactsOf(p) };
-  const byBusiness = personInText(words3, soleAtBusiness(people));
-  const b = byBusiness ? people.find((x) => x.id === byBusiness.id) : void 0;
+  const byBusiness = personInText(words3, soleAtBusiness(people2));
+  const b = byBusiness ? people2.find((x) => x.id === byBusiness.id) : void 0;
   return b ? { id: b.id, name: labelOf(b), via: "business", ...threadOf(b), ...replyFactsOf(b) } : null;
 }
-function soleAtBusiness(people) {
+function soleAtBusiness(people2) {
   const key = (p) => p.business?.trim().toLowerCase() ?? "";
   const n = /* @__PURE__ */ new Map();
-  for (const p of people) n.set(key(p), (n.get(key(p)) ?? 0) + 1);
-  return people.flatMap((p) => key(p) && n.get(key(p)) === 1 ? [{ ...p, name: p.business?.trim() ?? "" }] : []);
+  for (const p of people2) n.set(key(p), (n.get(key(p)) ?? 0) + 1);
+  return people2.flatMap((p) => key(p) && n.get(key(p)) === 1 ? [{ ...p, name: p.business?.trim() ?? "" }] : []);
 }
 var NEAR_VISIT_MS = 3 * DAY_MS;
 var isBookingRow = (it) => !!it.uid && recordIdOf(it.uid) !== null;
@@ -4510,8 +4510,8 @@ var REGISTRATION_COST_WORDS = {
 var PROVISIONING_DEADLINE_MS = 5 * MIN_MS;
 function lineStuckProvisioning(l, nowMs) {
   if (!l || l.voice_state !== "provisioning") return false;
-  const since = Date.parse(l.state_since);
-  return Number.isFinite(since) && nowMs - since > PROVISIONING_DEADLINE_MS;
+  const since2 = Date.parse(l.state_since);
+  return Number.isFinite(since2) && nowMs - since2 > PROVISIONING_DEADLINE_MS;
 }
 function lineRetryRefusal(l, nowMs) {
   if (!l) return "no such line";
@@ -5335,8 +5335,8 @@ function groupsOf(read, by, rv) {
     return PLATFORMS.flatMap((platform) => {
       const mine = entries.filter((e) => e.ad.platform === platform);
       if (mine.length === 0) return [];
-      const people = peopleIn(mine, rv);
-      const meta = platformMeta({ platform, ads: mine.length, people });
+      const people2 = peopleIn(mine, rv);
+      const meta = platformMeta({ platform, ads: mine.length, people: people2 });
       return [
         { key: platform, glyph: PLATFORM_GLYPH[platform], caps: PLATFORM_WORD[platform], meta, rows: rowsOf(mine) }
       ];
@@ -5518,12 +5518,12 @@ function adsModel(read, config, by = "door") {
   const p = pageTotals(read);
   const rv = readViewOf(read);
   const reading = rv.reading.length > 0;
-  const since = read.firstTouch ? dayShort(read.firstTouch.since) : null;
+  const since2 = read.firstTouch ? dayShort(read.firstTouch.since) : null;
   const groupBy = groupByOf(read, by);
   const base = {
     mode,
     head: pageHead(mode, p, read),
-    pane: reading ? HEAD.reading(ownersOf(rv.reading)) : mode === "v0" && since !== null ? HEAD.v0Read(since) : HEAD.read(readTime(read)),
+    pane: reading ? HEAD.reading(ownersOf(rv.reading)) : mode === "v0" && since2 !== null ? HEAD.v0Read(since2) : HEAD.read(readTime(read)),
     standing: pageStanding(read),
     figures: [],
     counted: null,
@@ -7853,9 +7853,9 @@ function resultDaysOf(ads, o) {
     const mine = ads.flatMap(
       (ad) => ad.days.filter((d) => d.day === day2).map((d) => ({ ad, spendMinor: d.spendMinor, inTouch: d.inTouch, booked: d.booked }))
     );
-    const people2 = mine.filter((r2) => counted(r2.ad));
-    const inTouch = sum(people2.map((r2) => r2.inTouch));
-    const booked = sum(people2.map((r2) => r2.booked));
+    const people3 = mine.filter((r2) => counted(r2.ad));
+    const inTouch = sum(people3.map((r2) => r2.inTouch));
+    const booked = sum(people3.map((r2) => r2.booked));
     rows2.push({
       day: day2,
       label: dayWord(day2),
@@ -7876,12 +7876,12 @@ function resultDaysOf(ads, o) {
       (ad) => ad.days.filter((d) => d.day >= o.from && d.day <= o.to).map((d) => ({ minor: d.spendMinor, currency: ad.currency }))
     )
   );
-  const people = sum(rows2.map((r2) => r2.inTouch));
+  const people2 = sum(rows2.map((r2) => r2.inTouch));
   return {
     rows: rows2,
     currency: one,
     spentAria: RESULTS.days.spentAria({ total: spent, days: rows2.length }),
-    peopleAria: RESULTS.days.peopleAria({ people, booked: sum(rows2.map((r2) => r2.booked)), days: rows2.length }),
+    peopleAria: RESULTS.days.peopleAria({ people: people2, booked: sum(rows2.map((r2) => r2.booked)), days: rows2.length }),
     notes: [
       ...settles ? [RESULTS.days.settling(ADS_SETTLE_DAYS, o.a)] : [],
       ...calls > 0 ? [RESULTS.days.callsNote(calls)] : [],
@@ -7925,15 +7925,15 @@ function unitOf(ads) {
 function resultsRowOf(subset, scoped, id, label) {
   const here = { ...scoped, ads: [...subset] };
   const p = pageTotals(here);
-  const people = subset.filter(counted);
+  const people2 = subset.filter(counted);
   const calls = sum(subset.filter((ad) => !counted(ad)).map((ad) => totalsOf(ad, here).inTouch));
   const base = { id, label, ads: subset.length, spent: sumMoney(p.spent) };
   if (!subset.some(started)) {
     const none = cell2(DASH, null, LEDGER.notStarted);
     return { ...base, inTouch: none, booked: none, each: none };
   }
-  const inTouch = people.length === 0 ? cell2(String(calls), DOOR.call.unit) : cell2(String(p.touch), unitOf(people));
-  if (people.length === 0) {
+  const inTouch = people2.length === 0 ? cell2(String(calls), DOOR.call.unit) : cell2(String(p.touch), unitOf(people2));
+  if (people2.length === 0) {
     return {
       ...base,
       inTouch,
@@ -8016,7 +8016,7 @@ function adsResultsOf(read, config, at3) {
     window: { from: window.from, to: window.to }
   };
   const p = pageTotals(scoped);
-  const people = scoped.ads.filter(counted);
+  const people2 = scoped.ads.filter(counted);
   const calls = sum(scoped.ads.filter((ad) => !counted(ad)).map((ad) => totalsOf(ad, scoped).inTouch));
   const linked = read.calendar.linked;
   const quiet = p.touch === 0 && calls === 0 && sum(p.spent.map((m) => m.minor)) === 0;
@@ -8052,7 +8052,7 @@ function adsResultsOf(read, config, at3) {
       touch: p.touch,
       booked: p.booked,
       calls,
-      peopleAds: people.length,
+      peopleAds: people2.length,
       linked
     }),
     figures: model.figures,
@@ -8578,22 +8578,22 @@ function approvalEndsWithSendingHours(trigger) {
 function batchWaitWords(trigger) {
   return approvalEndsWithSendingHours(trigger) ? waitEndsWords("visit_ask", SENDING_HOURS_WORDS.end) : waitEndsWords("batch_ask");
 }
-function readyRunNotice(name, people, trigger) {
+function readyRunNotice(name, people2, trigger) {
   return {
-    subject: `Campaign \u201C${name}\u201D is ready: ${plural(people, "person", "people")}`,
-    body: `${plural(people, "person has", "people have")} become eligible for \u201C${name}\u201D. Approve or skip it from your Inbox or Today. ${batchWaitWords(trigger)}.`
+    subject: `Campaign \u201C${name}\u201D is ready: ${plural(people2, "person", "people")}`,
+    body: `${plural(people2, "person has", "people have")} become eligible for \u201C${name}\u201D. Approve or skip it from your Inbox or Today. ${batchWaitWords(trigger)}.`
   };
 }
-function vetoRunNotice(name, people, when) {
-  const who = plural(people, "person", "people");
+function vetoRunNotice(name, people2, when) {
+  const who = plural(people2, "person", "people");
   return {
     subject: `Campaign \u201C${name}\u201D sends ${when}: ${who}`,
     body: `${who} will be sent \u201C${name}\u201D. ${waitEndsWords("batch_hold", when)}, from Today or its run.`
   };
 }
 var NEXT_BATCH_WAITS = "its batches wait until you approve one, and every one waits while \u201CBefore each batch\u201D in its How it runs says to ask";
-function skippedRunNotice(name, people, trigger) {
-  const who = plural(people, "person", "people");
+function skippedRunNotice(name, people2, trigger) {
+  const who = plural(people2, "person", "people");
   const subject = `\u201C${name}\u201D didn\u2019t go: nobody approved it`;
   if (approvalEndsWithSendingHours(trigger))
     return {
@@ -14556,8 +14556,8 @@ function movedAddress(address) {
   if (!name) return null;
   const own = at3 < 0 ? "" : route.slice(at3 + 1);
   const search = address.search ?? "";
-  const joined = own ? search ? `${search}&${own}` : `?${own}` : search;
-  return `/w/${m[1] ?? ""}/${pathRoute(retiredRouteOf(name) ?? name)}${joined}`;
+  const joined2 = own ? search ? `${search}&${own}` : `?${own}` : search;
+  return `/w/${m[1] ?? ""}/${pathRoute(retiredRouteOf(name) ?? name)}${joined2}`;
 }
 function workspacePath(slug, route = "") {
   return `/w/${encodeURIComponent(slug)}${route ? `/${pathRoute(retiredRouteOf(route) ?? route)}` : ""}`;
@@ -14995,8 +14995,8 @@ function runStoppedWords(was) {
   if (was === "sending") return "stops after this batch";
   return was === "pending_approval" ? "skipped \u2014 nothing will send" : "canceled \u2014 nothing will send";
 }
-function runApprovedTail(people, when) {
-  return `approved \u2014 ${people} ${people === 1 ? "person" : "people"}, ${when}`;
+function runApprovedTail(people2, when) {
+  return `approved \u2014 ${people2} ${people2 === 1 ? "person" : "people"}, ${when}`;
 }
 var RUN_WAITING_WORDS = "Waiting for your approval";
 var RUN_WAITING_SHORT = "Waits for you";
@@ -15080,8 +15080,8 @@ function rightNowLine(w, language) {
   if (!w) return unreadQueueWords(es);
   const who = w.people.map((p) => p.who);
   const total = who.length + w.more;
-  const people = total ? es ? `${names(who, total, true)} ${total === 1 ? "te espera" : "te esperan"}` : `${names(who, total, false)} ${total === 1 ? "needs" : "need"} you` : "";
-  const clauses = [people, runsClause(w.runs.length, es), searchesClause(w, es), windowsClause(w, es)].filter(Boolean);
+  const people2 = total ? es ? `${names(who, total, true)} ${total === 1 ? "te espera" : "te esperan"}` : `${names(who, total, false)} ${total === 1 ? "needs" : "need"} you` : "";
+  const clauses = [people2, runsClause(w.runs.length, es), searchesClause(w, es), windowsClause(w, es)].filter(Boolean);
   if (!clauses.length) return es ? "Nadie te espera ahora mismo." : "Nobody needs you right now.";
   const s = clauses.join("; ");
   return `${s.charAt(0).toUpperCase()}${s.slice(1)}.`;
@@ -20552,11 +20552,11 @@ function monthSentAt(read, at3) {
 function allowanceRoom(channel, sent) {
   return Math.max(0, CAMPAIGN_MONTH_ALLOWANCE[channel] - sent);
 }
-function pastAllowance(people, sent, trigger, purpose) {
+function pastAllowance(people2, sent, trigger, purpose) {
   if (!heldByAllowance(trigger, purpose)) return [];
   const room = { email: allowanceRoom("email", sent.email), sms: allowanceRoom("sms", sent.sms) };
   const past = [];
-  for (const p of people) {
+  for (const p of people2) {
     if (p.channel === "whatsapp") continue;
     if (room[p.channel] > 0) room[p.channel] -= 1;
     else past.push(p);
@@ -21031,9 +21031,9 @@ function audiencePreview(rows2, kind, id, savedIds, purpose, how, limit = 5, tou
     (x) => firstNameOf(x.r.givenName, x.r.waName, { source: x.r.nameSource, settled: x.r.nameSettled }) === null
   );
   const order = [...named.slice(0, 1), ...unnamed.slice(0, 1), ...named.slice(1), ...unnamed.slice(1)];
-  const people = order.slice(0, limit).map((x) => previewPerson(x.r, null, x.p.channel));
+  const people2 = order.slice(0, limit).map((x) => previewPerson(x.r, null, x.p.channel));
   for (const { r: r2, p } of held.slice(0, 2))
-    people.push(previewPerson(r2, p.held ? heldWords(p.held, purpose) : null, null));
+    people2.push(previewPerson(r2, p.held ? heldWords(p.held, purpose) : null, null));
   const heardTouches = [];
   for (const x of sending) {
     const times = touches[x.r.id];
@@ -21041,7 +21041,7 @@ function audiencePreview(rows2, kind, id, savedIds, purpose, how, limit = 5, tou
       heardTouches.push({ times: times.map(Date.parse), channel: x.p.channel });
   }
   return {
-    people,
+    people: people2,
     split: reachSplit(pool, purpose, how),
     sending: sending.length,
     held: held.length,
@@ -21329,11 +21329,11 @@ function runStopOf({ d, sent }) {
   } : null;
 }
 var spanWordsOf = (spanH) => spanH === 1 ? "the first hour" : spanH < 24 ? `the first ${spanH} hours` : spanH === 24 ? "the first day" : `the first ${spanH / 24} days`;
-var runGroupsOf = (people) => ({
-  all: people.length,
-  replied: people.filter((p) => p.in.includes("replied")).length,
-  held: people.filter((p) => p.in.includes("held")).length,
-  stopped: people.filter((p) => p.in.includes("stopped")).length
+var runGroupsOf = (people2) => ({
+  all: people2.length,
+  replied: people2.filter((p) => p.in.includes("replied")).length,
+  held: people2.filter((p) => p.in.includes("held")).length,
+  stopped: people2.filter((p) => p.in.includes("stopped")).length
 });
 var sentFigure = (f) => ({
   id: "sent",
@@ -21398,14 +21398,14 @@ var stoppedFigure = (f) => ({
 var RUN_FIGURES = [sentFigure, deliveredFigure, repliedFigure, saidYesFigure, stoppedFigure];
 function toRunReportVM(d, opts) {
   const f = runFactsOf(d, opts);
-  const people = d.recipients.map((r2) => personLineOf(r2, f));
+  const people2 = d.recipients.map((r2) => personLineOf(r2, f));
   const replies = repliesOf(f);
   const stop = runStopOf(f);
   return {
     enrolled: d.recipients.length,
     span: spanWordsOf(f.spanH),
-    groups: runGroupsOf(people),
-    people,
+    groups: runGroupsOf(people2),
+    people: people2,
     replies,
     stop,
     figures: RUN_FIGURES.map((figure2) => figure2(f))
@@ -22720,7 +22720,7 @@ var LIFECYCLE_WORDS = {
      * The phone's line in the Moments head: who of everyone in People a message can reach now. Everyone is said as
      * everyone ("All 29 can hear you"), not as a fraction of itself; nobody in People is no line at all (the tile).
      */
-    phoneHear: (canHear, people) => canHear === people ? people === 1 ? "1 can hear you" : `All ${people} can hear you` : `${canHear} of ${people} can hear you`,
+    phoneHear: (canHear, people2) => canHear === people2 ? people2 === 1 ? "1 can hear you" : `All ${people2} can hear you` : `${canHear} of ${people2} can hear you`,
     /** The phone's door to how the yes to offers is got: the words that door carries on a run's sheet and in Setup. */
     phoneYes: "Get their yes",
     code: "Show the code",
@@ -22788,9 +22788,9 @@ var LIFECYCLE_TOAST = {
    * A waiting run approved: the server's own count, and when it really goes in the page's clock words ("sending now",
    * "scheduled for tomorrow 9:00 AM"), since the server may move a late approval to the next sending hour.
    */
-  approved: (name, people, when) => [
+  approved: (name, people2, when) => [
     { b: name },
-    ` ${runApprovedTail(people, when)}`
+    ` ${runApprovedTail(people2, when)}`
   ],
   /**
    * A run stopped from its line or its card: what the server stopped, by what the run was when it did (campaign-rooms.ts
@@ -22908,7 +22908,7 @@ var PLAYBOOK_PATCH_WORDS = {
   modeOneOff: "A one-off goes as it was sent: it has no mode.",
   paused: "Nothing more runs until it is resumed",
   /** D8: a pause leaves the run that waits; skipping it is a second card. */
-  pausedWaits: (people) => `The run waiting for you (${people} ${people === 1 ? "person" : "people"}) stays waiting: approve or skip it under Coming up`,
+  pausedWaits: (people2) => `The run waiting for you (${people2} ${people2 === 1 ? "person" : "people"}) stays waiting: approve or skip it under Coming up`,
   /** D7: a resume says what its batches do, by its sequence's mode (decision 0064), in full. */
   resumed: (does) => `Runs again: ${does}`,
   same: (name) => `\u201C${name}\u201D already reads so: say so, and change nothing`,
@@ -23499,9 +23499,9 @@ var playbookRunSpec = {
     const d = rec(data);
     const name = asText(d.name ?? pl.name) || LIFECYCLE_TOAST.nameless;
     const n = Number(d.eligible) || 0;
-    const people = `${n} ${n === 1 ? "person" : "people"}`;
-    if (d.outcome === "sent") return `${name} \u2014 ${people}, ${runGoes(pl, data)}`;
-    if (d.outcome === "held") return `${name} \u2014 ${people} waiting for your approval`;
+    const people2 = `${n} ${n === 1 ? "person" : "people"}`;
+    if (d.outcome === "sent") return `${name} \u2014 ${people2}, ${runGoes(pl, data)}`;
+    if (d.outcome === "held") return `${name} \u2014 ${people2} waiting for your approval`;
     return `${name} \u2014 nobody new to send to right now`;
   },
   undo: {
@@ -24722,7 +24722,7 @@ var leftOut = (parts2) => {
   return said.length ? `Left out: ${said.join(", ")}.` : null;
 };
 function leadImportAnswerWords(a, leftByPage = 0) {
-  const joined = a.checking + a.counted;
+  const joined2 = a.checking + a.counted;
   const lines = [
     a.checking ? `Checking ${plural(a.checking, "address", "addresses")} now: each one that checks out joins Ready, usually within a few minutes.` : null,
     a.counted ? `${plural(a.counted, "lead")} already counted joined as ${a.counted === 1 ? "it is" : "they are"}.` : null,
@@ -24734,7 +24734,7 @@ function leadImportAnswerWords(a, leftByPage = 0) {
       [a.left_out.elsewhere ?? 0, "being checked in another search", "being checked in another search"]
     ])
   ].filter((l) => !!l);
-  return { title: `${plural(joined, "business", "businesses")} on the list`, lines };
+  return { title: `${plural(joined2, "business", "businesses")} on the list`, lines };
 }
 function leadChooseAnswerWords(a) {
   const off = leftOut([
@@ -24928,7 +24928,7 @@ function leadCompanyOf(l) {
   if (l.kind !== "company") return null;
   const { facts: f, at: at3 } = readFacts(l.facts);
   const open = choosable(l);
-  const people = f.people.map((p, i) => ({
+  const people2 = f.people.map((p, i) => ({
     name: p.name,
     what: p.title ?? (p.role ? LEAD_ROLE_WORDS[p.role] : null),
     addressee: i === f.addressee,
@@ -24937,8 +24937,8 @@ function leadCompanyOf(l) {
     choose: open && i !== f.addressee && !!p.email
   })).sort((a, b) => Number(b.addressee) - Number(a.addressee));
   return {
-    head: LEAD_COMPANY_WORDS.head(people.length),
-    people,
+    head: LEAD_COMPANY_WORDS.head(people2.length),
+    people: people2,
     size: f.size ? LEAD_COMPANY_WORDS.size(f.size) : null,
     source: LEAD_CARDS.find((c) => c.id === "people_at_companies")?.rights ?? ""
   };
@@ -28207,7 +28207,7 @@ var REACH_OUT_TO_SEND_LABELS = {
   noReplyYes: "No reply: it went",
   sentDone: (name) => `${name}: sent from your inbox`,
   /** Sent, and recorded, though its lead would be refused now (reach_out_send_said's since). */
-  sentSince: (name, since) => `${name}: sent from your inbox. ${SENT_SINCE_WORDS[since] ?? "Nothing more is written to them."}`,
+  sentSince: (name, since2) => `${name}: sent from your inbox. ${SENT_SINCE_WORDS[since2] ?? "Nothing more is written to them."}`,
   skippedDone: (name) => `${name}: left out. Nothing more is written to them.`,
   /** Left out by the clock or a reply before the owner said a word: why, in the skip's own words. */
   leftOut: (name, why) => `${name} was left out already: they ${why}.`,
@@ -28855,7 +28855,7 @@ var SEQUENCE_FLOW_WORDS = {
   sample: "The next one, as it reads",
   addLeads: "Add leads",
   /** When the step's next batch goes, with how many where they are counted: "next 9 tomorrow 9:00 AM". */
-  next: (people, when) => people > 0 ? `next ${people} ${when}` : `next ${when}`
+  next: (people2, when) => people2 > 0 ? `next ${people2} ${when}` : `next ${when}`
 };
 function takesFollowUps(row2) {
   if (row2.starts !== "moment" && row2.starts !== "list") return false;
@@ -29072,19 +29072,19 @@ var noticeOf = (n) => ({
 });
 var batchWaitsUntilTonight = (batch) => batch.audience?.kind === "playbook";
 function waitingNotice(steps, batch) {
-  const people = batch.people;
+  const people2 = batch.people;
   const place = steps.length > 1 ? steps.find((s) => s.id === batch.step_id)?.place : void 0;
   const until = batchWaitsUntilTonight(batch) ? ` \xB7 ${SEQUENCE_WORDS.untilTonight}` : "";
   const fact2 = [place ? `Step ${place}` : null, until ? SEQUENCE_WORDS.untilTonight : null].filter(Boolean).join(" \xB7 ");
   return noticeOf({
     kind: "waiting",
-    words: people > 0 ? `${plural(people, "person waits", "people wait")} for your OK${until}` : `The next batch waits for your OK${until}`,
+    words: people2 > 0 ? `${plural(people2, "person waits", "people wait")} for your OK${until}` : `The next batch waits for your OK${until}`,
     // The dock's line beside its Approve, which says how many: "Waits for your OK" over "Approve · 6 people", where it said
     // the count twice, "6 wait for your OK" beside it (the run review's item 12).
-    line: people > 0 ? SEQUENCE_WORDS.waitsForOk : "The next batch waits for your OK",
+    line: people2 > 0 ? SEQUENCE_WORDS.waitsForOk : "The next batch waits for your OK",
     fact: fact2 || null,
     // One word per act, as the run's own sheet and Today's row say it (decision 19 of the spec of 9 Oct 2026).
-    act: people > 0 ? runApproveWords(people) : SEQUENCE_WORDS.approve,
+    act: people2 > 0 ? runApproveWords(people2) : SEQUENCE_WORDS.approve,
     batchId: batch.id
   });
 }
@@ -31357,15 +31357,15 @@ function validUntilOf(day2, tz, nowMs) {
 function toDealVM(d, tz, nowMs) {
   if (!isDealStage(d.stage)) return null;
   const sinceMs = dealSinceMs(d);
-  const since = sinceMs === null ? "" : `since ${clockDate(sinceMs, tz, nowMs)}`;
+  const since2 = sinceMs === null ? "" : `since ${clockDate(sinceMs, tz, nowMs)}`;
   const waitingDays = d.stage === "proposed" ? wholeDaysSince(sinceMs, nowMs) : null;
   const amount = amountWords(d.amount_cents, d.per, d.currency ?? "USD");
   const url = d.proposal_url?.trim() || null;
   const proposedMs = d.proposed_at ? Date.parse(d.proposed_at) : NaN;
   const word = DEAL_STAGE_WORDS[d.stage];
-  const said = [word, since, amount].filter((x) => !!x).join(" \xB7 ");
+  const said = [word, since2, amount].filter((x) => !!x).join(" \xB7 ");
   const line = [d.service, said].filter((x) => !!x).join(" \xB7 ");
-  const facts = [d.service, since, amount].filter((x) => !!x).join(" \xB7 ");
+  const facts = [d.service, since2, amount].filter((x) => !!x).join(" \xB7 ");
   const brief = d.stage === "proposed" ? `${word} \xB7 ${daysInStageWords(waitingDays ?? 0)}` : d.stage === "won" ? [word, d.service].filter((x) => !!x).join(" \xB7 ") : null;
   return {
     id: d.id ?? null,
@@ -31374,7 +31374,7 @@ function toDealVM(d, tz, nowMs) {
     word,
     service: d.service,
     sinceMs,
-    since,
+    since: since2,
     said,
     line,
     facts,
@@ -31454,10 +31454,10 @@ function dealSentence(d, nowMs, tz = "UTC", opts = {}) {
   const svc = d.service ? ` (${d.service})` : "";
   const sinceMs = dealSinceMs(d);
   const on = sinceMs === null ? "" : ` on ${clockDate(sinceMs, tz, nowMs)}`;
-  const since = sinceMs === null ? "" : `, since ${clockDate(sinceMs, tz, nowMs)}`;
+  const since2 = sinceMs === null ? "" : `, since ${clockDate(sinceMs, tz, nowMs)}`;
   switch (d.stage) {
     case "won":
-      return `They are a client${svc}${since}. Offer them the service itself, not a consultation. Anything about their engagement or what it costs goes to a person: say someone will follow up, and hand over.`;
+      return `They are a client${svc}${since2}. Offer them the service itself, not a consultation. Anything about their engagement or what it costs goes to a person: say someone will follow up, and hand over.`;
     case "proposed":
       return opts.hasLink ? `A proposal${svc} went out to them${on} and is waiting on their answer. If they ask about it, send them the proposal link and state none of its figures, then hand over.` : `A proposal${svc} went out to them${on} and is waiting on their answer. If they ask about it, say the person who sent it will follow up, and hand over. Never discuss its price.`;
     case "lost":
@@ -31730,10 +31730,10 @@ function feedItemOfAppointment(row2) {
     ...row2.contact_id ? { contactId: row2.contact_id } : {}
   };
 }
-function personOfAppointment(row2, people) {
-  const linked = row2.contact_id ? people.find((p) => p.id === row2.contact_id) : void 0;
-  const byPhone = !linked && row2.client_phone ? people.find((p) => p.phone === row2.client_phone) : void 0;
-  const byEmail = !linked && !byPhone && row2.client_email ? people.find((p) => p.email === row2.client_email) : void 0;
+function personOfAppointment(row2, people2) {
+  const linked = row2.contact_id ? people2.find((p) => p.id === row2.contact_id) : void 0;
+  const byPhone = !linked && row2.client_phone ? people2.find((p) => p.phone === row2.client_phone) : void 0;
+  const byEmail = !linked && !byPhone && row2.client_email ? people2.find((p) => p.email === row2.client_email) : void 0;
   const found = linked ?? byPhone ?? byEmail;
   if (!found) return null;
   const via = linked ? "record" : byPhone ? "phone" : "email";
@@ -31777,14 +31777,14 @@ function feedWithRecord(items, record2, own) {
   }
   return out.sort((a, b) => a.start - b.start);
 }
-function itemOfAppointment(row2, people) {
+function itemOfAppointment(row2, people2) {
   return {
     id: recordKeyOf(row2.id),
     start: new Date(Date.parse(row2.starts_at)).toISOString(),
     end: new Date(Date.parse(row2.ends_at)).toISOString(),
     title: appointmentTitle(row2),
     all_day: row2.all_day,
-    person: personOfAppointment(row2, people),
+    person: personOfAppointment(row2, people2),
     description: row2.note,
     location: null,
     contacts: {
@@ -31806,11 +31806,11 @@ function withoutVisitsRowsDraw(items, rows2, own) {
   const copy = bookingCopyTest(rows2, own);
   return copy ? items.filter((it) => !copy(it)) : items;
 }
-function daysWithAppointments(days, rows2, tz, people) {
+function daysWithAppointments(days, rows2, tz, people2) {
   if (!rows2.length) return days;
   const items = rows2.map((r2) => ({
     at: { start: Date.parse(r2.starts_at), end: Date.parse(r2.ends_at) },
-    item: itemOfAppointment(r2, people)
+    item: itemOfAppointment(r2, people2)
   }));
   return days.map((d) => {
     const dayStart = zoneMidnight(tz, d.key);
@@ -32712,9 +32712,9 @@ function dealMenuActs(deal) {
   if (deal.stage === "won") return [act("ended")];
   return [act("again")];
 }
-function calendarPeekDeal(block, people, nowMs) {
+function calendarPeekDeal(block, people2, nowMs) {
   const who = block.person;
-  const row2 = who && people ? (people.rows ?? []).find((r2) => r2.id === who.id) : void 0;
+  const row2 = who && people2 ? (people2.rows ?? []).find((r2) => r2.id === who.id) : void 0;
   if (!who || !row2) return { stage: null, start: null };
   const deal = row2.deal ?? null;
   const endMs = Date.parse(block.end);
@@ -34373,14 +34373,14 @@ function bookingRulesWords(rules) {
   if (isNumber(r2.max_days_ahead)) parts2.push(`up to ${pluralGrouped(r2.max_days_ahead, "day", "days")} ahead`);
   if (isNumber(r2.party_max)) parts2.push(`up to ${pluralGrouped(r2.party_max, "person", "people")}`);
   if (r2.ask_email) parts2.push("asks for an email when sending the booking link");
-  const joined = parts2.join(" \xB7 ");
+  const joined2 = parts2.join(" \xB7 ");
   const notes = (Array.isArray(r2.notes) ? r2.notes : []).filter((x) => typeof x === "string" && x.trim() !== "").map((x) => {
     const t = x.trim();
     return /[.!?…]$/.test(t) ? t : `${t}.`;
   });
   const d = BOOKING_DEFAULTS;
   return {
-    line: joined ? `${joined[0].toUpperCase()}${joined.slice(1)}` : null,
+    line: joined2 ? `${joined2[0].toUpperCase()}${joined2.slice(1)}` : null,
     notes: notes.length ? notes.join(" ") : null,
     none: `The calendar's own \u2014 at least ${pluralGrouped(d.lead_hours, "hour's", "hours'")} notice, up to ${pluralGrouped(d.max_days_ahead, "day", "days")} ahead, in ${count(d.slot_min)}-minute slots`
   };
@@ -35126,25 +35126,25 @@ function gainedOver(days, periodDays) {
   const sorted = [...days].sort((a, b) => a.day < b.day ? -1 : a.day > b.day ? 1 : 0);
   if (sorted.length < 2) return { current: noGained(), previous: null };
   const last = sorted[sorted.length - 1];
-  const since = shiftKey(last.day, -(periodDays - 1));
-  const before = sorted.filter((d) => d.day < since);
-  const inside = sorted.filter((d) => d.day >= since);
+  const since2 = shiftKey(last.day, -(periodDays - 1));
+  const before = sorted.filter((d) => d.day < since2);
+  const inside = sorted.filter((d) => d.day >= since2);
   const baseline = before.length ? before[before.length - 1] : inside[0];
   const total = last.review_count - baseline.review_count;
   const sinceLabel = before.length ? null : fmtDay(baseline.day);
   const byDay = new Map(sorted.map((d) => [d.day, d.review_count]));
   const points = [];
   let prev = before.length ? baseline.review_count : null;
-  for (let day2 = since; day2 <= last.day; day2 = shiftKey(day2, 1)) {
+  for (let day2 = since2; day2 <= last.day; day2 = shiftKey(day2, 1)) {
     const count2 = byDay.get(day2);
     const gained = count2 !== void 0 && prev !== null ? Math.max(0, count2 - prev) : 0;
     if (count2 !== void 0) prev = count2;
     points.push({ ...dayPointOf(day2), gained });
   }
   const max = Math.max(0, ...points.map((p) => p.gained));
-  const prevSince = shiftKey(since, -periodDays);
+  const prevSince = shiftKey(since2, -periodDays);
   const prevBefore = sorted.filter((d) => d.day < prevSince);
-  const prevInside = sorted.filter((d) => d.day >= prevSince && d.day < since);
+  const prevInside = sorted.filter((d) => d.day >= prevSince && d.day < since2);
   const previous = prevBefore.length && prevInside.length ? prevInside[prevInside.length - 1].review_count - prevBefore[prevBefore.length - 1].review_count : null;
   return { current: { points, max, total: before.length || inside.length >= 2 ? total : null, sinceLabel }, previous };
 }
@@ -35188,8 +35188,8 @@ function toGoogleVM(dto, period, nowMs, tz) {
   const countSpark = inPeriod.map((d) => d.review_count);
   const baselineRating = (() => {
     if (!days.length) return null;
-    const since = shiftKey(days[days.length - 1].day, -(periodDays - 1));
-    const before = days.filter((d) => d.day < since);
+    const since2 = shiftKey(days[days.length - 1].day, -(periodDays - 1));
+    const before = days.filter((d) => d.day < since2);
     return before.length ? before[before.length - 1].rating : null;
   })();
   const rangeLabel = rangeLabelOf(periodDays);
@@ -37269,10 +37269,10 @@ function supportDue(rows2, nowMs) {
 }
 function answeredMedianMs(rows2, acts, nowMs) {
   const firsts = firstAnswers(acts);
-  const since = nowMs - SUPPORT_DONE_DAYS * DAY_MS;
+  const since2 = nowMs - SUPPORT_DONE_DAYS * DAY_MS;
   const spans = rows2.flatMap((r2) => {
     const at3 = firsts.get(r2.id);
-    return at3 !== void 0 && at3 >= since ? [Math.max(0, at3 - r2.atMs)] : [];
+    return at3 !== void 0 && at3 >= since2 ? [Math.max(0, at3 - r2.atMs)] : [];
   }).sort((a, b) => a - b);
   if (!spans.length) return null;
   const mid = Math.floor(spans.length / 2);
@@ -40544,8 +40544,8 @@ function medianWait(waits) {
   return m === null ? null : Math.round(m);
 }
 function dealPaceFrom(rows2, nowMs) {
-  const since = nowMs - PACE_WINDOW_DAYS * DAY_MS;
-  const waits = yesWaits(rows2.filter((d) => d.decided_at !== null && Date.parse(d.decided_at) >= since));
+  const since2 = nowMs - PACE_WINDOW_DAYS * DAY_MS;
+  const waits = yesWaits(rows2.filter((d) => d.decided_at !== null && Date.parse(d.decided_at) >= since2));
   return { median_days: medianWait(waits), yeses: waits.length };
 }
 
@@ -40827,13 +40827,13 @@ function followUpKey(about) {
 }
 function followUpCovers(d, had) {
   if (!had.keys) return had.at !== void 0 && followUpIsFor({ deal: d }, had.at);
-  const since = d.sinceMs ?? Number.POSITIVE_INFINITY;
+  const since2 = d.sinceMs ?? Number.POSITIVE_INFINITY;
   const at3 = [
     d.id ? had.keys.get(followUpKey({ deal: d.id, link: null })) : void 0,
     d.proposal?.url ? had.keys.get(followUpKey({ deal: null, link: d.proposal.url })) : void 0,
     had.keys.get(followUpKey({ deal: null, link: null }))
   ];
-  return at3.some((x) => x !== void 0 && x >= since);
+  return at3.some((x) => x !== void 0 && x >= since2);
 }
 function followUpDealOf(r2, nowMs, pace, had) {
   const open = r2.openDeals && r2.openDeals.length ? r2.openDeals : r2.deal ? [r2.deal] : [];
@@ -40910,13 +40910,13 @@ function dropTwinHeard(allowed, byTwin, nowMs) {
   for (const r2 of heard) allowed.splice(allowed.indexOf(r2), 1);
   return heard.length;
 }
-function touchesAfterRun(touches, run, people) {
+function touchesAfterRun(touches, run, people2) {
   const byThis = new Map(touches.byThis);
   const mine = new Map(byThis.get(run.playbookId));
   const byAny = new Map(touches.byAny);
   const followUps = new Map(touches.followUps);
   const followUpKeys = new Map(touches.followUpKeys);
-  for (const { id, deal, link } of people) {
+  for (const { id, deal, link } of people2) {
     mine.set(id, Math.max(mine.get(id) ?? 0, run.at));
     byAny.set(id, Math.max(byAny.get(id) ?? 0, run.at));
     if (!run.followUp) continue;
@@ -42187,11 +42187,11 @@ function mailboxWords(m, nowMs, sentToday = m.sent_today ?? null) {
       fix: null
     };
   if (m.state === "held") {
-    const since = m.held_at ? DAY_FMT.format(new Date(m.held_at)) : null;
+    const since2 = m.held_at ? DAY_FMT.format(new Date(m.held_at)) : null;
     return {
       pill: "Held",
       tone: "warn",
-      day: `${since ? `Held since ${since}` : "Held"}: ${mailboxHoldWords(m.held_why)}.`,
+      day: `${since2 ? `Held since ${since2}` : "Held"}: ${mailboxHoldWords(m.held_why)}.`,
       ramp: null,
       health,
       fix: mailboxHoldFixWords(m.held_why)
@@ -42452,64 +42452,100 @@ var IMPORT_WORDS = {
   queued: "Starting",
   atGoLive: "At Go live",
   retry: "Try again",
+  /** Try again, pressed, until the run is heard starting. */
+  starting: "Starting",
   heading: "Coming in while you go on",
-  broughtHeading: "What came in before Chanlytics",
-  foot: "It shows on each person as before Chanlytics: never counted as today's, never answered.",
-  broughtFoot: "Each person shows it as before Chanlytics. It's never counted as today's, never answered, and never a yes.",
-  keepsGoing: "It keeps going if you leave",
+  /** Under the sources, once: what came in is history on each person, never answered (decision 0073, D15 and D16). */
+  foot: "Shown on each person as history, never answered.",
+  /** Said only while something is still coming in. */
+  keepsGoing: "Keeps going if you leave.",
   bringing: (done, of) => `Bringing it in \xB7 ${done} of ${of}`,
+  allIn: "All in",
+  stoppedCount: (n) => `${n} stopped`,
+  /** A run that stopped part way (IMPORT_STOPPED_WORDS.failed), said on its line with what it kept. */
+  stoppedPartWay: "Stopped part way",
+  setAside: (n) => `${n.toLocaleString("en-US")} newsletters and notices set aside`,
   card: "Brought in",
   whatsappLater: "Contacts and chats, once you approve"
 };
-var backTo = (oldest) => oldest ? `back to ${dayWords(oldest)}` : "";
+var since = (oldest) => oldest ? `since ${dayWords(oldest)}` : null;
+var joined = (...parts2) => parts2.filter(Boolean).join(" \xB7 ");
+var people = (n) => groupedPlural(n, "person", "people");
+function mailSaysOf(r2) {
+  const c = r2.counts;
+  const n = c.messages ?? 0;
+  const read = n ? `${groupedPlural(n, "email")}${r2.state === "done" ? "" : " so far"}` : null;
+  return joined(
+    read ?? (r2.state === "done" ? "No email from people" : "Reading your inbox"),
+    since(r2.oldest),
+    c.unreadable ? `${c.unreadable.toLocaleString("en-US")} couldn't be read` : null
+  );
+}
 function saysOf(r2) {
   const c = r2.counts;
   const via = viaWords(r2.via);
   switch (r2.source) {
     case "google_reviews":
-      return [
-        c.reviews ? `All ${c.reviews.toLocaleString()}${r2.oldest ? `, ${backTo(r2.oldest)}` : ""}` : "Reading them",
+      return c.reviews ? joined(
+        groupedPlural(c.reviews, "review"),
+        since(r2.oldest),
         c.unanswered ? `${c.unanswered} wait for a reply` : null
-      ].filter(Boolean).join(" \xB7 ");
+      ) : "Reading them";
     case "calendar":
-      return [
-        c.past !== void 0 ? `${c.past.toLocaleString()} ${backTo(r2.oldest)}`.trim() : "Reading your calendar",
+      return c.past === void 0 ? "Reading your calendar" : joined(
+        c.past ? groupedPlural(c.past, "past appointment") : "No past appointments",
         c.coming ? `${c.coming} coming up` : null
-      ].filter(Boolean).join(", ");
+      );
     case "clients_file":
-      return c.people !== void 0 ? `${c.people.toLocaleString()}${via ? `, from ${via}'s file` : ", from your file"}` : "Reading your file";
+      return c.people === void 0 ? "Reading your file" : joined(people(c.people), via ? `from ${via}'s file` : "from your file");
     case "contacts":
-      return c.people !== void 0 ? `${c.people.toLocaleString()}${via ? `, from ${via}` : ""}` : "Reading them";
+      return c.people === void 0 ? "Reading them" : joined(people(c.people), via);
     case "mailbox":
-      return [
-        `Email from people${r2.oldest ? `, ${backTo(r2.oldest)}` : ""}`,
-        c.dropped ? `${c.dropped.toLocaleString()} others dropped` : null,
-        c.unreadable ? `${c.unreadable.toLocaleString()} couldn't be read` : null
-      ].filter(Boolean).join(" \xB7 ");
+      return mailSaysOf(r2);
     case "whatsapp_contacts":
-      return c.people !== void 0 ? `${c.people.toLocaleString()}, into People` : "Reading them";
+      return c.people === void 0 ? "Reading them" : people(c.people);
     case "whatsapp_history":
-      return r2.oldest ? `${backTo(r2.oldest).replace(/^b/, "B")} so far` : "Chats from the last six months";
+      return r2.oldest ? `Back to ${dayWords(r2.oldest)} so far` : "Chats from the last six months";
   }
 }
-function standOf(r2) {
+function keptOf(r2) {
+  const c = r2.counts;
+  if (r2.source === "mailbox") return c.messages ? groupedPlural(c.messages, "email") : null;
+  if (c.people) return people(c.people);
+  if (c.reviews) return groupedPlural(c.reviews, "review");
+  return c.past ? groupedPlural(c.past, "past appointment") : null;
+}
+function stoppedSaysOf(r2) {
+  if (r2.last_error && r2.last_error !== IMPORT_STOPPED_WORDS.failed) return r2.last_error;
+  const kept = keptOf(r2);
+  return joined(IMPORT_WORDS.stoppedPartWay, kept ? `${kept} kept` : null);
+}
+function shareOf(r2) {
+  if (r2.state !== "running") return null;
+  if (r2.parts_total && r2.parts_total > 1) return Math.min(0.99, r2.parts_done / r2.parts_total);
+  if (r2.source !== "mailbox" || !r2.oldest || !r2.started_at) return null;
+  const read = (Date.parse(r2.started_at) - Date.parse(r2.oldest)) / (HISTORY_BACK_DAYS * DAY_MS);
+  return Number.isFinite(read) ? Math.min(0.99, Math.max(0, read)) : null;
+}
+function standOf(r2, share2) {
   const W = IMPORT_WORDS;
   if (r2.state === "done") return W.in;
   if (r2.state === "failed") return W.stopped;
   if (r2.state === "queued") return W.queued;
-  if (r2.parts_total && r2.parts_total > 1) {
-    return r2.source === "whatsapp_history" ? `${r2.parts_done} of ${r2.parts_total}` : `${Math.min(99, Math.round(r2.parts_done / r2.parts_total * 100))}%`;
-  }
-  return "\u2026";
+  if (r2.source === "whatsapp_history" && r2.parts_total && r2.parts_total > 1) return `${r2.parts_done} of ${r2.parts_total}`;
+  return share2 === null ? "\u2026" : `${Math.round(share2 * 100)}%`;
 }
 function importLineOf(r2) {
+  const share2 = shareOf(r2);
   return {
     source: r2.source,
     title: IMPORT_WORDS.titles[r2.source],
-    says: r2.state === "failed" && r2.last_error ? r2.last_error : saysOf(r2),
-    stand: standOf(r2),
+    says: r2.state === "failed" ? stoppedSaysOf(r2) : saysOf(r2),
+    stand: standOf(r2, share2),
     state: r2.state,
-    retry: r2.state === "failed" && !ONCE_ONLY.has(r2.source)
+    retry: r2.state === "failed" && !ONCE_ONLY.has(r2.source),
+    share: share2,
+    aside: r2.source === "mailbox" && r2.counts.dropped ? IMPORT_WORDS.setAside(r2.counts.dropped) : null
   };
 }
 var WHATSAPP_PART_WORDS = {
@@ -42567,33 +42603,33 @@ function importLinesOf(rows2, o = { whatsappWaiting: false }) {
       says: IMPORT_WORDS.whatsappLater,
       stand: IMPORT_WORDS.atGoLive,
       state: "waiting",
-      retry: false
+      retry: false,
+      share: null,
+      aside: null
     });
   const done = lines.filter((l) => l.state === "done").length;
   return { lines, done, of: lines.length, running: lines.some((l) => l.state === "running" || l.state === "queued") };
 }
-function broughtInCardOf(rows2, people) {
+function broughtInCardOf(rows2, count2) {
   const got = rows2 ?? [];
   if (!got.length) return null;
   const by = (s) => got.find((r2) => r2.source === s) ?? null;
   const reviews = by("google_reviews");
   const mail = by("mailbox");
   const cal = by("calendar");
-  const wa = by("whatsapp_history");
-  const first = [
-    people ? plural(people, "person", "people") : null,
-    reviews?.counts.reviews ? plural(reviews.counts.reviews, "review") : null
-  ].filter(Boolean);
-  const lines = [
-    first.length ? first.join(" \xB7 ") : null,
-    mail?.oldest ? `Email ${backTo(mail.oldest)}` : null,
-    cal && cal.counts.past !== void 0 ? [
-      `${cal.counts.past.toLocaleString()} on your calendar before today`,
-      cal.counts.coming ? `${cal.counts.coming} coming up` : null
-    ].filter(Boolean).join(" \xB7 ") : null
-  ].filter((x) => !!x);
-  const coming = wa && wa.state === "running" && wa.parts_total ? `WhatsApp chats \xB7 ${wa.parts_done} of ${wa.parts_total} parts` : null;
-  return { title: IMPORT_WORDS.card, lines, coming };
+  const first = joined(
+    count2 ? people(count2) : null,
+    reviews?.counts.reviews ? groupedPlural(reviews.counts.reviews, "review") : null
+  );
+  const facts = [];
+  if (first) facts.push({ key: "people", text: first });
+  if (mail?.oldest) facts.push({ key: "mail", text: `Email ${since(mail.oldest)}` });
+  if (cal && cal.counts.past !== void 0) facts.push({ key: "calendar", text: saysOf(cal) });
+  const stopped = got.filter((r2) => r2.state === "failed").length;
+  const { done, of, running: running2 } = importLinesOf(got);
+  const W = IMPORT_WORDS;
+  const state = stopped ? { tone: "stopped", words: W.stoppedCount(stopped) } : running2 ? { tone: "live", words: W.bringing(done, of) } : { tone: "ok", words: W.allIn };
+  return { title: W.card, state, facts };
 }
 var BROUGHT_IN_SHOWN_MS = 7 * DAY_MS;
 function broughtInShown(rows2, nowMs) {
@@ -42878,14 +42914,14 @@ function usStateName(code2) {
   return name ? name.replace(/\b\p{L}/gu, (m) => m.toUpperCase()).replace(/\bOf\b/g, "of") : null;
 }
 function peopleEstimateUsd(count2, prices) {
-  const people = Math.min(1e3, 2 * Math.max(1, Math.floor(count2)));
-  const usd = (people * (prices.perPerson + prices.perJudge + prices.perCheck) + prices.start) * LEAD_ESTIMATE_MARGIN;
+  const people2 = Math.min(1e3, 2 * Math.max(1, Math.floor(count2)));
+  const usd = (people2 * (prices.perPerson + prices.perJudge + prices.perCheck) + prices.start) * LEAD_ESTIMATE_MARGIN;
   return Math.round((Math.ceil(usd * 100) / 100 + 2 * PEOPLE_RUN_FLOOR_USD) * 100) / 100;
 }
 var PEOPLE_PROVIDER_LEAST = 100;
 function peopleMinutes(count2) {
-  const people = Math.min(1e3, Math.max(PEOPLE_PROVIDER_LEAST, 2 * Math.max(1, Math.floor(count2))));
-  return Math.max(2, Math.ceil(people / 100) + 1);
+  const people2 = Math.min(1e3, Math.max(PEOPLE_PROVIDER_LEAST, 2 * Math.max(1, Math.floor(count2))));
+  return Math.max(2, Math.ceil(people2 / 100) + 1);
 }
 function peoplePlanAsk(plan, month) {
   const binds = !!month && month.left < plan.count;
@@ -44154,9 +44190,9 @@ function ideaPlaces(home, searches) {
 }
 var ideaWhere = (i) => (i.plan ?? i.people)?.area.label ?? null;
 function ideaPassed(prev, searches) {
-  const since = Date.parse(prev.madeAt);
+  const since2 = Date.parse(prev.madeAt);
   const startedSince = (key, place) => searches.some(
-    (s) => s.kind === key && !!s.area && s.area.label.toLowerCase() === place && (!Number.isFinite(since) || Date.parse(s.at) >= since)
+    (s) => s.kind === key && !!s.area && s.area.label.toLowerCase() === place && (!Number.isFinite(since2) || Date.parse(s.at) >= since2)
   );
   const out = /* @__PURE__ */ new Map();
   for (const x of prev.passed) out.set(`${x.key}@${x.place}`, { ...x });
@@ -44538,10 +44574,10 @@ function ideaOf(idea, p) {
   const key = ideaKey(idea.category_key || idea.who);
   if (p.ownKind && key === p.ownKind) return "own_kind";
   if (p.kinds.some((k) => k.key === key && k.verdict === "did_not_work")) return "did_not_work";
-  const people = idea.card === "people";
-  if (!people && idea.place !== "other" && !p.places.some((x) => x.id === idea.place)) return "place_unlisted";
-  const plan = people ? null : placesPlanOf(idea, key, p);
-  const peoplePlan = people ? peoplePlanOf2(idea, p) : null;
+  const people2 = idea.card === "people";
+  if (!people2 && idea.place !== "other" && !p.places.some((x) => x.id === idea.place)) return "place_unlisted";
+  const plan = people2 ? null : placesPlanOf(idea, key, p);
+  const peoplePlan = people2 ? peoplePlanOf2(idea, p) : null;
   const made = plan ?? peoplePlan;
   if (!made) return "no_plan";
   const label = made.area.label;
@@ -45145,12 +45181,12 @@ function leftOutWords(a) {
   );
 }
 function reachOutAddWords(a, chainName) {
-  const joined = a.dry ? a.would_add ?? 0 : a.added;
+  const joined2 = a.dry ? a.would_add ?? 0 : a.added;
   const left = Object.values(a.left_out).reduce((n, x) => n + (x ?? 0), 0);
-  const head = joined === 0 ? `None can be added to \u201C${chainName}\u201D` : `${a.dry ? "Adds" : "Added"} ${plural(joined, "lead", "leads")} to \u201C${chainName}\u201D`;
+  const head = joined2 === 0 ? `None can be added to \u201C${chainName}\u201D` : `${a.dry ? "Adds" : "Added"} ${plural(joined2, "lead", "leads")} to \u201C${chainName}\u201D`;
   return {
     text: left > 0 ? `${head} \xB7 ${left} left out: ${leftOutWords(a).join(", ")}` : head,
-    tone: joined === 0 ? "warn" : a.dry ? "plain" : "good"
+    tone: joined2 === 0 ? "warn" : a.dry ? "plain" : "good"
   };
 }
 function askedDayOf(atMs, tz, nowMs) {
@@ -45597,13 +45633,13 @@ function scheduleChannels(channels) {
   const named = channels.map((c) => WORD2[c] ?? c);
   return named.length <= 1 ? named[0] ?? "" : `${named[0]}, else ${named.slice(1).join(", else ")}`;
 }
-function scheduleInLine(people, place) {
-  if (!people || place <= 1) return null;
-  const all = people.rows.filter((r2) => r2.group === "in");
+function scheduleInLine(people2, place) {
+  if (!people2 || place <= 1) return null;
+  const all = people2.rows.filter((r2) => r2.group === "in");
   const here = all.filter((r2) => r2.place === place - 1);
   if (here.length === 0) return null;
   const first = here.map((r2) => r2.at).filter((at3) => !!at3).sort()[0] ?? null;
-  return { count: (people.counts.in ?? 0) === all.length ? here.length : null, first };
+  return { count: (people2.counts.in ?? 0) === all.length ? here.length : null, first };
 }
 function leadStepNow(row2, step2, ctx) {
   const next = row2.next;
@@ -45801,11 +45837,11 @@ function placeRailOf(p) {
       hand: !!s.hand
     };
   });
-  const joined = p.place ? p.place.joined : null;
-  const joinedAt = joined && joined.at ? Date.parse(joined.at) : NaN;
+  const joined2 = p.place ? p.place.joined : null;
+  const joinedAt = joined2 && joined2.at ? Date.parse(joined2.at) : NaN;
   const date = Number.isFinite(joinedAt) ? clockDate(joinedAt, p.clock.tz, p.clock.nowMs) : null;
   const start = p.lens === "preview" ? { head: W.joinsWhenAdded, sub: W.checked } : {
-    head: date ? joined && joined.auto ? W.joinedOn(date) : W.addedOn(date) : W.added,
+    head: date ? joined2 && joined2.auto ? W.joinedOn(date) : W.addedOn(date) : W.added,
     sub: W.checked
   };
   return { start, steps, end: { head: W.stops, sub: p.readsReplies ? W.readFrom : W.toldBy } };
@@ -48509,8 +48545,8 @@ function earRow(r2, f) {
 function searchRow(s, now) {
   const r2 = s.round;
   if (!r2 || r2.state !== "waiting_on_owner" || !r2.question) return null;
-  const since = r2.waiting_since ? new Date(r2.waiting_since).getTime() : now.getTime();
-  const waitedMs = Math.max(0, now.getTime() - since);
+  const since2 = r2.waiting_since ? new Date(r2.waiting_since).getTime() : now.getTime();
+  const waitedMs = Math.max(0, now.getTime() - since2);
   return {
     id: `q-s-${s.id}`,
     kind: "search",
@@ -49267,8 +49303,8 @@ function whyNotLook(f) {
   if (f.source === "call" && (f.seconds ?? 0) < L2.callMinSeconds) return "short_call";
   if (customerWords(f.turns) < L2.minCustomerWords) return "few_words";
   if (f.lastSuggestedAt) {
-    const since = f.nowMs - Date.parse(f.lastSuggestedAt);
-    if (Number.isFinite(since) && since < L2.cooldownDays * DAY_MS) return "cooldown";
+    const since2 = f.nowMs - Date.parse(f.lastSuggestedAt);
+    if (Number.isFinite(since2) && since2 < L2.cooldownDays * DAY_MS) return "cooldown";
   }
   if (f.workspaceToday >= L2.perWorkspaceDay) return "workspace_cap";
   return null;
@@ -50322,13 +50358,13 @@ function rightNowOf({
   }
   const asked = askedFor(r2);
   if (asked) {
-    const since = r2.open_escalation_since ? shortTime(r2.open_escalation_since, tz, now) : null;
+    const since2 = r2.open_escalation_since ? shortTime(r2.open_escalation_since, tz, now) : null;
     return {
       tone: "escalated",
       title: `Escalated \xB7 ${reasonShort(asked)}`,
       // The operator's first sentence for the reason (the Inbox's own): "Paused until someone answers" was appended to
       // every reason, over a person who had asked to stop, where nothing may be answered (the 2 Oct 2026 audit).
-      detail: `${since ? `Since ${since}. ` : ""}${reasonSummaryOf(asked)}`,
+      detail: `${since2 ? `Since ${since2}. ` : ""}${reasonSummaryOf(asked)}`,
       cta: openThread
     };
   }
@@ -50881,11 +50917,11 @@ function worksAtOf(worksAt, b, tz, nowMs) {
   const name = worksAt.name ?? b?.lead.business_name ?? null;
   if (!name) return null;
   const lead = b?.lead ?? null;
-  const people = b?.people.length ?? 0;
+  const people2 = b?.people.length ?? 0;
   const kind = [
     lead?.category ?? null,
     lead ? ratingOf(lead.rating, lead.reviews) : null,
-    people > 1 ? WORKS_AT_WORDS.people(people) : null
+    people2 > 1 ? WORKS_AT_WORDS.people(people2) : null
   ].filter((x) => !!x).join(" \xB7 ");
   const found = lead ? Date.parse(lead.found_at) : NaN;
   return {
@@ -50903,7 +50939,7 @@ function businessRecordOf(b, of, tz, now) {
   const nowMs = now.getTime();
   const peek = toLeadPeekVM(b.lead, null, tz, now);
   const found = Date.parse(b.lead.found_at);
-  const people = b.people.map((p) => {
+  const people2 = b.people.map((p) => {
     const name = personName(p);
     const touched = p.in_touch_at ? Date.parse(p.in_touch_at) : NaN;
     return {
@@ -50927,8 +50963,8 @@ function businessRecordOf(b, of, tz, now) {
     read: Number.isFinite(found) ? WORKS_AT_WORDS.readOnSheet(clockDate(found, tz, nowMs)) : "",
     stage: { word: LEAD_STAGE_WORDS[b.lead.stage] ?? b.lead.stage, note: WORKS_AT_WORDS.stageNote },
     open: b.lead.stage !== "archived" && !!b.lead.contact_id,
-    people,
-    peopleTitle: WORKS_AT_WORDS.peopleHere(people.length),
+    people: people2,
+    peopleTitle: WORKS_AT_WORDS.peopleHere(people2.length),
     fit: peek.checkDots.length ? { word: peek.fit.word, checks: WORKS_AT_WORDS.checks(peek.checkDots.length) } : null,
     reachOut: reachOut?.chain ? {
       chain: reachOut.chain.name,
@@ -50963,19 +50999,19 @@ function leadPeopleOf(lead, index) {
   const at3 = index.byLead.get(lead.id) ?? [];
   const face = at3.find((r2) => !r2.standIn) ?? own ?? at3[0] ?? null;
   const others = at3.filter((r2) => r2 !== face);
-  const people = [
+  const people2 = [
     ...face && at3.includes(face) ? [face] : [],
     ...others.filter((r2) => r2.state === "needs_you"),
     ...others.filter((r2) => r2.state !== "needs_you")
   ];
-  const names3 = WORKS_AT_WORDS.someNames(people.filter((r2) => !r2.standIn).map((r2) => r2.name));
-  const n = people.length;
+  const names3 = WORKS_AT_WORDS.someNames(people2.filter((r2) => !r2.standIn).map((r2) => r2.name));
+  const n = people2.length;
   return {
     door: face ? { id: face.id, name: face.standIn ? null : face.name } : null,
     line: names3 ? WORKS_AT_WORDS.peopleLine(n, names3) : null,
     card: n ? names3 ? WORKS_AT_WORDS.inPeopleNamed(names3) : WORKS_AT_WORDS.inPeople(n) : null,
-    client: [...own ? [own] : [], ...people].find((r2) => r2.deal?.stage === "won")?.id ?? null,
-    order: people.map((r2) => r2.id)
+    client: [...own ? [own] : [], ...people2].find((r2) => r2.deal?.stage === "won")?.id ?? null,
+    order: people2.map((r2) => r2.id)
   };
 }
 
@@ -52194,16 +52230,16 @@ function pinTokens(view) {
   const pins = view && typeof view === "object" ? view.pins : null;
   return Array.isArray(pins) ? pins.filter((t) => typeof t === "string" && parseListToken(t) !== null).slice(0, TODAY_PINS_MAX) : [];
 }
-function todayPins(view, people, counts) {
+function todayPins(view, people2, counts) {
   const counted3 = (token2, own) => counts && token2 in counts ? counts[token2] ?? null : own;
   return pinTokens(view).flatMap((token2) => {
     const ref = parseListToken(token2);
     if (!ref) return [];
     if (ref.kind === "builtin") {
-      const l = people.lists.find((x) => x.id === ref.id);
+      const l = people2.lists.find((x) => x.id === ref.id);
       return l ? [{ token: token2, label: l.label, count: counted3(token2, l.count), to: `clients/seg:${l.id}` }] : [];
     }
-    const s = people.saved.find((x) => x.id.toLowerCase() === ref.id);
+    const s = people2.saved.find((x) => x.id.toLowerCase() === ref.id);
     return s ? [{ token: token2, label: s.name, count: counted3(token2, s.unknown ? null : s.count), to: `clients/list:${s.id}` }] : [];
   });
 }
@@ -52243,11 +52279,11 @@ function personLikeOf(p) {
     businessEmails: p.lead_id && !p.lead_gone && p.lead_emails ? p.lead_emails.map((e) => e.trim().toLowerCase()).filter((e) => e.length > 0) : []
   };
 }
-function peopleVisitsOf(items, people, cal, nowMs) {
+function peopleVisitsOf(items, people2, cal, nowMs) {
   const index = indexFeed(feedWithRecord(items, cal.record, cal.own), cal.own);
   const mark = (v) => v ? { ...v, consultation: isConsultationTitle(v.title, cal.services, cal.rules) } : null;
   const out = /* @__PURE__ */ new Map();
-  for (const p of people) {
+  for (const p of people2) {
     const v = visitsIn(index, personLikeOf(p), nowMs);
     out.set(p.id, {
       timezone: cal.timezone,
@@ -52261,7 +52297,7 @@ function peopleVisitsOf(items, people, cal, nowMs) {
   }
   return out;
 }
-function withVisitsOf(people, visits, cal) {
+function withVisitsOf(people2, visits, cal) {
   const unread = {
     timezone: cal.timezone,
     source: cal.source,
@@ -52269,7 +52305,7 @@ function withVisitsOf(people, visits, cal) {
     next: null,
     last: null
   };
-  return people.map((p) => ({
+  return people2.map((p) => ({
     ...p,
     visits: cal.state === "ok" ? visits.get(p.id) ?? null : cal.state === "unavailable" ? unread : null
   }));
@@ -52277,8 +52313,8 @@ function withVisitsOf(people, visits, cal) {
 function poolRowOf(person, o) {
   return toPersonRowVM(person, o.tz, o.now, o.viewer, o.ready, o.names ?? null);
 }
-function poolRowsOf(people, o) {
-  return people.map((p) => poolRowOf(p, o));
+function poolRowsOf(people2, o) {
+  return people2.map((p) => poolRowOf(p, o));
 }
 function consultFirstOf(rules) {
   return (rules?.consult_first ?? []).length > 0;
@@ -52894,15 +52930,15 @@ function bookingTemplate(templates) {
 function todayRunWords(r2) {
   const reach = isReachOutRun(r2.audience);
   const one = r2.recipient_count === 1;
-  const people = reach ? `${r2.recipient_count} ${one ? "business" : "businesses"}` : `${r2.recipient_count} ${one ? "person" : "people"}`;
+  const people2 = reach ? `${r2.recipient_count} ${one ? "business" : "businesses"}` : `${r2.recipient_count} ${one ? "person" : "people"}`;
   const kind = reach ? "Cold email" : "Campaign";
   const sent = `${r2.counts.sent} sent`;
   const held = `${heldEmailsWords(r2.held ?? 0)}. The rest of the run goes as planned.`;
   const drafted2 = `${plural(r2.drafted ?? 0, "email", "emails")} to send from your inbox, each written and checked.`;
   const ends = !reach && r2.playbook_id ? batchWaitWords(audienceTrigger(r2.audience)) : waitEndsWords("leads_batch");
-  const waiting = `${people}. ${ends}.`;
+  const waiting = `${people2}. ${ends}.`;
   return {
-    people,
+    people: people2,
     waiting: {
       meta: `${kind} \xB7 ready`,
       sentence: waiting,
@@ -52913,7 +52949,7 @@ function todayRunWords(r2) {
     soon: {
       meta: `${kind} \xB7 sends ${r2.when}`,
       // The verb of Sent's own cancel of a run still to come (campaign-rooms.ts RUN_STOP_WORDS), not a second one.
-      sentence: `${people}. ${runStopWords("scheduled").verb} it if you'd rather not.`,
+      sentence: `${people2}. ${runStopWords("scheduled").verb} it if you'd rather not.`,
       status: ["Scheduled", `sends ${r2.when}`]
     },
     done: { counts: r2.counts.replied ? `${sent}, ${r2.counts.replied} replied` : sent, still: r2.state === "sending" },
@@ -52961,17 +52997,17 @@ function opensOf2(stages, needs2, more2) {
   const names3 = stages.filter((s) => s.needs === needs2 && s.state !== "not_here").map((s) => s.name.toLowerCase());
   return `${LIFECYCLE_WORDS.reach.opensMessages} ${[...names3, ...more2].join(", ")}`;
 }
-function rung(id, label, n, people, opens, by = void 0) {
+function rung(id, label, n, people2, opens, by = void 0) {
   const byWords2 = countsByChannelWords(by);
-  const parts2 = byWords2 && by && people > 0 ? CONSENT_CHANNELS.filter((c) => by[c] > 0).map((c) => ({ channel: c, share: by[c] / people })) : null;
+  const parts2 = byWords2 && by && people2 > 0 ? CONSENT_CHANNELS.filter((c) => by[c] > 0).map((c) => ({ channel: c, share: by[c] / people2 })) : null;
   return {
     id,
     label,
     n,
-    share: people > 0 ? n / people : 0,
+    share: people2 > 0 ? n / people2 : 0,
     opens,
     tone: id === "offers" && n === 0 ? "warn" : "plain",
-    meter: id === "people" ? `${n} in People` : `${label}: ${n} of ${people}${byWords2 ? ` \xB7 ${byWords2}` : ""}`,
+    meter: id === "people" ? `${n} in People` : `${label}: ${n} of ${people2}${byWords2 ? ` \xB7 ${byWords2}` : ""}`,
     parts: parts2,
     byWords: byWords2
   };
@@ -53166,9 +53202,9 @@ function wentAt(r2) {
 function cameBack(input, days) {
   const b = input.broadcasts;
   if (!b) return [];
-  const since = input.nowMs - days * DAY_MS;
+  const since2 = input.nowMs - days * DAY_MS;
   const names3 = new Map((input.playbooks?.rows ?? []).map((p) => [p.id, p.name]));
-  return b.rows.filter((r2) => r2.state === "sent" && wentAt(r2) >= since).sort((a, c) => wentAt(c) - wentAt(a)).slice(0, RUNS_SHOWN).map((r2) => ({
+  return b.rows.filter((r2) => r2.state === "sent" && wentAt(r2) >= since2).sort((a, c) => wentAt(c) - wentAt(a)).slice(0, RUNS_SHOWN).map((r2) => ({
     id: r2.id,
     name: (r2.playbook_id ? names3.get(r2.playbook_id) : null) ?? r2.name,
     words: `${r2.when} \xB7 ${r2.counts.sent} sent`,
@@ -55403,14 +55439,14 @@ function historySince(period, tz, nowMs) {
   const p = SEQUENCE_HISTORY_PERIODS.find((x) => x.id === period);
   return p && p.days !== null ? zoneDayKey(nowMs - (p.days - 1) * DAY_MS, tz) : null;
 }
-function historyIn(batches2, since, tz) {
-  return since === null ? [...batches2] : batches2.filter((b) => (b.run_for ?? zoneDayKey(Date.parse(b.at), tz)) >= since);
+function historyIn(batches2, since2, tz) {
+  return since2 === null ? [...batches2] : batches2.filter((b) => (b.run_for ?? zoneDayKey(Date.parse(b.at), tz)) >= since2);
 }
-function historyCovers(h, since, tz) {
+function historyCovers(h, since2, tz) {
   if (!h.more) return true;
-  if (since === null) return false;
+  if (since2 === null) return false;
   const last = h.batches[h.batches.length - 1];
-  return !!last && (last.run_for ?? zoneDayKey(Date.parse(last.at), tz)) < since;
+  return !!last && (last.run_for ?? zoneDayKey(Date.parse(last.at), tz)) < since2;
 }
 function historyFigures(batches2) {
   const went = batches2.filter(batchWent);
@@ -55461,9 +55497,9 @@ function historyStamp(atMs, tz, nowMs) {
   const when = clockWhen(atMs, tz, nowMs);
   return when.startsWith("tomorrow ") ? `Tomorrow \xB7 ${time}` : when;
 }
-function historyUpcomingWords(people, mode) {
+function historyUpcomingWords(people2, mode) {
   const goes2 = mode === "auto" || mode === "veto";
-  return { end: people ? plural(people, "person", "people") : "", said: SEQUENCE_HISTORY_WORDS.upcoming(!goes2) };
+  return { end: people2 ? plural(people2, "person", "people") : "", said: SEQUENCE_HISTORY_WORDS.upcoming(!goes2) };
 }
 function historyDays(batches2, tz) {
   return new Set(batches2.filter(batchWent).map((b) => b.run_for ?? zoneDayKey(Date.parse(b.at), tz))).size;
@@ -55511,7 +55547,7 @@ var LEAD_BUILD_WORDS = {
   writeFirst: (place) => `Step ${place} isn\u2019t written yet. Write it, then Start.`,
   /** A step's sheet. */
   stepTitle: (place, hand) => `Step ${place} \xB7 ${hand === "call" ? "Call" : hand === "note" ? "Note" : "Email"}`,
-  stepSub: (day2, people) => people > 0 ? `Day ${day2} \xB7 to ${plural(people, "lead", "leads")}` : `Day ${day2} \xB7 nobody in it yet`,
+  stepSub: (day2, people2) => people2 > 0 ? `Day ${day2} \xB7 to ${plural(people2, "lead", "leads")}` : `Day ${day2} \xB7 nobody in it yet`,
   done: "Done",
   subject: "Subject",
   email: "Email",
@@ -56827,14 +56863,14 @@ function campaignChoicesOf(rows2, scope) {
 
 // src/reports/lens-answer.ts
 function lensAnswerOf(lens, parts2) {
-  const { vm, campaigns, deals, reviews, people, ads } = parts2;
+  const { vm, campaigns, deals, reviews, people: people2, ads } = parts2;
   switch (lens) {
     case "overview":
       return vm.empty ? void 0 : vm.lines.hero;
     case "receptionist":
       return vm.empty ? void 0 : vm.lines.receptionist ?? void 0;
     case "people":
-      return people?.head ?? vm.lines.people;
+      return people2?.head ?? vm.lines.people;
     case "pipeline":
       return deals?.present ? deals.headline : void 0;
     case "campaigns":
@@ -56855,8 +56891,8 @@ function reviewsAreOnRecord(google) {
   return google.listing !== null && reviewsFromProfile(google.connection);
 }
 function reviewsWindowOf(last, days) {
-  const since = periodSince(last, days);
-  return { since, priorSince: periodSince(shiftKey(since, -1), days) };
+  const since2 = periodSince(last, days);
+  return { since: since2, priorSince: periodSince(shiftKey(since2, -1), days) };
 }
 function reviewsHistoryOf(ledger, connection, tz) {
   if (ledger.on_record.complete) return { complete: true, from: null };
@@ -56885,10 +56921,10 @@ function reviewsStarMixOf(current) {
     }
   };
 }
-function reviewsWeeksOf(perDay, since, today, h) {
+function reviewsWeeksOf(perDay, since2, today, h) {
   const weeks = [];
-  for (let monday = mondayOf(since); monday <= today; monday = shiftKey(monday, 7)) {
-    const first = monday < since ? since : monday;
+  for (let monday = mondayOf(since2); monday <= today; monday = shiftKey(monday, 7)) {
+    const first = monday < since2 ? since2 : monday;
     if (!historyReaches(h, first)) continue;
     const sunday = shiftKey(monday, 6);
     const last = sunday > today ? today : sunday;
@@ -56899,12 +56935,12 @@ function reviewsWeeksOf(perDay, since, today, h) {
   return weeks;
 }
 function reviewsPeriodOf(ledger, history, { last, days, until }) {
-  const { since, priorSince } = reviewsWindowOf(last, days);
-  const current = ledger.written.filter((r2) => r2.d >= since && r2.d <= last);
+  const { since: since2, priorSince } = reviewsWindowOf(last, days);
+  const current = ledger.written.filter((r2) => r2.d >= since2 && r2.d <= last);
   const perDay = /* @__PURE__ */ new Map();
   for (const r2 of current) perDay.set(r2.d, (perDay.get(r2.d) ?? 0) + 1);
-  const weeks = reviewsWeeksOf(perDay, since, last, history);
-  if (!historyReaches(history, since)) return { period: { exact: false, days, until, history }, weeks };
+  const weeks = reviewsWeeksOf(perDay, since2, last, history);
+  if (!historyReaches(history, since2)) return { period: { exact: false, days, until, history }, weeks };
   const answered = current.filter((r2) => r2.replied);
   const waits = answered.flatMap((r2) => r2.secs === null ? [] : [r2.secs]).sort((a, b) => a - b);
   const mix = reviewsStarMixOf(current);
@@ -56915,7 +56951,7 @@ function reviewsPeriodOf(ledger, history, { last, days, until }) {
       until,
       history,
       written: current.length,
-      prior: historyReaches(history, priorSince) ? ledger.written.filter((r2) => r2.d >= priorSince && r2.d < since).length : null,
+      prior: historyReaches(history, priorSince) ? ledger.written.filter((r2) => r2.d >= priorSince && r2.d < since2).length : null,
       answered: answered.length,
       receptionist: answered.filter((r2) => r2.by === "receptionist").length,
       timed: waits.length,
@@ -56923,7 +56959,7 @@ function reviewsPeriodOf(ledger, history, { last, days, until }) {
       rated: mix.rated,
       good: mix.good,
       mix,
-      daily: Array.from({ length: days }, (_, i) => perDay.get(shiftKey(since, i)) ?? 0)
+      daily: Array.from({ length: days }, (_, i) => perDay.get(shiftKey(since2, i)) ?? 0)
     },
     weeks
   };
@@ -57027,11 +57063,11 @@ function reviewsMixLine(p) {
   const of = p.rated === p.written ? plural(p.rated, "review") : plural(p.rated, "rated review");
   return `${p.good} of the ${of} written ${within2} ${p.rated === 1 ? "is" : "are"} 4 or 5 stars.`;
 }
-function reviewsWeeklyLine(p, weeks, since) {
+function reviewsWeeklyLine(p, weeks, since2) {
   const total = sumOf(weeks.map((w) => w.written));
   if (total) {
     const first = weeks.at(0);
-    const over = first && first.day > since ? `since ${first.label}` : withinWords(p.days, p.until);
+    const over = first && first.day > since2 ? `since ${first.label}` : withinWords(p.days, p.until);
     return `${total} written ${over}`;
   }
   return p.exact && !p.written ? NOTHING_WRITTEN : null;
@@ -57590,8 +57626,8 @@ function headWords(reached, days, book, priorHad) {
   return `${reachedWords}${bookYesWords(book)}.`;
 }
 var happened = (parts2) => parts2.filter(([n]) => n > 0).map(([n, words3]) => `${n} ${words3}`).join(" \xB7 ");
-var reachedMeta = (people, fresh) => people === 0 ? "nobody wrote or called in this period" : `${fresh} new \xB7 ${people - fresh} you knew already`;
-var newMeta = (people, fresh) => fresh === 0 ? "nobody new" : `of the ${people} who reached you`;
+var reachedMeta = (people2, fresh) => people2 === 0 ? "nobody wrote or called in this period" : `${fresh} new \xB7 ${people2 - fresh} you knew already`;
+var newMeta = (people2, fresh) => fresh === 0 ? "nobody new" : `of the ${people2} who reached you`;
 var yesesMeta = (by) => happened([
   [by.messages, "to messages"],
   [by.offers, "to offers"],
@@ -57690,7 +57726,7 @@ var WIRE_ROWS = [
   ["none", "None yet"]
 ];
 var wireEntries = (wires) => WIRE_ROWS.map(([key, label]) => [key, label, wires[key]]).filter(([, , n]) => n > 0);
-var wiresLine = (several, people) => `${several} of ${people} have reached you more than one way, as of today.`;
+var wiresLine = (several, people2) => `${several} of ${people2} have reached you more than one way, as of today.`;
 var FRESH_ROWS = [
   ["under_7", "Under 7 days"],
   ["d7_30", "7 to 30 days"],
@@ -57700,7 +57736,7 @@ var FRESH_ROWS = [
   ["never", "Never heard from"]
 ];
 var freshEntries = (fresh) => FRESH_ROWS.map(([key, label]) => [key, label, fresh[key]]);
-var freshLine = (people) => `Of ${plural(people, "person", "people")} as of today: the days since they last wrote or called. Your own messages do not count.`;
+var freshLine = (people2) => `Of ${plural(people2, "person", "people")} as of today: the days since they last wrote or called. Your own messages do not count.`;
 function quietDoor(quiet) {
   if (quiet === 0) return null;
   return {
@@ -57712,7 +57748,7 @@ function quietDoor(quiet) {
 var stepsOverdueMeta = (overdue) => overdue === 0 ? "no next step is past its day" : "people whose next step is past its day";
 var stepsDueTodayMeta = (due) => due === 0 ? "no next step is due today" : "people whose next step is due today";
 var emailStoppedNowMeta = (stopped) => stopped === 0 ? "every address works" : "people whose address no longer receives your email";
-var standMeta = (people) => people === 0 ? "nobody is in your book yet" : `of ${plural(people, "person", "people")}`;
+var standMeta = (people2) => people2 === 0 ? "nobody is in your book yet" : `of ${plural(people2, "person", "people")}`;
 
 // src/reports/people/people-report.ts
 var priorHadOf = ({ reached, consent }) => reached.before.people > 0 || consent.before.yes > 0 || consent.before.stop > 0;
@@ -57848,16 +57884,16 @@ var STAND_LISTS = [
   { id: "opted-out", metric: "opted_out_now", label: STOP_WORDS.pill, list: "opted_out" },
   { id: "quiet-30", metric: "quiet_now", label: "Quiet 30+ days", list: "quiet" }
 ];
-function standFigures({ people, lists }) {
+function standFigures({ people: people2, lists }) {
   return STAND_LISTS.map(({ id, metric, label, list: list2 }) => ({
     id,
     metric,
     label,
     value: String(lists[list2]),
-    meta: standMeta(people),
+    meta: standMeta(people2),
     compare: null,
     door: listDoor(list2),
-    n: people,
+    n: people2,
     minN: REPORT_MIN_N
   }));
 }
@@ -58397,8 +58433,8 @@ function mailboxStateWords(d, nowMs, tz) {
   if (d.state === "connected") return "Connected";
   if (d.state === "held") {
     const held = d.held_at ? Date.parse(d.held_at) : NaN;
-    const since = Number.isFinite(held) ? ` since ${clockNear(held, tz, nowMs)}` : "";
-    return `Held${since}: ${mailboxHoldWords(d.held_why)}`;
+    const since2 = Number.isFinite(held) ? ` since ${clockNear(held, tz, nowMs)}` : "";
+    return `Held${since2}: ${mailboxHoldWords(d.held_why)}`;
   }
   if (d.state === "reconnect") return "Signed out: reconnect it";
   return "Paused";
@@ -58473,12 +58509,12 @@ function reachOutsWroteWords(emails, businesses) {
   const to = businesses === void 0 ? "" : ` to ${plural(businesses, "business", "businesses")}`;
   return ` Your sequences to leads wrote ${plural(emails, "email")}${to}.`;
 }
-function peopleHeadWords({ messages, people, runs, wroteBack, before, range }) {
-  const sentence2 = `${plural(messages, "message")} to ${plural(people, "person", "people")} over ${plural(runs, "run")}`;
-  if (people < REPORT_MIN_N || wroteBack === null) return `${sentence2}.`;
+function peopleHeadWords({ messages, people: people2, runs, wroteBack, before, range }) {
+  const sentence2 = `${plural(messages, "message")} to ${plural(people2, "person", "people")} over ${plural(runs, "run")}`;
+  if (people2 < REPORT_MIN_N || wroteBack === null) return `${sentence2}.`;
   const hadPeople = before.sentTo !== null && before.sentTo > 0 && before.wroteBack !== null;
   const was = hadPeople ? ` (${before.wroteBack === 0 ? "none" : before.wroteBack} ${beforeWords(range)})` : "";
-  return `${sentence2}; ${wroteBack} of ${people} wrote back${was}.`;
+  return `${sentence2}; ${wroteBack} of ${people2} wrote back${was}.`;
 }
 function sendsHeadWords(sent) {
   const sentence2 = `${plural(sent.messages, "message")} over ${plural(sent.runs, "run")}`;
@@ -58645,12 +58681,12 @@ function failedReads(reads) {
   const others = failing.length === 1 ? REST_IS_CURRENT : landed.length === 0 ? NOTHING_ELSE_READ : onlyReadWords(landed);
   return failing.map(([part]) => ({ part, what: FAILED_WHAT[part], body: others }));
 }
-function reachedPeopleOf({ people }) {
+function reachedPeopleOf({ people: people2 }) {
   return {
-    sentTo: knownCount(people.now.sent_to),
-    wroteBack: knownCount(people.now.wrote_back),
-    counting: knownCount(people.now.counting),
-    before: { sentTo: knownCount(people.before.sent_to), wroteBack: knownCount(people.before.wrote_back) }
+    sentTo: knownCount(people2.now.sent_to),
+    wroteBack: knownCount(people2.now.wrote_back),
+    counting: knownCount(people2.now.counting),
+    before: { sentTo: knownCount(people2.before.sent_to), wroteBack: knownCount(people2.before.wrote_back) }
   };
 }
 function runsOf({ runs }) {
@@ -58663,8 +58699,8 @@ function isQuiet(report, series) {
   const { sent, optIns, optOuts } = report.totals;
   if (sent + optIns + optOuts > 0) return false;
   if (series === null) return true;
-  const { held, stopped, failed_sends, approval, people } = series;
-  return [held.total, stopped.failed, stopped.canceled, failed_sends.total, approval.n, people.now.wrote_back].every(
+  const { held, stopped, failed_sends, approval, people: people2 } = series;
+  return [held.total, stopped.failed, stopped.canceled, failed_sends.total, approval.n, people2.now.wrote_back].every(
     (n) => n === 0
   );
 }
@@ -58673,17 +58709,17 @@ function campaignHead(report, series, reach) {
   if (sent === 0) {
     return `${NOTHING_WENT_OUT}${reach === null ? "" : reachOutsWroteWords(reach.totals.written, reach.totals.businesses)}`;
   }
-  const people = series === null ? null : reachedPeopleOf(series);
+  const people2 = series === null ? null : reachedPeopleOf(series);
   const runs = series === null ? null : runsOf(series).total;
-  if (series === null || people === null || people.sentTo === null || runs === null) {
+  if (series === null || people2 === null || people2.sentTo === null || runs === null) {
     return sendsHeadWords({ messages: sent, runs: sends2, replied });
   }
   return peopleHeadWords({
     messages: sent,
-    people: people.sentTo,
+    people: people2.sentTo,
     runs,
-    wroteBack: people.wroteBack,
-    before: people.before,
+    wroteBack: people2.wroteBack,
+    before: people2.before,
     range: rangeLabelOf(series.days)
   });
 }
@@ -59823,18 +59859,18 @@ function calendarRow(i) {
 }
 function teamRow(i) {
   const t = i.team;
-  const people = t.members > 1 || t.invitesOpen > 0;
+  const people2 = t.members > 1 || t.invitesOpen > 0;
   const who = `${plural(t.members, "person", "people")}${t.invitesOpen ? ` \xB7 ${plural(t.invitesOpen, "invite")} open` : ""}`;
   const alerts = t.alertEmails ? `alerts go to ${plural(t.alertEmails, "address", "addresses")}` : "no alert address yet";
   return {
     id: "team",
     icon: "users",
     title: "Team and alerts",
-    state: people && t.alertEmails ? "ready" : !people && !t.alertEmails ? "not_started" : "waiting_you",
+    state: people2 && t.alertEmails ? "ready" : !people2 && !t.alertEmails ? "not_started" : "waiting_you",
     required: false,
-    sentence: people ? `${who}${t.partner ? ` \xB7 ${t.partner} is your partner` : ""} \xB7 ${alerts}.` : `Only you so far \xB7 ${alerts}.`,
-    details: people ? [] : ["Invite someone who answers when you can't"],
-    verb: !t.alertEmails ? { label: "Set alerts", to: "admin/notifications" } : !people ? { label: "Invite", to: "admin/team" } : { label: "Open Team", to: "admin/team" }
+    sentence: people2 ? `${who}${t.partner ? ` \xB7 ${t.partner} is your partner` : ""} \xB7 ${alerts}.` : `Only you so far \xB7 ${alerts}.`,
+    details: people2 ? [] : ["Invite someone who answers when you can't"],
+    verb: !t.alertEmails ? { label: "Set alerts", to: "admin/notifications" } : !people2 ? { label: "Invite", to: "admin/team" } : { label: "Open Team", to: "admin/team" }
   };
 }
 function yesRow(i) {
@@ -60194,7 +60230,7 @@ function row(d) {
 }
 function smsStateRow(line, nowMs) {
   const num2 = line ? formatPhoneDisplay(line.e164) : null;
-  const since = line ? agoWords(Date.parse(line.state_since), nowMs) : null;
+  const since2 = line ? agoWords(Date.parse(line.state_since), nowMs) : null;
   const base = { kind: "sms", icon: "chat", title: "Texting", detail: num2, verb: null };
   const ready2 = line?.voice_state === "answering";
   if (ready2 && (!line?.sms_state || line.sms_state === "none")) {
@@ -60228,7 +60264,7 @@ function smsStateRow(line, nowMs) {
         ...base,
         state: "waiting_them",
         stateWords: "Waiting on carriers",
-        sentence: `Your business is approved. One last check on the line is with the carriers \u2014 usually days, and texting switches itself on${since ? `; approved ${since}` : ""}.`
+        sentence: `Your business is approved. One last check on the line is with the carriers \u2014 usually days, and texting switches itself on${since2 ? `; approved ${since2}` : ""}.`
       };
     case "needs_record":
       return line?.last_error ? {
@@ -60259,7 +60295,7 @@ function smsStateRow(line, nowMs) {
         ...base,
         state: "waiting_them",
         stateWords: "Waiting on carriers",
-        sentence: `The carriers are registering your line, since ${since} \xB7 usually a week.`
+        sentence: `The carriers are registering your line, since ${since2} \xB7 usually a week.`
       };
     case "rejected":
       return {
@@ -62489,8 +62525,8 @@ function liveOf(i, n) {
       says: L2.whatsappLaterSays,
       act: { kind: "choose", label: L2.whatsappConnect }
     });
-  const since = timeWords(answeringSince(dto), i.tz);
-  return { since: since ? L2.since(since) : null, channels: L2.channels(parts2), moves, notes };
+  const since2 = timeWords(answeringSince(dto), i.tz);
+  return { since: since2 ? L2.since(since2) : null, channels: L2.channels(parts2), moves, notes };
 }
 
 // src/setup/first-run-try.ts
@@ -62574,7 +62610,7 @@ function listenWordsOf(rings, shown2, quiet) {
   const said = rings === null ? { heading: W.listenOwn, lead: W.lead, route: null } : rings === "office" ? { heading: W.listenForwarded, lead: W.lead, route: W.route(number2) } : { heading: W.listenForwardedOther, lead: W.leadOther, route: W.routeOther(number2) };
   return quiet ? { heading: W.quietHeading, lead: "", route: said.route } : said;
 }
-function firstRunTryOf({ dto, calls, since, nowMs }) {
+function firstRunTryOf({ dto, calls, since: since2, nowMs }) {
   const W = FIRST_RUN_TRY_WORDS;
   const voice2 = dto.channels.voice;
   const own = voice2.active ? normalizePhone(voice2.number) : null;
@@ -62600,11 +62636,11 @@ function firstRunTryOf({ dto, calls, since, nowMs }) {
   if (!own) return { ...base, stage: "rows", heading: "", lead: "" };
   const tested = !!voice2.lastInboundAt;
   const inbound = calls.filter((c) => c.direction === "inbound" && !c.missed && c.startedAtMs !== null).sort((a, b) => (b.startedAtMs ?? 0) - (a.startedAtMs ?? 0));
-  const call = inbound.find((c) => (c.startedAtMs ?? 0) >= since - TRY_SLACK_MS) ?? (tested ? inbound[0] ?? null : null);
+  const call = inbound.find((c) => (c.startedAtMs ?? 0) >= since2 - TRY_SLACK_MS) ?? (tested ? inbound[0] ?? null : null);
   if (!call) {
     const open = !!f0 && fw.forwarding_state !== "verified" && forwardingTestOpen(f0, nowMs);
     const left = open && f0.test_until ? Math.max(1, Math.ceil((Date.parse(f0.test_until) - nowMs) / MIN_MS)) : null;
-    const quiet = nowMs - since >= TRY_QUIET_AFTER_MS;
+    const quiet = nowMs - since2 >= TRY_QUIET_AFTER_MS;
     const said = listenWordsOf(keptPhoneKind(fw), shown2, quiet);
     return {
       ...base,
@@ -62619,7 +62655,7 @@ function firstRunTryOf({ dto, calls, since, nowMs }) {
       causes: quiet ? forwarded ? W.causesForwarded.map((c) => ({ ...c })) : [W.causeOwn(formatPhoneDisplay(own) ?? own)] : []
     };
   }
-  const test = (call.startedAtMs ?? 0) >= since - TRY_SLACK_MS;
+  const test = (call.startedAtMs ?? 0) >= since2 - TRY_SLACK_MS;
   const turns = call.transcript.filter((t) => t.speaker === "agent" || t.speaker === "client").map((t) => ({
     who: t.speaker === "agent" ? W.receptionist : test ? W.caller : W.someone,
     text: t.text,
@@ -64721,22 +64757,22 @@ function names2(who, rest) {
 }
 function needsSentences(vm) {
   const rows2 = vm.queue.rows;
-  const people = [...new Set(rows2.filter(isHoldRow).map((r2) => r2.who))];
+  const people2 = [...new Set(rows2.filter(isHoldRow).map((r2) => r2.who))];
   const { calls, searches, windows } = vm.queue;
-  const total = vm.needsYou?.count ?? people.length;
-  const rest = Math.max(0, total - people.length);
+  const total = vm.needsYou?.count ?? people2.length;
+  const rest = Math.max(0, total - people2.length);
   const out = [];
-  if (!people.length && total > 0)
+  if (!people2.length && total > 0)
     out.push([plain(total === 1 ? "One conversation needs you." : `${total} conversations need you.`)]);
-  if (people.length) {
-    const one = people.length === 1 && rest === 0;
+  if (people2.length) {
+    const one = people2.length === 1 && rest === 0;
     const detail = vm.standing.detail;
-    const [first = ""] = people;
+    const [first = ""] = people2;
     const lead = `${first} has been `;
     if (one && detail && detail.startsWith(lead))
       out.push([bold(first), plain(` needs you, ${detail.slice(lead.length)}`)]);
     else {
-      out.push([...names2(people, rest), plain(one ? " needs you." : " need you.")]);
+      out.push([...names2(people2, rest), plain(one ? " needs you." : " need you.")]);
       if (detail) out.push([plain(detail)]);
     }
   }
@@ -64819,13 +64855,13 @@ function capDay(items, max) {
   for (const i of [...items].reverse()) if (i.phase === "past" && keep.size < max) keep.add(i.id);
   return items.filter((i) => keep.has(i.id));
 }
-function todayDay(cal, playbooks, people = null, max = TODAY_DAY_MAX) {
-  const word = playbooks ? playbooks.word : people?.word ?? "appointment";
+function todayDay(cal, playbooks, people2 = null, max = TODAY_DAY_MAX) {
+  const word = playbooks ? playbooks.word : people2?.word ?? "appointment";
   if (!cal) return { feed: "none", frames: [], nextOpening: null, reminders: null, word };
   const feed = cal.feed.state;
   const idx = cal.days.findIndex((d) => d.today);
   const picked = idx >= 0 ? cal.days.slice(idx, idx + 2) : [];
-  const stateOf2 = new Map((people?.rows ?? []).map((r2) => [r2.id, r2.state]));
+  const stateOf2 = new Map((people2?.rows ?? []).map((r2) => [r2.id, r2.state]));
   const item = (b, dayKey2, allDay, phase) => ({
     id: b.id,
     start: allDay ? "All day" : clockLabel(b.t),
@@ -65024,18 +65060,18 @@ var LEAK_ORDER = [
   "quiet"
 ];
 var askWhy2 = (text, math) => `${text} ${capitalize(math)}. Why is that?`;
-function leakFactsOf(reports, people, noReply, nowMs) {
-  const list2 = (id) => people ? people.lists.find((l) => l.id === id) ?? null : null;
+function leakFactsOf(reports, people2, noReply, nowMs) {
+  const list2 = (id) => people2 ? people2.lists.find((l) => l.id === id) ?? null : null;
   const step2 = (id) => {
     const l = list2(id);
     return l && l.action && l.action.enabled && l.count > 0 ? { label: l.action.cta, to: l.action.to } : null;
   };
   let clock3 = null;
   const dealsAt = () => {
-    clock3 ??= { at: people && people.fetchedAt || nowMs };
+    clock3 ??= { at: people2 && people2.fetchedAt || nowMs };
     return clock3.at;
   };
-  return { reports, people, noReply, list: list2, step: step2, dealsAt };
+  return { reports, people: people2, noReply, list: list2, step: step2, dealsAt };
 }
 function neverBookedLeak({ reports, list: list2, step: step2 }) {
   const b = reports ? reports.booking : null;
@@ -65077,13 +65113,13 @@ function unansweredLeak({ reports, noReply }) {
     also: null
   };
 }
-function consultsWaitingLeak({ people, dealsAt }) {
+function consultsWaitingLeak({ people: people2, dealsAt }) {
   const at3 = dealsAt();
-  const consultRows = (people?.rows ?? []).filter(
+  const consultRows = (people2?.rows ?? []).filter(
     (r2) => typeof r2.id === "string" && typeof r2.name === "string" && "deal" in r2 && "consultedMs" in r2 && "nextVisitMs" in r2
   );
   const held = consultationsWithoutProposal(consultRows, at3);
-  if (!(people && held.length >= 1)) return null;
+  if (!(people2 && held.length >= 1)) return null;
   const n = held.length;
   const text = `${n} consultation${n === 1 ? "" : "s"} in the last week with nothing booked or proposed since.`;
   const math = `${consultsHeldWords(n)} \xB7 on Pipeline`;
@@ -65109,8 +65145,8 @@ function consultsWaitingLeak({ people, dealsAt }) {
 function proposalsWaitingWords(n, pace, po, inHand) {
   const ago3 = pace ? `${pace.waitDays} days` : "a week";
   const text = pace?.longerThanUsual ? `${n} proposal${n === 1 ? " has" : "s have"} waited longer than usual with nothing back.` : `${n} proposal${n === 1 ? "" : "s"} went out more than ${ago3} ago with nothing back.`;
-  const since = pace ? `${pace.words.charAt(0).toLowerCase()}${pace.words.slice(1)} \xB7 nothing heard since it went` : "nothing heard since it went";
-  const counted3 = po ? `${po.count} on Proposal out \xB7 ${since}` : since;
+  const since2 = pace ? `${pace.words.charAt(0).toLowerCase()}${pace.words.slice(1)} \xB7 nothing heard since it went` : "nothing heard since it went";
+  const counted3 = po ? `${po.count} on Proposal out \xB7 ${since2}` : since2;
   const math = inHand ? `${counted3} \xB7 the follow-up has ${inHand} more` : counted3;
   return { text, math };
 }
@@ -65119,9 +65155,9 @@ function yoursToFollowUp(waiting) {
     (r2) => r2.id && r2.name ? [{ id: r2.id, name: r2.name, to: addressOf({ kind: "person", id: r2.id }), title: `Open ${r2.name}` }] : []
   );
 }
-function proposalsWaitingLeak({ people, list: list2, dealsAt }) {
-  const dealRows = (people?.rows ?? []).filter((r2) => "deal" in r2 && "askedMs" in r2);
-  const pace = people?.dealPace ?? null;
+function proposalsWaitingLeak({ people: people2, list: list2, dealsAt }) {
+  const dealRows = (people2?.rows ?? []).filter((r2) => "deal" in r2 && "askedMs" in r2);
+  const pace = people2?.dealPace ?? null;
   const shownDeal = new Map(dealRows.map((r2) => [r2.id, r2.deal]));
   const proposals = eachOpenProposal(dealRows).map((r2) => {
     const shown2 = shownDeal.get(r2.id) ?? null;
@@ -65132,7 +65168,7 @@ function proposalsWaitingLeak({ people, list: list2, dealsAt }) {
   const inHand = out.filter((r2) => r2.followUp?.kind === "will").length;
   const waiting = out.filter((r2) => r2.followUp?.kind !== "will");
   const po = list2("proposal_out");
-  if (!(people && waiting.length >= 1)) return null;
+  if (!(people2 && waiting.length >= 1)) return null;
   const { text, math } = proposalsWaitingWords(waiting.length, pace, po, inHand);
   return {
     id: "proposals-waiting",
@@ -65151,11 +65187,11 @@ function proposalsWaitingLeak({ people, list: list2, dealsAt }) {
     also: null
   };
 }
-function unreachableLeak({ people, list: list2 }) {
+function unreachableLeak({ people: people2, list: list2 }) {
   const yes = list2("opted_in");
   const offers = list2("offers_ok");
-  if (!(people && yes && offers && yes.count >= 3 && offers.count === 0)) return null;
-  const said = people.rows.filter((r2) => r2.saidYes.offers);
+  if (!(people2 && yes && offers && yes.count >= 3 && offers.count === 0)) return null;
+  const said = people2.rows.filter((r2) => r2.saidYes.offers);
   const noNumber = said.length > 0;
   const why = said.some((r2) => r2.whyNot.offers === "no_channel") ? NO_CHANNEL_REACH : NO_NUMBER_REACH;
   const text = `${yes.count} ${yes.count === 1 ? "person has" : "people have"} said yes to messages, but ${noNumber ? "nobody can be sent an offer yet" : "nobody has said yes to offers"}.`;
@@ -65174,11 +65210,11 @@ function unreachableLeak({ people, list: list2 }) {
     also: !noNumber && yes.action && yes.action.enabled ? { label: yes.action.cta, to: yes.action.to } : null
   };
 }
-function quietLeak({ people, list: list2, step: step2 }) {
+function quietLeak({ people: people2, list: list2, step: step2 }) {
   const quiet = list2("quiet");
   if (!(quiet && quiet.count >= 5)) return null;
   const text = `${quiet.count} people have not heard from you in 30 days.`;
-  const math = people && people.aggregates ? `of ${people.aggregates.total} in People` : "on the Quiet 30+ days list";
+  const math = people2 && people2.aggregates ? `of ${people2.aggregates.total} in People` : "on the Quiet 30+ days list";
   return {
     id: "quiet",
     tone: "info",
@@ -65201,8 +65237,8 @@ var LEAK_FINDERS = {
   unreachable: unreachableLeak,
   quiet: quietLeak
 };
-function todayLeaks(reports, people, noReply = [], max = TODAY_LEAK_MAX, nowMs = Date.now()) {
-  const facts = leakFactsOf(reports, people, noReply, nowMs);
+function todayLeaks(reports, people2, noReply = [], max = TODAY_LEAK_MAX, nowMs = Date.now()) {
+  const facts = leakFactsOf(reports, people2, noReply, nowMs);
   const all = LEAK_ORDER.map((id) => LEAK_FINDERS[id](facts)).filter((x) => !!x);
   const more2 = Math.max(0, all.length - max);
   return { rows: all.slice(0, max), more: more2, moreLine: more2 ? `and ${more2} more` : null };
@@ -66635,14 +66671,14 @@ function goingTodayOf(input) {
     const reach = isReachOutRun(r2.audience);
     const kind = r2.playbook_id ? "batch" : "one_off";
     const g = goes(kind === "batch" ? "batch_hold" : "one_off", atMs, tz);
-    const people = reach ? plural(r2.recipient_count, "business", "businesses") : plural(r2.recipient_count, "person", "people");
+    const people2 = reach ? plural(r2.recipient_count, "business", "businesses") : plural(r2.recipient_count, "person", "people");
     const what = reach ? "To leads" : kind === "batch" ? "Campaign" : "Sent once";
     rows2.push({
       key: `run-${r2.id}`,
       kind,
       name: r2.title,
       meta: `${what} \xB7 goes ${g.at}`,
-      sentence: `${people}. ${g.ends}.`,
+      sentence: `${people2}. ${g.ends}.`,
       atMs,
       stop: { kind: "run", id: r2.id },
       to: addressOf({ kind: "send", id: r2.id })
