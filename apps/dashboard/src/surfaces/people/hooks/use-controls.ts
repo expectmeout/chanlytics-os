@@ -24,6 +24,7 @@ import {
   plShownColumns,
   plShows,
   plSortKeys,
+  plSortShown,
 } from "../table/columns";
 import { plLayoutChoices, plOrdered, type LayoutChoices } from "../table/layout";
 import { usePlColumnLayout } from "../table/use-layout";
@@ -273,16 +274,6 @@ export function usePlControls<R extends TableRow, X extends TableCtx>(args: Cont
   const view = useSavedView(args);
   const { viewTouched, setSortBy, setSortDir, setColChoices, setExtraViewState, sortBy, colChoices } = view;
   const search = useSearchAndScroll();
-  const onSort = (key: string) => {
-    viewTouched.current = true;
-    if (sortBy === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    // Which way a first press goes is the column's own word (`sortFirst`): a name starts at A, the soonest visit and the
-    // soonest next step first, the Pipeline's Stage in its own order; a column that says nothing goes most first.
-    else {
-      setSortBy(key);
-      setSortDir(plFirstDir(cols, key));
-    }
-  };
   // A sort the member picked from a menu rather than a heading (a phone's more-menu): theirs, like a heading's.
   const pickSort = (by: string, dir: string) => {
     viewTouched.current = true;
@@ -306,6 +297,24 @@ export function usePlControls<R extends TableRow, X extends TableCtx>(args: Cont
   );
   const columns = phone ? phoneCols : deskColumns;
   const colOptions = plColumnOptions(plOrdered(cols, layoutChoices.order), colChoices, colCtx);
+  // The order a desk's table stands in is one its member can see (plSortShown); the member's sort stays theirs. A phone
+  // has no columns and sorts from its menu.
+  const chosen = { by: sortBy, dir: view.sortDir };
+  const { by: sortShown, dir: sortDirShown } = phone ? chosen : plSortShown(deskColumns, cols, chosen, args.sortFirst);
+  // A press on the heading lit turns its order round, the heading the table shows lit, whichever the member last chose.
+  const onSort = (key: string) => {
+    viewTouched.current = true;
+    if (sortShown === key) {
+      setSortBy(key);
+      setSortDir(sortDirShown === "asc" ? "desc" : "asc");
+    }
+    // Which way a first press goes is the column's own word (`sortFirst`): a name starts at A, the soonest visit and the
+    // soonest next step first, the Pipeline's Stage in its own order; a column that says nothing goes most first.
+    else {
+      setSortBy(key);
+      setSortDir(plFirstDir(cols, key));
+    }
+  };
   // The widths, the order and the row height, drawn by the table and changed from its headings and its Columns menu.
   const layout = usePlColumnLayout({
     columns: deskColumns,
@@ -343,9 +352,9 @@ export function usePlControls<R extends TableRow, X extends TableCtx>(args: Cont
     allMatching: selection.allMatching,
     setAllMatching,
     clearSelection,
-    sortBy,
+    sortBy: sortShown,
     setSortBy,
-    sortDir: view.sortDir,
+    sortDir: sortDirShown,
     setSortDir,
     onSort,
     pickSort,

@@ -121,8 +121,9 @@ export function PersonPeek(p: PersonPeekProps) {
       {peekHead(p)}
       <div className="pk-body pp-glance-body">{peekBody(p)}</div>
       <div className="pp-glance-foot">
+        {/* The outline, not the coral: the page's own act (Add people) holds the coral beside it, one a screen. */}
         {cta ? (
-          <Button variant="primary" size="sm" {...routeDoor(cta.to)} data-testid="person-peek-thread">
+          <Button variant="secondary" size="sm" {...routeDoor(cta.to)} data-testid="person-peek-thread">
             {cta.label}
           </Button>
         ) : null}
