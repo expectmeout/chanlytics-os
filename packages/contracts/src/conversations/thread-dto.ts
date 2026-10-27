@@ -87,6 +87,8 @@ export interface ConversationDto {
   assignee_user_id?: string | null;
   assignee_is_me?: boolean;
   last_wa_inbound_at?: string | null;
+  /** When they last wrote by Instagram DM (conversations.last_inbound_on_instagram, 00486): Instagram's window reads it. */
+  last_ig_inbound_at?: string | null;
   last_message_at: string | null;
   /** When the customer last wrote or called (conversations.last_inbound_at). Absent on payloads read without it. */
   last_inbound_at?: string | null;

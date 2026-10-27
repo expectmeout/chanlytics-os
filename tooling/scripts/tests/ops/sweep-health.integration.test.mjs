@@ -55,6 +55,7 @@ test("sweep_health() names every watched sweep and every schedule exists", { ski
   // 00402 added 'purge_config_versions', the nightly purge of a workspace's settings 400 days after a version is replaced.
   // 00423 took 'domains' and 'sending_domain_days' off with the cold lane, and added 'mailboxes', the five-minute
   // sweep of the mailboxes a business connected (decision 0056).
+  // 00486 added 'instagram_tokens', the daily refresh of each connected Instagram account's token (decision 0001, step 8).
   assert.deepEqual(
     data.map((r) => r.sweep),
     [
@@ -64,6 +65,7 @@ test("sweep_health() names every watched sweep and every schedule exists", { ski
       "deadman",
       "google",
       "health",
+      "instagram_tokens",
       "jobs",
       "leads",
       "lines",
@@ -144,6 +146,7 @@ test("an unexpected sweep name cannot be added behind sweep_health()'s back", { 
     "deadman",
     "google",
     "health",
+    "instagram_tokens",
     "jobs",
     "leads",
     "lines",
@@ -210,6 +213,8 @@ test("every schedule the watchdog depends on is present and active", { skip }, a
     "sequences-clock",
     // 00469: the browser errors Health groups, kept thirty days.
     "purge-client-errors",
+    // 00486: each connected Instagram account's token, refreshed once a day.
+    "instagram-token-sweep",
   ]) {
     assert.ok(byName.has(n), `no cron job named ${n}`);
     assert.equal(byName.get(n).active, true, `${n} is disabled`);

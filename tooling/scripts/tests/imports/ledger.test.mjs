@@ -8,6 +8,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   IMPORT_STOPPED_WORDS,
+  MAILBOX_LEFT_ROW,
   broughtInCardOf,
   broughtInShown,
   dayWords,
@@ -47,6 +48,9 @@ test("a source's line says what came and how far back, in its own words, and whe
       retry: false,
       share: null,
       aside: null,
+      door: "reports/reviews",
+      asideDoor: null,
+      count: 212,
     },
   );
   assert.equal(
@@ -107,6 +111,40 @@ test("what the mailbox set aside is said apart, under its line, and only for the
     "stopped: the line says what it kept and Try again, nothing more",
   );
   assert.equal(importLineOf(row("contacts", "done", { people: 4, dropped: 2 })).aside, null);
+});
+
+test("each line opens the page what it brought is on, and what the mailbox set aside opens where it is listed", () => {
+  const doorOf = (source, state = "done", counts = {}) => importLineOf(row(source, state, counts)).door;
+  assert.equal(doorOf("calendar"), "calendar");
+  assert.equal(doorOf("contacts"), "clients", "People");
+  assert.equal(doorOf("clients_file"), "clients");
+  assert.equal(doorOf("whatsapp_contacts"), "clients");
+  assert.equal(doorOf("mailbox"), "inbox");
+  assert.equal(doorOf("whatsapp_history"), "inbox");
+  assert.equal(doorOf("google_reviews"), "reports/reviews", "the Reviews lens");
+  assert.equal(doorOf("mailbox", "failed"), "inbox", "a stopped line still opens what it kept");
+  const mail = importLineOf(row("mailbox", "done", { messages: 414, dropped: 195 }));
+  assert.equal(mail.asideDoor, "admin/integrations/left", "Connections, with Left in your mailbox open");
+  assert.equal(MAILBOX_LEFT_ROW, "left", "the row Settings' address names (settings/frame/tabs.ts)");
+  assert.equal(importLineOf(row("mailbox", "done", { messages: 4 })).asideDoor, null, "nothing set aside: no door");
+});
+
+test("a line's count is the number its words open with, for a page to let glide; none where they open with words", () => {
+  const countOf = (source, state, counts, over) => importLineOf(row(source, state, counts, over));
+  for (const [line, n] of [
+    [countOf("mailbox", "running", { messages: 214 }), 214],
+    [countOf("mailbox", "done", { messages: 4140 }), 4140],
+    [countOf("contacts", "done", { people: 249 }, { via: "google" }), 249],
+    [countOf("google_reviews", "done", { reviews: 1284 }), 1284],
+    [countOf("calendar", "done", { past: 12, coming: 3 }), 12],
+  ]) {
+    assert.equal(line.count, n);
+    assert.ok(line.says.startsWith(`${n.toLocaleString("en-US")} `), `${line.says} opens with ${n}`);
+  }
+  assert.equal(countOf("calendar", "done", { past: 0 }).count, null, "No past appointments");
+  assert.equal(countOf("mailbox", "running", {}).count, null, "Reading your inbox");
+  assert.equal(countOf("mailbox", "failed", { messages: 130 }).count, null, "Stopped part way · 130 emails kept");
+  assert.equal(countOf("whatsapp_history", "running", {}, { oldest: "2026-03-07T00:00:00Z" }).count, null);
 });
 
 test("how far a run has come: the mailbox by how far back it has read of its six months, never whole before it is in", () => {
@@ -177,6 +215,9 @@ test("Bringing it in: a line a source in the order they are said, WhatsApp's wai
     retry: false,
     share: null,
     aside: null,
+    door: null,
+    asideDoor: null,
+    count: null,
   });
   assert.deepEqual([waiting.done, waiting.of, waiting.running], [1, 2, false]);
   assert.equal(

@@ -31,6 +31,8 @@ import {
   confirmationNameOf,
   offersAfterStart,
   optInConfirmation,
+  dmBackOnConfirmation,
+  SECOND_MS,
   tokenBudgetSpent,
   tokenCapOf,
   YES_WHILE_PAUSED,
@@ -38,6 +40,10 @@ import {
 import type { SendPurpose } from "@chanlytics/contracts";
 import { ageVerdict, holdCopy } from "./steps";
 import { GO, type Answering } from "./context";
+
+/** When the message was sent, in the seconds the staleness check reads; nothing when its wire did not say. */
+const sentAtSecondsOf = (iso: string | null): number | undefined =>
+  iso === null ? undefined : Date.parse(iso) / SECOND_MS;
 import { unattendedHold } from "./reply-posture";
 import { escalationOf, handledOf, processedAfter, type Asked } from "./handled";
 import { toldFromItsEvent } from "../subscribers";
@@ -98,7 +104,7 @@ async function offersTakenBack(at: Answering): Promise<boolean> {
  * attachment is still kept, for the person it is handed to.
  */
 export async function tooLate(at: Answering): Promise<typeof GO | undefined> {
-  const { raw, sink, tell, n, L } = at;
+  const { sink, tell, n, L } = at;
   // Late, but somebody is still waiting.
   //
   // This used to stamp anything over ten minutes old as processed and return —
@@ -113,7 +119,7 @@ export async function tooLate(at: Answering): Promise<typeof GO | undefined> {
   // reply horizon the customer is still in the conversation they started, and
   // answering late beats not answering. Beyond it an automated reply would
   // arrive out of nowhere, so a person picks it up — but a person is told.
-  const { ageMs, verdict: age } = ageVerdict(raw.timestamp ?? undefined);
+  const { ageMs, verdict: age } = ageVerdict(sentAtSecondsOf(n.channelTsIso));
   if (age === "stale") {
     const asked = sink.escalate(
       "stale",
@@ -122,7 +128,7 @@ export async function tooLate(at: Answering): Promise<typeof GO | undefined> {
     await Promise.all([
       asked,
       tell(asked, {
-        said: n.body ?? `[${raw.type}]`,
+        said: n.body ?? `[${n.rawType}]`,
         answered: "(no reply sent — arrived too late to answer automatically)",
         why: "late message",
       }),
@@ -154,12 +160,12 @@ export async function confirmedYes(at: Answering, bodyText: string): Promise<typ
   // registration is informational, so a YES OFFERS that arrives by text is
   // recorded (ingest keeps the answer; it is honoured on WhatsApp) and answered
   // like any other words, not confirmed as a subscription on this number.
-  if (n.optIn || (n.optInMarketing && channel === "whatsapp")) {
-    const purpose: SendPurpose = n.optInMarketing ? "marketing" : "conversational";
+  if (n.consent.optIn || (n.consent.optInMarketing && channel === "whatsapp")) {
+    const purpose: SendPurpose = n.consent.optInMarketing ? "marketing" : "conversational";
     // A YES OFFERS taken in again after the person said no more offers is held by that no, as a START taken in again
     // after a STOP is (resolveConsent): the door would refuse the confirmation, and a person would be told the customer
     // said yes and was never confirmed, when the customer's last word was no.
-    if (n.optInMarketing && (await offersTakenBack(at))) {
+    if (n.consent.optInMarketing && (await offersTakenBack(at))) {
       L.info("wa_opt_in_confirmed", { purpose, channel, sent: false, why: "offers_taken_back" });
       await processedAfter(sink, null, "none");
       return;
@@ -171,9 +177,10 @@ export async function confirmedYes(at: Answering, bodyText: string): Promise<typ
       workspace: rt?.known?.workspace?.name ?? null,
       receptionist: brainCfg?.business_name ?? null,
     });
-    const filed = optInConfirmation(name, purpose);
+    // A DM's START in a DM's words: no carrier's program, rates or HELP line to name (contracts dmBackOnConfirmation).
+    const filed = channel === "instagram" ? dmBackOnConfirmation(name) : optInConfirmation(name, purpose);
     // The yes to offers a STOP ended does not come back with a START: said here, on WhatsApp alone.
-    const offers = n.optInMarketing ? null : await offersNoteFor(at);
+    const offers = n.consent.optInMarketing ? null : await offersNoteFor(at);
     const words = offers ? `${filed} ${offers}` : filed;
     // Sent FIRST, and what happened is reported from the outcome. The send's
     // outcome used to be dropped on the floor — so a confirmation the wire

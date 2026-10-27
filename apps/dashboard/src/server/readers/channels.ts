@@ -1,5 +1,6 @@
 import "server-only";
 import { standingFromConfig, type ChannelDto } from "@chanlytics/contracts";
+import { lastInboundOn } from "@chanlytics/db";
 import { stamp, type Reader } from "./index";
 
 /**
@@ -16,21 +17,13 @@ export const channels: Reader<undefined, { channels: ChannelDto[] }> = {
   async read(rc) {
     const { supabase } = rc.ctx;
     const tenantId = rc.tenantId;
-    const [rows, lastMsg, lastCall] = await Promise.all([
+    const [rows, lastWa, lastCall] = await Promise.all([
       supabase
         .from("tenant_channels")
         .select("id, kind, number_e164, status, created_at, config")
         .eq("tenant_id", tenantId)
         .order("kind"),
-      supabase
-        .from("messages")
-        .select("channel_ts, created_at")
-        .eq("tenant_id", tenantId)
-        .eq("direction", "inbound")
-        .eq("channel", "whatsapp")
-        .order("channel_ts", { ascending: false, nullsFirst: false })
-        .limit(1)
-        .maybeSingle(),
+      lastInboundOn(supabase, tenantId, "whatsapp"),
       supabase
         .from("calls")
         .select("started_at")
@@ -41,10 +34,14 @@ export const channels: Reader<undefined, { channels: ChannelDto[] }> = {
         .maybeSingle(),
     ]);
     if (rows.error) throw new Error(rows.error.message);
-    if (lastMsg.error) throw new Error(lastMsg.error.message);
     if (lastCall.error) throw new Error(lastCall.error.message);
+    // The DM clock only where an Instagram account is connected: most workspaces have none, and ask nothing more.
+    const lastDm = rows.data?.some((c) => c.kind === "instagram")
+      ? await lastInboundOn(supabase, tenantId, "instagram")
+      : null;
     const lastByKind: Record<string, string | null> = {
-      whatsapp: lastMsg.data?.channel_ts ?? lastMsg.data?.created_at ?? null,
+      whatsapp: lastWa,
+      instagram: lastDm,
       voice: lastCall.data?.started_at ?? null,
     };
     const channels: ChannelDto[] = (rows.data ?? []).map((c) => {
@@ -67,6 +64,8 @@ export const channels: Reader<undefined, { channels: ChannelDto[] }> = {
         standing: standingFromConfig(cfg.standing),
         standing_read_at: s("standing_read_at"),
         connected_at: s("connected_at"),
+        // An Instagram account's handle, and when Instagram stopped taking its token (the token sweep keeps it).
+        ...(c.kind === "instagram" ? { handle: s("username"), lapsed_at: s("token_lapsed_at") } : {}),
       };
     });
     return { data: { channels }, rows: [], stamp: stamp() };

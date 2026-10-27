@@ -81,7 +81,7 @@
   },
   "apps/edge/lib/receptionist/steer.ts::steerHeldDraft#1": {
     "lines": 123,
-    "branches": 34,
+    "branches": 33,
     "depth": 1
   },
   "apps/edge/lib/voice/call-booking-link.ts::sendBookingLinkOnCall#1": {
@@ -100,7 +100,7 @@
     "depth": 1
   },
   "apps/edge/lib/whatsapp/persist.ts::pgSink#1": {
-    "lines": 183,
+    "lines": 182,
     "branches": 5,
     "depth": 0
   },

@@ -11,8 +11,7 @@ import { escalationOf, handledOf, type WayOut } from "./handled";
 
 /** Whether the receptionist will look at this photo, and how it says what it will not read. */
 export function seeingOf(at: Answering) {
-  const { n, rt, brainCfg, replyMode, thread, send, fallbacks, personMode, pauseMs, sink, raw, tell, pauseHours, L } =
-    at;
+  const { n, rt, brainCfg, replyMode, thread, send, fallbacks, personMode, pauseMs, sink, tell, pauseHours, L } = at;
   // WILL the receptionist look at this photo (features.vision, off by
   // default)? Decided from the message, the workspace and the mode in force —
   // no bytes needed — so the routing below can be decided here while the
@@ -56,12 +55,12 @@ export function seeingOf(at: Answering) {
       // nobody told, it waited unseen past the pause (the closed-loop audit of 17 Oct 2026, B).
       const asked = sink.escalate(
         "wrote_while_held",
-        `They sent a ${raw.type} message while your team had this thread. Open it and answer them, or hand the thread back.`,
+        `They sent a ${n.rawType} message while your team had this thread. Open it and answer them, or hand the thread back.`,
       );
       await Promise.all([
         asked,
         tell(asked, {
-          said: `[${raw.type} message]`,
+          said: `[${n.rawType} message]`,
           answered: "(no reply sent — a person on your team has this thread)",
           why: "wrote while held",
         }),
@@ -93,12 +92,12 @@ export function seeingOf(at: Answering) {
           : personMode
             ? `no acknowledgement — this person is set to '${replyMode}'`
             : `no acknowledgement — reply mode is '${replyMode}'`;
-    const asked = sink.escalate("non_text", `Customer sent a ${raw.type} message — ${why}.`);
+    const asked = sink.escalate("non_text", `Customer sent a ${n.rawType} message — ${why}.`);
     await Promise.all([
       ...(pausedUntil ? [sink.pause(new Date(pausedUntil).toISOString())] : []),
       asked,
       tell(asked, {
-        said: `[${raw.type} message]`,
+        said: `[${n.rawType} message]`,
         answered: `(${why})`,
         why: "non-text message",
         pausedHours: pausedUntil ? pauseHours : null,

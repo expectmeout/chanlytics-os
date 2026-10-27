@@ -14,7 +14,7 @@ import { checkedWords, connectionWords, listingLine } from "../google/google.js"
 import { formatPhoneDisplay } from "../shared/phone.js";
 import { bookingToolName } from "../calendar/booking-notice.js";
 import { calendarSourceFacts, calendarSourceOf } from "./calendar-source.js";
-import { emailRow, mailboxRow } from "./connection-email.js";
+import { emailRow, instagramRow, mailboxRow } from "./connection-rows.js";
 import { firstRunStepRoute, FIRST_RUN_FIND_ROUTE } from "./first-run-route.js";
 import { importNotesOf } from "../imports/ledger.js";
 export const CONNECTION_KINDS = [
@@ -163,6 +163,7 @@ function connectionFactsOf(i, nowMs) {
     nowMs,
     wa: channel("whatsapp"),
     voice: channel("voice"),
+    ig: channel("instagram"),
     own: i.lines.rows.find((l) => l.provider !== "carrier") ?? null,
     connection: i.google?.connection ?? null,
     listing: i.google?.listing ?? null
@@ -438,18 +439,6 @@ const CONNECTION_STATE_OF = {
   hand: "none",
   none: "none"
 };
-function instagramRow() {
-  return {
-    kind: "instagram",
-    icon: "instagram",
-    title: "Instagram",
-    detail: null,
-    state: "later",
-    stateWords: "Later",
-    sentence: "Direct messages, answered by the receptionist like WhatsApp.",
-    verb: null
-  };
-}
 function depositsRow() {
   return {
     kind: "deposits",

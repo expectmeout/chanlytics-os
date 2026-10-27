@@ -76,7 +76,7 @@
   "apps/dashboard/src/server/rate-limit.ts::rpc": 1,
   "apps/dashboard/src/server/readers/call.ts": 1,
   "apps/dashboard/src/server/readers/calls.ts": 1,
-  "apps/dashboard/src/server/readers/channels.ts": 3,
+  "apps/dashboard/src/server/readers/channels.ts": 2,
   "apps/dashboard/src/server/readers/conversation.ts": 1,
   "apps/dashboard/src/server/readers/conversations.ts": 1,
   "apps/dashboard/src/server/readers/conversations.ts::rpc": 1,

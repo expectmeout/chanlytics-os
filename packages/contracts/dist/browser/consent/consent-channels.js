@@ -8,6 +8,7 @@ function isConsentChannel(c) {
   return !!c && CONSENT_CHANNELS.includes(c);
 }
 export function channelsOfYes(purpose, source, channel) {
+  if (source === "customer_message" && channel === "instagram") return [];
   if (purpose === "marketing" && source === "customer_message" && (channel === "sms" || channel === "email"))
     return ["whatsapp", channel];
   if (source === "customer_message" && isConsentChannel(channel)) return [channel];

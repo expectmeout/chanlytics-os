@@ -19,19 +19,31 @@ const AGENTS = {
   whatsapp: { glyph: "W", name: "WhatsApp Receptionist" },
   sms: { glyph: "T", name: "Text Receptionist" },
   email: { glyph: "Y", name: "Your team" },
+  instagram: { glyph: "I", name: "Instagram Receptionist" },
   phone: { glyph: "P", name: "Phone Receptionist" },
 } as const;
-export function agentFor(channel: "whatsapp" | "sms" | "email" | "phone"): { glyph: string; name: string } {
+export function agentFor(channel: ThreadChannel): { glyph: string; name: string } {
   return AGENTS[channel] ?? AGENTS.whatsapp;
 }
 
+/** The wires a person writes on and a thread is answered on: WhatsApp, a text, an email, an Instagram DM. */
+export type WrittenChannel = "whatsapp" | "sms" | "email" | "instagram";
+/** A thread's wire: one it was written on, or the phone when it holds only calls. */
+export type ThreadChannel = WrittenChannel | "phone";
+
 /** The wire a written message travelled, as a thread names it. Anything unnamed is WhatsApp, which is what every row was before the column said. */
-export function writtenChannelOf(channel: string | null | undefined): "whatsapp" | "sms" | "email" {
-  return channel === "sms" ? "sms" : channel === "email" ? "email" : "whatsapp";
+export function writtenChannelOf(channel: string | null | undefined): WrittenChannel {
+  return channel === "sms" || channel === "email" || channel === "instagram" ? channel : "whatsapp";
 }
 
 /** A thread's channel in the words under a person's name. */
-export const THREAD_CHANNEL_WORDS = { whatsapp: "WhatsApp", phone: "Phone", sms: "Text", email: "Email" } as const;
+export const THREAD_CHANNEL_WORDS = {
+  whatsapp: "WhatsApp",
+  phone: "Phone",
+  sms: "Text",
+  email: "Email",
+  instagram: "Instagram",
+} as const;
 
 /** A message as the channel rules read it: its kind and wire, and who wrote it where the reader holds that. */
 type ChannelRow = Pick<MessageDto, "type" | "channel"> & Partial<Pick<MessageDto, "direction" | "sender" | "meta">>;
@@ -45,7 +57,7 @@ type ChannelRow = Pick<MessageDto, "type" | "channel"> & Partial<Pick<MessageDto
  * automatic reply made email "where they last wrote"; where it was "the newest message either way" a playbook's email
  * turned a WhatsApp customer's row into Email. The messages are read in the order given, oldest first, as a thread holds them.
  */
-export function lastWroteOn(messages: ReadonlyArray<ChannelRow>): "whatsapp" | "sms" | "email" | null {
+export function lastWroteOn(messages: ReadonlyArray<ChannelRow>): WrittenChannel | null {
   const theirs = [...messages].reverse().find(isTheirOwnWords);
   return theirs ? writtenChannelOf(theirs.channel) : null;
 }
@@ -87,7 +99,7 @@ export function isTheirOwnWords(m: ChannelRow): boolean {
  * names none: the owner replies in the wrong place, or does not recognise the
  * thread they are being asked about.
  */
-export function threadChannelOf(messages: ReadonlyArray<ChannelRow>): "whatsapp" | "sms" | "email" | "phone" {
+export function threadChannelOf(messages: ReadonlyArray<ChannelRow>): ThreadChannel {
   const reply = replyWireOf(messages);
   if (reply) return reply;
   // Nothing from their side: the wire our own words went by.
@@ -101,7 +113,7 @@ export function threadChannelOf(messages: ReadonlyArray<ChannelRow>): "whatsapp"
  * still their address); null when nothing has come from their side. The Inbox's reply box reads it, so the box names
  * the wire the route sends on, and threadChannelOf begins with it.
  */
-function replyWireOf(messages: ReadonlyArray<ChannelRow>): "whatsapp" | "sms" | "email" | null {
+function replyWireOf(messages: ReadonlyArray<ChannelRow>): WrittenChannel | null {
   const wrote = lastWroteOn(messages);
   if (wrote) return wrote;
   const theirs = [...messages].reverse().find(isFromTheirSide);
@@ -114,7 +126,7 @@ function replyWireOf(messages: ReadonlyArray<ChannelRow>): "whatsapp" | "sms" | 
  * where it began; WhatsApp with neither, as every thread read before a wire was said. The Inbox's box asks this, and
  * the reply route asks the same of the database (the dashboard's replyChannelOf).
  */
-export function answerWireOf(messages: ReadonlyArray<ChannelRow>): "whatsapp" | "sms" | "email" {
+export function answerWireOf(messages: ReadonlyArray<ChannelRow>): WrittenChannel {
   const theirs = replyWireOf(messages);
   if (theirs) return theirs;
   const ours = [...messages].reverse().find((m) => isChatMessage(m) && m.direction === "outbound");
@@ -122,6 +134,6 @@ export function answerWireOf(messages: ReadonlyArray<ChannelRow>): "whatsapp" | 
 }
 
 /** The same question, in the words a row shows. */
-export function threadChannelWords(messages: ReadonlyArray<ChannelRow>): "WhatsApp" | "Text" | "Email" | "Phone" {
+export function threadChannelWords(messages: ReadonlyArray<ChannelRow>): (typeof THREAD_CHANNEL_WORDS)[ThreadChannel] {
   return THREAD_CHANNEL_WORDS[threadChannelOf(messages)];
 }

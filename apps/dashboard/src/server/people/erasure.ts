@@ -135,7 +135,7 @@ export async function removeMediaObjects(
  * After an erasure: the jobs that carried the customer's number, address or words.
  *
  * erase_contact cancels what is still scheduled and touches nothing else, so
- * done, failed and canceled outbound_send rows kept `to_phone` or `to_email` and
+ * done, failed and canceled outbound_send rows kept `to_phone`, `to_email` or `to_instagram` and
  * `body` in their payload — a copy of the conversation the erasure promised to
  * remove. Matched by contact id, by the number in any of its forms, or by the
  * address, cased as it may be.
@@ -192,6 +192,9 @@ export async function scrubErasedJobs(
     if (p.contact_id === contactId) return true;
     const to = typeof p.to_phone === "string" ? p.to_phone.replace(/\D/g, "") : "";
     if (to && digits.has(to)) return true;
+    // A DM's address is the person's Instagram-scoped id, all digits, kept among their identities (decision 0001, step 8).
+    const dm = typeof p.to_instagram === "string" ? p.to_instagram : "";
+    if (dm && digits.has(dm)) return true;
     const address = typeof p.to_email === "string" ? p.to_email.trim().toLowerCase() : "";
     return !!address && addresses.has(address);
   });

@@ -656,6 +656,72 @@
       }
     },
     {
+      "kind": "unfed",
+      "why": "When each wire last heard from a thread's person (conversation_channel_state, decision 0001 step 4), read inside people_list() for the reply window's clock (last_inbound_on_whatsapp, 00485). The feed does not tell the row: ingest_inbound writes it only beside the thread's own row, and merge_people moves it only with that row, so the pages that draw it read it again when they hear the thread (heardWith).",
+      "reads": {
+        "audiences": [
+          "conversation_channel_state"
+        ],
+        "people": [
+          "conversation_channel_state"
+        ],
+        "playbooks": [
+          "conversation_channel_state"
+        ],
+        "reports": [
+          "conversation_channel_state"
+        ],
+        "setup": [
+          "conversation_channel_state"
+        ],
+        "today_pins": [
+          "conversation_channel_state"
+        ]
+      },
+      "heardWith": {
+        "audiences": [
+          "conversations"
+        ],
+        "people": [
+          "conversations"
+        ],
+        "playbooks": [
+          "conversations"
+        ],
+        "reports": [
+          "conversations"
+        ],
+        "setup": [
+          "conversations"
+        ],
+        "today_pins": [
+          "conversations"
+        ]
+      }
+    },
+    {
+      "kind": "unfed",
+      "why": "The same clock read inside people_list() (conversation_channel_state, decision 0001 step 4), on pages that hear neither it nor the thread it is written with: owed with the rest of the book's joins (R5).",
+      "reads": {
+        "calendar": [
+          "conversation_channel_state"
+        ],
+        "person": [
+          "conversation_channel_state"
+        ],
+        "reports_headline": [
+          "conversation_channel_state"
+        ],
+        "reports_people": [
+          "conversation_channel_state"
+        ],
+        "reports_receptionist": [
+          "conversation_channel_state"
+        ]
+      },
+      "finding": "R5"
+    },
+    {
       "kind": "owed",
       "finding": "W-person-list-lead-6",
       "why": "The Calendar matches a visit to a person by name, number and, since 0052, the business they work at (leads) from the book (people_list). It hears a person changed (the wiring's second audit, R5c); a lead's business renamed, or a person linked to one, is matched on the next read. Owed: a lead's name told apart from a lead run's every batch (leads is told on each check of a run).",

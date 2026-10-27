@@ -19,7 +19,13 @@
 import { clockDate, inLocalWeek, localDaysBetween } from "../shared/clock";
 import { formatPhoneDisplay } from "../shared/phone";
 import { personName } from "./person-name";
-import { PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS, type PersonCameFrom, type PersonChannel } from "./person-words";
+import {
+  PERSON_CAME_FROM_WORDS,
+  PERSON_CHANNEL_WORDS,
+  type PersonCameFrom,
+  type PersonChannel,
+  type ReplyVia,
+} from "./person-words";
 import { isOptedOutContact } from "../consent/consent";
 import type { FollowUpStand } from "../playbooks/playbooks";
 import {
@@ -56,7 +62,7 @@ import {
 import { reasonShort } from "../conversations/escalations";
 import { readingOf } from "../conversations/standing";
 import { heardAt, PERSON_STATE_LABELS, personStanding, personStateFor, type PersonState } from "./person-state";
-import type { ConsentChannel } from "../consent/consent-channels";
+import type { WrittenChannel } from "../conversations/thread-channel";
 import { personReachOf, type PersonReach } from "../broadcasts/reach-any";
 import type { ChannelsReady } from "../broadcasts/reach-for";
 import { asNameSource, PERSON_NAME_WORDS, type NameSource } from "../person-page/words";
@@ -115,8 +121,10 @@ function channelsOf(r: PersonRowDto): PersonChannel[] {
   if (wrote ? wrote.includes("whatsapp") : r.has_chat) set.add("whatsapp");
   if (wrote?.includes("sms")) set.add("sms");
   if (wrote?.includes("email")) set.add("email");
+  // An Instagram DM is its own wire (decision 0001, step 8): someone who has only ever DMed has a way in.
+  if (wrote?.includes("instagram")) set.add("instagram");
   if ((r.call_count ?? 0) > 0) set.add("voice");
-  const order: PersonChannel[] = ["whatsapp", "sms", "voice", "email"];
+  const order: PersonChannel[] = ["whatsapp", "sms", "voice", "email", "instagram"];
   return order.filter((c) => set.has(c));
 }
 
@@ -141,7 +149,7 @@ function channelsOf(r: PersonRowDto): PersonChannel[] {
  */
 export function replyChannelOfRow(
   r: Pick<PersonRowDto, "has_chat" | "last_inbound_channel" | "message_channels">,
-): "whatsapp" | "sms" | "email" | null {
+): WrittenChannel | null {
   if (!r.has_chat) return null;
   const last = lastChannelOf(r.last_inbound_channel);
   if (last) return last;
@@ -150,6 +158,15 @@ export function replyChannelOfRow(
   if (only) return only;
   if (wrote && wrote.includes("email") && !wrote.some((c) => c === "whatsapp" || c === "sms")) return "email";
   return "whatsapp";
+}
+
+/**
+ * When they last wrote by Instagram DM, as a row can say it (Instagram's window's clock, windowClockOf): where they last
+ * wrote is Instagram, so their last own words are that DM and `last_wrote_at` is its time; on any other wire the row holds
+ * none. The thread's own accessor (conversations.last_inbound_on_instagram) says the same where a thread is read.
+ */
+export function igClockOfRow(r: Pick<PersonRowDto, "last_inbound_channel" | "last_wrote_at">): string | null {
+  return r.last_inbound_channel === "instagram" ? (r.last_wrote_at ?? null) : null;
 }
 
 /** A row's came_from in words, or null: nothing known, a row read before 00138, or a value this build does not know. */
@@ -173,7 +190,7 @@ export interface PersonRowVM {
   /** Their address has bounced or complained and is no longer sent to: for a campaign it is no address (whyNotReceive). */
   emailSuppressed: boolean;
   /** The channel they last wrote on (step 3): a campaign reaches them there first when it may (reachFor). */
-  lastChannel: ConsentChannel | null;
+  lastChannel: WrittenChannel | null;
   waName: string | null;
   channels: PersonChannel[];
   hasChat: boolean;
@@ -234,7 +251,7 @@ export interface PersonRowVM {
   /** WhatsApp's 24-hour window for a free reply: open, and how long is left. Null without a chat. */
   replyWindow: { open: boolean; hoursLeft: number } | null;
   /** The wire a reply goes out on, in words ("Email", "WhatsApp", "Text"); null for a person who has only phoned. */
-  replyVia: "WhatsApp" | "Text" | "Email" | null;
+  replyVia: ReplyVia | null;
   /** Their channels in words, in the order the page shows them: "WhatsApp · Phone", "Email". */
   channelWords: string;
   /** The booking-link act for them: its words for the wire a reply goes out on, and whether it is offered at all (bookingLinkAction). */
@@ -469,8 +486,8 @@ function consultationKeysOf(
 }
 
 /** A channel a message was written on, as a campaign may reach them on it; null for a call or nothing. */
-function lastChannelOf(c: string | null | undefined): ConsentChannel | null {
-  return c === "whatsapp" || c === "sms" || c === "email" ? c : null;
+function lastChannelOf(c: string | null | undefined): WrittenChannel | null {
+  return c === "whatsapp" || c === "sms" || c === "email" || c === "instagram" ? c : null;
 }
 
 /**
@@ -505,6 +522,7 @@ function rowReplyOf(
     {
       wire: replyChannelOfRow(r),
       waInboundAt: r.latest_wa_inbound_at,
+      igInboundAt: igClockOfRow(r),
       emailStopped,
       optedOut: isOptedOutContact({ consent: r.consent, dnc: r.dnc }),
       who,

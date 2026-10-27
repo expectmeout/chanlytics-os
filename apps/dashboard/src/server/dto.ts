@@ -16,11 +16,14 @@ import {
  * here reaches every reader, and a reader cannot drift into rendering a
  * field the others do not send.
  *
- * The select strings live beside the mappers so the two cannot disagree.
+ * The select strings live beside the mappers so the two cannot disagree. A thread's WhatsApp clock is read through
+ * its one accessor, the computed column last_inbound_on_whatsapp (00485, decision 0001 step 5), under the field name
+ * the pages read; the column it replaces, conversations.last_wa_inbound_at, is read by nothing (step 7 drops it). Its
+ * Instagram clock is its own accessor's, last_inbound_on_instagram (00486, step 8), read as last_ig_inbound_at.
  */
 
 export const CONVERSATION_COLUMNS =
-  "id, state, paused_until, snooze_until, assignee_user_id, last_wa_inbound_at, last_message_at, last_inbound_at, contacts (id, display_name, wa_profile_name, phone_e164, email, consent, dnc, marketing_consent, proposal_url, email_suppressed_at, email_suppressed_reason)";
+  "id, state, paused_until, snooze_until, assignee_user_id, last_wa_inbound_at:last_inbound_on_whatsapp, last_ig_inbound_at:last_inbound_on_instagram, last_message_at, last_inbound_at, contacts (id, display_name, wa_profile_name, phone_e164, email, consent, dnc, marketing_consent, proposal_url, email_suppressed_at, email_suppressed_reason)";
 
 export const MESSAGE_COLUMNS =
   "id, conversation_id, direction, sender, type, body, media, meta, status, created_at, channel_ts, channel";
@@ -35,6 +38,8 @@ interface ConversationRow {
   snooze_until: string | null;
   assignee_user_id: string | null;
   last_wa_inbound_at: string | null;
+  /** Absent where a reader's select did not ask for it (00486's accessor: the thread's DM clock). */
+  last_ig_inbound_at?: string | null;
   last_message_at: string | null;
   last_inbound_at?: string | null;
   contacts: {
@@ -211,6 +216,8 @@ export function toConversationDto(
     assignee_user_id: c.assignee_user_id,
     assignee_is_me: c.assignee_user_id ? c.assignee_user_id === userId : undefined,
     last_wa_inbound_at: c.last_wa_inbound_at,
+    // Said where the row was read with it, as the next one is.
+    ...(c.last_ig_inbound_at !== undefined ? { last_ig_inbound_at: c.last_ig_inbound_at } : {}),
     last_message_at: c.last_message_at,
     // Said where the row was read with it (CONVERSATION_COLUMNS asks for it).
     ...(c.last_inbound_at !== undefined ? { last_inbound_at: c.last_inbound_at } : {}),

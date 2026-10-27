@@ -44,7 +44,14 @@ import {
   type VersionWords,
 } from "@chanlytics/contracts";
 import { broadcastEmailId } from "../campaigns/reach-out-ids";
-import type { Channel, Delivery } from "../deliver";
+import type { Channel as DoorChannel, Delivery } from "../deliver";
+
+/**
+ * The wires a broadcast goes out on: every channel of the send door but an Instagram DM, which answers a person and never
+ * starts a conversation (Meta lets a business start none, and no yes covers it: contracts consent-channels.ts).
+ */
+export type BroadcastChannel = Exclude<DoorChannel, "instagram">;
+type Channel = BroadcastChannel;
 import type {
   BroadcastBatchCommand,
   BroadcastBatchPorts,

@@ -564,7 +564,7 @@ const ixStanding = (thread: Thread): Standing | null => {
  * in the warning's amber, "Window closed" and an underlined "Why?" over a 44px press, which made the bar 64px and cut the
  * standing beside it to "Answered by the receptionist — n…" on a phone (the phone canvas, A1). Amber says one thing.
  */
-function ChatClosed() {
+function ChatClosed({ dm }: { dm: boolean }) {
   const [open, setOpen] = useState(false);
   const W = THREAD_PANE_WORDS;
   return (
@@ -583,7 +583,7 @@ function ChatClosed() {
       </Button>
       {open && (
         <span className="ix-why-said" data-testid="ix-th-window-why">
-          {W.chatClosedWhy}
+          {dm ? W.dmClosedWhy : W.chatClosedWhy}
         </span>
       )}
     </>
@@ -592,8 +592,8 @@ function ChatClosed() {
 
 export const ThreadBar = ({ thread }: { thread: Thread }) => {
   const standing = ixStanding(thread);
-  // Only WhatsApp has a window (replyWindow), and it is the reply box's concern when they opted out, or never
-  // wrote on WhatsApp at all: then nothing about a window is true enough to say.
+  // WhatsApp and Instagram have a window (replyWindow), and it is the reply box's concern when they opted out, or never
+  // wrote on WhatsApp at all: then nothing about a window is true enough to say. A DM's says why in Instagram's words.
   const closed = thread.hasChat !== false && !thread.optedOut && thread.windowOpen === false;
   if (!standing && !closed) return null;
   return (
@@ -606,7 +606,7 @@ export const ThreadBar = ({ thread }: { thread: Thread }) => {
           )}
         </span>
       )}
-      {closed && <ChatClosed />}
+      {closed && <ChatClosed dm={thread.primaryChannel === "instagram"} />}
     </div>
   );
 };

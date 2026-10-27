@@ -39,6 +39,7 @@ export interface PeopleNowDto {
     sms_only: number;
     phone_only: number;
     email_only: number;
+    instagram_only: number;
     several: number;
     none: number;
   };
@@ -98,6 +99,7 @@ const ONLY_WIRE: Record<PersonChannel, keyof PeopleNowDto["wires"]> = {
   sms: "sms_only",
   voice: "phone_only",
   email: "email_only",
+  instagram: "instagram_only",
 };
 
 /** Where a person stands among the wires: the one they use alone, several, or none on record. */
@@ -108,7 +110,7 @@ function wireBucketOf(channels: readonly PersonChannel[]): keyof PeopleNowDto["w
 }
 
 function wireCountsOf(vms: readonly PersonRowVM[]): PeopleNowDto["wires"] {
-  const wires = { whatsapp_only: 0, sms_only: 0, phone_only: 0, email_only: 0, several: 0, none: 0 };
+  const wires = { whatsapp_only: 0, sms_only: 0, phone_only: 0, email_only: 0, instagram_only: 0, several: 0, none: 0 };
   for (const v of vms) wires[wireBucketOf(v.channels)] += 1;
   return wires;
 }

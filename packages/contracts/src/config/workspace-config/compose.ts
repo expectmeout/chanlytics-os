@@ -262,8 +262,8 @@ export function composeSystemPrompt(
     booking_message?: boolean | null;
   },
   profile: BusinessProfile,
-  /** Where it answers: a text is a chat, as WhatsApp is, and is told it is answering texts. */
-  channel: "whatsapp" | "sms" | "voice" = "whatsapp",
+  /** Where it answers: a text and a DM are chats, as WhatsApp is, and each is told the wire it is answering on. */
+  channel: PromptWire = "whatsapp",
   /** IANA zone from `tenants.timezone`, so stated hours are unambiguous. */
   tz?: string | null,
   /**
@@ -291,13 +291,13 @@ function composeSystemPromptWith(
     booking_message?: boolean | null;
   },
   profile: BusinessProfile,
-  wire: "whatsapp" | "sms" | "voice",
+  wire: PromptWire,
   tz: string | null | undefined,
   now: Date,
   policy: Record<string, { mode: string }> | null | undefined,
   audience: PromptAudience,
 ): string {
-  // A text is a chat: every section reads it as WhatsApp's, and only the line saying where it answers names the wire.
+  // A text and a DM are chats: every section reads them as WhatsApp's, and only the line saying where it answers names the wire.
   const channel = wire === "voice" ? "voice" : "whatsapp";
   // A business that quotes each job has no booking link (the first run's decision 2). Each place below that offers
   // the link says instead what the receptionist takes for the team (NO_LINK_DETAILS). With a link, every word is as
@@ -332,7 +332,7 @@ interface SectionFacts {
   /** A chat (WhatsApp or a text) or a call: what every section but the first decides by. */
   channel: "whatsapp" | "voice";
   /** The wire itself, which the first line names. */
-  wire: "whatsapp" | "sms" | "voice";
+  wire: PromptWire;
   tz: string | null | undefined;
   policy: Record<string, { mode: string }> | null | undefined;
   /** The booking link, or null for a business that quotes each job: a fact the prompt states. */
@@ -380,7 +380,14 @@ const PROMPT_SECTIONS: readonly PromptSection[] = [
 function identitySection({ base, profile, channel, wire }: SectionFacts): string[] {
   const s: string[] = [];
   // The wire it answers on, never one it does not: a text was told it answered over WhatsApp until 11 Oct 2026.
-  const medium = wire === "voice" ? "on the phone" : wire === "sms" ? "by text message" : "over WhatsApp";
+  const medium =
+    wire === "voice"
+      ? "on the phone"
+      : wire === "sms"
+        ? "by text message"
+        : wire === "instagram"
+          ? "in Instagram direct messages"
+          : "over WhatsApp";
   s.push(`You are the assistant for ${base.business_name}, answering customers ${medium}.`);
   // The receptionist's own name (decision 0073): said in the greeting, and how it introduces itself; never a claim to
   // be a person (standingRules says it is the business's automated assistant, whatever its name).
@@ -699,6 +706,9 @@ function openTimesSection({ handed, policy }: SectionFacts): string[] {
  * themselves (the reach-out reply draft), which says nothing of being an assistant.
  */
 export type PromptAudience = "customer" | "draft";
+
+/** The wire a prompt is composed for: a chat (WhatsApp, a text, an Instagram DM) or a call. */
+export type PromptWire = "whatsapp" | "sms" | "instagram" | "voice";
 
 /**
  * That it is an automated assistant, and never a person (decision 0051). The usage policy of the model the receptionist

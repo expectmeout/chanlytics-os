@@ -124,8 +124,11 @@ export const settingsRowRoute = (row: string): string => `admin/${paneOfRow(row)
 /** The section an address under Settings names: what stands before a row it may name (`workspace/calendar` is `workspace`). */
 const sectionOf = (id: string): string => (id.includes("/") ? id.slice(0, id.indexOf("/")) : id);
 
-/** The sections an address may name a row of: the business's pages and Autonomy's, and the part Activity opens on. */
-const SECTIONS_WITH_ROWS = new Set(["workspace", "hours", "receptionist", "autonomy", "activity"]);
+/**
+ * The sections an address may name a row of: the business's pages and Autonomy's, the part Activity opens on, and
+ * Connections' (`integrations/left`: the mailbox's "Left in your mailbox", open, which Today's Brought in links to).
+ */
+const SECTIONS_WITH_ROWS = new Set(["workspace", "hours", "receptionist", "autonomy", "activity", "integrations"]);
 
 /**
  * The row an address names after its section, or null: `workspace/calendar` names the booking tool's row (contracts

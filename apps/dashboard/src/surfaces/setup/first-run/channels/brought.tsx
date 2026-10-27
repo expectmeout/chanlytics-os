@@ -3,7 +3,8 @@
  * answers on a desk, People, the Inbox, the Calendar and Reviews as what came in counts them, and one press to the
  * sources one by one, each as the imports ledger says it stands: in (a tick), how far it has come (a bar, or its
  * parts), waiting for Go live, stopped with its Try again. Today's Brought in opens the same lines in place
- * (today/pages/brought-in.tsx, `ImportLines`).
+ * (today/pages/brought-in.tsx, `ImportLines`), where each line is a door to the page what it brought is on, and what the
+ * mailbox set aside a door to where it is listed; the first run's sheet keeps its owner on the step.
  */
 import { useState, type ReactNode } from "react";
 import {
@@ -16,8 +17,9 @@ import {
 // and Today's pages (+21 KB and +10 KB gzipped, #1854's first build), and the first run draws its buttons by class.
 import { Meter } from "../../../kit/meter/meter";
 import { Icon } from "../../../kit/icon/icon";
+import { useCountGlide } from "../../../kit/motion/use-count-glide";
 import { Sheet } from "../../../kit/sheet/sheet";
-import { refusalToast, type LegacyFlash } from "../../../legacy-verbs";
+import { refusalToast, routeDoor, type LegacyFlash } from "../../../legacy-verbs";
 import { setupVerbs } from "../../surface";
 
 const IW = FIRST_RUN_HELPERS.importWords;
@@ -89,16 +91,46 @@ function LineStand({ line, flash }: { line: ImportLineVM; flash: (f: LegacyFlash
   return <span className="fr-import-stand">{line.stand}</span>;
 }
 
-/** One source's line: its glyph, what it is, what came, how far it has come, what was set aside, and where it stands. */
-function ImportLine({ line, flash }: { line: ImportLineVM; flash: (f: LegacyFlash) => void }): ReactNode {
+/** What came, its count gliding as a read finds more ("214 emails so far" counting up to 298, not leaping to it). */
+function LineSays({ line }: { line: ImportLineVM }): ReactNode {
+  const shown = useCountGlide(line.count ?? 0);
+  const lead = line.count === null ? null : line.count.toLocaleString("en-US");
+  if (lead === null || !line.says.startsWith(`${lead} `)) return <span className="fr-detail">{line.says}</span>;
   return (
-    <li className="fr-import fr-source" data-state={line.state} data-testid={`fr-import-${line.source}`}>
+    <span className="fr-detail">
+      {shown.toLocaleString("en-US")}
+      {line.says.slice(lead.length)}
+    </span>
+  );
+}
+
+/**
+ * One source's line: its glyph, what it is, what came, how far it has come, and where it stands; and under it what was
+ * set aside. With `doors`, the line opens the page what it brought is on and what was set aside opens where it is
+ * listed, each a link (a press inside a link is not one, so Try again stands beside it).
+ */
+function ImportLine({
+  line,
+  flash,
+  doors,
+}: {
+  line: ImportLineVM;
+  flash: (f: LegacyFlash) => void;
+  doors: boolean;
+}): ReactNode {
+  const door = doors ? line.door : null;
+  const asideDoor = doors ? line.asideDoor : null;
+  const what = (
+    <>
       <span className="fr-import-glyph" aria-hidden="true">
         <Icon name={SOURCE_GLYPH[line.source]} size={16} />
       </span>
       <span className="fr-import-words">
-        <b>{line.title}</b>
-        <span className="fr-detail">{line.says}</span>
+        <b className="fr-import-title">
+          {line.title}
+          {door ? <Icon name="chevron" size={12} className="fr-import-chevron" /> : null}
+        </b>
+        <LineSays line={line} />
         {line.share !== null ? (
           <Meter
             className="fr-import-bar"
@@ -110,19 +142,48 @@ function ImportLine({ line, flash }: { line: ImportLineVM; flash: (f: LegacyFlas
             aria-label={line.stand}
           />
         ) : null}
-        {line.aside ? <span className="fr-import-aside">{line.aside}</span> : null}
       </span>
+    </>
+  );
+  return (
+    <li className="fr-import fr-source" data-state={line.state} data-testid={`fr-import-${line.source}`}>
+      {door ? (
+        <a className="fr-import-door" {...routeDoor(door)} data-testid={`fr-import-door-${line.source}`}>
+          {what}
+        </a>
+      ) : (
+        <span className="fr-import-door">{what}</span>
+      )}
       <LineStand line={line} flash={flash} />
+      {line.aside && asideDoor ? (
+        <a className="fr-import-aside" {...routeDoor(asideDoor)} data-testid={`fr-import-aside-${line.source}`}>
+          {line.aside}
+          <Icon name="chevron" size={12} />
+        </a>
+      ) : line.aside ? (
+        <span className="fr-import-aside">{line.aside}</span>
+      ) : null}
     </li>
   );
 }
 
-/** The sources one by one, a line each: the first run's sheet and Today's card opened draw the same list. */
-export function ImportLines({ lines, flash }: { lines: ImportLineVM[]; flash: (f: LegacyFlash) => void }) {
+/**
+ * The sources one by one, a line each: the first run's sheet and Today's card opened draw the same list. `doors`: each
+ * line a link to its page, as Today's card draws them; the first run keeps its owner on the step.
+ */
+export function ImportLines({
+  lines,
+  flash,
+  doors = false,
+}: {
+  lines: ImportLineVM[];
+  flash: (f: LegacyFlash) => void;
+  doors?: boolean;
+}) {
   return (
     <ul className="fr-imports" data-testid="fr-bringing-lines">
       {lines.map((l) => (
-        <ImportLine key={l.source} line={l} flash={flash} />
+        <ImportLine key={l.source} line={l} flash={flash} doors={doors} />
       ))}
     </ul>
   );

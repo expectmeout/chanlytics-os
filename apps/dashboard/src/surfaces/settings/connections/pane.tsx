@@ -11,9 +11,12 @@
 import { Fragment, Suspense, lazy, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   CONNECTION_GROUP_WORDS,
+  channelFor,
   connectionRows,
+  MAILBOX_LEFT_ROW,
   tryItLink,
   type ConnectionGroup,
+  type ChannelVM,
   type ConnectionRow as Row,
   type LineCodeDto,
   type SetupDto,
@@ -36,6 +39,7 @@ import { ConnectedMailboxes } from "./mailboxes-block";
 import { BusinessRecordForm } from "./record-form";
 import { ConnectionRow, type Arm } from "./row";
 import { signupLeftOpenAt, waConnect, type SignupDoor } from "./whatsapp";
+import { igConnect, type InstagramDoor } from "./instagram";
 
 type WaConfig = SignupDoor | null | undefined;
 
@@ -50,6 +54,49 @@ function googleNote(): string | null {
   return (
     W[o.why || ""] || W[o.outcome] || (o.outcome === "error" ? `Google did not connect (${o.why || "unknown"}).` : null)
   );
+}
+
+/**
+ * Instagram's door, asked once (`undefined` while asking, null where it could not be read: the row says Later), and what
+ * the browser came back from Instagram with, said once under its row until Ok.
+ */
+function useInstagram() {
+  const [door, setDoor] = useState<InstagramDoor | null | undefined>(undefined);
+  const [note, setNote] = useState<string | null>(() => igConnect.outcome());
+  useEffect(() => {
+    let on = true;
+    igConnect
+      .config()
+      .then((c) => on && setDoor(c))
+      .catch(() => on && setDoor(null));
+    return () => {
+      on = false;
+    };
+  }, []);
+  return { door, note, clearNote: () => setNote(null) };
+}
+
+/** What came back from Instagram, under its row. */
+function InstagramNote({ note, onOk }: { note: string | null; onOk: () => void }) {
+  if (!note) return null;
+  return (
+    <RecordRow
+      id="instagram-note"
+      testid="instagram-note"
+      label="Instagram"
+      value={note}
+      act={{ label: "Ok", onClick: onOk }}
+    />
+  );
+}
+
+/** The workspace's Instagram account turned off (the row that speaks for it, contracts channelFor), said as a toast. */
+async function disconnectInstagram(channels: readonly ChannelVM[] | undefined): Promise<LegacyFlash> {
+  const account = channelFor(channels ?? [], "instagram");
+  const res = account ? await igConnect.disconnect(account.id) : { ok: false, message: "Nothing to disconnect." };
+  return res.ok
+    ? { msg: <>Instagram is disconnected. Its DMs are not answered here until you connect it again.</> }
+    : refusalToast(res, "Instagram not disconnected");
 }
 
 /** Meta's door: asked once; `undefined` while asking, so the row says so. */
@@ -78,6 +125,7 @@ function useWhatsAppConfig(): WaConfig {
  */
 interface Asked {
   whatsapp: WaConfig;
+  instagram: InstagramDoor | null | undefined;
   codes: LineCodeDto[];
   signupLeftOpenAt: string | null;
   signupSaid: string | null;
@@ -106,6 +154,7 @@ function rowsOf(
       codes: asked.codes,
       signupLeftOpenAt: asked.signupLeftOpenAt,
       imports: S ? (S.dto.imports ?? null) : null,
+      instagram: asked.instagram ? { ready: asked.instagram.ready } : null,
     },
     Date.now(),
   );
@@ -162,6 +211,13 @@ async function runVerb(
     }
     case "verb:google-connect":
       googleVerbs.connect();
+      return;
+    case "verb:instagram-connect":
+      // To Instagram's consent screen and back (connections/instagram.ts): the row reads the word it brings back.
+      igConnect.start();
+      return;
+    case "verb:instagram-disconnect":
+      k.setArm({ kind: r.kind, what: "disconnect" });
       return;
     case "verb:google-check": {
       k.setBusy(true);
@@ -255,11 +311,13 @@ function groupCard(o: {
   );
 }
 
-export const PaneIntegrationsReal = () => {
+/** Connections, and the row its address names, open (`integrations/left`: the mailbox's left senders). */
+export const PaneIntegrationsReal = ({ row: named = null }: { row?: string | null }) => {
   const C = useSurface("channels");
   const S = useSurface("setup");
   const G = useSurface("google");
   const waCfg = useWhatsAppConfig();
+  const ig = useInstagram();
   const [busy, setBusy] = useState(false);
   // Ad accounts, a demo's card or a workspace's whose Ads preview is on (campaigns/ads/shown.ts); no other workspace draws it.
   const adsShown = useAdsShown();
@@ -270,6 +328,9 @@ export const PaneIntegrationsReal = () => {
   const [note, setNote] = useState<string | null>(googleNote);
   // What the browser came back from a mailbox's provider with, said once under the mailboxes' row.
   const [mailboxNote, setMailboxNote] = useState(() => connectedMailboxes.outcome());
+  const dropNote = () => setMailboxNote(null);
+  // The address named "Left in your mailbox" (Today's Brought in links to it): the mailbox block opens its list.
+  const leftOpen = named === MAILBOX_LEFT_ROW;
   // Meta's sign-up window is open (this page began it and it has not ended), and the sign-up an earlier page began on this tab and
   // never finished, read once as this page opens: nothing a later press of Connect should bring back.
   const [signup, setSignup] = useState(false);
@@ -306,7 +367,8 @@ export const PaneIntegrationsReal = () => {
     );
   }
 
-  const rows = rowsOf(channels, { whatsapp: waCfg, codes, signupLeftOpenAt: leftOpenAt, signupSaid }, S, G);
+  const asked = { whatsapp: waCfg, instagram: ig.door, codes, signupLeftOpenAt: leftOpenAt, signupSaid };
+  const rows = rowsOf(channels, asked, S, G);
   const run = (r: Row) => {
     if (busy) return;
     void runVerb(r, {
@@ -323,6 +385,12 @@ export const PaneIntegrationsReal = () => {
   const confirm = async (what: "remove" | "disconnect") => {
     if (busy) return;
     setBusy(true);
+    if (what === "disconnect" && arm?.kind === "instagram") {
+      flash(await disconnectInstagram(channels));
+      setBusy(false);
+      setArm(null);
+      return;
+    }
     const res = what === "remove" ? await googleVerbs.unlink() : await googleVerbs.disconnect();
     setBusy(false);
     setArm(null);
@@ -371,9 +439,10 @@ export const PaneIntegrationsReal = () => {
           onClose={() => setEmailOpen(false)}
         />
       )}
+      {r.kind === "instagram" && <InstagramNote note={ig.note} onOk={ig.clearNote} />}
       {/* A Later row has no block, but what a connect came back with is still said under it. */}
       {((r.body === "mailboxes" && S && email) || (r.kind === "mailbox" && mailboxNote)) && (
-        <ConnectedMailboxes email={email} flash={flash} note={mailboxNote} onNote={() => setMailboxNote(null)} />
+        <ConnectedMailboxes email={email} flash={flash} note={mailboxNote} onNote={dropNote} openLeft={leftOpen} />
       )}
     </Fragment>
   );

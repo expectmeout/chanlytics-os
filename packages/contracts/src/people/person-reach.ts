@@ -5,9 +5,10 @@
  * (policy.ts); the row (person-row.ts), the page, the deal sheet and the Calendar's block read it.
  */
 import { optOutWords } from "../consent/consent";
-import { replyWindow } from "../config/policy";
+import { replyWindow, windowClockOf } from "../config/policy";
 import { HOUR_MS } from "../shared/time";
-import { PERSON_CHANNEL_WORDS, REPLY_VIA } from "./person-words";
+import { PERSON_CHANNEL_WORDS, REPLY_VIA, type ReplyVia } from "./person-words";
+import type { WrittenChannel } from "../conversations/thread-channel";
 
 /**
  * What a person's page says of an address that stopped accepting mail (a permanent bounce, a complaint or the provider's
@@ -32,7 +33,7 @@ const NO_THREAD_YET = "No conversation with them yet: a conversation begins from
  * since a reader that forgets it offers an email the route then refuses.
  */
 interface ReplyReach {
-  via: "WhatsApp" | "Text" | "Email" | null;
+  via: ReplyVia | null;
   window: { open: boolean; hoursLeft: number } | null;
   emailStopped: boolean;
 }
@@ -87,7 +88,7 @@ export function bookingLinkAction(reach: ReplyReach, stop: { optedOut: boolean; 
   // No wire is no conversation (replyChannelOfRow: they have never written): there is no thread for the act to open, and no
   // approved message waits there, so nothing is offered rather than a button whose title promises a thread.
   if (via === null) return notReady(NO_THREAD_YET, false);
-  const ready = (by: "Email" | "Text", title: string): BookingLinkAction => ({
+  const ready = (by: "Email" | "Text" | "DM", title: string): BookingLinkAction => ({
     label: `${by} the booking link`,
     short: `${by} the link`,
     title,
@@ -99,6 +100,11 @@ export function bookingLinkAction(reach: ReplyReach, stop: { optedOut: boolean; 
       ? notReady(EMAIL_CANT_REACH, false)
       : ready("Email", "Opens the thread with the link ready to send by email");
   if (via === "Text") return ready("Text", "Opens the thread with the link ready to send as a text");
+  // A DM goes only inside Instagram's day, and past it nothing waits in the thread to send instead.
+  if (via === "Instagram")
+    return win && win.open
+      ? ready("DM", `Opens the thread with the link ready to send by DM · for ${win.hoursLeft}h more`)
+      : notReady(DM_CLOSED, false);
   if (win && win.open)
     return ready("Text", `Opens the thread with the link ready to send · any message for ${win.hoursLeft}h more`);
   return notReady(
@@ -107,16 +113,18 @@ export function bookingLinkAction(reach: ReplyReach, stop: { optedOut: boolean; 
 }
 
 /**
- * A person's reply reach in one answer: the wire a reply goes out on in words, its window (only WhatsApp has one), and the
+ * A person's reply reach in one answer: the wire a reply goes out on in words, its window (WhatsApp's, an Instagram DM's), and the
  * booking-link act for it. The People row builds it from its row (person-row.ts rowReplyOf) and the Calendar's block from
  * the same facts the board's week carries (calendar.ts), so the two cannot word the link, or its window, differently.
- * `wire` is where a reply goes (person-row.ts replyChannelOfRow); `waInboundAt` their last WhatsApp message; `emailStopped`
+ * `wire` is where a reply goes (person-row.ts replyChannelOfRow); `waInboundAt` their last WhatsApp message and `igInboundAt`
+ * their last DM, each its wire's window's clock (windowClockOf); `emailStopped`
  * whether mail to their address has stopped; `optedOut` whether they asked to stop or are on do-not-contact.
  */
 export function replyReachOf(
   p: {
-    wire: "whatsapp" | "sms" | "email" | null;
+    wire: WrittenChannel | null;
     waInboundAt: string | null | undefined;
+    igInboundAt?: string | null;
     emailStopped: boolean;
     optedOut: boolean;
     who: string;
@@ -124,7 +132,7 @@ export function replyReachOf(
   now: Date,
 ): {
   replyWindow: { open: boolean; hoursLeft: number } | null;
-  replyVia: "WhatsApp" | "Text" | "Email" | null;
+  replyVia: ReplyVia | null;
   bookingLinkAction: BookingLinkAction;
 } {
   const stop = { optedOut: p.optedOut, who: p.who };
@@ -134,7 +142,7 @@ export function replyReachOf(
       replyVia: null,
       bookingLinkAction: bookingLinkAction({ via: null, window: null, emailStopped: p.emailStopped }, stop),
     };
-  const w = replyWindow(p.wire, p.waInboundAt, now);
+  const w = replyWindow(p.wire, windowClockOf(p.wire, { whatsapp: p.waInboundAt, instagram: p.igInboundAt }), now);
   const win = {
     open: w.open,
     hoursLeft: w.closesAtIso
@@ -215,7 +223,7 @@ export function emailFactWords(email: string, stopped: boolean): string {
  * emailed. Null with no wire a reply goes out on.
  */
 export function repliesWords(
-  via: "WhatsApp" | "Text" | "Email" | null,
+  via: ReplyVia | null,
   window: { open: boolean; hoursLeft: number } | null,
   /**
    * Whether they asked to stop: required, because a reader that forgets it says "Any time" over a STOP. And whether mail
@@ -227,16 +235,19 @@ export function repliesWords(
   if (stop.optedOut) return optOutWords(stop.who);
   if (via === "Email") return stop.emailStopped ? EMAIL_CANT_REACH : "Any time, by email";
   if (via === "Text") return "Any time, by text";
-  if (via !== "WhatsApp" || !window) return null;
-  if (!window.open) return "Approved messages only, until they write again";
+  if ((via !== "WhatsApp" && via !== "Instagram") || !window) return null;
+  // Past Instagram's day a business may not write at all: there is no approved message to send instead.
+  if (!window.open) return via === "Instagram" ? DM_CLOSED : "Approved messages only, until they write again";
   const h = window.hoursLeft;
   return h >= 1 ? `Any message, for ${h} more ${h === 1 ? "hour" : "hours"}` : "Any message, for less than an hour";
 }
 
 /** The one thing a row says under the identifier: nothing sent to that address arrives (repliesWords is the page's sentence). */
 const EMAIL_STOPPED_SHORT = "Stopped accepting mail";
-/** The wires a person writes on, in the order a row names them (person-row.ts channelsOf): WhatsApp, a text, email. */
-const WRITTEN_WIRES = ["whatsapp", "sms", "email"] as const;
+/** The wires a person writes on, in the order a row names them (person-row.ts channelsOf): WhatsApp, a text, email, a DM. */
+const WRITTEN_WIRES = ["whatsapp", "sms", "email", "instagram"] as const;
+/** A DM thread past Instagram's day: nothing can go until they write again. */
+export const DM_CLOSED = "Nothing until they write again, on Instagram";
 
 /**
  * What a People row says of reaching a person (8 Oct 2026): the wire a reply goes out on over the one way to reach them
@@ -278,9 +289,9 @@ export function rowReachWords(
     email: string | null;
     channels: readonly string[];
     /** The channel of the last message they wrote themselves, where the row knows it. */
-    lastChannel: "whatsapp" | "sms" | "email" | null;
+    lastChannel: WrittenChannel | null;
     /** The wire a reply to them goes out on and its window, as the row answers both (rowReplyOf). */
-    replyVia: "WhatsApp" | "Text" | "Email" | null;
+    replyVia: ReplyVia | null;
     replyWindow: { open: boolean; hoursLeft: number } | null;
     emailSuppressed: boolean;
     stopped: boolean;
@@ -309,7 +320,7 @@ export function rowReachWords(
 export function mayReach(p: {
   openThread: string | null;
   consent: { state: string; dnc: boolean };
-  replyVia: "WhatsApp" | "Text" | "Email" | null;
+  replyVia: ReplyVia | null;
   emailSuppressed: boolean;
 }): boolean {
   return (

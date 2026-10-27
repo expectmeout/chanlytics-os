@@ -21,11 +21,11 @@ import {
 } from "../packages/contracts.js";
 
 /**
- * The text channels a thread can arrive on. Declared here rather than
+ * The written channels a thread is answered on. Declared here rather than
  * imported from inbound.ts: ports.ts already imports this module, so taking
- * the type back from the handler would close a cycle for two string literals.
+ * the type back from the handler would close a cycle for three string literals.
  */
-type InboundChannel = "whatsapp" | "sms";
+type InboundChannel = "whatsapp" | "sms" | "instagram";
 
 /**
  * What the handler calls a hold it tells itself, where that is a reason a hold can carry (contracts ESCALATION_REASONS): the
@@ -107,7 +107,7 @@ interface HandoffContext {
 }
 
 /** The channel a thread runs on, in the words an owner reads. */
-const CHANNEL_WORDS: Record<InboundChannel, string> = { whatsapp: "WhatsApp", sms: "Text" };
+const CHANNEL_WORDS: Record<InboundChannel, string> = { whatsapp: "WhatsApp", sms: "Text", instagram: "Instagram" };
 
 export async function alertStaff(
   threadId: string,
@@ -137,7 +137,10 @@ export function handoffMessage({
   botText: string;
   reason: string;
 } & Omit<HandoffContext, "target">): NotifyMessage {
-  const name = ctx.who?.trim() || formatPhoneDisplay(`+${threadId}`) || `+${threadId}`;
+  // A DM's person is an Instagram-scoped id, which means nothing to an owner and is no number: named by Instagram.
+  const onDm = ctx.channel === "instagram";
+  const name =
+    ctx.who?.trim() || (onDm ? "Someone on Instagram" : formatPhoneDisplay(`+${threadId}`) || `+${threadId}`);
   const why = whyOf(reason);
   // What to do, by the reason's act (a reply to write, a call to return, nothing that may be sent); the pause rides after it.
   const act = HOLD_ACT_WORDS[holdActOf(REASON_OF.get(reason))].notice;
@@ -153,7 +156,7 @@ export function handoffMessage({
     body:
       `They wrote: “${userText}”\n` +
       `${botText}\n\n` +
-      `${where} · +${threadId}\n` +
+      `${onDm ? where : `${where} · +${threadId}`}\n` +
       (ctx.pausedHours
         ? `${act.replace(/\.$/, "")} — the receptionist is paused on this thread for ${ctx.pausedHours}h.`
         : act),
@@ -193,6 +196,18 @@ const UNROUTABLE_WORDS = {
     subject: "A text arrived on a line the platform could not handle",
     what: (key: string, count: number) => `${count} text(s) just arrived for ${key} and could not be handled.`,
     fix: "Check the line row, its vault token and its sms channel row; the customer's text was NOT recorded.",
+  },
+  instagram_unreadable: {
+    subject: "Instagram DMs are arriving and the control plane cannot be read",
+    what: (key: string, count: number) =>
+      `${count} DM(s) just arrived for Instagram account ${key} and the channel row could not be read, so they were NOT recorded and nobody was answered.`,
+    fix: "Check Postgres and /api/diag. Meta is being told 503, so it redelivers and nothing is lost once the read works.",
+  },
+  instagram: {
+    subject: "Instagram DMs are arriving for an account that is switched off",
+    what: (key: string, count: number) =>
+      `${count} DM(s) just arrived for Instagram account ${key}, which the control plane will not route (the channel row is missing or its status is not 'active').`,
+    fix: "Reconnect the account from Settings › Connections, or confirm this account is not ours.",
   },
   voice: {
     subject: "Calls are arriving for a voice channel that is switched off",

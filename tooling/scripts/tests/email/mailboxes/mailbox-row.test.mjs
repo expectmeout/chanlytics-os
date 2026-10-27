@@ -244,3 +244,48 @@ test("a member who may not change the mailboxes reads them, is told once why, an
     role.owner = true;
   }
 });
+
+test("its own address (Today's set-aside line) reads Left in your mailbox at once, as Show would; the page alone does not", async () => {
+  const asked = [];
+  const was = globalThis.window.fetch;
+  globalThis.window.fetch = async (url) => {
+    asked.push(new URL(String(url), "https://app.example").pathname);
+    const left = [
+      {
+        address: "dmarc_reports@reports.example.com",
+        name: "DMARC Report",
+        why: "report",
+        count: 2,
+        first_at: "2026-10-26T00:00:00Z",
+        last_at: "2026-10-27T00:00:00Z",
+      },
+    ];
+    return new Response(JSON.stringify({ ok: true, data: { left, said: [] } }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
+  try {
+    open([mbx()]);
+    await settle();
+    assert.deepEqual(asked, [], "Connections opened plainly reads the list only on a press");
+    open([mbx()]);
+    props.openLeft = true;
+    redraw();
+    await settle();
+    await settle();
+    assert.deepEqual(asked, ["/api/v1/mailbox-senders"], "read once, as the address opens");
+    const tree = redraw();
+    assert.match(said(byTestId(tree, "mailbox-left-row")), /DMARC Report · dmarc_reports@reports\.example\.com/);
+  } finally {
+    globalThis.window.fetch = was;
+  }
+});
+
+test("Settings reads the address: Connections opens, its row named Left in your mailbox", async () => {
+  const { SET_TAB, settingsRowOf } = await import(`${CONNECTIONS}/../frame/tabs.ts`);
+  const { MAILBOX_LEFT_ROW } = await import("@chanlytics/contracts");
+  assert.equal(SET_TAB(`integrations/${MAILBOX_LEFT_ROW}`).id, "integrations");
+  assert.equal(settingsRowOf(`integrations/${MAILBOX_LEFT_ROW}`), MAILBOX_LEFT_ROW);
+  assert.equal(settingsRowOf("integrations"), null, "the page alone names no row");
+});

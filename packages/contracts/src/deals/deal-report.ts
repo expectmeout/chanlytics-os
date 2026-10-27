@@ -86,6 +86,8 @@ function cameFromSaid(key: PersonCameFrom, n: number): string | null {
       return "came by text";
     case "email":
       return "came by email";
+    case "instagram":
+      return "came from Instagram";
     case "call":
       return "came by phone";
     case "calendar":

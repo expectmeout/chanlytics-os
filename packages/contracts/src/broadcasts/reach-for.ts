@@ -19,6 +19,7 @@ import { isOfferByEmail, type AskedPurpose, type MessageAbout, type SendPurpose 
 import { dayInZone } from "../calendar/zone-math";
 import { wallClockAt } from "../shared/clock";
 import { CONSENT_CHANNELS, type ConsentChannel } from "../consent/consent-channels";
+import type { WrittenChannel } from "../conversations/thread-channel";
 import { type NotReceived, type ReceiveRow, whyNotReceive } from "../people/person-consent";
 import { triggerOf } from "../playbooks/playbook-triggers";
 import { type EmailOffers, emailOffersOpen, type OfferFacts, OFFERS_BY_EMAIL_WORDS } from "./email-offers";
@@ -224,8 +225,11 @@ export function channelChoices(
 /** Why a person is not reached: one of the receive refusals, or no ticked channel can carry the message here. */
 export type HeldOn = NotReceived | "no_channel";
 
-/** A person as the pick reads them: their answers, where to send, and the channel they last wrote on. */
-export type ReachRow = ReceiveRow & { lastChannel?: ConsentChannel | null };
+/**
+ * A person as the pick reads them: their answers, where to send, and the channel they last wrote on (an Instagram DM among
+ * them, which no campaign goes by: the pick then keeps its own order).
+ */
+export type ReachRow = ReceiveRow & { lastChannel?: WrittenChannel | null };
 
 /**
  * How far each reason is from being the owner's to fix: first the one that ends everything, then the person's own no to
@@ -261,8 +265,8 @@ export function reachFor(
     (c) => o.channels.includes(c) && o.ready[c].ready && channelRefuses(c, purpose, o.about, o.ready) === null,
   );
   if (usable.length === 0) return { channel: null, held: "no_channel" };
-  const last = r.lastChannel ?? null;
-  const order = last && usable.includes(last) ? [last, ...usable.filter((c) => c !== last)] : usable;
+  const last = usable.find((c) => c === r.lastChannel) ?? null;
+  const order = last ? [last, ...usable.filter((c) => c !== last)] : usable;
   const why: HeldOn[] = [];
   for (const c of order) {
     const w = whyNotReceive(r, purpose, c, o.about);

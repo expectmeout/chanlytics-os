@@ -645,6 +645,7 @@ test("where the new clients came from: the source most of them share, said as a 
     "2 of 3 new clients came from WhatsApp.",
     "2 of 3 new clients came by text.",
     "2 of 3 new clients came by email.",
+    "2 of 3 new clients came from Instagram.",
     "2 of 3 new clients came by phone.",
     "2 of 3 new clients came from your calendar.",
     "2 of 3 new clients were added by hand.",

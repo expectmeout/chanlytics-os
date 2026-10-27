@@ -9,7 +9,7 @@
  */
 import type { ReplyWhyVM } from "../config/brain";
 import { isOptedOut, messageAt, type ConversationDto } from "./thread-dto";
-import { agentFor, isChatMessage, writtenChannelOf, threadChannelOf } from "./thread-channel";
+import { agentFor, isChatMessage, writtenChannelOf, threadChannelOf, type ThreadChannel } from "./thread-channel";
 import { contactName, initialsOf, shortName } from "./thread-contact";
 import { shortTime, bubbleTime } from "./thread-clock";
 import { mediaVM, type MediaVM } from "./message-media";
@@ -24,7 +24,7 @@ export interface ConversationMessageVM {
   from: "client" | "agent";
   /** Where it happened. A call note is not a WhatsApp bubble, and the
    *  viewer must not draw it as one -- and neither is a text or an email. */
-  channel: "whatsapp" | "sms" | "email" | "phone";
+  channel: ThreadChannel;
   at: string;
   text: string;
   /** The attachment, when the message is one. */
@@ -58,7 +58,7 @@ export interface ConversationVM {
   /** Who sent the last message that reached them, when it was ours; null when they wrote last. */
   answeredBy: MessageAuthor["kind"] | null;
   /** The wire this conversation's words travelled: the last written one, or the phone when that is all there is. */
-  channel: "whatsapp" | "sms" | "email" | "phone";
+  channel: ThreadChannel;
   agent: { glyph: string; name: string };
   at: string;
   /**

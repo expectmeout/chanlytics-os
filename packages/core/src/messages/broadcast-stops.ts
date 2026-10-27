@@ -15,7 +15,8 @@ import {
   runRoute,
 } from "@chanlytics/contracts";
 import { errField, logger } from "@chanlytics/channels";
-import type { Channel, DeliveryRefusal } from "../deliver";
+import type { DeliveryRefusal } from "../deliver";
+import type { BroadcastChannel as Channel } from "./broadcast-channels";
 import type { Work } from "./broadcast-channels";
 import { stoppedRunCause } from "./broadcast-words";
 import type { BroadcastBatchCommand, BroadcastBatchPorts, BroadcastRow, RecipientRow } from "./ports";

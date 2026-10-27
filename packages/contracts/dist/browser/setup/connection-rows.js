@@ -76,3 +76,43 @@ export function mailboxRow(i) {
     verb: null
   };
 }
+export function instagramRow(i, { ig }) {
+  const base = { kind: "instagram", icon: "instagram", title: "Instagram" };
+  const detail = ig?.handle ? `@${ig.handle}` : null;
+  const connect = { label: "Connect Instagram", to: "verb:instagram-connect", who: "owner" };
+  if (ig?.on && ig.lapsedAt)
+    return {
+      ...base,
+      detail,
+      state: "attention",
+      stateWords: "Needs connecting again",
+      sentence: "Instagram stopped accepting the connection, so its DMs are not being answered. Connect it again.",
+      verb: { ...connect, label: "Connect again" }
+    };
+  if (ig?.on)
+    return {
+      ...base,
+      detail,
+      state: "connected",
+      stateWords: "Connected",
+      sentence: `${ig.healthLabel}. The receptionist answers its DMs within a day of each one, as Instagram allows.`,
+      verb: { label: "Disconnect", to: "verb:instagram-disconnect", who: "owner" }
+    };
+  if (i.instagram?.ready)
+    return {
+      ...base,
+      detail,
+      state: "none",
+      stateWords: "Not connected",
+      sentence: "Sign in with your Instagram professional account; the receptionist answers its DMs as it answers WhatsApp.",
+      verb: ig ? { ...connect, label: "Connect again" } : connect
+    };
+  return {
+    ...base,
+    detail: null,
+    state: "later",
+    stateWords: "Later",
+    sentence: "Direct messages, answered by the receptionist like WhatsApp.",
+    verb: null
+  };
+}

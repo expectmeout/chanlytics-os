@@ -325,7 +325,14 @@ test("a row is drawn with the notice's words, its person by the number or the ad
   ];
   const it = itemOfAppointment(row(), people);
   assert.equal(it.id, "appt:a1");
-  assert.deepEqual(it.person, { id: "p1", name: "Dana R.", via: "phone", thread: "c1", wa_inbound_at: null });
+  assert.deepEqual(it.person, {
+    id: "p1",
+    name: "Dana R.",
+    via: "phone",
+    thread: "c1",
+    wa_inbound_at: null,
+    ig_inbound_at: null,
+  });
   assert.equal(it.source, "notice");
   assert.equal(it.tool, "Booksy");
   assert.deepEqual(it.contacts, { phones: ["+13055550144"], emails: ["dana.rivera@example.com"] });

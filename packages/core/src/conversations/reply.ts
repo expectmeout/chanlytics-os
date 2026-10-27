@@ -12,6 +12,8 @@ import {
   renderTemplate,
   REPLY_LIMITS,
   replyWindow,
+  windowClockOf,
+  type WrittenChannel,
   resolveParams,
   slotToWrite,
   TEMPLATE_WORDS_MAX,
@@ -50,6 +52,9 @@ export const HOLD_EXPIRY_MS = 2 * MIN_MS;
 /** What the second of two callers under one key hears while the first one's reply is still on its way. */
 export const REPLY_IN_PROGRESS_REFUSAL =
   "This reply is already being sent. Give it a moment, then check the thread before sending it again.";
+/** A DM reply past Instagram's day: Meta refuses any message then, and there is no approved one to send instead. */
+export const DM_WINDOW_CLOSED_REFUSAL =
+  "It's been more than a day since their last message, and Instagram lets you reply only once they write again. Nothing was sent.";
 
 export interface ReplyBody {
   text?: string;
@@ -82,6 +87,10 @@ export interface ReplyReceipt {
 export interface ReplyThread extends Pick<Thread, "id" | "tenant_id" | "phone_e164"> {
   contact_id: ContactId | null;
   last_wa_inbound_at: string | null;
+  /** When they last wrote by Instagram DM (conversations.last_inbound_on_instagram, 00486): that wire's window reads it. */
+  last_ig_inbound_at?: string | null;
+  /** Their Instagram-scoped id (contact_identities, channel instagram): where a DM reply goes. Absent where none is kept. */
+  instagram_id?: string | null;
   consent: string | null;
   dnc: boolean | null;
   marketing_consent: string | null;
@@ -99,7 +108,7 @@ export interface QueuedReply {
   tenant_id: TenantId;
   conversation_id: string;
   contact_id: ContactId | null;
-  channel: "whatsapp" | "sms" | "email";
+  channel: WrittenChannel;
   sent_by: string;
   type: "template" | "text";
   body: string;
@@ -110,9 +119,9 @@ export interface QueuedReply {
   id?: string;
   meta?: Json;
 }
-/** An address never travels in a field the send path reads as a phone number: an email's is `to_email`. */
+/** An address never travels in a field the send path reads as a phone number: an email's is `to_email`, a DM's `to_instagram`. */
 export type SendPayload = { message_id: string; conversation_id: string } & (
-  { to_phone: string } | { to_email: string }
+  { to_phone: string } | { to_email: string } | { to_instagram: string }
 ) &
   ({ body: string } | { template: { name: string; language: string; params: string[] } }) & {
     /**
@@ -194,8 +203,8 @@ export interface ReplyPorts extends Pick<
   ThreadPorts,
   "pauseMs" | "takeControl" | "withdrawDrafts" | "record" | "resolveEscalation" | "now"
 > {
-  /** Where the person last wrote: a text and an email have no 24-hour window and no templates. */
-  replyChannel(conv: { id: string; tenant_id: TenantId }): Promise<"whatsapp" | "sms" | "email">;
+  /** Where the person last wrote: a text and an email have no 24-hour window and no templates; a DM has a window and none. */
+  replyChannel(conv: { id: string; tenant_id: TenantId }): Promise<WrittenChannel>;
   email: EmailReplyPorts;
   /**
    * The key claimed, before anything else is written: a row on the table's
@@ -394,16 +403,26 @@ export async function replyToConversation(ports: ReplyPorts, cmd: ReplyCommand):
   // A reply goes back on the wire the person last wrote on, to the address that
   // wire needs. It never crosses: an email that cannot be sent does not become a text.
   const channel = await ports.replyChannel(conv);
-  const to = channel === "email" ? (conv.email ?? null) : conv.phone_e164;
+  const to =
+    channel === "email"
+      ? (conv.email ?? null)
+      : channel === "instagram"
+        ? (conv.instagram_id ?? null)
+        : conv.phone_e164;
   if (!to) {
     throw new AppError(
       "conflict",
       channel === "email"
         ? "This person has no email address on their page, so an email reply cannot reach them. Add it there first."
-        : "This person has no phone number, so a WhatsApp or text reply cannot reach them.",
+        : channel === "instagram"
+          ? "This person's Instagram account is not on record, so a DM reply cannot reach them."
+          : "This person has no phone number, so a WhatsApp or text reply cannot reach them.",
     );
   }
-  const window = replyWindow(channel, conv.last_wa_inbound_at, new Date(now));
+  const clocks = { whatsapp: conv.last_wa_inbound_at, instagram: conv.last_ig_inbound_at };
+  const window = replyWindow(channel, windowClockOf(channel, clocks), new Date(now));
+  // Past Instagram's day a business may not write at all, and has no approved message to write with: nothing is queued.
+  if (channel === "instagram" && !window.open) throw new AppError("conflict", DM_WINDOW_CLOSED_REFUSAL);
 
   // Idempotency: a replayed POST returns the original receipt, never a double
   // text. The key is scoped to the CALLER and checked against the INTENT: the
@@ -578,7 +597,7 @@ async function queueReply(
   cmd: ReplyCommand,
   facts: {
     now: number;
-    channel: "whatsapp" | "sms" | "email";
+    channel: WrittenChannel;
     to: string;
     window: { open: boolean };
     /** The claim this reply holds, when it has a key: what the receipt is kept under, on the claim's stamp. */
@@ -660,7 +679,7 @@ async function queueReply(
     await ports.schedule(conv.tenant_id, dueAt, {
       message_id,
       conversation_id: conv.id,
-      ...(channel === "email" ? { to_email: to } : { to_phone: to }),
+      ...(channel === "email" ? { to_email: to } : channel === "instagram" ? { to_instagram: to } : { to_phone: to }),
       ...(template ? { template: template.job } : { body: messageBody }),
       ...(cmd.starts ? { starts: true as const } : {}),
     });

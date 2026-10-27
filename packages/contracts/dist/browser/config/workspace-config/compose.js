@@ -140,7 +140,7 @@ const PROMPT_SECTIONS = [
 ];
 function identitySection({ base, profile, channel, wire }) {
   const s = [];
-  const medium = wire === "voice" ? "on the phone" : wire === "sms" ? "by text message" : "over WhatsApp";
+  const medium = wire === "voice" ? "on the phone" : wire === "sms" ? "by text message" : wire === "instagram" ? "in Instagram direct messages" : "over WhatsApp";
   s.push(`You are the assistant for ${base.business_name}, answering customers ${medium}.`);
   const named = (profile.assistant_name ?? "").trim();
   if (named) s.push(`Your name is ${named}. Introduce yourself by it, as the business's automated assistant.`);

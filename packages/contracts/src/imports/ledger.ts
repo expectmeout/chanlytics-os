@@ -9,6 +9,7 @@ import { dayWords } from "../workspace/billing";
 import { groupedPlural } from "../shared/words";
 import { DAY_MS } from "../shared/time";
 import { viaWords } from "./csv";
+import { lensRoute } from "../reports/lenses";
 
 export const IMPORT_SOURCES = [
   "google_reviews",
@@ -96,7 +97,29 @@ export interface ImportLineVM {
   share: number | null;
   /** What the mailbox read and set aside, said apart under the line: "195 newsletters and notices set aside". */
   aside: string | null;
+  /** Where the line opens: the page what came in is on (IMPORT_DOORS); null for WhatsApp's line waiting for Go live. */
+  door: string | null;
+  /** Where what was set aside is listed: Connections, its mailbox's "Left in your mailbox" open (MAILBOX_LEFT_ROUTE). */
+  asideDoor: string | null;
+  /** The count `says` opens with ("414" of "414 emails · since Jun 7"), which a page may let glide as it grows. */
+  count: number | null;
 }
+
+/** The page each source's line opens: what came in is People's, the Inbox's, the Calendar's or the Reviews lens's own. */
+const IMPORT_DOORS: Readonly<Record<ImportSource, string>> = {
+  google_reviews: lensRoute("reviews"),
+  calendar: "calendar",
+  clients_file: "clients",
+  mailbox: "inbox",
+  contacts: "clients",
+  whatsapp_contacts: "clients",
+  whatsapp_history: "inbox",
+};
+
+/** The row of Connections a mailbox's "Left in your mailbox" is, as Settings' address names it (settings/frame/tabs.ts). */
+export const MAILBOX_LEFT_ROW = "left";
+/** Connections with "Left in your mailbox" open: where the Brought in card's set-aside line goes. */
+const MAILBOX_LEFT_ROUTE = "admin/integrations/left";
 
 export const IMPORT_WORDS = {
   titles: {
@@ -227,9 +250,21 @@ function standOf(r: ImportRowDto, share: number | null): string {
   return share === null ? "…" : `${Math.round(share * 100)}%`;
 }
 
+/** The count a line's words open with, where they open with one: never a stopped line's, nor the chats' "Back to". */
+function leadCountOf(r: ImportRowDto): number | null {
+  const c = r.counts;
+  if (r.state === "failed") return null;
+  if (r.source === "mailbox") return c.messages || null;
+  if (r.source === "google_reviews") return c.reviews || null;
+  if (r.source === "calendar") return c.past || null;
+  return r.source === "whatsapp_history" ? null : (c.people ?? null);
+}
+
 /** One source's line. */
 export function importLineOf(r: ImportRowDto): ImportLineVM {
   const share = shareOf(r);
+  const aside =
+    r.source === "mailbox" && r.state !== "failed" && r.counts.dropped ? IMPORT_WORDS.setAside(r.counts.dropped) : null;
   return {
     source: r.source,
     title: IMPORT_WORDS.titles[r.source],
@@ -238,10 +273,10 @@ export function importLineOf(r: ImportRowDto): ImportLineVM {
     state: r.state,
     retry: r.state === "failed" && !ONCE_ONLY.has(r.source),
     share,
-    aside:
-      r.source === "mailbox" && r.state !== "failed" && r.counts.dropped
-        ? IMPORT_WORDS.setAside(r.counts.dropped)
-        : null,
+    aside,
+    door: IMPORT_DOORS[r.source],
+    asideDoor: aside ? MAILBOX_LEFT_ROUTE : null,
+    count: leadCountOf(r),
   };
 }
 
@@ -346,6 +381,9 @@ export function importLinesOf(
       retry: false,
       share: null,
       aside: null,
+      door: null,
+      asideDoor: null,
+      count: null,
     });
   const done = lines.filter((l) => l.state === "done").length;
   return { lines, done, of: lines.length, running: lines.some((l) => l.state === "running" || l.state === "queued") };

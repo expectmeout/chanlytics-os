@@ -31,7 +31,7 @@ const brainOf = (link) => ({
 const cases = [];
 for (const whatsapp of [true, false])
   for (const link of [true, false])
-    for (const wire of ["whatsapp", "sms", "voice"]) {
+    for (const wire of ["whatsapp", "sms", "instagram", "voice"]) {
       if (wire === "whatsapp" && !whatsapp) continue; // a message on WhatsApp came in on a line
       const known = { channels: [VOICE, SMS, ...(whatsapp ? [WHATSAPP] : [])] };
       cases.push({
@@ -73,9 +73,14 @@ test("in chat the link is sent in the thread wherever there is one, whatever the
   }
 });
 
-test("each prompt says the wire it answers on: a text by text message, never over WhatsApp", () => {
+test("each prompt says the wire it answers on: a text by text message, a DM in Instagram direct messages, never over WhatsApp", () => {
   for (const c of cases) {
-    const said = { whatsapp: "over WhatsApp", sms: "by text message", voice: "on the phone" }[c.wire];
+    const said = {
+      whatsapp: "over WhatsApp",
+      sms: "by text message",
+      instagram: "in Instagram direct messages",
+      voice: "on the phone",
+    }[c.wire];
     assert.ok(c.prompt.startsWith(`You are the assistant for Harbor Nails, answering customers ${said}.`), c.prompt);
   }
 });

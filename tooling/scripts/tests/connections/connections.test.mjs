@@ -457,11 +457,11 @@ test("the wiring: the page draws rows from the same facts Setup reads, the old c
   // for its tab, as it does Billing.
   const shell = readCode("apps/dashboard/src/surfaces/settings/frame/page.tsx");
   assert.ok(
-    shell.includes("<PaneIntegrationsReal />") && !shell.includes("const PaneIntegrationsReal"),
+    shell.includes("<PaneIntegrationsReal row={row} />") && !shell.includes("const PaneIntegrationsReal"),
     "the page renders the pane, it does not contain it",
   );
   assert.match(shell, /import \{ PaneIntegrationsReal \} from "\.\.\/connections\/pane";/);
-  assert.ok(pane.includes("export const PaneIntegrationsReal = () => {"));
+  assert.ok(pane.includes("export const PaneIntegrationsReal = ({ row: named = null }: { row?: string | null }) => {"));
   // A file of its own never uses a helper that lives in the file it came
   // from: `useSetState` was an alias declared at the top of settings.jsx, so
   // it left with the code and arrived undefined -- a break no source-reading

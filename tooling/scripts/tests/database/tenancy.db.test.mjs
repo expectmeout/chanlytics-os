@@ -142,6 +142,13 @@ before(async () => {
   await seed("mailbox_senders", { tenant_id: A, sender: "news.example", verdict: "automated" }, null);
   await seed("mailbox_left", { tenant_id: A, address: "deals@news.example", why: "gmail_tab" }, null);
   await seed("escalations", { tenant_id: A, conversation_id: ctx.conversation, reason: "manual", details: "tenancy" });
+  // When the thread's person last wrote on WhatsApp (00484); the stranger's attempt is a text, so one a thread and wire
+  // refuses nothing on its own.
+  await seed(
+    "conversation_channel_state",
+    { tenant_id: A, conversation_id: ctx.conversation, channel: "whatsapp", last_inbound_at: new Date().toISOString() },
+    null,
+  );
   // Ask's reply drafted ahead on the thread (00475); the stranger's attempt is a brief, so one a thread and kind refuses
   // nothing on its own.
   await seed(
@@ -612,6 +619,16 @@ const TENANT_TABLES = {
     () => ({ tenant_id: A, contact_id: ctx.contact2, channel: "whatsapp", external_id: "15550001002" }),
   ],
   conversations: ["member", () => ({ tenant_id: A, contact_id: ctx.contact2 })],
+  // When a thread's person last wrote on each wire (00484): the workspace's members read it, only the doors write.
+  conversation_channel_state: [
+    "member",
+    () => ({
+      tenant_id: A,
+      conversation_id: ctx.conversation,
+      channel: "sms",
+      last_inbound_at: new Date().toISOString(),
+    }),
+  ],
   // Ask's drafts written ahead for a waiting thread (00475): the workspace's members read them, only the door writes.
   conversation_drafts: [
     "member",

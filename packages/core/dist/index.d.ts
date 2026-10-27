@@ -1,6 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
-import { ResendConfig, EmailSendsAs, EmailRequest, SendResult, WaConfig, ResendLimit, ApifyClient, LeadJudge, NormalizedInbound, CarrierConsent, InboundMessage } from '@chanlytics/channels';
-import { SendPurpose, MessageAbout, DeliveryRefusal, TenantId, DecisionSubject, DecisionVerb, ContactId, ConsentChannel, WriteRow, ChannelsReady, WriteWay, AppointmentState, FeedNames, JobNews, EmailClaim, BookingTool, DraftWhy, ReplyIntent, Unread, ReplyClaim, ReplyReading, ReadingPlan, PurposeRefusal, PurposeBearing, AskedPurpose, AppointmentStatus, NoticeHold, ParamSpec, Audience, PersonRowVM, ListRef, NumberHealth, PersonVisitsDto, Membership, DealPaceVM, CampaignMessage, CampaignHow, AppointmentWord, PlaybookTrigger, PlaybookPolicyClass, PlaybookState, SequenceMode, triggerOf, PlaybookPatch, PLAYBOOK_LIMITS, StepHand, TimetableSender, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadFacts, CompanyFitAnswer, LeadRoundPurpose, LeadSearchPlan, LeadPeoplePlan, PlaceFacts, ProbeMember, BrainMeta, NotificationsConfig, BrainConfig, CalendarConfig, CalendarGrantConfig, FeaturesConfig, PolicyLimits, KnownFacts, BookingRequestTerms, Handled, BrainIntent, EventSubscriber, HoldFacts, OptOutPerson, BookedVisit, MemberJoined } from '@chanlytics/contracts';
+import { ResendConfig, EmailSendsAs, EmailRequest, SendResult, WaConfig, ResendLimit, ApifyClient, LeadJudge, InboundMessage } from '@chanlytics/channels';
+import { SendPurpose, MessageAbout, DeliveryRefusal, TenantId, DecisionSubject, DecisionVerb, ContactId, WrittenChannel, ConsentChannel, WriteRow, ChannelsReady, WriteWay, AppointmentState, FeedNames, JobNews, EmailClaim, BookingTool, DraftWhy, ReplyIntent, Unread, ReplyClaim, ReplyReading, ReadingPlan, PurposeRefusal, PurposeBearing, AskedPurpose, AppointmentStatus, NoticeHold, ParamSpec, Audience, PersonRowVM, ListRef, NumberHealth, PersonVisitsDto, Membership, DealPaceVM, CampaignMessage, CampaignHow, AppointmentWord, PlaybookTrigger, PlaybookPolicyClass, PlaybookState, SequenceMode, triggerOf, PlaybookPatch, PLAYBOOK_LIMITS, StepHand, TimetableSender, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadFacts, CompanyFitAnswer, LeadRoundPurpose, LeadSearchPlan, LeadPeoplePlan, PlaceFacts, ProbeMember, BrainMeta, NotificationsConfig, BrainConfig, CalendarConfig, CalendarGrantConfig, FeaturesConfig, PolicyLimits, KnownFacts, BookingRequestTerms, Handled, BrainIntent, EventSubscriber, HoldFacts, OptOutPerson, BookedVisit, MemberJoined } from '@chanlytics/contracts';
 export { AppointmentStatus, DeliveryRefusal, EmailClaim, SEND_GRACE_MS } from '@chanlytics/contracts';
 import { Json, Database, MessageVersionRow, RoutedChannel, LeadContext, IngestResult, DeliveredEvent } from '@chanlytics/db';
 
@@ -147,7 +147,7 @@ declare function emailSender(routes: EmailRoute[], held?: readonly string[]): Se
  */
 
 type Db = SupabaseClient<Database>;
-type Channel = "whatsapp" | "sms" | "email";
+type Channel = "whatsapp" | "sms" | "email" | "instagram";
 /**
  * What a send IS, for the door's rules -- never read off `sender`, which is a
  * fact about who wrote the words and is recorded as such.
@@ -524,6 +524,8 @@ declare const IDEMPOTENCY_WINDOW_MS: number;
 declare const HOLD_EXPIRY_MS: number;
 /** What the second of two callers under one key hears while the first one's reply is still on its way. */
 declare const REPLY_IN_PROGRESS_REFUSAL = "This reply is already being sent. Give it a moment, then check the thread before sending it again.";
+/** A DM reply past Instagram's day: Meta refuses any message then, and there is no approved one to send instead. */
+declare const DM_WINDOW_CLOSED_REFUSAL = "It's been more than a day since their last message, and Instagram lets you reply only once they write again. Nothing was sent.";
 interface ReplyBody {
     text?: string;
     /**
@@ -560,6 +562,10 @@ interface ReplyReceipt {
 interface ReplyThread extends Pick<Thread, "id" | "tenant_id" | "phone_e164"> {
     contact_id: ContactId | null;
     last_wa_inbound_at: string | null;
+    /** When they last wrote by Instagram DM (conversations.last_inbound_on_instagram, 00486): that wire's window reads it. */
+    last_ig_inbound_at?: string | null;
+    /** Their Instagram-scoped id (contact_identities, channel instagram): where a DM reply goes. Absent where none is kept. */
+    instagram_id?: string | null;
     consent: string | null;
     dnc: boolean | null;
     marketing_consent: string | null;
@@ -577,7 +583,7 @@ interface QueuedReply {
     tenant_id: TenantId;
     conversation_id: string;
     contact_id: ContactId | null;
-    channel: "whatsapp" | "sms" | "email";
+    channel: WrittenChannel;
     sent_by: string;
     type: "template" | "text";
     body: string;
@@ -588,7 +594,7 @@ interface QueuedReply {
     id?: string;
     meta?: Json;
 }
-/** An address never travels in a field the send path reads as a phone number: an email's is `to_email`. */
+/** An address never travels in a field the send path reads as a phone number: an email's is `to_email`, a DM's `to_instagram`. */
 type SendPayload = {
     message_id: string;
     conversation_id: string;
@@ -596,6 +602,8 @@ type SendPayload = {
     to_phone: string;
 } | {
     to_email: string;
+} | {
+    to_instagram: string;
 }) & ({
     body: string;
 } | {
@@ -695,11 +703,11 @@ type KeyClaim = {
     held: KeyHold | null;
 };
 interface ReplyPorts extends Pick<ThreadPorts, "pauseMs" | "takeControl" | "withdrawDrafts" | "record" | "resolveEscalation" | "now"> {
-    /** Where the person last wrote: a text and an email have no 24-hour window and no templates. */
+    /** Where the person last wrote: a text and an email have no 24-hour window and no templates; a DM has a window and none. */
     replyChannel(conv: {
         id: string;
         tenant_id: TenantId;
-    }): Promise<"whatsapp" | "sms" | "email">;
+    }): Promise<WrittenChannel>;
     email: EmailReplyPorts;
     /**
      * The key claimed, before anything else is written: a row on the table's
@@ -940,12 +948,16 @@ interface SendQueuedPorts {
 /** The command sendQueued takes: here rather than in send.ts, so the port above can name its payload without a cycle. */
 interface SendQueuedCommand {
     tenantId: string;
-    /** `to_phone` on a phone's wire, `to_email` on email's: an address never travels in a field read as a number. */
+    /**
+     * `to_phone` on a phone's wire, `to_email` on email's, `to_instagram` (the person's Instagram-scoped id) on a DM's:
+     * an address never travels in a field read as a number.
+     */
     payload: {
         message_id: string;
         conversation_id: string;
         to_phone?: string;
         to_email?: string;
+        to_instagram?: string;
         body?: string;
         template?: {
             name: string;
@@ -4214,8 +4226,8 @@ declare function isThreadUnknown(s: ThreadState): boolean;
  * declaration it used to point at. Nothing in this file decides anything.
  */
 
-/** The text channels a thread can arrive on (the edge's alerts.ts says them in an owner's words). */
-type InboundChannel = "whatsapp" | "sms";
+/** The written channels a thread is answered on (the edge's alerts.ts says them in an owner's words). */
+type InboundChannel = "whatsapp" | "sms" | "instagram";
 /**
  * The database handle, opaque here on purpose.
  *
@@ -4439,7 +4451,7 @@ interface InboundSink {
      */
     request?(req: BookingRequestHold, details: string): Promise<EscalateOutcome>;
     /** Download from the provider, upload to storage, record where it went. The bytes when they were fetched. */
-    media(n: NormalizedInbound): Promise<{
+    media(n: InboundMessage): Promise<{
         bytes: ArrayBuffer;
         mime: string | null;
     } | null | undefined>;
@@ -4457,6 +4469,11 @@ interface InboundPorts {
          * answered, which is left out of their history and their last touch (it was stored before they were read).
          */
         read(db: InboundDb, tenantId: string, phoneE164: string, historyLimit?: number, answering?: string): Promise<LeadContext>;
+        /**
+         * The same reader, by the person's own row: what a wire with no number reads (an Instagram DM, whose person ingest
+         * found by their Instagram-scoped id). Absent in an adapter that has none: such a person is then read as nobody.
+         */
+        readById?(db: InboundDb, tenantId: string, contactId: string, historyLimit?: number, answering?: string): Promise<LeadContext>;
         /** People → profile → "Receptionist for …": this person's own mode, or null. */
         personReplyMode(db: InboundDb, tenantId: string, contactId: string): Promise<string | null>;
         /**
@@ -4512,8 +4529,10 @@ interface InboundPorts {
     persist: {
         /** The rows as memory, or an UNKNOWN thread when they cannot be produced. */
         thread(db: InboundDb | null, tenantId: string | null, ing: IngestResult | null): Promise<ThreadState>;
-        /** Persist first. Null when there is nothing to record for; IngestFailed when the write FAILED. */
-        ingest(db: InboundDb | null, tenantId: string | null, n: NormalizedInbound, channel?: InboundChannel, 
+        /** Persist first, on the message's own wire. Null when there is nothing to record for; IngestFailed when the write FAILED. */
+        ingest(db: InboundDb | null, tenantId: string | null, n: InboundMessage & {
+            channel: InboundChannel;
+        }, 
         /** The line the message came in on, a tenant_channels id: the first touch of the person it makes carries it (K3). */
         line?: string | null, 
         /** A job takes this message up next (a door that records it and schedules its answer): a yes that fails here is left owed to that job. */
@@ -4811,14 +4830,14 @@ declare function noModelPlan(fallbacks: {
 };
 
 /**
- * A channel other than WhatsApp riding the same road. It says how a reply
- * goes out, what the words become on its wire (a text's first reply to a
- * person carries the footer), and whether every message is held for a
- * person for now (a line the carriers have not approved for texting).
- * Null = WhatsApp, on the tenant's credentials, as before.
+ * A channel other than WhatsApp riding the same road: a texting line, or an Instagram account's DMs. It says how a reply
+ * goes out, what the words become on its wire (a text's first reply to a person carries the footer; a DM's are as
+ * written), and whether every message is held for a person for now (a line the carriers have not approved for texting).
+ * Null = WhatsApp, on the tenant's credentials, as before. What the person said about being written to is the message's
+ * own (InboundMessage.consent): the carrier's verdict is read into it by the text's adapter.
  */
-interface InboundCarrier {
-    channel: "sms";
+interface InboundCarrier<C extends CarriedChannel = CarriedChannel> {
+    channel: C;
     /** The provider's answer, its own code with it: the door tells the carrier's no on the person's behalf (21610) from a failure of ours. */
     send(to: string, body: string): Promise<SendResult>;
     body(text: string, isFirstReply: boolean): string;
@@ -4826,32 +4845,15 @@ interface InboundCarrier {
         reason: string;
         details: string;
     } | null;
-    /** What the carrier itself decided about the text: its STOP or START outranks our reading of the words. */
-    consent?: CarrierConsent | null;
 }
+/** The wires a carrier brings a message in on: every inbound wire but WhatsApp, which rides the tenant's credentials. */
+type CarriedChannel = Exclude<InboundChannel, "whatsapp">;
 /**
- * The raw fields this body still reads off the provider's own shape: the message id and the sender for the log envelope
- * and the wire, the raw type for the words an owner reads ("Customer sent a sticker message"), and the provider's
- * timestamp for the staleness check. Everything else is read from the normalised record.
- */
-interface InboundRaw {
-    id: string;
-    from: string;
-    type: string;
-    timestamp: string | number | null;
-}
-/**
- * One inbound message, as the door's adapter hands it over, in either shape for one release (decision 0001, step 2):
- * WhatsApp's normalised message with the raw fields it still reads, as the doors hand it today, or the one inbound shape
- * (channels InboundMessage), which ./context.ts converts where it enters. A message in the one shape says its own wire,
- * and its carrier is that wire's: none for WhatsApp, the line's for a text.
+ * One inbound message, as its door hands it over (decision 0001, step 3): in the one inbound shape (channels
+ * InboundMessage), made by its wire's own adapter, with the carrier of that wire: none for WhatsApp, the line's for a
+ * text, the account's for a DM (step 8).
  */
 type InboundInput = InboundAt & ({
-    /** withCarrierConsent(normalizeInbound(m, value), carrier?.consent ?? null), done by the adapter. */
-    message: NormalizedInbound;
-    raw: InboundRaw;
-    carrier: InboundCarrier | null;
-} | {
     inbound: InboundMessage & {
         channel: "whatsapp";
     };
@@ -4860,9 +4862,14 @@ type InboundInput = InboundAt & ({
     inbound: InboundMessage & {
         channel: "sms";
     };
-    carrier: InboundCarrier;
+    carrier: InboundCarrier<"sms">;
+} | {
+    inbound: InboundMessage & {
+        channel: "instagram";
+    };
+    carrier: InboundCarrier<"instagram">;
 });
-/** Where a message arrived, whatever shape it came in. */
+/** Where a message arrived. */
 interface InboundAt {
     tenantId: string | null;
     routed: RoutedChannel | null;
@@ -5019,4 +5026,4 @@ type Subscriber = (event: DeliveredEvent, ports: SubscriberPorts) => Promise<voi
 declare function toldFromItsEvent(written: string | null | undefined): boolean;
 declare const SUBSCRIBERS: Readonly<Record<EventSubscriber, Subscriber>>;
 
-export { type AfterProbe, type AppointmentPatch, type ApproveReceipt, type ApproveRunPorts, type ArchivePorts, type AssembleCommand, type AssembleDecision, type AssemblePorts, type Assembled, type AssembledRun, BROADCAST_STALLS_MAX, BROADCAST_STALL_RETRY_MS, type BatchCarry, type BeginAsk, type BeginCommand, type BeginPorts, type BeginReceipt, type BookingNoticePorts, type BookingRequestHold, type BrainCall, type BroadcastBatchCommand, type BroadcastBatchPorts, type BroadcastReceipt, type BroadcastRef, type BroadcastRow, CARDS, CHECKER_FIELDS, CHECKER_RUN_TIMEOUT_SECS, CHECK_BATCH, CLOSED_REASON, type CancelBroadcastPorts, type CancelReceipt, type CancelSendPorts, type Channel, type CheckAgain, type CheckOutcome, type CheckPlaybookPatchPorts, type CheckPlaybookPorts, type CleanPlace, type CollectCommitResult, type CollectJudgment, type CollectOutcome, type CollectPage, type CollectPlace, type ConsentDecision, type ConsentInputs, type ConsentSource, type ContactRow, type CreateBroadcastCommand, type CreateBroadcastPorts, type CredentialsRead, DEADLINE_MARGIN_MS, DUPLICATE_REASON, type Db, type DeliverPorts, type Delivered, type Delivery, type Door, type DraftMark, type DraftState, EMAIL_BODY_MAX, EMAIL_REVIEW_WORDS, type EmailIngestOutcome, type EmailIngestPorts, type EmailParentFacts, type EmailReplyPorts, type EmailRoute, type EscalationPorts, FACT_MAX, FINAL_RUN_STATES, FIRST_COLLECT_SECONDS, type FollowedStep, HOLD_EXPIRY_MS, type HandBackPorts, type HandItem, type HandStep, type HandStepPorts, IDEMPOTENCY_WINDOW_MS, INPUT_MARKER, type Identity, type InboundBrainReply, type InboundCarrier, type InboundChannel, type InboundDb, type InboundHandoff, type InboundInput, type InboundLog, type InboundPorts, type InboundRuntime, type InboundSink, type IncomingEmail, IngestFailed, JUDGE_MARGIN_MS, JUDGE_REFUSED_REASON, JUDGE_TIMEOUT_MS, type JudgedBatch, type KeptReading, type KeyClaim, type KeyHold, LEASE_SECONDS, type LatLng, type LateFailureCommand, type LateFailureFacts, type LateFailureOutcome, type LateFailurePorts, type LayerTwoIn, type LayerTwoOut, type LeadCardRunner, type LeadColumns, type LeadDb, type LeadMemberRow, type LeadPorts, LeadRetry, type LeadRoundRow, type LeadRunRow, type LeadShare, type ListCount, MAPS_CAP_FLOOR_USD, MAPS_FIELDS, MAPS_RUN_TIMEOUT_SECS, MARK_ALLOWANCE_MS, MARK_AT_ONCE, MARK_MAX_BYTES, MARK_MAX_RATIO, MARK_MIN_SIDE, MARK_TRIES, MAX_REPLIES_PER_DAY, MAX_SNOOZE_MS, type MapsPlace, type MarkImage, type MarkKind, type MemberJudgment, NEEDS_UNTIL, NO_LOCATION_REASON, NO_MODEL_PAGE, type NewAppointment, type NewBroadcast, type NewReachOutRun, type NewRecipient, NotTakenError, type NoticeClient, type NoticeEmail, type NoticeLedgerRow, type NoticeOutcome, OUT_OF_AREA_REASON, type OutboundRefusal, type Owner, PAGE_ITEMS, PAGE_READ_ALLOWANCE_MS, PERSON_CONTROL_MAX_S, POLL_SECONDS, PROVIDER_RUN_PAGE, type Phase, type PlannedSend, type PlaybookInput, type PlaybookPatchRow, type PlaybookRow, type ProbeYieldMember, type ProvisionLinePorts, type QueuedReply, RADIUS_MAX_M, RADIUS_MIN_M, REPLY_IN_PROGRESS_REFUSAL, type ReachOutFollower, type ReachOutLead, type ReachOutRunOutcome, type ReachOutRunPorts, type ReachOutStep, type ReadBookingNoticeCommand, type ReadBookingNoticeOutcome, type ReadReplyCommand, type ReadReplyOutcome, type RecipientMark, type RecipientRow, type ReconcileOutcome, type RejudgeOutcome, type RejudgeResult, type ReplyBody, type ReplyCommand, type ReplyFacts, type ReplyNotice, type ReplyPorts, type ReplyPosture, type ReplyReadPorts, type ReplyReceipt, type ReplyThread, type ResolveResult, type RoundQuestion, type RoutingFacts, type RunBy, type RunContext, type RunOutcome, type RunPlaybookCommand, type RunPlaybookPorts, SEND_RETRY_WAITS_MS, STALE_MS, STALE_REPLY_MS, SUBSCRIBERS, type SendKind, type SendPayload, type SendQueuedCommand, type SendQueuedPorts, type Sender, type SnoozePorts, type SnoozeResult, type StartOutcome, type StoredAppointment, type Subscriber, type SubscriberPorts, TEMPLATE_VALUE_WORDS, type TakeOverPorts, type TakeOverResult, type TemplateSend, type TemplateValuesPorts, type TermOutcome, type Thread, type ThreadPorts, type ThreadState, type ThreadTurn, UNKNOWN_START_GRACE_MS, VISION_MAX_BYTES, VISION_MIMES, type WakePorts, type Wire, type WirePayload, type WireUnavailable, WireUnavailableError, afterProbe, ageVerdict, answerInbound, approveRun, archive, areaCenter, assembleRun, beginConversation, bookingPageLinkedFrom, campaignHow, campaignHowOf, cancelBroadcast, cancelSend, centerOf, check, checkPlaybook, checkPlaybookChannels, checkPlaybookMoment, checkPlaybookPatch, checkable, cleanPlace, collect, createBroadcast, deliver, deliverSafely, discoveryEnding, effectiveReplyMode, emailSender, fact, factsOf, foldDuplicates, handBack, handStepIdFor, hasContact, haversineM, holdCopy, holdPlan, identityOf, imageHeaderOf, inArea, ingestEmail, isAgainRun, isFreeMail, isNotTakenError, isThreadUnknown, isVisionMime, isWireUnavailable, isWireUnavailableError, judgeBatch, layerTwo, leadMarksFrom, leadPins, mainAsk, markImageFrom, markPlaces, mayBegin, medianCenter, memberOf, nearbyFor, nearestAreas, noModelPlan, opIdFor, outboundGate, parseChannels, photoUserText, playbookNameAsked, playbookNumber, probeAsk, probeYield, provisionLine, radiusFromSpread, raiseLateFailure, reachOutRunIdFor, readBookingNotice, readCampaignMessage, readReply, reconcileUnknownRuns, recordInbound, refusalScript, refuseWithoutBookingLink, refuseWithoutReviewLink, rejudgeProbe, replyPosture, replyToConversation, resolveConsent, resolveEscalation, runCaps, runHandStep, runIdFor, runPlaybook, runReachOut, runStateOf, sendBroadcastBatch, sendIdFor, sendMessageId, sendQueued, sha256Hex, shareKeysOf, sharesWithin, sitePagesLinkedFrom, snooze, startRound, takeBatch, takeOver, targetOf, templatePurpose, templateValues, termsShortOf, toBase64, toldFromItsEvent, unreadableThread, untilOf, wake, whatsappSender, whatsappWire, wireUnavailable, yieldOf, zctaCenter };
+export { type AfterProbe, type AppointmentPatch, type ApproveReceipt, type ApproveRunPorts, type ArchivePorts, type AssembleCommand, type AssembleDecision, type AssemblePorts, type Assembled, type AssembledRun, BROADCAST_STALLS_MAX, BROADCAST_STALL_RETRY_MS, type BatchCarry, type BeginAsk, type BeginCommand, type BeginPorts, type BeginReceipt, type BookingNoticePorts, type BookingRequestHold, type BrainCall, type BroadcastBatchCommand, type BroadcastBatchPorts, type BroadcastReceipt, type BroadcastRef, type BroadcastRow, CARDS, CHECKER_FIELDS, CHECKER_RUN_TIMEOUT_SECS, CHECK_BATCH, CLOSED_REASON, type CancelBroadcastPorts, type CancelReceipt, type CancelSendPorts, type CarriedChannel, type Channel, type CheckAgain, type CheckOutcome, type CheckPlaybookPatchPorts, type CheckPlaybookPorts, type CleanPlace, type CollectCommitResult, type CollectJudgment, type CollectOutcome, type CollectPage, type CollectPlace, type ConsentDecision, type ConsentInputs, type ConsentSource, type ContactRow, type CreateBroadcastCommand, type CreateBroadcastPorts, type CredentialsRead, DEADLINE_MARGIN_MS, DM_WINDOW_CLOSED_REFUSAL, DUPLICATE_REASON, type Db, type DeliverPorts, type Delivered, type Delivery, type Door, type DraftMark, type DraftState, EMAIL_BODY_MAX, EMAIL_REVIEW_WORDS, type EmailIngestOutcome, type EmailIngestPorts, type EmailParentFacts, type EmailReplyPorts, type EmailRoute, type EscalationPorts, FACT_MAX, FINAL_RUN_STATES, FIRST_COLLECT_SECONDS, type FollowedStep, HOLD_EXPIRY_MS, type HandBackPorts, type HandItem, type HandStep, type HandStepPorts, IDEMPOTENCY_WINDOW_MS, INPUT_MARKER, type Identity, type InboundBrainReply, type InboundCarrier, type InboundChannel, type InboundDb, type InboundHandoff, type InboundInput, type InboundLog, type InboundPorts, type InboundRuntime, type InboundSink, type IncomingEmail, IngestFailed, JUDGE_MARGIN_MS, JUDGE_REFUSED_REASON, JUDGE_TIMEOUT_MS, type JudgedBatch, type KeptReading, type KeyClaim, type KeyHold, LEASE_SECONDS, type LatLng, type LateFailureCommand, type LateFailureFacts, type LateFailureOutcome, type LateFailurePorts, type LayerTwoIn, type LayerTwoOut, type LeadCardRunner, type LeadColumns, type LeadDb, type LeadMemberRow, type LeadPorts, LeadRetry, type LeadRoundRow, type LeadRunRow, type LeadShare, type ListCount, MAPS_CAP_FLOOR_USD, MAPS_FIELDS, MAPS_RUN_TIMEOUT_SECS, MARK_ALLOWANCE_MS, MARK_AT_ONCE, MARK_MAX_BYTES, MARK_MAX_RATIO, MARK_MIN_SIDE, MARK_TRIES, MAX_REPLIES_PER_DAY, MAX_SNOOZE_MS, type MapsPlace, type MarkImage, type MarkKind, type MemberJudgment, NEEDS_UNTIL, NO_LOCATION_REASON, NO_MODEL_PAGE, type NewAppointment, type NewBroadcast, type NewReachOutRun, type NewRecipient, NotTakenError, type NoticeClient, type NoticeEmail, type NoticeLedgerRow, type NoticeOutcome, OUT_OF_AREA_REASON, type OutboundRefusal, type Owner, PAGE_ITEMS, PAGE_READ_ALLOWANCE_MS, PERSON_CONTROL_MAX_S, POLL_SECONDS, PROVIDER_RUN_PAGE, type Phase, type PlannedSend, type PlaybookInput, type PlaybookPatchRow, type PlaybookRow, type ProbeYieldMember, type ProvisionLinePorts, type QueuedReply, RADIUS_MAX_M, RADIUS_MIN_M, REPLY_IN_PROGRESS_REFUSAL, type ReachOutFollower, type ReachOutLead, type ReachOutRunOutcome, type ReachOutRunPorts, type ReachOutStep, type ReadBookingNoticeCommand, type ReadBookingNoticeOutcome, type ReadReplyCommand, type ReadReplyOutcome, type RecipientMark, type RecipientRow, type ReconcileOutcome, type RejudgeOutcome, type RejudgeResult, type ReplyBody, type ReplyCommand, type ReplyFacts, type ReplyNotice, type ReplyPorts, type ReplyPosture, type ReplyReadPorts, type ReplyReceipt, type ReplyThread, type ResolveResult, type RoundQuestion, type RoutingFacts, type RunBy, type RunContext, type RunOutcome, type RunPlaybookCommand, type RunPlaybookPorts, SEND_RETRY_WAITS_MS, STALE_MS, STALE_REPLY_MS, SUBSCRIBERS, type SendKind, type SendPayload, type SendQueuedCommand, type SendQueuedPorts, type Sender, type SnoozePorts, type SnoozeResult, type StartOutcome, type StoredAppointment, type Subscriber, type SubscriberPorts, TEMPLATE_VALUE_WORDS, type TakeOverPorts, type TakeOverResult, type TemplateSend, type TemplateValuesPorts, type TermOutcome, type Thread, type ThreadPorts, type ThreadState, type ThreadTurn, UNKNOWN_START_GRACE_MS, VISION_MAX_BYTES, VISION_MIMES, type WakePorts, type Wire, type WirePayload, type WireUnavailable, WireUnavailableError, afterProbe, ageVerdict, answerInbound, approveRun, archive, areaCenter, assembleRun, beginConversation, bookingPageLinkedFrom, campaignHow, campaignHowOf, cancelBroadcast, cancelSend, centerOf, check, checkPlaybook, checkPlaybookChannels, checkPlaybookMoment, checkPlaybookPatch, checkable, cleanPlace, collect, createBroadcast, deliver, deliverSafely, discoveryEnding, effectiveReplyMode, emailSender, fact, factsOf, foldDuplicates, handBack, handStepIdFor, hasContact, haversineM, holdCopy, holdPlan, identityOf, imageHeaderOf, inArea, ingestEmail, isAgainRun, isFreeMail, isNotTakenError, isThreadUnknown, isVisionMime, isWireUnavailable, isWireUnavailableError, judgeBatch, layerTwo, leadMarksFrom, leadPins, mainAsk, markImageFrom, markPlaces, mayBegin, medianCenter, memberOf, nearbyFor, nearestAreas, noModelPlan, opIdFor, outboundGate, parseChannels, photoUserText, playbookNameAsked, playbookNumber, probeAsk, probeYield, provisionLine, radiusFromSpread, raiseLateFailure, reachOutRunIdFor, readBookingNotice, readCampaignMessage, readReply, reconcileUnknownRuns, recordInbound, refusalScript, refuseWithoutBookingLink, refuseWithoutReviewLink, rejudgeProbe, replyPosture, replyToConversation, resolveConsent, resolveEscalation, runCaps, runHandStep, runIdFor, runPlaybook, runReachOut, runStateOf, sendBroadcastBatch, sendIdFor, sendMessageId, sendQueued, sha256Hex, shareKeysOf, sharesWithin, sitePagesLinkedFrom, snooze, startRound, takeBatch, takeOver, targetOf, templatePurpose, templateValues, termsShortOf, toBase64, toldFromItsEvent, unreadableThread, untilOf, wake, whatsappSender, whatsappWire, wireUnavailable, yieldOf, zctaCenter };

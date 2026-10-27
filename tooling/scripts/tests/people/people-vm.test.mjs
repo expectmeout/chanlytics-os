@@ -934,6 +934,7 @@ test("where a person came from, in the words People says it: one per stored valu
     whatsapp: "WhatsApp",
     sms: "Text",
     email: "Email",
+    instagram: "Instagram",
     call: "Phone",
     calendar: "Your calendar",
     manual: "Added by hand",

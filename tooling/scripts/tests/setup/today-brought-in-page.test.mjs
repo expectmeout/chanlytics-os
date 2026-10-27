@@ -22,6 +22,7 @@ import {
 } from "./_first-run-world.mjs";
 
 const { TodayBroughtIn } = await importSrc("apps/dashboard/src/surfaces/today/pages/brought-in.tsx");
+const { ImportLines } = await importSrc("apps/dashboard/src/surfaces/setup/first-run/channels/brought.tsx");
 const DAY = 86_400_000;
 const row = (source, state, counts, over = {}) => ({
   source,
@@ -96,7 +97,12 @@ test("Today's Brought in opens in place: the facts fold, the sources unfold, and
   assert.equal(byTestId(card, "today-brought-open").props["aria-expanded"], true);
   const inbox = byTestId(card, "fr-import-mailbox");
   assert.match(textOf(inbox), /^Your inbox214 emails so far · since .+131 newsletters and notices set aside$/);
-
+  // Each line is a door to its page, and what the mailbox set aside a door to where it is listed.
+  const doorTo = (id) => byTestId(card, id).props.href;
+  assert.match(doorTo("fr-import-door-mailbox"), /inbox$/, "the inbox's line opens the Inbox");
+  assert.match(doorTo("fr-import-door-contacts"), /clients$/, "the contacts' line opens People");
+  assert.match(doorTo("fr-import-aside-mailbox"), /admin\/integrations\/left$/, "Left in your mailbox, open");
+  assert.equal(typeof byTestId(card, "fr-import-door-mailbox").props.onClick, "function", "a press goes the app's way");
   assert.match(textOf(card), /Keeps going if you leave\. Shown on each person as history, never answered\.$/);
   byTestId(tree, "today-brought-open").props.onClick();
   tree = draw();
@@ -183,4 +189,27 @@ test("Today's Brought in is drawn while it helps: nothing before anything came, 
   );
   setSetup(undefined);
   assert.equal(byTestId(draw(), "today-brought-in"), null, "Setup not read yet");
+});
+
+test("the first run's sheet draws the same lines with no doors: its owner stays on the step", () => {
+  fresh();
+  const lines = [
+    {
+      source: "mailbox",
+      title: "Your inbox",
+      says: "414 emails · since Jun 7",
+      stand: "In",
+      state: "done",
+      retry: false,
+      share: null,
+      aside: "195 newsletters and notices set aside",
+      door: "inbox",
+      asideDoor: "admin/integrations/left",
+      count: 414,
+    },
+  ];
+  const tree = mountWith(ImportLines, { lines, flash: () => {} });
+  assert.equal(byTestId(tree, "fr-import-door-mailbox"), null);
+  assert.equal(byTestId(tree, "fr-import-aside-mailbox"), null);
+  assert.match(textOf(byTestId(tree, "fr-import-mailbox")), /^Your inbox414 emails · since Jun 7195 newsletters/);
 });

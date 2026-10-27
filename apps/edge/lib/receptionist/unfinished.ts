@@ -62,9 +62,11 @@ type Db = SupabaseClient<Database>;
  * channel is added here only once somebody decides this sweep owns it. A text
  * is answered after its acknowledgement by a job (inbound_answer, 00347): its
  * message is left alone while that job waits or runs and is not long overdue,
- * and is this sweep's again once the job has failed for good.
+ * and is this sweep's again once the job has failed for good. An Instagram DM takes the text's road (decision 0001,
+ * step 8: recorded at its door, answered by an inbound_answer job), and is the receptionist's to answer as a text is, so
+ * this sweep owns it the same way.
  */
-const INLINE_INTAKE = ["whatsapp", "sms"] as const;
+const INLINE_INTAKE = ["whatsapp", "sms", "instagram"] as const;
 
 /** A customer's message older than this with no processed_at stamp was never finished with. */
 const UNANSWERED_INBOUND_AFTER_MS = 3 * MIN_MS;

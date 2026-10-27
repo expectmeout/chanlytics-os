@@ -187,15 +187,21 @@ test("the receptionist's gate: a STOP opens no hold, tells nobody itself, sends 
         processed: async (...a) => seen.processed.push(a),
       },
       tell: async (...a) => seen.told.push(a),
-      n: { kind: "text", body: "STOP", optOut: false, optIn: false, ...n },
-      raw: { type: "text" },
+      // The one inbound shape (decision 0001): the message says its own consent.
+      n: {
+        kind: "text",
+        body: "STOP",
+        rawType: "text",
+        ...n,
+        consent: { optOut: false, optIn: false, optInMarketing: false, ...n.consent },
+      },
       ing,
       carrier: undefined,
     });
     return { out, seen };
   };
 
-  const stop = await run({ optOut: true });
+  const stop = await run({ consent: { optOut: true } });
   assert.equal(stop.out, undefined, "the message stops here: nothing else answers it");
   assert.deepEqual(stop.seen.escalated, [], "no hold: nothing in Needs you, Today's queue or the badge");
   assert.deepEqual(stop.seen.told, [], "and no handoff notice: the consent event tells the owner, once, on the bell");

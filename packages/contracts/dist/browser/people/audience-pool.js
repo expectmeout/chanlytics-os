@@ -7,7 +7,7 @@ import {
 import { isOptedOutContact } from "../consent/consent.js";
 import { isEmailStopped } from "../conversations/thread-contact.js";
 import { isConsultationTitle } from "../deals/deal-consultations.js";
-import { replyChannelOfRow, toPersonRowVM } from "./person-row.js";
+import { igClockOfRow, replyChannelOfRow, toPersonRowVM } from "./person-row.js";
 export function personLikeOf(p) {
   return {
     id: p.id,
@@ -18,6 +18,10 @@ export function personLikeOf(p) {
     email: p.email ?? null,
     thread: p.has_chat && p.latest_conversation_id ? p.latest_conversation_id : null,
     waInboundAt: p.latest_wa_inbound_at ?? null,
+    igInboundAt: igClockOfRow({
+      last_inbound_channel: p.last_inbound_channel ?? null,
+      last_wrote_at: p.last_wrote_at ?? null
+    }),
     // What a reply to them is judged by, from the same row and the same functions the People row asks (person-row.ts), so the
     // board's block offers the booking link, or does not, as the row does. A row without the columns says no stop: absence is
     // no opt-out (consent.ts).

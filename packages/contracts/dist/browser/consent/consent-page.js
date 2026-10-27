@@ -37,6 +37,10 @@ export function optInConfirmation(businessName, purpose) {
   const name = businessName.trim() || "This business";
   return purpose === "marketing" ? `${name}: you're signed up for offers and news. A few messages a month. Msg & data rates may apply. Reply HELP for help, STOP to cancel.` : `${name}: you'll get texts about your appointments. Msg frequency varies. Msg & data rates may apply. Reply HELP for help, STOP to cancel.`;
 }
+export function dmBackOnConfirmation(businessName) {
+  const name = businessName.trim() || "This business";
+  return `${name}: you'll hear from us here again. Reply STOP any time to stop.`;
+}
 export function verbalOptInScript(businessName) {
   const name = businessName.trim() || "us";
   return `Would you like ${name} to text you about your appointments and reply when you write? Message frequency varies. Message and data rates may apply. Reply HELP for help, STOP to stop.`;

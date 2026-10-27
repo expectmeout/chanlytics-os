@@ -524,6 +524,8 @@ interface ConnectedMailboxesProps {
   /** What the browser came back from the provider with (or the door refused), said until the owner closes it. */
   note: { ok: boolean; words: string; code: string | null } | null;
   onNote: () => void;
+  /** The address named "Left in your mailbox" (Today's Brought in links to it): its list read and brought into view. */
+  openLeft?: boolean;
 }
 
 /** The note a connect came back with, and, where it waits on a Microsoft 365 admin, the link to send them. */
@@ -577,7 +579,7 @@ function adminLinkRow(url: string, flash: Flash, onClose: () => void) {
  * Drawn when this deployment offers a provider or the workspace has a mailbox connected; otherwise the row is Later,
  * and only what a connect came back with is said under it.
  */
-export function ConnectedMailboxes({ email, flash, note, onNote }: ConnectedMailboxesProps) {
+export function ConnectedMailboxes({ email, flash, note, onNote, openLeft = false }: ConnectedMailboxesProps) {
   const [busy, setBusy] = useState<string | null>(null);
   const [arm, setArm] = useState<Arm | null>(null);
   const [adminUrl, setAdminUrl] = useState<string | null>(null);
@@ -609,7 +611,9 @@ export function ConnectedMailboxes({ email, flash, note, onNote }: ConnectedMail
       )}
       {mailboxes.map((m) => mailboxRow(m, ctx, now))}
       {mailboxesFoot(mailboxes.length, providers, ctx)}
-      {mailboxes.length > 0 && <LeftSenders owner={owner} flash={flash} today={email.sending.left_today ?? null} />}
+      {mailboxes.length > 0 && (
+        <LeftSenders owner={owner} flash={flash} today={email.sending.left_today ?? null} open={openLeft} />
+      )}
     </div>
   );
 }

@@ -68,8 +68,9 @@ function oursFirst(e) {
   const call = e.calls.find((k) => moment(k.started_at) === at);
   if (call) return call.direction === "outbound" ? { call: true } : null;
   const m = e.messages.find((x) => moment(messageAt(x)) === at);
-  return m && m.direction === "outbound" ? { on: CONSENT_CHANNEL_WORDS[writtenChannelOf(m.channel)] } : null;
+  return m && m.direction === "outbound" ? { on: FIRST_WRITTEN_ON[writtenChannelOf(m.channel)] } : null;
 }
+const FIRST_WRITTEN_ON = { ...CONSENT_CHANNEL_WORDS, instagram: "by Instagram DM" };
 const firstLowered = (s) => `${s.charAt(0).toLowerCase()}${s.slice(1)}`;
 export function personOriginOf(e, tz, nowMs) {
   const from = e.first.cameFrom;

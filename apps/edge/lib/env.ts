@@ -80,6 +80,20 @@ export const env = {
     return trimmedEnv(process.env.WHATSAPP_ANSWERS_AS_JOBS);
   },
 
+  // Instagram (the Instagram API with Instagram Login: decision 0001, step 8)
+  get INSTAGRAM_APP_ID() {
+    return trimmedEnv(process.env.INSTAGRAM_APP_ID);
+  },
+  get INSTAGRAM_APP_SECRET() {
+    return trimmedEnv(process.env.INSTAGRAM_APP_SECRET);
+  },
+  get INSTAGRAM_VERIFY_TOKEN() {
+    return trimmedEnv(process.env.INSTAGRAM_VERIFY_TOKEN);
+  },
+  get INSTAGRAM_REDIRECT_URI() {
+    return trimmedEnv(process.env.INSTAGRAM_REDIRECT_URI);
+  },
+
   // Retell AI and the lines under it
   get RETELL_API_KEY() {
     return trimmedEnv(process.env.RETELL_API_KEY);
