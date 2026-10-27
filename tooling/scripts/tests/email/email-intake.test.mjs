@@ -287,6 +287,54 @@ test("what a message claims to be: a report and an automatic reply before the ge
     assert.equal(claim({}, person), "person", person);
 });
 
+test("a DMARC aggregate report is automated whoever writes it, by RFC 7489's subject or by DMARC as a word of the sender's local part; a reply to one, a forward of one and a name that holds the letters are a person's", () => {
+  const claim = (from, subject = "Hello") =>
+    classifyReceived({ headers: {}, from: { address: from, name: null }, subject });
+  // Microsoft's, as a mailbox's six months took it in as a person (26 Oct 2026): no automated header, no no-reply.
+  assert.equal(
+    classifyReceived({
+      headers: {},
+      from: { address: "dmarcreport@microsoft.com", name: "DMARC Aggregate Report" },
+      subject: "Report Domain: getharbor.example Submitter: protection.outlook.com Report-ID: 7d6c4a1e2b3f",
+    }),
+    "automated",
+  );
+  for (const subject of [
+    "Report domain: getharbor.example Submitter: google.com Report-ID: 12345678901234567890",
+    "Report Domain: getharbor.example Submitter: Yahoo Report-ID: <1700000000.123456@yahoo.com>",
+    "[Preview] Report Domain: getharbor.example Submitter: protection.outlook.com Report-ID: 5f3e9c",
+    "report domain: getharbor.example submitter: mail.ru",
+  ])
+    assert.equal(claim("reports@isp.example", subject), "automated", subject);
+  for (const robot of [
+    "dmarcreport@microsoft.com",
+    "dmarcreports@isp.example",
+    "dmarc@isp.example",
+    "dmarc-reports@isp.example",
+    "dmarc_rua@isp.example",
+    "dmarc_reports@reports.emailsrvr.com",
+    "rua+dmarc@isp.example",
+  ])
+    assert.equal(claim(robot), "automated", robot);
+  for (const subject of [
+    "Re: Report Domain: getharbor.example Submitter: protection.outlook.com Report-ID: 7d6c4a1e2b3f",
+    "Fwd: Report domain: getharbor.example Submitter: google.com Report-ID: 1234",
+    "Report domain: we moved to getharbor.example",
+    "Our DMARC report looks wrong",
+  ])
+    assert.equal(claim("ana@example.com", subject), "person", subject);
+  for (const person of [
+    "edmarcos@example.com",
+    "dmarchetti@example.com",
+    "dmarcotte@example.com",
+    "dmarcus.lee@example.com",
+    // A business answering from its own role address, as ones did beside the reports on 27 Oct 2026.
+    "support@shop.example",
+    "customerexperience@grocer.example",
+  ])
+    assert.equal(claim(person), "person", person);
+});
+
 test("every claim the intake answers is one contracts' EMAIL_CLAIMS declares, the set is no larger, and a person's words are what it marks them", () => {
   const from = { address: "ana@example.com", name: null };
   const said = new Set([
