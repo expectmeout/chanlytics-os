@@ -201,6 +201,13 @@ export function emailSignatureLine(signature: string): string {
     .join(" · ");
 }
 
+/** The words an email of ours was signed with, as the reply that sent it kept them (00487 meta.email.signature); else null. */
+export function emailSignedWithOf(m: MessageDto): string | null {
+  if (m.sender === "customer") return null;
+  const signed = (m.meta as { email?: { signature?: unknown } } | null)?.email?.signature;
+  return typeof signed === "string" && signed.trim() ? signed.trim() : null;
+}
+
 /** A subject as a thread compares it: "Re: test need you" and "Fwd: Test need you" are "test need you". */
 const REPLY_PREFIX = /^((re|fwd?|fw|aw|sv|tr)\s*:\s*)+/i;
 const subjectKey = (s: string): string => s.replace(REPLY_PREFIX, "").trim().toLowerCase();

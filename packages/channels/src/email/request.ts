@@ -86,6 +86,11 @@ export interface EmailRequestInput {
   body: string;
   /** Composed from the business's profile by the caller; null sends none. */
   signature: string | null;
+  /**
+   * The signature as its own markup, where it has one (a mailbox's Gmail signature, mailboxSignatureOf): the HTML part
+   * carries it under the words, as Gmail does, and the words part carries `signature`. A plain email carries words alone.
+   */
+  signatureHtml?: string | null;
   /** Who wrote the words: with the parent and the campaign, decides Auto-Submitted. */
   actor: "ai" | "human";
   /**
@@ -217,6 +222,26 @@ function autoSubmittedOf(i: EmailRequestInput): "auto-generated" | "auto-replied
   return i.actor === "ai" ? "auto-replied" : null;
 }
 
+/**
+ * The HTML part: the words as paragraphs, then the signature (its own markup in Gmail's block where it has one, else its
+ * words), then a campaign's foot (its own markup where it has one, else its words, which `text` already holds).
+ */
+function htmlOf(i: EmailRequestInput, footerHtml: string | null, text: string): string {
+  const signed = i.signatureHtml?.trim();
+  if (!signed)
+    return footerHtml
+      ? `${emailHtml([i.body.trim(), i.signature?.trim()].filter(Boolean).join("\n\n"))}\n${footerHtml}`
+      : emailHtml(text);
+  const foot = footerHtml ?? (i.campaign ? emailHtml(i.campaign.footer.trim()) : "");
+  return [
+    emailHtml(i.body.trim()),
+    `<div class="gmail_signature" data-smartmail="gmail_signature">${signed}</div>`,
+    foot,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 export function buildEmailRequest(i: EmailRequestInput): EmailRequest {
   const subject = i.parent ? replySubject(i.parent.subject) : oneLine(i.subject ?? "").slice(0, SUBJECT_MAX);
   if (!subject) throw new Error("buildEmailRequest: a first email names its subject");
@@ -229,11 +254,7 @@ export function buildEmailRequest(i: EmailRequestInput): EmailRequest {
   const footerHtml = i.campaign?.footerHtml?.trim() || null;
   if (footerHtml && !footerHtml.includes(`href="${escapeHtml(i.campaign!.unsubscribeUrl.trim())}"`))
     throw new Error("buildEmailRequest: a campaign's HTML footer carries its unsubscribe link");
-  const html = i.plain
-    ? ""
-    : footerHtml
-      ? `${emailHtml([i.body.trim(), i.signature?.trim()].filter(Boolean).join("\n\n"))}\n${footerHtml}`
-      : emailHtml(text);
+  const html = i.plain ? "" : htmlOf(i, footerHtml, text);
   const inReplyTo = i.parent ? messageIdHeader(i.parent.rfcMessageId) : null;
   const references = i.parent ? referencesFor(i.parent) : [];
   const autoSubmitted = autoSubmittedOf(i);

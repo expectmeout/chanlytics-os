@@ -170,6 +170,27 @@ export async function gmailProfile(token: string, deps?: Deps): Promise<Provider
 }
 
 /**
+ * The signature the owner keeps in Gmail for this address (users.settings.sendAs, which gmail.readonly reads): its HTML,
+ * as Gmail keeps it, or null where it keeps none. An address Gmail does not send as answers 404: none.
+ */
+export async function gmailSignature(
+  token: string,
+  address: string,
+  deps?: Deps,
+): Promise<{ ok: true; html: string | null } | { ok: false; reply: ProviderReply }> {
+  const r = await providerFetch(
+    "google",
+    `${GMAIL_API}/settings/sendAs/${encodeURIComponent(address)}`,
+    { headers: auth(token), timeoutMs: MAILBOX_READ_MS, idempotent: true, tries: 2 },
+    deps,
+  );
+  if (r.status === 404) return { ok: true, html: null };
+  if (r.outcome !== "ok") return { ok: false, reply: r };
+  const html = (r.json as { signature?: unknown } | null)?.signature;
+  return { ok: true, html: typeof html === "string" && html.trim() ? html : null };
+}
+
+/**
  * Whether Gmail said the account has no mailbox: a Google account that is not a Gmail one (or one whose Gmail is
  * switched off) answers 400 failedPrecondition ("Mail service not enabled"). Gmail says the same now and then of a
  * mailbox that has one, so a caller asks twice before it believes it.

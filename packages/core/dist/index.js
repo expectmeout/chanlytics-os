@@ -715,7 +715,8 @@ async function shapeEmailReply(ports, conv, to, { text, agreedTo, subject }) {
         parent_id: parent.messageId,
         in_reply_to: parent.rfcMessageId,
         request: frozen.request,
-        ...frozen.own ? { own_request: frozen.own } : {}
+        ...frozen.own ? { own_request: frozen.own } : {},
+        ...frozen.signature ? { signature: frozen.signature } : {}
       }
     }
   };

@@ -808,7 +808,7 @@ var ERASURE_STRATEGIES = {
   // workspace; its token's name, its records and its clocks are not personal (its provider, state and hold are closed
   // sets, no words).
   mailbox_connections: {
-    ...all(WITH_WORKSPACE, "address", "host", "from_name", "signature", "provider_account"),
+    ...all(WITH_WORKSPACE, "address", "host", "from_name", "signature", "gmail_signature", "provider_account"),
     ...all(NOT_PERSONAL, "scopes", "credentials_ref", "dns", "sync_cursor", "watch_id", "last_error")
   },
   // What a connected mailbox left where it was, one row a sender (00483): a robot's, or a person's that Gmail filed with

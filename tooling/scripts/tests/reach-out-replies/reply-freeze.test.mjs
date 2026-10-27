@@ -179,3 +179,22 @@ test("which reach-out: the one the reply's References name, else the latest on t
   const latest = await freezeReply(w, { ...INPUT, parent: { ...PARENT, references: [], rfcMessageId: null } });
   assert.match(latest.own.from, /sam@second\.example\.com/, "else the latest reach-out on the thread");
 });
+
+test("an answer from the connected mailbox is signed as that mailbox signs (00487), the hosted twin too; the hosted mailbox's alone carries what was typed", async () => {
+  // With nothing set, the name it sends as ends the email: it ended on the words alone, "Talk soon," on production.
+  const named = await freezeReply(world(), INPUT);
+  assert.equal(named.signature, "Sam at Harbor");
+  assert.ok(named.own.text.endsWith("\n\nSam at Harbor"), "the twin, from the mailbox, signed");
+  assert.equal(named.request.text, named.own.text, "and the hosted request, the same words and signature");
+  // Gmail's signature, as Gmail keeps it: its markup in the HTML, its words in the text.
+  const gmail = '<div dir="ltr"><b>Sam Reyes</b><div>Harbor Moving</div></div>';
+  const signed = await freezeReply(world({ boxes: [box({ gmail_signature: gmail })] }), INPUT);
+  assert.equal(signed.signature, "Sam Reyes\nHarbor Moving");
+  assert.ok(signed.own.html.includes(`<div class="gmail_signature" data-smartmail="gmail_signature">${gmail}</div>`));
+  // Off, none; and a thread no connected mailbox answers carries what was typed.
+  const off = await freezeReply(world({ boxes: [box({ gmail_signature: gmail, signature_off: true })] }), INPUT);
+  assert.equal(off.signature, null);
+  assert.ok(!off.own.text.includes("Sam"), "nothing under the words");
+  const hosted = await freezeReply(world({ messages: [] }), INPUT);
+  assert.equal(hosted.signature, null, "the hosted mailbox's alone is not signed");
+});

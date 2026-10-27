@@ -38,6 +38,7 @@ import {
   grantScopes,
   grantScopesMissing,
   mailboxRevokeRequest,
+  mailboxSignatureOf,
   mailboxTokenRequest,
   providerFetch,
   sendFromMailbox,
@@ -58,6 +59,7 @@ import { mailboxClient } from "./mailbox-config.js";
 import { grantOf, storeMailboxCredentials, tokenFor } from "./mailbox-credentials.js";
 import { readMailboxDns } from "./mailbox-dns.js";
 import { endWatch, keepWatch } from "./mailbox-watch.js";
+import { keepGmailSignature, readGmailSignatureNow } from "./mailbox-signature.js";
 import { mendWarnings } from "../../ops/notify.js";
 import { startMailboxHistory } from "../../imports/history-import.js";
 import { errField, type Logger } from "../../log.js";
@@ -267,6 +269,11 @@ export async function mailboxConnect(
     await keepWatch(p.db, row, grant.access_token, p.log, now).catch((e: unknown) =>
       p.log.warn("mailbox_watch_failed", { mailbox: made.id, error: errField(e) }),
     );
+  // The signature its owner keeps in Gmail, which every email it sends carries (00487); the sweep reads it daily.
+  if (row)
+    await keepGmailSignature(p.db, row, grant.access_token, p.log, now).catch((e: unknown) =>
+      p.log.warn("mailbox_signature_unread", { mailbox: made.id, error: errField(e) }),
+    );
   await emitEvent(p.db, i.tenantId, "mailbox_connection.connected", "mailbox_connection", made.id, {
     address,
     provider: i.provider,
@@ -363,11 +370,15 @@ export async function mailboxResume(p: MailboxPorts, row: MailboxConnectionRow, 
   return moved;
 }
 
-/** The name it sends as, its signature and its owner's cap, as the owner set them; each checked. */
+/**
+ * The name it sends as, what it signs with and its owner's cap, as the owner set them; each checked. What it signs with
+ * is their own words (`signature`), none (`signature_off`), or, with neither, the signature they keep in Gmail, which is
+ * read again at once as they choose it (00487).
+ */
 export async function mailboxSettings(
   p: MailboxPorts,
   row: MailboxConnectionRow,
-  s: { from_name?: string; signature?: string | null; daily_cap?: number },
+  s: { from_name?: string; signature?: string | null; signature_off?: boolean; daily_cap?: number },
 ): Promise<MailboxConnectionRow | { error: "bad_name" | "bad_signature" | "bad_cap" }> {
   const patch: Record<string, unknown> = {};
   if (s.from_name !== undefined) {
@@ -380,13 +391,17 @@ export async function mailboxSettings(
     if (sig.length > 1000) return { error: "bad_signature" };
     patch.signature = sig || null;
   }
+  if (s.signature_off !== undefined) patch.signature_off = s.signature_off;
   if (s.daily_cap !== undefined) {
     if (!Number.isInteger(s.daily_cap) || s.daily_cap < 1 || s.daily_cap > MAILBOX_DAILY_CAP_MAX)
       return { error: "bad_cap" };
     patch.daily_cap = s.daily_cap;
   }
-  const moved = await patchMailboxConnection(p.db, { tenantId: row.tenant_id, id: row.id, patch });
-  return moved ?? row;
+  const moved = (await patchMailboxConnection(p.db, { tenantId: row.tenant_id, id: row.id, patch })) ?? row;
+  const chose = s.signature !== undefined || s.signature_off !== undefined;
+  return chose && !moved.signature && !moved.signature_off
+    ? readGmailSignatureNow(p.db, moved, p.log, (p.now ?? Date.now)())
+    : moved;
 }
 
 /** An email from the mailbox to itself, through its own provider: what the owner sees is what a business gets. */
@@ -405,7 +420,8 @@ export async function mailboxTest(
     body:
       `This is how an email from ${row.address} reads when Chanlytics writes it: plain words, from your own mailbox, ` +
       `with replies coming back here.\n\nNothing else was sent.`,
-    signature: row.signature,
+    // What every email it sends carries (00487): the test shows it as a business will read it.
+    signature: mailboxSignatureOf(row)?.text ?? null,
     actor: "human",
     messageId: testId,
     tenantId: row.tenant_id,

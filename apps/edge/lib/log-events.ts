@@ -342,6 +342,7 @@ export const LOG_EVENTS = [
   "mailbox_reconciled",
   "mailbox_rest_failed",
   "mailbox_send_no_token",
+  "mailbox_signature_unread",
   "mailbox_signed_out_unmarked",
   "mailbox_stamp_failed",
   "mailbox_sync_failed",

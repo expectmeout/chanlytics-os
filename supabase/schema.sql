@@ -33800,10 +33800,14 @@ CREATE TABLE public.mailbox_connections (
     removed_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    gmail_signature text,
+    gmail_signature_at timestamp with time zone,
+    signature_off boolean DEFAULT false NOT NULL,
     CONSTRAINT mailbox_connections_address_check CHECK ((((char_length(address) >= 6) AND (char_length(address) <= 254)) AND (address = lower(btrim(address))) AND (address ~ '^[a-z0-9._%+''-]+@([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$'::text))),
     CONSTRAINT mailbox_connections_daily_cap_check CHECK (((daily_cap >= 1) AND (daily_cap <= 50))),
     CONSTRAINT mailbox_connections_dns_check CHECK ((jsonb_typeof(dns) = 'object'::text)),
     CONSTRAINT mailbox_connections_from_name_check CHECK (((char_length(btrim(from_name)) >= 1) AND (char_length(btrim(from_name)) <= 80))),
+    CONSTRAINT mailbox_connections_gmail_signature_check CHECK (((gmail_signature IS NULL) OR (char_length(gmail_signature) <= 10000))),
     CONSTRAINT mailbox_connections_held_is_whole CHECK ((((state = 'held'::text) = (held_why IS NOT NULL)) AND ((held_why IS NULL) = (held_at IS NULL)))),
     CONSTRAINT mailbox_connections_held_why_check CHECK ((held_why = ANY (ARRAY['bounces'::text, 'complaint'::text, 'unsubscribes'::text]))),
     CONSTRAINT mailbox_connections_host_is_address CHECK ((host = split_part(address, '@'::text, 2))),
@@ -33838,6 +33842,27 @@ COMMENT ON COLUMN public.mailbox_connections.state IS 'connected: it sends and i
 --
 
 COMMENT ON COLUMN public.mailbox_connections.resting_until IS 'Set when the provider refused a send for its own day''s limit: the mailbox''s sends wait until then (the next midnight in its provider''s reckoning, or the wait it named). Null otherwise.';
+
+
+--
+-- Name: COLUMN mailbox_connections.gmail_signature; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mailbox_connections.gmail_signature IS 'The signature its owner keeps in Gmail for this address, as Gmail keeps it (HTML), read at connect and once a day; null where Gmail has none or it was not read. Sent as it is in what the mailbox sends; drawn in the app only as words.';
+
+
+--
+-- Name: COLUMN mailbox_connections.gmail_signature_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mailbox_connections.gmail_signature_at IS 'When its Gmail signature was last read; null until it is.';
+
+
+--
+-- Name: COLUMN mailbox_connections.signature_off; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mailbox_connections.signature_off IS 'Its owner sends no signature: neither Gmail''s nor their own.';
 
 
 --

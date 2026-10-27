@@ -97,6 +97,43 @@ export interface MailboxConnectionDto {
   counts: MailboxCounts | null;
   /** The people whose email came in through it in the last day, when the page's read could ask; null otherwise. */
   came_in: number | null;
+  /** What it signs its emails with (00487, mailboxSignsOf). */
+  signs: MailboxSigns;
+}
+
+/**
+ * Where a mailbox's signature comes from (00487, the email canvas's lane B): none, where its owner turned it off; their
+ * own words, written in Settings; the signature they keep in Gmail; else the name it sends as, so an email never ends on
+ * "Talk soon," and nothing under it.
+ */
+export type MailboxSignsFrom = "none" | "own" | "gmail" | "name";
+
+/** What a mailbox signs with, as words (never markup: Gmail's HTML is sent, and drawn only as words), and when Gmail's was read. */
+export interface MailboxSigns {
+  from: MailboxSignsFrom;
+  /** The signature as words; null where it signs with none. */
+  words: string | null;
+  /** When its Gmail signature was last read; null before the first read. */
+  gmail_read_at: string | null;
+  /** Gmail's signature as words, whatever it signs with now (Settings shows it beside the choice); null with none. */
+  gmail: string | null;
+}
+
+/**
+ * What a mailbox signs with, from its row and Gmail's signature as words (`gmailWords`: channels reads the HTML, which
+ * this package cannot). The one rule: the edge sends by it, and Settings and Need you say it.
+ */
+export function mailboxSignsOf(
+  r: { signature: string | null; signature_off?: boolean; from_name: string; gmail_signature_at?: string | null },
+  gmailWords: string | null,
+): MailboxSigns {
+  const gmail_read_at = r.gmail_signature_at ?? null;
+  const gmail = gmailWords?.trim() || null;
+  if (r.signature_off === true) return { from: "none", words: null, gmail_read_at, gmail };
+  const own = r.signature?.trim();
+  if (own) return { from: "own", words: own, gmail_read_at, gmail };
+  if (gmail) return { from: "gmail", words: gmail, gmail_read_at, gmail };
+  return { from: "name", words: r.from_name.trim() || null, gmail_read_at, gmail };
 }
 
 /** The longest SPF text a row keeps, every record of the domain's together: a TXT answer is never longer. */
@@ -126,8 +163,12 @@ export function mailboxConnectionDtoOf(
     connected_at: string;
     sent_at: string | null;
     synced_at: string | null;
+    signature_off?: boolean;
+    gmail_signature_at?: string | null;
   },
   day: Partial<Pick<MailboxConnectionDto, "sent_today" | "counts" | "came_in">> | null = null,
+  /** Its Gmail signature as words (channels gmailSignatureWords); null where it has none or was not read. */
+  gmailWords: string | null = null,
 ): MailboxConnectionDto {
   const dns: Partial<Record<MailboxDnsRecord, DnsRecordState>> = {};
   const raw = r.dns && typeof r.dns === "object" ? (r.dns as Record<string, unknown>) : {};
@@ -165,6 +206,7 @@ export function mailboxConnectionDtoOf(
     sent_today: day?.sent_today ?? null,
     counts: day?.counts ?? null,
     came_in: day?.came_in ?? null,
+    signs: mailboxSignsOf(r, gmailWords),
   };
 }
 
@@ -338,6 +380,43 @@ export interface MailboxRowWords {
   standing: string | null;
   /** What to do, when there is something: reconnect, resume, a record to add. */
   fix: string | null;
+}
+
+/** What its owner chooses it signs with, in Settings (00487): Gmail's (a Microsoft mailbox's name), their own words, or none. */
+export type MailboxSignsChoice = "gmail" | "own" | "none";
+
+/** The choice a mailbox stands on: none where it is off, their own where they wrote one, else Gmail's (or its name). */
+export const mailboxSignsChoiceOf = (m: Pick<MailboxConnectionDto, "signs">): MailboxSignsChoice =>
+  m.signs.from === "none" ? "none" : m.signs.from === "own" ? "own" : "gmail";
+
+/** What Settings says of what a mailbox signs with, by choice (MailboxSettings in Connections). */
+export const MAILBOX_SIGNATURE_WORDS = {
+  label: "It signs its emails with",
+  gmail: "From Gmail",
+  name: "Its name",
+  own: "Write one",
+  none: "None",
+  ownLabel: "Its signature",
+  ownHint: "Under every email it sends.",
+  ownEmpty: "Write the signature, or choose another.",
+  none_says: "Nothing goes under its emails, not even its name.",
+} as const;
+
+/**
+ * What the Gmail choice says it signs with: Gmail's signature as words, or, with none, the name that ends its emails;
+ * and when Gmail's was read, which a save reads again. A Microsoft mailbox signs with its name.
+ */
+export function mailboxGmailSignsWords(m: Pick<MailboxConnectionDto, "provider" | "from_name" | "signs">): {
+  words: string;
+  read: string;
+} {
+  const gmailWords = m.signs.gmail;
+  if (m.provider !== "google") return { words: m.from_name, read: "Its emails end with the name it sends as." };
+  const at = m.signs.gmail_read_at;
+  const read = at ? `Read from Gmail at ${clockOf(at)}. Saving reads it again.` : "Saving reads it from Gmail now.";
+  return gmailWords
+    ? { words: gmailWords, read }
+    : { words: m.from_name, read: `Gmail has none for this address, so its emails end with its name. ${read}` };
 }
 
 /** "Read at 9:47 AM", or, past a late read, "Not read since Mon 9:47 PM"; "Not read yet" before the first. */

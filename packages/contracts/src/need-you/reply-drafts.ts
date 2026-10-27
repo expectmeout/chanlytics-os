@@ -35,6 +35,8 @@ export interface ReplyDraftDto {
   for_message_id: string | null;
   words: ReplyDraftWords;
   made_at: string;
+  /** The words an email reply from it is signed with, where it leaves from a mailbox the business connected (00487). */
+  signed?: string;
 }
 
 /** What the thread's row tells Ask it is about, by kind: the plan the person draft writes from (its `about`). */

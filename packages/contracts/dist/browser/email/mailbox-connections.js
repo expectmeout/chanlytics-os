@@ -20,9 +20,18 @@ export function mailboxSendsNow(m, nowMs) {
 export function reachOutWritesFrom(m, named) {
   return m.state !== "removed" && (named.length === 0 || named.includes(m.id));
 }
+export function mailboxSignsOf(r, gmailWords) {
+  const gmail_read_at = r.gmail_signature_at ?? null;
+  const gmail = gmailWords?.trim() || null;
+  if (r.signature_off === true) return { from: "none", words: null, gmail_read_at, gmail };
+  const own = r.signature?.trim();
+  if (own) return { from: "own", words: own, gmail_read_at, gmail };
+  if (gmail) return { from: "gmail", words: gmail, gmail_read_at, gmail };
+  return { from: "name", words: r.from_name.trim() || null, gmail_read_at, gmail };
+}
 export const SPF_RECORD_MAX = 4096;
 export const SPF_RECORDS_JOIN = " | ";
-export function mailboxConnectionDtoOf(r, day = null) {
+export function mailboxConnectionDtoOf(r, day = null, gmailWords = null) {
   const dns = {};
   const raw = r.dns && typeof r.dns === "object" ? r.dns : {};
   for (const k of MAILBOX_DNS_RECORDS) {
@@ -55,7 +64,8 @@ export function mailboxConnectionDtoOf(r, day = null) {
     synced_at: r.synced_at,
     sent_today: day?.sent_today ?? null,
     counts: day?.counts ?? null,
-    came_in: day?.came_in ?? null
+    came_in: day?.came_in ?? null,
+    signs: mailboxSignsOf(r, gmailWords)
   };
 }
 const COUNT_FLOOR = 150;
@@ -151,6 +161,25 @@ const CLOCK_FMT = formatterOnUse("en-US", { weekday: "short", hour: "numeric", m
 const clockOf = (iso) => CLOCK_FMT.format(new Date(iso));
 const TIME_FMT = formatterOnUse("en-US", { hour: "numeric", minute: "2-digit" });
 const MAILBOX_READ_LATE_MS = 20 * MIN_MS;
+export const mailboxSignsChoiceOf = (m) => m.signs.from === "none" ? "none" : m.signs.from === "own" ? "own" : "gmail";
+export const MAILBOX_SIGNATURE_WORDS = {
+  label: "It signs its emails with",
+  gmail: "From Gmail",
+  name: "Its name",
+  own: "Write one",
+  none: "None",
+  ownLabel: "Its signature",
+  ownHint: "Under every email it sends.",
+  ownEmpty: "Write the signature, or choose another.",
+  none_says: "Nothing goes under its emails, not even its name."
+};
+export function mailboxGmailSignsWords(m) {
+  const gmailWords = m.signs.gmail;
+  if (m.provider !== "google") return { words: m.from_name, read: "Its emails end with the name it sends as." };
+  const at = m.signs.gmail_read_at;
+  const read = at ? `Read from Gmail at ${clockOf(at)}. Saving reads it again.` : "Saving reads it from Gmail now.";
+  return gmailWords ? { words: gmailWords, read } : { words: m.from_name, read: `Gmail has none for this address, so its emails end with its name. ${read}` };
+}
 function mailboxReadWords(syncedAt, nowMs) {
   if (!syncedAt) return "Not read yet";
   return nowMs - Date.parse(syncedAt) > MAILBOX_READ_LATE_MS ? `Not read since ${clockOf(syncedAt)}` : `Read at ${TIME_FMT.format(new Date(syncedAt))}`;

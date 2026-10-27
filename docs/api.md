@@ -1352,6 +1352,7 @@ Writes; for a member of the workspace the request names, partner or above; count
 | `paused` | boolean | no |  |
 | `from_name` | string | no | at most 200 characters |
 | `signature` | string or null | no |  |
+| `signature_off` | boolean | no |  |
 | `daily_cap` | integer | no | ≥ -9007199254740991; ≤ 9007199254740991 |
 
 ### `DELETE /api/v1/mailbox-connections/[id]`

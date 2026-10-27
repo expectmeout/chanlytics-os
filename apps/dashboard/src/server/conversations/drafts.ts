@@ -14,6 +14,7 @@ import type { RouteContext } from "../with-route";
 import type { Member } from "../route";
 import { readerContext } from "../readers";
 import { replyChannelOf, type VerbConversation } from "../verbs";
+import { replyIdentitiesOf, signedWordsOf } from "../connections/email";
 import { draftForPerson } from "../new-conversation/person-draft";
 
 /**
@@ -62,21 +63,38 @@ function wordsFrom(w: Json): ReplyDraftWords {
   };
 }
 
-/** A kept row as the routes answer it. */
-function dtoOf(r: ConversationDraftRow): ReplyDraftDto {
+/** A kept row as the routes answer it, with the words its reply is signed with where it leaves from a mailbox (00487). */
+function dtoOf(r: ConversationDraftRow, signed: string | null = null): ReplyDraftDto {
   return {
     conversation_id: r.conversation_id,
     kind: r.kind === "brief" ? "brief" : "reply",
     for_message_id: r.for_message_id,
     words: wordsFrom(r.words),
     made_at: r.made_at,
+    ...(signed && r.kind !== "brief" ? { signed } : {}),
   };
+}
+
+/**
+ * What each thread's reply would be signed with, as its freeze decides where it leaves from (00487): the mailbox's
+ * signature, read once for the threads. What only says it, so a read that fails says none and drafts nothing less.
+ */
+async function signedByThread(ctx: RouteContext, tenantId: string, ids: string[]): Promise<Map<string, string>> {
+  const who = await replyIdentitiesOf(ctx, tenantId, ids).catch(() => null);
+  const signed = new Map<string, string>();
+  for (const [id, w] of who ?? []) {
+    const words = signedWordsOf(w);
+    if (words) signed.set(id, words);
+  }
+  return signed;
 }
 
 /** The drafts kept on these threads (GET conversations/drafts): whatever was kept, current or not; the page judges. */
 export async function draftsKept(ctx: RouteContext, member: Pick<Member, "tenantId">, ids: string[]) {
   const rows = await conversationDraftsOf(ctx.supabase, member.tenantId, ids);
-  return { drafts: rows.map(dtoOf) };
+  const replies = [...new Set(rows.filter((r) => r.kind !== "brief").map((r) => r.conversation_id))];
+  const signed = await signedByThread(ctx, member.tenantId, replies);
+  return { drafts: rows.map((r) => dtoOf(r, signed.get(r.conversation_id) ?? null)) };
 }
 
 /**
@@ -95,7 +113,9 @@ export async function draftForThread(
     conversationDraftsOf(ctx.supabase, conv.tenant_id, [conv.id]),
   ]);
   const mine = kept.find((r) => r.kind === kind);
-  if (mine && draftIsCurrent(mine, facts.forMessageId)) return dtoOf(mine);
+  const signed =
+    kind === "reply" ? ((await signedByThread(ctx, conv.tenant_id, [conv.id])).get(conv.id) ?? null) : null;
+  if (mine && draftIsCurrent(mine, facts.forMessageId)) return dtoOf(mine, signed);
   const wire = kind === "reply" ? await replyChannelOf(ctx, conv) : undefined;
   const drafted = await draftForPerson(readerContext(ctx, member), conv.contact_id, {
     how: kind === "brief" ? "call" : "message",
@@ -116,5 +136,5 @@ export async function draftForThread(
     if (r.refused === "not_found") throw new AppError("not_found", "Conversation not found.");
     throw new AppError("forbidden", "Only an owner or operator has replies drafted.", 403);
   }
-  return dtoOf(r.kept);
+  return dtoOf(r.kept, signed);
 }

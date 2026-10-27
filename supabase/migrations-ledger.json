@@ -488,6 +488,7 @@
     "00483_a_sender_the_owner_sorted_stays_sorted.sql": "138958d642eabe2239a89aab9f81ec01c8529676f4f31a8e6cc1490112c0b721",
     "00484_a_thread_keeps_when_each_wire_last_heard_from_its_person.sql": "5bde939c91886202238662bfe13827ee218ca78f25e7689edb0f5c1d5f81b537",
     "00485_a_reply_window_reads_its_own_wire_s_clock.sql": "28359066ad60f205b0a2ab6198315686dd4f68008a2777979583d7fb91c09908",
-    "00486_an_instagram_dm_is_a_message_the_business_answers.sql": "922c69b0a00e55c48d39164ffa673485473646d171f0b06bc479b17b813199e0"
+    "00486_an_instagram_dm_is_a_message_the_business_answers.sql": "922c69b0a00e55c48d39164ffa673485473646d171f0b06bc479b17b813199e0",
+    "00487_a_mailbox_signs_with_its_gmail_signature.sql": "17550a35a2ec9b63f85822b7dab9a4e3ece4684591133a7035d64aecfa048885"
   }
 }

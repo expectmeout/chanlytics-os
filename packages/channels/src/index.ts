@@ -336,8 +336,15 @@ export {
   gmailFindSent,
   gmailWatch,
   gmailStop,
+  gmailSignature,
 } from "./mailbox/mailbox-gmail";
 export type { GmailSent, GmailHistory } from "./mailbox/mailbox-gmail";
+export {
+  cleanGmailSignature,
+  gmailSignatureWords,
+  mailboxSignatureOf,
+  mailboxDtoOf,
+} from "./mailbox/mailbox-signature";
 export {
   graphDayUsed,
   graphSignedOut,

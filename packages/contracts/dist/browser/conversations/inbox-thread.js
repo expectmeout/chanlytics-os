@@ -10,7 +10,14 @@ import { contactName, contactMeta, emailStoppedWords, initialsOf } from "./threa
 import { shortTime, bubbleTime, inboxThreadClock, waitedSince } from "./thread-clock.js";
 import { clockDate, clockHistoryDay, clockTime } from "../shared/clock.js";
 import { mediaVM } from "./message-media.js";
-import { emailLeftOutOf, emailFromNameOf, emailPartsOf, emailSignatureLine, emailSubjectsOf } from "./message-email.js";
+import {
+  emailLeftOutOf,
+  emailFromNameOf,
+  emailPartsOf,
+  emailSignatureLine,
+  emailSignedWithOf,
+  emailSubjectsOf
+} from "./message-email.js";
 import { replyLeftAsOf } from "../reach-out/reach-out-reply-words.js";
 import {
   sentFactsOf,
@@ -140,12 +147,13 @@ function bubbleWordsOf(m, changed) {
   const parts = emailPartsOf(messageText(m), emailFromNameOf(m));
   const subject = changed.get(m.id);
   const leftOut = emailLeftOutOf(m.meta) ?? replyLeftAsOf(m.meta);
+  const signed = parts.signature ?? emailSignedWithOf(m);
   return {
     body: parts.said,
     ...subject ? { subject } : {},
     ...leftOut ? { leftOut } : {},
     ...parts.quoted ? { quoted: parts.quoted } : {},
-    ...parts.signature ? { signature: { line: emailSignatureLine(parts.signature), full: parts.signature } } : {}
+    ...signed ? { signature: { line: emailSignatureLine(signed), full: signed } } : {}
   };
 }
 const headSubjectOf = (thread) => thread ? { emailSubject: thread } : {};
