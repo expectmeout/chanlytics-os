@@ -48,6 +48,8 @@ function world(over = {}) {
     },
     markProcessed: undefined,
     received: undefined,
+    // Not a copy a connected mailbox holds too (the hosted road's case where it is, below).
+    readByMailbox: false,
     ...over,
   };
   const ports = { now: () => Date.parse("2026-09-29T14:06:00Z") };
@@ -71,6 +73,7 @@ test("a person's reply from a lead is kept, flagged in its own words, then hande
     "mailbox",
     "fetch",
     "ours",
+    "readByMailbox",
     "erasedBefore",
     "record",
     "reachOutReply",
@@ -93,6 +96,7 @@ test("an automatic reply from a lead is read (it may say no), and neither flagge
     "mailbox",
     "fetch",
     "ours",
+    "readByMailbox",
     "erasedBefore",
     "record",
     "reachOutReply",

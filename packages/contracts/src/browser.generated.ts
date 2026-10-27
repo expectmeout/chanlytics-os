@@ -183,6 +183,7 @@ export { posesAsReply } from "./email/email-subject";
 export { isFreeMail } from "./email/free-mail";
 export { emailDomainOf, normalizeLocalPart, whyNotALocalPart, whyNotAFromName, suggestLocalPart, MAILBOX_RESERVED, MAILBOX_LOCAL_PART_MAX, MAILBOX_FROM_NAME_MAX, EMAIL_NOT_ANSWERED_SENTENCE, EMAIL_ELSEWHERE_SENTENCE } from "./email/mailbox";
 export { MAILBOX_PROVIDERS, MAILBOX_CONNECTION_STATES, MAILBOX_CONNECTIONS_MAX, mailboxSendsNow, reachOutWritesFrom, mailboxConnectionDtoOf, mailboxHoldOf, MAILBOX_PROVIDER_WORDS, mailboxHealthWords, mailboxWords, mailboxActs, DMARC_RECOMMENDED, mailboxRecordRows, SPF_LOOKUPS_MAX, SPF_RECORD_MAX, SPF_RECORDS_JOIN, MAILBOX_CONNECT_WORDS, mailboxConnectOk, mailboxConnectWords, mailboxesFootWords, customerDomainWords } from "./email/mailbox-connections";
+export { senderVerdictOf } from "./email/mailbox-senders";
 export { MAILBOX_HOLDS, MAILBOX_DAILY_CAP_MAX, CUSTOMER_DOMAIN_DAILY_MAX, MAILBOX_RAMP, mailboxRampShare, mailboxDailyCap, mailboxHoldWords, mailboxHoldFixWords } from "./email/mailbox-standing";
 export { onDomain, bookingPageOf, bookingToolOfLink, BOOKING_PLATFORM_HOSTS, BOOKING_PLATFORM_TOOLS } from "./google/booking-page";
 export { listingFactsOf, bookingPageKept, bookingPageOffered, hoursFromGoogle, placesQueryOf, ratingWords, starsOf, reviewsWords, listingLine, checkedWords, connectionWords, reviewSnippet, reviewIsNew, reviewNoticeIsAbout, NEW_REVIEW_NEWS, toGoogleReviewVM, gainedOver, toGoogleVM, GOOGLE_SHOWN_REVIEWS, REVIEW_NEWS_MS, REVIEW_NEWS_MAX_AGE_MS } from "./google/google";

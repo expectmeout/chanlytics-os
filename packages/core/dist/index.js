@@ -1337,6 +1337,10 @@ async function ingestEmail(ports, cmd) {
   if (address === mailbox.address || email.messageId && await ports.ours(mailbox.tenant_id, email.messageId))
     return "our_own";
   const at = new Date(ports.now()).toISOString();
+  if (await ports.readByMailbox(mailbox.tenant_id, [...email.to, ...email.cc])) {
+    await ports.received(mailbox.id, at);
+    return "read_by_mailbox";
+  }
   if (await ports.erasedBefore(mailbox.tenant_id, address, email.receivedAt ?? at)) return "erased_person";
   const { claim } = email;
   if (claim === "report") return "not_a_conversation";

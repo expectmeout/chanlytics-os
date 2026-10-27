@@ -266,6 +266,9 @@ export const EVENT_KINDS = [
   "mailbox_connection.paused",
   "mailbox_connection.unpaused",
   "mailbox_connection.removed",
+  /** What the workspace said of a sender of its mailbox's mail (00483): automated, a person, or taken back. The kind
+   * (an address or a domain) and the verdict, never the address. */
+  "mailbox_connection.sender_sorted",
   /** A lead search's round started, waited, or ended with one of the nine endings (00140). */
   "lead.round",
   /** An ask no source card fits, logged as demand (§0.3): the words asked, never a place. */

@@ -1613,6 +1613,36 @@
       "where": null
     },
     {
+      "table": "mailbox_left",
+      "name": "mailbox_left_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "address"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "mailbox_senders",
+      "name": "mailbox_senders_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "sender"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "mailboxes",
       "name": "mailboxes_local_part_uq",
       "primary": false,

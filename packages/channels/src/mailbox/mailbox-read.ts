@@ -29,12 +29,20 @@ export interface MailboxEmail extends ReceivedEmail {
  * ("messages from online groups, discussion boards, and mailing lists"). Amazon's newsletter carries none of the
  * automated headers and came in as a person (26 Oct 2026).
  *
- * Updates is left out. Google calls it "automated confirmations, notifications, statements, and reminders that may not
- * need immediate attention", but Gmail sorts each message by a model it does not publish, and what a person sends
- * through a tool (a signature request, a booking form, a help desk's reply, a supplier's invoice) is filed there with
- * the receipts. A person dropped is lost without a word; a sender kept by mistake is in plain sight.
+ * Updates is not among them (filedUnderUpdates).
  */
 const GMAIL_BULK_TABS: ReadonlySet<string> = new Set(["CATEGORY_PROMOTIONS", "CATEGORY_SOCIAL", "CATEGORY_FORUMS"]);
+
+/**
+ * Whether Gmail filed a message under Updates. Google calls the tab "automated confirmations, notifications,
+ * statements, and reminders that may not need immediate attention", but Gmail sorts each message by a model it does not
+ * publish, and what a person sends through a tool (a signature request, a booking form, a help desk's reply, a
+ * supplier's invoice) is filed there with the receipts. So the tab alone leaves nothing: a reader weighs it with who
+ * sent it and whether it answers anything (edge mailbox-sorting.ts), and lists what it leaves, one press from coming in.
+ */
+export function filedUnderUpdates(e: Pick<MailboxEmail, "labels">): boolean {
+  return e.labels.includes("CATEGORY_UPDATES");
+}
 
 /**
  * Whether Gmail filed a message under one of the tabs above. A mailbox's own sorting, read only from a mailbox (never

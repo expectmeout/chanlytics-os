@@ -137,6 +137,7 @@ export {
   sentEmailIdByMessageId,
 } from "./repositories/mailboxes/sync";
 export { unknownMailboxEmails, requestMailboxesSweep } from "./repositories/mailboxes/reconcile";
+export { mailboxSenderVerdicts, noteMailboxLeft } from "./repositories/mailboxes/senders";
 export type { UnknownMailboxEmail } from "./repositories/mailboxes/reconcile";
 export {
   outreachFactsOf,
@@ -593,8 +594,7 @@ export {
   deleteList,
 } from "./repositories/lists";
 export type { SavedListRow, ListRow, WriteError } from "./repositories/lists";
-export { activitySubjects } from "./events";
-export type { ActivitySubject, ActivitySubjects } from "./events";
+export { activitySubjects, type ActivitySubject, type ActivitySubjects } from "./events";
 export { touchesSince, recentTouches, followUpTouchesSince, touchIndex } from "./repositories/touches";
 export type { Touch, TouchIndex } from "./repositories/touches";
 export { yesesSince, recordDeal, dealOnFile, openDealsOf } from "./repositories/deals";

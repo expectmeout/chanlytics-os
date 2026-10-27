@@ -133,6 +133,7 @@ var WRITES = {
   "mailbox_connection.paused": { category: "setup", version: 1 },
   "mailbox_connection.unpaused": { category: "setup", version: 1 },
   "mailbox_connection.removed": { category: "setup", version: 1 },
+  "mailbox_connection.sender_sorted": { category: "setup", version: 1 },
   "message.send_blocked": { category: "message", version: 1 },
   "message.send_failed": { category: "message", version: 1 },
   "message.send_raced_cancel": { category: "message", version: 1 },
@@ -482,7 +483,8 @@ var ERASURE_LEGS = {
   notes_scrub: "person_notes_scrub: their numbers and addresses overwritten in other people's notes (00341)",
   turns_scrub: "model_turns_scrub: the receptionist's kept turns that name them, in anyone's thread, deleted (00401); their own went with their conversation",
   appointments_scrub: "appointments_scrub: their visits keep their time and service and lose the client's name, number, address and note; the notices that made them, and any whose subject names them, lose the name (00345)",
-  before_trigger: "contacts_before_erased: what another system said of them before Chanlytics (a client file's visits, last visit and birthday) cleared (00477)"
+  before_trigger: "contacts_before_erased: what another system said of them before Chanlytics (a client file's visits, last visit and birthday) cleared (00477)",
+  mailbox_trigger: "mailbox_senders_on_erase: their address off the list of what a connected mailbox left, and a person said of it with it; what was said of a robot stays (00483)"
 };
 var withPerson = (by) => ({ kind: "with_person", by });
 var scrubbedBy = (...by) => ({ kind: "scrubbed", by });
@@ -809,6 +811,12 @@ var ERASURE_STRATEGIES = {
     ...all(WITH_WORKSPACE, "address", "host", "from_name", "signature", "provider_account"),
     ...all(NOT_PERSONAL, "scopes", "credentials_ref", "dns", "sync_cursor", "watch_id", "last_error")
   },
+  // What a connected mailbox left where it was, one row a sender (00483): a robot's, or a person's that Gmail filed with
+  // the receipts, whose erasure takes it.
+  mailbox_left: all(scrubbedBy("mailbox_trigger"), "address", "name"),
+  // What the workspace said of a sender (00483): an address or a domain. A person's address goes with them; what was
+  // said of a robot is nobody's, and stays.
+  mailbox_senders: { sender: scrubbedBy("mailbox_trigger") },
   // Gmail's pending confirmation of a forward to the workspace's address (00345): the owner's own account, and
   // Google's code and link for it; the name its mail is sent from. The workspace's address on the platform's domain,
   // its reply tokens and its intake's error code are nobody's.
@@ -3373,6 +3381,25 @@ async function requestMailboxesSweep(db, now) {
   });
   if (error) throw new Error(`cannot ask the mailboxes clock: ${error.message}`);
   return true;
+}
+
+// src/repositories/mailboxes/senders.ts
+async function mailboxSenderVerdicts(db, tenantId) {
+  const { data, error } = await db.from("mailbox_senders").select("sender, verdict").eq("tenant_id", tenantId);
+  if (error) throw new Error(`cannot read what the workspace said of its senders: ${error.message}`);
+  return new Map((data ?? []).map((r) => [r.sender, r.verdict === "person" ? "person" : "automated"]));
+}
+async function noteMailboxLeft(db, p) {
+  const { error } = await db.rpc("mailbox_left_note", {
+    p_tenant_id: p.tenantId,
+    p_address: p.address,
+    p_name: p.name ?? "",
+    p_why: p.why,
+    p_at: p.at
+  });
+  if (!error) return true;
+  dbLog().error("mailbox_left_note_failed", { tenant_id: p.tenantId, why: p.why, error: error.message });
+  return false;
 }
 
 // src/repositories/outreach.ts
@@ -8210,6 +8237,7 @@ export {
   mailboxCountsOf,
   mailboxFor,
   mailboxOfTenant,
+  mailboxSenderVerdicts,
   mailboxesToTend,
   makeSequence,
   markCalendarFeedKept,
@@ -8248,6 +8276,7 @@ export {
   narrowedUpdates,
   noteCalendarGrant,
   noteImport,
+  noteMailboxLeft,
   notePageVitals,
   notedOver,
   notesForReceptionist,

@@ -144,6 +144,11 @@ export const SCHEMA_SETS = {
   "mailbox_connections.held_why": ["bounces", "complaint", "unsubscribes"],
   "mailbox_connections.provider": ["google", "microsoft"],
   "mailbox_connections.state": ["connected", "reconnect", "paused", "held", "removed"],
+  "mailbox_left.why": [
+    "automated", "auto_reply", "report", "booking_notice", "forwarding_confirmation", "gmail_tab",
+    "updates", "said",
+  ],
+  "mailbox_senders.verdict": ["automated", "person"],
   "mailboxes.offers_paused_reason": ["complaints", "bounces"],
   "mailboxes.reply_mode": ["draft", "veto", "auto"],
   "memberships.role": ["owner", "operator", "partner", "viewer"],

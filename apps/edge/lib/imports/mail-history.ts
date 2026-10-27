@@ -1,12 +1,13 @@
 /**
  * A connected mailbox's six months (decision 0073, R19): the mail it holds from before it connected, read a page at a
- * time through its own grant, each message sorted as the intake sorts any email (channels classifyReceived). An email a
- * person wrote, and one the owner sent to one person, is kept in that person's thread as before Chanlytics (db
- * keepBefore, ingest_before: the person resolved as a client list's would be, the message once by its provider id, never
- * answered, never a yes, never today's); everything else (lists, receipts, notifications, automatic replies, what Gmail
- * filed as promotions, social or forums, mail to many) is left where it is and counted as dropped. A booking tool's
- * notice is dropped too: a mailbox hands over no proof of who sent it (channels mailbox-read.ts), so it is never read as
- * a booking; the calendar brings the visits.
+ * time through its own grant, each message sorted as the live read sorts it (email/mailbox/mailbox-sorting.ts). An
+ * email a person wrote, and one the owner sent to one person, is kept in that person's thread as before Chanlytics (db
+ * keepBefore, ingest_before: the person resolved as a client list's would be, the message once by its provider id,
+ * never answered, never a yes, never today's); everything else (lists, receipts, notifications, automatic replies, what
+ * Gmail filed as promotions, social or forums, a notice from a stranger in Updates, what the workspace said is
+ * automated, mail to many) is left where it is, counted as dropped and noted one line a sender. A booking tool's notice
+ * is dropped too: a mailbox hands over no proof of who sent it (channels mailbox-read.ts), so it is never read as a
+ * booking; the calendar brings the visits.
  *
  * The window ends where the mailbox connected, and the live read (mailbox-sync.ts) starts there: nothing is read twice
  * and nothing between them is missed. The cursor (the ledger's job_cursor) is the window, the provider's page and how
@@ -20,8 +21,6 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  classifyReceived,
-  filedAsBulk,
   gmailListSince,
   gmailSignedOut,
   graphListSince,
@@ -30,7 +29,14 @@ import {
   type MailWindow,
   type ReadVerdict,
 } from "../packages/channels.js";
-import { DAY_MS, HISTORY_BACK_DAYS, IMPORT_STOPPED_WORDS, MIN_MS, normalizeEmail } from "../packages/contracts.js";
+import {
+  DAY_MS,
+  HISTORY_BACK_DAYS,
+  IMPORT_STOPPED_WORDS,
+  MIN_MS,
+  normalizeEmail,
+  type MailboxLeftWhy,
+} from "../packages/contracts.js";
 import { EMAIL_BODY_MAX } from "../packages/core.js";
 import {
   importCursorOf,
@@ -45,6 +51,7 @@ import {
 import { tokenFor } from "../email/mailbox/mailbox-credentials.js";
 import { markSignedOut } from "../email/mailbox/mailbox-wire.js";
 import { mailboxEmailMeta, readEmail } from "../email/mailbox/mailbox-sync.js";
+import { leftWhy, mailSortingFor, noteLeft, type MailSorting } from "../email/mailbox/mailbox-sorting.js";
 import type { Part, PartOutcome } from "./history-import.js";
 
 type Db = SupabaseClient<Database>;
@@ -98,17 +105,22 @@ function mailPersonOf(e: MailboxEmail, own: string): { address: string; name: st
     const [only] = to;
     return to.length === 1 && only ? { address: only, name: null, out: true } : null;
   }
-  return classifyReceived(e) === "person" ? { address: from, name: e.from?.name ?? null, out: false } : null;
+  return { address: from, name: e.from?.name ?? null, out: false };
 }
 
+/** The reasons the mailbox leaves an email by where Gmail filed it: never a reply in a thread a reach-out started. */
+const BY_GMAIL_TAB: ReadonlySet<MailboxLeftWhy> = new Set(["gmail_tab", "updates"]);
+
 /**
- * Whether Gmail filed what a person wrote as promotions, social or forums (channels filedAsBulk) outside a thread a
- * reach-out started: a reply there is a reply, whatever Gmail calls it. A mailbox connected again reads back over its
- * earlier connection's months, reach-outs among them; the threads are asked only when a tab alone would leave one.
+ * Why the six months leave what someone else wrote (mailbox-sorting.ts leftWhy), or null to keep it. Where Gmail filed
+ * it leaves nothing inside a thread a reach-out started: a reply there is a reply, whatever Gmail calls it. A mailbox
+ * connected again reads back over its earlier connection's months, reach-outs among them; the threads are asked only
+ * when a tab alone would leave one.
  */
-async function filedAway(r: MailRead, e: MailboxEmail): Promise<boolean> {
-  if (!filedAsBulk(e)) return false;
-  return !e.threadId || !(await knownThreads(r.db, r.part.tenantId, [e.threadId])).has(e.threadId);
+async function leftByImport(r: MailRead, e: MailboxEmail): Promise<MailboxLeftWhy | null> {
+  const why = await leftWhy(e, r.sorting);
+  if (!why || !BY_GMAIL_TAB.has(why) || !e.threadId) return why;
+  return (await knownThreads(r.db, r.part.tenantId, [e.threadId])).has(e.threadId) ? null : why;
 }
 
 /** The mailbox's history stopped: said on its row, with Try again; nothing more is scheduled. */
@@ -126,6 +138,8 @@ interface MailRead {
   token: string;
   window: MailWindow;
   began: { page: string | null; at: number };
+  /** What the workspace said of its senders, read once a part (mailbox-sorting.ts). */
+  sorting: MailSorting;
 }
 
 /** What a part brought: its counts, and the oldest message it kept. */
@@ -216,7 +230,9 @@ async function takeListed(
   if ("paced" in read) return read.paced;
   const e = read.email;
   const who = mailPersonOf(e, r.row.address.toLowerCase());
-  if (!who || (!who.out && (await filedAway(r, e)))) {
+  const why = who && !who.out ? await leftByImport(r, e) : null;
+  if (why) await noteLeft(r.db, r.part.tenantId, e, why);
+  if (!who || why) {
     counts.dropped++;
     return "taken";
   }
@@ -259,7 +275,15 @@ export async function mailHistoryPart(db: Db, part: Part): Promise<PartOutcome> 
   };
   await noteImport(db, { tenantId: part.tenantId, source: "mailbox", state: "running", via: row.provider, add: true });
 
-  const r: MailRead = { db, part, row, token: t.token, window: cur.window, began: { page: cur.page, at: cur.at } };
+  const r: MailRead = {
+    db,
+    part,
+    row,
+    token: t.token,
+    window: cur.window,
+    began: { page: cur.page, at: cur.at },
+    sorting: await mailSortingFor(db, part.tenantId),
+  };
   const tally: MailTally = { counts: { messages: 0, people: 0, dropped: 0 }, oldest: null };
   let { page, at } = cur;
   let done = false;

@@ -236,6 +236,7 @@ import {
 import {
   ingestInboundEmail,
   mailboxById,
+  liveMailboxByAddress,
   mailboxConnectionOf,
   markProcessed,
   reachOutReplyOf as reachOutReplyOf2,
@@ -1139,6 +1140,8 @@ async function mailboxIngest(ctx, job) {
       markProcessed: (tenantId, messageId) => markProcessed(db, tenantId, messageId),
       // The mailbox's own clock says when it was read (its sync); a taken email stamps nothing more.
       received: () => Promise.resolve(void 0),
+      // This is the connected mailbox's own read.
+      readByMailbox: () => Promise.resolve(false),
       now: Date.now
     },
     { payload: job.payload }
@@ -1192,6 +1195,15 @@ async function emailIngest(ctx, job) {
       },
       markProcessed: (tenantId, messageId) => markProcessed(db, tenantId, messageId),
       received: (mailboxId, at) => stampMailboxReceived(db, mailboxId, at),
+      // A copy a mailbox the workspace connected holds too, whose sync reads it (one signed out is not read): Gmail
+      // forwarding the business's mail here, or an email to both. That mailbox's read takes it in.
+      readByMailbox: async (tenantId, addresses) => {
+        for (const a of new Set(addresses.map((x) => x.trim().toLowerCase()).filter(Boolean))) {
+          const m = await liveMailboxByAddress(db, a);
+          if (m && m.tenant_id === tenantId && m.state !== "reconnect") return true;
+        }
+        return false;
+      },
       now: Date.now
     },
     { payload: job.payload }

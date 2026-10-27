@@ -58,3 +58,5 @@ export type {
 } from "./mailbox-connections";
 export { isFreeMail } from "./free-mail";
 export { posesAsReply } from "./email-subject";
+export { senderVerdictOf } from "./mailbox-senders";
+export type { MailboxLeftWhy, MailboxSenderVerdict } from "./mailbox-senders";

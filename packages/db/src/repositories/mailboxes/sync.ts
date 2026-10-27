@@ -98,8 +98,8 @@ type OwnerEmailKept = { kept: true; resolved: number } | { kept: false; why: "no
  * An email the owner sent from their connected mailbox, not through Chanlytics (00482 mailbox_owner_wrote): kept in the
  * thread of the one person it went to when the workspace knows them (never one made from an address alone), once by the
  * provider's id, as a person's words; and the holds on that thread of the reasons `settles` names (contracts
- * WAITING_REASONS) that opened before it was sent, resolved. Throws when the database refused: the sync keeps its cursor
- * and reads it again, and the door keeps nothing twice.
+ * WAITING_REASONS) that opened before it was sent, resolved. Throws when the database refused: the sync keeps its
+ * cursor and reads it again, and the door keeps nothing twice.
  */
 export async function keepOwnerEmail(
   db: Db,
