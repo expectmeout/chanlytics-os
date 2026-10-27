@@ -16,7 +16,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
-const { post, notify, recordNotification, platformTo, reachesTenant } = await import(
+const { post, postMail, notify, recordNotification, platformTo, reachesTenant } = await import(
   pathToFileURL(path.join(ROOT, "apps/edge/lib/ops/notify.ts")).href
 );
 
@@ -106,7 +106,7 @@ test("without a key nothing is sent, and the log says so without the customer's 
   }
 });
 
-test("a 200 from Resend is a delivery: one POST with the key as a bearer, from/to/subject/text as given, and a timeout on the request", async () => {
+test("a 200 from Resend is a delivery: one POST with the key as a bearer, from/to/subject/text as given, marked auto-generated, and a timeout on the request", async () => {
   const w = wire(ok());
   try {
     await withEnv({ RESEND_API_KEY: "re_test" }, async () => {
@@ -123,11 +123,48 @@ test("a 200 from Resend is a delivery: one POST with the key as a bearer, from/t
       to: ["a@x", "b@y"],
       subject: "Subject",
       text: "Text",
+      headers: { "Auto-Submitted": "auto-generated" },
     });
     assert.ok(
       c.signal instanceof AbortSignal,
       "a request that hangs is abandoned, not awaited to the end of the invocation",
     );
+  } finally {
+    w.restore();
+  }
+});
+
+test("every mail from the platform's sender says it was written by a program (RFC 3834), a reply-to one as well: an owner's alert that reaches their connected mailbox is not a person's email (27 Oct 2026)", async () => {
+  const w = wire(ok());
+  try {
+    const env = {
+      RESEND_API_KEY: "re_test",
+      LEAD_FROM: "Chanlytics <alerts@chanlytics.example>",
+      LEAD_TO: "owner@fixture-salon.example",
+    };
+    await withEnv(env, async () => {
+      assert.equal(
+        await notify(
+          { tenantId: null, notifications: null, isEnvDefault: true },
+          { subject: "Rosa Diaz wrote by email: Tuesday?", body: "They wrote: “Tuesday?”" },
+          { db: null },
+        ),
+        true,
+      );
+      assert.equal(
+        await postMail({
+          from: "Chanlytics <alerts@chanlytics.example>",
+          to: ["support@chanlytics.example"],
+          subject: "R-1001 · A question",
+          text: "How do I add a teammate?",
+          replyTo: "member@fixture-salon.example",
+        }),
+        true,
+      );
+    });
+    assert.equal(w.calls.length, 2);
+    for (const c of w.calls) assert.deepEqual(c.body.headers, { "Auto-Submitted": "auto-generated" }, c.body.subject);
+    assert.equal(w.calls[1].body.reply_to, "member@fixture-salon.example", "a reply still goes to the member");
   } finally {
     w.restore();
   }

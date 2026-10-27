@@ -155,6 +155,14 @@ interface PlatformMail {
   replyTo?: string | null;
 }
 
+/**
+ * What every mail from the platform's sender says it is (RFC 3834): written by Chanlytics, not by a person and not in
+ * answer to one. A mailbox the workspace connected reads it as automated (channels classifyReceived) and leaves it
+ * where it is, so an owner's alert that reaches that mailbox is never taken in as a person's email and flagged again
+ * (27 Oct 2026: "… wrote by email" came back as a Need you thread), and a responder answers none of them.
+ */
+const PLATFORM_MAIL_HEADERS = { "Auto-Submitted": "auto-generated" } as const;
+
 /** One mail through Resend; `replyTo` names who a reply goes to (Report a problem's member, decision 0066). */
 export async function postMail({ from, to, subject, text, replyTo = null }: PlatformMail): Promise<boolean> {
   const L = logger();
@@ -166,7 +174,14 @@ export async function postMail({ from, to, subject, text, replyTo = null }: Plat
   const r = await providerFetch("resend", RESEND, {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from, to, subject, text, ...(replyTo ? { reply_to: replyTo } : {}) }),
+    body: JSON.stringify({
+      from,
+      to,
+      subject,
+      text,
+      headers: PLATFORM_MAIL_HEADERS,
+      ...(replyTo ? { reply_to: replyTo } : {}),
+    }),
     timeoutMs: NOTIFY_TIMEOUT_MS,
     // The alarm is always tried: an outage the breaker learned is exactly when it must go.
     breaker: "count",
