@@ -443,9 +443,17 @@ function headerSub(thread: Thread, channelLabels: Record<string, string>, facts:
   // Where they work, as words inside the head's door, when there is no deal or visit to say (0052): a phone's, whose head
   // has no room beside it for the door a desk draws (worksAtDoor), and a business removed since, which has no sheet.
   const works = !deal && !visit && person && person.worksAt && !person.standIn ? person.worksAt : null;
+  // What the thread's emails are about, said once here: it was over every bubble, "Re:" and all.
+  const subject = thread.real ? thread.emailSubject : undefined;
   return (
     <div className="ix-th-sub">
       <div className="ix-th-meta">{thread.real ? ixWires(thread, channelLabels || {}) : thread.whoMeta}</div>
+      {subject && (
+        <span className="ix-th-visit" title={subject} data-testid="ix-th-subject">
+          <Icon name="mail" size={10} />
+          <span className="ix-th-visit-words">{subject}</span>
+        </span>
+      )}
       {deal && (
         <span className={`ix-th-visit${deal.stage === "won" ? " ahead" : ""}`} data-testid="ix-th-deal">
           <Icon name="deal" size={10} />

@@ -411,7 +411,7 @@ test("REGRESSION: a row says each thing once -- why a person is needed, what the
   assert.ok(samRow.wait && !samRow.time, "a snoozed row says when it wakes, and not also when it last moved");
 });
 
-test("an email in the thread is drawn as one: its subject above its words, the envelope where it came another way than the reply goes; a WhatsApp bubble beside it has no subject line", () => {
+test("an email in the thread is drawn as one: its subject said once in the head, then above a bubble only where it changes, the envelope where it came another way than the reply goes; a WhatsApp bubble has no subject line", () => {
   const ana = person("p9", null, { phone_e164: null, email: "ana@example.com" });
   const emailed = {
     ...wrote("m9", "Can you do Saturday at 9?", 20),
@@ -429,7 +429,12 @@ test("an email in the thread is drawn as one: its subject above its words, the e
   const bubbles = findAll(pane, hasClass("tl-msg"));
   assert.equal(bubbles.length, 2);
   const [chatBubble, emailBubble] = bubbles;
-  assert.equal(textOf(find(emailBubble, byTestId("tl-msg-subject"))), "Quote for Saturday");
+  assert.equal(textOf(find(pane, byTestId("ix-th-subject"))).trim(), "Quote for Saturday", "the head says it, once");
+  assert.equal(
+    find(emailBubble, byTestId("tl-msg-subject")),
+    null,
+    "REGRESSION: the subject stood over the bubble too",
+  );
   assert.equal(find(chatBubble, byTestId("tl-msg-subject")), null, "a subject is an email's");
   // A bubble names its wire, in its corner, where it came another way than the thread's own (the reply box's, which is
   // where they last wrote): here she last wrote by email, so the WhatsApp bubble wears the chat's glyph, named.
@@ -446,12 +451,27 @@ test("an email in the thread is drawn as one: its subject above its words, the e
     find(wire(emailFirst, "Email"), (n) => n.type === Icon && n.props?.name === "mail"),
     "an envelope, not a chat bubble",
   );
+  // A subject that changes in the thread is said over the bubble that changed it: what it is about, then what it says.
+  const moved = paneOf(
+    vmOf(
+      chat({
+        contact: ana,
+        messages: [
+          emailed,
+          { ...wrote("m12", "And Sunday?", 4), channel: "email", meta: { email: { subject: "Sunday" } } },
+        ],
+      }),
+    ),
+    { channelLabels: { whatsapp: "WhatsApp", phone: "Phone", sms: "Text", email: "Email" } },
+  );
+  const sunday = findAll(moved, hasClass("tl-msg")).at(-1);
   const order = [];
-  walk(emailBubble, (n) => {
+  walk(sunday, (n) => {
     if (byTestId("tl-msg-subject")(n)) order.push("subject");
     if (hasClass("tl-msg-body")(n)) order.push("body");
   });
   assert.deepEqual(order, ["subject", "body"], "what it is about, then what it says");
+  assert.equal(textOf(find(sunday, byTestId("tl-msg-subject"))), "Sunday");
   assert.equal(
     find(emailBubble, byTestId("tl-msg-left-out")),
     null,

@@ -5,7 +5,7 @@
 import type { MessageDto } from "./thread-dto";
 
 /** An email's subject, as the intake kept it (core email-ingest.ts). */
-export function emailSubjectOf(m: MessageDto): string | null {
+function emailSubjectOf(m: MessageDto): string | null {
   const email = (m.meta as { email?: { subject?: unknown } } | null)?.email;
   return typeof email?.subject === "string" && email.subject.trim() ? email.subject.trim() : null;
 }
@@ -66,4 +66,176 @@ export function splitQuotedReply(body: string): { text: string; quoted: string |
   // A reply that is ONLY the quote keeps its words: better a long bubble than an empty one.
   if (!text || !quoted) return { text: body, quoted: null };
   return { text, quoted };
+}
+
+/* An email in its parts (27 Oct 2026, the email canvas's lane A): what they wrote, the signature under it, and the
+   chain it quoted. Gmail's plain text puts no "-- " before a signature, so "needs you test" arrived as six lines of
+   "Ruben Segura / Founder, RJ Capital / [image: RJ Capital] <https://rjcapital.io> / …", every one drawn as their
+   words. The signature is found in the words as they were kept, and only where it looks like one: hiding a customer's
+   words is worse than a long bubble, so a sign-off and their name stay words, and so does a form's "Phone: …". */
+
+/** What an email says, in its parts; `signature` and `quoted` are null when it has none. */
+export interface EmailParts {
+  said: string;
+  signature: string | null;
+  quoted: string | null;
+}
+
+const SIG_DASHES = /^--\s*$/;
+const IMAGE_STAND_IN = /\[image:[^\]\n]*\]/i;
+const LABELLED = /^[A-Za-z][\w ./-]{0,30}:\s+\S/;
+const SIGN_OFF =
+  /^(thanks|thank you|many thanks|best|best regards|kind regards|regards|warm regards|warmly|cheers|sincerely|talk soon|all the best|take care|gracias|saludos|un saludo|atentamente)\b[^.?]*$/i;
+const CONTACT =
+  /(https?:\/\/|www\.|\b[\w-]+\.(com|io|co|net|org|agency|us|ca|uk|app|dev|info|biz)\b|@[\w-]+\.|\+?\d[\d\s().-]{6,}\d)/i;
+const NAME_LIKE = /^[A-Z][\p{L}'’.-]+(?:\s+[A-Z][\p{L}'’.-]+){0,3}$/u;
+const SENT_FROM = /^(sent from my\b|get outlook for\b|enviado desde mi\b)/i;
+const SIG_MAX_LINES = 8;
+const SIG_LINE_MAX = 90;
+const SIG_LINE_PARTS = 3;
+
+const blankLine = (l: string): boolean => l.trim() === "";
+
+/** Whether a line names the person the email is from: a word of their name, in a line that is not a sentence. */
+function namesSender(line: string, fromName: string | null): boolean {
+  if (!fromName || /[?!]/.test(line) || line.split(/\s+/).length > 5) return false;
+  const words = fromName
+    .toLowerCase()
+    .split(/[^\p{L}'’-]+/u)
+    .filter((w) => w.length > 1);
+  const said = line.toLowerCase();
+  return words.some((w) => said.includes(w));
+}
+
+/**
+ * Where a signature begins among the lines of what they wrote, or null when none is plainly there: after a "-- " line;
+ * a "Sent from my …" last line; or the last block after a blank line, when it is a card (a name, then a way to reach
+ * them), carries Gmail's picture stand-in, or names the sender. A sign-off ("Best,") stays with the words above it.
+ */
+function signatureStart(lines: readonly string[], fromName: string | null): number | null {
+  const first = lines.findIndex((l) => !blankLine(l));
+  if (first < 0) return null;
+  const dashes = lines.findIndex((l, i) => i > first && SIG_DASHES.test(l));
+  if (dashes > 0) return dashes;
+  const lineAt = (i: number): string => (lines.at(i) ?? "").trim();
+  let last = lines.length - 1;
+  while (last > first && !lineAt(last)) last--;
+  if (last > first && SENT_FROM.test(lineAt(last))) return last;
+  // The last blank line above the last words: the block under it is the one that may be a card.
+  let blank = last;
+  while (blank > first && lineAt(blank)) blank--;
+  if (blank <= first) return null;
+  const block = lines.slice(blank + 1, last + 1).map((l) => l.trim());
+  if (block.length > SIG_MAX_LINES || block.some((l) => l.length > SIG_LINE_MAX || LABELLED.test(l))) return null;
+  const [head = "", ...rest] = block;
+  const signedOff = SIGN_OFF.test(head) || head.endsWith(",");
+  const card = signedOff ? rest : block;
+  const [name = "", ...under] = card;
+  if (!name) return null;
+  const pictured = card.some((l) => IMAGE_STAND_IN.test(l));
+  const named = card.length >= 2 && namesSender(name, fromName);
+  const shaped = NAME_LIKE.test(name) && under.some((l) => CONTACT.test(l));
+  return pictured || named || shaped ? blank + 1 + (signedOff ? 1 : 0) : null;
+}
+
+/** An address as a bubble compares it: no scheme, no "www.", no closing slash. */
+const bareAddress = (s: string): string =>
+  s
+    .toLowerCase()
+    .replace(/^(https?:\/\/|mailto:)/, "")
+    .replace(/^www\./, "")
+    .replace(/\/$/, "");
+
+/**
+ * An email's words as a person reads them: one line ending, no line of spaces, no run of blank lines, and Gmail's
+ * plain-text stand-ins gone. "[image: RJ Capital] <https://rjcapital.io>" is a picture and its link, said as text; a
+ * linked word arrives as the word and its address in angle brackets, "rjcapital.io <https://rjcapital.io>", kept as the
+ * address alone when they are the same, which the bubble then links.
+ */
+export function tidyEmailWords(text: string): string {
+  const lines = text.replace(/\r\n?/g, "\n").split("\n");
+  const kept: string[] = [];
+  for (const line of lines) {
+    const pictured = IMAGE_STAND_IN.test(line);
+    const tidy = line
+      .replace(/\[image:[^\]\n]*\](?:[ \t]*<(?:https?:|mailto:)[^>\s]*>)?/gi, "")
+      .replace(/(\S+)[ \t]*<((?:https?:\/\/|mailto:)[^>\s]+)>/gi, (_, word: string, url: string) => {
+        const address = url.replace(/^mailto:/i, "");
+        return bareAddress(word) === bareAddress(url) ? address : `${word} ${address}`;
+      })
+      .replace(/<((?:https?:\/\/|mailto:)[^>\s]+)>/gi, (_, url: string) => url.replace(/^mailto:/i, ""))
+      .replace(/[ \t]+$/, "");
+    // A line that held only a picture is gone, not left as a blank line inside a signature.
+    if (pictured && blankLine(tidy)) continue;
+    kept.push(blankLine(tidy) ? "" : tidy);
+  }
+  return kept
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/**
+ * An email in its parts. `fromName` is the name the sender's own client gave (the intake keeps it as meta.email
+ * from_name); null for words of ours, which carry no signature in what was typed. A body whose every word looks like a
+ * signature keeps them as words: a bubble is never empty.
+ */
+export function emailPartsOf(body: string, fromName: string | null): EmailParts {
+  const { text, quoted } = splitQuotedReply(body.replace(/\r\n?/g, "\n"));
+  const lines = text.split("\n");
+  const at = fromName === null ? null : signatureStart(lines, fromName);
+  const said = tidyEmailWords(at === null ? text : lines.slice(0, at).join("\n"));
+  if (at === null || !said)
+    return { said: tidyEmailWords(text), signature: null, quoted: quoted && tidyEmailWords(quoted) };
+  const signed = lines.slice(SIG_DASHES.test(lines.at(at) ?? "") ? at + 1 : at).join("\n");
+  return { said, signature: tidyEmailWords(signed) || null, quoted: quoted && tidyEmailWords(quoted) };
+}
+
+/** A signature in one line: its first few parts, as "Ruben Segura · Founder, RJ Capital · rjcapital.io". */
+export function emailSignatureLine(signature: string): string {
+  return signature
+    .split(/\n|[ \t]+\|[ \t]+/)
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .slice(0, SIG_LINE_PARTS)
+    .join(" · ");
+}
+
+/** A subject as a thread compares it: "Re: test need you" and "Fwd: Test need you" are "test need you". */
+const REPLY_PREFIX = /^((re|fwd?|fw|aw|sv|tr)\s*:\s*)+/i;
+const subjectKey = (s: string): string => s.replace(REPLY_PREFIX, "").trim().toLowerCase();
+
+/**
+ * A thread's subject, said once: its first email's, without "Re:", which the thread's head says, and each email's own
+ * where it changes from the one before, which that bubble says. "test need you" above the question and "Re: test need
+ * you" above the answer said the same thing twice.
+ */
+export function emailSubjectsOf(messages: readonly MessageDto[]): {
+  thread: string | null;
+  changed: Map<string, string>;
+} {
+  let thread: string | null = null;
+  let key = "";
+  const changed = new Map<string, string>();
+  for (const m of messages) {
+    const subject = m.channel === "email" ? emailSubjectOf(m) : null;
+    if (!subject) continue;
+    if (thread === null) thread = emailTopicOf(m);
+    else if (subjectKey(subject) !== key) changed.set(m.id, subject);
+    key = subjectKey(subject);
+  }
+  return { thread, changed };
+}
+
+/** An email's subject without "Re:" or "Fwd:", as a line that leads with it says it; null on another wire or with none. */
+export function emailTopicOf(m: MessageDto): string | null {
+  const subject = m.channel === "email" ? emailSubjectOf(m) : null;
+  return subject ? subject.replace(REPLY_PREFIX, "").trim() || subject : null;
+}
+
+/** The name the sender's client gave an email of theirs, as the intake kept it; null on one of ours or with none. */
+export function emailFromNameOf(m: MessageDto): string | null {
+  if (m.sender !== "customer") return null;
+  const name = (m.meta as { email?: { from_name?: unknown } } | null)?.email?.from_name;
+  return typeof name === "string" && name.trim() ? name.trim() : "";
 }

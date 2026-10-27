@@ -1,5 +1,5 @@
 import { MEDIA_LABEL, mediaKind } from "./message-media.js";
-import { splitQuotedReply } from "./message-email.js";
+import { emailFromNameOf, emailPartsOf } from "./message-email.js";
 import { isChatMessage, writtenChannelOf } from "./thread-channel.js";
 const EMAIL_DELIVERED = "Reached their mail server";
 export function messageStatusLabel(status, channel) {
@@ -146,7 +146,7 @@ export function draftSendsAtMs(m) {
   return new Date(m.created_at).getTime() + delay;
 }
 export function messageWords(m) {
-  return m.channel === "email" ? splitQuotedReply(messageText(m)).text : messageText(m);
+  return m.channel === "email" ? emailPartsOf(messageText(m), emailFromNameOf(m)).said : messageText(m);
 }
 export function messageText(m) {
   if (m.type === "call_summary" && m.body) {

@@ -10,7 +10,7 @@ import { contactName, contactMeta, emailStoppedWords, initialsOf } from "./threa
 import { shortTime, bubbleTime, inboxThreadClock, waitedSince } from "./thread-clock.js";
 import { clockDate, clockHistoryDay, clockTime } from "../shared/clock.js";
 import { mediaVM } from "./message-media.js";
-import { emailSubjectOf, emailLeftOutOf, splitQuotedReply } from "./message-email.js";
+import { emailLeftOutOf, emailFromNameOf, emailPartsOf, emailSignatureLine, emailSubjectsOf } from "./message-email.js";
 import { replyLeftAsOf } from "../reach-out/reach-out-reply-words.js";
 import {
   sentFactsOf,
@@ -135,6 +135,20 @@ function inboxReading(dto) {
   return { unread: unseen, heardAtMs, markAtMs };
 }
 const clocksOf = (dto) => ({ whatsapp: dto.last_wa_inbound_at, instagram: dto.last_ig_inbound_at });
+function bubbleWordsOf(m, changed) {
+  if (m.channel !== "email") return { body: messageText(m) };
+  const parts = emailPartsOf(messageText(m), emailFromNameOf(m));
+  const subject = changed.get(m.id);
+  const leftOut = emailLeftOutOf(m.meta) ?? replyLeftAsOf(m.meta);
+  return {
+    body: parts.said,
+    ...subject ? { subject } : {},
+    ...leftOut ? { leftOut } : {},
+    ...parts.quoted ? { quoted: parts.quoted } : {},
+    ...parts.signature ? { signature: { line: emailSignatureLine(parts.signature), full: parts.signature } } : {}
+  };
+}
+const headSubjectOf = (thread) => thread ? { emailSubject: thread } : {};
 export function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) {
   const who = contactName(dto);
   const { state, takenOver, needsYou, claimedByOther } = threadStanding(dto, escalation, now);
@@ -152,6 +166,7 @@ export function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new D
     ...hasChat || !hasCalls ? [chatChannel, ...written.filter((c) => c !== chatChannel)] : [],
     ...hasCalls ? ["phone"] : []
   ];
+  const subjects = emailSubjectsOf(dto.messages);
   const timeline = dto.messages.map((m) => {
     if (m.type === "note") {
       return {
@@ -164,20 +179,13 @@ export function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new D
     const onPhone = m.type === "call_summary";
     const media = mediaVM(m);
     const why = messageWhy(m);
-    const subject = m.channel === "email" ? emailSubjectOf(m) : null;
-    const leftOut = m.channel === "email" ? emailLeftOutOf(m.meta) ?? replyLeftAsOf(m.meta) : null;
-    const said = m.channel === "email" ? splitQuotedReply(messageText(m)) : null;
     return {
       type: "msg",
       messageId: m.id,
       from: m.sender === "customer" ? "client" : "agent",
       channel: onPhone ? "phone" : writtenChannelOf(m.channel),
-      // An email's subject line, above its words.
-      ...subject ? { subject } : {},
-      ...leftOut ? { leftOut } : {},
       ...bubbleWhen(messageAt(m), tz, now),
-      body: said ? said.text : messageText(m),
-      ...said && said.quoted ? { quoted: said.quoted } : {},
+      ...bubbleWordsOf(m, subjects.changed),
       ...media ? { media } : {},
       ...why ? { why } : {},
       // Who said it, per BUBBLE. The thread carries one agent identity, and the
@@ -262,6 +270,7 @@ export function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new D
     // the last thing that happened. The subject said "A teammate is answering this" under a pill naming the teammate,
     // "You're answering this one" under "You have it", and a quiet thread's last words twice when they wrote last.
     subject: reasonLabel ?? "",
+    ...headSubjectOf(subjects.thread),
     preview: preview.text,
     previewChannel: preview.channel,
     // A thread a teammate has is theirs to answer: the reason's sentence ("they're

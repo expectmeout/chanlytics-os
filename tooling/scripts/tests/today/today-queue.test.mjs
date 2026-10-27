@@ -790,3 +790,38 @@ test("the queue's head counts who is waiting and the calls worth a listen apart;
     "REGRESSION: it said 6 more in the Inbox, counting four calls that live in Conversations",
   );
 });
+
+test("an email's row says what it is about, then their words without the signature (the email canvas, 27 Oct 2026)", () => {
+  // The email that came in on production, as it was kept: Need you quoted his signature and Gmail's picture stand-in.
+  const body =
+    "needs you test\n\nRuben Segura\nFounder, RJ Capital\n[image: RJ Capital] <https://rjcapital.io>\n" +
+    "rjcapital.io  |  ruben@rjcapital.io\n3495 US-1, Princeton, NJ 08540";
+  const emailed = {
+    ...msg("m1", "customer", body, "2026-09-06T13:00:00Z"),
+    channel: "email",
+    meta: { email: { subject: "Re: test need you", from_name: "Ruben Segura" } },
+  };
+  const vm = toTodayVM(
+    metrics(),
+    [{ ...conversations[0], last_wa_inbound_at: null, messages: [emailed] }],
+    [escalations[0]],
+    [],
+    NOW,
+  );
+  const row = vm.queue.rows.find((r) => r.kind === "handoff");
+  assert.equal(row.sentence, "needs you test", "REGRESSION: the row quoted his signature as his words");
+  assert.equal(row.lead, "test need you", "the subject, without its Re:");
+  assert.equal(row.quoted, true);
+  const tree = AttnRow({ name: row.who, sentence: row.sentence, quoted: row.quoted, lead: row.lead });
+  assert.equal(
+    textOf(
+      find(tree, (n) => typeof n.props?.className === "string" && n.props.className.startsWith("cl-attn-sentence")),
+    ),
+    "test need you — “needs you test”",
+  );
+  // A WhatsApp row has no subject to lead with.
+  const wa = toTodayVM(metrics(), [conversations[0]], [escalations[0]], [], NOW).queue.rows.find(
+    (r) => r.kind === "handoff",
+  );
+  assert.equal(wa.lead, undefined);
+});

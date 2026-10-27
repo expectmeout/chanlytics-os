@@ -173,12 +173,50 @@ test("an email's quoted chain is behind a tap, and the bubble says what they wro
   assert.ok(!textOf(shut).includes("testing back at you"), "REGRESSION: the chain filled the bubble");
   const toggle = one(shut, byTestId("tl-msg-quote-toggle"));
   assert.ok(toggle, "there is a way to see it");
-  assert.equal(textOf(toggle), "Show quoted text");
+  assert.equal(textOf(toggle).trim(), "···", "three dots, as a mail client keeps the chain");
+  assert.equal(toggle.props["aria-label"], "Show quoted text", "and they say what they open");
 
   toggle.props.onClick();
   const open = redraw(dto);
   assert.ok(textOf(open).includes("testing back at you"), "the chain is kept, and opens");
-  assert.equal(textOf(one(open, byTestId("tl-msg-quote-toggle"))), "Hide quoted text");
+  assert.equal(one(open, byTestId("tl-msg-quote-toggle")).props["aria-label"], "Hide quoted text");
+});
+
+/* ------------------------------ the signature ------------------------------ */
+
+// The email that came in on production on 27 Oct 2026, as it was kept.
+const SIGNED =
+  "needs you test\n\nRuben Segura\nFounder, RJ Capital\n[image: RJ Capital] <https://rjcapital.io>\n" +
+  "rjcapital.io  |  ruben@rjcapital.io\n3495 US-1, Princeton, NJ 08540";
+
+test("their signature is one quiet line under their words, and the whole of it on a press", () => {
+  const dto = conv([
+    msg({ channel: "email", body: SIGNED, meta: { email: { subject: "test need you", from_name: "Ruben Segura" } } }),
+  ]);
+  const shut = draw(dto);
+  const body = one(shut, byClass("tl-msg-body"));
+  assert.ok(textOf(body).startsWith("needs you test"), "the words are theirs");
+  assert.ok(!textOf(body).includes("[image:"), "REGRESSION: Gmail's picture stand-in was drawn as their words");
+  const sig = one(shut, byTestId("tl-msg-sig"));
+  assert.ok(sig, "REGRESSION: the signature was drawn as part of what they wrote");
+  assert.equal(textOf(sig).trim(), "Ruben Segura · Founder, RJ Capital · rjcapital.io");
+  assert.equal(sig.props["aria-expanded"], false);
+  assert.equal(one(shut, byTestId("tl-msg-sig-full")), undefined, "shut, the card is one line");
+
+  sig.props.onClick();
+  const open = redraw(dto);
+  const full = one(open, byTestId("tl-msg-sig-full"));
+  assert.ok(textOf(full).includes("3495 US-1, Princeton, NJ 08540"), "open, the whole card");
+  assert.equal(one(open, byTestId("tl-msg-sig")).props["aria-expanded"], true);
+  assert.ok(!textOf(open).includes("Re: test need you"));
+});
+
+test("the thread's subject is said once, in its head, and not over the bubble", () => {
+  const tree = draw(
+    conv([msg({ channel: "email", body: "needs you test", meta: { email: { subject: "test need you" } } })]),
+  );
+  assert.equal(textOf(one(tree, byTestId("ix-th-subject"))).trim(), "test need you");
+  assert.equal(one(tree, byTestId("tl-msg-subject")), undefined, "REGRESSION: the subject stood over every bubble");
 });
 
 test("a WhatsApp message that reads like a quote is not one", () => {

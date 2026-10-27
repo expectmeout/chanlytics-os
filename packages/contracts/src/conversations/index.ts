@@ -28,7 +28,15 @@ export type { EmailStopBearing } from "./thread-contact";
 export { shortTime, formatWaited, inboxThreadClock } from "./thread-clock";
 export { mediaKind, mediaVM } from "./message-media";
 export type { MediaVM } from "./message-media";
-export { emailLeftOutOf, splitQuotedReply } from "./message-email";
+export {
+  emailLeftOutOf,
+  emailPartsOf,
+  emailSignatureLine,
+  emailSubjectsOf,
+  splitQuotedReply,
+  tidyEmailWords,
+  type EmailParts,
+} from "./message-email";
 export {
   messageStatusLabel,
   sendFailureWords,

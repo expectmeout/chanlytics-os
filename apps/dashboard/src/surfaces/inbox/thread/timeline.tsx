@@ -46,34 +46,73 @@ const Linked = ({ text }: { text?: string | null }) => {
 };
 
 // What an email quoted back at us is kept, not shown: "Got it, thanks!" arrived as six lines of
-// "On Thu, Sep 17, 2026 at 10:44 PM … wrote: >". The split is the viewmodel's (splitQuotedReply),
-// so Conversations draws the same messages the same way.
-const TlMsgBody = ({ text, quoted }: { text?: string | null; quoted?: string }) => {
+// "On Thu, Sep 17, 2026 at 10:44 PM … wrote: >". It waits behind three dots, as a mail client keeps it. The split is
+// the viewmodel's (emailPartsOf), so Conversations draws the same messages the same way.
+const TlMsgQuote = ({ quoted }: { quoted: string }) => {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <Linked text={text} />
-      {quoted && (
-        <>
-          <button
-            type="button"
-            className="tl-msg-quote-toggle"
-            aria-expanded={open}
-            onClick={() => setOpen((v) => !v)}
-            data-testid="tl-msg-quote-toggle"
-          >
-            {open ? "Hide quoted text" : "Show quoted text"}
-          </button>
-          {open && (
-            <div className="tl-msg-quote" data-testid="tl-msg-quote">
-              {quoted}
-            </div>
-          )}
-        </>
+      <button
+        type="button"
+        className="tl-msg-quote-toggle"
+        aria-expanded={open}
+        aria-label={open ? "Hide quoted text" : "Show quoted text"}
+        title={open ? "Hide quoted text" : "Show quoted text"}
+        onClick={() => setOpen((v) => !v)}
+        data-testid="tl-msg-quote-toggle"
+      >
+        ···
+      </button>
+      {open && (
+        <div className="tl-msg-quote" data-testid="tl-msg-quote">
+          <Linked text={quoted} />
+        </div>
       )}
     </>
   );
 };
+
+// Their signature: one quiet line under their words, the whole of it on a tap. Drawn as words it read as the email
+// ("needs you test Ruben Segura Founder, RJ Capital [image: RJ Capital] …").
+const TlMsgSig = ({ signature }: { signature: { line: string; full: string } }) => {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        className={`tl-msg-sig${open ? " open" : ""}`}
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        data-testid="tl-msg-sig"
+      >
+        <span className="tl-msg-sig-line">{signature.line}</span>
+        <Icon name="chevron-down" size={11} className="tl-msg-sig-turn" />
+      </button>
+      {open && (
+        <div className="tl-msg-sig-full" data-testid="tl-msg-sig-full">
+          <Linked text={signature.full} />
+        </div>
+      )}
+    </>
+  );
+};
+
+const TlMsgBody = ({
+  text,
+  quoted,
+  signature,
+}: {
+  text?: string | null;
+  quoted?: string;
+  signature?: { line: string; full: string };
+}) => (
+  <>
+    {/* Trimmed: the bubble keeps its lines now, so a message that ended on a line break would end on a blank one. */}
+    <Linked text={text == null ? text : String(text).trim()} />
+    {quoted && <TlMsgQuote quoted={quoted} />}
+    {signature && <TlMsgSig signature={signature} />}
+  </>
+);
 
 // Why it said that: the intent and how sure it was. It rode the meta line as two more spans,
 // which is what wrapped that line into columns on a phone — and its reason sat in a title
@@ -465,7 +504,7 @@ const TlMsgEntry = (props: TlMsgEntryProps) => {
           </div>
         )}
         <div className="tl-msg-body">
-          <TlMsgBody text={entry.body} quoted={entry.quoted} />
+          <TlMsgBody text={entry.body} quoted={entry.quoted} signature={entry.signature} />
           {real && bubbleCorner(props, named, why)}
         </div>
         {entry.media && <TlMedia media={entry.media} />}

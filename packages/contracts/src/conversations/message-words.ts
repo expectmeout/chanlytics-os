@@ -5,7 +5,7 @@
  */
 import type { MessageDto } from "./thread-dto";
 import { MEDIA_LABEL, mediaKind } from "./message-media";
-import { splitQuotedReply } from "./message-email";
+import { emailFromNameOf, emailPartsOf } from "./message-email";
 import { isChatMessage, writtenChannelOf } from "./thread-channel";
 
 /** What an email's `delivered` receipt says: their mail server took it, which is as far as an email can be followed. */
@@ -284,11 +284,11 @@ export function draftSendsAtMs(m: MessageDto): number {
   return new Date(m.created_at).getTime() + delay;
 }
 
-/* What a message says, wherever it is shown: an email's own words, without the chain it quoted back
-   (splitQuotedReply). One function, because each place that said it its own way drifted: the bubble split
+/* What a message says, wherever it is shown: an email's own words, without the chain it quoted back or the signature
+   under them (emailPartsOf). One function, because each place that said it its own way drifted: the bubble split
    the chain, while the Conversations row previewed it and the status band's "They wrote" printed it whole. */
 export function messageWords(m: MessageDto): string {
-  return m.channel === "email" ? splitQuotedReply(messageText(m)).text : messageText(m);
+  return m.channel === "email" ? emailPartsOf(messageText(m), emailFromNameOf(m)).said : messageText(m);
 }
 
 export function messageText(m: MessageDto): string {

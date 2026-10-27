@@ -130,6 +130,7 @@ export interface MsgEntry {
   body: string;
   subject?: string;
   quoted?: string;
+  signature?: { line: string; full: string };
   leftOut?: string;
   media?: MediaVM;
   why?: ReplyWhyVM;

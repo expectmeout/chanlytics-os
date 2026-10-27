@@ -40,6 +40,8 @@ interface AttnRowProps {
   meta?: string;
   sentence?: string;
   quoted?: boolean;
+  /** What the sentence is about, said before it in bold: an email's subject, before the words they wrote. */
+  lead?: string;
   status?: readonly ReactNode[];
   /** The facts worth having once: shown behind the row's mark, never printed in the line. */
   note?: string;
@@ -97,6 +99,19 @@ function attnActs(cta: AttnAct | null, also: AttnAct | null, ctaTestid: string) 
   );
 }
 
+/** The row's one sentence: their words in quotes, after what they are about in bold where it says (an email's subject). */
+function attnSentence(sentence: string, quoted: boolean, lead: string) {
+  const said = quoted ? `“${sentence}”` : sentence;
+  if (!lead) return <div className={`cl-attn-sentence ${quoted ? "quoted" : ""}`}>{said}</div>;
+  return (
+    <div className={`cl-attn-sentence ${quoted ? "quoted" : ""}`}>
+      <b>{lead}</b>
+      {" — "}
+      {said}
+    </div>
+  );
+}
+
 /** Who the row is about: a person's face, or the glyph or initials of what is not a person. Called, not drawn, as attnActs is. */
 function attnFace(person: FacePerson | undefined, glyph: string | null, initials: string | undefined) {
   if (person) return <Face person={person} className="cl-attn-pic" />;
@@ -116,6 +131,7 @@ export function AttnRow({
   meta = "",
   sentence = "",
   quoted = false,
+  lead = "",
   status = [],
   note = "",
   tone = "answering",
@@ -163,7 +179,7 @@ export function AttnRow({
           </span>
           {meta ? <span className="cl-attn-meta">{meta}</span> : null}
         </div>
-        <div className={`cl-attn-sentence ${quoted ? "quoted" : ""}`}>{quoted ? `“${sentence}”` : sentence}</div>
+        {attnSentence(sentence, quoted, lead)}
         <div className="cl-attn-status">
           {status.map((seg, i) => (
             <span key={i} className={i === 0 ? "lead" : ""}>

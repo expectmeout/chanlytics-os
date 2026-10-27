@@ -980,8 +980,11 @@ a.ix-th-who:active { opacity: 0.72; }
    fit-content — floored at its min-content. A link that will not wrap (.tl-msg-link) made that
    floor the whole address: on production Daniela's Booksy link drew a 552px body inside a 259px
    bubble, pushed 218px off the left of the screen. Capped at the bubble, the link clips instead. */
+/* Its lines as they were written: every email ran into one paragraph, ours too, and so did a WhatsApp of three lines
+   (27 Oct 2026). The words are kept with their line breaks; spaces still fold. */
 .tl-msg-body {
   max-width: 100%;
+  white-space: pre-line;
 }
 .tl-msg.client .tl-msg-body {
   color: var(--ink);
@@ -1008,21 +1011,61 @@ a.ix-th-who:active { opacity: 0.72; }
 }
 .tl-msg-link:hover { text-decoration-color: currentColor; }
 /* What an email quoted back at us: kept, not shown. "Got it, thanks!" was six lines of headers. */
-/* Its own line, under what they wrote: inline, it sat against the last word — "thanks!Show". */
+/* Three dots under what they wrote, as a mail client keeps the chain: its own line, never against the last word. */
 .tl-msg-quote-toggle {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  appearance: none;
+  border: 0;
+  margin: var(--space-2) 0 0;
+  padding: 0 var(--space-2) var(--space-1);
+  min-width: var(--space-10);
+  height: var(--space-5);
+  border-radius: var(--radius-full);
+  background: var(--bg-hover);
+  font: inherit;
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.1em;
+  line-height: 1;
+  color: var(--ink-dim);
+  cursor: pointer;
+}
+@media (hover: hover) { .tl-msg-quote-toggle:hover { color: var(--ink); background: var(--selected-fill); } }
+/* Their signature: one quiet line under a hairline, the whole of it on a press. */
+.tl-msg-sig {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  width: 100%;
   appearance: none;
   background: none;
   border: 0;
-  padding: 2px 0 0;
-  margin: 0;
+  border-top: 1px solid var(--line);
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2) 0 0;
   font: inherit;
   font-size: var(--text-xs);
   color: var(--ink-dim);
-  cursor: pointer;
   text-align: left;
+  cursor: pointer;
 }
-@media (hover: hover) { .tl-msg-quote-toggle:hover { color: var(--ink); } }
+@media (hover: hover) { .tl-msg-sig:hover { color: var(--ink); } }
+.tl-msg-sig-line { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tl-msg-sig-turn { flex: none; margin-left: auto; transition: rotate var(--duration-fast) var(--ease-out); }
+.tl-msg-sig.open .tl-msg-sig-turn { rotate: 180deg; }
+.tl-msg-sig-full {
+  margin-top: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+html.legacy-on .tl-msg-sig { min-height: 0; }
+.tl-msg-sig::after { content: ""; position: absolute; inset: -8px 0; }
+@media (prefers-reduced-motion: reduce) { .tl-msg-sig-turn { transition: none; } }
 /* A thumb's reach without a thumb's height. Every button on a touch screen is 44px tall
    (legacy.css), which put 25px of air under the words in every email that quoted; the height
    comes off the box and the reach goes to an ::after that takes no room. */

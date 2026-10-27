@@ -3,6 +3,7 @@ import { toCallVM } from "../conversations/call-vm.js";
 import { waitsOnAPerson } from "../conversations/escalations.js";
 import { threadWaitsOf } from "../conversations/inbox-thread.js";
 import { lastExchanged, messageWords, clipAtWord } from "../conversations/message-words.js";
+import { emailTopicOf } from "../conversations/message-email.js";
 import { contactName } from "../conversations/thread-contact.js";
 import { isOptedOut } from "../conversations/thread-dto.js";
 import { waWindow } from "../config/policy.js";
@@ -54,6 +55,7 @@ function escalationRecords(openEsc, byConv, callByConv, tz, now) {
       since: tzSince(e.created_at, tz, now) ?? "",
       // her own words, never a generated characterization of them
       quote: lastCustomer ? clipAtWord(messageWords(lastCustomer), QUOTE_MAX) : "",
+      subject: lastCustomer ? emailTopicOf(lastCustomer) : null,
       who: conv ? contactName(conv) : call ? toCallVM(call, tz, now).who : e.reason === "callback" ? "Unknown caller" : "Unknown",
       closes: win?.open ? tzClock(win.closesAtIso, tz, now) : null
     };

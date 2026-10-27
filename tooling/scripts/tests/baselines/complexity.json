@@ -145,7 +145,7 @@
     "depth": 1
   },
   "packages/contracts/src/conversations/inbox-thread.ts::toInboxThreadVM#1": {
-    "lines": 189,
+    "lines": 183,
     "branches": 31,
     "depth": 2
   },
