@@ -46,6 +46,15 @@ test("the composer, the answer verb and the campaign runner run the folders that
     assert.ok(named("packages/core/src/campaigns/run-playbook.ts").includes(`tooling/scripts/tests/${f}`), f);
 });
 
+test("REGRESSION: a change to People's table or controls runs Leads' and the Pipeline's tests, which draw through them", () => {
+  // 27 Oct 2026: #1849 changed the table's sort for People and ran tests/people alone; desk Leads opened Z to A by name.
+  for (const file of ["people/table/columns.ts", "people/hooks/use-controls.ts", "people/rail/people-rail.tsx"]) {
+    const targets = run(`apps/dashboard/src/surfaces/${file}`);
+    for (const f of ["people", "leads", "deals"])
+      assert.ok(targets.includes(`tooling/scripts/tests/${f}`), `${file}: ${f}`);
+  }
+});
+
 test("every path the maps name holds source, and every test they name is one", () => {
   const tracked = execFileSync("git", ["ls-files"], { cwd: ROOT, encoding: "utf8" }).split("\n");
   for (const [prefix, folders] of Object.entries(TESTED_IN)) {
