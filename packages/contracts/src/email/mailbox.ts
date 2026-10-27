@@ -118,6 +118,8 @@ export interface EmailSetupDto {
     mailboxes: MailboxConnectionDto[];
     /** Google's consent screen for the app, where Google is offered: its warning is said before Connect. */
     google_audience?: GoogleAudience | null;
+    /** The senders whose mail its mailboxes left there in the last day (00483 mailbox_left), when read; null otherwise. */
+    left_today?: number | null;
   } | null;
 }
 

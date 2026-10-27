@@ -50,8 +50,18 @@ function senderRow({
   );
 }
 
-export function LeftSenders({ owner, flash }: { owner: boolean; flash: (f: LegacyFlash) => void }) {
+export function LeftSenders({
+  owner,
+  flash,
+  today,
+}: {
+  owner: boolean;
+  flash: (f: LegacyFlash) => void;
+  /** The senders left in the last day, as Setup read them; null when unread. */
+  today: number | null;
+}) {
   const [list, setList] = useState<MailboxSendersDto | null>(null);
+  const title = today === null ? W.title : `${W.title} · ${W.today(today)}`;
   const [busy, setBusy] = useState<string | null>(null);
   const load = async () => {
     const r = await api()("GET mailbox-senders", {});
@@ -69,7 +79,7 @@ export function LeftSenders({ owner, flash }: { owner: boolean; flash: (f: Legac
   if (!list)
     return senderRow({
       key: "left",
-      says: W.title,
+      says: title,
       sub: W.lead,
       acts: (
         <LinkButton onClick={() => void load()} data-testid="mailbox-left-show">
@@ -83,7 +93,7 @@ export function LeftSenders({ owner, flash }: { owner: boolean; flash: (f: Legac
     <>
       {senderRow({
         key: "left",
-        says: W.title,
+        says: title,
         sub: list.left.length ? W.lead : W.empty,
         acts: null,
         testid: "mailbox-left",

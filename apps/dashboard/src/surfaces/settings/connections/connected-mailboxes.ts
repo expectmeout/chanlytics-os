@@ -18,7 +18,8 @@ import {
   mailboxConnectOk,
   mailboxConnectWords,
   mailboxRecordRows,
-  mailboxWords,
+  mailboxRowWords,
+  mailboxSendingLines,
   mailboxesFootWords,
   type MailboxProvider,
 } from "@chanlytics/contracts";
@@ -44,7 +45,8 @@ interface ConnectedMailboxesApi {
   remove(id: string): Promise<ApiResult<unknown>>;
   /** What the browser came back from the provider with, said once: its words, whether it is good news, and its word. */
   outcome(): { ok: boolean; words: string; code: string | null } | null;
-  words: typeof mailboxWords;
+  row: typeof mailboxRowWords;
+  sending: typeof mailboxSendingLines;
   acts: typeof mailboxActs;
   records: typeof mailboxRecordRows;
   foot: typeof mailboxesFootWords;
@@ -89,7 +91,8 @@ export const connectedMailboxes: ConnectedMailboxesApi = {
       return null;
     }
   },
-  words: mailboxWords,
+  row: mailboxRowWords,
+  sending: mailboxSendingLines,
   acts: mailboxActs,
   records: mailboxRecordRows,
   foot: mailboxesFootWords,

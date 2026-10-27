@@ -3429,6 +3429,20 @@ async function sortMailboxSender(db, p) {
   });
   if (error) throw Object.assign(new Error(error.message), { code: error.code });
 }
+var CAME_IN_READ_MAX = 1e3;
+async function mailboxPeopleSince(db, tenantId, mailboxId, since) {
+  const { data, error } = await db.from("messages").select("contact_id").eq("tenant_id", tenantId).eq("channel", "email").eq("direction", "inbound").gte("channel_ts", since.toISOString()).contains("meta", { mailbox_id: mailboxId }).limit(CAME_IN_READ_MAX);
+  if (error) throw new Error(`cannot read who wrote to the mailbox: ${error.message}`);
+  return new Set((data ?? []).map((r) => r.contact_id)).size;
+}
+async function mailboxLeftSince(db, tenantId, since) {
+  const [left, verdicts] = await Promise.all([
+    db.from("mailbox_left").select("address").eq("tenant_id", tenantId).gte("last_at", since.toISOString()).limit(CAME_IN_READ_MAX),
+    mailboxSenderVerdicts(db, tenantId)
+  ]);
+  if (left.error) throw new Error(`cannot read what the mailbox left: ${left.error.message}`);
+  return (left.data ?? []).filter((r) => senderVerdictOf(verdicts, r.address) !== "person").length;
+}
 
 // src/repositories/outreach.ts
 import { conversationPatch as conversationPatch2 } from "../../contracts/dist/index.js";
@@ -8264,7 +8278,9 @@ export {
   mailboxConnectionsOf,
   mailboxCountsOf,
   mailboxFor,
+  mailboxLeftSince,
   mailboxOfTenant,
+  mailboxPeopleSince,
   mailboxSenderVerdicts,
   mailboxSendersOf,
   mailboxesToTend,

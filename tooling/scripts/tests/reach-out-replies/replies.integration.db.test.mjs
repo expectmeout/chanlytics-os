@@ -581,8 +581,18 @@ test(
       assert.equal(m.conversation_id, firstEmail[key].conversation_id, `${key}: on the thread of the email it answers`);
       assert.equal(m.meta.email.in_reply_to, firstEmail[key].meta.email.message_id);
       assert.equal(m.meta.email.claim, READS[key].auto ? "auto_reply" : "person");
+      assert.deepEqual(
+        [m.meta.source, m.meta.mailbox_id],
+        ["mailbox", mailbox],
+        `${key}: stamped with the mailbox it came through, as an imported email is`,
+      );
       replyOf[key] = m;
     }
+    assert.equal(
+      await lib.mailboxPeopleSince(db, A, mailbox, new Date(0)),
+      Object.keys(BUSINESSES).length + 1,
+      "its row counts each who wrote through it once: the four businesses and the supplier",
+    );
     const scheduled = ok(
       await db.from("jobs").select("payload").eq("tenant_id", A).eq("kind", "reply_read").eq("state", "scheduled"),
     );
