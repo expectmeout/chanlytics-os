@@ -181,7 +181,7 @@ test("where the deployment names no mail domain, hosted email is off: nothing ca
       ready: false,
       domain: null,
       mailbox: null,
-      sending: { providers: [], mailboxes: [] },
+      sending: { providers: [], mailboxes: [], google_audience: null },
     });
     assert.deepEqual(
       db.seen.map((q) => q.table ?? q.rpc).filter((t) => t !== "mailbox_connections"),
@@ -203,7 +203,7 @@ test("where the deployment names no mail domain, hosted email is off: nothing ca
       last_error: null,
     },
     // The providers are the edge's to offer; with no edge here none is, and the business has connected no mailbox.
-    sending: { providers: [], mailboxes: [] },
+    sending: { providers: [], mailboxes: [], google_audience: null },
   });
   assert.deepEqual(
     (await emailSetupFor(db, B)).mailbox,
