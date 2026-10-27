@@ -1306,6 +1306,8 @@
 .cl-prof-merge { display: grid; gap: var(--space-3); }
 .cl-prof-merge-pick { display: grid; gap: 6px; font-size: var(--text-sm); color: var(--ink-muted); }
 .cl-prof-ask-detail { margin: 0; font-size: var(--text-sm); line-height: 1.5; color: var(--ink-muted); }
+/* A switch in the sheet, its words beside it (Not a person, 00483). */
+.cl-prof-ask-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 /* Combine (0052; person/sheets/combine-sheet.tsx): what the person who answered keeps and takes, a check before each,
    a hairline between; why they are one under it; the owner's press at the foot. */
 .cl-prof-combine { display: grid; gap: var(--space-3); }
