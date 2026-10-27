@@ -69,7 +69,7 @@ export async function mailboxConnectionsWithDaysFor(
 }
 
 /** One call to the edge's mailboxes door. Never throws: a failure is a status the caller reads. */
-async function edgeMailboxes(body: Record<string, unknown>, timeoutMs = 25_000): Promise<EdgeAnswer> {
+export async function edgeMailboxes(body: Record<string, unknown>, timeoutMs = 25_000): Promise<EdgeAnswer> {
   if (!edgeConfigured()) return { status: 503, body: { ok: false, error: "no_edge_credential" } };
   // The deployment gate every provider door keeps: a preview never signs a business's mailbox in, or writes from it.
   if (!deployment.providersLive) return { status: 503, body: { ok: false, error: "preview" } };

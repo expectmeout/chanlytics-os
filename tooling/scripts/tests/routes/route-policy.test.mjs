@@ -101,6 +101,8 @@ const FRESH = [
   "GET contacts/export",
   "POST leads/export",
   "DELETE contacts/[id]",
+  // Not a person (00483): deletes the person as Delete person does, after saying their mail is automated.
+  "POST contacts/[id]/not-a-person",
   "POST contacts/[id]/merge",
   "DELETE leads/[id]",
   "POST billing/checkout",

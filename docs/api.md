@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-325 handlers in 52 domains.
+328 handlers in 53 domains.
 
 ## activity
 
@@ -570,6 +570,14 @@ Writes; for a member of the row's own workspace, owner or above; counts against 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `merge` | string (uuid) | yes |  |
+
+### `POST /api/v1/contacts/[id]/not-a-person`
+
+Writes; for a member of the row's own workspace, owner or above; counts against the `erase` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `scope` | one of `"address"`, `"domain"` | yes |  |
 
 ### `POST /api/v1/contacts/[id]/notes`
 
@@ -1360,6 +1368,23 @@ Reads; for a member of the workspace the request names, partner or above; counts
 | `mailbox_id` | string (uuid) | no |  |
 | `admin` | one of `"1"` | no |  |
 | `back` | one of `"start"` | no |  |
+
+## mailbox-senders
+
+### `GET /api/v1/mailbox-senders`
+
+Reads; for a member of the workspace the request names, viewer or above; counts against the `aggregate` rate; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/mailbox-senders/route.ts`).
+
+### `POST /api/v1/mailbox-senders`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `sender` | string | yes | at least 3 characters; at most 254 characters |
+| `verdict` | one of `"automated"`, `"person"` or null | yes |  |
 
 ## mailboxes
 

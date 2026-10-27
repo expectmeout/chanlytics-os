@@ -25,8 +25,7 @@ export {
 } from "./ai-usage";
 export type { AiFailures, ModelTurnKept } from "./ai-usage";
 export { keepInvoiceAmount } from "./billing/events";
-export { applyBilling } from "./billing/account";
-export type { BillingPatch, BillingExpectation } from "./billing/account";
+export { applyBilling, type BillingPatch, type BillingExpectation } from "./billing/account";
 export { migrationHead, platformDay } from "./ops";
 export { ERASURE_LEGS, ERASURE_STRATEGIES } from "./erasure-registry";
 export type { ErasureLeg, ErasureStrategy } from "./erasure-registry";
@@ -138,6 +137,7 @@ export {
 } from "./repositories/mailboxes/sync";
 export { unknownMailboxEmails, requestMailboxesSweep } from "./repositories/mailboxes/reconcile";
 export { mailboxSenderVerdicts, noteMailboxLeft } from "./repositories/mailboxes/senders";
+export { mailboxSendersOf, sortMailboxSender } from "./repositories/mailboxes/senders";
 export type { UnknownMailboxEmail } from "./repositories/mailboxes/reconcile";
 export {
   outreachFactsOf,

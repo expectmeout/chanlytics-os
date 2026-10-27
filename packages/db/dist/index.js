@@ -3384,6 +3384,9 @@ async function requestMailboxesSweep(db, now) {
 }
 
 // src/repositories/mailboxes/senders.ts
+import {
+  senderVerdictOf
+} from "../../contracts/dist/index.js";
 async function mailboxSenderVerdicts(db, tenantId) {
   const { data, error } = await db.from("mailbox_senders").select("sender, verdict").eq("tenant_id", tenantId);
   if (error) throw new Error(`cannot read what the workspace said of its senders: ${error.message}`);
@@ -3400,6 +3403,31 @@ async function noteMailboxLeft(db, p) {
   if (!error) return true;
   dbLog().error("mailbox_left_note_failed", { tenant_id: p.tenantId, why: p.why, error: error.message });
   return false;
+}
+var LEFT_SHOWN = 200;
+async function mailboxSendersOf(db, tenantId) {
+  const [left, said] = await Promise.all([
+    db.from("mailbox_left").select("address, name, why, count, first_at, last_at").eq("tenant_id", tenantId).order("last_at", { ascending: false }).limit(LEFT_SHOWN),
+    db.from("mailbox_senders").select("sender, verdict, set_at").eq("tenant_id", tenantId).order("set_at", { ascending: false })
+  ]);
+  if (left.error) throw new Error(`cannot read what the mailbox left: ${left.error.message}`);
+  if (said.error) throw new Error(`cannot read what the workspace said of its senders: ${said.error.message}`);
+  const verdicts = new Map(
+    (said.data ?? []).map((r) => [r.sender, r.verdict === "person" ? "person" : "automated"])
+  );
+  return {
+    left: (left.data ?? []).filter((r) => senderVerdictOf(verdicts, r.address) !== "person").map((r) => ({ ...r, why: r.why })),
+    said: (said.data ?? []).map((r) => ({ ...r, verdict: r.verdict === "person" ? "person" : "automated" }))
+  };
+}
+async function sortMailboxSender(db, p) {
+  const { error } = await db.rpc("mailbox_sender_sort", {
+    p_tenant_id: p.tenantId,
+    p_sender: p.sender,
+    // A null verdict takes it back: the door reads it as SQL's null.
+    p_verdict: p.verdict
+  });
+  if (error) throw Object.assign(new Error(error.message), { code: error.code });
 }
 
 // src/repositories/outreach.ts
@@ -8238,6 +8266,7 @@ export {
   mailboxFor,
   mailboxOfTenant,
   mailboxSenderVerdicts,
+  mailboxSendersOf,
   mailboxesToTend,
   makeSequence,
   markCalendarFeedKept,
@@ -8497,6 +8526,7 @@ export {
   setupAsks,
   signUpOnPublicKey,
   signersOf,
+  sortMailboxSender,
   staffStateOf,
   staleSends,
   stampCallConfigVersion,

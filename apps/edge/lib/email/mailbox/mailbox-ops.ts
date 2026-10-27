@@ -12,6 +12,9 @@
  *                                                             Reconnect's mailbox_id: that mailbox's account or none)
  *   { op: "remove" | "pause" | "unpause" | "resume" | "check" | "test", tenant_id, mailbox_id }
  *   { op: "settings", tenant_id, mailbox_id, from_name?, signature?, daily_cap? }
+ *   { op: "bring_in", tenant_id, address }                  → a sender the owner said is a person: their mail of the
+ *                                                             mailboxes' six months and since kept in their thread
+ *                                                             (imports/mail-history.ts bringInSender), how many
  *
  * A row's answer is its page row (contracts mailboxConnectionDtoOf). A connect that did not finish answers its reason
  * (contracts MAILBOX_CONNECT_WORDS says each) beside the code a caller compares.
@@ -20,8 +23,16 @@ import { json, refuse } from "../../http.js";
 import { personFor, workspaceFor, type Admitted } from "../../admin-auth.js";
 import { pg } from "../../pg.js";
 import { errField, logger } from "../../log.js";
-import { mailboxConnectionOf, type MailboxConnectionRow } from "../../packages/db.js";
-import { MAILBOX_PROVIDERS, UUID, mailboxConnectionDtoOf, type MailboxProvider } from "../../packages/contracts.js";
+import { mailboxConnectionOf, mailboxConnectionsOf, type MailboxConnectionRow } from "../../packages/db.js";
+import {
+  MAILBOX_PROVIDERS,
+  UUID,
+  mailboxConnectionDtoOf,
+  normalizeEmail,
+  type MailboxProvider,
+} from "../../packages/contracts.js";
+import { bringInSender } from "../../imports/mail-history.js";
+import { tokenFor } from "./mailbox-credentials.js";
 import { mailboxReadiness } from "./mailbox-config.js";
 import {
   mailboxCheck,
@@ -45,9 +56,10 @@ export interface Body {
   from_name?: unknown;
   signature?: unknown;
   daily_cap?: unknown;
+  address?: unknown;
 }
 
-const OPS = new Set(["connect", "remove", "pause", "unpause", "resume", "settings", "test", "check"]);
+const OPS = new Set(["connect", "remove", "pause", "unpause", "resume", "settings", "test", "check", "bring_in"]);
 
 /** A connect that did not finish, as the code a caller compares, with its reason beside it for the owner's words. */
 function connectRefused(why: ConnectError): Response {
@@ -153,6 +165,22 @@ async function rowOp(
   }
 }
 
+/**
+ * A sender the owner said is a person, brought in through every mailbox of the workspace that can be read now: one
+ * signed out, or whose token is gone, is passed over. Answers how many emails were kept.
+ */
+async function bringInOp(p: MailboxPorts, tenantId: string, body: Partial<Body>): Promise<Response> {
+  const address = normalizeEmail(stringOf(body.address));
+  if (!address) return refuse(400, "invalid", "An address is needed.");
+  let kept = 0;
+  for (const row of await mailboxConnectionsOf(p.db, tenantId)) {
+    if (row.state === "reconnect") continue;
+    const t = await tokenFor(p.db, row, Date.now());
+    if (t.ok) kept += await bringInSender({ db: p.db, row, token: t.token, address, log: p.log });
+  }
+  return json(200, { ok: true, kept });
+}
+
 export async function mailboxesOp(auth: Admitted, body: Partial<Body>): Promise<Response> {
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
@@ -167,6 +195,7 @@ export async function mailboxesOp(auth: Admitted, body: Partial<Body>): Promise<
   const L = logger({ door: "mailboxes", tenant_id: tenantId, op });
   const p: MailboxPorts = { db, log: L };
   try {
+    if (op === "bring_in") return await bringInOp(p, tenantId, body);
     return op === "connect" ? await connectOp(p, tenantId, by, body) : await rowOp(p, tenantId, by, op, body);
   } catch (e) {
     L.error("mailbox_door_failed", { error: errField(e) });

@@ -34,6 +34,7 @@ import {
   HISTORY_BACK_DAYS,
   IMPORT_STOPPED_WORDS,
   MIN_MS,
+  SECOND_MS,
   normalizeEmail,
   type MailboxLeftWhy,
 } from "../packages/contracts.js";
@@ -53,6 +54,7 @@ import { markSignedOut } from "../email/mailbox/mailbox-wire.js";
 import { mailboxEmailMeta, readEmail } from "../email/mailbox/mailbox-sync.js";
 import { leftWhy, mailSortingFor, noteLeft, type MailSorting } from "../email/mailbox/mailbox-sorting.js";
 import type { Part, PartOutcome } from "./history-import.js";
+import type { Logger } from "../log.js";
 
 type Db = SupabaseClient<Database>;
 
@@ -256,6 +258,55 @@ async function takeListed(
   const ms = Date.parse(when);
   if (Number.isFinite(ms)) tally.oldest = tally.oldest === null ? ms : Math.min(tally.oldest, ms);
   return "taken";
+}
+
+/** How many of a sender's emails one bring-in reads: a press's worth, inside one request. */
+const BRING_IN_MAX = 50;
+const BRING_IN_MS = 40 * SECOND_MS;
+
+/**
+ * A sender the owner said is a person, brought in (00483): their mail from six months before the mailbox connected up to
+ * now, read as the six months read any (takeListed, whose sorting now finds them a person), at most BRING_IN_MAX in
+ * one press, each kept as before Chanlytics in their thread. Answers how many were kept; throws when the mailbox could
+ * not be listed. The provider's pace ends it early: what came in stands.
+ */
+export async function bringInSender(p: {
+  db: Db;
+  row: MailboxConnectionRow;
+  token: string;
+  address: string;
+  log: Logger;
+}): Promise<number> {
+  const connected = Date.parse(p.row.connected_at);
+  const back = (Number.isFinite(connected) ? connected : Date.now()) - HISTORY_BACK_DAYS * DAY_MS;
+  const window: MailWindow = { from: new Date(back).toISOString(), to: new Date().toISOString(), sender: p.address };
+  const listed =
+    p.row.provider === "microsoft"
+      ? await graphListSince(p.token, window, null)
+      : await gmailListSince(p.token, window, null);
+  if (!listed.ok) throw new Error(`the sender's mail could not be listed: ${listed.reply.status}`);
+  const part: Part = {
+    tenantId: p.row.tenant_id,
+    connectionId: p.row.id,
+    n: 0,
+    until: Date.now() + BRING_IN_MS,
+    log: p.log,
+  };
+  const r: MailRead = {
+    db: p.db,
+    part,
+    row: p.row,
+    token: p.token,
+    window,
+    began: { page: null, at: 0 },
+    sorting: await mailSortingFor(p.db, p.row.tenant_id),
+  };
+  const tally: MailTally = { counts: { messages: 0, people: 0, dropped: 0 }, oldest: null };
+  for (const l of listed.listed.slice(0, BRING_IN_MAX)) {
+    if (Date.now() >= part.until) break;
+    if (typeof (await takeListed(r, tally, l)) === "object") break;
+  }
+  return tally.counts.messages;
 }
 
 export async function mailHistoryPart(db: Db, part: Part): Promise<PartOutcome> {

@@ -94,7 +94,7 @@
     },
     "DELETE mailbox-connections/[id]": {
       "changes": "",
-      "doors": "imports · mailbox_connections · notifications · tenant_config",
+      "doors": "contacts · conversations · imports · leads · mailbox_connections · mailbox_left · messages · notifications · person_doubts · tenant_config",
       "door": {
         "setup": "every page"
       }
@@ -293,7 +293,7 @@
     },
     "PATCH mailbox-connections/[id]": {
       "changes": "",
-      "doors": "imports · mailbox_connections · notifications · tenant_config",
+      "doors": "contacts · conversations · imports · leads · mailbox_connections · mailbox_left · messages · notifications · person_doubts · tenant_config",
       "door": {
         "setup": "every page"
       }
@@ -462,7 +462,7 @@
     },
     "POST capabilities/[kind]": {
       "changes": "capability_activations INSERT UPDATE",
-      "doors": "billing_accounts · business_reads · business_records · google_connections · google_listings · google_reviews · imports · lines · mailbox_connections · notifications · tenant_channels · tenant_config · tenants"
+      "doors": "billing_accounts · business_reads · business_records · contacts · conversations · google_connections · google_listings · google_reviews · imports · leads · lines · mailbox_connections · mailbox_left · messages · notifications · person_doubts · tenant_channels · tenant_config · tenants"
     },
     "POST channels/whatsapp/connect": {
       "changes": "",
@@ -1307,21 +1307,21 @@
     },
     "POST mailbox-connections/[id]/check": {
       "changes": "",
-      "doors": "imports · mailbox_connections · notifications · tenant_config",
+      "doors": "contacts · conversations · imports · leads · mailbox_connections · mailbox_left · messages · notifications · person_doubts · tenant_config",
       "door": {
         "setup": "every page"
       }
     },
     "POST mailbox-connections/[id]/resume": {
       "changes": "",
-      "doors": "imports · mailbox_connections · notifications · tenant_config",
+      "doors": "contacts · conversations · imports · leads · mailbox_connections · mailbox_left · messages · notifications · person_doubts · tenant_config",
       "door": {
         "setup": "every page"
       }
     },
     "POST mailbox-connections/[id]/test": {
       "changes": "",
-      "doors": "imports · mailbox_connections · notifications · tenant_config",
+      "doors": "contacts · conversations · imports · leads · mailbox_connections · mailbox_left · messages · notifications · person_doubts · tenant_config",
       "door": {
         "setup": "every page"
       }

@@ -2785,6 +2785,8 @@ type MailPage = {
 interface MailWindow {
     from: string;
     to: string;
+    /** Only mail from this address: a sender the owner brought in (00483). A lower-cased address, never a query. */
+    sender?: string;
 }
 /**
  * Gmail's messages received inside the window, newest first, every label but spam and the bin (the list's default),
