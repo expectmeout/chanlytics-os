@@ -653,24 +653,32 @@ account (Resend) carries only what a person or the receptionist answers and
 the offers a customer asked for; no cold email ever leaves on it. Nothing
 sends cold until these are set, in order, and a reach-out exists (step 8).
 
-1. **Google: a Cloud project of its own** (never Business Profile's, whose
-   review is its own). Enable the Gmail API and Cloud Pub/Sub. On the OAuth
-   consent screen: External, the app's name and support address, the
-   authorised domain `chanlytics.com`, the privacy policy and terms pages, and
-   the scopes `openid`, `email`, `profile`, `gmail.send` (sensitive) and
-   `gmail.readonly` (restricted: the replies are read with it). A restricted
-   scope needs Google's verification and a yearly security assessment (CASA,
-   Tier 2, by an authorised lab); until both pass the app is capped at 100
-   users and shows the unverified-app screen, and in testing only the listed
-   test users may grant. Make a web-application OAuth client whose one
-   redirect URI is `https://app.chanlytics.com/api/v1/mailbox-connections/callback`,
-   and set `GOOGLE_MAIL_CLIENT_ID` and `GOOGLE_MAIL_CLIENT_SECRET` on the edge.
-   For a pilot before verification, publish the app "In production"
-   (unverified): in Testing, Google ends every sign-in after seven days, and
-   each mailbox would ask to be connected again every week. Only a Google
-   Workspace account connects (its id token's `hd`, a verified address and a
-   working Gmail are checked): a consumer Google account made with a business
-   address has no Gmail behind it, and is refused by name.
+1. **Google: the Business Profile app** (decision 0073, R18: one Google app,
+   every scope filed once). The edge uses `GOOGLE_OAUTH_CLIENT_ID` and
+   `GOOGLE_OAUTH_CLIENT_SECRET` for a mailbox's consent too, unless
+   `GOOGLE_MAIL_CLIENT_ID` and `GOOGLE_MAIL_CLIENT_SECRET` name a client of
+   their own. In that project (`chanlytics`), enable the Gmail, People and
+   Calendar APIs. Under Data Access, beside Business Profile's
+   `business.manage`, add `gmail.send` (sensitive), `gmail.readonly`
+   (restricted: the mail is read with it), `contacts.readonly` and
+   `calendar.readonly` (sensitive). Google's "other contacts" are not asked
+   for (27 Oct 2026). The OAuth client gets a second redirect URI,
+   `https://app.chanlytics.com/api/v1/mailbox-connections/callback`, beside
+   Business Profile's. A restricted scope needs Google's verification and a
+   yearly security assessment (CASA, Tier 2, by an authorised lab); until both
+   pass, the app is capped at 100 users (Business Profile's connects count too)
+   and shows the unverified-app screen, which the edge's
+   `GOOGLE_OAUTH_AUDIENCE` (`testing`, `unverified`, `verified`) has
+   Connections and the first run say before Connect. Keep the app published
+   "In production" while unverified: in Testing, Google ends every sign-in
+   after seven days. A pilot customer's Google Workspace admin can mark the
+   app Trusted (Admin console, API controls) to skip the warning for their
+   users. Only a Google Workspace account connects (its id token's `hd`, a
+   verified address and a working Gmail are checked): a consumer Google
+   account made with a business address has no Gmail behind it, and is
+   refused by name. The consent is asked with PKCE (S256), its verifier made
+   from the signed state's nonce with `GOOGLE_OAUTH_STATE_SECRET`, so nothing
+   is kept between the two halves.
 2. **Microsoft: an app registration** in Entra for accounts in any
    organisation's directory (a personal Outlook.com mailbox is refused anyway:
    free mail never writes to businesses). The same redirect URI, as a web
@@ -695,9 +703,12 @@ sends cold until these are set, in order, and a reach-out exists (step 8).
    topic, with `gmail-api-push@system.gserviceaccount.com` allowed to publish
    to it, and a push subscription to `https://<edge>/api/mailbox/gmail` with
    authentication on (a service account of the project) and an audience of
-   your choosing. Set `GMAIL_PUSH_TOPIC=projects/<project>/topics/<name>` and
-   `GMAIL_PUSH_AUDIENCE=<that audience>` on the edge. Without them every
-   mailbox is read by the five-minute clock alone, and a watch is still kept.
+   your choosing. Set `GMAIL_PUSH_TOPIC=projects/<project>/topics/<name>`,
+   `GMAIL_PUSH_AUDIENCE=<that audience>` and
+   `GMAIL_PUSH_SERVICE_ACCOUNT=<the service account the subscription signs as>`
+   on the edge: Google signs a token for any audience its holder names, so a
+   push from any other account is refused. Without all three every mailbox is
+   read by the five-minute clock alone, and no watch is kept.
 5. **Graph's push (optional).** `GRAPH_NOTIFY_SECRET`, any long random value:
    every subscription the clock makes carries it as its clientState, and
    `/api/mailbox/graph` checks it on each notification (and echoes the

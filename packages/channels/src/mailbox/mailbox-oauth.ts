@@ -83,16 +83,42 @@ export interface MailboxRequest {
 const FORM = { "Content-Type": "application/x-www-form-urlencoded" };
 const form = (p: Record<string, string>): string => new URLSearchParams(p).toString();
 
+/** Bytes as base64url, unpadded (RFC 7636's encoding of a verifier and its challenge). */
+const b64urlOf = (bytes: ArrayBuffer): string =>
+  btoa(String.fromCharCode(...new Uint8Array(bytes)))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+
+/**
+ * The PKCE verifier for a Google mailbox's consent (RFC 7636, S256; RFC 9700 asks it of a confidential client too):
+ * derived from the signed state's nonce with the dashboard's own key, so it never travels in a URL and nothing is kept
+ * between the consent and the callback. 43 characters, as the RFC's shortest.
+ */
+export async function mailboxPkceVerifier(secret: string, nonce: string): Promise<string> {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, [
+    "sign",
+  ]);
+  return b64urlOf(await crypto.subtle.sign("HMAC", key, enc.encode(`mailbox-pkce:${nonce}`)));
+}
+
+/** The challenge the consent screen is asked with: the verifier's SHA-256, base64url. */
+export async function mailboxPkceChallenge(verifier: string): Promise<string> {
+  return b64urlOf(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)));
+}
+
 /**
  * The provider's consent screen, asked for this mailbox's grant. Google: offline access, consent every time (it hands a
  * refresh token on a first consent only, and a reconnect is a first consent on purpose), no scopes granted before folded
- * in. Microsoft: offline_access already asks for the refresh token; select_account so a person signed in to two picks.
+ * in, and PKCE's challenge where one is given. Microsoft: offline_access already asks for the refresh token;
+ * select_account so a person signed in to two picks.
  */
 export function mailboxAuthorizeUrl(
   provider: MailboxProvider,
   cfg: Pick<MailboxOAuthClient, "clientId" | "redirectUri">,
   state: string,
-  loginHint?: string | null,
+  opts: { loginHint?: string | null; challenge?: string | null } = {},
 ): string {
   const q = new URLSearchParams({
     client_id: cfg.clientId,
@@ -106,11 +132,15 @@ export function mailboxAuthorizeUrl(
     q.set("prompt", "consent");
     // What an earlier consent to this app gave stays given (decision 0073, R18): one app, every scope filed once.
     q.set("include_granted_scopes", "true");
+    if (opts.challenge) {
+      q.set("code_challenge", opts.challenge);
+      q.set("code_challenge_method", "S256");
+    }
   } else {
     q.set("response_mode", "query");
     q.set("prompt", "select_account");
   }
-  if (loginHint) q.set("login_hint", loginHint);
+  if (opts.loginHint) q.set("login_hint", opts.loginHint);
   return `${MAILBOX_AUTH_URL[provider]}?${q.toString()}`;
 }
 
@@ -136,7 +166,13 @@ export function mailboxAdminConsentUrl(
   return `https://login.microsoftonline.com/organizations/v2.0/adminconsent?${q.toString()}`;
 }
 
-export function mailboxTokenRequest(provider: MailboxProvider, cfg: MailboxOAuthClient, code: string): MailboxRequest {
+/** The code's exchange, with PKCE's verifier where the consent was asked with its challenge. */
+export function mailboxTokenRequest(
+  provider: MailboxProvider,
+  cfg: MailboxOAuthClient,
+  code: string,
+  verifier?: string | null,
+): MailboxRequest {
   return {
     url: MAILBOX_TOKEN_URL[provider],
     method: "POST",
@@ -147,6 +183,7 @@ export function mailboxTokenRequest(provider: MailboxProvider, cfg: MailboxOAuth
       client_secret: cfg.clientSecret,
       redirect_uri: cfg.redirectUri,
       grant_type: "authorization_code",
+      ...(verifier ? { code_verifier: verifier } : {}),
       ...(provider === "microsoft" ? { scope: MAILBOX_SCOPES.microsoft.join(" ") } : {}),
     }),
   };
