@@ -15740,10 +15740,10 @@ declare const ProposePeopleSearchSchema: z$1.ZodObject<{
     seniority: z$1.ZodDefault<z$1.ZodArray<z$1.ZodEnum<{
         owner: "owner";
         partner: "partner";
+        head: "head";
         founder: "founder";
         c_suite: "c_suite";
         vp: "vp";
-        head: "head";
         director: "director";
         manager: "manager";
         senior: "senior";
@@ -15807,10 +15807,10 @@ declare const ProposeAnySearchSchema: z$1.ZodDiscriminatedUnion<[z$1.ZodObject<{
     seniority: z$1.ZodDefault<z$1.ZodArray<z$1.ZodEnum<{
         owner: "owner";
         partner: "partner";
+        head: "head";
         founder: "founder";
         c_suite: "c_suite";
         vp: "vp";
-        head: "head";
         director: "director";
         manager: "manager";
         senior: "senior";

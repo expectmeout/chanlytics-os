@@ -191,9 +191,10 @@ test("an email thread: email is the channel, its words carry their subject line,
   );
   assert.equal(vm.windowOpen, true, "only WhatsApp has a window");
   const bubble = vm.timeline.find((e) => e.type === "msg");
+  // The subject is the thread's, said once in its head (emailSubject), not over its first bubble (27 Oct 2026).
   assert.deepEqual(
-    [bubble.channel, bubble.subject, bubble.body],
-    ["email", "Quote for Saturday", "Can you do Saturday at 9?"],
+    [bubble.channel, bubble.subject, bubble.body, vm.emailSubject],
+    ["email", undefined, "Can you do Saturday at 9?", "Quote for Saturday"],
   );
   assert.equal(
     vm.summary,

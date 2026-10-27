@@ -267,6 +267,28 @@ function inboxReading(dto: ConversationDto): Pick<InboxThreadVM, "unread" | "hea
 /** A thread's two clocks, each its wire's window reads (contracts windowClockOf). */
 const clocksOf = (dto: ConversationDto) => ({ whatsapp: dto.last_wa_inbound_at, instagram: dto.last_ig_inbound_at });
 
+/**
+ * A bubble's words: a message's own, or an email's in its parts (emailPartsOf): what they wrote, its subject where it
+ * changes from the thread's, the chain it quoted and the signature under it, and what the intake left out. Only an email
+ * quotes and signs; a WhatsApp message that happens to start a line with ">" is words.
+ */
+function bubbleWordsOf(
+  m: MessageDto,
+  changed: ReadonlyMap<string, string>,
+): { body: string; subject?: string; leftOut?: string; quoted?: string; signature?: { line: string; full: string } } {
+  if (m.channel !== "email") return { body: messageText(m) };
+  const parts = emailPartsOf(messageText(m), emailFromNameOf(m));
+  const subject = changed.get(m.id);
+  const leftOut = emailLeftOutOf(m.meta) ?? replyLeftAsOf(m.meta);
+  return {
+    body: parts.said,
+    ...(subject ? { subject } : {}),
+    ...(leftOut ? { leftOut } : {}),
+    ...(parts.quoted ? { quoted: parts.quoted } : {}),
+    ...(parts.signature ? { signature: { line: emailSignatureLine(parts.signature), full: parts.signature } } : {}),
+  };
+}
+
 export function toInboxThreadVM(
   dto: ConversationDto,
   escalation: EscalationDto | null,
@@ -321,22 +343,13 @@ export function toInboxThreadVM(
     const onPhone = m.type === "call_summary";
     const media = mediaVM(m);
     const why = messageWhy(m);
-    const subject = subjects.changed.get(m.id) ?? null;
-    const leftOut = m.channel === "email" ? (emailLeftOutOf(m.meta) ?? replyLeftAsOf(m.meta)) : null;
-    // Only an email quotes and signs; a WhatsApp message that happens to start a line with ">" is words.
-    const said = m.channel === "email" ? emailPartsOf(messageText(m), emailFromNameOf(m)) : null;
     return {
       type: "msg" as const,
       messageId: m.id,
       from: m.sender === "customer" ? ("client" as const) : ("agent" as const),
       channel: onPhone ? "phone" : writtenChannelOf(m.channel),
-      // An email's subject line, above its words, where it changes from the thread's.
-      ...(subject ? { subject } : {}),
-      ...(leftOut ? { leftOut } : {}),
       ...bubbleWhen(messageAt(m), tz, now),
-      body: said ? said.said : messageText(m),
-      ...(said?.quoted ? { quoted: said.quoted } : {}),
-      ...(said?.signature ? { signature: { line: emailSignatureLine(said.signature), full: said.signature } } : {}),
+      ...bubbleWordsOf(m, subjects.changed),
       ...(media ? { media } : {}),
       ...(why ? { why } : {}),
       // Who said it, per BUBBLE. The thread carries one agent identity, and the

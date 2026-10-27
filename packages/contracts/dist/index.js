@@ -8923,29 +8923,26 @@ function namesSender(line, fromName) {
 function signatureStart(lines, fromName) {
   const first = lines.findIndex((l) => !blankLine(l));
   if (first < 0) return null;
-  for (let i = first + 1; i < lines.length; i++) if (SIG_DASHES.test(lines[i])) return i;
+  const dashes = lines.findIndex((l, i) => i > first && SIG_DASHES.test(l));
+  if (dashes > 0) return dashes;
+  const lineAt = (i) => (lines.at(i) ?? "").trim();
   let last = lines.length - 1;
-  while (last > first && blankLine(lines[last])) last--;
-  if (last > first && SENT_FROM.test(lines[last].trim())) return last;
-  let blank = -1;
-  for (let i = last; i > first; i--)
-    if (blankLine(lines[i])) {
-      blank = i;
-      break;
-    }
-  if (blank < 0) return null;
-  let start = blank + 1;
-  const block = lines.slice(start, last + 1).map((l) => l.trim());
+  while (last > first && !lineAt(last)) last--;
+  if (last > first && SENT_FROM.test(lineAt(last))) return last;
+  let blank = last;
+  while (blank > first && lineAt(blank)) blank--;
+  if (blank <= first) return null;
+  const block = lines.slice(blank + 1, last + 1).map((l) => l.trim());
   if (block.length > SIG_MAX_LINES || block.some((l) => l.length > SIG_LINE_MAX || LABELLED.test(l))) return null;
-  if (SIGN_OFF.test(block[0]) || block[0].endsWith(",")) {
-    start++;
-    block.shift();
-  }
-  if (block.length === 0) return null;
-  const pictured = block.some((l) => IMAGE_STAND_IN.test(l));
-  const named = block.length >= 2 && namesSender(block[0], fromName);
-  const card = NAME_LIKE.test(block[0]) && block.slice(1).some((l) => CONTACT.test(l));
-  return pictured || named || card ? start : null;
+  const [head = "", ...rest] = block;
+  const signedOff = SIGN_OFF.test(head) || head.endsWith(",");
+  const card = signedOff ? rest : block;
+  const [name = "", ...under] = card;
+  if (!name) return null;
+  const pictured = card.some((l) => IMAGE_STAND_IN.test(l));
+  const named = card.length >= 2 && namesSender(name, fromName);
+  const shaped = NAME_LIKE.test(name) && under.some((l) => CONTACT.test(l));
+  return pictured || named || shaped ? blank + 1 + (signedOff ? 1 : 0) : null;
 }
 var bareAddress = (s) => s.toLowerCase().replace(/^(https?:\/\/|mailto:)/, "").replace(/^www\./, "").replace(/\/$/, "");
 function tidyEmailWords(text) {
@@ -8967,8 +8964,9 @@ function emailPartsOf(body, fromName) {
   const lines = text.split("\n");
   const at3 = fromName === null ? null : signatureStart(lines, fromName);
   const said = tidyEmailWords(at3 === null ? text : lines.slice(0, at3).join("\n"));
-  if (at3 === null || !said) return { said: tidyEmailWords(text), signature: null, quoted: quoted2 && tidyEmailWords(quoted2) };
-  const signed2 = lines.slice(SIG_DASHES.test(lines[at3]) ? at3 + 1 : at3).join("\n");
+  if (at3 === null || !said)
+    return { said: tidyEmailWords(text), signature: null, quoted: quoted2 && tidyEmailWords(quoted2) };
+  const signed2 = lines.slice(SIG_DASHES.test(lines.at(at3) ?? "") ? at3 + 1 : at3).join("\n");
   return { said, signature: tidyEmailWords(signed2) || null, quoted: quoted2 && tidyEmailWords(quoted2) };
 }
 function emailSignatureLine(signature) {
@@ -40224,6 +40222,19 @@ function inboxReading(dto) {
   return { unread: unseen, heardAtMs, markAtMs };
 }
 var clocksOf2 = (dto) => ({ whatsapp: dto.last_wa_inbound_at, instagram: dto.last_ig_inbound_at });
+function bubbleWordsOf(m, changed) {
+  if (m.channel !== "email") return { body: messageText(m) };
+  const parts2 = emailPartsOf(messageText(m), emailFromNameOf(m));
+  const subject = changed.get(m.id);
+  const leftOut2 = emailLeftOutOf(m.meta) ?? replyLeftAsOf(m.meta);
+  return {
+    body: parts2.said,
+    ...subject ? { subject } : {},
+    ...leftOut2 ? { leftOut: leftOut2 } : {},
+    ...parts2.quoted ? { quoted: parts2.quoted } : {},
+    ...parts2.signature ? { signature: { line: emailSignatureLine(parts2.signature), full: parts2.signature } } : {}
+  };
+}
 function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) {
   const who = contactName(dto);
   const { state, takenOver, needsYou, claimedByOther } = threadStanding(dto, escalation, now);
@@ -40254,21 +40265,13 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     const onPhone = m.type === "call_summary";
     const media = mediaVM(m);
     const why = messageWhy(m);
-    const subject = subjects2.changed.get(m.id) ?? null;
-    const leftOut2 = m.channel === "email" ? emailLeftOutOf(m.meta) ?? replyLeftAsOf(m.meta) : null;
-    const said = m.channel === "email" ? emailPartsOf(messageText(m), emailFromNameOf(m)) : null;
     return {
       type: "msg",
       messageId: m.id,
       from: m.sender === "customer" ? "client" : "agent",
       channel: onPhone ? "phone" : writtenChannelOf(m.channel),
-      // An email's subject line, above its words, where it changes from the thread's.
-      ...subject ? { subject } : {},
-      ...leftOut2 ? { leftOut: leftOut2 } : {},
       ...bubbleWhen(messageAt(m), tz, now),
-      body: said ? said.said : messageText(m),
-      ...said?.quoted ? { quoted: said.quoted } : {},
-      ...said?.signature ? { signature: { line: emailSignatureLine(said.signature), full: said.signature } } : {},
+      ...bubbleWordsOf(m, subjects2.changed),
       ...media ? { media } : {},
       ...why ? { why } : {},
       // Who said it, per BUBBLE. The thread carries one agent identity, and the

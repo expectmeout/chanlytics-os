@@ -135,6 +135,19 @@ function inboxReading(dto) {
   return { unread: unseen, heardAtMs, markAtMs };
 }
 const clocksOf = (dto) => ({ whatsapp: dto.last_wa_inbound_at, instagram: dto.last_ig_inbound_at });
+function bubbleWordsOf(m, changed) {
+  if (m.channel !== "email") return { body: messageText(m) };
+  const parts = emailPartsOf(messageText(m), emailFromNameOf(m));
+  const subject = changed.get(m.id);
+  const leftOut = emailLeftOutOf(m.meta) ?? replyLeftAsOf(m.meta);
+  return {
+    body: parts.said,
+    ...subject ? { subject } : {},
+    ...leftOut ? { leftOut } : {},
+    ...parts.quoted ? { quoted: parts.quoted } : {},
+    ...parts.signature ? { signature: { line: emailSignatureLine(parts.signature), full: parts.signature } } : {}
+  };
+}
 export function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) {
   const who = contactName(dto);
   const { state, takenOver, needsYou, claimedByOther } = threadStanding(dto, escalation, now);
@@ -165,21 +178,13 @@ export function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new D
     const onPhone = m.type === "call_summary";
     const media = mediaVM(m);
     const why = messageWhy(m);
-    const subject = subjects.changed.get(m.id) ?? null;
-    const leftOut = m.channel === "email" ? emailLeftOutOf(m.meta) ?? replyLeftAsOf(m.meta) : null;
-    const said = m.channel === "email" ? emailPartsOf(messageText(m), emailFromNameOf(m)) : null;
     return {
       type: "msg",
       messageId: m.id,
       from: m.sender === "customer" ? "client" : "agent",
       channel: onPhone ? "phone" : writtenChannelOf(m.channel),
-      // An email's subject line, above its words, where it changes from the thread's.
-      ...subject ? { subject } : {},
-      ...leftOut ? { leftOut } : {},
       ...bubbleWhen(messageAt(m), tz, now),
-      body: said ? said.said : messageText(m),
-      ...said?.quoted ? { quoted: said.quoted } : {},
-      ...said?.signature ? { signature: { line: emailSignatureLine(said.signature), full: said.signature } } : {},
+      ...bubbleWordsOf(m, subjects.changed),
       ...media ? { media } : {},
       ...why ? { why } : {},
       // Who said it, per BUBBLE. The thread carries one agent identity, and the

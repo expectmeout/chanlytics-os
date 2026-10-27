@@ -112,32 +112,30 @@ function namesSender(line: string, fromName: string | null): boolean {
  * a "Sent from my …" last line; or the last block after a blank line, when it is a card (a name, then a way to reach
  * them), carries Gmail's picture stand-in, or names the sender. A sign-off ("Best,") stays with the words above it.
  */
-function signatureStart(lines: string[], fromName: string | null): number | null {
+function signatureStart(lines: readonly string[], fromName: string | null): number | null {
   const first = lines.findIndex((l) => !blankLine(l));
   if (first < 0) return null;
-  for (let i = first + 1; i < lines.length; i++) if (SIG_DASHES.test(lines[i])) return i;
+  const dashes = lines.findIndex((l, i) => i > first && SIG_DASHES.test(l));
+  if (dashes > 0) return dashes;
+  const lineAt = (i: number): string => (lines.at(i) ?? "").trim();
   let last = lines.length - 1;
-  while (last > first && blankLine(lines[last])) last--;
-  if (last > first && SENT_FROM.test(lines[last].trim())) return last;
-  let blank = -1;
-  for (let i = last; i > first; i--)
-    if (blankLine(lines[i])) {
-      blank = i;
-      break;
-    }
-  if (blank < 0) return null;
-  let start = blank + 1;
-  const block = lines.slice(start, last + 1).map((l) => l.trim());
+  while (last > first && !lineAt(last)) last--;
+  if (last > first && SENT_FROM.test(lineAt(last))) return last;
+  // The last blank line above the last words: the block under it is the one that may be a card.
+  let blank = last;
+  while (blank > first && lineAt(blank)) blank--;
+  if (blank <= first) return null;
+  const block = lines.slice(blank + 1, last + 1).map((l) => l.trim());
   if (block.length > SIG_MAX_LINES || block.some((l) => l.length > SIG_LINE_MAX || LABELLED.test(l))) return null;
-  if (SIGN_OFF.test(block[0]) || block[0].endsWith(",")) {
-    start++;
-    block.shift();
-  }
-  if (block.length === 0) return null;
-  const pictured = block.some((l) => IMAGE_STAND_IN.test(l));
-  const named = block.length >= 2 && namesSender(block[0], fromName);
-  const card = NAME_LIKE.test(block[0]) && block.slice(1).some((l) => CONTACT.test(l));
-  return pictured || named || card ? start : null;
+  const [head = "", ...rest] = block;
+  const signedOff = SIGN_OFF.test(head) || head.endsWith(",");
+  const card = signedOff ? rest : block;
+  const [name = "", ...under] = card;
+  if (!name) return null;
+  const pictured = card.some((l) => IMAGE_STAND_IN.test(l));
+  const named = card.length >= 2 && namesSender(name, fromName);
+  const shaped = NAME_LIKE.test(name) && under.some((l) => CONTACT.test(l));
+  return pictured || named || shaped ? blank + 1 + (signedOff ? 1 : 0) : null;
 }
 
 /** An address as a bubble compares it: no scheme, no "www.", no closing slash. */
@@ -189,7 +187,7 @@ export function emailPartsOf(body: string, fromName: string | null): EmailParts 
   const said = tidyEmailWords(at === null ? text : lines.slice(0, at).join("\n"));
   if (at === null || !said)
     return { said: tidyEmailWords(text), signature: null, quoted: quoted && tidyEmailWords(quoted) };
-  const signed = lines.slice(SIG_DASHES.test(lines[at]) ? at + 1 : at).join("\n");
+  const signed = lines.slice(SIG_DASHES.test(lines.at(at) ?? "") ? at + 1 : at).join("\n");
   return { said, signature: tidyEmailWords(signed) || null, quoted: quoted && tidyEmailWords(quoted) };
 }
 
