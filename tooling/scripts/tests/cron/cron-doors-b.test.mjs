@@ -2105,8 +2105,8 @@ test("lines: a line 'setting up' past its deadline is taken and resumed by sched
   assert.match(mail[0].text, /3 automatic tries did not finish it/);
   assert.match(
     mail[0].text,
-    new RegExp(`"op": "retry", "tenant_id": "${T}", "line_id": "${worn}"`),
-    "and how to pick it up",
+    new RegExp(`\\(${T}\\)[^]*Retry: in the Console, open this workspace's Setup and lines and press Retry setting up`),
+    "and how to pick it up: the workspace's id, then the Console's button (the platform key is refused at the door)",
   );
   assert.match(
     mail[1].text,

@@ -48,6 +48,8 @@ function world(over = {}) {
     readReply: undefined,
     markProcessed: undefined,
     received: undefined,
+    // Not a copy a connected mailbox holds too (the hosted road's case where it is, below).
+    readByMailbox: false,
     // A booking tool's notice (00345): the read scheduled once per delivery, the tool the workspace named as its own
     // (none, until a case names one), and whether a forward's sender is a member.
     readBooking: undefined,
@@ -75,6 +77,7 @@ test("an email from a person is kept under their address in one spelling, flagge
     "mailbox",
     "fetch",
     "ours",
+    "readByMailbox",
     "erasedBefore",
     "record",
     "reachOutReply",
@@ -119,7 +122,17 @@ test("a claim decides how LITTLE is done: an automatic reply is kept and never f
   assert.equal(await run(auto), "kept_quietly");
   assert.deepEqual(
     auto.ops(),
-    ["mailbox", "fetch", "ours", "erasedBefore", "record", "reachOutReply", "markProcessed", "received"],
+    [
+      "mailbox",
+      "fetch",
+      "ours",
+      "readByMailbox",
+      "erasedBefore",
+      "record",
+      "reachOutReply",
+      "markProcessed",
+      "received",
+    ],
     "kept, handled, nobody paged: two responders answering each other is a loop",
   );
 
@@ -161,6 +174,7 @@ test("a booking tool's notice is read into an appointment, never kept as a threa
     "mailbox",
     "fetch",
     "ours",
+    "readByMailbox",
     "erasedBefore",
     "bookingTool",
     "readBooking",
@@ -218,7 +232,15 @@ test("Gmail asking whether it may forward here is kept on the mailbox for Settin
     });
   const proved = world({ fetch: confirmation() });
   assert.equal(await run(proved), "kept_as_confirmation");
-  assert.deepEqual(proved.ops(), ["mailbox", "fetch", "ours", "erasedBefore", "keepForwarding", "received"]);
+  assert.deepEqual(proved.ops(), [
+    "mailbox",
+    "fetch",
+    "ours",
+    "readByMailbox",
+    "erasedBefore",
+    "keepForwarding",
+    "received",
+  ]);
   assert.deepEqual(proved.call("keepForwarding"), [
     "keepForwarding",
     "mb1",
@@ -262,6 +284,26 @@ test("kept and not flagged is an email nobody will be shown: the job fails, the 
   const w = world({ escalate: "failed" });
   await assert.rejects(run(w), /could not be flagged for a person/);
   assert.equal(w.ops().includes("markProcessed"), false);
+});
+
+test("a copy of an email a mailbox the workspace connected holds too is kept nowhere here: that mailbox's read takes it in, and the hosted address is still heard from", async () => {
+  // Gmail forwarding the business's mail to the hosted address: the To line still names the business's own mailbox.
+  const forwarded = world({
+    fetch: email({ to: ["office@getharbor.example"], cc: [] }),
+    readByMailbox: (_tenantId, addresses) => addresses.includes("office@getharbor.example"),
+  });
+  assert.equal(await run(forwarded), "read_by_mailbox");
+  assert.deepEqual(forwarded.ops(), ["mailbox", "fetch", "ours", "readByMailbox", "received"]);
+  assert.deepEqual(forwarded.call("readByMailbox"), ["readByMailbox", T, ["office@getharbor.example"]]);
+  assert.equal(forwarded.call("received")[1], MAILBOX.id, "the forward works, and the hosted address says so");
+
+  // One that names the business's mailbox only in Cc is the same copy.
+  const copied = world({
+    fetch: email({ cc: ["office@getharbor.example"] }),
+    readByMailbox: (_tenantId, addresses) => addresses.includes("office@getharbor.example"),
+  });
+  assert.equal(await run(copied), "read_by_mailbox");
+  assert.equal(copied.ops().includes("record"), false);
 });
 
 test("what is not taken in, and why: our own email coming back, an email that belongs to an erasure, one with no sender, one the provider no longer has, a mailbox that is gone", async () => {

@@ -179,6 +179,7 @@ const WORDS = {
   "mailbox_connection.paused": "A mailbox to write from was paused",
   "mailbox_connection.unpaused": "A mailbox to write from writes again",
   "mailbox_connection.removed": "A mailbox to write from was removed",
+  "mailbox_connection.sender_sorted": "Who sends your mailbox automated mail changed",
   "channel.connected": "A WhatsApp number was connected",
   "lead.stage": "A lead moved",
   "lead.emailed": "A lead was marked as emailed",

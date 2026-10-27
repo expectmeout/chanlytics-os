@@ -4314,6 +4314,76 @@ type Database = {
                     }
                 ];
             };
+            mailbox_left: {
+                Row: {
+                    address: string;
+                    count: number;
+                    first_at: string;
+                    last_at: string;
+                    name: string | null;
+                    tenant_id: string;
+                    why: string;
+                };
+                Insert: {
+                    address: string;
+                    count?: number;
+                    first_at?: string;
+                    last_at?: string;
+                    name?: string | null;
+                    tenant_id: string;
+                    why: string;
+                };
+                Update: {
+                    address?: string;
+                    count?: number;
+                    first_at?: string;
+                    last_at?: string;
+                    name?: string | null;
+                    tenant_id?: string;
+                    why?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "mailbox_left_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
+            mailbox_senders: {
+                Row: {
+                    sender: string;
+                    set_at: string;
+                    set_by: string | null;
+                    tenant_id: string;
+                    verdict: string;
+                };
+                Insert: {
+                    sender: string;
+                    set_at?: string;
+                    set_by?: string | null;
+                    tenant_id: string;
+                    verdict: string;
+                };
+                Update: {
+                    sender?: string;
+                    set_at?: string;
+                    set_by?: string | null;
+                    tenant_id?: string;
+                    verdict?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "mailbox_senders_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
             mailboxes: {
                 Row: {
                     created_at: string;
@@ -8954,6 +9024,36 @@ type Database = {
                 Args: {
                     p_mailbox_id: string;
                     p_since: string;
+                };
+                Returns: Json;
+            };
+            mailbox_left_note: {
+                Args: {
+                    p_address: string;
+                    p_at: string;
+                    p_name: string;
+                    p_tenant_id: string;
+                    p_why: string;
+                };
+                Returns: undefined;
+            };
+            mailbox_owner_wrote: {
+                Args: {
+                    p_address: string;
+                    p_body: string;
+                    p_channel_ts: string;
+                    p_external_id: string;
+                    p_meta: Json;
+                    p_reasons: string[];
+                    p_tenant_id: string;
+                };
+                Returns: Json;
+            };
+            mailbox_sender_sort: {
+                Args: {
+                    p_sender: string;
+                    p_tenant_id: string;
+                    p_verdict: string;
                 };
                 Returns: Json;
             };

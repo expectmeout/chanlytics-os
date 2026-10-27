@@ -95,6 +95,7 @@ const KIND_MARK: Partial<Record<string, string>> = {
   "mailbox_connection.paused": "mail",
   "mailbox_connection.unpaused": "mail",
   "mailbox_connection.removed": "mail",
+  "mailbox_connection.sender_sorted": "mail",
   "reach_out.replied": "mail",
   "reach_out.reply_undone": "undo",
   "lead.emailed": "mail",

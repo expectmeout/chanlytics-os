@@ -70,6 +70,7 @@ export const ROUTES = {
   "GET lines/codes": { method: "GET", path: "/api/v1/lines/codes" },
   "GET mailbox-connections/callback": { method: "GET", path: "/api/v1/mailbox-connections/callback" },
   "GET mailbox-connections/connect": { method: "GET", path: "/api/v1/mailbox-connections/connect" },
+  "GET mailbox-senders": { method: "GET", path: "/api/v1/mailbox-senders" },
   "GET me/alerts": { method: "GET", path: "/api/v1/me/alerts" },
   "GET messages/[id]/media": { method: "GET", path: "/api/v1/messages/[id]/media" },
   "GET metrics": { method: "GET", path: "/api/v1/metrics" },
@@ -168,6 +169,7 @@ export const ROUTES = {
   "POST contacts/[id]/deal": { method: "POST", path: "/api/v1/contacts/[id]/deal" },
   "POST contacts/[id]/doubts/dismiss": { method: "POST", path: "/api/v1/contacts/[id]/doubts/dismiss" },
   "POST contacts/[id]/merge": { method: "POST", path: "/api/v1/contacts/[id]/merge" },
+  "POST contacts/[id]/not-a-person": { method: "POST", path: "/api/v1/contacts/[id]/not-a-person" },
   "POST contacts/[id]/notes": { method: "POST", path: "/api/v1/contacts/[id]/notes" },
   "POST contacts/[id]/notes/decide": { method: "POST", path: "/api/v1/contacts/[id]/notes/decide" },
   "POST contacts/[id]/notes/done": { method: "POST", path: "/api/v1/contacts/[id]/notes/done" },
@@ -225,6 +227,7 @@ export const ROUTES = {
   "POST mailbox-connections/[id]/check": { method: "POST", path: "/api/v1/mailbox-connections/[id]/check" },
   "POST mailbox-connections/[id]/resume": { method: "POST", path: "/api/v1/mailbox-connections/[id]/resume" },
   "POST mailbox-connections/[id]/test": { method: "POST", path: "/api/v1/mailbox-connections/[id]/test" },
+  "POST mailbox-senders": { method: "POST", path: "/api/v1/mailbox-senders" },
   "POST mailboxes": { method: "POST", path: "/api/v1/mailboxes" },
   "POST me/invitations/accept": { method: "POST", path: "/api/v1/me/invitations/accept" },
   "POST messages/[id]/cancel-send": { method: "POST", path: "/api/v1/messages/[id]/cancel-send" },
@@ -403,6 +406,7 @@ export type Routes = {
   "GET lines/codes": typeof import("../../app/api/v1/lines/codes/route").GET;
   "GET mailbox-connections/callback": typeof import("../../app/api/v1/mailbox-connections/callback/route").GET;
   "GET mailbox-connections/connect": typeof import("../../app/api/v1/mailbox-connections/connect/route").GET;
+  "GET mailbox-senders": typeof import("../../app/api/v1/mailbox-senders/route").GET;
   "GET me/alerts": typeof import("../../app/api/v1/me/alerts/route").GET;
   "GET messages/[id]/media": typeof import("../../app/api/v1/messages/[id]/media/route").GET;
   "GET metrics": typeof import("../../app/api/v1/metrics/route").GET;
@@ -501,6 +505,7 @@ export type Routes = {
   "POST contacts/[id]/deal": typeof import("../../app/api/v1/contacts/[id]/deal/route").POST;
   "POST contacts/[id]/doubts/dismiss": typeof import("../../app/api/v1/contacts/[id]/doubts/dismiss/route").POST;
   "POST contacts/[id]/merge": typeof import("../../app/api/v1/contacts/[id]/merge/route").POST;
+  "POST contacts/[id]/not-a-person": typeof import("../../app/api/v1/contacts/[id]/not-a-person/route").POST;
   "POST contacts/[id]/notes": typeof import("../../app/api/v1/contacts/[id]/notes/route").POST;
   "POST contacts/[id]/notes/decide": typeof import("../../app/api/v1/contacts/[id]/notes/decide/route").POST;
   "POST contacts/[id]/notes/done": typeof import("../../app/api/v1/contacts/[id]/notes/done/route").POST;
@@ -558,6 +563,7 @@ export type Routes = {
   "POST mailbox-connections/[id]/check": typeof import("../../app/api/v1/mailbox-connections/[id]/check/route").POST;
   "POST mailbox-connections/[id]/resume": typeof import("../../app/api/v1/mailbox-connections/[id]/resume/route").POST;
   "POST mailbox-connections/[id]/test": typeof import("../../app/api/v1/mailbox-connections/[id]/test/route").POST;
+  "POST mailbox-senders": typeof import("../../app/api/v1/mailbox-senders/route").POST;
   "POST mailboxes": typeof import("../../app/api/v1/mailboxes/route").POST;
   "POST me/invitations/accept": typeof import("../../app/api/v1/me/invitations/accept/route").POST;
   "POST messages/[id]/cancel-send": typeof import("../../app/api/v1/messages/[id]/cancel-send/route").POST;

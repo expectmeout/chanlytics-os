@@ -133,6 +133,7 @@ var WRITES = {
   "mailbox_connection.paused": { category: "setup", version: 1 },
   "mailbox_connection.unpaused": { category: "setup", version: 1 },
   "mailbox_connection.removed": { category: "setup", version: 1 },
+  "mailbox_connection.sender_sorted": { category: "setup", version: 1 },
   "message.send_blocked": { category: "message", version: 1 },
   "message.send_failed": { category: "message", version: 1 },
   "message.send_raced_cancel": { category: "message", version: 1 },
@@ -482,7 +483,8 @@ var ERASURE_LEGS = {
   notes_scrub: "person_notes_scrub: their numbers and addresses overwritten in other people's notes (00341)",
   turns_scrub: "model_turns_scrub: the receptionist's kept turns that name them, in anyone's thread, deleted (00401); their own went with their conversation",
   appointments_scrub: "appointments_scrub: their visits keep their time and service and lose the client's name, number, address and note; the notices that made them, and any whose subject names them, lose the name (00345)",
-  before_trigger: "contacts_before_erased: what another system said of them before Chanlytics (a client file's visits, last visit and birthday) cleared (00477)"
+  before_trigger: "contacts_before_erased: what another system said of them before Chanlytics (a client file's visits, last visit and birthday) cleared (00477)",
+  mailbox_trigger: "mailbox_senders_on_erase: their address off the list of what a connected mailbox left, and a person said of it with it; what was said of a robot stays (00483)"
 };
 var withPerson = (by) => ({ kind: "with_person", by });
 var scrubbedBy = (...by) => ({ kind: "scrubbed", by });
@@ -809,6 +811,12 @@ var ERASURE_STRATEGIES = {
     ...all(WITH_WORKSPACE, "address", "host", "from_name", "signature", "provider_account"),
     ...all(NOT_PERSONAL, "scopes", "credentials_ref", "dns", "sync_cursor", "watch_id", "last_error")
   },
+  // What a connected mailbox left where it was, one row a sender (00483): a robot's, or a person's that Gmail filed with
+  // the receipts, whose erasure takes it.
+  mailbox_left: all(scrubbedBy("mailbox_trigger"), "address", "name"),
+  // What the workspace said of a sender (00483): an address or a domain. A person's address goes with them; what was
+  // said of a robot is nobody's, and stays.
+  mailbox_senders: { sender: scrubbedBy("mailbox_trigger") },
   // Gmail's pending confirmation of a forward to the workspace's address (00345): the owner's own account, and
   // Google's code and link for it; the name its mail is sent from. The workspace's address on the platform's domain,
   // its reply tokens and its intake's error code are nobody's.
@@ -3270,6 +3278,21 @@ async function knownThreads(db, tenantId, threadIds) {
   if (error) throw new Error(`cannot read which threads are the workspace's: ${error.message}`);
   return new Set(data ?? []);
 }
+async function keepOwnerEmail(db, p) {
+  const { data, error } = await db.rpc("mailbox_owner_wrote", {
+    p_tenant_id: p.tenantId,
+    p_address: p.address,
+    p_external_id: p.externalId,
+    p_body: p.body ?? "",
+    p_channel_ts: p.channelTs,
+    p_meta: p.meta,
+    p_reasons: [...p.settles]
+  });
+  if (error) throw new Error(`cannot keep the owner's email: ${error.message}`);
+  const out = data ?? {};
+  if (out.kept === true) return { kept: true, resolved: typeof out.resolved === "number" ? out.resolved : 0 };
+  return { kept: false, why: out.why === "already" ? "already" : "not_known" };
+}
 
 // src/repositories/mailboxes/reconcile.ts
 import { MIN_MS } from "../../contracts/dist/index.js";
@@ -3310,6 +3333,53 @@ async function requestMailboxesSweep(db, now) {
   });
   if (error) throw new Error(`cannot ask the mailboxes clock: ${error.message}`);
   return true;
+}
+
+// src/repositories/mailboxes/senders.ts
+import {
+  senderVerdictOf
+} from "../../contracts/dist/index.js";
+async function mailboxSenderVerdicts(db, tenantId) {
+  const { data, error } = await db.from("mailbox_senders").select("sender, verdict").eq("tenant_id", tenantId);
+  if (error) throw new Error(`cannot read what the workspace said of its senders: ${error.message}`);
+  return new Map((data ?? []).map((r) => [r.sender, r.verdict === "person" ? "person" : "automated"]));
+}
+async function noteMailboxLeft(db, p) {
+  const { error } = await db.rpc("mailbox_left_note", {
+    p_tenant_id: p.tenantId,
+    p_address: p.address,
+    p_name: p.name ?? "",
+    p_why: p.why,
+    p_at: p.at
+  });
+  if (!error) return true;
+  dbLog().error("mailbox_left_note_failed", { tenant_id: p.tenantId, why: p.why, error: error.message });
+  return false;
+}
+var LEFT_SHOWN = 200;
+async function mailboxSendersOf(db, tenantId) {
+  const [left, said] = await Promise.all([
+    db.from("mailbox_left").select("address, name, why, count, first_at, last_at").eq("tenant_id", tenantId).order("last_at", { ascending: false }).limit(LEFT_SHOWN),
+    db.from("mailbox_senders").select("sender, verdict, set_at").eq("tenant_id", tenantId).order("set_at", { ascending: false })
+  ]);
+  if (left.error) throw new Error(`cannot read what the mailbox left: ${left.error.message}`);
+  if (said.error) throw new Error(`cannot read what the workspace said of its senders: ${said.error.message}`);
+  const verdicts = new Map(
+    (said.data ?? []).map((r) => [r.sender, r.verdict === "person" ? "person" : "automated"])
+  );
+  return {
+    left: (left.data ?? []).filter((r) => senderVerdictOf(verdicts, r.address) !== "person").map((r) => ({ ...r, why: r.why })),
+    said: (said.data ?? []).map((r) => ({ ...r, verdict: r.verdict === "person" ? "person" : "automated" }))
+  };
+}
+async function sortMailboxSender(db, p) {
+  const { error } = await db.rpc("mailbox_sender_sort", {
+    p_tenant_id: p.tenantId,
+    p_sender: p.sender,
+    // A null verdict takes it back: the door reads it as SQL's null.
+    p_verdict: p.verdict
+  });
+  if (error) throw Object.assign(new Error(error.message), { code: error.code });
 }
 
 // src/repositories/outreach.ts
@@ -8244,6 +8314,7 @@ export {
   keepMessageCost,
   keepModelTurn,
   keepOnceDraft,
+  keepOwnerEmail,
   keepProviderEvent,
   keepRehearsalCall,
   keepRehearsalFix,
@@ -8301,6 +8372,8 @@ export {
   mailboxCountsOf,
   mailboxFor,
   mailboxOfTenant,
+  mailboxSenderVerdicts,
+  mailboxSendersOf,
   mailboxesToTend,
   makeSequence,
   markCalendarFeedKept,
@@ -8341,6 +8414,7 @@ export {
   noteCalendarGrant,
   noteImport,
   noteInstagramToken,
+  noteMailboxLeft,
   notePageVitals,
   notedOver,
   notesForReceptionist,
@@ -8566,6 +8640,7 @@ export {
   setupAsks,
   signUpOnPublicKey,
   signersOf,
+  sortMailboxSender,
   staffStateOf,
   staleSends,
   stampCallConfigVersion,

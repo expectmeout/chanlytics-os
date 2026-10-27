@@ -25,8 +25,7 @@ export {
 } from "./ai-usage";
 export type { AiFailures, ModelTurnKept } from "./ai-usage";
 export { keepInvoiceAmount } from "./billing/events";
-export { applyBilling } from "./billing/account";
-export type { BillingPatch, BillingExpectation } from "./billing/account";
+export { applyBilling, type BillingPatch, type BillingExpectation } from "./billing/account";
 export { migrationHead, platformDay } from "./ops";
 export { ERASURE_LEGS, ERASURE_STRATEGIES } from "./erasure-registry";
 export type { ErasureLeg, ErasureStrategy } from "./erasure-registry";
@@ -36,8 +35,7 @@ export { addToWaitlist, refreshWaitlistRow, waitlistWaiting, markWaitlistInvited
 export { createServiceClient } from "./service-client";
 export { observeDb, namedFetch, touchOfCall, DB_REQUEST_HEADER } from "./observe";
 export type { DbLog, DbObserver, DbTouch } from "./observe";
-export { tenantDb, platformWide } from "./tenant-db";
-export type { TenantDb } from "./tenant-db";
+export { tenantDb, platformWide, type TenantDb } from "./tenant-db";
 export type { ServiceClientConfig } from "./service-client";
 export {
   ingestInbound,
@@ -132,10 +130,13 @@ export {
   endMailboxSync,
   keepMailboxWatch,
   knownThreads,
+  keepOwnerEmail,
   mailboxConnectionById,
   sentEmailIdByMessageId,
 } from "./repositories/mailboxes/sync";
 export { unknownMailboxEmails, requestMailboxesSweep } from "./repositories/mailboxes/reconcile";
+export { mailboxSenderVerdicts, noteMailboxLeft } from "./repositories/mailboxes/senders";
+export { mailboxSendersOf, sortMailboxSender } from "./repositories/mailboxes/senders";
 export type { UnknownMailboxEmail } from "./repositories/mailboxes/reconcile";
 export {
   outreachFactsOf,
@@ -611,8 +612,7 @@ export {
   deleteList,
 } from "./repositories/lists";
 export type { SavedListRow, ListRow, WriteError } from "./repositories/lists";
-export { activitySubjects } from "./events";
-export type { ActivitySubject, ActivitySubjects } from "./events";
+export { activitySubjects, type ActivitySubject, type ActivitySubjects } from "./events";
 export { touchesSince, recentTouches, followUpTouchesSince, touchIndex } from "./repositories/touches";
 export type { Touch, TouchIndex } from "./repositories/touches";
 export { yesesSince, recordDeal, dealOnFile, openDealsOf } from "./repositories/deals";

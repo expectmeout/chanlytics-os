@@ -58,3 +58,17 @@ export type {
 } from "./mailbox-connections";
 export { isFreeMail } from "./free-mail";
 export { posesAsReply } from "./email-subject";
+export {
+  senderVerdictOf,
+  senderDomainOffered,
+  senderSortRefusal,
+  MAILBOX_LEFT_WHY_WORDS,
+  MAILBOX_SENDERS_WORDS,
+} from "./mailbox-senders";
+export type {
+  MailboxLeftWhy,
+  MailboxSenderVerdict,
+  MailboxLeftDto,
+  MailboxSaidDto,
+  MailboxSendersDto,
+} from "./mailbox-senders";

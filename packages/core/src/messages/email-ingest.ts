@@ -160,6 +160,12 @@ export interface EmailIngestPorts {
   readReply(tenantId: string, messageId: string): Promise<void>;
   markProcessed(tenantId: string, messageId: string): Promise<void>;
   received(mailboxId: string, at: string): Promise<void>;
+  /**
+   * Whether one of these addresses is a mailbox the workspace connected that its sync reads (00423: connected, paused or
+   * held): a copy of an email that mailbox holds too, which its sync takes in (Gmail forwarding its mail to the hosted
+   * address, or an email to both). A connected mailbox's own intake answers false.
+   */
+  readByMailbox(tenantId: string, addresses: readonly string[]): Promise<boolean>;
   now(): number;
 }
 
@@ -169,6 +175,7 @@ export type EmailIngestOutcome =
   | "kept_quietly"
   | "kept_as_booking"
   | "kept_as_confirmation"
+  | "read_by_mailbox"
   | "already_handled"
   | "not_a_conversation"
   | "our_own"
@@ -212,6 +219,12 @@ export async function ingestEmail(
   if (address === mailbox.address || (email.messageId && (await ports.ours(mailbox.tenant_id, email.messageId))))
     return "our_own";
   const at = new Date(ports.now()).toISOString();
+  // A copy the workspace's connected mailbox holds too: its sync takes it in (or leaves it, by the same sorting), so
+  // this road keeps none and nobody answers one email twice. The address still heard from its forward, so it is stamped.
+  if (await ports.readByMailbox(mailbox.tenant_id, [...email.to, ...email.cc])) {
+    await ports.received(mailbox.id, at);
+    return "read_by_mailbox";
+  }
   if (await ports.erasedBefore(mailbox.tenant_id, address, email.receivedAt ?? at)) return "erased_person";
 
   const { claim } = email;

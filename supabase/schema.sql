@@ -12393,6 +12393,196 @@ end $$;
 
 
 --
+-- Name: mailbox_left_note(uuid, text, text, text, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.mailbox_left_note(p_tenant_id uuid, p_address text, p_name text, p_why text, p_at timestamp with time zone) RETURNS void
+    LANGUAGE sql
+    SET search_path TO 'public'
+    AS $$
+  insert into public.mailbox_left (tenant_id, address, name, why, count, first_at, last_at)
+  values (p_tenant_id, lower(btrim(p_address)), nullif(left(btrim(coalesce(p_name, '')), 200), ''), p_why, 1,
+          coalesce(p_at, now()), coalesce(p_at, now()))
+  on conflict (tenant_id, address) do update
+    set count    = mailbox_left.count + 1,
+        name     = coalesce(excluded.name, mailbox_left.name),
+        why      = excluded.why,
+        first_at = least(mailbox_left.first_at, excluded.first_at),
+        last_at  = greatest(mailbox_left.last_at, excluded.last_at);
+$$;
+
+
+--
+-- Name: FUNCTION mailbox_left_note(p_tenant_id uuid, p_address text, p_name text, p_why text, p_at timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.mailbox_left_note(p_tenant_id uuid, p_address text, p_name text, p_why text, p_at timestamp with time zone) IS 'One more email a connected mailbox left where it was, from one sender (00483): counted, its name and why the newest, its first and last moments kept. The service role''s (the edge''s sync and import).';
+
+
+--
+-- Name: mailbox_owner_wrote(uuid, text, text, text, timestamp with time zone, jsonb, text[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.mailbox_owner_wrote(p_tenant_id uuid, p_address text, p_external_id text, p_body text, p_channel_ts timestamp with time zone, p_meta jsonb, p_reasons text[]) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_address  text := nullif(lower(btrim(coalesce(p_address, ''))), '');
+  v_contact  uuid;
+  v_conv     uuid;
+  v_message  uuid;
+  v_ids      uuid[];
+  v_decision jsonb;
+begin
+  if p_tenant_id is null or v_address is null or nullif(btrim(coalesce(p_external_id, '')), '') is null
+     or p_channel_ts is null then
+    raise exception 'mailbox_owner_wrote: a workspace, the address it went to, the provider''s id and when it was sent'
+      using errcode = '22004';
+  end if;
+  -- Who it went to, as resolve_person matches an address (00413): the email identity, then the address on a living
+  -- record. Nobody is made: an address the workspace does not know is the owner's own business.
+  select coalesce(c.merged_into_contact_id, c.id)
+    into v_contact
+    from public.contact_identities i
+    join public.contacts c on c.id = i.contact_id
+   where i.tenant_id = p_tenant_id and i.channel = 'email' and i.external_id = v_address
+     and c.erased_at is null
+   limit 1;
+  if v_contact is null then
+    select c.id
+      into v_contact
+      from public.contacts c
+     where c.tenant_id = p_tenant_id and c.email = v_address
+       and c.erased_at is null and c.merged_into_contact_id is null
+     limit 1;
+  end if;
+  if v_contact is null then
+    return jsonb_build_object('kept', false, 'why', 'not_known');
+  end if;
+
+  -- Their thread, made where there is none yet, its recency moved only forward.
+  insert into public.conversations (tenant_id, contact_id, last_message_at)
+  values (p_tenant_id, v_contact, p_channel_ts)
+  on conflict (tenant_id, contact_id)
+    do update set last_message_at = greatest(conversations.last_message_at, excluded.last_message_at)
+  returning id into v_conv;
+
+  -- Once by the provider's id: a sync that reads the same email again keeps nothing twice.
+  insert into public.messages (tenant_id, conversation_id, contact_id, channel, direction, sender,
+                               type, body, external_id, channel_ts, status, meta)
+  values (p_tenant_id, v_conv, v_contact, 'email', 'outbound', 'human',
+          'text', nullif(p_body, ''), p_external_id, p_channel_ts, 'sent', coalesce(p_meta, '{}'::jsonb))
+  on conflict (tenant_id, external_id) where external_id is not null do nothing
+  returning id into v_message;
+  if v_message is null then
+    return jsonb_build_object('kept', false, 'why', 'already', 'conversation_id', v_conv);
+  end if;
+
+  -- The holds it answers: open, waiting on a person, opened before it was sent. Locked, so two syncs of one email cannot
+  -- both resolve them and write two decisions.
+  select array_agg(h.id)
+    into v_ids
+    from (
+      select e.id
+        from public.escalations e
+       where e.tenant_id = p_tenant_id
+         and e.conversation_id = v_conv
+         and e.state = 'open'
+         and e.reason = any(coalesce(p_reasons, '{}'::text[]))
+         and e.created_at < p_channel_ts
+       for update
+    ) h;
+  if v_ids is null then
+    return jsonb_build_object('kept', true, 'message_id', v_message, 'conversation_id', v_conv, 'resolved', 0);
+  end if;
+  v_decision := public.team_decision(p_tenant_id, null, 'conversation', v_conv, 'resolve',
+                                     jsonb_build_object('message_id', v_message), 'mailbox', null);
+  update public.escalations
+     set state = 'resolved', decision_id = (v_decision ->> 'decision_id')::uuid
+   where id = any(v_ids) and state = 'open';
+  return jsonb_build_object('kept', true, 'message_id', v_message, 'conversation_id', v_conv,
+                            'resolved', cardinality(v_ids)) || v_decision;
+end $$;
+
+
+--
+-- Name: FUNCTION mailbox_owner_wrote(p_tenant_id uuid, p_address text, p_external_id text, p_body text, p_channel_ts timestamp with time zone, p_meta jsonb, p_reasons text[]); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.mailbox_owner_wrote(p_tenant_id uuid, p_address text, p_external_id text, p_body text, p_channel_ts timestamp with time zone, p_meta jsonb, p_reasons text[]) IS 'An email the owner sent from their connected mailbox, not through Chanlytics (00482): kept in the thread of the one person it went to when the workspace knows them (the email identity, else the address on a living record; nobody is made), once by the provider''s id, outbound by a person; and the open holds on that thread that wait on a person (p_reasons) and opened before it was sent, resolved by one resolve decision with no member, via mailbox. Returns kept, why (not_known, already) when not kept, message_id, conversation_id, resolved, and decision_id when it resolved any. Service role only.';
+
+
+--
+-- Name: mailbox_sender_sort(uuid, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.mailbox_sender_sort(p_tenant_id uuid, p_sender text, p_verdict text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $_$
+declare
+  v_actor  uuid := auth.uid();
+  v_sender text := lower(btrim(coalesce(p_sender, '')));
+  v_kind   text;
+begin
+  -- The caller is auth.uid(), read here, never a parameter (00021's rule).
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  -- An address is one @ with something either side; a domain has a dot and no @.
+  if char_length(v_sender) not between 3 and 254 or v_sender ~ '[[:space:]<>]'
+     or not (v_sender ~ '^[^@]+@[^@]+\.[^@]+$' or v_sender ~ '^[^@]+\.[^@]+$') then
+    raise exception 'A sender is an address or a domain.' using errcode = '22023';
+  end if;
+  if p_verdict is not null and p_verdict not in ('automated', 'person') then
+    raise exception 'A sender is automated or a person.' using errcode = '22023';
+  end if;
+  v_kind := case when position('@' in v_sender) > 0 then 'address' else 'domain' end;
+  if p_verdict is null then
+    delete from public.mailbox_senders where tenant_id = p_tenant_id and sender = v_sender;
+  else
+    insert into public.mailbox_senders (tenant_id, sender, verdict, set_by, set_at)
+    values (p_tenant_id, v_sender, p_verdict, v_actor, now())
+    on conflict (tenant_id, sender)
+      do update set verdict = excluded.verdict, set_by = excluded.set_by, set_at = excluded.set_at;
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'mailbox_connection.sender_sorted', 'setup', 'workspace', p_tenant_id,
+          jsonb_build_object('kind', v_kind, 'verdict', p_verdict, 'by', v_actor));
+  return jsonb_build_object('sender', v_sender, 'kind', v_kind, 'verdict', p_verdict);
+end $_$;
+
+
+--
+-- Name: FUNCTION mailbox_sender_sort(p_tenant_id uuid, p_sender text, p_verdict text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.mailbox_sender_sort(p_tenant_id uuid, p_sender text, p_verdict text) IS 'What the workspace says of a sender of mail to its connected mailbox (00483): an address or a domain is automated or a person, or taken back (null). A member who may change the settings. Its line, mailbox_connection.sender_sorted, names the kind and the verdict, never the address. Answers sender, kind, verdict.';
+
+
+--
+-- Name: mailbox_senders_on_erase(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.mailbox_senders_on_erase() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if old.erased_at is null and new.erased_at is not null and old.email is not null then
+    delete from public.mailbox_left where tenant_id = new.tenant_id and address = lower(old.email);
+    delete from public.mailbox_senders
+     where tenant_id = new.tenant_id and sender = lower(old.email) and verdict = 'person';
+  end if;
+  return null;
+end $$;
+
+
+--
 -- Name: mailbox_threads_known(uuid, text[]); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -33651,6 +33841,54 @@ COMMENT ON COLUMN public.mailbox_connections.resting_until IS 'Set when the prov
 
 
 --
+-- Name: mailbox_left; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.mailbox_left (
+    tenant_id uuid NOT NULL,
+    address text NOT NULL,
+    name text,
+    why text NOT NULL,
+    count integer DEFAULT 1 NOT NULL,
+    first_at timestamp with time zone DEFAULT now() NOT NULL,
+    last_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT mailbox_left_address_check CHECK (((address = lower(btrim(address))) AND ((char_length(address) >= 3) AND (char_length(address) <= 254)))),
+    CONSTRAINT mailbox_left_count_check CHECK ((count >= 1)),
+    CONSTRAINT mailbox_left_name_check CHECK (((name IS NULL) OR (char_length(name) <= 200))),
+    CONSTRAINT mailbox_left_why_check CHECK ((why = ANY (ARRAY['automated'::text, 'auto_reply'::text, 'report'::text, 'booking_notice'::text, 'forwarding_confirmation'::text, 'gmail_tab'::text, 'updates'::text, 'said'::text])))
+);
+
+
+--
+-- Name: TABLE mailbox_left; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.mailbox_left IS 'What a connected mailbox left where it was, one row a sender (00483): the name it gave, why (the latest), how many, first and last. Members read; the edge writes through mailbox_left_note.';
+
+
+--
+-- Name: mailbox_senders; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.mailbox_senders (
+    tenant_id uuid NOT NULL,
+    sender text NOT NULL,
+    verdict text NOT NULL,
+    set_by uuid,
+    set_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT mailbox_senders_sender_check CHECK (((sender = lower(btrim(sender))) AND ((char_length(sender) >= 3) AND (char_length(sender) <= 254)) AND (sender !~ '[[:space:]<>]'::text))),
+    CONSTRAINT mailbox_senders_verdict_check CHECK ((verdict = ANY (ARRAY['automated'::text, 'person'::text])))
+);
+
+
+--
+-- Name: TABLE mailbox_senders; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.mailbox_senders IS 'What the workspace said of a sender of mail to its connected mailbox (00483): an address, or every address at a domain, is automated (its mail stays in the mailbox) or a person (its mail comes in whatever it looks like). Members read; mailbox_sender_sort writes.';
+
+
+--
 -- Name: mailboxes; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -36491,6 +36729,22 @@ ALTER TABLE ONLY public.mailbox_connections
 
 
 --
+-- Name: mailbox_left mailbox_left_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.mailbox_left
+    ADD CONSTRAINT mailbox_left_pkey PRIMARY KEY (tenant_id, address);
+
+
+--
+-- Name: mailbox_senders mailbox_senders_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.mailbox_senders
+    ADD CONSTRAINT mailbox_senders_pkey PRIMARY KEY (tenant_id, sender);
+
+
+--
 -- Name: mailboxes mailboxes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -37914,6 +38168,13 @@ CREATE INDEX mailbox_connections_watch ON public.mailbox_connections USING btree
 
 
 --
+-- Name: mailbox_left_newest; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX mailbox_left_newest ON public.mailbox_left USING btree (tenant_id, last_at DESC);
+
+
+--
 -- Name: mailboxes_local_part_uq; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -38905,6 +39166,13 @@ CREATE TRIGGER contacts_erase_leaves_lists AFTER UPDATE OF erased_at ON public.c
 --
 
 CREATE TRIGGER contacts_erase_scrubs_events AFTER UPDATE OF erased_at ON public.contacts FOR EACH ROW EXECUTE FUNCTION public.contact_events_on_erase();
+
+
+--
+-- Name: contacts contacts_erase_takes_mailbox_senders; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER contacts_erase_takes_mailbox_senders AFTER UPDATE OF erased_at ON public.contacts FOR EACH ROW EXECUTE FUNCTION public.mailbox_senders_on_erase();
 
 
 --
@@ -41234,6 +41502,30 @@ ALTER TABLE ONLY public.mailbox_connections
 
 
 --
+-- Name: mailbox_left mailbox_left_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.mailbox_left
+    ADD CONSTRAINT mailbox_left_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: mailbox_senders mailbox_senders_set_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.mailbox_senders
+    ADD CONSTRAINT mailbox_senders_set_by_fkey FOREIGN KEY (set_by) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: mailbox_senders mailbox_senders_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.mailbox_senders
+    ADD CONSTRAINT mailbox_senders_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: mailboxes mailboxes_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -43022,6 +43314,36 @@ ALTER TABLE public.mailbox_connections ENABLE ROW LEVEL SECURITY;
 --
 
 CREATE POLICY mailbox_connections_member_select ON public.mailbox_connections FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
+-- Name: mailbox_left; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.mailbox_left ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: mailbox_left mailbox_left_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY mailbox_left_member_select ON public.mailbox_left FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
+-- Name: mailbox_senders; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.mailbox_senders ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: mailbox_senders mailbox_senders_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY mailbox_senders_member_select ON public.mailbox_senders FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
    FROM public.memberships m
   WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
 
@@ -45795,6 +46117,39 @@ GRANT ALL ON FUNCTION public.mailbox_connection_counts(p_mailbox_id uuid, p_sinc
 
 REVOKE ALL ON FUNCTION public.mailbox_connections_within_limit() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.mailbox_connections_within_limit() TO service_role;
+
+
+--
+-- Name: FUNCTION mailbox_left_note(p_tenant_id uuid, p_address text, p_name text, p_why text, p_at timestamp with time zone); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.mailbox_left_note(p_tenant_id uuid, p_address text, p_name text, p_why text, p_at timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.mailbox_left_note(p_tenant_id uuid, p_address text, p_name text, p_why text, p_at timestamp with time zone) TO service_role;
+
+
+--
+-- Name: FUNCTION mailbox_owner_wrote(p_tenant_id uuid, p_address text, p_external_id text, p_body text, p_channel_ts timestamp with time zone, p_meta jsonb, p_reasons text[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.mailbox_owner_wrote(p_tenant_id uuid, p_address text, p_external_id text, p_body text, p_channel_ts timestamp with time zone, p_meta jsonb, p_reasons text[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.mailbox_owner_wrote(p_tenant_id uuid, p_address text, p_external_id text, p_body text, p_channel_ts timestamp with time zone, p_meta jsonb, p_reasons text[]) TO service_role;
+
+
+--
+-- Name: FUNCTION mailbox_sender_sort(p_tenant_id uuid, p_sender text, p_verdict text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.mailbox_sender_sort(p_tenant_id uuid, p_sender text, p_verdict text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.mailbox_sender_sort(p_tenant_id uuid, p_sender text, p_verdict text) TO authenticated;
+GRANT ALL ON FUNCTION public.mailbox_sender_sort(p_tenant_id uuid, p_sender text, p_verdict text) TO service_role;
+
+
+--
+-- Name: FUNCTION mailbox_senders_on_erase(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.mailbox_senders_on_erase() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.mailbox_senders_on_erase() TO service_role;
 
 
 --
@@ -49188,8 +49543,8 @@ GRANT ALL ON TABLE public.contact_reads TO service_role;
 -- Name: TABLE conversation_channel_state; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.conversation_channel_state TO service_role;
 GRANT SELECT ON TABLE public.conversation_channel_state TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.conversation_channel_state TO service_role;
 
 
 --
@@ -49580,6 +49935,22 @@ GRANT ALL ON TABLE public.lines TO service_role;
 
 GRANT SELECT ON TABLE public.mailbox_connections TO authenticated;
 GRANT ALL ON TABLE public.mailbox_connections TO service_role;
+
+
+--
+-- Name: TABLE mailbox_left; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.mailbox_left TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.mailbox_left TO service_role;
+
+
+--
+-- Name: TABLE mailbox_senders; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.mailbox_senders TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.mailbox_senders TO service_role;
 
 
 --

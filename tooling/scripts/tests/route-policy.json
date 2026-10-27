@@ -490,6 +490,14 @@
       "rate": "merge",
       "spend": false
     },
+    "POST contacts/[id]/not-a-person": {
+      "kind": "write",
+      "fresh": true,
+      "scope": "row",
+      "role": "owner",
+      "rate": "erase",
+      "spend": false
+    },
     "POST contacts/[id]/notes/decide": {
       "kind": "write",
       "scope": "row",
@@ -1157,6 +1165,20 @@
     },
     "GET mailbox-connections/connect": {
       "kind": "read",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
+    "GET mailbox-senders": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": "viewer",
+      "rate": "aggregate",
+      "spend": false
+    },
+    "POST mailbox-senders": {
+      "kind": "write",
       "scope": "workspace",
       "role": "partner",
       "rate": "settings",

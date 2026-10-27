@@ -3,7 +3,8 @@
  * and the five-minute sweep reads every one whatever was pushed, so a push lost costs minutes, never a reply.
  *
  *   Gmail   a Pub/Sub push (api/mailbox/gmail.ts): its bearer token checked (signed by Google, for this deployment's
- *           GMAIL_PUSH_AUDIENCE), its message read for the address that changed, and that address's live mailbox read.
+ *           GMAIL_PUSH_AUDIENCE, as its GMAIL_PUSH_SERVICE_ACCOUNT), its message read for the address that changed, and
+ *           that address's live mailbox read.
  *           Answered 204 whatever the mailbox: a non-2xx is redelivered, and a push for a mailbox no longer connected
  *           would be for ever.
  *   Graph   a notification (api/mailbox/graph.ts): the validation Graph sends once when a subscription is made, echoed;
@@ -60,6 +61,12 @@ export async function receiveGmailPush(request: Request): Promise<Response> {
   const token = await verifyGooglePushToken(request.headers.get("authorization"), push.audience);
   if (!token.ok) {
     L.warn("mailbox_push_refused", { why: token.why });
+    return refuse(401, "unauthorized");
+  }
+  // Signed by Google for our audience is not yet ours: any Google account can mint such a token. Ours is the one our
+  // push subscription authenticates as.
+  if (token.email?.toLowerCase() !== push.serviceAccount) {
+    L.warn("mailbox_push_refused", { why: "not_our_subscription" });
     return refuse(401, "unauthorized");
   }
   const said = gmailPushOf(await request.json().catch(() => null));

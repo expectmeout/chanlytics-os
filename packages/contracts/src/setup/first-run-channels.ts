@@ -8,6 +8,7 @@
 import { formatPhoneDisplay } from "../shared/phone";
 import { bookingToolName, type BookingTool } from "../calendar/booking-notice";
 import { bookingToolOfLink } from "../google/booking-page";
+import { googleAudienceWords } from "../google/audience";
 import { EMAIL_NOT_ANSWERED_SENTENCE } from "../email/mailbox";
 import type { MailboxProvider } from "../email/mailbox-connections";
 import { CARRIER_WORDS, type Carrier } from "../voice/forwarding";
@@ -331,10 +332,12 @@ function emailOf(i: ChannelsInput): FirstRunChannelsVM["email"] {
   const sending = i.dto.email?.sending ?? null;
   const on = sending?.mailboxes[0] ?? null;
   const providers = (sending?.providers ?? []).map((p) => ({ key: p, label: p === "google" ? W.google : W.microsoft }));
+  // Google's consent screen, said before its Connect: the app is the Business Profile app (decision 0073, R18).
+  const warning = sending?.providers.includes("google") ? googleAudienceWords(sending.google_audience) : null;
   return {
     title: W.title,
     state: on ? "connected" : providers.length ? "connect" : "soon",
-    says: on ? W.connected(on.address) : providers.length ? W.says : W.soonSays,
+    says: on ? W.connected(on.address) : providers.length ? `${W.says}${warning ? ` ${warning}` : ""}` : W.soonSays,
     providers: on ? [] : providers,
     note: W.notAnswered,
   };

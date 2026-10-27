@@ -174,7 +174,9 @@ export { posesAsReply } from "./email/email-subject.js";
 export { isFreeMail } from "./email/free-mail.js";
 export { emailDomainOf, normalizeLocalPart, whyNotALocalPart, whyNotAFromName, suggestLocalPart, MAILBOX_RESERVED, MAILBOX_LOCAL_PART_MAX, MAILBOX_FROM_NAME_MAX, EMAIL_NOT_ANSWERED_SENTENCE, EMAIL_ELSEWHERE_SENTENCE } from "./email/mailbox.js";
 export { MAILBOX_PROVIDERS, MAILBOX_CONNECTION_STATES, MAILBOX_CONNECTIONS_MAX, mailboxSendsNow, reachOutWritesFrom, mailboxConnectionDtoOf, mailboxHoldOf, MAILBOX_PROVIDER_WORDS, mailboxHealthWords, mailboxWords, mailboxActs, DMARC_RECOMMENDED, mailboxRecordRows, SPF_LOOKUPS_MAX, SPF_RECORD_MAX, SPF_RECORDS_JOIN, MAILBOX_CONNECT_WORDS, mailboxConnectOk, mailboxConnectWords, mailboxesFootWords, customerDomainWords } from "./email/mailbox-connections.js";
+export { senderVerdictOf, senderDomainOffered, senderSortRefusal, MAILBOX_LEFT_WHY_WORDS, MAILBOX_SENDERS_WORDS } from "./email/mailbox-senders.js";
 export { MAILBOX_HOLDS, MAILBOX_DAILY_CAP_MAX, CUSTOMER_DOMAIN_DAILY_MAX, MAILBOX_RAMP, mailboxRampShare, mailboxDailyCap, mailboxHoldWords, mailboxHoldFixWords } from "./email/mailbox-standing.js";
+export { googleAudienceWords } from "./google/audience.js";
 export { onDomain, bookingPageOf, bookingToolOfLink, BOOKING_PLATFORM_HOSTS, BOOKING_PLATFORM_TOOLS } from "./google/booking-page.js";
 export { listingFactsOf, bookingPageKept, bookingPageOffered, hoursFromGoogle, placesQueryOf, ratingWords, starsOf, reviewsWords, listingLine, checkedWords, connectionWords, reviewSnippet, reviewIsNew, reviewNoticeIsAbout, NEW_REVIEW_NEWS, toGoogleReviewVM, gainedOver, toGoogleVM, GOOGLE_SHOWN_REVIEWS, REVIEW_NEWS_MS, REVIEW_NEWS_MAX_AGE_MS } from "./google/google.js";
 export { reviewReplyModeOf, reviewReplyPrompt, cleanDraft, autoReplyCandidates, autoReplyBell, reviewDraftsBell, heldReviewReplyOf, reviewHeldReplyWords, REVIEW_HOLD_MS, REVIEW_REPLY_HELD_TITLE, autoReplyHold, reviewHeldWords, reviewReplyWords, REVIEW_REPLY_MAX_WORDS, REVIEW_REPLY_MAX_CHARS, REVIEW_AUTO_REPLIES_PER_SYNC, REVIEW_AUTO_REPLY_MAX_AGE_MS } from "./google/review-reply.js";
@@ -368,7 +370,7 @@ export { SEQUENCE_WORDS, SEQUENCE_FLOW_WORDS, stepApprovalOf, takesFollowUps, le
 export { CALENDAR_SETTING_ROUTE, bookingEmailsHeldWords, bookingEmailsStep, calendarSourceOf, calendarSourceFacts, forwardStillAsked, BOOKS_WITH_CALENDAR, BOOKS_BY_HAND, BOOKING_TOOL_WORDS, booksWithOptions, booksWithOf, booksWithName, calendarLinkShown, calendarLinkNote, BOOKED_NEEDS_A_LINK } from "./setup/calendar-source.js";
 export { capabilityStatus, CAPABILITY_KINDS } from "./setup/capabilities.js";
 export { serviceSuggestionsOf, checkChipsOf, SERVICE_SUGGESTION_TYPES } from "./setup/check-chips.js";
-export { googleAudienceWords, smsStateRow, connectionRows, CONNECTION_KINDS, CONNECTION_GROUP_WORDS } from "./setup/connections.js";
+export { smsStateRow, connectionRows, CONNECTION_KINDS, CONNECTION_GROUP_WORDS } from "./setup/connections.js";
 export { unsureHoursWords, firstRunKicker, firstRunOf, FIRST_RUN_STEPS, FIRST_RUN_WORDS } from "./setup/first-run.js";
 export { setupCardOf, SETUP_CARD_WORDS } from "./setup/first-run-card.js";
 export { firstRunChannelsOf, FIRST_RUN_CHANNELS_WORDS, lineLookupOf } from "./setup/first-run-channels.js";

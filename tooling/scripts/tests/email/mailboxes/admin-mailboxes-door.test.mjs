@@ -45,7 +45,7 @@ beforeEach(() => {
 });
 
 /** The workspace, its website on another host (so a mailbox on getharbor.example is not its customer domain). */
-function world({ boxes = [], refuse = null, creds = {} } = {}) {
+function world({ boxes = [], refuse = null, creds = {}, said = [] } = {}) {
   const v = vault(creds);
   const tables = {
     tenants: [{ id: A, name: "Harbor Moving" }],
@@ -65,9 +65,18 @@ function world({ boxes = [], refuse = null, creds = {} } = {}) {
     mailbox_connections: boxes,
     events: [],
     notifications: [],
+    // 00483: what the workspace said of its senders.
+    mailbox_senders: said.map(([sender, verdict]) => ({ tenant_id: A, sender, verdict })),
   };
+  const kept = [];
   const rpcs = {
     ...v.rpcs,
+    // 00478: a message from before Chanlytics, once by its provider id.
+    ingest_before: (a) => {
+      const again = kept.some((k) => k.p_message_external_id === a.p_message_external_id);
+      if (!again) kept.push(a);
+      return { is_new: !again, conversation_id: `c-${a.p_external}`, contact_id: `p-${a.p_external}`, person: "known" };
+    },
     // 00423's connect: made, or found again; its refusals by their hint.
     mailbox_connection_connect: (a) => {
       if (refuse) throw Object.assign(new Error(refuse.message), { code: "P0001", hint: refuse.hint });
@@ -94,7 +103,7 @@ function world({ boxes = [], refuse = null, creds = {} } = {}) {
     },
   };
   setPg(fakeDb(tables, {}, rpcs));
-  return { tables, secrets: v.secrets };
+  return { tables, secrets: v.secrets, kept };
 }
 async function ask(body) {
   const raw = JSON.stringify({ tenant_id: A, user_id: U, ...body });
@@ -173,6 +182,14 @@ test("readiness: the providers offered here, and only the public half of each cl
     redirect_uri: MAILBOX_ENV.MAILBOX_OAUTH_REDIRECT,
   });
   assert.ok(!JSON.stringify(body).includes(MAILBOX_ENV.GOOGLE_MAIL_CLIENT_SECRET), "never a secret");
+  assert.equal(body.audience, null, "Google's consent screen unsaid where the deployment says nothing of it");
+  assert.equal(body.pkce, true, "a connect's PKCE verifier is passed on to Google");
+  const said = withEnv({ GOOGLE_OAUTH_AUDIENCE: "unverified" });
+  try {
+    assert.equal((await ask({ op: "readiness" }))[1].audience, "unverified", "the Business Profile app's own (R18)");
+  } finally {
+    said();
+  }
   const back = withEnv({ MICROSOFT_MAIL_CLIENT_SECRET: null });
   try {
     assert.deepEqual(
@@ -213,8 +230,14 @@ test("connect: the code exchanged, the mailbox's row made, its token in Vault an
     );
     const exchange = Object.fromEntries(new URLSearchParams(net.calls[0].body));
     assert.deepEqual([exchange.code, exchange.grant_type], ["4/code", "authorization_code"]);
-    // The same account again is the same row, connected again.
-    const [, again] = await ask({ op: "connect", provider: "google", code: "4/again" });
+    assert.equal(exchange.code_verifier, undefined, "no verifier handed, none sent");
+    // The same account again is the same row, connected again; Google's consent asked with PKCE carries its verifier.
+    const verifier = "v".repeat(43);
+    const [, again] = await ask({ op: "connect", provider: "google", code: "4/again", code_verifier: verifier });
+    const exchanged = net.calls.filter((c) => c.url === "https://oauth2.googleapis.com/token").at(-1);
+    assert.equal(Object.fromEntries(new URLSearchParams(exchanged.body)).code_verifier, verifier);
+    const [bad] = await ask({ op: "connect", provider: "google", code: "4/x", code_verifier: "short" });
+    assert.equal(bad, 400, "a verifier that is not one is refused before Google is asked");
     assert.equal(again.made, false);
     assert.equal(w.tables.mailbox_connections.length, 1);
   } finally {
@@ -418,6 +441,64 @@ test("a test goes from the mailbox to itself through its own provider; remove en
       "its grant given back",
     );
     assert.equal((await ask({ op: "pause", mailbox_id: box.id }))[0], 404, "a removed mailbox is not found");
+  } finally {
+    net.restore();
+  }
+});
+
+test("bring in: a sender the owner said is a person, their mail of the six months and since read through each mailbox and kept in their thread, once", async () => {
+  const box = rows.mailboxConnection({ tenant_id: A, connected_at: "2026-10-20T15:00:00Z" });
+  const w = world({
+    boxes: [box],
+    creds: { [box.id]: liveCredentials("ya29.sam") },
+    said: [["rosa@example.com", "person"]],
+  });
+  const message = (id) => ({
+    id,
+    threadId: `t-${id}`,
+    labelIds: ["INBOX", "CATEGORY_UPDATES"],
+    internalDate: String(Date.parse("2026-10-21T10:00:00Z")),
+    payload: {
+      mimeType: "text/plain",
+      headers: [
+        { name: "From", value: "Rosa Diaz <rosa@example.com>" },
+        { name: "To", value: "sam@getharbor.example" },
+        { name: "Subject", value: "Signed: moving quote" },
+        { name: "Message-ID", value: `<${id}@example.com>` },
+      ],
+      body: { data: b64url("Signed and sent back.") },
+    },
+  });
+  const net = providers((c) => {
+    if (c.url.includes("/messages?"))
+      return {
+        json: {
+          messages: [
+            { id: "q1", threadId: "t-q1" },
+            { id: "q2", threadId: "t-q2" },
+          ],
+        },
+      };
+    const id = /\/messages\/([a-z0-9]+)\?/.exec(c.url)?.[1];
+    return id ? { json: message(id) } : { status: 404 };
+  });
+  try {
+    const [s, body] = await ask({ op: "bring_in", address: "Rosa@Example.com" });
+    assert.deepEqual([s, body], [200, { ok: true, kept: 2 }]);
+    const list = new URL(net.calls.find((c) => c.url.includes("/messages?")).url);
+    assert.match(list.searchParams.get("q"), /^after:\d+ before:\d+ from:rosa@example\.com$/, "only their mail");
+    assert.deepEqual(
+      w.kept.map((k) => [k.p_external, k.p_direction, k.p_message_external_id]),
+      [
+        ["rosa@example.com", "inbound", "q1"],
+        ["rosa@example.com", "inbound", "q2"],
+      ],
+      "Gmail filing them under Updates leaves nothing: the owner said they are a person",
+    );
+    const [again] = await ask({ op: "bring_in", address: "rosa@example.com" });
+    assert.equal(again, 200);
+    assert.equal(w.kept.length, 2, "kept once by their provider id");
+    assert.equal((await ask({ op: "bring_in", address: "not an address" }))[0], 400);
   } finally {
     net.restore();
   }

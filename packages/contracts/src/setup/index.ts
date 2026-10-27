@@ -62,13 +62,7 @@ export type {
   CapabilityStatus,
   CapabilityInputs,
 } from "./capabilities";
-export {
-  googleAudienceWords,
-  smsStateRow,
-  connectionRows,
-  CONNECTION_KINDS,
-  CONNECTION_GROUP_WORDS,
-} from "./connections";
+export { smsStateRow, connectionRows, CONNECTION_KINDS, CONNECTION_GROUP_WORDS } from "./connections";
 export type {
   ConnectionKind,
   ConnectionGroup,

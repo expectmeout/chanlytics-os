@@ -219,6 +219,16 @@ export function senderAuthenticated(e: Pick<ReceivedEmail, "from" | "headers" | 
  */
 const NO_REPLY = /(?:^|[-_.+])(?:no[-_.]?reply|do[-_.]?not[-_.]?reply)(?:[-_.+]|$)/i;
 
+/**
+ * A DMARC aggregate report, whoever writes it: the subject RFC 7489 (7.2.1.1) gives one, "Report Domain: <domain>
+ * Submitter: <org> Report-ID: <id>" (Microsoft's once led by "[Preview]"), or DMARC as a word of the sender's local
+ * part (dmarcreport@, dmarc-reports@, dmarc_rua@). Microsoft's reports carry no automated header and no no-reply
+ * address, and a mailbox's six months took them in as people (26 Oct 2026). A reply to or a forward of one ("Re:",
+ * "Fwd:") is a person's, and so is a name that only holds the letters (edmarcos@, dmarchetti@).
+ */
+const DMARC_REPORT_SUBJECT = /^\s*(?:\[[^\]]*\]\s*)?report\s+domain:\s*\S+\s+submitter:/i;
+const DMARC_SENDER = /(?:^|[-_.+])dmarc(?:reports?)?(?:[-_.+]|$)/i;
+
 export function classifyReceived(e: Pick<ReceivedEmail, "headers" | "from" | "subject" | "text">): EmailClaim {
   const h = e.headers;
   const local = e.from?.address.split("@")[0] ?? "";
@@ -242,7 +252,9 @@ export function classifyReceived(e: Pick<ReceivedEmail, "headers" | "from" | "su
     /^(bulk|list|junk)$/i.test((h.precedence ?? "").trim()) ||
     "list-id" in h ||
     "list-unsubscribe" in h ||
-    NO_REPLY.test(local)
+    NO_REPLY.test(local) ||
+    DMARC_SENDER.test(local) ||
+    DMARC_REPORT_SUBJECT.test(e.subject ?? "")
   )
     return "automated";
   return "person";

@@ -135,6 +135,11 @@ interface TableData {
   "mailbox_connection.paused": { address: string; by: string };
   "mailbox_connection.unpaused": { address: string; by: string };
   "mailbox_connection.removed": { address: string; by: string | null };
+  "mailbox_connection.sender_sorted": {
+    kind: "address" | "domain";
+    verdict: "automated" | "person" | null;
+    by: string;
+  };
   "message.send_blocked": { reason: string | null } & JsonObject;
   /** `http_status` is the send's own answer: absent when the failure came later, in the provider's receipt (reason "receipt"). */
   "message.send_failed": { http_status?: number; body: string | null; reason: string } & JsonObject;
@@ -232,6 +237,7 @@ const WRITES: { readonly [K in keyof TableData]: { category: string; version: nu
   "mailbox_connection.paused": { category: "setup", version: 1 },
   "mailbox_connection.unpaused": { category: "setup", version: 1 },
   "mailbox_connection.removed": { category: "setup", version: 1 },
+  "mailbox_connection.sender_sorted": { category: "setup", version: 1 },
   "message.send_blocked": { category: "message", version: 1 },
   "message.send_failed": { category: "message", version: 1 },
   "message.send_raced_cancel": { category: "message", version: 1 },

@@ -16570,9 +16570,8 @@ var EVENT_KINDS = [
   /** A gate paused the workspace's offers by email (complaints or bounces over their limits), and the back office turned them back on (00299). The reason, never an address. */
   "mailbox.offers_paused",
   "mailbox.offers_resumed",
-  /** A mailbox the business writes cold email from (00423, decision 0056): connected (or connected again), signed out
-   * by its provider, held for its own mail, resumed by its owner, paused and unpaused by its owner, removed. Its
-   * address and the reason, never its token. */
+  /** A mailbox the business connected (00423, decision 0056), by its address and the reason, never its token; and
+   * what the workspace said of a sender of its mail (00483: address or domain, and the verdict, never the address). */
   "mailbox_connection.connected",
   "mailbox_connection.signed_out",
   "mailbox_connection.held",
@@ -16580,6 +16579,7 @@ var EVENT_KINDS = [
   "mailbox_connection.paused",
   "mailbox_connection.unpaused",
   "mailbox_connection.removed",
+  "mailbox_connection.sender_sorted",
   /** A lead search's round started, waited, or ended with one of the nine endings (00140). */
   "lead.round",
   /** An ask no source card fits, logged as demand (§0.3): the words asked, never a place. */
@@ -42345,7 +42345,7 @@ function mailboxRecordRows(m) {
 }
 var CONNECT_FAILED = "That didn't go through. Try again in a minute.";
 var MAILBOX_CONNECT_WORDS = {
-  connected: "Connected. Its ramp starts at 10 a day.",
+  connected: "Connected: email from people comes into your Inbox, and its last six months are on their way.",
   reconnected: "Connected again: its emails go on where they waited.",
   declined: "Nothing was connected: the sign-in was cancelled.",
   scopes_missing: "Nothing was connected: send and read access are both needed. Connect again and leave both ticked.",
@@ -42376,11 +42376,72 @@ function mailboxConnectWords(code2) {
 function mailboxesFootWords(count2) {
   if (count2 >= MAILBOX_CONNECTIONS_MAX) return `${MAILBOX_CONNECTIONS_MAX} is the most. Remove one to add another.`;
   if (count2 === 0)
-    return `A sequence to leads writes from your own mailbox, through Google or Microsoft, so every email is yours and every reply comes back to it. A mailbox on the domain your customers write to sends ${CUSTOMER_DOMAIN_DAILY_MAX} a day at most; for more, use a second domain such as get<yourbusiness>.com.`;
+    return `Email people write to your mailbox comes into your Inbox, and sequences to leads write from it through Google or Microsoft, so every email is yours and every reply comes back to it. A mailbox on the domain your customers write to sends ${CUSTOMER_DOMAIN_DAILY_MAX} a day at most to leads; for more, use a second domain such as get<yourbusiness>.com.`;
   return `A new mailbox starts at ${MAILBOX_RAMP[0].perDay} a day and grows with the days it sends, to ${Math.max(...MAILBOX_RAMP.map((s) => s.perDay))}. Replies come back to it, and to your Inbox here.`;
 }
 function customerDomainWords(host) {
   return `Your customers write to ${host}, so this mailbox sends ${CUSTOMER_DOMAIN_DAILY_MAX} a day at most to keep their mail and bookings safe. For more, connect a mailbox on a second domain, such as get${host}.`;
+}
+
+// src/email/mailbox-senders.ts
+function senderVerdictOf(said, address) {
+  const a = address.trim().toLowerCase();
+  const exact = said.get(a);
+  if (exact) return exact;
+  const labels = a.slice(a.lastIndexOf("@") + 1).split(".");
+  for (let i = 0; i < labels.length - 1; i++) {
+    const v = said.get(labels.slice(i).join("."));
+    if (v) return v;
+  }
+  return null;
+}
+var MAILBOX_LEFT_WHY_WORDS = {
+  automated: "Marked as automated",
+  auto_reply: "An automatic reply",
+  report: "A delivery report",
+  booking_notice: "A booking tool's notice",
+  forwarding_confirmation: "Gmail's forwarding check",
+  gmail_tab: "Gmail: Promotions, Social or Forums",
+  updates: "Gmail: Updates, from someone new",
+  said: "You said it's not a person"
+};
+var MAILBOX_SENDERS_WORDS = {
+  title: "Left in your mailbox",
+  lead: "Mail that isn't from a person stays in your mailbox, out of Chanlytics. If anyone here is a person, bring them in.",
+  empty: "Nothing has been left yet.",
+  emails: (n) => `${n} email${n === 1 ? "" : "s"}`,
+  bringIn: "It's a person",
+  broughtIn: (who) => `${who} is a person: their mail comes in from now on, and their last six months with it.`,
+  saidTitle: "Said not to be people",
+  undo: "Undo",
+  undone: (sender) => `${sender}: its mail is sorted as it comes again.`,
+  more: (n) => `and ${n} more`,
+  /** Delete person's sheet, for someone with an email address: they are a sender of automated mail. */
+  notAPerson: "Not a person: their mail stays in your mailbox from now on",
+  wholeDomain: (domain) => `Everything from ${domain}, too`,
+  done: (who) => `${who}: not a person. Deleted, and their mail stays in your mailbox.`,
+  show: "Show who",
+  failed: "Could not change this."
+};
+var domainOf = (address) => address.slice(address.lastIndexOf("@") + 1).trim().toLowerCase();
+function senderDomainOffered(address, ownHosts) {
+  const domain = domainOf(address);
+  if (!domain.includes(".") || isFreeMail(domain)) return null;
+  return ownHosts.some((h) => h.trim().toLowerCase() === domain) ? null : domain;
+}
+function senderSortRefusal(sender, verdict, ownHosts) {
+  const s = sender.trim().toLowerCase();
+  if (verdict !== "automated" || s.includes("@")) return null;
+  return senderDomainOffered(`x@${s}`, ownHosts) ? null : `${s} is many people's: mark one address instead.`;
+}
+
+// src/google/audience.ts
+function googleAudienceWords(a) {
+  if (a === "testing")
+    return "Google is reviewing Chanlytics; until then Connect works for invited Google accounts only.";
+  if (a === "unverified")
+    return "Google shows a warning until its review of Chanlytics is done \u2014 choose Advanced, then Go to Chanlytics.";
+  return null;
 }
 
 // src/imports/ledger.ts
@@ -60112,12 +60173,14 @@ function mailboxRow(i) {
     };
   }
   if (sending && sending.providers.length > 0) {
+    const audience = sending.google_audience ?? i.google?.ready.audience;
+    const note = sending.providers.includes("google") ? googleAudienceWords(audience) : null;
     return {
       ...base,
       detail: null,
       state: "none",
       stateWords: "Not connected",
-      sentence: "Connect your Google Workspace or Microsoft 365 mailbox: email from people comes into your Inbox, six months of it with it, and sequences to leads write from it.",
+      sentence: `Connect your Google Workspace or Microsoft 365 mailbox: email from people comes into your Inbox, six months of it with it, and sequences to leads write from it.${note ? ` ${note}` : ""}`,
       verb: null,
       body: "mailboxes"
     };
@@ -60218,13 +60281,6 @@ var ORDER2 = {
 };
 function row(d) {
   return { ...d, group: GROUP2[d.state], tone: TONE[d.state], body: d.body ?? null, notes: d.notes ?? [] };
-}
-function googleAudienceWords(a) {
-  if (a === "testing")
-    return "Google is reviewing Chanlytics; until then Connect works for invited Google accounts only.";
-  if (a === "unverified")
-    return "Google shows a warning until its review of Chanlytics is done \u2014 choose Advanced, then Go to Chanlytics.";
-  return null;
 }
 function smsStateRow(line, nowMs) {
   const num2 = line ? formatPhoneDisplay(line.e164) : null;
@@ -62112,10 +62168,11 @@ function emailOf(i) {
   const sending = i.dto.email?.sending ?? null;
   const on = sending?.mailboxes[0] ?? null;
   const providers = (sending?.providers ?? []).map((p) => ({ key: p, label: p === "google" ? W.google : W.microsoft }));
+  const warning = sending?.providers.includes("google") ? googleAudienceWords(sending.google_audience) : null;
   return {
     title: W.title,
     state: on ? "connected" : providers.length ? "connect" : "soon",
-    says: on ? W.connected(on.address) : providers.length ? W.says : W.soonSays,
+    says: on ? W.connected(on.address) : providers.length ? `${W.says}${warning ? ` ${warning}` : ""}` : W.soonSays,
     providers: on ? [] : providers,
     note: W.notAnswered
   };
@@ -63422,6 +63479,17 @@ var SCHEMA_SETS = {
   "mailbox_connections.held_why": ["bounces", "complaint", "unsubscribes"],
   "mailbox_connections.provider": ["google", "microsoft"],
   "mailbox_connections.state": ["connected", "reconnect", "paused", "held", "removed"],
+  "mailbox_left.why": [
+    "automated",
+    "auto_reply",
+    "report",
+    "booking_notice",
+    "forwarding_confirmation",
+    "gmail_tab",
+    "updates",
+    "said"
+  ],
+  "mailbox_senders.verdict": ["automated", "person"],
   "mailboxes.offers_paused_reason": ["complaints", "bounces"],
   "mailboxes.reply_mode": ["draft", "veto", "auto"],
   "memberships.role": ["owner", "operator", "partner", "viewer"],
@@ -63624,6 +63692,7 @@ var ROUTE_KEYS = [
   "GET lines/codes",
   "GET mailbox-connections/callback",
   "GET mailbox-connections/connect",
+  "GET mailbox-senders",
   "GET me/alerts",
   "GET messages/[id]/media",
   "GET metrics",
@@ -63722,6 +63791,7 @@ var ROUTE_KEYS = [
   "POST contacts/[id]/deal",
   "POST contacts/[id]/doubts/dismiss",
   "POST contacts/[id]/merge",
+  "POST contacts/[id]/not-a-person",
   "POST contacts/[id]/notes",
   "POST contacts/[id]/notes/decide",
   "POST contacts/[id]/notes/done",
@@ -63779,6 +63849,7 @@ var ROUTE_KEYS = [
   "POST mailbox-connections/[id]/check",
   "POST mailbox-connections/[id]/resume",
   "POST mailbox-connections/[id]/test",
+  "POST mailbox-senders",
   "POST mailboxes",
   "POST me/invitations/accept",
   "POST messages/[id]/cancel-send",
@@ -67096,6 +67167,7 @@ var WORDS2 = {
   "mailbox_connection.paused": "A mailbox to write from was paused",
   "mailbox_connection.unpaused": "A mailbox to write from writes again",
   "mailbox_connection.removed": "A mailbox to write from was removed",
+  "mailbox_connection.sender_sorted": "Who sends your mailbox automated mail changed",
   "channel.connected": "A WhatsApp number was connected",
   "lead.stage": "A lead moved",
   "lead.emailed": "A lead was marked as emailed",
@@ -69306,11 +69378,13 @@ export {
   MAILBOX_DAILY_CAP_MAX,
   MAILBOX_FROM_NAME_MAX,
   MAILBOX_HOLDS,
+  MAILBOX_LEFT_WHY_WORDS,
   MAILBOX_LOCAL_PART_MAX,
   MAILBOX_PROVIDERS,
   MAILBOX_PROVIDER_WORDS,
   MAILBOX_RAMP,
   MAILBOX_RESERVED,
+  MAILBOX_SENDERS_WORDS,
   MARKETING_OPT_IN_PATTERN,
   MAX_CLOSURES,
   MAX_INTERVALS_PER_DAY,
@@ -71855,7 +71929,10 @@ export {
   sendOnceRoute,
   sendWindowsOf,
   sendableTemplates,
+  senderDomainOffered,
   senderLanguage,
+  senderSortRefusal,
+  senderVerdictOf,
   senderWords,
   sendingEndsAt,
   sendsOf,

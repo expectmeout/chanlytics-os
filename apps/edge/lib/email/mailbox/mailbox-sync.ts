@@ -2,9 +2,10 @@
  * A connected mailbox read back (decision 0056, and 0073's R13: the business's email is its mailbox): what arrived in it
  * since its cursor, under any label or folder (a reply a rule filed away, or one taken for junk, is a reply all the
  * same). What sits in a thread a reach-out started (00424 mailbox_threads_known) is read whatever it is, a delivery
- * report is applied, and anything else is read for what it claims to be (channels classifyReceived, the intake's own
- * sorting): an email a person wrote is taken in, as the hosted mailbox takes one in, and the rest (lists, receipts,
- * notifications, automatic replies) is left where it is and counted. Gmail's reports are found by who wrote them (a
+ * report is applied, and anything else is sorted (mailbox-sorting.ts: what the workspace said of its sender, what the
+ * email claims to be, where Gmail filed it): an email a person wrote is taken in, as the hosted mailbox takes one in,
+ * and the rest (lists, receipts, notifications, automatic replies) is left where it is, counted, and noted one line a
+ * sender for the owner to see. Gmail's reports are found by who wrote them (a
  * report seldom joins the thread it is about); Graph names a message's sender before it is read, and its Junk Email is
  * asked since the last read, Graph keeping no delta of it.
  *
@@ -24,6 +25,7 @@
 import {
   classifyReceived,
   deliveryReportOf,
+  emailPlainText,
   gmailEmailOf,
   gmailHistory,
   gmailMessage,
@@ -35,25 +37,31 @@ import {
   graphJunkSince,
   graphMessage,
   graphReadVerdict,
+  messageIdsIn,
   type EmailReceipt,
   type MailboxEmail,
   type ReadVerdict,
 } from "../../packages/channels.js";
-import { MIN_MS, DAY_MS } from "../../packages/contracts.js";
+import { MIN_MS, DAY_MS, normalizeEmail, WAITING_REASONS } from "../../packages/contracts.js";
+import { EMAIL_BODY_MAX } from "../../packages/core.js";
 import {
   endMailboxSync,
+  keepOwnerEmail,
   knownThreads,
   patchMailboxConnection,
   sentEmailIdByMessageId,
   sentEmailOf,
+  sentEmailWithMessageId,
   takeMailboxSync,
   type Database,
+  type Json,
   type MailboxConnectionRow,
 } from "../../packages/db.js";
 import { scheduleJobOnce } from "../../packages/jobs.js";
 import { applyEmailReceipt } from "../email-receipts.js";
 import { tokenFor } from "./mailbox-credentials.js";
 import { markSignedOut } from "./mailbox-wire.js";
+import { leftWhy, mailSortingFor, noteLeft, type MailSorting } from "./mailbox-sorting.js";
 import { errField, type Logger } from "../../log.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -73,13 +81,19 @@ interface Arrived {
   report?: boolean;
   /** Taken for spam or thrown away (Graph's Junk Email; Gmail's SPAM or TRASH): read only inside a thread of ours. */
   junk?: boolean;
-  /** The mailbox's own sending or drafting (Gmail's SENT or DRAFT): never read. */
+  /** The mailbox's own drafting (Gmail's DRAFT): never read. */
   mine?: boolean;
+  /**
+   * The mailbox's own sending (Gmail's SENT): read for what the owner wrote from Gmail (ownerWrote). Graph names the
+   * sender before a message is read, and its delta reads the inbox, so Outlook's Sent Items reach no sync yet.
+   */
+  sent?: boolean;
 }
 
-/** Gmail's labels that say a message is spam or thrown away, and the ones that say it is the mailbox's own. */
+/** Gmail's labels that say a message is spam or thrown away, that it is a draft, and that the mailbox sent it. */
 const GMAIL_JUNK = new Set(["SPAM", "TRASH"]);
-const GMAIL_MINE = new Set(["SENT", "DRAFT"]);
+const GMAIL_DRAFT = "DRAFT";
+const GMAIL_SENT = "SENT";
 
 /**
  * How far before the last read the reads a cursor cannot carry reach. Graph's Junk Email: half an hour, since each one
@@ -127,6 +141,8 @@ interface SyncOutcome {
   replies: number;
   /** Emails a person wrote, outside a thread of ours, handed to the intake (R13). */
   people: number;
+  /** Emails the owner sent from the mailbox to a person the workspace knows, kept in their thread (00482). */
+  owner: number;
   /** Emails read and left where they are: a list, a receipt, a notification, an automatic reply. */
   dropped: number;
   /** Emails the provider refused to hand over, gone on without (readEmail). */
@@ -139,6 +155,7 @@ const none = (outcome: SyncOutcome["outcome"]): SyncOutcome => ({
   bounced: 0,
   replies: 0,
   people: 0,
+  owner: 0,
   dropped: 0,
   unreadable: 0,
 });
@@ -181,7 +198,8 @@ async function gmailChanges(
         threadId: a.threadId,
         from: null,
         junk: a.labels.some((l) => GMAIL_JUNK.has(l)),
-        mine: a.labels.some((l) => GMAIL_MINE.has(l)),
+        mine: a.labels.includes(GMAIL_DRAFT),
+        sent: a.labels.includes(GMAIL_SENT),
       })),
     );
     if (h.next) next = h.next;
@@ -326,25 +344,90 @@ async function reportReceipt(
  * What one arrival came to: gone, refused by the provider (gone on without), the provider's pace (the sync stops and
  * the next reads on from the cursor), read and left, a report applied, left where it is, or handed to the intake.
  */
-type ArrivalTaken = "gone" | "unreadable" | "paced" | "left" | "bounced" | "dropped" | "reply" | "person";
+type ArrivalTaken = "gone" | "unreadable" | "paced" | "left" | "bounced" | "dropped" | "reply" | "person" | "owner";
 
 /** The count each arrival adds to, where it adds to one beyond `read`. */
-const COUNTED: Partial<Record<ArrivalTaken, "bounced" | "dropped" | "replies" | "people">> = {
+const COUNTED: Partial<Record<ArrivalTaken, "bounced" | "dropped" | "replies" | "people" | "owner">> = {
   bounced: "bounced",
   dropped: "dropped",
   reply: "replies",
   person: "people",
+  owner: "owner",
 };
 
 /**
- * One arrival, read in full and taken: the mailbox's own send and a report that names nothing of ours are left; a
- * report is applied as a receipt; inside a thread of ours anything is a reply; outside one, only what a person wrote is
- * taken in (R13), and a report, a list, a receipt, a notification or an automatic reply is left where it is, counted.
- * One the provider refuses to hand over is said and gone on without, so it never holds the cursor back.
+ * What a thread's row keeps of an email read from a mailbox beside its words, as the intake keeps one: enough to thread
+ * under it and say who. The six months' (mail-history.ts) and the owner's sends from now on (ownerWrote) alike.
+ */
+export function mailboxEmailMeta(e: MailboxEmail, mailboxId: string) {
+  return {
+    email: {
+      subject: e.subject,
+      message_id: e.messageId,
+      in_reply_to: e.headers["in-reply-to"] ?? null,
+      references: messageIdsIn(e.headers.references).slice(-20),
+      from: e.from?.address ?? null,
+      from_name: e.from?.name ?? null,
+      to: e.to,
+      cc: e.cc,
+      claim: "person",
+      attachments: e.attachments.slice(0, 5),
+      more_attachments: Math.max(0, e.attachments.length - 5),
+      truncated: (e.text?.length ?? 0) > EMAIL_BODY_MAX,
+    },
+    source: "mailbox",
+    mailbox_id: mailboxId,
+    thread_id: e.threadId,
+  } satisfies Json;
+}
+
+/**
+ * An email the mailbox sent (00482). One Chanlytics sent is its own row already (by the Message-ID it went under, and
+ * the door keeps a provider id once). One the owner wrote from Gmail to one person the workspace knows is kept in that
+ * person's thread as their words, and answers the holds that waited on it there (contracts WAITING_REASONS), as a reply
+ * typed in the WhatsApp Business app does: Need you stops asking, and nobody answers twice. Mail to many, to nobody but
+ * the mailbox, an automatic one (a mail merge, a responder), or to someone the workspace does not know is the owner's
+ * own, and is left.
+ */
+async function ownerWrote(db: Db, row: MailboxConnectionRow, own: string, e: MailboxEmail): Promise<ArrivalTaken> {
+  if (classifyReceived(e) !== "person") return "left";
+  if (e.messageId && (await sentEmailWithMessageId(db, row.tenant_id, e.messageId))) return "left";
+  const to = [
+    ...new Set([...e.to, ...e.cc].map((a) => normalizeEmail(a)).filter((a): a is string => !!a && a !== own)),
+  ];
+  const [only] = to;
+  if (to.length !== 1 || !only) return "left";
+  const kept = await keepOwnerEmail(db, {
+    tenantId: row.tenant_id,
+    address: only,
+    externalId: e.id,
+    body: emailPlainText(e)?.slice(0, EMAIL_BODY_MAX) ?? null,
+    channelTs: e.createdAt ?? new Date().toISOString(),
+    meta: { ...mailboxEmailMeta(e, row.id), owner_wrote: true },
+    settles: WAITING_REASONS,
+  });
+  return kept.kept ? "owner" : "left";
+}
+
+/**
+ * One arrival, read in full and taken: the mailbox's own send is the owner's (ownerWrote), and a report that names
+ * nothing of ours is left; a report is applied as a receipt; inside a thread of ours anything is a reply, whatever tab
+ * Gmail filed it under; outside one, only what a person wrote is taken in (R13), and the rest is sorted
+ * (mailbox-sorting.ts), left where it is, counted and noted. One the provider refuses to hand over is said and gone on
+ * without, so it never holds the cursor back.
  */
 async function takeArrival(
   db: Db,
-  p: { row: MailboxConnectionRow; token: string; ours: Set<string>; own: string; at: Date; now: number; log: Logger },
+  p: {
+    row: MailboxConnectionRow;
+    token: string;
+    ours: Set<string>;
+    own: string;
+    at: Date;
+    now: number;
+    log: Logger;
+    sorting: MailSorting;
+  },
   a: Arrived,
 ): Promise<ArrivalTaken> {
   const { row, ours, own, at } = p;
@@ -360,7 +443,7 @@ async function takeArrival(
     return "paced";
   }
   const e = read.email;
-  if (e.from?.address.toLowerCase() === own) return "left";
+  if (e.from?.address.toLowerCase() === own) return ownerWrote(db, row, own, e);
   const receipt = await reportReceipt(db, row, e, p.now);
   if (receipt === "none") return "left";
   if (receipt) {
@@ -368,8 +451,12 @@ async function takeArrival(
     return "bounced";
   }
   const inOurs = (!!a.threadId && ours.has(a.threadId)) || (!!e.threadId && ours.has(e.threadId));
-  if (!inOurs && (a.report || (a.from !== null && REPORTER.test(a.from)) || classifyReceived(e) !== "person"))
+  if (!inOurs && (a.report || (a.from !== null && REPORTER.test(a.from)))) return "dropped";
+  const why = inOurs ? null : await leftWhy(e, p.sorting);
+  if (why) {
+    await noteLeft(db, row.tenant_id, e, why);
     return "dropped";
+  }
   await scheduleJobOnce(db, {
     tenantId: row.tenant_id,
     kind: "email_ingest",
@@ -429,15 +516,16 @@ export async function syncMailbox(
           log.warn("mailbox_sync_failed", { mailbox: row.id, stage: "side", error: errField(err) });
           return changes.arrived;
         });
-    // Every arrival is read but the mailbox's own (its sends and drafts: Graph names the sender up front, Gmail labels
-    // them) and spam outside a thread of ours: a thread of ours whatever it is, a report however it is threaded, and
-    // anything else for what it claims to be (R13).
+    // Every arrival is read but the mailbox's drafts, what Graph names as its own sender up front, and spam outside a
+    // thread of ours: what the mailbox sent, for what the owner wrote from it (Gmail labels it SENT); a thread of ours
+    // whatever it is; a report however it is threaded; and anything else, sorted (R13).
     const ours = await knownThreads(
       db,
       row.tenant_id,
       arrived.map((a) => a.threadId).filter((t): t is string => !!t),
     );
     const own = row.address.toLowerCase();
+    const sorting = await mailSortingFor(db, row.tenant_id);
     const wanted = arrived.filter(
       (a) => !a.mine && a.from !== own && (!a.junk || (!!a.threadId && ours.has(a.threadId))),
     );
@@ -453,7 +541,7 @@ export async function syncMailbox(
       if (seen.has(a.id)) continue;
       seen.add(a.id);
       try {
-        const got = await takeArrival(db, { row, token: t.token, ours, own, at, now, log }, a);
+        const got = await takeArrival(db, { row, token: t.token, ours, own, at, now, log, sorting }, a);
         if (got === "paced") {
           // The provider's pace: what is left waits for the next sync, from the cursor where it was.
           behind = true;

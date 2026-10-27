@@ -31,6 +31,8 @@ export type MailPage = { ok: true; listed: ListedMail[]; next: string | null } |
 export interface MailWindow {
   from: string;
   to: string;
+  /** Only mail from this address: a sender the owner brought in (00483). A lower-cased address, never a query. */
+  sender?: string;
 }
 
 const seconds = (iso: string): number => Math.max(0, Math.floor(Date.parse(iso) / 1000));
@@ -46,7 +48,7 @@ export async function gmailListSince(
   deps?: Deps,
 ): Promise<MailPage> {
   const q = new URLSearchParams({
-    q: `after:${seconds(window.from)} before:${seconds(window.to)}`,
+    q: `after:${seconds(window.from)} before:${seconds(window.to)}${window.sender ? ` from:${window.sender}` : ""}`,
     maxResults: GMAIL_PAGE,
   });
   if (pageToken) q.set("pageToken", pageToken);
@@ -80,8 +82,9 @@ export async function graphListSince(
   link: string | null,
   deps?: Deps,
 ): Promise<MailPage> {
+  const from = window.sender ? ` and from/emailAddress/address eq '${window.sender.replace(/'/g, "''")}'` : "";
   const filter = encodeURIComponent(
-    `receivedDateTime ge ${window.from} and receivedDateTime lt ${window.to} and isDraft eq false`,
+    `receivedDateTime ge ${window.from} and receivedDateTime lt ${window.to} and isDraft eq false${from}`,
   );
   const url =
     link ??

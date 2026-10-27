@@ -20,6 +20,7 @@ const restore = withEnv({
   ...MAILBOX_ENV,
   GMAIL_PUSH_TOPIC: "projects/example/topics/mail",
   GMAIL_PUSH_AUDIENCE: AUD,
+  GMAIL_PUSH_SERVICE_ACCOUNT: "gmail-push@example-project.iam.gserviceaccount.com",
   GRAPH_NOTIFY_SECRET: "client-state-made-up",
   EDGE_ORIGIN: "https://edge.example.com",
 });
@@ -176,7 +177,7 @@ test("Graph's door: the validation token echoed as text; a notification whose cl
   }
 });
 
-test("Gmail's door: a push without Google's token is refused and reads nothing; with it, the address's live mailbox is read; one for nobody is acknowledged", async () => {
+test("Gmail's door: a push without Google's token, or with one for another Google account, is refused and reads nothing; with ours, the address's live mailbox is read; one for nobody is acknowledged", async () => {
   const box = rows.mailboxConnection({ address: "sam@getharbor.example", sync_cursor: "100" });
   const v = vault({ [box.id]: liveCredentials("ya29.sam") });
   const tables = { mailbox_connections: [box], messages: [], jobs: [] };
@@ -194,6 +195,11 @@ test("Gmail's door: a push without Google's token is refused and reads nothing; 
   try {
     const bare = await post(gmailDoor, AUD, push("sam@getharbor.example"));
     assert.equal(bare.status, 401);
+    // Google signs a token for any audience its holder names: one for ours from another account is not our subscription.
+    const theirs = await post(gmailDoor, AUD, push("sam@getharbor.example"), {
+      authorization: `Bearer ${token({ email: "someone@another-project.iam.gserviceaccount.com" })}`,
+    });
+    assert.equal(theirs.status, 401);
     assert.equal(net.calls.filter((c) => c.url.includes("gmail")).length, 0);
     const signed = await post(gmailDoor, AUD, push("sam@getharbor.example"), { authorization: `Bearer ${token()}` });
     assert.equal(signed.status, 204);

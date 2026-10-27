@@ -3865,6 +3865,8 @@ function senderAuthenticated(e) {
   return said.dmarc === "pass" || said.dkim === "pass" && DMARC_SAID_NOTHING.has(said.dmarc);
 }
 var NO_REPLY = /(?:^|[-_.+])(?:no[-_.]?reply|do[-_.]?not[-_.]?reply)(?:[-_.+]|$)/i;
+var DMARC_REPORT_SUBJECT = /^\s*(?:\[[^\]]*\]\s*)?report\s+domain:\s*\S+\s+submitter:/i;
+var DMARC_SENDER = /(?:^|[-_.+])dmarc(?:reports?)?(?:[-_.+]|$)/i;
 function classifyReceived(e) {
   const h = e.headers;
   const local = e.from?.address.split("@")[0] ?? "";
@@ -3874,7 +3876,7 @@ function classifyReceived(e) {
   const auto = (h["auto-submitted"] ?? "").trim().toLowerCase();
   if (auto.startsWith("auto-replied") || "x-autoreply" in h || "x-autorespond" in h || /^auto[_-]?reply$/i.test((h.precedence ?? "").trim()))
     return "auto_reply";
-  if (auto && auto !== "no" || /^(bulk|list|junk)$/i.test((h.precedence ?? "").trim()) || "list-id" in h || "list-unsubscribe" in h || NO_REPLY.test(local))
+  if (auto && auto !== "no" || /^(bulk|list|junk)$/i.test((h.precedence ?? "").trim()) || "list-id" in h || "list-unsubscribe" in h || NO_REPLY.test(local) || DMARC_SENDER.test(local) || DMARC_REPORT_SUBJECT.test(e.subject ?? ""))
     return "automated";
   return "person";
 }
@@ -4274,19 +4276,9 @@ function newNonce() {
 var GMAIL_SEND_SCOPE = "https://www.googleapis.com/auth/gmail.send";
 var GMAIL_READ_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
 var CONTACTS_SCOPE = "https://www.googleapis.com/auth/contacts.readonly";
-var OTHER_CONTACTS_SCOPE = "https://www.googleapis.com/auth/contacts.other.readonly";
 var CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.readonly";
 var MAILBOX_SCOPES = {
-  google: [
-    "openid",
-    "email",
-    "profile",
-    GMAIL_SEND_SCOPE,
-    GMAIL_READ_SCOPE,
-    CONTACTS_SCOPE,
-    OTHER_CONTACTS_SCOPE,
-    CALENDAR_SCOPE
-  ],
+  google: ["openid", "email", "profile", GMAIL_SEND_SCOPE, GMAIL_READ_SCOPE, CONTACTS_SCOPE, CALENDAR_SCOPE],
   microsoft: [
     "offline_access",
     "openid",
@@ -4300,8 +4292,9 @@ var MAILBOX_SCOPES = {
   ]
 };
 var REACH = {
-  google: { contacts: CONTACTS_SCOPE, other_contacts: OTHER_CONTACTS_SCOPE, calendar: CALENDAR_SCOPE },
-  // Graph keeps no "other contacts": the people the owner wrote to come in with the mail itself.
+  // Google's "other contacts" (everyone the owner ever wrote to) is not asked for: the people the owner wrote to in the
+  // six months come in with their mail, in their threads, and the rest would fill People with every passing address.
+  google: { contacts: CONTACTS_SCOPE, calendar: CALENDAR_SCOPE },
   microsoft: { contacts: "contacts.read", calendar: "calendars.read" }
 };
 var REQUIRED = {
@@ -4320,7 +4313,18 @@ var MAILBOX_TOKEN_URL = {
 var GOOGLE_REVOKE_URL2 = "https://oauth2.googleapis.com/revoke";
 var FORM2 = { "Content-Type": "application/x-www-form-urlencoded" };
 var form2 = (p) => new URLSearchParams(p).toString();
-function mailboxAuthorizeUrl(provider, cfg, state, loginHint) {
+var b64urlOf = (bytes) => btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+async function mailboxPkceVerifier(secret, nonce) {
+  const enc2 = new TextEncoder();
+  const key = await crypto.subtle.importKey("raw", enc2.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, [
+    "sign"
+  ]);
+  return b64urlOf(await crypto.subtle.sign("HMAC", key, enc2.encode(`mailbox-pkce:${nonce}`)));
+}
+async function mailboxPkceChallenge(verifier) {
+  return b64urlOf(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)));
+}
+function mailboxAuthorizeUrl(provider, cfg, state, opts = {}) {
   const q = new URLSearchParams({
     client_id: cfg.clientId,
     redirect_uri: cfg.redirectUri,
@@ -4332,11 +4336,15 @@ function mailboxAuthorizeUrl(provider, cfg, state, loginHint) {
     q.set("access_type", "offline");
     q.set("prompt", "consent");
     q.set("include_granted_scopes", "true");
+    if (opts.challenge) {
+      q.set("code_challenge", opts.challenge);
+      q.set("code_challenge_method", "S256");
+    }
   } else {
     q.set("response_mode", "query");
     q.set("prompt", "select_account");
   }
-  if (loginHint) q.set("login_hint", loginHint);
+  if (opts.loginHint) q.set("login_hint", opts.loginHint);
   return `${MAILBOX_AUTH_URL[provider]}?${q.toString()}`;
 }
 function mailboxAdminConsentUrl(cfg, state) {
@@ -4351,7 +4359,7 @@ function mailboxAdminConsentUrl(cfg, state) {
   });
   return `https://login.microsoftonline.com/organizations/v2.0/adminconsent?${q.toString()}`;
 }
-function mailboxTokenRequest(provider, cfg, code) {
+function mailboxTokenRequest(provider, cfg, code, verifier) {
   return {
     url: MAILBOX_TOKEN_URL[provider],
     method: "POST",
@@ -4362,6 +4370,7 @@ function mailboxTokenRequest(provider, cfg, code) {
       client_secret: cfg.clientSecret,
       redirect_uri: cfg.redirectUri,
       grant_type: "authorization_code",
+      ...verifier ? { code_verifier: verifier } : {},
       ...provider === "microsoft" ? { scope: MAILBOX_SCOPES.microsoft.join(" ") } : {}
     })
   };
@@ -4404,6 +4413,13 @@ function grantHolds(provider, granted, reach) {
 
 // src/mailbox/mailbox-read.ts
 import { MIN_MS as MIN_MS3 } from "../../contracts/dist/index.js";
+var GMAIL_BULK_TABS = /* @__PURE__ */ new Set(["CATEGORY_PROMOTIONS", "CATEGORY_SOCIAL", "CATEGORY_FORUMS"]);
+function filedUnderUpdates(e) {
+  return e.labels.includes("CATEGORY_UPDATES");
+}
+function filedAsBulk(e) {
+  return e.labels.some((l) => GMAIL_BULK_TABS.has(l));
+}
 var dec2 = new TextDecoder();
 var MAILBOX_READ_MS = 1e4;
 function readVerdictOf(r, reason, limit) {
@@ -4470,7 +4486,8 @@ function gmailEmailOf(json) {
       contentType: mime(p) || null,
       size: typeof p.body?.size === "number" ? p.body.size : null
     })),
-    reportText: report || null
+    reportText: report || null,
+    labels: Array.isArray(m.labelIds) ? m.labelIds.filter((l) => typeof l === "string") : []
   };
 }
 var graphAddress = (a) => {
@@ -4501,7 +4518,8 @@ function graphEmailOf(json) {
     messageId: messageIdHeader(typeof m.internetMessageId === "string" ? m.internetMessageId : headers2["message-id"]),
     createdAt: typeof m.receivedDateTime === "string" ? m.receivedDateTime : null,
     attachments: [],
-    reportText: looksReport ? content : null
+    reportText: looksReport ? content : null,
+    labels: []
   };
 }
 function rowIdOfMessageId(id) {
@@ -4848,7 +4866,7 @@ var MAIL_PAGE = 50;
 var seconds = (iso) => Math.max(0, Math.floor(Date.parse(iso) / 1e3));
 async function gmailListSince(token, window, pageToken, deps) {
   const q = new URLSearchParams({
-    q: `after:${seconds(window.from)} before:${seconds(window.to)}`,
+    q: `after:${seconds(window.from)} before:${seconds(window.to)}${window.sender ? ` from:${window.sender}` : ""}`,
     maxResults: GMAIL_PAGE
   });
   if (pageToken) q.set("pageToken", pageToken);
@@ -4869,8 +4887,9 @@ async function gmailListSince(token, window, pageToken, deps) {
   };
 }
 async function graphListSince(token, window, link, deps) {
+  const from = window.sender ? ` and from/emailAddress/address eq '${window.sender.replace(/'/g, "''")}'` : "";
   const filter = encodeURIComponent(
-    `receivedDateTime ge ${window.from} and receivedDateTime lt ${window.to} and isDraft eq false`
+    `receivedDateTime ge ${window.from} and receivedDateTime lt ${window.to} and isDraft eq false${from}`
   );
   const url = link ?? `${GRAPH_API}/me/messages?$filter=${filter}&$select=id,conversationId,from,receivedDateTime&$orderby=receivedDateTime desc&$top=${MAIL_PAGE}`;
   const r = await providerFetch(
@@ -4933,11 +4952,6 @@ function googleContacts(token, pageToken, deps) {
   const q = new URLSearchParams({ personFields: "names,emailAddresses,phoneNumbers", pageSize: PEOPLE_PAGE });
   if (pageToken) q.set("pageToken", pageToken);
   return googlePage(token, `${PEOPLE_API}/people/me/connections?${q.toString()}`, "connections", deps);
-}
-function googleOtherContacts(token, pageToken, deps) {
-  const q = new URLSearchParams({ readMask: "names,emailAddresses,phoneNumbers", pageSize: PEOPLE_PAGE });
-  if (pageToken) q.set("pageToken", pageToken);
-  return googlePage(token, `${PEOPLE_API}/otherContacts?${q.toString()}`, "otherContacts", deps);
 }
 async function graphContacts(token, link, deps) {
   const url = link ?? `${GRAPH_API}/me/contacts?$select=displayName,emailAddresses,mobilePhone,businessPhones,homePhones&$top=${CONTACTS_PAGE}`;
@@ -7397,6 +7411,8 @@ export {
   fetchReceivedEmail,
   fetchRecording,
   fetchTwilio,
+  filedAsBulk,
+  filedUnderUpdates,
   formatRejected,
   getAgent,
   getAgentRaw,
@@ -7424,7 +7440,6 @@ export {
   googleCalendarIds,
   googleContacts,
   googleEvents,
-  googleOtherContacts,
   grantHasScope,
   grantHolds,
   grantScopes,
@@ -7499,6 +7514,8 @@ export {
   mailboxAuthorizeUrl,
   mailboxHeader,
   mailboxMessageId,
+  mailboxPkceChallenge,
+  mailboxPkceVerifier,
   mailboxRefreshRequest,
   mailboxRevokeRequest,
   mailboxTokenRequest,

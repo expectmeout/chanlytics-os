@@ -334,6 +334,7 @@ export const LOG_EVENTS = [
   "mailbox_door_failed",
   "mailbox_health_failed",
   "mailbox_held",
+  "mailbox_left_note_failed",
   "mailbox_message_unreadable",
   "mailbox_push_failed",
   "mailbox_push_refused",

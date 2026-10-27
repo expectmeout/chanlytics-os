@@ -19,6 +19,7 @@ import { StatePill } from "../../kit/pill/state-pill";
 import { RecordField } from "../../kit/record/field";
 import { canDo, gate, gateTitle, refusalToast, type LegacyFlash } from "../../legacy-verbs";
 import { connectedMailboxes } from "./connected-mailboxes";
+import { LeftSenders } from "./left-senders";
 
 const MAILBOXES = connectedMailboxes;
 /** The permission a mailbox's acts ask (contracts ROLE_PERMS): the one the doors' own role check stands on. */
@@ -572,6 +573,7 @@ export function ConnectedMailboxes({ email, flash, note, onNote }: ConnectedMail
       )}
       {mailboxes.map((m) => mailboxRow(m, ctx, now))}
       {mailboxesFoot(mailboxes.length, providers, ctx)}
+      {mailboxes.length > 0 && <LeftSenders owner={owner} flash={flash} />}
     </div>
   );
 }

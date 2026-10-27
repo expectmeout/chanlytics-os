@@ -199,6 +199,10 @@ export const env = {
   get GMAIL_PUSH_AUDIENCE() {
     return trimmedEnv(process.env.GMAIL_PUSH_AUDIENCE);
   },
+  /** The service account the push subscription signs as: a token for the audience from any other is refused. */
+  get GMAIL_PUSH_SERVICE_ACCOUNT() {
+    return trimmedEnv(process.env.GMAIL_PUSH_SERVICE_ACCOUNT);
+  },
   /** The clientState every Graph subscription carries, checked on each notification it sends. */
   get GRAPH_NOTIFY_SECRET() {
     return trimmedEnv(process.env.GRAPH_NOTIFY_SECRET);

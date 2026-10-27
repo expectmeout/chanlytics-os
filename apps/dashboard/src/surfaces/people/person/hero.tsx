@@ -11,6 +11,7 @@ import {
   DOUBT_WORDS,
   PERSON_ABOUT_WORDS,
   PERSON_DELETE_WORDS,
+  MAILBOX_SENDERS_WORDS,
   MERGE_WORDS,
   NEW_CONVERSATION_WORDS,
   PERSON_CALL_WORDS,
@@ -40,7 +41,8 @@ import { gate, navigate, openDealSheet } from "../../legacy-verbs";
 import { carryReply } from "../../inbox/carried-reply";
 import { openNewConversation } from "../../inbox/new-conversation/store";
 import { visitWordHere } from "../../workspace-word";
-import { deletePerson, keptOf, mergePerson, settleDoubt } from "../people-detail";
+import { deletePerson, keptOf, mergePerson, notAPerson, settleDoubt } from "../people-detail";
+import { NotAPersonSwitches } from "../../settings/connections/left-senders";
 import { personExportLink } from "../shell-verbs";
 import { BusinessTile, HeadLine, leaveBusiness } from "./business";
 import { CallAct } from "./call";
@@ -213,7 +215,7 @@ interface SheetAsk {
 /**
  * The typed-name confirmation to delete a person: it erases messages, media and recordings and cannot be undone. What
  * it does is the sheet's body; the question, the typed name and the two answers are its foot (the kit's Confirm, as a
- * sheet's foot draws it), so the sheet is one pane with one Cancel.
+ * sheet's foot draws it), so the sheet is one pane with one Cancel. Not a person rides it (left-senders.tsx, 00483).
  */
 function deleteAsk(c: PageCtx): SheetAsk {
   const { p, del, setDel, flash, onBack } = c;
@@ -224,12 +226,13 @@ function deleteAsk(c: PageCtx): SheetAsk {
   const confirmDelete = async () => {
     if (!typedMatches || del.busy) return;
     setDel((d) => ({ ...d, busy: true, error: null }));
-    const r = await deletePerson(p.id);
+    const bot = !!p.email && !!del.bot;
+    const r = bot ? await notAPerson(p.id, del.domain ? "domain" : "address") : await deletePerson(p.id);
     if (!r.ok) {
       setDel((d) => ({ ...d, busy: false, error: r.message || W.failed }));
       return;
     }
-    flash({ msg: W.done(p.name) });
+    flash({ msg: bot ? MAILBOX_SENDERS_WORDS.done(p.name) : W.done(p.name) });
     // The question's sheet stands an entry in the tab's history (Back closes it): taken back first, so the person's
     // Back lands on the list they came from rather than on their page under the sheet.
     await leaveSheet();
@@ -237,9 +240,12 @@ function deleteAsk(c: PageCtx): SheetAsk {
   };
   return {
     body: (
-      <p className="cl-prof-ask-detail" data-testid="delete">
-        {W.detail}
-      </p>
+      <>
+        <p className="cl-prof-ask-detail" data-testid="delete">
+          {W.detail}
+        </p>
+        <NotAPersonSwitches email={p.email} del={del} setDel={setDel} />
+      </>
     ),
     foot: (
       <Confirm
