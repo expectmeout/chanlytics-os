@@ -20,12 +20,8 @@ import { codeNotes, type LineCodeDto } from "../lines/line-codes";
 import { standingNotes, standingRow } from "../lines/number-standing";
 import { whatsappCostNotes } from "../lines/whatsapp-cost";
 import { tryItNotes } from "../lines/whatsapp-try-it";
-import {
-  googleAudienceWords,
-  type GoogleListingDto,
-  type GoogleConnectionDto,
-  type GoogleAudience,
-} from "../google/google";
+import type { GoogleListingDto, GoogleConnectionDto, GoogleAudience } from "../google/google";
+import { googleAudienceWords } from "../google/audience";
 import type { LineDto, SetupDto } from "./setup";
 import { SETUP_STATE_WORDS, textingWords, SOLE_PROP_CEILING_SENTENCE, TEXTING_NEEDS_RECORD_SENTENCE } from "./setup";
 import { ownLineStandOf } from "./setup-rows-phone";

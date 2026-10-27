@@ -6216,8 +6216,6 @@ interface GoogleConnectionDto {
 }
 /** Google's consent-screen audience for our app, as the operator set it on the edge; null = nothing to say. */
 type GoogleAudience = "testing" | "unverified" | "verified";
-/** What Google's audience means for the person about to press Connect. */
-declare function googleAudienceWords(a: GoogleAudience | null | undefined): string | null;
 /** What the database holds of Google for a workspace, as the dashboard reads it (the Google reader): everything `GET /api/v1/google` returns but what the deployment can do. */
 interface GoogleReadDto {
     listing: GoogleListingDto | null;
@@ -35058,6 +35056,11 @@ declare const BOOKING_PLATFORM_HOSTS: readonly string[];
  * fragment is the page's own, and is dropped.
  */
 declare function bookingPageOf(raw: string | null | undefined): string | null;
+
+/** Google's consent screen for Chanlytics' app, as the person about to press Connect needs to hear it. */
+
+/** What Google's audience means for the person about to press Connect. */
+declare function googleAudienceWords(a: GoogleAudience | null | undefined): string | null;
 
 /** What a CSV cell may hold before it is spelled. */
 type CsvCell = string | number | boolean | null | undefined;

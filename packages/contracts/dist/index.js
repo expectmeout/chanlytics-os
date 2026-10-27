@@ -35007,13 +35007,6 @@ function hoursFromGoogle(periods) {
   }
   return { hours, unsure: DAYS.filter((d) => unsure.has(d)) };
 }
-function googleAudienceWords(a) {
-  if (a === "testing")
-    return "Google is reviewing Chanlytics; until then Connect works for invited Google accounts only.";
-  if (a === "unverified")
-    return "Google shows a warning until its review of Chanlytics is done \u2014 choose Advanced, then Go to Chanlytics.";
-  return null;
-}
 function placesQueryOf(words3) {
   const w = words3.replace(/\s+/g, " ").trim();
   return /^[\d\s().+-]+$/.test(w) ? normalizePhone(w) ?? w : w;
@@ -42406,6 +42399,15 @@ function senderSortRefusal(sender, verdict, ownHosts) {
   const s = sender.trim().toLowerCase();
   if (verdict !== "automated" || s.includes("@")) return null;
   return senderDomainOffered(`x@${s}`, ownHosts) ? null : `${s} is many people's: mark one address instead.`;
+}
+
+// src/google/audience.ts
+function googleAudienceWords(a) {
+  if (a === "testing")
+    return "Google is reviewing Chanlytics; until then Connect works for invited Google accounts only.";
+  if (a === "unverified")
+    return "Google shows a warning until its review of Chanlytics is done \u2014 choose Advanced, then Go to Chanlytics.";
+  return null;
 }
 
 // src/imports/ledger.ts

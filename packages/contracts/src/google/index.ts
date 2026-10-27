@@ -11,7 +11,6 @@ export {
   listingLine,
   checkedWords,
   connectionWords,
-  googleAudienceWords,
   reviewSnippet,
   reviewIsNew,
   reviewNoticeIsAbout,
@@ -69,3 +68,4 @@ export {
   BOOKING_PLATFORM_HOSTS,
   BOOKING_PLATFORM_TOOLS,
 } from "./booking-page";
+export { googleAudienceWords } from "./audience";

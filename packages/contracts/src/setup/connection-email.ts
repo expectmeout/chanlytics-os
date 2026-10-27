@@ -6,7 +6,7 @@
  */
 import { agoWords } from "../shared/time";
 import { EMAIL_NOT_ANSWERED_SENTENCE } from "../email/mailbox";
-import { googleAudienceWords } from "../google/google";
+import { googleAudienceWords } from "../google/audience";
 import { SETUP_STATE_WORDS } from "./setup";
 import type { ConnectionDraft, ConnectionInputs } from "./connections";
 

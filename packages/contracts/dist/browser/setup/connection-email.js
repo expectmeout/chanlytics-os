@@ -1,6 +1,6 @@
 import { agoWords } from "../shared/time.js";
 import { EMAIL_NOT_ANSWERED_SENTENCE } from "../email/mailbox.js";
-import { googleAudienceWords } from "../google/google.js";
+import { googleAudienceWords } from "../google/audience.js";
 import { SETUP_STATE_WORDS } from "./setup.js";
 export function emailRow(i, { nowMs }) {
   const base = { kind: "email", icon: "mail", title: "Email" };
