@@ -36,8 +36,7 @@ export { addToWaitlist, refreshWaitlistRow, waitlistWaiting, markWaitlistInvited
 export { createServiceClient } from "./service-client";
 export { observeDb, namedFetch, touchOfCall, DB_REQUEST_HEADER } from "./observe";
 export type { DbLog, DbObserver, DbTouch } from "./observe";
-export { tenantDb, platformWide } from "./tenant-db";
-export type { TenantDb } from "./tenant-db";
+export { tenantDb, platformWide, type TenantDb } from "./tenant-db";
 export type { ServiceClientConfig } from "./service-client";
 export {
   ingestInbound,

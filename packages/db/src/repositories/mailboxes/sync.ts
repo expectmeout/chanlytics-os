@@ -92,7 +92,7 @@ export async function knownThreads(db: Db, tenantId: string, threadIds: string[]
 }
 
 /** What became of an email the owner sent from their mailbox (00482): kept, with the holds it answered, or why not. */
-export type OwnerEmailKept = { kept: true; resolved: number } | { kept: false; why: "not_known" | "already" };
+type OwnerEmailKept = { kept: true; resolved: number } | { kept: false; why: "not_known" | "already" };
 
 /**
  * An email the owner sent from their connected mailbox, not through Chanlytics (00482 mailbox_owner_wrote): kept in the
