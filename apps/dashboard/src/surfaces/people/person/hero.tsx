@@ -42,7 +42,7 @@ import { carryReply } from "../../inbox/carried-reply";
 import { openNewConversation } from "../../inbox/new-conversation/store";
 import { visitWordHere } from "../../workspace-word";
 import { deletePerson, keptOf, mergePerson, notAPerson, settleDoubt } from "../people-detail";
-import { NotAPersonSwitches } from "./not-a-person";
+import { NotAPersonSwitches } from "../../settings/connections/left-senders";
 import { personExportLink } from "../shell-verbs";
 import { BusinessTile, HeadLine, leaveBusiness } from "./business";
 import { CallAct } from "./call";
@@ -215,7 +215,7 @@ interface SheetAsk {
 /**
  * The typed-name confirmation to delete a person: it erases messages, media and recordings and cannot be undone. What
  * it does is the sheet's body; the question, the typed name and the two answers are its foot (the kit's Confirm, as a
- * sheet's foot draws it), so the sheet is one pane with one Cancel. Not a person rides it (not-a-person.tsx, 00483).
+ * sheet's foot draws it), so the sheet is one pane with one Cancel. Not a person rides it (left-senders.tsx, 00483).
  */
 function deleteAsk(c: PageCtx): SheetAsk {
   const { p, del, setDel, flash, onBack } = c;
