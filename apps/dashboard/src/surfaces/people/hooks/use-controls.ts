@@ -300,7 +300,7 @@ export function usePlControls<R extends TableRow, X extends TableCtx>(args: Cont
   // The order a desk's table stands in is one its member can see (plSortShown); the member's sort stays theirs. A phone
   // has no columns and sorts from its menu.
   const chosen = { by: sortBy, dir: view.sortDir };
-  const { by: sortShown, dir: sortDirShown } = phone ? chosen : plSortShown(deskColumns, cols, chosen, args.sortFirst);
+  const { by: sortShown, dir: sortDirShown } = phone ? chosen : plSortShown(deskColumns, chosen, args.sortFirst);
   // A press on the heading lit turns its order round, the heading the table shows lit, whichever the member last chose.
   const onSort = (key: string) => {
     viewTouched.current = true;
