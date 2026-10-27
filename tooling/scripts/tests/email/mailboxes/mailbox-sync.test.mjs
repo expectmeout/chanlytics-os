@@ -41,7 +41,7 @@ const request = buildEmailRequest({
 });
 
 /** A Gmail mailbox, the reach-out email it sent (stamped with its thread), its person and its lead. */
-function world({ box = {}, cursor = "100" } = {}) {
+function world({ box = {}, cursor = "100", said = [] } = {}) {
   const mailbox = rows.mailboxConnection({ tenant_id: T, sync_cursor: cursor, ...box });
   const v = vault({ [mailbox.id]: liveCredentials("ya29.sam") });
   const tables = {
@@ -86,9 +86,12 @@ function world({ box = {}, cursor = "100" } = {}) {
     escalations: [],
     events: [],
     jobs: [],
+    // 00483: what the workspace said of its senders, by address or domain.
+    mailbox_senders: said.map(([sender, verdict]) => ({ tenant_id: T, sender, verdict })),
   };
-  /** What the door for the owner's emails was handed (00482), each call. */
+  /** What the door for the owner's emails was handed (00482), each call; and each email left, noted (00483). */
   const owned = [];
+  const left = [];
   const rpcs = {
     ...v.rpcs,
     // 00424: of the threads that changed, the ones holding an email this workspace sent.
@@ -129,6 +132,11 @@ function world({ box = {}, cursor = "100" } = {}) {
       for (const e of open) e.state = "resolved";
       return { kept: true, message_id: `m-${a.p_external_id}`, conversation_id: conversation, resolved: open.length };
     },
+    // 00483: one more email left from a sender, as the owner's list of them keeps it.
+    mailbox_left_note: (a) => {
+      left.push([a.p_address, a.p_why]);
+      return null;
+    },
     // 00128, as the receipts suite models it.
     stamp_email_sent: (a) => {
       const m = tables.messages.find((x) => x.id === a.p_message_id && x.tenant_id === a.p_tenant_id);
@@ -137,7 +145,7 @@ function world({ box = {}, cursor = "100" } = {}) {
       return [{ status: m.status, conversation_id: m.conversation_id }];
     },
   };
-  return { mailbox, tables, owned, db: fakeDb(tables, {}, rpcs) };
+  return { mailbox, tables, owned, left, db: fakeDb(tables, {}, rpcs) };
 }
 
 const gmailMessage = (id, threadId, { from = OWNER, text = "Sure, call me Thursday.", headers = [], parts } = {}) => ({
@@ -609,60 +617,98 @@ test("Gmail: the mailbox's drafts are never read, nor spam outside a thread of o
   }
 });
 
-test("Gmail's tabs: what it filed as promotions outside a thread of ours is read and left; a reply it filed there is a reply all the same, and a person under Updates is a person", async () => {
-  const w = world();
-  const tabbed = (labels, id, threadId, opts) => ({
-    ...gmailMessage(id, threadId, opts),
-    labelIds: ["INBOX", ...labels],
-  });
-  const net = providers((c) => {
+/** A Gmail message as users.messages.get answers it, under the labels Gmail filed it with. */
+const tabbed = (labels, id, threadId, opts) => ({
+  ...gmailMessage(id, threadId, opts),
+  labelIds: ["INBOX", ...labels],
+});
+
+/** Gmail's history of these arrivals, each with its labels, and each message as its read answers it. */
+const arrivals = (messages, historyId = "122") =>
+  providers((c) => {
     if (c.url.includes("/history?"))
       return {
         json: {
-          history: [
-            { messagesAdded: [{ message: { id: "r7", threadId: "g-thread", labelIds: ["CATEGORY_PROMOTIONS"] } }] },
-            { messagesAdded: [{ message: { id: "a7", threadId: "a-shop", labelIds: ["CATEGORY_PROMOTIONS"] } }] },
-            { messagesAdded: [{ message: { id: "u7", threadId: "a-quote", labelIds: ["CATEGORY_UPDATES"] } }] },
-          ],
-          historyId: "122",
+          history: messages.map((m) => ({
+            messagesAdded: [{ message: { id: m.id, threadId: m.threadId, labelIds: m.labelIds } }],
+          })),
+          historyId,
         },
       };
     const reports = reportsList(c);
     if (reports) return reports;
-    if (c.url.includes("/messages/r7")) return { json: tabbed(["CATEGORY_PROMOTIONS"], "r7", "g-thread") };
-    if (c.url.includes("/messages/a7"))
-      return {
-        json: tabbed(["CATEGORY_PROMOTIONS"], "a7", "a-shop", {
-          from: "Amazon.com <store-news@amazon.com>",
-          text: "Today's deals.",
-        }),
-      };
-    if (c.url.includes("/messages/u7"))
-      return {
-        json: tabbed(["CATEGORY_UPDATES"], "u7", "a-quote", {
-          from: "Rosa Diaz <rosa@example.com>",
-          text: "Signed and sent back.",
-        }),
-      };
-    return { status: 404 };
+    const id = /\/messages\/([a-z0-9]+)\?/.exec(c.url)?.[1];
+    const m = messages.find((x) => x.id === id);
+    return m ? { json: m } : { status: 404 };
   });
+
+test("Gmail's tabs: promotions outside a thread of ours is left, a reply filed there is a reply all the same; under Updates a stranger's notice that answers nothing is left, and a person the workspace knows, or a reply, comes in", async () => {
+  const w = world();
+  const net = arrivals([
+    tabbed(["CATEGORY_PROMOTIONS"], "r7", "g-thread"),
+    tabbed(["CATEGORY_PROMOTIONS"], "a7", "a-shop", { from: "Amazon.com <store-news@amazon.com>", text: "Deals." }),
+    tabbed(["CATEGORY_UPDATES"], "u7", "a-notice", { from: "Rosa Diaz <rosa@example.com>", text: "Signed and sent." }),
+    // The owner of the movers' business is in People (the reach-out's person): their email under Updates comes in.
+    tabbed(["CATEGORY_UPDATES"], "u8", "a-quote", { text: "Here is our signed quote." }),
+    tabbed(["CATEGORY_UPDATES"], "u9", "a-reply", {
+      from: "Lee Park <lee@example.com>",
+      text: "Yes, Tuesday works.",
+      headers: [{ name: "In-Reply-To", value: "<quote-1@getharbor.example>" }],
+    }),
+  ]);
   try {
     const out = await syncMailbox(w.db, w.mailbox, logger({ tenant_id: T }));
     assert.deepEqual(out, {
       outcome: "synced",
-      read: 3,
+      read: 5,
       bounced: 0,
       replies: 1,
-      people: 1,
+      people: 2,
       owner: 0,
-      dropped: 1,
+      dropped: 2,
       unreadable: 0,
     });
     assert.deepEqual(
       w.tables.jobs.map((j) => withoutRequestId(j.payload).received_id),
-      ["r7", "u7"],
-      "the newsletter is never taken in",
+      ["r7", "u8", "u9"],
+      "the newsletter and the stranger's notice are never taken in",
     );
+    assert.deepEqual(
+      w.left,
+      [
+        ["store-news@amazon.com", "gmail_tab"],
+        ["rosa@example.com", "updates"],
+      ],
+      "each is on the owner's list, with why, one press from coming in",
+    );
+  } finally {
+    net.restore();
+  }
+});
+
+test("what the workspace said of a sender stands: a person comes in whatever the email looks like, and an automated domain leaves every address at it and below it", async () => {
+  const w = world({
+    said: [
+      ["news.example", "person"],
+      ["vendor.example", "automated"],
+    ],
+  });
+  const net = arrivals([
+    tabbed([], "n1", "a-news", {
+      from: "Shop News <deals@news.example>",
+      text: "Our winter rates.",
+      headers: [{ name: "List-Unsubscribe", value: "<mailto:leave@news.example>" }],
+    }),
+    tabbed([], "v1", "a-vendor", { from: "Pat <pat@billing.vendor.example>", text: "Invoice 4471 attached." }),
+  ]);
+  try {
+    const out = await syncMailbox(w.db, w.mailbox, logger({ tenant_id: T }));
+    assert.deepEqual([out.people, out.dropped], [1, 1]);
+    assert.deepEqual(
+      w.tables.jobs.map((j) => withoutRequestId(j.payload).received_id),
+      ["n1"],
+    );
+    assert.deepEqual(w.left, [["pat@billing.vendor.example", "said"]]);
   } finally {
     net.restore();
   }

@@ -136,5 +136,6 @@ test("the thread keeps no private list of these words", () => {
 test("the thread visibly separates what was said from what was only drafted", () => {
   // The mark on the bubble is drawn and run in inbox-true.test.mjs ("the reply that didn't send says so").
   const css = readCode("apps/dashboard/src/legacy/styles/conversations.css");
-  assert.ok(css.includes(".tl-msg.undelivered .tl-msg-bubble"), "and the mark must have a style");
+  // On the words, not the bubble's frame, which stands as wide as the thread on a desk (#1841).
+  assert.ok(css.includes(".tl-msg.undelivered .tl-msg-body"), "and the mark must have a style");
 });

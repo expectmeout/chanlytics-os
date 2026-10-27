@@ -120,7 +120,12 @@ and the code disagree, the code wins. The status was read again at `e9d6325f0` (
     message goes into its person's thread through `ingest_before`: the person resolved as a client list's would be
     (asserted, an import, so the erased stay erased), the thread made or found and never reopened, the message kept
     once by its provider id, marked `meta.backfill` and handled. Newsletters, receipts and delivery reports are read and
-    dropped, and counted. Mail the owner sent to one person is kept as theirs, outbound.
+    dropped, and counted. Mail the owner sent to one person is kept as theirs, outbound. The import and the live read
+    sort alike (edge `mailbox-sorting.ts`, 27 October 2026): what the workspace said of the sender first
+    (`mailbox_senders`, 00483: a person comes in whatever the email looks like, an automated address or domain is left),
+    then what the email claims, then Gmail's Promotions, Social and Forums, then a stranger's notice under Updates that
+    answers nothing. What is left is noted one line a sender (`mailbox_left`), for the owner to see and bring in. A copy
+    the hosted address takes by Gmail's forward, of mail the connected mailbox holds too, is left to the mailbox's read.
 20. **From now on**, the mailbox's sync takes in people's mail outside known threads too (R13). Nothing is sent: each
     email waits in Need you with a reply drafted (decision 0071's drafts ahead, which is R15 built), and the reply goes
     from the mailbox the email came to. What the owner answers from Gmail itself, to a person the workspace knows, is

@@ -16556,9 +16556,8 @@ var EVENT_KINDS = [
   /** A gate paused the workspace's offers by email (complaints or bounces over their limits), and the back office turned them back on (00299). The reason, never an address. */
   "mailbox.offers_paused",
   "mailbox.offers_resumed",
-  /** A mailbox the business writes cold email from (00423, decision 0056): connected (or connected again), signed out
-   * by its provider, held for its own mail, resumed by its owner, paused and unpaused by its owner, removed. Its
-   * address and the reason, never its token. */
+  /** A mailbox the business connected (00423, decision 0056), by its address and the reason, never its token; and
+   * what the workspace said of a sender of its mail (00483: address or domain, and the verdict, never the address). */
   "mailbox_connection.connected",
   "mailbox_connection.signed_out",
   "mailbox_connection.held",
@@ -16566,6 +16565,7 @@ var EVENT_KINDS = [
   "mailbox_connection.paused",
   "mailbox_connection.unpaused",
   "mailbox_connection.removed",
+  "mailbox_connection.sender_sorted",
   /** A lead search's round started, waited, or ended with one of the nine endings (00140). */
   "lead.round",
   /** An ask no source card fits, logged as demand (§0.3): the words asked, never a place. */
@@ -42349,6 +42349,19 @@ function customerDomainWords(host) {
   return `Your customers write to ${host}, so this mailbox sends ${CUSTOMER_DOMAIN_DAILY_MAX} a day at most to keep their mail and bookings safe. For more, connect a mailbox on a second domain, such as get${host}.`;
 }
 
+// src/email/mailbox-senders.ts
+function senderVerdictOf(said, address) {
+  const a = address.trim().toLowerCase();
+  const exact = said.get(a);
+  if (exact) return exact;
+  const labels = a.slice(a.lastIndexOf("@") + 1).split(".");
+  for (let i = 0; i < labels.length - 1; i++) {
+    const v = said.get(labels.slice(i).join("."));
+    if (v) return v;
+  }
+  return null;
+}
+
 // src/imports/ledger.ts
 var IMPORT_SOURCES = [
   "google_reviews",
@@ -63327,6 +63340,17 @@ var SCHEMA_SETS = {
   "mailbox_connections.held_why": ["bounces", "complaint", "unsubscribes"],
   "mailbox_connections.provider": ["google", "microsoft"],
   "mailbox_connections.state": ["connected", "reconnect", "paused", "held", "removed"],
+  "mailbox_left.why": [
+    "automated",
+    "auto_reply",
+    "report",
+    "booking_notice",
+    "forwarding_confirmation",
+    "gmail_tab",
+    "updates",
+    "said"
+  ],
+  "mailbox_senders.verdict": ["automated", "person"],
   "mailboxes.offers_paused_reason": ["complaints", "bounces"],
   "mailboxes.reply_mode": ["draft", "veto", "auto"],
   "memberships.role": ["owner", "operator", "partner", "viewer"],
@@ -66997,6 +67021,7 @@ var WORDS2 = {
   "mailbox_connection.paused": "A mailbox to write from was paused",
   "mailbox_connection.unpaused": "A mailbox to write from writes again",
   "mailbox_connection.removed": "A mailbox to write from was removed",
+  "mailbox_connection.sender_sorted": "Who sends your mailbox automated mail changed",
   "channel.connected": "A WhatsApp number was connected",
   "lead.stage": "A lead moved",
   "lead.emailed": "A lead was marked as emailed",
@@ -71756,6 +71781,7 @@ export {
   sendWindowsOf,
   sendableTemplates,
   senderLanguage,
+  senderVerdictOf,
   senderWords,
   sendingEndsAt,
   sendsOf,

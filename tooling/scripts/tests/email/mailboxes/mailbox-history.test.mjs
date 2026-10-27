@@ -35,7 +35,7 @@ const SCOPES = {
  * ingest_before was handed (a person new the first time an address is seen), resolve_person's people, and the threads
  * a reach-out started (`reached`), with the ones asked about.
  */
-function world({ box = {}, credentials = liveCredentials("ya29.sam"), reached = [] } = {}) {
+function world({ box = {}, credentials = liveCredentials("ya29.sam"), reached = [], contacts = [] } = {}) {
   const mailbox = rows.mailboxConnection({
     tenant_id: T,
     provider: "google",
@@ -48,7 +48,15 @@ function world({ box = {}, credentials = liveCredentials("ya29.sam"), reached = 
   const kept = [];
   const people = [];
   const asked = [];
-  const tables = { mailbox_connections: [mailbox], imports: [], jobs: [], events: [] };
+  const left = [];
+  const tables = {
+    mailbox_connections: [mailbox],
+    imports: [],
+    jobs: [],
+    events: [],
+    contacts: contacts.map((c) => ({ tenant_id: T, erased_at: null, merged_into_contact_id: null, ...c })),
+    mailbox_senders: [],
+  };
   const db = fakeDb(
     tables,
     {},
@@ -69,6 +77,11 @@ function world({ box = {}, credentials = liveCredentials("ya29.sam"), reached = 
         const seen = people.some((p) => (p.p_email || p.p_phone) === key);
         people.push(a);
         return { contact_id: `p-${key}`, outcome: seen ? "matched" : "new" };
+      },
+      // 00483: one more email left from a sender, as the owner's list of them keeps it.
+      mailbox_left_note: (a) => {
+        left.push([a.p_address, a.p_why]);
+        return null;
       },
       // 00424: of the threads asked about, the ones holding an email this workspace sent.
       mailbox_threads_known: (a) => {
@@ -100,7 +113,7 @@ function world({ box = {}, credentials = liveCredentials("ya29.sam"), reached = 
       },
     },
   );
-  return { db, tables, kept, people, asked, mailbox };
+  return { db, tables, kept, people, asked, left, mailbox };
 }
 
 /** One part, as the job runner hands it: which try it is, as the claim counts them. */
@@ -537,10 +550,21 @@ test("what came in as people on 26 and 27 Oct 2026 is left and counted: DMARC re
   assert.deepEqual(keptIds(w), ["p1"], "only what a person wrote");
   assert.deepEqual(ledger(w, "mailbox").counts, { messages: 1, people: 1, dropped: 5 });
   assert.deepEqual(w.asked, ["tam1", "tso1", "tfo1"], "whether a reach-out started it, asked of a tab's message alone");
+  assert.deepEqual(
+    w.left,
+    [
+      ["dmarcreport@microsoft.com", "automated"],
+      ["dmarc_reports@reports.emailsrvr.com", "automated"],
+      ["store-news@amazon.com", "gmail_tab"],
+      ["pat@social.example", "gmail_tab"],
+      ["circle@forum.example", "gmail_tab"],
+    ],
+    "each sender left is on the owner's list, with why",
+  );
 });
 
-test("Gmail's tabs never leave a reply in a thread a reach-out started, nor a person Gmail filed under Updates", async () => {
-  const w = world({ reached: ["g-reach"] });
+test("Gmail's tabs never leave a reply in a thread a reach-out started; under Updates a stranger's notice that answers nothing is left and listed, and a person the workspace knows, or a reply, comes in", async () => {
+  const w = world({ reached: ["g-reach"], contacts: [{ id: "k-rosa", email: "rosa@example.com" }] });
   const net = gmailWith([
     // A mailbox connected again reads back over its earlier connection's months, a reach-out's thread among them.
     filed(["CATEGORY_PROMOTIONS"], {
@@ -552,7 +576,7 @@ test("Gmail's tabs never leave a reply in a thread a reach-out started, nor a pe
       messageId: "<re1@fixture-movers.example>",
       text: "Sure, call me Thursday.",
     }),
-    // Updates holds what a person sends through a tool beside the receipts: it is no tab of bulk.
+    // Rosa is in People: Gmail filing her signed quote with the receipts leaves nothing.
     filed(["CATEGORY_UPDATES"], {
       id: "up1",
       threadId: "tup1",
@@ -562,15 +586,37 @@ test("Gmail's tabs never leave a reply in a thread a reach-out started, nor a pe
       messageId: "<up1@example.com>",
       text: "Signed and sent back.",
     }),
+    // An account's notice from a stranger, answering nothing: left, and listed for the owner.
+    filed(["CATEGORY_UPDATES"], {
+      id: "up2",
+      threadId: "tup2",
+      from: "Amazon <account-update@amazon.com>",
+      to: OWN,
+      subject: "Your account",
+      messageId: "<up2@amazon.com>",
+      text: "We updated your account.",
+    }),
+    // A stranger's reply under Updates answers something: it comes in.
+    filed(["CATEGORY_UPDATES"], {
+      id: "up3",
+      threadId: "tup3",
+      from: "Lee Park <lee@example.com>",
+      to: OWN,
+      subject: "Re: Your quote",
+      messageId: "<up3@example.com>",
+      text: "Yes, Tuesday works.",
+      headers: { "In-Reply-To": "<quote-1@getharbor.example>" },
+    }),
   ]);
   try {
     await part(w, "mailbox");
   } finally {
     net.restore();
   }
-  assert.deepEqual(keptIds(w), ["re1", "up1"]);
-  assert.deepEqual(ledger(w, "mailbox").counts, { messages: 2, people: 2, dropped: 0 });
-  assert.deepEqual(w.asked, ["g-reach"], "Updates asks nothing");
+  assert.deepEqual(keptIds(w), ["re1", "up1", "up3"]);
+  assert.deepEqual(ledger(w, "mailbox").counts, { messages: 3, people: 3, dropped: 1 });
+  assert.deepEqual(w.left, [["account-update@amazon.com", "updates"]], "the notice is on the owner's list");
+  assert.deepEqual(w.asked, ["g-reach", "tup2"], "a reach-out's thread is asked only of what a tab alone would leave");
 });
 
 test("the mailbox's people: its contacts and the people it wrote to, through the one person door, a page at a time, never the mailbox's own address", async () => {

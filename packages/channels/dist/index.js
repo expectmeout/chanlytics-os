@@ -3992,6 +3992,9 @@ function grantHolds(provider, granted, reach) {
 // src/mailbox/mailbox-read.ts
 import { MIN_MS as MIN_MS3 } from "../../contracts/dist/index.js";
 var GMAIL_BULK_TABS = /* @__PURE__ */ new Set(["CATEGORY_PROMOTIONS", "CATEGORY_SOCIAL", "CATEGORY_FORUMS"]);
+function filedUnderUpdates(e) {
+  return e.labels.includes("CATEGORY_UPDATES");
+}
 function filedAsBulk(e) {
   return e.labels.some((l) => GMAIL_BULK_TABS.has(l));
 }
@@ -6981,6 +6984,7 @@ export {
   fetchRecording,
   fetchTwilio,
   filedAsBulk,
+  filedUnderUpdates,
   formatRejected,
   getAgent,
   getAgentRaw,

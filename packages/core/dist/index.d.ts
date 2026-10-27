@@ -1497,9 +1497,15 @@ interface EmailIngestPorts {
     readReply(tenantId: string, messageId: string): Promise<void>;
     markProcessed(tenantId: string, messageId: string): Promise<void>;
     received(mailboxId: string, at: string): Promise<void>;
+    /**
+     * Whether one of these addresses is a mailbox the workspace connected that its sync reads (00423: connected, paused or
+     * held): a copy of an email that mailbox holds too, which its sync takes in (Gmail forwarding its mail to the hosted
+     * address, or an email to both). A connected mailbox's own intake answers false.
+     */
+    readByMailbox(tenantId: string, addresses: readonly string[]): Promise<boolean>;
     now(): number;
 }
-type EmailIngestOutcome = "kept_for_a_person" | "kept_for_the_reading" | "kept_quietly" | "kept_as_booking" | "kept_as_confirmation" | "already_handled" | "not_a_conversation" | "our_own" | "erased_person" | "no_sender" | "gone";
+type EmailIngestOutcome = "kept_for_a_person" | "kept_for_the_reading" | "kept_quietly" | "kept_as_booking" | "kept_as_confirmation" | "read_by_mailbox" | "already_handled" | "not_a_conversation" | "our_own" | "erased_person" | "no_sender" | "gone";
 /** As much of one email's words as a thread keeps. The original stays with the provider; this is what a person reads and, one day, a model. */
 declare const EMAIL_BODY_MAX = 20000;
 /** What the person who opens the thread is told, by what the email claimed to be. */
