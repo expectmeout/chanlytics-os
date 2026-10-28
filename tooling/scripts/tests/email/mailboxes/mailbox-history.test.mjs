@@ -17,7 +17,7 @@ import { MAILBOX_ENV, gmailReceived, liveCredentials, providers, vault, withEnv 
 
 const restore = withEnv(MAILBOX_ENV);
 after(restore);
-const { historyImports } = await importSrc("apps/edge/lib/imports/history-import.ts");
+const { historyImports, startMailboxHistory } = await importSrc("apps/edge/lib/imports/history-import.ts");
 
 const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const OWN = "sam@getharbor.example";
@@ -659,6 +659,72 @@ test("the mailbox's people: its own contacts, through the one person door, a pag
   );
   const row = ledger(w, "contacts");
   assert.deepEqual([row.state, row.counts], ["done", { people: 2 }]);
+});
+
+test("a second mailbox adds what it brings to the first's: its first run keeps the workspace's counts and reads from a cursor of its own", async () => {
+  // On 27 Oct 2026 a second mailbox connected and the Email card said 222 emails and 0 people: its runs had started the
+  // workspace's rows afresh, and the first mailbox's 414 emails and 249 people were gone from them.
+  const w = world();
+  w.tables.imports.push(
+    {
+      tenant_id: T,
+      source: "mailbox",
+      state: "done",
+      counts: { messages: 414, people: 34, dropped: 900 },
+      parts_done: 9,
+      oldest: "2026-06-07T00:00:00Z",
+      via: "google",
+      job_cursor: { connection: "first-box", window: { from: "2026-04-01T00:00:00Z", to: "2026-10-01T00:00:00Z" } },
+      last_error: null,
+    },
+    {
+      tenant_id: T,
+      source: "contacts",
+      state: "done",
+      counts: { people: 249 },
+      parts_done: 1,
+      oldest: null,
+      via: "google",
+      job_cursor: { list: "contacts", page: null, connection: "first-box" },
+      last_error: null,
+    },
+  );
+  const quiet = { error() {}, warn() {}, info() {} };
+  await startMailboxHistory(w.db, {
+    tenantId: T,
+    mailboxId: w.mailbox.id,
+    provider: "google",
+    scopes: [...SCOPES.mail, SCOPES.contacts],
+    first: true,
+    by: null,
+    log: quiet,
+  });
+  for (const source of ["mailbox", "contacts"]) {
+    const row = ledger(w, source);
+    assert.deepEqual([row.state, row.parts_done, row.job_cursor], ["queued", 0, {}], `${source}: a run of its own`);
+  }
+  assert.deepEqual(
+    ledger(w, "mailbox").counts,
+    { messages: 414, people: 34, dropped: 900 },
+    "the first's mail counted",
+  );
+  assert.deepEqual(ledger(w, "contacts").counts, { people: 249 }, "and its people");
+  // The second mailbox's people come in on top of the first's.
+  const net = providers((c) =>
+    c.url.startsWith(`${PEOPLE}/people/me/connections`)
+      ? {
+          json: {
+            connections: [{ names: [{ displayName: "Rosa Diaz" }], emailAddresses: [{ value: "rosa@example.com" }] }],
+          },
+        }
+      : { status: 404 },
+  );
+  try {
+    await part(w, "contacts");
+  } finally {
+    net.restore();
+  }
+  assert.deepEqual([ledger(w, "contacts").state, ledger(w, "contacts").counts], ["done", { people: 250 }]);
 });
 
 test("the mailbox's people: only the lists the owner left ticked are read, and with none ticked the row says how to bring them", async () => {
