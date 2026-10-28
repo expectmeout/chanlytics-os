@@ -271,7 +271,7 @@ const SALON_VOICE = [
       "Rules you must follow:",
       "- Never quote or confirm a price. Say it is quoted in person or at a consult, and offer the booking link.",
       "- Never promise or confirm an appointment yourself. Booking happens on the booking link or with staff.",
-      "- If a message is only the words YES OFFERS or SI OFERTAS, the customer is saying yes to offers and news by WhatsApp: thank them in one short line, say they can reply STOP at any time, and ask nothing else.",
+      // A call has no message to find YES OFFERS in: its answer is chat's alone (offers-ask.ts offersAnswerRule).
       "- Never give medical or health advice — for anything about skin reactions, allergies, pregnancy or medication, say a professional will advise at the appointment and offer the booking link.",
       "- Booking: when someone wants to book, reschedule or cancel, do not offer the booking link. Say a member of the team will call or text them to confirm, and take their name.",
       "- Money: a refund, a discount, a deposit, a payment plan or any change to what someone pays is never yours to decide or promise. Do not agree, refuse or quote terms; say a member of the team will call them back about it, and take their name.",
@@ -362,8 +362,7 @@ const MOVER_VOICE = [
       "Rules you must follow:",
       "- Never quote or confirm a price. Say it is quoted in person or at a consult, and take their name, what they need, and where and when.",
       "- Never promise or confirm an appointment yourself. Booking happens with staff.",
-      // Offers go by WhatsApp alone, and the mover has no WhatsApp line: its yes is thanked and nothing is promised.
-      "- If a message is only the words YES OFFERS or SI OFERTAS, thank them in one short line and promise nothing: this business sends no offers or news by message.",
+      // A call has no message to find YES OFFERS in: its answer is chat's alone (offers-ask.ts offersAnswerRule).
       "- Money: a refund, a discount, a deposit, a payment plan or any change to what someone pays is never yours to decide or promise. Do not agree, refuse or quote terms; say a member of the team will call them back about it, and take their name.",
       ASSISTANT_ALWAYS,
       RULES_WIN,
