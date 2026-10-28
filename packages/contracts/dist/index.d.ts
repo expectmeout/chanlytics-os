@@ -43167,6 +43167,11 @@ declare function websiteFormPerson(f: Pick<WebsiteFormInput, "name" | "email" | 
     email: string | null;
     phone: string | null;
 } | null;
+/** When a form is read: the moment it arrives, and the zone its workspace keeps its days in. */
+interface WebsiteFormWhen {
+    nowMs: number;
+    tz: string;
+}
 /**
  * Whether a form reached the workspace late: sent over an hour before it arrived (a form re-sent from where it was kept
  * before the door). Its note says the day, and the owner is told on the bell alone: old news is not an alarm.
@@ -43174,16 +43179,17 @@ declare function websiteFormPerson(f: Pick<WebsiteFormInput, "name" | "email" | 
 declare function websiteFormLate(f: Pick<WebsiteFormInput, "at">, nowMs: number): boolean;
 /**
  * The note a form suggests on the person's page: what they signed up for or asked, in their own words where they wrote
- * any, and the day they sent it when it arrived late. At most a note's length: their words are cut, never the line.
+ * any, and the day they sent it, in the workspace's zone, when it arrived late. At most a note's length: their words are
+ * cut, never the line.
  */
-declare function websiteFormNote(f: WebsiteFormInput, nowMs: number): string;
+declare function websiteFormNote(f: WebsiteFormInput, when: WebsiteFormWhen): string;
 /** The owner's notice of a form: who sent it, what it says, and their page, where the note waits. */
 declare function websiteFormNotice(f: WebsiteFormInput, who: {
     contactId: string;
     name: string | null;
     email: string | null;
     phone: string | null;
-}, nowMs: number): Omit<JobNews, "sourceEvent" | "kind"> & {
+}, when: WebsiteFormWhen): Omit<JobNews, "sourceEvent" | "kind"> & {
     kind: "website_form";
 };
 

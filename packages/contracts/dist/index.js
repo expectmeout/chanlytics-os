@@ -53014,22 +53014,29 @@ function websiteFormPerson(f) {
   if (!email && !phone) return null;
   return { name: f.name?.trim() || null, email, phone };
 }
-var sentOn = (iso) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+function sentOn(iso, tz) {
+  const at3 = new Date(iso);
+  try {
+    return dateFormat("en-US", { month: "short", day: "numeric", timeZone: tz }).format(at3);
+  } catch {
+    return dateFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).format(at3);
+  }
+}
 var LATE_MS = HOUR_MS;
 function websiteFormLate(f, nowMs) {
   return !!f.at && nowMs - Date.parse(f.at) > LATE_MS;
 }
-function websiteFormNote(f, nowMs) {
+function websiteFormNote(f, when) {
   const first = f.about?.trim() || (f.form === "signup" ? "Signed up for your offers on your website" : "Sent a request on your website");
   const head = `${first.replace(/[.\s]+$/, "")}.`;
-  const late = f.at && websiteFormLate(f, nowMs) ? ` Sent ${sentOn(f.at)}.` : "";
+  const late = f.at && websiteFormLate(f, when.nowMs) ? ` Sent ${sentOn(f.at, when.tz)}.` : "";
   const words3 = f.note?.trim();
   if (!words3) return `${head}${late}`.slice(0, NOTE_MAX);
   const room = NOTE_MAX - head.length - late.length - ' They wrote: ""'.length;
   const said = words3.length > room ? `${words3.slice(0, Math.max(0, room - 1)).trimEnd()}\u2026` : words3;
   return `${head} They wrote: "${said}"${late}`.slice(0, NOTE_MAX);
 }
-function websiteFormNotice(f, who, nowMs) {
+function websiteFormNotice(f, who, when) {
   const named = who.name || who.email || who.phone || "Someone";
   const reach = [who.email, who.phone].filter(Boolean).join(" \xB7 ");
   return {
@@ -53038,7 +53045,7 @@ function websiteFormNotice(f, who, nowMs) {
     about: { type: "contact", id: who.contactId },
     subject: (f.form === "signup" ? `${named} signed up on your website` : `${named} sent a request on your website`).slice(0, 200),
     body: [
-      websiteFormNote(f, nowMs),
+      websiteFormNote(f, when),
       reach ? `To reach them: ${reach}` : null,
       "They are in People now, and what they asked waits on their page as a note to keep."
     ].filter(Boolean).join("\n"),
