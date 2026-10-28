@@ -2835,6 +2835,23 @@ button.tl-stamp:focus-visible {
 .ix-tpl-blank::placeholder {
   color: var(--ink-faint);
 }
+/* The box while the templates are read (template-box.tsx templateReading): the message's name a bar in its chip, and its
+   sentence two bars, each a line of the sentence tall with the bar in its middle, so the box stands at a sentence's height. */
+.ix-tpl-sk {
+  display: block;
+  height: 10px;
+  margin-block: calc((1em * 1.45 - 10px) / 2);
+  border-radius: var(--radius-full);
+  background: var(--surface-inset-fill);
+}
+.ix-tpl-sk-short {
+  width: 60%;
+}
+.ix-tpl-name .ix-tpl-sk-name {
+  width: 120px;
+  margin-block: 0;
+  background: var(--line);
+}
 /* A template's blank in the picker's line under its name (template-box.tsx templateSaid): its label, underlined as the
    place the member's words go. */
 .ix-tpl-said-blank {

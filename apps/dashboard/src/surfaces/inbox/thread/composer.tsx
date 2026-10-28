@@ -13,7 +13,7 @@ import { ixInDialog } from "../keys";
 import { canDo, gate, tabMemory } from "../shell";
 import type { Thread } from "../types";
 import { takeCarriedReply } from "../carried-reply";
-import { keptReplyOf } from "./kept-draft";
+import { keptReplyNow, keptReplyOf } from "./kept-draft";
 import { useReplyDraftDoor } from "./reply-strip";
 import { detailField } from "./shell-thread";
 import { holderName } from "../../holder-names";
@@ -37,10 +37,16 @@ function putCarriedReply(threadId: string, setText: SetText, taRef: BoxRef) {
 
 /**
  * Need you's drafted reply (kept-draft.ts), where the strip says it can be changed or sent from here: only into an empty
- * box, and only while this thread is the one open.
+ * box, and only while this thread is the one open. The box is drawn with it where the newest kept drafts hold it (Composer's
+ * first words); the thread's own read is asked for only where they cannot say.
  */
 function putKeptDraft(thread: Thread, setText: SetText) {
   if (!thread.real) return;
+  const now = keptReplyNow(thread);
+  if (now !== undefined) {
+    if (now) setText((cur) => (cur && cur.trim() ? cur : now));
+    return;
+  }
   let open = true;
   // A read that fails puts nothing: the box stays as the member left it.
   void keptReplyOf(thread)
@@ -341,7 +347,11 @@ export const Composer = ({ thread, reply, hasApproval, onType = null, onSend = (
     if (v && v.trim() && v !== reply) tabMemory()?.keepDraft("reply", v, draftOf);
     else tabMemory()?.dropDraft("reply", draftOf);
   };
-  const [text, setText] = useState(() => (draftOf && tabMemory()?.draft<string>("reply", draftOf)) || reply);
+  // Else the receptionist's, else the reply Ask kept for their newest message, where the newest kept drafts hold it (they
+  // come with the Inbox's first reads): drawn with its words, never filled in a beat after the box (putKeptDraft).
+  const [text, setText] = useState(
+    () => (draftOf && tabMemory()?.draft<string>("reply", draftOf)) || reply || keptReplyNow(thread) || "",
+  );
   const write = (v: string) => {
     setText(v);
     keepWords(v);

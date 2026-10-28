@@ -14,7 +14,7 @@ import {
   type PersonRowVM,
   type PipelineVM,
 } from "@chanlytics/contracts";
-import { PEOPLE_PAGE, countPeople, listPeople, nextPeopleParam } from "../people/people";
+import { PEOPLE_PAGE, countPeople, listPeople, nextPeopleParam, onePerson } from "../people/people";
 import type { PeopleCursor } from "@chanlytics/db";
 import { withVisits, type PeopleVisits } from "../calendar/people-visits";
 import { dealPaceRead } from "../people/deals";
@@ -67,13 +67,21 @@ interface PeoplePage {
  * whether a deal was ever recorded, the workspace's word, its pace and the proposal follow-up's facts -- the route's
  * body, moved here whole, so People and Ask's people.search read the same rows the same way. The route trims the query
  * and checks the offset; this takes them as given. A deal on file, the word, and the calendar's zone and settings, come
- * through their readers, once in a turn. Each person is a row a citation may name, as People names them.
+ * through their readers, once in a turn. Each person is a row a citation may name, as People names them. `thread` reads
+ * the one person a conversation is with in place of a page (the Inbox's head before People's book is in): their row as
+ * the list says it, beside what the list draws it with, as a search's rows are, with none of what the first page alone
+ * carries (the pace, the follow-up, the channels).
  */
-export const people: Reader<{ q: string | null; offset: number; after?: PeopleCursor | null }, PeoplePage> = {
+export const people: Reader<
+  { q: string | null; offset: number; after?: PeopleCursor | null; thread?: string | null },
+  PeoplePage
+> = {
   name: "people",
-  async read(rc, { q, offset, after }) {
+  async read(rc, { q, offset, after, thread = null }) {
     const ctx = rc.ctx;
     const tenantId = rc.tenantId;
+    // The first page of everyone: what is read with it alone (the pace, the follow-up, the channels) is read here.
+    const firstPage = offset === 0 && !q && !thread;
     // Beside the rows, what is read of the workspace rather than of them, started with them rather than after them:
     // they waited for the rows, a whole round trip, and none needs them (2 Oct 2026). Whether a deal was ever recorded
     // here, and the workspace's word (readers/facts.ts), the turn's. The workspace's pace (0008, amended), read with
@@ -85,10 +93,10 @@ export const people: Reader<{ q: string | null; offset: number; after?: PeopleCu
     // the rows land is the answer's to weigh, never an unhandled rejection.
     const dealt = early(load(rc, facts.hasDeals, undefined).then((r) => r.data));
     const word = early(load(rc, facts.appointmentWord, undefined).then((r) => r.data));
-    const pace = early(offset === 0 && !q ? dealPaceRead(ctx, tenantId, rc.now) : Promise.resolve(null));
+    const pace = early(firstPage ? dealPaceRead(ctx, tenantId, rc.now) : Promise.resolve(null));
     const followUp = early(
       dealt.then((any) =>
-        any && offset === 0 && !q
+        any && firstPage
           ? // By the business's day, the turn's zone (readers/facts.ts): a follow-up past its last day stands as none.
             load(rc, facts.facts, undefined)
               .then((zone) => followUpFacts(ctx, tenantId, rc.now, zone.data.timezone))
@@ -106,15 +114,19 @@ export const people: Reader<{ q: string | null; offset: number; after?: PeopleCu
     // the first page alone, as the pace is -- People keeps that page's answer, and a later page or a search would read it
     // again for nothing. The turn's own read, which Ask's reads share; started with the rest.
     const ready = early(
-      offset === 0 && !q ? load(rc, facts.channelsReady, undefined).then((r) => r.data) : Promise.resolve(null),
+      firstPage ? load(rc, facts.channelsReady, undefined).then((r) => r.data) : Promise.resolve(null),
     );
     const zone = early(facts.zoneAndSettings(rc)());
-    const [rows, total] = await Promise.all([
-      // Just past the cursor when the page holds one, else by the offset: never both, since the offset then only
-      // counts what the page holds.
-      listPeople(ctx, tenantId, after ? { q, after, limit: PEOPLE_PAGE } : { q, offset, limit: PEOPLE_PAGE }),
-      countPeople(ctx, tenantId, q),
-    ]);
+    // The thread's person alone, in place of a page.
+    const theirs = thread ? await onePerson(ctx, tenantId, { thread }).then((one) => (one ? [one] : [])) : null;
+    const [rows, total] = theirs
+      ? [theirs, theirs.length]
+      : await Promise.all([
+          // Just past the cursor when the page holds one, else by the offset: never both, since the offset then only
+          // counts what the page holds.
+          listPeople(ctx, tenantId, after ? { q, after, limit: PEOPLE_PAGE } : { q, offset, limit: PEOPLE_PAGE }),
+          countPeople(ctx, tenantId, q),
+        ]);
     // Each person with their appointments from the owner's calendar, when one is connected: Booked is a fact here,
     // not a stage. Never fatal to the list, and said from the calendar's last good read while a newer one is fetched
     // behind it, as a person's page says them (person-visits.ts): what was booked, never an opening offered. And who

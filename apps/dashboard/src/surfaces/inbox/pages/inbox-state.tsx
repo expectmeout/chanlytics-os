@@ -12,7 +12,17 @@ import { useEffect, useRef, useState, type Dispatch, type ReactNode, type RefObj
 import { CONF, FOCUS_COMPOSER_MS, IX_NOW, STALE_AFTER_MS, TICK_MS } from "../constants";
 import type { IX_CONCURRENT } from "../sample";
 import { demoCode, warmDemo } from "../shell";
-import { ixBucketOf, ixDraftKey, ixHeld, ixReadAgain, ixSending, ixWaitsOnYou } from "../rules";
+import {
+  ixBucketOf,
+  ixDraftKey,
+  ixFirstBucket,
+  ixHeld,
+  ixOnPhone,
+  ixOpeningBucket,
+  ixReadAgain,
+  ixSending,
+  ixWaitsOnYou,
+} from "../rules";
 import { ixKeepPlace, ixPlace } from "../place";
 import {
   appNavigate,
@@ -79,31 +89,6 @@ export const IX_VIEW_FILTERS: Record<string, (t: Thread) => boolean> = {
   "new-leads": (t) => /lead/i.test(t.whoMeta),
 };
 
-// The bucket a thread is IN, never the state it holds: one whose own reply is on its way out is in Needs you. A campaign
-// run waiting for your say is a row of Needs you too (inbox-runs.tsx): with one, Needs you is where the Inbox opens, as the
-// badge over it says. It opened on Handled, and the run waited unseen under a tab that said no number.
-const firstBucketWithThreads = (list: Thread[]): string => {
-  if (waitingRunsNow().length > 0) return "escalated";
-  for (const s of ["escalated", "needs", "snoozed", "done"]) {
-    if (list.some((x) => ixBucketOf(x) === s)) return s;
-  }
-  return "escalated";
-};
-
-// The phone's width, where the list and the thread take turns on the screen (mobile.css, 720px).
-export const ixOnPhone = (): boolean => !!(window.matchMedia && window.matchMedia("(max-width: 720px)").matches);
-
-// The bucket the member had (the Inbox's place, place.ts ixPlace) comes back with a refresh; a thread the
-// address names opens in it when it lists that thread, and in its own bucket when it does not.
-const ixOpeningBucket = (THREADS: Thread[], initialThreadId: string | null, toSendOpen = false): string => {
-  // To send's address (`inbox/to-send`) opens Needs you, where its part is (the Campaigns wiring review's lane 4).
-  if (toSendOpen) return "escalated";
-  const t = initialThreadId ? THREADS.find((x) => x.id === initialThreadId) : undefined;
-  const had = ixPlace().bucket;
-  if (t) return typeof had === "string" && had && (had === "all" || ixBucketOf(t) === had) ? had : bucketOf(t);
-  return typeof had === "string" && had ? had : firstBucketWithThreads(THREADS);
-};
-
 /** A seeded thread with what the session decided on it laid over: snoozed, or done with the choice made. */
 const withDecision = (t: Thread, d: Decision): Thread => {
   if (d.kind === "snoozed") return { ...t, state: "snoozed", wake: d.wake, unread: false };
@@ -154,7 +139,7 @@ const ixFollowReads = ({
     setActiveBucket((b) => {
       const picked = ixPlace().bucket;
       if (picked) return b;
-      return list.some((x) => ixBucketOf(x) === b) ? b : firstBucketWithThreads(list);
+      return list.some((x) => ixBucketOf(x) === b) ? b : ixFirstBucket(list, waitingRunsNow().length > 0);
     });
     // A thread the route still names stays selected though the list does not hold it: the pane keeps
     // saying it is missing, where clearing it let the refresh open the first thread in its place.
@@ -264,7 +249,13 @@ export const useInboxState = (THREADS: Thread[], initialThreadId: string | null,
       return d ? withDecision(t, d) : { ...t };
     }),
   );
-  const [activeBucket, setActiveBucket] = useState<string>(() => ixOpeningBucket(THREADS, initialThreadId, toSendOpen));
+  const [activeBucket, setActiveBucket] = useState<string>(() =>
+    ixOpeningBucket(THREADS, initialThreadId, {
+      toSendOpen,
+      had: ixPlace().bucket,
+      runsWaiting: waitingRunsNow().length > 0,
+    }),
+  );
   // A move to To send's address with the Inbox open (Today's row, a sequence's "One by one") is Needs you too.
   useEffect(() => {
     if (toSendOpen) setActiveBucket("escalated");

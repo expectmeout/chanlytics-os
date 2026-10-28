@@ -34,7 +34,7 @@ import {
   useToast,
   type Flash,
 } from "../shell";
-import { dealKit, hasHref, hrefOf, peopleRead, personNotes, usePeopleMoved } from "./shell-thread";
+import { dealKit, hasHref, hrefOf, personNotes, usePeopleMoved } from "./shell-thread";
 import type { Thread } from "../types";
 import { ixBandCallBack } from "./band";
 import { channelIconOf } from "./timeline";
@@ -44,7 +44,7 @@ import { mayAtLeast } from "../../legacy-verbs";
 import { Button } from "../../kit/button/button";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { completeStep } from "../../step-done";
-import { wantPerson } from "../../people/want-person";
+import { personOnThread, useThreadPersonMoved, wantPerson, wantThreadPerson } from "../../people/want-person";
 import { visitWordHere } from "../../workspace-word";
 import { codeOnce } from "@/lib/code-once";
 import { useCode } from "@/lib/use-code";
@@ -58,17 +58,18 @@ import { useCode } from "@/lib/use-code";
 const IxThreadStep = ({
   personId,
   step,
+  at,
   flash,
 }: {
   personId: string;
   step: PersonNextStepVM;
+  /** When the person's row was read: the step's day is said at that clock (People's, or the thread's own read). */
+  at: number;
   flash: (flash: Flash) => void;
 }) => {
   const [gone, setGone] = useState<string | null>(null);
   const N = personNotes();
   const tz = clockZone();
-  const people = peopleRead();
-  const at = people && people.fetchedAt ? people.fetchedAt : Date.now();
   const day = N ? N.dueDay(step, tz, at) : null;
   if (!N || !day || gone === step.id) return null;
   const done = () =>
@@ -138,6 +139,8 @@ const ixGlyph = (name: string) => <Icon name={name} size={13} />;
 /** Who this is, and what is known of them in People: their deal or a visit, and the deal's link. */
 interface HeaderFacts {
   person: PersonRowVM | null | undefined;
+  /** When their row was read (People's, or the thread's own read of them); now, where nothing is read yet. */
+  readAt: number;
   deal: DealVM | null;
   proposalUrl: string | null;
   /** Their next visit (else their last) as the one visit line, and whether it is ahead. */
@@ -148,18 +151,23 @@ interface HeaderFacts {
  * Who this is, in one chip beside the wires: their deal when it says more than a visit (0004) -- a client, a
  * proposal waiting -- else a visit ahead on the calendar (People's own day and time), else the last one behind
  * them; nothing when People has none of these, or is not read yet. One chip. Not the band's words: the band says
- * where the conversation stands, this says who they are, which was a page away.
+ * where the conversation stands, this says who they are, which was a page away. Their row is People's once People holds
+ * them, and the thread's own read of them until then, which the first draw waits for (want-person.ts): People's book came
+ * 0.3 to 0.5 s after the thread on a cold load, and the chip landed on a head already drawn.
  */
 function headerFacts(thread: Thread): HeaderFacts {
-  const people = peopleRead();
-  const person = thread.clientId && people && people.rows ? people.rows.find((p) => p.id === thread.clientId) : null;
-  // A person People does not hold yet (made since its last read): People is asked for once (want-person.ts; R10).
-  if (!person) wantPerson(thread.clientId);
+  const conversationId = thread.real ? thread.conversationId : null;
+  const known = personOnThread(conversationId, thread.clientId);
+  const person = known?.row ?? null;
+  // A person People does not hold yet (made since its last read): People is asked for once (want-person.ts; R10). A
+  // thread opened before anything said who they are reads them itself.
+  wantPerson(thread.clientId);
+  if (!known) wantThreadPerson(conversationId);
   const deal = person && person.deal && person.deal.brief ? person.deal : null;
   // Their proposal's link (0008): contracts' proposalLinkOf over People's row -- the deal's while it is a proposal out,
   // none for a client or someone who passed, the thread's own (the person's) only with no deal, or no row to read.
-  // Nothing before People is read: their deal may hold another.
-  const proposalUrl = people ? proposalLinkOf(person ? person.deal : null, thread.proposalUrl) : null;
+  // Nothing before their row is read: their deal may hold another.
+  const proposalUrl = known ? proposalLinkOf(person ? person.deal : null, thread.proposalUrl) : null;
   const visit =
     deal || !person
       ? null
@@ -168,7 +176,7 @@ function headerFacts(thread: Thread): HeaderFacts {
         : person.lastVisitLine
           ? { ahead: false, line: person.lastVisitLine }
           : null;
-  return { person, deal, proposalUrl, visit };
+  return { person, readAt: known?.at ?? Date.now(), deal, proposalUrl, visit };
 }
 
 // Any act's glyph by its id, and the send's always: the menu's send is drawn whether or not the kit lists it.
@@ -214,9 +222,8 @@ function dealGroup(thread: Thread, facts: HeaderFacts): MenuItem[] {
         }
       : null;
   const clientId = thread.clientId;
-  const people = peopleRead();
   const dealItems: MenuItem[] =
-    kit && !demoSession() && clientId && person && people && hasDealSheet()
+    kit && !demoSession() && clientId && person && hasDealSheet()
       ? kit
           .menu(person.deal)
           .filter((a) => a.mode)
@@ -606,6 +613,7 @@ export const ThreadHeader = (props: ThreadHeaderProps) => {
   // People lands last on a cold boot (its rows are the heaviest read): a thread opened before it draws the chip below
   // once it does, rather than at the next message.
   usePeopleMoved(); // drawn again when People's rows land (surface-status.ts)
+  useThreadPersonMoved(); // and when the thread's own read of its person lands (want-person.ts)
   // The header's toast: what its step's Done says, which outlives the line as People is read again.
   const [toastNode, flash] = useToast();
   const facts = headerFacts(thread);
@@ -670,7 +678,9 @@ export const ThreadHeader = (props: ThreadHeaderProps) => {
           />
         </div>
       ) : null}
-      {person && step ? <IxThreadStep key={step.id} personId={person.id} step={step} flash={flash} /> : null}
+      {person && step ? (
+        <IxThreadStep key={step.id} personId={person.id} step={step} at={facts.readAt} flash={flash} />
+      ) : null}
       <ThreadBusinessSheet asked={business} onClose={() => setBusiness(null)} />
       {toastNode}
     </header>

@@ -53761,14 +53761,15 @@ declare const PREFETCH_BESIDE: Readonly<Record<string, readonly string[]>>;
  * The pages whose first reads leave as one streamed read (GET open), rather than one request each: GET open's `route`.
  * The pages PREFETCH_BESIDE names (route-prefetch.test.mjs holds the two to one list).
  */
-declare const PREFETCH_OPEN: readonly ["today"];
+declare const PREFETCH_OPEN: readonly ["today", "inbox"];
 /**
  * What GET open answers for a page, in its two tiers, each a read as the client spells it before its workspace: who is
  * looking and the page's own first, then what it draws beside them. `period` is the one this device last picked, which
- * the head read where the page reads it (REPORT_PERIOD_STORAGE); the default's otherwise. The head parks one answer for
- * each, under the same key (routePrefetchScript).
+ * the head read where the page reads it (REPORT_PERIOD_STORAGE); the default's otherwise. `thread` is the conversation an
+ * Inbox address names, whose person is read with the page's own (THREAD_PERSON_READ). The head parks one answer for each,
+ * under the same key (routePrefetchScript).
  */
-declare function openReads(route: string, period?: string | null): readonly [readonly string[], readonly string[]];
+declare function openReads(route: string, period?: string | null, thread?: string | null): readonly [readonly string[], readonly string[]];
 /**
  * The route's own reads, started from the document head.
  *

@@ -22,7 +22,6 @@ import { InboxList, type Density } from "./inbox-list";
 import {
   inboxMoves,
   inboxVerdict,
-  ixOnPhone,
   IX_VIEW_FILTERS,
   useInboxAutoSend,
   useInboxState,
@@ -31,7 +30,7 @@ import {
 } from "./inbox-state";
 import { ixKeyLeft } from "../keys";
 import { ixKeepPlace } from "../place";
-import { ixBucketOf, ixRank } from "../rules";
+import { ixBucketOf, ixOnPhone, ixRank } from "../rules";
 import { useNeedsYouParts } from "../../needs-you";
 import { threadReading, threadWhose, useSeeOpen, useSeen } from "../../seen";
 import { canDo, gate, presenceAway } from "../shell";
