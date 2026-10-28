@@ -29951,6 +29951,13 @@ interface AbilityInputs {
      * mode with the edge's own default for a missing row ("ask", reply-posture.ts).
      */
     replyMode: PolicyMode;
+    /**
+     * What Setup says of WhatsApp where its number is connected and the line is not live (contracts capabilityStatus
+     * `words`: not activated yet, switched off, its messages with Meta); null where no number is connected. The booking
+     * link said "WhatsApp, which isn't connected here" on a page that names the connected number (the live walk's SET-2,
+     * 27 Oct 2026).
+     */
+    whatsappStatus: string | null;
 }
 interface AbilityRowVM {
     id: "answer" | "open_times" | "booking_link" | "transfer" | "handoff" | "vision";

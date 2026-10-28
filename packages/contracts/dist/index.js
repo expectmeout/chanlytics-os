@@ -15980,7 +15980,7 @@ function abilityRows(i) {
   const linkGoes2 = i.hasBookingLink && chatAnswers && !i.bookingHeld;
   const linkIsChatsAlone = linkGoes2 && i.voiceLive && !callSendsLink;
   const inChat = linkIsChatsAlone ? " in chat" : "";
-  const bookingDetail = !i.hasBookingLink ? "No booking link, so it takes their details for you to follow up." : !i.whatsappLive ? i.voiceLive ? "It goes out on WhatsApp, which isn't connected here, so on a call it offers to have someone follow up instead." : "It goes out on WhatsApp, which isn't connected here." : i.bookingHeld ? "Your Autonomy tab holds bookings for you to confirm, so when someone asks to book, it sends no link: it tells them someone from the team will confirm." : !i.voiceLive ? "It sends it in the thread." : callSendsLink ? "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the thread." : "In chat it sends it in the thread. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
+  const bookingDetail = !i.hasBookingLink ? "No booking link, so it takes their details for you to follow up." : !i.whatsappLive ? `${i.whatsappStatus ? `It goes out on WhatsApp, which isn't live here yet: ${i.whatsappStatus}` : "It goes out on WhatsApp, which isn't connected here."}${i.voiceLive ? " On a call it offers to have someone follow up instead." : ""}` : i.bookingHeld ? "Your Autonomy tab holds bookings for you to confirm, so when someone asks to book, it sends no link: it tells them someone from the team will confirm." : !i.voiceLive ? "It sends it in the thread." : callSendsLink ? "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the thread." : "In chat it sends it in the thread. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
   const rows2 = [
     {
       id: "answer",
@@ -16002,7 +16002,8 @@ function abilityRows(i) {
       // says what holds on both: it has them, and a request to book gets no link.
       detail: !i.hasCalendarFeed ? linkGoes2 ? `No calendar to read, so it does not guess at open times \u2014${inChat} it sends the link instead.` : "No calendar to read, so it does not guess at open times." : i.bookingHeld ? "It is handed the openings on a call and in chat, but your Autonomy tab holds bookings for you to confirm, so when someone asks to book, no link follows." : `On a call it asks the calendar at that moment. In chat it is handed the next few days' openings with each message. It offers up to three that fit${linkGoes2 ? `, then the link${inChat}` : ""}.`,
       channels: { voice: i.voiceLive && i.hasCalendarFeed, whatsapp: chatAnswers && i.hasCalendarFeed },
-      runsOn: { label: "Your calendar link", row: "calendar" },
+      // The link or the Google calendar a connected mailbox reads (calendarFeedKeyOf), whichever the openings come from.
+      runsOn: { label: "Your calendar", row: "calendar" },
       ready: answering && i.hasCalendarFeed,
       missing: !i.hasCalendarFeed
     },
