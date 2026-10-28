@@ -43,7 +43,7 @@ export interface PersonConsent {
    * fails closed (consent.ts mayMessageFor).
    */
   emailMarketing: "unknown" | "opted_in" | "opted_out" | null;
-  /** How that answer was given, raw: customer_message | form | unsubscribe | complaint | reply, or null. */
+  /** How that answer was given, raw: customer_message | form | confirmed_signup | unsubscribe | complaint | reply, or null. */
   emailMarketingSource: string | null;
   /** The offers-by-email answer in a word, as the person's page says it: Yes, Unsubscribed or Not asked; null where unread. */
   emailOffersLabel: "Yes" | "Unsubscribed" | "Not asked" | null;

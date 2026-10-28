@@ -159,7 +159,7 @@ export {
   setEmailUnsubscribed,
   stopAllMessages,
 } from "./repositories/campaigns/email-offers";
-export type { Unsubscribed } from "./repositories/campaigns/email-offers";
+export type { OffersYesOutcome, Unsubscribed } from "./repositories/campaigns/email-offers";
 export {
   offersAnswerOf,
   recordCarrierOptOut,
@@ -243,6 +243,7 @@ export {
   takeOutOfSequence,
 } from "./repositories/campaigns/sequences";
 export type { PeopleHandItem, SequenceDoorAnswer, SequenceMoveAnswer } from "./repositories/campaigns/sequences";
+export { confirmationEmailOf, signupAskFacts } from "./repositories/campaigns/signup-confirms";
 export {
   cancelBroadcastFrom,
   failStrandedRun,

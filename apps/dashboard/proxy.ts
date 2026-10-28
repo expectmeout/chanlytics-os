@@ -78,11 +78,16 @@ const PUBLIC_PATHS = new Set([
  *           partner's code and goes on to sign-up; it reads nothing and writes
  *           nothing else (app/p/[code]/route.ts).
  *
+ *   /c/     a website sign-up's confirmation link (00489). Like /u/ it carries
+ *           a token, under a key only we hold, and a GET changes nothing; its
+ *           only write is the person's own yes to offers by email, which the
+ *           yes door judges itself (src/server/public/confirm.ts).
+ *
  * Adding one here is adding a page anybody on the internet may read. Each was
  * built for exactly that; nothing else goes on this list without the same
  * argument.
  */
-const PUBLIC_PREFIXES = ["/yes/", "/b/", "/.well-known/", "/u/", "/p/"];
+const PUBLIC_PREFIXES = ["/yes/", "/b/", "/.well-known/", "/u/", "/p/", "/c/"];
 
 /**
  * An auth redirect must never be stored. These responses depend entirely on a

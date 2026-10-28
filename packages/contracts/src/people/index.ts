@@ -45,6 +45,20 @@ export type {
 export { SayItDealAnswerSchema, SayItInputSchema, SayItNoteAnswerSchema } from "./doors/say-it-schema";
 export type { SayItInput } from "./doors/say-it-schema";
 export {
+  confirmPageWords,
+  looksMadeUp,
+  maskAddress,
+  SIGNUP_ASK_LIMITS,
+  SIGNUP_CONFIRM_MS,
+  SIGNUP_CONFIRM_SOURCE,
+  signupAddressKey,
+  signupAskLine,
+  signupAskOf,
+  signupAskRefusal,
+  signupConfirmEmail,
+} from "./doors/signup-confirm";
+export type { ConfirmPageView, SignupAskFacts, SignupAskRefusal } from "./doors/signup-confirm";
+export {
   WebsiteFormBody,
   websiteFormLate,
   websiteFormNote,

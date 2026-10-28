@@ -34,6 +34,7 @@ apps/dashboard/app/
   api/
   auth/
   b/
+  c/
   data-deletion/
   login/
   p/

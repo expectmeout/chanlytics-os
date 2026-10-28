@@ -8,6 +8,11 @@
  * words wait for a member's Keep, 0007), and the owner told: by mail and phone as the business chooses (notifyOnce), or
  * on the bell alone for a form that arrives late (websiteFormLate: one re-sent from where it was kept before).
  *
+ * A sign-up with an address asks its person to confirm it (signup-confirm.ts, 00489): only their press on the link it
+ * emails them is a yes to offers by email, since an address typed into a form proves nothing. A sign-up that arrives
+ * late is not asked (it is old news, and its person signed up before anything asked them), and the owner's notice
+ * says what became of the ask. A failed ask is logged and costs nothing else: the person is kept.
+ *
  * Twice is once: the note and the notice are each kept under a name made from the form's own words (onceKeyId), so a
  * site that sends a form again, or a re-sending of old ones, adds no second note and tells nobody twice. The person is
  * the door's own to match. A person who asked to be forgotten is not made again: the form is answered and nothing kept.
@@ -25,11 +30,13 @@ import {
   websiteFormNote,
   websiteFormNotice,
   websiteFormPerson,
+  signupAskLine,
 } from "../packages/contracts.js";
 import { PERSON_FORGOTTEN, resolvePerson, suggestPersonNote, workspaceZoneOf } from "../packages/db.js";
 import { keepOnce, notifyOnce, onceKeyId } from "../ops/notify.js";
 import { loadTenantNotifications } from "../tenant-runtime.js";
 import { websiteFormKeyMatches } from "./form-key.js";
+import { askIfSignup } from "./signup-confirm.js";
 
 /** A form is a few lines a person typed. Anything larger is not one. */
 const MAX_BODY = 16_000;
@@ -108,7 +115,8 @@ export async function receiveWebsiteForm(request: Request): Promise<Response> {
     L.error("website_form_failed", { tenant_id: tenantId, step: "note", error: errField(e) });
   }
 
-  const notice = websiteFormNotice(f, { contactId, ...who }, { nowMs, tz });
+  const ask = await askIfSignup(db, L, { tenantId, contactId, form: f, email: who.email, nowMs });
+  const notice = websiteFormNotice(f, { contactId, ...who }, { nowMs, tz }, signupAskLine(ask));
   const onceKey = `website_form:${name}`;
   let told = false;
   try {
@@ -132,6 +140,6 @@ export async function receiveWebsiteForm(request: Request): Promise<Response> {
   } catch (e) {
     L.error("website_form_failed", { tenant_id: tenantId, step: "notice", error: errField(e) });
   }
-  L.info("website_form_kept", { tenant_id: tenantId, form: f.form, outcome, note, told });
+  L.info("website_form_kept", { tenant_id: tenantId, form: f.form, outcome, note, told, ask });
   return json(200, { ok: true, kept: true });
 }

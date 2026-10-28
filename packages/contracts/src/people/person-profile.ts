@@ -21,6 +21,7 @@ import type { PersonRowVM } from "./person-row";
 import { campaignsOf, inSequencesOf, ts } from "./person-helpers";
 import { personNotesVM, type PersonNoteTeamDto, type PersonNoteVM } from "../notes/person-notes";
 import { PERSON_CHANNEL_WORDS, REPLY_WIRE, type PersonChannel } from "./person-words";
+import { signupAskOf } from "./doors/signup-confirm";
 import type { ChannelsReady } from "../broadcasts/reach-for";
 import { wayOff, writeWaysOf, type WriteWay } from "../new-conversation/write-ways";
 import { messageAt, type MessageDto } from "../conversations/thread-dto";
@@ -172,6 +173,8 @@ export interface PersonVM extends PersonRowVM {
    * disabled Yes's caption. Null for anyone else.
    */
   yesLocked: string | null;
+  /** Their website sign-up's confirmation while offers by email wait on it (signup-confirm.ts signupAskOf); null with none. */
+  signupAsk: ReturnType<typeof signupAskOf>;
   /** They asked for a call back and it is still open (callBackWaits): the call sheet asks whether a call was it (X3-1). */
   callBackOpen: boolean;
   /**
@@ -541,6 +544,12 @@ export function toPersonVM(
     lead: leadOf(d, base, tz, nowMs),
     // The doors' own test, as far as the page can see it: a lead names them, or they work at one.
     yesLocked: d.lead || base.worksAt ? LEAD_CONSENT_REFUSAL : null,
+    signupAsk: signupAskOf(
+      d.conversations.flatMap((c) => c.messages),
+      base.consent.emailMarketing,
+      tz,
+      nowMs,
+    ),
     callBackOpen: callBackWaits(d.escalations, holderOf(ctx.row, nowMs, viewerId) === "theirs"),
     doubts: doubtsOf(d),
     deal: ctx.current,
