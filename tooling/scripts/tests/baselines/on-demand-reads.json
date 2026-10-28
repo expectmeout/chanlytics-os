@@ -291,6 +291,11 @@
     "fresh": "Read as Today's Need you draws its rows, and again whenever the threads it draws or the newest message on one of them changes (useDraftsAhead's key, pages/queue.tsx), so a draft for an older message is asked for again.",
     "why": "A kept draft is words nothing sends: it is read for the rows on screen, and a Send goes through the reply's own door with whatever words the row holds by then; the feed moves the rows, and the rows ask again."
   },
+  "apps/dashboard/src/surfaces/inbox/thread/kept-draft.ts GET conversations/drafts": {
+    "kind": "on-open",
+    "fresh": "Read as a thread opens, once for that thread (composer.tsx putKeptDraft), and put in its box only while the box is empty and the draft answers their newest message.",
+    "why": "A kept draft is words nothing sends: it fills an empty box once, and a Send goes through the reply's own door with whatever words the box holds by then; a newer message from them makes the draft no answer, and it is left out."
+  },
   "apps/dashboard/src/surfaces/settings/connections/left-senders.tsx GET mailbox-senders": {
     "kind": "search",
     "fresh": "Read on the owner's press (Show who), and again after each of its own presses (It's a person, Undo).",

@@ -43,7 +43,7 @@ function putKeptDraft(thread: Thread, setText: SetText) {
   if (!thread.real) return;
   let open = true;
   // A read that fails puts nothing: the box stays as the member left it.
-  void keptReplyOf(thread, canDo("approve"))
+  void keptReplyOf(thread)
     .then((words) => {
       if (open && words) setText((cur) => (cur && cur.trim() ? cur : words));
     })
