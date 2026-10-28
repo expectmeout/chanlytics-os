@@ -287,6 +287,8 @@ const LIST_DOORS = {
   member_left: "admin/team",
   // A note from an owner's correction waits on the Autonomy pane, where the notes waiting are listed (decision 0063).
   note_to_keep: "admin/autonomy",
+  // Forms sent on the website by several people open People, where each one is (00488).
+  website_form: "clients",
 };
 
 test("a group whose rows point at different records opens the list that holds them; one record, that record", () => {

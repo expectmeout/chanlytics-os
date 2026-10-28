@@ -2579,15 +2579,15 @@ function visitLinkWords(id, word) {
   return id ? `Open the ${word}` : "Open the day";
 }
 function dayAndVisitOf(s) {
-  const dayOf3 = (k) => isDayKey(k) ? k : null;
-  const alone = dayOf3(s);
+  const dayOf2 = (k) => isDayKey(k) ? k : null;
+  const alone = dayOf2(s);
   if (alone) return { day: alone, visitId: null };
   const at3 = s.indexOf(":");
   const word = at3 < 0 ? s : s.slice(at3 + 1);
   const id = word.startsWith("a-") ? word.slice(2) : "";
   if (!VISIT_ID.test(id)) return null;
   if (at3 < 0) return { day: null, visitId: id };
-  const day2 = dayOf3(s.slice(0, at3));
+  const day2 = dayOf2(s.slice(0, at3));
   return day2 ? { day: day2, visitId: id } : null;
 }
 function calendarParamParts(param) {
@@ -24279,8 +24279,8 @@ var milesLabel = (m) => {
 // src/leads/lead-facts.ts
 function leadTodayLine(hours, tz, now) {
   if (!hours.length) return null;
-  const dayOf3 = (d) => dateFormat("en-US", { timeZone: tz, weekday: "long" }).format(d).toLowerCase();
-  const hoursOn = (d) => hours.find((x) => x.day.toLowerCase() === dayOf3(d))?.hours.trim() ?? null;
+  const dayOf2 = (d) => dateFormat("en-US", { timeZone: tz, weekday: "long" }).format(d).toLowerCase();
+  const hoursOn = (d) => hours.find((x) => x.day.toLowerCase() === dayOf2(d))?.hours.trim() ?? null;
   const parts2 = dateFormat("en-US", {
     timeZone: tz,
     hour: "numeric",
@@ -40715,6 +40715,8 @@ function cameFromSaid(key, n) {
       return "came from your imported history";
     case "lead":
       return "came from Leads";
+    case "website":
+      return "came from your website";
     case "ad":
       return "came from an ad";
     default:
@@ -51702,8 +51704,8 @@ function earlierVisitsOf(rows2, seasonIds) {
 }
 function visitsHeadOf(season, earlier, zone, nowMs) {
   const W = VISITS_TAB_WORDS;
-  const dayOf3 = (iso) => clockDate(Date.parse(iso), zone, nowMs);
-  const lastKept = season.keptAt.length === 0 && earlier?.last_kept_at ? W.lastKept(dayOf3(earlier.last_kept_at)) : null;
+  const dayOf2 = (iso) => clockDate(Date.parse(iso), zone, nowMs);
+  const lastKept = season.keptAt.length === 0 && earlier?.last_kept_at ? W.lastKept(dayOf2(earlier.last_kept_at)) : null;
   return {
     kept: season.keptAt.length + (earlier?.kept ?? 0),
     missed: season.missed + (earlier?.missed ?? 0),
@@ -51713,7 +51715,7 @@ function visitsHeadOf(season, earlier, zone, nowMs) {
     ),
     toMark: season.toMark,
     lastKept,
-    over: earlier ? W.since(dayOf3(earlier.first_at)) : W.over(SEASON_BACK_DAYS)
+    over: earlier ? W.since(dayOf2(earlier.first_at)) : W.over(SEASON_BACK_DAYS)
   };
 }
 function personVisitsOf({ profile, nowMs, base, word }) {
@@ -53002,7 +53004,7 @@ function websiteFormPerson(f) {
   if (!email && !phone) return null;
   return { name: f.name?.trim() || null, email, phone };
 }
-var dayOf2 = (iso) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+var sentOn = (iso) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 var LATE_MS = HOUR_MS;
 function websiteFormLate(f, nowMs) {
   return !!f.at && nowMs - Date.parse(f.at) > LATE_MS;
@@ -53010,7 +53012,7 @@ function websiteFormLate(f, nowMs) {
 function websiteFormNote(f, nowMs) {
   const first = f.about?.trim() || (f.form === "signup" ? "Signed up for your offers on your website" : "Sent a request on your website");
   const head = `${first.replace(/[.\s]+$/, "")}.`;
-  const late = f.at && websiteFormLate(f, nowMs) ? ` Sent ${dayOf2(f.at)}.` : "";
+  const late = f.at && websiteFormLate(f, nowMs) ? ` Sent ${sentOn(f.at)}.` : "";
   const words3 = f.note?.trim();
   if (!words3) return `${head}${late}`.slice(0, NOTE_MAX);
   const room = NOTE_MAX - head.length - late.length - ' They wrote: ""'.length;
@@ -53024,10 +53026,7 @@ function websiteFormNotice(f, who, nowMs) {
     kind: "website_form",
     route: `clients/${who.contactId}`,
     about: { type: "contact", id: who.contactId },
-    subject: (f.form === "signup" ? `${named} signed up on your website` : `${named} sent a request on your website`).slice(
-      0,
-      200
-    ),
+    subject: (f.form === "signup" ? `${named} signed up on your website` : `${named} sent a request on your website`).slice(0, 200),
     body: [
       websiteFormNote(f, nowMs),
       reach ? `To reach them: ${reach}` : null,
@@ -66230,11 +66229,7 @@ var SERVER_NOTIFICATION_KINDS = [
   "reply_held",
   // Ask's morning left cards on Today (decision 0070): the member's own line, once a morning; no mail, no phone.
   "ask_cards",
-  /**
-   * Someone used a form on the business's own website (00488, people/doors/website-form.ts): a sign-up for its offers or
-   * a request. They are added to People, what they asked waits on their page as a note to keep, and the row opens it.
-   * Mailed as the business chooses, and the phone told.
-   */
+  // Someone used a form on the business's website (00488): the row opens their page; mailed as chosen, the phone told.
   "website_form"
 ];
 function settledRow(row2) {
@@ -66351,7 +66346,6 @@ var SERVER_LOOK = {
   /** A note from a correction waits: news, on the Autonomy pane, where it is kept or dismissed. */
   note_to_keep: { icon: "edit", tone: "", action: "Open Autonomy", to: "admin/autonomy" },
   ask_cards: { icon: "sparkle", tone: "", action: "Open Today", to: "today" },
-  /** Someone used a form on the website: good news, on their page, where what they asked waits as a note. */
   website_form: { icon: "users", tone: "ok", action: "Open their page", to: "clients" },
   alert: ALERT_LOOK
 };
@@ -68999,11 +68993,11 @@ function foldTitle(members, words3) {
   const n = words3.counts === "rows" ? members.length : new Set(members.map((m) => m.subject_id ? `${m.subject_type ?? ""}:${m.subject_id}` : `@${m.id}`)).size;
   return n === 1 ? `${activityKindWords(newest.kind)} \xB7 ${members.length} times` : words3.many(n, newest);
 }
-function activityLines(list2, dayOf3, fold2 = true) {
+function activityLines(list2, dayOf2, fold2 = true) {
   const order = [];
   const byKey = /* @__PURE__ */ new Map();
   for (const r2 of list2) {
-    const k = fold2 ? lineKey(r2, dayOf3(r2.at)) : `@${r2.id}`;
+    const k = fold2 ? lineKey(r2, dayOf2(r2.at)) : `@${r2.id}`;
     const bucket = byKey.get(k);
     if (bucket) bucket.push(r2);
     else {
@@ -69032,12 +69026,12 @@ function activityLines(list2, dayOf3, fold2 = true) {
   }
   return lines;
 }
-function activityRowsForLines(list2, dayOf3, max, fold2 = true) {
+function activityRowsForLines(list2, dayOf2, max, fold2 = true) {
   const seen = /* @__PURE__ */ new Set();
   for (let i = 0; i < list2.length; i += 1) {
     const r2 = list2[i];
     if (!r2) continue;
-    const k = fold2 ? lineKey(r2, dayOf3(r2.at)) : `@${r2.id}`;
+    const k = fold2 ? lineKey(r2, dayOf2(r2.at)) : `@${r2.id}`;
     if (seen.has(k)) continue;
     if (seen.size >= max) return i;
     seen.add(k);

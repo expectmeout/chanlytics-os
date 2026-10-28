@@ -196,15 +196,26 @@ test(
       p_source_id: call,
     });
     assert.equal(again.error, "already", "once per call");
-    for (const n of [2, 3]) {
+    // A thread, and what they asked on the business's website (00488): a stranger's words wait as a caller's do.
+    for (const [n, source] of [
+      [2, "thread"],
+      [3, "website"],
+    ]) {
       const { data } = await db.rpc("person_note_suggest", {
         p_tenant_id: tenantId,
         p_contact_id: id,
         p_body: `Fact ${n}.`,
-        p_source: "thread",
+        p_source: source,
       });
-      assert.ok(data.note);
+      assert.equal(data.note?.source, source);
     }
+    const { data: notTheirs } = await db.rpc("person_note_suggest", {
+      p_tenant_id: tenantId,
+      p_contact_id: id,
+      p_body: "Fact 5.",
+      p_source: "page",
+    });
+    assert.equal(notTheirs.error, "bad_source", "a member's own page is not a suggestion's source");
     const { data: full } = await db.rpc("person_note_suggest", {
       p_tenant_id: tenantId,
       p_contact_id: id,

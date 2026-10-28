@@ -690,6 +690,7 @@ apps/edge/lib/
   receptionist/
   sms/
   voice/
+  website/
   whatsapp/
 apps/dashboard/app/
   (os)/

@@ -950,6 +950,7 @@ test("where a person came from, in the words People says it: one per stored valu
     import: "Imported",
     lead: "A lead you found",
     ad: "An ad",
+    website: "Your website",
   });
   for (const [key, label] of Object.entries(contracts.PERSON_CAME_FROM_WORDS))
     assert.deepEqual(contracts.cameFromOf({ came_from: key }), { key, label });

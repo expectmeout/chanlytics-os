@@ -163,11 +163,7 @@ export const SERVER_NOTIFICATION_KINDS = [
   "reply_held",
   // Ask's morning left cards on Today (decision 0070): the member's own line, once a morning; no mail, no phone.
   "ask_cards",
-  /**
-   * Someone used a form on the business's own website (00488, people/doors/website-form.ts): a sign-up for its offers or
-   * a request. They are added to People, what they asked waits on their page as a note to keep, and the row opens it.
-   * Mailed as the business chooses, and the phone told.
-   */
+  // Someone used a form on the business's website (00488): the row opens their page; mailed as chosen, the phone told.
   "website_form"
 ];
 export function settledRow(row) {
@@ -284,7 +280,6 @@ const SERVER_LOOK = {
   /** A note from a correction waits: news, on the Autonomy pane, where it is kept or dismissed. */
   note_to_keep: { icon: "edit", tone: "", action: "Open Autonomy", to: "admin/autonomy" },
   ask_cards: { icon: "sparkle", tone: "", action: "Open Today", to: "today" },
-  /** Someone used a form on the website: good news, on their page, where what they asked waits as a note. */
   website_form: { icon: "users", tone: "ok", action: "Open their page", to: "clients" },
   alert: ALERT_LOOK
 };

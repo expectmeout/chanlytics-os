@@ -399,6 +399,7 @@ export const LIMITED_TREES = [
   "apps/edge/lib/packages",
   "apps/edge/lib/partners",
   "apps/edge/lib/sms",
+  "apps/edge/lib/website",
 ];
 
 /**

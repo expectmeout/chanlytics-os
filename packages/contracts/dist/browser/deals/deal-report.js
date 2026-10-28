@@ -29,6 +29,8 @@ function cameFromSaid(key, n) {
       return "came from your imported history";
     case "lead":
       return "came from Leads";
+    case "website":
+      return "came from your website";
     case "ad":
       return "came from an ad";
     default:

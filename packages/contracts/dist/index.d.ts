@@ -22002,12 +22002,10 @@ declare function toLiveVM(calls: CallDto[], channels: ChannelDto[] | null, tz: s
 /**
  * The bell: what needs the owner, from what the browser already holds.
  *
- * The seeded bell promised five things to read that never happened, and a
- * real session showed nothing. The feed here is built from the rows the
- * surfaces have already fetched — the Inbox threads, the Live calls, the open
- * invitations — so it costs no request and is exactly as fresh as the pages
- * around it. Read state is per device (the bridge keeps it in localStorage):
- * honest, and enough until a person has more than one phone.
+ * The seeded bell promised five things to read that never happened, and a real session showed nothing. The feed here is
+ * built from the rows the surfaces have already fetched — the Inbox threads, the Live calls, the open invitations — so it
+ * costs no request and is exactly as fresh as the pages around it. Read state is per device (the bridge keeps it in
+ * localStorage): honest, and enough until a person has more than one phone.
  *
  * Pure: the bridge feeds it the globals, the tests feed it fixtures.
  */
@@ -22111,9 +22109,8 @@ declare function applyReadState(items: NotificationItem[], state: NotificationRe
 /**
  * The number on the bell's badge.
  *
- * Lives here because two surfaces say it: the badge itself, and Today's
- * "While you were away" head. They were two spellings of one fact and read
- * 4 and 0 on the same screen.
+ * Lives here because two surfaces say it: the badge itself, and Today's "While you were away" head. They were two
+ * spellings of one fact and read 4 and 0 on the same screen.
  */
 declare function unreadCount(rows: readonly {
     unread: boolean;

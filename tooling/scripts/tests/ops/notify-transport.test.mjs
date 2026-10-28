@@ -649,6 +649,8 @@ test("notify mails exactly the kinds contracts lists as emailed, and the page's 
     "sweep",
     "template_blocked",
     "template_ready",
+    // Someone used a form on the business's website (00488): mailed as the business chooses.
+    "website_form",
   ];
   assert.deepEqual([...EMAILED_NOTIFICATION_KINDS].sort(), EMAILED, "the closed list");
   const BELL = SERVER_NOTIFICATION_KINDS.filter((k) => !EMAILED.includes(k)).sort();

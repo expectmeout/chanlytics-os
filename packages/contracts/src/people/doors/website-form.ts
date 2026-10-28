@@ -53,7 +53,7 @@ export function websiteFormPerson(f: Pick<WebsiteFormInput, "name" | "email" | "
 }
 
 /** A day as the note says it ("Oct 21"), for a form sent before it reached the workspace. */
-const dayOf = (iso: string): string =>
+const sentOn = (iso: string): string =>
   new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 
 /** A form older than this reached the workspace late (re-sent): its note says the day it was sent. */
@@ -76,7 +76,7 @@ export function websiteFormNote(f: WebsiteFormInput, nowMs: number): string {
     f.about?.trim() ||
     (f.form === "signup" ? "Signed up for your offers on your website" : "Sent a request on your website");
   const head = `${first.replace(/[.\s]+$/, "")}.`;
-  const late = f.at && websiteFormLate(f, nowMs) ? ` Sent ${dayOf(f.at)}.` : "";
+  const late = f.at && websiteFormLate(f, nowMs) ? ` Sent ${sentOn(f.at)}.` : "";
   const words = f.note?.trim();
   if (!words) return `${head}${late}`.slice(0, NOTE_MAX);
   const room = NOTE_MAX - head.length - late.length - ' They wrote: ""'.length;

@@ -14,12 +14,10 @@ import { MESSAGES_ROUTE } from "../shell/address";
 /**
  * The bell: what needs the owner, from what the browser already holds.
  *
- * The seeded bell promised five things to read that never happened, and a
- * real session showed nothing. The feed here is built from the rows the
- * surfaces have already fetched — the Inbox threads, the Live calls, the open
- * invitations — so it costs no request and is exactly as fresh as the pages
- * around it. Read state is per device (the bridge keeps it in localStorage):
- * honest, and enough until a person has more than one phone.
+ * The seeded bell promised five things to read that never happened, and a real session showed nothing. The feed here is
+ * built from the rows the surfaces have already fetched — the Inbox threads, the Live calls, the open invitations — so it
+ * costs no request and is exactly as fresh as the pages around it. Read state is per device (the bridge keeps it in
+ * localStorage): honest, and enough until a person has more than one phone.
  *
  * Pure: the bridge feeds it the globals, the tests feed it fixtures.
  */
@@ -220,9 +218,8 @@ export function applyReadState(items: NotificationItem[], state: NotificationRea
 /**
  * The number on the bell's badge.
  *
- * Lives here because two surfaces say it: the badge itself, and Today's
- * "While you were away" head. They were two spellings of one fact and read
- * 4 and 0 on the same screen.
+ * Lives here because two surfaces say it: the badge itself, and Today's "While you were away" head. They were two
+ * spellings of one fact and read 4 and 0 on the same screen.
  */
 export function unreadCount(rows: readonly { unread: boolean }[]): number {
   return rows.filter((r) => r.unread).length;
@@ -303,11 +300,7 @@ export const SERVER_NOTIFICATION_KINDS = [
   "reply_held",
   // Ask's morning left cards on Today (decision 0070): the member's own line, once a morning; no mail, no phone.
   "ask_cards",
-  /**
-   * Someone used a form on the business's own website (00488, people/doors/website-form.ts): a sign-up for its offers or
-   * a request. They are added to People, what they asked waits on their page as a note to keep, and the row opens it.
-   * Mailed as the business chooses, and the phone told.
-   */
+  // Someone used a form on the business's website (00488): the row opens their page; mailed as chosen, the phone told.
   "website_form",
 ] as const;
 export type ServerNotificationKind = (typeof SERVER_NOTIFICATION_KINDS)[number];
@@ -568,7 +561,6 @@ const SERVER_LOOK: Record<string, ServerLook> = {
   /** A note from a correction waits: news, on the Autonomy pane, where it is kept or dismissed. */
   note_to_keep: { icon: "edit", tone: "", action: "Open Autonomy", to: "admin/autonomy" },
   ask_cards: { icon: "sparkle", tone: "", action: "Open Today", to: "today" },
-  /** Someone used a form on the website: good news, on their page, where what they asked waits as a note. */
   website_form: { icon: "users", tone: "ok", action: "Open their page", to: "clients" },
   alert: ALERT_LOOK,
 };
