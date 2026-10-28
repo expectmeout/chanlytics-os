@@ -21,6 +21,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  emailPlainText,
   gmailListSince,
   gmailSignedOut,
   graphListSince,
@@ -253,7 +254,9 @@ async function takeListed(
     name: who.name,
     messageId: e.id,
     direction: who.out ? "outbound" : "inbound",
-    body: e.text ? e.text.slice(0, EMAIL_BODY_MAX) : null,
+    // Its words as the live read keeps them: an email with only HTML (a bank's alert, a form) is made plain text. It had
+    // been kept with none, and its person read "Not heard from" beside "They wrote" (27 Oct 2026).
+    body: emailPlainText(e)?.slice(0, EMAIL_BODY_MAX) ?? null,
     at: when,
     meta: mailboxEmailMeta(e, r.row.id),
   });
