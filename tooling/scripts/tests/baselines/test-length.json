@@ -43,6 +43,5 @@
   "tooling/scripts/tests/voice/calls/retell-webhook-door.test.mjs": 1685,
   "tooling/scripts/tests/whatsapp/inbound-executed.test.mjs": 1752,
   "tooling/scripts/tests/whatsapp/whatsapp-door.test.mjs": 2147,
-  "tooling/scripts/tests/workspace/exports.test.mjs": 2022,
-  "tooling/scripts/tests/workspace/settings-doors.test.mjs": 1601
+  "tooling/scripts/tests/workspace/exports.test.mjs": 2022
 }
