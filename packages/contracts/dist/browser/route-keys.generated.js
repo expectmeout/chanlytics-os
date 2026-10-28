@@ -20,6 +20,7 @@ export const ROUTE_KEYS = [
   "DELETE team/partner",
   "DELETE templates/[id]",
   "DELETE templates/versions/[id]",
+  "DELETE workspaces/accent",
   "DELETE workspaces/logo",
   "GET activity",
   "GET ask/follow-ups",
@@ -331,5 +332,6 @@ export const ROUTE_KEYS = [
   "PUT settings",
   "PUT templates/[id]",
   "PUT views/[page]",
+  "PUT workspaces/accent",
   "PUT workspaces/logo"
 ];

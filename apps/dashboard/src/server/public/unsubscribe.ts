@@ -38,10 +38,14 @@ import { log } from "@/server/log";
 import {
   LINK_PAGE_HEADERS,
   LINK_PAGE_MAX_BYTES,
-  LINK_PAGE_STYLE,
+  NO_LOOK,
   linkPageDb,
+  linkPageLookOf,
+  linkPageMark,
+  linkPageStyle,
   readLinkFields,
   setLinkPageClient,
+  type LinkPageLook,
 } from "./link-page";
 
 /** For tests: the database the page reads and writes through (link-page.ts holds it for both links' pages). */
@@ -120,8 +124,17 @@ interface PageWords {
   foot: string | null;
 }
 
-/** The page every view is drawn on: the product's paper and ink, one card, no script, whatever the words, in the language of its `<html>`. */
-function draw(status: number, kind: string, w: PageWords, lang: SenderLanguage): Response {
+/**
+ * The page every view is drawn on: the product's paper and ink, the business's mark and colour where it has them
+ * (decision 0075), one card, no script, whatever the words, in the language of its `<html>`.
+ */
+function draw(
+  status: number,
+  kind: string,
+  w: PageWords,
+  lang: SenderLanguage,
+  look: LinkPageLook = NO_LOOK,
+): Response {
   const forms = w.buttons
     .map(
       (b) =>
@@ -132,8 +145,8 @@ function draw(status: number, kind: string, w: PageWords, lang: SenderLanguage):
   const foot = w.foot ? `<p class="foot">${escapeHtml(w.foot)}</p>` : "";
   const html = `<!doctype html>
 <html lang="${lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex, nofollow"><title>${escapeHtml(w.title)}</title><style>${LINK_PAGE_STYLE}</style></head>
-<body><main><div class="card"><h1>${escapeHtml(w.lead)}</h1><p>${escapeHtml(w.body)}</p>${forms}</div>${foot}</main></body></html>`;
+<meta name="robots" content="noindex, nofollow"><title>${escapeHtml(w.title)}</title><style>${linkPageStyle(look)}</style></head>
+<body><main>${linkPageMark(look)}<div class="card"><h1>${escapeHtml(w.lead)}</h1><p>${escapeHtml(w.body)}</p>${forms}</div>${foot}</main></body></html>`;
   // Which view this is, so the edge can tell the page answering from anything else answering at its address. The words
   // true of both kinds of email are the same view to the edge (its probe's link names no email, so it draws them): an
   // "ask" or a "done", whichever words the page says it in.
@@ -143,7 +156,7 @@ function draw(status: number, kind: string, w: PageWords, lang: SenderLanguage):
 }
 
 /** A view of the reach-out's cold email's page, and every view that is the same for both: a bad link, a press that failed. */
-function page(status: number, view: UnsubscribeView): Response {
+function page(status: number, view: UnsubscribeView, look: LinkPageLook = NO_LOOK): Response {
   const w = unsubscribePageWords(view);
   return draw(
     status,
@@ -153,15 +166,16 @@ function page(status: number, view: UnsubscribeView): Response {
       buttons: w.button ? [{ label: w.button, name: "unsubscribe", value: "yes" }] : [],
     },
     "en",
+    look,
   );
 }
 
 /**
  * A view of the page an offer's link opens: to a customer, in their words (contracts offerUnsubscribeWords) and in the
- * language of the offer they pressed it in (null where that could not be read: English).
+ * language of the offer they pressed it in (null where that could not be read: English), in the business's look.
  */
-function offerPage(status: number, view: OfferUnsubscribeView, language: string | null): Response {
-  return draw(status, view.kind, offerUnsubscribeWords(view, language), senderLanguage(language));
+function offerPage(status: number, view: OfferUnsubscribeView, language: string | null, look: LinkPageLook): Response {
+  return draw(status, view.kind, offerUnsubscribeWords(view, language), senderLanguage(language), look);
 }
 
 function plainText(status: number, body: string): Response {
@@ -249,11 +263,11 @@ async function emailOf(db: SupabaseClient<Database>, tenantId: string, messageId
 }
 
 /** The page for a link, by what its email was: an offer's words to a customer, a reach-out's to a business, and words true of both where that is not known. */
-function pageFor(email: LinkedEmail, business: string | null, view: "ask" | "done"): Response {
-  if (email.lane === "offer") return offerPage(200, { kind: view, business }, email.language);
+function pageFor(email: LinkedEmail, business: string | null, view: "ask" | "done", look: LinkPageLook): Response {
+  if (email.lane === "offer") return offerPage(200, { kind: view, business }, email.language, look);
   if (email.lane === "unread")
-    return page(200, view === "ask" ? { kind: "ask_either", business } : { kind: "done_either", business });
-  return page(200, { kind: view, business, sender: email.sender });
+    return page(200, view === "ask" ? { kind: "ask_either", business } : { kind: "done_either", business }, look);
+  return page(200, { kind: view, business, sender: email.sender }, look);
 }
 
 export async function unsubscribeGet(token: string): Promise<Response> {
@@ -265,11 +279,12 @@ export async function unsubscribeGet(token: string): Promise<Response> {
     sayBadLink();
     return page(404, { kind: "bad_link" });
   }
-  const [business, email] = await Promise.all([
+  const [business, email, look] = await Promise.all([
     businessName(db, claims.tenantId),
     emailOf(db, claims.tenantId, claims.messageId),
+    linkPageLookOf(db, claims.tenantId),
   ]);
-  return pageFor(email, business, "ask");
+  return pageFor(email, business, "ask", look);
 }
 
 export async function unsubscribePost(token: string, req: Request): Promise<Response> {
@@ -315,7 +330,11 @@ export async function unsubscribePost(token: string, req: Request): Promise<Resp
       : page(503, { kind: "unavailable", retry: true });
   }
   if (oneClick) return plainText(200, "Unsubscribed.");
-  return pageFor(await emailOf(db, claims.tenantId, claims.messageId), said.business, "done");
+  const [email, look] = await Promise.all([
+    emailOf(db, claims.tenantId, claims.messageId),
+    linkPageLookOf(db, claims.tenantId),
+  ]);
+  return pageFor(email, said.business, "done", look);
 }
 
 /**
@@ -333,15 +352,23 @@ async function stopAllMessagesPage(
   // read is not known to be either, so nothing is changed and the press can be made again.
   if (email.lane === "unread") return plainText(503, STOP_ALL_REFUSALS.unread);
   if (email.lane !== "offer") return plainText(400, STOP_ALL_REFUSALS.not_an_offer);
-  if (!confirmed)
-    return offerPage(200, { kind: "stop_ask", business: await businessName(db, claims.tenantId) }, email.language);
+  if (!confirmed) {
+    const [business, look] = await Promise.all([
+      businessName(db, claims.tenantId),
+      linkPageLookOf(db, claims.tenantId),
+    ]);
+    return offerPage(200, { kind: "stop_ask", business }, email.language, look);
+  }
   try {
-    const stopped = await stopAllMessages(db, {
-      tenantId: claims.tenantId,
-      contactId: claims.contactId,
-      messageId: claims.messageId,
-    });
-    return offerPage(200, { kind: "stopped", business: stopped.business }, email.language);
+    const [stopped, look] = await Promise.all([
+      stopAllMessages(db, {
+        tenantId: claims.tenantId,
+        contactId: claims.contactId,
+        messageId: claims.messageId,
+      }),
+      linkPageLookOf(db, claims.tenantId),
+    ]);
+    return offerPage(200, { kind: "stopped", business: stopped.business }, email.language, look);
   } catch (e) {
     log.error("unsubscribe_not_recorded", {
       tenant_id: claims.tenantId,

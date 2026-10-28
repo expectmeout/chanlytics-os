@@ -2475,9 +2475,9 @@ function isIdentifierName(name) {
 function shortName(name) {
   return isIdentifierName(name) ? name : name.split(" ")[0] || name;
 }
-function contactMeta(dto, channel = "WhatsApp") {
+function contactMeta(dto, channel2 = "WhatsApp") {
   const id = formatPhoneDisplay(dto.contact.phone_e164) ?? dto.contact.email ?? null;
-  return contactName(dto) === id ? `${channel} \xB7 no name saved` : `${channel} \xB7 ${id ?? "no phone"}`;
+  return contactName(dto) === id ? `${channel2} \xB7 no name saved` : `${channel2} \xB7 ${id ?? "no phone"}`;
 }
 function initialsOf(name) {
   const digits2 = name.replace(/[^\d]/g, "");
@@ -2977,13 +2977,13 @@ function guessName(item, services = []) {
   if (guest) return guest.slice(0, 80);
   const title = item.title.replace(/\([^)]*\)/g, " ").replace(/\[[^\]]*\]/g, " ");
   const parts2 = title.split(/\s+(?:-|–|—|·|\||:|\/)\s+|\s+(?:with|for|w\/)\s+|:\s+/i).map((p) => p.trim()).filter(Boolean);
-  for (const part of parts2) {
-    if (svc.has(part.toLowerCase())) continue;
-    const words3 = part.split(/\s+/);
+  for (const part2 of parts2) {
+    if (svc.has(part2.toLowerCase())) continue;
+    const words3 = part2.split(/\s+/);
     if (words3.length < 2 || words3.length > 4) continue;
     if (!words3.every((w) => NAME_WORD.test(w) && CAPITAL.test(w))) continue;
     if (words3.some((w) => svc.has(w.toLowerCase()))) continue;
-    return part;
+    return part2;
   }
   return null;
 }
@@ -3172,12 +3172,12 @@ function localMs(tz, v) {
   if (typeof v !== "string") return null;
   const m = LOCAL_TIME.exec(v.trim());
   if (!m) return null;
-  const part = (i) => Number(m[i]);
-  const y = part(1);
-  const mo = part(2);
-  const d = part(3);
-  const hh = part(4);
-  const mm = part(5);
+  const part2 = (i) => Number(m[i]);
+  const y = part2(1);
+  const mo = part2(2);
+  const d = part2(3);
+  const hh = part2(4);
+  const mm = part2(5);
   if (!(mo >= 1 && mo <= 12 && d >= 1 && d <= 31 && hh <= 23 && mm <= 59)) return null;
   const day2 = new Date(Date.UTC(y, mo - 1, d));
   if (day2.getUTCMonth() !== mo - 1 || day2.getUTCDate() !== d) return null;
@@ -6779,17 +6779,17 @@ var CONSENT_CHANNEL_WORDS = {
 function isConsentChannel(c) {
   return !!c && CONSENT_CHANNELS.includes(c);
 }
-function channelsOfYes(purpose, source, channel) {
-  if (source === "customer_message" && channel === "instagram") return [];
-  if (purpose === "marketing" && source === "customer_message" && (channel === "sms" || channel === "email"))
-    return ["whatsapp", channel];
-  if (source === "customer_message" && isConsentChannel(channel)) return [channel];
+function channelsOfYes(purpose, source, channel2) {
+  if (source === "customer_message" && channel2 === "instagram") return [];
+  if (purpose === "marketing" && source === "customer_message" && (channel2 === "sms" || channel2 === "email"))
+    return ["whatsapp", channel2];
+  if (source === "customer_message" && isConsentChannel(channel2)) return [channel2];
   if (purpose === "marketing") return source === "form" || source === "customer_message" ? ["whatsapp"] : [];
   if (source === "form" || source === "phone") return ["whatsapp", "sms"];
   return ["whatsapp"];
 }
-function yesCovers(channels, channel) {
-  return channels == null ? channel === "whatsapp" : channels.includes(channel);
+function yesCovers(channels, channel2) {
+  return channels == null ? channel2 === "whatsapp" : channels.includes(channel2);
 }
 function coveredChannels(channels) {
   return channels == null ? ["whatsapp"] : CONSENT_CHANNELS.filter((c) => channels.includes(c));
@@ -8801,10 +8801,10 @@ function policyClassQuestion() {
     }
   };
 }
-function policyRules(policy, channel) {
+function policyRules(policy, channel2) {
   const out = [];
   const modeOf = (cls) => policy?.[cls]?.mode ?? "auto";
-  const voice2 = channel === "voice";
+  const voice2 = channel2 === "voice";
   if (modeOf("booking") !== "auto") {
     out.push(
       voice2 ? `Booking: when ${POLICY_COVERS.booking}, do not offer the booking link. Say a member of the team will call or text them to confirm, and take their name.` : `Booking: when ${POLICY_COVERS.booking}, do not send the booking link. Say a member of the team will confirm with them shortly, and set escalate to true.`
@@ -9241,11 +9241,11 @@ var AGENTS = {
   instagram: { glyph: "I", name: "Instagram Receptionist" },
   phone: { glyph: "P", name: "Phone Receptionist" }
 };
-function agentFor(channel) {
-  return AGENTS[channel] ?? AGENTS.whatsapp;
+function agentFor(channel2) {
+  return AGENTS[channel2] ?? AGENTS.whatsapp;
 }
-function writtenChannelOf(channel) {
-  return channel === "sms" || channel === "email" || channel === "instagram" ? channel : "whatsapp";
+function writtenChannelOf(channel2) {
+  return channel2 === "sms" || channel2 === "email" || channel2 === "instagram" ? channel2 : "whatsapp";
 }
 var THREAD_CHANNEL_WORDS = {
   whatsapp: "WhatsApp",
@@ -9291,7 +9291,7 @@ function threadChannelWords(messages) {
 
 // src/conversations/message-words.ts
 var EMAIL_DELIVERED = "Reached their mail server";
-function messageStatusLabel(status, channel) {
+function messageStatusLabel(status, channel2) {
   switch (status) {
     case "queued":
       return "Sending\u2026";
@@ -9302,7 +9302,7 @@ function messageStatusLabel(status, channel) {
     case "read":
       return "Read";
     case "delivered":
-      return channel === "email" ? EMAIL_DELIVERED : "Delivered";
+      return channel2 === "email" ? EMAIL_DELIVERED : "Delivered";
     default:
       return void 0;
   }
@@ -9373,10 +9373,10 @@ function providerCodeOf(error) {
   }
   return codeOf(record(record(body)?.error)?.code);
 }
-function sendFailureWords(error, channel) {
+function sendFailureWords(error, channel2) {
   const e = record(error);
   if (!e) return null;
-  const wire = writtenChannelOf(channel);
+  const wire = writtenChannelOf(channel2);
   if (wire === "email") {
     const provider = typeof e.provider === "string" ? e.provider : "";
     return tableWord(EMAIL_FAILURES, provider) ?? settledWords(e);
@@ -9392,13 +9392,13 @@ function sendFailureWords(error, channel) {
   return carrier ?? settledWords(e);
 }
 var OUTCOME_UNKNOWN_KIND = "outcome_unknown";
-function failureWordsOf(channel, key) {
-  if (key.code !== null) return sendFailureWords({ code: key.code }, channel);
+function failureWordsOf(channel2, key) {
+  if (key.code !== null) return sendFailureWords({ code: key.code }, channel2);
   if (key.kind === null) return null;
-  if (key.kind === OUTCOME_UNKNOWN_KIND) return sendFailureWords({ outcome: "unknown" }, channel);
-  const wire = writtenChannelOf(channel);
+  if (key.kind === OUTCOME_UNKNOWN_KIND) return sendFailureWords({ outcome: "unknown" }, channel2);
+  const wire = writtenChannelOf(channel2);
   const own = wire === "email" ? { provider: key.kind } : wire === "sms" ? { carrier: key.kind } : {};
-  return sendFailureWords({ ...own, reason: key.kind }, channel);
+  return sendFailureWords({ ...own, reason: key.kind }, channel2);
 }
 function messageFailedWhy(m) {
   return m.status === "failed" ? sendFailureWords(m.error, m.channel) : null;
@@ -10367,11 +10367,11 @@ var VERSION_CHANNEL_WORDS = {
   email: "Email",
   sms: "Text"
 };
-function versionWord(channel) {
-  return channel === "whatsapp" ? VERSION_CHANNEL_WORDS.whatsapp : VERSION_CHANNEL_WORDS[channel].toLowerCase();
+function versionWord(channel2) {
+  return channel2 === "whatsapp" ? VERSION_CHANNEL_WORDS.whatsapp : VERSION_CHANNEL_WORDS[channel2].toLowerCase();
 }
-function noVersionWords(channel) {
-  return channel === "whatsapp" ? "This message has no WhatsApp version." : `This message has no ${versionWord(channel)} version yet.`;
+function noVersionWords(channel2) {
+  return channel2 === "whatsapp" ? "This message has no WhatsApp version." : `This message has no ${versionWord(channel2)} version yet.`;
 }
 var EMAIL_SUBJECT_MAX = 60;
 var EMAIL_BODY_MAX = 2e3;
@@ -10504,20 +10504,20 @@ function validateSmsVersion(d, slots, language) {
     warnings.push(`With the STOP line this text goes as ${sent.segments} parts, and each part is billed.`);
   return { ok: true, value: { subject: null, body }, warnings };
 }
-function validateOwnVersion(channel, d, slots, language) {
-  return channel === "email" ? validateEmailVersion(d, slots) : validateSmsVersion(d, slots, language);
+function validateOwnVersion(channel2, d, slots, language) {
+  return channel2 === "email" ? validateEmailVersion(d, slots) : validateSmsVersion(d, slots, language);
 }
-function versionComponents(channel, w) {
+function versionComponents(channel2, w) {
   const body = { type: "BODY", text: w.body };
-  return channel === "email" && w.subject ? [{ type: "HEADER", format: "TEXT", text: w.subject }, body] : [body];
+  return channel2 === "email" && w.subject ? [{ type: "HEADER", format: "TEXT", text: w.subject }, body] : [body];
 }
 function partText(components, type) {
   if (!Array.isArray(components)) return null;
-  const part = components.find((c) => {
+  const part2 = components.find((c) => {
     const kind = !!c && typeof c === "object" ? c.type : null;
     return typeof kind === "string" && kind.toUpperCase() === type;
   });
-  return typeof part?.text === "string" && part.text.trim() ? part.text : null;
+  return typeof part2?.text === "string" && part2.text.trim() ? part2.text : null;
 }
 function versionWords(row2) {
   return {
@@ -10525,11 +10525,11 @@ function versionWords(row2) {
     body: partText(row2.components, "BODY") ?? row2.body_preview ?? ""
   };
 }
-function renderOwnVersion(channel, w, values, language, set) {
+function renderOwnVersion(channel2, w, values, language, set) {
   const body = fillSlots(w.body, values, set);
   return {
-    subject: channel === "email" && w.subject ? fillSlots(w.subject, values, set) : null,
-    body: channel === "sms" ? `${body}
+    subject: channel2 === "email" && w.subject ? fillSlots(w.subject, values, set) : null,
+    body: channel2 === "sms" ? `${body}
 ${smsStopLine(language)}` : body
   };
 }
@@ -16475,8 +16475,8 @@ function consentSourceLabel(source) {
   if (source === MERGE_CONSENT_SOURCE) return "From a merged record";
   return source === CONSENT_RESET_SOURCE ? null : source;
 }
-function mayReceive(r2, purpose, channel, about) {
-  return whyNotReceive(r2, purpose, channel, about) === null;
+function mayReceive(r2, purpose, channel2, about) {
+  return whyNotReceive(r2, purpose, channel2, about) === null;
 }
 function bearingOf(c) {
   return {
@@ -16490,12 +16490,12 @@ function bearingOf(c) {
     has_relationship: c.relationship
   };
 }
-function whyNotReceive(r2, purpose, channel, about) {
-  if (channel === "email") {
+function whyNotReceive(r2, purpose, channel2, about) {
+  if (channel2 === "email") {
     if (!r2.email) return "no_address";
     if (r2.emailSuppressed) return "address_stopped";
   } else if (!r2.phone) return "no_number";
-  const said = mayMessageFor(bearingOf(r2.consent), purpose, { proactive: true, channel, about });
+  const said = mayMessageFor(bearingOf(r2.consent), purpose, { proactive: true, channel: channel2, about });
   if (said.ok) return null;
   const { reason } = said;
   switch (reason) {
@@ -16512,8 +16512,8 @@ function whyNotReceive(r2, purpose, channel, about) {
     }
   }
 }
-function saidYesTo(r2, purpose, channel, about) {
-  return mayMessageFor(bearingOf(r2.consent), purpose, { proactive: true, channel, about }).ok;
+function saidYesTo(r2, purpose, channel2, about) {
+  return mayMessageFor(bearingOf(r2.consent), purpose, { proactive: true, channel: channel2, about }).ok;
 }
 
 // src/shared/enums.ts
@@ -17144,10 +17144,10 @@ var FACT = /* @__PURE__ */ (() => ({
   text: "This conversation is by text message, not WhatsApp.",
   dm: "This conversation is by Instagram direct message, not WhatsApp."
 }))();
-function offersFacts(p, channel, now, tz) {
+function offersFacts(p, channel2, now, tz) {
   const out = [];
-  if (channel === "sms") out.push(FACT.text);
-  if (channel === "instagram") out.push(FACT.dm);
+  if (channel2 === "sms") out.push(FACT.text);
+  if (channel2 === "instagram") out.push(FACT.dm);
   const asked = p.offersAskedAt;
   const open = p.marketingConsent === "unknown" || p.marketingConsent === "opted_in" && !yesCovers(p.marketingChannels, "whatsapp");
   if (p.marketingConsent === "opted_in" && !open) out.push(FACT.yes);
@@ -17156,12 +17156,12 @@ function offersFacts(p, channel, now, tz) {
     if (typeof asked === "string") {
       const at3 = Date.parse(asked);
       out.push(FACT.asked(Number.isFinite(at3) ? clockDate(at3, tz, now.getTime()) : null));
-    } else if (asked === null && channel === "whatsapp" && !p.optedOut) out.push(FACT.never);
+    } else if (asked === null && channel2 === "whatsapp" && !p.optedOut) out.push(FACT.never);
   }
   return out;
 }
-function offersAfterStart(p, channel) {
-  if (channel !== "whatsapp") return null;
+function offersAfterStart(p, channel2) {
+  if (channel2 !== "whatsapp") return null;
   if (p.marketingConsent !== "unknown" || p.marketingConsentSource !== STOP_ENDED_OFFERS_SOURCE) return null;
   return `Offers and news stay off. Reply ${OFFERS_OPT_IN_PHRASES.en} to get them here again.`;
 }
@@ -17176,8 +17176,8 @@ function offersAskRule() {
 // src/config/workspace-config/assistant-disclosure.ts
 var CONVERSATION_UNDER_WAY = "This conversation is already under way.";
 var CONVERSATION_GAP_MS = DAY_MS;
-function disclosureFacts(p, channel, now) {
-  if (channel === "voice" || !p.returning || !p.lastTurnAt) return [];
+function disclosureFacts(p, channel2, now) {
+  if (channel2 === "voice" || !p.returning || !p.lastTurnAt) return [];
   const at3 = Date.parse(p.lastTurnAt);
   return Number.isFinite(at3) && now.getTime() - at3 < CONVERSATION_GAP_MS ? [CONVERSATION_UNDER_WAY] : [];
 }
@@ -17283,17 +17283,17 @@ var PROMPT_OPENINGS = {
   /** Above the owner's own words on a call, alone or after the line above. */
   ownWordsOnACall: "Some of it was written for text conversations"
 };
-function noLinkBooking(channel) {
-  return channel === "voice" ? `Booking: there is no booking link, so never use send_booking_link. When the caller wants to book, change or cancel a booking, or get a quote, take ${NO_LINK_DETAILS}, and say the team will follow up.` : `There is no booking link to send. When someone wants to book, change or cancel a booking, or get a quote, take ${NO_LINK_DETAILS}; once they have told you, say the team will follow up and set escalate to true.`;
+function noLinkBooking(channel2) {
+  return channel2 === "voice" ? `Booking: there is no booking link, so never use send_booking_link. When the caller wants to book, change or cancel a booking, or get a quote, take ${NO_LINK_DETAILS}, and say the team will follow up.` : `There is no booking link to send. When someone wants to book, change or cancel a booking, or get a quote, take ${NO_LINK_DETAILS}; once they have told you, say the team will follow up and set escalate to true.`;
 }
-function composeSystemPrompt(base, profile, channel = "whatsapp", tz, now = /* @__PURE__ */ new Date(), policy, audience = "customer") {
-  return composeSystemPromptWith(base, profile, channel, tz, now, policy, audience);
+function composeSystemPrompt(base, profile, channel2 = "whatsapp", tz, now = /* @__PURE__ */ new Date(), policy, audience = "customer") {
+  return composeSystemPromptWith(base, profile, channel2, tz, now, policy, audience);
 }
 function composeSystemPromptWith(base, profile, wire, tz, now, policy, audience) {
-  const channel = wire === "voice" ? "voice" : "whatsapp";
+  const channel2 = wire === "voice" ? "voice" : "whatsapp";
   const link = offersBookingLink(base) ? base.booking_link : null;
   const handed = offersLinkOn(
-    channel === "voice" ? "call" : "chat",
+    channel2 === "voice" ? "call" : "chat",
     base,
     base.whatsapp_line,
     base.booking_message,
@@ -17303,7 +17303,7 @@ function composeSystemPromptWith(base, profile, wire, tz, now, policy, audience)
   const today = businessToday(tz, now);
   const closed = closureLines(upcomingClosures(profile.closures, today));
   const notes = notesInForceOn(profile.notes, today).map(noteAsTold);
-  const facts = { base, profile, channel, wire, tz, policy, link, handed, hrs, closed, notes, audience };
+  const facts = { base, profile, channel: channel2, wire, tz, policy, link, handed, hrs, closed, notes, audience };
   return PROMPT_SECTIONS.flatMap((section) => section(facts)).join("\n");
 }
 var PROMPT_SECTIONS = [
@@ -17321,7 +17321,7 @@ var PROMPT_SECTIONS = [
   openTimesSection,
   rulesSection
 ];
-function identitySection({ base, profile, channel, wire }) {
+function identitySection({ base, profile, channel: channel2, wire }) {
   const s = [];
   const medium = wire === "voice" ? "on the phone" : wire === "sms" ? "by text message" : wire === "instagram" ? "in Instagram direct messages" : "over WhatsApp";
   s.push(`You are the assistant for ${base.business_name}, answering customers ${medium}.`);
@@ -17331,7 +17331,7 @@ function identitySection({ base, profile, channel, wire }) {
   if (profile.languages?.length) {
     const list2 = profile.languages.join(", ");
     s.push(
-      channel === "voice" ? (
+      channel2 === "voice" ? (
         // A call hears only these: the line listens for its workspace's languages (voice-converge's locales). A caller
         // picks the language by speaking it; nobody asks a phone agent to "reply in Spanish".
         `You speak: ${list2}. Answer in whichever of these the caller uses, and switch if they do.`
@@ -17436,9 +17436,9 @@ function bookingRuleLines(br) {
   for (const n of br.notes ?? []) lines.push(n);
   return lines;
 }
-function handoffSection({ profile, channel }) {
+function handoffSection({ profile, channel: channel2 }) {
   const s = [];
-  if (channel === "whatsapp") {
+  if (channel2 === "whatsapp") {
     const when = profile.escalate_when?.length ? `
 ${profile.escalate_when.map((e) => `- ${e}`).join("\n")}` : "";
     s.push(
@@ -17460,9 +17460,9 @@ Do this whenever the caller asks for a person, is upset, or asks something these
   }
   return s;
 }
-function callToolsSection({ base, channel, link, handed }) {
+function callToolsSection({ base, channel: channel2, link, handed }) {
   const s = [];
-  if (channel !== "whatsapp") {
+  if (channel2 !== "whatsapp") {
     s.push(
       `
 ${PROMPT_OPENINGS.callTools} before offering a time \u2014 it reads the calendar as it is at that moment (a list at the end of these instructions, if any, is from the start of the call). Ask which service first when you can, so only windows long enough are offered.
@@ -17472,7 +17472,7 @@ Ending: once the caller has said goodbye, use end_call.`
   }
   return s;
 }
-function ownWordsSection({ profile, channel, hrs, closed }) {
+function ownWordsSection({ profile, channel: channel2, hrs, closed }) {
   const s = [];
   if (profile.extra_instructions?.trim()) {
     const above = [
@@ -17485,7 +17485,7 @@ function ownWordsSection({ profile, channel, hrs, closed }) {
     const text = profile.extra_instructions.trim();
     const header = [
       stated2 ? `${PROMPT_OPENINGS.ownWordsUnderDetails} Where these disagree with the ${joinList(above)} above, the details above are current and correct.` : "",
-      channel === "voice" ? `${PROMPT_OPENINGS.ownWordsOnACall}; you are on a phone call.` : ""
+      channel2 === "voice" ? `${PROMPT_OPENINGS.ownWordsOnACall}; you are on a phone call.` : ""
     ].filter(Boolean).join(" ");
     s.push(header ? `
 ${header}
@@ -17494,14 +17494,14 @@ ${text}`);
   }
   return s;
 }
-function mediumSection({ base, channel, link, handed }) {
+function mediumSection({ base, channel: channel2, link, handed }) {
   const s = [];
   const ways = callLinkWays(base, base.whatsapp_line, base.booking_message, base.texting_line);
   const by = ways.whatsapp ? ways.text ? "to the caller's WhatsApp or by text" : "to the caller's WhatsApp" : "by text";
   const callMedium = handed ? `Keep answers to one or two sentences, never read a URL out character by character, and offer to send the booking link ${by} instead.` : "Keep answers to one or two sentences, and never read a URL out character by character.";
   const chatMedium = link ? "Send the booking link rather than describing how to book." : noLinkBooking("whatsapp");
   s.push(
-    channel === "voice" ? `
+    channel2 === "voice" ? `
 ${PROMPT_OPENINGS.callMedium} ${callMedium}` : `
 ${PROMPT_OPENINGS.chatMedium} ${chatMedium}`
   );
@@ -17520,11 +17520,11 @@ var ASSISTANT_RULE = {
   textOpening: `Unless the facts about them say "${CONVERSATION_UNDER_WAY}", open your reply by saying, in a few words, that you are the business's automated assistant.`
 };
 var RULES_WIN = "Where anything above disagrees with these rules, the rules win.";
-function standingRules(policy, channel, audience) {
-  const assistant = audience === "draft" ? [] : channel === "voice" ? [ASSISTANT_RULE.always] : [ASSISTANT_RULE.always, ASSISTANT_RULE.textOpening];
-  return [...policyRules(policy, channel), ...assistant, RULES_WIN, DATA_NOT_INSTRUCTIONS];
+function standingRules(policy, channel2, audience) {
+  const assistant = audience === "draft" ? [] : channel2 === "voice" ? [ASSISTANT_RULE.always] : [ASSISTANT_RULE.always, ASSISTANT_RULE.textOpening];
+  return [...policyRules(policy, channel2), ...assistant, RULES_WIN, DATA_NOT_INSTRUCTIONS];
 }
-function rulesSection({ base, profile, channel, policy, link, handed, audience }) {
+function rulesSection({ base, profile, channel: channel2, policy, link, handed, audience }) {
   const s = [];
   const g = guardrailsInForce(profile.guardrails);
   const rules = [];
@@ -17542,14 +17542,14 @@ function rulesSection({ base, profile, channel, policy, link, handed, audience }
       `Never promise or confirm an appointment yourself. Booking happens ${link ? "on the booking link or " : ""}with staff.`
     );
   }
-  if (channel === "whatsapp") rules.push(offersAnswerRule(!!base.whatsapp_line));
-  if (channel === "whatsapp" && base.whatsapp_line) rules.push(offersAskRule());
+  if (channel2 === "whatsapp") rules.push(offersAnswerRule(!!base.whatsapp_line));
+  if (channel2 === "whatsapp" && base.whatsapp_line) rules.push(offersAskRule());
   if (g.no_health_advice) {
     rules.push(
       `Never give medical or health advice \u2014 for anything about skin reactions, allergies, pregnancy or medication, say a professional will advise at the appointment${handed ? " and offer the booking link" : ""}.`
     );
   }
-  rules.push(...standingRules(policy, channel, audience));
+  rules.push(...standingRules(policy, channel2, audience));
   if (rules.length) s.push(`
 ${PROMPT_OPENINGS.rules}
 ${rules.map((r2) => `- ${r2}`).join("\n")}`);
@@ -17569,11 +17569,11 @@ function hasProfile(p) {
   return !!(p.address || p.tone || p.extra_instructions || statedHours || p.services?.length || p.languages?.length || p.escalate_when?.length || p.website || p.notes?.length);
 }
 function resolveSystemPrompt(brain, wire = "whatsapp", tz, now = /* @__PURE__ */ new Date(), policy, known, audience = "customer") {
-  const channel = wire === "voice" ? "voice" : "whatsapp";
+  const channel2 = wire === "voice" ? "voice" : "whatsapp";
   const facts = resolveFacts(brain, known);
   if (!hasProfile(brain.profile)) {
-    const link = !offersBookingLink(brain) ? [noLinkBooking(channel)] : channel === "voice" && !offersLinkOn("call", brain, facts.whatsapp_line.value, known?.booking_message, known?.texting_line) ? [cannotSendLink(facts.whatsapp_line.value)] : [];
-    const rules = [...link, ...standingRules(policy, channel, audience)];
+    const link = !offersBookingLink(brain) ? [noLinkBooking(channel2)] : channel2 === "voice" && !offersLinkOn("call", brain, facts.whatsapp_line.value, known?.booking_message, known?.texting_line) ? [cannotSendLink(facts.whatsapp_line.value)] : [];
+    const rules = [...link, ...standingRules(policy, channel2, audience)];
     return `${brain.system_prompt}
 
 ${PROMPT_OPENINGS.rules}
@@ -20365,8 +20365,8 @@ var UNASKED = {
   has_relationship: false
 };
 var DEALT = { ...UNASKED, has_relationship: true };
-function yesAsked(channel, purpose, about) {
-  const may = (c) => mayMessageFor(c, purpose, { proactive: true, channel, about }).ok;
+function yesAsked(channel2, purpose, about) {
+  const may = (c) => mayMessageFor(c, purpose, { proactive: true, channel: channel2, about }).ok;
   if (may(UNASKED)) return "none";
   return may(DEALT) ? "yes_or_dealt" : "yes";
 }
@@ -20375,33 +20375,33 @@ var WAY_TO_REACH = {
   sms: { noun: "a phone number", has: "has a phone number" },
   email: { noun: "an email address that works", has: "has an email address that works" }
 };
-function yesTo(channel, purpose) {
-  const by = channel === "email" ? " by email" : "";
+function yesTo(channel2, purpose) {
+  const by = channel2 === "email" ? " by email" : "";
   return purpose === "marketing" ? `offers${by}` : `hearing from you${by}`;
 }
-function needs(channel, purpose, about) {
-  const ask = yesAsked(channel, purpose, about);
-  const way = WAY_TO_REACH[channel].noun;
-  const to = yesTo(channel, purpose);
+function needs(channel2, purpose, about) {
+  const ask = yesAsked(channel2, purpose, about);
+  const way = WAY_TO_REACH[channel2].noun;
+  const to = yesTo(channel2, purpose);
   if (ask === "yes") return `a recorded yes to ${to} and ${way}`;
   if (ask === "yes_or_dealt") return `a yes to ${to} or a relationship with you on record, and ${way}`;
   return way;
 }
-function clause(channel, purpose, about) {
-  const ask = yesAsked(channel, purpose, about);
-  const to = yesTo(channel, purpose);
+function clause(channel2, purpose, about) {
+  const ask = yesAsked(channel2, purpose, about);
+  const to = yesTo(channel2, purpose);
   if (ask === "yes") return `said yes to ${to}`;
   if (ask === "yes_or_dealt")
     return purpose === "marketing" ? `asked for ${to}, or has dealt with you` : `said yes to ${to}, or has dealt with you`;
-  return WAY_TO_REACH[channel].has;
+  return WAY_TO_REACH[channel2].has;
 }
 function groupedBy(channels, words3) {
   const groups = [];
-  for (const channel of CONSENT_CHANNELS.filter((c) => channels.includes(c))) {
-    const said = words3(channel);
+  for (const channel2 of CONSENT_CHANNELS.filter((c) => channels.includes(c))) {
+    const said = words3(channel2);
     const same2 = groups.find((g) => g.words === said);
-    if (same2) same2.channels.push(channel);
-    else groups.push({ channels: [channel], words: said });
+    if (same2) same2.channels.push(channel2);
+    else groups.push({ channels: [channel2], words: said });
   }
   return groups;
 }
@@ -20441,10 +20441,10 @@ function readFailure(stored) {
   const [code2, named, ...rest] = stored.split(":");
   if (code2 === void 0 || !isFailure(code2) || rest.length > 0) return null;
   if (named === void 0) return { code: code2, channel: "whatsapp" };
-  const channel = CONSENT_CHANNELS.find((c) => c === named);
-  return channel && isWireFailure(code2) ? { code: code2, channel } : null;
+  const channel2 = CONSENT_CHANNELS.find((c) => c === named);
+  return channel2 && isWireFailure(code2) ? { code: code2, channel: channel2 } : null;
 }
-var wordsFor = (w, channel) => typeof w === "string" ? w : w[channel];
+var wordsFor = (w, channel2) => typeof w === "string" ? w : w[channel2];
 var BROADCAST_FAILURE_WORDS = {
   paused: "the workspace was paused",
   template_not_approved: "its WhatsApp version is no longer approved",
@@ -20503,8 +20503,8 @@ function playbookRunNext(run, by) {
   return by === "tomorrow" ? "It does not run again today; tomorrow's run reaches the people this one did not, and nobody who got it is sent it twice." : "It does not run again today; the next run that can go reaches the people this one did not, and nobody who got it is sent it twice.";
 }
 var OUTLASTS_TOMORROW = /* @__PURE__ */ new Set(["provider_limit", "template_not_approved"]);
-function wireFailure(code2, channel) {
-  return channel === "whatsapp" ? code2 : `${code2}:${channel}`;
+function wireFailure(code2, channel2) {
+  return channel2 === "whatsapp" ? code2 : `${code2}:${channel2}`;
 }
 var WHATSAPP_VERSION_FIX_WORDS = "Open it in Messages \u2014 its WhatsApp version can be resubmitted, or the message written as an email or a text.";
 var BROADCAST_FAILURE_FIX = {
@@ -20574,8 +20574,8 @@ function broadcastFailureFix(failure, reached = 0, run) {
   if (!read) return null;
   const next = run ? playbookRunNext(run, OUTLASTS_TOMORROW.has(read.code) ? "when_it_can" : "tomorrow") : null;
   if (run && next) {
-    const { code: code2, channel } = read;
-    return isRunStop(code2) ? stoppedRunFix(code2, run) : playbookRunFix({ code: code2, channel }, reached, next);
+    const { code: code2, channel: channel2 } = read;
+    return isRunStop(code2) ? stoppedRunFix(code2, run) : playbookRunFix({ code: code2, channel: channel2 }, reached, next);
   }
   const after = reached > 0 ? BROADCAST_FAILURE_FIX_AFTER[read.code] : void 0;
   return after ? after(reached, read.channel) : wordsFor(BROADCAST_FAILURE_FIX[read.code], read.channel) || null;
@@ -20666,17 +20666,17 @@ var CHANNEL_WORDS = {
   /** What could not be asked of the edge just now: not offered, and not guessed to be ready either. */
   unchecked: "This could not be checked just now."
 };
-function channelNeverCarries(channel, purpose) {
-  return purpose === "marketing" && channel === "sms" ? CHANNEL_WORDS.noOffersByText : null;
+function channelNeverCarries(channel2, purpose) {
+  return purpose === "marketing" && channel2 === "sms" ? CHANNEL_WORDS.noOffersByText : null;
 }
-function channelRefuses(channel, purpose, about, ready2) {
-  const never = channelNeverCarries(channel, purpose);
+function channelRefuses(channel2, purpose, about, ready2) {
+  const never = channelNeverCarries(channel2, purpose);
   if (never) return never;
-  if (channel === "whatsapp" && purpose === "marketing") {
+  if (channel2 === "whatsapp" && purpose === "marketing") {
     const offers2 = ready2.whatsapp.offers;
     return offers2 && !offers2.ok ? offers2.why : null;
   }
-  if (!isOfferByEmail({ channel, purpose, proactive: true, about })) return null;
+  if (!isOfferByEmail({ channel: channel2, purpose, proactive: true, about })) return null;
   const offers = ready2.email.offers;
   return offers?.ok ? null : offers?.why ?? CHANNEL_WORDS.noOffersByEmailYet;
 }
@@ -20702,10 +20702,10 @@ function channelsReady(f) {
   return { whatsapp: wa, sms, email, ...f.paused ? { paused: true } : {} };
 }
 function channelChoices(ready2, purpose, about) {
-  return CONSENT_CHANNELS.map((channel) => {
-    const refuses = channelRefuses(channel, purpose, about, ready2);
-    if (refuses) return { channel, ok: false, why: refuses };
-    return { channel, ok: ready2[channel].ready, why: ready2[channel].why };
+  return CONSENT_CHANNELS.map((channel2) => {
+    const refuses = channelRefuses(channel2, purpose, about, ready2);
+    if (refuses) return { channel: channel2, ok: false, why: refuses };
+    return { channel: channel2, ok: ready2[channel2].ready, why: ready2[channel2].why };
   });
 }
 var HELD_ORDER = {
@@ -20779,8 +20779,8 @@ function monthSentAt(read, at3) {
   if (next && at3 >= next.from) return next.sent;
   return read.month_sent ?? null;
 }
-function allowanceRoom(channel, sent) {
-  return Math.max(0, CAMPAIGN_MONTH_ALLOWANCE[channel] - sent);
+function allowanceRoom(channel2, sent) {
+  return Math.max(0, CAMPAIGN_MONTH_ALLOWANCE[channel2] - sent);
 }
 function pastAllowance(people, sent, trigger, purpose) {
   if (!heldByAllowance(trigger, purpose)) return [];
@@ -20793,33 +20793,33 @@ function pastAllowance(people, sent, trigger, purpose) {
   }
   return past;
 }
-function sends(channel, n) {
-  const one = channel === "email" ? "email" : "text";
+function sends(channel2, n) {
+  const one = channel2 === "email" ? "email" : "text";
   return `${n.toLocaleString("en-US")} ${n === 1 ? one : `${one}s`}`;
 }
 var peopleWord2 = (n) => `${n.toLocaleString("en-US")} ${n === 1 ? "person" : "people"}`;
 function allowanceBeforeSend(byChannel, sent, trigger, purpose) {
   if (!sent || !heldByAllowance(trigger, purpose)) return null;
   const lines = [];
-  for (const channel of ["email", "sms"]) {
-    const room = allowanceRoom(channel, sent[channel]);
-    const past = byChannel[channel] - room;
+  for (const channel2 of ["email", "sms"]) {
+    const room = allowanceRoom(channel2, sent[channel2]);
+    const past = byChannel[channel2] - room;
     if (past <= 0) continue;
     lines.push(
-      room === 0 ? `This month's ${sends(channel, CAMPAIGN_MONTH_ALLOWANCE[channel])} are used up: ${peopleWord2(past)} will be held back.` : `Only ${sends(channel, room)} ${room === 1 ? "is" : "are"} left this month: ${past.toLocaleString("en-US")} of these people will be held back.`
+      room === 0 ? `This month's ${sends(channel2, CAMPAIGN_MONTH_ALLOWANCE[channel2])} are used up: ${peopleWord2(past)} will be held back.` : `Only ${sends(channel2, room)} ${room === 1 ? "is" : "are"} left this month: ${past.toLocaleString("en-US")} of these people will be held back.`
     );
   }
   return lines.length > 0 ? lines.join(" ") : null;
 }
-function allowanceLine(channel, used) {
-  const of = CAMPAIGN_MONTH_ALLOWANCE[channel];
+function allowanceLine(channel2, used) {
+  const of = CAMPAIGN_MONTH_ALLOWANCE[channel2];
   if (used * 2 < of) return null;
-  const noun = channel === "email" ? "emails" : "texts";
+  const noun = channel2 === "email" ? "emails" : "texts";
   return `${used.toLocaleString("en-US")} of ${of.toLocaleString("en-US")} ${noun} used this month`;
 }
 function allowanceLines(sent) {
   if (!sent) return [];
-  return ["email", "sms"].flatMap((channel) => allowanceLine(channel, sent[channel]) ?? []);
+  return ["email", "sms"].flatMap((channel2) => allowanceLine(channel2, sent[channel2]) ?? []);
 }
 
 // src/broadcasts/reach-any.ts
@@ -21239,13 +21239,13 @@ function audienceMembers(rows2, kind, id, savedIds) {
   if (kind === "saved") return savedIds ? rows2.filter((r2) => savedIds.has(r2.id)) : [];
   return rows2;
 }
-function previewPerson(r2, refusal, channel) {
+function previewPerson(r2, refusal, channel2) {
   return {
     id: r2.id,
     label: r2.name,
     firstName: firstNameOf(r2.givenName, r2.waName, { source: r2.nameSource, settled: r2.nameSettled }),
     refusal,
-    channel
+    channel: channel2
   };
 }
 var NO_TOUCHES = {};
@@ -21505,8 +21505,8 @@ function personLineOf(r2, { greets, cutOff, clock: clock3, channelsSaid }) {
   const hiThere = out && greets && !r2.first_name;
   const answer = r2.consent_after ? consentAnswerWords(r2.consent_after, r2.consent_purpose) : null;
   const quote = r2.replied && r2.reply_words ? `\u201C${r2.reply_words}\u201D` : null;
-  const channel = channelOf(r2);
-  const c = { out, hiThere, answer, quote, cutOff, clock: clock3, via: channel ?? "whatsapp" };
+  const channel2 = channelOf(r2);
+  const c = { out, hiThere, answer, quote, cutOff, clock: clock3, via: channel2 ?? "whatsapp" };
   const pill = personPillOf(r2, c);
   const words3 = personWordsOf(r2, c);
   const door = personDoorOf(r2, c);
@@ -21517,7 +21517,7 @@ function personLineOf(r2, { greets, cutOff, clock: clock3, channelsSaid }) {
     initials: initialsOf2(r2.name, !!r2.first_name),
     pill,
     words: words3,
-    channel: channelsSaid && channel ? CONSENT_CHANNEL_WORDS[channel] : null,
+    channel: channelsSaid && channel2 ? CONSENT_CHANNEL_WORDS[channel2] : null,
     door,
     at: out ? clock3(r2.replied_at || r2.consent_at || r2.read_at || r2.delivered_at || r2.sent_at) : null,
     attn: out && r2.consent_after === "opted_out" || hiThere,
@@ -21869,7 +21869,7 @@ var EN = {
   hour: clockHour,
   reason: reasonEn,
   noText: CHANNEL_WORDS.noOffersByText,
-  without: (channel, why) => `It goes without ${versionWord(channel)}: ${reasonEn(why)}`,
+  without: (channel2, why) => `It goes without ${versionWord(channel2)}: ${reasonEn(why)}`,
   reviewing: (name) => `WhatsApp is still reviewing the WhatsApp version of \u201C${name}\u201D.`,
   reuseMessage: (name) => `Sends \u201C${name}\u201D, already in your messages, with the offer in its words.`,
   writeMessage: (name, on) => `Writes a message for offers, \u201C${name}\u201D, for ${joinWords(on.map(versionWord))}: this offer goes in its words, and the next offer can send it too.`,
@@ -21905,7 +21905,7 @@ var reasonEs = (why) => {
   const said = reasonEn(why);
   return REASONS_ES.get(said) ?? said;
 };
-var channelEs = (channel) => channel === "whatsapp" ? "WhatsApp" : "correo";
+var channelEs = (channel2) => channel2 === "whatsapp" ? "WhatsApp" : "correo";
 var dayEs = (key, tz, now) => dateFormat("es", {
   timeZone: "UTC",
   day: "numeric",
@@ -21918,7 +21918,7 @@ var ES = {
   hour: (hour) => `${(Math.floor(hour) % 24 + 24) % 24}:00`,
   reason: reasonEs,
   noText: "Los mensajes de texto no llevan ofertas.",
-  without: (channel, why) => `Va sin ${channelEs(channel)}: ${reasonEs(why)}`,
+  without: (channel2, why) => `Va sin ${channelEs(channel2)}: ${reasonEs(why)}`,
   reviewing: (name) => `WhatsApp a\xFAn revisa la versi\xF3n de WhatsApp de \xAB${name}\xBB.`,
   reuseMessage: (name) => `Env\xEDa \xAB${name}\xBB, que ya est\xE1 en la Biblioteca, con la oferta en su texto.`,
   writeMessage: (name, on) => `Escribe un mensaje para ofertas, \xAB${name}\xBB, para ${joinWordsEs(on.map(channelEs))}: esta oferta va en su texto, y la pr\xF3xima tambi\xE9n podr\xE1 enviarlo.`,
@@ -23164,9 +23164,9 @@ function footerOf(components) {
   if (!Array.isArray(components)) return null;
   for (const c of components) {
     if (!c || typeof c !== "object") continue;
-    const part = c;
-    if (String(part.type ?? "").toUpperCase() !== "FOOTER") continue;
-    const text = typeof part.text === "string" ? part.text.trim() : "";
+    const part2 = c;
+    if (String(part2.type ?? "").toUpperCase() !== "FOOTER") continue;
+    const text = typeof part2.text === "string" ? part2.text.trim() : "";
     if (text) return text;
   }
   return null;
@@ -23187,8 +23187,8 @@ var partOf = (components, type) => {
   }
   return null;
 };
-var textOf = (part) => {
-  const t = part && typeof part.text === "string" ? part.text.trim() : "";
+var textOf = (part2) => {
+  const t = part2 && typeof part2.text === "string" ? part2.text.trim() : "";
   return t || null;
 };
 var BUTTON_KIND = { URL: "url", QUICK_REPLY: "reply", PHONE_NUMBER: "call" };
@@ -23369,10 +23369,10 @@ var NOT_APPROVED_WORDS = {
   paused: "WhatsApp has paused this message's WhatsApp version.",
   disabled: "WhatsApp has disabled this message's WhatsApp version."
 };
-function messageWhyNot(m, channel) {
-  if (messageHolds(m)[channel]) return null;
+function messageWhyNot(m, channel2) {
+  if (messageHolds(m)[channel2]) return null;
   const w = m.versions.whatsapp;
-  if (channel !== "whatsapp" || w === null) return noVersionWords(channel);
+  if (channel2 !== "whatsapp" || w === null) return noVersionWords(channel2);
   if (w.status !== "approved") return NOT_APPROVED_WORDS[w.status];
   return w.blocked === null ? null : `This message's WhatsApp version has ${w.blocked}, so it cannot be sent from here.`;
 }
@@ -23387,7 +23387,7 @@ function readyForMessage(ready2, message) {
 }
 var whatsappStandingWord = (status) => TEMPLATE_STATUS_WORDS[status].toLowerCase();
 function messageStandingWords(m) {
-  const at3 = (channel, word) => `${VERSION_CHANNEL_WORDS[channel]} \xB7 ${word}`;
+  const at3 = (channel2, word) => `${VERSION_CHANNEL_WORDS[channel2]} \xB7 ${word}`;
   const w = m?.versions.whatsapp ?? null;
   return {
     whatsapp: at3("whatsapp", w ? whatsappStandingWord(w.status) : "not added"),
@@ -23596,7 +23596,7 @@ var playbookChannelsSpec = {
   },
   // The drawer's own sentence, whole (LIFECYCLE_TOAST.channels): "Visit reminder goes by WhatsApp and Email now", and
   // after it that the run which waits keeps the channels it was made with, where one does.
-  receipt: ({ payload: pl }) => LIFECYCLE_TOAST.channels(asText(pl.name) || "The campaign", channelsIn(pl.channels), pl.run_waits === true).map((part) => typeof part === "string" ? part : part.b).join(""),
+  receipt: ({ payload: pl }) => LIFECYCLE_TOAST.channels(asText(pl.name) || "The campaign", channelsIn(pl.channels), pl.run_waits === true).map((part2) => typeof part2 === "string" ? part2 : part2.b).join(""),
   undo: {
     label: ({ payload }) => `Put it back to ${channelsGoesByWords(channelsIn(payload.was))}`,
     window: "ten_minutes",
@@ -23625,7 +23625,7 @@ var patchIn = (pl, modeKey) => {
   return body;
 };
 var resumeUndoLabel = (mode) => mode === "auto" ? `Resume it. ${LIFECYCLE_WORDS.ledger.resume.auto}` : "Resume it";
-var toastWords = (parts2) => parts2.map((part) => typeof part === "string" ? part : part.b).join("");
+var toastWords = (parts2) => parts2.map((part2) => typeof part2 === "string" ? part2 : part2.b).join("");
 var playbookChangeSpec = {
   needs: "operator",
   gate: "approve",
@@ -23858,7 +23858,7 @@ var messageSpec = {
     // The email and text versions the door answered it filed, and the state of a WhatsApp version it filed beside them.
     record: (_p, data) => {
       const filed = versionsIn(rec(data).versions);
-      const own = filed.filter((v) => writtenHere(v.channel)).map(({ channel, id }) => ({ channel, id }));
+      const own = filed.filter((v) => writtenHere(v.channel)).map(({ channel: channel2, id }) => ({ channel: channel2, id }));
       if (own.length === 0) return null;
       return { versions: own, whatsapp: filed.find((v) => v.channel === "whatsapp")?.state ?? null };
     },
@@ -24312,8 +24312,8 @@ function leadHoursShort(text) {
   if (/^open 24 hours$/i.test(t)) return "24 hours";
   if (/^closed/i.test(t)) return "Closed";
   const at3 = (h, mm) => mm && mm !== "00" ? `${h}:${mm}` : h;
-  const ranges = t.split(/\s*,\s*/).map((part) => {
-    const m = part.match(CLOCK);
+  const ranges = t.split(/\s*,\s*/).map((part2) => {
+    const m = part2.match(CLOCK);
     if (!m) return null;
     const a1 = m[3].toUpperCase();
     const a2 = m[6].toUpperCase();
@@ -26986,7 +26986,7 @@ function manyCalls(route, pl, fields2) {
   const ids = uniqueIds(pl.ids);
   if (!ids.length) return refuseWith("Pick at least one person.");
   const rest = fieldsOf(pl, fields2);
-  const calls = inBatches(ids).map((part) => ({ route, body: { ...rest, ids: part }, events: [PEOPLE_CHANGED] }));
+  const calls = inBatches(ids).map((part2) => ({ route, body: { ...rest, ids: part2 }, events: [PEOPLE_CHANGED] }));
   return oneOrMany(calls);
 }
 var ANSWER_DOOR = {
@@ -28036,15 +28036,15 @@ function runPartsOf(r2, ready2, state) {
   const owner = r2.owner_sends === true;
   const held = r2.held.length;
   const goWords = owner && state !== "pending_approval" ? "handed to you" : state === "sending" ? "going" : "ready";
-  const part = (key, n, rest) => ({ key, n, rest, words: `${n} ${rest}` });
+  const part2 = (key, n, rest) => ({ key, n, rest, words: `${n} ${rest}` });
   const parts2 = [
-    part("go", ready2, goWords),
-    part("later", r2.later, "in the coming days"),
-    part("held", held, "held"),
-    part("checking", r2.checking, "being checked")
+    part2("go", ready2, goWords),
+    part2("later", r2.later, "in the coming days"),
+    part2("held", held, "held"),
+    part2("checking", r2.checking, "being checked")
   ];
   const shown2 = parts2.filter((x) => x.n > 0);
-  return shown2.length > 2 ? shown2 : shown2.map((x) => x.key === "held" ? part("held", held, "held by the check") : x);
+  return shown2.length > 2 ? shown2 : shown2.map((x) => x.key === "held" ? part2("held", held, "held by the check") : x);
 }
 function runDockOf(r2, p) {
   const { ready: ready2, from, state } = p;
@@ -28626,40 +28626,40 @@ var PREVIEW_CHANNEL_WORDS = {
 };
 function previewVersionsOf(rows2, name, language) {
   const out = {};
-  for (const channel of OWN_VERSION_CHANNELS) {
-    const row2 = rows2.find((r2) => r2.channel === channel && r2.name === name && r2.language === language);
-    if (row2) out[channel] = versionWords(row2);
+  for (const channel2 of OWN_VERSION_CHANNELS) {
+    const row2 = rows2.find((r2) => r2.channel === channel2 && r2.name === name && r2.language === language);
+    if (row2) out[channel2] = versionWords(row2);
   }
   return out;
 }
-function previewOn(channel, o) {
-  const label = PREVIEW_CHANNEL_WORDS[channel];
-  if (channel === "whatsapp") return { channel, label, version: null, foot: null, missing: null };
-  const version = o.versions[channel] ?? null;
-  if (!version) return { channel, label, version: null, foot: null, missing: noVersionWords(channel) };
-  if (channel === "email" && o.offer && !o.address?.trim())
-    return { channel, label, version: null, foot: null, missing: OFFERS_BY_EMAIL_WORDS.noAddress };
-  const foot = channel === "sms" ? smsStopLine(o.language) : emailFoot(
+function previewOn(channel2, o) {
+  const label = PREVIEW_CHANNEL_WORDS[channel2];
+  if (channel2 === "whatsapp") return { channel: channel2, label, version: null, foot: null, missing: null };
+  const version = o.versions[channel2] ?? null;
+  if (!version) return { channel: channel2, label, version: null, foot: null, missing: noVersionWords(channel2) };
+  if (channel2 === "email" && o.offer && !o.address?.trim())
+    return { channel: channel2, label, version: null, foot: null, missing: OFFERS_BY_EMAIL_WORDS.noAddress };
+  const foot = channel2 === "sms" ? smsStopLine(o.language) : emailFoot(
     o.business,
     o.address,
     o.offer ? { kind: "offer", why: o.offer, unsubscribeUrl: PREVIEW_WORDS.unsubscribeLink } : { kind: "visit", facts: o.facts ?? {} },
     o.language
   );
-  return { channel, label, version, foot, missing: null };
+  return { channel: channel2, label, version, foot, missing: null };
 }
 var SAID_MIN = 60;
 function previewParts(channels, o) {
   const parts2 = [];
-  for (const channel of CONSENT_CHANNELS.filter((c) => channels.includes(c))) {
-    const label = PREVIEW_CHANNEL_WORDS[channel];
-    if (channel === "whatsapp") {
-      parts2.push({ channel, label, subject: null, body: o.whatsapp });
+  for (const channel2 of CONSENT_CHANNELS.filter((c) => channels.includes(c))) {
+    const label = PREVIEW_CHANNEL_WORDS[channel2];
+    if (channel2 === "whatsapp") {
+      parts2.push({ channel: channel2, label, subject: null, body: o.whatsapp });
       continue;
     }
-    const words3 = o.versions[channel];
-    if (!words3) return { missing: channel, why: noVersionWords(channel) };
-    const sent = renderOwnVersion(channel, words3, o.values, o.language);
-    parts2.push({ channel, label, subject: sent.subject, body: sent.body });
+    const words3 = o.versions[channel2];
+    if (!words3) return { missing: channel2, why: noVersionWords(channel2) };
+    const sent = renderOwnVersion(channel2, words3, o.values, o.language);
+    parts2.push({ channel: channel2, label, subject: sent.subject, body: sent.body });
   }
   return { parts: parts2 };
 }
@@ -28676,10 +28676,10 @@ function previewSays(channels, o) {
   };
 }
 function reachBarParts(split) {
-  return CONSENT_CHANNELS.filter((c) => split.byChannel[c] > 0).map((channel) => ({
-    channel,
-    share: split.byChannel[channel],
-    words: `${split.byChannel[channel].toLocaleString("en-US")} ${CONSENT_CHANNEL_WORDS[channel]}`
+  return CONSENT_CHANNELS.filter((c) => split.byChannel[c] > 0).map((channel2) => ({
+    channel: channel2,
+    share: split.byChannel[channel2],
+    words: `${split.byChannel[channel2].toLocaleString("en-US")} ${CONSENT_CHANNEL_WORDS[channel2]}`
   }));
 }
 function reachByWords(split) {
@@ -30482,7 +30482,7 @@ var CRAFT_PART_CHARS = { plain: 160, unicode: 70, unicodeTwo: 134 };
 function textRoom(b) {
   const stop = 1 + smsStopLine(b.message.language).length;
   const values = b.message.values.reduce((n, v) => n + craftValueLength(v.kind, b.business.name), 0);
-  const left = (part) => Math.max(0, part - stop - values);
+  const left = (part2) => Math.max(0, part2 - stop - values);
   return {
     plain: left(CRAFT_PART_CHARS.plain),
     unicode: left(CRAFT_PART_CHARS.unicode),
@@ -30900,9 +30900,9 @@ var NO_DOOR = [
   CHANNEL_WORDS.textLineNotActive,
   CHANNEL_WORDS.textLineMock
 ];
-function closedWords(channel, why) {
+function closedWords(channel2, why) {
   const reason = (why ?? "").replace(/\.$/, "");
-  return reason ? `${VERSION_CHANNEL_WORDS[channel]}: ${reason}` : `${VERSION_CHANNEL_WORDS[channel]} is off`;
+  return reason ? `${VERSION_CHANNEL_WORDS[channel2]}: ${reason}` : `${VERSION_CHANNEL_WORDS[channel2]} is off`;
 }
 function channelsStandingParts(ready2) {
   if (!ready2) return null;
@@ -35004,7 +35004,7 @@ function ownWordsSpan(lines, ownWords) {
   }
   return null;
 }
-function promptBlocks(text, channel, from) {
+function promptBlocks(text, channel2, from) {
   if (from === void 0 || typeof from !== "object") {
     throw new TypeError(
       "promptBlocks needs what the prompt was composed from: the stored brain, { profile } for a draft, or null."
@@ -35014,7 +35014,7 @@ function promptBlocks(text, channel, from) {
   const whose = whoseWords(from);
   const own = ownWordsSpan(lines, whose.text);
   const insideOwn = (n) => !!own && n >= own.from && n < own.to;
-  const marks = BLOCK_MARKS.filter((m) => !m.channel || m.channel === channel);
+  const marks = BLOCK_MARKS.filter((m) => !m.channel || m.channel === channel2);
   const found = [];
   let passed = -1;
   lines.forEach((line2, n) => {
@@ -37249,11 +37249,11 @@ function byWords(dueMs, nowMs, zone) {
 function supportWaitOf(createdMs, nowMs, zone) {
   const due = supportDueAt(createdMs);
   if (nowMs >= due) return { words: `past its day by ${spanLabel(nowMs - due)}`, tone: "danger", part: 1 };
-  const part = Math.min(1, businessMsBetween(createdMs, nowMs) / SUPPORT_PROMISE_MS);
+  const part2 = Math.min(1, businessMsBetween(createdMs, nowMs) / SUPPORT_PROMISE_MS);
   return {
     words: `${spanLabel(nowMs - createdMs)} \xB7 ${byWords(due, nowMs, zone)}`,
-    tone: part >= SUPPORT_SOON ? "warn" : null,
-    part
+    tone: part2 >= SUPPORT_SOON ? "warn" : null,
+    part: part2
   };
 }
 var SUPPORT_VIEWS = ["needs", "waiting", "done"];
@@ -38259,13 +38259,13 @@ function sendsOf(parts2, scope) {
   const rows2 = inScopeRows(parts2?.sends, scope);
   const errs = inScopeRows(parts2?.send_errors, scope);
   const codeWords = (code2, title) => SEND_CODE_WORDS[code2] ?? title ?? `code ${code2}`;
-  const channelOf2 = (channel, side) => {
-    const mine = rows2.filter((r2) => r2.channel === channel && (side === null || r2.ours === side));
-    const mineErrs = errs.filter((e) => e.channel === channel && (side === null || e.ours === side));
+  const channelOf2 = (channel2, side) => {
+    const mine = rows2.filter((r2) => r2.channel === channel2 && (side === null || r2.ours === side));
+    const mineErrs = errs.filter((e) => e.channel === channel2 && (side === null || e.ours === side));
     const top = [...mineErrs].sort((a, b) => b.n - a.n)[0];
     return {
-      channel,
-      words: SEND_CHANNEL_WORDS[channel] ?? channel,
+      channel: channel2,
+      words: SEND_CHANNEL_WORDS[channel2] ?? channel2,
       total: mine.reduce((n, r2) => n + r2.n, 0),
       failed: mine.filter((r2) => r2.status === "failed").reduce((n, r2) => n + r2.n, 0),
       delivered: mine.filter((r2) => r2.status === "delivered" || r2.status === "read").reduce((n, r2) => n + r2.n, 0),
@@ -39620,11 +39620,11 @@ var PARTNER_COOKIE = "chanlytics_partner";
 var PARTNER_COOKIE_DAYS = 30;
 function partnerCodeFromCookie(header) {
   if (!header) return null;
-  for (const part of header.split(";")) {
-    const eq = part.indexOf("=");
+  for (const part2 of header.split(";")) {
+    const eq = part2.indexOf("=");
     if (eq < 0) continue;
-    if (part.slice(0, eq).trim() !== PARTNER_COOKIE) continue;
-    let value = part.slice(eq + 1).trim();
+    if (part2.slice(0, eq).trim() !== PARTNER_COOKIE) continue;
+    let value = part2.slice(eq + 1).trim();
     try {
       value = decodeURIComponent(value);
     } catch {
@@ -41280,10 +41280,10 @@ function playbookRunReach(rows2, p, touches, nowMs, pace, listIds = null) {
   const done = (eligible2) => {
     const kept = {};
     for (const r2 of eligible2) {
-      const channel = channelOf2[r2.id];
-      if (!channel) continue;
-      kept[r2.id] = channel;
-      byChannel[channel] += 1;
+      const channel2 = channelOf2[r2.id];
+      if (!channel2) continue;
+      kept[r2.id] = channel2;
+      byChannel[channel2] += 1;
     }
     reach.by_channel = byChannel;
     reach.will = eligible2.length;
@@ -42085,13 +42085,13 @@ function pipelineOf(rows2, nowMs, tz, pace, view = "all") {
       null
     )
   ].filter((g) => g.count > 0);
-  const part = (words3, press = null) => words3 ? { words: words3, view: press, tone: press ? "warn" : null } : null;
+  const part2 = (words3, press = null) => words3 ? { words: words3, view: press, tone: press ? "warn" : null } : null;
   const line2 = [
-    part(proposals.length ? `${plural(proposals.length, "proposal", "proposals")} out` : null),
-    part(waiting ? PIPELINE_WORDS.waitingLine(waiting, pace) : null, "waiting"),
-    part(lapsed.length ? `${lapsed.length} lapsed` : null, "lapsed"),
+    part2(proposals.length ? `${plural(proposals.length, "proposal", "proposals")} out` : null),
+    part2(waiting ? PIPELINE_WORDS.waitingLine(waiting, pace) : null, "waiting"),
+    part2(lapsed.length ? `${lapsed.length} lapsed` : null, "lapsed"),
     // Clients are people: a client of two services is one client, whose two deals are both in what they come to.
-    part(clients.length ? plural(new Set(clients.map((x) => x.r.id)).size, "client", "clients") : null)
+    part2(clients.length ? plural(new Set(clients.map((x) => x.r.id)).size, "client", "clients") : null)
   ].filter((x) => !!x);
   const clientCount = new Set(clients.map((x) => x.r.id)).size;
   const filter = (view2, count2, words3, tone) => count2 > 0 ? [{ view: view2, count: count2, words: words3, tone }] : [];
@@ -43095,6 +43095,16 @@ function broughtInShown(rows2, nowMs) {
 var BUSINESS_READ_SOURCES = ["google_profile", "website"];
 var cleanText = (v, max) => typeof v === "string" && v.trim() ? v.replace(/\s+/g, " ").trim().slice(0, max) : null;
 var day = (v) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
+function lookReadOf(v) {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  const o = v;
+  const worn = o.worn && typeof o.worn === "object" ? o.worn : {};
+  return {
+    logo_url: cleanText(o.logo_url, 500),
+    accent: typeof o.accent === "string" && /^#[0-9a-f]{6}$/.test(o.accent) ? o.accent : null,
+    worn: { logo: worn.logo === true, accent: worn.accent === true }
+  };
+}
 function businessReadFactsOf(raw) {
   const r2 = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
   const list2 = (v) => Array.isArray(v) ? v : [];
@@ -43122,7 +43132,8 @@ function businessReadFactsOf(raw) {
       const a = cleanText(o.a, 600);
       return q && a ? [{ q, a }] : [];
     }),
-    description: cleanText(r2.description, 750)
+    description: cleanText(r2.description, 750),
+    look: lookReadOf(r2.look)
   };
 }
 var FOUND_WORDS = {
@@ -47964,6 +47975,120 @@ function logoDrawRect(layout, side) {
   return { x: (side - w) / 2, y: (side - h) / 2, w, h };
 }
 
+// src/look/colour.ts
+var ACCENT_HEX = /^#[0-9a-f]{6}$/;
+var accentOk = (s) => typeof s === "string" && ACCENT_HEX.test(s);
+var byte = (n) => Math.max(0, Math.min(255, Math.round(n)));
+var part = (s) => {
+  const t = s.trim();
+  if (/^-?\d*\.?\d+%$/.test(t)) return byte(parseFloat(t) / 100 * 255);
+  if (/^-?\d*\.?\d+$/.test(t)) return byte(parseFloat(t));
+  return null;
+};
+function parseCssColour(s) {
+  const v = s.trim().toLowerCase();
+  const hex = /^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/.exec(v)?.[1];
+  if (hex) {
+    const h = hex.length === 3 ? hex.split("").map((c) => c + c).join("") : hex.slice(0, 6);
+    return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+  }
+  const fn = /^rgba?\(\s*([^)]*)\)$/.exec(v)?.[1];
+  if (fn === void 0) return null;
+  const parts2 = (fn.split("/")[0] ?? "").split(/[\s,]+/).filter(Boolean).slice(0, 3).map(part);
+  if (parts2.length !== 3 || parts2.some((p) => p === null)) return null;
+  return parts2;
+}
+var hexOfRgb = ([r2, g, b]) => `#${[r2, g, b].map((n) => byte(n).toString(16).padStart(2, "0")).join("")}`;
+function satLight([r2, g, b]) {
+  const [R, G, B] = [r2 / 255, g / 255, b / 255];
+  const max = Math.max(R, G, B);
+  const min = Math.min(R, G, B);
+  const l = (max + min) / 2;
+  const d = max - min;
+  const s = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+  return { s, l };
+}
+function isAccentLike(rgb) {
+  const { s, l } = satLight(rgb);
+  return s >= 0.25 && l >= 0.18 && l <= 0.78;
+}
+var channel = (c) => {
+  const v = c / 255;
+  return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+};
+var luminanceOf = ([r2, g, b]) => 0.2126 * channel(r2) + 0.7152 * channel(g) + 0.0722 * channel(b);
+function contrastOnWhite(hex) {
+  const rgb = parseCssColour(hex);
+  return rgb ? 1.05 / (luminanceOf(rgb) + 0.05) : 1;
+}
+function readableOnWhite(hex) {
+  let rgb = parseCssColour(hex);
+  if (!rgb) return hex;
+  for (let i = 0; i < 40 && 1.05 / (luminanceOf(rgb) + 0.05) < 4.5; i++) rgb = rgb.map((c) => c * 0.94);
+  return hexOfRgb(rgb);
+}
+
+// src/look/look.ts
+var ACCENT_FALLBACK = "#1f2026";
+var accentOf = (look2) => readableOnWhite(look2.accent ?? ACCENT_FALLBACK);
+var LOOK_WORDS = {
+  label: "Colour",
+  hint: "On your emails to customers and the pages they open: the button and the links.",
+  none: "None yet",
+  add: "Add",
+  change: "Change",
+  save: "Save",
+  cancel: "Cancel",
+  remove: "Use ink instead",
+  saving: "Saving\u2026",
+  saved: "Saved",
+  removed: "Removed",
+  notSaved: "Not saved \u2014 it didn't go through. Try again.",
+  unusable: "Pick a colour.",
+  preview: "How an email looks",
+  previewSub: "The sign-up confirmation, as a customer gets it.",
+  gate: "change the colour"
+};
+var LETTER_WORDS = {
+  sentFor: (business) => `Sent for ${business} by Chanlytics.`
+};
+
+// src/look/letter.ts
+var LETTER_INK = "#1f2026";
+var INK_2 = "#4b4d5a";
+var INK_3 = "#6b6d7a";
+var LINE = "#e3e4ec";
+var FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Helvetica,Arial,sans-serif";
+var DARK = `@media (prefers-color-scheme:dark){.bg{background:#121317!important}.card{background:#1d1e23!important;border-color:#2c2d35!important}.ink{color:#f1f1f4!important}.ink2{color:#c3c4cc!important}.ink3{color:#9a9ba6!important}}
+@media (max-width:620px){.wrap{width:100%!important}.pad{padding:22px 20px!important}}`;
+function letterHtml(l) {
+  const accent = accentOf(l.look);
+  const name = escapeHtml(l.look.business);
+  const mark = l.look.logo_url ? `<img src="${escapeHtml(l.look.logo_url)}" alt="${name}" height="40" style="display:block;height:40px;width:auto;border:0">` : `<span class="ink" style="font-size:18px;font-weight:700;color:${LETTER_INK}">${name}</span>`;
+  const lines = l.lines.map(
+    (p) => `<p class="ink2" style="margin:0 0 16px;font-size:15px;line-height:1.55;color:${INK_2}">${escapeHtml(p)}</p>`
+  ).join("\n");
+  const button = l.button ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:4px 0 0"><tr><td style="border-radius:10px;background:${accent}"><a href="${escapeHtml(l.button.href)}" style="display:inline-block;padding:13px 22px;font-size:15px;font-weight:600;line-height:18px;color:#ffffff;text-decoration:none;border-radius:10px">${escapeHtml(l.button.words)}</a></td></tr></table>` : "";
+  const foot = [...l.foot, LETTER_WORDS.sentFor(l.look.business)].map(
+    (f) => `<p class="ink3" style="margin:0 0 4px;font-size:12px;line-height:1.6;color:${INK_3}">${escapeHtml(f)}</p>`
+  ).join("");
+  return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark"><meta name="supported-color-schemes" content="light dark">
+<title>${escapeHtml(l.subject)}</title><style>${DARK}</style></head>
+<body class="bg" style="margin:0;padding:0;background:#f6f7fa">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0">${escapeHtml(l.preview)}</div>
+<table role="presentation" class="bg" width="100%" cellpadding="0" cellspacing="0" style="background:#f6f7fa;font-family:${FONT}"><tr><td align="center" style="padding:28px 12px">
+<table role="presentation" class="wrap" width="560" cellpadding="0" cellspacing="0" style="width:560px;max-width:560px">
+<tr><td style="padding:0 4px 16px">${mark}</td></tr>
+<tr><td class="card pad" style="background:#ffffff;border:1px solid ${LINE};border-radius:14px;padding:26px 28px">
+${lines}
+${button}
+</td></tr>
+<tr><td class="foot" style="padding:16px 4px 0">${foot}</td></tr>
+</table></td></tr></table></body></html>`;
+}
+
 // src/shared/identity.ts
 var UUID3 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function isUuid(value) {
@@ -49502,7 +49627,7 @@ function inboxTemplateParts(t, facts) {
     last = at3 + m[0].length;
   }
   if (last < body.length) parts2.push({ words: body.slice(last) });
-  if (blank && !parts2.some((part) => part.blank !== void 0)) parts2.push({ words: " " }, { blank: blank.label });
+  if (blank && !parts2.some((part2) => part2.blank !== void 0)) parts2.push({ words: " " }, { blank: blank.label });
   return parts2;
 }
 
@@ -50400,7 +50525,7 @@ function clock2(ms3, tz, nowMs) {
 }
 function attentionRow(p, tz, nowMs, word) {
   const lc = p.lastContact;
-  const channel = lc.kind === "call" ? "Phone" : lc.kind === "message" ? "WhatsApp" : null;
+  const channel2 = lc.kind === "call" ? "Phone" : lc.kind === "message" ? "WhatsApp" : null;
   const when = lc.ts === null ? "no contact yet" : ago(lc.ts, tz, nowMs);
   let sentence2;
   let quoted2 = false;
@@ -50425,7 +50550,7 @@ function attentionRow(p, tz, nowMs, word) {
   if (p.state === "needs_you" && p.needsYouSinceMs !== null)
     status = [...status, `since ${clock2(p.needsYouSinceMs, tz, nowMs)}`];
   const cta = !p.threadId ? null : p.state === "needs_you" || p.state === "waiting_on_you" ? { label: "Open in Inbox", kind: "primary", to: `inbox/${p.threadId}` } : { label: "Open thread", kind: "ghost", to: `inbox/${p.threadId}` };
-  return { channel, when, sentence: sentence2, quoted: quoted2, status, tone: r2.tone, cta };
+  return { channel: channel2, when, sentence: sentence2, quoted: quoted2, status, tone: r2.tone, cta };
 }
 
 // src/people/person-doubts.ts
@@ -50530,6 +50655,21 @@ ${p.link}`,
       "If this wasn't you, ignore this email. Without your yes, no offers are sent."
     ].join("\n\n")
   };
+}
+function signupConfirmEmailHtml(p) {
+  const business = p.business.trim() || "us";
+  const signedUp = `You signed up on ${business}'s website for offers and news.`;
+  return letterHtml({
+    look: { ...p.look, business: p.look.business.trim() || business },
+    subject: signupConfirmEmail(p).subject,
+    preview: signedUp,
+    lines: [signedUp, "If this wasn't you, ignore this email. Without your yes, no offers are sent."],
+    button: {
+      words: confirmPageWords("ask", { business, address: null }).button ?? "Yes, send me offers",
+      href: p.link
+    },
+    foot: []
+  });
 }
 function maskAddress(email) {
   const at3 = email.lastIndexOf("@");
@@ -53547,8 +53687,8 @@ function runReadingOf(drawn, trigger, caps) {
   let taken = 0;
   for (const person of drawn.eligible) {
     if (taken === last) break;
-    const channel = drawn.channelOf[person.id];
-    if (channel) counts[channel] += 1;
+    const channel2 = drawn.channelOf[person.id];
+    if (channel2) counts[channel2] += 1;
     taken += 1;
     if (below.has(taken)) run_split[String(taken)] = { ...counts };
   }
@@ -57023,13 +57163,13 @@ var NEW_WORDS = {
     of: (n) => `of ${n}`,
     ofList: (n) => `of ${n} on it`,
     getYes: "Get their yes",
-    connect: (channel) => ({ whatsapp: "Connect WhatsApp", email: "Connect email", sms: "Connect texting" })[channel],
+    connect: (channel2) => ({ whatsapp: "Connect WhatsApp", email: "Connect email", sms: "Connect texting" })[channel2],
     saidStop: (n) => `${n} said stop`,
     neverYes: (n) => `${n} never said yes`,
     noNumber: (n) => `${n} with no number or address`,
     heldBack: (n) => `${n} held back this week`,
     checking: (n) => `${n} ${n === 1 ? "address" : "addresses"} being checked`,
-    byChannel: (n, channel) => `${n} by ${channel}`,
+    byChannel: (n, channel2) => `${n} by ${channel2}`,
     /** Under "No one to send to yet" in the foot: why, by the cure each asks for (contracts NewNobody). */
     why: {
       breath: "Everyone heard from you this week",
@@ -58058,7 +58198,7 @@ function missedMeta(m) {
   const left = [
     m.pending > 0 ? `${m.pending} under ${MISSED_CALL_TOUCH_WORDS} old, not counted yet` : null,
     m.unknown > 0 ? `${m.unknown} with no caller on record not counted` : null
-  ].filter((part) => part !== null);
+  ].filter((part2) => part2 !== null);
   if (left.length > 0) return left.join(" \xB7 ");
   return m.n === 0 ? "no call went unanswered at the phone" : `${plural(m.n, "person", "people")} rang and found nobody`;
 }
@@ -59388,7 +59528,7 @@ var STILL_READ = {
 };
 var REST_IS_CURRENT = "The rest of this page is current.";
 var NOTHING_ELSE_READ = "Nothing else on this page could be read either.";
-var onlyReadWords = (landed) => `Only ${joinWords(landed.map((part) => STILL_READ[part]))} could be read.`;
+var onlyReadWords = (landed) => `Only ${joinWords(landed.map((part2) => STILL_READ[part2]))} could be read.`;
 
 // src/reports/campaigns/campaign-lens.ts
 var knownCount = (v) => isCount(v) ? v : null;
@@ -59407,10 +59547,10 @@ function failedReads(reads) {
     ["stuck", reads.stuck],
     ["reach_outs", reads.reachOuts]
   ];
-  const failing = status.filter(([part, is]) => is === "failed" && !(part === "stuck" && reads.ledger === "failed"));
-  const landed = status.filter(([, is]) => is === "ok").map(([part]) => part);
+  const failing = status.filter(([part2, is]) => is === "failed" && !(part2 === "stuck" && reads.ledger === "failed"));
+  const landed = status.filter(([, is]) => is === "ok").map(([part2]) => part2);
   const others = failing.length === 1 ? REST_IS_CURRENT : landed.length === 0 ? NOTHING_ELSE_READ : onlyReadWords(landed);
-  return failing.map(([part]) => ({ part, what: FAILED_WHAT[part], body: others }));
+  return failing.map(([part2]) => ({ part: part2, what: FAILED_WHAT[part2], body: others }));
 }
 function reachedPeopleOf({ people }) {
   return {
@@ -61097,12 +61237,12 @@ function smsStateRow(line2, nowMs) {
   }
 }
 function connectionFactsOf(i, nowMs) {
-  const channel = (kind) => channelFor(i.channels, kind);
+  const channel2 = (kind) => channelFor(i.channels, kind);
   return {
     nowMs,
-    wa: channel("whatsapp"),
-    voice: channel("voice"),
-    ig: channel("instagram"),
+    wa: channel2("whatsapp"),
+    voice: channel2("voice"),
+    ig: channel2("instagram"),
     own: i.lines.rows.find((l) => l.provider !== "carrier") ?? null,
     connection: i.google?.connection ?? null,
     listing: i.google?.listing ?? null
@@ -64376,6 +64516,7 @@ var ROUTE_KEYS = [
   "DELETE team/partner",
   "DELETE templates/[id]",
   "DELETE templates/versions/[id]",
+  "DELETE workspaces/accent",
   "DELETE workspaces/logo",
   "GET activity",
   "GET ask/follow-ups",
@@ -64687,6 +64828,7 @@ var ROUTE_KEYS = [
   "PUT settings",
   "PUT templates/[id]",
   "PUT views/[page]",
+  "PUT workspaces/accent",
   "PUT workspaces/logo"
 ];
 
@@ -65023,8 +65165,8 @@ var PART_LABELS = {
 function pageSpeedLabel(page2) {
   return PAGE_LABELS[page2] ?? page2.charAt(0).toUpperCase() + page2.slice(1);
 }
-function partLabel(part) {
-  return PART_LABELS[part] ?? part;
+function partLabel(part2) {
+  return PART_LABELS[part2] ?? part2;
 }
 var VERDICT_TONES2 = { good: "ok", "needs work": "warn", poor: "danger" };
 function speedVerdict(how, p75) {
@@ -65069,13 +65211,13 @@ function deferredLines(at3) {
 function indexOf(rows2) {
   const by = /* @__PURE__ */ new Map();
   for (const r2 of rows2) by.set(`${r2.metric}|${r2.page ?? "*"}|${r2.part}|${r2.how}|${r2.device}|${r2.warm}`, r2);
-  return (metric, page2, part, how, device = "all", warm = "all") => {
-    const r2 = by.get(`${metric}|${page2 ?? "*"}|${part}|${how}|${device}|${warm}`);
+  return (metric, page2, part2, how, device = "all", warm = "all") => {
+    const r2 = by.get(`${metric}|${page2 ?? "*"}|${part2}|${how}|${device}|${warm}`);
     return r2 && r2.samples >= PAGE_SPEED_MIN ? r2 : null;
   };
 }
-function share(part, whole2) {
-  return `${Math.round(part / whole2 * 10)} in 10`;
+function share(part2, whole2) {
+  return `${Math.round(part2 / whole2 * 10)} in 10`;
 }
 function pageLine(at3, page2) {
   const load = at3("READY", page2, "", "load");
@@ -65231,7 +65373,7 @@ var ReportProblemInput = z33.object({
 }).strict();
 
 // src/templates/message-version-slots.ts
-var partWritten = (part) => part.written ?? slotWritten(part.slot);
+var partWritten = (part2) => part2.written ?? slotWritten(part2.slot);
 function toSlotParts(text, set = { kind: "numbered" }) {
   const parts2 = [];
   let last = 0;
@@ -66857,7 +66999,7 @@ function todayAwayGrouped(rows2, inQueue = [], max = 5, older = 0) {
 var bellOlderWords = (n) => n === 1 ? "1 older unread notice is not listed. Mark all read clears it." : `${n} older unread notices are not listed. Mark all read clears them.`;
 function bellSections(rows2, older = 0) {
   const idOf = (r2) => r2.id ?? r2.key ?? "";
-  const part = (label, list2) => {
+  const part2 = (label, list2) => {
     const order = [];
     const byKind = /* @__PURE__ */ new Map();
     for (const r2 of list2) {
@@ -66887,11 +67029,11 @@ function bellSections(rows2, older = 0) {
     return { label, lines };
   };
   return [
-    part(
+    part2(
       "New",
       rows2.filter((r2) => r2.unread)
     ),
-    part(
+    part2(
       "Earlier",
       rows2.filter((r2) => !r2.unread)
     )
@@ -70174,6 +70316,7 @@ export {
   LOGO_WORDS,
   LOOK_OFFERED,
   LOOK_OPTIONS,
+  LOOK_WORDS,
   LeadChooseSchema,
   LeadDraftAnswerSchema,
   LeadDraftInputSchema,
@@ -70953,6 +71096,8 @@ export {
   abandonedCall,
   abilityRows,
   aboutADayAfter,
+  accentOf,
+  accentOk,
   accountRows,
   actRowOf,
   activityDoor,
@@ -71325,6 +71470,7 @@ export {
   consultsHeldWords,
   contactMeta,
   contactName,
+  contrastOnWhite,
   conversationMoveAllowed,
   conversationOfNeedsKey,
   conversationPatch,
@@ -71643,6 +71789,7 @@ export {
   heldWhyOf,
   heldWords,
   hexOf,
+  hexOfRgb,
   historyCovers,
   historyDayWords,
   historyDays,
@@ -71707,6 +71854,7 @@ export {
   instructionsWords,
   invitationWords,
   invoiceStatusWords,
+  isAccentLike,
   isActivityFamily,
   isActivityMoney,
   isActivityNoise,
@@ -71965,6 +72113,7 @@ export {
   lensOfRoute,
   lensRoute,
   lensesFor,
+  letterHtml,
   libraryCount,
   lifecycleChainStateOf,
   lifecycleChainsOf,
@@ -72254,6 +72403,7 @@ export {
   parseAmount,
   parseBrainOutput,
   parseCompanyJudgeAnswer,
+  parseCssColour,
   parseCsv,
   parseDevice,
   parseIcs,
@@ -72571,6 +72721,7 @@ export {
   reachedVoicemail,
   readAgoLabel,
   readTime,
+  readableOnWhite,
   readingOf,
   readingPlan,
   readingSystemPrompt,
@@ -72863,6 +73014,7 @@ export {
   signupAskOf,
   signupAskRefusal,
   signupConfirmEmail,
+  signupConfirmEmailHtml,
   signupPosture,
   siteHost,
   skillGuide,

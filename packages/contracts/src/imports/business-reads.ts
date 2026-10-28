@@ -20,6 +20,18 @@ export interface BusinessReadFacts {
   /** Questions it answers: the question, and its answer. */
   answers: Array<{ q: string; a: string }>;
   description: string | null;
+  /** What the website read found of the business's look, and what it wore (decision 0075); null for a read before it, or the profile's. */
+  look: LookRead | null;
+}
+
+/** What the website read found of the business's look (decision 0075), kept with the read whether or not it was worn. */
+export interface LookRead {
+  /** The mark the site declares, as the site serves it (for the Logo row to offer); null for none found. */
+  logo_url: string | null;
+  /** The page's colour, readable under white words; null for none. */
+  accent: string | null;
+  /** What wear_found_look wore of them: nothing where the workspace had its own, or a person had set the field. */
+  worn: { logo: boolean; accent: boolean };
 }
 
 /** One source's read, as Setup carries it. */
@@ -34,6 +46,18 @@ export interface BusinessReadDto {
 const cleanText = (v: unknown, max: number): string | null =>
   typeof v === "string" && v.trim() ? v.replace(/\s+/g, " ").trim().slice(0, max) : null;
 const day = (v: unknown): string | null => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
+
+/** The look a row keeps, read for what each part is; null unless the read kept one. */
+function lookReadOf(v: unknown): LookRead | null {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  const o = v as { logo_url?: unknown; accent?: unknown; worn?: unknown };
+  const worn = o.worn && typeof o.worn === "object" ? (o.worn as { logo?: unknown; accent?: unknown }) : {};
+  return {
+    logo_url: cleanText(o.logo_url, 500),
+    accent: typeof o.accent === "string" && /^#[0-9a-f]{6}$/.test(o.accent) ? o.accent : null,
+    worn: { logo: worn.logo === true, accent: worn.accent === true },
+  };
+}
 
 /** A row's facts, read for what each is: a field of the wrong kind is none, a list of things that are not is empty. */
 export function businessReadFactsOf(raw: unknown): BusinessReadFacts {
@@ -65,6 +89,7 @@ export function businessReadFactsOf(raw: unknown): BusinessReadFacts {
       return q && a ? [{ q, a }] : [];
     }),
     description: cleanText(r.description, 750),
+    look: lookReadOf(r.look),
   };
 }
 

@@ -30,5 +30,5 @@ export type {
   BroughtInStateVM,
 } from "./ledger";
 export { BUSINESS_READ_SOURCES, FOUND_WORDS, businessReadFactsOf, foundOf } from "./business-reads";
-export type { BusinessReadSource, BusinessReadFacts, BusinessReadDto, FoundVM } from "./business-reads";
+export type { BusinessReadSource, BusinessReadFacts, BusinessReadDto, FoundVM, LookRead } from "./business-reads";
 export { WEBSITE_READ_SYSTEM, WEBSITE_READ_SCHEMA, WEBSITE_UNREAD_WORDS } from "./business-reads";

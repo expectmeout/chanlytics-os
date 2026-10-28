@@ -1,3 +1,4 @@
+import { letterHtml } from "../../look/letter.js";
 import { DAY_MS } from "../../shared/time.js";
 import { fmtDate } from "../person-helpers.js";
 export const SIGNUP_CONFIRM_SOURCE = "signup_confirm";
@@ -81,6 +82,21 @@ ${p.link}`,
       "If this wasn't you, ignore this email. Without your yes, no offers are sent."
     ].join("\n\n")
   };
+}
+export function signupConfirmEmailHtml(p) {
+  const business = p.business.trim() || "us";
+  const signedUp = `You signed up on ${business}'s website for offers and news.`;
+  return letterHtml({
+    look: { ...p.look, business: p.look.business.trim() || business },
+    subject: signupConfirmEmail(p).subject,
+    preview: signedUp,
+    lines: [signedUp, "If this wasn't you, ignore this email. Without your yes, no offers are sent."],
+    button: {
+      words: confirmPageWords("ask", { business, address: null }).button ?? "Yes, send me offers",
+      href: p.link
+    },
+    foot: []
+  });
 }
 export function maskAddress(email) {
   const at = email.lastIndexOf("@");

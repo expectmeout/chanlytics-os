@@ -29495,6 +29495,48 @@ COMMENT ON FUNCTION public.set_template_title(p_template_id uuid, p_title text) 
 
 
 --
+-- Name: set_workspace_accent(uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_workspace_accent(p_tenant_id uuid, p_accent text) RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_user   uuid := auth.uid();
+  v_accent text := nullif(lower(btrim(coalesce(p_accent, ''))), '');
+  v_before text;
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.caller_has_permission(p_tenant_id, 'settings') then
+    raise exception 'Only someone who may change this workspace''s settings can change its colour.' using errcode = '42501';
+  end if;
+  if v_accent is not null and v_accent !~ '^#[0-9a-f]{6}$' then
+    raise exception 'A colour is one #rrggbb.' using errcode = '22023';
+  end if;
+  -- The row, held against a second save at once; "no key", so the many writes that only point at the workspace go on.
+  select t.accent into v_before from public.tenants t where t.id = p_tenant_id for no key update;
+  if not found then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  update public.tenants set accent = v_accent where id = p_tenant_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'settings.changed', 'system', 'workspace', p_tenant_id,
+          jsonb_build_object('fields', jsonb_build_array('accent'), 'by', v_user, 'version', null));
+  return v_before;
+end $$;
+
+
+--
+-- Name: FUNCTION set_workspace_accent(p_tenant_id uuid, p_accent text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.set_workspace_accent(p_tenant_id uuid, p_accent text) IS 'Sets (or, with null, clears) the workspace''s colour for a caller who may change its settings (caller_has_permission ''settings''), refuses anything but one #rrggbb, writes settings.changed {fields: [accent], by} in the same transaction, and answers the colour it held.';
+
+
+--
 -- Name: set_workspace_logo(uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -31364,6 +31406,66 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.wake_stale_snoozes() IS 'Reopens conversations whose snooze ran out, whoever set it and whatever became of the snooze_wake job. The sibling of expire_stale_pauses() (00006).';
+
+
+--
+-- Name: wear_found_look(uuid, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.wear_found_look(p_tenant_id uuid, p_logo_path text, p_accent text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_logo   text := nullif(btrim(coalesce(p_logo_path, '')), '');
+  v_accent text := nullif(lower(btrim(coalesce(p_accent, ''))), '');
+  v_row    public.tenants%rowtype;
+  v_wore   text[] := '{}';
+begin
+  if p_tenant_id is null then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  if v_logo is not null and split_part(v_logo, '/', 1) <> p_tenant_id::text then
+    raise exception 'That picture is not this workspace''s.' using errcode = '22023';
+  end if;
+  if v_accent is not null and v_accent !~ '^#[0-9a-f]{6}$' then
+    raise exception 'A colour is one #rrggbb.' using errcode = '22023';
+  end if;
+  select * into v_row from public.tenants t where t.id = p_tenant_id for no key update;
+  if not found then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  -- A field a person ever set, or cleared, is theirs: never written here.
+  if v_logo is not null and v_row.logo_path is null and not exists (
+    select 1 from public.events e
+     where e.tenant_id = p_tenant_id and e.kind = 'settings.changed'
+       and e.data->'fields' ? 'logo' and e.data->>'by' is not null)
+  then
+    update public.tenants set logo_path = v_logo where id = p_tenant_id;
+    v_wore := v_wore || 'logo';
+  end if;
+  if v_accent is not null and v_row.accent is null and not exists (
+    select 1 from public.events e
+     where e.tenant_id = p_tenant_id and e.kind = 'settings.changed'
+       and e.data->'fields' ? 'accent' and e.data->>'by' is not null)
+  then
+    update public.tenants set accent = v_accent where id = p_tenant_id;
+    v_wore := v_wore || 'accent';
+  end if;
+  if cardinality(v_wore) > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'settings.changed', 'system', 'workspace', p_tenant_id,
+            jsonb_build_object('fields', to_jsonb(v_wore), 'by', null, 'from', 'website', 'version', null));
+  end if;
+  return jsonb_build_object('logo', 'logo' = any (v_wore), 'accent', 'accent' = any (v_wore));
+end $$;
+
+
+--
+-- Name: FUNCTION wear_found_look(p_tenant_id uuid, p_logo_path text, p_accent text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.wear_found_look(p_tenant_id uuid, p_logo_path text, p_accent text) IS 'The website read''s door (00490): wears the logo path and the colour it found, each only where the column is empty and no person ever set that field (no settings.changed naming it with a by), writes one settings.changed {fields, by: null, from: website} for what it wore, and answers {logo, accent} booleans. Service role only.';
 
 
 --
@@ -35975,6 +36077,8 @@ CREATE TABLE public.tenants (
     logo_path text,
     appointment_word text,
     ours boolean DEFAULT false NOT NULL,
+    accent text,
+    CONSTRAINT tenants_accent_shape CHECK (((accent IS NULL) OR (accent ~ '^#[0-9a-f]{6}$'::text))),
     CONSTRAINT tenants_appointment_word_check CHECK (((appointment_word IS NULL) OR (appointment_word = ANY (ARRAY['appointment'::text, 'visit'::text, 'meeting'::text, 'session'::text, 'lesson'::text])))),
     CONSTRAINT tenants_logo_path_shape CHECK (((logo_path IS NULL) OR ((split_part(logo_path, '/'::text, 1) = (id)::text) AND (logo_path ~ '^[0-9a-f-]{36}/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.png$'::text)))),
     CONSTRAINT tenants_status_check CHECK ((status = ANY (ARRAY['active'::text, 'paused'::text, 'test'::text])))
@@ -35993,6 +36097,13 @@ COMMENT ON COLUMN public.tenants.timezone IS 'IANA zone. Decides what "today" me
 --
 
 COMMENT ON COLUMN public.tenants.left_empty_at IS 'When the workspace''s last member left it (delete_my_account, 00262): it is paused, its plan is ended, and billing never resumes it. Null while anyone is in it.';
+
+
+--
+-- Name: COLUMN tenants.accent; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.tenants.accent IS 'The workspace''s own colour (00490): one lower-case #rrggbb its emails to customers and their pages draw the button and links in; null when it has none and ink stands in. Written by set_workspace_accent (a member) and wear_found_look (the website read, only where no person set it).';
 
 
 --
@@ -48747,6 +48858,15 @@ GRANT ALL ON FUNCTION public.set_template_title(p_template_id uuid, p_title text
 
 
 --
+-- Name: FUNCTION set_workspace_accent(p_tenant_id uuid, p_accent text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.set_workspace_accent(p_tenant_id uuid, p_accent text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.set_workspace_accent(p_tenant_id uuid, p_accent text) TO authenticated;
+GRANT ALL ON FUNCTION public.set_workspace_accent(p_tenant_id uuid, p_accent text) TO service_role;
+
+
+--
 -- Name: FUNCTION set_workspace_logo(p_tenant_id uuid, p_logo_path text); Type: ACL; Schema: public; Owner: -
 --
 
@@ -49185,6 +49305,14 @@ GRANT ALL ON FUNCTION public.trigger_sweep_health() TO service_role;
 
 REVOKE ALL ON FUNCTION public.wake_stale_snoozes() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.wake_stale_snoozes() TO service_role;
+
+
+--
+-- Name: FUNCTION wear_found_look(p_tenant_id uuid, p_logo_path text, p_accent text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.wear_found_look(p_tenant_id uuid, p_logo_path text, p_accent text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.wear_found_look(p_tenant_id uuid, p_logo_path text, p_accent text) TO service_role;
 
 
 --

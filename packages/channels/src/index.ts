@@ -11,6 +11,7 @@ export {
 } from "./public-fetch";
 export type { Resolve, Resolved, PublicFetchDeps } from "./public-fetch";
 export { BOT_USER_AGENT, pageText, imageBytes } from "./site-reads";
+export { remadeLogo } from "./logo-png";
 export { askModel, streamModel, formatRejected, resetFastHolds } from "./models/anthropic";
 export type {
   ModelAsk,

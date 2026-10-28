@@ -3526,8 +3526,8 @@ async function approvedWhole(ports, b, at, o) {
   return id;
 }
 async function approveReachOut(ports, b, now) {
-  const first = b.scheduled_for ? Date.parse(b.scheduled_for) : NaN;
-  const at = Number.isFinite(first) && first > now.getTime() ? new Date(first) : now;
+  const first2 = b.scheduled_for ? Date.parse(b.scheduled_for) : NaN;
+  const at = Number.isFinite(first2) && first2 > now.getTime() ? new Date(first2) : now;
   const scheduledFor = at.toISOString();
   const decision_id = await approvedWhole(ports, b, at, {
     job: false,
@@ -37344,12 +37344,12 @@ function companyOf(o) {
   };
 }
 function personOf(o) {
-  const first = providerWords(o.firstName, 60);
-  const name = [first, providerWords(o.lastName, 60)].filter(Boolean).join(" ").slice(0, 120);
+  const first2 = providerWords(o.firstName, 60);
+  const name = [first2, providerWords(o.lastName, 60)].filter(Boolean).join(" ").slice(0, 120);
   if (!name) return null;
   return {
     name,
-    first_name: first,
+    first_name: first2,
     title: providerWords(o.title, 120),
     seniority: trimmedOrNull(o.seniority)?.toLowerCase().slice(0, 20) ?? null,
     email: workEmailOf(o.email),
@@ -37520,9 +37520,9 @@ function foldDuplicates(places) {
       continue;
     }
     const key = `${norm(p.raw.title)}|${norm(p.raw.street)}|${p.phone}`;
-    const first = byKey.get(key);
-    if (first) {
-      folded.set(p.raw.placeId, first);
+    const first2 = byKey.get(key);
+    if (first2) {
+      folded.set(p.raw.placeId, first2);
       continue;
     }
     byKey.set(key, p.raw.placeId);
@@ -37549,10 +37549,10 @@ function sharesWithin(places) {
     ]) {
       for (const v of values) {
         const key = `${kind}:${v}`;
-        const first = firstBy.get(key);
-        if (!first) firstBy.set(key, p.raw.placeId);
-        else if (first !== p.raw.placeId)
-          out.set(p.raw.placeId, [...out.get(p.raw.placeId) ?? [], { kind, place_id: first }]);
+        const first2 = firstBy.get(key);
+        if (!first2) firstBy.set(key, p.raw.placeId);
+        else if (first2 !== p.raw.placeId)
+          out.set(p.raw.placeId, [...out.get(p.raw.placeId) ?? [], { kind, place_id: first2 }]);
       }
     }
   }
@@ -39157,6 +39157,90 @@ async function reconcileUnknownRuns(p, unknownRuns) {
   return out;
 }
 
+// src/look/accent.ts
+import { hexOfRgb, isAccentLike, parseCssColour, readableOnWhite } from "../../contracts/dist/index.js";
+var HTML_MAX = 4e5;
+var COLOUR = /#[0-9a-f]{3,8}\b|rgba?\([^)]*\)/gi;
+var BUTTONISH = /button|\.btn|\bcta\b|primary|accent|brand|submit|book|reserve|call-to-action/i;
+var VAR_NAME = /--[\w-]*(brand|primary|accent|theme|cta|button)[\w-]*/i;
+var first = (s, re) => re.exec(s)?.[1] ?? null;
+function coloursIn(css, vars) {
+  const out = [];
+  const resolved = css.replace(/var\((--[\w-]+)\)/g, (_, v) => {
+    const rgb = vars.get(v);
+    return rgb ? hexOfRgb(rgb) : "";
+  });
+  for (const m of resolved.match(COLOUR) ?? []) {
+    const rgb = parseCssColour(m);
+    if (rgb) out.push(rgb);
+  }
+  return out;
+}
+function tallyAccents(into, rgbs, weight = 1) {
+  for (const rgb of rgbs) {
+    if (!isAccentLike(rgb)) continue;
+    const key = hexOfRgb(rgb);
+    into.set(key, (into.get(key) ?? 0) + weight);
+  }
+}
+var mostUsed = (counts) => [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] ?? null;
+var backgroundsOf = (declarations) => [...declarations.matchAll(/background(?:-color)?\s*:\s*([^;}]+)/gi)].map((x) => x[1] ?? "").join(";");
+function siteAccentOf(html) {
+  const page = html.slice(0, HTML_MAX);
+  const theme = first(page, /<meta[^>]+name=["']theme-color["'][^>]+content=["']([^"']+)["']/i) ?? first(page, /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']theme-color["']/i);
+  const themed = theme ? parseCssColour(theme) : null;
+  if (themed && isAccentLike(themed)) return readableOnWhite(hexOfRgb(themed));
+  const css = (page.match(/<style\b[^>]*>([\s\S]*?)<\/style>/gi) ?? []).join("\n");
+  const inline = (page.match(/\bstyle=["'][^"']*["']/gi) ?? []).join("\n");
+  const vars = /* @__PURE__ */ new Map();
+  for (const m of css.matchAll(/(--[\w-]+)\s*:\s*([^;}]+)/g)) {
+    const rgb = parseCssColour((m[2] ?? "").trim());
+    if (rgb) vars.set(m[1] ?? "", rgb);
+  }
+  const buttons = /* @__PURE__ */ new Map();
+  for (const [, selector, body] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    if (!BUTTONISH.test(selector ?? "")) continue;
+    tallyAccents(buttons, coloursIn(backgroundsOf(body ?? ""), vars), 2);
+  }
+  for (const [name, rgb] of vars) if (VAR_NAME.test(name)) tallyAccents(buttons, [rgb], 1);
+  for (const m of page.matchAll(/<(?:button|a)\b[^>]*style=["']([^"']*)["']/gi))
+    tallyAccents(buttons, coloursIn(backgroundsOf(m[1] ?? ""), vars), 2);
+  const fromButtons = mostUsed(buttons);
+  if (fromButtons) return readableOnWhite(fromButtons);
+  const any = /* @__PURE__ */ new Map();
+  tallyAccents(any, coloursIn(`${css}
+${inline}`, vars));
+  const used = mostUsed(any);
+  return used ? readableOnWhite(used) : null;
+}
+
+// src/look/found-logo.ts
+import { LOGO_FOUND_SIDE_MAX, LOGO_FOUND_SIDE_MIN } from "../../contracts/dist/index.js";
+var LOGO_TRIES = 3;
+function askableMark(url) {
+  try {
+    const u = new URL(url);
+    if (u.port && u.port !== "443" && u.port !== "80") return false;
+    return !/\.(svg|ico)$/i.test(u.pathname);
+  } catch {
+    return false;
+  }
+}
+function markFits(head) {
+  if (head.kind === "ico") return false;
+  const short = Math.min(head.width, head.height);
+  const long = Math.max(head.width, head.height);
+  return short >= LOGO_FOUND_SIDE_MIN && long <= LOGO_FOUND_SIDE_MAX;
+}
+async function siteLogoFrom(image, html, origin) {
+  for (const url of leadMarksFrom(html, origin).filter(askableMark).slice(0, LOGO_TRIES)) {
+    const bytes = await image(url);
+    const head = bytes ? imageHeaderOf(bytes) : null;
+    if (bytes && head && markFits(head)) return { url, bytes, head };
+  }
+  return null;
+}
+
 // src/inbound/ports.ts
 var IngestFailed = class extends Error {
   kept;
@@ -40305,6 +40389,7 @@ export {
   JUDGE_REFUSED_REASON,
   JUDGE_TIMEOUT_MS,
   LEASE_SECONDS,
+  LOGO_TRIES,
   LeadRetry,
   MAPS_CAP_FLOOR_USD,
   MAPS_FIELDS,
@@ -40346,6 +40431,7 @@ export {
   approveRun,
   archive,
   areaCenter,
+  askableMark,
   assembleRun,
   beginConversation,
   bookingPageLinkedFrom,
@@ -40393,6 +40479,7 @@ export {
   leadMarksFrom,
   leadPins,
   mainAsk,
+  markFits,
   markImageFrom,
   markPlaces,
   mayBegin,
@@ -40439,6 +40526,8 @@ export {
   sha256Hex,
   shareKeysOf,
   sharesWithin,
+  siteAccentOf,
+  siteLogoFrom,
   sitePagesLinkedFrom,
   snooze,
   startRound,

@@ -2,6 +2,16 @@ import { sameListed } from "../calendar/service-offer.js";
 export const BUSINESS_READ_SOURCES = ["google_profile", "website"];
 const cleanText = (v, max) => typeof v === "string" && v.trim() ? v.replace(/\s+/g, " ").trim().slice(0, max) : null;
 const day = (v) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
+function lookReadOf(v) {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  const o = v;
+  const worn = o.worn && typeof o.worn === "object" ? o.worn : {};
+  return {
+    logo_url: cleanText(o.logo_url, 500),
+    accent: typeof o.accent === "string" && /^#[0-9a-f]{6}$/.test(o.accent) ? o.accent : null,
+    worn: { logo: worn.logo === true, accent: worn.accent === true }
+  };
+}
 export function businessReadFactsOf(raw) {
   const r = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
   const list = (v) => Array.isArray(v) ? v : [];
@@ -29,7 +39,8 @@ export function businessReadFactsOf(raw) {
       const a = cleanText(o.a, 600);
       return q && a ? [{ q, a }] : [];
     }),
-    description: cleanText(r.description, 750)
+    description: cleanText(r.description, 750),
+    look: lookReadOf(r.look)
   };
 }
 export const FOUND_WORDS = {

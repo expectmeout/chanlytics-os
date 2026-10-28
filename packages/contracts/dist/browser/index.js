@@ -229,6 +229,9 @@ export { WHATSAPP_COST_WORDS } from "./lines/whatsapp-cost.js";
 export { tryItLink } from "./lines/whatsapp-try-it.js";
 export { LOGO_PAD, LOGO_PLATE_LIGHT, LOGO_PLATE_DARK, logoLayout, logoDrawRect } from "./logo/layout.js";
 export { WORKSPACE_LOGOS_BUCKET, LOGO_SIDE, LOGO_SIDE_MIN, LOGO_BYTES_MAX, LOGO_BASE64_MAX, LOGO_CHOSEN_MAX_BYTES, LOGO_CHOSEN_TYPES, LOGO_FOUND_MAX_BYTES, LOGO_FOUND_SIDE_MIN, LOGO_FOUND_SIDE_MAX, workspaceLogoPath, isLogoPathOf, workspaceLogoSrc, LOGO_LOOKUP_OUTCOMES, LOGO_WORDS, logoLookupWords, logoFoundOn, workspaceInitials } from "./logo/logo.js";
+export { accentOk, contrastOnWhite, hexOfRgb, isAccentLike, parseCssColour, readableOnWhite } from "./look/colour.js";
+export { letterHtml } from "./look/letter.js";
+export { LOOK_WORDS, accentOf } from "./look/look.js";
 export { APP_ROUTE_RE, PUSH_TOKEN_MAX, parsePageMessage, parseShellMessage } from "./mobile/app-bridge.js";
 export { CALL_ACTIVITY_NAME, CALL_ACTIVITY_STALE_MS, CALL_ACTIVITY_ROLES, callActivityStart, callActivityPropsOf } from "./mobile/live-activity.js";
 export { todayWidgetSnapshot } from "./mobile/today-widget.js";
@@ -251,7 +254,7 @@ export { memberJoinedBy, memberJoinedNotice, memberLeftBy, memberLeftNotice } fr
 export { bookingArriving, bookingChanged, feedAdditionIsBooking, visitChangeNews, visitNews, CATCH_UP_VISITS, VISIT_CHANGES_TOLD } from "./notices/visit-news.js";
 export { personLikeOf, peopleVisitsOf, withVisitsOf, poolRowOf, poolRowsOf, consultFirstOf, poolListContext } from "./people/audience-pool.js";
 export { SAY_IT_DEAL_JSON_SCHEMA, SAY_IT_MAX, SAY_IT_NOTE_JSON_SCHEMA, SAY_IT_VERBS, SAY_IT_WORDS, dealFill, dealSheetFill, noteFill, noteSheetFill, sayItFilled } from "./people/doors/say-it.js";
-export { confirmPageWords, looksMadeUp, maskAddress, SIGNUP_ASK_LIMITS, SIGNUP_CONFIRM_MS, SIGNUP_CONFIRM_SOURCE, signupAddressKey, signupAskLine, signupAskOf, signupAskRefusal, signupConfirmEmail } from "./people/doors/signup-confirm.js";
+export { confirmPageWords, looksMadeUp, maskAddress, SIGNUP_ASK_LIMITS, SIGNUP_CONFIRM_MS, SIGNUP_CONFIRM_SOURCE, signupAddressKey, signupAskLine, signupAskOf, signupAskRefusal, signupConfirmEmail, signupConfirmEmailHtml } from "./people/doors/signup-confirm.js";
 export { legacyErasedPhoneHash, legacyErasedEmailHash, legacyLeadSuppressionHash } from "./people/erasure.js";
 export { PEOPLE_LIST_GROUPS, LIST_GROUP_WORDS, BUILTIN_LISTS, PEOPLE_LISTS, listAsks } from "./people/lists/builtin-lists.js";
 export { LIST_NEEDS, LIST_RULE_FIELDS, LIST_PURPOSES, LIST_STANDINGS, LIST_ASSIGNED, LIST_DEAL_STAGES, LIST_RULE_MAX, LIST_ANY_MAX } from "./people/lists/list-fields.js";

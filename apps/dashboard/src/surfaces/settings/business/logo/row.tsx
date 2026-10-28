@@ -33,18 +33,19 @@ type Draft = MadePicture & { found: string | null };
 
 const NOTE_WORDS: Record<LogoNote, string> = { wide: LOGO_WORDS.wide, small: LOGO_WORDS.small };
 
-/** A workspace as the boot's list says it, as far as this row reads it. */
+/** A workspace as the boot's list says it, as far as this row and the Colour row (../look/row.tsx) read it. */
 interface Listed {
   id: string;
   name?: string;
   logo_url?: string | null;
+  accent?: string | null;
 }
 
 const isListed = (w: unknown): w is Listed =>
   typeof w === "object" && w !== null && typeof Reflect.get(w, "id") === "string";
 
 /** The workspace being looked at, drawn again when the list is read again (a save, a switch). */
-function useWorkspace(): Listed | null {
+export function useWorkspace(): Listed | null {
   const [, drawAgain] = useState(0);
   useEffect(() => {
     const again = () => drawAgain((n) => n + 1);

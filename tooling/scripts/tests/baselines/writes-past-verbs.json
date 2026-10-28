@@ -25,6 +25,7 @@
   "apps/dashboard/src/surfaces/settings/billing/surface.ts": 6,
   "apps/dashboard/src/surfaces/settings/business/held-emails.tsx": 2,
   "apps/dashboard/src/surfaces/settings/business/logo/verbs.ts": 3,
+  "apps/dashboard/src/surfaces/settings/business/look/verbs.ts": 2,
   "apps/dashboard/src/surfaces/settings/business/open-bookings.tsx": 1,
   "apps/dashboard/src/surfaces/settings/business/rehearse/verbs.ts": 5,
   "apps/dashboard/src/surfaces/settings/connections/connected-mailboxes.ts": 5,

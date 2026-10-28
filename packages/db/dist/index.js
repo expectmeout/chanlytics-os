@@ -7979,6 +7979,31 @@ async function linkedPlaceOf(db, tenantId) {
   return data?.place_id ?? null;
 }
 
+// src/repositories/look.ts
+var lacksAccent = (message) => /\baccent\b/.test(message) && /does not exist|could not find/i.test(message);
+async function workspaceLookOf(db, tenantId) {
+  const r = await db.from("tenants").select("name, slug, logo_path, accent").eq("id", tenantId).maybeSingle();
+  if (!r.error) return r.data ? { ...r.data, accent: r.data.accent ?? null } : null;
+  if (!lacksAccent(r.error.message)) throw new Error(`cannot read the workspace's look: ${r.error.message}`);
+  const older = await db.from("tenants").select("name, slug, logo_path").eq("id", tenantId).maybeSingle();
+  if (older.error) throw new Error(`cannot read the workspace's look: ${older.error.message}`);
+  return older.data ? { ...older.data, accent: null } : null;
+}
+async function setWorkspaceAccent(db, tenantId, accent) {
+  const { data, error } = await db.rpc("set_workspace_accent", { p_tenant_id: tenantId, p_accent: accent ?? "" });
+  return { data, error };
+}
+async function wearFoundLook(db, p) {
+  const { data, error } = await db.rpc("wear_found_look", {
+    p_tenant_id: p.tenantId,
+    p_logo_path: p.logoPath ?? "",
+    p_accent: p.accent ?? ""
+  });
+  if (error) throw new Error(`wear_found_look: ${error.message}`);
+  const d = data && typeof data === "object" && !Array.isArray(data) ? data : {};
+  return { logo: d.logo === true, accent: d.accent === true };
+}
+
 // src/repositories/ask/memory.ts
 var memorySource = (v) => v === "pane" ? "pane" : "ask";
 async function askMemoryLines(db, tenantId, limit) {
@@ -8743,6 +8768,7 @@ export {
   setRequestSteps,
   setSequenceStepWords,
   setTemplateQuality,
+  setWorkspaceAccent,
   setWorkspaceLogo,
   settleDelivery,
   setupAskById,
@@ -8818,6 +8844,7 @@ export {
   waitlistWaiting,
   watchedEvents,
   watchedTables,
+  wearFoundLook,
   whatsappChannelFacts,
   whatsappLineOf,
   whatsappNumberOf,
@@ -8831,6 +8858,7 @@ export {
   workspaceAnswersOnItsOwn,
   workspaceIdsOf,
   workspaceIsOurs,
+  workspaceLookOf,
   workspaceMaySpend,
   workspaceMayUseModels,
   workspaceNameAndConfig,

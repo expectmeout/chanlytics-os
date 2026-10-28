@@ -229,6 +229,7 @@ export {
   signupAskOf,
   signupAskRefusal,
   signupConfirmEmail,
+  signupConfirmEmailHtml,
 } from "./doors/signup-confirm";
 export type { ConfirmPageView, SignupAskFacts, SignupAskRefusal } from "./doors/signup-confirm";
 export type { SayItInput } from "./doors/say-it-schema";

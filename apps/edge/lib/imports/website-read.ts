@@ -27,6 +27,7 @@ import { scheduleJobOnce, type ClaimedJob, type JobContext } from "../packages/j
 import { askJson, promptHashOf } from "../model.js";
 import { env } from "../env.js";
 import { publicPageText } from "../public-page.js";
+import { wearSiteLook } from "./look.js";
 import { json, refuse } from "../http.js";
 import { pg } from "../pg.js";
 import { workspaceFor, type Admitted } from "../admin-auth.js";
@@ -51,9 +52,13 @@ export function websiteReader(db: Db): NonNullable<JobContext["website"]> {
       const keep = (facts: Json, error: string | null) =>
         keepBusinessRead(db, { tenantId, source: "website", facts, readFrom: url ?? raw, error });
       if (!url) return keep({}, WEBSITE_UNREAD_WORDS.address);
-      if (!env.ANTHROPIC_API_KEY) return keep({}, WEBSITE_UNREAD_WORDS.failed);
       const home = await publicPageText(fetch, url, PAGE_READ);
       if (!home) return keep({}, WEBSITE_UNREAD_WORDS.silent);
+      // The business's look, off the home page already in hand (decision 0075): its colour and the mark it declares,
+      // worn where the workspace has none of its own and no person set them. Kept with the read, model or no model.
+      const worn = await wearSiteLook(db, { tenantId, html: home, origin: new URL(url).origin });
+      const look: Json = { logo_url: worn.logo_url, accent: worn.accent, worn: { ...worn.worn } };
+      if (!env.ANTHROPIC_API_KEY) return keep({ look }, WEBSITE_UNREAD_WORDS.failed);
       const more = sitePagesLinkedFrom(home, url, 2);
       const pages = [
         { at: url, html: home },
@@ -80,7 +85,7 @@ export function websiteReader(db: Db): NonNullable<JobContext["website"]> {
         answer = answered?.answer ?? null;
       } catch (e) {
         L.warn("website_read_failed", { error: errField(e) });
-        return keep({}, WEBSITE_UNREAD_WORDS.failed);
+        return keep({ look }, WEBSITE_UNREAD_WORDS.failed);
       }
       const facts = businessReadFactsOf(answer);
       const found = facts.services.length + facts.rules.length + facts.answers.length + facts.closed.length;
@@ -91,6 +96,7 @@ export function websiteReader(db: Db): NonNullable<JobContext["website"]> {
         rules: facts.rules,
         answers: facts.answers,
         description: facts.description,
+        look,
       };
       await keep(kept, found || facts.description ? null : WEBSITE_UNREAD_WORDS.nothing);
     },

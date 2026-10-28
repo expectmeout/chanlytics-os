@@ -30,8 +30,10 @@ import {
   signupAddressKey,
   signupAskRefusal,
   signupConfirmEmail,
+  signupConfirmEmailHtml,
   UUID,
   websiteFormLate,
+  workspaceLogoSrc,
   type SignupAskRefusal,
   type WebsiteFormInput,
 } from "../packages/contracts.js";
@@ -41,6 +43,7 @@ import {
   mailboxOfTenant,
   resolveOutboundTargetForContact,
   signupAskFacts,
+  workspaceLookOf,
   type Json,
 } from "../packages/db.js";
 import { scheduleJob } from "../packages/jobs.js";
@@ -82,9 +85,10 @@ async function askToConfirm(
   const key = signupAddressKey(typed);
   const domain = emailDomain();
   const secret = env.UNSUBSCRIBE_SECRET;
-  const [facts, mailbox] = await Promise.all([
+  const [facts, mailbox, row] = await Promise.all([
     signupAskFacts(db, { tenantId: p.tenantId, contactId: p.contactId, addressKey: key, nowMs: p.nowMs }),
     mailboxOfTenant(db, p.tenantId),
+    workspaceLookOf(db, p.tenantId),
   ]);
   // A deployment that cannot send email, or seal the link, has no mailbox to ask from as surely as a workspace without one.
   const sendsAs = mailbox && domain && emailCanSend() && secret ? { mailbox, domain, secret } : null;
@@ -109,12 +113,23 @@ async function askToConfirm(
     signConfirmToken(sendsAs.secret, { tenantId: p.tenantId, contactId: p.contactId, messageId }),
   );
   const words = signupConfirmEmail({ business: sendsAs.mailbox.from_name, link });
+  // The same words as a letter in the business's own look (decision 0075): its logo where it wears one, its colour.
+  const html = signupConfirmEmailHtml({
+    business: sendsAs.mailbox.from_name,
+    link,
+    look: {
+      business: sendsAs.mailbox.from_name,
+      logo_url: workspaceLogoSrc(env.SUPABASE_URL, row?.logo_path),
+      accent: row?.accent ?? null,
+    },
+  });
   const request = buildEmailRequest({
     identity: hostedIdentity(sendsAs.mailbox, sendsAs.domain),
     to: typed,
     parent: null,
     subject: words.subject,
     body: words.body,
+    html,
     signature: null,
     // A program's first email: Auto-Submitted, so an auto-responder does not answer it.
     actor: "ai",

@@ -834,6 +834,7 @@ export {
   linkedPlaceOf,
 } from "./repositories/imports/business-reads";
 export type { BusinessReadRow } from "./repositories/imports/business-reads";
+export { setWorkspaceAccent, wearFoundLook, workspaceLookOf } from "./repositories/look";
 export type { BeforeMessage, BeforeKept } from "./repositories/imports/before";
 export type { ImportLedgerRow, ImportNote } from "./repositories/imports/ledger";
 export {

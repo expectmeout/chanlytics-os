@@ -7130,6 +7130,7 @@ type Database = {
             };
             tenants: {
                 Row: {
+                    accent: string | null;
                     appointment_word: string | null;
                     created_at: string;
                     id: string;
@@ -7144,6 +7145,7 @@ type Database = {
                     updated_at: string;
                 };
                 Insert: {
+                    accent?: string | null;
                     appointment_word?: string | null;
                     created_at?: string;
                     id?: string;
@@ -7158,6 +7160,7 @@ type Database = {
                     updated_at?: string;
                 };
                 Update: {
+                    accent?: string | null;
                     appointment_word?: string | null;
                     created_at?: string;
                     id?: string;
@@ -11687,6 +11690,13 @@ type Database = {
                 };
                 Returns: Json;
             };
+            set_workspace_accent: {
+                Args: {
+                    p_accent: string;
+                    p_tenant_id: string;
+                };
+                Returns: string;
+            };
             set_workspace_logo: {
                 Args: {
                     p_logo_path: string;
@@ -12044,6 +12054,14 @@ type Database = {
             wake_stale_snoozes: {
                 Args: never;
                 Returns: number;
+            };
+            wear_found_look: {
+                Args: {
+                    p_accent: string;
+                    p_logo_path: string;
+                    p_tenant_id: string;
+                };
+                Returns: Json;
             };
             withdraw_ai_drafts: {
                 Args: {
