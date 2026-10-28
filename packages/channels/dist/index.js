@@ -4423,7 +4423,7 @@ function grantHolds(provider, granted, reach) {
 }
 
 // src/mailbox/mailbox-read.ts
-import { MIN_MS as MIN_MS3 } from "../../contracts/dist/index.js";
+import { MIN_MS as MIN_MS3, repairMojibake } from "../../contracts/dist/index.js";
 var GMAIL_BULK_TABS = /* @__PURE__ */ new Set(["CATEGORY_PROMOTIONS", "CATEGORY_SOCIAL", "CATEGORY_FORUMS"]);
 function filedUnderUpdates(e) {
   return e.labels.includes("CATEGORY_UPDATES");
@@ -4444,9 +4444,9 @@ var FIND_SENT_SLACK_MS = 2 * MIN_MS3;
 var FIND_SENT_LOOKS = 3;
 function decodedText(bytes, charset) {
   try {
-    return new TextDecoder(charset ?? "utf-8").decode(bytes);
+    return repairMojibake(new TextDecoder(charset ?? "utf-8").decode(bytes));
   } catch {
-    return dec2.decode(bytes);
+    return repairMojibake(dec2.decode(bytes));
   }
 }
 function headersOfList(list) {

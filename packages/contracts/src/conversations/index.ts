@@ -31,8 +31,10 @@ export type { MediaVM } from "./message-media";
 export {
   emailLeftOutOf,
   emailPartsOf,
+  emailPreviewOf,
   emailSignatureLine,
   emailSubjectsOf,
+  repairMojibake,
   splitQuotedReply,
   tidyEmailWords,
   type EmailParts,

@@ -7,8 +7,16 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../_source.mjs";
 
-const { resolveColumnWidths, plOrdered, plLayoutChoices, plMoved, plMovedTo, PL_DRAG_MIN_PX, PL_DRAG_MAX_PX } =
-  await importSrc("apps/dashboard/src/surfaces/people/table/layout.ts");
+const {
+  resolveColumnWidths,
+  plOrdered,
+  plLayoutChoices,
+  plMoved,
+  plMovedTo,
+  plFitWidth,
+  PL_DRAG_MIN_PX,
+  PL_DRAG_MAX_PX,
+} = await importSrc("apps/dashboard/src/surfaces/people/table/layout.ts");
 
 /** A table shaped like People's: a box, a column that wants the room, three that hold still, one that shares. */
 const COLS = [
@@ -74,15 +82,70 @@ test("too little room squeezes the columns that share down to their min, then th
   assert.equal(tight.scrolls, true, "past every min the table is wider than its room and scrolls inside its box");
 });
 
-test("a width the member dragged to is theirs: it neither grows nor shrinks, and the rest share what is left", () => {
+test("a width the member dragged to is theirs: it never grows, and the rest share what is left", () => {
   const r = resolveColumnWidths(COLS, { name: 360 }, 1000);
   assert.equal(r.widths[1], 360);
   assert.equal(sum(r.widths), 1000);
   // Name is theirs, so next is the one taker: it takes the 206 spare, past its max once nobody else can (the room is not left over).
   assert.equal(r.widths[3], 346);
+});
+
+test("where the room is short a dragged width gives way last, down to its min, before the table scrolls", () => {
+  // 794 wide in 700: next gives its 30 first, then name the other 64 of the 94.
+  const mid = resolveColumnWidths(COLS, { name: 360 }, 700);
+  assert.equal(mid.widths[3], 110, "the column nobody dragged gives way first");
+  assert.equal(mid.widths[1], 296, "then the dragged one");
+  assert.equal(sum(mid.widths), 700);
+  assert.equal(mid.scrolls, false);
   const small = resolveColumnWidths(COLS, { name: 360 }, 500);
-  assert.equal(small.widths[1], 360, "not squeezed to make room");
+  assert.equal(small.widths[1], 220, "never under the column's min");
   assert.equal(small.scrolls, true);
+  // Below the min is the member's choice, and it stays where they left it.
+  assert.equal(resolveColumnWidths(COLS, { name: 160 }, 400).widths[1], 160);
+  // Production, 27 Oct 2026: every column dragged, Person to 979px, in an 888px box. Person stood over the whole box.
+  const people = [
+    { key: "sel", width: { base: 42 } },
+    { key: "name", width: { base: 300, min: 240, max: 560, grow: 3 } },
+    { key: "state", width: { base: 128, min: 118, max: 240, grow: 1 } },
+    { key: "last", width: { base: 124, min: 112, max: 240, grow: 1 } },
+    { key: "actions", width: { base: 84 } },
+  ];
+  const wide = resolveColumnWidths(people, { name: 979, state: 144, last: 212 }, 888);
+  assert.equal(sum(wide.widths), 888, "the table fits its box again");
+  assert.equal(wide.scrolls, false);
+  // Each dragged column gives by what it can give: Person most.
+  assert.ok(
+    979 - wide.widths[1] > 144 - wide.widths[2] + (212 - wide.widths[3]),
+    `Person gives the most: ${wide.widths}`,
+  );
+  assert.ok(wide.widths[2] >= 118 && wide.widths[3] >= 112);
+  // The whole of that view: past every min it still scrolls, and Person, pinned, is at its min, so the rest can be reached.
+  const all = [
+    ...people.slice(0, 4),
+    { key: "calls", width: { base: 84, min: 72 } },
+    { key: "since", width: { base: 124, min: 108, max: 200, grow: 0.5 } },
+    { key: "came_from", width: { base: 120, min: 88, max: 220, grow: 1 } },
+    { key: "deal", width: { base: 130, min: 96 } },
+    { key: "visits", width: { base: 144, min: 120, max: 240, grow: 1 } },
+    people[4],
+  ];
+  const saved = { name: 979, state: 144, last: 212, calls: 56, since: 119, came_from: 85, deal: 73, visits: 159 };
+  const full = resolveColumnWidths(all, saved, 888);
+  assert.equal(full.widths[1], 240);
+  assert.equal(full.scrolls, true);
+  assert.ok(
+    full.widths[0] + full.widths[1] < 888 / 2,
+    "what is pinned leaves more than half the box to scroll through",
+  );
+});
+
+test("a fit is what the column holds, never past the most it asks for nor outside a drag's bounds", () => {
+  const person = { base: 300, min: 240, max: 560, grow: 3 };
+  assert.equal(plFitWidth(1111, person), 560, "Person fitted to every word stops at its most");
+  assert.equal(plFitWidth(301.4, person), 301);
+  assert.equal(plFitWidth(20, person), PL_DRAG_MIN_PX);
+  assert.equal(plFitWidth(5000, { base: 84 }), PL_DRAG_MAX_PX, "a column with no most stops at the drag's");
+  assert.equal(plFitWidth(140), 140);
 });
 
 test("a dragged width is held inside the drag's bounds, and a value that is no width is no choice", () => {

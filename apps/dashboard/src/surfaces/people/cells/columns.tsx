@@ -33,7 +33,17 @@ import { StoppedMark } from "../../kit/pill/stopped-mark";
 import type { PeopleCellCtx, RowPick, TableColumn } from "../types";
 import { offersOf, plReceptMark, plReceptSaysTheState, plVisitStart, plWhen } from "../words";
 import { plRowCard } from "./row-card";
-import { plCallsSort, plLastSort, plNameSort, plNextSort, plOffersSort, plStateSort, plVisitsSort } from "./sorts";
+import {
+  plCallsSort,
+  plDealSort,
+  plLastSort,
+  plNameSort,
+  plNextSort,
+  plOffersSort,
+  plSinceSort,
+  plStateSort,
+  plVisitsSort,
+} from "./sorts";
 
 /** The person's state as the one pill draws it (contracts/tone.ts). */
 function PeopleStatePill({ state, label }: { state: string; label: string }) {
@@ -181,7 +191,12 @@ export const plNameCell = (
             )}
           </div>
           {words && (
-            <div className="cl-row-words" title={words} data-testid="row-words">
+            <div
+              className="cl-row-words"
+              title={words}
+              data-testid="row-words"
+              data-quoted={words.startsWith("“") || undefined}
+            >
               {words}
             </div>
           )}
@@ -349,6 +364,8 @@ export const PL_COLUMNS: PeopleColumn[] = [
     sortable: true,
     sortFirst: "asc",
     sortValue: plNameSort,
+    // Nobody has named them yet: after everyone who has a name, from A to Z and from Z to A.
+    sortLast: (p) => isIdentifierName(p.name),
     pinned: true,
     width: { base: 300, min: 240, max: 560, grow: 3 },
     csv: { head: "Name", cell: (p) => p.name },
@@ -494,7 +511,8 @@ export const PL_COLUMNS: PeopleColumn[] = [
   {
     key: "since",
     label: "First contact",
-    sortable: false,
+    sortable: true,
+    sortValue: plSinceSort,
     on: false,
     hint: "When they first wrote or phoned",
     width: { base: 124, min: 108, max: 200, grow: 0.5 },
@@ -575,7 +593,8 @@ export const PL_COLUMNS: PeopleColumn[] = [
   {
     key: "deal",
     label: "Deal",
-    sortable: false,
+    sortable: true,
+    sortValue: plDealSort,
     on: false,
     width: { base: 130, min: 96 },
     csv: { head: "Deal", cell: (p) => (p.deal ? p.deal.stage : "") },

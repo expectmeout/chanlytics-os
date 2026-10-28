@@ -195,6 +195,20 @@ export const plModeWord = (id: string): string => stateOf("mode", id).label;
 /** What the search box says it finds, in both of its places: the desktop's placeholder and the phone's bar. */
 export const PL_SEARCH_LABEL = "Search names, numbers and emails";
 
+/**
+ * A search that found nobody, said as one: the words searched for, and the one way back, which clears the words alone.
+ * It said "No one matches this view" and offered to clear every filter, for words typed in the box. While everyone is
+ * still being searched it says so, rather than nobody.
+ */
+export const plNoMatchWords = (q: string, searching: boolean): { title: string; body?: string; action: string } =>
+  searching
+    ? { title: `Searching everyone for “${q.trim()}”…`, action: "Clear search" }
+    : {
+        title: `Nobody matches “${q.trim()}”`,
+        body: "Search reads names, numbers and email addresses.",
+        action: "Clear search",
+      };
+
 /** Who the words in the box find, or null for no words, which finds everyone. */
 export const plMatcher = (
   q: string,

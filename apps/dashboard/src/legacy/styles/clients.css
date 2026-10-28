@@ -2137,6 +2137,13 @@
 .cl-row-name-them { display: inline-flex; align-items: center; gap: 3px; border: none; background: transparent; padding: 0; font: inherit; font-size: 10.5px; color: var(--ink-faint); cursor: pointer; opacity: 0; transition: opacity 120ms ease, color 120ms ease; }
 .cl-table tbody tr:hover .cl-row-name-them, .cl-table tbody tr.focused .cl-row-name-them, .cl-row-name-them:focus-visible { opacity: 1; }
 @media (hover: hover) { .cl-row-name-them:hover { color: var(--accent); } }
+/* On a desk it takes no room until it shows: unseen, its 72px still stood between a number's name and their words, so
+   every row named by a number or an address said its words 80px further over than a named one's. The margin gives back
+   the line's gap, and shown it keeps its width while the name gives way. */
+@media (width > 900px) and (hover: hover) {
+  .cl-table .cl-row-name-them { max-width: 0; margin-left: -8px; overflow: hidden; white-space: nowrap; flex: none; }
+  .cl-table tbody tr:is(:hover, .focused) .cl-row-name-them, .cl-table .cl-row-name-them:focus-visible { max-width: none; margin-left: 0; }
+}
 .cl-row-last-visit { font-size: 11.5px; color: var(--ink-faint); }
 .cl-table td.cl-actions-cell { width: 1%; white-space: nowrap; padding-left: 0; }
 .cl-table th.cl-actions-head { width: 1%; }
@@ -2227,6 +2234,16 @@
   .pl-table .cl-sel + .pl-pin { left: 28px; }
   .pl-table .pl-pin { border-right: 1px solid transparent; }
   .pl-table-scroll.scrolled .pl-pin { border-right-color: var(--line); }
+  /* The row's acts stay in sight at the box's right edge when the table scrolls sideways: as the last column they stood
+     past it, out of reach of the row being pointed at. At rest they are clear (the acts are not drawn until a pointer
+     reaches the row); a row under the pointer or the cursor paints them its colour, so the words under them do not show. */
+  .pl-table td.cl-actions-cell, .pl-table thead th.cl-actions-head { position: sticky; right: 0; z-index: 1; }
+  .pl-table thead th.cl-actions-head { z-index: 3; }
+  .pl-table tbody tr:is(:hover, [data-hover], .focused) td.cl-actions-cell { background: var(--pl-row); }
+  /* Nobody to show is said in the box, wherever the table's width runs: centred across a table wider than its box, a
+     search that found nobody stood past the box's right edge and looked like an empty box (27 Oct 2026). */
+  .pl-table-scroll { container: pl-room / inline-size; }
+  .pl-table td.pl-nobody-cell > * { position: sticky; left: 0; width: 100cqi; box-sizing: border-box; }
   /* The cursor's edge, on the first cell: a pinned cell paints over the row's own. */
   .pl-table tbody tr.focused > td:first-child { box-shadow: inset 2px 0 0 var(--accent); }
 }
@@ -2268,9 +2285,16 @@
   /* Compact: a row is one line. What the second line said goes beside the first (their words after the name, a step's
      day after its words, a contact's speaker after its time), and what is only a reason (the State's detail and the
      reach's stopped mail) is the cell's tip. */
-  .pl-table-wrap[data-density="compact"] .cl-row-name-block { flex: 1 1 0; display: flex; align-items: baseline; gap: 8px; }
-  .pl-table-wrap[data-density="compact"] .cl-row-fullname { flex: 0 1 auto; }
+  /* The name has a slot of its own, so their words start where every other row's do (a sender's column, as a mail list
+     keeps one): a short name leaves the room a long one fills, and a long one ends in an ellipsis inside it. */
+  .pl-table-wrap[data-density="compact"] .cl-row-name-block { flex: 1 1 0; display: flex; align-items: baseline; gap: 12px; }
+  .pl-table-wrap[data-density="compact"] .cl-row-fullname { flex: 0 0 clamp(150px, 30%, 220px); }
+  /* With no words beside it there is nothing to line up, and the name keeps the cell's room. */
+  .pl-table-wrap[data-density="compact"] .cl-row-fullname:only-child { flex: 0 1 auto; }
   .pl-table-wrap[data-density="compact"] .cl-row-words { flex: 1 1 0; min-width: 0; margin-top: 0; }
+  /* Their own words open on a quote mark, which hangs in the gap, so their first letter stands where a call's summary
+     (said, not quoted) starts its own. */
+  .pl-table-wrap[data-density="compact"] .cl-row-words[data-quoted] { margin-left: -0.4em; }
   .pl-table-wrap[data-density="compact"] :is(.cl-row-reach, .cl-row-step, .cl-row-last) { flex-direction: row; align-items: baseline; gap: 8px; }
   .pl-table-wrap[data-density="compact"] :is(.cl-row-state-detail, .cl-row-reach-may) { display: none; }
   /* On one line the secondary words give way first, so the primary ones are what stays whole. */

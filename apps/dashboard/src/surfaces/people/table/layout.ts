@@ -64,13 +64,24 @@ const draggedOf = (user: Readonly<Record<string, number>>, key: string): number 
     : null;
 };
 
-/** A column while its width is settled: where it stands now, what it asks, and whether it takes a share of spare room. */
+/**
+ * The most a fit takes a column to: what it holds, never past the most the column asks for (Person holds every word a
+ * person wrote, and fitted to them it stood 1111px wide), nor outside a drag's bounds.
+ */
+export const plFitWidth = (measured: number, width?: ColumnWidth): number =>
+  Math.min(width?.max ?? PL_DRAG_MAX_PX, PL_DRAG_MAX_PX, Math.max(PL_DRAG_MIN_PX, Math.round(measured)));
+
+/**
+ * A column while its width is settled: where it stands now, what it asks, whether it takes a share of spare room, and
+ * whether a member dragged it (`dragged`: its min is then the less of the column's and the width they chose).
+ */
 interface Cell {
   width: number;
   grow: number;
   min: number;
   max: number;
   takes: boolean;
+  dragged: boolean;
 }
 
 /**
@@ -108,9 +119,12 @@ function squeeze(takers: readonly Cell[], deficit: number): void {
 
 /**
  * Every column's width. `available` is the room the table has (its box's width), or null before it is measured, when each
- * column is where it starts. A width a member dragged is theirs and neither grows nor shrinks; the rest start at `base`,
- * share the room left over by their `grow` and give way down to their `min` before the table scrolls. Whole pixels, and
- * together exactly the room when they fit, so the browser has nothing left to redistribute.
+ * column is where it starts. The columns nobody dragged start at `base`, share the room left over by their `grow` and give
+ * way down to their `min` before the table scrolls. A width a member dragged is theirs: it never grows, and where the room
+ * is short it gives way last, after every other column has, down to the column's min (or the width they chose, where that
+ * is less). It once held whatever the room: a Person dragged or fitted wide on one screen covered the whole box on a
+ * smaller one, pinned over every other column, which no scroll could then reach (27 Oct 2026, 979px in an 888px box).
+ * Whole pixels, and together exactly the room when they fit, so the browser has nothing left to redistribute.
  */
 export function resolveColumnWidths(
   columns: readonly SizedColumn[],
@@ -123,23 +137,34 @@ export function resolveColumnWidths(
     return {
       width: dragged ?? spec.base,
       grow: spec.grow,
-      min: spec.min,
+      min: dragged === null ? spec.min : Math.min(spec.min, dragged),
       max: spec.max,
       takes: dragged === null && spec.grow > 0,
+      dragged: dragged !== null,
     };
   });
   const takers = cells.filter((c) => c.takes);
   const sum = (): number => cells.reduce((x, c) => x + c.width, 0);
+  // The columns whose widths were worked out to make the room: the takers, and the dragged ones once they gave way.
+  let flex = takers;
   if (available !== null && available > 0) {
     const now = sum();
     if (now < available) spread(takers, available - now);
-    else if (now > available) squeeze(takers, now - available);
+    else if (now > available) {
+      squeeze(takers, now - available);
+      const short = sum() - available;
+      const dragged = cells.filter((c) => c.dragged);
+      if (short > 0.01 && dragged.length) {
+        squeeze(dragged, short);
+        flex = [...takers, ...dragged];
+      }
+    }
   }
-  // Rounding leaves a pixel or two either way (half a pixel a column at most): the widest taker keeps the difference, so
-  // the sum is the room. Only where the widths made the room: past every min they are wider than it and the table scrolls,
-  // and no column is taken under its min to round that.
+  // Rounding leaves a pixel or two either way (half a pixel a column at most): the widest of the columns that made the
+  // room keeps the difference, so the sum is the room. Only where the widths made the room: past every min they are wider
+  // than it and the table scrolls, and no column is taken under its min to round that.
   const made = available !== null && Math.abs(sum() - available) < 0.01;
-  const whole = cells.map((c) => ({ taker: c.takes, px: Math.round(c.width) }));
+  const whole = cells.map((c) => ({ taker: flex.includes(c), px: Math.round(c.width) }));
   const total = whole.reduce((x, c) => x + c.px, 0);
   const off = available === null ? 0 : Math.round(available) - total;
   const widest = whole.reduce<{ px: number } | null>((x, c) => (c.taker && (x === null || c.px > x.px) ? c : x), null);
