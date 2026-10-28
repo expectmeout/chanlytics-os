@@ -1343,7 +1343,7 @@ const profileSaving = async (vm, answer = { ok: true, data: {} }) => {
   return { draw, sent, restore: () => delete world.answers[door] };
 };
 const type = (input, value) => input.props.onChange({ target: { value } });
-// A value typed in place (kit/record/in-place.ts) takes the keys, then its words, from the box's own events.
+// A value typed in place (kit/record/in-place.tsx) takes the keys, then its words, from the box's own events.
 const takeKeys = (box) => box.props.onFocus({ currentTarget: {} });
 const typeIn = (box, words) => box.props.onInput({ currentTarget: { textContent: words } });
 

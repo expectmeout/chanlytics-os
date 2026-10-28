@@ -23,6 +23,8 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FocusEvent, KeyboardEvent, MouseEvent, SyntheticEvent } from "react";
+import { Button } from "../button/button";
+import { Icon } from "../icon/icon";
 
 interface InPlaceOptions {
   /** What is shown at rest: the value, or what stands in its place (a number for a name). */
@@ -276,4 +278,58 @@ export function useInPlace(o: InPlaceOptions): InPlace {
     },
     hold: setHeld,
   };
+}
+
+/**
+ * The pencil after a value typed in place, and ✓ while it is typed, placed by the page's `className`. The box is the
+ * stop a key reaches, so neither is one; ✓ keeps the keys in the box while its press asks for the save. Here, beside the
+ * hook, so a page that draws one takes no other page's code with it (a list's name drew a person's whole name and email
+ * onto People's first load, +2.6 KB, when it took the pencil from their page).
+ */
+export function InPlacePen({
+  edit,
+  label,
+  rest,
+  save,
+  className,
+}: {
+  edit: InPlace;
+  label: string;
+  rest: string;
+  save: string;
+  className: string;
+}) {
+  return edit.typing ? (
+    <Button
+      key="save"
+      variant="quiet"
+      size="sm"
+      iconOnly
+      tabIndex={-1}
+      className={className}
+      aria-label="Save"
+      title="Save · Esc leaves it as it was"
+      aria-busy={edit.busy || undefined}
+      onMouseDown={edit.keep}
+      onClick={() => void edit.done()}
+      data-testid={save}
+    >
+      <Icon name="check" size={13} />
+    </Button>
+  ) : (
+    <Button
+      key="pen"
+      variant="quiet"
+      size="sm"
+      iconOnly
+      tabIndex={-1}
+      className={className}
+      aria-label={label}
+      title={label}
+      onClick={edit.begin}
+      data-testid={rest}
+    >
+      <Icon name="edit" size={11} />
+    </Button>
+  );
 }

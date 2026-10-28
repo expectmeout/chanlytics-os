@@ -1,7 +1,7 @@
 /**
  * The person's name and email address, each changed where it is said (moved from legacy/pages/client-profile.jsx,
  * decision 0015, step 5), in the box it is typed in: the words and the box are one (the record kit's in-place value,
- * kit/record/in-place.ts), so beginning to type moves nothing (Ruben, 28 Oct 2026: the editor's box, ✓ and ✕ took the
+ * kit/record/in-place.tsx), so beginning to type moves nothing (Ruben, 28 Oct 2026: the editor's box, ✓ and ✕ took the
  * name's line and pushed the head down; the address grew from one line to three).
  *
  * The name as the owner gives it. A number is what most people arrive as, so for a person with no name yet the pencil
@@ -15,12 +15,9 @@
  */
 import { PERSON_NAME_WORDS, PERSON_WASH_WORDS, whyNotAnEmail } from "@chanlytics/contracts";
 import type { PersonVM } from "@chanlytics/contracts";
-import { Button } from "../../kit/button/button";
-import { Icon } from "../../kit/icon/icon";
 import { Wash } from "../../kit/motion/wash";
 import { LinkButton } from "../../kit/link-button/link-button";
-import { useInPlace } from "../../kit/record/in-place";
-import type { InPlace } from "../../kit/record/in-place";
+import { InPlacePen, useInPlace } from "../../kit/record/in-place";
 import { setPersonDetails } from "../people-detail";
 import type { FlashFn } from "../person-verbs";
 
@@ -38,46 +35,6 @@ const EMAIL_MAX = 254;
 /** What the toast says of a name taken away: what shows in its place. */
 function clearedWords(p: PersonVM) {
   return <>Name cleared — {p.phone ? "the number" : p.email ? "their email address" : "nothing"} shows again</>;
-}
-
-/**
- * The pencil after a value typed in place, and ✓ while it is typed (a list's name draws it too). The box is the stop a
- * key reaches, so neither is one; ✓ keeps the keys in the box while its press asks for the save.
- */
-export function InPlacePen({ edit, label, rest, save }: { edit: InPlace; label: string; rest: string; save: string }) {
-  return edit.typing ? (
-    <Button
-      key="save"
-      variant="quiet"
-      size="sm"
-      iconOnly
-      tabIndex={-1}
-      className="cl-in-place-pen"
-      aria-label="Save"
-      title="Save · Esc leaves it as it was"
-      aria-busy={edit.busy || undefined}
-      onMouseDown={edit.keep}
-      onClick={() => void edit.done()}
-      data-testid={save}
-    >
-      <Icon name="check" size={13} />
-    </Button>
-  ) : (
-    <Button
-      key="pen"
-      variant="quiet"
-      size="sm"
-      iconOnly
-      tabIndex={-1}
-      className="cl-in-place-pen"
-      aria-label={label}
-      title={label}
-      onClick={edit.begin}
-      data-testid={rest}
-    >
-      <Icon name="edit" size={11} />
-    </Button>
-  );
 }
 
 /**
@@ -162,7 +119,7 @@ export function PersonName({ p, canEdit, flash, onPutBack }: FieldProps & { onPu
             {edit.shown}
           </span>
         </Wash>
-        <InPlacePen edit={edit} label={ask} rest="person-rename" save="person-name-save" />
+        <InPlacePen edit={edit} label={ask} rest="person-rename" save="person-name-save" className="cl-in-place-pen" />
       </h1>
       {edit.problem ? (
         <p className="cl-in-place-says" data-problem role="alert" data-testid="person-name-problem">
@@ -253,6 +210,7 @@ export function PersonEmail({ p, canEdit, flash }: FieldProps) {
         label={p.email ? "Change the email address" : "Add an email address"}
         rest="person-email-edit"
         save="person-email-save"
+        className="cl-in-place-pen"
       />
       {edit.problem ? (
         <span className="cl-in-place-says" data-problem role="alert" data-testid="person-email-problem">

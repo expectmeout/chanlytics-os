@@ -8,8 +8,7 @@
 import { useState } from "react";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
-import { useInPlace } from "../../kit/record/in-place";
-import { InPlacePen } from "../person/name";
+import { InPlacePen, useInPlace } from "../../kit/record/in-place";
 import type { SavedList } from "../types";
 import { plDeleteList, plRenameList } from "./doors";
 import type { DeleteAnswer } from "./doors";
@@ -80,7 +79,7 @@ export function ListTitle({
   onRefused: (why: string) => void;
   onEditRule?: (() => void) | null;
 }) {
-  // The name is the box it is typed in (kit/record/in-place.ts): left empty, or as it was, the name stays.
+  // The name is the box it is typed in (kit/record/in-place.tsx): left empty, or as it was, the name stays.
   const edit = useInPlace({
     value: list.name,
     start: list.name,
@@ -116,7 +115,13 @@ export function ListTitle({
           >
             {edit.shown}
           </span>
-          <InPlacePen edit={edit} label="Rename the list" rest="list-rename" save="list-rename-save" />
+          <InPlacePen
+            edit={edit}
+            label="Rename the list"
+            rest="list-rename"
+            save="list-rename-save"
+            className="cl-in-place-pen"
+          />
           {edit.problem ? (
             <span className="cl-in-place-says" data-problem role="alert" data-testid="list-rename-error">
               {edit.problem}
