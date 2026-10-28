@@ -3629,7 +3629,7 @@ async function verifyTwilioSignature(authToken, url, form3, header) {
 }
 
 // src/email/request.ts
-import { escapeHtml, posesAsReply } from "../../contracts/dist/index.js";
+import { escapeHtml, linkifyEscaped, posesAsReply } from "../../contracts/dist/index.js";
 
 // src/email/header-values.ts
 var oneLine = (s) => s.replace(/\p{Cc}+/gu, " ").replace(/\s+/g, " ").trim();
@@ -3664,14 +3664,8 @@ function replySubject(parentSubject) {
   while (REPLY_PREFIX.test(s)) s = s.replace(REPLY_PREFIX, "");
   return `Re: ${s || "your message"}`.slice(0, SUBJECT_MAX);
 }
-var LINK_IN_TEXT = /https?:\/\/[^\s<>]+/g;
-var linkify = (escaped) => escaped.replace(LINK_IN_TEXT, (m) => {
-  const trail = /[.,;:!?)]+$/.exec(m)?.[0] ?? "";
-  const href = m.slice(0, m.length - trail.length);
-  return `<a href="${href}">${href}</a>${trail}`;
-});
 function emailHtml(text) {
-  return text.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean).map((p) => `<p>${linkify(escapeHtml(p)).replace(/\n/g, "<br>")}</p>`).join("\n");
+  return text.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean).map((p) => `<p>${linkifyEscaped(escapeHtml(p)).replace(/\n/g, "<br>")}</p>`).join("\n");
 }
 function referencesFor(parent) {
   const ids = [...parent.references, parent.rfcMessageId].map(messageIdHeader).filter((x) => x !== null);

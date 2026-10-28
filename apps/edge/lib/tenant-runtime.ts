@@ -573,6 +573,7 @@ export async function loadTenantNotifications(
   notifications: NotificationsConfig | null;
   isEnvDefault: boolean;
   slug?: string;
+  name?: string;
   /** The workspace's settings could not be read: who it is told by is unknown, which is not "nobody". */
   unread?: true;
 }> {
@@ -598,7 +599,7 @@ export async function loadTenantNotifications(
         .order("created_at", { ascending: true })
         .limit(1)
         .maybeSingle(),
-      // The workspace's address word, for the link at the foot of an alert mail (notify.ts openItLink): read beside the
+      // The workspace's address word and name, for an alert mail's link and its top (notify.ts workspaceOf): read beside the
       // recipients so the mail costs no query of its own. Like the channel above, its failure costs the answer it was
       // asked for -- a mail with no link -- and never the recipients.
       workspaceNamed(db, tenantId).catch((e: unknown) => {
@@ -621,7 +622,7 @@ export async function loadTenantNotifications(
       notifications: parsed.ok ? (parsed.config.notifications ?? null) : null,
       isEnvDefault: !chQ.error && !!envPhoneId && chQ.data?.external_id === envPhoneId,
       // Unset where the workspace could not be read, so a mail reads it once itself (a null would say it has none).
-      ...(named?.slug ? { slug: named.slug } : {}),
+      ...(named?.slug ? { slug: named.slug, name: named.name } : {}),
     };
   } catch (e) {
     L.error("tenant_notifications_load_failed", { tenant_id: tenantId, error: errField(e) });

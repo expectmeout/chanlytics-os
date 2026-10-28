@@ -21,7 +21,7 @@
  * became of a send is receipts.ts; the provider's other answers are
  * provider-answers.ts.
  */
-import { escapeHtml, posesAsReply } from "@chanlytics/contracts";
+import { escapeHtml, linkifyEscaped, posesAsReply } from "@chanlytics/contracts";
 import { messageIdHeader, oneLine } from "./header-values";
 
 /** What an email is a reply to, read off the stored parent row. */
@@ -130,22 +130,6 @@ export function replySubject(parentSubject: string | null | undefined): string {
   return `Re: ${s || "your message"}`.slice(0, SUBJECT_MAX);
 }
 
-/** A web address in the words, read AFTER escaping, so `"` and `<` are already entities and cannot end it early. */
-const LINK_IN_TEXT = /https?:\/\/[^\s<>]+/g;
-
-/**
- * An address in the words becomes a link; the punctuation that closed the
- * sentence around it stays outside. Only http and https, and only from
- * escaped text: `&` inside an address is already `&amp;`, which a browser
- * reads back as `&`, and nothing else in the words can reach the markup.
- */
-const linkify = (escaped: string): string =>
-  escaped.replace(LINK_IN_TEXT, (m) => {
-    const trail = /[.,;:!?)]+$/.exec(m)?.[0] ?? "";
-    const href = m.slice(0, m.length - trail.length);
-    return `<a href="${href}">${href}</a>${trail}`;
-  });
-
 /**
  * The HTML twin of plain words: paragraphs and line breaks, escaped, nothing
  * else -- except that a web address in the words is a link, so a proposal or
@@ -158,7 +142,7 @@ export function emailHtml(text: string): string {
     .split(/\n{2,}/)
     .map((p) => p.trim())
     .filter(Boolean)
-    .map((p) => `<p>${linkify(escapeHtml(p)).replace(/\n/g, "<br>")}</p>`)
+    .map((p) => `<p>${linkifyEscaped(escapeHtml(p)).replace(/\n/g, "<br>")}</p>`)
     .join("\n");
 }
 

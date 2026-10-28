@@ -123,7 +123,7 @@ export type { SchemaSetKey, SchemaSet, Exactly, Within, Holds, SchemaAgreement }
 export { UUID, isUuid, asTenantId, asContactId } from "./identity";
 export type { TenantId, ContactId } from "./identity";
 export { plural } from "./words";
-export { escapeHtml } from "./html";
+export { escapeHtml, linkifyEscaped } from "./html";
 export { finiteOrNull, finiteOrZero, trimmedOrNull, nonBlankOrNull, recordOrNull, lineOrNull } from "./unknown";
 export { utf8Bytes, hexOf } from "./bytes";
 export { sumOf } from "./numbers";

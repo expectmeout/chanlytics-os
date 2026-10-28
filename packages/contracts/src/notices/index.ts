@@ -24,3 +24,5 @@ export {
   CALENDAR_UNREADABLE_WORDS,
 } from "./connection-news";
 export type { HoldFacts } from "./hold-notice";
+export { noticeMailHtml } from "./notice-mail";
+export type { NoticeMail } from "./notice-mail";
