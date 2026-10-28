@@ -234,7 +234,7 @@ export { CALL_ACTIVITY_NAME, CALL_ACTIVITY_STALE_MS, CALL_ACTIVITY_ROLES, callAc
 export { todayWidgetSnapshot } from "./mobile/today-widget.js";
 export { parseTodayWidgetSnapshot } from "./mobile/widget.js";
 export { NEED_YOU_WORDS, needYouSay, notNowChoices, sendCountdown } from "./need-you/need-you-words.js";
-export { REPLY_DRAFT_KINDS, REPLY_DRAFTS_IDS_MAX, draftHasWords, draftIsCurrent, replyDraftAbout } from "./need-you/reply-drafts.js";
+export { REPLY_DRAFT_KINDS, REPLY_DRAFTS_IDS_MAX, REPLY_DRAFTS_NEWEST_MAX, draftHasWords, draftIsCurrent, replyDraftAbout } from "./need-you/reply-drafts.js";
 export { NEW_CONVERSATION_WORDS, approvedWordsFor, newConversationOf, planNoteOf, writeWayWords, writeWireName } from "./new-conversation/new-conversation-words.js";
 export { DRAFT_ABOUT_MAX, DRAFT_ANSWER_MAX, DRAFT_ASKS_MAX, DRAFT_HOWS, DRAFT_TONES, PERSON_DRAFT_JSON_SCHEMA, PLAN_NOTE_MAX } from "./new-conversation/person-draft.js";
 export { writeReachOf } from "./new-conversation/write-reach.js";

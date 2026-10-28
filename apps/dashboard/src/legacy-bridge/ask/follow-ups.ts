@@ -7,7 +7,7 @@
  * hear. A read that fails keeps what was held.
  */
 import { MIN_MS } from "@chanlytics/contracts";
-import { afterBoot } from "../surface-runner";
+import { afterBoot } from "../workspace";
 import type { AskApiCalls } from "./api";
 
 /** A follow-up that came due: the line the member reads, and what Ask asks itself when they come back to it. */

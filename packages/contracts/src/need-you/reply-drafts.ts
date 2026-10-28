@@ -17,6 +17,13 @@ export type ReplyDraftKind = (typeof REPLY_DRAFT_KINDS)[number];
 export const REPLY_DRAFTS_IDS_MAX = 20;
 
 /**
+ * How many of the workspace's newest kept drafts the read that names no thread answers: Today's, read with its own first
+ * reads before it knows its rows (there were three or four a workspace on 27 Oct 2026, one a thread that waited on a person).
+ * Past them, a row whose draft is not among them is read by its thread, as before.
+ */
+export const REPLY_DRAFTS_NEWEST_MAX = 40;
+
+/**
  * What a draft holds: the words (and a subject for an email), or the brief, or what Ask needed to know and could not
  * find in the facts (`asks`, said in the row instead of words; the owner writes it themself).
  */

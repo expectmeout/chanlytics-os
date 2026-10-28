@@ -701,7 +701,8 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
       (await importSrc(`${S}/surfaces/leads/override.ts`)).leadsOverride,
       // Who is looking: Reports' strip waits for it (ROUTE_WAITS), and its read is every page's.
       (await importSrc(`${S}/legacy-bridge/surface-data.ts`)).workspaceOverride,
-      // What Today draws beside its own (PREFETCH_BESIDE): the period line, the bell, Google's reviews, the reach-outs' replies.
+      // What Today draws beside its own: the period line and the bell (PREFETCH_BESIDE), Google's reviews and the reach-outs'
+      // replies (which its first draw waits for, PREFETCH_READS).
       (await importSrc(`${S}/surfaces/reports/headline.ts`)).reportsHeadlineOverride,
       (await importSrc(`${S}/legacy-bridge/surfaces/notifications.ts`)).notificationsOverride,
       (await importSrc(`${S}/legacy-bridge/google.ts`)).googleOverride,
@@ -710,6 +711,8 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
       (await importSrc(`${S}/surfaces/today/pins-surface.ts`)).todayPinsOverride,
       // And Ask for you: the member's morning as it stands (decision 0070).
       (await importSrc(`${S}/surfaces/today/ask-morning-surface.ts`)).askMorningOverride,
+      // And the drafts Ask kept for Need you's rows, which Today's first draw waits for (decision 0071).
+      (await importSrc(`${S}/surfaces/today/need-you/drafts-surface.ts`)).replyDraftsOverride,
     ].map((o) => [o.key, o]),
   );
   const settle = async () => {

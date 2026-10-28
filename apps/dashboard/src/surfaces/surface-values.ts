@@ -37,6 +37,7 @@ import type { PeopleSurface } from "./people/surface";
 import type { CalendarSurface } from "./calendar/surface";
 import type { CalendarRunsSurface } from "./calendar/runs-surface";
 import type { TodayPinsSurface } from "./today/pins-surface";
+import type { ReplyDraftsSurface } from "./today/need-you/drafts-surface";
 import type { LeadsSurface } from "./leads/surface";
 import type { SetupSurface } from "./setup/surface";
 import type { BillingSurface } from "./settings/billing/surface";
@@ -80,6 +81,8 @@ export interface SurfaceValues {
   today_pins: TodayPinsSurface;
   /** Ask's morning for this member, read where Today draws its ideas as rows of Need you (today/ask-morning-surface.ts; decisions 0070 and 0071). */
   ask_morning: AskMorningSurface;
+  /** The workspace's newest drafts Ask kept for the rows of Need you, read with Today's first reads (today/need-you/drafts-surface.ts; decision 0071). */
+  reply_drafts: ReplyDraftsSurface;
   /** What Ask remembers, read where Settings › Memory is drawn (settings/memory/surface.ts; decision 0070); null when it failed. */
   ask_memory: AskMemorySurface | null;
   leads: LeadsSurface;
@@ -253,6 +256,7 @@ const SURFACE_KEYS: Record<SurfaceKey, true> = {
   calendar_runs: true,
   today_pins: true,
   ask_morning: true,
+  reply_drafts: true,
   ask_memory: true,
   leads: true,
   setup: true,

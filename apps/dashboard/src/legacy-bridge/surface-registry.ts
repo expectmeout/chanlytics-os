@@ -34,7 +34,13 @@ import {
   type ReadsDeclaration,
   type RealtimeChange,
 } from "./surface-realtime";
-import { getSurfaceStatuses, isSurfaceFailed, isSurfaceReady, onSurfaceStatusChange } from "./surface-status";
+import {
+  codeOutFor,
+  getSurfaceStatuses,
+  isSurfaceFailed,
+  isSurfaceReady,
+  onSurfaceStatusChange,
+} from "./surface-status";
 import { routeOnScreen } from "./workspace";
 import { hearMoves } from "./hearing/after-the-move";
 import { PAGE_HEARS, type PageCell } from "./hearing/page-hears";
@@ -649,7 +655,8 @@ export function installSurfaceRegistry(): void {
 
 /**
  * Whether the gate is open on a route: its own surface holds real rows, and (unless `own`) what its first draw waits
- * for beside it is in or has failed (ROUTE_WAITS). The PANE decides, not the page: asked with the bare page name,
+ * for beside it is in or has failed (ROUTE_WAITS), and so is the code it waits for (surface-status firstDrawWaitsFor). The
+ * PANE decides, not the page: asked with the bare page name,
  * Settings resolved to nothing and the gate waved a cold load straight through onto the mockup's fabricated business.
  * The shell's gate (installRouteGate) and the page's measures (client/page-speed.ts) ask this one rule.
  */
@@ -657,6 +664,7 @@ export function routeGateOpen(page: string, param?: string | null, own = false):
   const key = routeSurfaceFor(page, param);
   if (key && !isSurfaceReady(key)) return false;
   if (own) return true;
+  if (codeOutFor(page)) return false;
   return (ROUTE_WAITS[page] ?? []).every((k) => isSurfaceReady(k) || isSurfaceFailed(k));
 }
 
