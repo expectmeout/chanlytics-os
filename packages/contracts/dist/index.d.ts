@@ -7071,6 +7071,8 @@ declare const MAILBOX_CARD_WORDS: {
     readonly noSignature: "No signature";
     readonly add: "Add a mailbox";
     readonly sending: "Sending";
+    /** The switch's name in the Sending group, which says "Sending" once already. */
+    readonly sendsNow: "Sends now";
     readonly sendingOn: (address: string) => string;
     readonly sendingOff: (address: string) => string;
     readonly signature: "Signature";

@@ -1903,26 +1903,34 @@ html.legacy-on .bt-link { position: relative; }
    act on the group's columns, the card's facts and foot under its words. Facts in place of sentences: a label over each
    value, a hairline between them. The foot is what was left in the mailbox and Add a mailbox. */
 .set-conn > .set-mbx-one { align-items: start; }
-.set-mbx-says { margin: 0; font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); overflow-wrap: anywhere; }
+.set-mbx-says { margin: 0; font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); overflow-wrap: break-word; }
 .set-mbx-below { grid-column: 2 / -1; display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; padding: var(--space-2) 0 var(--space-1); }
-.set-mbx-facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0; }
-.set-mbx-fact { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 0 var(--space-4); border-left: 1px solid var(--line); }
-.set-mbx-fact:first-child { padding-left: 0; border-left: 0; }
+/* As many to a line as the pane has room for, each whole: in a narrow pane (a 1024px window) four in a row were cut to
+   "414 email…" and "Up to 4…" (seen on production, 27 Oct 2026). */
+.set-mbx-facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: var(--space-3) var(--space-5); margin: 0; }
+.set-mbx-fact { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .set-mbx-fact dt { font-size: var(--text-xs); color: var(--ink-dim); }
-.set-mbx-fact dd { margin: 0; font-size: var(--text-sm); font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.set-mbx-fact dd { margin: 0; font-size: var(--text-sm); font-weight: 600; color: var(--ink); overflow-wrap: break-word; }
 .set-mbx-foot { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2) var(--space-4); padding-top: var(--space-2); border-top: 1px dashed var(--line); }
 .set-mbx-left { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
 .set-mbx-left .set-dom { grid-template-columns: minmax(0, 1fr) auto; padding: var(--space-1) 0; border-top: 0; }
 .set-mbx-left .set-dom > :empty { display: none; }
-/* Several mailboxes: their lines under the card's words, which already start where the row's words do. */
-.set-mbx-below > .set-domains { margin: 0; }
+/* Show who stays on its line's end at every width (a phone's set-dom put it two rows down, under nothing). */
+.set-mbx-left .set-dom .set-int-actions { grid-column: 2; grid-row: 1; justify-content: flex-end; }
+/* Several mailboxes: a flat line each under the card's words, which already start where the row's words do -- its
+   address and what came in, its state, its act -- never a box around them (the card's provider is said by each). */
+.set-mbx-below > .set-domains { margin: 0; border: 0; border-radius: 0; background: none; overflow: visible; }
+.set-mbx-below > .set-domains > .set-dom { grid-template-columns: minmax(0, 1fr) auto auto; padding: var(--space-2) 0; border-top: 1px dashed var(--line); }
+.set-mbx-below > .set-domains > .set-dom:first-child { border-top: 0; }
+.set-mbx-below > .set-domains > .set-dom > :is(svg, .cap) { display: none; }
 /* The settings sheet's groups (mailbox-sheet.tsx): Sending, Signature, the backup address, Remove, a hairline between. */
 .set-mbx-group { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4) 0; border-top: 1px solid var(--line); }
-.set-mbx-group:first-child { padding-top: 0; border-top: 0; }
+.set-mbx-group:first-child { padding-top: var(--space-2); border-top: 0; }
 .set-mbx-group-title { margin: 0; font-size: var(--text-xs); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; color: var(--ink-dim); }
 .set-mbx-two { display: grid; grid-template-columns: minmax(0, 1fr) 132px; gap: var(--space-3); align-items: start; }
 .set-mbx-say { display: flex; align-items: flex-start; gap: var(--space-3); }
 .set-mbx-say > :last-child { margin-left: auto; flex: none; }
+.set-mbx-group.set-mbx-say { flex-direction: row; align-items: center; }
 .set-mbx-say-words { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .set-mbx-say-name { font-size: var(--text-base); font-weight: 600; color: var(--ink); }
 .set-mbx-lines { display: flex; flex-direction: column; gap: 2px; font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); text-wrap: pretty; }
@@ -1938,9 +1946,12 @@ html.legacy-on .bt-link { position: relative; }
   /* On a phone the card's words, facts and foot run the row's width under its name; its facts two by two. */
   .set-conn > .set-mbx-one .set-mbx-says { grid-column: 2 / -1; }
   .set-conn > .set-mbx-one > .set-mbx-below { grid-column: 1 / -1; }
-  .set-mbx-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: var(--space-3); padding: var(--space-3) var(--space-4); border-radius: var(--radius-lg); background: var(--surface-inset-fill); }
-  .set-mbx-fact:nth-child(odd) { padding-left: 0; border-left: 0; }
+  .set-mbx-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3) var(--space-4); padding: var(--space-3) var(--space-4); border-radius: var(--radius-lg); background: var(--surface-inset-fill); }
   .set-mbx-two { grid-template-columns: minmax(0, 1fr) 112px; }
+  /* A mailbox of several: its words beside its state, its act under them. */
+  .set-mbx-below > .set-domains > .set-dom { grid-template-columns: minmax(0, 1fr) auto; }
+  .set-mbx-below > .set-domains > .set-dom > :nth-child(4) { grid-column: 2; grid-row: 1; }
+  .set-mbx-below > .set-domains > .set-dom .set-int-actions { grid-column: 1 / -1; grid-row: 2; justify-content: flex-start; }
 }
 /* The group across the form: its name, the choice at its own width, then what it signs with across the row. */
 .set-mbx-signs-group { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); }
