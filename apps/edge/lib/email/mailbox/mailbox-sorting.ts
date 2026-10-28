@@ -3,6 +3,10 @@
  * and R19; 00483). One sorting for the live read (mailbox-sync.ts) and the six months (imports/mail-history.ts), asked
  * only outside a thread a reach-out started (a reply there is a reply, whatever it looks like), in this order:
  *
+ *   ours       the platform's own sender (LEAD_FROM): an alert, a digest, an invitation from Chanlytics is never a
+ *              person, whatever the workspace said. Mail sent before every one carried Auto-Submitted (#1858) has
+ *              nothing else to tell it by, and the six months bring it in to any workspace, whatever its own domains.
+ *              Left as automated, or as its own where the workspace's domain is the platform's too.
  *   said       what the workspace said of the sender (contracts senderVerdictOf, by address, then by domain): a person
  *              comes in whatever the email looks like, an automated sender is left.
  *   own        the sender is on one of the workspace's own domains (its connected mailboxes' hosts): the business's
@@ -20,7 +24,13 @@
  * What is left is noted, one line a sender (00483 mailbox_left), so the owner sees who was left and why.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { classifyReceived, filedAsBulk, filedUnderUpdates, type MailboxEmail } from "../../packages/channels.js";
+import {
+  addressOf,
+  classifyReceived,
+  filedAsBulk,
+  filedUnderUpdates,
+  type MailboxEmail,
+} from "../../packages/channels.js";
 import {
   normalizeEmail,
   senderVerdictOf,
@@ -34,14 +44,17 @@ import {
   noteMailboxLeft,
   type Database,
 } from "../../packages/db.js";
+import { platformFrom } from "../../ops/notify.js";
 
 type Db = SupabaseClient<Database>;
 
 /**
- * What a sorting reads beside the email: what the workspace said of its senders, its own domains, and whether it
- * knows an address.
+ * What a sorting reads beside the email: the platform's own sending address, what the workspace said of its senders,
+ * its own domains, and whether it knows an address.
  */
 export interface MailSorting {
+  /** The platform's own sending address (LEAD_FROM), lower-cased; null where this deployment sends none. */
+  ours: string | null;
   said: ReadonlyMap<string, MailboxSenderVerdict>;
   /** The hosts of the workspace's connected mailboxes, lower-cased: mail from them is the business's own. */
   own: ReadonlySet<string>;
@@ -55,6 +68,7 @@ export interface MailSorting {
 export async function mailSortingFor(db: Db, tenantId: string): Promise<MailSorting> {
   const [said, boxes] = await Promise.all([mailboxSenderVerdicts(db, tenantId), mailboxConnectionsOf(db, tenantId)]);
   return {
+    ours: addressOf(platformFrom())?.address ?? null,
     said,
     own: new Set(boxes.map((b) => b.host.toLowerCase())),
     knows: async (address) => (await contactIdByEmail(db, tenantId, address)) !== null,
@@ -73,6 +87,7 @@ const answersSomething = (e: MailboxEmail): boolean => !!(e.headers["in-reply-to
 /** Why the mailbox leaves this email where it is, or null when it comes in as a person's. */
 export async function leftWhy(e: MailboxEmail, s: MailSorting): Promise<SortedWhy | null> {
   const from = normalizeEmail(e.from?.address);
+  if (from && from === s.ours) return s.own.has(domainOf(from)) ? "own" : "automated";
   const said = from ? senderVerdictOf(s.said, from) : null;
   if (said === "person") return null;
   if (said === "automated") return "said";

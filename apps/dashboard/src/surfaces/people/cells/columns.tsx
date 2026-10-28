@@ -473,7 +473,13 @@ export const PL_COLUMNS: PeopleColumn[] = [
     csv: { head: "Receptionist", cell: (p) => p.receptionist.label },
     cell: (p) => (
       <td key="receptionist" className="cl-recept-cell">
-        <StatePill kind="standing" value={p.receptionist.tone} label={p.receptionist.label} testid="row-receptionist" />
+        <StatePill
+          kind="standing"
+          value={p.receptionist.tone}
+          label={p.receptionist.label}
+          fit
+          testid="row-receptionist"
+        />
       </td>
     ),
   },
@@ -515,7 +521,8 @@ export const PL_COLUMNS: PeopleColumn[] = [
     sortValue: plSinceSort,
     on: false,
     hint: "When they first wrote or phoned",
-    width: { base: 124, min: 108, max: 200, grow: 0.5 },
+    // Its least is its heading's: at 108 it read "FIRST CONTA" (measured, 28 Oct 2026).
+    width: { base: 124, min: 116, max: 200, grow: 0.5 },
     csv: { head: "First contact", cell: (p) => (p.firstContact.label !== "—" ? p.firstContact.label : "") },
     cell: (p) => (
       <td
@@ -565,7 +572,8 @@ export const PL_COLUMNS: PeopleColumn[] = [
     on: false,
     align: "end",
     hint: "How many calls you have had with them",
-    width: { base: 84, min: 72 },
+    // As wide as its heading and caret ("CALLS" and its sort arrow need 88px).
+    width: { base: 92, min: 88 },
     csv: { head: "Calls", cell: (p) => String(p.calls) },
     cell: (p) => (
       <td key="calls" className="dim num cl-calls-cell" data-testid="row-calls">

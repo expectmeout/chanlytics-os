@@ -783,6 +783,31 @@ test("an owner's alert that reaches their connected mailbox is left there, as th
   }
 });
 
+test("mail from the platform's own sender is never a person, even one sent before it said what it is, and whatever the workspace said of it (27 Oct 2026)", async () => {
+  const ALERTS = "alerts@chanlytics.example";
+  // The platform's sender, as the deployment names it; the workspace once marked the address a person.
+  const sender = withEnv({ LEAD_FROM: `Chanlytics <${ALERTS}>` });
+  const w = world({ said: [[ALERTS, "person"]] });
+  const net = arrivals([
+    // An alert as it left before #1858, with no Auto-Submitted: nothing in it but who sent it says what it is.
+    tabbed([], "al0", "a-alert-before", { from: `Chanlytics <${ALERTS}>`, text: "They wrote: “Is Tuesday free?”" }),
+    tabbed([], "p1", "a-person", { from: "Rosa Diaz <rosa@example.com>", text: "Is Tuesday free?" }),
+  ]);
+  try {
+    const out = await syncMailbox(w.db, w.mailbox, logger({ tenant_id: T }));
+    assert.deepEqual([out.people, out.dropped], [1, 1]);
+    assert.deepEqual(
+      w.tables.jobs.map((j) => withoutRequestId(j.payload).received_id),
+      ["p1"],
+      "only the person's email is taken in",
+    );
+    assert.deepEqual(w.left, [[ALERTS, "automated"]], "the alert is on the owner's list of what was left");
+  } finally {
+    net.restore();
+    sender();
+  }
+});
+
 test("what the owner wrote from Gmail to a person the workspace knows is kept in their thread and answers what waited there; to someone it does not know, to many, an automatic one and Chanlytics' own are left", async () => {
   const w = world();
   // A person who wrote, waiting in Need you since an hour ago, on the thread the reach-out started.

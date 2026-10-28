@@ -9429,6 +9429,8 @@ function messageText(m) {
     const caption = m.media?.caption?.trim();
     return caption ? `${label}: ${caption}` : label;
   }
+  const subject = m.channel === "email" ? emailSubjectOf(m) : null;
+  if (subject) return subject;
   return `[${m.type}]`;
 }
 
@@ -52150,6 +52152,12 @@ var PERSON_ACT_WORDS = {
   copyPhone: "Copy the number",
   copyEmail: "Copy the address",
   deletePerson: "Delete person\u2026",
+  /**
+   * A sender of automated mail made a person (00483): the act of its own, where it rode Delete person alone and the live
+   * walk never found it (27 Oct 2026). It opens the same question with the switch on.
+   */
+  notAPerson: "Not a person\u2026",
+  notAPersonHint: "A notice or a newsletter: its mail stays in your mailbox, and it leaves People",
   /** Their own copy (R14 X5): everything kept about them, for when they ask what the business holds. */
   download: "Download their records",
   downloadHint: "Everything kept about them, in one file: for when they ask what you hold",
@@ -52249,6 +52257,16 @@ function personActs(p) {
     needs: "owner",
     off: null
   });
+  if (p.email)
+    acts.push({
+      id: "not-a-person",
+      label: W.notAPerson,
+      hint: W.notAPersonHint,
+      group: "delete",
+      needs: "owner",
+      off: null,
+      danger: true
+    });
   acts.push({
     id: "delete",
     label: W.deletePerson,
