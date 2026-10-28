@@ -13,6 +13,7 @@ import { ixInDialog } from "../keys";
 import { canDo, gate, tabMemory } from "../shell";
 import type { Thread } from "../types";
 import { takeCarriedReply } from "../carried-reply";
+import { keptReplyOf } from "./kept-draft";
 import { useReplyDraftDoor } from "./reply-strip";
 import { detailField } from "./shell-thread";
 import { holderName } from "../../holder-names";
@@ -32,6 +33,24 @@ function putCarriedReply(threadId: string, setText: SetText, taRef: BoxRef) {
   window.setTimeout(() => {
     if (taRef.current) taRef.current.focus();
   }, FOCUS_COMPOSER_MS);
+}
+
+/**
+ * Need you's drafted reply (kept-draft.ts), where the strip says it can be changed or sent from here: only into an empty
+ * box, and only while this thread is the one open.
+ */
+function putKeptDraft(thread: Thread, setText: SetText) {
+  if (!thread.real) return;
+  let open = true;
+  // A read that fails puts nothing: the box stays as the member left it.
+  void keptReplyOf(thread)
+    .then((words) => {
+      if (open && words) setText((cur) => (cur && cur.trim() ? cur : words));
+    })
+    .catch(() => undefined);
+  return () => {
+    open = false;
+  };
 }
 
 interface ComposerKeys {
@@ -350,6 +369,8 @@ export const Composer = ({ thread, reply, hasApproval, onType = null, onSend = (
   }, [reply]);
 
   useEffect(() => putCarriedReply(thread.id, setText, taRef), [thread.id]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- once a thread: the box is filled as it opens, never again under the member
+  useEffect(() => putKeptDraft(thread, setText), [thread.id]);
 
   const [sending, setSending] = useState(false);
   const doSend = () => {
