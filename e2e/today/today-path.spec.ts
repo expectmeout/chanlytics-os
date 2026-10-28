@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { routeOf } from "../address";
+import { expectLit, placeRow } from "../shell/places";
 
 /**
  * Today on its path, in a real browser (decision 0015, step 4).
@@ -40,7 +41,7 @@ test.describe("Today on its path", () => {
       ).toBeVisible({
         timeout: 30_000,
       });
-      await expect(page.locator('.nav-item[aria-current="page"]')).toContainText("Today");
+      await expectLit(page, "Today");
       expect(routeOf(page.url()), path).toBe("today");
     }
   });
@@ -54,7 +55,7 @@ test.describe("Today on its path", () => {
       page.locator('.dash-a-v2, [data-testid="today-card"], [data-testid="today-queue"]').first(),
     ).toBeVisible();
 
-    await page.locator(".nav-item", { hasText: "Reports" }).first().click();
+    await placeRow(page, "Reports").first().click();
     await expect.poll(() => routeOf(page.url())).toBe("reports");
     await page.goBack();
     await expect.poll(() => routeOf(page.url())).toBe("today");

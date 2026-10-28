@@ -235,12 +235,17 @@ test.describe("Consent for one person", () => {
     }
     const card = page.getByTestId("person-deal-card").first();
     await expect(card).toBeVisible();
-    // The link is changed in the sheet's edit: the card leads with "Edit proposal" where there is none, else it is
-    // one of the quiet moves.
+    // The link is changed in the sheet's edit: "Edit proposal" is the next act where there is none, else one of the
+    // card's quiet moves. On the person's Overview the next act is Up next's rung, not the card's (person-deal.tsx
+    // `rung`, contracts person-page/next.ts); the card leads with it where no Up next is drawn.
     const edit = async () => {
-      const next = card.getByTestId("person-deal-next");
-      if ((await next.count()) && (await next.innerText()).trim() === "Edit proposal") await next.click();
-      else await card.getByTestId("person-deal-move").filter({ hasText: "Edit proposal" }).click();
+      await page
+        .getByTestId("person-up-next-act")
+        .or(card.getByTestId("person-deal-next"))
+        .or(card.getByTestId("person-deal-move"))
+        .filter({ hasText: /^Edit proposal$/ })
+        .first()
+        .click();
       await expect(sheet).toBeVisible();
       await expect(sheet.locator(".rec-sheet-title")).toHaveText("Edit proposal");
     };

@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { routeOf } from "../address";
+import { expectLit, placeRow } from "../shell/places";
 
 /**
  * The Inbox and Conversations on their paths, in a real browser (decision 0015, step 3).
@@ -37,7 +38,7 @@ test.describe("The Inbox and Conversations on their paths", () => {
   }) => {
     const slug = await slugOfHome(page);
     await loadFresh(page, `/w/${slug}/inbox`);
-    await expect(page.locator('.nav-item[aria-current="page"]')).toContainText("Inbox");
+    await expectLit(page, "Inbox");
     await expect(page.locator(".inbox")).toBeVisible();
     expect(routeOf(page.url())).toBe("inbox");
 
@@ -82,7 +83,7 @@ test.describe("The Inbox and Conversations on their paths", () => {
     }
 
     // Away by the sidebar to the Inbox, and Back: the router lands on Conversations again, and the page is there.
-    await page.locator(".nav-item", { hasText: "Inbox" }).first().click();
+    await placeRow(page, "Inbox").first().click();
     await expect.poll(() => routeOf(page.url())).toMatch(/^inbox/);
     await expect(page.locator(".inbox")).toBeVisible();
     await page.goBack();

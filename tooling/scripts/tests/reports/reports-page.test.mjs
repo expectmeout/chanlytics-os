@@ -96,7 +96,7 @@ Object.assign(globalThis, {
   canDo: () => true,
 });
 // The page reads through the runner, which the period's own door refreshes through; nothing to boot.
-const stopRunner = startSurfaces([], () => () => {});
+let stopRunner = startSurfaces([], () => () => {});
 after(() => stopRunner());
 const realConsoleError = console.error;
 console.error = () => {};
@@ -189,10 +189,13 @@ const refuse = async () => {
   for (let i = 0; i < 12; i++) await settle();
 };
 const inPeriodTest = async (mode, run) => {
-  // What the test before left on a clock (the picker's close after a pick, 180ms) runs out first: on a loaded machine a
-  // read it led to landed in this test's count (a whole suite's run, 17 Oct 2026).
+  // What the test before left on a clock runs out first (the picker's close, 180ms: a read it led to landed in this test's
+  // count, 17 Oct 2026), and a fresh runner drops the retries it held: a read refused there is asked for again 2 and 10 s
+  // later (surface-runner.ts RETRY_AFTER_MS), whichever test runs then (a fourth "30d" in the nightly of 27 Oct 2026).
   await new Promise((done) => setTimeout(done, 250));
   for (let i = 0; i < 12; i++) await settle();
+  stopRunner();
+  stopRunner = startSurfaces([], () => () => {});
   period.mode = mode;
   period.asked.length = 0;
   try {

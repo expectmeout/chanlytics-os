@@ -127,6 +127,9 @@ const TABLES = [
   "lines",
   // The mailboxes a business connected to write its reach-outs from (00423, decision 0056).
   "mailbox_connections",
+  // What the workspace said of a sender, and what its mailbox left where it was (00483).
+  "mailbox_left",
+  "mailbox_senders",
   "mailboxes",
   "memberships",
   "messages",
