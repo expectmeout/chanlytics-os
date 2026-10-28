@@ -392,3 +392,25 @@ test("where the workspace takes booking requests, the booking limit says it stil
   assert.equal(book({}).detail, book({ takesRequests: false }).detail, "left out, none is promised");
   assert.doesNotMatch(book({}).detail, /Booked it/);
 });
+
+test("the calendar is the one the openings come from, its link or a connected mailbox's Google calendar; WhatsApp not live says Setup's own words (the live walk's CAL-1 and SET-2, 27 Oct 2026)", () => {
+  const openTimes = (config) => textOf(byTestId(canCard(drawTab({ profile: marisa, config })), "rec-can-open_times"));
+  assert.match(openTimes({ calendar: undefined }), /No calendar to read/);
+  assert.doesNotMatch(
+    openTimes({ calendar: undefined, calendar_grant: { mailbox_id: "m1", provider: "google" } }),
+    /No calendar to read/,
+    "the Google calendar a connected mailbox reads is the calendar the openings come from",
+  );
+  const linkSaid = (whatsappStatus) =>
+    abilityRows({ ...MARISA_INPUTS, whatsappLive: false, whatsappStatus }).rows.find((r) => r.id === "booking_link")
+      .detail;
+  assert.equal(
+    linkSaid("Tested (a message was answered 3w ago). Activate it to say it is yours."),
+    "It goes out on WhatsApp, which isn't live here yet: Tested (a message was answered 3w ago). Activate it to say it is yours. On a call it offers to have someone follow up instead.",
+    "a connected number is never said to be unconnected",
+  );
+  assert.equal(
+    linkSaid(null),
+    "It goes out on WhatsApp, which isn't connected here. On a call it offers to have someone follow up instead.",
+  );
+});

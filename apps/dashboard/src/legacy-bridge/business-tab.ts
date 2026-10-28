@@ -18,6 +18,7 @@ import {
   takesBookingRequests,
   bookingTemplate,
   capabilityStatus,
+  calendarFeedKeyOf,
   POLICY_MODES,
   ruleStrength,
   ALWAYS_TOLD,
@@ -331,6 +332,7 @@ export function saveIssues(part: unknown): Array<{ path: Array<string | number>;
 // Autonomy tab (bookingHeld, and POLICY_MODES to read the Replies row as stored), the template a call sends the
 // booking link as (bookingTemplate), the words each of a row's two channel glyphs is called (ABILITY_CHANNEL_WORDS),
 // the photo switch's on its row (VISION_SWITCH_WORDS),
+// the calendar the openings are read from (calendarFeedKeyOf: its link, or a connected mailbox's Google calendar),
 // and capabilityStatus, which is where "this line answers" is decided for Setup and for this card alike -- the card
 // reads it off the Setup payload the bridge already publishes (__SETUP) rather than asking the channels itself.
 // CHIPS_SHOWN and chipsMoreWords are how many chips any row of the record draws at rest and how the rest are said:
@@ -357,6 +359,7 @@ export const BUSINESS_TAB = {
   takesBookingRequests,
   bookingTemplate,
   capabilityStatus,
+  calendarFeedKeyOf,
   POLICY_MODES,
   ruleStrength,
   ALWAYS_TOLD,

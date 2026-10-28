@@ -256,7 +256,11 @@ const btcAbilities = (
   return BUSINESS_TAB.abilityRows({
     voiceLive: btcLive(dto, activating, "voice"),
     whatsappLive: btcLive(dto, activating, "whatsapp"),
-    hasCalendarFeed: !!config?.calendar?.ical_url,
+    whatsappStatus: dto?.channels.whatsapp.present ? BUSINESS_TAB.capabilityStatus("whatsapp", dto).words : null,
+    // The calendar the openings are read from (contracts calendarFeedKeyOf): its link, or the Google calendar a connected
+    // mailbox reads. The link alone was asked, and a workspace reading its Google calendar was told it had none to read
+    // (the live walk's CAL-1, 27 Oct 2026).
+    hasCalendarFeed: BUSINESS_TAB.calendarFeedKeyOf(config) !== null,
     // By the resolver's own test (contracts offersBookingLink), as every reader of the link asks.
     hasBookingLink: BUSINESS_TAB.offersBookingLink(brain),
     // The template retell-fn picks the call's message with, asked of contracts, never matched by name here.
