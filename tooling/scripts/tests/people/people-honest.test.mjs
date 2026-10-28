@@ -2908,15 +2908,15 @@ test("a radio's arrow keys are the radio's; a held x, Space or Enter acts once, 
  * browser by e2e/kit/kit-behaves.spec.ts ("a menu of switches"); here, what the page hands it and what a flip does.
  */
 const columnsMenu = (tree) => find(tree, (n) => n.type === Menu && n.props.label === "Columns");
-/** Its switches: which column, whether it shows, and whether it is Person's, which always does. */
+const switches = (tree) => columnsMenu(tree).props.groups.find((g) => g.toggles).toggles;
+/** Its switches: which column, whether it shows, and whether it is Person's, which always does; one flipped as Base UI does. */
 const menuItems = (tree) =>
-  columnsMenu(tree).props.groups[0].toggles.items.map((t) => ({
+  switches(tree).items.map((t) => ({
     key: t.value,
     on: t.on,
     locked: t.locked === "Always",
   }));
-/** A switch flipped, as Base UI's checkbox item flips it. */
-const flipColumn = (tree, key) => columnsMenu(tree).props.groups[0].toggles.onToggle(key);
+const flipColumn = (tree, key) => switches(tree).onToggle(key);
 
 test("the next step is a column after State: its words and its day, the day marked once it has come, a row with none quiet, and the soonest first under the heading", async () => {
   const dayKey = (ms) => new Date(ms).toLocaleDateString("en-CA", { timeZone: ZONE });
@@ -3002,24 +3002,24 @@ test("the Columns menu is the kit's switches: it shows and hides columns, and Pe
   const menu = columnsMenu(tree);
   assert.equal(textOf(menu.props.trigger).trim(), "Columns");
   assert.equal(menu.props.trigger.props["data-testid"], "people-columns");
-  // A desktop's table has a layout, so the menu holds the switches under their heading, then how tall a row stands, then the
-  // way back from the widths and places (a menu given no layout draws the first group alone).
+  // A desktop's table has a layout, so the menu holds how tall a row stands and the way back from the widths and places
+  // first, where the way back is in sight, then the switches under their heading (a menu given no layout draws those alone).
   assert.deepEqual(
     menu.props.groups.map((g) => g.header),
-    ["Show on the table", "Row height", undefined],
-    "the switches under their heading, then the row height and the way back",
+    ["Row height", undefined, "Show on the table"],
+    "the row height and the way back, then the switches under their heading",
   );
   assert.deepEqual(
-    menu.props.groups[1].choose.options.map((o) => [o.value, o.label]),
+    menu.props.groups[0].choose.options.map((o) => [o.value, o.label]),
     [
       ["comfortable", "Comfortable"],
       ["compact", "Compact"],
     ],
     "two heights to choose between",
   );
-  assert.equal(menu.props.groups[1].choose.value, "comfortable", "comfortable until the member says otherwise");
+  assert.equal(menu.props.groups[0].choose.value, "comfortable", "comfortable until the member says otherwise");
   assert.deepEqual(
-    menu.props.groups[2].items.map((i) => [i.label, i.disabled]),
+    menu.props.groups[1].items.map((i) => [i.label, i.disabled]),
     [["Reset widths and order", true]],
     "and nothing to put back while no width or place was changed",
   );

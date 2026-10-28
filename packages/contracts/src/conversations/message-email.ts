@@ -37,6 +37,42 @@ export function emailLeftOutOf(meta: unknown): string | null {
   return said.length ? said.join(" ") : null;
 }
 
+/** Windows-1252's bytes 0x80 to 0x9F, by the character each is drawn as: where UTF-8 read as 1252 shows "â€™" for "’". */
+const CP1252_CODES = [
+  0x80, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0x88, 0x89, 0x8a, 0x8b, 0x8c, 0x8e, 0x91, 0x92, 0x93, 0x94, 0x95, 0x96,
+  0x97, 0x98, 0x99, 0x9a, 0x9b, 0x9c, 0x9e, 0x9f,
+];
+const CP1252_BYTE: ReadonlyMap<string, number> = new Map(
+  Array.from("€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ", (ch, i) => [ch, CP1252_CODES[i] ?? 0]),
+);
+/** A run that reads as UTF-8 drawn byte by byte: a lead byte's character, then continuation bytes' characters. */
+const MOJIBAKE_RUN = /[Â-ô][\u0080-¿€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ]+/g;
+const strictUtf8 = new TextDecoder("utf-8", { fatal: true });
+
+/**
+ * Words whose UTF-8 was read as Latin-1 or Windows-1252, given back their own characters: "youâ€™re" is "you’re". A
+ * sender that labels a UTF-8 part as Latin-1, or encoded its words twice, gives an email this; the import kept three
+ * such, which People then said as their last words (27 Oct 2026). Only a run that is whole UTF-8 once read back as
+ * bytes is changed, so a word truly written in Latin-1 ("café") stays as it is. The mailbox's import repairs what it
+ * reads (channels mailbox-read.ts), and an email's parts repair what was kept before it did: a message's words never
+ * change once written (00486's guard), so the three are said right without being rewritten.
+ */
+export function repairMojibake(text: string): string {
+  if (!/[Â-ô]/.test(text)) return text;
+  return text.replace(MOJIBAKE_RUN, (run) => {
+    const bytes = Array.from(run, (ch) => {
+      const code = ch.codePointAt(0) ?? 0;
+      return code < 0x100 ? code : (CP1252_BYTE.get(ch) ?? -1);
+    });
+    if (bytes.some((b) => b < 0)) return run;
+    try {
+      return strictUtf8.decode(Uint8Array.from(bytes));
+    } catch {
+      return run;
+    }
+  });
+}
+
 /* An email replies by quoting the whole of what it answers. "Got it, thanks!" arrived as six
    lines of "On Thu, Sep 17, 2026 at 10:44 PM Marisa's Beauty Salon <…> wrote: > testing back at
    you >", and the thread drew every one of them. The chain is kept — an operator may need to see
@@ -181,7 +217,7 @@ export function tidyEmailWords(text: string): string {
  * signature keeps them as words: a bubble is never empty.
  */
 export function emailPartsOf(body: string, fromName: string | null): EmailParts {
-  const { text, quoted } = splitQuotedReply(body.replace(/\r\n?/g, "\n"));
+  const { text, quoted } = splitQuotedReply(repairMojibake(body).replace(/\r\n?/g, "\n"));
   const lines = text.split("\n");
   const at = fromName === null ? null : signatureStart(lines, fromName);
   const said = tidyEmailWords(at === null ? text : lines.slice(0, at).join("\n"));
@@ -189,6 +225,31 @@ export function emailPartsOf(body: string, fromName: string | null): EmailParts 
     return { said: tidyEmailWords(text), signature: null, quoted: quoted && tidyEmailWords(quoted) };
   const signed = lines.slice(SIG_DASHES.test(lines.at(at) ?? "") ? at + 1 : at).join("\n");
   return { said, signature: tidyEmailWords(signed) || null, quoted: quoted && tidyEmailWords(quoted) };
+}
+
+/** A link written the way a mail list writes it in plain text: "[Conditions of Use](https://…)". */
+const MARKDOWN_LINK = /\[([^\]\n]+)\]\((?:https?:|mailto:)[^)\s]*\)/gi;
+/** A link a line can do without: a whole address with its scheme, or a phone's in angle brackets ("<tel:+1…>"). */
+const LINK_OUT = /[ \t]*(?:<(?:tel|sms):[^>\s]*>|\bhttps?:\/\/[^\s<>]+)/gi;
+/** A line with something to read in it: a run of dashes or underscores under "Dear …" is a rule, not words. */
+const HAS_WORDS = /[\p{L}\p{N}]/u;
+
+/**
+ * An email as one line that previews it, as People's row says their last words: what they wrote, without the chain it
+ * quoted or the signature under it (emailPartsOf), a list's links as their words alone, an address with its scheme gone
+ * (a bare "example.com" stays), a rule of dashes gone, and the lines run together, a form's "Label: value" lines each
+ * after a " · ". The row said the whole body flattened: "needs you test Ruben Segura Founder, RJ Capital [image: RJ
+ * Capital] <https://rjcapital.io> …", and a signup form as one run of "Email: … Language: … Source: …". A sender's name is
+ * not known here, so a signature is found by its shape.
+ */
+export function emailPreviewOf(body: string): string {
+  const lines = emailPartsOf(body, "")
+    .said.replace(MARKDOWN_LINK, "$1")
+    .replace(LINK_OUT, "")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => HAS_WORDS.test(l));
+  return lines.reduce((out, l) => (out ? `${out}${LABELLED.test(l) ? " · " : " "}${l}` : l), "");
 }
 
 /** A signature in one line: its first few parts, as "Ruben Segura · Founder, RJ Capital · rjcapital.io". */

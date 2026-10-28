@@ -19,6 +19,7 @@ import { visitTitleWithout } from "../calendar/visit/visit-service.js";
 import { visitLineOf, visitMarkOfDto } from "../calendar/calendar-words.js";
 import { nextStepOf, stepIsDue } from "../notes/steps.js";
 import { initialsOf, isEmailStopped } from "../conversations/thread-contact.js";
+import { emailPreviewOf } from "../conversations/message-email.js";
 import { dealOf, openDealsOf } from "../deals/deal-vm.js";
 import { dealStageOf, dealStagesOf } from "../deals/deal-consultations.js";
 import { MONTH_MS, ts } from "./person-helpers.js";
@@ -60,6 +61,11 @@ function signerOfRow(r, tz, nowMs) {
     fact: PERSON_NAME_WORDS.signed(r.signer_name),
     day: Number.isFinite(read) ? clockDate(read, tz, nowMs) : ""
   };
+}
+function quoteOf(r) {
+  const text = r.last_inbound_text?.trim();
+  if (!text) return null;
+  return r.last_inbound_channel === "email" && emailPreviewOf(text) || text;
 }
 function channelsOf(r) {
   const set = new Set(r.channels ?? []);
@@ -216,7 +222,7 @@ export function toPersonRowVM(r, tz, now = /* @__PURE__ */ new Date(), viewerId 
     firstContact: first,
     cameFrom: cameFromOf(r),
     consent,
-    quote: r.last_inbound_text?.trim() || null,
+    quote: quoteOf(r),
     callSummary: r.last_inbound_call_summary?.trim() || null,
     threads: r.conversation_count ?? 0,
     calls: r.call_count ?? 0,

@@ -43,6 +43,7 @@ import { visitTitleWithout } from "../calendar/visit/visit-service";
 import { visitLineOf, visitMarkOfDto, type VisitLineVM } from "../calendar/calendar-words";
 import { nextStepOf, stepIsDue, type PersonNextStepVM } from "../notes/steps";
 import { initialsOf, isEmailStopped } from "../conversations/thread-contact";
+import { emailPreviewOf } from "../conversations/message-email";
 import { dealOf, openDealsOf, type DealVM } from "../deals/deal-vm";
 import { dealStageOf, dealStagesOf, type DealStandingStage } from "../deals/deal-consultations";
 import type { PersonConsent } from "./person-consent";
@@ -108,6 +109,17 @@ function signerOfRow(r: PersonRowDto, tz: string, nowMs: number): PersonRowVM["s
  * and whose WhatsApp transcript is right there in messages; the glyphs must
  * not say "phone only" about them.
  */
+/**
+ * Their last words as the row says them: an email's own words, without the chain it quoted, its signature or a list's
+ * plain-text links (emailPreviewOf); any other wire's as they wrote them. Nothing but an email is touched, and an email
+ * whose every word looks like the rest of it keeps them.
+ */
+function quoteOf(r: PersonRowDto): string | null {
+  const text = r.last_inbound_text?.trim();
+  if (!text) return null;
+  return (r.last_inbound_channel === "email" && emailPreviewOf(text)) || text;
+}
+
 function channelsOf(r: PersonRowDto): PersonChannel[] {
   const set = new Set<string>(r.channels ?? []);
   // Which wires their words travelled (00127). A row read without it has
@@ -204,7 +216,7 @@ export interface PersonRowVM {
   /** Where they first came from, in words (cameFromOf); null when nothing says. */
   cameFrom: { key: PersonCameFrom; label: string } | null;
   consent: PersonConsent;
-  /** The customer's last words, verbatim. */
+  /** The customer's last words: verbatim, but for an email, which is said as its own words (quoteOf). */
   quote: string | null;
   /** The last call they placed, summarised by the receptionist; null without one. */
   callSummary: string | null;
@@ -618,7 +630,7 @@ export function toPersonRowVM(
     firstContact: first,
     cameFrom: cameFromOf(r),
     consent,
-    quote: r.last_inbound_text?.trim() || null,
+    quote: quoteOf(r),
     callSummary: r.last_inbound_call_summary?.trim() || null,
     threads: r.conversation_count ?? 0,
     calls: r.call_count ?? 0,

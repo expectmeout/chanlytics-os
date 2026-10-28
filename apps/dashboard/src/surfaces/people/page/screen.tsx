@@ -26,14 +26,23 @@ import { PeopleFileActs } from "./file-acts";
 import { PeopleTable } from "../table/table";
 import { PersonPeekWhenRead } from "../peek/peek-code";
 import type { TableEmpty } from "../types";
-import { PL_DEFAULT_GROUPS, PL_NO_LISTS, PL_SEARCH_LABEL, PL_TAB_LABEL, plLoadedWords, plSortedBy } from "../words";
+import {
+  PL_DEFAULT_GROUPS,
+  PL_NO_LISTS,
+  PL_SEARCH_LABEL,
+  PL_TAB_LABEL,
+  plLoadedWords,
+  plNoMatchWords,
+  plSortedBy,
+} from "../words";
 import type { PeopleState } from "./state";
 import { peopleListActs, peopleSortItems } from "./phone-menu";
 import { menuGroups } from "../menu-groups";
 
-/** Nobody to show: a list that isn't here, or one of the member's own with nobody on it. */
+/** Nobody to show: a list that isn't here, one of the member's own with nobody on it, or words that find nobody. */
 function peopleTableEmpty(s: PeopleState): TableEmpty | null {
-  const { listGone, canEditLists, restoreList, setListId, setSavedId, activeSaved, tab, listId, q } = s;
+  const { listGone, canEditLists, restoreList, setListId, setSavedId, activeSaved, tab, listId, q, setQ, searching } =
+    s;
   const showEveryone = { label: "Show everyone", onClick: () => setSavedId(null) };
   if (listGone) {
     const archived = listGone.archived;
@@ -66,6 +75,10 @@ function peopleTableEmpty(s: PeopleState): TableEmpty | null {
             body: "It keeps itself current: its people appear here when its rule holds for them.",
             action: showEveryone,
           };
+  }
+  if (q.trim()) {
+    const said = plNoMatchWords(q, searching);
+    return { title: said.title, body: said.body, action: { label: said.action, onClick: () => setQ("") } };
   }
   return null;
 }

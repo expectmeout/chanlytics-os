@@ -176,7 +176,7 @@
   },
   "packages/contracts/src/people/person-row.ts::toPersonRowVM#1": {
     "lines": 117,
-    "branches": 47,
+    "branches": 45,
     "depth": 0
   },
   "packages/contracts/src/setup/capabilities.ts::capabilityStatus#1": {

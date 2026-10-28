@@ -16,7 +16,7 @@ import { RowGap } from "../../kit/rows/row-gap";
 import { useShownRows } from "../../kit/rows/shown-rows";
 import type { TableColumn, TableCtx, TableEmpty, TableRow } from "../types";
 import { ColumnEdge, fitWidthOf, holdingEdge } from "./edge";
-import { PL_DRAG_MIN_PX, plClampWidth, resolveColumnWidths } from "./layout";
+import { PL_DRAG_MIN_PX, plFitWidth, resolveColumnWidths } from "./layout";
 import type { SizedColumn } from "./layout";
 import type { TableLayout } from "./use-layout";
 
@@ -448,7 +448,7 @@ function tableHead<R extends TableRow, X extends TableCtx>(p: {
                   onSize={(px, commit) => layout.onSize(c.key, px, commit)}
                   onCancel={layout.onCancel}
                   onReset={() => layout.onReset(c.key)}
-                  onFit={(th) => layout.onSize(c.key, plClampWidth(fitWidthOf(th)), true)}
+                  onFit={(th) => layout.onSize(c.key, plFitWidth(fitWidthOf(th), c.width), true)}
                   onMove={movable ? (by, from) => shift(by, from, ".pl-edge") : undefined}
                 />
               )}
