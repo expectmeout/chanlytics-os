@@ -20544,6 +20544,12 @@ interface NumberHealth {
     canSend: boolean;
     tone: "ok" | "warn" | "danger" | "unknown";
     label: string;
+    /**
+     * What Meta holds against the number, in the WhatsApp row's own word ("Payment needed", "Needs attention"), where it holds
+     * something (number-standing.ts numberHealthWithStanding); absent where only the rating speaks. Reports said "Flagged" over a
+     * number whose quality was never reported, for a payment method (the live walk's REP-1, 27 Oct 2026).
+     */
+    word?: string;
     limitPerDay: number | null;
     refusal: string | null;
 }
@@ -50620,6 +50626,14 @@ type CampaignNumberDto = {
     tone: "ok" | "warn" | "danger" | "unknown";
     can_send: boolean;
     label: string;
+    /**
+     * What Meta holds against the number, in the WhatsApp row's word and sentence (contracts NumberHealth `word`, `refusal`),
+     * where it holds something; absent from a server before the walk's REP-1, and the lens then says the rating's word.
+     */
+    standing?: {
+        word: string;
+        sentence: string;
+    } | null;
     checked_at: string | null;
 };
 /** What is stuck in the workspace's campaigns now, judged. A `capped` list reached the 500 the database lists: its count is at least that. */

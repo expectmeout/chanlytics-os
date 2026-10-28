@@ -137,9 +137,24 @@ const withStop = (text: string): string => {
   return /[.!?]$/.test(t) ? t : `${t}.`;
 };
 
-/** A problem as a sentence: what Meta said, then how it said to fix it. */
+/**
+ * Meta's words written for a developer: a Graph path with a placeholder in it ("Configure SIP using {PHONE_NUMBER_ID}/settings"),
+ * which reached an owner's Today word for word (the live walk's TODAY-6, 27 Oct 2026). Never an owner's to read.
+ */
+const FOR_A_DEVELOPER = /{[A-Z][A-Z0-9_]*}/;
+
+/** Said in an owner's place of Meta's words for a developer: what it is about, and where to read it. */
+const SETTING_SENTENCE = "Meta says a setting on this number needs changing; WhatsApp Manager shows which.";
+
+/** What Meta said, as a sentence an owner reads: its own words, or SETTING_SENTENCE where they were written for a developer. */
+const saidToOwner = (p: StandingProblem): string =>
+  FOR_A_DEVELOPER.test(p.said) ? SETTING_SENTENCE : withStop(p.said);
+
+/** A problem as a sentence: what Meta said, then how it said to fix it, where that is the owner's to read. */
 const problemWords = (p: StandingProblem): string =>
-  p.fix ? `${withStop(p.said)} ${withStop(p.fix)}` : withStop(p.said);
+  p.fix && !FOR_A_DEVELOPER.test(p.fix) && !FOR_A_DEVELOPER.test(p.said)
+    ? `${saidToOwner(p)} ${withStop(p.fix)}`
+    : saidToOwner(p);
 
 /** The sentence of a number Meta will not let send, where it named no problem about messaging. */
 const BLOCKED_SENTENCE = "Meta says WhatsApp cannot send from this number right now.";
@@ -243,7 +258,7 @@ export function standingRow(s: NumberStanding): StandingRow | null {
   const first = messagingProblems(s).at(0);
   return {
     stateWords: "Needs attention",
-    sentence: first ? `Meta has stopped this number from sending: ${withStop(first.said)}` : BLOCKED_SENTENCE,
+    sentence: first ? `Meta has stopped this number from sending: ${saidToOwner(first)}` : BLOCKED_SENTENCE,
     act: { label: "Open WhatsApp Manager", href: whatsappManagerLink(s.owner_business_id, s.waba_id) },
   };
 }
@@ -405,7 +420,7 @@ export function standingAlertWords(number: string | null, s: NumberStanding): { 
  */
 export function numberHealthWithStanding(health: NumberHealth, standing: NumberStanding | null): NumberHealth {
   const row = standing ? standingRow(standing) : null;
-  return row ? { ...health, canSend: false, tone: "danger", refusal: row.sentence } : health;
+  return row ? { ...health, canSend: false, tone: "danger", refusal: row.sentence, word: row.stateWords } : health;
 }
 
 /**

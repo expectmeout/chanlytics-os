@@ -34,6 +34,12 @@ export interface NumberHealth {
   canSend: boolean;
   tone: "ok" | "warn" | "danger" | "unknown";
   label: string;
+  /**
+   * What Meta holds against the number, in the WhatsApp row's own word ("Payment needed", "Needs attention"), where it holds
+   * something (number-standing.ts numberHealthWithStanding); absent where only the rating speaks. Reports said "Flagged" over a
+   * number whose quality was never reported, for a payment method (the live walk's REP-1, 27 Oct 2026).
+   */
+  word?: string;
   limitPerDay: number | null;
   refusal: string | null;
 }

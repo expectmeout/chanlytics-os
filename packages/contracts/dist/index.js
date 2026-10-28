@@ -46896,7 +46896,10 @@ var withStop = (text) => {
   const t = text.trim();
   return /[.!?]$/.test(t) ? t : `${t}.`;
 };
-var problemWords = (p) => p.fix ? `${withStop(p.said)} ${withStop(p.fix)}` : withStop(p.said);
+var FOR_A_DEVELOPER = /{[A-Z][A-Z0-9_]*}/;
+var SETTING_SENTENCE = "Meta says a setting on this number needs changing; WhatsApp Manager shows which.";
+var saidToOwner = (p) => FOR_A_DEVELOPER.test(p.said) ? SETTING_SENTENCE : withStop(p.said);
+var problemWords = (p) => p.fix && !FOR_A_DEVELOPER.test(p.fix) && !FOR_A_DEVELOPER.test(p.said) ? `${saidToOwner(p)} ${withStop(p.fix)}` : saidToOwner(p);
 var BLOCKED_SENTENCE = "Meta says WhatsApp cannot send from this number right now.";
 var CALLING_PROBLEM = /\bSIP\b|\bcalling\b/i;
 var messagingProblems = (s) => s.problems.filter((p) => !CALLING_PROBLEM.test(p.said) && !(p.fix !== null && CALLING_PROBLEM.test(p.fix)));
@@ -46939,7 +46942,7 @@ function standingRow(s) {
   const first = messagingProblems(s).at(0);
   return {
     stateWords: "Needs attention",
-    sentence: first ? `Meta has stopped this number from sending: ${withStop(first.said)}` : BLOCKED_SENTENCE,
+    sentence: first ? `Meta has stopped this number from sending: ${saidToOwner(first)}` : BLOCKED_SENTENCE,
     act: { label: "Open WhatsApp Manager", href: whatsappManagerLink(s.owner_business_id, s.waba_id) }
   };
 }
@@ -47025,7 +47028,7 @@ function standingAlertWords(number2, s) {
 }
 function numberHealthWithStanding(health, standing2) {
   const row2 = standing2 ? standingRow(standing2) : null;
-  return row2 ? { ...health, canSend: false, tone: "danger", refusal: row2.sentence } : health;
+  return row2 ? { ...health, canSend: false, tone: "danger", refusal: row2.sentence, word: row2.stateWords } : health;
 }
 function numberHealthOfConfig(config) {
   const s = (key) => {
@@ -59344,6 +59347,7 @@ function stuckFiguresOf(stuck, tz, nowMs) {
   const { waiting, failed, replies, templates, number: number2 } = stuck;
   const figure2 = { compare: null };
   const health = number2.state === "read" ? number2.tone : null;
+  const standing2 = number2.state === "read" ? number2.standing ?? null : null;
   return [
     {
       ...figure2,
@@ -59390,8 +59394,10 @@ function stuckFiguresOf(stuck, tz, nowMs) {
       id: "number-health",
       metric: "number_health",
       label: "Your WhatsApp number",
-      value: health === null ? NO_FIGURE : NUMBER_HEALTH_WORDS[health],
-      meta: number2.state === "read" ? numberMeta(number2, tz, nowMs) : number2.state === "none" ? NUMBER_NONE : NUMBER_UNREAD,
+      // What Meta holds against the number is said in the WhatsApp row's own word and sentence, as Connections says it; the
+      // rating's word only where nothing is held (the live walk's REP-1: "Flagged" over a payment method).
+      value: standing2 ? standing2.word : health === null ? NO_FIGURE : NUMBER_HEALTH_WORDS[health],
+      meta: standing2 ? standing2.sentence : number2.state === "read" ? numberMeta(number2, tz, nowMs) : number2.state === "none" ? NUMBER_NONE : NUMBER_UNREAD,
       door: "admin/integrations",
       ...health === null ? {} : NUMBER_HEALTH_TONES[health]
     }

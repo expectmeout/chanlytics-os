@@ -866,6 +866,15 @@ test("your WhatsApp number: how it is rated, and the two states with no number t
     "admin/integrations",
     "a unknown number · checked today",
   ]);
+  // What Meta holds against it is the WhatsApp row's word and sentence, as Connections says it: "Flagged" stood over a
+  // number whose quality was never reported, for its payment method (the live walk's REP-1, 27 Oct 2026).
+  const held = { word: "Payment needed", sentence: "Meta reports a problem with the payment method on your account." };
+  assert.deepEqual(number(read("danger", { standing: held })), [
+    "Payment needed",
+    "fail",
+    "admin/integrations",
+    held.sentence,
+  ]);
   // When it was last checked is said as the workspace's own days say it; unchecked says nothing of it.
   assert.equal(number(read("ok", { checked_at: "2026-09-03T10:00:00.000Z" })).at(3), "a ok number · checked yesterday");
   assert.equal(number(read("ok", { checked_at: "2026-08-31T14:00:00.000Z" })).at(3), "a ok number · checked Mon");
