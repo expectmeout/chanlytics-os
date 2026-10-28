@@ -254,21 +254,23 @@ test("Lists is a view of People: a kept list is the page's title with its rename
   );
   // The phone's way to the lists is the bar's list button now, pressed in people-honest ("on a phone the lists are
   // behind the bar's list button"), not a testid read here.
-  // The kept list's title, drawn: the title, its rename and the box the rename opens.
-  const title = (canEdit) => again(() => ListTitle({ list: REGULARS, canEdit, onRenamed() {} }));
+  // The kept list's title, drawn: the title, its rename, and the name as the box it is typed in, from the first draw.
+  const title = (canEdit) => again(() => ListTitle({ list: REGULARS, canEdit, onRenamed() {}, onRefused() {} }));
   fresh();
   let tree = title(true);
   assert.ok(
     byTestId(tree, "saved-filter") && byTestId(tree, "list-rename"),
     "a kept list is the title, with its rename",
   );
-  press(byTestId(tree, "list-rename"));
-  tree = title(true);
-  assert.ok(byTestId(tree, "list-rename-name"), "and the rename is a box in the title's own place");
+  assert.equal(
+    byTestId(tree, "list-rename-name")?.props.contentEditable,
+    "plaintext-only",
+    "and the name is a box in the title's own place: renaming it moves nothing",
+  );
   // Somebody who may not edit lists has the title and no way to rename it.
   fresh();
   tree = title(false);
-  assert.ok(byTestId(tree, "saved-filter") && !byTestId(tree, "list-rename"));
+  assert.ok(byTestId(tree, "saved-filter") && !byTestId(tree, "list-rename") && !byTestId(tree, "list-rename-name"));
   // The row's drop, and the bar's: with a list kept by hand open, and only then, a person or a selection leaves it.
   const someone = personRow({ id: "p1" });
   const dropped = [];

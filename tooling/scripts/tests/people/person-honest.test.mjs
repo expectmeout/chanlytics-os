@@ -1301,12 +1301,14 @@ test("a person known by number is invited to name them; an empty Lists section i
     const draw = await profile(vm);
     const tree = draw();
     const rename = byTestId(tree, "person-rename");
+    assert.equal(rename.props["aria-label"], "Give them a name", "the pencil after the number says what it is for");
+    // The row says they have no name yet, and the stylesheet keeps its pencil in view by it at every width (clients.css,
+    // `[data-invite]`): a "Name them" beside the number squeezed the name's column and broke the number in two on a desk.
     assert.equal(
-      textOf(rename).trim(),
-      "Name them",
+      find(tree, (n) => n.props?.className === "cl-prof-name-row")?.props["data-invite"],
+      true,
       "REGRESSION: a pencil at opacity 0 until hover, which a phone never has",
     );
-    assert.ok(String(rename.props.className).includes("is-plain"));
     const lists = byTestId(tree, "person-lists");
     // Smart lists hold for them (Booked), so what is missing is a list of the workspace's own: never "kept by hand",
     // which said nothing of a list with a rule.
@@ -1346,6 +1348,10 @@ const profileSaving = async (vm, answer = { ok: true, data: {} }) => {
   return { draw, sent, restore: () => delete world.answers[door] };
 };
 const type = (input, value) => input.props.onChange({ target: { value } });
+// A value typed in place (kit/record/in-place.ts) is its own box: it takes the keys, then its words arrive as the browser
+// says them, from the box's own events (the stub draws no document).
+const takeKeys = (box) => box.props.onFocus({ currentTarget: {} });
+const typeIn = (box, words) => box.props.onInput({ currentTarget: { textContent: words } });
 
 test("a person's email address is said once, in Reach them, and added there: the row is its own control, and what is wrong with a typed address is said under the field before anything is sent", async () => {
   const vm = toPersonVM(detail({ row: row({ visits: VISITS, email: null }) }), ZONE, new Date(NOW));
@@ -1357,12 +1363,16 @@ test("a person's email address is said once, in Reach them, and added there: the
     const reach = find(tree, (n) => n.props?.["data-testid"] === "person-reach");
     assert.ok(reach, "Reach them");
     const add = byTestId(reach, "person-email-edit");
-    assert.equal(textOf(add).trim(), "Add an email", "an empty address is an invitation, not a bare pencil");
-    press(add);
-    tree = draw();
-    const input = byTestId(tree, "person-email-input");
-    assert.ok(input, "the row becomes the field");
-    type(input, "ana.example.com");
+    assert.equal(add.props["aria-label"], "Add an email address", "its pencil says what it is for");
+    const input = byTestId(reach, "person-email-input");
+    assert.equal(
+      input.props["data-placeholder"],
+      "Add an email",
+      "an empty address is an invitation in its own box, not a bare pencil",
+    );
+    assert.equal(input.props.contentEditable, "plaintext-only", "the row is the field from the first draw");
+    takeKeys(input);
+    typeIn(byTestId(draw(), "person-email-input"), "ana.example.com");
     tree = draw();
     press(byTestId(tree, "person-email-save"));
     await settle();
@@ -1373,7 +1383,7 @@ test("a person's email address is said once, in Reach them, and added there: the
       "which kind of not-an-address, under the field",
     );
     assert.deepEqual(sent, [], "and nothing went over the wire");
-    type(byTestId(tree, "person-email-input"), "  Ana@Example.com ");
+    typeIn(byTestId(tree, "person-email-input"), "  Ana@Example.com ");
     tree = draw();
     assert.equal(byTestId(tree, "person-email-problem"), null, "typing clears what was said about the last attempt");
     press(byTestId(tree, "person-email-save"));
@@ -1399,24 +1409,28 @@ test("an address that is there shows with a quiet pencil; the door's refusal is 
   const { draw, sent, restore } = await profileSaving(vm, { ok: false, code: "conflict", message: taken });
   try {
     let tree = draw();
-    assert.equal(textOf(find(tree, (n) => n.props?.className === "cl-prof-email-val")), "ana@example.com");
+    assert.equal(
+      textOf(find(tree, (n) => String(n.props?.className ?? "").includes("cl-prof-email-val"))),
+      "ana@example.com",
+    );
     const edit = byTestId(tree, "person-email-edit");
     assert.equal(textOf(edit).trim(), "", "a pencil, not an invitation");
     press(edit);
+    takeKeys(byTestId(draw(), "person-email-input"));
     tree = draw();
     assert.equal(
-      byTestId(tree, "person-email-input").props.value,
+      textOf(byTestId(tree, "person-email-input")),
       "ana@example.com",
-      "the field opens on what is stored",
+      "the box holds what is stored as it takes the keys",
     );
-    type(byTestId(tree, "person-email-input"), "bo@example.com");
+    typeIn(byTestId(tree, "person-email-input"), "bo@example.com");
     tree = draw();
     press(byTestId(tree, "person-email-save"));
     await settle();
     tree = draw();
     assert.deepEqual(sent, [["p1", { email: "bo@example.com" }]]);
     assert.equal(textOf(byTestId(tree, "person-email-problem")), taken);
-    assert.ok(byTestId(tree, "person-email-input"), "and the field stays open on what was typed");
+    assert.ok(byTestId(tree, "person-email-save"), "and the box keeps the keys, on what was typed");
   } finally {
     restore();
   }
