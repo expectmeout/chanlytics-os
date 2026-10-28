@@ -592,6 +592,12 @@ export function EmailCard({ r, email, imports, businessName, flash, note, onNote
                   </LinkButton>
                 ))
               : null}
+            {/* At the most a workspace writes from, Add a mailbox goes, and the card says why. */}
+            {owner && boxes.length >= MAILBOXES.max ? (
+              <span className="set-mbx-says" data-testid="mailbox-most">
+                {MAILBOXES.foot(boxes.length)}
+              </span>
+            ) : null}
           </div>
         </div>
       </div>
