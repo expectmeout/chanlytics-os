@@ -1300,6 +1300,24 @@ test("the proposal's send is a deal's, offered in every workspace (0008, amended
   assert.deepEqual(acts().slice(0, 3), ["call", "text", "booking"], "the booking link's send stays in the reach group");
 });
 
+test("Not a person is an act of its own beside Delete, for someone with an address (00483; the live walk, 27 Oct 2026)", () => {
+  // It rode Delete person as a switch alone, and the walk found notices and newsletters in Today with no way out.
+  const actsOf = (over) => toPersonVM(detail({ row: row(over) }), ZONE, NOW).acts;
+  const mailed = actsOf({ email: "news@shop.example" });
+  assert.deepEqual(
+    mailed.slice(-2).map((a) => a.id),
+    ["not-a-person", "delete"],
+    "the last two: Not a person, then Delete",
+  );
+  const act = mailed.find((a) => a.id === "not-a-person");
+  assert.deepEqual(
+    [act.label, act.group, act.needs, act.danger],
+    ["Not a person…", "delete", "owner", true],
+    "the owner's, as Delete is",
+  );
+  assert.ok(!actsOf({ email: null }).some((a) => a.id === "not-a-person"), "no address: nothing to sort");
+});
+
 /* ---- the person page is honest about a stop, the reason, the team and the attempts (the 2 Oct 2026 audit) ---- */
 test("Replies says nothing can be sent to a person who asked to stop, in the composer's own words", () => {
   assert.equal(

@@ -3623,6 +3623,29 @@ test("Merge with another record (0028): the owner's act opens the picker over Pe
   }
 });
 
+test("Not a person… opens Delete's question with its switch on: their mail stays in the mailbox, then they go (00483; the live walk, 27 Oct 2026)", async () => {
+  const vm = toPersonVM(detail({ row: row({ email: "news@shop.example" }) }), ZONE, new Date(NOW));
+  const me = globalThis.window.__ME;
+  globalThis.window.__ME = { role: "owner" };
+  try {
+    const draw = await profile(vm);
+    await settle();
+    const more = find(
+      find(draw(), (n) => n.props?.className === "cl-prof-queue-actions"),
+      (n) => n.type === Menu,
+    );
+    const act = actsIn(more).find((i) => i.label === contracts.PERSON_ACT_WORDS.notAPerson);
+    assert.ok(act, "the owner's menu offers it, beside Delete");
+    assert.equal(byTestId(draw(), "delete-not-a-person"), null, "nothing is drawn until it is pressed");
+    act.onSelect();
+    const sw = byTestId(draw(), "delete-not-a-person");
+    assert.ok(sw, "Delete's question");
+    assert.equal(sw.props.checked, true, "its switch already on");
+  } finally {
+    globalThis.window.__ME = me;
+  }
+});
+
 test("Same person? (0034 step 4): each doubt the door raised is a row saying who else it could be; Merge opens 0028's box with that record chosen, read or not by People; Not the same settles the pair through its door and the page is read again; an operator may say not the same and not merge", async () => {
   const { DOUBT_WORDS, MERGE_WORDS, toPersonRowVM } = contracts;
   const dto = {

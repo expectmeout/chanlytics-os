@@ -69,6 +69,7 @@ const ACT_ICON: Record<PersonActVM["id"], string> = {
   "leave-business": "x",
   download: "download",
   merge: "users",
+  "not-a-person": "ban",
   delete: "x",
 };
 
@@ -136,6 +137,11 @@ function moreGroups(c: PageCtx, compose: (text?: string | null) => void): MenuGr
     delete: () => {
       setMerge(MERGE_CLOSED);
       setDel({ open: true, typed: "", busy: false, error: null });
+    },
+    // The same question, the switch already on: their mail stays in the mailbox, then they are deleted.
+    "not-a-person": () => {
+      setMerge(MERGE_CLOSED);
+      setDel({ open: true, typed: "", busy: false, error: null, bot: true });
     },
     merge: () => {
       setDel({ open: false, typed: "", busy: false, error: null });
