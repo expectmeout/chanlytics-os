@@ -745,6 +745,10 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
     messages: ["channels"],
     "campaigns/messages": ["channels"],
   };
+  // What a page reads itself beside its surfaces, started by the head with them: New's searches whose leads are ready, one of
+  // its starts, which its first draw waits for where the tab opens on New (reach-out/sources.ts; the Campaigns load review).
+  const { readSources } = await importSrc(`${S}/surfaces/campaigns/reach-out/sources.ts`);
+  const pageReads = { "campaigns/sequences/new": [readSources] };
   // A key with words after its page (`campaigns/sequences/new`) is that page at that address, as the registry reads one
   // (routePartsOf); a key that names a screen, no address, is asked at one of its addresses (a run at its home).
   const ADDRESS_OF = { "campaigns/sequences/runs": "campaigns/sequences/sq-1/runs/b-1" };
@@ -778,6 +782,7 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
     api().forget();
     asked.length = 0;
     for (const k of keys) void overrides[k].apply().catch(() => {});
+    for (const read of pageReads[route] ?? []) void read();
     await settle();
     // Who is looking is every page's (and a surface's clock reads it when the tab knows no zone yet), and so is the one accept of
     // invitations the shell makes beside it (a POST, not a read the head starts: invitations/accept.ts).

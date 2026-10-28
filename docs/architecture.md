@@ -508,7 +508,10 @@ six. Measured on production, 9 October 2026: the Inbox had its rows 350 ms into 
   the first tier of its stream (`PREFETCH_READS`), and comes first in `ROUTE_DRAWS`; the second tier (`PREFETCH_BESIDE`)
   lands after the first draw, so only what stands below the fold reads there. Measured on Today before it held (27 October
   2026): the Setup card, Going today, a run's seat, a review's row and the drafts' words each landed after the queue and
-  moved it.
+  moved it. A page of views asks its view's row before its own, as `ROUTE_DRAWS` is asked (`surface-registry.ts`
+  `routeWaitsFor`): a sequence's steps wait for the settings read their words are in, New for the playbooks read its starts
+  are made of, and Messages for the number it sends from, and none for another view's (the Campaigns load review, 28
+  October 2026). A part that is still being read draws nothing, never the word for none.
 - _What is read only where it is drawn is read as its page is reached for._ A surface marked `onDemand` (Reports among
   them) is on no other page's boot; a pointer at its row in the sidebar, or the phone's drawer opening, starts its reads
   (`surface-registry.ts` `warmWhatItDraws`), so the press finds them in or on their way.

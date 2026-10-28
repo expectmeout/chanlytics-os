@@ -165,6 +165,9 @@ interface ComposerPaneProps {
  * "no number": say what could not be read.
  */
 export function numberNotice(p: { channels: readonly { kind: string }[] | null | undefined; hasWhatsApp: boolean }) {
+  // Still being read is never no number: said while the channels read was out, it went a frame later and the list under it
+  // moved up (the Campaigns load review, 28 Oct 2026). The page waits for that read (ROUTE_WAITS), so this is a read past its wait.
+  if (p.channels === undefined) return null;
   return p.channels === null ? (
     <FailedRead
       kind="card"

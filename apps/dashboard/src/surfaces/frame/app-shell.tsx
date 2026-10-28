@@ -13,6 +13,7 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import { isAdsParam } from "@chanlytics/contracts";
 import type { fillDoors as FillDoors } from "../frame-doors";
 import type { SurfaceRoute } from "../routes";
 import { frameChrome, frameSurfaceHook, fromWindow } from "./frame-window";
@@ -58,20 +59,29 @@ const useSurfaceStill = (): number => 0;
  * strip, so its head is People's; Conversations and Live are tabs of the Inbox's family, so each keeps its own name and no
  * way back above it, as a tab has none. Told in the draw that changes them, before the paint: told after it, the head drew
  * the page that had gone for a frame (a person's name and ‹ People over People's list as Back landed), at that head's
- * height, and the page under the top moved as the right head came (Ruben, 20 Oct 2026, on an iPhone).
+ * height, and the page under the top moved as the right head came (Ruben, 20 Oct 2026, on an iPhone). Campaigns' views
+ * (Sequences, a sequence, a run of it, New, Messages) are one page whose strip says the view, and every one says Campaigns
+ * alone with no way back above it (sequences-page.tsx, parts/head.tsx), so its head is Campaigns' crumb alone: while the
+ * page was read the head said "Messages" or "New" under ‹ Campaigns, and the strip moved 25 px up (13 on a phone) as the
+ * page said its own (the Campaigns load review, 28 Oct 2026). The tab's title keeps every crumb. Ads draws its own.
  */
 function useCrumbsShown(crumbs: readonly unknown[], look: string, { page, param }: ShellRoute) {
   const leadsScope = page === "clients" && !!param && /^leads(:|$)/.test(param);
   const familyTab = page === "conversations" || page === "live";
+  const campaignsView = (page === "campaigns" && !(param && isAdsParam(param))) || page === "messages";
   useLayoutEffect(() => {
     const chrome = frameChrome();
     if (look === "glass" && chrome && chrome.crumbsShown)
       chrome.crumbsShown(
-        (leadsScope ? crumbs.slice(0, -1) : familyTab ? crumbs.slice(-1) : crumbs) as Parameters<
-          typeof chrome.crumbsShown
-        >[0],
+        (leadsScope
+          ? crumbs.slice(0, -1)
+          : familyTab
+            ? crumbs.slice(-1)
+            : campaignsView
+              ? crumbs.slice(0, 1)
+              : crumbs) as Parameters<typeof chrome.crumbsShown>[0],
       );
-  }, [crumbs, look, leadsScope, familyTab]);
+  }, [crumbs, look, leadsScope, familyTab, campaignsView]);
 }
 
 export function ChanlyticsApp({

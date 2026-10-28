@@ -38,7 +38,7 @@ import { viewPager, type ViewPage } from "../../kit/view-tabs/pager";
 import { ViewTabs } from "../../kit/view-tabs/view-tabs";
 import { navigate, replaceRoute, routeDoor, touchSwipe, useLegacyToast } from "../../legacy-verbs";
 import type { LegacyFlash } from "../../legacy-verbs";
-import { usePartShown } from "../../use-surface";
+import { usePartShown, useSurface } from "../../use-surface";
 import { CmPane, cmGoing, useCmPhone } from "../parts/split";
 import { SequenceHistory } from "./history";
 import { SequencePeople } from "./people";
@@ -242,6 +242,7 @@ export function SequenceRecord({ id, tab, over = false }: SequenceRecordProps) {
   const moved = useCallback(() => setAgain((n) => n + 1), []);
   const [toast, flash] = useLegacyToast();
   const read = useSequenceRead(id, verbs.record, verbs.peekRecord, { again });
+  const list = useSurface("sequences");
   // Campaigns' second part (client/page-speed.ts): the sequence open, drawn with its record or saying why it could not be.
   // Each sequence opened is timed from the press that opened it, as a thread in the Inbox is.
   usePartShown("campaigns", "record", read.state !== "reading", id);
@@ -251,8 +252,22 @@ export function SequenceRecord({ id, tab, over = false }: SequenceRecordProps) {
     if (named && named !== id) replaceRoute(sequenceRoute(named, tab));
   }, [named, id, tab]);
   if (read.state !== "read") {
+    // Its head from the list's row while its own read is out, as the record will draw it (OpenRecord): its name, its state
+    // and what starts it, in the list's clock and word. The pane said "Sequences" over Reading… and drew its head anew as
+    // the record came: 0.3 to 1.6 s on a cold load, 6.2 s once, and 690 ms (the median) on a phone opening one this tab had
+    // not read (the Campaigns load review, 28 Oct 2026). The tabs and what they hold come with the record: the notice over
+    // the tabs is its read's (sequenceNotice: a last run that did nothing, a step's words WhatsApp turned down).
+    const row = read.state === "reading" && list ? list.sequences.find((s) => s.id === id) : undefined;
     return (
-      <CmPane title={SEQUENCE_WORDS.title} onClose={() => navigate(SEQUENCES_ROUTE)} testid="sq-record">
+      <CmPane
+        title={row ? row.name : SEQUENCE_WORDS.title}
+        badge={
+          row ? <StatePill kind="tone" value={sequenceStateTone(row)} label={sequenceStateWords(row)} /> : undefined
+        }
+        sub={row && list ? sequenceSubLine(row, { word: list.word, timezone: list.timezone }, Date.now()) : undefined}
+        onClose={() => navigate(SEQUENCES_ROUTE)}
+        testid="sq-record"
+      >
         {read.state === "failed" ? (
           <FailedRead what="this sequence" why={read.why} onRetry={moved} testid="sq-record-failed" />
         ) : (

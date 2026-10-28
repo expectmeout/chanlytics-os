@@ -49,9 +49,15 @@ import "./new.css";
 /** The reads New opens on: Campaigns' moments, lists and counts, the Library (settings), and what runs. */
 const READS = ["playbooks", "settings", "sequences"] as const;
 
-/** The searches whose leads are ready, read once as New opens; null where that read failed. */
-function useSources(): ReachOutSourceDto[] | null {
-  const [sources, setSources] = useState<ReachOutSourceDto[] | null>(null);
+/**
+ * The searches whose leads are ready: what the tab last read of them, painted at once, and read again as New opens;
+ * undefined while the first read is out, null where it failed. Still being read is never no search: New's starts drew a
+ * panel of what to set up first, then swapped it for the search's row as the answer came (the Campaigns load review).
+ */
+function useSources(): ReachOutSourceDto[] | null | undefined {
+  const [sources, setSources] = useState<ReachOutSourceDto[] | null | undefined>(
+    () => reachOuts.peekSources() ?? undefined,
+  );
   useEffect(() => {
     let live = true;
     void reachOuts.sources().then((s) => {
@@ -68,8 +74,8 @@ function useSources(): ReachOutSourceDto[] | null {
 const tokenOf = (to: string | null): string | null =>
   !to ? null : to.startsWith("seg:") || to.startsWith("list:") ? to : `seg:${to}`;
 
-/** What New reads, in the shapes its parts take; null until Campaigns' read is in. */
-function useNewReads(sources: ReachOutSourceDto[] | null): {
+/** What New reads, in the shapes its parts take; null until Campaigns' read and the searches are in. */
+function useNewReads(sources: ReachOutSourceDto[] | null | undefined): {
   start: StartReads;
   draft: DraftReads;
   business: string;
@@ -78,7 +84,7 @@ function useNewReads(sources: ReachOutSourceDto[] | null): {
   useReadsHere(READS);
   const pb = useSurface("playbooks");
   const seq = useSurface("sequences");
-  if (!pb) return null;
+  if (!pb || sources === undefined) return null;
   const who = {
     moments: pb.triggers,
     lists: pb.lists.map((l) => ({

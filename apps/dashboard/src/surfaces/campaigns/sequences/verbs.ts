@@ -15,6 +15,7 @@ import { readCache } from "@/legacy-bridge/read-cache";
 import { commitVerb, undoVerb } from "@/legacy-bridge/verbs/commit";
 import { refusalToast } from "../../legacy-verbs";
 import type { LegacyFlash } from "../../legacy-verbs";
+import { warmSources } from "../reach-out/sources";
 
 type RecordAnswer = ApiResult<Output<"GET sequences/[id]">>;
 type PeopleAnswer = ApiResult<Output<"GET sequences/[id]/people">>;
@@ -65,10 +66,12 @@ export const sequenceVerbs = {
  * A door to a sequence somebody is reaching for (a row of the list under the pointer, a link to one from Leads or Today: the
  * frame's reach, LegacyApp): its record read now, and the tab its address opens on where that tab reads its own, so the
  * press paints them as a person's page paints from People's rows. One the tab holds, read since the last write, reads
- * nothing (read-cache warm), and a read still on its way is shared with the page's (client/api.ts).
+ * nothing (read-cache warm), and a read still on its way is shared with the page's (client/api.ts). A door to New (its
+ * head's + New) reads the searches its starts are made of, so they draw with New (reach-out/sources.ts).
  */
 export function warmSequenceRoute(route: string): void {
   const place = parseSequencesRoute(route);
+  if (place?.view === "new") warmSources();
   if (place?.view !== "record") return;
   const { id, tab } = place;
   // A warm never throws: one that fails leaves nothing held, and the page reads as it opens (read-cache warm).

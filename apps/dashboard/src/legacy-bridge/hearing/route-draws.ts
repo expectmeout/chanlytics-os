@@ -88,11 +88,13 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   "campaigns/sequences/runs": ["sequences", "settings", "broadcasts", "playbooks", "channels", "audiences"],
   // The one New beside Sequences' list (`campaigns/sequences/new…`, decision 0065): its own list and the settings read, as
   // Sequences draws, and Campaigns' moments, lists and their counts (the playbooks read, made with the channels read), which
-  // its who sheet and its starts offer. It reads the searches whose leads are ready itself, as it opens.
-  "campaigns/sequences/new": ["sequences", "settings", "playbooks", "channels"],
-  // Messages says which playbooks send each message, and its number notice and a message's drawer are the channels read's.
-  messages: ["reach_outs", "playbooks", "channels"],
-  "campaigns/messages": ["reach_outs", "playbooks", "channels"],
+  // its who sheet and its starts offer, the playbooks read first since its first draw waits for it (ROUTE_WAITS). It reads
+  // the searches whose leads are ready itself (reach-out/surface.ts sources), started from the document's head with these.
+  "campaigns/sequences/new": ["sequences", "playbooks", "settings", "channels"],
+  // Messages says which playbooks send each message, and its number notice and a message's drawer are the channels read's,
+  // read first since its first draw waits for it (ROUTE_WAITS).
+  messages: ["channels", "reach_outs", "playbooks"],
+  "campaigns/messages": ["channels", "reach_outs", "playbooks"],
   // Sent's sheets stand beside Sequences' list (decision 0060, D3), and a run's names its playbook. Send it again on a run that
   // went offers its list where it can still be sent to: who each audience reaches, last, since it is every page of People, and
   // never waited for (the sheet draws from Sent's runs alone, and the button joins it once that is in).
@@ -145,5 +147,15 @@ export const ROUTE_WAITS: Record<string, readonly string[]> = {
   // Reports' strip of lenses is decided from the workspace list (the role of who is looking: a lens is shown from its
   // rung up) and draws above the page's body, so a list that landed after it would add a tab to a strip already drawn.
   reports: ["workspace"],
+  // Campaigns' views each wait for what their own first screen is made of (surface-registry routeWaitsFor asks the view
+  // before the page), each started from the document's head with the view's own (contracts PREFETCH_READS). A sequence's
+  // steps say their messages' words, which are the settings read's (offered-templates.ts), as the Inbox's reply box does:
+  // drawn before it was in, a one-off's step said its message was gone and grew 16 px on a desk, 35 on a phone, when the
+  // words came a frame later, and each step of a longer sequence would push the ones under it (the Campaigns load review,
+  // 28 Oct 2026). New's starts are made of the playbooks read (its moments, lists and counts). Messages says whether
+  // there is a number to send from: drawn before the channels read, it said there was none, then the list moved 55 px up.
+  "campaigns/sequences": ["settings"],
+  "campaigns/sequences/new": ["playbooks"],
+  "campaigns/messages": ["channels"],
 };
 export const ROUTE_WAIT_MS = 3000;
