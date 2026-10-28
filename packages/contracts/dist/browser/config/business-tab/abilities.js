@@ -26,6 +26,20 @@ function bookingLinkDetail(i) {
     return i.textingLine ? "On a call it sends it to the caller's WhatsApp, or by text when their number has none, and says which. In chat it sends it in the thread." : "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the thread.";
   return i.textingLine ? "In chat it sends it in the thread. On a call it sends it by text, until you have an approved booking-link WhatsApp message." : "In chat it sends it in the thread. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
 }
+function linkWays(i, chatAnswers, repliesHeld) {
+  const callSendsLink = i.voiceLive && (i.whatsappLive && i.hasBookingTemplate || i.textingLine);
+  const linkGoes = i.hasBookingLink && chatAnswers && !i.bookingHeld;
+  return {
+    linkGoes,
+    // A call's send goes through the same outbound gate the Replies row holds, and the Booking row's: so on a call the
+    // link goes where there is one, a way to send it, and neither row holding it.
+    linkOnCall: i.hasBookingLink && callSendsLink && !i.bookingHeld && !repliesHeld,
+    // ...and whether the row promising it after the times may do so without naming a channel. A workspace on both lines
+    // with no approved booking-link template and no texting line sends it in chat and not on a call (retell-fn's deliver
+    // has nothing to send). Said unqualified, the openings row told such a workspace its call offers times "then the link".
+    linkIsChatsAlone: linkGoes && i.voiceLive && !callSendsLink
+  };
+}
 export function abilityRows(i) {
   if (!i || typeof i !== "object")
     throw new TypeError(
@@ -48,12 +62,9 @@ export function abilityRows(i) {
   const chatAnswers = i.whatsappLive && !repliesHeld;
   const both = { voice: i.voiceLive, whatsapp: chatAnswers };
   const answering = i.voiceLive || chatAnswers;
-  const callSendsLink = i.voiceLive && (i.whatsappLive && i.hasBookingTemplate || i.textingLine);
-  const linkGoes = i.hasBookingLink && chatAnswers && !i.bookingHeld;
-  const linkIsChatsAlone = linkGoes && i.voiceLive && !callSendsLink;
+  const { linkGoes, linkOnCall, linkIsChatsAlone } = linkWays(i, chatAnswers, repliesHeld);
   const inChat = linkIsChatsAlone ? " in chat" : "";
   const bookingDetail = bookingLinkDetail(i);
-  const linkOnCall = i.hasBookingLink && callSendsLink && !i.bookingHeld && !repliesHeld;
   const rows = [
     {
       id: "answer",

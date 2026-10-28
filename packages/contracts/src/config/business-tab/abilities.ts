@@ -166,6 +166,29 @@ function bookingLinkDetail(i: AbilityInputs): string {
     : "In chat it sends it in the thread. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
 }
 
+/** Where the booking link goes, for the rows that send it or promise it (abilityRows). */
+function linkWays(i: AbilityInputs, chatAnswers: boolean, repliesHeld: boolean) {
+  // In chat the link goes in the thread. On a call it goes as a template to the caller's
+  // own WhatsApp (retell-fn deliver({ channel: "whatsapp" })), or by text from the texting
+  // line when WhatsApp cannot carry it. So a call with neither an approved template nor a
+  // texting line cannot send it -- whatever the booking link field holds.
+  const callSendsLink = i.voiceLive && ((i.whatsappLive && i.hasBookingTemplate) || i.textingLine);
+  // Where the booking-link row is ready in chat. Another row that promises the link after
+  // something else promises it only here: with no WhatsApp to send it by, no link, or
+  // bookings held on the Autonomy tab, "then the link" would not be true.
+  const linkGoes = i.hasBookingLink && chatAnswers && !i.bookingHeld;
+  return {
+    linkGoes,
+    // A call's send goes through the same outbound gate the Replies row holds, and the Booking row's: so on a call the
+    // link goes where there is one, a way to send it, and neither row holding it.
+    linkOnCall: i.hasBookingLink && callSendsLink && !i.bookingHeld && !repliesHeld,
+    // ...and whether the row promising it after the times may do so without naming a channel. A workspace on both lines
+    // with no approved booking-link template and no texting line sends it in chat and not on a call (retell-fn's deliver
+    // has nothing to send). Said unqualified, the openings row told such a workspace its call offers times "then the link".
+    linkIsChatsAlone: linkGoes && i.voiceLive && !callSendsLink,
+  };
+}
+
 export function abilityRows(i: AbilityInputs): AbilitiesVM {
   if (!i || typeof i !== "object")
     throw new TypeError(
@@ -195,25 +218,9 @@ export function abilityRows(i: AbilityInputs): AbilitiesVM {
   // the booking link goes out when there is nothing to send it.
   const answering = i.voiceLive || chatAnswers;
 
-  // In chat the link goes in the thread. On a call it goes as a template to the caller's
-  // own WhatsApp (retell-fn deliver({ channel: "whatsapp" })), or by text from the texting
-  // line when WhatsApp cannot carry it. So a call with neither an approved template nor a
-  // texting line cannot send it -- whatever the booking link field holds.
-  const callSendsLink = i.voiceLive && ((i.whatsappLive && i.hasBookingTemplate) || i.textingLine);
-  // Where the booking-link row below is ready. Another row that promises the link after
-  // something else promises it only here: with no WhatsApp to send it by, no link, or
-  // bookings held on the Autonomy tab, "then the link" would not be true.
-  const linkGoes = i.hasBookingLink && chatAnswers && !i.bookingHeld;
-  // ...and whether the row ABOVE may promise it without naming a channel. The link goes by WhatsApp on
-  // both channels, but a call sends it as a template, so a workspace on both lines with no approved
-  // booking-link template sends it in chat and not on a call (retell-fn's deliver has no template to
-  // send). Said unqualified, the openings row told such a workspace its call offers times "then the link".
-  const linkIsChatsAlone = linkGoes && i.voiceLive && !callSendsLink;
+  const { linkGoes, linkOnCall, linkIsChatsAlone } = linkWays(i, chatAnswers, repliesHeld);
   const inChat = linkIsChatsAlone ? " in chat" : "";
   const bookingDetail = bookingLinkDetail(i);
-  // A call's send goes through the same outbound gate the Replies row holds, and the Booking row's: so on a call the link
-  // goes where there is one, a way to send it, and neither row holding it.
-  const linkOnCall = i.hasBookingLink && callSendsLink && !i.bookingHeld && !repliesHeld;
 
   const rows: AbilityRowVM[] = [
     {

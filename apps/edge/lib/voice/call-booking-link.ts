@@ -74,7 +74,7 @@ import {
   type LinkLeg,
   type RefusedAt,
 } from "./call-link-send.js";
-import { logger, errField, type Logger } from "../log.js";
+import { logger, errField } from "../log.js";
 
 /**
  * Which template this path sends is the WORKSPACE'S to answer, not this file's.

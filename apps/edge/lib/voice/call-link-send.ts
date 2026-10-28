@@ -164,7 +164,7 @@ export function saidOfTheWire(r: DeliveryRefusal): OutboundRefusal {
 }
 
 /** Why the link went by text: the caller asked, or WhatsApp could not carry it (no approved message, no WhatsApp, Meta's no). */
-export type TextAfter = "caller_asked" | "no_template" | "no_whatsapp" | "whatsapp_refused";
+type TextAfter = "caller_asked" | "no_template" | "no_whatsapp" | "whatsapp_refused";
 
 /** Spoken once the text is on its way: it comes as a text, whatever the call said before. */
 const TEXT_SENT =

@@ -3491,6 +3491,18 @@ function offersLinkOn(on, brain, whatsappLine, bookingMessage, textingLine) {
 var NO_WAY_TO_SEND_LINK = `Booking: the booking link can only be sent by WhatsApp or by text, and this business has no WhatsApp line and no texting line, so never use send_booking_link and never promise a link or a message. When the caller wants to book, change or cancel a booking, take ${NO_LINK_DETAILS}, and say the team will follow up. If they would rather book themselves and a website is listed above, they can book there.`;
 var NO_MESSAGE_FOR_LINK = `Booking: the booking link is sent as a WhatsApp message that is not approved yet, and this business has no texting line, so never use send_booking_link and never promise a link or a message. When the caller wants to book, change or cancel a booking, take ${NO_LINK_DETAILS}, and say the team will follow up. If they would rather book themselves and a website is listed above, they can book there.`;
 var cannotSendLink = (whatsappLine) => whatsappLine ? NO_MESSAGE_FOR_LINK : NO_WAY_TO_SEND_LINK;
+function callBookingLine(base) {
+  const ways = callLinkWays(base, base.whatsapp_line, base.booking_message, base.texting_line);
+  const ours = "so do not ask them for a number unless they want it sent somewhere else. ";
+  const followUp = base.phone_display ? `take ${NO_LINK_DETAILS}, give the phone number above, and offer to have someone follow up.` : `take ${NO_LINK_DETAILS} and offer to have someone follow up.`;
+  const said = "Then say what the tool answers: it tells you how the link went and whether it arrived. ";
+  if (!ways.whatsapp)
+    return `Booking: when the caller wants to book, use send_booking_link \u2014 it sends the booking link by text message to the number they are calling from, ${ours}Tell them it comes as a text message. ${said}If it fails, ${followUp}`;
+  const asked = `Booking: when the caller wants to book, first ask "Do you use WhatsApp on this number?" If they do, use send_booking_link \u2014 it sends the booking link to the caller's WhatsApp, on the number they are calling from, ${ours}`;
+  if (!ways.text)
+    return `${asked}Tell them it comes by WhatsApp, not as a text message. Then say what the tool answers: it waits a moment for WhatsApp's own answer, so it tells you whether it arrived. If they do not use WhatsApp there, or it fails, ${followUp}`;
+  return `${asked}Tell them it comes by WhatsApp. If they do not use WhatsApp there, use send_booking_link with by set to "text", and tell them it comes as a text message. When WhatsApp cannot deliver it, the tool sends it by text instead. ${said}If it fails, ${followUp}`;
+}
 function priceNextStep(hasBookingLink) {
   return hasBookingLink ? "offer the booking link" : `take ${NO_LINK_DETAILS}`;
 }
@@ -15977,6 +15989,20 @@ function bookingLinkDetail(i) {
     return i.textingLine ? "On a call it sends it to the caller's WhatsApp, or by text when their number has none, and says which. In chat it sends it in the thread." : "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the thread.";
   return i.textingLine ? "In chat it sends it in the thread. On a call it sends it by text, until you have an approved booking-link WhatsApp message." : "In chat it sends it in the thread. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
 }
+function linkWays(i, chatAnswers, repliesHeld) {
+  const callSendsLink = i.voiceLive && (i.whatsappLive && i.hasBookingTemplate || i.textingLine);
+  const linkGoes2 = i.hasBookingLink && chatAnswers && !i.bookingHeld;
+  return {
+    linkGoes: linkGoes2,
+    // A call's send goes through the same outbound gate the Replies row holds, and the Booking row's: so on a call the
+    // link goes where there is one, a way to send it, and neither row holding it.
+    linkOnCall: i.hasBookingLink && callSendsLink && !i.bookingHeld && !repliesHeld,
+    // ...and whether the row promising it after the times may do so without naming a channel. A workspace on both lines
+    // with no approved booking-link template and no texting line sends it in chat and not on a call (retell-fn's deliver
+    // has nothing to send). Said unqualified, the openings row told such a workspace its call offers times "then the link".
+    linkIsChatsAlone: linkGoes2 && i.voiceLive && !callSendsLink
+  };
+}
 function abilityRows(i) {
   if (!i || typeof i !== "object")
     throw new TypeError(
@@ -15999,12 +16025,9 @@ function abilityRows(i) {
   const chatAnswers = i.whatsappLive && !repliesHeld;
   const both = { voice: i.voiceLive, whatsapp: chatAnswers };
   const answering = i.voiceLive || chatAnswers;
-  const callSendsLink = i.voiceLive && (i.whatsappLive && i.hasBookingTemplate || i.textingLine);
-  const linkGoes2 = i.hasBookingLink && chatAnswers && !i.bookingHeld;
-  const linkIsChatsAlone = linkGoes2 && i.voiceLive && !callSendsLink;
+  const { linkGoes: linkGoes2, linkOnCall, linkIsChatsAlone } = linkWays(i, chatAnswers, repliesHeld);
   const inChat = linkIsChatsAlone ? " in chat" : "";
   const bookingDetail = bookingLinkDetail(i);
-  const linkOnCall = i.hasBookingLink && callSendsLink && !i.bookingHeld && !repliesHeld;
   const rows2 = [
     {
       id: "answer",
@@ -17440,24 +17463,11 @@ function callToolsSection({ base, channel, link, handed }) {
     s.push(
       `
 ${PROMPT_OPENINGS.callTools} before offering a time \u2014 it reads the calendar as it is at that moment (a list at the end of these instructions, if any, is from the start of the call). Ask which service first when you can, so only windows long enough are offered.
-${callBookingLine(base, link, handed)}
+${handed ? callBookingLine(base) : link ? cannotSendLink(base.whatsapp_line) : noLinkBooking("voice")}
 Ending: once the caller has said goodbye, use end_call.`
     );
   }
   return s;
-}
-function callBookingLine(base, link, handed) {
-  if (!handed) return link ? cannotSendLink(base.whatsapp_line) : noLinkBooking("voice");
-  const ways = callLinkWays(base, base.whatsapp_line, base.booking_message, base.texting_line);
-  const ours = "so do not ask them for a number unless they want it sent somewhere else. ";
-  const followUp = base.phone_display ? `take ${NO_LINK_DETAILS}, give the phone number above, and offer to have someone follow up.` : `take ${NO_LINK_DETAILS} and offer to have someone follow up.`;
-  const said = "Then say what the tool answers: it tells you how the link went and whether it arrived. ";
-  if (!ways.whatsapp)
-    return `Booking: when the caller wants to book, use send_booking_link \u2014 it sends the booking link by text message to the number they are calling from, ${ours}Tell them it comes as a text message. ${said}If it fails, ${followUp}`;
-  const asked = `Booking: when the caller wants to book, first ask "Do you use WhatsApp on this number?" If they do, use send_booking_link \u2014 it sends the booking link to the caller's WhatsApp, on the number they are calling from, ${ours}`;
-  if (!ways.text)
-    return `${asked}Tell them it comes by WhatsApp, not as a text message. Then say what the tool answers: it waits a moment for WhatsApp's own answer, so it tells you whether it arrived. If they do not use WhatsApp there, or it fails, ${followUp}`;
-  return `${asked}Tell them it comes by WhatsApp. If they do not use WhatsApp there, use send_booking_link with by set to "text", and tell them it comes as a text message. When WhatsApp cannot deliver it, the tool sends it by text instead. ${said}If it fails, ${followUp}`;
 }
 function ownWordsSection({ profile, channel, hrs, closed }) {
   const s = [];
