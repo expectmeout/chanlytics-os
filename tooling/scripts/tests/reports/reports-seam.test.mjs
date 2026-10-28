@@ -73,7 +73,9 @@ test("the tab's cache keeps the value beside the globals a surface owns, and giv
   cache.snapshotSurface("reports", [], "t-salon", undefined, "reports");
   cache.flushSurfaceCache();
   const kept = JSON.parse(globalThis.localStorage.peek(CACHE));
-  assert.deepEqual(kept.surfaces.reports, { $value: REPORTS }, "the value, under its reserved name");
+  // What it was kept under rides beside it (#1881: the build, its shape, when), never a window global's name.
+  const valueOf = ({ $kept, ...rest }) => (assert.deepEqual(Object.keys($kept).sort(), ["at", "build", "shape"]), rest);
+  assert.deepEqual(valueOf(kept.surfaces.reports), { $value: REPORTS }, "the value, under its reserved name");
   values.setSurfaceValue("reports", undefined);
   const restored = cache.hydrateSurfaceCache();
   assert.ok(restored.has("reports"), "the surface has its real data before it draws: no loading state");

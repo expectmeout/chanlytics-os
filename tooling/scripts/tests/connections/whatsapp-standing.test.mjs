@@ -615,3 +615,32 @@ test("a wa.me link takes a number's digits, no plus, spaces or brackets, from th
   assert.equal(waMeLink("+13055550188", "Hi there"), "https://wa.me/13055550188?text=Hi%20there");
   assert.equal(waMeLink("12", "Hi"), null);
 });
+
+test("Meta's words written for a developer never reach an owner, and the number's health says the row's word, not the rating's (the live walk's TODAY-6 and REP-1, 27 Oct 2026)", () => {
+  const forDevelopers = {
+    ...RESTRICTED,
+    problems: [
+      { entity: "PHONE_NUMBER", code: null, said: "Configure the number using {PHONE_NUMBER_ID}/settings", fix: null },
+    ],
+  };
+  const SETTING = "Meta says a setting on this number needs changing; WhatsApp Manager shows which.";
+  assert.equal(
+    standingAlertWords("+13055550188", forDevelopers).body,
+    `WhatsApp can't send from +1 (305) 555-0188: ${SETTING}`,
+  );
+  assert.equal(
+    standingAlertWords("+13055550188", {
+      ...RESTRICTED,
+      problems: [{ entity: "WABA", code: null, said: "Account restricted.", fix: "Fix it with {WABA_ID}/settings" }],
+    }).body,
+    "WhatsApp can't send from +1 (305) 555-0188: Account restricted.",
+    "a fix written for a developer is left out, Meta's own sentence kept",
+  );
+  // The number's health: what Meta holds against it, in the WhatsApp row's own word, and its sentence as the refusal.
+  const unrated = numberHealth({ quality: null, event: null, limit: null });
+  const held = numberHealthWithStanding(unrated, BLOCKED);
+  assert.equal(held.tone, "danger");
+  assert.equal(held.word, "Payment needed", "the row's word, never the rating's Flagged");
+  assert.match(held.refusal, /payment method/);
+  assert.equal(numberHealthWithStanding(unrated, null).word, undefined, "nothing held: the rating speaks");
+});
