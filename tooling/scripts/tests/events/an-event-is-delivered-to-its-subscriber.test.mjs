@@ -11,8 +11,8 @@ import assert from "node:assert/strict";
 import { fakeDb } from "../_fake-db.mjs";
 import { rows } from "../_rows.mjs";
 import { dispatchJob } from "../../../../packages/jobs/src/handlers.ts";
-// The registry as the handler reaches it: core's built package, the same module instance handlers.ts imports, so a
-// subscriber swapped here is the one the dispatch runs (repo/dist-freshness.test.mjs holds dist to src).
+// The registry as the handler reaches it: core's bundle, the same module instance handlers.ts imports (the suite reads a
+// package as its bundle, built by its launcher from src), so a subscriber swapped here is the one the dispatch runs.
 import { SUBSCRIBERS } from "../../../../packages/core/dist/index.js";
 import { EVENT_SUBSCRIBERS } from "../../../../packages/contracts/src/shared/enums.ts";
 import { fieldsOf, logLineOf } from "../_log-lines.mjs";

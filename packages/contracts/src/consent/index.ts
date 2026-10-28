@@ -1,76 +1,76 @@
 /** May we contact this person: the one predicate, and the public page where a yes is said. */
-export { optInLink, waMeDigits, waMeLink } from "./wa-links";
 export {
-  isOptedOutContact,
-  mayRing,
-  isOfferByEmail,
-  mayMessageFor,
-  relationshipOnRecord,
   consentChangeOf,
-  purposeOfTemplate,
-  purposeOfPlaybook,
+  DELIVERY_REFUSALS,
+  isOfferByEmail,
+  isOptedOutContact,
+  mayMessageFor,
+  mayRing,
   OPT_OUT_REFUSAL,
   optOutWords,
+  PURPOSE_REFUSALS,
+  purposeOfPlaybook,
+  purposeOfTemplate,
+  relationshipOnRecord,
   STOP_WORDS,
   stopRequestQuestion,
-  DELIVERY_REFUSALS,
-  PURPOSE_REFUSALS,
 } from "./consent";
 export type {
-  ConsentBearing,
-  SendPurpose,
   AskedPurpose,
+  ConsentBearing,
+  ConsentChange,
+  DeliveryRefusal,
   MessageAbout,
   PurposeBearing,
   PurposeRefusal,
-  DeliveryRefusal,
-  ConsentChange,
+  SendPurpose,
 } from "./consent";
+export { consentGuardWords, consentRuleWords, yesAsked } from "./consent-asks";
+export type { YesAsk } from "./consent-asks";
 export {
-  policyLinks,
-  optInConfirmation,
-  dmBackOnConfirmation,
+  channelsOfYes,
+  channelsWords,
+  CONSENT_CHANNEL_WORDS,
+  CONSENT_CHANNELS,
+  coveredChannels,
+  yesCovers,
+} from "./consent-channels";
+export type { ConsentChannel } from "./consent-channels";
+export {
   confirmationNameOf,
-  verbalOptInScript,
-  consentPageVM,
+  CONSENT_PHRASE,
+  CONSENT_PHRASE_ES,
+  consentFormMetadata,
   consentFormVM,
   consentPageMetadata,
-  consentFormMetadata,
-  deskSignVM,
+  consentPageVM,
+  CONVERSATION_PHRASE,
+  CONVERSATIONAL_ASK_TITLE,
   deskSignMetadata,
-  notTakingSignUps,
+  deskSignVM,
+  dmBackOnConfirmation,
   GET_YES_NO_NUMBER_WORDS,
   GET_YES_PAUSED_WORDS,
   GET_YES_WORDS,
+  notTakingSignUps,
+  optInConfirmation,
+  policyLinks,
+  verbalOptInScript,
   YES_WHILE_PAUSED,
-  CONSENT_PHRASE,
-  CONSENT_PHRASE_ES,
-  CONVERSATION_PHRASE,
-  CONVERSATIONAL_ASK_TITLE,
 } from "./consent-page";
 export type {
-  ConsentPageFacts,
-  ConsentWayKind,
-  ConsentWay,
   ConsentAsk,
-  ConsentPageVM,
-  PolicyLinks,
   ConsentFormSection,
   ConsentFormVM,
+  ConsentPageFacts,
+  ConsentPageVM,
+  ConsentWay,
+  ConsentWayKind,
   DeskSignVM,
+  PolicyLinks,
 } from "./consent-page";
-export {
-  CONSENT_CHANNELS,
-  CONSENT_CHANNEL_WORDS,
-  channelsOfYes,
-  yesCovers,
-  coveredChannels,
-  channelsWords,
-} from "./consent-channels";
-export type { ConsentChannel } from "./consent-channels";
-export { yesAsked, consentGuardWords, consentRuleWords } from "./consent-asks";
-export type { YesAsk } from "./consent-asks";
 export { offerUnsubscribeWords, STOP_ALL_REFUSALS } from "./offers-unsubscribe";
-export type { OfferUnsubscribeView, OfferPageWords, OfferPageButton } from "./offers-unsubscribe";
-export { optOutOf, optOutNotice } from "./opt-out-notice";
-export type { OptOutHow, OptOutSaid, OptOutPerson } from "./opt-out-notice";
+export type { OfferPageButton, OfferPageWords, OfferUnsubscribeView } from "./offers-unsubscribe";
+export { optOutNotice, optOutOf } from "./opt-out-notice";
+export type { OptOutHow, OptOutPerson, OptOutSaid } from "./opt-out-notice";
+export { optInLink, waMeDigits, waMeLink } from "./wa-links";

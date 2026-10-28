@@ -1,33 +1,33 @@
-export type {
-  Door,
-  SendQueuedPorts,
-  ProvisionLinePorts,
-  BroadcastRow,
-  RecipientRow,
-  ContactRow,
-  RecipientMark,
-  BroadcastBatchPorts,
-  BroadcastBatchCommand,
-  BatchCarry,
-} from "./ports";
-export { sendQueued, SEND_RETRY_WAITS_MS } from "./send";
-export type { SendQueuedCommand } from "./send";
+export { BROADCAST_STALL_RETRY_MS, BROADCAST_STALLS_MAX, sendBroadcastBatch } from "./broadcast";
+export { EMAIL_BODY_MAX, EMAIL_REVIEW_WORDS, ingestEmail } from "./email-ingest";
+export type { EmailClaim, EmailIngestOutcome, EmailIngestPorts, IncomingEmail } from "./email-ingest";
 export { raiseLateFailure } from "./late-failure";
 export type { LateFailureCommand, LateFailureFacts, LateFailureOutcome, LateFailurePorts } from "./late-failure";
-export { provisionLine } from "./provision-line";
-export { ingestEmail, EMAIL_BODY_MAX, EMAIL_REVIEW_WORDS } from "./email-ingest";
-export type { EmailClaim, IncomingEmail, EmailIngestPorts, EmailIngestOutcome } from "./email-ingest";
-export { readReply } from "./reply-read";
-export type {
-  ReplyFacts,
-  KeptReading,
-  ReplyNotice,
-  ReplyReadPorts,
-  ReadReplyCommand,
-  ReadReplyOutcome,
-  DraftState,
-  DraftMark,
-} from "./reply-read";
-export { sendBroadcastBatch, BROADCAST_STALL_RETRY_MS, BROADCAST_STALLS_MAX } from "./broadcast";
 export { outboundGate, refusalScript } from "./outbound-gate";
 export type { OutboundRefusal } from "./outbound-gate";
+export type {
+  BatchCarry,
+  BroadcastBatchCommand,
+  BroadcastBatchPorts,
+  BroadcastRow,
+  ContactRow,
+  Door,
+  ProvisionLinePorts,
+  RecipientMark,
+  RecipientRow,
+  SendQueuedPorts,
+} from "./ports";
+export { provisionLine } from "./provision-line";
+export { readReply } from "./reply-read";
+export type {
+  DraftMark,
+  DraftState,
+  KeptReading,
+  ReadReplyCommand,
+  ReadReplyOutcome,
+  ReplyFacts,
+  ReplyNotice,
+  ReplyReadPorts,
+} from "./reply-read";
+export { SEND_RETRY_WAITS_MS, sendQueued } from "./send";
+export type { SendQueuedCommand } from "./send";

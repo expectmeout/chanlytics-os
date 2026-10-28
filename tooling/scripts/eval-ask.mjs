@@ -78,9 +78,9 @@
  *
  *   NEXT_PUBLIC_SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… NEXT_PUBLIC_SUPABASE_ANON_KEY=… \
  *   E2E_USER_EMAIL=… [EVAL_WORKSPACE_HAS=no_calendar,no_offers_channel,no_offers_yes] \
- *   [REPS=3] [SURFACE=today] [ONLY=id,id] node tooling/scripts/eval-ask.mjs [tooling/evals/ask-cases.json]
- *   [REPS=3] [SURFACE=…] [ONLY=…] node tooling/scripts/eval-ask.mjs --list [tooling/evals/ask-cases.json]
- *   ELEVENLABS_LLM_SECRET=… … node tooling/scripts/eval-ask.mjs --spoken   # every turn through the brain door, as the agent asks it (eval-ask-spoken.mjs)
+ *   [REPS=3] [SURFACE=today] [ONLY=id,id] node --import tsx tooling/scripts/eval-ask.mjs [tooling/evals/ask-cases.json]
+ *   [REPS=3] [SURFACE=…] [ONLY=…] node --import tsx tooling/scripts/eval-ask.mjs --list [tooling/evals/ask-cases.json]
+ *   ELEVENLABS_LLM_SECRET=… … node --import tsx tooling/scripts/eval-ask.mjs --spoken   # every turn through the brain door, as the agent asks it (eval-ask-spoken.mjs)
  *
  * --spoken asks each turn the way the voice agent asks it (a session minted as the member, the brain door called with
  * the agent's secret, the stored turn read off the thread; the deployment's edge must hold the agent's key) and the

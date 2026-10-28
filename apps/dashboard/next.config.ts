@@ -48,8 +48,22 @@ const NO_STORE = [{ key: "Cache-Control", value: "private, no-store, max-age=0" 
  */
 const OS_DOCUMENT = { missing: [{ type: "header" as const, key: "rsc" }], headers: NO_STORE };
 
+/** The workspace's packages, which ship as their sources (decision 0074): Turbopack compiles them as it compiles the app. */
+const PACKAGES = [
+  "@chanlytics/channels",
+  "@chanlytics/contracts",
+  "@chanlytics/core",
+  "@chanlytics/db",
+  "@chanlytics/jobs",
+];
+
 const nextConfig: NextConfig = {
-  // Workspace packages ship built dist/ (tsup); no transpilePackages needed.
+  transpilePackages: PACKAGES,
+  // The types are CI's Types job's to check, the one gate a merge waits on: `next typegen`, then `tsc -b`, which reads
+  // each package through its project reference, as compiled under its own options (the dashboard's typecheck script).
+  // A build's own pass would compile the five packages' sources into the dashboard's one program, which ran out of
+  // memory on 28 October 2026, and repeat what the gate already proved before anything merged.
+  typescript: { ignoreBuildErrors: true },
   // The legacy mockup bridge (Slice 0B) mounts client-only under app/(os).
   reactStrictMode: true,
   // Every route is prerendered as far as it reads nothing of the request (decision 0053, step 5): the OS's frame whole,

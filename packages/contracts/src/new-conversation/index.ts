@@ -1,18 +1,7 @@
 /** A new conversation: which wire carries a message to a person, the sheet's words, and Ask's draft for one person. */
 export {
-  defaultWriteWire,
-  startsOn,
-  wayOff,
-  writeWaysOf,
-  WRITE_HOLDS,
-  WRITE_HOLD_WORDS,
-  WRITE_WAY_REFUSED,
-} from "./write-ways";
-export { writeReachOf } from "./write-reach";
-export type { WriteHold, WriteRow, WriteWay } from "./write-ways";
-export {
-  NEW_CONVERSATION_WORDS,
   approvedWordsFor,
+  NEW_CONVERSATION_WORDS,
   newConversationOf,
   planNoteOf,
   writeWayWords,
@@ -30,3 +19,14 @@ export {
 export type { CallBrief, DraftAsk, DraftHow, DraftTone, PersonDraftDto, PersonReachDto } from "./person-draft";
 export { PersonDraftAnswerSchema, PersonDraftInputSchema, PersonMessageBodySchema } from "./person-draft-schema";
 export type { PersonDraftAnswer, PersonDraftInput, PersonMessageBody } from "./person-draft-schema";
+export { writeReachOf } from "./write-reach";
+export {
+  defaultWriteWire,
+  startsOn,
+  wayOff,
+  WRITE_HOLD_WORDS,
+  WRITE_HOLDS,
+  WRITE_WAY_REFUSED,
+  writeWaysOf,
+} from "./write-ways";
+export type { WriteHold, WriteRow, WriteWay } from "./write-ways";

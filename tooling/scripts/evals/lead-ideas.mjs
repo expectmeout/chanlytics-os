@@ -3,9 +3,9 @@
  * The ideas for a new search, asked of the model over made-up workspaces (00398): how the ideas' prompt is judged
  * before it merges, and after any change to it or to what the code tells the model.
  *
- *   node tooling/scripts/evals/lead-ideas.mjs                      # dry: builds every workspace's question and asks nothing
- *   node tooling/scripts/evals/lead-ideas.mjs --live               # asks the ideas' own model (lead_suggest) each workspace, twice
- *   node tooling/scripts/evals/lead-ideas.mjs --live --repeats 3   # three askings each: the model is not the same twice
+ *   node --import tsx tooling/scripts/evals/lead-ideas.mjs                      # dry: builds every workspace's question and asks nothing
+ *   node --import tsx tooling/scripts/evals/lead-ideas.mjs --live               # asks the ideas' own model (lead_suggest) each workspace, twice
+ *   node --import tsx tooling/scripts/evals/lead-ideas.mjs --live --repeats 3   # three askings each: the model is not the same twice
  *
  * Each workspace (fixtures/lead-ideas/workspaces.json) goes through what the dashboard's reader does
  * (server/leads/lead-suggestions.ts): lead_suggest_history's answer narrowed (ideaHistoryOf), the code's decisions made

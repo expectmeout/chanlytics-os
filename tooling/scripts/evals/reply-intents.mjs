@@ -3,8 +3,8 @@
  * The reply fixtures, read by the model (Reach out, Part 5, Task 1.5): how the reader's prompt is judged before PR 3
  * merges, and after any change to it.
  *
- *   node tooling/scripts/evals/reply-intents.mjs          # dry: builds every fixture's prompt and asks nothing
- *   node tooling/scripts/evals/reply-intents.mjs --live   # asks REACH_OUT_MODEL each fixture, with the real prompt
+ *   node --import tsx tooling/scripts/evals/reply-intents.mjs          # dry: builds every fixture's prompt and asks nothing
+ *   node --import tsx tooling/scripts/evals/reply-intents.mjs --live   # asks REACH_OUT_MODEL each fixture, with the real prompt
  *
  * Each fixture (fixtures/replies/replies.json) goes through what the job will do (PR 3): the intake's claim and plain
  * text (jobs' incomingEmailOf, the adapter the email job itself calls, so the two cannot drift), the reply's own words
@@ -32,8 +32,7 @@ import {
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, "../../..");
-// The built jobs package, as the database suites import it: tooling does not depend on it by name.
-const { incomingEmailOf } = await import(pathToFileURL(path.join(ROOT, "packages/jobs/dist/index.js")).href);
+const { incomingEmailOf } = await import("@chanlytics/jobs");
 const FIXTURES = path.join(HERE, "../fixtures/replies/replies.json");
 
 /** The fixture set: the lead the replies answer, the email they answer, and the replies. */

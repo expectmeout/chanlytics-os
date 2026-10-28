@@ -9,7 +9,7 @@
  * completes the row; an abandoned hold is taken over by exactly one of two
  * callers who both read it, on the stamp PostgREST returned; and a release
  * removes the claim it names and nothing else. The repositories are called
- * through the committed dist, as the dashboard calls them.
+ * through db's bundle (the suite's build of its sources), as the dashboard calls them.
  *
  * Runs the way thread-control.db.test.mjs does, against the database
  * `supabase start` builds on this machine, never production. Skipped without

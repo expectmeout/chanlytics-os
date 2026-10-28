@@ -6,8 +6,8 @@
  * fact of that workspace: an hour, a closed day, the address, a service), each asked of the model and judged by
  * eval-judge.mjs, the way an owner would read the answer.
  *
- *   node tooling/scripts/evals/nightly.mjs            # asks the model each case, --repeats times (default 2)
- *   node tooling/scripts/evals/nightly.mjs --dry      # builds every prompt and asks nothing
+ *   node --import tsx tooling/scripts/evals/nightly.mjs            # asks the model each case, --repeats times (default 2)
+ *   node --import tsx tooling/scripts/evals/nightly.mjs --dry      # builds every prompt and asks nothing
  *
  * The key is ANTHROPIC_EVAL_KEY, a sandbox key that is not the platform's: this script never reads ANTHROPIC_API_KEY,
  * which is the production key, and the workflow (.github/workflows/nightly-evals.yml) never hands it over. With no eval
@@ -121,7 +121,7 @@ export function loadWorkspace(file = WORKSPACE) {
  */
 export async function whoOf(workspace, c) {
   if (!c.who) return null;
-  const { describeLead } = await import(pathToFileURL(path.join(ROOT, "packages/db/dist/index.js")).href);
+  const { describeLead } = await import("@chanlytics/db");
   const lead = {
     contactId: "eval-person",
     conversationId: null,
@@ -137,7 +137,7 @@ export async function whoOf(workspace, c) {
 
 /** One case asked once: the composed prompt, the customer's words, the record asked for, and layer two over the answer. */
 export async function runCase(key, workspace, c, over = {}) {
-  const { layerTwo } = await import(pathToFileURL(path.join(ROOT, "packages/core/dist/index.js")).href);
+  const { layerTwo } = await import("@chanlytics/core");
   const started = Date.now();
   const who = await whoOf(workspace, c);
   const ask = {

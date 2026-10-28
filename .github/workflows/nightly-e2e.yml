@@ -161,7 +161,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          node tooling/scripts/ops/ask-day.mjs --check > ask-day.txt 2>&1
+          node --import tsx tooling/scripts/ops/ask-day.mjs --check > ask-day.txt 2>&1
           code=$?
           cat ask-day.txt
           tail -n 1 ask-day.txt > ask-day-verdict.txt
@@ -201,7 +201,7 @@ jobs:
       # its alerts go to is Resend's test inbox, which delivers nowhere.
       - name: The run's own workspace, in its known state
         if: ${{ !cancelled() && env.CREDENTIAL_FREE != 'true' }}
-        run: node tooling/scripts/ops/e2e-workspace.mjs --apply
+        run: node --import tsx tooling/scripts/ops/e2e-workspace.mjs --apply
         env:
           SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SERVICE_ROLE_KEY }}

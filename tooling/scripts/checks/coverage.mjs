@@ -3,11 +3,11 @@
  * (`--experimental-test-coverage`, turned on by tooling/scripts/checks/test.mjs for a full run), and the floors three
  * areas are held to: core, the edge's doors and the dashboard's routes.
  *
- * A package's code runs mostly from its committed dist, one bundle, so its lines are read back to the module that
- * wrote them by the bundler's own markers (`// src/campaigns/run.ts`): a package's coverage is its own modules, in its
- * own bundle, or read directly from source by a test that imports the file, whichever ran more of each module. A
- * bundle holds its own package's modules and the data it inlines: a sibling package is imported from that package's
- * dist (#1382), and counts there. A tree (apps/edge/api)
+ * A package's code runs mostly from its bundle in the suite (its dist, which tooling/scripts/package-build.mjs builds
+ * before the run, decision 0074), so its lines are read back to the module that wrote them by the bundler's own markers
+ * (`// src/campaigns/run.ts`): a package's coverage is its own modules, in its own bundle, or read directly from source
+ * by a test that imports the file, whichever ran more of each module. A bundle holds its own package's modules and the
+ * data it inlines: a sibling package is imported from that package's bundle (#1382), and counts there. A tree (apps/edge/api)
  * is its tracked files; one no test loaded counts every line, none run.
  *
  * Line coverage, in the lines V8 reports: close to the source's, never equal to it (a transpiled file has the loader's
