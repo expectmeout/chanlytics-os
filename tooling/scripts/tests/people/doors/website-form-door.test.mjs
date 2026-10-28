@@ -234,8 +234,12 @@ test("a sign-up asks its person to confirm: one email on their thread from the m
   canSend(t);
   w = world({ person: { email: "ana@example.com" }, mailbox: true });
   setPg(w.db);
-  const [status] = await post(SIGNUP);
-  assert.equal(status, 200);
+  const [status, body] = await post(SIGNUP);
+  assert.deepEqual(
+    [status, body],
+    [200, { ok: true, kept: true, confirm: "sent" }],
+    "the site may say: check your email",
+  );
   assert.equal(asks().length, 1, "one confirmation");
   const m = asks()[0];
   assert.deepEqual(
@@ -273,7 +277,11 @@ test("asked once: the same form again, or another sign-up while the ask is open,
   w = world({ person: { email: "ana@example.com" }, mailbox: true });
   setPg(w.db);
   await post(SIGNUP);
-  await post(SIGNUP);
+  assert.deepEqual(
+    await post(SIGNUP),
+    [200, { ok: true, kept: true }],
+    "nothing new went: the site says nothing of it",
+  );
   await post({ ...SIGNUP, about: "The spring offers" });
   assert.equal(asks().length, 1);
   assert.equal(sends().length, 1);
@@ -303,7 +311,7 @@ test("not asked, and the owner told why: no mailbox, a made-up address, another 
   for (const [shape, form, said] of cases) {
     w = world(shape);
     setPg(w.db);
-    assert.equal((await post(form))[0], 200);
+    assert.deepEqual(await post(form), [200, { ok: true, kept: true }], `no confirm: ${said}`);
     assert.deepEqual([asks().length, sends().length], [0, 0], String(said));
     assert.match(w.notifications[0].body, said);
     assert.equal(w.resolved.length, 1, "the person is kept all the same");
@@ -319,7 +327,7 @@ test("not asked at all: a request, a sign-up with no address, one that arrives l
   ]) {
     w = world({ person: { email: "ana@example.com" }, mailbox: true });
     setPg(w.db);
-    assert.equal((await post(form))[0], 200);
+    assert.deepEqual(await post(form), [200, { ok: true, kept: true }]);
     assert.equal(asks().length, 0);
     assert.doesNotMatch(w.notifications[0].body, /confirm/);
   }

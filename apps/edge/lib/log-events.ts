@@ -550,6 +550,7 @@ export const LOG_EVENTS = [
   "setup_request_told",
   "shadow_failed",
   "shadow_write_failed",
+  "signup_confirm_failed",
   "signup_told",
   "sms_answer_taken_up",
   "sms_answer_unscheduled",

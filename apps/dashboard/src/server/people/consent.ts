@@ -8,6 +8,9 @@
  * What may be recorded is judged here first, in a person's words, by the one rule the three routes share (how they
  * told you, which message an answer "in their own message" names, that a yes to offers is written), and again by the
  * doors themselves, which no caller can skip. The routes declare who may and how often.
+ *
+ * And the one answer a member may not record but may ask for: a website sign-up's yes to offers by email, which only the
+ * person's press on its confirmation link gives (00489), asked for here (askToConfirmSignup).
  */
 import {
   AppError,
@@ -16,9 +19,13 @@ import {
   OWN_MESSAGE_REFUSALS,
   offersYesRefusal,
   ownMessageRefusal,
+  signupAskLine,
   type AskedPurpose,
+  type SignupAskRefusal,
 } from "@chanlytics/contracts";
 import { recordConsent } from "@chanlytics/db";
+import { callEdge, edgeConfigured } from "@/server/edge";
+import { log } from "@/server/log";
 import { dbRefusal, type RouteContext } from "@/server/with-route";
 import type { contactScope } from "@/server/verbs";
 
@@ -179,4 +186,44 @@ export async function recordConsentMany(
     else done += 1;
   }
   return { done, failed, skipped };
+}
+
+/**
+ * A member asks a website sign-up's person to confirm by email, from the person's page (Ask to confirm, Ask again;
+ * 00489's double opt-in): the edge asks under the same rules and limits as the form's own ask
+ * (apps/edge/lib/website/signup-confirm.ts askAgain, POST /api/admin/email/signup-confirm). Its refusal of the rules is an answer, said in the page's words
+ * (contracts signupAskLine); a door that could not be reached, or that failed, is an error.
+ */
+
+/** How long the edge has to answer: a few reads, one email written and its send scheduled. */
+const ASK_TIMEOUT_MS = 15_000;
+
+/** What the ask came to: whether the email is on its way, and the sentence the page says. */
+interface SignupAskAnswer {
+  asked: boolean;
+  said: string;
+}
+
+/** The words when the edge names a reason the page has none for: someone gone since the page was read. */
+const NOBODY_TO_ASK = "There is nobody to ask: they are no longer in this workspace.";
+
+export async function askToConfirmSignup(
+  tenantId: string,
+  userId: string,
+  contactId: string,
+): Promise<SignupAskAnswer> {
+  if (!edgeConfigured()) throw new AppError("conflict", "Asking them to confirm is not available right now.", 503);
+  const a = await callEdge(
+    "/api/admin/email/signup-confirm",
+    { tenant_id: tenantId, user_id: userId, contact_id: contactId },
+    { workspace: tenantId, user: userId, timeoutMs: ASK_TIMEOUT_MS },
+  );
+  const b = a.body as { ok?: unknown; asked?: unknown; why?: unknown } | null;
+  if (a.status === 200 && b?.ok === true) {
+    const asked = b.asked === true;
+    const why = typeof b.why === "string" ? (b.why as SignupAskRefusal) : null;
+    return { asked, said: signupAskLine(asked ? "asked" : why) ?? NOBODY_TO_ASK };
+  }
+  log.warn("signup_confirm_ask_failed", { tenant_id: tenantId, status: a.status, reason: b?.why ?? null });
+  throw new AppError("conflict", "The email asking them to confirm could not be sent. Try again in a minute.", 502);
 }

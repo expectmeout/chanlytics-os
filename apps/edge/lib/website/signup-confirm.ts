@@ -11,8 +11,16 @@
  * needs no yes and is no offer. Whether it is written at all is contracts signupAskRefusal's: never to an address that
  * looks made up, that is not on their page, that does not take email, to a person who said STOP or already said yes,
  * from a workspace with no mailbox, and within the limits (SIGNUP_ASK_LIMITS).
+ *
+ * A member may ask again from the person's page (askAgain, POST /api/admin/email/signup-confirm): the same ask under the same
+ * rules and limits, for someone who signed up on the website (it brought them, or a sign-up of theirs was asked before:
+ * the email says they signed up there), at the address their page has, the form their last ask carried kept as its
+ * evidence and the member who asked beside it.
  */
 import { env } from "../env.js";
+import { json, refuse } from "../http.js";
+import { pg } from "../pg.js";
+import { personFor, workspaceFor, type Admitted } from "../admin-auth.js";
 import { dashboardOrigin } from "../dashboard-origin.js";
 import { emailCanSend, emailDomain } from "../email/email.js";
 import { buildEmailRequest, confirmUrl, hostedIdentity, signConfirmToken } from "../packages/channels.js";
@@ -22,11 +30,13 @@ import {
   signupAddressKey,
   signupAskRefusal,
   signupConfirmEmail,
+  UUID,
   websiteFormLate,
   type SignupAskRefusal,
   type WebsiteFormInput,
 } from "../packages/contracts.js";
 import {
+  contactEmailOf,
   insertQueuedEmail,
   mailboxOfTenant,
   resolveOutboundTargetForContact,
@@ -34,24 +44,39 @@ import {
   type Json,
 } from "../packages/db.js";
 import { scheduleJob } from "../packages/jobs.js";
-import { errField, type Logger } from "../log.js";
+import { errField, logger, type Logger } from "../log.js";
 import { onceKeyId } from "../ops/notify.js";
-import type { pg } from "../pg.js";
 
 type Db = NonNullable<ReturnType<typeof pg>>;
 
 /** What asking came to: asked (the email is queued), or why not. */
 type SignupAsked = { asked: true; messageId: string } | { asked: false; why: SignupAskRefusal };
 
+/** What they signed up on, as the email keeps it and the yes's event carries it. */
+const signedUpOn = (f: Pick<WebsiteFormInput, "form" | "page" | "about" | "lang" | "at">) => ({
+  form: f.form,
+  page: f.page ?? null,
+  about: f.about ?? null,
+  lang: f.lang ?? null,
+  at: f.at ?? null,
+});
+
 /**
- * Ask the person a sign-up brought to confirm it at `typed`, the address the form carried: the email written queued and
- * its send scheduled, or why it was not. `form` is kept on the email (meta.signup_confirm), and the yes door copies it
- * onto the yes's event: what they signed up on, read off the email, never off the press. Throws when a read or a write
- * fails, for the door to log: the person is kept either way.
+ * Ask the person a sign-up brought to confirm it at `typed`: the email written queued and its send scheduled, or why
+ * it was not. `from` is who asks: the form itself (its words kept on the email, meta.signup_confirm.form, which the yes
+ * door copies onto the yes's event: what they signed up on, read off the email, never off the press), or a member,
+ * whose ask is for someone who signed up on the website alone and keeps the form their last ask carried. Throws when a
+ * read or a write fails, for the caller to log: the person is kept either way.
  */
 async function askToConfirm(
   db: Db,
-  p: { tenantId: string; contactId: string; typed: string; form: WebsiteFormInput; nowMs: number },
+  p: {
+    tenantId: string;
+    contactId: string;
+    typed: string;
+    nowMs: number;
+    from: { form: WebsiteFormInput } | { member: string | null };
+  },
 ): Promise<SignupAsked> {
   const typed = p.typed.trim().toLowerCase();
   const key = signupAddressKey(typed);
@@ -63,6 +88,8 @@ async function askToConfirm(
   ]);
   // A deployment that cannot send email, or seal the link, has no mailbox to ask from as surely as a workspace without one.
   const sendsAs = mailbox && domain && emailCanSend() && secret ? { mailbox, domain, secret } : null;
+  // A member asks only someone the website brought: the email says they signed up there.
+  if ("member" in p.from && facts.person && !facts.person.fromWebsite) return { asked: false, why: "not_from_website" };
   const why = signupAskRefusal(typed, { ...facts, mailbox: !!sendsAs });
   if (why || !sendsAs) return { asked: false, why: why ?? "no_mailbox" };
 
@@ -98,16 +125,10 @@ async function askToConfirm(
   const meta: Json = {
     source: SIGNUP_CONFIRM_SOURCE,
     email: { subject: request.subject, to: [typed], request: { ...request } },
-    signup_confirm: {
-      key,
-      form: {
-        form: p.form.form,
-        page: p.form.page ?? null,
-        about: p.form.about ?? null,
-        lang: p.form.lang ?? null,
-        at: p.form.at ?? null,
-      },
-    },
+    signup_confirm:
+      "member" in p.from
+        ? { key, form: facts.lastForm ?? signedUpOn({ form: "signup" }), by: p.from.member }
+        : { key, form: signedUpOn(p.from.form) },
   };
   const wrote = await insertQueuedEmail(db, {
     id: messageId,
@@ -149,12 +170,47 @@ export async function askIfSignup(
       tenantId: p.tenantId,
       contactId: p.contactId,
       typed: p.email,
-      form: p.form,
       nowMs: p.nowMs,
+      from: { form: p.form },
     });
     return r.asked ? "asked" : r.why;
   } catch (e) {
     L.error("website_form_failed", { tenant_id: p.tenantId, step: "ask", error: errField(e) });
     return null;
+  }
+}
+
+/**
+ * POST /api/admin/email/signup-confirm, a member's ask from the person's page (Ask to confirm, Ask again): the ask for the
+ * person `contact_id` names, at the address their page has, by the member the token names. Answers `{ ok, asked, why }`:
+ * a refusal of the rules (contracts signupAskRefusal, and not_from_website, no_email) is an answer, said in the page's
+ * words by the dashboard, never an error. A read or a write that fails is a 502.
+ */
+export async function askAgain(
+  auth: Admitted,
+  body: Partial<{ tenant_id: string; user_id: string; contact_id: string }>,
+): Promise<Response> {
+  const ws = workspaceFor(auth, body.tenant_id);
+  if (!ws.ok) return ws.response;
+  const tenantId = ws.tenantId ?? "";
+  if (!UUID.test(tenantId)) return refuse(400, "bad_tenant", "tenant_id (a workspace id) is required");
+  const contactId = typeof body.contact_id === "string" ? body.contact_id : "";
+  if (!UUID.test(contactId)) return refuse(400, "bad_request", "contact_id (a person's id) is required");
+  const db = pg();
+  if (!db) return refuse(503, "no_database");
+  try {
+    const email = await contactEmailOf(db, tenantId, contactId);
+    if (!email) return json(200, { ok: true, asked: false, why: "no_email" });
+    const r = await askToConfirm(db, {
+      tenantId,
+      contactId,
+      typed: email,
+      nowMs: Date.now(),
+      from: { member: personFor(auth, body.user_id) },
+    });
+    return json(200, { ok: true, asked: r.asked, why: r.asked ? null : r.why });
+  } catch (e) {
+    logger({ tenant_id: tenantId }).error("signup_confirm_failed", { step: "ask_again", error: errField(e) });
+    return refuse(502, "could_not_queue", "the confirmation could not be written");
   }
 }
