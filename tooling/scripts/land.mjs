@@ -38,6 +38,7 @@
  */
 import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -78,32 +79,47 @@ export const isRetired = (file) =>
 
 /** The pages whose number blocks and drawn tree left them that day, each block now a pointer (decision 0074). */
 export const BLOCK_PAGES = ["docs/architecture.md", "docs/debt.md", "docs/takeover.md"];
-const BLOCK_MARK = /<!-- (measured|tree):(start|end) -->/;
+const BLOCK_MARK = /^<!-- (measured|tree):(start|end) -->$/m;
+
+/** A page without its measured and tree blocks, each from its start marker to its end marker. */
+export function withoutBlocks(text) {
+  const out = [];
+  let inside = null;
+  for (const line of text.split("\n")) {
+    const mark = /^<!-- (measured|tree):(start|end) -->$/.exec(line.trim());
+    if (mark?.[2] === "start") inside = mark[1];
+    else if (mark?.[2] === "end" && inside === mark[1]) inside = null;
+    else if (!inside) out.push(line);
+  }
+  return out.join("\n");
+}
+
+/** `git merge-file` of three texts: the merged text, or null where they still conflict. */
+function mergeFile(ours, base, theirs) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "land-page-"));
+  try {
+    const files = Object.entries({ ours, base, theirs }).map(([name, text]) => {
+      fs.writeFileSync(path.join(dir, name), text);
+      return path.join(dir, name);
+    });
+    const merged = spawnSync("git", ["merge-file", "-p", ...files], { encoding: "utf8" });
+    return merged.status === 0 ? merged.stdout : null;
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
 
 /**
- * A page's conflicts settled where each is a block main retired: a hunk whose branch side holds a measured or tree block's
- * marker, and whose main side holds none, is main's side. The page as settled, or null when any hunk is another's (a
- * person's, as any conflict). Either conflict style: a diff3 hunk's base lines are dropped with the branch's.
+ * A page main took its blocks out of, merged with the branch's own changes: the branch's side and the base's without
+ * their blocks, merged with main's (`git merge-file`), so a number the branch banked in a block goes with the block and
+ * a row it wrote is kept. The three are the conflict's own (the index's stages 1 to 3). Null where the branch's page has
+ * no block, main's still has one, or what is left still conflicts: a person's, as any conflict. The merge is of the
+ * texts, not of git's markers, which the diff algorithm draws differently from one git to the next.
  */
-export function mainsBlocks(text) {
-  const out = [];
-  let side = null;
-  let ours = [];
-  let theirs = [];
-  let settled = 0;
-  for (const line of text.split("\n")) {
-    if (side === null && line.startsWith("<<<<<<< ")) [side, ours, theirs] = ["ours", [], []];
-    else if (side === "ours" && line.startsWith("||||||| ")) side = "base";
-    else if ((side === "ours" || side === "base") && line === "=======") side = "theirs";
-    else if (side === "theirs" && line.startsWith(">>>>>>> ")) {
-      if (!ours.some((l) => BLOCK_MARK.test(l)) || theirs.some((l) => BLOCK_MARK.test(l))) return null;
-      out.push(...theirs);
-      [side, settled] = [null, settled + 1];
-    } else if (side === "ours") ours.push(line);
-    else if (side === "theirs") theirs.push(line);
-    else if (side === null) out.push(line);
-  }
-  return settled && side === null ? out.join("\n") : null;
+export function mainsBlocks({ base, ours, theirs }) {
+  if (base === null || ours === null || theirs === null) return null;
+  if (!BLOCK_MARK.test(ours) || BLOCK_MARK.test(theirs)) return null;
+  return mergeFile(withoutBlocks(ours), withoutBlocks(base), theirs);
 }
 
 /** The migrations among a branch's added files (`git diff --diff-filter=A`): each holds its auto-merge (step 5). */
@@ -182,8 +198,12 @@ function resolve(replayAsked) {
   // A retired baseline is not ignored as a dist is, so it leaves the working tree too, or the add below would keep it.
   if (retired.length) git("rm", "-r", "-q", "-f", "--ignore-unmatch", "--", ...retired);
   const pages = [];
+  const stage = (n, page) => {
+    const shown = tryGit("show", `:${n}:${page}`);
+    return shown.status === 0 ? shown.stdout : null;
+  };
   for (const page of blocks) {
-    const text = mainsBlocks(fs.readFileSync(path.join(ROOT, page), "utf8"));
+    const text = mainsBlocks({ base: stage(1, page), ours: stage(2, page), theirs: stage(3, page) });
     if (text === null) byHand.push(page);
     else pages.push([page, text]);
   }

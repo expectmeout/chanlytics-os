@@ -26,6 +26,7 @@ import {
   isReplayed,
   isRetired,
   mainsBlocks,
+  withoutBlocks,
   isWritten,
   migrationsAdded,
   REPLAYED,
@@ -148,43 +149,55 @@ test("a dist or a baseline a branch from before 28 October 2026 changed leaves i
 test("a conflict in a block main retired takes main's pointer, and any other conflict on the page stays a person's", () => {
   assert.deepEqual(settle(["docs/debt.md", "docs/glossary.md"], false).blocks, ["docs/debt.md"]);
   assert.deepEqual(BLOCK_PAGES.toSorted(), ["docs/architecture.md", "docs/debt.md", "docs/takeover.md"]);
-  // A real merge, so the markers are git's own: a branch that banked a number in the block, and main that replaced the
-  // block with its pointer.
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "land-blocks-"));
-  const g = (...args) =>
-    execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@example.com", ...args], { cwd: dir });
-  const page = (block, tail = "What retires it is a person's.") =>
-    `# The register\n\nRows above.\n\n${block}\n\n${tail}\n`;
   const block = (n) =>
     `<!-- measured:start -->\n\n\`\`\`text\nfunctions over the limit  ${n}\n\`\`\`\n\n<!-- measured:end -->`;
   const pointer = "The numbers are measured, never kept: corepack pnpm check:debt -- --totals.";
-  try {
-    g("init", "-q", "-b", "main");
-    fs.writeFileSync(path.join(dir, "debt.md"), page(block(47)));
-    g("add", "-A");
-    g("commit", "-q", "-m", "base");
-    g("checkout", "-q", "-b", "lane");
-    fs.writeFileSync(path.join(dir, "debt.md"), page(block(46)));
-    g("commit", "-q", "-am", "the lane banks a fall");
-    g("checkout", "-q", "main");
-    fs.writeFileSync(path.join(dir, "debt.md"), page(pointer));
-    g("commit", "-q", "-am", "main keeps no number");
-    g("checkout", "-q", "lane");
-    assert.notEqual(spawnSync("git", ["merge", "-q", "main"], { cwd: dir }).status, 0, "they conflict");
-    const merged = fs.readFileSync(path.join(dir, "debt.md"), "utf8");
-    assert.equal(mainsBlocks(merged), page(pointer), "main's pointer, and the page around it untouched");
-    // The same page with a conflict in a row a person wrote: not a block, so nothing on the page is settled.
-    const withRow = `${merged}<<<<<<< HEAD\nthe lane's row\n=======\nmain's row\n>>>>>>> main\n`;
-    assert.equal(mainsBlocks(withRow), null);
-    // A hunk whose main side still draws a block is not one main retired.
-    assert.equal(mainsBlocks(`<<<<<<< HEAD\n${block(46)}\n=======\n${block(48)}\n>>>>>>> main\n`), null);
-    // diff3's base lines go with the branch's side.
-    const diff3 = `a\n<<<<<<< HEAD\n${block(46)}\n||||||| base\n${block(47)}\n=======\n${pointer}\n>>>>>>> main\nb`;
-    assert.equal(mainsBlocks(diff3), `a\n${pointer}\nb`);
-    assert.equal(mainsBlocks("no conflict at all"), null, "nothing to settle is not a settlement");
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
+  const page = (middle, rows = "| A row |") =>
+    `# The register\n\n${rows}\n\n${middle}\n\nWhat retires it is a person's.\n`;
+  // A real merge, under each diff algorithm: a branch that banked a number in the block and wrote a row, and main that
+  // replaced the block with its pointer. What is settled is the conflict's own three texts, the index's stages, never
+  // git's markers, which an algorithm may draw apart.
+  for (const algorithm of ["myers", "histogram"]) {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "land-blocks-"));
+    // Every call names who commits, the merge's too: a runner has no identity of its own, and git refuses a merge
+    // without one before it draws any conflict.
+    const flags = ["-c", "user.name=t", "-c", "user.email=t@example.com", "-c", `diff.algorithm=${algorithm}`];
+    const g = (...args) => execFileSync("git", [...flags, ...args], { cwd: dir, encoding: "utf8" });
+    try {
+      g("init", "-q", "-b", "main");
+      fs.writeFileSync(path.join(dir, "debt.md"), page(block(47)));
+      g("add", "-A");
+      g("commit", "-q", "-m", "base");
+      g("checkout", "-q", "-b", "lane");
+      fs.writeFileSync(path.join(dir, "debt.md"), page(block(46), "| A row |\n| The lane's row |"));
+      g("commit", "-q", "-am", "the lane banks a fall and writes a row");
+      g("checkout", "-q", "main");
+      fs.writeFileSync(path.join(dir, "debt.md"), page(pointer));
+      g("commit", "-q", "-am", "main keeps no number");
+      g("checkout", "-q", "lane");
+      const merge = spawnSync("git", [...flags, "merge", "-q", "main"], { cwd: dir, encoding: "utf8" });
+      assert.match(merge.stdout + merge.stderr, /CONFLICT/, `${algorithm}: they conflict`);
+      const [base, ours, theirs] = [1, 2, 3].map((n) => g("show", `:${n}:debt.md`));
+      assert.equal(
+        mainsBlocks({ base, ours, theirs }),
+        page(pointer, "| A row |\n| The lane's row |"),
+        `${algorithm}: main's pointer, the lane's row kept, the page around them untouched`,
+      );
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   }
+  // A row both changed is a person's, block or none.
+  const base = page(block(47));
+  assert.equal(
+    mainsBlocks({ base, ours: page(block(46), "| The lane's |"), theirs: page(pointer, "| Main's |") }),
+    null,
+  );
+  // A page main still draws a block on, or one the branch's side has none on, is not one main retired.
+  assert.equal(mainsBlocks({ base, ours: page(block(46)), theirs: page(block(48)) }), null);
+  assert.equal(mainsBlocks({ base, ours: page(pointer, "| x |"), theirs: page(pointer) }), null);
+  assert.equal(mainsBlocks({ base: null, ours: page(block(46)), theirs: page(pointer) }), null, "added on both sides");
+  assert.equal(withoutBlocks(`a\n<!-- tree:start -->\nx/\n<!-- tree:end -->\nb`), "a\nb");
 });
 
 test("a pull request that adds a migration never merges itself: land holds its auto-merge until it is applied", () => {
