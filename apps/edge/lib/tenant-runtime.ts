@@ -23,12 +23,14 @@ import {
 import {
   activeWhatsappNumbers,
   templatesToSend,
+  textLineFacts,
   whatsappLineOf,
   workspaceNamed,
   type RoutedChannel,
   type WhatsappNumberRow,
 } from "./packages/db.js";
 import {
+  textRefusal,
   whatsappSender,
   wireUnavailable,
   WireUnavailableError,
@@ -233,6 +235,17 @@ const bookingMessageOf = (db: SupabaseClient<Database>, tenantId: string): Promi
     () => null,
   );
 
+/**
+ * Whether the workspace has a texting line the send door would let a text leave on (core textRefusal: active with the
+ * carriers, no test filing): a call may send the booking link by text only with one. A read that fails is not known
+ * (null), which offers no text.
+ */
+const textingLineOf = (db: SupabaseClient<Database>, tenantId: string): Promise<boolean | null> =>
+  textLineFacts(db, tenantId).then(
+    (line) => textRefusal("conversational", line) === null,
+    () => null,
+  );
+
 /** The configuration's parts the runtime carries: none of them where the configuration did not parse. */
 const configParts = (parsed: TenantConfig | null) => ({
   brain: parsed?.brain ?? null,
@@ -252,7 +265,7 @@ export async function loadTenantRuntime(db: SupabaseClient<Database>, routed: Ro
   }
 
   try {
-    const [cfgQ, polQ, credsQ, tzQ, stamp, chanQ, listQ, bookingMessage] = await Promise.all([
+    const [cfgQ, polQ, credsQ, tzQ, stamp, chanQ, listQ, bookingMessage, textingLine] = await Promise.all([
       db.from("tenant_config").select("config, version").eq("tenant_id", routed.tenantId).maybeSingle(),
       db.from("policies").select("class, mode, limits").eq("tenant_id", routed.tenantId).is("subject_type", null),
       // WhatsApp credentials belong to the tenant's WHATSAPP channel, not to
@@ -278,6 +291,7 @@ export async function loadTenantRuntime(db: SupabaseClient<Database>, routed: Ro
       db.from("tenant_channels").select("kind, number_e164, status").eq("tenant_id", routed.tenantId),
       db.from("google_listings").select("name, address").eq("tenant_id", routed.tenantId).maybeSingle(),
       bookingMessageOf(db, routed.tenantId),
+      textingLineOf(db, routed.tenantId),
     ]);
     if (cfgQ.error) throw new Error(cfgQ.error.message);
     if (polQ.error) throw new Error(polQ.error.message);
@@ -326,6 +340,7 @@ export async function loadTenantRuntime(db: SupabaseClient<Database>, routed: Ro
         channels: chanQ.error ? [] : (chanQ.data ?? []),
         listing: listQ.error ? null : (listQ.data ?? null),
         booking_message: bookingMessage,
+        texting_line: textingLine,
       },
       ...configState(parseResult.ok, cfgQ.data),
       loadFailed: false,

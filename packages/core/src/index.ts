@@ -1,7 +1,8 @@
 /**
  * The one place @chanlytics/core's public values are named. tsup builds this file alone and package.json exports only
  * ".", so a name that is not written here cannot be reached from an app. In order: the send door (deliver.ts: deliver,
- * deliverSafely, templatePurpose and the types of what they take and return), the wire senders (wire-senders.ts: the
+ * deliverSafely, templatePurpose and the types of what they take and return; deliver-text.ts: what it holds a text to,
+ * which a call asks before it offers one), the wire senders (wire-senders.ts: the
  * WhatsApp and email Senders, and the errors and guards for a wire that could not be bound and for a send the provider
  * did not take), each domain folder's own index.ts (conversations, messages, campaigns, leads, inbound), then the
  * booking-page reading. html.ts and uuid-v5.ts are core's own helpers and are not exported.
@@ -14,6 +15,7 @@
  * code never imports its values (eslint.config.mjs), and a change here is rebuilt into packages/core/dist.
  */
 export { deliver, templatePurpose, deliverSafely } from "./deliver";
+export { textRefusal } from "./deliver-text";
 export {
   whatsappSender,
   whatsappWire,

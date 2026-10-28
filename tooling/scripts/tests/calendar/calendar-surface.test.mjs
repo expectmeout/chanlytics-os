@@ -62,7 +62,9 @@ test("the tab's cache gives the Calendar's value back before React draws, so a r
   values.setSurfaceValue("calendar", CALENDAR);
   cache.snapshotSurface("calendar", [], "t-salon", undefined, "calendar");
   cache.flushSurfaceCache();
-  assert.deepEqual(JSON.parse(globalThis.localStorage.peek(CACHE)).surfaces.calendar, { $value: CALENDAR });
+  // What it was kept under rides beside it (#1881: the build, its shape, when), never a window global's name.
+  const valueOf = ({ $kept, ...rest }) => (assert.deepEqual(Object.keys($kept).sort(), ["at", "build", "shape"]), rest);
+  assert.deepEqual(valueOf(JSON.parse(globalThis.localStorage.peek(CACHE)).surfaces.calendar), { $value: CALENDAR });
   values.setSurfaceValue("calendar", undefined);
   assert.ok(cache.hydrateSurfaceCache().has("calendar"), "the surface has its real data before it draws");
   assert.deepEqual(values.surfaceValue("calendar"), CALENDAR);

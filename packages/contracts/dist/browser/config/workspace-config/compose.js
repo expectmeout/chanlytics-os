@@ -1,4 +1,12 @@
-import { NO_LINK_DETAILS, cannotSendLink, offersBookingLink, offersLinkOn, priceNextStep } from "../no-booking-link.js";
+import {
+  callBookingLine,
+  callLinkWays,
+  cannotSendLink,
+  NO_LINK_DETAILS,
+  offersBookingLink,
+  offersLinkOn,
+  priceNextStep
+} from "../no-booking-link.js";
 import { guardrailsInForce } from "./config-rules.js";
 import { bookingHeld, policyRules } from "./policy-classes.js";
 import { DATA_NOT_INSTRUCTIONS } from "../../ai/fence.js";
@@ -115,7 +123,13 @@ export function composeSystemPrompt(base, profile, channel = "whatsapp", tz, now
 function composeSystemPromptWith(base, profile, wire, tz, now, policy, audience) {
   const channel = wire === "voice" ? "voice" : "whatsapp";
   const link = offersBookingLink(base) ? base.booking_link : null;
-  const handed = offersLinkOn(channel === "voice" ? "call" : "chat", base, base.whatsapp_line, base.booking_message) ? link : null;
+  const handed = offersLinkOn(
+    channel === "voice" ? "call" : "chat",
+    base,
+    base.whatsapp_line,
+    base.booking_message,
+    base.texting_line
+  ) ? link : null;
   const hrs = hoursLines(profile.hours);
   const today = businessToday(tz, now);
   const closed = closureLines(upcomingClosures(profile.closures, today));
@@ -283,16 +297,8 @@ function callToolsSection({ base, channel, link, handed }) {
     s.push(
       `
 ${PROMPT_OPENINGS.callTools} before offering a time \u2014 it reads the calendar as it is at that moment (a list at the end of these instructions, if any, is from the start of the call). Ask which service first when you can, so only windows long enough are offered.
-` + (handed ? (
-        // Asked first (decision 0073, R14): the link only arrives on a number that has WhatsApp, and a caller who says
-        // no is never sent a message that cannot reach them.
-        `Booking: when the caller wants to book, first ask "Do you use WhatsApp on this number?" If they do, use send_booking_link \u2014 it sends the booking link to the caller's WhatsApp, on the number they are calling from, so do not ask them for a number unless they want it sent somewhere else. Tell them it comes by WhatsApp, not as a text message. Then say what the tool answers: it waits a moment for WhatsApp's own answer, so it tells you whether it arrived. ` + // A number to give only where there is one other than the line they are ringing (resolveSystemPrompt).
-        (base.phone_display ? `If they do not use WhatsApp there, or it fails, take ${NO_LINK_DETAILS}, give the phone number above, and offer to have someone follow up.
-` : `If they do not use WhatsApp there, or it fails, take ${NO_LINK_DETAILS} and offer to have someone follow up.
-`)
-      ) : link ? `${cannotSendLink(base.whatsapp_line)}
-` : `${noLinkBooking("voice")}
-`) + "Ending: once the caller has said goodbye, use end_call."
+${handed ? callBookingLine(base) : link ? cannotSendLink(base.whatsapp_line) : noLinkBooking("voice")}
+Ending: once the caller has said goodbye, use end_call.`
     );
   }
   return s;
@@ -319,9 +325,11 @@ ${text}`);
   }
   return s;
 }
-function mediumSection({ channel, link, handed }) {
+function mediumSection({ base, channel, link, handed }) {
   const s = [];
-  const callMedium = handed ? "Keep answers to one or two sentences, never read a URL out character by character, and offer to send the booking link to the caller's WhatsApp instead." : "Keep answers to one or two sentences, and never read a URL out character by character.";
+  const ways = callLinkWays(base, base.whatsapp_line, base.booking_message, base.texting_line);
+  const by = ways.whatsapp ? ways.text ? "to the caller's WhatsApp or by text" : "to the caller's WhatsApp" : "by text";
+  const callMedium = handed ? `Keep answers to one or two sentences, never read a URL out character by character, and offer to send the booking link ${by} instead.` : "Keep answers to one or two sentences, and never read a URL out character by character.";
   const chatMedium = link ? "Send the booking link rather than describing how to book." : noLinkBooking("whatsapp");
   s.push(
     channel === "voice" ? `

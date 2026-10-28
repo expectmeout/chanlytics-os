@@ -4959,6 +4959,12 @@ interface KnownFacts {
      * it was not read, which offers it as before, and the tool says so when there is none.
      */
     booking_message?: boolean | null;
+    /**
+     * Whether the workspace has a texting line the carriers approved, as the send door asks it (core deliver-text.ts: the
+     * line a text leaves on, active and no test filing): a call may send the booking link by text only with one. Absent or
+     * null where it was not read, which offers no text: the call never promises what the door may refuse.
+     */
+    texting_line?: boolean | null;
 }
 /** The brain fields this resolves over. A subset, so callers need not have parsed everything. */
 interface TypedFacts {
@@ -28946,7 +28952,8 @@ declare function composeSystemPrompt(
  * `whatsapp_line` is the WhatsApp number the platform provisioned (facts.ts), or null: only a workspace with one is
  * told to ask for the yes to offers, which goes by WhatsApp alone (offers-ask.ts). Required, so a caller says.
  * `booking_message` is whether Meta approved the message a call sends the link in (facts.ts; R14): false, a call
- * offers no link; absent or null, not read, and offered as before.
+ * offers no link by WhatsApp; absent or null, not read, and offered as before. `texting_line` is whether a texting
+ * line the carriers approved is there (facts.ts): only true lets a call send the link by text.
  */
 base: {
     business_name: string;
@@ -28954,6 +28961,7 @@ base: {
     booking_link: string | null;
     whatsapp_line: string | null;
     booking_message?: boolean | null;
+    texting_line?: boolean | null;
 }, profile: BusinessProfile, 
 /** Where it answers: a text and a DM are chats, as WhatsApp is, and each is told the wire it is answering on. */
 channel?: PromptWire, 
@@ -29902,7 +29910,7 @@ declare function handoffWords(reasons: readonly string[] | null | undefined, tra
  * The tab sets the inputs to three of the phone agent's four tools
  * (`check_availability`, `send_booking_link`, `transfer_to_staff`) and has
  * never said a tool exists. An owner could not know their phone agent sends
- * the booking link to a caller's WhatsApp.
+ * the booking link to a caller's WhatsApp, or by text when WhatsApp can't carry it.
  *
  * Computed from what the records show, never typed: an ability is ready only
  * when its channel is live and its input is filled. A channel says what the
@@ -29911,7 +29919,8 @@ declare function handoffWords(reasons: readonly string[] | null | undefined, tra
  * row disagreeing with itself, and the card's one signal is the pair of them.
  * So `ready` is exactly "one of the two channels does it". Every sentence below was
  * checked against the code it describes, because the first draft of three of
- * them was not true: the link goes by WhatsApp and never by text, a transfer
+ * them was not true: the link went by WhatsApp and never by text (until a call
+ * learned to text it, the live walk's SET-2, 28 Oct 2026), a transfer
  * happens only during opening hours and stays on the line, and a hand-off is a
  * pause that ends, not a stop.
  *
@@ -29926,6 +29935,11 @@ interface AbilityInputs {
     hasBookingLink: boolean;
     /** An approved booking-link template: the call sends the link as one (template-order bookingTemplate). */
     hasBookingTemplate: boolean;
+    /**
+     * A texting line the carriers approved (capabilityStatus "sms" ready: active, no test filing, the send door's own
+     * question): a call sends the link by text when WhatsApp cannot carry it (retell-fn, call-link-send.ts).
+     */
+    textingLine: boolean;
     hasHandoffNumber: boolean;
     hasEscalateWhen: boolean;
     /**
@@ -30079,23 +30093,22 @@ declare function offersBookingLink(brain: {
 } | null | undefined): boolean;
 /**
  * Whether the receptionist may offer to hand over the booking link where it is speaking. In chat the link is sent in
- * the thread, so a link is enough. A call can only send it by WhatsApp (retell-fn delivers it on the WhatsApp channel),
- * so it needs a WhatsApp line that answers too (facts.ts whatsapp_line), and a booking-link message Meta approved
- * (facts.ts booking_message, decision 0073, R14): without one nothing can go, so nothing is offered. Not read (null), it
- * is offered as before, and retell-fn says so when there is none. Until 11 Oct 2026 a call offered the link by WhatsApp
- * on a workspace with no WhatsApp, and its record then said a link went out. One answer for every place a receptionist
- * is told it may offer the link: the prompt (compose.ts), and on a call the openings, a caller's visits, the
- * availability tool and a correction.
+ * the thread, so a link is enough. A call sends it by WhatsApp or by text (callLinkWays), so it needs one of the two:
+ * without either nothing can go, so nothing is offered. Until 11 Oct 2026 a call offered the link by WhatsApp on a
+ * workspace with no WhatsApp, and its record then said a link went out. One answer for every place a receptionist is
+ * told it may offer the link: the prompt (compose.ts), and on a call the openings, a caller's visits, the availability
+ * tool and a correction.
  */
 declare function offersLinkOn(on: "call" | "chat", brain: {
     booking_link?: string | null;
-} | null | undefined, whatsappLine: string | null, bookingMessage: boolean | null | undefined): boolean;
+} | null | undefined, whatsappLine: string | null, bookingMessage: boolean | null | undefined, textingLine: boolean | null | undefined): boolean;
 /**
- * What a call says to do when there is a booking link and no WhatsApp line to send it by (offersLinkOn): the details
- * for the team, as a business with no link takes them, and the website where the caller would rather book themselves.
+ * What a call says to do when there is a booking link and neither a WhatsApp line nor a texting line to send it by
+ * (offersLinkOn): the details for the team, as a business with no link takes them, and the website where the caller
+ * would rather book themselves.
  */
-declare const NO_WAY_TO_SEND_LINK = "Booking: the booking link can only be sent by WhatsApp, and this business has no WhatsApp line, so never use send_booking_link and never promise a link or a message. When the caller wants to book, change or cancel a booking, take their name, what they need, and where and when, and say the team will follow up. If they would rather book themselves and a website is listed above, they can book there.";
-/** What a call with a link it cannot send says instead: no WhatsApp line, or a line and no approved message. */
+declare const NO_WAY_TO_SEND_LINK = "Booking: the booking link can only be sent by WhatsApp or by text, and this business has no WhatsApp line and no texting line, so never use send_booking_link and never promise a link or a message. When the caller wants to book, change or cancel a booking, take their name, what they need, and where and when, and say the team will follow up. If they would rather book themselves and a website is listed above, they can book there.";
+/** What a call with a link it cannot send says instead: no line to send it by, or a WhatsApp line and no approved message. */
 declare const cannotSendLink: (whatsappLine: string | null) => string;
 /** What follows "a price is not mine to confirm", in the prompt's rule and a call's correction alike. */
 declare function priceNextStep(hasBookingLink: boolean): string;
@@ -47064,7 +47077,7 @@ interface RehearsalFixDto {
  * answer says so to the model, which says it to the owner playing the customer.
  */
 declare const REHEARSAL_TOOL_WORDS: {
-    readonly bookingLink: "This is a rehearsal, so nothing was sent: the owner sees the booking link on their screen. Tell the caller the link is on its way by WhatsApp, as you would on a real call.";
+    readonly bookingLink: "This is a rehearsal, so nothing was sent: the owner sees the booking link on their screen. Tell the caller the link is on its way, by WhatsApp or by text as your instructions say, as you would on a real call.";
 };
 /** What a refusal to spend says a rehearsal's call was for (the route wrapper's requireSpend). */
 declare const SPEND_REHEARSE: SpendWords;
@@ -54294,6 +54307,11 @@ type SenderLanguage = "en" | "es";
 interface SenderWords {
     /** The line under every text, which is also the footer of a starter's WhatsApp message. */
     textStop: string;
+    /**
+     * The booking link texted to a caller who asked for it on the phone (retell-fn's send_booking_link by text): who it is
+     * from first, as every sample the carriers approved opens, then the link as the owner wrote it.
+     */
+    linkAsked: (who: string, link: string) => string;
     /** The way out of a message about a visit: it carries no unsubscribe link, so a reply of STOP is how a person stops it. */
     emailStop: string;
     /** What a reach-out's email says it is: CAN-SPAM asks a commercial email to identify itself as one. */

@@ -648,8 +648,9 @@ test("with no calendar, or one that cannot be read, no time is guessed -- and un
     const auto = await askedHeld(heldWorkspace({ calendar }));
     assert.match(auto, reason, String(calendar));
     assert.doesNotMatch(auto, A_TIME, `${calendar}: no time guessed`);
+    // How the link goes (WhatsApp, or a text where there is a line) is the call's instructions' to say, not this answer's.
     assert.ok(
-      auto.includes("send the booking link to the caller's WhatsApp"),
+      auto.includes("Offer to send the booking link — it shows the open times"),
       `${calendar}: on auto the link goes instead, and it shows the open times`,
     );
 

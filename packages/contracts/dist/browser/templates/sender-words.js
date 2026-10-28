@@ -2,6 +2,7 @@ import { languageBase } from "./template-languages.js";
 export const SENDER_WORDS = {
   en: {
     textStop: "Reply STOP to opt out",
+    linkAsked: (who, link) => `${who}: here's the link to book, as you asked on the phone: ${link}`,
     emailStop: "Reply STOP to stop these emails.",
     marketing: "This is a marketing email.",
     noThanks: `Not interested? Reply "no thanks" and I won't write again`,
@@ -15,6 +16,7 @@ export const SENDER_WORDS = {
   },
   es: {
     textStop: "Responde STOP para darte de baja",
+    linkAsked: (who, link) => `${who}: aqu\xED tienes el enlace para reservar, como pediste por tel\xE9fono: ${link}`,
     emailStop: "Responde STOP para dejar de recibir estos correos.",
     marketing: "Este es un correo de marketing.",
     noThanks: `\xBFNo te interesa? Responde "no, gracias" y no volver\xE9 a escribirte`,

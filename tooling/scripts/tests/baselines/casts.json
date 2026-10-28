@@ -220,9 +220,6 @@
   "apps/edge/lib/sms/sms.ts": {
     "unknownAs": 1
   },
-  "apps/edge/lib/voice/call-booking-link.ts": {
-    "nonNull": 1
-  },
   "apps/edge/lib/voice/call-webhook.ts": {
     "unknownAs": 2,
     "nonNull": 1
