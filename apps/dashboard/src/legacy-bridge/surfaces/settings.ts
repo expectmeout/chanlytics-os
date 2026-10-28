@@ -15,6 +15,7 @@ import {
   templateUseNote,
   templateUseWords,
   type CampaignMessage,
+  type PolicyLimits,
   type TemplateSentWords,
   type ResolvedFacts,
   type FactConflict,
@@ -27,6 +28,7 @@ import type { Output } from "../../client/api";
 import type { SurfaceOverride } from "../surface-data";
 import { declareReads } from "../surface-registry";
 import type { TemplateDto } from "@/surfaces/inbox/types";
+import type { StoredProfile } from "@/surfaces/settings/business/save";
 import { setSurfaceValue } from "../../surfaces/surface-values";
 
 /**
@@ -46,7 +48,12 @@ export interface WorkspaceSettings {
     business_name?: string;
     phone_display?: string;
     booking_link?: string;
-    profile?: Record<string, unknown>;
+    /**
+     * The business's profile, by the fields the Business tab names (settings/business/save.tsx StoredProfile). Said, not a
+     * record of `unknown`, so the settings read's snapshot has a fingerprint and is drawn across a deploy that left its type
+     * alone (surface-cache.ts, SURFACE_SHAPES): every deploy left Settings' panes to a cold read.
+     */
+    profile?: StoredProfile;
   };
 }
 
@@ -151,10 +158,7 @@ function policiesOf(pol: Output<"GET policies">): PoliciesSurface {
     rows: (pol.policies ?? []).map((r) => ({
       class: r.class,
       mode: r.mode,
-      limits:
-        r.limits && typeof r.limits === "object" && !Array.isArray(r.limits)
-          ? (r.limits as Record<string, unknown>)
-          : {},
+      limits: r.limits && typeof r.limits === "object" && !Array.isArray(r.limits) ? (r.limits as PolicyLimits) : {},
     })),
     role: pol.role ?? null,
     // What the owner's corrections show (decision 0063): absent from a server from before, which reads as unread.

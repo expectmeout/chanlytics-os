@@ -10,7 +10,7 @@
  * The host mounts with the frame and opens the sheet through the kit's report door, so any card may offer it while the
  * frame is there and none offers a door that opens nothing.
  */
-import { useEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import {
   REPORT_KINDS,
   REPORT_KIND_WORDS,
@@ -24,7 +24,7 @@ import { REPORT_AFTER_KEY, lastClientError } from "@/client/client-error";
 import { api } from "@/legacy-bridge/api";
 import { meNow } from "../legacy-verbs";
 import { Button } from "../kit/button/button";
-import { reportDoor } from "../kit/empty/report-door";
+import { setReportDoor } from "../kit/empty/report-door";
 import { Field, fieldProblem } from "../kit/field/field";
 import { Icon } from "../kit/icon/icon";
 import { Segmented } from "../kit/segmented/segmented";
@@ -159,13 +159,12 @@ function ReportSheet({ error, opened, onClose }: { error: Caught; opened: Report
  */
 export function ReportHost() {
   const [open, setOpen] = useState<{ error: Caught; kind: ReportKind } | null>(null);
-  useEffect(() => {
-    reportDoor.open = (_what, kind) => setOpen({ error: lastClientError(), kind: kind ?? "how_to" });
+  // Before the frame is painted, so a page's door to it (Profile's Get help) is in the page's first frame.
+  useLayoutEffect(() => {
+    setReportDoor((_what, kind) => setOpen({ error: lastClientError(), kind: kind ?? "how_to" }));
     const left = leftByAnErrorScreen();
     if (left) setOpen({ ...left, kind: "wrong" });
-    return () => {
-      reportDoor.open = null;
-    };
+    return () => setReportDoor(null);
   }, []);
   return open ? <ReportSheet error={open.error} opened={open.kind} onClose={() => setOpen(null)} /> : null;
 }

@@ -192,11 +192,8 @@ test("the real set is exactly the converted surfaces", () => {
   // was never listed, fell through to the page's "demo", and a platform admin
   // who clicked Back office got the Not-in-this-release card.
   assert.equal(surfaceStateFor("admin", "platform"), "real");
-  assert.equal(
-    routeSurfaceFor("admin", "platform"),
-    "settings",
-    "and the gate waits for the settings surface, like every pane",
-  );
+  // The Console's door draws nothing of the settings read, so its gate waits for who is looking (the Settings load review).
+  assert.equal(routeSurfaceFor("admin", "platform"), "workspace", "and the gate waits for who is looking");
 });
 
 test("the shell consults the registry through one interception, not per-route conditionals", () => {
@@ -448,21 +445,28 @@ test("a lens that names its draws is asked before its page, as the gate asks for
   assert.deepEqual(registry.routeDrawsFor("clients"), []);
 });
 
-test("a pane that names its draws is asked before its page too: Settings' Connections pane draws Google's read and the channels', Notifications the member's own alerts, no other pane of Settings anything", async () => {
+test("a pane that names its draws is asked before its page too: each pane of Settings draws the partner account, and what else it stands on", async () => {
   const { routeOfPath } = await import("@chanlytics/contracts");
   // The pane's own address, the one a person opens, is the route the table names.
   assert.equal(routeOfPath("/w/acme/settings/integrations"), "admin/integrations");
-  // Its WhatsApp and phone rows are the channels read's (surfaces/channels/surface.ts; the wiring's second audit, R6).
-  assert.deepEqual(registry.ROUTE_DRAWS["admin/integrations"], ["google", "channels"], "the one row that says it");
-  assert.deepEqual(registry.routeDrawsFor("admin", "integrations"), ["google", "channels"]);
-  assert.equal(registry.routeSurfaceFor("admin", "integrations"), "settings", "its own surface is still Settings'");
-  assert.deepEqual(registry.routeSurfaces("admin", "integrations"), ["workspace", "settings", "google", "channels"]);
+  // Connections: its WhatsApp and phone rows are the channels read's (surfaces/channels/surface.ts; the wiring's second audit,
+  // R6), Google's listing its own read, its Email card Setup's mailboxes; it draws none of the settings read, so its own
+  // surface is who is looking (the Settings load review, 28 Oct 2026).
+  const integrations = ["partner", "channels", "google", "setup"];
+  assert.deepEqual(registry.ROUTE_DRAWS["admin/integrations"], integrations, "the row that says it");
+  assert.deepEqual(registry.routeDrawsFor("admin", "integrations"), integrations);
+  assert.equal(registry.routeSurfaceFor("admin", "integrations"), "workspace", "its own surface is who is looking");
+  assert.deepEqual(registry.routeSurfaces("admin", "integrations"), ["workspace", ...integrations]);
   // What reaches the member's own phones (decision 0040), read where the Notifications pane is drawn and nowhere else.
-  assert.deepEqual(registry.routeDrawsFor("admin", "notifications"), ["alerts"]);
-  assert.deepEqual(registry.routeSurfaces("admin", "notifications"), ["workspace", "settings", "alerts"]);
-  for (const pane of [undefined, null, "workspace", "profile", "team", "autonomy", "billing"])
-    assert.deepEqual(registry.routeDrawsFor("admin", pane), [], String(pane));
-  assert.deepEqual(registry.routeSurfaces("admin", "team"), ["workspace", "settings"]);
+  assert.deepEqual(registry.routeDrawsFor("admin", "notifications"), ["partner", "alerts"]);
+  assert.deepEqual(registry.routeSurfaces("admin", "notifications"), ["workspace", "settings", "partner", "alerts"]);
+  // A pane drawn from the settings read, and drawing nothing else, draws the partner account beside it (the rail's Partner).
+  for (const pane of [undefined, null, "workspace", "profile", "team", "autonomy"])
+    assert.deepEqual(registry.routeDrawsFor("admin", pane), ["partner"], String(pane));
+  assert.deepEqual(registry.routeSurfaces("admin", "team"), ["workspace", "settings", "partner"]);
+  // And a pane drawn from none of it stands on who is looking, with its own read beside it.
+  assert.deepEqual(registry.routeSurfaces("admin", "billing"), ["workspace", "partner", "billing"]);
+  assert.deepEqual(registry.routeSurfaces("admin", "memory"), ["workspace", "partner", "ask_memory"]);
 });
 
 test("the flipped pages still resolve exactly as before", () => {

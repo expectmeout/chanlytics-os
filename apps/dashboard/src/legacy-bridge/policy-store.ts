@@ -9,6 +9,7 @@ import {
   type SequenceEvidenceDto,
   type OwnModesDto,
   type PolicyClass,
+  type PolicyLimits,
   type PolicyMode,
 } from "@chanlytics/contracts";
 /**
@@ -125,7 +126,11 @@ export const UI_ROWS: readonly UiRowMeta[] = [
 export interface PolicyRecordLike {
   class: string;
   mode: string;
-  limits?: Record<string, unknown> | null;
+  /**
+   * The row's dials, as the policies' schema holds them (contracts PolicyLimitsSchema): said, not a record of `unknown`, so
+   * the settings read's snapshot has a fingerprint (surface-cache.ts, SURFACE_SHAPES).
+   */
+  limits?: PolicyLimits | null;
 }
 
 /** What the settings override publishes as `window.__POLICIES`. */
@@ -148,7 +153,7 @@ export interface UiRow extends UiRowMeta {
   /** The stored mode as the UI spells it; null when no row exists. Money is
    *  always Never: the trigger makes anything else impossible. */
   mode: UiMode | null;
-  limits: Record<string, unknown>;
+  limits: PolicyLimits;
 }
 
 const EMPTY: PoliciesSurface = { rows: [], role: null };

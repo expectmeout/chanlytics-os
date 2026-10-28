@@ -12,8 +12,6 @@ import { useSlide } from "../../kit/motion/use-slide";
 import { viewDeck } from "../../kit/motion/view-deck";
 import { recFolds } from "../../kit/record/registry";
 import { RecordRow } from "../../kit/record/row";
-import { activity } from "@/legacy-bridge/activity";
-import { reachFor } from "@/legacy-bridge/workspace";
 import { useLegacyToast, type LegacyFlash } from "../../legacy-verbs";
 import { useSurface } from "../../use-surface";
 import { PaneActivity } from "../activity/pane";
@@ -27,6 +25,7 @@ import { PanePartner } from "../partner/pane";
 import { PaneTeam } from "../partner/team-card";
 import { PaneProfile } from "../profile/pane";
 import { SettingsList } from "./list";
+import { warmSettingsPane } from "./pane-reads";
 import {
   SETTINGS_PHONE_QUERY,
   SET_TAB,
@@ -42,15 +41,15 @@ import { PaneWorkspace, WorkspaceData } from "./workspace";
 type Flash = (f: LegacyFlash) => void;
 
 /**
- * A pane whose read is worth starting when the pointer or the keyboard reaches its tab: by the time the click lands,
- * its rows are in hand. The reads share one request with the pane's own (client/api.ts) and no-op once the answer is
- * cached, so this costs nothing a visit was not going to spend.
+ * Each pane, warmed when the pointer, a finger or the keyboard reaches its row: by the time the press lands, its rows are in
+ * hand. What it reads only where it is drawn (Google's listing, Ask's memory, the member's alerts) and what it reads that is
+ * no surface (pane-reads.ts) share one request with the pane's own (client/api.ts) and no-op once the tab holds the answer,
+ * so this costs nothing a visit was not going to spend. Activity and Connections were warmed alone, and every other pane
+ * drew a "Reading" line or nothing first on a press (the Settings load review, 28 Oct 2026).
  */
-const WARM: Partial<Record<string, () => void>> = {
-  activity: () => activity.warm({}),
-  // Connections draws Google's listing, which is read only where it is drawn: reached for, it is read before the press.
-  integrations: () => reachFor("admin/integrations"),
-};
+const WARM: Partial<Record<string, () => void>> = Object.fromEntries(
+  SET_TABS.map((t) => [t.id, () => warmSettingsPane(t.id)]),
+);
 
 // The open section's row, brought into view in the rail. A callback ref, not an effect: it runs when a row becomes
 // the open one and at no other time.

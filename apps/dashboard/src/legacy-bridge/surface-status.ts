@@ -111,6 +111,23 @@ export function codeOutFor(page: string): boolean {
 }
 
 /**
+ * Settled once each of these surfaces holds its rows or has failed (a hydrated one holds them already): what a first draw
+ * that waits for them is held by (firstDrawWaitsFor), on a load alone, so a move between a page's panes never waits for one
+ * read only where it is drawn (Settings, settings/frame/pane-reads.ts).
+ */
+export function surfacesSettled(keys: readonly string[]): Promise<void> {
+  const settled = () => keys.every((k) => ready.has(k) || failed.has(k));
+  if (settled()) return Promise.resolve();
+  return new Promise<void>((done) => {
+    const off = onSurfaceStatusChange(() => {
+      if (!settled()) return;
+      off();
+      done();
+    });
+  });
+}
+
+/**
  * Whether this device can reach the workspace, and whether the live feed that
  * keeps the surfaces current is up. Kept beside the surfaces' own status, and
  * heard through the same listeners, because the shell reads them together: a

@@ -618,6 +618,8 @@ test("what the page on screen draws from other surfaces follows its own surface,
         "../surfaces/leads/override",
         "google",
         "../surfaces/settings/billing/surface",
+        // The partner account every pane of Settings draws, the rail's Partner (the Settings load review, 28 Oct 2026).
+        "../surfaces/settings/partner/surface",
         "reach-out/replies",
         "../surfaces/channels/surface",
         "../surfaces/today/pins-surface",
@@ -809,20 +811,23 @@ test("the Campaigns lens reads its own surface right after Reports' own, ahead o
   assert.equal(new Set(order).size, keys.length, "and every other surface still boots");
 });
 
-test("Settings' Connections pane reads Google and the channels right after Settings' own surface, ahead of every stranger, and no other pane does", async () => {
-  // The pane draws Google's listing and its connection beside the settings read (settings/connections/pane.tsx); Today draws its
-  // review line from it too, and no other page does (ROUTE_DRAWS). Its WhatsApp and phone rows are the channels read's
-  // (surfaces/channels/surface.ts; the wiring's second audit, R6).
+test("Settings' Connections pane reads what it draws right after who is looking, ahead of every stranger: the partner, its channels, Google's, Setup's", async () => {
+  // The pane draws Google's listing and its connection (settings/connections/pane.tsx); Today draws its review line from it
+  // too, and no other page does (ROUTE_DRAWS). Its WhatsApp and phone rows are the channels read's (surfaces/channels/
+  // surface.ts; the wiring's second audit, R6), its Email card Setup's mailboxes, and the rail names Partner from the partner
+  // account. It draws none of the settings read, so its gate waits for who is looking alone, and a load's first draw for these
+  // (settings/frame/pane-reads.ts): read in the boot's second pass, Setup landed after the pane and moved it (the Settings load
+  // review, 28 Oct 2026).
   const reg = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
-  assert.deepEqual(reg.ROUTE_DRAWS["admin/integrations"], ["google", "channels"]);
-  assert.deepEqual(
-    reg.routeDrawsFor("admin", "integrations"),
-    ["google", "channels"],
-    "asked as the shell asks: page and pane",
-  );
-  assert.equal(reg.routeSurfaceFor("admin", "integrations"), "settings", "the gate still waits for Settings' read");
-  for (const pane of [undefined, null, "workspace", "team", "billing"])
-    assert.deepEqual(reg.routeDrawsFor("admin", pane), [], String(pane));
+  const drawn = ["partner", "channels", "google", "setup"];
+  assert.deepEqual(reg.ROUTE_DRAWS["admin/integrations"], drawn);
+  assert.deepEqual(reg.routeDrawsFor("admin", "integrations"), drawn, "asked as the shell asks: page and pane");
+  assert.equal(reg.routeSurfaceFor("admin", "integrations"), "workspace", "the gate waits for who is looking");
+  // Every other pane draws the partner account, and what else it stands on where it stands on more.
+  for (const pane of [undefined, null, "workspace", "team", "autonomy", "profile", "activity"])
+    assert.deepEqual(reg.routeDrawsFor("admin", pane), ["partner"], String(pane));
+  assert.deepEqual(reg.routeDrawsFor("admin", "billing"), ["partner", "billing"]);
+  assert.deepEqual(reg.routeDrawsFor("admin", "receptionist"), ["partner", "setup"]);
   const keys = [
     "conversations",
     "inbox",
@@ -831,6 +836,7 @@ test("Settings' Connections pane reads Google and the channels right after Setti
     "calendar",
     "reports",
     "settings",
+    "partner",
     "setup",
     "google",
     "channels",
@@ -839,11 +845,7 @@ test("Settings' Connections pane reads Google and the channels right after Setti
   const stop = startSurfaces(overrides);
   await settle(80);
   stop();
-  assert.deepEqual(
-    order.slice(0, 3),
-    ["settings", "google", "channels"],
-    "its own surface, then Google's and the channels', before anyone else's",
-  );
+  assert.deepEqual(order.slice(0, 4), drawn, "what it draws, in its order, before anyone else's");
   assert.equal(new Set(order).size, keys.length, "and every other surface still boots");
 });
 

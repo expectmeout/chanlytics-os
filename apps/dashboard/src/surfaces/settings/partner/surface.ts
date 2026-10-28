@@ -38,6 +38,7 @@ import { refreshSurfaces } from "@/legacy-bridge/surface-runner";
 import { browserClient } from "@/lib/supabase/browser-client";
 import { confirmEnrolment, factorState, startEnrolment, type Enrolment } from "@/auth/second-factor";
 import { windowObject, windowValue } from "../../legacy-verbs";
+import { teamPartnerRead } from "../frame/pane-reads";
 import { setSurfaceValue, surfaceValue } from "../../surface-values";
 
 export interface PartnerSurface {
@@ -102,6 +103,8 @@ export interface PartnerApi {
   team: {
     /** `code` is the refusal's: "forbidden" for anyone but an owner, whose Team shows no card. */
     read(): Promise<{ ok: true; vm: WorkspacePartnerVM } | { ok: false; code: string; message: string }>;
+    /** What the tab last held of it, drawn in the card's first frame (settings/frame/pane-reads.ts); null for nothing. */
+    held(): WorkspacePartnerVM | null;
     /** Ask the partner with this code (or link). `sent` says whether their email went. */
     invite(code: string): Promise<{ ok: true; sent: boolean } | { ok: false; message: string }>;
     withdraw(): Promise<{ ok: boolean; message: string }>;
@@ -239,9 +242,13 @@ export const partnerVerbs: PartnerApi = {
   },
   team: {
     async read() {
-      const r = await api()("GET team/partner");
+      const r = await teamPartnerRead.read();
       if (!r.ok) return { ok: false, code: r.code, message: r.message };
       return { ok: true, vm: workspacePartnerVM(r.data) };
+    },
+    held() {
+      const d = teamPartnerRead.held();
+      return d ? workspacePartnerVM(d) : null;
     },
     async invite(code) {
       const r = await api()("POST team/partner", { body: { code } });
