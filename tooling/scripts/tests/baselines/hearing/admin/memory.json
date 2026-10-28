@@ -1,7 +1,7 @@
 {
   "family": "admin/memory",
   "route": "admin/memory",
-  "owns": "settings",
+  "owns": "settings workspace",
   "notices": {
     "messages INSERT": "conversations inbox today · 10 routes",
     "messages UPDATE sent": "conversations inbox · 5 routes",

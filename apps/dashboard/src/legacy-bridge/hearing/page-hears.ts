@@ -105,9 +105,11 @@ export const PAGE_HEARS: Readonly<Record<string, Readonly<Record<string, PageCel
   "reports/campaigns": { reports: true, reports_campaigns: true },
   "reports/pipeline": { reports: true },
   "reports/ads": { reports: true },
-  // Settings: a pane it does not list opens Profile, which the settings read feeds.
+  // Settings: a pane it does not list opens Profile, which the settings read feeds. Every pane hears the settings read, which
+  // the rail's mark is drawn from; a pane drawn from none of it waits for who is looking alone (surface-registry ROUTE_SURFACE),
+  // its own surface on its row.
   admin: { settings: true },
-  "admin/profile": { settings: true },
+  "admin/profile": { settings: true, workspace: true },
   // Hours & booking lists the booking emails held for a look and states the calendar link's last read from the Calendar's read
   // (settings/business/open-bookings.tsx, open-calendar.tsx): a held email's bell row opens it, so a read of the Calendar is due
   // there, as it is on the board. The bell's rows name it the old way (`admin/workspace/calendar`, which opens Hours &
@@ -121,12 +123,12 @@ export const PAGE_HEARS: Readonly<Record<string, Readonly<Record<string, PageCel
   "admin/notifications": { settings: true },
   // Connections draws Setup's calendar row (the booking tool and the visits read from it) beside its lines and mailbox, which
   // Setup hears on every page: a settings save or a visit read there repaints it (the wiring's second audit, S4-3).
-  "admin/integrations": { settings: true, setup: ["facts", "visit"] },
-  "admin/billing": { settings: true },
-  "admin/memory": { settings: true },
-  "admin/activity": { settings: true },
-  "admin/platform": { settings: true },
-  "admin/partner": { settings: true },
+  "admin/integrations": { settings: true, workspace: true, setup: ["facts", "visit"] },
+  "admin/billing": { settings: true, workspace: true },
+  "admin/memory": { settings: true, workspace: true },
+  "admin/activity": { settings: true, workspace: true },
+  "admin/platform": { settings: true, workspace: true },
+  "admin/partner": { settings: true, workspace: true },
   // An address that moved (ROUTES_MOVED: Setup is the first run now) draws nothing, so nothing is heard for it.
   "admin/setup": {},
 };

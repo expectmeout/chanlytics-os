@@ -1,7 +1,7 @@
 {
   "family": "admin/activity",
   "route": "admin/activity",
-  "owns": "settings",
+  "owns": "settings workspace",
   "notices": {
     "messages INSERT": "conversations inbox today · 10 routes",
     "messages UPDATE sent": "conversations inbox · 5 routes",

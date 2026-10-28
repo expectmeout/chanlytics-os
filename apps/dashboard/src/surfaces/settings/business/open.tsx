@@ -48,7 +48,6 @@ type Flash = (flash: LegacyFlash) => void;
 type FoldFields<D> = Parameters<ComponentProps<typeof BtFold<D>>["body"]>[0];
 /** The closed days and the hours a record holds, as the sentences read them. */
 type ClosuresIn = Parameters<typeof BUSINESS_TAB.closuresAheadWords>[0];
-type WeekWordsIn = Parameters<typeof BUSINESS_TAB.openWeekWords>[0];
 /** The hours a record holds, as `hoursLines` reads them. */
 type HoursIn = Parameters<typeof hoursLines>[0];
 
@@ -104,7 +103,7 @@ export const BtHoursRow = ({
 }) => {
   const tab = BUSINESS_TAB;
   const toldIn = (prompt && prompt.tz) || btoWorkspaceZone();
-  const hoursLine = btoHoursLine((brain.profile || {}).hours as HoursIn);
+  const hoursLine = btoHoursLine((brain.profile || {}).hours);
   return (
     <BtFold<Week>
       canEdit={canEdit}
@@ -377,9 +376,7 @@ export const BtOpenCard = ({
         <h2 className="rec-card-title" id="bt-open-title">
           When you&apos;re open
         </h2>
-        <span className="rec-card-sub">
-          {tab.openWeekWords ? tab.openWeekWords(profile.hours as WeekWordsIn, wsZone) : null}
-        </span>
+        <span className="rec-card-sub">{tab.openWeekWords ? tab.openWeekWords(profile.hours, wsZone) : null}</span>
       </div>
 
       <BtHoursRow brain={brain} prompt={prompt} {...shared} />

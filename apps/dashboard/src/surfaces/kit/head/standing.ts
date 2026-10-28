@@ -77,6 +77,15 @@ export interface HeadAt {
 
 let said: Said | null = null;
 let crumbs: readonly ShownCrumb[] = [];
+/**
+ * Whether the page at this address draws its own head (its chrome's `ownHead`: a person's hero), told with the crumbs. Until
+ * the page says so itself, its address says it: a person's page on its way stood under the head drawn with their name,
+ * and the head went as the page came, 55 px of a phone's top (31 px of a desk's) all at once (the People load review, 28
+ * Oct 2026).
+ */
+let headOwn = false;
+/** What an address whose page draws its own head says before the page does: no name, and the way back its crumbs give. */
+const OWN_HEAD: Standing = { title: null };
 let strip: StripAt | null = null;
 /** The head as it stood over the page a carried page goes back to; null while nothing is carried. */
 let under: HeadAt | null = null;
@@ -91,7 +100,8 @@ const subscribe = (fn: () => void): (() => void) => {
   return () => standingWatchers.delete(fn);
 };
 
-const standingNow = (): Standing | null => (under ? under.standing : (said?.standing ?? null));
+const saidHere = (): Standing | null => said?.standing ?? (headOwn ? OWN_HEAD : null);
+const standingNow = (): Standing | null => (under ? under.standing : saidHere());
 const crumbsNow = (): readonly ShownCrumb[] => (under ? under.crumbs : crumbs);
 const underNow = (): HeadAt | null => under;
 const noCrumbs: readonly ShownCrumb[] = [];
@@ -126,10 +136,14 @@ export function useStandingSaid(): Standing | null {
 /** What the page on screen said, read once: for a test that draws a page and asks what it told the head. */
 export const standingSaid = (): Standing | null => standingNow();
 
-/** The crumbs the frame drew for the page on screen (frame/app-shell.tsx, through the chrome bridge). */
-export function crumbsShown(shown: readonly ShownCrumb[]): void {
-  if (shown === crumbs) return;
+/**
+ * The crumbs the frame drew for the page on screen (frame/app-shell.tsx, through the chrome bridge), and whether that page
+ * draws its own head (`ownHead`, headOwn).
+ */
+export function crumbsShown(shown: readonly ShownCrumb[], ownHead = false): void {
+  if (shown === crumbs && ownHead === headOwn) return;
   crumbs = shown;
+  headOwn = ownHead;
   tellStandingWatchers();
 }
 
@@ -143,7 +157,7 @@ export function stripShown(drawn: StripAt | null): void {
 }
 
 /** The head as it stands now, over the page on screen: kept by a list held under the row it opens (held-list.ts). */
-export const headNow = (): HeadAt => ({ standing: said?.standing ?? null, crumbs, strip });
+export const headNow = (): HeadAt => ({ standing: saidHere(), crumbs, strip });
 
 /**
  * The head stands as it stood over another page (`head`), until it is given null: while a thumb carries a page back to
@@ -167,6 +181,7 @@ export const crumbLabel = (c: ShownCrumb): string => (typeof c === "string" ? c 
 export function forgetStanding(): void {
   said = null;
   crumbs = noCrumbs;
+  headOwn = false;
   strip = null;
   under = null;
   tellStandingWatchers();

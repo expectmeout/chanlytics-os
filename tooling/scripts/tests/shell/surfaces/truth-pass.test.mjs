@@ -29,14 +29,12 @@ test("Memory is a real pane that keeps the settings nav (decision 0070); Billing
   );
   assert.ok(!settings.includes("does not learn rules on its own yet"), "nothing says the memory is not built any more");
   assert.ok(!settings.includes("There is no billing in the product yet"), "nothing says billing is not built any more");
-  // The registry classifies both panes so the gate no longer swallows the page.
+  // The registry classifies both panes so the gate no longer swallows the page. Each draws none of the settings read, so its
+  // gate waits for who is looking, and a load's first draw for its own read beside it (the Settings load review, 28 Oct 2026).
   const registry = readCode("apps/dashboard/src/legacy-bridge/surface-registry.ts");
   for (const pane of ["billing", "memory"]) {
     assert.ok(registry.includes(`"admin/${pane}": "real"`), `${pane} classified`);
-    assert.ok(
-      registry.includes(`"admin/${pane}": "settings"`),
-      `${pane} waits for the settings data like the other panes`,
-    );
+    assert.ok(registry.includes(`"admin/${pane}": "workspace"`), `${pane} waits for who is looking`);
   }
 });
 

@@ -20,7 +20,9 @@
  * pane imports `waConnect` ({ config(), prepare(), start() }).
  */
 import type { LineCodeDto } from "@chanlytics/contracts";
+import { unwrap } from "@/client/api";
 import { api, read } from "@/legacy-bridge/api";
+import { signupDoorRead } from "../frame/pane-reads";
 
 type Refused = {
   ok: false;
@@ -209,8 +211,11 @@ export function parseSignupMessage(origin: string, data: unknown): SignupSaid | 
   return null;
 }
 
-/** Meta's door, as the deployment has it: whether a number can be connected here, and by whom. */
-const signupConfig = () => read("GET channels/whatsapp/signup");
+/**
+ * Meta's door, as the deployment has it: whether a number can be connected here, and by whom. Kept in the tab, so
+ * Connections draws its row from the last answer while it asks again (settings/frame/pane-reads.ts).
+ */
+const signupConfig = async () => unwrap(await signupDoorRead.read());
 
 /**
  * What a sign-up asks Meta for: `keepApp` keeps the business on the WhatsApp Business app it already uses (coexistence,
@@ -356,6 +361,8 @@ async function runSignup(win: Window, ask: SignupAsk = {}): Promise<ConnectResul
 /** Connect your WhatsApp number: the door's answer, what a press needs fetched ahead of it, and the sign-up. */
 export const waConnect = {
   config: signupConfig,
+  /** The door as this tab last read it, or null: what the row draws in its first frame. */
+  held: (): SignupDoor | null => signupDoorRead.held(),
   prepare: (door: Partial<SignupDoor> | null | undefined) => prepareSignup(door),
   start: (ask?: SignupAsk) => startSignup(window, ask),
 };
