@@ -5,7 +5,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { judge, reasonIn, recordFromBaselines, totalsOf, totalsText, weekOf, PARTS } from "../../checks/debt.mjs";
+import { judge, reasonIn, recordFromBaselines, totalsOf, totalsText, weekOf, PARTS } from "../../../checks/debt.mjs";
 
 const measure = (entries, mode = "count") => ({ name: "x", mode, advice: "", entries });
 const record = (parts) => ({ sha: "abc", at: null, parts });

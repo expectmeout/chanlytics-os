@@ -48,7 +48,8 @@ proposed; where the two disagree, this section and the code are what is true.
   parts, the measures of `_measures.mjs` (`RATCHETS`, the source scan among them), the lint's warnings by file and rule
   (`lint.mjs` `lintTree`) and knip's dead exports (`dead-exports.mjs` `deadExports`), on a base and on the tree, and
   `judge` fails a number that rose or an offender that is new unless the pull request's description carries a line
-  `Debt: <why>` of twelve characters or more. Three departures:
+  `Debt: <why>` of twelve characters or more (`repo/debt/debt-check.test.mjs`; the register's rows are held to the
+  measures' keys by `repo/debt/debt-register.test.mjs`). Three departures:
   - **No record is cached on main's push.** CI's debt job (`What this change owes`) measures the merge commit's first
     parent in place (`--base HEAD^1 --in-place`), then the head, every run: one job, no cache to miss, and a base that
     is always the main the change stands on. On a laptop the default compares the working tree with its merge base

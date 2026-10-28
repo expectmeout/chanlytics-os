@@ -12,9 +12,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { ROOT } from "../_source.mjs";
-import { BASELINES_DIR, readPage } from "../_ratchet.mjs";
-import { RATCHETS } from "../_measures.mjs";
+import { ROOT } from "../../_source.mjs";
+import { BASELINES_DIR, readPage } from "../../_ratchet.mjs";
+import { RATCHETS } from "../../_measures.mjs";
 
 const REGISTER = "docs/debt.md";
 const page = () => readPage(REGISTER);

@@ -29,7 +29,7 @@
  *   corepack pnpm check:debt -- --week <older> <newer> [--report <file>] [--commits <file>]   what a week of main added
  *
  * It runs under tsx (the measures read the packages' sources), with the lint's heap: `check:debt` in package.json.
- * repo/debt-check.test.mjs holds the decisions (`judge`, `reasonIn`, `recordFromBaselines`, `totalsOf`, `weekOf`).
+ * repo/debt/debt-check.test.mjs holds the decisions (`judge`, `reasonIn`, `recordFromBaselines`, `totalsOf`, `weekOf`).
  */
 import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
