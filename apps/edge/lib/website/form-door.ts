@@ -11,7 +11,9 @@
  * A sign-up with an address asks its person to confirm it (signup-confirm.ts, 00489): only their press on the link it
  * emails them is a yes to offers by email, since an address typed into a form proves nothing. A sign-up that arrives
  * late is not asked (it is old news, and its person signed up before anything asked them), and the owner's notice
- * says what became of the ask. A failed ask is logged and costs nothing else: the person is kept.
+ * says what became of the ask. A failed ask is logged and costs nothing else: the person is kept. The answer says
+ * `confirm: "sent"` when the email is on its way, so the site can tell its visitor to look for it; in every other
+ * case it says nothing of it, and the site thanks them plainly.
  *
  * Twice is once: the note and the notice are each kept under a name made from the form's own words (onceKeyId), so a
  * site that sends a form again, or a re-sending of old ones, adds no second note and tells nobody twice. The person is
@@ -141,5 +143,5 @@ export async function receiveWebsiteForm(request: Request): Promise<Response> {
     L.error("website_form_failed", { tenant_id: tenantId, step: "notice", error: errField(e) });
   }
   L.info("website_form_kept", { tenant_id: tenantId, form: f.form, outcome, note, told, ask });
-  return json(200, { ok: true, kept: true });
+  return json(200, { ok: true, kept: true, ...(ask === "asked" ? { confirm: "sent" } : {}) });
 }
