@@ -1,9 +1,9 @@
 /**
  * The browser's entry into contracts (decision 0024; gen/contracts-browser-entry.mjs): generated from the barrels and
  * committed, so this regenerates it in memory and refuses a stale copy; holds every value a page's module imports from
- * contracts to a name it exports, since a page's bundle reads this file and nothing else of the package; and reads the
- * build for the classic API it must not load. The build is a file per module (contracts-browser.mjs), so a page's
- * bundle takes the modules it imports and no others: this holds it current, each file's imports to files it wrote, and
+ * contracts to a name it exports, since a page's bundle reads this file and nothing else of the package's root; and
+ * reads the modules it and the page-only entries reach for the classic API they must not load. A page's bundle compiles
+ * contracts' sources a module at a time (decision 0074), so it takes the modules it imports and no others: this holds
  * the package's word that none of them but zod's setting runs anything as it loads.
  *
  * A page's module is one under the browser layers (legacy-bridge, client, yes, auth, surfaces, lib), a "use client"
@@ -17,7 +17,6 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import ts from "typescript";
 import { generate, OUT, PAGE_ENTRIES, PAGE_ONLY } from "../../gen/contracts-browser-entry.mjs";
-import { BROWSER_DIR, BROWSER_EFFECTS, browserFiles } from "../../contracts-browser.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const DASH = path.join(ROOT, "apps/dashboard");
@@ -81,105 +80,86 @@ test("every value a page imports from contracts is the browser entry's", () => {
   );
 });
 
-test("a page's bundle is pointed at the entry, and the server's at the index", () => {
+test("a page's bundle is pointed at the entry, the edge runtime's and the server's at the index", () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, "packages/contracts/package.json"), "utf8"));
   const root = pkg.exports["."];
-  assert.deepEqual(Object.keys(root), ["types", "browser", "import", "default"], "the browser condition before import");
-  assert.equal(root.browser, "./dist/browser/index.js");
-  assert.equal(root.import, "./dist/index.js");
+  // Next's edge runtime matches `browser` too, and the entry lacks the server's names (instrumentation.ts reaches them
+  // through the log), so `edge-light` is read first.
+  assert.deepEqual(Object.keys(root), ["types", "bundled", "edge-light", "browser", "import", "default"]);
+  assert.equal(root.browser, `./${path.relative("packages/contracts", OUT)}`);
+  assert.equal(root["edge-light"], "./src/index.ts");
+  assert.equal(root.import, "./src/index.ts");
 });
 
-/** The browser's build as committed: each file under BROWSER_DIR, by its path there. */
-const committed = () => {
-  const dir = path.join(ROOT, BROWSER_DIR);
-  return new Map(
-    fs
-      .readdirSync(dir, { recursive: true })
-      .filter((f) => f.endsWith(".js"))
-      .map((f) => [f.split(path.sep).join("/"), fs.readFileSync(path.join(dir, f), "utf8").replace(/\r\n/g, "\n")]),
+/** Each module the entry and the page entries reach, by its path under contracts' src, and its source. */
+const reached = () =>
+  new Map(
+    current.modules.map((rel) => [
+      rel,
+      fs.readFileSync(path.join(ROOT, "packages/contracts/src", rel), "utf8").replace(/\r\n/g, "\n"),
+    ]),
   );
-};
-/** Every module a built file imports or exports from, by its specifier as written. */
-const importsOf = (rel, code) =>
+/** What a module loads as it runs: each import and re-export that is not a type's alone, by its specifier. */
+const runtimeImportsOf = (rel, code) =>
   ts
     .createSourceFile(rel, code, ts.ScriptTarget.Latest, true)
-    .statements.filter((st) => (ts.isImportDeclaration(st) || ts.isExportDeclaration(st)) && st.moduleSpecifier)
+    .statements.filter((st) => {
+      if (ts.isExportDeclaration(st)) return st.moduleSpecifier && !st.isTypeOnly;
+      if (!ts.isImportDeclaration(st)) return false;
+      const c = st.importClause;
+      if (!c) return true;
+      if (c.isTypeOnly) return false;
+      const b = c.namedBindings;
+      return Boolean(c.name) || !b || ts.isNamespaceImport(b) || b.elements.some((e) => !e.isTypeOnly);
+    })
     .map((st) => st.moduleSpecifier.text);
 
-test("the browser's build is current: a file for every module the entry and the page entries reach, and no other", () => {
-  const built = browserFiles(ROOT);
-  const onDisk = committed();
-  assert.deepEqual(
-    [...onDisk.keys()].sort(),
-    [...built.keys()].sort(),
-    "run corepack pnpm --filter @chanlytics/contracts build",
-  );
-  for (const [rel, code] of built) assert.equal(onDisk.get(rel), code, `${rel}: run the contracts build`);
-  assert.ok(built.size > 400, `the build wrote ${built.size} files: too few to be a file per module`);
-});
-
-test("each built file imports files the build wrote, by their full name, and nothing of classic zod", () => {
-  const files = committed();
+test("what a page's bundle may take loads zod's core and mini alone, and nothing of classic zod", () => {
+  const modules = reached();
+  assert.ok(modules.size > 400, `the entry reaches ${modules.size} modules: too few to be the pages' contracts`);
   const bare = new Set();
-  for (const [rel, code] of files) {
-    for (const spec of importsOf(rel, code)) {
-      if (!spec.startsWith(".")) {
-        bare.add(spec);
-        continue;
-      }
-      assert.match(spec, /\.js$/, `${rel}: "${spec}" is not a file's full name, which a bundler reads as written`);
-      const to = path.posix.normalize(path.posix.join(path.posix.dirname(rel), spec));
-      assert.ok(files.has(to), `${rel}: "${spec}" names no file of the build`);
-    }
-  }
-  assert.deepEqual(
-    [...bare].sort(),
-    ["zod/mini", "zod/v4/core"],
-    "the browser's build loads zod's core and mini alone",
-  );
+  for (const [rel, code] of modules)
+    for (const spec of runtimeImportsOf(rel, code)) if (!spec.startsWith(".")) bare.add(spec);
+  assert.deepEqual([...bare].sort(), ["zod/mini", "zod/v4/core"], "a page's bundle loads zod's core and mini alone");
 });
 
-test("the package says no file of the browser's build runs anything as it loads but zod's setting", () => {
+test("the package says no module a page may take runs anything as it loads but zod's setting", () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, "packages/contracts/package.json"), "utf8"));
-  assert.deepEqual(pkg.sideEffects, [
-    "./dist/*.js",
-    ...BROWSER_EFFECTS.map((f) => `./dist/browser/${f.replace(/\.ts$/, ".js")}`),
-  ]);
+  assert.deepEqual(pkg.sideEffects, ["./src/zod-config.ts"]);
   // What the package's word rests on: a statement at a module's top level that declares nothing runs as it loads.
   const declares = (st) =>
     ts.isImportDeclaration(st) ||
     ts.isExportDeclaration(st) ||
     ts.isFunctionDeclaration(st) ||
     ts.isClassDeclaration(st) ||
-    ts.isVariableStatement(st);
+    ts.isVariableStatement(st) ||
+    ts.isTypeAliasDeclaration(st) ||
+    ts.isInterfaceDeclaration(st);
   const runs = [];
-  for (const [rel, code] of committed()) {
+  for (const [rel, code] of reached()) {
     const sf = ts.createSourceFile(rel, code, ts.ScriptTarget.Latest, true);
     if (sf.statements.some((st) => !declares(st))) runs.push(rel);
   }
-  assert.deepEqual(
-    runs,
-    BROWSER_EFFECTS.map((f) => f.replace(/\.ts$/, ".js")),
-  );
+  assert.deepEqual(runs, ["zod-config.ts"]);
   // A module that builds a schema runs zod's setting first itself: a page's bundle may take it without the entry.
-  for (const [rel, code] of committed()) {
+  for (const [rel, code] of reached()) {
     if (!/from "zod\/mini"/.test(code)) continue;
     const first = code.split("\n").find((l) => /^import\b/.test(l)) ?? "";
-    assert.match(first, /zod-config\.js";$/, `${rel}: zod's setting, first`);
+    assert.match(first, /^import "(\.\.?\/)+zod-config";$/, `${rel}: zod's setting, first`);
   }
 });
 
-test("a page entry's browser condition names its module in the build, beside the root entry's", () => {
+test("a page entry names its module's source, which the rest of the page shares", () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, "packages/contracts/package.json"), "utf8"));
-  const files = committed();
   for (const [name, rel] of Object.entries(PAGE_ENTRIES)) {
-    assert.equal(pkg.exports[`./${name}`].browser, `./dist/browser/${rel.replace(/\.ts$/, ".js")}`, name);
-    assert.ok(files.has(rel.replace(/\.ts$/, ".js")), `${name}: its module is built`);
+    const target = pkg.exports[`./${name}`];
+    assert.equal(target.browser ?? target.import, `./src/${rel}`, name);
+    assert.ok(current.modules.includes(rel), `${name}: its module is one a page may take`);
   }
-  // Ask's cards and Settings' Notifications stay bundled entries of their own: a file per module cost every page a
-  // few KB more for them (17 Oct 2026), since Ask's loads with the shell and the pane's modules are the shell's too.
-  assert.equal(pkg.exports["./ask-only"].browser, undefined);
-  assert.equal(pkg.exports["./alert-pane"].browser, undefined);
+  // Ask's cards and Settings' Notifications are entries of their own: a page loads them by their subpath, and the
+  // server and the suite read them the same way.
+  assert.equal(pkg.exports["./ask-only"].import, "./src/ask-proposals/ask-only.ts");
+  assert.equal(pkg.exports["./alert-pane"].import, "./src/alert-pane.ts");
 });
 
 test("a page-only module's names are in no page's entry, and in its own", () => {
@@ -248,8 +228,11 @@ test("a page-only module's names are in no page's entry, and in its own", () => 
     assert.ok(current.names.includes(name), `${name} stays in the root entry for the pages' verbs`);
   const askOnly = fs.readFileSync(path.join(ROOT, "packages/contracts/dist/ask-only.js"), "utf8");
   assert.match(askOnly, /ASK_ONLY_SPECS/);
-  const browser = fs.readFileSync(path.join(ROOT, "packages/contracts/dist/browser/index.js"), "utf8");
-  assert.doesNotMatch(browser, /leadsBulkSpec|reviewReplySpec|followUpSpec/, "Ask's own cards are in no page's entry");
+  assert.doesNotMatch(
+    current.text,
+    /leadsBulkSpec|reviewReplySpec|followUpSpec/,
+    "Ask's own cards are in no page's entry",
+  );
   const ads = fs.readFileSync(path.join(ROOT, "packages/contracts/dist/ads-page.js"), "utf8");
   assert.match(ads, /adsModel/);
   assert.match(ads, /newAdModel/);
@@ -273,30 +256,19 @@ test("a page-only module's names are in no page's entry, and in its own", () => 
   ])
     assert.ok(current.names.includes(name), `${name} stays in the root barrel for the server`);
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, "packages/contracts/package.json"), "utf8"));
-  assert.deepEqual(pkg.exports["./report-lens"], {
-    types: "./dist/report-lens.d.ts",
-    browser: "./dist/browser/reports/report-lens.js",
-    import: "./dist/report-lens.js",
-    default: "./dist/report-lens.js",
-  });
-  assert.deepEqual(pkg.exports["./ads-page"], {
-    types: "./dist/ads-page.d.ts",
-    browser: "./dist/browser/ads/ads-page.js",
-    import: "./dist/ads-page.js",
-    default: "./dist/ads-page.js",
-  });
-  assert.deepEqual(pkg.exports["./ask-only"], {
-    types: "./dist/ask-only.d.ts",
-    import: "./dist/ask-only.js",
-    default: "./dist/ask-only.js",
-  });
+  const own = (from, out) => ({ types: from, bundled: `./dist/${out}.js`, import: from, default: from });
+  assert.deepEqual(pkg.exports["./report-lens"], own("./src/reports/report-lens.ts", "report-lens"));
+  assert.deepEqual(pkg.exports["./ads-page"], own("./src/ads/ads-page.ts", "ads-page"));
+  assert.deepEqual(pkg.exports["./ask-only"], own("./src/ask-proposals/ask-only.ts", "ask-only"));
   // The pages' verb specs: the root entry's own module in the browser, the index itself elsewhere, so the table Ask's
   // kinds join is one table however it was reached.
   assert.deepEqual(pkg.exports["./page-specs"], {
-    types: "./dist/index.d.ts",
-    browser: "./dist/browser/ask-proposals/page-specs.js",
-    import: "./dist/index.js",
-    default: "./dist/index.js",
+    types: "./src/index.ts",
+    bundled: "./dist/index.js",
+    "edge-light": "./src/index.ts",
+    browser: "./src/ask-proposals/page-specs.ts",
+    import: "./src/index.ts",
+    default: "./src/index.ts",
   });
   assert.ok(current.names.includes("verbSpec"), "the root entry names the specs' readings too");
 });
@@ -336,16 +308,16 @@ test("every page-only path names a file, since one that names none would filter 
 });
 
 test("a page reads the verbs it presses at once, and the kinds only Ask's cards commit once their entry is loaded", async () => {
-  // The built files a page's bundle and Ask's bridge load (legacy-bridge/verbs moreSpecs), run as the browser runs them.
-  const dist = (f) => import(pathToFileURL(path.join(ROOT, "packages/contracts/dist", f)).href);
-  const page = await dist("browser/index.js");
+  // The modules a page's bundle and Ask's bridge load (legacy-bridge/verbs moreSpecs), run as the browser runs them.
+  const src = (f) => import(pathToFileURL(path.join(ROOT, "packages/contracts/src", f)).href);
+  const page = await src("browser.generated.ts");
   assert.ok(page.proposalSpec("answer") && page.proposalSpec("sequence_step"), "a page's verbs are in from the start");
   // Today's Need you sends a reply and snoozes a thread from its rows, so those are a page's too (decision 0071).
   assert.ok(page.proposalSpec("reply") && page.proposalSpec("thread_verb") && page.proposalSpec("person_message"));
   assert.equal(page.proposalSpec("whisper"), null);
   assert.equal(page.PROPOSAL_GATE.lead_mark, undefined);
   assert.equal(page.cardOpenRoute({ kind: "lead_stage", payload: { lead_id: "l1" } }), null);
-  const { ASK_ONLY_SPECS } = await dist("ask-only.js");
+  const { ASK_ONLY_SPECS } = await src("ask-proposals/ask-only.ts");
   for (const kind of Object.keys(ASK_ONLY_SPECS)) assert.equal(page.proposalSpec(kind), null, `${kind} is Ask's alone`);
   page.addProposalSpecs(ASK_ONLY_SPECS);
   assert.ok(page.proposalSpec("whisper") && page.verbSpec("follow_up"));

@@ -23,8 +23,12 @@ import { projectConfigs, resolvedConfig, waitingProjects } from "../_measures.mj
 const BASE = path.join(ROOT, "tsconfig.base.json");
 /** The base's own compiler options, as written: the checks every project keeps. */
 const baseOptions = ts.readConfigFile(BASE, ts.sys.readFile).config.compilerOptions;
-/** The flags a project must keep at the base's value: every boolean the base sets. */
-const CHECKS = Object.keys(baseOptions).filter((k) => typeof baseOptions[k] === "boolean");
+/**
+ * The flags a project must keep at the base's value: every boolean the base sets but `noEmit`, which says where output
+ * goes, not what is checked. A package emits its declarations into .types for the projects that reference it (decision
+ * 0074); `every package is a project of its own` (shipping/package-dependencies.test.mjs) holds that.
+ */
+const CHECKS = Object.keys(baseOptions).filter((k) => typeof baseOptions[k] === "boolean" && k !== "noEmit");
 /** The one the unchecked-index measure lets a project wait on. */
 const MAY_WAIT = "noUncheckedIndexedAccess";
 

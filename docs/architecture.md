@@ -82,10 +82,11 @@ Vercel deploys that output as it is: `apps/edge/vercel.json` has one static
 build, which runs it, and holds each function's time limit. Its types are CI's
 typecheck's to check.
 
-`packages/*/dist` is committed and the edge imports it by relative path through
-`apps/edge/lib/packages/*.ts`, because Vercel's function bundler does not
-follow pnpm workspace symlinks. Rebuild `dist` whenever a package changes; CI
-fails on drift.
+The packages ship as their sources (decision 0074): the edge's modules reach
+each through `apps/edge/lib/packages/<p>.ts`, which names it, and esbuild
+bundles its sources into every function that imports it. The dashboard
+compiles them with the app (`transpilePackages`), and the typecheck reads each
+through its project reference.
 
 **Where a module lives on the edge.** `apps/edge/api` is the doors, one file
 per URL, grouped as the URLs are (`admin/`, `cron/`). A door authenticates,

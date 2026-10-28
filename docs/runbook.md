@@ -20,9 +20,9 @@ says `>=22`, and the types are Node 22's, so nothing may call an API only 24 has
 
 ## Run it locally
 
-**Install and build once.** `corepack pnpm install`, then
-`corepack pnpm --filter "./packages/*" build`. The apps import the built
-`dist`, which is committed; rebuild it whenever a package changes.
+**Install.** `corepack pnpm install`. The packages ship as their sources (decision 0074): the apps compile them, the
+typecheck reads them through their project references, and the test launcher builds the bundles the suite reads. A
+script that loads a package runs under tsx: `node --import tsx tooling/scripts/<script>.mjs`.
 
 **A checkout from before one TypeScript** (main before `b28d3791d`, #1293)
 keeps each project's old compiler and its `node_modules/.bin/tsc` after a
@@ -180,7 +180,7 @@ git commit
 
 Before opening the pull request, `corepack pnpm exec prettier --write` every
 non-ignored file the branch touched, so `format:check` is green on the first
-run. The ported shell and the committed dists are outside the check
+run. The ported shell and the built bundles are outside the check
 (`.prettierignore`) and need nothing.
 
 ## Test it
@@ -211,8 +211,8 @@ dashboard's routes (`apps/dashboard/app/api`), in `tooling/scripts/tests/baselin
 red run; a floor is raised by `UPDATE_BASELINES=1 corepack pnpm test` (two points under the measure, so another platform's
 V8 does not fail it) and lowered only by `COVERAGE_FLOORS=lower corepack pnpm test`, argued under "Rises" in `docs/debt.md` (`UPDATE_BASELINES=raise` is for the other ratchets, and neither lowers nor hides a floor). A run of
 some files, a flag, the database suites and the Auckland leg are not held to the floors (`TEST_COVERAGE=1` prints the table for some files); `TEST_COVERAGE=0` skips the measure
-for a full run that wants the speed. A package's code runs from its committed `dist`, so its lines are read back to the
-module that wrote them (`tooling/scripts/checks/coverage.mjs`).
+for a full run that wants the speed. A package's code runs from the bundle the launcher builds of it, so its lines are
+read back to the module that wrote them (`tooling/scripts/checks/coverage.mjs`).
 
 **The database in memory refuses what the real one refuses.** `tooling/scripts/tests/_fake-db.mjs` reads the schema
 the migrations generate (`packages/db/src/database.types.ts`, `packages/contracts/src/schema-sets.generated.ts`
@@ -312,7 +312,7 @@ serves it as the `kit` record's page, at `/` and at the workspace's address, and
 
 ```bash
 corepack pnpm e2e:local -- e2e/kit/kit.spec.ts --scenario=kit   # the gallery's checks
-node tooling/scripts/e2e-harness/server.mjs 3210 kit        # http://localhost:3210/ ; t turns the theme, l the look
+node --import tsx tooling/scripts/e2e-harness/server.mjs 3210 kit        # http://localhost:3210/ ; t turns the theme, l the look
 ```
 
 Its families and entries are data in `tooling/scripts/e2e-harness/kit-gallery.mjs`: each entry is the markup a kit
@@ -344,7 +344,7 @@ and the pinned Base UI as the harness starts):
 
 ```bash
 corepack pnpm e2e:local -- e2e/kit/kit-behaves.spec.ts --scenario=kit   # how they behave, and what they draw
-node tooling/scripts/e2e-harness/server.mjs 3210 kit        # http://localhost:3210/behaves
+node --import tsx tooling/scripts/e2e-harness/server.mjs 3210 kit        # http://localhost:3210/behaves
 ```
 
 Its spec drives each with a keyboard and a pointer, at a desk and on a phone, in both themes and both looks: Escape
@@ -470,8 +470,7 @@ and to the looks `e2e/kit/kit.spec.ts` runs.
 
 5. **Offered.** `LOOK_OFFERED` in `chrome.ts` is true (30 September 2026, once Glass was drawn on every canvas), and
    the account menu draws Look under Theme. The flag's pins hold it (`chrome.test.mjs`, and `e2e/shell/sidebar.spec.ts`,
-   which expects the Look offered and the default checked), and the packages' `dist` is rebuilt and committed with a
-   change to it. Ruben walks it on production.
+   which expects the Look offered and the default checked). Ruben walks it on production.
 6. **The default.** `DEFAULT_LOOK_PREF` becomes the look (Glass, 1 October 2026): every device that never chose one
    draws it from its next load, since a device keeps a look only once it is chosen
    (`apps/dashboard/src/legacy-bridge/device-prefs.ts`), and a member who chose the other keeps it. `chrome.test.mjs`
@@ -1098,7 +1097,7 @@ nothing asked (the usual end since the hold became the one mic: most rows), `typ
 Healthy: `connect_p50_ms` under 3,000, `first_audio_p50_ms` under 6,000 (the press to the agent's first word of the
 answer: the hold itself is in it), `spoke` close to `n`, few `start` and `vendor`.
 
-The gate, as every phase's: `E2E_BASE_URL=https://<host> ELEVENLABS_LLM_SECRET=… EVAL_WORKSPACE_HAS=no_calendar,no_offers_channel,no_offers_yes REPS=3 node tooling/scripts/eval-ask.mjs --spoken`
+The gate, as every phase's: `E2E_BASE_URL=https://<host> ELEVENLABS_LLM_SECRET=… EVAL_WORKSPACE_HAS=no_calendar,no_offers_channel,no_offers_yes REPS=3 node --import tsx tooling/scripts/eval-ask.mjs --spoken`
 asks every first turn through the brain door as the agent would and adds the spoken rules to the judge
 (`tooling/scripts/eval-ask-spoken.mjs`): no id, no route, no bracketed tag, an early comma in a long headline; the
 numbers go into the spec's §4.
@@ -1418,7 +1417,7 @@ ledger with each version's name, whoever pushes and from wherever.
 
 2. **Replay it locally**: `supabase db reset` (a worktree uses a stack of its own, `project_id` and ports moved, so it
    touches no one else's). Then regenerate what the schema drives, `corepack pnpm gen:schema-sets` and
-   `corepack pnpm gen:db-types`, rebuild `dist` if a package changed, and commit the generated files. With the stack
+   `corepack pnpm gen:db-types`, and commit the generated files. With the stack
    still up, `corepack pnpm gen:schema-snapshot` writes `supabase/schema.sql` (the schema it built); then
    `corepack pnpm gen:data-model` writes `docs/data-model.md` from that file, with no stack. Commit both: a plain run fails a stale
    data model or a stale function body in the snapshot, and the Database workflow's replay fails any other drift of the

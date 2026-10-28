@@ -81,7 +81,7 @@
  * before any write, idempotent, and --apply to write.
  *
  * Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, E2E_USER_EMAIL, E2E_MEMBER_EMAIL
- * Usage: node tooling/scripts/ops/e2e-workspace.mjs [--apply] [--seed-win-back]
+ * Usage: node --import tsx tooling/scripts/ops/e2e-workspace.mjs [--apply] [--seed-win-back]
  */
 import { createClient } from "@supabase/supabase-js";
 import {

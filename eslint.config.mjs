@@ -60,7 +60,7 @@ const OURS = {
   ],
   // verbatimModuleSyntax (tsconfig.base.json) keeps every import as it is written, so an import that only a type reads
   // says `import type`, or its module is loaded for nothing: under the flag `import { type A } from "m"` still loads m.
-  // Held at zero, these two keep what tsup, Vercel and Next emit what they emitted before the flag.
+  // Held at zero, these two keep what esbuild, Vercel and Next emit what they emitted before the flag.
   "@typescript-eslint/consistent-type-imports": [
     "error",
     { prefer: "type-imports", fixStyle: "inline-type-imports", disallowTypeAnnotations: false },

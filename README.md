@@ -67,9 +67,8 @@ config shape the older edge cannot parse is how you take the live line down.
 
 ```bash
 corepack pnpm install
-corepack pnpm --filter "./packages/*" build   # apps typecheck against built dist
-corepack pnpm -r typecheck
-corepack pnpm test
+corepack pnpm -r typecheck                    # each package once, through its project reference
+corepack pnpm test                            # builds the packages' bundles the suite reads, then runs it
 ```
 
 `pnpm` is corepack-only here — bare `pnpm` is not on PATH. Node 22+ is required
@@ -88,13 +87,18 @@ undocumented.
 These are load-bearing and were each learned the hard way. Do not "clean them
 up" without reading why.
 
-**`packages/*/dist` is committed, and the edge imports it by relative path.**
-Vercel's vanilla-function bundler does not follow pnpm workspace symlinks into
-the lambda, so `apps/edge/lib/packages/*.ts` re-exports
-`../../../../packages/<pkg>/dist/index.js`. Rebuild and commit `dist` whenever
-you change a package — CI has a drift guard that will fail otherwise. Never add
-`--sourcemap`: source maps are not byte-reproducible across platforms and the
-guard will fail on someone else's machine.
+**The packages ship as their sources** (decision 0074, 28 October 2026). Each
+package's `exports` name its `src/`: the dashboard compiles them
+(`transpilePackages`), the edge's esbuild bundles them into each function, and
+the compiler reads each through its project reference, checked once under its
+own options (`tsc -b`). Nothing is built to be imported, and no `dist` is
+committed. Two things follow. The node suite reads each package as a bundle its
+launcher builds first (`tooling/scripts/package-build.mjs`, under the `bundled`
+export condition), and a script a person runs that loads a package runs under
+tsx (`node --import tsx tooling/scripts/…`), since Node alone cannot load
+TypeScript whose imports name no extension. Contracts' browser entry,
+`src/browser.generated.ts`, stays committed: every build of the dashboard reads
+it, and Vercel's build command is not in the repository.
 
 **`apps/dashboard/src/legacy` is the operator UI, and it began as a design
 mockup.** A single-page shell of hand-written JSX, routed by the address after

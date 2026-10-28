@@ -17,8 +17,14 @@
     "allowImportingTsExtensions": true,
     "incremental": true,
     "noUncheckedIndexedAccess": false,
-    "plugins": [{ "name": "next" }],
-    "paths": { "@/*": ["./src/*"] }
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": ["./src/*"]
+    }
   },
   "include": [
     "next-env.d.ts",
@@ -27,5 +33,22 @@
     ".next/types/**/*.ts",
     "../../tooling/scripts/e2e-harness/kit-behaves.tsx"
   ],
-  "exclude": ["node_modules", "src/legacy"]
+  "exclude": ["node_modules", "src/legacy"],
+  "references": [
+    {
+      "path": "../../packages/contracts"
+    },
+    {
+      "path": "../../packages/db"
+    },
+    {
+      "path": "../../packages/channels"
+    },
+    {
+      "path": "../../packages/core"
+    },
+    {
+      "path": "../../packages/jobs"
+    }
+  ]
 }

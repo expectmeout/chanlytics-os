@@ -44,8 +44,8 @@ export const DB_PATHS = [
   "tooling/scripts/tests/reports/campaigns/_*.mjs",
   // and a connected mailbox's world (Vault's doors, Gmail as it answers), which the reach-out stack suites send through
   "tooling/scripts/tests/email/mailboxes/_*.mjs",
-  // what the suites run against it: the packages that write rows, their sources and the dists built from them (a change
-  // to contracts or channels that reaches a suite through one of them rewrites that dist, and so replays)
+  // what the suites run against it: the packages that write rows, their sources (the suites read each as the bundle the
+  // launcher builds from them, decision 0074)
   "packages/core/**",
   "packages/jobs/**",
   "packages/db/**",

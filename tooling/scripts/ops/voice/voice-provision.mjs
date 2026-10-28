@@ -10,8 +10,8 @@
  * at a door that names it, and this one does not: the key here answered 403 `token_required`. DIAG_KEY in place of the
  * secret opens the door only on an edge that holds none (a preview).
  *
- *   EDGE_CALL_SECRET=… node tooling/scripts/ops/voice/voice-provision.mjs --tenant <workspace id> --area-code 305 [--apply]
- *   EDGE_CALL_SECRET=… node tooling/scripts/ops/voice/voice-provision.mjs --tenant <workspace id> --number +13055550100 [--apply]
+ *   EDGE_CALL_SECRET=… node --import tsx tooling/scripts/ops/voice/voice-provision.mjs --tenant <workspace id> --area-code 305 [--apply]
+ *   EDGE_CALL_SECRET=… node --import tsx tooling/scripts/ops/voice/voice-provision.mjs --tenant <workspace id> --number +13055550100 [--apply]
  *     --llm-id llm_… --agent-id agent_…   resume a run that failed after making them (a failure prints both)
  *   BASE_URL      the edge (default: production's)
  *   BACKUP_DIR    where an apply's answer is kept (default tooling/backups/, ignored)

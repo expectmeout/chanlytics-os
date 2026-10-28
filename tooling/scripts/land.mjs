@@ -3,15 +3,17 @@
  * Land a branch: hold all of main, push, and have the pull request merge itself the moment CI is green.
  *
  * Several sessions push to main at once (16 Oct 2026: #1639 merged main in four times in one afternoon, and three of the
- * four conflicts were only in the committed dist). So this does by rule what was done by hand each time:
+ * four conflicts were only in the committed dist, which left git on 28 October, decision 0074). So this does by rule
+ * what was done by hand each time:
  *
  *   1. Nothing uncommitted: what lands is what was committed.
- *   2. Main merged in, when the branch does not hold it. A conflict in a file a command writes (the packages' dist, a
- *      `*.generated.*` file, the API reference, the data model) takes main's side and is written again below; a
+ *   2. Main merged in, when the branch does not hold it. A conflict in a file a command writes (a `*.generated.*` file,
+ *      the API reference, the data model) takes main's side and is written again below; a dist a branch from before
+ *      28 October 2026 still tracks is taken out of the index, as main took it (isRetired); a
  *      conflict in anything else stops here, the merge left open, with the files to resolve by hand (then run this
  *      again). supabase/schema.sql is not written here, as it needs a database: resolve it from a replay.
  *   3. What the commands write, written again from the merged sources: the barrels' order, the browser entry, the typed
- *      client and route keys, the API reference, the packages' dist. Then the typecheck, the one check that is quick and sure to catch a
+ *      client and route keys, the API reference and the data model. Then the typecheck, the one check that is quick and sure to catch a
  *      merge that no longer fits together; CI runs the rest.
  *   4. Pushed, and the pull request (opened with --title and --body-file when there is none) set to squash-merge itself
  *      once every required check passes, pinned to the commit pushed (`--match-head-commit`), so nothing pushed after
@@ -35,7 +37,6 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 /** A file a command writes: main's side is taken in a conflict, and the command writes it again (WRITERS). */
 export function isWritten(file) {
   return (
-    /^packages\/[^/]+\/dist\//.test(file) ||
     /\.generated\.(ts|json)$/.test(file) ||
     file === "docs/api.md" ||
     file === "docs/data-model.md" ||
@@ -43,17 +44,19 @@ export function isWritten(file) {
   );
 }
 
+/** A file main no longer keeps: a package's dist, which left git on 28 October 2026 (decision 0074). */
+export const isRetired = (file) => /^packages\/[^/]+\/dist\//.test(file);
+
 /** The migrations among a branch's added files (`git diff --diff-filter=A`): each holds its auto-merge (step 5). */
 export const migrationsAdded = (files) => files.filter((f) => /^supabase\/migrations\/\d{5}_[a-z0-9_]+\.sql$/.test(f));
 
-/** What writes them, in order: the packages' dist last, from the sources the others read. */
+/** What writes them, in order: the barrels first, since the browser entry is written from them. */
 export const WRITERS = [
   ["the barrels' order", "node tooling/scripts/gen/sorted-lists.mjs"],
   ["the browser entry", "node tooling/scripts/gen/contracts-browser-entry.mjs"],
   ["the typed client and route keys", "node tooling/scripts/gen/route-types.mjs"],
   ["the API reference", "corepack pnpm gen:api-reference"],
   ["the data model", "corepack pnpm gen:data-model"],
-  ["the packages' dist", 'corepack pnpm --filter "./packages/*" build'],
 ];
 
 const git = (...args) => execFileSync("git", args, { cwd: ROOT, encoding: "utf8" }).trim();
@@ -72,14 +75,19 @@ function mergeMain() {
   const merged = tryGit("merge", "--no-edit", "origin/main");
   if (merged.status === 0) return true;
   const conflicted = git("diff", "--name-only", "--diff-filter=U").split("\n").filter(Boolean);
-  const byHand = conflicted.filter((f) => !isWritten(f));
+  const retired = conflicted.filter(isRetired);
+  if (retired.length) git("rm", "-r", "-q", "--cached", "--ignore-unmatch", "--", ...retired);
+  const left = conflicted.filter((f) => !isRetired(f));
+  const byHand = left.filter((f) => !isWritten(f));
   if (byHand.length)
     stop(
       `main conflicts with the branch in ${byHand.join(", ")}: resolve ${byHand.length === 1 ? "it" : "them"}, ` +
         "leave the rest, and run this again (the merge is left open)",
     );
-  git("checkout", "--theirs", "--", ...conflicted);
-  say(`took main's side of ${conflicted.length} written file${conflicted.length === 1 ? "" : "s"}; writing them again`);
+  if (retired.length)
+    say(`took ${retired.length} built file${retired.length === 1 ? "" : "s"} out of the index, as main did`);
+  if (left.length) git("checkout", "--theirs", "--", ...left);
+  say(`took main's side of ${left.length} written file${left.length === 1 ? "" : "s"}; writing them again`);
   return true;
 }
 

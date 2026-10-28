@@ -13,7 +13,6 @@
     "gen:data-model": "node tooling/scripts/gen/data-model.mjs",
     "gen:sorted-lists": "node tooling/scripts/gen/sorted-lists.mjs",
     "check:db-types": "node tooling/scripts/gen/db-types.mjs --check",
-    "check:dist": "node tooling/scripts/checks/dist.mjs",
     "check:dead-exports": "node tooling/scripts/checks/dead-exports.mjs",
     "check:bundle": "node tooling/scripts/checks/bundle-budget.mjs",
     "check:static-shell": "node tooling/scripts/checks/static-shell.mjs",
@@ -24,7 +23,7 @@
     "format:check": "prettier --check . --cache --cache-strategy content --cache-location node_modules/.cache/prettier/.prettier-cache",
     "prepare": "node tooling/scripts/prepare-hooks.mjs",
     "e2e": "playwright test",
-    "e2e:local": "node tooling/scripts/e2e-harness/run.mjs",
+    "e2e:local": "node --import tsx tooling/scripts/e2e-harness/run.mjs",
     "e2e:install": "playwright install --with-deps chromium"
   },
   "engines": {

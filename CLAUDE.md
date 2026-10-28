@@ -33,8 +33,7 @@ of the public will experience.
 
 ```bash
 corepack pnpm install
-corepack pnpm --filter "./packages/*" build   # apps typecheck against built dist; dist is committed
-corepack pnpm -r typecheck
+corepack pnpm -r typecheck                    # tsc -b: each package once, under its own options, through its project reference
 corepack pnpm lint                            # ESLint, warnings held per file and rule; -- --update banks a fall, -- --raise a rise
 corepack pnpm format                          # Prettier over the tree; the pre-commit hook does this for staged files
 corepack pnpm test                            # the node suite, in UTC (~20 min; run the files a change touches instead, one per command: node tooling/scripts/checks/test.mjs <file>), and what it ran of the code held at a floor; database suites skip without credentials
@@ -56,6 +55,7 @@ corepack pnpm gen:schema-sets                 # the closed sets, after a migrati
 corepack pnpm gen:db-types                    # database.types.ts, after a migration (needs the stack)
 corepack pnpm gen:schema-snapshot             # supabase/schema.sql, after a migration (needs the stack)
 corepack pnpm gen:data-model                  # docs/data-model.md, from the snapshot and packages/db (no stack)
+corepack pnpm gen:sorted-lists                # every package's barrels in one order, so two lanes' new names land apart (land runs it)
 ```
 
 `pnpm` is corepack-only. Node 22 or newer.
@@ -116,7 +116,11 @@ Each of these is enforced by a test or a workflow. Breaking one is a red build, 
   raise, so a permission-sensitive update selects and counts.
 - **Verbs over ports.** A use case in `packages/core` takes a ports object and a command and returns
   an outcome. No database client, framework, provider or environment inside a verb.
-- **Rebuild and commit `packages/*/dist`** whenever a package changes. CI fails on drift.
+- **The packages ship as their sources.** Each package's `exports` name its `src/`; the apps compile them and the
+  typecheck reads each through its project reference (decision 0074). No `dist` is committed: the node suite reads each
+  package as the bundle its launcher builds (the `bundled` condition), and a script that loads a package runs under
+  tsx (`node --import tsx tooling/scripts/<script>.mjs`). `shipping/package-dependencies.test.mjs` holds the exports
+  and the references.
 - **Either deploy order works.** The two apps deploy independently; a shape both must agree on
   is compatible whichever deploys first.
 - **A job kind arrives with its handler, its caller, the `jobs.kind` CHECK and its lane**, in one change.

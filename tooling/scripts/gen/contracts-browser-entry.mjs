@@ -12,8 +12,9 @@
  *
  * Read from the source, never the dist: a module's runtime imports (a type-only import or export is not one), its
  * barrel's export lists, and whether any module it reaches imports `zod`, `zod/v4` or `zod/v4/classic`. `generate`
- * also says which modules the entry and the page entries reach (`modules`): contracts-browser.mjs builds those a file
- * each, so a page's bundle takes the modules it imports and no others (17 October 2026).
+ * also says which modules the entry and the page entries reach (`modules`), which shipping/browser-entry.test.mjs holds
+ * to the rule: none of them reaches classic zod. A page's bundle compiles contracts' sources a module at a time, so it
+ * takes the modules it imports and no others (17 October 2026; decision 0074).
  *
  *   node tooling/scripts/gen/contracts-browser-entry.mjs          # write it
  *   node tooling/scripts/gen/contracts-browser-entry.mjs --check  # exit 1 when it is stale
@@ -70,9 +71,8 @@ export const PAGE_ONLY = [
 ];
 /**
  * The entries a page imports by their own subpath (package.json's `./report-window`, `./report-lens`, `./ads-page`,
- * `./alert-pane`, `./ask-only`), by the module each is. The browser's build (contracts-browser.mjs) writes them a file
- * per module beside the root entry's, and their `browser` condition names that file, so a page that loads one shares
- * every module it reaches with the rest of the page instead of carrying its own copy. None may reach classic zod.
+ * `./alert-pane`, `./ask-only`), by the module each is. Each subpath names its module's source, so a page that loads one
+ * shares every module it reaches with the rest of the page instead of carrying its own copy. None may reach classic zod.
  * `./page-specs` is the specs of the verbs the pages press, which the frame fetches when a press or Ask first needs
  * one (legacy-bridge/verbs/commit.ts pageSpecs): its names stay in the root entry as well, since its module must be the
  * root's own (Ask's kinds join its table in place), and on the server and in the tests it is the index itself.
@@ -259,8 +259,8 @@ export function generate(root, pageOnly = PAGE_ONLY) {
     if (!kept.has(spec)) kept.set(spec, []);
     kept.get(spec).push(v.from === v.name ? v.name : `${v.from} as ${v.name}`);
   }
-  // Every module the entry and the page entries reach through their runtime imports, zod's setting first: what
-  // contracts-browser.mjs builds a file each, so a page's bundle takes the modules it imports and no others.
+  // Every module the entry and the page entries reach through their runtime imports, zod's setting first: what a page's
+  // bundle may take, each of which shipping/browser-entry.test.mjs holds free of classic zod.
   const modules = new Set();
   const reach = (f) => {
     if (modules.has(f)) return;

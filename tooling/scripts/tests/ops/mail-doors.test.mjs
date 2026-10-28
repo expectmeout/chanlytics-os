@@ -253,7 +253,7 @@ test("both doors: without the platform's mailbox they say so and read nothing; w
  */
 const HOW = (id) =>
   "Set it up from the repository with EDGE_CALL_SECRET (the secret the dashboard signs with) in the environment, a dry run first:\n" +
-  `  node tooling/scripts/ops/voice/voice-provision.mjs --tenant ${id} --area-code <3 digits>\n` +
+  `  node --import tsx tooling/scripts/ops/voice/voice-provision.mjs --tenant ${id} --area-code <3 digits>\n` +
   "then the same with --apply. Their Setup page reads the line as ready by itself once the row exists.";
 
 test("setup-request: a known `what` and a workspace on record, or nothing; the platform hears from the workspace's own name who asked, the id, and how to set the line up -- and never a customer's word", async () => {

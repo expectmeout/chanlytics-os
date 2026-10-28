@@ -2,7 +2,7 @@
  * Run the WhatsApp receptionist's evaluation set against a deployed edge.
  *
  *   BASE_URL=https://chanlytics-messaging.vercel.app EDGE_CALL_SECRET=… TENANT_ID=… \
- *     node tooling/scripts/eval-brain.mjs [tooling/evals/whatsapp-cases.json]
+ *     node --import tsx tooling/scripts/eval-brain.mjs [tooling/evals/whatsapp-cases.json]
  *
  * The knock is a token minted for the eval door and this workspace, as the
  * dashboard mints one (packages/channels edge-token); DIAG_KEY in place of the

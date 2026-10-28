@@ -6,8 +6,8 @@
  *     every other conflict is a person's.
  *   - `check:local` runs everything after the build side by side (runTogether), and says each check's own result.
  *   - CI's tests run as four parts at once, each a quarter of the files, and the lint and the format check start from
- *     main's cache, which main's own lint writes afresh. The dashboard's build, the dist against its sources and the
- *     typecheck run side by side, each against the committed dist (repo/settings/workflow-rules.test.mjs holds it).
+ *     main's cache, which main's own lint writes afresh. The dashboard's build and the typecheck run side by side,
+ *     each over the packages' sources (repo/settings/workflow-rules.test.mjs holds it).
  *   - The edge's functions are built here (tooling/scripts/edge-functions.mjs, in seconds) and Vercel deploys them as
  *     they are, with the settings its own builder gave each, where it once compiled them one by one for seven minutes.
  *     CI's typecheck still reads the edge's own tsconfig, every function in it.
@@ -21,7 +21,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { ESLint } from "eslint";
 import ts from "typescript";
-import { isWritten, migrationsAdded, WRITERS } from "../../../land.mjs";
+import { isRetired, isWritten, migrationsAdded, WRITERS } from "../../../land.mjs";
 import { FIRST, LOCAL_CHECKS, runTogether } from "../../../checks/checked-locally.mjs";
 import { cacheOptions } from "../../../checks/lint.mjs";
 import { buildEdge, edgeFunctions, functionFiles, nodeMajor, ROUTES, vcConfig } from "../../../edge-functions.mjs";
@@ -31,8 +31,6 @@ const read = (rel) => fs.readFileSync(path.join(ROOT, rel), "utf8");
 
 test("land takes main's side only of what a command writes, and has a command for each", () => {
   for (const file of [
-    "packages/contracts/dist/index.d.ts",
-    "packages/db/dist/index.js",
     "packages/contracts/src/browser.generated.ts",
     "packages/contracts/src/route-keys.generated.ts",
     "apps/dashboard/src/client/routes.generated.ts",
@@ -58,14 +56,21 @@ test("land takes main's side only of what a command writes, and has a command fo
     "route-types.mjs",
     "gen:api-reference",
     "gen:data-model",
-    "build",
   ])
     assert.ok(commands.includes(writer), writer);
-  assert.match(
-    WRITERS.at(-1)[1],
-    /--filter "\.\/packages\/\*" build/,
-    "the dist last, from the sources the others read",
-  );
+  assert.match(WRITERS[0][1], /sorted-lists\.mjs$/, "the barrels first: the browser entry is written from them");
+  assert.ok(!/package-build|--filter "\.\/packages\/\*" build/.test(commands), "no dist is written: git keeps none");
+});
+
+test("a dist a branch from before 28 October 2026 still tracks leaves the index on a merge, as main's did", () => {
+  for (const file of [
+    "packages/contracts/dist/index.d.ts",
+    "packages/db/dist/index.js",
+    "packages/contracts/dist/browser/index.js",
+  ])
+    assert.equal(isRetired(file), true, file);
+  for (const file of ["packages/contracts/src/index.ts", "packages/contracts/distance.ts", "apps/dashboard/dist/x.js"])
+    assert.equal(isRetired(file), false, file);
 });
 
 test("a pull request that adds a migration never merges itself: land holds its auto-merge until it is applied", () => {
@@ -91,7 +96,7 @@ test("a pull request that adds a migration never merges itself: land holds its a
 test("check:local builds first, then runs the rest side by side and says each one's own result", async () => {
   assert.deepEqual(
     LOCAL_CHECKS.slice(0, FIRST).map(([name]) => name),
-    ["the packages' build", "dist matches the sources"],
+    ["the packages' bundles"],
   );
   const said = [];
   const node = JSON.stringify(process.execPath);

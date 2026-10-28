@@ -973,6 +973,22 @@ export function resolvedConfig(tsconfig) {
   return parsed;
 }
 
+/**
+ * A project's options for a program of the measures' own: nothing emitted and nothing built, so a package's settings
+ * as a referenced project (composite, its declarations into .types) do not ask for files the measure never reads.
+ */
+export const unbuilt = (options) => ({
+  ...options,
+  composite: false,
+  declaration: false,
+  emitDeclarationOnly: false,
+  rootDir: undefined,
+  outDir: undefined,
+  tsBuildInfoFile: undefined,
+  noEmit: true,
+  incremental: false,
+});
+
 /** Every workspace project's tsconfig.json, by its project's path: the packages and the apps. */
 export function projectConfigs() {
   const out = [];
@@ -999,16 +1015,18 @@ function uncheckedIndexReads() {
   const now = {};
   for (const { tsconfig } of waitingProjects()) {
     const config = resolvedConfig(tsconfig);
+    // One program over the project and the packages' sources it imports (no project references, so nothing need be
+    // built first), checked in the project's own files alone: a package's reads are its own project's to count.
     const program = ts.createProgram({
       rootNames: config.fileNames,
-      options: { ...config.options, noUncheckedIndexedAccess: true, noEmit: true, incremental: false },
+      options: { ...unbuilt(config.options), noUncheckedIndexedAccess: true },
     });
     const home = path.dirname(tsconfig) + path.sep;
-    for (const d of program.getSemanticDiagnostics()) {
-      if (!d.file || !path.resolve(d.file.fileName).startsWith(home)) continue;
-      const file = path.relative(ROOT, path.resolve(d.file.fileName)).split(path.sep).join("/");
-      if (/(^|\/)(\.next|node_modules)\//.test(file)) continue;
-      now[file] = (now[file] ?? 0) + 1;
+    for (const sf of program.getSourceFiles()) {
+      const file = path.relative(ROOT, path.resolve(sf.fileName)).split(path.sep).join("/");
+      if (!path.resolve(sf.fileName).startsWith(home) || /(^|\/)(\.next|node_modules)\//.test(file)) continue;
+      const n = program.getSemanticDiagnostics(sf).length;
+      if (n) now[file] = (now[file] ?? 0) + n;
     }
   }
   return now;

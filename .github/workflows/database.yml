@@ -10,7 +10,7 @@ name: Database
 # changed files through tooling/scripts/checks/db-paths-changed.mjs, which holds the
 # one list of what the replay depends on: the migrations, seed and config under
 # supabase/, the SQL suites, the db package's src (the *.integration suites call
-# its repositories through the committed dist), what the two --check steps
+# its repositories through the bundle the launcher builds), what the two --check steps
 # compare, and what this workflow installs. A pull request that touches none of
 # them gets that sentence and a pass without a Supabase stack being started, and
 # a push to main asks the same question of everything since main's last replay

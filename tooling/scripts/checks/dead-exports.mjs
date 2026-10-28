@@ -23,8 +23,8 @@
  * knip enters each package at its barrel (`src/index.ts`), and every barrel names its exports, so to knip each
  * of a package's public values is used. The packages' pass below reads them as code instead: a value a package's
  * barrel exports and no module outside its own declaring one mentions is counted under its module, beside knip's
- * findings (`unimportedExports`, _ast.mjs). The public names are the built bundle's, so run it after a build, as CI
- * does.
+ * findings (`unimportedExports`, _ast.mjs). The public names are the bundle's (the one the node suite reads, which
+ * esbuild resolves through every `export *`), so this builds the bundles first (tooling/scripts/package-build.mjs).
  *
  * A finding is a bug report, not an instruction: an export knip cannot see a
  * use of may be read through a string, a dynamic import or a test double. Look
@@ -87,6 +87,10 @@ export function packagePass() {
 function main() {
   const update = process.argv.includes("--update");
   const raise = process.argv.includes("--raise");
+  execFileSync(process.execPath, [path.join(ROOT, "tooling/scripts/package-build.mjs")], {
+    cwd: ROOT,
+    stdio: "inherit",
+  });
 
   let raw;
   try {

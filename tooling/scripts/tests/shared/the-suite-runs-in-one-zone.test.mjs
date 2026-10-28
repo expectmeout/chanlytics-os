@@ -25,6 +25,7 @@ test("with no files it runs the suite; files, globs and directories asked for re
   const args = (argv) => planOf(argv, {}).args;
   const loader = [
     "--conditions=react-server",
+    "--conditions=bundled",
     "--import",
     "tsx",
     "--import",
