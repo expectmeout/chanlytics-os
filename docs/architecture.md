@@ -494,24 +494,29 @@ six. Measured on production, 9 October 2026: the Inbox had its rows 350 ms into 
   only the server knows is made sayable by its route, never left out: the Calendar asks for `around=today` and the route
   works out the weeks by the business's clock. `tooling/scripts/tests/shell/surfaces/route-prefetch.test.mjs` runs each
   page's surfaces against the list, and fails a page that has no entry. A page that also names what it draws beside its
-  own (`PREFETCH_BESIDE`, Today alone so far) asks for its whole first screen as one streamed read instead
+  own (`PREFETCH_BESIDE`: Today and the Inbox) asks for its whole first screen as one streamed read instead
   (`apps/dashboard/app/api/v1/open/route.ts` over `apps/dashboard/src/server/workspace/page-open.ts`): its own reads,
   then the rest, each answered by its own route past one session check, one membership read and one readers' turn, and
-  parked for the page under the URL it reads it by (decision 0053, step 2).
+  parked for the page under the URL it reads it by (decision 0053, step 2). A record the address names rides with them:
+  a person's page reads the person, and the thread an Inbox address names has its person read in the stream's first tier
+  (`THREAD_PERSON_READ`).
 - _The boot reads the page's own first._ Who is looking, the page's surface and what it draws beside it
   (`ROUTE_DRAWS`, `apps/dashboard/src/legacy-bridge/hearing/route-draws.ts`, read through
   `apps/dashboard/src/legacy-bridge/surface-registry.ts`), then everyone else's
   (`apps/dashboard/src/legacy-bridge/surface-runner.ts`). What waits for the boot (a warm, Ask's follow-ups, a list's
   people ahead) waits for this one (`workspace.ts` `afterBoot`; the shell says a boot is coming before anything asks).
 - _Nothing lands over what is drawn._ What stands above a page's own content or in it is waited for by its first draw
-  (`ROUTE_WAITS` beside `ROUTE_DRAWS`, the code of such a part too: `surface-status.ts` `firstDrawWaitsFor`), is read in
+  (`ROUTE_WAITS` beside `ROUTE_DRAWS`, the code of such a part too, and a read the page can name only once its own is in,
+  as the Inbox's opening thread's person: `surface-status.ts` `firstDrawWaitsFor`), is read in
   the first tier of its stream (`PREFETCH_READS`), and comes first in `ROUTE_DRAWS`; the second tier (`PREFETCH_BESIDE`)
   lands after the first draw, so only what stands below the fold reads there. Measured on Today before it held (27 October
   2026): the Setup card, Going today, a run's seat, a review's row and the drafts' words each landed after the queue and
-  moved it. A page of views asks its view's row before its own, as `ROUTE_DRAWS` is asked (`surface-registry.ts`
-  `routeWaitsFor`): a sequence's steps wait for the settings read their words are in, New for the playbooks read its starts
-  are made of, and Messages for the number it sends from, and none for another view's (the Campaigns load review, 28
-  October 2026). A part that is still being read draws nothing, never the word for none.
+  moved it; and on the Inbox (28 October 2026) a template thread's reply box and the head's deal and visit chips each landed
+  after the thread, the box pushing the conversation up 145 to 162 px. A page of views asks its view's row before its own,
+  as `ROUTE_DRAWS` is asked (`surface-registry.ts` `routeWaitsFor`): a sequence's steps wait for the settings read their
+  words are in, New for the playbooks read its starts are made of, and Messages for the number it sends from, and none for
+  another view's (the Campaigns load review, 28 October 2026). A part that is still being read draws nothing, never the
+  word for none.
 - _What is read only where it is drawn is read as its page is reached for._ A surface marked `onDemand` (Reports among
   them) is on no other page's boot; a pointer at its row in the sidebar, or the phone's drawer opening, starts its reads
   (`surface-registry.ts` `warmWhatItDraws`), so the press finds them in or on their way.

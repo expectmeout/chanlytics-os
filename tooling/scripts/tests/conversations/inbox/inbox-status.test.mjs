@@ -408,6 +408,47 @@ test("the reply Need you drafted is in an emailed thread's empty box, to change 
   }
 });
 
+test("the kept reply comes with the Inbox's first reads: the box draws with its words in its first frame, with no read of its own; drafts that are all the workspace keeps and hold none say none (the Inbox load review, 28 Oct 2026)", async () => {
+  const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
+  const mail = (m) => ({ ...m, channel: "email" });
+  const dto = chat({ last_wa_inbound_at: null, messages: [mail(wrote("m1", "Can you move a sofa on Friday?", 40))] });
+  const esc = { id: "e1", reason: "email_review", details: null, state: "open", created_at: ago(40) };
+  const kept = {
+    conversation_id: "c1",
+    kind: "reply",
+    for_message_id: "m1",
+    words: { text: "Yes, Friday works. Shall I book 10 AM?", subject: "", brief: null, asks: [] },
+    made_at: ago(30),
+  };
+  const realFetch = globalThis.fetch;
+  const asked = [];
+  globalThis.fetch = async (url) => {
+    asked.push(new URL(String(url), "https://app.example").pathname);
+    return new Response(JSON.stringify({ ok: true, data: { drafts: [] } }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
+  const firstWords = async (drafts) => {
+    setSurfaceValue("reply_drafts", { ...drafts, fetchedAt: Date.now() });
+    fresh();
+    const thread = vmOf(dto, esc);
+    const first = again(() => InboxComposer({ thread, reply: "", onSend() {} }));
+    for (let i = 0; i < 5; i++) await settle();
+    return find(first, (n) => n.type === "textarea").props.value;
+  };
+  try {
+    assert.equal(await firstWords({ drafts: [kept], complete: false }), kept.words.text, "drawn with its words");
+    assert.equal(await firstWords({ drafts: [], complete: true }), "", "none kept, and none to read");
+    assert.deepEqual(asked, [], "the thread's own read is asked for neither");
+    assert.equal(await firstWords({ drafts: [], complete: false }), "", "not among the newest: read by the thread");
+    assert.deepEqual(asked, ["/api/v1/conversations/drafts"]);
+  } finally {
+    globalThis.fetch = realFetch;
+    setSurfaceValue("reply_drafts", undefined);
+  }
+});
+
 test("REGRESSION: the reply box and a seeded approval draw no key -- Send said ⌘↵ and the card's foot A, D and E, beside the ? sheet that lists them", () => {
   fresh();
   const box = InboxComposer({ thread: vmOf(chat({ state: "open" })), reply: "", onSend() {} });

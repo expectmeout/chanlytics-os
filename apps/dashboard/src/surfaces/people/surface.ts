@@ -313,6 +313,29 @@ export async function peopleSearch(q: string): Promise<{ rows: PersonRowVM[]; mo
 }
 
 /**
+ * The person a thread is with, as People's row says them, from the thread's own read of them (GET contacts?thread): the
+ * Inbox's thread head draws them from it until People's book is in (want-person.ts, a thread's person). Made as a
+ * search's rows are, so the deal, the visit, the step and where they work are the words People's row says. Null for a
+ * thread whose person People does not hold (erased, merged, a thread of another workspace's).
+ */
+export async function threadPersonRow(conversationId: string): Promise<PersonRowVM | null> {
+  const [r, tz, m] = await Promise.all([
+    read("GET contacts", { query: { thread: conversationId } }),
+    workspaceZone(),
+    peopleMap(),
+  ]);
+  const p = r.people.at(0);
+  if (!p) return null;
+  return m.personRowOf(p, {
+    tz,
+    now: new Date(),
+    viewer: viewerId(),
+    ready: peopleLoaded?.channelsReady ?? null,
+    names: holderName,
+  });
+}
+
+/**
  * Every page of people, not the first: whatever counts people counts everyone.
  * Broadcasts learned it first -- an audience counted over one page promised
  * fewer people than the send enrols. People counted its lists, its header and

@@ -23,11 +23,15 @@ import { GET as google } from "../google/route";
 import { GET as replies } from "../reach-out-replies/route";
 import { GET as morning } from "../ask/morning/route";
 import { GET as drafts } from "../conversations/drafts/route";
+import { GET as team } from "../team/route";
+import { GET as policies } from "../policies/route";
+import { GET as templates } from "../templates/route";
 
 /**
  * GET /api/v1/open?route=today[&period=7d] — a page's first reads, answered as one streamed request (decision 0053
  * step 2; server/workspace/page-open.ts): who is looking, the page's own reads (contracts PREFETCH_READS) and what it
- * draws beside them (PREFETCH_BESIDE), one JSON line each as it settles. The document's head asks for it in place of a
+ * draws beside them (PREFETCH_BESIDE), one JSON line each as it settles. `thread` is the conversation an Inbox address
+ * names, whose person is read with the page's own (contracts THREAD_PERSON_READ). The document's head asks for it in place of a
  * request per read and parks each answer for the page to take (contracts routePrefetchScript); a read it did not answer
  * is the page's to ask for itself.
  *
@@ -57,11 +61,15 @@ const READS: ReadonlyMap<string, OpenRead> = new Map<string, OpenRead>([
   ["reach-out-replies", replies],
   ["ask/morning", morning],
   ["conversations/drafts", drafts],
+  ["team", team],
+  ["policies", policies],
+  ["templates", templates],
 ]);
 
 const Query = z.object({
   route: z.enum(PREFETCH_OPEN),
   period: z.string().max(16).optional(),
+  thread: z.uuid().optional(),
 });
 
 export const GET = read({
@@ -71,6 +79,9 @@ export const GET = read({
   handle: ({ ctx, req, input }) => {
     const offered: readonly string[] = REPORT_PERIOD_IDS;
     const period = input.period && offered.includes(input.period) ? input.period : null;
-    return Promise.resolve(openPage(ctx, req, input.route, period, (key) => READS.get(key.replace(/\?.*$/, ""))));
+    const thread = input.thread ?? null;
+    return Promise.resolve(
+      openPage(ctx, req, { page: input.route, period, thread }, (key) => READS.get(key.replace(/\?.*$/, ""))),
+    );
   },
 });
