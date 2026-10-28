@@ -139,7 +139,7 @@ function reachOf(cell: Element): number {
 }
 
 /** The least a column is dragged to: its heading's words and caret whole, so no heading reads "FIRST CONTA". */
-export const headingFloorOf = (heading: Element | null): number => (heading ? Math.ceil(reachOf(heading)) + 2 : 0);
+const headingFloorOf = (heading: Element | null): number => (heading ? Math.ceil(reachOf(heading)) + 2 : 0);
 
 /** One canvas for every measure of words in a font, made the first time a fit asks. */
 let measuring: CanvasRenderingContext2D | null = null;

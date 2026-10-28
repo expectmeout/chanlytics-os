@@ -44,7 +44,7 @@ export const plClampWidth = (px: number, standing: number = 0): number =>
 export const PL_NUDGE_PX = 16;
 export const PL_NUDGE_BIG_PX = 64;
 /** The most of the box a pinned column keeps while the table scrolls under it, so the rest can always be scrolled to. */
-export const PL_PIN_SHARE = 0.45;
+const PL_PIN_SHARE = 0.45;
 
 /**
  * How the table is sized. `fit`: nobody has sized a column, and the columns share the box between them (Person takes
