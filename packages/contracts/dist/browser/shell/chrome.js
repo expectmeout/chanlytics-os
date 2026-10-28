@@ -1,6 +1,7 @@
 import { WORKSPACE_PAUSED } from "../lines/caller-gets.js";
 import { PAUSED_WORDS } from "../workspace/billing.js";
 import { roleSays } from "../config/workspace-config/role-perms.js";
+import { FIRST_RUN_ROUTE } from "../setup/first-run-route.js";
 export const THEME_OPTIONS = [
   { id: "light", label: "Light", icon: "sun" },
   { id: "dark", label: "Dark", icon: "moon" },
@@ -78,6 +79,23 @@ export function inAppBootScript() {
   ].join("");
 }
 export const isSidebarPref = (v) => v === "open" || v === "rail";
+export const DEFAULT_SIDEBAR_PREF = "open";
+const OUTLINE_SIDEBAR_ATTR = "data-sidebar";
+const OUTLINE_BARE_ATTR = "data-outline-bare";
+export function outlineBootScript() {
+  const start = JSON.stringify(FIRST_RUN_ROUTE);
+  return [
+    "try{",
+    `var v=${JSON.stringify(DEFAULT_SIDEBAR_PREF)};`,
+    `try{var s=JSON.parse(localStorage.getItem(${JSON.stringify(DEVICE_PREFS_STORAGE)})||"{}");`,
+    'if(s&&(s.sidebar==="open"||s.sidebar==="rail"))v=s.sidebar}catch(e){}',
+    `document.documentElement.setAttribute(${JSON.stringify(OUTLINE_SIDEBAR_ATTR)},v);`,
+    'var m=/^\\/w\\/[^\\/?#]+(?:\\/([^\\/?#]*))?/.exec(location.pathname||"");',
+    'var r=m?(m[1]||((location.hash||"").indexOf("#/")===0?location.hash.slice(2).split(/[\\/?]/)[0]:"")):"";',
+    `if(r===${start})document.documentElement.setAttribute(${JSON.stringify(OUTLINE_BARE_ATTR)},"");`,
+    "}catch(e){}"
+  ].join("");
+}
 export function isTypingTarget(tagName, contentEditable) {
   const t = (tagName ?? "").toUpperCase();
   return contentEditable || t === "INPUT" || t === "TEXTAREA" || t === "SELECT";

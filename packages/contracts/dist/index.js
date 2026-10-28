@@ -35573,6 +35573,27 @@ function optInLink(numberE164, phrase = OFFERS_OPT_IN_PHRASES.en) {
   return waMeLink(numberE164, phrase);
 }
 
+// src/setup/first-run-route.ts
+var FIRST_RUN_STEP_KEYS = ["business", "receptionist", "rehearse", "channels", "live"];
+var FIRST_RUN_STEPS_BEFORE = { phone: "live", try: "live" };
+function firstRunStepOf(param) {
+  if (!param) return null;
+  return FIRST_RUN_STEP_KEYS.find((k) => k === param) ?? FIRST_RUN_STEPS_BEFORE[param] ?? null;
+}
+var FIRST_RUN_ROUTE = "start";
+function firstRunStepRoute(key) {
+  return `${FIRST_RUN_ROUTE}/${key}`;
+}
+var FIND_PARAM = "find";
+var FIRST_RUN_FIND_ROUTE = `${FIRST_RUN_ROUTE}/${FIND_PARAM}`;
+var FIRST_RUN_TITLE = "Setting up";
+var FINISH_SETTING_UP = "Finish setting up";
+var FIRST_RUN_LANDED_KEY = "chanlytics.setup.landed";
+function shouldLandOnFirstRun(role, answering, route, landed) {
+  if (landed || answering || !ROLE_PERMS[role]?.settings) return false;
+  return route === "" || route === "today";
+}
+
 // src/shell/chrome.ts
 var THEME_OPTIONS = [
   { id: "light", label: "Light", icon: "sun" },
@@ -35651,6 +35672,23 @@ function inAppBootScript() {
   ].join("");
 }
 var isSidebarPref = (v) => v === "open" || v === "rail";
+var DEFAULT_SIDEBAR_PREF = "open";
+var OUTLINE_SIDEBAR_ATTR = "data-sidebar";
+var OUTLINE_BARE_ATTR = "data-outline-bare";
+function outlineBootScript() {
+  const start = JSON.stringify(FIRST_RUN_ROUTE);
+  return [
+    "try{",
+    `var v=${JSON.stringify(DEFAULT_SIDEBAR_PREF)};`,
+    `try{var s=JSON.parse(localStorage.getItem(${JSON.stringify(DEVICE_PREFS_STORAGE)})||"{}");`,
+    'if(s&&(s.sidebar==="open"||s.sidebar==="rail"))v=s.sidebar}catch(e){}',
+    `document.documentElement.setAttribute(${JSON.stringify(OUTLINE_SIDEBAR_ATTR)},v);`,
+    'var m=/^\\/w\\/[^\\/?#]+(?:\\/([^\\/?#]*))?/.exec(location.pathname||"");',
+    'var r=m?(m[1]||((location.hash||"").indexOf("#/")===0?location.hash.slice(2).split(/[\\/?]/)[0]:"")):"";',
+    `if(r===${start})document.documentElement.setAttribute(${JSON.stringify(OUTLINE_BARE_ATTR)},"");`,
+    "}catch(e){}"
+  ].join("");
+}
 function isTypingTarget(tagName, contentEditable) {
   const t = (tagName ?? "").toUpperCase();
   return contentEditable || t === "INPUT" || t === "TEXTAREA" || t === "SELECT";
@@ -59872,27 +59910,6 @@ function capabilityStatus(kind, i, nowMs = Date.now()) {
   return { kind, ready: ready2, blockers, tested, activated, live, words: words3 };
 }
 
-// src/setup/first-run-route.ts
-var FIRST_RUN_STEP_KEYS = ["business", "receptionist", "rehearse", "channels", "live"];
-var FIRST_RUN_STEPS_BEFORE = { phone: "live", try: "live" };
-function firstRunStepOf(param) {
-  if (!param) return null;
-  return FIRST_RUN_STEP_KEYS.find((k) => k === param) ?? FIRST_RUN_STEPS_BEFORE[param] ?? null;
-}
-var FIRST_RUN_ROUTE = "start";
-function firstRunStepRoute(key) {
-  return `${FIRST_RUN_ROUTE}/${key}`;
-}
-var FIND_PARAM = "find";
-var FIRST_RUN_FIND_ROUTE = `${FIRST_RUN_ROUTE}/${FIND_PARAM}`;
-var FIRST_RUN_TITLE = "Setting up";
-var FINISH_SETTING_UP = "Finish setting up";
-var FIRST_RUN_LANDED_KEY = "chanlytics.setup.landed";
-function shouldLandOnFirstRun(role, answering, route, landed) {
-  if (landed || answering || !ROLE_PERMS[role]?.settings) return false;
-  return route === "" || route === "today";
-}
-
 // src/setup/setup-rows-phone.ts
 function lineRow(i, ctx) {
   const { voice: voice2, voiceReady, voiceNum, answering, ownLine, texting } = ctx;
@@ -69793,6 +69810,7 @@ export {
   DEFAULT_COMPANY_TYPE,
   DEFAULT_INDUSTRY,
   DEFAULT_LOOK_PREF,
+  DEFAULT_SIDEBAR_PREF,
   DEFAULT_THEME_PREF,
   DEFAULT_TIMEZONE,
   DEFAULT_WEEK,
@@ -72213,6 +72231,7 @@ export {
   optOutWords,
   oursOf,
   outcomeMove,
+  outlineBootScript,
   outreachRefusalOf,
   overLimitRefusal,
   ownAddressesOf,

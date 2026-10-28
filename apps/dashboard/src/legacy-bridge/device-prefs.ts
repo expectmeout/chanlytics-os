@@ -15,6 +15,7 @@ import {
   lookPrefOf,
   isLookPref,
   isSidebarPref,
+  DEFAULT_SIDEBAR_PREF,
   DEFAULT_THEME_PREF,
   DEVICE_PREFS_STORAGE,
   type LookPref,
@@ -44,7 +45,7 @@ type PrefStorage = () => Pick<Storage, "getItem" | "setItem">;
 
 const PREF_DEFAULTS: Prefs = {
   theme: DEFAULT_THEME_PREF,
-  sidebar: "open",
+  sidebar: DEFAULT_SIDEBAR_PREF,
   inboxDensity: "medium",
   showInboxAgentRail: false,
 };

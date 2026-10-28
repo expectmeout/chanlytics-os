@@ -10,44 +10,12 @@ import { useEffect, useState } from "react";
 import { routeDoor } from "../../frame-doors";
 import type { LegacyFlash } from "../../legacy-verbs";
 import { frameGlyph, isDemoFrame } from "../frame-window";
+import { NAV_INTEL, NAV_PRIMARY, NAV_WORK, type NavItem } from "../places";
 import { NAV_ROUTE } from "../shell-routes";
 import { SbMenu, UserMenu, WorkspaceMenu, useSbMenu } from "./sidebar-menus";
 import { SbWorkspaceFace, sbTeamSub, sbWho, sbWorkspace, sbWorkspaceName, type SbWho } from "./sidebar-who";
 
-interface NavItem {
-  id: string;
-  icon: string;
-  label: string;
-  hint?: string;
-  urgent?: boolean;
-  demoOnly?: boolean;
-  badge?: string | number | null;
-  expandable?: boolean;
-  children?: ReadonlyArray<{ id: string; label: string; badge?: string | number | null }>;
-}
-
 type Badges = Record<string, string | number | null | undefined>;
-
-const NAV_PRIMARY: readonly NavItem[] = [
-  { id: "home", icon: "home", label: "Today", hint: "Live brief" },
-  { id: "inbox", icon: "inbox", label: "Inbox", urgent: true },
-];
-
-// Flat nav: merged surfaces are views (SurfaceTabs), not places. Conversations is NOT an item here: it and the Inbox read
-// the SAME table (surface-data.ts, `GET conversations`), so they are one door with three views in the strip: Needs you ·
-// Conversations · Live.
-const NAV_WORK: readonly NavItem[] = [
-  { id: "people", icon: "users", label: "People" },
-  { id: "calendar", icon: "calendar", label: "Calendar" },
-  { id: "campaigns", icon: "bolt", label: "Campaigns" },
-];
-
-// Agents (fleet, store, studio, tasks) is the mockup's: hidden outside a demo session, with the rest of the mockup (see
-// surface-registry.ts). Settings is no place in this list: it is the first door of the account's menu at the foot.
-const NAV_INTEL: readonly NavItem[] = [
-  { id: "agents", icon: "agents", label: "Agents", demoOnly: true },
-  { id: "reports", icon: "trending-up", label: "Reports" },
-];
 
 interface SbAgent {
   id: string;
@@ -347,7 +315,7 @@ function SidebarFoot({ who, collapsed, onToggleCollapse, onNavigate, flash, ...a
       </button>
       <button
         type="button"
-        className="user-chip"
+        className="user-chip sb-account"
         ref={meMenu.ref}
         onClick={meMenu.toggle}
         aria-haspopup="menu"
