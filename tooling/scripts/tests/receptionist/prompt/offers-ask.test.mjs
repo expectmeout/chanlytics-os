@@ -65,6 +65,12 @@ test("a workspace with a WhatsApp number is told to ask for the yes to offers, o
     "the phone prompt is never told to ask: nobody can reply YES OFFERS on a call",
   );
   assert.ok(!call.includes("Want our offers and news here too?"));
+  // Nor told what to do with the phrase: a caller says it aloud, and the answer is about a message (28 Oct 2026).
+  for (const whatsapp_line of [LINE, null])
+    assert.ok(
+      !/YES OFFERS|SI OFERTAS/.test(compose({ ...BASE, whatsapp_line }, "voice")),
+      `a call prompt never names the phrase (WhatsApp line ${whatsapp_line ?? "none"})`,
+    );
 });
 
 test("the resolver says it from the WhatsApp number the platform provisioned, never from one typed, and never to a prompt nothing composed", () => {
