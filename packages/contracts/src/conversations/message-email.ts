@@ -47,7 +47,13 @@ const CP1252_BYTE: ReadonlyMap<string, number> = new Map(
 );
 /** A run that reads as UTF-8 drawn byte by byte: a lead byte's character, then continuation bytes' characters. */
 const MOJIBAKE_RUN = /[Â-ô][\u0080-¿€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ]+/g;
-const strictUtf8 = new TextDecoder("utf-8", { fatal: true });
+/**
+ * The strict decoder, made the first time a run is read back rather than as the module loads: every page imports this
+ * module, and the shell's harness runs the bundles where there is no TextDecoder at all (legacy-harness.test.mjs).
+ */
+let strictUtf8: TextDecoder | null = null;
+const readStrict = (bytes: Uint8Array): string =>
+  (strictUtf8 ??= new TextDecoder("utf-8", { fatal: true })).decode(bytes);
 
 /**
  * Words whose UTF-8 was read as Latin-1 or Windows-1252, given back their own characters: "youâ€™re" is "you’re". A
@@ -66,7 +72,7 @@ export function repairMojibake(text: string): string {
     });
     if (bytes.some((b) => b < 0)) return run;
     try {
-      return strictUtf8.decode(Uint8Array.from(bytes));
+      return readStrict(Uint8Array.from(bytes));
     } catch {
       return run;
     }

@@ -8925,7 +8925,8 @@ var CP1252_BYTE = new Map(
   Array.from("\u20AC\u201A\u0192\u201E\u2026\u2020\u2021\u02C6\u2030\u0160\u2039\u0152\u017D\u2018\u2019\u201C\u201D\u2022\u2013\u2014\u02DC\u2122\u0161\u203A\u0153\u017E\u0178", (ch, i) => [ch, CP1252_CODES[i] ?? 0])
 );
 var MOJIBAKE_RUN = /[Â-ô][\u0080-¿€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ]+/g;
-var strictUtf8 = new TextDecoder("utf-8", { fatal: true });
+var strictUtf8 = null;
+var readStrict = (bytes) => (strictUtf8 ??= new TextDecoder("utf-8", { fatal: true })).decode(bytes);
 function repairMojibake(text) {
   if (!/[Â-ô]/.test(text)) return text;
   return text.replace(MOJIBAKE_RUN, (run) => {
@@ -8935,7 +8936,7 @@ function repairMojibake(text) {
     });
     if (bytes.some((b) => b < 0)) return run;
     try {
-      return strictUtf8.decode(Uint8Array.from(bytes));
+      return readStrict(Uint8Array.from(bytes));
     } catch {
       return run;
     }
