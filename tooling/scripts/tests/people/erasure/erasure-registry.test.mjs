@@ -4,7 +4,7 @@
  *
  * What each leg of an erasure reaches is written in its own code; the registry says it per column, so a column that can
  * hold a person's words says how an erasure reaches it. The ratchet "personal columns with no erasure strategy"
- * (repo/code-health-ratchets.test.mjs, baselines/erasure-strategies.json) holds the count of columns it does not name
+ * (_measures.mjs, the erasure-strategies measure, which check:debt holds) holds the count of columns it does not name
  * to fall; this holds the registry itself: no entry for a column the schema no longer has, every leg one the erasure
  * runs, every age one the privacy page states.
  */

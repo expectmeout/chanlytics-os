@@ -1,22 +1,17 @@
 /**
- * The measures behind docs/debt.md, in one module, and the tree docs/architecture.md
- * draws from the files they measure (docs/docs-tree.test.mjs).
+ * The measures behind docs/debt.md, in one module: every number the build holds, each with the rule it stands for
+ * (RATCHETS, below).
  *
- * The ratchets (repo/code-health-ratchets.test.mjs), the source-scan ratchet
- * (repo/source-scan-ratchet.test.mjs), the wire's ratchet (routes/wire-casing.test.mjs), the index
- * reads' (types/index-reads-are-counted.test.mjs)
- * and the register (repo/debt-register.test.mjs)
- * all read the definitions here, so a number means one thing wherever it is
- * printed. It also keeps banking honest: the node runner starts test files in
- * parallel, and a register that read the baselines while the ratchets were still
- * writing them banked a stale number, twice, on the day the suite was grouped by
- * domain. In bank mode the register measures for itself, from here, and reads no
- * file another process may be writing.
+ * A number may only fall, and since 28 October 2026 (decision 0074) it is held change by change: CI measures a pull
+ * request's base and its head (tooling/scripts/checks/debt.mjs), and a number that rose, or an offender that is new,
+ * fails the change unless its description says why, in a line `Debt: <why>`. No baseline is committed for these, so a
+ * fall needs no banking and no two changes meet in a file of numbers. The tests that held them (code-health-ratchets,
+ * wire-casing, event-kinds, journey) now hold what each measure means, on sources written for it.
  *
  * The limits are the scorecard's proposal and, where ESLint has the rule, its
  * defaults: 150 lines a function, 30 branches, 5 levels; 800 lines a file; 20
- * modules a directory; a name in three files is a copy. When a tree's baseline
- * is empty, the matching ESLint rule goes on for that tree and the limit stops
+ * modules a directory; a name in three files is a copy. When a tree holds no
+ * function over the limits, the matching ESLint rule goes on for that tree and the limit stops
  * being a ratchet and becomes a lint error (eslint.config.mjs, LIMITED_TREES).
  *
  * Not named *.test.mjs on purpose: the runner globs that pattern.
@@ -25,7 +20,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import ts from "typescript";
-import { ROOT, readCode, readRaw } from "./_source.mjs";
+import { ROOT, readCode, readRaw, readerFiles } from "./_source.mjs";
 import {
   repoFiles,
   parse,
@@ -51,21 +46,22 @@ import {
   mediaPreludes,
   mediaWidths,
   stringsIn,
+  visitsWrittenIn,
   SOURCE,
 } from "./_ast.mjs";
 import { cssOf, isPrimitiveClass, STYLE_VALUE_FIELDS } from "./_css.mjs";
-import { bank } from "./_ratchet.mjs";
 import { CLOCKS } from "./clocks/_clocks.mjs";
 import { OUT as SCHEMA_SQL, functionChangesIn, statementsOf } from "../gen/schema-snapshot.mjs";
 import { SCHEMA_SETS } from "@chanlytics/contracts";
 import { ERASURE_STRATEGIES } from "@chanlytics/db";
+import { SUITES } from "../checks/test.mjs";
 
 /** A function's limits: eslint.config.mjs's FUNCTION_LIMITS, as errors where this holds nothing. */
 export const LIMIT = { lines: 150, branches: 30, depth: 5 };
 const FILE_LIMIT = 800;
 const DIRECTORY_LIMIT = 20;
 const COPY_LIMIT = 3;
-/** The suffix of a tables.json key that counts a file's `.rpc("…")` calls rather than its `.from("…")`. */
+/** The suffix of a tables key that counts a file's `.rpc("…")` calls rather than its `.from("…")`. */
 export const RPC_KEY = "::rpc";
 
 /** The code that ships: the two apps and the packages' sources. Tests and specs are not held to a function's size. */
@@ -472,7 +468,7 @@ export const MEASURES = [
   },
   {
     // Every file of the tree, one each: it may only lose them. The address step (decision 0015) closed the tree: a
-    // surface is written in TSX under src/surfaces, and one that leaves deletes its files and banks the fall.
+    // surface is written in TSX under src/surfaces, and one that leaves deletes its files.
     name: "files in the legacy tree",
     file: "legacy-files.json",
     measure: () =>
@@ -749,69 +745,33 @@ export function sourceScan() {
   return { files, counts };
 }
 
-export const SOURCE_SCAN_BASELINE = `${TESTS_DIR}/source-scan-baseline.json`;
-
 /**
- * The counts a bank writes for the source-scan ratchet, by the rule every ratchet banks
- * by (`bank`, _ratchet.mjs): a file's count falls or goes, and rises only with a raise.
- * A file in `lint`, a repo-wide lint, is exempt from the ratchet but not from the
- * record, so its count is written as measured.
+ * The test files whose whole purpose is a repo-wide lint (every write names a workspace, every variable is declared
+ * where it is read): their reads of source are the lint, so the ratchet does not hold them. The escape hatch is the part
+ * that rots, so the list is a handful (repo/source-scan-ratchet.test.mjs holds it to nine), each named here with the
+ * change that argued it, and a file added to it is a line of this module in review.
  */
-export function bankedSourceScan(counts, baseline, raise) {
-  const held = (o) => Object.fromEntries(Object.entries(o).filter(([f]) => !baseline.lint.includes(f)));
-  const exempt = Object.entries(counts).filter(([f]) => baseline.lint.includes(f));
-  const out = { ...bank(held(counts), held(baseline.counts), { raise }), ...Object.fromEntries(exempt) };
-  return Object.fromEntries(
-    Object.keys(out)
-      .sort()
-      .map((f) => [f, out[f]]),
-  );
-}
-
-/* ---- The tree docs/architecture.md draws (docs/docs-tree.test.mjs) ---- */
-
-/**
- * The code trees the page draws, in its order, where PACKAGES stands for every package's src. Each is drawn with the
- * folders that hold its modules (TREES: tracked, hand-written, TypeScript or JavaScript), by name and never with a
- * count, so the drawing changes when a folder appears or disappears, not with each module a change adds or removes.
- * `supabase/migrations/`, the schema, is drawn as its one line.
- */
-const PACKAGES = "packages/<name>/src";
-const DRAWN = [
-  "apps/edge/api",
-  "apps/edge/lib",
-  "apps/dashboard/app",
-  "apps/dashboard/src",
-  "apps/dashboard/src/server",
-  "apps/dashboard/src/legacy-bridge",
-  "apps/dashboard/src/legacy",
-  "apps/mobile/src",
-  PACKAGES,
-  "tooling/scripts",
-  "e2e",
+export const SOURCE_SCAN_EXEMPT = [
+  "ai/flag-registry.test.mjs",
+  "e2e/e2e-shape.test.mjs",
+  "edge/runtime-freshness.test.mjs",
+  "repo/env-manifest.test.mjs",
+  "repo/event-kinds.test.mjs",
+  "repo/hygiene.test.mjs",
+  "repo/legacy-harness.test.mjs",
+  "repo/ops-hygiene.test.mjs",
+  "routes/workspace-scoping.test.mjs",
 ];
-const MIGRATIONS = "supabase/migrations";
 
-/**
- * One tree as the page draws it: its path, then each folder that holds one of `files`, by name. A tree that holds
- * none is an entry of DRAWN its code has left, and fails the drawing rather than draw a tree that is not there.
- */
-function drawn(tree, files) {
-  if (files.length === 0) throw new Error(`${tree} holds nothing to draw: DRAWN (_measures.mjs) moves with its code`);
-  const paths = files.map((f) => f.slice(tree.length + 1).split("/"));
-  const folders = [...new Set(paths.filter((parts) => parts.length > 1).map((parts) => parts[0]))].sort();
-  return [`${tree}/`, ...folders.map((folder) => `  ${folder}/`)];
-}
-
-/** The block docs/architecture.md prints between its tree markers: each code tree and its folders, by name. */
-export function drawnTree() {
-  const packages = [...new Set(TREES.map((f) => /^packages\/[^/]+\/src(?=\/)/.exec(f)?.[0]).filter(Boolean))].sort();
-  const trees = DRAWN.flatMap((tree) => (tree === PACKAGES ? packages : [tree]));
-  const modulesUnder = (tree) => TREES.filter((f) => f.startsWith(`${tree}/`));
-  const lines = trees.flatMap((tree) => drawn(tree, modulesUnder(tree)));
-  lines.push(...drawn(MIGRATIONS, repoFiles([MIGRATIONS], { keep: /\.sql$/ })));
-  return "```text\n" + lines.join("\n") + "\n```";
-}
+/** Source-text reads in tests, by file, the exempt lints left out. */
+export const SOURCE_SCAN = {
+  name: "source-text reads in tests",
+  key: "source-scan",
+  measure: () =>
+    Object.fromEntries(Object.entries(sourceScan().counts).filter(([f]) => !SOURCE_SCAN_EXEMPT.includes(f))),
+  advice:
+    "Write a behaviour test instead: run the code and assert what it does. A file whose purpose is a repo-wide lint is listed in SOURCE_SCAN_EXEMPT (_measures.mjs), argued in its pull request.",
+};
 
 /* ---- The wire's names (routes/wire-casing.test.mjs) ---- */
 
@@ -955,7 +915,7 @@ export const WIRE_CASING = {
     "The wire is snake_case (docs/naming.md, decision 0022): name the field in snake_case in the route's type, and turn a view model into it in a named mapping, never a converter. A field a page or the phone app reads is answered in both spellings for one release.",
 };
 
-/* ---- Index reads the compiler lets pass (types/index-reads-are-counted.test.mjs) ---- */
+/* ---- Index reads the compiler lets pass (the unchecked-index measure) ---- */
 
 /** A project's tsconfig as the compiler resolves it, its `extends` followed. */
 export function resolvedConfig(tsconfig) {
@@ -1033,14 +993,198 @@ function uncheckedIndexReads() {
 }
 
 /**
- * The index reads' ratchet: a file of its own under tests/types, because it builds three whole programs (core,
- * contracts, the dashboard), not the syntax trees the ratchets above read. A project that turns the flag on leaves the
- * measure, and its entries go with the next bank.
+ * The index reads' measure: it builds three whole programs (core, contracts, the dashboard), not the syntax trees the
+ * measures above read, so it is the slowest of check:debt's. A project that turns the flag on leaves the measure, and
+ * its entries go with it.
  */
 export const UNCHECKED_INDEX = {
   name: "index reads the compiler lets pass",
   file: "unchecked-index.json",
   measure: uncheckedIndexReads,
   advice:
-    "Guard the read where it can miss (const first = rows[0]; if (!first) …; .at(-1) with a check; a destructured default), never with x!, which casts.json counts. tsconfig.base.json turns noUncheckedIndexedAccess on; a project that turns it off is counted here, file by file. Every error the flag's program reports is counted, so typecheck first: an error of another kind reads here as a read.",
+    "Guard the read where it can miss (const first = rows[0]; if (!first) …; .at(-1) with a check; a destructured default), never with x!, which the casts measure counts. tsconfig.base.json turns noUncheckedIndexedAccess on; a project that turns it off is counted here, file by file. Every error the flag's program reports is counted, so typecheck first: an error of another kind reads here as a read.",
 };
+
+/* ---- Test files over the limit ---- */
+
+/*
+ * The suite's own test files, held by their length as file-length holds the code that ships. The largest cannot be
+ * reviewed, and running one of their cases runs all of them: the runner's unit is the file. A test file's limit is
+ * twice a module's: a case writes its world and its assertions out longhand, and the suite's median file ran about
+ * twice the median module's length on 26 October 2026, at e9d6325f0, with the limit above nineteen files in twenty, so
+ * it holds the tail and not the body. A file file-length already holds is left to it: the phone app's tests
+ * (apps/mobile/test) ship with the app and meet a module's limit there first, so each file answers to one limit.
+ */
+export const TEST_FILE_LIMIT = 1600;
+
+/**
+ * The node suite's own test files, tracked, as its launcher globs them (`SUITES.test`, checks/test.mjs): git's
+ * `:(glob)` pathspec reads `**` and `*` as the runner does. A glob that lists nothing stops the measure, since an empty
+ * listing would read as every offender gone.
+ */
+export function suiteFiles() {
+  return SUITES.test.flatMap((glob) => {
+    const found = repoFiles([`:(glob)${glob}`]);
+    if (!found.length)
+      throw new Error(`git ls-files lists nothing for the launcher's ${glob}: the test-length measure has nothing to read`);
+    return found;
+  });
+}
+
+/**
+ * A file's text as `linesOf` reads a syntax tree (file-length's measure): TypeScript's own line map of it, and no
+ * parse. A length needs no tree, and parsing every test file to count its lines would cost seconds and memory.
+ */
+export const lineMapOf = (text) => ({
+  text,
+  end: text.length,
+  getLineAndCharacterOfPosition: (pos) => ts.getLineAndCharacterOfPosition({ text }, pos),
+});
+export const testLength = (file) => linesOf(lineMapOf(fs.readFileSync(path.join(ROOT, file), "utf8")));
+
+export const TEST_LENGTH = {
+  name: "test files over the limit",
+  file: "test-length.json",
+  measure: () => {
+    const held = MEASURES.find((m) => m.file === "file-length.json").measure();
+    return Object.fromEntries(
+      suiteFiles()
+        .filter((f) => !(f in held))
+        .map((f) => [f, testLength(f)])
+        .filter(([, n]) => n > TEST_FILE_LIMIT),
+    );
+  },
+  advice: `Split it by concern: a file each, named for what it proves, the world they share in their folder's _<name>.mjs, and a folder of their own where this one is at its limit of modules (tree-shape). A test file over ${TEST_FILE_LIMIT} lines is two files.`,
+};
+
+/* ---- Event kinds written only from TypeScript (repo/event-kinds.test.mjs reads the same map) ---- */
+
+/** An event kind as the product spells it: `<record>.<what happened>`. */
+export const EVENT_KIND = /^[a-z_]+\.[a-z_]+$/;
+
+export function walkTypeScript(dir, out = []) {
+  for (const e of fs.readdirSync(path.join(ROOT, dir), { withFileTypes: true })) {
+    if (["node_modules", "dist", ".next", ".types", "tests"].includes(e.name)) continue;
+    const rel = `${dir}/${e.name}`;
+    if (e.isDirectory()) walkTypeScript(rel, out);
+    else if (/\.(ts|tsx)$/.test(e.name) && !e.name.endsWith(".d.ts")) out.push(rel);
+  }
+  return out;
+}
+
+/**
+ * kind → the files that write it. The emitters are found the way they are written: `insert into events` in a
+ * migration, `emitEvent(...)` and `recordEvent(...)` (packages/db events.ts), the send door's own `event(...)`, a direct
+ * `.from("events").insert({ kind })`, a verdict that names its event, and a `*_KIND` constant.
+ */
+export function emittedKinds() {
+  const by = new Map();
+  const add = (kind, file) => {
+    if (!by.has(kind)) by.set(kind, new Set());
+    by.get(kind).add(file);
+  };
+  // SQL: each insert into events, the first dotted literal in its values.
+  for (const f of fs.readdirSync(path.join(ROOT, "supabase/migrations")).filter((n) => n.endsWith(".sql"))) {
+    const src = readRaw(`supabase/migrations/${f}`);
+    for (const m of src.matchAll(/insert into (?:public\.)?events\b([\s\S]*?);/g)) {
+      const lit = m[1].match(/'([a-z_]+\.[a-z_]+)'/);
+      if (lit) add(lit[1], `supabase/migrations/${f}`);
+    }
+  }
+  // TypeScript: the runtimes and the packages, never the tests or the built copies.
+  for (const dir of [
+    "apps/edge",
+    "apps/dashboard/src",
+    "apps/dashboard/app",
+    "packages/db/src",
+    "packages/core/src",
+    "packages/jobs/src",
+    "packages/channels/src",
+    "packages/contracts/src",
+  ]) {
+    for (const f of walkTypeScript(dir)) {
+      const src = readRaw(f);
+      const consts = new Map(
+        [...src.matchAll(/const ([A-Z_]+_KIND)\s*=\s*"([a-z_]+\.[a-z_]+)"/g)].map((m) => [m[1], m[2]]),
+      );
+      // Every literal inside the call, to its closing paren: a conditional that picks one of three billing kinds
+      // names all three.
+      for (const m of src.matchAll(/\b(?:emitEvent|recordEvent)\(/g)) {
+        let depth = 0;
+        let i = m.index;
+        for (; i < src.length; i++) {
+          if (src[i] === "(") depth++;
+          else if (src[i] === ")") {
+            depth--;
+            if (depth === 0) break;
+          }
+        }
+        const call = src.slice(m.index, i + 1);
+        for (const lit of call.matchAll(/"([a-z_]+\.[a-z_]+)"/g)) if (EVENT_KIND.test(lit[1])) add(lit[1], f);
+        for (const c of call.matchAll(/\b([A-Z_]+_KIND)\b/g)) if (consts.has(c[1])) add(consts.get(c[1]), f);
+      }
+      for (const m of src.matchAll(/\.from\("events"\)\s*\.insert\(\{[\s\S]{0,400}?kind:\s*"([a-z_]+\.[a-z_]+)"/g))
+        add(m[1], f);
+      for (const m of src.matchAll(/\bevent\(\s*(?:ports\.)?db,\s*d,\s*"([a-z_]+\.[a-z_]+)"/g)) add(m[1], f);
+      // A verdict that names its own event kind (channels/a2p: the line's texting state).
+      for (const m of src.matchAll(/\bevent:\s*"(line\.[a-z_]+)"/g)) add(m[1], f);
+    }
+  }
+  return by;
+}
+
+export const TS_ONLY_EVENTS = {
+  name: "event kinds written only from TypeScript",
+  file: "ts-only-events.json",
+  mode: "set",
+  measure: () =>
+    Object.fromEntries(
+      [...emittedKinds()]
+        .filter(([, files]) => [...files].every((f) => !f.startsWith("supabase/")))
+        .map(([kind, files]) => [kind, files.size]),
+    ),
+  advice:
+    "A fact and its event share a transaction (decision 0031, invariant 2; the wiring's second audit, S11-9): write the event in the SQL door that writes the fact, beside the write, rather than from TypeScript after it.",
+};
+
+/* ---- Appointment words written in (journey/journey.test.mjs holds what the count reads) ---- */
+
+/**
+ * Each place a person reads "visit" in a sentence or a label the code writes in (_ast.mjs visitsWrittenIn), by file:
+ * when it reaches zero, "visit" joins trade-neutral's banned words.
+ */
+export function appointmentWordsWrittenIn() {
+  const out = {};
+  for (const file of readerFiles()) {
+    const rel = path.relative(ROOT, file).split(path.sep).join("/");
+    const n = visitsWrittenIn(parse(rel)).length;
+    if (n > 0) out[rel] = n;
+  }
+  return out;
+}
+
+export const APPOINTMENT_WORDS = {
+  name: "appointment words written in",
+  file: "appointment-words.json",
+  measure: appointmentWordsWrittenIn,
+  advice:
+    'A sentence a person reads says the workspace\'s appointment word (contracts appointmentWords), or none: never "visit" written in.',
+};
+
+/* ---- Every number the build holds ---- */
+
+/**
+ * Each ratchet: its `key` (the name check:debt and the register give it; until 28 October 2026 the baseline file it was
+ * kept in, `file`, which a base from before then is read from), its name, its mode ("count": each key's numbers may
+ * only fall; "set": the keys may only go away, the numbers beside them a record), its measure and its advice.
+ */
+export const RATCHETS = [
+  ...MEASURES,
+  WIRE_CASING,
+  UNCHECKED_INDEX,
+  TEST_LENGTH,
+  TS_ONLY_EVENTS,
+  APPOINTMENT_WORDS,
+  SOURCE_SCAN,
+].map((m) => ({ mode: "count", ...m, key: m.key ?? m.file.replace(/\.json$/, "") }));
+

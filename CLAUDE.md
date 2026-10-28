@@ -34,17 +34,16 @@ of the public will experience.
 ```bash
 corepack pnpm install
 corepack pnpm -r typecheck                    # tsc -b: each package once, under its own options, through its project reference
-corepack pnpm lint                            # ESLint, warnings held per file and rule; -- --update banks a fall, -- --raise a rise
+corepack pnpm lint                            # ESLint: an error fails; the warnings, per file and rule, are check:debt's to hold
 corepack pnpm format                          # Prettier over the tree; the pre-commit hook does this for staged files
 corepack pnpm test                            # the node suite, in UTC (~20 min; run the files a change touches instead, one per command: node tooling/scripts/checks/test.mjs <file>), and what it ran of the code held at a floor; database suites skip without credentials
 TEST_TZ=Pacific/Auckland corepack pnpm test   # the same suite with the clock twelve hours east: CI's second leg (PowerShell: $env:TEST_TZ='Pacific/Auckland'). CI runs both legs only on a pull request labelled `suite`, or by hand (Ruben, 1 Oct 2026); every other pull request runs the tests of what it changed (tooling/scripts/checks/changed-tests.mjs), never the whole suite (Ruben, 10 Oct 2026: a push is through CI in under ten minutes), and the nightly the whole suite
-UPDATE_BASELINES=1 corepack pnpm test         # the same, banking every ratchet's reduction, and nothing else (docs/debt.md)
-UPDATE_BASELINES=raise corepack pnpm test     # the same, raising a number that rose: argued under "Rises" in docs/debt.md
-corepack pnpm check:dead-exports              # knip against a baseline that may only fall; -- --update banks a fall, -- --raise a rise
+corepack pnpm check:debt                      # every number the build holds, this tree against origin/main: a rise or a new offender fails unless the pull request says `Debt: <why>` (CI's debt job; -- --parts measures for seconds, -- --totals for the register's numbers)
+corepack pnpm check:dead-exports              # knip's dead exports, counted (check:debt holds them)
 corepack pnpm check:bundle                    # after a dashboard build: the route's JS and CSS and each page's own JS, gzipped bytes, against the ceilings; CI holds each change to what it adds against main's own build, and growth past its line (route 1 KB, a page 2 KB) passes when the PR's description has a line `Bundle: <why>`; nothing in the repository changes for it
 corepack pnpm check:static-shell              # after a dashboard build: every page under app/(os) prerendered whole, one frame for every person and workspace, and /api/version answered per request
 node tooling/scripts/land.mjs                 # ship a committed branch: merge main in (main's side of what a command writes, written again; any other conflict is yours), typecheck, push, and set the pull request to squash-merge itself once CI is green (--title and --body-file open it when there is none; one that adds a migration merges by hand, or with --applied once that is on production)
-corepack pnpm check:local                     # optional: on a committed branch holding all of origin/main, the build, then CI's lint, hygiene, typecheck and the tests of what the branch changes side by side, then an empty commit "Checked locally" naming the tree; pushed while main has not moved past it, CI skips those and runs the build, the bundle and the dist check alone (tooling/scripts/checks/checked-locally.mjs)
+corepack pnpm check:local                     # optional: on a committed branch holding all of origin/main, the packages' bundles, then CI's lint, hygiene, typecheck and the tests of what the branch changes side by side, then an empty commit "Checked locally" naming the tree; pushed while main has not moved past it, CI skips those and runs the build, the bundle and the debt alone (tooling/scripts/checks/checked-locally.mjs)
 corepack pnpm check:style-equality -- record <file> --against <file>   # a change that must move nothing on screen, recorded and compared (docs/runbook.md)
 corepack pnpm test:db                         # the database suites, against a running Supabase stack
 node tooling/scripts/checks/smoke.mjs --edge <edge-host> --dashboard <dashboard-host> --sha <merge-sha>  # after a deploy: the edge's /api/health and the dashboard's /api/version answer with the sha (docs/runbook.md, Deploy); one host alone exits 1, since the dashboard's /api/health is behind sign-in
@@ -78,18 +77,18 @@ Each of these is enforced by a test or a workflow. Breaking one is a red build, 
 - **One kit.** The kit's own rules are in `apps/dashboard/src/surfaces/kit/kit.css`, under the names its registry beside
   it lists (`classes.json`). A need the kit does not meet is a variant there, with its gallery entry:
   `kit-gallery.test.mjs` fails a kit class no entry draws. The primitives the pages still draw themselves, and their
-  rules over the kit's classes, are `kit-primitives.json`'s baseline. It counts, in every stylesheet but the tokens'
+  rules over the kit's classes, are the `kit-primitives` measure. It counts, in every stylesheet but the tokens'
   and the kit's, each selector naming a class the registry lists or a class named for a button, switch, segmented
   control, tab, pill, chip, tally, mark, card, panel, field, select, menu, sheet, face, meter, empty state, toast or
   tooltip; a row and a page's own count are not counted. It may only fall, it empties surface by surface in the plan's
-  Phase 4, and a new entry is a red build. In `src/surfaces`, a raw `<button>`, `<input>`, `<select>`, `<textarea>` or
+  Phase 4, and a new entry fails check:debt unless argued. In `src/surfaces`, a raw `<button>`, `<input>`, `<select>`, `<textarea>` or
   `<dialog>` outside the kit is a lint error. Before a change that draws or restyles a page, read
   `.claude/skills/chanlytics-interface/SKILL.md`, a skill Claude Code also reaches for by itself: where the tokens, the
   kit and its gallery are, how to add a variant, and how to prove a style change.
 - **A value is a token.** A stylesheet reads a type size, radius, shadow, colour or blur from `tokens.css`.
-  `style-values.json` counts each one written as a literal, per stylesheet but `tokens.css` (the charts' validated
-  palette in `charts.css` is counted, and kept), and may only fall. `inline-styles.json` counts the `style` props in
-  the shell's markup, and may only fall too. A page stylesheet with its layout alone is the plan's Phase 4 target, and
+  The `style-values` measure counts each one written as a literal, per stylesheet but `tokens.css` (the charts'
+  validated palette in `charts.css` is counted, and kept), and may only fall. The `inline-styles` measure counts the
+  `style` props in the shell's markup, and may only fall too. A page stylesheet with its layout alone is the plan's Phase 4 target, and
   no test holds it yet.
 - **The signed-in frame reads no request.** Every page under `apps/dashboard/app/(os)` is one prerender for every
   person and workspace (decision 0053, step 5): a document is served without a function, and one warm of a page serves
@@ -126,10 +125,10 @@ Each of these is enforced by a test or a workflow. Breaking one is a red build, 
 - **A job kind arrives with its handler, its caller, the `jobs.kind` CHECK and its lane**, in one change.
 - **Migrations are forward-only.** Named for the schema change, re-runnable statements, never
   edited or renamed once applied. Two files on one number fail the build.
-- **Tests execute the code they prove.** A source-text assertion is the last resort, and
-  `source-scan-baseline.json` may only fall.
-- **What is measured may only fall.** `docs/debt.md` names every number the build holds and the
-  baseline under `tooling/scripts/tests/baselines/` that holds it: functions over 150 lines, 30
+- **Tests execute the code they prove.** A source-text assertion is the last resort, and the
+  `source-scan` measure may only fall.
+- **What is measured may only fall.** `docs/debt.md` names every number the build holds, by the key
+  `check:debt` gives its measure (`tooling/scripts/tests/_measures.mjs`): functions over 150 lines, 30
   branches or 5 levels; files over 800 lines, and the suite's test files over 1600; directories over 20 modules; window globals and
   publishers; a helper declared in three files; `as unknown as`, `as never` and `x!`; an index read
   the compiler lets pass; a table name, or a SQL function called by name, outside `packages/db`; a route file that
@@ -137,12 +136,11 @@ Each of these is enforced by a test or a workflow. Breaking one is a red build, 
   bare number (name it from `contracts/shared/time.ts`, or give it a constant); a width the layout changes at that is
   not one of `tokens.css`'s breakpoints; lint warnings; a type size, radius, shadow, colour or blur a stylesheet writes
   instead of reading a token; a button, chip, tab, card, sheet, field or face class of a page's own;
-  a `style` prop (`docs/plans/2026-09-28-the-interface-kit-and-its-looks.md`). A new offender is a red
-  build. `UPDATE_BASELINES=1` banks only what fell (knip's and the lint's: their
-  `--update`); a number that must rise is raised with `UPDATE_BASELINES=raise` (theirs: `--raise`) in
-  the same diff as its row under "Rises" in `docs/debt.md`, with the reason in the pull request. Where
-  a tree's functions are all under the limits, the limits are lint errors (`LIMITED_TREES` in
-  `eslint.config.mjs`): the change that banks a tree's last entry adds the tree there.
+  a `style` prop (`docs/plans/2026-09-28-the-interface-kit-and-its-looks.md`). CI's debt job measures each
+  pull request's base and head (decision 0074): a number that rose, or an offender that is new, fails unless the
+  description carries a line `Debt: <why>`; a fall needs nothing, and no number is kept in the repository, so nothing
+  is banked. Where a tree's functions are all under the limits, the limits are lint errors (`LIMITED_TREES` in
+  `eslint.config.mjs`): the change that fixes a tree's last function adds the tree there.
 - **Production scripts** are dry-run by default, write a backup first, and take `--apply`.
 - **The layers hold apart.** Browser code (`legacy-bridge`, `client`, `yes`, `auth`, `surfaces`) never imports
   `src/server` or `@chanlytics/core|jobs|channels`; server code never imports the shell, the bridge
@@ -199,7 +197,7 @@ the repository's root, and `tooling/scripts/tests/docs/docs-paths.test.mjs` fail
 | A log line in the dashboard's server          | `log.error("event_name", { tenant_id, fields })` from `apps/dashboard/src/server/log.ts`                                           | The same logger and the same envelope; the name is one of `DASHBOARD_LOG_EVENTS`                                                                                                                                                                                                                                                                                                                                                                                                         |
 | A test of a door                              | `tooling/scripts/tests/sms/sms-door.test.mjs`                                                                                      | A world over `tooling/scripts/tests/_fake-db.mjs`; the real handler runs                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | A test of a verb                              | `tooling/scripts/tests/conversations/core-thread-verbs.test.mjs`                                                                   | Fakes for the ports                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| A ratchet                                     | `tooling/scripts/tests/repo/code-health-ratchets.test.mjs`, `tooling/scripts/tests/_ratchet.mjs`, `tooling/scripts/tests/_ast.mjs` | Measure the syntax tree, never the text; the baseline may only fall; a row in `docs/debt.md`                                                                                                                                                                                                                                                                                                                                                                                             |
+| A ratchet                                     | `tooling/scripts/tests/_measures.mjs`, `tooling/scripts/checks/debt.mjs`, `tooling/scripts/tests/_ast.mjs`                       | Measure the syntax tree, never the text; a measure in `RATCHETS`, its meaning held in `tooling/scripts/tests/repo/code-health-ratchets.test.mjs`; a row in `docs/debt.md`                                                                                                                                                                                                                                                                                                                                                                                             |
 | A database test                               | `tooling/scripts/tests/<domain>/*.db.test.mjs`                                                                                     | Runs against the replayed stack in CI when database paths change; skips without credentials                                                                                                                                                                                                                                                                                                                                                                                              |
 | A type test                                   | `packages/contracts/src/shared/identity.type-test.ts`                                                                              | Positives are `Holds<Exactly<…>>`; a negative is one line under `// @ts-expect-error <why>`                                                                                                                                                                                                                                                                                                                                                                                              |
 | A design that changes the shape of the system | `docs/decisions/0002-appointments-record.md`                                                                                       | Written against a named commit, steps shippable in either deploy order                                                                                                                                                                                                                                                                                                                                                                                                                   |
@@ -281,7 +279,7 @@ listed there with its date and the program it waits on.
 
 ## Before you open a pull request
 
-CI is the gate: it runs the build and bundle, the dist against its sources, lint, hygiene, the typecheck and the tests of what the branch changes (in four parts), all at once,
+CI is the gate: it runs the build and bundle, lint, hygiene, the debt this change adds, the typecheck and the tests of what the branch changes (in four parts), all at once,
 and the required check `Typecheck` passes only when every part did, so a pull request set to merge itself (`land`) lands
 nothing unchecked. Run the tests of the folders you touched while you work; `check:local` is there when you want CI's
 whole check on the laptop first. The pull request must say what changes for a customer, what to set or apply before

@@ -32,7 +32,6 @@
 import { execFileSync, spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { READER_SCOPE } from "../tests/_source.mjs";
 import { SCOPES as TRACED } from "../trace-routes.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -67,18 +66,14 @@ export const TESTED_IN = {
 
 /**
  * Tests that read whole trees whose paths never name them, each with what it reads (a tree ends in "/"): the trees as
- * the file that names them says them, that file, and the test's baselines. The appointment words' ratchet counts
- * "visit" written into every tree a reader reads (READER_SCOPE): #1574, #1579, #1599 and #1602-#1604 each wrote new
- * ones in without running it, and main went red (13-15 Oct 2026). The hearing tests follow every route through the
- * tracer's trees (trace-routes.mjs SCOPES, and schema.sql) and run the dashboard's browser code and contracts, and
- * their two ratchets (reads-not-heard.json, on-demand-reads.json) were as blind.
+ * the file that names them says them, that file, and the test's baselines. The hearing tests follow every route through
+ * the tracer's trees (trace-routes.mjs SCOPES, and schema.sql) and run the dashboard's browser code and contracts, and
+ * their two hand-kept lists (reads-not-heard.json, on-demand-reads.json) were blind to a change no path of theirs named.
+ * The appointment words' count, which every tree a reader reads could move (#1574, #1579, #1599 and #1602-#1604 each
+ * wrote "visit" in without running it, and main went red, 13-15 Oct 2026), is check:debt's since 28 October 2026, and
+ * CI measures it on every pull request.
  */
 export const READ_BY = {
-  [`${TESTS}/journey/journey.test.mjs`]: [
-    ...READER_SCOPE.map((tree) => `${tree}/`),
-    `${TESTS}/_source.mjs`,
-    `${TESTS}/baselines/appointment-words.json`,
-  ],
   // One page, one word: each page's words for an appointment, run from the modules that make them (16 Oct 2026).
   [`${TESTS}/journey/one-page-one-word.test.mjs`]: [
     "packages/contracts/src/reports/",

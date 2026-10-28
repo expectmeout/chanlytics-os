@@ -169,7 +169,7 @@ and return success — only `INSERT` raises. Any permission-sensitive update mus
   migration is never edited or renamed. The lesson behind a change goes in the
   commit body or `docs/decisions/`.
 - **Tests.** A new test executes the code it proves. A source-text assertion is
-  the last resort, and `tooling/scripts/tests/source-scan-baseline.json` may
+  the last resort, and the `source-scan` measure may
   only fall. Name a test for the unit it proves.
 - **Either deploy order works.** A shape both apps must agree on is compatible
   whichever deploys first.

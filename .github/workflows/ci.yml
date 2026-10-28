@@ -305,13 +305,14 @@ jobs:
       # Static analysis across the WHOLE workspace. It covered only the
       # dashboard until apps/edge — the 1,600 lines a real customer message
       # travels through — turned out to be the one unlinted thing in the repo.
-      # Warnings may only fall, per file and rule (baselines/lint-warnings.json).
+      # An error fails here; the warnings, per file and rule, are the debt job's
+      # to hold to the base (decision 0074).
       - run: pnpm lint
         env:
           LINT_CACHE: ${{ github.event_name == 'push' && '0' || '1' }}
 
   hygiene:
-    name: Audit, licences, dead exports and format
+    name: Audit, licences and format
     needs: scope
     if: needs.scope.outputs.checked != 'true'
     runs-on: ubuntu-latest
@@ -338,9 +339,6 @@ jobs:
       - name: Production licences are ones we may ship
         shell: bash
         run: pnpm licenses list --prod --json | node tooling/scripts/checks/licences.mjs
-      # Dead exports may only fall: knip over the whole import graph, against a
-      # baseline (docs/debt.md).
-      - run: pnpm check:dead-exports
       # Formatting is checked, never fixed, here: the pre-commit hook formats
       # what is staged, and this step catches a commit made with the hook off. Prettier's cache (package.json's
       # format:check) keeps what main last found formatted, by content.
@@ -351,6 +349,54 @@ jobs:
           restore-keys: |
             prettier-${{ hashFiles('pnpm-lock.yaml', '.prettierrc*', '.prettierignore') }}-
       - run: pnpm format:check
+
+  # Every number the build holds, measured on the change's base and on its head (decision 0074): the measures of
+  # tooling/scripts/tests/_measures.mjs, the lint's warnings and knip's dead exports. The base is the merge commit's
+  # first parent, checked out here, measured by its own code, and the head checked out again; a base from before the
+  # numbers left git is read from its baselines. A number that rose, or an offender that is new, fails until the
+  # description says why, in a line `Debt: <why>`, read as the step runs (a re-run reads an edited one), as the bundle's
+  # `Bundle:` is. A fall needs nothing, and nothing in the repository changes for either. It runs for every pull request,
+  # a tree checked locally among them: what a change adds is measured against main, which a laptop's tree is not.
+  debt:
+    name: What this change owes
+    needs: scope
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      # Two commits deep: the merge commit's first parent is the main commit the change stands on.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # The lint's cache, as the lint job restores it: main's own run writes it afresh, so the base's files hit it.
+      - uses: actions/cache/restore@v6
+        with:
+          path: node_modules/.cache/eslint
+          key: eslint-${{ hashFiles('pnpm-lock.yaml', 'eslint.config.mjs') }}-${{ github.sha }}
+          restore-keys: |
+            eslint-${{ hashFiles('pnpm-lock.yaml', 'eslint.config.mjs') }}-
+      - name: The base this change stands on, measured
+        run: pnpm check:debt -- --base HEAD^1 --in-place --out .debt/base.json
+      - name: What this change adds to it
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          if [ -n "$PR" ]; then
+            PR_BODY="$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json body --jq .body)"
+            export PR_BODY
+          fi
+          pnpm check:debt -- --against .debt/base.json --summary "$GITHUB_STEP_SUMMARY"
 
   tests:
     name: Tests of what changed (${{ matrix.shard }}/4)
@@ -405,7 +451,7 @@ jobs:
   # because the tree was checked locally, or because the event runs no tests (a push to main), is not a failure.
   typecheck:
     name: Typecheck
-    needs: [scope, build, types, lint, hygiene, tests]
+    needs: [scope, build, types, lint, hygiene, debt, tests]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5

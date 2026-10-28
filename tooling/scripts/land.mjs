@@ -8,12 +8,12 @@
  *
  *   1. Nothing uncommitted: what lands is what was committed.
  *   2. Main merged in, when the branch does not hold it. A conflict in a file a command writes (a `*.generated.*` file,
- *      the API reference, the data model) takes main's side and is written again below; a dist a branch from before
+ *      the API reference, the data model, the tree) takes main's side and is written again below; a dist a branch from before
  *      28 October 2026 still tracks is taken out of the index, as main took it (isRetired); a
  *      conflict in anything else stops here, the merge left open, with the files to resolve by hand (then run this
  *      again). supabase/schema.sql is not written here, as it needs a database: resolve it from a replay.
  *   3. What the commands write, written again from the merged sources: the barrels' order, the browser entry, the typed
- *      client and route keys, the API reference and the data model. Then the typecheck, the one check that is quick and sure to catch a
+ *      client and route keys, the API reference, the data model and the tree. Then the typecheck, the one check that is quick and sure to catch a
  *      merge that no longer fits together; CI runs the rest.
  *   4. Pushed, and the pull request (opened with --title and --body-file when there is none) set to squash-merge itself
  *      once every required check passes, pinned to the commit pushed (`--match-head-commit`), so nothing pushed after
@@ -40,6 +40,7 @@ export function isWritten(file) {
     /\.generated\.(ts|json)$/.test(file) ||
     file === "docs/api.md" ||
     file === "docs/data-model.md" ||
+    file === "docs/tree.md" ||
     file === "tooling/scripts/tests/_unique-keys.generated.json"
   );
 }
@@ -57,6 +58,7 @@ export const WRITERS = [
   ["the typed client and route keys", "node tooling/scripts/gen/route-types.mjs"],
   ["the API reference", "corepack pnpm gen:api-reference"],
   ["the data model", "corepack pnpm gen:data-model"],
+  ["the tree", "node tooling/scripts/gen/docs-tree.mjs"],
 ];
 
 const git = (...args) => execFileSync("git", args, { cwd: ROOT, encoding: "utf8" }).trim();

@@ -38,6 +38,7 @@ test("land takes main's side only of what a command writes, and has a command fo
     "tooling/scripts/tests/_unique-keys.generated.json",
     "docs/api.md",
     "docs/data-model.md",
+    "docs/tree.md",
   ])
     assert.equal(isWritten(file), true, file);
   for (const file of [
@@ -56,6 +57,7 @@ test("land takes main's side only of what a command writes, and has a command fo
     "route-types.mjs",
     "gen:api-reference",
     "gen:data-model",
+    "docs-tree.mjs",
   ])
     assert.ok(commands.includes(writer), writer);
   assert.match(WRITERS[0][1], /sorted-lists\.mjs$/, "the barrels first: the browser entry is written from them");

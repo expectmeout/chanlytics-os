@@ -9,7 +9,7 @@
  *
  * Read as the compiler reads them, `extends` followed: a project may not set any of the base's checks to another
  * value, with one exception. noUncheckedIndexedAccess may be off in a project whose index reads are not guarded yet,
- * and every such project is measured by types/index-reads-are-counted.test.mjs, a count per file that may only
+ * and every such project is measured by check:debt (the unchecked-index measure), a count per file that may only
  * fall. The root tsconfig.json is not a project's: it gives the test runner (tsx) the dashboard's `@/` paths, and
  * nothing compiles against it.
  */

@@ -235,14 +235,14 @@ test("Typecheck, the check branch protection requires, is a gate over parts that
   const y = workflow("ci.yml");
   const gate = job(y, "typecheck");
   assert.ok(gate.includes("name: Typecheck"), "the name branch protection matches");
-  assert.ok(gate.includes("needs: [scope, build, types, lint, hygiene, tests]"), "every part");
+  assert.ok(gate.includes("needs: [scope, build, types, lint, hygiene, debt, tests]"), "every part");
   assert.ok(gate.includes("if: ${{ always() }}"), "a gate that ran nothing would read as a pass");
   assert.ok(gate.includes('.result == "failure" or .result == "cancelled"'));
-  for (const part of ["build", "types", "lint", "hygiene", "tests"])
+  for (const part of ["build", "types", "lint", "hygiene", "debt", "tests"])
     assert.ok(job(y, part).includes("needs: scope"), part);
 });
 
-test("a tree checked locally skips lint, hygiene, the tests and the typecheck, never the build and the bundle", () => {
+test("a tree checked locally skips lint, hygiene, the tests and the typecheck, never the build, the bundle and the debt", () => {
   const y = workflow("ci.yml");
   const scope = job(y, "scope");
   assert.ok(scope.includes("fetch-depth: 2"), "the merge commit's second parent is the pull request's head");
@@ -262,6 +262,13 @@ test("a tree checked locally skips lint, hygiene, the tests and the typecheck, n
     "the build waits on neither",
   );
   assert.ok(build.includes("run: pnpm --filter @chanlytics/dashboard build") && build.includes("pnpm check:bundle"));
+  // What a change owes is measured against main for every pull request, a tree checked locally among them.
+  const debt = job(y, "debt");
+  assert.ok(!/needs\.scope\.outputs\.checked/.test(debt), "the debt job is not skipped by the laptop's stamp");
+  assert.ok(debt.includes("fetch-depth: 2"), "the merge commit's first parent is the base");
+  assert.ok(debt.includes("pnpm check:debt -- --base HEAD^1 --in-place --out .debt/base.json"), "the base, by its own code");
+  assert.ok(debt.includes('pnpm check:debt -- --against .debt/base.json --summary "$GITHUB_STEP_SUMMARY"'), "the head held to it");
+  assert.ok(debt.includes("PR_BODY") && debt.includes("pull-requests: read"), "the description's `Debt:` line, read as it runs");
 });
 
 test("the replay runs every database suite on main, and on a pull request the ones its changes name", () => {

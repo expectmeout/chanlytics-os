@@ -4,12 +4,13 @@
  *
  * Ruben, 10 Oct 2026: a push should be through CI in under ten minutes, and a change already green locally should skip
  * CI's own run of the same checks. So `corepack pnpm check:local` runs, on the committed tree, what ci.yml's lint,
- * hygiene, tests and types jobs run: the packages' bundles the tests and the dead-export check read, typecheck, lint,
- * dead exports, the formatting of what it changes, the production audit and licences, and the tests of what it changes against
+ * hygiene, tests and types jobs run: the packages' bundles the tests read, typecheck, lint, the formatting of what it
+ * changes, the production audit and licences, and the tests of what it changes against
  * origin/main. When every one passes it commits nothing but a line naming the tree: an empty commit whose message
  * carries `Checked-locally: <tree>`. Pushed, ci.yml's scope job finds the line on the pull request's head and those
  * jobs are skipped. The build and the bundle still run (what a workspace loads is compared with main's own build, which
- * only CI holds), and so do the secret scan, the replay and the phone app's check.
+ * only CI holds), and so does the debt job (what a change adds is measured against main, decision 0074), the secret
+ * scan, the replay and the phone app's check.
  *
  * The line vouches for one tree. CI skips only where the head's tree is the one named AND GitHub's merge of the head
  * into main is that same tree, which a branch holding every commit of main merges to. When main moves past it, the
@@ -111,7 +112,6 @@ export const LOCAL_CHECKS = [
   ["the packages' bundles", "node tooling/scripts/package-build.mjs"],
   ["typecheck", "corepack pnpm -r typecheck"],
   ["lint", "corepack pnpm lint"],
-  ["dead exports", "corepack pnpm check:dead-exports"],
   ["the formatting of what the branch changes", formatOfChanged],
   ["no production dependency with a high or critical advisory", "corepack pnpm audit --prod --audit-level high"],
   ["production licences", "corepack pnpm licenses list --prod --json | node tooling/scripts/checks/licences.mjs"],

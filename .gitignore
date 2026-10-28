@@ -46,3 +46,6 @@ apps/dashboard/public/lead-map/
 
 # the bundle check's record of a build, written for CI's cache (tooling/scripts/checks/bundle-budget.mjs, --record)
 .bundle/
+
+# What check:debt writes as it measures a base (ci.yml's debt job)
+.debt/

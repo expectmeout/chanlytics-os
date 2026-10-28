@@ -584,7 +584,7 @@ test("a dot plot: one dot per event on its day's slot, 0 on the baseline, a refe
   assert.equal(plot.props["aria-roledescription"], "chart");
   assert.equal(plot.props.tabIndex, 0, "one tab stop for the whole plot");
   assert.equal(all(tree, (n) => n.props && "tabIndex" in n.props).length, 1, "and no stop per dot");
-  assert.equal(plot.props.style, undefined, "no style prop: the plot is as tall as its svg (inline-styles.json)");
+  assert.equal(plot.props.style, undefined, "no style prop: the plot is as tall as its svg (the inline-styles measure)");
   plot.props.onFocus();
   let next = again(draw);
   assert.equal(liveOf(next), "2026-09-05: 300s past its hold", "focus reads the newest dot");

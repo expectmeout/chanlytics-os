@@ -1,5 +1,5 @@
 {
-  "//": "noUncheckedIndexedAccess waits here until contracts' index reads are guarded: tests/types/index-reads-are-counted.test.mjs counts them. A project of its own, built by `tsc -b` into .types/ (declarations only, never committed), so a project that references it reads its types as this one compiled them, under these options (decision 0074).",
+  "//": "noUncheckedIndexedAccess waits here until contracts' index reads are guarded: check:debt counts them (the unchecked-index measure). A project of its own, built by `tsc -b` into .types/ (declarations only, never committed), so a project that references it reads its types as this one compiled them, under these options (decision 0074).",
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "lib": ["ES2022", "DOM"],

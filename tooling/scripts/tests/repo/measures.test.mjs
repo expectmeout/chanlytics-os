@@ -1,10 +1,10 @@
 /**
- * The measures and the bank, on sources written for them.
+ * The measures and their comparison, on sources written for them.
  *
- * code-health-ratchets.test.mjs holds the repository's numbers; this holds what a
+ * check:debt holds the repository's numbers (decision 0074); this holds what a
  * number means, on inline modules small enough to count by hand. Each case is one
- * the measures or the bank got wrong before a review of Phase 0, so a test here
- * fails on the old definition and passes on the one the plan (§5) writes down.
+ * the measures got wrong before a review of Phase 0, so a test here fails on the
+ * old definition and passes on the one the plan (§5) writes down.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -13,7 +13,7 @@ import path from "node:path";
 import ts from "typescript";
 import { Linter } from "eslint";
 import tseslint from "typescript-eslint";
-import { bank, compare } from "../_ratchet.mjs";
+import { compare } from "../_ratchet.mjs";
 import {
   functionsIn,
   windowUse,
@@ -31,7 +31,6 @@ import {
   serviceRoleReaches,
 } from "../_ast.mjs";
 import {
-  bankedSourceScan,
   breakpointSet,
   DOOR_FORBIDS,
   doorsWithoutEventsIn,
@@ -39,7 +38,7 @@ import {
   writersByTable,
 } from "../_measures.mjs";
 import { knipCommand } from "../../checks/dead-exports.mjs";
-import { bankWarnings } from "../../checks/lint.mjs";
+import { flatWarnings, heldButClean } from "../../checks/lint.mjs";
 
 const source = (text, name = "fixture.ts") =>
   ts.createSourceFile(
@@ -50,39 +49,23 @@ const source = (text, name = "fixture.ts") =>
     name.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
   );
 
-/* ---- The bank ---- */
+/* ---- The comparison ---- */
 
-// It used to write the measure and then compare the measure with itself, so
-// `UPDATE_BASELINES=1` banked a rise, or a new offender, as readily as a fall.
-test("banking takes a fall and a removal, and leaves a rise and a new key to a raise", () => {
-  const baseline = { fell: 5, rose: 3, gone: 2, fn: { lines: 200, branches: 40, depth: 6 } };
+// What a change adds to the main it stands on (checks/debt.mjs judge): a new key, a number that rose; what fell or
+// went is said and needs nothing.
+test("a comparison says a rise and a new key, and apart from them a fall and a removal", () => {
+  const was = { fell: 5, rose: 3, gone: 2, fn: { lines: 200, branches: 40, depth: 6 } };
   const now = { fell: 4, rose: 7, fresh: 1, fn: { lines: 190, branches: 42, depth: 6 } };
-  const banked = bank(now, baseline);
-  assert.deepEqual(banked, { fell: 4, fn: { lines: 190, branches: 40, depth: 6 }, rose: 3 });
-  // So the build still fails on what the bank would not take.
-  assert.deepEqual(compare(now, banked).worse, [
-    "fn: now lines 190, branches 42, depth 6, baseline lines 190, branches 40, depth 6",
+  assert.deepEqual(compare(now, was).worse, [
+    "fn: now lines 190, branches 42, depth 6, base lines 200, branches 40, depth 6",
     "fresh: new (1)",
-    "rose: now 7, baseline 3",
+    "rose: now 7, base 3",
   ]);
-  assert.deepEqual(compare(now, banked).better, []);
-  // Banking twice is banking once: the register reads a baseline another process may just have banked.
-  assert.deepEqual(bank(now, banked), banked);
-  // A raise takes the measure as it is, and seeds a baseline that is missing; a plain bank seeds nothing.
-  assert.deepEqual(bank(now, baseline, { raise: true }), now);
-  assert.equal(bank(now, null), null);
-  assert.deepEqual(bank(now, null, { raise: true }), now);
-});
-
-// The source-scan ratchet banked on `UPDATE_BASELINES=1` too, by writing every count as measured.
-test("a source-scan count banks by the same rule, and a repo-wide lint's count is a record", () => {
-  const baseline = {
-    lint: ["repo/lint.test.mjs"],
-    counts: { "a.test.mjs": 3, "gone.test.mjs": 1, "repo/lint.test.mjs": 10 },
-  };
-  const counts = { "a.test.mjs": 5, "new.test.mjs": 2, "repo/lint.test.mjs": 12 };
-  assert.deepEqual(bankedSourceScan(counts, baseline, false), { "a.test.mjs": 3, "repo/lint.test.mjs": 12 });
-  assert.deepEqual(bankedSourceScan(counts, baseline, true), counts);
+  assert.deepEqual(compare(now, was).better, [
+    "fell: now 4, base 5",
+    "gone: gone (base 2)",
+    "fn: now lines 190, branches 42, depth 6, base lines 200, branches 40, depth 6",
+  ]);
 });
 
 // A helper of the test's own that reads a file is as much a source-text read as readCode: it went uncounted until
@@ -106,49 +89,27 @@ test("a source read through a helper of the file's own counts, a shadowing name 
 });
 
 test("a set's numbers are a record: its keys may only go, its numbers follow the measure", () => {
-  const baseline = { __A: 2, __B: 5, __GONE: 1 };
+  const was = { __A: 2, __B: 5, __GONE: 1 };
   const now = { __A: 4, __B: 1, __NEW: 1 };
-  assert.deepEqual(bank(now, baseline, { mode: "set" }), { __A: 4, __B: 1 });
-  assert.deepEqual(compare(now, baseline, "set"), {
+  assert.deepEqual(compare(now, was, "set"), {
     worse: ["__NEW: new (1)"],
-    better: ["__B: now 1, baseline 5", "__GONE: gone (baseline 1)"],
+    better: ["__B: now 1, base 5", "__GONE: gone (base 1)"],
   });
 });
 
-// `corepack pnpm lint -- --update` wrote the warnings as measured, so it banked a rise, or a file and rule the
-// baseline did not name, as readily as a fall. It banks by the rule above now (checks/lint.mjs, `bankWarnings`);
-// the bundle budget's bank, which has a tolerance in bytes, is held in bundle-budget.test.mjs.
+// The lint's warnings, as check:debt keys them, and the rule that a typed rule is a warning only while it has a finding.
 const HOOKS = "react-hooks/exhaustive-deps";
 const UNUSED = "@typescript-eslint/no-unused-vars";
 const WARNINGS = { "apps/a.jsx": { [HOOKS]: 4, [UNUSED]: 1 }, "packages/b.ts": { [UNUSED]: 2 } };
 
-test("the lint's bank takes a fall and a file or rule gone to zero, and leaves a rise and a new entry to a raise", () => {
-  // A fall (hooks 4 -> 2), a rise (unused 1 -> 3), a new rule in a named file, a new file, and a file gone.
-  const now = { "apps/a.jsx": { [HOOKS]: 2, [UNUSED]: 3, "no-console": 1 }, "apps/new.tsx": { [HOOKS]: 1 } };
-  const banked = bankWarnings(now, WARNINGS);
-  assert.deepEqual(banked, { "apps/a.jsx": { [HOOKS]: 2, [UNUSED]: 1 } });
-  // A rule at zero leaves, and a file with none left leaves with it.
-  assert.deepEqual(bankWarnings({ "apps/a.jsx": { [HOOKS]: 4 } }, WARNINGS), { "apps/a.jsx": { [HOOKS]: 4 } });
-  assert.deepEqual(bankWarnings({}, WARNINGS), {});
-  // Banking twice is banking once, and a measure equal to its baseline banks as it.
-  assert.deepEqual(bankWarnings(now, banked), banked);
-  assert.deepEqual(bankWarnings(WARNINGS, WARNINGS), WARNINGS);
-});
-
-test("the lint's --raise writes the counts as measured and in order, and it alone seeds a missing baseline", () => {
-  const now = {
-    "packages/b.ts": { [UNUSED]: 5 },
-    "apps/new.tsx": { [HOOKS]: 1 },
-    "apps/a.jsx": { [UNUSED]: 1, [HOOKS]: 6 },
-  };
-  const raised = bankWarnings(now, WARNINGS, { raise: true });
-  assert.deepEqual(raised, now);
-  assert.deepEqual(Object.keys(raised), ["apps/a.jsx", "apps/new.tsx", "packages/b.ts"]);
-  assert.deepEqual(Object.keys(raised["apps/a.jsx"]), [UNUSED, HOOKS]);
-  // As the ratchets' bank above: with no baseline every entry is new, which is a rise, so `--update` writes nothing
-  // and the script fails naming `-- --raise`; a raise seeds it.
-  assert.equal(bankWarnings(now, null), null);
-  assert.deepEqual(bankWarnings(now, null, { raise: true }), raised);
+test("the lint's warnings are one number for each file and rule, and a held typed rule with no finding is said", () => {
+  assert.deepEqual(flatWarnings(WARNINGS), {
+    [`apps/a.jsx::${HOOKS}`]: 4,
+    [`apps/a.jsx::${UNUSED}`]: 1,
+    [`packages/b.ts::${UNUSED}`]: 2,
+  });
+  assert.deepEqual(heldButClean(WARNINGS, [HOOKS, "@typescript-eslint/no-deprecated"]), ["@typescript-eslint/no-deprecated"]);
+  assert.deepEqual(heldButClean(WARNINGS, [HOOKS, UNUSED]), []);
 });
 
 /* ---- Functions, as ESLint's `complexity` and `max-depth` count them ---- */
@@ -361,7 +322,7 @@ test("a value laundered through unknown is counted however it is written", () =>
   assert.equal(casts("const a = x as unknown; const b = y as T;"), 0);
 });
 
-// casts.json holds three families per module, each counted once: laundering through unknown, a value told it is never
+// The casts measure holds three families per module, each counted once: laundering through unknown, a value told it is never
 // (`as never` on an RPC's arguments turns off the check that their keys exist), and a value told it is not null.
 test("the casts are counted by family: as unknown as, as never and x!, a family at zero left out", () => {
   const families = (text) => castsIn(source(text));
@@ -409,7 +370,7 @@ test("a door's repository and provider imports are counted, and a type, a lib ca
 /* ---- The file set ---- */
 
 // The vendored MapLibre bundle under apps/dashboard/public was measured as ours: its minified
-// functions sat in complexity.json and its one-letter names made copies with ours.
+// functions were over the limits and its one-letter names made copies with ours.
 test("what the browser loads as it is, under an app's public/, is no measure's; our own public/ modules are", () => {
   const files = repoFiles(["apps"]);
   assert.deepEqual(

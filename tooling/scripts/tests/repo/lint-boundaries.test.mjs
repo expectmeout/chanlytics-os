@@ -20,8 +20,8 @@
  * ones still wider (WIDE_PARAMS). The tests at the end ask ESLint what it
  * applies to a real file of each tree, and lint probes one past each limit.
  *
- * And the list keeps up: a tree joins LIMITED_TREES in the change that banks
- * its last entry, so every candidate tree with no entry in complexity.json is
+ * And the list keeps up: a tree joins LIMITED_TREES in the change that fixes
+ * its last function, so every candidate tree the complexity measure finds nothing in is
  * held, listed itself or under a listed tree. A candidate tree is a folder at
  * the list's own granularity that holds TypeScript:
  *
@@ -49,16 +49,14 @@ import { ESLint } from "eslint";
 import { DAY_MS } from "@chanlytics/contracts";
 import config, {
   FUNCTION_LIMITS,
-  HELD_TYPED,
   KIT_PENDING,
   LIMITED_TREES,
   rawElementsRule,
   WIDE_PARAMS,
   withoutTypes,
 } from "../../../../eslint.config.mjs";
-import { LIMIT } from "../_measures.mjs";
+import { LIMIT, MEASURES } from "../_measures.mjs";
 import { repoFiles } from "../_ast.mjs";
-import { readBaseline } from "../_ratchet.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(here, "../../../..");
@@ -500,12 +498,16 @@ test("the lint's limits are the ratchet's", () => {
   );
 });
 
-test("a tree is held once the ratchet holds nothing in it, and every tree it names is source", () => {
-  const listed = Object.keys(readBaseline("complexity.json"));
+/** Each function over the limits, as the complexity measure keys it (`<file>::<function>`), measured once. */
+let overTheLimits;
+const complexityKeys = () => (overTheLimits ??= Object.keys(MEASURES.find((m) => m.file === "complexity.json").measure()));
+
+test("a tree is held once the measure holds nothing in it, and every tree it names is source", () => {
+  const listed = complexityKeys();
   for (const tree of LIMITED_TREES) {
     assert.ok(repoFiles([tree]).length > 0, `${tree} holds tracked source: a tree renamed away holds nothing`);
     const left = listed.filter((k) => k.startsWith(`${tree}/`));
-    assert.deepEqual(left, [], `${tree} is held by the lint only once its entries in complexity.json are gone`);
+    assert.deepEqual(left, [], `${tree} is held by the lint only once the complexity measure finds nothing in it`);
   }
   for (const tree of WIDE_PARAMS) assert.ok(LIMITED_TREES.includes(tree), `${tree} is a held tree`);
 });
@@ -605,31 +607,22 @@ function candidateTrees() {
 
 const isHeld = (tree) => LIMITED_TREES.some((t) => tree === t || tree.startsWith(`${t}/`));
 
-// A typed rule is a warning only while the lint baseline holds a finding of it (eslint.config.mjs, HELD_TYPED): the
-// change that banks its last finding makes it an error, as a tree joins LIMITED_TREES with its last entry.
-test("a typed rule is held as a warning only while the lint baseline holds a finding of it", () => {
-  const held = new Set(Object.values(readBaseline("lint-warnings.json") ?? {}).flatMap((rules) => Object.keys(rules)));
-  assert.ok(HELD_TYPED.length > 0 && held.size > 0, "the list and the baseline were read");
-  assert.deepEqual(
-    HELD_TYPED.filter((rule) => !held.has(rule)),
-    [],
-    "the baseline holds none of these: take each out of HELD_TYPED, and the rule is an error from now on",
-  );
-});
+// A typed rule is a warning only while the tree holds a finding of it (eslint.config.mjs, HELD_TYPED): checks/lint.mjs
+// fails a run in which one of them has none, so the change that fixes its last finding makes it an error.
 
-test("a tree joins LIMITED_TREES in the change that banks its last entry: every candidate tree the ratchet has emptied is held", () => {
+test("a tree joins LIMITED_TREES in the change that fixes its last function: every candidate tree the measure has emptied is held", () => {
   const trees = candidateTrees();
   for (const tree of LIMITED_TREES)
     assert.ok(
       trees.some((t) => t === tree || t.startsWith(`${tree}/`)),
       `${tree} is a candidate tree, or a parent that replaced its folders: the definition is the list's own granularity`,
     );
-  const entries = Object.keys(readBaseline("complexity.json"));
+  const entries = complexityKeys();
   const emptied = trees.filter((tree) => !inFlight.includes(tree) && !entries.some((k) => k.startsWith(`${tree}/`)));
   assert.deepEqual(
     emptied.filter((tree) => !isHeld(tree)),
     [],
-    "the ratchet holds no function over the limit in these, so the lint holds them: add each to LIMITED_TREES in " +
+    "the measure finds no function over the limit in these, so the lint holds them: add each to LIMITED_TREES in " +
       "eslint.config.mjs, and to WIDE_PARAMS too while a function there takes more than four parameters",
   );
 });
@@ -693,11 +686,11 @@ test("in a held tree each limit is an error one past its number, and not at it",
   assert.deepEqual(await fired(held, probe({ ...at, params: at.params + 1 })), ["max-params"]);
   const wide = `${WIDE_PARAMS[0]}/probe.ts`;
   assert.deepEqual(await fired(wide, probe({ params: at.params + 1 })), [], `${WIDE_PARAMS[0]} waits for max-params`);
-  // Where the ratchet still holds a function, the lint does not: a split is banked there, never a lint error.
+  // Where the measure still finds a function, the lint does not: there a split is check:debt's, never a lint error.
   assert.deepEqual(await fired("packages/core/src/probe.ts", probe({ ...at, lines: at.lines + 1 })), []);
 });
 
-test("an unused name in our TypeScript is an error, as in the scripts, so the lint baseline cannot bank it", async () => {
+test("an unused name in our TypeScript is an error, as in the scripts, never a warning a change could argue", async () => {
   const code = "export const kept = 1;\nconst unused = 2;\n";
   for (const at of [
     "packages/contracts/src/probe.ts",

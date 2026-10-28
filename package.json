@@ -14,6 +14,7 @@
     "gen:sorted-lists": "node tooling/scripts/gen/sorted-lists.mjs",
     "check:db-types": "node tooling/scripts/gen/db-types.mjs --check",
     "check:dead-exports": "node tooling/scripts/checks/dead-exports.mjs",
+    "check:debt": "node --max-old-space-size=5120 --conditions=react-server --import tsx tooling/scripts/checks/debt.mjs",
     "check:bundle": "node tooling/scripts/checks/bundle-budget.mjs",
     "check:static-shell": "node tooling/scripts/checks/static-shell.mjs",
     "check:style-equality": "node tooling/scripts/checks/style-equality.mjs",

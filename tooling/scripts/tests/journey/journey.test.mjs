@@ -6,12 +6,9 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { relative, sep } from "node:path";
 import * as C from "@chanlytics/contracts";
-import { ratchet } from "../_ratchet.mjs";
 import ts from "typescript";
-import { parse, visitsWrittenIn } from "../_ast.mjs";
-import { ROOT, readerFiles } from "../_source.mjs";
+import { visitsWrittenIn } from "../_ast.mjs";
 
 /** The four shapes: a calendar connected or not, a deal on file or not. */
 const SHAPES = [
@@ -295,22 +292,6 @@ test("one page, one word: for 4 shapes × 5 words, every string Campaigns' view 
 
 /* ------------------------------------- the words not yet the word's ------------------------------------- */
 
-/**
- * Per file in the reader scope, each place it says "visit" to a person, read from the syntax tree (_ast.mjs
- * visitsWrittenIn): a sentence or a label in a string, a template's own text or a JSX text; ids, keys, comparisons, route
- * keys, class names and `trade-word:` lines left out. Until 16 Oct 2026 it read the text line by line, so a one-word label,
- * a JSX text and a template's second line went unseen, and a route's key was counted. It may only fall: each sweep banks
- * its file, and when it reaches zero "visit" joins trade-neutral's banned words.
- */
-function appointmentWordsWrittenIn() {
-  const out = {};
-  for (const file of readerFiles()) {
-    const rel = relative(ROOT, file).split(sep).join("/");
-    const n = visitsWrittenIn(parse(rel)).length;
-    if (n > 0) out[rel] = n;
-  }
-  return out;
-}
 
 test("the count reads what a reader reads, from the syntax tree: a sentence or a label, not an id, a class or a marked line", () => {
   const count = (src) =>
@@ -344,10 +325,3 @@ test("the count reads what a reader reads, from the syntax tree: a sentence or a
   assert.equal(count(`// "about your visit" in a comment`), 0);
 });
 
-ratchet({
-  name: "appointment words written in",
-  file: "appointment-words.json",
-  measure: appointmentWordsWrittenIn,
-  advice:
-    'A sentence a person reads says the workspace\'s appointment word (contracts appointmentWords), or none: never "visit" written in.',
-});
