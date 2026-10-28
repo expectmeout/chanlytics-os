@@ -18,7 +18,7 @@
   "apps/dashboard/src/surfaces/inbox/verbs.ts": 10,
   "apps/dashboard/src/surfaces/leads/finder/people-sheet.tsx": 1,
   "apps/dashboard/src/surfaces/leads/surface.ts": 10,
-  "apps/dashboard/src/surfaces/people/people-detail.ts": 13,
+  "apps/dashboard/src/surfaces/people/people-detail.ts": 14,
   "apps/dashboard/src/surfaces/people/people-lists.ts": 6,
   "apps/dashboard/src/surfaces/people/person/name-offer.tsx": 1,
   "apps/dashboard/src/surfaces/seen.ts": 1,

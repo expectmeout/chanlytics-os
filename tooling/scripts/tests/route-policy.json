@@ -562,6 +562,13 @@
       "rate": "seen_mark",
       "spend": false
     },
+    "POST contacts/[id]/signup-confirm": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "person_edit",
+      "spend": false
+    },
     "PUT contacts/consent": {
       "kind": "write",
       "scope": "workspace",

@@ -32699,6 +32699,8 @@ var PERSON_ABOUT_WORDS = {
   thisWorkspace: "this workspace",
   readOnly: "read only",
   change: "Change",
+  /** Offers by email's ask (00489), when the edge could not be asked at all: the reasons it gives are its own words. */
+  couldNotAsk: "Their confirmation could not be asked for. Try again in a minute.",
   /** The top bar's Ask on their page (canvas A): about them by their first name, or a stand-in's business whole. */
   askAbout: (who) => `Ask about ${who}`,
   /** What the receptionist knows of them, under the rows while the group is open. */
@@ -50503,6 +50505,10 @@ function signupAskLine(outcome) {
       return "We could not email them to confirm: you have no email address yet (Settings \u203A Connections \u203A Email).";
     case "open":
       return "We already emailed them to confirm.";
+    case "not_from_website":
+      return "Only someone who signed up on your website is asked to confirm by email.";
+    case "no_email":
+      return "Their page has no email address to ask them at.";
     case "address_limit":
       return `We did not email them to confirm: their address was asked ${SIGNUP_ASK_LIMITS.perAddress} times already in ${SIGNUP_ASK_LIMITS.perAddressMs / DAY_MS} days.`;
     case "workspace_limit":
@@ -50578,20 +50584,25 @@ function isSignupAsk(m) {
   const meta = m.meta && typeof m.meta === "object" ? m.meta : null;
   return m.direction === "outbound" && m.channel === "email" && meta?.source === SIGNUP_CONFIRM_SOURCE;
 }
-function signupAskOf(messages, emailOffers, tz, nowMs) {
-  if (emailOffers === "opted_in") return null;
+function signupAskOf(messages, who, tz, nowMs) {
+  if (who.emailOffers === "opted_in" || who.stopped) return null;
   let newest = null;
+  let signedUp = who.fromWebsite;
   for (const m of messages) {
-    if (!isSignupAsk(m) || m.status === "canceled") continue;
+    if (!isSignupAsk(m)) continue;
+    signedUp = true;
+    if (m.status === "canceled") continue;
     const at3 = Date.parse(m.created_at);
     if (Number.isFinite(at3) && (!newest || at3 > newest.at)) newest = { m, at: at3 };
   }
-  if (!newest) return null;
+  const canAsk = signedUp && !!who.email && !who.suppressed;
+  if (!newest) return canAsk ? { label: null, sub: null, act: "Ask to confirm" } : null;
   const asked = `asked ${fmtDate(newest.at, tz, nowMs)}`;
-  if (newest.m.status === "failed") return { label: "Confirmation not delivered", sub: asked };
+  const again = canAsk ? "Ask again" : null;
+  if (newest.m.status === "failed") return { label: "Confirmation not delivered", sub: asked, act: again };
   const until = newest.at + SIGNUP_CONFIRM_MS;
-  if (nowMs >= until) return { label: "Did not confirm", sub: asked };
-  return { label: "Asked to confirm", sub: `${asked} \xB7 the link works until ${fmtDate(until, tz, nowMs)}` };
+  if (nowMs >= until) return { label: "Did not confirm", sub: asked, act: again };
+  return { label: "Asked to confirm", sub: `${asked} \xB7 the link works until ${fmtDate(until, tz, nowMs)}`, act: null };
 }
 
 // src/people/lists/list-rules.ts
@@ -52553,7 +52564,13 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date(), viewerId = null, pa
     yesLocked: d.lead || base.worksAt ? LEAD_CONSENT_REFUSAL : null,
     signupAsk: signupAskOf(
       d.conversations.flatMap((c) => c.messages),
-      base.consent.emailMarketing,
+      {
+        emailOffers: base.consent.emailMarketing,
+        fromWebsite: d.row.came_from === "website",
+        email: base.email,
+        suppressed: base.emailSuppressed,
+        stopped: base.stopped
+      },
       tz,
       nowMs
     ),
@@ -64511,6 +64528,7 @@ var ROUTE_KEYS = [
   "POST contacts/[id]/notes/done",
   "POST contacts/[id]/notes/remove",
   "POST contacts/[id]/notes/seen",
+  "POST contacts/[id]/signup-confirm",
   "POST contacts/import",
   "POST conversations/[id]/archive",
   "POST conversations/[id]/booking-request",

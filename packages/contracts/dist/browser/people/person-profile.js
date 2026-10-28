@@ -272,7 +272,13 @@ export function toPersonVM(d, tz, now = /* @__PURE__ */ new Date(), viewerId = n
     yesLocked: d.lead || base.worksAt ? LEAD_CONSENT_REFUSAL : null,
     signupAsk: signupAskOf(
       d.conversations.flatMap((c) => c.messages),
-      base.consent.emailMarketing,
+      {
+        emailOffers: base.consent.emailMarketing,
+        fromWebsite: d.row.came_from === "website",
+        email: base.email,
+        suppressed: base.emailSuppressed,
+        stopped: base.stopped
+      },
       tz,
       nowMs
     ),
