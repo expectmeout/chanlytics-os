@@ -36,7 +36,6 @@ import {
   MIN_MS,
   SECOND_MS,
   normalizeEmail,
-  type MailboxLeftWhy,
 } from "../packages/contracts.js";
 import { EMAIL_BODY_MAX } from "../packages/core.js";
 import {
@@ -52,7 +51,13 @@ import {
 import { tokenFor } from "../email/mailbox/mailbox-credentials.js";
 import { markSignedOut } from "../email/mailbox/mailbox-wire.js";
 import { mailboxEmailMeta, readEmail } from "../email/mailbox/mailbox-sync.js";
-import { leftWhy, mailSortingFor, noteLeft, type MailSorting } from "../email/mailbox/mailbox-sorting.js";
+import {
+  leftWhy,
+  mailSortingFor,
+  noteLeft,
+  type MailSorting,
+  type SortedWhy,
+} from "../email/mailbox/mailbox-sorting.js";
 import type { Part, PartOutcome } from "./history-import.js";
 import type { Logger } from "../log.js";
 
@@ -111,7 +116,7 @@ function mailPersonOf(e: MailboxEmail, own: string): { address: string; name: st
 }
 
 /** The reasons the mailbox leaves an email by where Gmail filed it: never a reply in a thread a reach-out started. */
-const BY_GMAIL_TAB: ReadonlySet<MailboxLeftWhy> = new Set(["gmail_tab", "updates"]);
+const BY_GMAIL_TAB: ReadonlySet<SortedWhy> = new Set(["gmail_tab", "updates"]);
 
 /**
  * Why the six months leave what someone else wrote (mailbox-sorting.ts leftWhy), or null to keep it. Where Gmail filed
@@ -119,7 +124,7 @@ const BY_GMAIL_TAB: ReadonlySet<MailboxLeftWhy> = new Set(["gmail_tab", "updates
  * connected again reads back over its earlier connection's months, reach-outs among them; the threads are asked only
  * when a tab alone would leave one.
  */
-async function leftByImport(r: MailRead, e: MailboxEmail): Promise<MailboxLeftWhy | null> {
+async function leftByImport(r: MailRead, e: MailboxEmail): Promise<SortedWhy | null> {
   const why = await leftWhy(e, r.sorting);
   if (!why || !BY_GMAIL_TAB.has(why) || !e.threadId) return why;
   return (await knownThreads(r.db, r.part.tenantId, [e.threadId])).has(e.threadId) ? null : why;
