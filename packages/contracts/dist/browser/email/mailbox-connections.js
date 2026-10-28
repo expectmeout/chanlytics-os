@@ -144,9 +144,9 @@ export function mailboxWords(m, nowMs, sentToday = m.sent_today ?? null) {
   const change = missing.includes("spf") && !!m.spf_record;
   const unread = named.some((k) => !m.dns[k]);
   const fix = [
-    add.length ? `Add its ${add.map((k) => k.toUpperCase()).join(" and ")} record below.` : null,
-    change ? "Change its SPF record below." : null,
-    !missing.length && unread ? "Its records couldn't be read just now: Check reads them again." : null
+    add.length ? `Add its ${add.map((k) => k.toUpperCase()).join(" and ")} record in Set up DNS.` : null,
+    change ? "Change its SPF record in Set up DNS." : null,
+    !missing.length && unread ? "Its records couldn't be read just now: Set up DNS checks them again." : null
   ].filter(Boolean).join(" ") || null;
   return {
     pill: sentToday !== null && sentToday >= cap ? "Done for today" : "Connected",
@@ -338,6 +338,45 @@ export function mailboxRecordRows(m) {
     ),
     row("dmarc", { kind: "Policy (DMARC)", type: "TXT", name: "_dmarc", value: DMARC_RECOMMENDED }, null)
   ];
+}
+export function mailboxDnsOf(m) {
+  const rows = mailboxRecordRows(m);
+  return {
+    rows,
+    found: rows.filter((r) => r.found).length,
+    missing: rows.filter((r) => r.state === "missing").length,
+    total: rows.length
+  };
+}
+const DKIM_MADE_AT = {
+  google: { label: "Open Gmail in Google Admin", href: "https://admin.google.com/ac/appsettings/740348119625" }
+};
+export const MAILBOX_DNS_WORDS = {
+  act: "Set up DNS",
+  need: (missing, found, total) => `${missing} DNS record${missing === 1 ? "" : "s"} to add \xB7 ${found} of ${total} found`,
+  title: (host) => `${host}'s DNS`,
+  sub: (address) => `So mail from ${address} is trusted`,
+  found: (found, total) => `${found} of ${total} found`,
+  checked: (at) => at ? `Checked ${clockOf(at)}` : "Not checked yet",
+  where: (host) => `Add them where you manage ${host}'s DNS. A change can take up to an hour to show.`,
+  state: { add: "Add this", change: "Change this", made: "Turn on", found: "Found", unread: "Not read yet" },
+  host: "Host",
+  value: "Value",
+  copy: "Copy",
+  copied: "Copied",
+  copyFailed: "Couldn't copy. It's selected: copy it by hand",
+  madeAt: (provider) => DKIM_MADE_AT[provider] ?? null,
+  check: "Check again",
+  checking: "Checking\u2026",
+  readAgain: (host) => `${host}'s records were read again.`,
+  foot: "DNS has to show them before mail is trusted"
+};
+export function mailboxRecordStateWords(r) {
+  const W = MAILBOX_DNS_WORDS.state;
+  if (r.state === "found") return W.found;
+  if (r.state === "unread") return W.unread;
+  if (r.key === "dkim") return W.made;
+  return r.key === "spf" && r.note ? W.change : W.add;
 }
 const CONNECT_FAILED = "That didn't go through. Try again in a minute.";
 export const MAILBOX_CONNECT_WORDS = {

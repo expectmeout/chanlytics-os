@@ -344,9 +344,9 @@ export function mailboxWords(
   const unread = named.some((k) => !m.dns[k]);
   const fix =
     [
-      add.length ? `Add its ${add.map((k) => k.toUpperCase()).join(" and ")} record below.` : null,
-      change ? "Change its SPF record below." : null,
-      !missing.length && unread ? "Its records couldn't be read just now: Check reads them again." : null,
+      add.length ? `Add its ${add.map((k) => k.toUpperCase()).join(" and ")} record in Set up DNS.` : null,
+      change ? "Change its SPF record in Set up DNS." : null,
+      !missing.length && unread ? "Its records couldn't be read just now: Set up DNS checks them again." : null,
     ]
       .filter(Boolean)
       .join(" ") || null;
@@ -667,6 +667,59 @@ export function mailboxRecordRows(
     ),
     row("dmarc", { kind: "Policy (DMARC)", type: "TXT", name: "_dmarc", value: DMARC_RECOMMENDED }, null),
   ];
+}
+
+/**
+ * A mailbox's domain, as its line on the Email card and its DNS sheet say it (the mailbox canvas's D1, 28 Oct 2026):
+ * its records, how many are found, and how many are still to add. A record not read yet is neither.
+ */
+export function mailboxDnsOf(
+  m: Pick<MailboxConnectionDto, "provider" | "dns"> & Partial<Pick<MailboxConnectionDto, "spf_record" | "spf_lookups">>,
+): { rows: MailboxRecordRow[]; found: number; missing: number; total: number } {
+  const rows = mailboxRecordRows(m);
+  return {
+    rows,
+    found: rows.filter((r) => r.found).length,
+    missing: rows.filter((r) => r.state === "missing").length,
+    total: rows.length,
+  };
+}
+
+/** Where a provider's own DKIM record is made, as its help page links it: Google's is Gmail's settings, then Authenticate email. */
+const DKIM_MADE_AT: Partial<Record<MailboxProvider, { label: string; href: string }>> = {
+  google: { label: "Open Gmail in Google Admin", href: "https://admin.google.com/ac/appsettings/740348119625" },
+};
+
+/** The DNS sheet's words, and the line on the card that opens it. */
+export const MAILBOX_DNS_WORDS = {
+  act: "Set up DNS",
+  need: (missing: number, found: number, total: number) =>
+    `${missing} DNS record${missing === 1 ? "" : "s"} to add · ${found} of ${total} found`,
+  title: (host: string) => `${host}'s DNS`,
+  sub: (address: string) => `So mail from ${address} is trusted`,
+  found: (found: number, total: number) => `${found} of ${total} found`,
+  checked: (at: string | null) => (at ? `Checked ${clockOf(at)}` : "Not checked yet"),
+  where: (host: string) => `Add them where you manage ${host}'s DNS. A change can take up to an hour to show.`,
+  state: { add: "Add this", change: "Change this", made: "Turn on", found: "Found", unread: "Not read yet" },
+  host: "Host",
+  value: "Value",
+  copy: "Copy",
+  copied: "Copied",
+  copyFailed: "Couldn't copy. It's selected: copy it by hand",
+  madeAt: (provider: MailboxProvider) => DKIM_MADE_AT[provider] ?? null,
+  check: "Check again",
+  checking: "Checking…",
+  readAgain: (host: string) => `${host}'s records were read again.`,
+  foot: "DNS has to show them before mail is trusted",
+} as const;
+
+/** What a record's state says beside its name: found, to add, to change (an SPF the domain has), to turn on (DKIM), unread. */
+export function mailboxRecordStateWords(r: Pick<MailboxRecordRow, "key" | "state" | "note">): string {
+  const W = MAILBOX_DNS_WORDS.state;
+  if (r.state === "found") return W.found;
+  if (r.state === "unread") return W.unread;
+  if (r.key === "dkim") return W.made;
+  return r.key === "spf" && r.note ? W.change : W.add;
 }
 
 /* ------------------------------------------------------------------------------------- connecting, in words */

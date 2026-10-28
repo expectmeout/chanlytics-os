@@ -11,7 +11,8 @@
  * sentences, and a mailbox's settings open in a sheet beside the page (mailbox-sheet.tsx), never inside the row.
  *
  * `EmailCard` and `ConnectedMailboxes` keep their state; a row, its buttons, its questions and the foot are plain
- * functions that return the JSX, called and not drawn, as the block before it did. `MailboxRecords` is a component.
+ * functions that return the JSX, called and not drawn, as the block before it did. A domain's records are the DNS
+ * sheet's (dns-sheet.tsx): the card says how many are still to add, and Set up DNS opens them.
  */
 import { Fragment, useState } from "react";
 import {
@@ -21,7 +22,6 @@ import {
   type ImportSource,
   type MailboxConnectionDto,
   type MailboxProvider,
-  type MailboxRecordRow,
   type SetupDto,
 } from "@chanlytics/contracts";
 import type { ApiResult } from "@/client/api";
@@ -35,6 +35,7 @@ import { StatePill } from "../../kit/pill/state-pill";
 import { canDo, gate, gateTitle, refusalToast, type LegacyFlash } from "../../legacy-verbs";
 import { connectedMailboxes } from "./connected-mailboxes";
 import { LeftSenders } from "./left-senders";
+import { DnsSheet, copyWords } from "./dns-sheet";
 import { MailboxSheet } from "./mailbox-sheet";
 
 const MAILBOXES = connectedMailboxes;
@@ -44,103 +45,10 @@ const MAILBOX_PERM = "settings";
 type Flash = (f: LegacyFlash) => void;
 type Email = NonNullable<SetupDto["email"]>;
 
-interface RecordsProps {
-  m: MailboxConnectionDto;
-  flash: Flash;
-}
-
-/** Copy words, saying so; where the browser gives no clipboard, the words are selected so a person copies them by hand. */
-function copyWords(flash: Flash, value: string, nodeId: string) {
-  const byHand = () => {
-    const node = document.getElementById(nodeId);
-    if (node && window.getSelection && document.createRange) {
-      const range = document.createRange();
-      range.selectNodeContents(node);
-      const sel = window.getSelection();
-      if (sel) {
-        sel.removeAllRanges();
-        sel.addRange(range);
-      }
-    }
-    flash({ tone: "danger", msg: <>Couldn't copy. It's selected: copy it by hand</> });
-  };
-  if (navigator.clipboard) navigator.clipboard.writeText(value).then(() => flash({ msg: <>Copied</> }), byHand);
-  else byHand();
-}
-
-/** What a record's dot says: DNS has it, has it not, or could not be read just now. */
-const DOT_WORDS: Record<MailboxRecordRow["state"], string> = {
-  found: "Found",
-  missing: "Not found yet",
-  unread: "Not read yet",
-};
-
-/** The records its domain needs, while one is missing: what each is for, where it goes, what to put in it. */
-const MailboxRecords = ({ m, flash }: RecordsProps) => {
-  const copy = (value: string, id: string) => copyWords(flash, value, id);
-  const rows = MAILBOXES.records(m);
-  const idOf = (r: MailboxRecordRow, part: string) => `mrec-${m.id}-${part}-${r.key}`;
-  return (
-    <div className="set-records" data-testid={`mailbox-records-${m.address}`}>
-      <p className="set-records-intro">
-        {`Add these at the place you manage ${m.host}'s DNS, so mail from ${m.address} is trusted.`}{" "}
-        <span className="dim">A green dot is a record DNS already has.</span>
-      </p>
-      <div className="set-records-table" role="table" aria-label={`The records for ${m.host}`}>
-        <div className="set-records-row set-records-head" role="row">
-          <span role="columnheader">Record</span>
-          <span role="columnheader">Name</span>
-          <span role="columnheader">Value</span>
-        </div>
-        {rows.map((r) => (
-          <div className="set-records-row" role="row" key={r.key}>
-            <span role="cell" className="k">
-              <span
-                className="rec-dot"
-                role="img"
-                data-found={r.found ? "yes" : "no"}
-                title={DOT_WORDS[r.state]}
-                aria-label={DOT_WORDS[r.state]}
-              />
-              {r.kind}
-              <span className="ty-inline">
-                {" · "}
-                {r.type}
-              </span>
-            </span>
-            <span role="cell" className="n">
-              <code id={idOf(r, "name")}>{r.name}</code>
-            </span>
-            <span role="cell" className="v">
-              <code id={idOf(r, "value")}>{r.value}</code>
-              {/* DKIM is made where the mailbox lives, so its words are where to go, not a value to paste. */}
-              {r.key !== "dkim" && (
-                <LinkButton
-                  className="rec-copy"
-                  onClick={() => copy(r.value, idOf(r, "value"))}
-                  aria-label={`Copy the ${r.kind} value`}
-                  data-testid={`mailbox-copy-${r.key}`}
-                >
-                  Copy
-                </LinkButton>
-              )}
-              {r.note ? (
-                <span className="dim set-records-note" data-testid={`mailbox-record-note-${r.key}`}>
-                  {r.note}
-                </span>
-              ) : null}
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-/** The mailbox an owner has armed a question on, or opened the settings sheet of. */
+/** The mailbox an owner has armed a question on, or opened the settings or the DNS sheet of. */
 interface Arm {
   id: string;
-  what: "remove" | "resume" | "settings";
+  what: "remove" | "resume" | "settings" | "dns";
 }
 
 interface MailboxActs {
@@ -251,7 +159,7 @@ function mailboxQuestions(m: MailboxConnectionDto, fix: string | null, ctx: RowC
 }
 
 /** The one act a row offers first, by what its mailbox needs most; the rest are on its caret. */
-type MainAct = "reconnect" | "resume" | "check" | "unpause" | "settings" | "test";
+type MainAct = "reconnect" | "resume" | "dns" | "unpause" | "settings" | "test";
 
 /**
  * What the mailbox needs most: to be connected again, resumed, its records read or its sending back; with nothing to
@@ -261,7 +169,7 @@ type MainAct = "reconnect" | "resume" | "check" | "unpause" | "settings" | "test
 function mainActOf(can: ReturnType<typeof MAILBOXES.acts>, records: boolean): MainAct {
   if (can.reconnect) return "reconnect";
   if (can.resume) return "resume";
-  if (records) return "check";
+  if (records) return "dns";
   if (can.unpause) return "unpause";
   return "settings";
 }
@@ -270,7 +178,7 @@ function mainActOf(can: ReturnType<typeof MAILBOXES.acts>, records: boolean): Ma
 const MAIN_WORDS: Record<MainAct, { label: string; busy: string; doing: string }> = {
   reconnect: { label: "Reconnect", busy: "Reconnect", doing: "reconnect a mailbox" },
   resume: { label: "Resume", busy: "Resume", doing: "resume a mailbox" },
-  check: { label: "Check", busy: "Checking…", doing: "check a mailbox's records" },
+  dns: { label: MAILBOXES.dns.words.act, busy: MAILBOXES.dns.words.act, doing: "check a mailbox's records" },
   unpause: { label: "Unpause", busy: "Unpausing…", doing: "unpause a mailbox" },
   settings: { label: "Settings", busy: "Settings", doing: "change a mailbox's settings" },
   test: { label: "Send a test", busy: "Sending…", doing: "send a test" },
@@ -284,7 +192,8 @@ const MAIN_WORDS: Record<MainAct, { label: string; busy: string; doing: string }
 function mailboxActions(m: MailboxConnectionDto, records: boolean, ctx: RowContext) {
   const { owner, busy, arm, acts, setArm } = ctx;
   const can = MAILBOXES.acts(m);
-  if (arm && arm.id === m.id && arm.what !== "settings") return <span className="set-int-actions" />;
+  if (arm && arm.id === m.id && arm.what !== "settings" && arm.what !== "dns")
+    return <span className="set-int-actions" />;
   const owners = (what: string) => (owner ? {} : gate(MAILBOX_PERM, what));
   // A menu's item stays pressable while another act runs: a press then does nothing, as a disabled button would.
   const unlessBusy = (go: () => void) => () => {
@@ -293,7 +202,7 @@ function mailboxActions(m: MailboxConnectionDto, records: boolean, ctx: RowConte
   const run: Record<MainAct, () => void> = {
     reconnect: () => void acts.connect(m.provider, m),
     resume: () => setArm({ id: m.id, what: "resume" }),
-    check: () => void acts.check(m),
+    dns: () => setArm({ id: m.id, what: "dns" }),
     unpause: () => void acts.pause(m, false),
     settings: () => setArm({ id: m.id, what: "settings" }),
     test: () => void acts.test(m),
@@ -303,14 +212,7 @@ function mailboxActions(m: MailboxConnectionDto, records: boolean, ctx: RowConte
     main !== "settings"
       ? { label: "Settings", icon: "settings", onClick: () => setArm({ id: m.id, what: "settings" }) }
       : null,
-    records && main !== "check"
-      ? {
-          label: "Check its records",
-          icon: "refresh",
-          onClick: unlessBusy(run.check),
-          gate: owners(MAIN_WORDS.check.doing),
-        }
-      : null,
+    records && main !== "dns" ? { label: MAILBOXES.dns.words.act, icon: "refresh", onClick: run.dns } : null,
     can.test && main !== "test"
       ? { label: "Send a test", icon: "mail", onClick: unlessBusy(run.test), gate: owners(MAIN_WORDS.test.doing) }
       : null,
@@ -338,9 +240,9 @@ function mailboxActions(m: MailboxConnectionDto, records: boolean, ctx: RowConte
             onClick={run[main]}
             disabled={busy !== null}
             data-testid={`mailbox-${main === "unpause" ? "pause" : main}-${m.address}`}
-            {...(main === "settings" ? {} : owners(MAIN_WORDS[main].doing))}
+            {...(main === "settings" || main === "dns" ? {} : owners(MAIN_WORDS[main].doing))}
           >
-            {busy === m.id && main !== "settings" ? MAIN_WORDS[main].busy : MAIN_WORDS[main].label}
+            {busy === m.id && main !== "settings" && main !== "dns" ? MAIN_WORDS[main].busy : MAIN_WORDS[main].label}
           </Button>
         }
         {items.length > 0 && (
@@ -360,8 +262,23 @@ function mailboxActions(m: MailboxConnectionDto, records: boolean, ctx: RowConte
   );
 }
 
-/** Whether a mailbox's domain still lacks a record it needs. */
+/** Whether a mailbox's domain still lacks a record it needs, or has one not read yet. */
 const missingOf = (m: MailboxConnectionDto) => MAILBOXES.records(m).some((x) => !x.found);
+
+/**
+ * What its domain still lacks, in one line where the records stood (the mailbox canvas's D1): how many to add, of how
+ * many found. Its records are in the DNS sheet. Nothing while its sending is held or signed out, which says its own.
+ */
+function dnsNeed(m: MailboxConnectionDto) {
+  if (m.state !== "connected" && m.state !== "paused") return null;
+  const d = MAILBOXES.dns.of(m);
+  if (!d.missing) return null;
+  return (
+    <span className="set-mbx-need" data-testid={`mailbox-need-${m.address}`}>
+      {MAILBOXES.dns.words.need(d.missing, d.found, d.total)}
+    </span>
+  );
+}
 
 /**
  * One mailbox of several: what came in through it and its pill, its act and its caret, and its records while one is
@@ -378,7 +295,7 @@ function mailboxRow(m: MailboxConnectionDto, ctx: RowContext, now: number) {
           <b>{m.address}</b>
           {r.cameIn ? <span data-testid={`mailbox-came-in-${m.address}`}>{r.cameIn}</span> : null}
           {r.standing ? <span>{r.standing}</span> : null}
-          {r.fix ? <span>{r.fix}</span> : null}
+          {dnsNeed(m) ?? (r.fix ? <span>{r.fix}</span> : null)}
           {mailboxQuestions(m, r.fix, ctx)}
         </span>
         <span className="cap">
@@ -387,7 +304,6 @@ function mailboxRow(m: MailboxConnectionDto, ctx: RowContext, now: number) {
         <StatePill kind="tone" value={r.tone} label={r.pill} />
         {mailboxActions(m, missing, ctx)}
       </div>
-      {missing && m.state !== "reconnect" && <MailboxRecords m={m} flash={ctx.flash} />}
     </Fragment>
   );
 }
@@ -573,7 +489,7 @@ function cardWords(r: ConnectionRow, one: MailboxConnectionDto | null, now: numb
             </span>
           ) : null}
           {w.standing ? <span className="set-mbx-says">{w.standing}</span> : null}
-          {w.fix ? <span className="set-mbx-says">{w.fix}</span> : null}
+          {dnsNeed(one) ?? (w.fix ? <span className="set-mbx-says">{w.fix}</span> : null)}
         </>
       ) : (
         <span className="set-mbx-says">{r.detail}</span>
@@ -613,7 +529,10 @@ export function EmailCard({ r, email, imports, businessName, flash, note, onNote
   const now = Date.now();
   const one = boxes.length === 1 ? (boxes.at(0) ?? null) : null;
   const w = one ? MAILBOXES.row(one, now) : null;
-  const opened = arm?.what === "settings" ? (boxes.find((m) => m.id === arm.id) ?? null) : null;
+  // The mailbox whose settings, or whose DNS, is open in its sheet.
+  const armedOf = (what: Arm["what"]) => (arm?.what === what ? (boxes.find((m) => m.id === arm.id) ?? null) : null);
+  const opened = armedOf("settings");
+  const dnsOf = armedOf("dns");
   const facts = cardFacts(one, imports);
   const room = owner && boxes.length < MAILBOXES.max;
   return (
@@ -647,10 +566,7 @@ export function EmailCard({ r, email, imports, businessName, flash, note, onNote
             </dl>
           ) : null}
           {one ? (
-            <>
-              {mailboxQuestions(one, w?.fix ?? null, ctx)}
-              {missingOf(one) && one.state !== "reconnect" ? <MailboxRecords m={one} flash={flash} /> : null}
-            </>
+            <>{mailboxQuestions(one, w?.fix ?? null, ctx)}</>
           ) : (
             <div className="set-domains">{boxes.map((m) => mailboxRow(m, ctx, now))}</div>
           )}
@@ -690,6 +606,7 @@ export function EmailCard({ r, email, imports, businessName, flash, note, onNote
           onRemove={() => acts.remove(opened)}
         />
       ) : null}
+      {dnsOf ? <DnsSheet m={dnsOf} owner={owner} flash={flash} onClose={() => setArm(null)} /> : null}
     </>
   );
 }

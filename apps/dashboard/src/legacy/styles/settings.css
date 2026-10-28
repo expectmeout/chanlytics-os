@@ -1923,6 +1923,37 @@ html.legacy-on .bt-link { position: relative; }
 .set-mbx-below > .set-domains > .set-dom { grid-template-columns: minmax(0, 1fr) auto auto; padding: var(--space-2) 0; border-top: 1px dashed var(--line); }
 .set-mbx-below > .set-domains > .set-dom:first-child { border-top: 0; }
 .set-mbx-below > .set-domains > .set-dom > :is(svg, .cap) { display: none; }
+/* What a mailbox's domain still lacks, one line where its records stood (mailboxes-block.tsx dnsNeed; the mailbox
+   canvas's D1): amber, as what needs you is. */
+.set-mbx-need { align-self: flex-start; justify-self: start; display: inline-flex; align-items: center; gap: var(--space-2); margin-top: var(--space-1); padding: 3px var(--space-3) 3px var(--space-2); border-radius: var(--radius-xl); background: var(--warn-soft); color: var(--warn-ink); font-size: var(--text-xs); font-weight: 600; line-height: 1.5; }
+.set-mbx-need::before { content: ""; width: 6px; height: 6px; border-radius: var(--radius-circle); background: currentColor; flex: none; }
+/* A mailbox's domain records (dns-sheet.tsx): how many are found, a record each with its state in words and its parts
+   to copy, a record DNS has one line, and Check again in the foot. */
+.set-dns-top { display: flex; flex-direction: column; gap: var(--space-2); padding-bottom: var(--space-2); }
+.set-dns-row { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); font-size: var(--text-sm); color: var(--ink-dim); }
+.set-dns-row b { font-weight: 600; color: var(--ink); }
+.set-dns-bar { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: var(--space-1); }
+.set-dns-bar > span { height: 5px; border-radius: var(--radius-xs); background: var(--line); }
+.set-dns-bar > span[data-on="true"] { background: var(--ok); }
+.set-dns-where { margin: 0; font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); }
+.set-dns-rec { display: flex; flex-direction: column; gap: var(--space-3); margin-top: var(--space-3); padding: var(--space-3) var(--space-4) var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface-inset-fill); }
+.set-dns-rec-h { display: flex; align-items: center; gap: var(--space-2); }
+.set-dns-rec-h b, .set-dns-found b { font-size: var(--text-base); font-weight: 600; color: var(--ink); white-space: nowrap; }
+.set-dns-type { padding: 1px var(--space-2); border-radius: var(--radius-sm); background: var(--line); font-family: var(--font-mono); font-size: var(--text-2xs); color: var(--ink-dim); }
+.set-dns-state { margin-left: auto; display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--text-xs); font-weight: 600; white-space: nowrap; }
+.set-dns-state::before { content: ""; width: 6px; height: 6px; border-radius: var(--radius-circle); background: currentColor; }
+.set-dns-state[data-tone="warn"] { color: var(--warn-ink); }
+.set-dns-state[data-tone="ok"] { color: var(--ok-ink); }
+.set-dns-kv { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: var(--space-2); align-items: center; }
+.set-dns-k { font-size: var(--text-xs); color: var(--ink-dim); }
+.set-dns-v { min-width: 0; padding: var(--space-2) var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg); font-family: var(--font-mono); font-size: var(--text-sm); line-height: 1.45; color: var(--ink); overflow-wrap: anywhere; user-select: all; }
+.set-dns-why, .set-dns-steps { margin: 0; font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); text-wrap: pretty; }
+.set-dns-steps { color: var(--ink); }
+.set-dns-go { align-self: flex-start; }
+.set-dns-found { flex-direction: row; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-4); }
+.set-dns-found-v { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--ink-dim); }
+.set-dns-foot { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-3); width: 100%; }
+.set-dns-foot-note { margin-right: auto; font-size: var(--text-xs); color: var(--ink-dim); }
 /* The settings sheet's groups (mailbox-sheet.tsx): Sending, Signature, the backup address, Remove, a hairline between. */
 .set-mbx-group { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4) 0; border-top: 1px solid var(--line); }
 .set-mbx-group:first-child { padding-top: var(--space-2); border-top: 0; }
