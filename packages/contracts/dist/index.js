@@ -61680,6 +61680,8 @@ var SETUP_CARD_WORDS = {
   goingLive: "Finish going live",
   needYou: (n) => `${n} need${n === 1 ? "s" : ""} you`,
   doneTitle: "Already done",
+  /** While someone waits on the owner the card is its head alone, under the queue, and this opens its rows. */
+  show: "Show",
   /** What is kept, in the order the steps made it. */
   kept: {
     business: (name, listed) => listed ? `${name}, read from Google` : name,

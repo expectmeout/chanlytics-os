@@ -12,7 +12,8 @@
  *   steps due                     |
  *   among its rows                |
  *   (TodaySetup, only while something is left, in the queue's column: canvas R10; then what was brought in, for the
- *   first week, decision 0073)
+ *   first week, decision 0073). While someone waits on the owner the queue leads its column, and what is left to set up
+ *   is one line under it (the live walk, 27 Oct 2026: at 1024 Need you started past the bottom of the screen)
  *   the day's card                | Worth a look
  *   the lists this member pinned (a pane of figures, only when something is)
  *
@@ -34,27 +35,30 @@ import { TodayPins } from "./pins";
 import { TodaySetup } from "./setup-card";
 import { TodayBroughtIn } from "./brought-in";
 import { TodayStrip } from "./strip";
+import { useNeedsYou } from "../../needs-you";
 
 // Canvas E3's bento: the strip, the queue's column beside the brief and the bell, the day's card beside Worth a look.
 // No day pane: E3 folds the day into the strip's Next cell (Ruben, 1 October 2026); the Calendar has the rest.
-export const DashboardA = () => (
-  <div className="dash-a-v2 dash-a-v2-glass">
-    <HeroBrief />
-    <TodayStrip />
-    <div className="dash-a-v2-work">
-      <TodaySetup />
-      <TodayBroughtIn />
-      <TodayGoing />
-      <AgentCommand />
+export const DashboardA = () => {
+  // The work first: while anyone waits on the owner, the queue before the chores (keyed, so a turn moves and never
+  // mounts them again).
+  const waiting = (useNeedsYou() ?? 0) > 0;
+  const chores = [<TodaySetup key="setup" />, <TodayBroughtIn key="in" />, <TodayGoing key="going" />];
+  const queue = <AgentCommand key="queue" />;
+  return (
+    <div className="dash-a-v2 dash-a-v2-glass">
+      <HeroBrief />
+      <TodayStrip />
+      <div className="dash-a-v2-work">{waiting ? [queue, ...chores] : [...chores, queue]}</div>
+      <div className="dash-a-v2-side">
+        <TodayBriefPane />
+        <TodayAway />
+      </div>
+      <div className="dash-a-v2-bottom">
+        <TodayCard />
+        <TodayLeaks />
+      </div>
+      <TodayPins />
     </div>
-    <div className="dash-a-v2-side">
-      <TodayBriefPane />
-      <TodayAway />
-    </div>
-    <div className="dash-a-v2-bottom">
-      <TodayCard />
-      <TodayLeaks />
-    </div>
-    <TodayPins />
-  </div>
-);
+  );
+};
