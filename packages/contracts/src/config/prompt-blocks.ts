@@ -124,11 +124,20 @@ const BLOCK_MARKS: readonly BlockMark[] = /* @__PURE__ */ (() => [
   { row: "platform", label: PLATFORM_LABEL, startsWith: O.callMedium, channel: "voice", note: PLATFORM_NOTE },
   { row: "platform", label: PLATFORM_LABEL, startsWith: O.chatMedium, channel: "whatsapp", note: PLATFORM_NOTE },
   { row: "platform", label: PLATFORM_LABEL, startsWith: O.openTimes, note: PLATFORM_NOTE },
+  // The lines about offers and news are chat's alone (compose.ts rulesSection): a call has no message to find them in.
   {
     row: "guardrails",
     label: "Rules it always keeps",
     startsWith: O.rules,
+    channel: "whatsapp",
     note: "Also here: Chanlytics' own lines about offers and news, and any rule from Autonomy.",
+  },
+  {
+    row: "guardrails",
+    label: "Rules it always keeps",
+    startsWith: O.rules,
+    channel: "voice",
+    note: "Also here: any rule from Autonomy.",
   },
 ])();
 

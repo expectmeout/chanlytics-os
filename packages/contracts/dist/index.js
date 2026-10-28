@@ -34938,11 +34938,20 @@ var BLOCK_MARKS = /* @__PURE__ */ (() => [
   { row: "platform", label: PLATFORM_LABEL, startsWith: PROMPT_OPENINGS.callMedium, channel: "voice", note: PLATFORM_NOTE },
   { row: "platform", label: PLATFORM_LABEL, startsWith: PROMPT_OPENINGS.chatMedium, channel: "whatsapp", note: PLATFORM_NOTE },
   { row: "platform", label: PLATFORM_LABEL, startsWith: PROMPT_OPENINGS.openTimes, note: PLATFORM_NOTE },
+  // The lines about offers and news are chat's alone (compose.ts rulesSection): a call has no message to find them in.
   {
     row: "guardrails",
     label: "Rules it always keeps",
     startsWith: PROMPT_OPENINGS.rules,
+    channel: "whatsapp",
     note: "Also here: Chanlytics' own lines about offers and news, and any rule from Autonomy."
+  },
+  {
+    row: "guardrails",
+    label: "Rules it always keeps",
+    startsWith: PROMPT_OPENINGS.rules,
+    channel: "voice",
+    note: "Also here: any rule from Autonomy."
   }
 ])();
 var IDENTITY = { row: "identity", label: "Who you are", startsWith: "" };
