@@ -92,7 +92,9 @@ const codeOut = new Map<string, Set<Promise<unknown>>>();
  * the page's own content from a chunk of its own, whose rows may be in before its code is. Today's Setup card did that in
  * 4 of 13 cold desk loads and 10 of 41 phone ones (page_vitals, 20-27 Oct 2026), its 419 px pushing the queue down after
  * it had drawn. Held until the fetch settles, landed or not (a part whose code failed draws nothing or says so), and never
- * past the route's wait (ROUTE_WAIT_MS), as a surface's is; the listeners hear it end, as they hear a surface land.
+ * past the route's wait (ROUTE_WAIT_MS), as a surface's is; the listeners hear it end, as they hear a surface land. A read
+ * the first draw cannot name before its own surface is in rides it too: the person of the thread the Inbox opens on, whose
+ * head draws them, and the reads its reply box is drawn from (surfaces/inbox/surface.ts openingThreadWaits).
  */
 export function firstDrawWaitsFor(page: string, code: Promise<unknown>): void {
   const out = codeOut.get(page) ?? new Set<Promise<unknown>>();
@@ -105,9 +107,41 @@ export function firstDrawWaitsFor(page: string, code: Promise<unknown>): void {
   code.then(done, done);
 }
 
+/**
+ * A surface landed or failed, as a promise: what a page's first draw waits for where only the page can say it does
+ * (firstDrawWaitsFor), as the Inbox's opening thread waits for its reply box's reads, which its list alone never draws.
+ */
+export function surfaceSettles(key: string): Promise<void> {
+  if (isSurfaceReady(key) || isSurfaceFailed(key)) return Promise.resolve();
+  return new Promise((done) => {
+    const off = onSurfaceStatusChange(() => {
+      if (!isSurfaceReady(key) && !isSurfaceFailed(key)) return;
+      off();
+      done();
+    });
+  });
+}
+
 /** Whether a page's first draw still waits for code of its own (firstDrawWaitsFor). */
 export function codeOutFor(page: string): boolean {
   return (codeOut.get(page)?.size ?? 0) > 0;
+}
+
+/**
+ * Settled once each of these surfaces holds its rows or has failed (a hydrated one holds them already): what a first draw
+ * that waits for them is held by (firstDrawWaitsFor), on a load alone, so a move between a page's panes never waits for one
+ * read only where it is drawn (Settings, settings/frame/pane-reads.ts).
+ */
+export function surfacesSettled(keys: readonly string[]): Promise<void> {
+  const settled = () => keys.every((k) => ready.has(k) || failed.has(k));
+  if (settled()) return Promise.resolve();
+  return new Promise<void>((done) => {
+    const off = onSurfaceStatusChange(() => {
+      if (!settled()) return;
+      off();
+      done();
+    });
+  });
 }
 
 /**

@@ -75,6 +75,11 @@ const menuShape = (menu) =>
     ...g.items.map((it) => it.label),
   ]);
 const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
+/**
+ * People's rows as the thread's head reads them: People's surface (want-person.ts personOnThread), read at a clock as People
+ * publishes it. The head read the window's copy (`__PEOPLE`) until the Inbox load review (28 Oct 2026).
+ */
+const peopleAre = (value) => setSurfaceValue("people", value && { fetchedAt: Date.now(), ...value });
 // The seam's own signal, on the module the header hears it from: a surface's rows landed.
 const { surfaceMoved: surfaceLanded } =
   await import("../../../../../apps/dashboard/src/legacy-bridge/surface-status.ts");
@@ -283,16 +288,16 @@ test("beside the wires, the person's next visit from People -- or their last -- 
   const chip = (tree) => find(tree, hasClass("ix-th-visit"));
   const person = (over) => ({ id: "k1", nextVisitLine: null, lastVisitLine: null, ...over });
   try {
-    globalThis.window.__PEOPLE = {
+    peopleAre({
       rows: [person({ nextVisitLine: visitLine("Tue, Sep 8", "2:00 – 5:00 PM") })],
-    };
+    });
     let tree = draw(vm);
     assert.equal(textOf(chip(tree)).trim(), "Tue, Sep 8 · 2:00 – 5:00 PM", "a visit ahead: its day and time");
     assert.ok(chip(tree).props.className.split(" ").includes("ahead"), "marked as ahead");
     assert.equal(textOf(find(tree, hasClass("ix-th-meta"))), "WhatsApp", "the wires' line says the wires, once");
-    globalThis.window.__PEOPLE = {
+    peopleAre({
       rows: [person({ lastVisitLine: visitLine("Thu, Aug 20", "10:00 AM – 12:00 PM", PAST) })],
-    };
+    });
     tree = draw(vm);
     assert.equal(
       textOf(chip(tree)).trim(),
@@ -300,22 +305,22 @@ test("beside the wires, the person's next visit from People -- or their last -- 
       "nothing ahead: the last visit, as People says it, and that it has ended with nobody saying what became of it",
     );
     assert.ok(!chip(tree).props.className.split(" ").includes("ahead"));
-    globalThis.window.__PEOPLE = {
+    peopleAre({
       rows: [
         person({
           lastVisitLine: visitLine("Thu, Aug 20", "10:00 AM – 12:00 PM", { text: "Kept", tone: "kept", pill: "ok" }),
         }),
       ],
-    };
+    });
     assert.equal(textOf(chip(draw(vm))).trim(), "Last · Thu, Aug 20 · Kept", "a member's word on it, in place of Past");
-    globalThis.window.__PEOPLE = { rows: [person()] };
+    peopleAre({ rows: [person()] });
     assert.ok(!chip(draw(vm)), "no visit either way: no chip");
-    globalThis.window.__PEOPLE = {
+    peopleAre({
       rows: [person({ id: "somebody-else", nextVisitLine: visitLine("Tue, Sep 8", "2:00 – 5:00 PM") })],
-    };
+    });
     assert.ok(!chip(draw(vm)), "another person's visit is not this one's");
   } finally {
-    delete globalThis.window.__PEOPLE;
+    peopleAre(undefined);
   }
   assert.ok(!chip(draw(vm)), "People not read yet: no chip");
   // Drawn before People landed, it hears People's surface, so it is drawn again and shows the chip then.
@@ -336,7 +341,7 @@ test("where they work is a door to the business's sheet beside the head on a des
     ...over,
   });
   try {
-    globalThis.window.__PEOPLE = { rows: [person()] };
+    peopleAre({ rows: [person()] });
     let tree = draw(vm);
     const door = find(tree, byTestId("ix-th-works-door"));
     assert.ok(door, "the door to the sheet");
@@ -346,14 +351,14 @@ test("where they work is a door to the business's sheet beside the head on a des
     const words = find(tree, byTestId("ix-th-works-at"));
     assert.ok(hasClass("ix-th-works-said")(words), "the phone's words, which a desk hides");
     // A stand-in's name is the business's already; a business removed has no sheet, and is said as words everywhere.
-    globalThis.window.__PEOPLE = { rows: [person({ standIn: true })] };
+    peopleAre({ rows: [person({ standIn: true })] });
     assert.equal(find(draw(vm), byTestId("ix-th-works-door")), undefined);
-    globalThis.window.__PEOPLE = { rows: [person({ worksAt: { leadId: "l1", name: null, gone: true } })] };
+    peopleAre({ rows: [person({ worksAt: { leadId: "l1", name: null, gone: true } })] });
     tree = draw(vm);
     assert.equal(find(tree, byTestId("ix-th-works-door")), undefined);
     assert.ok(!hasClass("ix-th-works-said")(find(tree, byTestId("ix-th-works-at"))));
   } finally {
-    delete globalThis.window.__PEOPLE;
+    peopleAre(undefined);
   }
 });
 
@@ -620,7 +625,7 @@ test("the chip beside the wires says the deal before the visit: a client, a prop
     ...person,
   });
   const drawWith = (row) => {
-    globalThis.window.__PEOPLE = { rows: [row] };
+    peopleAre({ rows: [row] });
     return draw(vm);
   };
   try {
@@ -642,7 +647,7 @@ test("the chip beside the wires says the deal before the visit: a client, a prop
     );
     assert.equal(find(tree, byTestId("ix-th-deal")), undefined);
   } finally {
-    delete globalThis.window.__PEOPLE;
+    peopleAre(undefined);
   }
 });
 
@@ -651,11 +656,11 @@ test("REGRESSION (S9-7): their visit is a door to the visit beside the head on a
   const door = (tree) => find(tree, byTestId("ix-th-visit-door"));
   const said = (tree) => find(tree, hasClass("ix-th-visit-said"));
   const withVisit = (to) => {
-    globalThis.window.__PEOPLE = {
+    peopleAre({
       rows: [
         { id: "k1", nextVisitLine: { ...visitLine("Tue, Sep 8", "2:00 PM"), to }, lastVisitLine: null, deal: null },
       ],
-    };
+    });
     return draw(vm);
   };
   try {
@@ -679,7 +684,7 @@ test("REGRESSION (S9-7): their visit is a door to the visit beside the head on a
     globalThis.window.__DEMO_MODE = true;
     assert.equal(door(withVisit("calendar/visit:v1")), undefined, "a demo opens no visit");
   } finally {
-    delete globalThis.window.__PEOPLE;
+    peopleAre(undefined);
     globalThis.window.__DEMO_MODE = false;
   }
 });
@@ -726,7 +731,7 @@ test("a step due under the head: what, and when it was due, with Done outside th
   });
   const redraw = () => again(() => InboxThread({ thread: vm, channelLabels: labels, onArchive: () => {} }));
   try {
-    w.__PEOPLE = { rows: [{ id: "k1", deal: null, nextStep: stepOf(-2) }] };
+    peopleAre({ rows: [{ id: "k1", deal: null, nextStep: stepOf(-2) }] });
     let tree = draw(vm);
     const line = find(tree, byTestId("ix-th-step"));
     assert.ok(line, "a step whose day has gone is said");
@@ -772,7 +777,7 @@ test("a step due under the head: what, and when it was due, with Done outside th
     const said = `${NOTE_WORDS.stepDone} · Send the revised quote`;
     assert.equal(textOf(find(tree, hasClass("pp-toast-msg"))), said, "the toast says which step");
     // People read again, the step gone from their row: the line's component goes, and the toast stays with the head.
-    w.__PEOPLE = { rows: [{ id: "k1", deal: null, nextStep: null }] };
+    peopleAre({ rows: [{ id: "k1", deal: null, nextStep: null }] });
     tree = redraw();
     assert.equal(
       textOf(find(tree, hasClass("pp-toast-msg"))),
@@ -789,7 +794,7 @@ test("a step due under the head: what, and when it was due, with Done outside th
       ["k1", "s1", false],
     ]);
     // A refusal is said in the door's words, and the line stays.
-    w.__PEOPLE = { rows: [{ id: "k1", deal: null, nextStep: stepOf(-2) }] };
+    peopleAre({ rows: [{ id: "k1", deal: null, nextStep: stepOf(-2) }] });
     answer = { ok: false, message: "Only a note with a day can be done." };
     tree = draw(vm);
     await find(tree, byTestId("ix-th-step-done")).props.onClick();
@@ -801,11 +806,11 @@ test("a step due under the head: what, and when it was due, with Done outside th
     assert.deepEqual(readAgain, ["people"], "a refused done reads People again");
     assert.deepEqual(aboutThePerson(), [], "and says nothing of its own beside the read");
     // One whose day is ahead waits for it; one today is said.
-    w.__PEOPLE = { rows: [{ id: "k1", deal: null, nextStep: stepOf(3) }] };
+    peopleAre({ rows: [{ id: "k1", deal: null, nextStep: stepOf(3) }] });
     assert.equal(find(draw(vm), byTestId("ix-th-step")), undefined, "ahead: not said");
     // Judged when People's rows were published, as every page judges a step: read three days ago, a step due two
     // days ago was a day ahead, and the head says what Today and People's Steps due say.
-    w.__PEOPLE = { rows: [{ id: "k1", deal: null, nextStep: stepOf(-2) }], fetchedAt: now - 3 * 86_400_000 };
+    peopleAre({ rows: [{ id: "k1", deal: null, nextStep: stepOf(-2) }], fetchedAt: now - 3 * 86_400_000 });
     assert.equal(find(draw(vm), byTestId("ix-th-step")), undefined, "one clock: People's");
     // A step for a teammate says whose it is.
     const maria = nextStepOf(
@@ -819,9 +824,9 @@ test("a step due under the head: what, and when it was due, with Done outside th
       ZONE,
       now,
     );
-    w.__PEOPLE = { rows: [{ id: "k1", deal: null, nextStep: maria }] };
+    peopleAre({ rows: [{ id: "k1", deal: null, nextStep: maria }] });
     assert.equal(textOf(find(draw(vm), byTestId("ix-th-step-for"))), "For Maria");
-    w.__PEOPLE = { rows: [{ id: "k1", deal: null, nextStep: stepOf(0) }] };
+    peopleAre({ rows: [{ id: "k1", deal: null, nextStep: stepOf(0) }] });
     assert.equal(find(draw(vm), byTestId("ix-th-step")).props["data-due"], "today");
     // A viewer's Done refuses at the control, and says why: the gate's handlers are the button's.
     const refused = [];
@@ -831,7 +836,7 @@ test("a step due under the head: what, and when it was due, with Done outside th
     assert.deepEqual([refused, pressed], [["approve"], []]);
   } finally {
     Object.assign(w, keep);
-    delete w.__PEOPLE;
+    peopleAre(undefined);
     delete w.__personNotes;
     delete w.__clock;
     delete w.openStepSheet;
@@ -857,7 +862,7 @@ test("Actions carry the deal's moves as a group of their own, by the stage of th
   const actions = { focus: () => order.push("actions") };
   globalThis.document.querySelector = (sel) => (sel === ".ix-th-head .ix-th-more" ? actions : null);
   const people = (deal) => {
-    globalThis.window.__PEOPLE = { rows: [{ id: "k1", deal }] };
+    peopleAre({ rows: [{ id: "k1", deal }] });
   };
   const press = (label) =>
     itemsOf(draw(vm))
@@ -917,10 +922,10 @@ test("Actions carry the deal's moves as a group of their own, by the stage of th
     );
     assert.ok(!shape(draw(vm)).includes("Record a deal…"), "REGRESSION: a door to the person's page, not the sheet");
     // Before People has read them, there is no group: their deal is not known yet.
-    delete globalThis.window.__PEOPLE;
+    peopleAre(undefined);
     assert.ok(!shape(draw(vm)).includes("Start a proposal"), "People not read yet: nothing to say of a deal");
   } finally {
-    delete globalThis.window.__PEOPLE;
+    peopleAre(undefined);
     delete globalThis.document.querySelector;
     globalThis.window.__deal = was.deal;
     globalThis.window.openDealSheet = was.open;

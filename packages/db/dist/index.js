@@ -1218,7 +1218,10 @@ function rowOfPeopleList({ open_deals, ...row }) {
   const deals = openDealsFromJson(open_deals);
   return deals === void 0 ? row : { ...row, open_deals: deals };
 }
-async function personRow(db, tenantId, contactId) {
+async function personRow(db, tenantId, who) {
+  const [thread] = typeof who === "string" ? [] : await threadsBy(db, tenantId, "id", [who.thread]);
+  const contactId = typeof who === "string" ? who : thread?.contact_id;
+  if (!contactId) return null;
   const { data, error } = await db.rpc("people_list", { p_tenant_id: tenantId, p_contact_id: contactId });
   if (error) throw Object.assign(new Error(error.message), { code: error.code });
   const first = (data ?? [])[0];

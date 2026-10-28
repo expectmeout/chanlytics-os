@@ -271,6 +271,13 @@ export interface InboxView {
   count: number;
 }
 
+/**
+ * A value as JSON carries it, as the database's jsonb columns say (packages/db Json): a template's `variables`, read where it
+ * is used (contracts template-slots.ts). Said, not `unknown`, so the Inbox's snapshot has a fingerprint and is drawn across
+ * a deploy that left its type alone (legacy-bridge/surface-cache.ts, SURFACE_SHAPES).
+ */
+type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue | undefined };
+
 /** One approved template, as the composer needs to know it (the templates route's row). */
 export interface ApprovedTemplate {
   id: string;
@@ -278,7 +285,7 @@ export interface ApprovedTemplate {
   name: string;
   language: string;
   body_preview: string | null;
-  variables: unknown;
+  variables: JsonValue;
   /** The line under the words, as Meta holds it; null when the template has none. */
   footer?: string | null;
   /** A text heading above the words; null when there is none, or it is a picture. */

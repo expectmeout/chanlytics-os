@@ -61,7 +61,8 @@ function googleNote(): string | null {
  * the browser came back from Instagram with, said once under its row until Ok.
  */
 function useInstagram() {
-  const [door, setDoor] = useState<InstagramDoor | null | undefined>(undefined);
+  // What the tab last held, drawn at once (pane-reads.ts): the row said it was asking, and changed as the answer came.
+  const [door, setDoor] = useState<InstagramDoor | null | undefined>(() => igConnect.held() ?? undefined);
   const [note, setNote] = useState<string | null>(() => igConnect.outcome());
   useEffect(() => {
     let on = true;
@@ -99,9 +100,9 @@ async function disconnectInstagram(channels: readonly ChannelVM[] | undefined): 
     : refusalToast(res, "Instagram not disconnected");
 }
 
-/** Meta's door: asked once; `undefined` while asking, so the row says so. */
+/** Meta's door: asked once; `undefined` while asking, so the row says so, and what the tab last held before then. */
 function useWhatsAppConfig(): WaConfig {
-  const [waCfg, setWaCfg] = useState<WaConfig>(undefined);
+  const [waCfg, setWaCfg] = useState<WaConfig>(() => waConnect.held() ?? undefined);
   useEffect(() => {
     let on = true;
     waConnect

@@ -399,7 +399,13 @@ export function useViewFade(
   const place = fromWindow("stripPlace", stripPlace)(page, param);
   const viewRef = useRef<ViewState>({ key: null, page: null, reading: false, stay: false, place: null, slide: null });
   const onStrip = !!place && !!viewRef.current.place && viewRef.current.place.strip === place.strip;
-  const viewKey = routeLoading && !onStrip ? `${mountKey}/reading` : mountKey;
+  // People keeps its three scopes mounted (people-route.tsx): a scope still reading is the page's to say, never the frame's,
+  // from the first draw that lands on one. The frame's reading view stood one draw on a cold load, and the page drawn in
+  // its place said nothing until its read was in: "Reading…", then nothing for 100 to 160 ms, then the list (the People
+  // load review, 28 Oct 2026). A person's page is no scope: it waits for who is looking under the frame's (registry
+  // routeSurfaceFor).
+  const inPlace = page === "clients" && !!place;
+  const viewKey = routeLoading && !onStrip && !inPlace ? `${mountKey}/reading` : mountKey;
   if (viewRef.current.key !== viewKey) {
     const prev = viewRef.current;
     const slide = prev.key !== null && !prev.reading ? fromWindow("stripSlide", stripSlide)(prev.place, place) : null;
@@ -409,18 +415,17 @@ export function useViewFade(
     viewRef.current = {
       key: viewKey,
       page,
-      reading: routeLoading && !onStrip,
+      reading: routeLoading && !onStrip && !inPlace,
       place,
       stay: !routeLoading && prev.key !== null && ((prev.page === page && !prev.reading) || cut) && !slide,
       slide,
     };
   }
-  // People keeps its three scopes mounted (people-route.tsx): a scope still reading is the page's to say, never the frame's.
   return {
     viewKey,
     routeStay: viewRef.current.stay,
     routeSlide: viewRef.current.slide,
     routeStrip: place ? place.strip : null,
-    readsInPlace: routeLoading && onStrip && page === "clients",
+    readsInPlace: routeLoading && inPlace,
   };
 }

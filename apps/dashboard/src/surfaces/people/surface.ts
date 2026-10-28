@@ -115,7 +115,12 @@ export interface PeopleSurface {
     has_more: boolean;
     next?: string | null;
   } | null;
-  /** What this member's pages remember in this workspace (memberships.views). */
+  /**
+   * What this member's pages remember in this workspace (memberships.views), as any build saved it: each page takes its own
+   * apart as it reads it, so a copy the tab kept under another build is no older than what the server may answer, and the
+   * cache's fingerprint leaves it out (tooling/scripts/gen/surface-shapes.mjs).
+   * @stored
+   */
   views: Record<string, unknown>;
   /**
    * Whether they were read: false when the read failed, and `views` is then none of them. A save of one page replaces
@@ -133,6 +138,9 @@ export let peopleLoaded: PeopleLoaded | null = null;
  * at boot (the loadability review, 19 Oct 2026). A fetch that failed is asked for again by the next read.
  */
 const peopleMap = codeOnce(() => import("./surface-map"));
+
+/** How People's rows are made, fetched now: as the tab opens on People's list, before its read asks (people-route.tsx). */
+export const warmPeopleMap = (): void => peopleMap.warm();
 
 /** The member looking, as the workspace surface named them at boot; null before it lands. */
 export function viewerId(): string | null {
@@ -310,6 +318,29 @@ export async function peopleSearch(q: string): Promise<{ rows: PersonRowVM[]; mo
     ),
     more: !!r.page?.has_more,
   };
+}
+
+/**
+ * The person a thread is with, as People's row says them, from the thread's own read of them (GET contacts?thread): the
+ * Inbox's thread head draws them from it until People's book is in (want-person.ts, a thread's person). Made as a
+ * search's rows are, so the deal, the visit, the step and where they work are the words People's row says. Null for a
+ * thread whose person People does not hold (erased, merged, a thread of another workspace's).
+ */
+export async function threadPersonRow(conversationId: string): Promise<PersonRowVM | null> {
+  const [r, tz, m] = await Promise.all([
+    read("GET contacts", { query: { thread: conversationId } }),
+    workspaceZone(),
+    peopleMap(),
+  ]);
+  const p = r.people.at(0);
+  if (!p) return null;
+  return m.personRowOf(p, {
+    tz,
+    now: new Date(),
+    viewer: viewerId(),
+    ready: peopleLoaded?.channelsReady ?? null,
+    names: holderName,
+  });
 }
 
 /**

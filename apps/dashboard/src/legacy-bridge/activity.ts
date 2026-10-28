@@ -14,8 +14,12 @@ import type { ApiResult } from "../client/api";
 import { readCache } from "./read-cache";
 import { workspaceZone } from "./zone";
 
-/** The last answer per set of filters, so coming back to the tab paints at once. */
-const pages = readCache<ApiResult<ActivityPageDto>>("activity", (r) => r.ok);
+/**
+ * The last answer per set of filters, so coming back to the tab paints at once. Kept in the tab, as a person's page is: the
+ * log is this workspace's own rows, and a reload drew its pane as a reader-nothing frame and then the log, 3,300 px at once on
+ * a desk (the Settings load review, 28 Oct 2026).
+ */
+const pages = readCache<ApiResult<ActivityPageDto>>("activity", (r) => r.ok, { tab: true });
 const keyOf = (f: ActivityFilters) =>
   [f.person, f.kind, f.family, f.only, f.actor, f.day, f.from, f.to, f.cursor].map((v) => v ?? "").join("|");
 
@@ -56,10 +60,11 @@ export const activity = {
    * Read the first page now, before anybody asks for it -- the rail calls this
    * when a pointer or the keyboard reaches the tab, so the pane it opens has
    * its rows already. Costs one request the visit was going to make anyway.
+   * The read begun, which a load at the log's address waits for (settings/frame/pane-reads.ts); null when this tab
+   * already holds the page current.
    */
-  warm: (f: ActivityFilters = {}): void => {
-    void pages.warm(keyOf(f), () => activity.list(f));
-  },
+  warm: (f: ActivityFilters = {}): Promise<ApiResult<ActivityPageDto>> | null =>
+    pages.warm(keyOf(f), () => activity.list(f)),
   /** Somebody wrote; the answers describe the world as it was. */
   forget: (): void => pages.clear(),
   /** What a row means, in the product's six tones. Pure, from contracts. */

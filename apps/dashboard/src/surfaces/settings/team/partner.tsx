@@ -92,7 +92,9 @@ function PartnerAsk({
 export function PartnerRow({ flash, previewing }: { flash: (f: LegacyFlash) => void; previewing: boolean }) {
   const api = partnerVerbs;
   const W = api.inviteWords;
-  const [state, setState] = useState<PartnerState>({ vm: null, problem: null, hidden: false });
+  // What the tab last held, drawn at once: read on mount, the card came a beat after the members on every visit, 97 to 135 px
+  // at once (the Settings load review, 28 Oct 2026). The read below replaces it.
+  const [state, setState] = useState<PartnerState>(() => ({ vm: api.team.held(), problem: null, hidden: false }));
   const [again, setAgain] = useState(0);
   const [asking, setAsking] = useState(false);
   const [code, setCode] = useState("");

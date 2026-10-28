@@ -50372,11 +50372,15 @@ declare function peoplePage(db: Db$p, tenantId: string, page?: {
     limit?: number;
     after?: PeopleCursor | null;
 }): Promise<PersonRowDto[]>;
+type PersonOf = string | {
+    thread: string;
+};
 /**
  * One person's People row, as the list shows it (people_list narrowed to them), or null for someone it does not hold.
- * The person page reads its row here, so it is read the way the list reads it. A read that fails THROWS.
+ * The person page reads its row here, so it is read the way the list reads it, and the Inbox's head the person a thread is
+ * with (`{ thread }`: none for a thread this workspace does not hold, GET contacts?thread). A read that fails THROWS.
  */
-declare function personRow(db: Db$p, tenantId: string, contactId: string): Promise<PersonRowDto | null>;
+declare function personRow(db: Db$p, tenantId: string, who: PersonOf): Promise<PersonRowDto | null>;
 /**
  * Everyone, every page of them: whatever counts people counts everyone. One call is at most a thousand rows, and a
  * caller that does not loop gets a thousand with no error, no flag and no way to tell them from "that is everyone".

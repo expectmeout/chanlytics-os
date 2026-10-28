@@ -105,6 +105,50 @@ const S = "../../../../../apps/dashboard/src";
 const { inboxOverride } = await quiet(() => import(`${S}/surfaces/inbox/surface.ts`));
 const { setSurfaceValue, surfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
 
+// First: what the opening thread waits for is said once a tab (module state), by the Inbox's first read.
+test("the thread the first draw opens on waits for what it draws: its reply box's reads, and who they are, their own read or People holding them, whichever is first; said once a tab (the Inbox load review, 28 Oct 2026)", async () => {
+  const { codeOutFor, setStatus } = await import(`${S}/legacy-bridge/surface-status.ts`);
+  const was = globalThis.location.pathname;
+  globalThis.location.pathname = "/w/marisas/inbox";
+  const asked = [];
+  globalThis.window.fetch = async (url) => {
+    const u = new URL(String(url), "https://app.chanlytics.com");
+    asked.push(`${u.pathname}${u.search}`);
+    if (u.pathname === "/api/v1/conversations") return json(200, { ok: true, data: { conversations: [conv()] } });
+    if (u.pathname === "/api/v1/escalations") return json(200, { ok: true, data: { escalations: [] } });
+    if (u.pathname === "/api/v1/workspaces")
+      return json(200, { ok: true, data: { workspaces: globalThis.window.__WORKSPACES, activeWorkspaceId: "t1" } });
+    // Their own read is slow: People's book says who they are first.
+    if (u.pathname === "/api/v1/contacts") return new Promise(() => {});
+    return json(404, { ok: false, error: { code: "not_found", message: u.pathname } });
+  };
+  const turns = async () => {
+    for (let i = 0; i < 10; i += 1) await Promise.resolve();
+  };
+  try {
+    await quiet(() => inboxOverride.apply());
+    assert.ok(
+      asked.some((u) => u.startsWith("/api/v1/contacts?thread=c1&")),
+      `the opening thread's person, read as the Inbox finds it: ${asked.join(", ")}`,
+    );
+    assert.equal(codeOutFor("inbox"), true, "REGRESSION: the thread drawn before its box and its head's facts");
+    setStatus("settings", "live");
+    setStatus("reply_drafts", "seeded");
+    await turns();
+    assert.equal(codeOutFor("inbox"), true, "the box's reads are over (one failed: it says so); who they are is not");
+    setSurfaceValue("people", { rows: [{ id: "p1" }], fetchedAt: Date.now() });
+    await turns();
+    assert.equal(codeOutFor("inbox"), false, "People's book holds them: the thread draws whole");
+    asked.length = 0;
+    await quiet(() => inboxOverride.apply());
+    assert.ok(!asked.some((u) => u.startsWith("/api/v1/contacts")), "once a tab: a read again asks for nobody");
+    assert.equal(codeOutFor("inbox"), false, "and never shuts a gate again");
+  } finally {
+    globalThis.location.pathname = was;
+    setSurfaceValue("people", undefined);
+  }
+});
+
 test("REGRESSION (A15): a templates read that fails leaves null -- 'could not read' -- where it left [], 'none approved'", async () => {
   globalThis.window.fetch = async (url) => {
     const path = new URL(String(url), "https://app.chanlytics.com").pathname;
@@ -661,11 +705,19 @@ test("REGRESSION (A15): the template send says when the list could not be read, 
     inboxWith([], { templates: undefined });
     // Still reading: nothing yet -- never that none is approved. "Checking which templates are approved…" was the
     // machinery talking (calls you can follow).
-    const reading = textOf(draw());
+    const readingBox = draw();
+    const reading = textOf(readingBox);
     assert.ok(
       !/No approved template|Checking which templates/.test(reading),
       `nothing said while it reads: ${reading}`,
     );
+    // But the box stands at its height while it reads, its Send waiting: it drew nothing, and pushed the conversation up 145
+    // to 162 px when the templates landed (the Inbox load review, 28 Oct 2026).
+    const frame = find(readingBox, byTestId("ix-composer-tpl-reading"));
+    assert.ok(frame, "REGRESSION: the box drew nothing until the templates were read");
+    assert.equal(frame.props["aria-busy"], "true");
+    const send = find(frame, (n) => String(n.props?.className ?? "").includes("ix-composer-send"));
+    assert.equal(send?.props.disabled, true, "nothing to send yet");
     inboxWith([], { templates: null });
     const failed = draw();
     const line = find(failed, byTestId("ix-tpl-failed"));

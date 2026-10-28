@@ -86,8 +86,15 @@ test("test-to-self: the words go once, from the platform's sender, to the token'
     // A body that names another address, or another person, is not believed: the token says who pressed.
     const body = { tenant_id: A, ...MAIL, to: "someone@example.com", user_id: STRANGER };
     assert.deepEqual(await answer(await knock(body)), [200, { ok: true, sent: true, to: "ada@example.com" }]);
+    // Marked as a program's mail, as all the platform's sender sends is (#1858): a connected mailbox leaves the test be.
     assert.deepEqual(net.mail(), [
-      { from: "Pager <pager@platform.test>", to: ["ada@example.com"], subject: MAIL.subject, text: MAIL.text },
+      {
+        from: "Pager <pager@platform.test>",
+        to: ["ada@example.com"],
+        subject: MAIL.subject,
+        text: MAIL.text,
+        headers: { "Auto-Submitted": "auto-generated" },
+      },
     ]);
   } finally {
     net.restore();

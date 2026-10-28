@@ -38,6 +38,7 @@ import { isPersonParam } from "./chrome";
 import { peekCode } from "./peek/peek-code";
 import { dealSheetCode } from "./pipeline/peek-code";
 import { peekPerson, profileCode, warmPerson } from "./people-detail";
+import { warmPeopleMap } from "./surface";
 import { GetYesSheet } from "./sheets/get-yes-sheet";
 import { FailedRead } from "../kit/empty/empty";
 import { PUSH_WAIT_MS, carriedOver, pushesOver, useHeldList, type Arrival } from "../kit/motion/held-list";
@@ -102,6 +103,19 @@ const ownGo = (to: string, opts?: { replace?: boolean }) =>
   opts?.replace ? addressReplace(to, { quiet: true }) : navigate(to);
 
 /**
+ * A scope that cannot be drawn yet says so where it will stand: the page keeps its scopes, so the frame's reading pane does
+ * not stand in for one (frame/shell-hooks.ts readsInPlace), and the words are the frame's, where the frame's stood. A
+ * person's page on its way takes the screen over as their page will (`takeover`, mobile.css data-takeover).
+ */
+function ScopeReading({ takeover = false }: { takeover?: boolean }) {
+  return (
+    <div className="route-reading" role="status" data-takeover={takeover ? "" : undefined}>
+      {LIFECYCLE_WORDS.reading}
+    </div>
+  );
+}
+
+/**
  * People › Leads: the same page, its other scope, drawn once the Leads surface has landed. The address carries the view
  * (clients/leads:s-<search>:l-<list>:c-<class>:p-<lead>), and the page follows it as a prop, under one mount.
  */
@@ -120,14 +134,11 @@ function LeadsScopePage({
   const Page = useCode(leadsCode, true).loaded?.LeadsReal;
   // Leads' first part (client/page-speed.ts): its rows drawn, which wait for both its read and its chunk.
   usePartShown("leads", "table", !!(leads && Page));
-  // Until both are in, it says so where it will stand: the page keeps its scopes, so the frame's reading pane does not stand
-  // in for this one (frame/shell-hooks.ts readsInPlace).
+  // Until both are in, it says so where it will stand.
   return leads && Page ? (
     <Page key="leads" leadsRoute={param} scopeView={scopeView} onNavigate={ownGo} onOpenProfile={onOpenProfile} />
   ) : (
-    <div className="route-reading" role="status">
-      {LIFECYCLE_WORDS.reading}
-    </div>
+    <ScopeReading />
   );
 }
 
@@ -154,10 +165,13 @@ function useLeadsAhead(ready: boolean): void {
 }
 
 // A person's address as the tab opens on it: the page's code is fetched now, beside People's own (people-detail.ts profileCode).
+// And People's list or the Pipeline: how its rows are made (surface.ts warmPeopleMap), which its read asked for only once the
+// shell had mounted, its own reads already in (the People load review, 28 Oct 2026).
 if (typeof window !== "undefined") {
   const opened = routeOnScreen();
   const param = opened.startsWith("clients/") ? opened.slice("clients/".length) : "";
   if (param && isPersonParam(param)) profileCode.warm();
+  else if ((opened === "clients" || !!param) && !/^leads(:|$)/.test(param)) warmPeopleMap();
 }
 
 /** How long People's list waits for an idle moment before it loads a person's page all the same. */
@@ -227,11 +241,7 @@ function PersonPage({ id, tab, over }: ReturnType<typeof personRouteOf> & { over
   const { loaded, failed, retry } = useCode(profileCode, true);
   if (loaded) return <loaded.ClientProfile id={id} tab={tab} over={over} />;
   if (failed) return <FailedRead kind="line" what="this person" onRetry={retry} testid="person-code-failed" />;
-  return (
-    <div className="route-reading" role="status">
-      {LIFECYCLE_WORDS.reading}
-    </div>
-  );
+  return <ScopeReading takeover />;
 }
 
 type Scope = "people" | "leads" | "pipeline";
@@ -330,7 +340,7 @@ export function PeopleRoute({ pathname }: { pathname: string | null }) {
     <>
       {kept.asked.has("people") && (
         <KeptScope shown={scope === "people"}>
-          {/* A workspace's People waits for its own surface (the frame's gate); a demo session draws the sample. */}
+          {/* A workspace's People waits for its own surface, saying so where its list will stand; a demo session draws the sample. */}
           {listDrawn ? (
             <PeopleReal
               key={mount}
@@ -339,7 +349,9 @@ export function PeopleRoute({ pathname }: { pathname: string | null }) {
               onNavigate={ownGo}
               onOpenProfile={onOpenProfile}
             />
-          ) : null}
+          ) : (
+            <ScopeReading />
+          )}
         </KeptScope>
       )}
       {kept.asked.has("leads") && (
@@ -348,15 +360,19 @@ export function PeopleRoute({ pathname }: { pathname: string | null }) {
         </KeptScope>
       )}
       <GetYesOver open={param === GET_YES_PARAM} />
-      {kept.asked.has("pipeline") && listDrawn && (
+      {kept.asked.has("pipeline") && (
         <KeptScope shown={scope === "pipeline"}>
-          <PipelineScope
-            key="pipeline"
-            pipelineRoute={kept.at.pipeline}
-            scopeView={kept.viewOfScope("pipeline")}
-            onNavigate={ownGo}
-            onOpenProfile={onOpenProfile}
-          />
+          {listDrawn ? (
+            <PipelineScope
+              key="pipeline"
+              pipelineRoute={kept.at.pipeline}
+              scopeView={kept.viewOfScope("pipeline")}
+              onNavigate={ownGo}
+              onOpenProfile={onOpenProfile}
+            />
+          ) : (
+            <ScopeReading />
+          )}
         </KeptScope>
       )}
       {at ? <PersonPage key={at.id} id={at.id} tab={at.tab} over={over} /> : null}

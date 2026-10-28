@@ -65,6 +65,11 @@ interface SurfaceChrome {
   /** The top bar's Ask in the address's words, where it is about someone ("Ask about Emily"); absent, Ask's own. */
   ask?: string | null;
   /**
+   * The page at this address draws its own head (a person's hero, canvas P3): the frame's head draws no name over it from
+   * the first draw, while the page is still on its way, as it draws none once the page says so (kit/head/standing.ts).
+   */
+  ownHead?: boolean;
+  /**
    * Whether the page at this address is a pane that scrolls inside itself, where the route's own `pane` says otherwise:
    * Campaigns' home scrolls as a page, and its Sequences view is a list and a record beside it, as Sent is.
    */

@@ -30,22 +30,6 @@ test("a Setup that failed is done waiting, and never holds a page that waits for
   }
 });
 
-test("the Inbox waits for Sent's runs beside its threads, so the runs waiting for your word never push the threads down (the Inbox's run review, 18 Oct 2026)", () => {
-  assert.deepEqual(reg.ROUTE_WAITS.inbox, ["broadcasts"]);
-  status.setStatus("inbox", "live");
-  assert.equal(
-    gate("inbox"),
-    false,
-    "REGRESSION: the threads drawn while the run rows above them were still on their way",
-  );
-  assert.equal(gate("inbox", "c-1"), false, "a thread's address is the Inbox's too");
-  assert.equal(gate("inbox", null, true), true, "its own surface is in: the shell draws after the wait regardless");
-  status.setStatus("broadcasts", "live");
-  assert.equal(gate("inbox"), true, "the run rows and the threads draw together");
-  status.setStatus("broadcasts", "seeded");
-  assert.equal(gate("inbox"), true, "a runs read that failed holds nothing: the threads draw");
-});
-
 test("Reports waits for the workspace list beside its own surface, so the strip of lenses never gains a tab after it is drawn", () => {
   assert.deepEqual(reg.ROUTE_WAITS.reports, ["workspace"]);
   assert.equal(gate("reports"), false, "nothing in yet");
@@ -77,6 +61,26 @@ test("Today waits beside its own surface for everything that stands above its qu
 
 test("what Today waits for is what the boot reads first among what it draws, in that order: one behind the stream's second tier held the page for it", () => {
   assert.deepEqual(reg.ROUTE_DRAWS.today.slice(0, reg.ROUTE_WAITS.today.length), reg.ROUTE_WAITS.today);
+});
+
+// After Today's: Sent's runs, the reach-outs' replies and Conversations' read are in by then (module state: the tests above).
+test("the Inbox waits beside its threads for the runs above them and what a row draws from other reads; what the thread it opens on draws is that thread's to wait for (the Inbox load review, 28 Oct 2026)", () => {
+  const drawn = ["broadcasts", "conversations", "reach_out_replies"];
+  assert.deepEqual(reg.ROUTE_WAITS.inbox, drawn);
+  assert.deepEqual(
+    reg.ROUTE_DRAWS.inbox.slice(0, drawn.length),
+    drawn,
+    "read first among what it draws, in that order",
+  );
+  // Then what the thread the page opens on draws (its box's reads: surface.ts openingThreadWaits), and never People's book: a
+  // contact's edit on the Inbox would read every page of it (S4-6).
+  assert.deepEqual(reg.ROUTE_DRAWS.inbox.slice(drawn.length), ["reply_drafts", "settings"]);
+  for (const k of drawn) assert.ok(status.isSurfaceReady(k), `${k} is in`);
+  assert.equal(gate("inbox"), false, "its own surface is not");
+  status.setStatus("inbox", "live");
+  assert.equal(status.isSurfaceReady("settings"), false, "the settings read is still out");
+  assert.equal(gate("inbox"), true, "and the list draws: a phone's list waits for nothing its rows do not draw");
+  assert.equal(gate("inbox", "th-1"), true, "a thread's address is the Inbox's too: its thread says its own waits");
 });
 
 test("a page's first draw waits for code of its own as it waits for a surface, until the fetch settles, landed or failed, and the shell hears it end", async () => {

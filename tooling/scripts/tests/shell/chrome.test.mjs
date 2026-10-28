@@ -430,7 +430,7 @@ test("navigating INSIDE a surface does not tear the surface down", () => {
   // What it mounts under is a separate question, and it is asked of the shell as drawn (shell-status.test.mjs: one
   // mount for Broadcasts and its runs, one for every view of Leads), not of its source.
   assert.ok(
-    shell.includes("const viewKey = routeLoading && !onStrip ? `${mountKey}/reading` : mountKey;") &&
+    shell.includes("const viewKey = routeLoading && !onStrip && !inPlace ? `${mountKey}/reading` : mountKey;") &&
       shell.includes("key={s.viewKey}"),
     "and the surface is keyed on that, not on the gate key -- and on readiness while its surface is on its way, so the route-in fade plays on the page as it lands; a strip's view still reading is that view, read in place",
   );

@@ -568,7 +568,7 @@ test("a snapshot another build kept is drawn where its value's type is this buil
             $kept: kept("an-older-build", SURFACE_SHAPES.calendar),
           },
           // A type the checker cannot see all of: the build's alone.
-          inbox: { $value: { n: 1 }, $kept: kept("an-older-build", null) },
+          playbooks: { $value: { n: 1 }, $kept: kept("an-older-build", null) },
           // This build's own, whatever its shape says.
           setup: { $value: { n: 1 }, $kept: kept(build, "anything") },
           // A day old, from this build or not.
@@ -578,7 +578,15 @@ test("a snapshot another build kept is drawn where its value's type is this buil
         },
       }),
     );
-    assert.equal(SURFACE_SHAPES.inbox, null, "the Inbox's value hides a type from the checker (shapes.generated.ts)");
+    assert.equal(
+      SURFACE_SHAPES.playbooks,
+      null,
+      "the playbooks' value hides a type from the checker (shapes.generated.ts)",
+    );
+    // The Inbox's and the settings read's each said a field as `unknown` until their load reviews (28 Oct 2026): each is drawn
+    // across a deploy now.
+    assert.equal(typeof SURFACE_SHAPES.inbox, "string", "the Inbox's value has a fingerprint");
+    assert.equal(typeof SURFACE_SHAPES.settings, "string", "and the settings read's");
     assert.deepEqual([...hydrateSurfaceCache()].sort(), ["setup", "today"]);
     assert.deepEqual(surfaceValue("today"), { n: 1 });
     assert.equal(globalThis.window.__CALENDAR_PROBE, undefined, "nothing of a snapshot not drawn reaches the window");
@@ -604,6 +612,8 @@ test("a value's type is fingerprinted all the way down: a field renamed three le
     "  c: { rows: { id: string; tone: 'ok' | 'warn'; at?: string }[]; byId: Record<string, Row>; when: Date; pair: [string, number] };",
     "  d: { rows: Row[]; raw: unknown };",
     "  e: Tree | null;",
+    "  f: { rows: Row[]; /** @stored as the database keeps it */ views: Record<string, unknown> };",
+    "  g: { rows: Row[]; /** @stored */ views: Record<string, string> };",
     "}",
   ].join("\n");
   const options = { strict: true, noEmit: true, target: ts.ScriptTarget.ES2022, types: [] };
@@ -638,6 +648,9 @@ test("a value's type is fingerprinted all the way down: a field renamed three le
   assert.equal(of("d").hidden, true, "unknown hides what a snapshot holds: no fingerprint");
   assert.equal(of("a").hidden, false);
   assert.match(of("e").shape, /@Tree/, "a type that holds itself is said by name where it comes round again");
+  assert.equal(of("f").hidden, false, "a field the database keeps as any build wrote it (@stored) hides nothing");
+  assert.equal(of("f").shape, of("g").shape, "and what type it is said to be is no part of the shape");
+  assert.notEqual(of("f").shape, of("d").shape);
 });
 
 test("each snapshot says the build, its value's type and the time it was kept under", () => {

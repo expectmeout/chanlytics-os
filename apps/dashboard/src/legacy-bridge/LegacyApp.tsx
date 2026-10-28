@@ -83,6 +83,7 @@ import { hydrateSurfaceCache } from "./surface-cache";
 import { hearSurfaces, surfaceHook } from "./surface-status";
 import { installInboxVerbs } from "./inbox-verbs";
 import { installPeopleCourier, personOverride, warmPersonOnScreen } from "@/surfaces/people/people-detail";
+import { settingsPaneOnScreen } from "@/surfaces/settings/frame/pane-reads";
 import { leadsOverride } from "@/surfaces/leads/override";
 import { installLeadMap } from "@/surfaces/leads/map/lead-map";
 import { installTabMemory } from "./tab-memory";
@@ -187,6 +188,8 @@ if (typeof window !== "undefined" && "serviceWorker" in navigator && publicEnv.p
 markHydrated(hydrateSurfaceCache());
 // A tab opened on a person's page asks for them now, ahead of every surface's boot: the page is their read alone.
 warmPersonOnScreen();
+// And one opened on a pane of Settings, what that pane draws that is no surface (Team's partner, the log, the doors).
+settingsPaneOnScreen();
 
 /** A route as the registry reads it (surface-registry.ts routePartsOf): its page, and every word after it. */
 const routeParts = (route: string): [string, string | null] => {
@@ -447,11 +450,15 @@ const useRouteMoved = surfaceHook({ useCallback, useSyncExternalStore }, routeSu
 /**
  * Says each draw of the frame to the page's measures (client/page-speed.ts frameDrawn): drawn again when the surfaces
  * of the route on screen move, in the same draw as the shell, so a page with no first part of its own is READY at the
- * frame its gate opened in, never at one before the page was put on it.
+ * frame its gate opened in, never at one before the page was put on it. And when a wait of a first draw ends that moves
+ * no surface (surface-status.ts firstDrawWaitsFor: a pane of Settings' own reads), heard as the shell's gate hears it:
+ * a gate opened by one alone drew the page and said nothing (the Settings load lane, 28 Oct 2026).
  */
 function SpeedFrame({ route }: { route: string | null }) {
   const [page, param] = routeParts(route ?? routeOnScreen());
   useRouteMoved({ page, param });
+  const [, statusMoved] = useState(0);
+  useEffect(() => onSurfaceStatusChange(() => statusMoved((n) => n + 1)), []);
   useLayoutEffect(() => frameDrawn());
   return null;
 }

@@ -6,7 +6,7 @@
  *
  * Run on the real chrome and the real strip, over a stub React:
  * - the chrome says People, Leads, and the Pipeline only where deals are on; which one is picked follows the address; a
- *   person's page says none; and nothing is said before People has landed, so the strip never gains a tab after it shows;
+ *   person's page says none; and the strip is said before People has landed, so the top stands as it will;
  * - the strip draws what the page said, with the test ids the page's specs read, marks the picked one as the page, moves
  *   to the route a tab names, and warms the routes it can move to;
  * - a page that says no views is drawn from the group it is in, as the Inbox's still is.
@@ -140,12 +140,13 @@ test("which view is picked follows the address: a list is People's, Leads and it
   setSurfaceValue("people", undefined);
 });
 
-test("a person's page says no views, and nothing is said before People has landed", () => {
+test("REGRESSION: a person's page says no views, and the strip stands before People has landed -- said as People landed, it came into a phone's top with the list and the page under it moved 44 px down", () => {
   setSurfaceValue("people", people());
   assert.equal(viewsAt("ed2244f3-9f88-49c5-863e-fbdea4b60e12"), null, "a person's page is on no strip");
+  const landed = viewsAt(null);
   setSurfaceValue("people", undefined);
-  assert.equal(viewsAt(null), null, "a strip that gained its third tab as People landed would move");
-  assert.equal(viewsAt("leads"), null);
+  assert.deepEqual(viewsAt(null), landed, "the same three tabs, People picked, while People is read");
+  assert.equal(viewsAt("leads").picked, "leads");
 });
 
 test("the strip draws the page's views as the Inbox's: the picked one active and current, a test id each, a press moves to the route", () => {

@@ -59,9 +59,11 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   // The first run's receptionist card fills in from the settings read: the brain and the resolved numbers. Try it
   // watches the Live page's calls for the test call (first-run-try.ts).
   start: ["settings", "live"],
-  // A person's page reads its own person (people-detail.ts); People's row gives it their name in the crumbs and the
-  // head while that read is out, so People is read next. The person surface is the page's own read, heard there.
-  [PERSON_ROUTE]: ["people", "person"],
+  // A person's page reads its own person (people-detail.ts), which the document's head started and which names them in the
+  // crumbs; People's rows come after it, for where they stand in the list ("‹ 4 of 24 ›") and what their row says of them.
+  // People read first was everyone's every page ahead of the one person drawn: half a second of the database's for 330
+  // people (the People load review, 28 Oct 2026). The person surface is the page's own read, heard there.
+  [PERSON_ROUTE]: ["person", "people"],
   // Get their yes, a sheet over People's list (`clients/get-yes`, the Campaigns wiring review's lane 7): the number and the
   // opt-in its code carries are Sent's read (campaigns/broadcasts/surface.ts), beside People's own.
   "clients/get-yes": ["people", "broadcasts"],
@@ -69,7 +71,13 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   // thread is drawn from the calls Conversations reads (surfaces/inbox/thread/call.tsx tlCallFor), the same door as the Inbox's own.
   // And Sent's runs: the Needs-you rows and the badge say the runs waiting for your word (needs-you.ts), on the Inbox. Their own
   // read, nothing of People, started from the document's head with the Inbox's (the Inbox's run review, 18 Oct 2026).
-  inbox: ["reach_out_replies", "conversations", "broadcasts"],
+  // What the first draw waits for comes first (ROUTE_WAITS, below), in its order, then what the thread it opens on waits for
+  // (surfaces/inbox/surface.ts openingThreadWaits): its reply box is drawn from the drafts Ask kept (thread/kept-draft.ts)
+  // and, outside WhatsApp's window, from the settings read's templates and the business's facts (thread/template-box.tsx).
+  // Not People's book: a thread's head draws its person from People's row where the tab holds it, and from the thread's own
+  // read of them where it does not (people/want-person.ts), so a contact's edit on the Inbox never reads every page of the
+  // book behind it (S4-6), and nothing waits for the heaviest read.
+  inbox: ["broadcasts", "conversations", "reach_out_replies", "reply_drafts", "settings"],
   // A reach-out's chains are Playbooks' rows, and their emails Templates' email rows (Part 4 PR 8): the reach-outs
   // surface, read beside each page's own.
   // And the number a moment goes out on, its standing and its opt-in: the channels read, which the composers are made of.
@@ -114,14 +122,26 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   // `campaigns.sources`): the page's own row, which the Overview and a lens with no row of its own fall to. It is read as the
   // Overview comes on screen and again when it has aged, never for each burst of messages (campaigns-surface.ts heardOnTheLens).
   reports: ["reports_campaigns"],
-  // Settings' Connections pane draws Google's listing and its connection beside the settings read, as Today's card draws its
-  // review line (`google` is read where one of the two is on screen, legacy-bridge/google.ts): no other pane of Settings does.
-  // Its WhatsApp and phone rows are the channels read's (surfaces/channels/surface.ts).
-  "admin/integrations": ["google", "channels"],
+  // Settings, on every pane: the rail (and the phone's list) names Partner for a partner, and Profile offers it to anyone else,
+  // from the partner account (frame/page.tsx). A load's first draw waits for these beside the pane's own surface
+  // (settings/frame/pane-reads.ts), each read the head starts with the pane's (contracts PREFETCH_READS `admin/<pane>`). Read
+  // in the boot's second pass, each landed after its pane and moved it: How it answers' "What it can do" 321 to 358 px, the
+  // Email card on Connections 221 to 373 px, Billing's plan 130 px, a second or more on (the Settings load review, 28 Oct 2026).
+  admin: ["partner"],
+  // Billing's plan, its own read (settings/billing/surface.ts), which says it is reading until it lands.
+  "admin/billing": ["partner", "billing"],
+  // Hours & booking draws the booking tool's emails and the calendar link's standing from the calendar's read (open-bookings.tsx).
+  "admin/hours": ["partner", "calendar"],
+  // How it answers' "What it can do" is Setup's connections (business/can.tsx), and says it is reading until they land.
+  "admin/receptionist": ["partner", "setup"],
+  // Connections draws Google's listing and its connection beside its channels, as Today's card draws its review line (`google`
+  // is read where one of the two is on screen, legacy-bridge/google.ts), and its Email card from Setup's mailboxes: no other
+  // pane of Settings does. Its WhatsApp and phone rows are the channels read's (surfaces/channels/surface.ts).
+  "admin/integrations": ["partner", "channels", "google", "setup"],
   // Settings' Notifications pane draws what reaches the member's own phones beside the settings read (decision 0040).
-  "admin/notifications": ["alerts"],
-  // Settings' Memory pane draws what Ask remembers and its journal beside the settings read (decision 0070).
-  "admin/memory": ["ask_memory"],
+  "admin/notifications": ["partner", "alerts"],
+  // Settings' Memory pane draws what Ask remembers and its journal (decision 0070), read only where it is drawn.
+  "admin/memory": ["partner", "ask_memory"],
 };
 
 /**
@@ -141,7 +161,12 @@ export const ROUTE_WAITS: Record<string, readonly string[]> = {
   today: ["setup", "calendar", "broadcasts", "reach_out_replies", "google", "reply_drafts"],
   // The Inbox's rows of the runs waiting for your word stand above its threads: landing after them, four pushed them 330px down
   // on a phone (18 Oct 2026). Sent's runs read nothing of People and leave from the document's head with the threads.
-  inbox: ["broadcasts"],
+  // And what a row and a thread draw from other reads: the calls a timeline holds (Conversations' read) and a reply to a
+  // reach-out (the row's chip, the strip over the box), each started from the document's head with the threads (contracts
+  // PREFETCH_READS). What the thread it opens on draws in it, its person and its reply box's reads, is that thread's to wait
+  // for, said by the Inbox's own read as it finds the thread (surfaces/inbox/surface.ts openingThreadWaits): a phone opens on
+  // its list alone, which draws none of it (the Inbox load review, 28 Oct 2026).
+  inbox: ["broadcasts", "conversations", "reach_out_replies"],
   // Reports' strip of lenses is decided from the workspace list (the role of who is looking: a lens is shown from its
   // rung up) and draws above the page's body, so a list that landed after it would add a tab to a strip already drawn.
   reports: ["workspace"],

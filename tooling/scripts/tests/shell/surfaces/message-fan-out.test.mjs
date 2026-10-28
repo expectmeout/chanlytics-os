@@ -276,7 +276,10 @@ test("the page on screen hears messages too, and a surface that let one pass is 
     win.location.hash = "#/inbox";
     win.dispatchEvent({ type: "popstate" });
     await settle();
-    assert.deepEqual(r.asked, [], "nothing was missed");
+    // The drafts Ask kept are on demand and drawn on the Inbox now (its thread's reply box: the Inbox load review, 28 Oct
+    // 2026): read as the Inbox comes on screen, as Today's are. Nothing else was missed.
+    assert.deepEqual(r.asked, ["reply_drafts"], "nothing was missed");
+    r.asked.length = 0;
     await r.message();
     await r.message();
     assert.deepEqual([...new Set(r.asked)].sort(), ["conversations", "inbox", "today"]);

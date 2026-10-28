@@ -175,7 +175,23 @@ test("every page opens on its own reads, named by the path's word or the hash's;
     ["templates", "messages"],
     // Messages as the view of Campaigns it is (19 Oct 2026), opening on what the Library did.
     ["campaigns/messages", "campaigns/messages"],
-    ["admin/team", "admin"],
+    // Settings opens on its own read, and a pane its address names on that pane's (the Settings load review, 28 Oct 2026): a
+    // pane drawn from the settings read on it and what it draws beside it, a pane drawn from none of it on its own alone. A
+    // pane that names none (Autonomy), a row after a pane, and the bare address open as their pane or Settings does.
+    ["admin", "admin"],
+    ["settings", "admin"],
+    ["settings/team", "admin/team"],
+    ["admin/team", "admin/team"],
+    ["settings/receptionist", "admin/receptionist"],
+    ["settings/hours/closures", "admin/hours"],
+    ["settings/integrations/left", "admin/integrations"],
+    ["settings/billing", "admin/billing"],
+    ["settings/memory", "admin/memory"],
+    ["settings/activity", "admin/activity"],
+    ["settings/profile", "admin/profile"],
+    ["settings/notifications", "admin/notifications"],
+    ["settings/autonomy", "admin"],
+    ["settings/workspace", "admin"],
     ["start", "start"],
   ];
   for (const [path, route] of pages) {
@@ -367,10 +383,10 @@ test("run twice, the head starts nothing twice; a fetch that throws leaves the p
 /* ------------------------------ one read for a page (GET open) ------------------------------ */
 
 /** The head over Today in a browser that reads a stream: GET open answered by `answer`, the slot it parked. */
-const openedToday = ({ answer, storage = {} }) => {
+const openedToday = ({ answer, storage = {}, pathname = "/w/harbor" }) => {
   const calls = [];
   const { win } = headRuns({
-    pathname: "/w/harbor",
+    pathname,
     hash: "",
     fetch: (url, init) => {
       calls.push([url, init]);
@@ -451,6 +467,31 @@ test("the period line is read over the period this device last picked, as Report
   assert.equal(calls[0][0], "/api/v1/open?route=today&period=7d&workspace=harbor");
   assert.equal((await settled(slot[urlOf("reports/headline?period=7d")])).status, 200);
   assert.ok(!(urlOf("reports/headline?period=30d") in slot), "never the default's beside it");
+});
+
+test("the Inbox opens through one read too, and a thread its address names has its person read in the first tier", async () => {
+  const [own, beside] = openReads("inbox", null, ID);
+  assert.equal(own.at(-1), `contacts?thread=${ID}`, "the thread's person, beside the page's own");
+  const { calls, slot } = openedToday({
+    pathname: `/w/harbor/inbox/th-${ID}`,
+    answer: () => ndjson([...own, ...beside].map((k) => line(k, { ok: true, data: { k } }))),
+  });
+  assert.equal(calls.length, 1, "one request");
+  assert.equal(calls[0][0], `/api/v1/open?route=inbox&thread=${ID}&workspace=harbor`);
+  assert.deepEqual(Object.keys(slot).sort(), [...own, ...beside].map(urlOf).sort());
+  for (const k of [...own, ...beside])
+    assert.deepEqual(await settled(slot[urlOf(k)]), { status: 200, body: { ok: true, data: { k } }, retry: null }, k);
+  // The list alone, or a thread of the mockup's: no person to read.
+  for (const pathname of ["/w/harbor/inbox", "/w/harbor/inbox/th-1", "/w/harbor/inbox/to-send"]) {
+    const opened = openedToday({ pathname, answer: () => ndjson([]) });
+    assert.equal(opened.calls[0][0], "/api/v1/open?route=inbox&workspace=harbor", pathname);
+    assert.ok(!Object.keys(opened.slot).some((u) => u.includes("thread=")), pathname);
+  }
+  // Where the browser cannot read a stream, one request each, the thread's person among them, as the client spells it.
+  assert.deepEqual(
+    headRuns({ pathname: `/w/harbor/inbox/th-${ID}`, hash: "" }).calls.map(([u]) => u),
+    [...opensOn("harbor", "inbox"), `/api/v1/contacts?thread=${ID}&workspace=harbor`],
+  );
 });
 
 test("a browser that cannot read a stream opens Today as it always did, one request for each of its own reads", () => {
@@ -713,12 +754,21 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
       (await importSrc(`${S}/surfaces/today/ask-morning-surface.ts`)).askMorningOverride,
       // And the drafts Ask kept for Need you's rows, which Today's first draw waits for (decision 0071).
       (await importSrc(`${S}/surfaces/today/need-you/drafts-surface.ts`)).replyDraftsOverride,
+      // What Settings' panes draw beside their own (the Settings load review, 28 Oct 2026): the partner account the rail names
+      // Partner by, Billing's plan, the member's alerts, Ask's memory.
+      (await importSrc(`${S}/surfaces/settings/partner/surface.ts`)).partnerOverride,
+      (await importSrc(`${S}/surfaces/settings/billing/surface.ts`)).billingOverride,
+      (await importSrc(`${S}/surfaces/settings/notifications/surface.ts`)).alertsOverride,
+      (await importSrc(`${S}/surfaces/settings/memory/surface.ts`)).askMemoryOverride,
     ].map((o) => [o.key, o]),
   );
+  // And what a pane of Settings reads that is no surface (Team's partner, Connections' doors, Profile's views, the log's first
+  // page), begun as a load at its address begins it (settings/frame/pane-reads.ts).
+  const { warmSettingsPane } = await importSrc(`${S}/surfaces/settings/frame/pane-reads.ts`);
   const settle = async () => {
     for (let i = 0; i < 10; i += 1) await new Promise((r) => setTimeout(r, 0));
   };
-  // Settings is a page of panes, each drawn from the settings surface: asked about one of them.
+  // Settings is a page of panes: its bare address is Details (on a desk), and each pane its address names opens on its own.
   const paramOf = { admin: "workspace" };
   // What a page draws on its first screen from another page's surface, started with its own: Today's strip (the next
   // visit, the next opening) is the calendar's weeks, which the frame reads right after Today's own (ROUTE_DRAWS);
@@ -729,10 +779,11 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
   // own span's read, started beside the board's (the Calendar's lane C). And the channels read (surfaces/channels/
   // surface.ts), which Live, New, a run and the Library are made of: the one read of the numbers, started with the page's
   // own. The Inbox draws Sent's runs, waiting ones as rows of Needs you: their own read, nothing of People (the Inbox's
-  // run review, 18 Oct 2026). And Get their yes, over People's list, draws the opt-in Sent's read carries (lane 7).
+  // run review, 18 Oct 2026), and the thread it opens on its reply box's reads, the kept drafts and the settings read's templates
+  // (the Inbox load review, 28 Oct 2026). And Get their yes, over People's list, draws the opt-in Sent's read carries (lane 7).
   const alsoDrawn = {
     today: ["calendar"],
-    inbox: ["broadcasts"],
+    inbox: ["broadcasts", "reply_drafts", "settings"],
     campaigns: ["settings"],
     "campaigns/sequences/new": ["playbooks", "settings", "channels"],
     "campaigns/sequences/runs": ["broadcasts", "settings", "channels"],
@@ -744,6 +795,19 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
     outbound: ["channels"],
     messages: ["channels"],
     "campaigns/messages": ["channels"],
+    // Every pane of Settings draws the partner account (the rail's Partner), and some what else they stand on: the calendar's
+    // weeks (Hours), Setup's connections (How it answers, Connections), Google and the channels (Connections), the member's
+    // alerts, Billing's plan, Ask's memory. A pane drawn from none of the settings read stands on who is looking alone.
+    admin: ["partner"],
+    "admin/hours": ["partner", "calendar"],
+    "admin/receptionist": ["partner", "setup"],
+    "admin/team": ["partner"],
+    "admin/notifications": ["partner", "alerts"],
+    "admin/profile": ["partner"],
+    "admin/integrations": ["partner", "channels", "google", "setup"],
+    "admin/billing": ["partner", "billing"],
+    "admin/memory": ["partner", "ask_memory"],
+    "admin/activity": ["partner"],
   };
   // A key with words after its page (`campaigns/sequences/new`) is that page at that address, as the registry reads one
   // (routePartsOf); a key that names a screen, no address, is asked at one of its addresses (a run at its home).
@@ -778,6 +842,7 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
     api().forget();
     asked.length = 0;
     for (const k of keys) void overrides[k].apply().catch(() => {});
+    if (page === "admin" && param) warmSettingsPane(param);
     await settle();
     // Who is looking is every page's (and a surface's clock reads it when the tab knows no zone yet), and so is the one accept of
     // invitations the shell makes beside it (a POST, not a read the head starts: invitations/accept.ts).
