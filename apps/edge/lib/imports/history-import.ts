@@ -95,6 +95,14 @@ async function schedulePart(
 }
 
 /**
+ * The sources every connected mailbox adds to: the ledger keeps one row a source for the workspace, so a mailbox's first
+ * run adds what it brings to what the mailboxes before it brought. Started afresh, a second mailbox's run set the row to
+ * its own (27 Oct 2026: connecting a second mailbox left the Email card saying 222 emails and 0 people, where the first
+ * had brought 414 and 249). The calendar is the workspace's one, read whole each run.
+ */
+const SUMMED_ACROSS_MAILBOXES: ReadonlySet<ImportSource> = new Set(["mailbox", "contacts"]);
+
+/**
  * A source started (a connect) or started again where it stopped (Try again): its row queued, its cursor emptied for a
  * first run and kept for a second (it reads on from where it stopped), and its first part scheduled.
  */
@@ -103,13 +111,17 @@ export async function startHistory(
   p: { tenantId: string; source: ImportSource; connectionId: string | null; via: string | null; again: boolean },
 ): Promise<void> {
   if (!runnerOf(p.source)) throw new Error(`history_import: nothing here brings ${p.source} in`);
+  // A first run starts its cursor afresh, and its counts too unless the source sums every mailbox's; a second adds to
+  // what the first brought, from where it stopped.
+  const first = SUMMED_ACROSS_MAILBOXES.has(p.source)
+    ? { add: true, partsDone: 0, cursor: {} }
+    : { counts: {}, partsDone: 0, cursor: {} };
   await noteImport(db, {
     tenantId: p.tenantId,
     source: p.source,
     state: "queued",
     via: p.via,
-    // A first run starts its counts and cursor afresh; a second adds to what the first brought, from where it stopped.
-    ...(p.again ? { add: true } : { counts: {}, partsDone: 0, cursor: {} }),
+    ...(p.again ? { add: true } : first),
   });
   await schedulePart(db, {
     tenantId: p.tenantId,

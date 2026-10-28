@@ -319,3 +319,33 @@ test("Today keeps the card while anything is coming or stopped, and a week after
   );
   assert.equal(broughtInShown([], NOW), false);
 });
+
+test("counting again what every mailbox brought (ops imports-recount-mail): the kept mail and the contacts' people, nothing else", async () => {
+  const { planRecount } = await import("../../ops/imports-recount-mail.mjs");
+  const rows = [
+    {
+      source: "mailbox",
+      state: "done",
+      counts: { messages: 222, people: 47, dropped: 4706 },
+      oldest: "2026-05-01T07:51:00Z",
+    },
+    { source: "contacts", state: "done", counts: { people: 0 }, oldest: null },
+  ];
+  const counted = { messages: 706, oldest: "2026-05-01T07:51:00Z", contactsPeople: 249 };
+  assert.deepEqual(planRecount(rows, counted), [
+    {
+      source: "mailbox",
+      state: "done",
+      was: { messages: 222, people: 47, dropped: 4706 },
+      counts: { messages: 706, people: 47, dropped: 4706 },
+      oldest: "2026-05-01T07:51:00Z",
+    },
+    { source: "contacts", state: "done", was: { people: 0 }, counts: { people: 249 }, oldest: null },
+  ]);
+  const done = [
+    { ...rows[0], counts: { messages: 706, people: 47, dropped: 4706 } },
+    { ...rows[1], counts: { people: 249 } },
+  ];
+  assert.deepEqual(planRecount(done, counted), [], "a second run finds nothing to change");
+  assert.deepEqual(planRecount([], counted), [], "a source with no row is left alone");
+});
