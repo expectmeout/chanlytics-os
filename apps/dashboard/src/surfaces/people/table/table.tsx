@@ -8,7 +8,7 @@
  * declares, the room the table has and what the member dragged.
  */
 import { memo, useCallback } from "react";
-import type { KeyboardEvent, ReactElement, ReactNode, RefObject } from "react";
+import type { DragEvent, KeyboardEvent, ReactElement, ReactNode, RefObject } from "react";
 import { holdStill, warmsOnReach } from "../../legacy-verbs";
 import { EmptyState } from "../../kit/empty/empty";
 import { useRowsArrive } from "../../kit/motion/use-rows-arrive";
@@ -16,8 +16,9 @@ import { RowGap } from "../../kit/rows/row-gap";
 import { useShownRows } from "../../kit/rows/shown-rows";
 import type { TableColumn, TableCtx, TableEmpty, TableRow } from "../types";
 import { ColumnEdge, fitWidthOf, holdingEdge } from "./edge";
-import { PL_DRAG_MIN_PX, plFitWidth, resolveColumnWidths } from "./layout";
-import type { SizedColumn } from "./layout";
+import { PL_DRAG_MIN_PX, plFitWidth, plFrozenWidths, resolveColumnWidths } from "./layout";
+import type { ColumnWidth, SizedColumn, Sizing } from "./layout";
+import { plMarkMore } from "./use-layout";
 import type { TableLayout } from "./use-layout";
 
 /** The table's default for a door its page does not pass: one function, one set, for the page's life. */
@@ -267,26 +268,72 @@ function useTableRows<R extends TableRow>(
 /** What of the table rises on a swap (kit/motion use-swap-motion.ts `parts`): its row groups, never its heads. */
 export const TABLE_BODIES = ":scope > tbody";
 
+/** The widths a table draws, how it is sized, and every column's width now as a member's own (what a first drag keeps). */
+interface DrawnWidths {
+  widths: readonly number[];
+  total: number;
+  sizing: Sizing;
+  frozen: Record<string, number>;
+}
+
 /**
- * Every column's width, settled from what each declares, the room the table has and what the member dragged: the select
- * column first, since it holds some of the room. Whole pixels that add up to the room, drawn as a fixed layout; none where
- * the table has no layout (a phone's cards, the node tests).
+ * Every column's width, settled from what each declares, the room the table has and what the member dragged (layout.ts):
+ * the select column first, since it holds some of the room. Whole pixels, drawn as a fixed layout; none where the table
+ * has no layout (a phone's cards, the node tests).
  */
 const columnWidths = (
   layout: TableLayout | null,
-  columns: readonly SizedColumn[],
+  columns: readonly (SizedColumn & { fixed?: boolean })[],
   selectable: boolean,
-): readonly number[] | null =>
-  layout
-    ? resolveColumnWidths(selectable ? [SELECT_COLUMN, ...columns] : columns, layout.widths, layout.available).widths
-    : null;
+): DrawnWidths | null => {
+  if (!layout) return null;
+  const r = resolveColumnWidths(selectable ? [SELECT_COLUMN, ...columns] : columns, layout.widths, layout.available);
+  return { ...r, frozen: plFrozenWidths(columns, selectable ? r.widths.slice(1) : r.widths) };
+};
 
-/** What a layout adds to the table's three boxes: the row height on the frame, the room's measure on the scroller, the fixed layout on the table. */
-const layoutAttrs = (layout: TableLayout | null, widths: readonly number[] | null) => ({
+/**
+ * What a layout adds to the table's three boxes: the row height on the frame, the room's measure on the scroller, the
+ * fixed layout on the table, and how it is sized. A sized table is as wide as its columns (its `width`), wider than its
+ * box or narrower; a fitted one is the box's width (clients.css).
+ */
+const layoutAttrs = (layout: TableLayout | null, drawn: DrawnWidths | null) => ({
   frame: { "data-density": layout ? layout.density : undefined },
   scroll: { ref: layout ? layout.scrollRef : undefined },
-  table: { "data-fixed": widths ? "true" : undefined },
+  table: {
+    "data-fixed": drawn ? "true" : undefined,
+    "data-sizing": drawn ? drawn.sizing : undefined,
+    width: drawn && drawn.sizing === "sized" ? drawn.total : undefined,
+  },
 });
+
+/**
+ * Everything a layout gives the table as it draws: the widths, every column's width now as a member's own, the three
+ * boxes' attributes, and the Fit all columns measure left on the layout. None of it where the table has no layout.
+ */
+function drawnLayout<R extends TableRow, X extends TableCtx>(
+  layout: TableLayout | null,
+  columns: readonly TableColumn<R, X>[],
+  rows: readonly R[],
+  selectable: boolean,
+) {
+  const drawn = columnWidths(layout, columns, selectable);
+  leaveMeasurer(layout, columns, rows);
+  return { widths: drawn ? drawn.widths : null, frozen: drawn ? drawn.frozen : {}, attrs: layoutAttrs(layout, drawn) };
+}
+
+/** What a column's cells say, row by row, for a fit to measure every row and not only those drawn: its file words. */
+const textsOf = <R extends TableRow>(c: { csv?: { cell: (p: R) => string } }, rows: readonly R[]): string[] | null =>
+  c.csv ? rows.map((r) => c.csv?.cell(r) ?? "") : null;
+
+/** A column fitted to what it holds, never past the most it asks for. */
+const fitOf = <R extends TableRow>(
+  th: HTMLElement,
+  c: { width?: ColumnWidth; csv?: { cell: (p: R) => string } },
+  rows: readonly R[],
+): number => plFitWidth(fitWidthOf(th, textsOf(c, rows)), c.width);
+
+/** Whether a column has an edge to size it by: a desktop's, on a heading with words, and not one that holds still. */
+const sizable = (c: { fixed?: boolean; label: ReactNode }): boolean => !c.fixed && typeof c.label === "string";
 
 /** The widths as the table's `<colgroup>`, which a fixed layout reads; the select column's is the first. */
 const tableColgroup = (widths: readonly number[] | null, columns: readonly { key: string }[], selectable: boolean) =>
@@ -302,6 +349,62 @@ const tableColgroup = (widths: readonly number[] | null, columns: readonly { key
 /** A heading's words: the column's own, and for the row's acts, which have none, the word a screen reader needs. */
 const headingWords = (c: { key: string; label: ReactNode }): ReactNode =>
   c.label === "" && c.key === "actions" ? <span className="rec-sr">Actions</span> : c.label;
+
+/**
+ * A heading a member may move is dragged by its heading to where another stands (`layout` given only to one that may):
+ * where it would land is said on the heading it is over, and a drag that began on the edge is the width's, not the column's.
+ */
+function headingDrag(key: string, layout: TableLayout | null, keys: readonly string[]) {
+  if (!layout) return {};
+  return {
+    draggable: true,
+    onDragStart: (e: DragEvent<HTMLElement>) => {
+      if (holdingEdge() || (e.target as HTMLElement).closest(".pl-edge")) {
+        e.preventDefault();
+        return;
+      }
+      columnInHand = key;
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", key);
+    },
+    onDragOver: (e: DragEvent<HTMLElement>) => {
+      if (!columnInHand || columnInHand === key) return;
+      e.preventDefault();
+      e.currentTarget.setAttribute("data-drop", keys.indexOf(columnInHand) < keys.indexOf(key) ? "after" : "before");
+    },
+    onDragLeave: (e: DragEvent<HTMLElement>) => e.currentTarget.removeAttribute("data-drop"),
+    onDrop: (e: DragEvent<HTMLElement>) => {
+      e.preventDefault();
+      e.currentTarget.removeAttribute("data-drop");
+      if (columnInHand && columnInHand !== key) layout.onMoveTo(columnInHand, key);
+      columnInHand = null;
+    },
+    onDragEnd: (e: DragEvent<HTMLElement>) => {
+      columnInHand = null;
+      for (const th of e.currentTarget.closest("tr")?.children ?? []) th.removeAttribute("data-drop");
+    },
+  };
+}
+
+/**
+ * What the Columns menu's Fit all columns asks of the table (use-layout.ts `measurer`): each column it can size, fitted to
+ * every row it holds. Left on the layout as the table draws, so it measures the rows and columns drawn last.
+ */
+function leaveMeasurer<R extends TableRow, X extends TableCtx>(
+  layout: TableLayout | null,
+  columns: readonly TableColumn<R, X>[],
+  rows: readonly R[],
+): void {
+  if (!layout) return;
+  layout.measurer.current = (table) => {
+    const fits: Record<string, number> = {};
+    for (const c of columns) {
+      const th = sizable(c) ? table.querySelector<HTMLElement>(`thead th[data-key="${c.key}"]`) : null;
+      if (th) fits[c.key] = fitOf(th, c, rows);
+    }
+    return fits;
+  };
+}
 
 /**
  * The table's heading row: the select-all box, and a heading for each column. A heading that sorts is one button across
@@ -321,9 +424,25 @@ function tableHead<R extends TableRow, X extends TableCtx>(p: {
   onSort: (key: string) => void;
   layout: TableLayout | null;
   widths: readonly number[] | null;
+  /** Every column's width now, as a member's own: what the first width set keeps of the others (layout.ts plFrozenWidths). */
+  frozen: Readonly<Record<string, number>>;
   indexed: boolean; // one body drawn in part says each row's place: the heads are row 1
 }) {
-  const { words, columns, selectable, rows, sel, onToggleAll, sortBy, sortDir, onSort, layout, widths, indexed } = p;
+  const {
+    words,
+    columns,
+    selectable,
+    rows,
+    sel,
+    onToggleAll,
+    sortBy,
+    sortDir,
+    onSort,
+    layout,
+    widths,
+    frozen,
+    indexed,
+  } = p;
   const picked = rows.filter((r) => sel.has(r.id)).length;
   const keys = columns.map((c) => c.key);
   return (
@@ -373,52 +492,7 @@ function tableHead<R extends TableRow, X extends TableCtx>(p: {
               data-align={c.align}
               className={`${c.sortable ? "sortable" : ""} ${c.pinned ? "pl-pin" : ""} ${c.key === "actions" ? "cl-actions-head" : ""}`}
               aria-sort={here ? (sortDir === "asc" ? "ascending" : "descending") : undefined}
-              draggable={movable ? true : undefined}
-              onDragStart={
-                movable && layout
-                  ? (e) => {
-                      // A drag that began on the edge is the width's, not the column's.
-                      if (holdingEdge() || (e.target as HTMLElement).closest(".pl-edge")) {
-                        e.preventDefault();
-                        return;
-                      }
-                      columnInHand = c.key;
-                      e.dataTransfer.effectAllowed = "move";
-                      e.dataTransfer.setData("text/plain", c.key);
-                    }
-                  : undefined
-              }
-              onDragOver={
-                movable && layout
-                  ? (e) => {
-                      if (!columnInHand || columnInHand === c.key) return;
-                      e.preventDefault();
-                      e.currentTarget.setAttribute(
-                        "data-drop",
-                        keys.indexOf(columnInHand) < keys.indexOf(c.key) ? "after" : "before",
-                      );
-                    }
-                  : undefined
-              }
-              onDragLeave={movable ? (e) => e.currentTarget.removeAttribute("data-drop") : undefined}
-              onDrop={
-                movable && layout
-                  ? (e) => {
-                      e.preventDefault();
-                      e.currentTarget.removeAttribute("data-drop");
-                      if (columnInHand && columnInHand !== c.key) layout.onMoveTo(columnInHand, c.key);
-                      columnInHand = null;
-                    }
-                  : undefined
-              }
-              onDragEnd={
-                movable
-                  ? (e) => {
-                      columnInHand = null;
-                      for (const th of e.currentTarget.closest("tr")?.children ?? []) th.removeAttribute("data-drop");
-                    }
-                  : undefined
-              }
+              {...headingDrag(c.key, movable ? layout : null, keys)}
             >
               {/* A heading that sorts is a button, so a keyboard reaches it: the sort was the cell's own click, which Tab never found. */}
               {c.sortable ? (
@@ -440,15 +514,15 @@ function tableHead<R extends TableRow, X extends TableCtx>(p: {
                   {text}
                 </span>
               )}
-              {layout && widths && !c.fixed && typeof c.label === "string" && (
+              {layout && widths && sizable(c) && typeof c.label === "string" && (
                 <ColumnEdge
                   label={c.label}
                   width={widths[i + (selectable ? 1 : 0)] ?? 0}
                   min={PL_DRAG_MIN_PX}
-                  onSize={(px, commit) => layout.onSize(c.key, px, commit)}
+                  onSize={(px, commit) => layout.onSize(c.key, px, commit, frozen)}
                   onCancel={layout.onCancel}
                   onReset={() => layout.onReset(c.key)}
-                  onFit={(th) => layout.onSize(c.key, plFitWidth(fitWidthOf(th), c.width), true)}
+                  onFit={(th) => layout.onSize(c.key, fitOf(th, c, rows), true, frozen)}
                   onMove={movable ? (by, from) => shift(by, from, ".pl-edge") : undefined}
                 />
               )}
@@ -493,8 +567,7 @@ export function PeopleTable<R extends TableRow, X extends TableCtx>({
   layout = null,
 }: PeopleTableProps<R, X>) {
   const words = PL_NOUNS[noun] || PERSON_NOUN;
-  const widths = columnWidths(layout, columns, selectable);
-  const attrs = layoutAttrs(layout, widths);
+  const { widths, frozen, attrs } = drawnLayout(layout, columns, rows, selectable);
   // The first rows rise in as the table arrives, as the Inbox's do (kit/motion/use-rows-arrive.ts).
   const arrive = useRowsArrive<HTMLTableElement>();
   // One element for both: the rows arrive and swap in under the table's heads.
@@ -558,6 +631,7 @@ export function PeopleTable<R extends TableRow, X extends TableCtx>({
         onScroll={(e) => {
           const on = e.currentTarget.scrollLeft > 0;
           if (on !== scrolled) onScrolled(on);
+          plMarkMore(e.currentTarget);
         }}
         aria-busy={busy ? "true" : undefined}
         data-testid="people-table-scroll"
@@ -584,6 +658,7 @@ export function PeopleTable<R extends TableRow, X extends TableCtx>({
             onSort,
             layout,
             widths,
+            frozen,
             indexed,
           })}
           {/* What a view on its way dims (components.css [data-loading] [data-dims]): the rows, never the heads. */}

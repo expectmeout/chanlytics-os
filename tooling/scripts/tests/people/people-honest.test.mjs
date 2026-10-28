@@ -3019,9 +3019,9 @@ test("the Columns menu is the kit's switches: it shows and hides columns, and Pe
   );
   assert.equal(menu.props.groups[0].choose.value, "comfortable", "comfortable until the member says otherwise");
   assert.deepEqual(
-    menu.props.groups[1].items.map((i) => [i.label, i.disabled]),
-    [["Reset widths and order", true]],
-    "and nothing to put back while no width or place was changed",
+    menu.props.groups[1].items.map((i) => `${i.label}${i.disabled ? " (off)" : ""}`),
+    ["Fit all columns", "Reset widths and order (off)"],
+    "a fit for every column, and nothing to put back while no width or place was changed",
   );
   assert.deepEqual(
     menuItems(tree),
@@ -3695,10 +3695,10 @@ test("on a desktop the table scrolls in its own box, Person pinned, and the hair
   );
   const scroller = (t) => byTestId(t, "people-table-scroll");
   assert.doesNotMatch(scroller(tree).props.className, /\bscrolled\b/, "no hairline at rest");
-  scroller(tree).props.onScroll({ currentTarget: { scrollLeft: 120 } });
+  scroller(tree).props.onScroll({ currentTarget: { scrollLeft: 120, toggleAttribute() {} } });
   tree = draw();
   assert.match(scroller(tree).props.className, /\bscrolled\b/, "scrolled sideways: the hairline");
-  scroller(tree).props.onScroll({ currentTarget: { scrollLeft: 0 } });
+  scroller(tree).props.onScroll({ currentTarget: { scrollLeft: 0, toggleAttribute() {} } });
   tree = draw();
   assert.doesNotMatch(scroller(tree).props.className, /\bscrolled\b/, "back at the start: none");
   assert.match(

@@ -55,6 +55,11 @@ export function PeopleColumnsMenu({
       {
         items: [
           {
+            label: "Fit all columns",
+            title: "Make every column as wide as what it holds",
+            onSelect: layout.onFitAll,
+          },
+          {
             label: "Reset widths and order",
             title: "Put every column back where it started, at the width it started",
             onSelect: layout.onResetAll,

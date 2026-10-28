@@ -2240,6 +2240,10 @@
   .pl-table td.cl-actions-cell, .pl-table thead th.cl-actions-head { position: sticky; right: 0; z-index: 1; }
   .pl-table thead th.cl-actions-head { z-index: 3; }
   .pl-table tbody tr:is(:hover, [data-hover], .focused) td.cl-actions-cell { background: var(--pl-row); }
+  /* While more columns lie past the box's right edge, the acts' column draws a hairline there, as Person's does once the
+     table has scrolled under it (use-layout.ts plMarkMore says it on the box). */
+  .pl-table :is(td.cl-actions-cell, thead th.cl-actions-head) { border-left: 1px solid transparent; }
+  .pl-table-scroll[data-more] .pl-table :is(td.cl-actions-cell, thead th.cl-actions-head) { border-left-color: var(--line); }
   /* Nobody to show is said in the box, wherever the table's width runs: centred across a table wider than its box, a
      search that found nobody stood past the box's right edge and looked like an empty box (27 Oct 2026). */
   .pl-table-scroll { container: pl-room / inline-size; }
@@ -2252,12 +2256,19 @@
    On a desktop the table is a fixed layout: each column is as wide as its <col> says, settled from what the column
    declares, the room the table has and what the member dragged. So a heading's words, a long address or a step on
    one row never move another column, and what a cell cannot show ends in an ellipsis in ITS column, not in a number
-   of characters the page guessed. A cell does not wrap; a plain-text one (cl-cut) is cut, and one that holds a hover
-   card is not, since the card is drawn inside the cell. */
+   of characters the page guessed. A cell does not wrap, and what it cannot show it cuts: it never runs on into the next
+   column (a Receptionist's "Escalated, wrote by email" lay 76px over Offers, 28 Oct 2026). A plain-text one (cl-cut)
+   ends in an ellipsis; one that holds a hover card (Leads') is not cut, since the card is drawn inside the cell. */
 @media (width > 900px) {
-  .pl-table[data-fixed] { table-layout: fixed; width: 100%; }
+  .pl-table[data-fixed] { table-layout: fixed; }
+  /* Fitted, the table is its box's width; sized by a member, it is as wide as its columns (its width attribute, which a
+     rule here would override), wider than the box or narrower. */
+  .pl-table[data-fixed]:not([data-sizing="sized"]) { width: 100%; }
   .pl-table[data-fixed] td { white-space: nowrap; }
+  .pl-table[data-fixed] tbody td:not(.pl-pin, .ld-hover, :has(.ld-hover)) { overflow: hidden; }
   .pl-table[data-fixed] td.cl-cut { overflow: hidden; text-overflow: ellipsis; }
+  /* A visit's day and hours end in an ellipsis in their column. */
+  .pl-table[data-fixed] .cl-row-visit { display: block; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
   .pl-table[data-fixed] thead th { overflow: hidden; }
   /* Where a cell's words end the cell does: an ellipsis, never into the next column. */
   .pl-table[data-fixed] :is(.cl-row-step-when, .cl-row-last-when, .cl-row-last-by, .cl-row-reach-wire, .cl-row-reach-id:not(.tabular), .cl-row-reach-may, .ld-stage-cell .cl-row-meta) { overflow: hidden; text-overflow: ellipsis; }
@@ -2295,7 +2306,16 @@
   /* Their own words open on a quote mark, which hangs in the gap, so their first letter stands where a call's summary
      (said, not quoted) starts its own. */
   .pl-table-wrap[data-density="compact"] .cl-row-words[data-quoted] { margin-left: -0.4em; }
+  /* Too narrow a Person for their words beside the name (a hundred pixels at least): the name takes the cell, and the
+     words wait for a wider column, where it showed "“Hi …". */
+  .pl-table-wrap[data-density="compact"] .cl-row-name-block { container: pl-name / inline-size; }
+  @container pl-name (width < 260px) {
+    .pl-table-wrap[data-density="compact"] .cl-row-words { display: none; }
+    .pl-table-wrap[data-density="compact"] .cl-row-fullname { flex: 1 1 auto; }
+  }
   .pl-table-wrap[data-density="compact"] :is(.cl-row-reach, .cl-row-step, .cl-row-last) { flex-direction: row; align-items: baseline; gap: 8px; }
+  /* The wire's word stays whole and the address gives way: "Em…" beside the whole address said neither. */
+  .pl-table-wrap[data-density="compact"] .cl-row-reach-wire { flex-shrink: 0; }
   .pl-table-wrap[data-density="compact"] :is(.cl-row-state-detail, .cl-row-reach-may) { display: none; }
   /* On one line the secondary words give way first, so the primary ones are what stays whole. */
   .pl-table-wrap[data-density="compact"] :is(.cl-row-step-when, .cl-row-last-by, .cl-row-reach-id) { flex-shrink: 8; }
