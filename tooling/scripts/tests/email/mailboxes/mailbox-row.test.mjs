@@ -224,7 +224,12 @@ test("a stopped six months says so on the card, with Try again, the first run's 
       },
     ];
     let tree = open([mbx()], null, { imports });
-    assert.match(factsOf(tree)[0], /^Inbox: Stopped part way/, "it says it stopped, and what it kept");
+    assert.match(
+      factsOf(tree)[0],
+      /^Inbox: Stopped part way · 130 emails kept/,
+      "it says it stopped, and what it kept",
+    );
+    assert.doesNotMatch(factsOf(tree)[0], /· Stopped/, "and says Stopped once");
     const again = byTestId(tree, "mailbox-import-again-mailbox");
     assert.equal(said(again), "Try again");
     press(again);

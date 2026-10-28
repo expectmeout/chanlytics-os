@@ -486,7 +486,8 @@ function cardFacts(one: MailboxConnectionDto | null, imports: readonly ImportRow
     return {
       key: source,
       label,
-      value: l.state === "done" ? l.says : `${l.says} · ${l.stand}`,
+      // A stopped line says so in its own words, Try again beside it; only one still coming says where it stands.
+      value: l.state === "done" || l.state === "failed" ? l.says : `${l.says} · ${l.stand}`,
       again: l.retry ? source : null,
     };
   });
