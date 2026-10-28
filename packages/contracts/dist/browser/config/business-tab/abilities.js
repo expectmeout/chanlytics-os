@@ -6,21 +6,39 @@ const BOOLEAN_INPUTS = {
   hasCalendarFeed: true,
   hasBookingLink: true,
   hasBookingTemplate: true,
+  textingLine: true,
   hasHandoffNumber: true,
   hasEscalateWhen: true,
   visionOn: true,
   bookingHeld: true
 };
-function bookingLinkDetail(i, callSendsLink) {
+function bookingLinkDetail(i) {
   if (!i.hasBookingLink) return "No booking link, so it takes their details for you to follow up.";
   if (!i.whatsappLive) {
     const why = i.whatsappStatus ? `It goes out on WhatsApp, which isn't live here yet: ${i.whatsappStatus}` : "It goes out on WhatsApp, which isn't connected here.";
-    return i.voiceLive ? `${why} On a call it offers to have someone follow up instead.` : why;
+    if (!i.voiceLive) return why;
+    return i.textingLine && !i.bookingHeld ? `${why} On a call it sends it by text instead.` : `${why} On a call it offers to have someone follow up instead.`;
   }
   if (i.bookingHeld)
     return "Your Autonomy tab holds bookings for you to confirm, so when someone asks to book, it sends no link: it tells them someone from the team will confirm.";
   if (!i.voiceLive) return "It sends it in the thread.";
-  return callSendsLink ? "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the thread." : "In chat it sends it in the thread. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
+  if (i.hasBookingTemplate)
+    return i.textingLine ? "On a call it sends it to the caller's WhatsApp, or by text when their number has none, and says which. In chat it sends it in the thread." : "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the thread.";
+  return i.textingLine ? "In chat it sends it in the thread. On a call it sends it by text, until you have an approved booking-link WhatsApp message." : "In chat it sends it in the thread. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
+}
+function linkWays(i, chatAnswers, repliesHeld) {
+  const callSendsLink = i.voiceLive && (i.whatsappLive && i.hasBookingTemplate || i.textingLine);
+  const linkGoes = i.hasBookingLink && chatAnswers && !i.bookingHeld;
+  return {
+    linkGoes,
+    // A call's send goes through the same outbound gate the Replies row holds, and the Booking row's: so on a call the
+    // link goes where there is one, a way to send it, and neither row holding it.
+    linkOnCall: i.hasBookingLink && callSendsLink && !i.bookingHeld && !repliesHeld,
+    // ...and whether the row promising it after the times may do so without naming a channel. A workspace on both lines
+    // with no approved booking-link template and no texting line sends it in chat and not on a call (retell-fn's deliver
+    // has nothing to send). Said unqualified, the openings row told such a workspace its call offers times "then the link".
+    linkIsChatsAlone: linkGoes && i.voiceLive && !callSendsLink
+  };
 }
 export function abilityRows(i) {
   if (!i || typeof i !== "object")
@@ -44,11 +62,9 @@ export function abilityRows(i) {
   const chatAnswers = i.whatsappLive && !repliesHeld;
   const both = { voice: i.voiceLive, whatsapp: chatAnswers };
   const answering = i.voiceLive || chatAnswers;
-  const callSendsLink = i.voiceLive && i.whatsappLive && i.hasBookingTemplate;
-  const linkGoes = i.hasBookingLink && chatAnswers && !i.bookingHeld;
-  const linkIsChatsAlone = linkGoes && i.voiceLive && !callSendsLink;
+  const { linkGoes, linkOnCall, linkIsChatsAlone } = linkWays(i, chatAnswers, repliesHeld);
   const inChat = linkIsChatsAlone ? " in chat" : "";
-  const bookingDetail = bookingLinkDetail(i, callSendsLink);
+  const bookingDetail = bookingLinkDetail(i);
   const rows = [
     {
       id: "answer",
@@ -82,9 +98,9 @@ export function abilityRows(i) {
       // The call's send goes through the same outbound gate the Replies row holds, so a
       // workspace whose replies are held has no channel here at all -- and neither has one
       // where there is no link to send, or where the Autonomy tab confirms bookings itself.
-      channels: { voice: linkGoes && callSendsLink && !repliesHeld, whatsapp: linkGoes },
+      channels: { voice: linkOnCall, whatsapp: linkGoes },
       runsOn: { label: "The booking link", row: "booking_link" },
-      ready: linkGoes,
+      ready: linkGoes || linkOnCall,
       missing: !i.hasBookingLink
     },
     {
@@ -148,7 +164,7 @@ const CANNOT_ROWS = [
   {
     id: "sms",
     title: "Send a text message",
-    detail: "Not part of what is sold yet. It arrives with a line the carriers have approved, and Connections will say when. The booking link a caller receives goes to their WhatsApp.",
+    detail: "Not part of what is sold yet. It arrives with a line the carriers have approved, and Connections will say when. Once it does, a caller whose WhatsApp can't take the booking link is sent it by text.",
     soon: true
   }
 ];

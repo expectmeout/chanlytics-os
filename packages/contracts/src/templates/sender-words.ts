@@ -17,6 +17,11 @@ export type SenderLanguage = "en" | "es";
 export interface SenderWords {
   /** The line under every text, which is also the footer of a starter's WhatsApp message. */
   textStop: string;
+  /**
+   * The booking link texted to a caller who asked for it on the phone (retell-fn's send_booking_link by text): who it is
+   * from first, as every sample the carriers approved opens, then the link as the owner wrote it.
+   */
+  linkAsked: (who: string, link: string) => string;
   /** The way out of a message about a visit: it carries no unsubscribe link, so a reply of STOP is how a person stops it. */
   emailStop: string;
   /** What a reach-out's email says it is: CAN-SPAM asks a commercial email to identify itself as one. */
@@ -40,6 +45,7 @@ export interface SenderWords {
 export const SENDER_WORDS: Record<SenderLanguage, SenderWords> = {
   en: {
     textStop: "Reply STOP to opt out",
+    linkAsked: (who, link) => `${who}: here's the link to book, as you asked on the phone: ${link}`,
     emailStop: "Reply STOP to stop these emails.",
     marketing: "This is a marketing email.",
     noThanks: `Not interested? Reply "no thanks" and I won't write again`,
@@ -53,6 +59,7 @@ export const SENDER_WORDS: Record<SenderLanguage, SenderWords> = {
   },
   es: {
     textStop: "Responde STOP para darte de baja",
+    linkAsked: (who, link) => `${who}: aquí tienes el enlace para reservar, como pediste por teléfono: ${link}`,
     emailStop: "Responde STOP para dejar de recibir estos correos.",
     marketing: "Este es un correo de marketing.",
     noThanks: `¿No te interesa? Responde "no, gracias" y no volveré a escribirte`,

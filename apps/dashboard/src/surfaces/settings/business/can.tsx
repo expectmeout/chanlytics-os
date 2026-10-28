@@ -266,6 +266,9 @@ const btcAbilities = (
     // The template retell-fn picks the call's message with, asked of contracts, never matched by name here.
     // The list is known to be one by now: a failed read is said above, not read as "no approved message".
     hasBookingTemplate: !!BUSINESS_TAB.bookingTemplate(templates),
+    // A texting line the carriers approved, as Setup judges it (ready: active, no test filing), which is the send door's
+    // own question: a call texts the link when WhatsApp cannot carry it.
+    textingLine: BUSINESS_TAB.capabilityStatus("sms", dto).ready,
     hasHandoffNumber: !!profile.handoff_number,
     hasEscalateWhen: btcHasReasons(profile),
     // Exactly as stored: usually nothing, which contracts reads as a day, as the Autonomy pane does.

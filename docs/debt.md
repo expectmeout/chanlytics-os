@@ -347,7 +347,7 @@ fails when this block and the baselines disagree.
 <!-- measured:start -->
 
 ```text
-functions over the limit             49   of which over 200 lines: 4
+functions over the limit             47   of which over 200 lines: 3
 files over 800 lines                  2
 directories over 20 modules           2
 window globals                       54   names
@@ -355,7 +355,7 @@ window publishers                    67   sites in 25 files
 copies                               67   of 19 names
 as unknown as                       120
 as never                             12
-non-null assertions, x!              93
+non-null assertions, x!              92
 index reads the compiler lets pass  410   in 110 files
 table names outside packages/db     417
 SQL functions outside packages/db   119   called by .rpc
@@ -378,7 +378,7 @@ lint warnings                       274   in 123 files, 33 of them exhaustive-de
 route JS ceiling, KB gzipped       1024   the shell included
 route CSS ceiling, KB gzipped       192
 each page's own JS ceiling, KB      256   gzipped, beyond the route
-trees the lint's limits hold         78   18 of them with max-params waiting
+trees the lint's limits hold         79   19 of them with max-params waiting
 ```
 
 <!-- measured:end -->

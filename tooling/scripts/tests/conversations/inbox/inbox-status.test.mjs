@@ -374,7 +374,7 @@ test("the reply Need you drafted is in an emailed thread's empty box, to change 
     made_at: ago(30),
   });
   const realFetch = globalThis.fetch;
-  const open = async (forId, typed = null) => {
+  const open = async (forId, typed = null, over = dto) => {
     const asked = [];
     globalThis.fetch = async (url, init = {}) => {
       asked.push(`${init.method ?? "GET"} ${new URL(String(url), "https://app.example").pathname}`);
@@ -385,7 +385,7 @@ test("the reply Need you drafted is in an emailed thread's empty box, to change 
       });
     };
     fresh();
-    const thread = vmOf(dto, esc);
+    const thread = vmOf(over, esc);
     const draw = () => again(() => InboxComposer({ thread, reply: "", onSend() {} }));
     const first = draw();
     if (typed !== null) find(first, (n) => n.type === "textarea").props.onChange({ target: { value: typed } });
@@ -400,6 +400,9 @@ test("the reply Need you drafted is in an emailed thread's empty box, to change 
     assert.equal(stale.value, "", "a draft for an older message is not their answer");
     const theirs = await open("m1", "Let me check the van.");
     assert.equal(theirs.value, "Let me check the van.", "a member's own words are never replaced");
+    // Answered since (from Gmail, or by a teammate): the draft is kept until they write again, and is no one's to send twice.
+    const answered = { ...dto, messages: [...dto.messages, mail(ours("m2", "Friday at 10 works.", 20, "sent"))] };
+    assert.equal((await open("m1", null, answered)).value, "", "answered already: the box stays empty");
   } finally {
     globalThis.fetch = realFetch;
   }

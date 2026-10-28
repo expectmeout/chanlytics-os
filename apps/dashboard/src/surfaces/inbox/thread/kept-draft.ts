@@ -14,10 +14,14 @@ import { api } from "@/legacy-bridge/api";
 import { surfaceValue } from "../../surface-values";
 import type { Thread } from "../types";
 
-/** Their newest message, which a kept draft must answer (contracts today-queue writesOf): null where they wrote none. */
+/**
+ * Their newest message, which a kept draft must answer (contracts today-queue writesOf), while it is the thread's newest
+ * word: null where they wrote none, or where someone answered since. A draft is kept until they write again, so a reply
+ * sent from Gmail or by a teammate left it standing, and the box offered the same answer to send a second time.
+ */
 function newestTheirs(thread: Pick<Thread, "timeline">): string | null {
-  const theirs = [...(thread.timeline ?? [])].reverse().find((e) => e.type === "msg" && e.from === "client");
-  return theirs && theirs.type === "msg" ? (theirs.messageId ?? null) : null;
+  const last = [...(thread.timeline ?? [])].reverse().find((e) => e.type === "msg");
+  return last && last.type === "msg" && last.from === "client" ? (last.messageId ?? null) : null;
 }
 
 /** A kept reply's words, where it answers their newest message and has words to put in the box. */

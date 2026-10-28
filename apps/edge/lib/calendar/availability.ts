@@ -289,10 +289,16 @@ async function recordBusy(
 
 /**
  * Whether what follows an opening or a visit may offer the booking link, where it is said: in chat any link, on a call
- * only one WhatsApp can carry (contracts offersLinkOn).
+ * only one WhatsApp or a text can carry (contracts offersLinkOn).
  */
 export function linkOfferedOn(on: "call" | "chat", rt: Pick<TenantRuntime, "brain" | "known">): boolean {
-  return offersLinkOn(on, rt.brain, resolveFacts(rt.brain, rt.known).whatsapp_line.value, rt.known.booking_message);
+  return offersLinkOn(
+    on,
+    rt.brain,
+    resolveFacts(rt.brain, rt.known).whatsapp_line.value,
+    rt.known.booking_message,
+    rt.known.texting_line,
+  );
 }
 
 /**

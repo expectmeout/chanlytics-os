@@ -2477,38 +2477,50 @@ function outboundGate(f) {
   if (hold) return { allowed: false, refusal: hold };
   return { allowed: true, refusal: null };
 }
-function refusalScript(refusal, phoneDisplay) {
+var SENT_AS = {
+  whatsapp: {
+    one: "a WhatsApp message",
+    many: "WhatsApp messages",
+    Many: "WhatsApp messages",
+    earlier: "their WhatsApp"
+  },
+  sms: { one: "a text message", many: "text messages", Many: "Text messages", earlier: "their messages" }
+};
+function refusalScript(refusal, phoneDisplay, channel) {
+  const m = SENT_AS[channel === "sms" ? "sms" : "whatsapp"];
   switch (refusal) {
     case "opted_out":
-      return "That number has asked us to stop sending messages, so I cannot send them a WhatsApp message. Offer to book them on the call instead.";
+      return `That number has asked us to stop sending messages, so I cannot send them ${m.one}. Offer to book them on the call instead.`;
     // Reachable only when a caller asks us to text a THIRD party — the person on
     // the line is answering us, so their own send is never proactive. Spoken to
     // the caller, so it says what to do and never that we hold a record on
     // somebody else.
     case "not_opted_in":
-      return "I can only send WhatsApp messages to the number the caller is phoning from. Offer to send it to their own mobile, or to book them on the call.";
-    // Email's own no: reachable only where the gate is asked about an email (the phone agent's link goes by WhatsApp).
+      return `I can only send ${m.many} to the number the caller is phoning from. Offer to send it to their own mobile, or to book them on the call.`;
+    // Email's own no: reachable only where the gate is asked about an email (the phone agent's link goes by WhatsApp or text).
     case "unsubscribed":
       return "They unsubscribed from this business's email, so I cannot email them. Offer to book them on the call instead.";
+    // An offer's own no: the booking link a call sends by text is never one (the door holds a text to none), so WhatsApp's.
     case "no_marketing_consent":
       return "I cannot send that on WhatsApp, because it is a promotional message and that number has not asked for those. Offer to book them on the call instead.";
     // The texting line's own refusal: the door returns it on channel "sms" only
-    // (core deliver), so the WhatsApp booking link never meets it, and "text" here
-    // means the texting line.
+    // (core deliver), and "text" here means the texting line.
     case "sms_carries_no_promotions":
       return "I cannot send that as a text: this business sends offers on WhatsApp only, never by text message. Offer to book them on the call instead.";
     case "paused":
-      return "WhatsApp messages are paused for this business right now, so I cannot send anything. Take the caller's name and number and say someone will call them back.";
+      return `${m.Many} are paused for this business right now, so I cannot send anything. Take the caller's name and number and say someone will call them back.`;
     case "human_has_it":
-      return "Someone from the team is already messaging that number, so I will not send a WhatsApp message over them. Tell the caller a person is on it and will follow up there.";
+      return `Someone from the team is already messaging that number, so I will not send ${m.one} over them. Tell the caller a person is on it and will follow up there.`;
     case "policy_hold":
-      return phoneDisplay ? `I cannot send WhatsApp messages automatically for this business right now. Tell the caller they can book online, or reach the team on ${phoneDisplay}.` : "I cannot send WhatsApp messages automatically for this business right now. Tell the caller they can book online, and take their name.";
+      return phoneDisplay ? `I cannot send ${m.many} automatically for this business right now. Tell the caller they can book online, or reach the team on ${phoneDisplay}.` : `I cannot send ${m.many} automatically for this business right now. Tell the caller they can book online, and take their name.`;
     // The same sentence the prompt already gives a workspace on this setting
     // (contracts policyRules, voice): a person confirms, so take their name.
     case "booking_needs_a_person":
       return "This business confirms bookings itself, so I cannot send the booking link. Tell the caller a member of the team will call or text them to confirm, and take their name.";
+    // The day's cap counts the booking link however it went (a call's sends share one source), so a text's points the
+    // caller at their messages, where an earlier one may have come by WhatsApp or by text.
     case "daily_cap":
-      return "I have already sent that number several WhatsApp messages today, so I will not send another. Tell the caller to check their WhatsApp for the earlier message.";
+      return `I have already sent that number several ${m.many} today, so I will not send another. Tell the caller to check ${m.earlier} for the earlier message.`;
   }
 }
 
@@ -40436,6 +40448,7 @@ export {
   templatePurpose,
   templateValues,
   termsShortOf,
+  textRefusal,
   toBase64,
   toldFromItsEvent,
   unreadableThread,

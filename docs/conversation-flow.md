@@ -131,12 +131,12 @@ One piece of it is now vestigial. `mirrorBlobPause` (`apps/dashboard/src/server/
 
 The voice agent holds exactly four tools (`packages/channels/src/voice/voice-shell.ts:114`):
 
-| Tool                 | What it does                                  | What it may not do                                                |
-| -------------------- | --------------------------------------------- | ----------------------------------------------------------------- |
-| `check_availability` | reads the open windows                        | **"Never confirm a slot yourself"** — it offers, it does not book |
-| `send_booking_link`  | texts the caller the booking link on WhatsApp | one template, one link, to the number they are calling from       |
-| `transfer_to_staff`  | warm transfer to the business's own line      | only the number the workspace configured, filled per call         |
-| `end_call`           | ends it                                       | —                                                                 |
+| Tool                 | What it does                                                                            | What it may not do                                                      |
+| -------------------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `check_availability` | reads the open windows                                                                  | **"Never confirm a slot yourself"** — it offers, it does not book       |
+| `send_booking_link`  | sends the caller the booking link on WhatsApp, or by text when WhatsApp cannot carry it | one template or one text, one link, to the number they are calling from |
+| `transfer_to_staff`  | warm transfer to the business's own line                                                | only the number the workspace configured, filled per call               |
+| `end_call`           | ends it                                                                                 | —                                                                       |
 
 `send_booking_link` reaches `apps/edge/api/retell-fn.ts`, and that file is the model for how a second sender should be built: it routes by `agent_id`, normalizes the number the caller _said_ (ten digits) against the number we _store_ (fifteen), refuses a number that is not the caller's unless that person is already a contact, and then asks two gates in order — `outboundGate`, whose answer becomes **a sentence the agent speaks** and which never names our internal state to a caller, and then `deliver()`, which re-reads everything at the wire and adds what the gate cannot see: erasure, and a human who spoke since.
 

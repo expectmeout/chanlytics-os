@@ -39,6 +39,7 @@ const MARISA_INPUTS = {
   hasBookingLink: true,
   linkOptional: false,
   hasBookingTemplate: true,
+  textingLine: false,
   hasHandoffNumber: true,
   hasEscalateWhen: true,
   pauseHours: undefined,

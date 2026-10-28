@@ -15,7 +15,7 @@ import { lineProviderFromEnv } from "../lines/lines.js";
 import { edgeFnUrl } from "../dashboard-origin.js";
 import { logger, errField, type Logger } from "../log.js";
 import { phoneTail, type EdgeRefusal } from "../packages/contracts.js";
-import { wireUnavailable, type WireUnavailable } from "../packages/core.js";
+import { isWireUnavailable, wireUnavailable, type Sender, type WireUnavailable } from "../packages/core.js";
 
 type Db = SupabaseClient<Database>;
 const SUBACCOUNT_READ_TIMEOUT_MS = 15000;
@@ -208,4 +208,14 @@ export async function smsSenderForTenant(db: Db, tenantId: string): Promise<SmsS
     logger({ tenant_id: tenantId }).error("sms_sender_unavailable", { error: errField(e) });
     return wireUnavailable(errField(e));
   }
+}
+
+/**
+ * The texting line as the send door's wire (core deliver's `sms`): a text's address given its "+" (a contact is keyed on
+ * bare international digits), and the line's absence, or a read that failed, passed on as the door reads each. The job
+ * runner's replies and a call's booking link (voice/call-booking-link-text.ts) bind it the same way.
+ */
+export function smsWire(line: SmsSender | null | WireUnavailable): Sender | null | WireUnavailable {
+  if (line === null || isWireUnavailable(line)) return line;
+  return (to, p) => line.send(to.startsWith("+") ? to : `+${to}`, p.body);
 }

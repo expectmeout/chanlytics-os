@@ -1,17 +1,18 @@
 /**
  * The phone receptionist says where the booking link goes: to the caller's
- * WhatsApp, never "a text".
+ * WhatsApp, or by text where the business has a texting line, and never a text
+ * where it has none.
  *
- * send_booking_link has only ever sent one thing, a WhatsApp template to the
- * WhatsApp on the number the caller is ringing from: retell-fn.ts delivers on
- * channel "whatsapp", and texting is not sold until the carriers approve a line
- * (capabilities.ts). The composed prompt told the agent the tool "texts the
- * booking link to the number they are calling from", and three other things it
- * is handed said "offer to text the booking link": the prompt's own line about
- * speaking aloud, the shell's fallback when the facts cannot be read, and the
- * availability tool's answer when the calendar cannot. So a caller could be
- * promised a text and receive a WhatsApp message instead -- or, on a number
- * with no WhatsApp, nothing at all.
+ * send_booking_link sent one thing until 28 Oct 2026, a WhatsApp template to the
+ * WhatsApp on the number the caller is ringing from. The composed prompt told the
+ * agent the tool "texts the booking link to the number they are calling from", and
+ * three other things it is handed said "offer to text the booking link": the
+ * prompt's own line about speaking aloud, the shell's fallback when the facts
+ * cannot be read, and the availability tool's answer when the calendar cannot. So
+ * a caller could be promised a text and receive a WhatsApp message instead -- or,
+ * on a number with no WhatsApp, nothing at all. Now a call texts the link from
+ * the workspace's texting line when WhatsApp cannot carry it (the live walk's
+ * SET-2), and the prompt says a text only where there is a line to send one.
  *
  * Run, not read: each of these is the text the agent is actually given.
  */
@@ -120,19 +121,24 @@ test("with no facts to read, the shell's fallback offers nothing it may not have
   assert.match(FACTS_UNAVAILABLE, /take their name and a message so the team can call them back/);
   const tool = desiredVoiceShell(FN_URL).general_tools.find((t) => t.name === "send_booking_link");
   // Used when the caller wants to book unless the call's instructions say otherwise: a stored prompt names no tool, and
-  // must keep it (the review of 11 Oct 2026).
+  // must keep it (the review of 11 Oct 2026). WhatsApp first, a text when WhatsApp cannot carry it (28 Oct 2026).
   assert.match(
     tool.description,
-    /^Send the booking link to the caller's WhatsApp when the caller wants to book, unless your instructions say there is no link or no way to send it\./,
+    /^Send the booking link to the caller's WhatsApp, or by text message when WhatsApp cannot carry it, when the caller wants to book, unless your instructions say there is no link or no way to send it\./,
   );
-  assert.doesNotMatch(tool.description, TEXTS_THE_LINK, "REGRESSION: the tool said it texts the link");
+  // The caller's own word for a text, carried by the one argument the edge reads ("text"), never a guess of the tool's.
+  assert.deepEqual(Object.keys(tool.parameters.properties), ["phone_number", "by"]);
+  assert.match(
+    tool.parameters.properties.by.description,
+    /^Set to "text" when the caller says they do not use WhatsApp/,
+  );
   const availability = desiredVoiceShell(FN_URL).general_tools.find((t) => t.name === "check_availability");
   assert.doesNotMatch(availability.description, /booking link/, "what follows the times is the answer's to say");
   // Said before the tool has answered, so before anyone knows whether it went: nothing is promised.
   assert.equal(tool.execution_message_description, "Say one moment, please.");
 });
 
-test("the availability tool offers the link on WhatsApp when there is no calendar, and when it cannot see one", async () => {
+test("the availability tool offers the link when there is no calendar, and when it cannot see one, naming no channel the call may not have", async () => {
   const T = "dddddddd-0000-4000-8000-000000000001";
   const AGENT = "agent_voice_booking_link";
   setPg(
@@ -195,10 +201,87 @@ test("the availability tool offers the link on WhatsApp when there is no calenda
     assert.match(none, /no calendar to check/i, "the world is the one intended");
     assert.match(blind, /can't see the calendar/i, "the world is the one intended");
     assert.doesNotMatch(none, TEXTS_THE_LINK, "REGRESSION: it offered to text the link");
-    assert.ok(none.includes("send the booking link to the caller's WhatsApp"), none);
+    // How it goes is the call's instructions' to say (by WhatsApp, or by text where there is a line): this names neither.
+    assert.ok(none.includes("Offer to send the booking link — it shows the open times."), none);
+    assert.doesNotMatch(none, /WhatsApp/, none);
     // A line nobody routes is nobody's business: nothing it could send is offered, only a call back.
     assert.equal(blind, "I can't see the calendar right now. Offer to have someone call back.");
   } finally {
     setPg(null);
   }
+});
+
+/* ------------------------------------------------ a texting line to send it by */
+
+/** The call's booking line, composed for a workspace with these ways to send the link (contracts callLinkWays). */
+const bookingLineOf = (facts) => {
+  const prompt = composeSystemPrompt({ ...brain, ...facts }, profile, "voice");
+  return { prompt, line: prompt.split("\n").find((l) => l.startsWith("Booking:")) ?? "" };
+};
+
+test("with WhatsApp and a texting line, a call asks about WhatsApp first and texts the link to a caller without it", () => {
+  const { prompt, line } = bookingLineOf({ texting_line: true });
+  assert.ok(line.includes('first ask "Do you use WhatsApp on this number?"'), line);
+  assert.ok(
+    line.includes("If they do, use send_booking_link — it sends the booking link to the caller's WhatsApp"),
+    line,
+  );
+  assert.ok(
+    line.includes(
+      'If they do not use WhatsApp there, use send_booking_link with by set to "text", and tell them it comes as a text message.',
+    ),
+    line,
+  );
+  assert.ok(line.includes("When WhatsApp cannot deliver it, the tool sends it by text instead."), line);
+  assert.ok(
+    line.includes(
+      "If it fails, take their name, what they need, and where and when, give the phone number above, and offer to have someone follow up.",
+    ),
+    line,
+  );
+  assert.ok(
+    prompt.includes("offer to send the booking link to the caller's WhatsApp or by text instead."),
+    "speaking aloud, it offers both",
+  );
+});
+
+test("with a texting line and no WhatsApp line, a call texts the link and never asks about WhatsApp", () => {
+  const { prompt, line } = bookingLineOf({ whatsapp_line: null, texting_line: true });
+  assert.ok(
+    line.startsWith(
+      "Booking: when the caller wants to book, use send_booking_link — it sends the booking link by text message to the number they are calling from,",
+    ),
+    line,
+  );
+  assert.ok(line.includes("Tell them it comes as a text message."), line);
+  assert.doesNotMatch(prompt, /WhatsApp/, "a call with no WhatsApp line names none");
+  assert.ok(prompt.includes("offer to send the booking link by text instead."), prompt);
+});
+
+test("with a WhatsApp line whose booking-link message Meta has not approved, a texting line sends it by text", () => {
+  const { line } = bookingLineOf({ booking_message: false, texting_line: true });
+  assert.ok(line.includes("it sends the booking link by text message"), line);
+  assert.doesNotMatch(line, /never use send_booking_link/, line);
+  // Without the line, the call takes the details and promises nothing (decision 0073, R14), naming both ways it lacks.
+  const without = bookingLineOf({ booking_message: false, texting_line: false }).line;
+  assert.ok(
+    without.startsWith(
+      "Booking: the booking link is sent as a WhatsApp message that is not approved yet, and this business has no texting line, so never use send_booking_link",
+    ),
+    without,
+  );
+});
+
+test("a texting line not known to be approved (not read) offers no text: the call never promises what the door may refuse", () => {
+  for (const texting_line of [null, undefined, false]) {
+    const { prompt } = bookingLineOf({ texting_line });
+    assert.doesNotMatch(prompt, TEXTS_THE_LINK, `texting_line ${texting_line}: no text promised`);
+  }
+  const neither = bookingLineOf({ whatsapp_line: null, texting_line: null }).line;
+  assert.ok(
+    neither.startsWith(
+      "Booking: the booking link can only be sent by WhatsApp or by text, and this business has no WhatsApp line and no texting line, so never use send_booking_link",
+    ),
+    neither,
+  );
 });

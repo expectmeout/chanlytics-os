@@ -142,6 +142,17 @@ export function useNeedsYou(): number | null {
   return useSyncExternalStore(hearNeedsYou, needsYouNow, needsYouNow);
 }
 
+/**
+ * Whether anyone waits on the owner, as Today's queue counts them (needsYouOnToday): the Inbox's parts once it is read, the
+ * day's own figures before, which is all a cold Today has. Today's order and its setup card read this one answer: they read
+ * two (the page the queue's count, the card the Inbox's alone), and on a cold load the card folded a moment after the page.
+ */
+export function useWaitsOnToday(): boolean {
+  const live = useNeedsYouParts();
+  const day = surfaceValue("today");
+  return day ? needsYouCount(needsYouOnToday(day, live)) > 0 : !!live && needsYouCount(live) > 0;
+}
+
 /** The parts, as a hook: drawn again when a part changes (a hold becomes a held send, a run is approved), by nothing else. */
 export function useNeedsYouParts(): Waits | null {
   return useSyncExternalStore(hearNeedsYou, partsNow, partsNow);
