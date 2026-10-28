@@ -267,6 +267,7 @@ const live = {
   hasCalendarFeed: true,
   hasBookingLink: true,
   hasBookingTemplate: true,
+  textingLine: false,
   hasHandoffNumber: true,
   hasEscalateWhen: true,
   pauseHours: 24,
@@ -286,6 +287,7 @@ test("an ability names its channels and the row it runs on", () => {
     hasEscalateWhen: true,
     visionOn: false,
     hasBookingTemplate: true,
+    textingLine: false,
     pauseHours: 24,
     bookingHeld: false,
     replyMode: "auto",
@@ -314,6 +316,7 @@ test("an ability whose input is missing says which row to fill", () => {
     hasEscalateWhen: true,
     visionOn: false,
     hasBookingTemplate: true,
+    textingLine: false,
     pauseHours: 24,
     bookingHeld: false,
     replyMode: "auto",
@@ -337,6 +340,7 @@ test("nothing is ready on a channel that is not answering", () => {
     hasEscalateWhen: true,
     visionOn: true,
     hasBookingTemplate: true,
+    textingLine: false,
     pauseHours: 24,
     bookingHeld: false,
     replyMode: "auto",
@@ -352,6 +356,7 @@ test("nothing is ready on a channel that is not answering", () => {
     hasEscalateWhen: true,
     visionOn: true,
     hasBookingTemplate: true,
+    textingLine: false,
     pauseHours: 24,
     bookingHeld: false,
     replyMode: "auto",
@@ -437,10 +442,10 @@ test("on WhatsApp alone, the link goes in the thread", () => {
   assert.deepEqual(b.channels, { voice: false, whatsapp: true });
 });
 
-test("the booking link goes by WhatsApp, so a phone-only workspace cannot send it", () => {
-  // send_booking_link delivers a WhatsApp template to the caller's WhatsApp; it never
-  // sends an SMS, which is not sold. The first draft said "texts it", and drew it ready
-  // on a phone-only workspace with no way to send anything at all.
+test("without a texting line the booking link goes by WhatsApp, so a phone-only workspace cannot send it", () => {
+  // send_booking_link delivers a WhatsApp template to the caller's WhatsApp, and texts only from a line the carriers
+  // approved (textingLine, false in `live`). The first draft said "texts it", and drew it ready on a phone-only
+  // workspace with no way to send anything at all.
   const phoneOnly = idOf(abilityRows({ ...live, whatsappLive: false })).booking_link;
   assert.equal(phoneOnly.ready, false);
   assert.equal(phoneOnly.channels.voice, false, "the call cannot send it without WhatsApp");
@@ -459,9 +464,46 @@ test("the booking link goes by WhatsApp, so a phone-only workspace cannot send i
     assert.doesNotMatch(
       idOf(abilityRows(shape)).booking_link.detail,
       /\btexts?\b/i,
-      "never 'text': texting is not sold",
+      "never 'text' without a line the carriers approved",
     );
   }
+});
+
+test("with a texting line, a call sends the link by text where WhatsApp cannot carry it, and the row says so", () => {
+  // The live walk's SET-2 (28 Oct 2026): a call texts the link from the workspace's line when there is no WhatsApp, no
+  // approved booking-link message, or the caller's number has none.
+  const texting = { ...live, textingLine: true };
+  const phoneOnly = idOf(abilityRows({ ...texting, whatsappLive: false, whatsappStatus: null })).booking_link;
+  assert.equal(phoneOnly.ready, true, "a call can send it now");
+  assert.deepEqual(phoneOnly.channels, { voice: true, whatsapp: false });
+  assert.equal(
+    phoneOnly.detail,
+    "It goes out on WhatsApp, which isn't connected here. On a call it sends it by text instead.",
+  );
+
+  const noTemplate = idOf(abilityRows({ ...texting, hasBookingTemplate: false })).booking_link;
+  assert.deepEqual(noTemplate.channels, { voice: true, whatsapp: true });
+  assert.equal(
+    noTemplate.detail,
+    "In chat it sends it in the thread. On a call it sends it by text, until you have an approved booking-link WhatsApp message.",
+  );
+  // So the openings row may promise the link after the times without "in chat".
+  assert.match(idOf(abilityRows({ ...texting, hasBookingTemplate: false })).open_times.detail, /then the link\.$/);
+
+  assert.equal(
+    idOf(abilityRows(texting)).booking_link.detail,
+    "On a call it sends it to the caller's WhatsApp, or by text when their number has none, and says which. In chat it sends it in the thread.",
+  );
+
+  // The Autonomy tab's holds stop a text as they stop WhatsApp: the same gate, whatever carries it.
+  for (const held of [{ bookingHeld: true }, { replyMode: "ask" }]) {
+    const row = idOf(abilityRows({ ...texting, whatsappLive: false, whatsappStatus: null, ...held })).booking_link;
+    assert.deepEqual(row.channels, { voice: false, whatsapp: false }, JSON.stringify(held));
+    assert.equal(row.ready, false, JSON.stringify(held));
+  }
+  // The booking hold is the row's own to say (the replies hold is the card's, said once above the rows).
+  const held = idOf(abilityRows({ ...texting, whatsappLive: false, whatsappStatus: null, bookingHeld: true }));
+  assert.doesNotMatch(held.booking_link.detail, /by text instead/);
 });
 
 test("a transfer happens during opening hours, and it stays on the line", () => {

@@ -1959,7 +1959,7 @@ function voiceShellTools(fnUrl, bookingHeaders) {
     {
       type: "custom",
       name: "send_booking_link",
-      description: "Send the booking link to the caller's WhatsApp when the caller wants to book, unless your instructions say there is no link or no way to send it. It goes to the number they are calling from unless another number is given.",
+      description: "Send the booking link to the caller's WhatsApp, or by text message when WhatsApp cannot carry it, when the caller wants to book, unless your instructions say there is no link or no way to send it. It goes to the number they are calling from unless another number is given, and its answer says how it went.",
       url: fnUrl,
       method: "POST",
       speak_during_execution: true,
@@ -1976,6 +1976,12 @@ function voiceShellTools(fnUrl, bookingHeaders) {
           phone_number: {
             type: "string",
             description: "Alternate number to send the link to, digits only with country code. Omit to use the caller's number."
+          },
+          // No `enum`: a plain string and its words, the shape the provider keeps as given, so the plan sees no
+          // difference that is not there. The edge reads "text" and nothing else (call-booking-link.ts).
+          by: {
+            type: "string",
+            description: 'Set to "text" when the caller says they do not use WhatsApp on the number, and your instructions say a text can be sent. Omit to send by WhatsApp first.'
           }
         }
       }

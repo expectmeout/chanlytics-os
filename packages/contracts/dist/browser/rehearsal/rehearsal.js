@@ -51,7 +51,7 @@ export function turnsOfTranscript(raw) {
   return out;
 }
 export const REHEARSAL_TOOL_WORDS = {
-  bookingLink: "This is a rehearsal, so nothing was sent: the owner sees the booking link on their screen. Tell the caller the link is on its way by WhatsApp, as you would on a real call."
+  bookingLink: "This is a rehearsal, so nothing was sent: the owner sees the booking link on their screen. Tell the caller the link is on its way, by WhatsApp or by text as your instructions say, as you would on a real call."
 };
 export const SPEND_REHEARSE = { before: "rehearsing your receptionist", can: "rehearse your receptionist" };
 export const SPEND_REVIEW = { before: "reviewing a conversation", can: "review a conversation" };

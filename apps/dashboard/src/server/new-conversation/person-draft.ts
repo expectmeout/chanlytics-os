@@ -61,6 +61,15 @@ interface DraftKnown {
   userId: string;
 }
 
+/**
+ * The edition of the rules a draft is written by (RULES, shapeRules), kept with every draft Ask keeps ahead
+ * (conversations/drafts.ts): a draft kept under an earlier edition is no draft, and is written again when asked for. Moved on
+ * with any change to the rules: a call back's brief kept from 19 Oct still told the owner to say "Hi, this is calling from
+ * Chanlytics" after #1849 fixed the rule, since a kept draft lives until the customer writes again (the live walk's TODAY-5,
+ * 27 Oct 2026).
+ */
+export const PERSON_DRAFT_RULES = 2;
+
 const RULES = [
   "You help the owner of a small business write to one of their own customers or contacts, or prepare to phone them.",
   "You write as the owner: a person writing to a person they know. Never as an assistant, never about yourself.",
