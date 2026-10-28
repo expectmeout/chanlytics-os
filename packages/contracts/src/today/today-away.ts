@@ -117,6 +117,8 @@ const AWAY_NOUN: Record<string, [one: string, many: string]> = {
   note_to_keep: ["note to keep for the receptionist", "notes to keep for the receptionist"],
   // One a morning, the member's own: a second is another day's.
   ask_cards: ["morning from Ask", "mornings from Ask"],
+  // A morning's sign-ups on the website are one pile, each person on their own page.
+  website_form: ["form sent on your website", "forms sent on your website"],
 };
 
 /**

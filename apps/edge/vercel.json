@@ -68,6 +68,9 @@
           "api/apify-webhook.ts": {
             "maxDuration": 30
           },
+          "api/website-form.ts": {
+            "maxDuration": 30
+          },
           "api/mailbox/gmail.ts": {
             "maxDuration": 30
           },

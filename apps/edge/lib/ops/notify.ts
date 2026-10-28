@@ -105,7 +105,7 @@ const ONCE_NAMESPACE = Buffer.from("8c3b2f6e4d7a4e1b9a5c0d2e3f4a5b6c", "hex");
  * The uuid a once-only notice keeps in `source_event` (00419): made from its name, the same name always the same uuid,
  * and never an event's (an event's id is random, version 4; this one is version 5).
  */
-function onceKeyId(name: string): string {
+export function onceKeyId(name: string): string {
   const h = createHash("sha1").update(ONCE_NAMESPACE).update(name, "utf8").digest().subarray(0, 16);
   h.writeUInt8((h.readUInt8(6) & 0x0f) | 0x50, 6);
   h.writeUInt8((h.readUInt8(8) & 0x3f) | 0x80, 8);

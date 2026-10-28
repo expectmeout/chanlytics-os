@@ -5473,7 +5473,7 @@ CREATE FUNCTION public.events_note_first_touch() RETURNS trigger
     AS $$
 declare
   v_word text := NEW.data ->> 'source';
-  v_via  text := case when v_word in ('calendar', 'lead', 'import') then v_word else 'manual' end;
+  v_via  text := case when v_word in ('calendar', 'lead', 'import', 'website') then v_word else 'manual' end;
 begin
   perform public.person_set_first_touch(
     NEW.tenant_id,
@@ -5492,7 +5492,7 @@ end $$;
 -- Name: FUNCTION events_note_first_touch(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.events_note_first_touch() IS 'The first touch of a person added at a door (K3): the source of the contact.added event beside them (calendar, lead, import, any other word or none is manual), through person_set_first_touch, with the lead''s id as the ref where the event names one. The mapping is people_list''s came_from for a door, written once. Never fails the event''s writer: a failure is a warning.';
+COMMENT ON FUNCTION public.events_note_first_touch() IS 'The first touch of a person added at a door (K3): the source of the contact.added event beside them (calendar, lead, import, website; any other word or none is manual), through person_set_first_touch, with the lead''s id as the ref where the event names one. The mapping is people_list''s came_from for a door, written once. Never fails the event''s writer: a failure is a warning.';
 
 
 --
@@ -6188,7 +6188,7 @@ CREATE TABLE public.contacts (
     name_settled_at timestamp with time zone,
     before jsonb,
     CONSTRAINT contacts_acquired_ref_check CHECK (((acquired_ref IS NULL) OR ((acquired_via IS NOT NULL) AND ((char_length(acquired_ref) >= 1) AND (char_length(acquired_ref) <= 200))))),
-    CONSTRAINT contacts_acquired_via_check CHECK (((acquired_via IS NULL) OR (acquired_via = ANY (ARRAY['whatsapp'::text, 'sms'::text, 'email'::text, 'instagram'::text, 'call'::text, 'ad'::text, 'calendar'::text, 'import'::text, 'lead'::text, 'manual'::text])))),
+    CONSTRAINT contacts_acquired_via_check CHECK (((acquired_via IS NULL) OR (acquired_via = ANY (ARRAY['whatsapp'::text, 'sms'::text, 'email'::text, 'instagram'::text, 'call'::text, 'ad'::text, 'calendar'::text, 'import'::text, 'lead'::text, 'manual'::text, 'website'::text])))),
     CONSTRAINT contacts_before_check CHECK (((before IS NULL) OR ((jsonb_typeof(before) = 'object'::text) AND ((NOT (before ? 'last_visit'::text)) OR ((before ->> 'last_visit'::text) ~ '^\d{4}-\d{2}-\d{2}$'::text)) AND ((NOT (before ? 'birthday'::text)) OR ((before ->> 'birthday'::text) ~ '^(\d{4}|-)-\d{2}-\d{2}$'::text)) AND ((NOT (before ? 'visits'::text)) OR ((jsonb_typeof((before -> 'visits'::text)) = 'number'::text) AND ((((before ->> 'visits'::text))::numeric >= (0)::numeric) AND (((before ->> 'visits'::text))::numeric <= (999999)::numeric)))) AND ((NOT (before ? 'via'::text)) OR ((char_length((before ->> 'via'::text)) >= 1) AND (char_length((before ->> 'via'::text)) <= 40)))))),
     CONSTRAINT contacts_consent_check CHECK ((consent = ANY (ARRAY['unknown'::text, 'opted_in'::text, 'opted_out'::text]))),
     CONSTRAINT contacts_email_check CHECK (((email IS NULL) OR ((email = lower(btrim(email))) AND ((char_length(email) >= 3) AND (char_length(email) <= 254)) AND (email ~ '^[^[:space:]@<>]+@[^[:space:]@<>]+\.[^[:space:]@<>]+$'::text)))),
@@ -6303,7 +6303,7 @@ COMMENT ON COLUMN public.contacts.offers_asked_at IS 'When the receptionist firs
 -- Name: COLUMN contacts.acquired_via; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.contacts.acquired_via IS 'How the person first reached the workspace, written once (person_set_first_touch): whatsapp, sms, email, instagram or call for the wire of the message or call that made them, ad for a click-to-chat ad on WhatsApp or Instagram (a referral whose source_type is ad; a post, a link or any other referral is the wire''s), calendar, import, lead or manual for the door that added them (00307, 00486). Null for a person from before it was kept, and wherever nothing says: unknown, never a guess.';
+COMMENT ON COLUMN public.contacts.acquired_via IS 'How the person first reached the workspace, written once (person_set_first_touch): whatsapp, sms, email, instagram or call for the wire of the message or call that made them, ad for a click-to-chat ad on WhatsApp or Instagram (a referral whose source_type is ad; a post, a link or any other referral is the wire''s), calendar, import, lead, website or manual for the door that added them (00307, 00486, 00488: website for a form on the business''s own website). Null for a person from before it was kept, and wherever nothing says: unknown, never a guess.';
 
 
 --
@@ -16259,7 +16259,7 @@ CREATE FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid DEFAULT N
     -- Where they came from: how a door added them (their acquired_via, written from the door's contact.added event by
     -- 00307, the first word winning), else how a history moved in began, else their first spoken event.
     case
-      when ch.acquired_via in ('calendar', 'lead', 'import', 'manual') then ch.acquired_via
+      when ch.acquired_via in ('calendar', 'lead', 'import', 'manual', 'website') then ch.acquired_via
       when coalesce(ma.has_backfill, false) then case when ma.backfill_first in ('call', 'whatsapp', 'sms', 'email') then ma.backfill_first else 'import' end
       when lk.first_at is not null and (ma.first_at is null or lk.first_at <= ma.first_at) then 'call'
       when ma.first_channel in ('whatsapp', 'sms', 'email', 'instagram') then ma.first_channel
@@ -18069,7 +18069,7 @@ begin
   if char_length(v_body) > 600 then
     return jsonb_build_object('error', 'too_long');
   end if;
-  if p_source is null or p_source not in ('call', 'thread') then
+  if p_source is null or p_source not in ('call', 'thread', 'website') then
     return jsonb_build_object('error', 'bad_source');
   end if;
   if not exists (
@@ -18101,7 +18101,7 @@ end $$;
 -- Name: FUNCTION person_note_suggest(p_tenant_id uuid, p_contact_id uuid, p_body text, p_source text, p_source_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.person_note_suggest(p_tenant_id uuid, p_contact_id uuid, p_body text, p_source text, p_source_id uuid) IS 'The receptionist suggests a note on a person after a call or a thread (0007). Service role only (the edge). Once per source; at most three waiting per person. Answers {note} or {error}.';
+COMMENT ON FUNCTION public.person_note_suggest(p_tenant_id uuid, p_contact_id uuid, p_body text, p_source text, p_source_id uuid) IS 'The receptionist suggests a note on a person after a call or a thread (0007), or what they asked on the business''s website (00488). Service role only (the edge). Once per source; at most three waiting per person. Answers {note} or {error}.';
 
 
 --
@@ -34154,7 +34154,7 @@ CREATE TABLE public.notifications (
     mail_due_at timestamp with time zone,
     closed_at timestamp with time zone,
     CONSTRAINT notifications_body_check CHECK ((char_length(body) <= 4000)),
-    CONSTRAINT notifications_kind_check CHECK ((kind = ANY (ARRAY['handoff'::text, 'deadman'::text, 'call'::text, 'number'::text, 'sweep'::text, 'job_failed'::text, 'playbook'::text, 'calendar_people'::text, 'alert'::text, 'review'::text, 'billing'::text, 'template_ready'::text, 'template_blocked'::text, 'broadcast_sent'::text, 'broadcast_stopped'::text, 'leads_ready'::text, 'leads_question'::text, 'note_for_you'::text, 'reach_out_replied'::text, 'reach_out_day'::text, 'booking_notice'::text, 'opted_out'::text, 'booking'::text, 'member_joined'::text, 'member_left'::text, 'note_to_keep'::text, 'reply_held'::text, 'ask_cards'::text]))),
+    CONSTRAINT notifications_kind_check CHECK ((kind = ANY (ARRAY['handoff'::text, 'deadman'::text, 'call'::text, 'number'::text, 'sweep'::text, 'job_failed'::text, 'playbook'::text, 'calendar_people'::text, 'alert'::text, 'review'::text, 'billing'::text, 'template_ready'::text, 'template_blocked'::text, 'broadcast_sent'::text, 'broadcast_stopped'::text, 'leads_ready'::text, 'leads_question'::text, 'note_for_you'::text, 'reach_out_replied'::text, 'reach_out_day'::text, 'booking_notice'::text, 'opted_out'::text, 'booking'::text, 'member_joined'::text, 'member_left'::text, 'note_to_keep'::text, 'reply_held'::text, 'ask_cards'::text, 'website_form'::text]))),
     CONSTRAINT notifications_title_check CHECK (((char_length(title) >= 1) AND (char_length(title) <= 200)))
 );
 
@@ -34616,7 +34616,7 @@ CREATE TABLE public.person_notes (
     CONSTRAINT person_notes_author_kind_check CHECK ((author_kind = ANY (ARRAY['member'::text, 'receptionist'::text]))),
     CONSTRAINT person_notes_body_check CHECK (((char_length(body) >= 1) AND (char_length(body) <= 600))),
     CONSTRAINT person_notes_done_is_a_step CHECK (((done_at IS NULL) OR (due_on IS NOT NULL))),
-    CONSTRAINT person_notes_source_check CHECK ((source = ANY (ARRAY['page'::text, 'bulk'::text, 'moved'::text, 'call'::text, 'thread'::text, 'reach_out'::text]))),
+    CONSTRAINT person_notes_source_check CHECK ((source = ANY (ARRAY['page'::text, 'bulk'::text, 'moved'::text, 'call'::text, 'thread'::text, 'reach_out'::text, 'website'::text]))),
     CONSTRAINT person_notes_state_check CHECK ((state = ANY (ARRAY['kept'::text, 'suggested'::text]))),
     CONSTRAINT person_notes_step_is_the_teams CHECK (((due_on IS NULL) OR team_only))
 );

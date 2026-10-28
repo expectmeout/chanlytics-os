@@ -804,6 +804,7 @@ export {
 } from "./repositories/facts/fact-suggestions";
 export type { FactCorrectionRow, FactSuggestionRow } from "./repositories/facts/fact-suggestions";
 export { heldDraftsByIntent } from "./repositories/facts/held-drafts";
+export { suggestPersonNote } from "./repositories/facts/person-note-suggestions";
 export {
   rehearsalById,
   rehearsalByCall,

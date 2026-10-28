@@ -209,4 +209,12 @@ export type {
   SayItVerb,
 } from "./doors/say-it";
 export { SayItDealAnswerSchema, SayItInputSchema, SayItNoteAnswerSchema } from "./doors/say-it-schema";
+export {
+  WebsiteFormBody,
+  websiteFormLate,
+  websiteFormNote,
+  websiteFormNotice,
+  websiteFormPerson,
+} from "./doors/website-form";
+export type { WebsiteForm, WebsiteFormInput } from "./doors/website-form";
 export type { SayItInput } from "./doors/say-it-schema";

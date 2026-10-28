@@ -35,7 +35,9 @@ const AWAY_NOUN = {
   // A morning's corrections can suggest several notes: one pile, each kept or dismissed on the Autonomy pane.
   note_to_keep: ["note to keep for the receptionist", "notes to keep for the receptionist"],
   // One a morning, the member's own: a second is another day's.
-  ask_cards: ["morning from Ask", "mornings from Ask"]
+  ask_cards: ["morning from Ask", "mornings from Ask"],
+  // A morning's sign-ups on the website are one pile, each person on their own page.
+  website_form: ["form sent on your website", "forms sent on your website"]
 };
 function groupTitle(members, noun, idOf) {
   const subjects = new Set(members.map((m) => m.about ? `${m.about.type}:${m.about.id}` : idOf(m))).size;

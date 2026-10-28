@@ -72,6 +72,7 @@ const KNOCKS = {
   verifyResendWebhook: { from: CHANNELS }, // svix's signature over Resend's event
   constructEvent: { on: "webhooks" }, // Stripe's own library: Stripe's signature
   tokenMatches: { from: "apps/edge/lib/leads/apify-ingress.ts" }, // the lead run's own webhook token, against its hash
+  websiteFormKeyMatches: { from: "apps/edge/lib/website/form-key.ts" }, // the key a workspace's website was given (00488)
 };
 const ADMIN_AUTH = KNOCKS.authorizeAdmin.from;
 

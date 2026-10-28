@@ -70,6 +70,10 @@ export const NOTICE_ENDS = {
   ask_cards: {
     ends: "news",
     why: "Ask's morning is told once, to the member it is for; its cards wait on Today, where each is approved or let go."
+  },
+  website_form: {
+    ends: "news",
+    why: "A form sent on the website is told once; the person is in People, and what they asked waits on their page."
   }
 };
 export function kindsEndedBy(source) {
