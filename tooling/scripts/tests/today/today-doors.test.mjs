@@ -657,5 +657,10 @@ test("while someone waits on you, what is left to set up is its head and Show, u
   assert.deepEqual(work(), ["TodaySetup", "TodayBroughtIn", "TodayGoing", "AgentCommand"]);
   setSurfaceValue("inbox", { THREADS: [], UNREAD_HOLDS: 1 });
   assert.deepEqual(work(), ["AgentCommand", "TodaySetup", "TodayBroughtIn", "TodayGoing"]);
+  // A cold Today, the Inbox not read yet: the day's own count, as the queue counts it (production, 27 Oct 2026: three
+  // people waited and the chores led).
   setSurfaceValue("inbox", undefined);
+  const quiet = todayWith([]);
+  setSurfaceValue("today", { ...quiet, needsYou: { ...quiet.needsYou, count: 3, holds: 3, sends: 0 } });
+  assert.deepEqual(work(), ["AgentCommand", "TodaySetup", "TodayBroughtIn", "TodayGoing"], "the queue counts them");
 });
