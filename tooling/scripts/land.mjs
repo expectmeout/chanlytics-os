@@ -8,13 +8,17 @@
  *
  *   1. Nothing uncommitted: what lands is what was committed.
  *   2. Main merged in, when the branch does not hold it. A conflict in a file a command writes (a `*.generated.*` file,
- *      the API reference, the data model, the tree) takes main's side and is written again below; a dist a branch from before
- *      28 October 2026 still tracks is taken out of the index, as main took it (isRetired); a
+ *      the API reference, the data model, the tree, the migration ledger) takes main's side and is written again below; a
+ *      dist a branch from before 28 October 2026 still tracks is taken out of the index, as main took it (isRetired); a
  *      conflict in anything else stops here, the merge left open, with the files to resolve by hand (then run this
- *      again). supabase/schema.sql is not written here, as it needs a database: resolve it from a replay.
+ *      again, and it takes up the merge where it was left).
+ *      What the migrations write through a database (REPLAYED: the schema snapshot, the database's types, the closed
+ *      sets and the unique keys) is written only from a replay: with --replay, and a local stack that answers
+ *      (`supabase status`), main's side is taken and the stack is replayed from zero (`supabase db reset`, so its data
+ *      goes) before they are written again; without either, it stops and names them, as a conflict a person resolves.
  *   3. What the commands write, written again from the merged sources: the barrels' order, the browser entry, the typed
- *      client and route keys, the API reference, the data model and the tree. Then the typecheck, the one check that is quick and sure to catch a
- *      merge that no longer fits together; CI runs the rest.
+ *      client and route keys, the API reference, the migration ledger, the data model and the tree. Then the
+ *      typecheck, the one check that is quick and sure to catch a merge that no longer fits together; CI runs the rest.
  *   4. Pushed, and the pull request (opened with --title and --body-file when there is none) set to squash-merge itself
  *      once every required check passes, pinned to the commit pushed (`--match-head-commit`), so nothing pushed after
  *      it lands unchecked. Where the repository does not allow auto-merge, it says to merge once green.
@@ -27,6 +31,8 @@
  *   node tooling/scripts/land.mjs --title "<title>" --body-file <f>  the same, opening the pull request first
  *   node tooling/scripts/land.mjs --no-auto                          everything but the auto-merge
  *   node tooling/scripts/land.mjs --applied                          the auto-merge too, its migrations on production
+ *   node tooling/scripts/land.mjs --replay                           a conflict in what the migrations write, written
+ *                                                                    again from the local stack, replayed from zero
  */
 import { execFileSync, spawnSync } from "node:child_process";
 import path from "node:path";
@@ -34,14 +40,27 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
-/** A file a command writes: main's side is taken in a conflict, and the command writes it again (WRITERS). */
+/**
+ * What the migrations write through a database: each needs a stack that has replayed them, so a conflict in one is
+ * written again only from a replay (REPLAYERS), and is a person's to resolve without one.
+ */
+export const REPLAYED = [
+  "packages/contracts/src/schema-sets.generated.ts",
+  "packages/db/src/database.types.ts",
+  "supabase/schema.sql",
+  "tooling/scripts/tests/_unique-keys.generated.json",
+];
+export const isReplayed = (file) => REPLAYED.includes(file);
+
+/** A file a command writes from the tree: main's side is taken in a conflict, and the command writes it again (WRITERS). */
 export function isWritten(file) {
   return (
-    /\.generated\.(ts|json)$/.test(file) ||
-    file === "docs/api.md" ||
-    file === "docs/data-model.md" ||
-    file === "docs/tree.md" ||
-    file === "tooling/scripts/tests/_unique-keys.generated.json"
+    !isReplayed(file) &&
+    (/\.generated\.(ts|json)$/.test(file) ||
+      file === "docs/api.md" ||
+      file === "docs/data-model.md" ||
+      file === "docs/tree.md" ||
+      file === "supabase/migrations-ledger.json")
   );
 }
 
@@ -51,14 +70,31 @@ export const isRetired = (file) => /^packages\/[^/]+\/dist\//.test(file);
 /** The migrations among a branch's added files (`git diff --diff-filter=A`): each holds its auto-merge (step 5). */
 export const migrationsAdded = (files) => files.filter((f) => /^supabase\/migrations\/\d{5}_[a-z0-9_]+\.sql$/.test(f));
 
-/** What writes them, in order: the barrels first, since the browser entry is written from them. */
+/**
+ * What writes them, in order: the barrels first, since the browser entry is written from them. The ledger records the
+ * branch's migrations above main's head again, and refuses one at or below it (a number two lanes took: move it up).
+ */
 export const WRITERS = [
   ["the barrels' order", "node tooling/scripts/gen/sorted-lists.mjs"],
   ["the browser entry", "node tooling/scripts/gen/contracts-browser-entry.mjs"],
   ["the typed client and route keys", "node tooling/scripts/gen/route-types.mjs"],
   ["the API reference", "corepack pnpm gen:api-reference"],
+  ["the migration ledger", "node tooling/scripts/checks/migration-ledger.mjs --record"],
   ["the data model", "corepack pnpm gen:data-model"],
   ["the tree", "node tooling/scripts/gen/docs-tree.mjs"],
+];
+
+const SUPABASE = process.env.SUPABASE_CLI || "supabase";
+
+/**
+ * What writes REPLAYED, after the stack is replayed from zero and before WRITERS, whose data model reads the snapshot.
+ * The types' command writes the unique keys too (tooling/scripts/gen/db-types.mjs).
+ */
+export const REPLAYERS = [
+  ["the replay of every migration", `${SUPABASE} db reset`],
+  ["the database's types and unique keys", "corepack pnpm gen:db-types"],
+  ["the closed sets", "corepack pnpm gen:schema-sets"],
+  ["the schema snapshot", "corepack pnpm gen:schema-snapshot"],
 ];
 
 const git = (...args) => execFileSync("git", args, { cwd: ROOT, encoding: "utf8" }).trim();
@@ -70,31 +106,60 @@ function stop(why) {
   process.exit(1);
 }
 
-/** Main merged in; answers whether a merge was made. */
+/** Main merged in; answers whether a merge was made. A conflict is left for `resolve`. */
 function mergeMain() {
   git("fetch", "--quiet", "origin", "main");
   if (tryGit("merge-base", "--is-ancestor", "origin/main", "HEAD").status === 0) return false;
   const merged = tryGit("merge", "--no-edit", "origin/main");
-  if (merged.status === 0) return true;
-  const conflicted = git("diff", "--name-only", "--diff-filter=U").split("\n").filter(Boolean);
-  const retired = conflicted.filter(isRetired);
-  if (retired.length) git("rm", "-r", "-q", "--cached", "--ignore-unmatch", "--", ...retired);
-  const left = conflicted.filter((f) => !isRetired(f));
-  const byHand = left.filter((f) => !isWritten(f));
-  if (byHand.length)
-    stop(
-      `main conflicts with the branch in ${byHand.join(", ")}: resolve ${byHand.length === 1 ? "it" : "them"}, ` +
-        "leave the rest, and run this again (the merge is left open)",
-    );
-  if (retired.length)
-    say(`took ${retired.length} built file${retired.length === 1 ? "" : "s"} out of the index, as main did`);
-  if (left.length) git("checkout", "--theirs", "--", ...left);
-  say(`took main's side of ${left.length} written file${left.length === 1 ? "" : "s"}; writing them again`);
+  if (merged.status !== 0 && tryGit("rev-parse", "-q", "--verify", "MERGE_HEAD").status !== 0)
+    stop(`main could not be merged in: ${merged.stderr.trim() || merged.stdout.trim()}`);
   return true;
 }
 
-function write() {
-  for (const [name, command] of WRITERS) {
+/**
+ * How a merge's conflicts are settled: who takes each file. `replay` says whether the stack may be replayed (--replay
+ * and a stack that answers); a file a person resolves, or one the migrations write when it may not, stops the land.
+ */
+export function settle(conflicted, replay) {
+  const retired = conflicted.filter(isRetired);
+  const left = conflicted.filter((f) => !isRetired(f));
+  const replayed = left.filter(isReplayed);
+  const byHand = left.filter((f) => !isWritten(f) && !isReplayed(f));
+  const blocked = replay ? [] : replayed;
+  return { retired, theirs: left.filter((f) => !byHand.includes(f)), replayed, byHand, blocked };
+}
+
+const stackAnswers = () => spawnSync(SUPABASE, ["status"], { cwd: ROOT, stdio: "ignore" }).status === 0;
+
+/** The open merge's conflicts settled by rule (settle); answers whether the stack is to be replayed. */
+function resolve(replayAsked) {
+  const conflicted = git("diff", "--name-only", "--diff-filter=U").split("\n").filter(Boolean);
+  if (!conflicted.length) return false;
+  const replay = replayAsked && stackAnswers();
+  const { retired, theirs, replayed, byHand, blocked } = settle(conflicted, replay);
+  if (retired.length) git("rm", "-r", "-q", "--cached", "--ignore-unmatch", "--", ...retired);
+  const why = [];
+  if (byHand.length)
+    why.push(
+      `main conflicts with the branch in ${byHand.join(", ")}: resolve ${byHand.length === 1 ? "it" : "them"} and git add`,
+    );
+  if (blocked.length)
+    why.push(
+      `${blocked.join(", ")} ${blocked.length === 1 ? "is" : "are"} written by the migrations through a database: ` +
+        (replayAsked
+          ? "no local stack answers: start one (supabase start) and run this again with --replay, or resolve them by hand"
+          : "run this again with --replay to replay the local stack from zero (its data goes) and write them"),
+    );
+  if (why.length) stop(`${why.join("; ")}. Leave the rest and run this again (the merge is left open)`);
+  if (retired.length)
+    say(`took ${retired.length} built file${retired.length === 1 ? "" : "s"} out of the index, as main did`);
+  if (theirs.length) git("checkout", "--theirs", "--", ...theirs);
+  say(`took main's side of ${theirs.length} written file${theirs.length === 1 ? "" : "s"}; writing them again`);
+  return replayed.length > 0;
+}
+
+function write(replay) {
+  for (const [name, command] of [...(replay ? REPLAYERS : []), ...WRITERS]) {
     say(name);
     if (run(command) !== 0) stop(`writing ${name} failed`);
   }
@@ -117,7 +182,7 @@ function main() {
     stop("the title breaks the rule");
   const made = merging || mergeMain();
   if (made) {
-    write();
+    write(resolve(args.includes("--replay")));
     say("the typecheck of the merged tree");
     if (run("corepack pnpm -r typecheck") !== 0) stop("the merged tree does not typecheck: fix it, commit, run again");
     if (tryGit("rev-parse", "-q", "--verify", "MERGE_HEAD").status === 0) git("commit", "--no-edit", "--quiet");

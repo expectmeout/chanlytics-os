@@ -1421,7 +1421,10 @@ ledger with each version's name, whoever pushes and from wherever.
    still up, `corepack pnpm gen:schema-snapshot` writes `supabase/schema.sql` (the schema it built); then
    `corepack pnpm gen:data-model` writes `docs/data-model.md` from that file, with no stack. Commit both: a plain run fails a stale
    data model or a stale function body in the snapshot, and the Database workflow's replay fails any other drift of the
-   snapshot.
+   snapshot. When main has moved under the branch, `node tooling/scripts/land.mjs` merges it in and records the
+   ledger again (a number main took meanwhile is refused: move yours above its head); a conflict in the snapshot, the
+   types, the closed sets or the unique keys it writes again from a replay only with `--replay` and a stack that
+   answers, since that resets the stack (`land.mjs --replay`), and otherwise names them for you to resolve.
 3. **Let CI replay it** from zero and run the database suites against it.
 4. **Before the merge, a migration the new code needs**: a door the dashboard or the edge will call, a column it will
    read. The apps deploy the moment a merge lands, so this one is applied first, just before the merge, from the pull

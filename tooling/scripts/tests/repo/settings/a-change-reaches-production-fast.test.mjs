@@ -21,7 +21,16 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { ESLint } from "eslint";
 import ts from "typescript";
-import { isRetired, isWritten, migrationsAdded, WRITERS } from "../../../land.mjs";
+import {
+  isReplayed,
+  isRetired,
+  isWritten,
+  migrationsAdded,
+  REPLAYED,
+  REPLAYERS,
+  settle,
+  WRITERS,
+} from "../../../land.mjs";
 import { FIRST, LOCAL_CHECKS, runTogether } from "../../../checks/checked-locally.mjs";
 import { cacheOptions } from "../../../checks/lint.mjs";
 import { buildEdge, edgeFunctions, functionFiles, nodeMajor, ROUTES, vcConfig } from "../../../edge-functions.mjs";
@@ -34,16 +43,16 @@ test("land takes main's side only of what a command writes, and has a command fo
     "packages/contracts/src/browser.generated.ts",
     "packages/contracts/src/route-keys.generated.ts",
     "apps/dashboard/src/client/routes.generated.ts",
-    "packages/contracts/src/schema-sets.generated.ts",
-    "tooling/scripts/tests/_unique-keys.generated.json",
     "docs/api.md",
     "docs/data-model.md",
     "docs/tree.md",
+    "supabase/migrations-ledger.json",
   ])
     assert.equal(isWritten(file), true, file);
   for (const file of [
     "packages/contracts/src/ask-proposals/guide.ts",
     "supabase/schema.sql",
+    "packages/contracts/src/schema-sets.generated.ts",
     "supabase/migrations/00448_an_owners_correction_is_kept.sql",
     "docs/debt.md",
     "apps/dashboard/src/surfaces/settings/autonomy/pane.tsx",
@@ -56,12 +65,59 @@ test("land takes main's side only of what a command writes, and has a command fo
     "contracts-browser-entry.mjs",
     "route-types.mjs",
     "gen:api-reference",
+    "migration-ledger.mjs --record",
     "gen:data-model",
     "docs-tree.mjs",
   ])
     assert.ok(commands.includes(writer), writer);
   assert.match(WRITERS[0][1], /sorted-lists\.mjs$/, "the barrels first: the browser entry is written from them");
   assert.ok(!/package-build|--filter "\.\/packages\/\*" build/.test(commands), "no dist is written: git keeps none");
+});
+
+test("what the migrations write through a database is written again only from a replay, and the data model after it", () => {
+  assert.deepEqual(REPLAYED.toSorted(), [
+    "packages/contracts/src/schema-sets.generated.ts",
+    "packages/db/src/database.types.ts",
+    "supabase/schema.sql",
+    "tooling/scripts/tests/_unique-keys.generated.json",
+  ]);
+  for (const file of REPLAYED) assert.equal(isWritten(file), false, `${file} is not written from the tree alone`);
+  const replayers = REPLAYERS.map(([, c]) => c);
+  assert.match(
+    replayers[0],
+    /db reset$/,
+    "the stack replayed from zero first: a stack started before the merge lacks main's migrations",
+  );
+  for (const writer of ["gen:db-types", "gen:schema-sets", "gen:schema-snapshot"])
+    assert.ok(replayers.includes(`corepack pnpm ${writer}`), writer);
+
+  const conflicted = [
+    "packages/contracts/dist/index.js",
+    "docs/api.md",
+    "supabase/migrations-ledger.json",
+    "supabase/schema.sql",
+    "packages/db/src/database.types.ts",
+  ];
+  const without = settle(conflicted, false);
+  assert.deepEqual(without.retired, ["packages/contracts/dist/index.js"]);
+  assert.deepEqual(without.byHand, []);
+  assert.deepEqual(
+    without.blocked,
+    ["supabase/schema.sql", "packages/db/src/database.types.ts"],
+    "no replay: a person's",
+  );
+  const replayed = settle(conflicted, true);
+  assert.deepEqual(replayed.blocked, [], "a replay writes them");
+  assert.deepEqual(replayed.theirs, conflicted.slice(1), "main's side of everything but the retired dist");
+  assert.deepEqual(replayed.replayed, ["supabase/schema.sql", "packages/db/src/database.types.ts"]);
+  assert.deepEqual(settle(["apps/edge/api/inbound-sms.ts", "docs/api.md"], true).byHand, [
+    "apps/edge/api/inbound-sms.ts",
+  ]);
+  assert.equal(
+    isReplayed("supabase/migrations/00125_a_person_may_have_an_email.sql"),
+    false,
+    "a migration is a person's",
+  );
 });
 
 test("a dist a branch from before 28 October 2026 still tracks leaves the index on a merge, as main's did", () => {
