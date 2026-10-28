@@ -821,7 +821,7 @@ Reads; for a member of the workspace the request names; no rate bucket; spends n
 
 | Query field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `ids` | string | yes | at least 1 characters |
+| `ids` | string | no | at least 1 characters |
 
 ## escalations
 

@@ -302,8 +302,9 @@ test("the page on screen hears messages too, and a surface that let one pass is 
     await settle();
     assert.deepEqual(
       [...r.asked].sort(),
-      // Ask's morning is read the first time Today comes on screen (decision 0070), as the pins are.
-      ["ask_morning", "google", "people", "reports_headline", "today_pins"],
+      // Ask's morning is read the first time Today comes on screen (decision 0070), as the pins are, and so are the drafts Ask
+      // kept for Need you's rows (decision 0071).
+      ["ask_morning", "google", "people", "reply_drafts", "reports_headline", "today_pins"],
       "People once, as nothing passed it since; and what Today draws that a run that opened on People never read (they are on demand): the headline, Google's and the pinned lists' counts, once as Today came on screen",
     );
   } finally {
@@ -352,7 +353,7 @@ test("Campaigns' landing hears what Sequences hears, and its composer owns what 
     await settle();
     assert.deepEqual(
       [...r.asked].sort(),
-      ["ask_morning", "google", "reports_headline", "today_pins"],
+      ["ask_morning", "google", "reply_drafts", "reports_headline", "today_pins"],
       "nothing Today owns was missed; the headline, Google's and the pinned lists' counts, which Today draws and a run that opened on Campaigns never read, once",
     );
     r.asked.length = 0;

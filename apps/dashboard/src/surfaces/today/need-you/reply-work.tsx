@@ -80,8 +80,8 @@ function sendLabel(closed: boolean, refused: Refused | null): string {
 }
 
 /** The row's words as they stand: the member's own once changed, else the receptionist's or Ask's draft. */
-function useWords(row: TodayQueueRowVM, mine: string | null) {
-  const draft = useDraft(replyWant(row));
+function useWords(row: TodayQueueRowVM, mine: string | null, may: boolean) {
+  const draft = useDraft(replyWant(row), may);
   const written = row.prepared ?? (draft?.state === "ready" ? draft.draft.words.text : "");
   return { draft, words: mine ?? written };
 }
@@ -100,7 +100,7 @@ export function ReplyWork(p: WorkProps & { by?: string; start?: ReactNode }) {
   const [refused, setRefused] = useState<Refused | null>(null);
   // Sent from this row as it is drawn now (not a send still counting from before a move back to Today): Undo takes the keys.
   const [sentHere, setSentHere] = useState(false);
-  const { draft, words } = useWords(row, mine);
+  const { draft, words } = useWords(row, mine, may);
   const { s: send, seconds, share } = useSend(row.id);
   const notNow = useNotNow(p, setSnoozed);
   const closed = row.writes?.window_open === false;

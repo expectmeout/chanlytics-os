@@ -22,6 +22,7 @@ import { GET as notifications } from "../notifications/route";
 import { GET as google } from "../google/route";
 import { GET as replies } from "../reach-out-replies/route";
 import { GET as morning } from "../ask/morning/route";
+import { GET as drafts } from "../conversations/drafts/route";
 
 /**
  * GET /api/v1/open?route=today[&period=7d] — a page's first reads, answered as one streamed request (decision 0053
@@ -55,6 +56,7 @@ const READS: ReadonlyMap<string, OpenRead> = new Map<string, OpenRead>([
   ["google", google],
   ["reach-out-replies", replies],
   ["ask/morning", morning],
+  ["conversations/drafts", drafts],
 ]);
 
 const Query = z.object({

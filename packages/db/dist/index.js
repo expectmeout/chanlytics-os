@@ -8048,9 +8048,10 @@ async function askFirstAnswer(db, threadId) {
 }
 
 // src/repositories/ask/reply-drafts.ts
-async function conversationDraftsOf(db, tenantId, conversationIds) {
-  if (conversationIds.length === 0) return [];
-  const { data, error } = await db.from("conversation_drafts").select("conversation_id, kind, for_message_id, words, made_at").eq("tenant_id", tenantId).in("conversation_id", [...conversationIds]);
+async function conversationDraftsOf(db, tenantId, which) {
+  if (Array.isArray(which) && which.length === 0) return [];
+  const all2 = db.from("conversation_drafts").select("conversation_id, kind, for_message_id, words, made_at").eq("tenant_id", tenantId);
+  const { data, error } = await ("newest" in which ? all2.order("made_at", { ascending: false }).limit(which.newest + 1) : all2.in("conversation_id", [...which]));
   if (error) throw new Error(`conversation_drafts: ${error.message}`);
   return data ?? [];
 }

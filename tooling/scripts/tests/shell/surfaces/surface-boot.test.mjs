@@ -584,6 +584,7 @@ test("what the page on screen draws from other surfaces follows its own surface,
     "channels",
     "today_pins",
     "ask_morning",
+    "reply_drafts",
   ];
   const draws = ROUTE_DRAWS.today;
   for (const k of ["calendar", "broadcasts", "reports_headline"])
@@ -622,6 +623,8 @@ test("what the page on screen draws from other surfaces follows its own surface,
         "../surfaces/today/pins-surface",
         // Ask for you's morning (decision 0070).
         "../surfaces/today/ask-morning-surface",
+        // The drafts Ask kept for Need you's rows, read with Today's first reads (decision 0071).
+        "../surfaces/today/need-you/drafts-surface",
       ].map((m) => importSrc(`apps/dashboard/src/legacy-bridge/${m}.ts`)),
     );
     known = new Set(
@@ -908,7 +911,11 @@ test("Today reads what is left to set up right after its own surface: the card i
   // properly like the rest of the page").
   const { ROUTE_DRAWS, ROUTE_WAITS } = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
   assert.equal(ROUTE_DRAWS.today[0], "setup");
-  assert.deepEqual(ROUTE_WAITS.today, ["setup"], "and Today's first draw waits for it");
+  assert.equal(
+    ROUTE_WAITS.today[0],
+    "setup",
+    "and Today's first draw waits for it, first of what stands above its queue",
+  );
   const keys = ["conversations", "inbox", "today", "settings", "people", "calendar", "reports", "setup", "google"];
   const { order, overrides } = crowd(keys, { hash: "#/today" });
   const stop = startSurfaces(overrides);

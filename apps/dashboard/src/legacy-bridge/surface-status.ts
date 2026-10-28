@@ -84,6 +84,32 @@ export function onSurfaceStatusChange(fn: () => void): () => void {
   return () => listeners.delete(fn);
 }
 
+/** The code each page's first draw waits for, by page, while its fetch is out (firstDrawWaitsFor). */
+const codeOut = new Map<string, Set<Promise<unknown>>>();
+
+/**
+ * Code a page's first draw waits for beside the surfaces it waits for (surface-registry ROUTE_WAITS): a part drawn above
+ * the page's own content from a chunk of its own, whose rows may be in before its code is. Today's Setup card did that in
+ * 4 of 13 cold desk loads and 10 of 41 phone ones (page_vitals, 20-27 Oct 2026), its 419 px pushing the queue down after
+ * it had drawn. Held until the fetch settles, landed or not (a part whose code failed draws nothing or says so), and never
+ * past the route's wait (ROUTE_WAIT_MS), as a surface's is; the listeners hear it end, as they hear a surface land.
+ */
+export function firstDrawWaitsFor(page: string, code: Promise<unknown>): void {
+  const out = codeOut.get(page) ?? new Set<Promise<unknown>>();
+  codeOut.set(page, out);
+  out.add(code);
+  const done = () => {
+    out.delete(code);
+    listeners.forEach((l) => l());
+  };
+  code.then(done, done);
+}
+
+/** Whether a page's first draw still waits for code of its own (firstDrawWaitsFor). */
+export function codeOutFor(page: string): boolean {
+  return (codeOut.get(page)?.size ?? 0) > 0;
+}
+
 /**
  * Whether this device can reach the workspace, and whether the live feed that
  * keeps the surfaces current is up. Kept beside the surfaces' own status, and

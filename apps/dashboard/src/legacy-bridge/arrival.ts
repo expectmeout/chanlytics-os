@@ -14,9 +14,8 @@
 import { hearNeedsYou, needsYouNow as heardCount } from "../surfaces/needs-you";
 import { MASCOT } from "./mascot";
 import { watchArrival } from "./mascot/arrival";
-import { afterBoot } from "./surface-runner";
 import { FOLLOW_UPS_EVENT } from "./ask/follow-ups";
-import { hearAddress, routeOnScreen } from "./workspace";
+import { afterBoot, hearAddress, routeOnScreen } from "./workspace";
 
 /**
  * The surfaces what needs you is built from: Ask's standing reads Today's queue and Broadcasts' runs (ask-real.jsx

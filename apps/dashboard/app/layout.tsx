@@ -104,8 +104,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: themeBootScript() }} />
         {/* Inside the native shell (a User-Agent token, contracts inAppBootScript): html.in-app and window.__IN_APP, before paint. */}
         <script dangerouslySetInnerHTML={{ __html: inAppBootScript() }} />
-        {/* The route's own reads, started here rather than after the shell has mounted (contracts routePrefetchScript). */}
-        <script dangerouslySetInnerHTML={{ __html: routePrefetchScript() }} />
+        {/* The route's own reads, started here rather than after the shell has mounted (contracts routePrefetchScript). An
+            async module, inline: it runs as it is parsed. A plain inline script waits for every stylesheet before it, and React
+            sets the frame's thirteen ahead of anything in the head, so the reads left only once the last had come (on
+            production, 2 ms after it: the Today load review, 27 Oct 2026). An async script waits for none, and a module
+            inline fetches nothing. A browser without modules skips it, and the page asks for its reads itself. */}
+        <script type="module" async dangerouslySetInnerHTML={{ __html: routePrefetchScript() }} />
       </head>
       <body>{children}</body>
     </html>

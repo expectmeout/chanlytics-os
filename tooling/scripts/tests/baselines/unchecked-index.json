@@ -10,7 +10,6 @@
   "apps/dashboard/src/legacy-bridge/mascot/character-states.ts": 14,
   "apps/dashboard/src/legacy-bridge/mascot/character-tick.ts": 14,
   "apps/dashboard/src/legacy-bridge/mascot/colour.ts": 16,
-  "apps/dashboard/src/legacy-bridge/surface-cache.ts": 2,
   "apps/dashboard/src/legacy-bridge/surfaces/settings.ts": 1,
   "apps/dashboard/src/legacy-bridge/workspace.ts": 1,
   "apps/dashboard/src/server/ask/context/people.ts": 2,

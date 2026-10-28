@@ -40,6 +40,7 @@ import { todayOverride } from "@/surfaces/today/override";
 import { todayPinsOverride } from "@/surfaces/today/pins-surface";
 import { askMemoryOverride } from "@/surfaces/settings/memory/surface";
 import { askMorningOverride } from "@/surfaces/today/ask-morning-surface";
+import { replyDraftsOverride } from "@/surfaces/today/need-you/drafts-surface";
 import { workspaceOverride, type SurfaceOverride } from "./surface-data";
 import { billingOverride } from "@/surfaces/settings/billing/surface";
 import { partnerOverride } from "@/surfaces/settings/partner/surface";
@@ -94,6 +95,9 @@ const memoryIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? 
 // Ask's morning (today/ask-morning-surface.ts; decision 0070; its cards rows of Need you, 0071), where Today is on screen: a card of the morning's turn
 // pressed in the Line, or on Today itself, leaves the cards Today offers, so none is drawn with a press it no longer takes.
 const morningIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? drawnHere([askMorningOverride]) : []);
+// The drafts Ask kept for Need you's rows (today/need-you/drafts-surface.ts; decision 0071), where Today is on screen: read again behind a
+// draft written, so what the surface holds, and the cache with it, is what the rows show, and a reload draws the new words at once.
+const draftsIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? drawnHere([replyDraftsOverride]) : []);
 // The Sequences list counts a batch's replies by their messages (0060): a person erased takes theirs with them. Read where it
 // is drawn, left for its page elsewhere.
 const sequencesIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? drawnHere([sequencesOverride]) : []);
@@ -507,6 +511,9 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // A card's outcome, kept on Ask's own message: the card's own call refreshed what it changed, and Today's morning, which
   // offers the cards of one turn, reads again where it is drawn.
   "POST ask/messages/[id]/proposals/[pid]": morningIfDrawn,
+  // Ask's draft written ahead for a thread waiting on a person (decision 0071): the row that asked lays the answer on itself
+  // (today/need-you/drafts.ts), and the drafts Today read with its own are read again behind it, where Today is drawn.
+  "POST conversations/[id]/draft": draftsIfDrawn,
   "PATCH ask/memory/[id]": memoryIfDrawn,
   "DELETE ask/memory/[id]": memoryIfDrawn,
   // A booking email held for a look and dismissed (00345): the Calendar's read carries the held list and its count, which the
@@ -646,8 +653,6 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "POST lead-suggestions": "the ideas written for a first search: the page lays the answer on its view itself",
   "POST ask/morning":
     "the member's morning asked for (decision 0070): Need you lays the answer on Today itself, and reads again while Ask writes",
-  "POST conversations/[id]/draft":
-    "Ask's draft written ahead for a thread waiting on a person (decision 0071): the row that asked lays the answer on itself (today/need-you/drafts.ts), and no surface holds drafts",
   "POST reach-outs/[id]/leads/check":
     "what an add would do (00426, dry): nothing is written; the caller says the answer",
   "POST sequences/[id]/leads/check":

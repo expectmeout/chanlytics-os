@@ -49036,6 +49036,7 @@ function todayWidgetSnapshot(vm, at3, needs2) {
 // src/need-you/reply-drafts.ts
 var REPLY_DRAFT_KINDS = ["reply", "brief"];
 var REPLY_DRAFTS_IDS_MAX = 20;
+var REPLY_DRAFTS_NEWEST_MAX = 40;
 function replyDraftAbout(kind, f) {
   if (kind === "brief") {
     return [
@@ -49060,7 +49061,7 @@ function draftHasWords(d) {
 // src/need-you/reply-drafts-schema.ts
 import { z as z21 } from "zod";
 var ReplyDraftAskSchema = z21.object({ kind: z21.enum(REPLY_DRAFT_KINDS) }).strict();
-var ReplyDraftsQuerySchema = z21.object({ ids: z21.string().min(1) }).strict();
+var ReplyDraftsQuerySchema = z21.object({ ids: z21.string().min(1).optional() }).strict();
 
 // src/new-conversation/write-ways.ts
 var WRITE_HOLDS = [
@@ -64395,6 +64396,11 @@ var PREFETCH_UUID = "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{1
 var PREFETCH_SLOT = "__prefetched";
 var PREFETCH_READS = {
   // Today's strip (the next visit, the next opening) is drawn from the calendar's weeks, the read the Calendar opens on.
+  // And what its first draw waits for besides Setup (surface-registry ROUTE_WAITS), each drawn above the queue or in it:
+  // Sent's runs (Going today, and the seat a run takes among the people), the reach-outs' replies (a row read as one),
+  // Google's reviews (a review to answer is a row) and the drafts Ask kept for the rows (their words, there as they draw).
+  // They came in the stream's second tier, after the slowest of these, and landed 400 to 600 ms after the queue they
+  // stand in (page_vitals, cold loads, 20-27 Oct 2026; the Today load review, 27 Oct 2026).
   today: [
     "metrics?days=1",
     "conversations",
@@ -64403,7 +64409,11 @@ var PREFETCH_READS = {
     "lead-searches",
     "setup",
     "views",
-    "calendar?around=today"
+    "calendar?around=today",
+    "broadcasts",
+    "reach-out-replies",
+    "google",
+    "conversations/drafts"
   ],
   // The reply box's approved templates are the settings read's, the one read of the templates (surfaces/offered-templates.ts).
   // And Sent's runs, whose waiting ones are rows of Needs you (surface-registry ROUTE_DRAWS): their own read, nothing of People.
@@ -64465,22 +64475,19 @@ var PREFETCH_READS = {
   start: ["setup", "views"]
 };
 var PREFETCH_BESIDE = {
-  // Sent's runs, People's book and its lists (Worth a look's people, the day card's flags), the playbooks' moments, the bell
-  // (notifications), the reach-outs' replies, Google's reviews, the channels read Live's strip and the runs are made of, and
-  // the period line: Reports' headline over the period
-  // this device last picked, as Reports reads it. Not the settings read: nothing on Today draws it, and the composers that
-  // asked for it here follow it now (surfaces/offered-templates.ts), so it comes in the boot's second pass.
+  // People's book and its lists (Worth a look's people, the day card's flags), the playbooks' moments, the bell
+  // (notifications), the channels read Live's strip and the runs are made of, and the period line: Reports' headline over
+  // the period this device last picked, as Reports reads it. Not the settings read: nothing on Today draws it, and the
+  // composers that asked for it here follow it now (surfaces/offered-templates.ts), so it comes in the boot's second pass.
   today: [
-    "broadcasts",
     "contacts",
     "segments",
     "channels",
     `reports/headline?period=${REPORT_PERIOD_DEFAULT}`,
     "playbooks",
     "notifications",
-    "google",
-    "reach-out-replies",
-    // Ask's ideas in Need you: the member's morning as it stands (decision 0070). Only read here; the page asks for one to be written.
+    // Ask's ideas in Need you: the member's morning as it stands (decision 0070). Only read here; the page asks for one to be
+    // written, which takes a turn of the model, so its rows come after the people's whatever tier it rode in.
     "ask/morning"
   ]
 };
@@ -70216,6 +70223,7 @@ export {
   REPLY_DELAY_MAX_MS,
   REPLY_DELAY_MIN_MS,
   REPLY_DRAFTS_IDS_MAX,
+  REPLY_DRAFTS_NEWEST_MAX,
   REPLY_DRAFT_KINDS,
   REPLY_INTENTS,
   REPLY_INTENT_WORDS,
