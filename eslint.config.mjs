@@ -404,13 +404,16 @@ export const LIMITED_TREES = [
 /**
  * The held trees where a function still takes more than four parameters (measured 28 September 2026: 48 functions,
  * db's widest at 7 and today-sample's at 11; Reach out's timetable and the partners' ledger joined on 29 September). `max-params` waits in these; a tree leaves this list when its last one
- * takes an object instead. The dashboard's calendar reader joined on 7 October 2026, the day its tree was held.
+ * takes an object instead. The dashboard's calendar reader joined on 7 October 2026, the day its tree was held, and
+ * contracts' config on 28 October 2026 (the prompt's composer and resolver, which take the business, its profile, the
+ * wire, the zone, the day, the Autonomy rows and who reads it).
  */
 export const WIDE_PARAMS = [
   "packages/db/src",
   "packages/contracts/src/ai",
   "packages/contracts/src/ask-proposals",
   "packages/contracts/src/broadcasts",
+  "packages/contracts/src/config",
   "packages/contracts/src/playbooks",
   "packages/contracts/src/reach-out",
   "apps/dashboard/src/legacy-bridge/mascot",
