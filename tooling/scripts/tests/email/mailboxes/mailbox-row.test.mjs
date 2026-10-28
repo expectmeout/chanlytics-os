@@ -311,6 +311,11 @@ test("what it signs with (00487): Gmail's, said as words with when it was read; 
     choice().props.options.map((o) => o.label),
     ["From Gmail", "Write one", "None"],
   );
+  const group = byTestId(tree, "mailbox-signs");
+  const named = find(group, (n) => n.props?.className === "biz-label");
+  assert.equal(said(named), "It signs its emails with", "the choice is named where it is seen");
+  assert.equal(choice().props.labelledBy, named.props.id, "and named by those words");
+  assert.ok(byTestId(group, "mailbox-signs-said"), "what it signs with sits under its choice");
   const shown = said(byTestId(tree, "mailbox-signs-said"));
   assert.match(shown, /^Sam Reyes Harbor Moving/, "Gmail's signature, as words");
   assert.match(shown, /Read from Gmail at .+\. Saving reads it again\./);

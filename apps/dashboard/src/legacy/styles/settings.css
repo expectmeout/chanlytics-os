@@ -1899,6 +1899,9 @@ html.legacy-on .bt-link { position: relative; }
    mailboxActions; Ruben, 20 Oct 2026: no three dots), as a sequence's head draws its act and its More. */
 /* What a mailbox signs with, under its choice in its settings (00487): Gmail's signature as words, never its markup, and
    when it was read; or that none goes. */
+/* The group across the form: its name, the choice at its own width, then what it signs with across the row. */
+.set-mbx-signs-group { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); }
+.set-mbx-signs-group > :last-child { align-self: stretch; }
 .set-mbx-signs {
   display: flex;
   flex-direction: column;
