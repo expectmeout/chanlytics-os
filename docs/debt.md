@@ -355,7 +355,7 @@ copies                               67   of 19 names
 as unknown as                       120
 as never                             12
 non-null assertions, x!              93
-index reads the compiler lets pass  412   in 111 files
+index reads the compiler lets pass  410   in 110 files
 table names outside packages/db     417
 SQL functions outside packages/db   119   called by .rpc
 edge statements naming no workspace   27   in 14 files

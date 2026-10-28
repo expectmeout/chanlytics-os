@@ -27,6 +27,10 @@ const {
   warmRoute,
   warmSoon,
   keepWarm,
+  aheadWhenIdle,
+  afterBoot,
+  bootComing,
+  bootStarted,
 } = await importSrc("apps/dashboard/src/legacy-bridge/workspace.ts");
 const { onOnePage, routeHasPage } = await importSrc("apps/dashboard/src/surfaces/routes.ts");
 const { signInReturnOf: signInReturn } = await importSrc("apps/dashboard/src/auth/sign-in-return.ts");
@@ -462,6 +466,45 @@ test("routes are warmed once the page is idle, a breath apart, and not at all wh
     globalThis.requestIdleCallback = was.idle;
     if (was.nav) Object.defineProperty(globalThis, "navigator", was.nav);
     else delete globalThis.navigator;
+  }
+});
+
+test("REGRESSION: what waits for the boot waits for the runner's, once the shell says one is coming -- Ask's follow-ups and the warms are made before the runner starts, and went 1.2 to 1.8 s into a cold load, beside Today's own stream", async () => {
+  const was = globalThis.requestIdleCallback;
+  const done = [];
+  try {
+    globalThis.requestIdleCallback = (fn) => setTimeout(fn, 0);
+    const tick = () => new Promise((r) => setTimeout(r, 5));
+    // No boot coming (a page with no shell, a test's window): nothing waits.
+    await afterBoot();
+    aheadWhenIdle(() => done.push("at once"));
+    await tick();
+    assert.deepEqual(done, ["at once"]);
+    // The shell says a boot is coming before anything asks; the runner starts it later, in an effect.
+    bootComing();
+    const asked = afterBoot();
+    void asked.then(() => done.push("follow-ups"));
+    aheadWhenIdle(() => done.push("warm"));
+    const cancelled = aheadWhenIdle(() => done.push("cancelled"));
+    cancelled();
+    await tick();
+    assert.deepEqual(done, ["at once"], "nothing goes before the runner has even started");
+    let land;
+    bootStarted(new Promise((r) => (land = r)));
+    await tick();
+    assert.deepEqual(done, ["at once"], "nor while its boot is out");
+    land();
+    await tick();
+    assert.deepEqual(
+      done,
+      ["at once", "follow-ups", "warm"],
+      "and once it is in, each goes; one cancelled meanwhile does not",
+    );
+    // A boot that failed is in all the same.
+    bootStarted(Promise.reject(new Error("boot")));
+    await afterBoot();
+  } finally {
+    globalThis.requestIdleCallback = was;
   }
 });
 

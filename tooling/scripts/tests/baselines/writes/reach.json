@@ -1,6 +1,6 @@
 {
-  "rows": 148,
-  "same": 6,
+  "rows": 149,
+  "same": 7,
   "differ": 142,
   "writes": {
     "DELETE ask/memory/[id]": {
@@ -24,6 +24,7 @@
         "person": "clients/person",
         "reach_out_replies": "inbox, today",
         "reach_outs": "every page",
+        "reply_drafts": "today",
         "reports_reviews": "reports/reviews",
         "settings": "every page"
       }
@@ -580,6 +581,7 @@
         "person": "clients/person",
         "reach_out_replies": "every page",
         "reach_outs": "every page",
+        "reply_drafts": "today",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_reviews": "reports/reviews",
         "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
@@ -603,6 +605,7 @@
         "person": "clients/person",
         "reach_out_replies": "inbox, today",
         "reach_outs": "every page",
+        "reply_drafts": "today",
         "reports_reviews": "reports/reviews",
         "settings": "every page"
       }
@@ -707,6 +710,7 @@
         "playbooks": "campaigns/sequences/new, outbound",
         "reach_out_replies": "inbox, today",
         "reach_outs": "campaigns/messages, messages, outbound",
+        "reply_drafts": "today",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_people": "reports/people",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages, outbound, start",
@@ -729,6 +733,10 @@
         "today_pins": "today"
       }
     },
+    "POST conversations/[id]/draft": {
+      "changes": "conversation_drafts INSERT UPDATE",
+      "doors": "mailbox_connections · notifications"
+    },
     "POST conversations/[id]/hand-back": {
       "changes": "contacts UPDATE · conversations UPDATE · escalations UPDATE · messages UPDATE · notifications UPDATE",
       "tells": "contacts · notifications",
@@ -747,6 +755,7 @@
         "playbooks": "campaigns/sequences/new, outbound",
         "reach_out_replies": "inbox, today",
         "reach_outs": "campaigns/messages, messages, outbound",
+        "reply_drafts": "today",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_people": "reports/people",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages, outbound, start",
@@ -773,6 +782,7 @@
         "playbooks": "broadcasts, campaigns/messages, campaigns/sequences/new, messages, outbound, today",
         "reach_out_replies": "inbox, today",
         "reach_outs": "campaigns/messages, messages, outbound",
+        "reply_drafts": "today",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_people": "reports/people",
         "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
@@ -799,6 +809,7 @@
         "playbooks": "campaigns/sequences/new, outbound",
         "reach_out_replies": "inbox, today",
         "reach_outs": "campaigns/messages, messages, outbound",
+        "reply_drafts": "today",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_people": "reports/people",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages, outbound, start",
@@ -824,6 +835,7 @@
         "playbooks": "campaigns/sequences/new, outbound",
         "reach_out_replies": "inbox, today",
         "reach_outs": "campaigns/messages, messages, outbound",
+        "reply_drafts": "today",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_people": "reports/people",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages, outbound, start",
@@ -849,6 +861,7 @@
         "playbooks": "campaigns/sequences/new, outbound",
         "reach_out_replies": "inbox, today",
         "reach_outs": "campaigns/messages, messages, outbound",
+        "reply_drafts": "today",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_people": "reports/people",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages, outbound, start",
@@ -1396,6 +1409,7 @@
         "playbooks": "campaigns/sequences/new, outbound",
         "reach_out_replies": "inbox, today",
         "reach_outs": "campaigns/messages, messages, outbound",
+        "reply_drafts": "today",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_people": "reports/people",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages, outbound, start",
@@ -1464,6 +1478,7 @@
         "playbooks": "broadcasts, campaigns/messages, campaigns/sequences/new, messages, outbound, today",
         "reach_out_replies": "inbox, today",
         "reach_outs": "campaigns/messages, messages, outbound",
+        "reply_drafts": "today",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_people": "reports/people",
         "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
@@ -1590,6 +1605,7 @@
         "live": "live, start, today",
         "person": "clients/person",
         "reach_out_replies": "inbox, today",
+        "reply_drafts": "today",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_people": "reports/people",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages, outbound, start",
@@ -1671,6 +1687,7 @@
         "live": "live, start, today",
         "notifications": "every page",
         "person": "clients/person",
+        "reply_drafts": "today",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_headline": "today",
         "reports_people": "reports/people",

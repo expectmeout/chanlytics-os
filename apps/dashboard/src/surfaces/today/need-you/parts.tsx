@@ -79,7 +79,11 @@ export function Words({
   );
 }
 
-/** Ask writing the words: the row lands first, the draft fills in a moment later. */
+/**
+ * Ask writing the words: the row lands first, the draft fills in a moment later, where the four lines it stands on are
+ * a draft's usual height (need-you.css .ny-sk-lines), so the words take their place with the row moving as little as it can.
+ * It stood on two thin bars, and a draft of five lines pushed everything under it down as it came.
+ */
 export function Writing() {
   return (
     <Panel variant="inset" size="sm" className="ny-draft" aria-busy="true">
@@ -87,8 +91,12 @@ export function Writing() {
         <AskMark live />
         <span className="ny-by-words">{W.drafting}</span>
       </span>
-      <span className="ny-sk" aria-hidden="true" />
-      <span className="ny-sk ny-sk-short" aria-hidden="true" />
+      <span className="ny-sk-lines" aria-hidden="true">
+        <span className="ny-sk" />
+        <span className="ny-sk" />
+        <span className="ny-sk" />
+        <span className="ny-sk ny-sk-short" />
+      </span>
     </Panel>
   );
 }

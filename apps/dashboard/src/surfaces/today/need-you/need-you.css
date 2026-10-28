@@ -82,9 +82,15 @@
   color: var(--ink-dim);
 }
 /* Ask writing: two lines of the inset's own fill where its words will be. */
+/* Where Ask's words will stand while it writes them: each bar a line of .ny-words tall, the bar in its middle. */
+.ny-sk-lines {
+  display: block;
+  font-size: var(--text-md);
+}
 .ny-sk {
   display: block;
   height: 10px;
+  margin-block: calc((1em * var(--leading-normal) - 10px) / 2);
   border-radius: var(--radius-full);
   background: var(--surface-inset-fill);
 }

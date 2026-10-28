@@ -501,12 +501,22 @@ six. Measured on production, 9 October 2026: the Inbox had its rows 350 ms into 
 - _The boot reads the page's own first._ Who is looking, the page's surface and what it draws beside it
   (`ROUTE_DRAWS`, `apps/dashboard/src/legacy-bridge/hearing/route-draws.ts`, read through
   `apps/dashboard/src/legacy-bridge/surface-registry.ts`), then everyone else's
-  (`apps/dashboard/src/legacy-bridge/surface-runner.ts`).
+  (`apps/dashboard/src/legacy-bridge/surface-runner.ts`). What waits for the boot (a warm, Ask's follow-ups, a list's
+  people ahead) waits for this one (`workspace.ts` `afterBoot`; the shell says a boot is coming before anything asks).
+- _Nothing lands over what is drawn._ What stands above a page's own content or in it is waited for by its first draw
+  (`ROUTE_WAITS` beside `ROUTE_DRAWS`, the code of such a part too: `surface-status.ts` `firstDrawWaitsFor`), is read in
+  the first tier of its stream (`PREFETCH_READS`), and comes first in `ROUTE_DRAWS`; the second tier (`PREFETCH_BESIDE`)
+  lands after the first draw, so only what stands below the fold reads there. Measured on Today before it held (27 October
+  2026): the Setup card, Going today, a run's seat, a review's row and the drafts' words each landed after the queue and
+  moved it.
 - _What is read only where it is drawn is read as its page is reached for._ A surface marked `onDemand` (Reports among
   them) is on no other page's boot; a pointer at its row in the sidebar, or the phone's drawer opening, starts its reads
   (`surface-registry.ts` `warmWhatItDraws`), so the press finds them in or on their way.
 - _The browser keeps what it read._ The last read of every surface paints before React draws (`surface-cache.ts`), and a
-  view the tab has held paints at once and is read again behind (`apps/dashboard/src/legacy-bridge/held-views.ts`).
+  view the tab has held paints at once and is read again behind (`apps/dashboard/src/legacy-bridge/held-views.ts`). A
+  snapshot outlives a deploy that left its value's type alone (`apps/dashboard/src/legacy-bridge/surfaces/shapes.generated.ts`, written by
+  `tooling/scripts/gen/surface-shapes.mjs` and checked by the dashboard's typecheck), and over its size the slot sheds
+  first what the page on screen does not draw.
 - _Its page is the build's, and a press on it asks for nothing._ Every page under `apps/dashboard/app/(os)` reads no
   request, so it is prerendered once for every person and workspace (decision 0053, step 5): a document is the build's
   file, and a warm (`apps/dashboard/src/legacy-bridge/workspace.ts` `warmRoute`) is the build's segment files, which

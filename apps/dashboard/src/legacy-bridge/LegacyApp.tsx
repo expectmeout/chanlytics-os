@@ -66,6 +66,7 @@ import { calendarOverride } from "@/surfaces/calendar/surface";
 import { calendarRunsOverride, readRunsSoon } from "@/surfaces/calendar/runs-surface";
 import { todayPinsOverride } from "@/surfaces/today/pins-surface";
 import { askMorningOverride } from "@/surfaces/today/ask-morning-surface";
+import { replyDraftsOverride } from "@/surfaces/today/need-you/drafts-surface";
 import { askMemoryOverride } from "@/surfaces/settings/memory/surface";
 import { notificationsOverride } from "./surfaces/notifications";
 import {
@@ -136,6 +137,9 @@ function CreateWorkspace(props: ComponentProps<typeof import("./CreateWorkspace"
   );
 }
 
+// Before anything below asks for it: a boot is coming (workspace.ts bootComing), so what waits for the boot waits for the one
+// the runner starts in its effect, not for none.
+bootComing();
 // First: every page says a time by the workspace's clock (zone.ts), from the first paint.
 installClock();
 // What a tab keeps for its pages -- a view's place, a half-done draft -- before any page reads it (tab-memory.ts).
@@ -264,6 +268,8 @@ const SURFACES = [
   // Ask's morning, read where Today draws its ideas in Need you, and what Ask remembers, where Settings › Memory is drawn (decision 0070).
   askMorningOverride,
   askMemoryOverride,
+  // The drafts Ask kept for the rows of Need you, read with Today's own first reads (surfaces/today/need-you/drafts-surface.ts).
+  replyDraftsOverride,
   calendarOverride,
   notificationsOverride,
   setupOverride,
@@ -327,7 +333,15 @@ import {
   routeSurfaces,
   warmWhatItDraws,
 } from "./surface-registry";
-import { getActiveWorkspace, hearAddress, onRouteAsked, onRouteReachedFor, reachFor, routeOnScreen } from "./workspace";
+import {
+  bootComing,
+  getActiveWorkspace,
+  hearAddress,
+  onRouteAsked,
+  onRouteReachedFor,
+  reachFor,
+  routeOnScreen,
+} from "./workspace";
 import { LeadOverMount } from "@/surfaces/leads/sheet/over-mount";
 import { SeeOverMount } from "@/surfaces/see/see-mount";
 

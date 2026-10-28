@@ -237,6 +237,8 @@ const HEARD_BEFORE = {
   // Ask's morning for the member and what Ask remembers (decision 0070): no record the feed carries; read where drawn.
   ask_morning: [],
   ask_memory: [],
+  // The drafts Ask kept for Need you's rows, read with Today's first reads (decision 0071): written and read by the rows.
+  reply_drafts: [],
   // And the person a visit is (W-person-list-lead-6): an update of them, never a person made.
   // And the mailbox the Business tab's forwarding code is kept on (R6: S4-4).
   calendar: ["appointments", "appointment_notices", "tenant_config", "contacts", "mailboxes"],

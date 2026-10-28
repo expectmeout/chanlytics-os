@@ -14,6 +14,7 @@ import { Button } from "../kit/button/button";
 import { FailedRead } from "../kit/empty/empty";
 import { reportDoor } from "../kit/empty/report-door";
 import { useHeadUnder } from "../kit/head/standing";
+import { headSlotDrawn } from "../kit/head/frame-head";
 import type { viewDeck } from "../kit/motion/view-deck";
 import type { SurfaceViews } from "../routes";
 import { frameGlyph, fromGlobal, fromWindow } from "./frame-window";
@@ -197,7 +198,8 @@ const glassHead = ({ glass, pane, where, page, param, views, navigate, primaryAc
   if ((where === "over") !== pane) return null;
   return (
     <PageSlot views={views}>
-      <div className="pg-head-slot" id="pg-head" />
+      {/* Told as it is drawn, so the head is drawn into it in the same commit (frame-head.tsx headSlotDrawn). */}
+      <div className="pg-head-slot" id="pg-head" ref={headSlotDrawn} />
       <Strip page={page} param={param} views={views} onNavigate={navigate} />
       <div className="pg-act-slot">
         <span id="pg-act" />

@@ -25,20 +25,25 @@ export const PERSON_ROUTE = "clients/person";
  * route absent here draws only its own surface.
  */
 export const ROUTE_DRAWS: Record<string, readonly string[]> = {
+  // What the first draw waits for comes first (ROUTE_WAITS, below), in the same order: the boot reads these four at a time,
+  // and one behind a read of the stream's second tier (People, the playbooks: up to two seconds) held the page for it.
   // Setup first: what is left to set up is drawn ABOVE the queue (surfaces/today/pages/setup-card.tsx TodaySetup), and read seventh it
   // landed after the queue and pushed it down (Ruben, 24 Sep: "does not load properly like the rest of the page").
   today: [
     "setup",
     "calendar",
     "broadcasts",
+    // A reply to a reach-out, read: its queue row and the bell's door (Reach out Part 5, PR 8).
+    "reach_out_replies",
+    "google",
+    // The drafts Ask kept for the rows of Need you, read with the page so each row draws with its words (surfaces/today/
+    // need-you/drafts-surface.ts; decision 0071).
+    "reply_drafts",
     "reports_headline",
     "playbooks",
     "notifications",
     "live",
-    "google",
     "people",
-    // A reply to a reach-out, read: its queue row and the bell's door (Reach out Part 5, PR 8).
-    "reach_out_replies",
     // The line and the runs' number: Live's strip and Sent's are made of the channels read (surfaces/channels/surface.ts).
     "channels",
     // The counts of the lists pinned here, read on their own (surfaces/today/pins-surface.ts; R10): People's are as of its
@@ -127,7 +132,13 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
  * still out (surfaces/frame/app-shell.tsx).
  */
 export const ROUTE_WAITS: Record<string, readonly string[]> = {
-  today: ["setup"],
+  // And everything else that stands above the queue or in it: the strip over the page (the calendar's weeks), Going today
+  // above the queue and the seat a run takes in it (Sent's runs), a row read as a reach-out's reply, a review to answer
+  // (Google's) and the words of each row (the drafts Ask kept). Each landed after the queue on a cold load and moved it: the
+  // strip in 18 of 41 phone loads, the runs and reviews 400 to 600 ms after it, the drafts after the queue had drawn, 181
+  // and 397 px each on a desk (the Today load review, 27 Oct 2026). Each is a small read the head starts with Today's own
+  // (contracts PREFETCH_READS); People's book, read last, is waited for by none of it.
+  today: ["setup", "calendar", "broadcasts", "reach_out_replies", "google", "reply_drafts"],
   // The Inbox's rows of the runs waiting for your word stand above its threads: landing after them, four pushed them 330px down
   // on a phone (18 Oct 2026). Sent's runs read nothing of People and leave from the document's head with the threads.
   inbox: ["broadcasts"],

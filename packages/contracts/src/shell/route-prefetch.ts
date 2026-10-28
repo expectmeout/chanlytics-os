@@ -13,7 +13,7 @@ const PREFETCH_UUID = "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]
 export const PREFETCH_SLOT = "__prefetched";
 /**
  * What each page opens on, by the shell's route: its own surface's first reads, in the order it asks for them, and on
- * Today the band its first draw waits for (surface-registry ROUTE_WAITS: Setup's). Each is spelled as the client spells
+ * Today what its first draw waits for (surface-registry ROUTE_WAITS: what stands above its queue or in it). Each is spelled as the client spells
  * it (client/api.ts urlFor: the path, the read's own query in its order, then the workspace), so the client's read
  * takes what the head started. Every page is here (route-prefetch.test.mjs holds the list to the pages there are, so a
  * new page says what it opens on, or the test says why it cannot). Three used to open on who is looking alone, and
@@ -26,6 +26,11 @@ export const PREFETCH_SLOT = "__prefetched";
  */
 export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
   // Today's strip (the next visit, the next opening) is drawn from the calendar's weeks, the read the Calendar opens on.
+  // And what its first draw waits for besides Setup (surface-registry ROUTE_WAITS), each drawn above the queue or in it:
+  // Sent's runs (Going today, and the seat a run takes among the people), the reach-outs' replies (a row read as one),
+  // Google's reviews (a review to answer is a row) and the drafts Ask kept for the rows (their words, there as they draw).
+  // They came in the stream's second tier, after the slowest of these, and landed 400 to 600 ms after the queue they
+  // stand in (page_vitals, cold loads, 20-27 Oct 2026; the Today load review, 27 Oct 2026).
   today: [
     "metrics?days=1",
     "conversations",
@@ -35,6 +40,10 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
     "setup",
     "views",
     "calendar?around=today",
+    "broadcasts",
+    "reach-out-replies",
+    "google",
+    "conversations/drafts",
   ],
   // The reply box's approved templates are the settings read's, the one read of the templates (surfaces/offered-templates.ts).
   // And Sent's runs, whose waiting ones are rows of Needs you (surface-registry ROUTE_DRAWS): their own read, nothing of People.
@@ -102,25 +111,23 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
  * production build: Today's ten drawn surfaces asked from 630 ms, its own reads having come back by 460), and the parts
  * of the page drawn from them, the period line and what is worth a look, were the last to come (production: 2.7 to 4.1 s
  * on a cold load). Read on the server once the page's own are in, as the boot's two passes read them, so they never
- * crowd the page's own. Held to the surfaces' own reads by route-prefetch.test.mjs, which runs each one.
+ * crowd the page's own. So nothing here may stand above the page's own content or in it: it lands after the first draw.
+ * Held to the surfaces' own reads by route-prefetch.test.mjs, which runs each one.
  */
 export const PREFETCH_BESIDE: Readonly<Record<string, readonly string[]>> = {
-  // Sent's runs, People's book and its lists (Worth a look's people, the day card's flags), the playbooks' moments, the bell
-  // (notifications), the reach-outs' replies, Google's reviews, the channels read Live's strip and the runs are made of, and
-  // the period line: Reports' headline over the period
-  // this device last picked, as Reports reads it. Not the settings read: nothing on Today draws it, and the composers that
-  // asked for it here follow it now (surfaces/offered-templates.ts), so it comes in the boot's second pass.
+  // People's book and its lists (Worth a look's people, the day card's flags), the playbooks' moments, the bell
+  // (notifications), the channels read Live's strip and the runs are made of, and the period line: Reports' headline over
+  // the period this device last picked, as Reports reads it. Not the settings read: nothing on Today draws it, and the
+  // composers that asked for it here follow it now (surfaces/offered-templates.ts), so it comes in the boot's second pass.
   today: [
-    "broadcasts",
     "contacts",
     "segments",
     "channels",
     `reports/headline?period=${REPORT_PERIOD_DEFAULT}`,
     "playbooks",
     "notifications",
-    "google",
-    "reach-out-replies",
-    // Ask's ideas in Need you: the member's morning as it stands (decision 0070). Only read here; the page asks for one to be written.
+    // Ask's ideas in Need you: the member's morning as it stands (decision 0070). Only read here; the page asks for one to be
+    // written, which takes a turn of the model, so its rows come after the people's whatever tier it rode in.
     "ask/morning",
   ],
 };

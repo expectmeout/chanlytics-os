@@ -35,7 +35,7 @@ import {
   type FeedWatch,
   type RealtimeChange,
 } from "./surface-realtime";
-import { getActiveWorkspace, routeOnScreen, signInHref } from "./workspace";
+import { bootStarted, getActiveWorkspace, routeOnScreen, signInHref } from "./workspace";
 import { watchTheClock } from "./hearing/clock";
 import { watchTheDayTurn } from "./hearing/day-turn";
 import { pageHidden } from "./hearing/front";
@@ -63,8 +63,6 @@ export {
 let activeRefresh: ((o: SurfaceOverride) => Promise<void>) | null = null;
 /** The running runner's surfaces: what the shell's Retry reads again. */
 let activeOverrides: SurfaceOverride[] = [];
-/** The running runner's boot, settled once its last surface is in, whether each read worked or not. */
-let activeBoot: Promise<void> = Promise.resolve();
 /** A surface whose first read failed is read once more after this: one retry covers boot blips. */
 const BOOT_RETRY_MS = 800;
 /**
@@ -87,15 +85,6 @@ const REFRESH_DEBOUNCE_MS = 400;
  * A surface whose read is dear names a longer one of its own (`maxWaitMs`).
  */
 const REFRESH_MAX_WAIT_MS = 3_000;
-
-/**
- * Once the boot is in: when work nobody is waiting for may start (people.ts reading a list's people ahead) without
- * standing in the lanes the page's own surfaces boot through -- twenty-three reads at once is what made a cold load
- * take 7.8 s. Settled at once when no runner is booting.
- */
-export function afterBoot(): Promise<void> {
-  return activeBoot;
-}
 
 /**
  * A read the page on screen opens on that is no surface -- a person's page reads its person (people-detail.ts
@@ -641,10 +630,8 @@ function bootInPasses(run: SurfaceRun): SurfaceBoot {
       dropPrefetched(window);
       return run.cancelled ? undefined : inLanes(strangers, BOOT_LANES, boot);
     });
-  activeBoot = booted.then(
-    () => undefined,
-    () => undefined,
-  );
+  // What waits for the boot (workspace.ts afterBoot: Ask's follow-ups, a list's people ahead, the warms) waits for this one.
+  bootStarted(booted);
   // A run with no workspace surface (a test's) knows who is looking when its boot is in, as every run once did.
   if (!overrides.some((o) => o.key === "workspace")) void booted.finally(knowWho);
   return { booted, releaseAnswers, whoIsLooking };

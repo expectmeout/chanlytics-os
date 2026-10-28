@@ -21,7 +21,7 @@ const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server
 const { setModelStream } = await import(at("apps/dashboard/src/server/model-json.ts"));
 const draft = await import(at("apps/dashboard/app/api/v1/conversations/[id]/draft/route.ts"));
 const drafts = await import(at("apps/dashboard/app/api/v1/conversations/drafts/route.ts"));
-const { REPLY_DRAFTS_IDS_MAX } = await import("@chanlytics/contracts");
+const { REPLY_DRAFTS_IDS_MAX, REPLY_DRAFTS_NEWEST_MAX } = await import("@chanlytics/contracts");
 
 let asked;
 beforeEach(() => {
@@ -198,6 +198,39 @@ test("a reply to an email written to the connected mailbox is read as signed wit
     "the line under the card says what the send will sign with, and none where it leaves from the hosted mailbox",
   );
   assert.equal(writes(ctx), 0, "a read writes nothing");
+});
+
+test("naming no thread, the read answers the workspace's newest kept drafts, newest first, and whether they are all it keeps: Today reads them with its own, before it knows its rows", async () => {
+  const at = (n) => `2026-10-2${n}T12:00:00.000Z`;
+  const ctx = ctxFor({
+    memberships: [membership("operator")],
+    conversation_drafts: [
+      { ...kept(C1, M1, "Friday works."), made_at: at(3) },
+      { ...kept(C2, M2, "Thursday then."), made_at: at(5) },
+      { ...kept(C1, M2, "Another workspace's words.", B), made_at: at(7) },
+    ],
+  });
+  const d = await dataOf(await drafts.GET.run(get(""), ctx));
+  assert.deepEqual(
+    d.drafts.map((x) => x.words.text),
+    ["Thursday then.", "Friday works."],
+    "this workspace's alone, the newest first",
+  );
+  assert.equal(d.complete, true, "every draft it keeps: a row whose thread has none here has none at all");
+  assert.equal(writes(ctx), 0, "a read writes nothing");
+  // Past the newest the read answers, it says so: a row whose draft is not among them is read by its thread.
+  const many = Array.from({ length: REPLY_DRAFTS_NEWEST_MAX + 1 }, (_, i) => ({
+    ...kept(`cccccccc-cccc-4ccc-8ccc-${String(i).padStart(12, "0")}`, M1, `Words ${i}.`),
+    made_at: new Date(Date.UTC(2026, 9, 1) + i * 60_000).toISOString(),
+  }));
+  const more = await dataOf(
+    await drafts.GET.run(get(""), ctxFor({ memberships: [membership("operator")], conversation_drafts: many })),
+  );
+  assert.equal(more.drafts.length, REPLY_DRAFTS_NEWEST_MAX);
+  assert.equal(more.drafts[0].words.text, `Words ${REPLY_DRAFTS_NEWEST_MAX}.`, "the newest first");
+  assert.equal(more.complete, false);
+  // Named threads are always all of theirs.
+  assert.equal((await dataOf(await drafts.GET.run(get(`ids=${C1}`), ctx))).complete, true);
 });
 
 test("the read takes thread ids only, and no more than a card draws", async () => {
