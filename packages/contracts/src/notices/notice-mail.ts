@@ -70,7 +70,7 @@ const FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Helvetica,Arial,
 const LINK_STYLE = `color:${ACTION};text-decoration:underline`;
 
 /** Words into the mail: escaped, addresses linked, line breaks kept. */
-const said = (s: string): string => linkifyEscaped(escapeHtml(s), LINK_STYLE).replace(/\n/g, "<br>");
+const mailWords = (s: string): string => linkifyEscaped(escapeHtml(s), LINK_STYLE).replace(/\n/g, "<br>");
 
 /** The chip a tone wears, in the app's own colours; none for plain news. */
 const CHIPS: Record<"ok" | "warn", { words: string; bg: string; ink: string; cls: string }> = {
@@ -79,7 +79,7 @@ const CHIPS: Record<"ok" | "warn", { words: string; bg: string; ink: string; cls
 };
 
 /** The bell's tone and button words for this alert: one derivation, the bell's (serverNotificationRows). */
-function lookOf(m: Pick<NoticeMail, "kind" | "subject" | "route">): { tone: string; action: string } {
+function bellLookOf(m: Pick<NoticeMail, "kind" | "subject" | "route">): { tone: string; action: string } {
   const [row] = serverNotificationRows({
     seen_at: null,
     notifications: [
@@ -106,7 +106,7 @@ function blockHtml(b: Block, href: string | null): string {
       .map(
         ([label, value], i) =>
           `<tr><td class="ink3 line" style="padding:9px 12px 9px 0;width:132px;vertical-align:top;font-size:14px;color:${INK_3};${i ? `border-top:1px solid ${LINE};` : ""}">${escapeHtml(label)}</td>` +
-          `<td class="ink line" style="padding:9px 0;vertical-align:top;font-size:14px;color:${INK};${i ? `border-top:1px solid ${LINE};` : ""}">${said(value)}</td></tr>`,
+          `<td class="ink line" style="padding:9px 0;vertical-align:top;font-size:14px;color:${INK};${i ? `border-top:1px solid ${LINE};` : ""}">${mailWords(value)}</td></tr>`,
       )
       .join("");
     return `<table role="presentation" class="line" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid ${LINE};border-bottom:1px solid ${LINE};margin:0 0 16px">${rows}</table>`;
@@ -118,14 +118,14 @@ function blockHtml(b: Block, href: string | null): string {
         : "";
     return (
       `<p class="ink3" style="margin:0 0 6px;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:${INK_3}">${escapeHtml(b.section)}</p>` +
-      `<p class="quote ink2" style="margin:0 0 16px;padding:12px 14px;border-radius:10px;background:#f2f3f7;font-size:15px;line-height:1.55;color:${INK_2}">${said(b.lines.join("\n"))}</p>`
+      `<p class="quote ink2" style="margin:0 0 16px;padding:12px 14px;border-radius:10px;background:#f2f3f7;font-size:15px;line-height:1.55;color:${INK_2}">${mailWords(b.lines.join("\n"))}</p>`
     );
   }
-  return `<p class="ink2" style="margin:0 0 16px;font-size:15px;line-height:1.55;color:${INK_2}">${said(b.lines.join("\n"))}</p>`;
+  return `<p class="ink2" style="margin:0 0 16px;font-size:15px;line-height:1.55;color:${INK_2}">${mailWords(b.lines.join("\n"))}</p>`;
 }
 
 /** The mail's first line in an inbox's list, before it is opened: the alert's first words. */
-function previewOf(blocks: Block[]): string {
+function mailPreviewOf(blocks: Block[]): string {
   const first = blocks.find((b) => !("section" in b));
   if (!first) return "";
   const line = "facts" in first ? `${first.facts[0]?.[0]}: ${first.facts[0]?.[1]}` : first.lines.join(" ");
@@ -138,7 +138,7 @@ const DARK = `@media (prefers-color-scheme:dark){.bg{background:#121317!importan
 /** An alert's HTML: the layout, the words as the text mail says them, the bell's chip and button. */
 export function noticeMailHtml(m: NoticeMail): string {
   const blocks = blocksOf(m.body);
-  const look = lookOf(m);
+  const look = bellLookOf(m);
   const chip = look.tone === "warn" || look.tone === "ok" ? CHIPS[look.tone] : null;
   const button = m.href
     ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:4px 0 0"><tr><td style="border-radius:10px;background:${ACTION}"><a href="${escapeHtml(m.href)}" style="display:inline-block;padding:13px 22px;font-size:15px;font-weight:600;line-height:18px;color:#ffffff;text-decoration:none;border-radius:10px">${escapeHtml(look.action)}</a></td></tr></table>`
@@ -154,7 +154,7 @@ export function noticeMailHtml(m: NoticeMail): string {
 <meta name="color-scheme" content="light dark"><meta name="supported-color-schemes" content="light dark">
 <title>${escapeHtml(m.subject)}</title><style>${DARK}</style></head>
 <body class="bg" style="margin:0;padding:0;background:#f6f7fa">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0">${escapeHtml(previewOf(blocks))}</div>
+<div style="display:none;max-height:0;overflow:hidden;opacity:0">${escapeHtml(mailPreviewOf(blocks))}</div>
 <table role="presentation" class="bg" width="100%" cellpadding="0" cellspacing="0" style="background:#f6f7fa;font-family:${FONT}"><tr><td align="center" style="padding:28px 12px">
 <table role="presentation" class="wrap" width="560" cellpadding="0" cellspacing="0" style="width:560px;max-width:560px">
 <tr><td style="padding:0 4px 14px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>

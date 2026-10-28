@@ -4,7 +4,9 @@ const FACT = /^([A-Z][^:\n]{0,40}):\s+(\S.*)$/u;
 const SECTION = /^([A-Z][^:\n]{0,40}):$/u;
 const LEFT_TO_THE_PAGE = /* @__PURE__ */ new Set(["Transcript"]);
 function blocksOf(body) {
-  return body.replace(/\r\n?/g, "\n").split(/\n{2,}/).map((b) => b.split("\n").map((l) => l.trimEnd()).filter((l) => l.trim())).filter((lines) => lines.length > 0).map((lines) => {
+  return body.replace(/\r\n?/g, "\n").split(/\n{2,}/).map(
+    (b) => b.split("\n").map((l) => l.trimEnd()).filter((l) => l.trim())
+  ).filter((lines) => lines.length > 0).map((lines) => {
     const head = SECTION.exec(lines[0] ?? "");
     if (head && lines.length > 1) return { section: head[1] ?? "", lines: lines.slice(1) };
     const facts = lines.map((l) => FACT.exec(l));
@@ -19,12 +21,12 @@ const LINE = "#e3e4ec";
 const ACTION = "#c4452e";
 const FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Helvetica,Arial,sans-serif";
 const LINK_STYLE = `color:${ACTION};text-decoration:underline`;
-const said = (s) => linkifyEscaped(escapeHtml(s), LINK_STYLE).replace(/\n/g, "<br>");
+const mailWords = (s) => linkifyEscaped(escapeHtml(s), LINK_STYLE).replace(/\n/g, "<br>");
 const CHIPS = {
   warn: { words: "Needs you", bg: "#fbf0dc", ink: "#7a5718", cls: "chip-warn" },
   ok: { words: "Good news", bg: "#e3f3ea", ink: "#1f6b44", cls: "chip-ok" }
 };
-function lookOf(m) {
+function bellLookOf(m) {
   const [row] = serverNotificationRows({
     seen_at: null,
     notifications: [
@@ -47,18 +49,18 @@ function lookOf(m) {
 function blockHtml(b, href) {
   if ("facts" in b) {
     const rows = b.facts.map(
-      ([label, value], i) => `<tr><td class="ink3 line" style="padding:9px 12px 9px 0;width:132px;vertical-align:top;font-size:14px;color:${INK_3};${i ? `border-top:1px solid ${LINE};` : ""}">${escapeHtml(label)}</td><td class="ink line" style="padding:9px 0;vertical-align:top;font-size:14px;color:${INK};${i ? `border-top:1px solid ${LINE};` : ""}">${said(value)}</td></tr>`
+      ([label, value], i) => `<tr><td class="ink3 line" style="padding:9px 12px 9px 0;width:132px;vertical-align:top;font-size:14px;color:${INK_3};${i ? `border-top:1px solid ${LINE};` : ""}">${escapeHtml(label)}</td><td class="ink line" style="padding:9px 0;vertical-align:top;font-size:14px;color:${INK};${i ? `border-top:1px solid ${LINE};` : ""}">${mailWords(value)}</td></tr>`
     ).join("");
     return `<table role="presentation" class="line" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid ${LINE};border-bottom:1px solid ${LINE};margin:0 0 16px">${rows}</table>`;
   }
   if ("section" in b) {
     if (LEFT_TO_THE_PAGE.has(b.section))
       return href ? `<p class="ink3" style="margin:0 0 16px;font-size:13px;color:${INK_3}">The ${escapeHtml(b.section.toLowerCase())} is on its page: <a href="${escapeHtml(href)}" style="${LINK_STYLE}">read it there</a>.</p>` : "";
-    return `<p class="ink3" style="margin:0 0 6px;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:${INK_3}">${escapeHtml(b.section)}</p><p class="quote ink2" style="margin:0 0 16px;padding:12px 14px;border-radius:10px;background:#f2f3f7;font-size:15px;line-height:1.55;color:${INK_2}">${said(b.lines.join("\n"))}</p>`;
+    return `<p class="ink3" style="margin:0 0 6px;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:${INK_3}">${escapeHtml(b.section)}</p><p class="quote ink2" style="margin:0 0 16px;padding:12px 14px;border-radius:10px;background:#f2f3f7;font-size:15px;line-height:1.55;color:${INK_2}">${mailWords(b.lines.join("\n"))}</p>`;
   }
-  return `<p class="ink2" style="margin:0 0 16px;font-size:15px;line-height:1.55;color:${INK_2}">${said(b.lines.join("\n"))}</p>`;
+  return `<p class="ink2" style="margin:0 0 16px;font-size:15px;line-height:1.55;color:${INK_2}">${mailWords(b.lines.join("\n"))}</p>`;
 }
-function previewOf(blocks) {
+function mailPreviewOf(blocks) {
   const first = blocks.find((b) => !("section" in b));
   if (!first) return "";
   const line = "facts" in first ? `${first.facts[0]?.[0]}: ${first.facts[0]?.[1]}` : first.lines.join(" ");
@@ -68,7 +70,7 @@ const DARK = `@media (prefers-color-scheme:dark){.bg{background:#121317!importan
 @media (max-width:620px){.wrap{width:100%!important}.pad{padding:22px 20px!important}}`;
 export function noticeMailHtml(m) {
   const blocks = blocksOf(m.body);
-  const look = lookOf(m);
+  const look = bellLookOf(m);
   const chip = look.tone === "warn" || look.tone === "ok" ? CHIPS[look.tone] : null;
   const button = m.href ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:4px 0 0"><tr><td style="border-radius:10px;background:${ACTION}"><a href="${escapeHtml(m.href)}" style="display:inline-block;padding:13px 22px;font-size:15px;font-weight:600;line-height:18px;color:#ffffff;text-decoration:none;border-radius:10px">${escapeHtml(look.action)}</a></td></tr></table>` : "";
   const foot = m.workspace ? `You get this because this address is on ${escapeHtml(m.workspace)}\u2019s alert list.` + (m.settingsHref ? ` Choose what\u2019s emailed in <a href="${escapeHtml(m.settingsHref)}" style="color:${INK_2};text-decoration:underline">Settings \u203A Notifications</a>.` : "") : "A Chanlytics platform alert.";
@@ -77,7 +79,7 @@ export function noticeMailHtml(m) {
 <meta name="color-scheme" content="light dark"><meta name="supported-color-schemes" content="light dark">
 <title>${escapeHtml(m.subject)}</title><style>${DARK}</style></head>
 <body class="bg" style="margin:0;padding:0;background:#f6f7fa">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0">${escapeHtml(previewOf(blocks))}</div>
+<div style="display:none;max-height:0;overflow:hidden;opacity:0">${escapeHtml(mailPreviewOf(blocks))}</div>
 <table role="presentation" class="bg" width="100%" cellpadding="0" cellspacing="0" style="background:#f6f7fa;font-family:${FONT}"><tr><td align="center" style="padding:28px 12px">
 <table role="presentation" class="wrap" width="560" cellpadding="0" cellspacing="0" style="width:560px;max-width:560px">
 <tr><td style="padding:0 4px 14px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>

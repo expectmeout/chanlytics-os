@@ -140,26 +140,22 @@ export function platformTo(): string[] {
 export interface NotifyPorts {
   /** The database the row is kept in; null keeps no row. Unset means the edge's own client. */
   db?: Db | null;
-  /** The mail transport; Resend through post() unless a test hands in its own. */
+  /** The mail transport; Resend through post() unless a test hands in its own. It is handed the words alone. */
   send?: typeof post;
+  /** The same, handed the mail whole, its drawing too (a test that reads an alert's HTML); used before `send`. */
+  sendMail?: (m: PlatformMail) => Promise<boolean>;
 }
 
-/** One mail through Resend, from the platform's address; `html` is its drawn twin (an alert's, contracts noticeMailHtml). */
-export async function post(
-  from: string,
-  to: string[],
-  subject: string,
-  text: string,
-  html: string | null = null,
-): Promise<boolean> {
-  return postMail({ from, to, subject, text, html });
+/** One mail through Resend, from the platform's address. */
+export async function post(from: string, to: string[], subject: string, text: string): Promise<boolean> {
+  return postMail({ from, to, subject, text });
 }
 
 /**
- * One mail as a whole: who it is from and to, its subject and words, the same words drawn (an alert's layout) where it
- * has them, and who a reply goes to when it is not `from`.
+ * One mail as a whole: who it is from and to, its subject and words, the same words drawn (an alert's layout,
+ * contracts noticeMailHtml) where it has them, and who a reply goes to when it is not `from`.
  */
-interface PlatformMail {
+export interface PlatformMail {
   from: string;
   to: string[];
   subject: string;
@@ -463,9 +459,9 @@ export async function notify(target: NotifyTarget, msg: NotifyMessage, ports: No
   return mailNotice(target, msg, ports, db);
 }
 
-/** The mail half of a notice that is also kept: the mail, ending with the link to the page the notice names (workspaceOf). */
+/** The mail half of a notice that is also kept: the mail, ending with the link to the page the notice names (alertWorkspace). */
 function mailNotice(target: NotifyTarget, msg: NotifyMessage, ports: NotifyPorts, db: Db | null): Promise<boolean> {
-  return mail(target, { ...msg, openIt: true }, { send: ports.send, db });
+  return mail(target, { ...msg, openIt: true }, { send: ports.send, sendMail: ports.sendMail, db });
 }
 
 /**
@@ -643,18 +639,20 @@ async function keepOrWithdraw(
  * a kind it turned off is not mailed, and reads as told, since the bell's row is the notice. A mail of no kind (the
  * first run's "you're live", a test) is not one an owner turns off.
  *
- * `openIt` ends the mail that goes to the workspace's own people with the link to the page the notice names (workspaceOf),
+ * `openIt` ends the mail that goes to the workspace's own people with the link to the page the notice names (alertWorkspace),
  * and no other: not the redacted copy, and not a mail whose builder wrote its own link (a lead's question, "you're live",
  * the alert test). notify and its kin set it; a caller that sends a mail by itself does not.
  */
 export async function mail(
   target: NotifyTarget,
   msg: Pick<NotifyMessage, "subject" | "body" | "redactedBody" | "route"> & { kind?: string; openIt?: boolean },
-  ports: Pick<NotifyPorts, "send" | "db"> = {},
+  ports: Pick<NotifyPorts, "send" | "sendMail" | "db"> = {},
 ): Promise<boolean> {
   const L = logger({ tenant_id: target.tenantId });
   if (msg.kind !== undefined && !emailsFor(target.notifications, msg.kind)) return true;
-  const send = ports.send ?? post;
+  // The mail whole to a transport that takes it, else its words to one that takes them alone (a test's), else Resend.
+  const send = (m: PlatformMail): Promise<boolean> =>
+    ports.sendMail ? ports.sendMail(m) : ports.send ? ports.send(m.from, m.to, m.subject, m.text) : postMail(m);
   const addressing = chooseAddressing(target, { to: platformTo(), from: platformFrom() });
 
   switch (addressing.kind) {
@@ -663,9 +661,10 @@ export async function mail(
       // The workspace is read for a mail that links its page, as it always was; any other names it only where the
       // loader read it with the recipients.
       const where = msg.openIt
-        ? await workspaceOf(target, ports.db)
+        ? await alertWorkspace(target, ports.db)
         : { slug: target.slug ?? null, name: target.name ?? null };
-      const link = msg.openIt && where.slug ? pageLink(where.slug, noticeRoute(msg.kind, msg.route)) : null;
+      const link =
+        msg.openIt && where.slug ? pageLink(where.slug, noticeRoute(msg.kind, msg.route), target.tenantId) : null;
       const ours = addressing.kind === "tenant";
       const html = noticeMailHtml({
         kind: msg.kind ?? null,
@@ -674,15 +673,10 @@ export async function mail(
         route: msg.route ?? null,
         href: link,
         workspace: ours ? where.name : null,
-        settingsHref: ours && where.slug ? pageLink(where.slug, NOTIFICATIONS_PANE) : null,
+        settingsHref: ours && where.slug ? pageLink(where.slug, NOTIFICATIONS_PANE, target.tenantId) : null,
       });
-      return send(
-        addressing.from,
-        addressing.to,
-        msg.subject,
-        link ? `${msg.body}\n\n${openItLine(link)}` : msg.body,
-        html,
-      );
+      const text = link ? `${msg.body}\n\n${openItLine(link)}` : msg.body;
+      return send({ from: addressing.from, to: addressing.to, subject: msg.subject, text, html });
     }
 
     case "redacted": {
@@ -702,7 +696,7 @@ export async function mail(
         workspace: null,
         settingsHref: null,
       });
-      return send(addressing.from, addressing.to, subject, body, html);
+      return send({ from: addressing.from, to: addressing.to, subject, text: body, html });
     }
 
     case "none":
@@ -714,8 +708,18 @@ export async function mail(
 /** Settings › Notifications, where a workspace chooses what it is emailed: the foot of an alert mail links it. */
 const NOTIFICATIONS_PANE = "admin/notifications";
 
-/** A page of the workspace in the dashboard: its origin, the workspace's address and the route. */
-const pageLink = (slug: string, route: string): string => `${dashboardOrigin()}${appLink(slug, route)}`;
+/**
+ * A page of the workspace in the dashboard: its origin, the workspace's address and the route. A deployment that cannot
+ * say where the dashboard is loses the link, said on the log, never the mail (the alarm is this system's only channel).
+ */
+function pageLink(slug: string, route: string, tenantId: string | null): string | null {
+  try {
+    return `${dashboardOrigin()}${appLink(slug, route)}`;
+  } catch (e) {
+    logger({ tenant_id: tenantId }).warn("notify_link_unavailable", { error: errField(e) });
+    return null;
+  }
+}
 
 /**
  * The workspace an alert mail links and names: its address word, for the page the notice opens on the bell and the phone
@@ -727,7 +731,7 @@ const pageLink = (slug: string, route: string): string => `${dashboardOrigin()}$
  * link, said on the log: never a mail that does not go (the alarm is this system's only channel), and never a link to
  * another business.
  */
-async function workspaceOf(
+async function alertWorkspace(
   target: NotifyTarget,
   db: Db | null | undefined,
 ): Promise<{ slug: string | null; name: string | null }> {

@@ -599,7 +599,7 @@ export async function loadTenantNotifications(
         .order("created_at", { ascending: true })
         .limit(1)
         .maybeSingle(),
-      // The workspace's address word and name, for an alert mail's link and its top (notify.ts workspaceOf): read beside the
+      // The workspace's address word and name, for an alert mail's link and its top (notify.ts alertWorkspace): read beside the
       // recipients so the mail costs no query of its own. Like the channel above, its failure costs the answer it was
       // asked for -- a mail with no link -- and never the recipients.
       workspaceNamed(db, tenantId).catch((e: unknown) => {

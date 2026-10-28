@@ -106,6 +106,8 @@ test("a mail with no route links the page the kind's list lives on", async () =>
     billing: "/w/harbor/settings/billing",
     leads_question: "/w/harbor/people/leads",
     reach_out_replied: "/w/harbor/inbox",
+    // Someone used a form on the website (00488): their page, in People.
+    website_form: "/w/harbor/people",
     // A customer asked to stop (0048): the people it is about, in People.
     opted_out: "/w/harbor/people",
     alert: "/w/harbor/today",

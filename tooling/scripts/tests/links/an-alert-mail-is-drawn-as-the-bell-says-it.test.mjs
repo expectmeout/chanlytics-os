@@ -115,7 +115,7 @@ test("the platform's own alert says so, and names no workspace", () => {
 
 test("notify sends the drawn mail beside the text: the same link, the workspace read with it", async () => {
   const sent = [];
-  const send = async (from, to, subject, text, html) => (sent.push({ subject, text, html }), true);
+  const sendMail = async (m) => (sent.push(m), true);
   const db = fakeDb({
     notifications: [],
     jobs: [],
@@ -126,7 +126,7 @@ test("notify sends the drawn mail beside the text: the same link, the workspace 
   const ok = await notify(
     target,
     { kind: "handoff", subject: "A customer needs you", body: "Customer: ana@example.com", route: "inbox/th-1" },
-    { db, send },
+    { db, sendMail },
   );
   assert.equal(ok, true);
   assert.equal(sent.length, 1);
@@ -139,12 +139,12 @@ test("notify sends the drawn mail beside the text: the same link, the workspace 
 
 test("the copy the platform gets for a workspace nobody can be told in keeps the customer's words out of its drawing", async () => {
   const sent = [];
-  const send = async (from, to, subject, text, html) => (sent.push({ to, subject, text, html }), true);
+  const sendMail = async (m) => (sent.push(m), true);
   const target = { tenantId: T, notifications: null, isEnvDefault: false };
   await mail(
     target,
     { subject: "Rosa wrote", body: "Rosa: my address is 1 Main St", redactedBody: "A customer wrote to a workspace." },
-    { send },
+    { sendMail },
   );
   assert.equal(sent.length, 1);
   assert.deepEqual(sent[0].to, ["ops@platform.test"]);

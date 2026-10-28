@@ -248,6 +248,7 @@ export { stepDayOf, stepIsDue, dueStepDay, forWords, nextStepOf, stepDays, callD
 export { GOOGLE_SYNC_TOLD_AFTER_MS, GOOGLE_SYNC_NOTICE_WORDS, CALENDAR_UNREADABLE_TOLD_AFTER_MS, CALENDAR_UNREADABLE_WORDS } from "./notices/connection-news.js";
 export { holdNotice } from "./notices/hold-notice.js";
 export { memberJoinedBy, memberJoinedNotice, memberLeftBy, memberLeftNotice } from "./notices/member-news.js";
+export { noticeMailHtml } from "./notices/notice-mail.js";
 export { bookingArriving, bookingChanged, feedAdditionIsBooking, visitChangeNews, visitNews, CATCH_UP_VISITS, VISIT_CHANGES_TOLD } from "./notices/visit-news.js";
 export { personLikeOf, peopleVisitsOf, withVisitsOf, poolRowOf, poolRowsOf, consultFirstOf, poolListContext } from "./people/audience-pool.js";
 export { SAY_IT_DEAL_JSON_SCHEMA, SAY_IT_MAX, SAY_IT_NOTE_JSON_SCHEMA, SAY_IT_VERBS, SAY_IT_WORDS, dealFill, dealSheetFill, noteFill, noteSheetFill, sayItFilled } from "./people/doors/say-it.js";
@@ -393,7 +394,7 @@ export { normalizeEmail, whyNotAnEmail, addressInMessage } from "./shared/email-
 export { optInPurposeOf, TENANT_STATUSES, MEMBERSHIP_ROLES, CHANNEL_KINDS, IDENTITY_ASSURANCES, CONVERSATION_STATES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_TYPES, MESSAGE_STATUSES, CONSENT_STATES, JOB_KINDS, EVENT_SUBSCRIBERS, JOB_STATES, WABA_FIELDS, EVENT_KINDS, OPT_OUT_PATTERN, EMAIL_STOP_PATTERN, EMAIL_UNSUBSCRIBE_PATTERN, SMS_OPT_OUT_PATTERN, OPT_IN_PATTERN, MARKETING_OPT_IN_PATTERN, CONVERSATION_OPT_IN_PATTERN, OFFERS_OPT_IN_PHRASES, ESCALATION_REASONS, ESCALATION_STATES, DECISION_VERBS, DECISION_SUBJECTS, ACTOR_TYPES, TEMPLATE_STATUSES } from "./shared/enums.js";
 export { ok, err, SERVED_AT_HEADER } from "./shared/envelope.js";
 export { ERROR_CODES, AppError, bodyRefusal } from "./shared/errors.js";
-export { escapeHtml } from "./shared/html.js";
+export { escapeHtml, linkifyEscaped } from "./shared/html.js";
 export { UUID, isUuid, asTenantId, asContactId } from "./shared/identity.js";
 export { normalizeLink, whyNotALink, linkHost, publicObjectSrc } from "./shared/link.js";
 export { sumOf } from "./shared/numbers.js";
