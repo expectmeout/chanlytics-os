@@ -26,7 +26,7 @@
   "tooling/scripts/tests/messages/deliver.test.mjs": 2735,
   "tooling/scripts/tests/people/people-honest.test.mjs": 4308,
   "tooling/scripts/tests/people/people-routes.test.mjs": 2338,
-  "tooling/scripts/tests/people/person-honest.test.mjs": 3853,
+  "tooling/scripts/tests/people/person-honest.test.mjs": 3872,
   "tooling/scripts/tests/platform/back-office.test.mjs": 2219,
   "tooling/scripts/tests/playbooks/core-run-playbook.test.mjs": 1818,
   "tooling/scripts/tests/playbooks/outbound-routes.test.mjs": 1730,
@@ -43,6 +43,5 @@
   "tooling/scripts/tests/voice/calls/retell-webhook-door.test.mjs": 1685,
   "tooling/scripts/tests/whatsapp/inbound-executed.test.mjs": 1752,
   "tooling/scripts/tests/whatsapp/whatsapp-door.test.mjs": 2147,
-  "tooling/scripts/tests/workspace/exports.test.mjs": 2022,
-  "tooling/scripts/tests/workspace/settings-doors.test.mjs": 1601
+  "tooling/scripts/tests/workspace/exports.test.mjs": 2022
 }

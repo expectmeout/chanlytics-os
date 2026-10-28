@@ -251,6 +251,15 @@ test("last contact says who and how long ago, and the newer of message vs call w
   assert.equal(first("human").lastContact.label, "Your team wrote · 3d ago");
   assert.equal(first("ai").lastContact.label, "Receptionist wrote · 3d ago");
   assert.equal(first("human").state, "unheard", "the pill beside it says Not heard from, by the same rule");
+  // Their newest message with no words read (an email with only HTML, as the six months' import kept it before it read
+  // HTML) is still them writing: the row said "Not heard from" beside "They wrote" (the live walk, 27 Oct 2026).
+  const wordless = toPersonRowVM(
+    row({ ...unheard, last_message_direction: "inbound", last_message_sender: "customer" }),
+    ZONE,
+    NOW,
+  );
+  assert.equal(wordless.lastContact.label, "They wrote · 3d ago");
+  assert.notEqual(wordless.state, "unheard", "the pill agrees: they wrote");
   const called = toPersonRowVM(row({ last_call_at: iso(H), last_inbound_call_at: iso(H) }), ZONE, NOW).lastContact;
   assert.equal(called.kind, "call");
   assert.equal(called.label, "Phoned · 1h ago");
@@ -1289,6 +1298,24 @@ test("the proposal's send is a deal's, offered in every workspace (0008, amended
   assert.ok(acts({ appointment_word: "visit" }).includes("proposal"), "a salon's More menu offers it too");
   // More's first group is reaching them (canvas A): Call, Text them, then the booking link's send, which stays.
   assert.deepEqual(acts().slice(0, 3), ["call", "text", "booking"], "the booking link's send stays in the reach group");
+});
+
+test("Not a person is an act of its own beside Delete, for someone with an address (00483; the live walk, 27 Oct 2026)", () => {
+  // It rode Delete person as a switch alone, and the walk found notices and newsletters in Today with no way out.
+  const actsOf = (over) => toPersonVM(detail({ row: row(over) }), ZONE, NOW).acts;
+  const mailed = actsOf({ email: "news@shop.example" });
+  assert.deepEqual(
+    mailed.slice(-2).map((a) => a.id),
+    ["not-a-person", "delete"],
+    "the last two: Not a person, then Delete",
+  );
+  const act = mailed.find((a) => a.id === "not-a-person");
+  assert.deepEqual(
+    [act.label, act.group, act.needs, act.danger],
+    ["Not a person…", "delete", "owner", true],
+    "the owner's, as Delete is",
+  );
+  assert.ok(!actsOf({ email: null }).some((a) => a.id === "not-a-person"), "no address: nothing to sort");
 });
 
 /* ---- the person page is honest about a stop, the reason, the team and the attempts (the 2 Oct 2026 audit) ---- */

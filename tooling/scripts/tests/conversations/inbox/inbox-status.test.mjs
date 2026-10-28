@@ -13,7 +13,7 @@ import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { toInboxThreadVM, stateOf, memberWords } from "@chanlytics/contracts";
 import { keysDrawn } from "../../_keys.mjs";
-import { installLegacyReact, fresh } from "../../_legacy-react.mjs";
+import { installLegacyReact, fresh, again, settle } from "../../_legacy-react.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-15T14:00:00Z");
@@ -360,6 +360,49 @@ test("REGRESSION: a real thread's reply box is one line with Send beside it, nam
     [1, "WhatsApp to Rosa Díaz…", "Reply to Rosa Díaz"],
   );
   assert.ok(find(box, hasClass("ix-composer-send")), "Send beside it");
+});
+
+test("the reply Need you drafted is in an emailed thread's empty box, to change or send from here; an older one, or a member's own words, stay out (the live walk's INBOX-2, 27 Oct 2026)", async () => {
+  const mail = (m) => ({ ...m, channel: "email" });
+  const dto = chat({ last_wa_inbound_at: null, messages: [mail(wrote("m1", "Can you move a sofa on Friday?", 40))] });
+  const esc = { id: "e1", reason: "email_review", details: null, state: "open", created_at: ago(40) };
+  const kept = (forId) => ({
+    conversation_id: "c1",
+    kind: "reply",
+    for_message_id: forId,
+    words: { text: "Yes, Friday works. Shall I book 10 AM?", subject: "", brief: null, asks: [] },
+    made_at: ago(30),
+  });
+  const realFetch = globalThis.fetch;
+  const open = async (forId, typed = null) => {
+    const asked = [];
+    globalThis.fetch = async (url, init = {}) => {
+      asked.push(`${init.method ?? "GET"} ${new URL(String(url), "https://app.example").pathname}`);
+      const data = init.method === "POST" ? kept(forId) : { drafts: [kept(forId)] };
+      return new Response(JSON.stringify({ ok: true, data }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    };
+    fresh();
+    const thread = vmOf(dto, esc);
+    const draw = () => again(() => InboxComposer({ thread, reply: "", onSend() {} }));
+    const first = draw();
+    if (typed !== null) find(first, (n) => n.type === "textarea").props.onChange({ target: { value: typed } });
+    for (let i = 0; i < 5; i++) await settle();
+    return { value: find(draw(), (n) => n.type === "textarea").props.value, asked };
+  };
+  try {
+    const ready = await open("m1");
+    assert.equal(ready.value, "Yes, Friday works. Shall I book 10 AM?", "the draft, in the box, nothing sent");
+    assert.deepEqual(ready.asked, ["GET /api/v1/conversations/drafts"], "read as Today reads it");
+    const stale = await open("m0");
+    assert.equal(stale.value, "", "a draft for an older message is not their answer");
+    const theirs = await open("m1", "Let me check the van.");
+    assert.equal(theirs.value, "Let me check the van.", "a member's own words are never replaced");
+  } finally {
+    globalThis.fetch = realFetch;
+  }
 });
 
 test("REGRESSION: the reply box and a seeded approval draw no key -- Send said ⌘↵ and the card's foot A, D and E, beside the ? sheet that lists them", () => {

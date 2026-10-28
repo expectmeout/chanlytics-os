@@ -66,6 +66,13 @@ export interface AbilityInputs {
    * mode with the edge's own default for a missing row ("ask", reply-posture.ts).
    */
   replyMode: PolicyMode;
+  /**
+   * What Setup says of WhatsApp where its number is connected and the line is not live (contracts capabilityStatus
+   * `words`: not activated yet, switched off, its messages with Meta); null where no number is connected. The booking
+   * link said "WhatsApp, which isn't connected here" on a page that names the connected number (the live walk's SET-2,
+   * 27 Oct 2026).
+   */
+  whatsappStatus: string | null;
 }
 
 /** The inputs that must be true or false. Typed off AbilityInputs, so a new boolean cannot be left off. */
@@ -120,6 +127,30 @@ export interface AbilitiesVM {
   held: { sentence: string; door: string; to: "admin/autonomy" } | null;
 }
 
+/**
+ * What the booking-link row says (abilityRows): what is missing on this page first, because it is what this page can
+ * fix. Then the Autonomy tab's hold: with Booking not on auto, a call's send is refused (outbound-gate.ts), and a chat
+ * reply CLASSED AS A BOOKING has the link taken back out (steps.ts layerTwo) -- a price or services reply still carries
+ * it, which is why the sentence says "when someone asks to book" and not "it sends no link". With no link it takes
+ * their details instead, for every business (the first run's decision 2; 0008, amended 18 Oct 2026). Where WhatsApp's
+ * number is connected and the line is not live, Setup's own sentence says why (the live walk's SET-2, 27 Oct 2026).
+ */
+function bookingLinkDetail(i: AbilityInputs, callSendsLink: boolean): string {
+  if (!i.hasBookingLink) return "No booking link, so it takes their details for you to follow up.";
+  if (!i.whatsappLive) {
+    const why = i.whatsappStatus
+      ? `It goes out on WhatsApp, which isn't live here yet: ${i.whatsappStatus}`
+      : "It goes out on WhatsApp, which isn't connected here.";
+    return i.voiceLive ? `${why} On a call it offers to have someone follow up instead.` : why;
+  }
+  if (i.bookingHeld)
+    return "Your Autonomy tab holds bookings for you to confirm, so when someone asks to book, it sends no link: it tells them someone from the team will confirm.";
+  if (!i.voiceLive) return "It sends it in the thread.";
+  return callSendsLink
+    ? "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the thread."
+    : "In chat it sends it in the thread. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
+}
+
 export function abilityRows(i: AbilityInputs): AbilitiesVM {
   if (!i || typeof i !== "object")
     throw new TypeError(
@@ -164,26 +195,7 @@ export function abilityRows(i: AbilityInputs): AbilitiesVM {
   // send). Said unqualified, the openings row told such a workspace its call offers times "then the link".
   const linkIsChatsAlone = linkGoes && i.voiceLive && !callSendsLink;
   const inChat = linkIsChatsAlone ? " in chat" : "";
-  // What is missing on this page is said first, because it is what this page can fix.
-  // Then the Autonomy tab's hold: with Booking not on auto, a call's send is refused
-  // (outbound-gate.ts), and a chat reply CLASSED AS A BOOKING has the link taken back out
-  // (steps.ts layerTwo) -- a price or services reply still carries it, which is why the
-  // sentence says "when someone asks to book" and not "it sends no link".
-  // With no link it takes their details instead, for every business (the first run's decision 2; 0008, amended 18 Oct
-  // 2026: a business that quotes and one that books are told the same).
-  const bookingDetail = !i.hasBookingLink
-    ? "No booking link, so it takes their details for you to follow up."
-    : !i.whatsappLive
-      ? i.voiceLive
-        ? "It goes out on WhatsApp, which isn't connected here, so on a call it offers to have someone follow up instead."
-        : "It goes out on WhatsApp, which isn't connected here."
-      : i.bookingHeld
-        ? "Your Autonomy tab holds bookings for you to confirm, so when someone asks to book, it sends no link: it tells them someone from the team will confirm."
-        : !i.voiceLive
-          ? "It sends it in the thread."
-          : callSendsLink
-            ? "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the thread."
-            : "In chat it sends it in the thread. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
+  const bookingDetail = bookingLinkDetail(i, callSendsLink);
 
   const rows: AbilityRowVM[] = [
     {
@@ -213,7 +225,8 @@ export function abilityRows(i: AbilityInputs): AbilitiesVM {
           ? "It is handed the openings on a call and in chat, but your Autonomy tab holds bookings for you to confirm, so when someone asks to book, no link follows."
           : `On a call it asks the calendar at that moment. In chat it is handed the next few days' openings with each message. It offers up to three that fit${linkGoes ? `, then the link${inChat}` : ""}.`,
       channels: { voice: i.voiceLive && i.hasCalendarFeed, whatsapp: chatAnswers && i.hasCalendarFeed },
-      runsOn: { label: "Your calendar link", row: "calendar" },
+      // The link or the Google calendar a connected mailbox reads (calendarFeedKeyOf), whichever the openings come from.
+      runsOn: { label: "Your calendar", row: "calendar" },
       ready: answering && i.hasCalendarFeed,
       missing: !i.hasCalendarFeed,
     },

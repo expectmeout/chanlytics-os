@@ -5,7 +5,7 @@
  *
  * The rows are Setup's own (surfaces/setup/rows: `SetupCardRow`, `SetupRows`), imported.
  */
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { FIRST_RUN_HELPERS, SETUP_CARD_WORDS, type SetupCardVM, type SetupCardWho } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
 import { surfaceValue } from "../../surface-values";
@@ -138,6 +138,9 @@ export const TodaySetupCard = ({ S }: { S: SetupSurface }) => {
   const needs = (useNeedsYou() ?? 0) > 0;
   const queued = useQueueHoldsCoral();
   const waiting = needs || queued;
+  // While someone waits the card is its head alone, under the queue, and Show opens its rows (the live walk, 27 Oct 2026).
+  const [shown, setShown] = useState(false);
+  const folded = waiting && !shown;
   const card = FIRST_RUN_HELPERS.todayCard(S.vm, setupWhoOf(S));
   if (!card) return toastNode;
   const nav = (to: string) => appNavigate(to);
@@ -165,7 +168,16 @@ export const TodaySetupCard = ({ S }: { S: SetupSurface }) => {
             {card.left}
           </span>
         </span>
-        {card.hide ? (
+        {folded ? (
+          <button
+            type="button"
+            className="setup-card-skip today-setup-show"
+            onClick={() => setShown(true)}
+            data-testid="today-setup-show"
+          >
+            {SETUP_CARD_WORDS.show}
+          </button>
+        ) : card.hide ? (
           <button
             type="button"
             className="setup-card-skip today-setup-hide"
@@ -176,17 +188,21 @@ export const TodaySetupCard = ({ S }: { S: SetupSurface }) => {
           </button>
         ) : null}
       </div>
-      {card.start ? startRow(card.start, card.left, nav, waiting) : null}
-      {card.start
-        ? ticks(SETUP_CARD_WORDS.keptTitle, card.kept, "today-setup-kept")
-        : optionalRows(S, card, flash, {
-            tail:
-              remind && card.skip
-                ? remindRow(remind, card.skip, nav, () => void putAway([remind.id], remind.said))
-                : null,
-            quiet: waiting,
-          })}
-      {ticks(SETUP_CARD_WORDS.doneTitle, card.done, "today-setup-done")}
+      {folded ? null : (
+        <>
+          {card.start ? startRow(card.start, card.left, nav, waiting) : null}
+          {card.start
+            ? ticks(SETUP_CARD_WORDS.keptTitle, card.kept, "today-setup-kept")
+            : optionalRows(S, card, flash, {
+                tail:
+                  remind && card.skip
+                    ? remindRow(remind, card.skip, nav, () => void putAway([remind.id], remind.said))
+                    : null,
+                quiet: waiting,
+              })}
+          {ticks(SETUP_CARD_WORDS.doneTitle, card.done, "today-setup-done")}
+        </>
+      )}
       {toastNode}
     </section>
   );

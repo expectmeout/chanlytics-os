@@ -21,6 +21,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  emailPlainText,
   gmailListSince,
   gmailSignedOut,
   graphListSince,
@@ -36,7 +37,6 @@ import {
   MIN_MS,
   SECOND_MS,
   normalizeEmail,
-  type MailboxLeftWhy,
 } from "../packages/contracts.js";
 import { EMAIL_BODY_MAX } from "../packages/core.js";
 import {
@@ -52,7 +52,13 @@ import {
 import { tokenFor } from "../email/mailbox/mailbox-credentials.js";
 import { markSignedOut } from "../email/mailbox/mailbox-wire.js";
 import { mailboxEmailMeta, readEmail } from "../email/mailbox/mailbox-sync.js";
-import { leftWhy, mailSortingFor, noteLeft, type MailSorting } from "../email/mailbox/mailbox-sorting.js";
+import {
+  leftWhy,
+  mailSortingFor,
+  noteLeft,
+  type MailSorting,
+  type SortedWhy,
+} from "../email/mailbox/mailbox-sorting.js";
 import type { Part, PartOutcome } from "./history-import.js";
 import type { Logger } from "../log.js";
 
@@ -111,7 +117,7 @@ function mailPersonOf(e: MailboxEmail, own: string): { address: string; name: st
 }
 
 /** The reasons the mailbox leaves an email by where Gmail filed it: never a reply in a thread a reach-out started. */
-const BY_GMAIL_TAB: ReadonlySet<MailboxLeftWhy> = new Set(["gmail_tab", "updates"]);
+const BY_GMAIL_TAB: ReadonlySet<SortedWhy> = new Set(["gmail_tab", "updates"]);
 
 /**
  * Why the six months leave what someone else wrote (mailbox-sorting.ts leftWhy), or null to keep it. Where Gmail filed
@@ -119,7 +125,7 @@ const BY_GMAIL_TAB: ReadonlySet<MailboxLeftWhy> = new Set(["gmail_tab", "updates
  * connected again reads back over its earlier connection's months, reach-outs among them; the threads are asked only
  * when a tab alone would leave one.
  */
-async function leftByImport(r: MailRead, e: MailboxEmail): Promise<MailboxLeftWhy | null> {
+async function leftByImport(r: MailRead, e: MailboxEmail): Promise<SortedWhy | null> {
   const why = await leftWhy(e, r.sorting);
   if (!why || !BY_GMAIL_TAB.has(why) || !e.threadId) return why;
   return (await knownThreads(r.db, r.part.tenantId, [e.threadId])).has(e.threadId) ? null : why;
@@ -248,7 +254,9 @@ async function takeListed(
     name: who.name,
     messageId: e.id,
     direction: who.out ? "outbound" : "inbound",
-    body: e.text ? e.text.slice(0, EMAIL_BODY_MAX) : null,
+    // Its words as the live read keeps them: an email with only HTML (a bank's alert, a form) is made plain text. It had
+    // been kept with none, and its person read "Not heard from" beside "They wrote" (27 Oct 2026).
+    body: emailPlainText(e)?.slice(0, EMAIL_BODY_MAX) ?? null,
     at: when,
     meta: mailboxEmailMeta(e, r.row.id),
   });

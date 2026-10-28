@@ -482,6 +482,8 @@ test("given a layout the table is a fixed layout of whole-pixel widths that add 
     onDensity() {},
     changed: false,
     onResetAll() {},
+    measurer: { current: null },
+    onFitAll() {},
   };
   const widthsOf = (tree) =>
     all(
@@ -536,10 +538,15 @@ test("given a layout the table is a fixed layout of whole-pixel widths that add 
     [376, 120],
   );
 
-  // A width the member dragged to is theirs and does not give or take: Person takes the rest of the room, still 700.
-  const dragged = widthsOf(table({ columns: SIZED, selectable: true, layout: { ...layout, widths: { state: 200 } } }));
-  assert.deepEqual(dragged, [42, 254, 200, 120, 84]);
-  assert.equal(sum(dragged), 700);
+  assert.equal(grid.props["data-sizing"], "fit", "nobody has sized a column: they share the room");
+  assert.equal(grid.props.width, undefined, "and the table is the box's width (clients.css), not one of its own");
+  // Once a member sizes a column every width is theirs or where it starts: Person no longer takes the rest, and the table
+  // is as wide as its columns, said as its own width.
+  const sizedTree = table({ columns: SIZED, selectable: true, layout: { ...layout, widths: { state: 200 } } });
+  assert.deepEqual(widthsOf(sizedTree), [42, 300, 200, 120, 84]);
+  const sizedGrid = find(sizedTree, (n) => n.type === "table");
+  assert.equal(sizedGrid.props["data-sizing"], "sized");
+  assert.equal(sizedGrid.props.width, 746, "room after the last column, not handed to Person");
   // A narrower room squeezes the column that asked for a share, down to its least (here 240) and no further: the rest is
   // the table's to scroll sideways, so these widths add up to more than the room.
   const cramped = widthsOf(table({ columns: SIZED, layout: { ...layout, available: 500 } }));

@@ -14,6 +14,8 @@ const {
   plMoved,
   plMovedTo,
   plFitWidth,
+  plFrozenWidths,
+  plSizing,
   PL_DRAG_MIN_PX,
   PL_DRAG_MAX_PX,
 } = await importSrc("apps/dashboard/src/surfaces/people/table/layout.ts");
@@ -82,60 +84,77 @@ test("too little room squeezes the columns that share down to their min, then th
   assert.equal(tight.scrolls, true, "past every min the table is wider than its room and scrolls inside its box");
 });
 
-test("a width the member dragged to is theirs: it never grows, and the rest share what is left", () => {
+test("once a member sizes a column every width is theirs, or where it starts, and none moves for another or for the box", () => {
   const r = resolveColumnWidths(COLS, { name: 360 }, 1000);
-  assert.equal(r.widths[1], 360);
-  assert.equal(sum(r.widths), 1000);
-  // Name is theirs, so next is the one taker: it takes the 206 spare, past its max once nobody else can (the room is not left over).
-  assert.equal(r.widths[3], 346);
+  assert.equal(r.sizing, "sized");
+  assert.deepEqual(r.widths, [42, 360, 132, 140, 120], "nobody else takes the room a sized table leaves");
+  assert.equal(r.total, 794, "the table is as wide as its columns, with room after the last");
+  assert.equal(r.scrolls, false);
+  // A drag of 100px moves its edge 100px: the columns before it hold still (the fitted model moved it 3px, 28 Oct 2026).
+  const wider = resolveColumnWidths(COLS, { name: 360, state: 232 }, 1000);
+  assert.deepEqual(wider.widths, [42, 360, 232, 140, 120]);
+  assert.equal(
+    sum(wider.widths.slice(0, 3)) - sum(r.widths.slice(0, 3)),
+    100,
+    "State's edge moved as far as the pointer",
+  );
+  // Short of room, nothing gives way: the table scrolls (#1868 held every dragged width down to its min instead).
+  const small = resolveColumnWidths(COLS, { name: 360, next: 295 }, 500);
+  assert.deepEqual(small.widths, [42, 360, 132, 295, 120], "Next step widened to 295 stays 295");
+  assert.equal(small.scrolls, true);
+  // A width kept for a column that is not drawn sizes none of these: they still fit the box.
+  const kept = resolveColumnWidths(COLS, { phone: 300 }, 1000);
+  assert.equal(kept.sizing, "fit");
+  assert.equal(sum(kept.widths), 1000);
 });
 
-test("where the room is short a dragged width gives way last, down to its min, before the table scrolls", () => {
-  // 794 wide in 700: next gives its 30 first, then name the other 64 of the 94.
-  const mid = resolveColumnWidths(COLS, { name: 360 }, 700);
-  assert.equal(mid.widths[3], 110, "the column nobody dragged gives way first");
-  assert.equal(mid.widths[1], 296, "then the dragged one");
-  assert.equal(sum(mid.widths), 700);
-  assert.equal(mid.scrolls, false);
-  const small = resolveColumnWidths(COLS, { name: 360 }, 500);
-  assert.equal(small.widths[1], 220, "never under the column's min");
-  assert.equal(small.scrolls, true);
-  // Below the min is the member's choice, and it stays where they left it.
-  assert.equal(resolveColumnWidths(COLS, { name: 160 }, 400).widths[1], 160);
-  // Production, 27 Oct 2026: every column dragged, Person to 979px, in an 888px box. Person stood over the whole box.
+test("the pinned column gives way to its share of the box while the table scrolls, and only as far as it then fits", () => {
+  // Production, 27-28 Oct 2026: Person saved at 979px, pinned, in an 888px box, stood over every other column.
   const people = [
     { key: "sel", width: { base: 42 } },
-    { key: "name", width: { base: 300, min: 240, max: 560, grow: 3 } },
+    { key: "name", pinned: true, width: { base: 300, min: 240, max: 560, grow: 3 } },
     { key: "state", width: { base: 128, min: 118, max: 240, grow: 1 } },
     { key: "last", width: { base: 124, min: 112, max: 240, grow: 1 } },
     { key: "actions", width: { base: 84 } },
   ];
-  const wide = resolveColumnWidths(people, { name: 979, state: 144, last: 212 }, 888);
-  assert.equal(sum(wide.widths), 888, "the table fits its box again");
-  assert.equal(wide.scrolls, false);
-  // Each dragged column gives by what it can give: Person most.
-  assert.ok(
-    979 - wide.widths[1] > 144 - wide.widths[2] + (212 - wide.widths[3]),
-    `Person gives the most: ${wide.widths}`,
-  );
-  assert.ok(wide.widths[2] >= 118 && wide.widths[3] >= 112);
-  // The whole of that view: past every min it still scrolls, and Person, pinned, is at its min, so the rest can be reached.
+  const four = resolveColumnWidths(people, { name: 979, state: 144, last: 212 }, 888);
+  assert.deepEqual(four.widths, [42, 406, 144, 212, 84], "Person gives up just enough for the table to fit");
+  assert.equal(four.scrolls, false);
+  // Every column on: Person stops at 45% of the box and the rest scrolls, each at the width its member chose.
   const all = [
     ...people.slice(0, 4),
     { key: "calls", width: { base: 84, min: 72 } },
-    { key: "since", width: { base: 124, min: 108, max: 200, grow: 0.5 } },
-    { key: "came_from", width: { base: 120, min: 88, max: 220, grow: 1 } },
-    { key: "deal", width: { base: 130, min: 96 } },
+    { key: "next", width: { base: 140, min: 112, max: 240, grow: 1 } },
+    { key: "offers", width: { base: 108, min: 96, max: 180, grow: 0.5 } },
     { key: "visits", width: { base: 144, min: 120, max: 240, grow: 1 } },
     people[4],
   ];
-  const saved = { name: 979, state: 144, last: 212, calls: 56, since: 119, came_from: 85, deal: 73, visits: 159 };
+  const saved = { name: 979, state: 144, last: 212, calls: 56, next: 295, offers: 183, visits: 162 };
   const full = resolveColumnWidths(all, saved, 888);
-  assert.equal(full.widths[1], 240);
+  assert.equal(full.widths[1], 400, "45% of the box");
+  assert.deepEqual(full.widths.slice(2, 8), [144, 212, 56, 295, 183, 162], "every other width as chosen");
   assert.equal(full.scrolls, true);
   assert.ok(
     full.widths[0] + full.widths[1] < 888 / 2,
     "what is pinned leaves more than half the box to scroll through",
+  );
+  // On a box wide enough the width they chose is drawn whole.
+  assert.equal(resolveColumnWidths(people, { name: 979, state: 144, last: 212 }, 2000).widths[1], 979);
+  // Never under its own min, even on a narrow box.
+  assert.equal(resolveColumnWidths(people, { name: 979, state: 400, last: 400 }, 400).widths[1], 240);
+});
+
+test("the first size keeps every column where it stands, and the select box and the acts are nobody's to size", () => {
+  const cols = [{ key: "name" }, { key: "state" }, { key: "actions", fixed: true }];
+  assert.deepEqual(plFrozenWidths(cols, [412.4, 131, 84]), { name: 412, state: 131 });
+  const fitted = resolveColumnWidths(COLS.slice(1), {}, 900);
+  const frozen = plFrozenWidths(COLS.slice(1), fitted.widths);
+  assert.equal(plSizing(COLS.slice(1), {}), "fit");
+  assert.equal(plSizing(COLS.slice(1), frozen), "sized");
+  assert.deepEqual(
+    resolveColumnWidths(COLS.slice(1), frozen, 900).widths,
+    fitted.widths,
+    "frozen, the table draws exactly what it drew fitted: starting a drag moves nothing",
   );
 });
 

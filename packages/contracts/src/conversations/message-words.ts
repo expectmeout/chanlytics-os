@@ -5,7 +5,7 @@
  */
 import type { MessageDto } from "./thread-dto";
 import { MEDIA_LABEL, mediaKind } from "./message-media";
-import { emailFromNameOf, emailPartsOf } from "./message-email";
+import { emailFromNameOf, emailPartsOf, emailSubjectOf } from "./message-email";
 import { isChatMessage, writtenChannelOf } from "./thread-channel";
 
 /** What an email's `delivered` receipt says: their mail server took it, which is as far as an email can be followed. */
@@ -305,6 +305,9 @@ export function messageText(m: MessageDto): string {
     const caption = m.media?.caption?.trim();
     return caption ? `${label}: ${caption}` : label;
   }
+  // An email kept without its words still has its subject, which says more than "[text]" did in the row's preview.
+  const subject = m.channel === "email" ? emailSubjectOf(m) : null;
+  if (subject) return subject;
   return `[${m.type}]`;
 }
 

@@ -9429,6 +9429,8 @@ function messageText(m) {
     const caption = m.media?.caption?.trim();
     return caption ? `${label}: ${caption}` : label;
   }
+  const subject = m.channel === "email" ? emailSubjectOf(m) : null;
+  if (subject) return subject;
   return `[${m.type}]`;
 }
 
@@ -15952,6 +15954,17 @@ var BOOLEAN_INPUTS = {
   visionOn: true,
   bookingHeld: true
 };
+function bookingLinkDetail(i, callSendsLink) {
+  if (!i.hasBookingLink) return "No booking link, so it takes their details for you to follow up.";
+  if (!i.whatsappLive) {
+    const why = i.whatsappStatus ? `It goes out on WhatsApp, which isn't live here yet: ${i.whatsappStatus}` : "It goes out on WhatsApp, which isn't connected here.";
+    return i.voiceLive ? `${why} On a call it offers to have someone follow up instead.` : why;
+  }
+  if (i.bookingHeld)
+    return "Your Autonomy tab holds bookings for you to confirm, so when someone asks to book, it sends no link: it tells them someone from the team will confirm.";
+  if (!i.voiceLive) return "It sends it in the thread.";
+  return callSendsLink ? "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the thread." : "In chat it sends it in the thread. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
+}
 function abilityRows(i) {
   if (!i || typeof i !== "object")
     throw new TypeError(
@@ -15978,7 +15991,7 @@ function abilityRows(i) {
   const linkGoes2 = i.hasBookingLink && chatAnswers && !i.bookingHeld;
   const linkIsChatsAlone = linkGoes2 && i.voiceLive && !callSendsLink;
   const inChat = linkIsChatsAlone ? " in chat" : "";
-  const bookingDetail = !i.hasBookingLink ? "No booking link, so it takes their details for you to follow up." : !i.whatsappLive ? i.voiceLive ? "It goes out on WhatsApp, which isn't connected here, so on a call it offers to have someone follow up instead." : "It goes out on WhatsApp, which isn't connected here." : i.bookingHeld ? "Your Autonomy tab holds bookings for you to confirm, so when someone asks to book, it sends no link: it tells them someone from the team will confirm." : !i.voiceLive ? "It sends it in the thread." : callSendsLink ? "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the thread." : "In chat it sends it in the thread. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
+  const bookingDetail = bookingLinkDetail(i, callSendsLink);
   const rows2 = [
     {
       id: "answer",
@@ -16000,7 +16013,8 @@ function abilityRows(i) {
       // says what holds on both: it has them, and a request to book gets no link.
       detail: !i.hasCalendarFeed ? linkGoes2 ? `No calendar to read, so it does not guess at open times \u2014${inChat} it sends the link instead.` : "No calendar to read, so it does not guess at open times." : i.bookingHeld ? "It is handed the openings on a call and in chat, but your Autonomy tab holds bookings for you to confirm, so when someone asks to book, no link follows." : `On a call it asks the calendar at that moment. In chat it is handed the next few days' openings with each message. It offers up to three that fit${linkGoes2 ? `, then the link${inChat}` : ""}.`,
       channels: { voice: i.voiceLive && i.hasCalendarFeed, whatsapp: chatAnswers && i.hasCalendarFeed },
-      runsOn: { label: "Your calendar link", row: "calendar" },
+      // The link or the Google calendar a connected mailbox reads (calendarFeedKeyOf), whichever the openings come from.
+      runsOn: { label: "Your calendar", row: "calendar" },
       ready: answering && i.hasCalendarFeed,
       missing: !i.hasCalendarFeed
     },
@@ -26013,7 +26027,8 @@ function theirTurnWords(last) {
   return last.kind === "call" ? "they called last" : "they wrote last";
 }
 function heardAt(r2) {
-  const at3 = [ts(r2.last_inbound_at), ts(r2.last_inbound_call_at ?? null)].filter((x) => x !== null);
+  const wrote = ts(r2.last_inbound_at) ?? (r2.last_message_direction === "inbound" ? ts(r2.last_message_at) : null);
+  const at3 = [wrote, ts(r2.last_inbound_call_at ?? null)].filter((x) => x !== null);
   return at3.length ? Math.max(...at3) : null;
 }
 function lastContactOf(r2, tz, nowMs) {
@@ -52150,6 +52165,12 @@ var PERSON_ACT_WORDS = {
   copyPhone: "Copy the number",
   copyEmail: "Copy the address",
   deletePerson: "Delete person\u2026",
+  /**
+   * A sender of automated mail made a person (00483): the act of its own, where it rode Delete person alone and the live
+   * walk never found it (27 Oct 2026). It opens the same question with the switch on.
+   */
+  notAPerson: "Not a person\u2026",
+  notAPersonHint: "A notice or a newsletter: its mail stays in your mailbox, and it leaves People",
   /** Their own copy (R14 X5): everything kept about them, for when they ask what the business holds. */
   download: "Download their records",
   downloadHint: "Everything kept about them, in one file: for when they ask what you hold",
@@ -52249,6 +52270,16 @@ function personActs(p) {
     needs: "owner",
     off: null
   });
+  if (p.email)
+    acts.push({
+      id: "not-a-person",
+      label: W.notAPerson,
+      hint: W.notAPersonHint,
+      group: "delete",
+      needs: "owner",
+      off: null,
+      danger: true
+    });
   acts.push({
     id: "delete",
     label: W.deletePerson,
@@ -61661,6 +61692,8 @@ var SETUP_CARD_WORDS = {
   goingLive: "Finish going live",
   needYou: (n) => `${n} need${n === 1 ? "s" : ""} you`,
   doneTitle: "Already done",
+  /** While someone waits on the owner the card is its head alone, under the queue, and this opens its rows. */
+  show: "Show",
   /** What is kept, in the order the steps made it. */
   kept: {
     business: (name, listed) => listed ? `${name}, read from Google` : name,

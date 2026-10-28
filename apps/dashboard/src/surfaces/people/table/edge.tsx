@@ -41,12 +41,14 @@ export function ColumnEdge({ label, width, min, onSize, onCancel, onReset, onFit
     const edge = e.currentTarget;
     const x0 = e.clientX;
     const w0 = width;
+    // Never narrower than the heading says: its words and caret whole, or the column's own least, whichever is wider.
+    const floor = Math.max(min, headingFloorOf(edge.closest("th")));
     let px = w0;
     edgeIsHeld = true;
     edge.setPointerCapture(e.pointerId);
     edge.setAttribute("data-dragging", "true");
     const move = (m: globalThis.PointerEvent) => {
-      px = plClampWidth(w0 + m.clientX - x0, w0);
+      px = Math.max(Math.min(floor, w0), plClampWidth(w0 + m.clientX - x0, w0));
       onSize(px, false);
     };
     const done = (u: globalThis.PointerEvent, keep: boolean) => {
@@ -82,8 +84,9 @@ export function ColumnEdge({ label, width, min, onSize, onCancel, onReset, onFit
     }
     const step = e.shiftKey ? PL_NUDGE_BIG_PX : PL_NUDGE_PX;
     const heading = e.currentTarget.closest("th");
+    const floor = Math.min(width, Math.max(min, headingFloorOf(heading)));
     let handled = true;
-    if (e.key === "ArrowLeft") onSize(plClampWidth(width - step, width), true);
+    if (e.key === "ArrowLeft") onSize(Math.max(floor, plClampWidth(width - step, width)), true);
     else if (e.key === "ArrowRight") onSize(plClampWidth(width + step, width), true);
     else if (e.key === "Enter" && heading) onFit(heading);
     else if (e.key === "Delete" || e.key === "Backspace") onReset();
@@ -120,31 +123,59 @@ export function ColumnEdge({ label, width, min, onSize, onCancel, onReset, onFit
   );
 }
 
+/** How far a cell's own words reach from its left edge, with its right padding (a Range measures a cut line whole). */
+function reachOf(cell: Element): number {
+  const left = cell.getBoundingClientRect().left;
+  const pad = parseFloat(getComputedStyle(cell).paddingRight) || 0;
+  const words = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT);
+  let right = left;
+  for (let n = words.nextNode(); n; n = words.nextNode()) {
+    if (!n.textContent || !n.textContent.trim()) continue;
+    const r = document.createRange();
+    r.selectNodeContents(n);
+    right = Math.max(right, r.getBoundingClientRect().right);
+  }
+  return right - left + pad;
+}
+
+/** The least a column is dragged to: its heading's words and caret whole, so no heading reads "FIRST CONTA". */
+const headingFloorOf = (heading: Element | null): number => (heading ? Math.ceil(reachOf(heading)) + 2 : 0);
+
+/** One canvas for every measure of words in a font, made the first time a fit asks. */
+let measuring: CanvasRenderingContext2D | null = null;
+const wordsWidth = (text: string, font: string): number => {
+  measuring ??= document.createElement("canvas").getContext("2d");
+  if (!measuring) return 0;
+  measuring.font = font;
+  return measuring.measureText(text).width;
+};
+
 /**
- * What a column needs to show everything it holds in the rows drawn: the widest of its heading and its cells, each as far
- * as its own words reach from the cell's left edge (a Range over each piece of text, which a line cut short by an ellipsis
- * still measures whole), with the cell's right padding. A cell's box is no measure: a block in it spans the cell however
- * little it says. Only the rows drawn are measured: a row the window has not drawn yet is not in the DOM to ask.
+ * What a column needs to show everything it holds: the widest of its heading and its cells, each as far as its own words
+ * reach from the cell's left edge (reachOf), with the cell's right padding. A cell's box is no measure: a block in it spans
+ * the cell however little it says.
+ *
+ * `texts`, what each row's cell says (the column's file words, row by row), measures the rows the window has not drawn:
+ * only about twenty rows of three hundred are in the DOM, so a fit was as wide as the rows on screen, and another scroll
+ * fitted another width. Each row's words are measured in the cells' font, and what a drawn cell adds to its words (a pill's
+ * dot, a face, its padding) is added to them.
  */
-export function fitWidthOf(heading: HTMLElement): number {
+export function fitWidthOf(heading: HTMLElement, texts: readonly string[] | null = null): number {
   const table = heading.closest("table");
   if (!table) return 0;
-  const reach = (cell: Element): number => {
-    const left = cell.getBoundingClientRect().left;
-    const pad = parseFloat(getComputedStyle(cell).paddingRight) || 0;
-    const words = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT);
-    let right = left;
-    for (let n = words.nextNode(); n; n = words.nextNode()) {
-      if (!n.textContent || !n.textContent.trim()) continue;
-      const r = document.createRange();
-      r.selectNodeContents(n);
-      right = Math.max(right, r.getBoundingClientRect().right);
-    }
-    return right - left + pad;
-  };
   const at = (heading as HTMLTableCellElement).cellIndex + 1;
-  let best = reach(heading);
   // The heading is measured as a cell is: its words and its caret, then the padding that keeps them off the edge.
-  for (const td of table.querySelectorAll(`tbody tr[id] > td:nth-child(${at})`)) best = Math.max(best, reach(td));
+  let best = reachOf(heading);
+  let extra = 0;
+  let font = "";
+  for (const td of table.querySelectorAll<HTMLElement>(`tbody tr[id] > td:nth-child(${at})`)) {
+    const reach = reachOf(td);
+    best = Math.max(best, reach);
+    if (!texts) continue;
+    font ||= getComputedStyle(td.querySelector("span, a, button") ?? td).font;
+    const said = texts[Number(td.parentElement?.getAttribute("data-index"))];
+    if (said) extra = Math.max(extra, reach - wordsWidth(said, font));
+  }
+  if (texts && font) for (const said of texts) if (said) best = Math.max(best, wordsWidth(said, font) + extra);
   return Math.ceil(best) + 2;
 }

@@ -714,6 +714,35 @@ test("what the workspace said of a sender stands: a person comes in whatever the
   }
 });
 
+test("mail from the workspace's own domains is its own (the 27 Oct 2026 walk): its website's notifier, a colleague and its other mailbox are left, unlisted and never a person; a sender the owner said is a person still comes in", async () => {
+  const w = world();
+  const host = w.mailbox.host;
+  // Its second mailbox, on a domain of its own.
+  w.tables.mailbox_connections.push(
+    rows.mailboxConnection({ tenant_id: T, address: "dana@harbor-two.example", host: "harbor-two.example" }),
+  );
+  w.tables.mailbox_senders.push({ tenant_id: T, sender: `front@${host}`, verdict: "person" });
+  const net = arrivals([
+    tabbed([], "w1", "a-site", { from: `Harbor Website <site@${host}>`, text: "Promo signup: rosa@example.com" }),
+    tabbed([], "c1", "a-colleague", { from: `Lee <lee@${host}>`, text: "Can you take the 3pm?" }),
+    tabbed([], "o1", "a-other", { from: "Dana <dana@harbor-two.example>", text: "Testing the inbox." }),
+    tabbed([], "f1", "a-front", { from: `Front desk <front@${host}>`, text: "A walk-in wants a quote." }),
+    tabbed([], "p1", "a-person", { from: "Rosa <rosa@example.com>", text: "Do you move pianos?" }),
+  ]);
+  try {
+    const out = await syncMailbox(w.db, w.mailbox, logger({ tenant_id: T }));
+    assert.deepEqual([out.people, out.dropped], [2, 3]);
+    assert.deepEqual(
+      w.tables.jobs.map((j) => withoutRequestId(j.payload).received_id),
+      ["f1", "p1"],
+      "only a stranger's email, and the one the owner said is a person, are taken in",
+    );
+    assert.deepEqual(w.left, [], "the business's own mail is no stranger's: not on the list of senders left");
+  } finally {
+    net.restore();
+  }
+});
+
 test("an owner's alert that reaches their connected mailbox is left there, as the mail Chanlytics sent says it is, never taken in as a person's email and flagged again (27 Oct 2026)", async () => {
   const { postMail } = await importSrc("apps/edge/lib/ops/notify.ts");
   const ALERTS = "alerts@chanlytics.example";
@@ -751,6 +780,31 @@ test("an owner's alert that reaches their connected mailbox is left there, as th
     assert.deepEqual(w.left, [[ALERTS, "automated"]], "it is on the owner's list of what was left, with why");
   } finally {
     net.restore();
+  }
+});
+
+test("mail from the platform's own sender is never a person, even one sent before it said what it is, and whatever the workspace said of it (27 Oct 2026)", async () => {
+  const ALERTS = "alerts@chanlytics.example";
+  // The platform's sender, as the deployment names it; the workspace once marked the address a person.
+  const sender = withEnv({ LEAD_FROM: `Chanlytics <${ALERTS}>` });
+  const w = world({ said: [[ALERTS, "person"]] });
+  const net = arrivals([
+    // An alert as it left before #1858, with no Auto-Submitted: nothing in it but who sent it says what it is.
+    tabbed([], "al0", "a-alert-before", { from: `Chanlytics <${ALERTS}>`, text: "They wrote: “Is Tuesday free?”" }),
+    tabbed([], "p1", "a-person", { from: "Rosa Diaz <rosa@example.com>", text: "Is Tuesday free?" }),
+  ]);
+  try {
+    const out = await syncMailbox(w.db, w.mailbox, logger({ tenant_id: T }));
+    assert.deepEqual([out.people, out.dropped], [1, 1]);
+    assert.deepEqual(
+      w.tables.jobs.map((j) => withoutRequestId(j.payload).received_id),
+      ["p1"],
+      "only the person's email is taken in",
+    );
+    assert.deepEqual(w.left, [[ALERTS, "automated"]], "the alert is on the owner's list of what was left");
+  } finally {
+    net.restore();
+    sender();
   }
 });
 

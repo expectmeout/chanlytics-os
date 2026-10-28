@@ -29951,6 +29951,13 @@ interface AbilityInputs {
      * mode with the edge's own default for a missing row ("ask", reply-posture.ts).
      */
     replyMode: PolicyMode;
+    /**
+     * What Setup says of WhatsApp where its number is connected and the line is not live (contracts capabilityStatus
+     * `words`: not activated yet, switched off, its messages with Meta); null where no number is connected. The booking
+     * link said "WhatsApp, which isn't connected here" on a page that names the connected number (the live walk's SET-2,
+     * 27 Oct 2026).
+     */
+    whatsappStatus: string | null;
 }
 interface AbilityRowVM {
     id: "answer" | "open_times" | "booking_link" | "transfer" | "handoff" | "vision";
@@ -41049,7 +41056,7 @@ interface PersonDoubtVM {
  * draws them; which exist, and their words, are here.
  */
 interface PersonActVM {
-    id: "call" | "text" | "email" | "booking" | "proposal" | "start-proposal" | "add-to-list" | "copy-phone" | "copy-email" | "leave-business" | "download" | "merge" | "delete";
+    id: "call" | "text" | "email" | "booking" | "proposal" | "start-proposal" | "add-to-list" | "copy-phone" | "copy-email" | "leave-business" | "download" | "merge" | "not-a-person" | "delete";
     label: string;
     hint: string | null;
     group: "reach" | "record" | "delete";
@@ -41070,6 +41077,12 @@ declare const PERSON_ACT_WORDS: {
     readonly copyPhone: "Copy the number";
     readonly copyEmail: "Copy the address";
     readonly deletePerson: "Delete person…";
+    /**
+     * A sender of automated mail made a person (00483): the act of its own, where it rode Delete person alone and the live
+     * walk never found it (27 Oct 2026). It opens the same question with the switch on.
+     */
+    readonly notAPerson: "Not a person…";
+    readonly notAPersonHint: "A notice or a newsletter: its mail stays in your mailbox, and it leaves People";
     /** Their own copy (R14 X5): everything kept about them, for when they ask what the business holds. */
     readonly download: "Download their records";
     readonly downloadHint: "Everything kept about them, in one file: for when they ask what you hold";
@@ -51436,6 +51449,8 @@ declare const SETUP_CARD_WORDS: {
     readonly goingLive: "Finish going live";
     readonly needYou: (n: number) => string;
     readonly doneTitle: "Already done";
+    /** While someone waits on the owner the card is its head alone, under the queue, and this opens its rows. */
+    readonly show: "Show";
     /** What is kept, in the order the steps made it. */
     readonly kept: {
         readonly business: (name: string, listed: boolean) => string;
