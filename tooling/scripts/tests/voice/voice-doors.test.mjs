@@ -41,6 +41,8 @@ import {
   VOICE_WEBHOOK_EVENTS,
   VOICE_WEBHOOK_TIMEOUT_MS,
   CALL_ANALYSIS_FIELDS,
+  CALL_FEEL,
+  CALL_HANDBOOK,
 } from "@chanlytics/channels";
 import { formatPhoneDisplay } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
@@ -820,6 +822,8 @@ const onSettings = (id, over = {}) => ({
   post_call_analysis_data: CALL_ANALYSIS_FIELDS.map((f) => ({ ...f })),
   reminder_trigger_ms: 4000,
   reminder_max_count: 2,
+  ...CALL_FEEL,
+  handbook_config: { ...CALL_HANDBOOK },
   ...over,
 });
 /** The same agent as the live one was found: Retell's default events, its default budget, public recording links, no analysis fields, the retired ?key= still on its call webhook, and the provider's single ten-second reminder. */
@@ -832,6 +836,10 @@ const drifted = (id, over = {}) =>
     webhook_url: `https://chanlytics-messaging.vercel.app/api/retell-webhook?key=${FN_SECRET}`,
     reminder_trigger_ms: null,
     reminder_max_count: null,
+    interruption_sensitivity: null,
+    begin_message_delay_ms: null,
+    enable_backchannel: null,
+    handbook_config: null,
     ...over,
   });
 const DRIFT_KEYS = [
@@ -842,6 +850,10 @@ const DRIFT_KEYS = [
   "webhook_url",
   "reminder_trigger_ms",
   "reminder_max_count",
+  "interruption_sensitivity",
+  "begin_message_delay_ms",
+  "enable_backchannel",
+  "handbook_config",
 ];
 
 test("converge, the door: a token for another door, a forgery and no credential are 403; no provider key is a 503; without an agent named the voice rows decide, so no database is a 503 -- with one named, no database is needed", async () => {

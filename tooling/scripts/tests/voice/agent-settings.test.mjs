@@ -26,6 +26,8 @@ import {
   newDraftNote,
   planVoiceConvergence,
   desiredVoiceShell,
+  CALL_FEEL,
+  CALL_HANDBOOK,
 } from "@chanlytics/channels";
 import { RETELL_MODELS } from "@chanlytics/contracts";
 import { readCode, readRaw } from "../_source.mjs";
@@ -41,6 +43,10 @@ test("a fresh agent (provider defaults) is planned onto the pipeline's settings"
     data_storage_retention_days: null,
   });
   assert.deepEqual(Object.keys(plan.agentPatch).sort(), [
+    "begin_message_delay_ms",
+    "enable_backchannel",
+    "handbook_config",
+    "interruption_sensitivity",
     "opt_in_signed_url",
     "post_call_analysis_data",
     "reminder_max_count",
@@ -76,6 +82,8 @@ test("a converged agent plans nothing, and extra events are kept", () => {
     post_call_analysis_data: CALL_ANALYSIS_FIELDS.map((f) => ({ ...f })),
     reminder_trigger_ms: 4000,
     reminder_max_count: 2,
+    ...CALL_FEEL,
+    handbook_config: { ...CALL_HANDBOOK },
   };
   const plan = planAgentSettings(live);
   assert.equal(plan.agentPatch, null);
@@ -94,6 +102,8 @@ test("a leftover ?key= on the call webhook's URL is drift, planned away to the b
     post_call_analysis_data: CALL_ANALYSIS_FIELDS.map((f) => ({ ...f })),
     reminder_trigger_ms: 4000,
     reminder_max_count: 2,
+    ...CALL_FEEL,
+    handbook_config: { ...CALL_HANDBOOK },
   };
   const bare = "https://chanlytics-messaging.vercel.app/api/retell-webhook";
   // Raw from the provider (the converger, the script): the query is still on the URL.
@@ -130,6 +140,8 @@ test("retention is planned only when asked, and refused outside the provider's r
     post_call_analysis_data: CALL_ANALYSIS_FIELDS.map((f) => ({ ...f })),
     reminder_trigger_ms: 4000,
     reminder_max_count: 2,
+    ...CALL_FEEL,
+    handbook_config: { ...CALL_HANDBOOK },
   };
   const asked = planAgentSettings(live, { retentionDays: 365 });
   assert.deepEqual(asked.agentPatch, { data_storage_retention_days: 365 });
@@ -196,6 +208,8 @@ const CONVERGED = {
   post_call_analysis_data: CALL_ANALYSIS_FIELDS.map((f) => ({ ...f })),
   reminder_trigger_ms: 4000,
   reminder_max_count: 2,
+  ...CALL_FEEL,
+  handbook_config: { ...CALL_HANDBOOK },
 };
 
 test("a silent caller is reminded after four seconds, twice: the provider's ten-second single reminder is drift", () => {
@@ -294,4 +308,73 @@ test("the LLM's model and temperature are reported when they differ, and never p
     planVoiceConvergence({ ...desired, model: RETELL_MODELS.llm, model_temperature: 0 }, desired).notes,
     [],
   );
+});
+
+test("how a call sounds is the product's on every line: a conversational persona that reads key details back, harder to cut off, a breath before the first word, listening sounds", () => {
+  // The salon's line as it was read on 28 Oct 2026: the provider's defaults, no handbook presets set at all.
+  const salon = planAgentSettings({
+    ...CONVERGED,
+    interruption_sensitivity: null,
+    begin_message_delay_ms: null,
+    enable_backchannel: null,
+    handbook_config: null,
+  });
+  assert.deepEqual(salon.agentPatch, {
+    interruption_sensitivity: 0.8,
+    begin_message_delay_ms: 400,
+    enable_backchannel: true,
+    handbook_config: {
+      default_personality: false,
+      conversational_personality: true,
+      natural_filler_words: true,
+      echo_verification: true,
+      speech_normalization: true,
+    },
+  });
+  assert.equal(salon.drift.length, 4, "a line for each setting, and one for the handbook");
+  assert.ok(salon.drift.some((d) => d.startsWith("interruption_sensitivity is unset; the product's is 0.8")));
+  // A line set by hand (Ruben's, 28 Oct 2026): its values become the product's, and the presets the product does not
+  // hold are kept as they are.
+  const his = planAgentSettings({
+    ...CONVERGED,
+    interruption_sensitivity: 0.95,
+    begin_message_delay_ms: 200,
+    enable_backchannel: null,
+    handbook_config: {
+      ai_disclosure: false,
+      conversational_personality: true,
+      default_personality: false,
+      echo_verification: false,
+      high_empathy: false,
+      natural_filler_words: true,
+      speech_normalization: false,
+    },
+  });
+  assert.deepEqual(his.agentPatch, {
+    interruption_sensitivity: 0.8,
+    begin_message_delay_ms: 400,
+    enable_backchannel: true,
+    handbook_config: {
+      ai_disclosure: false,
+      conversational_personality: true,
+      default_personality: false,
+      echo_verification: true,
+      high_empathy: false,
+      natural_filler_words: true,
+      speech_normalization: true,
+    },
+  });
+  assert.ok(
+    his.drift.some((d) => d.includes("echo_verification, speech_normalization")),
+    "the handbook's line names only what differs",
+  );
+  // A preset the product does not hold is the line's own: kept, and not drift.
+  assert.equal(
+    planAgentSettings({ ...CONVERGED, handbook_config: { ...CALL_HANDBOOK, high_empathy: true } }).agentPatch,
+    null,
+  );
+  // A new line is created sounding the same, so the converger plans nothing against it.
+  const created = voiceAgentCreateBody({ llmId: "llm_feel", llmVersion: 0, agentName: "x" }, { fnSecret: "s" }, FN_URL);
+  for (const [key, value] of Object.entries(CALL_FEEL)) assert.equal(created[key], value, key);
+  assert.deepEqual(created.handbook_config, CALL_HANDBOOK);
 });
