@@ -25,6 +25,8 @@ import {
   CALL_ANALYSIS_FIELDS,
   SILENCE_REMINDER_MS,
   SILENCE_REMINDERS,
+  CALL_FEEL,
+  CALL_HANDBOOK,
 } from "./voice-shell";
 import { E164, HOUR_MS, PHONE_VOICE_DEFAULT, RETELL_MODELS } from "@chanlytics/contracts";
 
@@ -54,6 +56,10 @@ export const VOICE_AGENT_DEFAULTS = {
   // every live agent to the same. The ten locales stay until a line is converged to its workspace's (retellLocalesOf).
   reminder_trigger_ms: SILENCE_REMINDER_MS,
   reminder_max_count: SILENCE_REMINDERS,
+  // How a call sounds and takes turns (voice-shell.ts CALL_FEEL, CALL_HANDBOOK): a new line sounds as every live one is
+  // converged to, so the converger plans nothing against what this creates.
+  ...CALL_FEEL,
+  handbook_config: CALL_HANDBOOK,
   max_call_duration_ms: HOUR_MS,
   data_storage_setting: "everything",
   data_storage_retention_days: 90,

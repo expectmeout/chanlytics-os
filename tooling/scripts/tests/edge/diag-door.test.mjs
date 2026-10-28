@@ -26,6 +26,8 @@ import {
   VOICE_WEBHOOK_EVENTS,
   VOICE_WEBHOOK_TIMEOUT_MS,
   CALL_ANALYSIS_FIELDS,
+  CALL_FEEL,
+  CALL_HANDBOOK,
 } from "@chanlytics/channels";
 import { fakeDb } from "../_fake-db.mjs";
 import { logLineOf } from "../_log-lines.mjs";
@@ -519,6 +521,8 @@ const agentOnShell = (id, llm) => ({
   post_call_analysis_data: CALL_ANALYSIS_FIELDS.map((f) => ({ ...f })),
   reminder_trigger_ms: 4000,
   reminder_max_count: 2,
+  ...CALL_FEEL,
+  handbook_config: { ...CALL_HANDBOOK },
 });
 /** The LLM as get-retell-llm returns it: the shell, with the secret header on its tools. */
 const llmOnShell = (id) => ({
@@ -605,6 +609,10 @@ test("each voice line's agent and shell are read from Retell: the live transcrip
           post_call_analysis_data: [],
           reminder_trigger_ms: undefined,
           reminder_max_count: undefined,
+          interruption_sensitivity: undefined,
+          begin_message_delay_ms: undefined,
+          enable_backchannel: undefined,
+          handbook_config: undefined,
         },
       };
     if (req.url.endsWith("/get-retell-llm/llm_ok?version=1")) return { body: llmOnShell("llm_ok") };

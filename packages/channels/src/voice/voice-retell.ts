@@ -389,6 +389,11 @@ export interface RetellAgentConfig {
   /** How long a caller's silence waits before the agent speaks again, and how often; null = the provider's default. */
   reminder_trigger_ms: number | null;
   reminder_max_count: number | null;
+  /** How a call sounds and takes turns (voice-shell.ts CALL_FEEL, CALL_HANDBOOK); null = the provider's default. */
+  interruption_sensitivity: number | null;
+  begin_message_delay_ms: number | null;
+  enable_backchannel: boolean | null;
+  handbook_config: Record<string, unknown> | null;
 }
 
 /** GET /get-agent — the fields above, read-only. Null when the provider says no. */
@@ -420,6 +425,13 @@ export async function getAgent(cfg: RetellConfig, agentId: string): Promise<Rete
     post_call_analysis_data: Array.isArray(a.post_call_analysis_data) ? (a.post_call_analysis_data as unknown[]) : null,
     reminder_trigger_ms: num("reminder_trigger_ms"),
     reminder_max_count: num("reminder_max_count"),
+    interruption_sensitivity: num("interruption_sensitivity"),
+    begin_message_delay_ms: num("begin_message_delay_ms"),
+    enable_backchannel: bool("enable_backchannel"),
+    handbook_config:
+      a.handbook_config && typeof a.handbook_config === "object" && !Array.isArray(a.handbook_config)
+        ? (a.handbook_config as Record<string, unknown>)
+        : null,
   };
 }
 

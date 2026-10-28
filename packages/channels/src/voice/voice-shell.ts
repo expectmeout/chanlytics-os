@@ -441,6 +441,11 @@ export interface LiveAgentSettings {
   language?: string | string[] | null;
   reminder_trigger_ms?: number | null;
   reminder_max_count?: number | null;
+  /** How a call sounds and takes turns (CALL_FEEL, CALL_HANDBOOK); unset is the provider's default. */
+  interruption_sensitivity?: number | null;
+  begin_message_delay_ms?: number | null;
+  enable_backchannel?: boolean | null;
+  handbook_config?: Record<string, unknown> | null;
   voice_id?: string | null;
   post_call_analysis_model?: string | null;
 }
@@ -527,7 +532,57 @@ export function planAgentSettings(
     }
   }
   planFirstSeconds(live, opts.locales, drift, patch);
+  planCallFeel(live, drift, patch);
   return { drift, agentPatch: Object.keys(patch).length ? patch : null, notes: agentNotes(live) };
+}
+
+/**
+ * How a call sounds and takes turns, the product's on every line (the call-feel read, 28 Oct 2026). Of the salon's
+ * fifteen callers from 7 to 12 October, twelve never spoke, and its agent ran the provider's defaults: no persona set
+ * (the provider's is a "professional call-center representative"), stopped by any sound on the line, and speaking 0.2
+ * seconds after pickup. Ruben's own line had been set by hand to sound like a person; every line now does.
+ *   - interruption_sensitivity 0.8: an "uh-huh" or a noise in the room no longer cuts it off mid-sentence (the
+ *     provider's default, 1, is the easiest to interrupt; its own advice for noisy lines is 0.8).
+ *   - begin_message_delay_ms 400: a forwarded call's audio settles before the first word, which was clipped.
+ *   - enable_backchannel: short listening sounds while the caller talks, so a long answer is not met with silence.
+ * The voice and its pace are the owner's (sent with each call), the model goes through the gate, and the reminders are
+ * SILENCE_REMINDER_MS.
+ */
+export const CALL_FEEL = {
+  interruption_sensitivity: 0.8,
+  begin_message_delay_ms: 400,
+  enable_backchannel: true,
+} as const;
+
+/**
+ * The provider's prompt presets a line runs with (its "handbook"): conversational rather than a call-center script,
+ * with natural filler words; key details (a name, a number, a day and time) read back to the caller; numbers, dates and
+ * prices said the way people say them. Any other preset on the line is kept as it is.
+ */
+export const CALL_HANDBOOK = {
+  default_personality: false,
+  conversational_personality: true,
+  natural_filler_words: true,
+  echo_verification: true,
+  speech_normalization: true,
+} as const;
+
+/** The call's feel: each setting the product holds, and the handbook's presets merged into what the line has. */
+function planCallFeel(live: LiveAgentSettings, drift: string[], patch: Record<string, unknown>): void {
+  for (const key of Object.keys(CALL_FEEL) as (keyof typeof CALL_FEEL)[]) {
+    if (live[key] === CALL_FEEL[key]) continue;
+    drift.push(`${key} is ${String(live[key] ?? "unset")}; the product's is ${String(CALL_FEEL[key])}`);
+    patch[key] = CALL_FEEL[key];
+  }
+  const book = live.handbook_config ?? {};
+  const differ = (Object.keys(CALL_HANDBOOK) as (keyof typeof CALL_HANDBOOK)[]).filter(
+    (k) => book[k] !== CALL_HANDBOOK[k],
+  );
+  if (!differ.length) return;
+  drift.push(
+    `the handbook's ${differ.join(", ")} differ from the product's: a conversational receptionist that reads key details back`,
+  );
+  patch.handbook_config = { ...book, ...CALL_HANDBOOK };
 }
 
 /**
