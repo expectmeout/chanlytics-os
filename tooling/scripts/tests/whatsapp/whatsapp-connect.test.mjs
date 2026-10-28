@@ -182,8 +182,9 @@ test("the browser flow: Meta's SDK loaded once, the ids read only from facebook.
   );
   assert.ok(src.includes('api()("POST channels/whatsapp/connect"'));
   assert.ok(!src.includes("access_token"), "no credential passes through the browser");
-  // The pane imports the flow's object (`waConnect`); nothing publishes it on the window, so the app installs nothing.
-  assert.deepEqual(Object.keys(mod.waConnect).sort(), ["config", "prepare", "start"]);
+  // The pane imports the flow's object (`waConnect`); nothing publishes it on the window, so the app installs nothing. Meta's
+  // door as the tab last read it (`held`) is what the row draws in its first frame (settings/frame/pane-reads.ts).
+  assert.deepEqual(Object.keys(mod.waConnect).sort(), ["config", "held", "prepare", "start"]);
   assert.ok(!src.includes("installWhatsAppConnect"));
   assert.ok(!readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installWhatsAppConnect"));
 });

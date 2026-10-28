@@ -10,6 +10,15 @@
  */
 import { MIN_MS, PRIMARY_PART, type PageVitalDetailDto, type PageVitalReportDto } from "@chanlytics/contracts";
 
+/**
+ * A browser no customer is in: one a test drives (navigator.webdriver), or the Claude app's own browser pane, where the
+ * walks of the app are taken and which says no test drives it. Its loads were counted as a customer's: the walks of 27-28
+ * Oct 2026 put Settings' cold loads at 5.8 s on a desk and 5.3 on a phone, against 1.6 and 0.8 before, on a machine at its
+ * memory's limit and a pane often off screen (the Settings load review, 28 Oct 2026). Its user agent names the app.
+ */
+export const notACustomer = (nav: { webdriver?: boolean; userAgent?: string }): boolean =>
+  !!nav.webdriver || /\bClaude\/\d/.test(nav.userAgent ?? "");
+
 /** What one measure says, before the collector gives it its id. */
 export type SpeedReport = Omit<PageVitalReportDto, "id">;
 

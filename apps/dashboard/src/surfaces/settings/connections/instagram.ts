@@ -5,10 +5,15 @@
  * Nothing here holds a credential. Disconnect turns the account's row off through its route; the refresh map re-reads
  * the channels, where the row now shows.
  */
-import { api, read } from "@/legacy-bridge/api";
+import { unwrap } from "@/client/api";
+import { api } from "@/legacy-bridge/api";
+import { instagramDoorRead } from "../frame/pane-reads";
 
-/** Whether this deployment can connect an account, and this member may: asked once as Connections opens. */
-const doorOf = () => read("GET channels/instagram");
+/**
+ * Whether this deployment can connect an account, and this member may: asked once as Connections opens, and kept in the tab,
+ * so the row draws the last answer while it asks again (settings/frame/pane-reads.ts).
+ */
+const doorOf = async () => unwrap(await instagramDoorRead.read());
 export type InstagramDoor = Awaited<ReturnType<typeof doorOf>>;
 
 /** The words the row says for what came back from Instagram, by the outcome or its reason. */
@@ -60,6 +65,8 @@ function outcome(): string | null {
 
 export const igConnect = {
   config: doorOf,
+  /** The door as this tab last read it, or null: what the row draws in its first frame. */
+  held: (): InstagramDoor | null => instagramDoorRead.held(),
   outcome,
   /** To Instagram's consent screen, by the app's own route (which signs the way out). */
   start: () => window.location.assign(api().url("GET channels/instagram/connect", { params: undefined })),

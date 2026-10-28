@@ -175,7 +175,23 @@ test("every page opens on its own reads, named by the path's word or the hash's;
     ["templates", "messages"],
     // Messages as the view of Campaigns it is (19 Oct 2026), opening on what the Library did.
     ["campaigns/messages", "campaigns/messages"],
-    ["admin/team", "admin"],
+    // Settings opens on its own read, and a pane its address names on that pane's (the Settings load review, 28 Oct 2026): a
+    // pane drawn from the settings read on it and what it draws beside it, a pane drawn from none of it on its own alone. A
+    // pane that names none (Autonomy), a row after a pane, and the bare address open as their pane or Settings does.
+    ["admin", "admin"],
+    ["settings", "admin"],
+    ["settings/team", "admin/team"],
+    ["admin/team", "admin/team"],
+    ["settings/receptionist", "admin/receptionist"],
+    ["settings/hours/closures", "admin/hours"],
+    ["settings/integrations/left", "admin/integrations"],
+    ["settings/billing", "admin/billing"],
+    ["settings/memory", "admin/memory"],
+    ["settings/activity", "admin/activity"],
+    ["settings/profile", "admin/profile"],
+    ["settings/notifications", "admin/notifications"],
+    ["settings/autonomy", "admin"],
+    ["settings/workspace", "admin"],
     ["start", "start"],
   ];
   for (const [path, route] of pages) {
@@ -738,12 +754,21 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
       (await importSrc(`${S}/surfaces/today/ask-morning-surface.ts`)).askMorningOverride,
       // And the drafts Ask kept for Need you's rows, which Today's first draw waits for (decision 0071).
       (await importSrc(`${S}/surfaces/today/need-you/drafts-surface.ts`)).replyDraftsOverride,
+      // What Settings' panes draw beside their own (the Settings load review, 28 Oct 2026): the partner account the rail names
+      // Partner by, Billing's plan, the member's alerts, Ask's memory.
+      (await importSrc(`${S}/surfaces/settings/partner/surface.ts`)).partnerOverride,
+      (await importSrc(`${S}/surfaces/settings/billing/surface.ts`)).billingOverride,
+      (await importSrc(`${S}/surfaces/settings/notifications/surface.ts`)).alertsOverride,
+      (await importSrc(`${S}/surfaces/settings/memory/surface.ts`)).askMemoryOverride,
     ].map((o) => [o.key, o]),
   );
+  // And what a pane of Settings reads that is no surface (Team's partner, Connections' doors, Profile's views, the log's first
+  // page), begun as a load at its address begins it (settings/frame/pane-reads.ts).
+  const { warmSettingsPane } = await importSrc(`${S}/surfaces/settings/frame/pane-reads.ts`);
   const settle = async () => {
     for (let i = 0; i < 10; i += 1) await new Promise((r) => setTimeout(r, 0));
   };
-  // Settings is a page of panes, each drawn from the settings surface: asked about one of them.
+  // Settings is a page of panes: its bare address is Details (on a desk), and each pane its address names opens on its own.
   const paramOf = { admin: "workspace" };
   // What a page draws on its first screen from another page's surface, started with its own: Today's strip (the next
   // visit, the next opening) is the calendar's weeks, which the frame reads right after Today's own (ROUTE_DRAWS);
@@ -770,6 +795,19 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
     outbound: ["channels"],
     messages: ["channels"],
     "campaigns/messages": ["channels"],
+    // Every pane of Settings draws the partner account (the rail's Partner), and some what else they stand on: the calendar's
+    // weeks (Hours), Setup's connections (How it answers, Connections), Google and the channels (Connections), the member's
+    // alerts, Billing's plan, Ask's memory. A pane drawn from none of the settings read stands on who is looking alone.
+    admin: ["partner"],
+    "admin/hours": ["partner", "calendar"],
+    "admin/receptionist": ["partner", "setup"],
+    "admin/team": ["partner"],
+    "admin/notifications": ["partner", "alerts"],
+    "admin/profile": ["partner"],
+    "admin/integrations": ["partner", "channels", "google", "setup"],
+    "admin/billing": ["partner", "billing"],
+    "admin/memory": ["partner", "ask_memory"],
+    "admin/activity": ["partner"],
   };
   // A key with words after its page (`campaigns/sequences/new`) is that page at that address, as the registry reads one
   // (routePartsOf); a key that names a screen, no address, is asked at one of its addresses (a run at its home).
@@ -804,6 +842,7 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
     api().forget();
     asked.length = 0;
     for (const k of keys) void overrides[k].apply().catch(() => {});
+    if (page === "admin" && param) warmSettingsPane(param);
     await settle();
     // Who is looking is every page's (and a surface's clock reads it when the tab knows no zone yet), and so is the one accept of
     // invitations the shell makes beside it (a POST, not a read the head starts: invitations/accept.ts).

@@ -24,10 +24,11 @@ import { pageConsole, saveSettingsFn, settingsNow, tzApi, workspaceApi } from ".
 /* ------------------------------------ the config, as far as this tab reads it ------------------------------------ */
 
 /** A day as it is stored: an open/close pair, a list of intervals, or both (contracts dayIntervals unions them). */
+/** A day of the week, as the config's schema holds it (contracts HoursSchema): absent or null is closed, a real answer. */
 export interface StoredDay {
-  open?: string;
-  close?: string;
-  intervals?: { open?: string; close?: string }[];
+  open?: string | null;
+  close?: string | null;
+  intervals?: { open: string; close: string }[];
 }
 
 /** A closed day or stretch as it is stored. */
@@ -51,19 +52,30 @@ export interface StoredNote {
   until?: string;
 }
 
-/** The booking rules as they are stored: the five numbers, the notes, the email switch and the consult-first list. */
-export interface StoredRules {
-  [key: string]: unknown;
+/**
+ * The booking rules' fields this tab names: the notes, the email switch, the consult-first list and walk-ins. A type and
+ * not an interface, so a row of StoredRules is one: what the settings read's snapshot is typed by (StoredProfile).
+ */
+export type StoredRuleFields = {
   notes?: string[];
   ask_email?: boolean;
   consult_first?: string[];
   /** Whether walk-ins are taken (decision 0073): yes, room or no; absent for none said. */
   walk_ins?: string;
+};
+
+/** The booking rules as they are stored: the five numbers (read by their keys), and the fields this tab names. */
+export interface StoredRules extends StoredRuleFields {
+  [key: string]: unknown;
 }
 
 /** The business profile, as far as the tab reads it; any other key it keeps is kept (the index). */
-export interface Profile {
-  [key: string]: unknown;
+/**
+ * The profile's fields this tab names, and nothing else: what the settings read's snapshot is typed by, so it has a
+ * fingerprint and is drawn across a deploy that left its type alone (legacy-bridge/surfaces/settings.ts, surface-cache.ts
+ * SURFACE_SHAPES). A type and not an interface, so a Profile, which keeps every key besides, is one.
+ */
+export type StoredProfile = {
   address?: string;
   website?: string;
   handoff_number?: string;
@@ -78,9 +90,15 @@ export interface Profile {
   languages?: string[];
   notes?: StoredNote[];
   escalate_when?: string[];
-  booking_rules?: StoredRules;
+  booking_rules?: StoredRuleFields;
   guardrails?: Record<string, boolean | undefined>;
   extra_instructions?: string;
+};
+
+/** The profile as a save writes it: the fields this tab names, and every key it does not, kept as they were. */
+export interface Profile extends StoredProfile {
+  [key: string]: unknown;
+  booking_rules?: StoredRules;
 }
 
 /** The receptionist's brain, as far as the tab reads it. */

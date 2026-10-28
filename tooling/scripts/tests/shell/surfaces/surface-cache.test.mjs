@@ -568,7 +568,7 @@ test("a snapshot another build kept is drawn where its value's type is this buil
             $kept: kept("an-older-build", SURFACE_SHAPES.calendar),
           },
           // A type the checker cannot see all of: the build's alone.
-          settings: { $value: { n: 1 }, $kept: kept("an-older-build", null) },
+          playbooks: { $value: { n: 1 }, $kept: kept("an-older-build", null) },
           // This build's own, whatever its shape says.
           setup: { $value: { n: 1 }, $kept: kept(build, "anything") },
           // A day old, from this build or not.
@@ -579,12 +579,14 @@ test("a snapshot another build kept is drawn where its value's type is this buil
       }),
     );
     assert.equal(
-      SURFACE_SHAPES.settings,
+      SURFACE_SHAPES.playbooks,
       null,
-      "the settings read's value hides a type from the checker (shapes.generated.ts)",
+      "the playbooks' value hides a type from the checker (shapes.generated.ts)",
     );
-    // The Inbox's said its templates' slots as `unknown` until the Inbox load review (28 Oct 2026): it is drawn across a deploy now.
+    // The Inbox's and the settings read's each said a field as `unknown` until their load reviews (28 Oct 2026): each is drawn
+    // across a deploy now.
     assert.equal(typeof SURFACE_SHAPES.inbox, "string", "the Inbox's value has a fingerprint");
+    assert.equal(typeof SURFACE_SHAPES.settings, "string", "and the settings read's");
     assert.deepEqual([...hydrateSurfaceCache()].sort(), ["setup", "today"]);
     assert.deepEqual(surfaceValue("today"), { n: 1 });
     assert.equal(globalThis.window.__CALENDAR_PROBE, undefined, "nothing of a snapshot not drawn reaches the window");

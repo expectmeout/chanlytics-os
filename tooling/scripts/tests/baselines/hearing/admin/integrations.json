@@ -1,7 +1,7 @@
 {
   "family": "admin/integrations",
   "route": "admin/integrations",
-  "owns": "settings setup(facts visit)",
+  "owns": "settings setup(facts visit) workspace",
   "notices": {
     "messages INSERT": "conversations inbox today · 10 routes",
     "messages UPDATE sent": "conversations inbox · 5 routes",

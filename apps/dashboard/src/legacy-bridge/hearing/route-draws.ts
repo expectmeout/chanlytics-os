@@ -120,14 +120,26 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   // `campaigns.sources`): the page's own row, which the Overview and a lens with no row of its own fall to. It is read as the
   // Overview comes on screen and again when it has aged, never for each burst of messages (campaigns-surface.ts heardOnTheLens).
   reports: ["reports_campaigns"],
-  // Settings' Connections pane draws Google's listing and its connection beside the settings read, as Today's card draws its
-  // review line (`google` is read where one of the two is on screen, legacy-bridge/google.ts): no other pane of Settings does.
-  // Its WhatsApp and phone rows are the channels read's (surfaces/channels/surface.ts).
-  "admin/integrations": ["google", "channels"],
+  // Settings, on every pane: the rail (and the phone's list) names Partner for a partner, and Profile offers it to anyone else,
+  // from the partner account (frame/page.tsx). A load's first draw waits for these beside the pane's own surface
+  // (settings/frame/pane-reads.ts), each read the head starts with the pane's (contracts PREFETCH_READS `admin/<pane>`). Read
+  // in the boot's second pass, each landed after its pane and moved it: How it answers' "What it can do" 321 to 358 px, the
+  // Email card on Connections 221 to 373 px, Billing's plan 130 px, a second or more on (the Settings load review, 28 Oct 2026).
+  admin: ["partner"],
+  // Billing's plan, its own read (settings/billing/surface.ts), which says it is reading until it lands.
+  "admin/billing": ["partner", "billing"],
+  // Hours & booking draws the booking tool's emails and the calendar link's standing from the calendar's read (open-bookings.tsx).
+  "admin/hours": ["partner", "calendar"],
+  // How it answers' "What it can do" is Setup's connections (business/can.tsx), and says it is reading until they land.
+  "admin/receptionist": ["partner", "setup"],
+  // Connections draws Google's listing and its connection beside its channels, as Today's card draws its review line (`google`
+  // is read where one of the two is on screen, legacy-bridge/google.ts), and its Email card from Setup's mailboxes: no other
+  // pane of Settings does. Its WhatsApp and phone rows are the channels read's (surfaces/channels/surface.ts).
+  "admin/integrations": ["partner", "channels", "google", "setup"],
   // Settings' Notifications pane draws what reaches the member's own phones beside the settings read (decision 0040).
-  "admin/notifications": ["alerts"],
-  // Settings' Memory pane draws what Ask remembers and its journal beside the settings read (decision 0070).
-  "admin/memory": ["ask_memory"],
+  "admin/notifications": ["partner", "alerts"],
+  // Settings' Memory pane draws what Ask remembers and its journal (decision 0070), read only where it is drawn.
+  "admin/memory": ["partner", "ask_memory"],
 };
 
 /**

@@ -406,11 +406,12 @@ test("where you are: each workspace with the caller's role in it, and whether th
 
 /* ------------------------------------------------------------------ the wiring */
 
-test("wiring, run: the pane's surface is real and waits for Settings, becoming one has its bucket, the ledger's kinds are declared", () => {
+test("wiring, run: the pane's surface is real and waits for who is looking, becoming one has its bucket, the ledger's kinds are declared", () => {
   // The manifest and the harness (legacy-harness.test.mjs), the public prefix (auth-gate.test.mjs), the rail and the
   // pane (partner-pane.test.mjs) and the function's refusals (partner.db.test.mjs) are proved where they are run.
   assert.equal(SURFACE_STATES["admin/partner"], "real");
-  assert.equal(ROUTE_SURFACE["admin/partner"], "settings");
+  // It draws none of the settings read: who is looking, and the partner account beside it (the Settings load review, 28 Oct 2026).
+  assert.equal(ROUTE_SURFACE["admin/partner"], "workspace");
   assert.deepEqual(RATE.partner_become, { limit: 10, windowMs: 3_600_000, noun: "partner codes tried" });
   for (const k of [
     "partner.attributed",

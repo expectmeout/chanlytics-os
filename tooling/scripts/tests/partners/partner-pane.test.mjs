@@ -526,6 +526,8 @@ test("Team: the owner asks a partner by code and may take it back; anyone else s
   let card = { state: "none", sentence: null, canInvite: true, canWithdraw: false };
   const asked = [];
   partnerVerbs.team = {
+    // Nothing held in the tab: the card is drawn from its read (settings/frame/pane-reads.ts).
+    held: () => null,
     read: async () => ({ ok: true, vm: card }),
     invite: async (code) => {
       asked.push(code);
@@ -585,6 +587,8 @@ test("Team: the owner asks a partner by code and may take it back; anyone else s
   }
 
   partnerVerbs.team = {
+    // Nothing held in the tab: the card is drawn from its read (settings/frame/pane-reads.ts).
+    held: () => null,
     ...partnerVerbs.team,
     read: async () => ({ ok: false, code: "forbidden", message: "Only an owner can do this." }),
   };
@@ -599,6 +603,8 @@ test("Team: an owner's View as another role sees no card, as that role would; th
   let reads = 0;
   let card = { state: "none", sentence: null, canInvite: true, canWithdraw: false };
   partnerVerbs.team = {
+    // Nothing held in the tab: the card is drawn from its read (settings/frame/pane-reads.ts).
+    held: () => null,
     read: async () => {
       reads += 1;
       return { ok: true, vm: card };

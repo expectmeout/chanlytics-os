@@ -29,6 +29,7 @@ import { PAGE_PHONE_QUERY, PREFETCH_READS, vitalsPageOf } from "@chanlytics/cont
 import { beaconTo, createFieldData, flushWhenHidden, type FieldData } from "./field-data";
 import {
   createPageSpeed,
+  notACustomer,
   readKeyOf,
   waitOf,
   type Landed,
@@ -220,7 +221,7 @@ const PAGES_HELD = 200;
  * Hand the measures the browser and the shell, once, on a workspace's page: the document's visit begins at its start,
  * each move of the address begins another from the press that asked for it, the shell's gate and surfaces say when a
  * page with no first part is drawn and when everything it draws is in, and a hidden page loses what it had not drawn.
- * The collector sends with the browser's five; a browser a test drives (navigator.webdriver) sends nothing, and still
+ * The collector sends with the browser's five; a browser no customer is in (notACustomer) sends nothing, and still
  * measures.
  */
 export function installPageSpeed(shell: SpeedShell, facts: { build: string; report: boolean }): SpeedHost | null {
@@ -230,8 +231,8 @@ export function installPageSpeed(shell: SpeedShell, facts: { build: string; repo
   const device = window.matchMedia?.(PAGE_PHONE_QUERY).matches ? "phone" : "desk";
   const build = /^[0-9a-z]{3,40}$/.test(facts.build) ? facts.build.slice(0, 12) : undefined;
   // A development build measures and keeps its numbers to itself: it talks to the production database, and a page
-  // compiled on its first request is no person's wait. So does a browser a test drives.
-  const send = !facts.report || navigator.webdriver ? () => {} : beaconTo(navigator);
+  // compiled on its first request is no person's wait. So does a browser no customer is in.
+  const send = !facts.report || notACustomer(navigator) ? () => {} : beaconTo(navigator);
   const fieldData = createFieldData(landing, send, { device, ...(build ? { build } : {}) });
   flushWhenHidden(window, fieldData);
 

@@ -8,6 +8,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactNode, RefObject } from "react";
 import type { LegacyFlash } from "../../legacy-verbs";
+import { warmSettingsPane } from "../../settings/frame/pane-reads";
 import { frameBell, frameChrome, frameGlyph, framePortal, isDemoFrame } from "../frame-window";
 import {
   SbWorkspaceFace,
@@ -38,7 +39,15 @@ interface SbMenuState {
   close: () => void;
 }
 
-/** A menu's open state, its place (taken as it opens) and its trigger; Escape closes it. */
+/**
+ * The panes of Settings the menus open (the workspace's "Workspace settings", the account's Settings, Profile and
+ * Notifications), warmed as a menu opens, as the phone's drawer warms the pages only it leads to (shell-hooks.ts
+ * DRAWER_ONLY). On a desk the menus are the way to Settings, and a press there waited for its page from the server: 11
+ * of 16 moves to it, 1.7 s at the median, where every other page moved in 0.2 (page_vitals, 14-28 Oct 2026).
+ */
+const MENU_PANES = ["workspace", "profile", "notifications"] as const;
+
+/** A menu's open state, its place (taken as it opens) and its trigger; Escape closes it. Opened, it warms Settings. */
 export function useSbMenu(): SbMenuState {
   const [open, setOpen] = useState(false);
   const [rect, setRect] = useState<MenuRect | null>(null);
@@ -61,6 +70,7 @@ export function useSbMenu(): SbMenuState {
   const close = () => setOpen(false);
   useEffect(() => {
     if (!open) return undefined;
+    MENU_PANES.forEach(warmSettingsPane);
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
     };
