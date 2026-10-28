@@ -6,7 +6,6 @@
  * place). Every rule is the contract's; this module only feeds it the surfaces.
  */
 import {
-  calendarFeedKeyOf,
   ROLE_PERMS,
   answerFromV1,
   answerText,
@@ -77,13 +76,7 @@ export interface PaletteGlobals {
   /** Live's value: the calls on the line, the page's recent few, and every missed call still news (uncapped). */
   __LIVE?: FeedLive;
   __PEOPLE?: { rows?: Array<{ id: string; name: string }>; hasDeals?: boolean } | null;
-  __SETTINGS?: {
-    config?: {
-      calendar?: { ical_url?: string };
-      calendar_grant?: { mailbox_id?: string | null; provider?: string | null } | null;
-      features?: unknown;
-    } | null;
-  } | null;
+  __SETTINGS?: { config?: { calendar?: { ical_url?: string }; features?: unknown } | null } | null;
   __WORKSPACES?: Workspace[];
   __ACTIVE_WORKSPACE?: string | null;
   /** Who is looking: their role, and whether they are Chanlytics staff (the back office's jump is theirs alone). */
@@ -308,8 +301,7 @@ export function askPalette(win: Window, storage: Storage | null) {
         missedToday: tz ? callsToday(calls(), Date.now(), tz).missed.length : 0,
         // On the line by the heartbeat (callsToday's own count), never `live` alone.
         liveNow: callsToday(calls(), Date.now(), tz).live.length,
-        // The calendar the openings come from: its link, or the Google calendar a connected mailbox reads (calendarFeedKeyOf).
-        hasCalendar: calendarFeedKeyOf(w.__SETTINGS?.config) !== null,
+        hasCalendar: !!w.__SETTINGS?.config?.calendar?.ical_url,
         scope,
         // Whoever acts in the workspace (owner, operator, partner): the one table, as the pages' canDo("approve").
         canAct: !!ROLE_PERMS[w.__ME?.role as keyof typeof ROLE_PERMS]?.approve,

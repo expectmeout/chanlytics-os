@@ -11,6 +11,17 @@ const BOOLEAN_INPUTS = {
   visionOn: true,
   bookingHeld: true
 };
+function bookingLinkDetail(i, callSendsLink) {
+  if (!i.hasBookingLink) return "No booking link, so it takes their details for you to follow up.";
+  if (!i.whatsappLive) {
+    const why = i.whatsappStatus ? `It goes out on WhatsApp, which isn't live here yet: ${i.whatsappStatus}` : "It goes out on WhatsApp, which isn't connected here.";
+    return i.voiceLive ? `${why} On a call it offers to have someone follow up instead.` : why;
+  }
+  if (i.bookingHeld)
+    return "Your Autonomy tab holds bookings for you to confirm, so when someone asks to book, it sends no link: it tells them someone from the team will confirm.";
+  if (!i.voiceLive) return "It sends it in the thread.";
+  return callSendsLink ? "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the thread." : "In chat it sends it in the thread. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
+}
 export function abilityRows(i) {
   if (!i || typeof i !== "object")
     throw new TypeError(
@@ -37,7 +48,7 @@ export function abilityRows(i) {
   const linkGoes = i.hasBookingLink && chatAnswers && !i.bookingHeld;
   const linkIsChatsAlone = linkGoes && i.voiceLive && !callSendsLink;
   const inChat = linkIsChatsAlone ? " in chat" : "";
-  const bookingDetail = !i.hasBookingLink ? "No booking link, so it takes their details for you to follow up." : !i.whatsappLive ? `${i.whatsappStatus ? `It goes out on WhatsApp, which isn't live here yet: ${i.whatsappStatus}` : "It goes out on WhatsApp, which isn't connected here."}${i.voiceLive ? " On a call it offers to have someone follow up instead." : ""}` : i.bookingHeld ? "Your Autonomy tab holds bookings for you to confirm, so when someone asks to book, it sends no link: it tells them someone from the team will confirm." : !i.voiceLive ? "It sends it in the thread." : callSendsLink ? "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the thread." : "In chat it sends it in the thread. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
+  const bookingDetail = bookingLinkDetail(i, callSendsLink);
   const rows = [
     {
       id: "answer",
