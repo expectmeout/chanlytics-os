@@ -119,7 +119,7 @@ const SendingGroup = (p: { m: MailboxConnectionDto; on: boolean; setOn: (on: boo
     <div className="set-mbx-say">
       <span className="set-mbx-say-words">
         <span className="set-mbx-say-name" id={id}>
-          {CARD.sending}
+          {CARD.sendsNow}
         </span>
         <span className="set-mbx-lines" data-testid={`mailbox-sending-${m.address}`}>
           {switchable ? <span>{on ? CARD.sendingOn(m.address) : CARD.sendingOff(m.address)}</span> : null}
