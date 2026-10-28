@@ -22,6 +22,7 @@ const { setModelStream } = await import(at("apps/dashboard/src/server/model-json
 const draft = await import(at("apps/dashboard/app/api/v1/conversations/[id]/draft/route.ts"));
 const drafts = await import(at("apps/dashboard/app/api/v1/conversations/drafts/route.ts"));
 const { REPLY_DRAFTS_IDS_MAX, REPLY_DRAFTS_NEWEST_MAX } = await import("@chanlytics/contracts");
+const { PERSON_DRAFT_RULES } = await import(at("apps/dashboard/src/server/new-conversation/person-draft.ts"));
 
 let asked;
 beforeEach(() => {
@@ -74,7 +75,7 @@ const kept = (conv, forMessage, text, tenant = A) => ({
   conversation_id: conv,
   kind: "reply",
   for_message_id: forMessage,
-  words: { text, subject: "", brief: null, asks: [] },
+  words: { rules: PERSON_DRAFT_RULES, text, subject: "", brief: null, asks: [] },
   made_by: USER,
   made_at: "2026-10-23T12:00:00.000Z",
 });
@@ -149,6 +150,26 @@ test("a draft kept for their newest message is answered as kept: no model, no wr
   assert.equal(d.words.text, "Friday works, see you then.");
   assert.equal(asked, 0, "the kept draft answers: the model is not asked again");
   assert.equal(writes(ctx), 0);
+});
+
+test("a draft kept under an earlier edition of the rules is no draft: the read leaves it out, and asked for, it is written again (the live walk's TODAY-5, 27 Oct 2026)", async () => {
+  const before = {
+    ...kept(C1, M1, "Hi, this is calling from Chanlytics."),
+    words: { text: "Hi, this is calling from Chanlytics.", subject: "", brief: null, asks: [] },
+  };
+  const tables = () => ({
+    memberships: [membership("owner")],
+    conversations: [conversation(C1)],
+    messages: [said(M1, C1, "2026-10-23T11:00:00Z")],
+    escalations: [],
+    conversation_drafts: [before],
+  });
+  const read = await dataOf(await drafts.GET.run(get(`ids=${C1}`), ctxFor(tables())));
+  assert.deepEqual(read.drafts, [], "not answered as kept");
+  // Asked for, it is not answered as kept: the door goes on to write it afresh, reading the person first (a read this world
+  // does not hold, so it stops there; the person draft's own tests prove what it writes).
+  const again = await draft.POST.run(post({ kind: "reply" }), ctxFor(tables(), { id: C1 })).then(dataOf, (e) => e);
+  assert.ok(again instanceof Error && /people_list/.test(again.message), "past the kept draft, to the person");
 });
 
 test("the kept drafts of the threads asked for, this workspace's only, current or not: the page judges", async () => {

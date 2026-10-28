@@ -26,7 +26,7 @@ import { canDo, gate } from "../shell";
 import { inboxData } from "../store";
 import type { ApprovedTemplate, Thread } from "../types";
 import { surfaceValue } from "../../surface-values";
-import { peopleRead } from "./shell-thread";
+import { personOnThread } from "../../people/want-person";
 import { ixBandCallBack } from "./band";
 import { growWithWords, isPromise, IxWhy, type OnSend } from "./send-words";
 
@@ -41,10 +41,12 @@ interface TemplateChoice {
   blank: InboxBlank | null;
 }
 
-/** Their visit as People holds it, as the template picker weighs it: one ahead, else one behind, else none known. */
+/**
+ * Their visit as People's row holds it (People's, or the thread's own read of them: people/want-person.ts), as the template
+ * picker weighs it: one ahead, else one behind, else none known.
+ */
 function visitOf(thread: Thread | null): "ahead" | "behind" | null {
-  const people = peopleRead();
-  const person = thread?.clientId && people?.rows ? people.rows.find((p) => p.id === thread.clientId) : null;
+  const person = thread ? personOnThread(thread.real ? thread.conversationId : null, thread.clientId)?.row : null;
   return person?.nextVisitLine ? "ahead" : person?.lastVisitLine ? "behind" : null;
 }
 
@@ -129,9 +131,55 @@ function templateGap(p: {
       </span>
     );
   }
-  // Still being read: nothing yet. "Checking which templates are approved…" was the machinery talking.
+  // Still being read, by a box that says nothing (the band's Call back is the one way to them): nothing yet. Any other box
+  // draws its frame meanwhile (templateReading). "Checking which templates are approved…" was the machinery talking.
   if (real && !list) return null;
   return undefined;
+}
+
+/**
+ * The box while the templates are read: its own shape, the message's place and a Send that waits, so the thread is drawn
+ * at the height it will hold and nothing moves when they land. It drew nothing until they did, and the box then pushed the
+ * conversation up 145 to 162 px (the Inbox load review, 28 Oct 2026). The thread the Inbox opens on waits for them now
+ * (the settings read: inbox/surface.ts openingThreadWaits); this stands where that wait ran out, or a thread opened later
+ * before they were read (a phone's list waits for none of it).
+ */
+function templateReading() {
+  return (
+    <div className="ix-composer ix-composer-row ix-composer-tpl" aria-busy="true" data-testid="ix-composer-tpl-reading">
+      <div className="ix-tpl-head">
+        <span className="ix-tpl-name" aria-hidden="true">
+          <Icon name="note" size={12} />
+          <span className="ix-tpl-sk ix-tpl-sk-name" />
+        </span>
+        <span className="ix-tpl-note">{THREAD_PANE_WORDS.reopens}</span>
+      </div>
+      <div className="ix-tpl-foot">
+        <span className="ix-tpl-fill" aria-hidden="true">
+          <span className="ix-tpl-sk" />
+          <span className="ix-tpl-sk ix-tpl-sk-short" />
+        </span>
+        <Button variant="primary" className="ix-composer-send" disabled>
+          Send
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/** The box with a call offered above it, where there is one (`lead`). */
+function withLead(lead: ReactNode, box: ReactNode) {
+  if (!lead) return box;
+  return (
+    <>
+      <div className="ix-composer ix-composer-lead">
+        <div className="ix-composer-foot">
+          <div className="ix-composer-actions">{lead}</div>
+        </div>
+      </div>
+      {box}
+    </>
+  );
 }
 
 /** The templates the menu lists: the ones this person can be sent, else every one approved. */
@@ -333,6 +381,7 @@ export const TemplateComposer = ({
   // A caller with no WhatsApp thread whose call back the band offers: the call is what to do, so the reply box says
   // nothing of what cannot be sent beneath it -- "No approved message can go to Emily Chen yet" under Call back.
   const quiet = real && !!thread && thread.hasChat === false && ixBandCallBack(thread);
+  if (real && !quiet && readTemplates === undefined) return withLead(lead, templateReading());
   const gap = templateGap({ real, quiet, thread, readTemplates, templates, held: inboxData().templatesHeld, have });
   // Nothing to offer and nothing to say (the band's Call back is the one way to them): no box at all. An empty one stood
   // under the card as a strip of its padding, read as a reply box cut off at the screen's foot (Ruben, 23 Oct 2026).
@@ -393,15 +442,5 @@ export const TemplateComposer = ({
       </div>
     </div>
   );
-  if (!lead) return capsule;
-  return (
-    <>
-      <div className="ix-composer ix-composer-lead">
-        <div className="ix-composer-foot">
-          <div className="ix-composer-actions">{lead}</div>
-        </div>
-      </div>
-      {capsule}
-    </>
-  );
+  return withLead(lead, capsule);
 };

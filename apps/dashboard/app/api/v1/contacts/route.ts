@@ -16,6 +16,8 @@ const Query = z.object({
   q: z.string().max(80).optional(),
   offset: z.coerce.number().int().min(0).max(1_000_000).optional(),
   after: z.string().min(1).max(200).optional(),
+  /** The one person this conversation is with, in place of a page: the Inbox's head, before People's book is in. */
+  thread: z.uuid().optional(),
 });
 
 /**
@@ -34,6 +36,9 @@ const Query = z.object({
  * page starts: handed back as `?after=`, beside the offset that counts what
  * the page holds, it reads just past the last row, so nobody who writes in
  * between is read twice (0021). A cursor this route did not give is refused.
+ * `?thread=` is the person a conversation is with, alone (none for a thread
+ * this workspace does not hold): a thread's head draws them from it before
+ * People's book is read (surfaces/people/want-person.ts, a thread's person).
  * The body is its reader's (readers/people.ts), which Ask's people.search
  * reads too.
  */
@@ -46,7 +51,8 @@ export const GET = read({
     const after = input?.after ? peopleCursorParam(input.after) : null;
     if (input?.after && !after)
       throw new AppError("validation", "That page of People cannot be read. Open People again.");
-    return (await load(readerContext(ctx, member), people, { q, offset, after })).data;
+    const thread = input?.thread ?? null;
+    return (await load(readerContext(ctx, member), people, { q, offset, after, thread })).data;
   },
 });
 

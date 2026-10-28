@@ -348,6 +348,7 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     hasCalendarFeed: true,
     hasBookingLink: true,
     hasBookingTemplate: true,
+    textingLine: false,
     hasHandoffNumber: true,
     hasEscalateWhen: true,
     pauseHours: null,

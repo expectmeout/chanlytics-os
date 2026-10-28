@@ -78,6 +78,12 @@ export interface KnownFacts {
    * it was not read, which offers it as before, and the tool says so when there is none.
    */
   booking_message?: boolean | null;
+  /**
+   * Whether the workspace has a texting line the carriers approved, as the send door asks it (core deliver-text.ts: the
+   * line a text leaves on, active and no test filing): a call may send the booking link by text only with one. Absent or
+   * null where it was not read, which offers no text: the call never promises what the door may refuse.
+   */
+  texting_line?: boolean | null;
 }
 
 /** The brain fields this resolves over. A subset, so callers need not have parsed everything. */

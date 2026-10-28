@@ -776,10 +776,11 @@ test("a proposal on file (00154, 0008): the header's Actions put its words in th
   // The deal's kit, as the courier publishes it (0008): the send's words are the Deal group's.
   const dealWas = globalThis.window.__deal;
   globalThis.window.__deal = { menu: dealMenuActs, actWords: DEAL_ACT_WORDS };
-  const peopleWas = globalThis.window.__PEOPLE;
+  // People's rows as the thread's head reads them: People's surface, read at a clock as People publishes it.
+  const peopleAre = (value) => setSurfaceValue("people", value && { fetchedAt: Date.now(), ...value });
   // People's row for the person behind the thread, as the surface publishes it: their deal as the row carries it.
   const people = (deal = null, id = "k-emily") => {
-    globalThis.window.__PEOPLE = { rows: [{ id, deal }] };
+    peopleAre({ rows: [{ id, deal }] });
   };
   people();
   const events = [];
@@ -858,11 +859,11 @@ test("a proposal on file (00154, 0008): the header's Actions put its words in th
     assert.equal(itemFor().hint, "docs.example.com");
     // Before People is read there is no item: their deal may hold another link (every workspace's, 0008 amended 18 Oct
     // 2026).
-    delete globalThis.window.__PEOPLE;
+    peopleAre(undefined);
     assert.equal(itemFor(), undefined, "People not read yet: no item");
   } finally {
     globalThis.window.dispatchEvent = dispatched;
-    globalThis.window.__PEOPLE = peopleWas;
+    peopleAre(undefined);
     globalThis.window.__deal = dealWas;
   }
 });

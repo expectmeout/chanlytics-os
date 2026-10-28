@@ -27,8 +27,11 @@ interface ThreadRow {
 
 const THREAD_COLUMNS = "id, contact_id, state, paused_until, assignee_user_id, last_message_at";
 
-/** The threads among `ids` by `key` (the thread's own id, or its person's), a chunk of ids at a time. */
-async function threadsBy(
+/**
+ * The threads among `ids` by `key` (the thread's own id, or its person's), a chunk of ids at a time. And the person a
+ * thread is with, by the thread (people.ts personRow, for the Inbox's head).
+ */
+export async function threadsBy(
   db: Db,
   tenantId: string,
   key: "id" | "contact_id",

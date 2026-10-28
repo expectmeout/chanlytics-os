@@ -16,7 +16,7 @@ import type { Member } from "../route";
 import { readerContext } from "../readers";
 import { replyChannelOf, type VerbConversation } from "../verbs";
 import { replyIdentitiesOf, signedWordsOf } from "../connections/email";
-import { draftForPerson } from "../new-conversation/person-draft";
+import { PERSON_DRAFT_RULES, draftForPerson } from "../new-conversation/person-draft";
 
 /**
  * Ask's drafts written ahead for the threads waiting on a person (decision 0071, E2; 00475): Today asks for the rows it
@@ -31,9 +31,10 @@ type ConversationDraftRow = Awaited<ReturnType<typeof conversationDraftsOf>>[num
 /** A string array of the questions Ask asked, or none. */
 const questionsOf = (asks: PersonDraftDto["asks"]): string[] => asks.map((a) => a.question).filter(Boolean);
 
-/** The person draft's answer as a kept draft's words, in the shape the table keeps (contracts ReplyDraftWords). */
+/** The person draft's answer as a kept draft's words, in the shape the table keeps (contracts ReplyDraftWords), with the rules' edition. */
 function keptWordsOf(d: PersonDraftDto): Json {
   return {
+    rules: PERSON_DRAFT_RULES,
     text: d.text,
     subject: d.subject,
     brief: d.brief
@@ -62,6 +63,15 @@ function wordsFrom(w: Json): ReplyDraftWords {
       : null,
     asks: strings(o.asks),
   };
+}
+
+/**
+ * Whether a kept draft was written under the rules the person draft writes by now (PERSON_DRAFT_RULES): one from an earlier
+ * edition is no draft, left out of the read and written again when asked for.
+ */
+function underTheRules(r: ConversationDraftRow): boolean {
+  const w = r.words;
+  return !!w && typeof w === "object" && !Array.isArray(w) && w.rules === PERSON_DRAFT_RULES;
 }
 
 /** A kept row as the routes answer it, with the words its reply is signed with where it leaves from a mailbox (00487). */
@@ -97,7 +107,9 @@ async function signedByThread(ctx: RouteContext, tenantId: string, ids: string[]
  * (the Today load review, 27 Oct 2026). Named threads' are always all of theirs.
  */
 export async function draftsKept(ctx: RouteContext, member: Pick<Member, "tenantId">, ids: string[] | null) {
-  const read = await conversationDraftsOf(ctx.supabase, member.tenantId, ids ?? { newest: REPLY_DRAFTS_NEWEST_MAX });
+  const read = (
+    await conversationDraftsOf(ctx.supabase, member.tenantId, ids ?? { newest: REPLY_DRAFTS_NEWEST_MAX })
+  ).filter(underTheRules);
   const rows = ids ? read : read.slice(0, REPLY_DRAFTS_NEWEST_MAX);
   const replies = [...new Set(rows.filter((r) => r.kind !== "brief").map((r) => r.conversation_id))];
   const signed = await signedByThread(ctx, member.tenantId, replies);
@@ -122,7 +134,7 @@ export async function draftForThread(
     threadDraftFacts(ctx.supabase, conv.tenant_id, conv.id),
     conversationDraftsOf(ctx.supabase, conv.tenant_id, [conv.id]),
   ]);
-  const mine = kept.find((r) => r.kind === kind);
+  const mine = kept.find((r) => r.kind === kind && underTheRules(r));
   const signed =
     kind === "reply" ? ((await signedByThread(ctx, conv.tenant_id, [conv.id])).get(conv.id) ?? null) : null;
   if (mine && draftIsCurrent(mine, facts.forMessageId)) return dtoOf(mine, signed);

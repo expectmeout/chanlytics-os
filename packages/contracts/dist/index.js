@@ -3479,12 +3479,30 @@ var NO_LINK_DETAILS = "their name, what they need, and where and when";
 function offersBookingLink(brain) {
   return !brain || !!brain.booking_link;
 }
-function offersLinkOn(on, brain, whatsappLine, bookingMessage) {
-  return offersBookingLink(brain) && (on === "chat" || !!whatsappLine && bookingMessage !== false);
+function callLinkWays(brain, whatsappLine, bookingMessage, textingLine) {
+  const link = offersBookingLink(brain);
+  return { whatsapp: link && !!whatsappLine && bookingMessage !== false, text: link && textingLine === true };
 }
-var NO_WAY_TO_SEND_LINK = `Booking: the booking link can only be sent by WhatsApp, and this business has no WhatsApp line, so never use send_booking_link and never promise a link or a message. When the caller wants to book, change or cancel a booking, take ${NO_LINK_DETAILS}, and say the team will follow up. If they would rather book themselves and a website is listed above, they can book there.`;
-var NO_MESSAGE_FOR_LINK = `Booking: the booking link is sent as a WhatsApp message that is not approved yet, so never use send_booking_link and never promise a link or a message. When the caller wants to book, change or cancel a booking, take ${NO_LINK_DETAILS}, and say the team will follow up. If they would rather book themselves and a website is listed above, they can book there.`;
+function offersLinkOn(on, brain, whatsappLine, bookingMessage, textingLine) {
+  if (on === "chat") return offersBookingLink(brain);
+  const ways = callLinkWays(brain, whatsappLine, bookingMessage, textingLine);
+  return ways.whatsapp || ways.text;
+}
+var NO_WAY_TO_SEND_LINK = `Booking: the booking link can only be sent by WhatsApp or by text, and this business has no WhatsApp line and no texting line, so never use send_booking_link and never promise a link or a message. When the caller wants to book, change or cancel a booking, take ${NO_LINK_DETAILS}, and say the team will follow up. If they would rather book themselves and a website is listed above, they can book there.`;
+var NO_MESSAGE_FOR_LINK = `Booking: the booking link is sent as a WhatsApp message that is not approved yet, and this business has no texting line, so never use send_booking_link and never promise a link or a message. When the caller wants to book, change or cancel a booking, take ${NO_LINK_DETAILS}, and say the team will follow up. If they would rather book themselves and a website is listed above, they can book there.`;
 var cannotSendLink = (whatsappLine) => whatsappLine ? NO_MESSAGE_FOR_LINK : NO_WAY_TO_SEND_LINK;
+function callBookingLine(base) {
+  const ways = callLinkWays(base, base.whatsapp_line, base.booking_message, base.texting_line);
+  const ours = "so do not ask them for a number unless they want it sent somewhere else. ";
+  const followUp = base.phone_display ? `take ${NO_LINK_DETAILS}, give the phone number above, and offer to have someone follow up.` : `take ${NO_LINK_DETAILS} and offer to have someone follow up.`;
+  const said = "Then say what the tool answers: it tells you how the link went and whether it arrived. ";
+  if (!ways.whatsapp)
+    return `Booking: when the caller wants to book, use send_booking_link \u2014 it sends the booking link by text message to the number they are calling from, ${ours}Tell them it comes as a text message. ${said}If it fails, ${followUp}`;
+  const asked = `Booking: when the caller wants to book, first ask "Do you use WhatsApp on this number?" If they do, use send_booking_link \u2014 it sends the booking link to the caller's WhatsApp, on the number they are calling from, ${ours}`;
+  if (!ways.text)
+    return `${asked}Tell them it comes by WhatsApp, not as a text message. Then say what the tool answers: it waits a moment for WhatsApp's own answer, so it tells you whether it arrived. If they do not use WhatsApp there, or it fails, ${followUp}`;
+  return `${asked}Tell them it comes by WhatsApp. If they do not use WhatsApp there, use send_booking_link with by set to "text", and tell them it comes as a text message. When WhatsApp cannot deliver it, the tool sends it by text instead. ${said}If it fails, ${followUp}`;
+}
 function priceNextStep(hasBookingLink) {
   return hasBookingLink ? "offer the booking link" : `take ${NO_LINK_DETAILS}`;
 }
@@ -10248,6 +10266,7 @@ function replyDelayMs(mode, limits) {
 var SENDER_WORDS = {
   en: {
     textStop: "Reply STOP to opt out",
+    linkAsked: (who, link) => `${who}: here's the link to book, as you asked on the phone: ${link}`,
     emailStop: "Reply STOP to stop these emails.",
     marketing: "This is a marketing email.",
     noThanks: `Not interested? Reply "no thanks" and I won't write again`,
@@ -10261,6 +10280,7 @@ var SENDER_WORDS = {
   },
   es: {
     textStop: "Responde STOP para darte de baja",
+    linkAsked: (who, link) => `${who}: aqu\xED tienes el enlace para reservar, como pediste por tel\xE9fono: ${link}`,
     emailStop: "Responde STOP para dejar de recibir estos correos.",
     marketing: "Este es un correo de marketing.",
     noThanks: `\xBFNo te interesa? Responde "no, gracias" y no volver\xE9 a escribirte`,
@@ -15949,21 +15969,39 @@ var BOOLEAN_INPUTS = {
   hasCalendarFeed: true,
   hasBookingLink: true,
   hasBookingTemplate: true,
+  textingLine: true,
   hasHandoffNumber: true,
   hasEscalateWhen: true,
   visionOn: true,
   bookingHeld: true
 };
-function bookingLinkDetail(i, callSendsLink) {
+function bookingLinkDetail(i) {
   if (!i.hasBookingLink) return "No booking link, so it takes their details for you to follow up.";
   if (!i.whatsappLive) {
     const why = i.whatsappStatus ? `It goes out on WhatsApp, which isn't live here yet: ${i.whatsappStatus}` : "It goes out on WhatsApp, which isn't connected here.";
-    return i.voiceLive ? `${why} On a call it offers to have someone follow up instead.` : why;
+    if (!i.voiceLive) return why;
+    return i.textingLine && !i.bookingHeld ? `${why} On a call it sends it by text instead.` : `${why} On a call it offers to have someone follow up instead.`;
   }
   if (i.bookingHeld)
     return "Your Autonomy tab holds bookings for you to confirm, so when someone asks to book, it sends no link: it tells them someone from the team will confirm.";
   if (!i.voiceLive) return "It sends it in the thread.";
-  return callSendsLink ? "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the thread." : "In chat it sends it in the thread. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
+  if (i.hasBookingTemplate)
+    return i.textingLine ? "On a call it sends it to the caller's WhatsApp, or by text when their number has none, and says which. In chat it sends it in the thread." : "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the thread.";
+  return i.textingLine ? "In chat it sends it in the thread. On a call it sends it by text, until you have an approved booking-link WhatsApp message." : "In chat it sends it in the thread. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
+}
+function linkWays(i, chatAnswers, repliesHeld) {
+  const callSendsLink = i.voiceLive && (i.whatsappLive && i.hasBookingTemplate || i.textingLine);
+  const linkGoes2 = i.hasBookingLink && chatAnswers && !i.bookingHeld;
+  return {
+    linkGoes: linkGoes2,
+    // A call's send goes through the same outbound gate the Replies row holds, and the Booking row's: so on a call the
+    // link goes where there is one, a way to send it, and neither row holding it.
+    linkOnCall: i.hasBookingLink && callSendsLink && !i.bookingHeld && !repliesHeld,
+    // ...and whether the row promising it after the times may do so without naming a channel. A workspace on both lines
+    // with no approved booking-link template and no texting line sends it in chat and not on a call (retell-fn's deliver
+    // has nothing to send). Said unqualified, the openings row told such a workspace its call offers times "then the link".
+    linkIsChatsAlone: linkGoes2 && i.voiceLive && !callSendsLink
+  };
 }
 function abilityRows(i) {
   if (!i || typeof i !== "object")
@@ -15987,11 +16025,9 @@ function abilityRows(i) {
   const chatAnswers = i.whatsappLive && !repliesHeld;
   const both = { voice: i.voiceLive, whatsapp: chatAnswers };
   const answering = i.voiceLive || chatAnswers;
-  const callSendsLink = i.voiceLive && i.whatsappLive && i.hasBookingTemplate;
-  const linkGoes2 = i.hasBookingLink && chatAnswers && !i.bookingHeld;
-  const linkIsChatsAlone = linkGoes2 && i.voiceLive && !callSendsLink;
+  const { linkGoes: linkGoes2, linkOnCall, linkIsChatsAlone } = linkWays(i, chatAnswers, repliesHeld);
   const inChat = linkIsChatsAlone ? " in chat" : "";
-  const bookingDetail = bookingLinkDetail(i, callSendsLink);
+  const bookingDetail = bookingLinkDetail(i);
   const rows2 = [
     {
       id: "answer",
@@ -16025,9 +16061,9 @@ function abilityRows(i) {
       // The call's send goes through the same outbound gate the Replies row holds, so a
       // workspace whose replies are held has no channel here at all -- and neither has one
       // where there is no link to send, or where the Autonomy tab confirms bookings itself.
-      channels: { voice: linkGoes2 && callSendsLink && !repliesHeld, whatsapp: linkGoes2 },
+      channels: { voice: linkOnCall, whatsapp: linkGoes2 },
       runsOn: { label: "The booking link", row: "booking_link" },
-      ready: linkGoes2,
+      ready: linkGoes2 || linkOnCall,
       missing: !i.hasBookingLink
     },
     {
@@ -16091,7 +16127,7 @@ var CANNOT_ROWS = [
   {
     id: "sms",
     title: "Send a text message",
-    detail: "Not part of what is sold yet. It arrives with a line the carriers have approved, and Connections will say when. The booking link a caller receives goes to their WhatsApp.",
+    detail: "Not part of what is sold yet. It arrives with a line the carriers have approved, and Connections will say when. Once it does, a caller whose WhatsApp can't take the booking link is sent it by text.",
     soon: true
   }
 ];
@@ -17253,7 +17289,13 @@ function composeSystemPrompt(base, profile, channel = "whatsapp", tz, now = /* @
 function composeSystemPromptWith(base, profile, wire, tz, now, policy, audience) {
   const channel = wire === "voice" ? "voice" : "whatsapp";
   const link = offersBookingLink(base) ? base.booking_link : null;
-  const handed = offersLinkOn(channel === "voice" ? "call" : "chat", base, base.whatsapp_line, base.booking_message) ? link : null;
+  const handed = offersLinkOn(
+    channel === "voice" ? "call" : "chat",
+    base,
+    base.whatsapp_line,
+    base.booking_message,
+    base.texting_line
+  ) ? link : null;
   const hrs = hoursLines(profile.hours);
   const today = businessToday(tz, now);
   const closed = closureLines(upcomingClosures(profile.closures, today));
@@ -17421,16 +17463,8 @@ function callToolsSection({ base, channel, link, handed }) {
     s.push(
       `
 ${PROMPT_OPENINGS.callTools} before offering a time \u2014 it reads the calendar as it is at that moment (a list at the end of these instructions, if any, is from the start of the call). Ask which service first when you can, so only windows long enough are offered.
-` + (handed ? (
-        // Asked first (decision 0073, R14): the link only arrives on a number that has WhatsApp, and a caller who says
-        // no is never sent a message that cannot reach them.
-        `Booking: when the caller wants to book, first ask "Do you use WhatsApp on this number?" If they do, use send_booking_link \u2014 it sends the booking link to the caller's WhatsApp, on the number they are calling from, so do not ask them for a number unless they want it sent somewhere else. Tell them it comes by WhatsApp, not as a text message. Then say what the tool answers: it waits a moment for WhatsApp's own answer, so it tells you whether it arrived. ` + // A number to give only where there is one other than the line they are ringing (resolveSystemPrompt).
-        (base.phone_display ? `If they do not use WhatsApp there, or it fails, take ${NO_LINK_DETAILS}, give the phone number above, and offer to have someone follow up.
-` : `If they do not use WhatsApp there, or it fails, take ${NO_LINK_DETAILS} and offer to have someone follow up.
-`)
-      ) : link ? `${cannotSendLink(base.whatsapp_line)}
-` : `${noLinkBooking("voice")}
-`) + "Ending: once the caller has said goodbye, use end_call."
+${handed ? callBookingLine(base) : link ? cannotSendLink(base.whatsapp_line) : noLinkBooking("voice")}
+Ending: once the caller has said goodbye, use end_call.`
     );
   }
   return s;
@@ -17457,9 +17491,11 @@ ${text}`);
   }
   return s;
 }
-function mediumSection({ channel, link, handed }) {
+function mediumSection({ base, channel, link, handed }) {
   const s = [];
-  const callMedium = handed ? "Keep answers to one or two sentences, never read a URL out character by character, and offer to send the booking link to the caller's WhatsApp instead." : "Keep answers to one or two sentences, and never read a URL out character by character.";
+  const ways = callLinkWays(base, base.whatsapp_line, base.booking_message, base.texting_line);
+  const by = ways.whatsapp ? ways.text ? "to the caller's WhatsApp or by text" : "to the caller's WhatsApp" : "by text";
+  const callMedium = handed ? `Keep answers to one or two sentences, never read a URL out character by character, and offer to send the booking link ${by} instead.` : "Keep answers to one or two sentences, and never read a URL out character by character.";
   const chatMedium = link ? "Send the booking link rather than describing how to book." : noLinkBooking("whatsapp");
   s.push(
     channel === "voice" ? `
@@ -17535,7 +17571,7 @@ function resolveSystemPrompt(brain, wire = "whatsapp", tz, now = /* @__PURE__ */
   const channel = wire === "voice" ? "voice" : "whatsapp";
   const facts = resolveFacts(brain, known);
   if (!hasProfile(brain.profile)) {
-    const link = !offersBookingLink(brain) ? [noLinkBooking(channel)] : channel === "voice" && !offersLinkOn("call", brain, facts.whatsapp_line.value, known?.booking_message) ? [cannotSendLink(facts.whatsapp_line.value)] : [];
+    const link = !offersBookingLink(brain) ? [noLinkBooking(channel)] : channel === "voice" && !offersLinkOn("call", brain, facts.whatsapp_line.value, known?.booking_message, known?.texting_line) ? [cannotSendLink(facts.whatsapp_line.value)] : [];
     const rules = [...link, ...standingRules(policy, channel, audience)];
     return `${brain.system_prompt}
 
@@ -17551,7 +17587,9 @@ ${rules.map((r2) => `- ${r2}`).join("\n")}`;
     // Provisioned or nothing, never typed (facts.ts): the ask for the yes to offers is composed only where there is one.
     whatsapp_line: facts.whatsapp_line.value,
     // Whether Meta approved the message a call sends the link in (R14); not read, offered as before.
-    booking_message: known?.booking_message ?? null
+    booking_message: known?.booking_message ?? null,
+    // Whether a texting line the carriers approved is there to send the link by instead; not read, no text is offered.
+    texting_line: known?.texting_line ?? null
   };
   const carried = { ...profile, extra_instructions: ownWordsOf(brain) ?? void 0 };
   return composeSystemPrompt(resolved, carried, wire, tz, now, policy, audience);
@@ -54927,7 +54965,7 @@ function turnsOfTranscript(raw) {
   return out;
 }
 var REHEARSAL_TOOL_WORDS = {
-  bookingLink: "This is a rehearsal, so nothing was sent: the owner sees the booking link on their screen. Tell the caller the link is on its way by WhatsApp, as you would on a real call."
+  bookingLink: "This is a rehearsal, so nothing was sent: the owner sees the booking link on their screen. Tell the caller the link is on its way, by WhatsApp or by text as your instructions say, as you would on a real call."
 };
 var SPEND_REHEARSE = { before: "rehearsing your receptionist", can: "rehearse your receptionist" };
 var SPEND_REVIEW = { before: "reviewing a conversation", can: "review a conversation" };
@@ -64421,9 +64459,25 @@ var PREFETCH_READS = {
     "google",
     "conversations/drafts"
   ],
-  // The reply box's approved templates are the settings read's, the one read of the templates (surfaces/offered-templates.ts).
   // And Sent's runs, whose waiting ones are rows of Needs you (surface-registry ROUTE_DRAWS): their own read, nothing of People.
-  inbox: ["conversations", "escalations?state=open", "broadcasts"],
+  // And what its first draw waits for besides them, each drawn in a row or in the thread it opens on (ROUTE_WAITS, and the
+  // thread's own: surfaces/inbox/surface.ts openingThreadWaits): the calls a timeline holds, a reply to a reach-out (the row's
+  // chip, the strip over the box), the draft Ask kept for the box, and the settings read, the one read of the templates
+  // (surfaces/offered-templates.ts), which a thread outside WhatsApp's window draws its box from. They were read in the boot's
+  // first and second passes, after the threads had drawn: the box came 0.3 to 1.5 s after the thread and pushed the
+  // conversation 145 to 162 px up (the Inbox load review, 28 Oct 2026).
+  inbox: [
+    "conversations",
+    "escalations?state=open",
+    "broadcasts",
+    "calls",
+    "reach-out-replies",
+    "conversations/drafts",
+    "settings",
+    "team",
+    "policies",
+    "templates?all=1"
+  ],
   // A row's standing reads the thread's open escalation, as the Inbox's does (conversations-surface.ts).
   conversations: ["conversations", "calls", "escalations?state=open"],
   // People's list, its lists and the Pipeline are one page over one surface (a person's page reads the person instead).
@@ -64495,13 +64549,18 @@ var PREFETCH_BESIDE = {
     // Ask's ideas in Need you: the member's morning as it stands (decision 0070). Only read here; the page asks for one to be
     // written, which takes a turn of the model, so its rows come after the people's whatever tier it rode in.
     "ask/morning"
-  ]
+  ],
+  // Nothing: the Inbox's first screen is its own reads (a thread's person among them, THREAD_PERSON_READ), and People's book,
+  // which a thread's head prefers where the tab holds it, is read in the boot's second pass, among the strangers.
+  inbox: []
 };
-var PREFETCH_OPEN = ["today"];
+var PREFETCH_OPEN = ["today", "inbox"];
+var THREAD_PERSON_READ = "contacts?thread=";
 var DEFAULT_PERIOD = `period=${REPORT_PERIOD_DEFAULT}`;
-function openReads(route, period) {
+function openReads(route, period, thread) {
   const at3 = (x) => period ? x.replace(DEFAULT_PERIOD, `period=${period}`) : x;
-  return [["workspaces", ...(PREFETCH_READS[route] ?? []).map(at3)], (PREFETCH_BESIDE[route] ?? []).map(at3)];
+  const person = route === "inbox" && thread ? [`${THREAD_PERSON_READ}${thread}`] : [];
+  return [["workspaces", ...(PREFETCH_READS[route] ?? []).map(at3), ...person], (PREFETCH_BESIDE[route] ?? []).map(at3)];
 }
 var PREFETCH_ROUTE_OF_WORD = Object.fromEntries(
   Object.entries(ROUTE_WORDS).map(([route, word]) => [word, route])
@@ -64543,6 +64602,9 @@ function routePrefetchScript() {
     // A view of Leads the address names (a search, a list) is the page's to read: it opens on who is looking alone.
     'else if(!(s==="clients"&&/^leads(:|$)/.test(l))&&Object.prototype.hasOwnProperty.call(t,s))',
     `for(var j=0;j<t[s].length;j++){var x=P?t[s][j].replace(${JSON.stringify(`period=${REPORT_PERIOD_DEFAULT}`)},P):t[s][j];u.push("/api/v1/"+x+(x.indexOf("?")<0?"?":"&")+"workspace="+w)}`,
+    // The thread an Inbox address names (`inbox/th-<conversation>`): the person it is with is read beside the page's own, as a
+    // person's page reads the person, since the thread's head draws from that read in its first frame (THREAD_PERSON_READ).
+    `var T=s==="inbox"&&new RegExp(${JSON.stringify(`^th-(${PREFETCH_UUID.slice(1, -1)})$`)},"i").exec(l);T=T?T[1]:"";if(T)u.push("/api/v1/${THREAD_PERSON_READ}"+T+"&workspace="+w);`,
     // A sequence's record the address opens (`campaigns/sequences/<id>`, a tab after it) is read beside the list it opens over,
     // as a person's page reads the person, and so is the tab's own read where it has one (People, History): it waited for the
     // page's code and its mount (the load review of 18 Oct 2026). New (`campaigns/sequences/new`) names no id and reads none.
@@ -64559,14 +64621,14 @@ function routePrefetchScript() {
     // as a prefetch that failed always was. Elsewhere, and in a browser that cannot read a stream, one request each.
     'var Y=typeof Response!=="undefined"&&typeof TextDecoder!=="undefined"&&O.call(B,s)&&!f[u[0]];',
     'if(Y){var k=["workspaces"],R={},Z=function(x){return P?x.replace(' + JSON.stringify(DEFAULT_PERIOD) + ",P):x};",
-    "for(var j=0;j<t[s].length;j++)k.push(Z(t[s][j]));",
+    `for(var j=0;j<t[s].length;j++)k.push(Z(t[s][j]));if(T)k.push(${JSON.stringify(THREAD_PERSON_READ)}+T);`,
     'for(var j=0;j<B[s].length;j++){var x=Z(B[s][j]);k.push(x);u.push("/api/v1/"+x+(x.indexOf("?")<0?"?":"&")+"workspace="+w)}',
     // Each parked answer is handled where it is made: one the page never takes, refused with the whole, is nobody's
     // unhandled rejection, and the page's own read that takes one still hears the refusal.
     "for(var i=0;i<u.length;i++)(function(x,y){var q=new Promise(function(a,b){R[y]=[a,b]});q.catch(function(){});f[x]=q})(u[i],k[i]);",
     'var E=function(){for(var y in R)if(R[y]){R[y][1](new Error("open"));R[y]=0}};',
     'var L=function(z){if(!z)return;var m=JSON.parse(z),c=R[m.k];if(!c)return;R[m.k]=0;var H={"content-type":"application/json"};for(var e in m.h||{})H[e]=m.h[e];c[0](new Response(JSON.stringify(m.b),{status:m.s,headers:H}))};',
-    'g("/api/v1/open?route="+s+(P?"&"+P:"")+"&workspace="+w).then(function(r){if(!r.ok)throw 0;if(!r.body||!r.body.getReader)return r.text().then(function(T){T.split("\\n").forEach(L)});var D=r.body.getReader(),C=new TextDecoder(),Q="";var N=function(){return D.read().then(function(c){if(c.done){L(Q);return}Q+=C.decode(c.value,{stream:true});var n;while((n=Q.indexOf("\\n"))>=0){L(Q.slice(0,n));Q=Q.slice(n+1)}return N()})};return N()}).then(E,E)}',
+    'g("/api/v1/open?route="+s+(P?"&"+P:"")+(T?"&thread="+T:"")+"&workspace="+w).then(function(r){if(!r.ok)throw 0;if(!r.body||!r.body.getReader)return r.text().then(function(T){T.split("\\n").forEach(L)});var D=r.body.getReader(),C=new TextDecoder(),Q="";var N=function(){return D.read().then(function(c){if(c.done){L(Q);return}Q+=C.decode(c.value,{stream:true});var n;while((n=Q.indexOf("\\n"))>=0){L(Q.slice(0,n));Q=Q.slice(n+1)}return N()})};return N()}).then(E,E)}',
     "else for(var i=0;i<u.length;i++)if(!f[u[i]])f[u[i]]=g(u[i]);",
     "}}catch(e){}"
   ].join("");

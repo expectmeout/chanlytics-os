@@ -10,7 +10,6 @@ import { useCallback, useSyncExternalStore } from "react";
 import type { Params, RouteKey } from "@/client/api";
 import { onSurfaceMoved, surfaceVersion } from "@/legacy-bridge/surface-status";
 import type { replies } from "@/legacy-bridge/reach-out/replies";
-import type { PeopleSurface } from "@/surfaces/people/surface";
 import { fn, object } from "../../shell-doors";
 import { agentIdFor } from "../shell";
 
@@ -35,11 +34,6 @@ export function usePeopleMoved(): void {
   const subscribe = useCallback((moved: () => void) => onSurfaceMoved([key], moved), [key]);
   const snapshot = () => surfaceVersion([key]);
   useSyncExternalStore(subscribe, snapshot, snapshot);
-}
-
-/** The People surface, as far as the thread's header reads it: its rows, and when they were read. */
-export function peopleRead(): Partial<Pick<PeopleSurface, "rows" | "fetchedAt">> | undefined {
-  return object("__PEOPLE");
 }
 
 /** A person's notes' courier (people-detail.ts `__personNotes`), when it is published and can say when a step is due. */

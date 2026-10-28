@@ -24,39 +24,101 @@ export function offersBookingLink(brain: { booking_link?: string | null } | null
 }
 
 /**
+ * The ways a call can hand over the booking link (retell-fn's send_booking_link): by WhatsApp, which needs a WhatsApp
+ * line (facts.ts whatsapp_line) and a booking-link message Meta approved (facts.ts booking_message, decision 0073, R14;
+ * not read, null, it is offered as before and retell-fn says so when there is none), and by text, which needs a texting
+ * line the carriers approved (facts.ts texting_line; not read, no text is offered). The tool tries WhatsApp first and
+ * texts when WhatsApp cannot carry it (the live walk's SET-2, 28 Oct 2026). No link, no way.
+ */
+export function callLinkWays(
+  brain: { booking_link?: string | null } | null | undefined,
+  whatsappLine: string | null,
+  bookingMessage: boolean | null | undefined,
+  textingLine: boolean | null | undefined,
+): { whatsapp: boolean; text: boolean } {
+  const link = offersBookingLink(brain);
+  return { whatsapp: link && !!whatsappLine && bookingMessage !== false, text: link && textingLine === true };
+}
+
+/**
  * Whether the receptionist may offer to hand over the booking link where it is speaking. In chat the link is sent in
- * the thread, so a link is enough. A call can only send it by WhatsApp (retell-fn delivers it on the WhatsApp channel),
- * so it needs a WhatsApp line that answers too (facts.ts whatsapp_line), and a booking-link message Meta approved
- * (facts.ts booking_message, decision 0073, R14): without one nothing can go, so nothing is offered. Not read (null), it
- * is offered as before, and retell-fn says so when there is none. Until 11 Oct 2026 a call offered the link by WhatsApp
- * on a workspace with no WhatsApp, and its record then said a link went out. One answer for every place a receptionist
- * is told it may offer the link: the prompt (compose.ts), and on a call the openings, a caller's visits, the
- * availability tool and a correction.
+ * the thread, so a link is enough. A call sends it by WhatsApp or by text (callLinkWays), so it needs one of the two:
+ * without either nothing can go, so nothing is offered. Until 11 Oct 2026 a call offered the link by WhatsApp on a
+ * workspace with no WhatsApp, and its record then said a link went out. One answer for every place a receptionist is
+ * told it may offer the link: the prompt (compose.ts), and on a call the openings, a caller's visits, the availability
+ * tool and a correction.
  */
 export function offersLinkOn(
   on: "call" | "chat",
   brain: { booking_link?: string | null } | null | undefined,
   whatsappLine: string | null,
   bookingMessage: boolean | null | undefined,
+  textingLine: boolean | null | undefined,
 ): boolean {
-  return offersBookingLink(brain) && (on === "chat" || (!!whatsappLine && bookingMessage !== false));
+  if (on === "chat") return offersBookingLink(brain);
+  const ways = callLinkWays(brain, whatsappLine, bookingMessage, textingLine);
+  return ways.whatsapp || ways.text;
 }
 
 /**
- * What a call says to do when there is a booking link and no WhatsApp line to send it by (offersLinkOn): the details
- * for the team, as a business with no link takes them, and the website where the caller would rather book themselves.
+ * What a call says to do when there is a booking link and neither a WhatsApp line nor a texting line to send it by
+ * (offersLinkOn): the details for the team, as a business with no link takes them, and the website where the caller
+ * would rather book themselves.
  */
-export const NO_WAY_TO_SEND_LINK = `Booking: the booking link can only be sent by WhatsApp, and this business has no WhatsApp line, so never use send_booking_link and never promise a link or a message. When the caller wants to book, change or cancel a booking, take ${NO_LINK_DETAILS}, and say the team will follow up. If they would rather book themselves and a website is listed above, they can book there.`;
+export const NO_WAY_TO_SEND_LINK = `Booking: the booking link can only be sent by WhatsApp or by text, and this business has no WhatsApp line and no texting line, so never use send_booking_link and never promise a link or a message. When the caller wants to book, change or cancel a booking, take ${NO_LINK_DETAILS}, and say the team will follow up. If they would rather book themselves and a website is listed above, they can book there.`;
 
 /**
- * What a call says to do when there is a booking link and a WhatsApp line, and the message that carries the link is not
- * approved by Meta yet (decision 0073, R14): as with no line, the details for the team, and never a promised link.
+ * What a call says to do when there is a booking link and a WhatsApp line, the message that carries the link is not
+ * approved by Meta yet (decision 0073, R14), and there is no texting line to send it by instead: as with no line, the
+ * details for the team, and never a promised link.
  */
-const NO_MESSAGE_FOR_LINK = `Booking: the booking link is sent as a WhatsApp message that is not approved yet, so never use send_booking_link and never promise a link or a message. When the caller wants to book, change or cancel a booking, take ${NO_LINK_DETAILS}, and say the team will follow up. If they would rather book themselves and a website is listed above, they can book there.`;
+const NO_MESSAGE_FOR_LINK = `Booking: the booking link is sent as a WhatsApp message that is not approved yet, and this business has no texting line, so never use send_booking_link and never promise a link or a message. When the caller wants to book, change or cancel a booking, take ${NO_LINK_DETAILS}, and say the team will follow up. If they would rather book themselves and a website is listed above, they can book there.`;
 
-/** What a call with a link it cannot send says instead: no WhatsApp line, or a line and no approved message. */
+/** What a call with a link it cannot send says instead: no line to send it by, or a WhatsApp line and no approved message. */
 export const cannotSendLink = (whatsappLine: string | null): string =>
   whatsappLine ? NO_MESSAGE_FOR_LINK : NO_WAY_TO_SEND_LINK;
+
+/**
+ * What a call does when the caller wants to book and the link can go (offersLinkOn), by the ways it has to send it
+ * (callLinkWays): the composed prompt's booking line (compose.ts). The link goes by WhatsApp, or by text from the
+ * business's texting line, and the call says which: this used to say the tool "texts" the link while it sent a WhatsApp
+ * message, so a caller could be promised a text and get a WhatsApp message -- or nothing, on a number with no WhatsApp.
+ * WhatsApp is asked about first (decision 0073, R14): a caller who says no is never sent a message that cannot reach
+ * them, and is sent a text where there is a line for it (the live walk's SET-2, 28 Oct 2026); the tool also texts by
+ * itself when WhatsApp cannot carry it, and says so. With a texting line alone nothing is asked.
+ */
+export function callBookingLine(base: {
+  booking_link: string | null;
+  phone_display?: string | null;
+  whatsapp_line: string | null;
+  booking_message?: boolean | null;
+  texting_line?: boolean | null;
+}): string {
+  const ways = callLinkWays(base, base.whatsapp_line, base.booking_message, base.texting_line);
+  const ours = "so do not ask them for a number unless they want it sent somewhere else. ";
+  // A number to give only where there is one other than the line they are ringing (resolveSystemPrompt).
+  const followUp = base.phone_display
+    ? `take ${NO_LINK_DETAILS}, give the phone number above, and offer to have someone follow up.`
+    : `take ${NO_LINK_DETAILS} and offer to have someone follow up.`;
+  const said = "Then say what the tool answers: it tells you how the link went and whether it arrived. ";
+  if (!ways.whatsapp)
+    return (
+      "Booking: when the caller wants to book, use send_booking_link — it sends the booking link by text message to the number they are calling from, " +
+      `${ours}Tell them it comes as a text message. ${said}If it fails, ${followUp}`
+    );
+  const asked =
+    'Booking: when the caller wants to book, first ask "Do you use WhatsApp on this number?" ' +
+    `If they do, use send_booking_link — it sends the booking link to the caller's WhatsApp, on the number they are calling from, ${ours}`;
+  if (!ways.text)
+    return (
+      `${asked}Tell them it comes by WhatsApp, not as a text message. Then say what the tool answers: it waits a moment for WhatsApp's own answer, so it tells you whether it arrived. ` +
+      `If they do not use WhatsApp there, or it fails, ${followUp}`
+    );
+  return (
+    `${asked}Tell them it comes by WhatsApp. If they do not use WhatsApp there, use send_booking_link with by set to "text", and tell them it comes as a text message. ` +
+    `When WhatsApp cannot deliver it, the tool sends it by text instead. ${said}If it fails, ${followUp}`
+  );
+}
 
 /** What follows "a price is not mine to confirm", in the prompt's rule and a call's correction alike. */
 export function priceNextStep(hasBookingLink: boolean): string {

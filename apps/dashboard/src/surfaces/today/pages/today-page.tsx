@@ -35,9 +35,7 @@ import { TodayPins } from "./pins";
 import { TodaySetup } from "./setup-card";
 import { TodayBroughtIn } from "./brought-in";
 import { TodayStrip } from "./strip";
-import { needsYouCount } from "@chanlytics/contracts";
-import { needsYouOnToday, useNeedsYouParts } from "../../needs-you";
-import { surfaceValue } from "../../surface-values";
+import { useWaitsOnToday } from "../../needs-you";
 
 // Canvas E3's bento: the strip, the queue's column beside the brief and the bell, the day's card beside Worth a look.
 // No day pane: E3 folds the day into the strip's Next cell (Ruben, 1 October 2026); the Calendar has the rest.
@@ -46,9 +44,7 @@ export const DashboardA = () => {
   // mounts them again). Counted as the queue counts them (needsYouOnToday): the Inbox's parts once it is read, the day's
   // own before, which is all a cold Today has. The Inbox's alone stood empty there, and the chores led over three people
   // waiting (27 Oct 2026). The day's value is in before the page's first draw (ROUTE_WAITS).
-  const live = useNeedsYouParts();
-  const day = surfaceValue("today");
-  const waiting = day ? needsYouCount(needsYouOnToday(day, live)) > 0 : !!live && needsYouCount(live) > 0;
+  const waiting = useWaitsOnToday();
   const chores = [<TodaySetup key="setup" />, <TodayBroughtIn key="in" />, <TodayGoing key="going" />];
   const queue = <AgentCommand key="queue" />;
   return (

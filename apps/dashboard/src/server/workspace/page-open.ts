@@ -40,14 +40,14 @@ interface OpenLine {
 const OPEN_CONTENT_TYPE = "application/x-ndjson; charset=utf-8";
 
 /**
- * The page's reads, as one streamed answer. `routeOf` names the route that answers a read by its key; a key no route
- * answers is the page's to ask for itself (route-prefetch.test.mjs holds every key to its route).
+ * The page's reads, as one streamed answer: the page, the period this device last picked and the thread its address names
+ * (contracts openReads). `routeOf` names the route that answers a read by its key; a key no route answers is the page's to
+ * ask for itself (route-prefetch.test.mjs holds every key to its route).
  */
 export function openPage(
   ctx: RouteContext & { params: Record<string, string | string[] | undefined> },
   req: Request,
-  page: string,
-  period: string | null,
+  asked: { page: string; period: string | null; thread: string | null },
   routeOf: (key: string) => OpenRead | undefined,
 ): Response {
   shareMembership(ctx);
@@ -57,7 +57,7 @@ export function openPage(
   const body = new ReadableStream<Uint8Array>({
     async start(out) {
       const write = (line: OpenLine) => out.enqueue(encoder.encode(`${JSON.stringify(line)}\n`));
-      for (const tier of openReads(page, period)) {
+      for (const tier of openReads(asked.page, asked.period, asked.thread)) {
         await Promise.all(
           tier.map(async (key) => {
             const route = routeOf(key);

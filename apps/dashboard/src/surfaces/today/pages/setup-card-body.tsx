@@ -13,7 +13,7 @@ import { SetupCardRow } from "../../setup/rows/card-row";
 import { SetupRows } from "../../setup/rows/rows";
 import { setupVerbs, type SetupSurface } from "../../setup/surface";
 import { appNavigate, refusalFlash, useToast, type Flash } from "../shell";
-import { useNeedsYou } from "../../needs-you";
+import { useWaitsOnToday } from "../../needs-you";
 import { useQueueHoldsCoral } from "../queue-coral";
 
 /**
@@ -135,7 +135,7 @@ export const TodaySetupCard = ({ S }: { S: SetupSurface }) => {
   const [toastNode, flash] = useToast();
   // Anyone waiting on the owner (surfaces/needs-you.ts), or any row the queue drew with its coral (a step due, a visit to
   // mark: queue-coral.ts): the queue then holds the page's coral. The count alone is known before the queue draws.
-  const needs = (useNeedsYou() ?? 0) > 0;
+  const needs = useWaitsOnToday();
   const queued = useQueueHoldsCoral();
   const waiting = needs || queued;
   // While someone waits the card is its head alone, under the queue, and Show opens its rows (the live walk, 27 Oct 2026).
