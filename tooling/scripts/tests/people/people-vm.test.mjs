@@ -251,6 +251,15 @@ test("last contact says who and how long ago, and the newer of message vs call w
   assert.equal(first("human").lastContact.label, "Your team wrote · 3d ago");
   assert.equal(first("ai").lastContact.label, "Receptionist wrote · 3d ago");
   assert.equal(first("human").state, "unheard", "the pill beside it says Not heard from, by the same rule");
+  // Their newest message with no words read (an email with only HTML, as the six months' import kept it before it read
+  // HTML) is still them writing: the row said "Not heard from" beside "They wrote" (the live walk, 27 Oct 2026).
+  const wordless = toPersonRowVM(
+    row({ ...unheard, last_message_direction: "inbound", last_message_sender: "customer" }),
+    ZONE,
+    NOW,
+  );
+  assert.equal(wordless.lastContact.label, "They wrote · 3d ago");
+  assert.notEqual(wordless.state, "unheard", "the pill agrees: they wrote");
   const called = toPersonRowVM(row({ last_call_at: iso(H), last_inbound_call_at: iso(H) }), ZONE, NOW).lastContact;
   assert.equal(called.kind, "call");
   assert.equal(called.label, "Phoned · 1h ago");

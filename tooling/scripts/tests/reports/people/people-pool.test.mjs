@@ -165,6 +165,13 @@ test("the book as the pool counts it: freshness is how long since they wrote or 
     ],
     ["d31_60", "a call they placed, 40 days ago", rang(40 * D)],
     ["under_7", "6 days ago", heard(6 * D)],
+    // An email of theirs whose words were never read (only HTML, kept by the six months' import before it read HTML):
+    // Reports counted 276 of 330 never heard from, 13 of whom had written (the live walk, 27 Oct 2026).
+    [
+      "under_7",
+      "an email with no words, 5 days ago",
+      silent({ last_message_at: iso(5 * D), last_message_direction: "inbound", last_message_sender: "customer" }),
+    ],
   ];
   for (const [bucket, words, person] of cases)
     assert.deepEqual(count([person]).fresh, only(bucket), `${words} is ${bucket}`);
@@ -172,7 +179,7 @@ test("the book as the pool counts it: freshness is how long since they wrote or 
   const book = cases.map((c) => c[2]);
   const now = count(book);
   assert.equal(now.people, book.length, "people is the row count");
-  assert.deepEqual(now.fresh, { under_7: 2, d7_30: 2, d31_60: 2, d61_90: 1, d91_up: 1, never: 3 });
+  assert.deepEqual(now.fresh, { under_7: 3, d7_30: 2, d31_60: 2, d61_90: 1, d91_up: 1, never: 3 });
   assert.equal(sum(now.fresh), now.people, "each person is in one bucket");
   assert.deepEqual(count([]), {
     people: 0,
