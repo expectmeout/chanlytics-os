@@ -515,7 +515,11 @@ six. Measured on production, 9 October 2026: the Inbox had its rows 350 ms into 
   after the thread, the box pushing the conversation up 145 to 162 px. A page of panes says each pane's (Settings:
   `PREFETCH_READS` and `ROUTE_DRAWS` under `admin/<pane>`), and holds a load's first draw for them alone
   (`apps/dashboard/src/surfaces/settings/frame/pane-reads.ts`), never a move between its panes, since the gate swaps the
-  whole page for "Reading…"; what a pane reads that is no surface is kept in the tab and begun as its row is reached for.
+  whole page for "Reading…"; what a pane reads that is no surface is kept in the tab and begun as its row is reached for. A
+  page of views asks its view's row before its own, as `ROUTE_DRAWS` is asked (`surface-registry.ts` `routeWaitsFor`): a
+  sequence's steps wait for the settings read their words are in, New for the playbooks read its starts are made of, and
+  Messages for the number it sends from, and none for another view's (the Campaigns load review, 28 October 2026). A part
+  that is still being read draws nothing, never the word for none.
 - _What is read only where it is drawn is read as its page is reached for._ A surface marked `onDemand` (Reports among
   them) is on no other page's boot; a pointer at its row in the sidebar, or the phone's drawer opening, starts its reads
   (`surface-registry.ts` `warmWhatItDraws`), so the press finds them in or on their way.

@@ -102,13 +102,19 @@ async function startsWith(
  * A sequence's own reads, by its id: its row, its steps, and its first step's (the sequence's own id) run facts: the day it
  * last ran (when its next run goes), its cap, gap and cadence (Start's Change opens with them), and why its last run did
  * nothing, where it did (the record's notice, sequence-run-off.ts); and whether it ever ran or wrote, which its head's acts
- * turn on (0072). Facts unreadable cost those lines alone, unsaid, and the acts that turn on them are not offered.
+ * turn on (0072). Facts unreadable cost those lines alone, unsaid, and the acts that turn on them are not offered. And what
+ * it starts with (startsWith), asked as soon as its row says how it starts, beside the steps and the facts: asked after
+ * all of them, it was a second wave of reads every record waited for (the Campaigns load review, 28 Oct 2026).
  */
 function sequenceReads(rc: ReaderContext, id: string) {
+  const rows = sequenceOverview(rc.ctx.supabase, rc.tenantId, id);
+  const starts = rows.then(([row]) => (row ? startsWith(rc, row) : {}));
+  starts.catch(() => {});
   return Promise.all([
-    sequenceOverview(rc.ctx.supabase, rc.tenantId, id),
+    rows,
     sequenceStepsOf(rc.ctx.supabase, rc.tenantId, id),
     sequenceRecordFacts(rc.ctx.supabase, rc.tenantId, id),
+    starts,
   ]);
 }
 
@@ -132,10 +138,10 @@ export const sequence: Reader<{ id: string }, SequenceRecordDto> = {
     // are read in one wave with the workspace's: its row was read first and the rest after it, a wait each (the tabs review
     // of 19 Oct 2026). An id that names a part of one (a step's, a batch's: a run's address) finds no row, and the sequence
     // it belongs to is read in a second wave, as before.
-    let [rows, steps, own] = await sequenceReads(rc, asked);
+    let [rows, steps, own, starts] = await sequenceReads(rc, asked);
     if (rows.length === 0) {
       const id = await sequenceOfPart(rc.ctx.supabase, rc.tenantId, asked);
-      if (id && id !== asked) [rows, steps, own] = await sequenceReads(rc, id);
+      if (id && id !== asked) [rows, steps, own, starts] = await sequenceReads(rc, id);
     }
     const { first, lastRunOff, history } = own;
     const [facts, word, evidence] = await workspace;
@@ -156,7 +162,7 @@ export const sequence: Reader<{ id: string }, SequenceRecordDto> = {
         ...(history === undefined ? {} : { ran: history.ran, wrote: history.wrote }),
         // A one-off has no batches of a mode to count.
         ...(evidence === undefined || read.starts === "date" ? {} : { evidence: evidenceOf(evidence, read.id) }),
-        ...(await startsWith(rc, row)),
+        ...starts,
       },
       rows: [cited(row)],
       stamp: stamp(),

@@ -64523,9 +64523,19 @@ var PREFETCH_READS = {
   ],
   // The one New beside Sequences' list (`campaigns/sequences/new…`, ROUTE_DRAWS; decision 0065, one New for every
   // sequence): what Sequences opens on, and Campaigns' read of the moments, the lists and who each reaches (playbooks, with
-  // the channels read the counts are by), whose messages are the settings read's. The searches whose leads are ready are
-  // read as New opens. Each surface's first reads.
-  "campaigns/sequences/new": ["sequences", "playbooks", "channels", "settings", "team", "policies", "templates?all=1"],
+  // the channels read the counts are by), whose messages are the settings read's. Each surface's first reads. And the
+  // searches whose leads are ready, one of its starts: read as New opened, its starts drew a panel of what to set up first,
+  // swapped 200 ms later for the row the search gave (the Campaigns load review, 28 Oct 2026).
+  "campaigns/sequences/new": [
+    "sequences",
+    "playbooks",
+    "channels",
+    "settings",
+    "team",
+    "policies",
+    "templates?all=1",
+    "reach-outs/sources"
+  ],
   // Templates and every pane of Settings are drawn from the settings surface; the Library's number notice from the channels read,
   // which Connections draws too and asks for as its pane comes on screen.
   messages: ["settings", "team", "policies", "channels", "templates?all=1"],

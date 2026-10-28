@@ -83,7 +83,6 @@ import {
   type OwnerSaidIntent,
   type ReachOutReplySaidInput,
   type ReachOutReachDto,
-  type ReachOutSourceDto,
   type BroadcastDetailDto,
   leadChainStepOf,
 } from "@chanlytics/contracts";
@@ -91,6 +90,7 @@ import type { Input } from "@/client/api";
 import { api, read } from "@/legacy-bridge/api";
 import { readCache } from "@/legacy-bridge/read-cache";
 import { broadcasts } from "../broadcasts/verbs";
+import { peekSources, readSources } from "./sources";
 
 /** The reaches read in this tab, by search, in memory: the first paint of a door or a sheet, read again behind it. */
 const reaches = readCache<ReachOutReachDto>("reach_out_reach");
@@ -193,15 +193,10 @@ export const reachOuts = {
   /** An act of the workbench taken back (lead_undo), by the operation and the version it answered. */
   undoOperation: (opId: string, version: number) =>
     api()("POST lead-operations/[id]/undo", { params: { id: opId }, body: { version } }),
-  /** What a reach-out could start from (00426), read when New message's Write to leads is chosen; null when it could not be. */
-  sources: async (): Promise<ReachOutSourceDto[] | null> => {
-    try {
-      return (await read("GET reach-outs/sources")).sources;
-    } catch (e) {
-      console.error("reach_out_sources_failed", e instanceof Error ? e.message : e);
-      return null;
-    }
-  },
+  /** What a reach-out could start from (00426), kept in the tab (sources.ts); null when it could not be read. */
+  sources: readSources,
+  /** The searches this tab last read for the workspace on screen, or null: what New's first paint draws its starts from. */
+  peekSources,
   /** A sequence to leads' chain, saved as its record writes it (00459 PUT sequences/:id/chain: every word checked). */
   saveChain: (sequenceId: string, body: Input<"PUT sequences/[id]/chain">) =>
     api()("PUT sequences/[id]/chain", { params: { id: sequenceId }, body }),

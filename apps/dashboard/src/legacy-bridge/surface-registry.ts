@@ -663,7 +663,17 @@ export function routeGateOpen(page: string, param?: string | null, own = false):
   if (key && !isSurfaceReady(key)) return false;
   if (own) return true;
   if (codeOutFor(page)) return false;
-  return (ROUTE_WAITS[page] ?? []).every((k) => isSurfaceReady(k) || isSurfaceFailed(k));
+  return routeWaitsFor(page, param).every((k) => isSurfaceReady(k) || isSurfaceFailed(k));
+}
+
+/**
+ * What a route's first draw waits for, asked of its pane before its page, as routeDrawsFor asks what it draws: Campaigns'
+ * views each wait for what their own first screen is made of (a sequence's steps for their messages, New for its starts,
+ * Messages for its number), and none of them for another's.
+ */
+function routeWaitsFor(page: string, at?: string | null): readonly string[] {
+  const param = paneOf(page, at);
+  return (param ? ROUTE_WAITS[`${page}/${param}`] : undefined) ?? ROUTE_WAITS[page] ?? [];
 }
 
 /**

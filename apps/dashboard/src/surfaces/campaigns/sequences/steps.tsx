@@ -200,7 +200,7 @@ function StepRow({ rec, step, day, ctx, onOpen }: StepRowProps) {
  */
 function DateRow({ rec, date }: { rec: SequenceRecordDto; date: NonNullable<SequenceRecordDto["sequence"]["date"]> }) {
   const m = rec.one_off?.template_name ? rec.one_off : null;
-  const { message } = useStepMessageRead(m?.template_name ?? null, m?.template_language ?? null);
+  const { message, read } = useStepMessageRead(m?.template_name ?? null, m?.template_language ?? null);
   const went = date.state === "sent";
   const last = rec.sequence.last?.id === date.batch_id ? rec.sequence.last : null;
   const channels = rec.one_off?.channels ?? [];
@@ -230,7 +230,9 @@ function DateRow({ rec, date }: { rec: SequenceRecordDto; date: NonNullable<Sequ
             {went && last ? <StepFigures sent={last.sent} replied={last.replied} /> : null}
           </span>
         ) : null}
-        {m ? <StepWords name={m.template_name} message={message} params={m.params} testid="sq-step-words-1" /> : null}
+        {m ? (
+          <StepWords name={m.template_name} message={message} read={read} params={m.params} testid="sq-step-words-1" />
+        ) : null}
       </div>
     </RailRow>
   );

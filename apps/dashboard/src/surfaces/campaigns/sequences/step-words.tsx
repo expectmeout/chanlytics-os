@@ -72,15 +72,23 @@ export function StepMessageDoor(p: { name: string; message: CmOffered | null; te
 interface StepWordsProps {
   name: string | null;
   message: CmOffered | null;
+  /** Whether the messages are read at all (useStepMessageRead): one not read yet is never said to be gone. */
+  read: boolean;
   params: unknown;
   /** Where its message is gone: the act that picks another (the step's editor). */
   gone?: ReactNode;
   testid: string;
 }
 
-/** The step's words as one person reads them, or what stands where its message is gone. */
-export function StepWords({ name, message, params, gone = null, testid }: StepWordsProps) {
+/**
+ * The step's words as one person reads them, or what stands where its message is gone. Nothing while the messages are
+ * still being read: a one-off's step said its message was gone on its first frame, and its words stood in that place a frame
+ * later (the Campaigns load review, 28 Oct 2026). A sequence's page waits for the settings read (ROUTE_WAITS), so this is a
+ * read past its wait.
+ */
+export function StepWords({ name, message, read, params, gone = null, testid }: StepWordsProps) {
   const business = useBusinessName();
+  if (!message && !read) return null;
   if (!message)
     return (
       <div className="sq-msg sq-msg-gone" data-testid={testid}>
