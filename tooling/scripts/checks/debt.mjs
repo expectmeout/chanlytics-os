@@ -76,11 +76,31 @@ export async function measurePart(part) {
   throw new Error(`no part "${part}": the parts are ${PARTS.join(", ")}`);
 }
 
-/** This tree's record: each part asked for, measured, with the commit it was measured on. */
+/**
+ * This tree's record: each part asked for, measured, with the commit it was measured on. Of several parts, each is
+ * measured in a process of its own: the measures' programs and the typed lint's do not fit one heap together (CI's first
+ * run of this job, with the lint's cache cold, ran out of memory at 5 GB), and a process that ends gives all of it back.
+ */
 export async function recordOf(parts = PARTS) {
   const out = { sha: git(["rev-parse", "HEAD"]), at: new Date().toISOString(), parts: {} };
-  for (const part of parts) out.parts[part] = await measurePart(part);
+  if (parts.length === 1) out.parts[parts[0]] = await measurePart(parts[0]);
+  else for (const part of parts) out.parts[part] = partApart(part);
   return out;
+}
+
+/** One part, measured by this file in a process of its own, as check:debt runs it. */
+function partApart(part) {
+  const file = path.join(os.tmpdir(), `chanlytics-debt-${part}-${process.pid}.json`);
+  try {
+    const run = spawnSync(process.execPath, [...LOADER, path.join(ROOT, SELF), "--record", file, "--parts", part], {
+      cwd: ROOT,
+      stdio: ["ignore", "ignore", "inherit"],
+    });
+    if (run.status !== 0) throw new Error(`measuring ${part} failed`);
+    return JSON.parse(fs.readFileSync(file, "utf8")).parts[part];
+  } finally {
+    fs.rmSync(file, { force: true });
+  }
 }
 
 /**
