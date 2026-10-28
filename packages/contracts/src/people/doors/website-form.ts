@@ -101,11 +101,16 @@ export function websiteFormNote(f: WebsiteFormInput, when: WebsiteFormWhen): str
   return `${head} They wrote: "${said}"${late}`.slice(0, NOTE_MAX);
 }
 
-/** The owner's notice of a form: who sent it, what it says, and their page, where the note waits. */
+/**
+ * The owner's notice of a form: who sent it, what it says, whether a sign-up was emailed to confirm (`ask`, signup-
+ * confirm.ts signupAskLine; null where there is nothing to say), and their page, where the note waits. The ask's line is
+ * the notice's alone: the note is what they asked, which the receptionist reads once it is kept.
+ */
 export function websiteFormNotice(
   f: WebsiteFormInput,
   who: { contactId: string; name: string | null; email: string | null; phone: string | null },
   when: WebsiteFormWhen,
+  ask: string | null,
 ): Omit<JobNews, "sourceEvent" | "kind"> & { kind: "website_form" } {
   const named = who.name || who.email || who.phone || "Someone";
   const reach = [who.email, who.phone].filter(Boolean).join(" · ");
@@ -119,6 +124,7 @@ export function websiteFormNotice(
     ).slice(0, 200),
     body: [
       websiteFormNote(f, when),
+      ask,
       reach ? `To reach them: ${reach}` : null,
       "They are in People now, and what they asked waits on their page as a note to keep.",
     ]

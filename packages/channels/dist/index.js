@@ -7039,10 +7039,9 @@ function edgeBodyMatches(claims, body) {
   return a.length === b.length && timingSafeEqual2(a, b);
 }
 
-// src/tokens/unsubscribe-token.ts
+// src/tokens/sealed-link.ts
 import { createHmac as createHmac2, timingSafeEqual as timingSafeEqual3 } from "crypto";
 import { UUID as UUID2 } from "../../contracts/dist/index.js";
-var UNSUBSCRIBE_PATH = "/u/";
 var VERSION = 1;
 var PAYLOAD_BYTES = 1 + 16 * 3;
 var MAC_BYTES = 16;
@@ -7052,20 +7051,20 @@ var uuidOf = (b) => {
   const h = b.toString("hex");
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
 };
-var macOf = (secret, payload) => createHmac2("sha256", secret).update("chanlytics-unsubscribe:").update(payload).digest().subarray(0, MAC_BYTES);
-function signUnsubscribeToken(secret, c) {
-  if (!secret) throw new Error("signUnsubscribeToken: no secret");
+var macOf = (label, secret, payload) => createHmac2("sha256", secret).update(label).update(payload).digest().subarray(0, MAC_BYTES);
+function sealLink(who, label, secret, c) {
+  if (!secret) throw new Error(`${who}: no secret`);
   for (const id of [c.tenantId, c.contactId, c.messageId])
-    if (!UUID2.test(id)) throw new Error("signUnsubscribeToken: the workspace, the person and the email are uuids");
+    if (!UUID2.test(id)) throw new Error(`${who}: the workspace, the person and the email are uuids`);
   const payload = Buffer.concat([
     Buffer.from([VERSION]),
     bytesOf2(c.tenantId),
     bytesOf2(c.contactId),
     bytesOf2(c.messageId)
   ]);
-  return Buffer.concat([payload, macOf(secret, payload)]).toString("base64url");
+  return Buffer.concat([payload, macOf(label, secret, payload)]).toString("base64url");
 }
-function verifyUnsubscribeToken(secrets, token) {
+function openLink(label, secrets, token) {
   if (!Array.isArray(secrets)) return null;
   const keys2 = secrets.filter((s) => typeof s === "string" && s.length > 0);
   if (!keys2.length || typeof token !== "string" || !TOKEN.test(token)) return null;
@@ -7074,15 +7073,41 @@ function verifyUnsubscribeToken(secrets, token) {
     return null;
   const payload = raw.subarray(0, PAYLOAD_BYTES);
   const mac = raw.subarray(PAYLOAD_BYTES);
-  if (!keys2.some((k) => timingSafeEqual3(mac, macOf(k, payload)))) return null;
+  if (!keys2.some((k) => timingSafeEqual3(mac, macOf(label, k, payload)))) return null;
   return {
     tenantId: uuidOf(payload.subarray(1, 17)),
     contactId: uuidOf(payload.subarray(17, 33)),
     messageId: uuidOf(payload.subarray(33, 49))
   };
 }
+function sealedUrl(origin, path, token) {
+  return `${origin.replace(/\/+$/, "")}${path}${token}`;
+}
+
+// src/tokens/unsubscribe-token.ts
+var UNSUBSCRIBE_PATH = "/u/";
+var UNSUBSCRIBE_LABEL = "chanlytics-unsubscribe:";
+function signUnsubscribeToken(secret, c) {
+  return sealLink("signUnsubscribeToken", UNSUBSCRIBE_LABEL, secret, c);
+}
+function verifyUnsubscribeToken(secrets, token) {
+  return openLink(UNSUBSCRIBE_LABEL, secrets, token);
+}
 function unsubscribeUrl(origin, token) {
-  return `${origin.replace(/\/+$/, "")}${UNSUBSCRIBE_PATH}${token}`;
+  return sealedUrl(origin, UNSUBSCRIBE_PATH, token);
+}
+
+// src/tokens/confirm-token.ts
+var CONFIRM_PATH = "/c/";
+var CONFIRM_LABEL = "chanlytics-confirm:";
+function signConfirmToken(secret, c) {
+  return sealLink("signConfirmToken", CONFIRM_LABEL, secret, c);
+}
+function verifyConfirmToken(secrets, token) {
+  return openLink(CONFIRM_LABEL, secrets, token);
+}
+function confirmUrl(origin, token) {
+  return sealedUrl(origin, CONFIRM_PATH, token);
 }
 
 // src/leads/apify.ts
@@ -7375,6 +7400,7 @@ export {
   CALL_ANALYSIS_FIELDS,
   CALL_FEEL,
   CALL_HANDBOOK,
+  CONFIRM_PATH,
   DKIM_SELECTORS,
   EDGE_TOKEN_TTL_MS,
   ELEVENLABS_SIGNATURE_HEADER,
@@ -7474,6 +7500,7 @@ export {
   cleanGmailSignature,
   cleanReply,
   clientStateMatches,
+  confirmUrl,
   connectedIdentity,
   contactsSyncedOf,
   createAgent,
@@ -7706,6 +7733,7 @@ export {
   sendsAsConnected,
   setPublicFetch,
   sharedHistoryOf,
+  signConfirmToken,
   signEdgeToken,
   signState,
   signUnsubscribeToken,
@@ -7755,6 +7783,7 @@ export {
   updateEndUserRequest,
   updateLiveCall,
   updatePhoneNumber,
+  verifyConfirmToken,
   verifyEdgeToken,
   verifyElevenLabsWebhook,
   verifyGooglePushToken,

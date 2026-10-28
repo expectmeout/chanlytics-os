@@ -535,6 +535,8 @@ export {
   UNSUBSCRIBE_PATH,
 } from "./tokens/unsubscribe-token";
 export type { UnsubscribeClaims } from "./tokens/unsubscribe-token";
+export { signConfirmToken, verifyConfirmToken, confirmUrl, CONFIRM_PATH } from "./tokens/confirm-token";
+export type { ConfirmClaims } from "./tokens/confirm-token";
 export {
   apifyClient,
   APIFY_BASE,

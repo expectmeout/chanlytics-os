@@ -131,7 +131,7 @@ test("the one public door under /api/ask is the voice agent's brain door, at its
   assert.ok(!paths.some((p) => p.startsWith("/api/v1/ask")), "every member route of Ask stays behind the gate");
 });
 
-test("five public PREFIXES, and only a workspace's own pages, the unsubscribe link and a partner's link live under them", () => {
+test("six public PREFIXES, and only a workspace's own pages, the unsubscribe link, a partner's link and a sign-up's confirmation live under them", () => {
   const block = /PUBLIC_PREFIXES\s*=\s*\[([^\]]*)\]/.exec(middleware);
   assert.ok(block, "PUBLIC_PREFIXES must be a literal array so this test can read it");
   const prefixes = [...block[1].matchAll(/["']([^"']+)["']/g)].map((m) => m[1]);
@@ -163,7 +163,15 @@ test("five public PREFIXES, and only a workspace's own pages, the unsubscribe li
   // reader opens before they have an account. It reads nothing and writes one
   // cookie naming a code; who is credited is decided later, by create_workspace,
   // so the link is not a door that can be probed (partner.test.mjs).
-  assert.deepEqual(prefixes, ["/yes/", "/b/", "/.well-known/", "/u/", "/p/"]);
+  //
+  // `/c/` joined with the website sign-up's confirmation (00489): the link a sign-up's person is emailed, which they
+  // open with no account. Let in on /u/'s terms: the token is the authority, sealed under a key only we hold, so a
+  // link we did not make reads nothing; a GET changes nothing (scanners); and its only write is the person's own yes
+  // to offers by email, through the service-role door that judges the press itself (set_email_offers_yes,
+  // confirmed_signup: the email is the sign-up's, it left, it is at most seven days old, it went to the person's
+  // address now, and they did not say STOP), so a press can say yes for nobody but the inbox the email reached
+  // (signup-confirm-page.test.mjs).
+  assert.deepEqual(prefixes, ["/yes/", "/b/", "/.well-known/", "/u/", "/p/", "/c/"]);
   assert.match(middleware, /PUBLIC_PREFIXES\.some\(\(p\) => path\.startsWith\(p\)\)/);
   //
   // `/yes/<slug>/form` joined the opt-in page when a yes to offers had to be
@@ -212,6 +220,9 @@ test("five public PREFIXES, and only a workspace's own pages, the unsubscribe li
   // here would be a second public way in, and it takes a new argument above.
   assert.deepEqual(fs.readdirSync(path.join(ROOT, "apps/dashboard/app/u")), ["[token]"]);
   assert.deepEqual(fs.readdirSync(path.join(ROOT, "apps/dashboard/app/u/[token]")), ["route.ts"]);
+  // Under /c/, the same: the confirmation link's own door, and nothing else.
+  assert.deepEqual(fs.readdirSync(path.join(ROOT, "apps/dashboard/app/c")), ["[token]"]);
+  assert.deepEqual(fs.readdirSync(path.join(ROOT, "apps/dashboard/app/c/[token]")), ["route.ts"]);
 });
 
 test("only these sixteen paths are reachable without a session", () => {

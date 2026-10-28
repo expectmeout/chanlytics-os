@@ -11,6 +11,7 @@ import { DM_CLOSED, mayReach, proposalAction } from "./person-reach.js";
 import { campaignsOf, inSequencesOf, ts } from "./person-helpers.js";
 import { personNotesVM } from "../notes/person-notes.js";
 import { PERSON_CHANNEL_WORDS, REPLY_WIRE } from "./person-words.js";
+import { signupAskOf } from "./doors/signup-confirm.js";
 import { wayOff, writeWaysOf } from "../new-conversation/write-ways.js";
 import { messageAt } from "../conversations/thread-dto.js";
 import { draftSendsAtMs, heldDraftOf } from "../conversations/message-words.js";
@@ -269,6 +270,12 @@ export function toPersonVM(d, tz, now = /* @__PURE__ */ new Date(), viewerId = n
     lead: leadOf(d, base, tz, nowMs),
     // The doors' own test, as far as the page can see it: a lead names them, or they work at one.
     yesLocked: d.lead || base.worksAt ? LEAD_CONSENT_REFUSAL : null,
+    signupAsk: signupAskOf(
+      d.conversations.flatMap((c) => c.messages),
+      base.consent.emailMarketing,
+      tz,
+      nowMs
+    ),
     callBackOpen: callBackWaits(d.escalations, holderOf(ctx.row, nowMs, viewerId) === "theirs"),
     doubts: doubtsOf(d),
     deal: ctx.current,

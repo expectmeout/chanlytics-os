@@ -251,6 +251,7 @@ export { memberJoinedBy, memberJoinedNotice, memberLeftBy, memberLeftNotice } fr
 export { bookingArriving, bookingChanged, feedAdditionIsBooking, visitChangeNews, visitNews, CATCH_UP_VISITS, VISIT_CHANGES_TOLD } from "./notices/visit-news.js";
 export { personLikeOf, peopleVisitsOf, withVisitsOf, poolRowOf, poolRowsOf, consultFirstOf, poolListContext } from "./people/audience-pool.js";
 export { SAY_IT_DEAL_JSON_SCHEMA, SAY_IT_MAX, SAY_IT_NOTE_JSON_SCHEMA, SAY_IT_VERBS, SAY_IT_WORDS, dealFill, dealSheetFill, noteFill, noteSheetFill, sayItFilled } from "./people/doors/say-it.js";
+export { confirmPageWords, looksMadeUp, maskAddress, SIGNUP_ASK_LIMITS, SIGNUP_CONFIRM_MS, SIGNUP_CONFIRM_SOURCE, signupAddressKey, signupAskLine, signupAskOf, signupAskRefusal, signupConfirmEmail } from "./people/doors/signup-confirm.js";
 export { legacyErasedPhoneHash, legacyErasedEmailHash, legacyLeadSuppressionHash } from "./people/erasure.js";
 export { PEOPLE_LIST_GROUPS, LIST_GROUP_WORDS, BUILTIN_LISTS, PEOPLE_LISTS, listAsks } from "./people/lists/builtin-lists.js";
 export { LIST_NEEDS, LIST_RULE_FIELDS, LIST_PURPOSES, LIST_STANDINGS, LIST_ASSIGNED, LIST_DEAL_STAGES, LIST_RULE_MAX, LIST_ANY_MAX } from "./people/lists/list-fields.js";
