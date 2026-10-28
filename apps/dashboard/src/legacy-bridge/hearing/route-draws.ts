@@ -69,7 +69,13 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   // thread is drawn from the calls Conversations reads (surfaces/inbox/thread/call.tsx tlCallFor), the same door as the Inbox's own.
   // And Sent's runs: the Needs-you rows and the badge say the runs waiting for your word (needs-you.ts), on the Inbox. Their own
   // read, nothing of People, started from the document's head with the Inbox's (the Inbox's run review, 18 Oct 2026).
-  inbox: ["reach_out_replies", "conversations", "broadcasts"],
+  // What the first draw waits for comes first (ROUTE_WAITS, below), in its order, then what the thread it opens on waits for
+  // (surfaces/inbox/surface.ts openingThreadWaits): its reply box is drawn from the drafts Ask kept (thread/kept-draft.ts)
+  // and, outside WhatsApp's window, from the settings read's templates and the business's facts (thread/template-box.tsx).
+  // Not People's book: a thread's head draws its person from People's row where the tab holds it, and from the thread's own
+  // read of them where it does not (people/want-person.ts), so a contact's edit on the Inbox never reads every page of the
+  // book behind it (S4-6), and nothing waits for the heaviest read.
+  inbox: ["broadcasts", "conversations", "reach_out_replies", "reply_drafts", "settings"],
   // A reach-out's chains are Playbooks' rows, and their emails Templates' email rows (Part 4 PR 8): the reach-outs
   // surface, read beside each page's own.
   // And the number a moment goes out on, its standing and its opt-in: the channels read, which the composers are made of.
@@ -141,7 +147,12 @@ export const ROUTE_WAITS: Record<string, readonly string[]> = {
   today: ["setup", "calendar", "broadcasts", "reach_out_replies", "google", "reply_drafts"],
   // The Inbox's rows of the runs waiting for your word stand above its threads: landing after them, four pushed them 330px down
   // on a phone (18 Oct 2026). Sent's runs read nothing of People and leave from the document's head with the threads.
-  inbox: ["broadcasts"],
+  // And what a row and a thread draw from other reads: the calls a timeline holds (Conversations' read) and a reply to a
+  // reach-out (the row's chip, the strip over the box), each started from the document's head with the threads (contracts
+  // PREFETCH_READS). What the thread it opens on draws in it, its person and its reply box's reads, is that thread's to wait
+  // for, said by the Inbox's own read as it finds the thread (surfaces/inbox/surface.ts openingThreadWaits): a phone opens on
+  // its list alone, which draws none of it (the Inbox load review, 28 Oct 2026).
+  inbox: ["broadcasts", "conversations", "reach_out_replies"],
   // Reports' strip of lenses is decided from the workspace list (the role of who is looking: a lens is shown from its
   // rung up) and draws above the page's body, so a list that landed after it would add a tab to a strip already drawn.
   reports: ["workspace"],
