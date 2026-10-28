@@ -51,7 +51,10 @@ const withStop = (text) => {
   const t = text.trim();
   return /[.!?]$/.test(t) ? t : `${t}.`;
 };
-const problemWords = (p) => p.fix ? `${withStop(p.said)} ${withStop(p.fix)}` : withStop(p.said);
+const FOR_A_DEVELOPER = /{[A-Z][A-Z0-9_]*}/;
+const SETTING_SENTENCE = "Meta says a setting on this number needs changing; WhatsApp Manager shows which.";
+const saidToOwner = (p) => FOR_A_DEVELOPER.test(p.said) ? SETTING_SENTENCE : withStop(p.said);
+const problemWords = (p) => p.fix && !FOR_A_DEVELOPER.test(p.fix) && !FOR_A_DEVELOPER.test(p.said) ? `${saidToOwner(p)} ${withStop(p.fix)}` : saidToOwner(p);
 const BLOCKED_SENTENCE = "Meta says WhatsApp cannot send from this number right now.";
 const CALLING_PROBLEM = /\bSIP\b|\bcalling\b/i;
 const messagingProblems = (s) => s.problems.filter((p) => !CALLING_PROBLEM.test(p.said) && !(p.fix !== null && CALLING_PROBLEM.test(p.fix)));
@@ -94,7 +97,7 @@ export function standingRow(s) {
   const first = messagingProblems(s).at(0);
   return {
     stateWords: "Needs attention",
-    sentence: first ? `Meta has stopped this number from sending: ${withStop(first.said)}` : BLOCKED_SENTENCE,
+    sentence: first ? `Meta has stopped this number from sending: ${saidToOwner(first)}` : BLOCKED_SENTENCE,
     act: { label: "Open WhatsApp Manager", href: whatsappManagerLink(s.owner_business_id, s.waba_id) }
   };
 }
@@ -180,7 +183,7 @@ export function standingAlertWords(number, s) {
 }
 export function numberHealthWithStanding(health, standing) {
   const row = standing ? standingRow(standing) : null;
-  return row ? { ...health, canSend: false, tone: "danger", refusal: row.sentence } : health;
+  return row ? { ...health, canSend: false, tone: "danger", refusal: row.sentence, word: row.stateWords } : health;
 }
 export function numberHealthOfConfig(config) {
   const s = (key) => {

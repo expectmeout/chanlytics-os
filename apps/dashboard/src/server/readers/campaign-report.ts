@@ -192,6 +192,7 @@ async function numberOf(rc: ReaderContext): Promise<CampaignNumberDto> {
       tone: health.tone,
       can_send: health.canSend,
       label: health.label,
+      standing: health.word && health.refusal ? { word: health.word, sentence: health.refusal } : null,
       checked_at: checkedAtOf(channel.config),
     };
   } catch (e) {

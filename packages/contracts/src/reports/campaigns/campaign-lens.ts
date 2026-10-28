@@ -469,6 +469,7 @@ function stuckFiguresOf(stuck: CampaignStuckNowDto, tz: string, nowMs: number): 
   const { waiting, failed, replies, templates, number } = stuck;
   const figure = { compare: null } as const;
   const health = number.state === "read" ? number.tone : null;
+  const standing = number.state === "read" ? (number.standing ?? null) : null;
   return [
     {
       ...figure,
@@ -515,9 +516,16 @@ function stuckFiguresOf(stuck: CampaignStuckNowDto, tz: string, nowMs: number): 
       id: "number-health",
       metric: "number_health",
       label: "Your WhatsApp number",
-      value: health === null ? NO_FIGURE : NUMBER_HEALTH_WORDS[health],
-      meta:
-        number.state === "read" ? numberMeta(number, tz, nowMs) : number.state === "none" ? NUMBER_NONE : NUMBER_UNREAD,
+      // What Meta holds against the number is said in the WhatsApp row's own word and sentence, as Connections says it; the
+      // rating's word only where nothing is held (the live walk's REP-1: "Flagged" over a payment method).
+      value: standing ? standing.word : health === null ? NO_FIGURE : NUMBER_HEALTH_WORDS[health],
+      meta: standing
+        ? standing.sentence
+        : number.state === "read"
+          ? numberMeta(number, tz, nowMs)
+          : number.state === "none"
+            ? NUMBER_NONE
+            : NUMBER_UNREAD,
       door: "admin/integrations",
       ...(health === null ? {} : NUMBER_HEALTH_TONES[health]),
     },
