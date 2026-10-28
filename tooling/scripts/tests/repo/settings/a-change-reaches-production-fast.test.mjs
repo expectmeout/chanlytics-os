@@ -53,6 +53,7 @@ test("land takes main's side only of what a command writes, and has a command fo
     assert.equal(isWritten(file), false, `${file} is a person's to resolve`);
   const commands = WRITERS.map(([, c]) => c).join(" | ");
   for (const writer of [
+    "sorted-lists.mjs",
     "contracts-browser-entry.mjs",
     "route-types.mjs",
     "gen:api-reference",

@@ -4,87 +4,160 @@
  * Workspace scope: the package's barrel names each export and holds no statement; each repository keeps its own scope.
  */
 export {
-  emitEvent,
-  recordEvent,
-  subjectsWith,
-  recordActivation,
-  relayEvents,
-  eventOfDelivery,
-  subscriptionPaused,
-  deliveryOf,
-  settleDelivery,
-} from "./events";
-export type { EmittedKind, EventData, DeliveredEvent, DeliveryRow } from "./events";
-export {
-  recordModelUsage,
-  workspaceMayUseModels,
   aiFailuresHour,
-  purgeAiUsage,
   keepModelTurn,
+  purgeAiUsage,
+  recordModelUsage,
   scrubModelTurns,
+  workspaceMayUseModels,
 } from "./ai-usage";
 export type { AiFailures, ModelTurnKept } from "./ai-usage";
+export {
+  claimVoiceTurn,
+  endVoiceSession,
+  insertVoiceSession,
+  moveVoiceSessionContext,
+  readVoiceSession,
+  readVoiceSessionByConversation,
+} from "./ask-voice-session";
+export type { NewVoiceSession, VoiceEndReason, VoiceSessionRow } from "./ask-voice-session";
+export { deleteSecondFactor, inviteUserByEmail, listSecondFactors, signUpOnPublicKey } from "./auth";
+export { applyBilling, type BillingExpectation, type BillingPatch } from "./billing/account";
 export { keepInvoiceAmount } from "./billing/events";
-export { applyBilling, type BillingPatch, type BillingExpectation } from "./billing/account";
-export { migrationHead, platformDay } from "./ops";
+export type { Database, Json } from "./database.types";
 export { ERASURE_LEGS, ERASURE_STRATEGIES } from "./erasure-registry";
 export type { ErasureLeg, ErasureStrategy } from "./erasure-registry";
-export type { MigrationHead, PlatformDayPromises } from "./ops";
-export { signUpOnPublicKey, inviteUserByEmail, listSecondFactors, deleteSecondFactor } from "./auth";
-export { addToWaitlist, refreshWaitlistRow, waitlistWaiting, markWaitlistInvited } from "./waitlist";
-export { createServiceClient } from "./service-client";
-export { observeDb, namedFetch, touchOfCall, DB_REQUEST_HEADER } from "./observe";
+export {
+  deliveryOf,
+  emitEvent,
+  eventOfDelivery,
+  recordActivation,
+  recordEvent,
+  relayEvents,
+  settleDelivery,
+  subjectsWith,
+  subscriptionPaused,
+} from "./events";
+export { type ActivitySubject, type ActivitySubjects, activitySubjects } from "./events";
+export type { DeliveredEvent, DeliveryRow, EmittedKind, EventData } from "./events";
+export {
+  approveBroadcast,
+  assembleBroadcast,
+  claimQueuedSend,
+  failQueuedSend,
+  hasNewerCopy,
+  readJobToRequeue,
+  releaseQueuedSend,
+} from "./jobs";
+export type { AssembleDecision, JobToRequeue } from "./jobs";
+export { businessOnRecordOf, filedNamesOf, ownLineOf } from "./lines";
+export { DB_REQUEST_HEADER, namedFetch, observeDb, touchOfCall } from "./observe";
 export type { DbLog, DbObserver, DbTouch } from "./observe";
-export { tenantDb, platformWide, type TenantDb } from "./tenant-db";
-export type { ServiceClientConfig } from "./service-client";
+export { migrationHead, platformDay } from "./ops";
+export type { MigrationHead, PlatformDayPromises } from "./ops";
+export { DEFAULT_ROW_CAP, MAX_ROWS, readAllRows, readAllRowsByKey } from "./paged";
+export type { Page } from "./paged";
+export { keepProviderEvent, providerEventOf, scrubProviderEvents } from "./provider-events";
+export type { DeliveryProvider, KeptDelivery, KeptDeliveryRow } from "./provider-events";
+export { narrowedUpdates, subscribeWorkspaceChanges, watchedEvents, watchedTables } from "./realtime";
+export type { SubscribeOptions } from "./realtime";
+export { askJournalDayRows, askJournalDue, journalMemberNames, keepAskJournal } from "./repositories/ask/journal";
+export type { AskJournalDueRow, JournalDecisionRow, JournalEventRow } from "./repositories/ask/journal";
 export {
-  ingestInbound,
-  AnswerNotKept,
-  markProcessed,
-  stampHandled,
-  recordOutbound,
-  resolveOutboundTarget,
-  resolveOutboundTargetForContact,
-  wireRowOf,
-  countSentToday,
-  recordStatusByExternalId,
-  messageByExternalId,
-  keepMessageCost,
-  pauseConversation,
-} from "./repositories/ingest";
-export type { IngestInboundParams, IngestResult, OutboundTarget } from "./repositories/ingest";
+  askJournalDays,
+  askMemoryLines,
+  changeAskMemory,
+  forgetAskMemory,
+  keepAskMemory,
+  searchAsk,
+} from "./repositories/ask/memory";
+export type { AskMemoryDoor, AskRecallRow } from "./repositories/ask/memory";
+export { askFirstAnswer, askMorningOf, askMorningWrite } from "./repositories/ask/mornings";
+export { conversationDraftKeep, conversationDraftsOf, threadDraftFacts } from "./repositories/ask/reply-drafts";
 export {
-  mailboxById,
-  mailboxFor,
-  ingestInboundEmail,
-  sentEmailWithMessageId,
-  stampMailboxReceived,
-  mailboxOfTenant,
-  keepForwardingConfirmation,
-  clearForwardingConfirmation,
-  lastInboundEmail,
-  lastOutboundEmailSubject,
-  answeredReachOutEmail,
-  stampEmailSent,
-  stampEmailLeftAs,
-  sentEmailOf,
-  stampEmailComplaint,
-  recordEmailNo,
-  recordEmailStatus,
-  suppressEmailOf,
-  emailFoundSent,
-  emailNeverLeft,
-} from "./repositories/email";
-export type { MailboxRow, IngestEmailParams, InboundEmailFacts } from "./repositories/email";
+  answerBookingRequest,
+  appointmentByClientStart,
+  appointmentByKey,
+  appointmentsBetween,
+  appointmentsForClient,
+  appointmentsScrub,
+  appointmentStates,
+  appointmentWorkspace,
+  type BookingRequestOpen,
+  contactIdByEmail,
+  contactIdByPhone,
+  earlierVisitRows,
+  feedWordsOver,
+  insertAppointment,
+  markVisit,
+  notedOver,
+  openBookingRequest,
+  openRequestOfThread,
+  reachOutBookedFrom,
+  recordOver,
+  syncFeedAppointments,
+  updateAppointment,
+  visitOrigins,
+  visitsOver,
+} from "./repositories/calendar/appointments";
+export type {
+  AppointmentInsert,
+  AppointmentRow,
+  AppointmentSync,
+  AppointmentUpdate,
+  EarlierVisitRow,
+  VisitOriginRow,
+} from "./repositories/calendar/appointments";
 export {
-  emailOffersPause,
-  pauseEmailOffers,
+  appointmentNoticeById,
+  appointmentNoticeOf,
+  appointmentNoticesOf,
+  dismissAppointmentNotice,
+  heldNoticeKeys,
+  heldNoticesOf,
+  keepAppointmentNotice,
+  memberHasAddress,
+} from "./repositories/calendar/notices";
+export type { AppointmentNoticeInsert, AppointmentNoticeRow } from "./repositories/calendar/notices";
+export {
+  callerNameOf,
+  callersOf,
+  callForReview,
+  callsOwedAnAnalysis,
+  claimCallActivity,
+  claimCallNotification,
+  ingestCall,
+  isWorkspaceCall,
+  linkCallMessage,
+  recordCallNote,
+  setCallRecording,
+  stampCallConfigVersion,
+} from "./repositories/calls";
+export type { IngestCallResult, NormalizedCallInput } from "./repositories/calls";
+export { momentSchedules, runsInSpan } from "./repositories/campaigns/calendar-runs";
+export type { MomentScheduleRow, SpanRunRow } from "./repositories/campaigns/calendar-runs";
+export {
+  campaignMonthSent,
+  followUpOnFile,
+  holdRecipients,
+  playbookChannels,
+  playbookForChange,
+  playbookForChannels,
+  queuedRecipients,
+  runGoesByOthers,
+  runningTwins,
+  textLineFacts,
+  whatsappChannelFacts,
+} from "./repositories/campaigns/campaign-channels";
+export {
   emailOfferCounts,
+  emailOffersPause,
+  offerLanguageOf,
+  offersEmailReach,
+  pauseEmailOffers,
   setEmailOffersYes,
   setEmailUnsubscribed,
   stopAllMessages,
-  offerLanguageOf,
-  offersEmailReach,
 } from "./repositories/campaigns/email-offers";
 export type { Unsubscribed } from "./repositories/campaigns/email-offers";
 export {
@@ -95,14 +168,90 @@ export {
 } from "./repositories/campaigns/offers-answer";
 export type { LateCarrierStop } from "./repositories/campaigns/offers-answer";
 export {
-  failStrandedRun,
-  strandedRuns,
-  waitingPlaybookRuns,
+  heldStale,
+  reachOutRecord,
+  releaseUnavailableHolds,
+  takeCheckAttempt,
+  uncheckedSends,
+  uncheckedWaiting,
+} from "./repositories/campaigns/reach-out-check";
+export type { ReachOutRecordRow, UncheckedSend } from "./repositories/campaigns/reach-out-check";
+export {
+  chainDraftLoad,
+  claimDrafts,
+  draftFactsOf,
+  draftsWaiting,
+  leadReplyFactsOf,
+  ownerSendFactsOf,
+  replySaid,
+  sendSaid,
+} from "./repositories/campaigns/reach-out-drafts";
+export type {
+  DraftLoad,
+  DraftWaitingRow,
+  LeadReplyFacts,
+  OwnerSendFacts,
+  ReplySaidAnswer,
+  SendSaidAnswer,
+} from "./repositories/campaigns/reach-out-drafts";
+export {
+  leadMemberLater,
+  leadPileCounts,
+  leadsBackToday,
+  reachOutAdd,
+  reachOutChainPeople,
+  reachOutFedByOf,
+  reachOutLeaveOut,
+  reachOutPeopleCounts,
+  reachOutSources,
+} from "./repositories/campaigns/reach-out-leads";
+export type { DoorResult, ReachOutAddAnswer } from "./repositories/campaigns/reach-out-leads";
+export {
+  aimSearchAt,
+  cancelSequenceBatch,
+  discardSequence,
+  followUpsDue,
+  keepOnceDraft,
+  leadRepliesOfBatches,
+  leadsFedBy,
+  leadsLeaveSequence,
+  leaveSequence,
+  makeSequence,
+  moveToSequence,
+  oneOffMessageOf,
+  peopleHandRun,
+  putBackInSequence,
+  removeSequenceStep,
+  runningStepsOn,
+  saveSequenceStep,
+  sequenceEvidence,
+  sequenceHistoryOf,
+  sequenceModesOf,
+  sequenceNamesOf,
+  sequenceOfPart,
+  sequenceOverview,
+  sequencePeopleOf,
+  sequencePlaceOf,
+  sequencePlacesOf,
+  sequenceReached,
+  sequenceRecordFacts,
+  sequenceRow,
+  sequencesOfPerson,
+  sequenceStepsOf,
+  setChainSource,
+  setSequenceStepWords,
+  takeOutOfSequence,
+} from "./repositories/campaigns/sequences";
+export type { PeopleHandItem, SequenceDoorAnswer, SequenceMoveAnswer } from "./repositories/campaigns/sequences";
+export {
   cancelBroadcastFrom,
+  failStrandedRun,
   recordSystemDecision,
-  waitingRunsOf,
   runsGoingBetween,
   runsNamed,
+  strandedRuns,
+  waitingPlaybookRuns,
+  waitingRunsOf,
 } from "./repositories/campaigns/stranded-runs";
 export type {
   GoingRunRow,
@@ -110,405 +259,551 @@ export type {
   WaitingPlaybookRun,
   WaitingRunRow,
 } from "./repositories/campaigns/stranded-runs";
+export { reviewLinkOf, workspacePaused } from "./repositories/campaigns/workspace";
+export { recordEchoAndPause } from "./repositories/channels/echoes";
 export {
-  mailboxConnectionsOf,
-  mailboxConnectionOf,
-  liveMailboxByAddress,
-  mailboxesToTend,
+  activeInstagramAccounts,
+  instagramAccountHolder,
+  instagramIdOf,
+  lastDmsSentTo,
+  lastInboundOn,
+  messageUnsent,
+  noteInstagramToken,
+  personOfInstagramId,
+  putChannelSecret,
+  readChannelSecret,
+  removeStoredMedia,
+  setInstagramStatus,
+  writeInstagramAccount,
+} from "./repositories/channels/instagram";
+export type { InstagramAccountRow } from "./repositories/channels/instagram";
+export {
+  activeChannelRows,
+  activeWhatsappNumbers,
+  lineWrittenTo,
+  oldestActiveChannel,
+  resolveChannel,
+  resolveChannelDetailed,
+  whatsappLineOf,
+} from "./repositories/channels/routing";
+export type { ChannelLookup, RoutedChannel, WhatsappNumberRow } from "./repositories/channels/routing";
+export { finishAct, listActs, startAct } from "./repositories/console/acts";
+export type { PlatformActInsert } from "./repositories/console/acts";
+export {
+  healthBacklog,
+  healthClientErrors,
+  healthClocks,
+  healthFailedJobs,
+  healthPages,
+  healthParts,
+  healthSweeps,
+  healthWorkspaces,
+  keepClientError,
+  redriveDeliveries,
+  workspaceIsOurs,
+} from "./repositories/console/health";
+export type { ClientErrorInsert } from "./repositories/console/health";
+export { fileRequest, listRequests, requestById, setRequestSteps } from "./repositories/console/requests";
+export type { PrivacyRequestInsert } from "./repositories/console/requests";
+// The Console (decision 0066, 00467): its staff, Find, claims, the Admin log, reports, requests.
+export {
+  claimOf,
+  findAcross,
+  letClaimGo,
+  liveClaims,
+  modelSpend,
+  staffStateOf,
+  takeClaim,
+  tenantBySlug,
+  tenantNames,
+} from "./repositories/console/staff";
+export {
+  countBugReports,
+  fileReport,
+  forwardingVerified,
+  listReports,
+  markReportMailed,
+  personEmail,
+  reportById,
+  reportToMail,
+  setReportKind,
+  setupAskById,
+  setupAsks,
+  supportMarks,
+  supportPeople,
+} from "./repositories/console/support";
+export type { ReportSide, SupportReportInsert } from "./repositories/console/support";
+export {
+  CALL_CONTROL_S,
+  callBackMessage,
+  claimControl,
+  claimReplyTurn,
+  handBackThread,
+  holdsReplyTurn,
+  memberWithdrawDrafts,
+  memberWithdrawMessage,
+  openEscalation,
+  releaseControl,
+  takeOverThread,
+  withdrawAiDrafts,
+  withdrawQueued,
+} from "./repositories/control";
+export type {
+  CalledBack,
+  ControlHolder,
+  ControlOutcome,
+  HandedBack,
+  TakenOver,
+  WithdrawReason,
+} from "./repositories/control";
+export {
+  createWorkspaceFn,
+  getTenantConfig,
+  getTenantConfigAsMember,
+  lineForwardingSet,
+  listPolicies,
+  markCalendarFeedKept,
+  membershipCountOf,
+  peopleOnTheirOwnMode,
+  personReplyMode,
+  personReplyModes,
+  publicWorkspaceBySlug,
+  putTenantConfig,
+  removePlaybook,
+  replyTokensSince,
+  setPersonReplyMode,
+  setPolicyMode,
+  setWorkspaceLogo,
+  startPlaybook,
+  updatePlaybook,
+  workspaceAnswersOnItsOwn,
+  workspaceIdsOf,
+  workspaceNamed,
+  workspaceOpenToCustomers,
+  workspacePublicSlug,
+  workspaceZoneOf,
+  writePlaybookChange,
+} from "./repositories/control-plane";
+export type {
+  CreateWorkspaceArgs,
+  LineForwardingArgs,
+  OpenToCustomersRead,
+  PlaybookPatch,
+  PlaybookToStart,
+  PolicyRecord,
+  PublicWorkspaceRead,
+  PutTenantConfigResult,
+  TenantConfigRow,
+} from "./repositories/control-plane";
+export { dealOnFile, openDealsOf, recordDeal, yesesSince } from "./repositories/deals";
+export type { DealMove, OpenDealRow, YesRow } from "./repositories/deals";
+export {
+  answeredReachOutEmail,
+  clearForwardingConfirmation,
+  emailFoundSent,
+  emailNeverLeft,
+  ingestInboundEmail,
+  keepForwardingConfirmation,
+  lastInboundEmail,
+  lastOutboundEmailSubject,
+  mailboxById,
+  mailboxFor,
+  mailboxOfTenant,
+  recordEmailNo,
+  recordEmailStatus,
+  sentEmailOf,
+  sentEmailWithMessageId,
+  stampEmailComplaint,
+  stampEmailLeftAs,
+  stampEmailSent,
+  stampMailboxReceived,
+  suppressEmailOf,
+} from "./repositories/email";
+export type { InboundEmailFacts, IngestEmailParams, MailboxRow } from "./repositories/email";
+export {
+  answerFactSuggestion,
+  factCorrectionsBatch,
+  factSuggestionById,
+  factSuggestionsWaiting,
+  suggestFact,
+} from "./repositories/facts/fact-suggestions";
+export type { FactCorrectionRow, FactSuggestionRow } from "./repositories/facts/fact-suggestions";
+export { heldDraftsByIntent } from "./repositories/facts/held-drafts";
+export { suggestPersonNote } from "./repositories/facts/person-note-suggestions";
+export {
+  callReviewOf,
+  configAtVersion,
+  endRehearsal,
+  keepCallReview,
+  keepRehearsalCall,
+  keepRehearsalFix,
+  keepRehearsalReview,
+  keepTypedRehearsal,
+  keepVoiceAgent,
+  rehearsalByCall,
+  rehearsalById,
+  rehearsalSpokenMs,
+  rehearsalTally,
+  voiceAgentOf,
+  voiceAgentsBeforeANumber,
+  writeRehearsalTranscript,
+} from "./repositories/facts/rehearsals";
+export type { RehearsalRow } from "./repositories/facts/rehearsals";
+export {
+  claimIdempotencyKey,
+  keepIdempotencyReceipt,
+  releaseIdempotencyKey,
+  takeIdempotencyKey,
+} from "./repositories/idempotency";
+export type { IdempotencyClaim, IdempotencyHold } from "./repositories/idempotency";
+export { importPerson, keepBefore, peopleCount, personBeforeNote } from "./repositories/imports/before";
+export type { BeforeKept, BeforeMessage } from "./repositories/imports/before";
+export {
+  businessReadsOf,
+  keepBusinessRead,
+  linkedPlaceOf,
+  listingFactsStored,
+} from "./repositories/imports/business-reads";
+export type { BusinessReadRow } from "./repositories/imports/business-reads";
+export { importCursorOf, importsOf, noteImport } from "./repositories/imports/ledger";
+export type { ImportLedgerRow, ImportNote } from "./repositories/imports/ledger";
+export {
+  AnswerNotKept,
+  countSentToday,
+  ingestInbound,
+  keepMessageCost,
+  markProcessed,
+  messageByExternalId,
+  pauseConversation,
+  recordOutbound,
+  recordStatusByExternalId,
+  resolveOutboundTarget,
+  resolveOutboundTargetForContact,
+  stampHandled,
+  wireRowOf,
+} from "./repositories/ingest";
+export type { IngestInboundParams, IngestResult, OutboundTarget } from "./repositories/ingest";
+export {
+  againIdeas,
+  claimIdeas,
+  failIdeas,
+  ideaCustomerRows,
+  ideasBasis,
+  ideasClockAndLanguage,
+  keepIdeas,
+  leadAddresseeChoose,
+  leadCardsLive,
+  leadCompanyUpsert,
+  leadCountriesOf,
+  leadPeopleSearchCreate,
+  readIdeaHistory,
+  readLeadOne,
+  saveIdeasLine,
+} from "./repositories/leads";
+export type { IdeaCustomerRows, IdeasKept, LeadOneLead, LeadOneMember } from "./repositories/leads";
+export {
+  addToList,
+  archiveList,
+  createList,
+  deleteList,
+  dropFromList,
+  listMemberIds,
+  listRow,
+  playbooksOnList,
+  renameList,
+  savedListFor,
+  savedListsFor,
+  setListRule,
+} from "./repositories/lists";
+export type { ListRow, SavedListRow, WriteError } from "./repositories/lists";
+export {
   connectMailbox,
+  dropMailboxCredentials,
+  getMailboxCredentials,
+  liveMailboxByAddress,
+  mailboxConnectionOf,
+  mailboxConnectionsOf,
+  mailboxCountsOf,
+  mailboxesToTend,
+  noteCalendarGrant,
   patchMailboxConnection,
   putMailboxCredentials,
-  getMailboxCredentials,
-  dropMailboxCredentials,
-  mailboxCountsOf,
   stampEmailFromMailbox,
-  noteCalendarGrant,
 } from "./repositories/mailboxes/connections";
-export type { MailboxConnectionRow, ConnectRefusal } from "./repositories/mailboxes/connections";
+export type { ConnectRefusal, MailboxConnectionRow } from "./repositories/mailboxes/connections";
+export { dueMailboxes, mailboxCapacityFrom, mailboxCapacityOf } from "./repositories/mailboxes/day";
+export type { DueMailbox, MailboxCapacity } from "./repositories/mailboxes/day";
+export { requestMailboxesSweep, unknownMailboxEmails } from "./repositories/mailboxes/reconcile";
+export type { UnknownMailboxEmail } from "./repositories/mailboxes/reconcile";
+export { mailboxLeftSince, mailboxSenderVerdicts, noteMailboxLeft } from "./repositories/mailboxes/senders";
+export { mailboxPeopleSince, mailboxSendersOf, sortMailboxSender } from "./repositories/mailboxes/senders";
 export {
-  takeMailboxSync,
   endMailboxSync,
   keepMailboxWatch,
-  knownThreads,
   keepOwnerEmail,
+  knownThreads,
   mailboxConnectionById,
   sentEmailIdByMessageId,
+  takeMailboxSync,
 } from "./repositories/mailboxes/sync";
-export { unknownMailboxEmails, requestMailboxesSweep } from "./repositories/mailboxes/reconcile";
-export { mailboxSenderVerdicts, noteMailboxLeft, mailboxLeftSince } from "./repositories/mailboxes/senders";
-export { mailboxSendersOf, sortMailboxSender, mailboxPeopleSince } from "./repositories/mailboxes/senders";
-export type { UnknownMailboxEmail } from "./repositories/mailboxes/reconcile";
-export {
-  outreachFactsOf,
-  addressesSuppressed,
-  reachOutReplyOf,
-  replyReadingOf,
-  takeReplyRead,
-  applyReplyReading,
-  claimReplyTell,
-  markReplyDraft,
-  repliesFor,
-  replyReadingRefOf,
-  replyUndoableOf,
-  undoReplyReading,
-  markReplyTold,
-  resolveEscalationByReason,
-  archiveConversation,
-  reachOutDayDue,
-} from "./repositories/outreach";
-export type {
-  OutreachFactsRow,
-  ReachOutReplyOf,
-  ReplyReadingRow,
-  ReplyListRow,
-  ReachOutDayDue,
-} from "./repositories/outreach";
-export { mailboxCapacityOf, mailboxCapacityFrom, dueMailboxes } from "./repositories/mailboxes/day";
-export type { MailboxCapacity, DueMailbox } from "./repositories/mailboxes/day";
-export {
-  reachOutAudience,
-  reachOutPerson,
-  claimSends,
-  moveSend,
-  reachOutFollowers,
-  queuedOutcomes,
-  stuckClaims,
-  staleSends,
-  closedRunSends,
-  finishableRuns,
-  writtenEmails,
-  withdrawEmail,
-  monthSent,
-  insertQueuedEmail,
-  writtenEmail,
-  sendJobScheduled,
-  sendStanding,
-  emailWordsOf,
-  workspaceNameAndConfig,
-  leadSlotsOf,
-  contactEmailOf,
-  sendNow,
-  runSending,
-  runHanded,
-  parentEmailOf,
-  leadAddressBounced,
-  leadWritten,
-  recordCheck,
-  workspaceMaySpend,
-  workspaceAbout,
-} from "./repositories/reach-out";
-export type {
-  ReachOutSendRow,
-  ReachOutSendInsert,
-  AudienceLead,
-  PersonForSend,
-  FollowerLead,
-  QueuedOutcome,
-  MessageInsert,
-  WrittenEmail,
-  SendStanding,
-  ParentEmail,
-} from "./repositories/reach-out";
-export {
-  reachOutAdd,
-  leadMemberLater,
-  leadPileCounts,
-  reachOutChainPeople,
-  reachOutPeopleCounts,
-  leadsBackToday,
-  reachOutLeaveOut,
-  reachOutSources,
-  reachOutFedByOf,
-} from "./repositories/campaigns/reach-out-leads";
-export type { DoorResult, ReachOutAddAnswer } from "./repositories/campaigns/reach-out-leads";
-export {
-  claimDrafts,
-  chainDraftLoad,
-  draftFactsOf,
-  draftsWaiting,
-  ownerSendFactsOf,
-  sendSaid,
-  replySaid,
-  leadReplyFactsOf,
-} from "./repositories/campaigns/reach-out-drafts";
-export type {
-  DraftLoad,
-  DraftWaitingRow,
-  SendSaidAnswer,
-  ReplySaidAnswer,
-  LeadReplyFacts,
-  OwnerSendFacts,
-} from "./repositories/campaigns/reach-out-drafts";
-export {
-  uncheckedSends,
-  uncheckedWaiting,
-  reachOutRecord,
-  heldStale,
-  releaseUnavailableHolds,
-  takeCheckAttempt,
-} from "./repositories/campaigns/reach-out-check";
-export type { ReachOutRecordRow, UncheckedSend } from "./repositories/campaigns/reach-out-check";
-export {
-  reachOutStepsOf,
-  reachOutRootOf,
-  reachOutSendRefOf,
-  emailWordsFrom,
-  emailWordsByTemplate,
-  searchesByIds,
-  runsWaitingOf,
-  reachOutRunSendsOf,
-  stampReachOutStep,
-  recheckSends,
-  tenantZoneOf,
-  heldNoticeDue,
-  runWaitingCounts,
-  markHeldNotice,
-  leadNamesByIds,
-  handRun,
-  saveReachOutChain,
-} from "./repositories/reach-out-sheet";
-export type {
-  ReachOutStepRow,
-  ReachOutSaved,
-  ReachOutRunSend,
-  HeldNoticeMark,
-  HeldNoticeRun,
-  HandItem,
-} from "./repositories/reach-out-sheet";
-export {
-  reportSeries,
-  campaignSeries,
-  reviewsLedger,
-  receptionistSeries,
-  peopleSeries,
-  campaignLedger,
-  campaignStuck,
-  reachOutReport,
-  ReportWindowNotReadable,
-  playbookTotals,
-  runCounts,
-  templateSends,
-  reachOutChainTotals,
-} from "./repositories/reports/report-series";
-export type { ReportWindow } from "./repositories/reports/report-series";
-export { firstReplies } from "./repositories/reports/first-replies";
-export { notePageVitals, pageSpeed, pageSpots, pageVitalsP75 } from "./repositories/reports/page-vitals";
-export {
-  askCardsTold,
-  forgetNotification,
-  noticeKept,
-  noticeFor,
-  mailSent,
-  holdFactsOf,
-  holdTold,
-  personFactsOf,
-  optOutTold,
-  eventTold,
-  bookedVisitsOf,
-  feedAdditionsWith,
-  twinTold,
-  memberJoinedOf,
-  memberEmailOf,
-  reviewRowsByGoogleId,
-  reviewsNamed,
-  unreadOfReaders,
-  olderUnreadFor,
-  closeMendedNotices,
-} from "./repositories/notices/notifications";
-export type { KeptNotice } from "./repositories/notices/notifications";
 export {
   activityTokensOf,
   forgetActivityTokens,
   forgetEveryPhone,
   memberAlertsOf,
-  setMemberPushOff,
   membersPushedFor,
-  pushNamesFor,
   memberViewsOf,
   ownAddressIn,
+  pushNamesFor,
+  setMemberPushOff,
   setMemberView,
 } from "./repositories/notices/member-alerts";
 export type { MemberAlertsRow } from "./repositories/notices/member-alerts";
-export { lastClosedHolds, threadIdsWaitingOnYou } from "./repositories/waiting-on-you";
-export { reviewLinkOf, workspacePaused } from "./repositories/campaigns/workspace";
-export { momentSchedules, runsInSpan } from "./repositories/campaigns/calendar-runs";
 export {
-  followUpsDue,
-  leaveSequence,
-  leadsLeaveSequence,
-  sequenceReached,
-  sequenceRow,
-  sequenceOfPart,
-  sequenceModesOf,
-  sequenceEvidence,
-  sequenceOverview,
-  sequenceStepsOf,
-  sequenceNamesOf,
-  sequenceRecordFacts,
-  oneOffMessageOf,
-  leadsFedBy,
-  runningStepsOn,
-  sequencePeopleOf,
-  sequenceHistoryOf,
-  saveSequenceStep,
-  removeSequenceStep,
-  setSequenceStepWords,
-  takeOutOfSequence,
-  putBackInSequence,
-  leadRepliesOfBatches,
-  cancelSequenceBatch,
-  makeSequence,
-  discardSequence,
-  keepOnceDraft,
-  peopleHandRun,
-  sequencesOfPerson,
-  sequencePlaceOf,
-  sequencePlacesOf,
-  moveToSequence,
-  aimSearchAt,
-  setChainSource,
-} from "./repositories/campaigns/sequences";
-export type { PeopleHandItem, SequenceDoorAnswer, SequenceMoveAnswer } from "./repositories/campaigns/sequences";
-export type { MomentScheduleRow, SpanRunRow } from "./repositories/campaigns/calendar-runs";
+  askCardsTold,
+  bookedVisitsOf,
+  closeMendedNotices,
+  eventTold,
+  feedAdditionsWith,
+  forgetNotification,
+  holdFactsOf,
+  holdTold,
+  mailSent,
+  memberEmailOf,
+  memberJoinedOf,
+  noticeFor,
+  noticeKept,
+  olderUnreadFor,
+  optOutTold,
+  personFactsOf,
+  reviewRowsByGoogleId,
+  reviewsNamed,
+  twinTold,
+  unreadOfReaders,
+} from "./repositories/notices/notifications";
+export type { KeptNotice } from "./repositories/notices/notifications";
 export {
-  activeInstagramAccounts,
-  readChannelSecret,
-  putChannelSecret,
-  instagramAccountHolder,
-  writeInstagramAccount,
-  setInstagramStatus,
-  noteInstagramToken,
-  instagramIdOf,
-  personOfInstagramId,
-  lastDmsSentTo,
-  messageUnsent,
-  lastInboundOn,
-  removeStoredMedia,
-} from "./repositories/channels/instagram";
-export type { InstagramAccountRow } from "./repositories/channels/instagram";
-export { recordEchoAndPause } from "./repositories/channels/echoes";
-export {
-  resolveChannelDetailed,
-  resolveChannel,
-  oldestActiveChannel,
-  activeWhatsappNumbers,
-  whatsappLineOf,
-  activeChannelRows,
-  lineWrittenTo,
-} from "./repositories/channels/routing";
-export {
-  whatsappChannelFacts,
-  textLineFacts,
-  playbookChannels,
-  playbookForChannels,
-  playbookForChange,
-  runningTwins,
-  followUpOnFile,
-  queuedRecipients,
-  runGoesByOthers,
-  campaignMonthSent,
-  holdRecipients,
-} from "./repositories/campaigns/campaign-channels";
-export type { RoutedChannel, ChannelLookup, WhatsappNumberRow } from "./repositories/channels/routing";
-export {
-  ingestCall,
-  linkCallMessage,
-  callsOwedAnAnalysis,
-  callersOf,
-  setCallRecording,
-  recordCallNote,
-  claimCallNotification,
-  claimCallActivity,
-  callerNameOf,
-  isWorkspaceCall,
-  stampCallConfigVersion,
-  callForReview,
-} from "./repositories/calls";
-export type { NormalizedCallInput, IngestCallResult } from "./repositories/calls";
-export {
-  assembleHistory,
-  readThreadState,
-  openConversation,
-  ourLastWire,
-  textReached,
-  readLeadContext,
-  readDealForPhone,
-  notesForReceptionist,
-  describeLead,
-  HISTORY_COLUMNS,
-  searchMessages,
-  messageSenders,
-  repliedTo,
-  replyAnswersAt,
-  failedMessageErrors,
-} from "./repositories/thread";
-export type { ThreadTurn, PgThreadState, LeadContext, MessageHit, MessageSender } from "./repositories/thread";
-export {
-  insertVoiceSession,
-  readVoiceSession,
-  readVoiceSessionByConversation,
-  claimVoiceTurn,
-  endVoiceSession,
-  moveVoiceSessionContext,
-} from "./ask-voice-session";
-export type { VoiceSessionRow, NewVoiceSession, VoiceEndReason } from "./ask-voice-session";
-export {
-  claimIdempotencyKey,
-  takeIdempotencyKey,
-  releaseIdempotencyKey,
-  keepIdempotencyReceipt,
-} from "./repositories/idempotency";
-export type { IdempotencyHold, IdempotencyClaim } from "./repositories/idempotency";
-export {
-  readJobToRequeue,
-  hasNewerCopy,
-  assembleBroadcast,
-  approveBroadcast,
-  claimQueuedSend,
-  releaseQueuedSend,
-  failQueuedSend,
-} from "./jobs";
-export { keepProviderEvent, providerEventOf, scrubProviderEvents } from "./provider-events";
-export type { DeliveryProvider, KeptDelivery, KeptDeliveryRow } from "./provider-events";
-export type { JobToRequeue, AssembleDecision } from "./jobs";
-export {
-  claimControl,
-  releaseControl,
-  takeOverThread,
-  handBackThread,
-  CALL_CONTROL_S,
-  claimReplyTurn,
-  holdsReplyTurn,
-  withdrawQueued,
-  withdrawAiDrafts,
-  memberWithdrawDrafts,
-  memberWithdrawMessage,
-  callBackMessage,
-  openEscalation,
-} from "./repositories/control";
+  addressesSuppressed,
+  applyReplyReading,
+  archiveConversation,
+  claimReplyTell,
+  markReplyDraft,
+  markReplyTold,
+  outreachFactsOf,
+  reachOutDayDue,
+  reachOutReplyOf,
+  repliesFor,
+  replyReadingOf,
+  replyReadingRefOf,
+  replyUndoableOf,
+  resolveEscalationByReason,
+  takeReplyRead,
+  undoReplyReading,
+} from "./repositories/outreach";
 export type {
-  ControlHolder,
-  ControlOutcome,
-  TakenOver,
-  HandedBack,
-  WithdrawReason,
-  CalledBack,
-} from "./repositories/control";
+  OutreachFactsRow,
+  ReachOutDayDue,
+  ReachOutReplyOf,
+  ReplyListRow,
+  ReplyReadingRow,
+} from "./repositories/outreach";
 export {
-  templatesFor,
-  templatesToSend,
-  templateIdOf,
-  templatesNamed,
-  templateStatusOf,
-  messageSlots,
+  acceptHandover,
+  acceptPartnerInvite,
+  becomePartner,
+  createWorkspaceForBusiness,
+  declineHandover,
+  declinePartnerInvite,
+  getHandoverInvite,
+  getOpenHandovers,
+  getOwnPartner,
+  getPartnerBalance,
+  getPartnerBroughtCount,
+  getPartnerHandovers,
+  getPartnerInvitations,
+  getPartnerInviteMail,
+  getPartnerLetters,
+  getPartnerWorkspaces,
+  getPlatformPartners,
+  getWorkspacePartner,
+  invitePartner,
+  markPartnerPaid,
+  recordPartnerSecondFactorReset,
+  resendHandover,
+  sessionHoldsPartnerSeat,
+  setPartnerLetters,
+  setPartnerStanding,
+  setPartnerStatus,
+  withdrawPartnerInvite,
+} from "./repositories/partner";
+export type {
+  HandoverInvite,
+  HandoverResult,
+  HandoverSent,
+  HandoverWorkspace,
+  OpenHandover,
+  PartnerBalanceLine,
+  PartnerHandoverLine,
+  PartnerInvitation,
+  PartnerInviteMail,
+  PartnerInviteSent,
+  PartnerJoined,
+  PartnerOverviewRow,
+  PartnerPayoutAnswer,
+  PartnerPublicRow,
+  PartnerRow,
+  PartnerTenantRow,
+  PartnerVerbResult,
+  PartnerWorkspaceMoneyLine,
+  PlatformPartnerBalanceLine,
+  PlatformPartnerWorkspaceLine,
+  WorkspacePartner,
+} from "./repositories/partner";
+export {
+  addPersonByHand,
+  addPersonNote,
+  adoptPersonName,
+  contactSeen,
+  declinePersonName,
+  dismissPersonDoubt,
+  doubtOn,
+  erasureDigests,
+  everyoneIn,
+  everyoneOnceIn,
+  IDS_PER_READ,
+  joinPersonToLead,
+  keptPersonOf,
+  leavePersonLead,
+  logPersonCall,
+  markContact,
+  mergePeople,
+  namesOfPeople,
+  openDoubtsOf,
+  PEOPLE_PAGE,
+  peopleAtLead,
+  peopleCursorOf,
+  peoplePage,
+  PERSON_FORGOTTEN,
+  personDecisions,
+  personRow,
+  recordConsent,
+  resolvePerson,
+  scrubPersonNotes,
+  seePersonNote,
+  signersOf,
+  undoPersonName,
+} from "./repositories/people";
+export type {
+  PeopleCursor,
+  PersonCallArgs,
+  PersonNameAnswer,
+  ResolvedPerson,
+  ResolvePersonInput,
+} from "./repositories/people";
+export {
+  claimSends,
+  closedRunSends,
+  contactEmailOf,
+  emailWordsOf,
+  finishableRuns,
+  insertQueuedEmail,
+  leadAddressBounced,
+  leadSlotsOf,
+  leadWritten,
+  monthSent,
+  moveSend,
+  parentEmailOf,
+  queuedOutcomes,
+  reachOutAudience,
+  reachOutFollowers,
+  reachOutPerson,
+  recordCheck,
+  runHanded,
+  runSending,
+  sendJobScheduled,
+  sendNow,
+  sendStanding,
+  staleSends,
+  stuckClaims,
+  withdrawEmail,
+  workspaceAbout,
+  workspaceMaySpend,
+  workspaceNameAndConfig,
+  writtenEmail,
+  writtenEmails,
+} from "./repositories/reach-out";
+export type {
+  AudienceLead,
+  FollowerLead,
+  MessageInsert,
+  ParentEmail,
+  PersonForSend,
+  QueuedOutcome,
+  ReachOutSendInsert,
+  ReachOutSendRow,
+  SendStanding,
+  WrittenEmail,
+} from "./repositories/reach-out";
+export {
+  emailWordsByTemplate,
+  emailWordsFrom,
+  handRun,
+  heldNoticeDue,
+  leadNamesByIds,
+  markHeldNotice,
+  reachOutRootOf,
+  reachOutRunSendsOf,
+  reachOutSendRefOf,
+  reachOutStepsOf,
+  recheckSends,
+  runsWaitingOf,
+  runWaitingCounts,
+  saveReachOutChain,
+  searchesByIds,
+  stampReachOutStep,
+  tenantZoneOf,
+} from "./repositories/reach-out-sheet";
+export type {
+  HandItem,
+  HeldNoticeMark,
+  HeldNoticeRun,
+  ReachOutRunSend,
+  ReachOutSaved,
+  ReachOutStepRow,
+} from "./repositories/reach-out-sheet";
+export { firstReplies } from "./repositories/reports/first-replies";
+export { notePageVitals, pageSpeed, pageSpots, pageVitalsP75 } from "./repositories/reports/page-vitals";
+export {
+  campaignLedger,
+  campaignSeries,
+  campaignStuck,
+  peopleSeries,
+  playbookTotals,
+  reachOutChainTotals,
+  reachOutReport,
+  receptionistSeries,
+  reportSeries,
+  ReportWindowNotReadable,
+  reviewsLedger,
+  runCounts,
+  templateSends,
+} from "./repositories/reports/report-series";
+export type { ReportWindow } from "./repositories/reports/report-series";
+export {
+  createMessageVersion,
   heldMessageOf,
+  isMissingDoor,
+  messageSlots,
   messageVersionRowsOf,
   ownVersionsFiled,
-  saveTemplateVersion,
-  createMessageVersion,
-  isMissingDoor,
   removeTemplateVersion,
+  saveTemplateVersion,
   setTemplateQuality,
+  templateIdOf,
+  templatesFor,
+  templatesNamed,
+  templateStatusOf,
+  templatesToSend,
 } from "./repositories/templates";
 export type {
   MessageVariable,
@@ -518,334 +813,39 @@ export type {
   VersionRef,
 } from "./repositories/templates";
 export {
-  getTenantConfig,
-  getTenantConfigAsMember,
-  putTenantConfig,
-  markCalendarFeedKept,
-  listPolicies,
-  setPolicyMode,
-  personReplyMode,
-  personReplyModes,
-  peopleOnTheirOwnMode,
-  replyTokensSince,
-  setPersonReplyMode,
-  workspaceAnswersOnItsOwn,
-  workspaceOpenToCustomers,
-  publicWorkspaceBySlug,
-  workspacePublicSlug,
-  workspaceNamed,
-  workspaceZoneOf,
-  membershipCountOf,
-  workspaceIdsOf,
-  createWorkspaceFn,
-  lineForwardingSet,
-  setWorkspaceLogo,
-  updatePlaybook,
-  removePlaybook,
-  startPlaybook,
-  writePlaybookChange,
-} from "./repositories/control-plane";
-export type {
-  TenantConfigRow,
-  PutTenantConfigResult,
-  PolicyRecord,
-  CreateWorkspaceArgs,
-  LineForwardingArgs,
-  PlaybookPatch,
-  PlaybookToStart,
-  OpenToCustomersRead,
-  PublicWorkspaceRead,
-} from "./repositories/control-plane";
-export {
-  PEOPLE_PAGE,
-  IDS_PER_READ,
-  namesOfPeople,
-  personDecisions,
-  peoplePage,
-  personRow,
-  addPersonNote,
-  logPersonCall,
-  peopleCursorOf,
-  everyoneIn,
-  everyoneOnceIn,
-  erasureDigests,
-  scrubPersonNotes,
-  mergePeople,
-  keptPersonOf,
-  recordConsent,
-  addPersonByHand,
-  resolvePerson,
-  PERSON_FORGOTTEN,
-  openDoubtsOf,
-  doubtOn,
-  dismissPersonDoubt,
-  contactSeen,
-  markContact,
-  adoptPersonName,
-  undoPersonName,
-  declinePersonName,
-  joinPersonToLead,
-  leavePersonLead,
-  seePersonNote,
-  peopleAtLead,
-  signersOf,
-} from "./repositories/people";
-export type {
-  PeopleCursor,
-  PersonCallArgs,
-  PersonNameAnswer,
-  ResolvePersonInput,
-  ResolvedPerson,
-} from "./repositories/people";
-export {
-  savedListsFor,
-  listMemberIds,
-  savedListFor,
-  listRow,
-  createList,
-  renameList,
-  setListRule,
-  addToList,
-  dropFromList,
-  archiveList,
-  playbooksOnList,
-  deleteList,
-} from "./repositories/lists";
-export type { SavedListRow, ListRow, WriteError } from "./repositories/lists";
-export { activitySubjects, type ActivitySubject, type ActivitySubjects } from "./events";
-export { touchesSince, recentTouches, followUpTouchesSince, touchIndex } from "./repositories/touches";
+  assembleHistory,
+  describeLead,
+  failedMessageErrors,
+  HISTORY_COLUMNS,
+  messageSenders,
+  notesForReceptionist,
+  openConversation,
+  ourLastWire,
+  readDealForPhone,
+  readLeadContext,
+  readThreadState,
+  repliedTo,
+  replyAnswersAt,
+  searchMessages,
+  textReached,
+} from "./repositories/thread";
+export type { LeadContext, MessageHit, MessageSender, PgThreadState, ThreadTurn } from "./repositories/thread";
+export { followUpTouchesSince, recentTouches, touchesSince, touchIndex } from "./repositories/touches";
 export type { Touch, TouchIndex } from "./repositories/touches";
-export { yesesSince, recordDeal, dealOnFile, openDealsOf } from "./repositories/deals";
-export type { YesRow, DealMove, OpenDealRow } from "./repositories/deals";
+export { lastClosedHolds, threadIdsWaitingOnYou } from "./repositories/waiting-on-you";
 export { exportSectionPages, personExportPages } from "./repositories/workspace-export";
 export type { ExportPage, ExportSectionPages, PersonExportPages } from "./repositories/workspace-export";
+export { createServiceClient } from "./service-client";
+export type { ServiceClientConfig } from "./service-client";
 export {
-  getOwnPartner,
-  sessionHoldsPartnerSeat,
-  getPartnerBroughtCount,
-  getPartnerBalance,
-  getPartnerLetters,
-  setPartnerLetters,
-  becomePartner,
-  getPartnerWorkspaces,
-  getPlatformPartners,
-  setPartnerStanding,
-  markPartnerPaid,
-  setPartnerStatus,
-  recordPartnerSecondFactorReset,
-  createWorkspaceForBusiness,
-  resendHandover,
-  getOpenHandovers,
-  acceptHandover,
-  declineHandover,
-  getPartnerHandovers,
-  getHandoverInvite,
-  invitePartner,
-  withdrawPartnerInvite,
-  getWorkspacePartner,
-  getPartnerInvitations,
-  acceptPartnerInvite,
-  declinePartnerInvite,
-  getPartnerInviteMail,
-} from "./repositories/partner";
-export type {
-  PartnerRow,
-  PartnerTenantRow,
-  PartnerPublicRow,
-  PartnerBalanceLine,
-  PartnerOverviewRow,
-  PartnerWorkspaceMoneyLine,
-  PlatformPartnerBalanceLine,
-  PlatformPartnerWorkspaceLine,
-  PartnerVerbResult,
-  PartnerPayoutAnswer,
-  HandoverResult,
-  HandoverWorkspace,
-  HandoverSent,
-  OpenHandover,
-  PartnerHandoverLine,
-  HandoverInvite,
-  PartnerInviteSent,
-  WorkspacePartner,
-  PartnerInvitation,
-  PartnerJoined,
-  PartnerInviteMail,
-} from "./repositories/partner";
-// The Console (decision 0066, 00467): its staff, Find, claims, the Admin log, reports, requests.
-export {
-  staffStateOf,
-  findAcross,
-  modelSpend,
-  tenantBySlug,
-  tenantNames,
-  liveClaims,
-  takeClaim,
-  letClaimGo,
-  claimOf,
-} from "./repositories/console/staff";
-export { startAct, finishAct, listActs } from "./repositories/console/acts";
-export type { PlatformActInsert } from "./repositories/console/acts";
-export {
-  fileReport,
-  markReportMailed,
-  listReports,
-  countBugReports,
-  reportById,
-  setReportKind,
-  reportToMail,
-  setupAsks,
-  setupAskById,
-  supportPeople,
-  personEmail,
-  supportMarks,
-  forwardingVerified,
-} from "./repositories/console/support";
-export type { SupportReportInsert, ReportSide } from "./repositories/console/support";
-export { fileRequest, requestById, setRequestSteps, listRequests } from "./repositories/console/requests";
-export {
-  healthClocks,
-  healthSweeps,
-  healthBacklog,
-  healthFailedJobs,
-  healthPages,
-  healthParts,
-  healthWorkspaces,
-  workspaceIsOurs,
-  keepClientError,
-  healthClientErrors,
-  redriveDeliveries,
-} from "./repositories/console/health";
-export type { ClientErrorInsert } from "./repositories/console/health";
-export type { PrivacyRequestInsert } from "./repositories/console/requests";
-export {
-  readLeadOne,
-  readIdeaHistory,
-  claimIdeas,
-  keepIdeas,
-  failIdeas,
-  saveIdeasLine,
-  againIdeas,
-  ideasBasis,
-  ideasClockAndLanguage,
-  leadCountriesOf,
-  leadPeopleSearchCreate,
-  leadAddresseeChoose,
-  leadCardsLive,
-  leadCompanyUpsert,
-  ideaCustomerRows,
-} from "./repositories/leads";
-export { ownLineOf, businessOnRecordOf, filedNamesOf } from "./lines";
-export type { LeadOneLead, LeadOneMember, IdeasKept, IdeaCustomerRows } from "./repositories/leads";
-export { watchedTables, watchedEvents, narrowedUpdates, subscribeWorkspaceChanges } from "./realtime";
-export type { SubscribeOptions } from "./realtime";
-export { readAllRows, readAllRowsByKey, MAX_ROWS, DEFAULT_ROW_CAP } from "./paged";
-export type { Page } from "./paged";
-export {
-  duePlaybooks,
   dueCalendars,
-  stampPlaybooksTried,
-  whatsappNumbersToRead,
-  whatsappNumberOf,
+  duePlaybooks,
   keepChannelQuality,
   keepChannelStanding,
+  stampPlaybooksTried,
+  whatsappNumberOf,
+  whatsappNumbersToRead,
 } from "./sweeps";
-export type { DuePage, DueStep, DueCalendar, WhatsappNumber } from "./sweeps";
-export {
-  appointmentByKey,
-  appointmentByClientStart,
-  insertAppointment,
-  updateAppointment,
-  appointmentsBetween,
-  visitsOver,
-  visitOrigins,
-  recordOver,
-  notedOver,
-  feedWordsOver,
-  markVisit,
-  openBookingRequest,
-  answerBookingRequest,
-  openRequestOfThread,
-  type BookingRequestOpen,
-  appointmentWorkspace,
-  appointmentsForClient,
-  earlierVisitRows,
-  appointmentsScrub,
-  contactIdByPhone,
-  contactIdByEmail,
-  syncFeedAppointments,
-  appointmentStates,
-  reachOutBookedFrom,
-} from "./repositories/calendar/appointments";
-export type {
-  AppointmentRow,
-  VisitOriginRow,
-  AppointmentInsert,
-  AppointmentUpdate,
-  AppointmentSync,
-  EarlierVisitRow,
-} from "./repositories/calendar/appointments";
-export {
-  appointmentNoticeOf,
-  keepAppointmentNotice,
-  appointmentNoticesOf,
-  memberHasAddress,
-  heldNoticesOf,
-  heldNoticeKeys,
-  appointmentNoticeById,
-  dismissAppointmentNotice,
-} from "./repositories/calendar/notices";
-export type { AppointmentNoticeRow, AppointmentNoticeInsert } from "./repositories/calendar/notices";
-export {
-  factCorrectionsBatch,
-  suggestFact,
-  factSuggestionsWaiting,
-  factSuggestionById,
-  answerFactSuggestion,
-} from "./repositories/facts/fact-suggestions";
-export type { FactCorrectionRow, FactSuggestionRow } from "./repositories/facts/fact-suggestions";
-export { heldDraftsByIntent } from "./repositories/facts/held-drafts";
-export { suggestPersonNote } from "./repositories/facts/person-note-suggestions";
-export {
-  rehearsalById,
-  rehearsalByCall,
-  callReviewOf,
-  rehearsalSpokenMs,
-  rehearsalTally,
-  keepRehearsalCall,
-  writeRehearsalTranscript,
-  endRehearsal,
-  keepTypedRehearsal,
-  keepCallReview,
-  keepRehearsalReview,
-  keepRehearsalFix,
-  voiceAgentOf,
-  keepVoiceAgent,
-  voiceAgentsBeforeANumber,
-  configAtVersion,
-} from "./repositories/facts/rehearsals";
-export type { RehearsalRow } from "./repositories/facts/rehearsals";
-export { importsOf, noteImport, importCursorOf } from "./repositories/imports/ledger";
-export { importPerson, keepBefore, peopleCount, personBeforeNote } from "./repositories/imports/before";
-export {
-  businessReadsOf,
-  keepBusinessRead,
-  listingFactsStored,
-  linkedPlaceOf,
-} from "./repositories/imports/business-reads";
-export type { BusinessReadRow } from "./repositories/imports/business-reads";
-export type { BeforeMessage, BeforeKept } from "./repositories/imports/before";
-export type { ImportLedgerRow, ImportNote } from "./repositories/imports/ledger";
-export {
-  askMemoryLines,
-  askJournalDays,
-  keepAskMemory,
-  changeAskMemory,
-  forgetAskMemory,
-  searchAsk,
-} from "./repositories/ask/memory";
-export type { AskMemoryDoor, AskRecallRow } from "./repositories/ask/memory";
-export { askJournalDue, askJournalDayRows, journalMemberNames, keepAskJournal } from "./repositories/ask/journal";
-export type { AskJournalDueRow, JournalDecisionRow, JournalEventRow } from "./repositories/ask/journal";
-export { askMorningWrite, askMorningOf, askFirstAnswer } from "./repositories/ask/mornings";
-export { conversationDraftKeep, conversationDraftsOf, threadDraftFacts } from "./repositories/ask/reply-drafts";
-export type { Database, Json } from "./database.types";
+export type { DueCalendar, DuePage, DueStep, WhatsappNumber } from "./sweeps";
+export { platformWide, type TenantDb, tenantDb } from "./tenant-db";
+export { addToWaitlist, markWaitlistInvited, refreshWaitlistRow, waitlistWaiting } from "./waitlist";

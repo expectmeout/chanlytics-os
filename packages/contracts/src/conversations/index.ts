@@ -1,35 +1,59 @@
 /** A thread as the pages draw it: the view models, and who has it. */
-export { messageAt, isOptedOut, memberMetaOf } from "./thread-dto";
-export type { MessageDto, ConversationDto, LastHoldDto } from "./thread-dto";
 export {
-  agentFor,
-  answerWireOf,
-  isChatMessage,
-  isFromTheirSide,
-  isTheirOwnWords,
-  lastWroteOn,
-  writtenChannelOf,
-  threadChannelOf,
-  threadChannelWords,
-  THREAD_CHANNEL_WORDS,
-} from "./thread-channel";
-export type { WrittenChannel, ThreadChannel } from "./thread-channel";
+  ABANDONED_MS,
+  abandonedCall,
+  callAttemptWords,
+  DISCONNECTION_LABELS,
+  missedCall,
+  neverConnected,
+  reachedVoicemail,
+} from "./call-dto";
+export type { CallDto } from "./call-dto";
+export { callEndedWords, spokenDuration, toCallVM, unansweredCallTodo } from "./call-vm";
+export type { CallVM } from "./call-vm";
+export { CONVERSATION_MOVES, conversationMoveAllowed, conversationPatch } from "./conversation-moves";
+export type { ConversationMoveName, ConversationPatch } from "./conversation-moves";
+export { toConversationVM } from "./conversation-vm";
+export type { ConversationMessageVM, ConversationVM } from "./conversation-vm";
 export {
-  contactName,
-  isIdentifierName,
-  shortName,
-  contactMeta,
-  initialsOf,
-  personFaceOf,
-  isEmailStopped,
-  emailStoppedWords,
-} from "./thread-contact";
-export type { EmailStopBearing } from "./thread-contact";
-export { shortTime, formatWaited, inboxThreadClock } from "./thread-clock";
-export { mediaKind, mediaVM } from "./message-media";
-export type { MediaVM } from "./message-media";
+  ESCALATION_ACTS,
+  ESCALATION_REASON_LABELS,
+  ESCALATION_REASON_SHORT,
+  ESCALATION_SUMMARIES,
+  HAND_BACK_REASONS,
+  HOLD_ACT_WORDS,
+  holdActOf,
+  holdWaits,
+  OPEN_HOLDS_READ_MAX,
+  reasonLabelOf,
+  reasonShort,
+  reasonSummaryOf,
+  WAITING_REASONS,
+  waitsOnAPerson,
+} from "./escalations";
+export type { EscalationDto, HoldAct, OpenHold } from "./escalations";
+export { REFERRAL_ID_MAX } from "./first-touch";
+export { HANDLED_OUTCOMES } from "./handled";
+export type { Handled } from "./handled";
+export {
+  conversationWaitsOnYou,
+  HELD_BY_ID_MAX,
+  heldDraftWaits,
+  heldThreadIds,
+  snoozedThreadWords,
+  theyWroteLast,
+  THREAD_PANE_WORDS,
+  threadStanding,
+  threadsWaitingOnYou,
+  threadWaitsOf,
+  toInboxThreadVM,
+} from "./inbox-thread";
+export type { InboxThreadVM } from "./inbox-thread-vm";
+export { EMAIL_CLAIMS, isAutomatedSend, isPersonsWords, messageAuthor, messageVia, messageWhy } from "./message-author";
+export type { EmailClaim, MessageAuthor } from "./message-author";
 export {
   emailLeftOutOf,
+  type EmailParts,
   emailPartsOf,
   emailPreviewOf,
   emailSignatureLine,
@@ -37,84 +61,60 @@ export {
   repairMojibake,
   splitQuotedReply,
   tidyEmailWords,
-  type EmailParts,
 } from "./message-email";
+export { mediaKind, mediaVM } from "./message-media";
+export type { MediaVM } from "./message-media";
 export {
-  messageStatusLabel,
-  sendFailureWords,
+  clipAtWord,
+  draftSendsAtMs,
   failureWordsOf,
+  heldDraftOf,
+  isHeldDraft,
+  messageStatusLabel,
+  messageText,
+  messageWords,
   providerCodeOf,
   reachedCustomer,
-  isHeldDraft,
-  heldDraftOf,
-  draftSendsAtMs,
-  messageWords,
-  messageText,
-  clipAtWord,
+  sendFailureWords,
 } from "./message-words";
-export { EMAIL_CLAIMS, isAutomatedSend, isPersonsWords, messageVia, messageAuthor, messageWhy } from "./message-author";
-export { HANDLED_OUTCOMES } from "./handled";
-export type { Handled } from "./handled";
-export { REFERRAL_ID_MAX } from "./first-touch";
-export type { EmailClaim, MessageAuthor } from "./message-author";
 export {
-  ESCALATION_REASON_LABELS,
-  ESCALATION_REASON_SHORT,
-  ESCALATION_SUMMARIES,
-  reasonShort,
-  reasonLabelOf,
-  reasonSummaryOf,
-  ESCALATION_ACTS,
-  HAND_BACK_REASONS,
-  WAITING_REASONS,
-  OPEN_HOLDS_READ_MAX,
-  HOLD_ACT_WORDS,
-  holdActOf,
-  holdWaits,
-  waitsOnAPerson,
-} from "./escalations";
-export type { EscalationDto, HoldAct, OpenHold } from "./escalations";
-export type { InboxThreadVM } from "./inbox-thread-vm";
-export {
-  threadStanding,
-  conversationWaitsOnYou,
-  threadsWaitingOnYou,
-  threadWaitsOf,
-  heldThreadIds,
-  HELD_BY_ID_MAX,
-  snoozedThreadWords,
-  heldDraftWaits,
-  THREAD_PANE_WORDS,
-  theyWroteLast,
-  toInboxThreadVM,
-} from "./inbox-thread";
-export { toConversationVM } from "./conversation-vm";
-export type { ConversationMessageVM, ConversationVM } from "./conversation-vm";
-export {
-  ABANDONED_MS,
-  abandonedCall,
-  callAttemptWords,
-  missedCall,
-  neverConnected,
-  reachedVoicemail,
-  DISCONNECTION_LABELS,
-} from "./call-dto";
-export type { CallDto } from "./call-dto";
-export { callEndedWords, spokenDuration, toCallVM, unansweredCallTodo } from "./call-vm";
-export type { CallVM } from "./call-vm";
-export {
-  standingOf,
-  standingOfThread,
-  replyWaitsOnYou,
   HELD_WORDS,
-  NEEDS_YOU_WORD,
+  heldPill,
   INBOX_BUCKET_WORDS,
   inboxBucketWord,
-  heldPill,
-  seenBy,
   isUnseen,
+  NEEDS_YOU_WORD,
   readingOf,
+  replyWaitsOnYou,
+  seenBy,
+  standingOf,
+  standingOfThread,
 } from "./standing";
-export type { StandingInput, Standing, StandingVerdict, SeenMarksDto, SeenOf, SeenReading } from "./standing";
-export { CONVERSATION_MOVES, conversationPatch, conversationMoveAllowed } from "./conversation-moves";
-export type { ConversationMoveName, ConversationPatch } from "./conversation-moves";
+export type { SeenMarksDto, SeenOf, SeenReading, Standing, StandingInput, StandingVerdict } from "./standing";
+export {
+  agentFor,
+  answerWireOf,
+  isChatMessage,
+  isFromTheirSide,
+  isTheirOwnWords,
+  lastWroteOn,
+  THREAD_CHANNEL_WORDS,
+  threadChannelOf,
+  threadChannelWords,
+  writtenChannelOf,
+} from "./thread-channel";
+export type { ThreadChannel, WrittenChannel } from "./thread-channel";
+export { formatWaited, inboxThreadClock, shortTime } from "./thread-clock";
+export {
+  contactMeta,
+  contactName,
+  emailStoppedWords,
+  initialsOf,
+  isEmailStopped,
+  isIdentifierName,
+  personFaceOf,
+  shortName,
+} from "./thread-contact";
+export type { EmailStopBearing } from "./thread-contact";
+export { isOptedOut, memberMetaOf, messageAt } from "./thread-dto";
+export type { ConversationDto, LastHoldDto, MessageDto } from "./thread-dto";
