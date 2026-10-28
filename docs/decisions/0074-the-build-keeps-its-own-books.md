@@ -80,7 +80,11 @@ proposed; where the two disagree, this section and the code are what is true.
   (`supabase db reset`, so its data goes, which is why it is asked for) and the four written again before the data
   model. Without either, `land` names them as a person's. Before this, the closed sets and the unique keys took main's
   side and nothing wrote them again. A merge `land` left open is taken up where it was left, its conflicts settled by
-  the same rule (`settle`).
+  the same rule (`settle`). The way across for a branch from before 28 October: a dist or a baseline it changed that main no
+  longer has is taken out of it (`isRetired`, asked of main by `git cat-file`, so the kept baselines need no second
+  list), and a conflict in the register's, the takeover checklist's or the architecture's retired block takes main's
+  pointer, where every hunk on the page is such a block (`mainsBlocks`); a row a person wrote stays theirs. Merging
+  this branch into a copy of #1901, written under the old rules, settled all four of its conflicts so.
 
 ## Context
 

@@ -9,9 +9,11 @@
  *   1. Nothing uncommitted: what lands is what was committed.
  *   2. Main merged in, when the branch does not hold it. A conflict in a file a command writes (a `*.generated.*` file,
  *      the API reference, the data model, the tree, the migration ledger) takes main's side and is written again below; a
- *      dist a branch from before 28 October 2026 still tracks is taken out of the index, as main took it (isRetired); a
- *      conflict in anything else stops here, the merge left open, with the files to resolve by hand (then run this
- *      again, and it takes up the merge where it was left).
+ *      dist or a baseline a branch from before 28 October 2026 changed, and main no longer has, is taken out, as main
+ *      took it (isRetired); and the number blocks and the tree it changed in the register, the takeover checklist and the
+ *      architecture take main's side, its pointer to check:debt and docs/tree.md (mainsBlocks). A conflict in anything
+ *      else stops here, the merge left open, with the files to resolve by hand (then run this again, and it takes up
+ *      the merge where it was left).
  *      What the migrations write through a database (REPLAYED: the schema snapshot, the database's types, the closed
  *      sets and the unique keys) is written only from a replay: with --replay, and a local stack that answers
  *      (`supabase status`), main's side is taken and the stack is replayed from zero (`supabase db reset`, so its data
@@ -35,6 +37,7 @@
  *                                                                    again from the local stack, replayed from zero
  */
 import { execFileSync, spawnSync } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -64,8 +67,44 @@ export function isWritten(file) {
   );
 }
 
-/** A file main no longer keeps: a package's dist, which left git on 28 October 2026 (decision 0074). */
-export const isRetired = (file) => /^packages\/[^/]+\/dist\//.test(file);
+/**
+ * A file main may have retired on 28 October 2026 (decision 0074): a package's dist, and a ratchet's baseline, whose
+ * number check:debt measures instead. One a branch changed and main no longer has is taken out (settle's `mainHas`); a
+ * baseline main keeps (the coverage floors, the bundle's ceilings, the hearing tests' lists) is a person's, as before.
+ */
+export const isRetired = (file) =>
+  /^packages\/[^/]+\/dist\//.test(file) ||
+  /^tooling\/scripts\/tests\/(baselines\/|source-scan-baseline\.json$)/.test(file);
+
+/** The pages whose number blocks and drawn tree left them that day, each block now a pointer (decision 0074). */
+export const BLOCK_PAGES = ["docs/architecture.md", "docs/debt.md", "docs/takeover.md"];
+const BLOCK_MARK = /<!-- (measured|tree):(start|end) -->/;
+
+/**
+ * A page's conflicts settled where each is a block main retired: a hunk whose branch side holds a measured or tree block's
+ * marker, and whose main side holds none, is main's side. The page as settled, or null when any hunk is another's (a
+ * person's, as any conflict). Either conflict style: a diff3 hunk's base lines are dropped with the branch's.
+ */
+export function mainsBlocks(text) {
+  const out = [];
+  let side = null;
+  let ours = [];
+  let theirs = [];
+  let settled = 0;
+  for (const line of text.split("\n")) {
+    if (side === null && line.startsWith("<<<<<<< ")) [side, ours, theirs] = ["ours", [], []];
+    else if (side === "ours" && line.startsWith("||||||| ")) side = "base";
+    else if ((side === "ours" || side === "base") && line === "=======") side = "theirs";
+    else if (side === "theirs" && line.startsWith(">>>>>>> ")) {
+      if (!ours.some((l) => BLOCK_MARK.test(l)) || theirs.some((l) => BLOCK_MARK.test(l))) return null;
+      out.push(...theirs);
+      [side, settled] = [null, settled + 1];
+    } else if (side === "ours") ours.push(line);
+    else if (side === "theirs") theirs.push(line);
+    else if (side === null) out.push(line);
+  }
+  return settled && side === null ? out.join("\n") : null;
+}
 
 /** The migrations among a branch's added files (`git diff --diff-filter=A`): each holds its auto-merge (step 5). */
 export const migrationsAdded = (files) => files.filter((f) => /^supabase\/migrations\/\d{5}_[a-z0-9_]+\.sql$/.test(f));
@@ -120,13 +159,15 @@ function mergeMain() {
  * How a merge's conflicts are settled: who takes each file. `replay` says whether the stack may be replayed (--replay
  * and a stack that answers); a file a person resolves, or one the migrations write when it may not, stops the land.
  */
-export function settle(conflicted, replay) {
-  const retired = conflicted.filter(isRetired);
-  const left = conflicted.filter((f) => !isRetired(f));
+export function settle(conflicted, replay, mainHas = () => false) {
+  const retired = conflicted.filter((f) => isRetired(f) && !mainHas(f));
+  const left = conflicted.filter((f) => !retired.includes(f));
   const replayed = left.filter(isReplayed);
-  const byHand = left.filter((f) => !isWritten(f) && !isReplayed(f));
+  const blocks = left.filter((f) => BLOCK_PAGES.includes(f));
+  const theirs = left.filter((f) => isWritten(f) || isReplayed(f));
+  const byHand = left.filter((f) => !theirs.includes(f) && !blocks.includes(f));
   const blocked = replay ? [] : replayed;
-  return { retired, theirs: left.filter((f) => !byHand.includes(f)), replayed, byHand, blocked };
+  return { retired, theirs, replayed, blocks, byHand, blocked };
 }
 
 const stackAnswers = () => spawnSync(SUPABASE, ["status"], { cwd: ROOT, stdio: "ignore" }).status === 0;
@@ -136,8 +177,16 @@ function resolve(replayAsked) {
   const conflicted = git("diff", "--name-only", "--diff-filter=U").split("\n").filter(Boolean);
   if (!conflicted.length) return false;
   const replay = replayAsked && stackAnswers();
-  const { retired, theirs, replayed, byHand, blocked } = settle(conflicted, replay);
-  if (retired.length) git("rm", "-r", "-q", "--cached", "--ignore-unmatch", "--", ...retired);
+  const mainHas = (f) => tryGit("cat-file", "-e", `origin/main:${f}`).status === 0;
+  const { retired, theirs, replayed, blocks, byHand, blocked } = settle(conflicted, replay, mainHas);
+  // A retired baseline is not ignored as a dist is, so it leaves the working tree too, or the add below would keep it.
+  if (retired.length) git("rm", "-r", "-q", "-f", "--ignore-unmatch", "--", ...retired);
+  const pages = [];
+  for (const page of blocks) {
+    const text = mainsBlocks(fs.readFileSync(path.join(ROOT, page), "utf8"));
+    if (text === null) byHand.push(page);
+    else pages.push([page, text]);
+  }
   const why = [];
   if (byHand.length)
     why.push(
@@ -152,7 +201,12 @@ function resolve(replayAsked) {
     );
   if (why.length) stop(`${why.join("; ")}. Leave the rest and run this again (the merge is left open)`);
   if (retired.length)
-    say(`took ${retired.length} built file${retired.length === 1 ? "" : "s"} out of the index, as main did`);
+    say(`took ${retired.length} file${retired.length === 1 ? "" : "s"} main retired out of the branch, as main did`);
+  for (const [page, text] of pages) fs.writeFileSync(path.join(ROOT, page), text);
+  if (pages.length) {
+    git("add", "--", ...pages.map(([page]) => page));
+    say(`took main's side of the retired blocks in ${pages.map(([page]) => page).join(", ")}`);
+  }
   if (theirs.length) git("checkout", "--theirs", "--", ...theirs);
   say(`took main's side of ${theirs.length} written file${theirs.length === 1 ? "" : "s"}; writing them again`);
   return replayed.length > 0;

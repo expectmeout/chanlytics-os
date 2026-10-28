@@ -22,8 +22,10 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { ESLint } from "eslint";
 import ts from "typescript";
 import {
+  BLOCK_PAGES,
   isReplayed,
   isRetired,
+  mainsBlocks,
   isWritten,
   migrationsAdded,
   REPLAYED,
@@ -120,15 +122,69 @@ test("what the migrations write through a database is written again only from a 
   );
 });
 
-test("a dist a branch from before 28 October 2026 still tracks leaves the index on a merge, as main's did", () => {
+test("a dist or a baseline a branch from before 28 October 2026 changed leaves it on a merge, where main has none", () => {
   for (const file of [
     "packages/contracts/dist/index.d.ts",
     "packages/db/dist/index.js",
     "packages/contracts/dist/browser/index.js",
+    "tooling/scripts/tests/baselines/complexity.json",
+    "tooling/scripts/tests/baselines/coverage.json",
+    "tooling/scripts/tests/source-scan-baseline.json",
   ])
     assert.equal(isRetired(file), true, file);
   for (const file of ["packages/contracts/src/index.ts", "packages/contracts/distance.ts", "apps/dashboard/dist/x.js"])
     assert.equal(isRetired(file), false, file);
+  // Whether main still has it decides: the coverage floors stay, so a conflict in them is a person's.
+  const kept = new Set(["tooling/scripts/tests/baselines/coverage.json"]);
+  const { retired, byHand } = settle(
+    ["tooling/scripts/tests/baselines/complexity.json", "tooling/scripts/tests/baselines/coverage.json"],
+    false,
+    (file) => kept.has(file),
+  );
+  assert.deepEqual(retired, ["tooling/scripts/tests/baselines/complexity.json"]);
+  assert.deepEqual(byHand, ["tooling/scripts/tests/baselines/coverage.json"]);
+});
+
+test("a conflict in a block main retired takes main's pointer, and any other conflict on the page stays a person's", () => {
+  assert.deepEqual(settle(["docs/debt.md", "docs/glossary.md"], false).blocks, ["docs/debt.md"]);
+  assert.deepEqual(BLOCK_PAGES.toSorted(), ["docs/architecture.md", "docs/debt.md", "docs/takeover.md"]);
+  // A real merge, so the markers are git's own: a branch that banked a number in the block, and main that replaced the
+  // block with its pointer.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "land-blocks-"));
+  const g = (...args) =>
+    execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@example.com", ...args], { cwd: dir });
+  const page = (block, tail = "What retires it is a person's.") =>
+    `# The register\n\nRows above.\n\n${block}\n\n${tail}\n`;
+  const block = (n) =>
+    `<!-- measured:start -->\n\n\`\`\`text\nfunctions over the limit  ${n}\n\`\`\`\n\n<!-- measured:end -->`;
+  const pointer = "The numbers are measured, never kept: corepack pnpm check:debt -- --totals.";
+  try {
+    g("init", "-q", "-b", "main");
+    fs.writeFileSync(path.join(dir, "debt.md"), page(block(47)));
+    g("add", "-A");
+    g("commit", "-q", "-m", "base");
+    g("checkout", "-q", "-b", "lane");
+    fs.writeFileSync(path.join(dir, "debt.md"), page(block(46)));
+    g("commit", "-q", "-am", "the lane banks a fall");
+    g("checkout", "-q", "main");
+    fs.writeFileSync(path.join(dir, "debt.md"), page(pointer));
+    g("commit", "-q", "-am", "main keeps no number");
+    g("checkout", "-q", "lane");
+    assert.notEqual(spawnSync("git", ["merge", "-q", "main"], { cwd: dir }).status, 0, "they conflict");
+    const merged = fs.readFileSync(path.join(dir, "debt.md"), "utf8");
+    assert.equal(mainsBlocks(merged), page(pointer), "main's pointer, and the page around it untouched");
+    // The same page with a conflict in a row a person wrote: not a block, so nothing on the page is settled.
+    const withRow = `${merged}<<<<<<< HEAD\nthe lane's row\n=======\nmain's row\n>>>>>>> main\n`;
+    assert.equal(mainsBlocks(withRow), null);
+    // A hunk whose main side still draws a block is not one main retired.
+    assert.equal(mainsBlocks(`<<<<<<< HEAD\n${block(46)}\n=======\n${block(48)}\n>>>>>>> main\n`), null);
+    // diff3's base lines go with the branch's side.
+    const diff3 = `a\n<<<<<<< HEAD\n${block(46)}\n||||||| base\n${block(47)}\n=======\n${pointer}\n>>>>>>> main\nb`;
+    assert.equal(mainsBlocks(diff3), `a\n${pointer}\nb`);
+    assert.equal(mainsBlocks("no conflict at all"), null, "nothing to settle is not a settlement");
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("a pull request that adds a migration never merges itself: land holds its auto-merge until it is applied", () => {
