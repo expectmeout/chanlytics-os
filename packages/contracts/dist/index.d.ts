@@ -51436,6 +51436,8 @@ declare const SETUP_CARD_WORDS: {
     readonly goingLive: "Finish going live";
     readonly needYou: (n: number) => string;
     readonly doneTitle: "Already done";
+    /** While someone waits on the owner the card is its head alone, under the queue, and this opens its rows. */
+    readonly show: "Show";
     /** What is kept, in the order the steps made it. */
     readonly kept: {
         readonly business: (name: string, listed: boolean) => string;

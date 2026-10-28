@@ -168,6 +168,8 @@ const { TodaySetup, setupCardReady } =
   await import("../../../../apps/dashboard/src/surfaces/today/pages/setup-card.tsx");
 await setupCardReady;
 const { AgentCommand } = await import("../../../../apps/dashboard/src/surfaces/today/pages/queue.tsx");
+const { DashboardA } = await import("../../../../apps/dashboard/src/surfaces/today/pages/today-page.tsx");
+const { queueHoldsCoral } = await import("../../../../apps/dashboard/src/surfaces/today/queue-coral.ts");
 // The module instances the pages use: the seam's store, and the verbs the card's Skip and Hide press (`setupVerbs`).
 const { setSurfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
 const { setupVerbs } = await importSrc("apps/dashboard/src/surfaces/setup/surface.ts");
@@ -603,4 +605,57 @@ test("REGRESSION: an email-only workspace is not told nothing can come in, nor t
   } finally {
     feedSetup(undefined);
   }
+});
+
+/** A workspace answering, with WhatsApp and more still to set up: the card's rows. */
+const answeringSetup = () =>
+  setupSurface({
+    business: {
+      name: "Harbor Moving",
+      hours: true,
+      services: 2,
+      bookingLink: true,
+      address: true,
+      handoff: null,
+      broken: false,
+      receptionist: "set",
+    },
+    channels: {
+      whatsapp: { present: false, active: false, number: null, quality: null, lastInboundAt: null },
+      voice: { present: true, active: true, number: "+13055550123", lastInboundAt: "2026-09-07T14:00:00Z" },
+    },
+  });
+
+test("while someone waits on you, what is left to set up is its head and Show, under the queue (the live walk's TODAY-1, 27 Oct 2026)", () => {
+  const rowsOf = (t) => findAll(t, (n) => /^setup-row-/.test(n.props?.["data-testid"] ?? ""));
+  const byId = (t, id) => find(t, (n) => n.props?.["data-testid"] === id);
+  feedSetup(answeringSetup());
+  queueHoldsCoral(true);
+  try {
+    const card = mountSetup();
+    assert.ok(byId(card, "today-setup"), "the card stands");
+    assert.equal(rowsOf(card).length, 0, "its rows wait: at 1024 Need you started past the bottom of the screen");
+    const show = byId(card, "today-setup-show");
+    assert.equal(textOf(show), "Show");
+    show.props.onClick();
+    const open = again(() => TodaySetup());
+    assert.ok(rowsOf(open).length > 1, "Show opens them");
+    assert.equal(byId(open, "today-setup-show"), undefined);
+  } finally {
+    queueHoldsCoral(false);
+    feedSetup(undefined);
+  }
+  // The page: the work first while anyone waits on the owner, the chores first while nobody does.
+  const work = () => {
+    fresh();
+    const page = again(() => DashboardA());
+    const col = find(page, (n) => String(n.props?.className ?? "").includes("dash-a-v2-work"));
+    return col.props.children.map((c) => c.type.name);
+  };
+  setSurfaceValue("today", todayWith([]));
+  setSurfaceValue("inbox", { THREADS: [], UNREAD_HOLDS: 0 });
+  assert.deepEqual(work(), ["TodaySetup", "TodayBroughtIn", "TodayGoing", "AgentCommand"]);
+  setSurfaceValue("inbox", { THREADS: [], UNREAD_HOLDS: 1 });
+  assert.deepEqual(work(), ["AgentCommand", "TodaySetup", "TodayBroughtIn", "TodayGoing"]);
+  setSurfaceValue("inbox", undefined);
 });
