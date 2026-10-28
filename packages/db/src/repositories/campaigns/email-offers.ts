@@ -91,21 +91,41 @@ export async function emailOfferCounts(db: Db, p: { tenantId: string; host: stri
 /**
  * What a yes to offers by email came to: `recorded` (this call wrote it), `unsubscribed` (refused: the person pressed
  * Unsubscribe, and a yes never overwrites that no; only the owner, from the person's page, or a form they sign afresh can
- * change it), or `unchanged` (already their answer, or nobody to write it for).
+ * change it), `unchanged` (already their answer, or nobody to write it for), or, for a confirmed sign-up (00489), the
+ * door's refusal of its proof: the email is no confirmation, never left, is past its days, went to an address the person
+ * no longer has, or the person said STOP.
  */
-type OffersYesOutcome = "recorded" | "unsubscribed" | "unchanged";
+export type OffersYesOutcome =
+  | "recorded"
+  | "unsubscribed"
+  | "unchanged"
+  | "not_a_confirmation"
+  | "not_sent"
+  | "expired"
+  | "address_changed"
+  | "stopped";
+
+const REFUSALS: ReadonlySet<string> = new Set([
+  "unsubscribed",
+  "not_a_confirmation",
+  "not_sent",
+  "expired",
+  "address_changed",
+  "stopped",
+]);
 
 /**
- * A person's yes to offers by email, in writing (their own message, or a form): opted_in, once, with the channel as evidence
- * (set_email_offers_yes), unless they have unsubscribed, which a yes never undoes. A failed write throws, and the caller logs
- * it: the person has been received, and a yes that has to be repaired is never a reason to fail their message.
+ * A person's yes to offers by email, in writing (their own message, a form, or a website sign-up confirmed from its email,
+ * which names that email as `messageId`): opted_in, once, with the channel as evidence (set_email_offers_yes), unless they
+ * have unsubscribed, which only a confirmed sign-up undoes. A failed write throws, and the caller logs it: the person has
+ * been received, and a yes that has to be repaired is never a reason to fail their message.
  */
 export async function setEmailOffersYes(
   db: Db,
   p: {
     tenantId: string;
     contactId: string;
-    source: "customer_message" | "form";
+    source: "customer_message" | "form" | "confirmed_signup";
     messageId: string | null;
     evidence: Json;
   },
@@ -120,7 +140,9 @@ export async function setEmailOffersYes(
   if (error) throw new Error(`cannot record the yes to offers by email: ${error.message}`);
   const said = (data ?? null) as { changed?: unknown; refused?: unknown } | null;
   if (said?.changed === true) return "recorded";
-  return said?.refused === "unsubscribed" ? "unsubscribed" : "unchanged";
+  return typeof said?.refused === "string" && REFUSALS.has(said.refused)
+    ? (said.refused as OffersYesOutcome)
+    : "unchanged";
 }
 
 /**

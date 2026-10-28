@@ -59,9 +59,9 @@ function dbTouched(input, init) {
   const touch = touchOfCall(input, init);
   if (touch) observer.touched(touch.table, touch.how);
 }
-function namedFetch(base) {
+function namedFetch(base2) {
   return (input, init) => {
-    const send = base ?? globalThis.fetch;
+    const send = base2 ?? globalThis.fetch;
     const id = dbRequestId();
     if (!id) return send(input, init);
     dbTouched(input, init);
@@ -993,13 +993,13 @@ async function markWaitlistInvited(db, id, by, at) {
 // src/service-client.ts
 import { createClient as createClient2 } from "@supabase/supabase-js";
 var SERVICE_FETCH_TIMEOUT_MS = 4e4;
-function boundedFetch(ms, base) {
+function boundedFetch(ms, base2) {
   return async (input, init) => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-    if (!url.includes("/rest/v1/")) return base(input, init);
+    if (!url.includes("/rest/v1/")) return base2(input, init);
     const bound = AbortSignal.timeout(ms);
     try {
-      return await base(input, { ...init, signal: init?.signal ? AbortSignal.any([init.signal, bound]) : bound });
+      return await base2(input, { ...init, signal: init?.signal ? AbortSignal.any([init.signal, bound]) : bound });
     } catch (e) {
       if (!bound.aborted || init?.signal?.aborted) throw e;
       const said = new Error(`the database did not answer within ${ms} ms (timeout)`, { cause: e });
@@ -2523,6 +2523,14 @@ async function emailOfferCounts(db, p) {
     bounces: n("bounces")
   };
 }
+var REFUSALS = /* @__PURE__ */ new Set([
+  "unsubscribed",
+  "not_a_confirmation",
+  "not_sent",
+  "expired",
+  "address_changed",
+  "stopped"
+]);
 async function setEmailOffersYes(db, p) {
   const { data, error } = await db.rpc("set_email_offers_yes", {
     p_tenant_id: p.tenantId,
@@ -2534,7 +2542,7 @@ async function setEmailOffersYes(db, p) {
   if (error) throw new Error(`cannot record the yes to offers by email: ${error.message}`);
   const said = data ?? null;
   if (said?.changed === true) return "recorded";
-  return said?.refused === "unsubscribed" ? "unsubscribed" : "unchanged";
+  return typeof said?.refused === "string" && REFUSALS.has(said.refused) ? said.refused : "unchanged";
 }
 async function offerLanguageOf(db, p) {
   const { data, error } = await db.from("sequence_batches").select("template_language").eq("tenant_id", p.tenantId).eq("id", p.broadcastId).maybeSingle();
@@ -2915,6 +2923,64 @@ async function emailFoundSent(db, p) {
 }
 async function emailNeverLeft(db, p) {
   return settleUnknownEmail(db, p, { error: { reason: "never_delivered", note: p.note.slice(0, 200) } });
+}
+
+// src/repositories/campaigns/signup-confirms.ts
+import {
+  DAY_MS,
+  SIGNUP_ASK_LIMITS,
+  SIGNUP_CONFIRM_MS,
+  SIGNUP_CONFIRM_SOURCE
+} from "../../contracts/dist/index.js";
+var ASKING = ["queued", "sent", "delivered", "read"];
+async function asksSince(db, tenantId, sinceMs, extra) {
+  const { count: count2, error } = await extra(base(db, tenantId, sinceMs));
+  if (error) throw new Error(`cannot count the sign-up confirmations: ${error.message}`);
+  return count2 ?? 0;
+}
+function base(db, tenantId, sinceMs) {
+  return db.from("messages").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("channel", "email").eq("direction", "outbound").eq("meta->>source", SIGNUP_CONFIRM_SOURCE).gte("created_at", new Date(sinceMs).toISOString());
+}
+async function signupAskFacts(db, p) {
+  const dayAgo = p.nowMs - DAY_MS;
+  const [person, open, addressAsks, workspaceToday, failedToday] = await Promise.all([
+    db.from("contacts").select(
+      "email, consent, dnc, email_suppressed_at, email_marketing, erased_at, erasing_since, merged_into_contact_id"
+    ).eq("tenant_id", p.tenantId).eq("id", p.contactId).maybeSingle(),
+    db.from("messages").select("id").eq("tenant_id", p.tenantId).eq("contact_id", p.contactId).eq("channel", "email").eq("direction", "outbound").eq("meta->>source", SIGNUP_CONFIRM_SOURCE).in("status", ASKING).gte("created_at", new Date(p.nowMs - SIGNUP_CONFIRM_MS).toISOString()).limit(1),
+    asksSince(
+      db,
+      p.tenantId,
+      p.nowMs - SIGNUP_ASK_LIMITS.perAddressMs,
+      (q) => q.eq("meta->signup_confirm->>key", p.addressKey).neq("status", "canceled")
+    ),
+    asksSince(db, p.tenantId, dayAgo, (q) => q.neq("status", "canceled")),
+    asksSince(db, p.tenantId, dayAgo, (q) => q.eq("status", "failed"))
+  ]);
+  if (person.error) throw new Error(`cannot read the person a sign-up asks: ${person.error.message}`);
+  if (open.error) throw new Error(`cannot read the person's open sign-up confirmation: ${open.error.message}`);
+  const c = person.data;
+  const gone = !c || !!c.erased_at || !!c.erasing_since || !!c.merged_into_contact_id;
+  return {
+    person: gone ? null : {
+      email: c.email,
+      stopped: c.consent === "opted_out" || !!c.dnc,
+      suppressed: !!c.email_suppressed_at,
+      emailOffers: c.email_marketing
+    },
+    open: (open.data ?? []).length > 0,
+    addressAsks,
+    workspaceToday,
+    failedToday
+  };
+}
+async function confirmationEmailOf(db, p) {
+  const { data, error } = await db.from("messages").select("contact_id, meta").eq("tenant_id", p.tenantId).eq("id", p.messageId).eq("channel", "email").eq("direction", "outbound").eq("meta->>source", SIGNUP_CONFIRM_SOURCE).maybeSingle();
+  if (error) throw new Error(`cannot read the sign-up's confirmation email: ${error.message}`);
+  if (!data) return null;
+  const request = data.meta?.email?.request;
+  const to = Array.isArray(request?.to) && typeof request.to[0] === "string" ? request.to[0].trim().toLowerCase() : null;
+  return { contactId: data.contact_id, from: typeof request?.from === "string" ? request.from : null, to };
 }
 
 // src/repositories/campaigns/offers-answer.ts
@@ -4340,7 +4406,7 @@ async function pageSpots(db, window) {
 import {
   BELL_WINDOW_DAYS,
   CATCH_UP_VISITS,
-  DAY_MS as DAY_MS2,
+  DAY_MS as DAY_MS3,
   HOUR_MS as HOUR_MS2,
   isForReader,
   MIN_MS as MIN_MS2,
@@ -4355,7 +4421,7 @@ import {
   fencedInline,
   promptSafeName,
   clockDate,
-  DAY_MS,
+  DAY_MS as DAY_MS2,
   dealIsOpen,
   dealSentence,
   offersFacts,
@@ -4388,7 +4454,7 @@ function assembleHistory(rows, limit) {
 }
 var HISTORY_COLUMNS = "body, sender, direction, type, status, created_at, channel_ts, meta";
 async function readThreadState(db, tenantId, conversationId, pausedUntilIso, historyLimit = 16) {
-  const since = new Date(Date.now() - DAY_MS).toISOString();
+  const since = new Date(Date.now() - DAY_MS2).toISOString();
   const [recent, replies, texted] = await Promise.all([
     db.from("messages").select(HISTORY_COLUMNS).eq("tenant_id", tenantId).eq("conversation_id", conversationId).order("created_at", { ascending: false }).limit(historyLimit * 3),
     // headroom: duplicates and blanks drop out below
@@ -4526,7 +4592,7 @@ function describeLead(lead, now = /* @__PURE__ */ new Date(), tz = "UTC", channe
     ...disclosureFacts({ returning: lead.returning, lastTurnAt: lead.lastSeenAt }, channel, now)
   );
   if (lead.returning) {
-    const days = lead.lastSeenAt ? Math.floor((now.getTime() - new Date(lead.lastSeenAt).getTime()) / DAY_MS) : null;
+    const days = lead.lastSeenAt ? Math.floor((now.getTime() - new Date(lead.lastSeenAt).getTime()) / DAY_MS2) : null;
     const when = days === null ? "" : days <= 0 ? " Last in touch today." : days === 1 ? " Last in touch yesterday." : ` Last in touch ${days} days ago.`;
     bits.push(`Returning contact.${when}`);
   } else {
@@ -4657,8 +4723,8 @@ async function askCardsTold(db, p) {
   if (error) throw new Error(`cannot tell the member their morning: ${error.message}`);
 }
 async function noticeFor(db, p) {
-  const base = db.from("notifications").select("id, kind, mail_due_at").eq("tenant_id", p.tenantId);
-  const found = p.sourceEvent ? await base.eq("source_event", p.sourceEvent).limit(1) : p.subjectType && p.subjectId && p.title ? await base.eq("kind", p.kind).eq("subject_type", p.subjectType).eq("subject_id", p.subjectId).eq("title", p.title).not("mail_due_at", "is", null).order("created_at", { ascending: false }).limit(1) : null;
+  const base2 = db.from("notifications").select("id, kind, mail_due_at").eq("tenant_id", p.tenantId);
+  const found = p.sourceEvent ? await base2.eq("source_event", p.sourceEvent).limit(1) : p.subjectType && p.subjectId && p.title ? await base2.eq("kind", p.kind).eq("subject_type", p.subjectType).eq("subject_id", p.subjectId).eq("title", p.title).not("mail_due_at", "is", null).order("created_at", { ascending: false }).limit(1) : null;
   if (!found) return null;
   if (found.error) throw new Error(`cannot read what the workspace was told: ${found.error.message}`);
   const row = (found.data ?? [])[0];
@@ -4898,7 +4964,7 @@ async function bellRowsOf(db, p) {
   }
   return { rows, seen: seen.data ?? [], marks };
 }
-var bellWindowFrom = (nowMs) => new Date(nowMs - BELL_WINDOW_DAYS * DAY_MS2).toISOString();
+var bellWindowFrom = (nowMs) => new Date(nowMs - BELL_WINDOW_DAYS * DAY_MS3).toISOString();
 async function closeMendedNotices(db, p) {
   let closed = 0;
   for (const w of p.warnings) {
@@ -5026,9 +5092,9 @@ async function reviewLinkOf(db, tenantId) {
 }
 
 // src/repositories/campaigns/calendar-runs.ts
-import { DAY_MS as DAY_MS3 } from "../../contracts/dist/index.js";
+import { DAY_MS as DAY_MS4 } from "../../contracts/dist/index.js";
 var RUN_COLUMNS = "id, name, state, scheduled_for, started_at, finished_at, run_for, playbook_id:step_id, audience, recipient_count";
-var SEND_LEAD_MS = 2 * DAY_MS3;
+var SEND_LEAD_MS = 2 * DAY_MS4;
 async function runsInSpan(db, tenantId, span) {
   const sendsFrom = new Date(Date.parse(span.fromIso) - SEND_LEAD_MS).toISOString();
   const [runs, sends] = await Promise.all([
@@ -5095,8 +5161,8 @@ async function setInstagramStatus(db, tenantId, channelId, status) {
   return !error && !!data?.length;
 }
 async function noteInstagramToken(db, channelId, config, note) {
-  const base = config && typeof config === "object" && !Array.isArray(config) ? config : {};
-  const { data, error } = await db.from("tenant_channels").update({ config: { ...base, ...note } }).eq("id", channelId).eq("kind", "instagram").select("id");
+  const base2 = config && typeof config === "object" && !Array.isArray(config) ? config : {};
+  const { data, error } = await db.from("tenant_channels").update({ config: { ...base2, ...note } }).eq("id", channelId).eq("kind", "instagram").select("id");
   if (error) throw new Error(`noteInstagramToken: ${error.message}`);
   return !!data?.length;
 }
@@ -5802,11 +5868,11 @@ async function writePlaybookChange(db, p) {
 // src/repositories/lists.ts
 var missingColumn = (message, column) => new RegExp(`\\b${column}\\b`).test(message) && /does not exist|could not find/i.test(message);
 var LIST_COLUMNS = ["rule, archived_at", "rule", ""];
-async function readWithFallback(read, base) {
+async function readWithFallback(read, base2) {
   let last2 = null;
   for (const extra of LIST_COLUMNS) {
     try {
-      return await read(extra ? `${base}, ${extra}` : base);
+      return await read(extra ? `${base2}, ${extra}` : base2);
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       if (!missingColumn(message, "archived_at") && !missingColumn(message, "rule")) throw e;
@@ -8200,6 +8266,7 @@ export {
   closeMendedNotices,
   closedRunSends,
   configAtVersion,
+  confirmationEmailOf,
   connectMailbox,
   contactEmailOf,
   contactIdByEmail,
@@ -8676,6 +8743,7 @@ export {
   setupAsks,
   signUpOnPublicKey,
   signersOf,
+  signupAskFacts,
   sortMailboxSender,
   staffStateOf,
   staleSends,

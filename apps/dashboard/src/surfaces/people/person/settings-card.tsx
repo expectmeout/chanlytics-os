@@ -285,19 +285,23 @@ function offersFold(c: PageCtx, row: ReactNode) {
 
 /**
  * Offers by email, a quiet row beside the two answers (contracts consentOf): Yes once they asked for offers by email,
- * Unsubscribed once they said no to them, Not asked until then, with how and when under it. Read-only: the person says it
- * themselves, in their own email or by pressing Unsubscribe. Not drawn where the row carries no answer.
+ * Unsubscribed once they said no to them, Not asked until then, with how and when under it. While their website
+ * sign-up waits on its confirmation the row says that instead, with when it was asked under it (contracts
+ * signupAskOf). Read-only: the person says it themselves, in their own email, by confirming, or by pressing
+ * Unsubscribe. Not drawn where the row carries no answer.
  */
 function emailOffersRow(c: PageCtx) {
-  const { consent } = c.p;
+  const { consent, signupAsk } = c.p;
   if (!consent.emailOffersLabel) return null;
   // The person says it themselves, in their own email or by pressing Unsubscribe: read only, and said so.
-  const value = consent.state === "opted_out" ? STOP_WORDS.mark : consent.emailOffersLabel;
+  const stopped = consent.state === "opted_out";
+  const value = stopped ? STOP_WORDS.mark : (signupAsk?.label ?? consent.emailOffersLabel);
   return (
     <RecordRow
       id="person-email-offers"
       label="Offers by email"
       value={`${value} · ${PERSON_ABOUT_WORDS.readOnly}`}
+      hint={stopped ? null : (signupAsk?.sub ?? null)}
       stacked
     />
   );

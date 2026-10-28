@@ -71,6 +71,7 @@ function offersSub(r, marketing, tz, nowMs) {
 const EMAIL_OFFERS_SOURCES = {
   customer_message: "Their own message",
   form: "Sign-up form",
+  confirmed_signup: "Confirmed their sign-up by email",
   unsubscribe: "Pressed Unsubscribe",
   complaint: "Marked an email as spam",
   reply: "Said no in a reply"

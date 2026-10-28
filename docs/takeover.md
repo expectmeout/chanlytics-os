@@ -47,7 +47,7 @@ index reads the compiler lets pass  410   in 110 files
 table names outside packages/db     417
 SQL functions outside packages/db   119   called by .rpc
 edge statements naming no workspace   27   in 14 files
-service-role reaches, dashboard      79   in 40 files
+service-role reaches, dashboard      78   in 40 files
 doors importing db or channels        0   imports in 0 files
 unnamed durations                    56   in 27 files
 event-shaped clocks                   5   of the registered clocks (invariant 6)

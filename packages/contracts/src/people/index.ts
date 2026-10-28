@@ -217,4 +217,18 @@ export {
   websiteFormPerson,
 } from "./doors/website-form";
 export type { WebsiteForm, WebsiteFormInput } from "./doors/website-form";
+export {
+  confirmPageWords,
+  looksMadeUp,
+  maskAddress,
+  SIGNUP_ASK_LIMITS,
+  SIGNUP_CONFIRM_MS,
+  SIGNUP_CONFIRM_SOURCE,
+  signupAddressKey,
+  signupAskLine,
+  signupAskOf,
+  signupAskRefusal,
+  signupConfirmEmail,
+} from "./doors/signup-confirm";
+export type { ConfirmPageView, SignupAskFacts, SignupAskRefusal } from "./doors/signup-confirm";
 export type { SayItInput } from "./doors/say-it-schema";

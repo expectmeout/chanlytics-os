@@ -86,7 +86,8 @@ export {
   offerLanguageOf,
   offersEmailReach,
 } from "./repositories/campaigns/email-offers";
-export type { Unsubscribed } from "./repositories/campaigns/email-offers";
+export type { OffersYesOutcome, Unsubscribed } from "./repositories/campaigns/email-offers";
+export { confirmationEmailOf, signupAskFacts } from "./repositories/campaigns/signup-confirms";
 export {
   offersAnswerOf,
   recordCarrierOptOut,

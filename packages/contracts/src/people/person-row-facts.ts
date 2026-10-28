@@ -153,6 +153,7 @@ function offersSub(r: PersonRowDto, marketing: PersonConsent["marketing"], tz: s
 const EMAIL_OFFERS_SOURCES: Record<string, string> = {
   customer_message: "Their own message",
   form: "Sign-up form",
+  confirmed_signup: "Confirmed their sign-up by email",
   unsubscribe: "Pressed Unsubscribe",
   complaint: "Marked an email as spam",
   reply: "Said no in a reply",
