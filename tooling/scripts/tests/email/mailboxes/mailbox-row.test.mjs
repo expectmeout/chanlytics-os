@@ -201,6 +201,45 @@ test("its facts: what came in, as the ledger says it, then what it sends and sig
   assert.equal(factsOf(tree).at(-1), "Signs as: Sam Reyes", "its first line");
 });
 
+test("a stopped six months says so on the card, with Try again, the first run's own door (the live walk's TODAY-3, 27 Oct 2026)", async () => {
+  const { setupVerbs } = await import(`${CONNECTIONS}/../../setup/surface.ts`);
+  const { IMPORT_STOPPED_WORDS } = await import("@chanlytics/contracts");
+  const asked = [];
+  const was = setupVerbs.importAgain;
+  setupVerbs.importAgain = async (source) => (asked.push(source), { ok: true, message: "" });
+  try {
+    const imports = [
+      {
+        source: "mailbox",
+        state: "failed",
+        counts: { messages: 130 },
+        parts_done: 4,
+        parts_total: null,
+        oldest: "2026-06-07T00:00:00Z",
+        started_at: null,
+        finished_at: null,
+        // What a run that stopped says on its row (history-import.ts): never the provider's error.
+        last_error: IMPORT_STOPPED_WORDS.failed,
+        via: "google",
+      },
+    ];
+    let tree = open([mbx()], null, { imports });
+    assert.match(factsOf(tree)[0], /^Inbox: Stopped part way/, "it says it stopped, and what it kept");
+    const again = byTestId(tree, "mailbox-import-again-mailbox");
+    assert.equal(said(again), "Try again");
+    press(again);
+    await settle();
+    tree = redraw();
+    assert.deepEqual(asked, ["mailbox"], "the run starts again where it stopped");
+    assert.equal(said(byTestId(tree, "mailbox-import-again-mailbox")), "Starting");
+    // Done, the card says what came in, and offers nothing to press.
+    tree = open([mbx()], null, { imports: [{ ...imports[0], state: "done", last_error: null }] });
+    assert.equal(byTestId(tree, "mailbox-import-again-mailbox"), null);
+  } finally {
+    setupVerbs.importAgain = was;
+  }
+});
+
 test("the act is the one its mailbox needs most: Reconnect, Resume, Set up DNS, Unpause", async () => {
   const went = [];
   const set = [];

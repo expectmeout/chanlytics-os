@@ -16,6 +16,7 @@
  */
 import { Fragment, useState } from "react";
 import {
+  IMPORT_WORDS,
   importLineOf,
   type ConnectionRow,
   type ImportRowDto,
@@ -37,6 +38,7 @@ import { connectedMailboxes } from "./connected-mailboxes";
 import { LeftSenders } from "./left-senders";
 import { DnsSheet, copyWords } from "./dns-sheet";
 import { MailboxSheet } from "./mailbox-sheet";
+import { setupVerbs } from "../../setup/surface";
 
 const MAILBOXES = connectedMailboxes;
 /** The permission a mailbox's acts ask (contracts ROLE_PERMS): the one the doors' own role check stands on. */
@@ -449,6 +451,28 @@ const BROUGHT_FACTS: readonly { source: ImportSource; label: string }[] = [
 ];
 
 /**
+ * Try again on a run that stopped (the live walk's TODAY-3, 27 Oct 2026): the six months stopped on one message on 26 Oct,
+ * the alert sent the owner here, and the card said only that it had stopped. The first run's own door (POST
+ * imports/again, setup/surface.ts importAgain), which starts it again where it stopped; it says Starting until Setup's
+ * read hears the run, and a refusal says why.
+ */
+function ImportAgain({ source, flash }: { source: ImportSource; flash: Flash }) {
+  const [starting, setStarting] = useState(false);
+  const again = async () => {
+    setStarting(true);
+    const r = await setupVerbs.importAgain(source);
+    if (r.ok) return;
+    setStarting(false);
+    flash(refusalToast(r, IMPORT_WORDS.stopped));
+  };
+  return (
+    <LinkButton onClick={() => void again()} disabled={starting} data-testid={`mailbox-import-again-${source}`}>
+      {starting ? IMPORT_WORDS.starting : IMPORT_WORDS.retry}
+    </LinkButton>
+  );
+}
+
+/**
  * The Email card's facts, in place of sentences: what came in from the mailbox and its contacts (the ledger's line for
  * each, with where it stands while it is still coming), and, for one mailbox, the most it sends a day and what it signs
  * as. A fact with nothing to say is left out.
@@ -459,12 +483,17 @@ function cardFacts(one: MailboxConnectionDto | null, imports: readonly ImportRow
     const row = imports?.find((r) => r.source === source);
     if (!row) return null;
     const l = importLineOf(row);
-    return { key: source, label, value: l.state === "done" ? l.says : `${l.says} · ${l.stand}` };
+    return {
+      key: source,
+      label,
+      value: l.state === "done" ? l.says : `${l.says} · ${l.stand}`,
+      again: l.retry ? source : null,
+    };
   });
   const own = one
     ? [
-        { key: "sends", label: C.sends, value: C.sendsUpTo(one.daily_cap) },
-        { key: "signs", label: C.signsAs, value: MAILBOXES.signs.as(one) },
+        { key: "sends", label: C.sends, value: C.sendsUpTo(one.daily_cap), again: null },
+        { key: "signs", label: C.signsAs, value: MAILBOXES.signs.as(one), again: null },
       ]
     : [];
   return [...brought, ...own].filter((f) => f !== null);
@@ -560,7 +589,10 @@ export function EmailCard({ r, email, imports, businessName, flash, note, onNote
               {facts.map((f) => (
                 <div key={f.key} className="set-mbx-fact">
                   <dt>{f.label}</dt>
-                  <dd>{f.value}</dd>
+                  <dd>
+                    {f.value}
+                    {f.again && owner ? <ImportAgain source={f.again} flash={flash} /> : null}
+                  </dd>
                 </div>
               ))}
             </dl>
