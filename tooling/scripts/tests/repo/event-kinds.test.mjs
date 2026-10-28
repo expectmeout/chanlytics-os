@@ -78,4 +78,3 @@ test("the computed family is the contracts' list, and nothing else is computed",
   }
   assert.equal(computed, 1);
 });
-

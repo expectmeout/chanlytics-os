@@ -96,7 +96,7 @@ export function deadExports() {
   } catch (e) {
     // knip exits 1 when it has findings; the JSON is still on stdout.
     raw = e.stdout;
-    if (!raw) throw new Error("knip did not run");
+    if (!raw) throw new Error("knip did not run", { cause: e });
   }
   const report = JSON.parse(raw);
   const now = {};

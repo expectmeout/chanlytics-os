@@ -30,13 +30,7 @@ import {
   rpcNames,
   serviceRoleReaches,
 } from "../_ast.mjs";
-import {
-  breakpointSet,
-  DOOR_FORBIDS,
-  doorsWithoutEventsIn,
-  tablesWrittenBy,
-  writersByTable,
-} from "../_measures.mjs";
+import { breakpointSet, DOOR_FORBIDS, doorsWithoutEventsIn, tablesWrittenBy, writersByTable } from "../_measures.mjs";
 import { knipCommand } from "../../checks/dead-exports.mjs";
 import { flatWarnings, heldButClean } from "../../checks/lint.mjs";
 
@@ -63,8 +57,8 @@ test("a comparison says a rise and a new key, and apart from them a fall and a r
   ]);
   assert.deepEqual(compare(now, was).better, [
     "fell: now 4, base 5",
-    "gone: gone (base 2)",
     "fn: now lines 190, branches 42, depth 6, base lines 200, branches 40, depth 6",
+    "gone: gone (base 2)",
   ]);
 });
 
@@ -108,7 +102,9 @@ test("the lint's warnings are one number for each file and rule, and a held type
     [`apps/a.jsx::${UNUSED}`]: 1,
     [`packages/b.ts::${UNUSED}`]: 2,
   });
-  assert.deepEqual(heldButClean(WARNINGS, [HOOKS, "@typescript-eslint/no-deprecated"]), ["@typescript-eslint/no-deprecated"]);
+  assert.deepEqual(heldButClean(WARNINGS, [HOOKS, "@typescript-eslint/no-deprecated"]), [
+    "@typescript-eslint/no-deprecated",
+  ]);
   assert.deepEqual(heldButClean(WARNINGS, [HOOKS, UNUSED]), []);
 });
 

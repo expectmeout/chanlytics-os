@@ -83,7 +83,9 @@ const ruleOf = (m) => m.ruleId ?? "(eslint)";
 /** The warnings as check:debt keys them: one number for each `<file>::<rule>`. */
 export const flatWarnings = (warnings) =>
   Object.fromEntries(
-    Object.entries(warnings).flatMap(([file, rules]) => Object.entries(rules).map(([rule, n]) => [`${file}::${rule}`, n])),
+    Object.entries(warnings).flatMap(([file, rules]) =>
+      Object.entries(rules).map(([rule, n]) => [`${file}::${rule}`, n]),
+    ),
   );
 
 /** The typed rules held as warnings that the tree holds no finding of: each is an error from the change that says so. */

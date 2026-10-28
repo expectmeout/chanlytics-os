@@ -256,7 +256,7 @@ test("a tree checked locally skips lint, hygiene, the tests and the typecheck, n
   const build = job(y, "build");
   assert.ok(!/\n {4}if:/.test(build), "the build job runs for every change");
   assert.ok(job(y, "types").includes("- run: pnpm -r typecheck"));
-  assert.ok(!/\n  dist:\n/.test(y), "no job holds a committed dist to its sources: there is none");
+  assert.ok(!/\n {2}dist:\n/.test(y), "no job holds a committed dist to its sources: there is none");
   assert.ok(
     !/- run: pnpm -r typecheck|- run: pnpm --filter "\.\/packages\/\*" build/.test(build),
     "the build waits on neither",
@@ -266,9 +266,18 @@ test("a tree checked locally skips lint, hygiene, the tests and the typecheck, n
   const debt = job(y, "debt");
   assert.ok(!/needs\.scope\.outputs\.checked/.test(debt), "the debt job is not skipped by the laptop's stamp");
   assert.ok(debt.includes("fetch-depth: 2"), "the merge commit's first parent is the base");
-  assert.ok(debt.includes("pnpm check:debt -- --base HEAD^1 --in-place --out .debt/base.json"), "the base, by its own code");
-  assert.ok(debt.includes('pnpm check:debt -- --against .debt/base.json --summary "$GITHUB_STEP_SUMMARY"'), "the head held to it");
-  assert.ok(debt.includes("PR_BODY") && debt.includes("pull-requests: read"), "the description's `Debt:` line, read as it runs");
+  assert.ok(
+    debt.includes("pnpm check:debt -- --base HEAD^1 --in-place --out .debt/base.json"),
+    "the base, by its own code",
+  );
+  assert.ok(
+    debt.includes('pnpm check:debt -- --against .debt/base.json --summary "$GITHUB_STEP_SUMMARY"'),
+    "the head held to it",
+  );
+  assert.ok(
+    debt.includes("PR_BODY") && debt.includes("pull-requests: read"),
+    "the description's `Debt:` line, read as it runs",
+  );
 });
 
 test("the replay runs every database suite on main, and on a pull request the ones its changes name", () => {

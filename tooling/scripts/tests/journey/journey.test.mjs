@@ -292,7 +292,6 @@ test("one page, one word: for 4 shapes × 5 words, every string Campaigns' view 
 
 /* ------------------------------------- the words not yet the word's ------------------------------------- */
 
-
 test("the count reads what a reader reads, from the syntax tree: a sentence or a label, not an id, a class or a marked line", () => {
   const count = (src) =>
     visitsWrittenIn(ts.createSourceFile("x.tsx", src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)).length;
@@ -324,4 +323,3 @@ test("the count reads what a reader reads, from the syntax tree: a sentence or a
   assert.equal(count(`// trade-word: a clinic's own service\nconst a = "Sick visit";`), 0, "a line marked over it");
   assert.equal(count(`// "about your visit" in a comment`), 0);
 });
-

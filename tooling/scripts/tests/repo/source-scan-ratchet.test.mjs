@@ -25,9 +25,15 @@ test("the exemption list names files that are repo-wide lints, and stays small",
   // text was convenient. Six was the considered number; nine since 29 September 2026: ai/flag-registry.test.mjs holds
   // that every switch the edge reads is listed with an owner and a day, which is env-manifest.test.mjs's kind of lint
   // (a declaration where it is read) and cannot be run, only read. Growth is a line of _measures.mjs in review.
-  assert.ok(SOURCE_SCAN_EXEMPT.length <= 9, `the exemption list is ${SOURCE_SCAN_EXEMPT.length}; it is meant to be a handful`);
+  assert.ok(
+    SOURCE_SCAN_EXEMPT.length <= 9,
+    `the exemption list is ${SOURCE_SCAN_EXEMPT.length}; it is meant to be a handful`,
+  );
   for (const f of SOURCE_SCAN_EXEMPT)
-    assert.ok(fs.existsSync(path.join(ROOT, TESTS_DIR, f)), `${f} is exempted but does not exist: take it out of the list`);
+    assert.ok(
+      fs.existsSync(path.join(ROOT, TESTS_DIR, f)),
+      `${f} is exempted but does not exist: take it out of the list`,
+    );
   assert.deepEqual([...SOURCE_SCAN_EXEMPT].sort(), SOURCE_SCAN_EXEMPT, "in order");
 });
 

@@ -500,7 +500,8 @@ test("the lint's limits are the ratchet's", () => {
 
 /** Each function over the limits, as the complexity measure keys it (`<file>::<function>`), measured once. */
 let overTheLimits;
-const complexityKeys = () => (overTheLimits ??= Object.keys(MEASURES.find((m) => m.file === "complexity.json").measure()));
+const complexityKeys = () =>
+  (overTheLimits ??= Object.keys(MEASURES.find((m) => m.file === "complexity.json").measure()));
 
 test("a tree is held once the measure holds nothing in it, and every tree it names is source", () => {
   const listed = complexityKeys();

@@ -109,7 +109,9 @@ export function recordFromBaselines(show, ratchets, parts = PARTS) {
     const lint = read(`${BASELINES}/lint-warnings.json`) ?? {};
     out.parts.lint = sortedKeys(
       Object.fromEntries(
-        Object.entries(lint).flatMap(([file, rules]) => Object.entries(rules).map(([rule, n]) => [`${file}::${rule}`, n])),
+        Object.entries(lint).flatMap(([file, rules]) =>
+          Object.entries(rules).map(([rule, n]) => [`${file}::${rule}`, n]),
+        ),
       ),
     );
   }
@@ -126,7 +128,12 @@ const holds = (sha, rel) => spawnSync("git", ["cat-file", "-e", `${sha}:${rel}`]
  * tooling reads the worktree's packages.
  */
 function lendInstalls(tree) {
-  const dirs = [".", ...git(["ls-files", "--", "*package.json"]).split("\n").map((f) => path.dirname(f))];
+  const dirs = [
+    ".",
+    ...git(["ls-files", "--", "*package.json"])
+      .split("\n")
+      .map((f) => path.dirname(f)),
+  ];
   for (const dir of [...new Set(dirs)]) {
     const from = path.join(ROOT, dir, "node_modules");
     if (!fs.existsSync(from)) continue;
@@ -228,7 +235,8 @@ export function judge(base, head) {
       better.push(...b.map((line) => `${label} ${line}`));
     }
     if (part === "measures")
-      for (const key of Object.keys(was)) if (!(key in head.parts.measures)) notes.push(`${key}: a measure the head no longer has`);
+      for (const key of Object.keys(was))
+        if (!(key in head.parts.measures)) notes.push(`${key}: a measure the head no longer has`);
   }
   return { worse, better, notes };
 }
@@ -271,7 +279,11 @@ export function totalsOf(record, { ceiling = {}, trees = [], wide = [] } = {}) {
   const tables = by["erasure-strategies"] ?? {};
   const tablesOfColumns = new Set(Object.keys(tables).map((c) => c.split(".")[0])).size;
   return [
-    ["functions over the limit", keys(complexity), `of which over 200 lines: ${Object.values(complexity).filter((v) => v.lines > 200).length}`],
+    [
+      "functions over the limit",
+      keys(complexity),
+      `of which over 200 lines: ${Object.values(complexity).filter((v) => v.lines > 200).length}`,
+    ],
     ["files over 800 lines", keys(by["file-length"]), ""],
     ["test files over 1600 lines", keys(by["test-length"]), ""],
     ["directories over 20 modules", keys(by["tree-shape"]), ""],
@@ -290,12 +302,24 @@ export function totalsOf(record, { ceiling = {}, trees = [], wide = [] } = {}) {
     ["unnamed durations", total(by.durations), `in ${keys(by.durations)} files`],
     ["event-shaped clocks", keys(by["event-shaped-clocks"]), "of the registered clocks (invariant 6)"],
     ["tables with more than one writer", keys(by.writers), `${total(by.writers)} writers among them`],
-    ["doors writing a record with no event", keys(by["doors-without-events"]), `writing ${total(by["doors-without-events"])} tables (invariant 2)`],
+    [
+      "doors writing a record with no event",
+      keys(by["doors-without-events"]),
+      `writing ${total(by["doors-without-events"])} tables (invariant 2)`,
+    ],
     ["event kinds written only from TypeScript", keys(by["ts-only-events"]), ""],
-    ["personal columns with no erasure strategy", keys(tables), `in ${tablesOfColumns} ${tablesOfColumns === 1 ? "table" : "tables"}`],
+    [
+      "personal columns with no erasure strategy",
+      keys(tables),
+      `in ${tablesOfColumns} ${tablesOfColumns === 1 ? "table" : "tables"}`,
+    ],
     ["breakpoints outside the set", total(by.breakpoints), `in ${files(by.breakpoints)} files`],
     ["literal style values", fieldsTotal(by["style-values"]), `in ${keys(by["style-values"])} stylesheets`],
-    ["primitives outside the kit", total(by["kit-primitives"]), `selectors naming ${keys(by["kit-primitives"])} classes`],
+    [
+      "primitives outside the kit",
+      total(by["kit-primitives"]),
+      `selectors naming ${keys(by["kit-primitives"])} classes`,
+    ],
     ["inline style props", total(by["inline-styles"]), `in ${keys(by["inline-styles"])} files`],
     ["appointment words written in", total(by["appointment-words"]), `in ${keys(by["appointment-words"])} files`],
     ["wire names not in snake_case", wire.names, `in ${wire.routes} routes`],
@@ -320,7 +344,11 @@ export const totalsText = (rows) =>
 async function totalsContext() {
   const { LIMITED_TREES, WIDE_PARAMS } = await import("../../../eslint.config.mjs");
   const at = path.join(ROOT, BASELINES, "bundle-ceiling.json");
-  return { ceiling: fs.existsSync(at) ? JSON.parse(fs.readFileSync(at, "utf8")) : {}, trees: LIMITED_TREES, wide: WIDE_PARAMS };
+  return {
+    ceiling: fs.existsSync(at) ? JSON.parse(fs.readFileSync(at, "utf8")) : {},
+    trees: LIMITED_TREES,
+    wide: WIDE_PARAMS,
+  };
 }
 
 /* --------------------------------- the week --------------------------------- */
@@ -361,13 +389,22 @@ const say = (line) => console.error(`check:debt: ${line}`);
 /** What a judgement says, for a person and for a step's summary. */
 function verdictText({ worse, better, notes }, reason, base) {
   const lines = [`### What this change owes`, ""];
-  lines.push(`Held to ${base.from === "baselines" ? "the baselines" : "the record"} of \`${String(base.sha ?? "").slice(0, 9)}\`.`, "");
+  lines.push(
+    `Held to ${base.from === "baselines" ? "the baselines" : "the record"} of \`${String(base.sha ?? "").slice(0, 9)}\`.`,
+    "",
+  );
   if (!worse.length) lines.push("Nothing rose and nothing is new.");
   else {
-    lines.push(reason ? `What it adds, argued: ${reason}` : "What it adds, and no line `Debt: <why>` in the description says why:", "");
+    lines.push(
+      reason
+        ? `What it adds, argued: ${reason}`
+        : "What it adds, and no line `Debt: <why>` in the description says why:",
+      "",
+    );
     lines.push("```text", ...worse, "```");
   }
-  if (better.length) lines.push("", `What it takes away (${better.length}):`, "", "```text", ...better.slice(0, 200), "```");
+  if (better.length)
+    lines.push("", `What it takes away (${better.length}):`, "", "```text", ...better.slice(0, 200), "```");
   if (notes.length) lines.push("", ...notes.map((n) => `- ${n}`));
   return lines.join("\n");
 }
@@ -390,12 +427,16 @@ async function main() {
     const table = [
       "| measure | a week before | now | grew |",
       "| --- | ---: | ---: | ---: |",
-      ...rows.filter((r) => r.grew !== 0).map((r) => `| ${r.key} | ${r.older} | ${r.newer} | ${r.grew > 0 ? "+" : ""}${r.grew} |`),
+      ...rows
+        .filter((r) => r.grew !== 0)
+        .map((r) => `| ${r.key} | ${r.older} | ${r.newer} | ${r.grew > 0 ? "+" : ""}${r.grew} |`),
     ];
     const text = [
       "### What the code owes: the week",
       "",
-      grew.length ? `Grew over the week: ${grew.map((r) => `${r.key} +${r.grew}`).join(", ")}.` : "Nothing grew over the week.",
+      grew.length
+        ? `Grew over the week: ${grew.map((r) => `${r.key} +${r.grew}`).join(", ")}.`
+        : "Nothing grew over the week.",
       "",
       ...(rows.some((r) => r.grew !== 0) ? table : []),
       ...(commits ? ["", "The merges of the week:", "", "```text", commits, "```"] : []),
@@ -407,7 +448,9 @@ async function main() {
 
   if (argv.includes("--totals")) {
     const record = value("--from") ? readRecord(value("--from")) : await recordOf(parts);
-    tell(`### The register's numbers, at \`${String(record.sha ?? "").slice(0, 9)}\`\n\n${totalsText(totalsOf(record, await totalsContext()))}`);
+    tell(
+      `### The register's numbers, at \`${String(record.sha ?? "").slice(0, 9)}\`\n\n${totalsText(totalsOf(record, await totalsContext()))}`,
+    );
     return;
   }
 

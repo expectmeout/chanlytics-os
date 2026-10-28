@@ -1026,7 +1026,9 @@ export function suiteFiles() {
   return SUITES.test.flatMap((glob) => {
     const found = repoFiles([`:(glob)${glob}`]);
     if (!found.length)
-      throw new Error(`git ls-files lists nothing for the launcher's ${glob}: the test-length measure has nothing to read`);
+      throw new Error(
+        `git ls-files lists nothing for the launcher's ${glob}: the test-length measure has nothing to read`,
+      );
     return found;
   });
 }
@@ -1187,4 +1189,3 @@ export const RATCHETS = [
   APPOINTMENT_WORDS,
   SOURCE_SCAN,
 ].map((m) => ({ mode: "count", ...m, key: m.key ?? m.file.replace(/\.json$/, "") }));
-

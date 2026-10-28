@@ -38,14 +38,25 @@ test("every number the build holds is a row of the register, by the key check:de
 
 test("what stays under baselines/ is a decision or a reviewed list, and the register names each", () => {
   const text = page();
-  assert.deepEqual(KEPT, ["bundle-ceiling.json", "coverage.json", "hearing/", "on-demand-reads.json", "reads-not-heard.json", "writes/"]);
+  assert.deepEqual(KEPT, [
+    "bundle-ceiling.json",
+    "coverage.json",
+    "hearing/",
+    "on-demand-reads.json",
+    "reads-not-heard.json",
+    "writes/",
+  ]);
   assert.deepEqual(
     KEPT.filter((f) => !text.includes(`baselines/${f}`)),
     [],
     "name it in docs/debt.md, with what it holds",
   );
   const numbers = new Set(RATCHETS.map((r) => r.file).filter(Boolean));
-  assert.deepEqual(KEPT.filter((f) => numbers.has(f)), [], "a ratchet's numbers are check:debt's, never a file");
+  assert.deepEqual(
+    KEPT.filter((f) => numbers.has(f)),
+    [],
+    "a ratchet's numbers are check:debt's, never a file",
+  );
 });
 
 /** The rows of the table under a page's `## heading`, each as its cells, trimmed; the header and its rule left out. */

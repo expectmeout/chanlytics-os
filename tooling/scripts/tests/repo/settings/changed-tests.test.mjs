@@ -77,7 +77,6 @@ test("every path the maps name holds source, and every test they name is one", (
   }
 });
 
-
 test("a change the hearing tests trace or run runs them, which no such path names; a doc and the phone app do not", () => {
   // 15 Oct 2026: the refresh map, the registry, db's realtime and the surfaces' values each ran no hearing test, though
   // both its ratchets (reads-not-heard.json, on-demand-reads.json) read them.

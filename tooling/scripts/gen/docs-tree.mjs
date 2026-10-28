@@ -50,7 +50,8 @@ const MIGRATIONS = "supabase/migrations";
  * none is an entry of DRAWN its code has left, and fails the drawing rather than draw a tree that is not there.
  */
 function drawn(tree, files) {
-  if (files.length === 0) throw new Error(`${tree} holds nothing to draw: DRAWN (gen/docs-tree.mjs) moves with its code`);
+  if (files.length === 0)
+    throw new Error(`${tree} holds nothing to draw: DRAWN (gen/docs-tree.mjs) moves with its code`);
   const paths = files.map((f) => f.slice(tree.length + 1).split("/"));
   const folders = [...new Set(paths.filter((parts) => parts.length > 1).map((parts) => parts[0]))].sort();
   return [`${tree}/`, ...folders.map((folder) => `  ${folder}/`)];
