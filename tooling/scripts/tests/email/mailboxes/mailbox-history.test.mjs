@@ -521,6 +521,35 @@ test("mail from a no-reply sender is left and counted, however Google's reports 
   assert.deepEqual(ledger(w, "mailbox").counts, { messages: 1, people: 1, dropped: 4 });
 });
 
+// 27 Oct 2026: the six months brought a month of the platform's alerts in as one person, sent before they said what
+// they are (#1858). A workspace whose own domain is not the platform's (#1870 leaves its own) would keep them so.
+test("the six months leave the platform's own mail, which no header marks as automated, and count it", async () => {
+  const w = world();
+  const ALERTS = "alerts@chanlytics.example";
+  const sender = withEnv({ LEAD_FROM: `Chanlytics <${ALERTS}>` });
+  const alerts = ["A background sweep is not running", "New workspace: E2E probe 1", "Promo signup: a@example.com"].map(
+    (subject, i) =>
+      gmailReceived({
+        id: `al${i}`,
+        threadId: `tal${i}`,
+        from: `Chanlytics <${ALERTS}>`,
+        to: OWN,
+        subject,
+        messageId: `<al${i}@chanlytics.example>`,
+        text: "Open it in the Inbox.",
+      }),
+  );
+  const net = gmailWith([...alerts, MESSAGES.p1]);
+  try {
+    await part(w, "mailbox");
+  } finally {
+    net.restore();
+    sender();
+  }
+  assert.deepEqual(keptIds(w), ["p1"], "only what a person wrote");
+  assert.deepEqual(ledger(w, "mailbox").counts, { messages: 1, people: 1, dropped: 3 });
+});
+
 /** A received message with the labels Gmail filed it under. */
 const filed = (labels, m) => ({ ...gmailReceived(m), labelIds: ["INBOX", ...labels] });
 

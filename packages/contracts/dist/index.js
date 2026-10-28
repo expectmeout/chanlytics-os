@@ -9429,6 +9429,8 @@ function messageText(m) {
     const caption = m.media?.caption?.trim();
     return caption ? `${label}: ${caption}` : label;
   }
+  const subject = m.channel === "email" ? emailSubjectOf(m) : null;
+  if (subject) return subject;
   return `[${m.type}]`;
 }
 

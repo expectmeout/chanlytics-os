@@ -1,4 +1,4 @@
-function emailSubjectOf(m) {
+export function emailSubjectOf(m) {
   const email = m.meta?.email;
   return typeof email?.subject === "string" && email.subject.trim() ? email.subject.trim() : null;
 }
