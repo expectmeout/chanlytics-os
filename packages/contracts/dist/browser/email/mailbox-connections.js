@@ -180,6 +180,32 @@ export function mailboxGmailSignsWords(m) {
   const read = at ? `Read from Gmail at ${clockOf(at)}. Saving reads it again.` : "Saving reads it from Gmail now.";
   return gmailWords ? { words: gmailWords, read } : { words: m.from_name, read: `Gmail has none for this address, so its emails end with its name. ${read}` };
 }
+export const MAILBOX_CARD_WORDS = {
+  inbox: "Inbox",
+  contacts: "Contacts",
+  sends: "Sends",
+  signsAs: "Signs as",
+  sendsUpTo: (n) => `Up to ${n} a day`,
+  noSignature: "No signature",
+  add: "Add a mailbox",
+  sending: "Sending",
+  sendingOn: (address) => `Replies, first emails and sequence steps leave from ${address}.`,
+  sendingOff: (address) => `Paused: nothing leaves from ${address}. What people write still comes in.`,
+  signature: "Signature",
+  preview: "How it ends their email",
+  previewEnd: "\u2026\n\nTalk soon.",
+  previewNone: "Nothing under it, not even its name.",
+  previewWrite: "Write it above: it goes here.",
+  backup: "Backup address",
+  backupSays: (hosted, address) => `${hosted}: replies leave from it when ${address} can't send.`,
+  changeName: "Change the name",
+  removeSays: "Its threads stay. Nothing more leaves from it.",
+  remove: (address) => `Remove ${address}\u2026`
+};
+export function mailboxSignsAsWords(m) {
+  const first = (m.signs.words ?? "").split("\n").map((l) => l.trim()).find(Boolean);
+  return first ?? MAILBOX_CARD_WORDS.noSignature;
+}
 function mailboxReadWords(syncedAt, nowMs) {
   if (!syncedAt) return "Not read yet";
   return nowMs - Date.parse(syncedAt) > MAILBOX_READ_LATE_MS ? `Not read since ${clockOf(syncedAt)}` : `Read at ${TIME_FMT.format(new Date(syncedAt))}`;

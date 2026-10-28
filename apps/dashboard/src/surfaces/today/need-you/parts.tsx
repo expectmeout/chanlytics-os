@@ -47,7 +47,7 @@ export function Words({
   text: string;
   who: string;
   onEdit: (() => void) | null;
-  /** The signature an email reply leaves with, in one line (00487); null where it carries none. */
+  /** The signature an email reply leaves with, its lines as the email carries them (00487); null where it carries none. */
   signed?: string | null;
   /** Where what it signs with is changed: Settings › Connections. */
   onSigned?: (() => void) | null;
@@ -67,7 +67,7 @@ export function Words({
       <span className="ny-words">{text}</span>
       {signed ? (
         <span className="ny-signed" data-testid="ny-signed">
-          <span className="ny-signed-words">{W.signedWith(signed)}</span>
+          <span className="ny-signed-words">{signed}</span>
           {onSigned ? (
             <Button variant="quiet" size="text" onClick={onSigned} title={W.changeSignatureTip}>
               {W.changeSignature}

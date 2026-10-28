@@ -35,7 +35,7 @@ import { connectedMailboxes } from "./connected-mailboxes";
 import { EmailSetupForm } from "./email-setup";
 import { GoogleChoose } from "./google-choose";
 import { useLineCodes, useSignupAhead, useStandingCheck } from "./live";
-import { ConnectedMailboxes } from "./mailboxes-block";
+import { ConnectedMailboxes, EmailCard } from "./mailboxes-block";
 import { BusinessRecordForm } from "./record-form";
 import { ConnectionRow, type Arm } from "./row";
 import { signupLeftOpenAt, waConnect, type SignupDoor } from "./whatsapp";
@@ -311,6 +311,38 @@ function groupCard(o: {
   );
 }
 
+/** The rows by group, in the page's order: Connected, Available, Later. */
+const connectionGroupsOf = (rows: Row[]) =>
+  (["connected", "available", "later"] as const).map((g) => ({ g, list: rows.filter((r) => r.group === g) }));
+
+/** With a mailbox connected, its row is the Email card: its state, act and facts, its settings in a sheet. */
+function emailCardOf(
+  r: Row,
+  S: SetupSurface | null | undefined,
+  o: {
+    flash: (f: LegacyFlash) => void;
+    note: ReturnType<typeof connectedMailboxes.outcome>;
+    onNote: () => void;
+    openLeft: boolean;
+  },
+): ReactNode {
+  const email = S?.dto.email ?? null;
+  if (r.kind !== "mailbox" || !S || !email?.sending?.mailboxes.length) return null;
+  return (
+    <EmailCard
+      key={r.kind}
+      r={r}
+      email={email}
+      imports={S.dto.imports}
+      businessName={S.dto.business.name}
+      flash={o.flash}
+      note={o.note}
+      onNote={o.onNote}
+      openLeft={o.openLeft}
+    />
+  );
+}
+
 /** Connections, and the row its address names, open (`integrations/left`: the mailbox's left senders). */
 export const PaneIntegrationsReal = ({ row: named = null }: { row?: string | null }) => {
   const C = useSurface("channels");
@@ -411,48 +443,46 @@ export const PaneIntegrationsReal = ({ row: named = null }: { row?: string | nul
     );
   };
   const email: SetupDto["email"] | null = S ? (S.dto.email ?? null) : null;
-  const row = (r: Row) => (
-    <Fragment key={r.kind}>
-      <ConnectionRow
-        r={r}
-        run={run}
-        busy={busy}
-        signup={signup}
-        arm={arm}
-        setArm={setArm}
-        confirm={(w) => void confirm(w)}
-      />
-      {r.body === "google_choose" && (
-        <GoogleChoose
+  const mail = { flash, note: mailboxNote, onNote: dropNote, openLeft: leftOpen };
+  const row = (r: Row) =>
+    emailCardOf(r, S, mail) ?? (
+      <Fragment key={r.kind}>
+        <ConnectionRow
+          r={r}
+          run={run}
           busy={busy}
-          setBusy={setBusy}
-          flash={flash}
-          onDisconnect={() => setArm({ kind: r.kind, what: "disconnect" })}
+          signup={signup}
+          arm={arm}
+          setArm={setArm}
+          confirm={(w) => void confirm(w)}
         />
-      )}
-      {r.body === "business_record" && recordOpen && <BusinessRecordForm line={ownLine} flash={flash} />}
-      {r.body === "email_setup" && emailOpen && S && email && (
-        <EmailSetupForm
-          email={email}
-          businessName={S.dto.business.name}
-          flash={flash}
-          onClose={() => setEmailOpen(false)}
-        />
-      )}
-      {r.kind === "instagram" && <InstagramNote note={ig.note} onOk={ig.clearNote} />}
-      {/* A Later row has no block, but what a connect came back with is still said under it. */}
-      {((r.body === "mailboxes" && S && email) || (r.kind === "mailbox" && mailboxNote)) && (
-        <ConnectedMailboxes email={email} flash={flash} note={mailboxNote} onNote={dropNote} openLeft={leftOpen} />
-      )}
-    </Fragment>
-  );
-  const groups = (["connected", "available", "later"] as const).map((g) => ({
-    g,
-    list: rows.filter((r) => r.group === g),
-  }));
+        {r.body === "google_choose" && (
+          <GoogleChoose
+            busy={busy}
+            setBusy={setBusy}
+            flash={flash}
+            onDisconnect={() => setArm({ kind: r.kind, what: "disconnect" })}
+          />
+        )}
+        {r.body === "business_record" && recordOpen && <BusinessRecordForm line={ownLine} flash={flash} />}
+        {r.body === "email_setup" && emailOpen && S && email && (
+          <EmailSetupForm
+            email={email}
+            businessName={S.dto.business.name}
+            flash={flash}
+            onClose={() => setEmailOpen(false)}
+          />
+        )}
+        {r.kind === "instagram" && <InstagramNote note={ig.note} onOk={ig.clearNote} />}
+        {/* A Later row has no block, but what a connect came back with is still said under it. */}
+        {((r.body === "mailboxes" && S && email) || (r.kind === "mailbox" && mailboxNote)) && (
+          <ConnectedMailboxes email={email} flash={flash} note={mailboxNote} onNote={dropNote} />
+        )}
+      </Fragment>
+    );
   return (
     <>
-      {groups.map(({ g, list }) => groupCard({ g, list, note, setNote, row }))}
+      {connectionGroupsOf(rows).map(({ g, list }) => groupCard({ g, list, note, setNote, row }))}
       {adsShown && (
         <Suspense fallback={null}>
           <AdAccounts flash={flash} />

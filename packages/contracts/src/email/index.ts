@@ -34,6 +34,8 @@ export {
   mailboxSignsChoiceOf,
   mailboxGmailSignsWords,
   MAILBOX_SIGNATURE_WORDS,
+  MAILBOX_CARD_WORDS,
+  mailboxSignsAsWords,
   mailboxHoldOf,
   MAILBOX_PROVIDER_WORDS,
   mailboxHealthWords,

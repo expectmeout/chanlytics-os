@@ -6,29 +6,36 @@
  * a press away. Its domain's records are listed while one is missing. The owner connects, pauses, resumes, sets,
  * tests, checks and removes, from the one act a row offers and its caret; anyone may read.
  *
- * `ConnectedMailboxes` keeps its state; a row, its buttons, its questions and the foot are plain functions that return
- * the JSX, called and not drawn, as the block before it did. `MailboxRecords` and `MailboxSettings` are components.
+ * With a mailbox connected, the row is the Email card (`EmailCard`, the mailbox canvas of 27 Oct 2026): the hosted
+ * address's row folds into it (contracts connectionRows), what came in and what it sends are facts in place of
+ * sentences, and a mailbox's settings open in a sheet beside the page (mailbox-sheet.tsx), never inside the row.
+ *
+ * `EmailCard` and `ConnectedMailboxes` keep their state; a row, its buttons, its questions and the foot are plain
+ * functions that return the JSX, called and not drawn, as the block before it did. `MailboxRecords` is a component.
  */
 import { Fragment, useState } from "react";
-import type {
-  MailboxConnectionDto,
-  MailboxProvider,
-  MailboxRecordRow,
-  MailboxSignsChoice,
-  SetupDto,
+import {
+  importLineOf,
+  type ConnectionRow,
+  type ImportRowDto,
+  type ImportSource,
+  type MailboxConnectionDto,
+  type MailboxProvider,
+  type MailboxRecordRow,
+  type SetupDto,
 } from "@chanlytics/contracts";
 import type { ApiResult } from "@/client/api";
 import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
+import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { MoreMenu } from "../../kit/more-menu/more-menu";
 import { StatePill } from "../../kit/pill/state-pill";
-import { RecordField } from "../../kit/record/field";
-import { Segmented } from "../../kit/segmented/segmented";
 import { canDo, gate, gateTitle, refusalToast, type LegacyFlash } from "../../legacy-verbs";
 import { connectedMailboxes } from "./connected-mailboxes";
 import { LeftSenders } from "./left-senders";
+import { MailboxSheet } from "./mailbox-sheet";
 
 const MAILBOXES = connectedMailboxes;
 /** The permission a mailbox's acts ask (contracts ROLE_PERMS): the one the doors' own role check stands on. */
@@ -130,148 +137,10 @@ const MailboxRecords = ({ m, flash }: RecordsProps) => {
   );
 };
 
-interface SettingsProps {
-  m: MailboxConnectionDto;
-  flash: Flash;
-  onClose: () => void;
-}
-
-/** Settings' words for what a mailbox signs with (contracts MAILBOX_SIGNATURE_WORDS). */
-const SIGNS = MAILBOXES.signs.words;
-
-/**
- * What the Gmail choice signs with, as words (Gmail's own markup is never drawn here), and when it was read; or that
- * none goes. Their own words are the field above, where they write them.
- */
-const SignsSaid = ({ m, choice }: { m: MailboxConnectionDto; choice: MailboxSignsChoice }) => {
-  if (choice === "none")
-    return (
-      <p className="set-mbx-signs-read" data-testid="mailbox-signs-said">
-        {SIGNS.none_says}
-      </p>
-    );
-  const said = MAILBOXES.signs.gmail(m);
-  return (
-    <div className="set-mbx-signs" data-testid="mailbox-signs-said">
-      <p className="set-mbx-signs-words">{said.words}</p>
-      <p className="set-mbx-signs-read">{said.read}</p>
-    </div>
-  );
-};
-
-/** What is wrong with each box, in the owner's words; a box with nothing wrong has no key. */
-type SettingsProblems = { name?: string; signature?: string; cap?: string };
-
-/** What a save sends of what it signs with (00487): Gmail's clears their words, none keeps them for another day. */
-const signsPatch = (choice: MailboxSignsChoice, signature: string) =>
-  choice === "none"
-    ? { signature_off: true }
-    : { signature_off: false, signature: choice === "own" ? signature.trim() || null : null };
-
-/** The name it sends as, what it signs with and the most it sends a day, as its owner sets them. */
-const MailboxSettings = ({ m, flash, onClose }: SettingsProps) => {
-  const [name, setName] = useState(m.from_name);
-  const [signs, setSigns] = useState<MailboxSignsChoice>(MAILBOXES.signs.choiceOf(m));
-  const [signature, setSignature] = useState(m.signature ?? "");
-  const [cap, setCap] = useState(String(m.daily_cap));
-  const [problems, setProblems] = useState<SettingsProblems>({});
-  const [busy, setBusy] = useState(false);
-  const save = async () => {
-    const found: SettingsProblems = {};
-    const n = Number(cap);
-    if (!name.trim() || name.trim().length > 80) found.name = "Give the name people see, 80 characters at most.";
-    if (signature.length > 1000) found.signature = "A signature is 1,000 characters at most.";
-    if (signs === "own" && !signature.trim()) found.signature = SIGNS.ownEmpty;
-    if (!Number.isInteger(n) || n < 1 || n > MAILBOXES.capMax) found.cap = `Between 1 and ${MAILBOXES.capMax} a day.`;
-    setProblems(found);
-    if (found.name || found.signature || found.cap) return;
-    setBusy(true);
-    const r = await MAILBOXES.set(m.id, { from_name: name.trim(), ...signsPatch(signs, signature), daily_cap: n });
-    setBusy(false);
-    if (!r.ok) {
-      flash(refusalToast(r, "Not saved"));
-      return;
-    }
-    flash({ msg: <>{m.address} is saved</> });
-    onClose();
-  };
-  return (
-    <div className="set-row set-row-stack biz" data-testid={`mailbox-settings-${m.address}`}>
-      <div className="biz-fields">
-        <RecordField
-          id={`mailbox-name-${m.id}`}
-          testid="mailbox-name"
-          label="The name people see beside it"
-          value={name}
-          onChange={setName}
-          problem={problems.name}
-          disabled={busy}
-        />
-        <RecordField
-          id={`mailbox-cap-${m.id}`}
-          testid="mailbox-cap"
-          label="The most it sends a day"
-          value={cap}
-          onChange={setCap}
-          type="number"
-          unit="a day"
-          hint="Its ramp and its domain keep it lower while they say so."
-          problem={problems.cap}
-          disabled={busy}
-        />
-        {/* What it signs with: a row of its own across the form, named, the choice over what it signs with. */}
-        <div className="biz-cell biz-cell-wide set-mbx-signs-group" data-testid="mailbox-signs">
-          <span className="biz-label" id={`mailbox-signs-label-${m.id}`}>
-            {SIGNS.label}
-          </span>
-          <Segmented
-            labelledBy={`mailbox-signs-label-${m.id}`}
-            value={signs}
-            onValueChange={setSigns}
-            readOnly={busy}
-            options={[
-              {
-                value: "gmail",
-                label: m.provider === "google" ? SIGNS.gmail : SIGNS.name,
-                testid: "mailbox-signs-gmail",
-              },
-              { value: "own", label: SIGNS.own, testid: "mailbox-signs-own" },
-              { value: "none", label: SIGNS.none, testid: "mailbox-signs-none" },
-            ]}
-          />
-          {signs === "own" ? (
-            <RecordField
-              id={`mailbox-signature-${m.id}`}
-              testid="mailbox-signature"
-              label={SIGNS.ownLabel}
-              value={signature}
-              onChange={setSignature}
-              rows={3}
-              hint={SIGNS.ownHint}
-              problem={problems.signature}
-              disabled={busy}
-            />
-          ) : (
-            <SignsSaid m={m} choice={signs} />
-          )}
-        </div>
-      </div>
-      <div className="set-acts">
-        <Button size="sm" variant="primary" onClick={() => void save()} disabled={busy} data-testid="mailbox-save">
-          {busy ? "Saving…" : "Save"}
-        </Button>
-        <Button size="sm" onClick={onClose} disabled={busy}>
-          Cancel
-        </Button>
-      </div>
-    </div>
-  );
-};
-
-/** The row an owner has armed a question on, or opened the settings or Sending lines of. */
+/** The mailbox an owner has armed a question on, or opened the settings sheet of. */
 interface Arm {
   id: string;
-  what: "remove" | "resume" | "settings" | "sending";
+  what: "remove" | "resume" | "settings";
 }
 
 interface MailboxActs {
@@ -382,15 +251,19 @@ function mailboxQuestions(m: MailboxConnectionDto, fix: string | null, ctx: RowC
 }
 
 /** The one act a row offers first, by what its mailbox needs most; the rest are on its caret. */
-type MainAct = "reconnect" | "resume" | "check" | "unpause" | "test";
+type MainAct = "reconnect" | "resume" | "check" | "unpause" | "settings" | "test";
 
-/** What the mailbox needs most: to be connected again, resumed, its records read, its sending back, or a test. */
-function mainActOf(can: ReturnType<typeof MAILBOXES.acts>, records: boolean): MainAct | null {
+/**
+ * What the mailbox needs most: to be connected again, resumed, its records read or its sending back; with nothing to
+ * mend, its settings, which anyone may read and an owner changes (the canvas: Send a test is a once-in-a-while act, on
+ * the caret).
+ */
+function mainActOf(can: ReturnType<typeof MAILBOXES.acts>, records: boolean): MainAct {
   if (can.reconnect) return "reconnect";
   if (can.resume) return "resume";
   if (records) return "check";
   if (can.unpause) return "unpause";
-  return can.test ? "test" : null;
+  return "settings";
 }
 
 /** Each act's words, its words while it runs, and what a role that may not is told it would have done. */
@@ -399,18 +272,19 @@ const MAIN_WORDS: Record<MainAct, { label: string; busy: string; doing: string }
   resume: { label: "Resume", busy: "Resume", doing: "resume a mailbox" },
   check: { label: "Check", busy: "Checking…", doing: "check a mailbox's records" },
   unpause: { label: "Unpause", busy: "Unpausing…", doing: "unpause a mailbox" },
+  settings: { label: "Settings", busy: "Settings", doing: "change a mailbox's settings" },
   test: { label: "Send a test", busy: "Sending…", doing: "send a test" },
 };
 
 /**
  * A row's acts, one split pill (Ruben, 20 Oct 2026: no three dots): the act its mailbox needs most, and a caret for the
- * rest: its Sending lines, the acts its state offers (contracts' `acts`), its settings and Remove. None while a
- * question or its settings are open on it.
+ * rest, acts alone: its settings where they are not the act, the acts its state offers (contracts' `acts`) and Remove.
+ * None while a question is open on it.
  */
 function mailboxActions(m: MailboxConnectionDto, records: boolean, ctx: RowContext) {
   const { owner, busy, arm, acts, setArm } = ctx;
   const can = MAILBOXES.acts(m);
-  if (arm && arm.id === m.id && arm.what !== "sending") return <span className="set-int-actions" />;
+  if (arm && arm.id === m.id && arm.what !== "settings") return <span className="set-int-actions" />;
   const owners = (what: string) => (owner ? {} : gate(MAILBOX_PERM, what));
   // A menu's item stays pressable while another act runs: a press then does nothing, as a disabled button would.
   const unlessBusy = (go: () => void) => () => {
@@ -421,12 +295,13 @@ function mailboxActions(m: MailboxConnectionDto, records: boolean, ctx: RowConte
     resume: () => setArm({ id: m.id, what: "resume" }),
     check: () => void acts.check(m),
     unpause: () => void acts.pause(m, false),
+    settings: () => setArm({ id: m.id, what: "settings" }),
     test: () => void acts.test(m),
   };
   const main = mainActOf(can, records);
   const items = [
-    m.state !== "reconnect"
-      ? { label: "Sending", icon: "send", onClick: () => setArm({ id: m.id, what: "sending" }) }
+    main !== "settings"
+      ? { label: "Settings", icon: "settings", onClick: () => setArm({ id: m.id, what: "settings" }) }
       : null,
     records && main !== "check"
       ? {
@@ -447,8 +322,7 @@ function mailboxActions(m: MailboxConnectionDto, records: boolean, ctx: RowConte
           gate: owners("pause a mailbox"),
         }
       : null,
-    owner ? { divider: true } : null,
-    owner ? { label: "Settings", icon: "settings", onClick: () => setArm({ id: m.id, what: "settings" }) } : null,
+    owner && can.remove ? { divider: true } : null,
     owner && can.remove
       ? { label: "Remove…", icon: "x", danger: true, onClick: () => setArm({ id: m.id, what: "remove" }) }
       : null,
@@ -457,18 +331,18 @@ function mailboxActions(m: MailboxConnectionDto, records: boolean, ctx: RowConte
   return (
     <span className="set-int-actions">
       <span className="set-mbx-acts">
-        {main && (
+        {
           <Button
             size="sm"
             variant={primary ? "primary" : undefined}
             onClick={run[main]}
             disabled={busy !== null}
             data-testid={`mailbox-${main === "unpause" ? "pause" : main}-${m.address}`}
-            {...owners(MAIN_WORDS[main].doing)}
+            {...(main === "settings" ? {} : owners(MAIN_WORDS[main].doing))}
           >
-            {busy === m.id ? MAIN_WORDS[main].busy : MAIN_WORDS[main].label}
+            {busy === m.id && main !== "settings" ? MAIN_WORDS[main].busy : MAIN_WORDS[main].label}
           </Button>
-        )}
+        }
         {items.length > 0 && (
           <MoreMenu
             items={items}
@@ -486,35 +360,16 @@ function mailboxActions(m: MailboxConnectionDto, records: boolean, ctx: RowConte
   );
 }
 
-/** Its Sending lines, under the row when asked for: its day, its ramp, its health and the ramp's rule. */
-function sendingLines(m: MailboxConnectionDto, now: number, onClose: () => void) {
-  return (
-    <div className="set-dom set-dom-note" data-testid={`mailbox-sending-${m.address}`}>
-      <span />
-      <span className="t">
-        {MAILBOXES.sending(m, now).map((line) => (
-          <span key={line}>{line}</span>
-        ))}
-      </span>
-      <span />
-      <span />
-      <span className="set-int-actions">
-        <LinkButton onClick={onClose} data-testid={`mailbox-sending-hide-${m.address}`}>
-          Hide
-        </LinkButton>
-      </span>
-    </div>
-  );
-}
+/** Whether a mailbox's domain still lacks a record it needs. */
+const missingOf = (m: MailboxConnectionDto) => MAILBOXES.records(m).some((x) => !x.found);
 
 /**
- * One mailbox: what came in through it and its pill, its act and its caret; its Sending lines or its settings when
- * open, and its records while one is missing.
+ * One mailbox of several: what came in through it and its pill, its act and its caret, and its records while one is
+ * missing. Its settings open in the card's sheet.
  */
 function mailboxRow(m: MailboxConnectionDto, ctx: RowContext, now: number) {
   const r = MAILBOXES.row(m, now);
-  const missing = MAILBOXES.records(m).some((x) => !x.found);
-  const opened = (what: Arm["what"]) => !!ctx.arm && ctx.arm.id === m.id && ctx.arm.what === what;
+  const missing = missingOf(m);
   return (
     <Fragment key={m.id}>
       <div className="set-dom" data-testid={`mailbox-${m.address}`} data-state={m.state}>
@@ -532,8 +387,6 @@ function mailboxRow(m: MailboxConnectionDto, ctx: RowContext, now: number) {
         <StatePill kind="tone" value={r.tone} label={r.pill} />
         {mailboxActions(m, missing, ctx)}
       </div>
-      {opened("sending") && sendingLines(m, now, () => ctx.setArm(null))}
-      {opened("settings") && <MailboxSettings m={m} flash={ctx.flash} onClose={() => ctx.setArm(null)} />}
       {missing && m.state !== "reconnect" && <MailboxRecords m={m} flash={ctx.flash} />}
     </Fragment>
   );
@@ -587,8 +440,6 @@ interface ConnectedMailboxesProps {
   /** What the browser came back from the provider with (or the door refused), said until the owner closes it. */
   note: { ok: boolean; words: string; code: string | null } | null;
   onNote: () => void;
-  /** The address named "Left in your mailbox" (Today's Brought in links to it): its list read and brought into view. */
-  openLeft?: boolean;
 }
 
 /** The note a connect came back with, and, where it waits on a Microsoft 365 admin, the link to send them. */
@@ -638,11 +489,11 @@ function adminLinkRow(url: string, flash: Flash, onClose: () => void) {
 }
 
 /**
- * The mailboxes a workspace writes its sequences to leads from, under their own row, which names them (decision 0056).
- * Drawn when this deployment offers a provider or the workspace has a mailbox connected; otherwise the row is Later,
- * and only what a connect came back with is said under it.
+ * Under the mailbox row while none is connected (decision 0056): a Connect for each provider this deployment offers,
+ * and what a connect came back with. Where none is offered the row is Later, and only that is said under it. With one
+ * connected, the row is the Email card (`EmailCard`), which says all of this itself.
  */
-export function ConnectedMailboxes({ email, flash, note, onNote, openLeft = false }: ConnectedMailboxesProps) {
+export function ConnectedMailboxes({ email, flash, note, onNote }: ConnectedMailboxesProps) {
   const [busy, setBusy] = useState<string | null>(null);
   const [arm, setArm] = useState<Arm | null>(null);
   const [adminUrl, setAdminUrl] = useState<string | null>(null);
@@ -650,16 +501,14 @@ export function ConnectedMailboxes({ email, flash, note, onNote, openLeft = fals
   const acts = mailboxActsOf(flash, setBusy, setArm, setAdminUrl);
   const ctx: RowContext = { owner, busy, arm, acts, flash, setArm };
   const providers = email?.sending?.providers ?? [];
-  const mailboxes = email?.sending?.mailboxes ?? [];
   const admin = adminUrl ? adminLinkRow(adminUrl, flash, () => setAdminUrl(null)) : null;
-  if (!email?.sending || (providers.length === 0 && mailboxes.length === 0))
+  if (!email?.sending || providers.length === 0)
     return note ? (
       <div className="set-domains" data-testid="connected-mailboxes-note">
         {mailboxNote(note, onNote, ctx)}
         {admin}
       </div>
     ) : null;
-  const now = Date.now();
   return (
     <div className="set-domains" data-testid="connected-mailboxes">
       {note && mailboxNote(note, onNote, ctx)}
@@ -672,11 +521,175 @@ export function ConnectedMailboxes({ email, flash, note, onNote, openLeft = fals
           </span>
         </div>
       )}
-      {mailboxes.map((m) => mailboxRow(m, ctx, now))}
-      {mailboxesFoot(mailboxes.length, providers, ctx)}
-      {mailboxes.length > 0 && (
-        <LeftSenders owner={owner} flash={flash} today={email.sending.left_today ?? null} open={openLeft} />
-      )}
+      {mailboxesFoot(0, providers, ctx)}
     </div>
+  );
+}
+
+/** The card's words for the sources a mailbox brings in, by the imports ledger's own line for each. */
+const BROUGHT_FACTS: readonly { source: ImportSource; label: string }[] = [
+  { source: "mailbox", label: MAILBOXES.card.inbox },
+  { source: "contacts", label: MAILBOXES.card.contacts },
+];
+
+/**
+ * The Email card's facts, in place of sentences: what came in from the mailbox and its contacts (the ledger's line for
+ * each, with where it stands while it is still coming), and, for one mailbox, the most it sends a day and what it signs
+ * as. A fact with nothing to say is left out.
+ */
+function cardFacts(one: MailboxConnectionDto | null, imports: readonly ImportRowDto[] | null | undefined) {
+  const C = MAILBOXES.card;
+  const brought = BROUGHT_FACTS.map(({ source, label }) => {
+    const row = imports?.find((r) => r.source === source);
+    if (!row) return null;
+    const l = importLineOf(row);
+    return { key: source, label, value: l.state === "done" ? l.says : `${l.says} · ${l.stand}` };
+  });
+  const own = one
+    ? [
+        { key: "sends", label: C.sends, value: C.sendsUpTo(one.daily_cap) },
+        { key: "signs", label: C.signsAs, value: MAILBOXES.signs.as(one) },
+      ]
+    : [];
+  return [...brought, ...own].filter((f) => f !== null);
+}
+
+/** The card's words beside its tile: Email, then the one mailbox's address and what came in, or how many there are. */
+function cardWords(r: ConnectionRow, one: MailboxConnectionDto | null, now: number) {
+  const w = one ? MAILBOXES.row(one, now) : null;
+  return (
+    <span className="set-team-body">
+      <span className="set-int-head">
+        <span className="set-team-name">{r.title}</span>
+      </span>
+      {one && w ? (
+        <>
+          <span className="set-mbx-says" data-testid={`mailbox-${one.address}`}>
+            {`${one.address} · ${MAILBOXES.providerWords[one.provider]}`}
+          </span>
+          {w.cameIn ? (
+            <span className="set-mbx-says" data-testid={`mailbox-came-in-${one.address}`}>
+              {w.cameIn}
+            </span>
+          ) : null}
+          {w.standing ? <span className="set-mbx-says">{w.standing}</span> : null}
+          {w.fix ? <span className="set-mbx-says">{w.fix}</span> : null}
+        </>
+      ) : (
+        <span className="set-mbx-says">{r.detail}</span>
+      )}
+    </span>
+  );
+}
+
+interface EmailCardProps {
+  /** The mailbox row, titled Email: the hosted address's row folds into it (contracts connectionRows). */
+  r: ConnectionRow;
+  email: Email;
+  /** What was brought in (Setup's imports ledger): the card's Inbox and Contacts. */
+  imports: readonly ImportRowDto[] | null | undefined;
+  businessName: string | null;
+  flash: Flash;
+  note: ConnectedMailboxesProps["note"];
+  onNote: () => void;
+  /** The address named "Left in your mailbox" (Today's Brought in links to it): its list read and brought into view. */
+  openLeft?: boolean;
+}
+
+/**
+ * Email, as one card (the mailbox canvas, 27 Oct 2026): with one mailbox, its address, what came in, its state and its
+ * act on the row, then its facts; with several, each its own line. What was left in the mailbox and Add a mailbox are
+ * its foot. A mailbox's settings open in a sheet beside the page.
+ */
+export function EmailCard({ r, email, imports, businessName, flash, note, onNote, openLeft = false }: EmailCardProps) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [arm, setArm] = useState<Arm | null>(null);
+  const [adminUrl, setAdminUrl] = useState<string | null>(null);
+  const owner = canDo(MAILBOX_PERM);
+  const acts = mailboxActsOf(flash, setBusy, setArm, setAdminUrl);
+  const ctx: RowContext = { owner, busy, arm, acts, flash, setArm };
+  const boxes = email.sending?.mailboxes ?? [];
+  const providers = email.sending?.providers ?? [];
+  const now = Date.now();
+  const one = boxes.length === 1 ? (boxes.at(0) ?? null) : null;
+  const w = one ? MAILBOXES.row(one, now) : null;
+  const opened = arm?.what === "settings" ? (boxes.find((m) => m.id === arm.id) ?? null) : null;
+  const facts = cardFacts(one, imports);
+  const room = owner && boxes.length < MAILBOXES.max;
+  return (
+    <>
+      <div
+        className="set-int-row set-mbx-one"
+        data-testid="connection-mailbox"
+        data-state={r.state}
+        data-offers="split"
+      >
+        <Face className="set-int-tile" data-kind="mailbox" data-on="true" glyph={<Icon name={r.icon} size={15} />} />
+        {cardWords(r, one, now)}
+        <StatePill kind="tone" value={w ? w.tone : r.tone} label={w ? w.pill : r.stateWords} />
+        {one ? mailboxActions(one, missingOf(one), ctx) : <span className="set-int-actions" />}
+        <div className="set-mbx-below">
+          {note && mailboxNote(note, onNote, ctx)}
+          {adminUrl ? adminLinkRow(adminUrl, flash, () => setAdminUrl(null)) : null}
+          {!owner ? (
+            <p className="set-mbx-says" data-testid="mailbox-gate">
+              {gateTitle(MAILBOX_PERM, "connect, pause, resume or remove a mailbox")}
+            </p>
+          ) : null}
+          {facts.length ? (
+            <dl className="set-mbx-facts" data-testid="mailbox-facts">
+              {facts.map((f) => (
+                <div key={f.key} className="set-mbx-fact">
+                  <dt>{f.label}</dt>
+                  <dd>{f.value}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : null}
+          {one ? (
+            <>
+              {mailboxQuestions(one, w?.fix ?? null, ctx)}
+              {missingOf(one) && one.state !== "reconnect" ? <MailboxRecords m={one} flash={flash} /> : null}
+            </>
+          ) : (
+            <div className="set-domains">{boxes.map((m) => mailboxRow(m, ctx, now))}</div>
+          )}
+          <div className="set-mbx-foot">
+            <div className="set-mbx-left">
+              <LeftSenders
+                owner={owner}
+                flash={flash}
+                today={email.sending?.left_today ?? null}
+                open={openLeft}
+                lead={false}
+              />
+            </div>
+            {room
+              ? providers.map((p) => (
+                  <LinkButton
+                    key={p}
+                    onClick={() => void acts.connect(p)}
+                    disabled={busy !== null}
+                    data-testid={`mailbox-connect-${p}`}
+                  >
+                    {`+ ${MAILBOXES.card.add}${providers.length > 1 ? ` (${MAILBOXES.providerWords[p]})` : ""}`}
+                  </LinkButton>
+                ))
+              : null}
+          </div>
+        </div>
+      </div>
+      {opened ? (
+        <MailboxSheet
+          m={opened}
+          email={email}
+          businessName={businessName}
+          owner={owner}
+          flash={flash}
+          onClose={() => setArm(null)}
+          onRemove={() => acts.remove(opened)}
+        />
+      ) : null}
+    </>
   );
 }

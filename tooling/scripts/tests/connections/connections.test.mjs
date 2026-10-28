@@ -665,9 +665,30 @@ test("the mailboxes sequences write from are a row of their own: Later and greye
   const calm = rowsWith({ providers: ["google"], mailboxes: [{ id: "d2", state: "paused" }] }).mailbox;
   assert.deepEqual([calm.state, calm.stateWords], ["connected", "On"]);
 
-  // The Email row is the hosted address alone: a held mailbox is said once, on its own row.
-  const email = rowsWith({ providers: ["google"], mailboxes: [held] }).email;
-  assert.deepEqual([email.state, email.stateWords], ["connected", "On"]);
+  // With a mailbox connected, the hosted address is its backup (said in the mailbox's sheet): its row folds into the
+  // mailbox's, which is titled Email (the mailbox canvas, 27 Oct 2026), and a held mailbox is said once, there.
+  const folded = rowsWith({ providers: ["google"], mailboxes: [held] });
+  assert.equal(folded.email, undefined, "one row for email");
+  assert.deepEqual([folded.mailbox.title, folded.mailbox.icon, folded.mailbox.state], ["Email", "mail", "attention"]);
+  // Until one is connected, the hosted address keeps its own row, and the mailbox row its own name.
+  const before = rowsWith({ providers: ["google"], mailboxes: [] });
+  assert.deepEqual([before.email.title, before.mailbox.title], ["Email", "Your mailbox"]);
+  // A hosted address that could not take an email in keeps its row, to say so.
+  const hurt = by(
+    connectionRows(
+      {
+        ...base(),
+        email: {
+          ready: true,
+          domain: "mail.chanlytics.com",
+          mailbox: { ...mailbox, last_error: "An email could not be taken in." },
+          sending: { providers: ["google"], mailboxes: [held] },
+        },
+      },
+      NOW,
+    ),
+  );
+  assert.equal(hurt.email.state, "attention");
 });
 
 test("D1-line-row-derivations: the phone row says what Start's row says in each state of the own line, and retries in place", () => {
