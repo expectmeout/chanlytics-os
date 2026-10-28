@@ -39,7 +39,7 @@
  *       VOICE_FN_URL     where the booking tool posts; optional while the live
  *                        LLM has a booking tool, whose address is kept
  *
- * Usage: node tooling/scripts/ops/voice/voice-converge.mjs [--apply] [--pin] [--retention-days N]
+ * Usage: node --import tsx tooling/scripts/ops/voice/voice-converge.mjs [--apply] [--pin] [--retention-days N]
  *   --pin   also bind the number to agent_version "latest_published" (weight
  *           1), so a later draft cannot go live by being saved. REFUSED while
  *           the latest version is unpublished — pinning then would switch the

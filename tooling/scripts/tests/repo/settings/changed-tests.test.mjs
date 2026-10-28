@@ -15,7 +15,7 @@ import {
   isDatabaseSuite,
   testTargets,
 } from "../../../checks/changed-tests.mjs";
-import { READER_SCOPE, ROOT } from "../../_source.mjs";
+import { ROOT } from "../../_source.mjs";
 
 const FOLDERS = new Set(
   execFileSync("git", ["ls-files", "tooling/scripts/tests/*/**.test.mjs"], { cwd: ROOT, encoding: "utf8" })
@@ -75,20 +75,6 @@ test("every path the maps name holds source, and every test they name is one", (
         `${target}: ${prefix} holds no file: move it with the code`,
       );
   }
-});
-
-test("a change in a tree a reader reads runs the appointment words' ratchet, which no such path names; a doc does not", () => {
-  // 13-15 Oct 2026: #1574, #1579, #1599 and #1602-#1604 wrote "visit" into contracts' person-page, waits, ask-proposals
-  // and notices. No path of theirs named journey, so the ratchet ran on none of their pull requests and main went red.
-  const ratchet = "tooling/scripts/tests/journey/journey.test.mjs";
-  assert.ok(run("packages/contracts/src/notices/visit-news.ts").includes(ratchet));
-  for (const tree of READER_SCOPE) assert.ok(run(`${tree}/any.ts`).includes(ratchet), tree);
-  for (const f of ["tooling/scripts/tests/_source.mjs", "tooling/scripts/tests/baselines/appointment-words.json"])
-    assert.ok(run(f).includes(ratchet), `${f}: the scope's own file and the ratchet's baseline`);
-  assert.deepEqual(run("docs/decisions/README.md"), [...ALWAYS, "tooling/scripts/tests/history"]);
-  assert.ok(!run("packages/core/src/leads/cards.ts").includes(ratchet), "a tree no reader reads");
-  const named = run("packages/contracts/src/journey/journey.ts");
-  assert.ok(named.includes("tooling/scripts/tests/journey") && !named.includes(ratchet), "its folder covers it");
 });
 
 test("a change the hearing tests trace or run runs them, which no such path names; a doc and the phone app do not", () => {

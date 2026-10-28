@@ -19,8 +19,8 @@ import {
   PEOPLE_TABS,
   PERSON_STATE_LABELS,
 } from "@chanlytics/contracts";
-// A namespace too: a word this change adds is missing from the module until the dist is rebuilt, and a named import
-// of it would fail the whole file instead of the one test that reads it.
+// A namespace too: a word a change has not yet added to the module is missing from it, and a named import of it would
+// fail the whole file instead of the one test that reads it.
 import * as contracts from "@chanlytics/contracts";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).

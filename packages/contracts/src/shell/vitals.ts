@@ -9,8 +9,8 @@
  * 75th percentile of each. A report names a page, a part of it, a metric, a number and what the time went on (a read's
  * route, an element's test id): nobody's person, nobody's workspace.
  */
-// First, before this module builds a schema: zod-config.ts says why. A page's bundle takes this module alone
-// (contracts-browser.mjs), never the entry that imports the setting first.
+// First, before this module builds a schema: zod-config.ts says why. A page's bundle takes this module alone (the
+// bundler reads contracts a module at a time), never the entry that imports the setting first.
 import "../zod-config";
 import * as z from "zod/mini";
 import { MIN_MS } from "../shared/time";

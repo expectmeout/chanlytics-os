@@ -111,7 +111,7 @@ const WHOLE_BODY = z.strictObject(
  * it; on the server alone, so no page's bundle carries it.
  */
 export const PLAYBOOK_PUT_BODY = z.union([PATCH_BODY, CHANNELS_BODY, WHOLE_BODY], { error: PUT_BODY_WORDS });
-/** Not exported: only this module reads it, and knip counts an export nothing else imports (dead-exports.json). */
+/** Not exported: only this module reads it, and knip counts an export nothing else imports (check:debt's knip part). */
 type PlaybookPutBody = z.infer<typeof PLAYBOOK_PUT_BODY>;
 
 /**
@@ -135,7 +135,7 @@ export async function twinRefusal(
     templateId: checked.template_id,
   });
   // Bound and checked, never `twins[0].name`: an index read the compiler lets pass is a new offender in a file at 0
-  // (unchecked-index.json).
+  // (the unchecked-index measure).
   const [first] = twins;
   if (!first) return null;
   const own = playbookNameAsked(named);

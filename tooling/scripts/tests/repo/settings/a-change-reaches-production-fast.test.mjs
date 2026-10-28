@@ -6,8 +6,8 @@
  *     every other conflict is a person's.
  *   - `check:local` runs everything after the build side by side (runTogether), and says each check's own result.
  *   - CI's tests run as four parts at once, each a quarter of the files, and the lint and the format check start from
- *     main's cache, which main's own lint writes afresh. The dashboard's build, the dist against its sources and the
- *     typecheck run side by side, each against the committed dist (repo/settings/workflow-rules.test.mjs holds it).
+ *     main's cache, which main's own lint writes afresh. The dashboard's build and the typecheck run side by side,
+ *     each over the packages' sources (repo/settings/workflow-rules.test.mjs holds it).
  *   - The edge's functions are built here (tooling/scripts/edge-functions.mjs, in seconds) and Vercel deploys them as
  *     they are, with the settings its own builder gave each, where it once compiled them one by one for seven minutes.
  *     CI's typecheck still reads the edge's own tsconfig, every function in it.
@@ -21,7 +21,19 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { ESLint } from "eslint";
 import ts from "typescript";
-import { isWritten, migrationsAdded, WRITERS } from "../../../land.mjs";
+import {
+  BLOCK_PAGES,
+  isReplayed,
+  isRetired,
+  mainsBlocks,
+  withoutBlocks,
+  isWritten,
+  migrationsAdded,
+  REPLAYED,
+  REPLAYERS,
+  settle,
+  WRITERS,
+} from "../../../land.mjs";
 import { FIRST, LOCAL_CHECKS, runTogether } from "../../../checks/checked-locally.mjs";
 import { cacheOptions } from "../../../checks/lint.mjs";
 import { buildEdge, edgeFunctions, functionFiles, nodeMajor, ROUTES, vcConfig } from "../../../edge-functions.mjs";
@@ -31,20 +43,19 @@ const read = (rel) => fs.readFileSync(path.join(ROOT, rel), "utf8");
 
 test("land takes main's side only of what a command writes, and has a command for each", () => {
   for (const file of [
-    "packages/contracts/dist/index.d.ts",
-    "packages/db/dist/index.js",
     "packages/contracts/src/browser.generated.ts",
     "packages/contracts/src/route-keys.generated.ts",
     "apps/dashboard/src/client/routes.generated.ts",
-    "packages/contracts/src/schema-sets.generated.ts",
-    "tooling/scripts/tests/_unique-keys.generated.json",
     "docs/api.md",
     "docs/data-model.md",
+    "docs/tree.md",
+    "supabase/migrations-ledger.json",
   ])
     assert.equal(isWritten(file), true, file);
   for (const file of [
     "packages/contracts/src/ask-proposals/guide.ts",
     "supabase/schema.sql",
+    "packages/contracts/src/schema-sets.generated.ts",
     "supabase/migrations/00448_an_owners_correction_is_kept.sql",
     "docs/debt.md",
     "apps/dashboard/src/surfaces/settings/autonomy/pane.tsx",
@@ -53,18 +64,140 @@ test("land takes main's side only of what a command writes, and has a command fo
     assert.equal(isWritten(file), false, `${file} is a person's to resolve`);
   const commands = WRITERS.map(([, c]) => c).join(" | ");
   for (const writer of [
+    "sorted-lists.mjs",
     "contracts-browser-entry.mjs",
     "route-types.mjs",
     "gen:api-reference",
+    "migration-ledger.mjs --record",
     "gen:data-model",
-    "build",
+    "docs-tree.mjs",
   ])
     assert.ok(commands.includes(writer), writer);
+  assert.match(WRITERS[0][1], /sorted-lists\.mjs$/, "the barrels first: the browser entry is written from them");
+  assert.ok(!/package-build|--filter "\.\/packages\/\*" build/.test(commands), "no dist is written: git keeps none");
+});
+
+test("what the migrations write through a database is written again only from a replay, and the data model after it", () => {
+  assert.deepEqual(REPLAYED.toSorted(), [
+    "packages/contracts/src/schema-sets.generated.ts",
+    "packages/db/src/database.types.ts",
+    "supabase/schema.sql",
+    "tooling/scripts/tests/_unique-keys.generated.json",
+  ]);
+  for (const file of REPLAYED) assert.equal(isWritten(file), false, `${file} is not written from the tree alone`);
+  const replayers = REPLAYERS.map(([, c]) => c);
   assert.match(
-    WRITERS.at(-1)[1],
-    /--filter "\.\/packages\/\*" build/,
-    "the dist last, from the sources the others read",
+    replayers[0],
+    /db reset$/,
+    "the stack replayed from zero first: a stack started before the merge lacks main's migrations",
   );
+  for (const writer of ["gen:db-types", "gen:schema-sets", "gen:schema-snapshot"])
+    assert.ok(replayers.includes(`corepack pnpm ${writer}`), writer);
+
+  const conflicted = [
+    "packages/contracts/dist/index.js",
+    "docs/api.md",
+    "supabase/migrations-ledger.json",
+    "supabase/schema.sql",
+    "packages/db/src/database.types.ts",
+  ];
+  const without = settle(conflicted, false);
+  assert.deepEqual(without.retired, ["packages/contracts/dist/index.js"]);
+  assert.deepEqual(without.byHand, []);
+  assert.deepEqual(
+    without.blocked,
+    ["supabase/schema.sql", "packages/db/src/database.types.ts"],
+    "no replay: a person's",
+  );
+  const replayed = settle(conflicted, true);
+  assert.deepEqual(replayed.blocked, [], "a replay writes them");
+  assert.deepEqual(replayed.theirs, conflicted.slice(1), "main's side of everything but the retired dist");
+  assert.deepEqual(replayed.replayed, ["supabase/schema.sql", "packages/db/src/database.types.ts"]);
+  assert.deepEqual(settle(["apps/edge/api/inbound-sms.ts", "docs/api.md"], true).byHand, [
+    "apps/edge/api/inbound-sms.ts",
+  ]);
+  assert.equal(
+    isReplayed("supabase/migrations/00125_a_person_may_have_an_email.sql"),
+    false,
+    "a migration is a person's",
+  );
+});
+
+test("a dist or a baseline a branch from before 28 October 2026 changed leaves it on a merge, where main has none", () => {
+  for (const file of [
+    "packages/contracts/dist/index.d.ts",
+    "packages/db/dist/index.js",
+    "packages/contracts/dist/browser/index.js",
+    "tooling/scripts/tests/baselines/complexity.json",
+    "tooling/scripts/tests/baselines/coverage.json",
+    "tooling/scripts/tests/source-scan-baseline.json",
+  ])
+    assert.equal(isRetired(file), true, file);
+  for (const file of ["packages/contracts/src/index.ts", "packages/contracts/distance.ts", "apps/dashboard/dist/x.js"])
+    assert.equal(isRetired(file), false, file);
+  // Whether main still has it decides: the coverage floors stay, so a conflict in them is a person's.
+  const kept = new Set(["tooling/scripts/tests/baselines/coverage.json"]);
+  const { retired, byHand } = settle(
+    ["tooling/scripts/tests/baselines/complexity.json", "tooling/scripts/tests/baselines/coverage.json"],
+    false,
+    (file) => kept.has(file),
+  );
+  assert.deepEqual(retired, ["tooling/scripts/tests/baselines/complexity.json"]);
+  assert.deepEqual(byHand, ["tooling/scripts/tests/baselines/coverage.json"]);
+});
+
+test("a conflict in a block main retired takes main's pointer, and any other conflict on the page stays a person's", () => {
+  assert.deepEqual(settle(["docs/debt.md", "docs/glossary.md"], false).blocks, ["docs/debt.md"]);
+  assert.deepEqual(BLOCK_PAGES.toSorted(), ["docs/architecture.md", "docs/debt.md", "docs/takeover.md"]);
+  const block = (n) =>
+    `<!-- measured:start -->\n\n\`\`\`text\nfunctions over the limit  ${n}\n\`\`\`\n\n<!-- measured:end -->`;
+  const pointer = "The numbers are measured, never kept: corepack pnpm check:debt -- --totals.";
+  const page = (middle, rows = "| A row |") =>
+    `# The register\n\n${rows}\n\n${middle}\n\nWhat retires it is a person's.\n`;
+  // A real merge, under each diff algorithm: a branch that banked a number in the block and wrote a row, and main that
+  // replaced the block with its pointer. What is settled is the conflict's own three texts, the index's stages, never
+  // git's markers, which an algorithm may draw apart.
+  for (const algorithm of ["myers", "histogram"]) {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "land-blocks-"));
+    // Every call names who commits, the merge's too: a runner has no identity of its own, and git refuses a merge
+    // without one before it draws any conflict.
+    const flags = ["-c", "user.name=t", "-c", "user.email=t@example.com", "-c", `diff.algorithm=${algorithm}`];
+    const g = (...args) => execFileSync("git", [...flags, ...args], { cwd: dir, encoding: "utf8" });
+    try {
+      g("init", "-q", "-b", "main");
+      fs.writeFileSync(path.join(dir, "debt.md"), page(block(47)));
+      g("add", "-A");
+      g("commit", "-q", "-m", "base");
+      g("checkout", "-q", "-b", "lane");
+      fs.writeFileSync(path.join(dir, "debt.md"), page(block(46), "| A row |\n| The lane's row |"));
+      g("commit", "-q", "-am", "the lane banks a fall and writes a row");
+      g("checkout", "-q", "main");
+      fs.writeFileSync(path.join(dir, "debt.md"), page(pointer));
+      g("commit", "-q", "-am", "main keeps no number");
+      g("checkout", "-q", "lane");
+      const merge = spawnSync("git", [...flags, "merge", "-q", "main"], { cwd: dir, encoding: "utf8" });
+      assert.match(merge.stdout + merge.stderr, /CONFLICT/, `${algorithm}: they conflict`);
+      const [base, ours, theirs] = [1, 2, 3].map((n) => g("show", `:${n}:debt.md`));
+      assert.equal(
+        mainsBlocks({ base, ours, theirs }),
+        page(pointer, "| A row |\n| The lane's row |"),
+        `${algorithm}: main's pointer, the lane's row kept, the page around them untouched`,
+      );
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }
+  // A row both changed is a person's, block or none.
+  const base = page(block(47));
+  assert.equal(
+    mainsBlocks({ base, ours: page(block(46), "| The lane's |"), theirs: page(pointer, "| Main's |") }),
+    null,
+  );
+  // A page main still draws a block on, or one the branch's side has none on, is not one main retired.
+  assert.equal(mainsBlocks({ base, ours: page(block(46)), theirs: page(block(48)) }), null);
+  assert.equal(mainsBlocks({ base, ours: page(pointer, "| x |"), theirs: page(pointer) }), null);
+  assert.equal(mainsBlocks({ base: null, ours: page(block(46)), theirs: page(pointer) }), null, "added on both sides");
+  assert.equal(withoutBlocks(`a\n<!-- tree:start -->\nx/\n<!-- tree:end -->\nb`), "a\nb");
 });
 
 test("a pull request that adds a migration never merges itself: land holds its auto-merge until it is applied", () => {
@@ -90,7 +223,7 @@ test("a pull request that adds a migration never merges itself: land holds its a
 test("check:local builds first, then runs the rest side by side and says each one's own result", async () => {
   assert.deepEqual(
     LOCAL_CHECKS.slice(0, FIRST).map(([name]) => name),
-    ["the packages' build", "dist matches the sources"],
+    ["the packages' bundles"],
   );
   const said = [];
   const node = JSON.stringify(process.execPath);

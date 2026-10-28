@@ -6,10 +6,10 @@
  * dist and another inside core's; `withRoute` asked `instanceof` of the first and every core refusal failed it, so an owner
  * snoozing without a date, or replying to someone who had opted out, read "Something went wrong." with a 500
  * (the scorecard of 26 September 2026). Nothing caught it because no test ran a core verb through `withRoute` on
- * the built dists: the tests of the verbs import the source, where there is one class.
+ * the built packages: the tests of the verbs import the source, where there is one class.
  *
- * So this one imports what production loads: core's built dist, and the wrapper over the contracts the dashboard
- * resolves. The session is a stand-in bearer verifier, as auth/bearer.test.mjs does it.
+ * So this one imports each package as a module of its own, as the suite builds them (core's bundle and contracts'),
+ * and the wrapper over the contracts the dashboard resolves. The session is a stand-in bearer verifier, as auth/bearer.test.mjs does it.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -46,11 +46,11 @@ async function coreRefusal() {
   assert.fail("snooze took a date in the past");
 }
 
-test("a refusal from core's built dist is an AppError to every copy of the class", async () => {
+test("a refusal from core's bundle is an AppError to every copy of the class", async () => {
   const e = await coreRefusal();
   assert.equal(e.code, "validation");
   assert.ok(e instanceof AppError, "to the contracts the dashboard resolves");
-  assert.ok(e instanceof contracts.AppError, "to contracts' built dist");
+  assert.ok(e instanceof contracts.AppError, "to contracts' bundle");
   assert.ok(new contracts.AppError("conflict", "x") instanceof AppError, "and the other way round");
 });
 

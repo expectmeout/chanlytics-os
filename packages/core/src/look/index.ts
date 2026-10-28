@@ -1,2 +1,2 @@
 export { siteAccentOf } from "./accent";
-export { LOGO_TRIES, askableMark, markFits, siteLogoFrom, type FoundLogo } from "./found-logo";
+export { askableMark, type FoundLogo, LOGO_TRIES, markFits, siteLogoFrom } from "./found-logo";

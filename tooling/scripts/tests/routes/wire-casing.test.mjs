@@ -4,16 +4,15 @@
  * Every name a /api/v1 route takes (its body, or a read's query) and answers is read with the type checker from the
  * typed client's registry (apps/dashboard/src/client/routes.generated.ts): each handler carries what it takes and
  * answers as a phantom `Shape<I, O>` (server/route.ts), so a route's JSON names are its types' property names, read
- * through unions, arrays and a record's values to six levels down. A name that is not snake_case and is not in
- * baselines/wire-casing.json fails the build. The bank holds the names the wire had when the rule was written, one
- * entry per route and name, and may only fall (_ratchet.mjs; docs/debt.md names it): a route that renames one banks
- * the fall with `UPDATE_BASELINES=1 corepack pnpm test`.
+ * through unions, arrays and a record's values to six levels down. A name that is not snake_case is an entry of the
+ * `wire-casing` measure, one per route and name, which check:debt holds change by change (decision 0074; docs/debt.md
+ * names it): a change that adds one says why, and a route that renames one needs nothing.
  *
  * A route that reads its body by hand is invisible here, as it is to the typed client: its input is `undefined`.
  * Declaring its `input` is what brings it under the rule.
  *
- * The measure is in _measures.mjs, beside the others the register prints. Its own file, not
- * code-health-ratchets.test.mjs, because it needs a program over the dashboard, not the syntax trees that file parses.
+ * The measure is in _measures.mjs, beside the others the register prints. This file holds what it reads: its own,
+ * not code-health-ratchets.test.mjs, because it needs a program over the dashboard, not the syntax trees that file parses.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -21,14 +20,11 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import ts from "typescript";
 import { ROOT } from "../_source.mjs";
-import { ratchet } from "../_ratchet.mjs";
-import { WIRE_CASING, WIRE_REGISTRY, dashboardWire, isSnakeCase, offTheWire, wireShapes } from "../_measures.mjs";
+import { WIRE_REGISTRY, dashboardWire, isSnakeCase, offTheWire, wireShapes } from "../_measures.mjs";
 
-ratchet(WIRE_CASING);
-
-// The measure the ratchet rests on, kept honest: a handler whose module the checker could not resolve reads as
-// `any`, a handler that takes or answers `any` or `unknown` as a whole shows no names, and a walk that stopped at the
-// top would see a clean wire, so each would pass the ratchet and bank the names away. These say so instead. A field
+// The measure, kept honest: a handler whose module the checker could not resolve reads as `any`, a handler that takes
+// or answers `any` or `unknown` as a whole shows no names, and a walk that stopped at the top would see a clean wire,
+// so each would read as names gone. These say so instead. A field
 // typed `unknown` below the top (a stored JSON column, an answer relayed from the edge) still hides the names under
 // it: decision 0022 lists them.
 test("the measure reads every handler in the registry, none hidden whole, and the names below each route's top level", async () => {
@@ -43,7 +39,7 @@ test("the measure reads every handler in the registry, none hidden whole, and th
   assert.deepEqual(
     Object.keys(shapes).filter((k) => shapes[k].hidden.length),
     [],
-    "no handler takes or answers `any` or `unknown` as a whole: its names would never reach the bank",
+    "no handler takes or answers `any` or `unknown` as a whole: its names would never reach the measure",
   );
   const names = new Set(Object.values(shapes).flatMap((io) => [...io.takes, ...io.answers]));
   assert.ok(

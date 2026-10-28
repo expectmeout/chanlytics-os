@@ -6,7 +6,6 @@
  * the tooltip, the toast, the switch, the segmented control and the field) are built on Base UI's parts, each imported
  * alone (the plan's decision 15 and step 2.5).
  */
-export { cx, variants } from "./variants";
 export { Button } from "./button/button";
 export type { ButtonProps } from "./button/button";
 export { Combobox } from "./combobox/combobox";
@@ -18,15 +17,15 @@ export type { DayRange, DayRangeHint, DayRangePickerProps } from "./datepicker/d
 export type { PressRefusal } from "./datepicker/range-press";
 export { Face } from "./face/face";
 export type { FaceProps } from "./face/face";
-export { Figure } from "./figure/figure";
-export type { FigureProps } from "./figure/figure";
 export { Field } from "./field/field";
 export type { FieldProps } from "./field/field";
+export { Figure } from "./figure/figure";
+export type { FigureProps } from "./figure/figure";
 export { LinkButton } from "./link-button/link-button";
 export type { LinkButtonProps } from "./link-button/link-button";
 export { ListRow } from "./list-row/list-row";
 export type { ListRowProps } from "./list-row/list-row";
-export { Menu, MenuTrigger, SharedMenu, menuHandle } from "./menu/menu";
+export { Menu, menuHandle, MenuTrigger, SharedMenu } from "./menu/menu";
 export type {
   MenuChoice,
   MenuGroup,
@@ -45,10 +44,10 @@ export { Picker } from "./picker/picker";
 export type { PickerGroup, PickerOption, PickerProps, PickerSearch } from "./picker/picker";
 export { Popover } from "./popover/popover";
 export type { PopoverProps } from "./popover/popover";
-export { Segmented } from "./segmented/segmented";
-export type { SegmentedOption, SegmentedProps } from "./segmented/segmented";
 export { Search } from "./search/search";
 export type { SearchProps } from "./search/search";
+export { Segmented } from "./segmented/segmented";
+export type { SegmentedOption, SegmentedProps } from "./segmented/segmented";
 export { Select } from "./select/select";
 export type { SelectOption, SelectProps } from "./select/select";
 export { Sheet } from "./sheet/sheet";
@@ -63,5 +62,6 @@ export { useToast } from "./toast/toast";
 export type { ToastFlash, ToastGlyphs } from "./toast/toast";
 export { Tooltip } from "./tooltip/tooltip";
 export type { TooltipProps } from "./tooltip/tooltip";
+export { cx, variants } from "./variants";
 export { ViewTabs } from "./view-tabs/view-tabs";
 export type { ViewTab, ViewTabsProps } from "./view-tabs/view-tabs";

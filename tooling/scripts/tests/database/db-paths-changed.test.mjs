@@ -25,13 +25,10 @@ test("a migration, a SQL suite, the checks' inputs or the lockfile could change 
     "tooling/scripts/tests/reports/metrics.integration.test.mjs",
     "tooling/scripts/tests/_second-factor.mjs",
     "packages/db/src/repositories/calls.ts",
-    "packages/db/dist/index.js",
     // What the suites run against the stack: core, jobs, the edge, the dashboard's server and routes. Each of these
     // skipped the replay on main while a suite loaded it (06ebd0a2f, 00e310ef5, 65b12330a).
     "packages/core/src/inbound/answer-inbound.ts",
-    "packages/core/dist/index.js",
     "packages/jobs/src/broadcast-send.ts",
-    "packages/jobs/dist/index.js",
     "apps/edge/api/cron/calls.ts",
     "apps/edge/lib/billing/billing.ts",
     "apps/edge/lib/reach-out/sender.ts",
@@ -64,8 +61,8 @@ test("a change that leaves the database alone does not start a stack", () => {
     ["apps/dashboard/src/x.tsx"],
     ["apps/dashboard/src/legacy/pages/inbox.jsx", "docs/system-map.md", ".github/workflows/ci.yml"],
     ["tooling/scripts/tests/tenancy.test.mjs"],
-    ["packages/contracts/src/calendar/calendar-words.ts", "packages/contracts/dist/index.js"],
-    ["packages/channels/src/lines/sms.ts", "packages/channels/dist/index.js"],
+    ["packages/contracts/src/calendar/calendar-words.ts"],
+    ["packages/channels/src/lines/sms.ts"],
   ]) {
     assert.equal(couldTheDatabaseHaveChanged(files), false, files.join(", ") || "no files");
   }

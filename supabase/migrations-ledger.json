@@ -491,6 +491,7 @@
     "00486_an_instagram_dm_is_a_message_the_business_answers.sql": "922c69b0a00e55c48d39164ffa673485473646d171f0b06bc479b17b813199e0",
     "00487_a_mailbox_signs_with_its_gmail_signature.sql": "17550a35a2ec9b63f85822b7dab9a4e3ece4684591133a7035d64aecfa048885",
     "00488_a_website_s_form_brings_its_person.sql": "2f0919010befd89d2b33827cf53fad8779fbdda73019c161ded7202e00ca1547",
-    "00489_a_website_s_signup_is_confirmed_by_its_person.sql": "6effc0f0689dc8fdb408a7fca1f4a9b2d7c21b39aa6569aa4083be6393a91ac5"
+    "00489_a_website_s_signup_is_confirmed_by_its_person.sql": "6effc0f0689dc8fdb408a7fca1f4a9b2d7c21b39aa6569aa4083be6393a91ac5",
+    "00490_a_business_s_look_is_read_from_its_site.sql": "a9c464c4101b3c4ad20eb3dadc51cee2919dcf54ab86eb724f46b3f7cf8432ac"
   }
 }

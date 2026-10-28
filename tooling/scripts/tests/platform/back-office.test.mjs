@@ -109,7 +109,7 @@ test("a backlog that could not be READ is never mistaken for a backlog of zero",
   assert.equal(platformHealthOf(null, null, now).ok, false);
   assert.equal(platformHealthOf([], 0, now).ok, true, "but no rows with a real zero backlog is genuinely quiet");
 });
-import { readCode, readRaw } from "../_source.mjs";
+import { importSrc, readCode, readRaw } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 import { setupDtoFor } from "../../../../apps/dashboard/src/server/workspace/setup.ts";
 import { platformWaitlist, platformWaitlistInvited } from "../../../../apps/dashboard/src/server/platform/platform.ts";
@@ -1037,7 +1037,7 @@ test("no cross-tenant action happens that nobody can be held to", () => {
   assert.ok(EVENT_KINDS.includes("platform.acted"), "the kind is in the closed set the rest of the product uses");
 });
 
-test("the back office is read on demand, not published to every browser", () => {
+test("the back office is read on demand, not published to every browser", async () => {
   // A surface would make every customer's browser fetch a page it will never be
   // allowed to see, on every boot, for two accounts' benefit.
   const bridge = readCode("apps/dashboard/src/legacy-bridge/platform.ts");
@@ -1052,12 +1052,12 @@ test("the back office is read on demand, not published to every browser", () => 
   // Classified as a real PANE of Settings -- without that line the shell's
   // honesty gate fell through to the page's "demo" and a platform admin who
   // clicked Back office got the Not-in-this-release card -- but never as a
-  // SURFACE of its own: it waits on the settings data every pane waits on, and
-  // nothing fetches the back office at boot.
-  const registry = readCode("apps/dashboard/src/legacy-bridge/surface-registry.ts");
-  assert.ok(registry.includes('"admin/platform": "real"'), "the pane is reachable");
-  assert.ok(registry.includes('"admin/platform": "settings"'), "and it waits on the settings surface");
-  assert.ok(!/:\s*"platform"/.test(registry), "no surface of its own, so no browser fetches it at boot");
+  // SURFACE of its own: it waits for who is looking alone, as every pane drawn from none of the settings read does
+  // since #1890, and nothing fetches the back office at boot.
+  const registry = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+  assert.equal(registry.SURFACE_STATES["admin/platform"], "real", "the pane is reachable");
+  assert.equal(registry.ROUTE_SURFACE["admin/platform"], "workspace", "and it waits for who is looking");
+  assert.ok(!JSON.stringify(registry).includes('"platform"'), "no surface of its own, so none is fetched at boot");
 });
 
 /* -------------------------------------------------------------------------- *

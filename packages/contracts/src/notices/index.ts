@@ -5,22 +5,22 @@
  * stopped working (the Business Profile's sync, the calendar's link) is told by the edge's sweeps (connection-news.ts).
  */
 export {
-  bookingArriving,
-  bookingChanged,
-  feedAdditionIsBooking,
-  visitChangeNews,
-  visitNews,
-  CATCH_UP_VISITS,
-  VISIT_CHANGES_TOLD,
-} from "./visit-news";
-export type { BookedVisit, BookingVia, VisitChange } from "./visit-news";
-export { memberJoinedBy, memberJoinedNotice, memberLeftBy, memberLeftNotice } from "./member-news";
-export type { MemberJoined } from "./member-news";
-export { holdNotice } from "./hold-notice";
-export {
-  GOOGLE_SYNC_TOLD_AFTER_MS,
-  GOOGLE_SYNC_NOTICE_WORDS,
   CALENDAR_UNREADABLE_TOLD_AFTER_MS,
   CALENDAR_UNREADABLE_WORDS,
+  GOOGLE_SYNC_NOTICE_WORDS,
+  GOOGLE_SYNC_TOLD_AFTER_MS,
 } from "./connection-news";
+export { holdNotice } from "./hold-notice";
 export type { HoldFacts } from "./hold-notice";
+export { memberJoinedBy, memberJoinedNotice, memberLeftBy, memberLeftNotice } from "./member-news";
+export type { MemberJoined } from "./member-news";
+export {
+  bookingArriving,
+  bookingChanged,
+  CATCH_UP_VISITS,
+  feedAdditionIsBooking,
+  VISIT_CHANGES_TOLD,
+  visitChangeNews,
+  visitNews,
+} from "./visit-news";
+export type { BookedVisit, BookingVia, VisitChange } from "./visit-news";

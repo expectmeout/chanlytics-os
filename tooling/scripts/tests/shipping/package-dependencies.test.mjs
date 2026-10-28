@@ -3,19 +3,20 @@
  *
  * The hoisted linker (`nodeLinker` in pnpm-workspace.yaml) puts every third-party module at the root, so an import a project never declared
  * resolves anyway and nothing fails until the layout changes: core and jobs imported `@supabase/supabase-js`, and
- * their builds carried `html-to-text` inline, for weeks without declaring either (the scorecard's I1:3). A package's
- * built dist is what the edge executes (docs/decisions/0024-how-the-packages-ship.md): it carries its own code alone,
- * reaches a sibling by that sibling's built file's relative path (step 2), keeps every third-party module an import,
- * and a Dependabot bump of one changes a manifest and the lockfile, never a committed dist.
+ * their builds carried `html-to-text` inline, for weeks without declaring either (the scorecard's I1:3). A package
+ * ships as its sources (decision 0074): its `exports` name them, and the projects that import it compile them. Its
+ * dist is the node suite's bundle (tooling/scripts/package-build.mjs), built before every run and never committed: it
+ * carries its own code alone, reaches a sibling by that sibling's bundle's relative path (decision 0024, step 2), and
+ * keeps every third-party module an import.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
 import ts from "typescript";
 import { ROOT } from "../_source.mjs";
 import { repoFiles, parse, importsOf, packageOf } from "../_ast.mjs";
+import { buildOptions, entriesOf } from "../../package-build.mjs";
 
 /** Every package: each folder of packages/ with a manifest, so one added later is held to these rules the day it lands. */
 const PACKAGES = fs
@@ -170,31 +171,73 @@ test("no package's dist inlines a third-party module", () => {
   assert.deepEqual(
     inlined,
     [],
-    "a third-party module stays an import (skipNodeModulesBundle in the package's tsup.config.ts)",
+    "a third-party module stays an import (third-party-external in tooling/scripts/package-build.mjs)",
   );
 });
 
-test("each package's build keeps third-party code external and hands its siblings to siblingsByPath", async () => {
-  // A package's config is one build or several (contracts builds its entries apart): each is held.
-  const builds = [];
+test("each package's bundle keeps third-party code external and hands its siblings to siblingsByPath", async () => {
   for (const p of PACKAGES) {
-    const { default: config } = await import(pathToFileURL(path.join(ROOT, `packages/${p}/tsup.config.ts`)).href);
-    for (const one of [config].flat()) builds.push([p, one]);
+    const options = buildOptions(p);
+    const plugins = options.plugins.map((pl) => pl.name);
+    assert.deepEqual(plugins, ["siblings-by-path", "third-party-external"], p);
+    assert.equal(options.bundle && !options.splitting, true, `${p}: each entry whole, sharing no chunk`);
   }
-  for (const [p, config] of builds) {
-    assert.equal(config.skipNodeModulesBundle, true, `${p}: every bare import but @chanlytics/* stays external`);
-    if (p === "contracts") continue;
-    // Every package but contracts imports a sibling: the plugin answers for it with its built file's relative path,
-    // and noExternal is what stops tsup naming a declared sibling external before the plugin is asked.
-    assert.ok(
-      (config.esbuildPlugins ?? []).some((pl) => pl.name === "siblings-by-path"),
-      `${p}: siblingsByPath (tooling/scripts/package-siblings.mjs)`,
-    );
-    for (const re of config.noExternal ?? []) {
-      assert.ok(re instanceof RegExp && re.test("@chanlytics/contracts"), `${p}: noExternal names the siblings`);
-      assert.ok(!re.test("html-to-text") && !re.test("@supabase/supabase-js"), `${p}: noExternal names nothing else`);
+  const external = buildOptions("core").plugins.find((pl) => pl.name === "third-party-external");
+  const asked = [];
+  external.setup({ onResolve: (_, fn) => asked.push(fn) });
+  const [resolve] = asked;
+  assert.deepEqual(resolve({ path: "html-to-text" }), { path: "html-to-text", external: true });
+  assert.deepEqual(resolve({ path: "@supabase/supabase-js" }), { path: "@supabase/supabase-js", external: true });
+  assert.equal(resolve({ path: "@chanlytics/contracts" }), undefined, "a sibling is siblingsByPath's to answer");
+  assert.equal(resolve({ path: "node:crypto" }), undefined, "a builtin is the platform's");
+});
+
+test("each package ships its sources: every export names a module under src/, and the suite's bundle beside it", () => {
+  const wrong = [];
+  for (const p of PACKAGES) {
+    const m = manifest(`packages/${p}`);
+    assert.equal(m.main ?? m.types, undefined, `${p}: no main or types beside its exports`);
+    for (const [subpath, target] of Object.entries(m.exports)) {
+      const targets = typeof target === "string" ? { default: target } : target;
+      for (const [condition, file] of Object.entries(targets)) {
+        const ok = condition === "bundled" ? /^\.\/dist\/[a-z-]+\.js$/.test(file) : /^\.\/src\/.+\.ts$/.test(file);
+        if (!ok || (condition !== "bundled" && !fs.existsSync(path.join(ROOT, "packages", p, file))))
+          wrong.push(`${p} ${subpath} ${condition}: ${file}`);
+      }
+      if (typeof target === "object" && target.bundled && Object.keys(target).indexOf("bundled") !== 1)
+        wrong.push(`${p} ${subpath}: the bundled condition comes right after types, before any a bundler matches`);
     }
+    assert.ok(Object.keys(entriesOf(p)).includes("dist/index.js"), `${p}: the suite's bundle of its index`);
   }
+  assert.deepEqual(wrong, []);
+  // The edge runtime matches `browser` too, and the browser's entry lacks the server's names: `edge-light` is read first.
+  const root = manifest("packages/contracts").exports["."];
+  const order = Object.keys(root);
+  assert.ok(order.indexOf("edge-light") < order.indexOf("browser"), "contracts: edge-light before browser");
+});
+
+test("each package is a project of its own that references exactly the siblings it imports, and each app all five", () => {
+  const wrong = [];
+  const refs = (dir) =>
+    (ts.readConfigFile(path.join(ROOT, dir, "tsconfig.json"), ts.sys.readFile).config.references ?? [])
+      .map((r) => path.posix.normalize(path.posix.join(dir, r.path)))
+      .sort();
+  for (const p of PACKAGES) {
+    const options = ts.readConfigFile(path.join(ROOT, "packages", p, "tsconfig.json"), ts.sys.readFile).config
+      .compilerOptions;
+    if (!options.composite || !options.emitDeclarationOnly || options.outDir !== ".types")
+      wrong.push(`packages/${p}: composite, declarations only, into .types`);
+    const siblings = Object.keys(manifest(`packages/${p}`).dependencies ?? {})
+      .filter((d) => d.startsWith("@chanlytics/"))
+      .map((d) => `packages/${d.split("/")[1]}`)
+      .sort();
+    if (JSON.stringify(refs(`packages/${p}`)) !== JSON.stringify(siblings))
+      wrong.push(`packages/${p}: references ${refs(`packages/${p}`)}, imports ${siblings}`);
+  }
+  const all = PACKAGES.map((p) => `packages/${p}`).sort();
+  for (const app of ["apps/edge", "apps/dashboard"])
+    if (JSON.stringify(refs(app)) !== JSON.stringify(all)) wrong.push(`${app}: references ${refs(app)}`);
+  assert.deepEqual(wrong, []);
 });
 
 test("a third-party module has one range in every package and server app that declares it", () => {

@@ -1,5 +1,20 @@
 /** Ads: an owner's own ad accounts and the ads they run (Campaigns › Ads), and the models and words their page draws. */
-export { MINOR_PER_UNIT, aboutADayAfter, addDays, adWith, daysBetween, patchRestarts, sameArea } from "./ads";
+export {
+  adRoute,
+  ADS_ROUTE,
+  ADS_SCOPE_ALL,
+  ADS_WORDS,
+  adsPreviewOf,
+  adsResultsRoute,
+  adsScopeKey,
+  adsScopeOfKey,
+  isAdsParam,
+  newAdFromRoute,
+  newAdRoute,
+  parseAds,
+} from "./address";
+export type { AdsAddress, AdsScope, AdStart } from "./address";
+export { aboutADayAfter, addDays, adWith, daysBetween, MINOR_PER_UNIT, patchRestarts, sameArea } from "./ads";
 export type {
   AdAccountRead,
   AdAccountStatus,
@@ -12,33 +27,90 @@ export type {
   AdDoor,
   AdMedia,
   AdNeeds,
-  AdPatch,
   AdNeedsCode,
+  AdPatch,
   AdPersonRead,
   AdPlatform,
   AdRead,
   AdSchedule,
+  AdsConfig,
   AdShownAs,
+  AdsRead,
   AdState,
   AdTheirs,
-  AdsConfig,
-  AdsRead,
 } from "./ads";
+export { adModel } from "./drawer";
+export type { AdDrawerVM, CalloutActId, CalloutVM, FootAct, ReachVM } from "./drawer";
+export { areaOfValue, areaValueOf, editFootOf, editOf, raiseOf, zipIssue } from "./drawer-edit";
+export type { AmountOption, AreaOption, EditFootVM, EditVM, EndOption, OwnAmount } from "./drawer-edit";
+export { adBarsOf, adPeopleOf, adPreviewOf, quietOf, resultsOf } from "./drawer-parts";
+export type {
+  AdPersonRowVM,
+  BarsVM,
+  DayVM,
+  JudgeVM,
+  PeopleVM,
+  PreviewVM,
+  QuietVM,
+  ResultsVM,
+  TheirsRowVM,
+  TheirsVM,
+  ThreadVM,
+  TypedVM,
+} from "./drawer-parts";
 export {
-  ADS_ROUTE,
-  ADS_SCOPE_ALL,
-  ADS_WORDS,
-  adRoute,
-  adsPreviewOf,
-  adsResultsRoute,
-  adsScopeKey,
-  adsScopeOfKey,
-  isAdsParam,
-  newAdFromRoute,
-  newAdRoute,
-  parseAds,
-} from "./address";
-export type { AdStart, AdsAddress, AdsScope } from "./address";
+  ADS_DEFAULT_CURRENCY,
+  currencySymbol,
+  leftOfMoney,
+  minorOfUnits,
+  moneyOf,
+  perDayOf,
+  sumMoney,
+  sumsOf,
+} from "./money";
+export type { MoneyItem } from "./money";
+export { draftAd, newAdDefaults, newAdFrom, newAdModel, newestPostFor, starterCopy } from "./new-ad";
+export type { AdDraft, NewAdVM, PresetVM } from "./new-ad";
+export { adFollowOn } from "./new-ad-parts";
+export type { CheckRowVM } from "./new-ad-parts";
+export { adsModel, earlierCost } from "./page";
+export type {
+  AdRowVM,
+  AdsGroupBy,
+  AdsVM,
+  AskApply,
+  AskVM,
+  CountedVM,
+  FailedVM,
+  GroupByVM,
+  GroupGlyph,
+  GroupVM,
+  HeadVM,
+} from "./page";
+export { eachInTouch, noAdsOf, pageTotals, phoneOf, tilesOf, v0Of } from "./page-parts";
+export type {
+  AdWaitingRowVM,
+  BlockedVM,
+  ChooseVM,
+  ComingRowVM,
+  NoAdsVM,
+  PageTotals,
+  PhoneVM,
+  TilesVM,
+  V0VM,
+} from "./page-parts";
+export { adsFactOf, adsResultsOf } from "./results/results";
+export type {
+  AdsResultsVM,
+  ResultsAt,
+  ResultsDaysVM,
+  ResultsDayVM,
+  ResultsRowVM,
+  ResultsScopeVM,
+  ResultsStepVM,
+  ResultsTheirsVM,
+} from "./results/results";
+export { RESULTS } from "./results/words-results";
 export {
   ADS_ASK_MIN,
   ADS_ASK_MIN_CALLS,
@@ -64,89 +136,26 @@ export {
   ADS_WINDOW_DAYS,
   ADS_ZIP_DIGITS,
   BUDGET_RULES,
+  countedDoor,
   DOOR_NEEDS,
   SCHEDULE_NEEDS_TOTAL,
   STANDING_CHECKS,
   TOO_EARLY_DAYS,
-  countedDoor,
 } from "./rules";
 export type { BudgetRule } from "./rules";
 export {
-  ADS_DEFAULT_CURRENCY,
-  currencySymbol,
-  leftOfMoney,
-  minorOfUnits,
-  moneyOf,
-  perDayOf,
-  sumMoney,
-  sumsOf,
-} from "./money";
-export type { MoneyItem } from "./money";
-export {
-  ADS_DOORS,
-  ADS_EXAMPLES,
-  DOOR,
-  DOOR_ORDER,
-  EXAMPLE,
-  GATE,
-  PLATFORM_OWNER,
-  PLATFORM_SURFACE,
-  PLATFORM_WORD,
-  REACH_NOTE,
-  REFUSED,
-  REVIEW_WITHIN,
-  SENTENCE,
-  SETTINGS_DOOR,
-  STATE,
-  STATE_WORD,
-  adPersonInitials,
-  allWord,
-  checkFix,
-  checkWords,
-  dayLines,
-  dayShort,
-  dayWord,
-  daysWord,
-  peopleWord,
-} from "./words";
-export type { AdsExample, Glyph } from "./words";
-export {
-  ASK,
-  CHOOSE,
-  COUNTED,
-  FIGURES,
-  GROUP,
-  HEAD,
-  LEDGER,
-  NO_ADS,
-  PHONE,
-  ADS_READ,
-  STANDING,
-  TILES,
-  V0,
-  askWhy,
-  figureWords,
-  groupMeta,
-  platformMeta,
-} from "./words-page";
-export type { CountCtx } from "./words-page";
-export { CHANGED, CHIPS, DRAWER, EDIT, LIST, NO_AD, PEOPLE_TAB, PREVIEW, SHOWN, ZIPS } from "./words-drawer";
-export type { ReachSaid } from "./words-drawer";
-export { BOOK_ONLINE, CHECKS, NEW_AD, ratingLine } from "./words-new";
-export { CONNECT, connectModel } from "./words-connect";
-export type { ConnectChoiceVM, ConnectRowVM, ReadyRowVM } from "./words-connect";
-export {
-  DASH,
-  PLATFORMS,
+  accountRows,
   adAccountOf,
   adPersonWho,
   adQuotes,
+  adServiceOf,
   adStateOf,
   areaWord,
   checkOk,
   costEach,
   countCtx,
   counted,
+  DASH,
   dayOfIso,
   doorNeeds,
   endsWhenOf,
@@ -156,13 +165,12 @@ export {
   leadOf,
   leftOfAd,
   needsSecond,
-  accountRows,
+  PLATFORMS,
   platformsFor,
   quotesPrice,
   reachNoteOf,
   readTime,
   sentenceParts,
-  adServiceOf,
   settling,
   smallestPreset,
   started,
@@ -180,69 +188,61 @@ export type {
   FigureVM,
   SentenceInput,
   SentencePart,
-  StandRowVM,
   StandingVM,
+  StandRowVM,
   StateVM,
   Totals,
 } from "./vm-base";
-export { adsModel, earlierCost } from "./page";
-export type {
-  AdRowVM,
-  AdsGroupBy,
-  AdsVM,
-  AskApply,
-  AskVM,
-  CountedVM,
-  FailedVM,
-  GroupByVM,
-  GroupGlyph,
-  GroupVM,
-  HeadVM,
-} from "./page";
-export { eachInTouch, noAdsOf, pageTotals, phoneOf, tilesOf, v0Of } from "./page-parts";
-export type {
-  BlockedVM,
-  ChooseVM,
-  ComingRowVM,
-  NoAdsVM,
-  PageTotals,
-  PhoneVM,
-  TilesVM,
-  V0VM,
-  AdWaitingRowVM,
-} from "./page-parts";
-export { adModel } from "./drawer";
-export type { AdDrawerVM, CalloutActId, CalloutVM, FootAct, ReachVM } from "./drawer";
-export { adBarsOf, adPeopleOf, adPreviewOf, quietOf, resultsOf } from "./drawer-parts";
-export type {
-  BarsVM,
-  DayVM,
-  JudgeVM,
-  PeopleVM,
-  AdPersonRowVM,
-  PreviewVM,
-  QuietVM,
-  ResultsVM,
-  TheirsRowVM,
-  TheirsVM,
-  ThreadVM,
-  TypedVM,
-} from "./drawer-parts";
-export { areaOfValue, areaValueOf, editFootOf, editOf, raiseOf, zipIssue } from "./drawer-edit";
-export type { AmountOption, AreaOption, EditFootVM, EditVM, EndOption, OwnAmount } from "./drawer-edit";
-export { draftAd, newAdDefaults, newAdFrom, newAdModel, newestPostFor, starterCopy } from "./new-ad";
-export type { AdDraft, NewAdVM, PresetVM } from "./new-ad";
-export { adFollowOn } from "./new-ad-parts";
-export type { CheckRowVM } from "./new-ad-parts";
-export { adsFactOf, adsResultsOf } from "./results/results";
-export type {
-  AdsResultsVM,
-  ResultsAt,
-  ResultsDayVM,
-  ResultsDaysVM,
-  ResultsRowVM,
-  ResultsScopeVM,
-  ResultsStepVM,
-  ResultsTheirsVM,
-} from "./results/results";
-export { RESULTS } from "./results/words-results";
+export {
+  adPersonInitials,
+  ADS_DOORS,
+  ADS_EXAMPLES,
+  allWord,
+  checkFix,
+  checkWords,
+  dayLines,
+  dayShort,
+  daysWord,
+  dayWord,
+  DOOR,
+  DOOR_ORDER,
+  EXAMPLE,
+  GATE,
+  peopleWord,
+  PLATFORM_OWNER,
+  PLATFORM_SURFACE,
+  PLATFORM_WORD,
+  REACH_NOTE,
+  REFUSED,
+  REVIEW_WITHIN,
+  SENTENCE,
+  SETTINGS_DOOR,
+  STATE,
+  STATE_WORD,
+} from "./words";
+export type { AdsExample, Glyph } from "./words";
+export { CONNECT, connectModel } from "./words-connect";
+export type { ConnectChoiceVM, ConnectRowVM, ReadyRowVM } from "./words-connect";
+export { CHANGED, CHIPS, DRAWER, EDIT, LIST, NO_AD, PEOPLE_TAB, PREVIEW, SHOWN, ZIPS } from "./words-drawer";
+export type { ReachSaid } from "./words-drawer";
+export { BOOK_ONLINE, CHECKS, NEW_AD, ratingLine } from "./words-new";
+export {
+  ADS_READ,
+  ASK,
+  askWhy,
+  CHOOSE,
+  COUNTED,
+  FIGURES,
+  figureWords,
+  GROUP,
+  groupMeta,
+  HEAD,
+  LEDGER,
+  NO_ADS,
+  PHONE,
+  platformMeta,
+  STANDING,
+  TILES,
+  V0,
+} from "./words-page";
+export type { CountCtx } from "./words-page";

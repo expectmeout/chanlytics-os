@@ -23,7 +23,7 @@
 
    The house's primitives came here from components.css and record.css in step 2.1: whole rules, with their comments,
    in the order they stood, so nothing a member sees changed. They still write some values as numbers
-   (baselines/style-values.json counts them), which fall as the kit takes its roles. What of theirs stayed behind says
+   (the style-values measure counts them), which fall as the kit takes its roles. What of theirs stayed behind says
    why where it stands: a width this sheet does not take yet (the record kit's 760px phone, 761px desk and 1140px
    toast, the tab strip's 720px), a rule that names a page's class or the shell's (html.legacy-on), and a busy Save's
    pointer and the record kit's reduced motion, which must still come after a rule of those sheets. */
