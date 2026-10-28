@@ -7596,6 +7596,22 @@ async function heldDraftsByIntent(db, tenantId, days) {
   }));
 }
 
+// src/repositories/facts/person-note-suggestions.ts
+async function suggestPersonNote(db, p) {
+  const { data, error } = await db.rpc("person_note_suggest", {
+    p_tenant_id: p.tenantId,
+    p_contact_id: p.contactId,
+    p_body: p.body,
+    p_source: p.source,
+    ...p.sourceId ? { p_source_id: p.sourceId } : {}
+  });
+  if (error) throw new Error(`person_note_suggest: ${error.message}`);
+  const o = data ?? {};
+  if (typeof o.error === "string") return { refused: o.error };
+  if (typeof o.note?.id !== "string") throw new Error("person_note_suggest answered without a note");
+  return { noteId: o.note.id };
+}
+
 // src/repositories/facts/rehearsals.ts
 var ROLES = /* @__PURE__ */ new Set(["agent", "user", "tool"]);
 var REHEARSAL_COLUMNS = "id, tenant_id, kind, retell_call_id, call_id, agent_id, config_version, instructions, transcript, started_at, ended_at, seconds, end_reason, review, reviewed_at, fixes, created_by, created_at";
@@ -8678,6 +8694,7 @@ export {
   subscribeWorkspaceChanges,
   subscriptionPaused,
   suggestFact,
+  suggestPersonNote,
   supportMarks,
   supportPeople,
   suppressEmailOf,

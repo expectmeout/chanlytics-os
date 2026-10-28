@@ -23,7 +23,7 @@ export interface PersonNoteDto {
   team_only: boolean;
   /** The receptionist's own note waits for a member to keep it or dismiss it. */
   state: "kept" | "suggested";
-  source: "page" | "bulk" | "moved" | "call" | "thread" | "reach_out";
+  source: "page" | "bulk" | "moved" | "call" | "thread" | "reach_out" | "website";
   version: number;
   created_at: string;
   updated_at: string;
@@ -173,6 +173,8 @@ const NOTE_FROM: Record<PersonNoteDto["source"], string | null> = {
   thread: "After a conversation",
   // A step a reach-out's reply made (Reach out Part 5, 00220 person_step_from_playbook): the words say which.
   reach_out: "From a sequence to leads",
+  // What someone asked on a form on the business's website (00488): their words, kept only once a member keeps them.
+  website: "From your website",
 };
 
 /**

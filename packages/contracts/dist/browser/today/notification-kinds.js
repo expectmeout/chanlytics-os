@@ -36,7 +36,9 @@ const NOTIFICATION_DELIVERY = {
   // A reply counting down to go in the owner's name (decision 0064): the bell and the phone, never a mail for a wait of minutes.
   reply_held: "bell",
   // Ask's morning cards on Today (00470): a line on the member's own bell, no more.
-  ask_cards: "bell"
+  ask_cards: "bell",
+  // Someone used a form on the business's website (00488): mailed as the business chooses, and the phone told.
+  website_form: "email"
 };
 export const EMAILED_NOTIFICATION_KINDS = Object.keys(NOTIFICATION_DELIVERY).filter((k) => NOTIFICATION_DELIVERY[k] === "email");
 export function emailsNotificationKind(kind) {
@@ -113,6 +115,15 @@ export const ALERT_TOPICS = [
     email: "choice",
     phone: true,
     kinds: ["reach_out_replied"]
+  },
+  {
+    key: "website_form",
+    group: "worth_knowing",
+    title: "Someone used a form on your website",
+    what: "A sign-up for your offers, or a request: who sent it and what they asked. They are added to People, and what they asked waits on their page as a note to keep.",
+    email: "choice",
+    phone: true,
+    kinds: ["website_form"]
   },
   {
     key: "opted_out",

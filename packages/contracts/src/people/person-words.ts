@@ -38,12 +38,12 @@ export const PERSON_CHANNEL_WORDS: Record<PersonChannel, string> = {
 /**
  * Where a person first came from, as people_list decides it once (00138): the
  * door that added them (calendar, lead, a client list's import since 00170,
- * manual), an imported history (import), else their first call (call) or the
+ * a form on the business's own website since 00488, manual), an imported history (import), else their first call (call) or the
  * wire of their first message (whatsapp, sms, email, instagram), or an ad they tapped or answered (ad, 11 Oct 2026: any
  * paid ad, whichever platform). People's "Came from" column says it in these words; a stored value is never shown.
  */
 export type PersonCameFrom =
-  "whatsapp" | "sms" | "email" | "instagram" | "call" | "calendar" | "manual" | "import" | "lead" | "ad";
+  "whatsapp" | "sms" | "email" | "instagram" | "call" | "calendar" | "manual" | "import" | "lead" | "ad" | "website";
 
 /** The words for each, once: the four wires say what a reply on them says (REPLY_VIA), and a call says what its glyph says (PERSON_CHANNEL_WORDS.voice). */
 export const PERSON_CAME_FROM_WORDS: Record<PersonCameFrom, string> = {
@@ -57,6 +57,7 @@ export const PERSON_CAME_FROM_WORDS: Record<PersonCameFrom, string> = {
   import: "Imported",
   lead: "A lead you found",
   ad: "An ad",
+  website: "Your website",
 };
 
 /**

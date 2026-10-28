@@ -74,7 +74,8 @@ export const SCHEMA_SETS = {
     "calendar",
     "import",
     "lead",
-    "manual"
+    "manual",
+    "website"
   ],
   "contacts.consent": ["unknown", "opted_in", "opted_out"],
   "contacts.email_marketing": ["unknown", "opted_in", "opted_out"],
@@ -360,7 +361,8 @@ export const SCHEMA_SETS = {
     "member_left",
     "note_to_keep",
     "reply_held",
-    "ask_cards"
+    "ask_cards",
+    "website_form"
   ],
   "page_vitals.device": ["desk", "phone"],
   "page_vitals.metric": ["LCP", "INP", "CLS", "FCP", "TTFB", "READY", "SETTLED"],
@@ -373,7 +375,7 @@ export const SCHEMA_SETS = {
   "person_doubts.seen": ["name", "phone", "email"],
   "person_doubts.settled_as": ["merged", "not_the_same"],
   "person_notes.author_kind": ["member", "receptionist"],
-  "person_notes.source": ["page", "bulk", "moved", "call", "thread", "reach_out"],
+  "person_notes.source": ["page", "bulk", "moved", "call", "thread", "reach_out", "website"],
   "person_notes.state": ["kept", "suggested"],
   "platform_acts.actor_role": ["owner", "support", "billing"],
   "platform_acts.outcome": ["running", "done", "refused", "failed"],

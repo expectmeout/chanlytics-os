@@ -165,6 +165,7 @@ export const ORIGIN_WORDS = {
   manual: (day) => `Added by hand \xB7 ${day}`,
   import: (day) => `Imported \xB7 ${day}`,
   ad: (day) => `From an ad \xB7 ${day}`,
+  website: (day) => `From your website \xB7 ${day}`,
   lead: (day) => `Found by your lead search \xB7 ${day}`,
   ownList: (day) => `From your own list \xB7 ${day}`,
   weWroteFirst: (day) => `we wrote first ${day}`,
