@@ -419,6 +419,42 @@ export function mailboxGmailSignsWords(m: Pick<MailboxConnectionDto, "provider" 
     : { words: m.from_name, read: `Gmail has none for this address, so its emails end with its name. ${read}` };
 }
 
+/**
+ * The Email card and its sheet (Settings › Connections, the mailbox canvas of 27 Oct 2026): facts in place of
+ * sentences on the card, and the sheet's groups. What a fact says is the imports ledger's or the mailbox's own.
+ */
+export const MAILBOX_CARD_WORDS = {
+  inbox: "Inbox",
+  contacts: "Contacts",
+  sends: "Sends",
+  signsAs: "Signs as",
+  sendsUpTo: (n: number) => `Up to ${n} a day`,
+  noSignature: "No signature",
+  add: "Add a mailbox",
+  sending: "Sending",
+  sendingOn: (address: string) => `Replies, first emails and sequence steps leave from ${address}.`,
+  sendingOff: (address: string) => `Paused: nothing leaves from ${address}. What people write still comes in.`,
+  signature: "Signature",
+  preview: "How it ends their email",
+  previewEnd: "…\n\nTalk soon.",
+  previewNone: "Nothing under it, not even its name.",
+  previewWrite: "Write it above: it goes here.",
+  backup: "Backup address",
+  backupSays: (hosted: string, address: string) => `${hosted}: replies leave from it when ${address} can't send.`,
+  changeName: "Change the name",
+  removeSays: "Its threads stay. Nothing more leaves from it.",
+  remove: (address: string) => `Remove ${address}…`,
+} as const;
+
+/** What the card says a mailbox signs as: the first line of what it signs with, or that nothing goes. */
+export function mailboxSignsAsWords(m: Pick<MailboxConnectionDto, "signs">): string {
+  const first = (m.signs.words ?? "")
+    .split("\n")
+    .map((l) => l.trim())
+    .find(Boolean);
+  return first ?? MAILBOX_CARD_WORDS.noSignature;
+}
+
 /** "Read at 9:47 AM", or, past a late read, "Not read since Mon 9:47 PM"; "Not read yet" before the first. */
 function mailboxReadWords(syncedAt: string | null, nowMs: number): string {
   if (!syncedAt) return "Not read yet";

@@ -14,7 +14,6 @@ export const NEED_YOU_WORDS = {
   edit: "Edit",
   editDraft: (who) => `Ask's draft to ${who}. Press to change it.`,
   /** The signature an email reply leaves with (00487), under the draft: what is sent is what is seen. */
-  signedWith: (line) => `Signed: ${line}`,
   changeSignature: "Change",
   changeSignatureTip: "Change what this mailbox signs with, in Settings \u203A Connections",
   yourWords: (who) => `Your words to ${who}`,

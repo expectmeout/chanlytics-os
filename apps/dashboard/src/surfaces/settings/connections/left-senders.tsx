@@ -60,6 +60,7 @@ export function LeftSenders({
   flash,
   today,
   open = false,
+  lead = true,
 }: {
   owner: boolean;
   flash: (f: LegacyFlash) => void;
@@ -67,6 +68,8 @@ export function LeftSenders({
   today: number | null;
   /** Its own address was opened: the list read at once and brought into view. */
   open?: boolean;
+  /** Its sentence before Show is pressed: the Email card's foot says its count alone (the mailbox canvas). */
+  lead?: boolean;
 }) {
   const [list, setList] = useState<MailboxSendersDto | null>(null);
   const title = today === null ? W.title : `${W.title} · ${W.today(today)}`;
@@ -102,7 +105,7 @@ export function LeftSenders({
     return senderRow({
       key: "left",
       says: title,
-      sub: W.lead,
+      sub: lead ? W.lead : "",
       acts: (
         <LinkButton onClick={() => void load()} data-testid="mailbox-left-show">
           {W.show}

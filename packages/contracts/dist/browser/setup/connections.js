@@ -469,13 +469,20 @@ const BROUGHT_BY = {
   mailbox: ["mailbox", "contacts"],
   whatsapp: ["whatsapp_contacts", "whatsapp_history"]
 };
+function foldEmail(rows, i) {
+  if (!i.email?.sending?.mailboxes.length) return rows;
+  const hosted = rows.find((r) => r.kind === "email");
+  if (hosted?.state === "attention") return rows;
+  return rows.filter((r) => r.kind !== "email").map((r) => r.kind === "mailbox" ? { ...r, title: "Email", icon: "mail" } : r);
+}
 export function connectionRows(i, nowMs = Date.now()) {
   const facts = connectionFactsOf(i, nowMs);
-  return ROW_BUILDERS.map((build) => {
+  const rows = ROW_BUILDERS.map((build) => {
     const r = row(build(i, facts));
     const brought = importNotesOf(BROUGHT_BY[r.kind], i.imports);
     return brought.length ? { ...r, notes: [...r.notes, ...brought] } : r;
   }).sort((a, b) => ORDER[a.kind] - ORDER[b.kind]);
+  return foldEmail(rows, i);
 }
 export const CONNECTION_GROUP_WORDS = {
   connected: {

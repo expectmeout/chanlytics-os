@@ -748,14 +748,29 @@ const BROUGHT_BY: Readonly<Partial<Record<ConnectionKind, readonly ImportSource[
   whatsapp: ["whatsapp_contacts", "whatsapp_history"],
 };
 
+/**
+ * One row for email (the mailbox canvas, 27 Oct 2026): with a mailbox connected, the hosted address is its backup, said
+ * in the mailbox's sheet, so the Email row folds into the mailbox's, which takes its name. A hosted address that could
+ * not take an email in keeps its own row, to say so.
+ */
+function foldEmail(rows: ConnectionRow[], i: ConnectionInputs): ConnectionRow[] {
+  if (!i.email?.sending?.mailboxes.length) return rows;
+  const hosted = rows.find((r) => r.kind === "email");
+  if (hosted?.state === "attention") return rows;
+  return rows
+    .filter((r) => r.kind !== "email")
+    .map((r) => (r.kind === "mailbox" ? { ...r, title: "Email", icon: "mail" } : r));
+}
+
 /** The fold over ROW_BUILDERS: every connection's row, drawn from one set of facts, in the page's order. */
 export function connectionRows(i: ConnectionInputs, nowMs = Date.now()): ConnectionRow[] {
   const facts = connectionFactsOf(i, nowMs);
-  return ROW_BUILDERS.map((build) => {
+  const rows = ROW_BUILDERS.map((build) => {
     const r = row(build(i, facts));
     const brought = importNotesOf(BROUGHT_BY[r.kind], i.imports);
     return brought.length ? { ...r, notes: [...r.notes, ...brought] } : r;
   }).sort((a, b) => ORDER[a.kind] - ORDER[b.kind]);
+  return foldEmail(rows, i);
 }
 
 export const CONNECTION_GROUP_WORDS: Record<

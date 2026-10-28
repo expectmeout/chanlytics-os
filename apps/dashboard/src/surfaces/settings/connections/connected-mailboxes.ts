@@ -10,6 +10,7 @@
  * this page with one word (`?mailbox=`), read once.
  */
 import {
+  MAILBOX_CARD_WORDS,
   MAILBOX_CONNECTIONS_MAX,
   MAILBOX_DAILY_CAP_MAX,
   MAILBOX_PROVIDER_WORDS,
@@ -22,7 +23,9 @@ import {
   mailboxRecordRows,
   mailboxRowWords,
   mailboxSendingLines,
+  mailboxSignsAsWords,
   mailboxSignsChoiceOf,
+  mailboxSignsOf,
   mailboxesFootWords,
   type MailboxProvider,
 } from "@chanlytics/contracts";
@@ -56,12 +59,17 @@ interface ConnectedMailboxesApi {
   outcome(): { ok: boolean; words: string; code: string | null } | null;
   row: typeof mailboxRowWords;
   sending: typeof mailboxSendingLines;
-  /** What it signs with (00487): the choice it stands on, what the Gmail choice says, and Settings' words. */
+  /** What it signs with (00487): the choice it stands on, what the Gmail choice says, the rule the send reads (the
+   * sheet's preview), what the card says it signs as, and Settings' words. */
   signs: {
     choiceOf: typeof mailboxSignsChoiceOf;
+    of: typeof mailboxSignsOf;
+    as: typeof mailboxSignsAsWords;
     gmail: typeof mailboxGmailSignsWords;
     words: typeof MAILBOX_SIGNATURE_WORDS;
   };
+  /** The Email card's and its sheet's words (the mailbox canvas, 27 Oct 2026). */
+  card: typeof MAILBOX_CARD_WORDS;
   acts: typeof mailboxActs;
   records: typeof mailboxRecordRows;
   foot: typeof mailboxesFootWords;
@@ -107,7 +115,14 @@ export const connectedMailboxes: ConnectedMailboxesApi = {
     }
   },
   row: mailboxRowWords,
-  signs: { choiceOf: mailboxSignsChoiceOf, gmail: mailboxGmailSignsWords, words: MAILBOX_SIGNATURE_WORDS },
+  signs: {
+    choiceOf: mailboxSignsChoiceOf,
+    of: mailboxSignsOf,
+    as: mailboxSignsAsWords,
+    gmail: mailboxGmailSignsWords,
+    words: MAILBOX_SIGNATURE_WORDS,
+  },
+  card: MAILBOX_CARD_WORDS,
   sending: mailboxSendingLines,
   acts: mailboxActs,
   records: mailboxRecordRows,

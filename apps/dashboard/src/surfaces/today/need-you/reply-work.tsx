@@ -5,13 +5,7 @@
  * until a time on the business's clock, and their next message brings it back sooner (00005); Wake undoes it.
  */
 import { useMemo, useState, type ReactNode } from "react";
-import {
-  NEED_YOU_WORDS as W,
-  THREAD_CHANNEL_WORDS,
-  emailSignatureLine,
-  notNowChoices,
-  type TodayQueueRowVM,
-} from "@chanlytics/contracts";
+import { NEED_YOU_WORDS as W, THREAD_CHANNEL_WORDS, notNowChoices, type TodayQueueRowVM } from "@chanlytics/contracts";
 import { commitVerb, undoVerb } from "@/legacy-bridge/verbs/commit";
 import { carryReply } from "../../inbox/carried-reply";
 import { Button } from "../../kit";
@@ -246,10 +240,18 @@ export function ReplyWork(p: WorkProps & { by?: string; start?: ReactNode }) {
   );
 }
 
-/** The signature an email reply from this draft leaves with, in one line, where the drafts read said one (00487). */
+/**
+ * The signature an email reply from this draft leaves with, its lines as the email carries them, where the drafts read
+ * said one (00487): drawn under the draft, as the mailbox's sheet previews it (the mailbox canvas, 27 Oct 2026).
+ */
 function signedLineOf(draft: ReturnType<typeof useDraft>): string | null {
   const signed = draft?.state === "ready" ? draft.draft.signed : undefined;
-  return signed ? emailSignatureLine(signed) : null;
+  const lines = (signed ?? "")
+    .split("\n")
+    .map((l) => l.trimEnd())
+    .join("\n")
+    .trim();
+  return lines || null;
 }
 
 /** What stands where a reply's words go: the member's editor, the prepared words, or what Ask is doing about them. */
