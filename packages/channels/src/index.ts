@@ -493,6 +493,8 @@ export {
   agentSettingsDrift,
   availabilityUrl,
   CALL_ANALYSIS_FIELDS,
+  CALL_FEEL,
+  CALL_HANDBOOK,
   CALLER_UNKNOWN,
   desiredVoiceShell,
   FACTS_UNAVAILABLE,
