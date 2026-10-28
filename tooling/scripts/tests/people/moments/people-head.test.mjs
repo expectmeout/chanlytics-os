@@ -101,6 +101,33 @@ test("a person's page is its own head: People's hook says nothing for it, the pe
   setSurfaceValue("people", undefined);
 });
 
+test("REGRESSION: a person's address heads no name before their page says anything -- a cold load drew their name over Reading… and took it away as their page came, 55 px of a phone's top at once", async () => {
+  const { peopleChrome } = await importSrc("apps/dashboard/src/surfaces/people/chrome.ts");
+  const { crumbsShown } = await importSrc("apps/dashboard/src/surfaces/kit/head/standing.ts");
+  const go = () => undefined;
+  const person = peopleChrome({ param: "ed2244f3-9f88-49c5-863e-fbdea4b60e12", backToPeople: go });
+  assert.equal(person.ownHead, true, "a person's page draws its own head, and its chrome says so");
+  assert.equal(
+    peopleChrome({ param: null, backToPeople: go }).ownHead,
+    undefined,
+    "People's list is headed by the frame",
+  );
+  forgetStanding();
+  // The frame tells the head the crumbs, and that the page heads itself (frame/app-shell.tsx useCrumbsShown).
+  crumbsShown(person.crumbs, person.ownHead);
+  assert.equal(standingSaid()?.title, null, "no name while nothing is said: the frame draws only the date's place");
+  assert.equal(standingSaid()?.back, undefined, "and its way back is the crumbs' (‹ People), as the page's own says");
+  // What the page says, once it draws, is what stands; the list's address heads by its crumbs again.
+  fresh();
+  again(() => Page({ scope: "people" }));
+  crumbsShown(["People"], false);
+  assert.equal(standingSaid()?.title, "People");
+  forgetStanding();
+  crumbsShown(["People"], false);
+  assert.equal(standingSaid(), null, "an address that is headed by the frame says nothing of its own");
+  forgetStanding();
+});
+
 test("the route says the standing once, from its address: a person's page, the Pipeline's, Leads' and the list's pages their own, else People's", async () => {
   const route = (await import("node:fs")).readFileSync(
     new URL("../../../../../apps/dashboard/src/surfaces/people/people-route.tsx", import.meta.url),

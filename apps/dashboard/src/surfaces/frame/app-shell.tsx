@@ -58,9 +58,10 @@ const useSurfaceStill = (): number => 0;
  * strip, so its head is People's; Conversations and Live are tabs of the Inbox's family, so each keeps its own name and no
  * way back above it, as a tab has none. Told in the draw that changes them, before the paint: told after it, the head drew
  * the page that had gone for a frame (a person's name and ‹ People over People's list as Back landed), at that head's
- * height, and the page under the top moved as the right head came (Ruben, 20 Oct 2026, on an iPhone).
+ * height, and the page under the top moved as the right head came (Ruben, 20 Oct 2026, on an iPhone). And whether the page
+ * draws its own head (`ownHead`, a person's hero), told with them, so the head draws no name over a page still on its way.
  */
-function useCrumbsShown(crumbs: readonly unknown[], look: string, { page, param }: ShellRoute) {
+function useCrumbsShown(crumbs: readonly unknown[], ownHead: boolean, look: string, { page, param }: ShellRoute) {
   const leadsScope = page === "clients" && !!param && /^leads(:|$)/.test(param);
   const familyTab = page === "conversations" || page === "live";
   useLayoutEffect(() => {
@@ -70,8 +71,9 @@ function useCrumbsShown(crumbs: readonly unknown[], look: string, { page, param 
         (leadsScope ? crumbs.slice(0, -1) : familyTab ? crumbs.slice(-1) : crumbs) as Parameters<
           typeof chrome.crumbsShown
         >[0],
+        ownHead,
       );
-  }, [crumbs, look, leadsScope, familyTab]);
+  }, [crumbs, ownHead, look, leadsScope, familyTab]);
 }
 
 export function ChanlyticsApp({
@@ -137,7 +139,7 @@ export function ChanlyticsApp({
 
   useRouteMoves(at);
   useTabTitle(drawn.crumbs, inboxNeeds);
-  useCrumbsShown(drawn.crumbs, look, at);
+  useCrumbsShown(drawn.crumbs, !!drawn.ownHead, look, at);
   // A route change: the drawer closes, and the gate's clocks start for the new route.
   useEffect(() => {
     setNavOpen(false);

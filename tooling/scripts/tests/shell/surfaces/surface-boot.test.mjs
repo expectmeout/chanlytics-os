@@ -849,10 +849,12 @@ test("Settings' Connections pane reads what it draws right after who is looking,
   assert.equal(new Set(order).size, keys.length, "and every other surface still boots");
 });
 
-test("a person's page waits only for who is looking, then reads People for their name: never the whole list first", async () => {
+test("a person's page waits only for who is looking, then reads the person, then People: never the whole list first", async () => {
   // Measured on production (23 Sep 2026): a new tab on a person held Reading… until People's 29 rows were in (0.87 s),
   // and only then asked for the person (1.5 s). The page reads its own person (people-detail.ts warmPersonOnScreen);
-  // the gate waits for the workspace, which carries the role the page's acts depend on.
+  // the gate waits for the workspace, which carries the role the page's acts depend on. The person's own read names them
+  // in the crumbs, so People's rows come after it (the People load review, 28 Oct 2026: everyone's every page was read
+  // ahead of the one person drawn).
   const reg = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
   const ID = "ed2244f3-9f88-49c5-863e-fbdea4b60e12";
   assert.equal(reg.routeSurfaceFor("clients", ID), "workspace", "the gate waits for who is looking");
@@ -861,8 +863,8 @@ test("a person's page waits only for who is looking, then reads People for their
   assert.equal(reg.routeSurfaceFor("clients", "leads:c-review"), "leads", "and the Leads scope for its own");
   assert.deepEqual(
     reg.routeDrawsFor("clients", ID),
-    ["people", "person"],
-    "People for their name, and the page's own read",
+    ["person", "people"],
+    "the page's own read, then People for where they stand in the list",
   );
   assert.deepEqual(reg.routeDrawsFor("clients", null), [], "the list draws nothing beside its own surface");
   // Nor does Leads, under any view: never as a person. Its reach-out sheet read Setup's mailboxes and Settings' link next,

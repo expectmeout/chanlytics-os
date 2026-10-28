@@ -104,16 +104,16 @@ function backOf(crumb: ShownCrumb): BackWay | null {
  * The way back the head offers, and where: in the date's place where the page draws its own head (a person's hero, canvas
  * P3) and on every page a phone draws, so a phone's head is two rows, the date's or the way back with the bell, then the
  * name (Ruben, 7 Oct 2026: Sent's ‹ Campaigns stood on a row of its own); above the name on a desk. The way is what the
- * page said, else the crumb before the last; a page that draws its own head says its own or none.
+ * page said, else the crumb before the last; a page that draws its own head says its own or none, and its address, before
+ * the page says anything (standing.ts headOwn), gives its crumbs' way.
  */
 function useBackWay(): { back: BackWay | null; inDate: boolean } {
   const said = useStandingSaid();
   const crumbs = useCrumbsShown();
   const phone = usePhoneHead();
-  if (said?.title === null) return { back: said.back ?? null, inDate: true };
   const before = crumbs.length > 1 ? crumbs[crumbs.length - 2] : undefined;
   const back = said?.back === undefined ? (before ? backOf(before) : null) : said.back;
-  return { back, inDate: phone };
+  return { back, inDate: phone || said?.title === null };
 }
 
 function BackButton({ back }: { back: BackWay }) {
