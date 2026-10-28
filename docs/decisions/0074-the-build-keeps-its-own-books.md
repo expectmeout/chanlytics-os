@@ -1,7 +1,8 @@
 # 0074 · The build keeps its own books
 
-**Status:** Proposed 28 October 2026 (lane E of the architecture review of the same day: the collision points),
-nothing built; Ruben's to accept. Written against `origin/main` at `714510144` (#1895) and measured there, over the
+**Status:** Built 28 October 2026, every step, on `claude/amazing-thompson-boate8` (the five steps approved as
+recommended, end to end); "As built" below says where the build departs from the proposal, and the code wins.
+Proposed the same day (lane E of the architecture review of that day: the collision points). Written against `origin/main` at `714510144` (#1895) and measured there, over the
 590 changes that landed in the 30 days to that commit (#1313 to #1895); each experiment below was run on that tree in a
 clean container and reverted. Where this note and the code disagree, the code wins.
 
@@ -18,6 +19,67 @@ measurement, never banked by hand; and a list several lanes add to is sorted, so
 only fall still may only fall, judged change by change. The generated route files, the API reference and the
 migration-derived files stay committed (section 5 says why). The register's rows, what retires each number and the
 next step, stay a person's words; only the numbers leave their hands.
+
+## As built
+
+What landed, step by step, and each place it differs from the decision below. The decision's text is kept as it was
+proposed; where the two disagree, this section and the code are what is true.
+
+- **S1 · Sorted lists.** `tooling/scripts/gen/sorted-lists.mjs` writes every barrel (`packages/*/src/index.ts` and each
+  domain's `index.ts`) one export statement per module, in path order, names in order within, formatted by Prettier;
+  `--check` says which are out of order, and `repo/sorted-lists.test.mjs` holds them (`corepack pnpm gen:sorted-lists`;
+  `land` runs it first). The core barrel keeps its own order (`OWN_ORDER`), since its header argues the order of its
+  lines. `PREFETCH_READS`, the policy pins and the event lists were not moved: the route and door pins were sorted by
+  key already, and `PREFETCH_READS` is read in page order, which is its meaning.
+- **S2 · The packages are sources.** Each package's `exports` carries `types`, `bundled`, `edge-light` (contracts),
+  `browser` (contracts), `import` and `default`, every target under `src/` but `bundled`; `tsc -b` checks each package
+  once through its project reference, declarations to `.types/`. Three departures:
+  - The suite's bundle is each package's `dist/`, gitignored, not `.bundle/` (a name the bundle check's record already
+    takes): `tooling/scripts/package-build.mjs` builds it with esbuild before the runner starts, only when its stamp
+    (`dist/.built`: each input's path, size and time, hashed) moved, and `tooling/scripts/checks/test.mjs` passes
+    `--conditions=bundled`. A script that loads a package runs under `node --import tsx` and reads the sources.
+  - The dashboard's build runs no `tsc -b` first: Vercel's build command is the project's own, and nothing a deploy
+    needs may lean on a step before it. Next's type pass is off in the build (`typescript.ignoreBuildErrors`); the
+    dashboard's typecheck is `next typegen && tsc -b`, and CI's Types job, the required check, is the gate, as the
+    Risks section's fallback said.
+  - The edge's facades are `export * from "@chanlytics/<p>"`, one line each: the package's barrel already names every
+    export, and a second list of the same names would be the collision this note removes.
+- **S3 · The record and the compare.** `corepack pnpm check:debt` (`tooling/scripts/checks/debt.mjs`) measures three
+  parts, the measures of `_measures.mjs` (`RATCHETS`, the source scan among them), the lint's warnings by file and rule
+  (`lint.mjs` `lintTree`) and knip's dead exports (`dead-exports.mjs` `deadExports`), on a base and on the tree, and
+  `judge` fails a number that rose or an offender that is new unless the pull request's description carries a line
+  `Debt: <why>` of twelve characters or more. Three departures:
+  - **No record is cached on main's push.** CI's debt job (`What this change owes`) measures the merge commit's first
+    parent in place (`--base HEAD^1 --in-place`), then the head, every run: one job, no cache to miss, and a base that
+    is always the main the change stands on. On a laptop the default compares the working tree with its merge base
+    with `origin/main`, measured in a worktree; `check:local` no longer runs it, since CI's job is the one that reads the
+    description.
+  - **Nothing is committed nightly.** A workflow's own token opens a pull request no workflow runs on, so a commit of
+    the numbers could never pass the required check. `.github/workflows/register.yml` measures main each night, prints
+    the totals in its summary (`check:debt -- --totals`), keeps the record as an artifact for 35 days, and on Mondays
+    reads it beside one a week older, keeping one rolling issue open while a measure grew. The register's and the
+    takeover checklist's number blocks left the pages for it; `docs/debt.md` "The numbers" says where they are read.
+    The architecture's drawn tree, the one block the build can write from the tree alone, moved to its own generated
+    page, `docs/tree.md` (`tooling/scripts/gen/docs-tree.mjs`, held by `docs/docs-tree.test.mjs`, written by `land`).
+  - **Four baselines stay, each a person's list, not a number**: `reads-not-heard.json`, `on-demand-reads.json`,
+    `hearing/` and `writes/` (the hearing tests' goldens and reasons), with `bundle-ceiling.json` and `coverage.json`, the
+    two decisions. `UPDATE_BASELINES` remains for those alone; the lint's and knip's `--update` and `--raise` are gone.
+    The thirty-three number baselines and `source-scan-baseline.json` left git.
+    The "Rises" table is frozen under a dated line, as decided.
+- **S4 · The browser entry stays committed.** Section 3 below is not built, by decision: Vercel builds the dashboard
+  with its own command, so a file written by a step before `next build` is a file a deploy may not have, and a client
+  bundle without the entry is the +63,771 bytes measured in Context. The entry is a generated file `land` takes main's
+  side of and writes again (from the sorted barrels, so two lanes' lines land apart there too), and
+  `shipping/browser-entry.test.mjs` fails a stale one. It leaves git when the dashboard's build command is the
+  repository's to name.
+- **S5 · `land` and the stack.** A conflict in `supabase/migrations-ledger.json` takes main's side and the ledger is
+  recorded again (`migration-ledger.mjs --record`), which refuses a migration main's head has passed. The schema
+  snapshot, the database's types, the closed sets and the unique keys (`REPLAYED`) are written only from a replay: with
+  `--replay` and a stack that answers `supabase status`, main's side is taken, the stack is replayed from zero
+  (`supabase db reset`, so its data goes, which is why it is asked for) and the four written again before the data
+  model. Without either, `land` names them as a person's. Before this, the closed sets and the unique keys took main's
+  side and nothing wrote them again. A merge `land` left open is taken up where it was left, its conflicts settled by
+  the same rule (`settle`).
 
 ## Context
 
