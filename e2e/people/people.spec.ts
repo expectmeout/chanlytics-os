@@ -696,10 +696,14 @@ test.describe("People on a real workspace", () => {
     await expect.poll(() => saved.some((s) => typeof s.view?.widths?.state === "number")).toBe(true);
     const grown = (await page.locator("thead th[data-key='state']").boundingBox())!.width;
     expect(Math.round(grown), "State is wider by the two steps").toBeGreaterThanOrEqual(before[2]! + 30);
+    // The first width set keeps every other column where it stood (layout.ts plFrozenWidths): Person gave none of it up.
+    expect((await widthsOf())[1], "Person holds still while State grows").toBe(before[1]);
     await expect(scroller).toBeVisible();
-    // Delete gives it back the width it was declared with, and the view drops the key.
+    // Delete gives it back the width it was declared with, and the view drops its key (the others stay as frozen).
     await page.keyboard.press("Delete");
-    await expect.poll(() => saved.length && !saved[saved.length - 1]!.view?.widths).toBeTruthy();
+    await expect
+      .poll(() => saved.length > 0 && typeof saved[saved.length - 1]!.view?.widths?.state !== "number")
+      .toBe(true);
     // The pointer: a press on the edge with no movement is no choice and saves nothing; a drag that goes somewhere is kept.
     const savedBefore = saved.length;
     const at = (await edge.boundingBox())!;
