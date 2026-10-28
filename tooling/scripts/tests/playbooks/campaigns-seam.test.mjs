@@ -84,8 +84,10 @@ test("the tab's cache keeps each value beside the globals a surface owns, and gi
   cache.snapshotSurface("reach_outs", reachOutsOverride.globals ?? [], "t-salon", undefined, reachOutsOverride.value);
   cache.flushSurfaceCache();
   const kept = JSON.parse(globalThis.localStorage.peek(CACHE));
-  assert.deepEqual(kept.surfaces.playbooks, { $value: PLAYBOOKS }, "the value, under its reserved name");
-  assert.deepEqual(kept.surfaces.reach_outs, { $value: CHAINS });
+  // What it was kept under rides beside it (#1881: the build, its shape, when), never a window global's name.
+  const valueOf = ({ $kept, ...rest }) => (assert.deepEqual(Object.keys($kept).sort(), ["at", "build", "shape"]), rest);
+  assert.deepEqual(valueOf(kept.surfaces.playbooks), { $value: PLAYBOOKS }, "the value, under its reserved name");
+  assert.deepEqual(valueOf(kept.surfaces.reach_outs), { $value: CHAINS });
   values.setSurfaceValue("playbooks", undefined);
   values.setSurfaceValue("reach_outs", undefined);
   const restored = cache.hydrateSurfaceCache();
