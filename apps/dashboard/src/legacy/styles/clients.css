@@ -2198,7 +2198,9 @@
    colour (--pl-row), because a pinned cell sits over the others and must paint its own. Phones and tablets keep the
    cards (max-width: 900px). */
 @media (width > 900px) {
-  .clients .pl-main { display: flex; flex-direction: column; }
+  /* The table's box reaches the pane's foot, 8px off it as it stands 8px off its sides: the pane's 40px (.cl-main-scroll,
+     for a page that scrolled whole) left 55px empty under the count once the table scrolled in its own box (28 Oct 2026). */
+  .clients .pl-main { display: flex; flex-direction: column; padding-bottom: 8px; }
   .clients .pl-main > * { flex: none; }
   .clients .pl-main > .pl-table-wrap { flex: 0 1 auto; display: flex; flex-direction: column; }
   /* A short window leaves the box 240px once it holds more than three rows. A shorter table fits its own height: a
@@ -2207,7 +2209,9 @@
   /* The header is --pl-head tall, and a row scrolled to (J, K, Tab, Shift+Tab) stops below it, not under it; with
      people selected, above the bulk bar that floats over the box's bottom edge too. */
   .pl-table-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; --pl-head: 39px; scroll-padding-top: var(--pl-head); }
-  .pl-table-wrap.selecting .pl-table-scroll { scroll-padding-bottom: 32px; }
+  /* With people selected the bar floats over the box's foot (22px off the pane's edge, 48px tall): the rows' last scroll
+     leaves room under the last row, so it can be brought clear of the bar. */
+  .pl-table-wrap.selecting .pl-table-scroll { scroll-padding-bottom: 32px; padding-bottom: 24px; }
   .pl-table { border-collapse: separate; border-spacing: 0; --pl-row: var(--bg); }
   .pl-table tbody tr:is(:hover, [data-hover]) { --pl-row: var(--bg-hover); }
   .pl-table tbody tr.selected { --pl-row: linear-gradient(var(--pl-selected), var(--pl-selected)), var(--bg); }
