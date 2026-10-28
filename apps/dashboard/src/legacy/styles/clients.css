@@ -3444,9 +3444,11 @@
   /* The list picked stands 5px under the strip, as the Inbox's buckets and Conversations' channels stand 4px under theirs
      (inbox.css, conversations.css): the strip is the frame's, in its slot, for People as for them. The room is the bar's
      own now (below), so its targets can reach it: .cl-main clips what stands over its top edge. A person's page carried
-     back to its list shows the list's slot under it (data-carrying, kit motion/held-list.ts), so it stands as the list's. */
-  .main:has(> .main-scroll > .clients):not(:has(> .main-scroll > .cl-profile)) .pg-slot,
-  :root[data-carrying] .main:has(> .main-scroll > .clients) .pg-slot {
+     back to its list shows the list's slot under it (data-carrying, kit motion/held-list.ts), so it stands as the list's.
+     Named by the strip the slot holds (shell-chrome.tsx `data-strip`), which stands from the first draw while People is
+     read: named by the page's root, the slot stood 16px taller over Reading… and the list came in 16px higher (the
+     People load review, 28 Oct 2026). */
+  .pg-slot[data-strip="people"] {
     padding-bottom: 0;
   }
   /* The page's light shows through, as it does behind the Inbox and as it does behind People on a desk: the page stood on

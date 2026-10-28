@@ -27,6 +27,7 @@ interface RouteAnswer {
   mountKey?: string;
   ask?: string | null;
   views?: SurfaceViews | null;
+  ownHead?: boolean;
 }
 
 /** The route as the frame resolved it (shell-routes.ts routeAt), with the frame's doors and what it hands a moved page. */
@@ -246,6 +247,8 @@ function surfaceAnswer(surface: SurfaceRoute, r: DrawnRoute): Partial<RouteAnswe
     ask: chrome && chrome.ask ? chrome.ask : null,
     // The page's views, drawn by the frame's strip of views (SurfaceTabs): the page says them, never draws them.
     views: chrome && chrome.views ? chrome.views : null,
+    // The page draws its own head (a person's hero): the head draws no name over it while it is on its way.
+    ownHead: !!(chrome && chrome.ownHead),
     primaryAction: act ? surfaceAct(act, r.openAsk) : null,
     content: r.routePage,
     mount: (chrome && chrome.mount) || surface.mount,

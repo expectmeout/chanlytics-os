@@ -59,9 +59,11 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   // The first run's receptionist card fills in from the settings read: the brain and the resolved numbers. Try it
   // watches the Live page's calls for the test call (first-run-try.ts).
   start: ["settings", "live"],
-  // A person's page reads its own person (people-detail.ts); People's row gives it their name in the crumbs and the
-  // head while that read is out, so People is read next. The person surface is the page's own read, heard there.
-  [PERSON_ROUTE]: ["people", "person"],
+  // A person's page reads its own person (people-detail.ts), which the document's head started and which names them in the
+  // crumbs; People's rows come after it, for where they stand in the list ("‹ 4 of 24 ›") and what their row says of them.
+  // People read first was everyone's every page ahead of the one person drawn: half a second of the database's for 330
+  // people (the People load review, 28 Oct 2026). The person surface is the page's own read, heard there.
+  [PERSON_ROUTE]: ["person", "people"],
   // Get their yes, a sheet over People's list (`clients/get-yes`, the Campaigns wiring review's lane 7): the number and the
   // opt-in its code carries are Sent's read (campaigns/broadcasts/surface.ts), beside People's own.
   "clients/get-yes": ["people", "broadcasts"],

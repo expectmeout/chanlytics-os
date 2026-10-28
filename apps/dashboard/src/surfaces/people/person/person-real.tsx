@@ -380,10 +380,11 @@ function ClientProfileReal({ id, tab: asked, over }: { id: string; tab: PersonTa
     );
   if (!vm) {
     // A person the tab does not hold yet is nothing of theirs until their whole page is in: the pane the shell draws for
-    // any page on its way, `Reading…` after the standard's beat, and then the page, all of it at once.
+    // any page on its way, `Reading…` after the standard's beat, and then the page, all of it at once. It takes the screen
+    // over as their page does (mobile.css data-takeover), so nothing of the frame leaves as the page comes.
     if (loading)
       return (
-        <div className="route-reading" aria-busy="true" role="status" data-testid="person-reading">
+        <div className="route-reading" aria-busy="true" role="status" data-testid="person-reading" data-takeover>
           Reading…
         </div>
       );

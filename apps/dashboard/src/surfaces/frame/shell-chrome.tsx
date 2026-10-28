@@ -243,6 +243,8 @@ interface ChromeAt {
   readsInPlace: boolean;
   surfaceUnavailable: boolean;
   ask?: string | null;
+  /** The page draws its own head (route-table.tsx): its reading pane takes the screen over as the page will. */
+  ownHead?: boolean;
 }
 
 /** On a phone the sidebar is a drawer; open, it is a dialog, so a page's keys hold still behind it. Not aria-modal. */
@@ -347,7 +349,9 @@ const routeMain = (s: ChromeAt, glass: boolean) => {
       })}
       <ShellErrorBoundary>
         {s.routeLoading && !s.readsInPlace ? (
-          <div className="route-reading" role="status">
+          // A page that draws its own head (a person's) takes the screen over as it reads, as it will once it is in
+          // (mobile.css data-takeover): the frame's head and the phone's tab bar left as it came, and the page moved up.
+          <div className="route-reading" role="status" data-takeover={s.ownHead ? "" : undefined}>
             Reading…
           </div>
         ) : s.surfaceUnavailable ? (

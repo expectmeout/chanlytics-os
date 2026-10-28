@@ -8,7 +8,8 @@
  *
  * The fingerprint is the value's type as the checker sees it, expanded all the way down (each object's properties by name,
  * each union's members, arrays, tuples, literals, a record's values), hashed. A type the checker cannot see into (`any`,
- * `unknown`) has no fingerprint: that surface's snapshot stays the build's, as every one was.
+ * `unknown`) has no fingerprint: that surface's snapshot stays the build's, as every one was. A field marked `@stored`
+ * (the database's JSON, as any build wrote it) is said by that word alone.
  *
  *   node tooling/scripts/gen/surface-shapes.mjs          # write the fingerprints
  *   node tooling/scripts/gen/surface-shapes.mjs --check  # exit 1 when they are stale
@@ -88,8 +89,10 @@ export function shapeOf(checker, type, opaque) {
         .getPropertiesOfType(t)
         .filter((p) => !p.getName().startsWith("__@"))
         .map((p) => {
+          const name = `${p.getName()}${p.flags & ts.SymbolFlags.Optional ? "?" : ""}`;
+          if (stored(p)) return `${name}:stored`;
           // A mapped type's members (a Record's, a Partial's) have no declaration of their own: their type is the symbol's.
-          return `${p.getName()}${p.flags & ts.SymbolFlags.Optional ? "?" : ""}:${walk(checker.getTypeOfSymbol(p))}`;
+          return `${name}:${walk(checker.getTypeOfSymbol(p))}`;
         })
         .sort();
       for (const info of checker.getIndexInfosOfType(t)) parts.push(`[${walk(info.keyType)}]:${walk(info.type)}`);
@@ -102,6 +105,22 @@ export function shapeOf(checker, type, opaque) {
     return s;
   };
   return walk(type);
+}
+
+/**
+ * A field whose declaration says `@stored`: a value kept as the database holds it (a jsonb column read back whole), as
+ * whichever build wrote it, which each reader takes apart as it reads it. A snapshot of it is no older than what the
+ * server may answer, so its type, an `unknown` as often as not, is no part of the fingerprint (People's `views`, every
+ * page's view a member saved).
+ */
+function stored(p) {
+  // Read from the doc comment written just before the declaration: the checker's JSDoc tags are there only where the file
+  // was parsed for them, which TypeScript leaves to whoever built the program.
+  return (p.declarations ?? []).some((d) =>
+    /\/\*\*(?:(?!\*\/)[\s\S])*\s@stored\b(?:(?!\*\/)[\s\S])*\*\/\s*$/.test(
+      d.getSourceFile().text.slice(d.getFullStart(), d.getStart()),
+    ),
+  );
 }
 
 /**

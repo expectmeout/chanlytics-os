@@ -127,12 +127,11 @@ function personAsk(id: string): string | null {
 }
 
 /**
- * People | Leads | Pipeline, the page's scopes, as the views the frame draws (PRD 6.1), every workspace's. None until
- * People has landed, so the strip is drawn once.
+ * People | Leads | Pipeline, the page's scopes, as the views the frame draws (PRD 6.1), every workspace's, and from the
+ * first draw, while People is still read: drawn as People landed, the strip came into the phone's top with the list and
+ * the page under it moved 44 px down (the People load review, 28 Oct 2026). It is drawn once either way.
  */
-function scopeViews(picked: "people" | "leads" | "pipeline"): SurfaceViews | null {
-  const people = peopleFor();
-  if (!people) return null;
+function scopeViews(picked: "people" | "leads" | "pipeline"): SurfaceViews {
   const tabs = plScopes().map((s) => ({
     id: s.id,
     label: s.label,
@@ -171,6 +170,8 @@ export function peopleChrome({ param, backToPeople }: { param: string | null; ba
       crumbs: [{ ...PEOPLE_CRUMB, go: backToPeople }, personName(id)],
       mount: "clients",
       ask: personAsk(id),
+      // Their hero is the page's head (person-real.tsx), from the first draw, before their page is in.
+      ownHead: true,
     };
   }
   if (param === GET_YES_PARAM)

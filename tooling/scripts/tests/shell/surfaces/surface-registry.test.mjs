@@ -439,8 +439,8 @@ test("a lens that names its draws is asked before its page, as the gate asks for
   assert.deepEqual(registry.routeDrawsFor("today", "anything"), registry.ROUTE_DRAWS.today);
   assert.deepEqual(
     registry.routeDrawsFor("clients", ID),
-    ["people", "person"],
-    "a person's page: their name from People, and its own read",
+    ["person", "people"],
+    "a person's page: its own read, which names them, then People for where they stand in the list",
   );
   // Leads' scope is never a person's page, and draws nothing beside its own surface (the reach-out sheet that read Setup
   // and Settings went with the composer, 18 Oct 2026).

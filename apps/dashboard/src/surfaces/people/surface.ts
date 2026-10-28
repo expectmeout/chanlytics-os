@@ -115,7 +115,12 @@ export interface PeopleSurface {
     has_more: boolean;
     next?: string | null;
   } | null;
-  /** What this member's pages remember in this workspace (memberships.views). */
+  /**
+   * What this member's pages remember in this workspace (memberships.views), as any build saved it: each page takes its own
+   * apart as it reads it, so a copy the tab kept under another build is no older than what the server may answer, and the
+   * cache's fingerprint leaves it out (tooling/scripts/gen/surface-shapes.mjs).
+   * @stored
+   */
   views: Record<string, unknown>;
   /**
    * Whether they were read: false when the read failed, and `views` is then none of them. A save of one page replaces
@@ -133,6 +138,9 @@ export let peopleLoaded: PeopleLoaded | null = null;
  * at boot (the loadability review, 19 Oct 2026). A fetch that failed is asked for again by the next read.
  */
 const peopleMap = codeOnce(() => import("./surface-map"));
+
+/** How People's rows are made, fetched now: as the tab opens on People's list, before its read asks (people-route.tsx). */
+export const warmPeopleMap = (): void => peopleMap.warm();
 
 /** The member looking, as the workspace surface named them at boot; null before it lands. */
 export function viewerId(): string | null {
