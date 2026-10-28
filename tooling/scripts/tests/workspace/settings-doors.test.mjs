@@ -1359,6 +1359,13 @@ const mbx = (over = {}) => ({
   last_error: null,
   connected_at: "2026-09-20T00:00:00.000Z",
   sent_at: null,
+  spf_record: null,
+  spf_lookups: null,
+  synced_at: null,
+  sent_today: null,
+  counts: null,
+  came_in: null,
+  signs: { from: "name", words: "Sam at Harbor", gmail_read_at: null, gmail: null },
   ...over,
 });
 /** Setup as the pane reads it, with this email line. */
@@ -1377,7 +1384,7 @@ const emailSeam = (sending, mailbox = null) =>
     },
   });
 
-test("the mailboxes you write from: under their own row, each in contracts' words, and a Connect for each provider offered", () => {
+test("the mailboxes you write from: one Email card, each on its own line in contracts' words, and an Add for each provider offered", () => {
   asRole("owner");
   const went = [];
   // The door gives a way to the provider (the real verb then leaves for it); the stub records who was asked for.
@@ -1405,10 +1412,11 @@ test("the mailboxes you write from: under their own row, each in contracts' word
     ],
   });
   let tree = render(Connections);
-  const block = byTestId(tree, "connected-mailboxes");
-  assert.ok(block, "drawn under its row, with no hosted mailbox needed");
+  // The mailbox canvas (#1865): the row is the Email card, its mailboxes its own lines, no block under it.
   const row = byTestId(tree, "connection-mailbox");
-  assert.match(textOf(row), /Your mailbox/);
+  assert.ok(row, "the Email card, with no hosted mailbox needed");
+  assert.equal(byTestId(tree, "connected-mailboxes"), null, "its mailboxes are the card's");
+  assert.equal(textOf(find(row, (n) => n.props?.className === "set-team-name")), "Email");
   assert.equal(row.props["data-state"], "attention", "one held and one signed out: the row says so, not a green On");
   assert.match(textOf(row), /2 to look at/);
   // What each mailbox's row says and offers is its own test's (email/mailboxes/mailbox-row.test.mjs).
@@ -1422,12 +1430,8 @@ test("the mailboxes you write from: under their own row, each in contracts' word
     ["google", null],
     ["microsoft", null],
   ]);
-  assert.ok(
-    byTestId(tree, "mailbox-admin-link"),
-    "beside Microsoft, the link for an organisation whose admin approves",
-  );
   tree = settle(Connections);
-  assert.equal(byTestId(tree, "mailbox-records-sam@getharbor.com"), null, "every record found: none to add");
+  assert.equal(byTestId(tree, "mailbox-need-sam@getharbor.com"), null, "every record found: none to add");
 });
 
 test("no provider offered and none connected: the row is there, Later and greyed, with nothing to press and no block under it", () => {
@@ -1452,9 +1456,9 @@ test("no provider offered and none connected: the row is there, Later and greyed
     mailboxes: Array.from({ length: 10 }, (_, i) => mbx({ id: `m${i}`, address: `s${i}@getharbor.com` })),
   });
   const tree = render(Connections);
-  assert.ok(byTestId(tree, "connected-mailboxes"));
+  assert.ok(byTestId(tree, "connection-mailbox"), "the Email card");
   assert.equal(byTestId(tree, "mailbox-connect-google"), null);
-  assert.match(textOf(byTestId(tree, "connected-mailboxes")), /10 is the most/);
+  assert.match(textOf(byTestId(tree, "mailbox-most")), /10 is the most/, "and why Add has gone");
 });
 
 test("a non-owner is told once why they can't act; the partner, who sets the workspace up, is not gated", () => {
@@ -1463,11 +1467,8 @@ test("a non-owner is told once why they can't act; the partner, who sets the wor
   emailSeam({ providers: ["google"], mailboxes: [mbx()] });
   asRole("operator");
   let tree = render(Connections);
-  assert.match(
-    textOf(byTestId(tree, "connected-mailboxes")),
-    /Only an owner can connect, pause, resume or remove a mailbox/,
-  );
-  assert.deepEqual(words(tree), ["Sending", "Pause sending"], "no Settings, no Remove");
+  assert.match(textOf(byTestId(tree, "mailbox-gate")), /Only an owner can connect, pause, resume or remove a mailbox/);
+  assert.deepEqual(words(tree), ["Send a test", "Pause sending"], "no Settings, no Remove");
   assert.ok(caret(tree).props.items[1].gate["aria-disabled"], "Pause says why it can't");
   // The partner sets the workspace up (ROLE_PERMS settings), as the doors' own role check admits them: nothing gated.
   asRole("partner");
