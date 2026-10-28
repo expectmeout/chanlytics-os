@@ -12,7 +12,7 @@ import { PAGE_SPEED_MIN, PRIMARY_PART, pageSpeedWords } from "@chanlytics/contra
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
-const { createPageSpeed, waitOf, readKeyOf } =
+const { createPageSpeed, waitOf, readKeyOf, notACustomer } =
   await import("../../../../apps/dashboard/src/client/page-speed-rules.ts");
 const { reportOf, detailOf } = await import("../../../../apps/dashboard/src/client/field-data-reporter.ts");
 const { platformSpeed } = await import("../../../../apps/dashboard/src/server/platform/vitals.ts");
@@ -547,4 +547,21 @@ test("a step put off on the numbers says its number against its line, and warns 
   const few = step3([people(9000, PAGE_SPEED_MIN - 1)]);
   assert.deepEqual([few.value, few.tone], ["too few moves", "ok"], "too few moves say nothing about the line");
   assert.deepEqual(pageSpeedWords(null).deferred, [], "a read that failed holds no number to set against a line");
+});
+
+test("a browser no customer is in sends nothing: one a test drives, and the Claude app's own browser pane", () => {
+  // The pane's user agent, as it says itself (28 Oct 2026): its walks were counted as a customer's loads.
+  const pane =
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Claude/3.6556.2 Chrome/152.0.7977.167 Safari/537.36 MSIX";
+  const chrome =
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36";
+  const iphone =
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1";
+  assert.equal(notACustomer({ webdriver: false, userAgent: pane }), true);
+  assert.equal(notACustomer({ webdriver: true, userAgent: chrome }), true);
+  assert.equal(notACustomer({ webdriver: false, userAgent: chrome }), false);
+  assert.equal(notACustomer({ userAgent: iphone }), false);
+  // A word that only ends in the app's name is another app's, and its loads are counted.
+  assert.equal(notACustomer({ userAgent: `${chrome} MyClaude/2.0` }), false);
+  assert.equal(notACustomer({}), false);
 });

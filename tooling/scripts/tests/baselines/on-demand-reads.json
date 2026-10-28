@@ -19,9 +19,9 @@
     "fresh": "Asked as the owner types a name, a number or an address to filter the log by.",
     "why": "A search answers what was typed at that moment and is asked again with the next key; nothing of it is kept or drawn after the pick."
   },
-  "apps/dashboard/src/surfaces/settings/profile/pane.tsx GET views": {
+  "apps/dashboard/src/surfaces/settings/frame/pane-reads.ts GET views": {
     "kind": "on-open",
-    "fresh": "Read as Settings > Profile opens, for the row How Ask answers you; the pane's own save sets what it draws.",
+    "fresh": "Read as Settings > Profile opens, for the row How Ask answers you, and as its row is reached for; the tab keeps the last answer to draw first, and the pane's own save reads it again.",
     "why": "The note is the member's own, in their membership's views: no teammate's change and no record of the workspace moves it, only their own save here or a card of theirs in Ask, which the row shows the next time the pane opens."
   },
   "apps/dashboard/src/legacy-bridge/ask/api.ts GET ask/follow-ups": {
@@ -190,9 +190,9 @@
     "fresh": "The address the browser is sent to, to sign in with the mailbox's provider.",
     "why": "A step away to the provider's own sign-in, not a read the page draws; the mailbox it connects is told by the feed (mailbox_connections)."
   },
-  "apps/dashboard/src/surfaces/settings/connections/instagram.ts GET channels/instagram": {
+  "apps/dashboard/src/surfaces/settings/frame/pane-reads.ts GET channels/instagram": {
     "kind": "on-open",
-    "fresh": "Read each time Settings › Connections opens; the edge's answer is kept five minutes (READY_TTL_MS).",
+    "fresh": "Read each time Settings › Connections opens and as its row is reached for; the tab keeps the last answer to draw the row first; the edge's answer is kept five minutes (READY_TTL_MS).",
     "why": "It says whether this deployment can connect an Instagram account and whether this member may: the app as configured on the edge, which changes with a deploy, not with a record; the account it connects is told by the feed (tenant_channels)."
   },
   "apps/dashboard/src/surfaces/settings/connections/instagram.ts GET channels/instagram/connect": {
@@ -205,9 +205,9 @@
     "fresh": "Read as the business record's sheet opens.",
     "why": "The record the carriers read is filled in on this sheet; Setup and Connections hear its saves on the feed (business_records), and the sheet reads it again as it opens."
   },
-  "apps/dashboard/src/surfaces/settings/connections/whatsapp.ts GET channels/whatsapp/signup": {
+  "apps/dashboard/src/surfaces/settings/frame/pane-reads.ts GET channels/whatsapp/signup": {
     "kind": "on-open",
-    "fresh": "Read as WhatsApp's connect sheet opens.",
+    "fresh": "Read as Settings › Connections opens and as its row is reached for (and as WhatsApp's connect sheet opens); the tab keeps the last answer to draw the row first.",
     "why": "It says whether this deployment can connect a number and by whom: Meta's door as configured, which changes with a deploy, not with a record."
   },
   "apps/dashboard/src/surfaces/settings/connections/whatsapp.ts GET lines/codes": {
@@ -300,5 +300,10 @@
     "kind": "search",
     "fresh": "Read on the owner's press (Show who), and again after each of its own presses (It's a person, Undo).",
     "why": "A list to act on in the moment: the mailbox adds to it as mail arrives, which the next press reads; nothing else on the page is drawn from it, and it is never kept."
+  },
+  "apps/dashboard/src/surfaces/settings/frame/pane-reads.ts GET team/partner": {
+    "kind": "on-open",
+    "fresh": "Read as Settings › Team opens and as its row is reached for, and again after the owner asks a partner in or withdraws one; the tab keeps the last answer to draw the card first.",
+    "why": "The workspace's partner link, which only an owner's ask on this card or the partner's own answer changes: the card reads it again on its own write, and a partner's answer shows the next time the pane opens."
   }
 }

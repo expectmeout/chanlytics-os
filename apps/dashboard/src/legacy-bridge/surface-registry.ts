@@ -146,28 +146,26 @@ export const ROUTE_SURFACE: Record<string, string> = {
   calendar: "calendar",
   // The first run is Setup's rows, so it waits for Setup's read.
   start: "setup",
-  // The pane is fed by settingsOverride, so the route gate waits for it the
-  // same way the other real routes do — otherwise it paints the mockup's
-  // fabricated business for a frame before the truth arrives.
-  "admin/profile": "settings",
+  // A pane drawn from the settings read waits for it, the same way the other real routes do: the business, How it
+  // answers, Team, Autonomy and Notifications.
   "admin/workspace": "settings",
   "admin/hours": "settings",
   "admin/receptionist": "settings",
   "admin/team": "settings",
   "admin/autonomy": "settings",
   "admin/notifications": "settings",
-  "admin/integrations": "settings",
-  // Billing's rows come from its own surface, and its pane draws their reading
-  // and failed states itself. The gate still waits for settings: the page picks
-  // the real pane over the mockup's by __SETTINGS, so waiting on billing alone
-  // could paint the mockup's billing for a frame.
-  "admin/billing": "settings",
-  "admin/memory": "settings",
-  "admin/activity": "settings",
-  // The pane fetches its own list through the typed client on mount; it waits
-  // for the settings surface like every other pane, so nothing paints early.
-  "admin/platform": "settings",
-  "admin/partner": "settings",
+  // A pane drawn from none of it waits for who is looking alone: every pane waited for the settings read's four (the business
+  // with its facts and its prompt, the team, the policies, every template with what sends it) and for nothing it drew itself
+  // (the Settings load review, 28 Oct 2026). What it draws (ROUTE_DRAWS: Billing's plan, Connections' channels, Ask's memory,
+  // the partner's account) its first draw on a load waits for (settings/frame/pane-reads.ts), and a move to it draws what the
+  // tab holds: a read that failed is the pane's own card to say, with its Retry, never the frame's.
+  "admin/profile": "workspace",
+  "admin/partner": "workspace",
+  "admin/integrations": "workspace",
+  "admin/billing": "workspace",
+  "admin/memory": "workspace",
+  "admin/activity": "workspace",
+  "admin/platform": "workspace",
 };
 
 /**

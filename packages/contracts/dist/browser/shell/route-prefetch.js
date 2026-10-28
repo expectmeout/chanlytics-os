@@ -1,5 +1,6 @@
 import { REPORT_PERIOD_DEFAULT, REPORT_PERIOD_IDS, REPORT_PERIOD_STORAGE } from "../reports/report-periods.js";
 import { ROUTE_WORDS } from "./address.js";
+const SETTINGS_READ = ["settings", "team", "policies", "templates?all=1"];
 const PREFETCH_UUID = "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$";
 export const PREFETCH_SLOT = "__prefetched";
 export const PREFETCH_READS = {
@@ -105,7 +106,32 @@ export const PREFETCH_READS = {
   // Messages as the view of Campaigns it is (MESSAGES_ROUTE, 19 Oct 2026): the same reads, at the address it opens at now,
   // and a message open in it (`campaigns/messages/<name>`, its home) is drawn from them.
   "campaigns/messages": ["settings", "team", "policies", "channels", "templates?all=1"],
-  admin: ["settings", "team", "policies", "templates?all=1"],
+  // Settings: its own read, and the partner account the rail names Partner by; a pane its address names opens on its own
+  // (below, the head reads the pane's word: `settings/billing` is `admin/billing`), and a pane not named there on these.
+  admin: [...SETTINGS_READ, "partner"],
+  // Each pane of Settings opens on what it draws, its first draw waiting for each (surface-registry ROUTE_DRAWS,
+  // settings/frame/pane-reads.ts): the panes drawn from the settings read, with what each draws beside it (the calendar's
+  // weeks, Setup's connections, Team's partner, the member's alerts); and the panes drawn from none of it, without it. Each
+  // was read in the boot's second pass, or as its pane mounted, and landed after the pane (the Settings load review, 28 Oct
+  // 2026).
+  "admin/hours": [...SETTINGS_READ, "partner", "calendar?around=today"],
+  // Setup's read is its connections and the member's saved views beside them (setup/surface.ts), as Today's reads.
+  "admin/receptionist": [...SETTINGS_READ, "partner", "setup", "views"],
+  "admin/team": [...SETTINGS_READ, "partner", "team/partner"],
+  "admin/notifications": [...SETTINGS_READ, "partner", "me/alerts"],
+  "admin/profile": ["partner", "views"],
+  "admin/integrations": [
+    "partner",
+    "channels",
+    "google",
+    "setup",
+    "views",
+    "channels/whatsapp/signup",
+    "channels/instagram"
+  ],
+  "admin/billing": ["partner", "billing"],
+  "admin/memory": ["partner", "ask/memory"],
+  "admin/activity": ["partner", "activity"],
   start: ["setup", "views"]
 };
 export const PREFETCH_BESIDE = {
@@ -158,6 +184,9 @@ export function routePrefetchScript() {
     // the one New on what their screens are made of too; a day of History's older address is its run, where it lands
     // (retiredRouteOf). A message is a sheet over its list that opens on its own (`message:<name>`).
     'if(s==="campaigns"&&l==="sequences")s=(h[3]==="runs"||h[3]==="history")&&h[4]?"campaigns/sequences/runs":/^new(:|$)/.test(h[2]||"")?"campaigns/sequences/new":"campaigns/sequences";',
+    // A pane of Settings opens on its own reads where it names them (`settings/billing`, `settings/activity/team`); the bare
+    // address, and a pane that names none, on Settings' own.
+    'if(s==="admin"&&O.call(t,"admin/"+l))s="admin/"+l;',
     // The composer's old address (`campaigns/new…`) lands on the one New, and opens on what New opens on (lane 6).
     'if(s==="campaigns"&&/^new(:|$)/.test(l))s="campaigns/sequences/new";',
     // Messages is a view of Campaigns beside Sequences (`campaigns/messages`), a message open in it among its addresses,

@@ -20,10 +20,9 @@ import {
   roleSays,
   WORKSPACE_ENDED_WORDS,
 } from "@chanlytics/contracts";
-import { api } from "@/legacy-bridge/api";
 import { meVerbs } from "@/legacy-bridge/identity";
 import { commitVerb } from "@/legacy-bridge/verbs/commit";
-import { reportDoor } from "../../kit/empty/report-door";
+import { useReportDoor } from "../../kit/empty/report-door";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { RecordField } from "../../kit/record/field";
 import { useRecordFold } from "../../kit/record/hooks";
@@ -31,6 +30,7 @@ import { RecordInline } from "../../kit/record/inline";
 import { RecordRow } from "../../kit/record/row";
 import { demoSession, meNow, navigate, shellSignOut, type LegacyFlash } from "../../legacy-verbs";
 import { useSurface } from "../../use-surface";
+import { savedViewsRead } from "../frame/pane-reads";
 import { partnerVerbs } from "../partner/surface";
 
 type Flash = (f: LegacyFlash) => void;
@@ -139,8 +139,16 @@ function YourName({ flash }: { flash: Flash }) {
  * (contracts ASK_STYLE_PAGE). Ask keeps one by a card when you say how you like answers from now on; here it is said,
  * changed or cleared, on its row, as your name is.
  */
+/** The answer style as the tab last held the member's views (pane-reads.ts), or null: nothing held. */
+const heldStyle = (): string | null => {
+  const v = savedViewsRead.held();
+  return v ? answerStyleOf(v.views) : null;
+};
+
 function AnswerStyle({ flash }: { flash: Flash }) {
-  const [stored, setStored] = useState<string | null>(null);
+  // What the tab last held, drawn at once: read on mount, the row grew by its words a beat after the pane (the Settings
+  // load review, 28 Oct 2026). The read below replaces it.
+  const [stored, setStored] = useState<string | null>(heldStyle);
   const [draft, setDraft] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const live = useRef<{ draft: string | null; stored: string; busy: boolean }>({
@@ -152,7 +160,7 @@ function AnswerStyle({ flash }: { flash: Flash }) {
   live.current.busy = busy;
   useEffect(() => {
     let gone = false;
-    void api()("GET views").then((r) => {
+    void savedViewsRead.read().then((r) => {
       if (!gone) setStored(r.ok ? answerStyleOf(r.data.views) : "");
     });
     return () => {
@@ -190,6 +198,8 @@ function AnswerStyle({ flash }: { flash: Flash }) {
       return;
     }
     setStored(words);
+    // What the tab holds is read again, so the next visit draws these words and not the ones before them.
+    void savedViewsRead.read();
     close();
     flash({ msg: words ? <>Ask will answer you that way.</> : <>Note cleared — Ask answers as it sees fit.</> });
   };
@@ -318,6 +328,7 @@ function PartnerOfferRow() {
 
 export const PaneProfile = ({ flash }: { flash: Flash }) => {
   const me = meNow();
+  const report = useReportDoor();
   const words = identityWords(me ? { ...me, email: me.email ?? null } : null);
   const role = me && me.role && Object.hasOwn(ROLE_SAYS, me.role) ? roleSays(me.role) : null;
   const signOut = () => {
@@ -357,14 +368,14 @@ export const PaneProfile = ({ flash }: { flash: Flash }) => {
       <AnswerStyle flash={flash} />
       <PartnerOfferRow />
       {/* Get help (decisions 0066, 0067): a person at Chanlytics, within one business day; the frame's sheet takes it. */}
-      {reportDoor.open && (
+      {report && (
         <RecordRow
           id="profile-report"
           label={REPORT_WORDS.door}
           value={REPORT_WORDS.sub}
           act={{
             label: REPORT_WORDS.door,
-            onClick: () => reportDoor.open?.(null, "how_to"),
+            onClick: () => report(null, "how_to"),
             testid: "set-profile-report",
           }}
         />
