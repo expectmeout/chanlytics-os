@@ -1198,11 +1198,7 @@ test("REGRESSION: one number, one clock and one sentence with the Pipeline -- th
     "1 consultation in the last week with nothing booked or proposed since.",
   );
   // The proposals waiting are counted at the same moment: out six days and twenty-three hours when People was read.
-  const waiting = personRow("p-w", "Wes Pardo", {
-    last_inbound_at: at(12),
-    last_message_at: at(12),
-    ...dealCols("proposed", edge),
-  });
+  const waiting = personRow("p-w", "Wes Pardo", { last_inbound_at: at(12), ...dealCols("proposed", edge) });
   const waitingRow = (over) =>
     todayLeaksV2(answeredWeek(), dealSurface([waiting], over), [], 4, later).rows.find(
       (l) => l.id === "proposals-waiting",
@@ -1213,11 +1209,7 @@ test("REGRESSION: one number, one clock and one sentence with the Pipeline -- th
 
 test("the consultations row sits after the unanswered and before the proposals waiting, and the cap still counts what it leaves", () => {
   // A proposal out nine days, and nothing heard since: they last wrote twelve days ago.
-  const waiting = personRow("p-w", "Wes Pardo", {
-    last_inbound_at: at(12),
-    last_message_at: at(12),
-    ...dealCols("proposed", daysBack(9)),
-  });
+  const waiting = personRow("p-w", "Wes Pardo", { last_inbound_at: at(12), ...dealCols("proposed", daysBack(9)) });
   const surface = {
     lists: [list("proposal_out", "Proposal out", 1, null), list("quiet", "Quiet 30+ days", 9)],
     aggregates: { total: 3 },
