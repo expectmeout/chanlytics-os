@@ -1,7 +1,7 @@
 {
-  "rows": 149,
+  "rows": 150,
   "same": 7,
-  "differ": 142,
+  "differ": 143,
   "writes": {
     "DELETE ask/memory/[id]": {
       "changes": "ask_memory_lines INSERT UPDATE"
@@ -672,6 +672,18 @@
         "reports_receptionist": "reports/receptionist",
         "setup": "admin/integrations, admin/receptionist, start, today",
         "today_pins": "today"
+      }
+    },
+    "POST contacts/[id]/signup-confirm": {
+      "changes": "",
+      "doors": "contacts · conversations · messages",
+      "door": {
+        "conversations": "every page",
+        "inbox": "every page",
+        "reports_campaigns": "reports, reports/campaigns",
+        "reports_headline": "today",
+        "reports_receptionist": "reports/receptionist",
+        "today": "every page"
       }
     },
     "POST contacts/import": {
