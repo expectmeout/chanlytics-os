@@ -1788,7 +1788,11 @@ async function getAgent(cfg, agentId) {
     opt_in_signed_url: bool("opt_in_signed_url"),
     post_call_analysis_data: Array.isArray(a.post_call_analysis_data) ? a.post_call_analysis_data : null,
     reminder_trigger_ms: num("reminder_trigger_ms"),
-    reminder_max_count: num("reminder_max_count")
+    reminder_max_count: num("reminder_max_count"),
+    interruption_sensitivity: num("interruption_sensitivity"),
+    begin_message_delay_ms: num("begin_message_delay_ms"),
+    enable_backchannel: bool("enable_backchannel"),
+    handbook_config: a.handbook_config && typeof a.handbook_config === "object" && !Array.isArray(a.handbook_config) ? a.handbook_config : null
   };
 }
 async function getAgentRaw(cfg, agentId) {
@@ -2207,7 +2211,36 @@ function planAgentSettings(live, opts = {}) {
     }
   }
   planFirstSeconds(live, opts.locales, drift, patch);
+  planCallFeel(live, drift, patch);
   return { drift, agentPatch: Object.keys(patch).length ? patch : null, notes: agentNotes(live) };
+}
+var CALL_FEEL = {
+  interruption_sensitivity: 0.8,
+  begin_message_delay_ms: 400,
+  enable_backchannel: true
+};
+var CALL_HANDBOOK = {
+  default_personality: false,
+  conversational_personality: true,
+  natural_filler_words: true,
+  echo_verification: true,
+  speech_normalization: true
+};
+function planCallFeel(live, drift, patch) {
+  for (const key of Object.keys(CALL_FEEL)) {
+    if (live[key] === CALL_FEEL[key]) continue;
+    drift.push(`${key} is ${String(live[key] ?? "unset")}; the product's is ${String(CALL_FEEL[key])}`);
+    patch[key] = CALL_FEEL[key];
+  }
+  const book = live.handbook_config ?? {};
+  const differ = Object.keys(CALL_HANDBOOK).filter(
+    (k) => book[k] !== CALL_HANDBOOK[k]
+  );
+  if (!differ.length) return;
+  drift.push(
+    `the handbook's ${differ.join(", ")} differ from the product's: a conversational receptionist that reads key details back`
+  );
+  patch.handbook_config = { ...book, ...CALL_HANDBOOK };
 }
 var SILENCE_REMINDER_MS = 4e3;
 var SILENCE_REMINDERS = 2;
@@ -2325,6 +2358,10 @@ var VOICE_AGENT_DEFAULTS = {
   // every live agent to the same. The ten locales stay until a line is converged to its workspace's (retellLocalesOf).
   reminder_trigger_ms: SILENCE_REMINDER_MS,
   reminder_max_count: SILENCE_REMINDERS,
+  // How a call sounds and takes turns (voice-shell.ts CALL_FEEL, CALL_HANDBOOK): a new line sounds as every live one is
+  // converged to, so the converger plans nothing against what this creates.
+  ...CALL_FEEL,
+  handbook_config: CALL_HANDBOOK,
   max_call_duration_ms: HOUR_MS,
   data_storage_setting: "everything",
   data_storage_retention_days: 90,
@@ -7361,6 +7398,8 @@ export {
   BOT_USER_AGENT,
   CALLER_UNKNOWN,
   CALL_ANALYSIS_FIELDS,
+  CALL_FEEL,
+  CALL_HANDBOOK,
   CONFIRM_PATH,
   DKIM_SELECTORS,
   EDGE_TOKEN_TTL_MS,

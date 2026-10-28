@@ -152,6 +152,8 @@ export {
   VOICE_WEBHOOK_EVENTS,
   VOICE_WEBHOOK_TIMEOUT_MS,
   CALL_ANALYSIS_FIELDS,
+  CALL_FEEL,
+  CALL_HANDBOOK,
 } from "./voice/voice-shell";
 export type {
   RetellTool,

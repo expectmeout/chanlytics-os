@@ -27,6 +27,8 @@ import {
   CALL_ANALYSIS_FIELDS,
   VOICE_WEBHOOK_EVENTS,
   getAgent,
+  CALL_FEEL,
+  CALL_HANDBOOK,
 } from "@chanlytics/channels";
 import { readCode, readRaw } from "../../_source.mjs";
 import { toCallDto } from "../../../../../apps/dashboard/src/server/dto.ts";
@@ -258,6 +260,8 @@ test("the agent's analysis fields: each has a type, a name and a description; ea
     data_storage_retention_days: null,
     reminder_trigger_ms: 4000,
     reminder_max_count: 2,
+    ...CALL_FEEL,
+    handbook_config: { ...CALL_HANDBOOK },
   };
   const stranger = { type: "system-presets", name: "call_summary" };
   const withOurs = planAgentSettings({
@@ -292,6 +296,8 @@ test("an agent that has the five fields it had is told it lacks topic and langua
     data_storage_retention_days: null,
     reminder_trigger_ms: 4000,
     reminder_max_count: 2,
+    ...CALL_FEEL,
+    handbook_config: { ...CALL_HANDBOOK },
   };
   const stranger = { type: "system-presets", name: "call_summary" };
   const plan = planAgentSettings({
