@@ -25,6 +25,14 @@
         "aud": "/api/admin/email/alert-test"
       }
     },
+    "POST /api/admin/email/signup-confirm": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/email/signup-confirm.ts",
+      "knock_args": {
+        "aud": "/api/admin/email/signup-confirm"
+      }
+    },
     "POST /api/admin/email/test-to-self": {
       "wrapper": "adminDoor",
       "knock": "authorizeAdmin",

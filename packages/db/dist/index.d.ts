@@ -46103,15 +46103,18 @@ declare function offersEmailReach(db: Db$Z, tenantId: string): Promise<number | 
 type Db$Y = SupabaseClient<Database>;
 /**
  * What a sign-up is judged by before it is asked, all but the mailbox (the edge reads that for the identity it sends
- * as): the person as they stand, null when gone; whether an ask to them is still open; and the asks the limits count,
- * to this address (`addressKey`, contracts signupAddressKey) in ninety days and by the workspace in the last day.
+ * as): the person as they stand, null when gone; whether an ask to them is still open; the asks the limits count, to
+ * this address (`addressKey`, contracts signupAddressKey) in ninety days and by the workspace in the last day; and the
+ * form their newest ask carried (`lastForm`, null with none), which a member's ask again keeps as its evidence.
  */
 declare function signupAskFacts(db: Db$Y, p: {
     tenantId: string;
     contactId: string;
     addressKey: string;
     nowMs: number;
-}): Promise<Omit<SignupAskFacts, "mailbox">>;
+}): Promise<Omit<SignupAskFacts, "mailbox"> & {
+    lastForm: Json | null;
+}>;
 /** A sign-up's confirmation email, as its page reads it: whose it is, who sent it, the address it went to. */
 interface ConfirmationEmail {
     /** The person it is about now: the email's row moves to the person someone was merged into. */

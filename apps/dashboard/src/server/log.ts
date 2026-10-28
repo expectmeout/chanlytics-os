@@ -227,6 +227,7 @@ export const DASHBOARD_LOG_EVENTS = [
   "signout_phones_not_forgotten",
   "signup",
   "signup_code_not_sent",
+  "signup_confirm_ask_failed",
   "signup_confirm_bad_link",
   "signup_confirm_failed",
   "signup_confirm_unavailable",

@@ -2943,11 +2943,13 @@ function base(db, tenantId, sinceMs) {
 }
 async function signupAskFacts(db, p) {
   const dayAgo = p.nowMs - DAY_MS;
-  const [person, open, addressAsks, workspaceToday, failedToday] = await Promise.all([
+  const [person, open, last2, addressAsks, workspaceToday, failedToday] = await Promise.all([
     db.from("contacts").select(
-      "email, consent, dnc, email_suppressed_at, email_marketing, erased_at, erasing_since, merged_into_contact_id"
+      "email, consent, dnc, email_suppressed_at, email_marketing, acquired_via, erased_at, erasing_since, merged_into_contact_id"
     ).eq("tenant_id", p.tenantId).eq("id", p.contactId).maybeSingle(),
     db.from("messages").select("id").eq("tenant_id", p.tenantId).eq("contact_id", p.contactId).eq("channel", "email").eq("direction", "outbound").eq("meta->>source", SIGNUP_CONFIRM_SOURCE).in("status", ASKING).gte("created_at", new Date(p.nowMs - SIGNUP_CONFIRM_MS).toISOString()).limit(1),
+    // Their newest ask, whatever became of it: that a sign-up of theirs was asked, and the form it carried.
+    db.from("messages").select("meta").eq("tenant_id", p.tenantId).eq("contact_id", p.contactId).eq("channel", "email").eq("direction", "outbound").eq("meta->>source", SIGNUP_CONFIRM_SOURCE).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     asksSince(
       db,
       p.tenantId,
@@ -2959,6 +2961,8 @@ async function signupAskFacts(db, p) {
   ]);
   if (person.error) throw new Error(`cannot read the person a sign-up asks: ${person.error.message}`);
   if (open.error) throw new Error(`cannot read the person's open sign-up confirmation: ${open.error.message}`);
+  if (last2.error) throw new Error(`cannot read the person's last sign-up confirmation: ${last2.error.message}`);
+  const asked = last2.data?.meta ?? null;
   const c = person.data;
   const gone = !c || !!c.erased_at || !!c.erasing_since || !!c.merged_into_contact_id;
   return {
@@ -2966,12 +2970,14 @@ async function signupAskFacts(db, p) {
       email: c.email,
       stopped: c.consent === "opted_out" || !!c.dnc,
       suppressed: !!c.email_suppressed_at,
-      emailOffers: c.email_marketing
+      emailOffers: c.email_marketing,
+      fromWebsite: c.acquired_via === "website" || !!last2.data
     },
     open: (open.data ?? []).length > 0,
     addressAsks,
     workspaceToday,
-    failedToday
+    failedToday,
+    lastForm: asked?.signup_confirm?.form ?? null
   };
 }
 async function confirmationEmailOf(db, p) {
