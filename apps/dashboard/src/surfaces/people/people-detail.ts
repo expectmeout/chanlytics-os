@@ -623,6 +623,14 @@ export async function logCallOn(
   return api()("POST contacts/[id]/call", { params: { id }, body, refresh: "behind", once: true });
 }
 
+/**
+ * A website sign-up's person asked to confirm by email, or asked again (00489): one email, under the same rules and limits
+ * as the website's own ask, which the edge judges. `said` is the page's sentence either way; a refusal is an answer.
+ */
+export async function askToConfirmSignup(id: string): Promise<ApiResult<{ asked: boolean; said: string }>> {
+  return api()("POST contacts/[id]/signup-confirm", { params: { id }, refresh: "behind", once: true });
+}
+
 /** A step done, or open again (00166): any owner or operator, with the version the page saw. */
 export async function markStepDone(
   id: string,

@@ -164,6 +164,8 @@ export const PERSON_ABOUT_WORDS = {
   thisWorkspace: "this workspace",
   readOnly: "read only",
   change: "Change",
+  /** Offers by email's ask (00489), when the edge could not be asked at all: the reasons it gives are its own words. */
+  couldNotAsk: "Their confirmation could not be asked for. Try again in a minute.",
   /** The top bar's Ask on their page (canvas A): about them by their first name, or a stand-in's business whole. */
   askAbout: (who: string) => `Ask about ${who}`,
   /** What the receptionist knows of them, under the rows while the group is open. */

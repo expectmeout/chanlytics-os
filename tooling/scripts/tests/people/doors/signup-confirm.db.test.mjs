@@ -213,8 +213,17 @@ test(
     const key = `inbox-${Date.now()}@gmail.com`;
     const facts = () => signupAskFacts(db, { tenantId, contactId: p.id, addressKey: key, nowMs: Date.now() });
     const before = await facts();
-    assert.deepEqual(before.person, { email: p.email, stopped: false, suppressed: false, emailOffers: "unknown" });
+    assert.deepEqual(before.person, {
+      email: p.email,
+      stopped: false,
+      suppressed: false,
+      emailOffers: "unknown",
+      fromWebsite: false,
+    });
     assert.equal(before.open, false);
+    const site = await person({ acquired_via: "website" });
+    const siteFacts = await signupAskFacts(db, { tenantId, contactId: site.id, addressKey: key, nowMs: Date.now() });
+    assert.equal(siteFacts.person.fromWebsite, true, "a person a website's form added is from the website");
 
     const conversation = ok(
       await db
@@ -249,6 +258,8 @@ test(
     );
     const after_ = await facts();
     assert.equal(after_.open, true, "the one sent three days ago is open");
+    assert.equal(after_.person.fromWebsite, true, "a sign-up asked of them says a website brought them");
+    assert.equal(after_.lastForm, null, "their newest ask carried no form");
     assert.equal(after_.addressAsks, 2, "to this inbox in ninety days: the sent and the failed, never the cancelled");
     assert.equal(after_.workspaceToday >= 2, true, "the workspace's in the last day, the cancelled left out");
     assert.equal(after_.failedToday >= 1, true);

@@ -173,7 +173,10 @@ export interface PersonVM extends PersonRowVM {
    * disabled Yes's caption. Null for anyone else.
    */
   yesLocked: string | null;
-  /** Their website sign-up's confirmation while offers by email wait on it (signup-confirm.ts signupAskOf); null with none. */
+  /**
+   * Their website sign-up's confirmation while offers by email wait on it, and whether a member may ask (again)
+   * (signup-confirm.ts signupAskOf); null with nothing to say.
+   */
   signupAsk: ReturnType<typeof signupAskOf>;
   /** They asked for a call back and it is still open (callBackWaits): the call sheet asks whether a call was it (X3-1). */
   callBackOpen: boolean;
@@ -546,7 +549,13 @@ export function toPersonVM(
     yesLocked: d.lead || base.worksAt ? LEAD_CONSENT_REFUSAL : null,
     signupAsk: signupAskOf(
       d.conversations.flatMap((c) => c.messages),
-      base.consent.emailMarketing,
+      {
+        emailOffers: base.consent.emailMarketing,
+        fromWebsite: d.row.came_from === "website",
+        email: base.email,
+        suppressed: base.emailSuppressed,
+        stopped: base.stopped,
+      },
       tz,
       nowMs,
     ),

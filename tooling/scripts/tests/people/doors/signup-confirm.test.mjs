@@ -2,7 +2,7 @@
  * A website's sign-up, confirmed by its person (00489), in its pure parts: the link's token (channels confirm-token.ts,
  * sealed as the unsubscribe link is, under a label of its own), the address a program made up, the address as the limits
  * count it, whether a sign-up is asked (signupAskRefusal), the email's words, the page's words, and what the person's
- * page says while an ask waits (signupAskOf).
+ * page says while an ask waits and whether a member may ask again (signupAskOf).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -79,7 +79,7 @@ test("the limits count one Gmail inbox once, whatever its dots and its tag", () 
 });
 
 const FACTS = {
-  person: { email: "ana@example.com", stopped: false, suppressed: false, emailOffers: "unknown" },
+  person: { email: "ana@example.com", stopped: false, suppressed: false, emailOffers: "unknown", fromWebsite: true },
   mailbox: true,
   open: false,
   addressAsks: 0,
@@ -159,28 +159,53 @@ const ask = (over = {}) => ({
   ...over,
 });
 
+/** Who the email offers row reads: someone the website brought, with an address that takes email, unless said. */
+const WHO = { emailOffers: "unknown", fromWebsite: true, email: "ana@example.com", suppressed: false, stopped: false };
+
 test("the person's page: asked and until when, then did not confirm, or not delivered; nothing once they said yes", () => {
-  assert.deepEqual(signupAskOf([ask()], "unknown", TZ, NOW), {
+  assert.deepEqual(signupAskOf([ask()], WHO, TZ, NOW), {
     label: "Asked to confirm",
     sub: "asked Oct 27 · the link works until Nov 3",
+    act: null,
   });
   const old = ask({ created_at: new Date(NOW - SIGNUP_CONFIRM_MS - 1).toISOString() });
-  assert.equal(signupAskOf([old], "unknown", TZ, NOW).label, "Did not confirm");
-  assert.equal(signupAskOf([ask({ status: "failed" })], "unknown", TZ, NOW).label, "Confirmation not delivered");
-  assert.equal(signupAskOf([ask()], "opted_in", TZ, NOW), null, "a yes says itself");
-  assert.equal(signupAskOf([ask({ status: "canceled" })], "unknown", TZ, NOW), null);
-  assert.equal(
-    signupAskOf([ask({ meta: { source: "reach_out" } }), ask({ direction: "inbound" })], "unknown", TZ, NOW),
-    null,
-  );
-  // The newest ask is the one said.
+  assert.equal(signupAskOf([old], WHO, TZ, NOW).label, "Did not confirm");
+  assert.equal(signupAskOf([ask({ status: "failed" })], WHO, TZ, NOW).label, "Confirmation not delivered");
+  assert.equal(signupAskOf([ask()], { ...WHO, emailOffers: "opted_in" }, TZ, NOW), null, "a yes says itself");
+  assert.equal(signupAskOf([ask()], { ...WHO, stopped: true }, TZ, NOW), null, "a STOP says itself");
+  // The newest ask is the one said, and a cancelled one is none.
   const both = [old, ask({ created_at: new Date(NOW - 60_000).toISOString() })];
-  assert.equal(signupAskOf(both, "opted_out", TZ, NOW).label, "Asked to confirm");
+  assert.equal(signupAskOf(both, { ...WHO, emailOffers: "opted_out" }, TZ, NOW).label, "Asked to confirm");
+  assert.equal(signupAskOf([ask({ status: "canceled" })], WHO, TZ, NOW).label, null);
+});
+
+test("a member may ask someone who signed up on the website: first, or again once the last ask ended; never while one is open", () => {
+  assert.deepEqual(signupAskOf([], WHO, TZ, NOW), { label: null, sub: null, act: "Ask to confirm" });
+  const old = ask({ created_at: new Date(NOW - SIGNUP_CONFIRM_MS - 1).toISOString() });
+  assert.equal(signupAskOf([old], WHO, TZ, NOW).act, "Ask again", "the link ended");
+  assert.equal(signupAskOf([ask({ status: "failed" })], WHO, TZ, NOW).act, "Ask again", "it did not arrive");
+  assert.equal(signupAskOf([ask()], WHO, TZ, NOW).act, null, "one is open");
+  // Someone the website did not bring is offered nothing, unless a sign-up of theirs was asked before: then they signed up.
+  const elsewhere = { ...WHO, fromWebsite: false };
+  assert.equal(signupAskOf([], elsewhere, TZ, NOW), null);
+  assert.equal(signupAskOf([old], elsewhere, TZ, NOW).act, "Ask again");
+  assert.equal(signupAskOf([ask({ status: "canceled" })], elsewhere, TZ, NOW).act, "Ask to confirm");
+  // No address, or one that does not take email: the page says what it can, and asks nothing.
+  assert.equal(signupAskOf([], { ...WHO, email: null }, TZ, NOW), null);
+  assert.equal(signupAskOf([old], { ...WHO, suppressed: true }, TZ, NOW).act, null);
+  assert.equal(signupAskOf([], { ...WHO, suppressed: true }, TZ, NOW), null);
+  assert.equal(
+    signupAskOf([ask({ meta: { source: "reach_out" } }), ask({ direction: "inbound" })], elsewhere, TZ, NOW),
+    null,
+    "no other email is a sign-up's",
+  );
+  assert.match(signupAskLine("not_from_website"), /^Only someone who signed up on your website/);
+  assert.match(signupAskLine("no_email"), /no email address/);
 });
 
 test("the person's page reads it off the messages it already holds: the email offers row's own state", () => {
   const detail = (messages, over = {}) => ({
-    row: personDto({ email: "ana@example.com", email_marketing: "unknown", ...over }),
+    row: personDto({ email: "ana@example.com", email_marketing: "unknown", came_from: "website", ...over }),
     identities: [],
     conversations: [{ id: "cv1", state: "open", contact: { id: "p1" }, messages }],
     calls: [],
@@ -193,8 +218,14 @@ test("the person's page reads it off the messages it already holds: the email of
   assert.deepEqual(toPersonVM(detail([sent]), TZ, new Date(NOW)).signupAsk, {
     label: "Asked to confirm",
     sub: "asked Oct 27 · the link works until Nov 3",
+    act: null,
   });
-  assert.equal(toPersonVM(detail([]), TZ, new Date(NOW)).signupAsk, null, "nobody asked");
+  assert.deepEqual(
+    toPersonVM(detail([]), TZ, new Date(NOW)).signupAsk,
+    { label: null, sub: null, act: "Ask to confirm" },
+    "the website brought them and nobody asked yet",
+  );
+  assert.equal(toPersonVM(detail([], { came_from: "whatsapp" }), TZ, new Date(NOW)).signupAsk, null, "it did not");
   const yes = detail([sent], { email_marketing: "opted_in", email_marketing_source: "confirmed_signup" });
   const vm = toPersonVM(yes, TZ, new Date(NOW));
   assert.equal(vm.signupAsk, null, "their yes says itself");
