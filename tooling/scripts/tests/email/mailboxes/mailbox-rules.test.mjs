@@ -163,11 +163,11 @@ test("a row says its day and its health from the counts its read carried, and a 
   assert.equal(mailboxWords(row({ counts: null }), NOW).health, null);
   assert.equal(
     mailboxWords(row({ dns: {} }), NOW).fix,
-    "Its records couldn't be read just now: Check reads them again.",
+    "Its records couldn't be read just now: Set up DNS checks them again.",
   );
   assert.equal(
     mailboxWords(row({ dns: { spf: "missing", dkim: "found", dmarc: "missing" }, spf_record: "v=spf1 -all" }), NOW).fix,
-    "Add its DMARC record below. Change its SPF record below.",
+    "Add its DMARC record in Set up DNS. Change its SPF record in Set up DNS.",
     "an SPF record the domain has is changed, never added beside",
   );
   const unread = mailboxRecordRows({ provider: "google", dns: { spf: "found" } });
@@ -229,7 +229,7 @@ test("what each row says and offers, from its state: sending, done for the day, 
   assert.equal(mailboxWords(row({ state: "paused" }), NOW).pill, "Paused");
   assert.equal(
     mailboxWords(row({ dns: { spf: "found", dkim: "missing", dmarc: "missing" } }), NOW).fix,
-    "Add its DKIM and DMARC record below.",
+    "Add its DKIM and DMARC record in Set up DNS.",
   );
   assert.deepEqual(mailboxActs(row()), {
     reconnect: false,
@@ -293,7 +293,7 @@ test("the row says what came in through it, never its ramp: when it was read, wh
   assert.match(out.standing, /^Google signed it out: nothing is read from it or sent/);
   assert.equal(
     mailboxRowWords(row({ dns: { spf: "found", dkim: "missing", dmarc: "missing" } }), NOW).fix,
-    "Add its DKIM and DMARC record below.",
+    "Add its DKIM and DMARC record in Set up DNS.",
   );
 });
 
@@ -427,4 +427,19 @@ test("the country a business is in: the US, Canada and the UK go; Germany and Au
   for (const c of ["DE", "at"]) assert.equal(reachOutCountryOf(c), "refused", c);
   for (const c of ["FR", "MX", "AU"]) assert.equal(reachOutCountryOf(c), "held", c);
   assert.deepEqual(holdDoors("abroad"), ["include", "skip"], "its owner includes it, or skips it");
+});
+
+test("the DNS sheet's count and states (the mailbox canvas's D1): found, to add, to change, to turn on, not read yet", async () => {
+  const { mailboxDnsOf, mailboxRecordStateWords } = await import("@chanlytics/contracts");
+  const d = mailboxDnsOf({ provider: "google", dns: { spf: "missing", dkim: "missing", dmarc: "found" } });
+  assert.deepEqual([d.found, d.missing, d.total], [1, 2, 3]);
+  assert.deepEqual(d.rows.map(mailboxRecordStateWords), ["Add this", "Turn on", "Found"]);
+  const had = mailboxDnsOf({
+    provider: "google",
+    dns: { spf: "missing", dkim: "found" },
+    spf_record: "v=spf1 include:mailgun.org ~all",
+    spf_lookups: 2,
+  });
+  assert.deepEqual(had.rows.map(mailboxRecordStateWords), ["Change this", "Found", "Not read yet"]);
+  assert.deepEqual([had.found, had.missing], [1, 1], "a record not read yet is neither found nor missing");
 });

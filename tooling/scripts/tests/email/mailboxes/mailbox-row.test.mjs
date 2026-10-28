@@ -201,7 +201,7 @@ test("its facts: what came in, as the ledger says it, then what it sends and sig
   assert.equal(factsOf(tree).at(-1), "Signs as: Sam Reyes", "its first line");
 });
 
-test("the act is the one its mailbox needs most: Reconnect, Resume, Check, Unpause", async () => {
+test("the act is the one its mailbox needs most: Reconnect, Resume, Set up DNS, Unpause", async () => {
   const went = [];
   const set = [];
   Object.assign(connectedMailboxes, {
@@ -227,9 +227,14 @@ test("the act is the one its mailbox needs most: Reconnect, Resume, Check, Unpau
   assert.ok(!caretWords(open([mbx({ state: "held" })]), SAM).includes("Send a test"), "a held mailbox sends no test");
 
   tree = open([mbx({ dns: { spf: "found", dkim: "missing", dmarc: "missing" } })]);
-  assert.equal(said(byTestId(tree, `mailbox-check-${SAM}`)), "Check", "a record missing: Check is its act");
+  assert.equal(said(byTestId(tree, `mailbox-dns-${SAM}`)), "Set up DNS", "a record missing: Set up DNS is its act");
   assert.ok(caretWords(tree, SAM).includes("Send a test"), "and the test waits on its caret");
-  assert.match(said(cardOf(tree)), /Add its DKIM and DMARC record below/);
+  assert.equal(
+    said(byTestId(tree, `mailbox-need-${SAM}`)),
+    "2 DNS records to add · 1 of 3 found",
+    "one line where the records stood",
+  );
+  assert.equal(byTestId(tree, "mailbox-dns-spf"), null, "its records are its DNS sheet's, not the card's");
 
   tree = open([mbx({ state: "paused" })]);
   assert.match(said(cardOf(tree)), /You paused its sending: what people write still comes in/);
@@ -239,26 +244,71 @@ test("the act is the one its mailbox needs most: Reconnect, Resume, Check, Unpau
   assert.deepEqual(set, [["m1", { paused: false }]]);
 });
 
-test("its domain's records draw while one is missing: SPF and DMARC to copy, DKIM where to turn it on", () => {
-  const tree = open([mbx({ dns: { spf: "found", dkim: "missing", dmarc: "missing" } })]);
-  const text = said(byTestId(tree, `mailbox-records-${SAM}`));
-  assert.match(text, /Sender \(SPF\)/);
-  assert.match(text, /include:_spf\.google\.com/);
-  assert.match(text, /Google Admin console/);
-  assert.match(text, /v=DMARC1; p=none;/);
-  assert.ok(byTestId(tree, "mailbox-copy-spf"), "SPF has its Copy");
-  assert.ok(byTestId(tree, "mailbox-copy-dmarc"), "and DMARC");
-  assert.equal(byTestId(tree, "mailbox-copy-dkim"), null, "DKIM is made where the mailbox lives: nothing to paste");
-  const changed = open([
+test("its domain's records, in a sheet: how many found, each to add with its host and value to copy, DKIM where to turn it on, Check again", async () => {
+  const checked = [];
+  Object.assign(connectedMailboxes, { check: async (id) => (checked.push(id), { ok: true, data: {} }) });
+  const copied = [];
+  const was = globalThis.navigator;
+  Object.defineProperty(globalThis, "navigator", {
+    value: { clipboard: { writeText: async (v) => void copied.push(v) } },
+    configurable: true,
+  });
+  try {
+    let tree = open([mbx({ dns: { spf: "found", dkim: "missing", dmarc: "missing" } })]);
+    press(byTestId(tree, `mailbox-dns-${SAM}`));
+    tree = redraw();
+    const sheet = byTestId(tree, `mailbox-dns-sheet-${SAM}`);
+    assert.ok(sheet, "Set up DNS opens its records in a sheet");
+    assert.equal(said(byTestId(sheet, "mailbox-dns-found")), "1 of 3 found");
+    const spf = said(byTestId(sheet, "mailbox-dns-spf"));
+    assert.match(
+      spf,
+      /^Sender \(SPF\)TXT@ · v=spf1 include:_spf\.google\.com ~allFound$/,
+      "a record DNS has: one line",
+    );
+    const dkim = said(byTestId(sheet, "mailbox-dns-dkim"));
+    assert.match(dkim, /^Signing \(DKIM\)TXTTurn on/);
+    assert.match(dkim, /Google Admin console: Apps › Google Workspace › Gmail › Authenticate email/);
+    const go = find(byTestId(sheet, "mailbox-dns-dkim"), (n) => typeof n.props?.href === "string");
+    assert.equal(
+      go.props.href,
+      "https://admin.google.com/ac/appsettings/740348119625",
+      "Gmail's settings, as Google's help links them",
+    );
+    assert.equal(go.props.target, "_blank");
+    assert.equal(byTestId(sheet, "mailbox-copy-dkim"), null, "DKIM is made where the mailbox lives: nothing to paste");
+    assert.match(said(byTestId(sheet, "mailbox-dns-dmarc")), /^Policy \(DMARC\)TXTAdd this/);
+    // Copy says it went, on its own button.
+    press(byTestId(sheet, "mailbox-copy-dmarc"));
+    await settle();
+    tree = redraw();
+    assert.deepEqual(copied, ["v=DMARC1; p=none;"]);
+    assert.equal(said(byTestId(tree, "mailbox-copy-dmarc")), "Copied");
+    assert.equal(said(byTestId(tree, "mailbox-copy-dmarc-host")), "Copy", "the other part has not been copied");
+    // Check again reads them now; the sheet stays, and Setup's re-read brings what it found.
+    press(byTestId(tree, `mailbox-check-${SAM}`));
+    await settle();
+    tree = redraw();
+    assert.deepEqual(checked, ["m1"]);
+    assert.ok(byTestId(tree, `mailbox-dns-sheet-${SAM}`), "it stays open");
+    assert.match(String(flashes.at(-1)?.msg?.props?.children ?? ""), /getharbor\.example's records were read again/);
+  } finally {
+    Object.defineProperty(globalThis, "navigator", { value: was, configurable: true });
+  }
+  // An SPF record the domain has already is changed, never added beside.
+  let changed = open([
     mbx({
       dns: { spf: "missing", dkim: "found", dmarc: "found" },
       spf_record: "v=spf1 include:mailgun.org ~all",
       spf_lookups: 2,
     }),
   ]);
-  assert.match(said(cardOf(changed)), /Change its SPF record below/);
+  assert.equal(said(byTestId(changed, `mailbox-need-${SAM}`)), "1 DNS record to add · 2 of 3 found");
+  press(byTestId(changed, `mailbox-dns-${SAM}`));
+  changed = redraw();
+  assert.match(said(byTestId(changed, "mailbox-dns-spf")), /^Sender \(SPF\)TXTChange this/);
   assert.match(
-    said(byTestId(changed, `mailbox-records-${SAM}`)),
+    said(byTestId(changed, "mailbox-dns-spf")),
     /v=spf1 include:mailgun\.org include:_spf\.google\.com ~all/,
   );
   assert.match(said(byTestId(changed, "mailbox-record-note-spf")), /may have only one/);

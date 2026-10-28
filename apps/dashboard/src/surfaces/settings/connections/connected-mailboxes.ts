@@ -13,14 +13,17 @@ import {
   MAILBOX_CARD_WORDS,
   MAILBOX_CONNECTIONS_MAX,
   MAILBOX_DAILY_CAP_MAX,
+  MAILBOX_DNS_WORDS,
   MAILBOX_PROVIDER_WORDS,
   MAILBOX_SIGNATURE_WORDS,
   customerDomainWords,
   mailboxActs,
   mailboxConnectOk,
   mailboxConnectWords,
+  mailboxDnsOf,
   mailboxGmailSignsWords,
   mailboxRecordRows,
+  mailboxRecordStateWords,
   mailboxRowWords,
   mailboxSendingLines,
   mailboxSignsAsWords,
@@ -72,6 +75,8 @@ interface ConnectedMailboxesApi {
   card: typeof MAILBOX_CARD_WORDS;
   acts: typeof mailboxActs;
   records: typeof mailboxRecordRows;
+  /** Its domain's records in the DNS sheet (the mailbox canvas's D1): how many found and to add, each one's state, the words. */
+  dns: { of: typeof mailboxDnsOf; state: typeof mailboxRecordStateWords; words: typeof MAILBOX_DNS_WORDS };
   foot: typeof mailboxesFootWords;
   customerDomain: typeof customerDomainWords;
   providerWords: typeof MAILBOX_PROVIDER_WORDS;
@@ -126,6 +131,7 @@ export const connectedMailboxes: ConnectedMailboxesApi = {
   sending: mailboxSendingLines,
   acts: mailboxActs,
   records: mailboxRecordRows,
+  dns: { of: mailboxDnsOf, state: mailboxRecordStateWords, words: MAILBOX_DNS_WORDS },
   foot: mailboxesFootWords,
   customerDomain: customerDomainWords,
   providerWords: MAILBOX_PROVIDER_WORDS,
