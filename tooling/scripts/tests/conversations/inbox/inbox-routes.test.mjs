@@ -45,6 +45,7 @@ const recording = await import(at("apps/dashboard/app/api/v1/calls/[id]/recordin
 const whisper = await import(at("apps/dashboard/app/api/v1/calls/[id]/whisper/route.ts"));
 const end = await import(at("apps/dashboard/app/api/v1/calls/[id]/end/route.ts"));
 const handOver = await import(at("apps/dashboard/app/api/v1/calls/[id]/hand-over/route.ts"));
+const contacts = await import(at("apps/dashboard/app/api/v1/contacts/route.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
 
@@ -632,4 +633,48 @@ test("a reply on a thread nothing has come to is a start, and is judged as one b
     },
   );
   await refused(reply.POST.run(post({ text: "hi" }), heard), "window_closed");
+});
+
+test("the person a thread is with, alone: their row as the list says it, by the thread, in the workspace the tab named; a thread of another workspace's names nobody (the Inbox load review, 28 Oct 2026)", async () => {
+  const [T1, T3, P1, P3] = [C1, C2, K1, "ffffffff-ffff-4fff-8fff-fffffffffff3"];
+  const pol = (tenant_id, subject_type, subject_id, mode) => ({
+    tenant_id,
+    class: "reply",
+    subject_type,
+    subject_id,
+    mode,
+  });
+  const personRow = (id) => ({ id, display_name: "Ada", phone_e164: "+15550000001", consent: "opted_in", dnc: false });
+  const tables = {
+    memberships: both("viewer", "viewer"),
+    policies: [pol(A, null, null, "auto"), pol(A, "contact", P1, "never")],
+    tenants: [],
+    tenant_config: [],
+    conversations: [
+      { id: T1, tenant_id: A, contact_id: P1 },
+      { id: T3, tenant_id: B, contact_id: P3 },
+    ],
+  };
+  const asked = [];
+  const rpcs = {
+    people_list: (a) => {
+      asked.push(a);
+      return a.p_contact_id === P1 && a.p_tenant_id === A ? [personRow(P1)] : [];
+    },
+  };
+  const out = await contacts.GET.run(get(`${inA}&thread=${T1}`), ctxFor(tables, {}, rpcs));
+  assert.deepEqual(
+    out.people.map((p) => [p.id, p.effective_reply_mode]),
+    [[P1, "never"]],
+    "their row, with their reply mode, as the list reads it",
+  );
+  assert.deepEqual(asked, [{ p_tenant_id: A, p_contact_id: P1 }], "people_list narrowed to them, never the book");
+  assert.equal(out.page.total, 1);
+  assert.equal(out.page.has_more, false);
+  assert.equal(out.deal_pace, null, "what the first page alone carries is not read for one person");
+  asked.length = 0;
+  const theirs = await contacts.GET.run(get(`${inA}&thread=${T3}`), ctxFor(tables, {}, rpcs));
+  assert.deepEqual(theirs.people, [], "another workspace's thread names nobody here");
+  assert.deepEqual(asked, [], "and nobody is read");
+  await refused(contacts.GET.run(get(`${inA}&thread=th-1`), ctxFor(tables, {}, rpcs)), "validation", 400);
 });

@@ -383,10 +383,10 @@ test("run twice, the head starts nothing twice; a fetch that throws leaves the p
 /* ------------------------------ one read for a page (GET open) ------------------------------ */
 
 /** The head over Today in a browser that reads a stream: GET open answered by `answer`, the slot it parked. */
-const openedToday = ({ answer, storage = {} }) => {
+const openedToday = ({ answer, storage = {}, pathname = "/w/harbor" }) => {
   const calls = [];
   const { win } = headRuns({
-    pathname: "/w/harbor",
+    pathname,
     hash: "",
     fetch: (url, init) => {
       calls.push([url, init]);
@@ -467,6 +467,31 @@ test("the period line is read over the period this device last picked, as Report
   assert.equal(calls[0][0], "/api/v1/open?route=today&period=7d&workspace=harbor");
   assert.equal((await settled(slot[urlOf("reports/headline?period=7d")])).status, 200);
   assert.ok(!(urlOf("reports/headline?period=30d") in slot), "never the default's beside it");
+});
+
+test("the Inbox opens through one read too, and a thread its address names has its person read in the first tier", async () => {
+  const [own, beside] = openReads("inbox", null, ID);
+  assert.equal(own.at(-1), `contacts?thread=${ID}`, "the thread's person, beside the page's own");
+  const { calls, slot } = openedToday({
+    pathname: `/w/harbor/inbox/th-${ID}`,
+    answer: () => ndjson([...own, ...beside].map((k) => line(k, { ok: true, data: { k } }))),
+  });
+  assert.equal(calls.length, 1, "one request");
+  assert.equal(calls[0][0], `/api/v1/open?route=inbox&thread=${ID}&workspace=harbor`);
+  assert.deepEqual(Object.keys(slot).sort(), [...own, ...beside].map(urlOf).sort());
+  for (const k of [...own, ...beside])
+    assert.deepEqual(await settled(slot[urlOf(k)]), { status: 200, body: { ok: true, data: { k } }, retry: null }, k);
+  // The list alone, or a thread of the mockup's: no person to read.
+  for (const pathname of ["/w/harbor/inbox", "/w/harbor/inbox/th-1", "/w/harbor/inbox/to-send"]) {
+    const opened = openedToday({ pathname, answer: () => ndjson([]) });
+    assert.equal(opened.calls[0][0], "/api/v1/open?route=inbox&workspace=harbor", pathname);
+    assert.ok(!Object.keys(opened.slot).some((u) => u.includes("thread=")), pathname);
+  }
+  // Where the browser cannot read a stream, one request each, the thread's person among them, as the client spells it.
+  assert.deepEqual(
+    headRuns({ pathname: `/w/harbor/inbox/th-${ID}`, hash: "" }).calls.map(([u]) => u),
+    [...opensOn("harbor", "inbox"), `/api/v1/contacts?thread=${ID}&workspace=harbor`],
+  );
 });
 
 test("a browser that cannot read a stream opens Today as it always did, one request for each of its own reads", () => {
@@ -754,10 +779,11 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
   // own span's read, started beside the board's (the Calendar's lane C). And the channels read (surfaces/channels/
   // surface.ts), which Live, New, a run and the Library are made of: the one read of the numbers, started with the page's
   // own. The Inbox draws Sent's runs, waiting ones as rows of Needs you: their own read, nothing of People (the Inbox's
-  // run review, 18 Oct 2026). And Get their yes, over People's list, draws the opt-in Sent's read carries (lane 7).
+  // run review, 18 Oct 2026), and the thread it opens on its reply box's reads, the kept drafts and the settings read's templates
+  // (the Inbox load review, 28 Oct 2026). And Get their yes, over People's list, draws the opt-in Sent's read carries (lane 7).
   const alsoDrawn = {
     today: ["calendar"],
-    inbox: ["broadcasts"],
+    inbox: ["broadcasts", "reply_drafts", "settings"],
     campaigns: ["settings"],
     "campaigns/sequences/new": ["playbooks", "settings", "channels"],
     "campaigns/sequences/runs": ["broadcasts", "settings", "channels"],

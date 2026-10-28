@@ -69,6 +69,22 @@ test("the pages that open through one read are the pages that say what they draw
   assert.deepEqual(openReads("inbox")[1], [], "a page that draws nothing beside its own has no second tier");
 });
 
+test("the Inbox opens through one read, its thread's person in the first tier where its address names one", () => {
+  const thread = "22222222-2222-4222-8222-222222222222";
+  const [own, beside] = openReads("inbox", null, thread);
+  assert.deepEqual(own, ["workspaces", ...PREFETCH_READS.inbox, `contacts?thread=${thread}`]);
+  assert.deepEqual(
+    beside,
+    [],
+    "nothing beside: People's book is the boot's second pass, never the Inbox's first screen",
+  );
+  assert.deepEqual(openReads("inbox")[0], ["workspaces", ...PREFETCH_READS.inbox], "no thread named, no person read");
+  assert.ok(
+    !openReads("today", null, thread)[0].some((k) => k.startsWith("contacts?thread=")),
+    "a thread is the Inbox's alone",
+  );
+});
+
 test("the page's own reads are answered first, each as it settles; what it draws beside them leaves once they are in", async () => {
   const [own, beside] = openReads("today");
   const held = Object.fromEntries([...own, ...beside].map((k) => [k, deferred()]));
@@ -79,7 +95,7 @@ test("the page's own reads are answered first, each as it settles; what it draws
       return held[key].p;
     },
   });
-  const res = openPage(ctxFor(), openReq(), "today", null, routeOf);
+  const res = openPage(ctxFor(), openReq(), { page: "today", period: null, thread: null }, routeOf);
   assert.equal(res.headers.get("content-type"), "application/x-ndjson; charset=utf-8");
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
@@ -124,7 +140,7 @@ test("a read's refusal is its own route's: its code, status and sentence, and th
       return { key };
     },
   });
-  const lines = await linesOf(openPage(ctxFor(), openReq(), "today", null, routeOf));
+  const lines = await linesOf(openPage(ctxFor(), openReq(), { page: "today", period: null, thread: null }, routeOf));
   const byKey = Object.fromEntries(lines.map((l) => [l.k, l]));
   assert.deepEqual(byKey["metrics?days=1"], {
     k: "metrics?days=1",
@@ -160,7 +176,7 @@ test("the membership is read once for every read, and a reader two of them read 
       return (await load(readerContext(c, m), shared, undefined)).data;
     },
   });
-  const lines = await linesOf(openPage(ctx, openReq(), "today", null, routeOf));
+  const lines = await linesOf(openPage(ctx, openReq(), { page: "today", period: null, thread: null }, routeOf));
   const [own, beside] = openReads("today");
   assert.equal(lines.length, own.length + beside.length);
   assert.ok(
@@ -191,12 +207,19 @@ test("through the real route, every read GET open answers has its route, and a r
   assert.deepEqual(alone, { views: { today: { band: "queue" } } });
 });
 
-test("GET open takes the pages it opens and the periods Reports offers; any other period is the default's", async () => {
+test("GET open takes the pages it opens, the periods Reports offers and the thread an Inbox address names; any other period is the default's", async () => {
   await assert.rejects(
-    openRoute.GET.run(openReq("route=inbox&workspace=harbor"), ctxFor()),
+    openRoute.GET.run(openReq("route=calendar&workspace=harbor"), ctxFor()),
     (e) => e.code === "validation",
   );
   const keysOf = async (query) => (await linesOf(await openRoute.GET.run(openReq(query), ctxFor()))).map((l) => l.k);
   assert.ok((await keysOf("route=today&period=7d&workspace=harbor")).includes("reports/headline?period=7d"));
   assert.ok((await keysOf("route=today&period=forever&workspace=harbor")).includes("reports/headline?period=30d"));
+  const thread = "22222222-2222-4222-8222-222222222222";
+  assert.ok((await keysOf(`route=inbox&thread=${thread}&workspace=harbor`)).includes(`contacts?thread=${thread}`));
+  await assert.rejects(
+    openRoute.GET.run(openReq("route=inbox&thread=th-1&workspace=harbor"), ctxFor()),
+    (e) => e.code === "validation",
+    "a thread is a conversation's id, never a word of the address",
+  );
 });

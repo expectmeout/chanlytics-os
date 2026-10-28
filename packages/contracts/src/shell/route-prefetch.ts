@@ -47,9 +47,25 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
     "google",
     "conversations/drafts",
   ],
-  // The reply box's approved templates are the settings read's, the one read of the templates (surfaces/offered-templates.ts).
   // And Sent's runs, whose waiting ones are rows of Needs you (surface-registry ROUTE_DRAWS): their own read, nothing of People.
-  inbox: ["conversations", "escalations?state=open", "broadcasts"],
+  // And what its first draw waits for besides them, each drawn in a row or in the thread it opens on (ROUTE_WAITS, and the
+  // thread's own: surfaces/inbox/surface.ts openingThreadWaits): the calls a timeline holds, a reply to a reach-out (the row's
+  // chip, the strip over the box), the draft Ask kept for the box, and the settings read, the one read of the templates
+  // (surfaces/offered-templates.ts), which a thread outside WhatsApp's window draws its box from. They were read in the boot's
+  // first and second passes, after the threads had drawn: the box came 0.3 to 1.5 s after the thread and pushed the
+  // conversation 145 to 162 px up (the Inbox load review, 28 Oct 2026).
+  inbox: [
+    "conversations",
+    "escalations?state=open",
+    "broadcasts",
+    "calls",
+    "reach-out-replies",
+    "conversations/drafts",
+    "settings",
+    "team",
+    "policies",
+    "templates?all=1",
+  ],
   // A row's standing reads the thread's open escalation, as the Inbox's does (conversations-surface.ts).
   conversations: ["conversations", "calls", "escalations?state=open"],
   // People's list, its lists and the Pipeline are one page over one surface (a person's page reads the person instead).
@@ -157,13 +173,23 @@ export const PREFETCH_BESIDE: Readonly<Record<string, readonly string[]>> = {
     // written, which takes a turn of the model, so its rows come after the people's whatever tier it rode in.
     "ask/morning",
   ],
+  // Nothing: the Inbox's first screen is its own reads (a thread's person among them, THREAD_PERSON_READ), and People's book,
+  // which a thread's head prefers where the tab holds it, is read in the boot's second pass, among the strangers.
+  inbox: [],
 };
 
 /**
  * The pages whose first reads leave as one streamed read (GET open), rather than one request each: GET open's `route`.
  * The pages PREFETCH_BESIDE names (route-prefetch.test.mjs holds the two to one list).
  */
-export const PREFETCH_OPEN = ["today"] as const;
+export const PREFETCH_OPEN = ["today", "inbox"] as const;
+
+/**
+ * The read of the person a thread is with, as the client spells it (dashboard surfaces/people/want-person.ts): their People
+ * row alone, by the thread's conversation (GET contacts `thread`). Started with the Inbox's own where its address names a
+ * thread (`inbox/th-<conversation>`), in the stream's first tier, since the thread's head draws from it in the first frame.
+ */
+const THREAD_PERSON_READ = "contacts?thread=";
 
 /** The period a read is spelled over by default, as the client spells it: replaced by the one the device last picked. */
 const DEFAULT_PERIOD = `period=${REPORT_PERIOD_DEFAULT}`;
@@ -171,12 +197,18 @@ const DEFAULT_PERIOD = `period=${REPORT_PERIOD_DEFAULT}`;
 /**
  * What GET open answers for a page, in its two tiers, each a read as the client spells it before its workspace: who is
  * looking and the page's own first, then what it draws beside them. `period` is the one this device last picked, which
- * the head read where the page reads it (REPORT_PERIOD_STORAGE); the default's otherwise. The head parks one answer for
- * each, under the same key (routePrefetchScript).
+ * the head read where the page reads it (REPORT_PERIOD_STORAGE); the default's otherwise. `thread` is the conversation an
+ * Inbox address names, whose person is read with the page's own (THREAD_PERSON_READ). The head parks one answer for each,
+ * under the same key (routePrefetchScript).
  */
-export function openReads(route: string, period?: string | null): readonly [readonly string[], readonly string[]] {
+export function openReads(
+  route: string,
+  period?: string | null,
+  thread?: string | null,
+): readonly [readonly string[], readonly string[]] {
   const at = (x: string) => (period ? x.replace(DEFAULT_PERIOD, `period=${period}`) : x);
-  return [["workspaces", ...(PREFETCH_READS[route] ?? []).map(at)], (PREFETCH_BESIDE[route] ?? []).map(at)];
+  const person = route === "inbox" && thread ? [`${THREAD_PERSON_READ}${thread}`] : [];
+  return [["workspaces", ...(PREFETCH_READS[route] ?? []).map(at), ...person], (PREFETCH_BESIDE[route] ?? []).map(at)];
 }
 
 /** The shell's route for the word an address opens with: the product's word (ROUTE_WORDS) or the route's own. */
@@ -250,6 +282,10 @@ export function routePrefetchScript(): string {
     'else if(!(s==="clients"&&/^leads(:|$)/.test(l))&&Object.prototype.hasOwnProperty.call(t,s))',
     `for(var j=0;j<t[s].length;j++){var x=P?t[s][j].replace(${JSON.stringify(`period=${REPORT_PERIOD_DEFAULT}`)},P):t[s][j];` +
       'u.push("/api/v1/"+x+(x.indexOf("?")<0?"?":"&")+"workspace="+w)}',
+    // The thread an Inbox address names (`inbox/th-<conversation>`): the person it is with is read beside the page's own, as a
+    // person's page reads the person, since the thread's head draws from that read in its first frame (THREAD_PERSON_READ).
+    `var T=s==="inbox"&&new RegExp(${JSON.stringify(`^th-(${PREFETCH_UUID.slice(1, -1)})$`)},"i").exec(l);T=T?T[1]:"";` +
+      `if(T)u.push("/api/v1/${THREAD_PERSON_READ}"+T+"&workspace="+w);`,
     // A sequence's record the address opens (`campaigns/sequences/<id>`, a tab after it) is read beside the list it opens over,
     // as a person's page reads the person, and so is the tab's own read where it has one (People, History): it waited for the
     // page's code and its mount (the load review of 18 Oct 2026). New (`campaigns/sequences/new`) names no id and reads none.
@@ -268,7 +304,7 @@ export function routePrefetchScript(): string {
     // as a prefetch that failed always was. Elsewhere, and in a browser that cannot read a stream, one request each.
     'var Y=typeof Response!=="undefined"&&typeof TextDecoder!=="undefined"&&O.call(B,s)&&!f[u[0]];',
     'if(Y){var k=["workspaces"],R={},Z=function(x){return P?x.replace(' + JSON.stringify(DEFAULT_PERIOD) + ",P):x};",
-    "for(var j=0;j<t[s].length;j++)k.push(Z(t[s][j]));",
+    `for(var j=0;j<t[s].length;j++)k.push(Z(t[s][j]));if(T)k.push(${JSON.stringify(THREAD_PERSON_READ)}+T);`,
     'for(var j=0;j<B[s].length;j++){var x=Z(B[s][j]);k.push(x);u.push("/api/v1/"+x+(x.indexOf("?")<0?"?":"&")+"workspace="+w)}',
     // Each parked answer is handled where it is made: one the page never takes, refused with the whole, is nobody's
     // unhandled rejection, and the page's own read that takes one still hears the refusal.
@@ -276,7 +312,7 @@ export function routePrefetchScript(): string {
     'var E=function(){for(var y in R)if(R[y]){R[y][1](new Error("open"));R[y]=0}};',
     'var L=function(z){if(!z)return;var m=JSON.parse(z),c=R[m.k];if(!c)return;R[m.k]=0;var H={"content-type":"application/json"};' +
       "for(var e in m.h||{})H[e]=m.h[e];c[0](new Response(JSON.stringify(m.b),{status:m.s,headers:H}))};",
-    'g("/api/v1/open?route="+s+(P?"&"+P:"")+"&workspace="+w).then(function(r){if(!r.ok)throw 0;' +
+    'g("/api/v1/open?route="+s+(P?"&"+P:"")+(T?"&thread="+T:"")+"&workspace="+w).then(function(r){if(!r.ok)throw 0;' +
       'if(!r.body||!r.body.getReader)return r.text().then(function(T){T.split("\\n").forEach(L)});' +
       'var D=r.body.getReader(),C=new TextDecoder(),Q="";' +
       "var N=function(){return D.read().then(function(c){if(c.done){L(Q);return}Q+=C.decode(c.value,{stream:true});" +

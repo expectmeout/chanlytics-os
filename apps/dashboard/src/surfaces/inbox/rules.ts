@@ -105,6 +105,62 @@ export const ixRouteThread = (
   return { id, who: found ? found.who : null };
 };
 
+// ---- Where the Inbox opens ----
+
+// The phone's width, where the list and the thread take turns on the screen (mobile.css, 720px): a phone's Inbox opens on
+// its list alone.
+export const ixOnPhone = (): boolean => !!(window.matchMedia && window.matchMedia("(max-width: 720px)").matches);
+
+/** Where the Inbox opens is decided by what this device keeps and what is waiting: the page's, and its read's (surface.ts). */
+interface IxOpeningAt {
+  /** The bucket the member had (the Inbox's place, place.ts ixPlace), which comes back with a refresh. */
+  had: unknown;
+  /** Whether a campaign run waits for your say (needs-you.ts waitingRunsNow): a row of Needs you. */
+  runsWaiting: boolean;
+  toSendOpen?: boolean;
+}
+
+// The bucket a thread is IN, never the state it holds: one whose own reply is on its way out is in Needs you. A campaign
+// run waiting for your say is a row of Needs you too (inbox-runs.tsx): with one, Needs you is where the Inbox opens, as the
+// badge over it says. It opened on Handled, and the run waited unseen under a tab that said no number.
+export const ixFirstBucket = (list: Thread[], runsWaiting: boolean): string => {
+  if (runsWaiting) return "escalated";
+  for (const s of ["escalated", "needs", "snoozed", "done"]) {
+    if (list.some((x) => ixBucketOf(x) === s)) return s;
+  }
+  return "escalated";
+};
+
+// The bucket the member had comes back with a refresh; a thread the address names opens in it when it lists that thread,
+// and in its own bucket when it does not.
+export const ixOpeningBucket = (threads: Thread[], initialThreadId: string | null, at: IxOpeningAt): string => {
+  // To send's address (`inbox/to-send`) opens Needs you, where its part is (the Campaigns wiring review's lane 4).
+  if (at.toSendOpen) return "escalated";
+  const t = initialThreadId ? threads.find((x) => x.id === initialThreadId) : undefined;
+  const had = at.had;
+  if (t)
+    return typeof had === "string" && had && (had === "all" || ixBucketOf(t) === had) ? had : (ixBucketOf(t) ?? "");
+  return typeof had === "string" && had ? had : ixFirstBucket(threads, at.runsWaiting);
+};
+
+/**
+ * The thread drawn beside the list as the page first opens, as the page picks it (pages/inbox-page.tsx inboxOnScreen): the
+ * one the address names where the Inbox holds it, else the first of the bucket it opens on, in the one order (ixRank). The
+ * Inbox's read asks it, to read that thread's person with it (surface.ts).
+ */
+export function ixOpeningThread(
+  threads: Thread[],
+  initialThreadId: string | null,
+  at: IxOpeningAt,
+): Thread | undefined {
+  if (initialThreadId) return threads.find((t) => t.id === initialThreadId);
+  const bucket = ixOpeningBucket(threads, null, at);
+  return threads
+    .filter((t) => bucket === "all" || ixBucketOf(t) === bucket)
+    .sort((a, b) => ixRank(a) - ixRank(b))
+    .at(0);
+}
+
 // ---- A bulk act's refusals, in words ----
 
 /** The people a bulk act could not act on, named: no more than three names in a line. */

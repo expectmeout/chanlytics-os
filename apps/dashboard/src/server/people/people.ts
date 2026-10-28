@@ -153,15 +153,16 @@ export async function* everyoneOnce(
 }
 
 /**
- * ONE PERSON, as People draws them, with their reply mode: the row of their own copy (GET export?person, R14 X5). None for
+ * ONE PERSON, as People draws them, with their reply mode: the row of their own copy (GET export?person, R14 X5), and the
+ * person a thread is with (`{ thread }`, GET contacts?thread: the Inbox's head before People's book is in). None for
  * someone this workspace does not hold, or holds no longer (erased, or merged into another).
  */
 export async function onePerson(
   ctx: Pick<RouteContext, "supabase">,
   tenantId: string,
-  contactId: string,
+  who: string | { thread: string },
 ): Promise<PersonRowDto | null> {
-  const [row, pols] = await Promise.all([personRow(ctx.supabase, tenantId, contactId), replyPolicies(ctx, tenantId)]);
+  const [row, pols] = await Promise.all([personRow(ctx.supabase, tenantId, who), replyPolicies(ctx, tenantId)]);
   return row ? (withReplyModes([row], pols).at(0) ?? null) : null;
 }
 
