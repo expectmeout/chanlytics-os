@@ -9429,6 +9429,8 @@ function messageText(m) {
     const caption = m.media?.caption?.trim();
     return caption ? `${label}: ${caption}` : label;
   }
+  const subject = m.channel === "email" ? emailSubjectOf(m) : null;
+  if (subject) return subject;
   return `[${m.type}]`;
 }
 
@@ -26013,7 +26015,11 @@ function theirTurnWords(last) {
   return last.kind === "call" ? "they called last" : "they wrote last";
 }
 function heardAt(r2) {
-  const at3 = [ts(r2.last_inbound_at), ts(r2.last_inbound_call_at ?? null)].filter((x) => x !== null);
+  const at3 = [
+    ts(r2.last_inbound_at),
+    ts(r2.last_inbound_call_at ?? null),
+    r2.last_message_direction === "inbound" ? ts(r2.last_message_at) : null
+  ].filter((x) => x !== null);
   return at3.length ? Math.max(...at3) : null;
 }
 function lastContactOf(r2, tz, nowMs) {

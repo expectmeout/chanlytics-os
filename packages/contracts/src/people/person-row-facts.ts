@@ -46,9 +46,17 @@ export function theirTurnWords(last: Pick<PersonLastContact, "who" | "kind">): s
   return last.kind === "call" ? "they called last" : "they wrote last";
 }
 
-/** When they last wrote or called: their message, or a call they placed. A call the owner made is not them asking. */
+/**
+ * When they last wrote or called: their message, or a call they placed. A call the owner made is not them asking. The
+ * newest message counts when it came in, words or none: an email kept without its words is still them writing, and the
+ * row says "They wrote" of it (lastContactOf), so it never says "Not heard from" beside that (27 Oct 2026).
+ */
 export function heardAt(r: PersonRowDto): number | null {
-  const at = [ts(r.last_inbound_at), ts(r.last_inbound_call_at ?? null)].filter((x): x is number => x !== null);
+  const at = [
+    ts(r.last_inbound_at),
+    ts(r.last_inbound_call_at ?? null),
+    r.last_message_direction === "inbound" ? ts(r.last_message_at) : null,
+  ].filter((x): x is number => x !== null);
   return at.length ? Math.max(...at) : null;
 }
 

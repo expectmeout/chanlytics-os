@@ -587,3 +587,24 @@ test("an email as a row's one line: its own words, without the chain, the signat
   assert.equal(emailPreviewOf("Call (888) 555-0100 <tel:+18885550100> today"), "Call (888) 555-0100 today");
   assert.equal(emailPreviewOf("See https://example.com/listing/9 or example.com"), "See or example.com");
 });
+
+// 27 Oct 2026: 47 emails the mailbox's six months kept had only HTML and no words, and a Conversations row previewed
+// them as "[text]". The import keeps HTML's words now (imports/mail-history.ts); one kept before says its subject.
+test("an email kept without its words says its subject, never the stand-in [text]", () => {
+  const email = {
+    id: "m1",
+    direction: "inbound",
+    sender: "customer",
+    type: "text",
+    body: null,
+    media: null,
+    meta: { email: { subject: "Your statement is ready" } },
+    status: "received",
+    channel: "email",
+    created_at: ago(30),
+    channel_ts: ago(30),
+  };
+  assert.equal(messageWords(email), "Your statement is ready");
+  assert.equal(messageWords({ ...email, meta: null }), "[text]", "with no subject either, the stand-in stays");
+  assert.equal(messageWords({ ...email, channel: "sms" }), "[text]", "a text has no subject to say");
+});

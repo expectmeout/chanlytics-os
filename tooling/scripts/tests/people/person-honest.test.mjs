@@ -2567,7 +2567,8 @@ test("a proposal out is a card: its service and value, its steps, its link and w
     assert.equal(byTestId(tree, "person-deal-flag"), null, "they wrote since: nothing waiting");
     // Nothing back in a week: a state in the warn tone, the house's one pill. A proposal recorded without a link went
     // some other way, so it waits as one whose link went.
-    tree = await openedRow(withDeals([dealRow()], {}, { last_inbound_at: iso(12 * D) }));
+    // Their last message, 12 days ago, is the newest there is (the row's default says it came in three hours ago).
+    tree = await openedRow(withDeals([dealRow()], {}, { last_inbound_at: iso(12 * D), last_message_at: iso(12 * D) }));
     const flag = find(tree, (n) => n.type === StatePill && n.props.testid === "person-deal-flag");
     assert.deepEqual([flag.props.kind, flag.props.value, flag.props.label], ["tone", "warn", "Nothing back in 9 days"]);
 
@@ -2647,7 +2648,15 @@ test("where only an approved message can reach them, the card's follow-up opens 
           },
         ],
       },
-      { latest_wa_inbound_at: iso(12 * D), last_inbound_at: iso(12 * D), last_message_at: iso(8 * D), ...rowOver },
+      {
+        latest_wa_inbound_at: iso(12 * D),
+        last_inbound_at: iso(12 * D),
+        // The newest message is the proposal the team sent (m2), not theirs.
+        last_message_at: iso(8 * D),
+        last_message_direction: "outbound",
+        last_message_sender: "human",
+        ...rowOver,
+      },
     );
   try {
     const vm = quiet();

@@ -3,6 +3,10 @@
  * and R19; 00483). One sorting for the live read (mailbox-sync.ts) and the six months (imports/mail-history.ts), asked
  * only outside a thread a reach-out started (a reply there is a reply, whatever it looks like), in this order:
  *
+ *   ours       the platform's own sender (LEAD_FROM): an alert, a digest, an invitation from Chanlytics is never a
+ *              person, whatever the workspace said, and left as automated. Mail sent before every one carried
+ *              Auto-Submitted (#1858) has nothing else to tell it by, and the six months bring it in (27 Oct 2026: a
+ *              month of alerts became one person in Need you, with a reply drafted to the platform).
  *   said       what the workspace said of the sender (contracts senderVerdictOf, by address, then by domain): a person
  *              comes in whatever the email looks like, an automated sender is left.
  *   claim      what the email claims to be (channels classifyReceived): anything but a person's is left.
@@ -15,7 +19,13 @@
  * What is left is noted, one line a sender (00483 mailbox_left), so the owner sees who was left and why.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { classifyReceived, filedAsBulk, filedUnderUpdates, type MailboxEmail } from "../../packages/channels.js";
+import {
+  addressOf,
+  classifyReceived,
+  filedAsBulk,
+  filedUnderUpdates,
+  type MailboxEmail,
+} from "../../packages/channels.js";
 import {
   normalizeEmail,
   senderVerdictOf,
@@ -23,11 +33,16 @@ import {
   type MailboxSenderVerdict,
 } from "../../packages/contracts.js";
 import { contactIdByEmail, mailboxSenderVerdicts, noteMailboxLeft, type Database } from "../../packages/db.js";
+import { platformFrom } from "../../ops/notify.js";
 
 type Db = SupabaseClient<Database>;
 
-/** What a sorting reads beside the email: what the workspace said of its senders, and whether it knows an address. */
+/**
+ * What a sorting reads beside the email: the platform's own sending address (null when this deployment sends none),
+ * what the workspace said of its senders, and whether it knows an address.
+ */
 export interface MailSorting {
+  ours: string | null;
   said: ReadonlyMap<string, MailboxSenderVerdict>;
   knows(address: string): Promise<boolean>;
 }
@@ -35,7 +50,11 @@ export interface MailSorting {
 /** A workspace's sorting, read once for a sync or a part: what it said of its senders, and People asked as needed. */
 export async function mailSortingFor(db: Db, tenantId: string): Promise<MailSorting> {
   const said = await mailboxSenderVerdicts(db, tenantId);
-  return { said, knows: async (address) => (await contactIdByEmail(db, tenantId, address)) !== null };
+  return {
+    ours: addressOf(platformFrom())?.address ?? null,
+    said,
+    knows: async (address) => (await contactIdByEmail(db, tenantId, address)) !== null,
+  };
 }
 
 /** Whether an email answers another: it names one it replies to. */
@@ -44,6 +63,7 @@ const answersSomething = (e: MailboxEmail): boolean => !!(e.headers["in-reply-to
 /** Why the mailbox leaves this email where it is, or null when it comes in as a person's. */
 export async function leftWhy(e: MailboxEmail, s: MailSorting): Promise<MailboxLeftWhy | null> {
   const from = normalizeEmail(e.from?.address);
+  if (from && from === s.ours) return "automated";
   const said = from ? senderVerdictOf(s.said, from) : null;
   if (said === "person") return null;
   if (said === "automated") return "said";

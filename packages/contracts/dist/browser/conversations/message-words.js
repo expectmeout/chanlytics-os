@@ -1,5 +1,5 @@
 import { MEDIA_LABEL, mediaKind } from "./message-media.js";
-import { emailFromNameOf, emailPartsOf } from "./message-email.js";
+import { emailFromNameOf, emailPartsOf, emailSubjectOf } from "./message-email.js";
 import { isChatMessage, writtenChannelOf } from "./thread-channel.js";
 const EMAIL_DELIVERED = "Reached their mail server";
 export function messageStatusLabel(status, channel) {
@@ -158,6 +158,8 @@ export function messageText(m) {
     const caption = m.media?.caption?.trim();
     return caption ? `${label}: ${caption}` : label;
   }
+  const subject = m.channel === "email" ? emailSubjectOf(m) : null;
+  if (subject) return subject;
   return `[${m.type}]`;
 }
 export { clipAtWord } from "../shared/words.js";

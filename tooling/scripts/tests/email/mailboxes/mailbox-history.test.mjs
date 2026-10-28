@@ -218,6 +218,33 @@ test("a mailbox's six months: what a person wrote and what the owner wrote to on
   assert.equal(w.tables.jobs.length, 0, "done: no part after it");
 });
 
+// 27 Oct 2026: the first import kept 47 emails that had only HTML with no words at all, where the live read keeps
+// HTML's words (channels emailPlainText). Each one's person said "They wrote" beside "Not heard from".
+test("an email with only HTML is kept with its words, as the live read keeps them", async () => {
+  const w = world();
+  const html = gmailReceived({
+    id: "h1",
+    threadId: "t9",
+    from: "Lena Ortiz <lena@example.com>",
+    to: OWN,
+    subject: "Moving in May",
+    messageId: "<h1@example.com>",
+    text: '<html><body><p>Hi,</p><p>Can you <b>move a sofa</b> on May 3?</p><img src="https://example.com/x.png"></body></html>',
+  });
+  html.payload.mimeType = "text/html";
+  const net = providers((c) => {
+    if (c.url.startsWith(`${GMAIL}/messages?`)) return { json: mail([html]) };
+    return c.url.includes("/messages/h1?") ? { json: html } : { status: 404 };
+  });
+  try {
+    await part(w, "mailbox");
+  } finally {
+    net.restore();
+  }
+  assert.equal(w.kept.length, 1);
+  assert.equal(w.kept[0].p_body, "Hi,\n\nCan you move a sofa on May 3?", "its words, the markup and the image gone");
+});
+
 test("a part that runs out of time keeps its place in the page, and the next part picks up at the next message", async () => {
   const w = world();
   const realNow = Date.now;
@@ -484,6 +511,35 @@ test("mail from a no-reply sender is left and counted, however Google's reports 
   }
   assert.deepEqual(keptIds(w), ["p1"], "only what a person wrote");
   assert.deepEqual(ledger(w, "mailbox").counts, { messages: 1, people: 1, dropped: 4 });
+});
+
+// 27 Oct 2026: the six months brought a month of the platform's alerts in as one person, sent before they said what
+// they are (#1858), and a website's form mail sent from the same address; Need you drafted a reply to the platform.
+test("the six months leave the platform's own mail, which no header marks as automated, and count it", async () => {
+  const w = world();
+  const ALERTS = "alerts@chanlytics.example";
+  const sender = withEnv({ LEAD_FROM: `Chanlytics <${ALERTS}>` });
+  const alerts = ["A background sweep is not running", "New workspace: E2E probe 1", "Promo signup: a@example.com"].map(
+    (subject, i) =>
+      gmailReceived({
+        id: `al${i}`,
+        threadId: `tal${i}`,
+        from: `Chanlytics <${ALERTS}>`,
+        to: OWN,
+        subject,
+        messageId: `<al${i}@chanlytics.example>`,
+        text: "Open it in the Inbox.",
+      }),
+  );
+  const net = gmailWith([...alerts, MESSAGES.p1]);
+  try {
+    await part(w, "mailbox");
+  } finally {
+    net.restore();
+    sender();
+  }
+  assert.deepEqual(keptIds(w), ["p1"], "only what a person wrote");
+  assert.deepEqual(ledger(w, "mailbox").counts, { messages: 1, people: 1, dropped: 3 });
 });
 
 /** A received message with the labels Gmail filed it under. */
