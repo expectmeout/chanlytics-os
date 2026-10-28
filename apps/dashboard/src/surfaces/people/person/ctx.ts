@@ -122,6 +122,15 @@ export interface PageCtx {
 }
 
 /** The digits of a number, for comparing what was typed with a phone. */
+/**
+ * Delete's typed question opened, and the merge's closed: one question at a time. Not a person (00483) asks it with its
+ * switch on: their mail stays in the mailbox, then they are deleted.
+ */
+export function askDelete(c: Pick<PageCtx, "setDel" | "setMerge">, bot = false): void {
+  c.setMerge(MERGE_CLOSED);
+  c.setDel({ open: true, typed: "", busy: false, error: null, bot });
+}
+
 export const digitsOf = (x: string | null | undefined): string => String(x || "").replace(/\D/g, "");
 
 /**

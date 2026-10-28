@@ -49,7 +49,7 @@ import { CallAct } from "./call";
 import { PersonName } from "./name";
 import { askNoteFocus } from "./notes";
 import { NameNotices, putNameBack } from "./signer";
-import { MERGE_CLOSED, digitsOf } from "./ctx";
+import { MERGE_CLOSED, askDelete, digitsOf } from "./ctx";
 import { combineAsk } from "./sheets/combine";
 import type { PageCtx } from "./ctx";
 import type { PersonActVM, PersonDoubtVM, PersonRowVM } from "@chanlytics/contracts";
@@ -69,6 +69,7 @@ const ACT_ICON: Record<PersonActVM["id"], string> = {
   "leave-business": "x",
   download: "download",
   merge: "users",
+  "not-a-person": "ban",
   delete: "x",
 };
 
@@ -133,10 +134,8 @@ function moreGroups(c: PageCtx, compose: (text?: string | null) => void): MenuGr
       window.open(personExportLink(p.id), "_self");
     },
     // One question at a time: opening either box closes the other.
-    delete: () => {
-      setMerge(MERGE_CLOSED);
-      setDel({ open: true, typed: "", busy: false, error: null });
-    },
+    delete: () => askDelete(c),
+    "not-a-person": () => askDelete(c, true),
     merge: () => {
       setDel({ open: false, typed: "", busy: false, error: null });
       setMerge({ ...MERGE_CLOSED, open: true, pick: null });
