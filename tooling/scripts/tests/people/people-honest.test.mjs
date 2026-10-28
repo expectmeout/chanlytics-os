@@ -1100,22 +1100,14 @@ test("a list kept by hand is the page's title when open, with its rename, its de
   went.length = 0;
   click(cta);
   assert.deepEqual(went, ["campaigns/sequences/new:once:to:s1"], "and it opens New's Send once on this list");
-  // Renamed where the name is: the title is its own box (kit/record/in-place.ts), which takes the keys, and its words
-  // arrive as the browser says them.
+  // Renamed where the name is: the title is its own box (kit/record/in-place.ts), its words as the browser says them.
   click(byTestId(tree, "list-rename"));
-  tree = draw({ initialSaved: "s1" });
-  byTestId(tree, "list-rename-name").props.onFocus({ currentTarget: {} });
-  byTestId(draw({ initialSaved: "s1" }), "list-rename-name").props.onInput({
-    currentTarget: { textContent: "VIP regulars" },
-  });
+  byTestId(draw({ initialSaved: "s1" }), "list-rename-name").props.onFocus({ currentTarget: {} });
+  const named = { currentTarget: { textContent: "VIP regulars" } };
+  byTestId(draw({ initialSaved: "s1" }), "list-rename-name").props.onInput(named);
   byTestId(draw({ initialSaved: "s1" }), "list-rename-save").props.onClick();
-  await until(() => wrote(seen).length, "the rename went to the door");
-  assert.deepEqual(wrote(seen), [["PUT", "segments/s1", { name: "VIP regulars" }]]);
   await until(() => flashes.some((f) => textOf(f.msg).includes("VIP regulars")), "the rename was said");
-  assert.ok(
-    flashes.some((f) => textOf(f.msg).includes("VIP regulars")),
-    "said",
-  );
+  assert.deepEqual(wrote(seen), [["PUT", "segments/s1", { name: "VIP regulars" }]]);
   // One person off, from the row, with Undo.
   tree = draw({ initialSaved: "s1" });
   const drop = byTestId(tree, "row-drop-list");

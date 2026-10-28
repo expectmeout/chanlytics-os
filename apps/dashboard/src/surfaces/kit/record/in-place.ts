@@ -123,7 +123,7 @@ function openBox(el: HTMLElement, start: string, shown: string, pointed: boolean
  * What the box says, as one line at most `max` long, the box put right where the browser left it otherwise. Emptied, it
  * is emptied whole: a line break the browser leaves would take the pencil onto a line of its own.
  */
-function wordsOf(box: { textContent: string | null }, el: HTMLElement | null, max: number): string {
+function boxWordsOf(box: { textContent: string | null }, el: HTMLElement | null, max: number): string {
   const words = box.textContent ?? "";
   const kept = words.replace(/[\r\n]+/g, " ").slice(0, max);
   if (kept !== words || (!kept && el?.childNodes.length)) {
@@ -251,7 +251,7 @@ export function useInPlace(o: InPlaceOptions): InPlace {
         void end();
       },
       onInput: (e) => {
-        text.current = wordsOf(e.currentTarget, elementOf(e), o.max);
+        text.current = boxWordsOf(e.currentTarget, elementOf(e), o.max);
         setProblem(null);
       },
       onKeyDown: (e) => {

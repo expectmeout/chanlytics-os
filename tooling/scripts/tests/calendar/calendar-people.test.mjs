@@ -1611,16 +1611,14 @@ test("a name the owner gives and notes the receptionist reads: two doors, one ro
     ["PUT", `/api/v1/contacts/${MARIA}/details`, { name: "Maria Lopez" }],
   ]);
   // The hero name is the editable one: whoever may record is drawn the name as the box it is typed in, from the first
-  // draw, with its pencil after it (pressing either moves nothing: the box was there all along); anyone else is shown the
-  // name and nothing to change it with.
+  // draw, its pencil after it (pressing moves nothing); anyone else is shown the name and nothing to change it with.
   const maria = toPersonVM(detail_(), TZ, new Date(NOW));
   const hero = (canRecord) => () => ui.hero(ui.ctx(maria, { canRecord }), () => {}, false);
   const named = ui.drawn(hero(true));
   for (const id of ["person-rename", "person-name-input"]) assert.ok(byTestId(named.tree, id), id);
   assert.equal(byTestId(named.tree, "person-name-input").props.contentEditable, "plaintext-only", "typed in place");
   const viewer = ui.drawn(hero(false)).tree;
-  assert.equal(byTestId(viewer, "person-rename"), null, "a viewer's is a name and no pencil");
-  assert.equal(byTestId(viewer, "person-name-input"), null, "a viewer's name is no box");
+  assert.ok(!byTestId(viewer, "person-rename") && !byTestId(viewer, "person-name-input"), "a viewer's is a name alone");
   // The notes are a composer: the box, and Save once something is typed.
   const notes = ui.drawn(() =>
     globalThis.React.createElement(ui.PersonNotes, {

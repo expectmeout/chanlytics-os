@@ -31,7 +31,7 @@ interface FieldProps {
 }
 
 /** The longest name the details door keeps. */
-const NAME_MAX = 80;
+const PERSON_NAME_MAX = 80;
 /** The longest address the details door keeps. */
 const EMAIL_MAX = 254;
 
@@ -91,7 +91,7 @@ export function PersonName({ p, canEdit, flash, onPutBack }: FieldProps & { onPu
   const edit = useInPlace({
     value: p.name,
     start: unnamed ? "" : p.givenName || "",
-    max: NAME_MAX,
+    max: PERSON_NAME_MAX,
     // A stand-in's box left empty keeps the business's name: an empty save would clear it.
     same: (typed) => typed === (p.givenName || "") || (p.standIn && !typed),
     save: async (next) => {
