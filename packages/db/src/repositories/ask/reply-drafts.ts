@@ -18,18 +18,24 @@ interface ConversationDraftRow {
   made_at: string;
 }
 
-/** The drafts kept on these threads, any kind, in the workspace. */
+/**
+ * The drafts kept on these threads, any kind, in the workspace; or, asked for the newest (`{ newest: n }`), the workspace's
+ * newest, newest first, at most n and one more: the caller learns from that one whether these are all there are (Today's
+ * read of them with its own first reads, before it knows its rows).
+ */
 export async function conversationDraftsOf(
   db: Db,
   tenantId: string,
-  conversationIds: readonly string[],
+  which: readonly string[] | { newest: number },
 ): Promise<ConversationDraftRow[]> {
-  if (conversationIds.length === 0) return [];
-  const { data, error } = await db
+  if (Array.isArray(which) && which.length === 0) return [];
+  const all = db
     .from("conversation_drafts")
     .select("conversation_id, kind, for_message_id, words, made_at")
-    .eq("tenant_id", tenantId)
-    .in("conversation_id", [...conversationIds]);
+    .eq("tenant_id", tenantId);
+  const { data, error } = await ("newest" in which
+    ? all.order("made_at", { ascending: false }).limit(which.newest + 1)
+    : all.in("conversation_id", [...which]));
   if (error) throw new Error(`conversation_drafts: ${error.message}`);
   return data ?? [];
 }

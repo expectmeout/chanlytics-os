@@ -19,14 +19,18 @@
  * a sign-out, a 401, a switch of workspace or of person seals it (sealSurfaceCache). The proxy sends a visitor with no
  * session to sign in before this page loads, so nobody without one is painted it. A snapshot older than a day is never
  * drawn (MAX_AGE_MS): what a page paints from it is read again at once, and a day is as stale as it may look meanwhile.
- * Build-keyed, so a deploy starts cold. Per-tab memory (a view's place, a draft) stays the tab's own (tab-memory.ts).
+ * Each snapshot says the build and the shape it was kept under (Kept), so a deploy that left a surface's value alone keeps
+ * it and one that changed it starts that surface cold. Per-tab memory (a view's place, a draft) stays the tab's own
+ * (tab-memory.ts).
  */
 
 import { clearReadCaches } from "./read-cache";
 import { restoreSurfaceValue, surfaceValue } from "../surfaces/surface-values";
 import type { SurfaceKey } from "../surfaces/surface-values";
 import { clearTabMemory } from "./tab-memory";
-import { getActiveWorkspace } from "./workspace";
+import { getActiveWorkspace, routeOnScreen } from "./workspace";
+import { drawsTheScreen } from "./surface-registry";
+import { SURFACE_SHAPES } from "./surfaces/shapes.generated";
 import { publicEnv } from "@/lib/public-env";
 import { DAY_MS } from "@chanlytics/contracts";
 
@@ -52,6 +56,35 @@ function cacheStore(): Storage | null {
 export const SURFACE_VALUE_SLOT = "$value";
 const VALUE_SLOT = SURFACE_VALUE_SLOT;
 const BUILD = publicEnv.NEXT_PUBLIC_BUILD_SHA;
+/** Beside each surface's snapshot, what it was kept under (Kept): never a global of the window's. */
+const KEPT_SLOT = "$kept";
+
+/**
+ * What a surface's snapshot was kept under: the build that wrote it, its value's shape in that build
+ * (shapes.generated.ts, null where the checker cannot see all of it) and when. A snapshot is drawn under its own build, or
+ * under another whose value has the same shape, and never once a day old. Every snapshot was the build's alone, and a deploy
+ * began every surface cold: on 27 Oct 2026 that was ten cold first loads of a day for one person (the Today load review).
+ */
+interface Kept {
+  build: string;
+  shape: string | null;
+  at: number;
+}
+
+const keptNow = (key: string): Kept => ({ build: BUILD, shape: SURFACE_SHAPES[key] ?? null, at: Date.now() });
+
+/**
+ * Whether a surface's snapshot may be drawn now: under the build that wrote it; under another, only a typed value with
+ * nothing of the window's beside it (a global's shape no checker holds), whose shape is this build's for it. A snapshot from
+ * before snapshots said what they were kept under is the build's and the age its slot was written at.
+ */
+function drawable(key: string, entry: Record<string, unknown>, blob: CacheBlob, now: number): boolean {
+  const kept = (entry[KEPT_SLOT] as Kept | undefined) ?? { build: blob.build, shape: null, at: blob.savedAt };
+  if (now - kept.at >= MAX_AGE_MS) return false;
+  if (kept.build === BUILD) return true;
+  const shape = SURFACE_SHAPES[key];
+  return !!shape && kept.shape === shape && Object.keys(entry).every((n) => n === VALUE_SLOT || n === KEPT_SLOT);
+}
 /** A payload larger than this isn't worth the main-thread cost to parse. */
 const MAX_BYTES = 2_000_000;
 /**
@@ -65,8 +98,9 @@ const WRITE_AFTER_MS = 1000;
 const MAX_WAIT_MS = 5000;
 
 interface CacheBlob {
+  /** The build that last wrote it: what a snapshot from before snapshots said their own (Kept) was kept under. */
   build: string;
-  /** When it was written (ms): a snapshot older than MAX_AGE_MS is not drawn. */
+  /** When it was written (ms): a slot older than MAX_AGE_MS is not drawn, and each snapshot in it is judged by its own. */
   savedAt: number;
   /**
    * The workspace the address named when these rows were read (`/w/<slug>`, as written there; null off a workspace
@@ -94,11 +128,11 @@ function readCacheBlob(own = false): CacheBlob | null {
     if (!raw) return null;
     if (!own && parsedCopy?.raw === raw) return parsedCopy.blob;
     const parsed = JSON.parse(raw) as CacheBlob;
-    // A deploy can change a viewmodel's shape; restoring the old shape would
-    // render garbage or throw inside a legacy component. Build-keyed, so a
-    // new deploy simply starts cold. And a day old at most.
+    // A deploy can change a viewmodel's shape, and restoring the old shape would render garbage or throw inside a page:
+    // each snapshot says the build and the shape it was kept under, and is drawn only where that holds (drawable). And a
+    // day old at most.
     const fresh = typeof parsed?.savedAt === "number" && Date.now() - parsed.savedAt < MAX_AGE_MS;
-    const blob = parsed && parsed.build === BUILD && parsed.surfaces && fresh ? parsed : null;
+    const blob = parsed && parsed.surfaces && fresh ? parsed : null;
     if (!own) parsedCopy = { raw, blob };
     return blob;
   } catch {
@@ -106,24 +140,41 @@ function readCacheBlob(own = false): CacheBlob | null {
   }
 }
 
+/**
+ * What goes first when the slot is over its size: what the page on screen does not draw, the biggest first, then the
+ * biggest of the rest. A reload is most often of the page on screen, and the biggest went whatever it was: on a workspace
+ * of 330 people and 144 threads that was People, which Today draws (Worth a look, the pinned lists, a step due), while the
+ * Inbox's threads and Conversations' stayed, 1.2 MB between them, which Today does not draw. Every reload of Today waited
+ * for People's read (production, 28 Oct 2026: the page drawn at 680 ms, Worth a look at 2,651).
+ */
+function shedOrder(blob: CacheBlob): string[] {
+  const route = routeOnScreen();
+  const sized = Object.entries(blob.surfaces).map(([k, v]) => ({
+    k,
+    n: JSON.stringify(v).length,
+    drawn: drawsTheScreen(k, route),
+  }));
+  return sized.sort((a, b) => Number(a.drawn) - Number(b.drawn) || b.n - a.n).map((s) => s.k);
+}
+
 function write(blob: CacheBlob): void {
   try {
     let raw = JSON.stringify(blob);
-    // Too big to be worth parsing on the next boot: shed the biggest surfaces until it fits. It used to be removed
-    // whole, so a Leads view of 500 rows and a Show more emptied Today, Inbox and People with it, and the owners
-    // it hit were the ones using the finder most. Dropping the write silently would be worse than either: the
-    // OLDER snapshot would stay behind to be painted as current.
-    while (raw.length > MAX_BYTES) {
-      const sizes = Object.entries(blob.surfaces)
-        .map(([k, v]) => [k, JSON.stringify(v).length] as const)
-        .sort((a, b) => b[1] - a[1]);
-      if (!sizes.length) {
+    // Too big to be worth parsing on the next boot: shed surfaces until it fits, what the page on screen does not draw
+    // first (shedOrder). It used to be removed whole, so a Leads view of 500 rows and a Show more emptied Today, Inbox
+    // and People with it, and the owners it hit were the ones using the finder most. Dropping the write silently would be
+    // worse than either: the OLDER snapshot would stay behind to be painted as current.
+    if (raw.length > MAX_BYTES) {
+      for (const k of shedOrder(blob)) {
+        console.warn("surface_cache_oversize", raw.length, k);
+        delete blob.surfaces[k];
+        raw = JSON.stringify(blob);
+        if (raw.length <= MAX_BYTES) break;
+      }
+      if (raw.length > MAX_BYTES) {
         cacheStore()?.removeItem(slotName());
         return;
       }
-      console.warn("surface_cache_oversize", raw.length, sizes[0][0]);
-      delete blob.surfaces[sizes[0][0]];
-      raw = JSON.stringify(blob);
     }
     setSlot(raw);
     parsedCopy = { raw, blob };
@@ -251,11 +302,14 @@ export function hydrateSurfaceCache(): Set<string> {
     return restored;
   }
   const w = window as unknown as Record<string, unknown>;
+  const now = Date.now();
   for (const [key, globals] of Object.entries(blob.surfaces)) {
+    // Another build's of another shape, or a day old: read as a first visit reads it.
+    if (!drawable(key, globals, blob, now)) continue;
     try {
       for (const [name, value] of Object.entries(globals)) {
         if (name === VALUE_SLOT) restoreSurfaceValue(key, value);
-        else w[name] = value;
+        else if (name !== KEPT_SLOT) w[name] = value;
       }
       restored.add(key);
     } catch {
@@ -301,7 +355,7 @@ export function snapshotSurface(
     savedAt: Date.now(),
     at: addressed(),
     tenant: tenant || (was?.tenant ?? tenant),
-    surfaces: { ...was?.surfaces, [key]: trim ? trim(snap) : snap },
+    surfaces: { ...was?.surfaces, [key]: { ...(trim ? trim(snap) : snap), [KEPT_SLOT]: keptNow(key) } },
   });
 }
 
@@ -320,6 +374,7 @@ export function resnapshotSurface(key: string, globals: string[], tenant: string
   const snap = globalsNow(globals);
   const typed = value ? surfaceValue(value) : undefined;
   if (typed !== undefined) snap[VALUE_SLOT] = typed;
+  snap[KEPT_SLOT] = keptNow(key);
   keep({ ...blob, savedAt: Date.now(), surfaces: { ...blob.surfaces, [key]: snap } });
 }
 

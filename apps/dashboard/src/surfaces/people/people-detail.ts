@@ -24,9 +24,9 @@ import { holderName } from "../holder-names";
 import { keepSavedView, peopleLoaded } from "./surface";
 import { declareReads, personRouteId } from "@/legacy-bridge/surface-registry";
 import { isLiveCallTurn } from "@/legacy-bridge/surface-realtime";
-import { afterBoot, bootWaitsFor } from "@/legacy-bridge/surface-runner";
+import { bootWaitsFor } from "@/legacy-bridge/surface-runner";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
-import { getActiveWorkspace, routeOnScreen } from "@/legacy-bridge/workspace";
+import { afterBoot, getActiveWorkspace, routeOnScreen } from "@/legacy-bridge/workspace";
 
 /**
  * The profile courier: `personDetail(id)`.

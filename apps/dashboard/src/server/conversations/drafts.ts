@@ -1,6 +1,7 @@
 import "server-only";
 import {
   AppError,
+  REPLY_DRAFTS_NEWEST_MAX,
   draftIsCurrent,
   reasonLabelOf,
   replyDraftAbout,
@@ -89,12 +90,21 @@ async function signedByThread(ctx: RouteContext, tenantId: string, ids: string[]
   return signed;
 }
 
-/** The drafts kept on these threads (GET conversations/drafts): whatever was kept, current or not; the page judges. */
-export async function draftsKept(ctx: RouteContext, member: Pick<Member, "tenantId">, ids: string[]) {
-  const rows = await conversationDraftsOf(ctx.supabase, member.tenantId, ids);
+/**
+ * The drafts kept on these threads (GET conversations/drafts): whatever was kept, current or not; the page judges. With no
+ * threads named, the workspace's newest (contracts REPLY_DRAFTS_NEWEST_MAX), and whether they are all it keeps
+ * (`complete`): Today reads them with its own first reads, before it knows its rows, so each row draws with its words
+ * (the Today load review, 27 Oct 2026). Named threads' are always all of theirs.
+ */
+export async function draftsKept(ctx: RouteContext, member: Pick<Member, "tenantId">, ids: string[] | null) {
+  const read = await conversationDraftsOf(ctx.supabase, member.tenantId, ids ?? { newest: REPLY_DRAFTS_NEWEST_MAX });
+  const rows = ids ? read : read.slice(0, REPLY_DRAFTS_NEWEST_MAX);
   const replies = [...new Set(rows.filter((r) => r.kind !== "brief").map((r) => r.conversation_id))];
   const signed = await signedByThread(ctx, member.tenantId, replies);
-  return { drafts: rows.map((r) => dtoOf(r, signed.get(r.conversation_id) ?? null)) };
+  return {
+    drafts: rows.map((r) => dtoOf(r, signed.get(r.conversation_id) ?? null)),
+    complete: rows.length === read.length,
+  };
 }
 
 /**

@@ -945,6 +945,31 @@
     },
     {
       "kind": "unfed",
+      "why": "The drafts Ask kept for Need you's rows (decision 0071), which Today reads with its own first reads. The feed does not tell of conversation_drafts: a draft is written by the row that wants it (POST conversations/[id]/draft), which lays it on itself and reads the drafts again behind it where Today is drawn; a teammate's is taken as a row asks for it, and one answering an older message is written again by the row.",
+      "reads": {
+        "reply_drafts": [
+          "conversation_drafts"
+        ]
+      },
+      "rereadAfter": {
+        "reply_drafts": [
+          "POST conversations/[id]/draft"
+        ]
+      }
+    },
+    {
+      "kind": "over-read",
+      "why": "The words a reply from a kept draft would be signed with (00487): which mailbox a thread's reply leaves from (the message the customer wrote to) and that mailbox's signature. The surface holds them for the rows and draws nothing of them; a new message makes the row ask for a new draft, which carries the signature as it stands, and a signature changed in Settings is read with the next draft or once the drafts have aged.",
+      "reads": {
+        "reply_drafts": [
+          "mailbox_connections",
+          "messages"
+        ]
+      },
+      "field": "signed"
+    },
+    {
+      "kind": "unfed",
       "why": "What Ask remembers and its journal (decision 0070), which Settings › Memory lists. The feed does not tell of ask_memory_lines or ask_journal_days: a line is kept as a turn is saved, a day by the note sweep each night, and Ask reads both fresh with every question. The pane's own Add, Change and Forget read it again behind their verbs; a line kept elsewhere is read as the pane comes on screen once what it holds has aged.",
       "reads": {
         "ask_memory": [

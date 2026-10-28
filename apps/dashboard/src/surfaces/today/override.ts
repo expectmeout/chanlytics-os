@@ -9,6 +9,9 @@ import { isLiveCallTurn } from "@/legacy-bridge/surface-realtime";
 import { surfaceCode } from "@/legacy-bridge/surfaces/code";
 import { declareReads } from "@/legacy-bridge/surface-registry";
 import { declareSurfaceValue } from "../surface-values";
+// The Setup card's code, which Today's first draw waits for where Today is the page the tab opens on: said as the frame
+// loads, before its gate first opens (setup-card-code.ts).
+import "./setup-card-code";
 
 // The pages that have not moved (Ask, the phone app's bridge, the bell) still read the day under its old name.
 declareSurfaceValue("today", "TODAY_DATA");

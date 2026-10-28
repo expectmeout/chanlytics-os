@@ -1,5 +1,6 @@
 export const REPLY_DRAFT_KINDS = ["reply", "brief"];
 export const REPLY_DRAFTS_IDS_MAX = 20;
+export const REPLY_DRAFTS_NEWEST_MAX = 40;
 export function replyDraftAbout(kind, f) {
   if (kind === "brief") {
     return [

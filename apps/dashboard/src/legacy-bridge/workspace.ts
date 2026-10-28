@@ -296,16 +296,72 @@ export function warmsOnItsOwn(): boolean {
   return !(link && (link.saveData || /(^|-)2g$/.test(link.effectiveType ?? "")));
 }
 
+/**
+ * The runner's boot (surface-runner.ts), settled once its last surface is in, whether each read worked or not; settled at
+ * once where no boot is coming (a test's stand-in window, a page with no shell).
+ */
+let boot: Promise<void> = Promise.resolve();
+/** What settles the boot the shell said is coming, until the runner starts it (bootComing). */
+let bootDue: (() => void) | null = null;
+
+/**
+ * Said at the shell's module scope, before anything asks afterBoot: a boot is coming. What waits for the boot then waits
+ * for this one, not for the settled nothing of a runner not started yet. Ask's follow-ups and the warms are made as the
+ * frame loads, and the runner starts in an effect after the first draw, so they went at once: on production, Ask's
+ * follow-ups, Campaigns' list and the Calendar's campaigns left 1.2 to 1.8 s into a cold load of Today, while its own
+ * stream was still answering, and took 1.6 s each in that crowd (the Today load review, 27 Oct 2026).
+ */
+export function bootComing(): void {
+  if (bootDue) return;
+  boot = new Promise<void>((settle) => (bootDue = settle));
+}
+
+/** The runner's boot, from its start to its last surface in (surface-runner.ts): what afterBoot answers from now on. */
+export function bootStarted(booted: Promise<unknown>): void {
+  const settled = booted.then(
+    () => undefined,
+    () => undefined,
+  );
+  const due = bootDue;
+  bootDue = null;
+  boot = settled;
+  if (due) void settled.then(due);
+}
+
+/**
+ * Once the boot is in: when work nobody is waiting for may start (people.ts reading a list's people ahead, Ask's
+ * follow-ups, a page's next chunk) without standing in the lanes the page's own surfaces boot through -- twenty-three reads
+ * at once is what made a cold load take 7.8 s. Settled at once where no boot is coming (bootComing).
+ */
+export function afterBoot(): Promise<void> {
+  return boot;
+}
+
 /** How long an idle page may wait before something is fetched ahead of need: after the page's own reads and code. */
 const AHEAD_IDLE_MS = 3000;
 
 /**
- * Something fetched ahead of need (a page's next chunk, a sheet's code, the specs Ask's cards read), once the page is
- * idle and at most `waitMs` after it is asked for, or after `waitMs` where the browser has no idle callback (Safari).
- * Never where the page may not warm on its own (warmsOnItsOwn): a press fetches it then. Answers what cancels it.
+ * Something fetched ahead of need (a page's next chunk, a sheet's code, the specs Ask's cards read), once the boot is in
+ * (afterBoot) and the page is idle, at most `waitMs` after that, or after `waitMs` where the browser has no idle callback
+ * (Safari). An idle main thread is not a page whose reads are in: a page that has drawn sits idle while its stream is
+ * still answering, and what went then stood in its way. Never where the page may not warm on its own (warmsOnItsOwn): a
+ * press fetches it then. Answers what cancels it.
  */
 export function aheadWhenIdle(fn: () => void, waitMs: number = AHEAD_IDLE_MS): () => void {
   if (!warmsOnItsOwn()) return () => undefined;
+  let stop: (() => void) | null = null;
+  let cancelled = false;
+  void boot.then(() => {
+    if (!cancelled) stop = whenIdle(fn, waitMs);
+  });
+  return () => {
+    cancelled = true;
+    stop?.();
+  };
+}
+
+/** `fn` once the page is idle, at most `waitMs` from now; answers what cancels it. */
+function whenIdle(fn: () => void, waitMs: number): () => void {
   if (typeof requestIdleCallback === "function") {
     const id = requestIdleCallback(() => fn(), { timeout: waitMs });
     return () => cancelIdleCallback(id);

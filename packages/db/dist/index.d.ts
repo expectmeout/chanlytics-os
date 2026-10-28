@@ -52964,8 +52964,14 @@ interface ConversationDraftRow {
     words: Json;
     made_at: string;
 }
-/** The drafts kept on these threads, any kind, in the workspace. */
-declare function conversationDraftsOf(db: Db, tenantId: string, conversationIds: readonly string[]): Promise<ConversationDraftRow[]>;
+/**
+ * The drafts kept on these threads, any kind, in the workspace; or, asked for the newest (`{ newest: n }`), the workspace's
+ * newest, newest first, at most n and one more: the caller learns from that one whether these are all there are (Today's
+ * read of them with its own first reads, before it knows its rows).
+ */
+declare function conversationDraftsOf(db: Db, tenantId: string, which: readonly string[] | {
+    newest: number;
+}): Promise<ConversationDraftRow[]>;
 /**
  * What a thread's draft is written for: the customer's newest message (a draft answers it, and is stale once they say
  * more), and the open hold's reason and what it left (the receptionist's handover, a call-back's to-do), read under RLS.

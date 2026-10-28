@@ -111,6 +111,7 @@ const {
   flushSurfaceCache,
   cachedTenant: cachedTenantNow,
 } = await import("../../../../../apps/dashboard/src/legacy-bridge/surface-cache.ts");
+const { SURFACE_SHAPES } = await import("../../../../../apps/dashboard/src/legacy-bridge/surfaces/shapes.generated.ts");
 /** The cache's slot as the next load reads it: after the page's hide, which writes what waits. */
 const stored = (at = CACHE) => (flushSurfaceCache(), globalThis.localStorage.getItem(at));
 
@@ -515,6 +516,139 @@ test("a snapshot older than a day is not drawn: a page waits for its reads, as o
     mock.timers.reset();
     clearSurfaceCache();
   }
+});
+
+test("REGRESSION: over its size the slot sheds what the page on screen does not draw first -- on Today it shed People, which Today draws, and kept the Inbox's threads, so every reload waited for People's read", () => {
+  const w = globalThis.window;
+  const was = w.location.hash;
+  const book = (n) => ({ rows: Array.from({ length: n }, (_, i) => ({ id: `r${i}`, words: "x".repeat(2000) })) });
+  try {
+    for (const [hash, kept, shed] of [
+      ["#/today", ["people", "today"], "inbox"],
+      ["#/inbox", ["inbox", "today"], "people"],
+    ]) {
+      clearSurfaceCache();
+      w.location.hash = hash;
+      setSurfaceValue("people", book(500)); // ~1 MB, People's book: Today draws it
+      setSurfaceValue("inbox", book(600)); // ~1.2 MB, the Inbox's threads: Today does not
+      setSurfaceValue("today", { small: true });
+      for (const k of ["people", "inbox", "today"]) snapshotSurface(k, [], TID, undefined, k);
+      const slot = JSON.parse(stored() ?? "null");
+      assert.deepEqual(Object.keys(slot.surfaces).sort(), kept, `${hash}: ${shed} is the one left out`);
+    }
+  } finally {
+    w.location.hash = was;
+    clearSurfaceCache();
+  }
+});
+
+test("a snapshot another build kept is drawn where its value's type is this build's, alone; not where the type changed, the checker cannot see it, a global stands beside it or it is a day old", () => {
+  mock.timers.enable({ apis: ["setTimeout", "Date"] });
+  try {
+    clearSurfaceCache();
+    const now = Date.now();
+    const build = process.env.NEXT_PUBLIC_BUILD_SHA || "dev";
+    const kept = (b, shape, at = now) => ({ build: b, shape, at });
+    globalThis.localStorage.setItem(
+      CACHE,
+      JSON.stringify({
+        build: "an-older-build",
+        savedAt: now,
+        at: "salon",
+        tenant: TID,
+        surfaces: {
+          // The same type in both builds: drawn.
+          today: { $value: { n: 1 }, $kept: kept("an-older-build", SURFACE_SHAPES.today) },
+          // Its type changed since: read as a first visit reads it.
+          people: { $value: { rows: [] }, $kept: kept("an-older-build", "a-type-since-changed") },
+          // A global of the window's beside it, whose shape no checker holds.
+          calendar: {
+            $value: { n: 1 },
+            __CALENDAR_PROBE: { n: 1 },
+            $kept: kept("an-older-build", SURFACE_SHAPES.calendar),
+          },
+          // A type the checker cannot see all of: the build's alone.
+          inbox: { $value: { n: 1 }, $kept: kept("an-older-build", null) },
+          // This build's own, whatever its shape says.
+          setup: { $value: { n: 1 }, $kept: kept(build, "anything") },
+          // A day old, from this build or not.
+          google: { $value: { n: 1 }, $kept: kept(build, SURFACE_SHAPES.google, now - 25 * 3_600_000) },
+          // From before snapshots said what they were kept under: the slot's build's.
+          channels: { $value: { n: 1 } },
+        },
+      }),
+    );
+    assert.equal(SURFACE_SHAPES.inbox, null, "the Inbox's value hides a type from the checker (shapes.generated.ts)");
+    assert.deepEqual([...hydrateSurfaceCache()].sort(), ["setup", "today"]);
+    assert.deepEqual(surfaceValue("today"), { n: 1 });
+    assert.equal(globalThis.window.__CALENDAR_PROBE, undefined, "nothing of a snapshot not drawn reaches the window");
+    assert.equal(globalThis.window.$kept, undefined, "and what a snapshot was kept under is never a global");
+  } finally {
+    delete globalThis.window.__CALENDAR_PROBE;
+    mock.timers.reset();
+    clearSurfaceCache();
+  }
+});
+
+test("a value's type is fingerprinted all the way down: a field renamed three levels in changes it, the same type written another way does not, and one the checker cannot see into has none", async () => {
+  const ts = (await import("typescript")).default;
+  const { shapeOf } = await import("../../../gen/surface-shapes.mjs");
+  const file = "/fixture/values.ts";
+  const text = [
+    "interface Row { id: string; tone: 'ok' | 'warn'; at?: number }",
+    "type Same = { tone: 'warn' | 'ok'; id: string; at?: number };",
+    "interface Tree { name: string; kids: Tree[] }",
+    "export interface V {",
+    "  a: { rows: Row[]; byId: Record<string, Row>; when: Date; pair: [string, number] };",
+    "  b: { rows: Same[]; byId: Record<string, Same>; when: Date; pair: [string, number] };",
+    "  c: { rows: { id: string; tone: 'ok' | 'warn'; at?: string }[]; byId: Record<string, Row>; when: Date; pair: [string, number] };",
+    "  d: { rows: Row[]; raw: unknown };",
+    "  e: Tree | null;",
+    "}",
+  ].join("\n");
+  const options = { strict: true, noEmit: true, target: ts.ScriptTarget.ES2022, types: [] };
+  const host = ts.createCompilerHost(options);
+  const read = host.getSourceFile.bind(host);
+  host.getSourceFile = (name, language, ...rest) =>
+    name === file ? ts.createSourceFile(name, text, language) : read(name, language, ...rest);
+  host.fileExists = (name) => name === file || ts.sys.fileExists(name);
+  const program = ts.createProgram({ rootNames: [file], options, host });
+  const checker = program.getTypeChecker();
+  let iface;
+  ts.forEachChild(program.getSourceFile(file), (n) => {
+    if (ts.isInterfaceDeclaration(n) && n.name.text === "V") iface = n;
+  });
+  const of = (name) => {
+    const prop = checker.getPropertyOfType(checker.getTypeAtLocation(iface.name), name);
+    let hidden = false;
+    const shape = shapeOf(
+      checker,
+      checker.getTypeOfSymbolAtLocation(prop, prop.valueDeclaration),
+      () => (hidden = true),
+    );
+    return { shape, hidden };
+  };
+  assert.equal(
+    of("a").shape,
+    of("b").shape,
+    "an alias of the same type, its members in another order, is the same shape",
+  );
+  assert.notEqual(of("a").shape, of("c").shape, "a field's type changed inside an array's rows is another shape");
+  assert.match(of("a").shape, /when:<Date>/, "a type of the standard library is said by name");
+  assert.equal(of("d").hidden, true, "unknown hides what a snapshot holds: no fingerprint");
+  assert.equal(of("a").hidden, false);
+  assert.match(of("e").shape, /@Tree/, "a type that holds itself is said by name where it comes round again");
+});
+
+test("each snapshot says the build, its value's type and the time it was kept under", () => {
+  clearSurfaceCache();
+  setSurfaceValue("today", { n: 2 });
+  snapshotSurface("today", [], TID, undefined, "today");
+  const { $kept } = JSON.parse(stored()).surfaces.today;
+  assert.equal($kept.build, process.env.NEXT_PUBLIC_BUILD_SHA || "dev");
+  assert.equal($kept.shape, SURFACE_SHAPES.today);
+  assert.ok(Math.abs(Date.now() - $kept.at) < 5_000);
+  clearSurfaceCache();
 });
 
 test("a clear (a sign-in, a sign-out, a 401, a switch) drops every workspace's slot this browser kept, and nothing else of its storage", () => {

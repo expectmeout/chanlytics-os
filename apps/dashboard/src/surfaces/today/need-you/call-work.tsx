@@ -22,7 +22,7 @@ export function CallWork(p: WorkProps) {
     row.conversationId && row.writes
       ? { conversationId: row.conversationId, kind: "brief" as const, forMessageId: row.writes.for_message_id }
       : null;
-  const draft = useDraft(want);
+  const draft = useDraft(want, may);
   const [phase, setPhase] = useState<"idle" | "how" | "reached" | "again">("idle");
   const [undoOf, setUndoOf] = useState<Record<string, unknown> | null>(null);
   const [snoozed, setSnoozed] = useState<Snoozed | null>(null);

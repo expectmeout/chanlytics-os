@@ -3,16 +3,15 @@
  * Today draws it. The card's words and rules are the first run's (contracts first-run.ts setupCardOf, with its steps,
  * phone and Try) and its rows Setup's, which were most of what Today's own first load carried, for a card most workspaces
  * never show (the loadability review, 19 Oct 2026). So the card is a chunk of its own (setup-card-body.tsx), asked for as
- * this module loads with Today's page, beside Setup's read, and drawn once both are in: the card or nothing.
+ * this module loads with Today's page, beside Setup's read, and drawn once both are in: the card or nothing. The page's
+ * first draw waits for both, Setup's read as ROUTE_WAITS says and the code as setup-card-code.ts says, so the card never
+ * lands over a queue already drawn.
  */
-import { codeOnce } from "@/lib/code-once";
 import { useCode } from "@/lib/use-code";
 import { usePartShown, useSurface } from "../../use-surface";
+import { setupCardCode as bodyCode } from "../setup-card-code";
 
-/** The card's code: asked for once, as Today's page loads; a fetch that failed is asked for again as the card draws. */
-const bodyCode = codeOnce(() => import("./setup-card-body"));
-
-/** The card's code is in (a test draws the card once it is). */
+/** The card's code is in, asked for as Today's page loads where the frame did not already (a test draws the card once it is). */
 export const setupCardReady: Promise<void> = bodyCode().then(
   () => undefined,
   () => undefined,

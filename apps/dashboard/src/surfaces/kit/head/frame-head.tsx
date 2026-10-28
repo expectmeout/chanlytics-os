@@ -25,6 +25,20 @@ const PLACES = { dateline: "pg-dateline", head: "pg-head", act: "pg-act" } as co
 
 type Places = { [K in keyof typeof PLACES]: Element | null };
 
+/** The heads drawn now, each told as the frame draws a place for it anew (headSlotDrawn). */
+const slotWatchers = new Set<() => void>();
+
+/**
+ * The head's place as the frame draws it (shell-chrome.tsx glassHead, its ref): told in the commit that draws it, so the
+ * head is drawn into it before that commit is painted. A cold load draws the page in a view drawn anew as its reads land
+ * (the "Reading…" view's key goes), and the head heard of its new place only through the document's watcher, a step later:
+ * for a painted frame Today stood a head's height up the screen, and then all of it was pushed down 92 px (the Today load
+ * review, measured on a production build, 27 Oct 2026). A ref, as the place's element comes and goes.
+ */
+export function headSlotDrawn(el: HTMLElement | null): void {
+  if (el) for (const fn of slotWatchers) fn();
+}
+
 function placesNow(): Places {
   return {
     dateline: document.getElementById(PLACES.dateline),
@@ -218,6 +232,18 @@ export function FrameHead({ look }: { look: string }) {
     seek();
     return () => cancelAnimationFrame(raf);
   }, [look, crumbs, places]);
+  // A place the frame drew anew, in the commit that drew it (headSlotDrawn): the head moves into it before the paint.
+  useLayoutEffect(() => {
+    if (look !== "glass") return undefined;
+    const moved = () => {
+      const found = placesNow();
+      if (found.head) setPlaces((had) => (had && had.head === found.head && stillThere(had) ? had : found));
+    };
+    slotWatchers.add(moved);
+    return () => {
+      slotWatchers.delete(moved);
+    };
+  }, [look]);
   // Where the page scrolls (Today), the head's place sits in the page's own scroller (frame/shell-chrome.tsx glassHead), which
   // the shell draws again when the route lands or moves: the place found is left behind in a detached tree, and the
   // head drawn into it is drawn into nothing. So the document is watched, and a place that left it is forgotten,

@@ -267,8 +267,16 @@ function withKept(rows: readonly TodayQueueRowVM[], kept: Kept): TodayQueueRowVM
  * Ask's one line over the rows (decision 0071): what it prepared for the rows drawn, then the one thing that cannot wait;
  * its mark in the accent while it writes. Nothing where it prepared nothing.
  */
-function AskSays({ wants, rows }: { wants: readonly DraftWant[]; rows: readonly TodayQueueRowVM[] }) {
-  const counts = useDraftCounts(wants);
+function AskSays({
+  wants,
+  rows,
+  may,
+}: {
+  wants: readonly DraftWant[];
+  rows: readonly TodayQueueRowVM[];
+  may: boolean;
+}) {
+  const counts = useDraftCounts(wants, may);
   const firstWindow = rows.find((r) => r.kind === "window")?.who ?? null;
   const line = needYouSay({ ...counts, firstWindow, held: rows.filter((r) => r.kind === "held").length });
   if (!line) return null;
@@ -454,7 +462,7 @@ const TodayQueue = ({ vm }: { vm: TodayVM }) => {
         runs: { waiting: wants.waiting.length, late: wants.late.length },
         door,
       })}
-      <AskSays wants={draftWantsOf(open)} rows={open} />
+      <AskSays wants={draftWantsOf(open)} rows={open} may={may} />
       <LiveRail nav={nav} />
       {queueList(vm, [...drawn, ...extras], runs, { total, waiting })}
       {queueFoot(
