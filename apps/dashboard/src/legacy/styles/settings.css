@@ -1903,7 +1903,7 @@ html.legacy-on .bt-link { position: relative; }
    act on the group's columns, the card's facts and foot under its words. Facts in place of sentences: a label over each
    value, a hairline between them. The foot is what was left in the mailbox and Add a mailbox. */
 .set-conn > .set-mbx-one { align-items: start; }
-.set-mbx-says { font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); overflow-wrap: anywhere; }
+.set-mbx-says { margin: 0; font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); overflow-wrap: anywhere; }
 .set-mbx-below { grid-column: 2 / -1; display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; padding: var(--space-2) 0 var(--space-1); }
 .set-mbx-facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0; }
 .set-mbx-fact { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 0 var(--space-4); border-left: 1px solid var(--line); }
@@ -1914,6 +1914,8 @@ html.legacy-on .bt-link { position: relative; }
 .set-mbx-left { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
 .set-mbx-left .set-dom { grid-template-columns: minmax(0, 1fr) auto; padding: var(--space-1) 0; border-top: 0; }
 .set-mbx-left .set-dom > :empty { display: none; }
+/* Several mailboxes: their lines under the card's words, which already start where the row's words do. */
+.set-mbx-below > .set-domains { margin: 0; }
 /* The settings sheet's groups (mailbox-sheet.tsx): Sending, Signature, the backup address, Remove, a hairline between. */
 .set-mbx-group { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4) 0; border-top: 1px solid var(--line); }
 .set-mbx-group:first-child { padding-top: 0; border-top: 0; }

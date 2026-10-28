@@ -20,7 +20,7 @@ import { EmailSetupForm } from "./email-setup";
 const MAILBOXES = connectedMailboxes;
 /** Settings' words for what a mailbox signs with, and the card's and the sheet's (contracts). */
 const SIGNS = MAILBOXES.signs.words;
-const C = MAILBOXES.card;
+const CARD = MAILBOXES.card;
 
 type Email = NonNullable<SetupDto["email"]>;
 
@@ -97,13 +97,13 @@ const SignsPreview = (p: { m: MailboxConnectionDto; name: string; signs: Mailbox
       <span className="set-mbx-preview-from">
         <b>{name.trim() || m.from_name}</b> {m.address}
       </span>
-      <span className="set-mbx-preview-body">{C.previewEnd}</span>
+      <span className="set-mbx-preview-body">{CARD.previewEnd}</span>
       {signed ? (
         <span className="set-mbx-preview-sig" data-testid="mailbox-preview-sig">
           {signed}
         </span>
       ) : (
-        <span className="set-mbx-preview-none">{unwritten ? C.previewWrite : C.previewNone}</span>
+        <span className="set-mbx-preview-none">{unwritten ? CARD.previewWrite : CARD.previewNone}</span>
       )}
     </div>
   );
@@ -119,10 +119,10 @@ const SendingGroup = (p: { m: MailboxConnectionDto; on: boolean; setOn: (on: boo
     <div className="set-mbx-say">
       <span className="set-mbx-say-words">
         <span className="set-mbx-say-name" id={id}>
-          {C.sending}
+          {CARD.sending}
         </span>
         <span className="set-mbx-lines" data-testid={`mailbox-sending-${m.address}`}>
-          {switchable ? <span>{on ? C.sendingOn(m.address) : C.sendingOff(m.address)}</span> : null}
+          {switchable ? <span>{on ? CARD.sendingOn(m.address) : CARD.sendingOff(m.address)}</span> : null}
           {MAILBOXES.sending(m, Date.now()).map((line) => (
             <span key={line}>{line}</span>
           ))}
@@ -156,13 +156,13 @@ const BackupGroup = (p: {
       <div className="set-mbx-say">
         <span className="set-mbx-say-words">
           <span className="set-mbx-say-name" id="mailbox-backup-title">
-            {C.backup}
+            {CARD.backup}
           </span>
           <span className="set-mbx-lines">
-            <span>{C.backupSays(hosted.address, p.m.address)}</span>
+            <span>{CARD.backupSays(hosted.address, p.m.address)}</span>
           </span>
         </span>
-        {!open ? <LinkButton onClick={() => setOpen(true)}>{C.changeName}</LinkButton> : null}
+        {!open ? <LinkButton onClick={() => setOpen(true)}>{CARD.changeName}</LinkButton> : null}
       </div>
       {open ? (
         <EmailSetupForm email={p.email} businessName={p.businessName} flash={p.flash} onClose={() => setOpen(false)} />
@@ -237,7 +237,7 @@ export const MailboxSheet = ({ m, email, businessName, owner, flash, onClose, on
     >
       <section className="set-mbx-group" aria-labelledby="mailbox-sending-title">
         <h3 className="set-mbx-group-title" id="mailbox-sending-title">
-          {C.sending}
+          {CARD.sending}
         </h3>
         <div className="set-mbx-two">
           <RecordField
@@ -265,7 +265,7 @@ export const MailboxSheet = ({ m, email, businessName, owner, flash, onClose, on
       </section>
       <section className="set-mbx-group" aria-labelledby={`mailbox-signs-label-${m.id}`} data-testid="mailbox-signs">
         <h3 className="set-mbx-group-title" id={`mailbox-signs-label-${m.id}`}>
-          {C.signature}
+          {CARD.signature}
         </h3>
         <Segmented
           labelledBy={`mailbox-signs-label-${m.id}`}
@@ -296,17 +296,17 @@ export const MailboxSheet = ({ m, email, businessName, owner, flash, onClose, on
         ) : (
           <SignsSaid m={m} choice={signs} />
         )}
-        <span className="set-mbx-group-title set-mbx-preview-title">{C.preview}</span>
+        <span className="set-mbx-group-title set-mbx-preview-title">{CARD.preview}</span>
         <SignsPreview m={m} name={name} signs={signs} signature={signature} />
       </section>
       <BackupGroup m={m} email={email} businessName={businessName} flash={flash} />
       {remove ? (
         <section className="set-mbx-group set-mbx-say" data-testid="mailbox-remove-group">
           <span className="set-mbx-lines">
-            <span>{C.removeSays}</span>
+            <span>{CARD.removeSays}</span>
           </span>
           <LinkButton tone="danger" onClick={() => setAsking(true)} data-testid="mailbox-remove-ask">
-            {C.remove(m.address)}
+            {CARD.remove(m.address)}
           </LinkButton>
         </section>
       ) : null}
