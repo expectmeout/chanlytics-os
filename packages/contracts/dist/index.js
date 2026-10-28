@@ -26013,8 +26013,8 @@ function theirTurnWords(last) {
   return last.kind === "call" ? "they called last" : "they wrote last";
 }
 function heardAt(r2) {
-  const theirs3 = r2.last_message_direction === "inbound" ? ts(r2.last_message_at) : null;
-  const at3 = [ts(r2.last_inbound_at), ts(r2.last_inbound_call_at ?? null), theirs3].filter((x) => x !== null);
+  const wrote = ts(r2.last_inbound_at) ?? (r2.last_message_direction === "inbound" ? ts(r2.last_message_at) : null);
+  const at3 = [wrote, ts(r2.last_inbound_call_at ?? null)].filter((x) => x !== null);
   return at3.length ? Math.max(...at3) : null;
 }
 function lastContactOf(r2, tz, nowMs) {
