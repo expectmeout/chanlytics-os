@@ -12,6 +12,7 @@ import { read } from "@/legacy-bridge/api";
 import { declareReads } from "@/legacy-bridge/surface-registry";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { declareSurfaceValue, setSurfaceValue, shareUnchanged, surfaceValue } from "../../surface-values";
+import { searchesBeforeNew } from "../reach-out/sources";
 
 export type SequencesSurface = SequencesPageDto | null;
 
@@ -46,6 +47,8 @@ export const sequencesOverride: SurfaceOverride = {
     ],
   }),
   apply: async () => {
+    // Where the tab opened on New, the searches its starts are made of come with its first draw, as this read does.
+    searchesBeforeNew();
     try {
       // What did not change is kept as the object it was (shareUnchanged): an answer the same as the last one moves nothing,
       // and a sequence open beside the list, which follows its own row (use-record.ts), is read again only when that row moved.

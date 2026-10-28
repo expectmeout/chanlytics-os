@@ -107,6 +107,18 @@ export function offersAfterStart(
 }
 
 /**
+ * The answer to a customer whose message is only the phrase, as one line under "Rules you must follow", in chat alone
+ * (compose.ts): a call has no message to find it in, and said there it was a line about texts on every phone call (the
+ * call prompts' read, 28 Oct 2026). Offers go by WhatsApp alone (core reply-gates confirmedYes), so the yes is one to
+ * WhatsApp offers only where a WhatsApp line answers; elsewhere nothing is promised.
+ */
+export function offersAnswerRule(whatsappLine: boolean): string {
+  return whatsappLine
+    ? "If a message is only the words YES OFFERS or SI OFERTAS, the customer is saying yes to offers and news by WhatsApp: thank them in one short line, say they can reply STOP at any time, and ask nothing else."
+    : "If a message is only the words YES OFFERS or SI OFERTAS, thank them in one short line and promise nothing: this business sends no offers or news by message.";
+}
+
+/**
  * The rule, as one line under "Rules you must follow". The question is the house's own words, with the customer's
  * phrase from OFFERS_OPT_IN_PHRASES (the phrase the inbound path records as their yes), never a second spelling.
  */

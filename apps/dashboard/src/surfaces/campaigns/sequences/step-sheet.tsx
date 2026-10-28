@@ -76,8 +76,15 @@ const handKind = (step: SequenceStepDto) => (step.hand?.kind === "note" ? "note"
  * The step's words: a customer's as one person reads them, with the door to its message in Messages; a call's or a note's
  * task as it lands on Today.
  */
-function StepBody(p: { rec: SequenceRecordDto; step: SequenceStepDto; message: CmOffered | null; onEdit: () => void }) {
-  const { step, message, onEdit } = p;
+function StepBody(p: {
+  rec: SequenceRecordDto;
+  step: SequenceStepDto;
+  message: CmOffered | null;
+  /** Whether the messages are read at all (useStepMessageRead): one not read yet is never gone. */
+  read: boolean;
+  onEdit: () => void;
+}) {
+  const { step, message, read, onEdit } = p;
   if (step.hand)
     return <HandTask kind={handKind(step)} words={step.hand.words} testid={`sq-step-hand-${step.place}`} />;
   return (
@@ -88,6 +95,7 @@ function StepBody(p: { rec: SequenceRecordDto; step: SequenceStepDto; message: C
       <StepWords
         name={step.template_name}
         message={message}
+        read={read}
         params={step.params}
         gone={
           <Button size="sm" onClick={onEdit} data-testid={`sq-step-pick-${step.place}`} {...gate("approve")}>
@@ -295,7 +303,7 @@ function SheetBody(p: {
   if (face?.kind !== "view") return null;
   return (
     <div className="sq-stepview">
-      <StepBody rec={rec} step={face.step} message={p.message.message} onEdit={p.onEdit} />
+      <StepBody rec={rec} step={face.step} message={p.message.message} read={p.message.read} onEdit={p.onEdit} />
       <StepFacts
         rec={rec}
         step={face.step}

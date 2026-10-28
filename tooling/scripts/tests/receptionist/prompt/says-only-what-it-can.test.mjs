@@ -85,8 +85,13 @@ test("each prompt says the wire it answers on: a text by text message, a DM in I
   }
 });
 
-test("a yes to offers is one to WhatsApp offers only where a WhatsApp line answers; elsewhere nothing is promised", () => {
+test("a yes to offers is one to WhatsApp offers only where a WhatsApp line answers; elsewhere nothing is promised; a call is told neither", () => {
   for (const c of cases) {
+    // A call has no message to find the phrase in, so its prompt names it nowhere (28 Oct 2026).
+    if (c.wire === "voice") {
+      assert.ok(!/YES OFFERS|SI OFERTAS/.test(c.prompt), `voice, WhatsApp ${c.whatsapp}`);
+      continue;
+    }
     assert.equal(
       c.prompt.includes("the customer is saying yes to offers and news by WhatsApp"),
       c.whatsapp,

@@ -17165,6 +17165,9 @@ function offersAfterStart(p, channel) {
   if (p.marketingConsent !== "unknown" || p.marketingConsentSource !== STOP_ENDED_OFFERS_SOURCE) return null;
   return `Offers and news stay off. Reply ${OFFERS_OPT_IN_PHRASES.en} to get them here again.`;
 }
+function offersAnswerRule(whatsappLine) {
+  return whatsappLine ? "If a message is only the words YES OFFERS or SI OFERTAS, the customer is saying yes to offers and news by WhatsApp: thank them in one short line, say they can reply STOP at any time, and ask nothing else." : "If a message is only the words YES OFFERS or SI OFERTAS, thank them in one short line and promise nothing: this business sends no offers or news by message.";
+}
 function offersAskRule() {
   const { en, es } = OFFERS_OPT_IN_PHRASES;
   return `When a WhatsApp conversation the customer started comes to its natural end after something went well (a booking made or confirmed, or their question fully answered), and the facts about them say "${FACT.never}", close your reply with this question, once, in their language: "Want our offers and news here too? Reply ${en}. You can stop any time." (in Spanish, ${es} in place of ${en}). Never ask twice; never on a text or email conversation, in a complaint, in a cancellation, after STOP, or of anyone who has said no to offers; never make it a condition of anything.`;
@@ -17539,9 +17542,7 @@ function rulesSection({ base, profile, channel, policy, link, handed, audience }
       `Never promise or confirm an appointment yourself. Booking happens ${link ? "on the booking link or " : ""}with staff.`
     );
   }
-  rules.push(
-    base.whatsapp_line ? "If a message is only the words YES OFFERS or SI OFERTAS, the customer is saying yes to offers and news by WhatsApp: thank them in one short line, say they can reply STOP at any time, and ask nothing else." : "If a message is only the words YES OFFERS or SI OFERTAS, thank them in one short line and promise nothing: this business sends no offers or news by message."
-  );
+  if (channel === "whatsapp") rules.push(offersAnswerRule(!!base.whatsapp_line));
   if (channel === "whatsapp" && base.whatsapp_line) rules.push(offersAskRule());
   if (g.no_health_advice) {
     rules.push(
@@ -34942,11 +34943,20 @@ var BLOCK_MARKS = /* @__PURE__ */ (() => [
   { row: "platform", label: PLATFORM_LABEL, startsWith: PROMPT_OPENINGS.callMedium, channel: "voice", note: PLATFORM_NOTE },
   { row: "platform", label: PLATFORM_LABEL, startsWith: PROMPT_OPENINGS.chatMedium, channel: "whatsapp", note: PLATFORM_NOTE },
   { row: "platform", label: PLATFORM_LABEL, startsWith: PROMPT_OPENINGS.openTimes, note: PLATFORM_NOTE },
+  // The lines about offers and news are chat's alone (compose.ts rulesSection): a call has no message to find them in.
   {
     row: "guardrails",
     label: "Rules it always keeps",
     startsWith: PROMPT_OPENINGS.rules,
+    channel: "whatsapp",
     note: "Also here: Chanlytics' own lines about offers and news, and any rule from Autonomy."
+  },
+  {
+    row: "guardrails",
+    label: "Rules it always keeps",
+    startsWith: PROMPT_OPENINGS.rules,
+    channel: "voice",
+    note: "Also here: any rule from Autonomy."
   }
 ])();
 var IDENTITY = { row: "identity", label: "Who you are", startsWith: "" };
@@ -64587,9 +64597,19 @@ var PREFETCH_READS = {
   ],
   // The one New beside Sequences' list (`campaigns/sequences/new…`, ROUTE_DRAWS; decision 0065, one New for every
   // sequence): what Sequences opens on, and Campaigns' read of the moments, the lists and who each reaches (playbooks, with
-  // the channels read the counts are by), whose messages are the settings read's. The searches whose leads are ready are
-  // read as New opens. Each surface's first reads.
-  "campaigns/sequences/new": ["sequences", "playbooks", "channels", "settings", "team", "policies", "templates?all=1"],
+  // the channels read the counts are by), whose messages are the settings read's. Each surface's first reads. And the
+  // searches whose leads are ready, one of its starts: read as New opened, its starts drew a panel of what to set up first,
+  // swapped 200 ms later for the row the search gave (the Campaigns load review, 28 Oct 2026).
+  "campaigns/sequences/new": [
+    "sequences",
+    "playbooks",
+    "channels",
+    "settings",
+    "team",
+    "policies",
+    "templates?all=1",
+    "reach-outs/sources"
+  ],
   // Templates and every pane of Settings are drawn from the settings surface; the Library's number notice from the channels read,
   // which Connections draws too and asks for as its pane comes on screen.
   messages: ["settings", "team", "policies", "channels", "templates?all=1"],

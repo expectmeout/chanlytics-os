@@ -872,24 +872,28 @@ test("with no fields, the prompt is the workspace's own, and the only rules are 
 
 test("the rules block says which of its lines are not the owner's", () => {
   // The composer writes four kinds of line under "Rules you must follow": the rules this row
-  // switches, Chanlytics' line for a customer who replies YES OFFERS, which every workspace
-  // carries, the line that asks a customer once for that yes (on WhatsApp, where there is a WhatsApp
-  // number), and under "ask" the Autonomy tab's rules. The block is the row's, so it says so.
+  // switches, Chanlytics' line for a customer who replies YES OFFERS, the line that asks a customer
+  // once for that yes (on WhatsApp, where there is a WhatsApp number), and under "ask" the Autonomy
+  // tab's rules. The two about offers are chat's alone: a call has no message to find the phrase in
+  // (28 Oct 2026). The block is the row's, so it says which of the others are there.
   const withNumber = { ...brain, whatsapp_line: "+15550100145" };
   for (const channel of ["whatsapp", "voice"]) {
     const rules = promptBlocks(composeSystemPrompt(withNumber, profile, channel, tz, NOW, ASK), channel, {
       profile,
     }).find((b) => b.row === "guardrails");
-    assert.match(rules.text, /YES OFFERS/, `${channel}: the line is there`);
-    assert.match(rules.text, /^- Booking: /m, `${channel}: and so is Autonomy's`);
+    const chat = channel === "whatsapp";
+    assert.equal(/YES OFFERS/.test(rules.text), chat, `${channel}: the answer to the phrase is chat's alone`);
+    assert.match(rules.text, /^- Booking: /m, `${channel}: and Autonomy's is on both`);
     assert.equal(
       /Want our offers and news here too\?/.test(rules.text),
-      channel === "whatsapp",
+      chat,
       `${channel}: the ask for the yes is the WhatsApp prompt's alone`,
     );
     assert.equal(
       rules.note,
-      "Also here: Chanlytics' own lines about offers and news, and any rule from Autonomy.",
+      chat
+        ? "Also here: Chanlytics' own lines about offers and news, and any rule from Autonomy."
+        : "Also here: any rule from Autonomy.",
       channel,
     );
   }

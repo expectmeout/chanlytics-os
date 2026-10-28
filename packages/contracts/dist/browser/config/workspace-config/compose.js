@@ -10,7 +10,7 @@ import {
 import { guardrailsInForce } from "./config-rules.js";
 import { bookingHeld, policyRules } from "./policy-classes.js";
 import { DATA_NOT_INSTRUCTIONS } from "../../ai/fence.js";
-import { offersAskRule } from "./offers-ask.js";
+import { offersAnswerRule, offersAskRule } from "./offers-ask.js";
 import { CONVERSATION_UNDER_WAY } from "./assistant-disclosure.js";
 import { hoursLines, joinList } from "./prompt-hours.js";
 import { dateFormat } from "../../shared/time.js";
@@ -373,9 +373,7 @@ function rulesSection({ base, profile, channel, policy, link, handed, audience }
       `Never promise or confirm an appointment yourself. Booking happens ${link ? "on the booking link or " : ""}with staff.`
     );
   }
-  rules.push(
-    base.whatsapp_line ? "If a message is only the words YES OFFERS or SI OFERTAS, the customer is saying yes to offers and news by WhatsApp: thank them in one short line, say they can reply STOP at any time, and ask nothing else." : "If a message is only the words YES OFFERS or SI OFERTAS, thank them in one short line and promise nothing: this business sends no offers or news by message."
-  );
+  if (channel === "whatsapp") rules.push(offersAnswerRule(!!base.whatsapp_line));
   if (channel === "whatsapp" && base.whatsapp_line) rules.push(offersAskRule());
   if (g.no_health_advice) {
     rules.push(

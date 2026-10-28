@@ -17,7 +17,7 @@ import type { BookingRules, BusinessProfile, Closure, Note, WalkIns } from "./bu
 import { guardrailsInForce } from "./config-rules";
 import { bookingHeld, policyRules } from "./policy-classes";
 import { DATA_NOT_INSTRUCTIONS } from "../../ai/fence";
-import { offersAskRule } from "./offers-ask";
+import { offersAnswerRule, offersAskRule } from "./offers-ask";
 import { CONVERSATION_UNDER_WAY } from "./assistant-disclosure";
 import { hoursLines, joinList } from "./prompt-hours";
 import { dateFormat } from "../../shared/time";
@@ -775,15 +775,9 @@ function rulesSection({ base, profile, channel, policy, link, handed, audience }
       `Never promise or confirm an appointment yourself. Booking happens ${link ? "on the booking link or " : ""}with staff.`,
     );
   }
-  // Offers go by WhatsApp alone (core reply-gates confirmedYes), so the yes is one to WhatsApp offers only where a
-  // WhatsApp line answers; elsewhere nothing is promised.
-  rules.push(
-    base.whatsapp_line
-      ? "If a message is only the words YES OFFERS or SI OFERTAS, the customer is saying yes to offers and news by WhatsApp: thank them in one short line, say they can reply STOP at any time, and ask nothing else."
-      : "If a message is only the words YES OFFERS or SI OFERTAS, thank them in one short line and promise nothing: this business sends no offers or news by message.",
-  );
-  // The ask for that yes, once: offers go by WhatsApp alone, so the voice prompt and a workspace with no WhatsApp number
-  // are never told to ask, and the person's own facts (describeLead) say whether they have been.
+  // The answer to a customer's own YES OFFERS, and the ask for that yes once (offers-ask.ts), in chat alone: a call has
+  // no message to find the phrase in, and the person's own facts (describeLead) say whether they have been asked.
+  if (channel === "whatsapp") rules.push(offersAnswerRule(!!base.whatsapp_line));
   if (channel === "whatsapp" && base.whatsapp_line) rules.push(offersAskRule());
   if (g.no_health_advice) {
     rules.push(

@@ -83,6 +83,62 @@ test("the Inbox waits beside its threads for the runs above them and what a row 
   assert.equal(gate("inbox", "th-1"), true, "a thread's address is the Inbox's too: its thread says its own waits");
 });
 
+test("what a Campaigns view waits for is among the first four the boot reads beside its own, so none waits behind a heavier read", () => {
+  for (const view of ["campaigns/sequences", "campaigns/sequences/new", "campaigns/messages"]) {
+    const first = reg.ROUTE_DRAWS[view].slice(0, 4);
+    for (const k of reg.ROUTE_WAITS[view]) assert.ok(first.includes(k), `${view} reads ${k} in the boot's first lanes`);
+  }
+});
+
+// After the Inbox's: it needs the settings read still out, which this one sets in (module state).
+test("Campaigns' views each wait for what their own first screen is made of, asked of the view before the page (the Campaigns load review, 28 Oct 2026)", () => {
+  assert.deepEqual(reg.ROUTE_WAITS["campaigns/sequences"], ["settings"]);
+  assert.deepEqual(reg.ROUTE_WAITS["campaigns/sequences/new"], ["playbooks"]);
+  assert.deepEqual(reg.ROUTE_WAITS["campaigns/messages"], ["channels"]);
+  assert.equal(reg.ROUTE_WAITS.campaigns, undefined, "no view waits for another's");
+  status.setStatus("sequences", "live");
+  // A sequence's steps say their messages' words, which are the settings read's.
+  assert.equal(
+    gate("campaigns", "sequences/sq-1"),
+    false,
+    "REGRESSION: a step drawn saying its message was gone, its words standing there a frame later",
+  );
+  assert.equal(gate("campaigns", "sequences/sq-1/history"), false, "a tab of a sequence is its record too");
+  assert.equal(
+    gate("campaigns", "sequences/sq-1", true),
+    true,
+    "its own surface is in: the shell draws after the wait",
+  );
+  // New's starts are the playbooks read's moments, lists and counts.
+  assert.equal(
+    gate("campaigns", "sequences/new"),
+    false,
+    "REGRESSION: New's starts drawn before what they are made of",
+  );
+  assert.equal(gate("campaigns", "sequences/new:leads"), false, "a door's New is New too");
+  status.setStatus("playbooks", "live");
+  assert.equal(
+    gate("campaigns", "sequences/new"),
+    true,
+    "New waits for the playbooks read alone, never the settings read",
+  );
+  status.setStatus("settings", "live");
+  assert.equal(gate("campaigns", "sequences/sq-1"), true, "the steps and their words draw together");
+  // Messages' own surface is the settings read; beside it, the number it sends from.
+  assert.equal(
+    gate("campaigns", "messages"),
+    false,
+    "REGRESSION: Messages said there was no number, then the list moved up as the numbers came",
+  );
+  assert.equal(gate("campaigns", "messages/booking_link"), false, "a message open in it is Messages too");
+  status.setStatus("channels", "seeded");
+  assert.equal(
+    gate("campaigns", "messages"),
+    true,
+    "a numbers read that failed holds nothing: the page says what it could not read",
+  );
+});
+
 test("a page's first draw waits for code of its own as it waits for a surface, until the fetch settles, landed or failed, and the shell hears it end", async () => {
   // A fresh page, as the statuses are module state: no surface of its own, nothing it waits for but its code.
   reg.ROUTE_WAITS.later = [];
