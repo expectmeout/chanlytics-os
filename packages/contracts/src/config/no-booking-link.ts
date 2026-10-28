@@ -24,37 +24,57 @@ export function offersBookingLink(brain: { booking_link?: string | null } | null
 }
 
 /**
+ * The ways a call can hand over the booking link (retell-fn's send_booking_link): by WhatsApp, which needs a WhatsApp
+ * line (facts.ts whatsapp_line) and a booking-link message Meta approved (facts.ts booking_message, decision 0073, R14;
+ * not read, null, it is offered as before and retell-fn says so when there is none), and by text, which needs a texting
+ * line the carriers approved (facts.ts texting_line; not read, no text is offered). The tool tries WhatsApp first and
+ * texts when WhatsApp cannot carry it (the live walk's SET-2, 28 Oct 2026). No link, no way.
+ */
+export function callLinkWays(
+  brain: { booking_link?: string | null } | null | undefined,
+  whatsappLine: string | null,
+  bookingMessage: boolean | null | undefined,
+  textingLine: boolean | null | undefined,
+): { whatsapp: boolean; text: boolean } {
+  const link = offersBookingLink(brain);
+  return { whatsapp: link && !!whatsappLine && bookingMessage !== false, text: link && textingLine === true };
+}
+
+/**
  * Whether the receptionist may offer to hand over the booking link where it is speaking. In chat the link is sent in
- * the thread, so a link is enough. A call can only send it by WhatsApp (retell-fn delivers it on the WhatsApp channel),
- * so it needs a WhatsApp line that answers too (facts.ts whatsapp_line), and a booking-link message Meta approved
- * (facts.ts booking_message, decision 0073, R14): without one nothing can go, so nothing is offered. Not read (null), it
- * is offered as before, and retell-fn says so when there is none. Until 11 Oct 2026 a call offered the link by WhatsApp
- * on a workspace with no WhatsApp, and its record then said a link went out. One answer for every place a receptionist
- * is told it may offer the link: the prompt (compose.ts), and on a call the openings, a caller's visits, the
- * availability tool and a correction.
+ * the thread, so a link is enough. A call sends it by WhatsApp or by text (callLinkWays), so it needs one of the two:
+ * without either nothing can go, so nothing is offered. Until 11 Oct 2026 a call offered the link by WhatsApp on a
+ * workspace with no WhatsApp, and its record then said a link went out. One answer for every place a receptionist is
+ * told it may offer the link: the prompt (compose.ts), and on a call the openings, a caller's visits, the availability
+ * tool and a correction.
  */
 export function offersLinkOn(
   on: "call" | "chat",
   brain: { booking_link?: string | null } | null | undefined,
   whatsappLine: string | null,
   bookingMessage: boolean | null | undefined,
+  textingLine: boolean | null | undefined,
 ): boolean {
-  return offersBookingLink(brain) && (on === "chat" || (!!whatsappLine && bookingMessage !== false));
+  if (on === "chat") return offersBookingLink(brain);
+  const ways = callLinkWays(brain, whatsappLine, bookingMessage, textingLine);
+  return ways.whatsapp || ways.text;
 }
 
 /**
- * What a call says to do when there is a booking link and no WhatsApp line to send it by (offersLinkOn): the details
- * for the team, as a business with no link takes them, and the website where the caller would rather book themselves.
+ * What a call says to do when there is a booking link and neither a WhatsApp line nor a texting line to send it by
+ * (offersLinkOn): the details for the team, as a business with no link takes them, and the website where the caller
+ * would rather book themselves.
  */
-export const NO_WAY_TO_SEND_LINK = `Booking: the booking link can only be sent by WhatsApp, and this business has no WhatsApp line, so never use send_booking_link and never promise a link or a message. When the caller wants to book, change or cancel a booking, take ${NO_LINK_DETAILS}, and say the team will follow up. If they would rather book themselves and a website is listed above, they can book there.`;
+export const NO_WAY_TO_SEND_LINK = `Booking: the booking link can only be sent by WhatsApp or by text, and this business has no WhatsApp line and no texting line, so never use send_booking_link and never promise a link or a message. When the caller wants to book, change or cancel a booking, take ${NO_LINK_DETAILS}, and say the team will follow up. If they would rather book themselves and a website is listed above, they can book there.`;
 
 /**
- * What a call says to do when there is a booking link and a WhatsApp line, and the message that carries the link is not
- * approved by Meta yet (decision 0073, R14): as with no line, the details for the team, and never a promised link.
+ * What a call says to do when there is a booking link and a WhatsApp line, the message that carries the link is not
+ * approved by Meta yet (decision 0073, R14), and there is no texting line to send it by instead: as with no line, the
+ * details for the team, and never a promised link.
  */
-const NO_MESSAGE_FOR_LINK = `Booking: the booking link is sent as a WhatsApp message that is not approved yet, so never use send_booking_link and never promise a link or a message. When the caller wants to book, change or cancel a booking, take ${NO_LINK_DETAILS}, and say the team will follow up. If they would rather book themselves and a website is listed above, they can book there.`;
+const NO_MESSAGE_FOR_LINK = `Booking: the booking link is sent as a WhatsApp message that is not approved yet, and this business has no texting line, so never use send_booking_link and never promise a link or a message. When the caller wants to book, change or cancel a booking, take ${NO_LINK_DETAILS}, and say the team will follow up. If they would rather book themselves and a website is listed above, they can book there.`;
 
-/** What a call with a link it cannot send says instead: no WhatsApp line, or a line and no approved message. */
+/** What a call with a link it cannot send says instead: no line to send it by, or a WhatsApp line and no approved message. */
 export const cannotSendLink = (whatsappLine: string | null): string =>
   whatsappLine ? NO_MESSAGE_FOR_LINK : NO_WAY_TO_SEND_LINK;
 

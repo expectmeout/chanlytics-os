@@ -148,11 +148,12 @@ export function resolveSystemPrompt(
   const facts = resolveFacts(brain, known);
   if (!hasProfile(brain.profile)) {
     // A stored prompt says nothing of a link it does not have: a receptionist with none is told what to do instead,
-    // first among the rules that follow it, and so is a call with a link and no WhatsApp line to send it by.
+    // first among the rules that follow it, and so is a call with a link and no line to send it by.
     // The standing rules (the money row, the fence) are said to every prompt, so the rules always follow it.
     const link = !offersBookingLink(brain)
       ? [noLinkBooking(channel)]
-      : channel === "voice" && !offersLinkOn("call", brain, facts.whatsapp_line.value, known?.booking_message)
+      : channel === "voice" &&
+          !offersLinkOn("call", brain, facts.whatsapp_line.value, known?.booking_message, known?.texting_line)
         ? [cannotSendLink(facts.whatsapp_line.value)]
         : [];
     const rules = [...link, ...standingRules(policy, channel, audience)];
@@ -173,6 +174,8 @@ export function resolveSystemPrompt(
     whatsapp_line: facts.whatsapp_line.value,
     // Whether Meta approved the message a call sends the link in (R14); not read, offered as before.
     booking_message: known?.booking_message ?? null,
+    // Whether a texting line the carriers approved is there to send the link by instead; not read, no text is offered.
+    texting_line: known?.texting_line ?? null,
   };
   // NOTHING a workspace already had may be lost by filling in a form.
   //

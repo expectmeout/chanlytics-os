@@ -4,7 +4,14 @@
  * beside them (describeNow).
  * Which instructions a workspace is actually given is resolve.ts; the week's lines are prompt-hours.ts.
  */
-import { NO_LINK_DETAILS, cannotSendLink, offersBookingLink, offersLinkOn, priceNextStep } from "../no-booking-link";
+import {
+  NO_LINK_DETAILS,
+  callLinkWays,
+  cannotSendLink,
+  offersBookingLink,
+  offersLinkOn,
+  priceNextStep,
+} from "../no-booking-link";
 import type { BookingRules, BusinessProfile, Closure, Note, WalkIns } from "./business-profile";
 import { guardrailsInForce } from "./config-rules";
 import { bookingHeld, policyRules } from "./policy-classes";
@@ -252,7 +259,8 @@ export function composeSystemPrompt(
    * `whatsapp_line` is the WhatsApp number the platform provisioned (facts.ts), or null: only a workspace with one is
    * told to ask for the yes to offers, which goes by WhatsApp alone (offers-ask.ts). Required, so a caller says.
    * `booking_message` is whether Meta approved the message a call sends the link in (facts.ts; R14): false, a call
-   * offers no link; absent or null, not read, and offered as before.
+   * offers no link by WhatsApp; absent or null, not read, and offered as before. `texting_line` is whether a texting
+   * line the carriers approved is there (facts.ts): only true lets a call send the link by text.
    */
   base: {
     business_name: string;
@@ -260,6 +268,7 @@ export function composeSystemPrompt(
     booking_link: string | null;
     whatsapp_line: string | null;
     booking_message?: boolean | null;
+    texting_line?: boolean | null;
   },
   profile: BusinessProfile,
   /** Where it answers: a text and a DM are chats, as WhatsApp is, and each is told the wire it is answering on. */
@@ -289,6 +298,7 @@ function composeSystemPromptWith(
     booking_link: string | null;
     whatsapp_line: string | null;
     booking_message?: boolean | null;
+    texting_line?: boolean | null;
   },
   profile: BusinessProfile,
   wire: PromptWire,
@@ -303,8 +313,14 @@ function composeSystemPromptWith(
   // the link says instead what the receptionist takes for the team (NO_LINK_DETAILS). With a link, every word is as
   // it was.
   const link = offersBookingLink(base) ? base.booking_link : null;
-  // The link it may offer to hand over here: in chat any link, on a call only one WhatsApp can carry (offersLinkOn).
-  const handed = offersLinkOn(channel === "voice" ? "call" : "chat", base, base.whatsapp_line, base.booking_message)
+  // The link it may offer to hand over here: in chat any link, on a call one WhatsApp or a text can carry (offersLinkOn).
+  const handed = offersLinkOn(
+    channel === "voice" ? "call" : "chat",
+    base,
+    base.whatsapp_line,
+    base.booking_message,
+    base.texting_line,
+  )
     ? link
     : null;
   const hrs = hoursLines(profile.hours);
@@ -337,7 +353,7 @@ interface SectionFacts {
   policy: Record<string, { mode: string }> | null | undefined;
   /** The booking link, or null for a business that quotes each job: a fact the prompt states. */
   link: string | null;
-  /** The link it may offer to hand over here, or null: on a call, only one WhatsApp can carry (offersLinkOn). */
+  /** The link it may offer to hand over here, or null: on a call, only one WhatsApp or a text can carry (offersLinkOn). */
   handed: string | null;
   /** The week's lines (hoursLines): the hours section says them, and the owner's words are told it did. */
   hrs: string[];
@@ -598,32 +614,50 @@ function handoffSection({ profile, channel }: SectionFacts): string[] {
 function callToolsSection({ base, channel, link, handed }: SectionFacts): string[] {
   const s: string[] = [];
   if (channel !== "whatsapp") {
-    // The booking link is a WhatsApp message and nothing else: retell-fn
-    // delivers it on channel "whatsapp", and texting is not sold until the
-    // carriers approve a line (capabilities.ts). This used to say the tool
-    // "texts" the link, so a caller could be promised a text and get a
-    // WhatsApp message -- or nothing, on a number with no WhatsApp. A
-    // workspace with a link and no WhatsApp line is told it cannot send it.
     s.push(
       `\n${PROMPT_OPENINGS.callTools} before offering a time — it reads the calendar as it is at that moment (a list at the end of these instructions, if any, is from the start of the call). Ask which service first when you can, so only windows long enough are offered.\n` +
-        (handed
-          ? // Asked first (decision 0073, R14): the link only arrives on a number that has WhatsApp, and a caller who says
-            // no is never sent a message that cannot reach them.
-            'Booking: when the caller wants to book, first ask "Do you use WhatsApp on this number?" ' +
-            "If they do, use send_booking_link — it sends the booking link to the caller's WhatsApp, on the number they are calling from, " +
-            "so do not ask them for a number unless they want it sent somewhere else. " +
-            "Tell them it comes by WhatsApp, not as a text message. Then say what the tool answers: it waits a moment for WhatsApp's own answer, so it tells you whether it arrived. " +
-            // A number to give only where there is one other than the line they are ringing (resolveSystemPrompt).
-            (base.phone_display
-              ? `If they do not use WhatsApp there, or it fails, take ${NO_LINK_DETAILS}, give the phone number above, and offer to have someone follow up.\n`
-              : `If they do not use WhatsApp there, or it fails, take ${NO_LINK_DETAILS} and offer to have someone follow up.\n`)
-          : link
-            ? `${cannotSendLink(base.whatsapp_line)}\n`
-            : `${noLinkBooking("voice")}\n`) +
+        `${callBookingLine(base, link, handed)}\n` +
         "Ending: once the caller has said goodbye, use end_call.",
     );
   }
   return s;
+}
+
+/**
+ * What a call does when the caller wants to book, by the ways it has to send the link (callLinkWays). The link goes by
+ * WhatsApp, or by text from the business's texting line, and the call says which: this used to say the tool "texts" the
+ * link while it sent a WhatsApp message, so a caller could be promised a text and get a WhatsApp message -- or nothing,
+ * on a number with no WhatsApp. WhatsApp is asked about first (decision 0073, R14): a caller who says no is never sent
+ * a message that cannot reach them, and is sent a text where there is a line for it (the live walk's SET-2, 28 Oct
+ * 2026); the tool also texts by itself when WhatsApp cannot carry it, and says so. With a texting line alone nothing is
+ * asked. A workspace with a link and no way to send it is told it cannot.
+ */
+function callBookingLine(base: SectionFacts["base"], link: string | null, handed: string | null): string {
+  if (!handed) return link ? cannotSendLink(base.whatsapp_line) : noLinkBooking("voice");
+  const ways = callLinkWays(base, base.whatsapp_line, base.booking_message, base.texting_line);
+  const ours = "so do not ask them for a number unless they want it sent somewhere else. ";
+  // A number to give only where there is one other than the line they are ringing (resolveSystemPrompt).
+  const followUp = base.phone_display
+    ? `take ${NO_LINK_DETAILS}, give the phone number above, and offer to have someone follow up.`
+    : `take ${NO_LINK_DETAILS} and offer to have someone follow up.`;
+  const said = "Then say what the tool answers: it tells you how the link went and whether it arrived. ";
+  if (!ways.whatsapp)
+    return (
+      "Booking: when the caller wants to book, use send_booking_link — it sends the booking link by text message to the number they are calling from, " +
+      `${ours}Tell them it comes as a text message. ${said}If it fails, ${followUp}`
+    );
+  const asked =
+    'Booking: when the caller wants to book, first ask "Do you use WhatsApp on this number?" ' +
+    `If they do, use send_booking_link — it sends the booking link to the caller's WhatsApp, on the number they are calling from, ${ours}`;
+  if (!ways.text)
+    return (
+      `${asked}Tell them it comes by WhatsApp, not as a text message. Then say what the tool answers: it waits a moment for WhatsApp's own answer, so it tells you whether it arrived. ` +
+      `If they do not use WhatsApp there, or it fails, ${followUp}`
+    );
+  return (
+    `${asked}Tell them it comes by WhatsApp. If they do not use WhatsApp there, use send_booking_link with by set to "text", and tell them it comes as a text message. ` +
+    `When WhatsApp cannot deliver it, the tool sends it by text instead. ${said}If it fails, ${followUp}`
+  );
 }
 
 /** The owner's own words, under a line saying which details above win and, on a call, where the words came from. */
@@ -667,11 +701,17 @@ function ownWordsSection({ profile, channel, hrs, closed }: SectionFacts): strin
 }
 
 /** How to speak on this medium: short, with no URL read out, on a call; the booking link (or what to take) in chat. */
-function mediumSection({ channel, link, handed }: SectionFacts): string[] {
+function mediumSection({ base, channel, link, handed }: SectionFacts): string[] {
   const s: string[] = [];
-  // Medium, not facts. A phone caller cannot re-read a paragraph.
+  // Medium, not facts. A phone caller cannot re-read a paragraph. The link is offered the ways the call can send it.
+  const ways = callLinkWays(base, base.whatsapp_line, base.booking_message, base.texting_line);
+  const by = ways.whatsapp
+    ? ways.text
+      ? "to the caller's WhatsApp or by text"
+      : "to the caller's WhatsApp"
+    : "by text";
   const callMedium = handed
-    ? "Keep answers to one or two sentences, never read a URL out character by character, and offer to send the booking link to the caller's WhatsApp instead."
+    ? `Keep answers to one or two sentences, never read a URL out character by character, and offer to send the booking link ${by} instead.`
     : "Keep answers to one or two sentences, and never read a URL out character by character.";
   const chatMedium = link ? "Send the booking link rather than describing how to book." : noLinkBooking("whatsapp");
   s.push(

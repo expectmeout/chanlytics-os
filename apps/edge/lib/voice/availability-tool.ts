@@ -37,11 +37,14 @@ import {
 import { refusedOutLoud, voiceDoorAuth } from "./voice-door-auth.js";
 import { logger } from "../log.js";
 
+/**
+ * Where there are no times to read, the link in their place. Sent the way the call's instructions say it goes, by
+ * WhatsApp or by text (contracts callLinkWays), so these name neither.
+ */
 const CANNOT_SEE =
-  "I can't see the calendar right now. Offer to send the booking link to the caller's WhatsApp — it shows the open times — or to have someone call back.";
+  "I can't see the calendar right now. Offer to send the booking link — it shows the open times — or to have someone call back.";
 
-const NO_CALENDAR =
-  "There is no calendar to check. Offer to send the booking link to the caller's WhatsApp — it shows the open times.";
+const NO_CALENDAR = "There is no calendar to check. Offer to send the booking link — it shows the open times.";
 
 /**
  * The same two for a business with no booking link (the first run's decision 2): with nothing to send, a caller who
