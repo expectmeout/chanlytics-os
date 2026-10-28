@@ -17,6 +17,10 @@
  *
  * A flag (`--test-name-pattern=...`, `--test-only`) goes to Node's runner as it is.
  *
+ * The packages. A test reads each package as its bundle, built here first when its sources moved
+ * (tooling/scripts/package-build.mjs, about a second), by the `bundled` export condition the run passes to Node and to
+ * every script a test starts.
+ *
  * Coverage. A full run in UTC (no files asked, no flag, no TEST_TZ: a zone leg is about the clock) has Node measure
  * what the suite ran of the code, and prints it per package and per tree with each held floor
  * (tooling/scripts/checks/coverage.mjs). Under a floor is a red run. `UPDATE_BASELINES=1` (or `raise`) raises a floor
@@ -35,6 +39,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { finish } from "./coverage.mjs";
+import { buildPackages } from "../package-build.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 
@@ -57,6 +62,13 @@ const STAND_IN_BASE_UI = "./tooling/scripts/tests/shared/_stand-in-base-ui.mjs";
  * own rules, which the suite (no bundler) would read as JavaScript (tests/shared/_stand-in-css.mjs says how).
  */
 const STAND_IN_CSS = "./tooling/scripts/tests/shared/_stand-in-css.mjs";
+
+/**
+ * The export condition that hands a test a package's bundle, not its sources (decision 0074): each package's `exports`
+ * names its `dist/` under it, which tooling/scripts/package-build.mjs builds before the run. Through tsx, a package's
+ * sources load as some 900 modules; a folder of twenty test files took 33 s so, and 18 s over the bundles.
+ */
+export const BUNDLED = "bundled";
 
 /** What each command runs when it is given no files. */
 export const SUITES = {
@@ -116,6 +128,7 @@ export function planOf(argv, env) {
     keep: kept !== null,
     args: [
       "--conditions=react-server",
+      `--conditions=${BUNDLED}`,
       "--import",
       "tsx",
       "--import",
@@ -129,7 +142,8 @@ export function planOf(argv, env) {
       ...flags,
       ...files,
     ],
-    env: { ...env, TZ: zone },
+    // A script a test starts (a check, an eval, an ops script) reads the packages as the test does.
+    env: { ...env, TZ: zone, NODE_OPTIONS: [env.NODE_OPTIONS, `--conditions=${BUNDLED}`].filter(Boolean).join(" ") },
   };
 }
 
@@ -151,6 +165,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   }
   // On stderr, so a TAP reader of stdout sees only the runner's report.
   console.error(`# the suite runs in ${plan.zone}${plan.zone === "UTC" ? "" : " (TEST_TZ)"}`);
+  const built = await buildPackages();
+  if (built.length) console.error(`# built the bundles of ${built.join(", ")}`);
   const child = spawn(process.execPath, plan.args, { cwd: ROOT, env: plan.env, stdio: "inherit" });
   child.on("exit", (code, signal) => {
     const status = signal ? 1 : (code ?? 1);

@@ -5,36 +5,36 @@
  * own copy of the workspace (`EXPORT_OF`).
  */
 export {
-  ACTIVITY_FAMILIES,
-  ACTIVITY_PROBLEM_KINDS,
-  ACTIVITY_SPANS,
-  ACTIVITY_SPAN_DAYS,
   ACTIVITY_ACTORS,
+  ACTIVITY_FAMILIES,
   ACTIVITY_PAGE_WORDS,
+  ACTIVITY_PROBLEM_KINDS,
+  ACTIVITY_SPAN_DAYS,
+  ACTIVITY_SPANS,
   activityFamily,
   activityFamilyKinds,
   activityKindGroups,
   isActivityFamily,
 } from "./families";
-export type { ActivityFamily, ActivityKindGroup, ActivitySpan, ActivityActor } from "./families";
-export { activityTone } from "./tones";
+export type { ActivityActor, ActivityFamily, ActivityKindGroup, ActivitySpan } from "./families";
 export { ACTIVITY_FOLD_KINDS, activityDoor, activityLines, activityMemberWords, activityRowsForLines } from "./lines";
 export type { ActivityFoldRow, ActivityLineVM } from "./lines";
-export { ACTIVITY_SUBJECT_HOMES } from "./subjects";
-export type { ActivitySubjectType } from "./subjects";
-export { RECORD_KINDS, liveTablesOf } from "./record-kinds";
-export type { RecordKind, RecordTable } from "./record-kinds";
+export { addressOf, jobRecordOf, RECORDS_WITHOUT_AN_ADDRESS } from "./record-address";
+export type { JobRecord } from "./record-address";
+export type { RecordRef } from "./record-address";
 export {
   EXPORT_HOLDS_WORDS,
   EXPORT_OF,
   EXPORT_SECTIONS,
-  PERSON_EXPORT_SECTIONS,
+  exportedSections,
   exportLeftOut,
   exportLeftOutWords,
-  exportedSections,
+  PERSON_EXPORT_SECTIONS,
   personExportLeftOut,
 } from "./record-export";
 export type { ExportLeftOut, ExportOf, ExportSection, PersonExportSection } from "./record-export";
-export { addressOf, jobRecordOf, RECORDS_WITHOUT_AN_ADDRESS } from "./record-address";
-export type { JobRecord } from "./record-address";
-export type { RecordRef } from "./record-address";
+export { liveTablesOf, RECORD_KINDS } from "./record-kinds";
+export type { RecordKind, RecordTable } from "./record-kinds";
+export { ACTIVITY_SUBJECT_HOMES } from "./subjects";
+export type { ActivitySubjectType } from "./subjects";
+export { activityTone } from "./tones";

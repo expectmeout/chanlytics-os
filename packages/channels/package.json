@@ -3,18 +3,17 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "default": "./dist/index.js"
+      "types": "./src/index.ts",
+      "bundled": "./dist/index.js",
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
     }
   },
   "scripts": {
-    "build": "node ../../tooling/scripts/lf-sources.mjs && tsup src/index.ts --format esm --no-splitting",
-    "typecheck": "tsc --noEmit"
+    "build": "node ../../tooling/scripts/package-build.mjs",
+    "typecheck": "tsc -b"
   },
   "dependencies": {
     "@chanlytics/contracts": "workspace:*",
@@ -23,7 +22,6 @@
   },
   "devDependencies": {
     "@types/html-to-text": "^9.0.4",
-    "tsup": "^8.3.0",
     "typescript": "catalog:"
   }
 }

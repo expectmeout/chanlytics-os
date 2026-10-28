@@ -295,7 +295,7 @@ const ASK_PLAYBOOKS: Record<string, AskPlaybook> = {
     check: "Whether the workspace has a line yet: its Setup and lines tab here.",
     steps: (p) => [
       "Set it up from the repository with EDGE_CALL_SECRET (the secret the dashboard signs with) in the environment, a dry run first:",
-      `  node tooling/scripts/ops/voice/voice-provision.mjs --tenant ${p.tenantId ?? "<workspace id>"} --area-code <3 digits>`,
+      `  node --import tsx tooling/scripts/ops/voice/voice-provision.mjs --tenant ${p.tenantId ?? "<workspace id>"} --area-code <3 digits>`,
       "then the same with --apply. Their Setup page reads the line as ready by itself once the row exists.",
     ],
     reply: (p) =>

@@ -1,0 +1,177 @@
+# What is where
+
+Each code tree and the folders its modules are grouped in, by name, and last the schema's migrations. A folder is
+drawn when it holds a TypeScript or JavaScript file the repository tracks, less the built, generated and public ones.
+Written by `node tooling/scripts/gen/docs-tree.mjs`, never by hand; `docs/architecture.md` says what each tree is.
+
+```text
+apps/edge/api/
+  admin/
+  cron/
+  jobs/
+  mailbox/
+apps/edge/lib/
+  billing/
+  calendar/
+  email/
+  google/
+  imports/
+  instagram/
+  intake/
+  leads/
+  lines/
+  ops/
+  packages/
+  partners/
+  reach-out/
+  receptionist/
+  sms/
+  voice/
+  website/
+  whatsapp/
+apps/dashboard/app/
+  (os)/
+  api/
+  auth/
+  b/
+  c/
+  data-deletion/
+  login/
+  p/
+  privacy/
+  reset-password/
+  signup/
+  terms/
+  u/
+  verify/
+  yes/
+apps/dashboard/src/
+  auth/
+  client/
+  legacy/
+  legacy-bridge/
+  lib/
+  server/
+  surfaces/
+  yes/
+apps/dashboard/src/server/
+  ask/
+  auth/
+  calendar/
+  campaigns/
+  connections/
+  conversations/
+  export/
+  leads/
+  metrics/
+  new-conversation/
+  people/
+  platform/
+  ports/
+  public/
+  readers/
+  receptionist/
+  sequences/
+  workspace/
+apps/dashboard/src/legacy-bridge/
+  ask/
+  billing/
+  hearing/
+  invitations/
+  mascot/
+  reach-out/
+  rehearse/
+  surfaces/
+  verbs/
+apps/dashboard/src/legacy/
+  components/
+  data/
+  pages/
+apps/mobile/src/
+  app/
+  shell/
+  widgets/
+packages/channels/src/
+  email/
+  google/
+  instagram/
+  leads/
+  lines/
+  log/
+  mailbox/
+  models/
+  tokens/
+  voice/
+packages/contracts/src/
+  activity/
+  ads/
+  ai/
+  ask/
+  ask-memory/
+  ask-proposals/
+  ask-skills/
+  broadcasts/
+  calendar/
+  config/
+  consent/
+  console/
+  conversations/
+  deals/
+  email/
+  google/
+  imports/
+  journey/
+  leads/
+  lines/
+  logo/
+  mobile/
+  need-you/
+  new-conversation/
+  notes/
+  notices/
+  people/
+  person-page/
+  playbooks/
+  reach-out/
+  rehearsal/
+  reports/
+  sequences/
+  setup/
+  shared/
+  shell/
+  templates/
+  today/
+  voice/
+  waits/
+  workspace/
+packages/core/src/
+  appointments/
+  campaigns/
+  conversations/
+  inbound/
+  leads/
+  messages/
+packages/db/src/
+  billing/
+  repositories/
+packages/jobs/src/
+tooling/scripts/
+  checks/
+  e2e-harness/
+  evals/
+  gen/
+  mobile/
+  ops/
+  tests/
+  voice/
+e2e/
+  auth/
+  campaigns/
+  conversations/
+  kit/
+  people/
+  settings/
+  shell/
+  today/
+supabase/migrations/
+```

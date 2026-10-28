@@ -3,10 +3,10 @@
  * Ask's customer message writer (contracts ask-skills/customer-message), asked over made-up businesses: how the skill is
  * judged before it merges, and after any change to its words, its brief or its checks.
  *
- *   node tooling/scripts/evals/customer-message.mjs                     # dry: builds every brief and asks nothing
- *   node tooling/scripts/evals/customer-message.mjs --live              # writes each case twice, and judges each
- *   node tooling/scripts/evals/customer-message.mjs --live --baseline   # judges the first drafts too: what the skill adds
- *   node tooling/scripts/evals/customer-message.mjs --live --only reminder_en_whatsapp_text,winback_es_whatsapp   # some cases, by id
+ *   node --import tsx tooling/scripts/evals/customer-message.mjs                     # dry: builds every brief and asks nothing
+ *   node --import tsx tooling/scripts/evals/customer-message.mjs --live              # writes each case twice, and judges each
+ *   node --import tsx tooling/scripts/evals/customer-message.mjs --live --baseline   # judges the first drafts too: what the skill adds
+ *   node --import tsx tooling/scripts/evals/customer-message.mjs --live --only reminder_en_whatsapp_text,winback_es_whatsapp   # some cases, by id
  *
  * Each case (tooling/evals/skills/customer-message.json) is a business and the message Ask's card asked for, its versions
  * the first draft as the palette writes one today. The writer is asked as the dashboard asks it (server/ask/skills: the

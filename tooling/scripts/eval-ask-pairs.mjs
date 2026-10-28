@@ -6,7 +6,7 @@
  * and nothing that could name the model: no tools, no timings, no ids. Which side holds which model is decided by a
  * hash of the question and the runs, and written to a key file the review page never sees.
  *
- *   node tooling/scripts/eval-ask-pairs.mjs <backup-a.json> <backup-b.json> [id,id,…]
+ *   node --import tsx tooling/scripts/eval-ask-pairs.mjs <backup-a.json> <backup-b.json> [id,id,…]
  *
  * Writes tooling/backups/eval-ask-review-<when>.json (the pairs) and …-key.json (the sides).
  */
@@ -31,7 +31,9 @@ const REVIEW_IDS = [
 
 const [fileA, fileB, only] = process.argv.slice(2);
 if (!fileA || !fileB) {
-  console.error("two eval backups are required: node tooling/scripts/eval-ask-pairs.mjs <a.json> <b.json> [ids]");
+  console.error(
+    "two eval backups are required: node --import tsx tooling/scripts/eval-ask-pairs.mjs <a.json> <b.json> [ids]",
+  );
   process.exit(2);
 }
 const ids = only ? only.split(",") : REVIEW_IDS;

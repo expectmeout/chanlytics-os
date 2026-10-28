@@ -112,11 +112,9 @@ test("a stamped branch holding all of main skips; a commit after the stamp, or m
 test("the laptop runs what the skipped jobs run, the tests against origin/main", () => {
   const names = LOCAL_CHECKS.map(([name]) => name).join(" | ");
   for (const command of [
-    'corepack pnpm --filter "./packages/*" build',
-    "git diff --exit-code --stat -- packages/*/dist",
+    "node tooling/scripts/package-build.mjs",
     "corepack pnpm -r typecheck",
     "corepack pnpm lint",
-    "corepack pnpm check:dead-exports",
     "corepack pnpm audit --prod --audit-level high",
     "corepack pnpm licenses list --prod --json | node tooling/scripts/checks/licences.mjs",
     "node tooling/scripts/checks/changed-tests.mjs origin/main HEAD",

@@ -12,11 +12,14 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { ROOT } from "../../_source.mjs";
 
-/** ask-day.mjs --check, with only these variables beside what a process needs to start. */
+/**
+ * ask-day.mjs --check, with only these variables beside what a process needs to start, under tsx as the nightly runs
+ * it: the script loads the packages, which ship as their sources (decision 0074).
+ */
 function askDay(vars) {
   const env = { PATH: process.env.PATH ?? "", ...vars };
   for (const k of ["SystemRoot", "SYSTEMROOT", "TEMP", "TMP"]) if (process.env[k]) env[k] = process.env[k];
-  return spawnSync(process.execPath, ["tooling/scripts/ops/ask-day.mjs", "--check"], {
+  return spawnSync(process.execPath, ["--import", "tsx", "tooling/scripts/ops/ask-day.mjs", "--check"], {
     cwd: ROOT,
     env,
     encoding: "utf8",

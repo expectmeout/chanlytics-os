@@ -330,7 +330,7 @@ export async function playbookRows(ctx: RouteContext, tenantId: string): Promise
 
 /**
  * playbook_totals' answer (00374) in the card's words: storage's `last_run` is the wire's `lastRun` (banked in
- * wire-casing.json, decision 0022), each object written in the order the fold wrote it, so GET playbooks answers the same
+ * the wire-casing measure, decision 0022), each object written in the order the fold wrote it, so GET playbooks answers the same
  * bytes whichever counted them. The one mapping, behind contracts' isPlaybookTotalsDto, never a cast.
  */
 function toPlaybookTotals(dto: PlaybookTotalsDto): Map<string, PlaybookTotals> {

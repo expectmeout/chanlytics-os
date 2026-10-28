@@ -1,19 +1,18 @@
-# Every text file is LF in the repository and in every checkout, whatever core.autocrlf says. A package's declaration
-# build places a doc comment by character offset, so a CRLF checkout built a dist that CI's Linux build did not, and the
-# dist-drift guard failed on files nobody edited (tooling/scripts/lf-sources.mjs covers a checkout older than this line).
-# The byte-for-byte folders below opt out; a later line wins.
+# Every text file is LF in the repository and in every checkout, whatever core.autocrlf says, so a file a command writes
+# is the same on every machine that writes it (until 28 October 2026 a CRLF checkout built a committed dist that CI's
+# Linux build did not). The byte-for-byte folders below opt out; a later line wins.
 * text=auto eol=lf
 
 # MapLibre's worker, vendored byte for byte (maplibre-worker-vendored.test.mjs compares it with the package): no line-ending conversion.
 apps/dashboard/public/maplibre/* -text
 
-# Built or generated files, rewritten by their commands and never edited by hand: GitHub folds them in a pull request's
-# diff (one click opens them), so a review reads the change and not the bundles it rebuilt.
-packages/*/dist/** linguist-generated=true
+# Generated files, rewritten by their commands and never edited by hand: GitHub folds them in a pull request's diff (one
+# click opens them), so a review reads the change and not what a command wrote from it.
 **/*.generated.* linguist-generated=true
 packages/db/src/database.types.ts linguist-generated=true
 supabase/schema.sql linguist-generated=true
 docs/data-model.md linguist-generated=true
+docs/tree.md linguist-generated=true
 docs/api.md linguist-generated=true
 # The agent client's audio worklets, vendored byte for byte (voice-worklets.test.mjs compares them with the package): no line-ending conversion.
 apps/dashboard/public/voice/* -text

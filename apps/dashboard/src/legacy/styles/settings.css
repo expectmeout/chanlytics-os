@@ -606,7 +606,7 @@
   /* Every row does: its name stands beside its state and its act, and what it says runs under them, the row's width
      (8 Oct: a number that had just connected said how to try it in the name's own column, 115px wide and twelve lines
      tall, beside its state). The state is what follows the words, named by its place rather than as `.pill`, a kit
-     class a page's rule may not name again (kit-primitives.json); a row's act, its chevron or its menu ends the line. */
+     class a page's rule may not name again (the kit-primitives measure); a row's act, its chevron or its menu ends the line. */
   .set-conn > .set-int-row > .set-team-body { display: contents; }
   .set-conn > .set-int-row > :first-child { grid-row: 1; }
   .set-conn > .set-int-row .set-int-head { grid-column: 2; grid-row: 1; }

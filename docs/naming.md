@@ -31,7 +31,7 @@ code does not keep a rule everywhere yet, the rule says where, and what holds th
 - **The wire is snake_case.** Every JSON name a route or an edge door takes or answers, at any depth, is snake_case,
   as the database and the providers are ([decision 0022](decisions/0022-the-wire-says-snake-case.md)).
   `routes/wire-casing.test.mjs` reads every `/api/v1` route's shape with the type checker, six levels down, and fails
-  a name that is not snake_case unless `baselines/wire-casing.json` holds it; that bank may only fall. A field typed
+  a name that is not snake_case; the `wire-casing` measure holds those the wire still says, and may only fall. A field typed
   `unknown`, `Json` or `any` hides the names under it (a stored JSON column such as a message's `meta` or a list's
   `rule`, an answer relayed from the edge): decision 0022 lists them, and the test fails a route whose whole body or
   answer is one. The edge's doors are not read yet: a check of their own is owed (decision 0022, step 5).
@@ -40,7 +40,7 @@ code does not keep a rule everywhere yet, the rule says where, and what holds th
   below hold its types and identifiers.
 - **The suffix says the side.** `…Row` (a table's row), `…Dto` (the wire) and `…Body` (a request's body) are
   snake_case; `…VM`, `…Command`, `…Ports` and `…Context` are camelCase; no type mixes them. A line on a page is a
-  `…Line`, not a `…Row`. `baselines/type-casing.json` (owed).
+  `…Line`, not a `…Row`. A `type-casing` measure is owed.
 - **Identifiers.** Types PascalCase with no `I`; functions and variables camelCase (a component PascalCase, a route's
   `GET`); constants and closed sets CONSTANT_CASE; no `enum`: a closed set is an `as const` array.
   `@typescript-eslint/naming-convention` in `eslint.config.mjs` (owed).
@@ -70,9 +70,9 @@ code does not keep a rule everywhere yet, the rule says where, and what holds th
 ## Names that say what they hold
 
 - **No one-letter name in an API**: a property, an exported name, a parameter of an exported function. A short name is
-  fine in a scope of ten lines or fewer. `baselines/short-names.json` (owed).
+  fine in a scope of ten lines or fewer. A `short-names` measure is owed.
 - **A boolean is a state or a question** (`paid`, `archived`, `can_connect`), with no `is_` on the wire, and it never
-  shares its name with a count or a record. `baselines/boolean-names.json` (owed).
+  shares its name with a count or a record. A `boolean-names` measure is owed.
 
 ## SQL
 
@@ -104,5 +104,5 @@ today's exceptions by name; `database/migrations.test.mjs` holds the file names.
 ## The shell
 
 `apps/dashboard/src/legacy` keeps its own names (hash routes, `*_STORE`, `window.__*`, `cl-` classes) until
-decision 0015 moves each surface. Its tests stop those names growing (`baselines/window-globals.json`,
+decision 0015 moves each surface. Its tests stop those names growing (the `window-globals` measure,
 `repo/shell-names-are-published.test.mjs`); nothing on this page applies inside it.

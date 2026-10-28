@@ -1,11 +1,28 @@
 {
-  "//": "Vanilla Node functions: an import specifier carries its .js suffix, so NodeNext resolves them.",
+  "//": "Node functions that esbuild bundles (tooling/scripts/edge-functions.mjs), so the bundler's resolution: an import's .js suffix stays as written, and a package resolves to its sources. The packages are referenced, so each is checked once, under its own options (decision 0074).",
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
     "lib": ["ES2022", "DOM"],
     "types": ["node"]
   },
-  "include": ["api/**/*.ts", "lib/**/*.ts"]
+  "include": ["api/**/*.ts", "lib/**/*.ts"],
+  "references": [
+    {
+      "path": "../../packages/contracts"
+    },
+    {
+      "path": "../../packages/db"
+    },
+    {
+      "path": "../../packages/channels"
+    },
+    {
+      "path": "../../packages/core"
+    },
+    {
+      "path": "../../packages/jobs"
+    }
+  ]
 }

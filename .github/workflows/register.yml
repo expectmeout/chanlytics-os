@@ -1,0 +1,101 @@
+name: The register's numbers
+
+# Every number the build holds, read on main each night (decision 0074): the measures, the lint's warnings and knip's
+# dead exports (tooling/scripts/checks/debt.mjs). A pull request is held to what it adds by ci.yml's debt job, so no
+# number is kept in the repository and none is banked; this is where they are read. The night's table is the run's
+# summary, and its record an artifact kept for 35 days. On Mondays the record is read beside the newest one at least a
+# week older, and a measure that grew keeps one issue open with the week's merges: growth each change argued (`Debt:`)
+# sums over a week unseen by any one of them, and is read on a day, as the bundle's week is (bundle-week.yml). It
+# changes nothing in the repository: a workflow's own token opens a pull request no workflow runs on, so a commit of the
+# numbers could never pass the required check.
+on:
+  schedule:
+    - cron: "37 10 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  issues: write
+
+concurrency:
+  group: register
+  cancel-in-progress: false
+
+jobs:
+  read:
+    name: Main's numbers, read
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The merges between two records are read from history.
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: The record of main
+        run: pnpm check:debt -- --record .debt/record.json
+      - name: The register's numbers
+        run: pnpm check:debt -- --totals --from .debt/record.json --summary "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: debt-record
+          path: .debt/record.json
+          retention-days: 35
+      - id: older
+        name: A record of main at least a week older
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -uo pipefail
+          if [ "$GITHUB_EVENT_NAME" != "workflow_dispatch" ] && [ "$(date -u +%u)" != "1" ]; then
+            echo "Not a Monday: the week is read on Mondays." >> "$GITHUB_STEP_SUMMARY"
+            echo "found=no" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          since=$(date -u -d '7 days ago' +%Y-%m-%dT%H:%M:%SZ)
+          gh run list --repo "$GITHUB_REPOSITORY" --workflow register.yml --branch main --limit 60 \
+            --json databaseId,createdAt > runs.json
+          for id in $(jq -r "[.[] | select(.createdAt <= \"$since\")] | sort_by(.createdAt) | reverse | .[].databaseId" runs.json); do
+            if gh run download "$id" --repo "$GITHUB_REPOSITORY" -n debt-record -D older > /dev/null 2>&1; then
+              echo "found=yes" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+          echo "::notice title=Nothing read::no record of main a week old yet (the records start with the first night that kept one)."
+          echo "found=no" >> "$GITHUB_OUTPUT"
+      - id: week
+        if: steps.older.outputs.found == 'yes'
+        name: Read the week
+        shell: bash
+        run: |
+          set +e
+          older=$(jq -r .sha older/record.json)
+          git log --format='%h %s' "$older..HEAD" > commits.txt
+          # The week reads two records and loads no measure, so plain node runs it.
+          node tooling/scripts/checks/debt.mjs --week older/record.json .debt/record.json --commits commits.txt \
+            --report week.md --summary "$GITHUB_STEP_SUMMARY"
+          code=$?
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          # 3 is a measure that grew over the week; anything else but 0 is the reading itself failing.
+          [ "$code" -eq 0 ] || [ "$code" -eq 3 ]
+      - if: steps.week.outputs.code == '3' || steps.week.outputs.code == '0'
+        name: Keep the week's issue open while a measure grows, and close it when none did
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CODE: ${{ steps.week.outputs.code }}
+        run: |
+          echo "Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" >> week.md
+          week=(--title "What the code owes grew this week" --match "What the code owes grew this week")
+          if [ "$CODE" = "3" ]; then
+            node tooling/scripts/ops/rolling-issue.mjs --state red "${week[@]}" --body-file week.md
+          else
+            node tooling/scripts/ops/rolling-issue.mjs --state green "${week[@]}"
+          fi

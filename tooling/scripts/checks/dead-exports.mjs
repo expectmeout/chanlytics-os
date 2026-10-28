@@ -1,21 +1,17 @@
 #!/usr/bin/env node
 /**
- * Dead exports may only fall.
+ * Dead exports, counted: a number check:debt holds, file by file.
  *
  * knip (knip.json declares the doors, the routes, the manifest and the tests as
- * entries) lists every export, type and module nothing imports. This holds that
- * list at its current size per file, the way the ratchets in
- * tooling/scripts/tests do for the numbers they hold, and by their rule
- * (`compare` and `bank` are theirs, from _ratchet.mjs). It runs as its own CI
- * step rather than inside `pnpm test`, because a whole-repository import graph
- * takes a minute the node suite should not.
+ * entries) lists every export, type and module nothing imports. This counts that
+ * list per file, and since 28 October 2026 (decision 0074) a pull request is held to
+ * what it adds: CI's debt job counts it on the change's base and on its head
+ * (tooling/scripts/checks/debt.mjs, its `knip` part), and a count that rose fails the
+ * change unless its description says why, in a line `Debt: <why>`. It runs there
+ * rather than inside `pnpm test`, because a whole-repository import graph takes a
+ * minute the node suite should not.
  *
- *   node tooling/scripts/checks/dead-exports.mjs            # compare with the baseline
- *   node tooling/scripts/checks/dead-exports.mjs --update   # bank a fall or a removal, nothing else
- *   node tooling/scripts/checks/dead-exports.mjs --raise    # write the list as measured, rises included
- *
- * A rise is raised only with `--raise`, argued under "Rises" in docs/debt.md and
- * in the pull request, as `UPDATE_BASELINES=raise` is for the other ratchets.
+ *   node tooling/scripts/checks/dead-exports.mjs     # count them, and say the files that hold the most
  *
  * knip runs from its own bin under the node running this, never through `pnpm`:
  * pnpm is corepack's here, and a bare `pnpm` is not on every machine's PATH.
@@ -23,8 +19,8 @@
  * knip enters each package at its barrel (`src/index.ts`), and every barrel names its exports, so to knip each
  * of a package's public values is used. The packages' pass below reads them as code instead: a value a package's
  * barrel exports and no module outside its own declaring one mentions is counted under its module, beside knip's
- * findings (`unimportedExports`, _ast.mjs). The public names are the built bundle's, so run it after a build, as CI
- * does.
+ * findings (`unimportedExports`, _ast.mjs). The public names are the bundle's (the one the node suite reads, which
+ * esbuild resolves through every `export *`), so this builds the bundles first (tooling/scripts/package-build.mjs).
  *
  * A finding is a bug report, not an instruction: an export knip cannot see a
  * use of may be read through a string, a dynamic import or a test double. Look
@@ -34,11 +30,9 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { bank, compare, writeBaseline } from "../tests/_ratchet.mjs";
 import { repoFiles, parse, bundleExports, unimportedExports } from "../tests/_ast.mjs";
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-const BASELINE = path.join(ROOT, "tooling/scripts/tests/baselines/dead-exports.json");
 
 /**
  * `[node, [knip's bin, ...args]]`: the `bin` of the knip the repository installed, found
@@ -84,10 +78,12 @@ export function packagePass() {
   return now;
 }
 
-function main() {
-  const update = process.argv.includes("--update");
-  const raise = process.argv.includes("--raise");
-
+/** `{ file: n }`: knip's findings and the packages' pass, the bundles built first (their public names are read). */
+export function deadExports() {
+  execFileSync(process.execPath, [path.join(ROOT, "tooling/scripts/package-build.mjs")], {
+    cwd: ROOT,
+    stdio: ["ignore", "ignore", "inherit"],
+  });
   let raw;
   try {
     const [exe, args] = knipCommand(["--reporter", "json", "--no-progress"]);
@@ -100,10 +96,7 @@ function main() {
   } catch (e) {
     // knip exits 1 when it has findings; the JSON is still on stdout.
     raw = e.stdout;
-    if (!raw) {
-      console.error("knip did not run");
-      process.exit(2);
-    }
+    if (!raw) throw new Error("knip did not run", { cause: e });
   }
   const report = JSON.parse(raw);
   const now = {};
@@ -113,32 +106,22 @@ function main() {
     if (n > 0) now[issue.file] = n;
   }
   for (const [file, n] of Object.entries(packagePass())) now[file] = (now[file] ?? 0) + n;
+  return Object.fromEntries(
+    Object.keys(now)
+      .sort()
+      .map((k) => [k, now[k]]),
+  );
+}
 
-  const was = fs.existsSync(BASELINE) ? JSON.parse(fs.readFileSync(BASELINE, "utf8")) : null;
-  if (update || raise) {
-    const banked = bank(now, was, { raise });
-    if (banked) writeBaseline(BASELINE, banked);
-  }
-  if (!fs.existsSync(BASELINE)) {
-    console.error(`no baseline at ${path.relative(ROOT, BASELINE)} — seed it with --raise`);
-    process.exit(2);
-  }
-  const baseline = JSON.parse(fs.readFileSync(BASELINE, "utf8"));
-  const { worse, better } = compare(now, baseline);
+function main() {
+  const now = deadExports();
   const total = Object.values(now).reduce((a, b) => a + b, 0);
-  if (worse.length) {
-    console.error(
-      `dead exports rose:\n  ${worse.join("\n  ")}\n\nDelete the export, or import it where it is meant to be used. A number that must rise is raised with --raise, in the same diff as its row under "Rises" in docs/debt.md, with the reason in the pull request.`,
-    );
-    process.exit(1);
-  }
-  if (better.length) {
-    console.error(
-      `good — now bank it (node tooling/scripts/checks/dead-exports.mjs --update):\n  ${better.join("\n  ")}`,
-    );
-    process.exit(1);
-  }
-  console.log(`dead exports: ${total}, unchanged`);
+  const most = Object.entries(now)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([file, n]) => `  ${String(n).padStart(3)}  ${file}`);
+  console.log(`dead exports: ${total} in ${Object.keys(now).length} files (check:debt holds them to the base)`);
+  if (most.length) console.log(`the most:\n${most.join("\n")}`);
 }
 
 // Run as a script, not when a test imports knipCommand.

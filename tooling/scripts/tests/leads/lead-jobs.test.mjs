@@ -1,8 +1,8 @@
 /**
  * The lead finder's three job kinds reach the pipeline the edge injects, and
  * a runtime without one fails the job loudly instead of guessing (00140,
- * release A1; A2 binds the pipeline). Run over the committed jobs dist, the
- * way line-provision.test.mjs runs its kind.
+ * release A1; A2 binds the pipeline). Run over jobs' bundle (the suite's build
+ * of its sources), the way line-provision.test.mjs runs its kind.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";

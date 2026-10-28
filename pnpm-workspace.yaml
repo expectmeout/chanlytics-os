@@ -18,8 +18,10 @@ catalogMode: manual
 # Every setting pnpm reads is here, not in package.json's "pnpm" field or .npmrc: Dependabot's updater runs pnpm 11,
 # which reads neither, and the lockfile it wrote then disagreed with CI's (tests/repo/settings/pnpm-settings.test.mjs).
 #
-# Vercel's vanilla-function bundler (nft) doesn't follow pnpm symlinks into the lambda: hoist third-party deps to real
-# dirs, and inject workspace packages as hard copies (their committed dist/ ships at install time).
+# Vercel's vanilla-function bundler (nft) did not follow pnpm symlinks into the lambda, so third-party deps are hoisted to
+# real dirs and workspace packages injected as copies. The edge is bundled by esbuild since 16 Oct 2026 and the packages
+# ship as their sources since 28 Oct 2026 (decision 0074), so neither is needed now; each is its own change, since both
+# rewrite the lockfile.
 nodeLinker: hoisted
 injectWorkspacePackages: true
 
