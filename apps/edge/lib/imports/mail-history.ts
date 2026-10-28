@@ -254,9 +254,8 @@ async function takeListed(
     name: who.name,
     messageId: e.id,
     direction: who.out ? "outbound" : "inbound",
-    // Its words as the live read keeps them (mailbox-sync.ts): an email with only HTML, a notice or a form, is made
-    // text, not kept with none. 47 of the first import's emails were, and each person's row said "They wrote" beside
-    // "Not heard from" (27 Oct 2026).
+    // Its words as the live read keeps them: an email with only HTML (a bank's alert, a form) is made plain text. It had
+    // been kept with none, and its person read "Not heard from" beside "They wrote" (27 Oct 2026).
     body: emailPlainText(e)?.slice(0, EMAIL_BODY_MAX) ?? null,
     at: when,
     meta: mailboxEmailMeta(e, r.row.id),

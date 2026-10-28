@@ -12,11 +12,8 @@ export function theirTurnWords(last) {
   return last.kind === "call" ? "they called last" : "they wrote last";
 }
 export function heardAt(r) {
-  const at = [
-    ts(r.last_inbound_at),
-    ts(r.last_inbound_call_at ?? null),
-    r.last_message_direction === "inbound" ? ts(r.last_message_at) : null
-  ].filter((x) => x !== null);
+  const wrote = ts(r.last_inbound_at) ?? (r.last_message_direction === "inbound" ? ts(r.last_message_at) : null);
+  const at = [wrote, ts(r.last_inbound_call_at ?? null)].filter((x) => x !== null);
   return at.length ? Math.max(...at) : null;
 }
 export function lastContactOf(r, tz, nowMs) {

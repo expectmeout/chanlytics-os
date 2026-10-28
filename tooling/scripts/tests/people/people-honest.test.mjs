@@ -4275,8 +4275,6 @@ test("each row's standing with the proposal follow-up (0006): worked out where t
     person(n, {
       phone_e164: `+1917555020${n}`,
       consent: "opted_in",
-      // Their last message, 40 days ago, is the newest there is (the row's default says it came in two hours ago).
-      last_message_at: iso(now - 40 * DAY),
       last_inbound_at: iso(now - 40 * DAY),
       latest_wa_inbound_at: iso(now - 40 * DAY),
       last_inbound_call_at: null,

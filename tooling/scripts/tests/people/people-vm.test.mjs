@@ -185,29 +185,6 @@ test("quiet is more than 30 of the workspace's days since THEY wrote or called; 
   assert.equal(PERSON_STATE_LABELS.unheard, "Not heard from");
 });
 
-test("an email kept without its words is still them writing: the row never says Not heard from beside They wrote", () => {
-  // 27 Oct 2026: the mailbox's six months kept 47 emails that had only HTML with no words, so the people list's
-  // last_inbound_at (words that came in) was null while their newest message came in.
-  const wordless = {
-    last_inbound_at: null,
-    last_inbound_text: null,
-    last_inbound_call_at: null,
-    last_message_at: iso(5 * D),
-    last_message_direction: "inbound",
-    last_message_sender: "customer",
-  };
-  const vm = toPersonRowVM(row(wordless), ZONE, NOW);
-  assert.equal(vm.lastContact.label, "They wrote · 5d ago");
-  assert.equal(vm.state, "active", "heard from five days ago, not 'Not heard from'");
-  assert.equal(personStateFor(row({ ...wordless, last_message_at: iso(40 * D) }), nowMs, ZONE), "quiet");
-  assert.equal(vm.heardDays, 5, "Quiet 30+ days and Never heard from read the same moment as the pill");
-  // Our own newest message says nothing of them: never heard from stays never heard from.
-  assert.equal(
-    personStateFor(row({ ...wordless, last_message_direction: "outbound", last_message_sender: "human" }), nowMs, ZONE),
-    "unheard",
-  );
-});
-
 test("the tabs are the states, in the order they are evaluated", () => {
   assert.deepEqual(
     PEOPLE_TABS.map((t) => t.id),
@@ -274,6 +251,15 @@ test("last contact says who and how long ago, and the newer of message vs call w
   assert.equal(first("human").lastContact.label, "Your team wrote · 3d ago");
   assert.equal(first("ai").lastContact.label, "Receptionist wrote · 3d ago");
   assert.equal(first("human").state, "unheard", "the pill beside it says Not heard from, by the same rule");
+  // Their newest message with no words read (an email with only HTML, as the six months' import kept it before it read
+  // HTML) is still them writing: the row said "Not heard from" beside "They wrote" (the live walk, 27 Oct 2026).
+  const wordless = toPersonRowVM(
+    row({ ...unheard, last_message_direction: "inbound", last_message_sender: "customer" }),
+    ZONE,
+    NOW,
+  );
+  assert.equal(wordless.lastContact.label, "They wrote · 3d ago");
+  assert.notEqual(wordless.state, "unheard", "the pill agrees: they wrote");
   const called = toPersonRowVM(row({ last_call_at: iso(H), last_inbound_call_at: iso(H) }), ZONE, NOW).lastContact;
   assert.equal(called.kind, "call");
   assert.equal(called.label, "Phoned · 1h ago");
