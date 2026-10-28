@@ -68,6 +68,8 @@ export interface TableColumn<R extends TableRow = TableRow, X extends TableCtx =
   sortFirst?: "asc" | "desc";
   /** What a row sorts by under this heading, where the page sorts the rows itself; a text is compared as words, in order. */
   sortValue?: (p: R, dir: string) => number | string;
+  /** The rows that sort after every other under this heading, whichever way it is pressed: Person's unnamed ones. */
+  sortLast?: (p: R) => boolean;
   pinned?: boolean;
   fixed?: boolean;
   on?: boolean | ((x: ColCtx) => boolean);

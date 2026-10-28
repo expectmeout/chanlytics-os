@@ -7,7 +7,7 @@
  * write, in one list, so the verdict is null (intake.ts senderAuthenticated reads no header, and fails closed). What is
  * read from a mailbox is a reply in a thread a reach-out started, or a report about one of its emails, never a yes.
  */
-import { MIN_MS } from "@chanlytics/contracts";
+import { MIN_MS, repairMojibake } from "@chanlytics/contracts";
 import { addressOf, addressesOf, messageIdHeader } from "../email/header-values";
 import type { ReceivedEmail } from "../email/intake";
 import { unb64url } from "../google/google-oauth";
@@ -106,9 +106,9 @@ export const FIND_SENT_LOOKS = 3;
 /** A part's bytes as text in its charset; UTF-8 when it names none or one the runtime does not know. */
 function decodedText(bytes: Uint8Array, charset: string | null): string {
   try {
-    return new TextDecoder(charset ?? "utf-8").decode(bytes);
+    return repairMojibake(new TextDecoder(charset ?? "utf-8").decode(bytes));
   } catch {
-    return dec.decode(bytes);
+    return repairMojibake(dec.decode(bytes));
   }
 }
 

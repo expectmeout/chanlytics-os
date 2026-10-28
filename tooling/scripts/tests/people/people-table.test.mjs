@@ -759,3 +759,92 @@ test("the window's first draw: its first screen, the rows it keeps wherever they
   draw(500, [450]);
   assert.equal(parts.length, 500, "no way to watch the list: every row");
 });
+
+/* ---- what People's headings sort by (27 Oct 2026): the unnamed last, ties by the last contact, two more that sort ---- */
+const { PL_COLUMNS } = await importSrc("apps/dashboard/src/surfaces/people/cells/columns.tsx");
+const { plPeopleShown } = await importSrc("apps/dashboard/src/surfaces/people/page/shown.ts");
+const { personRow, daysAgo } = await import("../consent/_person-row.mjs");
+
+const shownBy = (rows, sortBy, sortDir) =>
+  plPeopleShown({
+    rows,
+    found: null,
+    lists: [],
+    saved: [],
+    tab: "all",
+    listId: null,
+    savedId: null,
+    q: "",
+    sortBy,
+    sortDir,
+    columns: PL_COLUMNS,
+  }).map((p) => p.id);
+
+test("Person sorts the named from A to Z or Z to A, and those nobody has named after them either way", () => {
+  const rows = [
+    personRow({ id: "num", display_name: null, phone_e164: "+13055550101" }),
+    personRow({ id: "zoe", display_name: "Zoe Example" }),
+    personRow({ id: "mail", display_name: null, phone_e164: null, email: "ab@example.com", channels: ["email"] }),
+    personRow({ id: "ana", display_name: "Ana Example" }),
+  ];
+  assert.deepEqual(shownBy(rows, "name", "asc").slice(0, 2), ["ana", "zoe"], "a number no longer leads A to Z");
+  assert.deepEqual(shownBy(rows, "name", "desc").slice(0, 2), ["zoe", "ana"]);
+  assert.deepEqual(new Set(shownBy(rows, "name", "desc").slice(2)), new Set(["num", "mail"]), "and they stay last");
+});
+
+test("a tie under any heading falls to the most recent contact, whichever way the heading is pressed", () => {
+  const rows = [
+    personRow({ id: "old", display_name: "A", last_message_at: daysAgo(9), last_inbound_at: daysAgo(9) }),
+    personRow({ id: "new", display_name: "B", last_message_at: daysAgo(1), last_inbound_at: daysAgo(1) }),
+    personRow({ id: "mid", display_name: "C", last_message_at: daysAgo(4), last_inbound_at: daysAgo(4) }),
+  ];
+  assert.deepEqual(shownBy(rows, "state", "desc"), ["new", "mid", "old"]);
+  assert.deepEqual(shownBy(rows, "state", "asc"), ["new", "mid", "old"]);
+});
+
+test("First contact and Deal sort, and a row with nothing to sort by is last either way", () => {
+  assert.ok(PL_COLUMNS.find((c) => c.key === "since").sortable);
+  assert.ok(PL_COLUMNS.find((c) => c.key === "deal").sortable);
+  const firsts = [
+    personRow({ id: "a", first_contact_at: daysAgo(90), earliest_row_at: daysAgo(90) }),
+    personRow({ id: "b", first_contact_at: daysAgo(5), earliest_row_at: daysAgo(5) }),
+    personRow({ id: "c", first_contact_at: daysAgo(30), earliest_row_at: daysAgo(30) }),
+  ];
+  assert.deepEqual(shownBy(firsts, "since", "desc"), ["b", "c", "a"], "the newest first on the first press");
+  assert.deepEqual(shownBy(firsts, "since", "asc"), ["a", "c", "b"]);
+  const deals = [
+    personRow({ id: "none" }),
+    personRow({ id: "out", deal_id: "d1", deal_stage: "proposed", deal_proposed_at: daysAgo(2) }),
+    personRow({
+      id: "won",
+      deal_id: "d2",
+      deal_stage: "won",
+      deal_proposed_at: daysAgo(9),
+      deal_decided_at: daysAgo(3),
+    }),
+  ];
+  assert.deepEqual(shownBy(deals, "deal", "desc"), ["won", "out", "none"], "a client, then a proposal out");
+  assert.deepEqual(shownBy(deals, "deal", "asc"), ["out", "won", "none"], "nobody with no deal leads either way");
+});
+
+test("words that find nobody say so, with the words, and the one way back clears the words alone", async () => {
+  const { plNoMatchWords } = await importSrc("apps/dashboard/src/surfaces/people/words.ts");
+  const said = plNoMatchWords("  zzqx ", false);
+  assert.deepEqual(said, {
+    title: "Nobody matches “zzqx”",
+    body: "Search reads names, numbers and email addresses.",
+    action: "Clear search",
+  });
+  assert.equal(plNoMatchWords("zzqx", true).title, "Searching everyone for “zzqx”…", "never nobody while it looks");
+  let cleared = 0;
+  const tree = table({
+    rows: [],
+    filtered: true,
+    empty: { title: said.title, body: said.body, action: { label: said.action, onClick: () => cleared++ } },
+  });
+  assert.match(textOf(tree), /Nobody matches “zzqx”/, "it said 'No one matches this view' for words typed in the box");
+  const clear = find(tree, (n) => n.type === "button" && textOf(n) === "Clear search");
+  assert.ok(clear, "Clear search, not Clear filters");
+  clear.props.onClick();
+  assert.equal(cleared, 1);
+});

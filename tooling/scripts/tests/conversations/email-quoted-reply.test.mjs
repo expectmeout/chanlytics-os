@@ -15,9 +15,11 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   emailPartsOf,
+  emailPreviewOf,
   emailSignatureLine,
   emailSubjectsOf,
   messageWords,
+  repairMojibake,
   splitQuotedReply,
   tidyEmailWords,
   toConversationVM,
@@ -530,4 +532,58 @@ test("our reply says what it was signed with, as it left (00487 meta.email.signa
     line: "Ruben Segura · Founder, Chanlytics · chanlytics.agency",
     full: "Ruben Segura\nFounder, Chanlytics\nchanlytics.agency",
   });
+});
+
+/* ------------------- words read in the wrong charset, and a row's one line ------------------- */
+
+test("UTF-8 read as Latin-1 or Windows-1252 gets its own characters back, and nothing else is touched", () => {
+  assert.equal(repairMojibake("If youâ€™re still looking"), "If you’re still looking");
+  assert.equal(repairMojibake("a naÃ¯ve â€œquoteâ€"), "a naïve “quote”", "Latin-1's control byte as well as 1252's");
+  assert.equal(
+    repairMojibake("café — youâ€™re in"),
+    "café — you’re in",
+    "a word truly in Latin-1 stays beside a repair",
+  );
+  assert.equal(repairMojibake("café, crème, señor"), "café, crème, señor");
+  const plain = "Can I move Saturday to 11?";
+  assert.equal(repairMojibake(plain), plain);
+  // What the import kept before it repaired (a message's words never change once written) is said right where shown.
+  assert.equal(emailPartsOf("Hi Dana, I hope youâ€™re doing well.", "").said, "Hi Dana, I hope you’re doing well.");
+});
+
+test("an email as a row's one line: its own words, without the chain, the signature, a list's links or a rule", () => {
+  assert.equal(
+    emailPreviewOf(
+      "needs you test\n\nDana Example\nFounder, Example Co\n[image: Example Co] <https://example.com>\nexample.com | dana@example.com",
+    ),
+    "needs you test",
+    "a card under a blank line is the signature, found by its shape with no sender's name",
+  );
+  assert.equal(
+    emailPreviewOf("We updated our [Conditions of Use](https://www.example.com/help/terms?id=1). Read them here."),
+    "We updated our Conditions of Use. Read them here.",
+  );
+  assert.equal(
+    emailPreviewOf(
+      "New promo-list signup from example.com\nEmail: a.person@example.com\nLanguage: English\nSource: cta-band",
+    ),
+    "New promo-list signup from example.com · Email: a.person@example.com · Language: English · Source: cta-band",
+    "a form's lines each after a dot",
+  );
+  assert.equal(
+    emailPreviewOf("Dear Dana,\n------------------------------\nThank you for your interest."),
+    "Dear Dana, Thank you for your interest.",
+    "a rule of dashes is no words",
+  );
+  assert.equal(
+    emailPreviewOf(
+      "Sounds good, see you then.\n\nOn Thu, Sep 17, 2026 at 10:44 PM Example Salon <hi@example.com> wrote:\n> Are you free?",
+    ),
+    "Sounds good, see you then.",
+  );
+  assert.equal(emailPreviewOf("Is Saturday open?\nI could come at 11."), "Is Saturday open? I could come at 11.");
+  // An address with its scheme, and a phone's link in angle brackets, are no words to read in a line; a bare one stays.
+  assert.equal(emailPreviewOf("Get Outlook for iOS<https://aka.example/o0u>"), "Get Outlook for iOS");
+  assert.equal(emailPreviewOf("Call (888) 555-0100 <tel:+18885550100> today"), "Call (888) 555-0100 today");
+  assert.equal(emailPreviewOf("See https://example.com/listing/9 or example.com"), "See or example.com");
 });

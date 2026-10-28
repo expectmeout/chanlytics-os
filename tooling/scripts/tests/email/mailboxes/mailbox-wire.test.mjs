@@ -348,6 +348,40 @@ test("a reply read back from Gmail and from Graph is the intake's email, with it
   assert.equal(gmailEmailOf({ nothing: true }), null);
 });
 
+test("a part that names Latin-1 but carries UTF-8 is read as the words it is: 'you’re', never 'youâ€™re'", () => {
+  const utf8 = Buffer.from("I hope you’re well. Café on Friday?", "utf8").toString("base64url");
+  const g = gmailEmailOf({
+    id: "g-10",
+    threadId: "g-thread-2",
+    internalDate: String(Date.parse("2026-10-13T16:00:00Z")),
+    payload: {
+      mimeType: "text/plain",
+      headers: [
+        { name: "From", value: "Owner <office@fixture-movers.example>" },
+        { name: "Content-Type", value: 'text/plain; charset="iso-8859-1"' },
+      ],
+      body: { data: utf8 },
+    },
+  });
+  assert.equal(g.text, "I hope you’re well. Café on Friday?");
+  // A part truly in Latin-1 keeps its own words.
+  const latin1 = Buffer.from("Café on Friday?", "latin1").toString("base64url");
+  const l = gmailEmailOf({
+    id: "g-11",
+    threadId: "g-thread-3",
+    internalDate: String(Date.parse("2026-10-13T16:00:00Z")),
+    payload: {
+      mimeType: "text/plain",
+      headers: [
+        { name: "From", value: "Owner <office@fixture-movers.example>" },
+        { name: "Content-Type", value: "text/plain; charset=iso-8859-1" },
+      ],
+      body: { data: latin1 },
+    },
+  });
+  assert.equal(l.text, "Café on Friday?");
+});
+
 test("a delivery report is read for the email of ours it is about: the row in the Message-ID we minted, permanent or not; a delay is nothing yet", () => {
   const ours = mailboxMessageId(ROW, "getharbor.example");
   const report = (status, action, extra = "") => ({

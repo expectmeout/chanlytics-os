@@ -36,6 +36,19 @@ export const plVisitsSort = (p: PersonRowVM, dir: string): SortValue => {
   return p.nextVisitMs ?? (p.lastVisitMs !== null ? PAST_VISITS_FROM + (PAST_VISITS_FROM - p.lastVisitMs) : none);
 };
 
+/** When they first wrote or phoned, and a row with no first contact on record last whichever way the heading is pressed. */
+export const plSinceSort = (p: PersonRowVM, dir: string): SortValue =>
+  p.firstContact.ts ?? (dir === "asc" ? Infinity : -Infinity);
+
+/** By where their deals stand, the furthest on first: a client, a proposal out, a consultation, then the closed ones. */
+const DEAL_RANK: Record<string, number> = { won: 4, proposed: 3, consultation: 2, ended: 1, lost: 0 };
+/** The furthest any of their open deals stands (else the deal they had), and nobody with no deal last either way. */
+export const plDealSort = (p: PersonRowVM, dir: string): SortValue => {
+  const stages = p.openDeals.length ? p.openDeals.map((d) => d.stage) : p.deal ? [p.deal.stage] : [];
+  const ranks = stages.map((s) => DEAL_RANK[s] ?? 0);
+  return ranks.length ? Math.max(...ranks) : dir === "asc" ? Infinity : -Infinity;
+};
+
 /** The soonest step first, and a row with none last whichever way the heading is pressed: its day, as the number it spells. */
 export const plNextSort = (p: PersonRowVM, dir: string): SortValue =>
   p.nextStep ? Number(p.nextStep.day.day.replace(/\D/g, "")) : dir === "asc" ? Infinity : -Infinity;

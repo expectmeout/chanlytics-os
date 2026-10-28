@@ -2336,11 +2336,11 @@ test("the table: identity that says who, Offers where First contact was, Visits 
     return again(() => PL_COLUMNS.find((c) => c.key === key).cell(p, { attention: {}, onOpen() {}, ...x }));
   };
   // First contact left the identity cell (22 Sep, Ruben: the row read jam-packed) for a column of its own that is off
-  // until a member asks for it (Offers took its place on screen then, and has since gone the same way).
+  // until a member asks for it (Offers took its place on screen then, and has since gone the same way); it sorts by its day.
   const since = PL_COLUMNS.find((c) => c.key === "since");
   assert.deepEqual(
     [since.label, since.sortable, since.on],
-    ["First contact", false, false],
+    ["First contact", true, false],
     "First contact is a column a member may choose, not on screen by default",
   );
   // A number is not initials; it can be named.

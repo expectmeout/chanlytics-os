@@ -1307,3 +1307,23 @@ test("Replies says nothing can be sent to a person who asked to stop, in the com
     "Any message, for 5 more hours",
   );
 });
+
+/* ---- a row's last words: an email said as its own words, any other wire as written (27 Oct 2026) ---- */
+test("a row says an email's own words in one line, and a text or a WhatsApp as it was written", () => {
+  const email = toPersonRowVM(
+    row({
+      last_inbound_channel: "email",
+      last_inbound_text:
+        "Is Saturday open?\n\nDana Example\nExample Co\n[image: Example Co] <https://example.com>\nexample.com",
+    }),
+    ZONE,
+    NOW,
+  );
+  assert.equal(email.quote, "Is Saturday open?");
+  const text = "Is Saturday open?\n\nDana Example\nexample.com";
+  assert.equal(
+    toPersonRowVM(row({ last_inbound_channel: "whatsapp", last_inbound_text: text }), ZONE, NOW).quote,
+    text,
+  );
+  assert.equal(toPersonRowVM(row({ last_inbound_text: "  " }), ZONE, NOW).quote, null);
+});

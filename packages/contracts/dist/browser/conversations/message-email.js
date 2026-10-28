@@ -18,6 +18,56 @@ export function emailLeftOutOf(meta) {
   if (email.truncated === true) said.push("This email was longer than Chanlytics keeps; the rest was left out.");
   return said.length ? said.join(" ") : null;
 }
+const CP1252_CODES = [
+  128,
+  130,
+  131,
+  132,
+  133,
+  134,
+  135,
+  136,
+  137,
+  138,
+  139,
+  140,
+  142,
+  145,
+  146,
+  147,
+  148,
+  149,
+  150,
+  151,
+  152,
+  153,
+  154,
+  155,
+  156,
+  158,
+  159
+];
+const CP1252_BYTE = new Map(
+  Array.from("\u20AC\u201A\u0192\u201E\u2026\u2020\u2021\u02C6\u2030\u0160\u2039\u0152\u017D\u2018\u2019\u201C\u201D\u2022\u2013\u2014\u02DC\u2122\u0161\u203A\u0153\u017E\u0178", (ch, i) => [ch, CP1252_CODES[i] ?? 0])
+);
+const MOJIBAKE_RUN = /[Â-ô][\u0080-¿€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ]+/g;
+let strictUtf8 = null;
+const readStrict = (bytes) => (strictUtf8 ??= new TextDecoder("utf-8", { fatal: true })).decode(bytes);
+export function repairMojibake(text) {
+  if (!/[Â-ô]/.test(text)) return text;
+  return text.replace(MOJIBAKE_RUN, (run) => {
+    const bytes = Array.from(run, (ch) => {
+      const code = ch.codePointAt(0) ?? 0;
+      return code < 256 ? code : CP1252_BYTE.get(ch) ?? -1;
+    });
+    if (bytes.some((b) => b < 0)) return run;
+    try {
+      return readStrict(Uint8Array.from(bytes));
+    } catch {
+      return run;
+    }
+  });
+}
 const QUOTE_BLOCK = /^[ \t]*(?:(?:-{2,}[ \t]*Original Message[ \t]*-{2,})|(?:_{5,})|(?:>[ \t]?))/m;
 const QUOTE_ATTRIBUTION = /\bOn\b[\s\S]{0,240}?\bwrote:[ \t]*(?=\r?\n|>)/;
 export function splitQuotedReply(body) {
@@ -86,7 +136,7 @@ export function tidyEmailWords(text) {
   return kept.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 export function emailPartsOf(body, fromName) {
-  const { text, quoted } = splitQuotedReply(body.replace(/\r\n?/g, "\n"));
+  const { text, quoted } = splitQuotedReply(repairMojibake(body).replace(/\r\n?/g, "\n"));
   const lines = text.split("\n");
   const at = fromName === null ? null : signatureStart(lines, fromName);
   const said = tidyEmailWords(at === null ? text : lines.slice(0, at).join("\n"));
@@ -94,6 +144,13 @@ export function emailPartsOf(body, fromName) {
     return { said: tidyEmailWords(text), signature: null, quoted: quoted && tidyEmailWords(quoted) };
   const signed = lines.slice(SIG_DASHES.test(lines.at(at) ?? "") ? at + 1 : at).join("\n");
   return { said, signature: tidyEmailWords(signed) || null, quoted: quoted && tidyEmailWords(quoted) };
+}
+const MARKDOWN_LINK = /\[([^\]\n]+)\]\((?:https?:|mailto:)[^)\s]*\)/gi;
+const LINK_OUT = /[ \t]*(?:<(?:tel|sms):[^>\s]*>|\bhttps?:\/\/[^\s<>]+)/gi;
+const HAS_WORDS = /[\p{L}\p{N}]/u;
+export function emailPreviewOf(body) {
+  const lines = emailPartsOf(body, "").said.replace(MARKDOWN_LINK, "$1").replace(LINK_OUT, "").split("\n").map((l) => l.trim()).filter((l) => HAS_WORDS.test(l));
+  return lines.reduce((out, l) => out ? `${out}${LABELLED.test(l) ? " \xB7 " : " "}${l}` : l, "");
 }
 export function emailSignatureLine(signature) {
   return signature.split(/\n|[ \t]+\|[ \t]+/).map((p) => p.trim()).filter(Boolean).slice(0, SIG_LINE_PARTS).join(" \xB7 ");

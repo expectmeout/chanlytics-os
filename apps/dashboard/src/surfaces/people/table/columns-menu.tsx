@@ -33,21 +33,10 @@ export function PeopleColumnsMenu({
   rowHeight?: boolean;
 }) {
   const tick = <Icon name="check" size={13} />;
-  const groups: MenuGroup[] = [
-    {
-      header: "Show on the table",
-      toggles: {
-        onToggle: onPick,
-        tick,
-        items: options.map((c) => ({
-          value: c.key,
-          label: c.label,
-          on: c.on,
-          locked: c.locked ? "Always" : undefined,
-        })),
-      },
-    },
-  ];
+  // The row height and the way back come first: under fifteen switches the way back stood below the menu's fold, at the
+  // foot of a scroll nobody knew was there (691px of menu on a 900px window, 27 Oct 2026), and it is the one way out of
+  // a layout that went wrong.
+  const groups: MenuGroup[] = [];
   if (layout) {
     groups.push(
       ...(rowHeight
@@ -75,6 +64,19 @@ export function PeopleColumnsMenu({
       },
     );
   }
+  groups.push({
+    header: "Show on the table",
+    toggles: {
+      onToggle: onPick,
+      tick,
+      items: options.map((c) => ({
+        value: c.key,
+        label: c.label,
+        on: c.on,
+        locked: c.locked ? "Always" : undefined,
+      })),
+    },
+  });
   return (
     <div className="more-wrap pl-cols">
       <Menu
