@@ -24,7 +24,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FocusEvent, KeyboardEvent, MouseEvent, SyntheticEvent } from "react";
 
-export interface InPlaceOptions {
+interface InPlaceOptions {
   /** What is shown at rest: the value, or what stands in its place (a number for a name). */
   value: string;
   /** What the box holds as typing begins: the value, or nothing where what is shown is not theirs. */
