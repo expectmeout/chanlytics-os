@@ -11,7 +11,7 @@
 import { z } from "zod";
 import { NOTE_MAX } from "../../notes/person-notes";
 import { normalizePhone } from "../../shared/phone";
-import { HOUR_MS } from "../../shared/time";
+import { dateFormat, HOUR_MS } from "../../shared/time";
 import type { JobNews } from "../../today/notifications";
 
 /** What a form on the site is: a sign-up for the business's offers, or a request the business answers. */
@@ -52,9 +52,25 @@ export function websiteFormPerson(f: Pick<WebsiteFormInput, "name" | "email" | "
   return { name: f.name?.trim() || null, email, phone };
 }
 
-/** A day as the note says it ("Oct 21"), for a form sent before it reached the workspace. */
-const sentOn = (iso: string): string =>
-  new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+/**
+ * A day as the note says it ("Oct 21"), for a form sent before it reached the workspace: in the workspace's own zone, so
+ * a form sent on an evening in New York is that evening's day, never the next one UTC has already reached. A zone the
+ * runtime does not know reads as UTC.
+ */
+function sentOn(iso: string, tz: string): string {
+  const at = new Date(iso);
+  try {
+    return dateFormat("en-US", { month: "short", day: "numeric", timeZone: tz }).format(at);
+  } catch {
+    return dateFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).format(at);
+  }
+}
+
+/** When a form is read: the moment it arrives, and the zone its workspace keeps its days in. */
+interface WebsiteFormWhen {
+  nowMs: number;
+  tz: string;
+}
 
 /** A form older than this reached the workspace late (re-sent): its note says the day it was sent. */
 const LATE_MS = HOUR_MS;
@@ -69,14 +85,15 @@ export function websiteFormLate(f: Pick<WebsiteFormInput, "at">, nowMs: number):
 
 /**
  * The note a form suggests on the person's page: what they signed up for or asked, in their own words where they wrote
- * any, and the day they sent it when it arrived late. At most a note's length: their words are cut, never the line.
+ * any, and the day they sent it, in the workspace's zone, when it arrived late. At most a note's length: their words are
+ * cut, never the line.
  */
-export function websiteFormNote(f: WebsiteFormInput, nowMs: number): string {
+export function websiteFormNote(f: WebsiteFormInput, when: WebsiteFormWhen): string {
   const first =
     f.about?.trim() ||
     (f.form === "signup" ? "Signed up for your offers on your website" : "Sent a request on your website");
   const head = `${first.replace(/[.\s]+$/, "")}.`;
-  const late = f.at && websiteFormLate(f, nowMs) ? ` Sent ${sentOn(f.at)}.` : "";
+  const late = f.at && websiteFormLate(f, when.nowMs) ? ` Sent ${sentOn(f.at, when.tz)}.` : "";
   const words = f.note?.trim();
   if (!words) return `${head}${late}`.slice(0, NOTE_MAX);
   const room = NOTE_MAX - head.length - late.length - ' They wrote: ""'.length;
@@ -88,7 +105,7 @@ export function websiteFormNote(f: WebsiteFormInput, nowMs: number): string {
 export function websiteFormNotice(
   f: WebsiteFormInput,
   who: { contactId: string; name: string | null; email: string | null; phone: string | null },
-  nowMs: number,
+  when: WebsiteFormWhen,
 ): Omit<JobNews, "sourceEvent" | "kind"> & { kind: "website_form" } {
   const named = who.name || who.email || who.phone || "Someone";
   const reach = [who.email, who.phone].filter(Boolean).join(" · ");
@@ -101,7 +118,7 @@ export function websiteFormNotice(
       : `${named} sent a request on your website`
     ).slice(0, 200),
     body: [
-      websiteFormNote(f, nowMs),
+      websiteFormNote(f, when),
       reach ? `To reach them: ${reach}` : null,
       "They are in People now, and what they asked waits on their page as a note to keep.",
     ]

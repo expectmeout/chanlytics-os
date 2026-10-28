@@ -28,13 +28,20 @@ const PERSON = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 const keyOf = (t) => createHmac("sha256", SERVICE_KEY).update(`website-form:${t}`).digest("base64url");
 const NOW = Date.now();
 
-function world({ forgotten = false } = {}) {
+/** A workspace in New York unless said; `zone: null` is one whose row cannot be read. */
+function world({ forgotten = false, zone = "America/New_York" } = {}) {
   const resolved = [];
   const suggested = [];
   const notifications = [];
   const jobs = [];
   const db = fakeDb(
-    { notifications, tenant_config: [{ tenant_id: A, config: {} }], tenant_channels: [], jobs },
+    {
+      notifications,
+      tenants: zone ? [{ id: A, slug: "harbor", name: "Harbor", timezone: zone }] : [],
+      tenant_config: [{ tenant_id: A, config: {} }],
+      tenant_channels: [],
+      jobs,
+    },
     {},
     {
       resolve_person: (a) => {
@@ -135,13 +142,23 @@ test("the same form sent twice is one note and one notice; another form from the
   assert.equal(w.notifications[0].title, "Ana Ruiz sent a request on your website");
 });
 
-test("a form that arrives late says the day it was sent, and is told on the bell alone", async () => {
-  const at = new Date(NOW - 7 * 24 * 3_600_000).toISOString();
-  const [status] = await post({ ...REQUEST, at });
+test("a form that arrives late says the day it was sent, in the workspace's own zone, and is told on the bell alone", async () => {
+  // 8:49 PM in New York on Oct 26, which UTC already calls Oct 27 (the first form re-sent, 28 Oct 2026).
+  const [status] = await post({ ...REQUEST, at: "2026-10-27T00:49:00.320Z" });
   assert.equal(status, 200);
-  assert.match(w.suggested[0].p_body, / Sent [A-Z][a-z]{2} \d{1,2}\.$/);
+  assert.match(w.suggested[0].p_body, / Sent Oct 26\.$/, "REGRESSION: the day UTC had reached, not the workspace's");
   assert.equal(w.notifications.length, 1, "kept on the bell");
   assert.equal(w.jobs.length, 0, "no phone is told");
+
+  // A workspace that keeps another zone says its own day; one whose zone cannot be read, the default zone's.
+  w = world({ zone: "Asia/Tokyo" });
+  setPg(w.db);
+  await post({ ...REQUEST, at: "2026-10-26T16:30:00Z" });
+  assert.match(w.suggested[0].p_body, / Sent Oct 27\.$/);
+  w = world({ zone: null });
+  setPg(w.db);
+  await post({ ...REQUEST, at: "2026-10-27T00:49:00.320Z" });
+  assert.match(w.suggested[0].p_body, / Sent Oct 26\.$/, "America/New_York, the default zone");
 });
 
 test("a person who asked to be forgotten is not made again, and nothing is kept", async () => {
@@ -153,12 +170,19 @@ test("a person who asked to be forgotten is not made again, and nothing is kept"
 });
 
 test("the note's words: at most a note's length, their words cut and never the line", () => {
-  const long = websiteFormNote({ ...REQUEST, note: "x".repeat(2000) }, NOW);
+  const when = { nowMs: NOW, tz: "America/New_York" };
+  const long = websiteFormNote({ ...REQUEST, note: "x".repeat(2000) }, when);
   assert.equal(long.length, 600);
   assert.match(long, /^A seat in the spring class\. They wrote: "x+…"$/);
   assert.equal(
-    websiteFormNote({ ...REQUEST, about: undefined, note: undefined }, NOW),
+    websiteFormNote({ ...REQUEST, about: undefined, note: undefined }, when),
     "Sent a request on your website.",
+  );
+  const late = { ...REQUEST, note: undefined, at: "2026-10-27T00:49:00.320Z" };
+  assert.match(
+    websiteFormNote(late, { nowMs: NOW, tz: "Not/AZone" }),
+    / Sent Oct 27\.$/,
+    "a zone nobody knows: UTC's day",
   );
   assert.equal(websiteFormPerson({ name: " ", email: undefined, phone: "nope" }), null);
 });

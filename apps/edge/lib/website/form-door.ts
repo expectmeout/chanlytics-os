@@ -19,13 +19,14 @@ import { json, refuse } from "../http.js";
 import { errField, logger } from "../log.js";
 import { pg } from "../pg.js";
 import {
+  DEFAULT_TIMEZONE,
   WebsiteFormBody,
   websiteFormLate,
   websiteFormNote,
   websiteFormNotice,
   websiteFormPerson,
 } from "../packages/contracts.js";
-import { PERSON_FORGOTTEN, resolvePerson, suggestPersonNote } from "../packages/db.js";
+import { PERSON_FORGOTTEN, resolvePerson, suggestPersonNote, workspaceZoneOf } from "../packages/db.js";
 import { keepOnce, notifyOnce, onceKeyId } from "../ops/notify.js";
 import { loadTenantNotifications } from "../tenant-runtime.js";
 import { websiteFormKeyMatches } from "./form-key.js";
@@ -89,13 +90,15 @@ export async function receiveWebsiteForm(request: Request): Promise<Response> {
   const name = createHash("sha256")
     .update(JSON.stringify([tenantId, f.form, who.email, who.phone, f.about ?? "", f.note ?? "", f.at ?? ""]))
     .digest("hex");
+  // The day a late form says it was sent is the workspace's own; the default zone where it cannot be read.
+  const tz = (await workspaceZoneOf(db, tenantId).catch(() => null)) || DEFAULT_TIMEZONE;
   const nowMs = Date.now();
   let note = "kept";
   try {
     const r = await suggestPersonNote(db, {
       tenantId,
       contactId,
-      body: websiteFormNote(f, nowMs),
+      body: websiteFormNote(f, { nowMs, tz }),
       source: "website",
       sourceId: onceKeyId(`website_form_note:${name}`),
     });
@@ -105,7 +108,7 @@ export async function receiveWebsiteForm(request: Request): Promise<Response> {
     L.error("website_form_failed", { tenant_id: tenantId, step: "note", error: errField(e) });
   }
 
-  const notice = websiteFormNotice(f, { contactId, ...who }, nowMs);
+  const notice = websiteFormNotice(f, { contactId, ...who }, { nowMs, tz });
   const onceKey = `website_form:${name}`;
   let told = false;
   try {
