@@ -19,7 +19,7 @@ import {
 } from "@chanlytics/contracts";
 import type { Database, Json } from "../database.types";
 import { readAllRowsByKey } from "../paged";
-import { personIdsWaitingOnYou } from "./waiting-on-you";
+import { personIdsWaitingOnYou, threadsBy } from "./waiting-on-you";
 
 type Db = SupabaseClient<Database>;
 
@@ -143,11 +143,16 @@ function rowOfPeopleList({ open_deals, ...row }: PeopleListRow): PersonRowDto {
   return deals === undefined ? row : { ...row, open_deals: deals };
 }
 
+type PersonOf = string | { thread: string };
 /**
  * One person's People row, as the list shows it (people_list narrowed to them), or null for someone it does not hold.
- * The person page reads its row here, so it is read the way the list reads it. A read that fails THROWS.
+ * The person page reads its row here, so it is read the way the list reads it, and the Inbox's head the person a thread is
+ * with (`{ thread }`: none for a thread this workspace does not hold, GET contacts?thread). A read that fails THROWS.
  */
-export async function personRow(db: Db, tenantId: string, contactId: string): Promise<PersonRowDto | null> {
+export async function personRow(db: Db, tenantId: string, who: PersonOf): Promise<PersonRowDto | null> {
+  const [thread] = typeof who === "string" ? [] : await threadsBy(db, tenantId, "id", [who.thread]);
+  const contactId = typeof who === "string" ? who : thread?.contact_id;
+  if (!contactId) return null;
   const { data, error } = await db.rpc("people_list", { p_tenant_id: tenantId, p_contact_id: contactId });
   if (error) throw Object.assign(new Error(error.message), { code: error.code });
   const first = (data ?? [])[0];

@@ -8,7 +8,8 @@ import { api, read } from "@/legacy-bridge/api";
 import { workspaceZone } from "@/legacy-bridge/zone";
 import { LEFT_THE_QUEUE, deliveryTicksOnly } from "@/legacy-bridge/surface-realtime";
 import type { Output } from "@/client/api";
-import { declareReads } from "@/legacy-bridge/surface-registry";
+import { declareReads, routeGateOpen, routePartsOf } from "@/legacy-bridge/surface-registry";
+import { firstDrawWaitsFor, surfaceSettles } from "@/legacy-bridge/surface-status";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { routeOnScreen } from "@/legacy-bridge/workspace";
 import {
@@ -29,9 +30,14 @@ import {
   shareUnchanged,
   surfaceValue,
 } from "../surface-values";
+import { waitingRunsNow } from "../needs-you";
+import { peopleHold, threadPersonSaid } from "../people/want-person";
 import { namedByRoute } from "./address";
+import { ixPlace } from "./place";
+import { ixOnPhone, ixOpeningThread } from "./rules";
 import { readHeldThreads } from "./held-threads";
 import { inboxData, REAL_BUCKETS, REAL_CHANNEL_LABELS } from "./store";
+import type { Thread } from "./types";
 
 // The pages that have not moved (the sidebar, the bell, Ask, Today) still read this under its old name.
 declareSurfaceValue("inbox", "INBOX_DATA");
@@ -74,6 +80,38 @@ followSettings("inbox", (held, settings) => {
 
 /** The open holds as the last read answered them: what a read the receipts alone asked for keeps (S10-2). */
 let lastHolds: Output<"GET escalations"> | null = null;
+
+/** Whether the opening thread's waits were said: once a tab (openingThreadWaits). */
+let openingSaid = false;
+
+/**
+ * What the thread the Inbox's first draw opens on waits for beside the threads (surface-status firstDrawWaitsFor, held no
+ * longer than the route's wait), said by the Inbox's own read the first time it lands, before it is published, so the gate
+ * opens on the thread whole: who they are (their own read, or People's book: people/want-person.ts), and its reply box's
+ * reads, the settings read's templates and the drafts Ask kept. Each landed after the thread on a cold load: the box 0.3 to
+ * 1.5 s after it, pushing the conversation 145 to 162 px up, the head's deal and visit chips with People's book (the Inbox
+ * load review, 28 Oct 2026). A thread's, not the page's: a phone opens on its list alone, which draws none of it and waits for
+ * none of it. Only where the tab opened on the Inbox with a thread beside its list: the one its address names, else on a desk
+ * the first of the bucket it opens on (rules.ts ixOpeningThread). And only while the gate is shut: a page the tab's cache drew
+ * before this read landed is drawn already, and a wait said now would shut its gate again over it.
+ */
+function openingThreadWaits(threads: Thread[]): void {
+  if (openingSaid) return;
+  openingSaid = true;
+  if (typeof window === "undefined" || typeof window.location?.pathname !== "string") return;
+  const { page, param } = routePartsOf(routeOnScreen());
+  if (page !== "inbox") return;
+  // The address's thread (`th-<conversation>`), or none: an address naming something else (To send, a new conversation)
+  // opens on what the page works out, which this does not guess.
+  const named = param && /^th-[^/]+$/.test(param) ? param : null;
+  if ((param && !named) || (!named && ixOnPhone()) || routeGateOpen(page, param)) return;
+  const thread = ixOpeningThread(threads, named, { had: ixPlace().bucket, runsWaiting: waitingRunsNow().length > 0 });
+  if (!thread || !thread.real) return;
+  firstDrawWaitsFor("inbox", surfaceSettles("settings"));
+  firstDrawWaitsFor("inbox", surfaceSettles("reply_drafts"));
+  if (thread.clientId && !peopleHold(thread.clientId))
+    firstDrawWaitsFor("inbox", threadPersonSaid(thread.conversationId, thread.clientId));
+}
 
 export const inboxOverride: SurfaceOverride = {
   key: "inbox",
@@ -156,6 +194,8 @@ export const inboxOverride: SurfaceOverride = {
     // read failed (the composer says it could not read them, with a way to try again; [] is the other answer, none approved),
     // else the ones that may go. The Inbox asks for none, so a templates read that failed cannot blank it.
     const settings = surfaceValue("settings");
+    // The thread the first draw opens on waits for what it draws: once a tab, before this is published and the gate opens.
+    openingThreadWaits(threads);
     setSurfaceValue("inbox", {
       ...prev,
       // A thread the read gave as it was keeps its object, so its row is not drawn again (shareUnchanged): a new message
