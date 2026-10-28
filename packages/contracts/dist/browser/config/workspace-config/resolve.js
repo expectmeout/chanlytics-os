@@ -23,7 +23,7 @@ export function resolveSystemPrompt(brain, wire = "whatsapp", tz, now = /* @__PU
   const channel = wire === "voice" ? "voice" : "whatsapp";
   const facts = resolveFacts(brain, known);
   if (!hasProfile(brain.profile)) {
-    const link = !offersBookingLink(brain) ? [noLinkBooking(channel)] : channel === "voice" && !offersLinkOn("call", brain, facts.whatsapp_line.value, known?.booking_message) ? [cannotSendLink(facts.whatsapp_line.value)] : [];
+    const link = !offersBookingLink(brain) ? [noLinkBooking(channel)] : channel === "voice" && !offersLinkOn("call", brain, facts.whatsapp_line.value, known?.booking_message, known?.texting_line) ? [cannotSendLink(facts.whatsapp_line.value)] : [];
     const rules = [...link, ...standingRules(policy, channel, audience)];
     return `${brain.system_prompt}
 
@@ -39,7 +39,9 @@ ${rules.map((r) => `- ${r}`).join("\n")}`;
     // Provisioned or nothing, never typed (facts.ts): the ask for the yes to offers is composed only where there is one.
     whatsapp_line: facts.whatsapp_line.value,
     // Whether Meta approved the message a call sends the link in (R14); not read, offered as before.
-    booking_message: known?.booking_message ?? null
+    booking_message: known?.booking_message ?? null,
+    // Whether a texting line the carriers approved is there to send the link by instead; not read, no text is offered.
+    texting_line: known?.texting_line ?? null
   };
   const carried = { ...profile, extra_instructions: ownWordsOf(brain) ?? void 0 };
   return composeSystemPrompt(resolved, carried, wire, tz, now, policy, audience);

@@ -1,13 +1,16 @@
 /**
  * Retell custom function: send_booking_link
- * Mid-call, the voice agent calls this to text the caller the booking link on
- * WhatsApp via an approved utility template. Returns a short string the voice
- * agent speaks from.
+ * Mid-call, the voice agent calls this to send the caller the booking link on
+ * WhatsApp via an approved utility template, or by text from the workspace's
+ * texting line when WhatsApp cannot carry it (call-link-send.ts linkByText, the
+ * live walk's SET-2, 28 Oct 2026). Returns a short string the voice agent
+ * speaks from.
  *
  * The door is api/retell-fn.ts: `door(sendBookingLinkOnCall)`, which names the request the platform's way (log.ts).
  * Everything a delivery does is here, in the order the door had it: the knock is checked (voiceDoorAuth), the call
  * routed to its workspace, the voice gate asked, and the link sent through deliver(); every refusal still answers HTTP
- * 200 with a `result` sentence, because the agent speaks that string.
+ * 200 with a `result` sentence, because the agent speaks that string. The gate and the text are call-link-send.ts's,
+ * which both channels' sends share.
  *
  * This was the fourth WhatsApp send path and the only one behind no door at
  * all: it posted straight to the Graph API on env credentials, with the
@@ -37,13 +40,11 @@ import { json } from "../http.js";
 import { pg } from "../pg.js";
 import { isRehearsalCall, rehearsalOfToolCall, rehearsalRouting } from "./rehearsal-call.js";
 import { loadTenantRuntime, waCfgFor } from "../tenant-runtime.js";
-import { effectiveReplyMode, deliver, whatsappSender } from "../packages/core.js";
+import { effectiveReplyMode, deliver, whatsappSender, type Delivered } from "../packages/core.js";
 import {
-  emitEvent,
   messageByExternalId,
   resolveChannel,
   resolveOutboundTarget,
-  countSentToday,
   personReplyMode,
   templatesToSend,
 } from "../packages/db.js";
@@ -61,9 +62,19 @@ import {
   REHEARSAL_TOOL_WORDS,
   SECOND_MS,
 } from "../packages/contracts.js";
-import { outboundGate, refusalScript, type OutboundRefusal } from "../packages/core.js";
+import { refusalScript } from "../packages/core.js";
 import { refusedOutLoud, voiceDoorAuth } from "./voice-door-auth.js";
-import { logger, errField, type Logger } from "../log.js";
+import {
+  gateOnTheCall,
+  linkByText,
+  onTheCall,
+  refusedOnTheCall,
+  saidOfTheWire,
+  VOICE_SEND_SOURCE,
+  type LinkLeg,
+  type RefusedAt,
+} from "./call-link-send.js";
+import { logger, errField } from "../log.js";
 
 /**
  * Which template this path sends is the WORKSPACE'S to answer, not this file's.
@@ -90,15 +101,15 @@ import { logger, errField, type Logger } from "../log.js";
  * word for a message answering a request the person just made -- so the label
  * agrees with the use, and the fail-closed guarantee is back where it belongs.
  */
-/** Spoken when the workspace has no template approved for this. Names the real cause; never blames the caller's phone. */
+/**
+ * Spoken when the workspace has no template approved for this and no texting line to send it by instead. Names the real
+ * cause; never blames the caller's phone.
+ */
 const NO_TEMPLATE =
   "This business has not set up its booking-link WhatsApp message yet, so I cannot send it. Tell the caller they can book online, take their name, and say someone will follow up.";
 
-/** meta.source stamped on voice-initiated sends — also the key the daily cap counts. */
-const VOICE_SEND_SOURCE = "voice_booking_link";
-
-/** Per THREAD per day. A caller asking twice in one call is normal; thirty is not. */
-const VOICE_SENDS_PER_DAY = 3;
+/** Spoken when the caller asked for a text and the workspace has no texting line the carriers approved. */
+const NO_TEXT_LINE = `This business cannot send text messages yet, so nothing was sent. Tell the caller they can book online, and take ${NO_LINK_DETAILS} so the team can follow up.`;
 
 /**
  * How long the tool waits for WhatsApp's own answer about the send before it speaks (decision 0073, R14), and how often
@@ -134,16 +145,16 @@ const notDelivered = (publishedNumber: string | null) =>
 
 /**
  * What the receptionist says once Meta took the message: Meta's own answer is waited for a moment (R14), so a number
- * with no WhatsApp is said while the caller is on the line, and one that reached the phone is said as there.
+ * with no WhatsApp is said while the caller is on the line, and one that reached the phone is said as there. A number
+ * WhatsApp refused is sent the link by text where there is a texting line, without waiting on the text's own answer:
+ * the caller has already waited for one.
  */
-async function sentOutLoud(
-  db: Db,
-  L: Logger,
-  s: { tenantId: string; wamid: string | null; publishedNumber: string | null },
-): Promise<Response> {
-  const receipt = s.wamid ? await sendReceiptOf(db, s.tenantId, s.wamid) : null;
-  L.info("retell_fn_sent", { tenant_id: s.tenantId, wamid: s.wamid, receipt });
-  if (receipt === "failed") return json(200, { result: notDelivered(s.publishedNumber) });
+async function sentOutLoud(leg: LinkLeg, wamid: string | null): Promise<Response> {
+  const { db, L, at } = leg;
+  const receipt = wamid ? await sendReceiptOf(db, at.tenantId, wamid) : null;
+  L.info("retell_fn_sent", { tenant_id: at.tenantId, wamid, receipt });
+  if (receipt === "failed")
+    return (await linkByText(leg, "whatsapp_refused")) ?? json(200, { result: notDelivered(at.publishedNumber) });
   return json(200, {
     result:
       receipt === "delivered"
@@ -151,12 +162,6 @@ async function sentOutLoud(
         : "Booking link sent to their WhatsApp. Confirm they should see it momentarily.",
   });
 }
-
-/**
- * The link to the caller answers them; to a number they named it starts a conversation. Either way it is about the call
- * they are on: theirs (contracts MessageAbout, decision D1), and no playbook's run, so no moment's (Delivery.trigger).
- */
-const onTheCall = (isCaller: boolean) => ({ proactive: !isCaller, about: "theirs" as const, trigger: null });
 
 /**
  * Spoken to a knock the door turned away, before anything is read or sent. A 401 has no words, so a call whose knock
@@ -178,43 +183,17 @@ const NO_LINK = `This business has no booking link, so nothing was sent. Take ${
 
 type Db = NonNullable<ReturnType<typeof pg>>;
 
-/** Where a refused send is said and recorded: the thread it would have joined, the call that asked, the modes read. */
-interface RefusedAt {
-  tenantId: string;
-  conversationId: string;
-  callId: string | undefined;
-  publishedNumber: string | null;
-  mode: string;
-  personMode: string | null;
-}
-
 /**
- * A send refused before any row existed, by the gate or by the Autonomy tab's booking hold: said to the caller, and
- * recorded. Every other refusal in the product lands somewhere durable -- the door writes message.send_blocked, a
- * broadcast marks its recipient, a failed send flags the thread -- and this one was a line on stdout, so "she says she
- * never got the link" had no answer. The door's own kind, naming the thread rather than a message, because the refusal
- * came before any row existed to name. The caller is on the line, so the agent is told what to SAY -- never that a
- * colleague is mid-thread with them, or what our policy is.
+ * The tool call as Retell sends it, the call and what the agent filled in: a number to send to, and `by: "text"` when
+ * the caller said they do not use WhatsApp. A body that is not JSON is an empty one.
  */
-async function refusedOnTheCall(db: Db, L: Logger, refusal: OutboundRefusal, at: RefusedAt): Promise<Response> {
-  L.info("retell_fn_refused", { tenant_id: at.tenantId, reason: refusal, mode: at.mode, person_mode: at.personMode });
-  await emitEvent(db, at.tenantId, "message.send_blocked", "conversation", at.conversationId, {
-    reason: refusal,
-    source: VOICE_SEND_SOURCE,
-    channel: "whatsapp",
-    call_id: at.callId ?? null,
-  });
-  return json(200, { result: refusalScript(refusal, at.publishedNumber) });
-}
-
-/** The tool call as Retell sends it, the call and what the agent filled in; a body that is not JSON is an empty one. */
 function toolCallOf(raw: string): {
   call: { call_id?: string; from_number?: string; agent_id?: string; call_type?: string };
-  args: { phone_number?: string };
+  args: { phone_number?: string; by?: string };
 } {
   let body: {
     call?: { call_id?: string; from_number?: string; agent_id?: string; call_type?: string };
-    args?: { phone_number?: string };
+    args?: { phone_number?: string; by?: string };
   } = {};
   try {
     body = JSON.parse(raw);
@@ -244,6 +223,110 @@ async function rehearsalBookingLink(
   if (!offersBookingLink(rt.brain)) return json(200, { result: NO_LINK });
   L.info("retell_fn_rehearsal", { tenant_id: r.tenant_id, shown: true });
   return json(200, { result: REHEARSAL_TOOL_WORDS.bookingLink });
+}
+
+/**
+ * The link where WhatsApp is not to carry it: the caller said they do not use it on this number, or the workspace has
+ * no booking-link message Meta approved. By text where there is a texting line (linkByText); otherwise what was said
+ * before, or, to a caller who asked for a text, that this business cannot send one yet.
+ */
+async function withoutWhatsapp(leg: LinkLeg, after: "caller_asked" | "no_template"): Promise<Response> {
+  const text = await linkByText(leg, after);
+  if (text) return text;
+  // Unless it holds its bookings. Under the hold the link would not go whichever template there was, so the hold is
+  // the reason given, and recorded as the gate records it. Answered first, the missing template told a caller of a
+  // workspace holding its bookings that they "can book online", the one thing the workspace chose not to have said.
+  if (leg.held) return refusedOnTheCall(leg.db, leg.L, "booking_needs_a_person", leg.at, "whatsapp");
+  if (after === "caller_asked") {
+    leg.L.info("retell_fn_no_texting_line", { tenant_id: leg.at.tenantId });
+    return json(200, { result: NO_TEXT_LINE });
+  }
+  leg.L.info("retell_fn_no_template", { tenant_id: leg.at.tenantId });
+  return json(200, { result: NO_TEMPLATE });
+}
+
+/**
+ * The link as the workspace's approved WhatsApp message (decision 0073, R14): the gate asked for WhatsApp, the door, and
+ * Meta's own answer waited for. Where WhatsApp cannot carry it -- no WhatsApp of the workspace's own, or Meta refused the
+ * number -- it goes by text instead (linkByText); where the person, the thread or the workspace said no, it does not go
+ * at all, and that is said.
+ */
+async function byWhatsapp(
+  leg: LinkLeg,
+  booking: Awaited<ReturnType<typeof templatesToSend>>[number],
+  wa: ReturnType<typeof waCfgFor>,
+): Promise<Response> {
+  const { db, L, at } = leg;
+  // Meta's own word for what this message is, read from the row a sync wrote.
+  // purposeOfTemplate fails closed, so a category we do not have reads as a
+  // promotion and the offers answer is required -- which is the safe way to
+  // be wrong about somebody else's label.
+  const purpose = purposeOfTemplate(booking.category);
+  const gate = await gateOnTheCall(leg, "whatsapp", purpose);
+  if (!gate.allowed) return refusedOnTheCall(db, L, gate.refusal ?? "policy_hold", at, "whatsapp");
+
+  // The template's OWN slots, filled from the workspace's facts the way the
+  // Inbox and broadcasts fill them (I6): the business's name and its booking
+  // link, in whatever order this template asks for them. The pair used to be
+  // positional, which only held while one hand-written template was the only
+  // one this path could send.
+  const params = resolveParams(inboxSlots(booking), {
+    // No name: a caller is often somebody nobody has met yet, and the one
+    // fact this path holds about them is the number they are ringing from.
+    // resolveParams writes "there", which is true, rather than a gap.
+    firstName: null,
+    businessName: leg.business.name,
+    bookingLink: leg.business.link.replace(/^https?:[/][/]/, "") || null,
+  });
+  // The door every send leaves through: it re-reads consent, the pause and the workspace's status at the wire, sends
+  // on the TENANT's credentials (none is a refusal, said as a policy hold: never another business's line), records
+  // the row either way, and is told this call (onCall), whose own hold on the caller's thread is no person's.
+  const out = await deliver(
+    { db, wire: { whatsapp: whatsappSender(wa) } },
+    {
+      tenantId: at.tenantId,
+      conversationId: at.conversationId,
+      contactId: leg.contact.contactId,
+      to: leg.target,
+      channel: "whatsapp",
+      sender: "ai",
+      purpose,
+      ...onTheCall(leg.isCaller),
+      body: renderTemplate(booking.body_preview, params) || `[booking link] ${params.join(" — ")}`,
+      template: { name: booking.name, language: booking.language, params },
+      onCall: at.callId,
+      meta: { source: VOICE_SEND_SOURCE, call_id: at.callId ?? null },
+    },
+  );
+
+  if (out.outcome === "refused") {
+    // The wire found what the gate could not see a moment ago: the person's no, which no other channel gets round.
+    L.info("retell_fn_refused_at_wire", { tenant_id: at.tenantId, reason: out.reason });
+    return json(200, { result: refusalScript(saidOfTheWire(out.reason), at.publishedNumber, "whatsapp") });
+  }
+  if (out.outcome === "failed") return await whatsappFailed(leg, out);
+  return await sentOutLoud(leg, out.externalId ?? null);
+}
+
+/**
+ * A WhatsApp send that failed, said in the caller's terms. Where the failure is certain -- the workspace has no WhatsApp
+ * of its own, or Meta said no before it took anything -- the link goes by text where there is a line. Where Meta's answer
+ * is not known (it may have taken it all the same), nothing is sent again: two messages are worse than one.
+ */
+async function whatsappFailed(leg: LinkLeg, out: Extract<Delivered, { outcome: "failed" }>): Promise<Response> {
+  const { L, at } = leg;
+  const none = out.reason === "no_credentials" || out.reason === "no_sender_for_channel";
+  if (out.reason === "no_credentials") L.info("retell_fn_no_credentials", { tenant_id: at.tenantId });
+  else L.error("booking_link_send_failed", { tenant_id: at.tenantId, status: out.status, reason: out.reason });
+  const certain = none || (out.reason === "provider" && !out.mayHaveGone);
+  const text = certain ? await linkByText(leg, none ? "no_whatsapp" : "whatsapp_refused") : null;
+  if (text) return text;
+  return json(200, {
+    result:
+      out.reason === "no_credentials"
+        ? refusalScript("policy_hold", at.publishedNumber, "whatsapp")
+        : notDelivered(at.publishedNumber),
+  });
 }
 
 export async function sendBookingLinkOnCall(request: Request): Promise<Response> {
@@ -360,139 +443,28 @@ export async function sendBookingLinkOnCall(request: Request): Promise<Response>
 
     // WHICH template, asked of the workspace. A read that fails throws to the
     // outer catch and the caller is told we could not send, which is true; a
-    // workspace that genuinely has none is told THAT, which is a different and
-    // equally true thing, and the difference is what a business needs to hear
-    // to fix it.
+    // workspace that genuinely has none is told THAT, or sent the link by text,
+    // which is a different and equally true thing, and the difference is what a
+    // business needs to hear to fix it.
     const booking = bookingTemplate(await templatesToSend(db, routed.tenantId));
-    if (!booking) {
-      // Unless it holds its bookings. Under the hold the link would not go whichever template there was, so the hold is
-      // the reason given, and recorded as the gate records it. Answered first, the missing template told a caller of a
-      // workspace holding its bookings that they "can book online", the one thing the workspace chose not to have said.
-      if (held) return refusedOnTheCall(db, L, "booking_needs_a_person", refusedAt);
-      L.info("retell_fn_no_template", { tenant_id: routed.tenantId });
-      return json(200, { result: NO_TEMPLATE });
-    }
-    // Meta's own word for what this message is, read from the row a sync wrote.
-    // purposeOfTemplate fails closed, so a category we do not have reads as a
-    // promotion and the offers answer is required -- which is the safe way to
-    // be wrong about somebody else's label.
-    const purpose = purposeOfTemplate(booking.category);
-
-    // Every gate the conversational receptionist obeys, in one decision.
-    //
-    // This path used to check consent and stop. So a booking link would land in
-    // a thread a human had already taken over — the exact interruption pause
-    // exists to prevent — and it kept sending after a workspace had switched
-    // its receptionist to 'ask'. Both are the same class of bug: a second
-    // sender assembled by hand instead of going through the same door.
-    //
-    // WHOSE NUMBER decides whether this send is proactive, and it is the last
-    // hole in this path. Texting the person on the line ANSWERS them: they placed
-    // the call, they asked for the link, and the number is the one they are
-    // calling from — `resolveOutboundTarget` was given `create: isCaller` for
-    // that same reason. Texting a number somebody merely spoke aloud STARTS a
-    // conversation with a third party who has not asked for anything, and that
-    // needs their own recorded yes. Passing `optedOut` alone could not tell the
-    // two apart, so it let the second case through.
-    //
-    // KEPT BY THE OWNER'S DECISION (2026-09-10), after the review of #313 asked
-    // whether a caller should need a recorded yes as well. Requiring one would block
-    // the booking link on almost every first call, and texting the person who asked
-    // for it, at the number they are calling from, is a reply rather than outreach.
-    const gate = outboundGate({
-      // The row whole (an `OutboundTarget` is a `PurposeBearing`): no field's name re-mapped by hand to get wrong.
+    const leg: LinkLeg = {
+      db,
+      L,
       contact,
-      purpose,
-      ...onTheCall(isCaller),
-      channel: "whatsapp", // the delivery below: the yes it needs is a WhatsApp one
+      target,
+      isCaller,
       paused: rt.paused,
-      pausedUntilMs: contact.pausedUntil ? new Date(contact.pausedUntil).getTime() : null,
       replyMode,
-      bookingHeld: held,
-      // NOT caught to zero. This count IS the runaway guard, and a read that
-      // failed is the condition most likely to accompany a runaway: a database
-      // that cannot answer "how many today" reading as "none today" opens the
-      // cap exactly when it is needed. A throw leaves the outer catch to tell
-      // the caller we could not send, which is the truth.
-      sentToday: await countSentToday(db, {
-        tenantId: routed.tenantId,
-        conversationId: contact.conversationId,
-        source: VOICE_SEND_SOURCE,
-      }),
-      dailyCap: VOICE_SENDS_PER_DAY,
-      nowMs: Date.now(),
-    });
-
-    if (!gate.allowed) return refusedOnTheCall(db, L, gate.refusal!, refusedAt);
-
-    // The template's OWN slots, filled from the workspace's facts the way the
-    // Inbox and broadcasts fill them (I6): the business's name and its booking
-    // link, in whatever order this template asks for them. The pair used to be
-    // positional, which only held while one hand-written template was the only
-    // one this path could send.
-    const params = resolveParams(inboxSlots(booking), {
-      // No name: a caller is often somebody nobody has met yet, and the one
-      // fact this path holds about them is the number they are ringing from.
-      // resolveParams writes "there", which is true, rather than a gap.
-      firstName: null,
-      businessName: brain.business_name,
-      bookingLink: brain.booking_link?.replace(/^https?:[/][/]/, "") ?? null,
-    });
-    // The door every send leaves through: it re-reads consent, the pause and the workspace's status at the wire, sends
-    // on the TENANT's credentials (none is a refusal, said as a policy hold: never another business's line), records
-    // the row either way, and is told this call (onCall), whose own hold on the caller's thread is no person's.
-    const out = await deliver(
-      { db, wire: { whatsapp: whatsappSender(waCfgFor(rt)) } },
-      {
-        tenantId: routed.tenantId,
-        conversationId: contact.conversationId,
-        contactId: contact.contactId,
-        to: target,
-        channel: "whatsapp",
-        sender: "ai",
-        purpose,
-        ...onTheCall(isCaller),
-        body: renderTemplate(booking.body_preview, params) || `[booking link] ${params.join(" — ")}`,
-        template: { name: booking.name, language: booking.language, params },
-        onCall: call.call_id,
-        meta: { source: VOICE_SEND_SOURCE, call_id: call.call_id ?? null },
-      },
-    );
-
-    if (out.outcome === "refused") {
-      // The wire found what the gate could not see a moment ago. An erased
-      // person is spoken of as one who asked us to stop, which is what they did.
-      L.info("retell_fn_refused_at_wire", { tenant_id: routed.tenantId, reason: out.reason });
-      // This send is on WhatsApp, so email's refusals and outreach's cannot arise
-      // here; the compiler cannot know that. The call names the refusals it has
-      // words for, and for any other one, "it could not be sent" is the true
-      // thing to say on a call.
-      const r = out.reason;
-      const script: OutboundRefusal =
-        r === "erased"
-          ? "opted_out"
-          : r === "superseded_by_human"
-            ? "human_has_it"
-            : r === "opted_out" ||
-                r === "not_opted_in" ||
-                r === "no_marketing_consent" ||
-                r === "paused" ||
-                r === "human_has_it" ||
-                r === "sms_carries_no_promotions"
-              ? r
-              : "policy_hold";
-      return json(200, { result: refusalScript(script, publishedNumber) });
-    }
-    if (out.outcome === "failed") {
-      if (out.reason === "no_credentials") {
-        L.info("retell_fn_no_credentials", { tenant_id: routed.tenantId });
-        return json(200, { result: refusalScript("policy_hold", publishedNumber) });
-      }
-      L.error("booking_link_send_failed", { tenant_id: routed.tenantId, status: out.status, reason: out.reason });
-      return json(200, { result: notDelivered(publishedNumber) });
-    }
-
-    return await sentOutLoud(db, L, { tenantId: routed.tenantId, wamid: out.externalId ?? null, publishedNumber });
+      held,
+      at: refusedAt,
+      business: { name: brain.business_name, link: brain.booking_link ?? "" },
+      // The text is written in the language the WhatsApp message was approved in: the one the owner chose for it.
+      language: booking?.language ?? null,
+    };
+    // The caller said they do not use WhatsApp on this number, or there is no message Meta approved: WhatsApp has none.
+    if (args.by === "text" || !booking)
+      return await withoutWhatsapp(leg, args.by === "text" ? "caller_asked" : "no_template");
+    return await byWhatsapp(leg, booking, waCfgFor(rt));
   } catch (e) {
     // A thrown repository call must not become a 500: the voice agent would go
     // silent mid-sentence with a customer on the line.

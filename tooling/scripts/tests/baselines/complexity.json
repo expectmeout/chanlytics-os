@@ -84,11 +84,6 @@
     "branches": 33,
     "depth": 1
   },
-  "apps/edge/lib/voice/call-booking-link.ts::sendBookingLinkOnCall#1": {
-    "lines": 254,
-    "branches": 38,
-    "depth": 3
-  },
   "apps/edge/lib/voice/call-start.ts::planCallStart#1": {
     "lines": 138,
     "branches": 23,
@@ -133,11 +128,6 @@
     "lines": 134,
     "branches": 79,
     "depth": 4
-  },
-  "packages/contracts/src/config/business-tab/abilities.ts::abilityRows#1": {
-    "lines": 144,
-    "branches": 31,
-    "depth": 1
   },
   "packages/contracts/src/conversations/call-vm.ts::toCallVM#1": {
     "lines": 90,

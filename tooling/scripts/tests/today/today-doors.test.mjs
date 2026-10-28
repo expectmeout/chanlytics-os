@@ -645,6 +645,17 @@ test("while someone waits on you, what is left to set up is its head and Show, u
     queueHoldsCoral(false);
     feedSetup(undefined);
   }
+  // The card folds by the page's own count of who waits (useWaitsOnToday), before the queue says a word: a cold Today,
+  // the Inbox not read, the day saying three wait.
+  feedSetup(answeringSetup());
+  try {
+    const day = todayWith([]);
+    setSurfaceValue("today", { ...day, needsYou: { ...day.needsYou, count: 3, holds: 3, sends: 0 } });
+    assert.ok(byId(mountSetup(), "today-setup-show"), "folded from its first draw");
+  } finally {
+    setSurfaceValue("today", undefined);
+    feedSetup(undefined);
+  }
   // The page: the work first while anyone waits on the owner, the chores first while nobody does.
   const work = () => {
     fresh();

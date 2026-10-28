@@ -21,13 +21,12 @@ import { errField } from "../log.js";
 import { alertFor } from "./job-alert.js";
 import { whatsappWireForTenant } from "../tenant-runtime.js";
 import { instagramWireForTenant } from "../instagram/credentials.js";
-import { smsSenderForTenant } from "../sms/sms.js";
+import { smsSenderForTenant, smsWire } from "../sms/sms.js";
 import { emailBoundFor, emailIntake } from "../email/email.js";
 import { mailboxIntake } from "../email/mailbox/mailbox-intake.js";
 import { historyImports } from "../imports/history-import.js";
 import { websiteReader } from "../imports/website-read.js";
 import { campaignsBinding } from "../email/campaigns-domain.js";
-import { isWireUnavailable } from "../packages/core.js";
 import { pageOperator } from "./page-operator.js";
 import { provisionLineJob } from "../lines/line-provision-job.js";
 import { leadPipeline } from "../leads/lead-pipeline.js";
@@ -119,10 +118,7 @@ async function phoneWires(db: SweepTick["db"], tenantId: string) {
   return {
     whatsapp: await whatsappWireForTenant(db, tenantId),
     instagram: await instagramWireForTenant(db, tenantId),
-    sms:
-      line === null || isWireUnavailable(line)
-        ? line
-        : (to: string, p: { body: string }) => line.send(to.startsWith("+") ? to : `+${to}`, p.body),
+    sms: smsWire(line),
   };
 }
 
