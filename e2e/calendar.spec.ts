@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
 import { activeWorkspace, scoped, apiGet } from "./workspace";
 import { routeOf } from "./address";
+import { expectLit, placeRow } from "./shell/places";
 
 /**
  * Calendar on a real workspace.
@@ -244,7 +245,7 @@ test.describe("Calendar on a real workspace", () => {
     await page.goto("/api/version");
     await page.goto(`/w/${slug}/calendar`);
     await expect(page.getByTestId("sidebar")).toBeVisible({ timeout: 30_000 });
-    await expect(page.locator('.nav-item[aria-current="page"]')).toContainText("Calendar");
+    await expectLit(page, "Calendar");
     await expect(page.getByTestId("calendar-real")).toBeVisible();
     expect(routeOf(page.url())).toBe("calendar");
 
@@ -260,10 +261,10 @@ test.describe("Calendar on a real workspace", () => {
     await expect(page.getByTestId("cal-view-day")).toHaveAttribute("aria-current", "page");
     await expect(board.getByTestId("cal-col")).toHaveCount(1);
     expect(routeOf(page.url())).toBe(`calendar/${key}`);
-    await expect(page.locator('.nav-item[aria-current="page"]')).toContainText("Calendar");
+    await expectLit(page, "Calendar");
 
     // Away to a route the frame's own table draws, and Back: the router lands on the day again, and the page is there.
-    await page.locator(".nav-item", { hasText: "Today" }).click();
+    await placeRow(page, "Today").click();
     await expect.poll(() => routeOf(page.url())).toBe("today");
     await expect(page.getByTestId("calendar-real")).toHaveCount(0);
     await page.goBack();
@@ -273,7 +274,7 @@ test.describe("Calendar on a real workspace", () => {
     await expect.poll(() => routeOf(page.url())).toBe("today");
 
     // And to the Calendar by the sidebar: a route with a page of its own asks the router, and the frame stays.
-    await page.locator(".nav-item", { hasText: "Calendar" }).click();
+    await placeRow(page, "Calendar").click();
     await expect.poll(() => routeOf(page.url())).toBe("calendar");
     await expect(page.getByTestId("calendar-real")).toBeVisible();
     await expect(page.getByTestId("cal-view-week")).toHaveAttribute("aria-current", "page");

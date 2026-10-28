@@ -26,6 +26,16 @@ async function stepsReached(page: Page): Promise<string[]> {
   return ids;
 }
 
+/**
+ * A step pressed on the rail, read once it is the one on screen (the first run's root says it, `data-step`): read at the
+ * press, the rows were the last step's, on their way out, and the first was gone before it was asked anything (the
+ * receptionist's step draws no rows since 0073; nightly of 26 Oct 2026).
+ */
+async function openStep(page: Page, step: string): Promise<void> {
+  await page.getByTestId(`fr-rail-${step}`).click();
+  await expect(page.getByTestId("first-run")).toHaveAttribute("data-step", step);
+}
+
 test.describe("Setup on a real workspace, a step at a time", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
   test.beforeEach(async ({ page }) => {
@@ -41,7 +51,7 @@ test.describe("Setup on a real workspace, a step at a time", () => {
     const reached = await stepsReached(page);
     expect(reached.length, "the step the workspace is on is always open").toBeGreaterThan(0);
     for (const step of reached) {
-      await page.getByTestId(`fr-rail-${step}`).click();
+      await openStep(page, step);
       const rows = page.getByTestId("fr-rows").locator(".cl-attn-row");
       for (const row of await rows.all()) {
         // The row reads across: its glyph, then its words, then its verbs. Today's queue hides its own disc, and while
@@ -80,7 +90,7 @@ test.describe("Setup on a real workspace, a step at a time", () => {
     await expect(page.getByTestId("first-run")).toBeVisible();
     let step: string | null = null;
     for (const s of await stepsReached(page)) {
-      await page.getByTestId(`fr-rail-${s}`).click();
+      await openStep(page, s);
       if ((await page.locator('[data-testid^="setup-later-"]').count()) > 0) {
         step = s;
         break;
@@ -95,7 +105,7 @@ test.describe("Setup on a real workspace, a step at a time", () => {
     // Kept in the member's saved view, not this tab: a reload still has it.
     await page.reload();
     await page.waitForLoadState("networkidle");
-    await page.getByTestId(`fr-rail-${step}`).click();
+    await openStep(page, step!);
     await expect(page.getByTestId(id!)).toHaveText("Undo later");
     await page.getByTestId(id!).click();
     await expect(page.getByTestId(id!)).toHaveText("Later");

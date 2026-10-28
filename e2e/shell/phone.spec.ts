@@ -778,6 +778,8 @@ test.describe("Phone shell on a real workspace", () => {
   test("every list pulls under a thumb, however short: the Inbox's views, People's scopes and Campaigns' rooms", async ({
     page,
   }) => {
+    // Nine pages, each loaded to a quiet network: 38 to 42 s of a page's 45 (27 Oct 2026), and over it on a slower runner.
+    test.setTimeout(90_000);
     const pulls: Record<string, string> = {};
     // Where the list is, and what gives under a pull: its own scroller (a box that scrolls itself), its rows, or the
     // route view.

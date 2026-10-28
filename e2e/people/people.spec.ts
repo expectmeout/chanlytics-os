@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { atRoute, routeOf } from "../address";
+import { expectLit } from "../shell/places";
 import { apiGet } from "../workspace";
 import { openPeekedPage, openPersonPage } from "./open-person";
 
@@ -336,7 +337,7 @@ test.describe("People on a real workspace", () => {
     await page.goto("/api/version");
     await page.goto(`/w/${slug}/people/pipeline`);
     await expect(page.getByTestId("sidebar")).toBeVisible({ timeout: 30_000 });
-    await expect(page.locator('.nav-item[aria-current="page"]')).toContainText("People");
+    await expectLit(page, "People");
     await expect(page.getByTestId("pipeline")).toBeVisible();
     expect(routeOf(page.url())).toBe("clients/pipeline");
     expect(new URL(page.url()).pathname).toBe(`/w/${slug}/people/pipeline`);

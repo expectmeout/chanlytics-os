@@ -697,6 +697,7 @@ export async function snapshot(db, tenantId, userIds) {
       "contact_identities",
       "conversations",
       "messages",
+      "conversation_channel_state",
       "calls",
       "escalations",
       "jobs",
@@ -738,6 +739,39 @@ export async function snapshot(db, tenantId, userIds) {
 
 async function deleteWhere(db, table, column, values, what) {
   for (const value of values) must(what, await db.from(table).delete().eq(column, value));
+}
+
+/** The wires a person writes on, whose clocks a thread keeps (00484's CHECK). */
+const WIRES = new Set(["whatsapp", "sms", "email", "instagram"]);
+
+/**
+ * When a seeded thread's person last wrote on each wire, from its messages, as ingest_inbound keeps it for every message it
+ * takes in (conversation_channel_state, 00484): the clock the reply window reads since 00485, in place of
+ * last_wa_inbound_at (decision 0001, step 5). The seed writes its threads past ingest_inbound, so it writes their clocks
+ * too, and only tonight's: Robin's thread is re-dated in place, and on 27 Oct 2026 it still held the clock 00484's backfill
+ * gave it the night before, so its WhatsApp window read as shut and thread.spec.ts's reply could not be sent.
+ */
+async function keepWireClocks(db, T, conversationId, messages) {
+  const latest = new Map();
+  for (const m of messages)
+    if (m.direction === "inbound" && WIRES.has(m.channel) && !(latest.get(m.channel) >= m.created_at))
+      latest.set(m.channel, m.created_at);
+  must(
+    "clearing a thread's clocks",
+    await db.from("conversation_channel_state").delete().eq("conversation_id", conversationId),
+  );
+  if (latest.size === 0) return;
+  must(
+    "a thread's clocks",
+    await db.from("conversation_channel_state").insert(
+      [...latest].map(([channel, at]) => ({
+        tenant_id: T,
+        conversation_id: conversationId,
+        channel,
+        last_inbound_at: at,
+      })),
+    ),
+  );
 }
 
 /**
@@ -1066,42 +1100,41 @@ export async function converge(
         .select("id")
         .single(),
     );
-  must(
-    "the conversation's messages",
-    await db.from("messages").insert([
-      {
-        tenant_id: T,
-        conversation_id: cv.id,
-        contact_id: robin.id,
-        channel: "whatsapp",
-        direction: "inbound",
-        sender: "customer",
-        type: "text",
-        body: "Hi, can I book a trim this week?",
-        external_id: "e2e-seed-a-in",
-        channel_ts: inAt,
-        created_at: inAt,
-        status: "received",
-        meta: {},
-      },
-      {
-        tenant_id: T,
-        conversation_id: cv.id,
-        contact_id: robin.id,
-        channel: "whatsapp",
-        direction: "outbound",
-        sender: "ai",
-        type: "text",
-        body: `Yes! Pick a time here: ${BOOKING_LINK}`,
-        external_id: "e2e-seed-a-out",
-        channel_ts: outAt,
-        created_at: outAt,
-        status: "delivered",
-        status_updated_at: outAt,
-        meta: {},
-      },
-    ]),
-  );
+  const robinsMessages = [
+    {
+      tenant_id: T,
+      conversation_id: cv.id,
+      contact_id: robin.id,
+      channel: "whatsapp",
+      direction: "inbound",
+      sender: "customer",
+      type: "text",
+      body: "Hi, can I book a trim this week?",
+      external_id: "e2e-seed-a-in",
+      channel_ts: inAt,
+      created_at: inAt,
+      status: "received",
+      meta: {},
+    },
+    {
+      tenant_id: T,
+      conversation_id: cv.id,
+      contact_id: robin.id,
+      channel: "whatsapp",
+      direction: "outbound",
+      sender: "ai",
+      type: "text",
+      body: `Yes! Pick a time here: ${BOOKING_LINK}`,
+      external_id: "e2e-seed-a-out",
+      channel_ts: outAt,
+      created_at: outAt,
+      status: "delivered",
+      status_updated_at: outAt,
+      meta: {},
+    },
+  ];
+  must("the conversation's messages", await db.from("messages").insert(robinsMessages));
+  await keepWireClocks(db, T, cv.id, robinsMessages);
 
   // One finished call with a transcript, outside any thread, already notified.
   const startedAt = new Date(now - 26 * 3600_000).toISOString();
@@ -1834,6 +1867,7 @@ export async function convergeReceptionist(db, T, ownerId, now) {
       .from("messages")
       .insert(rows.map((r) => ({ tenant_id: T, conversation_id: cv.id, contact_id: sam.id, ...r }))),
   );
+  await keepWireClocks(db, T, cv.id, rows);
 
   // Two handovers, inserted resolved with both times set.
   must(
@@ -2267,6 +2301,7 @@ export async function convergeCampaigns(db, T, ownerId, now) {
     created_at: iso(repliedAt),
   });
   must("the run's messages", await db.from("messages").insert([...sends, reply]));
+  await keepWireClocks(db, T, caseysThread.id, [reply]);
 
   // The run's people: Casey and Sam sent to, each with the message and the time it went; Robin held back.
   const sentTo = (phone) => sends.find((m) => m.contact_id === idOf(phone));

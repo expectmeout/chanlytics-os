@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
 import { routeOf } from "./address";
+import { expectLit, placeRow } from "./shell/places";
 
 /**
  * Live, on a real workspace.
@@ -117,12 +118,12 @@ test.describe("Live on a real workspace", () => {
     await page.goto("/api/version");
     await page.goto(`/w/${slug}/live`);
     await expect(page.getByTestId("sidebar")).toBeVisible({ timeout: 30_000 });
-    await expect(page.locator('.nav-item[aria-current="page"]')).toContainText("Inbox");
+    await expectLit(page, "Inbox");
     await expect(page.getByTestId("live-real")).toBeVisible();
     expect(routeOf(page.url())).toBe("live");
 
     // Away to a route the frame's own table draws, and Back: the router lands on Live again.
-    await page.locator(".nav-item", { hasText: "Today" }).click();
+    await placeRow(page, "Today").click();
     await expect.poll(() => routeOf(page.url())).toBe("today");
     await expect(page.getByTestId("live-real")).toHaveCount(0);
     await page.goBack();
