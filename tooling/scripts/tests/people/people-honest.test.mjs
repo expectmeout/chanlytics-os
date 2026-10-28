@@ -4276,6 +4276,7 @@ test("each row's standing with the proposal follow-up (0006): worked out where t
       phone_e164: `+1917555020${n}`,
       consent: "opted_in",
       last_inbound_at: iso(now - 40 * DAY),
+      last_message_at: iso(now - 40 * DAY),
       latest_wa_inbound_at: iso(now - 40 * DAY),
       last_inbound_call_at: null,
       deal_id: `d${n}`,
