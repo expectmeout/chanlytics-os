@@ -165,6 +165,8 @@ test(
       }),
       lead: await person(t, "A lead", { added: "lead" }),
       manual: await person(t, "By hand", { added: "manual" }),
+      // A form on the business's own website (00488).
+      website: await person(t, "Through the website's form", { added: "website" }),
       otherDoor: await person(t, "Through another door", { added: "import_csv" }),
       noSource: await person(t, "An event with no source", { added: null }),
       // Two doors, one after the other: the first to write is the one that added them.
@@ -237,6 +239,7 @@ test(
         calendar: "calendar",
         lead: "lead",
         manual: "manual",
+        website: "website",
         otherDoor: "manual",
         noSource: "manual",
         addedTwice: "calendar",

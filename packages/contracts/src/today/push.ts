@@ -67,6 +67,8 @@ export const PUSH_KINDS = [
   "reach_out_replied",
   // A reply counting down to go in the owner's name (decision 0064): minutes to stop it, so the phone is where it is seen.
   "reply_held",
+  // Someone used a form on the website (00488): a person who asked, best answered while they wait.
+  "website_form",
 ] as const satisfies readonly ServerNotificationKind[];
 export type PushKind = (typeof PUSH_KINDS)[number];
 export const isPushKind = (kind: string): kind is PushKind => (PUSH_KINDS as readonly string[]).includes(kind);

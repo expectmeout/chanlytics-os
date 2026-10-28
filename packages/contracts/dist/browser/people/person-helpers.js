@@ -65,10 +65,11 @@ export function proposalSending(conversations, url) {
 export function addedBy(added) {
   if (added.source === "import") return { who: "You", how: "from a spreadsheet", to: null };
   if (added.source === "ad") return addedByAd(added.ad ?? null);
-  if (added.source !== "calendar" && added.source !== "lead") return { who: "You", how: "by hand", to: null };
+  if (added.source !== "calendar" && added.source !== "lead" && added.source !== "website")
+    return { who: "You", how: "by hand", to: null };
   const from = PERSON_CAME_FROM_WORDS[added.source];
   return {
-    who: added.source === "calendar" ? "Calendar" : "Leads",
+    who: added.source === "calendar" ? "Calendar" : added.source === "lead" ? "Leads" : "Website",
     how: `from ${from.charAt(0).toLowerCase()}${from.slice(1)}${added.source === "calendar" && added.title ? ` (${added.title})` : ""}`,
     to: null
   };

@@ -232,6 +232,8 @@ const ANNOUNCES = {
   reach_out_day: "Campaigns' Reach-outs read their own numbers where they are on screen; not traced further.",
   ask_cards:
     "Today, which the row opens, reads the member's morning with Ask for you as it comes on screen and while Ask writes; the feed does not tell of ask_mornings (decision 0070).",
+  website_form:
+    "The person's page, which the row opens, hears contacts and person_notes: the person the form made and the note it suggested (00488).",
 };
 
 test("every kind the edge keeps says what it announces and who hears it", () => {

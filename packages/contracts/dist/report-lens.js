@@ -728,7 +728,8 @@ var PERSON_CAME_FROM_WORDS = {
   manual: "Added by hand",
   import: "Imported",
   lead: "A lead you found",
-  ad: "An ad"
+  ad: "An ad",
+  website: "Your website"
 };
 
 // src/reports/people/people-words.ts

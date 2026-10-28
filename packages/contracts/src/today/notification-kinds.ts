@@ -67,6 +67,8 @@ const NOTIFICATION_DELIVERY = {
   reply_held: "bell",
   // Ask's morning cards on Today (00470): a line on the member's own bell, no more.
   ask_cards: "bell",
+  // Someone used a form on the business's website (00488): mailed as the business chooses, and the phone told.
+  website_form: "email",
 } as const satisfies Record<ServerNotificationKind, "email" | "bell">;
 
 /** A kept kind that is emailed. */
@@ -199,6 +201,15 @@ export const ALERT_TOPICS: readonly AlertTopic[] = [
     email: "choice",
     phone: true,
     kinds: ["reach_out_replied"],
+  },
+  {
+    key: "website_form",
+    group: "worth_knowing",
+    title: "Someone used a form on your website",
+    what: "A sign-up for your offers, or a request: who sent it and what they asked. They are added to People, and what they asked waits on their page as a note to keep.",
+    email: "choice",
+    phone: true,
+    kinds: ["website_form"],
   },
   {
     key: "opted_out",

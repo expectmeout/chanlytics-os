@@ -27,7 +27,8 @@ export const PERSON_CAME_FROM_WORDS = {
   manual: "Added by hand",
   import: "Imported",
   lead: "A lead you found",
-  ad: "An ad"
+  ad: "An ad",
+  website: "Your website"
 };
 export const PERSON_AD_ON = {
   meta: "Facebook and Instagram",
