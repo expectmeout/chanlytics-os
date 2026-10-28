@@ -56,7 +56,7 @@
     "people/lists/saved-lists.test.mjs": 10,
     "people/person-mode-enforcement.test.mjs": 3,
     "people/threads-people.test.mjs": 5,
-    "platform/back-office.test.mjs": 20,
+    "platform/back-office.test.mjs": 19,
     "platform/delete-tenant.test.mjs": 3,
     "playbooks/playbooks.test.mjs": 16,
     "playbooks/visit-playbooks.test.mjs": 4,

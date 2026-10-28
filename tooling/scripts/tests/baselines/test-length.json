@@ -8,7 +8,7 @@
   "tooling/scripts/tests/ask/ask.test.mjs": 2382,
   "tooling/scripts/tests/ask/eval-ask-context.test.mjs": 2024,
   "tooling/scripts/tests/ask/plan/plan-of.test.mjs": 1709,
-  "tooling/scripts/tests/ask/readers.test.mjs": 6886,
+  "tooling/scripts/tests/ask/readers.test.mjs": 6889,
   "tooling/scripts/tests/broadcasts/broadcasts-honest.test.mjs": 2771,
   "tooling/scripts/tests/broadcasts/core-broadcast.test.mjs": 3062,
   "tooling/scripts/tests/broadcasts/core-campaigns.test.mjs": 2217,
