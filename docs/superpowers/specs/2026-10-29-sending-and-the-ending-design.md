@@ -71,7 +71,8 @@ preview and no test shows:
    the one rule the send, the owner's draft, the preview and the test take:
    - the mailbox's signature when `signsWith` is `mailbox`, it has words, and it has no link on a first email
      (`linkCount`, the words' own rule);
-   - else the Signed line, unless the body's last line is `{{your name}}` already, or the Signed line is empty.
+   - else the Signed line, unless the body's sign-off (its last few short lines) names `{{your name}}` already, or
+     the Signed line is empty.
 4. `leadPaceChoicesOf(mailboxes, saved)`: for each day count the slowest spacing that reaches it, largest count first;
    the saved spacing as its own choice where it is none of them. `REACH_OUT_GAP_FIRST` stays 20 and New reads it.
 5. Words, in `LEAD_BUILD_WORDS.runs`: `firstEmails` "Every batch of first emails waits for your OK"; `followUps`
