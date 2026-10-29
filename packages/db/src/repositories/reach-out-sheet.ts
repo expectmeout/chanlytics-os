@@ -306,12 +306,6 @@ export async function recheckSends(
   return typeof data === "number" ? data : 0;
 }
 
-/** A workspace's zone; null when it could not be read (the caller says which zone it falls back to). */
-export async function tenantZoneOf(db: Db, tenantId: string): Promise<string | null> {
-  const { data, error } = await db.from("tenants").select("timezone").eq("id", tenantId).maybeSingle();
-  return error ? null : (data?.timezone ?? null);
-}
-
 /** A run's held-notice mark, kept in its audience (Reach out, Part 4 PR 7, R20): claimed by a tick, then sent. */
 export interface HeldNoticeMark {
   claimed_at: string;

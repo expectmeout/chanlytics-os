@@ -27,9 +27,9 @@ import { pg } from "../pg.js";
 import { CONTEXT_PAUSED, loadTenantRunContext, runPlaybook, type PlaybookRow } from "../playbooks.js";
 import { logger } from "../log.js";
 import { runReachOutStep } from "./run-step.js";
-import { sequenceModesOf, tenantZoneOf } from "../packages/db.js";
+import { sequenceModesOf, workspaceZoneOf } from "../packages/db.js";
 import type { ReachOutRow } from "./run-context.js";
-import { UUID, CAMPAIGNS_PAUSED_WORDS } from "../packages/contracts.js";
+import { UUID, CAMPAIGNS_PAUSED_WORDS, DEFAULT_TIMEZONE } from "../packages/contracts.js";
 
 export async function runPlaybookNow(
   auth: Admitted,
@@ -64,7 +64,7 @@ export async function runPlaybookNow(
   if ((p as { kind?: string }).kind === "reach_out") {
     const row = p as ReachOutRow;
     if (row.trigger !== "lead_first") return refuse(409, "reach_out_step");
-    const tz = (await tenantZoneOf(db, tenantId)) || "America/New_York";
+    const tz = (await workspaceZoneOf(db, tenantId).catch(() => null)) || DEFAULT_TIMEZONE;
     const r = await runReachOutStep(db, row, new Date(), tz, L);
     L.info("reach_out_run_now", {
       tenant_id: tenantId,

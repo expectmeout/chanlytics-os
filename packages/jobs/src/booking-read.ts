@@ -29,8 +29,8 @@ import {
   appointmentNoticeOf,
   insertAppointment,
   keepAppointmentNotice,
-  tenantZoneOf,
   updateAppointment,
+  workspaceZoneOf,
   clearForwardingConfirmation,
   emitEvent,
   type AppointmentInsert,
@@ -182,7 +182,7 @@ export async function bookingRead(ctx: JobContext, job: ClaimedJob): Promise<voi
     log.warn("booking_notice_held", { job: job.id, received_id: receivedId, outcome: "not_a_notice" });
     return;
   }
-  const tz = (await tenantZoneOf(db, job.tenant_id)) ?? DEFAULT_TIMEZONE;
+  const tz = (await workspaceZoneOf(db, job.tenant_id).catch(() => null)) ?? DEFAULT_TIMEZONE;
   // Held after the reader tried on every try and failed, as against held before any try because it may not be asked; and
   // whether the reader answered this try, after which a throw is a write's, not the reader's.
   let triedAndFailed = false;

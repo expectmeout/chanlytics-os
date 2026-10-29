@@ -13,9 +13,11 @@ import {
   erasureDigests,
   leadCompanyUpsert,
   workspaceMaySpend,
+  workspaceZoneOf,
   type Database,
 } from "../packages/db.js";
 import {
+  DEFAULT_TIMEZONE,
   asContactId,
   asTenantId,
   type LeadRoundEnding,
@@ -337,13 +339,7 @@ export function leadDb(db: Db): LeadDb {
       const placeIds = new Set(rows.flatMap((r) => byHash.get(r.hash) ?? []));
       return { emails, placeIds };
     },
-    async zoneOf(tenantId) {
-      const r = must<{ timezone: string | null } | null>(
-        "tenants read",
-        await db.from("tenants").select("timezone").eq("id", tenantId).maybeSingle(),
-      );
-      return r?.timezone || "America/New_York";
-    },
+    zoneOf: async (tenantId) => (await workspaceZoneOf(db, tenantId)) || DEFAULT_TIMEZONE,
     leadSearchesOn: (tenantId) => bool("lead_searches_on", { p_tenant_id: tenantId }),
     maySpend: (tenantId) => workspaceMaySpend(db, tenantId),
   };

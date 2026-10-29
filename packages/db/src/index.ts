@@ -763,7 +763,6 @@ export {
   saveReachOutChain,
   searchesByIds,
   stampReachOutStep,
-  tenantZoneOf,
 } from "./repositories/reach-out-sheet";
 export type {
   HandItem,
