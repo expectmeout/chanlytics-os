@@ -231,7 +231,10 @@ const ldStripOf = (s: LeadSearchDto | null, nearby: readonly string[]): StripVM 
 
 /**
  * One search's strip, with `offered`: what a refresh found and the surface is holding back, because the owner is not
- * reading in the order found (E8). The strip says the count, and nothing re-sorts under them until it is pressed.
+ * reading in the order found (E8). The strip says the count, and nothing re-sorts under them until it is pressed. While
+ * the search runs the count is a quiet button; once it has ended, what it held back is what the owner came for, so
+ * "Show N new" leads as the strip's one main button (29 Oct 2026: a finished search showed 2 of its 8 behind a "6 new"
+ * read as a label).
  */
 export const leadStrip = (
   s: LeadSearchDto | null,
@@ -241,5 +244,14 @@ export const leadStrip = (
   const vm = ldStripOf(s, (extra && extra.nearby) || []);
   if (!vm) return null;
   const n = (extra && extra.offered) || 0;
-  return n > 0 ? { ...vm, actions: [{ id: "take_offered", label: `${n} new` }, ...vm.actions] } : vm;
+  if (n <= 0) return vm;
+  if (vm.state !== "found" && vm.state !== "ended")
+    return { ...vm, actions: [{ id: "take_offered", label: `${n} new` }, ...vm.actions] };
+  return {
+    ...vm,
+    actions: [
+      { id: "take_offered", label: `Show ${n} new`, primary: true },
+      ...vm.actions.map((a) => ({ ...a, primary: false })),
+    ],
+  };
 };

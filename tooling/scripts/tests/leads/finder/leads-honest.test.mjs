@@ -4003,7 +4003,7 @@ test("an ending's one next step opens the plan and starts nothing until it is ap
   draw({ leadsRoute: `leads:s-${SEARCH_A}` });
   await quiesce();
   const off = strips.at(-1);
-  assert.equal(off.vm.actions[0].label, "12 new", "what a refresh found is offered, never sorted in");
+  assert.equal(off.vm.actions[0].label, "Show 12 new", "what a refresh found is offered, never sorted in");
   reads.length = 0;
   await off.onAction("take_offered");
   await settle();

@@ -1133,7 +1133,8 @@ test("an ending never re-sorts by itself: it offers Sort by fit, and says how ma
     acted,
     { offered: 12 },
   );
-  assert.equal(textOf(byTestId(tree, "strip-take_offered")), "12 new");
+  // An ended search leads with what it held back (29 Oct 2026); a running one says the bare count.
+  assert.equal(textOf(byTestId(tree, "strip-take_offered")), "Show 12 new");
   click(byTestId(tree, "strip-take_offered"));
   click(byTestId(tree, "strip-sort_fit"));
   assert.deepEqual(acted, [
@@ -1210,4 +1211,33 @@ test("REGRESSION: the finder draws no key -- Close's tip said (esc), beside the 
   const tree = drawFinder(st, { answering: ANSWERING });
   assert.equal(byTestId(tree, "plan-close").props.title, "Close");
   assert.deepEqual(keysDrawn(tree), []);
+});
+
+test("a search that has ended offers what it held back as the strip's one main button, Show N new; a running one keeps it quiet (E8)", () => {
+  // Running: the count stays a quiet button beside Stop, so nothing pulls the eye while it fills.
+  const running = leadStrip(SEARCH, NOW, { offered: 6 }).actions.find((a) => a.id === "take_offered");
+  assert.deepEqual([running.label, !!running.primary], ["6 new", false]);
+  // Ended: what it held back is what the owner came for, so it leads, and is the only primary (Widen steps back).
+  for (const e of ["target_reached", "searched_everything"]) {
+    const v = leadStrip(ended(e), NOW, { offered: 6 });
+    assert.deepEqual([v.actions[0].id, v.actions[0].label], ["take_offered", "Show 6 new"], e);
+    assert.deepEqual(
+      v.actions.filter((a) => a.primary).map((a) => a.id),
+      ["take_offered"],
+      `${e}: one main button`,
+    );
+  }
+  // Drawn as the primary, and pressing it takes them in; nothing moved before (E8).
+  const acted = [];
+  const button = byTestId(drawStrip(ended("searched_everything"), acted, { offered: 6 }), "strip-take_offered");
+  assert.match(button.props.className, /btn-primary/);
+  button.props.onClick();
+  assert.deepEqual(acted, [["take_offered", undefined]]);
+  // Nothing held back: no button, and the ending's own step keeps its place.
+  const plain = leadStrip(ended("searched_everything"), NOW);
+  assert.equal(ids(plain).includes("take_offered"), false);
+  assert.ok(
+    plain.actions.some((a) => a.primary),
+    "the ending's own next step is still the main button",
+  );
 });

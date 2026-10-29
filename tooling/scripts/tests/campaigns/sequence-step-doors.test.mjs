@@ -17,7 +17,7 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { NEW_WORDS, SEQUENCE_FLOW_WORDS as F, handTitleOf } from "@chanlytics/contracts";
+import { NEW_WORDS, REACH_OUT_GAP_FIRST, SEQUENCE_FLOW_WORDS as F, handTitleOf } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -252,4 +252,40 @@ test("a call taken away is named by its kind on Ask's card, never as a message i
   assert.ok(note.summary.startsWith(`Step 3 (${NEW_WORDS.hand.noteTitle}) go;`), note.summary);
   const message = await ask(CALL_LAST, { action: "step_remove", sequence_id: SEQ, step_id: STEP2 });
   assert.ok(message.summary.startsWith("Step 2 (come_back) and the 1 step after it go;"), message.summary);
+});
+
+test("Ask's cold email starts at the pace every new sequence starts at, one email every 20 minutes, unless it names one (0077, D7)", async () => {
+  const SEARCH = "5eed0000-0000-4000-8000-000000000001";
+  const card = async (more = {}) => {
+    const supabase = fakeDb(
+      {
+        memberships: [
+          { user_id: USER, tenant_id: A, role: "operator", tenants: { slug: "harbor" }, created_at: "2026-01-01" },
+        ],
+        tenants: [{ id: A, name: "Harbor", timezone: TZ, config: {} }],
+        policies: [],
+        lead_searches_view: [{ id: SEARCH, tenant_id: A, name: "Plumbers in Queens" }],
+        mailbox_connections: [],
+      },
+      {},
+      {},
+    );
+    const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "operator", TZ, NOW);
+    const out = await buildProposal(t, "propose_sequence", {
+      action: "cold_email",
+      name: "Plumbers in Queens",
+      search_id: SEARCH,
+      steps: [
+        { subject: "Quick one for {{business}}", body: "{{opening}}\n\nI run Harbor. Would it be worth a look?" },
+      ],
+      ...more,
+    });
+    assert.ok(out.proposal, out.result);
+    return out.proposal;
+  };
+  const plain = await card();
+  assert.equal(plain.payload.chain.gap_minutes, REACH_OUT_GAP_FIRST, "REGRESSION: Ask proposed 12 while New makes 20");
+  assert.match(plain.summary, /one every 20 minutes/);
+  // One the model names is kept.
+  assert.equal((await card({ gap_minutes: 30 })).payload.chain.gap_minutes, 30);
 });
