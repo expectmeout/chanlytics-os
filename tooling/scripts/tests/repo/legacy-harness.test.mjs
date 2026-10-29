@@ -48,7 +48,6 @@ import {
   identityWords,
   memberWords,
   personInitials,
-  DEFAULT_TIMEZONE,
   timezoneCity,
   timezoneWords,
   cleanTimezone,
@@ -145,7 +144,7 @@ const seed = (win) => {
 };
 
 /** What the bridge publishes and the classic pages read without asking first. */
-const BRIDGED = ["__DEMO_MODE", "__identity", "__tz", "DEFAULT_TIMEZONE", "askAbout", "__workspace"];
+const BRIDGED = ["__DEMO_MODE", "__identity", "__tz", "askAbout", "__workspace"];
 
 test("the harness seeds the bridge's globals before anything reads them", () => {
   // data/inbox-data.jsx and data/people-data.jsx read __DEMO_MODE at module
@@ -183,7 +182,6 @@ test("the stubs answer the way contracts answers", () => {
   );
   assert.equal(win.__identity.initials(null, "hi@chanlytics.agency"), personInitials(null, "hi@chanlytics.agency"));
 
-  assert.equal(win.DEFAULT_TIMEZONE, DEFAULT_TIMEZONE);
   assert.equal(win.__tz.city("America/New_York"), timezoneCity("America/New_York"));
   const at = Date.UTC(2026, 3, 26, 16, 4);
   assert.deepEqual(win.__tz.words("America/New_York", at), timezoneWords("America/New_York", at));

@@ -43,7 +43,6 @@ export const workspacesNow = () => window.__WORKSPACES;
 export const activeWorkspaceNow = () => window.__ACTIVE_WORKSPACE;
 export const workspaceApi = () => window.__workspace;
 export const tzApi = () => window.__tz;
-export const defaultTimezone = () => window.DEFAULT_TIMEZONE;
 
 /* ---------------------------------------------------------------- the calendar --------------------------------------------------------------- */
 

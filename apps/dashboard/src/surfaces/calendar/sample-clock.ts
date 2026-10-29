@@ -3,8 +3,7 @@
  * `nowMs` and the day is always today (moved from legacy-bridge/today-sample/clock.ts when Today's own sample went).
  */
 import { zoneDayKey, zoneMidnight, MIN_MS } from "@chanlytics/contracts";
-
-export const ZONE = "America/New_York";
+import { DEMO_ZONE } from "../demo-zone";
 
 /**
  * Which day the sample is: the usual one the tests walk, a busy one that overflows every cap on the page, or
@@ -27,8 +26,8 @@ export interface SampleClock {
 }
 
 export function sampleClock(nowMs: number): SampleClock {
-  const today = zoneDayKey(nowMs, ZONE);
-  const midnight = zoneMidnight(ZONE, today);
+  const today = zoneDayKey(nowMs, DEMO_ZONE);
+  const midnight = zoneMidnight(DEMO_ZONE, today);
   return {
     nowMs,
     now: new Date(nowMs),

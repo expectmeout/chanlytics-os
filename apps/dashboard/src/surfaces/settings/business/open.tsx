@@ -39,7 +39,7 @@ import { BtoWeek } from "./open-week";
 import type { Week } from "./open-week";
 import { businessTabSave } from "./saver";
 import type { BusinessTabSave } from "./saver";
-import { activeWorkspaceNow, defaultTimezone, tzApi, workspaceApi, workspacesNow } from "./shell";
+import { activeWorkspaceNow, tzApi, workspaceApi, workspacesNow } from "./shell";
 
 type Brain = NonNullable<WorkspaceSettings["brain"]>;
 type Saver = BusinessTabSave["saver"];
@@ -77,8 +77,8 @@ export const btoStoredZone = (): string | null => {
   return (ws && ws.timezone) || null;
 };
 
-/** The workspace's zone, else the device's default: the one every time on this card is shown in until a read says otherwise. */
-const btoWorkspaceZone = (): string => btoStoredZone() || defaultTimezone() || DEFAULT_TIMEZONE;
+/** The workspace's zone, else the default zone: the one every time on this card is shown in until a read says otherwise. */
+const btoWorkspaceZone = (): string => btoStoredZone() || DEFAULT_TIMEZONE;
 
 /**
  * The week, as its row states it and its fold edits it. `prompt` is the settings read's preview: the zone the

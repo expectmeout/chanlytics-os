@@ -15,7 +15,8 @@ import {
   type CalendarWeekDto,
   MIN_MS,
 } from "@chanlytics/contracts";
-import { ZONE, type SampleClock, type SampleDay } from "./sample-clock";
+import { DEMO_ZONE } from "../demo-zone";
+import type { SampleClock, SampleDay } from "./sample-clock";
 
 type SamplePerson = NonNullable<CalendarItemDto["person"]>;
 
@@ -187,7 +188,7 @@ function makeUnreadable(dto: CalendarWeekDto, now: Date): void {
 export function sampleCalendarDto(clock: SampleClock, day: SampleDay): CalendarWeekDto {
   const { now, midnight, at } = clock;
   const item = itemsOf(clock);
-  const dayKey = (offset: number) => zoneDayKey(midnight + offset * 24 * 60 * MIN_MS + 12 * 60 * MIN_MS, ZONE);
+  const dayKey = (offset: number) => zoneDayKey(midnight + offset * 24 * 60 * MIN_MS + 12 * 60 * MIN_MS, DEMO_ZONE);
   const yesterday: CalendarDayDto = { key: dayKey(-1), items: yesterdayItems(item), windows: [] };
   const today: CalendarDayDto = {
     key: dayKey(0),
@@ -206,7 +207,7 @@ export function sampleCalendarDto(clock: SampleClock, day: SampleDay): CalendarW
     ],
   };
   const calendarDto: CalendarWeekDto = {
-    timezone: ZONE,
+    timezone: DEMO_ZONE,
     from: dayKey(-1),
     to: dayKey(6),
     feed: {

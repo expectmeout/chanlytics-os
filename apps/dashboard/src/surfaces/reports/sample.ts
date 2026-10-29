@@ -37,8 +37,8 @@ import type { PeopleSurface } from "./people-surface";
 import type { ReceptionistSurface } from "./receptionist-surface";
 import type { ReviewsSurface } from "./reviews-surface";
 import type { ReportsSurface } from "./surface";
+import { DEMO_ZONE } from "../demo-zone";
 
-export const ZONE = "America/New_York";
 const SPAN = 180;
 /** The reply hold the sample's business has set, in seconds: each reply it sends waits it out. */
 const SAMPLE_HOLD_S = 60;
@@ -187,7 +187,7 @@ function reportDto(all: readonly SampleDay[], n: number, today: string): ReportD
       hours[weekday(d.report.day)][h] += v;
     });
   return {
-    timezone: ZONE,
+    timezone: DEMO_ZONE,
     days: n,
     span_days: 2 * n,
     today,
@@ -222,7 +222,7 @@ const keptReports = new Map<string, ReportsSurface>();
  * the business's zone. Days a member picked are those days of the same business: half a year of it ending on their last
  * day, said as the report says a window that ended before today (`end`).
  */
-export function reportsSample(range: ReportRange, today: string = todayIn(ZONE)): ReportsSurface {
+export function reportsSample(range: ReportRange, today: string = todayIn(DEMO_ZONE)): ReportsSurface {
   // The report alone: the Campaigns lens has its own sample beside it (campaigns-sample.ts), and Worth knowing is the page's.
   const win = sampleWindow(range, today);
   const n = win.days;
@@ -262,7 +262,7 @@ const keptReviews = new Map<string, ReviewsSurface>();
  * counts, the ratings its daily readings gained, the five public reviews, and what a profile would add. Nothing here can be answered:
  * a demo posts no reply to Google.
  */
-export function reviewsSample(range: ReportRange, today: string = todayIn(ZONE)): ReviewsSurface {
+export function reviewsSample(range: ReportRange, today: string = todayIn(DEMO_ZONE)): ReviewsSurface {
   const win = sampleWindow(range, today);
   const n = win.days;
   const key = `${win.key}:${today}`;
@@ -295,7 +295,7 @@ export function reviewsSample(range: ReportRange, today: string = todayIn(ZONE))
     };
   });
   const dto: ReviewsReportDto = {
-    timezone: ZONE,
+    timezone: DEMO_ZONE,
     today,
     ...(win.live ? {} : { end: win.to }),
     days: n,
@@ -462,7 +462,7 @@ function receptionistDto(vm: ReportVM, win: ReportWindowVM, today: string): Rece
   const totals = vm.answered.totals;
   const sent = Math.round(totals.ai * 0.3);
   const series: ReceptionistSeries = {
-    timezone: ZONE,
+    timezone: DEMO_ZONE,
     today,
     ...(win.live ? {} : { end: win.to }),
     days: win.days,
@@ -481,7 +481,7 @@ function receptionistDto(vm: ReportVM, win: ReportWindowVM, today: string): Rece
     stuck: { waiting: 2, oldest_at: `${today}T13:40:00Z`, callbacks: 1, capped: false },
   };
   return {
-    timezone: ZONE,
+    timezone: DEMO_ZONE,
     today,
     ...(win.live ? {} : { end: win.to }),
     days: win.days,
@@ -498,7 +498,7 @@ const keptReceptionist = new Map<string, ReceptionistSurface>();
  * four in the afternoon of that day, with two people waiting on the owner. The same range on the same day is the same object, which
  * the lens folds once.
  */
-export function receptionistSample(range: ReportRange, today: string = todayIn(ZONE)): ReceptionistSurface {
+export function receptionistSample(range: ReportRange, today: string = todayIn(DEMO_ZONE)): ReceptionistSurface {
   const win = sampleWindow(range, today);
   const key = `${win.key}:${today}`;
   const hit = keptReceptionist.get(key);
@@ -608,12 +608,12 @@ const keptPeople = new Map<string, PeopleSurface>();
  * The demo's People read for a range as of `today`: the route's answer for the same business and days as `reportsSample`, beside a
  * book that is the same whichever days are picked. The same range on the same day is the same object, which the lens folds once.
  */
-export function peopleSample(range: ReportRange, today: string = todayIn(ZONE)): PeopleSurface {
+export function peopleSample(range: ReportRange, today: string = todayIn(DEMO_ZONE)): PeopleSurface {
   const win = sampleWindow(range, today);
   const key = `${win.key}:${today}`;
   const hit = keptPeople.get(key);
   if (hit) return hit;
-  const head = { timezone: ZONE, today, ...(win.live ? {} : { end: win.to }), days: win.days };
+  const head = { timezone: DEMO_ZONE, today, ...(win.live ? {} : { end: win.to }), days: win.days };
   const surface: PeopleSurface = {
     dto: { ...head, series: sampleSeries(reportsSample(range, today).vm, head), now: sampleBook() },
     key: win.key,

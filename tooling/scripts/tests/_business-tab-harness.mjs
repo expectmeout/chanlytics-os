@@ -23,7 +23,6 @@ import {
   timezoneWords,
   timezoneCity,
   knownTimezones,
-  DEFAULT_TIMEZONE,
 } from "@chanlytics/contracts";
 import { installLegacyReact, again, unmount, all, find, byTestId, textOf, classes, press } from "./_legacy-react.mjs";
 
@@ -46,7 +45,6 @@ Object.assign(globalThis, {
     device: () => "America/Chicago",
     also: zoneSearchWords,
   },
-  DEFAULT_TIMEZONE,
 });
 (await import(`${L}/../surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 // The tab is TSX (surfaces/settings/business, decision 0015 step 11): every part on the window by its JSX name.

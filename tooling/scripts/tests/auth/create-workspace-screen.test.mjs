@@ -410,6 +410,15 @@ test("V1: another workspace, from inside the app, keeps its own form -- its titl
   assert.ok(byTestId(tree, "create-workspace-back"));
 });
 
+test("the zone starts at the device's own and leads the list", () => {
+  // The runner's clock is its zone (TEST_TZ): UTC in one leg, Pacific/Auckland in the other.
+  const here = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  globalThis.window = standIn(MADE);
+  const zone = find(render({ email: "owner@luna.example", onCreated() {}, onCancel() {} }), (n) => n.type === "select");
+  assert.equal(zone.props.value, here, "the device's zone is picked");
+  assert.equal(find(zone, (n) => n.type === "option").props.value, here, "and leads the list");
+});
+
 /* ------------------------------ the press ------------------------------ */
 
 test("a name under two characters is refused on the form, before anything is sent; a press while one is on its way asks nothing twice", async () => {

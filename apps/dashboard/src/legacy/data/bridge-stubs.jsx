@@ -104,7 +104,6 @@
     try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (e) { tz = null; }
     return tz && isTimezone(tz) ? tz : null;
   };
-  if (!has("DEFAULT_TIMEZONE")) window.DEFAULT_TIMEZONE = DEFAULT_TZ;
   if (!has("__tz")) window.__tz = { words: timezoneWords, city: timezoneCity, known: knownTimezones, device: deviceTimezone };
 
   // ---- The workspace's own write (legacy-bridge/identity.ts) ---------------

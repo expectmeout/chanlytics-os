@@ -8,6 +8,7 @@ import {
   SIGNUP_WORDS,
   firstRunKicker,
   partnerCodeFromCookie,
+  usableDeviceTimezone,
   type PendingWorkspace,
   type SignupPosture,
 } from "@chanlytics/contracts";
@@ -55,13 +56,11 @@ export interface CreatedWorkspace {
  * The browser's own zone as the default, because it is right far more often
  * than a fixed guess and the owner can see it before committing. It decides
  * what "are you open right now?" means, so it is shown rather than assumed.
+ * Contracts reads the device's zone (one this machine can resolve), as the
+ * Business tab's picker does; a device that names none starts at the default.
  */
 function browserZone(): string {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || DEFAULT_TIMEZONE;
-  } catch {
-    return DEFAULT_TIMEZONE;
-  }
+  return usableDeviceTimezone() ?? DEFAULT_TIMEZONE;
 }
 
 const ZONES = (() => {
