@@ -39,7 +39,9 @@ import {
 } from "./lead-words";
 import { formatPhoneDisplay } from "../shared/phone";
 import { initialsOf } from "../conversations/thread-contact";
-import { dateFormat, DAY_MS } from "../shared/time";
+import { weekdayNamed } from "../calendar/day-keys";
+import { dayInZone, dayPlusInZone } from "../calendar/zone-math";
+import { dateFormat } from "../shared/time";
 
 /* ---------------------------------------------------------------- the peek */
 
@@ -221,7 +223,7 @@ export function leadWeekSummary(week: LeadWeekRow[]): string {
  * the end of the day. The listing's own order is kept; today is the business's own day (tz).
  */
 export function leadWeekBars(hours: { day: string; hours: string }[], tz: string, now: Date): LeadWeekRow[] {
-  const today = dateFormat("en-US", { timeZone: tz, weekday: "long" }).format(now).toLowerCase();
+  const today = dayInZone(tz, now.getTime()).weekday;
   return hours.map((h) => {
     const text = h.hours.trim();
     let bar: LeadWeekRow["bar"] = null;
@@ -235,7 +237,7 @@ export function leadWeekBars(hours: { day: string; hours: string }[], tz: string
         bar = { x: Math.round((a / 24) * 1000) / 10, w: Math.round(((b - a) / 24) * 1000) / 10 };
       }
     }
-    return { day: h.day, hours: text, short: leadHoursShort(text), bar, today: h.day.toLowerCase() === today };
+    return { day: h.day, hours: text, short: leadHoursShort(text), bar, today: weekdayNamed(h.day) === today };
   });
 }
 
@@ -244,10 +246,10 @@ function dayIn(tz: string, iso: string | null, now: Date): string {
   if (!iso) return "";
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return "";
-  const key = (d: Date) =>
-    dateFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
-  if (key(at) === key(now)) return "today";
-  if (key(at) === key(new Date(now.getTime() - DAY_MS))) return "yesterday";
+  const day = dayInZone(tz, at.getTime()).key;
+  if (day === dayInZone(tz, now.getTime()).key) return "today";
+  // Yesterday is the calendar's day before, never now less 24 hours.
+  if (day === dayPlusInZone(tz, now.getTime(), -1).key) return "yesterday";
   return dateFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(at);
 }
 

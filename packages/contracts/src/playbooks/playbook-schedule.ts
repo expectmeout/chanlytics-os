@@ -3,11 +3,12 @@
  * words. Moved whole from playbooks.ts (Reach out Part 2.5), which re-exports it.
  */
 import { shiftKey, zoneMidnight } from "../calendar/day-keys";
+import { usableZone, zoneParts } from "../calendar/zone-math";
 import { appointmentWords, type AppointmentWord } from "../journey/appointment-word";
 import { PLAYBOOK_HOURS, PLAYBOOK_VETO_DELAY_MS, SENDING_HOURS_END, triggerOf } from "./playbook-triggers";
 import type { PlaybookDto } from "./playbooks";
 import { clockDate, clockHour } from "../shared/clock";
-import { dateFormat, HOUR_MS } from "../shared/time";
+import { HOUR_MS } from "../shared/time";
 import type { SequenceMode } from "../sequences/sequence";
 
 export type RunPlan = { kind: "send"; state: "scheduled"; at: Date } | { kind: "hold"; state: "pending_approval" };
@@ -52,22 +53,10 @@ export function planRun(mode: SequenceMode, now: Date): RunPlan {
   return { kind: "hold", state: "pending_approval" };
 }
 
+/** The business's day and hour at `now` (zone-math), a zone Intl cannot use read as UTC. */
 function parts(tz: string, now: Date): { date: string; hour: number } {
-  try {
-    const f = dateFormat("en-CA", {
-      timeZone: tz,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      hour12: false,
-    });
-    const p = Object.fromEntries(f.formatToParts(now).map((x) => [x.type, x.value]));
-    const hour = Number(p.hour) % 24;
-    return { date: `${p.year}-${p.month}-${p.day}`, hour };
-  } catch {
-    return { date: now.toISOString().slice(0, 10), hour: now.getUTCHours() };
-  }
+  const p = zoneParts(usableZone(tz), now);
+  return { date: p.key, hour: p.hh };
 }
 
 /** YYYY-MM-DD by the business's clock. */

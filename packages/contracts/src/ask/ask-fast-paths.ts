@@ -4,11 +4,10 @@
  * quick answer as the route keeps it, a turn of its thread (quickAnswerOf); ask-answer.ts words each answer.
  */
 import { dayWordIn } from "../calendar/day-keys";
-import { dayPlusInZone } from "../calendar/zone-math";
+import { dayInZone, dayPlusInZone, usableZone } from "../calendar/zone-math";
 import { missedCall } from "../conversations/call-dto";
 import { CALL_HEARTBEAT_MS } from "../config/policy";
 import { liveStillUp, type LiveCallVM } from "../voice/live";
-import { dateFormat } from "../shared/time";
 import { ASK_ANSWER_CAPS, clip, type AskAnswer, type AskItem, type AskOpen } from "./ask-answer";
 import { ASK_CITATION_KINDS, type AskCitationKind } from "./citations";
 
@@ -117,35 +116,15 @@ function quickWords(question: string): string {
     .trim();
 }
 
-/** The day `atMs` falls on in `tz`; with no zone, or one Intl cannot use, the day in UTC -- never the machine's. */
-function dayKey(atMs: number, tz: string | null | undefined): string {
-  try {
-    return dateFormat("en-CA", {
-      timeZone: tz || "UTC",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    }).format(new Date(atMs));
-  } catch {
-    return new Date(atMs).toISOString().slice(0, 10);
-  }
-}
-
 /** The day a question names (contracts dayWordIn): a weekday key, "today"/"tomorrow" as a date, or nothing. */
 export function dayFromQuestion(q: string, now: number, tz?: string | null): string | null {
   const named = dayWordIn(q);
+  // The day in the business's zone; with no zone, or one Intl cannot use, the day in UTC -- never the machine's.
+  const zone = usableZone(tz);
   // Tomorrow is the next DAY, which is not "now plus 24 hours" on the two
-  // days a year the clock moves (availability dayPlusInZone). A zone we
-  // cannot use falls back the way dayKey does.
-  if (named === "tomorrow") {
-    try {
-      if (tz) return dayPlusInZone(tz, now, 1).key;
-    } catch {
-      /* an unusable zone falls through */
-    }
-    return dayKey(now + 86_400_000, tz);
-  }
-  if (named === "today") return dayKey(now, tz);
+  // days a year the clock moves (zone-math dayPlusInZone).
+  if (named === "tomorrow") return dayPlusInZone(zone, now, 1).key;
+  if (named === "today") return dayInZone(zone, now).key;
   return named;
 }
 
@@ -231,9 +210,11 @@ export function callsToday(
   now: number,
   tz?: string | null,
 ): { missed: FastCall[]; live: FastCall[] } {
-  const today = dayKey(now, tz);
+  // The business's day (zone-math); with no zone, or one Intl cannot use, UTC's -- never the machine's.
+  const zone = usableZone(tz);
+  const today = dayInZone(zone, now).key;
   return {
-    missed: calls.filter((c) => missedCall(c) && c.startedAtMs && dayKey(c.startedAtMs, tz) === today),
+    missed: calls.filter((c) => missedCall(c) && c.startedAtMs && dayInZone(zone, c.startedAtMs).key === today),
     // On the line by the heartbeat, as Live and the strip count it: a read kept between refreshes still says `live` of
     // a call the provider has gone quiet on.
     live: calls.filter((c) => liveStillUp(c, CALL_HEARTBEAT_MS, now)),

@@ -11,6 +11,7 @@ import {
   GOING_TODAY_WORDS,
   TODAY_PHONE_WORDS as P,
   appointmentWords,
+  clockInZone,
   runRoute,
   runStopWords,
   runTitleOf,
@@ -42,15 +43,8 @@ const visitWhatOf = (b: TodayDayItemVM): string =>
 
 /** The hours on the business's clock an instant stands at (14.5 is 2:30 PM), so a send takes its place among the visits. */
 function hoursOnTheClock(zone: string, atMs: number): number {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: zone,
-    hour: "numeric",
-    minute: "numeric",
-    hourCycle: "h23",
-  })
-    .formatToParts(atMs)
-    .reduce<Record<string, string>>((o, p) => ({ ...o, [p.type]: p.value }), {});
-  return Number(parts.hour) + Number(parts.minute) / 60;
+  const { hh, mm } = clockInZone(zone, atMs);
+  return hh + mm / 60;
 }
 
 /** The date beside the note: the frame's label without the word Today, which the page already is. */

@@ -20,8 +20,10 @@ import {
   mmss,
   personName,
   reachedVoicemail,
+  usableZone,
   whisperText,
   writtenChannelOf,
+  zoneParts,
   type CsvCell,
 } from "@chanlytics/contracts";
 import type { CallDto, ConversationDto, MessageDto, PersonRowDto } from "@chanlytics/contracts";
@@ -48,37 +50,18 @@ export function personLabel(c: ContactLike): string {
   return personName(c);
 }
 
-const formatters = new Map<string, Intl.DateTimeFormat>();
-function formatterFor(tz: string): Intl.DateTimeFormat {
-  const hit = formatters.get(tz);
-  if (hit) return hit;
-  const opts: Intl.DateTimeFormatOptions = {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  };
-  let f: Intl.DateTimeFormat;
-  try {
-    f = new Intl.DateTimeFormat("en-CA", { ...opts, timeZone: tz });
-  } catch {
-    // An unknown zone name must not turn an export into a 500; UTC and say so.
-    f = new Intl.DateTimeFormat("en-CA", { ...opts, timeZone: "UTC" });
-  }
-  formatters.set(tz, f);
-  return f;
-}
+const two = (n: number): string => String(n).padStart(2, "0");
 
-/** "2026-09-05 14:03" in the zone; "" for a missing or unreadable time. */
+/**
+ * "2026-09-05 14:03" in the zone (zone-math); "" for a missing or unreadable time. An unknown zone name must not turn
+ * an export into a 500: it is read as UTC (usableZone).
+ */
 export function stamp(iso: string | null | undefined, tz: string): string {
   if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  const p: Record<string, string> = {};
-  for (const part of formatterFor(tz).formatToParts(d)) p[part.type] = part.value;
-  return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}`;
+  const ms = Date.parse(iso);
+  if (Number.isNaN(ms)) return "";
+  const p = zoneParts(usableZone(tz), ms);
+  return `${p.key} ${two(p.hh)}:${two(p.mm)}`;
 }
 
 /** Who a line is from, in the words an owner uses. */

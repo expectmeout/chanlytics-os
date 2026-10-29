@@ -7,7 +7,9 @@ import { CLOCK, hourOf } from "./lead-helpers";
 import type { LeadSlot, LeadSlotState } from "./lead-row";
 import { LEAD_KIND_KEY, LEAD_UNREACHABLE_KEY, leadKindWord } from "./search/class";
 import { LEAD_CHECK_WORDS, LEAD_LEFT_OUT_WORD, LEAD_MAILBOX_WORDS, LEAD_UNREACHABLE_WORD } from "./lead-words";
-import { dateFormat, DAY_MS } from "../shared/time";
+import { weekdayNamed } from "../calendar/day-keys";
+import { clockInZone, dayInZone, dayPlusInZone } from "../calendar/zone-math";
+import { DAY_MS } from "../shared/time";
 
 /**
  * Today, as an owner about to call needs it: whether they are open NOW. "Open today · 11 AM to 5 PM" made them work
@@ -17,21 +19,16 @@ import { dateFormat, DAY_MS } from "../shared/time";
  */
 export function leadTodayLine(hours: { day: string; hours: string }[], tz: string, now: Date): string | null {
   if (!hours.length) return null;
-  const dayOf = (d: Date) => dateFormat("en-US", { timeZone: tz, weekday: "long" }).format(d).toLowerCase();
-  const hoursOn = (d: Date) => hours.find((x) => x.day.toLowerCase() === dayOf(d))?.hours.trim() ?? null;
-  const parts = dateFormat("en-US", {
-    timeZone: tz,
-    hour: "numeric",
-    minute: "numeric",
-    hourCycle: "h23",
-  }).formatToParts(now);
-  const at =
-    Number(parts.find((p) => p.type === "hour")?.value ?? 0) +
-    Number(parts.find((p) => p.type === "minute")?.value ?? 0) / 60;
+  const nowMs = now.getTime();
+  const hoursOn = (weekday: string) => hours.find((x) => weekdayNamed(x.day) === weekday)?.hours.trim() ?? null;
+  const { hh, mm } = clockInZone(tz, nowMs);
+  const at = hh + mm / 60;
   const clock = (hh: string, mm: string | undefined, ap: string) =>
     `${hh}${mm && mm !== "00" ? `:${mm}` : ""} ${ap.toUpperCase()}`;
   // A night that runs past midnight belongs to the day it began: at 1 AM, a bar that opened at 5 PM "to 2 AM" is open.
-  const last = hoursOn(new Date(now.getTime() - DAY_MS))?.match(CLOCK);
+  // Yesterday is the calendar's, never now less 24 hours, which in the first hour of the day after the clocks go
+  // forward is the day before yesterday.
+  const last = hoursOn(dayPlusInZone(tz, nowMs, -1).weekday)?.match(CLOCK);
   if (
     last &&
     hourOf(last[4], last[5], last[6]) <= hourOf(last[1], last[2], last[3]) &&
@@ -39,7 +36,7 @@ export function leadTodayLine(hours: { day: string; hours: string }[], tz: strin
   ) {
     return `Open until ${clock(last[4], last[5], last[6])}`;
   }
-  const text = hoursOn(now);
+  const text = hoursOn(dayInZone(tz, nowMs).weekday);
   if (text === null) return null;
   if (/^closed/i.test(text)) return "Closed today";
   if (/^open 24 hours$/i.test(text)) return "Open 24 hours";

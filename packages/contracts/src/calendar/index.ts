@@ -255,4 +255,13 @@ export type {
   VisitSheetState,
   VisitSheetVM,
 } from "./visit/visit-sheet";
-export { clockInZone, dayInZone, dayPlusInZone, localToUtcMs, WEEKDAY_KEYS, zoneOffsetMs } from "./zone-math";
+export {
+  clockInZone,
+  dayInZone,
+  dayPlusInZone,
+  localToUtcMs,
+  usableZone,
+  WEEKDAY_KEYS,
+  zoneOffsetMs,
+  zoneParts,
+} from "./zone-math";

@@ -29,6 +29,7 @@ import {
   REPORT_PERIOD_DEFAULT,
   isReportDays,
   isReportPeriod,
+  dayInZone,
   type ReportRange,
 } from "@chanlytics/contracts";
 import { reportWindowOf, type ReportWindowVM } from "@chanlytics/contracts/report-window";
@@ -212,10 +213,7 @@ function bookingDto(all: readonly SampleDay[], n: number, live: boolean): Bookin
 export const sampleWindow = (range: ReportRange, today: string): ReportWindowVM =>
   reportWindowOf(isReportPeriod(range) || isReportDays(range) ? range : REPORT_PERIOD_DEFAULT, today);
 
-export const todayIn = (zone: string): string =>
-  new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).format(
-    new Date(),
-  );
+export const todayIn = (zone: string): string => dayInZone(zone, Date.now()).key;
 
 const keptReports = new Map<string, ReportsSurface>();
 

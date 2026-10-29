@@ -2,6 +2,7 @@
  * The small helpers leads.ts and the lead modules share. Internal: index.ts never re-exports it (the
  * person-words.ts / run-words.ts pattern).
  */
+import { dayInZone } from "../calendar/zone-math";
 import { dateFormat } from "../shared/time";
 export const CLOCK = /^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)\s*(?:to|–|-|—)\s*(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/i;
 
@@ -13,10 +14,8 @@ export function clockIn(tz: string, iso: string | null, now: Date): string {
   if (!iso) return "—";
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return "—";
-  const day = (d: Date) =>
-    dateFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
   const clock = dateFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(at);
-  if (day(at) === day(now)) return clock;
+  if (dayInZone(tz, at.getTime()).key === dayInZone(tz, now.getTime()).key) return clock;
   return `${dateFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(at)}, ${clock}`;
 }
 

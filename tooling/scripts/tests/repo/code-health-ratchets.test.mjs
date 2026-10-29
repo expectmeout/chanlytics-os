@@ -19,6 +19,7 @@ import {
   functionsIn,
   durationsIn,
   zonelessDatesIn,
+  zoneReadersIn,
   seedReadsOutsideADemo,
   needsHumanReads,
   resumesUnasked,
@@ -257,6 +258,38 @@ test("the zone measure counts dates said with no zone and nothing else", () => {
     1,
     "DATE_FMT, the runtime's own",
   );
+});
+
+// The zone-readers measure on a module written for it: each line marked `yes` reads a zone itself, where zone-math is
+// the one reading of a zone. A number's parts, a zoned formatter's words and zone-math's own functions are not one.
+test("the zone-readers measure counts a zone read outside zone-math and nothing else", () => {
+  const lines = [
+    'const p = dateFormat("en-US", { timeZone: tz, hour: "numeric" }).formatToParts(at); // yes',
+    "for (const x of f.formatToParts(now)) parts[x.type] = x.value; // yes",
+    'new Intl.DateTimeFormat("en-US", { timeZone: tz }).formatToParts(ms); // yes',
+    'const key = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric" }).format(at); // yes',
+    'const key = dateFormat("en-CA", { timeZone: tz, month: "2-digit" }).format(at); // yes',
+    'const iso = formatterOnUse("sv-SE", { year: "numeric" }); // yes',
+    'numberFormat("en-US", { style: "currency", currency }).formatToParts(n);',
+    'new Intl.NumberFormat("en-US").formatToParts(n);',
+    'dateFormat("en-US", { timeZone: tz, month: "short" }).format(at);',
+    "const day = dayInZone(tz, at).key;",
+    "const { hh, mm } = clockInZone(tz, at);",
+    "const p = zoneParts(usableZone(tz), at);",
+    'const label = "en-CA";',
+  ];
+  const sf = ts.createSourceFile("fixture.ts", lines.join("\n"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const marked = lines.flatMap((l, i) => (l.match(/\byes\b/g) ?? []).map(() => i + 1));
+  assert.deepEqual(
+    zoneReadersIn(sf).map((d) => d.line),
+    marked,
+  );
+  assert.equal(
+    zoneReadersIn(parse("packages/contracts/src/calendar/zone-math.ts")).length,
+    1,
+    "the one reading itself",
+  );
+  assert.deepEqual(zoneReadersIn(parse("packages/contracts/src/shared/clock.ts")), [], "the words read through it");
 });
 
 // The length measure, kept honest: it counts what the file-length measure counts over a parse, whatever a file's last

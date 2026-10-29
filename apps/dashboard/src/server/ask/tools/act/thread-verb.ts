@@ -1,6 +1,14 @@
 import "server-only";
 import { z } from "zod";
-import { ASK_THREAD_VERBS, PROPOSAL_SPECS, clockWhen, personName, shiftKey, zoneMidnight } from "@chanlytics/contracts";
+import {
+  ASK_THREAD_VERBS,
+  PROPOSAL_SPECS,
+  clockWhen,
+  dayInZone,
+  personName,
+  shiftKey,
+  zoneMidnight,
+} from "@chanlytics/contracts";
 import {
   UUID,
   WHOSE,
@@ -15,10 +23,6 @@ import {
 
 /** The one list, from contracts: the committer in the browser reads the same one. */
 export const THREAD_VERBS = ASK_THREAD_VERBS;
-
-/** The calendar day an instant falls on in a zone, as YYYY-MM-DD. */
-const dayKeyIn = (tz: string, at: Date): string =>
-  new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(at);
 
 async function proposeThreadVerb(
   t: ToolContext,
@@ -68,7 +72,7 @@ async function proposeThreadVerb(
     // York, and a test that passed on a laptop in that zone and failed in CI.
     const d = raw
       ? new Date(raw)
-      : new Date(zoneMidnight(t.timezone, shiftKey(dayKeyIn(t.timezone, t.now), 1)) + 10 * 3600_000);
+      : new Date(zoneMidnight(t.timezone, shiftKey(dayInZone(t.timezone, t.now.getTime()).key, 1)) + 10 * 3600_000);
     if (Number.isNaN(d.getTime()) || d.getTime() <= t.now.getTime()) return refuse("until must be a future ISO time");
     until = d.toISOString();
   }

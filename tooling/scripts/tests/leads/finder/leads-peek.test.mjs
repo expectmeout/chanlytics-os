@@ -934,3 +934,12 @@ test("a lead's photo is asked for once, before it is needed, and last in line", 
     globalThis.Image = kept;
   }
 });
+
+test("a lead found yesterday reads yesterday on the first night after the clocks go forward too", () => {
+  // 00:30 on Monday 9 March 2026 in Chicago. Sunday was 23 hours long, so now less 24 hours was Saturday night: a find on
+  // Sunday read "Mar 8", and one on Saturday night read "yesterday". Yesterday is the calendar's day before.
+  const now = new Date("2026-03-09T05:30:00.000Z");
+  const said = (found_at) => toLeadPeekVM(row({ found_at }), SEARCH, TZ, now).foundSummary;
+  assert.match(said("2026-03-08T18:00:00.000Z"), /yesterday$/, "Sunday afternoon");
+  assert.match(said("2026-03-08T04:00:00.000Z"), /Mar 7$/, "Saturday night");
+});

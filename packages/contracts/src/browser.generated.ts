@@ -91,7 +91,7 @@ export { BOOKING_REQUEST_INSTRUCTION, BOOKING_REQUEST_REFUSALS, BOOKING_REQUEST_
 export { calendarPersonFactsOf, calendarPersonOf } from "./calendar/visit/calendar-person-facts";
 export { visitTitleWithout } from "./calendar/visit/visit-service";
 export { CALENDAR_VISIT_SHEET_WORDS, visitSheetOf } from "./calendar/visit/visit-sheet";
-export { clockInZone, dayInZone, dayPlusInZone, localToUtcMs, WEEKDAY_KEYS, zoneOffsetMs } from "./calendar/zone-math";
+export { clockInZone, dayInZone, dayPlusInZone, localToUtcMs, usableZone, WEEKDAY_KEYS, zoneOffsetMs, zoneParts } from "./calendar/zone-math";
 export { BRAIN_INTENTS, BRAIN_LANGUAGES, BRAIN_OUTPUT_JSON_SCHEMA, brainMetaOf, brainOutputSchemaFor, CONFIDENCE_STEPS, replyWhy } from "./config/brain";
 export { abilityRows, cannotFoldWords, cannotRows, VISION_SWITCH_WORDS } from "./config/business-tab/abilities";
 export { BOOKING_RULE_HINTS, bookingRuleRefusal, bookingRulesWords } from "./config/business-tab/booking-rules-words";
