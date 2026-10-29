@@ -4,15 +4,23 @@
  * follows a run's last item is round-decision.ts. A people run's items are companies (00430): people.ts.
  */
 
-import { peoplePlanOf, type LeadEmailState, type LeadRoundState, type LeadRunState } from "@chanlytics/contracts";
+import {
+  judgeBatchPlaces,
+  peoplePlanOf,
+  type JudgePlaceAnswer,
+  type LeadEmailState,
+  type LeadRoundState,
+  type LeadRunState,
+} from "@chanlytics/contracts";
 import { CARDS, areaCenter, type LeadCheckerRunner } from "../cards";
 import { FINAL_RUN_STATES, runStateOf } from "../endings";
 import { inArea } from "../geo";
 import { runIdFor } from "../ids";
 import { foldDuplicates, identityOf, shareKeysOf, sharesWithin } from "../identity";
-import { factsOf, judgeBatch, opIdFor, type JudgedBatch } from "../judge";
+import { factsOf, judgeInCalls, opIdFor } from "../judge";
 import type {
   CollectCommitResult,
+  CollectJudgment,
   CollectPage,
   CollectPlace,
   LeadMemberRow,
@@ -154,7 +162,7 @@ async function collectHeld(
   let judgeRefused: string | null = null;
 
   do {
-    const { end, prepared } = takeBatch(card, items, cursor);
+    const { end, prepared } = takeBatch(card, items, cursor, judgeBatchPlaces(plan));
     const isLastOfPage = end >= items.length;
     // Identity, by what the workspace already holds: place ids, suppressions, shared details (decision 25).
     const cleans = prepared.map((x) => x.clean);
@@ -178,7 +186,7 @@ async function collectHeld(
       }),
     ]);
     const within = sharesWithin(cleans.filter((c) => !folded.has(c.raw.placeId)));
-    const toJudge: { prep: Prepared; ref: number }[] = [];
+    const toJudge: Prepared[] = [];
     const rows: { prep: Prepared; shares: LeadShare[]; duplicateOf: string | null }[] = [];
     for (const prep of prepared) {
       const idn = identityOf(prep.clean, held, supp.placeIds, shares);
@@ -189,24 +197,12 @@ async function collectHeld(
       // A suppressed address is not a hidden place, but the email is never offered again.
       prep.clean.emails = prep.clean.emails.filter((e) => !supp.emails.has(e));
       rows.push({ prep, shares: [...idn.shares, ...(within.get(prep.clean.raw.placeId) ?? [])], duplicateOf: dup });
-      if (!prep.rule && !dup) toJudge.push({ prep, ref: toJudge.length });
+      if (!prep.rule && !dup) toJudge.push(prep);
     }
-    // The judge: one call for the batch, kept by operation id; refused twice is Needs review (§7.1).
-    let judged: JudgedBatch = { answers: new Map(), judgment: null, model: null, refused: false, why: null };
-    if (toJudge.length) {
-      if (outOfTime(p, JUDGE_MARGIN_MS)) throw new LeadRetry("out of time before the judge");
-      judged = await judgeBatch(
-        p.judge,
-        plan,
-        toJudge.map((t) => factsOf(t.ref, t.prep.clean)),
-        opIdFor(run.id, from, 0),
-        round,
-      );
-      if (judged.refused && judged.why) judgeRefused = judged.why;
-    }
+    const { said, judgments, refused } = await judgedBatch(p, round, run.id, from, toJudge);
+    if (refused) judgeRefused = refused;
     const places = rows.map((r) => {
-      const ref = toJudge.find((t) => t.prep === r.prep)?.ref;
-      const answer = ref === undefined ? null : (judged.answers.get(ref) ?? null);
+      const { answer, judgment } = said.get(r.prep) ?? { answer: null, judgment: null };
       const rule =
         r.duplicateOf && !r.prep.rule
           ? { class: "excluded" as const, reason: DUPLICATE_REASON, token: "duplicate", excluded_by: "duplicate" }
@@ -216,8 +212,8 @@ async function collectHeld(
         run.term ?? "",
         r.prep.clean,
         answer,
-        judged.judgment?.op_id ?? null,
-        judged.model,
+        judgment?.op_id ?? null,
+        judgment?.model ?? null,
         rule,
         geo,
         r.shares,
@@ -249,7 +245,7 @@ async function collectHeld(
         )
       : null;
     const page: CollectPage = {
-      judgment: judged.judgment,
+      judgment: judgments.length ? judgments : null,
       places,
       usage_usd: usage,
       items_seen: seen + end,
@@ -276,6 +272,41 @@ async function collectHeld(
     roundState: lastRoundState,
     judgeRefused,
   };
+}
+
+/** What the judge said of one place: its answer, and the judgment it was kept under (null when its call refused). */
+type Said = { answer: JudgePlaceAnswer | null; judgment: CollectJudgment | null };
+
+/**
+ * The judge over one batch: in the calls it can answer in time, side by side (core judgeInCalls), each kept by its
+ * operation id; a call refused twice is Needs review (§7.1). What each place was told, and under which judgment.
+ */
+async function judgedBatch(
+  p: LeadPorts,
+  round: LeadRoundRow,
+  runId: string,
+  from: number,
+  toJudge: Prepared[],
+): Promise<{ said: Map<Prepared, Said>; judgments: CollectJudgment[]; refused: string | null }> {
+  const out = { said: new Map<Prepared, Said>(), judgments: [] as CollectJudgment[], refused: null as string | null };
+  if (!toJudge.length) return out;
+  if (outOfTime(p, JUDGE_MARGIN_MS)) throw new LeadRetry("out of time before the judge");
+  const calls = await judgeInCalls(
+    p.judge,
+    round.plan,
+    toJudge,
+    (prep, ref) => factsOf(ref, prep.clean),
+    (call) => opIdFor(runId, from, call),
+    round,
+  );
+  for (const { items: asked, judged } of calls) {
+    if (judged.refused && judged.why) out.refused = judged.why;
+    if (judged.judgment) out.judgments.push(judged.judgment);
+    asked.forEach((prep, ref) =>
+      out.said.set(prep, { answer: judged.answers.get(ref) ?? null, judgment: judged.judgment }),
+    );
+  }
+  return out;
 }
 
 /** The rows just committed, as members of the round, for a decision made in the same invocation. */

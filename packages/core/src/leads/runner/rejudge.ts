@@ -3,12 +3,12 @@
  * before it sizes the main phase; the members are made as the collect makes them (places.ts).
  */
 
-import { LEAD_JUDGE_BATCH, LEAD_KIND_KEY, type JudgePlaceAnswer, type LeadSearchPlan } from "@chanlytics/contracts";
+import { LEAD_KIND_KEY, judgeBatchPlaces, type JudgePlaceAnswer, type LeadSearchPlan } from "@chanlytics/contracts";
 import { CARDS, areaCenter } from "../cards";
 import { cleanPlace, type CleanPlace } from "../clean";
 import { inArea } from "../geo";
 import { runIdFor } from "../ids";
-import { factsOf, judgeBatch, opIdFor } from "../judge";
+import { factsOf, judgeInCalls, opIdFor } from "../judge";
 import type { CollectJudgment, CollectPlace, LeadMemberRow, LeadPorts, LeadRoundRow, MemberJudgment } from "../ports";
 import { markPlaces } from "./mark-places";
 import { askedOf, memberOf } from "./places";
@@ -123,7 +123,7 @@ export async function rejudgeProbe(p: LeadPorts, round: LeadRoundRow): Promise<R
     made.member.judgment = { ...made.member.judgment, plan_version: round.plan_version };
     return made;
   };
-  const commit = async (xs: typeof found, places: CollectPlace[], judgment: CollectJudgment | null) => {
+  const commit = async (xs: typeof found, places: CollectPlace[], judgment: CollectJudgment[] | null) => {
     // Their own marks, for the places the new plan lets back in (a left-out place kept none).
     await markPlaces(
       p,
@@ -143,29 +143,36 @@ export async function rejudgeProbe(p: LeadPorts, round: LeadRoundRow): Promise<R
     out.reused = reuse.length;
     if (!(await commit(reuse, places, null))) return out;
   }
-  for (let i = 0; i < judge.length; i += LEAD_JUDGE_BATCH) {
-    const batch = judge.slice(i, i + LEAD_JUDGE_BATCH);
+  const size = judgeBatchPlaces(plan);
+  for (let i = 0; i < judge.length; i += size) {
     if (outOfTime(p, JUDGE_MARGIN_MS)) throw new LeadRetry("out of time before judging the first places again");
-    const judged = await judgeBatch(
+    // In the calls the judge can answer in time, side by side (judgeInCalls), each kept by the places it asked about.
+    const calls = await judgeInCalls(
       p.judge,
       plan,
-      batch.map((x, ref) => factsOf(ref, x.clean)),
-      opIdFor(
-        `rejudge:${round.id}:${round.plan_version}:${batch
-          .map((x) => x.clean.raw.placeId)
-          .sort()
-          .join(",")}`,
-        0,
-        0,
-      ),
+      judge.slice(i, i + size),
+      (x, ref) => factsOf(ref, x.clean),
+      (_, asked) =>
+        opIdFor(
+          `rejudge:${round.id}:${round.plan_version}:${asked
+            .map((x) => x.clean.raw.placeId)
+            .sort()
+            .join(",")}`,
+          0,
+          0,
+        ),
       round,
     );
-    if (judged.refused) continue;
-    const places = batch.map((x, ref) =>
-      place(x, judged.answers.get(ref) ?? null, judged.judgment?.op_id ?? null, judged.model),
+    // A call refused twice leaves its places as they were; the others are committed together.
+    const answered = calls.filter((c) => !c.judged.refused);
+    if (!answered.length) continue;
+    const batch = answered.flatMap((c) => c.items);
+    const places = answered.flatMap(({ items, judged }) =>
+      items.map((x, ref) => place(x, judged.answers.get(ref) ?? null, judged.judgment?.op_id ?? null, judged.model)),
     );
+    const judgments = answered.flatMap((c) => (c.judged.judgment ? [c.judged.judgment] : []));
     out.judged += batch.length;
-    if (!(await commit(batch, places, judged.judgment))) return out;
+    if (!(await commit(batch, places, judgments.length ? judgments : null))) return out;
   }
   return out;
 }

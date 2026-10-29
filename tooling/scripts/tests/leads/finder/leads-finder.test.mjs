@@ -938,6 +938,33 @@ test("after Stop the strip says the emails of the found are still being checked,
   assert.deepEqual([acted[0][0], acted[0][1].count], ["carry_on", 200], "Carry on hands back the plan to approve");
 });
 
+test("REGRESSION: only an ending that found what it was for wears the check and the full bar; a search the source could not start does not", () => {
+  // 29 Oct 2026: "The search didn't run: the source couldn't start it" was drawn with a green check.
+  const marked = (search) => {
+    const tree = drawStrip(search, []);
+    return [
+      all(tree, (n) => n.props?.className === "ok-mark").length,
+      all(tree, (n) => /lf-strip-bar/.test(n.props?.className ?? "")).length,
+    ];
+  };
+  assert.deepEqual(
+    marked(ended("source_failed", { counted: 0, qualified: 0, review: 0, excluded: 0 })),
+    [0, 0],
+    "never ran",
+  );
+  assert.deepEqual(marked(ended("source_failed")), [0, 0], "stopped answering");
+  for (const ending of ["stopped", "budget_used", "month_leads_used", "question_unanswered", "paused"])
+    assert.deepEqual(marked(ended(ending)), [0, 0], ending);
+  assert.deepEqual(marked(ended("searched_everything", { counted: 0, excluded: 3 })), [0, 0], "all of them left out");
+  for (const ending of ["target_reached", "searched_everything", "few_new_matches"])
+    assert.deepEqual(marked(ended(ending)), [1, 1], ending);
+  assert.match(
+    byTestId(drawStrip(ended("source_failed"), []), "lead-strip").props.className,
+    /\bdone\b/,
+    "laid out as an ending",
+  );
+});
+
 test("every ending is one strip with one next step, and each draws its own words", () => {
   for (const ending of LEAD_ROUND_ENDINGS) {
     const acted = [];

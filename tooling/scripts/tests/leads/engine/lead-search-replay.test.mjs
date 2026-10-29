@@ -24,7 +24,7 @@ const EMAIL_PLAN = { ...PLAN, contact: "email", count: 20 };
 const { leadPipelineOver } = await import(at("apps/edge/lib/leads/lead-pipeline.ts"));
 const ctxFor = (w) => ctxOver(w, leadPipelineOver(w.wires));
 
-test("ACCEPTANCE: a search runs end to end: create, probe, the question, Keep going, the main phase, the checks, an ending; one judge call per batch; nothing failed", async () => {
+test("ACCEPTANCE: a search runs end to end: create, probe, the question, Keep going, the main phase, the checks, an ending; every judge call one it can answer in time; nothing failed", async () => {
   const w = leadWorld({ plan: EMAIL_PLAN });
   const made = w.rpcs.lead_search_create({
     p_tenant_id: TENANT,
@@ -48,8 +48,8 @@ test("ACCEPTANCE: a search runs end to end: create, probe, the question, Keep go
   );
   assert.deepEqual(
     w.judge.calls.map((c) => c.length),
-    [13, 11],
-    "one call per batch; the closed place never reaches the judge",
+    [8, 5, 8, 3],
+    "calls of eight (four questions a place); the closed place never reaches the judge",
   );
 
   w.rpcs.lead_round_answer({ p_round_id: made.round_id, p_answer: "keep" });
@@ -98,7 +98,7 @@ test("ACCEPTANCE: a search runs end to end: create, probe, the question, Keep go
     "twenty were asked for and twenty counted; the eleven over the reservation are qualified and uncounted",
   );
   assert.equal(w.round().allowance_used, EMAIL_PLAN.count, "and the round used exactly what it reserved");
-  assert.equal(w.T.lead_judgments.length, w.judge.calls.length, "every batch's answer kept by operation id");
+  assert.equal(w.T.lead_judgments.length, w.judge.calls.length, "every call's answer kept by operation id");
   assert.deepEqual(
     w.T.jobs.filter((j) => j.state === "failed"),
     [],

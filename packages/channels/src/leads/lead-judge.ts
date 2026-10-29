@@ -32,7 +32,10 @@ import {
   type PlaceFacts,
 } from "@chanlytics/contracts";
 
-/** Twenty-five places at low effort fit in about 3,000 tokens; the rest is room. A cap reached is a refusal, never a split. */
+/**
+ * A call's places are sized to answer in about 1,500 tokens (contracts judgeCallPlaces); the rest is room. A cap reached
+ * is a refusal, never a split.
+ */
 export const LEAD_JUDGE_MAX_TOKENS = MODEL_ROUTES.lead_judge.maxTokens;
 export const LEAD_JUDGE_FALLBACK_BETA = "server-side-fallback-2026-07-01";
 /** The registry's model for the judge (contracts ai/models.ts); LEAD_JUDGE_MODEL on the edge may name another. */

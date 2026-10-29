@@ -389,6 +389,23 @@ test("a refresh patches changed rows, keeps the loaded pages, and offers what is
   assert.ok(L().rows.some((r) => r.id === NEW_A.id));
 });
 
+test("REGRESSION: an empty view takes a running search's first rows as they come, never behind a count", async () => {
+  // 29 Oct 2026: the salon search's first three sat behind "3 new" over "No leads in this view yet" until a reload.
+  const w = wire({ searches: [SEARCH_RUNNING], rows: [], counts: COUNTS });
+  await leadsView("clients/leads");
+  assert.equal(L().rows.length, 0);
+  w.now({ rows: [NEW_A, NEW_B, NEW_C] });
+  await leadsOverride.apply();
+  assert.deepEqual(
+    [L().offered, L().rows.map((r) => r.id)],
+    [0, [NEW_A.id, NEW_B.id, NEW_C.id]],
+    "nothing on screen to keep in place: the rows are drawn, in the view's own order",
+  );
+  w.now({ rows: [NEW_A, NEW_B, NEW_C, ...PAGE1.slice(0, 2)] });
+  await leadsOverride.apply();
+  assert.equal(L().offered, 2, "once the owner is reading, what comes next is offered, as before");
+});
+
 test("under the found sort new rows append in the order found", async () => {
   const w = wire({ searches: [SEARCH_RUNNING], rows: PAGE1, counts: COUNTS });
   await leadsView({ sort: "found", dir: "desc" });

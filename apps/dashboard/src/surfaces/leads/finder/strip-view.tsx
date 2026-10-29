@@ -23,7 +23,7 @@ export const LeadStrip = ({
   act?: ReactNode;
 }) => {
   if (!vm) return null;
-  const tone = vm.state === "question" ? "ask" : vm.state === "ended" ? "done" : "";
+  const tone = vm.state === "question" ? "ask" : vm.state === "found" || vm.state === "ended" ? "done" : "";
   // With the band inside, its tabs ARE the ways into each pile: the strip's own "14 need a look" link beside a tab saying
   // "14 need a look" was the same door twice, and so was an ending's step that only opens a pile ("1 left out" beside the
   // tab saying it, Ruben, 10 Oct 2026): the tab is that door.
@@ -41,7 +41,7 @@ export const LeadStrip = ({
           ?
         </span>
       ) : null}
-      {vm.state === "ended" ? (
+      {vm.state === "found" ? (
         <span className="ok-mark">
           <Icon name="check" size={15} />
         </span>

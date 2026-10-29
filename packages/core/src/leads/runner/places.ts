@@ -2,7 +2,7 @@
  * A place as the collect takes it (collect.ts; rejudge.ts makes its members here too): what a page's items become before
  * the judge and after it.
  *
- *   - takeBatch: the next batch of a page's items from a cursor, at most LEAD_JUDGE_BATCH places the judge must see,
+ *   - takeBatch: the next batch of a page's items from a cursor, at most the plan's batch of places the judge must see,
  *     each item cleaned (clean.ts) and marked when a rule settles it before judging (closed for good: left out; no
  *     location: Needs review), with the items around them.
  *   - centerOf / nearbyFor: where the round measures from (the plan's centre, or for a city ask the median of the probe's
@@ -15,7 +15,6 @@
 
 import {
   type LeadArea,
-  LEAD_JUDGE_BATCH,
   classify,
   leadPhoneState,
   judgeAsked,
@@ -177,14 +176,18 @@ export function memberOf(
   };
 }
 
-/** The next batch of items from `cursor`: at most LEAD_JUDGE_BATCH places the judge must see, with the items around them. */
+/**
+ * The next batch of items from `cursor`: at most `judgeable` places the judge must see (the plan's batch, contracts
+ * judgeBatchPlaces), with the items around them.
+ */
 export function takeBatch(
   card: LeadCardRunner,
   items: unknown[],
   cursor: number,
+  judgeable: number,
 ): { end: number; prepared: Prepared[] } {
   const prepared: Prepared[] = [];
-  let judgeable = 0;
+  let toJudge = 0;
   let end = cursor;
   while (end < items.length) {
     const mapped = card.mapItem(items[end]);
@@ -196,8 +199,8 @@ export function takeBatch(
           ? { class: "review", reason: NO_LOCATION_REASON, token: "out_of_area", excluded_by: null }
           : null;
       if (!rule) {
-        if (judgeable >= LEAD_JUDGE_BATCH) break;
-        judgeable += 1;
+        if (toJudge >= judgeable) break;
+        toJudge += 1;
       }
       prepared.push({ index: end, clean, rule });
     }
