@@ -59,7 +59,7 @@ interface InPlaceBox {
   onKeyDown: (e: KeyboardEvent<HTMLElement>) => void;
 }
 
-export interface InPlace {
+interface InPlace {
   typing: boolean;
   busy: boolean;
   /** What is wrong with what was asked to be saved, said under the box. */
