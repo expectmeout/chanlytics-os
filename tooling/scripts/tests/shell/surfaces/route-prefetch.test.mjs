@@ -24,6 +24,7 @@ import {
   REPORT_PERIOD_STORAGE,
 } from "@chanlytics/contracts";
 import { importSrc } from "../../_source.mjs";
+import { until } from "../../shared/_until.mjs";
 
 const ID = "ed2244f3-9f88-49c5-863e-fbdea4b60e12";
 
@@ -768,6 +769,18 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
   const settle = async () => {
     for (let i = 0; i < 10; i += 1) await new Promise((r) => setTimeout(r, 0));
   };
+  // Who is looking is every page's (and a surface's clock reads it when the tab knows no zone yet), and so is the one accept of
+  // invitations the shell makes beside it (a POST, not a read the head starts: invitations/accept.ts).
+  const theirs = () =>
+    [...new Set(asked)]
+      .filter((u) => !u.startsWith("/api/v1/workspaces") && !u.startsWith("/api/v1/me/invitations/accept"))
+      .sort();
+  // Every read expected, asked: a surface's read imports what it needs in the loader's own time, so a count of turns is no
+  // wait. Then the turns there always were for anything more, and the whole set is compared, with its diff.
+  const allAsked = async (expected) => {
+    await until(() => expected.every((u) => theirs().includes(u)), "every read expected is asked").catch(() => {});
+    await settle();
+  };
   // Settings is a page of panes: its bare address is Details (on a desk), and each pane its address names opens on its own.
   const paramOf = { admin: "workspace" };
   // What a page draws on its first screen from another page's surface, started with its own: Today's strip (the next
@@ -848,14 +861,9 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
     for (const k of keys) void overrides[k].apply().catch(() => {});
     for (const read of pageReads[route] ?? []) void read();
     if (page === "admin" && param) warmSettingsPane(param);
-    await settle();
-    // Who is looking is every page's (and a surface's clock reads it when the tab knows no zone yet), and so is the one accept of
-    // invitations the shell makes beside it (a POST, not a read the head starts: invitations/accept.ts).
-    const theirs = [...new Set(asked)]
-      .filter((u) => !u.startsWith("/api/v1/workspaces") && !u.startsWith("/api/v1/me/invitations/accept"))
-      .sort();
     const head = opensOn("harbor", route).slice(1).sort();
-    assert.deepEqual(head, theirs, `${route}: the head starts what ${keys.join(" and ")} ask for first`);
+    await allAsked(head);
+    assert.deepEqual(head, theirs(), `${route}: the head starts what ${keys.join(" and ")} ask for first`);
   }
   // A page that opens through one read (GET open) answers what every surface of its first screen asks for first: its
   // own, what its first draw waits for, and everything it draws beside them (ROUTE_DRAWS), each one run.
@@ -873,17 +881,14 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
     api().forget();
     asked.length = 0;
     for (const k of keys) void overrides[k].apply().catch(() => {});
-    await settle();
-    const theirs = [...new Set(asked)]
-      .filter((u) => !u.startsWith("/api/v1/workspaces") && !u.startsWith("/api/v1/me/invitations/accept"))
-      .sort();
     const [own, beside] = openReads(route);
     const opened = [...own.slice(1), ...beside]
       .map((r) => `/api/v1/${r}${r.includes("?") ? "&" : "?"}workspace=harbor`)
       .sort();
+    await allAsked(opened);
     assert.deepEqual(
       opened,
-      theirs,
+      theirs(),
       `${route}: GET open answers what its first screen's ${keys.length} surfaces ask for first`,
     );
   }
@@ -894,16 +899,13 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
     api().forget();
     asked.length = 0;
     for (const k of ["reports", "workspace"]) void overrides[k].apply().catch(() => {});
-    await settle();
-    const theirs = [...new Set(asked)]
-      .filter((u) => !u.startsWith("/api/v1/workspaces") && !u.startsWith("/api/v1/me/invitations/accept"))
-      .sort();
     const head = headRuns({ pathname: win.location.pathname, hash: "" })
       .calls.map(([u]) => u)
       .slice(1)
       .sort();
+    await allAsked(head);
     assert.equal(head.length, 1, `${route}: the report alone (the Campaigns lens's reads are its own surface's)`);
-    assert.deepEqual(head, theirs, `${route}: the head starts what Reports asks for over the days`);
+    assert.deepEqual(head, theirs(), `${route}: the head starts what Reports asks for over the days`);
   }
   win.location.pathname = "/w/harbor";
   api().forget();

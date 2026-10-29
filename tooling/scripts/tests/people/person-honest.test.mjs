@@ -18,6 +18,7 @@ import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { legacyAddress } from "../shell/address/_address.mjs";
 import { all, byTestId, find, installRoleStore, kitPages, press, textOf, useStubHooks } from "../_legacy-react.mjs";
+import { until } from "../shared/_until.mjs";
 import { importSrc } from "../_source.mjs";
 import * as contracts from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
@@ -558,7 +559,7 @@ const profile = async (vm, tab) => {
   await newTree();
   serve(vm);
   const draw = () => pageFor(vm.id, tab);
-  draw();
+  await until(() => byTestId(draw(), "person-now"), "the person's page is drawn");
   await settle(2);
   return draw;
 };
@@ -1563,7 +1564,7 @@ test("their own message is chosen from what they wrote: the way opens their rece
       assert.equal(choices[i].type, "button", "a choice is pressed, not read");
     });
     press(choices[0]);
-    await settle();
+    await until(() => sent.length > 0, "the yes reached its door");
     assert.deepEqual(
       sent,
       [["offers", "p1", { consent: "opted_in", source: "customer_message", message_id: "m3" }]],
@@ -3073,9 +3074,9 @@ test("a demo session draws a sample person's page and asks the workspace for no 
     await newTree();
     world.seen.length = 0;
     pageFor("c-aisha");
-    await settle();
+    const named = () => textOf(find(pageFor("c-aisha"), (n) => n.type === "h1")) === "Aisha Khan";
+    await until(named, "the sample's person, by name");
     const tree = pageFor("c-aisha");
-    assert.equal(textOf(find(tree, (n) => n.type === "h1")), "Aisha Khan", "the sample's person, by name");
     assert.ok(byTestId(tree, "person-now"), "where they stand");
     assert.ok(
       find(tree, (n) => typeof n.type === "function" && n.type.name === "Overview"),
@@ -3175,11 +3176,10 @@ test("a person's notes are a log (0007): the receptionist's suggestion first, th
  */
 const notesTab = async (vm) => {
   const draw = await profile(vm, "history");
-  const strip = find(
-    draw(),
-    (n) => n.type === SubTabs && n.props.tabs.some((x) => x.testid?.startsWith("timeline-filter-")),
-  );
-  strip.props.onSelect("notes");
+  const strip = () =>
+    find(draw(), (n) => n.type === SubTabs && n.props.tabs.some((x) => x.testid?.startsWith("timeline-filter-")));
+  await until(strip, "History's strip is drawn");
+  strip().props.onSelect("notes");
   return draw;
 };
 
@@ -3223,8 +3223,11 @@ test("REGRESSION: the notes card was one box the receptionist read whole, overwr
   assert.match(textOf(rows[1]), /Team only/);
   assert.equal(byTestId(tree, "person-notes-save"), null, "nothing to add until something is written");
 
+  // The keep is written, then the page read again: typed before that read lands, the words would go with the old box.
+  const reads = took("GET", `/api/v1/contacts/${vm.id}`).length;
   press(byTestId(suggested, "person-note-keep"));
-  await settle();
+  await until(() => took("GET", `/api/v1/contacts/${vm.id}`).length > reads, "the keep, then the page read again");
+  await idle();
   assert.deepEqual(sent.at(-1), ["decide", vm.id, { note_id: "n-sug", keep: true }]);
 
   type(byTestId(draw(), "person-notes-input"), "  Likes tea.  ");
@@ -3240,7 +3243,7 @@ test("REGRESSION: the notes card was one box the receptionist read whole, overwr
   press(byTestId(tree, "person-note-team-only"));
   tree = draw();
   press(byTestId(tree, "person-notes-save"));
-  await settle();
+  await until(() => sent.at(-1)?.[0] === "write", "the note reached its door");
   assert.deepEqual(sent.at(-1), ["write", vm.id, { body: "Likes tea.", for_user_id: "u-sam", team_only: true }]);
   assert.equal(byTestId(draw(), "person-notes-input").props.value, "", "the box empties once the note is added");
 });
@@ -3601,16 +3604,14 @@ test("Merge with another record (0028): the owner's act opens the picker over Pe
 
     const before = world.seen.length;
     confirm.props.onYes();
-    await settle();
+    const readAgain = () =>
+      world.seen.slice(before).some((r) => r.method === "GET" && r.path === "/api/v1/contacts/p1");
+    await until(readAgain, "and the page is read again, whole");
     const sent = world.seen.slice(before).find((r) => r.method === "POST");
     assert.deepEqual(
       [sent?.path, sent?.body],
       ["/api/v1/contacts/p1/merge", { merge: "p2" }],
       "the kept record's route, the other in the body",
-    );
-    assert.ok(
-      world.seen.slice(before).some((r) => r.method === "GET" && r.path === "/api/v1/contacts/p1"),
-      "and the page is read again, whole",
     );
     // The merge asks in the kit's sheet (canvas A), which closes; it plays its way out with what it held.
     assert.equal(find(draw(), (n) => n.props?.testid === "person-merge-sheet")?.props.open, false, "the sheet closes");
@@ -3714,16 +3715,14 @@ test("Same person? (0034 step 4): each doubt the door raised is a row saying who
     // Not the same: the pair's own door, then the page read again.
     const before = world.seen.length;
     byTestId(rows[1], "doubt-apart").props.onClick();
-    await settle();
+    const readAgain = () =>
+      world.seen.slice(before).some((r) => r.method === "GET" && r.path === "/api/v1/contacts/p1");
+    await until(readAgain, "and the page is read again, whole");
     const sent = world.seen.slice(before).find((r) => r.method === "POST");
     assert.deepEqual(
       [sent?.path, sent?.body],
       ["/api/v1/contacts/p1/doubts/dismiss", { doubt_id: "d2" }],
       "this person's route, the doubt in the body",
-    );
-    assert.ok(
-      world.seen.slice(before).some((r) => r.method === "GET" && r.path === "/api/v1/contacts/p1"),
-      "and the page is read again, whole",
     );
 
     // An operator: Not the same is theirs; the merge is the owner's.

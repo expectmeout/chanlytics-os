@@ -15,6 +15,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ADD_TO_PEOPLE_WORDS, addToPeopleOf, toCalendarVM } from "@chanlytics/contracts";
 import { installLegacyReact, fresh, again, byTestId, textOf } from "../_legacy-react.mjs";
+import { until } from "../shared/_until.mjs";
 
 const TZ = "America/New_York";
 const NOW = new Date("2026-09-08T16:00:00.000Z");
@@ -91,6 +92,12 @@ globalThis.window.fetch = async (url, init = {}) => {
 const adds = () => sent.filter((s) => s.line === "POST /api/v1/contacts");
 const flush = async (turns = 30) => {
   for (let i = 0; i < turns; i += 1) await new Promise((r) => setTimeout(r, 0));
+};
+/** A press, run until the board says what happened: the add's answer reads a module first, in the loader's own time. */
+const saidAfter = async (act) => {
+  const from = flashed.length;
+  act();
+  await until(() => flashed.length > from, "the board said what happened");
 };
 
 /** The Calendar's block for an appointment the board has no person for, with what the event carried. */
@@ -178,8 +185,7 @@ test("the press goes through the door Add a person uses, with what the event car
   flashed.length = 0;
   const shown = blockOf({});
   const tree = draw(shown);
-  press(byTestId(tree, ADD));
-  await flush();
+  await saidAfter(() => press(byTestId(tree, ADD)));
   assert.deepEqual(
     adds(),
     [{ line: "POST /api/v1/contacts", body: { phone: ANA.phone, email: ANA.email, name: "Ana Ruiz" } }],
@@ -195,8 +201,7 @@ test("a person already in People is said so, and a refusal is said in the door's
   answer = () => ({ status: 200, body: { ok: true, data: { contact_id: "p1", existed: true } } });
   const shown = blockOf({});
   let tree = draw(shown);
-  press(byTestId(tree, ADD));
-  await flush();
+  await saidAfter(() => press(byTestId(tree, ADD)));
   assert.deepEqual(flashed, ["Ana Ruiz was in People already"]);
 
   fresh();
@@ -205,8 +210,7 @@ test("a person already in People is said so, and a refusal is said in the door's
     body: { ok: false, error: { code: "validation", message: "That is not a phone number." } },
   });
   tree = draw(shown);
-  press(byTestId(tree, ADD));
-  await flush();
+  await saidAfter(() => press(byTestId(tree, ADD)));
   assert.equal(flashed.at(-1), "That is not a phone number.");
   tree = draw(shown);
   assert.ok(byTestId(tree, ADD), "and the press stays, to try again");

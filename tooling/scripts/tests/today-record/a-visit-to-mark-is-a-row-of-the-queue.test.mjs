@@ -17,19 +17,9 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { zoneDayKey, clockTime } from "@chanlytics/contracts";
-import {
-  installLegacyReact,
-  fresh,
-  again,
-  all,
-  find,
-  byTestId,
-  textOf,
-  classes,
-  press,
-  settle,
-} from "../_legacy-react.mjs";
+import { installLegacyReact, fresh, again, all, find, byTestId, textOf, classes, press } from "../_legacy-react.mjs";
 import { NOW, ZONE, handoffDay } from "./_world.mjs";
+import { until } from "../shared/_until.mjs";
 
 const went = [];
 const flashes = [];
@@ -255,11 +245,6 @@ const work = (row = visitRow(), may = true) =>
     keep: (r) => kept.push(r.id),
     word: "appointment",
   });
-/** Until the door has answered and the row has heard it. */
-async function until(done) {
-  for (let i = 0; i < 400 && !done(); i++) await settle();
-  assert.ok(done(), "the door answered");
-}
 const reset = () => {
   doors.length = 0;
   kept.length = 0;
@@ -286,7 +271,7 @@ test("a press says the word on the record's row through the Calendar's door and 
   let release;
   doorSays = () => new Promise((resolve) => (release = () => resolve(said())));
   press(buttons(work(), "Kept")[0]);
-  await until(() => doors.length === 1);
+  await until(() => doors.length === 1, "the door was asked");
   assert.deepEqual(doors, [["POST", "/api/v1/calendar/visits/r-a", { status: "kept" }]]);
   assert.deepEqual(kept, ["q-visit-r-a"], "kept in its place on the card before the door answers");
   const asking = again(() => work());
@@ -299,6 +284,7 @@ test("a press says the word on the record's row through the Calendar's door and 
         again(() => work()),
         "Change",
       ).length === 1,
+    "the row says it, with Change",
   );
   assert.ok(textOf(again(() => work())).includes("Kept"));
   assert.deepEqual(doors.length, 1, "said once");
@@ -314,7 +300,7 @@ test("the door's refusal is its own sentence and the row still asks; Missed goes
     },
   });
   press(buttons(work(), "Missed")[0]);
-  await until(() => flashes.length > 0);
+  await until(() => flashes.length > 0, "the refusal is said");
   assert.equal(flashes.at(-1).tone, "danger");
   assert.equal(textOf(flashes.at(-1).msg), "It hasn't begun yet: whether they came is said once it has.");
   const still = again(() => work());
@@ -330,6 +316,7 @@ test("the door's refusal is its own sentence and the row still asks; Missed goes
         again(() => work()),
         "Change",
       ).length === 1,
+    "Missed is said in the row, with Change",
   );
   const missed = again(() => work());
   assert.ok(textOf(missed).includes("Missed"), textOf(missed));

@@ -10,6 +10,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
 import { installLegacyReact, fresh, again, all, find, byTestId, press } from "../../_legacy-react.mjs";
+import { until } from "../../shared/_until.mjs";
 
 const TID = "t-studio";
 installLegacyReact({
@@ -48,18 +49,13 @@ const { nameOfGroup } = await import(`${SRC}/surfaces/campaigns/templates/group.
 const { broadcastsSample } = await import(`${SRC}/surfaces/campaigns/broadcasts/sample.ts`);
 const { setSurfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
 
-/** A chunk asked for lands: its module is in Node's cache once imported, and the loader's answer a turn after. */
-const landed = async (path) => {
-  await import(path);
-  await new Promise((r) => setTimeout(r, 0));
-};
-
 test("the Library's pane says it is reading while its chunk is out, then is the pane", async () => {
   fresh();
   const draw = () =>
     again(() => globalThis.React.createElement(MessageInPlaceWhenRead, { name: "win_back", flash() {}, onClose() {} }));
   assert.ok(byTestId(draw(), "cmh-pane-reading"), "the shell's quiet words, while the chunk is out");
-  await landed(`${SRC}/surfaces/campaigns/parts/message-in-place.tsx`);
+  // The chunk is the page's own import(), which tsx's loader answers in its own time: drawn again until it is in.
+  await until(() => byTestId(draw(), "cmh-pane-reading") === null, "the pane, once its chunk is in");
   const tree = draw();
   assert.equal(byTestId(tree, "cmh-pane-reading"), null, "the pane, once its chunk is in");
   assert.equal(byTestId(tree, "cmh-pane-failed"), null);

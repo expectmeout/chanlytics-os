@@ -22,6 +22,7 @@ import {
   again as againTree,
 } from "../_legacy-react.mjs";
 import { importSrc } from "../_source.mjs";
+import { until } from "../shared/_until.mjs";
 
 let cells = [];
 // Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
@@ -565,7 +566,7 @@ test("REGRESSION: the forms that coloured their own error red -- a new list, add
   byTestId(add(), "add-person-phone").props.onValueChange("646 555");
   // The record sheet's Save hands back nothing to wait on: the refusal settles, then the sheet is drawn again.
   byTestId(add(), "rec-sheet-save-people-add").props.onClick();
-  for (let i = 0; i < 8; i++) await new Promise((r) => setTimeout(r, 0));
+  await until(() => byTestId(add(), "add-person-error"), "the refusal is drawn on the sheet");
   tree = add();
   assert.deepEqual(
     added.map((r) => [r.method, r.path, r.body]),
