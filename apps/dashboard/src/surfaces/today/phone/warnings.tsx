@@ -1,8 +1,8 @@
 /**
  * What cannot wait for the list, under a phone's head (the phone canvas, 28 Oct 2026; the spec's §2): a line that is down
  * (brief.tsx TodayAlert, as on a desk), a reply that never reached anyone (the recap's warning, which on a desk Your brief
- * says with "See the thread": the one line that must never be quiet), and a warning the bell holds (a WhatsApp number's
- * quality dropping), with its door, two at most. The bell keeps the rest: on a phone While you were away has no pane, and
+ * says with "See the thread": the one line that must never be quiet), and a warning the bell holds that stops customers
+ * being answered, with its door, two at most. The bell keeps the rest: on a phone While you were away has no pane, and
  * good news is the bell's alone. Nothing at all when nothing is wrong.
  */
 import { Button } from "../../kit/button/button";
@@ -13,12 +13,14 @@ import { useAwayGroups } from "../pages/away";
 import { HeroBrief } from "../pages/brief";
 
 /**
- * A warning about a person is not said here: a customer waiting, a reply that never left, a review are Need you's, the
- * recap's failed line's or Ask found's, by their record or by their kind. What stays is about the business: a line, a
- * mailbox, a number's quality, a campaign that could not run.
+ * The bell's warnings said here, by their kind (notifications.ts SERVER_LOOK): what stops customers being answered. A
+ * WhatsApp number's health (a rating flagged, a limit lowered, the account restricted), a line or a mailbox that stopped
+ * being read, and the subscription (a card declined pauses the receptionist). Everything else waits where it is answered:
+ * a person in Need you, a run waiting for your OK in Need you's own row, a search's question in the list, and a job that
+ * did not finish in the bell (his look on a phone, 29 Oct 2026: the run was said three times above the fold, and "16 jobs
+ * did not finish" stood over the people waiting).
  */
-const ABOUT_A_PERSON = new Set(["conversation", "call", "review"]);
-const PERSON_KINDS = new Set(["handoff", "deadman", "reply_held"]);
+const STOPS_ANSWERS = new Set(["number", "sweep", "billing"]);
 
 /** Two warnings at most under the head: the bell holds the rest. */
 const WARNINGS_MAX = 2;
@@ -29,12 +31,7 @@ export function PhoneWarnings() {
   if (!vm) return null;
   const failed = (vm.recap ? vm.recap.sentences : []).filter((sn) => sn.warn && !sn.traffic);
   const warned = (away ? away.groups : [])
-    .filter(
-      (g) =>
-        g.row.tone === "warn" &&
-        !PERSON_KINDS.has(g.row.kind) &&
-        !(g.row.about && ABOUT_A_PERSON.has(g.row.about.type)),
-    )
+    .filter((g) => g.row.tone === "warn" && STOPS_ANSWERS.has(g.row.kind))
     .slice(0, WARNINGS_MAX);
   if (!vm.standing.alert && !failed.length && !warned.length) return null;
   return (

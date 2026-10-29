@@ -173,9 +173,9 @@ export function TodayPhoneDay({ openByItself }: { openByItself: boolean }) {
   const open = hasRest && (opened ?? openByItself);
   return (
     <section className="tpd" data-testid="today-day" aria-label={today ? dayDateOf(today) : P.calendar}>
+      {/* The page's head says the date: the card says the day's count and its hours, on one line (his look, 29 Oct 2026). */}
       {today ? (
         <div className="tpd-head">
-          <span className="tpd-date">{dayDateOf(today)}</span>
           <span className="tpd-note">{TODAY_HELPERS.dayNote(today, day.nextOpening, day.word)}</span>
         </div>
       ) : null}

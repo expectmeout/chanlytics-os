@@ -162,6 +162,20 @@ export function Editor({ who, value, onChange }: { who: string; value: string; o
 
 /** A call's brief: what to say, what to ask, what to leave out. Read, not sent. */
 export function BriefBox({ brief, onRead = null }: { brief: CallBrief; onRead?: (() => void) | null }) {
+  // A phone's card says the first thing to say, with Read for the rest, which the walk's sheet holds whole (his look on a
+  // phone, 29 Oct 2026: the brief's own head stood over one line of it).
+  if (onRead && brief.opening)
+    return (
+      <Panel variant="inset" size="sm" className="ny-draft" aria-label={W.brief.title}>
+        <span className="ny-by">
+          <AskMark />
+          <span className="ny-by-words ny-line ny-said">
+            <b>{W.brief.say}</b> {brief.opening}
+          </span>
+          {readDoor(onRead)}
+        </span>
+      </Panel>
+    );
   return (
     <Panel variant="inset" size="sm" className="ny-draft">
       <span className="ny-by">
