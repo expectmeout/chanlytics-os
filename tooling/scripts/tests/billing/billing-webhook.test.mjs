@@ -371,6 +371,31 @@ test("a paused subscription pauses the workspace and rings once; resuming turns 
   assert.equal(first(writes(db, "events").at(-1)).kind, "billing.resumed");
 });
 
+test("a trial's bells say the day it ends where the business is: an end at 03:00 UTC is the evening before in New York", async () => {
+  // 03:00 UTC is 22:00 or 23:00 the day before in New York, in summer or winter. By the server's clock, the owner was
+  // told the day after the one their trial ends on.
+  const said = (ms) => new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" }).format(ms);
+  const end = new Date(Date.now() + 10 * 86_400_000);
+  end.setUTCHours(3, 0, 0, 0);
+  const eve = said(end.getTime() - 86_400_000);
+  const db = fakeDb(tables({ billing_accounts: [row({ status: "none", trial_end: null })] }));
+  setPg(db);
+  const trialing = sub({ status: "trialing", trial_end: end.getTime() / 1000 });
+  subs.set("sub_1", trialing);
+  assert.equal((await deliver("customer.subscription.created", trialing)).status, 200);
+  await deliver("customer.subscription.trial_will_end", trialing);
+  const bells = writes(db, "notifications")
+    .filter((w) => w.op === "insert")
+    .map((w) => first(w));
+  assert.deepEqual(
+    bells.map((b) => b.title),
+    ["Your trial has started", "Your trial ends in three days"],
+  );
+  assert.match(bells[0].body, new RegExp(`left on the trial, until ${eve}\\. `), "the start's bell");
+  assert.match(bells[1].body, new RegExp(`charged when the trial ends on ${eve}\\. `), "the warning's bell");
+  assert.notEqual(eve, said(end.getTime()), "and that day is not the server's");
+});
+
 test("a failed payment marks the row and rings, and the receptionist keeps answering", async () => {
   const db = fakeDb(tables({ billing_accounts: [row({ status: "past_due" })] }));
   setPg(db);

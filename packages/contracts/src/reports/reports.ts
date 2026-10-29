@@ -32,7 +32,7 @@ import type { ReportHeadlineDto } from "./report-headline";
 import type { ReportPeriodId } from "./report-periods";
 import type { BookingReportDto } from "./booking-report";
 import { pct, sumOf } from "../shared/numbers";
-import { DATE_FMT } from "../shared/time";
+import { dateFormat } from "../shared/time";
 import { capitalize, plural } from "../shared/words";
 
 export interface ReportDayDto {
@@ -269,8 +269,12 @@ function dayDate(day: string): Date {
   return new Date(y, (m ?? 1) - 1, d ?? 1);
 }
 
+/** A calendar day ("2026-09-04") as words, "Sep 4": the date itself, read at its noon in UTC so no zone can move it. */
 export function fmtDay(day: string): string {
-  return DATE_FMT.format(dayDate(day));
+  const [y, m, d] = day.split("-").map(Number);
+  return dateFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" }).format(
+    Date.UTC(y ?? 1970, (m ?? 1) - 1, d ?? 1, 12),
+  );
 }
 
 /** Days in words: "Sep 7 – Oct 6", or the one day's "Oct 6". The one way a report says a stretch of days. */

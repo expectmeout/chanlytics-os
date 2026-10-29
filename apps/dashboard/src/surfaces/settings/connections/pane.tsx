@@ -23,6 +23,7 @@ import {
 } from "@chanlytics/contracts";
 import type { GoogleSurface } from "@/legacy-bridge/google";
 import { googleVerbs } from "@/legacy-bridge/google";
+import { pageClock } from "@/legacy-bridge/zone";
 import { FailedRead } from "../../kit/empty/empty";
 import { RecordRow } from "../../kit/record/row";
 import { refusalToast, useLegacyToast, type LegacyFlash } from "../../legacy-verbs";
@@ -145,6 +146,7 @@ function rowsOf(
 ): Row[] {
   const rows = connectionRows(
     {
+      tz: pageClock().zone(),
       channels: channels || [],
       whatsapp: asked.whatsapp,
       lines: { rows: (S && S.dto.lines && S.dto.lines.rows) || [], ready: !!(S && S.dto.lines && S.dto.lines.ready) },

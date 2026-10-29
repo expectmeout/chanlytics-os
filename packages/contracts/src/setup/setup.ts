@@ -306,6 +306,8 @@ export const LINE_STEP_WORDS: Record<string, string> = {
 };
 
 export interface SetupInputs extends SetupDto {
+  /** The workspace's zone, which every day its rows say is in (contracts zone-math; one Intl cannot use reads as UTC). */
+  tz: string;
   /** Row ids this member put off for good: their saved Setup view (setupLaterOf), the same on every device. */
   later: string[];
   /** The rows this member put off for a week, each with when it comes back (setupRestsOf), from the same view. */

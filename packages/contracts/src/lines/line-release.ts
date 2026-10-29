@@ -117,6 +117,8 @@ export interface LineReleaseWordsInput {
   number: string;
   /** The day it goes. */
   on: number;
+  /** The workspace's zone, which that day is said in. */
+  tz: string;
   /** The owner's own number that forwards to it, E.164, when one does. */
   forwardedFrom: string | null;
   /** Billing, where it is resumed. */
@@ -126,7 +128,7 @@ export interface LineReleaseWordsInput {
 /** The warning, a week before (the bell and the email say the same). */
 export function lineReleaseWarning(i: LineReleaseWordsInput): { subject: string; body: string } {
   const number = formatPhoneDisplay(i.number) ?? i.number;
-  const on = dayWords(new Date(i.on).toISOString());
+  const on = dayWords(new Date(i.on).toISOString(), i.tz);
   const kept = formatPhoneDisplay(i.forwardedFrom);
   const lines = [
     `Your subscription ended, so your receptionist's number, ${number}, goes back to the phone company on ${on}. After that it can't be got back, and callers to it reach nobody.`,
@@ -141,7 +143,7 @@ export function lineReleaseWarning(i: LineReleaseWordsInput): { subject: string;
 }
 
 /** After it went (the bell and the email say the same). */
-export function lineReleasedWords(i: Omit<LineReleaseWordsInput, "on">): { subject: string; body: string } {
+export function lineReleasedWords(i: Omit<LineReleaseWordsInput, "on" | "tz">): { subject: string; body: string } {
   const number = formatPhoneDisplay(i.number) ?? i.number;
   const kept = formatPhoneDisplay(i.forwardedFrom);
   const lines = [

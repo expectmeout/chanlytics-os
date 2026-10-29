@@ -5,7 +5,8 @@
  * planBilling decides, and the tests read the same functions.
  */
 import { callerSentence, WORKSPACE_PAUSED } from "../lines/caller-gets";
-import { agoWords, DAY_MS, formatterOnUse, numberFormat } from "../shared/time";
+import { usableZone } from "../calendar/zone-math";
+import { agoWords, DAY_MS, dateFormat, numberFormat } from "../shared/time";
 
 export const BILLING_MODES = ["stripe", "direct"] as const;
 export type BillingMode = (typeof BILLING_MODES)[number];
@@ -331,6 +332,7 @@ export function planBilling(
   before: { mode: BillingMode; status: BillingStatus; tenant_status: string },
   sub: SubscriptionFacts,
   nowMs: number,
+  tz: string,
 ): BillingPlan {
   const row: BillingPlan["row"] = {
     stripe_subscription_id: sub.id,
@@ -363,17 +365,23 @@ export function planBilling(
   } else if (before.status !== "trialing" && sub.status === "trialing") {
     bell = {
       title: "Your trial has started",
-      body: `${trialWords(sub.trial_end, nowMs)}. Cancel any time from Billing.`,
+      body: `${trialWords(sub.trial_end, nowMs, tz)}. Cancel any time from Billing.`,
     };
   }
   return { row, tenantStatus, switched, bell };
 }
 
-const DATE_FMT = formatterOnUse("en-US", { month: "short", day: "numeric" });
-export function dayWords(iso: string | null | undefined): string {
+/**
+ * "Sep 21": the day an instant falls on by the workspace's calendar (`tz`; one Intl cannot use reads as UTC), or "" for
+ * none. A trial's end, a renewal and an invoice are instants: said by the browser's or the server's own clock, an end
+ * at 03:00 UTC was the next day's date to an owner in New York the evening before.
+ */
+export function dayWords(iso: string | null | undefined, tz: string): string {
   if (!iso) return "";
   const ms = Date.parse(iso);
-  return Number.isNaN(ms) ? "" : DATE_FMT.format(new Date(ms));
+  return Number.isNaN(ms)
+    ? ""
+    : dateFormat("en-US", { timeZone: usableZone(tz), month: "short", day: "numeric" }).format(ms);
 }
 
 /** "13 days left, until Sep 21" · "ends today" · "" */
@@ -393,13 +401,13 @@ export function trialOffer(days: number, again = false): string {
     : `Start the ${days}-day trial with a card; nothing is charged until it ends, and you can cancel from here any time.`;
 }
 
-export function trialWords(trialEnd: string | null | undefined, nowMs: number): string {
+export function trialWords(trialEnd: string | null | undefined, nowMs: number, tz: string): string {
   if (!trialEnd) return "";
   const end = Date.parse(trialEnd);
   if (Number.isNaN(end)) return "";
   const days = Math.ceil((end - nowMs) / DAY_MS);
   if (days <= 0) return "Trial ends today";
-  return `${days} day${days === 1 ? "" : "s"} left on the trial, until ${dayWords(trialEnd)}`;
+  return `${days} day${days === 1 ? "" : "s"} left on the trial, until ${dayWords(trialEnd, tz)}`;
 }
 
 /** "$49.00 a month" from Stripe's own figures; "" when the price is not readable. */
@@ -457,7 +465,7 @@ export const START_PLAN_WORDS = {
   unpaid: "Your plan started, but the charge did not go through. Update the card in Billing.",
 } as const;
 
-export function toBillingVM(dto: BillingDto, nowMs = Date.now()): BillingVM {
+export function toBillingVM(dto: BillingDto, nowMs: number, tz: string): BillingVM {
   const a = dto.account;
   const plan = priceWords(dto.price)
     ? `${dto.price?.product_name ? `${dto.price.product_name} · ` : ""}${priceWords(dto.price)}`
@@ -505,7 +513,7 @@ export function toBillingVM(dto: BillingDto, nowMs = Date.now()): BillingVM {
         return {
           ...base,
           headline: "On trial, ending",
-          detail: `Cancelled: the receptionist answers until ${dayWords(a.cancel_at ?? a.trial_end) || "the trial ends"}, then stops, and nothing is charged. Undo it from Manage billing before then to keep it.`,
+          detail: `Cancelled: the receptionist answers until ${dayWords(a.cancel_at ?? a.trial_end, tz) || "the trial ends"}, then stops, and nothing is charged. Undo it from Manage billing before then to keep it.`,
           tone: "warn",
           actions: { checkout: false, portal: true, resume: false, startNow: false },
           paused: false,
@@ -514,7 +522,7 @@ export function toBillingVM(dto: BillingDto, nowMs = Date.now()): BillingVM {
       return {
         ...base,
         headline: "On trial",
-        detail: `${trialWords(a.trial_end, nowMs)}${card ? `, then ${plan || "the plan"} on ${card}` : ""}. ${TRIAL_COVERS}`,
+        detail: `${trialWords(a.trial_end, nowMs, tz)}${card ? `, then ${plan || "the plan"} on ${card}` : ""}. ${TRIAL_COVERS}`,
         tone: "ok",
         // Its plan may start now, for what the trial does not cover (maySpend).
         actions: { checkout: false, portal: true, resume: false, startNow: true },
@@ -526,8 +534,8 @@ export function toBillingVM(dto: BillingDto, nowMs = Date.now()): BillingVM {
         headline: a.cancel_at_period_end || a.cancel_at ? "Subscribed, ending" : "Subscribed",
         detail:
           a.cancel_at || a.cancel_at_period_end
-            ? `Ends ${dayWords(a.cancel_at ?? a.current_period_end)}; the receptionist answers until then.`
-            : `Next invoice ${dayWords(a.current_period_end) || "on the renewal date"}${card ? ` on ${card}` : ""}.`,
+            ? `Ends ${dayWords(a.cancel_at ?? a.current_period_end, tz)}; the receptionist answers until then.`
+            : `Next invoice ${dayWords(a.current_period_end, tz) || "on the renewal date"}${card ? ` on ${card}` : ""}.`,
         tone: "ok",
         actions: { checkout: false, portal: true, resume: false, startNow: false },
         paused: false,

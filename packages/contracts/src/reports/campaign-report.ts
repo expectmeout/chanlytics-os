@@ -12,7 +12,8 @@ import { REPORT_CHANNELS, dayPointOf, type ReportChannelKey } from "./reports";
 import { REPORT_MIN_N, shareSaid } from "./report-tiles";
 import { templateTitle } from "../templates/template-titles";
 import { pct, sumOf } from "../shared/numbers";
-import { formatterOnUse } from "../shared/time";
+import { usableZone } from "../calendar/zone-math";
+import { dateFormat } from "../shared/time";
 
 export interface CampaignDayDto {
   day: string;
@@ -160,7 +161,9 @@ const CAMPAIGN_CHANNELS = REPORT_CHANNELS.filter(
   (c): c is { key: CampaignChannelKey; label: string } => c.key !== "voice",
 );
 
-const WHEN = formatterOnUse([], { month: "short", day: "numeric" });
+/** "Oct 12": the day a campaign last sent, by the workspace's calendar, which the report's own read names. */
+const sentOn = (iso: string, tz: string): string =>
+  dateFormat("en-US", { timeZone: usableZone(tz), month: "short", day: "numeric" }).format(Date.parse(iso));
 
 /**
  * Whether the period before was lived in: it sent something, or somebody said yes or stop in it. A yes or a stop is set
@@ -274,7 +277,7 @@ export function toCampaignReportVM(dto: CampaignReportDto): CampaignReportVM {
     deliveredPct: pct(s.delivered, s.sent),
     repliedPct: pct(s.replied, s.sent),
     ...sourceWords(s),
-    lastLabel: s.last_at ? WHEN.format(new Date(s.last_at)) : "",
+    lastLabel: s.last_at ? sentOn(s.last_at, dto.timezone) : "",
   }));
 
   return {

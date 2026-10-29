@@ -483,7 +483,7 @@ function cardFacts(one: MailboxConnectionDto | null, imports: readonly ImportRow
   const brought = BROUGHT_FACTS.map(({ source, label }) => {
     const row = imports?.find((r) => r.source === source);
     if (!row) return null;
-    const l = importLineOf(row);
+    const l = importLineOf(row, pageClock().zone());
     return {
       key: source,
       label,

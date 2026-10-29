@@ -75,7 +75,7 @@ function billingRow(i: SetupInputs, ctx: SetupRowContext): SetupRowDraft | null 
       title: "Billing",
       state: "ready",
       required: true,
-      sentence: `On trial, cancelled: the receptionist answers until ${dayWords(b.cancel_at ?? b.trial_end) || "the trial ends"}, then stops.`,
+      sentence: `On trial, cancelled: the receptionist answers until ${dayWords(b.cancel_at ?? b.trial_end, i.tz) || "the trial ends"}, then stops.`,
       details: [...testMode, "Nothing is charged; undo the cancellation from Billing before then to keep it"],
       verb: { label: "Open Billing", to: "admin/billing" },
     };
@@ -87,7 +87,7 @@ function billingRow(i: SetupInputs, ctx: SetupRowContext): SetupRowDraft | null 
       title: "Billing",
       state: "ready",
       required: true,
-      sentence: `On trial: ${trialWords(b.trial_end, nowMs) || "the card is on file"}.`,
+      sentence: `On trial: ${trialWords(b.trial_end, nowMs, i.tz) || "the card is on file"}.`,
       details: [
         ...testMode,
         "The card on file is charged when the trial ends; cancel from Billing before then if you'd rather not",
@@ -106,7 +106,7 @@ function billingRow(i: SetupInputs, ctx: SetupRowContext): SetupRowDraft | null 
       required: true,
       sentence:
         b.status === "active"
-          ? `Subscribed · next invoice ${dayWords(b.current_period_end) || "on the renewal date"}.`
+          ? `Subscribed · next invoice ${dayWords(b.current_period_end, i.tz) || "on the renewal date"}.`
           : "Finishing checkout — this page updates by itself.",
       details: [...testMode],
       verb: { label: "Open Billing", to: "admin/billing" },

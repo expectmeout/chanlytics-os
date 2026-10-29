@@ -9,6 +9,7 @@
  */
 import { useId, useState } from "react";
 import { FIRST_RUN_HELPERS, broughtInCardOf, broughtInShown, type BroughtInFactVM } from "@chanlytics/contracts";
+import { pageClock } from "@/legacy-bridge/zone";
 import { Icon } from "../../kit/icon/icon";
 import { ImportFoot, ImportLines } from "../../setup/first-run/channels/brought";
 import { useSurface } from "../../use-surface";
@@ -25,9 +26,10 @@ export const TodayBroughtIn = () => {
   const [toastNode, flash] = useToast();
   const sources = useId();
   if (!S || !broughtInShown(S.dto.imports, Date.now())) return null;
-  const card = broughtInCardOf(S.dto.imports, S.dto.people ?? null);
+  const tz = pageClock().zone();
+  const card = broughtInCardOf(S.dto.imports, S.dto.people ?? null, tz);
   if (!card) return null;
-  const { lines, running } = FIRST_RUN_HELPERS.imports(S.dto.imports);
+  const { lines, running } = FIRST_RUN_HELPERS.imports(S.dto.imports, tz);
   const { tone, words } = card.state;
   return (
     <section className={`tq today-brought${open ? " open" : ""}`} data-testid="today-brought-in">

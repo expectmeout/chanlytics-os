@@ -18,6 +18,7 @@ import { toChannelVM, type ChannelDto, type ChannelVM } from "@chanlytics/contra
 import { read } from "@/legacy-bridge/api";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { declareReads } from "@/legacy-bridge/surface-registry";
+import { pageClock } from "@/legacy-bridge/zone";
 import { surfaceMoved } from "@/legacy-bridge/surface-status";
 import { onSurfaceValue, setSurfaceValue, surfaceValue, type SurfaceKey, type SurfaceValues } from "../surface-values";
 
@@ -70,7 +71,9 @@ export function channelVMs(
 ): ChannelVM[] | null | undefined {
   if (!value) return undefined;
   if (value.rows === null) return null;
-  return value.rows.map((c) => toChannelVM({ ...c, last_inbound_at: laterOf(c.last_inbound_at, heard[c.kind]) }, now));
+  return value.rows.map((c) =>
+    toChannelVM({ ...c, last_inbound_at: laterOf(c.last_inbound_at, heard[c.kind]) }, now, pageClock().zone()),
+  );
 }
 
 /** The later of two instants, either missing. */
