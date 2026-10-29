@@ -37,12 +37,12 @@ import { TodayBroughtIn } from "./brought-in";
 import { TodayStrip } from "./strip";
 import { useWaitsOnToday } from "../../needs-you";
 import { useTodayOnPhone } from "../phone";
-import { TodayAskFound } from "./ask-found";
-import { TodayEnd } from "./today-end";
-import { TodayPhoneDay } from "./phone-day";
-import { TodayPhoneHead } from "./phone-head";
-import { useToDoCount } from "./phone-todo";
-import { PhoneWarnings } from "./phone-warnings";
+import { TodayAskFound } from "../phone/ask-found";
+import { TodayEnd } from "../phone/end";
+import { TodayPhoneDay } from "../phone/day";
+import { TodayPhoneHead } from "../phone/head";
+import { useToDoCount } from "../phone/to-do";
+import { PhoneWarnings } from "../phone/warnings";
 
 /**
  * Today on a phone (the phone canvas, 28 Oct 2026; docs/superpowers/specs/2026-10-28-today-on-a-phone-design.md §9): the
@@ -57,7 +57,7 @@ function PhoneToday({ waiting }: { waiting: boolean }) {
   const busy = waiting || todos > 0;
   const head = [<TodayPhoneHead key="head" />, <PhoneWarnings key="warn" />, <AgentCommand key="queue" />];
   const day = <TodayPhoneDay key="day" openByItself={!busy} />;
-  // Setting up: what is left to set up and what was brought in, one card (today-phone.css .tps; nothing while neither draws).
+  // Setting up: what is left to set up and what was brought in, one card (phone/phone.css .tps; nothing while neither draws).
   const settingUpCard = (
     <div key="setting-up" className="tq tps" data-testid="today-setting-up">
       <TodaySetup />

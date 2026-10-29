@@ -9,9 +9,9 @@ import { useSurface } from "../../use-surface";
 import { needsYouOnToday, useNeedsYouParts } from "../../needs-you";
 import { TODAY_HELPERS } from "../helpers";
 import { member, workspaceClock } from "../shell";
-import { useBriefWords } from "./brief-pane";
-import { listenButton, useSpeech } from "./listen";
-import { todayGreeting } from "./today-head";
+import { useBriefWords } from "../pages/brief-pane";
+import { listenButton, useSpeech } from "../pages/listen";
+import { todayGreeting } from "../pages/today-head";
 
 /** The head's title, which Need you's list is named by. */
 export const TODAY_HEAD_ID = "today-phone-title";

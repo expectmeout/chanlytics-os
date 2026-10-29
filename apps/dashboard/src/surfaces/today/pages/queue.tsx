@@ -51,8 +51,8 @@ import { draftWantOf, worksInPlace } from "../need-you/rows";
 import { clearRowStates } from "../need-you/row-state";
 import { WalkSheet, type WalkAt } from "../need-you/walk-sheet";
 import { useTodayOnPhone } from "../phone";
-import { TODAY_HEAD_ID } from "./phone-head";
-import { TodayToDo, useToDoCount } from "./phone-todo";
+import { TODAY_HEAD_ID } from "../phone/head";
+import { TodayToDo, useToDoCount } from "../phone/to-do";
 
 export const AgentCommand = () => {
   useMoved("today");
@@ -182,7 +182,7 @@ function queueList(
       {/* What an empty queue means is a sentence about the wires, so contracts says it: a dark line, no line, a line
           the receptionist does not answer (email), or the receptionist holding the floor. Not under Ask's ideas or a
           review to answer: the card holds something, and the head says the queue is empty. */}
-      {/* On a phone the head says it ("Nothing needs you"), and a line that is down stands under it (phone-warnings.tsx). */}
+      {/* On a phone the head says it ("Nothing needs you"), and a line that is down stands under it (phone/warnings.tsx). */}
       {total === 0 && waiting === 0 && drawn.length === 0 && !phone && (
         <EmptyState
           kind="line"
@@ -350,14 +350,14 @@ function useDraftsAhead(wants: readonly DraftWant[], may: boolean) {
 }
 
 /**
- * On a phone (the phone canvas, 28 Oct 2026): the steps and the visits are To do's (phone-todo.tsx), Ask's ideas and the
- * reviews Ask found's (ask-found.tsx), the head is the page's (phone-head.tsx), and a row opened walks the list in a sheet.
+ * On a phone (the phone canvas, 28 Oct 2026): the steps and the visits are To do's (phone/to-do.tsx), Ask's ideas and the
+ * reviews Ask found's (phone/ask-found.tsx), the head is the page's (phone/head.tsx), and a row opened walks the list in a sheet.
  * What each row came to is kept by the row for the visit (row-state.ts): it goes as Today does.
  */
 function usePhoneQueue() {
   const phone = useTodayOnPhone();
   const [walk, setWalk] = useState<WalkAt>(null);
-  // To do stands in this pane under the people (phone-todo.tsx): with nobody waiting the pane is drawn for it alone.
+  // To do stands in this pane under the people (phone/to-do.tsx): with nobody waiting the pane is drawn for it alone.
   const toDo = useToDoCount();
   useEffect(() => () => clearRowStates(), []);
   return { phone, walk, setWalk, toDo };
@@ -506,7 +506,7 @@ const TodayQueue = ({ vm }: { vm: TodayVM }) => {
       aria-labelledby={phone ? TODAY_HEAD_ID : undefined}
     >
       {/* No count over the rows: the sentence says what they hold, and the rows are right under it. On a phone the page's
-          head is theirs (phone-head.tsx), and what the card could not hold is the Inbox tab's. */}
+          head is theirs (phone/head.tsx), and what the card could not hold is the Inbox tab's. */}
       {!phone &&
         queueHead(vm, nav, {
           count: waiting,

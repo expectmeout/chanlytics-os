@@ -25,7 +25,7 @@
 @import "../legacy/styles/settings.css";
 @import "../legacy/styles/first-run.css";
 @import "../legacy/styles/mobile.css";
-@import "../surfaces/today/today-phone.css";
+@import "../surfaces/today/phone/phone.css";
 @import "../legacy/styles/ask.css";
 
 /* Chanlytics.html's inline viewport rules, scoped so they only apply while

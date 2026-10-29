@@ -41,7 +41,7 @@ const feedOf = (api: BellApi): AwayBellRow[] => api.feed() as AwayBellRow[];
 /**
  * The bell's unread rows as Today reads them: grouped, less what the page draws above (contracts todayAwayGrouped), and how a
  * note is opened. While you were away draws them on a desk; on a phone the bell holds them and only a warning keeps a row
- * under the head (phone-warnings.tsx; the phone canvas, 28 Oct 2026). Null where no bell is published.
+ * under the head (phone/warnings.tsx; the phone canvas, 28 Oct 2026). Null where no bell is published.
  */
 export function useAwayGroups() {
   const api = bell() || null;

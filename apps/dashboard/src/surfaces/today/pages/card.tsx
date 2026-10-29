@@ -49,7 +49,7 @@ const hasReceipt = (f: TodayFigureVM): f is ReceiptFigure => !!f.receipt;
 // business's (window.__clock), not the browser's; the counts are contracts' words (todayRunWords).
 /**
  * The runs that went out today, the first two, with the time each went on the business's clock: what the brief's lines say
- * on a desk and a phone's day card says in the rest of the day (phone-day.tsx).
+ * on a desk and a phone's day card says in the rest of the day (phone/day.tsx).
  */
 export function runsDoneToday(): Array<{ run: StartedRun; at: string }> {
   const B = borrowed<BroadcastsSurface>("__BROADCASTS");

@@ -32,16 +32,16 @@ and the news was said three times (Need you, Your brief, While you were away).
 4. **Change it with Ask reaches Ask's own drafts.** `POST conversations/:id/draft` takes `instruction` (280 characters
    at most); the draft is written again from the kept one, in its place. The sheet offers Shorter, Warmer and Ask for a
    day, and the member's own words. The receptionist's held reply keeps its `steer`.
-5. **The day card** stands where the strip stands on a desk (`pages/phone-day.tsx`): the date and how the day stands
+5. **The day card** stands where the strip stands on a desk (`phone/day.tsx`): the date and how the day stands
    (contracts `todayDayNote`: closed, fully booked with the next opening, how many and what is open), now and next, the
    day as the kit's Meter with now as a mark (contracts `todayDayBar`, over every visit that stands, `at` and the grid's
    hours), and one line for the rest, opened in place: the visits to come, Going today's sends with Stop (0064's band
    stays the desk's), the runs that went out. It opens by itself when nothing waits and nothing is to do.
-6. **To do, in Need you's pane** (`pages/phone-todo.tsx`): under the people, a hairline and its own small head: the steps
+6. **To do, in Need you's pane** (`phone/to-do.tsx`): under the people, a hairline and its own small head: the steps
    due, the visits to mark and the reviews to answer (0007's, 0047's and 0071's rows, presses and caps; never in the
    count). One place for everything that is on the owner. The coral is Need you's first act, else To do's, else setting
    up's (`queue-coral.ts`).
-7. **Ask found** (`pages/ask-found.tsx`): Ask's ideas alone, in the rows a desk draws them in, with Approve, Open in Ask
+7. **Ask found** (`phone/ask-found.tsx`): Ask's ideas alone, in the rows a desk draws them in, with Approve, Open in Ask
    and Not today.
 8. **The day's numbers in one row** (`card.tsx` on a phone): the four figures by their short names (contracts
    `TODAY_PHONE_WORDS.figure`), each a press for its clause and door; Worth a look under them, a line each with Ask why
@@ -49,7 +49,7 @@ and the news was said three times (Need you, Your brief, While you were away).
 9. **Setting up**: what is left to set up and what was brought in (0073), one card.
 10. **What leaves the phone page.** Your brief: its sentence is the head, Listen is in the head, a reply that failed is a
     warning under the head, the review that landed is in Ask found, a run that went out is in the day. While you were
-    away is the bell's, but for a warning (`pages/phone-warnings.tsx`). Ask a follow-up is the tab bar's Ask.
+    away is the bell's, but for a warning (`phone/warnings.tsx`). Ask a follow-up is the tab bar's Ask.
 11. **The order.** The head, the warnings, Need you with To do, the day, Ask found, the day's numbers with Worth a look,
     the lists, setting up, "That's everything for today." With nothing waiting and nothing to do: the head, the warnings,
     the day opened, setting up (holding the coral), Ask found, the numbers, the lists, the end.

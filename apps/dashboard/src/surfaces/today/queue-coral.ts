@@ -1,6 +1,6 @@
 /**
  * Who holds Today's coral: Need you's first open row's act (pages/queue.tsx `verbKind`), else, on a phone, To do's first
- * act (pages/phone-todo.tsx), else the setup card. One coral a screen. The queue's rows are more than what needs you
+ * act (phone/to-do.tsx), else the setup card. One coral a screen. The queue's rows are more than what needs you
  * counts (a step due, a visit to mark, a run waiting for a word), so the card stood coral beside the queue's Answer while
  * the count said none (27 Oct 2026); on a phone the steps and the visits are To do's (the phone canvas, 28 Oct 2026), which
  * takes the coral only where Need you holds none. Each says it as it draws; the others hear it.

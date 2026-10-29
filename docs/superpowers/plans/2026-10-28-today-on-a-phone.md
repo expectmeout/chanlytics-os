@@ -69,7 +69,7 @@ input), and the drafts store's test (the new draft replaces the old for the same
 
 ## 4. The head and the warnings
 
-Files: `pages/today-head.tsx`, a new `pages/phone-head.tsx`, a new `pages/phone-warnings.tsx`.
+Files: `pages/today-head.tsx`, a new `phone/head.tsx`, a new `phone/warnings.tsx`.
 
 - On a phone `useTodayStanding` says `{ title: null }`; `TodayPhoneHead` draws the greeting with Listen at its right,
   the title and the line from `TODAY_HELPERS.phoneHead(standingWithRuns(...), runs)`, the title an `h1` the list is
@@ -109,7 +109,7 @@ Files: a new `need-you/walk-sheet.tsx`, its words in contracts (task 1.4).
 
 ## 7. The day card
 
-Files: a new `pages/phone-day.tsx`; `pages/going-today.tsx` (its row and its Stop shared: `GoingRow`'s confirm and
+Files: a new `phone/day.tsx`; `pages/going-today.tsx` (its row and its Stop shared: `GoingRow`'s confirm and
 `stopRun` exported for the day's rest); `pages/card.tsx` (`RunsDone`'s facts shared for the runs that went out).
 
 - On a phone it replaces `TodayStrip` (which stays the desk's) and `TodayGoing` (which stays the desk's).
@@ -120,7 +120,7 @@ Files: a new `pages/phone-day.tsx`; `pages/going-today.tsx` (its row and its Sto
 
 ## 8. To do
 
-Files: a new `pages/phone-todo.tsx`.
+Files: a new `phone/to-do.tsx`.
 
 The steps due and visits to mark the queue handed over, under "To do" and their count, as compact rows with
 `StepWork` and `VisitWork` (their presses at the right on a phone), their caps and rows for the rest as contracts give
@@ -128,7 +128,7 @@ them, the coral by task 3.3.
 
 ## 9. Ask found
 
-Files: a new `pages/ask-found.tsx`; `pages/queue.tsx` (`useExtras` moved out so both read it); `pages/leaks.tsx` (its
+Files: a new `phone/ask-found.tsx`; `pages/queue.tsx` (`useExtras` moved out so both read it); `pages/leaks.tsx` (its
 rows drawn as cards on a phone).
 
 A rail across of the ideas, the reviews to answer and Worth a look's rows, as Panels, snapped; each card's tag, one
@@ -137,7 +137,7 @@ a leak's own door and Ask why). On a desk, `useExtras` feeds Need you as now and
 
 ## 10. The rest, the order and the styles
 
-Files: `pages/pins.tsx`, `pages/setup-card-body.tsx`, a new `pages/today-end.tsx`, `pages/today-page.tsx`,
+Files: `pages/pins.tsx`, `pages/setup-card-body.tsx`, a new `phone/end.tsx`, `pages/today-page.tsx`,
 `legacy/styles/dashboard-a-v2.css` (its 720px block; nothing new in `legacy/` but these rules, which the page's styles
 already hold).
 

@@ -27,9 +27,9 @@ import { usePartShown, useSurface } from "../../use-surface";
 import { useRunsActing } from "../../waits/run-acts";
 import { TODAY_HELPERS } from "../helpers";
 import { gate, useMoved, useToast, workspaceClock, type Flash } from "../shell";
-import { runsDoneToday } from "./card";
-import { useDayVm } from "./day";
-import { goingNow, stopGoing } from "./going-today";
+import { runsDoneToday } from "../pages/card";
+import { useDayVm } from "../pages/day";
+import { goingNow, stopGoing } from "../pages/going-today";
 
 /** A part of the bar, in the kit's Meter's tones: what is over, under way, still to come, and the free time between. */
 const BAR_TONE = { past: "rest", now: "ink", next: "open", later: "open", gap: "ground" } as const;

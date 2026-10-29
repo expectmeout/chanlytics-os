@@ -35,7 +35,7 @@ export function todayStanding(standing: { headline: string; detail: string | nul
 
 /**
  * Today's standing, said to the frame's head as the page draws: the greeting over the day's sentence. On a phone the page
- * draws its own head (phone-head.tsx: the greeting, what now in its largest words and one line; the phone canvas, 28 Oct
+ * draws its own head (phone/head.tsx: the greeting, what now in its largest words and one line; the phone canvas, 28 Oct
  * 2026), so the frame draws no name, as it draws none over a person's hero.
  */
 export function useTodayStanding(): void {

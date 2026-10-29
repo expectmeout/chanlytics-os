@@ -1,7 +1,7 @@
 /**
  * Ask found, on a phone (decision 0076): Ask's ideas from its morning, which a desk draws under Need you's people (decision
  * 0071), each in the row the desk draws it in (need-you/people-rows.tsx ideaRows) with its own work: Approve, Open in Ask,
- * Not today. One acted on keeps its place for the visit. The reviews to answer are To do's on a phone (phone-todo.tsx) and
+ * Not today. One acted on keeps its place for the visit. The reviews to answer are To do's on a phone (phone/to-do.tsx) and
  * Worth a look stands under the day's numbers (leaks.tsx LeakLines). Never in the count of who needs you, never the coral.
  */
 import { useState } from "react";

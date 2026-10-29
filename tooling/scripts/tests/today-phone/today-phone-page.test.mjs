@@ -44,7 +44,7 @@ W.fetch = async () =>
     headers: { "content-type": "application/json" },
   });
 const { AgentCommand } = await import("../../../../apps/dashboard/src/surfaces/today/pages/queue.tsx");
-const { TodayToDo } = await import("../../../../apps/dashboard/src/surfaces/today/pages/phone-todo.tsx");
+const { TodayToDo } = await import("../../../../apps/dashboard/src/surfaces/today/phone/to-do.tsx");
 const { TodayCard } = await import("../../../../apps/dashboard/src/surfaces/today/pages/card.tsx");
 const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
 

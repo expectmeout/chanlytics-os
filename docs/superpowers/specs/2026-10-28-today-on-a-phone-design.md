@@ -110,7 +110,7 @@ week's sparkline (`reports_headline` carries no days); any desk change.
   the desk's pane and the phone head. Its words, its length and its refusal line are unchanged; while it speaks it says
   Stop and Ask's three take the accent.
 
-### 2. Warnings under the head (`pages/phone-warnings.tsx`)
+### 2. Warnings under the head (`phone/warnings.tsx`)
 
 Under the head, before the list, only when there is one: the alert (`TodayAlert`, as now); a recap sentence with `warn`
 (a reply that failed) with "See the thread"; a bell group whose tone is a warning, with its door. The bell's grouping
@@ -153,7 +153,7 @@ moves out of `away.tsx` into a hook both read (`useAwayGroups`), so the dedupe a
   offers "Shorter", "Warmer" and "Ask for a day" as one press each, and the field for its own words. The receptionist's
   held reply keeps its `steer` verb.
 
-### 5. The day card (`pages/phone-day.tsx`; contracts `today/today-day.ts`)
+### 5. The day card (`phone/day.tsx`; contracts `today/today-day.ts`)
 
 - On a phone it replaces the strip; the desk keeps the strip.
 - **contracts:** each `TodayDayItemVM` gains `at: { from: number; to: number }` (minutes since midnight on the
@@ -168,13 +168,13 @@ moves out of `away.tsx` into a hook both read (`useAwayGroups`), so the dedupe a
   Calendar's door.
 - It opens by itself when nothing needs you and To do is empty: on a calm day the day is the page.
 
-### 6. To do (`pages/phone-todo.tsx`)
+### 6. To do (`phone/to-do.tsx`)
 
 The steps due (`StepWork`: Done, Not now that moves its day) and yesterday's visits to mark (`VisitWork`: Kept,
 Missed, then Ask's rebook), as compact rows with their presses at the right, under "To do" and their count. The caps and
 the row for the rest are contracts' (`withSteps`, `withVisitsAsked`). It takes the coral when Need you holds none.
 
-### 7. Ask found (`pages/ask-found.tsx`)
+### 7. Ask found (`phone/ask-found.tsx`)
 
 A rail across, snapped card by card, under "Ask found" and its count: Ask's ideas (`ask_morning`), the reviews to
 answer (`reviewsToAnswer`), then Worth a look (`TodayLeaks`' rows). A card: its tag ("Google review" and the stars,
@@ -189,7 +189,7 @@ quiet Not today where the kind has one, and its door: Reply and See it open the 
   under the cards "read as unfinished".
 - **Setup** (`setup-card-body.tsx`): *Built:* as it is, its head and the one row that opens the first run, which holds the
   coral only when nothing before it does. Brought in stays as it is, after it.
-- **The end** (`pages/today-end.tsx`): "That's everything for today."
+- **The end** (`phone/end.tsx`): "That's everything for today."
 
 ### 9. The order on a phone (`today-page.tsx`)
 
@@ -208,8 +208,8 @@ at `--bp-narrow`.
 - **contracts:** `todayPhoneHead`, the day's `at` and `hours`, `todayDayBar`, `todayDayNote`; the sheet's words in
   `NEED_YOU_WORDS` (the pager, the end, the quick asks); `TODAY_HELPERS` exports them.
 - **server:** the draft door's `instruction`.
-- **dashboard:** `listen.tsx`, `phone-warnings.tsx`, `walk-sheet.tsx`, `phone-day.tsx`, `phone-todo.tsx`,
-  `ask-found.tsx`, `today-end.tsx`, a phone mode in `queue.tsx` and the rows, `AttnRow`'s `wait`, `Acts` into a sheet's
+- **dashboard:** `listen.tsx`, `phone/warnings.tsx`, `walk-sheet.tsx`, `phone/day.tsx`, `phone/to-do.tsx`,
+  `ask-found.tsx`, `phone/end.tsx`, a phone mode in `queue.tsx` and the rows, `AttnRow`'s `wait`, `Acts` into a sheet's
   foot, `queue-coral.ts` with To do's turn, `today-page.tsx`'s phone order, and the phone block of `dashboard-a-v2.css`.
 - **The kit, not a page's own** (CLAUDE.md, "One kit"; `.claude/skills/chanlytics-interface/SKILL.md` first): the
   sheet is the kit's Sheet; the cards and panes are its Panel; the day's bar is its Meter, the visits and the gaps

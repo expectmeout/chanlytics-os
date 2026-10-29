@@ -25,7 +25,7 @@ import { broadcastVerbs, broadcastsRead, refreshPlaybooks, useRunsActing } from 
 /** Rows the band draws; the rest are counted in its head. */
 const GOING_MAX = 4;
 
-/** The runs that go on their own today, as the band draws them, soonest first (and a phone's day card, phone-day.tsx). */
+/** The runs that go on their own today, as the band draws them, soonest first (and a phone's day card, phone/day.tsx). */
 export function goingNow(): GoingTodayRowVM[] {
   const runs = (broadcastsRead()?.rows ?? []).map((r) => ({ ...r, title: runTitleOf(r) }));
   return goingTodayOf({ runs, tz: pageClock().zone(), nowMs: Date.now() });
@@ -84,7 +84,7 @@ function GoingRow({ row, stop, busy }: GoingRowProps) {
 
 /**
  * Stop a run going today: Sent's own cancel, asked as Sent asks it, said in the toast. The band's and a phone's day card's
- * (phone-day.tsx) one way to stop one.
+ * (phone/day.tsx) one way to stop one.
  */
 export async function stopGoing(row: GoingTodayRowVM, flash: (f: Flash) => void): Promise<void> {
   const api = broadcastVerbs();

@@ -21,9 +21,9 @@ import { appNavigate, canDo, useMoved, useToast, workspaceClock } from "../shell
 import { needYouRows, reviewRows, type NeedYouExtrasCtx } from "../need-you/people-rows";
 import { reviewsToAnswer } from "../need-you/reviews";
 import type { VerbKind } from "../../waits/wait-rows";
-import { useDayVm } from "./day";
-import { dueSteps, stepDone } from "./queue-steps";
-import { askedVisits } from "./queue-visits";
+import { useDayVm } from "../pages/day";
+import { dueSteps, stepDone } from "../pages/queue-steps";
+import { askedVisits } from "../pages/queue-visits";
 
 /**
  * How many to-dos there are, the steps due, the visits to mark and the reviews to answer: whether the page is busy, and the

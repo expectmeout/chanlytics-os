@@ -1,7 +1,7 @@
 /**
  * Listen: the brief read aloud in Ask's one voice (the one-way speech: the words on screen, spoken as the vendor makes them,
  * nobody speaking back; docs/superpowers/specs/2026-10-03-ask-spoken-design.md, §3.5 as amended 4 Oct 2026), with how long
- * it takes to hear beside it. Drawn by Your brief on a desk (brief-pane.tsx) and by the head on a phone (phone-head.tsx),
+ * it takes to hear beside it. Drawn by Your brief on a desk (brief-pane.tsx) and by the head on a phone (phone/head.tsx),
  * which say the same words; moved here from the pane as it was.
  *
  * Listen was a conversation with the agent asked "Brief me on today" (3 Oct): nine seconds of silence before the model

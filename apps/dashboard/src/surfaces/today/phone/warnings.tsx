@@ -9,8 +9,8 @@ import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { useSurface } from "../../use-surface";
 import { appNavigate } from "../shell";
-import { useAwayGroups } from "./away";
-import { HeroBrief } from "./brief";
+import { useAwayGroups } from "../pages/away";
+import { HeroBrief } from "../pages/brief";
 
 /**
  * A warning about a person is not said here: a customer waiting, a reply that never left, a review are Need you's, the
