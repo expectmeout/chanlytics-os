@@ -22,7 +22,7 @@
 //
 // The rows that come and go inside a fold (the closed days) are drawn hookless, as plain boxes wearing the kit's class.
 import type { ComponentProps, ReactNode } from "react";
-import { hoursLines } from "@chanlytics/contracts";
+import { DEFAULT_TIMEZONE, hoursLines } from "@chanlytics/contracts";
 import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
 import type { TzApi } from "@/legacy-bridge/identity";
 import type { WorkspaceSettings } from "@/legacy-bridge/surfaces/settings";
@@ -78,7 +78,7 @@ export const btoStoredZone = (): string | null => {
 };
 
 /** The workspace's zone, else the device's default: the one every time on this card is shown in until a read says otherwise. */
-const btoWorkspaceZone = (): string => btoStoredZone() || defaultTimezone() || "America/New_York";
+const btoWorkspaceZone = (): string => btoStoredZone() || defaultTimezone() || DEFAULT_TIMEZONE;
 
 /**
  * The week, as its row states it and its fold edits it. `prompt` is the settings read's preview: the zone the

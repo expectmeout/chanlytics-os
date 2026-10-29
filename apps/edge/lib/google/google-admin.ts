@@ -33,7 +33,7 @@ import { json, refuse } from "../http.js";
 import { personFor, workspaceFor, type Admitted } from "../admin-auth.js";
 import { respond, workspaceOf, workspaceRow, type Refused } from "../admin-door.js";
 import { emitEvent, type Database } from "../packages/db.js";
-import { UUID } from "../packages/contracts.js";
+import { DEFAULT_TIMEZONE, UUID } from "../packages/contracts.js";
 import type { PlaceDetails } from "../packages/channels.js";
 import { googleReadiness, placesKey, profilePublic } from "./google-config.js";
 import { connectionForClient, listingForClient, type ConnectionRow, type ListingRow } from "./google-rows.js";
@@ -124,7 +124,7 @@ async function workspaceCall(body: GoogleBody): Promise<{ ok: true; value: Googl
   const read = await db.from("tenants").select("id, timezone").eq("id", tenantId).maybeSingle();
   const tenant = workspaceRow(read);
   if (!tenant.ok) return tenant;
-  const tz = tenant.row.timezone || "America/New_York";
+  const tz = tenant.row.timezone || DEFAULT_TIMEZONE;
   const userId = typeof body.user_id === "string" && UUID.test(body.user_id) ? body.user_id : null;
   return { ok: true, value: { body, db, tenantId, tz, userId, L: logger({ tenant_id: tenantId }) } };
 }

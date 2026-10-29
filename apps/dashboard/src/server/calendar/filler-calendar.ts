@@ -1,5 +1,5 @@
 import "server-only";
-import { dayPlusInZone } from "@chanlytics/contracts";
+import { DEFAULT_TIMEZONE, dayPlusInZone } from "@chanlytics/contracts";
 
 /**
  * A calendar of fictional appointments for a workspace that carries tooling/scripts/ops/filler.mjs's people.
@@ -121,5 +121,5 @@ export function fillerFeedFor(url: string, nowMs = Date.now()): string | null {
   }
   if (u.pathname !== FILLER_FEED_PATH) return null;
   const asked = u.searchParams.get("tz") ?? "";
-  return fillerCalendar(nowMs, asked && zoneOk(asked) ? asked : "America/New_York");
+  return fillerCalendar(nowMs, asked && zoneOk(asked) ? asked : DEFAULT_TIMEZONE);
 }
