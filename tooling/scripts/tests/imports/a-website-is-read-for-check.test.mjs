@@ -11,6 +11,7 @@ import { signEdgeToken } from "@chanlytics/channels";
 import { WEBSITE_UNREAD_WORDS } from "@chanlytics/contracts";
 import { importSrc } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
+import { squarePng } from "../look/_png.mjs";
 
 const SECRET = "edge-secret-for-this-file";
 const KEY = "sk-ant-made-up-for-this-file";
@@ -32,8 +33,14 @@ const U = "11111111-1111-4111-8111-111111111111";
 const SITE = "https://harbormoving.example";
 const AUD = "/api/admin/imports/website-read";
 
-/** The database the read and the door find: the settings, the listing, the reads kept, the jobs, the model's ledger. */
-function world({ website = SITE, listingWebsite = null } = {}) {
+/** The look's door as a database with nothing worn answers it: whatever was found is worn (decision 0075). */
+const wearsAll = (a) => ({ logo: !!a.p_logo_path, accent: !!a.p_accent });
+
+/**
+ * The database the read and the door find: the settings, the listing, the reads kept, the jobs, the model's ledger; the
+ * look's door (`wears`), and the logo bucket as what was stored and removed (`uploads`, `removed`).
+ */
+function world({ website = SITE, listingWebsite = null, wears = wearsAll } = {}) {
   const tables = {
     tenants: [{ id: A, name: "Harbor Moving", timezone: "America/New_York", status: "active" }],
     tenant_config: [
@@ -54,18 +61,33 @@ function world({ website = SITE, listingWebsite = null } = {}) {
     jobs: [],
     ai_usage: [],
   };
-  const db = fakeDb(tables);
+  const db = fakeDb(tables, {}, { wear_found_look: wears });
+  const uploads = [];
+  const removed = [];
+  db.storage = {
+    from: (bucket) => ({
+      upload: async (path, bytes, opts) => {
+        uploads.push({ bucket, path, bytes: bytes.length, opts });
+        return { error: null };
+      },
+      remove: async (paths) => {
+        removed.push(...paths);
+        return { error: null };
+      },
+    }),
+  };
   setPg(db);
-  return { db, tables };
+  return { db, tables, uploads, removed };
 }
 
-/** The web as the read sees it: each page's HTML by its address, and the model's answer, each call kept. */
-function web(pages, answer) {
+/** The web as the read sees it: each page's HTML by its address, an image's bytes by its, and the model's answer, each call kept. */
+function web(pages, answer, images = {}) {
   const calls = [];
   const real = globalThis.fetch;
   globalThis.fetch = async (url, init = {}) => {
     const u = String(url);
     calls.push({ url: u, body: init.body ? JSON.parse(String(init.body)) : null });
+    if (images[u]) return new Response(images[u], { status: 200, headers: { "content-type": "image/png" } });
     if (u === "https://api.anthropic.com/v1/messages")
       return new Response(
         JSON.stringify({
@@ -121,7 +143,10 @@ test("a website read: its home page and the pages it links to for services and q
   assert.match(model.body.messages[0].content, /From \$300/, "the pages' words, made plain text");
   const [kept] = w.tables.business_reads;
   assert.deepEqual([kept.tenant_id, kept.source, kept.read_from, kept.error], [A, "website", `${SITE}/`, null]);
-  assert.deepEqual(kept.facts, READ);
+  assert.deepEqual(kept.facts, {
+    ...READ,
+    look: { logo_url: null, accent: null, worn: { logo: false, accent: false } },
+  });
   assert.deepEqual(
     w.tables.ai_usage.map((u) => [u.tenant_id, u.purpose]),
     [[A, "website_read"]],
@@ -156,15 +181,18 @@ test("a read that could not be made keeps why, as Check says it: not a public ad
     [empty.tables.business_reads[0].error, empty.tables.business_reads[0].facts.services],
     [WEBSITE_UNREAD_WORDS.nothing, []],
   );
-  // No model key on this deployment: said, never a guess.
+  // No model key on this deployment: said, never a guess (the page is still read, for the look).
   const keyless = world();
+  const page = web({ [`${SITE}/`]: HOME }, READ);
   delete process.env.ANTHROPIC_API_KEY;
   try {
     await read(keyless);
   } finally {
     process.env.ANTHROPIC_API_KEY = KEY;
+    page.restore();
   }
   assert.equal(keyless.tables.business_reads[0].error, WEBSITE_UNREAD_WORDS.failed);
+  assert.equal(page.calls.filter((c) => c.url.includes("anthropic")).length, 0, "nothing asked of the model");
 });
 
 test("a website read asked for is one job while one waits, and nothing is asked of an address that is not public", async () => {
@@ -213,4 +241,79 @@ test("the dashboard's door: the settings' website, else the listing's, asked onc
   world();
   const [status] = await ask({}, { workspace: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" });
   assert.equal(status, 403);
+});
+
+const LOOK_HOME = `<html><head><meta name="theme-color" content="#2a6f97"><link rel="apple-touch-icon" href="/icon.png"></head>
+  <body><h1>Harbor Moving</h1></body></html>`;
+
+test("the website's look: its colour and the square icon it declares are worn where the workspace has none, and kept with the read", async () => {
+  const w = world();
+  const net = web({ [`${SITE}/`]: LOOK_HOME }, READ, { [`${SITE}/icon.png`]: squarePng(180) });
+  try {
+    await read(w);
+  } finally {
+    net.restore();
+  }
+  assert.equal(w.uploads.length, 1, "the icon, remade, stored once");
+  assert.equal(w.uploads[0].bucket, "workspace-logos");
+  assert.match(w.uploads[0].path, new RegExp(`^${A}/[0-9a-f-]{36}\\.png$`));
+  assert.equal(w.uploads[0].opts.contentType, "image/png");
+  const door = w.db.seen.find((s) => s.rpc === "wear_found_look");
+  assert.deepEqual(
+    [door.args.p_tenant_id, door.args.p_logo_path, door.args.p_accent],
+    [A, w.uploads[0].path, "#2a6f97"],
+    "the door is handed the stored path and the readable colour",
+  );
+  assert.deepEqual(w.tables.business_reads[0].facts.look, {
+    logo_url: `${SITE}/icon.png`,
+    accent: "#2a6f97",
+    worn: { logo: true, accent: true },
+  });
+  assert.deepEqual(w.removed, [], "a picture worn is kept");
+});
+
+test("a look the door declines leaves nothing in storage; a page with no mark or colour wears nothing and says so; no model key still keeps the look", async () => {
+  const declined = world({ wears: () => ({ logo: false, accent: false }) });
+  const net = web({ [`${SITE}/`]: LOOK_HOME }, READ, { [`${SITE}/icon.png`]: squarePng(180) });
+  try {
+    await read(declined);
+  } finally {
+    net.restore();
+  }
+  assert.deepEqual(
+    declined.removed,
+    declined.uploads.map((u) => u.path),
+    "the file nobody wears is removed",
+  );
+  assert.deepEqual(declined.tables.business_reads[0].facts.look, {
+    logo_url: `${SITE}/icon.png`,
+    accent: "#2a6f97",
+    worn: { logo: false, accent: false },
+  });
+
+  const bare = world();
+  const net2 = web({ [`${SITE}/`]: HOME }, READ);
+  try {
+    await read(bare);
+  } finally {
+    net2.restore();
+  }
+  assert.deepEqual(bare.tables.business_reads[0].facts.look, {
+    logo_url: null,
+    accent: null,
+    worn: { logo: false, accent: false },
+  });
+  assert.equal(bare.uploads.length, 0);
+
+  const keyless = world();
+  const net3 = web({ [`${SITE}/`]: LOOK_HOME }, READ, { [`${SITE}/icon.png`]: squarePng(180) });
+  delete process.env.ANTHROPIC_API_KEY;
+  try {
+    await read(keyless);
+  } finally {
+    process.env.ANTHROPIC_API_KEY = KEY;
+    net3.restore();
+  }
+  assert.equal(keyless.tables.business_reads[0].error, WEBSITE_UNREAD_WORDS.failed);
+  assert.equal(keyless.tables.business_reads[0].facts.look.worn.logo, true, "the look needs no model");
 });

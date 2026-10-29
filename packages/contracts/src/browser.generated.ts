@@ -238,6 +238,9 @@ export { WHATSAPP_COST_WORDS } from "./lines/whatsapp-cost";
 export { tryItLink } from "./lines/whatsapp-try-it";
 export { LOGO_PAD, LOGO_PLATE_DARK, LOGO_PLATE_LIGHT, logoDrawRect, logoLayout } from "./logo/layout";
 export { isLogoPathOf, LOGO_BASE64_MAX, LOGO_BYTES_MAX, LOGO_CHOSEN_MAX_BYTES, LOGO_CHOSEN_TYPES, LOGO_FOUND_MAX_BYTES, LOGO_FOUND_SIDE_MAX, LOGO_FOUND_SIDE_MIN, LOGO_LOOKUP_OUTCOMES, LOGO_SIDE, LOGO_SIDE_MIN, LOGO_WORDS, logoFoundOn, logoLookupWords, WORKSPACE_LOGOS_BUCKET, workspaceInitials, workspaceLogoPath, workspaceLogoSrc } from "./logo/logo";
+export { accentOk, contrastOnWhite, hexOfRgb, isAccentLike, parseCssColour, readableOnWhite } from "./look/colour";
+export { letterHtml } from "./look/letter";
+export { accentOf, LOOK_WORDS } from "./look/look";
 export { APP_ROUTE_RE, parsePageMessage, parseShellMessage, PUSH_TOKEN_MAX } from "./mobile/app-bridge";
 export { CALL_ACTIVITY_NAME, CALL_ACTIVITY_ROLES, CALL_ACTIVITY_STALE_MS, callActivityPropsOf, callActivityStart } from "./mobile/live-activity";
 export { todayWidgetSnapshot } from "./mobile/today-widget";
@@ -260,7 +263,7 @@ export { memberJoinedBy, memberJoinedNotice, memberLeftBy, memberLeftNotice } fr
 export { bookingArriving, bookingChanged, CATCH_UP_VISITS, feedAdditionIsBooking, VISIT_CHANGES_TOLD, visitChangeNews, visitNews } from "./notices/visit-news";
 export { consultFirstOf, peopleVisitsOf, personLikeOf, poolListContext, poolRowOf, poolRowsOf, withVisitsOf } from "./people/audience-pool";
 export { dealFill, dealSheetFill, noteFill, noteSheetFill, SAY_IT_DEAL_JSON_SCHEMA, SAY_IT_MAX, SAY_IT_NOTE_JSON_SCHEMA, SAY_IT_VERBS, SAY_IT_WORDS, sayItFilled } from "./people/doors/say-it";
-export { confirmPageWords, looksMadeUp, maskAddress, SIGNUP_ASK_LIMITS, SIGNUP_CONFIRM_MS, SIGNUP_CONFIRM_SOURCE, signupAddressKey, signupAskLine, signupAskOf, signupAskRefusal, signupConfirmEmail } from "./people/doors/signup-confirm";
+export { confirmPageWords, looksMadeUp, maskAddress, SIGNUP_ASK_LIMITS, SIGNUP_CONFIRM_MS, SIGNUP_CONFIRM_SOURCE, signupAddressKey, signupAskLine, signupAskOf, signupAskRefusal, signupConfirmEmail, signupConfirmEmailHtml } from "./people/doors/signup-confirm";
 export { legacyErasedEmailHash, legacyErasedPhoneHash, legacyLeadSuppressionHash } from "./people/erasure";
 export { BUILTIN_LISTS, LIST_GROUP_WORDS, listAsks, PEOPLE_LIST_GROUPS, PEOPLE_LISTS } from "./people/lists/builtin-lists";
 export { LIST_ANY_MAX, LIST_ASSIGNED, LIST_DEAL_STAGES, LIST_NEEDS, LIST_PURPOSES, LIST_RULE_FIELDS, LIST_RULE_MAX, LIST_STANDINGS } from "./people/lists/list-fields";

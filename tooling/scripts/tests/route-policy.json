@@ -2339,6 +2339,20 @@
       "rate": "create_workspace",
       "spend": false
     },
+    "PUT workspaces/accent": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "workspace_logo",
+      "spend": false
+    },
+    "DELETE workspaces/accent": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "workspace_logo",
+      "spend": false
+    },
     "POST workspaces/logo/lookup": {
       "kind": "write",
       "scope": "workspace",

@@ -7,6 +7,8 @@
  * words, what the person's page says while an ask waits and whether a member may ask again from it, and the line the
  * owner is told. Pure.
  */
+import { letterHtml } from "../../look/letter";
+import type { WorkspaceLook } from "../../look/look";
 import { DAY_MS } from "../../shared/time";
 import { fmtDate } from "../person-helpers";
 
@@ -168,6 +170,27 @@ export function signupConfirmEmail(p: { business: string; link: string }): { sub
       "If this wasn't you, ignore this email. Without your yes, no offers are sent.",
     ].join("\n\n"),
   };
+}
+
+/**
+ * The same words as a letter (decision 0075): the business's look at the top, the two lines, and the page's own button
+ * words on the link, so the email and the page it opens say one thing. The text part (signupConfirmEmail) is what a
+ * text-only reader gets.
+ */
+export function signupConfirmEmailHtml(p: { business: string; link: string; look: WorkspaceLook }): string {
+  const business = p.business.trim() || "us";
+  const signedUp = `You signed up on ${business}'s website for offers and news.`;
+  return letterHtml({
+    look: { ...p.look, business: p.look.business.trim() || business },
+    subject: signupConfirmEmail(p).subject,
+    preview: signedUp,
+    lines: [signedUp, "If this wasn't you, ignore this email. Without your yes, no offers are sent."],
+    button: {
+      words: confirmPageWords("ask", { business, address: null }).button ?? "Yes, send me offers",
+      href: p.link,
+    },
+    foot: [],
+  });
 }
 
 /** "j•••@example.com": enough of an address for its owner to know it, on a page anyone holding the link can open. */

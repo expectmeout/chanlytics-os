@@ -517,6 +517,7 @@ export {
   setListRule,
 } from "./repositories/lists";
 export type { ListRow, SavedListRow, WriteError } from "./repositories/lists";
+export { setWorkspaceAccent, wearFoundLook, workspaceLookOf } from "./repositories/look";
 export {
   connectMailbox,
   dropMailboxCredentials,

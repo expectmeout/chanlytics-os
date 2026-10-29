@@ -286,6 +286,7 @@ export {
   withRequestId,
 } from "./log/request";
 export type { RequestTiming } from "./log/request";
+export { remadeLogo } from "./logo-png";
 export {
   calendarIcs,
   googleCalendarIds,

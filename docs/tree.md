@@ -124,6 +124,7 @@ packages/contracts/src/
   leads/
   lines/
   logo/
+  look/
   mobile/
   need-you/
   new-conversation/
@@ -150,6 +151,7 @@ packages/core/src/
   conversations/
   inbound/
   leads/
+  look/
   messages/
 packages/db/src/
   billing/
