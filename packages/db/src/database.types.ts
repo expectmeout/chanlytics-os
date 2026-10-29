@@ -7133,6 +7133,7 @@ export type Database = {
       }
       tenants: {
         Row: {
+          accent: string | null
           appointment_word: string | null
           created_at: string
           id: string
@@ -7147,6 +7148,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          accent?: string | null
           appointment_word?: string | null
           created_at?: string
           id?: string
@@ -7161,6 +7163,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          accent?: string | null
           appointment_word?: string | null
           created_at?: string
           id?: string
@@ -10564,6 +10567,10 @@ export type Database = {
         Args: { p_template_id: string; p_title: string }
         Returns: Json
       }
+      set_workspace_accent: {
+        Args: { p_accent: string; p_tenant_id: string }
+        Returns: string
+      }
       set_workspace_logo: {
         Args: { p_logo_path: string; p_tenant_id: string }
         Returns: string
@@ -10812,6 +10819,10 @@ export type Database = {
       trigger_sequences_clock: { Args: { p_at?: string }; Returns: undefined }
       trigger_sweep_health: { Args: never; Returns: number }
       wake_stale_snoozes: { Args: never; Returns: number }
+      wear_found_look: {
+        Args: { p_accent: string; p_logo_path: string; p_tenant_id: string }
+        Returns: Json
+      }
       withdraw_ai_drafts: {
         Args: {
           p_conversation_id: string

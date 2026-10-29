@@ -44,13 +44,23 @@ interface WorkspaceRow {
   role?: string | null;
   /** Where its own logo is served (00407), on the storage origin the content policy allows; null for none. */
   logo_url?: string | null;
+  /** Its colour (00490), #rrggbb: what its emails to customers and the Colour row wear; null for none. */
+  accent?: string | null;
 }
+
+/**
+ * The columns every database has: what a PATCH of the zone, or a rename, reads back, so the save lands on a database
+ * no newer migration reached, and the list's last read. Named, not indexed: a set added at the front of COLUMN_SETS
+ * (the colour's, 00490) moved `COLUMN_SETS[2]` from this to the logo's set, and the zone's PATCH read back a path.
+ */
+const OLDEST = "id, slug, name, status, timezone";
 
 /** The columns the list reads, newest first; each read after the first leaves one newer column out. */
 const COLUMN_SETS = [
+  "id, slug, name, status, timezone, appointment_word, logo_path, accent",
   "id, slug, name, status, timezone, appointment_word, logo_path",
   "id, slug, name, status, timezone, logo_path",
-  "id, slug, name, status, timezone",
+  OLDEST,
 ] as const;
 
 /** What a PATCH of the word reads back: the row as it wrote it, its word with it, and never the logo's storage path. */
@@ -58,7 +68,7 @@ const WORD_ANSWER = "id, slug, name, status, timezone, appointment_word";
 
 /** The error a read that names a newer column gets from a database the migration adding it has not reached. */
 const lacksNewer = (message: string): boolean =>
-  /\b(appointment_word|logo_path)\b/.test(message) && /does not exist|could not find/i.test(message);
+  /\b(appointment_word|logo_path|accent)\b/.test(message) && /does not exist|could not find/i.test(message);
 
 /** A tenant row as any of the reads gives it. */
 interface TenantRead {
@@ -69,6 +79,7 @@ interface TenantRead {
   timezone: string;
   appointment_word?: string | null;
   logo_path?: string | null;
+  accent?: string | null;
 }
 
 /** The rows as the list answers them: a workspace's logo as the address it is served at, never its storage path. */
@@ -77,6 +88,7 @@ const listed = (rows: TenantRead[] | null): WorkspaceRow[] | null =>
     ...t,
     appointment_word: t.appointment_word ?? null,
     logo_url: workspaceLogoSrc(env.NEXT_PUBLIC_SUPABASE_URL, path),
+    accent: t.accent ?? null,
   })) ?? null;
 
 /**
@@ -89,8 +101,13 @@ async function tenantsOf(
   supabase: RouteContext["supabase"],
 ): Promise<{ data: WorkspaceRow[] | null; error: { message: string } | null }> {
   const read = <C extends string>(columns: C) => supabase.from("tenants").select(columns).order("name");
-  // Each read typed by its own columns, newest first.
-  const reads = [() => read(COLUMN_SETS[0]), () => read(COLUMN_SETS[1]), () => read(COLUMN_SETS[2])];
+  // Each read typed by its own columns, newest first (the colour's 00490, the word's 00458, the logo's 00407).
+  const reads = [
+    () => read(COLUMN_SETS[0]),
+    () => read(COLUMN_SETS[1]),
+    () => read(COLUMN_SETS[2]),
+    () => read(COLUMN_SETS[3]),
+  ];
   let last: { message: string } | null = null;
   for (const next of reads) {
     const r = await next();
@@ -285,7 +302,7 @@ async function writeOwnFields(
     .from("tenants")
     .update(patch)
     .eq("id", tenantId)
-    .select(patch.appointment_word ? WORD_ANSWER : COLUMN_SETS[2])) as unknown as {
+    .select(patch.appointment_word ? WORD_ANSWER : OLDEST)) as unknown as {
     data: Partial<WorkspaceRow>[] | null;
     error: { message: string; code?: string } | null;
   };

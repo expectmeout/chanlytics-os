@@ -4,7 +4,7 @@
  */
 export { BUSINESS_READ_SOURCES, businessReadFactsOf, FOUND_WORDS, foundOf } from "./business-reads";
 export { WEBSITE_READ_SCHEMA, WEBSITE_READ_SYSTEM, WEBSITE_UNREAD_WORDS } from "./business-reads";
-export type { BusinessReadDto, BusinessReadFacts, BusinessReadSource, FoundVM } from "./business-reads";
+export type { BusinessReadDto, BusinessReadFacts, BusinessReadSource, FoundVM, LookRead } from "./business-reads";
 export { csvCell, fileDateOf, importCounts, importRowsOf, matchColumns, parseCsv, viaWords } from "./csv";
 export type { CsvCell, ImportColumns, ImportFacts, ImportRow } from "./csv";
 export {
