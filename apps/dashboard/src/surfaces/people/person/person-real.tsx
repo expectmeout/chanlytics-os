@@ -531,7 +531,13 @@ function useWalkKeys(walk: PersonWalk | null, step: (to: string) => void, phone:
       const to = key === "j" ? walk.next : key === "k" ? walk.prev : null;
       if (!to) return;
       const at = e.target instanceof Element ? e.target : null;
-      if (at && at.closest("input, textarea, select, [contenteditable='true'], [role='menu'], [role='dialog']")) return;
+      if (
+        at &&
+        at.closest(
+          "input, textarea, select, [contenteditable]:not([contenteditable='false']), [role='menu'], [role='dialog']",
+        )
+      )
+        return;
       if (document.querySelector('[aria-modal="true"]')) return;
       e.preventDefault();
       go.current(to);
