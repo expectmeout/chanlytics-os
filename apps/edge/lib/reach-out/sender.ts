@@ -313,6 +313,8 @@ interface Made {
   };
   /** The lead's email on the step before, for a step after the first (D19). */
   parent: ParentEmail | null;
+  /** How its sequence ends its emails (00492, decision 0077). */
+  signsWith: "name" | "mailbox";
 }
 
 /**
@@ -334,6 +336,7 @@ async function handOver(t: Tick, s: ReachOutSendRow, turns: ClaimedTurns, m: Mad
     workspace: m.workspace,
     opening: s.opening ?? null,
     parent: m.parent ? { subject: m.parent.subject } : null,
+    signsWith: m.signsWith,
   });
   if (!d.ok && d.reason === "no_opening") return recheck();
   if (!d.ok) return HOLDS.has(d.reason) ? hold(d.reason) : skip(d.reason);
@@ -419,6 +422,7 @@ async function writeOne(t: Tick, s: ReachOutSendRow): Promise<Outcome> {
       address: workspace.address,
     },
     parent,
+    signsWith: standing.signsWith,
   };
   if (standing.ownerSends || parent?.ownerSent) return handOver(t, s, turns, made);
   return sendFromMailbox(t, s, turns, made, { mailbox, messageId });
@@ -475,6 +479,7 @@ async function sendFromMailbox(
     workspace: m.workspace,
     opening,
     from: turn.go,
+    signsWith: m.signsWith,
     unsubscribe: { secret: t.lane.unsubscribeSecret, origin: t.lane.unsubscribeOrigin },
     parent: m.parent,
   });

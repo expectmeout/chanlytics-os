@@ -315,6 +315,12 @@
   margin-top: 3px;
 }
 
+/* How the email ends under its words (0077): the name it signs off with, or its mailbox's signature, line by line. */
+.lw-mail-end {
+  margin: var(--space-2) 0 0;
+  white-space: pre-line;
+}
+
 /* The foot every email carries, under its words where the email is drawn whole (the draft's preview): its lines as the
    send writes them, quieter than the words. */
 .lw-mail-foot {

@@ -19,6 +19,7 @@ import { HAND_KINDS, HAND_WORDS_MAX } from "./reach-out-hand";
 import { REACH_OUT_PREVIEW_INDEX_MAX, REACH_OUT_DECISIONS, REACH_OUT_SAID_OUTCOMES } from "./reach-out-dtos";
 import { OWNER_SAID_INTENTS } from "./reach-out-replies";
 import { LEAD_LIST_MAX } from "../leads/lead-import";
+import { REACH_OUT_SIGNS_WITH } from "./reach-out-rules";
 
 /** GET reach-out-replies: since when (at most the reading's window back), and one thread's alone. */
 export const ReachOutRepliesQuerySchema = z.object({
@@ -60,6 +61,8 @@ export const ReachOutChainSchema = z.object({
   /** Its owner sends its emails from their own inbox, each handed to them written and checked (00429). */
   owner_sends: z.boolean().default(false),
   signed_by: z.string().trim().max(SIGNED_BY_MAX).nullable(),
+  /** How its emails end (0077): its Signed line, or its mailbox's signature. Absent: as it was (a new one, the name). */
+  signs_with: z.enum(REACH_OUT_SIGNS_WITH).optional(),
   steps: z.array(ReachOutStepSchema).min(1).max(REACH_OUT_STEPS_MAX),
 });
 
@@ -82,6 +85,9 @@ export const ReachOutPreviewSchema = z.object({
       .max(REACH_OUT_BODY_MAX * 2),
   }),
   signed_by: z.string().trim().max(SIGNED_BY_MAX).nullable(),
+  /** How the sequence ends its emails, and the mailbox its first one would leave from (00492): the preview ends so. */
+  signs_with: z.enum(REACH_OUT_SIGNS_WITH).optional(),
+  mailbox_id: z.uuid().nullable().optional(),
   language: z
     .string()
     .regex(/^[a-z]{2,3}(_[A-Z]{2})?$/)

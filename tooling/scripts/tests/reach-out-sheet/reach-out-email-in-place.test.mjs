@@ -176,6 +176,8 @@ const CHAIN = (first = {}, nudge = {}) => ({
   // Who sends it is the root's, and saved as it stands (00429): its mailboxes, here.
   owner_sends: false,
   signed_by: "Sam",
+  // How it ends, as it stands (00492): a root that names none ends with its name.
+  signs_with: "name",
   steps: [
     {
       id: ROOT_ID,

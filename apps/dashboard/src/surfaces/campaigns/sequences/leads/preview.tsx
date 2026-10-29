@@ -8,6 +8,8 @@
 import {
   LEAD_BUILD_WORDS as W,
   REACH_OUT_LANGUAGE,
+  chainFirstSender,
+  coldEndingOf,
   emailFoot,
   leadDraftChainOf,
   leadPreviewEmailOf,
@@ -35,15 +37,31 @@ interface PreviewProps {
   onAt: (at: number) => void;
 }
 
-/** Who it is from: the name it signs with, and the inbox or mailbox it leaves. */
+/** Who it is from: the name it signs with, and the inbox or the mailbox its next email leaves (0077). */
 function fromOf(lc: LeadChain): string | null {
   const name = lc.draft.signed_by.trim();
-  const box = lc.draft.owner_sends
-    ? W.yourInbox
-    : lc.chain.mailboxes.length === 1
-      ? (lc.chain.mailboxes.at(0)?.address ?? null)
-      : null;
+  const box = lc.draft.owner_sends ? W.yourInbox : (chainFirstSender(lc.chain, lc.draft.mailbox_ids)?.address ?? null);
   return [name, box].filter(Boolean).join(" · ") || null;
+}
+
+/**
+ * How this step's email ends under its words, as the send ends it (0077, contracts coldEndingOf): the name, or the
+ * mailbox's own signature where the sequence chose it. An email its owner sends ends with the name alone: their mail app
+ * adds their signature.
+ */
+function endingOf(lc: LeadChain, place: number): string | null {
+  const words = lc.draft.steps[place - 1];
+  if (!words || words.hand) return null;
+  const e = coldEndingOf({
+    signsWith: lc.draft.signs_with,
+    signedBy: lc.draft.signed_by,
+    signature: lc.draft.owner_sends
+      ? null
+      : (chainFirstSender(lc.chain, lc.draft.mailbox_ids)?.signature?.words ?? null),
+    first: place === 1,
+    body: words.body,
+  });
+  return e.signature ?? e.signOff;
 }
 
 /**
@@ -119,6 +137,7 @@ export function LeadPreview({ rec, lc, place, leads, at, onAt }: PreviewProps) {
           email={email}
           whole
           from={fromOf(lc)}
+          ending={endingOf(lc, place)}
           foot={previewFootOf(lead, workspace.businessName)}
           testid="ld-preview-email"
         />

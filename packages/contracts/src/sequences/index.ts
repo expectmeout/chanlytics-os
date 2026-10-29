@@ -122,17 +122,27 @@ export {
   leadBuildStepsOf,
   leadDraftChainOf,
   leadDraftDockOf,
+  leadEndingOf,
   leadFirstUnwritten,
   leadInsertRowsOf,
+  leadMailboxesTicked,
+  leadMailboxRowsOf,
   leadPaceChoicesOf,
   leadPreviewEmailOf,
+  leadSendingFactsOf,
   leadStartOf,
   reachOutInsertStep,
   reachOutMayInsertStep,
   reachOutPutBackStep,
   reachOutRemoveStep,
 } from "./sequence-lead-build";
-export type { LeadBuildPart, LeadBuildStepVM, LeadInsertRowVM, LeadPaceChoice } from "./sequence-lead-build";
+export type {
+  LeadBuildPart,
+  LeadBuildStepVM,
+  LeadInsertRowVM,
+  LeadMailboxRowVM,
+  LeadPaceChoice,
+} from "./sequence-lead-build";
 export { SEQUENCE_LIST_WORDS, SEQUENCE_SORTS, SEQUENCE_TYPES, sequenceTypeOf, sortedSequences } from "./sequence-list";
 export type { SequenceSort, SequenceType } from "./sequence-list";
 export {

@@ -209,6 +209,13 @@
 .ld-runs-row + .ld-runs-row {
   border-top: 1px solid var(--line);
 }
+/* A mailbox the sequence writes from, set in under Sends from (0077). */
+.ld-runs-row.is-mailbox {
+  padding-left: var(--space-6);
+}
+.ld-runs-note {
+  padding: 0 var(--space-3) var(--space-2);
+}
 .ld-runs-k {
   display: flex;
   flex-direction: column;

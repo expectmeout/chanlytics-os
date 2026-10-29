@@ -62,7 +62,7 @@ const BODY = (over = {}) => ({
 });
 
 /** The workspace's search: three businesses, strongest first; the audience's and the record's doors as the SQL keys them. */
-function world({ config = CONFIG(), events = [] } = {}) {
+function world({ config = CONFIG(), events = [], mailboxes = [] } = {}) {
   const leads = [1, 2, 3].map((i) => ({
     lead_id: `lead-${i}`,
     email: `owner-${i}@fixture-movers.example`,
@@ -78,6 +78,7 @@ function world({ config = CONFIG(), events = [] } = {}) {
       tenant_config: [{ tenant_id: A, config }],
       business_records: [{ tenant_id: A, about: "We move homes across Austin." }],
       events,
+      mailbox_connections: mailboxes,
     },
     {},
     {
@@ -200,7 +201,8 @@ test("it holds what the sender holds: no booking link, a subject posing as a rep
   // With the workspace's link, it reads.
   world({ config: CONFIG({ booking_link: "https://example.com/book" }) });
   const linked = (await answer(await knock(BODY({ words: { subject: "Hi", body: "Book: {{booking link}}" } }))))[1];
-  assert.equal(linked.preview.body, "Book: https://example.com/book");
+  // It ends with the name it signs with, as a send does (0077).
+  assert.equal(linked.preview.body, "Book: https://example.com/book\n\nSam");
 });
 
 test("the step's language is the reader's measure; a model that cannot answer is said, not refused", async () => {
@@ -248,4 +250,34 @@ test("a preview spends the model, so it counts in Ask's daily budget as a lead d
     400,
     { ok: false, error: "bad_request" },
   ]);
+});
+
+test("the preview ends as the send would: from the sequence's mailbox, with its signature where the sequence chose it (0077)", async () => {
+  model();
+  const MINE = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+  const THEIRS = "ffffffff-ffff-4fff-8fff-ffffffffffff";
+  const box = (id, tenant) => ({
+    id,
+    tenant_id: tenant,
+    provider: "google",
+    address: "sam@getharbor.example",
+    host: "getharbor.example",
+    from_name: "Sam at Harbor",
+    state: "connected",
+    signature: "Sam Rivera\nHarbor Moving Co",
+    signature_off: false,
+    gmail_signature: null,
+    gmail_signature_at: null,
+  });
+  world({ mailboxes: [box(MINE, A), box(THEIRS, B)] });
+  const words = { subject: "Quick one for {{business}}", body: "{{opening}}" };
+  const ends = async (over) => (await answer(await knock(BODY({ words, ...over }))))[1].preview.body;
+  const opening = "A 4.9 from 16 reviews says people find you.";
+  assert.equal(await ends({ signs_with: "mailbox", mailbox_id: MINE }), `${opening}\n\nSam Rivera\nHarbor Moving Co`);
+  assert.equal(await ends({ signs_with: "name", mailbox_id: MINE }), `${opening}\n\nSam`, "the name, its default");
+  assert.equal(await ends({}), `${opening}\n\nSam`, "a sheet from before it says neither, and gets the name");
+  // Another workspace's mailbox is none of this one's: the stand-in, which signs with nothing.
+  assert.equal(await ends({ signs_with: "mailbox", mailbox_id: THEIRS }), `${opening}\n\nSam`);
+  const [status] = await answer(await knock(BODY({ words, signs_with: "both" })));
+  assert.equal(status, 400, "an ending that is neither is refused");
 });

@@ -4,6 +4,7 @@
  * chainIssueWords), a slot put in at the caret, the pace its mailboxes allow, the preview's lines, and the Leads door.
  * Pure: the page draws these and says every sentence from here.
  */
+import { reachOutWritesFrom } from "../email/mailbox-connections";
 import { mailboxDailyCap, mailboxRampShare, MAILBOX_RAMP } from "../email/mailbox-standing";
 import {
   REACH_OUT_PREVIEW_INDEX_MAX,
@@ -26,6 +27,7 @@ import {
   type ChainIssue,
 } from "./reach-out-words";
 import type { ReachOutChainInput } from "./reach-out-schemas";
+import type { ReachOutSignsWith } from "./reach-out-rules";
 import { runRoute, sequenceRoute } from "../sequences/sequence-address";
 
 export interface ReachOutDraftStep {
@@ -47,6 +49,8 @@ export interface ReachOutDraft {
   /** Its owner sends its emails from their own inbox, each handed to them as a draft (00429). */
   owner_sends: boolean;
   signed_by: string;
+  /** How its emails end (0077): its Signed line, or its mailbox's own signature. */
+  signs_with: ReachOutSignsWith;
   steps: ReachOutDraftStep[];
 }
 
@@ -88,6 +92,7 @@ export function reachOutDraftOf(p: {
       mailbox_ids: c.mailbox_ids,
       owner_sends: c.owner_sends === true,
       signed_by: c.signed_by ?? p.signedBy ?? "",
+      signs_with: c.signs_with ?? "name",
       steps: c.steps.map((s) => ({
         id: s.id,
         subject: s.n === 0 ? s.subject : null,
@@ -103,6 +108,7 @@ export function reachOutDraftOf(p: {
     mailbox_ids: [],
     owner_sends: p.ownerSends === true,
     signed_by: p.signedBy ?? "",
+    signs_with: "name",
     steps: [
       {
         id: null,
@@ -193,6 +199,7 @@ export function reachOutChainBodyOf(d: ReachOutDraft, searchId: string): ReachOu
     mailbox_ids: d.mailbox_ids,
     owner_sends: d.owner_sends,
     signed_by: d.signed_by.trim() || null,
+    signs_with: d.signs_with,
     // An email carries no hand at all: the door reads a step with the key as a hand step (00228).
     steps: d.steps.map((s, i) => ({
       ...(s.id ? { id: s.id } : {}),
@@ -413,3 +420,17 @@ export const REACH_OUT_SHEET_PARTS = {
   footLine: "At the foot",
   repliesLine: "Replies",
 } as const;
+
+/**
+ * The mailbox a sequence's next email would leave from, as far as one can be named before the timetable places it: the
+ * first it writes from that sends now, else the first it writes from (0077). Its signature is the one a preview and a
+ * test end with. `named` is a draft's list while it is changed (none: every mailbox); without it, the chain as saved.
+ * Null where it writes from none, or the server read no choices.
+ */
+export function chainFirstSender(
+  chain: Pick<ReachOutChainDto, "mailbox_choices">,
+  named?: readonly string[],
+): NonNullable<ReachOutChainDto["mailbox_choices"]>[number] | null {
+  const picked = (chain.mailbox_choices ?? []).filter((m) => (named ? reachOutWritesFrom(m, named) : m.picked));
+  return picked.find((m) => m.sends_now) ?? picked[0] ?? null;
+}

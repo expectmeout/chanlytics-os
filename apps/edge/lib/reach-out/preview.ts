@@ -9,8 +9,20 @@
  */
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { REACH_OUT_PREVIEW_INDEX_MAX, type ReachOutHold, type SlotLead } from "../packages/contracts.js";
-import { leadCountriesOf, leadSlotsOf, reachOutAudience, reachOutRecord, type Database } from "../packages/db.js";
+import {
+  REACH_OUT_PREVIEW_INDEX_MAX,
+  type ReachOutHold,
+  type ReachOutSignsWith,
+  type SlotLead,
+} from "../packages/contracts.js";
+import {
+  leadCountriesOf,
+  leadSlotsOf,
+  mailboxConnectionOf,
+  reachOutAudience,
+  reachOutRecord,
+  type Database,
+} from "../packages/db.js";
 import {
   askReachOutModel,
   checkBudget,
@@ -38,6 +50,10 @@ export interface PreviewInput {
   /** The first step's words. */
   words: { subject: string | null; body: string };
   signedBy: string | null;
+  /** How the sequence ends its emails (00492, decision 0077). */
+  signsWith: ReachOutSignsWith;
+  /** The mailbox its first email would leave from (the first it writes from), whose signature it may end with; null: none. */
+  mailboxId: string | null;
   /** The step's language (template_language): an opening's reader holds another (F5). */
   language: string;
 }
@@ -60,7 +76,7 @@ export interface Preview {
 
 // Stand-ins for what only a real send has: the preview's email is assembled, read, and dropped.
 const STAND_IN = {
-  // No mailbox stands behind a preview: it signs with none.
+  // No mailbox stands behind the preview where the sequence names none: it signs with none.
   from: { address: "preview@preview.invalid", from_name: "Preview", signature: null, signature_off: true },
   origin: "https://preview.invalid",
 };
@@ -110,12 +126,14 @@ export async function previewOne(
   });
   const lead = leads[index];
   if (!lead) return none;
-  const [record, workspace, countries, slots] = await Promise.all([
+  const [record, workspace, countries, slots, mailbox] = await Promise.all([
     reachOutRecord(db, { tenantId: i.tenantId, searchId: i.searchId, leadId: lead.lead_id }),
     checkWorkspaceOf(db, i.tenantId),
     leadCountriesOf(db, [lead.lead_id]),
     // A company's addressee, as the send fills the person slots from it (00430).
     leadSlotsOf(db, i.tenantId, lead.lead_id),
+    // The mailbox it would leave from, this workspace's and not removed: its signature is the one the email may end with.
+    i.mailboxId ? mailboxConnectionOf(db, i.tenantId, i.mailboxId) : Promise.resolve(null),
   ]);
   if (!record) return none;
   const input = checkInputOf(record, i.words, workspace.opening, i.language, [], countries.get(lead.lead_id) ?? null);
@@ -139,14 +157,22 @@ export async function previewOne(
       bookingLink: workspace.bookingLink,
     },
     opening,
-    from: STAND_IN.from,
+    from: mailbox && mailbox.state !== "removed" ? mailbox : STAND_IN.from,
+    signsWith: i.signsWith,
     unsubscribe: { secret: randomUUID(), origin: STAND_IN.origin },
     parent: null,
   });
   return {
     lead: { id: lead.lead_id, business_name: lead.business_name ?? "", email: lead.email },
     subject: r.ok ? r.subject : null,
-    body: r.ok ? r.body : null,
+    // The words as the business reads them, with the signature under them where the email ends with one (0077).
+    body: r.ok
+      ? r.signature
+        ? `${r.body}
+
+${r.signature}`
+        : r.body
+      : null,
     opening,
     angle: checked?.opening?.angle ?? null,
     hold: checked?.hold ?? null,

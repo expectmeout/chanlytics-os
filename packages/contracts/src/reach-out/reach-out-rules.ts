@@ -15,14 +15,17 @@
  *   reachOutCardEmailOf the same fill for a lead's card before anything is written: the opening left as a mark, the
  *                       slots with no value named (the lead workbench's decide card).
  *   reachOutExampleValues  the same slots, made up for what changes from business to business: the Templates page's preview.
+ *   coldEndingOf        how a cold email ends (0077): its sequence's name under the words, or its mailbox's signature
+ *                       where the sequence chose it and it carries no link to a first email. The send, the owner's
+ *                       draft, the preview and the test all end by it; coldSignedOff puts the name under the words.
  *   REACH_OUT_MONTH_EMAILS   the month's allowance per workspace (§4.8's number; the price is Ruben's to set).
  *   REACH_OUT_CHECKS_PER_DAY the check's daily ceiling per workspace (Part 4, R12).
  */
 import type { DeliveryRefusal } from "../consent/consent";
 import { renderOwnVersion } from "../templates/message-versions";
-import { slotHoles, slotValueOf, slotValues, slotsWritten } from "../templates/slot-sets";
+import { slotHoles, slotMentions, slotValueOf, slotValues, slotsWritten } from "../templates/slot-sets";
 import { LEAD_ROLE_WORDS, leadAddresseeOf } from "../leads/lead-kind";
-import { REACH_OUT_SLOT_FALLBACKS, REACH_OUT_SLOT_SET } from "./reach-out-words";
+import { REACH_OUT_SLOT_FALLBACKS, REACH_OUT_SLOT_SET, linkCount } from "./reach-out-words";
 
 export interface OutreachLeadFacts {
   leadStage: string | null;
@@ -204,6 +207,52 @@ export function reachOutEmailOf(
   if (texts.some((t) => slotHoles(REACH_OUT_SLOT_SET, t, values))) return { ok: false, reason: "missing_value" };
   const email = renderOwnVersion("email", words, values, REACH_OUT_LANGUAGE, REACH_OUT_SLOT_SET);
   return { ok: true, subject: words.subject === null ? null : email.subject, body: email.body };
+}
+
+/** How a sequence to leads ends its emails (0077): its Signed line, or its mailbox's own signature. */
+export const REACH_OUT_SIGNS_WITH = ["name", "mailbox"] as const;
+export type ReachOutSignsWith = (typeof REACH_OUT_SIGNS_WITH)[number];
+
+/** What goes under a cold email's words: the name it signs off with, or the mailbox's signature; never both. */
+export interface ColdEnding {
+  signOff: string | null;
+  signature: string | null;
+}
+
+/** Whether the words' last line is the name the sequence signs with ({{your name}}, in any case or spacing). */
+function endsWithYourName(body: string): boolean {
+  const last =
+    body
+      .trimEnd()
+      .split(/\r\n|\r|\n/)
+      .at(-1) ?? "";
+  const [named, ...more] = slotMentions(REACH_OUT_SLOT_SET, last);
+  return !!named && more.length === 0 && named.key === "your name" && last.replace(named.written, "").trim() === "";
+}
+
+/**
+ * How a cold email ends (0077), the one rule the send, the owner's draft, the preview and the test take: the mailbox's
+ * signature where the sequence chose it, it has words, and it carries no link to a first email (the words' own link
+ * rule, `linkCount`); else the Signed line under the words, unless their last line names it already. `body` is the
+ * step's words as written, before their values go in.
+ */
+export function coldEndingOf(p: {
+  signsWith: ReachOutSignsWith;
+  signedBy: string | null;
+  signature: string | null;
+  first: boolean;
+  body: string;
+}): ColdEnding {
+  const signature = p.signature?.trim() || null;
+  if (p.signsWith === "mailbox" && signature && !(p.first && linkCount(signature) > 0))
+    return { signOff: null, signature };
+  const name = p.signedBy?.trim() || null;
+  return { signOff: name && !endsWithYourName(p.body) ? name : null, signature: null };
+}
+
+/** The words with the name under them, a blank line between; the words as they are where there is none. */
+export function coldSignedOff(body: string, signOff: string | null): string {
+  return signOff ? `${body.trimEnd()}\n\n${signOff}` : body;
 }
 
 /**

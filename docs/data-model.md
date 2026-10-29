@@ -3251,6 +3251,7 @@ Decision 0060: each step of a sequence in its place (playbooks until 00440). A s
 | `next_params` | jsonb | yes |  |  |
 | `source_search_id` | uuid | yes |  | A sequence to leads' first step only (00459): the search whose ready leads join its list without a press (auto-add). Its own list (lead_search_id) holds the leads added by hand; a lead taken out stays on that list, blanked, so it never comes back from here. |
 | `words_ok_at` | timestamp with time zone | yes |  | When a person last let a batch of this step's words go (0064): approved it, or ran it now. Null while its words are new to the owner: at its making, after its message or slots change, after its message's words change on any channel. A batch of a step whose words are new waits for an OK. |
+| `signs_with` | text | no | `'name'::text` | How a sequence to leads ends its emails (00492, decision 0077), read on its first step: 'name', its Signed line (signed_by) under the words, unless their last line names it; 'mailbox', its mailbox's own signature, except on a first email when that signature carries a link, which then ends with the name. Written by reach_out_save; members have no grant on it. |
 
 Foreign keys:
 

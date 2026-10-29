@@ -27,6 +27,8 @@ import {
   type EmailRequest,
 } from "../packages/channels.js";
 import {
+  coldEndingOf,
+  coldSignedOff,
   emailFoot,
   REACH_OUT_LANGUAGE,
   reachOutEmailOf,
@@ -34,6 +36,7 @@ import {
   slotCount,
   whyFrom,
   wordsNeedOpening,
+  type ReachOutSignsWith,
   type SlotLead,
   type SlotWorkspace,
 } from "../packages/contracts.js";
@@ -52,7 +55,8 @@ export interface RequestInput {
   workspace: Required<SlotWorkspace> & { address: string | null };
   /** The opening the check wrote for this send; null when it has none. */
   opening: string | null;
-  /** The mailbox it leaves from: the name it sends as, its address, and the signature its owner gave it. */
+  /** How its sequence ends its emails (00492, decision 0077): its name, or this mailbox's signature (coldEndingOf). */
+  signsWith: ReachOutSignsWith;
   /** The mailbox it leaves from, and what that mailbox signs with (00487, channels mailboxSignatureOf). */
   from: {
     address: string;
@@ -129,6 +133,8 @@ interface DraftInput {
   opening: string | null;
   /** The lead's email on the step before, for a step after the first: its subject, which this one answers. */
   parent: { subject: string | null } | null;
+  /** How its sequence ends its emails (00492): the owner's mail app adds their own signature, so the name at most. */
+  signsWith: ReachOutSignsWith;
 }
 
 /** A subject that answers another: "Re:" once, never twice. */
@@ -156,12 +162,23 @@ export function reachOutDraft(
     { kind: "cold", why: whyFrom(i.lead.source ?? "local_businesses"), unsubscribeUrl: null },
     REACH_OUT_LANGUAGE,
   );
-  return { ok: true, subject, body: words.body, text: `${words.body}\n\n${foot}` };
+  // How it ends (0077): the name under the words; never a mailbox's signature, which the owner's own mail app adds.
+  const { signOff } = coldEndingOf({
+    signsWith: i.signsWith,
+    signedBy: i.workspace.yourName,
+    signature: null,
+    first: i.parent === null,
+    body: i.words.body,
+  });
+  const body = coldSignedOff(words.body, signOff);
+  return { ok: true, subject, body, text: `${body}\n\n${foot}` };
 }
 
 export function reachOutRequest(
   i: RequestInput,
-): { ok: true; request: EmailRequest; subject: string; body: string } | { ok: false; reason: RequestRefusal } {
+):
+  | { ok: true; request: EmailRequest; subject: string; body: string; signature: string | null }
+  | { ok: false; reason: RequestRefusal } {
   const words = reachOutWords(i.words, i.lead, i.workspace, i.parent !== null, i.opening);
   if (!words.ok) return words;
   // The foot names who and where (CAN-SPAM): without both there is no email to send, only a refusal to say.
@@ -176,6 +193,16 @@ export function reachOutRequest(
   const url = unsubscribeUrl(i.unsubscribe.origin, token);
   // Where the finder found the lead (its source, 00430): the map, a business directory, or a file of the owner's own.
   const foot = { kind: "cold" as const, why: whyFrom(i.lead.source ?? "local_businesses"), unsubscribeUrl: url };
+  // How it ends (0077): its name under the words, or the mailbox's signature where the sequence chose it and it carries
+  // no link to a first email. The preview takes this same assembly, so it ends as the send does.
+  const ending = coldEndingOf({
+    signsWith: i.signsWith,
+    signedBy: i.workspace.yourName,
+    signature: mailboxSignatureOf(i.from)?.text ?? null,
+    first: i.parent === null,
+    body: i.words.body,
+  });
+  const body = coldSignedOff(words.body, ending.signOff);
   let request: EmailRequest;
   try {
     request = buildEmailRequest({
@@ -183,8 +210,8 @@ export function reachOutRequest(
       to: i.to,
       parent: i.parent,
       ...(words.subject !== null ? { subject: words.subject } : {}),
-      body: words.body,
-      signature: mailboxSignatureOf(i.from)?.text ?? null,
+      body,
+      signature: ending.signature,
       // The owner's words, from the owner's own mailbox: one person's email, so it is marked as nothing else.
       actor: "human",
       plain: true,
@@ -201,5 +228,5 @@ export function reachOutRequest(
     // Words no email may carry (a first email whose subject poses as a reply): the step's to fix, never this send's.
     return { ok: false, reason: "words_unsendable" };
   }
-  return { ok: true, request, subject: request.subject, body: words.body };
+  return { ok: true, request, subject: request.subject, body, signature: ending.signature };
 }

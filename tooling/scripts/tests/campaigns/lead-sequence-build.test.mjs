@@ -370,3 +370,177 @@ test("Sends from says what is saved: the mailboxes kept in sight while chosen wi
   );
   assert.equal(plain.note ?? null, null);
 });
+
+test("A day, at most keeps the slowest spacing for each count, and the saved spacing is always one of the choices (0077)", () => {
+  const pace = (mailboxes, saved) => contracts.leadPaceChoicesOf(mailboxes, saved).map((p) => [p.share, p.gap]);
+  const fresh = { address: "sam@getharbor.example", sent_days: 0, daily_cap: 40, customer_domain: false };
+  const settled = { ...fresh, sent_days: 30 };
+  // A new mailbox sends ten a day at any spacing up to 30 minutes: the slowest of them is offered, never one every 5.
+  assert.deepEqual(pace([fresh]), [
+    [10, 30],
+    [9, 60],
+  ]);
+  assert.deepEqual(pace([fresh, { ...fresh, address: "lee@getharbor.example" }]), [
+    [20, 30],
+    [18, 60],
+  ]);
+  // A settled one's forty a day fits from 12 minutes apart; the wider spacings each give a smaller day.
+  assert.deepEqual(pace([settled]), [
+    [40, 12],
+    [25, 20],
+    [17, 30],
+    [9, 60],
+  ]);
+  // Saved at a spacing no count keeps (12, as New once wrote it): it is a choice of its own, beside its count's.
+  assert.deepEqual(pace([fresh], 12), [
+    [10, 30],
+    [10, 12],
+    [9, 60],
+  ]);
+  assert.equal(
+    contracts.leadPaceChoicesOf([fresh], 12).find((p) => p.gap === 12).hint,
+    "one every 12 min or so",
+    "it says its own spacing",
+  );
+  // Saved at one that is kept: nothing is added.
+  assert.deepEqual(pace([fresh], 30), [
+    [10, 30],
+    [9, 60],
+  ]);
+});
+
+/** A mailbox as the chain's read offers it (0077): its tick, its standing, its DNS and its signature's words. */
+const choiceOf = (id, over = {}) => ({
+  id,
+  address: `${id}@getharbor.example`,
+  state: "connected",
+  sends_now: true,
+  picked: true,
+  dns: { spf: "found", dkim: "found", dmarc: "found" },
+  facts: { address: `${id}@getharbor.example`, sent_days: 30, daily_cap: 40, customer_domain: false },
+  signature: { words: "Sam Lee\nHarbor Studio", has_link: false },
+  connected_at: "2026-10-01T00:00:00Z",
+  ...over,
+});
+
+test("Each mailbox is a row: its day, why it does not send now, the records DNS is missing, New, and the last tick kept (0077)", () => {
+  const sam = choiceOf("sam", { facts: { ...choiceOf("sam").facts, sent_days: 0 } });
+  const lee = choiceOf("lee", {
+    state: "paused",
+    sends_now: false,
+    dns: { spf: "missing", dkim: "missing", dmarc: "found" },
+    connected_at: "2026-10-20T00:00:00Z",
+  });
+  const tired = choiceOf("ann", { sends_now: false });
+  // Connected since the sequence was made, and still ramping: "New" once, before its day, never "new" twice.
+  const kim = choiceOf("kim", {
+    facts: { ...choiceOf("kim").facts, sent_days: 0 },
+    connected_at: "2026-10-21T00:00:00Z",
+  });
+  const chain = { mailbox_choices: [sam, lee, tired, kim], created_at: "2026-10-18T00:00:00Z" };
+  const rows = contracts.leadMailboxRowsOf(chain, []);
+  assert.deepEqual(
+    rows.map((r) => [r.address, r.on, r.locked, r.sub, r.dnsMissing]),
+    [
+      ["sam@getharbor.example", true, false, "10 a day, rising to 40", false],
+      ["lee@getharbor.example", true, false, "New · 40 a day · Paused · SPF and DKIM missing", true],
+      ["ann@getharbor.example", true, false, "40 a day · Done for today", false],
+      ["kim@getharbor.example", true, false, "New · 10 a day, rising to 40", false],
+    ],
+    "a sequence that names none writes from every one",
+  );
+  // One ticked: it stays, and says why.
+  const one = contracts.leadMailboxRowsOf(chain, ["sam"]);
+  assert.deepEqual(
+    one.map((r) => [r.on, r.locked]),
+    [
+      [true, true],
+      [false, false],
+      [false, false],
+      [false, false],
+    ],
+  );
+  assert.match(one[0].sub, /One has to send\. To stop them all, choose Your inbox · you send\.$/);
+  // A tick names its own list from then on, and the last one is never taken off.
+  assert.deepEqual(contracts.leadMailboxesTicked(chain, [], "lee", false), ["sam", "ann", "kim"]);
+  assert.deepEqual(contracts.leadMailboxesTicked(chain, ["sam"], "sam", false), ["sam"]);
+  assert.deepEqual(contracts.leadMailboxesTicked(chain, ["sam"], "lee", true), ["sam", "lee"]);
+  // The day is made of the ticked ones that send now.
+  assert.deepEqual(
+    contracts.leadSendingFactsOf(chain, ["sam", "lee"]).map((f) => f.address),
+    ["sam@getharbor.example"],
+  );
+});
+
+test("Ends with offers the name and the first ticked mailbox's signature, and says what it will not do (0077, D10)", () => {
+  const draft = { mailbox_ids: [], signs_with: "name", signed_by: "Sam", owner_sends: false };
+  const linked = choiceOf("lee", { signature: { words: "Lee\nharbor.example", has_link: true } });
+  const chain = { mailbox_choices: [choiceOf("sam", { sends_now: false }), linked] };
+  const ends = contracts.leadEndingOf(chain, draft);
+  assert.equal(ends.value, "name");
+  assert.deepEqual(
+    ends.options.map((o) => [o.value, o.label]),
+    [
+      ["name", "“Sam”"],
+      ["mailbox", "lee@getharbor.example's signature"],
+    ],
+    "the first ticked that sends now is the one first emails leave from",
+  );
+  assert.equal(ends.note, null);
+  assert.equal(
+    contracts.leadEndingOf(chain, { ...draft, signs_with: "mailbox" }).note,
+    "Its signature has a link, so first emails from it end with your name.",
+  );
+  // The owner sends: their own mail app signs, so the name alone.
+  const owner = contracts.leadEndingOf(chain, { ...draft, owner_sends: true, signs_with: "mailbox" });
+  assert.deepEqual([owner.value, owner.options.length], ["name", 1]);
+  // No mailbox signature: the name alone; no name: asked for.
+  const bare = { mailbox_choices: [choiceOf("sam", { signature: null })] };
+  assert.equal(contracts.leadEndingOf(bare, draft).options.length, 1);
+  assert.equal(contracts.leadEndingOf(bare, { ...draft, signed_by: " " }).note, "Write the name it ends with.");
+});
+
+test("How it runs draws the mailboxes' ticks, every batch of first emails waiting, Follow-ups and Ends with, each saved as the sheet saves", async () => {
+  const lee = choiceOf("lee", { dns: { spf: "missing", dkim: "found", dmarc: "found" } });
+  const rec = {
+    ...recOf(
+      chainOf({
+        owner_sends: false,
+        mailboxes: [choiceOf("sam").facts, lee.facts],
+        mailbox_choices: [choiceOf("sam"), lee],
+      }),
+    ),
+  };
+  rec.sequence = { ...rec.sequence, starts: "leads", mode: "veto", evidence: null };
+  const draw = () => sheetOf(again(() => W.React.createElement(Runs, { rec })));
+  let tree = draw();
+  assert.equal(textOf(byTestId(tree, "ld-runs-every-mailbox")), "Every mailbox, and any you connect later");
+  assert.match(textOf(byTestId(tree, "ld-runs-mailbox-lee")), /SPF missing/);
+  assert.ok(byTestId(tree, "ld-runs-mailbox-lee-dns"), "a missing record offers Set up DNS");
+  assert.equal(byTestId(tree, "ld-runs-mailbox-sam-dns") ?? null, null);
+  // Taking one off names the rest; the last one left cannot be.
+  byTestId(tree, "ld-runs-mailbox-lee-switch").props.onCheckedChange(false);
+  tree = draw();
+  assert.deepEqual(lc.draft.mailbox_ids, ["sam"]);
+  assert.equal(byTestId(tree, "ld-runs-every-mailbox") ?? null, null, "a list of its own now");
+  assert.equal(byTestId(tree, "ld-runs-mailbox-sam-switch").props.readOnly, true);
+  // The batch rule as a fact, the choice for the follow-ups.
+  assert.equal(textOf(byTestId(tree, "ld-runs-first-emails")), "Every batch of first emails waits for your OK");
+  const follow = byTestId(tree, "ld-runs-approves-pick");
+  assert.deepEqual(
+    follow.props.groups[0].options.map((o) => o.label),
+    ["Your OK first, then 30 minutes to stop", "Each waits for your OK"],
+  );
+  // Ends with: the signature, saved with the chain.
+  const ends = byTestId(tree, "ld-runs-ends-pick");
+  assert.deepEqual(
+    ends.props.groups[0].options.map((o) => o.value),
+    ["name", "mailbox"],
+  );
+  ends.props.onValueChange("mailbox");
+  draw();
+  assert.equal(lc.draft.signs_with, "mailbox");
+  await lc.flush();
+  const put = wire.filter(([m, p]) => m === "PUT" && p === `sequences/${SEQ}/chain`).at(-1);
+  assert.deepEqual([put[2].signs_with, put[2].mailbox_ids], ["mailbox", ["sam"]]);
+});

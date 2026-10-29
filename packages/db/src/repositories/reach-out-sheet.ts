@@ -28,6 +28,8 @@ export interface ReachOutStepRow {
   /** Its owner sends its emails (a root's, 00429). */
   owner_sends: boolean | null;
   signed_by: string | null;
+  /** How its emails end (a root's, 00492): its name, or its mailbox's signature. */
+  signs_with: string | null;
   include_unconfirmed: boolean | null;
   template_id: string | null;
   /** A call or a note for the team instead of words (00228); contracts' handOf reads it. */
@@ -38,7 +40,7 @@ export interface ReachOutStepRow {
 }
 
 const STEP_COLUMNS =
-  "id, name, state, trigger, lead_search_id, after_playbook_id:after_step_id, after_days, gap_minutes, mailbox_ids, owner_sends, signed_by, include_unconfirmed, template_id, hand, run_hour, last_run_for, created_at";
+  "id, name, state, trigger, lead_search_id, after_playbook_id:after_step_id, after_days, gap_minutes, mailbox_ids, owner_sends, signed_by, signs_with, include_unconfirmed, template_id, hand, run_hour, last_run_for, created_at";
 
 /** Every reach-out step of a workspace, each chain's root among them (trigger lead_first). */
 export async function reachOutStepsOf(db: Db, tenantId: string): Promise<ReachOutStepRow[]> {

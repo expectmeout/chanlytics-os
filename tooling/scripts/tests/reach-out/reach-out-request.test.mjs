@@ -11,7 +11,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { verifyUnsubscribeToken } from "@chanlytics/channels";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
-const { reachOutRequest, reachOutWords, checkedWordsOf } = await import(
+const { reachOutRequest, reachOutDraft, reachOutWords, checkedWordsOf } = await import(
   pathToFileURL(path.join(ROOT, "apps/edge/lib/reach-out/request.ts")).href
 );
 
@@ -140,8 +140,10 @@ test("no business address, or no business name, on the profile: no_business_addr
     });
 });
 
-test("the signature its owner gave the mailbox closes the words, before the foot; the one click is on the origin given", () => {
-  const out = reachOutRequest(input({ from: { ...input().from, signature: "Sam Rivera\nHarbor Moving Co" } }));
+test("a sequence that ends with its mailbox's signature: it closes the words, before the foot; the one click is on the origin given", () => {
+  const out = reachOutRequest(
+    input({ signsWith: "mailbox", from: { ...input().from, signature: "Sam Rivera\nHarbor Moving Co" } }),
+  );
   assert.equal(
     out.body,
     "Hi Fixture Movers,\n\nMovers in Austin ask us for this.",
@@ -230,4 +232,52 @@ test("the words a send was checked against: one mark for the words, the name the
     checkedWordsOf(words, "Sam", true),
   ])
     assert.notEqual(other, mark);
+});
+
+test("a sequence ends with its name by default: under the words, and no mailbox signature (decision 0077)", () => {
+  const signed = { ...input().workspace, yourName: "Sam" };
+  const from = { ...input().from, signature: "Sam Rivera\nHarbor Moving Co\nwww.getharbor.example" };
+  const named = reachOutRequest(input({ workspace: signed, from, signsWith: "name" }));
+  assert.equal(named.body, "Hi Fixture Movers,\n\nMovers in Austin ask us for this.\n\nSam");
+  assert.equal(named.signature, null);
+  assert.ok(
+    named.request.text.startsWith(`${named.body}\n\nI found your business on Google Maps.`),
+    named.request.text,
+  );
+  assert.doesNotMatch(
+    named.request.text,
+    /www\.getharbor\.example/,
+    "the mailbox's signature, and its link, are left off",
+  );
+  // Chosen, a signature with a link still gives way on a first email: the words' own rule, no link in one.
+  const first = reachOutRequest(input({ workspace: signed, from, signsWith: "mailbox" }));
+  assert.equal(first.body, named.body);
+  assert.equal(first.signature, null);
+  // A step after the first answers in the thread, and keeps the signature it chose.
+  const parent = { messageId: "m0", rfcMessageId: "<first@getharbor.example>", references: [], subject: "Hi" };
+  const later = reachOutRequest(
+    input({ workspace: signed, from, signsWith: "mailbox", parent, words: { subject: null, body: "Hi again." } }),
+  );
+  assert.equal(later.body, "Hi again.");
+  assert.equal(later.signature, from.signature);
+  assert.ok(later.request.text.startsWith(`Hi again.\n\n${from.signature}\n\n`), later.request.text);
+  // Words that end with the name already are not signed twice.
+  const once = reachOutRequest(
+    input({ workspace: signed, words: { subject: "Hi", body: "Hello there.\n\n{{your name}}" }, signsWith: "name" }),
+  );
+  assert.equal(once.body, "Hello there.\n\nSam");
+});
+
+test("the email its owner sends ends with the name, never a mailbox's signature: their own mail app adds theirs", () => {
+  const d = reachOutDraft({
+    words: { subject: "A quote for {{business}}", body: "Hi {{business}}." },
+    lead: { business_name: "Fixture Movers", city: "Austin" },
+    workspace: { ...input().workspace, yourName: "Sam" },
+    opening: null,
+    parent: null,
+    signsWith: "mailbox",
+  });
+  assert.equal(d.ok, true);
+  assert.equal(d.body, "Hi Fixture Movers.\n\nSam");
+  assert.ok(d.text.startsWith("Hi Fixture Movers.\n\nSam\n\nI found your business on Google Maps."), d.text);
 });

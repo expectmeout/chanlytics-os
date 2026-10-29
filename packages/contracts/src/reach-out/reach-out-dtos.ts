@@ -6,6 +6,7 @@
 import type { ReachOutHold } from "./reach-out-words";
 import type { StepHand } from "./reach-out-hand";
 import type { ReachOutFedBy } from "./reach-out-leads";
+import type { ReachOutSignsWith } from "./reach-out-rules";
 
 /** A step's words and place, as the sheet edits them. */
 export interface ReachOutStepDto {
@@ -42,6 +43,28 @@ export interface ReachOutMailboxFacts {
   customer_domain: boolean;
 }
 
+/**
+ * One of the workspace's mailboxes as How it runs offers it to a sequence (0077): whether the sequence writes from it,
+ * whether it sends now, what DNS said of its domain, its day's facts, and what it signs with.
+ */
+export interface ReachOutMailboxChoice {
+  id: string;
+  address: string;
+  /** Its connection's state: connected, paused, held or reconnect (removed ones are not offered). */
+  state: string;
+  /** Connected and not resting for its provider's own day (contracts mailboxSendsNow). */
+  sends_now: boolean;
+  /** The sequence writes from it (contracts reachOutWritesFrom over its mailbox_ids: none named is every one). */
+  picked: boolean;
+  /** What DNS said of its domain's records when last read; a record it could not read is left out (00423). */
+  dns: Partial<Record<"spf" | "dkim" | "dmarc", "found" | "missing">>;
+  /** What its day is made of (contracts mailboxDailyCap). */
+  facts: ReachOutMailboxFacts;
+  /** What it signs with as words, and whether they carry a link (contracts linkCount); null where it signs with none. */
+  signature: { words: string; has_link: boolean } | null;
+  connected_at: string;
+}
+
 export interface ReachOutChainDto {
   root_id: string;
   name: string;
@@ -53,12 +76,16 @@ export interface ReachOutChainDto {
   /** Its owner sends its emails, each handed to them as a draft (00429); absent from a server before it. */
   owner_sends?: boolean;
   signed_by: string | null;
+  /** How its emails end (0077); absent from a server before it, which ended them with the mailbox's signature. */
+  signs_with?: ReachOutSignsWith;
   steps: ReachOutStepDto[];
   /**
    * The mailboxes its run writes from (contracts reachOutWritesFrom: its own, or every one when it names none, that
    * sends now), each with what its day is made of (contracts mailboxDailyCap).
    */
   mailboxes: ReachOutMailboxFacts[];
+  /** Every mailbox of the workspace, oldest first, as How it runs offers them (0077); absent from a server before it. */
+  mailbox_choices?: ReachOutMailboxChoice[];
   next: ReachOutNextFacts;
   created_at: string;
   /** What feeds it (00426): a list its owner adds to, or the search that keeps it current; absent before it. */
