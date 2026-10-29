@@ -28,6 +28,8 @@ import { leadWorld, sha256, webhookToken, TENANT } from "../../_lead-world.mjs";
 import { PLAN, actorRun, mapsItem } from "../../_lead-fixtures.mjs";
 import { MARK_MAX_BYTES } from "../../../../../packages/core/src/leads/mark-image.ts";
 import { notAnImage, png } from "../_mark-images.mjs";
+import { MAPS_CAP_FLOOR_USD } from "../../../../../packages/core/src/leads/cards.ts";
+import { estimateForRound } from "../../../../../apps/dashboard/src/server/leads/lead-answers.ts";
 
 const OWNER = "job-1";
 function world(over = {}) {
@@ -291,6 +293,32 @@ test("nothing left of what the round reserved: nothing is started, and the round
     [0, 0],
     "the actor's cap floor is a floor on a cap, not a licence to spend what was never reserved",
   );
+});
+
+test("a small search reserves one run's floor and starts (29 Oct 2026: five leads reserved $0.33 and waited queued an hour)", async () => {
+  const five = { ...PLAN, count: 5 };
+  const estimate = estimateForRound(five, "probe");
+  assert.ok(estimate >= MAPS_CAP_FLOOR_USD, `the route's estimate, ${estimate}, holds the actor's floor`);
+  const w = leadWorld({ plan: five });
+  w.rpcs.lead_search_create({ p_tenant_id: TENANT, p_plan: five, p_via: "people", p_estimate_usd: estimate });
+  const out = await startRound(w.ports(OWNER, { db: leadDb(w.db) }), w.round().id, OWNER);
+  assert.equal(out.kind, "started");
+  assert.equal(w.apify.calls.filter((c) => c.op === "startRun").length, 1, "one run, at the floor");
+  // A later round of a small search is priced to the floor too: its main phase, and a top-up of one.
+  for (const [purpose, counted] of [
+    ["main", 0],
+    ["topup", 4],
+  ])
+    assert.ok(estimateForRound(five, purpose, counted) >= MAPS_CAP_FLOOR_USD, purpose);
+});
+
+test("less left than one run's floor: nothing is started, and the round ends rather than wait queued for the sweep", async () => {
+  const w = leadWorld({ plan: PLAN });
+  w.rpcs.lead_search_create({ p_tenant_id: TENANT, p_plan: PLAN, p_via: "people", p_estimate_usd: 0.33 });
+  const out = await startRound(w.ports(OWNER, { db: leadDb(w.db) }), w.round().id, OWNER);
+  assert.deepEqual(out, { kind: "spent" });
+  assert.deepEqual([w.round().state, w.round().ending], ["ended", "budget_used"]);
+  assert.deepEqual([w.apify.calls.length, w.runs().length], [0, 0], "nothing asked of the provider, no run row");
 });
 
 async function probed(over = {}) {
