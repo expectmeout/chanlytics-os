@@ -10,14 +10,14 @@ import { useEffect, useState } from "react";
 /** What may hold the coral before the setup card: Need you, and To do on a phone. */
 type CoralHolder = "queue" | "todo";
 
-const held = new Set<CoralHolder>();
+const holders = new Set<CoralHolder>();
 const hearing = new Set<() => void>();
 
 /** A holder drew (or let go of) the coral. */
 export function holdsCoral(who: CoralHolder, on: boolean): void {
-  if (on === held.has(who)) return;
-  if (on) held.add(who);
-  else held.delete(who);
+  if (on === holders.has(who)) return;
+  if (on) holders.add(who);
+  else holders.delete(who);
   for (const hear of hearing) hear();
 }
 
@@ -28,7 +28,7 @@ export function queueHoldsCoral(on: boolean): void {
 
 /** Whether `who` holds the coral now (any holder, unnamed), redrawn when that changes. */
 export function useCoralHeld(who?: CoralHolder): boolean {
-  const now = () => (who ? held.has(who) : held.size > 0);
+  const now = () => (who ? holders.has(who) : holders.size > 0);
   const [on, setOn] = useState(now);
   useEffect(() => {
     const hear = () => setOn(now());

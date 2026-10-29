@@ -365,9 +365,10 @@ export const TODAY_PHONE_WORDS = {
    */
   dayRest: (more: number, sends: ReadonlyArray<{ name: string; clock: string }>, many: string, one: string) => {
     const visits = more ? `${more} more ${more === 1 ? one : many}` : "";
+    const [first] = sends;
     const going =
-      sends.length === 1
-        ? `${sends[0].name} goes at ${sends[0].clock}`
+      sends.length === 1 && first
+        ? `${first.name} goes at ${first.clock}`
         : sends.length
           ? `${sends.length} sends today`
           : "";
@@ -407,9 +408,10 @@ export function todayPhoneHead(standing: TodayHead, runs: number): TodayPhoneHea
   }
   const also = [...(runs > 0 ? [runsWaitingSentence(runs)] : []), ...calm.also];
   const traffic = calm.traffic ? `${calm.traffic} today.` : null;
-  if (also.length) {
-    const line = [...also.slice(1), traffic].filter(Boolean).join(" ");
-    return { title: asTitle(also[0]), line: line || null };
+  const [lead, ...rest] = also;
+  if (lead) {
+    const line = [...rest, traffic].filter(Boolean).join(" ");
+    return { title: asTitle(lead), line: line || null };
   }
   const named = !!traffic && calm.handled_all;
   const said = traffic ? (named ? `The receptionist handled everything — ${traffic}` : traffic) : null;

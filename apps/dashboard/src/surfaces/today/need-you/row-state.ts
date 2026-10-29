@@ -9,16 +9,16 @@
 import { useCallback, useSyncExternalStore } from "react";
 
 const states = new Map<string, unknown>();
-const hearers = new Set<() => void>();
+const rowStateHearers = new Set<() => void>();
 
-const hear = (on: () => void) => {
-  hearers.add(on);
+const hearRowStates = (on: () => void) => {
+  rowStateHearers.add(on);
   return () => {
-    hearers.delete(on);
+    rowStateHearers.delete(on);
   };
 };
 
-const tell = () => hearers.forEach((on) => on());
+const tell = () => rowStateHearers.forEach((on) => on());
 
 /**
  * A row's state, by the row's id and the state's name, as `useState` would hold it in one part: every part drawing the
@@ -27,7 +27,7 @@ const tell = () => hearers.forEach((on) => on());
 export function useRowState<T>(rowId: string, key: string, initial: T): [T, (next: T | ((was: T) => T)) => void] {
   const k = `${rowId}\u0000${key}`;
   const read = () => (states.has(k) ? (states.get(k) as T) : initial);
-  const value = useSyncExternalStore(hear, read, () => initial);
+  const value = useSyncExternalStore(hearRowStates, read, () => initial);
   const set = useCallback(
     (next: T | ((was: T) => T)) => {
       const was = states.has(k) ? (states.get(k) as T) : initial;

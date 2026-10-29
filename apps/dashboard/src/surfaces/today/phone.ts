@@ -6,14 +6,16 @@
  */
 import { useSyncExternalStore } from "react";
 
-const PHONE_QUERY = "(max-width: 720px)";
+const TODAY_PHONE_QUERY = "(max-width: 720px)";
 
 /** The query's list, asked for once: the store's snapshot reads it on every draw. */
 let phoneList: MediaQueryList | null | undefined;
 const phoneQuery = (): MediaQueryList | null => {
   if (phoneList === undefined)
     phoneList =
-      typeof window !== "undefined" && typeof window.matchMedia === "function" ? window.matchMedia(PHONE_QUERY) : null;
+      typeof window !== "undefined" && typeof window.matchMedia === "function"
+        ? window.matchMedia(TODAY_PHONE_QUERY)
+        : null;
   return phoneList;
 };
 
