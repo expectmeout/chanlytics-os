@@ -1,6 +1,6 @@
 /**
  * Every event kind declared is emitted somewhere, and every kind emitted is
- * declared. A repo-wide lint (registered in source-scan-baseline.json).
+ * declared. A repo-wide lint (listed in SOURCE_SCAN_EXEMPT, _measures.mjs).
  *
  * Three declared kinds were never written and fourteen written kinds were
  * never declared before this existed; an owner reading the activity log
@@ -12,89 +12,21 @@
  * constant. Meta's account webhooks are the one computed
  * family, `channel.<field>`, held to WABA_FIELDS in contracts.
  *
- * And a ratchet on the same map (the wiring's second audit, R11 S11-9): the kinds no SQL door writes, told from
- * TypeScript after the fact they announce, each with how many files write it. A fact and its event share a transaction
- * (decision 0031, invariant 2), and doors-without-events.json sees only the SQL side of that: its baseline can reach
- * nothing while these are still written apart. The kinds may only go away (a set: the numbers are a record).
+ * And a measure on the same map (the wiring's second audit, R11 S11-9; _measures.mjs TS_ONLY_EVENTS, held by
+ * check:debt): the kinds no SQL door writes, told from TypeScript after the fact they announce, each with how many
+ * files write it. A fact and its event share a transaction (decision 0031, invariant 2), and doors-without-events sees
+ * only the SQL side of that. The kinds may only go away (a set: the numbers are a record).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import fs from "node:fs";
-import path from "node:path";
 import { EVENT_KINDS, WABA_FIELDS } from "@chanlytics/contracts";
-import { ROOT, readRaw } from "../_source.mjs";
-import { ratchet } from "../_ratchet.mjs";
+import { readRaw } from "../_source.mjs";
+import { EVENT_KIND, emittedKinds, walkTypeScript as walk } from "../_measures.mjs";
 
-const KIND = /^[a-z_]+\.[a-z_]+$/;
+const KIND = EVENT_KIND;
 const declared = new Set(EVENT_KINDS);
 const channelFamily = new Set(WABA_FIELDS.map((f) => `channel.${f}`));
-
-function walk(dir, out = []) {
-  for (const e of fs.readdirSync(path.join(ROOT, dir), { withFileTypes: true })) {
-    if (e.name === "node_modules" || e.name === "dist" || e.name === ".next" || e.name === "tests") continue;
-    const rel = `${dir}/${e.name}`;
-    if (e.isDirectory()) walk(rel, out);
-    else if (/\.(ts|tsx)$/.test(e.name) && !e.name.endsWith(".d.ts")) out.push(rel);
-  }
-  return out;
-}
-
-/** kind → the files that write it. */
-function emitted() {
-  const by = new Map();
-  const add = (kind, file) => {
-    if (!by.has(kind)) by.set(kind, new Set());
-    by.get(kind).add(file);
-  };
-  // SQL: each insert into events, the first dotted literal in its values.
-  for (const f of fs.readdirSync(path.join(ROOT, "supabase/migrations")).filter((n) => n.endsWith(".sql"))) {
-    const src = readRaw(`supabase/migrations/${f}`);
-    for (const m of src.matchAll(/insert into (?:public\.)?events\b([\s\S]*?);/g)) {
-      const lit = m[1].match(/'([a-z_]+\.[a-z_]+)'/);
-      if (lit) add(lit[1], `supabase/migrations/${f}`);
-    }
-  }
-  // TypeScript: the runtimes and the packages, never the tests or the built copies.
-  for (const dir of [
-    "apps/edge",
-    "apps/dashboard/src",
-    "apps/dashboard/app",
-    "packages/db/src",
-    "packages/core/src",
-    "packages/jobs/src",
-    "packages/channels/src",
-    "packages/contracts/src",
-  ]) {
-    for (const f of walk(dir)) {
-      const src = readRaw(f);
-      const consts = new Map(
-        [...src.matchAll(/const ([A-Z_]+_KIND)\s*=\s*"([a-z_]+\.[a-z_]+)"/g)].map((m) => [m[1], m[2]]),
-      );
-      // Every literal inside the call, to its closing paren: a conditional that
-      // picks one of three billing kinds names all three.
-      for (const m of src.matchAll(/\b(?:emitEvent|recordEvent)\(/g)) {
-        let depth = 0;
-        let i = m.index;
-        for (; i < src.length; i++) {
-          if (src[i] === "(") depth++;
-          else if (src[i] === ")") {
-            depth--;
-            if (depth === 0) break;
-          }
-        }
-        const call = src.slice(m.index, i + 1);
-        for (const lit of call.matchAll(/"([a-z_]+\.[a-z_]+)"/g)) if (KIND.test(lit[1])) add(lit[1], f);
-        for (const c of call.matchAll(/\b([A-Z_]+_KIND)\b/g)) if (consts.has(c[1])) add(consts.get(c[1]), f);
-      }
-      for (const m of src.matchAll(/\.from\("events"\)\s*\.insert\(\{[\s\S]{0,400}?kind:\s*"([a-z_]+\.[a-z_]+)"/g))
-        add(m[1], f);
-      for (const m of src.matchAll(/\bevent\(\s*(?:ports\.)?db,\s*d,\s*"([a-z_]+\.[a-z_]+)"/g)) add(m[1], f);
-      // A verdict that names its own event kind (channels/a2p: the line's texting state).
-      for (const m of src.matchAll(/\bevent:\s*"(line\.[a-z_]+)"/g)) add(m[1], f);
-    }
-  }
-  return by;
-}
+const emitted = emittedKinds;
 
 test("every kind the product writes is declared, and every declared kind is written somewhere", () => {
   const by = emitted();
@@ -145,18 +77,4 @@ test("the computed family is the contracts' list, and nothing else is computed",
     }
   }
   assert.equal(computed, 1);
-});
-
-ratchet({
-  name: "event kinds written only from TypeScript",
-  file: "ts-only-events.json",
-  mode: "set",
-  measure: () =>
-    Object.fromEntries(
-      [...emitted()]
-        .filter(([, files]) => [...files].every((f) => !f.startsWith("supabase/")))
-        .map(([kind, files]) => [kind, files.size]),
-    ),
-  advice:
-    "A fact and its event share a transaction (decision 0031, invariant 2; the wiring's second audit, S11-9): write the event in the SQL door that writes the fact, beside the write, rather than from TypeScript after it.",
 });

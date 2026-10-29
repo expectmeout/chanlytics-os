@@ -736,6 +736,8 @@ export const LOG_EVENTS = [
   "website_form_failed",
   "website_form_kept",
   "website_form_refused",
+  "website_look",
+  "website_look_failed",
   "website_read",
   "website_read_failed",
   "website_read_unscheduled",

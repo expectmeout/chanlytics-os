@@ -28,6 +28,7 @@ import { RecordRow } from "../../kit/record/row";
 import { BT_SAVED } from "./gestures/common";
 import { BtRow } from "./gestures/row";
 import { BtLogoRow } from "./logo/row";
+import { BtColourRow } from "./look/row";
 import type { BtDisputed } from "./gestures/row";
 import { phoneShown } from "./save";
 import type { Brain, Config, Saver } from "./save";
@@ -567,6 +568,8 @@ export const BtWhoCard = ({ brain, base = null, canEdit, flash, saver }: RowShar
       <BtNameRow shared={shared} brain={brain} goesOn={goesOn} />
 
       <BtLogoRow canEdit={canEdit} flash={flash} />
+
+      <BtColourRow canEdit={canEdit} flash={flash} />
 
       <BtAddressRow {...shared} />
 

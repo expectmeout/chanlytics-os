@@ -437,7 +437,7 @@ export function nonNullAssertions(sf) {
 }
 
 /**
- * The casts `baselines/casts.json` holds, by family, for one module: `{ unknownAs, never, nonNull }`, a family the
+ * The casts the casts measure holds, by family, for one module: `{ unknownAs, never, nonNull }`, a family the
  * module has none of left out, so a module with none is no entry.
  */
 export function castsIn(sf) {

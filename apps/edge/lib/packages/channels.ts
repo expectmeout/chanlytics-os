@@ -1,2 +1,2 @@
-/** See ./db.ts — same relative-dist indirection for the channels package. */
-export * from "../../../../packages/channels/dist/index.js";
+/** See ./db.ts: the edge's door to the channels package. */
+export * from "@chanlytics/channels";

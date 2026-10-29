@@ -12,7 +12,7 @@
  * any other, and left out of the gate until a run has held it and someone has
  * read what was said. A hard case is never on trial.
  */
-import { priceBreach } from "../../packages/contracts/dist/index.js";
+import { priceBreach } from "@chanlytics/contracts";
 
 /**
  * @typedef {{ intent?: string | string[], escalate?: boolean, language?: string, includes?: string[], excludes?: string[], min_confidence?: number, grounded?: boolean }} Expect

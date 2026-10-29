@@ -3,23 +3,23 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "default": "./dist/index.js"
+      "types": "./src/index.ts",
+      "bundled": "./dist/index.js",
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
     },
     "./realtime": {
-      "types": "./dist/realtime.d.ts",
-      "import": "./dist/realtime.js",
-      "default": "./dist/realtime.js"
+      "types": "./src/realtime.ts",
+      "bundled": "./dist/realtime.js",
+      "import": "./src/realtime.ts",
+      "default": "./src/realtime.ts"
     }
   },
   "scripts": {
-    "build": "node ../../tooling/scripts/lf-sources.mjs && tsup src/index.ts --format esm --no-splitting && tsup src/realtime.ts --format esm --no-splitting",
-    "typecheck": "tsc --noEmit",
+    "build": "node ../../tooling/scripts/package-build.mjs",
+    "typecheck": "tsc -b",
     "gen:types": "node ../../tooling/scripts/gen/db-types.mjs"
   },
   "dependencies": {
@@ -29,7 +29,6 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
-    "tsup": "^8.3.0",
     "typescript": "catalog:"
   }
 }

@@ -567,6 +567,9 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // it again from there, so a picture saved or taken away is on screen as the answer lands.
   "PUT workspaces/logo": () => [workspaceOverride],
   "DELETE workspaces/logo": () => [workspaceOverride],
+  // Its colour (00490) rides the same list: the Colour row and its preview wear it as the answer lands.
+  "PUT workspaces/accent": () => [workspaceOverride],
+  "DELETE workspaces/accent": () => [workspaceOverride],
   // Your own name: who is looking (the workspace read carries __ME, which the sidebar and the account menu say), and the roster the
   // Team pane lists and the Inbox's teammate names are drawn from (the settings read), so the old name is not left on either.
   "PUT me": () => [workspaceOverride, settingsOverride],

@@ -1,8 +1,7 @@
 /**
- * Package indirection: the edge imports the BUILT workspace package by relative path
- * so Vercel's function bundler traces real files — pnpm workspace symlinks
- * never survive into the lambda. dist/ is committed; rebuild via
- * `pnpm --filter "./packages/*" build`. Third-party deps (supabase-js) stay
- * external and resolve from the hoisted real node_modules.
+ * The edge's door to a package: the edge's modules import a package through one of these five files, which name it as
+ * every other project does. esbuild bundles each function with the package's sources (tooling/scripts/edge-functions.mjs),
+ * and the node suite reads its bundle by the `bundled` condition (decision 0074). Third-party modules stay imports,
+ * resolved from the hoisted node_modules.
  */
-export * from "../../../../packages/db/dist/index.js";
+export * from "@chanlytics/db";

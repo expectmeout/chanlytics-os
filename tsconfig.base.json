@@ -8,16 +8,16 @@
     "holds that.",
     "",
     "On, beyond `strict`: noUncheckedIndexedAccess (an index read is T | undefined until checked; core, contracts and",
-    "the dashboard turn it off until their reads are guarded, and tests/types/index-reads-are-counted.test.mjs counts",
+    "the dashboard turn it off until their reads are guarded, and check:debt counts",
     "each file's meanwhile, a number that may only fall), noImplicitOverride, noImplicitReturns,",
     "noFallthroughCasesInSwitch, noUncheckedSideEffectImports, allowUnreachableCode false, verbatimModuleSyntax and",
     "isolatedModules. The last two, with the lint's consistent-type-imports, make an import only a type reads say",
-    "`import type`, so every transpiler (tsup's esbuild, Next's SWC, Vercel's, Metro's Babel) drops what tsc drops.",
+    "`import type`, so every transpiler (esbuild, Next's Turbopack, Metro's Babel) drops what tsc drops.",
     "",
     "Off on purpose: noPropertyAccessFromIndexSignature (style only once index reads are checked; 1,669 findings),",
     "exactOptionalPropertyTypes (JSON drops undefined, so the wire cannot tell absent from undefined; 208),",
-    "erasableSyntaxOnly (the tests run through tsx, not Node's type stripping) and isolatedDeclarations (the committed",
-    "dist/index.d.ts already shows every interface change in review)."
+    "erasableSyntaxOnly (the tests run through tsx, not Node's type stripping) and isolatedDeclarations (a package's",
+    "declarations are `tsc -b`'s, read by the projects that reference it, and its barrel shows every change to its surface)."
   ],
   "compilerOptions": {
     "target": "ES2022",

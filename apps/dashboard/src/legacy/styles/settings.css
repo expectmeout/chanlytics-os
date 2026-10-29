@@ -606,7 +606,7 @@
   /* Every row does: its name stands beside its state and its act, and what it says runs under them, the row's width
      (8 Oct: a number that had just connected said how to try it in the name's own column, 115px wide and twelve lines
      tall, beside its state). The state is what follows the words, named by its place rather than as `.pill`, a kit
-     class a page's rule may not name again (kit-primitives.json); a row's act, its chevron or its menu ends the line. */
+     class a page's rule may not name again (the kit-primitives measure); a row's act, its chevron or its menu ends the line. */
   .set-conn > .set-int-row > .set-team-body { display: contents; }
   .set-conn > .set-int-row > :first-child { grid-row: 1; }
   .set-conn > .set-int-row .set-int-head { grid-column: 2; grid-row: 1; }
@@ -2207,3 +2207,15 @@ html.legacy-on .bt-link { position: relative; }
 /* Disconnect while an ad runs is refused: what to do first, then its two quiet words. */
 .set-ads-refused { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-3); margin: 0; font-size: var(--set-hint); line-height: 1.5; color: var(--warn-ink); }
 .set-ads-choose { display: flex; flex-direction: column; gap: var(--space-2); }
+
+/* Settings › Business, the Colour row (00490): its swatch, its editor, and the email it previews. */
+.bt-look-swatch { display: inline-flex; align-items: center; gap: 8px; }
+.bt-look-editor { display: grid; gap: 10px; margin-top: 8px; }
+.bt-look-preview {
+  display: block;
+  width: 100%;
+  height: 440px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--bg-sunken);
+}

@@ -3,183 +3,139 @@
  * in, and how fast its pages are.
  */
 export {
-  refusalOf,
-  roleGate,
-  waitWords,
-  NEEDS_TITLE,
-  PERM_DOING,
-  SESSION_ENDED,
-  sessionEnded,
-  combinedInto,
-} from "./refusal";
-export type { RefusalInput, Refusal, RolePerm } from "./refusal";
+  appLink,
+  canonicalRoute,
+  isMessagesParam,
+  MESSAGES_ROUTE,
+  movedAddress,
+  retiredRouteOf,
+  ROUTE_WORDS,
+  routeOfAddress,
+  routeOfHash,
+  routeOfPath,
+  workspacePath,
+} from "./address";
+export type { AddressParts } from "./address";
 export {
-  personInitials,
-  identityWords,
-  memberWords,
-  cleanDisplayName,
-  providerNameOf,
-  invitationWords,
-  joinedWords,
-  youJoinedWords,
-  TEAM_INVITE_DAYS,
-  ROLE_WORDS,
-  DISPLAY_NAME_MAX,
-} from "./identity";
-export type { IdentityInput, IdentityWords, InvitationsAcceptedDto, JoinedWorkspaceDto } from "./identity";
+  BROADCAST_WORDS,
+  CAMPAIGN_ROOMS,
+  heldEmailsWords,
+  LIBRARY_STARTER_WORDS,
+  LIBRARY_WORDS,
+  NEW_MESSAGE_WORDS,
+  OFFERS_IN_WRITING_WORDS,
+  RUN_OPEN_WORDS,
+  RUN_UNNAMED_WORDS,
+  RUN_WAITING_SHORT,
+  RUN_WAITING_WORDS,
+  runApprovedTail,
+  runApproveWords,
+  runStopDoorWords,
+  runStoppedWords,
+  runStopWords,
+  runsWaitingSentence,
+  WHO_GETS_IT_WORDS,
+} from "./campaign-rooms";
+export type { RunStopWords } from "./campaign-rooms";
 export {
-  nextThemePref,
-  themeButtonWords,
-  resolveTheme,
-  themeColorOf,
-  themeBootScript,
-  inAppFrom,
+  APP_KEYS_RESIZE_CLASS,
+  DEFAULT_LOOK_PREF,
+  DEFAULT_SIDEBAR_PREF,
+  DEFAULT_THEME_PREF,
+  DEVICE_PREFS_STORAGE,
+  IN_APP_CLASS,
+  IN_APP_UA_RE,
   inAppBootScript,
-  outlineBootScript,
+  inAppFrom,
+  isLookPref,
+  isSidebarPref,
+  isThemePref,
   isTypingTarget,
-  pageTitle,
+  LOOK_OFFERED,
+  LOOK_OPTIONS,
+  lookPrefOf,
+  nextThemePref,
   notFoundPageMetadata,
+  outlineBootScript,
+  pageTitle,
+  resolveTheme,
   shellStatusLine,
   shortcutGroups,
-  toastShape,
-  THEME_OPTIONS,
-  isThemePref,
-  DEFAULT_THEME_PREF,
-  themePrefOf,
-  LOOK_OPTIONS,
-  isLookPref,
-  DEFAULT_LOOK_PREF,
-  lookPrefOf,
-  LOOK_OFFERED,
-  DEVICE_PREFS_STORAGE,
+  SHORTCUTS,
+  THEME_COLOR_META,
   THEME_COLORS,
   THEME_INK,
-  THEME_COLOR_META,
-  IN_APP_UA_RE,
-  IN_APP_CLASS,
-  APP_KEYS_RESIZE_CLASS,
-  isSidebarPref,
-  DEFAULT_SIDEBAR_PREF,
-  SHORTCUTS,
-  TOAST_TONES,
-  TOAST_MS,
-  TOAST_UNDO_MS,
+  THEME_OPTIONS,
+  themeBootScript,
+  themeButtonWords,
+  themeColorOf,
+  themePrefOf,
+  TOAST_ICONS,
   TOAST_MAX_MS,
   TOAST_MIN_MS,
-  TOAST_ICONS,
+  TOAST_MS,
+  TOAST_TONES,
+  TOAST_UNDO_MS,
+  toastShape,
 } from "./chrome";
 export type {
-  ThemePref,
-  Theme,
-  LookPref,
-  InAppPlatform,
-  InApp,
-  SidebarPref,
   Crumb,
+  InApp,
+  InAppPlatform,
+  LookPref,
   PublicPageMetadata,
   ShellStatus,
   ShellStatusLine,
   Shortcut,
-  ToastTone,
+  SidebarPref,
+  Theme,
+  ThemePref,
   ToastShape,
+  ToastTone,
 } from "./chrome";
-export {
-  routePrefetchScript,
-  PREFETCH_SLOT,
-  PREFETCH_READS,
-  PREFETCH_BESIDE,
-  PREFETCH_OPEN,
-  openReads,
-} from "./route-prefetch";
-export {
-  routeOfPath,
-  routeOfHash,
-  routeOfAddress,
-  movedAddress,
-  workspacePath,
-  appLink,
-  retiredRouteOf,
-  canonicalRoute,
-  ROUTE_WORDS,
-  MESSAGES_ROUTE,
-  isMessagesParam,
-} from "./address";
-export type { AddressParts } from "./address";
-export { SEE_PARAM, SEE_WORDS, seeHomeOf, seeRefOf, seeRefOfRoute, seeValueOf } from "./see-over";
-export type { SeeRef } from "./see-over";
-export {
-  CAMPAIGN_ROOMS,
-  LIBRARY_WORDS,
-  NEW_MESSAGE_WORDS,
-  LIBRARY_STARTER_WORDS,
-  BROADCAST_WORDS,
-  runStoppedWords,
-  runApprovedTail,
-  RUN_WAITING_WORDS,
-  RUN_WAITING_SHORT,
-  RUN_OPEN_WORDS,
-  WHO_GETS_IT_WORDS,
-  runStopDoorWords,
-  RUN_UNNAMED_WORDS,
-  runApproveWords,
-  runsWaitingSentence,
-  heldEmailsWords,
-  runStopWords,
-  OFFERS_IN_WRITING_WORDS,
-} from "./campaign-rooms";
-export type { RunStopWords } from "./campaign-rooms";
-export { stateTone, stateLabel, stateOf, stateWordList, leadPinTone, leadMapLegend, TONES } from "./tone";
-export type { Tone, StateKind, LeadPinnable } from "./tone";
-export {
-  PAGE_BUILD,
-  PAGE_VITAL_BANDS,
-  PAGE_VITAL_WORDS,
-  PAGE_VITALS_READ,
-  PAGE_VITALS_MIN_LOADS,
-  PageVitalReport,
-  vitalValueWords,
-  vitalVerdict,
-  pageVitalsWords,
-} from "./vitals";
-export { PageVitalsInput } from "./vitals-schema";
-export {
-  PAGE_VITALS,
-  PAGE_METRICS,
-  PAGE_DEVICES,
-  PAGE_PHONE_QUERY,
-  PAGE_VITALS_PER_BEACON,
-  PRIMARY_PART,
-  vitalsPageOf,
-} from "./vitals-pages";
-export type { PageVital, PageSpeedMetric, PageMetric, PageDevice } from "./vitals-pages";
-export type {
-  PageVitalDetailDto,
-  PageVitalReportDto,
-  PageVitalsRowDto,
-  PageVitalVerdict,
-  PageVitalLineVM,
-  PageVitalsPageVM,
-  PageVitalsVM,
-} from "./vitals";
-export type { PageVitalsInputDto } from "./vitals-schema";
-export { PAGE_SPEED_READ, PAGE_SPEED_MIN, pageSpeedWords } from "./page-speed";
-export type {
-  PageSpeedHow,
-  PageSpeedRowDto,
-  PageSpotRowDto,
-  PageSpeedPageVM,
-  PageSpeedPartVM,
-  PageSpeedSpotVM,
-  PageSpeedVM,
-} from "./page-speed";
 export { CLIENT_ERROR_BOUNDARIES, CLIENT_ERROR_LIMITS, clientErrorOf, errorIdOf } from "./client-error";
-export { ClientErrorInput } from "./client-error-schema";
 export type { ClientErrorBoundary } from "./client-error";
+export { ClientErrorInput } from "./client-error-schema";
 export type { ClientErrorInputDto } from "./client-error-schema";
 export {
-  REPORT_LIMITS,
-  REPORT_KINDS,
+  cleanDisplayName,
+  DISPLAY_NAME_MAX,
+  identityWords,
+  invitationWords,
+  joinedWords,
+  memberWords,
+  personInitials,
+  providerNameOf,
+  ROLE_WORDS,
+  TEAM_INVITE_DAYS,
+  youJoinedWords,
+} from "./identity";
+export type { IdentityInput, IdentityWords, InvitationsAcceptedDto, JoinedWorkspaceDto } from "./identity";
+export { PAGE_SPEED_MIN, PAGE_SPEED_READ, pageSpeedWords } from "./page-speed";
+export type {
+  PageSpeedHow,
+  PageSpeedPageVM,
+  PageSpeedPartVM,
+  PageSpeedRowDto,
+  PageSpeedSpotVM,
+  PageSpeedVM,
+  PageSpotRowDto,
+} from "./page-speed";
+export {
+  combinedInto,
+  NEEDS_TITLE,
+  PERM_DOING,
+  refusalOf,
+  roleGate,
+  SESSION_ENDED,
+  sessionEnded,
+  waitWords,
+} from "./refusal";
+export type { Refusal, RefusalInput, RolePerm } from "./refusal";
+export {
   REPORT_KIND_WORDS,
+  REPORT_KINDS,
+  REPORT_LIMITS,
   REPORT_WORDS,
   reportKindOf,
   reportProblemOf,
@@ -187,3 +143,47 @@ export {
 export type { ReportedError, ReportKind } from "./report-problem";
 export { ReportProblemInput } from "./report-problem-schema";
 export type { ReportProblemInputDto } from "./report-problem-schema";
+export {
+  openReads,
+  PREFETCH_BESIDE,
+  PREFETCH_OPEN,
+  PREFETCH_READS,
+  PREFETCH_SLOT,
+  routePrefetchScript,
+} from "./route-prefetch";
+export { SEE_PARAM, SEE_WORDS, seeHomeOf, seeRefOf, seeRefOfRoute, seeValueOf } from "./see-over";
+export type { SeeRef } from "./see-over";
+export { leadMapLegend, leadPinTone, stateLabel, stateOf, stateTone, stateWordList, TONES } from "./tone";
+export type { LeadPinnable, StateKind, Tone } from "./tone";
+export {
+  PAGE_BUILD,
+  PAGE_VITAL_BANDS,
+  PAGE_VITAL_WORDS,
+  PAGE_VITALS_MIN_LOADS,
+  PAGE_VITALS_READ,
+  PageVitalReport,
+  pageVitalsWords,
+  vitalValueWords,
+  vitalVerdict,
+} from "./vitals";
+export type {
+  PageVitalDetailDto,
+  PageVitalLineVM,
+  PageVitalReportDto,
+  PageVitalsPageVM,
+  PageVitalsRowDto,
+  PageVitalsVM,
+  PageVitalVerdict,
+} from "./vitals";
+export {
+  PAGE_DEVICES,
+  PAGE_METRICS,
+  PAGE_PHONE_QUERY,
+  PAGE_VITALS,
+  PAGE_VITALS_PER_BEACON,
+  PRIMARY_PART,
+  vitalsPageOf,
+} from "./vitals-pages";
+export type { PageDevice, PageMetric, PageSpeedMetric, PageVital } from "./vitals-pages";
+export { PageVitalsInput } from "./vitals-schema";
+export type { PageVitalsInputDto } from "./vitals-schema";

@@ -2,8 +2,8 @@
 /**
  * Who signed a reply, read by the model and kept by the gate (decision 0052): what automatic naming waits on.
  *
- *   node tooling/scripts/evals/reply-signers.mjs          # dry: each fixture's scripted answer through the gate
- *   node tooling/scripts/evals/reply-signers.mjs --live   # asks REACH_OUT_MODEL each fixture, with the real prompt
+ *   node --import tsx tooling/scripts/evals/reply-signers.mjs          # dry: each fixture's scripted answer through the gate
+ *   node --import tsx tooling/scripts/evals/reply-signers.mjs --live   # asks REACH_OUT_MODEL each fixture, with the real prompt
  *
  * Each fixture (fixtures/replies/signers.json) answers the reach-out in replies.json, and goes through what the job does:
  * the intake's claim and words (jobs' incomingEmailOf), the reader's fenced input (reply-intents.mjs readerInputOf), the

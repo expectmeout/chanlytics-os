@@ -30,9 +30,10 @@ test("no pnpm setting lives in package.json or .npmrc, where Dependabot's pnpm 1
   assert.deepEqual(lines, [], ".npmrc: a pnpm setting belongs in pnpm-workspace.yaml (camelCase there)");
 });
 
-test("the settings the edge's lambda needs are in pnpm-workspace.yaml", () => {
-  // nft does not follow pnpm's symlinks into a Vercel function: third-party code hoisted to real directories, the
-  // workspace's packages copied in, their committed dist with them.
+test("the settings the edge's lambda needed are in pnpm-workspace.yaml, until their own change takes them out", () => {
+  // nft did not follow pnpm's symlinks into a Vercel function: third-party code hoisted to real directories, the
+  // workspace's packages copied in. esbuild bundles the edge now, and the packages ship as their sources (decision 0074);
+  // each setting leaves in a change of its own, since each rewrites the lockfile.
   assert.equal(setting("nodeLinker"), "hoisted");
   assert.equal(setting("injectWorkspacePackages"), "true");
 });

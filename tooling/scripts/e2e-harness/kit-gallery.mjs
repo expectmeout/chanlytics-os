@@ -2,7 +2,7 @@
  * The kit's gallery (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, §3.4 and step 2.3): one page that draws
  * every class of the kit in the app's own stylesheets, for e2e/kit/kit.spec.ts to check and for a person to review.
  *
- *   node tooling/scripts/e2e-harness/server.mjs 3210 kit        # http://localhost:3210/ ; t turns the theme
+ *   node --import tsx tooling/scripts/e2e-harness/server.mjs 3210 kit        # http://localhost:3210/ ; t turns the theme
  *   corepack pnpm e2e:local -- e2e/kit/kit.spec.ts --scenario=kit   # the gallery's checks
  *
  * The harness serves it as the `kit` record's page (scenarios.mjs), and production never does (decision 7). It is
