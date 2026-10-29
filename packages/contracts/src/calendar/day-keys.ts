@@ -1,7 +1,7 @@
 /**
  * Day keys, "YYYY-MM-DD" in the business's zone, and the calendar counted in them: the day `n` after, a week's
  * Monday, a month and the six weeks its grid shows, and the instant a day starts (zoneMidnight). The board, the
- * playbooks and Reach out step days here. And a day in words: the weekday a word names (weekdayOf), the day a sentence
+ * playbooks and Reach out step days here. And a day in words: the weekday a word names (weekdayNamed), the day a sentence
  * names (dayWordIn), the next day that is that weekday (onOrAfter) and the day a text names as a key (dayKeyNamed): the
  * one reading Ask, the openings a caller asks for and a listing's hours share.
  */
@@ -106,7 +106,7 @@ const WEEKDAY_WORDS = new Map<string, WeekdayKey>(
 );
 
 /** The weekday one word names ("Monday", "tues", "Sábado"), whatever its case; null for any other word. */
-export function weekdayOf(word: string): WeekdayKey | null {
+export function weekdayNamed(word: string): WeekdayKey | null {
   return WEEKDAY_WORDS.get(word.trim().toLowerCase()) ?? null;
 }
 
@@ -128,7 +128,7 @@ export function dayWordIn(text: string): DayWord | null {
       else if (words[i - 1] !== "la") near = "tomorrow";
     } else if (w === "tomorrow") near = "tomorrow";
     else if (w === "today" || w === "hoy") near ??= "today";
-    else weekday ??= weekdayOf(w);
+    else weekday ??= weekdayNamed(w);
   });
   return near ?? weekday;
 }

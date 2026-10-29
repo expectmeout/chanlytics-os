@@ -81,7 +81,7 @@ export { afterPersonRefused, allVisitsIn, calendarOwnerOf, describeVisits, extra
 export { CALENDAR_RUN_SHEET_WORDS, CALENDAR_SHOW_WORDS, calendarRunMarksOf, runMarkShown } from "./calendar/calendar-runs";
 export { coversSpan, frameOf, spanForView, windowFor } from "./calendar/calendar-views";
 export { ADD_TO_PEOPLE_WORDS, addToPeopleOf, CALENDAR_FEED_WORDS, clockLabel, closureDatesLabel, closuresFrom, eventText, feedNotes, feedSourceLabel, hoursLines, readAgoLabel, ruleParts, rulesLine, sightingStands, VISIT_ASK_WORDS, VISIT_REFUSALS, VISIT_WORDS, visitActsOf, visitLineOf, visitLineOfBlock, visitMarkOfDto, visitStands, visitStateOf } from "./calendar/calendar-words";
-export { dayKeyNamed, dayWordIn, isDayKey, mondayOf, monthLabelOf, monthSpan, onOrAfter, shiftKey, shiftMonth, weekdayOf, zoneMidnight } from "./calendar/day-keys";
+export { dayKeyNamed, dayWordIn, isDayKey, mondayOf, monthLabelOf, monthSpan, onOrAfter, shiftKey, shiftMonth, weekdayNamed, zoneMidnight } from "./calendar/day-keys";
 export { parseIcs } from "./calendar/feed";
 export { APPOINTMENT_SOURCES, APPOINTMENT_STATUSES, appointmentHolds, appointmentKeysOf, asksTheFeed, feedAppointmentRows, feedNamesOf, feedStillNames } from "./calendar/feed-appointments";
 export { calendarFeedKeyOf, FEED_CHECK_WORDS, FEED_GUIDES, FEED_MAX_BYTES, feedBodyProblem, feedProblemWords, feedUrlOk, fetchPublic, mailboxCalendarOf, offeringHorizon, previewHorizon, seasonHorizon } from "./calendar/feed-url";

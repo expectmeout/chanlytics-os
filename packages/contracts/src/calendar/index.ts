@@ -180,7 +180,7 @@ export {
   onOrAfter,
   shiftKey,
   shiftMonth,
-  weekdayOf,
+  weekdayNamed,
   zoneMidnight,
 } from "./day-keys";
 export type { DayWord, WeekdayKey } from "./day-keys";

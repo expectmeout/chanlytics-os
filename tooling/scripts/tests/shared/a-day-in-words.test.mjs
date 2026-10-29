@@ -1,5 +1,5 @@
 /**
- * A day in words is read in one table (contracts calendar/day-keys.ts: weekdayOf, dayWordIn, onOrAfter, dayKeyNamed).
+ * A day in words is read in one table (contracts calendar/day-keys.ts: weekdayNamed, dayWordIn, onOrAfter, dayKeyNamed).
  * Five tables read it before 29 October 2026, and they disagreed: Ask's calendar read "sábado" and "this friday" as
  * today, the openings asked for on "miércoles" were every day's, and Ask's reads before its first round took "el lunes
  * por la mañana" (Monday morning) for tomorrow. Each reader is run here on the same words.
@@ -15,7 +15,7 @@ import {
   filterOpenings,
   onOrAfter,
   weekHoursOf,
-  weekdayOf,
+  weekdayNamed,
 } from "@chanlytics/contracts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -30,9 +30,9 @@ test("a weekday is one word of the one table, English or Spanish, whole or cut s
     sat: ["sat", "Saturday", "Sábado", "sabado"],
     sun: ["sun", "sunday", "domingo"],
   };
-  for (const [key, words] of Object.entries(forms)) for (const w of words) assert.equal(weekdayOf(w), key, w);
+  for (const [key, words] of Object.entries(forms)) for (const w of words) assert.equal(weekdayNamed(w), key, w);
   for (const w of ["", "we", "sa", "mar", "today", "constructor", "toString", "monday morning"])
-    assert.equal(weekdayOf(w), null, `"${w}" is no weekday`);
+    assert.equal(weekdayNamed(w), null, `"${w}" is no weekday`);
 });
 
 test("the day a sentence names: tomorrow before today before a weekday, and mañana is the morning after la", () => {

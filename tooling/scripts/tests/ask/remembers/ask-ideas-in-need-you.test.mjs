@@ -20,6 +20,7 @@ Object.assign(globalThis, {
   gate: () => ({}),
 });
 const { IdeaWork } = await import("../../../../../apps/dashboard/src/surfaces/today/need-you/idea-work.tsx");
+const { clearRowStates } = await import("../../../../../apps/dashboard/src/surfaces/today/need-you/row-state.ts");
 const W = globalThis.window;
 
 const MESSAGE = "aaaaaaaa-0000-4000-8000-0000000000a1";
@@ -70,7 +71,9 @@ const ideas = () =>
       }),
     ),
   );
+/** A visit of its own: what a row came to is kept by the row for the visit (row-state.ts), as Today's queue lets it go. */
 const draw = () => {
+  clearRowStates();
   fresh();
   return ideas();
 };

@@ -6,7 +6,7 @@
  * One day whose words do not read is that day of the default week, never a day closed; a day this cannot name leaves the
  * whole week unread. The display readers (lead-facts.ts) are left as they are: they read one range for a line of text.
  */
-import { weekdayOf, type WeekdayKey } from "../calendar/day-keys";
+import { weekdayNamed, type WeekdayKey } from "../calendar/day-keys";
 
 export interface OpenWindow {
   from: number;
@@ -25,16 +25,16 @@ export const DEFAULT_WEEK: WeekHours = {
   sun: [],
 };
 
-/** A listing's own two letters for a day ("Mo", "Th"), which no sentence reads as one (day-keys.ts weekdayOf). */
-const LISTING_DAY: Record<string, WeekdayKey> = {
-  mo: "mon",
-  tu: "tue",
-  we: "wed",
-  th: "thu",
-  fr: "fri",
-  sa: "sat",
-  su: "sun",
-};
+/** A listing's own two letters for a day ("Mo", "Th"), which no sentence reads as one (day-keys.ts weekdayNamed). */
+const LISTING_DAY = new Map<string, WeekdayKey>([
+  ["mo", "mon"],
+  ["tu", "tue"],
+  ["we", "wed"],
+  ["th", "thu"],
+  ["fr", "fri"],
+  ["sa", "sat"],
+  ["su", "sun"],
+]);
 
 /** "Monday", "Mon.", "Monday (Labor Day)", "Mo": the weekday, or null. */
 const dayNameOf = (raw: unknown): WeekdayKey | null => {
@@ -43,7 +43,7 @@ const dayNameOf = (raw: unknown): WeekdayKey | null => {
     .replace(/\./g, "")
     .trim()
     .toLowerCase();
-  return weekdayOf(word) ?? (Object.hasOwn(LISTING_DAY, word) ? LISTING_DAY[word] : null);
+  return weekdayNamed(word) ?? LISTING_DAY.get(word) ?? null;
 };
 
 /**

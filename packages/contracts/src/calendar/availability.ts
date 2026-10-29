@@ -21,7 +21,7 @@ import type { Closure, Hours } from "../config/workspace-config/business-profile
 import { DAYS } from "../config/workspace-config/config-rules";
 import { NO_LINK_DETAILS } from "../config/no-booking-link";
 import { BOOKING_REQUEST_INSTRUCTION } from "./visit/booking-request";
-import { keyParts, weekdayOf } from "./day-keys";
+import { keyParts, weekdayNamed } from "./day-keys";
 import { WEEKDAY_KEYS, clockInZone, dayPlusInZone, localToUtcMs } from "./zone-math";
 import type { BusyBlock } from "./feed";
 import { dateFormat } from "../shared/time";
@@ -201,7 +201,7 @@ export function filterOpenings(
   by: { day?: string | null; minMinutes?: number | null },
 ): Opening[] {
   const day = (by.day ?? "").trim().toLowerCase();
-  const weekday = weekdayOf(day) ?? undefined;
+  const weekday = weekdayNamed(day) ?? undefined;
   const key = /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : undefined;
   const minMs = by.minMinutes && by.minMinutes > 0 ? by.minMinutes * 60_000 : 0;
   const picked = openings.filter((o) => (key ? o.key === key : weekday ? o.weekday === weekday : true));
