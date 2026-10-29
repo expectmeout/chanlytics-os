@@ -6,6 +6,7 @@
 import "server-only";
 import {
   appointmentKeyOf,
+  dayInZone,
   eventText,
   extractContacts,
   feedProblemWords,
@@ -106,10 +107,7 @@ function spanFor(
   now: Date,
   around: "today" | null = null,
 ): { from: string; days: number } {
-  const todayKey = ((): string => {
-    const f = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" });
-    return f.format(now);
-  })();
+  const todayKey = dayInZone(tz, now.getTime()).key;
   if (!isDayKey(from) && around === "today") return windowFor(todayKey);
   const start = isDayKey(from) ? from : mondayOf(todayKey);
   return { from: start, days: Math.min(MAX_DAYS, Math.max(1, Math.round(days) || 7)) };

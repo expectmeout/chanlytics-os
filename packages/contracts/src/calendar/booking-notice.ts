@@ -9,7 +9,7 @@
  * The intake's rule, the model's shape and the row's identity are one module so the four doors that use them (channels'
  * claim, core's read, the board's row, Settings' words) cannot drift.
  */
-import { localToUtcMs } from "./zone-math";
+import { dayInZone, localToUtcMs } from "./zone-math";
 import type { FeedItem } from "./feed";
 import { extractContacts, sameVisitStart, type OwnAddresses } from "./calendar-people";
 import { normalizeEmail } from "../shared/email-address";
@@ -202,10 +202,9 @@ export function noticePrompt(p: {
     "price: as written ('$55.00+', 'Varies'), null when none. note: the client's own note, null when none.",
     "Take only what the email states. Invent nothing; a field the email does not state is null.",
   ].join("\n");
-  const day = new Intl.DateTimeFormat("en-CA", { timeZone: p.tz, year: "numeric", month: "2-digit", day: "2-digit" });
   const user = [
     `Booking tool: ${bookingToolName(p.tool)}.`,
-    `Received on ${day.format(new Date(p.receivedAtMs))}; the business's zone is ${p.tz}.`,
+    `Received on ${dayInZone(p.tz, p.receivedAtMs).key}; the business's zone is ${p.tz}.`,
     `Subject: ${p.subject ?? "(none)"}`,
     "",
     p.text.slice(0, NOTICE_TEXT_MAX),

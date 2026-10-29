@@ -1,6 +1,6 @@
 import "server-only";
 import { z } from "zod";
-import { ASK_CAPS, abandonedCall, askCallOutcome, noteRows, toCallVM } from "@chanlytics/contracts";
+import { ASK_CAPS, abandonedCall, askCallOutcome, dayInZone, noteRows, toCallVM } from "@chanlytics/contracts";
 import { load } from "../../../readers";
 import { call } from "../../../readers/call";
 import { calls as callsReader } from "../../../readers/calls";
@@ -15,12 +15,11 @@ import {
   type ToolContext,
 } from "../context";
 
+/** The business's day a call fell on (zone-math), or none for a time or a zone that is none. */
 function dayKey(iso: string | null | undefined, tz: string): string | null {
   if (!iso) return null;
   try {
-    return new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(
-      new Date(iso),
-    );
+    return dayInZone(tz, Date.parse(iso)).key;
   } catch {
     return null;
   }

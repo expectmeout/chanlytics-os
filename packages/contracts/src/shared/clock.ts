@@ -26,14 +26,16 @@
  * And a length on a clock face, which has no zone: mmss, "2:05", a call's length or a line's minute within it, and
  * callLength, the one rule for a call with no length.
  *
- * The formatters are built once per zone, and an instant's calendar parts are
- * remembered for a while: view models format every message on every refresh, and
- * every one of them asks for "now" again. A zone that is not a zone is read as
- * UTC, so a bad row never throws on a page; the write path already refuses one
- * (workspace.ts isTimezone).
+ * The words' formatters are built once per zone. An instant's calendar day and wall
+ * clock are zone-math's (calendar/zone-math.ts zoneParts), the one reading of a zone,
+ * which remembers them for a while: view models format every message on every
+ * refresh, and every one of them asks for "now" again. A zone that is not a zone is
+ * read as UTC (usableZone), so a bad row never throws on a page; the write path
+ * already refuses one (workspace.ts isTimezone). A day is stepped as day-keys.ts
+ * steps a date: on the date alone, never on a clock.
  */
-import { localToUtcMs } from "../calendar/zone-math";
-import { DAY_MS } from "./time";
+import { keyParts, mondayOf, shiftKey } from "../calendar/day-keys";
+import { dayNumber, localToUtcMs, usableZone, zoneParts } from "../calendar/zone-math";
 
 interface ZoneFormats {
   zone: string;
@@ -41,7 +43,6 @@ interface ZoneFormats {
   date: Intl.DateTimeFormat;
   dateYear: Intl.DateTimeFormat;
   weekday: Intl.DateTimeFormat;
-  parts: Intl.DateTimeFormat;
 }
 
 const FORMATS = new Map<string, ZoneFormats>();
@@ -49,75 +50,20 @@ const FORMATS = new Map<string, ZoneFormats>();
 function formatsFor(tz: string): ZoneFormats {
   const hit = FORMATS.get(tz);
   if (hit) return hit;
-  let zone = tz || "UTC";
-  try {
-    new Intl.DateTimeFormat("en-US", { timeZone: zone });
-  } catch {
-    zone = "UTC";
-  }
+  const zone = usableZone(tz);
   const made: ZoneFormats = {
     zone,
     time: new Intl.DateTimeFormat("en-US", { timeZone: zone, hour: "numeric", minute: "2-digit" }),
     date: new Intl.DateTimeFormat("en-US", { timeZone: zone, month: "short", day: "numeric" }),
     dateYear: new Intl.DateTimeFormat("en-US", { timeZone: zone, month: "short", day: "numeric", year: "numeric" }),
     weekday: new Intl.DateTimeFormat("en-US", { timeZone: zone, weekday: "short" }),
-    parts: new Intl.DateTimeFormat("en-US", {
-      timeZone: zone,
-      hourCycle: "h23",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    }),
   };
   FORMATS.set(tz, made);
   return made;
 }
 
-interface Wall {
-  key: string;
-  year: number;
-  hh: number;
-  mm: number;
-}
-
-const WALLS = new Map<string, Wall>();
-const WALLS_MAX = 2048;
-
-/** The business's calendar day and wall clock at an instant. */
-function wall(atMs: number, tz: string): Wall {
-  const id = `${tz}|${atMs}`;
-  const hit = WALLS.get(id);
-  if (hit) return hit;
-  const p: Record<string, string> = {};
-  for (const x of formatsFor(tz).parts.formatToParts(new Date(atMs))) p[x.type] = x.value;
-  const made: Wall = {
-    key: `${p.year}-${p.month}-${p.day}`,
-    year: Number(p.year),
-    hh: Number(p.hour) % 24,
-    mm: Number(p.minute),
-  };
-  if (WALLS.size >= WALLS_MAX) WALLS.clear();
-  WALLS.set(id, made);
-  return made;
-}
-
-/**
- * A day key moved by whole days: arithmetic on the date alone, never on a clock.
- * calendar.ts's shiftKey does the same; it is not imported so that every view
- * model reading a time does not also load the configuration schema.
- */
-function shiftDay(key: string, days: number): string {
-  return new Date(Date.UTC(Number(key.slice(0, 4)), Number(key.slice(5, 7)) - 1, Number(key.slice(8, 10)) + days))
-    .toISOString()
-    .slice(0, 10);
-}
-
-/** The weekday of a business day, 0 Sunday to 6 Saturday: the date alone, never a clock. */
-function dayOfWeek(key: string): number {
-  return new Date(Date.UTC(Number(key.slice(0, 4)), Number(key.slice(5, 7)) - 1, Number(key.slice(8, 10)))).getUTCDay();
-}
+/** The business's calendar day and wall clock at an instant, by zone-math, in a zone a page can use. */
+const wall = (atMs: number, tz: string) => zoneParts(usableZone(tz), atMs);
 
 /** The business's day at an instant: "2026-09-06". */
 export function zoneDayKey(atMs: number, tz: string): string {
@@ -144,9 +90,7 @@ export function clockHour(hour: number): string {
 /** "Sep 6" by the business's calendar, with the year when that is not this year there. */
 export function clockDate(atMs: number, tz: string, nowMs: number): string {
   const f = formatsFor(tz);
-  return wall(atMs, tz).year === wall(nowMs, tz).year
-    ? f.date.format(new Date(atMs))
-    : f.dateYear.format(new Date(atMs));
+  return wall(atMs, tz).y === wall(nowMs, tz).y ? f.date.format(new Date(atMs)) : f.dateYear.format(new Date(atMs));
 }
 
 /**
@@ -157,10 +101,10 @@ export function clockHistoryDay(atMs: number, tz: string, nowMs: number): string
   const day = zoneDayKey(atMs, tz);
   const today = zoneDayKey(nowMs, tz);
   if (day === today) return "Today";
-  if (day === shiftDay(today, -1)) return "Yesterday";
+  if (day === shiftKey(today, -1)) return "Yesterday";
   const f = formatsFor(tz);
   const weekday = f.weekday.format(new Date(atMs));
-  const gap = (Date.parse(today) - Date.parse(day)) / DAY_MS;
+  const gap = daysBetween(day, today);
   if (gap > 0 && gap < 7) return weekday;
   return `${weekday} ${clockDate(atMs, tz, nowMs)}`;
 }
@@ -187,14 +131,17 @@ export function clockWhen(atMs: number, tz: string, nowMs: number): string {
   const day = zoneDayKey(atMs, tz);
   const today = zoneDayKey(nowMs, tz);
   if (day === today) return `today ${time}`;
-  if (day === shiftDay(today, 1)) return `tomorrow ${time}`;
+  if (day === shiftKey(today, 1)) return `tomorrow ${time}`;
   return `${clockDate(atMs, tz, nowMs)} · ${time}`;
 }
 
 /** Whole days from one business day to another ("2026-09-06" to "2026-09-08" is 2): the dates alone, never a clock. */
 function daysBetween(fromKey: string, toKey: string): number {
-  const at = (key: string) => Date.UTC(Number(key.slice(0, 4)), Number(key.slice(5, 7)) - 1, Number(key.slice(8, 10)));
-  return Math.round((at(toKey) - at(fromKey)) / DAY_MS);
+  const n = (key: string) => {
+    const { y, m, d } = keyParts(key);
+    return dayNumber(y, m, d);
+  };
+  return n(toKey) - n(fromKey);
 }
 
 /** How many business days a moment is from today: 0 today, -1 yesterday, 1 tomorrow. */
@@ -214,7 +161,7 @@ export function localDaysBetween(fromMs: number, toMs: number, tz: string): numb
 /** Whether a moment falls in the business's week, Monday to Sunday, that `nowMs` is in. */
 export function inLocalWeek(atMs: number, tz: string, nowMs: number): boolean {
   const today = zoneDayKey(nowMs, tz);
-  const monday = shiftDay(today, -((dayOfWeek(today) + 6) % 7));
+  const monday = mondayOf(today);
   const d = daysBetween(monday, zoneDayKey(atMs, tz));
   return d >= 0 && d <= 6;
 }
@@ -247,7 +194,7 @@ export function clockDayLabel(atMs: number, tz: string, nowMs: number): string {
   const today = zoneDayKey(nowMs, tz);
   const date = clockDate(atMs, tz, nowMs);
   if (day === today) return `Today · ${date}`;
-  if (day === shiftDay(today, -1)) return `Yesterday · ${date}`;
+  if (day === shiftKey(today, -1)) return `Yesterday · ${date}`;
   return date;
 }
 
@@ -265,7 +212,7 @@ export function wallClockAt(tz: string, dayKey: string, hh: number, mm: number):
 
 /** Tomorrow at a wall-clock time, by the business's day and clock: a snooze target. */
 export function tomorrowAtIn(tz: string, nowMs: number, hh: number, mm = 0): number {
-  return wallClockAt(tz, shiftDay(zoneDayKey(nowMs, tz), 1), hh, mm);
+  return wallClockAt(tz, shiftKey(zoneDayKey(nowMs, tz), 1), hh, mm);
 }
 
 const two = (n: number): string => String(n).padStart(2, "0");

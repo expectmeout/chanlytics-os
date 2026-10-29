@@ -20,6 +20,7 @@ import { DATA_NOT_INSTRUCTIONS } from "../../ai/fence";
 import { offersAnswerRule, offersAskRule } from "./offers-ask";
 import { CONVERSATION_UNDER_WAY } from "./assistant-disclosure";
 import { hoursLines, joinList } from "./prompt-hours";
+import { dayInZone } from "../../calendar/zone-math";
 import { dateFormat } from "../../shared/time";
 
 /**
@@ -42,20 +43,10 @@ import { dateFormat } from "../../shared/time";
  * Silence would be worse than this. A model given opening hours and no date
  * will answer "are you open right now?" anyway, confidently, from nothing.
  */
-/** "YYYY-MM-DD" for an instant, as the business experiences it. */
+/** "YYYY-MM-DD" for an instant, as the business experiences it (zone-math); none for a zone or an instant that is none. */
 function dateKeyInZone(tz: string, at: Date): string | null {
   try {
-    const parts = dateFormat("en-US", {
-      timeZone: tz,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    }).formatToParts(at);
-    const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
-    const y = get("year"),
-      m = get("month"),
-      d = get("day");
-    return y && m && d ? `${y}-${m}-${d}` : null;
+    return dayInZone(tz, at.getTime()).key;
   } catch {
     return null;
   }

@@ -1122,6 +1122,58 @@ export function zonelessDatesIn(sf) {
   return out;
 }
 
+/** The locales whose format of a date is "YYYY-MM-DD", which a hand-written day key borrows. */
+const DAY_KEY_LOCALES = new Set(["en-CA", "sv-SE"]);
+
+/** A call or a `new` of a number formatter: `numberFormat(…)`, `Intl.NumberFormat(…)`. */
+const isNumberFormat = (e) => {
+  while (ts.isParenthesizedExpression(e)) e = e.expression;
+  if (!ts.isCallExpression(e) && !ts.isNewExpression(e)) return false;
+  const callee = e.expression;
+  return (
+    (ts.isIdentifier(callee) && callee.text === "numberFormat") ||
+    (ts.isPropertyAccessExpression(callee) &&
+      callee.name.text === "NumberFormat" &&
+      ts.isIdentifier(callee.expression) &&
+      callee.expression.text === "Intl")
+  );
+};
+
+/**
+ * The places one file reads a time zone itself (`{ line, text }`, one per site), where contracts' calendar/zone-math.ts
+ * is the one reading of a zone (zoneParts, dayInZone, clockInZone, dayPlusInZone, usableZone):
+ *
+ *   - `.formatToParts(…)` of anything but a number formatter (`numberFormat(…)`, `Intl.NumberFormat`), since the
+ *     parts of a date are a zone's reading;
+ *   - a day key borrowed from a locale's format: `Intl.DateTimeFormat`, `dateFormat` or `formatterOnUse` built for
+ *     "en-CA" or "sv-SE", whose dates read "YYYY-MM-DD".
+ *
+ * Five modules read a zone's parts and a dozen wrote their own day key until 29 October 2026, each with its own answer
+ * to a zone Intl cannot use (throw, UTC, null, the machine's own day) and three of them a day as 24 hours.
+ */
+export function zoneReadersIn(sf) {
+  const out = [];
+  const site = (n) =>
+    out.push({ line: sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1, text: n.getText(sf).slice(0, 120) });
+  const visit = (n) => {
+    if (ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression)) {
+      if (n.expression.name.text === "formatToParts" && !isNumberFormat(n.expression.expression)) site(n);
+    }
+    if ((ts.isNewExpression(n) || ts.isCallExpression(n)) && n.arguments?.length) {
+      const callee = n.expression;
+      const formatter =
+        isDateTimeFormat(callee) ||
+        (ts.isIdentifier(callee) && (callee.text === "dateFormat" || callee.text === "formatterOnUse"));
+      const locale = n.arguments[0];
+      if (formatter && (ts.isStringLiteral(locale) || ts.isNoSubstitutionTemplateLiteral(locale)))
+        if (DAY_KEY_LOCALES.has(locale.text)) site(n);
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return out;
+}
+
 /** A call of `readFileSync`, bare or as a property (`fs.readFileSync`). */
 const isReadFileSync = (n) =>
   ts.isCallExpression(n) &&

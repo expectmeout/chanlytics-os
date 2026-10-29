@@ -1,8 +1,12 @@
 /**
  * Today's clock words: a time, a day and a wait said in the workspace's own zone, never the reader's. Every
- * module of the brief that names a moment reads it from here.
+ * module of the brief that names a moment reads it from here. The days are zone-math's, counted by the calendar
+ * (shared/clock.ts localDaysBetween, calendar/zone-math.ts dayPlusInZone): tomorrow is the next day, never now plus
+ * 24 hours, which late on the eve of a 23-hour day is the day after next.
  */
-import { dateFormat, DAY_MS } from "../shared/time";
+import { dayPlusInZone } from "../calendar/zone-math";
+import { localDaysBetween, zoneDayKey } from "../shared/clock";
+import { dateFormat } from "../shared/time";
 
 /** Wall-clock time AT THE SALON, whatever clock the reader is holding. */
 /**
@@ -13,21 +17,10 @@ import { dateFormat, DAY_MS } from "../shared/time";
 export function tzClock(iso: string | null | undefined, tz: string, now: Date): string | null {
   const t = tzTime(iso, tz);
   if (!iso || !t) return t;
-  const key = (d: Date) => {
-    try {
-      return dateFormat("en-CA", {
-        timeZone: tz,
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      }).format(d);
-    } catch {
-      return d.toDateString();
-    }
-  };
-  const day = key(new Date(iso));
-  if (day === key(now)) return t;
-  if (day === key(new Date(now.getTime() + DAY_MS))) return `tomorrow ${t}`;
+  // A time was said, so the zone is one Intl can use.
+  const day = zoneDayKey(Date.parse(iso), tz);
+  if (day === zoneDayKey(now.getTime(), tz)) return t;
+  if (day === dayPlusInZone(tz, now.getTime(), 1).key) return `tomorrow ${t}`;
   try {
     return `${dateFormat("en-US", { weekday: "short", timeZone: tz }).format(new Date(iso))} ${t}`;
   } catch {
@@ -44,23 +37,7 @@ export function tzClock(iso: string | null | undefined, tz: string, now: Date): 
 export function tzSince(iso: string | null | undefined, tz: string, now: Date): string | null {
   const t = tzTime(iso, tz);
   if (!iso || !t) return t;
-  const dayNumber = (d: Date): number => {
-    try {
-      const parts = dateFormat("en-CA", {
-        timeZone: tz,
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      })
-        .format(d)
-        .split("-")
-        .map(Number);
-      return Date.UTC(parts[0] ?? 1970, (parts[1] ?? 1) - 1, parts[2] ?? 1) / DAY_MS;
-    } catch {
-      return Math.floor(d.getTime() / DAY_MS);
-    }
-  };
-  const days = dayNumber(now) - dayNumber(new Date(iso));
+  const days = localDaysBetween(Date.parse(iso), now.getTime(), tz);
   if (days <= 0) return t;
   if (days === 1) return `yesterday ${t}`;
   try {
@@ -92,10 +69,7 @@ export function tzDayAndTime(iso: string | null, tz: string, now: Date): string 
   if (!t) return null;
   // The tenant's calendar day, not a 24-hour multiple: at 8 AM, a message
   // from 9:15 AM yesterday is "yesterday", however few hours ago it was.
-  const key = (d: Date) =>
-    dateFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
-  const toUtc = (k: string) => Date.UTC(Number(k.slice(0, 4)), Number(k.slice(5, 7)) - 1, Number(k.slice(8, 10)));
-  const days = Math.round((toUtc(key(now)) - toUtc(key(new Date(iso)))) / DAY_MS);
+  const days = localDaysBetween(Date.parse(iso), now.getTime(), tz);
   if (days < 1) return t;
   if (days === 1) return `yesterday at ${t}`;
   try {

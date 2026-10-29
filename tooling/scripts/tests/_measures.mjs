@@ -38,6 +38,7 @@ import {
   headerOf,
   durationsIn,
   zonelessDatesIn,
+  zoneReadersIn,
   inlineStyles,
   handRoutesIn,
   seedReadsOutsideADemo,
@@ -588,6 +589,21 @@ export const MEASURES = [
     },
     advice:
       "Say it by the workspace's clock: contracts' clock.ts (clockTime, clockDate, clockNearWhen and the rest) with the workspace's zone, which a page reads from pageClock().zone() and a server from its tenant, or dateFormat(locale, { timeZone, … }). A day key, which is no instant, is formatted from its UTC noon with timeZone: \"UTC\" (calendar-words.ts).",
+  },
+  {
+    name: "zones read outside zone-math",
+    key: "zone-readers",
+    measure: () => {
+      const out = {};
+      for (const f of ZONED) {
+        if (f === "packages/contracts/src/calendar/zone-math.ts") continue;
+        const n = zoneReadersIn(parse(f)).length;
+        if (n > 0) out[f] = n;
+      }
+      return out;
+    },
+    advice:
+      "Read the zone through contracts' calendar/zone-math.ts, its one reading: zoneParts(tz, at) for the parts, dayInZone(tz, ms).key for the day, clockInZone for the wall clock, dayPlusInZone to step a day by the calendar, and usableZone(tz) first where a zone Intl cannot use must read as UTC rather than throw.",
   },
   {
     name: "breakpoints outside the set",
