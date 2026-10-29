@@ -82,3 +82,16 @@ test("a row listed nowhere keeps its kind's look: a title is matched under its o
   assert.equal(noticeTone("number", "Your trial has started"), null, "a billing title under another kind");
   assert.equal(noticeTone("billing", "Your receptionist is paused"), null);
 });
+
+test("a search that ended because its source failed is a warning; one that is done keeps its good news", () => {
+  // The titles as lead_rounds_notify writes them (00491; leads.db.test.mjs holds the trigger to them). A source that
+  // failed was told "Your search for … is done" in good news's green, the one notice about a search that had stopped.
+  assert.deepEqual(
+    drawn([
+      ["leads_ready", "Your search for dog groomers didn't run: the source couldn't start it"],
+      ["leads_ready", "Your search for bike shops stopped: the source stopped answering"],
+      ["leads_ready", "Your search for personal trainers is done"],
+    ]).map(([, tone]) => tone),
+    ["warn", "warn", "ok"],
+  );
+});

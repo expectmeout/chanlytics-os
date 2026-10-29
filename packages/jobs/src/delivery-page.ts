@@ -8,8 +8,8 @@
  * nothing they can act on, and the bell used to say so in their words (contracts JOB_WORK, kept for the record).
  */
 
-/** A field the relay's payload carries (00334), or "unknown" when it carries none. */
-function carried(payload: unknown, key: string): string {
+/** A field a job's payload carries (the relay's, 00334; a collect's, collect-page.ts), or "unknown" when it carries none. */
+export function carried(payload: unknown, key: string): string {
   const p = (payload && typeof payload === "object" && !Array.isArray(payload) ? payload : {}) as Record<
     string,
     unknown

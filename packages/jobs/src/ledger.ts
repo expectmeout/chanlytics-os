@@ -20,6 +20,8 @@ import type { Database, Json } from "@chanlytics/db";
 import { DAY_MS, MIN_MS, jittered } from "@chanlytics/contracts";
 import { DEADLINE_MARGIN_MS } from "@chanlytics/core";
 import { TWILIO_TIMEOUT_MS, WHATSAPP_SEND_TIMEOUT_MS } from "@chanlytics/channels";
+import { collectPage, collectPageKey } from "./collect-page";
+import { deliveryPage, deliveryPageKey } from "./delivery-page";
 
 export type Db = SupabaseClient<Database>;
 
@@ -150,16 +152,29 @@ export const SPEAKS_TO_A_PERSON: ReadonlySet<string> = new Set(["outbound_send",
  * answer that failed leaves its message to the deadman sweep, which hands it to a person with the customer's words; a
  * change's delivery to a subscriber (00334) is the platform's to mend, nothing an owner can act on, and the operator is
  * paged instead (PAGES_THE_PLATFORM). It used to ring the bell with "A change could not be passed on to what reads
- * it", an internal fault in the customer's words.
+ * it", an internal fault in the customer's words. A lead search's collect is told by its search: the sweep ends a run
+ * whose collects keep failing, and the round's own notice says the search stopped (00491); the job's notice was told
+ * fourteen times for one search on 29 Oct 2026, each on the owner's phone, as "16 jobs did not finish" on Today.
  */
-export const TOLD_ELSEWHERE: ReadonlySet<string> = new Set(["inbound_answer", "event_deliver"]);
+export const TOLD_ELSEWHERE: ReadonlySet<string> = new Set(["inbound_answer", "event_deliver", "lead_collect"]);
+
+/** A page: the condition it is sent under (the pager sends once per key per window) and its words. */
+type PageOf = (
+  job: LedgerRow,
+  reason: string,
+  wreckage: string | null,
+) => { key: string; subject: string; body: string };
 
 /**
- * Kinds whose failure is the platform's condition: the operator is paged through the tick's `page` port (the edge's
- * pageOperator, one page per condition per window), with the job named and where to look. The row still fails, so the
- * day's dead letters count it by kind (platform_metrics_roll, 00332).
+ * Kinds whose failure is the platform's condition, each with its page: the operator is paged through the tick's `page`
+ * port (the edge's pageOperator, one page per condition per window), with the job named and where to look. The row still
+ * fails, so the day's dead letters count it by kind (platform_metrics_roll, 00332). A kind's words are its own: a kind
+ * paged with another's would name the wrong table to look in.
  */
-export const PAGES_THE_PLATFORM: ReadonlySet<string> = new Set(["event_deliver"]);
+export const PAGES_THE_PLATFORM: ReadonlyMap<string, PageOf> = new Map<string, PageOf>([
+  ["event_deliver", (job, reason, wreckage) => ({ key: deliveryPageKey(job), ...deliveryPage(job, reason, wreckage) })],
+  ["lead_collect", (job, reason, wreckage) => ({ key: collectPageKey(job), ...collectPage(job, reason, wreckage) })],
+]);
 
 export const RUN_INTERRUPTED = "the run did not finish; its outcome is unknown";
 

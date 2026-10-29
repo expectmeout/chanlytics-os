@@ -31,9 +31,10 @@ export const QUESTION_WAIT_MS = 24 * HOUR_MS;
 export const ROUND_STUCK_MS = 60 * MIN_MS;
 /**
  * A run whose collects failed for good this often is given up. Each failed collect is the ledger's three tries over
- * twelve minutes (RETRY_WAITS_MS) and a bell for the owner, and the sweep asks for the next one: one or two are a
- * provider's bad half hour, three are the run's reading failing for most of an hour. Without this the run stays
- * running in our books, so its round never ends and the bell rings on (29 Oct 2026, a judge call too big for its time).
+ * twelve minutes (RETRY_WAITS_MS) and a page for the platform, never a bell (packages/jobs TOLD_ELSEWHERE), and the
+ * sweep asks for the next one: one or two are a provider's bad half hour, three are the run's reading failing for most
+ * of an hour. Without this the run stays running in our books, so its round never ends and the owner never hears it
+ * stopped (29 Oct 2026, a judge call too big for its time); with it, the round ends source_failed and its notice says so.
  */
 export const GIVE_UP_FAILED_COLLECTS = 3;
 /** The run states that mean a round still has work at the provider. */

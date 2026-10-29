@@ -28,7 +28,6 @@ import {
   type LedgerRow,
 } from "./ledger";
 import { saySettled, type Settled } from "./settle";
-import { deliveryPage, deliveryPageKey } from "./delivery-page";
 
 export type TickFields = Record<string, string | number | boolean | null | undefined>;
 
@@ -320,10 +319,11 @@ async function conclude(
 
   // The platform's condition: the operator is paged with the job named and where to look, once per window (the
   // pager's own rule). A page that could not be made is logged, never a reason to lose the recording above.
-  if (PAGES_THE_PLATFORM.has(job.kind)) {
+  const pageOf = PAGES_THE_PLATFORM.get(job.kind);
+  if (pageOf) {
     try {
-      const page = deliveryPage(job, reason, wreckage);
-      await ports.page(deliveryPageKey(job), page.subject, page.body, job.tenant_id);
+      const page = pageOf(job, reason, wreckage);
+      await ports.page(page.key, page.subject, page.body, job.tenant_id);
     } catch (e) {
       ports.log.error("job_page_failed", { job_id: job.id, kind: job.kind, error: errText(e) });
     }

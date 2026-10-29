@@ -9884,6 +9884,7 @@ declare
   v_name text;
   v_via  text;
   v_n    integer;
+  v_seen boolean;
   v_id   uuid;
 begin
   -- A round that leaves waiting_on_owner has settled its question for good (a round waits on its owner once): its row
@@ -9905,11 +9906,18 @@ begin
   elsif NEW.state = 'ended' and coalesce(OLD.state, '') <> 'ended' and coalesce(NEW.ending, '') not in ('stopped', 'question_unanswered') then
     select count(*)::integer into v_n from public.lead_search_members m
      where m.round_id = NEW.id and m.class = 'qualified' and m.blanked_at is null;
+    -- Whether the source returned anything at all, in any class: the strip's "seen" (00491).
+    select exists (select 1 from public.lead_search_members m where m.round_id = NEW.id) into v_seen;
     insert into public.notifications (tenant_id, kind, title, body, route, subject_type, subject_id)
     select NEW.tenant_id, 'leads_ready',
-           case when v_via <> 'import' then left('Your search for ' || v_name || ' is done', 200)
-                when NEW.ending in ('target_reached', 'searched_everything') then left('Your list ' || v_name || ' is checked', 200)
-                else left('Your list ' || v_name || ' could not be checked', 200) end,
+           case when v_via = 'import' then
+                  case when NEW.ending in ('target_reached', 'searched_everything') then left('Your list ' || v_name || ' is checked', 200)
+                       else left('Your list ' || v_name || ' could not be checked', 200) end
+                when NEW.ending = 'source_failed' and not v_seen then
+                  left('Your search for ' || v_name || ' didn''t run: the source couldn''t start it', 200)
+                when NEW.ending = 'source_failed' then
+                  left('Your search for ' || v_name || ' stopped: the source stopped answering', 200)
+                else left('Your search for ' || v_name || ' is done', 200) end,
            case when v_via <> 'import' then case when v_n > 0 then v_n || ' found.' else 'Nothing new was counted.' end
                 when NEW.ending not in ('target_reached', 'searched_everything') then 'Its addresses wait in Needs review.'
                 when v_n > 0 then v_n || ' have a checked address.' else 'None of the addresses checked out.' end,
@@ -9931,7 +9939,7 @@ end $$;
 -- Name: FUNCTION lead_rounds_notify(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_rounds_notify() IS 'The bell''s two lead kinds: one leads_question row when a round stops to ask, pointing at the search''s left-out pile (the places the question is about), and one leads_ready row when it ends with anything but "stopped" or "question_unanswered", pointing at the search; each once per round, each with a push_send job so a phone hears it too. A file of the owner''s own (via import, 00242) rings "Your list … is checked" with how many have a checked address once its check ran, or "could not be checked" when the check ended any other way; a chosen search rings nothing. A round that leaves waiting_on_owner closes its question row for everyone (00421, notifications_close_about). A member''s own read mark is notification_marks'', as for every other kind.';
+COMMENT ON FUNCTION public.lead_rounds_notify() IS 'The bell''s two lead kinds: one leads_question row when a round stops to ask, pointing at the search''s left-out pile (the places the question is about), and one leads_ready row when it ends with anything but "stopped" or "question_unanswered", pointing at the search; each once per round, each with a push_send job so a phone hears it too. A search whose source failed says so (00491): "didn''t run: the source couldn''t start it" when nothing came back, "stopped: the source stopped answering" when places did, a warning in contracts'' notice-tones; every other ending "is done". A file of the owner''s own (via import, 00242) rings "Your list … is checked" with how many have a checked address once its check ran, or "could not be checked" when the check ended any other way; a chosen search rings nothing. A round that leaves waiting_on_owner closes its question row for everyone (00421, notifications_close_about). A member''s own read mark is notification_marks'', as for every other kind.';
 
 
 --
