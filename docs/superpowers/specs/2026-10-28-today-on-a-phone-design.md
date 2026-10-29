@@ -5,7 +5,7 @@ the structure, copy and components "cleaner compact engaging easy sophisticated"
 redesigned" (https://claude.ai/artifact/WKGFj7UdkLkPJv7d7u9ysK, design version 4, 11 boards), then "Write the spec".
 Written against `dca230386`. Phones only (720px and under): the desk's Today does not change.
 
-**Status:** built on `design/today-phone` (decision 0076), not yet pushed. Where the build left the spec, the spec says so
+**Status:** built (decision 0076), merged as #1910 on 29 Oct 2026. Where the build left the spec, the spec says so
 below, marked *Built:*.
 
 **Refined after the first build** (Ruben, 28 Oct 2026: "Apply all five"). Nine sections became seven:
@@ -20,6 +20,25 @@ below, marked *Built:*.
 
 The order is now: the head; the warnings; Need you with To do; the day; Ask found; the numbers with Worth a look; the
 lists; setting up; the end.
+
+**Refined after his look on production** (Ruben, 29 Oct 2026: "the top feels a bit cluttered and wordy"; "Build 1–4"). The
+top took eight lines before the first person, and said the run waiting three times and the oldest wait three times:
+
+1. The head's line on the needs rung says only the runs waiting (`todayPhoneHead`); who waited longest is the first
+   card's, with how long beside the name. The warnings under the head are only what stops customers being answered:
+   the line that is down, a reply that never reached anyone, and the bell's `number`, `sweep` and `billing` warnings. A
+   run waiting is Need you's row, and a job that did not finish is the bell's (§1, §2).
+2. Where the card leaves someone out (three people beside a run, four without), its foot says how many with See all,
+   which a phone had hidden since E3; the head counted them all (§3).
+3. Each thing said once on a card: since when leaves a row's state line where its wait stands beside the name (the row's
+   `since`); a call-back's sentence is what happened, its "Call them back." said by "Needs a call back" and Call (on a
+   desk too); Ask's brief on a phone's card is its first line with Read; a run waiting for your OK says so in its
+   sentence alone and opens with Review (§3).
+4. The day card's head is its note on one line: the page's head says the date (§5).
+
+The run is still said as the ladder says it ("waiting for your say", runsWaitingSentence) in the head's line and as its
+row says it ("Waits for your OK", the wait rule's words): those words are shared with the Inbox, Ask and Campaigns, and
+making them one is its own change.
 
 ## What a phone shows now
 

@@ -9,6 +9,7 @@ import { isOptedOutContact } from "../consent/consent";
 import { isLiveCall } from "../config/policy";
 import { callNotesOf, callOutcomeOf, callOutcomeWords, tidyCallSummary, type CallNotes } from "../voice/call-words";
 import { RECORDING_PURGED_WORDS, RECORDING_RETENTION_DAYS } from "../workspace/retention";
+import { HOLD_ACT_WORDS } from "./escalations";
 import { initialsOf, shortName } from "./thread-contact";
 import { shortTime } from "./thread-clock";
 import {
@@ -163,10 +164,10 @@ export function unansweredCallTodo(
   },
 ): string | null {
   if (missedCall({ missed: neverConnected(dto), direction: dto.direction })) {
-    return "Missed call: it rang and never connected. Call them back.";
+    return `Missed call: it rang and never connected. ${HOLD_ACT_WORDS.call_back.notice}`;
   }
   if (abandonedCall(dto)) {
-    return `Hung up after ${spokenDuration(dto.duration_ms)} without a word. Call them back.`;
+    return `Hung up after ${spokenDuration(dto.duration_ms)} without a word. ${HOLD_ACT_WORDS.call_back.notice}`;
   }
   return null;
 }

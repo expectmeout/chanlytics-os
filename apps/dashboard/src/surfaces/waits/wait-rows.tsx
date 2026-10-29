@@ -49,6 +49,11 @@ interface WaitRowsPorts {
    * what waits on you, leaves them out, since nothing of theirs does (the hourly sweep skips them).
    */
   late?: boolean;
+  /**
+   * Today on a phone (his look, 29 Oct 2026): a run waiting for your OK says so once, in its sentence, without the state
+   * line under it, and a row that opens says Review.
+   */
+  phone?: boolean;
 }
 
 /** The rows a page has room for, how many rows there are, and how many runs the rows it had no room for hold. */
@@ -98,9 +103,9 @@ function approvalsRow(first: BroadcastVM, runs: readonly BroadcastVM[], p: WaitR
       name={W.name(runs.length)}
       meta={W.meta}
       sentence={campaignsPaused() ? CAMPAIGNS_PAUSED_WORDS : W.sentence(runs.map(runTitleOf))}
-      status={W.status}
+      status={p.phone ? [] : W.status}
       tone="escalated"
-      cta={{ label: W.open, kind: p.verbKind(), onClick: open }}
+      cta={{ label: p.phone ? WAIT_ROW_WORDS.review : W.open, kind: p.verbKind(), onClick: open }}
       also={null}
       onOpen={open}
       testid="brief-runs-row"
@@ -120,6 +125,8 @@ function runRow(r: BroadcastVM, late: boolean, p: WaitRowsPorts, acts: RunActs):
   // Decided on its screen alone (the run's offer, contracts waitingRunOffer): a reach-out's run, one held, one too late.
   const opens = !!held || bcOpensOnItsSheet(r) || !!lateWords;
   const said = held ?? (lateWords ? { ...words.late, sentence: lateWords } : words.waiting);
+  // Waiting for your OK, its sentence says so: on a phone the state line under it would say it again.
+  const saidOnce = !!p.phone && said === words.waiting;
   const paused = campaignsPaused();
   const open = () => p.nav(homeOf(r));
   return (
@@ -130,13 +137,13 @@ function runRow(r: BroadcastVM, late: boolean, p: WaitRowsPorts, acts: RunActs):
       name={runTitleOf(r)}
       meta={said.meta}
       sentence={held || lateWords ? said.sentence : paused ? CAMPAIGNS_PAUSED_WORDS : said.sentence}
-      status={said.status}
+      status={saidOnce ? [] : said.status}
       tone="escalated"
       // A reach-out's run is opened, never approved from a row (decision D6): its screen counts and names each send first,
       // Ask refuses to approve one, and a one-tap send is the wrong habit for a first cold email.
       cta={
         opens
-          ? { label: "Open", kind: p.verbKind(), onClick: open }
+          ? { label: p.phone && !lateWords ? WAIT_ROW_WORDS.review : "Open", kind: p.verbKind(), onClick: open }
           : {
               // One word per act (decision 19 of the spec of 9 Oct 2026): "Approve · 7 people", as every screen says it.
               label: runApproveWords(r.recipient_count),

@@ -3,7 +3,9 @@
  * Need you under the head with no head and no Ask's line of its own, who waits on the owner first and To do under them in
  * the same pane, one card and the rest short, a short row opening the walk rather than opening in place, the coral passing
  * from Need you to To do when nobody waits, and the day's numbers in one row by their short names. The same queue on a
- * desk is as it was.
+ * desk is as it was. After his look on a phone (29 Oct 2026): each thing said once above the fold (how long someone waited
+ * beside their name, a run's wait in its sentence, the brief's first line with Read), a foot where the card left someone
+ * out, and under the head only the warnings that stop customers being answered.
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
@@ -46,6 +48,8 @@ W.fetch = async () =>
 const { AgentCommand } = await import("../../../../apps/dashboard/src/surfaces/today/pages/queue.tsx");
 const { TodayToDo } = await import("../../../../apps/dashboard/src/surfaces/today/phone/to-do.tsx");
 const { TodayCard } = await import("../../../../apps/dashboard/src/surfaces/today/pages/card.tsx");
+const { PhoneWarnings } = await import("../../../../apps/dashboard/src/surfaces/today/phone/warnings.tsx");
+const { BriefBox } = await import("../../../../apps/dashboard/src/surfaces/today/need-you/parts.tsx");
 const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
 
 /** Sofia asked for a person three hours ago, an hour before Ana: two handoffs, Sofia's the older. */
@@ -64,6 +68,8 @@ const set = (vm) => {
 after(() => {
   setSurfaceValue("today", undefined);
   delete W.__PEOPLE;
+  delete W.__BROADCASTS;
+  delete W.__notifs;
 });
 const draw = (Comp) => {
   fresh();
@@ -152,4 +158,141 @@ test("on a desk the queue is as it was: its head, the steps among its rows, and 
   assert.ok(byTestId(rowsOf(queue, "handoff")[1], "queue-handoff-work"), "the first two are worked in place");
   assert.equal(byTestId(queue, "today-queue").props["data-phone"], undefined);
   phone = true;
+});
+
+/** `n` people waiting on a person, an hour apart, the first the longest: more than the card holds past four. */
+const manyWaiting = (n) => {
+  const at = (h) => new Date(NOW.getTime() - h * 3_600_000).toISOString();
+  const threads = Array.from({ length: n }, (_, i) =>
+    thread(`cv-${i}`, `Person ${i}`, [msg(`m${i}`, "Can someone call me?", at(n - i + 1))], { state: "needs_human" }),
+  );
+  const held = threads.map((t, i) => ({ ...escalation(), id: `e-${i}`, conversation_id: t.id, created_at: at(n - i) }));
+  return toTodayVM(metrics(), threads, held, [], NOW);
+};
+const footOf = (tree) => find(tree, (n) => classes(n).includes("tq-foot"));
+
+test("on a phone how long someone waited is said once, beside their name, and a desk keeps since when", () => {
+  phone = true;
+  set(twoWaiting());
+  const [sofiaRow] = rowsOf(draw(AgentCommand), "handoff");
+  assert.ok(textOf(sofiaRow).includes("waited"), textOf(sofiaRow));
+  assert.ok(!textOf(sofiaRow).includes("since "), `no since on a phone: ${textOf(sofiaRow)}`);
+  phone = false;
+  const [deskRow] = rowsOf(draw(AgentCommand), "handoff");
+  assert.ok(textOf(deskRow).includes("since "), `a desk keeps it: ${textOf(deskRow)}`);
+  phone = true;
+});
+
+test("on a phone the card says who it left out, with See all, and says nothing where it left nobody out", () => {
+  phone = true;
+  set(twoWaiting());
+  assert.equal(footOf(draw(AgentCommand)), null, "two people, both drawn: no foot");
+  set(manyWaiting(6));
+  const queue = draw(AgentCommand);
+  assert.equal(rowsOf(queue, "handoff").length, 4, "the card holds four");
+  const foot = footOf(queue);
+  assert.ok(foot, "and says the rest");
+  assert.ok(textOf(foot).includes("2 more in the Inbox"), textOf(foot));
+  const all_ = find(foot, (n) => n.type === "button" && textOf(n) === "See all");
+  assert.ok(all_, "with the door to them");
+  went.length = 0;
+  press(all_);
+  assert.deepEqual(went, ["inbox"]);
+});
+
+test("on a phone a run waiting for your OK says so once, in its sentence, and opens with Review", () => {
+  const reach = {
+    id: "b-reach",
+    name: "Movers nearby",
+    state: "pending_approval",
+    playbook_id: null,
+    audience: { kind: "reach_out", label: "Movers nearby" },
+    recipient_count: 7,
+    scheduled_for: new Date(Date.now() + 2 * 3_600_000).toISOString(),
+    started_at: null,
+    when: "today 6:00 PM",
+    counts: { sent: 0, replied: 0 },
+  };
+  W.__BROADCASTS = { rows: [reach] };
+  try {
+    phone = true;
+    set(twoWaiting());
+    const row = byTestId(draw(AgentCommand), "brief-run-row");
+    assert.ok(row, "the run is a row");
+    assert.ok(textOf(row).includes("Waits for your OK"), textOf(row));
+    assert.ok(!textOf(row).includes("Waiting for your approval"), `said once: ${textOf(row)}`);
+    assert.ok(
+      find(row, (n) => n.type === "button" && textOf(n) === "Review"),
+      "Review, what is done there",
+    );
+    phone = false;
+    const desk = byTestId(draw(AgentCommand), "brief-run-row");
+    assert.ok(textOf(desk).includes("Waiting for your approval"), "a desk keeps its state line");
+    assert.ok(
+      find(desk, (n) => n.type === "button" && textOf(n) === "Open"),
+      "and its Open",
+    );
+  } finally {
+    delete W.__BROADCASTS;
+    phone = true;
+  }
+});
+
+test("on a phone's card Ask's brief is its first line with Read; the walk's sheet and a desk draw it whole", () => {
+  const brief = {
+    opening: "Hi, it's the studio, returning your call.",
+    points: ["Ask about Thursday"],
+    ask: null,
+    avoid: [],
+  };
+  fresh();
+  const card = again(() => W.React.createElement(BriefBox, { brief, onRead: () => {} }));
+  assert.ok(textOf(card).includes("Say Hi, it's the studio, returning your call."), textOf(card));
+  assert.ok(!textOf(card).includes("Ask's brief for the call"), "no head over its one line");
+  assert.ok(!textOf(card).includes("Ask about Thursday"), "the rest is the sheet's");
+  assert.ok(
+    find(card, (n) => n.type === "button" && textOf(n).includes("Read")),
+    "Read opens it",
+  );
+  const whole = again(() => W.React.createElement(BriefBox, { brief }));
+  assert.ok(textOf(whole).includes("Ask's brief for the call"), textOf(whole));
+  assert.ok(textOf(whole).includes("Ask about Thursday"), textOf(whole));
+});
+
+test("under a phone's head only what stops customers being answered: a run waiting and a job that failed stay in the bell", () => {
+  const note = (id, kind, title) => ({
+    id,
+    key: id,
+    kind,
+    title,
+    message: "",
+    tone: "warn",
+    icon: "alert",
+    unread: true,
+    about: null,
+    time: "1h",
+    actions: [{ label: "Open", to: "inbox", primary: true }],
+  });
+  W.__notifs = {
+    feed: () => [
+      note("n1", "playbook", "Movers nearby waits for your OK"),
+      note("n2", "job_failed", "A lead_collect job did not finish"),
+      note("n3", "number", "Your WhatsApp number's rating dropped"),
+    ],
+    onChange: () => () => {},
+    older: () => 0,
+    read() {},
+    dismiss() {},
+    seenAll() {},
+  };
+  try {
+    phone = true;
+    set(twoWaiting());
+    const warned = draw(PhoneWarnings);
+    const rows = all(warned, (n) => n.props?.["data-testid"] === "today-phone-warning").map(textOf);
+    assert.equal(rows.length, 1, rows.join(" | "));
+    assert.ok(rows[0].includes("WhatsApp number"), rows[0]);
+  } finally {
+    delete W.__notifs;
+  }
 });

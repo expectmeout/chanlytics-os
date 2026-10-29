@@ -1,8 +1,9 @@
 /**
  * What Today says on a phone (the phone canvas, 28 Oct 2026; docs/superpowers/specs/2026-10-28-today-on-a-phone-design.md):
  * the ladder said as a head, in a few words with one line under them, never "Nothing needs you" over something that waits
- * (S7-1); the day as a bar over every visit that stands, with now on it, and the line beside its date; and Change it with
- * Ask on Ask's own draft, the draft door taking the member's words. All of it pure, in contracts.
+ * (S7-1); the day as a bar over every visit that stands, with now on it, and the line over it; a call-back's row saying
+ * what happened, its ask said once; and Change it with Ask on Ask's own draft, the draft door taking the member's words.
+ * All of it pure, in contracts.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -14,34 +15,65 @@ import {
   todayDayBar,
   todayDayNote,
   todayPhoneHead,
+  toTodayVM,
+  unansweredCallTodo,
 } from "@chanlytics/contracts";
+import { NOW, escalation, metrics, waiting } from "../today-record/_world.mjs";
 
 /* ------------------------------------------------ the head */
 
 const calm = (over = {}) => ({ also: [], traffic: null, handled_all: false, answered: null, ...over });
 const calmHead = (c) => ({ headline: "Nothing needs you.", detail: null, tone: "calm", calm: c });
 
-test("the needs rung: its headline as the title, without its full stop, and its detail as the line", () => {
+test("the needs rung: its headline as the title, without its full stop; who waited longest is the first card's, not a line", () => {
   const needs = {
     headline: "3 conversations need you.",
     detail: "The oldest has been waiting since 2:26 PM.",
     tone: "needs",
     calm: null,
   };
-  assert.deepEqual(todayPhoneHead(needs, 0), {
-    title: "3 conversations need you",
-    line: "The oldest has been waiting since 2:26 PM.",
-  });
+  // His look on a phone (29 Oct 2026): the oldest wait was said by the line, the card's wait and its state line at once.
+  assert.deepEqual(todayPhoneHead(needs, 0), { title: "3 conversations need you", line: null });
   assert.equal(
     todayPhoneHead({ ...needs, headline: "One conversation needs you" }, 0).title,
     "One conversation needs you",
   );
 });
 
-test("the needs rung's line says the runs waiting too, which the badge counts and the headline does not", () => {
-  const needs = { headline: "2 conversations need you.", detail: null, tone: "needs", calm: null };
+test("the needs rung's line says only the runs waiting, which the badge counts and the headline does not", () => {
+  const needs = {
+    headline: "6 conversations need you.",
+    detail: "The oldest has been waiting since Oct 19, 3:55 PM.",
+    tone: "needs",
+    calm: null,
+  };
   assert.equal(todayPhoneHead(needs, 1).line, "A campaign run is waiting for your say.");
+  assert.equal(todayPhoneHead(needs, 2).line, "2 campaign runs are waiting for your say.");
   assert.equal(todayPhoneHead(needs, 0).line, null, "no line at all with nothing to say");
+});
+
+test("a call-back's sentence is what happened: its ask is the row's state line and its Call, said once", () => {
+  const todo = unansweredCallTodo({
+    direction: "inbound",
+    status: "ended",
+    duration_ms: 4_000,
+    disconnection_reason: "user_hangup",
+    in_voicemail: false,
+    outcome: null,
+  });
+  assert.equal(todo, "Hung up after 4 sec without a word. Call them back.", "the hold's note keeps its ask");
+  const held = { ...escalation(), reason: "callback", details: todo };
+  const row = toTodayVM(metrics(), [waiting()], [held], [], NOW).queue.rows.find((r) => r.kind === "callback");
+  assert.ok(row, "a call-back row");
+  assert.equal(row.sentence, "Hung up after 4 sec without a word.");
+  assert.equal(row.status[0], "Needs a call back");
+  assert.ok(row.since && row.status.includes(row.since), "since when is a segment of its state line, named");
+  const other = { ...held, details: "They want to move Thursday." };
+  assert.equal(
+    toTodayVM(metrics(), [waiting()], [other], [], NOW).queue.rows.find((r) => r.kind === "callback").sentence,
+    "They want to move Thursday.",
+    "a note that is not the call's own to-do is said whole",
+  );
 });
 
 test("a line that is down is said whole, with no line under it: the alert stands under the head", () => {

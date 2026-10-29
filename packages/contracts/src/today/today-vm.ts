@@ -88,6 +88,11 @@ export interface TodayQueueRowVM {
   /** What their email was about, said before their words (its subject without "Re:"); absent on every other wire. */
   lead?: string;
   status: string[];
+  /**
+   * The segment of `status` that says since when ("since Oct 19, 3:55 PM"), where it has one: a phone leaves it out, since
+   * the wait beside the name says how long (his look on a phone, 29 Oct 2026).
+   */
+  since?: string;
   tone: "escalated" | "warn";
   warn: boolean;
   cta: { label: string; to: string };
