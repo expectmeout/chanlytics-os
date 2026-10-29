@@ -562,6 +562,13 @@
       "rate": "seen_mark",
       "spend": false
     },
+    "POST contacts/[id]/signup-confirm": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "person_edit",
+      "spend": false
+    },
     "PUT contacts/consent": {
       "kind": "write",
       "scope": "workspace",
@@ -2330,6 +2337,20 @@
       "scope": "account",
       "role": null,
       "rate": "create_workspace",
+      "spend": false
+    },
+    "PUT workspaces/accent": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "workspace_logo",
+      "spend": false
+    },
+    "DELETE workspaces/accent": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "workspace_logo",
       "spend": false
     },
     "POST workspaces/logo/lookup": {

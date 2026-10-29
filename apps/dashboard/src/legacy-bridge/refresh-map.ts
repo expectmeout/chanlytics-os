@@ -325,6 +325,9 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // A call logged (0052): a note, perhaps a step, as above; and, at an open lead, its outcome and stage, as Leads' own call.
   // A call that was the call back hands their thread back (00422): the threads, Today and the badge move with the note.
   "POST contacts/[id]/call": () => [...notes(), leadsOverride, ...thread()],
+  // A sign-up asked to confirm (00489): the email is the first message on the person's thread, queued as the ask is taken;
+  // the page reads the person itself.
+  "POST contacts/[id]/signup-confirm": thread,
   "POST contacts/[id]/notes/done": notes,
   "POST contacts/[id]/notes/remove": notes,
   // A receptionist's suggestion kept becomes a note, perhaps a step: the same rows move.
@@ -564,6 +567,9 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // it again from there, so a picture saved or taken away is on screen as the answer lands.
   "PUT workspaces/logo": () => [workspaceOverride],
   "DELETE workspaces/logo": () => [workspaceOverride],
+  // Its colour (00490) rides the same list: the Colour row and its preview wear it as the answer lands.
+  "PUT workspaces/accent": () => [workspaceOverride],
+  "DELETE workspaces/accent": () => [workspaceOverride],
   // Your own name: who is looking (the workspace read carries __ME, which the sidebar and the account menu say), and the roster the
   // Team pane lists and the Inbox's teammate names are drawn from (the settings read), so the old name is not left on either.
   "PUT me": () => [workspaceOverride, settingsOverride],

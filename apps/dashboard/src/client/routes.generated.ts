@@ -23,6 +23,7 @@ export const ROUTES = {
   "DELETE team/partner": { method: "DELETE", path: "/api/v1/team/partner" },
   "DELETE templates/[id]": { method: "DELETE", path: "/api/v1/templates/[id]" },
   "DELETE templates/versions/[id]": { method: "DELETE", path: "/api/v1/templates/versions/[id]" },
+  "DELETE workspaces/accent": { method: "DELETE", path: "/api/v1/workspaces/accent" },
   "DELETE workspaces/logo": { method: "DELETE", path: "/api/v1/workspaces/logo" },
   "GET activity": { method: "GET", path: "/api/v1/activity" },
   "GET ask/follow-ups": { method: "GET", path: "/api/v1/ask/follow-ups" },
@@ -175,6 +176,7 @@ export const ROUTES = {
   "POST contacts/[id]/notes/done": { method: "POST", path: "/api/v1/contacts/[id]/notes/done" },
   "POST contacts/[id]/notes/remove": { method: "POST", path: "/api/v1/contacts/[id]/notes/remove" },
   "POST contacts/[id]/notes/seen": { method: "POST", path: "/api/v1/contacts/[id]/notes/seen" },
+  "POST contacts/[id]/signup-confirm": { method: "POST", path: "/api/v1/contacts/[id]/signup-confirm" },
   "POST contacts/import": { method: "POST", path: "/api/v1/contacts/import" },
   "POST conversations/[id]/archive": { method: "POST", path: "/api/v1/conversations/[id]/archive" },
   "POST conversations/[id]/booking-request": { method: "POST", path: "/api/v1/conversations/[id]/booking-request" },
@@ -333,6 +335,7 @@ export const ROUTES = {
   "PUT settings": { method: "PUT", path: "/api/v1/settings" },
   "PUT templates/[id]": { method: "PUT", path: "/api/v1/templates/[id]" },
   "PUT views/[page]": { method: "PUT", path: "/api/v1/views/[page]" },
+  "PUT workspaces/accent": { method: "PUT", path: "/api/v1/workspaces/accent" },
   "PUT workspaces/logo": { method: "PUT", path: "/api/v1/workspaces/logo" },
 } as const;
 
@@ -359,6 +362,7 @@ export type Routes = {
   "DELETE team/partner": typeof import("../../app/api/v1/team/partner/route").DELETE;
   "DELETE templates/[id]": typeof import("../../app/api/v1/templates/[id]/route").DELETE;
   "DELETE templates/versions/[id]": typeof import("../../app/api/v1/templates/versions/[id]/route").DELETE;
+  "DELETE workspaces/accent": typeof import("../../app/api/v1/workspaces/accent/route").DELETE;
   "DELETE workspaces/logo": typeof import("../../app/api/v1/workspaces/logo/route").DELETE;
   "GET activity": typeof import("../../app/api/v1/activity/route").GET;
   "GET ask/follow-ups": typeof import("../../app/api/v1/ask/follow-ups/route").GET;
@@ -511,6 +515,7 @@ export type Routes = {
   "POST contacts/[id]/notes/done": typeof import("../../app/api/v1/contacts/[id]/notes/done/route").POST;
   "POST contacts/[id]/notes/remove": typeof import("../../app/api/v1/contacts/[id]/notes/remove/route").POST;
   "POST contacts/[id]/notes/seen": typeof import("../../app/api/v1/contacts/[id]/notes/seen/route").POST;
+  "POST contacts/[id]/signup-confirm": typeof import("../../app/api/v1/contacts/[id]/signup-confirm/route").POST;
   "POST contacts/import": typeof import("../../app/api/v1/contacts/import/route").POST;
   "POST conversations/[id]/archive": typeof import("../../app/api/v1/conversations/[id]/archive/route").POST;
   "POST conversations/[id]/booking-request": typeof import("../../app/api/v1/conversations/[id]/booking-request/route").POST;
@@ -669,5 +674,6 @@ export type Routes = {
   "PUT settings": typeof import("../../app/api/v1/settings/route").PUT;
   "PUT templates/[id]": typeof import("../../app/api/v1/templates/[id]/route").PUT;
   "PUT views/[page]": typeof import("../../app/api/v1/views/[page]/route").PUT;
+  "PUT workspaces/accent": typeof import("../../app/api/v1/workspaces/accent/route").PUT;
   "PUT workspaces/logo": typeof import("../../app/api/v1/workspaces/logo/route").PUT;
 };

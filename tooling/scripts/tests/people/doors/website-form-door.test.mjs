@@ -13,6 +13,7 @@ import { at } from "../../_cron-doors-world.mjs";
 const SERVICE_KEY = "service-role-key-for-this-file";
 for (const k of ["RESEND_API_KEY", "LEAD_TO", "LEAD_FROM", "WHATSAPP_PHONE_ID"]) delete process.env[k];
 process.env.SUPABASE_SERVICE_ROLE_KEY = SERVICE_KEY;
+process.env.SUPABASE_URL = "https://db.example.supabase.co";
 const { setPg } = await import(at("apps/edge/lib/pg.ts"));
 const { POST } = await import(at("apps/edge/api/website-form.ts"));
 const { websiteFormNote, websiteFormPerson } = await import("@chanlytics/contracts");
@@ -21,9 +22,11 @@ after(() => {
   setPg(null);
   globalThis.fetch = realFetch;
   delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+  delete process.env.SUPABASE_URL;
 });
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const LOGO = "11111111-1111-4111-8111-111111111111";
 const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const PERSON = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 const keyOf = (t) => createHmac("sha256", SERVICE_KEY).update(`website-form:${t}`).digest("base64url");
@@ -44,7 +47,9 @@ function world({ forgotten = false, zone = "America/New_York", person = null, ma
   const db = fakeDb(
     {
       notifications,
-      tenants: zone ? [{ id: A, slug: "harbor", name: "Harbor", timezone: zone }] : [],
+      tenants: zone
+        ? [{ id: A, slug: "harbor", name: "Harbor", timezone: zone, logo_path: `${A}/${LOGO}.png`, accent: "#2a6f97" }]
+        : [],
       tenant_config: [{ tenant_id: A, config: {} }],
       tenant_channels: [],
       jobs,
@@ -256,6 +261,14 @@ test("a sign-up asks its person to confirm: one email on their thread from the m
   assert.equal(r.headers["List-Unsubscribe"], undefined, "a confirmation is no offer");
   const link = /https:\/\/[^\s]+\/c\/([A-Za-z0-9_-]{87})/.exec(r.text);
   assert.ok(link, "the link is in the words");
+  // The same words as a letter in the business's own look (decision 0075): its logo from our storage, its colour, one button.
+  assert.match(
+    r.html,
+    new RegExp(`<img src="https://db\\.example\\.supabase\\.co/[^"]*workspace-logos/${A}/${LOGO}\\.png"`),
+  );
+  assert.match(r.html, /background:#2a6f97/);
+  assert.match(r.html, new RegExp(`href="https://[^"]+/c/${link[1]}"[^>]*>Yes, send me offers<`));
+  assert.match(r.html, /Sent for Harbor by Chanlytics./);
   assert.deepEqual(verifyConfirmToken([CONFIRM_SECRET], link[1]), { tenantId: A, contactId: PERSON, messageId: m.id });
   assert.deepEqual(m.meta.signup_confirm, {
     key: "ana@example.com",

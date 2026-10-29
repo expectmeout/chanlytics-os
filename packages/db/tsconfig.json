@@ -1,7 +1,18 @@
 {
+  "//": "A project of its own, built by `tsc -b` into .types/ (declarations only, never committed), so a project that references it reads its types as this one compiled them, under these options (decision 0074).",
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "lib": ["ES2022", "DOM"]
+    "lib": ["ES2022", "DOM"],
+    "composite": true,
+    "noEmit": false,
+    "emitDeclarationOnly": true,
+    "outDir": ".types",
+    "rootDir": "src"
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts"],
+  "references": [
+    {
+      "path": "../contracts"
+    }
+  ]
 }

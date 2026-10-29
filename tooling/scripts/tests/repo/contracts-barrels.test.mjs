@@ -227,17 +227,14 @@ const everySource = repoFiles(["apps", "packages"], {
 }).filter((f) => f.startsWith("apps/") || /^packages\/[^/]+\/src\//.test(f));
 
 /**
- * The edge's stand-in for a package, `apps/edge/lib/packages/<p>.ts`, re-exports that package's built entry whole:
- * the edge imports a package by relative path because Vercel's function bundler does not follow pnpm's workspace
- * links (db.ts says so; docs/debt.md, "Committed dist"). It is the package itself under another path, and the
- * package's own barrels name every export, so it is the one other `export *` there is.
+ * The edge's stand-in for a package, `apps/edge/lib/packages/<p>.ts`, re-exports that package whole by its name: the
+ * edge's modules reach a package through these five files (db.ts says so; decision 0074). It is the package itself
+ * under another path, and the package's own barrels name every export, so it is the one other `export *` there is.
  */
 const PACKAGE_STAND_IN = /^apps\/edge\/lib\/packages\/([a-z0-9-]+)\.ts$/;
 const isPackageStandIn = (f, spec) => {
   const m = PACKAGE_STAND_IN.exec(f);
-  return Boolean(
-    m && spec === `../../../../packages/${m[1]}/dist/index.js` && inPackages.has(`packages/${m[1]}/src/index.ts`),
-  );
+  return Boolean(m && spec === `@chanlytics/${m[1]}` && inPackages.has(`packages/${m[1]}/src/index.ts`));
 };
 
 test("the measure sees every package's and app's source, the shell and the phone app included", () => {

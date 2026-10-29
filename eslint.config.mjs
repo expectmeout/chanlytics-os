@@ -37,8 +37,8 @@ const OURS = {
   // documentation, and renaming those to `_req` to satisfy a linter that
   // should not be reading type positions makes the types worse.
   "no-unused-vars": "off",
-  // An error since our TypeScript held none (27 September), as in the scripts: a new unused name fails outright, and
-  // the lint baseline cannot bank it.
+  // An error since our TypeScript held none (27 September), as in the scripts: a new unused name fails outright, never
+  // a warning a change could argue.
   "@typescript-eslint/no-unused-vars": [
     "error",
     { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_" },
@@ -60,7 +60,7 @@ const OURS = {
   ],
   // verbatimModuleSyntax (tsconfig.base.json) keeps every import as it is written, so an import that only a type reads
   // says `import type`, or its module is loaded for nothing: under the flag `import { type A } from "m"` still loads m.
-  // Held at zero, these two keep what tsup, Vercel and Next emit what they emitted before the flag.
+  // Held at zero, these two keep what esbuild, Vercel and Next emit what they emitted before the flag.
   "@typescript-eslint/consistent-type-imports": [
     "error",
     { prefer: "type-imports", fixStyle: "inline-type-imports", disallowTypeAnnotations: false },
@@ -80,8 +80,8 @@ const OUR_TS_RULES = { ...js.configs.recommended.rules, ...OURS };
  * The set is typescript-eslint's recommended-type-checked (it carries `recommended`, so `any` and `@ts-ignore` too),
  * plus switch-exhaustiveness-check, where a `default` counts as exhaustive (noImplicitReturns holds the rest), and
  * no-deprecated. Every rule is an error but those in HELD_TYPED, which had findings the day this landed: each is a
- * warning, held per file and rule by tooling/scripts/checks/lint.mjs (baselines/lint-warnings.json), and becomes an
- * error in the change that banks its last finding. It costs about a minute over the tree, once per lint run, and about
+ * warning, counted per file and rule (check:debt's lint part holds each change to what it adds), and becomes an
+ * error in the change that fixes its last finding: tooling/scripts/checks/lint.mjs fails a run in which a held rule has none. It costs about a minute over the tree, once per lint run, and about
  * 4 GB of heap (the dashboard's program alone is 2.8 GB, and every project's stays loaded), which is why the `lint` script
  * in package.json raises Node's heap limit: at the default 2 GB the run dies out of memory on CI's runner.
  */
@@ -89,15 +89,14 @@ const TYPED = { projectService: true, tsconfigRootDir: import.meta.dirname };
 const rulesOf = (configs) => Object.assign({}, ...configs.map((c) => c.rules ?? {}));
 
 /**
- * The typed rules with findings when they arrived (29 September 2026), held by the lint baseline until each reaches
- * zero. no-unnecessary-type-assertion is among them though its autofix ran: it removed every assertion tsc agreed
+ * The typed rules with findings when they arrived (29 September 2026), held as warnings until each reaches zero. no-unnecessary-type-assertion is among them though its autofix ran: it removed every assertion tsc agreed
  * changed nothing (each project typechecks after it), and what it still reports is either in a file another lane was
  * rewriting that day (Ask's server, routes, bridge and contracts, the kit's components, the Retell availability door,
  * the policies route, the edge-token doors, the jobs handlers), left for that lane, or an assertion the rule misreads
  * as doing nothing. One gives a generic its type: `(await jsonBody(req)) as T` infers `jsonBody`'s T from the
  * assertion, and without it the body is `unknown`; those leave as the routes declare their `input`. The other keeps
  * a literal's type in an object a map builds (`role: (…) as ThreadTurn["role"]`), which widens to string without it.
- * lint-boundaries.test.mjs fails a held rule the baseline no longer holds, so the last one banked turns it an error. no-misused-promises holds one, a route context's params
+ * checks/lint.mjs fails a held rule the tree no longer finds, so the change that fixes the last one turns it an error. no-misused-promises holds one, a route context's params
  * read as a condition in the dashboard's request pipeline (`with-route.ts`), which the request-id lane was rewriting.
  */
 export const HELD_TYPED = [
@@ -302,17 +301,17 @@ export const rawElementsRule = (pending) => ({
 });
 
 /**
- * A function's limits, the complexity ratchet's (tooling/scripts/tests/_measures.mjs, LIMIT): 150 lines, 30
- * branches, 5 levels. The ratchet holds every function over them by name (baselines/complexity.json), counted as
- * these rules count (repo/measures.test.mjs), and a listed one may only shrink. Where a tree's last entry has been
- * banked, the limits become lint errors there: said in the editor as the function is written, and no longer a number
- * a raise can move. `max-params` has no ratchet; four is where most of the code already is.
+ * A function's limits, the complexity measure's (tooling/scripts/tests/_measures.mjs, LIMIT): 150 lines, 30
+ * branches, 5 levels. The measure finds every function over them by name, counted as these rules count
+ * (repo/measures.test.mjs), and check:debt holds each change to what it adds. Where a tree holds none any more, the
+ * limits become lint errors there: said in the editor as the function is written, and no longer a number a change can
+ * argue. `max-params` has no ratchet; four is where most of the code already is.
  */
 export const FUNCTION_LIMITS = { lines: 150, branches: 30, depth: 5, params: 4 };
 
 /**
- * The trees whose complexity baseline is empty: a package's src, an app area, or a domain folder in one. A tree joins
- * in the change that banks its last entry, and a new tree with its first file (src/surfaces, where the shell's pages
+ * The trees in which the complexity measure finds nothing: a package's src, an app area, or a domain folder in one. A
+ * tree joins in the change that fixes its last function, and a new tree with its first file (src/surfaces, where the shell's pages
  * land as decision 0015 moves them, joined with the kit's); a parent replaces its folders once all of it is held. The
  * shell (legacy/) is not here, since it leaves with decision 0015, and neither are the trees of the programs in flight
  * (Ask Rewired), which join as they land, by the day repo/lint-boundaries.test.mjs's IN_FLIGHT names. repo/lint-boundaries.test.mjs holds each entry
@@ -320,46 +319,8 @@ export const FUNCTION_LIMITS = { lines: 150, branches: 30, depth: 5, params: 4 }
  * ratchet has emptied that is not here (its header says which folders are trees).
  */
 export const LIMITED_TREES = [
-  "packages/db/src",
-  "packages/contracts/src/activity",
-  "packages/contracts/src/ads",
-  "packages/contracts/src/ai",
-  "packages/contracts/src/ask-memory",
-  "packages/contracts/src/ask-proposals",
-  "packages/contracts/src/ask-skills",
-  "packages/contracts/src/broadcasts",
-  "packages/contracts/src/config",
-  "packages/contracts/src/consent",
-  "packages/contracts/src/console",
-  "packages/contracts/src/email",
-  "packages/contracts/src/google",
-  "packages/contracts/src/imports",
-  "packages/contracts/src/journey",
-  "packages/contracts/src/lines",
-  "packages/contracts/src/logo",
-  "packages/contracts/src/mobile",
-  "packages/contracts/src/need-you",
-  "packages/contracts/src/new-conversation",
-  "packages/contracts/src/notes",
-  "packages/contracts/src/notices",
-  "packages/contracts/src/person-page",
-  "packages/contracts/src/playbooks",
-  "packages/contracts/src/reach-out",
-  "packages/contracts/src/rehearsal",
-  "packages/contracts/src/reports",
-  "packages/contracts/src/sequences",
-  "packages/contracts/src/shared",
-  "packages/contracts/src/waits",
-  "packages/core/src/appointments",
-  "packages/core/src/campaigns",
-  "packages/core/src/conversations",
-  "packages/core/src/inbound",
-  "packages/core/src/messages",
   "apps/dashboard/src/auth",
   "apps/dashboard/src/client",
-  "apps/dashboard/src/lib",
-  "apps/dashboard/src/surfaces",
-  "apps/dashboard/src/yes",
   "apps/dashboard/src/legacy-bridge/ask",
   "apps/dashboard/src/legacy-bridge/billing",
   "apps/dashboard/src/legacy-bridge/hearing",
@@ -369,6 +330,7 @@ export const LIMITED_TREES = [
   "apps/dashboard/src/legacy-bridge/rehearse",
   "apps/dashboard/src/legacy-bridge/surfaces",
   "apps/dashboard/src/legacy-bridge/verbs",
+  "apps/dashboard/src/lib",
   "apps/dashboard/src/server/auth",
   "apps/dashboard/src/server/calendar",
   "apps/dashboard/src/server/connections",
@@ -383,6 +345,8 @@ export const LIMITED_TREES = [
   "apps/dashboard/src/server/receptionist",
   "apps/dashboard/src/server/sequences",
   "apps/dashboard/src/server/workspace",
+  "apps/dashboard/src/surfaces",
+  "apps/dashboard/src/yes",
   "apps/edge/api/admin",
   "apps/edge/api/cron",
   "apps/edge/api/jobs",
@@ -400,6 +364,43 @@ export const LIMITED_TREES = [
   "apps/edge/lib/partners",
   "apps/edge/lib/sms",
   "apps/edge/lib/website",
+  "packages/contracts/src/activity",
+  "packages/contracts/src/ads",
+  "packages/contracts/src/ai",
+  "packages/contracts/src/ask-memory",
+  "packages/contracts/src/ask-proposals",
+  "packages/contracts/src/ask-skills",
+  "packages/contracts/src/broadcasts",
+  "packages/contracts/src/config",
+  "packages/contracts/src/consent",
+  "packages/contracts/src/console",
+  "packages/contracts/src/email",
+  "packages/contracts/src/google",
+  "packages/contracts/src/imports",
+  "packages/contracts/src/journey",
+  "packages/contracts/src/lines",
+  "packages/contracts/src/logo",
+  "packages/contracts/src/look",
+  "packages/contracts/src/mobile",
+  "packages/contracts/src/need-you",
+  "packages/contracts/src/new-conversation",
+  "packages/contracts/src/notes",
+  "packages/contracts/src/notices",
+  "packages/contracts/src/person-page",
+  "packages/contracts/src/playbooks",
+  "packages/contracts/src/reach-out",
+  "packages/contracts/src/rehearsal",
+  "packages/contracts/src/reports",
+  "packages/contracts/src/sequences",
+  "packages/contracts/src/shared",
+  "packages/contracts/src/waits",
+  "packages/core/src/appointments",
+  "packages/core/src/campaigns",
+  "packages/core/src/conversations",
+  "packages/core/src/inbound",
+  "packages/core/src/look",
+  "packages/core/src/messages",
+  "packages/db/src",
 ];
 
 /**
@@ -746,7 +747,7 @@ export default [
     rules: {
       ...js.configs.recommended.rules,
       // An error since the scripts held none (27 September): a new unused name
-      // fails outright, and the lint baseline cannot bank it.
+      // fails outright, never a warning a change could argue.
       "no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
       "no-empty": ["error", { allowEmptyCatch: true }],
     },

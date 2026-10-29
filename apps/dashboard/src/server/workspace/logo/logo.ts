@@ -23,7 +23,7 @@ import { env } from "@/server/env";
 import { log } from "@/server/log";
 import type { Member } from "@/server/route";
 import type { RouteContext } from "@/server/with-route";
-import { remadeLogo } from "./png";
+import { remadeLogo } from "@chanlytics/channels";
 
 /** A day: a replaced picture has a new name, so only a removed one is held this long in a browser that saw it. */
 const CACHE_S = String(24 * 60 * 60);
@@ -31,8 +31,8 @@ const CACHE_S = String(24 * 60 * 60);
 /** What the bucket is to the service role. The dashboard's other storage call is the same client (people/erasure.ts). */
 const bucket = () => serviceDb().storage.from(WORKSPACE_LOGOS_BUCKET);
 
-/** The database's refusal, in the words the row shows. */
-function doorRefusal(error: { code?: string; message: string }): AppError {
+/** The database's refusal, in the words the row shows; the colour's door (../look.ts) is refused the same way. */
+export function doorRefusal(error: { code?: string; message: string }): AppError {
   if (error.code === "42501") return new AppError("forbidden", error.message, 403);
   if (error.code === "22023") return new AppError("validation", error.message);
   if (error.code === "P0002") return new AppError("not_found", error.message, 404);

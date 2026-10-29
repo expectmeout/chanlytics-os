@@ -164,6 +164,9 @@
           "api/admin/email/wire.ts": {
             "maxDuration": 30
           },
+          "api/admin/email/signup-confirm.ts": {
+            "maxDuration": 30
+          },
           "api/retell-availability.ts": {
             "maxDuration": 30
           },

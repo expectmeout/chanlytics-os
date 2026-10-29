@@ -71,7 +71,7 @@ jobs:
         shell: bash
         env:
           ANTHROPIC_EVAL_KEY: ${{ secrets.ANTHROPIC_EVAL_KEY }}
-        run: node tooling/scripts/evals/nightly.mjs --repeats 2 | tee evals.txt
+        run: node --import tsx tooling/scripts/evals/nightly.mjs --repeats 2 | tee evals.txt
       - name: Say so when the line was missed
         if: ${{ failure() && steps.evals.outcome == 'failure' }}
         run: |

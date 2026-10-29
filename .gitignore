@@ -1,9 +1,10 @@
 # deps / build
 node_modules/
+# A package's dist is the node suite's bundle, built by its launcher (tooling/scripts/package-build.mjs), and its
+# .types the declarations `tsc -b` writes for the projects that reference it. The packages ship as their sources
+# (decision 0074), so nothing that deploys reads either.
 dist/
-# workspace package dist IS committed: injected copies must carry built output
-# at Vercel install time (see .npmrc). Rebuild via `pnpm --filter "./packages/*" build`.
-!packages/*/dist/
+.types/
 .next/
 .turbo/
 coverage/
@@ -45,3 +46,6 @@ apps/dashboard/public/lead-map/
 
 # the bundle check's record of a build, written for CI's cache (tooling/scripts/checks/bundle-budget.mjs, --record)
 .bundle/
+
+# What check:debt writes as it measures a base (ci.yml's debt job)
+.debt/

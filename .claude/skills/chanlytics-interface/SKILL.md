@@ -46,9 +46,9 @@ The plan's contract (its §2.1), with what the build holds of each today.
 | Its registry | `apps/dashboard/src/surfaces/kit/classes.json`: the kit's class names (the house's own, no prefix) and, apart, the modifiers its rules name (`.active`, `.show`). The measures read it |
 | Its components | `Button`, `LinkButton`, `Panel`, `Face`, `ListRow`, `Meter`, `Figure`, `DayRangePicker` (a range of days picked on a month, in the date picker's folder), and those with behaviour of their own, on Base UI: `Sheet`, `Menu`, `Popover`, `DatePicker`, `Select`, `Combobox`, `Tooltip`, `useToast`, `Switch`, `Segmented`, `Field` (Behaviour: Base UI, below): a folder each, `apps/dashboard/src/surfaces/kit/<family>/`, holding the component and its type test, named in `apps/dashboard/src/surfaces/kit/index.ts`; `cx` and `variants` in `apps/dashboard/src/surfaces/kit/variants.ts`, and what a press is in `apps/dashboard/src/surfaces/kit/press.tsx`, at the kit's root |
 | The house's components over its classes | `usePPToast` in `apps/dashboard/src/surfaces/frame/flash.tsx`, which the pages that have not moved read by name (`apps/dashboard/src/surfaces/frame/frame-globals.ts`). (`SurfaceTabs` is the frame's adapter over the kit's `ViewTabs`, `apps/dashboard/src/surfaces/kit/view-tabs/`, which a surface imports.) `StatePill`, `MoreMenu`, `Confirm`, `FieldError`, `EmptyState`, `FailedRead`, the record kit (`apps/dashboard/src/surfaces/kit/record/`) and `Icon` are the kit's own TSX, which the pages that have not moved read by name (`apps/dashboard/src/surfaces/kit/kit-globals.ts`). (Draw with the kit, step 2) |
-| The gallery | `tooling/scripts/e2e-harness/kit-gallery.mjs`: `node tooling/scripts/e2e-harness/server.mjs 3210 kit`, then http://localhost:3210/ (`t` turns the theme, `l` the look), and the page that runs the Base UI components at http://localhost:3210/behaves (`tooling/scripts/e2e-harness/kit-behaves-entries.tsx`); `docs/runbook.md`, "See the kit" |
+| The gallery | `tooling/scripts/e2e-harness/kit-gallery.mjs`: `node --import tsx tooling/scripts/e2e-harness/server.mjs 3210 kit`, then http://localhost:3210/ (`t` turns the theme, `l` the look), and the page that runs the Base UI components at http://localhost:3210/behaves (`tooling/scripts/e2e-harness/kit-behaves-entries.tsx`); `docs/runbook.md`, "See the kit" |
 | Its checks | `e2e/kit/kit.spec.ts` and `e2e/kit/kit-behaves.spec.ts` in a browser; `tooling/scripts/tests/styles/kit-*.test.mjs` in `corepack pnpm test` |
-| The measures | `tooling/scripts/tests/_measures.mjs`, reading the stylesheets through `tooling/scripts/tests/_css.mjs` and the markup through `tooling/scripts/tests/_ast.mjs`; the baselines in `tooling/scripts/tests/baselines/`; the register, `docs/debt.md` |
+| The measures | `tooling/scripts/tests/_measures.mjs`, reading the stylesheets through `tooling/scripts/tests/_css.mjs` and the markup through `tooling/scripts/tests/_ast.mjs`; `tooling/scripts/checks/debt.mjs` holds each change to what it adds; the register, `docs/debt.md` |
 
 ## Draw with the kit
 
@@ -155,9 +155,9 @@ A new token says, in a comment beside it, what it is for.
 
 | Hold | What turns it red |
 | --- | --- |
-| `tooling/scripts/tests/baselines/style-values.json` | a type size, radius, shadow, colour or blur written as a literal, counted per stylesheet: every stylesheet of the dashboard but the tokens, the kit's among them. The charts' validated palette in `apps/dashboard/src/legacy/styles/charts.css` is counted, and kept |
-| `tooling/scripts/tests/baselines/kit-primitives.json` | in every stylesheet but the tokens' and the kit's: each selector naming a class the registry lists, even one that only places it (`.cal-tools > .btn`), or a class whose name holds a primitive's word (`btn`, `chip`, `tab`, `card`, `sheet`, `field`, `face`, `menu`, `pop`, `tip`, `toast`…, so `.pl-card-slot` counts). Not a row, nor a page's own count |
-| `tooling/scripts/tests/baselines/inline-styles.json` | a `style` prop under `apps/dashboard/src/legacy` or `apps/dashboard/src/surfaces`, counted per file |
+| the `style-values` measure (`corepack pnpm check:debt`) | a type size, radius, shadow, colour or blur written as a literal, counted per stylesheet: every stylesheet of the dashboard but the tokens, the kit's among them. The charts' validated palette in `apps/dashboard/src/legacy/styles/charts.css` is counted, and kept |
+| the `kit-primitives` measure (`corepack pnpm check:debt`) | in every stylesheet but the tokens' and the kit's: each selector naming a class the registry lists, even one that only places it (`.cal-tools > .btn`), or a class whose name holds a primitive's word (`btn`, `chip`, `tab`, `card`, `sheet`, `field`, `face`, `menu`, `pop`, `tip`, `toast`…, so `.pl-card-slot` counts). Not a row, nor a page's own count |
+| the `inline-styles` measure (`corepack pnpm check:debt`) | a `style` prop under `apps/dashboard/src/legacy` or `apps/dashboard/src/surfaces`, counted per file |
 | the raw-element lint (`eslint.config.mjs`) | a raw `<button>`, `<input>`, `<select>`, `<textarea>` or `<dialog>` in `apps/dashboard/src/surfaces` outside the kit; a surface moved before its kit step waits in `KIT_PENDING` |
 | `tooling/scripts/tests/styles/kit-css.test.mjs` | a class the kit's stylesheet declares and the registry lacks; an `@media` width in it other than 900px; a page outside the shell drawing a kit class while `apps/dashboard/app/globals.css` does not import the kit |
 | `tooling/scripts/tests/styles/kit-gallery.test.mjs` | a registry name no entry draws |
@@ -167,9 +167,9 @@ A new token says, in a comment beside it, what it is for.
 | the Base UI lint (`eslint.config.mjs`, `BASE_UI_INDEX`) | Base UI's index (`@base-ui/react`) imported, or re-exported, anywhere in the dashboard: each component imports its own part |
 | `corepack pnpm check:bundle` (CI, after the build) | a change that grows the workspace route's JS or CSS past 1 KB, or a page's own JS past 2 KB, against main's own build, with no line `Bundle: <why>` in its pull request's description; and any build over a ceiling, which no pull request crosses. A component with behaviour of its own is JS, so it is this that asks why when a page first draws one: the reason is the author's, in that pull request |
 
-A fall is banked with `UPDATE_BASELINES=1 corepack pnpm test`, which rewrites the register's numbers too. A rise is
-raised with `UPDATE_BASELINES=raise corepack pnpm test` in the same change as its row under "Rises" in `docs/debt.md`,
-argued in the pull request. What a workspace loads keeps no number in the repository but its ceilings: a growth past
+The three measures are held change by change (decision 0074): CI's debt job measures a pull request's base and head,
+and a count that rose, or an entry that is new, turns it red until its description says why, in a line `Debt: <why>`.
+A fall needs nothing, and no number is kept in the repository. What a workspace loads keeps no number in the repository but its ceilings: a growth past
 its line is argued in the pull request's description alone (`Bundle: <why>`). The one style prop the kit keeps, a
 meter part's share, is argued there.
 

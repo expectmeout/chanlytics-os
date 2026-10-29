@@ -1,130 +1,130 @@
 /** A deal is a record (decisions 0004, 0008): the deal, its sheet, the Pipeline, and the pace of yeses. */
-export {
-  isDealStage,
-  isDealLostReason,
-  isDealPer,
-  DEAL_STAGES,
-  DEAL_PERS,
-  DEAL_SOURCES,
-  DEAL_LOST_REASONS,
-  DEAL_LOST_REASON_WORDS,
-  DEAL_STAGE_WORDS,
-  DEAL_PER_WORDS,
-  DEAL_LINE_NONE,
-  DEAL_CLEARABLE,
-  DEAL_ACT_WORDS,
-  DEAL_REFUSALS,
-} from "./deal-words";
-export type { DealStage, DealPer, DealSource, DealLostReason, DealClearable, DealActId } from "./deal-words";
-export { amountWords, parseAmount, amountTotalsWords } from "./deal-amount";
+export { amountTotalsWords, amountWords, parseAmount } from "./deal-amount";
 export type { AmountFact } from "./deal-amount";
+export { DealMoveBody } from "./deal-body";
+export type { DealMove } from "./deal-body";
 export {
-  dealFactsOf,
-  pickCurrentDeal,
-  dealIsOpen,
-  proposalLinkOf,
-  wholeDaysSince,
-  dealSinceMs,
-  toDealVM,
-  dealOf,
-  dealSentence,
-  openDealsOf,
-  openDealsFromJson,
-} from "./deal-vm";
-export type { DealColumns, DealDto, DealFacts, DealVM, OpenDealDto } from "./deal-vm";
-export {
-  heardSinceProposal,
-  isYes,
-  waitAfterDays,
-  yesWaitWords,
-  dealPaceWords,
-  dealPaceOf,
-  waitingOnProposal,
-  proposalsWaiting,
-  WAITING_AFTER_DAYS,
-  PACE_AFTER_YESES,
-  PACE_WINDOW_DAYS,
-} from "./deal-waits";
-export type { DealPaceDto, DealPaceVM } from "./deal-waits";
-export {
-  consultServiceOf,
-  isConsultationTitle,
-  noProposalSince,
+  CONSULT_FOLLOW_DAYS,
   consultationHappened,
   consultationHeld,
-  dealStageOf,
   consultationsWithoutProposal,
+  consultServiceOf,
   consultsHeldWords,
-  CONSULT_FOLLOW_DAYS,
+  dealStageOf,
+  isConsultationTitle,
+  noProposalSince,
 } from "./deal-consultations";
 export type { DealStandingStage } from "./deal-consultations";
 export { toDealReportVM } from "./deal-report";
-export type { DealReportDto, DealOutcomeVM, DealReportLineId, DealReportVM } from "./deal-report";
-export { yesWaits, medianWait, dealPaceFrom, SAME_SITTING_MS } from "./pace";
+export type { DealOutcomeVM, DealReportDto, DealReportLineId, DealReportVM } from "./deal-report";
+export {
+  dealFactsOf,
+  dealIsOpen,
+  dealOf,
+  dealSentence,
+  dealSinceMs,
+  openDealsFromJson,
+  openDealsOf,
+  pickCurrentDeal,
+  proposalLinkOf,
+  toDealVM,
+  wholeDaysSince,
+} from "./deal-vm";
+export type { DealColumns, DealDto, DealFacts, DealVM, OpenDealDto } from "./deal-vm";
+export {
+  dealPaceOf,
+  dealPaceWords,
+  heardSinceProposal,
+  isYes,
+  PACE_AFTER_YESES,
+  PACE_WINDOW_DAYS,
+  proposalsWaiting,
+  waitAfterDays,
+  WAITING_AFTER_DAYS,
+  waitingOnProposal,
+  yesWaitWords,
+} from "./deal-waits";
+export type { DealPaceDto, DealPaceVM } from "./deal-waits";
+export {
+  DEAL_ACT_WORDS,
+  DEAL_CLEARABLE,
+  DEAL_LINE_NONE,
+  DEAL_LOST_REASON_WORDS,
+  DEAL_LOST_REASONS,
+  DEAL_PER_WORDS,
+  DEAL_PERS,
+  DEAL_REFUSALS,
+  DEAL_SOURCES,
+  DEAL_STAGE_WORDS,
+  DEAL_STAGES,
+  isDealLostReason,
+  isDealPer,
+  isDealStage,
+} from "./deal-words";
+export type { DealActId, DealClearable, DealLostReason, DealPer, DealSource, DealStage } from "./deal-words";
+export { dealPaceFrom, medianWait, SAME_SITTING_MS, yesWaits } from "./pace";
 export type { DealWaitRow } from "./pace";
-export {
-  isDealSheetMode,
-  dealSendOf,
-  proposalFollowUp,
-  dealNextAct,
-  dealMenuActs,
-  calendarPeekDeal,
-  DEAL_SHEET_MODES,
-  DEAL_SEND_WHY,
-  DEAL_ACT_HINTS,
-} from "./sheet/deal-acts";
-export type { DealSheetMode, DealPerson, DealSend, DealAct, CalendarPeekDealVM } from "./sheet/deal-acts";
-export { dealStepOf, dealCardsOf, DEAL_CARD_WORDS } from "./sheet/deal-card";
-export type { DealStepVM, DealCardVM, DealCardStepVM, DealQuietVM, PersonDealsVM } from "./sheet/deal-card";
-export {
-  dealSheetFor,
-  dealSheetMessage,
-  dealSheetDirty,
-  dealSheetMerge,
-  DEAL_SHEET_WORDS,
-  DEAL_NOTE_MAX,
-} from "./sheet/deal-sheet";
-export type { DealSheetField, DealSheetDraft, DealSheetVM } from "./sheet/deal-sheet";
-export { dealSheetBody, dealSheetRefusal } from "./sheet/deal-sheet-body";
-export type { DealSheetBody, DealSheetProblem, DealSheetOutcome } from "./sheet/deal-sheet-body";
-export { PIPELINE_GROUPS, pipelinePersonOf, pipelineRowId, pipelineRowNow } from "./pipeline/pipeline-vm";
-export type {
-  PipelineGroupKey,
-  PipelineSource,
-  PipelineChip,
-  PipelineRowVM,
-  PipelineNextVM,
-  PipelineStep,
-  PipelineGroupVM,
-  PipelineLinePart,
-  PipelineFilter,
-  PipelineVM,
-} from "./pipeline/pipeline-vm";
-export { PIPELINE_WORDS } from "./pipeline/pipeline-words";
 export { pipelineOf, pipelineWorth } from "./pipeline/pipeline";
 export {
-  isPipelineView,
-  pipelineViewLabel,
-  pipelineRoute,
-  parsePipelineRoute,
-  pipelineRail,
-  PIPELINE_RAIL_SERVICES,
-} from "./pipeline/pipeline-views";
-export type { PipelineView, PipelineRailRow, PipelineRailSection } from "./pipeline/pipeline-views";
+  PIPELINE_BOARD_CAP,
+  PIPELINE_PASS_MAX,
+  PIPELINE_PHONE_SORTS,
+  PIPELINE_SORTS,
+  pipelineBoardMore,
+  pipelineCsv,
+  pipelineMove,
+  pipelinePassDone,
+  pipelinePassMany,
+  pipelineSorted,
+} from "./pipeline/pipeline-board";
+export type { PipelineMove, PipelinePassManyVM, PipelineSort } from "./pipeline/pipeline-board";
 export { pipelinePeekOf, pipelineSheetOf } from "./pipeline/pipeline-peek";
 export type { PipelinePeekFact, PipelinePeekVM, PipelineSheetAct, PipelineSheetVM } from "./pipeline/pipeline-peek";
 export {
-  pipelineMove,
-  pipelineSorted,
-  pipelineCsv,
-  PIPELINE_PHONE_SORTS,
-  pipelinePassMany,
-  pipelinePassDone,
-  pipelineBoardMore,
-  PIPELINE_SORTS,
-  PIPELINE_PASS_MAX,
-  PIPELINE_BOARD_CAP,
-} from "./pipeline/pipeline-board";
-export type { PipelineMove, PipelineSort, PipelinePassManyVM } from "./pipeline/pipeline-board";
-export { DealMoveBody } from "./deal-body";
-export type { DealMove } from "./deal-body";
+  isPipelineView,
+  parsePipelineRoute,
+  PIPELINE_RAIL_SERVICES,
+  pipelineRail,
+  pipelineRoute,
+  pipelineViewLabel,
+} from "./pipeline/pipeline-views";
+export type { PipelineRailRow, PipelineRailSection, PipelineView } from "./pipeline/pipeline-views";
+export { PIPELINE_GROUPS, pipelinePersonOf, pipelineRowId, pipelineRowNow } from "./pipeline/pipeline-vm";
+export type {
+  PipelineChip,
+  PipelineFilter,
+  PipelineGroupKey,
+  PipelineGroupVM,
+  PipelineLinePart,
+  PipelineNextVM,
+  PipelineRowVM,
+  PipelineSource,
+  PipelineStep,
+  PipelineVM,
+} from "./pipeline/pipeline-vm";
+export { PIPELINE_WORDS } from "./pipeline/pipeline-words";
+export {
+  calendarPeekDeal,
+  DEAL_ACT_HINTS,
+  DEAL_SEND_WHY,
+  DEAL_SHEET_MODES,
+  dealMenuActs,
+  dealNextAct,
+  dealSendOf,
+  isDealSheetMode,
+  proposalFollowUp,
+} from "./sheet/deal-acts";
+export type { CalendarPeekDealVM, DealAct, DealPerson, DealSend, DealSheetMode } from "./sheet/deal-acts";
+export { DEAL_CARD_WORDS, dealCardsOf, dealStepOf } from "./sheet/deal-card";
+export type { DealCardStepVM, DealCardVM, DealQuietVM, DealStepVM, PersonDealsVM } from "./sheet/deal-card";
+export {
+  DEAL_NOTE_MAX,
+  DEAL_SHEET_WORDS,
+  dealSheetDirty,
+  dealSheetFor,
+  dealSheetMerge,
+  dealSheetMessage,
+} from "./sheet/deal-sheet";
+export type { DealSheetDraft, DealSheetField, DealSheetVM } from "./sheet/deal-sheet";
+export { dealSheetBody, dealSheetRefusal } from "./sheet/deal-sheet-body";
+export type { DealSheetBody, DealSheetOutcome, DealSheetProblem } from "./sheet/deal-sheet-body";

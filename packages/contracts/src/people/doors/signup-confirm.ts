@@ -4,8 +4,11 @@
  * their yes to offers by email (set_email_offers_yes, confirmed_signup).
  *
  * Here: whether a sign-up is asked (signupAskRefusal, over the facts the edge reads), the email's words, the page's
- * words, what the person's page says while an ask waits, and the line the sign-up's note gains. Pure.
+ * words, what the person's page says while an ask waits and whether a member may ask again from it, and the line the
+ * owner is told. Pure.
  */
+import { letterHtml } from "../../look/letter";
+import type { WorkspaceLook } from "../../look/look";
 import { DAY_MS } from "../../shared/time";
 import { fmtDate } from "../person-helpers";
 
@@ -63,6 +66,12 @@ export interface SignupAskFacts {
     stopped: boolean;
     suppressed: boolean;
     emailOffers: string | null;
+    /**
+     * They signed up on the website, so the email's words are true of them: they first reached the workspace through its
+     * form (acquired_via website), or a sign-up of theirs was asked to confirm before (a customer who signs up later keeps
+     * their first way in). Read by a member's ask; the form's own ask is a sign-up by being one.
+     */
+    fromWebsite: boolean;
   } | null;
   /** The workspace has a mailbox to send from (and the deployment a domain and a key to seal the link with). */
   mailbox: boolean;
@@ -80,6 +89,8 @@ export interface SignupAskFacts {
 export type SignupAskRefusal =
   | "made_up"
   | "gone"
+  | "not_from_website"
+  | "no_email"
   | "not_their_address"
   | "already"
   | "stopped"
@@ -133,6 +144,10 @@ export function signupAskLine(outcome: SignupAskRefusal | "asked" | null): strin
       return "We could not email them to confirm: you have no email address yet (Settings › Connections › Email).";
     case "open":
       return "We already emailed them to confirm.";
+    case "not_from_website":
+      return "Only someone who signed up on your website is asked to confirm by email.";
+    case "no_email":
+      return "Their page has no email address to ask them at.";
     case "address_limit":
       return `We did not email them to confirm: their address was asked ${SIGNUP_ASK_LIMITS.perAddress} times already in ${SIGNUP_ASK_LIMITS.perAddressMs / DAY_MS} days.`;
     case "workspace_limit":
@@ -155,6 +170,27 @@ export function signupConfirmEmail(p: { business: string; link: string }): { sub
       "If this wasn't you, ignore this email. Without your yes, no offers are sent.",
     ].join("\n\n"),
   };
+}
+
+/**
+ * The same words as a letter (decision 0075): the business's look at the top, the two lines, and the page's own button
+ * words on the link, so the email and the page it opens say one thing. The text part (signupConfirmEmail) is what a
+ * text-only reader gets.
+ */
+export function signupConfirmEmailHtml(p: { business: string; link: string; look: WorkspaceLook }): string {
+  const business = p.business.trim() || "us";
+  const signedUp = `You signed up on ${business}'s website for offers and news.`;
+  return letterHtml({
+    look: { ...p.look, business: p.look.business.trim() || business },
+    subject: signupConfirmEmail(p).subject,
+    preview: signedUp,
+    lines: [signedUp, "If this wasn't you, ignore this email. Without your yes, no offers are sent."],
+    button: {
+      words: confirmPageWords("ask", { business, address: null }).button ?? "Yes, send me offers",
+      href: p.link,
+    },
+    foot: [],
+  });
 }
 
 /** "j•••@example.com": enough of an address for its owner to know it, on a page anyone holding the link can open. */
@@ -231,28 +267,54 @@ function isSignupAsk(m: HeldMessage): boolean {
   return m.direction === "outbound" && m.channel === "email" && meta?.source === SIGNUP_CONFIRM_SOURCE;
 }
 
+/** What the person's page asks of a website sign-up's confirmation: the first ask, or another once one ended. */
+type SignupAskAct = "Ask to confirm" | "Ask again";
+
+/** Who the person is, as the email offers row reads them: their answer, where they came from, and their address. */
+interface AskedWho {
+  /** They first reached the workspace through its website's form (People's came_from website). */
+  emailOffers: string | null;
+  fromWebsite: boolean;
+  email: string | null;
+  suppressed: boolean;
+  stopped: boolean;
+}
+
 /**
- * What the person's page says of their sign-up's confirmation while their answer about offers by email is not a yes:
- * the newest ask among their messages, still open ("Asked to confirm", until when), past its days ("Did not
- * confirm"), or one that did not arrive. Null with none, and for a person who has said yes (their answer says it).
+ * What the person's page says of their website sign-up's confirmation, and whether a member may ask (again): the newest
+ * ask among their messages, still open ("Asked to confirm", until when), past its days ("Did not confirm"), or one that
+ * did not arrive ("Confirmation not delivered"). A member may ask someone who signed up on the website (it brought
+ * them, or a sign-up of theirs was asked before) and has an address that takes email: first ("Ask to confirm", the row
+ * keeping its own answer: `label` null) or once the last ask ended ("Ask again"). Null where there is nothing to say: no
+ * ask and none to make, a yes (their answer says it), or a STOP.
+ * Whether an ask goes is the edge's to judge again (signupAskRefusal, its limits); the page offers what may.
  */
 export function signupAskOf(
   messages: readonly HeldMessage[],
-  emailOffers: string | null,
+  who: AskedWho,
   tz: string,
   nowMs: number,
-): { label: "Asked to confirm" | "Did not confirm" | "Confirmation not delivered"; sub: string } | null {
-  if (emailOffers === "opted_in") return null;
+): {
+  label: "Asked to confirm" | "Did not confirm" | "Confirmation not delivered" | null;
+  sub: string | null;
+  act: SignupAskAct | null;
+} | null {
+  if (who.emailOffers === "opted_in" || who.stopped) return null;
   let newest: { m: HeldMessage; at: number } | null = null;
+  let signedUp = who.fromWebsite;
   for (const m of messages) {
-    if (!isSignupAsk(m) || m.status === "canceled") continue;
+    if (!isSignupAsk(m)) continue;
+    signedUp = true;
+    if (m.status === "canceled") continue;
     const at = Date.parse(m.created_at);
     if (Number.isFinite(at) && (!newest || at > newest.at)) newest = { m, at };
   }
-  if (!newest) return null;
+  const canAsk = signedUp && !!who.email && !who.suppressed;
+  if (!newest) return canAsk ? { label: null, sub: null, act: "Ask to confirm" } : null;
   const asked = `asked ${fmtDate(newest.at, tz, nowMs)}`;
-  if (newest.m.status === "failed") return { label: "Confirmation not delivered", sub: asked };
+  const again = canAsk ? "Ask again" : null;
+  if (newest.m.status === "failed") return { label: "Confirmation not delivered", sub: asked, act: again };
   const until = newest.at + SIGNUP_CONFIRM_MS;
-  if (nowMs >= until) return { label: "Did not confirm", sub: asked };
-  return { label: "Asked to confirm", sub: `${asked} · the link works until ${fmtDate(until, tz, nowMs)}` };
+  if (nowMs >= until) return { label: "Did not confirm", sub: asked, act: again };
+  return { label: "Asked to confirm", sub: `${asked} · the link works until ${fmtDate(until, tz, nowMs)}`, act: null };
 }

@@ -31,11 +31,18 @@ const P = "33333333-3333-4333-8333-333333333333";
 const M = "11111111-1111-4111-8111-111111111111";
 const TOKEN = signConfirmToken(SECRET, { tenantId: A, contactId: P, messageId: M });
 
-/** The confirmation email the link names, and the yes door answering as `answer` says. */
-function world({ answer = { changed: true, found: true }, fails = false, email = true } = {}) {
+const LOGO = `${A}/44444444-4444-4444-8444-444444444444.png`;
+
+/** The confirmation email the link names, the workspace's look, and the yes door answering as `answer` says. */
+function world({ answer = { changed: true, found: true }, fails = false, email = true, look = true } = {}) {
   const pressed = [];
   const db = fakeDb(
     {
+      tenants: [
+        look
+          ? { id: A, slug: "harbor", name: "Harbor <Studio>", logo_path: LOGO, accent: "#2a6f97" }
+          : { id: A, slug: "harbor", name: "Harbor <Studio>", logo_path: null, accent: null },
+      ],
       messages: email
         ? [
             {
@@ -105,6 +112,24 @@ test("a GET asks who is asking and about which address, with one button, and rec
   );
   assert.equal(w.pressed.length, 0);
   assert.ok(!w.db.seen.some((q) => q.rpc), "nothing is written by a fetch");
+});
+
+test("the page wears the business's look (decision 0075): its logo from our storage and its colour; neither, its name and the product's colour", async () => {
+  world();
+  const html = await (await get()).text();
+  assert.match(
+    html,
+    new RegExp(
+      `<img class="mark" src="http://127\\.0\\.0\\.1:1/[^"]*workspace-logos/${LOGO}" alt="Harbor &lt;Studio&gt;"`,
+    ),
+  );
+  assert.match(html, /--accent:#2a6f97;--on-accent:#fff/);
+  assert.ok(!html.includes('<p class="who">'), "the logo stands for the name");
+  world({ look: false });
+  const plain = await (await get()).text();
+  assert.ok(!plain.includes("<img"), "no logo, no picture");
+  assert.match(plain, /<p class="who">Harbor &lt;Studio&gt;<\/p>/, "the name stands in");
+  assert.ok(!plain.includes("--accent:#"), "the product's own colour");
 });
 
 test("the button is the yes: through the one door, with the email the link names, and the page says it is done", async () => {

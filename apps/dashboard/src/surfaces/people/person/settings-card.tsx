@@ -36,7 +36,12 @@ import { RecordDisclosure } from "../../kit/record/disclosure";
 import { RecordFold } from "../../kit/record/fold";
 import { RecordRow } from "../../kit/record/row";
 import { navigate } from "../../legacy-verbs";
-import { setPersonConsent, setPersonMarketingConsent, setPersonReceptionist } from "../people-detail";
+import {
+  askToConfirmSignup,
+  setPersonConsent,
+  setPersonMarketingConsent,
+  setPersonReceptionist,
+} from "../people-detail";
 import { workspaceName } from "../person-verbs";
 import { ConsentAsk } from "./consent-ask";
 import type { Answer, Evidence } from "./consent-ask";
@@ -287,8 +292,10 @@ function offersFold(c: PageCtx, row: ReactNode) {
  * Offers by email, a quiet row beside the two answers (contracts consentOf): Yes once they asked for offers by email,
  * Unsubscribed once they said no to them, Not asked until then, with how and when under it. While their website
  * sign-up waits on its confirmation the row says that instead, with when it was asked under it (contracts
- * signupAskOf). Read-only: the person says it themselves, in their own email, by confirming, or by pressing
- * Unsubscribe. Not drawn where the row carries no answer.
+ * signupAskOf). The answer is read-only: the person says it themselves, in their own email, by confirming, or by
+ * pressing Unsubscribe. What a member may do is ask: a website sign-up is asked to confirm, or asked again once the last
+ * ask ended (the act, for whoever may record an answer), and the page says what came of it. Not drawn where the row
+ * carries no answer.
  */
 function emailOffersRow(c: PageCtx) {
   const { consent, signupAsk } = c.p;
@@ -296,15 +303,29 @@ function emailOffersRow(c: PageCtx) {
   // The person says it themselves, in their own email or by pressing Unsubscribe: read only, and said so.
   const stopped = consent.state === "opted_out";
   const value = stopped ? STOP_WORDS.mark : (signupAsk?.label ?? consent.emailOffersLabel);
+  const act = !stopped && c.canRecord && signupAsk?.act ? signupAsk.act : null;
   return (
     <RecordRow
       id="person-email-offers"
       label="Offers by email"
       value={`${value} · ${PERSON_ABOUT_WORDS.readOnly}`}
       hint={stopped ? null : (signupAsk?.sub ?? null)}
+      act={act ? { label: act, onClick: () => void askSignup(c), testid: "person-email-offers-ask" } : null}
       stacked
     />
   );
+}
+
+/** The ask's press: one email the edge judges by its rules; the page says what came of it, and reads the person again. */
+async function askSignup(c: PageCtx) {
+  const r = await askToConfirmSignup(c.p.id);
+  if (!r.ok) {
+    c.flash({ tone: "danger", msg: <>{r.message || PERSON_ABOUT_WORDS.couldNotAsk}</> });
+    return;
+  }
+  const said = <>{r.data.said}</>;
+  c.flash(r.data.asked ? { msg: said } : { tone: "danger", msg: said });
+  if (r.data.asked) c.load();
 }
 
 /**

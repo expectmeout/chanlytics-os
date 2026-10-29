@@ -2,131 +2,131 @@
  * The plumbing every domain uses: time and the clock, the three normalizers, what an id looks like, the small words,
  * HTML escaping, reading a value from outside, bytes and sums, the envelope and its errors, the closed sets.
  */
-export { ok, err, SERVED_AT_HEADER } from "./envelope";
-export type { Ok, Err, Envelope } from "./envelope";
-export { ERROR_CODES, AppError, bodyRefusal } from "./errors";
-export type { ErrorCode } from "./errors";
+export { ROUTE_KEYS } from "../route-keys.generated";
+export type { ApiRouteKey } from "../route-keys.generated";
+export { SCHEMA_SETS } from "../schema-sets.generated";
+export { hexOf, utf8Bytes } from "./bytes";
+export {
+  callLength,
+  clockDate,
+  clockDateYear,
+  clockDayLabel,
+  clockHour,
+  clockNear,
+  clockNearWhen,
+  clockShort,
+  clockStamp,
+  clockTime,
+  clockWhen,
+  durationWords,
+  fromZonedInput,
+  inLocalWeek,
+  localDaysBetween,
+  mmss,
+  tomorrowAtIn,
+  wallClockAt,
+  zoneDayKey,
+  zonedInputValue,
+} from "./clock";
 export { EDGE_ERROR_CODES } from "./edge-errors";
 export type { EdgeAnswerBody, EdgeAnswerCode, EdgeCallCode, EdgeErrorCode, EdgeRefusal } from "./edge-errors";
+export { addressInMessage, normalizeEmail, whyNotAnEmail } from "./email-address";
 export {
-  areaCodeOf,
-  normalizePhone,
-  samePhone,
-  shortCode,
-  phoneDialable,
-  whyNotAPhone,
-  whyNotAHandoff,
-  whyNotForward,
-  handoffE164,
-  phoneTail,
-  formatPhoneDisplay,
-  HANDOFF_FORWARDS_BACK,
-  FORWARD_IS_HANDOFF,
-} from "./phone";
-export { normalizeEmail, whyNotAnEmail, addressInMessage } from "./email-address";
-export { normalizeLink, whyNotALink, linkHost, publicObjectSrc } from "./link";
-export {
-  optInPurposeOf,
-  TENANT_STATUSES,
-  MEMBERSHIP_ROLES,
+  ACTOR_TYPES,
   CHANNEL_KINDS,
-  IDENTITY_ASSURANCES,
+  CONSENT_STATES,
+  CONVERSATION_OPT_IN_PATTERN,
   CONVERSATION_STATES,
+  DECISION_SUBJECTS,
+  DECISION_VERBS,
+  EMAIL_STOP_PATTERN,
+  EMAIL_UNSUBSCRIBE_PATTERN,
+  ESCALATION_REASONS,
+  ESCALATION_STATES,
+  EVENT_KINDS,
+  EVENT_SUBSCRIBERS,
+  IDENTITY_ASSURANCES,
+  JOB_KINDS,
+  JOB_STATES,
+  MARKETING_OPT_IN_PATTERN,
+  MEMBERSHIP_ROLES,
   MESSAGE_CHANNELS,
   MESSAGE_DIRECTIONS,
   MESSAGE_SENDERS,
-  MESSAGE_TYPES,
   MESSAGE_STATUSES,
-  CONSENT_STATES,
-  JOB_KINDS,
-  EVENT_SUBSCRIBERS,
-  JOB_STATES,
-  WABA_FIELDS,
-  EVENT_KINDS,
-  OPT_OUT_PATTERN,
-  EMAIL_STOP_PATTERN,
-  EMAIL_UNSUBSCRIBE_PATTERN,
-  SMS_OPT_OUT_PATTERN,
-  OPT_IN_PATTERN,
-  MARKETING_OPT_IN_PATTERN,
-  CONVERSATION_OPT_IN_PATTERN,
+  MESSAGE_TYPES,
   OFFERS_OPT_IN_PHRASES,
-  ESCALATION_REASONS,
-  ESCALATION_STATES,
-  DECISION_VERBS,
-  DECISION_SUBJECTS,
-  ACTOR_TYPES,
+  OPT_IN_PATTERN,
+  OPT_OUT_PATTERN,
+  optInPurposeOf,
+  SMS_OPT_OUT_PATTERN,
   TEMPLATE_STATUSES,
+  TENANT_STATUSES,
+  WABA_FIELDS,
 } from "./enums";
 export type {
-  TenantStatus,
-  MembershipRole,
+  ActorType,
   ChannelKind,
-  IdentityAssurance,
+  ConsentState,
   ConversationState,
+  DecisionSubject,
+  DecisionVerb,
+  EscalationReason,
+  EscalationState,
+  EventKind,
+  EventSubscriber,
+  IdentityAssurance,
+  JobKind,
+  JobState,
+  MembershipRole,
   MessageChannel,
   MessageDirection,
   MessageSender,
-  MessageType,
   MessageStatus,
-  ConsentState,
-  JobKind,
-  EventSubscriber,
-  JobState,
-  WabaEventKind,
-  EventKind,
-  EscalationReason,
-  EscalationState,
-  DecisionVerb,
-  DecisionSubject,
-  ActorType,
+  MessageType,
   TemplateStatus,
+  TenantStatus,
+  WabaEventKind,
 } from "./enums";
+export { err, ok, SERVED_AT_HEADER } from "./envelope";
+export type { Envelope, Err, Ok } from "./envelope";
+export { AppError, bodyRefusal, ERROR_CODES } from "./errors";
+export type { ErrorCode } from "./errors";
+export { escapeHtml } from "./html";
+export { asContactId, asTenantId, isUuid, UUID } from "./identity";
+export type { ContactId, TenantId } from "./identity";
+export { linkHost, normalizeLink, publicObjectSrc, whyNotALink } from "./link";
+export { sumOf } from "./numbers";
 export {
-  SECOND_MS,
-  MIN_MS,
-  HOUR_MS,
-  DAY_MS,
-  WEEK_MS,
-  jittered,
-  spanUnits,
-  spanLabel,
-  waitedLabel,
+  areaCodeOf,
+  formatPhoneDisplay,
+  FORWARD_IS_HANDOFF,
+  HANDOFF_FORWARDS_BACK,
+  handoffE164,
+  normalizePhone,
+  phoneDialable,
+  phoneTail,
+  samePhone,
+  shortCode,
+  whyNotAHandoff,
+  whyNotAPhone,
+  whyNotForward,
+} from "./phone";
+export type { Exactly, Holds, SchemaAgreement, SchemaSet, SchemaSetKey, Within } from "./schema-sets";
+export {
   agoShort,
   agoWords,
+  DAY_MS,
+  HOUR_MS,
+  jittered,
+  MIN_MS,
+  SECOND_MS,
+  spanLabel,
+  spanUnits,
   timezoneCity,
+  waitedLabel,
+  WEEK_MS,
 } from "./time";
 export type { SpanUnits } from "./time";
-export {
-  zoneDayKey,
-  clockTime,
-  clockHour,
-  clockDate,
-  clockDateYear,
-  clockShort,
-  clockStamp,
-  clockWhen,
-  localDaysBetween,
-  inLocalWeek,
-  clockNear,
-  clockNearWhen,
-  clockDayLabel,
-  wallClockAt,
-  tomorrowAtIn,
-  zonedInputValue,
-  fromZonedInput,
-  callLength,
-  mmss,
-  durationWords,
-} from "./clock";
-export type { SchemaSetKey, SchemaSet, Exactly, Within, Holds, SchemaAgreement } from "./schema-sets";
-export { UUID, isUuid, asTenantId, asContactId } from "./identity";
-export type { TenantId, ContactId } from "./identity";
+export { finiteOrNull, finiteOrZero, lineOrNull, nonBlankOrNull, recordOrNull, trimmedOrNull } from "./unknown";
 export { plural } from "./words";
-export { escapeHtml } from "./html";
-export { finiteOrNull, finiteOrZero, trimmedOrNull, nonBlankOrNull, recordOrNull, lineOrNull } from "./unknown";
-export { utf8Bytes, hexOf } from "./bytes";
-export { sumOf } from "./numbers";
-export { SCHEMA_SETS } from "../schema-sets.generated";
-export { ROUTE_KEYS } from "../route-keys.generated";
-export type { ApiRouteKey } from "../route-keys.generated";

@@ -1,6 +1,6 @@
 /**
  * The measure behind the "edge statements that name no workspace" ratchet (_ast.mjs workspacelessStatements, the
- * baseline workspaceless.json), run on made-up modules: which statements count, which do not, and how a module that
+ * measure, which check:debt holds), run on made-up modules: which statements count, which do not, and how a module that
  * reads across workspaces on purpose says so.
  *
  * The edge writes with the service role, which skips row-level security, so a statement on a workspace's table is
