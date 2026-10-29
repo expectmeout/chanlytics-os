@@ -32,10 +32,11 @@ A sequence to leads sends from the workspace's own mailboxes (0056). Read at `b2
 ## Decision
 
 1. **A sequence chooses its ending:** `sequence_steps.signs_with`, `name` or `mailbox`, on its root, `name` by default
-   and for every sequence there is. With `name`, the send adds the Signed line under the words, unless their last line
-   is `{{your name}}`, and no mailbox signature. With `mailbox`, the mailbox's signature, except on a first email when
-   that signature carries a link: that email ends with the name. One rule, contracts `coldEndingOf`, for the send, the
-   owner's draft (the sign-off only: their mail app signs), the preview and the test.
+   and for every sequence there is. With `name`, the send adds the Signed line under the words, unless their sign-off
+   (their last few short lines) names `{{your name}}`, alone or with other words, and no mailbox signature. With
+   `mailbox`, the mailbox's signature, except on a first email when that signature carries a link: that email ends
+   with the name. One rule, contracts `coldEndingOf`, for the send, the owner's draft (the sign-off only: their mail app
+   signs), the preview and the test.
 2. **The preview and the test show the ending the send makes,** from the first mailbox the sequence writes from.
 3. **Mailboxes are a pick.** How it runs lists every mailbox of the workspace with a tick, its day, its state and its DNS,
    and saves `mailbox_ids`; one always stays ticked while the mailboxes send. A new sequence ticks the connected mailboxes

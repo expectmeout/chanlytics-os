@@ -219,21 +219,34 @@ export interface ColdEnding {
   signature: string | null;
 }
 
-/** Whether the words' last line is the name the sequence signs with ({{your name}}, in any case or spacing). */
+/** The longest line a sign-off holds, as written: a longer one is a sentence of the words, never a sign-off. */
+const SIGN_OFF_LINE_MAX = 60;
+/** The most lines a sign-off runs to: "Best,", the name, the business. */
+const SIGN_OFF_LINES_MAX = 3;
+
+/**
+ * Whether the words close on the name the sequence signs with ({{your name}}, in any case or spacing): a line of their
+ * sign-off names it, alone or with other words ("- {{your name}}, {{your business}}"). The sign-off is their last lines,
+ * up to three, each short, back to the first blank line; a sentence of the words that names it, or the name said
+ * further up, is not one (29 Oct 2026: a follow-up closing "- Ruben, Chanlytics" was signed Ruben again).
+ */
 function endsWithYourName(body: string): boolean {
-  const last =
-    body
-      .trimEnd()
-      .split(/\r\n|\r|\n/)
-      .at(-1) ?? "";
-  const [named, ...more] = slotMentions(REACH_OUT_SLOT_SET, last);
-  return !!named && more.length === 0 && named.key === "your name" && last.replace(named.written, "").trim() === "";
+  const closing: string[] = [];
+  for (const raw of body
+    .trimEnd()
+    .split(/\r\n|\r|\n/)
+    .reverse()) {
+    const line = raw.trim();
+    if (!line || line.length > SIGN_OFF_LINE_MAX || closing.length === SIGN_OFF_LINES_MAX) break;
+    closing.push(line);
+  }
+  return closing.some((line) => slotMentions(REACH_OUT_SLOT_SET, line).some((m) => m.key === "your name"));
 }
 
 /**
  * How a cold email ends (0077), the one rule the send, the owner's draft, the preview and the test take: the mailbox's
  * signature where the sequence chose it, it has words, and it carries no link to a first email (the words' own link
- * rule, `linkCount`); else the Signed line under the words, unless their last line names it already. `body` is the
+ * rule, `linkCount`); else the Signed line under the words, unless their sign-off names it already. `body` is the
  * step's words as written, before their values go in.
  */
 export function coldEndingOf(p: {
