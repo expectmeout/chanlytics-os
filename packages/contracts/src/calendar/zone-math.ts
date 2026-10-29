@@ -172,5 +172,6 @@ export function dayPlusInZone(
   const y = at.getUTCFullYear(),
     m = at.getUTCMonth() + 1,
     d = at.getUTCDate();
-  return { key: calendarKeyOf(y, m, d), weekday: WEEKDAY_KEYS[at.getUTCDay()], y, m, d };
+  // getUTCDay is 0 to 6, so the key is always there; a project that reads indexes unchecked asks for the default.
+  return { key: calendarKeyOf(y, m, d), weekday: WEEKDAY_KEYS[at.getUTCDay()] ?? "sun", y, m, d };
 }

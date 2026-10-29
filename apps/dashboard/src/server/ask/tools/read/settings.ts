@@ -94,7 +94,11 @@ async function getSettings(t: ToolContext): Promise<unknown> {
     // The same three fields, in the page's order: by kind. Null: they could not be read, which is not none.
     // Each line's state as Connections says it (contracts toChannelVM healthLabel): "active" was the stored word (R13 X5-7).
     channels: chans
-      ? chans.map((c) => ({ kind: c.kind, status: toChannelVM(c, t.now).healthLabel, number: c.number_e164 }))
+      ? chans.map((c) => ({
+          kind: c.kind,
+          status: toChannelVM(c, t.now, t.timezone).healthLabel,
+          number: c.number_e164,
+        }))
       : null,
     config_version: cfgRow?.version ?? null,
     ...(chans ? {} : { could_not_read: ["The channels could not be read just now."] }),
@@ -115,7 +119,13 @@ async function getConnections(t: ToolContext): Promise<unknown> {
   const read = await load(t.rc, connectionsReader, undefined);
   const setup = read.data.setup;
   const vm = setupSteps(
-    { ...setup, ...(setup.billing ? { billing: { ...setup.billing, price: null } } : {}), later: [], rests: {} },
+    {
+      ...setup,
+      ...(setup.billing ? { billing: { ...setup.billing, price: null } } : {}),
+      tz: t.timezone,
+      later: [],
+      rests: {},
+    },
     t.now.getTime(),
   );
   // Each mailbox it writes from is a row an answer may cite, opened on Connections: the reader's RowRefs.

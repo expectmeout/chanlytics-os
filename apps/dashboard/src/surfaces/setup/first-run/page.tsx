@@ -32,6 +32,7 @@ import {
   type FirstRunWho,
 } from "@chanlytics/contracts";
 import type { SettingsSurface } from "@/legacy-bridge/surfaces/settings";
+import { pageClock } from "@/legacy-bridge/zone";
 import type { LiveSurface } from "../../live/surface";
 import { Confirm } from "../../kit/confirm/confirm";
 import { FailedRead } from "../../kit/empty/empty";
@@ -138,6 +139,7 @@ function channelsVmOf(
 ): FirstRunChannelsVM {
   const wa = S.vm.choices.whatsapp;
   return FIRST_RUN_HELPERS.channels({
+    tz: pageClock().zone(),
     dto: S.dto,
     vm: S.vm,
     phone: ph,
@@ -559,7 +561,11 @@ function stepBody(o: {
           choice={v.choice}
           setChoice={setPhoneChoice}
           tool={v.ch.bookings.tool ?? bookingToolOfLink(brain?.booking_link ?? null)}
-          lines={FIRST_RUN_HELPERS.imports(S.dto.imports, { whatsappWaiting: S.vm.choices.whatsapp === "same" }).lines}
+          lines={
+            FIRST_RUN_HELPERS.imports(S.dto.imports, pageClock().zone(), {
+              whatsappWaiting: S.vm.choices.whatsapp === "same",
+            }).lines
+          }
           flash={flash}
           go={acts.go}
           back={fr.back}

@@ -2306,7 +2306,7 @@ test("lines (A2): with a grace set, the owner is warned once -- the day, the for
     assert.equal(warned.ended_at, ago(40 * DAY), "the latest the billing row says it stopped paying");
     const on = Date.parse(warned.on);
     assert.ok(on >= Date.parse(warned.at) + 7 * DAY - 1000, "a week after the warning, at the soonest");
-    const day = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(new Date(on));
+    const day = new Date(on).toLocaleDateString("en", { timeZone: "America/New_York", month: "short", day: "numeric" });
     assert.equal(tables.notifications.length, 1);
     const bell = tables.notifications[0];
     assert.deepEqual([bell.tenant_id, bell.kind, bell.route], [T, "billing", "admin/billing"]);

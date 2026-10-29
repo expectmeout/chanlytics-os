@@ -18,6 +18,7 @@
 import {
   BILLING_STATUSES,
   DAY_MS,
+  DEFAULT_TIMEZONE,
   LINE_RELEASE_REPORT_DAYS,
   lineReleaseDay,
   lineReleaseStep,
@@ -240,7 +241,7 @@ async function warnOfRelease(
   ports: EndedLinesPorts,
   row: LineDbRow,
   step: { endedAt: number; releaseAt: number },
-  words: { number: string; forwardedFrom: string | null; billingUrl: string | null },
+  words: { number: string; tz: string; forwardedFrom: string | null; billingUrl: string | null },
   now: number,
   out: EndedLinesResult,
 ): Promise<void> {
@@ -317,7 +318,7 @@ export async function sweepEndedLines(
   if (!byTenant.size) return out;
   const ids = [...byTenant.keys()];
   const [tenants, lines] = await Promise.all([
-    db.from("tenants").select("id, slug, status").in("id", ids),
+    db.from("tenants").select("id, slug, status, timezone").in("id", ids),
     db.from("lines").select("*").in("tenant_id", ids).in("kind", ["chanlytics", "forwarded"]).order("created_at"),
   ]);
   if (tenants.error) throw new Error(`reading workspaces: ${tenants.error.message}`);
@@ -361,6 +362,8 @@ export async function sweepEndedLines(
     if (step.step === "keep" || step.step === "wait") continue;
     const words = {
       number: row.e164 ?? "",
+      // The day it goes is said by the workspace's calendar, as Billing says its days.
+      tz: tenant.timezone || DEFAULT_TIMEZONE,
       forwardedFrom: forwardedTo(row.tenant_id, row.e164),
       billingUrl: ports.billingUrl(tenant.slug),
     };

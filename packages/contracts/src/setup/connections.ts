@@ -103,6 +103,8 @@ export interface ConnectionRow {
 }
 
 export interface ConnectionInputs {
+  /** The workspace's zone, which every day its rows say is in (contracts zone-math; one Intl cannot use reads as UTC). */
+  tz: string;
   /** The rows of tenant_channels as the page already shows them. */
   channels: ChannelVM[];
   /**
@@ -767,7 +769,7 @@ export function connectionRows(i: ConnectionInputs, nowMs = Date.now()): Connect
   const facts = connectionFactsOf(i, nowMs);
   const rows = ROW_BUILDERS.map((build) => {
     const r = row(build(i, facts));
-    const brought = importNotesOf(BROUGHT_BY[r.kind], i.imports);
+    const brought = importNotesOf(BROUGHT_BY[r.kind], i.imports, i.tz);
     return brought.length ? { ...r, notes: [...r.notes, ...brought] } : r;
   }).sort((a, b) => ORDER[a.kind] - ORDER[b.kind]);
   return foldEmail(rows, i);

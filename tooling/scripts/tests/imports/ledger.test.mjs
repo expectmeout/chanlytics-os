@@ -205,7 +205,7 @@ test("Bringing it in: a line a source in the order they are said, WhatsApp's wai
   );
   assert.deepEqual([got.done, got.of, got.running], [2, 3, true]);
   // WhatsApp chosen and not started: it starts at Go live, said as waiting.
-  const waiting = importLinesOf([row("google_reviews", "done", { reviews: 3 })], { whatsappWaiting: true });
+  const waiting = importLinesOf([row("google_reviews", "done", { reviews: 3 })], "UTC", { whatsappWaiting: true });
   assert.deepEqual(waiting.lines.at(-1), {
     source: "whatsapp_history",
     title: "WhatsApp",
@@ -221,7 +221,7 @@ test("Bringing it in: a line a source in the order they are said, WhatsApp's wai
   });
   assert.deepEqual([waiting.done, waiting.of, waiting.running], [1, 2, false]);
   assert.equal(
-    importLinesOf([row("whatsapp_contacts", "running")], { whatsappWaiting: true }).lines.length,
+    importLinesOf([row("whatsapp_contacts", "running")], "UTC", { whatsappWaiting: true }).lines.length,
     1,
     "already started: no waiting line besides it",
   );

@@ -198,9 +198,11 @@ test("its facts: what came in, as the ledger says it, then what it sends and sig
   let tree = open([mbx({ daily_cap: 40 })], null, { imports });
   assert.deepEqual(
     factsOf(tree),
-    [`Inbox: ${importLineOf(imports[0]).says}`, "Sends: Up to 40 a day", "Signs as: Sam at Harbor"],
+    [`Inbox: ${importLineOf(imports[0], ZONE).says}`, "Sends: Up to 40 a day", "Signs as: Sam at Harbor"],
     "the ledger's own line; no Contacts with nothing to say; with no signature in Gmail, its name ends its emails",
   );
+  // Midnight on 7 June in UTC is the evening of the 6th in Los Angeles: the card says the workspace's day.
+  assert.match(factsOf(tree)[0], / · since Jun 6$/, "REGRESSION: the day it reached back to was the machine's");
   tree = open([mbx({ signs: { from: "none", words: null, gmail_read_at: null, gmail: null } })]);
   assert.deepEqual(factsOf(tree), ["Sends: Up to 40 a day", "Signs as: No signature"]);
   tree = open([mbx({ signs: { from: "own", words: "Sam Reyes\nHarbor Moving", gmail_read_at: null, gmail: null } })]);

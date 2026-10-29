@@ -313,7 +313,7 @@ function goLiveFactsOf(i: GoLiveInput): GoLiveFacts {
     waChosen,
     hands: (kept ? 1 : 0) + (waChosen && !waOn ? 1 : 0),
     price: priceWords(dto.billing?.price ?? null) || null,
-    firstCharge: dto.billing?.current_period_end ? dayWords(dto.billing.current_period_end) : null,
+    firstCharge: dto.billing?.current_period_end ? dayWords(dto.billing.current_period_end, i.tz) : null,
   };
 }
 
@@ -379,9 +379,12 @@ function forwardItemOf(
 }
 
 /** What came in, a row a source; the kept app's chats in Meta's three parts under theirs (5B·i). */
-function importItemsOf(dto: SetupDto): GoLiveItemVM[] {
-  const chats = whatsappPartsOf((dto.imports ?? []).find((r) => r.source === "whatsapp_history"));
-  return importLinesOf(dto.imports, { whatsappWaiting: false }).lines.map((l): GoLiveItemVM => {
+function importItemsOf(dto: SetupDto, tz: string): GoLiveItemVM[] {
+  const chats = whatsappPartsOf(
+    (dto.imports ?? []).find((r) => r.source === "whatsapp_history"),
+    tz,
+  );
+  return importLinesOf(dto.imports, tz, { whatsappWaiting: false }).lines.map((l): GoLiveItemVM => {
     const state = l.state === "done" ? "done" : l.state !== "failed" ? "waiting" : l.retry ? "needs" : "stopped";
     const parts = l.source === "whatsapp_history" && chats.length ? { parts: chats } : {};
     return { key: "imports", state, label: `${l.title} · ${l.says}`, sub: null, ...parts };
@@ -417,7 +420,7 @@ function switchItemsOf(i: GoLiveInput, f: GoLiveFacts, proof: { proved: boolean;
       label: approved ? W.templateOk : W.template,
       sub: null,
     });
-  return [...items, ...importItemsOf(i.dto)];
+  return [...items, ...importItemsOf(i.dto, i.tz)];
 }
 
 /** 5B: paid, now one list that fills itself in, and Ask's count beside it. */

@@ -38,6 +38,7 @@ import {
   agoWords,
 } from "@chanlytics/contracts";
 import { api, read } from "@/legacy-bridge/api";
+import { pageClock } from "@/legacy-bridge/zone";
 import { refreshSurfaces } from "@/legacy-bridge/surface-runner";
 import { saveView } from "../people/people-detail";
 import { setupOverride } from "./override";
@@ -165,7 +166,7 @@ function publish(
     rests,
     want,
     choices,
-    vm: setupSteps({ ...dto, later, rests, want, choices }),
+    vm: setupSteps({ ...dto, tz: pageClock().zone(), later, rests, want, choices }),
     fetchedAt: Date.now(),
   });
 }

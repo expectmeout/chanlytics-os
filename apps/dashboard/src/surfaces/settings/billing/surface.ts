@@ -26,6 +26,7 @@ import {
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { api, read } from "@/legacy-bridge/api";
 import { declareReads } from "@/legacy-bridge/surface-registry";
+import { pageClock } from "@/legacy-bridge/zone";
 import { refreshSurfaces } from "@/legacy-bridge/surface-runner";
 import { setupOverride } from "@/surfaces/setup/override";
 import { declareSurfaceValue, setSurfaceValue } from "../../surface-values";
@@ -66,10 +67,11 @@ interface BillingApi {
   /** Read the row again: the failed card's retry, and nothing else's. */
   refresh(): Promise<void>;
   outcomeWords: Record<string, string>;
+  /** The days in the workspace's zone (the page's clock), whatever the browser's. */
   words: {
-    day: typeof dayWords;
+    day: (iso: string | null | undefined) => string;
     money: typeof moneyWords;
-    trial: typeof trialWords;
+    trial: (trialEnd: string | null | undefined, nowMs: number) => string;
     price: typeof priceWords;
     invoice: typeof invoiceStatusWords;
   };
@@ -105,7 +107,7 @@ export const billingOverride: SurfaceOverride = {
 
 /** The billing verbs, each through its door. */
 export const billingVerbs: BillingApi = {
-  vm: (dto, nowMs) => toBillingVM(dto, nowMs),
+  vm: (dto, nowMs = Date.now()) => toBillingVM(dto, nowMs, pageClock().zone()),
   async checkout(back) {
     const r = await api()("POST billing/checkout", { body: back ? { return: back } : {} });
     if (!r.ok) return { ok: false, message: r.message };
@@ -169,7 +171,13 @@ export const billingVerbs: BillingApi = {
     }
   },
   outcomeWords: CHECKOUT_OUTCOME_WORDS,
-  words: { day: dayWords, money: moneyWords, trial: trialWords, price: priceWords, invoice: invoiceStatusWords },
+  words: {
+    day: (iso) => dayWords(iso, pageClock().zone()),
+    money: moneyWords,
+    trial: (trialEnd, nowMs) => trialWords(trialEnd, nowMs, pageClock().zone()),
+    price: priceWords,
+    invoice: invoiceStatusWords,
+  },
   pill: billingPill,
   async refresh() {
     api().forget();

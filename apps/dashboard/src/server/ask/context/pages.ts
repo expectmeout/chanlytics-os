@@ -308,9 +308,9 @@ export const settings: Provider = async (rc, ctx) => {
 
 /** Start: the step the page is on, and how far setup has come, as the Setup page says it (contracts setupSteps). */
 export const start: Provider = async (rc, ctx) => {
-  const { setup } = (await load(rc, connectionsReader, undefined)).data;
+  const [{ setup }, tz] = await Promise.all([load(rc, connectionsReader, undefined).then((r) => r.data), zone(rc)]);
   // What the member put off rides on their own saved view, which the page reads apart: none is put off here.
-  const vm = setupSteps({ ...setup, later: [], rests: {} }, rc.now.getTime());
+  const vm = setupSteps({ ...setup, tz, later: [], rests: {} }, rc.now.getTime());
   return {
     rows: [],
     aggregate: aggregateOf([

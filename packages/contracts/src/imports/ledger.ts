@@ -153,26 +153,26 @@ export const IMPORT_WORDS = {
   whatsappLater: "Contacts and chats, once you approve",
 } as const;
 
-/** How far back a source reached, "since Apr 23", or null before anything came. */
-const since = (oldest: string | null): string | null => (oldest ? `since ${dayWords(oldest)}` : null);
+/** How far back a source reached, "since Apr 23" by the workspace's calendar (`tz`), or null before anything came. */
+const since = (oldest: string | null, tz: string): string | null => (oldest ? `since ${dayWords(oldest, tz)}` : null);
 /** The parts of a line that have something to say, one " · " apart. */
 const joined = (...parts: (string | null | undefined)[]): string => parts.filter(Boolean).join(" · ");
 const countOfPeople = (n: number): string => groupedPlural(n, "person", "people");
 
 /** What the mailbox brought: the emails from people (so far, while it reads), since when, and any it could not read. */
-function mailSaysOf(r: ImportRowDto): string {
+function mailSaysOf(r: ImportRowDto, tz: string): string {
   const c = r.counts;
   const n = c.messages ?? 0;
   const read = n ? `${groupedPlural(n, "email")}${r.state === "done" ? "" : " so far"}` : null;
   return joined(
     read ?? (r.state === "done" ? "No email from people" : "Reading your inbox"),
-    since(r.oldest),
+    since(r.oldest, tz),
     c.unreadable ? `${c.unreadable.toLocaleString("en-US")} couldn't be read` : null,
   );
 }
 
-/** What one source brought, in words. */
-function saysOf(r: ImportRowDto): string {
+/** What one source brought, in words, its days by the workspace's calendar (`tz`). */
+function saysOf(r: ImportRowDto, tz: string): string {
   const c = r.counts;
   const via = viaWords(r.via);
   switch (r.source) {
@@ -180,7 +180,7 @@ function saysOf(r: ImportRowDto): string {
       return c.reviews
         ? joined(
             groupedPlural(c.reviews, "review"),
-            since(r.oldest),
+            since(r.oldest, tz),
             c.unanswered ? `${c.unanswered} wait for a reply` : null,
           )
         : "Reading them";
@@ -198,11 +198,11 @@ function saysOf(r: ImportRowDto): string {
     case "contacts":
       return c.people === undefined ? "Reading them" : joined(countOfPeople(c.people), via);
     case "mailbox":
-      return mailSaysOf(r);
+      return mailSaysOf(r, tz);
     case "whatsapp_contacts":
       return c.people === undefined ? "Reading them" : countOfPeople(c.people);
     case "whatsapp_history":
-      return r.oldest ? `Back to ${dayWords(r.oldest)} so far` : "Chats from the last six months";
+      return r.oldest ? `Back to ${dayWords(r.oldest, tz)} so far` : "Chats from the last six months";
   }
 }
 
@@ -261,14 +261,14 @@ function leadCountOf(r: ImportRowDto): number | null {
 }
 
 /** One source's line. */
-export function importLineOf(r: ImportRowDto): ImportLineVM {
+export function importLineOf(r: ImportRowDto, tz: string): ImportLineVM {
   const share = shareOf(r);
   const aside =
     r.source === "mailbox" && r.state !== "failed" && r.counts.dropped ? IMPORT_WORDS.setAside(r.counts.dropped) : null;
   return {
     source: r.source,
     title: IMPORT_WORDS.titles[r.source],
-    says: r.state === "failed" ? stoppedSaysOf(r) : saysOf(r),
+    says: r.state === "failed" ? stoppedSaysOf(r) : saysOf(r, tz),
     stand: standOf(r, share),
     state: r.state,
     retry: r.state === "failed" && !ONCE_ONLY.has(r.source),
@@ -309,7 +309,7 @@ export const WHATSAPP_PART_WORDS = {
  * back to 180, each in, coming in or next by the parts Meta has finished (the row's parts_done), and how far back each
  * reaches from when the run started. Nothing for a run that stopped: its row says why.
  */
-export function whatsappPartsOf(r: ImportRowDto | null | undefined): WhatsappPartVM[] {
+export function whatsappPartsOf(r: ImportRowDto | null | undefined, tz: string): WhatsappPartVM[] {
   if (!r || r.source !== "whatsapp_history" || r.state === "failed") return [];
   const W = WHATSAPP_PART_WORDS;
   const from = r.started_at ? Date.parse(r.started_at) : NaN;
@@ -320,7 +320,7 @@ export function whatsappPartsOf(r: ImportRowDto | null | undefined): WhatsappPar
         : r.parts_done === i && r.state === "running"
           ? "running"
           : "next";
-    const back = Number.isFinite(from) ? `Back to ${dayWords(new Date(from - p.back * DAY_MS).toISOString())}` : "";
+    const back = Number.isFinite(from) ? `Back to ${dayWords(new Date(from - p.back * DAY_MS).toISOString(), tz)}` : "";
     return {
       key: p.key,
       label: p.label,
@@ -338,12 +338,13 @@ export function whatsappPartsOf(r: ImportRowDto | null | undefined): WhatsappPar
 export function importNotesOf(
   sources: readonly ImportSource[] | undefined,
   rows: readonly ImportRowDto[] | null | undefined,
+  tz: string,
 ): { text: string; live: true }[] {
   if (!sources || !rows) return [];
   return rows
     .filter((r) => sources.includes(r.source))
     .map((r) => {
-      const l = importLineOf(r);
+      const l = importLineOf(r, tz);
       return { text: `${l.title}: ${l.says}${l.state === "done" ? "" : ` · ${l.stand}`}`, live: true as const };
     });
 }
@@ -366,10 +367,11 @@ const SAID_ORDER: readonly ImportSource[] = [
  */
 export function importLinesOf(
   rows: readonly ImportRowDto[] | null | undefined,
+  tz: string,
   o: { whatsappWaiting: boolean } = { whatsappWaiting: false },
 ): { lines: ImportLineVM[]; done: number; of: number; running: boolean } {
   const got = [...(rows ?? [])].sort((a, b) => SAID_ORDER.indexOf(a.source) - SAID_ORDER.indexOf(b.source));
-  const lines = got.map(importLineOf);
+  const lines = got.map((r) => importLineOf(r, tz));
   const hasWhatsapp = got.some((r) => r.source === "whatsapp_contacts" || r.source === "whatsapp_history");
   if (o.whatsappWaiting && !hasWhatsapp)
     lines.push({
@@ -409,6 +411,7 @@ export interface BroughtInStateVM {
 export function broughtInCardOf(
   rows: readonly ImportRowDto[] | null | undefined,
   count: number | null,
+  tz: string,
 ): { title: string; state: BroughtInStateVM; facts: BroughtInFactVM[] } | null {
   const got = rows ?? [];
   if (!got.length) return null;
@@ -422,10 +425,10 @@ export function broughtInCardOf(
   );
   const facts: BroughtInFactVM[] = [];
   if (first) facts.push({ key: "people", text: first });
-  if (mail?.oldest) facts.push({ key: "mail", text: `Email ${since(mail.oldest)}` });
-  if (cal && cal.counts.past !== undefined) facts.push({ key: "calendar", text: saysOf(cal) });
+  if (mail?.oldest) facts.push({ key: "mail", text: `Email ${since(mail.oldest, tz)}` });
+  if (cal && cal.counts.past !== undefined) facts.push({ key: "calendar", text: saysOf(cal, tz) });
   const stopped = got.filter((r) => r.state === "failed").length;
-  const { done, of, running } = importLinesOf(got);
+  const { done, of, running } = importLinesOf(got, tz);
   const W = IMPORT_WORDS;
   const state: BroughtInStateVM = stopped
     ? { tone: "stopped", words: W.stoppedCount(stopped) }
