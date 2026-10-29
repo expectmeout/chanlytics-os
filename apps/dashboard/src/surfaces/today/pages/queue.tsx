@@ -242,6 +242,17 @@ function queueFoot(
   );
 }
 
+/**
+ * The foot on a phone: only where the card left someone out, under the last of them, since the head counted them all (his
+ * look, 29 Oct 2026: "6 conversations need you" over three people and no way to the rest). The steps and the visits are
+ * To do's, under it.
+ */
+function phoneFoot(cut: { rows: number; runs: number; sends: number }, word: AppointmentWord, nav: Nav) {
+  return cut.rows + cut.runs + cut.sends > 0
+    ? queueFoot({ ...cut, steps: 0, visits: 0 }, { steps: null, visits: null, word }, nav)
+    : null;
+}
+
 /** How often Ask's morning is read again while Ask writes it: a turn takes up to two minutes. */
 const MORNING_POLL_MS = 8_000;
 /** How many of Ask's ideas and reviews to answer the card draws after the people: the rest wait in Ask and on Reports. */
@@ -461,7 +472,7 @@ const TodayQueue = ({ vm }: { vm: TodayVM }) => {
     drawn: runs,
     count: runsCount,
     cut: runsCut,
-  } = waitRows({ nav, flash: ppFlash, verbKind, acting }, Math.max(0, CARD_MAX - drawn.length));
+  } = waitRows({ nav, flash: ppFlash, verbKind, acting, phone }, Math.max(0, CARD_MAX - drawn.length));
   // Every row has asked for its act by now: whether one took the coral, for the setup card above (queue-coral.ts).
   const holdsCoral = !primaryLeft;
   useLayoutEffect(() => {
@@ -521,6 +532,7 @@ const TodayQueue = ({ vm }: { vm: TodayVM }) => {
       {!phone && <AskSays wants={draftWantsOf(open)} rows={open} may={may} />}
       <LiveRail nav={nav} />
       {queueList(vm, phone ? drawn : [...drawn, ...extras], runs, { total, waiting, phone })}
+      {phone ? phoneFoot({ rows: rowsCut, runs: runsCut, sends: sendsUndrawn }, word, nav) : null}
       {phone ? <TodayToDo queueHolds={holdsCoral} /> : null}
       {phone ? queueWalk(shown, { walk, setWalk }, ctx, toDo) : null}
       {!phone &&

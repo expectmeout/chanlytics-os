@@ -395,16 +395,17 @@ export interface TodayPhoneHeadVM {
 
 /**
  * The same ladder said as a phone's head (the phone canvas, 28 Oct 2026): what now in a few words, and the rest in one line
- * under it. The needs rung is its headline, and its line says the runs waiting too, which the badge counts and the headline
- * does not. On the calm rung what still waits leads, so "Nothing needs you" is never the title over a run, a search or a
- * closing window (S7-1); with nothing waiting it is, and the traffic is the line. No word here that the ladder does not say.
+ * under it. The needs rung is its headline, and its line says only the runs waiting, which the badge counts and the headline
+ * does not: who has waited longest is the first card's, right under it, with how long beside their name (his look on a
+ * phone, 29 Oct 2026: the oldest wait was said three times above the fold). On the calm rung what still waits leads, so
+ * "Nothing needs you" is never the title over a run, a search or a closing window (S7-1); with nothing waiting it is, and
+ * the traffic is the line. No word here that the ladder does not say.
  */
 export function todayPhoneHead(standing: TodayHead, runs: number): TodayPhoneHeadVM {
   const { calm } = standing;
   if (standing.tone !== "calm" || !calm) {
-    const extra = standing.tone === "needs" && runs > 0 ? runsWaitingSentence(runs) : null;
-    const line = [standing.detail, extra].filter(Boolean).join(" ");
-    return { title: asTitle(standing.headline), line: line || null };
+    const line = standing.tone === "needs" && runs > 0 ? runsWaitingSentence(runs) : null;
+    return { title: asTitle(standing.headline), line };
   }
   const also = [...(runs > 0 ? [runsWaitingSentence(runs)] : []), ...calm.also];
   const traffic = calm.traffic ? `${calm.traffic} today.` : null;

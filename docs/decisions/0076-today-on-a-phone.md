@@ -58,6 +58,13 @@ Refined on Ruben's word the same day ("Apply all five"), after the first build: 
 look under them, the reviews to To do and Ask found to ideas alone, To do into Need you's pane, Ask's line dropped
 on a phone, and setup with brought in as one card. Nine sections became seven.
 
+Refined again after his look on production (Ruben, 29 Oct 2026: "the top feels a bit cluttered and wordy"; "Build 1–4"):
+the head's line says only the runs waiting; the warnings under it are only what stops customers being answered (a line
+down, a reply that never arrived, the bell's `number`, `sweep` and `billing`); the card's foot says who it left out, with
+See all; a row says since when only on a desk, a call-back's sentence leaves its ask to its state line and Call, Ask's
+brief on a card is its first line with Read, and a run waiting for your OK says so once and opens with Review; the day
+card's head is its note on one line. The spec's "Refined after his look on production" says each.
+
 Not built: a swipe on a row for Not now (a new gesture beside #1811's scroll handling, and every card and sheet has Not
 now); the docked player showing the line being read (the speech route gives no timings); the week's sparkline
 (`reports_headline` has no days); the pinned lists as chips (Ruben, 20 Oct 2026: chips under the cards "read as
