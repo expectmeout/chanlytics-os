@@ -48,12 +48,19 @@ interface WorkspaceRow {
   accent?: string | null;
 }
 
+/**
+ * The columns every database has: what a PATCH of the zone, or a rename, reads back, so the save lands on a database
+ * no newer migration reached, and the list's last read. Named, not indexed: a set added at the front of COLUMN_SETS
+ * (the colour's, 00490) moved `COLUMN_SETS[2]` from this to the logo's set, and the zone's PATCH read back a path.
+ */
+const OLDEST = "id, slug, name, status, timezone";
+
 /** The columns the list reads, newest first; each read after the first leaves one newer column out. */
 const COLUMN_SETS = [
   "id, slug, name, status, timezone, appointment_word, logo_path, accent",
   "id, slug, name, status, timezone, appointment_word, logo_path",
   "id, slug, name, status, timezone, logo_path",
-  "id, slug, name, status, timezone",
+  OLDEST,
 ] as const;
 
 /** What a PATCH of the word reads back: the row as it wrote it, its word with it, and never the logo's storage path. */
@@ -295,7 +302,7 @@ async function writeOwnFields(
     .from("tenants")
     .update(patch)
     .eq("id", tenantId)
-    .select(patch.appointment_word ? WORD_ANSWER : COLUMN_SETS[2])) as unknown as {
+    .select(patch.appointment_word ? WORD_ANSWER : OLDEST)) as unknown as {
     data: Partial<WorkspaceRow>[] | null;
     error: { message: string; code?: string } | null;
   };

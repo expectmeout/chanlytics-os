@@ -87,7 +87,8 @@ begin
        and e.data->'fields' ? 'logo' and e.data->>'by' is not null)
   then
     update public.tenants set logo_path = v_logo where id = p_tenant_id;
-    v_wore := v_wore || 'logo';
+    -- array_append, not ||: with a bare literal, || is array || array, and 'logo' is no array literal (22P02).
+    v_wore := array_append(v_wore, 'logo');
   end if;
   if v_accent is not null and v_row.accent is null and not exists (
     select 1 from public.events e
@@ -95,7 +96,7 @@ begin
        and e.data->'fields' ? 'accent' and e.data->>'by' is not null)
   then
     update public.tenants set accent = v_accent where id = p_tenant_id;
-    v_wore := v_wore || 'accent';
+    v_wore := array_append(v_wore, 'accent');
   end if;
   if cardinality(v_wore) > 0 then
     insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)

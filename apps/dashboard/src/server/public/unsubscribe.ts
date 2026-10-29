@@ -124,17 +124,17 @@ interface PageWords {
   foot: string | null;
 }
 
+/** What a page is drawn on: the language of its `<html>`, and the business's look (decision 0075) where it has one. */
+interface Paper {
+  lang: SenderLanguage;
+  look: LinkPageLook;
+}
+
 /**
  * The page every view is drawn on: the product's paper and ink, the business's mark and colour where it has them
  * (decision 0075), one card, no script, whatever the words, in the language of its `<html>`.
  */
-function draw(
-  status: number,
-  kind: string,
-  w: PageWords,
-  lang: SenderLanguage,
-  look: LinkPageLook = NO_LOOK,
-): Response {
+function draw(status: number, kind: string, w: PageWords, paper: Paper): Response {
   const forms = w.buttons
     .map(
       (b) =>
@@ -144,9 +144,9 @@ function draw(
     .join("");
   const foot = w.foot ? `<p class="foot">${escapeHtml(w.foot)}</p>` : "";
   const html = `<!doctype html>
-<html lang="${lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex, nofollow"><title>${escapeHtml(w.title)}</title><style>${linkPageStyle(look)}</style></head>
-<body><main>${linkPageMark(look)}<div class="card"><h1>${escapeHtml(w.lead)}</h1><p>${escapeHtml(w.body)}</p>${forms}</div>${foot}</main></body></html>`;
+<html lang="${paper.lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow"><title>${escapeHtml(w.title)}</title><style>${linkPageStyle(paper.look)}</style></head>
+<body><main>${linkPageMark(paper.look)}<div class="card"><h1>${escapeHtml(w.lead)}</h1><p>${escapeHtml(w.body)}</p>${forms}</div>${foot}</main></body></html>`;
   // Which view this is, so the edge can tell the page answering from anything else answering at its address. The words
   // true of both kinds of email are the same view to the edge (its probe's link names no email, so it draws them): an
   // "ask" or a "done", whichever words the page says it in.
@@ -161,12 +161,8 @@ function page(status: number, view: UnsubscribeView, look: LinkPageLook = NO_LOO
   return draw(
     status,
     view.kind,
-    {
-      ...w,
-      buttons: w.button ? [{ label: w.button, name: "unsubscribe", value: "yes" }] : [],
-    },
-    "en",
-    look,
+    { ...w, buttons: w.button ? [{ label: w.button, name: "unsubscribe", value: "yes" }] : [] },
+    { lang: "en", look },
   );
 }
 
@@ -175,7 +171,7 @@ function page(status: number, view: UnsubscribeView, look: LinkPageLook = NO_LOO
  * language of the offer they pressed it in (null where that could not be read: English), in the business's look.
  */
 function offerPage(status: number, view: OfferUnsubscribeView, language: string | null, look: LinkPageLook): Response {
-  return draw(status, view.kind, offerUnsubscribeWords(view, language), senderLanguage(language), look);
+  return draw(status, view.kind, offerUnsubscribeWords(view, language), { lang: senderLanguage(language), look });
 }
 
 function plainText(status: number, body: string): Response {

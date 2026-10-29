@@ -29501,7 +29501,7 @@ COMMENT ON FUNCTION public.set_template_title(p_template_id uuid, p_title text) 
 CREATE FUNCTION public.set_workspace_accent(p_tenant_id uuid, p_accent text) RETURNS text
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
-    AS $$
+    AS $_$
 declare
   v_user   uuid := auth.uid();
   v_accent text := nullif(lower(btrim(coalesce(p_accent, ''))), '');
@@ -29526,7 +29526,7 @@ begin
   values (p_tenant_id, 'settings.changed', 'system', 'workspace', p_tenant_id,
           jsonb_build_object('fields', jsonb_build_array('accent'), 'by', v_user, 'version', null));
   return v_before;
-end $$;
+end $_$;
 
 
 --
@@ -31415,7 +31415,7 @@ COMMENT ON FUNCTION public.wake_stale_snoozes() IS 'Reopens conversations whose 
 CREATE FUNCTION public.wear_found_look(p_tenant_id uuid, p_logo_path text, p_accent text) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
-    AS $$
+    AS $_$
 declare
   v_logo   text := nullif(btrim(coalesce(p_logo_path, '')), '');
   v_accent text := nullif(lower(btrim(coalesce(p_accent, ''))), '');
@@ -31442,7 +31442,8 @@ begin
        and e.data->'fields' ? 'logo' and e.data->>'by' is not null)
   then
     update public.tenants set logo_path = v_logo where id = p_tenant_id;
-    v_wore := v_wore || 'logo';
+    -- array_append, not ||: with a bare literal, || is array || array, and 'logo' is no array literal (22P02).
+    v_wore := array_append(v_wore, 'logo');
   end if;
   if v_accent is not null and v_row.accent is null and not exists (
     select 1 from public.events e
@@ -31450,7 +31451,7 @@ begin
        and e.data->'fields' ? 'accent' and e.data->>'by' is not null)
   then
     update public.tenants set accent = v_accent where id = p_tenant_id;
-    v_wore := v_wore || 'accent';
+    v_wore := array_append(v_wore, 'accent');
   end if;
   if cardinality(v_wore) > 0 then
     insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
@@ -31458,7 +31459,7 @@ begin
             jsonb_build_object('fields', to_jsonb(v_wore), 'by', null, 'from', 'website', 'version', null));
   end if;
   return jsonb_build_object('logo', 'logo' = any (v_wore), 'accent', 'accent' = any (v_wore));
-end $$;
+end $_$;
 
 
 --
@@ -36100,13 +36101,6 @@ COMMENT ON COLUMN public.tenants.left_empty_at IS 'When the workspace''s last me
 
 
 --
--- Name: COLUMN tenants.accent; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.tenants.accent IS 'The workspace''s own colour (00490): one lower-case #rrggbb its emails to customers and their pages draw the button and links in; null when it has none and ink stands in. Written by set_workspace_accent (a member) and wear_found_look (the website read, only where no person set it).';
-
-
---
 -- Name: COLUMN tenants.logo_path; Type: COMMENT; Schema: public; Owner: -
 --
 
@@ -36125,6 +36119,13 @@ COMMENT ON COLUMN public.tenants.appointment_word IS 'What this workspace calls 
 --
 
 COMMENT ON COLUMN public.tenants.ours IS 'A workspace of ours (00469, decision 0068): the nightly suite''s, the smoke test, a trial we run by hand. Counted apart from customers on the Console''s Health, and left out of the pager. Every status test workspace is ours; ours does not take public pages away, as test does.';
+
+
+--
+-- Name: COLUMN tenants.accent; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.tenants.accent IS 'The workspace''s own colour (00490): one lower-case #rrggbb its emails to customers and their pages draw the button and links in; null when it has none and ink stands in. Written by set_workspace_accent (a member) and wear_found_look (the website read, only where no person set it).';
 
 
 --

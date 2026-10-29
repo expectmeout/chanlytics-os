@@ -1,8 +1,8 @@
 # 0075 · A business's look is read from its site
 
-Decided by Ruben on 28 October 2026, in the conversation that followed the emails-and-forms review (the owner alerts'
-layout first, then this). Written against main's `cfbbabb21` (#1900). Built on the lane
-`email/a-business-s-look-is-read-from-its-site`; its migration is 00490.
+**Status:** Built 28 October 2026 on the lane `email/a-business-s-look-is-read-from-its-site` (#1906); its migration
+is 00490. Decided by Ruben the same day, in the conversation that followed the emails-and-forms review (the owner
+alerts' layout first, then this). Written against main's `cfbbabb21` (#1900).
 
 ## Context
 

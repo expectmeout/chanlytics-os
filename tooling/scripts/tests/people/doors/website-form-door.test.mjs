@@ -264,7 +264,7 @@ test("a sign-up asks its person to confirm: one email on their thread from the m
   // The same words as a letter in the business's own look (decision 0075): its logo from our storage, its colour, one button.
   assert.match(
     r.html,
-    new RegExp(`<img src="https://db\.example\.supabase\.co/[^"]*workspace-logos/${A}/${LOGO}\.png"`),
+    new RegExp(`<img src="https://db\\.example\\.supabase\\.co/[^"]*workspace-logos/${A}/${LOGO}\\.png"`),
   );
   assert.match(r.html, /background:#2a6f97/);
   assert.match(r.html, new RegExp(`href="https://[^"]+/c/${link[1]}"[^>]*>Yes, send me offers<`));
