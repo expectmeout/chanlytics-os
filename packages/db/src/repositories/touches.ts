@@ -35,6 +35,7 @@ import {
 } from "@chanlytics/contracts";
 import type { Database } from "../database.types";
 import { readAllRows } from "../paged";
+import { workspaceZoneOf } from "./control-plane";
 
 type Db = SupabaseClient<Database>;
 
@@ -148,15 +149,10 @@ async function touchesOf(db: Db, tenantId: string, since: Date, now: Date, follo
         .or(runsSince(since));
       return (followUpsOnly ? q.contains("params", FOLLOW_UP_PARAMS) : q).order("id").range(from, to);
     }),
-    db
-      .from("tenants")
-      .select("timezone")
-      .eq("id", tenantId)
-      .maybeSingle()
-      .then(
-        (r) => (r.error ? null : r.data?.timezone || DEFAULT_TIMEZONE),
-        () => null,
-      ),
+    workspaceZoneOf(db, tenantId).then(
+      (zone) => zone || DEFAULT_TIMEZONE,
+      () => null,
+    ),
   ]);
   const today = zone ? localDate(zone, now) : null;
   const runs = all.filter(

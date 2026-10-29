@@ -15,8 +15,8 @@
  * keeps its number, so its next email is the one it never wrote.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { moveSend, type Database, type ReachOutSendRow } from "../packages/db.js";
-import { DAY_MS, timetable, weekHoursOf, zoneOfRegion } from "../packages/contracts.js";
+import { moveSend, workspaceZoneOf, type Database, type ReachOutSendRow } from "../packages/db.js";
+import { DAY_MS, DEFAULT_TIMEZONE, timetable, weekHoursOf, zoneOfRegion } from "../packages/contracts.js";
 import { stepSenders } from "./senders.js";
 import type { Logger } from "../log.js";
 
@@ -132,10 +132,8 @@ export async function replanSends(db: Db, items: Replan[], now: Date, log: Logge
         if (le) throw new Error(`the leads: ${le.message}`);
         leads.push(...(data ?? []));
       }
-      if (!zones.has(tenantId)) {
-        const { data: t } = await db.from("tenants").select("timezone").eq("id", tenantId).maybeSingle();
-        zones.set(tenantId, t?.timezone || "America/New_York");
-      }
+      if (!zones.has(tenantId))
+        zones.set(tenantId, (await workspaceZoneOf(db, tenantId).catch(() => null)) || DEFAULT_TIMEZONE);
       // A later step's send keeps the mailbox its lead's chain writes from; a first one may take any of the step's.
       const keeps = !!step?.after_step_id;
       // Each mailbox's times, less these sends' own: a send planned again never waits for the time it held.
