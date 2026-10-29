@@ -14,6 +14,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { legacyAddress } from "../shell/address/_address.mjs";
 import { installRoleStore, kitPages, useStubHooks } from "../_legacy-react.mjs";
+import { until } from "../shared/_until.mjs";
 import {
   CONSENT_SOURCES,
   proposalMessage,
@@ -2236,13 +2237,12 @@ test("a proposal waiting with nothing back asks whether they said yes, a pass as
   // A reason is one press: the Pipeline's own pass records it (read afresh, at its version).
   click(answer(peek, "pipeline-peek-ask-no"));
   peek = peekOf(draw());
-  await byTestId(peek, "pipeline-peek-pass-price").props.onClick();
-  await settled();
+  byTestId(peek, "pipeline-peek-pass-price").props.onClick();
+  await until(() => !byTestId(peekOf(draw()), "pipeline-peek-pass"), "the pass answered: the foot is the deal's again");
   assert.deepEqual(
     seen.posted.map((x) => [x.id, x.body.stage, x.body.deal_id, x.body.lost_reason]),
     [["wes", "lost", "d-proposed-11", "price"]],
   );
-  assert.equal(byTestId(peekOf(draw()), "pipeline-peek-pass"), null, "and the foot is the deal's again");
   // A consultation held: nothing proposed yet, said once under its step, and a proposal is the act.
   peek = await open("hana");
   assert.equal(textOf(byTestId(peek, "pipeline-peek-sub")), "Consultation");

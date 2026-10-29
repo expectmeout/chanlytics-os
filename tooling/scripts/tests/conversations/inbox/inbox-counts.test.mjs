@@ -27,6 +27,7 @@ import {
   settle,
   unmount,
 } from "../../_legacy-react.mjs";
+import { until } from "../../shared/_until.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-15T14:00:00Z");
@@ -572,10 +573,10 @@ test("the bulk snooze's Undo says they are back in the Inbox -- a snooze lets go
       "Undo",
     ).props.onClick();
     // The wake asks the server for each thread, and says so when the last has answered.
-    for (let i = 0; i < 50 && !/Snooze undone/.test(toasts().map(textOf).join(" | ")); i++) {
-      await settle();
+    await until(() => {
       tree = render();
-    }
+      return /Snooze undone/.test(toasts().map(textOf).join(" | "));
+    }, "the wake said they are back");
     const said = toasts().map(textOf).join(" | ");
     assert.match(said, /Snooze undone — 2 back in the Inbox/);
     assert.ok(

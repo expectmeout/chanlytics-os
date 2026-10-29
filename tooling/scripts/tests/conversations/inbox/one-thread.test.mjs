@@ -12,7 +12,8 @@
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { stateOf, memberWords, toInboxThreadVM, toConversationVM, toCallVM } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, settle } from "../../_legacy-react.mjs";
+import { installLegacyReact, fresh, again } from "../../_legacy-react.mjs";
+import { until } from "../../shared/_until.mjs";
 
 const ZONE = "America/New_York";
 
@@ -122,11 +123,6 @@ const reread = () => {
   for (const res of wire.held.splice(0))
     res(json(500, { ok: false, error: { code: "internal", message: "not read here" } }));
 };
-/** Wait, in turns of the event loop, for what the code under test does behind an await; false if it never came. */
-const until = async (cond, turns = 5000) => {
-  for (let i = 0; i < turns && !cond(); i++) await settle();
-  return cond();
-};
 /** A request's route as the conversation it names and the verb it asks: `[id, "take-over"]`. */
 const verbOf = (path) => path.split("/").slice(-2);
 
@@ -224,11 +220,11 @@ test("its verbs reach the server with that thread -- the same verbs, from wherev
     const p = drawn.at(-1);
     // One at a time: the snooze reads the workspace's zone before it asks, and the order asked is what is proved.
     p.onTakeOver("th-rosa");
-    await until(() => wire.writes.length === 1);
+    await until(() => wire.writes.length === 1, "the take-over asked");
     p.onSnooze("th-rosa");
-    await until(() => wire.writes.length === 2);
+    await until(() => wire.writes.length === 2, "the snooze asked");
     p.onArchive("th-rosa");
-    await until(() => wire.writes.length === 3);
+    await until(() => wire.writes.length === 3, "the archive asked");
     const sent = await p.onSend("th-rosa", "See you Friday!");
     // The request names the thread by its conversation, as the route does (th-rosa is conversation c1).
     assert.deepEqual(
@@ -243,7 +239,8 @@ test("its verbs reach the server with that thread -- the same verbs, from wherev
     assert.deepEqual(wire.writes.at(-1)[2], { text: "See you Friday!" }, "the words the reply box sent");
     assert.equal(sent, true, "the reply box is told the server took it");
   } finally {
-    await until(() => OWN_VERBS.n === 0);
+    // Waited for, not asserted: a failure above is the one to say.
+    await until(() => OWN_VERBS.n === 0, "your own verbs answered").catch(() => {});
     releasePane();
   }
 });
@@ -284,7 +281,7 @@ test("a re-read that moves the thread says so on the pane; your own act does not
       fire("surface:inbox");
     };
     drawn.at(-1).onArchive("th-rosa");
-    await until(() => OWN_VERBS.n === 0);
+    await until(() => OWN_VERBS.n === 0, "the archive answered");
     pane();
     assert.equal(drawn.at(-1).notice, null, "REGRESSION: the pane announced your own act to you");
   } finally {
@@ -314,7 +311,7 @@ test("a snooze, an archive or a take-over is said the moment the server takes it
       wire.held.length = 0;
       const done = verb(rosa, name, {}, words);
       // The door answered 2xx and the surfaces are being read again: the re-read is out, and not yet landed.
-      assert.ok(await until(() => wire.held.length > 0), `${name}: the re-read is asked for`);
+      await until(() => wire.held.length > 0, `${name}: the re-read is asked for`);
       assert.deepEqual(verbOf(wire.writes.at(-1)[1]), ["c1", name]);
       assert.equal(said.length, 1, `${name}: said at acceptance, before the re-read landed`);
       assert.match(
@@ -335,7 +332,7 @@ test("a snooze, an archive or a take-over is said the moment the server takes it
     said.length = 0;
     wire.held.length = 0;
     const sending = verb(rosa, "reply", { text: "See you Friday!" }, "reply on its way", true);
-    assert.ok(await until(() => wire.held.length > 0), "the re-read of a reply is asked for");
+    await until(() => wire.held.length > 0, "the re-read of a reply is asked for");
     assert.equal(said.length, 0, "a reply is said with its receipt");
     reread();
     await sending;
@@ -384,7 +381,7 @@ test("a draft's Hold and your first keystroke both withdraw it on the server; a 
   try {
     hold(a, "hold");
     hold(b, "type");
-    await until(() => said.length === 2); // each says it was held, once the server took it
+    await until(() => said.length === 2, "each says it was held, once the server took it");
     assert.deepEqual(asked(), ["m-hold", "m-type"], "both went to the server, each for its own draft");
     assert.ok(ixHeld(VW_STORE.state, a) && ixHeld(VW_STORE.state, b));
     hold(a, "hold");
@@ -395,7 +392,7 @@ test("a draft's Hold and your first keystroke both withdraw it on the server; a 
     const late = draft("m-late");
     hold(late, "hold");
     assert.ok(ixHeld(VW_STORE.state, late), "the countdown stops at once");
-    await until(() => !ixHeld(VW_STORE.state, late));
+    await until(() => !ixHeld(VW_STORE.state, late), "the server's refusal let the hold go");
     assert.equal(ixHeld(VW_STORE.state, late), false, "REGRESSION: the UI claimed a hold that never happened");
     assert.equal(said.at(-1).tone, "danger", "and says the server's refusal");
   } finally {

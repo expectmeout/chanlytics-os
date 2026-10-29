@@ -64,6 +64,13 @@ const STAND_IN_BASE_UI = "./tooling/scripts/tests/shared/_stand-in-base-ui.mjs";
 const STAND_IN_CSS = "./tooling/scripts/tests/shared/_stand-in-css.mjs";
 
 /**
+ * Every import a test makes, slow, loaded before every test file when `TEST_SLOW_IMPORTS=1`: a test that counts turns
+ * of the loop for work that reads a module fails every time, as it fails once in a while beside a heavy job
+ * (tests/shared/_slow-imports.mjs says how).
+ */
+const SLOW_IMPORTS = "./tooling/scripts/tests/shared/_slow-imports.mjs";
+
+/**
  * The export condition that hands a test a package's bundle, not its sources (decision 0074): each package's `exports`
  * names its `dist/` under it, which tooling/scripts/package-build.mjs builds before the run. Through tsx, a package's
  * sources load as some 900 modules; a folder of twenty test files took 33 s so, and 18 s over the bundles.
@@ -137,6 +144,7 @@ export function planOf(argv, env) {
       STAND_IN_BASE_UI,
       "--import",
       STAND_IN_CSS,
+      ...(env.TEST_SLOW_IMPORTS === "1" ? ["--import", SLOW_IMPORTS] : []),
       "--test",
       ...report,
       ...flags,
