@@ -53,7 +53,9 @@ function partsFormatOf(tz: string): Intl.DateTimeFormat {
 const PARTS = new Map<string, Readonly<ZoneParts>>();
 const PARTS_KEPT = 4096;
 
-const pad = (n: number) => String(n).padStart(2, "0");
+/** "YYYY-MM-DD" for a calendar date. */
+const calendarKeyOf = (y: number, m: number, d: number) =>
+  `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 
 /** An instant's calendar parts and wall clock in `tz`. A zone Intl cannot use throws, and nothing is kept. */
 export function zoneParts(tz: string, at: Date | number): Readonly<ZoneParts> {
@@ -74,7 +76,7 @@ export function zoneParts(tz: string, at: Date | number): Readonly<ZoneParts> {
     mm: Number(p.minute),
     ss: Number(p.second),
     weekday: (p.weekday ?? "").toLowerCase().slice(0, 3),
-    key: `${y}-${pad(m)}-${pad(d)}`,
+    key: calendarKeyOf(y, m, d),
   });
   if (PARTS.size >= PARTS_KEPT) PARTS.clear();
   PARTS.set(id, made);
@@ -170,5 +172,5 @@ export function dayPlusInZone(
   const y = at.getUTCFullYear(),
     m = at.getUTCMonth() + 1,
     d = at.getUTCDate();
-  return { key: `${y}-${pad(m)}-${pad(d)}`, weekday: WEEKDAY_KEYS[at.getUTCDay()], y, m, d };
+  return { key: calendarKeyOf(y, m, d), weekday: WEEKDAY_KEYS[at.getUTCDay()], y, m, d };
 }

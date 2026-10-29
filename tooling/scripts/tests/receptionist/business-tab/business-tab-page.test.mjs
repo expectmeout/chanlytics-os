@@ -110,11 +110,11 @@ test("a missing voice is named in the gap line, and the link opens its row", () 
   );
 });
 
-test("Who you are draws six rows, in the spec's order: the logo after the name (00407)", () => {
+test("Who you are draws seven rows, in the spec's order: the logo after the name (00407), its colour after it (00490)", () => {
   const card = byTestId(drawTab({ profile: marisa }), "rec-card-who");
   const keys = all(card, (n) => classes(n).includes("rec-row-key")).map(textOf);
-  // The booking link is Booking's, on Hours & booking (17 Oct 2026); the transfer number is On calls' (18 Oct 2026).
-  assert.deepEqual(keys, ["Name", "Logo", "Address", "Website", "Answers on", "Tells customers to call"]);
+  // The booking link is Booking's (17 Oct 2026), the transfer number On calls' (18 Oct); the colour is 0075's (#1906).
+  assert.deepEqual(keys, ["Name", "Logo", "Colour", "Address", "Website", "Answers on", "Tells customers to call"]);
 });
 
 test("On calls holds what a caller hears and who it puts them through to, and says what a call does out of hours", () => {
