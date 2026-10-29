@@ -102,20 +102,27 @@ function missing(w: DraftWant, mayWrite: boolean) {
   draftQueue.push(w);
 }
 
+/**
+ * Ask's draft for a thread, written, or written again as the member asks (`instruction`): the one call the drafts make
+ * (POST conversations/[id]/draft). The drafts Today read with its own are read again behind it (refresh-map.ts), so a
+ * reload draws these words at once; and nothing else a page reads moves with a draft, so the reads shared in flight are
+ * kept.
+ */
+const postReplyDraft = (w: DraftWant, instruction?: string) =>
+  api()("POST conversations/[id]/draft", {
+    params: { id: w.conversationId },
+    body: { kind: w.kind, ...(instruction ? { instruction } : {}) },
+    refresh: "behind",
+    keepsReads: true,
+  });
+
 /** Write the next draft waiting, while fewer than WRITING_AT_ONCE are being written. */
 function writeNext() {
   while (writing < WRITING_AT_ONCE && draftQueue.length) {
     const w = draftQueue.shift();
     if (!w) return;
     writing += 1;
-    void api()("POST conversations/[id]/draft", {
-      params: { id: w.conversationId },
-      body: { kind: w.kind },
-      // The drafts Today read with its own, read again behind it (refresh-map.ts), so a reload draws these words at once; and
-      // nothing else a page reads moves with a draft, so the reads shared in flight are kept.
-      refresh: "behind",
-      keepsReads: true,
-    })
+    void postReplyDraft(w)
       .then((r) => set(w, r.ok ? draftStateOf(r.data) : { state: "failed", why: r.message || NEED_YOU_WORDS.couldNot }))
       .catch(() => set(w, { state: "failed", why: NEED_YOU_WORDS.couldNot }))
       .finally(() => {
@@ -136,12 +143,7 @@ export async function rewriteDraft(
 ): Promise<{ ok: true } | { ok: false; why: string }> {
   const was = heldDraftOf(w) ?? beforeAsked(w, true);
   set(w, WRITING);
-  const r = await api()("POST conversations/[id]/draft", {
-    params: { id: w.conversationId },
-    body: { kind: w.kind, instruction },
-    refresh: "behind",
-    keepsReads: true,
-  }).catch(() => null);
+  const r = await postReplyDraft(w, instruction).catch(() => null);
   if (r && r.ok) {
     set(w, draftStateOf(r.data));
     return { ok: true };
