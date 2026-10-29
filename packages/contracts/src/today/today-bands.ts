@@ -349,6 +349,75 @@ export function standingWithRuns<S extends TodayHead>(standing: S, runs: number)
   return runs > 0 && standing.calm ? { ...standing, ...calmStanding(standing.calm, runs) } : standing;
 }
 
+/** What Today says on a phone besides the ladder (the phone canvas, 28 Oct 2026): its parts' names and the day's lines. */
+export const TODAY_PHONE_WORDS = {
+  todo: "To do",
+  askFound: "Ask found",
+  askWhy: "Ask why",
+  now: "Now",
+  next: "Next",
+  then: "Then",
+  calendar: "Calendar",
+  end: "That's everything for today.",
+  /**
+   * The day card's one line for the rest of the day: the visits still to come past the two it names, and what goes on its
+   * own today ("2 more visits · Spring offer goes at 6:00 PM", "3 sends today"); null when nothing is left.
+   */
+  dayRest: (more: number, sends: ReadonlyArray<{ name: string; clock: string }>, many: string, one: string) => {
+    const visits = more ? `${more} more ${more === 1 ? one : many}` : "";
+    const going =
+      sends.length === 1
+        ? `${sends[0].name} goes at ${sends[0].clock}`
+        : sends.length
+          ? `${sends.length} sends today`
+          : "";
+    return [visits, going].filter(Boolean).join(" · ") || null;
+  },
+  /** A run that went out today, in the day's rest: "went out at 9:00 AM". */
+  wentOut: (clock: string) => `went out at ${clock}`,
+  /**
+   * Each of the day's four figures by its short name, for a phone's one row of numbers (0076): the figure's own label is a
+   * desk's ("answered by the receptionist"), and its clause and receipt say the rest when it is pressed.
+   */
+  figure: { messages: "messages", answered: "answered", calls: "calls", new: "new people" },
+  worth: "Worth a look",
+} as const;
+
+/** A sentence said as a title: its full stop gone ("3 conversations need you"). */
+const asTitle = (sentence: string): string => sentence.replace(/[.!]$/, "");
+
+/** Today's head on a phone: the page's largest words, and the one line under them. */
+export interface TodayPhoneHeadVM {
+  title: string;
+  line: string | null;
+}
+
+/**
+ * The same ladder said as a phone's head (the phone canvas, 28 Oct 2026): what now in a few words, and the rest in one line
+ * under it. The needs rung is its headline, and its line says the runs waiting too, which the badge counts and the headline
+ * does not. On the calm rung what still waits leads, so "Nothing needs you" is never the title over a run, a search or a
+ * closing window (S7-1); with nothing waiting it is, and the traffic is the line. No word here that the ladder does not say.
+ */
+export function todayPhoneHead(standing: TodayHead, runs: number): TodayPhoneHeadVM {
+  const { calm } = standing;
+  if (standing.tone !== "calm" || !calm) {
+    const extra = standing.tone === "needs" && runs > 0 ? runsWaitingSentence(runs) : null;
+    const line = [standing.detail, extra].filter(Boolean).join(" ");
+    return { title: asTitle(standing.headline), line: line || null };
+  }
+  const also = [...(runs > 0 ? [runsWaitingSentence(runs)] : []), ...calm.also];
+  const traffic = calm.traffic ? `${calm.traffic} today.` : null;
+  if (also.length) {
+    const line = [...also.slice(1), traffic].filter(Boolean).join(" ");
+    return { title: asTitle(also[0]), line: line || null };
+  }
+  const named = !!traffic && calm.handled_all;
+  const said = traffic ? (named ? `The receptionist handled everything — ${traffic}` : traffic) : null;
+  const answered = calm.answered ? `${named ? "It" : "The receptionist"} ${calm.answered}` : null;
+  const line = [said, answered].filter(Boolean).join(" ");
+  return { title: "Nothing needs you", line: line || null };
+}
+
 /** "1 draft on its way" beside the queue's parts: the replies counting down to send, which have no row; null for none. */
 export function todayDraftsSub(n: number): string | null {
   return n ? (n === 1 ? "1 draft on its way" : `${n} drafts on their way`) : null;

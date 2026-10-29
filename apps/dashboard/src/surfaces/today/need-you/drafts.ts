@@ -126,6 +126,31 @@ function writeNext() {
 }
 
 /**
+ * Ask's draft written again as the member asks (Change it with Ask on Ask's own draft, the phone canvas, 28 Oct 2026): Ask
+ * is writing it at once, then the new words stand in the old one's place in every row that reads it. Refused, the old
+ * words come back and the refusal is answered for the row to say.
+ */
+export async function rewriteDraft(
+  w: DraftWant,
+  instruction: string,
+): Promise<{ ok: true } | { ok: false; why: string }> {
+  const was = heldDraftOf(w) ?? beforeAsked(w, true);
+  set(w, WRITING);
+  const r = await api()("POST conversations/[id]/draft", {
+    params: { id: w.conversationId },
+    body: { kind: w.kind, instruction },
+    refresh: "behind",
+    keepsReads: true,
+  }).catch(() => null);
+  if (r && r.ok) {
+    set(w, draftStateOf(r.data));
+    return { ok: true };
+  }
+  if (was) set(w, was);
+  return { ok: false, why: (r && !r.ok && r.message) || NEED_YOU_WORDS.couldNot };
+}
+
+/**
  * What the tab holds of this draft, where it was asked for the message the row names: one for an older message answers
  * less than the row shows, and the row drew its words until the new one came.
  */

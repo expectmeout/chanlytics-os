@@ -19,14 +19,14 @@ import {
 import { pageClock } from "@/legacy-bridge/zone";
 import { AttnRow } from "../../kit/attention/attn-row";
 import { Confirm } from "../../kit/confirm/confirm";
-import { appNavigate, canDo, gate, refusalFlash, useMoved, useToast } from "../shell";
+import { appNavigate, canDo, gate, refusalFlash, useMoved, useToast, type Flash } from "../shell";
 import { broadcastVerbs, broadcastsRead, refreshPlaybooks, useRunsActing } from "../../waits/run-acts";
 
 /** Rows the band draws; the rest are counted in its head. */
 const GOING_MAX = 4;
 
-/** The runs that go on their own today, as the band draws them, soonest first. */
-function goingNow(): GoingTodayRowVM[] {
+/** The runs that go on their own today, as the band draws them, soonest first (and a phone's day card, phone-day.tsx). */
+export function goingNow(): GoingTodayRowVM[] {
   const runs = (broadcastsRead()?.rows ?? []).map((r) => ({ ...r, title: runTitleOf(r) }));
   return goingTodayOf({ runs, tz: pageClock().zone(), nowMs: Date.now() });
 }
@@ -82,6 +82,28 @@ function GoingRow({ row, stop, busy }: GoingRowProps) {
   );
 }
 
+/**
+ * Stop a run going today: Sent's own cancel, asked as Sent asks it, said in the toast. The band's and a phone's day card's
+ * (phone-day.tsx) one way to stop one.
+ */
+export async function stopGoing(row: GoingTodayRowVM, flash: (f: Flash) => void): Promise<void> {
+  const api = broadcastVerbs();
+  if (!canDo("approve") || !api) return;
+  const res = await api.cancel(row.stop.id);
+  if (!res.ok) {
+    flash(refusalFlash(res, "Not canceled"));
+    return;
+  }
+  refreshPlaybooks();
+  flash({
+    msg: (
+      <>
+        <b>{row.name}</b> {runStoppedWords("scheduled")}
+      </>
+    ),
+  });
+}
+
 export function TodayGoing() {
   // The runs it is drawn from: a run made, canceled or sending.
   useMoved(["broadcasts"]);
@@ -89,24 +111,7 @@ export function TodayGoing() {
   const acting = useRunsActing();
   const rows = goingNow();
   if (rows.length === 0) return toastNode;
-  const stopRun = async (row: GoingTodayRowVM, id: string) => {
-    const api = broadcastVerbs();
-    if (!canDo("approve") || !api) return;
-    const res = await api.cancel(id);
-    if (!res.ok) {
-      flash(refusalFlash(res, "Not canceled"));
-      return;
-    }
-    refreshPlaybooks();
-    flash({
-      msg: (
-        <>
-          <b>{row.name}</b> {runStoppedWords("scheduled")}
-        </>
-      ),
-    });
-  };
-  const stop = (row: GoingTodayRowVM) => acting.run(row.key, () => stopRun(row, row.stop.id));
+  const stop = (row: GoingTodayRowVM) => acting.run(row.key, () => stopGoing(row, flash));
   return (
     <section className="tq today-going" data-testid="today-going">
       <div className="tq-head">

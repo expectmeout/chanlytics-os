@@ -14,6 +14,7 @@ import { appNavigate, gate } from "../shell";
 import { useDraft } from "./drafts";
 import { Acts, BriefBox, Done, Note, NotNow, Writing, type WorkProps } from "./parts";
 import { ReplyWork, useNotNow, type Snoozed } from "./reply-work";
+import { useRowState } from "./row-state";
 
 /** A call back: Ask's brief, Call, then how it went. */
 export function CallWork(p: WorkProps) {
@@ -23,9 +24,10 @@ export function CallWork(p: WorkProps) {
       ? { conversationId: row.conversationId, kind: "brief" as const, forMessageId: row.writes.for_message_id }
       : null;
   const draft = useDraft(want, may);
-  const [phase, setPhase] = useState<"idle" | "how" | "reached" | "again">("idle");
-  const [undoOf, setUndoOf] = useState<Record<string, unknown> | null>(null);
-  const [snoozed, setSnoozed] = useState<Snoozed | null>(null);
+  // Kept by the row, not by this part: the sheet on a phone draws the same row's work after the page does (row-state.ts).
+  const [phase, setPhase] = useRowState<"idle" | "how" | "reached" | "again">(row.id, "phase", "idle");
+  const [undoOf, setUndoOf] = useRowState<Record<string, unknown> | null>(row.id, "undo", null);
+  const [snoozed, setSnoozed] = useRowState<Snoozed | null>(row.id, "snoozed", null);
   const notNow = useNotNow(p, setSnoozed);
 
   // Reached: the call did what they asked, so the thread goes back to the receptionist and its hold resolves with it
@@ -111,11 +113,12 @@ export function CallWork(p: WorkProps) {
   return (
     <>
       {draft?.state === "ready" && draft.draft.words.brief ? (
-        <BriefBox brief={draft.draft.words.brief} />
+        <BriefBox brief={draft.draft.words.brief} onRead={p.read} />
       ) : draft?.state === "writing" ? (
         <Writing />
       ) : null}
       <Acts
+        foot={p.foot}
         start={
           row.conversationId && may ? (
             <NotNow
@@ -147,7 +150,11 @@ export function CallWork(p: WorkProps) {
 /** A time the customer picked by text: Booked it, and the confirmation it drafts, sent from the row; or Can't. */
 export function RequestWork(p: WorkProps) {
   const { row, main, may, flash, keep } = p;
-  const [said, setSaid] = useState<{ booked: boolean; reply: string | null; receipt: string } | null>(null);
+  const [said, setSaid] = useRowState<{ booked: boolean; reply: string | null; receipt: string } | null>(
+    row.id,
+    "said",
+    null,
+  );
   const [busy, setBusy] = useState(false);
   const answer = async (booked: boolean) => {
     if (!row.request) return;
@@ -174,6 +181,7 @@ export function RequestWork(p: WorkProps) {
   if (said) return <Done words={said.receipt} />;
   return (
     <Acts
+      foot={p.foot}
       start={
         <Button
           variant="quiet"
@@ -249,6 +257,7 @@ export function StepWork(p: WorkProps & { onDone: () => void }) {
     <>
       {refused ? <Note tone="danger">{refused}</Note> : null}
       <Acts
+        foot={p.foot}
         start={
           may ? (
             <NotNow

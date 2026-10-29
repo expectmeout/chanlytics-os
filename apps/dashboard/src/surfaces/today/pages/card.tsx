@@ -12,6 +12,7 @@
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import {
+  TODAY_PHONE_WORDS,
   runTitleOf,
   type BroadcastVM,
   type TodayFigureId,
@@ -29,6 +30,8 @@ import { TODAY_HELPERS } from "../helpers";
 import { appNavigate, doorGlyph, borrowed, workspaceClock, useMoved } from "../shell";
 import { reviewLineOf } from "./review-line";
 import { Button } from "../../kit/button/button";
+import { useTodayOnPhone } from "../phone";
+import { LeakLines } from "./leaks";
 
 /** A door to a route: the frame's move. */
 type Nav = (to: string) => void;
@@ -44,22 +47,29 @@ const hasReceipt = (f: TodayFigureVM): f is ReceiptFigure => !!f.receipt;
 // A playbook's run or a broadcast that went out today, with what it has earned so far. The runs that wait for a word,
 // and the ones under a Stop, are rows of the queue (dashboard-a-command.jsx). Today, and the time it went, are the
 // business's (window.__clock), not the browser's; the counts are contracts' words (todayRunWords).
-const RunsDone = ({ nav }: { nav: Nav }) => {
-  useMoved("broadcasts");
+/**
+ * The runs that went out today, the first two, with the time each went on the business's clock: what the brief's lines say
+ * on a desk and a phone's day card says in the rest of the day (phone-day.tsx).
+ */
+export function runsDoneToday(): Array<{ run: StartedRun; at: string }> {
   const B = borrowed<BroadcastsSurface>("__BROADCASTS");
   const all = (B && B.rows) || [];
   // The JSX did not ask whether the clock was there: without one, the first run that started fails at `dayKey`, as it did.
   const C = workspaceClock() as PageClock;
-  const done = all
+  return all
     .filter(
       (r): r is StartedRun =>
         (r.state === "sent" || r.state === "sending") &&
         !!r.started_at &&
         C.dayKey(Date.parse(r.started_at)) === C.dayKey(Date.now()),
     )
-    .slice(0, 2);
-  const timeOf = (iso: string) => C.time(Date.parse(iso));
-  return done.map((r) => {
+    .slice(0, 2)
+    .map((run) => ({ run, at: C.time(Date.parse(run.started_at)) }));
+}
+
+const RunsDone = ({ nav }: { nav: Nav }) => {
+  useMoved("broadcasts");
+  return runsDoneToday().map(({ run: r, at }) => {
     const w = TODAY_HELPERS.runs(r).done;
     return (
       <div key={`run-${r.id}`} className="brief-beat" data-testid="brief-run-done">
@@ -69,7 +79,7 @@ const RunsDone = ({ nav }: { nav: Nav }) => {
         <span className="brief-beat-text">
           <b>{runTitleOf(r)}</b> {r.playbook_id ? "ran" : "went out"}
           {" at "}
-          {timeOf(r.started_at)}: {w.counts}
+          {at}: {w.counts}
           {w.still ? " · still sending" : ""}
         </span>
         <button className="brief-chip brief-door" onClick={() => nav(runRoute(r.id, r.sequence_id))}>
@@ -111,15 +121,17 @@ interface FigureProps {
   i: number;
   open: TodayFigureId | null;
   setOpen: (id: TodayFigureId | null) => void;
+  /** On a phone, the figure's short name in one row of four (decision 0076); its clause is under the press. */
+  phone: boolean;
 }
 
-const TodayFigure = ({ f, i, open, setOpen }: FigureProps) => {
+const TodayFigure = ({ f, i, open, setOpen, phone }: FigureProps) => {
   const has = !!f.receipt;
   const on = has && open === f.id;
   const body = (
     <>
       <span className="tc-fig-n tabular">{f.value}</span>
-      <span className="tc-fig-w">{f.label}</span>
+      <span className="tc-fig-w">{phone ? TODAY_PHONE_WORDS.figure[f.id] : f.label}</span>
       <span className="tc-fig-m">{f.meta}</span>
     </>
   );
@@ -188,7 +200,12 @@ const TodayReceipt = ({ f, i, last, nav }: ReceiptProps) => {
  */
 function figuresRow(
   figures: TodayFigureVM[],
-  { open, setOpen, nav }: { open: TodayFigureId | null; setOpen: (id: TodayFigureId | null) => void; nav: Nav },
+  {
+    open,
+    setOpen,
+    nav,
+    phone,
+  }: { open: TodayFigureId | null; setOpen: (id: TodayFigureId | null) => void; nav: Nav; phone: boolean },
 ) {
   return (
     <div
@@ -200,7 +217,7 @@ function figuresRow(
       }}
     >
       {figures.map((f, i) => (
-        <TodayFigure key={f.id} f={f} i={i} open={open} setOpen={setOpen} />
+        <TodayFigure key={f.id} f={f} i={i} open={open} setOpen={setOpen} phone={phone} />
       ))}
       {figures.map((f, i) =>
         open === f.id && hasReceipt(f) ? (
@@ -264,6 +281,8 @@ export const TodayCard = () => {
   const R = useSurface("reports_headline");
   const headlineFailed = useSurfaceFailed("reports_headline");
   const [open, setOpen] = useState<TodayFigureId | null>(null);
+  // On a phone the four are one row and Worth a look is under them, as what the numbers mean (decision 0076).
+  const phone = useTodayOnPhone();
   // An open receipt closes on Escape wherever the focus is, as every other dialog does: the phone app's Back hands the
   // page an Escape (legacy-bridge/app-bridge.ts watchOverlays), and a figure's own key reached it only from the figure.
   useEffect(() => {
@@ -306,7 +325,7 @@ export const TodayCard = () => {
           </Button>
         )}
       </div>
-      {figures && figuresRow(figures, { open, setOpen, nav })}
+      {figures && figuresRow(figures, { open, setOpen, nav, phone })}
       {(period || reportsFailed) && (
         <div className="tc-foot">
           {period ? (
@@ -326,6 +345,7 @@ export const TodayCard = () => {
           )}
         </div>
       )}
+      {phone ? <LeakLines /> : null}
     </section>
   );
 };

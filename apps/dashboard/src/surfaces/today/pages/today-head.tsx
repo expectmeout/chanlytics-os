@@ -12,6 +12,7 @@ import { useStanding } from "../../kit/head/standing";
 import { needsYouOnToday, useNeedsYouParts } from "../../needs-you";
 import { useSurface } from "../../use-surface";
 import { member, workspaceClock } from "../shell";
+import { useTodayOnPhone } from "../phone";
 
 /** "Good morning, Marisa": by the hour in the business's zone, to the first name; without a name, the greeting alone. */
 export function todayGreeting(nowMs: number, zone: string, displayName: string | null | undefined): string {
@@ -32,20 +33,21 @@ export function todayStanding(standing: { headline: string; detail: string | nul
   return [headline, standing.detail].filter(Boolean).join(" ");
 }
 
-/** A phone's head is the page's name alone (the canvas's phone board); the greeting and the sentence are a desk's. */
-const todayOnPhone = (): boolean =>
-  typeof window !== "undefined" && !!(window.matchMedia && window.matchMedia("(max-width: 720px)").matches);
-
-/** Today's standing, said to the frame's head as the page draws: the greeting over the day's sentence; "Today" on a phone. */
+/**
+ * Today's standing, said to the frame's head as the page draws: the greeting over the day's sentence. On a phone the page
+ * draws its own head (phone-head.tsx: the greeting, what now in its largest words and one line; the phone canvas, 28 Oct
+ * 2026), so the frame draws no name, as it draws none over a person's hero.
+ */
 export function useTodayStanding(): void {
+  const phone = useTodayOnPhone();
   const vm = useSurface("today");
   // Drawn again when a part of what waits moves (a run approved, a run made), not only when Today is read.
   const live = useNeedsYouParts();
   const standing = vm ? standingWithRuns(vm.standing, needsYouOnToday(vm, live).runs) : undefined;
   const zone = workspaceClock()?.zone() ?? "UTC";
   useStanding(
-    todayOnPhone()
-      ? { title: "Today" }
+    phone
+      ? { title: null }
       : {
           stacked: true,
           title: todayGreeting(Date.now(), zone, member()?.display_name),

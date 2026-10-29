@@ -59,12 +59,24 @@ export interface ReplyDraftFacts {
  * what they wrote last and asks the owner nothing: where a fact is missing it says the owner will find out and come back
  * today, since the person is waiting now and the owner can still change every word before it goes.
  */
-export function replyDraftAbout(kind: ReplyDraftKind, f: ReplyDraftFacts): string {
+export function replyDraftAbout(
+  kind: ReplyDraftKind,
+  f: ReplyDraftFacts,
+  /** The draft written again as the member asks: what it said, and how they want it changed. */
+  change: { was: string | null; how: string } | null = null,
+): string {
+  const asked = change
+    ? [
+        change.was ? `Write your last draft again. It said: "${change.was}"` : "Write it again.",
+        `Change it this way: ${change.how}`,
+      ].join(" ")
+    : null;
   if (kind === "brief") {
     return [
       "Call them back.",
       f.details ? `The phone receptionist left this for the call: ${f.details}` : null,
       "Prepare what I should say and ask on the call.",
+      asked,
     ]
       .filter(Boolean)
       .join(" ");
@@ -73,6 +85,7 @@ export function replyDraftAbout(kind: ReplyDraftKind, f: ReplyDraftFacts): strin
     "Reply to what they wrote last. They are waiting on a person.",
     f.reason ? `My receptionist handed it to me because: ${f.reason}.` : null,
     "Answer it from the facts you have. Do not ask me anything: where a fact is missing, say I will find out and get back to them today.",
+    asked,
   ]
     .filter(Boolean)
     .join(" ");

@@ -693,6 +693,18 @@ const METERS = {
       ],
       "aria-label": "2 ready, 7 held, 3 being checked",
     }),
+  "meter-mark": () =>
+    h(Meter, {
+      parts: [
+        { share: 4, tone: "rest" },
+        { share: 1, tone: "ground" },
+        { share: 2, tone: "ink" },
+        { share: 1, tone: "ground" },
+        { share: 2, tone: "open" },
+      ],
+      mark: 0.5,
+      "aria-label": "Today: 4 visits done, one under way, 2 to come; now 4:12 PM",
+    }),
 };
 
 test("Meter draws the gallery's Meter family: an image of its parts, each share its flex-grow, and no part of nothing", () => {

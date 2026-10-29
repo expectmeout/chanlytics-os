@@ -364,6 +364,8 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
     Object.keys(TODAY_HELPERS),
     [
       "day",
+      "phoneHead",
+      "dayNote",
       "briefWords",
       "periodLine",
       "runs",

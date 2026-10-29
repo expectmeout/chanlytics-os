@@ -5,6 +5,7 @@
  * kit's own parts: the inset panel, the field, the meter, the menu, the button.
  */
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { NEED_YOU_WORDS as W, type CallBrief, type NotNowChoice, type TodayQueueRowVM } from "@chanlytics/contracts";
 import { Button, Field, Menu, Meter, Panel } from "../../kit";
 import { Icon } from "../../kit/icon/icon";
@@ -23,6 +24,26 @@ export interface WorkProps {
   flash: (f: Flash) => void;
   /** Keep the row on the card for this visit, whatever the next read says: its receipt and its undo stay in its place. */
   keep: (row: TodayQueueRowVM) => void;
+  /**
+   * Where the presses stand when the work is drawn in a sheet (need-you/walk-sheet.tsx, a phone's): the sheet's foot,
+   * which holds still while the words above it scroll. None everywhere else: the presses stand under the words.
+   */
+  foot?: HTMLElement | null;
+  /**
+   * The door to the row's whole work, where the row is drawn short of it: on a phone's card, Ask's words cut to two lines,
+   * whose Read opens the sheet that walks the list on it. None everywhere else: the words are whole.
+   */
+  read?: (() => void) | null;
+}
+
+/** Read, beside whose words they are, where the row is drawn short of them (WorkProps `read`). Called, not drawn. */
+function readDoor(read: (() => void) | null | undefined) {
+  return read ? (
+    <Button variant="quiet" size="text" onClick={read} className="ny-read">
+      {W.walk.read}
+      <Icon name="chevron" size={11} />
+    </Button>
+  ) : null;
 }
 
 /** Ask's mark at the head of what it prepared: the three, in the accent while it writes (Ask is quiet at rest). */
@@ -42,6 +63,7 @@ export function Words({
   onEdit,
   signed = null,
   onSigned = null,
+  onRead = null,
 }: {
   by: string;
   text: string;
@@ -51,6 +73,8 @@ export function Words({
   signed?: string | null;
   /** Where what it signs with is changed: Settings › Connections. */
   onSigned?: (() => void) | null;
+  /** The door to the whole work where the row is drawn short of it (WorkProps `read`). */
+  onRead?: (() => void) | null;
 }) {
   return (
     <Panel variant="inset" size="sm" className="ny-draft">
@@ -63,6 +87,7 @@ export function Words({
             {W.edit}
           </Button>
         ) : null}
+        {readDoor(onRead)}
       </span>
       <span className="ny-words">{text}</span>
       {signed ? (
@@ -136,12 +161,13 @@ export function Editor({ who, value, onChange }: { who: string; value: string; o
 }
 
 /** A call's brief: what to say, what to ask, what to leave out. Read, not sent. */
-export function BriefBox({ brief }: { brief: CallBrief }) {
+export function BriefBox({ brief, onRead = null }: { brief: CallBrief; onRead?: (() => void) | null }) {
   return (
     <Panel variant="inset" size="sm" className="ny-draft">
       <span className="ny-by">
         <AskMark />
         <span className="ny-by-words">{W.brief.title}</span>
+        {readDoor(onRead)}
       </span>
       {brief.opening ? (
         <span className="ny-line">
@@ -269,15 +295,16 @@ export function Note({ tone = "plain", children }: { tone?: "plain" | "warn" | "
   );
 }
 
-/** The row's presses: what is at the left (Not now, a quiet second), then the room, then the act. */
-export function Acts({ start, end }: { start?: ReactNode; end?: ReactNode }) {
-  return (
+/** The row's presses: what is at the left (Not now, a quiet second), then the room, then the act; in a sheet, its foot. */
+export function Acts({ start, end, foot = null }: { start?: ReactNode; end?: ReactNode; foot?: HTMLElement | null }) {
+  const acts = (
     <div className="ny-acts">
       {start}
       <span className="ny-room" />
       {end}
     </div>
   );
+  return foot ? createPortal(acts, foot) : acts;
 }
 
 /**

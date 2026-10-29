@@ -42,6 +42,8 @@ const W = globalThis.window;
 const { AgentCommand } = await import("../../../../apps/dashboard/src/surfaces/today/pages/queue.tsx");
 const { RequestWork } = await import("../../../../apps/dashboard/src/surfaces/today/need-you/call-work.tsx");
 const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
+// What a row came to is kept by the row for the visit (need-you/row-state.ts): each test here is a visit of its own.
+const { clearRowStates } = await import("../../../../apps/dashboard/src/surfaces/today/need-you/row-state.ts");
 
 const ASKED = "Asked for Sat, Sep 19, 2:00 PM · Balayage";
 /** Ana picked a time by text; the receptionist held it for the owner. Her WhatsApp window is open: she wrote a minute ago. */
@@ -124,6 +126,7 @@ const reset = () => {
   flashes.length = 0;
   went.length = 0;
   doorSays = () => answered(CONFIRM);
+  clearRowStates();
   fresh();
 };
 

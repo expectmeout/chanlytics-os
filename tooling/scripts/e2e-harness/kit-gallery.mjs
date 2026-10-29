@@ -2436,7 +2436,8 @@ export const FAMILIES = [
       "kit.css's meter (step 2.2): a whole in its parts, each part's share its flex-grow and its colour a chart's " +
       "series or a tone: 8px, large and small; one part, rounded at both ends; the tones and a rest part, as the " +
       "reach bar draws them, a check read rather than seen, ok's green softer, as the lead sheet's fit draws it, and a " +
-      "share still to come, its outline alone, as a run's emails the check is still reading. Each size and the one part beside the charts kit's segment bar, which the spec holds it " +
+      "share still to come, its outline alone, as a run's emails the check is still reading; a day's bar on a phone, " +
+      "what is under way in the ink, the free time on the ground, and now a line with a dot that takes no room. Each size and the one part beside the charts kit's segment bar, which the spec holds it " +
       "equal to, but for the tag of a part: SegmentBar draws an &lt;i&gt;, which the browser sets in italic, and a " +
       "part has no words.",
     entries: [
@@ -2469,6 +2470,17 @@ export const FAMILIES = [
           `<span class="meter-part meter-ok" style="flex-grow: 2"></span>` +
           `<span class="meter-part meter-warn" style="flex-grow: 7"></span>` +
           `<span class="meter-part meter-open" style="flex-grow: 3"></span></div>`,
+      },
+      {
+        id: "meter-mark",
+        html:
+          `<div class="meter" role="img" aria-label="Today: 4 visits done, one under way, 2 to come; now 4:12 PM">` +
+          `<span class="meter-part meter-rest" style="flex-grow: 4"></span>` +
+          `<span class="meter-part meter-ground" style="flex-grow: 1"></span>` +
+          `<span class="meter-mark" aria-hidden="true"></span>` +
+          `<span class="meter-part meter-ink" style="flex-grow: 2"></span>` +
+          `<span class="meter-part meter-ground" style="flex-grow: 1"></span>` +
+          `<span class="meter-part meter-open" style="flex-grow: 2"></span></div>`,
       },
     ],
   },
