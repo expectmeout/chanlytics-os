@@ -19,7 +19,7 @@
     "@chanlytics/channels": "workspace:*",
     "@chanlytics/contracts": "workspace:*",
     "@chanlytics/db": "workspace:*",
-    "@supabase/supabase-js": "^2.117.2"
+    "@supabase/supabase-js": "^2.118.0"
   },
   "devDependencies": {
     "typescript": "catalog:"
