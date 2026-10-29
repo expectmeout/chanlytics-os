@@ -25,6 +25,7 @@ import type {
   AdsRead,
 } from "@chanlytics/contracts";
 import { starterCopy } from "@chanlytics/contracts/ads-page";
+import { DEMO_ZONE } from "../../demo-zone";
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Ids: Chanlytics' own (a uuid, fixed) beside the platform's
@@ -40,7 +41,6 @@ const SVC_SPRING = "d2e3f4a5-b6c7-4d8e-9fa0-1b2c3d4e5f60";
 const SVC_WEEKEND = "e3f4a5b6-c7d8-4e9f-a0b1-2c3d4e5f6071";
 const SVC_SKIN = "f4a5b6c7-d8e9-4fa0-b1c2-3d4e5f607182";
 
-const TIMEZONE = "America/New_York";
 const TODAY = "2026-10-11";
 const READ_AT = "2026-10-11T09:19:00-04:00";
 
@@ -531,7 +531,7 @@ export const connected = (platform: AdPlatform): AdAccountRead => ({
   name: ACCOUNT_NAMES[platform],
   externalId: ACCOUNT_IDS[platform],
   currency: "USD",
-  timezone: TIMEZONE,
+  timezone: DEMO_ZONE,
   checks: accountChecks(platform),
   permissionEnd: platform === "tiktok" ? "2026-11-04" : null,
   choices: [],
@@ -546,7 +546,7 @@ export const notConnected = (platform: AdPlatform): AdAccountRead => ({
   name: null,
   externalId: null,
   currency: "USD",
-  timezone: TIMEZONE,
+  timezone: DEMO_ZONE,
   checks: [],
   permissionEnd: null,
   choices: [],
@@ -562,7 +562,7 @@ export function baseRead(): AdsRead {
     business: BUSINESS,
     today: TODAY,
     readAt: READ_AT,
-    timezone: TIMEZONE,
+    timezone: DEMO_ZONE,
     window: { from: "2026-09-11", to: "2026-10-10" },
     appointmentWord: "appointment",
     calendar: { linked: true, readAt: "2026-10-11T09:12:00-04:00" },

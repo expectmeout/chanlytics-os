@@ -138,8 +138,8 @@ test("a created workspace becomes the active one, and opens on its first run", (
   );
 });
 
-test("the form defaults the timezone to the browser's, and says what it decides", () => {
-  assert.ok(form.includes("Intl.DateTimeFormat().resolvedOptions().timeZone"));
+test("the form says what its timezone decides", () => {
+  // That it starts at the browser's own zone is run, not read: create-workspace-screen.test.mjs draws the form.
   assert.ok(form.includes("Your opening hours are read in this timezone."));
 });
 

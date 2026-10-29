@@ -18,7 +18,6 @@ import {
   zoneSearchWords,
   knownTimezones,
   usableDeviceTimezone,
-  DEFAULT_TIMEZONE,
   roleAtLeast,
   type Role,
   ROLE_PERMS,
@@ -69,7 +68,6 @@ declare global {
     __identity?: IdentityApi;
     __workspace?: WorkspaceApi;
     __tz?: TzApi;
-    DEFAULT_TIMEZONE?: string;
   }
 }
 
@@ -183,7 +181,6 @@ export function installIdentity(win: Window = window): void {
     device: usableDeviceTimezone,
     also: zoneSearchWords,
   };
-  win.DEFAULT_TIMEZONE = DEFAULT_TIMEZONE;
   const patch: WorkspaceApi["patch"] = async (fields) => {
     const r = await api()("PATCH workspaces", { body: fields });
     if (!r.ok) return { ok: false, workspace: {}, message: r.message };

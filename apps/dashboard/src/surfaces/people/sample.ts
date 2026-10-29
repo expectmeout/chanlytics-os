@@ -9,7 +9,7 @@
  */
 import type { PersonDetailDto, PersonRowDto, PersonVisitsDto, PersonVM, VisitDto } from "@chanlytics/contracts";
 import { DAY_MS, HOUR_MS, MIN_MS, toPersonVM } from "@chanlytics/contracts";
-import { ZONE } from "@/surfaces/calendar/sample-clock";
+import { DEMO_ZONE } from "../demo-zone";
 import { DEMO_ADS } from "../demo-ads";
 import { peopleSurfaceOf } from "./surface-map";
 import type { PeopleLoaded } from "./surface-map";
@@ -92,7 +92,7 @@ function visit(id: string, title: string, at: number, dayOffset: number): VisitD
 function sampleRows(nowMs: number): PersonRowDto[] {
   const ago = (min: number) => new Date(nowMs - min * MIN_MS).toISOString();
   const calendar = (next: VisitDto | null, last: VisitDto | null): PersonVisitsDto => ({
-    timezone: ZONE,
+    timezone: DEMO_ZONE,
     source: "Google Calendar",
     state: "ok",
     next,
@@ -214,7 +214,7 @@ function sampleRows(nowMs: number): PersonRowDto[] {
 function sampleLoaded(nowMs: number): PeopleLoaded {
   const people = sampleRows(nowMs);
   return {
-    tz: ZONE,
+    tz: DEMO_ZONE,
     people,
     page: { q: null, offset: 0, limit: 1000, total: people.length, has_more: false },
     saved: [
@@ -393,5 +393,5 @@ function sampleDetail(id: string, now: Date = new Date()): PersonDetailDto | nul
 /** A person's page as the demo draws it: the sample's detail through the same view model a real workspace's goes through. */
 export function samplePerson(id: string, now: Date = new Date()): PersonVM | null {
   const dto = sampleDetail(id, now);
-  return dto ? toPersonVM(dto, ZONE, now, null) : null;
+  return dto ? toPersonVM(dto, DEMO_ZONE, now, null) : null;
 }

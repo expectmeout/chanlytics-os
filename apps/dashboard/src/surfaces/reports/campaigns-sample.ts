@@ -21,7 +21,8 @@ import {
 } from "@chanlytics/contracts";
 import type { ReportWindowVM } from "@chanlytics/contracts/report-window";
 import type { CampaignsSurface } from "./campaigns-surface";
-import { ZONE, business, sampleWindow, todayIn, type SampleDay } from "./sample";
+import { DEMO_ZONE } from "../demo-zone";
+import { business, sampleWindow, todayIn, type SampleDay } from "./sample";
 
 /** The people a period's sends reached are this share of them: some are written to more than once. */
 const PEOPLE_SHARE = 0.75;
@@ -149,7 +150,15 @@ function campaignDto(all: readonly SampleDay[], n: number, today: string): Campa
         { channel: "email", sent: emailSent, delivered: emD, read: 0, replied: emR },
       ]
     : [];
-  return { timezone: ZONE, days: n, span_days: 2 * n, today, series: span.map((d) => d.campaign), sources, by_channel };
+  return {
+    timezone: DEMO_ZONE,
+    days: n,
+    span_days: 2 * n,
+    today,
+    series: span.map((d) => d.campaign),
+    sources,
+    by_channel,
+  };
 }
 
 /* ------------------------------------------------------------------------------------------------ the ledger */
@@ -243,7 +252,7 @@ function approvalSeries(runs: number): CampaignLedgerSeriesDto["approval"] {
 
 /** The window the ledger is of, as the database names it: the zone, the business's day, the window's last day where it ended before it, and its days. */
 function windowOf({ win, today }: Pick<LedgerWorld, "win" | "today">) {
-  return { timezone: ZONE, today, ...(win.live ? {} : { end: win.to }), days: win.days };
+  return { timezone: DEMO_ZONE, today, ...(win.live ? {} : { end: win.to }), days: win.days };
 }
 
 function ledgerSeries(world: LedgerWorld): CampaignLedgerSeriesDto {
@@ -290,7 +299,7 @@ const keptCampaigns = new Map<string, CampaignsSurface>();
  * in the business's zone: the sends over the same days as the demo's report, and the ledger over the same sends. Days a member
  * picked are those days of the same business, as the report says them.
  */
-export function campaignsSample(range: ReportRange, today: string = todayIn(ZONE)): CampaignsSurface {
+export function campaignsSample(range: ReportRange, today: string = todayIn(DEMO_ZONE)): CampaignsSurface {
   const win = sampleWindow(range, today);
   const key = `${win.key}:${today}`;
   const hit = keptCampaigns.get(key);

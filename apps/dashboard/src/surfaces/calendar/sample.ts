@@ -15,6 +15,7 @@ import {
   type CalendarRunsDto,
 } from "@chanlytics/contracts";
 import { sampleCalendarDto } from "./sample-day";
+import { DEMO_ZONE } from "../demo-zone";
 import { sampleClock } from "./sample-clock";
 import type { CalendarSurface } from "./surface";
 
@@ -69,7 +70,7 @@ export function sampleRuns(nowMs: number = Date.now()): CalendarRunsDto {
     ...over,
   });
   const runs: CalendarRunsDto = {
-    timezone: "America/New_York",
+    timezone: DEMO_ZONE,
     from: loaded.from,
     days: loaded.days,
     paused: false,
