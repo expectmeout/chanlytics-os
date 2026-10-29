@@ -3570,10 +3570,11 @@ test("REGRESSION: the bulk bar acts on the people shown -- a person a refresh mo
       /1 selected/,
       "REGRESSION: the bar counted a person who is not on screen",
     );
-    await barMenuOf(tree, "Add to list")
+    const said = flashes.length;
+    barMenuOf(tree, "Add to list")
       .props.items.find((i) => i.label === "Regulars")
       .onClick();
-    await settle();
+    await until(() => flashes.length > said, "the add put up its toast");
     assert.deepEqual(
       wrote(seen),
       [["PUT", "segments/s1", { add: ["p1"] }]],
@@ -3630,10 +3631,11 @@ test("REGRESSION: a search match past the people loaded is exported with the res
       ["Person 2", "Saturday Jones", "Saturday Smith"],
       "REGRESSION: the person found past the loaded rows was left out of the file",
     );
-    await barMenuOf(tree, "Add to list")
+    const said = flashes.length;
+    barMenuOf(tree, "Add to list")
       .props.items.find((i) => i.label === "Regulars")
       .onClick();
-    await settle();
+    await until(() => flashes.length > said, "the add put up its toast");
     assert.deepEqual(
       wrote(seen).map(([method, route, { add }]) => [method, route, [...add].sort()]),
       [["PUT", "segments/s1", ["p1", "p2", "p99"]]],
