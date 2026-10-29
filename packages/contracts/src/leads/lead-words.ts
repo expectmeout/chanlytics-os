@@ -382,6 +382,16 @@ export function leadAnd(items: readonly string[]): string {
 }
 
 /**
+ * Whether an ending is the first of leadEndingLine's two shapes, "Found N ...": the round delivered what it was for.
+ * Only such an ending wears the strip's check; one that did not deliver ("Stopped ...", or a search that never ran) wore
+ * it too, and a search the source could not start was drawn as done (29 Oct 2026).
+ */
+export function leadEndingFound(ending: LeadRoundEnding, f: Pick<LeadEndingFacts, "counted">): boolean {
+  if (ending === "target_reached" || ending === "few_new_matches") return true;
+  return ending === "searched_everything" && f.counted > 0;
+}
+
+/**
  * Every ending, said once (§8.8, the States artboard): what happened, what was
  * kept, what was counted, and one next step. Two shapes only -- "Found N ..."
  * when the round delivered what it was for, "Stopped ..." when it did not --

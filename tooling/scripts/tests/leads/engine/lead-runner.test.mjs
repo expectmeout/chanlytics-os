@@ -20,6 +20,8 @@ import {
 } from "../../../../../packages/core/src/leads/runner/rules.ts";
 import { JUDGE_REFUSED_REASON, JUDGE_TIMEOUT_MS } from "../../../../../packages/core/src/leads/judge.ts";
 import { runIdFor } from "../../../../../packages/core/src/leads/ids.ts";
+import { judgeBatchPlaces, judgeCallPlaces } from "../../../../../packages/contracts/src/leads/lead-judge.ts";
+import { LEAD_JUDGE_BATCH } from "../../../../../packages/contracts/src/leads/search/caps.ts";
 import { ApifyRefused, ApifyRetryable } from "../../../../../packages/channels/src/leads/apify.ts";
 import { leadDb } from "../../../../../apps/edge/lib/leads/lead-db.ts";
 import { leadWorld, sha256, webhookToken, TENANT } from "../../_lead-world.mjs";
@@ -298,7 +300,7 @@ async function probed(over = {}) {
   return x;
 }
 
-test("ACCEPTANCE: the probe fixture, 12 of 24 fitting, stops to ask from the most common exclusion; the judge was paid once per batch; the closed place is left out by rule; a left-out place stores no email", async () => {
+test("ACCEPTANCE: the probe fixture, 12 of 24 fitting, stops to ask from the most common exclusion; the judge was paid once per call; the closed place is left out by rule; a left-out place stores no email", async () => {
   const { w, p } = await probed();
   const [r1, r2] = w.runs();
   const a = await collect(p("c1"), r1.id, "p0", "c1");
@@ -308,11 +310,11 @@ test("ACCEPTANCE: the probe fixture, 12 of 24 fitting, stops to ask from the mos
   assert.deepEqual([b.kind, b.runState, b.roundState], ["committed", "succeeded", "waiting_on_owner"]);
   assert.deepEqual(
     w.judge.calls.map((c) => c.length),
-    [13, 11],
-    "one call per batch: the first term's 13, then the second's 12 with the closed one left out by rule",
+    [8, 5, 8, 3],
+    "calls of eight (four questions a place): the first term's 13, then the second's 12 with the closed one left out by rule",
   );
-  assert.deepEqual(w.judge.rounds, [w.round().id, w.round().id], "each call names the round it is paid in");
-  assert.equal(w.T.lead_judgments.length, 2);
+  assert.deepEqual(w.judge.rounds, Array(4).fill(w.round().id), "each call names the round it is paid in");
+  assert.equal(w.T.lead_judgments.length, 4, "each call's answer kept once");
   const q = w.round().question;
   assert.equal(
     q.criterionKey,
@@ -461,7 +463,7 @@ test("an Include re-classes the first places from what the judge already said: t
   assert.deepEqual([again.changed, again.judged], [0, 0], "a second pass changes nothing");
 });
 
-test("a change that asks something new judges the first places once under it, a batch at a time", async () => {
+test("a change that asks something new judges the first places once under it, a batch at a time in calls side by side", async () => {
   const { w, p } = await asked();
   const paid = w.judge.calls.length;
   const plan = w.round().plan;
@@ -474,12 +476,12 @@ test("a change that asks something new judges the first places once under it, a 
   const out = await rejudgeProbe(p("job-3"), w.round());
   assert.deepEqual(
     w.judge.calls.slice(paid).map((c) => c.length),
-    [24],
-    "the 24 the probe judged, in one batch: no stored answer says anything about big box gyms",
+    [7, 7, 7, 3],
+    "the 24 the probe judged, in calls of seven (five questions a place): no stored answer says anything about big box gyms",
   );
-  assert.deepEqual(w.judge.rounds.slice(paid), [w.round().id], "and the re-judge names the round too");
+  assert.deepEqual(w.judge.rounds.slice(paid), Array(4).fill(w.round().id), "and the re-judge names the round too");
   assert.deepEqual([out.judged, out.reused, out.unread], [24, 0, 0]);
-  assert.equal(w.T.lead_judgments.length, 3, "the answer kept once, beside the probe's two");
+  assert.equal(w.T.lead_judgments.length, 8, "each call's answer kept once, beside the probe's four");
   assert.ok(
     w
       .members()
@@ -530,7 +532,7 @@ test("a change that keeps the keys but not the questions judges again", async ()
   });
   const out = await rejudgeProbe(p("job-3"), w.round());
   assert.deepEqual([out.reused, out.judged], [0, 24], "every key, but a different question under the kind");
-  assert.equal(w.judge.calls.length - paid, 1);
+  assert.equal(w.judge.calls.length - paid, 3, "in calls of eight");
 });
 
 // A city ask has no centre while it probes, so no probe place was ever out of its area; the answer must not invent one.
@@ -691,6 +693,80 @@ test("a page bigger than one judge batch: every batch is committed where the las
     [0, 60],
     "the second poll reads on from sixty, not past it",
   );
+});
+
+test("REGRESSION: a page the judge cannot answer in one call is asked in calls it can, side by side, each kept under its own operation id, and the page commits", async () => {
+  // 29 Oct 2026, production: a salon search asking seven questions a place (the kind, three criteria, three exclusions).
+  // claude-opus-5 at low effort wrote about 245 tokens a place, at about a hundred a second, under the judge's
+  // 28-second bound; the main run's page of 22 places was one call, it timed out on every try, the collect failed three
+  // times over and was scheduled again by every sweep, and the round stood at 3 found for good.
+  const plan = {
+    ...PLAN,
+    criteria: [
+      { key: "own_site", text: "has its own website", standard: "seen", required: true },
+      { key: "public_email", text: "a public email address", standard: "seen", required: true },
+      { key: "independent", text: "independently owned, not a chain", standard: "likely", required: true },
+    ],
+    exclusions: [
+      { key: "chains", text: "chains and franchises", origin: "claude" },
+      { key: "barbershops", text: "barbershops", origin: "claude" },
+      { key: "supply_stores", text: "beauty supply stores", origin: "claude" },
+    ],
+  };
+  const { w, p } = world({ plan });
+  await startRound(p(), w.round().id, OWNER);
+  const r1 = w.runs()[0];
+  w.apify.state.datasets[r1.dataset_id] = Array.from({ length: 22 }, (_, i) => mapsItem(300 + i));
+  const asked = [];
+  const answer = w.judge.judge.bind(w.judge);
+  w.judge.judge = async (pl, places, ...rest) => {
+    asked.push(places.length);
+    if (places.length * 245 > 28 * 100) throw Object.assign(new Error("timeout"), { status: 0 });
+    return answer(pl, places, ...rest);
+  };
+  const out = await collect(p("c1"), r1.id, "p0", "c1");
+  assert.deepEqual([out.kind, out.commits, out.toOffset], ["committed", 1, 22], "the page commits once");
+  assert.equal(judgeCallPlaces(plan), 5, "seven questions a place: five places a call");
+  assert.deepEqual(asked, [5, 5, 5, 5, 2], "every place asked once, no call past what the judge can write in time");
+  assert.equal(w.members().length, 22);
+  const kept = w.T.lead_judgments.filter((j) => j.round_id === w.round().id);
+  assert.deepEqual(
+    kept.map((j) => j.batch),
+    [0, 1, 2, 3, 4],
+  );
+  assert.equal(new Set(kept.map((j) => j.op_id)).size, 5, "each call under its own operation id");
+  const byOp = new Map(kept.map((j) => [j.op_id, j.answer.places.length]));
+  assert.ok(
+    w.members().every((m) => byOp.has(m.judgment.op_id)),
+    "each place keeps the operation id its own call was answered under",
+  );
+  assert.deepEqual([...byOp.values()], [5, 5, 5, 5, 2]);
+});
+
+test("a judge call is sized from the questions a place is asked: the fewest ask nearly a whole batch at once, the most still answer inside the judge's time, and a batch never asks more calls at once than five", () => {
+  const ask = (criteria, exclusions) => ({
+    ...PLAN,
+    criteria: Array.from({ length: criteria }, (_, i) => ({
+      key: `c${i}`,
+      text: `criterion ${i}`,
+      standard: "likely",
+      required: true,
+    })),
+    exclusions: Array.from({ length: exclusions }, (_, i) => ({
+      key: `e${i}`,
+      text: `exclusion ${i}`,
+      origin: "claude",
+    })),
+  });
+  assert.equal(judgeCallPlaces(ask(0, 0)), 23, "the kind alone: nearly a whole batch in one call");
+  assert.equal(judgeBatchPlaces(ask(0, 0)), LEAD_JUDGE_BATCH, "and a batch is never more than its 25");
+  const most = ask(8, 8);
+  assert.ok(judgeCallPlaces(most) >= 1);
+  assert.ok(
+    judgeCallPlaces(most) * 245 * (17 / 7) <= 28 * 100,
+    "seventeen questions a place, at the rate measured for seven, still answer inside 28 seconds",
+  );
+  assert.equal(judgeBatchPlaces(most), judgeCallPlaces(most) * 5, "five calls at once at most");
 });
 
 test("the commit is one call guarded by the lease's generation and the offset: a stale generation and a stale offset are refused, and Stop moves the generation", async () => {

@@ -11,7 +11,7 @@
  */
 import { z } from "zod";
 import type { LeadSearchPlan } from "./search/plan";
-import { LEAD_FACT_MAX, LEAD_REASON_MAX_WORDS } from "./search/caps";
+import { LEAD_FACT_MAX, LEAD_JUDGE_BATCH, LEAD_REASON_MAX_WORDS } from "./search/caps";
 import { LEAD_KIND_KEY } from "./search/class";
 import type { SystemOneQuestion } from "../ai/system-one";
 
@@ -128,6 +128,38 @@ export function judgeQuestions(plan: LeadSearchPlan): Record<string, string> {
   for (const e of plan.exclusions)
     out[e.key] = `the place is NOT ${e.text} [required; fail when the place is what is left out]`;
   return out;
+}
+
+/* -------------------------------------------------------- the call's size -- */
+
+/**
+ * What one judge call may be asked to write, in output tokens: what the judge writes in its bound (MODEL_ROUTES.lead_judge,
+ * 28 seconds) at the slowest rate seen, with room. Measured on production, 29 Oct 2026: claude-opus-5 at low effort wrote
+ * about 245 tokens a place for seven questions, at about a hundred tokens a second. A page of 22 such places asked in
+ * one call never came back inside the bound: the collect failed on every try, and the round stood still for good.
+ */
+const JUDGE_CALL_TOKENS = 1_500;
+/** Each place's ref, its reason and its email index, in tokens. */
+const JUDGE_TOKENS_A_PLACE = 30;
+/** Each question's key, answer and facts, in tokens (about 31 measured). */
+const JUDGE_TOKENS_A_QUESTION = 35;
+/** The calls one batch asks at once: a batch of a plan with many questions is smaller, never a crowd of calls. */
+export const LEAD_JUDGE_CALLS_AT_ONCE = 5;
+
+/**
+ * How many places one judge call is asked about: as many as its answer can be written in, under the judge's bound, and
+ * never more than a batch (LEAD_JUDGE_BATCH). The answer grows with the places and with the questions each is asked
+ * (judgeQuestions: the kind, every criterion, every exclusion), so the plan sizes it: the kind alone asks 23 places a
+ * call, seven questions five, the most a plan may ask (seventeen) two.
+ */
+export function judgeCallPlaces(plan: LeadSearchPlan): number {
+  const aPlace = JUDGE_TOKENS_A_PLACE + JUDGE_TOKENS_A_QUESTION * Object.keys(judgeQuestions(plan)).length;
+  return Math.max(1, Math.min(LEAD_JUDGE_BATCH, Math.floor(JUDGE_CALL_TOKENS / aPlace)));
+}
+
+/** How many places one batch hands the judge: its calls, LEAD_JUDGE_CALLS_AT_ONCE at most, asked side by side. */
+export function judgeBatchPlaces(plan: LeadSearchPlan): number {
+  return Math.min(LEAD_JUDGE_BATCH, judgeCallPlaces(plan) * LEAD_JUDGE_CALLS_AT_ONCE);
 }
 
 /**

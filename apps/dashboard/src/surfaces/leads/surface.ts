@@ -344,8 +344,9 @@ async function refreshView(): Promise<void> {
   const loaded = new Set(L.rows.map((r) => r.id));
   const rows = L.rows.map((r) => fresh.get(r.id) ?? r);
   const arrived = page.rows.filter((r) => !loaded.has(r.id) && !L.offered.some((o) => o.id === r.id));
-  if (L.view.sort === "found")
-    rows.push(...arrived); // the order found: after what is already read
+  // The order found: after what is already read. An empty view: as read, since nothing on screen moves (29 Oct 2026: a
+  // running search's first three sat behind "3 new" over "No leads in this view yet").
+  if (L.view.sort === "found" || !L.rows.length) rows.push(...arrived);
   else L.offered.push(...arrived); // any other order: offered, never sorted in
   L.searches = searches.searches;
   L.counts = page.counts ?? searches.counts ?? L.counts;

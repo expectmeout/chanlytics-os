@@ -88,6 +88,7 @@ export {
   LEAD_PAUSED_TITLE,
   leadNearWhere,
   leadAnd,
+  leadEndingFound,
   leadEndingLine,
   leadAllowanceFact,
   outcomeMove,

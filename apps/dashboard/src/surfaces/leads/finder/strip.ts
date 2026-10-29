@@ -8,6 +8,7 @@
 import {
   LEAD_QUESTION_WAIT_LINE,
   PEOPLE_STRIP_WORDS,
+  leadEndingFound,
   leadEndingLine,
   leadNearWhere,
   peopleWho,
@@ -121,12 +122,14 @@ function endedStrip(s: PlacesSearch, nearby: readonly string[]): StripVM {
     ...(r.review > 0 ? [{ id: "review", label: `${r.review} need a look`, arg: "review", pile: true }] : []),
     ...(r.excluded > 0 ? [{ id: "excluded", label: `${r.excluded} left out`, arg: "excluded", pile: true }] : []),
   ].filter((a) => !line.step || line.step.id !== a.id);
+  // Only an ending that delivered wears the check and the full bar: one the source could not start did too (29 Oct 2026).
+  const found = leadEndingFound(r.ending || "paused", { counted });
   return {
-    state: "ended",
+    state: found ? "found" : "ended",
     alert: false,
     title: line.title,
     parts: line.parts,
-    progress: 1,
+    progress: found ? 1 : null,
     actions: [...step, ...sorts, ...piles],
   };
 }
@@ -158,12 +161,13 @@ const peopleStripOf = (s: LeadSearchDto, plan: LeadPeoplePlan): StripVM => {
     ...(r.review > 0 ? [{ id: "review", label: `${r.review} need a look`, arg: "review", pile: true }] : []),
     ...(r.excluded > 0 ? [{ id: "excluded", label: `${r.excluded} left out`, arg: "excluded", pile: true }] : []),
   ];
+  const found = !!r.ending && leadEndingFound(r.ending, { counted: r.counted });
   return {
-    state: "ended",
+    state: found ? "found" : "ended",
     alert: false,
     title: PW.ended(r.ending, r.counted, r.target),
     parts: [],
-    progress: 1,
+    progress: found ? 1 : null,
     actions: [{ id: "people_more", label: PW.more, primary: true, arg: plan }, ...piles],
   };
 };

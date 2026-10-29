@@ -79,7 +79,10 @@ export type { LeadChooseInput, LeadImportInput } from "./lead-import-schema";
 export {
   JUDGE_FACT_KEYS,
   JUDGE_OUTPUT_SCHEMA,
+  LEAD_JUDGE_CALLS_AT_ONCE,
   judgeAsked,
+  judgeBatchPlaces,
+  judgeCallPlaces,
   judgeOpId,
   judgeQuestions,
   judgeShadowCalls,
@@ -230,6 +233,7 @@ export {
   leadCheckAgainCents,
   leadCheckWord,
   leadDraftFooter,
+  leadEndingFound,
   leadEndingLine,
   leadExclusionWord,
   leadHoursShort,
