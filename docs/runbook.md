@@ -205,6 +205,15 @@ date with no zone, gives the wrong day. A test that reads the wall clock pins it
 1 Oct 2026: the suite took 27 minutes of every push): on a pull request labelled `suite` (adding the label starts
 `suite.yml`; a later push runs them in `ci.yml`), or by hand from the Actions tab (`workflow_dispatch`). Every other pull request runs the tests of what it changed (`tooling/scripts/checks/changed-tests.mjs`: the folders its paths name, the rules and ratchets always, and every test whose imports reach a changed file, read from the syntax tree, nearest first while the run stays within 800 test files, never the whole suite: Ruben, 10 Oct 2026, a push is through CI in under ten minutes; what is past the 800 the run names, and the nightly runs it), and the nightly runs the whole suite. Every push still gets the typecheck, the lint, the format check, the debt this change adds (`corepack pnpm check:debt`: the measures, the lint's warnings and knip's dead exports, on the change's base and its head), the build and the bundle, in jobs that run side by side. Before a push, `corepack pnpm check:local` runs on the committed branch what CI's lint, hygiene and tests jobs and its typecheck run, and stamps the tree it checked with an empty commit (`Checked-locally: <tree>`); pushed while main has not moved past the branch, CI runs the build, the bundle and the debt alone (`tooling/scripts/checks/checked-locally.mjs`). Never the whole suite on a laptop.
 
+**A wait is for what it asserts.** A page test presses something and reads what it did. Where the press hands back
+nothing to wait on, the test waits with `until` (`tooling/scripts/tests/shared/_until.mjs`) for the thing it is about to
+read: the toast, the write the fake wire saw, the table no longer busy. It never waits a count of turns. An `import()`
+goes through tsx's loader, off the main thread, and takes from one turn of the loop to some hundreds, more on a busy
+machine, and every write the bridge makes reads its refresh map that way: on 29 Oct 2026, 24 tests that counted turns
+passed alone and could fail beside a heavy job. `TEST_SLOW_IMPORTS=1 node tooling/scripts/checks/test.mjs <file>` makes
+every import wait 20 to 80 ms, and a test that counts turns then fails every time. A wait before asserting that nothing
+more happened stays a count: there is nothing to wait for.
+
 **What the suite ran of the code.** A full run in UTC has Node measure line coverage and prints it per package and
 per tree at its end, with the floor of the three that are held: `core`, the edge's doors (`apps/edge/api`) and the
 dashboard's routes (`apps/dashboard/app/api`), in `tooling/scripts/tests/baselines/coverage.json`. Under a floor is a

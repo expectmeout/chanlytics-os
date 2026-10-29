@@ -48,6 +48,25 @@ test("with no files it runs the suite; files, globs and directories asked for re
     "--test-name-pattern=zone",
     "tooling/scripts/tests/repo/**/*.test.mjs",
   ]);
+  // TEST_SLOW_IMPORTS=1 makes every import slow (tests/shared/_slow-imports.mjs), loaded before every file as the stand-ins are
+  assert.deepEqual(planOf([PROBE], { TEST_SLOW_IMPORTS: "1" }).args, [
+    ...loader.slice(0, -1),
+    "--import",
+    "./tooling/scripts/tests/shared/_slow-imports.mjs",
+    "--test",
+    PROBE,
+  ]);
+});
+
+test("under TEST_SLOW_IMPORTS=1 an import a test makes waits, so a test that counts turns for one fails every time", () => {
+  const env = { ...process.env, TEST_SLOW_IMPORTS: "1" };
+  delete env.NODE_TEST_CONTEXT;
+  const run = spawnSync(process.execPath, [LAUNCHER, "tooling/scripts/tests/fixtures/slow-import-probe.mjs"], {
+    env,
+    encoding: "utf8",
+  });
+  assert.equal(run.status, 0, `${run.stdout}\n${run.stderr}`);
+  assert.match(run.stdout, /^(?:ok 1 - |✔ )an import a test makes waits/m, "the probe ran, and passed");
 });
 
 test("a full run in UTC is measured, and nothing else is: files, a flag, the db suites, a zone leg, TEST_COVERAGE=0", () => {
