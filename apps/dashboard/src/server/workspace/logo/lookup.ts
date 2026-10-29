@@ -14,16 +14,9 @@
  * own site has a usable logo is a number we can read.
  */
 import "server-only";
-import {
-  LOGO_FOUND_MAX_BYTES,
-  LOGO_FOUND_SIDE_MAX,
-  LOGO_FOUND_SIDE_MIN,
-  parseTenantConfig,
-  siteHost,
-  type LogoLookupAnswer,
-} from "@chanlytics/contracts";
+import { LOGO_FOUND_MAX_BYTES, parseTenantConfig, siteHost, type LogoLookupAnswer } from "@chanlytics/contracts";
 import { imageBytes, pageText, publicFetcher } from "@chanlytics/channels";
-import { imageHeaderOf, leadMarksFrom } from "@chanlytics/core";
+import { siteLogoFrom } from "@chanlytics/core";
 import { storedConfigOf } from "@/server/workspace/config-row";
 import { listingFactsFor } from "@/server/connections/google";
 import { log } from "@/server/log";
@@ -32,23 +25,10 @@ import type { RouteContext } from "@/server/with-route";
 
 const PAGE_MS = 6_000;
 const IMAGE_MS = 4_000;
-/** The candidates tried, best first: the declared logo, then the icons. Past three, what is left is a favicon. */
-const TRIES = 3;
 /** Our own sites: a workspace whose website is ours has no logo there. */
 const OURS = ["chanlytics.com", "chanlytics.agency"];
 
 const ours = (host: string): boolean => OURS.some((d) => host === d || host.endsWith(`.${d}`));
-
-/** A candidate worth asking for: the web's own port, and not a vector or a favicon file by its name. */
-function askable(url: string): boolean {
-  try {
-    const u = new URL(url);
-    if (u.port && u.port !== "443" && u.port !== "80") return false;
-    return !/\.(svg|ico)$/i.test(u.pathname);
-  } catch {
-    return false;
-  }
-}
 
 /**
  * The home pages to ask for, from the website as it was typed: its own spelling first (www. or not, as the owner gave
@@ -89,16 +69,9 @@ async function firstPicture(homes: string[]): Promise<{ base64: string; content_
     if (html !== null) break;
   }
   if (html === null) return "unreachable";
-  for (const url of leadMarksFrom(html, origin).filter(askable).slice(0, TRIES)) {
-    const bytes = await imageBytes(fetcher, url, IMAGE_MS, LOGO_FOUND_MAX_BYTES);
-    const head = bytes ? imageHeaderOf(bytes) : null;
-    if (!bytes || !head || head.kind === "ico") continue;
-    const short = Math.min(head.width, head.height);
-    const long = Math.max(head.width, head.height);
-    if (short < LOGO_FOUND_SIDE_MIN || long > LOGO_FOUND_SIDE_MAX) continue;
-    return { base64: Buffer.from(bytes).toString("base64"), content_type: head.contentType };
-  }
-  return null;
+  // What a mark is, and which of a page's is taken, is core's (siteLogoFrom): the website read judges the same way.
+  const found = await siteLogoFrom((url) => imageBytes(fetcher, url, IMAGE_MS, LOGO_FOUND_MAX_BYTES), html, origin);
+  return found ? { base64: Buffer.from(found.bytes).toString("base64"), content_type: found.head.contentType } : null;
 }
 
 /** POST workspaces/logo/lookup. */

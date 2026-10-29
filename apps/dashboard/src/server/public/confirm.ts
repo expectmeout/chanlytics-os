@@ -21,7 +21,17 @@ import { addressOf, verifyConfirmToken, type ConfirmClaims } from "@chanlytics/c
 import { confirmPageWords, escapeHtml, MIN_MS, type ConfirmPageView } from "@chanlytics/contracts";
 import { env } from "@/server/env";
 import { log } from "@/server/log";
-import { LINK_PAGE_HEADERS, LINK_PAGE_MAX_BYTES, LINK_PAGE_STYLE, linkPageDb, readLinkFields } from "./link-page";
+import {
+  LINK_PAGE_HEADERS,
+  LINK_PAGE_MAX_BYTES,
+  NO_LOOK,
+  linkPageDb,
+  linkPageLookOf,
+  linkPageMark,
+  linkPageStyle,
+  readLinkFields,
+  type LinkPageLook,
+} from "./link-page";
 
 /** The header a confirmation page answers with, naming its view: how a test, or a probe, tells the page answering. */
 const CONFIRM_PAGE_HEADER = "x-confirm-page";
@@ -45,15 +55,16 @@ function sayNow(what: "unavailable" | "bad_link"): boolean {
   return true;
 }
 
-/** The page's facts: who asks (the name the email left as) and the address it asks about. */
+/** The page's facts: who asks (the name the email left as), the address it asks about, and the business's look (decision 0075). */
 interface Asked {
   business: string | null;
   address: string | null;
+  look: LinkPageLook;
 }
 
-const NOBODY: Asked = { business: null, address: null };
+const NOBODY: Asked = { business: null, address: null, look: NO_LOOK };
 
-/** One view of the page: its words on the product's paper, a button where it asks, no script. */
+/** One view of the page: the business's mark over its words, a button in its colour where it asks, no script. */
 function confirmPage(status: number, view: ConfirmPageView, asked: Asked): Response {
   const w = confirmPageWords(view, asked);
   const lines = w.lines.map((l) => `<p>${escapeHtml(l)}</p>`).join("");
@@ -61,10 +72,11 @@ function confirmPage(status: number, view: ConfirmPageView, asked: Asked): Respo
     ? `<form method="post"><input type="hidden" name="confirm" value="yes">` +
       `<button type="submit">${escapeHtml(w.button)}</button></form>`
     : "";
+  const look = { ...asked.look, business: asked.look.business ?? asked.business };
   const html = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex, nofollow"><title>${escapeHtml(w.title)}</title><style>${LINK_PAGE_STYLE}</style></head>
-<body><main><div class="card"><h1>${escapeHtml(w.title)}</h1>${lines}${button}</div></main></body></html>`;
+<meta name="robots" content="noindex, nofollow"><title>${escapeHtml(w.title)}</title><style>${linkPageStyle(look)}</style></head>
+<body><main>${linkPageMark(look)}<div class="card"><h1>${escapeHtml(w.title)}</h1>${lines}${button}</div></main></body></html>`;
   return new Response(html, {
     status,
     headers: { ...LINK_PAGE_HEADERS, "content-type": "text/html; charset=utf-8", [CONFIRM_PAGE_HEADER]: view },
@@ -87,11 +99,14 @@ function opened(token: string): { claims: ConfirmClaims; db: SupabaseClient<Data
   return { claims, db };
 }
 
-/** Who asks and about which address, off the email the link names; null when the workspace holds no such email. */
+/** Who asks and about which address, off the email the link names, and the workspace's look; null when the workspace holds no such email. */
 async function confirmationAsked(db: SupabaseClient<Database>, c: ConfirmClaims): Promise<Asked | null> {
-  const email = await confirmationEmailOf(db, { tenantId: c.tenantId, messageId: c.messageId });
+  const [email, look] = await Promise.all([
+    confirmationEmailOf(db, { tenantId: c.tenantId, messageId: c.messageId }),
+    linkPageLookOf(db, c.tenantId),
+  ]);
   if (!email) return null;
-  return { business: email.from ? (addressOf(email.from)?.name ?? null) : null, address: email.to };
+  return { business: email.from ? (addressOf(email.from)?.name ?? null) : null, address: email.to, look };
 }
 
 export async function confirmGet(token: string): Promise<Response> {

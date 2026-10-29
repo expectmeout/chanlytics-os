@@ -112,6 +112,12 @@ export interface EmailRequestInput {
    * is not (decision 0056), so an out-of-office answers it and the chain hears they are away (00226).
    */
   autoSubmitted?: boolean;
+  /**
+   * The HTML part drawn whole by the sender (a sign-up's confirmation letter, contracts letterHtml; decision 0075), in
+   * place of the twin of the words; `body` stays the words a text-only reader gets. Never with a campaign: its foot and
+   * its unsubscribe link are this builder's to put in.
+   */
+  html?: string | null;
 }
 
 /** `"Name" <address>`, the name quoted so a comma or a bracket in it cannot end it early. */
@@ -238,7 +244,9 @@ export function buildEmailRequest(i: EmailRequestInput): EmailRequest {
   const footerHtml = i.campaign?.footerHtml?.trim() || null;
   if (footerHtml && !footerHtml.includes(`href="${escapeHtml(i.campaign!.unsubscribeUrl.trim())}"`))
     throw new Error("buildEmailRequest: a campaign's HTML footer carries its unsubscribe link");
-  const html = i.plain ? "" : htmlOf(i, footerHtml, text);
+  const drawn = i.html?.trim() || null;
+  if (drawn && i.campaign) throw new Error("buildEmailRequest: a campaign's HTML is the builder's");
+  const html = i.plain ? "" : (drawn ?? htmlOf(i, footerHtml, text));
   const inReplyTo = i.parent ? messageIdHeader(i.parent.rfcMessageId) : null;
   const references = i.parent ? referencesFor(i.parent) : [];
   const autoSubmitted = autoSubmittedOf(i);

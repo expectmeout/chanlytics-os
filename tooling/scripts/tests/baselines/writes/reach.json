@@ -1,7 +1,7 @@
 {
-  "rows": 149,
+  "rows": 152,
   "same": 7,
-  "differ": 142,
+  "differ": 145,
   "writes": {
     "DELETE ask/memory/[id]": {
       "changes": "ask_memory_lines INSERT UPDATE"
@@ -254,6 +254,30 @@
         "reports_campaigns": "reports/campaigns",
         "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
         "setup": "start, today"
+      }
+    },
+    "DELETE workspaces/accent": {
+      "changes": "tenants UPDATE",
+      "tells": "tenants",
+      "missing": {
+        "audiences": "broadcasts",
+        "broadcasts": "broadcasts, clients/get-yes, inbox, today",
+        "calendar_runs": "calendar",
+        "partner": "admin, admin/activity, admin/autonomy, admin/billing, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace",
+        "people": "clients, clients/get-yes, clients/person, segments, today",
+        "person": "clients/person",
+        "playbooks": "broadcasts, campaigns/messages, campaigns/sequences/new, messages, outbound, today",
+        "reach_outs": "campaigns/messages, messages, outbound",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "reports_campaigns": "reports, reports/campaigns",
+        "reports_headline": "today",
+        "reports_people": "reports/people",
+        "reports_receptionist": "reports/receptionist",
+        "reports_reviews": "reports/reviews",
+        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
+        "today": "today",
+        "today_pins": "today"
       }
     },
     "DELETE workspaces/logo": {
@@ -672,6 +696,18 @@
         "reports_receptionist": "reports/receptionist",
         "setup": "admin/integrations, admin/receptionist, start, today",
         "today_pins": "today"
+      }
+    },
+    "POST contacts/[id]/signup-confirm": {
+      "changes": "",
+      "doors": "contacts · conversations · messages",
+      "door": {
+        "conversations": "every page",
+        "inbox": "every page",
+        "reports_campaigns": "reports, reports/campaigns",
+        "reports_headline": "today",
+        "reports_receptionist": "reports/receptionist",
+        "today": "every page"
       }
     },
     "POST contacts/import": {
@@ -2386,6 +2422,30 @@
         "reports_campaigns": "reports, reports/campaigns",
         "sequences": "every page",
         "setup": "start, today"
+      }
+    },
+    "PUT workspaces/accent": {
+      "changes": "tenants UPDATE",
+      "tells": "tenants",
+      "missing": {
+        "audiences": "broadcasts",
+        "broadcasts": "broadcasts, clients/get-yes, inbox, today",
+        "calendar_runs": "calendar",
+        "partner": "admin, admin/activity, admin/autonomy, admin/billing, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace",
+        "people": "clients, clients/get-yes, clients/person, segments, today",
+        "person": "clients/person",
+        "playbooks": "broadcasts, campaigns/messages, campaigns/sequences/new, messages, outbound, today",
+        "reach_outs": "campaigns/messages, messages, outbound",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "reports_campaigns": "reports, reports/campaigns",
+        "reports_headline": "today",
+        "reports_people": "reports/people",
+        "reports_receptionist": "reports/receptionist",
+        "reports_reviews": "reports/reviews",
+        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
+        "today": "today",
+        "today_pins": "today"
       }
     },
     "PUT workspaces/logo": {

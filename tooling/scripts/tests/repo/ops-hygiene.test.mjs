@@ -155,7 +155,10 @@ test("the nightly checks Ask's day against its lines (the Ask Rewired Phase 6 pl
     y.indexOf("- name: Ask's cache and first words hold their lines"),
     y.indexOf("- run: pnpm e2e:install"),
   );
-  assert.ok(step.includes("node tooling/scripts/ops/ask-day.mjs --check > ask-day.txt"), "the check, its lines kept");
+  assert.ok(
+    step.includes("node --import tsx tooling/scripts/ops/ask-day.mjs --check > ask-day.txt"),
+    "the check, its lines kept",
+  );
   assert.ok(
     step.includes("id: ask_day") && step.includes("set +e") && step.includes('echo "code=$code" >> "$GITHUB_OUTPUT"'),
     "its own outcome, never the job's: the exit is read, not thrown",

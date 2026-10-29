@@ -13,7 +13,7 @@
  * harder (AskTurnShape.draft) are a line of their own under the table. Read-only; the
  * service role, because a day's turns belong to every member of every workspace.
  *
- *   NEXT_PUBLIC_SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… [HOURS=24] [TENANT=<uuid>] node tooling/scripts/ops/ask-day.mjs [--json] [--check]
+ *   NEXT_PUBLIC_SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… [HOURS=24] [TENANT=<uuid>] node --import tsx tooling/scripts/ops/ask-day.mjs [--json] [--check]
  *
  * --check says last, in one line, whether the day held the nightly's lines (ask-stats.mjs askDayVerdict), and exits 1
  * when it crossed one: the nightly workflow opens an issue with that line. It exits 2, with a last line that says so,

@@ -1,5 +1,5 @@
 /**
- * The workspace's logo as the server keeps it (dashboard server/workspace/logo/png.ts): every file is read to its end
+ * The workspace's logo as the server keeps it (channels logo-png.ts, moved from the dashboard by decision 0075): every file is read to its end
  * against the format's own rules and remade from its pixels, so nothing the sender put in it but the picture is kept.
  * The files here are written byte by byte, the way an attacker would write them.
  */
@@ -11,9 +11,7 @@ import { crc32, deflateSync, inflateSync } from "node:zlib";
 import { LOGO_BYTES_MAX } from "@chanlytics/contracts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
-const { remadeLogo } = await import(
-  pathToFileURL(path.join(ROOT, "apps/dashboard/src/server/workspace/logo/png.ts")).href
-);
+const { remadeLogo } = await import(pathToFileURL(path.join(ROOT, "packages/channels/src/logo-png.ts")).href);
 
 const SIG = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 
@@ -105,7 +103,7 @@ test("a picture of another shape is refused: not square, too small, too large, s
   const shapes = [
     ihdr({ w: 256, h: 200 }),
     ihdr({ w: 64 }),
-    ihdr({ w: 512 }),
+    ihdr({ w: 2049 }),
     ihdr({ depth: 16 }),
     ihdr({ colour: 3 }),
     ihdr({ interlace: 1 }),
@@ -170,4 +168,43 @@ test("every chunk of a remade file carries the CRC the format's own reckoning gi
     at += 12 + len;
   }
   assert.equal(kept.readUInt32BE(kept.length - 4), 0xae426082, "and the end is the end every PNG has");
+});
+
+/** A file's IDAT data, concatenated: what the shrink wrote. */
+function idatOf(bytes) {
+  const parts = [];
+  for (let at = 8; at < bytes.length;) {
+    const len = bytes.readUInt32BE(at);
+    if (bytes.toString("latin1", at + 4, at + 8) === "IDAT") parts.push(bytes.subarray(at + 8, at + 8 + len));
+    at += 12 + len;
+  }
+  return Buffer.concat(parts);
+}
+
+test("a square too big for the circle is shrunk to it by averaging, filters undone, and comes out a PNG the server keeps as it is", () => {
+  // 512 square, truecolour, every row predicted from the one above (filter 2): the left half red, the right half blue.
+  const side = 512;
+  const bpp = 3;
+  const raw = Buffer.alloc((1 + side * bpp) * side);
+  for (let y = 0; y < side; y++) {
+    raw[y * (1 + side * bpp)] = y ? 2 : 0;
+    for (let x = 0; x < side; x++) {
+      const px = x < side / 2 ? [255, 0, 0] : [0, 0, 255];
+      // Filter 2 stores the difference from the row above; rows are equal, so every row but the first stores zeros.
+      raw.set(y ? [0, 0, 0] : px, y * (1 + side * bpp) + 1 + x * bpp);
+    }
+  }
+  const big = png(ihdr({ w: side, colour: 2 }), chunk("IDAT", deflateSync(raw)), chunk("IEND"));
+  const out = remadeLogo(new Uint8Array(big), { inputMax: big.length });
+  assert.equal(out.ok, true, out.why);
+  assert.equal(out.side, 256);
+  const again = remadeLogo(out.png);
+  assert.deepEqual([again.ok, again.side], [true, 256], "its own output is kept as it is");
+  const pixels = inflateSync(idatOf(Buffer.from(out.png)));
+  assert.equal(pixels.length, (1 + 256 * bpp) * 256);
+  assert.deepEqual([...pixels.subarray(1, 4)], [255, 0, 0], "left is red");
+  assert.deepEqual([...pixels.subarray(1 + 255 * bpp, 1 + 256 * bpp)], [0, 0, 255], "right is blue");
+  assert.deepEqual([...pixels.subarray(1 + 128 * bpp, 1 + 129 * bpp)], [0, 0, 255], "the edge falls where it was");
+  const tooBig = remadeLogo(new Uint8Array(big), { inputMax: 100 });
+  assert.deepEqual(tooBig, { ok: false, why: "too_heavy" }, "a file past the limit it was given is not read");
 });

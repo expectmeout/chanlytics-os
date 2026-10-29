@@ -37,10 +37,10 @@ export interface TodayBriefWords {
   text: string;
 }
 
-// `plain`, not `say`: a helper declared in three files is a copy the build counts (copies.json), and two files said it.
+// `plain`, not `say`: a helper declared in three files is a copy the build counts (the copies measure), and two files said it.
 const plain = (text: string): TodayBriefSegment => ({ text });
-// `bold`, not `name`: a top-level `name` in contracts makes the bundler rename every other `name` in every dist that
-// bundles it (core, jobs, channels, db), which is churn in four committed files for one word.
+// `bold`, not `name`: a top-level `name` in contracts made the bundler rename every other `name` in every dist that
+// bundled it (core, jobs, channels, db), churn in four committed files for one word while the dists were committed.
 const bold = (text: string): TodayBriefSegment => ({ text, strong: true });
 
 /** Up to three names in bold, the rest counted: "Ana Reyes, Kenia Duarte and 2 more". `rest` are the ones not named. */

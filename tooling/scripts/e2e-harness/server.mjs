@@ -1,7 +1,7 @@
 /**
  * The server a signed-in spec is run against, with no deployment, no database and no Supabase.
  *
- *   node tooling/scripts/e2e-harness/server.mjs [port] [nightly|salon|pipeline|email-only|kit]     (from the repo root)
+ *   node --import tsx tooling/scripts/e2e-harness/server.mjs [port] [nightly|salon|pipeline|email-only|kit]     (from the repo root)
  *
  * Three things, and nothing else:
  *   - the two Supabase auth calls e2e/session.ts makes, answered so `signIn()` mints a harmless local cookie;

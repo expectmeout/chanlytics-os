@@ -110,6 +110,8 @@ test("a mail with no route links the page the kind's list lives on", async () =>
     website_form: "/w/harbor/people",
     // A customer asked to stop (0048): the people it is about, in People.
     opted_out: "/w/harbor/people",
+    // A website's form brings its person (#1895): the people the owner is told of, in People.
+    website_form: "/w/harbor/people",
     alert: "/w/harbor/today",
   };
   for (const kind of EMAILED_NOTIFICATION_KINDS) {

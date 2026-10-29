@@ -54,10 +54,10 @@ export const TYPES = {
   ".woff2": "font/woff2",
 };
 
-const CONTRACTS = path.join(REPO, "packages/contracts/dist/index.js");
+const CONTRACTS = path.join(REPO, "packages/contracts/src/index.ts");
 
 /**
- * What the mockup takes from the app's TypeScript, bundled for the browser, with contracts from its dist as the app
+ * What the mockup takes from the app's TypeScript, bundled for the browser, with contracts from its sources as the app
  * reads it. surfaces/kit/kit-globals.ts is the kit's components that the pages here still draw by name
  * (`Icon`, `FailedRead`, `SegmentBar`, `StatePill` ...), TSX since decision 0015: built with the classic JSX runtime over
  * the page's own React, as the app publishes them from seed-globals. A surface that has left the shell (Reports) is an
@@ -204,9 +204,9 @@ async function sampleBundle(route) {
     logLevel: "silent",
     alias: {
       // The schemas a page asks for by import() (contracts' write-rules entry), bundled in, as the mockup has no chunks.
-      "@chanlytics/contracts/write-rules": path.join(REPO, "packages/contracts/dist/write-rules.js"),
+      "@chanlytics/contracts/write-rules": path.join(REPO, "packages/contracts/src/write-rules.ts"),
       // The kinds only Ask's cards commit (contracts' ask-only entry), which the verb walk loads by import(), the same way.
-      "@chanlytics/contracts/ask-only": path.join(REPO, "packages/contracts/dist/ask-only.js"),
+      "@chanlytics/contracts/ask-only": path.join(REPO, "packages/contracts/src/ask-proposals/ask-only.ts"),
       // The pages' verb specs, which the verb walk loads by import(): the root entry's own module, so one table.
       "@chanlytics/contracts/page-specs": CONTRACTS,
       "@chanlytics/contracts": CONTRACTS,

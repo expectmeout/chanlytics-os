@@ -9,7 +9,7 @@
  *
  * Read as the compiler reads them, `extends` followed: a project may not set any of the base's checks to another
  * value, with one exception. noUncheckedIndexedAccess may be off in a project whose index reads are not guarded yet,
- * and every such project is measured by types/index-reads-are-counted.test.mjs, a count per file that may only
+ * and every such project is measured by check:debt (the unchecked-index measure), a count per file that may only
  * fall. The root tsconfig.json is not a project's: it gives the test runner (tsx) the dashboard's `@/` paths, and
  * nothing compiles against it.
  */
@@ -23,8 +23,12 @@ import { projectConfigs, resolvedConfig, waitingProjects } from "../_measures.mj
 const BASE = path.join(ROOT, "tsconfig.base.json");
 /** The base's own compiler options, as written: the checks every project keeps. */
 const baseOptions = ts.readConfigFile(BASE, ts.sys.readFile).config.compilerOptions;
-/** The flags a project must keep at the base's value: every boolean the base sets. */
-const CHECKS = Object.keys(baseOptions).filter((k) => typeof baseOptions[k] === "boolean");
+/**
+ * The flags a project must keep at the base's value: every boolean the base sets but `noEmit`, which says where output
+ * goes, not what is checked. A package emits its declarations into .types for the projects that reference it (decision
+ * 0074); `every package is a project of its own` (shipping/package-dependencies.test.mjs) holds that.
+ */
+const CHECKS = Object.keys(baseOptions).filter((k) => typeof baseOptions[k] === "boolean" && k !== "noEmit");
 /** The one the unchecked-index measure lets a project wait on. */
 const MAY_WAIT = "noUncheckedIndexedAccess";
 

@@ -82,16 +82,17 @@ Vercel deploys that output as it is: `apps/edge/vercel.json` has one static
 build, which runs it, and holds each function's time limit. Its types are CI's
 typecheck's to check.
 
-`packages/*/dist` is committed and the edge imports it by relative path through
-`apps/edge/lib/packages/*.ts`, because Vercel's function bundler does not
-follow pnpm workspace symlinks. Rebuild `dist` whenever a package changes; CI
-fails on drift.
+The packages ship as their sources (decision 0074): the edge's modules reach
+each through `apps/edge/lib/packages/<p>.ts`, which names it, and esbuild
+bundles its sources into every function that imports it. The dashboard
+compiles them with the app (`transpilePackages`), and the typecheck reads each
+through its project reference.
 
 **Where a module lives on the edge.** `apps/edge/api` is the doors, one file
 per URL, grouped as the URLs are (`admin/`, `cron/`). A door authenticates,
 reads its body and calls one verb, and answers what the verb answers; the
 dashboard's routes do the same with a verb in `apps/dashboard/src/server`
-(`baselines/route-doors.json` holds it at none: no route file imports a
+(the `route-doors` measure holds it at none: no route file imports a
 repository or a provider client). `apps/edge/lib` is everything the doors
 call, grouped by domain: `receptionist/` (what it decides
 and says), `whatsapp/`, `sms/`, `email/`, `voice/`, `lines/`, `leads/`,
@@ -363,13 +364,13 @@ Arrows point at what a package depends on, read upward: `jobs` depends on
 `core`, `db`, `channels` and `contracts`; `core` on `db`, `channels` and
 `contracts`; `db` and `channels` on `contracts` alone; `contracts` on nothing.
 
-| Package     | Holds                                                                                                                                                                                                                                                                                                                                            | Rule                                                                                                                                                                                                                  |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `contracts` | Types, zod schemas, the closed sets generated from the database (`schema-sets.generated.ts`), the view models every page reads, the prompt composer, the words the UI says                                                                                                                                                                       | Pure. No client, no framework, no environment. It is larger than its name: view models and prompt composition live here today                                                                                         |
-| `core`      | The use cases as verbs over ports: `conversations` (reply, take over, hand back, snooze, wake, resolve, archive), `campaigns` (assemble a run, create a broadcast, run a playbook, approve, cancel), `messages` (send, broadcast batch, email intake, line provisioning), `leads` (the finder's runner, judge, cleaning, endings), and `deliver` | A verb takes a `ports` object and a command and returns an outcome. No database client, framework, provider or environment inside a verb. The adapters live at the doors                                              |
-| `db`        | Supabase repositories, the generated database types, realtime                                                                                                                                                                                                                                                                                    | The one place a table name is typed. The names still typed outside it, and the SQL functions called there by name, are counted by `tooling/scripts/tests/baselines/tables.json`, which may only fall (`docs/debt.md`) |
-| `channels`  | Provider adapters: Meta (WhatsApp, templates, Embedded Signup), Retell (calls, agents, the prompt shell), Twilio (lines, SMS, A2P), Resend (email), Google (Places, Business Profile, OAuth), Apify (actors), the lead judge, the edge token, and the platform's one logger and its request store                                                | Owns each provider's wire format. Knows nothing about threads                                                                                                                                                         |
-| `jobs`      | The ledger, the tick, the handlers, escalation on failure                                                                                                                                                                                                                                                                                        | Handlers build ports from the job's context and call core                                                                                                                                                             |
+| Package     | Holds                                                                                                                                                                                                                                                                                                                                            | Rule                                                                                                                                                                                         |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `contracts` | Types, zod schemas, the closed sets generated from the database (`schema-sets.generated.ts`), the view models every page reads, the prompt composer, the words the UI says                                                                                                                                                                       | Pure. No client, no framework, no environment. It is larger than its name: view models and prompt composition live here today                                                                |
+| `core`      | The use cases as verbs over ports: `conversations` (reply, take over, hand back, snooze, wake, resolve, archive), `campaigns` (assemble a run, create a broadcast, run a playbook, approve, cancel), `messages` (send, broadcast batch, email intake, line provisioning), `leads` (the finder's runner, judge, cleaning, endings), and `deliver` | A verb takes a `ports` object and a command and returns an outcome. No database client, framework, provider or environment inside a verb. The adapters live at the doors                     |
+| `db`        | Supabase repositories, the generated database types, realtime                                                                                                                                                                                                                                                                                    | The one place a table name is typed. The names still typed outside it, and the SQL functions called there by name, are counted by the `tables` measure, which may only fall (`docs/debt.md`) |
+| `channels`  | Provider adapters: Meta (WhatsApp, templates, Embedded Signup), Retell (calls, agents, the prompt shell), Twilio (lines, SMS, A2P), Resend (email), Google (Places, Business Profile, OAuth), Apify (actors), the lead judge, the edge token, and the platform's one logger and its request store                                                | Owns each provider's wire format. Knows nothing about threads                                                                                                                                |
+| `jobs`      | The ledger, the tick, the handlers, escalation on failure                                                                                                                                                                                                                                                                                        | Handlers build ports from the job's context and call core                                                                                                                                    |
 
 ## The app plane
 
@@ -390,9 +391,9 @@ thing. Both are needed, because the job that delivers a message runs as
 service role and RLS is not in that path. Privileged writes go through
 `SECURITY DEFINER` functions with a pinned search path, each the one audited
 place its privilege exists. The exceptions still standing are counted, each by
-a baseline that may only fall (`docs/debt.md`): a table written by more than
-one door (`tooling/scripts/tests/baselines/writers.json`), and a reach of the
-service role in the dashboard (`tooling/scripts/tests/baselines/service-role.json`).
+a measure that may only fall (`docs/debt.md`): a table written by more than
+one door (the `writers` measure), and a reach of the
+service role in the dashboard (the `service-role` measure).
 A forbidden UPDATE does not raise under RLS; it matches zero rows and reports
 success, so every permission-sensitive update selects and counts.
 
@@ -421,10 +422,10 @@ standalone mockup (`apps/dashboard/src/legacy/Chanlytics.html`) and its stand-in
 (`apps/dashboard/src/legacy/CLAUDE.md`). Ask's pages and its face still read names that the bridge, the frame
 (`apps/dashboard/src/surfaces/frame/frame-globals.ts`) and the overrides publish on `window`,
 `apps/dashboard/src/legacy-bridge/seed-globals.ts` and `apps/dashboard/src/legacy-bridge/ask/line-globals.ts` among
-them. Nothing new goes in the tree, whose files `tooling/scripts/tests/baselines/legacy-files.json` counts; every
-`window.__*` name still read or written is counted by `tooling/scripts/tests/baselines/window-globals.json`, and every
+them. Nothing new goes in the tree, whose files the `legacy-files` measure counts; every
+`window.__*` name still read or written is counted by the `window-globals` measure, and every
 site that publishes on `window` (`window.x =`, `Object.assign(window, …)`) by
-`tooling/scripts/tests/baselines/window-publishers.json`. Each of the three may only fall (`docs/debt.md`). Two things
+the `window-publishers` measure. Each of the three may only fall (`docs/debt.md`). Two things
 keep the surfaces honest:
 
 - `apps/dashboard/src/legacy-bridge/surface-registry.ts` classifies every route as `real` or `demo`. A demo surface
@@ -438,7 +439,7 @@ keep the surfaces honest:
   moved remains (`declareSurfaceValue`). The ones several pages read stay in `apps/dashboard/src/legacy-bridge/` and
   `apps/dashboard/src/legacy-bridge/surfaces/`: Google's publishes a typed value alone; the settings read publishes one and still writes
   `window.__*` globals of its own beside it; the workspace, the bell's notifications and a reach-out's replies write
-  `window.__*` globals alone, which `tooling/scripts/tests/baselines/window-globals.json` counts. Nothing a real
+  `window.__*` globals alone, which the `window-globals` measure counts. Nothing a real
   surface draws may state a fact the database cannot support. A zero is a measurement and is shown; an invented number
   is not.
 
@@ -656,11 +657,11 @@ lead map, the mascot, the charts' palette) follow `data-theme` alone.
 `docs/runbook.md`, "Add a look".
 
 **The holds.** Three measures may only fall, and a new entry in any of them
-is a red build: the type sizes, radii, shadows, colours and blurs a
-stylesheet writes as literals (`style-values.json`), a primitive's class
+fails check:debt unless its pull request says why: the type sizes, radii, shadows, colours and blurs a
+stylesheet writes as literals (the `style-values` measure), a primitive's class
 declared, or a kit class named, in a stylesheet other than the kit's
-(`kit-primitives.json`), and the `style` props in the shell's markup
-(`inline-styles.json`). The first two read the stylesheets as CSS
+(the `kit-primitives` measure), and the `style` props in the shell's markup
+(the `inline-styles` measure). The first two read the stylesheets as CSS
 (`tooling/scripts/tests/_css.mjs`), the third the markup's syntax tree
 (`tooling/scripts/tests/_ast.mjs`). None counts a duration, a row or a
 page's layout: a page stylesheet with its layout alone is Phase 4's target.
@@ -669,188 +670,11 @@ compared (`docs/runbook.md`, "Prove a style change").
 
 ## What is where
 
-Each code tree and the folders its modules are grouped in, by name, and last
-the schema's migrations. A folder is drawn when it holds a TypeScript or
-JavaScript file the repository tracks, less the built, generated and public
-ones. The block is drawn by `UPDATE_BASELINES=1 corepack pnpm test`, and
-`tooling/scripts/tests/docs/docs-tree.test.mjs` fails when it and the tree
-disagree: it is redrawn when a folder appears or disappears.
-
-<!-- tree:start -->
-
-```text
-apps/edge/api/
-  admin/
-  cron/
-  jobs/
-  mailbox/
-apps/edge/lib/
-  billing/
-  calendar/
-  email/
-  google/
-  imports/
-  instagram/
-  intake/
-  leads/
-  lines/
-  ops/
-  packages/
-  partners/
-  reach-out/
-  receptionist/
-  sms/
-  voice/
-  website/
-  whatsapp/
-apps/dashboard/app/
-  (os)/
-  api/
-  auth/
-  b/
-  c/
-  data-deletion/
-  login/
-  p/
-  privacy/
-  reset-password/
-  signup/
-  terms/
-  u/
-  verify/
-  yes/
-apps/dashboard/src/
-  auth/
-  client/
-  legacy/
-  legacy-bridge/
-  lib/
-  server/
-  surfaces/
-  yes/
-apps/dashboard/src/server/
-  ask/
-  auth/
-  calendar/
-  campaigns/
-  connections/
-  conversations/
-  export/
-  leads/
-  metrics/
-  new-conversation/
-  people/
-  platform/
-  ports/
-  public/
-  readers/
-  receptionist/
-  sequences/
-  workspace/
-apps/dashboard/src/legacy-bridge/
-  ask/
-  billing/
-  hearing/
-  invitations/
-  mascot/
-  reach-out/
-  rehearse/
-  surfaces/
-  verbs/
-apps/dashboard/src/legacy/
-  components/
-  data/
-  pages/
-apps/mobile/src/
-  app/
-  shell/
-  widgets/
-packages/channels/src/
-  email/
-  google/
-  instagram/
-  leads/
-  lines/
-  log/
-  mailbox/
-  models/
-  tokens/
-  voice/
-packages/contracts/src/
-  activity/
-  ads/
-  ai/
-  ask/
-  ask-memory/
-  ask-proposals/
-  ask-skills/
-  broadcasts/
-  calendar/
-  config/
-  consent/
-  console/
-  conversations/
-  deals/
-  email/
-  google/
-  imports/
-  journey/
-  leads/
-  lines/
-  logo/
-  mobile/
-  need-you/
-  new-conversation/
-  notes/
-  notices/
-  people/
-  person-page/
-  playbooks/
-  reach-out/
-  rehearsal/
-  reports/
-  sequences/
-  setup/
-  shared/
-  shell/
-  templates/
-  today/
-  voice/
-  waits/
-  workspace/
-packages/core/src/
-  appointments/
-  campaigns/
-  conversations/
-  inbound/
-  leads/
-  messages/
-packages/db/src/
-  billing/
-  repositories/
-packages/jobs/src/
-tooling/scripts/
-  checks/
-  e2e-harness/
-  evals/
-  gen/
-  mobile/
-  ops/
-  tests/
-  voice/
-e2e/
-  auth/
-  campaigns/
-  conversations/
-  kit/
-  people/
-  settings/
-  shell/
-  today/
-supabase/migrations/
-```
-
-<!-- tree:end -->
+Each code tree and the folders its modules are grouped in, by name, and last the schema's migrations, are drawn in
+`docs/tree.md`. A command writes it (`node tooling/scripts/gen/docs-tree.mjs`), `land` writes it again after a merge,
+and `tooling/scripts/tests/docs/docs-tree.test.mjs` fails when it and the tree disagree: it is redrawn when a folder
+appears or disappears. It lived here until 28 October 2026, and its redrawing was most of this page's changes
+(decision 0074).
 
 ## Where to look
 
@@ -887,8 +711,8 @@ memory, edge doors over a ports object, core verbs over fakes. Database and
 integration tests skip without credentials, and `REQUIRE_SERVICE_CREDENTIALS=1`
 turns a skip into a failure where a run is meant to be signed in. A share of
 the suite still asserts on source text rather than behaviour;
-`tooling/scripts/tests/source-scan-baseline.json` is the ratchet that may only
-fall, keyed by each file's path relative to the tests directory. The files are
+the `source-scan` measure may only fall, keyed by each file's path relative
+to the tests directory. The files are
 grouped by domain under `tooling/scripts/tests/<domain>/`, the shared worlds
 and helpers at the root, and the runner globs every depth. Playwright specs run
 nightly against production in the suite's own workspace. A browser spec goes in

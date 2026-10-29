@@ -3,69 +3,72 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "browser": "./dist/browser/index.js",
-      "import": "./dist/index.js",
-      "default": "./dist/index.js"
+      "types": "./src/index.ts",
+      "bundled": "./dist/index.js",
+      "edge-light": "./src/index.ts",
+      "browser": "./src/browser.generated.ts",
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
     },
     "./write-rules": {
-      "types": "./dist/write-rules.d.ts",
-      "import": "./dist/write-rules.js",
-      "default": "./dist/write-rules.js"
+      "types": "./src/write-rules.ts",
+      "bundled": "./dist/write-rules.js",
+      "import": "./src/write-rules.ts",
+      "default": "./src/write-rules.ts"
     },
     "./report-window": {
-      "types": "./dist/report-window.d.ts",
-      "browser": "./dist/browser/reports/report-window.js",
-      "import": "./dist/report-window.js",
-      "default": "./dist/report-window.js"
+      "types": "./src/reports/report-window.ts",
+      "bundled": "./dist/report-window.js",
+      "import": "./src/reports/report-window.ts",
+      "default": "./src/reports/report-window.ts"
     },
     "./report-lens": {
-      "types": "./dist/report-lens.d.ts",
-      "browser": "./dist/browser/reports/report-lens.js",
-      "import": "./dist/report-lens.js",
-      "default": "./dist/report-lens.js"
+      "types": "./src/reports/report-lens.ts",
+      "bundled": "./dist/report-lens.js",
+      "import": "./src/reports/report-lens.ts",
+      "default": "./src/reports/report-lens.ts"
     },
     "./ads-page": {
-      "types": "./dist/ads-page.d.ts",
-      "browser": "./dist/browser/ads/ads-page.js",
-      "import": "./dist/ads-page.js",
-      "default": "./dist/ads-page.js"
+      "types": "./src/ads/ads-page.ts",
+      "bundled": "./dist/ads-page.js",
+      "import": "./src/ads/ads-page.ts",
+      "default": "./src/ads/ads-page.ts"
     },
     "./alert-pane": {
-      "types": "./dist/alert-pane.d.ts",
-      "import": "./dist/alert-pane.js",
-      "default": "./dist/alert-pane.js"
+      "types": "./src/alert-pane.ts",
+      "bundled": "./dist/alert-pane.js",
+      "import": "./src/alert-pane.ts",
+      "default": "./src/alert-pane.ts"
     },
     "./ask-only": {
-      "types": "./dist/ask-only.d.ts",
-      "import": "./dist/ask-only.js",
-      "default": "./dist/ask-only.js"
+      "types": "./src/ask-proposals/ask-only.ts",
+      "bundled": "./dist/ask-only.js",
+      "import": "./src/ask-proposals/ask-only.ts",
+      "default": "./src/ask-proposals/ask-only.ts"
     },
     "./page-specs": {
-      "types": "./dist/index.d.ts",
-      "browser": "./dist/browser/ask-proposals/page-specs.js",
-      "import": "./dist/index.js",
-      "default": "./dist/index.js"
+      "types": "./src/index.ts",
+      "bundled": "./dist/index.js",
+      "edge-light": "./src/index.ts",
+      "browser": "./src/ask-proposals/page-specs.ts",
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
     },
     "./phone-app": "./src/mobile/phone-app.ts"
   },
   "sideEffects": [
-    "./dist/*.js",
-    "./dist/browser/zod-config.js"
+    "./src/zod-config.ts"
   ],
   "scripts": {
-    "build": "node ../../tooling/scripts/lf-sources.mjs && tsup && node ../../tooling/scripts/contracts-browser.mjs",
-    "typecheck": "tsc --noEmit"
+    "build": "node ../../tooling/scripts/package-build.mjs",
+    "typecheck": "tsc -b"
   },
   "dependencies": {
     "zod": "^4.6.7"
   },
   "devDependencies": {
-    "tsup": "^8.3.0",
     "typescript": "catalog:"
   }
 }

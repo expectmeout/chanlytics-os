@@ -3515,6 +3515,7 @@ test("the Campaigns lens' ledger carries the series as the database gave it, jud
         tone: "danger",
         can_send: false,
         label: health.label,
+        standing: null,
         checked_at: "2026-09-04T12:30:00.000Z",
       },
     },
@@ -3538,6 +3539,7 @@ test("the Campaigns lens' ledger carries the series as the database gave it, jud
     tone: "ok",
     can_send: true,
     label: numberHealthOfConfig(green).label,
+    standing: null,
     checked_at: "2026-09-03T08:00:00.000Z",
   });
 
@@ -3550,6 +3552,7 @@ test("the Campaigns lens' ledger carries the series as the database gave it, jud
     tone: "danger",
     can_send: false,
     label: numberHealthOfConfig(green).label,
+    standing: { word: numberHealthOfConfig(blocked).word, sentence: numberHealthOfConfig(blocked).refusal },
     checked_at: "2026-09-03T08:00:00.000Z",
   });
   assert.deepEqual(

@@ -197,7 +197,8 @@ test("anything but a PNG of the kept shape is refused in the owner's words, befo
   setServiceClient(s.client);
   const d = door(null);
   const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, ...Buffer.alloc(64)]).toString("base64");
-  const tooBig = canvasPng(512).toString("base64");
+  // A 512 square is shrunk to the circle now (core logo-png.ts); past LOGO_FOUND_SIDE_MAX is still no logo.
+  const tooBig = canvasPng(2049).toString("base64");
   for (const image of [jpeg, tooBig, "not base64!", "abc", "A".repeat(349_532), ""])
     await refused(
       logo.PUT.run(send("PUT", { image }), ctxFor({ memberships: membership() }, d.rpcs)),

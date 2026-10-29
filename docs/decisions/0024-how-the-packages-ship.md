@@ -2,9 +2,10 @@
 
 **Status:** Accepted on 4 October 2026 (Ruben, approving the file-tree review's list as recommended). Steps 1 and 2
 built: third-party code stays an import (with this note), and the workspace's packages reach one another by relative
-path (4 October 2026, "Built" under step 2); steps 3 and 4 to come. Proposed on 29 September 2026 by the road-to-10
-health lane. Written against `1388f2cc6` (main, 29 September 2026, after #1332) and verified against the code at it;
-where this note and the code disagree, the code wins. The scorecard's move 5 ("Decide how packages ship") and
+path (4 October 2026, "Built" under step 2). Steps 3 and 4 built by decision 0074 (28 October 2026): the edge's facades
+name each package, and the packages ship as their sources, with no dist in git. Proposed on 29 September 2026 by the
+road-to-10 health lane. Written against `1388f2cc6` (main, 29 September 2026, after #1332) and verified against the code
+at it; where this note and the code disagree, the code wins. The scorecard's move 5 ("Decide how packages ship") and
 `docs/debt.md`'s two packaging rows asked for it.
 
 ## Context
@@ -102,6 +103,13 @@ wire changes.
 3. **The edge's doors import the packages as the dashboard does**, once the organization wave has removed the five
    facades, keeping a relative dist path wherever the function bundler needs one.
 4. **Committed dist leaves git** (decision 3): its own note, when a preview can prove the edge's own bundle.
+
+   **Built by decision 0074 (28 October 2026), with step 3.** The edge has bundled its own functions with esbuild since
+   #1643 (16 October), which follows the workspace's links, so a package's `exports` name its sources; the dashboard
+   compiles them (`transpilePackages`), the typecheck reads each through its project reference, and the node suite
+   reads each as a bundle its launcher builds (`bundled`), still reaching a sibling by its bundle's relative path
+   (step 2's plugin, `tooling/scripts/package-siblings.mjs`). `apps/edge/lib/packages/<p>.ts` re-exports
+   `@chanlytics/<p>`. Decisions 1 and 2 hold by construction.
 
 ## Tests
 
