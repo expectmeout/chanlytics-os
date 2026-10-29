@@ -81,9 +81,11 @@ const OUR_TS_RULES = { ...js.configs.recommended.rules, ...OURS };
  * plus switch-exhaustiveness-check, where a `default` counts as exhaustive (noImplicitReturns holds the rest), and
  * no-deprecated. Every rule is an error but those in HELD_TYPED, which had findings the day this landed: each is a
  * warning, counted per file and rule (check:debt's lint part holds each change to what it adds), and becomes an
- * error in the change that fixes its last finding: tooling/scripts/checks/lint.mjs fails a run in which a held rule has none. It costs about a minute over the tree, once per lint run, and about
- * 4 GB of heap (the dashboard's program alone is 2.8 GB, and every project's stays loaded), which is why the `lint` script
- * in package.json raises Node's heap limit: at the default 2 GB the run dies out of memory on CI's runner.
+ * error in the change that fixes its last finding: tooling/scripts/checks/lint.mjs fails a run in which a held rule has none. The
+ * project service keeps every program it opens until its process ends, and each holds the packages' sources it reads:
+ * one run over the tree came to 4.97 GB of a 5,120 MB heap (29 Oct 2026). So lint.mjs lints the tree in groups, each
+ * in a process of its own with that heap (GROUPS): the dashboard's program alone is about 3.6 GB, and lint says each
+ * group's peak, and names one near its ceiling.
  */
 const TYPED = { projectService: true, tsconfigRootDir: import.meta.dirname };
 const rulesOf = (configs) => Object.assign({}, ...configs.map((c) => c.rules ?? {}));

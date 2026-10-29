@@ -34,7 +34,7 @@ of the public will experience.
 ```bash
 corepack pnpm install
 corepack pnpm -r typecheck                    # tsc -b: each package once, under its own options, through its project reference
-corepack pnpm lint                            # ESLint: an error fails; the warnings, per file and rule, are check:debt's to hold
+corepack pnpm lint                            # ESLint: an error fails; the warnings, per file and rule, are check:debt's to hold; in groups, each its own process (lint.mjs GROUPS), and it says each group's peak heap
 corepack pnpm format                          # Prettier over the tree; the pre-commit hook does this for staged files
 corepack pnpm test                            # the node suite, in UTC (~20 min; run the files a change touches instead, one per command: node tooling/scripts/checks/test.mjs <file>), and what it ran of the code held at a floor; database suites skip without credentials
 TEST_TZ=Pacific/Auckland corepack pnpm test   # the same suite with the clock twelve hours east: CI's second leg (PowerShell: $env:TEST_TZ='Pacific/Auckland'). CI runs both legs only on a pull request labelled `suite`, or by hand (Ruben, 1 Oct 2026); every other pull request runs the tests of what it changed (tooling/scripts/checks/changed-tests.mjs), never the whole suite (Ruben, 10 Oct 2026: a push is through CI in under ten minutes), and the nightly the whole suite

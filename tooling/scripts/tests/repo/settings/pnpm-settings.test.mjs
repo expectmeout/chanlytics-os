@@ -45,7 +45,7 @@ test("the catalog is manual: strict mode wrote every updated dependency into the
 test("the overrides lift each advisory to its first fixed version, and query-string is patched for the ESM decoder", () => {
   const overrides = settingBlock("overrides");
   assert.equal(overrides["uuid@<11.1.1"], "^11.1.1", "GHSA-w5hq-g745-h8pq");
-  assert.equal(overrides["decode-uri-component@<0.5.0"], "^0.5.0", "GHSA-vcc3-ghjq-m6fr");
+  assert.equal(overrides["decode-uri-component@<0.5.1"], "^0.5.1", "GHSA-vcc3-ghjq-m6fr, then GHSA-qr28-fpjm-wq7f");
   assert.equal(overrides["source-map-js@<1.2.2"], "^1.2.2", "GHSA-68fv-2mgg-jv7q, through Next's postcss");
   assert.equal(overrides["sharp@<0.35.5"], "^0.35.5", "GHSA-wq5f-xc86-pv6w, through Next");
   assert.equal(overrides["shell-quote@<1.11.0"], "^1.11.0", "GHSA-pqg4-j6r4-53mv, through react-native's devtools");
