@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
+  DEFAULT_TIMEZONE,
   PARTNER_COOKIE,
   PARTNER_WORDS,
   SIGNUP_WORDS,
@@ -57,9 +58,9 @@ export interface CreatedWorkspace {
  */
 function browserZone(): string {
   try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || "America/New_York";
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || DEFAULT_TIMEZONE;
   } catch {
-    return "America/New_York";
+    return DEFAULT_TIMEZONE;
   }
 }
 
