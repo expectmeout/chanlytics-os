@@ -552,8 +552,7 @@ test("wiring: the saga's ports, the receptionist shared with voice-provision, th
   );
   assert.ok(lib.includes("ensure: () => ensureVoiceAgent(db, cfg, secrets, tenant)"));
   assert.ok(/provider: "twilio-sip",\s*line_id: lineId/.test(lib), "the routing row names its line");
-  const client = lib.slice(lib.indexOf("export function lineForClient"), lib.indexOf("export function linePorts"));
-  assert.ok(!/_sid/.test(client), "no provider SID reaches the page");
+  // That no provider SID reaches the page is run in forwarding.test.mjs, on a row holding every one.
   const agent = readCode("apps/edge/lib/voice/voice-agent.ts");
   for (const pin of [
     "createRetellLlm(cfg, voiceLlmCreateBody(secrets, fnUrl))",

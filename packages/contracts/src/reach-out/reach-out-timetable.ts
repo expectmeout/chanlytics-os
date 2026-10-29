@@ -14,7 +14,8 @@
  * searched, and a lead's open spans are worked out once per zone and week, since most leads share both.
  */
 import { dayPlusInZone, localToUtcMs } from "../calendar/zone-math";
-import { DEFAULT_WEEK, type OpenWindow, type WeekHours, type WeekdayKey } from "./lead-hours";
+import type { WeekdayKey } from "../calendar/day-keys";
+import { DEFAULT_WEEK, type OpenWindow, type WeekHours } from "./lead-hours";
 import { DAY_MS, MIN_MS } from "../shared/time";
 
 export const SEND_WINDOW_MARGIN_MIN = 30;

@@ -6,7 +6,8 @@
  * dashboard tells the page (server/connections/mailbox-connections.ts).
  */
 import type { Tone } from "../shell/tone";
-import { MIN_MS, formatterOnUse } from "../shared/time";
+import { clockDate, clockNearWhen, clockTime } from "../shared/clock";
+import { MIN_MS } from "../shared/time";
 import {
   CUSTOMER_DOMAIN_DAILY_MAX,
   MAILBOX_HOLDS,
@@ -17,9 +18,6 @@ import {
   mailboxRampShare,
   type MailboxHold,
 } from "./mailbox-standing";
-
-/** "Oct 12": the day a hold began, as the domains' words said theirs. */
-const DAY_FMT = formatterOnUse("en-US", { month: "short", day: "numeric" });
 
 /* ------------------------------------------------------------------------------------------------ the closed sets */
 
@@ -279,11 +277,13 @@ export function mailboxHealthWords(c: MailboxCounts | null): string | null {
 
 /**
  * Where a mailbox stands, as Connections says it: `sentToday` is what it sent in the last day, when read (the row's own
- * reading by default), and its health is its counts since it was counted clean, once it has sent.
+ * reading by default), and its health is its counts since it was counted clean, once it has sent. A day or a time it
+ * says is the workspace's, `tz` (contracts clock.ts): a hold from noon UTC on Oct 1 began on Oct 2 in Auckland.
  */
 export function mailboxWords(
   m: MailboxConnectionDto,
   nowMs: number,
+  tz: string,
   sentToday: number | null = m.sent_today ?? null,
 ): MailboxWords {
   const health = mailboxHealthWords(m.counts ?? null);
@@ -315,7 +315,7 @@ export function mailboxWords(
       fix: null,
     };
   if (m.state === "held") {
-    const since = m.held_at ? DAY_FMT.format(new Date(m.held_at)) : null;
+    const since = heldSince(m, tz, nowMs);
     return {
       pill: "Held",
       tone: "warn",
@@ -331,7 +331,7 @@ export function mailboxWords(
     return {
       pill: "Done for today",
       tone: "warn",
-      day: `${MAILBOX_PROVIDER_WORDS[m.provider]}'s own daily limit: it sends again from ${clockOf(m.resting_until)}.`,
+      day: `${MAILBOX_PROVIDER_WORDS[m.provider]}'s own daily limit: it sends again from ${clockNearWhen(Date.parse(m.resting_until), tz, nowMs)}.`,
       ramp,
       health,
       fix: null,
@@ -360,9 +360,11 @@ export function mailboxWords(
   };
 }
 
-const CLOCK_FMT = formatterOnUse("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" });
-const clockOf = (iso: string): string => CLOCK_FMT.format(new Date(iso));
-const TIME_FMT = formatterOnUse("en-US", { hour: "numeric", minute: "2-digit" });
+/** "Oct 12": the day a hold began, by the workspace's calendar, or nothing when it has no moment. */
+function heldSince(m: Pick<MailboxConnectionDto, "held_at">, tz: string, nowMs: number): string | null {
+  const at = m.held_at ? Date.parse(m.held_at) : NaN;
+  return Number.isFinite(at) ? clockDate(at, tz, nowMs) : null;
+}
 
 /** Past this, a read is late (the sweep's own health wants one every 20 minutes, 00423), and the row says since when. */
 const MAILBOX_READ_LATE_MS = 20 * MIN_MS;
@@ -404,16 +406,22 @@ export const MAILBOX_SIGNATURE_WORDS = {
 
 /**
  * What the Gmail choice says it signs with: Gmail's signature as words, or, with none, the name that ends its emails;
- * and when Gmail's was read, which a save reads again. A Microsoft mailbox signs with its name.
+ * and when Gmail's was read, by the workspace's clock, which a save reads again. A Microsoft mailbox signs with its name.
  */
-export function mailboxGmailSignsWords(m: Pick<MailboxConnectionDto, "provider" | "from_name" | "signs">): {
+export function mailboxGmailSignsWords(
+  m: Pick<MailboxConnectionDto, "provider" | "from_name" | "signs">,
+  tz: string,
+  nowMs: number,
+): {
   words: string;
   read: string;
 } {
   const gmailWords = m.signs.gmail;
   if (m.provider !== "google") return { words: m.from_name, read: "Its emails end with the name it sends as." };
   const at = m.signs.gmail_read_at;
-  const read = at ? `Read from Gmail at ${clockOf(at)}. Saving reads it again.` : "Saving reads it from Gmail now.";
+  const read = at
+    ? `Read from Gmail ${clockNearWhen(Date.parse(at), tz, nowMs)}. Saving reads it again.`
+    : "Saving reads it from Gmail now.";
   return gmailWords
     ? { words: gmailWords, read }
     : { words: m.from_name, read: `Gmail has none for this address, so its emails end with its name. ${read}` };
@@ -457,12 +465,16 @@ export function mailboxSignsAsWords(m: Pick<MailboxConnectionDto, "signs">): str
   return first ?? MAILBOX_CARD_WORDS.noSignature;
 }
 
-/** "Read at 9:47 AM", or, past a late read, "Not read since Mon 9:47 PM"; "Not read yet" before the first. */
-function mailboxReadWords(syncedAt: string | null, nowMs: number): string {
+/**
+ * "Read at 9:47 AM", or, past a late read, "Not read since yesterday 9:47 PM" (or "Mon 9:47 PM", or past a week "Oct 2 ·
+ * 9:47 PM"); "Not read yet" before the first. By the workspace's clock.
+ */
+function mailboxReadWords(syncedAt: string | null, nowMs: number, tz: string): string {
   if (!syncedAt) return "Not read yet";
-  return nowMs - Date.parse(syncedAt) > MAILBOX_READ_LATE_MS
-    ? `Not read since ${clockOf(syncedAt)}`
-    : `Read at ${TIME_FMT.format(new Date(syncedAt))}`;
+  const at = Date.parse(syncedAt);
+  return nowMs - at > MAILBOX_READ_LATE_MS
+    ? `Not read since ${clockNearWhen(at, tz, nowMs)}`
+    : `Read at ${clockTime(at, tz)}`;
 }
 
 /** "3 people wrote today": the people whose email came in through it in the last day, as its `day` counts its sends. */
@@ -472,8 +484,8 @@ function mailboxWroteWords(people: number): string {
 }
 
 /** What a mailbox's row says (MailboxRowWords): its mail read, who wrote, and what keeps it from sending. */
-export function mailboxRowWords(m: MailboxConnectionDto, nowMs: number): MailboxRowWords {
-  const w = mailboxWords(m, nowMs);
+export function mailboxRowWords(m: MailboxConnectionDto, nowMs: number, tz: string): MailboxRowWords {
+  const w = mailboxWords(m, nowMs, tz);
   if (m.state === "reconnect" || m.state === "removed")
     return {
       pill: w.pill,
@@ -485,7 +497,10 @@ export function mailboxRowWords(m: MailboxConnectionDto, nowMs: number): Mailbox
           : `${MAILBOX_PROVIDER_WORDS[m.provider]} signed it out: nothing is read from it or sent until it's connected again.`,
       fix: w.fix,
     };
-  const cameIn = [mailboxReadWords(m.synced_at ?? null, nowMs), m.came_in == null ? null : mailboxWroteWords(m.came_in)]
+  const cameIn = [
+    mailboxReadWords(m.synced_at ?? null, nowMs, tz),
+    m.came_in == null ? null : mailboxWroteWords(m.came_in),
+  ]
     .filter(Boolean)
     .join(" · ");
   if (m.state === "paused")
@@ -497,7 +512,7 @@ export function mailboxRowWords(m: MailboxConnectionDto, nowMs: number): Mailbox
       fix: null,
     };
   if (m.state === "held") {
-    const since = m.held_at ? DAY_FMT.format(new Date(m.held_at)) : null;
+    const since = heldSince(m, tz, nowMs);
     return {
       pill: w.pill,
       tone: w.tone,
@@ -513,8 +528,8 @@ export function mailboxRowWords(m: MailboxConnectionDto, nowMs: number): Mailbox
  * What its sending stands at, a line each, under the row when asked for: its day (while it sends), its ramp, its
  * health, the customer domain's ceiling, and the ramp's rule. A paused or held mailbox's row says why already.
  */
-export function mailboxSendingLines(m: MailboxConnectionDto, nowMs: number): string[] {
-  const w = mailboxWords(m, nowMs);
+export function mailboxSendingLines(m: MailboxConnectionDto, nowMs: number, tz: string): string[] {
+  const w = mailboxWords(m, nowMs, tz);
   const top = Math.max(...MAILBOX_RAMP.map((s) => s.perDay));
   return [
     m.state === "connected" ? w.day : null,
@@ -698,7 +713,9 @@ export const MAILBOX_DNS_WORDS = {
   title: (host: string) => `${host}'s DNS`,
   sub: (address: string) => `So mail from ${address} is trusted`,
   found: (found: number, total: number) => `${found} of ${total} found`,
-  checked: (at: string | null) => (at ? `Checked ${clockOf(at)}` : "Not checked yet"),
+  /** When its records were last read, by the workspace's clock: "Checked yesterday 9:47 PM". */
+  checked: (at: string | null, tz: string, nowMs: number) =>
+    at ? `Checked ${clockNearWhen(Date.parse(at), tz, nowMs)}` : "Not checked yet",
   where: (host: string) => `Add them where you manage ${host}'s DNS. A change can take up to an hour to show.`,
   state: { add: "Add this", change: "Change this", made: "Turn on", found: "Found", unread: "Not read yet" },
   host: "Host",

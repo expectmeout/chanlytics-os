@@ -37,6 +37,7 @@ import {
   workspacelessStatements,
   headerOf,
   durationsIn,
+  zonelessDatesIn,
   inlineStyles,
   handRoutesIn,
   seedReadsOutsideADemo,
@@ -96,6 +97,9 @@ const TIMED = SRC.filter(
       f,
     ) && f !== "packages/contracts/src/shared/time.ts",
 );
+
+/** Where a date said with no zone is counted: every module that runs, the tests and what a package builds left out. */
+const ZONED = SRC.filter((f) => !/(^|\/)test\/|\.test\.|^packages\/[^/]+\/(?!src\/)/.test(f));
 
 /**
  * The dashboard's stylesheets, which the interface kit's measures hold
@@ -570,6 +574,20 @@ export const MEASURES = [
     },
     advice:
       "Name the length of time: a whole minute, hour or day from contracts' shared/time.ts (5 * MIN_MS, DAY_MS), anything else a constant in its module that says what it is (const RETRY_MS = 800; const LEASE_MS = 5 * MIN_MS). A value that is not a time says its unit in its name (RADIUS_MAX_M, TAB_TOTAL_CHARS).",
+  },
+  {
+    name: "dates said with no zone",
+    key: "zoneless-dates",
+    measure: () => {
+      const out = {};
+      for (const f of ZONED) {
+        const n = zonelessDatesIn(parse(f)).length;
+        if (n > 0) out[f] = n;
+      }
+      return out;
+    },
+    advice:
+      "Say it by the workspace's clock: contracts' clock.ts (clockTime, clockDate, clockNearWhen and the rest) with the workspace's zone, which a page reads from pageClock().zone() and a server from its tenant, or dateFormat(locale, { timeZone, … }). A day key, which is no instant, is formatted from its UTC noon with timeZone: \"UTC\" (calendar-words.ts).",
   },
   {
     name: "breakpoints outside the set",

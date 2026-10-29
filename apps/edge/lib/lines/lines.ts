@@ -26,7 +26,7 @@ import {
   type ProvisionSecrets,
 } from "../packages/channels.js";
 import { ensureVoiceAgent } from "../voice/voice-agent.js";
-import type { LineDto } from "../packages/contracts.js";
+import { lineDtoOf, type LineDto } from "../packages/contracts.js";
 import { env } from "../env.js";
 import { edgeFnUrl } from "../dashboard-origin.js";
 
@@ -80,34 +80,11 @@ function isRegistered(r: Pick<Row, "brand_sid" | "campaign_sid">): boolean {
 }
 
 /**
- * What the page may see of a line: never a SID that opens a door.
- *
- * Typed as the CONTRACT the page reads, not as a loose object. It was a
- * `Record<string, unknown>`, so this shape and `contracts/setup.ts`'s
- * `LineDto` were two hand-kept copies of one thing: a field added on one
- * side and forgotten on the other compiled cleanly and arrived undefined.
+ * What the page may see of a line: never a SID that opens a door. The one builder the dashboard's read of the lines
+ * uses too (contracts lineDtoOf), with `registered`, which only this side may say: it holds the brand and the campaign.
  */
 export function lineForClient(r: Row): LineDto {
-  return {
-    id: r.id,
-    e164: r.e164,
-    kind: r.kind,
-    provider: r.provider,
-    area_code: r.area_code,
-    voice_state: r.voice_state as LineDto["voice_state"],
-    sms_state: r.sms_state,
-    reg_step: r.reg_step,
-    reg_mock: r.reg_mock,
-    reg_sole_prop: r.reg_sole_prop,
-    registered: isRegistered(r),
-    whatsapp_state: r.whatsapp_state,
-    port_state: r.port_state,
-    forwarding_state: r.forwarding_state,
-    step: r.step,
-    last_error: r.last_error,
-    state_since: r.state_since,
-    created_at: r.created_at,
-  };
+  return lineDtoOf(r, isRegistered(r));
 }
 
 export function linePorts(

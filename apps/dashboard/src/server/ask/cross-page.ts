@@ -1,4 +1,5 @@
 import {
+  dayWordIn,
   fenced,
   parseLeadsRoute,
   skillGuide,
@@ -27,21 +28,9 @@ import { calledName, type ToolRun } from "./tools";
  */
 export const CROSS_PAGE_MAX = 2;
 
-const DAY_WORDS: Array<[RegExp, string]> = [
-  [/\b(tomorrow|mañana)\b/i, "tomorrow"],
-  [/\b(today|hoy)\b/i, "today"],
-  [/\b(mon|monday|lunes)\b/i, "mon"],
-  [/\b(tue|tuesday|martes)\b/i, "tue"],
-  [/\b(wed|wednesday|miércoles|miercoles)\b/i, "wed"],
-  [/\b(thu|thursday|jueves)\b/i, "thu"],
-  [/\b(fri|friday|viernes)\b/i, "fri"],
-  [/\b(sat|saturday|sábado|sabado)\b/i, "sat"],
-  [/\b(sun|sunday|domingo)\b/i, "sun"],
-];
-
+/** The day a question names, as the calendar tool takes it (contracts dayWordIn), or `fallback`. */
 function dayOf(q: string, fallback: string): string {
-  for (const [re, d] of DAY_WORDS) if (re.test(q)) return d;
-  return fallback;
+  return dayWordIn(q) ?? fallback;
 }
 
 function daysOf(q: string): 7 | 30 | 90 {

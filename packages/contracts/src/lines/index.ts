@@ -54,6 +54,8 @@ export {
 export type { ChannelDto, ChannelHealth, ChannelPickable, ChannelVM } from "./channels";
 export { LINE_CODES_EVERY_MS, LINE_CODES_MAX, LINE_CODES_WITHIN_MS } from "./line-codes";
 export type { LineCodeDto } from "./line-codes";
+export { lineDtoOf } from "./line-dto";
+export type { LineFacts } from "./line-dto";
 export { LINE_CREDENTIALS_SENTENCE, lineCredentialFailure } from "./line-failure";
 export {
   billingEndedAt,

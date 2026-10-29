@@ -21,7 +21,7 @@ import type { Closure, Hours } from "../config/workspace-config/business-profile
 import { DAYS } from "../config/workspace-config/config-rules";
 import { NO_LINK_DETAILS } from "../config/no-booking-link";
 import { BOOKING_REQUEST_INSTRUCTION } from "./visit/booking-request";
-import { keyParts } from "./day-keys";
+import { keyParts, weekdayNamed } from "./day-keys";
 import { WEEKDAY_KEYS, clockInZone, dayPlusInZone, localToUtcMs } from "./zone-math";
 import type { BusyBlock } from "./feed";
 import { dateFormat } from "../shared/time";
@@ -191,26 +191,6 @@ export function freeWindows(input: FreeWindowsInput): Opening[] {
   return out;
 }
 
-const DAY_NAMES: Record<string, string> = {
-  mon: "mon",
-  monday: "mon",
-  tue: "tue",
-  tues: "tue",
-  tuesday: "tue",
-  wed: "wed",
-  wednesday: "wed",
-  thu: "thu",
-  thur: "thu",
-  thurs: "thu",
-  thursday: "thu",
-  fri: "fri",
-  friday: "fri",
-  sat: "sat",
-  saturday: "sat",
-  sun: "sun",
-  sunday: "sun",
-};
-
 /**
  * The openings a caller actually asked about: one day (a date or a weekday
  * name), and only windows long enough for the service they want. Days with
@@ -221,7 +201,7 @@ export function filterOpenings(
   by: { day?: string | null; minMinutes?: number | null },
 ): Opening[] {
   const day = (by.day ?? "").trim().toLowerCase();
-  const weekday = day ? DAY_NAMES[day] : undefined;
+  const weekday = weekdayNamed(day) ?? undefined;
   const key = /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : undefined;
   const minMs = by.minMinutes && by.minMinutes > 0 ? by.minMinutes * 60_000 : 0;
   const picked = openings.filter((o) => (key ? o.key === key : weekday ? o.weekday === weekday : true));

@@ -1059,14 +1059,9 @@ test("the wiring for lines: routes owner-only and rate-limited, the setup route 
     !/_sid/.test(server.slice(server.indexOf("LINE_COLUMNS"), server.indexOf("export async function linesFor"))),
     "no provider id is selected for the page",
   );
-  // Two hand-kept copies of one mapper: the edge builds a LineDto from the full
-  // row, the dashboard from the columns a member may read. A field added to the
-  // contract and forgotten on this side compiles cleanly and arrives undefined
-  // -- which is how Setup would have called a mock filing "approved".
-  for (const field of ["reg_mock", "reg_step"]) {
-    assert.ok(server.includes(`${field},`) || server.includes(`${field} `), `${field} is selected`);
-    assert.ok(server.includes(`${field}: r.${field},`), `${field} reaches the page`);
-  }
+  // The edge's verb answers and this read build a line with one builder (contracts lineDtoOf), run on both sides in
+  // lines/forwarding.test.mjs: a field the read did not select arrived undefined, which is how Setup would have called
+  // a mock filing "approved".
   assert.ok(
     /lines: \{\s*rows: lineRows,\s*ready: lineStatus\.ready,\s*provider: lineStatus\.provider,\s*costs: \{ local_number_month_usd: lineStatus\.costs\.local_number_month_usd \},?\s*\},/.test(
       readCode("apps/dashboard/src/server/workspace/setup.ts"),

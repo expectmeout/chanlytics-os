@@ -6,56 +6,22 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db";
-import type { LineCodeDto, LineDto } from "@chanlytics/contracts";
+import { MIN_MS, lineDtoOf, type LineCodeDto, type LineDto } from "@chanlytics/contracts";
 import { callEdge, edgeConfigured, type EdgeAnswer } from "../edge";
 import { deployment } from "../env";
-import { MIN_MS } from "@chanlytics/contracts";
 
 /** The columns the page may see — the lines_member_select policy scopes the rows. */
 const LINE_COLUMNS =
   "id, e164, kind, provider, area_code, voice_state, sms_state, reg_step, reg_mock, reg_sole_prop, whatsapp_state, port_state, forwarding_state, step, last_error, state_since, created_at, facts";
 
-/** A forwarded line's facts, in words only — never a provider id from a provisioned line's facts. */
-function forwardingOf(kind: string, facts: unknown): LineDto["forwarding"] {
-  if (kind !== "forwarded" || !facts || typeof facts !== "object" || Array.isArray(facts)) return null;
-  const f = facts as Record<string, unknown>;
-  const str = (k: string) => (typeof f[k] === "string" ? f[k] : null);
-  return {
-    carrier: str("carrier") ?? "other",
-    mode: str("mode") ?? "unanswered",
-    destination_e164: str("destination_e164"),
-    test_until: str("test_until"),
-    verified_at: str("verified_at"),
-  };
-}
-
+/**
+ * The workspace's lines, as the page is told of them (contracts lineDtoOf, the edge's verb answers' own builder).
+ * `registered` is not said here: it is derived from the brand and campaign SIDs, and no provider id crosses this boundary.
+ */
 export async function linesFor(db: SupabaseClient<Database>, tenantId: string): Promise<LineDto[]> {
   const { data, error } = await db.from("lines").select(LINE_COLUMNS).eq("tenant_id", tenantId).order("created_at");
   if (error) throw new Error(error.message);
-  return (data ?? []).map((r) => ({
-    id: r.id,
-    e164: r.e164,
-    kind: r.kind,
-    provider: r.provider,
-    area_code: r.area_code,
-    voice_state: r.voice_state as LineDto["voice_state"],
-    sms_state: r.sms_state,
-    // The registration, in words the page may hold. `registered` is NOT set
-    // here: it is derived from the brand and campaign SIDs, and no provider id
-    // crosses this boundary -- so anything the page decides must be decidable
-    // from reg_mock, reg_sole_prop and sms_state alone.
-    reg_step: r.reg_step,
-    reg_mock: r.reg_mock,
-    reg_sole_prop: r.reg_sole_prop,
-    whatsapp_state: r.whatsapp_state,
-    port_state: r.port_state,
-    forwarding_state: r.forwarding_state,
-    step: r.step,
-    last_error: r.last_error,
-    state_since: r.state_since,
-    created_at: r.created_at,
-    forwarding: r.kind === "forwarded" ? forwardingOf(r.kind, r.facts) : null,
-  }));
+  return (data ?? []).map((r) => lineDtoOf(r));
 }
 
 /** How long a lines verb waits on the edge unless its caller says: buy, register, retry and the platform's line actions. */

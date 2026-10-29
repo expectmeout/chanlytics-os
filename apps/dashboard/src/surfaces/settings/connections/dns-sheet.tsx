@@ -8,6 +8,7 @@
  */
 import { useState } from "react";
 import type { MailboxConnectionDto, MailboxRecordRow } from "@chanlytics/contracts";
+import { pageClock } from "@/legacy-bridge/zone";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { RecordSheet } from "../../kit/record/sheet";
@@ -181,7 +182,7 @@ export const DnsSheet = ({
       <div className="set-dns-top">
         <div className="set-dns-row">
           <b data-testid="mailbox-dns-found">{DNS_WORDS.found(dns.found, dns.total)}</b>
-          <span>{DNS_WORDS.checked(m.dns_checked_at)}</span>
+          <span>{DNS_WORDS.checked(m.dns_checked_at, pageClock().zone(), Date.now())}</span>
         </div>
         <div className="set-dns-bar" aria-hidden="true">
           {dns.rows.map((r) => (

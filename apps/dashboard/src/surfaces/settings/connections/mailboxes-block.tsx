@@ -26,6 +26,7 @@ import {
   type SetupDto,
 } from "@chanlytics/contracts";
 import type { ApiResult } from "@/client/api";
+import { pageClock } from "@/legacy-bridge/zone";
 import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Face } from "../../kit/face/face";
@@ -286,8 +287,8 @@ function dnsNeed(m: MailboxConnectionDto) {
  * One mailbox of several: what came in through it and its pill, its act and its caret, and its records while one is
  * missing. Its settings open in the card's sheet.
  */
-function mailboxRow(m: MailboxConnectionDto, ctx: RowContext, now: number) {
-  const r = MAILBOXES.row(m, now);
+function mailboxRow(m: MailboxConnectionDto, ctx: RowContext, now: number, zone: string) {
+  const r = MAILBOXES.row(m, now, zone);
   const missing = missingOf(m);
   return (
     <Fragment key={m.id}>
@@ -501,8 +502,8 @@ function cardFacts(one: MailboxConnectionDto | null, imports: readonly ImportRow
 }
 
 /** The card's words beside its tile: Email, then the one mailbox's address and what came in, or how many there are. */
-function cardWords(r: ConnectionRow, one: MailboxConnectionDto | null, now: number) {
-  const w = one ? MAILBOXES.row(one, now) : null;
+function cardWords(r: ConnectionRow, one: MailboxConnectionDto | null, now: number, zone: string) {
+  const w = one ? MAILBOXES.row(one, now, zone) : null;
   return (
     <span className="set-team-body">
       <span className="set-int-head">
@@ -557,8 +558,10 @@ export function EmailCard({ r, email, imports, businessName, flash, note, onNote
   const boxes = email.sending?.mailboxes ?? [];
   const providers = email.sending?.providers ?? [];
   const now = Date.now();
+  // A day or a time the card says is the workspace's, never the browser's.
+  const zone = pageClock().zone();
   const one = boxes.length === 1 ? (boxes.at(0) ?? null) : null;
-  const w = one ? MAILBOXES.row(one, now) : null;
+  const w = one ? MAILBOXES.row(one, now, zone) : null;
   // The mailbox whose settings, or whose DNS, is open in its sheet.
   const armedOf = (what: Arm["what"]) => (arm?.what === what ? (boxes.find((m) => m.id === arm.id) ?? null) : null);
   const opened = armedOf("settings");
@@ -574,7 +577,7 @@ export function EmailCard({ r, email, imports, businessName, flash, note, onNote
         data-offers="split"
       >
         <Face className="set-int-tile" data-kind="mailbox" data-on="true" glyph={<Icon name={r.icon} size={15} />} />
-        {cardWords(r, one, now)}
+        {cardWords(r, one, now, zone)}
         <StatePill kind="tone" value={w ? w.tone : r.tone} label={w ? w.pill : r.stateWords} />
         {one ? mailboxActions(one, missingOf(one), ctx) : <span className="set-int-actions" />}
         <div className="set-mbx-below">
@@ -601,7 +604,7 @@ export function EmailCard({ r, email, imports, businessName, flash, note, onNote
           {one ? (
             <>{mailboxQuestions(one, w?.fix ?? null, ctx)}</>
           ) : (
-            <div className="set-domains">{boxes.map((m) => mailboxRow(m, ctx, now))}</div>
+            <div className="set-domains">{boxes.map((m) => mailboxRow(m, ctx, now, zone))}</div>
           )}
           <div className="set-mbx-foot">
             <div className="set-mbx-left">
