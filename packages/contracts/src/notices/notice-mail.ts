@@ -11,9 +11,10 @@
  *   - anything else is a paragraph, its addresses links.
  *
  * Its tone (a chip: needs you, good news) and the words on its one button are the bell's for the same row
- * (serverNotificationRows), so the mail, the bell and the phone say one thing. Table-built with inline styles, as
- * inboxes draw mail; a dark inbox reads the same palette's dark side from the head's one media rule.
+ * (serverNotificationRows), so the mail, the bell and the phone say one thing. Drawn in the frame a business's letter
+ * to its customer is drawn in (look/mail-frame.ts), with Chanlytics' mark and coral.
  */
+import { INK, INK_2, INK_3, LINE, mailButtonHtml, mailFrameHtml } from "../look/mail-frame";
 import { escapeHtml, linkifyEscaped } from "../shared/html";
 import { serverNotificationRows } from "../today/notifications";
 
@@ -61,12 +62,7 @@ function blocksOf(body: string): Block[] {
     });
 }
 
-const INK = "#1f2026";
-const INK_2 = "#4b4d5a";
-const INK_3 = "#6b6d7a";
-const LINE = "#e3e4ec";
 const ACTION = "#c4452e";
-const FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Helvetica,Arial,sans-serif";
 const LINK_STYLE = `color:${ACTION};text-decoration:underline`;
 
 /** Words into the mail: escaped, addresses linked, line breaks kept. */
@@ -132,41 +128,33 @@ function mailPreviewOf(blocks: Block[]): string {
   return line.slice(0, 140);
 }
 
-const DARK = `@media (prefers-color-scheme:dark){.bg{background:#121317!important}.card{background:#1d1e23!important;border-color:#2c2d35!important}.ink{color:#f1f1f4!important}.ink2{color:#c3c4cc!important}.ink3{color:#9a9ba6!important}.line{border-color:#2c2d35!important}.tile{background:#f1f1f4!important;color:#17181c!important}.quote{background:#24252b!important}.chip-warn{background:#3a2e17!important;color:#f0cf8c!important}.chip-ok{background:#163828!important;color:#8fd6ae!important}.card p a,.card table.line a{color:#f19a85!important}.foot a{color:#c3c4cc!important}}
-@media (max-width:620px){.wrap{width:100%!important}.pad{padding:22px 20px!important}}`;
+/** The dark side of the alert's own classes: its rules, its mark's tile, a quote, the chips and its links. */
+const DARK = `.line{border-color:#2c2d35!important}.tile{background:#f1f1f4!important;color:#17181c!important}.quote{background:#24252b!important}.chip-warn{background:#3a2e17!important;color:#f0cf8c!important}.chip-ok{background:#163828!important;color:#8fd6ae!important}.card p a,.card table.line a{color:#f19a85!important}.foot a{color:#c3c4cc!important}`;
 
 /** An alert's HTML: the layout, the words as the text mail says them, the bell's chip and button. */
 export function noticeMailHtml(m: NoticeMail): string {
   const blocks = blocksOf(m.body);
   const look = bellLookOf(m);
   const chip = look.tone === "warn" || look.tone === "ok" ? CHIPS[look.tone] : null;
-  const button = m.href
-    ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:4px 0 0"><tr><td style="border-radius:10px;background:${ACTION}"><a href="${escapeHtml(m.href)}" style="display:inline-block;padding:13px 22px;font-size:15px;font-weight:600;line-height:18px;color:#ffffff;text-decoration:none;border-radius:10px">${escapeHtml(look.action)}</a></td></tr></table>`
-    : "";
+  const button = m.href ? mailButtonHtml(look.action, m.href, ACTION) : "";
   const foot = m.workspace
     ? `You get this because this address is on ${escapeHtml(m.workspace)}’s alert list.` +
       (m.settingsHref
         ? ` Choose what’s emailed in <a href="${escapeHtml(m.settingsHref)}" style="color:${INK_2};text-decoration:underline">Settings › Notifications</a>.`
         : "")
     : "A Chanlytics platform alert.";
-  return `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="color-scheme" content="light dark"><meta name="supported-color-schemes" content="light dark">
-<title>${escapeHtml(m.subject)}</title><style>${DARK}</style></head>
-<body class="bg" style="margin:0;padding:0;background:#f6f7fa">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0">${escapeHtml(mailPreviewOf(blocks))}</div>
-<table role="presentation" class="bg" width="100%" cellpadding="0" cellspacing="0" style="background:#f6f7fa;font-family:${FONT}"><tr><td align="center" style="padding:28px 12px">
-<table role="presentation" class="wrap" width="560" cellpadding="0" cellspacing="0" style="width:560px;max-width:560px">
-<tr><td style="padding:0 4px 14px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+  return mailFrameHtml({
+    subject: m.subject,
+    preview: mailPreviewOf(blocks),
+    top: `<tr><td style="padding:0 4px 14px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
 <td style="font-size:14px;font-weight:600;color:${INK}" class="ink"><span class="tile" style="display:inline-block;width:22px;height:22px;line-height:22px;border-radius:6px;background:${INK};color:#ffffff;text-align:center;font-size:12px;font-weight:700;vertical-align:middle">C</span>&nbsp;&nbsp;<span style="vertical-align:middle">Chanlytics</span></td>
 <td align="right" class="ink3" style="font-size:12px;color:${INK_3}">${m.workspace ? escapeHtml(m.workspace) : ""}</td>
-</tr></table></td></tr>
-<tr><td class="card pad" style="background:#ffffff;border:1px solid ${LINE};border-radius:14px;padding:26px 28px">
-${chip ? `<p style="margin:0 0 14px"><span class="${chip.cls}" style="display:inline-block;padding:4px 10px;border-radius:999px;background:${chip.bg};color:${chip.ink};font-size:12px;font-weight:600">${chip.words}</span></p>` : ""}
+</tr></table></td></tr>`,
+    card: `${chip ? `<p style="margin:0 0 14px"><span class="${chip.cls}" style="display:inline-block;padding:4px 10px;border-radius:999px;background:${chip.bg};color:${chip.ink};font-size:12px;font-weight:600">${chip.words}</span></p>` : ""}
 <h1 class="ink" style="margin:0 0 14px;font-size:22px;line-height:1.25;font-weight:700;color:${INK}">${escapeHtml(m.subject)}</h1>
 ${blocks.map((b) => blockHtml(b, m.href)).join("\n")}
-${button}
-</td></tr>
-<tr><td class="ink3 foot" style="padding:16px 4px 0;font-size:12px;line-height:1.6;color:${INK_3}">${foot}</td></tr>
-</table></td></tr></table></body></html>`;
+${button}`,
+    foot: `<tr><td class="ink3 foot" style="padding:16px 4px 0;font-size:12px;line-height:1.6;color:${INK_3}">${foot}</td></tr>`,
+    dark: DARK,
+  });
 }
