@@ -23174,7 +23174,7 @@ declare
   v_signed   text := nullif(btrim(coalesce(p_chain->>'signed_by', '')), '');
   v_unconf   boolean := coalesce((p_chain->>'include_unconfirmed')::boolean, false);
   v_owner    boolean := coalesce((p_chain->>'owner_sends')::boolean, false);
-  -- How its emails end (00491, decision 0077): only a body that names it changes it.
+  -- How its emails end (00492, decision 0077): only a body that names it changes it.
   v_signs    text := case p_chain->>'signs_with' when 'mailbox' then 'mailbox' when 'name' then 'name' end;
   v_mailboxes uuid[] := coalesce(
                array(select x::uuid from jsonb_array_elements_text(coalesce(p_chain->'mailbox_ids', '[]'::jsonb)) x), '{}');
@@ -26689,7 +26689,7 @@ begin
       raise exception 'Sequence not found.' using errcode = 'P0002';
     end if;
   else
-    -- Sent from the workspace's connected mailboxes whose SPF and DKIM are not missing (00491, decision 0077), else from
+    -- Sent from the workspace's connected mailboxes whose SPF and DKIM are not missing (00492, decision 0077), else from
     -- every connected one; with none, or where New said so, handed to the owner to send from their own inbox (00465).
     select coalesce(array_agg(c.id order by c.created_at), '{}') into v_boxes
       from public.mailbox_connections c
@@ -35721,7 +35721,7 @@ COMMENT ON COLUMN public.sequence_steps.words_ok_at IS 'When a person last let a
 -- Name: COLUMN sequence_steps.signs_with; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.sequence_steps.signs_with IS 'How a sequence to leads ends its emails (00491, decision 0077), read on its first step: ''name'', its Signed line (signed_by) under the words, unless their last line names it; ''mailbox'', its mailbox''s own signature, except on a first email when that signature carries a link, which then ends with the name. Written by reach_out_save; members have no grant on it.';
+COMMENT ON COLUMN public.sequence_steps.signs_with IS 'How a sequence to leads ends its emails (00492, decision 0077), read on its first step: ''name'', its Signed line (signed_by) under the words, unless their last line names it; ''mailbox'', its mailbox''s own signature, except on a first email when that signature carries a link, which then ends with the name. Written by reach_out_save; members have no grant on it.';
 
 
 --
