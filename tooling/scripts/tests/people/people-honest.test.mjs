@@ -20,7 +20,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { legacyAddress, historyOf } from "../shell/address/_address.mjs";
-import { installRoleStore, kitPages, peoplePages, useStubHooks } from "../_legacy-react.mjs";
+import { installRoleStore, kitPages, peoplePages, until, useStubHooks } from "../_legacy-react.mjs";
 import {
   CONSENT_SOURCES,
   ROLE_PERMS,
@@ -582,11 +582,6 @@ const tick = () => new Promise((r) => setTimeout(r, 0));
 const settle = async (n = 8) => {
   for (let i = 0; i < n; i += 1) await tick();
 };
-/** Until a condition holds, waited for by looking (the two clocks of a busy machine differ), and said if it never does. */
-const until = async (cond, what, ms = 5000) => {
-  for (const from = Date.now(); !cond() && Date.now() - from < ms;) await tick();
-  assert.ok(cond(), `never: ${what}`);
-};
 /**
  * Every request the page has sent is answered, and the ones it was waiting to send behind them have gone out and been
  * answered too (the view's saver sends the latest view the moment the one in flight lands, a few turns after the wire
@@ -744,8 +739,10 @@ test("REGRESSION: adding people to a list counts who was added, and Undo takes o
   byTestId(tree, "select-all").props.onChange();
   tree = draw();
   const regulars = barMenuOf(tree, "Add to list").props.items.find((i) => i.label === "Regulars");
-  await regulars.onClick();
-  await settle();
+  // The menu's press hands back nothing to wait on (`void a.addTo(s)`): the add has answered when its toast is up.
+  const said = flashes.length;
+  regulars.onClick();
+  await until(() => flashes.length > said, "the add put up its toast");
   const toast = flashes.at(-1);
   assert.match(
     textOf(toast.msg),
@@ -3573,10 +3570,11 @@ test("REGRESSION: the bulk bar acts on the people shown -- a person a refresh mo
       /1 selected/,
       "REGRESSION: the bar counted a person who is not on screen",
     );
-    await barMenuOf(tree, "Add to list")
+    const said = flashes.length;
+    barMenuOf(tree, "Add to list")
       .props.items.find((i) => i.label === "Regulars")
       .onClick();
-    await settle();
+    await until(() => flashes.length > said, "the add put up its toast");
     assert.deepEqual(
       wrote(seen),
       [["PUT", "segments/s1", { add: ["p1"] }]],
@@ -3633,10 +3631,11 @@ test("REGRESSION: a search match past the people loaded is exported with the res
       ["Person 2", "Saturday Jones", "Saturday Smith"],
       "REGRESSION: the person found past the loaded rows was left out of the file",
     );
-    await barMenuOf(tree, "Add to list")
+    const said = flashes.length;
+    barMenuOf(tree, "Add to list")
       .props.items.find((i) => i.label === "Regulars")
       .onClick();
-    await settle();
+    await until(() => flashes.length > said, "the add put up its toast");
     assert.deepEqual(
       wrote(seen).map(([method, route, { add }]) => [method, route, [...add].sort()]),
       [["PUT", "segments/s1", ["p1", "p2", "p99"]]],
