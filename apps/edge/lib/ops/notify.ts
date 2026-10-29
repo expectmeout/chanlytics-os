@@ -155,7 +155,7 @@ export async function post(from: string, to: string[], subject: string, text: st
  * One mail as a whole: who it is from and to, its subject and words, the same words drawn (an alert's layout,
  * contracts noticeMailHtml) where it has them, and who a reply goes to when it is not `from`.
  */
-export interface PlatformMail {
+interface PlatformMail {
   from: string;
   to: string[];
   subject: string;
