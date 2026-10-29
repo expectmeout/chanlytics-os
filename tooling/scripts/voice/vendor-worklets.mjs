@@ -12,7 +12,7 @@
 import { createRequire } from "node:module";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const require = createRequire(path.join(ROOT, "apps/dashboard/package.json"));
@@ -60,6 +60,6 @@ export function vendorWorklets() {
   return written;
 }
 
-if (process.argv[1] && import.meta.url === new URL(`file:///${process.argv[1].replace(/\\/g, "/")}`).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   for (const [file, n] of vendorWorklets()) console.log(`wrote apps/dashboard/public/voice/${file} (${n} chars)`);
 }
