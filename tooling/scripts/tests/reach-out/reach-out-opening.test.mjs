@@ -26,6 +26,7 @@ import {
   languageBase,
   readingSystemPrompt,
   OPENING_CHARS_MAX,
+  OPENING_UNSTATED,
   wordsNeedOpening,
 } from "@chanlytics/contracts";
 
@@ -228,7 +229,7 @@ test("what an opening comes to: another language holds with no rewrite; an unbac
     hold: "unbacked_fact",
     detail: "loved by locals",
     rewrite: true,
-    why: "it said “loved by locals”, which the record does not hold",
+    why: `it said “loved by locals”, which the record does not hold; no record holds ${OPENING_UNSTATED}`,
   });
   assert.equal(openingVerdict("unbacked_number", read(), "en").hold, "unbacked_fact");
   assert.equal(openingVerdict("link", read(), "en").hold, "reads_like_spam");
@@ -315,4 +316,28 @@ test("words need an opening when their subject or their body names it", () => {
   assert.equal(wordsNeedOpening({ subject: "Hi", body: "{{ Opening }} and more" }), true);
   assert.equal(wordsNeedOpening({ subject: "{{opening}}", body: "Hi" }), true);
   assert.equal(wordsNeedOpening({ subject: null, body: "Hi {{business}}" }), false);
+});
+
+test("a rewrite is told the kind of claim the reader refused, and an angle never holds an email (29 Oct 2026)", () => {
+  // One list of what no record states: the reader refuses it, and a rewrite is told it, so the writer hears the kind of
+  // claim it made and not only its words (told the words alone, a rewrite made the same guess at how busy they are).
+  assert.match(OPENING_UNSTATED, /busyness/);
+  assert.ok(readingSystemPrompt().includes(OPENING_UNSTATED), "the reader refuses it");
+  const v = openingVerdict(null, { backed: false, unbacked: "you're busy", pitch: false, language: "en" }, "en");
+  assert.ok(v.why.includes(OPENING_UNSTATED), v.why);
+  // The angle is a tag (Reports' replies by angle): its bound is said on its field, and a long one is cut, never held.
+  assert.match(OPENING_SCHEMA.properties.angle.description, /3 words or fewer/);
+  const angle = (a) => parseOpening({ opening: "A 4.9 says a lot.", angle: a, facts_used: ["rating"] }).angle;
+  assert.equal(angle("independent shop, own site"), "independent shop");
+  assert.equal(angle("their reviews and hours"), "their reviews");
+  assert.equal(angle("high volume, high rating"), "high volume");
+  assert.equal(angle("four words is too many"), "four words");
+  assert.equal(angle("24/7 availability"), "24/7 availability");
+  assert.equal(angle("Their Reviews"), "Their Reviews");
+  const parsed = parseOpening({
+    opening: "A 4.9 from 1,204 reviews.",
+    angle: "their reviews and hours",
+    facts_used: ["rating"],
+  });
+  assert.equal(checkOpening(parsed, RECORD), null, "a true sentence with a long tag sends");
 });
