@@ -144,7 +144,7 @@ const JUDGE_TOKENS_A_PLACE = 30;
 /** Each question's key, answer and facts, in tokens (about 31 measured). */
 const JUDGE_TOKENS_A_QUESTION = 35;
 /** The calls one batch asks at once: a batch of a plan with many questions is smaller, never a crowd of calls. */
-export const LEAD_JUDGE_CALLS_AT_ONCE = 5;
+const LEAD_JUDGE_CALLS_AT_ONCE = 5;
 
 /**
  * How many places one judge call is asked about: as many as its answer can be written in, under the judge's bound, and
