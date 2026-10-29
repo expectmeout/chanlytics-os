@@ -129,6 +129,7 @@ function peopleListHead(s: PeopleState) {
                 ),
               })
             }
+            onRefused={(why) => plFlash({ tone: "danger", msg: <>{why}</> })}
             onEditRule={() => setRuleEditing(true)}
           />
         ) : activeList ? (
