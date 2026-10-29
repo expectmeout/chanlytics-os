@@ -114,12 +114,18 @@ function heldRow(c: ConversationDto, f: TodayFacts): TodayQueueRowVM | null {
   };
 }
 
+/** The ask a call's to-do ends with (unansweredCallTodo), which the row's state line and its Call already say. */
+const CALL_BACK_ASK = ` ${HOLD_ACT_WORDS.call_back.notice}`;
+
 /**
- * A call-back: the phone receptionist could not finish it. The to-do it left is the
- * sentence, the call itself is where the verb goes, Done resolves it.
+ * A call-back: the phone receptionist could not finish it. What happened is the sentence, without the ask its to-do ends
+ * with ("Hung up after 39 sec without a word."): "Needs a call back" under it and Call beside it say that (his look on a
+ * phone, 29 Oct 2026). The call itself is where the verb goes, Done resolves it.
  */
 function callbackRow(r: EscalationRecord, f: TodayFacts): TodayQueueRowVM {
   const e = r.e;
+  const todo = say(e.details);
+  const since = `since ${r.since}`;
   return {
     id: `q-${e.id}`,
     kind: "callback",
@@ -130,9 +136,11 @@ function callbackRow(r: EscalationRecord, f: TodayFacts): TodayQueueRowVM {
     initials: initialsOf(r.who),
     channel: "Phone",
     when: `waited ${formatWaited(r.waitedMs)}`,
-    sentence: say(e.details) || "The caller needs a call back.",
+    sentence:
+      (todo.endsWith(CALL_BACK_ASK) ? todo.slice(0, -CALL_BACK_ASK.length) : todo) || "The caller needs a call back.",
     quoted: false,
-    status: ["Needs a call back", `since ${r.since}`],
+    status: ["Needs a call back", since],
+    since,
     tone: "escalated",
     warn: r.warn,
     cta: {
@@ -166,6 +174,7 @@ function handoffRow(r: EscalationRecord, f: TodayFacts): TodayQueueRowVM {
 /** The handoff's row as every reason draws it. */
 function handoffOf(r: EscalationRecord, f: TodayFacts): TodayQueueRowVM {
   const e = r.e;
+  const since = `since ${r.since}`;
   return {
     id: `q-${e.id}`,
     kind: "handoff",
@@ -183,9 +192,10 @@ function handoffOf(r: EscalationRecord, f: TodayFacts): TodayQueueRowVM {
     status: [
       "Escalated",
       reasonShort(e.reason) || e.reason,
-      `since ${r.since}`,
+      since,
       ...(r.closes ? [`reply window closes ${r.closes}`] : []),
     ],
+    since,
     tone: "escalated",
     warn: r.warn,
     // The verb follows the reason's act (escalations.ts): a reply to write, a call to return, or nothing that may be sent.

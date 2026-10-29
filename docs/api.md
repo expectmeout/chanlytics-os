@@ -2112,6 +2112,7 @@ Writes; for a member of the workspace the request names, operator or above; coun
 | `mailbox_ids` | array of string (uuid) | yes | at most 10 |
 | `owner_sends` | boolean | no |  |
 | `signed_by` | string or null | yes |  |
+| `signs_with` | one of `"name"`, `"mailbox"` | no |  |
 | `steps` | array of object | yes | at least 1; at most 5 |
 
 ### `GET /api/v1/reach-outs/[id]`
@@ -2133,6 +2134,7 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 | `mailbox_ids` | array of string (uuid) | yes | at most 10 |
 | `owner_sends` | boolean | no |  |
 | `signed_by` | string or null | yes |  |
+| `signs_with` | one of `"name"`, `"mailbox"` | no |  |
 | `steps` | array of object | yes | at least 1; at most 5 |
 
 ### `DELETE /api/v1/reach-outs/[id]`
@@ -2209,6 +2211,8 @@ Writes; for a member of the workspace the request names, operator or above; coun
 | `include_unconfirmed` | boolean | yes |  |
 | `words` | object | yes |  |
 | `signed_by` | string or null | yes |  |
+| `signs_with` | one of `"name"`, `"mailbox"` | no |  |
+| `mailbox_id` | string (uuid) or null | no |  |
 | `language` | string | no | matches `^[a-z]{2,3}(_[A-Z]{2})?$` |
 
 ### `GET /api/v1/reach-outs/reach`
@@ -2458,6 +2462,7 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 | `mailbox_ids` | array of string (uuid) | yes | at most 10 |
 | `owner_sends` | boolean | no |  |
 | `signed_by` | string or null | yes |  |
+| `signs_with` | one of `"name"`, `"mailbox"` | no |  |
 | `steps` | array of object | yes | at least 1; at most 5 |
 | `source_search_id` | string or null | no |  |
 

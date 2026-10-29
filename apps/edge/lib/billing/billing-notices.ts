@@ -5,7 +5,8 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../packages/db.js";
-import { emitEvent } from "../packages/db.js";
+import { emitEvent, workspaceZoneOf } from "../packages/db.js";
+import { DEFAULT_TIMEZONE, dayWords } from "../packages/contracts.js";
 import { keepOnce, notifyOnceAs } from "../ops/notify.js";
 import { loadTenantNotifications } from "../tenant-runtime.js";
 
@@ -67,12 +68,17 @@ export async function noteTrialEnding(
   trialEnd: string | null,
   eventId: string,
 ): Promise<void> {
+  // The day is the workspace's, as Billing says it: by the server's clock, an end at 03:00 UTC was the next day's
+  // date to an owner in New York. A zone that cannot be read leaves the bell its words, by the default zone.
+  const on = trialEnd
+    ? dayWords(trialEnd, (await workspaceZoneOf(db, row.tenant_id).catch(() => null)) || DEFAULT_TIMEZONE)
+    : "";
   await ringOnce(
     db,
     row.tenant_id,
     {
       title: "Your trial ends in three days",
-      body: `The card on file is charged when the trial ends${trialEnd ? ` on ${new Date(trialEnd).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : ""}. Cancel from Billing before then if you'd rather not.`,
+      body: `The card on file is charged when the trial ends${on ? ` on ${on}` : ""}. Cancel from Billing before then if you'd rather not.`,
     },
     `stripe:${eventId}`,
   );

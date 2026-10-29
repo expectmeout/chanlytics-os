@@ -196,6 +196,7 @@ function SetupTab({
   return (
     <SetupAndLines
       setup={read.data.setup}
+      tz={read.data.tenant.timezone}
       tenantId={tenantId}
       role={me.role}
       onChanged={() => {

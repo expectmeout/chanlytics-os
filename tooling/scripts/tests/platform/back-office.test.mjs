@@ -1644,7 +1644,7 @@ test("the screens decide nothing: every verdict, word and row comes from the con
     "P.rows(tenants)",
     "P.summary(rows)",
     "verdictPill(row.verdict)",
-    "P.steps({ ...setup, later: [], rests: {} })",
+    "P.steps({ ...setup, tz, later: [], rests: {} })",
     "P.number(line.e164)",
     "P.actions(line)",
     "P.warning(arm)",

@@ -16,6 +16,7 @@ import {
   BILLING_STATUSES,
   BILLING_TRIAL_DAYS,
   CHECKOUT_RETURN_ROUTE,
+  DEFAULT_TIMEZONE,
   FIRST_RUN_TRIAL_DAYS,
   planBilling,
   type BillingPlan,
@@ -113,9 +114,10 @@ async function accountOf(db: Db, tenantId: string): Promise<BillingRow | null> {
   return data;
 }
 
-/** The workspace's switch, and when its last member left it (00262); null for no such workspace. */
-async function tenantState(db: Db, tenantId: string): Promise<{ status: string; left_empty_at: string | null } | null> {
-  const { data, error } = await db.from("tenants").select("status, left_empty_at").eq("id", tenantId).maybeSingle();
+/** The workspace's switch, when its last member left it (00262), and the zone its bells say a day in; null for none. */
+async function tenantState(db: Db, tenantId: string) {
+  const read = db.from("tenants").select("status, left_empty_at, timezone").eq("id", tenantId);
+  const { data, error } = await read.maybeSingle();
   if (error) throw new Error(error.message);
   return data;
 }
@@ -230,6 +232,7 @@ export async function applySubscription(
     },
     facts,
     now.getTime(),
+    tenant?.timezone || DEFAULT_TIMEZONE,
   );
   const plan = ended ? keptEnded(planned) : planned;
   // The bell before the row (S6-12): told after it, a bell that could not be kept was lost, as the retry reads the row

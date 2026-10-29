@@ -170,6 +170,8 @@ export const FIRST_RUN_CHANNELS_WORDS = {
 } as const;
 
 export interface ChannelsInput {
+  /** The workspace's zone, which every day its rows say is in (contracts zone-math; one Intl cannot use reads as UTC). */
+  tz: string;
   dto: SetupDto;
   vm: SetupVM;
   /** The calls part, as first-run-phone.ts says it at `channels` (what the number kept is, looked up, is the tile's own). */
@@ -352,7 +354,7 @@ function fillingOf(i: ChannelsInput, rows: readonly ImportRowDto[]): FirstRunCha
   const mail = by("mailbox");
   const chats = by("whatsapp_history");
   const messages = (mail?.counts.messages ?? 0) + (chats?.counts.messages ?? 0);
-  const lines = importLinesOf(rows, { whatsappWaiting: i.whatsapp === "same" });
+  const lines = importLinesOf(rows, i.tz, { whatsappWaiting: i.whatsapp === "same" });
   return {
     title: W.title,
     rows: [

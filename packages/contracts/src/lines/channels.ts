@@ -1,4 +1,5 @@
-import { agoWords, DATE_FMT, DAY_MS } from "../shared/time";
+import { usableZone } from "../calendar/zone-math";
+import { agoWords, dateFormat, DAY_MS } from "../shared/time";
 /**
  * Channels — the numbers a business is reachable on, as facts.
  *
@@ -115,8 +116,10 @@ export interface ChannelVM {
 
 const QUIET_AFTER_MS = 7 * DAY_MS;
 
-function ago(ms: number, nowMs: number): string {
-  return agoWords(ms, nowMs, { dateAfterMs: QUIET_AFTER_MS, date: (at) => DATE_FMT.format(new Date(at)) });
+/** "3 hours ago", or past a quiet week the day it was, by the workspace's calendar (`tz`). */
+function ago(ms: number, nowMs: number, tz: string): string {
+  const day = dateFormat("en-US", { timeZone: usableZone(tz), month: "short", day: "numeric" });
+  return agoWords(ms, nowMs, { dateAfterMs: QUIET_AFTER_MS, date: (at) => day.format(at) });
 }
 
 /**
@@ -174,7 +177,7 @@ export function channelNoun(kind: string): string {
   return KIND_META[kind]?.noun ?? "message";
 }
 
-export function toChannelVM(dto: ChannelDto, now = new Date()): ChannelVM {
+export function toChannelVM(dto: ChannelDto, now: Date, tz: string): ChannelVM {
   const nowMs = now.getTime();
   const meta = KIND_META[dto.kind] ?? {
     name: channelKindWords(dto.kind),
@@ -202,10 +205,10 @@ export function toChannelVM(dto: ChannelDto, now = new Date()): ChannelVM {
     healthLabel = `On — no ${meta.noun} has arrived yet`;
   } else if (nowMs - last <= QUIET_AFTER_MS) {
     health = "receiving";
-    healthLabel = `Receiving · last ${meta.noun} ${ago(last, nowMs)}`;
+    healthLabel = `Receiving · last ${meta.noun} ${ago(last, nowMs, tz)}`;
   } else {
     health = "quiet";
-    healthLabel = `Quiet · last ${meta.noun} ${ago(last, nowMs)}`;
+    healthLabel = `Quiet · last ${meta.noun} ${ago(last, nowMs, tz)}`;
   }
   return {
     id: dto.id,

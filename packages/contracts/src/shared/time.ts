@@ -93,9 +93,6 @@ export function numberFormat(locales: string, options: Intl.NumberFormatOptions)
   );
 }
 
-/** "Sep 6", in the runtime's own locale and zone: the date a sentence gives once a count would read oddly. */
-export const DATE_FMT = formatterOnUse([], { month: "short", day: "numeric" });
-
 /** The instant an ISO timestamp names, in ms; null for none, and for text that is no time (a row can hold either). */
 export function isoMs(iso: string | null | undefined): number | null {
   if (!iso) return null;

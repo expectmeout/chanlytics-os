@@ -79,7 +79,8 @@ export function needYouRows(rows: readonly TodayQueueRowVM[], c: NeedYouRowsCtx)
       sentence: r.sentence,
       quoted: r.quoted,
       lead: r.lead,
-      status: r.status,
+      // Since when is said once on a phone: the wait beside the name says how long.
+      status: phone && r.when && r.since ? r.status.filter((s) => s !== r.since) : r.status,
       tone: r.tone,
       testid: `queue-${r.kind}`,
     };

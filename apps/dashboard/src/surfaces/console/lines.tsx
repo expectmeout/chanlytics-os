@@ -179,8 +179,11 @@ export function SetupAndLines({
   role,
   onChanged,
   flash,
+  tz,
 }: {
   setup: SetupDto;
+  /** The zone of the workspace looked at, which its Setup's days are said in. */
+  tz: string;
   tenantId: string;
   role: StaffRole;
   onChanged: () => void;
@@ -190,7 +193,7 @@ export function SetupAndLines({
   // The customer's own rows, from the customer's own function. No verbs: the buttons on Setup act on the SIGNED-IN
   // workspace, and this is not it. The LINE rows below are different -- those are the ops door, and every one of them is
   // written down against the person who pressed it, with why.
-  const vm = P.steps({ ...setup, later: [], rests: {} });
+  const vm = P.steps({ ...setup, tz, later: [], rests: {} });
   const lines = (setup.lines && setup.lines.rows) || [];
   return (
     <>

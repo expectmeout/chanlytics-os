@@ -154,7 +154,7 @@ function From({ r }: { r: SupportRowVM }) {
 function SetupProgress({ tenantId }: { tenantId: string }) {
   const read = useConsoleRead(() => consoleVerbs.tenant(tenantId), `support-setup/${tenantId}`);
   if (!read.data) return read.problem ? <span className="cs-a-dim">{SUPPORT_WORDS.setupFailed}</span> : null;
-  const vm = backOffice.verbs.steps({ ...read.data.setup, later: [], rests: {} });
+  const vm = backOffice.verbs.steps({ ...read.data.setup, tz: read.data.tenant.timezone, later: [], rests: {} });
   const next = vm.rows.find((s) => s.state !== "ready");
   const words = SUPPORT_WORDS.setupDone(vm.done, vm.total);
   return (

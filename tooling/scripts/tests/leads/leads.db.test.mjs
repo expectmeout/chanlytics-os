@@ -19,7 +19,7 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
 import { takeLock } from "../_file-lock.mjs";
-import { legacyLeadSuppressionHash } from "@chanlytics/contracts";
+import { legacyLeadSuppressionHash, noticeTone } from "@chanlytics/contracts";
 import { stageArgs, LEAD_CONSENT_REFUSAL } from "../../../../packages/contracts/src/leads/leads.ts";
 
 const URL_ = process.env.SUPABASE_URL;
@@ -650,6 +650,107 @@ test(
     assert.equal(done[0].body, "4 found.");
     assert.equal(done[0].route, `clients/leads:s-${ids.search}`);
     assert.equal(await pushes(done[0].id), 1, "one push for the search that is done");
+  },
+);
+
+test(
+  "a search whose source failed says it stopped, or that it never ran, in a warning's tone, never 'is done'",
+  { skip },
+  async () => {
+    // 29 Oct 2026: a collect that failed for good rang the bell on its own, fourteen times for one search, and the
+    // search's own row said "is done". A collect tells nobody now (packages/jobs TOLD_ELSEWHERE), so this row is the
+    // owner's one notice of the stop, in the strip's words (contracts leadEndingLine).
+    const ready = async (round) =>
+      ok(
+        await db
+          .from("notifications")
+          .select("title, body")
+          .eq("tenant_id", A)
+          .eq("kind", "leads_ready")
+          .eq("subject_id", round),
+      );
+    const roundOf = async (name) => {
+      const search = ok(
+        await db
+          .from("lead_searches")
+          .insert({
+            tenant_id: A,
+            via: "people",
+            card: "local_businesses",
+            name,
+            asked: `${name} in Austin`,
+            plan: { version: 1 },
+          })
+          .select("id")
+          .single(),
+      ).id;
+      const round = ok(
+        await db
+          .from("lead_rounds")
+          .insert({
+            tenant_id: A,
+            search_id: search,
+            seq: 1,
+            purpose: "probe",
+            plan: { version: 1 },
+            plan_version: 1,
+            target: 50,
+            state: "queued",
+            month: "2026-09",
+            day: "2026-09-19",
+            platform_day: "2026-09-19",
+          })
+          .select("id")
+          .single(),
+      ).id;
+      return { search, round };
+    };
+    const failed = async (round) =>
+      ok(
+        await db
+          .from("lead_rounds")
+          .update({ state: "ended", ending: "source_failed", ended_at: new Date().toISOString() })
+          .eq("id", round),
+      );
+
+    // Nothing came back: the source never ran it (a refused start, a build its provider deleted).
+    const never = await roundOf("dog groomers");
+    await failed(never.round);
+    const told = await ready(never.round);
+    assert.deepEqual(
+      told.map((r) => [r.title, r.body]),
+      [["Your search for dog groomers didn't run: the source couldn't start it", "Nothing new was counted."]],
+    );
+    assert.equal(noticeTone("leads_ready", told[0].title), "warn", "drawn as a warning");
+
+    // Places came back, then the source stopped answering: what was counted is still the owner's.
+    const partway = await roundOf("bike shops");
+    for (const [lead, cls] of [
+      // lead1 is erased above; these two are as the fixture made them.
+      [ids.lead3, "qualified"],
+      [ids.lead4, "excluded"],
+    ])
+      ok(
+        await db.from("lead_search_members").insert({
+          search_id: partway.search,
+          lead_id: lead,
+          round_id: partway.round,
+          tenant_id: A,
+          judgment: {},
+          class: cls,
+          fit: cls === "qualified" ? "strong" : null,
+          reason: "A fixture.",
+          counted: cls === "qualified",
+          counted_month: cls === "qualified" ? "2026-09" : null,
+        }),
+      );
+    await failed(partway.round);
+    const stopped = await ready(partway.round);
+    assert.deepEqual(
+      stopped.map((r) => [r.title, r.body]),
+      [["Your search for bike shops stopped: the source stopped answering", "1 found."]],
+    );
+    assert.equal(noticeTone("leads_ready", stopped[0].title), "warn");
   },
 );
 

@@ -10,15 +10,23 @@
  *   - any other changed file, every folder of tooling/scripts/tests named like one of its path's parts
  *     (packages/core/src/leads/cards.ts runs tests/leads; apps/edge/lib/receptionist/steer.ts runs tests/edge and
  *     tests/receptionist); supabase/ runs tests/database, and docs/ tests/history (the decisions' index);
- *   - a path whose tests live in folders it does not name, those folders too (TESTED_IN: the composer, the answer verb,
- *     the campaign runner);
- *   - a file in a tree a test reads whole, that test, which no such path names (READ_BY: the appointment words'
- *     ratchet, the hearing tests);
+ *   - every test whose imports reach a changed file, read from the syntax tree (test-reach.mjs: through the packages'
+ *     sources, a barrel by the names asked of it, and the paths a test reads by name), nearest first, while the run
+ *     stays within BUDGET test files;
+ *   - a file in a tree a test reads whole, that test, which no import of it names (READ_BY: the hearing tests, the
+ *     browser's entry);
  *   - the folders that hold the repository's own rules and ratchets, always (ALWAYS): the five reds were all there.
+ * The imports are the rule of 29 Oct 2026: on 28 Oct five tests went red on main, each importing what a pull request
+ * changed (#1882's Campaigns reader, #1895's notification kinds, #1890's surface registry twice, #1900's routes), and
+ * none in a folder its paths named. They replaced TESTED_IN, the hand-kept list of paths whose tests lived in folders
+ * their names did not say (the composer, the answer verb, the campaign runner, a list rule's fields, Ask's effort, the
+ * model gateway, People's table): the graph reaches each of those tests.
+ *
  * A helper every test loads (the runner, a root helper, a stand-in) used to run the whole suite, which took 21 to 40
  * minutes on 6-9 Oct 2026 and ran #1535's and #1539's CI past its cap. Ruben, 10 Oct 2026: a push is through CI in
- * under ten minutes, so it runs ALWAYS and what else the change names; the nightly runs everything, and a pull request
- * that wants the whole suite asks for it with the label.
+ * under ten minutes. So the folders a change names always run, and the tests its imports reach join them a distance at
+ * a time, those importing a changed module first, until the next distance would take the run past BUDGET; the rest are
+ * said, and the nightly runs them, as it runs everything (a pull request that wants them asks with the label).
  *
  *   node tooling/scripts/checks/changed-tests.mjs <base> <head>          run them (ci.yml: HEAD^1 HEAD, the merge commit)
  *   node tooling/scripts/checks/changed-tests.mjs --list <base> <head>   say what would run
@@ -30,9 +38,11 @@
  *                                                                        runs the four parts on four runners at once
  */
 import { execFileSync, spawn } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { SCOPES as TRACED } from "../trace-routes.mjs";
+import { isTest, reachOf } from "./test-reach.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const TESTS = "tooling/scripts/tests";
@@ -41,52 +51,28 @@ const TESTS = "tooling/scripts/tests";
 export const ALWAYS = [`${TESTS}/repo`, `${TESTS}/types`, `${TESTS}/docs`, `${TESTS}/routes/wire-casing.test.mjs`];
 
 /**
- * Paths whose tests live in folders their names do not say, each with those folders: the prompt's composer is proved
- * where each channel reads what it composes, the answer verb through the doors that call it, and the campaign runner
- * where playbooks and broadcasts run, and a list rule's fields where Ask's list tool hands them to the model (its bytes
- * frozen per role in fixtures/ask-tools-4-7.json). Until 11 Oct 2026 each selected no test, so a change to what the
- * receptionist reads on every message ran only the rules on its pull request; #1612 reworded a list field's line and
- * nothing ran the freeze (16 Oct 2026).
+ * At most this many test files a pull request runs, the folders it names and the tests its imports reach: about two
+ * seconds a file on the slowest of CI's four parts (#1915's 453 took 3:45 there, 29 Oct 2026), so under seven minutes
+ * of tests, and the job's setup, inside Ruben's ten. Replayed over the 544 merges of 29 Sep to 29 Oct 2026, the median
+ * pull request ran 161 test files and runs 310 (the tenth from the top, 419 and 678), and one in twelve reaches further
+ * than this; where even the tests importing a changed module would pass it, the folders run alone, as before.
  */
-export const TESTED_IN = {
-  "packages/contracts/src/config/workspace-config/": ["receptionist", "whatsapp", "voice", "calendar", "sms"],
-  "packages/core/src/inbound/": ["whatsapp", "sms", "email", "intake", "receptionist", "conversations"],
-  "packages/core/src/campaigns/": ["playbooks", "broadcasts"],
-  "packages/contracts/src/people/lists/": ["ask"],
-  // The effort a turn is asked at is the model layer's (contracts ai/effort.ts): its test is tests/ai/ask-effort.
-  "apps/dashboard/src/server/ask/effort.ts": ["ai"],
-  // The model gateway every purpose asks through: the lead drafts' rules are proved in tests/leads/engine
-  // (lead-gateway.test.mjs), which #1675's change to it never ran (17 Oct 2026).
-  "apps/edge/lib/ask-gateway.ts": ["leads"],
-  // Leads and the Pipeline are People's scopes: each draws through surfaces/people (the table, its controls, the rail,
-  // the sheets), and their tests are tests/leads and tests/deals. #1849 changed the table's sort for People, desk Leads
-  // opened Z to A by name on production, and its tests never ran (27 Oct 2026).
-  "apps/dashboard/src/surfaces/people/": ["leads", "deals"],
-};
+export const BUDGET = 800;
 
 /**
- * Tests that read whole trees whose paths never name them, each with what it reads (a tree ends in "/"): the trees as
- * the file that names them says them, that file, and the test's baselines. The hearing tests follow every route through
- * the tracer's trees (trace-routes.mjs SCOPES, and schema.sql) and run the dashboard's browser code and contracts, and
- * their two hand-kept lists (reads-not-heard.json, on-demand-reads.json) were blind to a change no path of theirs named.
- * The appointment words' count, which every tree a reader reads could move (#1574, #1579, #1599 and #1602-#1604 each
- * wrote "visit" in without running it, and main went red, 13-15 Oct 2026), is check:debt's since 28 October 2026, and
- * CI measures it on every pull request.
+ * Tests that read whole trees, which no import of theirs names, each with what it reads (a tree ends in "/"): the trees
+ * as the file that names them says them, that file, and the test's baselines. The hearing tests follow every route
+ * through the tracer's trees (trace-routes.mjs SCOPES, and schema.sql) and run the dashboard's browser code and
+ * contracts, and their two hand-kept lists (reads-not-heard.json, on-demand-reads.json) were blind to a change no path of
+ * theirs named. The browser's entry is generated from every barrel the generator finds by walking contracts' sources
+ * (gen/contracts-browser-entry.mjs): an export added to one changed the entry, and nothing ran its test (the eval-truth
+ * pass, 17 Oct 2026). The graph sees neither: a tree walked is read by no name. The appointment words' count, which
+ * every tree a reader reads could move (#1574, #1579, #1599 and #1602-#1604 each wrote "visit" in without running it,
+ * and main went red, 13-15 Oct 2026), is check:debt's since 28 October 2026, and CI measures it on every pull request;
+ * the page tests of one word (journey/one-page-one-word.test.mjs) import the modules they read, and the graph follows
+ * them.
  */
 export const READ_BY = {
-  // One page, one word: each page's words for an appointment, run from the modules that make them (16 Oct 2026).
-  [`${TESTS}/journey/one-page-one-word.test.mjs`]: [
-    "packages/contracts/src/reports/",
-    "packages/contracts/src/calendar/",
-    "packages/contracts/src/setup/",
-    "packages/contracts/src/people/",
-    "packages/contracts/src/config/",
-    "packages/contracts/src/ask/",
-    "packages/contracts/src/workspace/",
-    "packages/contracts/src/broadcasts/",
-  ],
-  // The browser's entry into contracts is written from every barrel (gen/contracts-browser-entry.mjs): an export added to
-  // one changed the entry, and nothing ran its test (the eval-truth pass, 17 Oct 2026).
   [`${TESTS}/shipping/browser-entry.test.mjs`]: ["packages/contracts/src/"],
   [`${TESTS}/shell/hearing`]: [
     ...[...TRACED, "apps/dashboard/src", "packages/contracts/src"].map((tree) => `${tree}/`),
@@ -114,10 +100,6 @@ export function testTargets(changed, testFolders) {
       else if (testFolders.has(folder)) targets.add(`${TESTS}/${folder}`);
       continue;
     }
-    for (const [prefix, folders] of Object.entries(TESTED_IN)) {
-      if (!file.startsWith(prefix)) continue;
-      for (const folder of folders) if (testFolders.has(folder)) targets.add(`${TESTS}/${folder}`);
-    }
     if (file.startsWith("supabase/")) targets.add(`${TESTS}/database`);
     if (file.startsWith("docs/")) targets.add(`${TESTS}/history`);
     if (file.startsWith("apps/mobile/")) targets.add("apps/mobile/test");
@@ -131,6 +113,56 @@ export function testTargets(changed, testFolders) {
   return [...targets].filter((t) => !folders.some((d) => t.startsWith(`${d}/`)));
 }
 
+/**
+ * The targets, and the tests the imports reach that no target covers (`reached`, each with its distance from what
+ * changed): a distance at a time, nearest first, while the run stays within `budget` of the suite's `tests`. The rest is
+ * `left`: how many, and from which distance.
+ */
+export function withReached(targets, reached, tests, budget = BUDGET) {
+  const covered = (t) => targets.some((x) => t === x || t.startsWith(`${x}/`));
+  let total = tests.filter(covered).length;
+  const byDistance = new Map();
+  for (const [test, distance] of reached) {
+    if (covered(test)) continue;
+    if (!byDistance.has(distance)) byDistance.set(distance, []);
+    byDistance.get(distance).push(test);
+  }
+  const added = [];
+  const left = { count: 0, from: null };
+  for (const distance of [...byDistance.keys()].sort((a, b) => a - b)) {
+    const tier = byDistance.get(distance).sort();
+    if (left.count || total + tier.length > budget) {
+      left.count += tier.length;
+      left.from ??= distance;
+      continue;
+    }
+    added.push(...tier);
+    total += tier.length;
+  }
+  return { targets: [...targets, ...added], added, left };
+}
+
+/**
+ * The runner's arguments in parts a command line holds on every platform (Windows takes 32,767 characters), each part
+ * run in turn: 800 test files are some 50,000.
+ */
+export function partsOf(targets, limit = 24_000) {
+  const parts = [];
+  let part = [];
+  let length = 0;
+  for (const t of targets) {
+    if (part.length && length + t.length + 1 > limit) {
+      parts.push(part);
+      part = [];
+      length = 0;
+    }
+    part.push(t);
+    length += t.length + 1;
+  }
+  if (part.length) parts.push(part);
+  return parts;
+}
+
 /** A suite that needs the stack: `pnpm test:db`'s own two globs (tooling/scripts/checks/test.mjs SUITES.db). */
 export const isDatabaseSuite = (file) => /\.(db|integration)\.test\.mjs$/.test(file);
 
@@ -139,16 +171,39 @@ export function databaseSuitesOf(targets, suites) {
   return suites.filter((f) => targets.some((t) => f === t || f.startsWith(`${t}/`)));
 }
 
-const git = (...args) => execFileSync("git", args, { cwd: ROOT, encoding: "utf8" });
+const git = (...args) => execFileSync("git", args, { cwd: ROOT, encoding: "utf8", maxBuffer: 1 << 28 });
+const lines = (text) => text.split("\n").filter(Boolean);
 
 /** The folders under tooling/scripts/tests that hold at least one test, by name. */
-function foldersWithTests() {
-  return new Set(
-    git("ls-files", `${TESTS}/*/**.test.mjs`)
-      .split("\n")
-      .filter(Boolean)
-      .map((f) => f.split("/")[3]),
-  );
+const foldersWithTests = (files) =>
+  new Set(files.filter((f) => /^tooling\/scripts\/tests\/[^/]+\/.+\.test\.mjs$/.test(f)).map((f) => f.split("/")[3]));
+
+/** A tracked file's text as the checkout has it; a file the checkout lacks reads as nothing. */
+function readTracked(file) {
+  try {
+    return fs.readFileSync(path.join(ROOT, file), "utf8");
+  } catch {
+    return "";
+  }
+}
+
+/** One part of the run after another, every part run; the status is the first that failed. */
+function runParts(parts, flags, failed = 0) {
+  const [first, ...rest] = parts;
+  if (!first) return process.exit(failed);
+  const child = spawn(process.execPath, [path.join(ROOT, "tooling/scripts/checks/test.mjs"), ...flags, ...first], {
+    cwd: ROOT,
+    stdio: "inherit",
+  });
+  child.on("exit", (code, signal) => runParts(rest, flags, failed || (signal ? 1 : (code ?? 1))));
+}
+
+/** What a change runs: the targets its paths name and the tests its imports reach, as they stand in the checkout. */
+export function changeTargets(changed, files) {
+  const reach = reachOf({ files, read: readTracked });
+  const picked = withReached(testTargets(changed, foldersWithTests(files)), reach.testsReaching(changed), reach.tests);
+  // A test the change deleted (or renamed away from) is no file to run.
+  return { ...picked, targets: picked.targets.filter((t) => fs.existsSync(path.join(ROOT, t))) };
 }
 
 function main() {
@@ -162,23 +217,33 @@ function main() {
     console.error("usage: node tooling/scripts/checks/changed-tests.mjs [--list | --db] <base> <head>");
     process.exit(2);
   }
-  const changed = git("diff", "--name-only", base, head).split("\n").filter(Boolean);
-  let targets = testTargets(changed, foldersWithTests());
+  // Both sides of a rename: a test that still imports the old path breaks.
+  const changed = lines(git("diff", "--name-only", "--no-renames", base, head));
+  const files = lines(git("ls-files"));
+  const picked = changeTargets(changed, files);
+  let targets = picked.targets;
   if (db) {
-    targets = databaseSuitesOf(targets, git("ls-files", `${TESTS}/**.test.mjs`).split("\n").filter(isDatabaseSuite));
+    targets = databaseSuitesOf(
+      targets,
+      files.filter((f) => isTest(f) && isDatabaseSuite(f)),
+    );
     if (!targets.length) {
-      console.log(`${changed.length} files changed; no database suite lies where they name`);
+      console.log(`${changed.length} files changed; no database suite lies where they name or their imports reach`);
       return;
     }
   }
-  console.log(`${changed.length} files changed; running ${targets.join(" ")}`);
+  const added = new Set(picked.added);
+  const named = targets.filter((t) => !added.has(t));
+  const reached = targets.filter((t) => added.has(t));
+  console.log(`${changed.length} files changed; running ${named.join(" ")}`);
+  if (reached.length) console.log(`and the ${reached.length} tests whose imports reach them: ${reached.join(" ")}`);
+  if (picked.left.count)
+    console.log(
+      `${picked.left.count} more reach them, ${picked.left.from} imports away and further: past ${BUDGET} test files,` +
+        " so the nightly runs them (or the `suite` label)",
+    );
   if (list) return;
-  const child = spawn(
-    process.execPath,
-    [path.join(ROOT, "tooling/scripts/checks/test.mjs"), ...(db ? ["--db"] : []), ...runner, ...targets],
-    { cwd: ROOT, stdio: "inherit" },
-  );
-  child.on("exit", (code, signal) => process.exit(signal ? 1 : (code ?? 1)));
+  runParts(partsOf(targets), [...(db ? ["--db"] : []), ...runner]);
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();

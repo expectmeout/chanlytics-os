@@ -12,7 +12,8 @@
  *   3. Leads chosen on Leads: only a lead already counted joins, counted without drawing the month again and outside a
  *      round that ends as it is made and rings nothing, so nothing is given back; who may, nothing to add, the limit.
  *   4. A file of 500 rows in one call, well inside a signed-in member's statement timeout.
- *   5. The bell's function is 00163's body but for the list's lines, a lead's story 00241's but for one key, and the
+ *   5. The bell's function is 00163's body but for the list's lines (and 00421's question close and 00491's source
+ *      failed after it), a lead's story 00241's but for one key, and the
  *      database runs both; the vias are held; the doors are a signed-in member's, never anon's.
  *
  * Local stack only: it makes workspaces, people and leads.
@@ -667,8 +668,18 @@ test(
   { skip },
   async () => {
     const w = await world();
-    const bell = bodyIn(migration("00421"), "create or replace function public.lead_rounds_notify(");
-    assert.equal(liveBody("lead_rounds_notify"), bell, "the database runs 00421's");
+    const told = bodyIn(migration("00491"), "create or replace function public.lead_rounds_notify(");
+    assert.equal(liveBody("lead_rounds_notify"), told, "the database runs 00491's");
+    // 00491 is 00421's with a search whose source failed saying so (didn't run, or stopped), and nothing else.
+    const bell = told
+      .replace("  v_seen boolean;\n", "")
+      .replace(/ {4}-- Whether the source returned anything[^\n]*\n {4}select exists [^\n]*\n/, "")
+      .replace(
+        /case when v_via = 'import' then\n {18}case when ([^\n]*' is checked', 200\))\n {23}(else [^\n]*' could not be checked', 200\)) end\n {16}when NEW\.ending = 'source_failed' and not v_seen then\n[^\n]*\n {16}when NEW\.ending = 'source_failed' then\n[^\n]*\n {16}else (left\('Your search for ' \|\| v_name \|\| ' is done', 200\)) end,/,
+        (_, checked, unchecked, done) =>
+          `case when v_via <> 'import' then ${done}\n                when ${checked}\n                ${unchecked} end,`,
+      );
+    assert.equal(bell, bodyIn(migration("00421"), "create or replace function public.lead_rounds_notify("));
     // 00421 is 00242's with the round's question closed as it leaves waiting_on_owner, and nothing else.
     const now = bell.replace(
       / {2}-- A round that leaves waiting_on_owner[^\n]*\n {2}--[^\n]*\n {2}if OLD\.state = 'waiting_on_owner'[^\n]*\n {4}perform public\.notifications_close_about[^\n]*\n {2}end if;\n/,

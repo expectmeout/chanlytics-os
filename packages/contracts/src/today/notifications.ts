@@ -408,7 +408,7 @@ const JOB_WORK: Record<JobKind, { stopped: string; to: string }> = {
   line_provision: { stopped: "Setting up a phone line stopped", to: "admin/integrations" },
   email_ingest: { stopped: "An email could not be taken in", to: "inbox" },
   lead_round_start: { stopped: "A search could not start", to: "clients/leads" },
-  lead_collect: { stopped: "A search stopped partway", to: "clients/leads" },
+  lead_collect: { stopped: "A search stopped partway", to: "clients/leads" }, // not sent: jobs TOLD_ELSEWHERE (00491)
   lead_check: { stopped: "Checking a search's emails stopped", to: "clients/leads" },
   push_send: { stopped: "An alert to your phone was not sent", to: "admin/notifications" },
   push_receipts: { stopped: "Checking that your phone was told did not finish", to: "admin/notifications" },

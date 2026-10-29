@@ -66,6 +66,11 @@ const approvalsSentence = (names: readonly string[]) =>
 
 /** The folded row's words: how many wait for an OK, who they are, and that each answer opens the next. */
 export const WAIT_ROW_WORDS = {
+  /**
+   * A run's row on Today on a phone, where it opens to be answered (a reach-out's, a run of several): what you do there, not
+   * where it goes (his look on a phone, 29 Oct 2026). Open stays the desk's, and a run too late to approve still opens.
+   */
+  review: "Review",
   approvals: {
     name: (n: number) => `${plural(n, "run waits", "runs wait")} for your OK`,
     meta: "Campaigns · ready",
