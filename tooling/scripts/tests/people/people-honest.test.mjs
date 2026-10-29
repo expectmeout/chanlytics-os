@@ -541,6 +541,8 @@ const barMenuOf = (tree, words) => {
     }
   );
 };
+/** A menu's item by its words, as barMenuOf gives the menu. */
+const itemOf = (menu, label) => menu.props.items.find((i) => i.label === label);
 // The shell's ? sheet, whose Esc is heard before People's.
 // The shortcuts sheet (surfaces/frame/shortcuts.tsx), under the names the frame draws and calls it by.
 const shortcutsSheet = await importSrc("apps/dashboard/src/surfaces/frame/shortcuts.tsx");
@@ -593,11 +595,30 @@ const drained = async () => {
     quiet = inFlight > 0 ? 0 : quiet + 1;
   }
 };
+/**
+ * A search's answer in the page's state, its rows or its refusal: the table is busy from the moment the box asks until
+ * then (usePeopleFarther's `searching`).
+ */
+const searchAnswered = () =>
+  until(() => {
+    const table = byTestId(draw(), "people-table-scroll");
+    return !!table && table.props["aria-busy"] === undefined;
+  }, "the search's answer is in the page");
 /** The server's answer to a search the box sent: asked (after its wait), and its rows landed in the page's state. */
 const searchLanded = async (seen, from) => {
   await until(() => seen.queries.length > from, "the box asked the server");
   await drained();
-  await settle();
+  await searchAnswered();
+};
+/**
+ * An act run until its toast is up, and the toast: a press can hand back nothing to wait on (Add to list is
+ * `void a.addTo(s)`, Enter in the slips' note `void a.recordSlips()`), and an act has answered once it says so.
+ */
+const toastAfter = async (act, what) => {
+  const from = flashes.length;
+  await act();
+  await until(() => flashes.length > from, `the toast: ${what}`);
+  return flashes.at(-1);
 };
 /** The views the page saved over the wire, as [page, view]: what the saver sent (plViewSaver over saveView). */
 const savedViews = (seen) => seen.viewSaves.map((s) => [s.page, s.view]);
@@ -724,8 +745,7 @@ test("an archived list leaves the rail for one quiet line, and one press brings 
   assert.deepEqual(P.archived, [{ id: "s2", name: "VIP" }]);
   const line = byTestId(draw(), "rail-archived");
   assert.ok(line && /Archived:\s*VIP/.test(textOf(line)), line && textOf(line));
-  await byTestId(line, "rail-restore").props.onClick();
-  await settle();
+  await toastAfter(() => byTestId(line, "rail-restore").props.onClick(), "the list is back");
   assert.deepEqual(wrote(seen), [["PUT", "segments/s2", { archived: false }]], "the list is put back by its own route");
   assert.match(textOf(flashes.at(-1).msg), /^VIP is back on your lists/);
 });
@@ -738,12 +758,8 @@ test("REGRESSION: adding people to a list counts who was added, and Undo takes o
   let tree = draw();
   byTestId(tree, "select-all").props.onChange();
   tree = draw();
-  const regulars = barMenuOf(tree, "Add to list").props.items.find((i) => i.label === "Regulars");
-  // The menu's press hands back nothing to wait on (`void a.addTo(s)`): the add has answered when its toast is up.
-  const said = flashes.length;
-  regulars.onClick();
-  await until(() => flashes.length > said, "the add put up its toast");
-  const toast = flashes.at(-1);
+  const regulars = itemOf(barMenuOf(tree, "Add to list"), "Regulars");
+  const toast = await toastAfter(() => regulars.onClick(), "who was added");
   assert.match(
     textOf(toast.msg),
     /^2 added to Regulars/,
@@ -765,8 +781,7 @@ test("REGRESSION (B4): a yes recorded for more than fifty goes for fifty, says s
   byTestId(tree, "select-all").props.onChange();
   tree = draw();
   const way = barMenuOf(tree, "Messages").props.items.find((i) => i.label && !i.header);
-  await way.onClick();
-  await settle();
+  await toastAfter(() => way.onClick(), "the yes for fifty");
   const [yes] = wrote(seen);
   assert.deepEqual([yes[0], yes[1]], ["PUT", "contacts/consent"], "the batch door of the yes to messages");
   assert.equal(yes[2].ids.length, 50, "fifty went: the batch door takes fifty at a time");
@@ -1642,8 +1657,7 @@ test("on a phone More opens the selection's sheet -- Messages and receptionist â
     click(byTestId(sheet, "bulk-yes-conversational-form"));
     tree = draw();
     byTestId(tree, "bulk-form-note").props.onChange({ target: { value: "Saturday's slips" } });
-    await byTestId(draw(), "bulk-form-save").props.onClick();
-    await settle();
+    await toastAfter(() => byTestId(draw(), "bulk-form-save").props.onClick(), "the slips' yes");
     tree = draw();
     assert.deepEqual(wrote(seen).at(-1), [
       "PUT",
@@ -1655,8 +1669,7 @@ test("on a phone More opens the selection's sheet -- Messages and receptionist â
     // A spoken yes is recorded at the tap.
     click(byTestId(tree, "bulk-more"));
     click(byTestId(draw(), "bulk-messages"));
-    click(byTestId(draw(), "bulk-yes-conversational-in_person"));
-    await settle();
+    await toastAfter(() => click(byTestId(draw(), "bulk-yes-conversational-in_person")), "the spoken yes");
     assert.deepEqual(wrote(seen).at(-1), [
       "PUT",
       "contacts/consent",
@@ -1683,8 +1696,7 @@ test("on a phone More opens the selection's sheet -- Messages and receptionist â
       asked.map((d) => [d.many, d.note]),
       [[["p1", "p2"], true]],
     );
-    asked[0].onDone({ done: 2, failed: 0, line: "Called about the move" });
-    await settle();
+    await toastAfter(() => asked[0].onDone({ done: 2, failed: 0, line: "Called about the move" }), "the note");
     assert.match(textOf(flashes.at(-1).msg), /Noted on 2 people: Called about the move/);
     assert.equal(byTestId(draw(), "bulk-bar"), null, "noted, the selection clears, as on a desktop");
   }));
@@ -1731,8 +1743,7 @@ test("on a phone Add to list â€º New list names the list in the sheet, with its 
     click(byTestId(openSheet(draw(), "bulk-sheet"), "bulk-list-new"));
     tree = draw();
     byTestId(tree, "bulk-list-name").props.onChange({ target: { value: "Saturday" } });
-    await byTestId(draw(), "bulk-list-save").props.onClick();
-    await settle();
+    await toastAfter(() => byTestId(draw(), "bulk-list-save").props.onClick(), "the new list");
     assert.deepEqual(
       wrote(seen),
       [
@@ -2400,9 +2411,7 @@ test("a selection's yes on a sign-up form is recorded with the note that says wh
     ],
     "their own message names one message, so a selection is not offered it; the receptionist's mode is the same menu's",
   );
-  await menu()
-    .props.items.find((i) => i.label === "Sign-up form")
-    .onClick();
+  await itemOf(menu(), "Sign-up form").onClick();
   tree = draw();
   assert.deepEqual(said(), [], "REGRESSION: thirty slips were recorded with nothing to say which");
   const note = byTestId(tree, "bulk-form-note");
@@ -2410,8 +2419,7 @@ test("a selection's yes on a sign-up form is recorded with the note that says wh
   assert.equal(byTestId(tree, "bulk-form-save").props.disabled, true, "and will not record without saying");
   note.props.onChange({ target: { value: "  slips from Saturday " } });
   tree = draw();
-  await byTestId(tree, "bulk-form-save").props.onClick();
-  await settle();
+  await toastAfter(() => byTestId(tree, "bulk-form-save").props.onClick(), "the slips' yes");
   assert.deepEqual(said(), [
     ["visit", ["p1", "p2"], { consent: "opted_in", source: "form", note: "slips from Saturday" }],
   ]);
@@ -2425,26 +2433,20 @@ test("a selection's yes on a sign-up form is recorded with the note that says wh
   tree = draw();
   byTestId(tree, "bulk-form-note").props.onChange({ target: { value: "offers slips" } });
   tree = draw();
-  byTestId(tree, "bulk-form-note").props.onKeyDown({ key: "Enter" });
-  await settle();
+  await toastAfter(() => byTestId(tree, "bulk-form-note").props.onKeyDown({ key: "Enter" }), "the offers' yes");
   assert.deepEqual(said().at(-1), [
     "offers",
     ["p1", "p2"],
     { consent: "opted_in", source: "form", note: "offers slips" },
   ]);
-  await menu()
-    .props.items.find((i) => i.label === "Sign-up form")
-    .onClick();
+  await itemOf(menu(), "Sign-up form").onClick();
   tree = draw();
   byTestId(tree, "bulk-form-note").props.onKeyDown({ key: "Escape" });
   assert.equal(byTestId(draw(), "bulk-form-note"), null, "Escape closes the step");
   assert.equal(said().length, 2, "and sends nothing");
 
   // The spoken ways still record at once, with the source and nothing else.
-  await menu()
-    .props.items.find((i) => i.label === "In person")
-    .onClick();
-  await settle();
+  await toastAfter(() => itemOf(menu(), "In person").onClick(), "the spoken yes");
   assert.deepEqual(said().at(-1)[2], { consent: "opted_in", source: "in_person" });
 });
 
@@ -2700,9 +2702,7 @@ test("REGRESSION: Esc in a field is the field's, even once the field has gone --
   byTestId(draw(), "select-all").props.onChange();
   // New listâ€¦ puts the name box in the bar. Its own Esc closes it (React hears the key before the window does), and
   // focus goes with it: by the time the page hears the key, focus is on the body.
-  barMenuOf(draw(), "Add to list")
-    .props.items.find((i) => i.label === "New listâ€¦")
-    .onClick();
+  itemOf(barMenuOf(draw(), "Add to list"), "New listâ€¦").onClick();
   byTestId(draw(), "bulk-list-name").props.onKeyDown({ key: "Escape" });
   const nameBox = element("INPUT", { type: "text", within: ["input", ".cl-bulk"] });
   assert.equal(
@@ -3437,7 +3437,8 @@ test("REGRESSION: Back keeps the columns a member chose -- People mounted again 
   // The bridge's own save over the wire: the save itself keeps the surface's copy in step.
   flipColumn(draw(), "came_from");
   draw();
-  await settle();
+  await until(() => seen.viewSaves.length === 1, "the column's save went");
+  await drained();
   assert.deepEqual(
     seen.viewSaves,
     [{ page: "people", view: { sortBy: "last", sortDir: "desc", columns: { came_from: true } } }],
@@ -3454,7 +3455,7 @@ test("REGRESSION: Back keeps the columns a member chose -- People mounted again 
   );
   sortByHeading(tree, "State");
   draw();
-  await settle();
+  await until(() => seen.viewSaves.length === 2, "the sort's save went");
   assert.deepEqual(
     seen.viewSaves.at(-1),
     { page: "people", view: { sortBy: "state", sortDir: "desc", columns: { came_from: true } } },
@@ -3473,7 +3474,8 @@ test("REGRESSION: a save made while People is being read is not undone by the re
   flipColumn(draw(), "came_from");
   draw();
   await reading;
-  await settle();
+  await until(() => seen.viewSaves.length === 1, "the column's save went");
+  await drained();
   assert.deepEqual(
     seen.viewSaves.map((s) => s.view.columns),
     [{ came_from: true }],
@@ -3484,7 +3486,7 @@ test("REGRESSION: a save made while People is being read is not undone by the re
   assert.ok(headings(tree).includes("Came from"), "REGRESSION: the read took the column away");
   sortByHeading(tree, "State");
   draw();
-  await settle();
+  await until(() => seen.viewSaves.length === 2, "the sort's save went");
   assert.deepEqual(
     seen.viewSaves.at(-1).view,
     { sortBy: "state", sortDir: "desc", columns: { came_from: true } },
@@ -3494,10 +3496,12 @@ test("REGRESSION: a save made while People is being read is not undone by the re
 
 test("a read of People that overlapped no save takes the server's view -- another device's change shows", async () => {
   const people = [person(1), person(2)];
-  await freshPage({ people, views: { people: { sortBy: "last", sortDir: "desc", columns: {} } } });
+  const seen = await freshPage({ people, views: { people: { sortBy: "last", sortDir: "desc", columns: {} } } });
   flipColumn(draw(), "came_from");
   draw();
-  await settle();
+  // Landed before the other device's change is read: this read overlaps no save.
+  await until(() => seen.viewSaves.length === 1, "the column's save went");
+  await drained();
   // Later, on another device, the member shows Email and sorts by name; this tab reads People again.
   wire({ people, views: { people: { sortBy: "name", sortDir: "asc", columns: { email: true } } } });
   await peopleOverride.apply();
@@ -3570,21 +3574,17 @@ test("REGRESSION: the bulk bar acts on the people shown -- a person a refresh mo
       /1 selected/,
       "REGRESSION: the bar counted a person who is not on screen",
     );
-    const said = flashes.length;
-    barMenuOf(tree, "Add to list")
-      .props.items.find((i) => i.label === "Regulars")
-      .onClick();
-    await until(() => flashes.length > said, "the add put up its toast");
+    await toastAfter(() => itemOf(barMenuOf(tree, "Add to list"), "Regulars").onClick(), "who was added");
     assert.deepEqual(
       wrote(seen),
       [["PUT", "segments/s1", { add: ["p1"] }]],
       "REGRESSION: the add wrote to a person the view no longer shows",
     );
     // The doors that take fifty at a time (a yes, the receptionist, a note, Take off) share one batch; a yes stands for them.
-    await barMenuOf(draw({ initialState: "needs_you" }), "Messages")
-      .props.items.find((i) => i.label === "In person")
-      .onClick();
-    await settle();
+    await toastAfter(
+      () => itemOf(barMenuOf(draw({ initialState: "needs_you" }), "Messages"), "In person").onClick(),
+      "the spoken yes",
+    );
     assert.deepEqual(
       wrote(seen).at(-1),
       ["PUT", "contacts/consent", { ids: ["p1"], consent: "opted_in", source: "in_person" }],
@@ -3631,11 +3631,7 @@ test("REGRESSION: a search match past the people loaded is exported with the res
       ["Person 2", "Saturday Jones", "Saturday Smith"],
       "REGRESSION: the person found past the loaded rows was left out of the file",
     );
-    const said = flashes.length;
-    barMenuOf(tree, "Add to list")
-      .props.items.find((i) => i.label === "Regulars")
-      .onClick();
-    await until(() => flashes.length > said, "the add put up its toast");
+    await toastAfter(() => itemOf(barMenuOf(tree, "Add to list"), "Regulars").onClick(), "who was added");
     assert.deepEqual(
       wrote(seen).map(([method, route, { add }]) => [method, route, [...add].sort()]),
       [["PUT", "segments/s1", ["p1", "p2", "p99"]]],
@@ -4233,7 +4229,7 @@ test("past everyone loaded, the line under the table says the server is being se
   );
   answer({ people: [], total: 0, has_more: false });
   await drained();
-  await settle();
+  await searchAnswered();
   tree = draw();
   assert.match(
     textOf(byTestId(tree, "people-more")),
