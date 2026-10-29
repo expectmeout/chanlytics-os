@@ -1,7 +1,9 @@
 /**
  * The lead finder's sweep, decided (PRD §12.5): every five minutes, from the
  * rows alone. A running run nobody is collecting gets a collect; one past 45
- * minutes is aborted and read one last time; a start whose answer was lost is
+ * minutes is aborted and read one last time; one whose collects failed for
+ * good three times is given up (core giveUpRun), its round ending with it
+ * when nothing else of it is live; a start whose answer was lost is
  * reconciled against the provider's own list (core reconcileUnknownRuns); a
  * claim that never recorded a start is marked unknown so the next sweep
  * reconciles it; a stale lease is released by its own owner and generation;
@@ -27,6 +29,13 @@ export const LEASE_STALE_MS = 2 * MIN_MS;
 export const QUESTION_WAIT_MS = 24 * HOUR_MS;
 /** A round this old with no run of its own still live is stuck: a run is capped at 45 minutes, so an hour is past every way it could still be working. */
 export const ROUND_STUCK_MS = 60 * MIN_MS;
+/**
+ * A run whose collects failed for good this often is given up. Each failed collect is the ledger's three tries over
+ * twelve minutes (RETRY_WAITS_MS) and a bell for the owner, and the sweep asks for the next one: one or two are a
+ * provider's bad half hour, three are the run's reading failing for most of an hour. Without this the run stays
+ * running in our books, so its round never ends and the bell rings on (29 Oct 2026, a judge call too big for its time).
+ */
+export const GIVE_UP_FAILED_COLLECTS = 3;
 /** The run states that mean a round still has work at the provider. */
 const LIVE_RUN_STATES: ReadonlySet<string> = new Set(["claimed", "starting", "running", "unknown"]);
 
@@ -45,6 +54,8 @@ export interface SweepRunRow {
   created_at: string;
   /** A lead_collect job for this run is scheduled or fired. */
   collect_scheduled: boolean;
+  /** The lead_collect jobs for this run that failed for good, each after its three tries. */
+  collects_failed: number;
 }
 
 export interface SweepRoundRow {
@@ -58,6 +69,7 @@ export interface SweepRoundRow {
 type SweepAction =
   | { kind: "collect"; runId: string; tenantId: string; seq: string }
   | { kind: "abort"; runId: string; tenantId: string; apifyRunId: string; seq: string }
+  | { kind: "give_up"; runId: string; apifyRunId: string; owner: string }
   | { kind: "reconcile"; runId: string }
   | { kind: "mark_unknown"; runId: string; owner: string }
   | { kind: "orphan"; runId: string; owner: string }
@@ -86,6 +98,17 @@ export function planLeadSweep(rows: { runs: SweepRunRow[]; rounds: SweepRoundRow
       continue;
     }
     if (r.state !== "running" || !r.apify_run_id) continue;
+    if (r.collects_failed >= GIVE_UP_FAILED_COLLECTS) {
+      // Not collected again, so not rung again: failed in our books, and the round ends with it when nothing else of
+      // it is live. A collect still on its way then finds the round ended, so it is not waited for.
+      out.push({
+        kind: "give_up",
+        runId: r.id,
+        apifyRunId: r.apify_run_id,
+        owner: `sweep:${Math.floor(now / MIN_MS)}`,
+      });
+      continue;
+    }
     if (Date.parse(r.created_at) < now - RUN_MAX_AGE_MS) {
       out.push({ kind: "abort", runId: r.id, tenantId: r.tenant_id, apifyRunId: r.apify_run_id, seq });
       continue;

@@ -88,6 +88,6 @@ export {
 export type { Phase } from "./runner/rules";
 export { startRound } from "./runner/start";
 export type { StartOutcome, TermOutcome } from "./runner/start";
-export { reconcileUnknownRuns } from "./runner/sweep";
-export type { ReconcileOutcome } from "./runner/sweep";
+export { giveUpRun, reconcileUnknownRuns } from "./runner/sweep";
+export type { GiveUpOutcome, ReconcileOutcome } from "./runner/sweep";
 export { hasContact, mainAsk, probeAsk, probeYield, runCaps, yieldOf } from "./sizing";
