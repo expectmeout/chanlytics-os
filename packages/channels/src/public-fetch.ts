@@ -34,7 +34,7 @@ export interface Resolved {
 export type Resolve = (host: string) => Promise<Resolved[]>;
 
 const resolveByLookup: Resolve = async (host) => {
-  const all = await dns.promises.lookup(host, { all: true, verbatim: true });
+  const all = await dns.promises.lookup(host, { all: true, order: "verbatim" });
   return all.map((a) => ({ address: a.address, family: a.family }));
 };
 

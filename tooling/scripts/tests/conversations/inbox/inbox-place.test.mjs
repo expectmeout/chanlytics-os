@@ -17,7 +17,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { legacyAddress } from "../../shell/address/_address.mjs";
 import { toInboxThreadVM, stateOf, memberWords, replyWaitsOnYou } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, find, textOf, settle } from "../../_legacy-react.mjs";
+import { installLegacyReact, fresh, again, find, textOf, settle, until } from "../../_legacy-react.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-14T14:00:00Z");
@@ -400,8 +400,10 @@ test("your own act moves the open thread without a notice about it: its toast ha
     return [];
   };
   try {
+    // The press hands back nothing to wait on: the verb is counted as yours from the press until it answers.
     drawn.at(-1).onArchive("th-rosa");
-    for (let i = 0; i < 400 && OWN_VERBS.n > 0; i += 1) await settle();
+    assert.ok(OWN_VERBS.n > 0, "the archive went out, counted as your own");
+    await until(() => OWN_VERBS.n === 0, "the archive answered");
     render();
     assert.ok(landed, "the verb's own re-read landed before it answered");
     assert.equal(drawn.at(-1).id, "th-rosa", "the thread you archived stays in front of you");
