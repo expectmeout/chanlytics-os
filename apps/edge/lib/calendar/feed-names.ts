@@ -11,6 +11,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   BOOKING_DEFAULTS,
+  DEFAULT_TIMEZONE,
   calendarFeedKeyOf,
   feedNamesOf,
   parseTenantConfigResult,
@@ -19,9 +20,6 @@ import {
 import type { FeedNames } from "../packages/contracts.js";
 import { getTenantConfig, workspaceZoneOf, type Database } from "../packages/db.js";
 import { feedItemsFor } from "./availability.js";
-
-/** The zone a workspace with none on file is read in, as the playbooks' run reads it. */
-const DEFAULT_ZONE = "America/New_York";
 
 /**
  * The jobs context's `calendar.feedNames` over this runtime's database: null for a workspace with no calendar feed, the names
@@ -38,7 +36,7 @@ export function feedNamesFor(db: SupabaseClient<Database>) {
     const url = calendarFeedKeyOf(config);
     if (!url) return null;
     const daysAhead = config?.brain?.profile?.booking_rules?.max_days_ahead ?? BOOKING_DEFAULTS.max_days_ahead;
-    const items = await feedItemsFor(tenantId, url, zone || DEFAULT_ZONE, now, daysAhead);
+    const items = await feedItemsFor(tenantId, url, zone || DEFAULT_TIMEZONE, now, daysAhead);
     if (!items) throw new Error("the calendar feed could not be read");
     return feedNamesOf(items, seasonHorizon(now, daysAhead));
   };

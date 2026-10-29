@@ -16,6 +16,7 @@ import { PLAYBOOK_TRIGGERS, momentOffered, triggerOf, triggerOffered, triggerWor
 import type { PlaybookDto } from "../playbooks";
 import type { LifecycleShape } from "./lifecycle-types";
 import { LIFECYCLE_WORDS } from "./lifecycle-words";
+import { DEFAULT_TIMEZONE } from "../../workspace/workspace";
 
 /** A playbook as GET playbooks lists it, as far as the home's reading of it goes. */
 type AnswerPlaybook = Pick<
@@ -68,9 +69,6 @@ export interface LifecycleAnswerRead<P extends AnswerPlaybook> {
   /** False where the server could not count some moment: the page says so once. */
   countsRead: boolean;
 }
-
-/** The zone a server from before it sent none is read in. */
-const ZONE_UNSAID = "America/New_York";
 
 /**
  * How the business works, from GET playbooks' answer (its businessShape): what the workspace calls an appointment, and
@@ -141,7 +139,8 @@ export function lifecyclePlaybooksOf<P extends AnswerPlaybook>(
   now: Date,
 ): LifecycleAnswerRead<P> {
   const shape = businessShapeOf(pb);
-  const timezone = pb.timezone || ZONE_UNSAID;
+  // A server from before it sent its zone sent none: read in the default zone.
+  const timezone = pb.timezone || DEFAULT_TIMEZONE;
   const moments = PLAYBOOK_TRIGGERS.filter((t) => triggerOffered(t));
   const here = { calendarOn: shape.calendar === "feed" };
   return {

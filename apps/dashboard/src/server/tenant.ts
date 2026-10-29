@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { DEFAULT_TIMEZONE } from "@chanlytics/contracts";
 import type { Database } from "@chanlytics/db";
 
 /**
@@ -20,5 +21,5 @@ export function tenantFactsOf(row: { name?: string | null; timezone?: string | n
   name: string;
   timezone: string;
 } {
-  return { name: row?.name ?? "Workspace", timezone: row?.timezone ?? "America/New_York" };
+  return { name: row?.name ?? "Workspace", timezone: row?.timezone ?? DEFAULT_TIMEZONE };
 }
