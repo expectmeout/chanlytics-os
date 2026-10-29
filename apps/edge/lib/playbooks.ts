@@ -66,6 +66,7 @@ import {
   type PersonVisitsDto,
   BOOKING_DEFAULTS,
   DAY_MS,
+  DEFAULT_TIMEZONE,
   VISIT_TRIGGERS,
   runRoute,
 } from "./packages/contracts.js";
@@ -304,7 +305,7 @@ export async function loadTenantRunContext(
   // The calendar's appointments on every person, the way the People page
   // reads them: a visit playbook keys on the day, and its words come from
   // the visit itself. Read once per tenant per run.
-  const tz = tenant?.timezone || "America/New_York";
+  const tz = tenant?.timezone || DEFAULT_TIMEZONE;
   const rows = people ?? [];
   const cfgParsed = parseTenantConfig(cfgRow?.config ?? null);
   // The grant's calendar where one is read, else the link (contracts calendarFeedKeyOf).

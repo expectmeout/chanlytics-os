@@ -19,7 +19,7 @@ import {
   type Json,
 } from "../packages/db.js";
 import type { HandStep, HandStepPorts, ReachOutRunPorts, ReachOutStep } from "../packages/core.js";
-import { handOf, waitEndsWords, runRoute } from "../packages/contracts.js";
+import { DEFAULT_TIMEZONE, handOf, waitEndsWords, runRoute } from "../packages/contracts.js";
 import { stepSenders } from "./senders.js";
 import { notify } from "../ops/notify.js";
 import { loadTenantNotifications } from "../tenant-runtime.js";
@@ -134,7 +134,7 @@ export async function reachOutRunContext(
   if (!step.s) return { error: "chain_broken" };
   // A paused workspace runs nothing, as the moments do not.
   if (tenant.data?.status === "paused") return { error: "paused" };
-  const tz = tenant.data?.timezone || "America/New_York";
+  const tz = tenant.data?.timezone || DEFAULT_TIMEZONE;
   const mode = policies.mode;
   // No billing row is not permission (every workspace is given one at creation): it may not spend.
   const spend = billing.spend;

@@ -7,6 +7,7 @@
  * Public on purpose (proxy.ts PUBLIC_PATHS, and its own door in route-policy.test.mjs): it does NOT go
  * through withRoute (there is no session to verify), it reads nothing, and it holds no tenant's data.
  */
+import { DEFAULT_TIMEZONE } from "@chanlytics/contracts";
 import { fillerCalendar, zoneOk } from "@/server/calendar/filler-calendar";
 
 /**
@@ -15,7 +16,7 @@ import { fillerCalendar, zoneOk } from "@/server/calendar/filler-calendar";
  */
 export function GET(req: Request): Response {
   const asked = new URL(req.url).searchParams.get("tz") ?? "";
-  const tz = asked && zoneOk(asked) ? asked : "America/New_York";
+  const tz = asked && zoneOk(asked) ? asked : DEFAULT_TIMEZONE;
   return new Response(fillerCalendar(Date.now(), tz), {
     status: 200,
     headers: { "content-type": "text/calendar; charset=utf-8", "cache-control": "public, max-age=300" },

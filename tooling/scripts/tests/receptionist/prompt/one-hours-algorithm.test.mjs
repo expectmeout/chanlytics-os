@@ -61,7 +61,8 @@ test("the Settings card no longer keeps its own copy of the loop", () => {
   // The card is the Business page since Task 3.7; the summary went with it, still a wrapper over the shared lines.
   const pane = readCode("apps/dashboard/src/surfaces/settings/business/open.tsx");
   assert.ok(
-    pane.includes('import { hoursLines } from "@chanlytics/contracts";') && pane.includes("hoursLines(hours)"),
+    /import \{[^}]*\bhoursLines\b[^}]*\} from "@chanlytics\/contracts";/.test(pane) &&
+      pane.includes("hoursLines(hours)"),
     "it asks for the shared lines, which collapse the same runs",
   );
   assert.ok(!pane.includes("spans[j + 1].text === spans[i].text"), "the duplicated collapse loop must be gone");

@@ -15,6 +15,7 @@
  * Auth: x-cron-key against the Vault-held sweep key, like the other sweeps;
  * pg_cron calls this from the database (migration 00069).
  */
+import { DEFAULT_TIMEZONE } from "../packages/contracts.js";
 import { json } from "../http.js";
 import { placesKey, profileClient } from "./google-config.js";
 import { checkListing, connectionsDue, listingsDue } from "./listing-check.js";
@@ -43,7 +44,7 @@ export async function sweepGoogle({ db, L, started }: SweepTick): Promise<Respon
     const missing = ids.filter((id) => !zones.has(id));
     if (!missing.length) return;
     const { data: tenants } = await db.from("tenants").select("id, timezone").in("id", missing);
-    for (const t of tenants ?? []) zones.set(t.id, t.timezone || "America/New_York");
+    for (const t of tenants ?? []) zones.set(t.id, t.timezone || DEFAULT_TIMEZONE);
   };
 
   const out = {
@@ -77,7 +78,7 @@ export async function sweepGoogle({ db, L, started }: SweepTick): Promise<Respon
     for (const [i, row] of due.entries()) {
       if (overBudget("listings", due.length - i)) break;
       try {
-        const r = await checkListing(db, row, zones.get(row.tenant_id) ?? "America/New_York", "keep", now);
+        const r = await checkListing(db, row, zones.get(row.tenant_id) ?? DEFAULT_TIMEZONE, "keep", now);
         if (r.ok) {
           out.listings_read += 1;
           out.fresh += r.fresh;
@@ -102,7 +103,7 @@ export async function sweepGoogle({ db, L, started }: SweepTick): Promise<Respon
     for (const [i, conn] of due.entries()) {
       if (overBudget("profiles", due.length - i)) break;
       try {
-        const r = await syncProfile(db, conn, zones.get(conn.tenant_id) ?? "America/New_York", now);
+        const r = await syncProfile(db, conn, zones.get(conn.tenant_id) ?? DEFAULT_TIMEZONE, now);
         if (r.ok) {
           out.profiles_synced += 1;
           out.fresh += r.fresh;
