@@ -12,6 +12,7 @@ import {
   type LeadSearchPlan,
   placesToAsk,
 } from "@chanlytics/contracts";
+import { MAPS_CAP_FLOOR_USD } from "@chanlytics/core";
 import { log } from "@/server/log";
 
 export interface DoorAnswer {
@@ -158,11 +159,14 @@ const ASSUMED_YIELD = LEAD_ASSUMED_YIELD;
  * its main phase for a first round, the main phase alone after. A top-up runs
  * to the count minus what already counted (00140's lead_search_more sets that
  * as its target), so that is what it is priced for -- pricing the whole count
- * reserves money the round will never be allowed to spend.
+ * reserves money the round will never be allowed to spend. Never under one
+ * run's floor (core MAPS_CAP_FLOOR_USD), the least a run may be started with:
+ * a round reserved under it starts nothing (29 Oct 2026, five leads at $0.33),
+ * and lead_estimate_ceiling already holds a floor for every term.
  */
 export function estimateForRound(plan: LeadSearchPlan, purpose: LeadRoundPurpose, counted = 0): number {
   const wanted = purpose === "topup" ? Math.max(1, plan.count - counted) : plan.count;
   const main = estimateRoundUsd(plan, "main", placesToAsk(plan, wanted, ASSUMED_YIELD).total);
-  if (purpose !== "probe") return Math.round(main * 100) / 100;
-  return Math.round((estimateRoundUsd(plan, "probe", LEAD_PROBE_PLACES) + main) * 100) / 100;
+  const usd = purpose === "probe" ? estimateRoundUsd(plan, "probe", LEAD_PROBE_PLACES) + main : main;
+  return Math.max(MAPS_CAP_FLOOR_USD, Math.round(usd * 100) / 100);
 }
