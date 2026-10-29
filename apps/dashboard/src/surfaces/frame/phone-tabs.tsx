@@ -8,18 +8,9 @@
 import { useEffect } from "react";
 import type { TabBar } from "../kit/tab-bar/tab-bar";
 import { frameGlyph, fromGlobal } from "./frame-window";
+import { PHONE_MORE, PHONE_TABS } from "./places";
 import { pageToTop } from "./shell-hooks";
 import { shellAddress } from "./shell-routes";
-
-const PHONE_TABS = [
-  { id: "home", route: "today", icon: "home", label: "Today", holds: ["today"] },
-  { id: "inbox", route: "inbox", icon: "inbox", label: "Inbox", holds: ["inbox", "conversations", "live"] },
-  // Calendar, not Live. A call is live for minutes a week and holding a slot the rest of the time; "when is my next
-  // opening" is asked between every client. A call in progress is the frame's own bar while it is happening
-  // (topbar/status-bars.tsx LiveCallBar), the only place with room for it to say who is on the line.
-  { id: "calendar", route: "calendar", icon: "calendar", label: "Calendar", holds: ["calendar"] },
-  { id: "people", route: "clients", icon: "users", label: "People", holds: ["clients", "segments"] },
-];
 
 interface PhoneTabsProps {
   page: string;
@@ -82,7 +73,12 @@ export function PhoneTabs({ page, param, inboxNeeds, onNavigate, onMenu, onPlace
         warm: () => warm(t.route),
       }))}
       onPick={pick}
-      more={{ label: "Menu", word: "More", glyph: <Glyph name="menu" size={18} />, onPress: onMenu }}
+      more={{
+        label: PHONE_MORE.label,
+        word: PHONE_MORE.word,
+        glyph: <Glyph name={PHONE_MORE.icon} size={18} />,
+        onPress: onMenu,
+      }}
     />
   );
 }

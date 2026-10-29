@@ -2079,7 +2079,7 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   border-top: 1px solid var(--line);
 }
 /* The chip's fill reaches the foot's 8px past the face and the name, the nav rows' width, so they stand where they did. */
-.sidebar:not(.collapsed) [data-testid="sb-account"] {
+.sidebar:not(.collapsed) .sb-account {
   gap: 10px;
   width: calc(100% + 16px);
   margin: 0 -8px;
@@ -2088,20 +2088,20 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 }
 /* The two buttons that open a menu light as a nav row does: an inset's fill under a pointer, the ink lozenge while
    their menu is open. */
-:is([data-testid="sb-workspace"], [data-testid="sb-account"]) {
+:is(.sb-team, .sb-account) {
   background: transparent;
   transition: background var(--duration-fast) var(--ease-out);
 }
 @media (hover: hover) {
-  :is([data-testid="sb-workspace"], [data-testid="sb-account"]):hover {
+  :is(.sb-team, .sb-account):hover {
     background: var(--surface-inset-fill);
   }
 }
-:is([data-testid="sb-workspace"], [data-testid="sb-account"])[aria-expanded="true"] {
+:is(.sb-team, .sb-account)[aria-expanded="true"] {
   background: var(--selected-fill);
   box-shadow: var(--selected-depth);
 }
-[data-testid="sb-account"] > :first-child {
+.sb-account > :first-child {
   width: 32px;
   height: 32px;
   font-size: var(--text-xs);

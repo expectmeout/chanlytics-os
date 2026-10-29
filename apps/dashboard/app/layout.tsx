@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import {
   inAppBootScript,
+  outlineBootScript,
   routePrefetchScript,
   themeBootScript,
   themeColorOf,
@@ -25,11 +26,15 @@ import "./globals.css";
  * rather than Geist's. next/font/local takes one file per face and no unicode-range, so those are written by hand; the
  * latin file is preloaded below, since Glass is the default look (contracts DEFAULT_LOOK_PREF).
  */
+// Geist's sans is no longer the app's type: the desk sign's (yes/DeskSign.tsx, `.sign-body`) and a fallback behind Mona
+// Sans. It is not preloaded, so a page fetches it only where it is drawn; preloaded, every page asked for its 70 KB ahead
+// of its own stylesheets and drew nothing in it (the load review of 28 Oct 2026: document.fonts said "geist unloaded").
 const geist = localFont({
   src: "./fonts/Geist-Variable.woff2",
   weight: "300 600",
   variable: "--font-geist",
   display: "swap",
+  preload: false,
 });
 const geistMono = localFont({
   src: "./fonts/GeistMono-Variable.woff2",
@@ -104,6 +109,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: themeBootScript() }} />
         {/* Inside the native shell (a User-Agent token, contracts inAppBootScript): html.in-app and window.__IN_APP, before paint. */}
         <script dangerouslySetInnerHTML={{ __html: inAppBootScript() }} />
+        {/* What the frame's outline is drawn by, before paint: the sidebar this device keeps, and the first run's address
+            (contracts outlineBootScript, surfaces/frame/outline.tsx). */}
+        <script dangerouslySetInnerHTML={{ __html: outlineBootScript() }} />
         {/* The route's own reads, started here rather than after the shell has mounted (contracts routePrefetchScript). An
             async module, inline: it runs as it is parsed. A plain inline script waits for every stylesheet before it, and React
             sets the frame's thirteen ahead of anything in the head, so the reads left only once the last had come (on
