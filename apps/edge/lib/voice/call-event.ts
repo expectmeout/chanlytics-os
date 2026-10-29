@@ -34,6 +34,8 @@ import {
   callAttemptWords,
   callerName,
   callOutcomeWords,
+  DISCONNECTION_LABELS,
+  formatPhoneDisplay,
   guardSpokenTurns,
   missedCall,
   neverConnected,
@@ -423,8 +425,7 @@ export function callNotice(
   callId: string | null,
 ): NotifyMessage {
   const summary = n.summary || "(no summary)";
-  const sentiment = n.sentiment || "n/a";
-  const wanted = said(n.analysis?.caller_wanted);
+  const wanted = said(n.analysis?.caller_wanted)?.replace(/[.\s]+$/u, "");
   const outcomeWords = callOutcomeWords(n.analysis?.outcome);
   const followUp = said(n.analysis?.follow_up);
   const callback = n.analysis?.outcome === "callback_needed";
@@ -433,6 +434,9 @@ export function callNotice(
   const who =
     saved || said(n.analysis?.caller_name) || callerName({ from_e164: n.fromE164, from_raw: n.fromRaw, contact: null });
   const length = durationS >= 60 ? `${Math.round(durationS / 60)} min` : `${durationS} s`;
+  // How it ended in the call page's words (contracts DISCONNECTION_LABELS), never the provider's code.
+  const reason = n.disconnectionReason;
+  const ended = reason ? (DISCONNECTION_LABELS[reason] ?? reason.replace(/_/g, " ")) : null;
   return {
     kind: "call",
     route: callId ? addressOf({ kind: "call", id: callId }) : "conversations/phone",
@@ -442,7 +446,7 @@ export function callNotice(
       (wanted ? `They wanted: ${wanted}.\n` : `${summary}\n`) +
       (outcomeWords ? `Outcome: ${outcomeWords}.\n` : "") +
       (followUp ? `To do: ${followUp}\n` : "") +
-      `\nFrom ${call.from_number || "unknown"} · ${durationS}s · sentiment ${sentiment} · ended: ${n.disconnectionReason || "n/a"}\n` +
+      `\nFrom ${formatPhoneDisplay(call.from_number) ?? (call.from_number || "unknown")} · ${length}${ended ? ` · ${ended}` : ""}\n` +
       `\nSummary:\n${summary}\n\n` +
       `Transcript:\n${String(n.transcript || "(none)").slice(0, 3000)}`,
     redactedBody: `A voice call was handled for a workspace (${durationS}s). The summary and transcript were withheld.`,

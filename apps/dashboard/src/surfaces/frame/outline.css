@@ -1,0 +1,44 @@
+/* The frame's outline (outline.tsx): the frame's own classes draw it, so these rules only choose which of its parts
+   stand, from what the document's head stamped on <html> before first paint (contracts outlineBootScript). */
+
+/* The sidebar this device keeps: the open one unless it keeps the rail. A phone shows neither (mobile.css, the drawer). */
+@media (width > 900px) {
+  .frame-outline > .side-wrap.rail {
+    display: none;
+  }
+  html[data-sidebar="rail"] .frame-outline > .side-wrap.rail {
+    display: contents;
+  }
+  html[data-sidebar="rail"] .frame-outline > .side-wrap:not(.rail) {
+    display: none;
+  }
+}
+/* A small desk stands it as a rail whatever this device keeps, as the frame does (shell-hooks.ts useDeskSidebar). */
+@media (width > 900px) and (width <= 1280px) {
+  html .frame-outline > .side-wrap.rail {
+    display: contents;
+  }
+  html .frame-outline > .side-wrap:not(.rail) {
+    display: none;
+  }
+}
+
+/* An open row's inset, which the frame's row says in its own style (sidebar/sidebar.tsx SidebarRow). */
+.frame-outline .sidebar:not(.collapsed) .nav-item {
+  padding-left: 10px;
+}
+
+/* On a phone the frame's root is at least the screen at its largest, so its page scrolls by the browser's bar
+   (mobile.css, "The window scrolls"). The outline has no page to scroll: held to the screen it is drawn on, it never
+   overflows the window as the document loads, where a browser that found it longer zoomed the load out to fit its
+   width (Chromium's iPhone: 404px for 393, the tab bar 18px low until the frame came). */
+@media (max-width: 720px) {
+  .frame-outline {
+    min-height: 0;
+  }
+}
+
+/* The first run is drawn full screen (shell-chrome.tsx firstRunScreen): its ground, and none of the frame. */
+html[data-outline-bare] .frame-outline > :not(.pg-light) {
+  display: none;
+}

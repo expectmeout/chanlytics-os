@@ -1798,71 +1798,98 @@
 /* ---- Booked: a fact from the calendar beside the state pill ---- */
 .cl-row-booked { display: inline-flex; align-items: center; margin-left: 6px; padding: 1px 7px; border-radius: var(--radius-full); font-size: 10.5px; font-weight: 500; letter-spacing: .01em; color: var(--ok); background: var(--ok-soft); white-space: nowrap; }
 
-/* ---- A name the owner gives; notes the receptionist reads ---- */
-.cl-prof-name-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
-/* Editing wraps: the input takes the line and the two buttons follow it, on a phone under it. The input's fixed
-   240px beside two buttons pushed a 375px page 80px wide of itself. */
-.cl-prof-name-row.editing { flex-wrap: wrap; gap: 6px; }
+/* ---- A value typed where it is shown; notes the receptionist reads ---- */
+/* The person's name, their email address and a list's name are each the box they are typed in (kit/record/in-place.tsx):
+   the words' own element, at their own size, so beginning to type moves nothing (Ruben, 28 Oct 2026: the box, ✓ and ✕
+   that replaced the name took its line from 29px to 68px and pushed the head 20px down; the address grew to three
+   lines). The box is the words' own inline box, its fill reaching past them on each side by a margin no one sees, so the
+   words stand where they stood and a long value wraps as it did, each line in its own fill; the pencil follows the last
+   word, and is ✓ while the value is typed. What is said of it (what is wrong, where a name came from) stands under the
+   box on the pop layer's ground, over what is below. */
+[data-in-place] { position: relative; }
+.cl-in-place {
+  margin: 0 -6px;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  white-space: pre-wrap;
+  cursor: text;
+  outline: none;
+  transition: background-color var(--duration-fast) var(--ease-out), box-shadow var(--duration-fast) var(--ease-out), opacity var(--duration-fast) var(--ease-out);
+}
+/* A pointer over it lights the box in the inset's fill and shows the pencil; typing keeps the fill and rings it in the
+   line's strong ink, as a row in use is (--focus-row), never the accent a problem rings in. */
+@media (hover: hover) { [data-in-place]:hover .cl-in-place { background-color: var(--surface-inset-fill); } }
+.cl-in-place:focus { background-color: var(--surface-inset-fill); box-shadow: var(--focus-row); }
+.cl-in-place[data-empty]::before { content: attr(data-placeholder); color: var(--ink-faint); }
+/* Saved, the words stay in the box, quiet, while the door answers. */
+[data-in-place][aria-busy] .cl-in-place { opacity: 0.55; }
+[data-in-place] .cl-in-place-pen {
+  display: inline-grid;
+  width: 22px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0;
+  margin-left: 4px;
+  flex: none;
+  /* By its middle, never its glyph's baseline: the pencil and ✓ stand on one line. */
+  vertical-align: middle;
+  color: var(--ink-dim);
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
+}
+/* The pencil: on hover under a mouse; always on a touch screen, which has no hover; always where there is no value yet
+   (a person known by their number, no address), which is a job to do; and as ✓ while the value is typed. */
+@media (hover: hover) { [data-in-place]:hover .cl-in-place-pen { opacity: 1; } }
+@media (hover: none) { [data-in-place] .cl-in-place-pen { opacity: 1; } }
+[data-in-place]:is([data-invite], [data-typing]) .cl-in-place-pen { opacity: 1; }
+[data-in-place][data-typing] .cl-in-place-pen { color: var(--ink); }
+.cl-in-place-says {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: -8px;
+  z-index: 3;
+  width: max-content;
+  max-width: min(320px, calc(100vw - 32px));
+  margin: 0;
+  padding: 6px 10px;
+  border-radius: var(--radius-md);
+  background: var(--surface-pop-fill);
+  box-shadow: var(--surface-pop-depth);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-regular);
+  line-height: 1.4;
+  letter-spacing: normal;
+  color: var(--ink-dim);
+  white-space: normal;
+}
+.cl-in-place-says[data-problem] { color: var(--danger); }
+/* The name's box at the hero's size: its fill reaches 8px past the words, in the larger corners. */
+.cl-prof-name-row { min-width: 0; }
+.cl-prof-name-row > .cl-prof-name { width: fit-content; max-width: 100%; }
+.cl-prof-name .cl-prof-name-text { margin: 0 -8px; padding: 2px 8px; border-radius: var(--radius-md); }
+.cl-prof-name .cl-in-place-pen { margin-left: 6px; }
 .cl-prof-rename { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: var(--radius-sm); border: 1px solid transparent; background: transparent; color: var(--ink-faint); cursor: pointer; opacity: 0; transition: opacity 120ms ease, color 120ms ease; }
-.cl-prof-id:hover .cl-prof-rename, .cl-prof-rename:focus-visible { opacity: 1; }
-/* The name's pencil is its hint, always there in the dim ink (canvas A, `.a-pen`), never only on hover. */
-.cl-prof-name-line .cl-prof-rename { opacity: 1; color: var(--ink-dim); }
+.cl-prof-rename:focus-visible { opacity: 1; }
 @media (hover: hover) { .cl-prof-rename:hover { color: var(--ink); border-color: var(--line); background: var(--bg-raised); } }
-/* No name yet: the control is the invitation, always drawn, with its word. A phone has no hover to reveal it. */
+/* No value yet: the control is the invitation, always drawn, with its word. A phone has no hover to reveal it. */
 .cl-prof-rename.is-plain { width: auto; gap: 5px; padding: 0 6px 0 0; opacity: 1; color: var(--ink-muted); border-color: transparent; font: inherit; font-size: var(--text-sm); justify-content: flex-start; }
 @media (hover: hover) { .cl-prof-rename.is-plain:hover { border-color: transparent; background: transparent; color: var(--ink); text-decoration: underline; text-underline-offset: 2px; } }
 /* On a touch screen a quiet act in an About row keeps the 44px it may be pressed across, and the row keeps its own
    height: the press reaches into the row's padding instead of growing it, so the words stay on the label's line. */
 @media (pointer: coarse) {
   html.legacy-on .cl-prof-attr .cl-prof-rename.is-plain { margin-block: -13px; }
-  /* The rename beside the name is a 22px mark with a thumb's press around it: a 44px box made the name's line 44px
-     tall, 17px of air over a name on every phone. */
-  html.legacy-on .cl-prof-name-row .cl-prof-rename { min-height: 0; position: relative; }
-  html.legacy-on .cl-prof-name-row .cl-prof-rename::after { content: ""; position: absolute; inset: -11px -8px; }
+  /* The pencil after a value is a 22px mark with a thumb's press around it: a 44px box made the name's line 44px tall,
+     17px of air over a name on every phone, and the Email row 63px. */
+  html.legacy-on [data-in-place] .cl-in-place-pen { min-height: 0; position: relative; }
+  html.legacy-on [data-in-place] .cl-in-place-pen::after { content: ""; position: absolute; inset: -11px -8px; }
 }
 @media (hover: none) { .cl-prof-rename { opacity: 1; } }
-/* The name's editor (canvas A, M1): its box at the name's own size, edged as a field in focus, and ✓ (in the ok ink) and
-   ✕ beside it. */
-.cl-prof-name-row.editing > :first-child {
-  flex: 1 1 200px;
-  min-width: 0;
-  max-width: 420px;
-}
-.cl-prof-name-row .cl-prof-name-box {
-  flex: none;
-  width: 100%;
-  height: auto;
-  margin-left: -8px;
-  padding: 0 8px;
-  border: 0;
-  border-radius: var(--radius-md);
-  background: var(--surface-inset-fill);
-  box-shadow: var(--focus-field-edged);
-  font-size: var(--text-hero);
-  font-weight: var(--weight-medium);
-  letter-spacing: -0.02em;
-  line-height: 1.3;
-  color: var(--ink);
-}
 .cl-prof-name-acts { display: inline-flex; align-items: center; gap: 6px; }
-.cl-prof-name-ok { color: var(--ok-ink); }
-@media (max-width: 900px) {
-  .cl-prof-name-row .cl-prof-name-box {
-    font-size: var(--text-2xl);
-  }
-}
-/* The address in the About list: shown with its pencil on one line, edited in place on three. */
-.cl-prof-email { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; }
+/* The address in the About list, on one line with its pencil, typed in place. */
+.cl-prof-email { display: inline-flex; align-items: center; min-width: 0; max-width: 100%; }
 .cl-prof-email-val { min-width: 0; overflow-wrap: anywhere; }
-.cl-prof-email .cl-prof-rename { opacity: 1; flex: none; }
-/* A pencil alone is 22px wide; on a touch screen it is the row's only control, and the row has the room. */
-@media (pointer: coarse) { .cl-prof-email .cl-prof-rename:not(.is-plain) { min-width: 44px; } }
-.cl-prof-email.editing { display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
-.cl-prof-email-input { font: inherit; font-size: var(--text-sm); color: var(--ink); background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 5px 8px; min-width: 0; width: 100%; }
-.cl-prof-email-input:focus { outline: none; border-color: var(--accent); }
-.cl-prof-email-input[aria-invalid="true"] { border-color: var(--danger); }
-.cl-prof-email-problem { font-size: 11.5px; line-height: 1.4; color: var(--danger); }
-.cl-prof-email.editing .cl-prof-name-acts { justify-content: flex-end; }
 /* A person's notes (0007): the composer, the receptionist's suggestions, then the notes, newest first. Each note is its
    words and one quiet line under them (who, when, who it is for, team only); the note's own acts wait behind a ⋯ that
    shows on hover, and always under a thumb. */
@@ -2542,12 +2569,8 @@
 /* A person on a list is a button, so a keyboard reaches them; it reads as the name it was. */
 /* ---- Lists on People: a picked list is the section's title, with its rename and its delete on the line ---- */
 .cl-section-lead { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; min-width: 0; }
-.cl-list-rename { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: var(--radius-sm); border: 1px solid transparent; background: transparent; color: var(--ink-faint); cursor: pointer; opacity: 0; transition: opacity 120ms ease, color 120ms ease; }
-.cl-section-lead:hover .cl-list-rename, .cl-list-rename:focus-visible { opacity: 1; }
-@media (hover: hover) { .cl-list-rename:hover { color: var(--ink); border-color: var(--line); background: var(--bg-raised); } }
-@media (hover: none) { .cl-list-rename { opacity: 1; } }
-.cl-list-renaming { flex-wrap: wrap; }
-.cl-list-renaming input { font-size: 14px; font-weight: 500; }
+/* A list's name, typed where it is the title (list-title.tsx; the shared rules: "A value typed where it is shown"). */
+.cl-list-naming { display: inline-flex; align-items: center; min-width: 0; }
 
 /* ==== People on a phone (docs/superpowers/specs/2026-09-22-people-on-a-phone-design.md) ============================
    The page draws these only at 900px and under (PL_PHONE_QUERY), the band the rows, the bar and the Lists sheet share. */
@@ -4378,21 +4401,6 @@ a.cl-prof-vrow:focus-visible {
     display: flex;
   }
 }
-/* The address's pencil is a 22px mark with a thumb's press around it, as the name's is (a 44px box made the Email row 63px
-   tall, 25px of air over a line of words). */
-@media (max-width: 900px) and (pointer: coarse) {
-  html.legacy-on .cl-prof-email .cl-prof-rename:not(.is-plain) {
-    position: relative;
-    min-width: 0;
-    min-height: 0;
-  }
-  html.legacy-on .cl-prof-email .cl-prof-rename:not(.is-plain)::after {
-    content: "";
-    position: absolute;
-    inset: -11px -8px;
-  }
-}
-
 /* ====================================================================
    A person, canvas A "The Person Record" (decision 0052, 12 October 2026): the parts the record added. The figures as
    one pane of four, the strip of tabs over the tab's panes, the notices under the name, the business's tile in its
@@ -4598,13 +4606,6 @@ a.cl-prof-vrow:focus-visible {
 /* A name's first use, said under the toast's words. */
 .cl-prof-notice-why {
   font-size: var(--text-xs);
-  color: var(--ink-dim);
-}
-/* The name a signer gave, said in its field, with the way back to the business. */
-.cl-prof-name-from {
-  flex-basis: 100%;
-  margin: 0;
-  font-size: var(--text-sm);
   color: var(--ink-dim);
 }
 /* A business's tile: the inset's corners in its kind's tint (contracts leadTintOf), as Leads draws it. */

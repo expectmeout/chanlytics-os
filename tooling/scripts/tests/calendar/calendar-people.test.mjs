@@ -1606,20 +1606,19 @@ test("a name the owner gives and notes the receptionist reads: two doors, one ro
   );
   // The profile's courier asks the details door this route answers. Run, on the page's own TSX (surfaces/people/person).
   const ui = await profileUi();
-  const { byTestId, press } = ui.LR;
+  const { byTestId } = ui.LR;
   assert.deepEqual(await ui.writes(() => ui.setPersonDetails(MARIA, { name: "Maria Lopez" })), [
     ["PUT", `/api/v1/contacts/${MARIA}/details`, { name: "Maria Lopez" }],
   ]);
-  // The hero name is the editable one: whoever may record is offered the pencil, then the box and its Save; anyone else
-  // is shown the name and nothing to change it with.
+  // The hero name is the editable one: whoever may record is drawn the name as the box it is typed in, from the first
+  // draw, its pencil after it (pressing moves nothing); anyone else is shown the name and nothing to change it with.
   const maria = toPersonVM(detail_(), TZ, new Date(NOW));
   const hero = (canRecord) => () => ui.hero(ui.ctx(maria, { canRecord }), () => {}, false);
   const named = ui.drawn(hero(true));
-  assert.ok(byTestId(named.tree, "person-rename"), "person-rename");
-  press(byTestId(named.tree, "person-rename"));
-  const renaming = named.again();
-  for (const id of ["person-name-input", "person-name-save"]) assert.ok(byTestId(renaming, id), id);
-  assert.equal(byTestId(ui.drawn(hero(false)).tree, "person-rename"), null, "a viewer's is a name and no pencil");
+  for (const id of ["person-rename", "person-name-input"]) assert.ok(byTestId(named.tree, id), id);
+  assert.equal(byTestId(named.tree, "person-name-input").props.contentEditable, "plaintext-only", "typed in place");
+  const viewer = ui.drawn(hero(false)).tree;
+  assert.ok(!byTestId(viewer, "person-rename") && !byTestId(viewer, "person-name-input"), "a viewer's is a name alone");
   // The notes are a composer: the box, and Save once something is typed.
   const notes = ui.drawn(() =>
     globalThis.React.createElement(ui.PersonNotes, {

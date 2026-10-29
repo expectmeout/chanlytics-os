@@ -7,6 +7,7 @@
 import { WORKSPACE_PAUSED } from "../lines/caller-gets";
 import { PAUSED_WORDS } from "../workspace/billing";
 import { roleSays } from "../config/workspace-config/role-perms";
+import { FIRST_RUN_ROUTE } from "../setup/first-run-route";
 
 export type ThemePref = "light" | "dark" | "system";
 export type Theme = "light" | "dark";
@@ -193,6 +194,36 @@ export function inAppBootScript(): string {
 
 export type SidebarPref = "open" | "rail";
 export const isSidebarPref = (v: unknown): v is SidebarPref => v === "open" || v === "rail";
+/** The sidebar of a device that has kept none: open, as the app draws it (legacy-bridge/device-prefs.ts). */
+export const DEFAULT_SIDEBAR_PREF: SidebarPref = "open";
+
+/** The `<html>` attribute that says the sidebar this device keeps, for the document's outline (OUTLINE_BARE beside it). */
+const OUTLINE_SIDEBAR_ATTR = "data-sidebar";
+/** The `<html>` attribute that says the outline draws none of the frame: the address is a page drawn full screen. */
+const OUTLINE_BARE_ATTR = "data-outline-bare";
+
+/**
+ * What the document's outline needs before first paint (surfaces/frame/outline.tsx, the cold-load review of 28 Oct
+ * 2026): the outline is prerendered once for every address, so the two facts it is drawn by are stamped here. The
+ * sidebar this device keeps, `open` or `rail`, read from the stored object as the app reads it (isSidebarPref, else
+ * the default); the outline's stylesheet stands it as a rail on a small desk whatever it says, as the frame does. And
+ * the first run, whose address (`/w/<slug>/start`, or the old `#/start`) the app draws full screen with none of the
+ * frame: there the outline draws the page's ground alone. theme-boot.test.mjs runs it against the app's own readings.
+ */
+export function outlineBootScript(): string {
+  const start = JSON.stringify(FIRST_RUN_ROUTE);
+  return [
+    "try{",
+    `var v=${JSON.stringify(DEFAULT_SIDEBAR_PREF)};`,
+    `try{var s=JSON.parse(localStorage.getItem(${JSON.stringify(DEVICE_PREFS_STORAGE)})||"{}");`,
+    'if(s&&(s.sidebar==="open"||s.sidebar==="rail"))v=s.sidebar}catch(e){}',
+    `document.documentElement.setAttribute(${JSON.stringify(OUTLINE_SIDEBAR_ATTR)},v);`,
+    'var m=/^\\/w\\/[^\\/?#]+(?:\\/([^\\/?#]*))?/.exec(location.pathname||"");',
+    'var r=m?(m[1]||((location.hash||"").indexOf("#/")===0?location.hash.slice(2).split(/[\\/?]/)[0]:"")):"";',
+    `if(r===${start})document.documentElement.setAttribute(${JSON.stringify(OUTLINE_BARE_ATTR)},"");`,
+    "}catch(e){}",
+  ].join("");
+}
 
 /** Whether a key press belongs to a field the person is typing in. */
 export function isTypingTarget(tagName: string | null | undefined, contentEditable: boolean): boolean {

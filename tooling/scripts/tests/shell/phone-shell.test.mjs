@@ -45,7 +45,8 @@ test("the Inbox and Conversations take turns on a phone, with a Back that only a
 });
 
 test("the tab bar carries the real surfaces and the count that matters, drawn by the kit's TabBar", () => {
-  const shell = ["phone-tabs.tsx", "shell-chrome.tsx", "shell-hooks.ts"]
+  // The places themselves are places.ts's, which the tab bar and the document's outline both draw from.
+  const shell = ["phone-tabs.tsx", "places.ts", "shell-chrome.tsx", "shell-hooks.ts"]
     .map((f) => readRaw(`apps/dashboard/src/surfaces/frame/${f}`))
     .join("\n");
   assert.ok(shell.includes('testid="phone-tabs"'));

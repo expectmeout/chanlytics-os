@@ -8,14 +8,20 @@
  *
  * The table list is the part that rots. A table added with a tenant_id and not
  * added here means a backup with a hole in it, which reads as complete.
+ *
+ * The files are the part no cascade reaches. A workspace's media folder, its
+ * call recordings and its messages' media, is walked to the bottom over a bucket
+ * that answers as storage does, and removed a batch at a time.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { ROOT, readCode } from "../_source.mjs";
 
 const script = readCode("tooling/scripts/ops/delete-tenant.mjs");
+const run = await import(pathToFileURL(path.join(ROOT, "tooling/scripts/ops/delete-tenant.mjs")).href);
 
 /** Every table carrying a tenant_id, read out of the migrations. */
 function tablesWithTenantId() {
@@ -144,4 +150,112 @@ test("a dry run reports the orphans and still finishes", () => {
     dryExit < script.indexOf("REFUSING: this workspace still holds"),
     "and the dry run exits 0 rather than refusing",
   );
+});
+
+const T = "00000000-0000-4000-8000-0000000000a1";
+
+/**
+ * A bucket as storage answers it: list() names one folder's children a page at a time, sorted by name, a subfolder as
+ * an entry with no id; a folder nothing was written to lists as empty; remove() answers with what it removed, and a
+ * path already gone is simply not among them.
+ */
+function bucket(objects, faults = {}) {
+  const store = new Map(Object.entries(objects));
+  const asked = { list: [], remove: [] };
+  return {
+    store,
+    asked,
+    list: async (dir, { limit = 100, offset = 0 } = {}) => {
+      asked.list.push({ dir, limit, offset });
+      if (faults.list?.[dir]) return { data: null, error: { message: faults.list[dir] } };
+      const children = new Map();
+      for (const [p, size] of store) {
+        if (!p.startsWith(`${dir}/`)) continue;
+        const [name, ...deeper] = p.slice(dir.length + 1).split("/");
+        children.set(
+          name,
+          deeper.length ? { name, id: null, metadata: null } : { name, id: `o-${p}`, metadata: { size } },
+        );
+      }
+      const page = [...children.values()].sort((a, b) => (a.name < b.name ? -1 : 1)).slice(offset, offset + limit);
+      return { data: page, error: null };
+    },
+    remove: async (paths) => {
+      asked.remove.push(paths);
+      if (faults.remove?.(paths)) return { data: null, error: { message: "storage said no" } };
+      return { data: paths.filter((p) => store.delete(p)).map((name) => ({ name })), error: null };
+    },
+  };
+}
+
+test("a workspace's media is read to the bottom: recordings, each thread's folder, and past a page", async () => {
+  const objects = {
+    [`${T}/thread-a/message-1.jpg`]: 2_000,
+    [`${T}/thread-a/message-2.ogg`]: 3_000,
+    [`${T}/thread-b/nested/message-3.pdf`]: 4_000,
+    // Another workspace whose id this one's is a prefix of, and one beside it: neither is this workspace's.
+    [`${T}0/calls/theirs.wav`]: 9_999,
+    [`other/calls/theirs.wav`]: 9_999,
+  };
+  for (let i = 0; i < 150; i++) objects[`${T}/calls/call-${String(i).padStart(3, "0")}.wav`] = 1_000;
+  const b = bucket(objects);
+
+  const { files, error } = await run.filesUnder(b, T);
+
+  assert.equal(error, null);
+  assert.deepEqual(
+    files.map((f) => f.path).sort(),
+    Object.keys(objects)
+      .filter((p) => p.startsWith(`${T}/`))
+      .sort(),
+    "every file under the folder, and nothing beside it",
+  );
+  assert.equal(
+    files.reduce((n, f) => n + f.bytes, 0),
+    150 * 1_000 + 2_000 + 3_000 + 4_000,
+    "with its size, for the count the dry run says",
+  );
+  assert.ok(b.asked.list.filter((a) => a.dir === `${T}/calls`).length > 1, "a folder past a page is read page by page");
+});
+
+test("a workspace that never stored a file has no media, and that is not an error", async () => {
+  assert.deepEqual(await run.filesUnder(bucket({ [`other/calls/x.wav`]: 1 }), T), { files: [], error: null });
+});
+
+test("a folder it cannot list is said, never read as empty", async () => {
+  const b = bucket({ [`${T}/calls/a.wav`]: 1, [`${T}/thread-a/m.jpg`]: 1 }, { list: { [`${T}/calls`]: "timed out" } });
+  const { error } = await run.filesUnder(b, T);
+  assert.match(error, /timed out/);
+  assert.match(error, /calls/, "naming the folder it could not read");
+  // An unread folder would be a delete that strands what it could not see, which is the gap this closes.
+  assert.ok(script.includes("REFUSING: could not list media/"), "the script refuses on it");
+});
+
+test("the files go a batch at a time, and a batch storage refuses does not stop the rest", async () => {
+  const objects = {};
+  for (let i = 0; i < 230; i++) objects[`${T}/calls/c${String(i).padStart(3, "0")}.wav`] = 1;
+  const b = bucket(objects, { remove: (paths) => paths.includes(`${T}/calls/c150.wav`) });
+  const gone = `${T}/calls/already-gone.wav`;
+  const paths = [...Object.keys(objects), gone];
+
+  const out = await run.removeAll(b, paths);
+
+  assert.deepEqual(
+    b.asked.remove.map((batch) => batch.length),
+    [100, 100, 31],
+  );
+  assert.equal(out.removed.length, 130, "the batches storage took");
+  assert.deepEqual(out.failed, b.asked.remove[1], "the batch it refused, by path");
+  assert.equal(out.error, "storage said no");
+  assert.ok(!out.failed.includes(gone) && !out.removed.includes(gone), "a path already gone is neither");
+  assert.equal(b.store.size, 100, "what is left is the refused batch");
+});
+
+test("the media is counted in the dry run and removed only after the rows are gone", () => {
+  const listed = script.indexOf('filesUnder(db.storage.from("media"), tenantId)');
+  assert.ok(listed > -1, "the workspace's own media folder is read");
+  assert.ok(listed < script.indexOf("Dry run only. Re-run with --apply"), "before the dry run exits, so it is said");
+  const removed = script.indexOf('removeAll(db.storage.from("media")');
+  assert.ok(removed > script.indexOf('from("tenants").delete()'), "after the tenant delete");
+  assert.ok(removed > script.indexOf("REFUSING TO REPORT SUCCESS"), "and after it is counted as done");
 });

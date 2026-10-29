@@ -40,6 +40,7 @@ export type { RunStopWords } from "./campaign-rooms";
 export {
   APP_KEYS_RESIZE_CLASS,
   DEFAULT_LOOK_PREF,
+  DEFAULT_SIDEBAR_PREF,
   DEFAULT_THEME_PREF,
   DEVICE_PREFS_STORAGE,
   IN_APP_CLASS,
@@ -55,6 +56,7 @@ export {
   lookPrefOf,
   nextThemePref,
   notFoundPageMetadata,
+  outlineBootScript,
   pageTitle,
   resolveTheme,
   shellStatusLine,

@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
 import { Suspense, memo, useCallback, useEffect, useLayoutEffect, useState, type ReactNode } from "react";
 import { movedAddress, routeOfPath } from "@chanlytics/contracts";
+import { FrameOutline } from "@/surfaces/frame/outline";
 import { routeHasPage } from "@/surfaces/routes";
 import { speedHost } from "@/client/page-speed";
 import { api } from "./api";
@@ -26,53 +27,11 @@ import FrameShell from "#frame-shell";
  * document's rather than once this module evaluates (a cold load on 25 Sep 2026 asked for it 270 ms after the document
  * was interactive).
  *
- * The fallback below is the FIRST thing every visitor sees, until the
- * frame is placed. It used to be hardcoded `#93a5a0` on the
- * auth page's near-black ground — shown to light-theme users too. Now it
- * paints from the design tokens (which arrive as a document stylesheet from
- * the (os) layout, so they are available before this renders) and shows the
- * app's own shape rather than a sentence, so the transition into the shell
- * isn't a jump cut.
+ * The outline (surfaces/frame/outline.tsx) is the FIRST thing every visitor sees, until the frame is placed: the frame's
+ * own chrome in its own classes, where the frame will stand it, in place of the spinner this drew until 28 Oct 2026.
  */
-function Loading() {
-  return (
-    <div
-      aria-busy="true"
-      aria-label="Loading your workspace"
-      style={{
-        height: "100vh",
-        display: "grid",
-        placeItems: "center",
-        background: "var(--bg)",
-        color: "var(--ink-dim)",
-        fontFamily: "var(--font-sans)",
-        fontSize: 13,
-      }}
-    >
-      <div style={{ display: "grid", gap: 10, justifyItems: "center" }}>
-        <div
-          style={{
-            width: 22,
-            height: 22,
-            borderRadius: "50%",
-            border: "2px solid var(--line-strong)",
-            borderTopColor: "var(--accent)",
-            animation: "chanly-spin 700ms linear infinite",
-          }}
-        />
-        <span>Loading your workspace…</span>
-      </div>
-      <style>
-        {
-          "@keyframes chanly-spin{to{transform:rotate(360deg)}}@media (prefers-reduced-motion:reduce){[aria-busy] div{animation:none!important}}"
-        }
-      </style>
-    </div>
-  );
-}
-
 // `dynamic` for its `ssr: false` alone: the server draws the fallback, and the browser the shell, already loaded.
-const LegacyApp = dynamic(() => Promise.resolve(FrameShell), { ssr: false, loading: () => <Loading /> });
+const LegacyApp = dynamic(() => Promise.resolve(FrameShell), { ssr: false, loading: () => <FrameOutline /> });
 
 /**
  * Field data (00255, 00412): the browser's five for this load and each move it counts, beside the shell's own
@@ -216,14 +175,14 @@ export default function LegacyHost({ home = false, children }: { home?: boolean;
       cancelled = true;
     };
   }, [home]);
-  if (!stay) return <Loading />;
+  if (!stay) return <FrameOutline />;
   // The address is read only here and in the frame below, and neither is drawn by the server: the build prerenders this
-  // spinner once for every workspace's address (decision 0053, step 5), and the address it does not know (`[workspace]`
+  // outline once for every workspace's address (decision 0053, step 5), and the address it does not know (`[workspace]`
   // is any slug) is the browser's to say. In a boundary, as Next asks of a read of the address a prerender cannot know.
   if (!placed)
     return (
       <>
-        <Loading />
+        <FrameOutline />
         <Suspense fallback={null}>
           <MovedOnLoad onPlaced={place} />
         </Suspense>

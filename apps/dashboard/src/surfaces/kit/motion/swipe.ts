@@ -173,7 +173,11 @@ const swipeScrollerAtTop = (from: EventTarget | null, upTo: HTMLElement): boolea
 // let-go; so is one begun outside the element's nodes: a portal's, which React hands up the tree it was drawn from.
 const swipeOwnDrag = (from: EventTarget | null, upTo: HTMLElement): boolean => {
   for (let n = from as HTMLElement | null; n; n = n.parentElement) {
-    if (n.matches && n.matches("input, textarea, select, [contenteditable='true']")) return true;
+    if (
+      n.matches &&
+      n.matches("input, textarea, select, [contenteditable='true'], [contenteditable='plaintext-only']:focus")
+    )
+      return true;
     if (n.scrollWidth > n.clientWidth + 1) {
       const over = window.getComputedStyle ? window.getComputedStyle(n).overflowX : "visible";
       if (over === "auto" || over === "scroll") return true;
