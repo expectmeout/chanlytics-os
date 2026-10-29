@@ -7,6 +7,7 @@
  */
 import {
   NEW_WORDS,
+  REACH_OUT_GAP_FIRST,
   channelNeverCarries,
   type AskedPurpose,
   type ConsentChannel,
@@ -203,7 +204,8 @@ export function newChecksOf(
   if (d.audience === "leads") {
     ok(C.notCustomers);
     ok(C.noFirstLink);
-    ok(C.pace(12));
+    // The pace the sequence is made at (00492 sequence_create_leads, decision 0077 D7), never one of its own.
+    ok(C.pace(REACH_OUT_GAP_FIRST));
     if (d.kind === "once") ok(C.oneEmail, C.oneEmailDetail);
     return out;
   }

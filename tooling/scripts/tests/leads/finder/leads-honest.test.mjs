@@ -4003,7 +4003,12 @@ test("an ending's one next step opens the plan and starts nothing until it is ap
   draw({ leadsRoute: `leads:s-${SEARCH_A}` });
   await quiesce();
   const off = strips.at(-1);
-  assert.equal(off.vm.actions[0].label, "12 new", "what a refresh found is offered, never sorted in");
+  // Offered, never sorted in; this search has ended, so it leads as the strip's one main button (29 Oct 2026).
+  assert.deepEqual(
+    [off.vm.actions[0].label, off.vm.actions.filter((a) => a.primary).map((a) => a.id)],
+    ["Show 12 new", ["take_offered"]],
+    "what a refresh found is offered, never sorted in",
+  );
   reads.length = 0;
   await off.onAction("take_offered");
   await settle();

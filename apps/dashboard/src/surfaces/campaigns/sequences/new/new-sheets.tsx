@@ -15,6 +15,7 @@ import {
   NEW_ONCE_AHEAD_DAYS,
   NEW_WAIT_DAYS,
   NEW_WORDS as W,
+  REACH_OUT_GAP_FIRST,
   PLAYBOOK_HOURS,
   SEQUENCE_MODE_WORDS,
   clockHour,
@@ -745,7 +746,7 @@ export function FromSheet(p: {
           testid="sq-nw-from-you"
         />
       </div>
-      <p className="sq-nw-note">{W.checks.pace(12)}</p>
+      <p className="sq-nw-note">{W.checks.pace(REACH_OUT_GAP_FIRST)}</p>
     </PickSheet>
   );
 }

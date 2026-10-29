@@ -50,7 +50,7 @@ Object.assign(globalThis, {
   gate: () => ({}),
   gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
 });
-const { WhenSheet, ChannelsSheet } = await import(`${SRC}/surfaces/campaigns/sequences/new/new-sheets.tsx`);
+const { WhenSheet, ChannelsSheet, FromSheet } = await import(`${SRC}/surfaces/campaigns/sequences/new/new-sheets.tsx`);
 const { MessageSheet } = await import(`${SRC}/surfaces/campaigns/sequences/new/new-message-sheets.tsx`);
 const M = await import(`${SRC}/surfaces/campaigns/sequences/new/new-model.ts`);
 const { cmOfferedMessages } = await import(`${SRC}/surfaces/campaigns/parts/channels.ts`);
@@ -322,4 +322,12 @@ test("How it goes: a way the message holds that isn't connected says so, with th
   const email = rowOf(tree, W.channels.email);
   assert.ok(textOf(email).includes(W.channels.noVersion));
   assert.equal(hostOf(email, "sq-nw-connect-email"), null);
+});
+
+test("Where a sequence to leads sends from says the pace it starts at, the one its make writes (0077, D7)", () => {
+  const draft = M.setWho(M.draftByHand("sequence", "leads", "x"), { kind: "search", id: "s-1", label: "Plumbers" });
+  const tree = sheet(FromSheet, () => ({ open: true, draft, onOwnerSends() {}, onClose() {} }))();
+  const note = find(tree, (n) => classes(n).includes("sq-nw-note"));
+  assert.equal(textOf(note), W.checks.pace(contracts.REACH_OUT_GAP_FIRST));
+  assert.match(textOf(note), /every 20 minutes/);
 });

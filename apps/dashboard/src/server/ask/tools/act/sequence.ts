@@ -8,6 +8,7 @@ import {
   PROPOSAL_SPECS,
   REACH_OUT_AFTER_DAYS,
   REACH_OUT_DECISIONS,
+  REACH_OUT_GAP_FIRST,
   REACH_OUT_GAP_MINUTES,
   REACH_OUT_SAID_OUTCOMES,
   REACH_OUT_STEPS_MAX,
@@ -512,7 +513,8 @@ async function proposeColdEmail(
     // A token is checked in the shape of the id it stands for, and kept as the token for the commit to fill.
     search_id: token === null ? searchId : "00000000-0000-4000-8000-000000000000",
     include_unconfirmed: input.include_unconfirmed ?? false,
-    gap_minutes: input.gap_minutes ?? REACH_OUT_GAP_MINUTES[2],
+    // Unsaid, the pace every new sequence starts at (decision 0077 D7), the one New makes it at.
+    gap_minutes: input.gap_minutes ?? REACH_OUT_GAP_FIRST,
     mailbox_ids: [],
     // Unsaid, it sends as a new sequence does (00459 sequence_create_leads): from the connected mailboxes while there
     // is one, else handed to the owner to send, so a sequence never waits on a mailbox nobody connected.

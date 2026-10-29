@@ -22,6 +22,7 @@ import {
   NEW_ONCE_AHEAD_DAYS,
   NEW_WORDS,
   NO_CHANNEL_REACH,
+  REACH_OUT_GAP_FIRST,
   allLeftOutWords,
   campaignMessagesOf,
   emptyAudienceRefusal,
@@ -677,4 +678,15 @@ test("REGRESSION: a send kept from before never goes by text for an offer -- Sen
     "Harbor Studio",
   );
   assert.deepEqual(news.channels, ["whatsapp", "sms"]);
+});
+
+test("a sequence to leads is checked at the pace every new one starts at: one email every 20 minutes (0077, D7)", () => {
+  const d = M.setWho(M.draftByHand("sequence", "leads", "x"), { kind: "search", id: ID(9), label: "Trainers" });
+  const words = newChecksOf(d, ALL).map((c) => c.words);
+  assert.ok(words.includes(NEW_WORDS.checks.pace(REACH_OUT_GAP_FIRST)), words.join(" | "));
+  assert.equal(REACH_OUT_GAP_FIRST, 20);
+  assert.ok(
+    !words.some((w) => /every 12 minutes/.test(w)),
+    "REGRESSION: New said 12 while the sequence it makes paces 20",
+  );
 });
