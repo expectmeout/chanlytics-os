@@ -312,7 +312,8 @@ export interface LeadDb {
     roundId: string,
     planVersion: number,
     places: CollectPlace[],
-    judgment: CollectJudgment | null,
+    /** Each call's judgment the verdicts came from (core judgeInCalls), kept once each by its operation id. */
+    judgment: CollectJudgment | CollectJudgment[] | null,
   ): Promise<RejudgeResult>;
   /** Insert the run rows that are not there yet, by their deterministic ids, and answer every row of the round. */
   runsEnsure(

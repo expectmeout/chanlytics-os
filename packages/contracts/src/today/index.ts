@@ -96,7 +96,8 @@ export type {
   BellSectionVM,
   TodayAwayVM,
 } from "./today-away";
-export { standingWithRuns, todayDraftsSub } from "./today-bands";
+export { standingWithRuns, TODAY_PHONE_WORDS, todayDraftsSub, todayPhoneHead } from "./today-bands";
+export type { TodayPhoneHeadVM } from "./today-bands";
 export { toTodayVM } from "./today-brief";
 export { todayBriefWords } from "./today-brief-words";
 export type { TodayBriefRun, TodayBriefWords } from "./today-brief-words";
@@ -105,6 +106,8 @@ export {
   durationLabel,
   TODAY_DAY_MAX,
   todayDay,
+  todayDayBar,
+  todayDayNote,
   todayVisitsAsked,
   todayVisitsFoot,
   todayVisitsSub,
@@ -114,6 +117,7 @@ export type {
   CalendarLike,
   DayFrameLike,
   PlaybookCardLike,
+  TodayDayBarVM,
   TodayDayFrameVM,
   TodayDayItemVM,
   TodayDayVM,

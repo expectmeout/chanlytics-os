@@ -13,6 +13,7 @@ import { appNavigate, gate } from "../shell";
 import { useDraft, type DraftWant } from "./drafts";
 import { Acts, Done, Editor, Going, Note, NotNow, Words, Writing, type WorkProps } from "./parts";
 import { clearSend, sendWords, undoSend, useSend } from "./sends";
+import { useRowState } from "./row-state";
 
 /** Where a mailbox's signature is chosen: Settings › Connections, its row's settings (00487). */
 const SIGNATURE_ROUTE = "admin/integrations";
@@ -93,11 +94,11 @@ function useWords(row: TodayQueueRowVM, mine: string | null, may: boolean) {
 export function ReplyWork(p: WorkProps & { by?: string; start?: ReactNode }) {
   const { row, main, may, tz, flash, keep } = p;
   const wire = row.writes?.wire ?? row.channel;
-  const [mine, setMine] = useState<string | null>(null);
-  const [editing, setEditing] = useState(false);
+  const [mine, setMine] = useRowState<string | null>(row.id, "mine", null);
+  const [editing, setEditing] = useRowState(row.id, "editing", false);
   const [busy, setBusy] = useState(false);
-  const [snoozed, setSnoozed] = useState<Snoozed | null>(null);
-  const [refused, setRefused] = useState<Refused | null>(null);
+  const [snoozed, setSnoozed] = useRowState<Snoozed | null>(row.id, "snoozed", null);
+  const [refused, setRefused] = useRowState<Refused | null>(row.id, "refused", null);
   // Sent from this row as it is drawn now (not a send still counting from before a move back to Today): Undo takes the keys.
   const [sentHere, setSentHere] = useState(false);
   const { draft, words } = useWords(row, mine, may);
@@ -231,11 +232,12 @@ export function ReplyWork(p: WorkProps & { by?: string; start?: ReactNode }) {
         editing={editing}
         onChange={setMine}
         onEdit={may ? edit : null}
+        onRead={p.read}
         signed={wire === THREAD_CHANNEL_WORDS.email ? signedLineOf(draft) : null}
       />
       {refused ? <Note tone={refused.confirmTo ? "warn" : "danger"}>{refused.message}</Note> : null}
       {!may ? <Note>{W.viewer}</Note> : null}
-      <Acts start={start} end={words || closed || !may ? sendButton : writeIt} />
+      <Acts foot={p.foot} start={start} end={words || closed || !may ? sendButton : writeIt} />
     </>
   );
 }
@@ -264,6 +266,7 @@ function WordsPart(p: {
   onChange: (text: string) => void;
   onEdit: (() => void) | null;
   signed: string | null;
+  onRead?: (() => void) | null;
 }) {
   const { draft } = p;
   if (p.editing) return <Editor who={p.who} value={p.words} onChange={p.onChange} />;
@@ -276,6 +279,7 @@ function WordsPart(p: {
         onEdit={p.onEdit}
         signed={p.signed}
         onSigned={p.signed ? () => appNavigate(SIGNATURE_ROUTE) : null}
+        onRead={p.onRead}
       />
     );
   if (draft?.state === "writing") return <Writing />;

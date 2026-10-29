@@ -124,17 +124,22 @@ export type NewSequenceBody = z.infer<typeof NEW_SEQUENCE_BODY>;
  * A sequence to leads, as POST sequences takes one (00459, `first.starts` 'leads'): its name, and how it starts: a copy of
  * another (`from`), the words Ask drafted (`steps`), or one email still to write; on a list there is (`list_id`), else on
  * one named for it holding the leads chosen (`lead_ids`); drawing from a search where one is named (`source_search_id`,
- * auto-add); and the search a pile works through, whose pick it becomes (`aim_search_id`).
+ * auto-add); and the search a pile works through, whose pick it becomes (`aim_search_id`). As New makes one (00465): the
+ * search whose ready leads go on its list (`search_id`), how its batches are decided (`mode`; the door holds a sequence
+ * to leads off auto), and whether the owner sends each email from their own inbox (`owner_sends`).
  */
 export const LEAD_FIRST_BODY = z.strictObject({
   starts: z.literal("leads"),
   name: z.string().trim().min(1, "Name it.").max(REACH_OUT_NAME_MAX, `At most ${REACH_OUT_NAME_MAX} characters.`),
   from: anId("Which sequence?").optional(),
   list_id: anId("Which list?").optional(),
+  search_id: anId("Which search?").optional(),
   source_search_id: anId("Which search?").optional(),
   aim_search_id: anId("Which search?").optional(),
   lead_ids: z.array(anId("Which lead?")).max(500, "At most 500 at once.").optional(),
   steps: z.array(ReachOutStepSchema).max(5, "At most five steps.").optional(),
+  mode: z.enum(SEQUENCE_MODES).optional(),
+  owner_sends: z.boolean().optional(),
 });
 
 /**

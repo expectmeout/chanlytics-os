@@ -11,6 +11,7 @@ import { gate } from "../shell";
 import { Acts, Done, Editor, Going, Note, Words, Writing, type WorkProps } from "./parts";
 import { reviewNotToday } from "./reviews";
 import { clearSend, holdReviewPost, undoSend, useSend } from "./sends";
+import { useRowState } from "./row-state";
 
 /** Who wrote a review, as its row names them. */
 export const reviewerOf = (r: GoogleReviewDto) => r.author?.trim() || "A Google reviewer";
@@ -20,13 +21,14 @@ export const reviewerOf = (r: GoogleReviewDto) => r.author?.trim() || "A Google 
  * place for the visit: a review answered or set aside leaves the next read of the reviews to answer.
  */
 export function ReviewWork(
-  p: Pick<WorkProps, "main" | "may" | "flash"> & { review: GoogleReviewDto; rowId: string; keep: () => void },
+  p: Pick<WorkProps, "main" | "may" | "flash" | "foot"> & { review: GoogleReviewDto; rowId: string; keep: () => void },
 ) {
   const { review, rowId, main, may, flash } = p;
   const who = reviewerOf(review);
-  const [text, setText] = useState<string | null>(null);
-  const [phase, setPhase] = useState<"idle" | "writing" | "ready" | "editing" | "aside">("idle");
-  const [why, setWhy] = useState<string | null>(null);
+  // Kept by the review, not by this part: Ask found on a phone draws it in a sheet, and its card says what became of it.
+  const [text, setText] = useRowState<string | null>(rowId, "text", null);
+  const [phase, setPhase] = useRowState<"idle" | "writing" | "ready" | "editing" | "aside">(rowId, "phase", "idle");
+  const [why, setWhy] = useRowState<string | null>(rowId, "why", null);
   const [postedHere, setPostedHere] = useState(false);
   const { s: send, seconds, share } = useSend(rowId);
 
@@ -99,6 +101,7 @@ export function ReviewWork(
       {why ? <Note tone="danger">{why}</Note> : null}
       {!may ? <Note>{W.viewer}</Note> : null}
       <Acts
+        foot={p.foot}
         start={
           <Button variant="quiet" onClick={aside}>
             {W.idea.notToday}

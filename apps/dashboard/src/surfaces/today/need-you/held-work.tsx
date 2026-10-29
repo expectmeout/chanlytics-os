@@ -4,7 +4,7 @@
  * words are the member's to send as a reply; or Change it with Ask, which rewrites the held draft by an instruction
  * (contracts steerSpec, POST messages/[id]/steer) and lets the new one wait its turn. Left alone, it sends itself.
  */
-import { useRef, useState } from "react";
+import { useRef } from "react";
 import { NEED_YOU_WORDS as W, sendCountdown } from "@chanlytics/contracts";
 import { commitVerb } from "@/legacy-bridge/verbs/commit";
 import { cancelSend } from "../../inbox/verbs";
@@ -12,6 +12,7 @@ import { Button } from "../../kit";
 import { appNavigate, gate } from "../shell";
 import { Acts, Done, Going, Note, OpenedBox, Quote, useTick, type WorkProps } from "./parts";
 import { ReplyWork } from "./reply-work";
+import { useRowState } from "./row-state";
 
 /** How often the receptionist's countdown is drawn again. */
 const HELD_TICK_MS = 250;
@@ -20,10 +21,11 @@ const HELD_TICK_MS = 250;
 export function HeldWork(p: WorkProps) {
   const { row, may, flash, keep } = p;
   const held = row.held;
-  const [stop, setStop] = useState<"no" | "busy" | "held" | "gone">("no");
-  const [changing, setChanging] = useState(false);
-  const [how, setHow] = useState("");
-  const [rewrite, setRewrite] = useState<"no" | "busy" | "done">("no");
+  // Kept by the row, not by this part: the sheet on a phone draws the same row's work after the page does (row-state.ts).
+  const [stop, setStop] = useRowState<"no" | "busy" | "held" | "gone">(row.id, "stop", "no");
+  const [changing, setChanging] = useRowState(row.id, "changing", false);
+  const [how, setHow] = useRowState(row.id, "how", "");
+  const [rewrite, setRewrite] = useRowState<"no" | "busy" | "done">(row.id, "rewrite", "no");
   const now = useTick(stop === "no" && rewrite !== "done", HELD_TICK_MS);
   // The grace as first seen, so the meter empties from here: the row may be drawn partway through it.
   const first = useRef(held ? Math.max(1, held.sends_at_ms - Date.now()) : 1);
@@ -83,6 +85,7 @@ export function HeldWork(p: WorkProps) {
             placeholder={W.held.changeHint}
           />
           <Acts
+            foot={p.foot}
             start={
               <Button variant="quiet" onClick={() => setChanging(false)}>
                 {W.cancel}
@@ -103,6 +106,7 @@ export function HeldWork(p: WorkProps) {
         </>
       ) : may ? (
         <Acts
+          foot={p.foot}
           start={
             <Button variant="quiet" onClick={() => setChanging(true)}>
               {W.held.change}

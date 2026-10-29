@@ -154,8 +154,12 @@ async function makePeopleSequence(ctx: RouteContext, member: Member, b: NewMakeB
   return made;
 }
 
-/** A sequence to leads, or a one-off to leads (one email, started): the one door, `starts` leads. */
-async function makeLeadSequence(ctx: RouteContext, member: Member, b: NewMakeBody): Promise<NewMade> {
+/**
+ * A sequence to leads as the leads door takes its first step (bodies.ts LEAD_FIRST_BODY): its name and emails, the search
+ * its ready leads come from (its pick, and where it adds new ones when New said so) or the leads chosen, how its batches
+ * are decided, and whether the owner sends each email. A one-off to leads is its first email alone.
+ */
+export function leadFirstOf(b: NewMakeBody): Record<string, unknown> {
   const steps = (b.kind === "once" ? b.steps.slice(0, 1) : b.steps).map(leadChainStepOf);
   const from =
     b.who.kind === "search"
@@ -164,19 +168,20 @@ async function makeLeadSequence(ctx: RouteContext, member: Member, b: NewMakeBod
         ? { lead_ids: b.who.ids }
         : null;
   if (!from) throw new AppError("validation", NEW_WORDS.cannot.nothingFits, 422);
+  return {
+    starts: "leads",
+    name: b.name,
+    steps,
+    ...from,
+    ...(b.mode ? { mode: b.mode } : {}),
+    ...(b.owner_sends !== undefined ? { owner_sends: b.owner_sends } : {}),
+  };
+}
+
+/** A sequence to leads, or a one-off to leads (one email, started): the one door, `starts` leads. */
+async function makeLeadSequence(ctx: RouteContext, member: Member, b: NewMakeBody): Promise<NewMade> {
   const start = b.kind === "once" ? true : b.start;
-  const r = await makeSequenceNow(ctx, member.tenantId, {
-    first: {
-      starts: "leads",
-      name: b.name,
-      steps,
-      ...from,
-      ...(b.mode ? { mode: b.mode } : {}),
-      ...(b.owner_sends !== undefined ? { owner_sends: b.owner_sends } : {}),
-    },
-    then: [],
-    start,
-  });
+  const r = await makeSequenceNow(ctx, member.tenantId, { first: leadFirstOf(b), then: [], start });
   const made = madeOf(r, b.kind, start);
   await letKeptGo(ctx, member, b.draft_id);
   return made;

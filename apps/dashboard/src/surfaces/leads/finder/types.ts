@@ -72,6 +72,11 @@ export interface StripAction {
   pile?: boolean;
 }
 export interface StripVM {
+  /**
+   * running, checking, question, or how a search ended: "found" when its ending delivered what it was for
+   * (contracts leadEndingFound), the one drawn with the check, and "ended" for every other ending and a search that has
+   * not run.
+   */
   state: string;
   alert: boolean;
   title: string;

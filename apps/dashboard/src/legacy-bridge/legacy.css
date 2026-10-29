@@ -25,6 +25,7 @@
 @import "../legacy/styles/settings.css";
 @import "../legacy/styles/first-run.css";
 @import "../legacy/styles/mobile.css";
+@import "../surfaces/today/phone/phone.css";
 @import "../legacy/styles/ask.css";
 @import "../surfaces/frame/outline.css";
 

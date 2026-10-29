@@ -102,6 +102,24 @@ export const NEED_YOU_WORDS = {
     stars: (n: number) => `${n} star${n === 1 ? "" : "s"}`,
   },
   idea: { tag: "Ask's idea", notToday: "Not today", openInAsk: "Open in Ask", approve: "Approve", gone: "Not today" },
+  /**
+   * The sheet that walks Need you on a phone (the phone canvas, 28 Oct 2026): where it stands in the list, the way to the
+   * one before and the next, what it says once everyone is answered, and Change it with Ask on Ask's own draft.
+   */
+  walk: {
+    of: (at: number, n: number) => `Need you · ${at} of ${n}`,
+    read: "Read",
+    before: "The one before",
+    next: "The next one",
+    close: "Close",
+    their: "Their words",
+    clear: "That's everyone",
+    clearSub: "Nobody is waiting on you now.",
+    back: "Back to Today",
+    todos: (n: number) => `${n} to-do${n === 1 ? "" : "s"} left`,
+    quick: ["Shorter", "Warmer", "Ask for a day"],
+    rewriting: "Ask is rewriting…",
+  },
 } as const;
 
 /** A time Not now offers: its words, the instant, and that instant on the business's clock ("2:00 PM", "Mon 9:00 AM"). */

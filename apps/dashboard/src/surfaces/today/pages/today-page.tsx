@@ -36,6 +36,42 @@ import { TodaySetup } from "./setup-card";
 import { TodayBroughtIn } from "./brought-in";
 import { TodayStrip } from "./strip";
 import { useWaitsOnToday } from "../../needs-you";
+import { useTodayOnPhone } from "../phone";
+import { TodayAskFound } from "../phone/ask-found";
+import { TodayEnd } from "../phone/end";
+import { TodayPhoneDay } from "../phone/day";
+import { TodayPhoneHead } from "../phone/head";
+import { useToDoCount } from "../phone/to-do";
+import { PhoneWarnings } from "../phone/warnings";
+
+/**
+ * Today on a phone (the phone canvas, 28 Oct 2026; docs/superpowers/specs/2026-10-28-today-on-a-phone-design.md §9): the
+ * news in the head, everyone it counts right under it with your own to-dos in the same pane, the day, Ask's ideas, the
+ * day's numbers with Worth a look under them, the lists and setting up, and the page says it is done. With nothing
+ * waiting on the owner and nothing to do, the day opens by itself and setting up comes up under it, holding the coral.
+ * Your brief is the head and Listen; While you were away is the bell's, but for a warning, which stands under the head;
+ * Going today is in the day.
+ */
+function PhoneToday({ waiting }: { waiting: boolean }) {
+  const todos = useToDoCount();
+  const busy = waiting || todos > 0;
+  const head = [<TodayPhoneHead key="head" />, <PhoneWarnings key="warn" />, <AgentCommand key="queue" />];
+  const day = <TodayPhoneDay key="day" openByItself={!busy} />;
+  // Setting up: what is left to set up and what was brought in, one card (phone/phone.css .tps; nothing while neither draws).
+  const settingUpCard = (
+    <div key="setting-up" className="tq tps" data-testid="today-setting-up">
+      <TodaySetup />
+      <TodayBroughtIn />
+    </div>
+  );
+  const rest = [<TodayAskFound key="found" />, <TodayCard key="card" />, <TodayPins key="pins" />];
+  return (
+    <div className="dash-a-v2 dash-a-v2-glass dash-a-v2-phone" data-testid="today-phone">
+      {busy ? [...head, day, ...rest, settingUpCard] : [...head, day, settingUpCard, ...rest]}
+      <TodayEnd />
+    </div>
+  );
+}
 
 // Canvas E3's bento: the strip, the queue's column beside the brief and the bell, the day's card beside Worth a look.
 // No day pane: E3 folds the day into the strip's Next cell (Ruben, 1 October 2026); the Calendar has the rest.
@@ -45,6 +81,8 @@ export const DashboardA = () => {
   // own before, which is all a cold Today has. The Inbox's alone stood empty there, and the chores led over three people
   // waiting (27 Oct 2026). The day's value is in before the page's first draw (ROUTE_WAITS).
   const waiting = useWaitsOnToday();
+  const phone = useTodayOnPhone();
+  if (phone) return <PhoneToday waiting={waiting} />;
   const chores = [<TodaySetup key="setup" />, <TodayBroughtIn key="in" />, <TodayGoing key="going" />];
   const queue = <AgentCommand key="queue" />;
   return (

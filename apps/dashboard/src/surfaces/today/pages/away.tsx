@@ -38,11 +38,14 @@ const feedOf = (api: BellApi): AwayBellRow[] => api.feed() as AwayBellRow[];
 // under it, in place, and each note opens its own record and is read as it is opened. A press that read the whole group and
 // jumped to one page left the records it never showed unseen and counted as read (task 5.2, D1-notice-two-drawings). The card
 // lists the unread alone, and has no dismiss of its own (E3): the bell keeps the read ones under Earlier.
-export const TodayAway = () => {
+/**
+ * The bell's unread rows as Today reads them: grouped, less what the page draws above (contracts todayAwayGrouped), and how a
+ * note is opened. While you were away draws them on a desk; on a phone the bell holds them and only a warning keeps a row
+ * under the head (phone/warnings.tsx; the phone canvas, 28 Oct 2026). Null where no bell is published.
+ */
+export function useAwayGroups() {
   const api = bell() || null;
   const [rows, setRows] = useState<AwayBellRow[]>(() => (api ? feedOf(api) : []));
-  // The group that is open, by its newest note: one at a time, as the bell's is.
-  const [openGroup, setOpenGroup] = useState<string | null>(null);
   // The review the card's line draws: its notice is that news a second time (review-line.ts); and the reviews Need you
   // offers to answer, which are rows above (decision 0071).
   const google = useSurface("google");
@@ -54,7 +57,6 @@ export const TodayAway = () => {
     refresh();
     return api.onChange(refresh);
   }, [api]);
-  // E3's rows carry no dismiss of their own: a note is read when it is opened, and Mark all read clears the rest.
   if (!api) return null;
   const T = surfaceValue("today");
   // What each row above is about: a queue row's thread, its call, or both (contracts AwayQueueRef), a waiting search by its
@@ -76,12 +78,23 @@ export const TodayAway = () => {
     ...answering.map((r) => ({ review: { id: r.id, reviewId: r.review_id } })),
   ];
   // And the unread rows the bell does not list (older than its newest sixty), counted in the head (S6-10).
-  const { groups, total, foot, empty } = TODAY_HELPERS.awayGrouped(rows, inQueue, 5, api.older());
+  const grouped = TODAY_HELPERS.awayGrouped(rows, inQueue, 5, api.older());
   // A note is read as it is opened, and opens its own record.
   const openNote = (n: AwayBellRow, to: string) => {
     api.read(n.id);
     appNavigate(to);
   };
+  return { ...grouped, openNote, seenAll: () => api.seenAll() };
+}
+
+// What happened while the owner was away, as a pane of its own on a desk.
+export const TodayAway = () => {
+  // The group that is open, by its newest note: one at a time, as the bell's is.
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
+  const away = useAwayGroups();
+  // E3's rows carry no dismiss of their own: a note is read when it is opened, and Mark all read clears the rest.
+  if (!away) return null;
+  const { groups, total, foot, empty, openNote } = away;
   // One note: its mark, its words and the time, as the bell draws it; its press is its first action.
   const note = (n: AwayBellRow, inGroup: boolean) => {
     const act = n.actions && n.actions[0];
@@ -146,7 +159,7 @@ export const TodayAway = () => {
             variant="quiet"
             size="sm"
             className="ta-readall"
-            onClick={(e) => holdStill(e && e.currentTarget, () => api.seenAll())}
+            onClick={(e) => holdStill(e && e.currentTarget, away.seenAll)}
           >
             Mark all read
           </Button>

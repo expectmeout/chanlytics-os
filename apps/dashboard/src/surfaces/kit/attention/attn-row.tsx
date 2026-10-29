@@ -38,6 +38,11 @@ interface AttnRowProps {
   /** The business the person works at (0052), dim after their name, and the first thing cut where the line is short. */
   trail?: string | null;
   meta?: string;
+  /**
+   * How long they have waited, by itself beside the name (Today on a phone, where the meta line is a desk's: the phone
+   * canvas, 28 Oct 2026): its words, and `long` from an hour up, which the amber ink says.
+   */
+  wait?: { words: string; long: boolean } | null;
   sentence?: string;
   quoted?: boolean;
   /** What the sentence is about, said before it in bold: an email's subject, before the words they wrote. */
@@ -99,6 +104,29 @@ function attnActs(cta: AttnAct | null, also: AttnAct | null, ctaTestid: string) 
   );
 }
 
+/** Who, with the business they work at, where and when, and how long they have waited. Called, not drawn, as attnActs is. */
+function attnName(name: ReactNode, trail: string | null, meta: string, wait: { words: string; long: boolean } | null) {
+  return (
+    <div className="cl-attn-name">
+      <span className="cl-attn-who">
+        {name}
+        {trail ? (
+          <span className="cl-attn-trail" data-testid="attention-business">
+            {" "}
+            · {trail}
+          </span>
+        ) : null}
+      </span>
+      {meta ? <span className="cl-attn-meta">{meta}</span> : null}
+      {wait ? (
+        <span className="cl-attn-wait" data-long={wait.long || undefined}>
+          {wait.words}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
 /** The row's one sentence: their words in quotes, after what they are about in bold where it says (an email's subject). */
 function attnSentence(sentence: string, quoted: boolean, lead: string) {
   const said = quoted ? `“${sentence}”` : sentence;
@@ -129,6 +157,7 @@ export function AttnRow({
   name,
   trail = null,
   meta = "",
+  wait = null,
   sentence = "",
   quoted = false,
   lead = "",
@@ -167,18 +196,7 @@ export function AttnRow({
     >
       {attnFace(person, glyph, initials)}
       <div className="cl-attn-body" {...(work && onOpen ? opener : {})}>
-        <div className="cl-attn-name">
-          <span className="cl-attn-who">
-            {name}
-            {trail ? (
-              <span className="cl-attn-trail" data-testid="attention-business">
-                {" "}
-                · {trail}
-              </span>
-            ) : null}
-          </span>
-          {meta ? <span className="cl-attn-meta">{meta}</span> : null}
-        </div>
+        {attnName(name, trail, meta, wait)}
         {attnSentence(sentence, quoted, lead)}
         <div className="cl-attn-status">
           {status.map((seg, i) => (

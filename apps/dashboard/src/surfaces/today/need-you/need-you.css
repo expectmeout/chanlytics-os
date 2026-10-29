@@ -182,3 +182,89 @@
   flex: 1 1 auto;
   min-width: 0;
 }
+
+/* Read, beside whose words they are, where the row is drawn short of them (a phone's card): at the head's right. */
+.ny-read {
+  margin-left: auto;
+}
+
+/* The sheet that walks Need you on a phone (walk-sheet.tsx; the phone canvas, 28 Oct 2026): their words, then the row's
+   own work, its presses held still in the foot; where it stands among the rest as dots between the one before and the next;
+   a send from the row before still counting down at the top, with its Undo; and, at the end, who was answered. */
+.ny-walk-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-bottom: var(--space-2);
+}
+.ny-walk-foot {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.ny-walk-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+}
+.ny-walk-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.ny-walk-dots > i {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--line-strong);
+}
+.ny-walk-dots > i[data-on] {
+  width: 16px;
+  background: var(--ink);
+}
+.ny-walk-back {
+  transform: scaleX(-1);
+}
+.ny-walk-last {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3);
+  border-radius: var(--radius-lg);
+  background: var(--accent-soft);
+  font-size: var(--text-sm);
+  color: var(--ink);
+}
+.ny-walk-last-words {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+}
+.ny-walk-done {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ny-walk-done > li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-h-md);
+  border-bottom: 1px solid var(--line);
+  font-size: var(--text-base);
+}
+.ny-walk-done > li:last-child {
+  border-bottom: 0;
+}
+.ny-walk-done > li > svg {
+  color: var(--ok-ink);
+}
+/* Change it with Ask under Ask's draft: what Ask is doing, the asks made most, the field for the member's own words. */
+.ny-change {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-1);
+}

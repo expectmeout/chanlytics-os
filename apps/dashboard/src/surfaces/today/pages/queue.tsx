@@ -47,7 +47,12 @@ import { askedVisits, visitsLeft } from "./queue-visits";
 import { useDraftCounts, wantDrafts, type DraftWant } from "../need-you/drafts";
 import { ideaRows, needYouRows, reviewRows, type NeedYouExtrasCtx, type NeedYouRowsCtx } from "../need-you/people-rows";
 import { reviewsToAnswer } from "../need-you/reviews";
-import { draftWantOf } from "../need-you/rows";
+import { draftWantOf, worksInPlace } from "../need-you/rows";
+import { clearRowStates } from "../need-you/row-state";
+import { WalkSheet, type WalkAt } from "../need-you/walk-sheet";
+import { useTodayOnPhone } from "../phone";
+import { TODAY_HEAD_ID } from "../phone/head";
+import { TodayToDo, useToDoCount } from "../phone/to-do";
 
 export const AgentCommand = () => {
   useMoved("today");
@@ -157,7 +162,7 @@ function queueList(
   vm: TodayVM,
   drawn: ReactElement[],
   runs: ReactElement[],
-  { total, waiting }: { total: number; waiting: number },
+  { total, waiting, phone = false }: { total: number; waiting: number; phone?: boolean },
 ) {
   return (
     <div className="tq-list">
@@ -177,7 +182,8 @@ function queueList(
       {/* What an empty queue means is a sentence about the wires, so contracts says it: a dark line, no line, a line
           the receptionist does not answer (email), or the receptionist holding the floor. Not under Ask's ideas or a
           review to answer: the card holds something, and the head says the queue is empty. */}
-      {total === 0 && waiting === 0 && drawn.length === 0 && (
+      {/* On a phone the head says it ("Nothing needs you"), and a line that is down stands under it (phone/warnings.tsx). */}
+      {total === 0 && waiting === 0 && drawn.length === 0 && !phone && (
         <EmptyState
           kind="line"
           glyph={vm.queue.empty.glyph}
@@ -343,6 +349,44 @@ function useDraftsAhead(wants: readonly DraftWant[], may: boolean) {
   }, [key, may]);
 }
 
+/**
+ * On a phone (the phone canvas, 28 Oct 2026): the steps and the visits are To do's (phone/to-do.tsx), Ask's ideas and the
+ * reviews Ask found's (phone/ask-found.tsx), the head is the page's (phone/head.tsx), and a row opened walks the list in a sheet.
+ * What each row came to is kept by the row for the visit (row-state.ts): it goes as Today does.
+ */
+function usePhoneQueue() {
+  const phone = useTodayOnPhone();
+  const [walk, setWalk] = useState<WalkAt>(null);
+  // To do stands in this pane under the people (phone/to-do.tsx): with nobody waiting the pane is drawn for it alone.
+  const toDo = useToDoCount();
+  useEffect(() => () => clearRowStates(), []);
+  return { phone, walk, setWalk, toDo };
+}
+
+/** The walk through the rows the card draws, on a phone: the sheet, and To do's to-dos for its end. Called, not drawn. */
+function queueWalk(
+  shown: readonly TodayQueueRowVM[],
+  { walk, setWalk }: { walk: WalkAt; setWalk: (at: WalkAt) => void },
+  ctx: NeedYouRowsCtx,
+  todos: number,
+) {
+  return (
+    <WalkSheet
+      rows={shown.filter(worksInPlace)}
+      at={walk}
+      onAt={setWalk}
+      kept={ctx.kept}
+      work={{ may: ctx.may, tz: ctx.tz, flash: ctx.flash, keep: ctx.keep }}
+      word={ctx.word}
+      todos={todos}
+      onToDo={() => {
+        setWalk(null);
+        document.querySelector('[data-testid="today-todo"]')?.scrollIntoView({ block: "start" });
+      }}
+    />
+  );
+}
+
 const TodayQueue = ({ vm }: { vm: TodayVM }) => {
   // People too: a person's next step come due is a row (queue-steps.tsx), read from People's rows. The Calendar too: yesterday's
   // visits nobody has marked are rows (queue-visits.tsx), read from its blocks, which `useDayVm` hears as the day's card does. And
@@ -358,6 +402,7 @@ const TodayQueue = ({ vm }: { vm: TodayVM }) => {
   // The rows acted on this visit (a reply sent, a thread snoozed, a visit marked), kept in their place; the rows opened.
   const [kept, setKept] = useState<Kept>({});
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
+  const { phone, walk, setWalk, toDo } = usePhoneQueue();
   // The runs with an Approve or a Cancel on its way: their buttons wait for the server (S9-10).
   const acting = useRunsActing();
   const nav: Nav = (to) => appNavigate(to);
@@ -369,10 +414,9 @@ const TodayQueue = ({ vm }: { vm: TodayVM }) => {
   const steps = dueSteps();
   const word: AppointmentWord = useDayVm()?.word ?? "appointment";
   const visits = askedVisits(word);
-  const read = TODAY_HELPERS.withVisitsAsked(
-    TODAY_HELPERS.withSteps(TODAY_HELPERS.withReplies(vm.queue.rows), steps),
-    visits,
-  );
+  const read = phone
+    ? TODAY_HELPERS.withReplies(vm.queue.rows)
+    : TODAY_HELPERS.withVisitsAsked(TODAY_HELPERS.withSteps(TODAY_HELPERS.withReplies(vm.queue.rows), steps), visits);
   // A step marked done leaves the card at once, kept or not: its toast holds the Undo.
   const rows = withKept(read, kept).filter((r) => !(r.step && done.includes(r.step.note_id)));
   // One primary verb on the page: the first open row's. Every other verb is drawn, quietly.
@@ -403,13 +447,15 @@ const TodayQueue = ({ vm }: { vm: TodayVM }) => {
         hide: (noteId) => setDone((was) => [...was, noteId]),
         show: (noteId) => setDone((was) => was.filter((id) => id !== noteId)),
       }),
+    phone: phone ? { walk: setWalk } : null,
   };
   const drawn = needYouRows(shown, ctx);
   // The drafts the drawn rows want, written ahead (asked for once per set, by their key).
   useDraftsAhead(draftWantsOf(shown), may);
   // Ask's line says what it prepared for the rows still open: one acted on this visit is said in its own row.
   const open = shown.filter((r) => !kept[r.id]);
-  const extras = useExtras(ctx);
+  // On a phone they are Ask found's, so here they ask for no coral and are not drawn.
+  const extras = useExtras(phone ? { ...ctx, verbKind: () => "ghost" } : ctx);
   // A person who has been waiting comes before a run waiting for a word, so runs take only what is left.
   const {
     drawn: runs,
@@ -450,26 +496,39 @@ const TodayQueue = ({ vm }: { vm: TodayVM }) => {
   // A reply counting down has a row now (decision 0071): the head's line says only those it does not draw. One stopped on
   // this visit is kept in its place but counts down no more, so it is not taken from what the Inbox still counts.
   const sendsUndrawn = Math.max(0, parts.sends - open.filter((r) => r.kind === "held").length);
+  // On a phone, nothing to draw is no pane at all: the head has said so.
+  if (phone && drawn.length === 0 && runs.length === 0 && toDo === 0) return toastNode;
   return (
-    <section className="tq today-queue" data-testid="today-queue">
-      {/* No count over the rows: the sentence says what they hold, and the rows are right under it. */}
-      {queueHead(vm, nav, {
-        count: waiting,
-        steps: left.due,
-        visits: toMark.due,
-        word,
-        sends: sendsUndrawn,
-        runs: { waiting: wants.waiting.length, late: wants.late.length },
-        door,
-      })}
-      <AskSays wants={draftWantsOf(open)} rows={open} may={may} />
+    <section
+      className="tq today-queue"
+      data-testid="today-queue"
+      data-phone={phone || undefined}
+      aria-labelledby={phone ? TODAY_HEAD_ID : undefined}
+    >
+      {/* No count over the rows: the sentence says what they hold, and the rows are right under it. On a phone the page's
+          head is theirs (phone/head.tsx), and what the card could not hold is the Inbox tab's. */}
+      {!phone &&
+        queueHead(vm, nav, {
+          count: waiting,
+          steps: left.due,
+          visits: toMark.due,
+          word,
+          sends: sendsUndrawn,
+          runs: { waiting: wants.waiting.length, late: wants.late.length },
+          door,
+        })}
+      {/* On a phone each card says what Ask prepared for it, and the head's line is the one line over them. */}
+      {!phone && <AskSays wants={draftWantsOf(open)} rows={open} may={may} />}
       <LiveRail nav={nav} />
-      {queueList(vm, [...drawn, ...extras], runs, { total, waiting })}
-      {queueFoot(
-        { rows: rowsCut, runs: runsCut, steps: left.cut, visits: toMark.cut, sends: sendsUndrawn },
-        { steps: steps ? steps.to : null, visits: visits ? visits.to : null, word },
-        nav,
-      )}
+      {queueList(vm, phone ? drawn : [...drawn, ...extras], runs, { total, waiting, phone })}
+      {phone ? <TodayToDo queueHolds={holdsCoral} /> : null}
+      {phone ? queueWalk(shown, { walk, setWalk }, ctx, toDo) : null}
+      {!phone &&
+        queueFoot(
+          { rows: rowsCut, runs: runsCut, steps: left.cut, visits: toMark.cut, sends: sendsUndrawn },
+          { steps: steps ? steps.to : null, visits: visits ? visits.to : null, word },
+          nav,
+        )}
       {toastNode}
     </section>
   );

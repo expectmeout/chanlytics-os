@@ -3,11 +3,12 @@
  *
  *   - factsOf / fact: a place's listing facts as the judge sees them, each one line without control characters and at
  *     most FACT_MAX characters, never a page's own words.
- *   - judgeBatch: one call for a batch of at most 25 places (contracts LEAD_JUDGE_BATCH), asked once and once more when
- *     the answer is a refusal, a capped answer or out of its shape; refused twice, the batch is Needs review with the
- *     reason JUDGE_REFUSED_REASON. A 429, a 5xx or no answer is thrown, and the jobs ledger's waits retry the job. The
- *     answer comes back by place ref with the judgment to keep, under the operation id (opIdFor) so a replayed page pays
- *     nothing twice.
+ *   - judgeBatch: one call, asked once and once more when the answer is a refusal, a capped answer or out of its
+ *     shape; refused twice, its places are Needs review with the reason JUDGE_REFUSED_REASON. A 429, a 5xx or no answer
+ *     is thrown, and the jobs ledger's waits retry the job. The answer comes back by place ref with the judgment to
+ *     keep, under the operation id (opIdFor) so a replayed page pays nothing twice.
+ *   - judgeInCalls: a batch (contracts judgeBatchPlaces) asked in the calls the judge can answer in time (contracts
+ *     judgeCallPlaces, sized from what the plan asks of each place), side by side, each under its own operation id.
  *   - JUDGE_TIMEOUT_MS and PAGE_READ_ALLOWANCE_MS: the registry's bound for one call (contracts MODEL_ROUTES.lead_judge),
  *     and why the runner's margin (rules.ts JUDGE_MARGIN_MS) leaves room for it in a tick.
  *
@@ -18,6 +19,7 @@
  * Nothing of that is seen here: the verb takes a LeadJudge and the round, and returns answers.
  */
 import {
+  judgeCallPlaces,
   judgeOpId,
   MODEL_ROUTES,
   type CompanyFacts,
@@ -48,7 +50,7 @@ export const JUDGE_TIMEOUT_MS: number = MODEL_ROUTES.lead_judge.timeoutMs;
  * judge, which is never started with less than its own timeout left
  * (runner/rules.ts JUDGE_MARGIN_MS), must fit in what remains. Core does not import
  * the ledger, so tick-geometry.test.mjs holds these numbers to each other.
- * A low-effort structured call over 25 places answers in well under this.
+ * A call is sized to answer well under this (contracts judgeCallPlaces): 25 places at seven questions each did not.
  */
 export const PAGE_READ_ALLOWANCE_MS = 4_000;
 
@@ -147,7 +149,7 @@ export async function judgeCompanyBatch(
   return { answers: new Map(), judgment: null, refused: true, why };
 }
 
-/** One batch, asked once and once more; a throw is the provider's trouble and propagates. */
+/** One call, asked once and once more; a throw is the provider's trouble and propagates. */
 export async function judgeBatch(
   judge: LeadJudge,
   plan: LeadSearchPlan,
@@ -155,6 +157,8 @@ export async function judgeBatch(
   opId: string,
   /** The round the batch is paid in: its workspace is the usage ledger's row for each call, and its id the row's subject. */
   round?: { id: string; tenant_id: string },
+  /** Which of its batch's calls this is (judgeInCalls), kept with its judgment. */
+  batch = 0,
 ): Promise<JudgedBatch> {
   if (!places.length) return { answers: new Map(), judgment: null, model: null, refused: false, why: null };
   let last: { refused: true; why: string } | null = null;
@@ -166,11 +170,42 @@ export async function judgeBatch(
     }
     return {
       answers: new Map(a.answers.map((x) => [x.ref, x])),
-      judgment: { op_id: opId, batch: 0, request_hash: a.requestHash, answer: a.raw, model: a.model, tokens: a.tokens },
+      judgment: { op_id: opId, batch, request_hash: a.requestHash, answer: a.raw, model: a.model, tokens: a.tokens },
       model: a.model,
       refused: false,
       why: null,
     };
   }
   return { answers: new Map(), judgment: null, model: null, refused: true, why: last?.why ?? null };
+}
+
+/**
+ * A batch asked in the calls the judge can answer inside its bound (contracts judgeCallPlaces), side by side, each
+ * under its own operation id and numbered in its batch: each call's items with what it answered, by refs of its own.
+ * Asked as one call, a page of 22 places a plan asks seven questions of never came back in time (29 Oct 2026).
+ */
+export async function judgeInCalls<T>(
+  judge: LeadJudge,
+  plan: LeadSearchPlan,
+  items: readonly T[],
+  facts: (item: T, ref: number) => PlaceFacts,
+  opIdOf: (call: number, items: readonly T[]) => string,
+  round?: { id: string; tenant_id: string },
+): Promise<{ items: T[]; judged: JudgedBatch }[]> {
+  const size = judgeCallPlaces(plan);
+  const calls: T[][] = [];
+  for (let i = 0; i < items.length; i += size) calls.push(items.slice(i, i + size));
+  return Promise.all(
+    calls.map(async (c, i) => ({
+      items: c,
+      judged: await judgeBatch(
+        judge,
+        plan,
+        c.map((x, ref) => facts(x, ref)),
+        opIdOf(i, c),
+        round,
+        i,
+      ),
+    })),
+  );
 }

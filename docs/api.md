@@ -779,6 +779,7 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `kind` | one of `"reply"`, `"brief"` | yes |  |
+| `instruction` | string | no | at least 1 characters; at most 280 characters |
 
 ### `GET /api/v1/conversations/[id]/export`
 
