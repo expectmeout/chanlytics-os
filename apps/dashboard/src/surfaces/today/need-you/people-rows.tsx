@@ -6,6 +6,7 @@
  */
 import type { ReactElement } from "react";
 import {
+  HOUR_MS,
   NEED_YOU_WORDS as W,
   namesAPerson,
   reviewRoute,
@@ -22,8 +23,9 @@ import { IdeaWork } from "./idea-work";
 import { ReviewWork, reviewerOf } from "./review-work";
 import { opensToWork, shortLabel, workOf, worksInPlace } from "./rows";
 
-/** Where a row worked in place is drawn short: from the third. */
+/** Where a row worked in place is drawn short: from the third; on a phone, from the second still open (the phone canvas). */
 const SHORT_FROM = 2;
+const SHORT_FROM_ON_A_PHONE = 1;
 
 /** What the section hands its rows. */
 export interface NeedYouRowsCtx {
@@ -39,6 +41,12 @@ export interface NeedYouRowsCtx {
   expand: (id: string) => void;
   word: AppointmentWord;
   stepDone: (row: TodayQueueRowVM) => void;
+  /**
+   * On a phone (the phone canvas, 28 Oct 2026): one card, the first row still open, whose words are cut to two lines with
+   * Read; every other open row short; and a row opened walks the list in a sheet (`walk`, walk-sheet.tsx) rather than
+   * opening in place or going to its thread. How long each has waited stands beside its name.
+   */
+  phone?: { walk: (rowId: string) => void } | null;
 }
 
 /** What the ideas and the reviews are handed besides: an idea or a review acted on is kept in its place for the visit. */
@@ -57,6 +65,8 @@ function actKindOf(r: { id: string; kind?: TodayQueueRowVM["kind"] }, c: NeedYou
 
 /** The queue's rows, worked in place where their kind is. */
 export function needYouRows(rows: readonly TodayQueueRowVM[], c: NeedYouRowsCtx): ReactElement[] {
+  const phone = c.phone ?? null;
+  // A phone counts the rows still open: a row acted on keeps its receipt, and the next one open is the card.
   let worked = 0;
   return rows.map((r) => {
     const face = namesAPerson(r) ? { person: { name: r.who, initials: r.initials } } : { initials: r.initials };
@@ -65,6 +75,7 @@ export function needYouRows(rows: readonly TodayQueueRowVM[], c: NeedYouRowsCtx)
       name: r.who,
       trail: namesAPerson(r) ? businessTrailFor(r.person_id) : null,
       meta: [r.channel, r.via, r.when].filter(Boolean).join(", "),
+      wait: phone && r.when ? { words: r.when, long: r.waitedMs >= HOUR_MS } : null,
       sentence: r.sentence,
       quoted: r.quoted,
       lead: r.lead,
@@ -86,19 +97,38 @@ export function needYouRows(rows: readonly TodayQueueRowVM[], c: NeedYouRowsCtx)
       );
     }
     const kind = actKindOf(r, c);
-    const at = worked++;
-    if (at >= SHORT_FROM && opensToWork(r) && !c.expanded.has(r.id) && !c.kept.has(r.id)) {
-      const open = () => c.expand(r.id);
+    const kept = c.kept.has(r.id);
+    const at = phone && kept ? -1 : worked++;
+    if (at >= (phone ? SHORT_FROM_ON_A_PHONE : SHORT_FROM) && opensToWork(r) && !c.expanded.has(r.id) && !kept) {
+      const open = phone ? () => phone.walk(r.id) : () => c.expand(r.id);
       return (
         <AttnRow key={r.id} {...common} cta={{ label: shortLabel(r), kind, onClick: open }} also={null} onOpen={open} />
       );
     }
+    // The card on a phone: its words cut to two lines, Read and its own words open the sheet on it.
+    const card = !!phone && !kept && opensToWork(r);
     const work = workOf(
       r,
-      { main: kind === "primary" ? "primary" : "secondary", may: c.may, tz: c.tz, flash: c.flash, keep: c.keep },
+      {
+        main: kind === "primary" ? "primary" : "secondary",
+        may: c.may,
+        tz: c.tz,
+        flash: c.flash,
+        keep: c.keep,
+        read: card && phone ? () => phone.walk(r.id) : null,
+      },
       { word: c.word, stepDone: () => c.stepDone(r) },
     );
-    return <AttnRow key={r.id} {...common} cta={null} also={null} onOpen={() => c.nav(r.cta.to)} work={work} />;
+    return (
+      <AttnRow
+        key={r.id}
+        {...common}
+        cta={null}
+        also={null}
+        onOpen={card && phone ? () => phone.walk(r.id) : () => c.nav(r.cta.to)}
+        work={work}
+      />
+    );
   });
 }
 

@@ -9,5 +9,5 @@ export {
   replyDraftAbout,
 } from "./reply-drafts";
 export type { ReplyDraftDto, ReplyDraftFacts, ReplyDraftKind, ReplyDraftWords } from "./reply-drafts";
-export { ReplyDraftAskSchema, ReplyDraftsQuerySchema } from "./reply-drafts-schema";
+export { REPLY_DRAFT_INSTRUCTION_MAX, ReplyDraftAskSchema, ReplyDraftsQuerySchema } from "./reply-drafts-schema";
 export type { ReplyDraftAsk } from "./reply-drafts-schema";

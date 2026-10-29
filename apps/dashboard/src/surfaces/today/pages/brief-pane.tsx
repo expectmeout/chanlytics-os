@@ -15,11 +15,9 @@
  * could not start. Now the brief's own words go to the speech route and the first word comes back in about a second;
  * where the clip cannot be made the button says why, and nothing else speaks.
  */
-import { useRef, useState, useSyncExternalStore } from "react";
 import {
   TO_SEND_ALL_WORDS,
   WAIT_ROW_WORDS,
-  mmss,
   runTitleOf,
   waitRowsOf,
   type TodayBriefRun,
@@ -29,10 +27,11 @@ import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { surfaceValue } from "../../surface-values";
 import { TODAY_HELPERS } from "../helpers";
-import { appNavigate, askAbout, askSpeech, useMoved, workspaceClock } from "../shell";
+import { appNavigate, askAbout, useMoved, workspaceClock } from "../shell";
 import { recapBeats } from "./card";
 import { useDayVm } from "./day";
 import { runsPending } from "../../waits/run-acts";
+import { listenButton, useSpeech } from "./listen";
 
 /** The brief's sentences as drawn: a name in bold where the canvas sets it, a space between sentences. */
 function briefLine(words: TodayBriefWords) {
@@ -44,99 +43,17 @@ function briefLine(words: TodayBriefWords) {
   ));
 }
 
-/** How long the brief takes to hear at a reader's pace, 160 words a minute, as "0:48": from the words, never a recording. */
-function spokenLength(text: string): string {
-  const words = text.split(/\s+/).filter(Boolean).length;
-  const s = Math.max(1, Math.round((words / 160) * 60));
-  return mmss(s * 1000);
-}
-
-/** What the button is doing: at rest, getting the clip, or playing it. */
-type SpeechState = "idle" | "loading" | "speaking";
-
-const noWatch = () => () => {};
-const idle = (): SpeechState => "idle";
-
 /**
- * Listen and Stop: the brief read aloud in Ask's voice. The clip and what is happening to it are the bridge's, not the
- * pane's (useSyncExternalStore over its watch): a pane drawn again while it plays (Today redraws itself as its data
- * moves) says Stop, a pane that did not start it hears its end, and a pane that goes away leaves it to finish. A
- * refusal (the mint, the vendor, a paused workspace) is said once beside the button, in the server's words. `warm`: a
- * mouse gone down on Listen, a tenth of a second before the click that follows it: the clips are asked for then, so
- * the voice is that much nearer the press. (A finger going down may be a scroll beginning, and asks nothing.)
+ * The brief's words, over what the page already holds: the day's view model, the day's own, and the runs waiting for a word
+ * an approval can still send, said as the queue's rows say them (contracts waitRowsOf, the queue's and the Inbox's own):
+ * the emails handed to you are one line, as two or more runs waiting for an OK are, each other run its own
+ * (todayRunWords). A run whose day has passed waits on nobody: its row says so, and the brief says nothing of it (S7-3).
+ * Your brief draws them, and Listen reads them, on a desk and on a phone's head alike.
  */
-function useSpeech(text: string | null): {
-  can: boolean;
-  state: SpeechState;
-  why: string | null;
-  toggle: () => void;
-  warm: () => void;
-} {
-  const speech = askSpeech();
-  const state = useSyncExternalStore(
-    speech ? (on: () => void) => speech.watchSpeech(on) : noWatch,
-    speech ? () => speech.state() : idle,
-    idle,
-  );
-  const [why, setWhy] = useState<string | null>(null);
-  /** Which press is the current one: a refusal that lands after a later press, or after Stop, is not said. */
-  const press = useRef(0);
-  const toggle = () => {
-    if (!speech || !text) return;
-    const mine = ++press.current;
-    if (speech.state() !== "idle") {
-      speech.stopSpeaking();
-      return;
-    }
-    setWhy(null);
-    speech.speak(text, "brief").catch((e: unknown) => {
-      if (mine !== press.current) return;
-      setWhy(e instanceof Error && e.message ? e.message : "Ask's voice could not be reached just now.");
-    });
-  };
-  const warm = () => {
-    if (speech && text && speech.state() === "idle") speech.warmSpeech?.(text, "brief");
-  };
-  return { can: !!speech, state, why, toggle, warm };
-}
-
-/**
- * Listen, as E3 draws it: in the acts under the line on a desk, at the right of the head on a phone. Drawn in both
- * places and shown in one by the sheet's breakpoint (dashboard-a-v2.css .tb-listen-head), so the page needs no measure
- * of its own; the hidden one is out of the reader's tree.
- */
-function listenButton(speech: ReturnType<typeof useSpeech>, line: string, place: "head" | "foot") {
-  const busy = speech.state !== "idle";
-  const word = speech.state === "speaking" ? "Stop" : speech.state === "loading" ? "Getting Ask's voice…" : "Listen";
-  return (
-    <Button
-      variant="secondary"
-      size="sm"
-      className={place === "head" ? "tb-listen tb-listen-head" : "tb-listen"}
-      aria-pressed={speech.state === "speaking"}
-      aria-busy={speech.state === "loading" || undefined}
-      onClick={speech.toggle}
-      onPointerDown={(e) => {
-        if (e.pointerType === "mouse" && e.button === 0) speech.warm();
-      }}
-      data-state={speech.state}
-      data-testid={place === "head" ? "today-brief-listen-head" : "today-brief-listen"}
-    >
-      <Icon name={speech.state === "speaking" ? "stop" : "play"} size={11} />
-      {word}
-      {!busy && <span className="tb-listen-len tabular">{spokenLength(line)}</span>}
-    </Button>
-  );
-}
-
-export const TodayBriefPane = () => {
+export function useBriefWords(): TodayBriefWords | null {
   useMoved(["today", "broadcasts"]);
   const vm = surfaceValue("today");
   const day = useDayVm();
-  // The runs waiting for a word an approval can still send, said as the queue's rows say them (contracts waitRowsOf, the
-  // queue's and the Inbox's own): the emails handed to you are one line, as two or more runs waiting for an OK are, each
-  // other run its own (todayRunWords). A run whose day has passed waits on nobody: its row says so, and the brief says
-  // nothing of it (S7-3).
   const runs: TodayBriefRun[] = waitRowsOf(runsPending().waiting).map((row) =>
     row.kind === "to_send"
       ? { ...TO_SEND_ALL_WORDS.brief(row.from), sentence: TO_SEND_ALL_WORDS.sentence(row.count, row.from) }
@@ -144,7 +61,12 @@ export const TodayBriefPane = () => {
         ? WAIT_ROW_WORDS.approvals.brief(row.runs.map(runTitleOf))
         : { label: runTitleOf(row.run), ...TODAY_HELPERS.runs(row.run).brief },
   );
-  const words = vm ? TODAY_HELPERS.briefWords(vm, day, runs) : null;
+  return vm ? TODAY_HELPERS.briefWords(vm, day, runs) : null;
+}
+
+export const TodayBriefPane = () => {
+  const vm = surfaceValue("today");
+  const words = useBriefWords();
   const line = words && words.sentences.length ? words.text : null;
   const speech = useSpeech(line);
   if (!vm || !words || !line) return null;

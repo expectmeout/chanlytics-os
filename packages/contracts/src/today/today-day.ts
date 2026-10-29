@@ -59,6 +59,8 @@ export interface CalendarLike {
   now: number;
   feed: { state: "ok" | "unavailable" | "none" };
   stats: { next: string };
+  /** The hours the Calendar's grid draws, whole hours (CalendarVM.hours): the span a phone's day bar is drawn over. */
+  hours?: { start: number; end: number };
 }
 /** A playbook card as the playbooks surface publishes it. */
 export interface PlaybookCardLike {
@@ -99,6 +101,19 @@ export interface TodayDayItemVM {
    * (the wiring's second audit, S9-7): the strip's Next named one and opened nothing.
    */
   to: string;
+  /** Where it sits on the day, in hours on the business's clock (14.5 is 2:30 PM); null for an all-day entry. */
+  at: { from: number; to: number } | null;
+}
+
+/**
+ * Today's bar on a phone (the phone canvas, 28 Oct 2026): the day's span cut into the visits and the gaps between them,
+ * each a share of the whole, in the day's order, and where now stands on it. Shares sum to one; a visit is never cut by
+ * the span, the span is widened to hold it.
+ */
+export interface TodayDayBarVM {
+  parts: Array<{ share: number; phase: TodayDayItemVM["phase"] | "gap" }>;
+  /** Now, as a share of the span; null before it opens and after it closes. */
+  now: number | null;
 }
 
 export interface TodayDayFrameVM {
@@ -118,6 +133,51 @@ export interface TodayDayFrameVM {
   /** How many of the day's entries the cap left out, and the line that says so ("2 more on the Calendar"). */
   more: number;
   moreLine: string | null;
+  /** Today's bar, over every visit that stands (the card's cap leaves none out of it); null on tomorrow and with none. */
+  bar: TodayDayBarVM | null;
+}
+
+/**
+ * The bar over a day's timed visits, in the day's order: the span is the Calendar's grid, widened to hold the first and the
+ * last visit, else the visits alone. Overlapping visits are one stretch of the bar, in the phase of the first; `now` is a
+ * share only while it is inside the span.
+ */
+export function todayDayBar(
+  items: readonly TodayDayItemVM[],
+  grid: { start: number; end: number } | null,
+  now: number | null,
+): TodayDayBarVM | null {
+  const timed = items.filter((i): i is TodayDayItemVM & { at: { from: number; to: number } } => !!i.at);
+  if (!timed.length) return null;
+  const from = Math.min(grid ? grid.start : Infinity, ...timed.map((i) => i.at.from));
+  const to = Math.max(grid ? grid.end : -Infinity, ...timed.map((i) => i.at.to));
+  const span = to - from;
+  if (!(span > 0)) return null;
+  const parts: TodayDayBarVM["parts"] = [];
+  let at = from;
+  for (const i of [...timed].sort((a, b) => a.at.from - b.at.from)) {
+    const start = Math.max(at, i.at.from);
+    const end = Math.max(start, i.at.to);
+    if (start > at) parts.push({ share: (start - at) / span, phase: "gap" });
+    if (end > start) parts.push({ share: (end - start) / span, phase: i.phase });
+    at = Math.max(at, end);
+  }
+  if (to > at) parts.push({ share: (to - at) / span, phase: "gap" });
+  return { parts, now: now !== null && now >= from && now <= to ? (now - from) / span : null };
+}
+
+/**
+ * The line beside today's date on a phone: closed and why; booked through with the next opening; how many and the first
+ * time still open; how many. In the workspace's word for a visit.
+ */
+export function todayDayNote(frame: TodayDayFrameVM, nextOpening: string | null, word: AppointmentWord): string {
+  if (frame.closed.yes) return `Closed today${frame.closed.note ? ` · ${frame.closed.note}` : ""}`;
+  const W = appointmentWords(word);
+  const n = frame.items.length + frame.more - frame.missed;
+  const count = n ? `${n} ${n === 1 ? W.one : W.many}` : `No ${W.many}`;
+  if (frame.open.length) return `${count} · open ${frame.open[0]}`;
+  if (nextOpening) return `Fully booked · next opening ${nextOpening}`;
+  return count;
 }
 
 /** "45m" · "1h" · "1h 30m" */
@@ -214,6 +274,7 @@ export function todayDay(
     flag: b.person ? (FLAG_WORDS[stateOf.get(b.person.id) ?? ""] ?? null) : null,
     said: markedOf(b),
     to: visitDoor(dayKey, b.visit?.id),
+    at: allDay ? null : { from: b.t, to: b.t + b.dur / 60 },
   });
   const frames: TodayDayFrameVM[] = picked.map((d) => {
     // A cancelled visit is none: not listed, not counted, never the next.
@@ -260,6 +321,7 @@ export function todayDay(
         : null,
       missed,
       open: d.closed.yes || d.past ? [] : d.windows.map((w) => w.label),
+      bar: d.today ? todayDayBar(timed, cal.hours ?? null, cal.now) : null,
     };
   });
   let reminders: TodayDayVM["reminders"] = null;

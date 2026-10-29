@@ -161,6 +161,7 @@ function RebookWork(p: WorkProps & { word: AppointmentWord; onDontSend: () => vo
       {send?.state === "stopped" ? <Note>{W.canceled}</Note> : null}
       {written}
       <Acts
+        foot={p.foot}
         start={
           <Button variant="quiet" onClick={p.onDontSend}>
             {W.booked.dontSend}
@@ -204,5 +205,5 @@ export function VisitWork(p: WorkProps & { word: AppointmentWord }) {
       {VISIT_WORDS[status]}
     </Button>
   );
-  return <Acts start={second ? press(second, "quiet") : null} end={first ? press(first, main) : null} />;
+  return <Acts foot={p.foot} start={second ? press(second, "quiet") : null} end={first ? press(first, main) : null} />;
 }

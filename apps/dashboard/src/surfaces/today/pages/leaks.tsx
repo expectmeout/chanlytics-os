@@ -5,8 +5,9 @@
  * here is the same number on the page it links to. The period card and the journey that stood here are gone: the
  * period is one line at the foot of the day's card, and the reach list's one fact is a row below.
  */
-import type { PeopleListsLike, TodayLeakVM } from "@chanlytics/contracts";
+import { TODAY_PHONE_WORDS, type PeopleListsLike, type TodayLeakVM } from "@chanlytics/contracts";
 import { useState } from "react";
+import { Button } from "../../kit/button/button";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { StatePill } from "../../kit/pill/state-pill";
@@ -41,10 +42,13 @@ function leakAlso(also: TodayLeakVM["also"]) {
 const PHONE_QUERY = "(max-width: 720px)";
 const twPhone = () => !!(window.matchMedia && window.matchMedia(PHONE_QUERY).matches);
 
-export const TodayLeaks = () => {
+/**
+ * Worth a look's read: its rows and the line for the rest, or the read that failed by its page and its surface; null while
+ * the two are unread. The desk's pane draws it (TodayLeaks), and a phone's day numbers draw it as lines (LeakLines).
+ */
+function useLeaks(): { rows: TodayLeakVM[]; moreLine: string | null; broke: [string, string] | null } | null {
   // The replies to a reach-out too: a thread whose reply was read is no unanswered person (contracts withoutWrongPerson).
   useMoved(["people", "today", "reach_out_replies"]);
-  const [open, setOpen] = useState<string | null>(null);
   // Reports' period in one small read (the headline), through the seam, and whether its read failed, by the seam's own hook (the
   // shell's `surfaceFailed` knows only the routes' surfaces: it is false for ever for the headline).
   const R = useSurface("reports_headline");
@@ -59,25 +63,69 @@ export const TodayLeaks = () => {
         : null;
   // Drawn once the period and People are in, or one of them failed: Today's last part, People being its heaviest read.
   usePartShown("today", "look", !!broke || (!!R && !!P));
+  if (broke) return { rows: [], moreLine: null, broke };
+  if (!R || !P) return null;
+  return { ...TODAY_HELPERS.leaks(R, P, TODAY_HELPERS.withoutWrongPerson(T ? T.noReply : [])), broke: null };
+}
+
+/** What the failed read says where Worth a look would be. Called, not drawn. */
+const leaksFailed = (broke: [string, string]) => (
+  <FailedRead
+    kind="line"
+    className="tl-failed"
+    what={broke[0]}
+    body="The queue and the day's card are current."
+    surface={broke[1]}
+    testid="today-leaks-failed"
+  />
+);
+
+/**
+ * Worth a look on a phone (decision 0076): under the day's numbers, as what they mean, a line each: its tone's one pill,
+ * its sentence, Ask why and its own door. Ask why carries the arithmetic the desk prints under it.
+ */
+export function LeakLines() {
+  const leaks = useLeaks();
+  if (!leaks || (!leaks.broke && !leaks.rows.length)) return null;
+  return (
+    <div className="tc-worth" data-testid="today-worth">
+      <span className="tc-worth-head">{TODAY_PHONE_WORDS.worth}</span>
+      {leaks.broke
+        ? leaksFailed(leaks.broke)
+        : leaks.rows.map((l) => (
+            <div key={l.id} className="tc-worth-row" data-testid={`today-leak-${l.id}`}>
+              <StatePill kind="tone" value={l.tone} label={l.tag} className="tl-tag" />
+              <span className="tc-worth-text">{l.text}</span>
+              <span className="tc-worth-acts">
+                <Button variant="quiet" size="sm" onClick={() => askAbout({ prompt: l.ask })}>
+                  {TODAY_PHONE_WORDS.askWhy}
+                </Button>
+                <Button variant="quiet" size="sm" onClick={() => appNavigate(l.cta.to)}>
+                  {l.cta.label} <Icon name={doorGlyph()} size={11} />
+                </Button>
+              </span>
+            </div>
+          ))}
+    </div>
+  );
+}
+
+export const TodayLeaks = () => {
+  const [open, setOpen] = useState<string | null>(null);
+  const leaks = useLeaks();
+  if (!leaks) return null;
+  const { broke } = leaks;
   if (broke) {
     return (
       <section className="tsec tl" data-testid="today-leaks">
         <div className="tsec-head">
           <span className="tsec-title">Worth a look</span>
         </div>
-        <FailedRead
-          kind="line"
-          className="tl-failed"
-          what={broke[0]}
-          body="The queue and the day's card are current."
-          surface={broke[1]}
-          testid="today-leaks-failed"
-        />
+        {leaksFailed(broke)}
       </section>
     );
   }
-  if (!R || !P) return null;
-  const { rows, moreLine } = TODAY_HELPERS.leaks(R, P, TODAY_HELPERS.withoutWrongPerson(T ? T.noReply : []));
+  const { rows, moreLine } = leaks;
   if (!rows.length) return null;
   const phone = twPhone();
   return (

@@ -19,7 +19,13 @@ function _meterTakes(meter: RefObject<HTMLDivElement | null>, now: { held: boole
   type _Its = [
     Holds<Exactly<ComponentProps<typeof Meter>, MeterProps>>,
     Holds<Exactly<MeterProps["size"], "sm" | "md" | "lg" | undefined>>,
-    Holds<Exactly<MeterProps["parts"][number]["tone"], "ok" | "read" | "warn" | "rest" | "open" | undefined>>,
+    Holds<
+      Exactly<
+        MeterProps["parts"][number]["tone"],
+        "ok" | "read" | "warn" | "rest" | "open" | "ink" | "ground" | undefined
+      >
+    >,
+    Holds<Exactly<MeterProps["mark"], number | null | undefined>>,
   ];
   // Its parts apart, each rounded: a run's bar by count.
   Meter({
@@ -29,6 +35,16 @@ function _meterTakes(meter: RefObject<HTMLDivElement | null>, now: { held: boole
     ],
     apart: true,
     "aria-label": "2 ready · 7 held",
+  });
+  // A day's bar on a phone: what is under way in the ink, the free time on the ground, and now as a mark among them.
+  Meter({
+    parts: [
+      { share: 4, tone: "rest" },
+      { share: 1, tone: "ground" },
+      { share: 2, tone: "ink" },
+    ],
+    mark: 0.6,
+    "aria-label": "4 visits done, one under way; now 4:12 PM",
   });
   // A share still to come: its outline alone (a run's emails the check is still reading).
   Meter({

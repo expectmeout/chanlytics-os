@@ -16,6 +16,7 @@ import { undoVerb } from "@/legacy-bridge/verbs/commit";
 import { Button } from "../../kit";
 import { askAbout, askCards, canDo, gate } from "../shell";
 import { Acts, Done, type WorkProps } from "./parts";
+import { useRowState } from "./row-state";
 
 /** The last outcome on its way for each turn: the next is kept after it, since the store writes a turn whole. */
 const turnWrites = new Map<string, Promise<unknown>>();
@@ -42,7 +43,7 @@ function keptOnTurn(messageId: string | null, p: AskMorningCard, o: AskProposalO
  * `keep` holds the row in its place for the visit: a card with an outcome leaves the morning's next read.
  */
 export function IdeaWork(
-  p: Pick<WorkProps, "main" | "flash"> & {
+  p: Pick<WorkProps, "main" | "flash" | "foot"> & {
     card: AskMorningCard;
     messageId: string | null;
     threadId: string | null;
@@ -50,9 +51,12 @@ export function IdeaWork(
   },
 ) {
   const { card, messageId, threadId, main, flash } = p;
-  const [said, setSaid] = useState<{ words: string; tone: "ok" | "rest"; undo: Record<string, unknown> | null } | null>(
-    null,
-  );
+  // Kept by the idea, not by this part: Ask found on a phone draws it in a sheet, and its card says what became of it.
+  const [said, setSaid] = useRowState<{
+    words: string;
+    tone: "ok" | "rest";
+    undo: Record<string, unknown> | null;
+  } | null>(card.id, "said", null);
   const [busy, setBusy] = useState(false);
   const open = () => askAbout(threadId ? { thread: threadId } : {});
   const approve = async () => {
@@ -105,6 +109,7 @@ export function IdeaWork(
     );
   return (
     <Acts
+      foot={p.foot}
       start={
         <Button variant="quiet" onClick={() => void notToday()} disabled={busy}>
           {W.idea.notToday}

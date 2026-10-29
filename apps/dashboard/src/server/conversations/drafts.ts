@@ -128,8 +128,13 @@ export async function draftForThread(
   ctx: RouteContext,
   member: Member,
   conv: VerbConversation & { contact_id: string },
-  kind: ReplyDraftKind,
+  /**
+   * Which draft, and the member's change to the kept one (Change it with Ask): with an instruction the draft is written
+   * again, never the kept one handed back.
+   */
+  ask: { kind: ReplyDraftKind; instruction?: string | null },
 ): Promise<ReplyDraftDto> {
+  const { kind, instruction = null } = ask;
   const [facts, kept] = await Promise.all([
     threadDraftFacts(ctx.supabase, conv.tenant_id, conv.id),
     conversationDraftsOf(ctx.supabase, conv.tenant_id, [conv.id]),
@@ -137,15 +142,16 @@ export async function draftForThread(
   const mine = kept.find((r) => r.kind === kind && underTheRules(r));
   const signed =
     kind === "reply" ? ((await signedByThread(ctx, conv.tenant_id, [conv.id])).get(conv.id) ?? null) : null;
-  if (mine && draftIsCurrent(mine, facts.forMessageId)) return dtoOf(mine, signed);
+  if (mine && draftIsCurrent(mine, facts.forMessageId) && !instruction) return dtoOf(mine, signed);
   const wire = kind === "reply" ? await replyChannelOf(ctx, conv) : undefined;
   const drafted = await draftForPerson(readerContext(ctx, member), conv.contact_id, {
     how: kind === "brief" ? "call" : "message",
     ...(wire ? { wire } : {}),
-    about: replyDraftAbout(kind, {
-      reason: facts.reason ? reasonLabelOf(facts.reason) : null,
-      details: facts.details,
-    }),
+    about: replyDraftAbout(
+      kind,
+      { reason: facts.reason ? reasonLabelOf(facts.reason) : null, details: facts.details },
+      instruction ? { was: mine ? wordsFrom(mine.words).text || null : null, how: instruction } : null,
+    ),
   });
   const r = await conversationDraftKeep(ctx.supabase, {
     tenantId: conv.tenant_id,

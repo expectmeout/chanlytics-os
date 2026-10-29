@@ -5,6 +5,8 @@
  */
 import {
   todayDay,
+  todayDayNote,
+  todayPhoneHead,
   todayAwayGrouped,
   todayBriefWords,
   todaySteps,
@@ -34,6 +36,9 @@ const readings = () => (window as Window & { __REPLIES?: ReachOutRepliesDto | nu
 
 export const TODAY_HELPERS = {
   day: todayDay,
+  // Today on a phone (the phone canvas, 28 Oct 2026): the ladder said as a head, and the line beside the day's date.
+  phoneHead: todayPhoneHead,
+  dayNote: todayDayNote,
   // The brief's words in Glass (canvas E3): who needs you, the day, what came in, the runs waiting.
   briefWords: todayBriefWords,
   periodLine: todayPeriodLine,
