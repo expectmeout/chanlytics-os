@@ -123,7 +123,23 @@ test("a cold email ends as its sequence says: its name, or its mailbox's signatu
   assert.deepEqual(ending({ signsWith: "mailbox", signature: null }), { signOff: "Sam", signature: null });
   // Words whose last line is the name already are not signed twice, in any case or spacing.
   assert.deepEqual(ending({ body: "Hi.\n\n{{ Your  Name }}\n" }), { signOff: null, signature: null });
-  assert.deepEqual(ending({ body: "Thanks, {{your name}}, for reading." }), { signOff: "Sam", signature: null });
+  // Nor words that close on a line naming it with other words, or a sign-off of a few short lines that holds it (29 Oct
+  // 2026: Ask closed a follow-up "- {{your name}}, {{your business}}", and the preview ended "- Ruben, Chanlytics", Ruben).
+  const signed = { signOff: null, signature: null };
+  assert.deepEqual(ending({ body: "Worth a look?\n\n- {{your name}}, {{your business}}" }), signed);
+  assert.deepEqual(ending({ body: "Thanks, {{your name}}, for reading." }), signed);
+  assert.deepEqual(ending({ body: "Worth a look?\n\nBest,\n{{your name}}\n{{your business}}" }), signed);
+  // A sentence of the words that names it, or a name said further up, is not a sign-off: the name still goes under.
+  assert.deepEqual(
+    ending({
+      body: "Worth a look?\n\nI'm {{your name}} with {{your business}}, and we help shops like yours answer every call.",
+    }),
+    { signOff: "Sam", signature: null },
+  );
+  assert.deepEqual(ending({ body: "I'm {{your name}}.\n\nWould it be worth a look?" }), {
+    signOff: "Sam",
+    signature: null,
+  });
   // No name to sign with: nothing is added.
   assert.deepEqual(ending({ signedBy: "  " }), { signOff: null, signature: null });
   // The name goes under the words, a blank line between.
