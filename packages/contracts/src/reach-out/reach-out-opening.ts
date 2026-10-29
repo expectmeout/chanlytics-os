@@ -23,12 +23,19 @@ import { MODEL_ROUTES } from "../ai/models";
 
 export const REACH_OUT_MODEL = MODEL_ROUTES.reach_out_check.model;
 
+/**
+ * What no business's record states, so the reader refuses a claim about it unless the record says it: said once, read
+ * by the reader's prompt and by the rewrite the writer is asked for, so the writer is told the kind of claim it made and
+ * not only its words (29 Oct 2026: told the words alone, a rewrite made the same guess at how busy a business is).
+ */
+export const OPENING_UNSTATED = "the business's feelings, busyness, revenue, problems or plans";
+
 export const OPENING_SCHEMA = {
   type: "object",
   properties: {
     // The bound is said, not constrained: structured outputs refuse maxLength. Code holds it (checkOpening, too_long).
     opening: { type: "string", description: `At most ${OPENING_WORDS_MAX} words and ${OPENING_CHARS_MAX} characters.` },
-    angle: { type: "string" },
+    angle: { type: "string", description: `${ANGLE_WORDS_MAX} words or fewer: what the sentence leans on.` },
     facts_used: { type: "array", items: { type: "string", enum: [...OPENING_FACT_KEYS] } },
   },
   required: ["opening", "angle", "facts_used"],
@@ -125,7 +132,7 @@ export function openingUserContent(p: {
 export function readingSystemPrompt(): string {
   return [
     "You check one sentence that opens a cold email, against the record of the business it was written for.",
-    "backed: true only if every claim in the sentence is stated in the record. A claim about the business's feelings, busyness, revenue, problems or plans is not stated unless the record says it.",
+    `backed: true only if every claim in the sentence is stated in the record. A claim about ${OPENING_UNSTATED} is not stated unless the record says it.`,
     "unbacked: when backed is false, the shortest part of the sentence that is not in the record; otherwise an empty string.",
     "pitch: true if the sentence names a price, a discount, a guarantee, or a result it promises.",
     "language: the ISO 639-1 code of the language the record's about text is written in; \"unknown\" when there is no about text or it is too short to tell. Never judge it from the business's name, category or city: a business with a name in one language often writes in another.",
@@ -137,6 +144,26 @@ export function readingUserContent(p: { record: OpeningRecord; opening: string }
   return ["The business's record:", ...recordLines(p.record), "", `The sentence: ${p.opening}`].join("\n");
 }
 
+/** Words a tag never ends on: a cut that leaves one ("their reviews and") drops it. */
+const ANGLE_TAIL = new Set(["and", "or", "the", "a", "an", "of", "with", "is", "are", "to", "for"]);
+
+/**
+ * An angle as the tag it is (Reports' replies by angle): its first phrase, at most ANGLE_WORDS_MAX words, never ending
+ * on a joining word. A longer one is cut here, where every answer is read, so it never holds an email on its own (29 Oct
+ * 2026: "independent shop, own site" held a true sentence).
+ */
+function angleOf(raw: string): string {
+  const phrase =
+    raw
+      .trim()
+      .replace(/\s+/g, " ")
+      .split(/\s*(?:,|;|—|–|·|&|\+|\band\b)\s*/i)
+      .find((x) => x.trim()) ?? "";
+  const words = phrase.split(" ").filter(Boolean).slice(0, ANGLE_WORDS_MAX);
+  while (words.length > 1 && ANGLE_TAIL.has((words.at(-1) ?? "").toLowerCase())) words.pop();
+  return words.join(" ");
+}
+
 export function parseOpening(a: unknown): WrittenOpening | null {
   if (!a || typeof a !== "object") return null;
   const o = a as Record<string, unknown>;
@@ -145,7 +172,7 @@ export function parseOpening(a: unknown): WrittenOpening | null {
   const facts = o.facts_used.filter((k): k is string => typeof k === "string").map((k) => k.trim());
   return {
     opening: o.opening.trim().replace(/\s+/g, " "),
-    angle: o.angle.trim().replace(/\s+/g, " "),
+    angle: angleOf(o.angle),
     facts_used: [...new Set(facts)],
   };
 }
@@ -205,9 +232,8 @@ export function openingVerdict(code: OpeningProblem | null, reading: Reading, st
       hold: "unbacked_fact",
       detail,
       rewrite: true,
-      why: detail
-        ? `it said “${detail}”, which the record does not hold`
-        : "it said something the record does not hold",
+      // The kind of claim, not only its words: told the words alone, a rewrite made the same guess in others.
+      why: `${detail ? `it said “${detail}”, which the record does not hold` : "it said something the record does not hold"}; no record holds ${OPENING_UNSTATED}`,
     };
   }
   if (code === "unnamed_fact" || code === "unbacked_number")
