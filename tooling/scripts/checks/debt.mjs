@@ -320,6 +320,7 @@ export function totalsOf(record, { ceiling = {}, trees = [], wide = [] } = {}) {
     ["service-role reaches, dashboard", total(by["service-role"]), `in ${keys(by["service-role"])} files`],
     ["doors importing db or channels", total(by["route-doors"]), `imports in ${keys(by["route-doors"])} files`],
     ["unnamed durations", total(by.durations), `in ${keys(by.durations)} files`],
+    ["dates said with no zone", total(by["zoneless-dates"]), `in ${keys(by["zoneless-dates"])} files`],
     ["event-shaped clocks", keys(by["event-shaped-clocks"]), "of the registered clocks (invariant 6)"],
     ["tables with more than one writer", keys(by.writers), `${total(by.writers)} writers among them`],
     [

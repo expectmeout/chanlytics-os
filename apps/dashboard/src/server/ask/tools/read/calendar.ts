@@ -2,8 +2,9 @@ import "server-only";
 import { z } from "zod";
 import {
   dayInZone,
+  dayKeyNamed,
+  dayWordIn,
   isDayKey,
-  shiftKey,
   toCalendarVM,
   visitRoute,
   visitStands,
@@ -34,32 +35,23 @@ export async function getRoom(t: ToolContext) {
 
 async function getOpenings(t: ToolContext, input: { day: string; service: string }): Promise<unknown> {
   // The palette's own read (readers/openings.ts), once a turn, with the zone and the settings the turn read; what was
-  // asked is cut where the route cuts it, the service at 160 (ledger #13).
-  const r = (await load(t.rc, openings, { day: str(input.day, 20) || null, service: str(input.service, 160) || null }))
-    .data.openings;
+  // asked is cut where the route cuts it, the service at 160 (ledger #13). Today and tomorrow are their days; a weekday
+  // stays a weekday, which the openings read as the next one that has room (contracts filterOpenings).
+  const asked = str(input.day, 20).trim();
+  const named = isDayKey(asked) ? null : dayWordIn(asked);
+  const day =
+    named === "today" || named === "tomorrow"
+      ? dayKeyNamed(asked, dayInZone(t.timezone, t.now.getTime()).key)
+      : (named ?? (asked || null));
+  const r = (await load(t.rc, openings, { day, service: str(input.service, 160) || null })).data.openings;
   return { state: r.state, text: r.text, days: r.days, service: r.service?.name ?? null };
 }
-
-const WEEKDAY_KEYS: Record<string, number> = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
 
 /** The calendar for a day or a few, in the words the page uses. */
 async function getCalendar(t: ToolContext, input: { day: string; days?: number }): Promise<unknown> {
   const todayKey = dayInZone(t.timezone, t.now.getTime()).key;
-  const asked = str(input.day, 20).trim().toLowerCase();
-  const askedKey = isDayKey(asked) ? asked : null;
-  let from = todayKey;
-  if (asked === "tomorrow") from = shiftKey(todayKey, 1);
-  else if (askedKey) from = askedKey;
-  else if (asked.slice(0, 3) in WEEKDAY_KEYS) {
-    const want = WEEKDAY_KEYS[asked.slice(0, 3)];
-    for (let i = 0; i < 7; i++) {
-      const k = shiftKey(todayKey, i);
-      if (new Date(`${k}T12:00:00Z`).getUTCDay() === want) {
-        from = k;
-        break;
-      }
-    }
-  }
+  const asked = str(input.day, 20).trim();
+  const from = dayKeyNamed(asked, todayKey) ?? todayKey;
   const days = Math.min(14, Math.max(1, Math.round(Number(input.days)) || 1));
   // The board as its page reads it (readers/calendar.ts), once a turn, with the zone and the settings the turn read,
   // and never a write. No day asked is the page's own span from its Monday: its week, as the Calendar opens (ledger

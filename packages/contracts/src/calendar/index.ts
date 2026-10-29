@@ -170,7 +170,20 @@ export type {
   VisitStateVM,
   VisitWord,
 } from "./calendar-words";
-export { isDayKey, mondayOf, monthLabelOf, monthSpan, shiftKey, shiftMonth, zoneMidnight } from "./day-keys";
+export {
+  dayKeyNamed,
+  dayWordIn,
+  isDayKey,
+  mondayOf,
+  monthLabelOf,
+  monthSpan,
+  onOrAfter,
+  shiftKey,
+  shiftMonth,
+  weekdayOf,
+  zoneMidnight,
+} from "./day-keys";
+export type { DayWord, WeekdayKey } from "./day-keys";
 export { parseIcs } from "./feed";
 export type { BusyBlock, FeedAttendee, FeedItem, ParsedFeed, ParseOptions } from "./feed";
 export {

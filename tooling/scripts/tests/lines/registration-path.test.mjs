@@ -673,15 +673,9 @@ test("which registration was filed is remembered, not re-derived", () => {
     "before the saga runs, like every other filing fact",
   );
 
-  // And it survives BOTH mappers. Selecting it in one and not the other is
-  // exactly how the campaign-status defect shipped inert.
-  assert.ok(readCode("apps/edge/lib/lines/lines.ts").includes("reg_sole_prop: r.reg_sole_prop,"));
-  const dash = readCode("apps/dashboard/src/server/connections/lines.ts");
-  assert.ok(
-    dash.includes("reg_sole_prop, whatsapp_state"),
-    "REGRESSION: a column the page needs must be in LINE_COLUMNS or it is always undefined",
-  );
-  assert.ok(dash.includes("reg_sole_prop: r.reg_sole_prop,"));
+  // And it reaches the page from both sides: selecting it in one and not the other is exactly how the campaign-status
+  // defect shipped inert. One builder makes the line for both (contracts lineDtoOf), and forwarding.test.mjs runs the
+  // dashboard's read and the edge's answer on one filed row, a column the read does not select included.
 });
 
 test("a working sole-proprietor line says what it can do, on both surfaces", () => {

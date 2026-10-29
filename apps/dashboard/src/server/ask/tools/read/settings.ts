@@ -134,7 +134,7 @@ async function getConnections(t: ToolContext): Promise<unknown> {
         };
       }),
     mailboxes: (setup.email?.sending?.mailboxes ?? []).map((m) => {
-      const w = mailboxWords(m, t.now.getTime());
+      const w = mailboxWords(m, t.now.getTime(), t.timezone);
       return {
         mailbox_id: m.id,
         route: "admin/integrations",

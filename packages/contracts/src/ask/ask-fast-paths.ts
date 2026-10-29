@@ -3,6 +3,7 @@
  * (askIntent), the day it names (dayFromQuestion), today's missed calls and those on the line (callsToday), and a
  * quick answer as the route keeps it, a turn of its thread (quickAnswerOf); ask-answer.ts words each answer.
  */
+import { dayWordIn } from "../calendar/day-keys";
 import { dayPlusInZone } from "../calendar/zone-math";
 import { missedCall } from "../conversations/call-dto";
 import { CALL_HEARTBEAT_MS } from "../config/policy";
@@ -94,17 +95,16 @@ const ACT_RE =
 /** Any period but today: a quick answer reads today's calls, now's queue, and the day asked about. */
 const PERIOD_RE =
   /\b(yesterday|last|next|week|weekend|month|year|since|between|compare|vs|versus|ayer|anoche|semana|mes|año|pasad[oa]|pr[oó]xim[oa]|desde|entre|compara)\b/i;
-/** The words a question may capitalise without naming anyone: a day, today, tomorrow. */
-const NOT_A_NAME =
-  /^(mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun)(day|sday|nesday|rsday|urday)?$|^(today|tomorrow|hoy|mañana|lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo)$/i;
-
-/** A capitalised word past the first that is not a day: a name ("Any calls from Robin?"), the model's to read. */
+/**
+ * A capitalised word past the first that is not a day (a weekday, today, tomorrow: contracts dayWordIn): a name ("Any
+ * calls from Robin?"), the model's to read.
+ */
 function namesSomeone(question: string): boolean {
   return question
     .split(/\s+/)
     .map((w) => w.replace(/^[^\p{L}]+|[^\p{L}]+$/gu, ""))
     .slice(1)
-    .some((w) => /^\p{Lu}\p{Ll}/u.test(w) && !NOT_A_NAME.test(w));
+    .some((w) => /^\p{Lu}\p{Ll}/u.test(w) && dayWordIn(w) === null);
 }
 
 /** The question as its forms read it: lower case, one space, no punctuation around it or between its words. */
@@ -116,16 +116,6 @@ function quickWords(question: string): string {
     .replace(/\s+/g, " ")
     .trim();
 }
-
-const DAY_WORDS: Array<[RegExp, string]> = [
-  [/\b(mon|monday|lunes)\b/i, "mon"],
-  [/\b(tue|tues|tuesday|martes)\b/i, "tue"],
-  [/\b(wed|wednesday|mi[eé]rcoles)\b/i, "wed"],
-  [/\b(thu|thur|thursday|jueves)\b/i, "thu"],
-  [/\b(fri|friday|viernes)\b/i, "fri"],
-  [/\b(sat|saturday|s[aá]bado)\b/i, "sat"],
-  [/\b(sun|sunday|domingo)\b/i, "sun"],
-];
 
 /** The day `atMs` falls on in `tz`; with no zone, or one Intl cannot use, the day in UTC -- never the machine's. */
 function dayKey(atMs: number, tz: string | null | undefined): string {
@@ -141,12 +131,13 @@ function dayKey(atMs: number, tz: string | null | undefined): string {
   }
 }
 
-/** The day a question names: a weekday key, "today"/"tomorrow" as a date, or nothing. */
+/** The day a question names (contracts dayWordIn): a weekday key, "today"/"tomorrow" as a date, or nothing. */
 export function dayFromQuestion(q: string, now: number, tz?: string | null): string | null {
+  const named = dayWordIn(q);
   // Tomorrow is the next DAY, which is not "now plus 24 hours" on the two
   // days a year the clock moves (availability dayPlusInZone). A zone we
   // cannot use falls back the way dayKey does.
-  if (/\b(tomorrow|mañana)\b/i.test(q)) {
+  if (named === "tomorrow") {
     try {
       if (tz) return dayPlusInZone(tz, now, 1).key;
     } catch {
@@ -154,9 +145,8 @@ export function dayFromQuestion(q: string, now: number, tz?: string | null): str
     }
     return dayKey(now + 86_400_000, tz);
   }
-  if (/\b(today|hoy)\b/i.test(q)) return dayKey(now, tz);
-  for (const [re, key] of DAY_WORDS) if (re.test(q)) return key;
-  return null;
+  if (named === "today") return dayKey(now, tz);
+  return named;
 }
 
 /** What a quick question asks for, answered without a model; ask-answer.ts words the answer. */

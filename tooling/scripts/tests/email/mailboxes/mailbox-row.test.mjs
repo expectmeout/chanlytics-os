@@ -21,7 +21,11 @@ const { Segmented } = await import("../../../../../apps/dashboard/src/surfaces/k
 
 // Who is acting: the frame's gate asks the role store; here an owner, or a member who may not change the mailboxes.
 const role = { owner: true };
+// The workspace's zone, as the workspace list publishes it: a day the card says is its, never the suite's own.
+const ZONE = "America/Los_Angeles";
 Object.assign(globalThis.window, {
+  __WORKSPACES: [{ id: "w1", timezone: ZONE }],
+  __ACTIVE_WORKSPACE: "w1",
   canDo: () => role.owner,
   gate: (_perm, doing) => (role.owner ? {} : { "aria-disabled": "true", "data-gated": doing }),
   gateTitle: (_perm, doing) => `Only an owner can ${doing}.`,
@@ -126,7 +130,9 @@ const choose = (tree, address, words) => {
 
 test("the card says what came in through it, its facts, and in its foot what it left, never the ramp", () => {
   const read = new Date(Date.now() - 2 * 60_000).toISOString();
-  const at = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date(read));
+  const at = new Intl.DateTimeFormat("en-US", { timeZone: ZONE, hour: "numeric", minute: "2-digit" }).format(
+    new Date(read),
+  );
   let tree = open([mbx({ synced_at: read, came_in: 3, sent_today: 20 })], 9);
   const card = cardOf(tree);
   assert.equal(said(byTestId(tree, `mailbox-${SAM}`)), `${SAM} · Google`, "its address and where it lives");
@@ -264,7 +270,7 @@ test("the act is the one its mailbox needs most: Reconnect, Resume, Set up DNS, 
   assert.deepEqual(went, [["google", "m1"]], "Reconnect goes back to its own provider, for its own mailbox");
 
   tree = open([mbx({ state: "held", held_why: "bounces", held_at: "2026-10-01T12:00:00Z" })]);
-  assert.match(said(cardOf(tree)), /Its sending is held since Oct 1: .*bounced/);
+  assert.match(said(cardOf(tree)), /Its sending is held since Oct 1: .*bounced/, "noon UTC is Oct 1 in Los Angeles");
   press(byTestId(tree, `mailbox-resume-${SAM}`));
   tree = redraw();
   assert.match(said(tree), /Resume sam@getharbor\.example\?/, "asked first");
@@ -502,7 +508,7 @@ test("what it signs with (00487): Gmail's, said as words with when it was read; 
   assert.ok(byTestId(group, "mailbox-signs-said"), "what it signs with sits under its choice");
   const shown = said(byTestId(tree, "mailbox-signs-said"));
   assert.match(shown, /^Sam Reyes Harbor Moving/, "Gmail's signature, as words");
-  assert.match(shown, /Read from Gmail at .+\. Saving reads it again\./);
+  assert.match(shown, /Read from Gmail .+\. Saving reads it again\./);
   assert.equal(byTestId(tree, "mailbox-signature"), null, "their own words' box is for Write one");
   assert.equal(signedWith(), "Sam Reyes Harbor Moving", "the preview ends the email as the send will");
 

@@ -81,7 +81,7 @@ export { afterPersonRefused, allVisitsIn, calendarOwnerOf, describeVisits, extra
 export { CALENDAR_RUN_SHEET_WORDS, CALENDAR_SHOW_WORDS, calendarRunMarksOf, runMarkShown } from "./calendar/calendar-runs";
 export { coversSpan, frameOf, spanForView, windowFor } from "./calendar/calendar-views";
 export { ADD_TO_PEOPLE_WORDS, addToPeopleOf, CALENDAR_FEED_WORDS, clockLabel, closureDatesLabel, closuresFrom, eventText, feedNotes, feedSourceLabel, hoursLines, readAgoLabel, ruleParts, rulesLine, sightingStands, VISIT_ASK_WORDS, VISIT_REFUSALS, VISIT_WORDS, visitActsOf, visitLineOf, visitLineOfBlock, visitMarkOfDto, visitStands, visitStateOf } from "./calendar/calendar-words";
-export { isDayKey, mondayOf, monthLabelOf, monthSpan, shiftKey, shiftMonth, zoneMidnight } from "./calendar/day-keys";
+export { dayKeyNamed, dayWordIn, isDayKey, mondayOf, monthLabelOf, monthSpan, onOrAfter, shiftKey, shiftMonth, weekdayOf, zoneMidnight } from "./calendar/day-keys";
 export { parseIcs } from "./calendar/feed";
 export { APPOINTMENT_SOURCES, APPOINTMENT_STATUSES, appointmentHolds, appointmentKeysOf, asksTheFeed, feedAppointmentRows, feedNamesOf, feedStillNames } from "./calendar/feed-appointments";
 export { calendarFeedKeyOf, FEED_CHECK_WORDS, FEED_GUIDES, FEED_MAX_BYTES, feedBodyProblem, feedProblemWords, feedUrlOk, fetchPublic, mailboxCalendarOf, offeringHorizon, previewHorizon, seasonHorizon } from "./calendar/feed-url";
@@ -229,6 +229,7 @@ export { ABOUT_MAX, ABOUT_MIN, businessFieldsFor, businessGroupWordsFor, busines
 export { callerSentence, lineOffGets, PHONE_LINE_OFF, WORKSPACE_ENDED_WORDS, WORKSPACE_PAUSED } from "./lines/caller-gets";
 export { CHANNEL_ANSWERED, CHANNEL_KIND_WORDS, channelFor, channelKindWords, channelNoun, toChannelVM } from "./lines/channels";
 export { LINE_CODES_EVERY_MS, LINE_CODES_MAX, LINE_CODES_WITHIN_MS } from "./lines/line-codes";
+export { lineDtoOf } from "./lines/line-dto";
 export { LINE_CREDENTIALS_SENTENCE, lineCredentialFailure } from "./lines/line-failure";
 export { billingEndedAt, LINE_RELEASE_MIN_DAYS, LINE_RELEASE_REPORT_DAYS, LINE_RELEASE_WARN_DAYS, lineReleaseAfterDays, lineReleaseDay, lineReleasedWords, lineReleaseStep, lineReleaseWarning } from "./lines/line-release";
 export { nameDecisionWords, numberHealthOfConfig, numberHealthWithStanding, PAYMENT_HOLD_WORD, standingAfterNameDecision, standingAlertWords, standingFromConfig, standingNeedsRead } from "./lines/number-standing";

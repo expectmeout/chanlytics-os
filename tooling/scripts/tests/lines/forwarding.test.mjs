@@ -26,7 +26,9 @@ import {
   agoWords,
   EVENT_KINDS,
 } from "@chanlytics/contracts";
-import { readCode, readRaw } from "../_source.mjs";
+import { importSrc, readCode, readRaw } from "../_source.mjs";
+import { fakeDb } from "../_fake-db.mjs";
+import { TENANT, rows } from "../_rows.mjs";
 
 const DEST = "+13055550123";
 
@@ -305,10 +307,6 @@ test("the wiring: the migration, the forwarding event kind, and the bridge and t
   // the bell says so) runs in retell-webhook-door.test.mjs; the two routes'
   // owner policy and their database calls run in settings-routes.test.mjs.
   assert.ok(EVENT_KINDS.includes("line.forwarding_verified"));
-  assert.ok(
-    readCode("apps/dashboard/src/server/connections/lines.ts").includes('forwarding: r.kind === "forwarded"'),
-    "only a forwarded row shows its facts, and only the words",
-  );
   // Setup's surface and rows are TSX since decision 0015's step 10 (surfaces/setup): the card imports its words.
   const bridge = readCode("apps/dashboard/src/surfaces/setup/surface.ts");
   for (const pin of ['"POST lines/forwarding"', '"POST lines/forwarding/test"', "export const FORWARDING_WORDS"])
@@ -327,4 +325,78 @@ test("the wiring: the migration, the forwarding event kind, and the bridge and t
     assert.ok(acts.includes(pin), pin);
   assert.ok(rows("line-chooser.tsx").includes('data-testid="setup-keep-go"'));
   // The nightly spec walks the first run a step at a time (e2e/setup.spec.ts) and counts no rows at all.
+});
+
+test("a line is one shape from either side, the dashboard's read and the edge's answer, and no provider id is in it", async () => {
+  const { lineForClient } = await importSrc("apps/edge/lib/lines/lines.ts");
+  const { linesFor } = await importSrc("apps/dashboard/src/server/connections/lines.ts");
+  // Every id a provisioned line keeps, each its own made-up value, so one that reached the page would be found by it.
+  const IDS = {
+    number_sid: "PN00000000000000000000000000000001",
+    brand_sid: "BN00000000000000000000000000000002",
+    campaign_sid: "CM00000000000000000000000000000003",
+    messaging_service_sid: "MG00000000000000000000000000000004",
+    subaccount_sid: "AC00000000000000000000000000000005",
+    profile_sid: "BU00000000000000000000000000000006",
+    a2p_profile_sid: "BU00000000000000000000000000000007",
+    trunk_sid: "TK00000000000000000000000000000008",
+    credential_list_sid: "CL00000000000000000000000000000009",
+    retell_agent_id: "agent_example_0010",
+    credentials_ref: "vault-ref-example-0011",
+  };
+  const provisioned = rows.line({
+    tenant_id: TENANT,
+    kind: "chanlytics",
+    provider: "twilio",
+    e164: "+13055550142",
+    voice_state: "answering",
+    sms_state: "approved",
+    // What was filed, none of it a default: a column the read did not select would arrive undefined beside the edge's.
+    reg_step: "campaign",
+    reg_mock: true,
+    reg_sole_prop: true,
+    created_at: "2026-10-01T12:00:00.000Z",
+    // A provisioned line's facts are the provider's: none of them is the page's.
+    facts: { number_sid: IDS.number_sid },
+    ...IDS,
+  });
+  const forwarded = rows.line({
+    tenant_id: TENANT,
+    kind: "forwarded",
+    provider: "carrier",
+    e164: "+13055550143",
+    forwarding_state: "instructed",
+    created_at: "2026-10-02T12:00:00.000Z",
+    facts: {
+      carrier: "att",
+      mode: "unanswered",
+      destination_e164: "+13055550142",
+      test_until: null,
+      verified_at: null,
+    },
+  });
+  const told = [provisioned, forwarded].map(lineForClient);
+  const read = await linesFor(fakeDb({ lines: [provisioned, forwarded] }), TENANT);
+  assert.deepEqual(
+    told.map((l) => l.registered),
+    [true, false],
+    "the edge, which holds the brand and the campaign, says whether both are on record",
+  );
+  assert.deepEqual(
+    read,
+    told.map(({ registered: _, ...rest }) => rest),
+    "the read says everything the edge's answer says but that",
+  );
+  assert.deepEqual(read[1].forwarding, {
+    carrier: "att",
+    mode: "unanswered",
+    destination_e164: "+13055550142",
+    test_until: null,
+    verified_at: null,
+  });
+  assert.equal(read[0].forwarding, null, "only a forwarded line says its facts, and only its words");
+  for (const line of [...told, ...read]) {
+    const said = JSON.stringify(line);
+    for (const [k, v] of Object.entries(IDS)) assert.ok(!(k in line) && !said.includes(v), `${line.kind}: no ${k}`);
+  }
 });

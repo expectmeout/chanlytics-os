@@ -160,7 +160,7 @@ test("workspace.connections answers Setup's own rows for the connections over GE
             ...(r.details.length ? { details: r.details } : {}),
           })),
         mailboxes: setup.email.sending.mailboxes.map((m) => {
-          const words = mailboxWords(m, SETUP_NOW.getTime());
+          const words = mailboxWords(m, SETUP_NOW.getTime(), TZ);
           return {
             mailbox_id: m.id,
             route: "admin/integrations",

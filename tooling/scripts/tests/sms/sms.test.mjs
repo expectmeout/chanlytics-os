@@ -434,11 +434,8 @@ test("the wiring: proven before trusted, held before spoken, the channel on ever
     edge.includes("inboundWebhookUrl: withKey(voiceEndpoints(edgeFnUrl()).inbound"),
     "the voice webhook is built from the same value",
   );
-  // The provisioner sending the same endpoints is run in voice-doors.test.mjs.
-  assert.ok(
-    readCode("apps/edge/lib/lines/lines.ts").includes("export function lineForClient(r: Row): LineDto {"),
-    "REGRESSION: the page's line shape was a loose object, so a field added on one side and forgotten on the other compiled and arrived undefined",
-  );
+  // The provisioner sending the same endpoints is run in voice-doors.test.mjs. The page's line, one shape from either
+  // side (contracts lineDtoOf), is run in lines/forwarding.test.mjs.
 });
 
 test("a handoff names the wire the customer actually wrote on", async () => {

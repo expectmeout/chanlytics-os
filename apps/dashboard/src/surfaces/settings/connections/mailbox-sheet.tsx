@@ -7,6 +7,7 @@
  */
 import { useState } from "react";
 import type { MailboxConnectionDto, MailboxSignsChoice, SetupDto } from "@chanlytics/contracts";
+import { pageClock } from "@/legacy-bridge/zone";
 import { Confirm } from "../../kit/confirm/confirm";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { RecordField } from "../../kit/record/field";
@@ -67,7 +68,7 @@ const SignsSaid = ({ m, choice }: { m: MailboxConnectionDto; choice: MailboxSign
         {SIGNS.none_says}
       </p>
     );
-  const said = MAILBOXES.signs.gmail(m);
+  const said = MAILBOXES.signs.gmail(m, pageClock().zone(), Date.now());
   return (
     <div className="set-mbx-signs" data-testid="mailbox-signs-said">
       <p className="set-mbx-signs-words">{said.words}</p>
@@ -123,7 +124,7 @@ const SendingGroup = (p: { m: MailboxConnectionDto; on: boolean; setOn: (on: boo
         </span>
         <span className="set-mbx-lines" data-testid={`mailbox-sending-${m.address}`}>
           {switchable ? <span>{on ? CARD.sendingOn(m.address) : CARD.sendingOff(m.address)}</span> : null}
-          {MAILBOXES.sending(m, Date.now()).map((line) => (
+          {MAILBOXES.sending(m, Date.now(), pageClock().zone()).map((line) => (
             <span key={line}>{line}</span>
           ))}
         </span>
@@ -204,7 +205,7 @@ export const MailboxSheet = ({ m, email, businessName, owner, flash, onClose, on
     onClose();
   };
   const remove = owner && MAILBOXES.acts(m).remove;
-  const pill = MAILBOXES.row(m, Date.now()).pill;
+  const pill = MAILBOXES.row(m, Date.now(), pageClock().zone()).pill;
   return (
     <RecordSheet
       id="mailbox"

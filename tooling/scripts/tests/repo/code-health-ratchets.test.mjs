@@ -18,6 +18,7 @@ import {
   parse,
   functionsIn,
   durationsIn,
+  zonelessDatesIn,
   seedReadsOutsideADemo,
   needsHumanReads,
   resumesUnasked,
@@ -212,6 +213,49 @@ test("the duration measure counts lengths of time and nothing else", () => {
   assert.deepEqual(
     durationsIn(sf).map((d) => d.line),
     marked,
+  );
+});
+
+// The zone measure on a module written for it: each line marked `yes` says one date with no zone, and nothing else in
+// it is one: a formatter that names its zone, the runtime's zone asked for, a number's own locale string, and options
+// the tree cannot read. A miss here would hold every page's dates at zero while they were said in the browser's zone.
+test("the zone measure counts dates said with no zone and nothing else", () => {
+  const lines = [
+    'const DAY = formatterOnUse("en-US", { month: "short", day: "numeric" }); // yes',
+    'const WHEN = formatterOnUse([], { hour: "numeric" }); // yes',
+    'new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(at); // yes',
+    "Intl.DateTimeFormat([]).format(at); // yes",
+    "new Intl.DateTimeFormat().format(at); // yes",
+    'new Date(at).toLocaleDateString("en-US", { month: "short" }); // yes',
+    "d.toLocaleTimeString(); // yes",
+    "new Date(at).toLocaleString(); // yes",
+    '(new Date(at)).toLocaleString("en-US"); // yes',
+    'when.toLocaleString("en-US", { month: "short", day: "numeric" }); // yes',
+    'const OK = formatterOnUse("en-US", { timeZone: "UTC", month: "short" });',
+    'new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric" }).format(at);',
+    'new Intl.DateTimeFormat("en-US", { "timeZone": tz });',
+    "const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;",
+    "const here = new Intl.DateTimeFormat().resolvedOptions().timeZone;",
+    'd.toLocaleDateString("en-US", { timeZone: tz, month: "short" });',
+    'dateFormat("en-US", { timeZone: tz, month: "short" }).format(at);',
+    "n.toLocaleString();",
+    'total.toLocaleString("en-US", { maximumFractionDigits: 0 });',
+    'new Intl.DateTimeFormat("en-US", OPTIONS).format(at);',
+    'new Intl.DateTimeFormat("en-US", { ...base, hour: "numeric" }).format(at);',
+    'new Intl.NumberFormat("en-US").format(n);',
+  ];
+  const sf = ts.createSourceFile("fixture.ts", lines.join("\n"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const marked = lines.flatMap((l, i) => (l.match(/\byes\b/g) ?? []).map(() => i + 1));
+  assert.deepEqual(
+    zonelessDatesIn(sf).map((d) => d.line),
+    marked,
+  );
+  // And on the tree: the mailbox card said its hold's day in the browser's zone until 29 October 2026, and says none now.
+  assert.deepEqual(zonelessDatesIn(parse("packages/contracts/src/email/mailbox-connections.ts")), []);
+  assert.equal(
+    zonelessDatesIn(parse("packages/contracts/src/shared/time.ts")).length,
+    1,
+    "DATE_FMT, the runtime's own",
   );
 });
 

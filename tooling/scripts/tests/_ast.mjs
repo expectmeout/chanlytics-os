@@ -1025,6 +1025,103 @@ export function durationsIn(sf) {
   return out;
 }
 
+/** The options a date formatter takes that say a part of a date or a time (Intl.DateTimeFormatOptions). */
+const DATE_PARTS = new Set([
+  "weekday",
+  "era",
+  "year",
+  "month",
+  "day",
+  "dayPeriod",
+  "hour",
+  "minute",
+  "second",
+  "fractionalSecondDigits",
+  "timeZoneName",
+  "dateStyle",
+  "timeStyle",
+]);
+
+/** A property's name as written, when it is a name or a string; null for a computed one or a spread. */
+const propertyName = (p) =>
+  (ts.isPropertyAssignment(p) || ts.isShorthandPropertyAssignment(p) || ts.isMethodDeclaration(p)) &&
+  (ts.isIdentifier(p.name) || ts.isStringLiteral(p.name))
+    ? p.name.text
+    : null;
+
+/**
+ * What a formatter's options say of a zone: "none" when there are none or a literal names no `timeZone`, "zoned" when
+ * it names one, and "unread" when they are a value the tree cannot read (a name, a call, a literal with a spread).
+ */
+function zoneOfOptions(options) {
+  if (!options) return "none";
+  const o = ts.isParenthesizedExpression(options) ? options.expression : options;
+  if (!ts.isObjectLiteralExpression(o) || o.properties.some((p) => ts.isSpreadAssignment(p))) return "unread";
+  return o.properties.some((p) => propertyName(p) === "timeZone") ? "zoned" : "none";
+}
+
+/** Whether a literal of options names a part of a date or a time. */
+const saysADate = (options) =>
+  !!options &&
+  ts.isObjectLiteralExpression(options) &&
+  options.properties.some((p) => DATE_PARTS.has(propertyName(p) ?? ""));
+
+/** `Intl.DateTimeFormat`, as written. */
+const isDateTimeFormat = (e) =>
+  ts.isPropertyAccessExpression(e) &&
+  e.name.text === "DateTimeFormat" &&
+  ts.isIdentifier(e.expression) &&
+  e.expression.text === "Intl";
+
+/**
+ * The dates one file says with no zone (`{ line, text }`, one per site): an instant formatted in the zone the code runs
+ * in, the browser's or a server's UTC, where contracts' clock.ts says it in the workspace's. A site is:
+ *
+ *   - `new Intl.DateTimeFormat(…)` or `Intl.DateTimeFormat(…)`, or contracts' `formatterOnUse(…)`, whose options name
+ *     no `timeZone`, none given included; a call read only for `.resolvedOptions()`, the runtime's own zone asked for,
+ *     is not one;
+ *   - `.toLocaleDateString(…)` or `.toLocaleTimeString(…)` with no `timeZone`, and `.toLocaleString(…)` with none on a
+ *     `new Date(…)` or with a date's parts among its options (a number's is not one).
+ *
+ * Options handed as a value the tree cannot read are not counted: it can see neither a zone in them nor its absence.
+ * contracts' `dateFormat` takes a zone by its type, and is never one.
+ */
+export function zonelessDatesIn(sf) {
+  const out = [];
+  const site = (n) =>
+    out.push({ line: sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1, text: n.getText(sf).slice(0, 120) });
+  const visit = (n) => {
+    if ((ts.isNewExpression(n) || ts.isCallExpression(n)) && isDateTimeFormat(n.expression)) {
+      const asked = ts.isPropertyAccessExpression(n.parent) && n.parent.name.text === "resolvedOptions";
+      if (!asked && zoneOfOptions(n.arguments?.[1]) === "none") site(n);
+    } else if (ts.isCallExpression(n)) {
+      const callee = n.expression;
+      const name = ts.isIdentifier(callee)
+        ? callee.text
+        : ts.isPropertyAccessExpression(callee)
+          ? callee.name.text
+          : null;
+      const options = n.arguments[1];
+      if (name === "formatterOnUse" && zoneOfOptions(options) === "none") site(n);
+      else if ((name === "toLocaleDateString" || name === "toLocaleTimeString") && zoneOfOptions(options) === "none")
+        site(n);
+      else if (
+        name === "toLocaleString" &&
+        ts.isPropertyAccessExpression(callee) &&
+        zoneOfOptions(options) === "none"
+      ) {
+        let on = callee.expression;
+        while (ts.isParenthesizedExpression(on)) on = on.expression;
+        const ofADate = ts.isNewExpression(on) && ts.isIdentifier(on.expression) && on.expression.text === "Date";
+        if (ofADate || saysADate(options)) site(n);
+      }
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return out;
+}
+
 /** A call of `readFileSync`, bare or as a property (`fs.readFileSync`). */
 const isReadFileSync = (n) =>
   ts.isCallExpression(n) &&

@@ -13,6 +13,7 @@ import {
   MAILBOX_CONNECTIONS_MAX,
   MAILBOX_CONNECT_WORDS,
   MAILBOX_DAILY_CAP_MAX,
+  MAILBOX_DNS_WORDS,
   MAILBOX_RAMP,
   REACH_OUT_COUNTRIES_FREE,
   REACH_OUT_COUNTRIES_REFUSED,
@@ -24,6 +25,7 @@ import {
   mailboxConnectWords,
   mailboxConnectionDtoOf,
   mailboxDailyCap,
+  mailboxGmailSignsWords,
   mailboxHealthWords,
   mailboxHoldFixWords,
   mailboxHoldOf,
@@ -41,6 +43,8 @@ import {
 } from "@chanlytics/contracts";
 
 const NOW = Date.parse("2026-10-13T15:00:00.000Z");
+/** The workspace's zone: every day and time a row says is its, whatever the zone the suite runs in. */
+const TZ = "America/New_York";
 const row = (over = {}) => ({
   id: "m1",
   provider: "google",
@@ -157,16 +161,17 @@ test("a mailbox's own mail holds it: any complaint, or hard bounces and refusals
 
 test("a row says its day and its health from the counts its read carried, and a record DNS did not answer is never missing", () => {
   const counts = { sent: 250, bounced: 1, blocked: 0, complained: 0, unsubscribed: 0, said_no: 2 };
-  const w = mailboxWords(row({ sent_days: 9, sent_today: 12, counts }), NOW);
+  const w = mailboxWords(row({ sent_days: 9, sent_today: 12, counts }), NOW, TZ);
   assert.deepEqual([w.day, w.health], ["12 of 20 today", "0.4% bounced · 2 said no · none marked as spam"]);
-  assert.equal(mailboxWords(row({ sent_days: 9, sent_today: 20 }), NOW).pill, "Done for today");
-  assert.equal(mailboxWords(row({ counts: null }), NOW).health, null);
+  assert.equal(mailboxWords(row({ sent_days: 9, sent_today: 20 }), NOW, TZ).pill, "Done for today");
+  assert.equal(mailboxWords(row({ counts: null }), NOW, TZ).health, null);
   assert.equal(
-    mailboxWords(row({ dns: {} }), NOW).fix,
+    mailboxWords(row({ dns: {} }), NOW, TZ).fix,
     "Its records couldn't be read just now: Set up DNS checks them again.",
   );
   assert.equal(
-    mailboxWords(row({ dns: { spf: "missing", dkim: "found", dmarc: "missing" }, spf_record: "v=spf1 -all" }), NOW).fix,
+    mailboxWords(row({ dns: { spf: "missing", dkim: "found", dmarc: "missing" }, spf_record: "v=spf1 -all" }), NOW, TZ)
+      .fix,
     "Add its DMARC record in Set up DNS. Change its SPF record in Set up DNS.",
     "an SPF record the domain has is changed, never added beside",
   );
@@ -205,30 +210,37 @@ test("SPF: the record the domain has, with the provider put in before its all; t
 });
 
 test("what each row says and offers, from its state: sending, done for the day, resting, paused, held, signed out", () => {
-  const sending = mailboxWords(row({ sent_days: 9 }), NOW);
+  const sending = mailboxWords(row({ sent_days: 9 }), NOW, TZ);
   assert.deepEqual([sending.pill, sending.tone, sending.day], ["Connected", "ok", "Up to 20 a day"]);
   assert.equal(sending.ramp, "Day 10 of its ramp · 20 a day, 30 after 5 more days of sending");
   assert.deepEqual(
-    [mailboxWords(row(), NOW, 10).pill, mailboxWords(row(), NOW, 10).day],
+    [mailboxWords(row(), NOW, TZ, 10).pill, mailboxWords(row(), NOW, TZ, 10).day],
     ["Done for today", "10 of 10 today"],
   );
-  assert.equal(mailboxWords(row(), NOW).ramp, "New: its ramp starts today · 10 a day, 20 after 7 more days of sending");
   assert.equal(
-    mailboxWords(row({ customer_domain: true, sent_days: 30 }), NOW).ramp,
+    mailboxWords(row(), NOW, TZ).ramp,
+    "New: its ramp starts today · 10 a day, 20 after 7 more days of sending",
+  );
+  assert.equal(
+    mailboxWords(row({ customer_domain: true, sent_days: 30 }), NOW, TZ).ramp,
     `Customer domain: kept to ${CUSTOMER_DOMAIN_DAILY_MAX} a day`,
   );
-  const resting = mailboxWords(row({ resting_until: new Date(NOW + 3_600_000).toISOString() }), NOW);
+  const resting = mailboxWords(row({ resting_until: new Date(NOW + 3_600_000).toISOString() }), NOW, TZ);
   assert.equal(resting.pill, "Done for today");
   assert.match(resting.day, /Google's own daily limit: it sends again from/);
-  const held = mailboxWords(row({ state: "held", held_why: "complaint", held_at: "2026-10-12T09:00:00.000Z" }), NOW);
+  const held = mailboxWords(
+    row({ state: "held", held_why: "complaint", held_at: "2026-10-12T09:00:00.000Z" }),
+    NOW,
+    TZ,
+  );
   assert.deepEqual([held.pill, held.tone], ["Held", "warn"]);
   assert.match(held.day, /someone marked an email from it as spam/);
-  const out = mailboxWords(row({ provider: "microsoft", state: "reconnect" }), NOW);
+  const out = mailboxWords(row({ provider: "microsoft", state: "reconnect" }), NOW, TZ);
   assert.deepEqual([out.pill, out.tone], ["Reconnect", "danger"]);
   assert.match(out.day, /Microsoft signed it out/);
-  assert.equal(mailboxWords(row({ state: "paused" }), NOW).pill, "Paused");
+  assert.equal(mailboxWords(row({ state: "paused" }), NOW, TZ).pill, "Paused");
   assert.equal(
-    mailboxWords(row({ dns: { spf: "found", dkim: "missing", dmarc: "missing" } }), NOW).fix,
+    mailboxWords(row({ dns: { spf: "found", dkim: "missing", dmarc: "missing" } }), NOW, TZ).fix,
     "Add its DKIM and DMARC record in Set up DNS.",
   );
   assert.deepEqual(mailboxActs(row()), {
@@ -249,65 +261,112 @@ test("what each row says and offers, from its state: sending, done for the day, 
 
 test("the row says what came in through it, never its ramp: when it was read, who wrote, and what keeps it from sending", () => {
   const read = new Date(NOW - 3 * 60_000).toISOString();
-  const at = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date(read));
-  const live = mailboxRowWords(row({ synced_at: read, came_in: 3, sent_days: 9, sent_today: 20 }), NOW);
+  const at = new Intl.DateTimeFormat("en-US", { timeZone: TZ, hour: "numeric", minute: "2-digit" }).format(
+    new Date(read),
+  );
+  const live = mailboxRowWords(row({ synced_at: read, came_in: 3, sent_days: 9, sent_today: 20 }), NOW, TZ);
   assert.deepEqual(
     live,
     { pill: "Connected", tone: "ok", cameIn: `Read at ${at} · 3 people wrote today`, standing: null, fix: null },
     "a mailbox at its sending cap still reads: Connected, and nothing of its day",
   );
   assert.equal(
-    mailboxRowWords(row({ synced_at: read, came_in: 1 }), NOW).cameIn,
+    mailboxRowWords(row({ synced_at: read, came_in: 1 }), NOW, TZ).cameIn,
     `Read at ${at} · 1 person wrote today`,
   );
-  assert.equal(mailboxRowWords(row({ synced_at: read, came_in: 0 }), NOW).cameIn, `Read at ${at} · No one wrote today`);
-  assert.equal(mailboxRowWords(row({ synced_at: read }), NOW).cameIn, `Read at ${at}`, "an unread count is left out");
-  assert.equal(mailboxRowWords(row(), NOW).cameIn, "Not read yet");
-  const late = mailboxRowWords(row({ synced_at: new Date(NOW - 45 * 60_000).toISOString(), came_in: 2 }), NOW);
-  assert.match(
-    late.cameIn,
-    /^Not read since \w{3} \d{1,2}:\d{2} [AP]M · 2 people wrote today$/,
-    "past 20 minutes, since when",
+  assert.equal(
+    mailboxRowWords(row({ synced_at: read, came_in: 0 }), NOW, TZ).cameIn,
+    `Read at ${at} · No one wrote today`,
   );
+  assert.equal(
+    mailboxRowWords(row({ synced_at: read }), NOW, TZ).cameIn,
+    `Read at ${at}`,
+    "an unread count is left out",
+  );
+  assert.equal(mailboxRowWords(row(), NOW, TZ).cameIn, "Not read yet");
+  const late = mailboxRowWords(row({ synced_at: new Date(NOW - 45 * 60_000).toISOString(), came_in: 2 }), NOW, TZ);
+  assert.equal(late.cameIn, "Not read since today 10:15 AM · 2 people wrote today", "past 20 minutes, since when");
   const resting = mailboxRowWords(
     row({ synced_at: read, resting_until: new Date(NOW + 3_600_000).toISOString() }),
     NOW,
+    TZ,
   );
   assert.deepEqual(
     [resting.pill, resting.standing],
     ["Connected", null],
     "Google's day for sending is its Sending lines'",
   );
-  const paused = mailboxRowWords(row({ state: "paused", synced_at: read }), NOW);
+  const paused = mailboxRowWords(row({ state: "paused", synced_at: read }), NOW, TZ);
   assert.deepEqual(
     [paused.pill, paused.standing],
     ["Paused", "You paused its sending: what people write still comes in."],
   );
   assert.match(paused.cameIn, /^Read at /, "a paused mailbox is still read");
-  const held = mailboxRowWords(row({ state: "held", held_why: "complaint", held_at: "2026-10-12T09:00:00.000Z" }), NOW);
+  const held = mailboxRowWords(
+    row({ state: "held", held_why: "complaint", held_at: "2026-10-12T09:00:00.000Z" }),
+    NOW,
+    TZ,
+  );
   assert.deepEqual([held.pill, held.tone], ["Held", "warn"]);
   assert.match(held.standing, /^Its sending is held since Oct 12: someone marked an email from it as spam\.$/);
   assert.equal(held.fix, mailboxHoldFixWords("complaint"));
-  const out = mailboxRowWords(row({ provider: "google", state: "reconnect", synced_at: read, came_in: 4 }), NOW);
+  const out = mailboxRowWords(row({ provider: "google", state: "reconnect", synced_at: read, came_in: 4 }), NOW, TZ);
   assert.deepEqual([out.pill, out.tone, out.cameIn], ["Reconnect", "danger", null], "signed out: nothing is read");
   assert.match(out.standing, /^Google signed it out: nothing is read from it or sent/);
   assert.equal(
-    mailboxRowWords(row({ dns: { spf: "found", dkim: "missing", dmarc: "missing" } }), NOW).fix,
+    mailboxRowWords(row({ dns: { spf: "found", dkim: "missing", dmarc: "missing" } }), NOW, TZ).fix,
     "Add its DKIM and DMARC record in Set up DNS.",
+  );
+});
+
+test("a day or a time a mailbox says is the workspace's, whatever zone the page is read in", () => {
+  // Noon UTC on Oct 1 is the morning of Oct 1 in Los Angeles and one in the morning of Oct 2 in Auckland: the card said
+  // the browser's day, so an owner away from home read the hold a day off.
+  const held = row({ state: "held", held_why: "complaint", held_at: "2026-10-01T12:00:00.000Z" });
+  assert.match(mailboxRowWords(held, NOW, "America/Los_Angeles").standing, /^Its sending is held since Oct 1: /);
+  assert.match(mailboxRowWords(held, NOW, "Pacific/Auckland").standing, /^Its sending is held since Oct 2: /);
+  assert.match(mailboxWords(held, NOW, "Pacific/Auckland").day, /^Held since Oct 2: /);
+  assert.match(
+    mailboxWords({ ...held, held_at: "2025-12-31T12:00:00.000Z" }, NOW, TZ).day,
+    /^Held since Dec 31, 2025: /,
+    "a hold from another year says its year",
+  );
+  assert.match(
+    mailboxWords({ ...held, held_at: "not a moment" }, NOW, TZ).day,
+    /^Held: /,
+    "a moment that is none is left out",
+  );
+  // 14:57 UTC on Oct 13 is 10:57 in the morning in New York and 3:57 the next morning in Auckland.
+  const read = row({ synced_at: "2026-10-13T14:57:00.000Z" });
+  assert.equal(mailboxRowWords(read, NOW, TZ).cameIn, "Read at 10:57 AM");
+  assert.equal(mailboxRowWords(read, NOW, "Pacific/Auckland").cameIn, "Read at 3:57 AM");
+  // Past a late read, since when by the workspace's days: 03:30 UTC on Oct 13 was the night before in New York.
+  const late = "2026-10-13T03:30:00.000Z";
+  assert.equal(mailboxRowWords(row({ synced_at: late }), NOW, TZ).cameIn, "Not read since yesterday 11:30 PM");
+  assert.equal(MAILBOX_DNS_WORDS.checked(late, TZ, NOW), "Checked yesterday 11:30 PM");
+  assert.equal(MAILBOX_DNS_WORDS.checked(null, TZ, NOW), "Not checked yet");
+  assert.equal(
+    mailboxWords(row({ resting_until: "2026-10-13T16:00:00.000Z" }), NOW, TZ).day,
+    "Google's own daily limit: it sends again from today 12:00 PM.",
+  );
+  const gmail = { provider: "google", from_name: "Sam at Harbor", signs: { gmail: "Sam", gmail_read_at: late } };
+  assert.equal(
+    mailboxGmailSignsWords(gmail, TZ, NOW).read,
+    "Read from Gmail yesterday 11:30 PM. Saving reads it again.",
   );
 });
 
 test("its Sending lines: its day while it sends, its ramp, its health, the customer domain's ceiling, and the ramp's rule", () => {
   const counts = { sent: 250, bounced: 1, blocked: 0, complained: 0, unsubscribed: 0, said_no: 2 };
-  assert.deepEqual(mailboxSendingLines(row({ sent_days: 9, sent_today: 12, counts }), NOW), [
+  assert.deepEqual(mailboxSendingLines(row({ sent_days: 9, sent_today: 12, counts }), NOW, TZ), [
     "12 of 20 today",
     "Day 10 of its ramp · 20 a day, 30 after 5 more days of sending",
     "0.4% bounced · 2 said no · none marked as spam",
     "A new mailbox starts at 10 a day and grows with the days it sends, to 40.",
   ]);
-  const customer = mailboxSendingLines(row({ customer_domain: true, sent_days: 30 }), NOW);
+  const customer = mailboxSendingLines(row({ customer_domain: true, sent_days: 30 }), NOW, TZ);
   assert.ok(customer.includes(customerDomainWords("getharbor.example")), "the customer domain's ceiling, said once");
-  const paused = mailboxSendingLines(row({ state: "paused" }), NOW);
+  const paused = mailboxSendingLines(row({ state: "paused" }), NOW, TZ);
   assert.equal(
     paused[0],
     "New: its ramp starts today · 10 a day, 20 after 7 more days of sending",
