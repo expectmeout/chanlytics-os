@@ -27,12 +27,13 @@ injectWorkspacePackages: true
 
 # A transitive version with an advisory, lifted to the first fixed one. uuid and decode-uri-component come with the
 # phone app (Expo's config plugins, expo-router's query-string); decode-uri-component 0.5 is ESM only, so
-# patches/query-string@7.1.3.patch reads its default export (tests/mobile/overridden-packages.test.mjs). source-map-js
+# patches/query-string@7.1.3.patch reads its default export (tests/mobile/overridden-packages.test.mjs), and 0.5.1
+# decodes a run of percent-escapes in one pass (GHSA-qr28-fpjm-wq7f, 29 Oct 2026: 0.5.0's was quadratic). source-map-js
 # comes with Next's postcss (GHSA-68fv-2mgg-jv7q, 6 Oct 2026), and sharp with Next itself (its bundled librsvg,
 # GHSA-wq5f-xc86-pv6w, 6 Oct 2026: Next asks ^0.35.4, so the fix is inside its range). shell-quote comes with the phone
 # app's react-native, through react-devtools-core (GHSA-pqg4-j6r4-53mv, critical, 6 Oct 2026; 1.11 is the same 1.x).
 overrides:
-  decode-uri-component@<0.5.0: ^0.5.0
+  decode-uri-component@<0.5.1: ^0.5.1
   esbuild@<0.28.1: ^0.28.2
   postcss@<8.5.23: ^8.5.28
   sharp@<0.35.5: ^0.35.5

@@ -10,8 +10,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import ts from "typescript";
-import { Linter } from "eslint";
+import { ESLint, Linter } from "eslint";
 import tseslint from "typescript-eslint";
 import { compare } from "../_ratchet.mjs";
 import {
@@ -32,7 +33,7 @@ import {
 } from "../_ast.mjs";
 import { breakpointSet, DOOR_FORBIDS, doorsWithoutEventsIn, tablesWrittenBy, writersByTable } from "../_measures.mjs";
 import { knipCommand } from "../../checks/dead-exports.mjs";
-import { flatWarnings, heldButClean } from "../../checks/lint.mjs";
+import { flatWarnings, groupArgs, heldButClean, peaksWords } from "../../checks/lint.mjs";
 
 const source = (text, name = "fixture.ts") =>
   ts.createSourceFile(
@@ -106,6 +107,41 @@ test("the lint's warnings are one number for each file and rule, and a held type
     "@typescript-eslint/no-deprecated",
   ]);
   assert.deepEqual(heldButClean(WARNINGS, [HOOKS, UNUSED]), []);
+});
+
+test("the lint's groups lint every file the one run would, each once: ESLint's own ignores, over every tracked source", async () => {
+  const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
+  const files = execFileSync("git", ["ls-files", "*.ts", "*.tsx", "*.js", "*.jsx", "*.mjs"], {
+    cwd: ROOT,
+    encoding: "utf8",
+  })
+    .split("\n")
+    .filter(Boolean);
+  const one = new ESLint({ cwd: ROOT });
+  const groups = groupArgs().map((g) => ({
+    ...g,
+    eslint: new ESLint({ cwd: ROOT, ignorePatterns: g.ignorePatterns }),
+  }));
+  const under = (f, dirs) => dirs.some((d) => d === "." || f.startsWith(`${d}/`));
+  const wrong = [];
+  for (const f of files) {
+    const linted = !(await one.isPathIgnored(f));
+    const claims = [];
+    for (const g of groups) if (under(f, g.files) && !(await g.eslint.isPathIgnored(f))) claims.push(g.name);
+    if (claims.length !== (linted ? 1 : 0)) wrong.push(`${f}: ${claims.join(", ") || "no group"}`);
+  }
+  assert.ok(files.length > 3000, `the tree's sources were read (${files.length})`);
+  assert.deepEqual(wrong, [], "a file linted twice, or one the one run lints and no group does");
+  assert.equal(groupArgs().at(-1).files[0], ".", "the last group is the rest of the tree");
+});
+
+test("the lint says the most heap each group used, and names one near its ceiling", () => {
+  assert.equal(
+    peaksWords({ a: 3600, b: 2100 }, 5120),
+    "lint: the most heap each group used, of 5,120 MB: a 3,600 MB, b 2,100 MB",
+  );
+  assert.match(peaksWords({ a: 4200, b: 2100 }, 5120), /\. a is near the ceiling: split it in GROUPS/);
+  assert.match(peaksWords({ a: 4200, b: 4500 }, 5120), /a and b are near the ceiling: split them/);
 });
 
 /* ---- Functions, as ESLint's `complexity` and `max-depth` count them ---- */
