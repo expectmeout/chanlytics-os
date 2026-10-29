@@ -12,6 +12,7 @@ import {
   LEASE_STALE_MS,
   QUESTION_WAIT_MS,
   ROUND_STUCK_MS,
+  GIVE_UP_FAILED_COLLECTS,
 } from "../../../../../apps/edge/lib/leads/lead-sweep.ts";
 import { at, knock, answer, vault } from "../../_cron-doors-world.mjs";
 import { leadWorld, TENANT } from "../../_lead-world.mjs";
@@ -38,6 +39,7 @@ const run = (over = {}) => ({
   lease_until: null,
   created_at: iso(NOW - 60_000),
   collect_scheduled: false,
+  collects_failed: 0,
   ...over,
 });
 const round = (over = {}) => ({
@@ -170,6 +172,107 @@ test("the planner: a round stuck with nothing live is ended once its hour is up,
   );
 });
 
+test("the planner: a run whose collects failed for good three times is given up, never collected or aborted again; two failures are still collected", () => {
+  const seq = `s${Math.floor(NOW / 60_000)}`;
+  const giveUp = [{ kind: "give_up", runId: "r1", apifyRunId: "RunA", owner: `sweep:${Math.floor(NOW / 60_000)}` }];
+  assert.equal(GIVE_UP_FAILED_COLLECTS, 3);
+  assert.deepEqual(
+    planLeadSweep({ runs: [run({ collects_failed: 2 })], rounds: [] }, NOW),
+    [{ kind: "collect", runId: "r1", tenantId: TENANT, seq }],
+    "a provider's bad half hour is ridden out",
+  );
+  assert.deepEqual(planLeadSweep({ runs: [run({ collects_failed: 3 })], rounds: [] }, NOW), giveUp);
+  assert.deepEqual(
+    planLeadSweep({ runs: [run({ collects_failed: 3, created_at: iso(NOW - RUN_MAX_AGE_MS - 1) })], rounds: [] }, NOW),
+    giveUp,
+    "past its 45 minutes it is given up, not aborted and collected once more",
+  );
+  assert.deepEqual(
+    planLeadSweep({ runs: [run({ collects_failed: 4, collect_scheduled: true })], rounds: [] }, NOW),
+    giveUp,
+    "a collect still on its way finds the round ended, so it is not waited for",
+  );
+  assert.deepEqual(
+    planLeadSweep({ runs: [run({ collects_failed: 3 })], rounds: [round()] }, NOW),
+    giveUp,
+    "the round is the give-up's to end, in the same commit: end_stuck does not race it",
+  );
+  assert.deepEqual(
+    planLeadSweep({ runs: [run({ state: "unknown", apify_run_id: null, collects_failed: 3 })], rounds: [] }, NOW),
+    [{ kind: "reconcile", runId: "r1" }],
+    "only a run the provider started is given up",
+  );
+});
+
+test("the loop, and its end: a run whose collect fails for good is collected again at every tick until its third failed collect; then it is failed in our books, its round ends 'the source failed' keeping what it found and giving back the rest, and nothing more is scheduled", async () => {
+  const w = leadWorld();
+  Object.assign(w.rpcs, vault);
+  const ago = (ms) => new Date(Date.now() - ms).toISOString();
+  w.T.lead_rounds.push({
+    id: "rd1",
+    tenant_id: TENANT,
+    search_id: "s1",
+    seq: 1,
+    purpose: "probe",
+    plan: {},
+    state: "running",
+    waiting_since: null,
+    ending: null,
+    ending_pending: null,
+    allowance_reserved: 25,
+    allowance_used: 3,
+    cost_reserved_usd: 2,
+    cost_usd: 0.4,
+    created_at: ago(ROUND_STUCK_MS + 10 * 60_000),
+  });
+  w.T.lead_runs.push({
+    id: "r1",
+    tenant_id: TENANT,
+    round_id: "rd1",
+    purpose: "discover",
+    state: "running",
+    apify_run_id: "RunA",
+    claimed_by: "job-1",
+    claimed_at: ago(20 * 60_000),
+    lease_owner: null,
+    lease_gen: 0,
+    lease_until: null,
+    read_offset: 9,
+    items_seen: 9,
+    usage_usd: 0.4,
+    created_at: ago(20 * 60_000),
+  });
+  // What it found before its collect began to fail: kept whatever the round's ending.
+  w.T.lead_search_members.push({ search_id: "s1", lead_id: "l1", round_id: "rd1", tenant_id: TENANT, counted: true });
+  setPg(w.db);
+  const collectsOf = () => w.T.jobs.filter((j) => j.kind === "lead_collect" && j.payload.run_id === "r1");
+  // The loop: each tick asks for another collect, and each one fails for good (the ledger's three tries, a bell each).
+  for (let tick = 1; tick <= GIVE_UP_FAILED_COLLECTS; tick++) {
+    const [, body] = await answer(await knock(POST, "leads"));
+    assert.equal(body.collected, 1, `tick ${tick}: collected again`);
+    for (const j of collectsOf()) Object.assign(j, { state: "failed", attempts: 3, last_error: "timeout" });
+  }
+  // Its end: the next tick gives it up.
+  const [, body] = await answer(await knock(POST, "leads"));
+  assert.equal(collectsOf().length, GIVE_UP_FAILED_COLLECTS, "no fourth collect, so no fourth bell");
+  assert.deepEqual([body.collected, body.aborted, body.given_up, body.failed], [0, 0, 1, 0]);
+  const r1 = w.T.lead_runs[0];
+  const rd1 = w.T.lead_rounds[0];
+  assert.deepEqual([r1.state, r1.read_offset, r1.lease_owner], ["failed", 9, null]);
+  assert.deepEqual(
+    [rd1.state, rd1.ending, rd1.allowance_reserved, rd1.cost_reserved_usd],
+    ["ended", "source_failed", 3, 0.4],
+    "the round ends: what it counted stays counted, and what it reserved and did not use goes back",
+  );
+  assert.equal(w.T.lead_search_members.length, 1, "what it found is kept");
+  // And again: nothing twice.
+  const [, again] = await answer(await knock(POST, "leads"));
+  assert.deepEqual(
+    [again.collected, again.given_up, again.rounds_ended, again.failed, collectsOf().length],
+    [0, 0, 0, 0, GIVE_UP_FAILED_COLLECTS],
+  );
+});
+
 test("the route: refused without the key; with it, the rows are read, each action applied on its own, and the counts answered", async () => {
   const w = leadWorld();
   Object.assign(w.rpcs, vault);
@@ -259,6 +362,7 @@ test("the route: refused without the key; with it, the rows are read, each actio
     released: 1,
     questions_ended: 1,
     rounds_ended: 1,
+    given_up: 0,
     failed: 0,
     source: "off",
   });

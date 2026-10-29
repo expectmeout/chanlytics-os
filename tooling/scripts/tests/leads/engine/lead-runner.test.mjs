@@ -9,7 +9,7 @@ import { randomUUID } from "node:crypto";
 import { startRound } from "../../../../../packages/core/src/leads/runner/start.ts";
 import { collect } from "../../../../../packages/core/src/leads/runner/collect.ts";
 import { check } from "../../../../../packages/core/src/leads/runner/check.ts";
-import { reconcileUnknownRuns } from "../../../../../packages/core/src/leads/runner/sweep.ts";
+import { giveUpRun, reconcileUnknownRuns } from "../../../../../packages/core/src/leads/runner/sweep.ts";
 import { rejudgeProbe } from "../../../../../packages/core/src/leads/runner/rejudge.ts";
 import {
   LeadRetry,
@@ -652,6 +652,44 @@ test("out of time before the judge is a retry for the ledger, with nothing commi
   w.rpcs.lead_run_lease({ p_run_id: r1.id, p_owner: "somebody", p_seconds: 90 });
   assert.deepEqual(await collect(p("c1"), r1.id, "p0", "c1"), { kind: "busy" });
   assert.ok(w.jobsOf("lead_collect").some((j) => j.payload.seq === "p0.b"));
+});
+
+test("a run whose collect fails for good is given up: failed in our books by its own commit, and as its round's last live run it ends the round 'the source failed', keeping what was found and giving back the rest; a collect that comes after finds the round ended", async () => {
+  const { w, p } = await probed();
+  const [r1, r2] = w.runs();
+  assert.equal((await collect(p("c1"), r1.id, "p0", "c1")).kind, "committed");
+  const found = w.members().length;
+  const counted = w.round().allowance_used;
+  assert.ok(found > 0 && counted > 0);
+  // The judge stops answering in time: every collect of the second run throws for the ledger, a page that never lands.
+  w.judge.judge = async () => {
+    throw new Error("timeout");
+  };
+  await assert.rejects(collect(p("c2"), r2.id, "p0", "c2"), /timeout/);
+  assert.deepEqual([r2.state, r2.read_offset, w.round().state], ["running", 0, "probing"]);
+  assert.deepEqual(await giveUpRun(p("sweep:1"), r2.id, "sweep:1"), { kind: "given_up", roundEnded: true });
+  assert.deepEqual([r2.state, r2.read_offset, r2.lease_owner], ["failed", 0, null]);
+  assert.deepEqual(
+    [w.round().state, w.round().ending, w.round().allowance_used, w.round().allowance_reserved],
+    ["ended", "source_failed", counted, counted],
+    "what was counted stays counted; what was reserved and not used goes back",
+  );
+  assert.equal(w.members().length, found, "what the first run found is kept");
+  // The provider's own delivery, or a collect already on its way: the round is ended, so nothing decides it again.
+  const calls = w.apify.calls.length;
+  assert.deepEqual(await collect(p("job-9"), r2.id, "final", "job-9"), { kind: "round_ended" });
+  assert.equal(w.apify.calls.length, calls, "a run final in our books is not read again");
+  assert.deepEqual(await giveUpRun(p("sweep:2"), r2.id, "sweep:2"), { kind: "not_running" }, "nothing twice");
+});
+
+test("a run given up beside another still live is failed alone, and the round goes on with the other; a run whose lease another holds is left for the next sweep", async () => {
+  const { w, p } = await probed();
+  const [r1, r2] = w.runs();
+  w.rpcs.lead_run_lease({ p_run_id: r2.id, p_owner: "somebody", p_seconds: 90 });
+  assert.deepEqual(await giveUpRun(p("sweep:1"), r2.id, "sweep:1"), { kind: "busy" });
+  assert.equal(r2.state, "running");
+  assert.deepEqual(await giveUpRun(p("sweep:1"), r1.id, "sweep:1"), { kind: "given_up", roundEnded: false });
+  assert.deepEqual([r1.state, r2.state, w.round().state, w.round().ending], ["failed", "running", "queued", null]);
 });
 
 test("a page bigger than one judge batch: every batch is committed where the last one ended, and the next poll reads on from there without skipping a place the owner paid for", async () => {

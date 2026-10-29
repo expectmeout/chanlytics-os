@@ -16,7 +16,7 @@ import { json, refuse } from "../http.js";
 import { errField } from "../log.js";
 import { leadWires } from "./lead-wires.js";
 import { planLeadSweep, type SweepRoundRow, type SweepRunRow } from "./lead-sweep.js";
-import { reconcileUnknownRuns, type LeadPorts, type LeadRunRow } from "../packages/core.js";
+import { giveUpRun, reconcileUnknownRuns, type LeadPorts, type LeadRunRow } from "../packages/core.js";
 import { scheduleJobOnce } from "../packages/jobs.js";
 import { leadDb } from "./lead-db.js";
 import type { Json } from "../packages/db.js";
@@ -24,41 +24,64 @@ import type { SweepTick } from "../ops/sweep-door.js";
 
 /** Reconciliation calls the provider per unknown run; the rest of a backlog waits for the next tick. */
 const RECONCILE_PER_TICK = 10;
+/** Run ids in one read of their collects: well under the 8 KiB request line PostgREST's gateway takes (~200 uuids). */
+const RUNS_IN_CHUNK = 100;
 
 /** The deadline the sweep hands the lead runner, from its start, inside the function's sixty seconds (vercel.json). */
 const SWEEP_DEADLINE_MS = 50_000;
+
+/** The rows the planner decides from: the runs live or leased, with their collects, and the rounds not ended. */
+async function sweepRows(db: SweepTick["db"]): Promise<{ runs: SweepRunRow[]; rounds: SweepRoundRow[] }> {
+  const [live, leased, waiting] = await Promise.all([
+    db
+      .from("lead_runs")
+      .select(
+        "id, tenant_id, round_id, purpose, state, apify_run_id, claimed_by, claimed_at, lease_owner, lease_gen, lease_until, created_at",
+      )
+      .in("state", ["claimed", "starting", "running", "unknown"]),
+    db
+      .from("lead_runs")
+      .select(
+        "id, tenant_id, round_id, purpose, state, apify_run_id, claimed_by, claimed_at, lease_owner, lease_gen, lease_until, created_at",
+      )
+      .not("lease_owner", "is", null),
+    // Every round that has not ended, not only one waiting: a round whose start job died sits in 'queued' with no run, and only the sweep ends it (00140's trigger_leads_sweep).
+    db.from("lead_rounds").select("id, tenant_id, state, waiting_since, created_at").neq("state", "ended"),
+  ]);
+  for (const r of [live, leased, waiting]) if (r.error) throw new Error(r.error.message);
+  const rows = [...(live.data ?? []), ...(leased.data ?? [])];
+  const ids = [...new Set(rows.map((r) => r.id))];
+  // These runs' collects, the ones coming and the ones that failed for good: a failed row is kept 90 days (00215),
+  // so it is read for these runs alone, never the ledger's whole history, a part at a time under the gateway's line.
+  const scheduled = new Set<string>();
+  const failed = new Map<string, number>();
+  for (let i = 0; i < ids.length; i += RUNS_IN_CHUNK) {
+    const jobs = await db
+      .from("jobs")
+      .select("payload, state")
+      .eq("kind", "lead_collect")
+      .in("state", ["scheduled", "fired", "failed"])
+      .in("payload->>run_id", ids.slice(i, i + RUNS_IN_CHUNK));
+    if (jobs.error) throw new Error(jobs.error.message);
+    for (const j of jobs.data ?? []) {
+      const runId = String((j.payload as { run_id?: unknown } | null)?.run_id ?? "");
+      if (j.state === "failed") failed.set(runId, (failed.get(runId) ?? 0) + 1);
+      else scheduled.add(runId);
+    }
+  }
+  const byId = new Map<string, SweepRunRow>();
+  for (const r of rows)
+    byId.set(r.id, { ...r, collect_scheduled: scheduled.has(r.id), collects_failed: failed.get(r.id) ?? 0 });
+  return { runs: [...byId.values()], rounds: waiting.data ?? [] };
+}
+
 export async function sweepLeads({ db, L }: SweepTick): Promise<Response> {
   const now = Date.now();
 
   let runs: SweepRunRow[];
   let rounds: SweepRoundRow[];
   try {
-    const [live, leased, jobs, waiting] = await Promise.all([
-      db
-        .from("lead_runs")
-        .select(
-          "id, tenant_id, round_id, purpose, state, apify_run_id, claimed_by, claimed_at, lease_owner, lease_gen, lease_until, created_at",
-        )
-        .in("state", ["claimed", "starting", "running", "unknown"]),
-      db
-        .from("lead_runs")
-        .select(
-          "id, tenant_id, round_id, purpose, state, apify_run_id, claimed_by, claimed_at, lease_owner, lease_gen, lease_until, created_at",
-        )
-        .not("lease_owner", "is", null),
-      db.from("jobs").select("payload").eq("kind", "lead_collect").in("state", ["scheduled", "fired"]),
-      // Every round that has not ended, not only one waiting: a round whose start job died sits in 'queued' with no run, and only the sweep ends it (00140's trigger_leads_sweep).
-      db.from("lead_rounds").select("id, tenant_id, state, waiting_since, created_at").neq("state", "ended"),
-    ]);
-    for (const r of [live, leased, jobs, waiting]) if (r.error) throw new Error(r.error.message);
-    const scheduled = new Set(
-      (jobs.data ?? []).map((j) => String((j.payload as { run_id?: unknown } | null)?.run_id ?? "")),
-    );
-    const byId = new Map<string, SweepRunRow>();
-    for (const r of [...(live.data ?? []), ...(leased.data ?? [])])
-      byId.set(r.id, { ...r, collect_scheduled: scheduled.has(r.id) });
-    runs = [...byId.values()];
-    rounds = waiting.data ?? [];
+    ({ runs, rounds } = await sweepRows(db));
   } catch (e) {
     L.error("leads_sweep_read_failed", { error: errField(e) });
     return refuse(503, "read_failed", errField(e));
@@ -74,6 +97,7 @@ export async function sweepLeads({ db, L }: SweepTick): Promise<Response> {
     released: 0,
     questions_ended: 0,
     rounds_ended: 0,
+    given_up: 0,
     failed: 0,
     source: wires ? "on" : "off",
   };
@@ -123,6 +147,14 @@ export async function sweepLeads({ db, L }: SweepTick): Promise<Response> {
           });
           counts.aborted += 1;
           break;
+        case "give_up": {
+          // Stopped at the provider first, since nothing reads it again once it is failed in our books; a provider
+          // that cannot be reached does not keep it alive, as each run ends there by its own timeout.
+          if (wires) await wires.apify.abortRun(a.apifyRunId).catch(() => undefined);
+          const out = await giveUpRun({ db: ledger }, a.runId, a.owner);
+          if (out.kind === "given_up") counts.given_up += 1;
+          break;
+        }
         case "mark_unknown": {
           const { error } = await db.rpc("lead_run_mark_unknown", { p_run_id: a.runId, p_owner: a.owner });
           if (error) throw new Error(error.message);
