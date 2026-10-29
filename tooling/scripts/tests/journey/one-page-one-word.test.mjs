@@ -7,7 +7,8 @@
  *
  * The words are read by running what each page draws them with, never by reading the text. A customer's words are not
  * here: a customer reads "appointment" whatever the trade (decision 6, trade-neutral.test.mjs), and nor are a model's.
- * The test picker runs this file when any module it reads changes (changed-tests.mjs READ_BY).
+ * The test picker runs this file when any module it reads changes: it follows each `importSrc` below, and what that
+ * module imports (changed-tests.mjs, the imports' rule).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";

@@ -435,11 +435,13 @@ jobs:
       # minutes of every push, here and in the Auckland leg): on a pull request
       # with the `suite` label (adding it starts suite.yml; a later push runs it
       # here), or by hand (workflow_dispatch). Every other pull request runs the
-      # tests of what it changed: the folders its paths name and the rules and
-      # the ratchets always, never the whole suite (Ruben, 10 Oct 2026: under ten
-      # minutes; tooling/scripts/checks/changed-tests.mjs). Without it a pull
-      # request ran no test, and five ratchets went red on main unseen between
-      # 29 Sep and 3 Oct. The nightly runs the whole suite.
+      # tests of what it changed: the folders its paths name, the rules and the
+      # ratchets always, and the tests whose imports reach a changed file, nearest
+      # first, within 800 test files, never the whole suite (Ruben, 10 Oct 2026:
+      # under ten minutes; tooling/scripts/checks/changed-tests.mjs). Without it a
+      # pull request ran no test, and five ratchets went red on main unseen
+      # between 29 Sep and 3 Oct; without the imports, five tests on 28 Oct. The
+      # nightly runs the whole suite.
       - if: contains(github.event.pull_request.labels.*.name, 'suite') || github.event_name == 'workflow_dispatch'
         run: pnpm test -- --test-shard=${{ matrix.shard }}/4
       - name: The tests of what the pull request changed
