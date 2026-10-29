@@ -1,6 +1,6 @@
 # 0077 · A cold email ends as its sequence says
 
-**Status:** Decided by Ruben on 29 October 2026; built on its lane the same day, not merged: migration 00491
+**Status:** Decided by Ruben on 29 October 2026; built on its lane the same day, not merged: migration 00492
 (`sequence_steps.signs_with`, `reach_out_save`, `sequence_create_leads`), `coldEndingOf` in the send, the owner's draft,
 the preview and the test, and How it runs' mailboxes, Follow-ups and Ends with. The cold email canvas's board D and its
 check against the code (D4, D7, D10, D11 of twelve, all approved that day); spec

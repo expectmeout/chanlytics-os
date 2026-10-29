@@ -50,7 +50,7 @@ export interface PreviewInput {
   /** The first step's words. */
   words: { subject: string | null; body: string };
   signedBy: string | null;
-  /** How the sequence ends its emails (00491, decision 0077). */
+  /** How the sequence ends its emails (00492, decision 0077). */
   signsWith: ReachOutSignsWith;
   /** The mailbox its first email would leave from (the first it writes from), whose signature it may end with; null: none. */
   mailboxId: string | null;

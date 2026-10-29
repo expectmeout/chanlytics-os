@@ -85,7 +85,7 @@ export const ReachOutPreviewSchema = z.object({
       .max(REACH_OUT_BODY_MAX * 2),
   }),
   signed_by: z.string().trim().max(SIGNED_BY_MAX).nullable(),
-  /** How the sequence ends its emails, and the mailbox its first one would leave from (00491): the preview ends so. */
+  /** How the sequence ends its emails, and the mailbox its first one would leave from (00492): the preview ends so. */
   signs_with: z.enum(REACH_OUT_SIGNS_WITH).optional(),
   mailbox_id: z.uuid().nullable().optional(),
   language: z

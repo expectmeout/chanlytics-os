@@ -1,5 +1,5 @@
 /**
- * A cold email ends as its sequence says (00491, decision 0077), on a real Postgres: `sequence_steps.signs_with` is
+ * A cold email ends as its sequence says (00492, decision 0077), on a real Postgres: `sequence_steps.signs_with` is
  * `name` unless a sequence chose its mailbox's signature, and nothing else; the chain's save writes it where its body
  * names it and keeps it where the body does not (a client from before it cannot unset a choice it never showed); and a
  * sequence New makes writes from the connected mailboxes whose SPF and DKIM are not missing (every connected one where

@@ -28,7 +28,7 @@ export interface ReachOutStepRow {
   /** Its owner sends its emails (a root's, 00429). */
   owner_sends: boolean | null;
   signed_by: string | null;
-  /** How its emails end (a root's, 00491): its name, or its mailbox's signature. */
+  /** How its emails end (a root's, 00492): its name, or its mailbox's signature. */
   signs_with: string | null;
   include_unconfirmed: boolean | null;
   template_id: string | null;

@@ -324,7 +324,7 @@ export interface SendStanding {
   signedBy: string | null;
   /** Its owner sends its emails, each handed to them as a draft (the root's owner_sends, 00429). */
   ownerSends: boolean;
-  /** How its emails end (the root's signs_with, 00491): its name, or its mailbox's signature. */
+  /** How its emails end (the root's signs_with, 00492): its name, or its mailbox's signature. */
   signsWith: "name" | "mailbox";
 }
 

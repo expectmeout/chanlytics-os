@@ -313,7 +313,7 @@ interface Made {
   };
   /** The lead's email on the step before, for a step after the first (D19). */
   parent: ParentEmail | null;
-  /** How its sequence ends its emails (00491, decision 0077). */
+  /** How its sequence ends its emails (00492, decision 0077). */
   signsWith: "name" | "mailbox";
 }
 

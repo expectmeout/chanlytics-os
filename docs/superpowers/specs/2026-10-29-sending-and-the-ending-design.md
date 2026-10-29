@@ -40,7 +40,7 @@ preview and no test shows:
 
 ## What changes, part by part
 
-### 1. The database (one migration, the next free number when the lane pushes; 00491 today)
+### 1. The database (one migration, the next free number when the lane pushes: 00492, since main took 00491 in #1918)
 
 1. `sequence_steps.signs_with text not null default 'name'`, `check (signs_with in ('name', 'mailbox'))`, read on a
    sequence's first step (its root), as `signed_by`, `owner_sends` and `include_unconfirmed` are. Every existing sequence

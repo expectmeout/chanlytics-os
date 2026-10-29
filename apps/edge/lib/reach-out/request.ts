@@ -55,7 +55,7 @@ export interface RequestInput {
   workspace: Required<SlotWorkspace> & { address: string | null };
   /** The opening the check wrote for this send; null when it has none. */
   opening: string | null;
-  /** How its sequence ends its emails (00491, decision 0077): its name, or this mailbox's signature (coldEndingOf). */
+  /** How its sequence ends its emails (00492, decision 0077): its name, or this mailbox's signature (coldEndingOf). */
   signsWith: ReachOutSignsWith;
   /** The mailbox it leaves from, and what that mailbox signs with (00487, channels mailboxSignatureOf). */
   from: {
@@ -133,7 +133,7 @@ interface DraftInput {
   opening: string | null;
   /** The lead's email on the step before, for a step after the first: its subject, which this one answers. */
   parent: { subject: string | null } | null;
-  /** How its sequence ends its emails (00491): the owner's mail app adds their own signature, so the name at most. */
+  /** How its sequence ends its emails (00492): the owner's mail app adds their own signature, so the name at most. */
   signsWith: ReachOutSignsWith;
 }
 

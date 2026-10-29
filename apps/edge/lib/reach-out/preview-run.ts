@@ -8,7 +8,7 @@
  * this the knock (`auth`) and what the body carried; everything after is here, in the order the door had it.
  *
  * Body { tenant_id, user_id, search_id, index, include_unconfirmed, words: { subject, body }, signed_by, signs_with?,
- * mailbox_id?, language }: how the sequence ends its emails and the mailbox its first one would leave from (00491);
+ * mailbox_id?, language }: how the sequence ends its emails and the mailbox its first one would leave from (00492);
  * index is 0 to 199 (a run's cap), and any other is a 400. A search that is not the workspace's reads as no business
  * (the audience is keyed by both).
  *

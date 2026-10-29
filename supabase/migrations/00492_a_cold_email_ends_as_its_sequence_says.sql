@@ -1,4 +1,4 @@
--- 00491 · A cold email ends as its sequence says (decision 0077).
+-- 00492 · A cold email ends as its sequence says (decision 0077).
 --
 -- A sequence to leads chooses how its emails end, and the doors that make and save one say it:
 --   sequence_steps.signs_with   'name' (its Signed line, added under the words) or 'mailbox' (its mailbox's own
@@ -33,7 +33,7 @@ begin
   end if;
 end $$;
 comment on column public.sequence_steps.signs_with is
-  'How a sequence to leads ends its emails (00491, decision 0077), read on its first step: ''name'', its Signed line (signed_by) under the words, unless their last line names it; ''mailbox'', its mailbox''s own signature, except on a first email when that signature carries a link, which then ends with the name. Written by reach_out_save; members have no grant on it.';
+  'How a sequence to leads ends its emails (00492, decision 0077), read on its first step: ''name'', its Signed line (signed_by) under the words, unless their last line names it; ''mailbox'', its mailbox''s own signature, except on a first email when that signature carries a link, which then ends with the name. Written by reach_out_save; members have no grant on it.';
 
 /* ------------------------------------------------------------------------------------------- 2. reach_out_save -- */
 -- reach_out_save, as 00472_the_cold_lane_s_own_sending_domains_go.sql wrote it, but for signs_with.
@@ -51,7 +51,7 @@ declare
   v_signed   text := nullif(btrim(coalesce(p_chain->>'signed_by', '')), '');
   v_unconf   boolean := coalesce((p_chain->>'include_unconfirmed')::boolean, false);
   v_owner    boolean := coalesce((p_chain->>'owner_sends')::boolean, false);
-  -- How its emails end (00491, decision 0077): only a body that names it changes it.
+  -- How its emails end (00492, decision 0077): only a body that names it changes it.
   v_signs    text := case p_chain->>'signs_with' when 'mailbox' then 'mailbox' when 'name' then 'name' end;
   v_mailboxes uuid[] := coalesce(
                array(select x::uuid from jsonb_array_elements_text(coalesce(p_chain->'mailbox_ids', '[]'::jsonb)) x), '{}');
@@ -308,7 +308,7 @@ begin
       raise exception 'Sequence not found.' using errcode = 'P0002';
     end if;
   else
-    -- Sent from the workspace's connected mailboxes whose SPF and DKIM are not missing (00491, decision 0077), else from
+    -- Sent from the workspace's connected mailboxes whose SPF and DKIM are not missing (00492, decision 0077), else from
     -- every connected one; with none, or where New said so, handed to the owner to send from their own inbox (00465).
     select coalesce(array_agg(c.id order by c.created_at), '{}') into v_boxes
       from public.mailbox_connections c
