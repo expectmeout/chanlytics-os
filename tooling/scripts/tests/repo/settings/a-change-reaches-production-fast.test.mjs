@@ -23,12 +23,15 @@ import { ESLint } from "eslint";
 import ts from "typescript";
 import {
   BLOCK_PAGES,
+  commitWritten,
   isReplayed,
   isRetired,
   mainsBlocks,
   withoutBlocks,
   isWritten,
   migrationsAdded,
+  NEXTS_OWN,
+  putBackNextsOwn,
   REPLAYED,
   REPLAYERS,
   settle,
@@ -218,6 +221,62 @@ test("a pull request that adds a migration never merges itself: land holds its a
     [],
     "none: it merges itself",
   );
+});
+
+test("REGRESSION: land puts back what the typecheck's next typegen rewrote, and commits only what is staged -- a tree dirty with next-env.d.ts alone failed its commit and stopped the land before the push", () => {
+  const [nextEnv] = NEXTS_OWN;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "land-commit-"));
+  const g = (...args) => execFileSync("git", args, { cwd: dir, encoding: "utf8" }).trim();
+  const put = (rel, text) => {
+    fs.mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true });
+    fs.writeFileSync(path.join(dir, rel), text);
+  };
+  const typegen = () => put(nextEnv, 'import "./.next/dev/types/routes.d.ts";\n');
+  try {
+    g("init", "-q", "-b", "main");
+    g("config", "user.name", "t");
+    g("config", "user.email", "t@example.com");
+    put(nextEnv, 'import "./.next/types/routes.d.ts";\n');
+    put("docs/api.md", "the reference\n");
+    g("add", "-A");
+    g("commit", "-q", "-m", "base");
+    // The typecheck rewrote next-env.d.ts after a merge git committed itself, and the commands wrote nothing new.
+    typegen();
+    assert.equal(commitWritten(dir), false, "REGRESSION: nothing staged is nothing to commit, and no failed commit");
+    assert.equal(g("rev-list", "--count", "HEAD"), "1");
+    assert.deepEqual(putBackNextsOwn(dir), [nextEnv], "the rewrite is put back");
+    assert.equal(g("status", "--porcelain"), "", "so the next land does not stop at 'commit first'");
+    // What the commands wrote is staged, and the typecheck rewrote next-env.d.ts behind it: the writes go alone.
+    put("docs/api.md", "the reference, written again\n");
+    g("add", "-A");
+    typegen();
+    assert.deepEqual(putBackNextsOwn(dir), [nextEnv]);
+    assert.equal(commitWritten(dir), true);
+    assert.equal(
+      g("show", "--name-only", "--format=%s", "HEAD"),
+      "What the commands write, written again from main merged in\n\ndocs/api.md",
+    );
+    assert.equal(g("status", "--porcelain"), "");
+    assert.deepEqual(putBackNextsOwn(dir), [], "nothing rewritten, nothing put back");
+    // A merge left open by its conflicts, settled and staged: concluded as git would, with both parents.
+    g("checkout", "-q", "-b", "lane");
+    put("docs/api.md", "the lane's reference\n");
+    g("commit", "-q", "-am", "the lane");
+    g("checkout", "-q", "main");
+    put("docs/api.md", "main's reference\n");
+    g("commit", "-q", "-am", "main");
+    g("checkout", "-q", "lane");
+    spawnSync("git", ["merge", "-q", "main"], { cwd: dir });
+    g("checkout", "--theirs", "--", "docs/api.md");
+    g("add", "-A");
+    typegen();
+    assert.deepEqual(putBackNextsOwn(dir), [nextEnv]);
+    assert.equal(commitWritten(dir), true);
+    assert.equal(g("rev-list", "--count", "--merges", "HEAD"), "1", "the merge is concluded");
+    assert.equal(g("status", "--porcelain"), "");
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("check:local builds first, then runs the rest side by side and says each one's own result", async () => {

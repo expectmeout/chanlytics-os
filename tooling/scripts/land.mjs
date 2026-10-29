@@ -21,6 +21,7 @@
  *   3. What the commands write, written again from the merged sources: the barrels' order, the browser entry, the typed
  *      client and route keys, the API reference, the migration ledger, the data model and the tree. Then the
  *      typecheck, the one check that is quick and sure to catch a merge that no longer fits together; CI runs the rest.
+ *      What its `next typegen` rewrites (NEXTS_OWN) is put back, and only what is staged is committed.
  *   4. Pushed, and the pull request (opened with --title and --body-file when there is none) set to squash-merge itself
  *      once every required check passes, pinned to the commit pushed (`--match-head-commit`), so nothing pushed after
  *      it lands unchecked. Where the repository does not allow auto-merge, it says to merge once green.
@@ -232,6 +233,37 @@ function resolve(replayAsked) {
   return replayed.length > 0;
 }
 
+/**
+ * What the dashboard's typecheck rewrites of the tree: its `next typegen` writes next-env.d.ts on every run, as a dev
+ * run and a build do, and none of them is a branch's change (a person restores it, never stages it).
+ */
+export const NEXTS_OWN = ["apps/dashboard/next-env.d.ts"];
+
+/** Next's own files put back as the index holds them, after the typecheck: answers which it had rewritten. */
+export function putBackNextsOwn(cwd = ROOT) {
+  const rewritten = execFileSync("git", ["diff", "--name-only", "--", ...NEXTS_OWN], { cwd, encoding: "utf8" })
+    .split("\n")
+    .filter(Boolean);
+  if (rewritten.length) execFileSync("git", ["checkout", "-q", "--", ...rewritten], { cwd });
+  return rewritten;
+}
+
+/**
+ * The merge concluded, or, after a merge git committed itself, what the commands wrote committed when any of it is
+ * staged: answers whether a commit was made. It asked whether the tree was dirty, and a tree dirty with next-env.d.ts
+ * alone, nothing staged, failed its commit and stopped the land before the push (29 Oct 2026).
+ */
+export function commitWritten(cwd = ROOT) {
+  const g = (...args) => spawnSync("git", args, { cwd, encoding: "utf8" });
+  const merging = g("rev-parse", "-q", "--verify", "MERGE_HEAD").status === 0;
+  if (!merging && g("diff", "--cached", "--quiet").status === 0) return false;
+  const args = merging
+    ? ["commit", "--no-edit", "--quiet"]
+    : ["commit", "--quiet", "-m", "What the commands write, written again from main merged in"];
+  execFileSync("git", args, { cwd, encoding: "utf8" });
+  return true;
+}
+
 function write(replay) {
   for (const [name, command] of [...(replay ? REPLAYERS : []), ...WRITERS]) {
     say(name);
@@ -258,10 +290,11 @@ function main() {
   if (made) {
     write(resolve(args.includes("--replay")));
     say("the typecheck of the merged tree");
-    if (run("corepack pnpm -r typecheck") !== 0) stop("the merged tree does not typecheck: fix it, commit, run again");
-    if (tryGit("rev-parse", "-q", "--verify", "MERGE_HEAD").status === 0) git("commit", "--no-edit", "--quiet");
-    else if (git("status", "--porcelain", "--untracked-files=no"))
-      git("commit", "--quiet", "-m", "What the commands write, written again from main merged in");
+    const typechecked = run("corepack pnpm -r typecheck") === 0;
+    const putBack = putBackNextsOwn();
+    if (putBack.length) say(`put back ${putBack.join(", ")}, which the typecheck's next typegen rewrote`);
+    if (!typechecked) stop("the merged tree does not typecheck: fix it, commit, run again");
+    commitWritten();
   }
 
   if (run(`git push --quiet -u origin ${branch}`) !== 0) stop("the push was refused");
