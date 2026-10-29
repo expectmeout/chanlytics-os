@@ -29,7 +29,8 @@ const { setModelStream } = await import("../../../../apps/dashboard/src/server/m
 const { draftFrom } = await import("../../../../apps/dashboard/src/server/sequences/draft.ts");
 const { draftKept } = await import("../../../../apps/dashboard/src/server/sequences/draft-judge.ts");
 const M = await import("../../../../apps/dashboard/src/surfaces/campaigns/sequences/new/new-model.ts");
-const { onceChannelsOf } = await import("../../../../apps/dashboard/src/server/sequences/new-make.ts");
+const { onceChannelsOf, leadFirstOf } = await import("../../../../apps/dashboard/src/server/sequences/new-make.ts");
+const { NEW_MAKE_BODY, LEAD_FIRST_BODY } = await import("../../../../apps/dashboard/src/server/sequences/bodies.ts");
 const { NEW_WORDS, leadChainStepOf, newListOf } = await import("../../../../packages/contracts/src/index.ts");
 
 let calls;
@@ -667,6 +668,46 @@ test("Keep and Start send the draft as it stands: each message by its id or as w
   const once = { ...M.draftByHand("once", "people", "Harbor Studio"), who: { kind: "everyone", label: "everyone" } };
   assert.equal(M.makeBodyOf(once, false, "q-1").draft_id, "q-1");
   assert.throws(() => M.makeBodyOf(M.draftByHand("sequence", "people", "x"), true, null), /who it is for/);
+});
+
+test("Keep and Start to leads pass the leads door's own check: the search, how batches are decided and who sends, as New chose them", () => {
+  const toLeads = (kind) =>
+    M.redraftShapeOf(M.draftByHand(kind, "people", "Harbor Studio"), { kind, audience: "leads" });
+  let d = M.setWho(toLeads("sequence"), { kind: "search", id: ID(9), label: "Plumbers" });
+  d = M.setEmail(d, 0, { subject: "Missed calls", body: "{{opening}}\n\nWorth a look?" });
+  d = M.setEmail(M.setWait(M.addStep(d, "message"), 1, 3), 1, { subject: null, body: "Hi again" });
+  /** The leads door's first step for this draft, as POST sequences/new takes the body and New's make builds it. */
+  const firstOf = (draft, start) => {
+    const body = NEW_MAKE_BODY.safeParse(M.makeBodyOf(draft, start, null));
+    assert.ok(body.success, body.error?.issues[0]?.message);
+    const first = LEAD_FIRST_BODY.safeParse(leadFirstOf(body.data));
+    assert.ok(first.success, first.error?.issues.map((i) => i.message).join("; "));
+    return first.data;
+  };
+  const kept = firstOf(d, false);
+  assert.deepEqual(
+    [kept.search_id, kept.aim_search_id, kept.source_search_id, kept.mode, kept.owner_sends],
+    [ID(9), ID(9), ID(9), "ask", false],
+  );
+  assert.deepEqual(
+    kept.steps.map((s) => [s.subject, s.after_days]),
+    [
+      ["Missed calls", null],
+      [null, 3],
+    ],
+  );
+  assert.equal(firstOf(M.setAddsNew(d, false), true).source_search_id, undefined, "it adds no new leads unless asked");
+  const picked = M.setOwnerSends(M.setWho(d, { kind: "leads", ids: [ID(1), ID(2)], label: "2 leads" }), true);
+  const started = firstOf(M.setMode(picked, "veto"), true);
+  assert.deepEqual(
+    [started.lead_ids, started.search_id, started.mode, started.owner_sends],
+    [[ID(1), ID(2)], undefined, "veto", true],
+  );
+  // Once to leads is one email, and decides no batches of its own.
+  let once = M.setWho(toLeads("once"), { kind: "leads", ids: [ID(3)], label: "1 lead" });
+  once = M.setEmail(once, 0, { subject: "Hi", body: "{{opening}}" });
+  const one = firstOf(once, true);
+  assert.deepEqual([one.steps.length, "mode" in one], [1, false]);
 });
 
 const library = {
