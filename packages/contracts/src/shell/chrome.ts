@@ -208,7 +208,7 @@ const OUTLINE_BARE_ATTR = "data-outline-bare";
  * sidebar this device keeps, `open` or `rail`, read from the stored object as the app reads it (isSidebarPref, else
  * the default); the outline's stylesheet stands it as a rail on a small desk whatever it says, as the frame does. And
  * the first run, whose address (`/w/<slug>/start`, or the old `#/start`) the app draws full screen with none of the
- * frame: there the outline draws the page's ground alone. outline-boot.test.mjs runs it against the app's own readings.
+ * frame: there the outline draws the page's ground alone. theme-boot.test.mjs runs it against the app's own readings.
  */
 export function outlineBootScript(): string {
   const start = JSON.stringify(FIRST_RUN_ROUTE);

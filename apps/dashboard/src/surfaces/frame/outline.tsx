@@ -21,7 +21,8 @@ import { NAV_GROUPS, PHONE_MORE, PHONE_TABS, type NavItem } from "./places";
 
 /** The room of a line the frame writes from a read: its height, and nothing said. */
 const ROOM = " ";
-const none = () => {};
+/** What a press does here: nothing, since nothing in the outline is pressed (it is inert). */
+const pressesNothing = () => {};
 
 /**
  * A place in the sidebar, as the frame's row draws it (sidebar/sidebar.tsx SidebarRow): its glyph, and its words when
@@ -90,7 +91,7 @@ function OutlineTop() {
     <div className="frame-top" data-chrome="">
       <span className="pg-dateline-slot" />
       <header className="topbar">
-        <button type="button" className="btn btn-ghost btn-icon btn-sm tb-menu">
+        <button type="button" className="btn btn-ghost btn-icon btn-sm tb-menu" aria-label="Menu">
           <Icon name="menu" />
         </button>
         <div className="topbar-spacer" />
@@ -99,7 +100,7 @@ function OutlineTop() {
           <span className="tb-ask-label">Ask Chanlytics</span>
         </button>
         <div className="tbn-wrap">
-          <button type="button" className="btn btn-ghost btn-icon btn-sm tb-bell">
+          <button type="button" className="btn btn-ghost btn-icon btn-sm tb-bell" aria-label="Notifications">
             <Icon name="bell" />
           </button>
         </div>
@@ -123,15 +124,15 @@ function OutlineFoot() {
           href: "#",
           glyph: <Icon name={t.icon} size={18} />,
         }))}
-        onPick={none}
+        onPick={pressesNothing}
         more={{
           label: PHONE_MORE.label,
           word: PHONE_MORE.word,
           glyph: <Icon name={PHONE_MORE.icon} size={18} />,
-          onPress: none,
+          onPress: pressesNothing,
         }}
       />
-      <button type="button" className="phone-ask" data-chrome="foot">
+      <button type="button" className="phone-ask" data-chrome="foot" aria-label="Ask Chanlytics">
         <span className="ask-disc" aria-hidden="true" />
         <canvas className="phone-ask-face" aria-hidden="true" />
       </button>
