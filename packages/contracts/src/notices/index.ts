@@ -14,6 +14,8 @@ export { holdNotice } from "./hold-notice";
 export type { HoldFacts } from "./hold-notice";
 export { memberJoinedBy, memberJoinedNotice, memberLeftBy, memberLeftNotice } from "./member-news";
 export type { MemberJoined } from "./member-news";
+export { noticeMailHtml } from "./notice-mail";
+export type { NoticeMail } from "./notice-mail";
 export {
   bookingArriving,
   bookingChanged,

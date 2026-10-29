@@ -794,7 +794,7 @@ test("call_analyzed: the note lands in the caller's thread and the call links to
       [mail[0].to, mail[0].from, mail[0].subject],
       [["owner@harbor.test"], "Pager <pager@platform.test>", "Rosa phoned · 2 min"],
     );
-    assert.ok(mail[0].text.includes(`\nFrom ${CALLER} · 125s · sentiment Positive · ended: user_hangup\n`));
+    assert.ok(mail[0].text.includes(`\nFrom +1 (646) 555-0123 · 2 min · Customer hung up\n`), mail[0].text);
     assert.ok(mail[0].text.includes("\nSummary:\nRosa asked for a moving quote for Tuesday.\n"));
     assert.ok(
       mail[0].text.endsWith(
@@ -1143,13 +1143,13 @@ test("callback_needed: the thread is paused for the workspace's own hours, one c
     assert.equal(mails.length, 4);
     assert.ok(
       mails[1].text.startsWith(
-        "They wanted: to move a piano on Saturday.\nOutcome: Needs a call back.\n\nFrom +16465550124 ·",
+        "They wanted: to move a piano on Saturday.\nOutcome: Needs a call back.\n\nFrom +1 (646) 555-0124 ·",
       ),
       "the request and the outcome; no To do line without a to-do",
     );
     assert.ok(
       mails[2].text.startsWith(
-        "Rosa needs someone to call her back about a piano.\nOutcome: Needs a call back.\n\nFrom +16465550125 ·",
+        "Rosa needs someone to call her back about a piano.\nOutcome: Needs a call back.\n\nFrom +1 (646) 555-0125 ·",
       ),
       "no request either: the summary leads",
     );

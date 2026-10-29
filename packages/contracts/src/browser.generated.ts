@@ -260,6 +260,7 @@ export { callDays, composerDays, dueStepDay, forWords, nextStepOf, stepDayName, 
 export { CALENDAR_UNREADABLE_TOLD_AFTER_MS, CALENDAR_UNREADABLE_WORDS, GOOGLE_SYNC_NOTICE_WORDS, GOOGLE_SYNC_TOLD_AFTER_MS } from "./notices/connection-news";
 export { holdNotice } from "./notices/hold-notice";
 export { memberJoinedBy, memberJoinedNotice, memberLeftBy, memberLeftNotice } from "./notices/member-news";
+export { noticeMailHtml } from "./notices/notice-mail";
 export { bookingArriving, bookingChanged, CATCH_UP_VISITS, feedAdditionIsBooking, VISIT_CHANGES_TOLD, visitChangeNews, visitNews } from "./notices/visit-news";
 export { consultFirstOf, peopleVisitsOf, personLikeOf, poolListContext, poolRowOf, poolRowsOf, withVisitsOf } from "./people/audience-pool";
 export { dealFill, dealSheetFill, noteFill, noteSheetFill, SAY_IT_DEAL_JSON_SCHEMA, SAY_IT_MAX, SAY_IT_NOTE_JSON_SCHEMA, SAY_IT_VERBS, SAY_IT_WORDS, sayItFilled } from "./people/doors/say-it";
@@ -405,7 +406,7 @@ export { addressInMessage, normalizeEmail, whyNotAnEmail } from "./shared/email-
 export { ACTOR_TYPES, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_OPT_IN_PATTERN, CONVERSATION_STATES, DECISION_SUBJECTS, DECISION_VERBS, EMAIL_STOP_PATTERN, EMAIL_UNSUBSCRIBE_PATTERN, ESCALATION_REASONS, ESCALATION_STATES, EVENT_KINDS, EVENT_SUBSCRIBERS, IDENTITY_ASSURANCES, JOB_KINDS, JOB_STATES, MARKETING_OPT_IN_PATTERN, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, OFFERS_OPT_IN_PHRASES, OPT_IN_PATTERN, OPT_OUT_PATTERN, optInPurposeOf, SMS_OPT_OUT_PATTERN, TEMPLATE_STATUSES, TENANT_STATUSES, WABA_FIELDS } from "./shared/enums";
 export { err, ok, SERVED_AT_HEADER } from "./shared/envelope";
 export { AppError, bodyRefusal, ERROR_CODES } from "./shared/errors";
-export { escapeHtml } from "./shared/html";
+export { escapeHtml, linkifyEscaped } from "./shared/html";
 export { asContactId, asTenantId, isUuid, UUID } from "./shared/identity";
 export { linkHost, normalizeLink, publicObjectSrc, whyNotALink } from "./shared/link";
 export { sumOf } from "./shared/numbers";

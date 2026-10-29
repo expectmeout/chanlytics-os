@@ -42,6 +42,8 @@ test("a workspace's recipients come with its address word, in the same three rea
     notifications: { escalation_emails: [OWNER] },
     isEnvDefault: false,
     slug: "harbor",
+    // and its name, which an alert mail names at its top (notify alertWorkspace)
+    name: "Harbor Moving",
   });
   assert.deepEqual(
     db.seen

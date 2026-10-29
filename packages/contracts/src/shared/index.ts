@@ -92,7 +92,7 @@ export { err, ok, SERVED_AT_HEADER } from "./envelope";
 export type { Envelope, Err, Ok } from "./envelope";
 export { AppError, bodyRefusal, ERROR_CODES } from "./errors";
 export type { ErrorCode } from "./errors";
-export { escapeHtml } from "./html";
+export { escapeHtml, linkifyEscaped } from "./html";
 export { asContactId, asTenantId, isUuid, UUID } from "./identity";
 export type { ContactId, TenantId } from "./identity";
 export { linkHost, normalizeLink, publicObjectSrc, whyNotALink } from "./link";
