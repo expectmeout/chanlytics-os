@@ -449,7 +449,7 @@ export { ALERT_PANE_WORDS, ALERT_TOPICS, alertGrid, alertTestMail, BELL_LINE_KIN
 export { agoLabel, ALERT_KINDS, applyReadState, bellCalls, buildNotificationFeed, callOfKey, conversationOfNeedsKey, dedupeFeed, EMPTY_READ_STATE, jobNewsWords, kindListDoor, nameKnownCustomers, noteWhose, noticeRoute, REACH_OUT_DAY_ROUTE, SERVER_KEY_PREFIX, SERVER_NOTIFICATION_KINDS, serverNotificationRows, unreadCount, verbForRoute } from "./today/notifications";
 export { firstLine, isPushKind, parseDevice, parseMemberAlerts, PUSH_KINDS, PUSH_PLATFORMS, pushesFor, pushFor, pushOffOf, BELL_LIST_ROWS, BELL_WINDOW_DAYS, isForReader, keptUnreadOf, olderUnreadOf, PUSH_RECEIPTS_AFTER_MS, unreadFor } from "./today/push";
 export { bellSections, todayAwayGrouped } from "./today/today-away";
-export { TODAY_PHONE_WORDS, standingWithRuns, todayDraftsSub, todayPhoneHead } from "./today/today-bands";
+export { standingWithRuns, TODAY_PHONE_WORDS, todayDraftsSub, todayPhoneHead } from "./today/today-bands";
 export { toTodayVM } from "./today/today-brief";
 export { todayBriefWords } from "./today/today-brief-words";
 export { tzClock, tzSince } from "./today/today-clock";

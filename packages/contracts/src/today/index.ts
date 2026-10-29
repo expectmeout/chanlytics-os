@@ -96,7 +96,7 @@ export type {
   BellSectionVM,
   TodayAwayVM,
 } from "./today-away";
-export { TODAY_PHONE_WORDS, standingWithRuns, todayDraftsSub, todayPhoneHead } from "./today-bands";
+export { standingWithRuns, TODAY_PHONE_WORDS, todayDraftsSub, todayPhoneHead } from "./today-bands";
 export type { TodayPhoneHeadVM } from "./today-bands";
 export { toTodayVM } from "./today-brief";
 export { todayBriefWords } from "./today-brief-words";
