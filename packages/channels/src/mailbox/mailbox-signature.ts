@@ -34,15 +34,29 @@ export function cleanGmailSignature(html: string | null | undefined): string | n
   return clean;
 }
 
+/** An element whose own style sets it as a block (`display: block`, in any case or spacing), up to its tag's end. */
+const BLOCK_STYLED =
+  /(<[a-z][a-z0-9]*\b[^>]*?\bstyle\s*=\s*("[^"]*\bdisplay\s*:\s*block\b[^"]*"|'[^']*\bdisplay\s*:\s*block\b[^']*'))/gi;
+/** The attribute a block-styled element is marked with, so the converter's one selector reads it as a line. */
+const LINE_MARK = "data-signature-line";
+
 /** Gmail's signature as words: its lines, its links by their words, its pictures left out. Null where it says nothing. */
 export function gmailSignatureWords(html: string | null | undefined): string | null {
   if (!html?.trim()) return null;
-  const words = convert(html, {
+  // A line of its own wherever Gmail draws one (0077): a table's row and cell, and anything its style sets as a block,
+  // which signature generators lay their spans out with. Otherwise a table's lines ran together ("Sam ReyesFounder").
+  const marked = html.replace(BLOCK_STYLED, `$1 ${LINE_MARK}`);
+  const words = convert(marked, {
     wordwrap: false,
     selectors: [
       { selector: "img", format: "skip" },
       { selector: "a", options: { ignoreHref: true } },
       { selector: "p", options: { leadingLineBreaks: 1, trailingLineBreaks: 1 } },
+      ...["table", "tr", "td", "th", `[${LINE_MARK}]`].map((selector) => ({
+        selector,
+        format: "block",
+        options: { leadingLineBreaks: 1, trailingLineBreaks: 1 },
+      })),
     ],
   })
     .split("\n")

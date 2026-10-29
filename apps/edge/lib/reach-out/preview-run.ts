@@ -7,7 +7,8 @@
  * The door is api/admin/reach-out-preview.ts: it checks who may knock (authorizeAdmin) and reads the body, then hands
  * this the knock (`auth`) and what the body carried; everything after is here, in the order the door had it.
  *
- * Body { tenant_id, user_id, search_id, index, include_unconfirmed, words: { subject, body }, signed_by, language };
+ * Body { tenant_id, user_id, search_id, index, include_unconfirmed, words: { subject, body }, signed_by, signs_with?,
+ * mailbox_id?, language }: how the sequence ends its emails and the mailbox its first one would leave from (00491);
  * index is 0 to 199 (a run's cap), and any other is a 400. A search that is not the workspace's reads as no business
  * (the audience is keyed by both).
  *
@@ -39,6 +40,8 @@ interface Body {
   include_unconfirmed?: unknown;
   words?: { subject?: unknown; body?: unknown } | null;
   signed_by?: unknown;
+  signs_with?: unknown;
+  mailbox_id?: unknown;
   language?: unknown;
 }
 
@@ -69,6 +72,8 @@ function previewInputOf(body: Body, tenantId: string): (PreviewInput & { userId:
     !okBody(w?.body) ||
     !okSubject(w?.subject) ||
     !okSignedBy(body.signed_by) ||
+    !(body.signs_with === undefined || body.signs_with === "name" || body.signs_with === "mailbox") ||
+    !(body.mailbox_id === undefined || body.mailbox_id === null || isUuid(body.mailbox_id)) ||
     typeof language !== "string" ||
     !LANGUAGE.test(language)
   )
@@ -81,6 +86,8 @@ function previewInputOf(body: Body, tenantId: string): (PreviewInput & { userId:
     includeUnconfirmed: body.include_unconfirmed,
     words: { subject: w.subject, body: w.body },
     signedBy: body.signed_by ?? null,
+    signsWith: body.signs_with === "mailbox" ? "mailbox" : "name",
+    mailboxId: isUuid(body.mailbox_id) ? body.mailbox_id : null,
     language,
   };
 }

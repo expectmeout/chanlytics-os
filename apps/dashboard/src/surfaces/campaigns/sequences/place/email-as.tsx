@@ -79,6 +79,8 @@ interface EmailAsProps {
   whole?: boolean;
   /** Its words cut to a few lines, as a rail's step shows it. */
   short?: boolean;
+  /** How it ends under the words (0077): the name it signs off with, or its mailbox's signature, where drawn whole. */
+  ending?: string | null;
   /** The foot every email carries (why they hear from you, your address, how to stop), where it is drawn whole. */
   foot?: string | null;
   head?: ReactNode;
@@ -91,6 +93,7 @@ export function EmailAs({
   from = null,
   whole = false,
   short = false,
+  ending = null,
   foot = null,
   head = null,
   testid,
@@ -134,6 +137,11 @@ export function EmailAs({
           </p>
         ))}
       </div>
+      {whole && ending ? (
+        <p className="lw-mail-end" data-testid="lead-card-ending">
+          {ending}
+        </p>
+      ) : null}
       {whole && foot ? (
         <p className="lw-mail-foot" data-testid="lead-card-foot">
           {foot}

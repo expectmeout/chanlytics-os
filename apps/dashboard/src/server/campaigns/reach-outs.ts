@@ -16,7 +16,9 @@ import {
   isLeadList,
   isReachOutRefusal,
   isReachOutRun,
+  linkCount,
   localDate,
+  mailboxSendsNow,
   parseTenantConfig,
   reachOutChainBodyOf,
   reachOutDraftOf,
@@ -29,6 +31,7 @@ import {
   type ReachOutChainInput,
   type ReachOutChainReportDto,
   type ReachOutDecision,
+  type ReachOutMailboxChoice,
   type ReachOutMailboxFacts,
   type ReachOutReachDto,
   type ReachOutRunDto,
@@ -53,9 +56,11 @@ import {
   sendSaid,
   sequenceModesOf,
   workspaceMaySpend,
+  type MailboxConnectionRow,
   type ReachOutRunSend,
   type ReachOutStepRow,
 } from "@chanlytics/db";
+import { mailboxSignatureOf } from "@chanlytics/channels";
 import type { RouteContext } from "@/server/with-route";
 import type { Member } from "@/server/route";
 import { recordDecision } from "@/server/verbs";
@@ -137,6 +142,7 @@ export async function chainsOf(ctx: RouteContext, tenantId: string): Promise<Rea
     // Who is in each now: a count that fails is a dash on the ledger, never the chains' failure.
     reachOutPeopleCounts(sb, tenantId),
   ]);
+  const nowMs = Date.now();
   // The mailboxes the chain's run writes from, by the run's own rule (contracts reachOutWritesFrom): its named ones, or
   // every one when it names none. One that does not send now (paused, held, signed out) is not its pace.
   const mailboxesOf = (ids: string[]) =>
@@ -175,8 +181,11 @@ export async function chainsOf(ctx: RouteContext, tenantId: string): Promise<Rea
       mailbox_ids: root.mailbox_ids ?? [],
       owner_sends: root.owner_sends === true,
       signed_by: root.signed_by,
+      signs_with: root.signs_with === "mailbox" ? "mailbox" : "name",
       steps: stepDtos,
       mailboxes: mailboxesOf(root.mailbox_ids ?? []),
+      // Every mailbox of the workspace, as How it runs offers them to this sequence (0077).
+      mailbox_choices: mailboxes.map((m) => mailboxChoiceOf(m, root.mailbox_ids ?? [], nowMs)),
       next: {
         run_hour: root.run_hour,
         last_run_for: root.last_run_for,
@@ -445,6 +454,29 @@ const mailboxFactsOf = (m: {
   daily_cap: m.daily_cap,
   customer_domain: m.customer_domain,
 });
+
+/**
+ * A mailbox as How it runs offers it to a sequence (0077): whether the sequence writes from it (contracts
+ * reachOutWritesFrom: none named is every one), whether it sends now, what DNS said of its domain, its day, and what it
+ * signs with as words (channels mailboxSignatureOf, the send's own reading), with whether they carry a link.
+ */
+function mailboxChoiceOf(m: MailboxConnectionRow, ids: string[], nowMs: number): ReachOutMailboxChoice {
+  const words = mailboxSignatureOf(m)?.text ?? null;
+  const read = (m.dns ?? {}) as Record<string, unknown>;
+  const dns: ReachOutMailboxChoice["dns"] = {};
+  for (const k of ["spf", "dkim", "dmarc"] as const) if (read[k] === "found" || read[k] === "missing") dns[k] = read[k];
+  return {
+    id: m.id,
+    address: m.address,
+    state: m.state,
+    sends_now: mailboxSendsNow(m, nowMs),
+    picked: reachOutWritesFrom(m, ids),
+    dns,
+    facts: mailboxFactsOf(m),
+    signature: words ? { words, has_link: linkCount(words) > 0 } : null,
+    connected_at: m.connected_at,
+  };
+}
 
 /** The mailboxes a run's sends go from, with what each one's day is made of (R22). */
 async function runMailboxesOf(

@@ -14,8 +14,10 @@ import {
   type LeadCardEmailVM,
   type LeadCardLead,
 } from "../leads/lead-card";
-import type { ReachOutChainDto, ReachOutMailboxFacts } from "../reach-out/reach-out-dtos";
-import type { ReachOutDraft, ReachOutDraftStep } from "../reach-out/reach-out-draft";
+import type { ReachOutChainDto, ReachOutMailboxChoice, ReachOutMailboxFacts } from "../reach-out/reach-out-dtos";
+import { CUSTOMER_DOMAIN_DAILY_MAX, MAILBOX_DAILY_CAP_MAX, mailboxDailyCap } from "../email/mailbox-standing";
+import { reachOutWritesFrom } from "../email/mailbox-connections";
+import { chainFirstSender, type ReachOutDraft, type ReachOutDraftStep } from "../reach-out/reach-out-draft";
 import {
   REACH_OUT_DRAFTS_PER_DAY,
   reachOutCardSlotsOf,
@@ -137,6 +139,29 @@ export const LEAD_BUILD_WORDS = {
     footer: "Footer",
     footerValue: "Why they hear from you",
     noAddress: "Add your address in Settings › Details: every email carries it at the foot.",
+    /** The batch rule as it stands (0077, D11): every batch of first emails of a sequence fed by a list waits for an OK. */
+    firstEmails: "Every batch of first emails waits for your OK",
+    /** The mode's choice, for the steps after the first. */
+    followUps: "Follow-ups",
+    followUpModes: { veto: "Your OK first, then 30 minutes to stop", ask: "Each waits for your OK" } satisfies Record<
+      "veto" | "ask",
+      string
+    >,
+    /** The mailboxes it writes from (0077, D4): a tick each, one always kept. */
+    everyMailbox: "Every mailbox, and any you connect later",
+    keepOne: "One has to send. To stop them all, choose Your inbox · you send.",
+    newMailbox: "New",
+    dnsMissing: (records: readonly string[]) => `${records.map((r) => r.toUpperCase()).join(" and ")} missing`,
+    setUpDns: "Set up DNS",
+    notSending: { paused: "Paused", held: "Held", reconnect: "Signed out", resting: "Done for today" },
+    /** A mailbox's day, and the top its ramp climbs to while it is still climbing (never a second "new" beside New). */
+    day: (perDay: number, top: number) => (perDay < top ? `${perDay} a day, rising to ${top}` : `${perDay} a day`),
+    /** How its emails end (0077, D10). */
+    endsWith: "Ends with",
+    endsName: (name: string) => (name.trim() ? `“${name.trim()}”` : "Your name"),
+    endsSignature: (address: string) => `${address}'s signature`,
+    signatureHasLink: "Its signature has a link, so first emails from it end with your name.",
+    noName: "Write the name it ends with.",
   },
 } as const;
 
@@ -359,19 +384,25 @@ export interface LeadPaceChoice {
 
 /**
  * How it runs' "A day, at most": each gap the database allows, as the day it comes to across the chain's mailboxes
- * (chainPaceOf, the timetable's own count), one entry per day so two gaps that fill the same day are one choice. An owner's
- * own inbox has none: they send each, so the day is theirs.
+ * (chainPaceOf, the timetable's own count), one entry per day, each the slowest gap that reaches it, so the day's emails
+ * are spread as far as that day allows (0077: the fastest was kept, and a new mailbox offered one every 5 minutes). The
+ * saved gap is a choice of its own where it is none of these, so the picker always says what is saved. Largest day first,
+ * then the slower gap. An owner's own inbox has none: they send each, so the day is theirs.
  */
-export function leadPaceChoicesOf(mailboxes: readonly ReachOutMailboxFacts[]): LeadPaceChoice[] {
-  const seen = new Set<number>();
-  const out: LeadPaceChoice[] = [];
+export function leadPaceChoicesOf(mailboxes: readonly ReachOutMailboxFacts[], saved?: number): LeadPaceChoice[] {
+  const shareAt = (gap: number) =>
+    chainPaceOf({ mailboxes: [...mailboxes], owner_sends: false, gap_minutes: gap }).share;
+  const slowest = new Map<number, number>();
   for (const gap of REACH_OUT_GAP_MINUTES) {
-    const share = chainPaceOf({ mailboxes: [...mailboxes], owner_sends: false, gap_minutes: gap }).share;
-    if (share === 0 || seen.has(share)) continue;
-    seen.add(share);
-    out.push({ gap, share, hint: LEAD_BUILD_WORDS.runs.every(gap) });
+    const share = shareAt(gap);
+    if (share > 0) slowest.set(share, gap);
   }
-  return out.sort((a, b) => b.share - a.share);
+  const gaps = new Set(slowest.values());
+  if (saved !== undefined && (REACH_OUT_GAP_MINUTES as readonly number[]).includes(saved) && shareAt(saved) > 0)
+    gaps.add(saved);
+  return [...gaps]
+    .map((gap) => ({ gap, share: shareAt(gap), hint: LEAD_BUILD_WORDS.runs.every(gap) }))
+    .sort((a, b) => b.share - a.share || b.gap - a.gap);
 }
 
 /**
@@ -439,4 +470,108 @@ export function leadPreviewEmailOf(p: {
     blocked: blocked || null,
     instead: null,
   };
+}
+
+/* ---------------------------------------------------------------------------------- Sending, its mailboxes (0077) */
+
+/** One mailbox's row in How it runs: its tick, whether it may be taken off, and the line under its address. */
+export interface LeadMailboxRowVM {
+  id: string;
+  address: string;
+  on: boolean;
+  /** The last one ticked: it stays, since a sequence that names none writes from every mailbox (00424). */
+  locked: boolean;
+  sub: string;
+  /** Its SPF or DKIM is missing: the row offers Set up DNS. */
+  dnsMissing: boolean;
+}
+
+const pickedIn = (c: Pick<ReachOutMailboxChoice, "id" | "state">, picked: readonly string[]) =>
+  reachOutWritesFrom({ id: c.id, state: c.state }, picked);
+
+/** Why a mailbox sends nothing now, in a word: its state, or its day done; null while it sends. */
+function notSendingOf(c: Pick<ReachOutMailboxChoice, "state" | "sends_now">): string | null {
+  const N = LEAD_BUILD_WORDS.runs.notSending;
+  if (c.sends_now) return null;
+  if (c.state === "paused" || c.state === "held" || c.state === "reconnect") return N[c.state];
+  return c.state === "connected" ? N.resting : null;
+}
+
+/**
+ * How it runs' mailbox rows (0077, D4), for the ids the draft names: each with its tick, "New" first for one connected
+ * after the sequence was made, its day (a ramping mailbox's rising to its top: 40, or 20 on the domain its customers
+ * write to), why it does not send now where it does not, the DNS records it is missing, and the last tick kept.
+ */
+export function leadMailboxRowsOf(
+  chain: Pick<ReachOutChainDto, "mailbox_choices" | "created_at">,
+  picked: readonly string[],
+): LeadMailboxRowVM[] {
+  const R = LEAD_BUILD_WORDS.runs;
+  const choices = chain.mailbox_choices ?? [];
+  const count = choices.filter((c) => pickedIn(c, picked)).length;
+  return choices.map((c) => {
+    const on = pickedIn(c, picked);
+    const top = Math.min(
+      c.facts.daily_cap,
+      c.facts.customer_domain ? CUSTOMER_DOMAIN_DAILY_MAX : MAILBOX_DAILY_CAP_MAX,
+    );
+    const missing = (["spf", "dkim"] as const).filter((k) => c.dns[k] === "missing");
+    const resting = notSendingOf(c);
+    const sub = [
+      c.connected_at > chain.created_at ? R.newMailbox : null,
+      R.day(mailboxDailyCap(c.facts), top),
+      resting,
+      missing.length ? R.dnsMissing(missing) : null,
+      on && count === 1 ? R.keepOne : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    return { id: c.id, address: c.address, on, locked: on && count === 1, sub, dnsMissing: missing.length > 0 };
+  });
+}
+
+/**
+ * The ids a draft names after one tick: a list of its own from then on (a sequence that named none wrote from every
+ * mailbox, which a tick makes the ones ticked), and never none, which would mean every one again.
+ */
+export function leadMailboxesTicked(
+  chain: Pick<ReachOutChainDto, "mailbox_choices">,
+  picked: readonly string[],
+  id: string,
+  on: boolean,
+): string[] {
+  const now = (chain.mailbox_choices ?? []).filter((c) => pickedIn(c, picked)).map((c) => c.id);
+  const next = on ? [...new Set([...now, id])] : now.filter((x) => x !== id);
+  return next.length > 0 ? next : now;
+}
+
+/** The mailboxes the draft writes from that send now: what its day is made of while it is being changed. */
+export function leadSendingFactsOf(
+  chain: Pick<ReachOutChainDto, "mailbox_choices" | "mailboxes">,
+  picked: readonly string[],
+): ReachOutMailboxFacts[] {
+  if (!chain.mailbox_choices) return chain.mailboxes;
+  return chain.mailbox_choices.filter((c) => c.sends_now && pickedIn(c, picked)).map((c) => c.facts);
+}
+
+/** Ends with (0077, D10): the name, or the signature of the first mailbox the draft writes from, and what to say. */
+export function leadEndingOf(
+  chain: Pick<ReachOutChainDto, "mailbox_choices">,
+  d: Pick<ReachOutDraft, "mailbox_ids" | "signs_with" | "signed_by" | "owner_sends">,
+): { value: "name" | "mailbox"; options: Array<{ value: "name" | "mailbox"; label: string }>; note: string | null } {
+  const R = LEAD_BUILD_WORDS.runs;
+  const first = d.owner_sends ? null : chainFirstSender(chain, d.mailbox_ids);
+  const signature = first?.signature ?? null;
+  const value = d.signs_with === "mailbox" && signature ? "mailbox" : "name";
+  const options: Array<{ value: "name" | "mailbox"; label: string }> = [
+    { value: "name", label: R.endsName(d.signed_by) },
+  ];
+  if (first && signature) options.push({ value: "mailbox", label: R.endsSignature(first.address) });
+  const note =
+    value === "mailbox" && signature?.has_link
+      ? R.signatureHasLink
+      : value === "name" && !d.signed_by.trim()
+        ? R.noName
+        : null;
+  return { value, options, note };
 }

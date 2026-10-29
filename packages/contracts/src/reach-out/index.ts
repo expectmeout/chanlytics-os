@@ -33,6 +33,7 @@ export type { ToSendCount, ToSendRowVM, ToSendRunLike } from "./reach-out-approv
 export { BOOKED_SEEN_CAP, bookedSeenOf } from "./reach-out-booked";
 export type { BookedSeen } from "./reach-out-booked";
 export {
+  chainFirstSender,
   previewLinesOf,
   previewRefusedWords,
   REACH_OUT_FIRST_WORDS,
@@ -68,6 +69,7 @@ export type {
   ReachOutDecision,
   ReachOutDraftedSend,
   ReachOutHeldSend,
+  ReachOutMailboxChoice,
   ReachOutMailboxFacts,
   ReachOutNextFacts,
   ReachOutPeopleCountsDto,
@@ -211,6 +213,8 @@ export type {
 } from "./reach-out-reply-words";
 export {
   chainOfMoment,
+  coldEndingOf,
+  coldSignedOff,
   draftRefusalOf,
   isReachOutRun,
   isWaitRefusal,
@@ -220,13 +224,14 @@ export {
   REACH_OUT_DRAFTS_PER_DAY,
   REACH_OUT_LANGUAGE,
   REACH_OUT_MONTH_EMAILS,
+  REACH_OUT_SIGNS_WITH,
   reachOutEmailOf,
   reachOutExampleLead,
   reachOutExampleValues,
   reachOutRootOf,
 } from "./reach-out-rules";
 export { REACH_OUT_CHECKS_PER_DAY } from "./reach-out-rules";
-export type { DraftLeadFacts, OutreachLeadFacts, SlotLead } from "./reach-out-rules";
+export type { ColdEnding, DraftLeadFacts, OutreachLeadFacts, ReachOutSignsWith, SlotLead } from "./reach-out-rules";
 export type { SlotWorkspace } from "./reach-out-rules";
 export { ReachOutChainSchema, ReachOutStepSchema } from "./reach-out-schemas";
 export {

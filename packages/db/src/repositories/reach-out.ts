@@ -324,6 +324,8 @@ export interface SendStanding {
   signedBy: string | null;
   /** Its owner sends its emails, each handed to them as a draft (the root's owner_sends, 00429). */
   ownerSends: boolean;
+  /** How its emails end (the root's signs_with, 00491): its name, or its mailbox's signature. */
+  signsWith: "name" | "mailbox";
 }
 
 export async function sendStanding(db: Db, s: ReachOutSendRow): Promise<SendStanding> {
@@ -331,7 +333,7 @@ export async function sendStanding(db: Db, s: ReachOutSendRow): Promise<SendStan
     db.from("sequence_batches").select("state").eq("tenant_id", s.tenant_id).eq("id", s.batch_id).maybeSingle(),
     db
       .from("sequence_steps")
-      .select("id, state, template_id, after_step_id, signed_by, owner_sends")
+      .select("id, state, template_id, after_step_id, signed_by, owner_sends, signs_with")
       .eq("tenant_id", s.tenant_id)
       .in("id", [s.step_id ?? s.sequence_id, s.sequence_id]),
   ]);
@@ -346,6 +348,7 @@ export async function sendStanding(db: Db, s: ReachOutSendRow): Promise<SendStan
     root: (chain.data ?? []).find((p) => p.id === s.sequence_id)?.state ?? null,
     signedBy: (chain.data ?? []).find((p) => p.id === s.sequence_id)?.signed_by ?? null,
     ownerSends: (chain.data ?? []).find((p) => p.id === s.sequence_id)?.owner_sends === true,
+    signsWith: (chain.data ?? []).find((p) => p.id === s.sequence_id)?.signs_with === "mailbox" ? "mailbox" : "name",
   };
 }
 

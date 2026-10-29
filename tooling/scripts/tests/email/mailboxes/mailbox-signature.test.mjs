@@ -185,3 +185,25 @@ test("read when it is due (never yet, or a day on), kept cleaned; a read that fa
     refused.restore();
   }
 });
+
+test("a signature laid out in a table, or in spans set as blocks, reads line by line (0077: they ran together)", () => {
+  // A signature generator's table: one line a row, and the logo's cell beside the words.
+  const rows =
+    '<table><tbody><tr><td><img src="https://example.com/logo.png"></td><td><table><tr><td>Sam Reyes</td></tr>' +
+    '<tr><td>Founder, Harbor Moving Co</td></tr><tr><td><a href="https://example.com">example.com</a></td></tr>' +
+    "</table></td></tr></tbody></table>";
+  assert.equal(gmailSignatureWords(rows), "Sam Reyes\nFounder, Harbor Moving Co\nexample.com");
+  // One cell of spans, each set as a block: what Gmail draws as four lines.
+  const spans =
+    '<table><tr><td><span style="display:block;font-weight:bold">Sam Reyes</span>' +
+    '<span style="display: block">Founder, Harbor Moving Co</span>' +
+    '<span style="display:block"><a href="https://example.com">example.com</a>&nbsp; | &nbsp;sam@example.com</span>' +
+    '<span style="DISPLAY:BLOCK">410 Baylor St, Austin, TX</span></td></tr></table>';
+  assert.equal(
+    gmailSignatureWords(spans),
+    // The &nbsp; around the bar stay what they are: the email is plain text, and they hold its spacing.
+    "Sam Reyes\nFounder, Harbor Moving Co\nexample.com  |  sam@example.com\n410 Baylor St, Austin, TX",
+  );
+  // Words set inline stay on their line.
+  assert.equal(gmailSignatureWords("<div>Sam <b>Reyes</b>, <i>Founder</i></div>"), "Sam Reyes, Founder");
+});

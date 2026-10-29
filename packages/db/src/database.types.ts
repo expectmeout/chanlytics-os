@@ -6608,6 +6608,7 @@ export type Database = {
           run_hour: number
           sequence_id: string
           signed_by: string | null
+          signs_with: string
           source_search_id: string | null
           state: string
           template_id: string | null
@@ -6652,6 +6653,7 @@ export type Database = {
           run_hour?: number
           sequence_id: string
           signed_by?: string | null
+          signs_with?: string
           source_search_id?: string | null
           state?: string
           template_id?: string | null
@@ -6696,6 +6698,7 @@ export type Database = {
           run_hour?: number
           sequence_id?: string
           signed_by?: string | null
+          signs_with?: string
           source_search_id?: string | null
           state?: string
           template_id?: string | null

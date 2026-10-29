@@ -2,6 +2,8 @@ import "server-only";
 import {
   AppError,
   SEQUENCE_TEST_WORDS as W,
+  coldEndingOf,
+  chainFirstSender,
   leadStepTestMail,
   parseParamSpecs,
   parseTenantConfig,
@@ -68,6 +70,14 @@ async function leadMailOf(ctx: RouteContext, seq: Sequence, stepId: string, lead
     thread: chain.steps.find((s) => s.n === 0)?.subject ?? null,
     lead: lead ?? reachOutExampleLead(),
     workspace: { businessName: business.name, yourName: chain.signed_by, bookingLink: business.bookingLink },
+    // How it ends, as the send ends it (0077): from the first mailbox the sequence writes from.
+    ending: coldEndingOf({
+      signsWith: chain.signs_with ?? "name",
+      signedBy: chain.signed_by,
+      signature: chainFirstSender(chain)?.signature?.words ?? null,
+      first: step.n === 0,
+      body: step.body,
+    }),
   });
   if ("why" in mail) throw new AppError("validation", mail.why, 422);
   return mail;

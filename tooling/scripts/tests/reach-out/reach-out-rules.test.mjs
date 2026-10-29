@@ -4,6 +4,8 @@ import {
   outreachRefusalOf,
   OUTREACH_WAIT_REFUSALS,
   isWaitRefusal,
+  coldEndingOf,
+  coldSignedOff,
   reachOutEmailOf,
   REACH_OUT_MONTH_EMAILS,
 } from "@chanlytics/contracts";
@@ -99,4 +101,32 @@ test("all six slots: the lead's two, the workspace's three, and the send's own o
     ok: false,
     reason: "missing_value",
   });
+});
+
+test("a cold email ends as its sequence says: its name, or its mailbox's signature, never a link in a first email (0077)", () => {
+  const plain = "Sam Reyes\nHarbor Moving Co";
+  const linked = "Sam Reyes\nHarbor Moving Co\nwww.example.com | 410 Baylor St";
+  const ending = (o) =>
+    coldEndingOf({ signsWith: "name", signedBy: "Sam", signature: plain, first: true, body: "Hi.", ...o });
+  // The name, the default: the mailbox's signature is left off.
+  assert.deepEqual(ending({}), { signOff: "Sam", signature: null });
+  // The mailbox's signature, when chosen, and then no name of the sequence's own.
+  assert.deepEqual(ending({ signsWith: "mailbox" }), { signOff: null, signature: plain });
+  // A first email never carries a link, so a signature with one gives way to the name; a follow-up keeps it.
+  assert.deepEqual(ending({ signsWith: "mailbox", signature: linked }), { signOff: "Sam", signature: null });
+  assert.deepEqual(ending({ signsWith: "mailbox", signature: linked, first: false }), {
+    signOff: null,
+    signature: linked,
+  });
+  // A mailbox that signs with nothing ends with the name.
+  assert.deepEqual(ending({ signsWith: "mailbox", signature: "  " }), { signOff: "Sam", signature: null });
+  assert.deepEqual(ending({ signsWith: "mailbox", signature: null }), { signOff: "Sam", signature: null });
+  // Words whose last line is the name already are not signed twice, in any case or spacing.
+  assert.deepEqual(ending({ body: "Hi.\n\n{{ Your  Name }}\n" }), { signOff: null, signature: null });
+  assert.deepEqual(ending({ body: "Thanks, {{your name}}, for reading." }), { signOff: "Sam", signature: null });
+  // No name to sign with: nothing is added.
+  assert.deepEqual(ending({ signedBy: "  " }), { signOff: null, signature: null });
+  // The name goes under the words, a blank line between.
+  assert.equal(coldSignedOff("Would it be worth a look?\n", "Sam"), "Would it be worth a look?\n\nSam");
+  assert.equal(coldSignedOff("Would it be worth a look?", null), "Would it be worth a look?");
 });

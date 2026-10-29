@@ -23166,6 +23166,8 @@ declare
   v_signed   text := nullif(btrim(coalesce(p_chain->>'signed_by', '')), '');
   v_unconf   boolean := coalesce((p_chain->>'include_unconfirmed')::boolean, false);
   v_owner    boolean := coalesce((p_chain->>'owner_sends')::boolean, false);
+  -- How its emails end (00491, decision 0077): only a body that names it changes it.
+  v_signs    text := case p_chain->>'signs_with' when 'mailbox' then 'mailbox' when 'name' then 'name' end;
   v_mailboxes uuid[] := coalesce(
                array(select x::uuid from jsonb_array_elements_text(coalesce(p_chain->'mailbox_ids', '[]'::jsonb)) x), '{}');
   v_steps    jsonb := coalesce(p_chain->'steps', '[]'::jsonb);
@@ -23296,7 +23298,7 @@ begin
       insert into public.sequence_steps (id, tenant_id, kind, name, trigger, policy_class, lead_search_id, after_step_id,
                                     after_days, gap_minutes, mailbox_ids, owner_sends, signed_by, include_unconfirmed,
                                     template_id, template_name, template_language, hand, params, run_hour, cap_per_run,
-                                    state, created_by)
+                                    state, created_by, signs_with)
       values (v_id, p_tenant_id, 'reach_out',
               case when v_i = 0 then v_name else left(v_name, 80 - char_length(v_label) - 3) || ' · ' || v_label end,
               case when v_i = 0 then 'lead_first' else 'after_step' end, 'outreach',
@@ -23306,7 +23308,7 @@ begin
               case when v_hand is null then v_template end,
               case when v_hand is null then 'reach_out_' || replace(v_id::text, '-', '') end,
               case when v_hand is null then 'en' end,
-              v_hand, '[]'::jsonb, 9, 200, 'running', p_user_id);
+              v_hand, '[]'::jsonb, 9, 200, 'running', p_user_id, coalesce(v_signs, 'name'));
     else
       select template_id, hand into v_template, v_was_hand from public.sequence_steps where id = v_id;
       -- A step keeps what it is once it has run: an email that wrote, or a hand that handed, is itself for good.
@@ -23351,6 +23353,7 @@ begin
              owner_sends = v_i = 0 and v_owner,
              after_days = case when v_i > 0 then (v_step->>'after_days')::int end,
              signed_by = case when v_i = 0 then v_signed end,
+             signs_with = case when v_i = 0 then coalesce(v_signs, signs_with) else 'name' end,
              include_unconfirmed = v_i = 0 and v_unconf
        where id = v_id;
     end if;
@@ -26678,12 +26681,18 @@ begin
       raise exception 'Sequence not found.' using errcode = 'P0002';
     end if;
   else
-    -- Sent from the workspace's connected mailboxes; with none, or where New said so, handed to the owner to send from
-    -- their own inbox (00465).
+    -- Sent from the workspace's connected mailboxes whose SPF and DKIM are not missing (00491, decision 0077), else from
+    -- every connected one; with none, or where New said so, handed to the owner to send from their own inbox (00465).
     select coalesce(array_agg(c.id order by c.created_at), '{}') into v_boxes
-      from public.mailbox_connections c where c.tenant_id = p_tenant_id and c.state = 'connected';
+      from public.mailbox_connections c
+     where c.tenant_id = p_tenant_id and c.state = 'connected'
+       and coalesce(c.dns->>'spf', '') <> 'missing' and coalesce(c.dns->>'dkim', '') <> 'missing';
+    if cardinality(v_boxes) = 0 then
+      select coalesce(array_agg(c.id order by c.created_at), '{}') into v_boxes
+        from public.mailbox_connections c where c.tenant_id = p_tenant_id and c.state = 'connected';
+    end if;
     v_chain := jsonb_build_object(
-      'gap_minutes', 12,
+      'gap_minutes', 20,
       'mailbox_ids', to_jsonb(v_boxes),
       'owner_sends', cardinality(v_boxes) = 0 or coalesce((p_first->>'owner_sends')::boolean, false),
       'steps', case when jsonb_typeof(p_first->'steps') = 'array' and jsonb_array_length(p_first->'steps') > 0
@@ -35559,6 +35568,7 @@ CREATE TABLE public.sequence_steps (
     next_params jsonb,
     source_search_id uuid,
     words_ok_at timestamp with time zone,
+    signs_with text DEFAULT 'name'::text NOT NULL,
     CONSTRAINT sequence_steps_cadence_days_check CHECK (((cadence_days >= 1) AND (cadence_days <= 90))),
     CONSTRAINT sequence_steps_cap_per_run_check CHECK (((cap_per_run >= 1) AND (cap_per_run <= 500))),
     CONSTRAINT sequence_steps_channels_check CHECK (((channels <@ ARRAY['whatsapp'::text, 'sms'::text, 'email'::text]) AND ((cardinality(channels) >= 1) AND (cardinality(channels) <= 3)) AND (cardinality(channels) = ((((channels @> ARRAY['whatsapp'::text]))::integer + ((channels @> ARRAY['sms'::text]))::integer) + ((channels @> ARRAY['email'::text]))::integer)))),
@@ -35589,6 +35599,7 @@ CASE kind
         ELSE ((after_step_id IS NULL) AND (after_days IS NULL))
     END), false)
 END),
+    CONSTRAINT sequence_steps_signs_with_shape CHECK ((signs_with = ANY (ARRAY['name'::text, 'mailbox'::text]))),
     CONSTRAINT sequence_steps_source_is_a_lead_first_step CHECK (((source_search_id IS NULL) OR ((kind = 'reach_out'::text) AND (trigger = 'lead_first'::text)))),
     CONSTRAINT sequence_steps_state_check CHECK ((state = ANY (ARRAY['running'::text, 'paused'::text]))),
     CONSTRAINT sequence_steps_template_or_hand CHECK (
@@ -35696,6 +35707,13 @@ COMMENT ON COLUMN public.sequence_steps.source_search_id IS 'A sequence to leads
 --
 
 COMMENT ON COLUMN public.sequence_steps.words_ok_at IS 'When a person last let a batch of this step''s words go (0064): approved it, or ran it now. Null while its words are new to the owner: at its making, after its message or slots change, after its message''s words change on any channel. A batch of a step whose words are new waits for an OK.';
+
+
+--
+-- Name: COLUMN sequence_steps.signs_with; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequence_steps.signs_with IS 'How a sequence to leads ends its emails (00491, decision 0077), read on its first step: ''name'', its Signed line (signed_by) under the words, unless their last line names it; ''mailbox'', its mailbox''s own signature, except on a first email when that signature carries a link, which then ends with the name. Written by reach_out_save; members have no grant on it.';
 
 
 --

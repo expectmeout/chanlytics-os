@@ -1,9 +1,10 @@
 /**
  * How it runs (the lead-to-sequence canvas's board B: one sheet, saved as you change it): who joins (unconfirmed addresses
  * too, with how many that holds now; new ready leads from the search they came from, on their own) and how it sends
- * (where from, the most a day, what happens before each batch: its own mode, decision 0064, held for a stop or asked for,
- * the name it signs with, the footer every email carries). Each change is the chain's own save (use-chain.ts), the
- * auto-add switch at once, and the mode the campaign's own verb (playbook_change), with its receipt and undo.
+ * (where from, and the mailboxes ticked under it, decision 0077; the most a day; every batch of first emails waiting for
+ * an OK, and the follow-ups' own mode, decision 0064; the name it signs with and what its emails end with; the footer
+ * every email carries). Each change is the chain's own save (use-chain.ts), the auto-add switch at once, and the mode
+ * the campaign's own verb (playbook_change), with its receipt and undo.
  */
 import { useEffect, useState, type ReactNode } from "react";
 import {
@@ -14,7 +15,11 @@ import {
   chainPaceOf,
   emailFoot,
   evidenceWords,
+  leadEndingOf,
+  leadMailboxesTicked,
+  leadMailboxRowsOf,
   leadPaceChoicesOf,
+  leadSendingFactsOf,
   SEQUENCE_MODE_WORDS,
   sequenceModesFor,
   whyFrom,
@@ -38,9 +43,9 @@ import type { LeadChain } from "./use-chain";
 const R = LEAD_BUILD_WORDS.runs;
 
 /** One row of the sheet: what it is (and the line under), and its control or value at its end. */
-function RunsRow(p: { k: string; sub?: string | null; end: ReactNode; testid: string }) {
+function RunsRow(p: { k: string; sub?: ReactNode; end: ReactNode; testid: string; className?: string }) {
   return (
-    <div className="ld-runs-row" data-testid={p.testid}>
+    <div className={p.className ? `ld-runs-row ${p.className}` : "ld-runs-row"} data-testid={p.testid}>
       <span className="ld-runs-k">
         <span>{p.k}</span>
         {p.sub ? <span className="ld-runs-sub">{p.sub}</span> : null}
@@ -145,46 +150,137 @@ function WhoJoins({ rec, lc }: { rec: SequenceRecordDto; lc: LeadChain }) {
 }
 
 /**
- * Before each batch (decision 0064): the sequence's own mode, held for a stop or asked for, never sent on its own to
- * leads, changed by the campaign's own verb (playbook_change) with its receipt and undo; a batch of new words asks first.
+ * Before each batch (decisions 0064 and 0077, D11): every batch of first emails waits for an OK, said as the fact it is;
+ * the follow-ups take the sequence's own mode, held for a stop or asked for, never sent on its own to leads, changed by
+ * the campaign's own verb (playbook_change) with its receipt and undo; a batch of new words asks first.
  */
 function BeforeEachBatch({ rec, flash, moved }: { rec: SequenceRecordDto } & Pick<RunsSheetProps, "flash" | "moved">) {
   return (
-    <RunsRow
-      k={R.approves}
-      // What its batches did, then the rule over any mode (decision 0064): the mode is set on what happened.
-      sub={[evidenceWords(rec.evidence), R.newWordsAsk].filter(Boolean).join(". ")}
-      testid="ld-runs-approves"
-      end={
-        <Picker
-          label={R.approves}
-          value={rec.sequence.mode ?? "ask"}
-          onValueChange={(mode) =>
-            void pressed(
-              "playbook_change",
-              // The sequence's mode under the one key the change door reads it from (contracts playbookChangeSpec).
-              { playbook_id: rec.sequence.id, name: rec.sequence.name, sequence_mode: mode },
-              flash,
-              moved,
-            )
-          }
-          groups={[
-            { options: sequenceModesFor("leads").map((m) => ({ value: m, label: SEQUENCE_MODE_WORDS[m].choice })) },
-          ]}
-          chevron={cmChevron()}
-          inline
-          data-testid="ld-runs-approves-pick"
-        />
-      }
-    />
+    <>
+      <RunsRow k={R.firstEmails} end={null} testid="ld-runs-first-emails" />
+      <RunsRow
+        k={R.followUps}
+        // What its batches did, then the rule over any mode (decision 0064): the mode is set on what happened.
+        sub={[evidenceWords(rec.evidence), R.newWordsAsk].filter(Boolean).join(". ")}
+        testid="ld-runs-approves"
+        end={
+          <Picker
+            label={R.followUps}
+            value={rec.sequence.mode ?? "ask"}
+            onValueChange={(mode) =>
+              void pressed(
+                "playbook_change",
+                // The sequence's mode under the one key the change door reads it from (contracts playbookChangeSpec).
+                { playbook_id: rec.sequence.id, name: rec.sequence.name, sequence_mode: mode },
+                flash,
+                moved,
+              )
+            }
+            groups={[
+              {
+                options: sequenceModesFor("leads").map((m) => ({
+                  value: m,
+                  label: m === "veto" || m === "ask" ? R.followUpModes[m] : SEQUENCE_MODE_WORDS[m].choice,
+                })),
+              },
+            ]}
+            chevron={cmChevron()}
+            inline
+            data-testid="ld-runs-approves-pick"
+          />
+        }
+      />
+    </>
   );
 }
 
-/** The most a day: the owner's pile when they send, else the pace the mailboxes keep (contracts leadPaceChoicesOf). */
+/**
+ * The mailboxes it writes from, under Sends from (0077, D4): a tick each, with its day, why it does not send now, the
+ * DNS records it is missing (Set up DNS opens Settings › Connections) and New for one connected since; the last tick
+ * stays, since naming none means every mailbox.
+ */
+function MailboxRows({ lc }: { lc: LeadChain }) {
+  const d = lc.draft;
+  if (d.owner_sends) return null;
+  return leadMailboxRowsOf(lc.chain, d.mailbox_ids).map((r) => (
+    <RunsRow
+      key={r.id}
+      k={r.address}
+      sub={
+        <>
+          {r.sub}
+          {r.dnsMissing ? (
+            <>
+              {" · "}
+              <LinkButton
+                onClick={() => navigate(addressOf({ kind: "channel" }))}
+                {...gate("approve")}
+                data-testid={`ld-runs-mailbox-${r.id}-dns`}
+              >
+                {R.setUpDns}
+              </LinkButton>
+            </>
+          ) : null}
+        </>
+      }
+      className="is-mailbox"
+      testid={`ld-runs-mailbox-${r.id}`}
+      end={
+        <Switch
+          checked={r.on}
+          readOnly={r.locked}
+          onCheckedChange={(on) =>
+            lc.edit((x) => ({ ...x, mailbox_ids: leadMailboxesTicked(lc.chain, x.mailbox_ids, r.id, on) }))
+          }
+          label={r.address}
+          data-testid={`ld-runs-mailbox-${r.id}-switch`}
+        />
+      }
+    />
+  ));
+}
+
+/** Ends with (0077, D10): the name it signs with, or the first ticked mailbox's signature where it has one. */
+function EndsWith({ lc }: { lc: LeadChain }) {
+  const ends = leadEndingOf(lc.chain, lc.draft);
+  return (
+    <>
+      <RunsRow
+        k={R.endsWith}
+        testid="ld-runs-ends"
+        end={
+          ends.options.length > 1 ? (
+            <Picker
+              label={R.endsWith}
+              value={ends.value}
+              onValueChange={(v) => lc.edit((x) => ({ ...x, signs_with: v === "mailbox" ? "mailbox" : "name" }))}
+              groups={[{ options: ends.options }]}
+              chevron={cmChevron()}
+              inline
+              data-testid="ld-runs-ends-pick"
+            />
+          ) : (
+            <span>{ends.options[0]?.label}</span>
+          )
+        }
+      />
+      {ends.note ? (
+        <p className="ld-note ld-runs-note" data-testid="ld-runs-ends-note">
+          {ends.note}
+        </p>
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * The most a day: the owner's pile when they send, else the pace the ticked mailboxes that send now keep, the saved
+ * spacing always one of the choices (contracts leadPaceChoicesOf).
+ */
 function ADay({ lc }: { lc: LeadChain }) {
   const d = lc.draft;
-  const mailboxes = lc.chain.mailboxes;
-  const paces = leadPaceChoicesOf(mailboxes);
+  const mailboxes = leadSendingFactsOf(lc.chain, d.mailbox_ids);
+  const paces = leadPaceChoicesOf(mailboxes, d.gap_minutes);
   const share = chainPaceOf({ mailboxes, owner_sends: d.owner_sends, gap_minutes: d.gap_minutes }).share;
   const fixed = d.owner_sends || paces.length === 0;
   // Saved to send from the mailboxes, with none sending: nothing goes, never "you send each".
@@ -230,7 +326,9 @@ export function LeadRunsSheet({ open, rec, lc, flash, moved, onClose }: RunsShee
   const d = lc.draft;
   const [footer, setFooter] = useState(false);
   const [signing, setSigning] = useState(false);
-  const mailboxes = lc.chain.mailboxes;
+  // Every mailbox on offer, and the ones the draft writes from that send now (0077): a tick changes the second at once.
+  const offered = lc.chain.mailbox_choices?.length ?? lc.chain.mailboxes.length;
+  const sending = leadSendingFactsOf(lc.chain, d.mailbox_ids).length;
   const close = () => {
     void lc.flush();
     onClose();
@@ -239,14 +337,10 @@ export function LeadRunsSheet({ open, rec, lc, flash, moved, onClose }: RunsShee
   // with none sending (the note under it says nothing goes), never shown as the inbox they are not.
   const sendsFrom = [
     { value: "inbox", label: R.inbox },
-    ...(mailboxes.length > 0 || !d.owner_sends ? [{ value: "mailboxes", label: R.mailboxes(mailboxes.length) }] : []),
+    ...(offered > 0 || !d.owner_sends ? [{ value: "mailboxes", label: R.mailboxes(offered) }] : []),
   ];
   const fromNote =
-    !d.owner_sends && mailboxes.length === 0
-      ? R.noneSends
-      : d.owner_sends && mailboxes.length > 0
-        ? R.canSwitch(mailboxes.length)
-        : null;
+    !d.owner_sends && sending === 0 ? R.noneSends : d.owner_sends && offered > 0 ? R.canSwitch(offered) : null;
   return (
     <Sheet
       open={open}
@@ -271,6 +365,11 @@ export function LeadRunsSheet({ open, rec, lc, flash, moved, onClose }: RunsShee
         <div className="ld-runs-box">
           <RunsRow
             k={R.sendsFrom}
+            sub={
+              !d.owner_sends && d.mailbox_ids.length === 0 && (lc.chain.mailbox_choices?.length ?? 0) > 0 ? (
+                <span data-testid="ld-runs-every-mailbox">{R.everyMailbox}</span>
+              ) : null
+            }
             testid="ld-runs-from"
             end={
               <Picker
@@ -289,6 +388,7 @@ export function LeadRunsSheet({ open, rec, lc, flash, moved, onClose }: RunsShee
               {fromNote}
             </p>
           ) : null}
+          <MailboxRows lc={lc} />
           <ADay lc={lc} />
           <BeforeEachBatch rec={rec} flash={flash} moved={moved} />
           <RunsRow
@@ -317,6 +417,7 @@ export function LeadRunsSheet({ open, rec, lc, flash, moved, onClose }: RunsShee
               />
             </div>
           ) : null}
+          <EndsWith lc={lc} />
           <RunsRow
             k={R.footer}
             testid="ld-runs-footer"
@@ -333,7 +434,7 @@ export function LeadRunsSheet({ open, rec, lc, flash, moved, onClose }: RunsShee
           {footer ? <FooterLines /> : null}
         </div>
       </section>
-      {mailboxes.length === 0 ? (
+      {offered === 0 ? (
         <p className="ld-note">
           <LinkButton onClick={() => navigate(addressOf({ kind: "channel" }))} {...gate("approve")}>
             {R.connect}

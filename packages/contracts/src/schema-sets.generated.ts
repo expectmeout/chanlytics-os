@@ -209,6 +209,7 @@ export const SCHEMA_SETS = {
   ],
   "sequence_steps.kind": ["moment", "reach_out"],
   "sequence_steps.policy_class": ["reengage", "campaign", "booking", "follow_up", "outreach"],
+  "sequence_steps.signs_with": ["name", "mailbox"],
   "sequence_steps.state": ["running", "paused"],
   "sequence_steps.trigger": [
     "quiet_30", "new_week", "phoned_only", "everyone_monthly", "visit_tomorrow", "visited", "lapsed",

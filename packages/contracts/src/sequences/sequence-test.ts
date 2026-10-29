@@ -17,10 +17,12 @@ import { messageAboutOfClass } from "./follow-up";
 import { emailFoot } from "../templates/email-foot";
 import { whyFrom } from "../reach-out/reach-out";
 import {
+  coldSignedOff,
   REACH_OUT_LANGUAGE,
   REACH_OUT_OPENING_MARK,
   REACH_OUT_VALUE_MARKS,
   reachOutCardEmailOf,
+  type ColdEnding,
   type SlotLead,
   type SlotWorkspace,
 } from "../reach-out/reach-out-rules";
@@ -162,6 +164,8 @@ export function leadStepTestMail(o: {
   thread: string | null;
   lead: SlotLead;
   workspace: SlotWorkspace;
+  /** How it ends under the words, as the send ends it (0077, contracts coldEndingOf); none: the words as they are. */
+  ending?: ColdEnding;
 }): StepTestMail | { why: string } {
   const W = SEQUENCE_TEST_WORDS;
   if (!o.words.body.trim()) return { why: W.notWritten };
@@ -200,7 +204,15 @@ export function leadStepTestMail(o: {
     : null;
   return {
     subject: W.subject(subject).slice(0, SEQUENCE_TEST_LIMITS.subject),
-    text: [W.leadHead(o.business, name), holes, W.subjectLine(subject), plain(email.body), foot, `—\n${W.foot}`]
+    text: [
+      W.leadHead(o.business, name),
+      holes,
+      W.subjectLine(subject),
+      plain(coldSignedOff(email.body, o.ending?.signOff ?? null)),
+      o.ending?.signature ?? null,
+      foot,
+      `—\n${W.foot}`,
+    ]
       .filter((s): s is string => !!s)
       .join("\n\n\n")
       .slice(0, SEQUENCE_TEST_LIMITS.text),
