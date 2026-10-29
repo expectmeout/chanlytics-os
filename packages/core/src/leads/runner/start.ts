@@ -70,6 +70,20 @@ async function runsToStart(
   return { wanted, untried };
 }
 
+/**
+ * A start with no run to make. Where every term it would ask of had no room (runCaps: less left than one run's floor),
+ * nothing can start, so the round ends on the word for it, as one with nothing left does, never left queued for the
+ * sweep to call the source failed (29 Oct 2026: five leads reserved $0.33 and waited an hour). Otherwise it is said as
+ * started, with the terms it did not start.
+ */
+async function nothingToStart(p: LeadPorts, roundId: string, phase: Phase, untried: TermSaid[]): Promise<StartOutcome> {
+  if (untried.length > 0 && untried.every((t) => t.kind === "no_room")) {
+    await p.db.roundEnd(roundId, "budget_used");
+    return { kind: "spent" };
+  }
+  return { kind: "started", phase, runs: untried };
+}
+
 export async function startRound(p: LeadPorts, roundId: string, owner: string, resume = false): Promise<StartOutcome> {
   const round = await p.db.round(roundId);
   if (!round || round.state === "ended") return { kind: "not_open" };
@@ -113,7 +127,7 @@ export async function startRound(p: LeadPorts, roundId: string, owner: string, r
     ask = mainAsk(plan, targetOf(round) - counted, y, dropTerm);
   }
   const { wanted, untried } = await runsToStart(p, round.id, phase, ask, runCaps(plan, ask.perTerm, leftUsd));
-  if (!wanted.length) return { kind: "started", phase, runs: untried };
+  if (!wanted.length) return nothingToStart(p, round.id, phase, untried);
   const rows = await p.db.runsEnsure(
     wanted.map((w) => ({
       id: w.id,
