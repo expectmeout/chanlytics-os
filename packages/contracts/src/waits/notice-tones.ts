@@ -1,7 +1,7 @@
 /**
  * Good news in its own tone, and a warning in a warning's (the wiring's second audit, R11 S6-9).
  *
- * A kept row's look is by its kind (today/notifications.ts SERVER_LOOK), and three kinds carry good news and bad alike:
+ * A kept row's look is by its kind (today/notifications.ts SERVER_LOOK), and some kinds carry good news and bad alike:
  * `number` ("Texting is on", "Your phone line is ready" beside "WhatsApp quality rating flagged"), `billing` ("Your
  * receptionist is back", "Your trial has started" beside "A payment did not go through") and `sweep`. Each was drawn in
  * the warning's amber with its icon, and Today's While you were away sorts amber first, so good news outranked real
@@ -37,6 +37,13 @@ const LISTED: readonly ToneOf[] = [
   // The carriers' refusals of a texting registration (channels a2p verdict.ts), kept as alerts: warnings.
   { kind: "alert", title: /^The carriers sent your texting registration back$/u, tone: "warn" },
   { kind: "alert", title: /^Your texting registration stopped$/u, tone: "warn" },
+  // A search whose source failed (lead_rounds_notify, 00491): the one notice of a search that stopped, a warning under a
+  // kind that is otherwise good news.
+  {
+    kind: "leads_ready",
+    title: /^Your search for .+ (?:stopped: the source stopped answering|didn't run: the source couldn't start it)$/u,
+    tone: "warn",
+  },
 ];
 
 /** Every row that mends a warning (NOTICE_MENDS): good news by that fact. */

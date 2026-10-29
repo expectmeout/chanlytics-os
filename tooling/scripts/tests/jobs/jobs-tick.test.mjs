@@ -412,6 +412,33 @@ test("a change's delivery that fails for good is the platform's: the operator is
   assert.deepEqual(down.calls.alert, []);
 });
 
+test("a search's collect that fails for good rings no bell: its search tells the owner when it ends, and the platform is paged", async () => {
+  // 29 Oct 2026: one stalled search left "16 jobs did not finish" on Today, fourteen of them "A search stopped partway ·
+  // will not start again on its own", each pushed to the owner's phone, while the sweep started another collect every five
+  // minutes. The sweep ends a run whose collects keep failing (lead-sweep.ts GIVE_UP_FAILED_COLLECTS), and the round's own
+  // notice says the search stopped (00491).
+  const collect = (id, attempts) => ({ ...job(id, "lead_collect", attempts), payload: { run_id: "r-1", seq: "p9" } });
+  const { ports, calls, logged } = fakes([collect("c", MAX_ATTEMPTS)], { throwOn: new Set(["c"]) });
+  const counts = await runTick(ports, OPTS);
+  assert.deepEqual(calls.fail, [["c", "boom c"]], "the last try fails the row: the sweep counts it toward giving up");
+  assert.deepEqual(calls.alert, [], "no notice of its own: the search says how it ended, once");
+  assert.equal(calls.page.length, 1);
+  assert.equal(calls.page[0].key, "lead_collect_failed:t1", "one condition per workspace, paged once per window");
+  assert.equal(calls.page[0].subject, "A lead search's collect failed for good");
+  assert.match(calls.page[0].body, /^Collect p9 of lead run r-1 failed for good in workspace t1: boom c\./);
+  assert.match(calls.page[0].body, /from jobs where kind = 'lead_collect' and state = 'failed'/, "and where to look");
+  assert.match(calls.page[0].body, /Reference: job c \(lead_collect\)\.$/);
+  assert.equal(calls.page[0].tenantId, "t1");
+  assert.ok(logged("info", "job_failed"), "the failure is said in the log");
+  assert.equal(counts.failed, 1);
+
+  // A first throw waits its retry (RETRY_WAITS_MS), and nobody is told anything.
+  const first = fakes([collect("f", 1)], { throwOn: new Set(["f"]) });
+  await runTick(first.ports, OPTS);
+  assert.deepEqual([first.calls.fail, first.calls.page, first.calls.alert], [[], [], []]);
+  assert.equal(first.calls.defer.length, 1);
+});
+
 test("a kind this runner does not know is kept for the runner that will, its claim given back, not failed", async () => {
   // A newer deploy wrote it (its kind arrived with its handler, caller and CHECK) and this edge is the older one: it
   // waits five minutes and is looked at again, so the edge and the database may deploy in either order.

@@ -492,6 +492,7 @@
     "00487_a_mailbox_signs_with_its_gmail_signature.sql": "17550a35a2ec9b63f85822b7dab9a4e3ece4684591133a7035d64aecfa048885",
     "00488_a_website_s_form_brings_its_person.sql": "2f0919010befd89d2b33827cf53fad8779fbdda73019c161ded7202e00ca1547",
     "00489_a_website_s_signup_is_confirmed_by_its_person.sql": "6effc0f0689dc8fdb408a7fca1f4a9b2d7c21b39aa6569aa4083be6393a91ac5",
-    "00490_a_business_s_look_is_read_from_its_site.sql": "ad61c2ef0a103636ffe705ac0ce7f2d15a1a0a6ac9d08b6f6650fd4e448a8e11"
+    "00490_a_business_s_look_is_read_from_its_site.sql": "ad61c2ef0a103636ffe705ac0ce7f2d15a1a0a6ac9d08b6f6650fd4e448a8e11",
+    "00491_a_search_whose_source_failed_says_it_stopped.sql": "5325fa99a50dc5e0c8344d99df8eccf5da2ea186dd075e2268c98f2fc5398366"
   }
 }
