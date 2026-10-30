@@ -6,43 +6,23 @@ import {
   chainFirstSender,
   leadStepTestMail,
   parseParamSpecs,
-  parseTenantConfig,
   previewVersionsOf,
   reachOutExampleLead,
   stepTestMail,
 } from "@chanlytics/contracts";
 import { leadSlotsOf, messageVersionRowsOf, sequenceOverview } from "@chanlytics/db";
-import { chainsOf } from "../campaigns/reach-outs";
+import { businessOf, chainsOf } from "../campaigns/reach-outs";
 import { deployment } from "../env";
 import { callEdge, edgeConfigured } from "../edge";
 import { log } from "../log";
 import { requireUuid } from "../request-guards";
-import { tenantFacts } from "../tenant";
 import type { RouteContext } from "../with-route";
-import { storedConfigOf } from "../workspace/config-row";
 import { stepOfSequence } from "./doors";
 
 /** A test waits this long for the edge to say it went: one mail through the provider, whose own bound is ten seconds. */
 const TEST_TIMEOUT_MS = 12_000;
 
 type Sequence = { id: string; tenant_id: string; name: string; starts: string };
-
-/** The business a test names, the postal address an email's foot gives, and its booking link, as a send reads them. */
-async function businessOf(
-  ctx: RouteContext,
-  tenantId: string,
-): Promise<{ name: string; address: string | null; bookingLink: string | null }> {
-  const [facts, stored] = await Promise.all([
-    tenantFacts(ctx.supabase, tenantId),
-    storedConfigOf(ctx.supabase, tenantId),
-  ]);
-  const brain = parseTenantConfig(stored ?? null)?.brain;
-  return {
-    name: brain?.business_name || facts.name || "your business",
-    address: brain?.profile?.address?.trim() || null,
-    bookingLink: brain?.booking_link?.trim() || null,
-  };
-}
 
 /**
  * The test mail of a lead's step (the lead-to-sequence canvas's Preview as a real lead): its words as the chain holds them,

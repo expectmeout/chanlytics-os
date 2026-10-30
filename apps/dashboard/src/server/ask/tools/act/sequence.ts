@@ -494,7 +494,7 @@ async function hasMailbox(t: ToolContext): Promise<boolean> {
  * that fails is none (30 Oct 2026: Ask made a sequence no one signed, whose sends ended unsigned or were held).
  */
 async function signerOf(t: ToolContext): Promise<string | null> {
-  const names = await journalMemberNames(t.ctx.supabase, [t.ctx.userId]).catch(() => ({}) as Record<string, string>);
+  const names = await journalMemberNames(t.ctx.supabase, [t.ctx.userId]).catch((): Record<string, string> => ({}));
   return firstNameOf(names[t.ctx.userId] ?? null, null);
 }
 

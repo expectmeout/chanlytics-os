@@ -232,13 +232,27 @@ async function bookingLinkOf(ctx: RouteContext, tenantId: string): Promise<strin
   return (await businessOf(ctx, tenantId)).bookingLink;
 }
 
-/** The workspace's booking link and the address a cold email's foot names, from its one configuration (Business). */
-async function businessOf(
+/**
+ * The business an email names, the postal address its foot gives, and its booking link, as a send reads them: from the
+ * workspace's one configuration (Business), its name from the workspace where the configuration names none. The run
+ * sheet's email and the step's test mail both read it. `workspaceName` is the workspace's own name, which the edge's
+ * send fills {{your business}} and the foot with (sender.ts).
+ */
+export async function businessOf(
   ctx: RouteContext,
   tenantId: string,
-): Promise<{ bookingLink: string | null; address: string | null }> {
-  const brain = parseTenantConfig(await storedConfigOf(ctx.supabase, tenantId))?.brain;
-  return { bookingLink: brain?.booking_link?.trim() || null, address: brain?.profile?.address?.trim() || null };
+): Promise<{ name: string; workspaceName: string; address: string | null; bookingLink: string | null }> {
+  const [facts, stored] = await Promise.all([
+    tenantFacts(ctx.supabase, tenantId),
+    storedConfigOf(ctx.supabase, tenantId),
+  ]);
+  const brain = parseTenantConfig(stored ?? null)?.brain;
+  return {
+    name: brain?.business_name || facts.name || "your business",
+    workspaceName: facts.name,
+    address: brain?.profile?.address?.trim() || null,
+    bookingLink: brain?.booking_link?.trim() || null,
+  };
 }
 
 /** What Start did (R14): the edge's outcome with its reason, or that the edge could not be asked. */
@@ -429,13 +443,12 @@ async function firstEmailOf(
 ): Promise<ReachOutRunDto["first"]> {
   const { lead, step } = p;
   if (!lead || !step?.template_id) return null;
-  const [words, facts, business] = await Promise.all([
+  const [words, business] = await Promise.all([
     emailWordsOf(ctx.supabase, tenantId, step.template_id),
-    tenantFacts(ctx.supabase, tenantId),
     businessOf(ctx, tenantId),
   ]);
   if (!words) return null;
-  const slots = { businessName: facts.name, yourName: p.signedBy, bookingLink: business.bookingLink };
+  const slots = { businessName: business.workspaceName, yourName: p.signedBy, bookingLink: business.bookingLink };
   // A company's addressee fills the person slots (00430), as the send fills them.
   const leadSlots = {
     business_name: lead.lead?.business_name ?? null,
@@ -470,7 +483,7 @@ async function firstEmailOf(
     opening: lead.opening,
     angle: lead.angle,
     signature: ending.signature,
-    foot: coldFootOf(facts.name, business.address, lead.lead?.source ?? null),
+    foot: coldFootOf(business.workspaceName, business.address, lead.lead?.source ?? null),
   };
 }
 
