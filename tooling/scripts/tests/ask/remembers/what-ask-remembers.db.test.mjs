@@ -173,6 +173,22 @@ test(
     assert.ok(row.forgotten_at, "forgotten, not deleted");
     assert.equal(row.forgotten_by, as.operator.id);
 
+    // A line Ask read from how the owner writes says so (00493, decision 0078); a source of no one's is refused.
+    const learned = ok(
+      await memory("owner", "keep", {
+        p: { p_text: "In cold emails: short, no greeting, signed with a first name.", p_source: "learned" },
+      }),
+      "learned",
+    );
+    const learnedRow = ok(
+      await db.from("ask_memory_lines").select("source").eq("id", learned.memory.id).single(),
+      "learned row",
+    );
+    assert.equal(learnedRow.source, "learned");
+    const unknown = await memory("owner", "keep", { p: { p_text: "A line from nowhere.", p_source: "gmail" } });
+    assert.equal(unknown.error?.code, "22023", "a source the door does not name is refused");
+    ok(await memory("owner", "forget", { p: { p_id: learned.memory.id } }), "forget learned");
+
     // Each act leaves its event, naming the line and never its words.
     for (const kind of ["ask.memory_kept", "ask.memory_changed", "ask.memory_forgotten"]) {
       const rows = await eventsOf(kind);

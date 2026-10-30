@@ -34,6 +34,7 @@ import * as M from "./new-model";
 import { AudienceToggle, CaseNote, ChecksList, ReachLine, SaidLine, WhoCaption, WordPick } from "./new-parts";
 import { DraftRail, OnceMessage, type RailActs } from "./new-rail";
 import { AddStepSheet } from "./add-step";
+import { DraftVoice } from "./new-voice";
 import {
   ChannelsSheet,
   Choice,
@@ -590,7 +591,10 @@ function DraftBody(p: {
           {draft.kind === "once" ? (
             <OnceMessage draft={draft} acts={p.rail} />
           ) : (
-            <DraftRail draft={draft} acts={p.rail} />
+            <>
+              <DraftRail draft={draft} acts={p.rail} />
+              <DraftVoice draft={draft} again={() => acts.redraft({})} />
+            </>
           )}
           {!draft.said ? (
             <p className="sq-nw-note">

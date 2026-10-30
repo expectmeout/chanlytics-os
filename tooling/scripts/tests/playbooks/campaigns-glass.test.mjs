@@ -12,6 +12,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { until } from "../shared/_until.mjs";
 import * as contracts from "@chanlytics/contracts";
 import {
   installLegacyReact,
@@ -309,4 +310,74 @@ test("paused for billing, nothing sends: the card says so first, a one-off's Sen
   ({ tree } = open(ONCE));
   assert.equal(byTestId(tree, "sq-nw-paused"), null);
   assert.equal(hostOf(paneFoot(byTestId(tree, "sq-new")), "sq-nw-send-now").props.disabled, false);
+});
+
+test("a draft to leads says the lines Ask learned from how the owner writes, or offers one paste that drafts again; never to people (decision 0078)", async () => {
+  const leads = {
+    ...M.draftByHand("sequence", "leads", "Northside Studio"),
+    said: "Write to the auto shops it found",
+    who: { kind: "search", id: "s-1", label: "Auto shops" },
+  };
+  const V = contracts.VOICE_WORDS;
+
+  // Learned lines: said under the steps, with Memory, and no paste.
+  let { tree } = open({
+    ...leads,
+    voice: ["In cold emails: short, no greeting.", "In cold emails: signs off with a first name."],
+  });
+  assert.equal(
+    textOf(byTestId(tree, "sq-nw-voice")).replace(/\s+/g, " ").trim(),
+    `Written the way you write: short, no greeting · signs off with a first name ${V.memory}`,
+  );
+  assert.equal(byTestId(tree, "sq-nw-voice-paste"), null);
+
+  // None learned: the paste, whose Use waits for a whole email, keeps what Ask reads and has Ask draft again.
+  const redrafted = [];
+  const pasted = [];
+  const { sequenceVerbs } = await import(`${SRC}/surfaces/campaigns/sequences/verbs.ts`);
+  sequenceVerbs.learnVoice = async (text) => {
+    pasted.push(text);
+    return { ok: true, status: 200, data: { lines: ["In cold emails: short, no greeting."], full: false } };
+  };
+  freshTree();
+  const props = (redraft) => ({
+    draft: { ...leads, voice: [] },
+    reads: READS,
+    busy: false,
+    doing: null,
+    redraftingFor: null,
+    leaving: null,
+    acts: { change() {}, redraft, undo() {}, again() {}, discard() {}, make() {}, close() {} },
+  });
+  const draw = () =>
+    again(() =>
+      globalThis.React.createElement(
+        DraftView,
+        props((f) => redrafted.push(f)),
+      ),
+    );
+  draw();
+  tree = draw();
+  assert.ok(byTestId(tree, "sq-nw-voice-paste"), "the paste is offered");
+  assert.equal(byTestId(tree, "sq-nw-voice"), null);
+  assert.equal(hostOf(tree, "sq-nw-voice-use").props.disabled, true, "Use waits for a whole email");
+  const value = "Hey there, saw your shop on Maple. I'm Sam. Worth a quick chat? Cheers, Sam";
+  find(
+    tree,
+    (n) => n.props?.["data-testid"] === "sq-nw-voice-text" && typeof n.props?.onValueChange === "function",
+  ).props.onValueChange(value);
+  tree = draw();
+  assert.equal(hostOf(tree, "sq-nw-voice-use").props.disabled, false);
+  press(hostOf(tree, "sq-nw-voice-use"));
+  await until(() => redrafted.length > 0, "Ask asked to draft again after the paste");
+  tree = draw();
+  assert.deepEqual(pasted, [value]);
+  assert.deepEqual(redrafted, [{}], "Ask drafts again from the same line");
+  assert.equal(textOf(byTestId(tree, "sq-nw-voice-said")), V.kept(1));
+
+  // A draft to people, and one from a server before this, draw neither.
+  ({ tree } = open({ ...ONCE, voice: [] }));
+  assert.equal(byTestId(tree, "sq-nw-voice-paste"), null);
+  ({ tree } = open(leads));
+  assert.equal(byTestId(tree, "sq-nw-voice-paste"), null, "no voice answered: an old server's draft");
 });

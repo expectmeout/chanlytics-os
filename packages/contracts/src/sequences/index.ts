@@ -135,6 +135,7 @@ export {
   reachOutMayInsertStep,
   reachOutPutBackStep,
   reachOutRemoveStep,
+  withOpeningSaid,
 } from "./sequence-lead-build";
 export type {
   LeadBuildPart,
@@ -208,6 +209,16 @@ export type {
 } from "./sequence-tab-words";
 export { leadStepTestMail, SEQUENCE_TEST_LIMITS, SEQUENCE_TEST_WORDS, stepTestMail } from "./sequence-test";
 export type { StepTestMail, StepTestMessage } from "./sequence-test";
+export {
+  VOICE_LINE_LEAD,
+  VOICE_LINES_MAX,
+  VOICE_PASTE_MAX,
+  VOICE_PASTE_MIN,
+  VOICE_WORDS,
+  voiceLineOf,
+  voiceSaid,
+} from "./sequence-voice";
+export type { SequenceVoiceDto } from "./sequence-voice";
 export {
   batchWaitsUntilTonight,
   leadStepStand,

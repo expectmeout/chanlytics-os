@@ -60,6 +60,8 @@ export const sequenceVerbs = {
   /** Where one lead stands (00459 sequence_place): the lead sheet's Sequence section, as the record files them. */
   place: (leadId: string) => places.through(leadId, () => api()("GET leads/[id]/place", { params: { id: leadId } })),
   peekPlace: (leadId: string): PlaceAnswer | null => places.peek(leadId),
+  /** An email the owner wrote, read by Ask into lines on how they write, kept in its memory (decision 0078). */
+  learnVoice: (text: string) => api()("POST sequences/voice", { body: { text }, once: true }),
 };
 
 /**

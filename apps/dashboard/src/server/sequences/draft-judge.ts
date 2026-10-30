@@ -100,6 +100,16 @@ export interface DraftKnown {
   business: string;
   /** What the business is working toward, in its own words (config `ask.goal`): what a sequence to leads offers. */
   goal?: string | null;
+  /** What the business does, in its own words (business_records.about), as the check's writer reads it (0078). */
+  about?: string | null;
+  /** Its services' names, as Business lists them. */
+  services?: string[];
+  /** How it sounds, in its own words (profile.tone), as the receptionist is composed with it. */
+  tone?: string | null;
+  /** Ask's live memory (0070): what a member told it, and what it learned from how the owner writes (0078). */
+  memory?: Array<{ text: string; source: string }>;
+  /** The first emails of the workspace's last started sequences to leads, as the owner left them (0078). */
+  examples?: Array<{ subject: string | null; body: string }>;
   /** The business's day and time now ("YYYY-MM-DDTHH:MM"), which a one-off's moment is set from. */
   localNow: string;
   moments: KnownMoment[];

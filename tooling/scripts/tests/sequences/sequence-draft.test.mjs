@@ -859,3 +859,50 @@ test("an email to leads is the same words for every business: the draft is told 
   assert.match(system, /the same words for every business/);
   assert.match(system, /how busy it is/);
 });
+
+test("the drafter is told what the business says about itself and how its owner writes, all as data, and the draft says the learned lines it wrote with (decision 0078)", async () => {
+  answerWith(
+    answer({ audience: "leads", who: "s1", steps: [step({ subject: "Hi", body: "{{opening}}\n\nWorth a look?" })] }),
+  );
+  const out = await draftFrom(
+    {
+      ...KNOWN,
+      about: "We answer the phone for local shops when nobody can get to it.",
+      services: ["Call answering", "Booking"],
+      tone: "Plain and warm",
+      memory: [
+        { text: "In cold emails: short, no greeting, signed with a first name.", source: "learned" },
+        { text: "Our best customers are independent auto shops.", source: "ask" },
+      ],
+      examples: [{ subject: "Phones at your shop", body: "{{opening}}\n\nI'm Sam. Worth a look?" }],
+    },
+    LINE,
+    { tenantId: "t1", userId: "u1" },
+  );
+  const told = JSON.stringify(calls[0].request.messages);
+  const system = String(calls[0].request.system);
+  assert.match(told, /<record>We answer the phone for local shops when nobody can get to it\.<\/record>/);
+  assert.match(told, /<record>Call answering, Booking<\/record>/);
+  assert.match(told, /<record>Plain and warm<\/record>/);
+  assert.match(told, /<record>In cold emails: short, no greeting, signed with a first name\.<\/record>/);
+  assert.match(told, /<record>Our best customers are independent auto shops\.<\/record>/);
+  assert.match(
+    told,
+    /<record>\\nSubject: Phones at your shop\\n\{\{opening\}\}\\n\\nI'm Sam\. Worth a look\?\\n<\/record>/,
+  );
+  assert.match(system, /in the owner's own voice/);
+  assert.match(system, /never copy a sentence/);
+  assert.match(system, /as the owner's own act/);
+  assert.deepEqual(
+    out.voice,
+    ["In cold emails: short, no greeting, signed with a first name."],
+    "only the learned lines",
+  );
+
+  // A workspace that says nothing of itself is told nothing of it, and its draft wrote with no learned line.
+  answerWith(answer({ steps: [step({ message: "k1" })] }));
+  const bare = await draftFrom(KNOWN, LINE, { tenantId: "t1", userId: "u1" });
+  const toldBare = JSON.stringify(calls[1].request.messages);
+  assert.doesNotMatch(toldBare, /in its own words|Ask remembers|started before/);
+  assert.deepEqual(bare.voice, []);
+});

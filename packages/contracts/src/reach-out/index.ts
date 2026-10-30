@@ -84,6 +84,8 @@ export type {
   ReachOutStepCounts,
   ReachOutStepDto,
 } from "./reach-out-dtos";
+export { leadFactOf } from "./reach-out-facts";
+export type { FactListing } from "./reach-out-facts";
 export { HAND_KINDS, HAND_WORDS_MAX, handOf, handStepWords, personHandWords } from "./reach-out-hand";
 export type { HandKind, StepHand } from "./reach-out-hand";
 export {

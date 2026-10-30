@@ -1070,8 +1070,14 @@ chain end with a call or a note for the team.
   and a lead keeps the one its first email left from for the whole chain, so a nudge answers in that thread.
 - **The check before each send** (Part 4, 00197; `reach-out-check-sweep`, S-09; edge `lib/reach-out/check.ts`). A send is
   claimed only once it is checked (the guard refuses any other). The check writes the opening for a step whose words name
-  `{{opening}}` (Haiku: the writer, then the reader, over the business's record, `reach_out_record`), reads it by code
-  (contracts `checkOpening`, `openingVerdict`), asks one rewrite, then holds; a business whose domain a person in People
+  `{{opening}}`: where the listing's own fields say one (open 24 hours, its closing times, a rating of 4.0 or more from 20
+  reviews or more; contracts `leadFactOf`, decision 0078), code writes it and the reader reads it once; otherwise, or
+  where the reader cannot back it, Haiku writes it (the writer, then the reader, over the business's record,
+  `reach_out_record`); each is read by code (contracts `checkOpening`, `openingVerdict`), a written one asks one rewrite,
+  then holds. Preview as a real lead draws the listing's sentence the same way, in the browser. The drafter (New, Ask's
+  `propose_sequence`) writes the words in the owner's voice: it reads the business's description, services and tone, Ask's
+  memory (a line learned from an email the owner pasted is `learned`, 00493) and the first emails of the last two started
+  sequences to leads (`server/sequences/draft.ts`, `server/sequences/voice.ts`). A business whose domain a person in People
   writes from, or that reads like a chain, is held first. A held send (`held`, with its reason and detail) waits for its
   owner and keeps its run open; fourteen days from its planning it is given up (`kept_waiting`). A send its owner
   included past a hold carries `included_for`: past a business hold (a customer's domain, a chain, a language, abroad)

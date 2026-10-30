@@ -298,7 +298,7 @@ What Ask remembers about the business (decision 0070): a fact a member told it, 
 | `id` | uuid | no | `gen_random_uuid()` |  |
 | `tenant_id` | uuid | no |  |  |
 | `text` | text | no |  |  |
-| `source` | text | no |  |  |
+| `source` | text | no |  | Where the line came from: ask (a member told Ask in a thread and Ask kept it), pane (a member wrote it on Settings › Memory), learned (Ask read it from how the owner writes, at their paste; decision 0078). |
 | `thread_id` | uuid | yes |  |  |
 | `kept_by` | uuid | yes |  |  |
 | `made_at` | timestamp with time zone | no | `now()` |  |

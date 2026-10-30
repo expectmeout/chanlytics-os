@@ -236,6 +236,11 @@ export interface NewDraftDto {
   twin: { id: string; name: string } | null;
   /** What the owner asked that nothing here can do, in a sentence; null when it all fit. */
   cannot: string | null;
+  /**
+   * The lines Ask learned from how the owner writes, which the draft was written with (decision 0078: memory lines of
+   * source `learned`); none where it learned none. Absent from a server before it, and from a draft built by hand.
+   */
+  voice?: string[];
 }
 
 /** What New asks Ask: the line, and any choice already made (a door's, or the owner's in the draft). */
