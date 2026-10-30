@@ -356,6 +356,7 @@ export {
   LEAD_PLACEHOLDER_LOCALS,
   LEAD_PLATFORM_HOSTS,
   LEAD_ROLE_LOCALS,
+  leadCalledByOf,
   leadKindKey,
   siteHost,
   stateCode,

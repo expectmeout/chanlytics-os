@@ -21,6 +21,7 @@ import {
   type OpeningRecord,
 } from "./reach-out-words";
 import { languageBase } from "../templates/template-languages";
+import { leadCalledByOf } from "../leads/search/clean";
 import { MODEL_ROUTES } from "../ai/models";
 
 export const REACH_OUT_MODEL = MODEL_ROUTES.reach_out_check.model;
@@ -75,6 +76,7 @@ export function openingSystemPrompt(): string {
     "You write the first sentence of a cold email one local business owner is sending to another local business.",
     "The owner's own email follows your sentence word for word. You write only the opening: the part that shows the owner looked at this business.",
     `Use only the facts in the business's record, the lines inside <record>. Never guess or invent a detail, a number or a name the record does not state, nor ${OPENING_UNSTATED}, unless the record says it.`,
+    "Call the business by its name, as the record's name line says it; listed_as is how its listing writes it, with the words a listing adds to be found.",
     "The owner's email makes the case for what they offer: never lead into it with a guess about this business. Say only what the record shows.",
     `A guess said softly is still a guess: never write ${HEDGES_QUOTED} or any word that supposes what the record does not say.`,
     "What the owner searched for is their own words about their search, not a fact about this business: never say it about them.",
@@ -94,10 +96,16 @@ export const fenceLine = (key: string, value: string | number | null | undefined
   return v ? `${key}: ${v}` : null;
 };
 
-/** The business's record, fenced: everything inside is data written by others. */
+/**
+ * The business's record, fenced: everything inside is data written by others. Its name is the one it is called by
+ * (leadCalledByOf), as every email says it; how its listing writes it follows where that is more, since those words are
+ * the business's own about itself.
+ */
 function recordLines(r: OpeningRecord): string[] {
+  const name = leadCalledByOf(r);
   const lines = [
-    fenceLine("name", r.business_name),
+    fenceLine("name", name),
+    name === r.business_name.replace(/\s+/g, " ").trim() ? null : fenceLine("listed_as", r.business_name),
     fenceLine("category", r.category),
     fenceLine("city", [r.city, r.region].filter(Boolean).join(", ") || null),
     fenceLine("rating", r.rating),
