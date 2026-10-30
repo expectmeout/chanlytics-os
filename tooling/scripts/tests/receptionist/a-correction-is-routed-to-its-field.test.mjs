@@ -139,6 +139,21 @@ test("the model is held to the ops the settings take: the schema's own list, and
   });
 });
 
+test("an owner's free parking becomes a note; a free service in a note changes nothing (the 30 Oct 2026 replay)", () => {
+  const parking = ask("note", "We have free parking behind the building, enter from Elm Street.");
+  const note = {
+    op: "add_note",
+    title: "Free parking",
+    text: "Free parking is behind the building, enter from Elm Street.",
+  };
+  assert.deepEqual(checkFixRoute(note, parking), { ok: true, change: note });
+  const blowout = ask("note", "Everyone gets a free blowout with a colour.");
+  assert.deepEqual(
+    checkFixRoute({ op: "add_note", title: "Colour", text: "Everyone gets a free blowout with a colour." }, blowout),
+    { ok: false, why: "nothing" },
+  );
+});
+
 test("a rehearsal's closed sets: the kinds are the database's, the verdicts the review schema's, a review reads its cap of answers, and only the tools a rehearsal shows come through", () => {
   assert.deepEqual([...REHEARSAL_KINDS].sort(), [...SCHEMA_SETS["rehearsals.kind"]].sort());
   assert.deepEqual(REVIEW_SCHEMA.properties.exchanges.items.properties.verdict.enum, [...REVIEW_VERDICTS]);

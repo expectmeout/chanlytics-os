@@ -168,10 +168,24 @@ export const noteWords = (s: string) =>
 // are asked first, and these are the words a note may not use that a reply may (a price is not a note's to keep).
 const MONEY =
   /\b(price[sd]?|pricing|cost[s]?|charge[sd]?|deal|free|pay(?:s|ing|ment)?|paid|owe[sd]?|debt|tip|dollars?|bucks|percent|half off|\d+\s*off)\b|[$€£%]/i;
+// "Free" that is no money, taken out before MONEY reads a note (the model routes replay, 30 Oct 2026: a customer's
+// "ammonia-free" colour and an owner's "free parking" were refused on every model): a product without something (but a
+// cost-free or interest-free one is money), and parking or Wi-Fi at no charge. "A free blowout" and "free of charge"
+// stay money.
+const FREE_NOT_MONEY =
+  /\b(?!(?:cost|charge|fee|interest|tax|duty|commission|price|payment|rent)-free\b)[a-z]+-free\b|\bfree (?:street |on-?site )?(?:parking|wi-?fi)\b|\b(?:parking|wi-?fi) is free\b|\bpark(?:ing)? (?:for )?free\b/gi;
+/**
+ * A customer's own time said with "free" (I'm free, free after 5, free on Saturdays, feel free to text): a person's note
+ * keeps it, so it is taken out of one before its money is read. "Cuts are free on Tuesdays" reads the same but for what
+ * is free, so the words before it say whose: a business's note never gets this (fact-suggest.ts, fix-router.ts).
+ */
+const FREE_TIME =
+  /\bfeel free\b|\bi(?:['’]m| am) free\b|(?<!\b(?:it|that|this|they|them|those|these|are|was|were|get|gets|got|for|cuts?|visits?)\s)\bfree (?=(?:on|after|before|until|in the|most|every|weekdays?|weekends?|mornings?|afternoons?|evenings?|nights?|time)\b)/gi;
 const CONTACT_DETAIL = /https?:\/\/|www\.|@\S|\b\d{3}[\s.-]?\d{3}[\s.-]?\d{4}\b/i;
 
 /** Whether a note's words name money: the charter's words (namesMoney), a price (violatesNoPrices), or a note's own. */
-export const noteNamesMoney = (s: string) => MONEY.test(s) || namesMoney(s) || violatesNoPrices(s);
+export const noteNamesMoney = (s: string) =>
+  MONEY.test(s.replace(FREE_NOT_MONEY, " ")) || namesMoney(s) || violatesNoPrices(s);
 /** Whether a note's words carry a link, an email address or a phone number. */
 export const noteNamesContact = (s: string) => CONTACT_DETAIL.test(s);
 const AIMED_AT_US =
@@ -220,7 +234,7 @@ export function checkNoteSuggestion(answer: unknown, turns: readonly NoteTurn[],
   );
   if (!said.includes(q)) return { ok: false, why: "not_their_words" };
   for (const s of [body, quote]) {
-    if (noteNamesMoney(s)) return { ok: false, why: "money" };
+    if (noteNamesMoney(s.replace(FREE_TIME, " "))) return { ok: false, why: "money" };
     if (noteNamesContact(s)) return { ok: false, why: "contact_detail" };
     if (SENSITIVE.test(s)) return { ok: false, why: "sensitive" };
   }

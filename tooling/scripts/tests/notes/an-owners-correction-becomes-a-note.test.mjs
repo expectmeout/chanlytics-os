@@ -105,6 +105,20 @@ test("REGRESSION guard: an owner's correction cannot put a price, a discount or 
   );
 });
 
+test("an owner's free parking or ammonia-free colour is a note; a free service, a cost-free one or a day free of charge is money", () => {
+  const fact = (title, text, words) => {
+    const r = checkFactSuggestion({ worth: true, title, text, quote: words }, words, []);
+    return r.ok || r.why;
+  };
+  assert.equal(fact("Parking", "Free parking is behind the building.", "free parking behind the building"), true);
+  assert.equal(fact("Colour", "We only use ammonia-free colour.", "we only use ammonia-free colour"), true);
+  assert.equal(fact("Wi-Fi", "There is free Wi-Fi while you wait.", "there is free Wi-Fi while you wait"), true);
+  assert.equal(fact("Consultations", "The first consultation is free.", "the first consultation is free"), "money");
+  assert.equal(fact("Consultations", "Consultations are cost-free.", "consultations are cost-free"), "money");
+  assert.equal(fact("Kids", "Kids' cuts are free on Tuesdays.", "kids' cuts are free on Tuesdays"), "money");
+  assert.equal(fact("Parking", "Parking is free of charge.", "parking is free of charge"), "money");
+});
+
 test("Keep's change is the note as the receptionist will be told it, and a note already said is not kept twice", () => {
   const s = { title: "Mondays", body: "We are closed on Mondays." };
   const cfg = applySettingsChange(
