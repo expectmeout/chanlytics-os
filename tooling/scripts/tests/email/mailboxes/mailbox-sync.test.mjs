@@ -646,7 +646,9 @@ test("Gmail's tabs: promotions outside a thread of ours is left, a reply filed t
   const w = world();
   const net = arrivals([
     tabbed(["CATEGORY_PROMOTIONS"], "r7", "g-thread"),
-    tabbed(["CATEGORY_PROMOTIONS"], "a7", "a-shop", { from: "Amazon.com <store-news@amazon.com>", text: "Deals." }),
+    // A shop's newsletter from an address with no program's word in it (store-news@ is automated by its name): the tab
+    // alone tells it.
+    tabbed(["CATEGORY_PROMOTIONS"], "a7", "a-shop", { from: "Fixture Shop <deals@shop.example>", text: "Deals." }),
     tabbed(["CATEGORY_UPDATES"], "u7", "a-notice", { from: "Rosa Diaz <rosa@example.com>", text: "Signed and sent." }),
     // The owner of the movers' business is in People (the reach-out's person): their email under Updates comes in.
     tabbed(["CATEGORY_UPDATES"], "u8", "a-quote", { text: "Here is our signed quote." }),
@@ -676,11 +678,51 @@ test("Gmail's tabs: promotions outside a thread of ours is left, a reply filed t
     assert.deepEqual(
       w.left,
       [
-        ["store-news@amazon.com", "gmail_tab"],
+        ["deals@shop.example", "gmail_tab"],
         ["rosa@example.com", "updates"],
       ],
       "each is on the owner's list, with why, one press from coming in",
     );
+  } finally {
+    net.restore();
+  }
+});
+
+test("a program's notice that carries none of the automated headers is left all the same, even from a sender already in People: by its mailbox's name, or by replies that go to a no-reply address (28 Oct 2026)", async () => {
+  const w = world();
+  // How the notice got past the tabs on 28 Oct 2026: an earlier one had made its sender a person, and a person the
+  // workspace knows comes in from Updates.
+  w.tables.contacts.push(
+    { id: "k2", tenant_id: T, email: "notifications@hosting.example", email_suppressed_at: null },
+    { id: "k3", tenant_id: T, email: "team@hosting.example", email_suppressed_at: null },
+  );
+  const net = arrivals([
+    tabbed(["CATEGORY_UPDATES"], "n1", "a-deploy", {
+      from: "Hosting <notifications@hosting.example>",
+      text: "ana@example.com attempted to deploy a commit, but they're not a member of the team.",
+      headers: [{ name: "Reply-To", value: "no-reply@hosting.example" }],
+    }),
+    tabbed([], "n2", "a-billing", {
+      from: "Hosting <team@hosting.example>",
+      text: "Your invoice is ready.",
+      headers: [{ name: "Reply-To", value: "Hosting <noreply@hosting.example>" }],
+    }),
+    // Its twin from a person, filed the same way: comes in.
+    tabbed(["CATEGORY_UPDATES"], "n3", "a-quote", { text: "Here is our signed quote." }),
+  ]);
+  try {
+    const out = await syncMailbox(w.db, w.mailbox, logger({ tenant_id: T }));
+    assert.equal(out.people, 1);
+    assert.equal(out.dropped, 2);
+    assert.deepEqual(
+      w.tables.jobs.map((j) => withoutRequestId(j.payload).received_id),
+      ["n3"],
+      "neither notice is taken in, so neither waits in Need you",
+    );
+    assert.deepEqual(w.left, [
+      ["notifications@hosting.example", "automated"],
+      ["team@hosting.example", "automated"],
+    ]);
   } finally {
     net.restore();
   }
@@ -745,7 +787,8 @@ test("mail from the workspace's own domains is its own (the 27 Oct 2026 walk): i
 
 test("an owner's alert that reaches their connected mailbox is left there, as the mail Chanlytics sent says it is, never taken in as a person's email and flagged again (27 Oct 2026)", async () => {
   const { postMail } = await importSrc("apps/edge/lib/ops/notify.ts");
-  const ALERTS = "alerts@chanlytics.example";
+  // A sending address with no program's word in it (alerts@ is automated by its name): only the header tells it.
+  const ALERTS = "hello@chanlytics.example";
   const resend = providers(() => ({ json: { id: "em_1" } }));
   const keyed = withEnv({ RESEND_API_KEY: "re_test" });
   try {
