@@ -8,7 +8,7 @@
  * and Ask's bridge waits for it before it hands over cards (legacy-bridge/ask.ts); addProposalSpecs (page-specs.ts)
  * puts them in the lookups. The server's table (proposals.ts) has them from the start.
  */
-import { broadcastSpec, messageSpec, playbookChannelsSpec, playbookSpec } from "./campaigns";
+import { broadcastSpec, fixSpec, messageSpec, playbookChannelsSpec, playbookSpec } from "./campaigns";
 import { followUpSpec } from "./follow-up";
 import { callHandOverSpec, whisperSpec } from "./inbox";
 import {
@@ -42,6 +42,8 @@ export const ASK_ONLY_SPECS = {
   playbook: playbookSpec,
   playbook_channels: playbookChannelsSpec,
   message: messageSpec,
+  // A campaign's one thing to fix first, drawn on Today and in the Line with its door (campaigns.ts fixSpec).
+  fix: fixSpec,
   // People's and its lists'.
   person_details: personDetailsSpec,
   list: listSpec,

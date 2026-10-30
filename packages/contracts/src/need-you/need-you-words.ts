@@ -101,7 +101,15 @@ export const NEED_YOU_WORDS = {
     toAnswer: "To answer",
     stars: (n: number) => `${n} star${n === 1 ? "" : "s"}`,
   },
-  idea: { tag: "Ask's idea", notToday: "Not today", openInAsk: "Open in Ask", approve: "Approve", gone: "Not today" },
+  /** An idea of Ask's morning: its tag, its presses, and Details, which a new campaign's rules fold behind. */
+  idea: {
+    tag: "Ask's idea",
+    notToday: "Not today",
+    openInAsk: "Open in Ask",
+    approve: "Approve",
+    gone: "Not today",
+    details: "Details",
+  },
   /**
    * The sheet that walks Need you on a phone (the phone canvas, 28 Oct 2026): where it stands in the list, the way to the
    * one before and the next, what it says once everyone is answered, and Change it with Ask on Ask's own draft.

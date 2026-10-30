@@ -14,16 +14,23 @@ import {
   PLAYBOOK_CARD_WORDS,
   PLAYBOOK_CLASS_LABEL,
   SEQUENCE_MODE_WORDS,
+  campaignBlockWords,
+  campaignFixCard,
+  campaignLine,
+  campaignReachable,
   channelRefuses,
   dealPaceOf,
   heldBackOfOneRun,
   newSequenceMode,
+  nobodyNamedWords,
   playbookRunReach,
   proposalChannelsWords,
   runReadingOf,
   saidYesWords,
   triggerWords,
   type triggerOf,
+  type AppointmentWord,
+  type CampaignBlock,
   type AskCardSheet,
   type AskedPurpose,
   type CampaignHow,
@@ -31,6 +38,7 @@ import {
   type ConsentChannel,
   type ListRef,
   type MessageAbout,
+  type PlaybookMessage,
   type RunReach,
   type RunReading,
 } from "@chanlytics/contracts";
@@ -45,7 +53,15 @@ import { load } from "../../../readers";
 import { audiencePool } from "../../../readers/audience-pool";
 import { businessShape, policies as policiesReader } from "../../../readers/facts";
 import { lists as listsReader } from "../../../readers/lists";
-import { AUDIENCES_CALL, touchesThisWeek, whatsappHow, type ToolContext } from "../context";
+import {
+  AUDIENCES_CALL,
+  propose,
+  refuse,
+  touchesThisWeek,
+  whatsappHow,
+  type ProposalOutcome,
+  type ToolContext,
+} from "../context";
 
 export type Trigger = NonNullable<ReturnType<typeof triggerOf>>;
 
@@ -121,7 +137,7 @@ export function playbookChannelsSaid(
  * for no channel. It said "0 people on the list said yes to offers" over 26 who had, on a US number (the operator stress
  * run, 15 Oct 2026), and nothing of the pause.
  */
-export function yesSaid(purpose: AskedPurpose, drawn: { reach: RunReach; saidYes: number }, how: CampaignHow): string {
+function yesSaid(purpose: AskedPurpose, drawn: { reach: RunReach; saidYes: number }, how: CampaignHow): string {
   const refused = [
     ...new Set(
       CONSENT_CHANNELS.filter((c) => how.channels.includes(c)).flatMap(
@@ -154,7 +170,8 @@ export const breathSaid = (trig: Trigger): string =>
  * Who a new playbook's run reaches now, and who its moment names said the yes it needs, as the page's pools count them
  * (audience.ts poolList over the pool; the week's touches and a proposal's follow-ups by poolTouches, as triggerPools
  * reads them; a proposal's pace), with the workspace's autonomy rows; or why not, in the model's words. `message` is the
- * yes its words need; `how` the channels it goes by, the workspace ready on them or not: a run holds the people it cannot
+ * message it sends, whose category is the yes its words need and whose WhatsApp version may be in review; `how` the
+ * channels it goes by, the workspace ready on them or not: a run holds the people it cannot
  * reach there. `cap` is the campaign's own cap_per_run: `reading` carries who one run of it reaches on each channel, read
  * off the same draw (contracts runReadingOf), what the month's allowance is held against.
  */
@@ -162,7 +179,7 @@ export async function reachNow(
   t: ToolContext,
   trig: Trigger,
   listRef: ListRef | null,
-  message: { category: string | null },
+  message: PlaybookMessage,
   how: CampaignHow,
   cap: number,
 ) {
@@ -188,17 +205,94 @@ export async function reachNow(
   // A list's people, as a run counts them (listedPeople).
   const listed = listRef ? await listedPeople(t, pool, listRef) : { ids: null, label: null };
   if ("refusal" in listed) return listed;
+  // Whether it could reach anyone at all, whenever its moment names them: a campaign nobody could be sent is no campaign
+  // card (the 30 Oct 2026 review, item 6), but what stops it (blockedOutcome).
+  const { block, usable } = campaignReachable(pool.rows, { trigger: trig.id, message, ...how }, listed.ids);
+  if (block) return { blocked: { block, ready: how.ready, about: how.about } };
   // Everyone the moment reaches now, uncapped (the page's count), with the yes its message needs and its moment's: the
   // check held the two to agree, so the stricter is either.
   const drawn = playbookRunReach(
     pool.rows,
-    { trigger: trig.id, cap_per_run: PLAYBOOK_POOL, gap_days: 0, cadence_days: 0, message, ...how },
+    {
+      trigger: trig.id,
+      cap_per_run: PLAYBOOK_POOL,
+      gap_days: 0,
+      cadence_days: 0,
+      message: { category: message.category },
+      ...how,
+    },
     poolTouches(touched, followUps, t.now),
     t.now.getTime(),
     dealPaceOf(paceRead),
     listed.ids,
   );
-  return { drawn, reading: runReadingOf(drawn, trig.id, [cap]), policies, listLabel: listed.label };
+  return { drawn, reading: runReadingOf(drawn, trig.id, [cap]), policies, listLabel: listed.label, usable };
+}
+
+/** What stops a campaign from reaching anyone (contracts campaignReachable), with the channels it was judged on. */
+type Blocked = { block: CampaignBlock; ready: CampaignHow["ready"]; about: MessageAbout };
+
+/**
+ * A campaign that would reach no one (reachNow's `blocked`): where a page mends what stops it, one card of that one thing
+ * with its door (contracts campaignFixCard), naming the campaign by the name asked or its moment's; where no page mends it
+ * (a rule, a reason of each person's own), and in a plan's step, whose cards a plan presses together, the refusal, in the
+ * owner's words, for the model to say.
+ */
+export async function blockedOutcome(
+  t: ToolContext,
+  trig: Trigger,
+  b: Blocked,
+  asked: string | null,
+): Promise<ProposalOutcome> {
+  const { says, fix } = campaignBlockWords(b.block, b);
+  const refusal = refuse(PLAYBOOK_CARD_REFUSALS.reachesNobody(says, fix));
+  if (t.step !== undefined) return refusal;
+  const { moment } = await wordedMoment(t, trig);
+  const card = campaignFixCard(b.block, { ready: b.ready, about: b.about, campaign: asked || moment.label });
+  if (!card) return refusal;
+  return propose({
+    kind: "fix",
+    title: card.title,
+    summary: card.summary,
+    line: card.line,
+    payload: { trigger: trig.id, door: card.door.label, to: card.door.to },
+  });
+}
+
+/**
+ * Who a new campaign reaches, as its card says it: where its moment names nobody now, that day or list said as such
+ * ("Nobody has a meeting tomorrow"), else who on it said the yes it needs (yesSaid). It said "0 people on the list said
+ * yes to messages" of a day with no meeting on the calendar.
+ */
+export function reachesSaid(
+  purpose: AskedPurpose,
+  drawn: { reach: RunReach; saidYes: number },
+  how: CampaignHow,
+  at: { trigger: string; word: AppointmentWord; list: string | null },
+): string {
+  return drawn.reach.pool === 0 ? nobodyNamedWords(at.trigger, at.word, at.list) : yesSaid(purpose, drawn, how);
+}
+
+/**
+ * A new campaign's card in one line (contracts campaignLine), as Today's row says it: what it does to whom its moment
+ * names now, when, and the channels it goes by: those its people are reached on, or, where it reaches nobody today, those
+ * that can carry it now (`usable`, campaignReachable's).
+ */
+export function cardLine(
+  at: { trigger: string; word: AppointmentWord; list: string | null },
+  reach: RunReach,
+  clock: { run_hour: number; cadence_days: number },
+  usable: readonly ConsentChannel[],
+): string {
+  const carrying = CONSENT_CHANNELS.filter((c) => (reach.by_channel?.[c] ?? 0) > 0);
+  return campaignLine({
+    ...at,
+    pool: reach.pool,
+    will: reach.will,
+    run_hour: clock.run_hour,
+    cadence_days: clock.cadence_days,
+    goesBy: reach.will > 0 && carrying.length > 0 ? carrying : usable,
+  });
 }
 
 /**
@@ -271,7 +365,8 @@ export function campaignSheet(p: {
     { label: "Where", value: p.where },
     // One fact, its parts by commas: "Daily 10:00 AM, up to 25, once per person".
     { label: "Runs", value: p.runs.replaceAll(" · ", ", ") },
-    { label: "One a week", value: p.breath },
+    // An appointment's message is not held back by the others they hear around it, in the owner's words.
+    { label: "Other messages", value: p.breath },
     { label: "Last day", value: p.end },
     { label: "Goes", value: p.goes },
     { label: "Reaches", value: p.reaches },

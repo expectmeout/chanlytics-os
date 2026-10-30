@@ -109,6 +109,9 @@ export interface AppointmentPhrases {
   /** What "of 312" counts: "with an appointment tomorrow", "who had an appointment yesterday". */
   withTomorrow: string;
   whoYesterday: string;
+  /** A day's moment that names nobody yet: "Nobody has an appointment tomorrow", "Nobody had an appointment yesterday". */
+  noneTomorrow: string;
+  noneYesterday: string;
   /** The approval sheet's rule lines. */
   eachTomorrow: string;
   eachYesterday: string;
@@ -155,6 +158,8 @@ export function appointmentWords(word: AppointmentWord): AppointmentPhrases {
     yesterdayWho: `everyone who ${f.had} yesterday`,
     withTomorrow: `with ${f.a} tomorrow`,
     whoYesterday: `who ${f.had} yesterday`,
+    noneTomorrow: `Nobody ${f.has} tomorrow`,
+    noneYesterday: `Nobody ${f.had} yesterday`,
     eachTomorrow: `each has ${f.a} tomorrow on the calendar`,
     eachYesterday: `each ${f.had} yesterday and has nothing booked next`,
     offTomorrow: (n) => `Off · ${people(n)} ${n === 1 ? f.has : f.have} tomorrow`,

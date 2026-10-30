@@ -73,15 +73,17 @@ import {
 import { channelsWaitWords } from "./playbook-channels";
 import {
   allowanceHeld,
+  blockedOutcome,
   breathSaid,
   campaignSheet,
+  cardLine,
   playbookChannelsSaid,
   playbookHow,
   reachByChannel,
   reachNow,
+  reachesSaid,
   underMode,
   wordedMoment,
-  yesSaid,
   type Trigger,
 } from "./playbook-card";
 import { cardSays, stepSays } from "./says";
@@ -440,9 +442,10 @@ async function proposeOnStarter(
     cadence_days: PLAYBOOK_DEFAULTS.cadenceDays,
   };
   const how = { channels, ready: read.ready, about: read.about };
-  const reach = await reachNow(t, trig, listRef, { category: starter.category }, how, clock.cap_per_run);
+  const reach = await reachNow(t, trig, listRef, judged.message, how, clock.cap_per_run);
   if ("refusal" in reach) return refuse(reach.refusal);
-  const { drawn, reading, policies, listLabel } = reach;
+  if (reach.blocked) return blockedOutcome(t, trig, reach.blocked, playbookNameAsked(input.name) || null);
+  const { drawn, reading, policies, listLabel, usable } = reach;
   const held = await allowanceHeld(t, channels, reading, clock, purposeOfPlaybook(cls));
   const under = underMode(cls, policies);
   const name = playbookNameAsked(input.name);
@@ -452,13 +455,14 @@ async function proposeOnStarter(
   const waits = starterWaitWords(read, forReview, workspace.whatsapp.ready);
   // The moment and its schedule in the workspace's word, as the message card says them.
   const { word, moment } = await wordedMoment(t, trig);
+  const named = { trigger: trig.id, word, list: listLabel };
   const said = {
     where: listLabel ? `On ${listLabel}` : `${moment.label} — ${moment.hint.toLowerCase()}`,
     runs: scheduleLine(clock, word),
     breath: breathSaid(trig),
     end: endSaid(t, input.until),
     goes: proposalChannelsWords(channels, reachByChannel(drawn.reach.by_channel)),
-    reaches: yesSaid(purposeOfPlaybook(cls), drawn, how),
+    reaches: reachesSaid(purposeOfPlaybook(cls), drawn, how, named),
     sends: under.said,
     message: LIBRARY_STARTER_WORDS.addsFirst(starter.title),
   };
@@ -466,6 +470,7 @@ async function proposeOnStarter(
     kind: "playbook",
     title: `Campaign: ${name || moment.label}`,
     summary: `${said.where} · ${said.runs}${said.breath}${said.end} · ${said.message} · ${said.goes}${waits} · ${held}${said.reaches} · ${said.sends}`,
+    line: cardLine(named, drawn.reach, clock, usable),
     sheet: campaignSheet({ ...said, waiting: [waits, held] }),
     payload: {
       ...clock,
@@ -553,21 +558,23 @@ async function proposeOnStep(
   if ("refusal" in judged) return refuse(judged.refusal);
   const { cls, specs, by, clock, message, about } = judged;
   const how = await playbookHow(t, message, by, about);
-  const reach = await reachNow(t, trig, listRef, { category: message.category }, how, clock.cap_per_run);
+  const reach = await reachNow(t, trig, listRef, message, how, clock.cap_per_run);
   if ("refusal" in reach) return refuse(reach.refusal);
-  const { drawn, reading, policies, listLabel } = reach;
+  if (reach.blocked) return blockedOutcome(t, trig, reach.blocked, playbookNameAsked(input.name) || null);
+  const { drawn, reading, policies, listLabel, usable } = reach;
   const held = await allowanceHeld(t, by.channels, reading, clock, purposeOfPlaybook(cls));
   const { goes, waiting } = playbookChannelsSaid(how, by, drawn.reach.by_channel, held);
   const under = underMode(cls, policies);
   const name = playbookNameAsked(input.name) || null;
   const { word, moment } = await wordedMoment(t, trig);
+  const named = { trigger: trig.id, word, list: listLabel };
   const said = {
     where: listLabel ? `On ${listLabel}` : `${moment.label} — ${moment.hint.toLowerCase()}`,
     runs: scheduleLine(clock, word),
     breath: breathSaid(trig),
     end: endSaid(t, input.until),
     goes,
-    reaches: yesSaid(purposeOfPlaybook(cls), drawn, how),
+    reaches: reachesSaid(purposeOfPlaybook(cls), drawn, how, named),
     sends: under.said,
     message: stepSays(step, specs),
   };
@@ -575,6 +582,7 @@ async function proposeOnStep(
     kind: "playbook",
     title: `Campaign: ${name ?? moment.label}`,
     summary: `${said.where} · ${said.runs}${said.breath}${said.end}${goes} · ${waiting}${said.reaches} · ${said.sends} Says: ${said.message}`,
+    line: cardLine(named, drawn.reach, clock, usable),
     sheet: campaignSheet({ ...said, waiting: [waiting] }),
     payload: {
       ...clock,
@@ -647,9 +655,10 @@ async function proposePlaybook(t: ToolContext, proposed: PlaybookProposed): Prom
   // By the channels it goes by: said and committed whenever they are more than WhatsApp alone by default.
   const by = { channels: checked.channels, named: picked.channels !== undefined };
   const how = await playbookHow(t, message, by, about);
-  const reach = await reachNow(t, trig, listRef, { category: message.category }, how, checked.cap_per_run);
+  const reach = await reachNow(t, trig, listRef, message, how, checked.cap_per_run);
   if ("refusal" in reach) return refuse(reach.refusal);
-  const { drawn, reading, policies, listLabel } = reach;
+  if (reach.blocked) return blockedOutcome(t, trig, reach.blocked, playbookNameAsked(input.name) || null);
+  const { drawn, reading, policies, listLabel, usable } = reach;
   const cls = checked.policy_class;
   const held = await allowanceHeld(t, by.channels, reading, checked, purposeOfPlaybook(cls));
   // A tick that cannot send yet stays on the playbook, and its run holds those people until it can: the card says so.
@@ -659,13 +668,14 @@ async function proposePlaybook(t: ToolContext, proposed: PlaybookProposed): Prom
   if ("refusal" in said) return refuse(said.refusal);
   // The moment and its schedule in the workspace's word: read once the check has passed.
   const { word, moment } = await wordedMoment(t, trig);
+  const named = { trigger: trig.id, word, list: listLabel };
   const pieces = {
     where: listLabel ? `On ${listLabel}` : `${moment.label} — ${moment.hint.toLowerCase()}`,
     runs: scheduleLine(checked, word),
     breath: breathSaid(trig),
     end: endSaid(t, input.until),
     goes,
-    reaches: yesSaid(purposeOfPlaybook(cls), drawn, how),
+    reaches: reachesSaid(purposeOfPlaybook(cls), drawn, how, named),
     sends: under.said,
     message: said.says,
   };
@@ -673,6 +683,7 @@ async function proposePlaybook(t: ToolContext, proposed: PlaybookProposed): Prom
     kind: "playbook",
     title: `Campaign: ${checked.name}`,
     summary: `${pieces.where} · ${pieces.runs}${pieces.breath}${pieces.end}${goes} · ${waiting}${pieces.reaches} · ${pieces.sends} Says: ${said.says}`,
+    line: cardLine(named, drawn.reach, checked, usable),
     sheet: campaignSheet({ ...pieces, waiting: [waiting] }),
     payload: {
       trigger: trig.id,
@@ -701,6 +712,8 @@ async function proposePlaybook(t: ToolContext, proposed: PlaybookProposed): Prom
 /** A playbook, a standing rule: propose_sequence's action moment (sequence.ts), once propose_playbook. */
 export const playbookAction = actAction({
   kind: "playbook",
+  // Where the campaign would reach no one and a page mends what stops it: that one thing, with its door (blockedOutcome).
+  makes: ["fix"],
   input: z.object({
     trigger: z.enum(PROPOSABLE_TRIGGERS),
     // On a list (saved_list): the list's token from sequences.lists, and what it sends.
