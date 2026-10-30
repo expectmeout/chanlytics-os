@@ -68,7 +68,8 @@ write, and never asked for in a form.
 
 ### 2. Contracts
 
-1. `reach-out/reach-out-facts.ts`: `leadFactOf({ business_name, city, hours, rating, reviews })` answers a
+1. `reach-out/lead-hours.ts`, over the day reading the send window takes: `leadFactOf({ business_name, city, hours,
+   rating, reviews })` answers a
    `WrittenOpening` (its sentence, its angle, its `facts_used`) or null. In order: every day "Open 24 hours" ("… is open
    24 hours, seven days a week."); every day one closing time ("… is open until 8 PM every day."); Monday to Friday one
    closing time, with Saturday's and Sunday's said as the listing has them ("… is open until 5 PM on weekdays and until
@@ -76,7 +77,7 @@ write, and never asked for in a form.
    reviews."). A day missing, a shape it cannot read, or weekdays that differ: no hours fact. The name is the one the
    business is called by (`leadCalledByOf`), as every email says it.
 2. `ask-memory`: `ASK_MEMORY_WORDS.sources.learned` ("Learned from how you write").
-3. `sequences/sequence-voice.ts`: the paste's body schema (40 to 4000 characters), its answer, `VOICE_WORDS`, and the
+3. `sequences/new-draft.ts`: the paste's body schema (40 to 4000 characters), its answer, `VOICE_WORDS`, and the
    voice line (`voiceLineOf`). `NewDraftDto.voice`: the learned lines a draft to leads was written with.
 
 ### 3. The dashboard's server
@@ -97,7 +98,8 @@ back it. The preview door (`preview.ts`) builds its input the same way, so it co
 ### 5. The pages
 
 1. New's draft to leads: the voice line under its steps, or the paste (a field and Use), gated as Start is; Use keeps
-   the lines and drafts again.
+   the lines and drafts again. Use is a page verb, `sequence_voice` (ask-proposals/sequences.ts), so its call, its
+   receipt and the refresh after it are every page verb's; Ask does not propose it (guide.ts, `WHY.voice`).
 2. Preview as a real lead: the fact's sentence where the lead's row holds one.
 3. Settings › Memory: a learned line says so.
 

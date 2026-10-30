@@ -337,7 +337,12 @@ test("a draft to leads says the lines Ask learned from how the owner writes, or 
   const { sequenceVerbs } = await import(`${SRC}/surfaces/campaigns/sequences/verbs.ts`);
   sequenceVerbs.learnVoice = async (text) => {
     pasted.push(text);
-    return { ok: true, status: 200, data: { lines: ["In cold emails: short, no greeting."], full: false } };
+    return {
+      ok: true,
+      data: { lines: ["In cold emails: short, no greeting."], full: false },
+      receipt: V.kept(1),
+      undo: null,
+    };
   };
   freshTree();
   const props = (redraft) => ({

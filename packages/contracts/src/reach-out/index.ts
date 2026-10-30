@@ -1,6 +1,6 @@
 /** Reach out: the campaign email's words and rules, its timetable, and the hours and time zones the window keeps. */
-export { DEFAULT_WEEK, weekHoursOf } from "./lead-hours";
-export type { OpenWindow, WeekHours } from "./lead-hours";
+export { DEFAULT_WEEK, leadFactOf, weekHoursOf } from "./lead-hours";
+export type { FactListing, OpenWindow, WeekHours } from "./lead-hours";
 export { composeLinksOf, mailtoOf } from "./owner/compose";
 export type { ComposeLinks } from "./owner/compose";
 export { REACH_OUT_SAID_WORDS, REACH_OUT_STOP_WORDS, REACH_OUT_UNDO_WORDS } from "./owner/lead-doors";
@@ -84,8 +84,6 @@ export type {
   ReachOutStepCounts,
   ReachOutStepDto,
 } from "./reach-out-dtos";
-export { leadFactOf } from "./reach-out-facts";
-export type { FactListing } from "./reach-out-facts";
 export { HAND_KINDS, HAND_WORDS_MAX, handOf, handStepWords, personHandWords } from "./reach-out-hand";
 export type { HandKind, StepHand } from "./reach-out-hand";
 export {

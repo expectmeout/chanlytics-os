@@ -2,10 +2,16 @@
  * The owner's voice under a draft to leads (decision 0078): the lines Ask learned from how they write, with Memory beside
  * them, where they live and are forgotten; or, where it learned none, one paste. Use keeps what Ask reads in it and has
  * Ask draft again from the same line. A draft to people, one built by hand, and one from a server before this draw none.
- * Every word is contracts' (sequence-voice.ts).
+ * Every word is contracts' (new-draft.ts), and Use is the page verb `sequence_voice`.
  */
 import { useState } from "react";
-import { VOICE_PASTE_MIN, VOICE_WORDS as V, voiceLineOf, type NewDraftDto } from "@chanlytics/contracts";
+import {
+  VOICE_PASTE_MIN,
+  VOICE_WORDS as V,
+  voiceLineOf,
+  type NewDraftDto,
+  type SequenceVoiceDto,
+} from "@chanlytics/contracts";
 import { Button } from "../../../kit/button/button";
 import { Field } from "../../../kit/field/field";
 import { LinkButton } from "../../../kit/link-button/link-button";
@@ -39,8 +45,9 @@ export function DraftVoice({ draft, again }: { draft: NewDraftDto; again: () => 
       setSaid(r.message);
       return;
     }
-    setSaid(r.data.full ? V.full : V.kept(r.data.lines.length));
-    if (r.data.lines.length > 0) {
+    // The receipt says what was kept; a paste that kept a line has Ask draft again with it.
+    setSaid(r.receipt);
+    if ((r.data as SequenceVoiceDto).lines.length > 0) {
       setText("");
       again();
     }

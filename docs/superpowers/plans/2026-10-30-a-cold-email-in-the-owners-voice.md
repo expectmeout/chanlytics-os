@@ -14,8 +14,8 @@ Monday to Sunday; 70 with a rating, 65 with 20 reviews or more. `leadFactOf` rea
 
 ## 1. A fact from the listing (contracts)
 
-Files: `packages/contracts/src/reach-out/reach-out-facts.ts` (new), `packages/contracts/src/reach-out/index.ts`,
-`tooling/scripts/tests/reach-out/reach-out-facts.test.mjs` (new).
+Files: `packages/contracts/src/reach-out/lead-hours.ts`, `packages/contracts/src/reach-out/index.ts`,
+`tooling/scripts/tests/reach-out/reach-out-opening.test.mjs`.
 
 1. Test, made-up listings: 24 hours every day; one close every day; weekdays one close with Saturday shorter and
    Sunday closed; Saturday the same; weekends closed; weekends open; a weekday that differs (no hours fact, the rating
@@ -51,10 +51,11 @@ Files: `apps/dashboard/src/server/sequences/draft.ts`, `apps/dashboard/src/serve
 
 ## 5. The paste (contracts, dashboard server, route)
 
-Files: `packages/contracts/src/sequences/sequence-voice.ts` (new), `packages/contracts/src/sequences/index.ts`,
+Files: `packages/contracts/src/sequences/new-draft.ts`, `packages/contracts/src/sequences/index.ts`,
+`packages/contracts/src/ask-proposals/sequences.ts` (the page verb `sequence_voice`),
 `apps/dashboard/src/server/sequences/voice.ts` (new), `apps/dashboard/app/api/v1/sequences/voice/route.ts` (new),
 `tooling/scripts/tests/route-policy.json`, then `node tooling/scripts/gen/route-types.mjs` and `gen:api-reference`,
-`tooling/scripts/tests/sequences/sequence-voice.test.mjs` (new).
+`tooling/scripts/tests/sequences/sequence-draft.test.mjs`.
 
 1. Test (fakeDb, the model stubbed): a paste keeps up to three lines as `learned` and answers them; a line already
    kept is not kept twice; memory full says so; a paste under 40 characters is refused before any call.

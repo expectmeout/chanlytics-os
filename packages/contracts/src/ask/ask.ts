@@ -266,6 +266,7 @@ export interface AskProposal {
     | "sequence_discard"
     | "sequence_end"
     | "sequence_test"
+    | "sequence_voice"
     | "playbook_run"
     | "booking_request"
     | "fact_suggestion"

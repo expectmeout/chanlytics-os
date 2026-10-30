@@ -35,6 +35,7 @@ import {
   reachOutCountryOf,
   wordsNeedOpening,
   type OpeningRecord,
+  type OpeningVerdict,
   type OpeningWorkspace,
   type ReachOutHold,
   type WrittenOpening,
@@ -180,6 +181,21 @@ export async function checkOne(
   };
   const failed = (why: CheckFailure): CheckOutcome => ({ kind: "failed", why, tokens, calls });
   const late = (): CheckOutcome => ({ kind: "late", tokens, calls });
+  // The reader's verdict on an opening against the record, after code's own reading of it: the call every opening takes,
+  // a fact's and each one the writer wrote; an outcome where the check ends there.
+  const verdictOn = async (o: WrittenOpening): Promise<OpeningVerdict | CheckOutcome> => {
+    const r = await call(
+      readingSystemPrompt(),
+      readingUserContent({ record: i.record, opening: o.opening }),
+      READING_SCHEMA,
+      200,
+    );
+    if (r === "late") return late();
+    if ("failed" in r) return failed(r.failed);
+    const reading = parseReading(r.answer);
+    if (!reading) return failed("unparseable");
+    return openingVerdict(checkOpening(o, i.record), reading, i.language, o.opening);
+  };
 
   let opening: WrittenOpening | null = null;
   let hold: ReachOutHold | null = null;
@@ -189,17 +205,8 @@ export async function checkOne(
   // where it passes, and where its hold is one no rewrite changes (the business's language); one the reader or code
   // cannot back is the writer's to write, as an opening with no fact is.
   if (i.needsOpening && i.fact) {
-    const r = await call(
-      readingSystemPrompt(),
-      readingUserContent({ record: i.record, opening: i.fact.opening }),
-      READING_SCHEMA,
-      200,
-    );
-    if (r === "late") return late();
-    if ("failed" in r) return failed(r.failed);
-    const reading = parseReading(r.answer);
-    if (!reading) return failed("unparseable");
-    const v = openingVerdict(checkOpening(i.fact, i.record), reading, i.language, i.fact.opening);
+    const v = await verdictOn(i.fact);
+    if ("kind" in v) return v;
     if (v.ok || !v.rewrite) {
       opening = i.fact;
       hold = v.ok ? null : v.hold;
@@ -219,17 +226,8 @@ export async function checkOne(
       if ("failed" in w) return failed(w.failed);
       const o = parseOpening(w.answer);
       if (!o) return failed("unparseable");
-      const r = await call(
-        readingSystemPrompt(),
-        readingUserContent({ record: i.record, opening: o.opening }),
-        READING_SCHEMA,
-        200,
-      );
-      if (r === "late") return late();
-      if ("failed" in r) return failed(r.failed);
-      const reading = parseReading(r.answer);
-      if (!reading) return failed("unparseable");
-      const v = openingVerdict(checkOpening(o, i.record), reading, i.language, o.opening);
+      const v = await verdictOn(o);
+      if ("kind" in v) return v;
       opening = o;
       if (v.ok) {
         hold = null;

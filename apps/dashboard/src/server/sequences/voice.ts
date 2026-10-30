@@ -24,7 +24,7 @@ const SAID_MIN = 8;
 /** A line is one sentence: past this it is a paragraph, and memory keeps lines. */
 const LINE_MAX = 200;
 
-const RULES = [
+const VOICE_RULES = [
   "You read one email a business owner wrote, and say how they write a cold email, so the next ones written for them sound like them.",
   `Answer up to ${VOICE_LINES_MAX} short lines, each one sentence starting "${VOICE_LINE_LEAD} ", about how they write and never about what they sell or who they are: how long, how they greet, how they open, how they ask, how they sign off, and words or habits they use or avoid.`,
   "Say only what this email shows. Where it shows nothing about how they write, answer no lines.",
@@ -60,7 +60,7 @@ export async function learnVoice(
       purpose: "sequence_draft",
       request: {
         max_tokens: 400,
-        system: RULES.join("\n"),
+        system: VOICE_RULES.join("\n"),
         schema: VOICE_JSON_SCHEMA,
         messages: [{ role: "user", content: `The email the owner wrote:\n${fenced("record", body.text)}` }],
       },

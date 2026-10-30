@@ -61,7 +61,7 @@ export const sequenceVerbs = {
   place: (leadId: string) => places.through(leadId, () => api()("GET leads/[id]/place", { params: { id: leadId } })),
   peekPlace: (leadId: string): PlaceAnswer | null => places.peek(leadId),
   /** An email the owner wrote, read by Ask into lines on how they write, kept in its memory (decision 0078). */
-  learnVoice: (text: string) => api()("POST sequences/voice", { body: { text }, once: true }),
+  learnVoice: (text: string) => commitVerb("sequence_voice", { text }),
 };
 
 /**
