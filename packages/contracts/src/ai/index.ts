@@ -40,6 +40,7 @@ export {
   RETELL_MODELS,
   routeThinkingFor,
   shadowPortOf,
+  thinkingOffOf,
   THINKING_TYPES,
 } from "./models";
 export type {

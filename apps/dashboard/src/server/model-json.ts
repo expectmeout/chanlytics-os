@@ -31,9 +31,9 @@ import { GatewayRefused, streamModel, type GatewayCall } from "./ask/gateway";
 
 /**
  * The lead purposes' own model, the registry's (contracts MODEL_ROUTES.lead_json), so the edge's default (contracts
- * ASK_MODEL, which Ask's profile moves) never moves them: their answers are small JSON at 400–600 max_tokens, tuned on
- * Sonnet 5, and Opus 5.5's thinking cannot be switched off. One route per purpose, as DRAFT_MODEL is the template
- * drafter's (templates.ts).
+ * ASK_MODEL, which Ask's profile moves) never moves them: their answers are small JSON at 400–600 max_tokens, asked of
+ * Sonnet 5.5 with its thinking off (the route's: the edge's port sends it), and Opus 5.5's thinking cannot be switched
+ * off. One route per purpose, as DRAFT_MODEL is the template drafter's (templates.ts).
  */
 export const JSON_MODEL = MODEL_ROUTES.lead_json.model;
 /**

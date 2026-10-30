@@ -8,6 +8,9 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+import { fakeDb } from "../_fake-db.mjs";
 import {
   PARAM_SOURCES,
   TEMPLATE_CATEGORIES,
@@ -26,7 +29,16 @@ import {
   MODEL_ROUTES,
   MODELS,
 } from "@chanlytics/contracts";
-import { readCode, readRaw } from "../_source.mjs";
+import { ROOT, readCode, readRaw } from "../_source.mjs";
+
+// The drafter is run below over an edge stubbed with the provider guard open, which is read as its module loads.
+process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
+process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
+process.env.EDGE_PROVIDERS = "live";
+process.env.EDGE_URL = "https://edge.example.com";
+process.env.EDGE_CALL_SECRET = "edge-secret-for-this-file";
+delete process.env.DIAG_KEY;
+const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 
 test("names Meta accepts, slots in order, one example each: what is refused is refused in the person's words", () => {
   assert.equal(slugTemplateName("Spring Offer 2026!"), "spring_offer_2026");
@@ -226,7 +238,7 @@ test("the routes: what Meta refuses is refused first; a duplicate name is a conf
   const dr = readCode("apps/dashboard/app/api/v1/templates/draft/route.ts");
   assert.ok(dr.includes('rate: "ask",'), "a draft costs an assistant turn");
   const svc = readCode("apps/dashboard/src/server/campaigns/templates.ts");
-  assert.equal(MODEL_ROUTES.template_draft.model, MODELS.SONNET_5, "the draft asks the registry's model for it");
+  assert.equal(MODEL_ROUTES.template_draft.model, MODELS.SONNET_5_5, "the draft asks the registry's model for it");
   assert.ok(svc.includes("Answer with one JSON object and nothing else"));
   assert.ok(svc.includes("The footer must say how to opt out"), "a marketing draft carries the opt-out line");
   assert.ok(
@@ -278,4 +290,55 @@ test("the job fills the slots per person and holds anyone a slot cannot be fille
     ),
     "an approval is news the owner waits for",
   );
+});
+
+test("a template draft asks the registry's model with its thinking off, and what it writes is the draft", async () => {
+  // The 30 Oct 2026 replay: a model that thinks by default ran out of the draft's 900 tokens on 3 drafts in 12.
+  const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const { draftTemplate } = await import(at("apps/dashboard/src/server/campaigns/templates.ts"));
+  const draft = {
+    name: "visit_reminder",
+    body: "Hi {{1}}, a reminder of your visit at Harbor Studio tomorrow. Reply here to change it.",
+    footer: null,
+    examples: ["Ana"],
+    variables: [{ position: 1, label: "First name", source: "first_name" }],
+  };
+  const frames = [
+    { type: "message_start", message: { id: "msg_1", model: MODELS.SONNET_5_5, usage: { input_tokens: 900 } } },
+    { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } },
+    { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: JSON.stringify(draft) } },
+    { type: "content_block_stop", index: 0 },
+    { type: "message_delta", delta: { stop_reason: "end_turn" }, usage: { output_tokens: 60 } },
+    { type: "message_stop" },
+  ]
+    .map((e) => `event: ${e.type}\ndata: ${JSON.stringify(e)}\n\n`)
+    .join("");
+  const sent = [];
+  const real = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    if (!String(url).endsWith("/api/admin/llm")) throw new Error(`nothing else is reachable: ${url}`);
+    sent.push(JSON.parse(String(init?.body ?? "{}")));
+    return new Response(frames, { status: 200, headers: { "content-type": "text/event-stream" } });
+  };
+  try {
+    const ctx = {
+      userId: "u1",
+      supabase: fakeDb({
+        tenants: [{ id: T, name: "Harbor Studio", timezone: "America/New_York" }],
+        tenant_config: [],
+      }),
+    };
+    const out = await draftTemplate(ctx, T, {
+      brief: "Remind them of tomorrow's visit",
+      category: "utility",
+      language: "en",
+    });
+    assert.equal(out.ok, true, out.message);
+    assert.equal(out.draft.body, draft.body);
+  } finally {
+    globalThis.fetch = real;
+  }
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].request.model, MODEL_ROUTES.template_draft.model);
+  assert.deepEqual(sent[0].request.thinking, { type: "between_tools" }, "Sonnet 5.5's least thinking");
 });

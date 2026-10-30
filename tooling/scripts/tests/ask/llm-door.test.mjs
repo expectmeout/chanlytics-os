@@ -832,7 +832,8 @@ test("what the Line needs from the gateway: Opus 5.5 is a model Ask may name, As
   assert.deepEqual(big.ok && big.request.output_config.format, { type: "json_schema", schema: huge });
   assert.deepEqual(ask({ output_config: { format: { type: "text" } } }), refused);
   const ceiling = (purpose) => {
-    const v = validateGatewayRequest({ ...REQUEST, max_tokens: 9_000 }, purpose);
+    // A model every purpose may name: the lead purposes', which Ask may name too.
+    const v = validateGatewayRequest({ ...REQUEST, model: MODEL_ROUTES.lead_json.model, max_tokens: 9_000 }, purpose);
     return v.ok ? v.request.max_tokens : v.error;
   };
   assert.equal(ceiling("ask"), ASK_MAX_TOKENS, "Ask's ceiling is the number its loop asks for");

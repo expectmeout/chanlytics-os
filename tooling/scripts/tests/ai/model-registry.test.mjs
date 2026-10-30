@@ -19,6 +19,7 @@ import {
   modelTakes,
   RETELL_MODELS,
   routeThinkingFor,
+  thinkingOffOf,
   ASK_MODEL,
   NOTE_SUGGEST_MODEL,
   REACH_OUT_MODEL,
@@ -117,6 +118,33 @@ test("what the 30 Oct 2026 replay moved: the receptionist, its drafts and the ju
   for (const p of ["receptionist", "reply_draft"]) assert.equal(MODEL_ROUTES[p].fallback, MODELS.SONNET_5_5, p);
   assert.equal(MODEL_ROUTES.receptionist.thinking, undefined, "the receptionist thinks at the brain's low effort");
   assert.ok(!Object.values(MODEL_ROUTES).some((r) => r.model === MODELS.HAIKU_4_5), "no route asks Haiku 4.5");
+});
+
+test("what the second 30 Oct 2026 replay moved: the dashboard's drafts and a review's reply on Sonnet 5.5 with thinking off, Ask's fallback Sonnet 5.5, Opus 5 asked by none", () => {
+  for (const p of ["lead_json", "template_draft", "review_reply"]) {
+    assert.equal(MODEL_ROUTES[p].model, MODELS.SONNET_5_5, p);
+    assert.equal(MODEL_ROUTES[p].fallback, MODELS.SONNET_5, p);
+  }
+  for (const p of ["lead_json", "review_reply"]) assert.equal(MODEL_ROUTES[p].thinking, "off", p);
+  // The template drafter names its own off (it asks as Ask's round); the purpose's craft calls keep their thinking.
+  assert.equal(MODEL_ROUTES.template_draft.thinking, undefined);
+  assert.deepEqual(thinkingOffOf(MODEL_ROUTES.template_draft.model), { type: "between_tools" });
+  assert.equal(routeThinkingFor("template_draft", MODELS.SONNET_5_5, "high"), null, "a craft call's fallback thinks");
+  assert.equal(MODEL_ROUTES.ask.fallback, MODELS.SONNET_5_5);
+  for (const r of Object.values(MODEL_ROUTES)) {
+    assert.notEqual(r.model, MODELS.OPUS_5, "no route asks Opus 5");
+    assert.notEqual(r.fallback, MODELS.OPUS_5, "nor falls back to it");
+    assert.notEqual(r.model, MODELS.SONNET_5, "Sonnet 5 is a fallback alone");
+  }
+});
+
+test("a model's least thinking: disabled where it takes it, between_tools for Sonnet 5.5, none for Opus 5.5 or past high", () => {
+  assert.deepEqual(thinkingOffOf(MODELS.HAIKU_5_5), { type: "disabled" });
+  assert.deepEqual(thinkingOffOf(MODELS.SONNET_5), { type: "disabled" });
+  assert.deepEqual(thinkingOffOf(MODELS.SONNET_5_5, "low"), { type: "between_tools" });
+  assert.equal(thinkingOffOf(MODELS.OPUS_5_5), null, "it cannot stop thinking");
+  assert.equal(thinkingOffOf(MODELS.SONNET_5_5, "xhigh"), null);
+  assert.equal(thinkingOffOf("a-model-the-registry-does-not-list"), null);
 });
 
 test("a call's dollars are its four kinds of tokens at the model's list price, and a dated id is priced as its model", () => {

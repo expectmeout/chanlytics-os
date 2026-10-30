@@ -21,6 +21,7 @@ import {
   templateLinkButton,
   templateParts,
   templateUntranslatable,
+  thinkingOffOf,
   validateTemplateDraft,
   type TemplateCategoryChoice,
   type TemplateDraft,
@@ -44,6 +45,12 @@ import { log } from "@/server/log";
  * before the person ever sees it.
  */
 export const DRAFT_MODEL = MODEL_ROUTES.template_draft.model;
+/**
+ * The drafter's thinking, off: a model that thinks by default spends it inside the 900 tokens and can run out before
+ * the draft (the 30 Oct 2026 replay: 3 drafts in 12, "not well-formed"). Named in the request, since the drafter asks as
+ * Ask's round; a fallback that does not take it is sent none (channels models/anthropic.ts).
+ */
+const DRAFT_THINKING = thinkingOffOf(DRAFT_MODEL);
 
 /** How long a template draft or translation may take: the edge's model door stops at a minute (vercel.json). */
 const DRAFT_TIMEOUT_MS = MIN_MS;
@@ -191,6 +198,7 @@ async function askOnce(
           max_tokens: 900,
           system,
           messages: [{ role: "user", content: user }],
+          ...(DRAFT_THINKING ? { thinking: DRAFT_THINKING } : {}),
         },
         // Bounded as every call to the edge is: its own door stops at a minute (vercel.json).
         signal: AbortSignal.timeout(DRAFT_TIMEOUT_MS),
