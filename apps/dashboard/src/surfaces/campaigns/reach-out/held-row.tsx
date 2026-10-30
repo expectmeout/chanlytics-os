@@ -8,7 +8,7 @@
  * the row without its answers. On a run's screen it is a row of the amber card (`look="card"`, the run-to-leads canvas):
  * the business's tile, its name, why in a muted line with the claim in ink, and its answers as pills.
  */
-import { REACH_OUT_SHEET_WORDS, type HeldAnswer, type HeldChoice } from "@chanlytics/contracts";
+import { REACH_OUT_SHEET_WORDS, type HeldAnswer, type HeldChoice, type MarkedOpening } from "@chanlytics/contracts";
 import { Fragment } from "react";
 import { Button } from "../../kit/button/button";
 import { Face, faceTileOf } from "../../kit/face/face";
@@ -16,12 +16,25 @@ import { LinkButton } from "../../kit/link-button/link-button";
 import { ListRow } from "../../kit/list-row/list-row";
 import { leadOverDoor } from "../../leads/sheet/lead-over";
 
-/** What a held email's row says: whose, why, and its answers in their words. */
+/** What a held email's row says: whose, why, the opening it would send, and its answers in their words. */
 interface HeldEmail {
   name: string;
   leadId: string | null;
   why: string;
+  /** The opening it would send, what the check refused marked; absent or null where there is none to show. */
+  opening?: MarkedOpening | null;
   answers: readonly HeldAnswer[];
+}
+
+/** The opening it would send, in its quotes, the words the check refused marked (30 Oct 2026). */
+function HeldOpening({ o, className, testId }: { o: MarkedOpening; className: string; testId: string }) {
+  return (
+    <q className={className} data-testid={testId}>
+      {o.before}
+      {o.said ? <mark>{o.said}</mark> : null}
+      {o.after}
+    </q>
+  );
 }
 
 /** The row's test ids, which each place keeps as its own: a run's screen's and a sequence's. */
@@ -30,6 +43,7 @@ interface HeldRowIds {
   lead: string;
   door: (door: HeldChoice) => string;
   said: string;
+  opening: string;
 }
 
 /** A run's screen's ids for a held email's row. */
@@ -38,6 +52,7 @@ export const RUN_HELD_IDS: HeldRowIds = {
   lead: "ro-held-lead",
   door: (door) => `ro-door-${door}`,
   said: "ro-held-said",
+  opening: "ro-held-opening",
 };
 
 /** A sequence's Needs you's ids for a held email's row. */
@@ -46,6 +61,7 @@ export const SEQUENCE_HELD_IDS: HeldRowIds = {
   lead: "sq-held-lead",
   door: (door) => `sq-held-${door}`,
   said: "sq-held-said",
+  opening: "sq-held-opening",
 };
 
 interface HeldRowProps {
@@ -91,6 +107,7 @@ function HeldCardRow({ h, may, busy, said = null, onAnswer, ids }: HeldRowProps)
           )}
         </div>
         <p className="ro-hrow-why">{heldWhyParts(h.why)}</p>
+        {h.opening ? <HeldOpening o={h.opening} className="ro-hrow-opening" testId={ids.opening} /> : null}
         {may && h.answers.length > 0 ? (
           <div className="ro-hrow-acts">
             {h.answers.map((a) => (
@@ -141,6 +158,7 @@ export function HeldEmailRow(p: HeldRowProps) {
       said={(place) => (
         <div className={`${place} sq-needs sq-held-why`}>
           {h.why}
+          {h.opening ? <HeldOpening o={h.opening} className="sq-held-opening" testId={ids.opening} /> : null}
           {said ? (
             <span className="pb-warn sq-held-said" role="alert" data-testid={ids.said}>
               {said}

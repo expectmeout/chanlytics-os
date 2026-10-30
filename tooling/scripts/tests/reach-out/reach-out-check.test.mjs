@@ -107,7 +107,10 @@ test("a claim the record does not hold is written again once, told why; then hel
     READ({ backed: false, unbacked: "Loved by all" }),
   );
   const held = await checkOne(input(), twice.ask, open);
-  assert.deepEqual([held.hold, held.detail, held.opening.opening], ["unbacked_fact", "Loved by all", "Loved by all."]);
+  assert.deepEqual(
+    [held.hold, held.detail, held.opening.opening],
+    ["unbacked_fact", "detail:Loved by all", "Loved by all."],
+  );
   assert.equal(twice.asked.length, 4, "one rewrite, never a second");
 });
 
@@ -186,7 +189,7 @@ test("an Include past a word hold covers that one email: a later step's new open
     READ({ backed: false, unbacked: "Loved by all" }),
   );
   const held = await checkOne(input({ included: ["unbacked_fact"] }), twice.ask, open);
-  assert.deepEqual([held.hold, held.detail], ["unbacked_fact", "Loved by all"]);
+  assert.deepEqual([held.hold, held.detail], ["unbacked_fact", "detail:Loved by all"]);
   const pitch = scripted(
     WROTE("Movers love us."),
     READ({ pitch: true }),
@@ -292,6 +295,81 @@ test("a fact the reader cannot back goes the writer's way, as an opening with no
     /You write the first sentence/,
     "the writer is asked after the reader refused the fact",
   );
+});
+
+/* ------------------------------------------- what a business's own website says (30 Oct 2026) -- */
+
+const { siteReaderOf } = await import(at("apps/edge/lib/reach-out/check-one.ts"));
+const { siteWordsOf, WEBSITE_SAYS_MAX } = await import(at("apps/edge/lib/public-page.ts"));
+
+test("the writer is given what the business's own website says, read once, and only when the writer is asked", async () => {
+  let reads = 0;
+  const site = async () => {
+    reads += 1;
+    return "Austin Movers · Piano moving since 2009";
+  };
+  const m = scripted(WROTE("Austin Movers has moved pianos since 2009.", { facts_used: ["website_says"] }), READ());
+  const out = await checkOne(input({ site }), m.ask, open);
+  assert.deepEqual([out.kind, out.hold, reads], ["checked", null, 1]);
+  assert.match(m.asked[0].user, /website_says: Austin Movers · Piano moving since 2009/, "the writer reads it");
+  assert.match(m.asked[1].user, /website_says: Austin Movers · Piano moving since 2009/, "the reader reads the same");
+  // A rewrite reads it no second time.
+  reads = 0;
+  const again = scripted(
+    WROTE("Loved by locals."),
+    READ({ backed: false, unbacked: "Loved by locals" }),
+    WROTE("A 4.9."),
+    READ(),
+  );
+  assert.equal((await checkOne(input({ site }), again.ask, open)).rewritten, true);
+  assert.equal(reads, 1);
+  // A listing's own fact that passes asks no writer, so no site is read.
+  reads = 0;
+  await checkOne(input({ site, fact: FACT }), scripted(READ()).ask, open);
+  assert.equal(reads, 0);
+  // A site that says nothing, or whose read throws, leaves the record as it was, and the check goes on.
+  const reset = async () => {
+    throw new Error("reset");
+  };
+  for (const quiet of [async () => null, reset]) {
+    const q = scripted(WROTE("A 4.9."), READ());
+    assert.equal((await checkOne(input({ site: quiet }), q.ask, open)).hold, null);
+    assert.doesNotMatch(q.asked[0].user, /website_says/);
+  }
+});
+
+test("a home page says what the business says of itself: its title, its description, then its first words", () => {
+  const html = `<html><head><title>Austin Movers | Local &amp; Long-Distance</title>
+    <meta content="Family-run movers in Austin since 2009." name="description">
+    <style>.hero{color:red}</style><script>var tracking = "ignore me";</script></head>
+    <body><h1>Moving made calm</h1><p>We move homes and offices across Texas.</p></body></html>`;
+  const said = siteWordsOf(html);
+  assert.ok(said.startsWith("Austin Movers | Local & Long-Distance · Family-run movers in Austin since 2009."), said);
+  assert.match(said, /moving made calm/i, "a heading as its page says it");
+  assert.match(said, /We move homes and offices across Texas\./);
+  assert.doesNotMatch(said, /color:red|ignore me|[\r\n]/);
+  // An og:description stands in for a missing description, and words said twice are said once.
+  const og = siteWordsOf(`<title>Harbor Repair</title><meta property="og:description" content="Harbor Repair">`);
+  assert.equal(og, "Harbor Repair");
+  // A long page is cut at a word, within the bound; a page that says nothing is nothing.
+  const long = siteWordsOf(`<title>T</title><body><p>${"word ".repeat(400)}</p></body>`);
+  assert.ok(long.length <= WEBSITE_SAYS_MAX && long.endsWith("word"), long.length);
+  assert.equal(siteWordsOf("<html><body><script>x()</script></body></html>"), null);
+});
+
+test("a lead's site is asked for at its own host, through the public page reader, and none is asked without one", async () => {
+  const asked = [];
+  const fetcher = async (url) => {
+    asked.push(url);
+    return new Response("<title>Austin Movers</title>", { headers: { "content-type": "text/html" } });
+  };
+  assert.equal(await siteReaderOf(fetcher, "austinmovers.example")(), "Austin Movers");
+  assert.deepEqual(asked, ["https://austinmovers.example/"]);
+  assert.equal(siteReaderOf(fetcher, null), undefined);
+  assert.equal(siteReaderOf(fetcher, "  "), undefined);
+  // An address inside the platform's own network is never read.
+  assert.equal(await siteReaderOf(fetcher, "10.0.0.5")(), null);
+  assert.equal(asked.length, 1);
 });
 
 test("words that name no opening ask nothing of a fact either", async () => {
@@ -520,8 +598,10 @@ function byBusiness(scripts) {
   };
   return { ask, calls };
 }
+/** A website that answers nothing: the tick's sends are read from their records alone. */
+const noSite = async () => new Response("", { status: 404 });
 const tick = (w, ask, over = {}) =>
-  checkSends({ db: w.db, now: new Date(), started: Date.now(), log: fakeLog(), ask, ...over });
+  checkSends({ db: w.db, now: new Date(), started: Date.now(), log: fakeLog(), ask, fetchPage: noSite, ...over });
 
 test("a tick checks each leased send once: the opening kept, a hold with its reason, the words it was checked against", async () => {
   const plain = send({ lead_id: "plain" });

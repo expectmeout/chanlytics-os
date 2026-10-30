@@ -31,6 +31,7 @@ import {
   parseReading,
   parseTenantConfig,
   readingSystemPrompt,
+  SECOND_MS,
   readingUserContent,
   reachOutCountryOf,
   wordsNeedOpening,
@@ -42,8 +43,26 @@ import {
 } from "../packages/contracts.js";
 import { workspaceAbout, workspaceNameAndConfig, type Database, type ReachOutRecordRow } from "../packages/db.js";
 import { askJson, type JsonAnswer, type ModelCallFor } from "../model.js";
+import { publicPageText, siteWordsOf } from "../public-page.js";
 
 type Db = SupabaseClient<Database>;
+
+/** How long a business's home page may take, and how much of it is read: its head and first words, never a download. */
+const SITE_READ = { timeoutMs: 4 * SECOND_MS, maxBytes: 200_000 };
+
+/**
+ * What a business's own website says of itself (siteWordsOf), read by one GET of its home page through the public
+ * reader's address rule, for its opening's record (30 Oct 2026: a lead is not only its listing, and a finder's company
+ * or an owner's file has none). Undefined where it has no website.
+ */
+export function siteReaderOf(fetchImpl: typeof fetch, host: string | null): (() => Promise<string | null>) | undefined {
+  const at = host?.trim();
+  if (!at) return undefined;
+  return async () => {
+    const html = await publicPageText(fetchImpl, `https://${at}/`, SITE_READ);
+    return html ? siteWordsOf(html) : null;
+  };
+}
 
 /** No call starts after this, from the tick's start (R1): the door has 60 s (vercel.json). */
 export const CHECK_CALLS_UNTIL_MS = 40_000;
@@ -122,6 +141,11 @@ export interface CheckInput {
    */
   fact?: WrittenOpening | null;
   /**
+   * What the business's own website says (siteReaderOf): read once, and only where the writer is asked, so a listing's
+   * fact that passes reads no site; the writer and the reader then read the same record. Absent where it has none.
+   */
+  site?: () => Promise<string | null>;
+  /**
    * The holds this send's owner included it, or its lead in this chain, past (the planner's union over the lead's sends):
    * one an Include carries (contracts HOLDS_INCLUDED_FOR_CHAIN) is never made again; the rest covered one email (R7).
    */
@@ -149,6 +173,13 @@ export type CheckOutcome =
 function timedOut(e: unknown): boolean {
   const name = (e as { name?: unknown } | null)?.name;
   return name === "TimeoutError" || name === "AbortError" || /timed? ?out|aborted/i.test(String(e));
+}
+
+/** The record with what its website says, read once for the writer and the reader alike; a site unread says nothing. */
+async function withWebsite(i: CheckInput): Promise<OpeningRecord> {
+  if (!i.site) return i.record;
+  const said = await i.site().catch(() => null);
+  return { ...i.record, website_says: said };
 }
 
 /** One send's check, over an injectable model; `forWhom` is the usage ledger's row for each call. */
@@ -181,12 +212,14 @@ export async function checkOne(
   };
   const failed = (why: CheckFailure): CheckOutcome => ({ kind: "failed", why, tokens, calls });
   const late = (): CheckOutcome => ({ kind: "late", tokens, calls });
+  // The record every call reads: the listing's, and what its website says once the writer is to be asked.
+  let record = i.record;
   // The reader's verdict on an opening against the record, after code's own reading of it: the call every opening takes,
   // a fact's and each one the writer wrote; an outcome where the check ends there.
   const verdictOn = async (o: WrittenOpening): Promise<OpeningVerdict | CheckOutcome> => {
     const r = await call(
       readingSystemPrompt(),
-      readingUserContent({ record: i.record, opening: o.opening }),
+      readingUserContent({ record, opening: o.opening }),
       READING_SCHEMA,
       200,
     );
@@ -194,7 +227,7 @@ export async function checkOne(
     if ("failed" in r) return failed(r.failed);
     const reading = parseReading(r.answer);
     if (!reading) return failed("unparseable");
-    return openingVerdict(checkOpening(o, i.record), reading, i.language, o.opening);
+    return openingVerdict(checkOpening(o, record), reading, i.language, o.opening);
   };
 
   let opening: WrittenOpening | null = null;
@@ -214,11 +247,12 @@ export async function checkOne(
     }
   }
   if (i.needsOpening && opening === null) {
+    record = await withWebsite(i);
     let retry: { opening: string; why: string } | undefined;
     for (let round = 0; round < 2; round += 1) {
       const w = await call(
         openingSystemPrompt(),
-        openingUserContent({ record: i.record, workspace: i.workspace, words: i.words, retry }),
+        openingUserContent({ record, workspace: i.workspace, words: i.words, retry }),
         OPENING_SCHEMA,
         400,
       );
@@ -295,6 +329,8 @@ export function openingRecordOf(r: ReachOutRecordRow): OpeningRecord {
     about: r.about?.trim() || null,
     why_it_fits: r.why_it_fits?.trim() || null,
     what_you_asked: r.what_you_asked?.trim() || null,
+    // Read by the check itself, and only when the writer is asked (CheckInput.site).
+    website_says: null,
   };
 }
 

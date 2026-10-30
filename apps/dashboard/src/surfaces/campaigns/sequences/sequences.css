@@ -513,6 +513,29 @@
   text-overflow: clip;
   white-space: normal;
 }
+/* The opening a held email would send, read whole under why, in ink; the words the check refused marked in the warning's
+   soft colour (30 Oct 2026: a fragment alone could not be judged). */
+.sq-held-opening {
+  display: block;
+  margin-top: var(--space-1);
+  color: var(--ink);
+  font-size: var(--text-sm);
+}
+.sq-held-opening > mark {
+  padding: 0 2px;
+  border-radius: var(--radius-sm);
+  background: var(--warn-soft);
+  color: var(--warn-ink);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+/* Over the held: the one reason they share and what a rewrite does, quiet, under the part's head. */
+.sq-needs-cause {
+  margin: 0;
+  padding: 0 var(--space-2);
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+}
 /* A held email's answers, one group that wraps: on a phone three stood in a row past the row's edge. */
 .sq-held-answers {
   display: flex;

@@ -125,8 +125,15 @@ export type {
 } from "./sequence-dto";
 export { classEvidenceLine, EVIDENCE_DAYS, evidenceOf, evidenceWords } from "./sequence-evidence";
 export type { SequenceEvidence, SequenceEvidenceDto } from "./sequence-evidence";
-export { HELD_TAKE_OUT, heldAnswersOf, heldChoicesOf, heldWhyOf, waitingAnswersOf } from "./sequence-held";
-export type { HeldAnswer, HeldChoice } from "./sequence-held";
+export {
+  HELD_TAKE_OUT,
+  heldAnswersOf,
+  heldChoicesOf,
+  heldWhyOf,
+  markedOpeningOf,
+  waitingAnswersOf,
+} from "./sequence-held";
+export type { HeldAnswer, HeldChoice, MarkedOpening } from "./sequence-held";
 export {
   LEAD_BUILD_WORDS,
   leadBuildStepsOf,

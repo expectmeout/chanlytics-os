@@ -5,6 +5,8 @@ import {
   UUID,
   clockStamp,
   evidenceWords,
+  heldWhyOf,
+  isReachOutHold,
   needsCount,
   needsWords,
   noteRows,
@@ -124,7 +126,12 @@ export async function readSequence(t: ToolContext, input: { sequence_id: string 
         send_id: r.send_id,
         name: r.name,
         stands: PEOPLE_GROUP_WORDS[r.group],
-        ...(r.why || r.hold_detail ? { why: r.hold_detail ?? r.why } : {}),
+        // A held email's why in the words its row says (contracts heldWhyOf): its stored detail carries the check's kind.
+        ...(r.group === "held" && isReachOutHold(r.why)
+          ? { why: heldWhyOf(r.why, r.hold_detail) }
+          : r.why || r.hold_detail
+            ? { why: r.hold_detail ?? r.why }
+            : {}),
       })),
     // Who wrote back and waits for an answer (00455), answered in their thread: the Inbox's, never a sequence's.
     wrote_back: people.rows

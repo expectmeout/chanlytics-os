@@ -51,6 +51,7 @@ import {
   checkInputOf,
   checkOne,
   checkWorkspaceOf,
+  siteReaderOf,
   type AskModel,
   type CheckBudget,
   type CheckWorkspace,
@@ -69,6 +70,7 @@ export {
   checkInputOf,
   checkOne,
   checkWorkspaceOf,
+  siteReaderOf,
   type AskModel,
   type CheckBudget,
   type CheckWorkspace,
@@ -155,7 +157,8 @@ function failedCheck(s: ReachOutSendRow, now: Date, at: string) {
 
 /**
  * One tick of the check: the holds to check again, then the sends leased to this tick, each workspace's gates asked
- * before any call, then each send's check, a few at once, until the budget. `ask` is the model (tests give their own).
+ * before any call, then each send's check, a few at once, until the budget. `ask` is the model and `fetchPage` what a
+ * business's website is read with (tests give their own of each).
  */
 export async function checkSends(p: {
   db: Db;
@@ -164,11 +167,13 @@ export async function checkSends(p: {
   log: Logger;
   tenantId?: string;
   ask?: AskModel;
+  fetchPage?: typeof fetch;
   budget?: CheckBudget;
   notice?: HeldNoticeSend;
 }): Promise<CheckCounts> {
   const { db, now, log } = p;
   const ask = p.ask ?? askReachOutModel;
+  const fetchPage = p.fetchPage ?? fetch;
   const budget = p.budget ?? checkBudget(p.started);
   const at = now.toISOString();
   const out: CheckCounts = {
@@ -281,7 +286,10 @@ export async function checkSends(p: {
         return;
       }
       const ws = await once(workspaces, s.tenant_id, () => checkWorkspaceOf(db, s.tenant_id));
-      const input = checkInputOf(u.record, w, ws.opening, u.template_language, u.included_for, country);
+      const input = {
+        ...checkInputOf(u.record, w, ws.opening, u.template_language, u.included_for, country),
+        site: siteReaderOf(fetchPage, u.record.website_host),
+      };
       // One attempt of the workspace's UTC day, taken before the model is asked (a rewrite is the same attempt, a
       // failure spends it): words that name no opening cost nothing and take none.
       const cap = REACH_OUT_CHECKS_PER_DAY;
