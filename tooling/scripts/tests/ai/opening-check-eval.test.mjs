@@ -155,8 +155,9 @@ const message = (obj) => ({
 
 /**
  * A model that reads every sentence and writes for each business by its name. The reader refuses "a waiting list" and
- * "on weekends too" (the barber's listing sentence: its Sunday ends at 4 PM), and passes the rest. The thin auto shop's
- * writer guesses at first and then writes from the record; the barber's always claims a waiting list. The grader calls a
+ * passes the rest: every listing sentence the set says is true (#1952, 30 Oct 2026: the barber's names each weekend
+ * day's close, where it said "and on weekends too" of a Sunday that ends at 4 PM). The thin auto shop's writer guesses
+ * at first and then writes from the record; the thin cleaner's always claims a waiting list. The grader calls a
  * sentence with "probably" or "waiting" a guess, and the rest honest.
  */
 function world() {
@@ -170,14 +171,14 @@ function world() {
         ? again
           ? "Euro Motors Service is an auto repair shop in Newark."
           : "Euro Motors Service in Newark probably gets calls at 3 AM."
-        : name.startsWith("Sharp Line")
-          ? "Sharp Line Barbershop has a waiting list most Saturdays."
+        : name.startsWith("Crestview")
+          ? "Crestview Cleaners has a waiting list most Saturdays."
           : `${name} came up in my search.`;
       return message({ opening, angle: "their record", facts_used: [] });
     }
     if (READER.test(system)) {
       const sentence = user.slice(user.indexOf("The sentence: ") + 14);
-      const unbacked = /waiting list|on weekends too/.exec(sentence)?.[0] ?? "";
+      const unbacked = /waiting list/.exec(sentence)?.[0] ?? "";
       return message({ backed: !unbacked, unbacked, pitch: false, language: "en" });
     }
     if (GRADER.test(system)) {
@@ -193,16 +194,16 @@ function world() {
     throw new Error(`an unknown prompt: ${system.slice(0, 40)}`);
   });
 }
-const three = {
+const four = {
   ...SET,
-  businesses: ["towing-all-hours", "auto-thin", "barber-many-reviews"].map((id) =>
+  businesses: ["towing-all-hours", "auto-thin", "barber-many-reviews", "cleaner-thin"].map((id) =>
     SET.businesses.find((b) => b.id === id),
   ),
 };
 
 test("every business is checked by the edge's loop: its listing's own sentence read first, the writer where there is none or it is refused", async () => {
   const api = world();
-  const { results, spend } = await runChecks(EVAL_KEY, three, 2, { fetch: api.fetch });
+  const { results, spend } = await runChecks(EVAL_KEY, four, 2, { fetch: api.fetch });
   assert.deepEqual(
     results.map((r) => [r.id, r.round, r.kind, r.hold, r.rewritten, r.source]),
     [
@@ -210,21 +211,28 @@ test("every business is checked by the edge's loop: its listing's own sentence r
       ["towing-all-hours", 2, "checked", null, false, "listing"],
       ["auto-thin", 1, "checked", null, true, "writer"],
       ["auto-thin", 2, "checked", null, true, "writer"],
-      ["barber-many-reviews", 1, "checked", "unbacked_fact", true, "writer"],
-      ["barber-many-reviews", 2, "checked", "unbacked_fact", true, "writer"],
+      ["barber-many-reviews", 1, "checked", null, false, "listing"],
+      ["barber-many-reviews", 2, "checked", null, false, "listing"],
+      ["cleaner-thin", 1, "checked", "unbacked_fact", true, "writer"],
+      ["cleaner-thin", 2, "checked", "unbacked_fact", true, "writer"],
     ],
   );
   assert.equal(results[0].opening, "Ridgeway Towing is open 24 hours, seven days a week.");
   assert.equal(results[2].opening, "Euro Motors Service is an auto repair shop in Newark.");
   assert.equal(
     results[4].opening,
-    "Sharp Line Barbershop has a waiting list most Saturdays.",
+    "Sharp Line Barbershop is open until 8 PM Monday to Saturday and until 4 PM on Sundays.",
+    "each weekend day's close, as its listing gives it",
+  );
+  assert.equal(
+    results[6].opening,
+    "Crestview Cleaners has a waiting list most Saturdays.",
     "a held opening keeps its words",
   );
-  // The towing service's listing sentence is read once and sent. The auto shop has none: its writer's first opening names
-  // a number its record does not hold (3 AM), so code asks for one rewrite. The barber's listing sentence is refused,
-  // and its writer's is refused twice, and held.
-  assert.equal(api.calls.length, 2 * (1 + 4 + 5));
+  // The towing service's and the barber's listing sentences are read once and sent. The auto shop has none: its
+  // writer's first opening names a number its record does not hold (3 AM), so code asks for one rewrite. The cleaner has
+  // none either, and its writer's is refused twice, and held.
+  assert.equal(api.calls.length, 2 * (1 + 4 + 1 + 4));
   assert.equal(spend.calls, api.calls.length);
   assert.ok(
     Math.abs(spend.usd - (spend.calls * (1000 * 0.1 + 50 * 0.5)) / 1e6) < 1e-9,
@@ -235,14 +243,14 @@ test("every business is checked by the edge's loop: its listing's own sentence r
 test("a run stops at its spend cap: no check or grade starts once it is reached, and the run says so", async () => {
   const api = world();
   await assert.rejects(
-    runChecks(EVAL_KEY, three, 2, { fetch: api.fetch }, 1, newSpend(0.0001)),
+    runChecks(EVAL_KEY, four, 2, { fetch: api.fetch }, 1, newSpend(0.0001)),
     /spend cap of \$0\.0001 was reached/,
   );
   assert.equal(api.calls.length, 1, "the first check's one call crossed it; nothing started after");
-  const { results } = await runChecks(EVAL_KEY, three, 1, { fetch: world().fetch });
+  const { results } = await runChecks(EVAL_KEY, four, 1, { fetch: world().fetch });
   const grading = world();
   await assert.rejects(
-    gradeAll(EVAL_KEY, three, results, { fetch: grading.fetch }, newSpend(0)),
+    gradeAll(EVAL_KEY, four, results, { fetch: grading.fetch }, newSpend(0)),
     /spend cap of \$0\.0000 was reached/,
   );
   assert.equal(grading.calls.length, 0);
@@ -250,11 +258,11 @@ test("a run stops at its spend cap: no check or grade starts once it is reached,
 
 test("each business's written openings are graded in one call against its record, sent and held alike, each sentence once", async () => {
   const api = world();
-  const { results, spend } = await runChecks(EVAL_KEY, three, 2, { fetch: api.fetch });
+  const { results, spend } = await runChecks(EVAL_KEY, four, 2, { fetch: api.fetch });
   const before = api.calls.length;
-  await gradeAll(EVAL_KEY, three, results, { fetch: api.fetch }, spend);
+  await gradeAll(EVAL_KEY, four, results, { fetch: api.fetch }, spend);
   const graded = api.calls.slice(before);
-  assert.equal(graded.length, 3, "one call per business");
+  assert.equal(graded.length, 4, "one call per business");
   for (const body of graded) {
     assert.equal(body.model, GRADER_MODEL);
     assert.equal(GRADER_MODEL, MODELS.OPUS_5_5);
@@ -271,9 +279,9 @@ test("each business's written openings are graded in one call against its record
   assert.match(towing, /\nThe openings:\n1\. Ridgeway Towing is open 24 hours, seven days a week\.$/);
   assert.deepEqual(
     results.map((r) => r.grade.label),
-    ["honest", "honest", "honest", "honest", "guess", "guess"],
+    ["honest", "honest", "honest", "honest", "honest", "honest", "guess", "guess"],
   );
-  assert.equal(results[4].grade.why, "a waiting list");
+  assert.equal(results[6].grade.why, "a waiting list");
   const locksmith = (await inputsOf(SET)).find((i) => i.business.id === "locksmith-all-hours").input.record;
   assert.equal(
     graderRecordOf(locksmith),
@@ -285,7 +293,7 @@ test("each business's written openings are graded in one call against its record
 });
 
 test("a grader that answers for the wrong number of openings fails the run: nothing is guessed at", async () => {
-  const { results } = await runChecks(EVAL_KEY, three, 1, { fetch: world().fetch });
+  const { results } = await runChecks(EVAL_KEY, four, 1, { fetch: world().fetch });
   // One sentence each: a grader answering for two has not graded the one it was asked about.
   const short = answering(async () =>
     message({
@@ -295,7 +303,7 @@ test("a grader that answers for the wrong number of openings fails the run: noth
       ],
     }),
   );
-  await assert.rejects(gradeAll(EVAL_KEY, three, results, { fetch: short.fetch }), /could not grade/);
+  await assert.rejects(gradeAll(EVAL_KEY, four, results, { fetch: short.fetch }), /could not grade/);
 });
 
 /* ------------------------------------------------------------------ the lines -- */
