@@ -29,6 +29,7 @@ import {
   checkInputOf,
   checkOne,
   checkWorkspaceOf,
+  siteReaderOf,
   type AskModel,
   type CheckBudget,
 } from "./check.js";
@@ -136,7 +137,11 @@ export async function previewOne(
     i.mailboxId ? mailboxConnectionOf(db, i.tenantId, i.mailboxId) : Promise.resolve(null),
   ]);
   if (!record) return none;
-  const input = checkInputOf(record, i.words, workspace.opening, i.language, [], countries.get(lead.lead_id) ?? null);
+  const input = {
+    ...checkInputOf(record, i.words, workspace.opening, i.language, [], countries.get(lead.lead_id) ?? null),
+    // Its website read as a send's is, so the preview's opening is the one the send would write.
+    site: siteReaderOf(fetch, record.website_host),
+  };
   const c = await checkOne(input, ask, budget, {
     tenantId: i.tenantId,
     subjectId: lead.lead_id,

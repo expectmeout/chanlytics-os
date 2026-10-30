@@ -72,24 +72,25 @@ export function SequenceNeeds({ sequenceId, rows, count, timezone, flash, onDeci
       );
     setBusy(null);
   };
-  // Each through its own verb, one after another; what went is said once, and the first refusal in its door's words.
-  const sendAll = async () => {
-    setBusy("all");
-    let went = 0;
+  // Each through its own verb, one after another; what was done is said once, and the first refusal in its door's words:
+  // the held that may go as they read (Send N anyway), or those held for their words, each written again (Rewrite all N).
+  const decideAll = async (key: "all" | "rewrite", held: readonly SequenceHeldVM[]) => {
+    setBusy(key);
+    let done = 0;
     let no: ApiRefusal | null = null;
-    for (const h of vm.asIs) {
+    for (const h of held) {
       const r = await commitVerb("sequence_send_decide", {
         send_id: h.id,
-        decision: "include",
+        decision: key === "all" ? "include" : "rewrite",
         name: h.name,
         run_id: h.batchId,
       });
-      if (r.ok) went += 1;
+      if (r.ok) done += 1;
       else no ??= r;
     }
     setBusy(null);
     if (no) flash(refusalToast(no));
-    else flash({ tone: "ok", msg: N.wentAll(went), undo: null });
+    else flash({ tone: "ok", msg: key === "all" ? N.wentAll(done) : N.rewroteAll(done), undo: null });
     onDecided();
   };
   return (
@@ -103,18 +104,34 @@ export function SequenceNeeds({ sequenceId, rows, count, timezone, flash, onDeci
           <h4 className="sq-needs-head">
             {N.held}
             <span className="tally tally-warn">{vm.held.length}</span>
+            {may && vm.rewrite.length > 1 ? (
+              <LinkButton
+                className="sq-group-act"
+                disabled={busy !== null}
+                aria-busy={busy === "rewrite" || undefined}
+                onClick={() => void decideAll("rewrite", vm.rewrite)}
+                data-testid="sq-needs-rewrite-all"
+              >
+                {busy === "rewrite" ? N.rewriting : N.rewriteAll(vm.rewrite.length)}
+              </LinkButton>
+            ) : null}
             {may && vm.asIs.length > 0 ? (
               <LinkButton
                 className="sq-group-act"
                 disabled={busy !== null}
                 aria-busy={busy === "all" || undefined}
-                onClick={() => void sendAll()}
+                onClick={() => void decideAll("all", vm.asIs)}
                 data-testid="sq-needs-send-all"
               >
                 {busy === "all" ? N.sending : N.sendAll(vm.asIs.length)}
               </LinkButton>
             ) : null}
           </h4>
+          {vm.cause || vm.advice ? (
+            <p className="sq-needs-cause" data-testid="sq-needs-cause">
+              {[vm.cause, vm.advice].filter(Boolean).join(" ")}
+            </p>
+          ) : null}
           <div className="sq-group-rows">
             {vm.held.map((h) => (
               <HeldEmailRow

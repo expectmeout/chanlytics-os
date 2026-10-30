@@ -265,8 +265,8 @@ test("where they stand, the same words in every window: what needs you by its wo
 
 test("a held email's choices follow why it was held, and Skip this email only from step 2", () => {
   const words = (hold, place) => heldChoicesOf(hold, place).map(([, w]) => w);
-  assert.deepEqual(words(null, 1), ["Send as written"], "at step 1 skipping would end their place: Take out says that");
-  assert.deepEqual(words(null, 2), ["Send as written", "Skip this email"]);
+  assert.deepEqual(words(null, 1), ["Send anyway"], "at step 1 skipping would end their place: Take out says that");
+  assert.deepEqual(words(null, 2), ["Send anyway", "Skip this email"]);
   for (const [door, w] of heldChoicesOf("unbacked_fact", 2)) assert.ok(typeof door === "string" && w.length > 0);
 });
 

@@ -54,7 +54,7 @@ interface HeldEmail {
 
 /**
  * A held email's choices (contracts heldChoicesOf: by why it was held, Skip from step 2), each the decide verb the record
- * and Sent press: Send as written, Rewrite the opening, Skip this email, Not a fit. The first is the primary where they
+ * and Sent press: Send anyway, Rewrite the opening, Skip this email, Not a fit. The first is the primary where they
  * stand in a dock (`dock`); a row's are quiet. A member who may not decide sees none.
  */
 export function HeldChoices(p: {

@@ -5,11 +5,13 @@
  * follows a few redirects and no more, takes HTML only, and reads no more than it was told it may, as the page
  * arrives, rather than reading it whole and cutting it.
  *
- * It answers null rather than throwing: a page that cannot be read says nothing, and nothing is wrong.
+ * It answers null rather than throwing: a page that cannot be read says nothing, and nothing is wrong. What a
+ * business's home page says of itself, in one line (siteWordsOf), is read here too: a cold email's opening is written
+ * and checked against it (lib/reach-out/check-one.ts).
  */
 import { feedUrlOk } from "./packages/contracts.js";
 // Who is asking, for a site that wants to know: channels' (site-reads.ts), the one place it is said.
-import { BOT_USER_AGENT } from "./packages/channels.js";
+import { BOT_USER_AGENT, emailPlainText } from "./packages/channels.js";
 
 /** An http to https hop and a www one are what a site does; more than this is a chain, and not followed. */
 const REDIRECTS_MAX = 3;
@@ -64,4 +66,46 @@ async function textUpTo(body: ReadableStream<Uint8Array>, maxBytes: number): Pro
     }
   }
   return text + decoder.decode();
+}
+
+/** The most a business's website is said in, in characters: as much as a directory's about (core leads/cards.ts). */
+const WEBSITE_SAYS_MAX = 600;
+
+const TITLE = /<title[^>]*>([\s\S]*?)<\/title\s*>/i;
+const META = /<meta\b[^>]*>/gi;
+const CONTENT = /\bcontent\s*=\s*(?:"([^"]*)"|'([^']*)')/i;
+
+/** A page's description, as its meta tags say it: its own, else the one it gives a link's preview. */
+function descriptionOf(html: string): string {
+  let preview = "";
+  for (const [tag] of html.matchAll(META)) {
+    const said = CONTENT.exec(tag);
+    const content = said?.[1] ?? said?.[2] ?? "";
+    if (!content.trim()) continue;
+    if (/\bname\s*=\s*["']?description\b/i.test(tag)) return content;
+    if (!preview && /\bproperty\s*=\s*["']?og:description\b/i.test(tag)) preview = content;
+  }
+  return preview;
+}
+
+/** HTML's words in one line, as an email's are read (channels emailPlainText): entities read, no script, no style. */
+const pageLineOf = (html: string): string => (emailPlainText({ text: null, html }) ?? "").replace(/\s+/g, " ").trim();
+
+/**
+ * What a business's own home page says of itself, in one line: its title, its description, then its page's words, each
+ * once, cut at a word within WEBSITE_SAYS_MAX; null where it says nothing. Its words, never ours.
+ */
+export function siteWordsOf(html: string): string | null {
+  const parts: string[] = [];
+  for (const part of [
+    pageLineOf(`<p>${TITLE.exec(html)?.[1] ?? ""}</p>`),
+    pageLineOf(`<p>${descriptionOf(html)}</p>`),
+    pageLineOf(html),
+  ])
+    if (part && !parts.some((p) => p.includes(part))) parts.push(part);
+  const said = parts.join(" · ");
+  if (!said) return null;
+  if (said.length <= WEBSITE_SAYS_MAX) return said;
+  const cut = said.slice(0, WEBSITE_SAYS_MAX + 1);
+  return cut.slice(0, cut.lastIndexOf(" ")).replace(/[\s·,;:–—-]+$/, "");
 }

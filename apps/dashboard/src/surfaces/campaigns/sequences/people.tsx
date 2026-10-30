@@ -16,6 +16,8 @@ import {
   addressOf,
   clockStamp,
   clockWhen,
+  heldWhyOf,
+  isReachOutHold,
   peopleNeedsOf,
   sequenceLeftWords,
   sequenceRepliesRoute,
@@ -82,7 +84,13 @@ function personLineOf(p: SequencePersonDto, tz: string, nowMs: number): string {
   // Added and not planned yet: when they joined its list.
   if (p.group === "queued") return at ? P.addedAt(at) : P.added;
   const place = p.place ? P.step(p.place) : null;
-  const why = p.group === "left" || p.group === "done" ? sequenceLeftWords(p.why) : (p.hold_detail ?? p.why ?? null);
+  // A held email says why in words, as its row in Needs you does: its stored detail is the check's, kind and all.
+  const why =
+    p.group === "left" || p.group === "done"
+      ? sequenceLeftWords(p.why)
+      : p.group === "held" && isReachOutHold(p.why)
+        ? heldWhyOf(p.why, p.hold_detail)
+        : (p.hold_detail ?? p.why ?? null);
   return [place, at, why].filter(Boolean).join(" · ");
 }
 

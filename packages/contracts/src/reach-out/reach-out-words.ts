@@ -375,6 +375,7 @@ export const OPENING_FACT_KEYS = [
   "hours",
   "about",
   "why_it_fits",
+  "website_says",
 ] as const;
 export type OpeningFactKey = (typeof OPENING_FACT_KEYS)[number];
 export function isOpeningFactKey(k: string): k is OpeningFactKey {
@@ -396,6 +397,11 @@ export interface OpeningRecord {
   about: string | null;
   /** The finder's reason it fits (lead_search_members.reason). */
   why_it_fits: string | null;
+  /**
+   * What the business's own website says about itself (channels siteWordsOf: its title, description, headings and first
+   * lines), read when the writer is asked; null where it has none, or it was not read. Its words, not ours.
+   */
+  website_says: string | null;
   /**
    * What the owner asked the finder for (lead_searches.asked): the sender's words about their search, never a fact
    * about this business. The writer is told it; no opening leans on it, and its numbers back nothing.
@@ -435,7 +441,7 @@ function recordNumbers(r: OpeningRecord): Set<string> {
     add(5);
   }
   if (r.reviews !== null) add(r.reviews);
-  for (const text of [r.business_name, r.category, r.city, r.hours, r.about, r.why_it_fits])
+  for (const text of [r.business_name, r.category, r.city, r.hours, r.about, r.why_it_fits, r.website_says])
     for (const m of (text ?? "").matchAll(NUMBER)) out.add(m[0].replace(/,$/, ""));
   return out;
 }
@@ -623,6 +629,59 @@ export function isReachOutHold(r: string | null | undefined): r is ReachOutHold 
 export type HoldDoor = "include" | "rewrite" | "skip" | "not_a_fit";
 
 /**
+ * What a claim the reader refused is about (30 Oct 2026: an owner read "which their record doesn't hold" and could not
+ * tell why, or what to do): the kinds no business's record states (reach-out-opening.ts OPENING_UNSTATED), and any
+ * other detail, number or name. The reader names one; a held email says it.
+ */
+export const OPENING_CLAIM_KINDS = ["calls", "busy", "revenue", "feelings", "problems", "plans", "detail"] as const;
+export type OpeningClaimKind = (typeof OPENING_CLAIM_KINDS)[number];
+/** What a held opening's claim is, as its hold stores it: the reader's kind, or a guess code read in its words. */
+export type HeldClaimKind = OpeningClaimKind | "guess";
+const HELD_CLAIM_KINDS: readonly string[] = [...OPENING_CLAIM_KINDS, "guess"];
+const isHeldClaimKind = (k: string): k is HeldClaimKind => HELD_CLAIM_KINDS.includes(k);
+
+/** How much of a refused claim's words a hold keeps: with its kind, inside sequence_sends.hold_detail's 120. */
+const HELD_SAID_MAX = 100;
+
+/** An unbacked opening's hold detail: its kind and the words it said, kept as a chain's is ("site:3"). */
+export function heldClaimDetail(kind: HeldClaimKind, said: string | null): string {
+  return `${kind}:${(said ?? "").slice(0, HELD_SAID_MAX)}`;
+}
+
+/** An unbacked opening's hold detail read back; one stored before its kind was (its words alone) is words alone. */
+export function heldClaimOf(detail: string | null): { kind: HeldClaimKind | null; said: string | null } {
+  const d = detail?.trim() ?? "";
+  const at = d.indexOf(":");
+  const kind = at > 0 ? d.slice(0, at) : "";
+  if (isHeldClaimKind(kind)) return { kind, said: d.slice(at + 1).trim() || null };
+  return { kind: null, said: d || null };
+}
+
+/** What an unbacked opening guessed at, after "the opening ". */
+const CLAIM_GUESSED: Record<Exclude<OpeningClaimKind, "detail">, string> = {
+  calls: "guesses at their calls",
+  busy: "guesses how busy they are",
+  revenue: "guesses at their revenue",
+  feelings: "guesses at how they feel",
+  problems: "guesses at a problem they have",
+  plans: "guesses at their plans",
+};
+const NOTHING_FOUND = "we found nothing that says so";
+
+/** What an unbacked opening did, by its kind alone ("the opening guesses at their calls"); a hold with none, a detail. */
+export function openingClaimWords(kind: HeldClaimKind | null): string {
+  if (kind === "guess") return "the opening is worded as a guess";
+  if (kind && kind !== "detail") return `the opening ${CLAIM_GUESSED[kind]}`;
+  return "the opening says something we found nothing on";
+}
+
+function unbackedWords(c: { kind: HeldClaimKind | null; said: string | null }): string {
+  if (c.kind === "guess") return c.said ? `${openingClaimWords("guess")}: “${c.said}”` : openingClaimWords("guess");
+  if (c.kind && c.kind !== "detail") return `${openingClaimWords(c.kind)}; ${NOTHING_FOUND}`;
+  return c.said ? `the opening says “${c.said}”; ${NOTHING_FOUND}` : openingClaimWords(null);
+}
+
+/**
  * A held send, said in a line (F3). The detail is what the check stored beside the reason: "site:3" or "name:4" for a
  * chain, the language's code, a customer's domain, the reader's words for an unbacked claim, the code rule an
  * opening broke (an OpeningProblem) for a pitch or an opening that could not be written.
@@ -640,9 +699,7 @@ export function holdWords(h: ReachOutHold, detail: string | null, stepLanguage =
     case "language":
       return `their listing reads in ${languageName(detail || "?")}; the email is in ${languageName(stepLanguage)}`;
     case "unbacked_fact":
-      return detail
-        ? `the opening said “${detail}”, which their record doesn't hold`
-        : "the opening said something their record doesn't hold";
+      return unbackedWords(heldClaimOf(detail));
     case "reads_like_spam":
       return isOpeningProblem(detail)
         ? `the opening read like a pitch: ${openingProblemWords(detail)}`
@@ -719,7 +776,7 @@ export const HOLDS_INCLUDED_FOR_CHAIN: ReadonlySet<ReachOutHold> = new Set<Reach
 
 /** A held email's doors, in one meaning each (the lead-to-sequence canvas): it goes as it reads, or this one is skipped. */
 export const HOLD_DOOR_WORDS: Record<HoldDoor, string> = {
-  include: "Send as written",
+  include: "Send anyway",
   rewrite: "Rewrite the opening",
   skip: "Skip this email",
   not_a_fit: "Not a fit",

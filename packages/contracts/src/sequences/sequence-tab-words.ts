@@ -4,7 +4,17 @@
  * every number is counted from what the readers answer (sequence-dto.ts), so a figure here is the one Reports says.
  */
 import { toSendRowOf, type ToSendRowVM } from "../reach-out/reach-out-approval";
-import { HELD_TAKE_OUT, heldAnswersOf, heldWhyOf, waitingAnswersOf, type HeldAnswer } from "./sequence-held";
+import {
+  HELD_REWRITE_ADVICE,
+  HELD_TAKE_OUT,
+  heldAnswersOf,
+  heldCauseOf,
+  heldWhyOf,
+  markedOpeningOf,
+  waitingAnswersOf,
+  type HeldAnswer,
+  type MarkedOpening,
+} from "./sequence-held";
 import { isReachOutHold, type ReachOutHold } from "../reach-out/reach-out-words";
 import { personHandWords, type HandKind } from "../reach-out/reach-out-hand";
 import { REPLY_INTENT_WORDS, isReplyIntent } from "../reach-out/reach-out-replies";
@@ -70,7 +80,11 @@ export const SEQUENCE_NEEDS_WORDS = {
   title: "Needs you",
   held: "Held by the check",
   /** Over the held whose hold judged the lead, never the words (LEAD_HOLDS): what may go as written in one press. */
-  sendAll: (n: number) => `Send ${n} as written`,
+  sendAll: (n: number) => `Send ${n} anyway`,
+  /** Over the held whose words the check faulted: each written again, one press. */
+  rewriteAll: (n: number) => `Rewrite all ${n}`,
+  rewriting: "Rewriting…",
+  rewroteAll: (n: number) => (n === 1 ? "1 opening is being written again" : `${n} openings are being written again`),
   sending: "Sending…",
   wentAll: (n: number) => (n === 1 ? "1 email goes as written" : `${n} emails go as written`),
   toSend: "For you to send from your inbox",
@@ -98,6 +112,8 @@ export interface SequenceHeldVM {
   /** The step it is, from 1: Skip this email from step 2, Take out at step 1. */
   place: number | null;
   why: string;
+  /** The opening it would send, the words the check refused marked (markedOpeningOf); null where it has none. */
+  opening: MarkedOpening | null;
   /** Why the check held it (contracts REACH_OUT_HOLDS): what decides whether it may go as written with the rest. */
   reason: ReachOutHold;
   answers: HeldAnswer[];
@@ -122,11 +138,17 @@ export interface SequenceWroteBackVM {
 export interface SequenceNeedsVM {
   held: SequenceHeldVM[];
   /**
-   * The held that may go as written with one press ("Send N as written"): those held for who the lead is (a chain, its
+   * The held that may go as written with one press ("Send N anyway"): those held for who the lead is (a chain, its
    * language, abroad, an address at a customer's domain), whose Include is a judgement of the lead. One held for its words
    * (a claim the record does not back, words that read like spam) or for a check that did not run is answered one by one.
    */
   asIs: SequenceHeldVM[];
+  /** The held a Rewrite answers (words the check faulted): each written again in one press. */
+  rewrite: SequenceHeldVM[];
+  /** One reason they share, said once over them (heldCauseOf); null where they share none. */
+  cause: string | null;
+  /** What a rewrite does, where an email is held for a claim; null where none is. */
+  advice: string | null;
   toSend: (ToSendRowVM & { batchId: string | null })[];
   /** Batches holding an email to send that this read carries no draft of (a server before 00447): their run's sheet lays them out. */
   unread: string[];
@@ -160,6 +182,7 @@ export function peopleNeedsOf(
         leadId: r.lead_id,
         place: r.place,
         why: heldWhyOf(reason, r.hold_detail),
+        opening: markedOpeningOf(r.opening, { reason, detail: r.hold_detail }),
         reason,
         // Its answers as a run's screen offers them, one rule (contracts heldAnswersOf): Take out at step 1.
         answers: heldAnswersOf({ reason, detail: r.hold_detail }, r.place),
@@ -214,7 +237,17 @@ export function peopleNeedsOf(
           };
         })
       : null;
-  return { held, asIs, toSend, unread, wroteBack };
+  const rewrite = held.filter((h) => h.answers.some((a) => a.door === "rewrite"));
+  const cause = heldCauseOf(
+    rows
+      .filter((r) => r.group === "held" && r.send_id && isReachOutHold(r.why))
+      .map((r) => ({
+        reason: r.why,
+        detail: r.hold_detail,
+      })),
+  );
+  const advice = held.some((h) => h.reason === "unbacked_fact") ? HELD_REWRITE_ADVICE : null;
+  return { held, asIs, rewrite, cause, advice, toSend, unread, wroteBack };
 }
 
 /** The People tab's own words: its rows, its folds and taking someone out. */

@@ -265,9 +265,11 @@ test("a run waiting on its owner says the decision first: how many go and of how
     // Its lead, opened over the page: the sheet's name is a door to who it is (D1-lead-person-door).
     leadId: LEAD,
     why: "Reads like a chain: 3 listings share their website",
+    // The opening it would send, read before the say: none here, since the check wrote none for it.
+    opening: null,
     // Step 1: the no is Take out, since skipping would end their place (00459); a chain suggests nothing.
     answers: [
-      { door: "include", words: "Send as written", lead: false },
+      { door: "include", words: "Send anyway", lead: false },
       { door: "not_a_fit", words: "Not a fit", lead: false },
       { door: "take_out", words: "Take out", lead: false },
     ],
@@ -299,8 +301,25 @@ test("a run waiting on its owner says the decision first: how many go and of how
   // From step 2 the no is Skip this email: their place goes on to the next step (00459).
   assert.deepEqual(
     at({ step_n: 1 }).held[0].answers.map((a) => a.words),
-    ["Send as written", "Not a fit", "Skip this email"],
+    ["Send anyway", "Not a fit", "Skip this email"],
   );
+  // A claim the check refused is marked in the opening it would send, and said for its kind (30 Oct 2026).
+  const claim = at({
+    held: [
+      {
+        ...RUN().held[0],
+        reason: "unbacked_fact",
+        detail: "busy:clearly you're handling real volume",
+        opening: "Hyde Park Bootcamp has 201 reviews, clearly you're handling real volume.",
+      },
+    ],
+  }).held[0];
+  assert.equal(claim.why, "The opening guesses how busy they are; we found nothing that says so");
+  assert.deepEqual(claim.opening, {
+    before: "Hyde Park Bootcamp has 201 reviews, ",
+    said: "clearly you're handling real volume",
+    after: ".",
+  });
   // A read from before the lead was carried has no lead to take out.
   assert.deepEqual(
     at({ held: [{ ...RUN().held[0], lead_id: "" }] }).held[0].answers.map((a) => a.door),

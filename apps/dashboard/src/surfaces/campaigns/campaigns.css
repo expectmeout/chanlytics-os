@@ -3187,6 +3187,23 @@ html.legacy-on .cm-pane-sub .bc-run-link {
   color: var(--ink);
   quotes: "\201C" "\201D";
 }
+/* The opening it would send, under why, the words the check refused marked (30 Oct 2026). */
+.ro-hrow-opening {
+  display: block;
+  margin: 4px 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--ink);
+  quotes: "\201C" "\201D";
+}
+.ro-hrow-opening > mark {
+  padding: 0 2px;
+  border-radius: var(--radius-sm);
+  background: var(--warn-soft);
+  color: var(--warn-ink);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
 .ro-hrow-acts {
   display: flex;
   flex-wrap: wrap;

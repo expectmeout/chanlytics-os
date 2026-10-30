@@ -19,9 +19,14 @@ for (const k of ["DIAG_KEY", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"]) delet
 const { setPg } = await import(at("apps/edge/lib/pg.ts"));
 const { setModelFetch } = await import(at("apps/edge/lib/model.ts"));
 const door = await import(at("apps/edge/api/admin/reach-out-preview.ts"));
+// A business's website is read through the platform's fetch (check-one.ts siteReaderOf): here no site answers, so no
+// test reads the network, and the opening is written from the record alone.
+const realFetch = globalThis.fetch;
+globalThis.fetch = async () => new Response("", { status: 404 });
 after(() => {
   setPg(null);
   setModelFetch(null);
+  globalThis.fetch = realFetch;
 });
 
 const AUD = "/api/admin/reach-out-preview";

@@ -254,8 +254,8 @@ test("a new sequence starts on a list by the token the composer writes; the edit
   for (const bad of ["seg:", "seg:Clients!", "list:abc", "clients", "list:3f6c1a52-0d1e-4b8a-9c2f-5e7d8a9b0c1d/x"])
     assert.equal(isListToken(bad), false, bad);
   assert.match(SEQUENCE_EDIT_WORDS.reaches(false), /already waiting keeps their day/);
-  assert.equal(SEQUENCE_NEEDS_WORDS.sendAll(1), "Send 1 as written");
-  assert.equal(SEQUENCE_NEEDS_WORDS.sendAll(3), "Send 3 as written");
+  assert.equal(SEQUENCE_NEEDS_WORDS.sendAll(1), "Send 1 anyway");
+  assert.equal(SEQUENCE_NEEDS_WORDS.sendAll(3), "Send 3 anyway");
   assert.equal(SEQUENCE_NEEDS_WORDS.wentAll(1), "1 email goes as written");
   assert.equal(SEQUENCE_PEOPLE_WORDS.takeOutAll(4), "Take these 4 out");
   assert.equal(SEQUENCE_EDIT_WORDS.days(1), "1 day");
@@ -320,4 +320,76 @@ test("an email waiting for your OK shows the opening it carries, and may be rewr
   assert.deepEqual(waitingEmailsOf([{ ...waiting("e"), opening: undefined, checked: undefined }]), []);
   // Only those waiting: a held email has its own row (peopleNeedsOf).
   assert.deepEqual(waitingEmailsOf([{ ...waiting("f"), group: "held", why: "chain" }]), []);
+});
+
+test("a held email shows the opening it would send with the words the check refused marked, why in plain words, and what one reason they share (30 Oct 2026)", () => {
+  const held = (id, why, detail, opening) => ({
+    group: "held",
+    send_id: id,
+    name: id,
+    lead_id: `lead-${id}`,
+    batch_id: "b1",
+    place: 1,
+    why,
+    hold_detail: detail,
+    opening,
+    checked: true,
+  });
+  const a = held(
+    "a",
+    "unbacked_fact",
+    "calls:does someone answer every one",
+    "You're open 24 hours. When calls come in at 2 AM, does someone answer every one?",
+  );
+  const b = held(
+    "b",
+    "unbacked_fact",
+    "calls:calls come in but the salon isn't open",
+    "MyssBerri closes at 3 PM, hours when calls come in but the salon isn’t open.",
+  );
+  const c = held("c", "chain", "site:3", "KVITKA has a 4.8 rating across 201 reviews.");
+  const vm = peopleNeedsOf([a, b, c], { timezone: TZ, now: NOW });
+  const [va, vb, vc] = vm.held;
+  assert.equal(va.why, "The opening guesses at their calls; we found nothing that says so");
+  assert.deepEqual(va.opening, {
+    before: "You're open 24 hours. When calls come in at 2 AM, ",
+    said: "does someone answer every one",
+    after: "?",
+  });
+  // The reader's straight apostrophe finds the opening's curly one, and the opening keeps its own.
+  assert.deepEqual(vb.opening, {
+    before: "MyssBerri closes at 3 PM, hours when ",
+    said: "calls come in but the salon isn’t open",
+    after: ".",
+  });
+  // A hold about who they are shows the opening as it would go, nothing marked.
+  assert.deepEqual(vc.opening, { before: "KVITKA has a 4.8 rating across 201 reviews.", said: null, after: "" });
+  // Words the opening does not hold show it whole; no opening shows none.
+  const lost = peopleNeedsOf([held("d", "unbacked_fact", "busy:not in it", "A 4.9.")], { timezone: TZ, now: NOW });
+  assert.deepEqual(lost.held[0].opening, { before: "A 4.9.", said: null, after: "" });
+  const none = peopleNeedsOf([held("e", "unbacked_fact", "busy:x", null)], { timezone: TZ, now: NOW });
+  assert.equal(none.held[0].opening, null);
+  // Those held for their words are rewritten in one press; one reason they share is said once, with what a rewrite does.
+  assert.deepEqual(
+    vm.rewrite.map((h) => h.id),
+    ["a", "b"],
+  );
+  assert.equal(vm.cause, "Same reason for 2 of 3: the opening guesses at their calls.");
+  assert.equal(vm.advice, "A rewrite says only what we found on them.");
+  const all = peopleNeedsOf([a, b], { timezone: TZ, now: NOW });
+  assert.equal(all.cause, "Same reason for all 2: the opening guesses at their calls.");
+  // Two reasons, or one email, say no shared reason; holds stored before their kind read as a detail.
+  const mixed = peopleNeedsOf([a, held("f", "unbacked_fact", "busy:x", "A.")], { timezone: TZ, now: NOW });
+  assert.equal(mixed.cause, null);
+  assert.equal(peopleNeedsOf([a], { timezone: TZ, now: NOW }).cause, null);
+  const old = peopleNeedsOf(
+    [held("g", "unbacked_fact", "clearly you're busy", "A."), held("h", "unbacked_fact", "calls go somewhere", "B.")],
+    { timezone: TZ, now: NOW },
+  );
+  assert.equal(old.cause, "Same reason for all 2: the opening says something we found nothing on.");
+  // Nothing held for its words: no rewrite, no advice.
+  const lead = peopleNeedsOf([c], { timezone: TZ, now: NOW });
+  assert.deepEqual([lead.rewrite, lead.cause, lead.advice], [[], null, null]);
+  assert.equal(SEQUENCE_NEEDS_WORDS.rewriteAll(7), "Rewrite all 7");
+  assert.equal(SEQUENCE_NEEDS_WORDS.sendAll(2), "Send 2 anyway");
 });

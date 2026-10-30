@@ -51,8 +51,10 @@ import {
   checkInputOf,
   checkOne,
   checkWorkspaceOf,
+  siteReaderOf,
   type AskModel,
   type CheckBudget,
+  type CheckInput,
   type CheckWorkspace,
   type Tokens,
 } from "./check-one.js";
@@ -69,6 +71,7 @@ export {
   checkInputOf,
   checkOne,
   checkWorkspaceOf,
+  siteReaderOf,
   type AskModel,
   type CheckBudget,
   type CheckWorkspace,
@@ -151,6 +154,22 @@ function failedCheck(s: ReachOutSendRow, now: Date, at: string) {
   }
   const held = { state: "held", reason: "check_unavailable", hold_detail: null, checked_at: at } as const;
   return { gaveUp: true, tries, patch: { ...held, check_tries: tries, check_first_at: first } };
+}
+
+/**
+ * A leased send's check input (checkInputOf), with what its business's website says read through the platform's fetch
+ * when the writer is asked (siteReaderOf, 30 Oct 2026).
+ */
+function sendInputOf(
+  u: UncheckedSend,
+  words: { subject: string | null; body: string },
+  ws: CheckWorkspace,
+  country: string | null,
+): CheckInput {
+  return {
+    ...checkInputOf(u.record, words, ws.opening, u.template_language, u.included_for, country),
+    site: siteReaderOf(fetch, u.record.website_host),
+  };
 }
 
 /**
@@ -281,7 +300,7 @@ export async function checkSends(p: {
         return;
       }
       const ws = await once(workspaces, s.tenant_id, () => checkWorkspaceOf(db, s.tenant_id));
-      const input = checkInputOf(u.record, w, ws.opening, u.template_language, u.included_for, country);
+      const input = sendInputOf(u, w, ws, country);
       // One attempt of the workspace's UTC day, taken before the model is asked (a rewrite is the same attempt, a
       // failure spends it): words that name no opening cost nothing and take none.
       const cap = REACH_OUT_CHECKS_PER_DAY;
