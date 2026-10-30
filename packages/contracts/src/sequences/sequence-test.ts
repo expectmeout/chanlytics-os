@@ -16,6 +16,7 @@ import { exampleParams, type ParamSpec } from "../templates/templates";
 import { messageAboutOfClass } from "./follow-up";
 import { emailFoot } from "../templates/email-foot";
 import { whyFrom } from "../reach-out/reach-out";
+import { leadCalledByOf } from "../leads/search/called-by";
 import {
   coldSignedOff,
   REACH_OUT_LANGUAGE,
@@ -169,7 +170,7 @@ export function leadStepTestMail(o: {
 }): StepTestMail | { why: string } {
   const W = SEQUENCE_TEST_WORDS;
   if (!o.words.body.trim()) return { why: W.notWritten };
-  const name = o.lead.business_name?.trim() || W.stepName(o.sequence, o.place);
+  const name = leadCalledByOf(o.lead) || W.stepName(o.sequence, o.place);
   const plain = (t: string) =>
     t
       .split(REACH_OUT_VALUE_MARKS[0])

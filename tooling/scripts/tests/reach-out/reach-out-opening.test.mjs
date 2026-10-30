@@ -288,6 +288,29 @@ test("a rating's scale, the business's own dotted name and a city's abbreviation
   assert.equal(checkOpening(opening("See harbor.example/book for more."), RECORD), "link");
 });
 
+test("the writer and the reader are told the name the business is called by, and how its listing writes it", () => {
+  const listed = { ...RECORD, business_name: "Austin Movers | Austin TX | Local Moving" };
+  const write = (record) =>
+    openingUserContent({
+      record,
+      workspace: { name: "Harbor Moving", what_we_do: null, tone: null },
+      words: { subject: "Your calls", body: "{{opening}}" },
+    });
+  assert.match(write(listed), /^name: Austin Movers$/m);
+  assert.match(write(listed), /^listed_as: Austin Movers \| Austin TX \| Local Moving$/m);
+  assert.match(readingUserContent({ record: listed, opening: "Hi." }), /^listed_as: Austin Movers \| Austin TX/m);
+  // A listing that writes the name as it is called says it once.
+  assert.match(write(RECORD), /^name: Austin Movers$/m);
+  assert.doesNotMatch(write(RECORD), /listed_as/);
+  assert.match(openingSystemPrompt(), /by its name/i);
+});
+
+test("an opening may call the business by the name it is called by, dots and all", () => {
+  const shouting = { ...RECORD, business_name: "FIXIT.CO REPAIRS | Phone Repair" };
+  assert.equal(checkOpening(opening("FIXIT.CO Repairs has a 4.9."), shouting), null);
+  assert.equal(checkOpening(opening("See fixit.co/book for more."), shouting), "link");
+});
+
 test("a held opening says the rule it broke, and an opening that could not be written is never called a pitch", () => {
   const read = { backed: true, unbacked: "", pitch: false, language: "en" };
   for (const code of ["empty", "too_long", "brace", "angle"]) {

@@ -10,6 +10,7 @@ import assert from "node:assert/strict";
 import {
   OFFERS_BY_EMAIL_WORDS,
   SEQUENCE_TEST_LIMITS,
+  leadStepTestMail,
   noVersionWords,
   smsStopLine,
   stepTestMail,
@@ -93,4 +94,21 @@ test("a step that names no channel shows every version its message holds; a subj
   assert.equal(mail.subject, "Test: Reminders, step 2");
   const long = stepTestMail(step({ channels: ["whatsapp"], sequence: "x".repeat(400) }));
   assert.equal(long.subject.length, SEQUENCE_TEST_LIMITS.subject);
+});
+
+test("a lead's test mail says the name the business is called by, in its words and where its opening will be", () => {
+  const mail = leadStepTestMail({
+    sequence: "Movers",
+    place: 0,
+    business: "Harbor Studio",
+    address: "1200 Main St, Springfield, IL",
+    words: { subject: "For {{business}}", body: "{{opening}} Hi {{business}}." },
+    thread: null,
+    lead: { business_name: "R&T Mechanical | Springfield IL | Water Heater Installation", city: "Springfield" },
+    workspace: { businessName: "Harbor Studio" },
+  });
+  assert.ok("text" in mail, mail.why);
+  assert.match(mail.subject, /For R&T Mechanical/);
+  assert.ok(mail.text.includes("[A line about R&T Mechanical, written for them when it goes] Hi R&T Mechanical."));
+  assert.ok(!mail.text.includes("|"), mail.text);
 });

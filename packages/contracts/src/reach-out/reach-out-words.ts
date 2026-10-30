@@ -27,6 +27,7 @@
 import { isFreeMail } from "../email/free-mail";
 import { posesAsReply } from "../email/email-subject";
 import { languageName } from "../templates/template-languages";
+import { leadCalledByOf } from "../leads/search/called-by";
 import { siteHost } from "../leads/search/clean";
 import { violatesNoPrices } from "../config/policy";
 import { normalizeEmail } from "../shared/email-address";
@@ -534,10 +535,12 @@ export function checkOpening(o: WrittenOpening, r: OpeningRecord): OpeningProble
   const text = o.opening.trim();
   if (!text) return "empty";
   if (wordCount(text) > OPENING_WORDS_MAX || text.length > OPENING_CHARS_MAX) return "too_long";
-  // The business's own name and city are theirs to be called by, dots and all ("fixit.co Repairs"); anything else
-  // shaped like an address, or an email address, is a link (a business's own host is one to a spam filter too).
+  // The business's own name, as its listing writes it and as it is called by, and its city are theirs, dots and all
+  // ("fixit.co Repairs"); anything else shaped like an address, or an email address, is a link (a business's own host
+  // is one to a spam filter too).
   let unnamed = text;
-  for (const own of [r.business_name, r.city]) if (own?.trim()) unnamed = unnamed.split(own.trim()).join(" ");
+  for (const own of [r.business_name, leadCalledByOf(r), r.city])
+    if (own?.trim()) unnamed = unnamed.split(own.trim()).join(" ");
   if (linksIn(unnamed).length > 0 || /@/.test(unnamed)) return "link";
   if (/\{\{|\}\}/.test(text)) return "brace";
   if (shoutingLine(text)) return "shouting";

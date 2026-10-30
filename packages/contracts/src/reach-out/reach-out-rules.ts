@@ -25,6 +25,7 @@ import type { DeliveryRefusal } from "../consent/consent";
 import { renderOwnVersion } from "../templates/message-versions";
 import { slotHoles, slotMentions, slotValueOf, slotValues, slotsWritten } from "../templates/slot-sets";
 import { LEAD_ROLE_WORDS, leadAddresseeOf } from "../leads/lead-kind";
+import { leadCalledByOf } from "../leads/search/called-by";
 import { REACH_OUT_SLOT_FALLBACKS, REACH_OUT_SLOT_SET, linkCount } from "./reach-out-words";
 
 export interface OutreachLeadFacts {
@@ -168,15 +169,17 @@ export interface SlotWorkspace {
 }
 
 /**
- * The slots' values, in the slot set's order, from the lead's, the workspace's and the send's: a blank one is a hole. A
- * person's slot is its addressee's (00430): {{first name}} greets with its fallback where nobody is named, and {{title}}
- * and {{role}}, which claim something of a person, are holes there.
+ * The slots' values, in the slot set's order, from the lead's, the workspace's and the send's: a blank one is a hole. The
+ * business is the name it is called by (leadCalledByOf), never its listing's whole title. A person's slot is its
+ * addressee's (00430): {{first name}} greets with its fallback where nobody is named, and {{title}} and {{role}}, which
+ * claim something of a person, are holes there.
  */
 function reachOutValues(lead: SlotLead, workspace: SlotWorkspace, opening: string | null): Array<string | undefined> {
   const who = leadAddresseeOf(lead);
+  const calledBy = leadCalledByOf(lead);
   return slotValues(REACH_OUT_SLOT_SET, {
-    business: lead.business_name,
-    company: lead.business_name,
+    business: calledBy,
+    company: calledBy,
     "first name": who?.first_name || REACH_OUT_SLOT_FALLBACKS["first name"],
     // A person's title or role is said only where their source said it: no guess stands in (a hole holds the email).
     title: who?.title || (who?.role ? LEAD_ROLE_WORDS[who.role] : null),

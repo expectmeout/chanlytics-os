@@ -6,6 +6,7 @@ import {
   isWaitRefusal,
   coldEndingOf,
   coldSignedOff,
+  leadCalledByOf,
   reachOutEmailOf,
   REACH_OUT_MONTH_EMAILS,
 } from "@chanlytics/contracts";
@@ -145,4 +146,70 @@ test("a cold email ends as its sequence says: its name, or its mailbox's signatu
   // The name goes under the words, a blank line between.
   assert.equal(coldSignedOff("Would it be worth a look?\n", "Sam"), "Would it be worth a look?\n\nSam");
   assert.equal(coldSignedOff("Would it be worth a look?", null), "Would it be worth a look?");
+});
+
+// The name a business is called by, from its listing's (30 Oct 2026: a cold email read "for shops like" a listing's
+// whole title, its city and three services after bars). Made-up names in the shapes the live leads take.
+const calledBy = (business_name, city = "Springfield") => leadCalledByOf({ business_name, city });
+
+test("a listing's keyword tail is no part of the name a business is called by", () => {
+  assert.equal(calledBy("R&T Mechanical | Springfield IL | Water Heater Installation | Plumbing"), "R&T Mechanical");
+  assert.equal(
+    calledBy("Harlan HVAC - Split Unit Air Conditioning Installation and Repair Service NYC"),
+    "Harlan HVAC",
+  );
+  assert.equal(calledBy("K&M Performance – Mechanic Shop"), "K&M Performance");
+  assert.equal(calledBy("Lakeside Movers: Local and Long Distance"), "Lakeside Movers");
+  assert.equal(calledBy("Big River Installations; Plumbing & Heating"), "Big River Installations");
+  assert.equal(calledBy("Delta Plumbing, Heating Cooling & Drain Cleaning"), "Delta Plumbing");
+  // A hyphen inside a word, a list the name starts with, and a bar with nothing before it are no tail.
+  assert.equal(calledBy("A-1 Movers"), "A-1 Movers");
+  assert.equal(calledBy("Paint, Paper & Tile"), "Paint, Paper & Tile");
+  assert.equal(calledBy("| Harbor Movers | Moving Company"), "Harbor Movers");
+  assert.equal(calledBy("Springfield | Harbor Movers | Moving Company"), "Harbor Movers");
+});
+
+test("a city and state on the end, Inc and LLC are the listing's, not the name; nothing is cut to nothing", () => {
+  assert.equal(calledBy("Harbor Movers Corp."), "Harbor Movers");
+  assert.equal(calledBy("Linden Heating Mechanical, INC"), "Linden Heating Mechanical");
+  assert.equal(calledBy("Ridge Air LLC"), "Ridge Air");
+  // Co is as often the name's own word as a company's: kept.
+  assert.equal(calledBy("Ridge Plumber Co"), "Ridge Plumber Co");
+  assert.equal(calledBy("Harbor Movers-Springfield IL"), "Harbor Movers");
+  assert.equal(calledBy("Harbor Movers Springfield, IL"), "Harbor Movers");
+  assert.equal(calledBy("Harbor Movers Springfield IL"), "Harbor Movers");
+  // A city the name ends on with no state after it may be the name's own: rules cannot tell, so it stays.
+  assert.equal(calledBy("Emergency Movers Springfield"), "Emergency Movers Springfield");
+  assert.equal(calledBy("LLC"), "LLC");
+  assert.equal(calledBy("Springfield IL"), "Springfield IL");
+  assert.equal(calledBy("  "), null);
+  assert.equal(leadCalledByOf({ business_name: null, city: null }), null);
+});
+
+test("a name in capitals is said in a person's capitals, one in small letters too; a name's own styling is kept", () => {
+  assert.equal(calledBy("AIRWAY HEATING AND COOLING INC"), "Airway Heating and Cooling");
+  // Initials and the letters said one by one stay as they are written.
+  assert.equal(calledBy("AP HVAC INC"), "AP HVAC");
+  assert.equal(calledBy("NYC BBQ PIT"), "NYC BBQ Pit");
+  assert.equal(calledBy("JOE'S MOVERS OF SPRINGFIELD"), "Joe's Movers of Springfield");
+  assert.equal(calledBy("ZAY MOVERS-Springfield IL"), "Zay Movers");
+  assert.equal(calledBy("Brothers auto Repairs"), "Brothers Auto Repairs");
+  assert.equal(calledBy("harbor movers of the valley"), "Harbor Movers of the Valley");
+  assert.equal(calledBy("fixit.co repairs"), "fixit.co Repairs");
+  for (const own of ["iFix Movers", "NOVA Movers", "Euro Lab AUTOWORKS", "MovEasy", "24 HR Movers", "Movers & More"])
+    assert.equal(calledBy(own), own);
+});
+
+test("the send's fill says the name the business is called by, in the subject and the words alike", () => {
+  const lead = { business_name: "R&T Mechanical | Springfield IL | Water Heater Installation", city: "Springfield" };
+  const ws = { businessName: "Best Movers" };
+  assert.deepEqual(reachOutSlots("For shops like {{business}}, {{ company }}.", lead, ws), {
+    ok: true,
+    text: "For shops like R&T Mechanical, R&T Mechanical.",
+  });
+  assert.deepEqual(reachOutEmailOf({ subject: "For {{business}}", body: "Hi {{business}}" }, lead, ws), {
+    ok: true,
+    subject: "For R&T Mechanical",
+    body: "Hi R&T Mechanical",
+  });
 });
