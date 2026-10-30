@@ -4,7 +4,13 @@
  * operation the door answered, which is the only thing an undo names (the review's E9).
  */
 import type { Dispatch, ReactNode, SetStateAction } from "react";
-import { formatPhoneDisplay, type LeadNotAFitWhy, type LeadRowVM, type LeadsBulkInput } from "@chanlytics/contracts";
+import {
+  formatPhoneDisplay,
+  type LeadNotAFitWhy,
+  type LeadReachFilter,
+  type LeadRowVM,
+  type LeadsBulkInput,
+} from "@chanlytics/contracts";
 import type { ApiRefusal } from "@/client/api";
 import { downloadCsv } from "../../kit/download";
 import { canDo, refusalToast } from "../../legacy-verbs";
@@ -22,7 +28,8 @@ import type { Armed, PeekMode } from "../peek/types";
 import type { LeadView } from "./state";
 
 /** The view an export names: the keys GET leads takes, as a bulk act names a view (LeadsViewSchema). */
-type ExportView = Extract<LeadsBulkInput, { by: "view" }>["view"];
+/** A view as a file, and the Filter's reach where one is on (the table's rows, not the view's every lead). */
+type ExportView = Extract<LeadsBulkInput, { by: "view" }>["view"] & { reach?: readonly LeadReachFilter[] };
 
 /** What a door answers, as the page reads it: accepted with its data, or a refusal. */
 export type LeadAnswer = { ok: true; data: unknown } | ApiRefusal;
