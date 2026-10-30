@@ -36,6 +36,8 @@ export interface LeadsSurface {
   /** The view as a route, for the address and for Ask's citations: clients/leads:s-<search>:l-<list>. */
   route: string;
   suggestions: LeadSuggestionsDto | null;
+  /** A read of the ideas is out: none yet is "writing", not "not available" (the walk of 30 Oct 2026). */
+  ideasReading?: boolean;
   /** The month's standing (D5): what the workbench says a press costs. Null until a first page has answered. */
   month: LeadMonthDto | null;
   /** The pile's progress line (sort pile of one search, 00426), from whichever first page last answered one. */

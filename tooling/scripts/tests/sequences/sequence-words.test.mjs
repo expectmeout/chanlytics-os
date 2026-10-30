@@ -35,6 +35,9 @@ import {
   sequenceChannelsWords,
   sequenceNextOf,
   sequenceNextWords,
+  leadsPlannedWords,
+  sendWhenWords,
+  nextSendWords,
   sequencePausedDock,
   sequenceRowState,
   sequenceSubLine,
@@ -451,6 +454,30 @@ test("what goes next: a made batch's day and size, else its first step's next ru
   assert.equal(sequenceNextWords(due, TZ, NOW), "within the hour", "its hour has come and today's has not run");
   assert.equal(sequenceNextOf(row(), undefined, TZ, NOW), null, "a server from before the field says none");
   assert.equal(sequenceNextOf(row({ state: "paused" }), "2026-10-14", TZ, NOW), null);
+});
+
+test("a sequence to leads that is on says when it plans the leads added to it: its first step's next run", () => {
+  // NOW is 10:00 AM in New York; the first step runs at 9:00, once a day.
+  const leads = (over = {}) => row({ starts: "leads", state: "on", ...over });
+  assert.equal(
+    leadsPlannedWords(leads(), "2026-10-14", TZ, NOW),
+    "tomorrow 9:00 AM",
+    "ran today: tomorrow at its hour",
+  );
+  assert.equal(leadsPlannedWords(leads(), null, TZ, NOW), "within the hour", "just started: its hour has come");
+  assert.equal(leadsPlannedWords(leads(), undefined, TZ, NOW), null, "a read without the day it last ran says none");
+  assert.equal(leadsPlannedWords(leads({ state: "draft" }), null, TZ, NOW), null);
+  assert.equal(leadsPlannedWords(row(), null, TZ, NOW), null, "a customer's says its next batch elsewhere");
+});
+
+test("a send whose time has come is going out now, never a time already gone (the walk of 30 Oct 2026)", () => {
+  // NOW is 10:00 AM in New York: a batch made for 9:00 and approved after it is going out.
+  const going = { id: "b1", at: "2026-10-14T13:00:00Z", people: 2, state: "sending", place: 1 };
+  assert.equal(sendWhenWords(Date.parse(going.at), TZ, NOW), "now");
+  assert.equal(nextSendWords(Date.parse(going.at), TZ, NOW), "going out now");
+  assert.equal(nextSendWords(NOW + 3_600_000, TZ, NOW), "next today 11:00 AM");
+  assert.equal(sequenceRowLine(row({ state: "on", starts: "leads", next: going }), TZ, NOW), "going out now");
+  assert.equal(sequenceNextWords(sequenceNextOf(row({ next: going }), null, TZ, NOW), TZ, NOW), "now · 2 people");
 });
 
 test("a paused sequence's dock, who approves in its More, and where a follow-up is offered (a one-off's cancel is the judge's: sequence-acts.test.mjs)", () => {

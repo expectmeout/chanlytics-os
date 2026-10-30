@@ -46,7 +46,7 @@ import { HeadActs, RecordNotice, RecordQuestion, RenameForm, phoneFootOf, useRec
 import { SequenceSteps } from "./steps";
 import { RecordFootContext } from "./record-foot";
 import { recordBackNow } from "./trip";
-import { useSequenceRead } from "./use-record";
+import { usePeopleRead, useSequenceRead } from "./use-record";
 import { sequenceVerbs as verbs } from "./verbs";
 
 type Flash = (flash: LegacyFlash) => void;
@@ -155,7 +155,9 @@ function OpenRecord(p: {
     setHowAsked((n) => n + 1);
     if (tab !== "steps") (phone ? replaceRoute : navigate)(sequenceRoute(row.id));
   }, [tab, phone, row.id]);
-  const a = useRecordActs(rec, flash, moved, { step: editStep, how: openHow });
+  // Who is in it, read while a batch to leads waits: its Approve waits for an opening still being written (use-record.ts).
+  const { writing } = usePeopleRead(row.starts === "leads" && row.needs.waiting > 0 ? row.id : null, again);
+  const a = useRecordActs(rec, flash, moved, { step: editStep, how: openHow, writing });
   // On a phone the record is the screen and its Back the only way out: a record Leads opened goes back there (every trip
   // comes back, and a pile's end says "Back brings you here"); a desk says that way in the head, and Close is the list.
   const wayBack = phone ? recordBackNow(row.id) : null;

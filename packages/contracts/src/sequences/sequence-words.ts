@@ -65,10 +65,15 @@ export const SEQUENCE_WORDS = {
   you: "You approve",
   /** The record's line of what goes next: "Next tomorrow 10:00 AM · 3 people". */
   next: "Next",
+  /** Its line once that time has come: "Going out now · 3 people". */
+  goingOut: (people: number | null) =>
+    people ? `Going out now · ${plural(people, "person", "people")}` : "Going out now",
   /** How long a customer's batch waits for an OK: an OK sends it at once, and the sweep skips it once its day is gone. */
   untilTonight: "until tonight",
   /** A phone dock's line over a batch waiting for an OK: its Approve says how many (the run review's item 12, 19 Oct 2026). */
   waitsForOk: "Waits for your OK",
+  /** Approve while an opening of its batch is being written: you read each before it goes, so it waits for them. */
+  openingsWriting: "Writing openings…",
   /** Who approves a sequence to leads fed by a list: each first email waits for an OK (00426), whatever its mode. */
   asksFirstEmail: "asks you before each first email",
   /** Who approves its batches, said in the record's More, which opens How it runs, where it is changed (decision 0064). */
@@ -380,7 +385,7 @@ export function sequenceRowLine(
     return `${when} · ${plural(row.date.people, "person", "people")}`;
   }
   if (row.state === "paused") return row.in_it > 0 ? `${row.in_it} waiting` : "Paused";
-  if (row.next) return `next ${clockWhen(Date.parse(row.next.at), tz, nowMs)}`;
+  if (row.next) return nextSendWords(Date.parse(row.next.at), tz, nowMs);
   if (row.in_it > 0) return `${row.in_it} in it`;
   if (row.last)
     return `${clockDate(Date.parse(row.last.at), tz, nowMs)} · ${row.last.sent} sent · ${row.last.replied} replied`;
@@ -449,8 +454,19 @@ export function sequenceNextOf(
   if (row.state !== "on" || row.starts === "date") return null;
   if (row.next)
     return { at: Date.parse(row.next.at), people: row.next.people > 0 ? row.next.people : null, soon: false };
+  if (row.starts !== "moment" && row.starts !== "list") return null;
+  return firstRunNext(row, lastRunFor, tz, nowMs);
+}
+
+/** Its first step's next run by its hour (00462 sequence_steps_due: once a day, from its hour): null where it cannot know. */
+function firstRunNext(
+  row: SequenceRowDto,
+  lastRunFor: string | null | undefined,
+  tz: string,
+  nowMs: number,
+): SequenceNext | null {
   const first = row.first;
-  if (lastRunFor === undefined || !first || (row.starts !== "moment" && row.starts !== "list")) return null;
+  if (lastRunFor === undefined || !first) return null;
   const now = new Date(nowMs);
   if (!campaignRunsOn(first, { tz, now })) return null;
   const run = nextRunOf({ run_hour: first.run_hour, last_run_for: lastRunFor }, tz, now);
@@ -459,9 +475,39 @@ export function sequenceNextOf(
   return { at: wallClockAt(tz, day, run.hour, 0), people: null, soon: run.soon };
 }
 
-/** The next batch in words, after "Next": "tomorrow 10:00 AM · 3 people", "within the hour". */
+/**
+ * When a sequence to leads that is on plans the leads added to it (00459: they wait as Added until its first step runs, at
+ * its hour, once a day): "tomorrow 9:00 AM", "within the hour". The walk of 30 Oct 2026 read only "in its next batch" on
+ * one just started. Null for any other, or where the read does not say the day it last ran.
+ */
+export function leadsPlannedWords(
+  row: SequenceRowDto,
+  lastRunFor: string | null | undefined,
+  tz: string,
+  nowMs: number,
+): string | null {
+  if (row.starts !== "leads" || row.state !== "on") return null;
+  const next = firstRunNext(row, lastRunFor, tz, nowMs);
+  return next ? sequenceNextWords(next, tz, nowMs) : null;
+}
+
+/**
+ * A send's time as a page says it after "next" or "go": its day and time while it is ahead, "now" once it has come (a batch
+ * going out, or one approved after its hour, its emails paced by their mailboxes). Never a time already gone: the walk of
+ * 30 Oct 2026 read "next today 9:00 AM" at 4 PM, after an approve.
+ */
+export function sendWhenWords(atMs: number, tz: string, nowMs: number): string {
+  return atMs > nowMs ? clockWhen(atMs, tz, nowMs) : "now";
+}
+
+/** A line's "next today 4:20 PM", or "going out now" once its time has come (sendWhenWords). */
+export function nextSendWords(atMs: number, tz: string, nowMs: number): string {
+  return atMs > nowMs ? `next ${clockWhen(atMs, tz, nowMs)}` : "going out now";
+}
+
+/** The next batch in words, after "Next": "tomorrow 10:00 AM · 3 people", "within the hour", "now". */
 export function sequenceNextWords(next: SequenceNext, tz: string, nowMs: number): string {
-  const when = next.soon ? "within the hour" : clockWhen(next.at, tz, nowMs);
+  const when = next.soon ? "within the hour" : sendWhenWords(next.at, tz, nowMs);
   return next.people ? `${when} · ${plural(next.people, "person", "people")}` : when;
 }
 

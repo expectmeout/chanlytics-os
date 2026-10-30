@@ -133,6 +133,8 @@ export const LEAD_SHEET_WORDS = {
   /** Adds go to: the pick, said on Leads over the rows. */
   addsGoTo: "Adds go to",
   noneYet: "Pick a sequence",
+  /** Its last item: every lead shown, to a sequence of their own (Add opens at New). */
+  newSequence: "New sequence for these…",
 } as const;
 
 /* ------------------------------------------------------------------------------------------------- the state -- */
@@ -329,6 +331,18 @@ export function leadPickerRowsOf(rows: readonly SequenceRowDto[], picked: string
       line: pickerLineOf(r),
       picked: r.id === picked,
     }));
+}
+
+/**
+ * How New opens: a copy only of the search's own pick (the same kind of lead, written again); else Ask's draft where the
+ * leads came from a search, since New over a search with no pick is a new kind of lead (the walk of 30 Oct 2026: agency
+ * owners opened on a copy of an auto shops sequence); else a copy of the newest; else blank.
+ */
+export function newStartFirst(copies: readonly LeadPickerRowVM[], canAsk: boolean): "copy" | "ask" | "blank" {
+  const first = copies[0];
+  if (first && first.picked) return "copy";
+  if (canAsk) return "ask";
+  return first ? "copy" : "blank";
 }
 
 /* -------------------------------------------------------------------------------------------- the pile's end -- */

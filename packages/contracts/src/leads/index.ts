@@ -265,6 +265,7 @@ export {
   leadReviewCosts,
   leadReviewGroups,
   leadRowOf,
+  leadSearchEmptyWords,
   leadSearchWords,
   leadSlots,
   leadsRoute,
@@ -477,6 +478,7 @@ export {
   leadSheetClosedOf,
   leadSheetStateOf,
   leadVerdictOf,
+  newStartFirst,
   sheetSlot,
 } from "./sheet/lead-sheet";
 export type {

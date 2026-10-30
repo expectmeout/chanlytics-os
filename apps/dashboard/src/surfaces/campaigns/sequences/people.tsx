@@ -8,17 +8,17 @@
  * person or the lead. Someone still in it may be taken out, alone or with the rest of their group: a send of theirs not
  * yet gone is skipped with them (00442 sequence_leave).
  */
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   PEOPLE_GROUP_WORDS,
   SEQUENCE_NEEDS_WORDS as N,
   SEQUENCE_PEOPLE_WORDS as P,
   addressOf,
   clockStamp,
-  clockWhen,
   heldWhyOf,
   isReachOutHold,
   peopleNeedsOf,
+  leadsPlannedWords,
   sequenceLeftWords,
   sequenceRepliesRoute,
   waitingEmailsOf,
@@ -39,8 +39,8 @@ import type { LegacyFlash } from "../../legacy-verbs";
 import { leadOverDoor, useLeadOver } from "../../leads/sheet/lead-over";
 import { tripNow } from "./trip";
 import { SequenceNeeds } from "./needs";
-import { useSequenceRead } from "./use-record";
-import { pressed, sequenceVerbs as verbs } from "./verbs";
+import { usePeopleRead } from "./use-record";
+import { pressed } from "./verbs";
 
 type Flash = (flash: LegacyFlash) => void;
 
@@ -80,7 +80,12 @@ const litInView = (el: HTMLElement | null) => {
 
 /** What a row says under the name: its step, when, and why for someone held or gone. */
 function personLineOf(p: SequencePersonDto, tz: string, nowMs: number): string {
-  const at = p.at ? clockStamp(Date.parse(p.at), tz, nowMs) : null;
+  // Up next with its time come is going out (paced by its mailboxes), never a time already gone (the walk of 30 Oct 2026).
+  const at = !p.at
+    ? null
+    : p.group === "next" && Date.parse(p.at) <= nowMs
+      ? P.goingNow
+      : clockStamp(Date.parse(p.at), tz, nowMs);
   // Added and not planned yet: when they joined its list.
   if (p.group === "queued") return at ? P.addedAt(at) : P.added;
   const place = p.place ? P.step(p.place) : null;
@@ -92,6 +97,14 @@ function personLineOf(p: SequencePersonDto, tz: string, nowMs: number): string {
         ? heldWhyOf(p.why, p.hold_detail)
         : (p.hold_detail ?? p.why ?? null);
   return [place, at, why].filter(Boolean).join(" · ");
+}
+
+/** What the Added fold says beside its count, by the sequence's state: on, when its next batch is planned where known. */
+function queuedMarkOf(rec: SequenceRecordDto, nowMs: number): string {
+  const s = rec.sequence.state;
+  if (s === "draft" || s === "paused") return P.queued[s];
+  const when = leadsPlannedWords(rec.sequence, rec.last_run_for, rec.timezone, nowMs);
+  return when ? P.queuedAt(when) : P.queued.on;
 }
 
 /**
@@ -109,8 +122,8 @@ function foldMarkOf(
   if (rows.length === 0) return null;
   if (g === "queued") return null;
   if (g === "next" || g === "in") {
-    const soonest = rows.find((r) => r.at)?.at;
-    return soonest ? P.next(clockWhen(Date.parse(soonest), tz, nowMs)) : null;
+    const times = rows.flatMap((r) => (r.at ? [Date.parse(r.at)] : []));
+    return times.length ? P.next(Math.min(...times), tz, nowMs) : null;
   }
   if (rows.length < whole) return null;
   const by = new Map<string, number>();
@@ -284,25 +297,9 @@ function WaitingEmails({ rows, emails, rec, flash, moved, lit }: WaitingProps) {
   );
 }
 
-/** How often People is read again while an opening it shows is being written: the check's clock runs every minute. */
-const WRITING_READ_MS = 15_000;
-
-/** People's read, read again while an opening it shows is being written, until it is back. */
-function usePeopleRead(id: string, again: number) {
-  const [tick, setTick] = useState(0);
-  const read = useSequenceRead(id, verbs.people, verbs.peekPeople, { again: again + tick });
-  const writing = read.state === "read" && waitingEmailsOf(read.data.rows).some((e) => e.checking);
-  useEffect(() => {
-    if (!writing) return undefined;
-    const t = setInterval(() => setTick((n) => n + 1), WRITING_READ_MS);
-    return () => clearInterval(t);
-  }, [writing]);
-  return read;
-}
-
 export function SequencePeople(p: { rec: SequenceRecordDto; flash: Flash; again: number; moved: () => void }) {
   const { rec, flash, again, moved } = p;
-  const read = usePeopleRead(rec.sequence.id, again);
+  const { read } = usePeopleRead(rec.sequence.id, again);
   const [busy, setBusy] = useState<string | null>(null);
   const lit = useLitLead();
   if (read.state === "failed")
@@ -411,7 +408,7 @@ export function SequencePeople(p: { rec: SequenceRecordDto; flash: Flash; again:
             }
             mark={
               g === "queued"
-                ? P.queued[rec.sequence.state === "draft" ? "draft" : rec.sequence.state === "paused" ? "paused" : "on"]
+                ? queuedMarkOf(rec, nowMs)
                 : foldMarkOf(g, of(g), counts[g] ?? 0, { tz: rec.timezone, nowMs })
             }
             remember

@@ -228,7 +228,13 @@ function useLeadsPage(v: ReturnType<typeof useLeadsView>, onOpenProfile: (id: st
     pile: piled.keys,
   });
   // The band (D5): the search's whole shape, and whether its fits differ (which is when a row wears its fit).
-  const band = leadBand(openSearch);
+  // The tab on screen counts its rows once the search has ended and every page of them is read (leadBand).
+  const band = leadBand(
+    openSearch,
+    openSearch && leads && leads.view.searchId === openSearch.id && !leads.next
+      ? { cls: leads.view.cls ?? "qualified", n: leads.rows.length }
+      : null,
+  );
   // What a cell needs. The acts are this draw's closures (over the view, the busy flag), so the context hands out doors to
   // the latest: it changes only when a value a cell draws from changes. The Stage column, drawn, says each lead's state,
   // and the name's tag does not say it again.
@@ -302,6 +308,8 @@ function useLeadsPage(v: ReturnType<typeof useLeadsView>, onOpenProfile: (id: st
     pileDoor: piled.door,
     aim,
     bulkAdd: chosen.length ? bulkAdd : null,
+    // Add opened at New for the search's own picker, which chooses the leads first (props.tsx newSequenceFor).
+    bulkAsk: bulkAdd.ask,
   };
 }
 

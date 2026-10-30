@@ -22,6 +22,7 @@ import { REPORT_MIN_N } from "../reports/report-tiles";
 import { broadcastFailureWords } from "../broadcasts/broadcast-failure-words";
 import { addressOf } from "../activity/record-address";
 import { clockHistoryDay, clockTime, clockWhen, zoneDayKey } from "../shared/clock";
+import { nextSendWords } from "./sequence-words";
 import { pct } from "../shared/numbers";
 import { RUN_OPEN_WORDS, RUN_WAITING_SHORT } from "../shell/campaign-rooms";
 import { plural } from "../shared/words";
@@ -260,7 +261,9 @@ export const SEQUENCE_PEOPLE_WORDS = {
   takeOutAll: (n: number) => `Take these ${n} out`,
   more: (n: number) => `and ${n} more`,
   /** A fold of people still to hear from it: when the soonest of them goes. */
-  next: (when: string) => `next ${when}`,
+  next: (atMs: number, tz: string, nowMs: number) => nextSendWords(atMs, tz, nowMs),
+  /** One up next whose time has come, under its name. */
+  goingNow: "going out now",
   /** Why someone finished with no reason of their own: they had the last step. */
   lastStep: "had the last step",
   /** A lead added and not planned yet, under its name: when it joined the list. */
@@ -268,6 +271,8 @@ export const SEQUENCE_PEOPLE_WORDS = {
   addedAt: (at: string) => `Added ${at}`,
   /** Leads added and not planned yet, by the sequence's state: what the Added fold says beside its count. */
   queued: { draft: "they join when you start it", paused: "they wait until it's on", on: "in its next batch" },
+  /** Added to one that is on, where its next run is known (leadsPlannedWords): "in the batch planned tomorrow 9:00 AM". */
+  queuedAt: (when: string) => `in the batch planned ${when}`,
   /** An email waiting for an OK whose opening the check is writing: asked again, or not written yet. */
   writing: "Its opening is being written…",
 } as const;
@@ -419,8 +424,16 @@ export function historyCovers(
   return !!last && (last.run_for ?? zoneDayKey(Date.parse(last.at), tz)) < since;
 }
 
-/** History's four figures over the batches of a period: what went, what reached, what was read, who wrote back. */
-export function historyFigures(batches: readonly SequenceBatchDto[]): SequenceHistoryFigure[] {
+/**
+ * History's figures over the batches of a period: what went, what reached, what was read, who wrote back. Only those its
+ * sequence can know (the walk of 30 Oct 2026 read "Read 0 · on WhatsApp" and "Delivered 0 of 1" for leads' email): Read
+ * where it sends on WhatsApp, the one channel with a read receipt, and Delivered never for a sequence to leads, whose
+ * email goes from a mailbox, which says it left and never whether it arrived (mailbox-reconcile.ts). Unsaid, all four.
+ */
+export function historyFigures(
+  batches: readonly SequenceBatchDto[],
+  of: { starts?: string; channels?: readonly string[] } = {},
+): SequenceHistoryFigure[] {
   const went = batches.filter(batchWent);
   const sum = (k: "sent" | "delivered" | "read" | "replied") => went.reduce((n, b) => n + (b.counts[k] ?? 0), 0);
   const sent = sum("sent");
@@ -431,7 +444,7 @@ export function historyFigures(batches: readonly SequenceBatchDto[]): SequenceHi
     const p = pct(n, sent);
     return p === null ? "—" : `${p}%`;
   };
-  return [
+  const figures: SequenceHistoryFigure[] = [
     { id: "sent", label: "Sent", value: String(sent), meta: null, definition: DEFINITIONS.sent, n: null, minN: null },
     {
       id: "delivered",
@@ -461,6 +474,8 @@ export function historyFigures(batches: readonly SequenceBatchDto[]): SequenceHi
       minN: null,
     },
   ];
+  const whatsapp = !of.channels || of.channels.includes("whatsapp");
+  return figures.filter((f) => (f.id === "read" ? whatsapp : f.id === "delivered" ? of.starts !== "leads" : true));
 }
 
 /**

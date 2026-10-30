@@ -5,7 +5,7 @@
  * Why's checks, what did not pass first; where they stand in a sequence, said the same in every window (placeWordOf); what
  * a held email may become (heldChoicesOf); the record's rail drawn for one lead, or as they'd get it (placeRailOf); the dock
  * in every state of the States board, only what needs you and nothing when nothing does (leadDockOf); the word beside the
- * name; the picker (leadPickerRowsOf); and the pile's end, by sequence (leadPileEndOf).
+ * name; the picker (leadPickerRowsOf) and how New opens (newStartFirst); and the pile's end, by sequence (leadPileEndOf).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -22,6 +22,7 @@ const {
   leadDockOf,
   leadSheetWordOf,
   leadPickerRowsOf,
+  newStartFirst,
   leadPileEndOf,
   placeWordOf,
   heldChoicesOf,
@@ -482,6 +483,23 @@ test("the picker: every sequence to leads that has not ended, the pick first, ea
   assert.equal(rows[0].line, "3 steps over 7 days · 12 in it");
   assert.deepEqual([rows[1].word, rows[1].tone, rows[1].line], ["Draft", "warn", "4 added · emails not written yet"]);
   assert.equal(rows[2].line, "2 steps over 3 days · 31 in it · adds wait until it's on");
+});
+
+test("New opens on a copy of the search's own pick, else Ask's draft over a search, else the newest, else blank", () => {
+  const seqs = [seqRow({ id: "a", name: "Auto shops", created_at: "2026-10-01T00:00:00Z" })];
+  assert.equal(
+    newStartFirst(leadPickerRowsOf(seqs, "a"), true),
+    "copy",
+    "the search's own pick: the same kind of lead",
+  );
+  assert.equal(
+    newStartFirst(leadPickerRowsOf(seqs, null), true),
+    "ask",
+    "another sequence is no start for a new search",
+  );
+  assert.equal(newStartFirst(leadPickerRowsOf(seqs, null), false), "copy", "no search: the newest");
+  assert.equal(newStartFirst([], true), "ask");
+  assert.equal(newStartFirst([], false), "blank");
 });
 
 test("the pile's end, by sequence: a draft says Write the emails, one that's on Approve N, and those for later", () => {
