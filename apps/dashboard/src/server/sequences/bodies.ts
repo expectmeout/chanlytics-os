@@ -8,6 +8,9 @@ import {
   ReachOutStepSchema,
   SEQUENCE_DRAFT_THEN_MAX,
   UUID,
+  VOICE_PASTE_MAX,
+  VOICE_PASTE_MIN,
+  VOICE_WORDS,
   NEW_AUDIENCES,
   NEW_KINDS,
   NEW_WORDS_MAX,
@@ -180,6 +183,11 @@ const NEW_WHO = z.discriminatedUnion("kind", [
  * or the owner's in the draft, which Ask keeps), and the draft it rewrites when they say it again (`previous`, its name and
  * how many steps it had: what the model is told of it).
  */
+/** POST sequences/voice (decision 0078): one email the owner wrote, whole, for Ask to read how they write. */
+export const VOICE_BODY = z.strictObject({
+  text: z.string().trim().min(VOICE_PASTE_MIN, VOICE_WORDS.tooShort).max(VOICE_PASTE_MAX, VOICE_WORDS.tooLong),
+});
+
 export const DRAFT_BODY = z.strictObject({
   words: z
     .string()

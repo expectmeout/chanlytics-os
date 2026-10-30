@@ -15,7 +15,7 @@ const memoryIdOf = (data: unknown, payload: Record<string, unknown>): string => 
 };
 
 /** Settings › Memory: where every card about a line opens. */
-const MEMORY_ROUTE = "admin/memory";
+export const MEMORY_ROUTE = "admin/memory";
 
 export const memorySpec: ProposalSpec = {
   needs: "operator",

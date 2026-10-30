@@ -10,6 +10,8 @@ import { REACH_OUT_DECISIONS, REACH_OUT_SAID_OUTCOMES } from "../reach-out/reach
 import { toSendSaidWords } from "../reach-out/reach-out-approval";
 import { SEQUENCES_ROUTE, runRoute, sequenceRoute } from "../sequences/sequence-address";
 import { SEQUENCE_TEST_WORDS } from "../sequences/sequence-test";
+import { VOICE_PASTE_MIN, VOICE_WORDS } from "../sequences/new-draft";
+import { MEMORY_ROUTE } from "./memory";
 import { leadsRoute } from "../leads/lead-plan";
 import { handOf } from "../reach-out/reach-out-hand";
 import { SEQUENCE_FLOW_WORDS } from "../sequences/sequence-words";
@@ -253,6 +255,27 @@ export const sequenceTestSpec: ProposalSpec = {
   },
   receipt: (_p, data) => SEQUENCE_TEST_WORDS.sent(asText(rec(data).to) || "you"),
   open: openSequence,
+};
+
+/**
+ * The owner's voice, read from an email they paste under New's draft to leads (POST sequences/voice, decision 0078): up
+ * to three lines on how they write, kept in Ask's memory, where Settings › Memory lists and forgets them, so nothing
+ * here undoes it. The receipt says what was kept; Open goes to Memory.
+ */
+export const sequenceVoiceSpec: ProposalSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const text = asText(pl.text).trim();
+    return text.length >= VOICE_PASTE_MIN
+      ? { route: "POST sequences/voice", body: { text } }
+      : refuseWith(VOICE_WORDS.tooShort);
+  },
+  receipt: (_p, data) => {
+    const d = rec(data);
+    return d.full === true ? VOICE_WORDS.full : VOICE_WORDS.kept(Array.isArray(d.lines) ? d.lines.length : 0);
+  },
+  open: () => MEMORY_ROUTE,
 };
 
 /**

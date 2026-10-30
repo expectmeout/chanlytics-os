@@ -322,7 +322,7 @@ export { PLAYBOOK_BREATH_MS } from "./playbooks/playbook-time";
 export { isPlaybookTotalsDto } from "./playbooks/playbook-totals";
 export { CAMPAIGN_NOT_FOUND, delayWords, isPlaybookState, isWinBack, MOMENT_TRIGGERS, momentOffered, momentReadsCalendar, MOMENTS_RETIRED, PLAYBOOK_CAP_CHOICES, PLAYBOOK_DEFAULTS, PLAYBOOK_HOURS, PLAYBOOK_LIMITS, PLAYBOOK_NAME_MAX, PLAYBOOK_STATES, PLAYBOOK_TRIGGERS, PLAYBOOK_VETO_DELAY_MS, PLAYBOOK_VETO_DELAY_WORDS, policyClassOffered, REACH_OUT_IS_NOT_A_MOMENT, readyRunNotice, SEND_ONCE_STOP_MS, SEND_ONCE_STOP_WORDS, SENDING_HOURS_WORDS, SENDING_NOW_WORDS, sendsWaitWords, skippedRunNotice, triggerOf, triggerOffered, triggerWords, vetoRunNotice, VISIT_TRIGGERS, whenItGoes, winBackWords } from "./playbooks/playbook-triggers";
 export { LIST_PLAYBOOK_CLASSES, playbookListRef, proposalFactsFor, visitDayWord, visitFactsFor } from "./playbooks/playbooks";
-export { DEFAULT_WEEK, weekHoursOf } from "./reach-out/lead-hours";
+export { DEFAULT_WEEK, leadFactOf, weekHoursOf } from "./reach-out/lead-hours";
 export { composeLinksOf, mailtoOf } from "./reach-out/owner/compose";
 export { REACH_OUT_SAID_WORDS, REACH_OUT_STOP_WORDS, REACH_OUT_UNDO_WORDS } from "./reach-out/owner/lead-doors";
 export { CAMPAIGN_EMAIL_TAG, isCampaignEmail, UNSUBSCRIBE_PAGE_HEADER, unsubscribePageWords, WHY_FROM_MAPS, whyFrom } from "./reach-out/reach-out";
@@ -367,7 +367,7 @@ export { REVIEWS_WAITING_SHOWN, toReviewsReportVM } from "./reports/review-repor
 export { ROUTE_KEYS } from "./route-keys.generated";
 export { SCHEMA_SETS } from "./schema-sets.generated";
 export { FOLLOW_UP_CONDITIONS, followUpLeaves, followUpReach, followUpStop, messageAboutOfClass } from "./sequences/follow-up";
-export { handStepsHold, leadChainStepOf, NEW_AUDIENCES, NEW_DRAFT_JSON_SCHEMA, NEW_KINDS, NEW_ONCE_AHEAD_DAYS, NEW_STEP_DOES, NEW_STEPS_MAX, NEW_VALUES, NEW_WAIT_DAYS, NEW_WORDS_MAX, newConditionsOf, newListOf, newWaitOf, numberedValues, whoSuits } from "./sequences/new-draft";
+export { handStepsHold, leadChainStepOf, NEW_AUDIENCES, NEW_DRAFT_JSON_SCHEMA, NEW_KINDS, NEW_ONCE_AHEAD_DAYS, NEW_STEP_DOES, NEW_STEPS_MAX, NEW_VALUES, NEW_WAIT_DAYS, NEW_WORDS_MAX, newConditionsOf, newListOf, newWaitOf, numberedValues, whoSuits, VOICE_LINE_LEAD, VOICE_LINES_MAX, VOICE_PASTE_MAX, VOICE_PASTE_MIN, VOICE_WORDS, voiceLineOf, voiceSaid } from "./sequences/new-draft";
 export { handTitleOf, NEW_WORDS } from "./sequences/new-words";
 export { batchModeOf, isSequenceMode, newSequenceMode, SEQUENCE_MODE_LABEL, SEQUENCE_MODE_WORDS, SEQUENCE_MODES, SEQUENCE_NEW_WORDS_ASK, SEQUENCE_STARTS, SEQUENCE_STATES, sequenceModesFor } from "./sequences/sequence";
 export { SEQUENCE_ACT_REASONS, SEQUENCE_ACT_WHY, SEQUENCE_ACT_WORDS, SEQUENCE_ACTS, sequenceActsOf, sequenceResumeAsk } from "./sequences/sequence-acts";
@@ -376,7 +376,7 @@ export { isListToken, newSequenceLine, SEQUENCE_DRAFT_THEN_MAX, SEQUENCE_WAIT_DA
 export { SEQUENCE_PEOPLE_GROUPS } from "./sequences/sequence-dto";
 export { classEvidenceLine, EVIDENCE_DAYS, evidenceOf, evidenceWords } from "./sequences/sequence-evidence";
 export { HELD_TAKE_OUT, heldAnswersOf, heldChoicesOf, heldWhyOf, waitingAnswersOf } from "./sequences/sequence-held";
-export { LEAD_BUILD_WORDS, leadBuildStepsOf, leadDraftChainOf, leadDraftDockOf, leadEndingOf, leadFirstUnwritten, leadInsertRowsOf, leadMailboxesTicked, leadMailboxRowsOf, leadPaceChoicesOf, leadPreviewEmailOf, leadSendingFactsOf, leadStartOf, reachOutInsertStep, reachOutMayInsertStep, reachOutPutBackStep, reachOutRemoveStep } from "./sequences/sequence-lead-build";
+export { LEAD_BUILD_WORDS, leadBuildStepsOf, leadDraftChainOf, leadDraftDockOf, leadEndingOf, leadFirstUnwritten, leadInsertRowsOf, leadMailboxesTicked, leadMailboxRowsOf, leadPaceChoicesOf, leadPreviewEmailOf, leadSendingFactsOf, leadStartOf, reachOutInsertStep, reachOutMayInsertStep, reachOutPutBackStep, reachOutRemoveStep, withOpeningSaid } from "./sequences/sequence-lead-build";
 export { SEQUENCE_LIST_WORDS, SEQUENCE_SORTS, SEQUENCE_TYPES, sequenceTypeOf, sortedSequences } from "./sequences/sequence-list";
 export { PLACE_RAIL_WORDS, PLACE_WORDS, placeRailOf, placeSpanOf, placeStands, placeToneOf, placeWordOf } from "./sequences/sequence-place";
 export { SCHEDULE_WORDS, scheduleChannels, scheduleDays, scheduleEnd, scheduleInLine, scheduleSettingsOf, scheduleSpan, scheduleStart, scheduleStepFacts, scheduleStepState, scheduleStepSub, scheduleWait } from "./sequences/sequence-schedule";

@@ -35,11 +35,14 @@ import type { ReachOutChainDto } from "../reach-out/reach-out-dtos";
 import type { LeadEmailState } from "./search/sets";
 import type { LeadPeekVM } from "./lead-peek";
 
-/** A piece of a card's email: words, a value filled for this lead, the opening still to come, or a slot with no value. */
+/**
+ * A piece of a card's email: words, a value filled for this lead, the opening (still to come, or, where the listing's
+ * own fields say it, its words: contracts leadFactOf, decision 0078), or a slot with no value.
+ */
 export type LeadCardPart =
   | { kind: "text"; text: string }
   | { kind: "value"; text: string }
-  | { kind: "opening" }
+  | { kind: "opening"; text?: string }
   | { kind: "gap"; label: string };
 
 /** The sequence the pile adds to, as much of it as the card reads. */

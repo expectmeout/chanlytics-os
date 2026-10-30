@@ -14,7 +14,7 @@ type Db = SupabaseClient<Database>;
 /** A door's answer: the line, whether it was there already, or the door's refusal in its own word. */
 export type AskMemoryDoor = { id: string; text: string; again: boolean } | { refused: string };
 
-const memorySource = (v: unknown): AskMemorySource => (v === "pane" ? "pane" : "ask");
+const memorySource = (v: unknown): AskMemorySource => (v === "pane" || v === "learned" ? v : "ask");
 
 /** The workspace's live lines, newest first, at most `limit`. */
 export async function askMemoryLines(db: Db, tenantId: string, limit: number): Promise<AskMemoryLineDto[]> {

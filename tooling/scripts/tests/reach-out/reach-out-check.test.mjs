@@ -19,7 +19,7 @@ import { at } from "../_cron-doors-world.mjs";
 
 const { checkOne, checkSends, checkBudget, backoffMs, CHECK_CALLS_UNTIL_MS, CHECK_CALL_MS, CHECK_GIVE_UP_MS } =
   await import(at("apps/edge/lib/reach-out/check.ts"));
-const { hoursLine } = await import(at("apps/edge/lib/reach-out/check-one.ts"));
+const { hoursLine, checkInputOf } = await import(at("apps/edge/lib/reach-out/check-one.ts"));
 const { checkedWordsOf } = await import(at("apps/edge/lib/reach-out/request.ts"));
 const { REACH_OUT_CHECKS_PER_DAY } = await import("@chanlytics/contracts");
 
@@ -253,6 +253,84 @@ test("a listing's hours, as words; the backoff, 1, 2, 4, 8, then 15 minutes", ()
   );
   // A count of tries that is not a number has no step to wait by: it is refused, never a wait of NaN.
   assert.throws(() => backoffMs(Number.NaN), RangeError);
+});
+
+/* ------------------------------------------------- an opening the listing says (decision 0078) -- */
+
+const FACT = { opening: "Austin Movers is open until 6 PM on weekdays.", angle: "their hours", facts_used: ["hours"] };
+
+test("a listing with a fact is read once, by the reader: its opening is the fact, and the writer is never asked", async () => {
+  const m = scripted(READ());
+  const out = await checkOne(input({ fact: FACT }), m.ask, open);
+  assert.deepEqual(
+    [out.kind, out.hold, out.detail, out.rewritten, out.calls, m.asked.length],
+    ["checked", null, null, false, 1, 1],
+  );
+  assert.deepEqual(out.opening, FACT);
+  assert.match(m.asked[0].user, /open until 6 PM on weekdays/, "the reader reads the fact against the record");
+  assert.doesNotMatch(m.asked[0].system, /You write the first sentence/, "the one call is the reader's");
+});
+
+test("a fact the reader finds in another language is held for its language, with no writer", async () => {
+  const m = scripted(READ({ language: "es" }));
+  const out = await checkOne(input({ fact: FACT }), m.ask, open);
+  assert.deepEqual([out.hold, out.detail, out.calls], ["language", "es", 1]);
+  assert.deepEqual(out.opening, FACT);
+});
+
+test("a fact the reader cannot back goes the writer's way, as an opening with no fact does", async () => {
+  const m = scripted(
+    READ({ backed: false, unbacked: "open until 6 PM on weekdays" }),
+    WROTE("A 4.9 from 16 reviews says people find you."),
+    READ(),
+  );
+  const out = await checkOne(input({ fact: FACT }), m.ask, open);
+  assert.deepEqual([out.kind, out.hold, out.calls, out.rewritten], ["checked", null, 3, false]);
+  assert.equal(out.opening.opening, "A 4.9 from 16 reviews says people find you.");
+  assert.match(
+    m.asked[1].system,
+    /You write the first sentence/,
+    "the writer is asked after the reader refused the fact",
+  );
+});
+
+test("words that name no opening ask nothing of a fact either", async () => {
+  const m = scripted();
+  const out = await checkOne(input({ fact: FACT, needsOpening: false }), m.ask, open);
+  assert.deepEqual([out.opening, out.calls], [null, 0]);
+});
+
+test("the check's input carries the listing's fact, from its hours or its rating; none where it holds neither", () => {
+  const row = {
+    business_name: "Austin Movers",
+    category: "Moving company",
+    city: "Austin",
+    region: "TX",
+    rating: 4.9,
+    reviews: 16,
+    website_host: null,
+    hours: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map((day, i) => ({
+      day,
+      hours: i < 5 ? "8 AM to 6 PM" : "Closed",
+    })),
+    about: null,
+    email: "hello@austinmovers.example",
+    why_it_fits: null,
+    what_you_asked: null,
+    site_listings: 0,
+    name_listings: 0,
+    email_domain_shared: false,
+    reviews_dist: null,
+    claimed: null,
+  };
+  const ws = { name: "Harbor Moving Co", what_we_do: null, tone: null };
+  const words = { subject: "Quick one", body: "{{opening}}\n\nI run Harbor." };
+  assert.equal(
+    checkInputOf(row, words, ws, "en").fact.opening,
+    "Austin Movers is open until 6 PM on weekdays and closed on weekends.",
+  );
+  assert.equal(checkInputOf({ ...row, hours: null, reviews: 60 }, words, ws, "en").fact.angle, "their rating");
+  assert.equal(checkInputOf({ ...row, hours: null }, words, ws, "en").fact, null, "16 reviews say nothing");
 });
 
 /* ------------------------------------------------------------------ the tick -- */

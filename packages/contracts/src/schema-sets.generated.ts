@@ -21,7 +21,7 @@ export const SCHEMA_SETS = {
   "appointments.source": ["calendar_feed", "booking_email", "booking_tool", "person", "receptionist"],
   "appointments.status": ["proposed", "booked", "kept", "missed", "cancelled"],
   "ask_journal_days.state": ["looking", "written", "quiet", "failed"],
-  "ask_memory_lines.source": ["ask", "pane"],
+  "ask_memory_lines.source": ["ask", "pane", "learned"],
   "ask_messages.role": ["user", "assistant"],
   "ask_voice_sessions.end_reason": ["button", "typed", "superseded", "navigated", "vendor", "start", "idle"],
   "ask_voice_sessions.language": ["en", "es", "other"],

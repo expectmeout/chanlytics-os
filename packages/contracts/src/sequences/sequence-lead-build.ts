@@ -472,6 +472,16 @@ export function leadPreviewEmailOf(p: {
   };
 }
 
+/**
+ * The email with its opening said, where the listing's own fields say one (contracts leadFactOf, decision 0078): the
+ * check writes the same sentence when the batch is planned, so the preview reads as the send will. The email as it was
+ * where it has no opening, or there is none to say.
+ */
+export function withOpeningSaid(email: LeadCardEmailVM, opening: string | null): LeadCardEmailVM {
+  if (!opening) return email;
+  return { ...email, body: email.body.map((p) => (p.kind === "opening" ? { kind: "opening", text: opening } : p)) };
+}
+
 /* ---------------------------------------------------------------------------------- Sending, its mailboxes (0077) */
 
 /** One mailbox's row in How it runs: its tick, whether it may be taken off, and the line under its address. */

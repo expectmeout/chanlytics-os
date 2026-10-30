@@ -773,8 +773,8 @@ begin
     if not coalesce(public.caller_has_permission(p_tenant_id, 'approve'), false) then
       raise exception 'ask_memory_write: approve required' using errcode = '42501';
     end if;
-    if p_source is null or p_source not in ('ask', 'pane') then
-      raise exception 'ask_memory_write: source is ask or pane' using errcode = '22023';
+    if p_source is null or p_source not in ('ask', 'pane', 'learned') then
+      raise exception 'ask_memory_write: source is ask, pane or learned' using errcode = '22023';
     end if;
     -- Serialized per workspace, so two turns at once can neither keep one line twice nor both take the last place.
     perform pg_advisory_xact_lock(hashtextextended('ask_memory:' || p_tenant_id::text, 0));
@@ -843,7 +843,7 @@ end $$;
 -- Name: FUNCTION ask_memory_write(p_tenant_id uuid, p_act text, p_id uuid, p_text text, p_source text, p_thread_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ask_memory_write(p_tenant_id uuid, p_act text, p_id uuid, p_text text, p_source text, p_thread_id uuid) IS 'The one writer of Ask''s memory (decision 0070), by act, as the caller: keep (the approve permission: Ask, as the person it answers, as the turn is saved, source ask, or the member on Settings › Memory, pane; 3 to 300 characters; at most 40 live lines, every one read into each turn, error full; the same line again answers the one kept, again true; ask.memory_kept), change (the settings permission, a line of this workspace; ask.memory_changed), forget (the settings permission, or the member who kept the line while they act here, the card''s Undo; kept as forgotten, never deleted; ask.memory_forgotten). Each event names the line, never its words. Answers {memory: {id, text}, again} or {error}: empty, too_long, full; a line the caller may not touch is not found.';
+COMMENT ON FUNCTION public.ask_memory_write(p_tenant_id uuid, p_act text, p_id uuid, p_text text, p_source text, p_thread_id uuid) IS 'The one writer of Ask''s memory (decision 0070), by act, as the caller: keep (the approve permission: Ask, as the person it answers, as the turn is saved, source ask; the member on Settings › Memory, pane; or a line Ask read from how the owner writes, at their paste, learned (decision 0078); 3 to 300 characters; at most 40 live lines, every one read into each turn, error full; the same line again answers the one kept, again true; ask.memory_kept), change (the settings permission, a line of this workspace; ask.memory_changed), forget (the settings permission, or the member who kept the line while they act here, the card''s Undo; kept as forgotten, never deleted; ask.memory_forgotten). Each event names the line, never its words. Answers {memory: {id, text}, again} or {error}: empty, too_long, full; a line the caller may not touch is not found.';
 
 
 --
@@ -31978,7 +31978,7 @@ CREATE TABLE public.ask_memory_lines (
     forgotten_at timestamp with time zone,
     forgotten_by uuid,
     CONSTRAINT ask_memory_lines_forgotten CHECK (((forgotten_by IS NULL) OR (forgotten_at IS NOT NULL))),
-    CONSTRAINT ask_memory_lines_source_check CHECK ((source = ANY (ARRAY['ask'::text, 'pane'::text]))),
+    CONSTRAINT ask_memory_lines_source_check CHECK ((source = ANY (ARRAY['ask'::text, 'pane'::text, 'learned'::text]))),
     CONSTRAINT ask_memory_lines_text_check CHECK (((char_length(text) >= 3) AND (char_length(text) <= 300)))
 );
 
@@ -31988,6 +31988,13 @@ CREATE TABLE public.ask_memory_lines (
 --
 
 COMMENT ON TABLE public.ask_memory_lines IS 'What Ask remembers about the business (decision 0070): a fact a member told it, kept by Ask as the turn is saved, or a line a member wrote on Settings › Memory. The live lines ride into every turn''s cached shape. Members read their workspace''s; only the doors write.';
+
+
+--
+-- Name: COLUMN ask_memory_lines.source; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ask_memory_lines.source IS 'Where the line came from: ask (a member told Ask in a thread and Ask kept it), pane (a member wrote it on Settings › Memory), learned (Ask read it from how the owner writes, at their paste; decision 0078).';
 
 
 --

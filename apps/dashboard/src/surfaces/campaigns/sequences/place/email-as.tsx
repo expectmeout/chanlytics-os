@@ -22,8 +22,10 @@ const EmailParts = ({ parts }: { parts: readonly LeadCardPart[] }) => (
           {p.text}
         </span>
       ) : p.kind === "opening" ? (
-        <span key={i} className="lw-open" data-testid="lead-card-opening">
-          {LEAD_CARD_WORDS.opening}
+        // Said from their listing (decision 0078), it is a value from their record and wears its mark; still to come, the
+        // line written when its batch is planned.
+        <span key={i} className={p.text ? "lw-val" : "lw-open"} data-testid="lead-card-opening">
+          {p.text ?? LEAD_CARD_WORDS.opening}
         </span>
       ) : (
         <span key={i} className="lw-hole" data-testid="lead-card-gap">
@@ -159,9 +161,12 @@ export function EmailAs({
           <span>
             <span className="lw-val">{LEAD_CARD_WORDS.fromRecord}</span>
           </span>
-          <span>
-            <span className="lw-open">{LEAD_CARD_WORDS.writtenForThem}</span>
-          </span>
+          {/* The opening still to be written, where one is: one said from the listing is a value of their record. */}
+          {email.body.some((p) => p.kind === "opening" && !p.text) ? (
+            <span>
+              <span className="lw-open">{LEAD_CARD_WORDS.writtenForThem}</span>
+            </span>
+          ) : null}
         </p>
       ) : null}
     </section>

@@ -2094,6 +2094,13 @@
       "rate": "ask",
       "spend": false
     },
+    "POST sequences/voice": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "ask",
+      "spend": false
+    },
     "POST sequences/new": {
       "kind": "write",
       "scope": "workspace",

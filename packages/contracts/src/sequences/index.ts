@@ -19,6 +19,15 @@ export {
   numberedValues,
   whoSuits,
 } from "./new-draft";
+export {
+  VOICE_LINE_LEAD,
+  VOICE_LINES_MAX,
+  VOICE_PASTE_MAX,
+  VOICE_PASTE_MIN,
+  VOICE_WORDS,
+  voiceLineOf,
+  voiceSaid,
+} from "./new-draft";
 export type {
   DraftWho,
   NewAudience,
@@ -37,6 +46,7 @@ export type {
   NewStepDoes,
   NewWrittenMessage,
 } from "./new-draft";
+export type { SequenceVoiceDto } from "./new-draft";
 export { NewDraftAnswerSchema } from "./new-draft-schema";
 export type { NewDraftAnswer, NewDraftAnswerStep } from "./new-draft-schema";
 export { handTitleOf, NEW_WORDS } from "./new-words";
@@ -135,6 +145,7 @@ export {
   reachOutMayInsertStep,
   reachOutPutBackStep,
   reachOutRemoveStep,
+  withOpeningSaid,
 } from "./sequence-lead-build";
 export type {
   LeadBuildPart,
