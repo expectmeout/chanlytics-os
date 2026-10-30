@@ -1165,11 +1165,15 @@ a.more-item {
     cursor: pointer;
   }
 }
+/* Solid by the first part of its rise, as a sheet is (sheet-in). */
 @keyframes more-sheet-in {
   from {
     opacity: 0;
     transform: translateY(28px);
     --sheet-down: 28px;
+  }
+  40% {
+    opacity: 1;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -1890,11 +1894,16 @@ a.more-item {
     --sheet-down: 100%;
   }
 }
+/* A phone's sheet is solid by the first part of its rise: faded all the way up, its glass let the page through for most
+   of it (the walk of 30 Oct 2026: a sheet read as see-through while it came in). */
 @keyframes sheet-in {
   from {
     opacity: 0;
     translate: 0 28px;
     --sheet-down: 28px;
+  }
+  40% {
+    opacity: 1;
   }
 }
 @keyframes sheet-out {

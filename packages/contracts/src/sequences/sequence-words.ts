@@ -6,7 +6,7 @@
 import { appointmentWords, type AppointmentWord } from "../journey/appointment-word";
 import { campaignRunsOn, nextRunOf } from "../playbooks/playbook-schedule";
 import { triggerOf } from "../playbooks/playbook-triggers";
-import { clockDate, clockTime, clockWhen, wallClockAt, zoneDayKey } from "../shared/clock";
+import { clockAhead, clockDate, clockNextSend, clockTime, clockWhen, wallClockAt, zoneDayKey } from "../shared/clock";
 import { DAY_MS } from "../shared/time";
 import { plural } from "../shared/words";
 import { CAMPAIGN_ROOMS, RUN_WAITING_SHORT, runApproveWords } from "../shell/campaign-rooms";
@@ -65,10 +65,15 @@ export const SEQUENCE_WORDS = {
   you: "You approve",
   /** The record's line of what goes next: "Next tomorrow 10:00 AM · 3 people". */
   next: "Next",
+  /** Its line once that time has come: "Going out now · 3 people". */
+  goingOut: (people: number | null) =>
+    people ? `Going out now · ${plural(people, "person", "people")}` : "Going out now",
   /** How long a customer's batch waits for an OK: an OK sends it at once, and the sweep skips it once its day is gone. */
   untilTonight: "until tonight",
   /** A phone dock's line over a batch waiting for an OK: its Approve says how many (the run review's item 12, 19 Oct 2026). */
   waitsForOk: "Waits for your OK",
+  /** Approve while an opening of its batch is being written: you read each before it goes, so it waits for them. */
+  openingsWriting: "Writing openings…",
   /** Who approves a sequence to leads fed by a list: each first email waits for an OK (00426), whatever its mode. */
   asksFirstEmail: "asks you before each first email",
   /** Who approves its batches, said in the record's More, which opens How it runs, where it is changed (decision 0064). */
@@ -380,7 +385,7 @@ export function sequenceRowLine(
     return `${when} · ${plural(row.date.people, "person", "people")}`;
   }
   if (row.state === "paused") return row.in_it > 0 ? `${row.in_it} waiting` : "Paused";
-  if (row.next) return `next ${clockWhen(Date.parse(row.next.at), tz, nowMs)}`;
+  if (row.next) return clockNextSend(Date.parse(row.next.at), tz, nowMs);
   if (row.in_it > 0) return `${row.in_it} in it`;
   if (row.last)
     return `${clockDate(Date.parse(row.last.at), tz, nowMs)} · ${row.last.sent} sent · ${row.last.replied} replied`;
@@ -449,8 +454,18 @@ export function sequenceNextOf(
   if (row.state !== "on" || row.starts === "date") return null;
   if (row.next)
     return { at: Date.parse(row.next.at), people: row.next.people > 0 ? row.next.people : null, soon: false };
+  return row.starts === "moment" || row.starts === "list" ? firstRunNext(row, lastRunFor, tz, nowMs) : null;
+}
+
+/** Its first step's next run by its hour (00462 sequence_steps_due: once a day, from its hour): null where it cannot know. */
+function firstRunNext(
+  row: SequenceRowDto,
+  lastRunFor: string | null | undefined,
+  tz: string,
+  nowMs: number,
+): SequenceNext | null {
   const first = row.first;
-  if (lastRunFor === undefined || !first || (row.starts !== "moment" && row.starts !== "list")) return null;
+  if (lastRunFor === undefined || !first) return null;
   const now = new Date(nowMs);
   if (!campaignRunsOn(first, { tz, now })) return null;
   const run = nextRunOf({ run_hour: first.run_hour, last_run_for: lastRunFor }, tz, now);
@@ -459,9 +474,24 @@ export function sequenceNextOf(
   return { at: wallClockAt(tz, day, run.hour, 0), people: null, soon: run.soon };
 }
 
-/** The next batch in words, after "Next": "tomorrow 10:00 AM · 3 people", "within the hour". */
+/**
+ * When a sequence to leads that is on plans the leads added to it, Added until its first step runs at its hour (00459):
+ * "tomorrow 9:00 AM", "within the hour". Null for any other, or where the read does not say the day it last ran.
+ */
+export function leadsPlannedWords(
+  row: SequenceRowDto,
+  lastRunFor: string | null | undefined,
+  tz: string,
+  nowMs: number,
+): string | null {
+  if (row.starts !== "leads" || row.state !== "on") return null;
+  const next = firstRunNext(row, lastRunFor, tz, nowMs);
+  return next ? sequenceNextWords(next, tz, nowMs) : null;
+}
+
+/** The next batch in words, after "Next": "tomorrow 10:00 AM · 3 people", "within the hour", "now". */
 export function sequenceNextWords(next: SequenceNext, tz: string, nowMs: number): string {
-  const when = next.soon ? "within the hour" : clockWhen(next.at, tz, nowMs);
+  const when = next.soon ? "within the hour" : clockAhead(next.at, tz, nowMs);
   return next.people ? `${when} · ${plural(next.people, "person", "people")}` : when;
 }
 

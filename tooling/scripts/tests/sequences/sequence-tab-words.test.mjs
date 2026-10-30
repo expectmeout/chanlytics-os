@@ -93,6 +93,26 @@ test("the four figures count what went and what came of it, never a batch that h
   assert.equal(historyDays(historyIn(B, "2026-09-16", TZ), TZ), 2, "the days it sent, not the days it was asked to");
 });
 
+test("History shows only the figures its sequence can know: Read on WhatsApp, and no Delivered for a mailbox's email", () => {
+  const ids = (of) => historyFigures(B, of).map((x) => x.id);
+  assert.deepEqual(ids({ starts: "moment", channels: ["whatsapp", "email"] }), [
+    "sent",
+    "delivered",
+    "read",
+    "replied",
+  ]);
+  assert.deepEqual(
+    ids({ starts: "moment", channels: ["email"] }),
+    ["sent", "delivered", "replied"],
+    "email says no read",
+  );
+  assert.deepEqual(
+    ids({ starts: "leads", channels: ["email"] }),
+    ["sent", "replied"],
+    "a mailbox never says it arrived",
+  );
+});
+
 test("the pages read cover a period once they reach back past its first day, or there is nothing older", () => {
   const first = { batches: B.slice(0, 3), more: true };
   assert.equal(historyCovers(first, "2026-09-16", TZ), false, "the last page read stops inside the period");

@@ -25,6 +25,7 @@ import {
   leadCheckWord,
   toLeadRowVM,
   leadRail,
+  leadSearchEmptyWords,
   leadUndoable,
   leadsStanding,
   leadReviewGroups,
@@ -1524,4 +1525,52 @@ test("a question's words are said once: the bell's title, the wait line, where i
   const m = leadQuestionMail({ name: "wedding photographers", sentence, link });
   assert.equal(m.subject, "Your search for wedding photographers is waiting for your answer");
   assert.equal(m.body, [sentence, "", LEAD_QUESTION_WAIT_LINE, "", `Answer it: ${link}`].join("\n"));
+});
+
+test("a row's Source says where its facts came from: a Maps listing, a business directory, or the owner's own list", () => {
+  assert.equal(toLeadRowVM(row(), TZ, NOW).source, "Google Maps listing");
+  assert.equal(toLeadRowVM(row({ kind: "company", place_id: null }), TZ, NOW).source, "Business directory");
+  assert.equal(toLeadRowVM(row({ place_id: null }), TZ, NOW).source, "Your list");
+});
+
+test("the rail says a list is one beside a search of the same name, so a search never reads twice", () => {
+  const search = searchWith({ id: SEARCH_A, name: "Agency owners" });
+  const list = searchWith({ id: SEARCH_B, name: "Agency owners", via: "chosen" });
+  const other = searchWith({ id: "00000000-0000-4000-8000-0000000000c3", name: "Leads you add", via: "chosen" });
+  assert.deepEqual(
+    leadRail(COUNTS, [search, list, other], NOW).searches.map((s) => s.name),
+    ["Agency owners", "Agency owners · list", "Leads you add"],
+  );
+});
+
+test("a search's empty view says what its round holds: leads to look at, or that it is still looking", () => {
+  assert.deepEqual(leadSearchEmptyWords({ state: "running", review: 67 }), {
+    title: "67 leads need a look.",
+    body: "Claude is still checking them, and could not decide on these yet.",
+    review: true,
+  });
+  assert.equal(leadSearchEmptyWords({ state: "ended", review: 1 }).title, "1 lead needs a look.");
+  assert.deepEqual(leadSearchEmptyWords({ state: "running", review: 0 }), {
+    title: "Still looking.",
+    body: "Leads come in here as Claude checks them.",
+    review: false,
+  });
+  assert.equal(
+    leadSearchEmptyWords({ state: "ended", review: 0 }),
+    null,
+    "an ended search with none: the page's words",
+  );
+  assert.equal(leadSearchEmptyWords(null), null);
+});
+
+test("the band's tab on screen counts the rows its read holds once the search has ended, never the round's counter", () => {
+  const ended = searchWith({}, { state: "ended", qualified: 21, review: 46, excluded: 0 });
+  const shown = leadBand(ended, { cls: "qualified", n: 20 }).classes.map((c) => c.label);
+  assert.deepEqual(shown, ["20 Qualified", "46 Needs review", "0 Left out"], "a people search counts people");
+  const live = searchWith({}, { state: "running", ending: null, ended_at: null, qualified: 21 });
+  assert.equal(
+    leadBand(live, { cls: "qualified", n: 3 }).classes[0].label,
+    "21 Qualified",
+    "still finding: the round's",
+  );
 });

@@ -193,7 +193,7 @@ export function SequenceHistory(p: { rec: SequenceRecordDto; again: number; move
       </div>
     );
   const inPeriod = historyIn(batches, since, tz);
-  const figures = historyFigures(inPeriod);
+  const figures = historyFigures(inPeriod, rec.sequence);
   // Its own report over the same days: Reports › Campaigns narrowed to it (All opens on the period Reports keeps).
   const reports = campaignReportRoute(since ? { from: since, to: zoneDayKey(nowMs, tz) } : null, {
     kind: "sequence",

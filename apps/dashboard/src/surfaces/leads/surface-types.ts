@@ -1,6 +1,7 @@
 /**
- * The Leads surface's shapes (surface.ts): the view a page reads, and what the surface publishes for it. Apart from the
- * surface's reads and acts, so the page's types and its state read them without the module that fetches.
+ * The Leads surface's shapes (surface.ts): the view a page reads, what the surface publishes for it, and what its reads
+ * answer. Apart from the surface's reads and acts, so the page's types and its state read them without the module that
+ * fetches.
  */
 import type {
   LeadChips,
@@ -9,6 +10,7 @@ import type {
   LeadList,
   LeadMonthDto,
   LeadPileCountsDto,
+  LeadRowDto,
   LeadRowVM,
   LeadSearchDto,
   LeadSort,
@@ -36,6 +38,8 @@ export interface LeadsSurface {
   /** The view as a route, for the address and for Ask's citations: clients/leads:s-<search>:l-<list>. */
   route: string;
   suggestions: LeadSuggestionsDto | null;
+  /** A read of the ideas is out: none yet is "writing", not "not available" (the walk of 30 Oct 2026). */
+  ideasReading?: boolean;
   /** The month's standing (D5): what the workbench says a press costs. Null until a first page has answered. */
   month: LeadMonthDto | null;
   /** The pile's progress line (sort pile of one search, 00426), from whichever first page last answered one. */
@@ -55,4 +59,19 @@ export interface LeadsSurface {
    * by a read that began after it. fetchedAt is the publish time, which moves on a republish with no read.
    */
   readAt?: number;
+}
+
+/** What `GET lead-searches` and `GET leads` answer (4.6's DTOs); the counts ride with whichever read made them. */
+export interface LeadSearchesAnswer {
+  searches: LeadSearchDto[];
+  counts?: LeadCounts;
+  /** The cards that find leads now (00430). */
+  cards_live?: string[];
+}
+export interface LeadsPageAnswer {
+  rows: LeadRowDto[];
+  next: { key: string; id: string } | null;
+  counts?: LeadCounts;
+  month?: LeadMonthDto;
+  pile?: LeadPileCountsDto;
 }

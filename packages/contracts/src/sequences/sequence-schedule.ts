@@ -7,7 +7,7 @@
  */
 import type { AppointmentWord } from "../journey/appointment-word";
 import { triggerOf } from "../playbooks/playbook-triggers";
-import { clockDate, clockTime, clockWhen } from "../shared/clock";
+import { clockAhead, clockDate, clockTime } from "../shared/clock";
 import { plural } from "../shared/words";
 import type { SequencePeopleDto, SequenceRowDto, SequenceStepDto } from "./sequence-dto";
 import {
@@ -267,7 +267,7 @@ function leadStepNow(row: SequenceRowDto, step: SequenceStepDto, ctx: ScheduleCt
   const toSend = ofStep("to_send");
   const parts = [held > 0 ? `${held} held by the check` : null, toSend > 0 ? `${toSend} for you to send` : null];
   if (going && next) {
-    const when = clockWhen(Date.parse(next.at), ctx.tz, ctx.nowMs);
+    const when = clockAhead(Date.parse(next.at), ctx.tz, ctx.nowMs);
     parts.push(next.people > 0 ? `${next.people} go ${when}` : `goes ${when}`);
   }
   const said = parts.filter((p): p is string => !!p);
@@ -280,7 +280,13 @@ function customerNext(row: SequenceRowDto, step: SequenceStepDto, ctx: ScheduleC
   const made = row.next;
   if (made ? made.place !== step.place : step.place !== 1) return null;
   const next = sequenceNextOf(row, ctx.lastRunFor, ctx.tz, ctx.nowMs);
-  return next ? { tone: "next", words: `${SEQUENCE_WORDS.next} ${sequenceNextWords(next, ctx.tz, ctx.nowMs)}` } : null;
+  if (!next) return null;
+  // A batch whose time has come is going out: said so, never "Next now".
+  const words =
+    next.soon || next.at > ctx.nowMs
+      ? `${SEQUENCE_WORDS.next} ${sequenceNextWords(next, ctx.tz, ctx.nowMs)}`
+      : SEQUENCE_WORDS.goingOut(next.people);
+  return { tone: "next", words };
 }
 
 /**

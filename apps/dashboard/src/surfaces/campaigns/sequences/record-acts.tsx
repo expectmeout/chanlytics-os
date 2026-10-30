@@ -56,15 +56,16 @@ type Asking = "skip" | "resume" | "discard" | "cancel" | "end";
  * The record's acts and what they share, held once for the head, the notice and a phone's dock: the notice and the batch
  * it is about, the twin it is sent beside, the question standing, Rename, and each press. `opens.step` opens a step's
  * editor in place (the record holds which), for the notice of new words turned down; `opens.how` opens How it runs on
- * Steps, where Before each batch is set (decision 0064).
+ * Steps, where Before each batch is set (decision 0064); `opens.writing` says an opening of the batch waiting is being
+ * written, and Approve waits for it, since you read each before it goes.
  */
 export function useRecordActs(
   rec: SequenceRecordDto,
   flash: Flash,
   moved: () => void,
-  opens: { step: (id: string) => void; how: () => void },
+  opens: { step: (id: string) => void; how: () => void; writing?: boolean },
 ) {
-  const { step: editStep, how: openHow } = opens;
+  const { step: editStep, how: openHow, writing = false } = opens;
   const [busy, setBusy] = useState(false);
   const [asking, setAsking] = useState<Asking | null>(null);
   const [renaming, setRenaming] = useState(false);
@@ -101,6 +102,7 @@ export function useRecordActs(
     notice,
     twin,
     waiting,
+    writing,
     busy,
     asking,
     setAsking,
@@ -627,11 +629,12 @@ export function RecordNotice({ a, tab }: { a: RecordActs; tab: SequenceTab }) {
           size="sm"
           variant="primary"
           onClick={() => void a.decide("approve")}
-          disabled={a.busy}
+          disabled={a.busy || a.writing}
+          aria-busy={a.writing || undefined}
           data-testid="sq-approve"
           {...gate("approve")}
         >
-          {n.act}
+          {a.writing ? SEQUENCE_WORDS.openingsWriting : n.act}
         </Button>
       </>
     ) : (
@@ -718,11 +721,12 @@ export function phoneFootOf(a: RecordActs, tab: SequenceTab): ReactNode {
         <Button
           variant="primary"
           onClick={() => void a.decide("approve")}
-          disabled={a.busy}
+          disabled={a.busy || a.writing}
+          aria-busy={a.writing || undefined}
           data-testid="sq-approve"
           {...gate("approve")}
         >
-          {n.act}
+          {a.writing ? SEQUENCE_WORDS.openingsWriting : n.act}
         </Button>
       </div>
     );
