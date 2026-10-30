@@ -4,7 +4,13 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { RefObject } from "react";
-import type { LeadRowVM, LeadSort, PersonRowVM } from "@chanlytics/contracts";
+import {
+  leadReaches,
+  type LeadReachFilter,
+  type LeadRowVM,
+  type LeadSort,
+  type PersonRowVM,
+} from "@chanlytics/contracts";
 import { refusalToast } from "../../legacy-verbs";
 import type { Flash } from "../../people/types";
 import { leadPhotoWarm } from "../peek/seams";
@@ -66,14 +72,17 @@ export const useLeadsRead = ({
 };
 
 /**
- * The leads loaded, filtered at once by the box (their name, their kind and their area) and by one criterion of the
- * Excluded view. A sentence is not sent anywhere: words to chips is release C.
+ * The leads loaded, filtered at once by the box (their name, their kind and their area), by one criterion of the
+ * Excluded view, by a fit, and by the Filter's reach (a checked email, a checked phone, or both). A sentence is not sent
+ * anywhere: words to chips is release C. `narrowed` is whether any of those hides a loaded row: then "all that match" is
+ * no claim the bars can make, since the view the server knows is wider than the rows on screen.
  */
 export const useLeadRows = ({
   leads,
   q,
   chip,
   fitChip,
+  reach,
   leadView,
   viewRoute,
   sortBy,
@@ -83,6 +92,7 @@ export const useLeadRows = ({
   q: string;
   chip: string | null;
   fitChip: string | null;
+  reach: readonly LeadReachFilter[];
   leadView: LeadView;
   viewRoute: string;
   sortBy: string;
@@ -93,6 +103,7 @@ export const useLeadRows = ({
     let list = leads.rows;
     if (chip) list = list.filter((l) => l.excludedBy === chip);
     if (fitChip) list = list.filter((l) => l.fit === fitChip);
+    if (reach.length) list = list.filter((l) => leadReaches(l.slots, reach));
     if (!needle) return list;
     return list.filter(
       (l) =>
@@ -100,13 +111,14 @@ export const useLeadRows = ({
         (l.category || "").toLowerCase().includes(needle) ||
         (l.area || "").toLowerCase().includes(needle),
     );
-  }, [leads.rows, q, chip, fitChip]);
-  const filtered = !!q.trim() || !!chip || !!fitChip || !!leadView.cls || leadView.list !== "all";
+  }, [leads.rows, q, chip, fitChip, reach]);
+  const narrowed = !!q.trim() || !!chip || !!fitChip || reach.length > 0;
+  const filtered = narrowed || !!leadView.cls || leadView.list !== "all";
   const shownIds = leadShown.map((r) => r.id);
   // The surface holds the view the address names, in the order this page asked for: a sort is a read too (never the
   // page's to re-order; leads_page's order is the one rule), and the rows on screen are the old order until it lands.
   const viewLanded = leads.route === viewRoute && leads.view.sort === sortBy && leads.view.dir === sortDir;
-  return { leadShown, filtered, shownIds, viewLanded };
+  return { leadShown, filtered, narrowed, shownIds, viewLanded };
 };
 
 /**

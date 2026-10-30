@@ -15,7 +15,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
-  LIST_DRAFT_JSON_SCHEMA,
+  LIST_CONDITIONS_JSON_SCHEMA,
   PROPOSAL_SPECS,
   asListRule,
   cardOpenRoute,
@@ -429,13 +429,13 @@ function canonical(node) {
   );
 }
 
-test("the rule the model is shown is the drafter's own: all as LIST_DRAFT_JSON_SCHEMA says it, imported, and the vocabulary's lines, every field from listDraftFieldLines; name and cannot beside it, under the actions that make, change and take down a list", () => {
+test("the rule the model is shown is in the drafter's own facts: all as LIST_CONDITIONS_JSON_SCHEMA says it, imported, and the vocabulary's lines, every field from listDraftFieldLines; name and cannot beside it, under the actions that make, change and take down a list", () => {
   for (const role of ["operator", "partner", "owner"]) {
     const t = toApiTools(role, true).find((x) => x.name === "propose_list");
     assert.deepEqual(t.input_schema.properties.action.enum, ["make", "change", "delete"]);
     assert.deepEqual(Object.keys(t.input_schema.properties), ["action", "name", "all", "ids", "cannot", "list_id"]);
     assert.deepEqual(t.input_schema.required, ["action"], "each action's own zod requires its fields");
-    assert.deepEqual(canonical(t.input_schema.properties.all), canonical(LIST_DRAFT_JSON_SCHEMA.properties.all));
+    assert.deepEqual(canonical(t.input_schema.properties.all), canonical(LIST_CONDITIONS_JSON_SCHEMA));
     assert.ok(!JSON.stringify(t.input_schema).includes('"in_list"'), "a draft never reads another list");
     assert.ok(!/another list/.test(t.description), "and nothing warns of a field the model is never shown");
     for (const line of LIST_RULE_LINES) assert.ok(t.description.includes(`\n${line}\n`), line);

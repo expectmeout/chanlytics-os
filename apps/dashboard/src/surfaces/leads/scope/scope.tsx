@@ -135,6 +135,8 @@ const phoneBarOf = (p: P) => (
     onImport={p.onImport}
     select={(p.canFind || p.canExport) && p.rows.length > 0 ? p.select : null}
     sortItems={p.sortItems}
+    reach={p.reach}
+    onReach={p.onReach}
   />
 );
 
@@ -355,6 +357,7 @@ const bulkBarOf = (p: P, phone: boolean) => (
     busy={p.bulkBusy}
     whyNot={p.canFind ? null : "Only an owner can change leads."}
     allMatching={p.allMatching}
+    narrowed={p.narrowed}
     onSelectAllMatching={p.onSelectAllMatching}
     review={p.review}
     onClear={p.onClearSel}

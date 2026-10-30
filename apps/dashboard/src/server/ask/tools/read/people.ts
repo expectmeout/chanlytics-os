@@ -3,7 +3,7 @@ import { z } from "zod";
 import {
   ASK_CAPS,
   BUILTIN_LISTS,
-  LIST_DRAFT_JSON_SCHEMA,
+  LIST_CONDITIONS_JSON_SCHEMA,
   cameFromOf,
   PEOPLE_LISTS,
   asListRule,
@@ -573,7 +573,7 @@ export const peopleTool = defineActions({
         list: z.string().optional().describe("One list: its token (seg:<id>, list:<id>) or a People list's bare id."),
         all: z
           .array(z.unknown())
-          .meta(LIST_DRAFT_JSON_SCHEMA.properties.all)
+          .meta(LIST_CONDITIONS_JSON_SCHEMA)
           .optional()
           .describe("Conditions in the lists' vocabulary, as propose_list takes them: who they hold today."),
       }),

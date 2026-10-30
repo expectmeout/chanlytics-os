@@ -190,18 +190,26 @@ function hoursSaid(week: SaidDay[]): { said: string; angle: string } | null {
     return { said: `is open until ${all} every day`, angle: "their hours" };
   const close = untilOf(weekday[0]);
   if (!close || !weekday.every((d) => untilOf(d) === close)) return null;
+  return { said: weekendSaid(close, sat, sun), angle: "their hours" };
+}
+
+/**
+ * The weekdays' one close and the weekend as the listing has it. A weekend open both days says each day's close, so no
+ * close is said that the listing does not give ("until 8 PM Monday to Saturday and until 4 PM on Sundays"); both at the
+ * weekdays' close is every day, said before this.
+ */
+function weekendSaid(close: string, sat: SaidDay | undefined, sun: SaidDay | undefined): string {
   const satUntil = untilOf(sat);
-  const said =
-    isClosed(sat) && isClosed(sun)
-      ? `is open until ${close} on weekdays and closed on weekends`
-      : satUntil && isClosed(sun)
-        ? satUntil === close
-          ? `is open until ${close} Monday to Saturday`
-          : `is open until ${close} on weekdays and until ${satUntil} on Saturdays`
-        : untilOf(sat) && untilOf(sun)
-          ? `is open until ${close} on weekdays, and on weekends too`
-          : `is open until ${close} on weekdays`;
-  return { said, angle: "their hours" };
+  const sunUntil = untilOf(sun);
+  if (isClosed(sat) && isClosed(sun)) return `is open until ${close} on weekdays and closed on weekends`;
+  if (satUntil && isClosed(sun))
+    return satUntil === close
+      ? `is open until ${close} Monday to Saturday`
+      : `is open until ${close} on weekdays and until ${satUntil} on Saturdays`;
+  if (!satUntil || !sunUntil) return `is open until ${close} on weekdays`;
+  if (satUntil === close) return `is open until ${close} Monday to Saturday and until ${sunUntil} on Sundays`;
+  if (satUntil === sunUntil) return `is open until ${close} on weekdays and until ${satUntil} on weekends`;
+  return `is open until ${close} on weekdays, until ${satUntil} on Saturdays and until ${sunUntil} on Sundays`;
 }
 
 /**

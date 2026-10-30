@@ -197,7 +197,7 @@ export { JOURNEY_STAGE_IDS, journeyOf, journeyStageOf } from "./journey/journey"
 export { journeyGuide } from "./journey/journey-guide";
 export { LEAD_CARD_MARKS_MAX, LEAD_CARD_TABS, LEAD_CARD_WORDS, leadCardBulkDoorOf, leadCardBulkOf, leadCardEmailOf, leadCardMarksOf, leadCardPartsOf, leadCardReasonOf, leadCardSlotsOf, leadCardStepsOf } from "./leads/lead-card";
 export { LEAD_CHECK_KEYS } from "./leads/lead-dtos";
-export { LEAD_SLOT_WORDS, LEAD_TILE_PX, LEAD_UNDO_MS, leadCheckWord, leadExclusionWord, leadHoursShort, leadSlots, leadTileSrc, leadTintOf, leadTodayLine, leadUndoable, leadWhere } from "./leads/lead-facts";
+export { LEAD_REACH_WORDS, LEAD_SLOT_WORDS, LEAD_TILE_PX, LEAD_UNDO_MS, leadCheckWord, leadExclusionWord, leadHoursShort, leadReaches, leadReachOf, leadReachWord, leadSlots, leadTileSrc, leadTintOf, leadTodayLine, leadUndoable, leadWhere } from "./leads/lead-facts";
 export { ideaBasisOf, ideaCustomersOf, ideaHistoryOf, ideaPacket, ideaPassed, ideaPassedOf, ideaWhere, LEAD_IDEAS_MAX, LEAD_SUGGEST_RETRY_MS } from "./leads/lead-ideas";
 export { ideaJsonSchema, ideaPacketText, LEAD_IDEAS_SYSTEM } from "./leads/lead-ideas-ask";
 export { isLeadList, LEAD_IMPORT_MAX_BYTES, LEAD_IMPORT_WORDS, LEAD_LIST_MAX, LEAD_LIST_VIAS, leadChooseAnswerWords, leadChooseNameOf, leadImportAnswerWords, leadImportColumns, leadImportColumnWords, leadImportCountWords, leadImportEstimateUsd, leadImportNameOf, leadImportPlanOf, leadImportReady, leadImportSaveLabel, leadListEmptyOf, leadListStripOf, regionOf, websiteHostOf } from "./leads/lead-import";
@@ -220,7 +220,7 @@ export { planVersionOf } from "./leads/search/plan";
 export { questionAfterProbe } from "./leads/search/question";
 export { replacedOutcome, SEARCH_CARD_REPLACED, searchCardsReplaced, searchCardView, startsSearch, waitingSearchWords, withAnswerLanded, withIdeaCarried } from "./leads/search/search-card";
 export { planArea, planLeavingOut, planSaid, planSentence, planWhere, planWho, planWords } from "./leads/search/sentence";
-export { LEAD_CLOSED_REASONS, LEAD_EMAIL_STATES, LEAD_FITS, LEAD_OPERATION_KINDS, LEAD_STAGES, LEAD_COUNTER_KINDS, LEAD_MEMBER_CLASSES, LEAD_PREFERENCE_KINDS, LEAD_ROUND_ANSWERS, LEAD_ROUND_ENDINGS, LEAD_ROUND_PURPOSES, LEAD_ROUND_STATES, LEAD_RUN_PURPOSES, LEAD_RUN_STATES, LEAD_SEARCH_VIAS, LEAD_SUPPRESSION_KINDS, LEAD_SUPPRESSION_WHATS } from "./leads/search/sets";
+export { LEAD_CLOSED_REASONS, LEAD_EMAIL_STATES, LEAD_FITS, LEAD_OPERATION_KINDS, LEAD_REACH_FILTERS, LEAD_STAGES, LEAD_COUNTER_KINDS, LEAD_MEMBER_CLASSES, LEAD_PREFERENCE_KINDS, LEAD_ROUND_ANSWERS, LEAD_ROUND_ENDINGS, LEAD_ROUND_PURPOSES, LEAD_ROUND_STATES, LEAD_RUN_PURPOSES, LEAD_RUN_STATES, LEAD_SEARCH_VIAS, LEAD_SUPPRESSION_KINDS, LEAD_SUPPRESSION_WHATS } from "./leads/search/sets";
 export { LEAD_SHEET_WORDS, leadPickerRowsOf, leadPileEndOf, leadSheetAboutOf, leadSheetClosedOf, leadSheetStateOf, leadVerdictOf, sheetSlot } from "./leads/sheet/lead-sheet";
 export { LEAD_SHEET_CARD_WORDS, leadSheetChecksLineOf, leadSheetChecksSaid, leadSheetContactLineOf, leadSheetEmailLineOf, leadSheetExceptionWords, leadSheetSubOf, leadSheetWhyOf } from "./leads/sheet/lead-sheet-card";
 export { LEAD_DOCK_WORDS, leadDockOf, leadSheetWordOf } from "./leads/sheet/lead-sheet-dock";
@@ -271,7 +271,7 @@ export { legacyErasedEmailHash, legacyErasedPhoneHash, legacyLeadSuppressionHash
 export { BUILTIN_LISTS, LIST_GROUP_WORDS, listAsks, PEOPLE_LIST_GROUPS, PEOPLE_LISTS } from "./people/lists/builtin-lists";
 export { LIST_ANY_MAX, LIST_ASSIGNED, LIST_DEAL_STAGES, LIST_NEEDS, LIST_PURPOSES, LIST_RULE_FIELDS, LIST_RULE_MAX, LIST_STANDINGS } from "./people/lists/list-fields";
 export { listRuleMatches, ruleLists, ruleNeeds } from "./people/lists/list-match";
-export { asListRule, draftListRule, LIST_DRAFT_JSON_SCHEMA, ListConditionSchema, listConditionWords, listDraftFieldLines, ListFactSchema, listFactWords, listRuleParts, ListRuleSchema, listRuleWhy, ruleUndated } from "./people/lists/list-rules";
+export { asListRule, draftListRule, LIST_CONDITIONS_JSON_SCHEMA, ListConditionSchema, listConditionWords, listDraftFieldLines, ListFactSchema, listFactWords, listRuleParts, ListRuleSchema, listRuleWhy, ruleUndated } from "./people/lists/list-rules";
 export { listToken, parseListToken } from "./people/lists/list-token";
 export { listMembers, listNamer, listNeeds, listsFor, listUnknownWords, membersOf, resolveList, ruleNeedsViewer, savedListIds, savedListLookup, savedListTip, unmetNeed, viewerListWords } from "./people/lists/lists";
 export { GET_YES_PARAM, GET_YES_ROUTE, parsePeopleRoute, peopleRoute } from "./people/lists/people-route";
