@@ -15,7 +15,7 @@ import {
   reachFor,
   usableChannels,
 } from "../broadcasts/reach-for";
-import { type AskedPurpose, type MessageAbout } from "../consent/consent";
+import type { AskedPurpose, MessageAbout } from "../consent/consent";
 import { channelsWords, CONSENT_CHANNELS, type ConsentChannel } from "../consent/consent-channels";
 import { THREAD_CHANNEL_WORDS } from "../conversations/thread-channel";
 import { appointmentWords, type AppointmentWord } from "../journey/appointment-word";
