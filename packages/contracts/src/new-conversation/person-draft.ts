@@ -19,7 +19,7 @@ export const DRAFT_ANSWER_MAX = 300;
 export const PLAN_NOTE_MAX = 280;
 
 /**
- * The shape the model fills, in the house's convention (people/lists/list-rules.ts LIST_DRAFT_JSON_SCHEMA): every
+ * The shape the model fills, in the house's convention (people/lists/list-schemas.ts LIST_DRAFT_JSON_SCHEMA): every
  * property required, "" and [] for none, no nullable. `asks` non-empty means it needs to know more and wrote nothing.
  */
 export const PERSON_DRAFT_JSON_SCHEMA = {

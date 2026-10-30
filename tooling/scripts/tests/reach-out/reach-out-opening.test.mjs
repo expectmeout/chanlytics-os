@@ -501,12 +501,36 @@ test("weekdays close at one time, and Saturday and Sunday are said as the listin
     "Harbor Auto Repair is open until 5 PM on weekdays and closed on weekends.",
   );
   assert.equal(
-    factSaid({ ...FACT_LISTING, hours: factWeekdays("8 AM to 8:30 PM", "9 AM to 6 PM", "10 AM to 4 PM") }).opening,
-    "Harbor Auto Repair is open until 8:30 PM on weekdays, and on weekends too.",
-  );
-  assert.equal(
     factSaid({ ...FACT_LISTING, hours: factWeekdays("8 AM to 6 PM", "Closed", "9 AM to 2 PM") }).opening,
     "Harbor Auto Repair is open until 6 PM on weekdays.",
+  );
+});
+
+test("a weekend open both days says each day's closing, never one the listing does not give", () => {
+  // Both close with the weekdays.
+  assert.equal(
+    factSaid({ ...FACT_LISTING, hours: factWeekdays("9 AM to 8 PM", "10 AM to 8 PM", "11 AM to 8 PM") }).opening,
+    "Harbor Auto Repair is open until 8 PM every day.",
+  );
+  // Saturday closes with the weekdays, Sunday earlier.
+  assert.equal(
+    factSaid({ ...FACT_LISTING, hours: factWeekdays("9 AM to 8 PM", "9 AM to 8 PM", "10 AM to 4 PM") }).opening,
+    "Harbor Auto Repair is open until 8 PM Monday to Saturday and until 4 PM on Sundays.",
+  );
+  // Both earlier, at one time.
+  assert.equal(
+    factSaid({ ...FACT_LISTING, hours: factWeekdays("8 AM to 8:30 PM", "9 AM to 5 PM", "10 AM to 5 PM") }).opening,
+    "Harbor Auto Repair is open until 8:30 PM on weekdays and until 5 PM on weekends.",
+  );
+  // Both earlier, each at its own time.
+  assert.equal(
+    factSaid({ ...FACT_LISTING, hours: factWeekdays("8 AM to 8:30 PM", "9 AM to 6 PM", "10 AM to 4 PM") }).opening,
+    "Harbor Auto Repair is open until 8:30 PM on weekdays, until 6 PM on Saturdays and until 4 PM on Sundays.",
+  );
+  // Sunday closes with the weekdays, Saturday earlier.
+  assert.equal(
+    factSaid({ ...FACT_LISTING, hours: factWeekdays("9 AM to 7 PM", "9 AM to 3 PM", "10 AM to 7 PM") }).opening,
+    "Harbor Auto Repair is open until 7 PM on weekdays, until 3 PM on Saturdays and until 7 PM on Sundays.",
   );
 });
 

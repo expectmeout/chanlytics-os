@@ -1,0 +1,103 @@
+name: Opening check eval
+
+# The cold email opening's check, graded on what it sends, once a week (the 30 Oct 2026 review, item 7):
+# tooling/scripts/evals/opening-check.mjs runs the edge's own check over twelve made-up businesses four times each, and
+# Opus 5.5 grades every opening it writes against the business's record. The week holds when, by the lower bound of each
+# 95% Wilson interval, at least 0.75 of its checks sent an honest opening and 0.85 of what it sent was honest, and no
+# pitch went. Weekly, on Ruben's word (30 Oct 2026): the check's route names a model without a date, so what answers can
+# change with nothing of ours changed. A change to the check itself is measured by running this by hand, or the script.
+#
+# The job asks the model ONLY with ANTHROPIC_EVAL_KEY, as nightly-evals.yml does. It never receives ANTHROPIC_API_KEY,
+# the production key, or any other secret but the token its issue is written with. A run costs about $0.08 (the first,
+# 30 Oct 2026: $0.075), and --cap stops it starting calls past $0.30.
+#
+# Off until the repository variable OPENING_EVAL is "1" (Settings, Secrets and variables, Actions, Variables). Off, the
+# week's run is skipped in grey and no runner starts; on, or started by hand, a run with no key FAILS and says so.
+# Turning it on is Ruben's: the secret first, then the variable. A missed line, or a run that could not say, keeps one
+# issue open and assigned to the repository's owner (tooling/scripts/ops/rolling-issue.mjs); a week that holds closes
+# it. Every opening and its grade are kept as the run's artifact.
+on:
+  schedule:
+    - cron: "0 11 * * 1"
+  workflow_dispatch:
+
+# One run at a time: the eval spends a key.
+concurrency:
+  group: opening-check-eval
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  eval:
+    name: The opening check, graded, against a sandbox model key
+    if: ${{ vars.OPENING_EVAL == '1' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      issues: write
+    # The key is not in the job's environment: the first step reads it to say whether it is set and hands on that fact
+    # alone, and only the step that asks the model is given the key.
+    steps:
+      - name: Say so when there is no eval key
+        id: key
+        shell: bash
+        env:
+          ANTHROPIC_EVAL_KEY: ${{ secrets.ANTHROPIC_EVAL_KEY }}
+        run: |
+          if [ -n "$ANTHROPIC_EVAL_KEY" ]; then
+            echo "set=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "set=false" >> "$GITHUB_OUTPUT"
+            echo "::error title=No eval key::The opening check's eval was asked for (OPENING_EVAL is 1, or a hand started this run) and ANTHROPIC_EVAL_KEY is not set, so nothing was asked and nothing was graded. This is not a pass."
+            exit 1
+          fi
+      - uses: actions/checkout@v7
+        if: ${{ steps.key.outputs.set == 'true' }}
+      - uses: pnpm/action-setup@v6
+        if: ${{ steps.key.outputs.set == 'true' }}
+      - uses: actions/setup-node@v7
+        if: ${{ steps.key.outputs.set == 'true' }}
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+        if: ${{ steps.key.outputs.set == 'true' }}
+      - name: The check, graded
+        id: eval
+        if: ${{ steps.key.outputs.set == 'true' }}
+        shell: bash
+        env:
+          ANTHROPIC_EVAL_KEY: ${{ secrets.ANTHROPIC_EVAL_KEY }}
+        # 0 held, 1 a line was missed, 2 it could not say (the grader, too many checks unanswered, the cap, the credit).
+        run: |
+          set +e
+          node --import tsx tooling/scripts/evals/opening-check.mjs --live --cap 0.30 --out opening-check.json > opening-check.txt 2>&1
+          code=$?
+          cat opening-check.txt
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          exit "$code"
+      - name: Keep every opening and its grade
+        if: ${{ always() && steps.key.outputs.set == 'true' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: opening-check
+          path: opening-check.json
+          if-no-files-found: ignore
+      - name: Say so, where a person will see it
+        if: ${{ always() && steps.key.outputs.set == 'true' && steps.eval.outputs.code != '' }}
+        shell: bash
+        env:
+          CODE: ${{ steps.eval.outputs.code }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          if [ "$CODE" = "0" ]; then
+            node tooling/scripts/ops/rolling-issue.mjs --state green --title "The opening check missed its line" --match "The opening check"
+          elif [ "$CODE" = "1" ]; then
+            node tooling/scripts/ops/rolling-issue.mjs --state red --title "The opening check missed its line" --match "The opening check" --body-file opening-check.txt --assignee "$OWNER"
+          else
+            node tooling/scripts/ops/rolling-issue.mjs --state red --title "The opening check could not run" --match "The opening check" --body-file opening-check.txt --assignee "$OWNER"
+          fi

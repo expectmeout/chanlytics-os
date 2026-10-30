@@ -2,7 +2,7 @@ import "server-only";
 import { z } from "zod";
 import {
   AppError,
-  LIST_DRAFT_JSON_SCHEMA,
+  LIST_CONDITIONS_JSON_SCHEMA,
   ListDraftAnswerSchema,
   asListRule,
   listMembers,
@@ -217,11 +217,11 @@ async function proposeList(
 
 /**
  * A list on People, kept current by its rule (the Phase 4 plan, D10): the rule written by this turn's model in the list
- * vocabulary -- the drafter's own shape, `all` exactly as its schema says it (contracts LIST_DRAFT_JSON_SCHEMA) and its
+ * vocabulary -- the drafter's own facts, `all` as the tools say it (contracts LIST_CONDITIONS_JSON_SCHEMA) and its
  * lines (server/people/lists.ts LIST_RULE_LINES) -- and checked by the route's guards before a card is shown.
  */
 const LIST_ID = z.string().describe("A list of the workspace's own: its id from people with action lists.");
-const ALL = z.array(z.unknown()).meta(LIST_DRAFT_JSON_SCHEMA.properties.all);
+const ALL = z.array(z.unknown()).meta(LIST_CONDITIONS_JSON_SCHEMA);
 
 /**
  * People's lists (D11, the operator, 15 Oct 2026): a new list (make, the one definition before), kept current by its rule

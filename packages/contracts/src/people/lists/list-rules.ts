@@ -4,9 +4,9 @@
  * in it too (lists.ts), so an owner's list can say anything a built-in says (decision 0009).
  *
  * The owner says it in plain English ("regulars who haven't been in since spring"); a model writes it in this
- * vocabulary and nothing else (LIST_DRAFT_JSON_SCHEMA, listDraftFieldLines), and the page shows it back as chips
- * (listRuleParts). A rule names only what the row can answer. What the row cannot answer -- a staff member, a tag, what
- * was said in a thread -- is not a field, and the draft says so rather than guessing.
+ * vocabulary and nothing else (list-schemas.ts LIST_DRAFT_JSON_SCHEMA, listDraftFieldLines), and the page shows it
+ * back as chips (listRuleParts). A rule names only what the row can answer. What the row cannot answer -- a staff
+ * member, a tag, what was said in a thread -- is not a field, and the draft says so rather than guessing.
  *
  * Every day fact is a count of the workspace's own dates, worked out once when the row is built (people.ts
  * toPersonRowVM), so judging a rule needs no clock: the row is the moment it was read, for the person who is looking.
@@ -180,7 +180,7 @@ const KIND_KEYS: Record<FieldKind, readonly string[]> = {
 };
 
 /**
- * A rule the drafting model wrote (LIST_DRAFT_JSON_SCHEMA, whose every property is optional): each fact cut down to the
+ * A rule the drafting model wrote (list-schemas.ts LIST_DRAFT_JSON_SCHEMA): each fact cut down to the
  * keys its field reads, an "any" group to its facts, then read strictly (asListRule). A stored rule is never read this
  * leniently: the model fills in what it may, a stored rule says what it means.
  */
@@ -356,33 +356,25 @@ const LEAF_PROPERTIES = {
 } as const;
 
 /**
- * The shape the model answers a plain-English description in: the rule, a name for the list, and what in the words
- * the vocabulary cannot say (a staff member, a tag, what was said), which the page shows rather than drops. A condition
- * is a fact, or `any`: two or more facts of which one must hold. A draft never reads another list.
+ * A rule's conditions as the assistant's tools show them (propose_list, people's search, propose_people's selection):
+ * a condition is a fact, or `any`, two or more facts of which one must hold, each key named once. A tool's rule never
+ * reads another list. No tool is strict, so this is the model's guide, not a grammar; the drafter, whose answer is
+ * one, writes the same facts in list-schemas.ts LIST_DRAFT_JSON_SCHEMA.
  */
-export const LIST_DRAFT_JSON_SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  required: ["name", "all", "cannot"],
-  properties: {
-    name: { type: "string" },
-    cannot: { type: "string" },
-    all: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        properties: {
-          ...LEAF_PROPERTIES,
-          any: {
-            type: "array",
-            items: {
-              type: "object",
-              additionalProperties: false,
-              required: ["field", "op"],
-              properties: LEAF_PROPERTIES,
-            },
-          },
+export const LIST_CONDITIONS_JSON_SCHEMA = {
+  type: "array",
+  items: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      ...LEAF_PROPERTIES,
+      any: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["field", "op"],
+          properties: LEAF_PROPERTIES,
         },
       },
     },
