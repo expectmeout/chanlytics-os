@@ -278,6 +278,30 @@ test("a fallback is sent only what it takes: Opus 5.5's fast request falls back 
   assert.equal(unlisted.calls[0].body.speed, "fast");
 });
 
+test("a route with its thinking off: the small read's Haiku 5.5 is sent disabled and its Sonnet 5.5 fallback between_tools; a thinking the request names, or an effort past high, is left as asked; a route without sends none", async () => {
+  const read = (body = {}) =>
+    ask({ purpose: "reply_read", body: { messages: [{ role: "user", content: "hi" }], ...body } });
+  const api = scripted(status(529, "Overloaded"), said("{}"));
+  const r = await askModel(KEY, read(), { fetch: api.fetch, ...noWait });
+  assert.equal(r.outcome, "ok");
+  assert.equal(api.calls[0].model, MODELS.HAIKU_5_5);
+  assert.deepEqual(api.calls[0].body.thinking, { type: "disabled" });
+  assert.equal(api.calls[1].model, MODELS.SONNET_5_5);
+  assert.deepEqual(api.calls[1].body.thinking, { type: "between_tools" }, "Sonnet 5.5 refuses disabled: its lowest");
+
+  const named = scripted(said("{}"));
+  await askModel(KEY, read({ thinking: { type: "adaptive" } }), { fetch: named.fetch, ...noWait });
+  assert.deepEqual(named.calls[0].body.thinking, { type: "adaptive" }, "the request's own");
+
+  const hard = scripted(said("{}"));
+  await askModel(KEY, read({ output_config: { effort: "xhigh" } }), { fetch: hard.fetch, ...noWait });
+  assert.equal(hard.calls[0].body.thinking, undefined, "neither off is taken past high");
+
+  const answer = scripted(said("We open at nine."));
+  await askModel(KEY, ask(), { fetch: answer.fetch, ...noWait });
+  assert.equal(answer.calls[0].body.thinking, undefined, "the receptionist thinks as it does");
+});
+
 test("an effort said in the messages goes, with its beta, to a model that takes one; its fallback that takes none (Sonnet 5) is asked at the effort they ended on, the messages without them", async () => {
   const q = { role: "user", content: [{ type: "text", text: "set up my campaigns" }] };
   const raised = { role: "system", content: [], output_config: { effort: "high" } };

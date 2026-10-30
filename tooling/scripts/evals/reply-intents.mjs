@@ -27,6 +27,7 @@ import {
   replySystemPrompt,
   replyTextOf,
   replyUserContent,
+  routeThinkingFor,
   zoneDayKey,
 } from "@chanlytics/contracts";
 
@@ -34,6 +35,9 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, "../../..");
 const { incomingEmailOf } = await import("@chanlytics/jobs");
 const FIXTURES = path.join(HERE, "../fixtures/replies/replies.json");
+
+/** The thinking the edge's port sends the reader: off, as the reading's route has it (contracts routeThinkingFor). */
+export const READ_THINKING = routeThinkingFor("reply_read", REACH_OUT_MODEL);
 
 /** The fixture set: the lead the replies answer, the email they answer, and the replies. */
 export function loadFixtures(file = FIXTURES) {
@@ -88,6 +92,7 @@ async function ask(client, input) {
     system: input.system,
     messages: [{ role: "user", content: input.user }],
     output_config: { format: { type: "json_schema", schema: REPLY_SCHEMA } },
+    ...(READ_THINKING ? { thinking: READ_THINKING } : {}),
   });
   if (res.stop_reason === "refusal" || res.stop_reason === "max_tokens") return null;
   const text = res.content

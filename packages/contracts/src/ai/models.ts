@@ -23,7 +23,8 @@
 
 /**
  * The models the platform asks, by their API ids: the only place an id is written (model-registry.test.mjs). Haiku 5.5
- * (15 Oct 2026, the speed plan's step 1) is listed for the lookup tier the eval will try; no route asks it yet.
+ * (15 Oct 2026, the speed plan's step 1) asks the small reads since 30 Oct 2026; Haiku 4.5 is asked by no route since,
+ * and stays listed so a model a variable names is still priced.
  */
 export const MODELS = {
   OPUS_5_5: "claude-opus-5-5",
@@ -98,7 +99,7 @@ export const MODEL_TAKES: Record<ModelId, ModelTakes> = {
   // Sonnet 5.5 takes an effort message only while it thinks: never beside `between_tools`, which no route sends.
   [SONNET_5_5]: { thinking: ["adaptive", "between_tools"], fast: false, effortMessages: true, systemMessages: true },
   [SONNET_5]: { thinking: ["adaptive", "disabled"], fast: false, effortMessages: false, systemMessages: false },
-  // Haiku 5.5 takes `disabled` at effort high or below; no route sends it either.
+  // Haiku 5.5 takes `disabled` at effort high or below: what a route with its thinking off sends it (routeThinkingFor).
   [HAIKU_5_5]: { thinking: ["adaptive", "disabled"], fast: false, effortMessages: true, systemMessages: false },
   // Haiku 4.5 thinks only on a token budget, which no route sends: it runs without.
   [HAIKU_4_5]: { thinking: ["disabled"], fast: false, effortMessages: false, systemMessages: false },
@@ -161,6 +162,33 @@ export interface ModelRoute {
   maxTokens: number;
   /** A second port put the same closed-set question in shadow; absent when the purpose has none. */
   shadow?: ShadowPort;
+  /**
+   * `off`: a short read into a fixed shape, where a model that thinks by default spends its thinking inside the cap and
+   * can run out of it before the answer (a customer's website read, 29 Oct 2026: 2,500 tokens and no facts). Each model is
+   * sent the off it takes (routeThinkingFor). Absent: each model thinks as it does by default.
+   */
+  thinking?: "off";
+}
+
+/** The efforts a model still takes a thinking off at: Haiku 5.5's `disabled` and Sonnet 5.5's `between_tools` stop at high. */
+const THINKING_OFF_EFFORTS: readonly unknown[] = [undefined, "low", "medium", "high"];
+
+/**
+ * The thinking a request on this purpose sends `model` when the request names none: for a route with its thinking off,
+ * `disabled` to a model that takes it, `between_tools` to Sonnet 5.5, whose lowest it is; null where the route leaves
+ * thinking alone, the model takes neither (Opus 5.5 cannot stop thinking), the registry does not list it, or the
+ * request's effort is past high.
+ */
+export function routeThinkingFor(
+  purpose: ModelPurpose,
+  model: string,
+  effort?: unknown,
+): { type: "disabled" | "between_tools" } | null {
+  const takes = modelTakes(model);
+  if (modelRoute(purpose).thinking !== "off" || !takes || !THINKING_OFF_EFFORTS.includes(effort)) return null;
+  if (takes.thinking.includes("disabled")) return { type: "disabled" };
+  if (takes.thinking.includes("between_tools")) return { type: "between_tools" };
+  return null;
 }
 
 /**
@@ -187,43 +215,76 @@ const FIX_ROUTE_TRY_MS = 12_000;
 /** A website's pages read into Check's facts: a job of its own, while the owner goes on through Check. */
 const WEBSITE_READ_TRY_MS = 25_000;
 
+/*
+ * 30 Oct 2026, the routes replayed before they moved (Ruben's word on the numbers): the receptionist's 32 nightly cases,
+ * the agency's reply drafts, its lead searches and every small read's fixtures, asked of the old route and its
+ * candidates and read for what a customer or an owner receives. Opus 5.5 at the brain's low effort held every check
+ * Opus 5 held, a quarter cheaper and sooner; Haiku 5.5 with its thinking off read as well or better than Haiku 4.5 at a
+ * ninth of the price, and a reach-out's honest openings went from 42% of its checks to 85%; Sonnet 5.5 costs what
+ * Sonnet 5 does. Each fallback that was Sonnet 5 on these routes is Sonnet 5.5.
+ */
 export const MODEL_ROUTES = {
   // Its intent, the class that intent falls under, and whether the customer asked to stop, are closed sets.
   receptionist: {
-    model: OPUS_5,
-    fallback: SONNET_5,
+    model: OPUS_5_5,
+    fallback: SONNET_5_5,
     timeoutMs: RECEPTIONIST_TRY_MS,
     retries: 1,
     maxTokens: 900,
     shadow: "typesafe",
   },
-  reply_draft: { model: OPUS_5, fallback: SONNET_5, timeoutMs: RECEPTIONIST_TRY_MS, retries: 1, maxTokens: 900 },
+  reply_draft: { model: OPUS_5_5, fallback: SONNET_5_5, timeoutMs: RECEPTIONIST_TRY_MS, retries: 1, maxTokens: 900 },
   ask: { model: OPUS_5_5, fallback: SONNET_5, timeoutMs: ASK_TRY_MS, retries: 0, maxTokens: 4000 },
   lead_json: { model: SONNET_5, fallback: OPUS_5, timeoutMs: DRAFT_TRY_MS, retries: 0, maxTokens: 2000 },
   template_draft: { model: SONNET_5, fallback: OPUS_5, timeoutMs: DRAFT_TRY_MS, retries: 0, maxTokens: 900 },
   review_reply: { model: SONNET_5, fallback: OPUS_5, timeoutMs: REVIEW_TRY_MS, retries: 1, maxTokens: 300 },
   // The judge's own rescue is the API's server-side fallback (decision 14); an overload is the jobs ledger's retry.
+  // Opus 5.5 answers a call in 9 seconds where Opus 5 took 12, and reads a website or an email the listing does not show
+  // as missing (fail), where Opus 5 said it could not tell (Ruben, 30 Oct 2026: missing).
   lead_judge: {
-    model: OPUS_5,
+    model: OPUS_5_5,
     fallback: null,
     timeoutMs: JUDGE_TRY_MS,
     retries: 0,
     maxTokens: 6000,
     shadow: "typesafe",
   },
-  note_suggest: { model: HAIKU_4_5, fallback: SONNET_5, timeoutMs: NOTE_TRY_MS, retries: 1, maxTokens: 300 },
-  reach_out_check: { model: HAIKU_4_5, fallback: SONNET_5, timeoutMs: READ_TRY_MS, retries: 0, maxTokens: 400 },
+  // The small reads, each a short answer into a fixed shape: the smallest model, with its thinking off.
+  note_suggest: {
+    model: HAIKU_5_5,
+    fallback: SONNET_5_5,
+    timeoutMs: NOTE_TRY_MS,
+    retries: 1,
+    maxTokens: 300,
+    thinking: "off",
+  },
+  reach_out_check: {
+    model: HAIKU_5_5,
+    fallback: SONNET_5_5,
+    timeoutMs: READ_TRY_MS,
+    retries: 0,
+    maxTokens: 400,
+    thinking: "off",
+  },
   reply_read: {
-    model: HAIKU_4_5,
-    fallback: SONNET_5,
+    model: HAIKU_5_5,
+    fallback: SONNET_5_5,
     timeoutMs: READ_TRY_MS,
     retries: 0,
     maxTokens: 400,
     shadow: "typesafe",
+    thinking: "off",
   },
   // A booking tool's notice read into an appointment (docs/plans/2026-10-07-bookings-arrive-by-email.md): a short
   // email into a fixed shape, as the reply's reading is; an overload is the ledger's retry, as there.
-  booking_read: { model: HAIKU_4_5, fallback: SONNET_5, timeoutMs: READ_TRY_MS, retries: 0, maxTokens: 600 },
+  booking_read: {
+    model: HAIKU_5_5,
+    fallback: SONNET_5_5,
+    timeoutMs: READ_TRY_MS,
+    retries: 0,
+    maxTokens: 600,
+    thinking: "off",
+  },
   // The ideas for a new search (00398): four ready plans written from what a workspace's searches found, a page waiting
   // on them (Ruben, 11 Oct 2026: Sonnet 5.5 for now). The fallback is the small drafts' own model.
   lead_suggest: { model: SONNET_5_5, fallback: SONNET_5, timeoutMs: DRAFT_TRY_MS, retries: 0, maxTokens: 1800 },
@@ -240,10 +301,25 @@ export const MODEL_ROUTES = {
     retries: 0,
     maxTokens: 4000,
   },
-  fix_route: { model: HAIKU_4_5, fallback: SONNET_5, timeoutMs: FIX_ROUTE_TRY_MS, retries: 1, maxTokens: 400 },
+  fix_route: {
+    model: HAIKU_5_5,
+    fallback: SONNET_5_5,
+    timeoutMs: FIX_ROUTE_TRY_MS,
+    retries: 1,
+    maxTokens: 400,
+    thinking: "off",
+  },
   // The business's website read for Check (decision 0073, R10): a few pages into a fixed shape, the smallest model, its
-  // answer checked in code (contracts businessReadFactsOf) and every price confirmed by the owner's tap.
-  website_read: { model: HAIKU_5_5, fallback: SONNET_5, timeoutMs: WEBSITE_READ_TRY_MS, retries: 0, maxTokens: 2500 },
+  // answer checked in code (contracts businessReadFactsOf) and every price confirmed by the owner's tap. Its thinking
+  // off: thinking as it did by default, it spent the whole cap on a customer's pages and found nothing (29 Oct 2026).
+  website_read: {
+    model: HAIKU_5_5,
+    fallback: SONNET_5_5,
+    timeoutMs: WEBSITE_READ_TRY_MS,
+    retries: 0,
+    maxTokens: 2500,
+    thinking: "off",
+  },
 } as const satisfies Record<ModelPurpose, ModelRoute>;
 
 /** A purpose's route. */
