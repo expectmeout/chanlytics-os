@@ -54,11 +54,13 @@ mechanism opened.
    no draft was kept, what they sent alone. The words are read as they stand, so an edit made on the sequence's page
    after Start pairs too. No code picks by trade: the labels are data. One rule line says what a pair means: what they
    changed is how they want it, what wrote back is what worked, and no sentence is copied.
-3. **Ask notices, the next morning, and asks before it remembers.** The morning's question asks Ask to read the cold
-   emails the member edited since yesterday (the sequences read's new action, `edited`): their own makes only, each
+3. **Ask notices, the next morning, and asks before it remembers.** On a morning after the member edited a cold email
+   since yesterday, and only then, the morning's question asks Ask to read the cold emails the member edited (the sequences read's new action, `edited`): their own makes only, each
    first email that is theirs, changed from Ask's draft or written whole. Where what they changed shows a lasting habit,
    one card may be a line to remember about it ("In cold emails: short, signed Cheers with a first name"), which waits
-   for Approve; kept, it is a `learned` line in Settings › Memory, with Forget, read into every turn and every draft.
+   for Approve; kept, it is a `learned` line in Settings › Memory, with Forget, read into every turn and every draft. A
+   card that waits is titled "Remember this?"; only one kept at once says "Remembered". A morning with nothing edited
+   asks as before: no read, no round, no word of cold emails (the refinements after the first build, 30 October).
 4. **The `remember` act's gate, said for a read that hands the turn the member's own words.** The `edited` read marks
    what the member sent as theirs on the turn (`ToolContext.theirs`), and nothing else a read returns is ever marked. A
    line may quote the question, as before, or those words: then it must start "In cold emails:", it is learned, and it

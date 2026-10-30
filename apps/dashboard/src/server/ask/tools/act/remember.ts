@@ -3,8 +3,8 @@ import { z } from "zod";
 import {
   ASK_MEMORY_LIMITS,
   ASK_MEMORY_WORDS,
-  ASK_MORNING_QUESTION,
   VOICE_LINE_LEAD,
+  isAskMorningQuestion,
   memoryText,
   memoryTextProblem,
 } from "@chanlytics/contracts";
@@ -71,7 +71,7 @@ function rememberOutcome(t: ToolContext, input: { text: string; quote: string })
   if (problem) return refuse(problem);
   const quote = comparable(input.quote);
   const long = quote.split(" ").filter(Boolean).length >= QUOTE_MIN_WORDS;
-  const morning = t.question === ASK_MORNING_QUESTION;
+  const morning = isAskMorningQuestion(t.question);
   const fromQuestion = long && !morning && comparable(t.question ?? "").includes(quote);
   const fromTheirs = long && !fromQuestion && (t.theirs ?? []).some((w) => comparable(w).includes(quote));
   if (morning && !fromTheirs)
@@ -88,7 +88,8 @@ function rememberOutcome(t: ToolContext, input: { text: string; quote: string })
   const theirs = fromQuestion && saidByThem(text, t.question ?? "");
   const made = propose({
     kind: "memory",
-    title: ASK_MEMORY_WORDS.cardTitle,
+    // A line kept at once says so; one that waits asks, so a row on Today never says it remembered what it has not.
+    title: theirs ? ASK_MEMORY_WORDS.cardTitle : ASK_MEMORY_WORDS.cardTitleWaits,
     summary: text,
     payload: { text, ...(theirs ? { theirs: true } : {}), ...(fromTheirs ? { learned: true } : {}) },
   });

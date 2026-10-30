@@ -170,3 +170,59 @@ test("Ask's edited read marks what the member sent as theirs on the turn, and on
   assert.equal(none.theirs?.length ?? 0, 0);
   assert.equal((await readEdited(none, { days: 7 })).edited.length, 1, "a week back reads it");
 });
+
+/* ------------------------------------------- the morning asks about edits only on a morning that has them */
+
+const { morningQuestionFor } = await import("../../../../apps/dashboard/src/server/ask/companion/morning.ts");
+const { ASK_MORNING_EDITED_QUESTION, ASK_MORNING_QUESTION, isAskMorningQuestion } =
+  await import("@chanlytics/contracts");
+const MEMBER = { tenantId: T, role: "operator", facts: null };
+
+test("the morning reads the member's edited cold emails only on a morning after they edited one; any other morning asks as before", async () => {
+  /** The morning's question for a world of makes, with the chains Campaigns reads seeded where any are named. */
+  const asked = async (decisions, chains = null, faults = {}) => {
+    const supabase = fakeDb({ decisions }, faults, {});
+    const ctx = { supabase, userId: ME, email: "sam@example.com", params: {} };
+    const t = newToolContext(ctx, T, "operator", "UTC", NOW);
+    if (chains) t.rc.turn.seed("reachOutChains", { chains });
+    return {
+      question: await morningQuestionFor(ctx, MEMBER, NOW, t.rc),
+      seen: supabase.seen.map((s) => s.table ?? s.rpc),
+    };
+  };
+  // Changed from Ask's draft yesterday: the morning reads it.
+  const edited = await asked([make(1, ME, 2, { as_drafted: AS_DRAFTED })], [chain(1, MINE)]);
+  assert.equal(edited.question, ASK_MORNING_EDITED_QUESTION);
+  // Nothing made: the ledger is read once, and the chains never.
+  const none = await asked([]);
+  assert.equal(none.question, ASK_MORNING_QUESTION);
+  assert.deepEqual(none.seen, ["decisions"], "a member who made none costs one small read");
+  // Sent as Ask drafted it, a teammate's edit, or one made before yesterday: as before.
+  assert.equal(
+    (await asked([make(1, ME, 2, { as_drafted: { asked: "x", steps: [MINE] } })], [chain(1, MINE)])).question,
+    ASK_MORNING_QUESTION,
+  );
+  assert.equal(
+    (await asked([make(1, MATE, 2, { as_drafted: AS_DRAFTED })], [chain(1, MINE)])).question,
+    ASK_MORNING_QUESTION,
+  );
+  assert.equal(
+    (await asked([make(1, ME, 30, { as_drafted: AS_DRAFTED })], [chain(1, MINE)])).question,
+    ASK_MORNING_QUESTION,
+  );
+  // A ledger that cannot be read asks as before, and the morning still runs.
+  assert.equal((await asked([], null, { "decisions.select": { message: "down" } })).question, ASK_MORNING_QUESTION);
+  // Either question is the morning's: a turn Ask asks itself.
+  assert.deepEqual([ASK_MORNING_QUESTION, ASK_MORNING_EDITED_QUESTION, "Good morning"].map(isAskMorningQuestion), [
+    true,
+    true,
+    false,
+  ]);
+  assert.ok(
+    ASK_MORNING_EDITED_QUESTION.startsWith(ASK_MORNING_QUESTION.slice(0, 200)),
+    "the same morning, one sentence more",
+  );
+  assert.match(ASK_MORNING_EDITED_QUESTION, /edited/);
+  assert.match(ASK_MORNING_EDITED_QUESTION, /you don't already remember, in any words/);
+  assert.doesNotMatch(ASK_MORNING_QUESTION, /cold email/);
+});

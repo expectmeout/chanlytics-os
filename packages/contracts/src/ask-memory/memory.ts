@@ -111,7 +111,10 @@ export function memoryText(raw: string): string {
 
 /** The words the card, its undo and the pane say. */
 export const ASK_MEMORY_WORDS = {
+  /** A card whose line was kept as the turn was saved (the member's own words bore it out). */
   cardTitle: "Remembered",
+  /** A card whose line waits for the member's press: nothing is kept until they approve it (on Today, or in Ask). */
+  cardTitleWaits: "Remember this?",
   receipt: (text: string) => `Remembered: ${text}`,
   undoLabel: "Forget it",
   undone: "Forgotten",

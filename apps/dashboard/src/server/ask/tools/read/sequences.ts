@@ -28,7 +28,7 @@ import {
   SEQUENCES_ROUTE,
 } from "@chanlytics/contracts";
 import { sequenceMakes, type SequenceMake } from "@chanlytics/db";
-import { load } from "../../../readers";
+import { load, type ReaderContext, type RowRef } from "../../../readers";
 import { reachOutChains } from "../../../readers/playbooks";
 import { sequence, sequenceHistory, sequencePeople, sequences } from "../../../readers/sequences";
 import { notePerson, str, unlessNotFound, type ToolContext } from "../context";
@@ -228,6 +228,24 @@ export function editedOf(makes: readonly SequenceMake[], chains: readonly ReachO
 }
 
 /**
+ * A member's own cold emails made since a moment whose first email is theirs (decision 0078 step 2), newest first, with
+ * the rows an answer may cite: the ledger read first, and the chains only where it holds a make of theirs, so a member
+ * who made none costs one small read. The sequences tool's `edited` reads it, and the morning asks about edits only
+ * where it finds one (companion/morning.ts).
+ */
+export async function editedSince(
+  rc: ReaderContext,
+  userId: string,
+  since: string,
+): Promise<{ edited: EditedEmail[]; rows: RowRef[] }> {
+  const makes = await sequenceMakes(rc.ctx.supabase, { tenantId: rc.tenantId, by: userId, since, limit: EDITED_MAKES });
+  if (makes.length === 0) return { edited: [], rows: [] };
+  const chains = await load(rc, reachOutChains, undefined);
+  const edited = editedOf(makes, chains.data.chains).slice(0, EDITED_CAP);
+  return { edited, rows: chains.rows.filter((r) => edited.some((e) => e.sequence_id === r.id)) };
+}
+
+/**
  * The cold emails to leads the member made in the last days whose first email is theirs (decision 0078 step 2): what
  * Ask drafted beside what they sent, or what they wrote themself. Only the member's own makes are read: a teammate's
  * words are not theirs to quote. What they sent is marked as theirs on the turn, the one place a line about how they
@@ -236,15 +254,8 @@ export function editedOf(makes: readonly SequenceMake[], chains: readonly ReachO
 export async function readEdited(t: ToolContext, input: { days?: number }): Promise<unknown> {
   const days = Math.min(Math.max(input.days ?? EDITED_DAYS.default, 1), EDITED_DAYS.max);
   const since = new Date(t.now.getTime() - days * DAY_MS).toISOString();
-  const [makes, chains] = await Promise.all([
-    sequenceMakes(t.ctx.supabase, { tenantId: t.tenantId, by: t.ctx.userId, since, limit: EDITED_MAKES }),
-    load(t.rc, reachOutChains, undefined),
-  ]);
-  const edited = editedOf(makes, chains.data.chains).slice(0, EDITED_CAP);
-  noteRows(
-    t.read,
-    chains.rows.filter((r) => edited.some((e) => e.sequence_id === r.id)),
-  );
+  const { edited, rows } = await editedSince(t.rc, t.ctx.userId, since);
+  noteRows(t.read, rows);
   t.theirs = [...(t.theirs ?? []), ...edited.flatMap((e) => [e.sent.subject ?? "", e.sent.body].filter(Boolean))];
   return {
     route: SEQUENCES_ROUTE,

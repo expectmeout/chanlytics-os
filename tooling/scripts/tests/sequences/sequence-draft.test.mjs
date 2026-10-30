@@ -1042,6 +1042,7 @@ test("the drafter is told each started first email's pair, what it was for and h
     "written by hand: no draft, and no numbers unsaid as zero",
   );
   assert.match(system, /what they changed is how they want it, and what wrote back is what worked/);
+  assert.match(system, /where it went to enough businesses to tell \(a few sends say nothing either way\)/);
   assert.match(system, /never copy a sentence/);
 });
 

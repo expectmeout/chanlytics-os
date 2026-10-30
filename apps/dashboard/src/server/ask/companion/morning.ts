@@ -2,9 +2,11 @@ import "server-only";
 import {
   ASK_LANGUAGES,
   ASK_MORNING_CARDS_MAX,
+  ASK_MORNING_EDITED_QUESTION,
   ASK_MORNING_QUESTION,
   ASK_MORNING_WORDS,
   ASK_TURN_BUDGET_MS,
+  DAY_MS,
   MIN_MS,
   askCardLapsed,
   dayInZone,
@@ -20,7 +22,8 @@ import type { Member } from "../../route";
 import { env } from "../../env";
 import { log } from "../../log";
 import { serviceDb } from "../../service-db";
-import { load, readerContext } from "../../readers";
+import { load, readerContext, type ReaderContext } from "../../readers";
+import { editedSince } from "../tools/read/sequences";
 import * as readers from "../../readers/facts";
 import { createThread } from "../store";
 import { finishAskTurn, prepareAskTurn } from "../turn";
@@ -114,6 +117,27 @@ export async function morningOf(ctx: RouteContext, member: Member, nowMs: number
   };
 }
 
+/**
+ * The morning's question (decision 0078 step 2): the one that reads the member's edited cold emails on a morning after
+ * they edited any since yesterday, else the plain one, so a workspace that sends no cold email, or a day with no edit,
+ * spends no read or round on them and hears nothing of them. A read that fails asks the plain one, and says so.
+ */
+export async function morningQuestionFor(
+  ctx: RouteContext,
+  member: Member,
+  now: Date,
+  rc: ReaderContext = readerContext(ctx, member, now),
+): Promise<string> {
+  try {
+    const since = new Date(now.getTime() - DAY_MS).toISOString();
+    const { edited } = await editedSince(rc, ctx.userId, since);
+    return edited.length > 0 ? ASK_MORNING_EDITED_QUESTION : ASK_MORNING_QUESTION;
+  } catch (e) {
+    log.error("ask_morning_edited_unread", { tenant_id: member.tenantId, error: e });
+    return ASK_MORNING_QUESTION;
+  }
+}
+
 /** The language a morning is asked in: the page's, where it names one Ask speaks; else English. */
 export function morningLanguage(raw: unknown): AskLanguage {
   return typeof raw === "string" && (ASK_LANGUAGES as readonly string[]).includes(raw) ? (raw as AskLanguage) : "en";
@@ -153,7 +177,7 @@ async function runMorning(
     const thread = await createThread(ctx, tenantId, m.title, null);
     await askMorningWrite(ctx.supabase, tenantId, m.day, { act: "thread", threadId: thread.id });
     const prepared = await prepareAskTurn(ctx, member, {
-      text: ASK_MORNING_QUESTION,
+      text: await morningQuestionFor(ctx, member, new Date()),
       threadId: thread.id,
       scope: null,
       surface: "today",

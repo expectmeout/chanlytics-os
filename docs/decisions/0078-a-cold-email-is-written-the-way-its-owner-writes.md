@@ -51,7 +51,9 @@ The started first emails carried the owner's words, but never what they changed:
 8. **Ask notices, the next morning, and asks.** The morning reads the cold emails the member made since yesterday
    whose first email is theirs (the sequences read's `edited`, their own makes only) and may propose one line about
    how they write, quoting their words. It is learned and always waits for their press (0070's gate, said for a read
-   that hands the turn the member's own words).
+   that hands the turn the member's own words). The morning asks this only on a day after the member edited one; any
+   other morning asks as before and spends nothing on it. A card that waits is titled "Remember this?", never
+   "Remembered".
 
 ## Consequences
 

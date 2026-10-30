@@ -23,7 +23,8 @@ const { buildProposal, newToolContext } = await import(at("apps/dashboard/src/se
 const { keepRememberCards, rememberedBlock } = await import(
   at("apps/dashboard/src/server/ask/companion/remembered.ts")
 );
-const { ASK_MEMORY_WORDS, ASK_MORNING_QUESTION, memoryTextProblem } = await import("@chanlytics/contracts");
+const { ASK_MEMORY_WORDS, ASK_MORNING_EDITED_QUESTION, ASK_MORNING_QUESTION, memoryTextProblem } =
+  await import("@chanlytics/contracts");
 
 const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const THREAD = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
@@ -69,6 +70,7 @@ test("a line the question does not bear out waits on its card for the member's p
     const out = await buildProposal(t, "remember", { text, quote: "our New Jersey dental offices" });
     assert.equal(out.isError, false, text);
     assert.equal(out.proposal.payload.theirs, undefined, `REGRESSION: kept unseen: ${text}`);
+    assert.equal(out.proposal.title, ASK_MEMORY_WORDS.cardTitleWaits, "a card that waits never says it remembered");
     const said = JSON.parse(out.result);
     assert.equal(said.kept, false, "the model is told it waits for them");
     assert.match(said.note, /theirs to keep/);
@@ -248,7 +250,7 @@ async function afterEdited(question) {
 }
 
 test("a line about how they write may quote their own cold emails a read returned: it is learned and always waits for their press, in the morning too", async () => {
-  for (const question of [ASK_MORNING_QUESTION, "What did I change in your drafts lately?"]) {
+  for (const question of [ASK_MORNING_EDITED_QUESTION, "What did I change in your drafts lately?"]) {
     const t = await afterEdited(question);
     const out = await buildProposal(t, "remember", {
       text: "In cold emails: short, signed Cheers with a first name.",
@@ -260,11 +262,12 @@ test("a line about how they write may quote their own cold emails a read returne
       learned: true,
     });
     assert.equal(JSON.parse(out.result).kept, false, "evidence of a habit, never their word: it waits");
+    assert.equal(out.proposal.title, ASK_MEMORY_WORDS.cardTitleWaits);
   }
 });
 
 test("a line quoting what they wrote says it is about how they write; Ask's draft, and a morning with nothing of theirs, are never quoted", async () => {
-  const t = await afterEdited(ASK_MORNING_QUESTION);
+  const t = await afterEdited(ASK_MORNING_EDITED_QUESTION);
   const unled = await buildProposal(t, "remember", { text: "Signs with Cheers.", quote: "Worth a chat? Cheers, Sam" });
   assert.equal(unled.isError, true);
   assert.match(JSON.parse(unled.result).error, /In cold emails:/);
@@ -275,13 +278,15 @@ test("a line quoting what they wrote says it is about how they write; Ask's draf
   });
   assert.equal(asks.isError, true);
   assert.match(JSON.parse(asks.result).error, /morning/);
-  // A morning that read nothing of theirs keeps nothing, as before.
-  const { t: bare } = asked(ASK_MORNING_QUESTION);
-  const out = await buildProposal(bare, "remember", {
-    text: "In cold emails: short, signed Cheers with a first name.",
-    quote: "Worth a chat? Cheers, Sam",
-  });
-  assert.equal(out.isError, true);
+  // A morning that read nothing of theirs keeps nothing, asked either way.
+  for (const question of [ASK_MORNING_QUESTION, ASK_MORNING_EDITED_QUESTION]) {
+    const { t: bare } = asked(question);
+    const out = await buildProposal(bare, "remember", {
+      text: "In cold emails: short, signed Cheers with a first name.",
+      quote: "Worth a chat? Cheers, Sam",
+    });
+    assert.equal(out.isError, true, question.slice(0, 40));
+  }
 });
 
 test("a learned card is kept through the memory route as learned; any other card, and the pane's Add, as before", async () => {
