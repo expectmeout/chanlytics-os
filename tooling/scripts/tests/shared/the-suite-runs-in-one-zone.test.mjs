@@ -7,7 +7,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { planOf, SUITES, zoneOf } from "../../checks/test.mjs";
+import { importsLeaveTheThread, planOf, SUITES, zoneOf } from "../../checks/test.mjs";
 
 const LAUNCHER = fileURLToPath(new URL("../../checks/test.mjs", import.meta.url));
 const PROBE = "tooling/scripts/tests/fixtures/zone-probe.mjs";
@@ -58,15 +58,22 @@ test("with no files it runs the suite; files, globs and directories asked for re
   ]);
 });
 
-test("under TEST_SLOW_IMPORTS=1 an import a test makes waits, so a test that counts turns for one fails every time", () => {
+test("under TEST_SLOW_IMPORTS=1 an import a test makes waits where tsx loads off the main thread; where tsx loads in it, the launcher says so and runs nothing", () => {
   const env = { ...process.env, TEST_SLOW_IMPORTS: "1" };
   delete env.NODE_TEST_CONTEXT;
   const run = spawnSync(process.execPath, [LAUNCHER, "tooling/scripts/tests/fixtures/slow-import-probe.mjs"], {
     env,
     encoding: "utf8",
   });
-  assert.equal(run.status, 0, `${run.stdout}\n${run.stderr}`);
-  assert.match(run.stdout, /^(?:ok 1 - |✔ )an import a test makes waits/m, "the probe ran, and passed");
+  // Which this machine's Node is (Node 24 on CI loads in the main thread; an older Node off it): each says its own.
+  if (importsLeaveTheThread()) {
+    assert.equal(run.status, 0, `${run.stdout}\n${run.stderr}`);
+    assert.match(run.stdout, /^(?:ok 1 - |✔ )an import a test makes waits/m, "the probe ran, and passed");
+  } else {
+    assert.equal(run.status, 2, `${run.stdout}\n${run.stderr}`);
+    assert.match(run.stderr, /tsx loads modules in the main thread/, "said why nothing ran");
+    assert.equal(run.stdout, "", "and no test ran");
+  }
 });
 
 test("a full run in UTC is measured, and nothing else is: files, a flag, the db suites, a zone leg, TEST_COVERAGE=0", () => {

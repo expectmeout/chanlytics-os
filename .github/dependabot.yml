@@ -18,8 +18,8 @@ updates:
     open-pull-requests-limit: 4
     ignore:
       # @types/node describes the oldest Node the code may run on, and that is
-      # 22 (the engines field; .nvmrc and CI run 24, as Vercel does). A newer
-      # major would type APIs Node 22 does not have, so it moves when the
+      # 24 (the engines field, 24.x; .nvmrc and CI run 24, as Vercel does). A
+      # newer major would type APIs Node 24 does not have, so it moves when the
       # engines field does.
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]

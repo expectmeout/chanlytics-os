@@ -22,9 +22,10 @@
  *      client and route keys, the API reference, the migration ledger, the data model and the tree. Then the
  *      typecheck, the one check that is quick and sure to catch a merge that no longer fits together; CI runs the rest.
  *      What its `next typegen` rewrites (NEXTS_OWN) is put back, and only what is staged is committed.
- *   4. Pushed, and the pull request (opened with --title and --body-file when there is none) set to squash-merge itself
- *      once every required check passes, pinned to the commit pushed (`--match-head-commit`), so nothing pushed after
- *      it lands unchecked. Where the repository does not allow auto-merge, it says to merge once green.
+ *   4. Pushed, and the pull request (opened with --title and --body-file when there is none, found and opened over REST)
+ *      set to squash-merge itself once every required check passes, pinned to the commit pushed
+ *      (`--match-head-commit`), so nothing pushed after it lands unchecked. Where auto-merge cannot be set (the
+ *      repository does not allow it, or GraphQL is refused, as a Claude Code session's is), it says to merge once green.
  *   5. Not while a migration it adds is off production. Production takes a migration before the code that needs it
  *      merges (docs/runbook.md, "Apply a migration"), and a pull request that merged itself the moment CI was green
  *      would deploy that code first. So one that adds a migration is pushed and left to merge by hand, or set to merge
@@ -299,22 +300,28 @@ function main() {
 
   if (run(`git push --quiet -u origin ${branch}`) !== 0) stop("the push was refused");
   const head = git("rev-parse", "HEAD");
-  let pr = spawnSync("gh", ["pr", "view", branch, "--json", "number,url", "-q", ".number"], {
-    cwd: ROOT,
-    encoding: "utf8",
-  }).stdout.trim();
+  // The branch's open pull request, found and opened over REST (`gh api`, which fills in {owner} and {repo}): a person's
+  // gh and a Claude Code session's alike, where GraphQL, which `gh pr view` and `gh pr create` use, is refused. A merged
+  // one is finished, so only an open one is the branch's.
+  let pr = spawnSync(
+    "gh",
+    ["api", `repos/{owner}/{repo}/pulls?head={owner}:${branch}&state=open`, "--jq", ".[0].number // empty"],
+    { cwd: ROOT, encoding: "utf8" },
+  ).stdout.trim();
   if (!pr) {
     if (!title || !bodyFile) stop("pushed; there is no pull request yet: run again with --title and --body-file");
     const made = spawnSync(
       "gh",
-      ["pr", "create", "--base", "main", "--head", branch, "--title", title, "--body-file", bodyFile],
-      {
-        cwd: ROOT,
-        encoding: "utf8",
-      },
+      ["api", "repos/{owner}/{repo}/pulls", "-f", `title=${title}`, "-f", `head=${branch}`, "-f", "base=main"].concat([
+        "-F",
+        `body=@${bodyFile}`,
+        "--jq",
+        ".number",
+      ]),
+      { cwd: ROOT, encoding: "utf8" },
     );
-    if (made.status !== 0) stop(`gh pr create failed: ${made.stderr.trim()}`);
-    pr = made.stdout.trim().split("/").pop();
+    if (made.status !== 0) stop(`the pull request was not opened: ${made.stderr.trim()}`);
+    pr = made.stdout.trim();
   }
   say(`pushed ${head.slice(0, 9)} to #${pr}`);
   if (!auto) return say("merge it once CI is green: gh pr merge --squash --match-head-commit " + head);

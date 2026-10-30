@@ -82,7 +82,7 @@ export function buildOptions(name) {
     splitting: false,
     platform: "node",
     format: "esm",
-    target: "node22",
+    target: "node24",
     plugins: [siblingsByPath, thirdPartyExternal],
     logLevel: "warning",
   };
