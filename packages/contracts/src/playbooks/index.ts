@@ -61,6 +61,8 @@ export {
   lifecycleStateOf,
 } from "./lifecycle/lifecycle-words";
 export type { LifecycleState } from "./lifecycle/lifecycle-words";
+export { campaignBlockWords, campaignFixCard, campaignLine, campaignReachable, nobodyNamedWords } from "./new-campaign";
+export type { CampaignBlock } from "./new-campaign";
 export { campaignChannelsOf, playbookChannelsRead, WHATSAPP_VERSION_ALONE } from "./playbook-channels";
 export type { ChannelStand, PlaybookChannelsRead, PlaybookMessage } from "./playbook-channels";
 export { PLAYBOOK_CALENDAR_UNREAD, playbookFailedAbout, playbookFailedWords } from "./playbook-failed";
@@ -74,18 +76,9 @@ export {
   passesHandoverPause,
 } from "./playbook-purpose";
 export type { RunMessage } from "./playbook-purpose";
-export { campaignBlockWords, campaignFixCard, campaignReachable } from "./playbook-reach";
-export type { CampaignBlock } from "./playbook-reach";
 export { heldBackOfOneRun, runReadingOf } from "./playbook-run-split";
 export type { RunReading, RunSplit } from "./playbook-run-split";
-export {
-  campaignDayWords,
-  campaignEnded,
-  campaignLine,
-  campaignRunsOn,
-  nobodyNamedWords,
-  sendingEndsAt,
-} from "./playbook-schedule";
+export { campaignDayWords, campaignEnded, campaignRunsOn, sendingEndsAt } from "./playbook-schedule";
 export { isPlaybookTotalsDto } from "./playbook-totals";
 export type { PlaybookTotalsDto } from "./playbook-totals";
 export {

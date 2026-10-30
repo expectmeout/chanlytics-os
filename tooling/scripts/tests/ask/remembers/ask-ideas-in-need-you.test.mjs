@@ -254,8 +254,8 @@ test("a fix idea's act is its door, never Approve: pressed, it opens where the t
     "REGRESSION: Approve on a card with nothing to approve",
   );
   assert.equal(all(tree, (n) => n.props?.["data-testid"] === "queue-idea-details").length, 0);
+  // The door is a plain press: it opens at once, with nothing to wait for.
   await press(pressOf(tree, 0, "Get their yes"));
-  await settle();
   assert.deepEqual(went, ["clients/get-yes"], "the door opens where it is fixed");
   assert.deepEqual([commits.length, outcomes.length], [0, 0], "nothing is committed or recorded");
   assert.ok(pressOf(tree, 0, NEED_YOU_WORDS.idea.notToday), "Not today stands");

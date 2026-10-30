@@ -4,7 +4,6 @@
  */
 import { shiftKey, zoneMidnight } from "../calendar/day-keys";
 import { usableZone, zoneParts } from "../calendar/zone-math";
-import { channelsWords, type ConsentChannel } from "../consent/consent-channels";
 import { appointmentWords, type AppointmentWord } from "../journey/appointment-word";
 import { PLAYBOOK_HOURS, PLAYBOOK_VETO_DELAY_MS, SENDING_HOURS_END, triggerOf } from "./playbook-triggers";
 import type { PlaybookDto } from "./playbooks";
@@ -155,94 +154,6 @@ export function scheduleLine(
 export function runsWords(p: { trigger: string; run_hour: number; cadence_days: number }): string {
   const at = clockHour(p.run_hour);
   return p.trigger === "everyone_monthly" ? `runs every ${p.cadence_days} days at ${at}` : `runs daily at ${at}`;
-}
-
-/**
- * A new campaign in one line, as Today's row says Ask's card for it (the 30 Oct 2026 review, item 6: each card was one
- * run-on paragraph of its rules): what it does and to whom, when, and how it goes now. "Reminds tomorrow's 4 meetings,
- * 10:00 AM, by text and by email". Where its moment names nobody today it says what it does to each as they come: "Reminds
- * everyone the day before their meeting, 10:00 AM, by email". `pool` is who the moment names now and `will` who of them a run
- * reaches (playbookRunReach, uncapped); `goesBy` the channels it goes by now. Its cap, its week's limit, its message and
- * its mode are its sheet's, behind Details.
- */
-export function campaignLine(c: {
-  trigger: string;
-  word: AppointmentWord;
-  list: string | null;
-  pool: number;
-  will: number;
-  run_hour: number;
-  cadence_days: number;
-  goesBy: readonly ConsentChannel[];
-}): string {
-  const W = appointmentWords(c.word);
-  const n = c.will;
-  // "4", or "2 of 4" where some the moment names cannot be reached.
-  const of = n < c.pool ? `${n} of ${c.pool}` : `${n}`;
-  const people = `${of} ${(n < c.pool ? c.pool : n) === 1 ? "person" : "people"}`;
-  const appointments = `${(n < c.pool ? c.pool : n) === 1 ? W.one : W.many}`;
-  const does = (() => {
-    switch (c.trigger) {
-      case "visit_tomorrow":
-        return n > 0
-          ? `Reminds ${n < c.pool ? `${n} of ` : ""}tomorrow's ${c.pool} ${appointments}`
-          : `Reminds everyone the day before their ${W.one}`;
-      case "visited":
-        return n > 0
-          ? `Follows up ${n < c.pool ? `${n} of ` : ""}yesterday's ${c.pool} ${appointments}`
-          : `Follows up with everyone the day after their ${W.one}`;
-      case "quiet_30":
-        return n > 0 ? `Invites back ${people} quiet for 30 days` : "Invites back anyone quiet for 30 days";
-      case "lapsed":
-        return n > 0
-          ? `Invites back ${people} with no ${W.one} in 45 days`
-          : `Invites back anyone with no ${W.one} in 45 days`;
-      case "everyone_monthly":
-        return n > 0 ? `Sends the month's offer to ${people}` : "Sends the month's offer to everyone who said yes";
-      case "saved_list":
-        return n > 0 ? `Sends to ${people} on ${c.list ?? "the list"}` : `Sends to everyone on ${c.list ?? "the list"}`;
-      case "proposal_waiting":
-        return n > 0
-          ? `Follows up ${of} ${(n < c.pool ? c.pool : n) === 1 ? "proposal" : "proposals"} waiting on an answer`
-          : "Follows up each proposal left waiting on an answer";
-      default:
-        return `${triggerOf(c.trigger)?.label ?? "Sends"} to ${people}`;
-    }
-  })();
-  const at = clockHour(c.run_hour);
-  const kind = triggerOf(c.trigger)?.kind;
-  const when =
-    kind === "visit"
-      ? at
-      : c.trigger === "everyone_monthly"
-        ? `every ${c.cadence_days} days at ${at}`
-        : `daily at ${at}`;
-  const by = channelsWords(c.goesBy);
-  return `${does}, ${when}${by ? `, ${by}` : ""}`;
-}
-
-/**
- * Who a new campaign reaches, where its moment names nobody now, as its sheet's Reaches row says it: "Nobody has a meeting
- * tomorrow". It said "0 people on the list said yes to messages" there, of a day with no meeting on the calendar.
- */
-export function nobodyNamedWords(trigger: string, word: AppointmentWord, list: string | null): string {
-  const W = appointmentWords(word);
-  switch (trigger) {
-    case "visit_tomorrow":
-      return W.noneTomorrow;
-    case "visited":
-      return W.noneYesterday;
-    case "quiet_30":
-      return "Nobody has gone quiet for 30 days";
-    case "lapsed":
-      return `Nobody has gone 45 days without ${W.a}`;
-    case "saved_list":
-      return `Nobody is on ${list ?? "the list"} yet`;
-    case "proposal_waiting":
-      return "No proposal is waiting on an answer";
-    default:
-      return "Nobody to send to yet";
-  }
 }
 
 /**

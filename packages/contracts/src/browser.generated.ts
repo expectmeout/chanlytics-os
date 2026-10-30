@@ -309,15 +309,16 @@ export { lifecyclePlaybooksOf, whatsappLineOf } from "./playbooks/lifecycle/life
 export { chainResultsOf, isLedgerCampaign, LEDGER_STATUSES, ledgerRowIn, lifecycleChainsOf, sentResultsOfSource } from "./playbooks/lifecycle/lifecycle-ledger";
 export { reachCountsOf } from "./playbooks/lifecycle/lifecycle-tiles";
 export { channelsGoesByWords, LIFECYCLE_TOAST, LIFECYCLE_WORDS, lifecycleChainStateOf, lifecycleStateOf } from "./playbooks/lifecycle/lifecycle-words";
+export { campaignBlockWords, campaignFixCard, campaignLine, campaignReachable, nobodyNamedWords } from "./playbooks/new-campaign";
 export { poolWords, reachLines, runApprovalRefusal, runDayPassed, runDaysAt, toApprovalVM, waitingRunOffer } from "./playbooks/playbook-approval";
 export { campaignChannelsOf, playbookChannelsRead, WHATSAPP_VERSION_ALONE } from "./playbooks/playbook-channels";
 export { PLAYBOOK_CALENDAR_UNREAD, playbookFailedAbout, playbookFailedWords } from "./playbooks/playbook-failed";
 export { FOLLOW_UP_NEEDS_LINK, FOLLOW_UP_ONE, followUpIsFor, followUpKey, followUpNames, followUpRunAt, followUpStandOf, followUpWords, PLAYBOOK_TOUCH_WINDOW_MS, playbookRunStop, playbookStopBy } from "./playbooks/playbook-follow-ups";
 export { PLAYBOOK_PATCH_KEYS, PLAYBOOK_PATCH_WORDS } from "./playbooks/playbook-patch";
 export { enrolPurpose, MESSAGE_MOMENT_WORDS, messageAboutOfTrigger, messageFitsMoment, passesHandoverPause } from "./playbooks/playbook-purpose";
-export { campaignBlockWords, campaignFixCard, campaignReachable, eligibleForPlaybook, PLAYBOOK_CLASS_LABEL, PLAYBOOK_REACH_WORDS, playbookNoNumberWords, playbookPoolKey, playbookReach, playbookReachDoor, playbookRunReach, theirVisitTest, touchesAfterRun, visitMomentDay, visitOnDay } from "./playbooks/playbook-reach";
+export { eligibleForPlaybook, PLAYBOOK_CLASS_LABEL, PLAYBOOK_REACH_WORDS, playbookNoNumberWords, playbookPoolKey, playbookReach, playbookReachDoor, playbookRunReach, theirVisitTest, touchesAfterRun, visitMomentDay, visitOnDay } from "./playbooks/playbook-reach";
 export { heldBackOfOneRun, runReadingOf } from "./playbooks/playbook-run-split";
-export { campaignDayWords, campaignEnded, campaignLine, campaignRunsOn, nobodyNamedWords, sendingEndsAt, inLastSendingHour, localDate, localHour, nextOpenMoment, nextRunLabel, planRun, runDueNow, runsWords, scheduleLine } from "./playbooks/playbook-schedule";
+export { campaignDayWords, campaignEnded, campaignRunsOn, sendingEndsAt, inLastSendingHour, localDate, localHour, nextOpenMoment, nextRunLabel, planRun, runDueNow, runsWords, scheduleLine } from "./playbooks/playbook-schedule";
 export { PLAYBOOK_BREATH_MS } from "./playbooks/playbook-time";
 export { isPlaybookTotalsDto } from "./playbooks/playbook-totals";
 export { CAMPAIGN_NOT_FOUND, delayWords, isPlaybookState, isWinBack, MOMENT_TRIGGERS, momentOffered, momentReadsCalendar, MOMENTS_RETIRED, PLAYBOOK_CAP_CHOICES, PLAYBOOK_DEFAULTS, PLAYBOOK_HOURS, PLAYBOOK_LIMITS, PLAYBOOK_NAME_MAX, PLAYBOOK_STATES, PLAYBOOK_TRIGGERS, PLAYBOOK_VETO_DELAY_MS, PLAYBOOK_VETO_DELAY_WORDS, policyClassOffered, REACH_OUT_IS_NOT_A_MOMENT, readyRunNotice, SEND_ONCE_STOP_MS, SEND_ONCE_STOP_WORDS, SENDING_HOURS_WORDS, SENDING_NOW_WORDS, sendsWaitWords, skippedRunNotice, triggerOf, triggerOffered, triggerWords, vetoRunNotice, VISIT_TRIGGERS, whenItGoes, winBackWords } from "./playbooks/playbook-triggers";
