@@ -38,6 +38,7 @@ export {
   modelTakes,
   readsAsModel,
   RETELL_MODELS,
+  routeThinkingFor,
   shadowPortOf,
   THINKING_TYPES,
 } from "./models";

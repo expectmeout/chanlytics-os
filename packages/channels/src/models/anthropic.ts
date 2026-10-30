@@ -44,6 +44,7 @@ import {
   isWordsMessage,
   modelRoute,
   modelTakes,
+  routeThinkingFor,
   usageOf,
   NO_USAGE,
 } from "@chanlytics/contracts";
@@ -217,7 +218,8 @@ interface Sent {
 /**
  * The request as `model` takes it (contracts MODEL_TAKES): fast mode only for a model that runs it, and never once it
  * was `slowed` (fast mode refused it, or the model is held), the beta with it; a thinking type only for a model that
- * accepts it, which otherwise thinks as it does by default; an effort said in the messages (contracts ai/effort.ts),
+ * accepts it, which otherwise thinks as it does by default, and where the request names none and its route turns
+ * thinking off, the off this model takes (contracts routeThinkingFor); an effort said in the messages (contracts ai/effort.ts),
  * with its beta, only to a model that takes one, and for one that does not, the effort they ended on as the request's
  * own (foldEffortMessages): Opus 5.5's draft falls back to Sonnet 5 asked as hard; and the operator's words said in the
  * messages (contracts ai/words-message.ts) as a system message only to a model that takes one, else in the person's
@@ -225,7 +227,9 @@ interface Sent {
  */
 function sentFor(ask: ModelAsk, model: string, slowed: boolean): Sent {
   const takes = modelTakes(model);
-  const { speed, thinking, ...asked } = ask.body;
+  const { speed, thinking: named, ...asked } = ask.body;
+  const effort = (asked.output_config as { effort?: unknown } | undefined)?.effort;
+  const thinking = named ?? routeThinkingFor(ask.purpose, model, effort) ?? undefined;
   const fast = speed === "fast" && !slowed && (takes?.fast ?? true);
   const type = thinking && typeof thinking === "object" ? (thinking as { type?: unknown }).type : undefined;
   const thinks = thinking !== undefined && (!takes || (takes.thinking as readonly unknown[]).includes(type));
