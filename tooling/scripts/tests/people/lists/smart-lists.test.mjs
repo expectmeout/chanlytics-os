@@ -34,6 +34,7 @@ const {
   playbookRunReach,
   triggerOf,
   LIST_RULE_FIELDS,
+  LIST_CONDITIONS_JSON_SCHEMA,
   LIST_DRAFT_JSON_SCHEMA,
 } = contracts;
 
@@ -238,10 +239,81 @@ test("a rule is read strictly and said in the page's words; what it needs comes 
     "nobody needs no one looking",
   );
   assert.deepEqual(
-    LIST_DRAFT_JSON_SCHEMA.properties.all.items.properties.field.enum,
+    LIST_CONDITIONS_JSON_SCHEMA.items.properties.field.enum,
     LIST_RULE_FIELDS.map((f) => f.id).filter((id) => id !== "in_list"),
     "the model is offered exactly the fields a rule may name, and never another list",
   );
+});
+
+test("the drafter's answer is a grammar the API compiles, and it offers exactly the facts a rule reads (30 Oct 2026: the tools' shape, every key but field and op optional, was \"Schema is too complex.\" on every model)", () => {
+  const { draftListRule } = contracts;
+  const nodes = [];
+  const collect = (n) => {
+    if (Array.isArray(n)) n.forEach(collect);
+    else if (n && typeof n === "object") {
+      nodes.push(n);
+      Object.values(n).forEach(collect);
+    }
+  };
+  collect(LIST_DRAFT_JSON_SCHEMA);
+  // Each optional key roughly doubles the compiled grammar, and a union inside a union multiplies it.
+  for (const n of nodes.filter((x) => x.type === "object")) {
+    assert.equal(n.additionalProperties, false, `${Object.keys(n.properties)}: no other key`);
+    assert.deepEqual(
+      [...n.required].sort(),
+      Object.keys(n.properties).sort(),
+      `${Object.keys(n.properties)}: every key required`,
+    );
+  }
+  assert.equal(nodes.filter((x) => x.anyOf).length, 2, "two unions: what a fact is, and what a condition is");
+  assert.deepEqual(
+    nodes.filter((x) => x.$ref).map((x) => x.$ref),
+    ["#/$defs/fact", "#/$defs/fact"],
+    "the facts are said once: where a condition is one, and in an any group",
+  );
+
+  // Every fact the drafter may write, with every value its keys take, is read as the rule it says.
+  const offered = new Set();
+  const values = (k) => k.enum ?? (k.type === "integer" ? [30] : [true, false]);
+  for (const f of LIST_DRAFT_JSON_SCHEMA.$defs.fact.anyOf) {
+    const keys = Object.keys(f.properties).filter((k) => k !== "field" && k !== "op");
+    const each = keys.reduce(
+      (xs, k) => xs.flatMap((x) => values(f.properties[k]).map((v) => ({ ...x, [k]: v }))),
+      [{}],
+    );
+    for (const field of f.properties.field.enum)
+      for (const op of f.properties.op.enum) {
+        offered.add(`${field} ${op}`);
+        for (const x of each)
+          assert.deepEqual(draftListRule([{ field, op, ...x }]), { v: 2, all: [{ field, op, ...x }] });
+      }
+  }
+  const either = [
+    { field: "channel", op: "is", channel: "sms" },
+    { field: "channel", op: "is", channel: "whatsapp" },
+  ];
+  assert.deepEqual(
+    draftListRule([{ any: either }]),
+    { v: 2, all: [{ any: either }] },
+    "and so is an any group of them",
+  );
+
+  // And every field and op a stored rule reads, but another list, is one the drafter offers.
+  const OPS = ["more_than", "within", "never", "ever", "this_week", "at_least", "at_most", "is", "is_not"];
+  const KEYS = [
+    {},
+    { days: 30 },
+    { yes: true },
+    { channel: "sms" },
+    { from: "lead" },
+    { n: 2 },
+    { to: "offers", yes: true },
+    ...["needs_you", "me", "won"].map((value) => ({ value })),
+  ];
+  const read = new Set();
+  for (const { id } of LIST_RULE_FIELDS.filter((f) => f.id !== "in_list"))
+    for (const op of OPS) if (KEYS.some((k) => asListRule({ all: [{ field: id, op, ...k }] }))) read.add(`${id} ${op}`);
+  assert.deepEqual([...offered].sort(), [...read].sort());
 });
 
 test("who a rule leaves out for want of a date: each condition over more than N days, read as never, with its chip, so the people with no such date are said apart (the operator stress run, 15 Oct 2026)", () => {
@@ -729,6 +801,11 @@ test("a smart list drafted from the owner's words: a name, a rule, and what it c
     rule: { v: 2, all: [{ field: "last_visit", op: "more_than", days: 60 }] },
     cannot: "who their stylist is",
   });
+  assert.deepEqual(
+    calls[0].request.output_config.format.schema,
+    LIST_DRAFT_JSON_SCHEMA,
+    "answered in the drafter's grammar",
+  );
   assert.equal(calls[0].purpose, "list_draft", "counted as the assistant's, under its own purpose");
   assert.equal(calls[0].request.model, JSON_MODEL, "the request names the lead purposes' own model");
   assert.equal(calls[0].request.model, "claude-sonnet-5", "the lead purposes keep their model when Ask's moves");
