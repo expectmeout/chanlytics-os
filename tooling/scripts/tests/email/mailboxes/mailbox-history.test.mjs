@@ -553,7 +553,7 @@ test("the six months leave the platform's own mail, which no header marks as aut
 /** A received message with the labels Gmail filed it under. */
 const filed = (labels, m) => ({ ...gmailReceived(m), labelIds: ["INBOX", ...labels] });
 
-test("what came in as people on 26 and 27 Oct 2026 is left and counted: DMARC reports by their shape, Amazon's newsletter by the tab Gmail filed it under, social and forums alike", async () => {
+test("what came in as people on 26 and 27 Oct 2026 is left and counted: DMARC reports by their shape, Amazon's newsletter by its sender's name, social and forums by the tab Gmail filed them under", async () => {
   const w = world();
   const robots = [
     // None carries an automated header or a no-reply address.
@@ -612,13 +612,13 @@ test("what came in as people on 26 and 27 Oct 2026 is left and counted: DMARC re
   }
   assert.deepEqual(keptIds(w), ["p1"], "only what a person wrote");
   assert.deepEqual(ledger(w, "mailbox").counts, { messages: 1, people: 1, dropped: 5 });
-  assert.deepEqual(w.asked, ["tam1", "tso1", "tfo1"], "whether a reach-out started it, asked of a tab's message alone");
+  assert.deepEqual(w.asked, ["tso1", "tfo1"], "whether a reach-out started it, asked of a tab's message alone");
   assert.deepEqual(
     w.left,
     [
       ["dmarcreport@microsoft.com", "automated"],
       ["dmarc_reports@reports.emailsrvr.com", "automated"],
-      ["store-news@amazon.com", "gmail_tab"],
+      ["store-news@amazon.com", "automated"],
       ["pat@social.example", "gmail_tab"],
       ["circle@forum.example", "gmail_tab"],
     ],
@@ -649,14 +649,15 @@ test("Gmail's tabs never leave a reply in a thread a reach-out started; under Up
       messageId: "<up1@example.com>",
       text: "Signed and sent back.",
     }),
-    // An account's notice from a stranger, answering nothing: left, and listed for the owner.
+    // An account's notice from a stranger, answering nothing, from an address with no program's word in it (Amazon's
+    // account-update@ is automated by its name): left by the tab, and listed for the owner.
     filed(["CATEGORY_UPDATES"], {
       id: "up2",
       threadId: "tup2",
-      from: "Amazon <account-update@amazon.com>",
+      from: "Fixture Bank <service@bank.example>",
       to: OWN,
       subject: "Your account",
-      messageId: "<up2@amazon.com>",
+      messageId: "<up2@bank.example>",
       text: "We updated your account.",
     }),
     // A stranger's reply under Updates answers something: it comes in.
@@ -678,7 +679,7 @@ test("Gmail's tabs never leave a reply in a thread a reach-out started; under Up
   }
   assert.deepEqual(keptIds(w), ["re1", "up1", "up3"]);
   assert.deepEqual(ledger(w, "mailbox").counts, { messages: 3, people: 3, dropped: 1 });
-  assert.deepEqual(w.left, [["account-update@amazon.com", "updates"]], "the notice is on the owner's list");
+  assert.deepEqual(w.left, [["service@bank.example", "updates"]], "the notice is on the owner's list");
   assert.deepEqual(w.asked, ["g-reach", "tup2"], "a reach-out's thread is asked only of what a tab alone would leave");
 });
 
