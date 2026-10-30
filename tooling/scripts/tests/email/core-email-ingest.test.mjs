@@ -117,7 +117,7 @@ test("an email from a person is kept under their address in one spelling, flagge
   assert.deepEqual(w.call("erasedBefore"), ["erasedBefore", T, "ana@example.com", "2026-09-17T11:59:00Z"]);
 });
 
-test("a claim decides how LITTLE is done: an automatic reply is kept and never flagged; an automated email is flagged in its own words; a report is not a conversation", async () => {
+test("a claim decides how LITTLE is done: an automatic reply and an automated email are kept and never flagged; a report is not a conversation", async () => {
   const auto = world({ fetch: email({ claim: "auto_reply" }) });
   assert.equal(await run(auto), "kept_quietly");
   assert.deepEqual(
@@ -136,9 +136,25 @@ test("a claim decides how LITTLE is done: an automatic reply is kept and never f
     "kept, handled, nobody paged: two responders answering each other is a loop",
   );
 
-  const form = world({ fetch: email({ claim: "automated" }) });
-  assert.equal(await run(form), "kept_for_a_person");
-  assert.equal(form.call("escalate")[4], EMAIL_REVIEW_WORDS.automated);
+  // A notification, a list, a no-reply sender's mail: kept in its thread for the record, and nobody is asked to answer
+  // a program, so it never waits in Need you and no alert goes out (a connected mailbox leaves it in the mailbox).
+  const notice = world({ fetch: email({ claim: "automated" }) });
+  assert.equal(await run(notice), "kept_quietly");
+  assert.deepEqual(
+    notice.ops(),
+    [
+      "mailbox",
+      "fetch",
+      "ours",
+      "readByMailbox",
+      "erasedBefore",
+      "record",
+      "reachOutReply",
+      "markProcessed",
+      "received",
+    ],
+    "kept and handled; no escalate, no tell",
+  );
 
   const bounce = world({
     fetch: email({ claim: "report", from: { address: "mailer-daemon@mx.example", name: null } }),

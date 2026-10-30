@@ -163,9 +163,10 @@ export function messageIdsIn(header: string | null | undefined): string[] {
  *   auto_reply               an out-of-office or a responder answering something of ours
  *                            (RFC 3834 auto-replied, and the markers older systems use).
  *                            Never answered: two responders answering each other is a loop.
- *   automated                mail a program produced or a list sent. Kept, and kept from the
- *                            receptionist. (A lead notification is automated mail too; the
- *                            day one is parsed, its source is tested before this.)
+ *   automated                mail a program produced or a list sent, by its headers or by its
+ *                            sender's addresses (programSent). Kept, and nobody is asked to
+ *                            answer it. (A lead notification is automated mail too; the day
+ *                            one is parsed, its source is tested before this.)
  *   person                   none of the above.
  */
 export type { EmailClaim };
@@ -220,6 +221,26 @@ export function senderAuthenticated(e: Pick<ReceivedEmail, "from" | "headers" | 
 const NO_REPLY = /(?:^|[-_.+])(?:no[-_.]?reply|do[-_.]?not[-_.]?reply)(?:[-_.+]|$)/i;
 
 /**
+ * A program's own mailbox, by its name: notifications, alerts, a newsletter, a digest, updates, as a word of the
+ * address's local part (notifications@, store-news@, account-update@). A hosting platform's notice carried none of the
+ * automated headers and no no-reply address, came in as a person and waited in Need you (28 Oct 2026); Amazon's
+ * store-news@ and account-update@ came in with a mailbox's six months. A word, so a name that holds the letters
+ * (newton@, updike@) is still a person; the mailboxes people answer (info@, support@, hello@) are not among them.
+ */
+const PROGRAM_MAILBOX =
+  /(?:^|[-_.+])(?:notifications?|notify|notifier|alerts?|mailer|bounces?|newsletters?|news|digest|updates?)(?:[-_.+]|$)/i;
+
+/**
+ * Whether the replies to an email go nowhere: its Reply-To names addresses, and every one is a no-reply. The same
+ * platform's notice wrote one, from a sender with an ordinary name. A form's notice whose Reply-To is the person who
+ * filled it in, or a line that names a person beside a no-reply, is somebody's to answer.
+ */
+function repliesGoNowhere(h: Record<string, string>): boolean {
+  const to = addressesOf((h["reply-to"] ?? "").split(","));
+  return to.length > 0 && to.every((a) => NO_REPLY.test(a.split("@")[0] ?? ""));
+}
+
+/**
  * A DMARC aggregate report, whoever writes it: the subject RFC 7489 (7.2.1.1) gives one, "Report Domain: <domain>
  * Submitter: <org> Report-ID: <id>" (Microsoft's once led by "[Preview]"), or DMARC as a word of the sender's local
  * part (dmarcreport@, dmarc-reports@, dmarc_rua@). Microsoft's reports carry no automated header and no no-reply
@@ -228,6 +249,23 @@ const NO_REPLY = /(?:^|[-_.+])(?:no[-_.]?reply|do[-_.]?not[-_.]?reply)(?:[-_.+]|
  */
 const DMARC_REPORT_SUBJECT = /^\s*(?:\[[^\]]*\]\s*)?report\s+domain:\s*\S+\s+submitter:/i;
 const DMARC_SENDER = /(?:^|[-_.+])dmarc(?:reports?)?(?:[-_.+]|$)/i;
+
+/** Whether a program or a list sent it, by its headers and its sender's addresses (classifyReceived's last test). */
+function programSent(e: Pick<ReceivedEmail, "headers" | "subject">, local: string): boolean {
+  const h = e.headers;
+  const auto = (h["auto-submitted"] ?? "").trim().toLowerCase();
+  return (
+    (auto !== "" && auto !== "no") ||
+    /^(bulk|list|junk)$/i.test((h.precedence ?? "").trim()) ||
+    "list-id" in h ||
+    "list-unsubscribe" in h ||
+    NO_REPLY.test(local) ||
+    PROGRAM_MAILBOX.test(local) ||
+    repliesGoNowhere(h) ||
+    DMARC_SENDER.test(local) ||
+    DMARC_REPORT_SUBJECT.test(e.subject ?? "")
+  );
+}
 
 export function classifyReceived(e: Pick<ReceivedEmail, "headers" | "from" | "subject" | "text">): EmailClaim {
   const h = e.headers;
@@ -247,15 +285,5 @@ export function classifyReceived(e: Pick<ReceivedEmail, "headers" | "from" | "su
     /^auto[_-]?reply$/i.test((h.precedence ?? "").trim())
   )
     return "auto_reply";
-  if (
-    (auto && auto !== "no") ||
-    /^(bulk|list|junk)$/i.test((h.precedence ?? "").trim()) ||
-    "list-id" in h ||
-    "list-unsubscribe" in h ||
-    NO_REPLY.test(local) ||
-    DMARC_SENDER.test(local) ||
-    DMARC_REPORT_SUBJECT.test(e.subject ?? "")
-  )
-    return "automated";
-  return "person";
+  return programSent(e, local) ? "automated" : "person";
 }
