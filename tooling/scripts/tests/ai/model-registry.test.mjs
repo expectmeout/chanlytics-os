@@ -18,6 +18,7 @@ import {
   hasFastMode,
   modelTakes,
   RETELL_MODELS,
+  routeThinkingFor,
   ASK_MODEL,
   NOTE_SUGGEST_MODEL,
   REACH_OUT_MODEL,
@@ -87,6 +88,35 @@ test("the fallback is the route's, Ask's pair swaps, and a purpose with none wai
   assert.equal(fallbackModel("ask", MODELS.SONNET_5_5), MODEL_ROUTES.ask.model);
   assert.equal(fallbackModel("ask", "claude-some-model-9"), MODEL_ROUTES.ask.model);
   assert.equal(fallbackModel("lead_judge", MODEL_ROUTES.lead_judge.model), null);
+});
+
+test("a route with its thinking off sends each model the off it takes, and its model and fallback can each stop thinking", () => {
+  assert.deepEqual(routeThinkingFor("reply_read", MODELS.HAIKU_5_5), { type: "disabled" });
+  assert.deepEqual(routeThinkingFor("reply_read", MODELS.SONNET_5_5), { type: "between_tools" }, "Sonnet 5.5's lowest");
+  assert.equal(routeThinkingFor("reply_read", MODELS.OPUS_5_5), null, "Opus 5.5 cannot stop thinking");
+  assert.equal(routeThinkingFor("reply_read", "claude-some-model-9"), null, "a model the registry does not list");
+  assert.equal(routeThinkingFor("reply_read", MODELS.HAIKU_5_5, "xhigh"), null, "neither off is taken past high");
+  assert.deepEqual(routeThinkingFor("reply_read", MODELS.HAIKU_5_5, "low"), { type: "disabled" });
+  assert.equal(routeThinkingFor("receptionist", MODELS.HAIKU_5_5), null, "a route that leaves thinking alone");
+  // A short read into a fixed shape: a model that thought inside its cap could run out of it before the answer.
+  for (const p of MODEL_PURPOSES.filter((x) => MODEL_ROUTES[x].thinking === "off")) {
+    const r = MODEL_ROUTES[p];
+    assert.ok(routeThinkingFor(p, r.model), `${p}: ${r.model} takes an off`);
+    if (r.fallback) assert.ok(routeThinkingFor(p, r.fallback), `${p}'s fallback ${r.fallback} takes an off`);
+  }
+});
+
+test("what the 30 Oct 2026 replay moved: the receptionist, its drafts and the judge on Opus 5.5, the small reads on Haiku 5.5 with thinking off, their fallbacks Sonnet 5.5", () => {
+  for (const p of ["receptionist", "reply_draft", "lead_judge"])
+    assert.equal(MODEL_ROUTES[p].model, MODELS.OPUS_5_5, p);
+  for (const p of ["note_suggest", "reach_out_check", "reply_read", "booking_read", "fix_route", "website_read"]) {
+    assert.equal(MODEL_ROUTES[p].model, MODELS.HAIKU_5_5, p);
+    assert.equal(MODEL_ROUTES[p].thinking, "off", p);
+    assert.equal(MODEL_ROUTES[p].fallback, MODELS.SONNET_5_5, p);
+  }
+  for (const p of ["receptionist", "reply_draft"]) assert.equal(MODEL_ROUTES[p].fallback, MODELS.SONNET_5_5, p);
+  assert.equal(MODEL_ROUTES.receptionist.thinking, undefined, "the receptionist thinks at the brain's low effort");
+  assert.ok(!Object.values(MODEL_ROUTES).some((r) => r.model === MODELS.HAIKU_4_5), "no route asks Haiku 4.5");
 });
 
 test("a call's dollars are its four kinds of tokens at the model's list price, and a dated id is priced as its model", () => {

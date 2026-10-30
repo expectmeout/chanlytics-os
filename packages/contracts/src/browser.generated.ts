@@ -20,7 +20,7 @@ export { aboutADayAfter, addDays, adWith, daysBetween, MINOR_PER_UNIT, patchRest
 export { EFFORT_MESSAGE_BETA, effortAbove, effortInForce, effortMessage, foldEffortMessages, isEffortMessage } from "./ai/effort";
 export { DATA_NOT_INSTRUCTIONS, defang, fenceActed, fenced, fencedInline, injectionQuestion, PROFILE_NAME_MAX, promptSafeName } from "./ai/fence";
 export { daysToSunset, FLAG_MECHANISMS, FLAGS } from "./ai/flags";
-export { fallbackModel, FAST_MODE_BETA, hasFastMode, isModelId, MODEL_EFFORTS, MODEL_IDS, MODEL_PORTS, MODEL_PURPOSES, MODEL_ROUTES, MODEL_SPEEDS, MODEL_TAKES, modelRoute, MODELS, modelTakes, readsAsModel, RETELL_MODELS, shadowPortOf, THINKING_TYPES } from "./ai/models";
+export { fallbackModel, FAST_MODE_BETA, hasFastMode, isModelId, MODEL_EFFORTS, MODEL_IDS, MODEL_PORTS, MODEL_PURPOSES, MODEL_ROUTES, MODEL_SPEEDS, MODEL_TAKES, modelRoute, MODELS, modelTakes, readsAsModel, RETELL_MODELS, routeThinkingFor, shadowPortOf, THINKING_TYPES } from "./ai/models";
 export { MODEL_TURN_WRITE_MS, modelTurnRequestOf, modelTurnResponseOf } from "./ai/turn";
 export { AI_USAGE_ERROR_CHARS, aiUsageBodyOf, creditRanOut, FAST_MODE_PRICES, MODEL_CALL_OUTCOMES, MODEL_PRICES, NO_USAGE, priceOf, usageDollars, usageOf, usageTokens } from "./ai/usage";
 export { foldWordsMessages, isWordsMessage, wordsMessage } from "./ai/words-message";

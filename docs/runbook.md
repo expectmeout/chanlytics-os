@@ -843,7 +843,7 @@ the workspace once (`reach_out_replied`). The readings are rows of
   `purge_jobs` deletes it a week later, so the same read is not scheduled
   again before then. A reading already applied stays applied; cancel the
   jobs, not the readings.
-- **The model the reading needs.** Haiku 4.5 (contracts' `REACH_OUT_MODEL`)
+- **The model the reading needs.** Haiku 5.5, its thinking off (contracts' `REACH_OUT_MODEL`)
   through `ANTHROPIC_API_KEY` on the edge, the key the check already uses;
   the draft asks the receptionist's own model through the same key. A
   workspace reads at most 200 replies a UTC day (`REACH_OUT_READS_PER_DAY`,

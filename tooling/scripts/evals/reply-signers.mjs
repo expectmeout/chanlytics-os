@@ -24,7 +24,7 @@ import {
   parseReplyReading,
   signerOf,
 } from "@chanlytics/contracts";
-import { loadFixtures, readerInputOf } from "./reply-intents.mjs";
+import { READ_THINKING, loadFixtures, readerInputOf } from "./reply-intents.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SIGNERS = path.join(HERE, "../fixtures/replies/signers.json");
@@ -69,6 +69,7 @@ async function ask(client, input) {
     system: input.system,
     messages: [{ role: "user", content: input.user }],
     output_config: { format: { type: "json_schema", schema: REPLY_SCHEMA } },
+    ...(READ_THINKING ? { thinking: READ_THINKING } : {}),
   });
   if (res.stop_reason === "refusal" || res.stop_reason === "max_tokens") return null;
   const text = res.content

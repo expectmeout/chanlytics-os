@@ -155,7 +155,7 @@ const WORKSPACE = { name: "Harbor Moving Co", what_we_do: "We answer a mover's p
 const WORDS = { subject: "The calls you miss mid-job", body: "{{opening}}\n\nI run Harbor Moving." };
 
 test("the writer is Haiku, answers in its schema, and is given the record, the workspace and the owner's words", () => {
-  assert.equal(REACH_OUT_MODEL, "claude-haiku-4-5-20251001");
+  assert.equal(REACH_OUT_MODEL, "claude-haiku-5-5");
   assert.deepEqual(OPENING_SCHEMA.required, ["opening", "angle", "facts_used"]);
   assert.deepEqual(READING_SCHEMA.required, ["backed", "unbacked", "pitch", "language"]);
   assert.match(openingSystemPrompt(), /only the facts in the business's record/i);
