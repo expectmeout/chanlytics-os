@@ -5,6 +5,10 @@ the lane `sequences/the-owners-voice`: migration 00493 (a memory line may be `le
 business and the owner, the paste, the opening a fact where the listing holds one. Spec
 `docs/superpowers/specs/2026-10-30-a-cold-email-in-the-owners-voice-design.md`, plan
 `docs/superpowers/plans/2026-10-30-a-cold-email-in-the-owners-voice.md`. Written against main's `cf96ac20c` (#1946).
+Step 2, a draft learns from what its owner changed: decided by Ruben on 30 October 2026 ("Write the spec", then
+"review for refinements or fixes and then continue to build it end to end"), built on the lane
+`sequences/a-draft-learns-from-its-edits` from main's `b56811f28` (#1948), with no migration. Spec
+`docs/superpowers/specs/2026-10-30-a-draft-learns-from-its-edits-design.md`.
 
 ## Context
 
@@ -32,10 +36,28 @@ A sequence to leads is one set of words, drafted once by Ask, with an opening wr
    rating), read once by the reader; the writer only where there is none, or the reader cannot back it.
 5. **Three rules hold whatever the voice says:** nothing the record does not state; no link in a first email; the foot.
 
+## Step 2: a draft learns from what its owner changed
+
+The started first emails carried the owner's words, but never what they changed: Ask's draft was kept nowhere.
+
+6. **What Ask drafted is kept in the make's decision.** A sequence to leads made from Ask's draft (New, and Leads' "A
+   draft by Ask") keeps the owner's line and each step's email as Ask wrote it in its `make_sequence` decision
+   (`as_drafted`), never in a step. A sequence by hand, and Ask's own cold-email card, whose words nobody edits before
+   Approve, keep none.
+7. **The drafter is shown each pair, labelled, and judges it.** The last three started first emails, each with what it
+   was for (its search), how it did (its first email's written, wrote back and said no), what Ask drafted and what the
+   owner sent, or that they sent it as drafted. The words are read as they stand, so an edit made after Start pairs too.
+   No code picks by trade.
+8. **Ask notices, the next morning, and asks.** The morning reads the cold emails the member made since yesterday
+   whose first email is theirs (the sequences read's `edited`, their own makes only) and may propose one line about
+   how they write, quoting their words. It is learned and always waits for their press (0070's gate, said for a read
+   that hands the turn the member's own words).
+
 ## Consequences
 
 - Migration 00493 widens one check and re-creates one door. Either deploy order after it.
 - A paste is one model call. An opening with a fact is one call where it was two to four, and cannot be held for a
   guess.
-- Not in this version: a line learned from each edit or at Start, Gmail's sent mail, a voice per member, a sentence
-  joining each kind of fact to the words, facts ranked by their replies.
+- Step 2 adds no migration, table, sweep or page: the pair rides the ledger's row, the morning's card is Today's.
+- Not in this version: Gmail's sent mail, a voice per member, a sentence joining each kind of fact to the words, facts
+  ranked by their replies (worth building at about twenty replies in a workspace).

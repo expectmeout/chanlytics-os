@@ -2,6 +2,8 @@
 export { FOLLOW_UP_CONDITIONS, followUpLeaves, followUpReach, followUpStop, messageAboutOfClass } from "./follow-up";
 export type { FollowUpCondition, FollowUpStep, FollowUpStop } from "./follow-up";
 export {
+  asDraftedFrom,
+  asDraftedOf,
   handStepsHold,
   leadChainStepOf,
   NEW_AUDIENCES,
@@ -17,6 +19,7 @@ export {
   newListOf,
   newWaitOf,
   numberedValues,
+  sentAsDrafted,
   whoSuits,
 } from "./new-draft";
 export {
@@ -29,6 +32,7 @@ export {
   voiceSaid,
 } from "./new-draft";
 export type {
+  AsDrafted,
   DraftWho,
   NewAudience,
   NewCheck,

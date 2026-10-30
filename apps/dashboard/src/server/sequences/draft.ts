@@ -12,6 +12,7 @@ import "server-only";
 import {
   ASK_MEMORY_LIMITS,
   DATA_NOT_INSTRUCTIONS,
+  sentAsDrafted,
   MOMENT_TRIGGERS,
   NEW_DRAFT_JSON_SCHEMA,
   NEW_ONCE_AHEAD_DAYS,
@@ -35,11 +36,11 @@ import {
   type NewDraftAsk,
   type NewDraftDto,
 } from "@chanlytics/contracts";
-import { askMemoryLines, listPolicies, mailboxConnectionsOf, workspaceAbout } from "@chanlytics/db";
+import { askMemoryLines, listPolicies, mailboxConnectionsOf, sequenceMakes, workspaceAbout } from "@chanlytics/db";
 import type { PoolRead } from "@/lib/campaign-channels";
 import { runningOf } from "@/lib/new-checks";
 import { calendarOf } from "../calendar/calendar-settings";
-import { chainsOf } from "../campaigns/reach-outs";
+import { chainReportOf, chainsOf } from "../campaigns/reach-outs";
 import { reachOutSourcesOf } from "../leads/lead-workbench";
 import { log } from "../log";
 import { askForJson } from "../model-json";
@@ -49,14 +50,14 @@ import { playbooks } from "../readers/playbooks";
 import { sequences } from "../readers/sequences";
 import { templates } from "../readers/templates";
 import { storedConfigOf } from "../workspace/config-row";
-import { draftKept, type DraftKnown, type KnownMessage } from "./draft-judge";
+import { draftKept, type DraftExample, type DraftKnown, type KnownMessage } from "./draft-judge";
 
 /** How much of a message's words the model is handed. */
 const BODY_CHARS = 280;
 /** How much of a started first email the model is handed: a first email is 80 words at most (contracts). */
 const EXAMPLE_CHARS = 900;
 /** The started sequences to leads whose first emails the drafter reads, newest first. */
-const EXAMPLES_MAX = 2;
+const EXAMPLES_MAX = 3;
 /** The services the drafter is told by name: enough to say what the business offers, never its whole list. */
 const SERVICES_SAID = 12;
 
@@ -67,7 +68,7 @@ const RULES = [
   "Choose `who` by its key from the lists below: a moment or a list for a sequence to people; everyone or a list for a message sent once to people; a search for leads. Leave it empty when none fits, and say why in `cannot`.",
   "A step to people sends one of the business's messages by its key, with `texts` for its typed-words values in order; or, only where none of them fits, a new one in `write`: a short `title`, `offer` true for an offer, and its words for each channel it should go by: `whatsapp` and `text` short and plain, `email_subject` and `email_body`. Name only these values, in double braces: {{first name}}, {{business name}}, {{booking link}}, {{review link}}, and on a first step after a booking {{booked time}} and {{booked service}}. A text never carries an offer: leave `text` empty for one. Leave `message` empty when you write one, and every `write` field empty when you don't.",
   "A step to leads is an email in the business's own words, the same words for every business it goes to: `subject` on the first only; `body` at most 80 words on the first, starting with {{opening}} on a line of its own (one line about them, written for each business later from its record), and at most 50 on a later one, which answers in the same thread. The words themselves claim and suppose nothing about the business they go to, not how busy it is, its calls, what it has or what it wants: only the opening says anything about them. Use only {{opening}}, {{business}}, {{first name}}, {{city}}, {{your name}}, {{your business}}, and {{booking link}} after the first only. No link, price or exclamation mark in the first.",
-  "Write a step to leads in the owner's own voice: the first emails they started before (their length, greeting, how they open, ask and sign off) and the lines Ask remembers about how they write come first, and you never copy a sentence of them; where there is neither, plain and short. Say what the business offers as it says it itself, from what it does and its services, never more. You may say who the email goes to as the owner's own act (\"I'm writing to a few auto shops in {{city}}\"), never as a fact about the business.",
+  "Write a step to leads in the owner's own voice: the first emails they started before (their length, greeting, how they open, ask and sign off) and the lines Ask remembers about how they write come first: where one shows what Ask drafted beside what they sent, what they changed is how they want it, and what wrote back is what worked; you never copy a sentence of them; where there is neither, plain and short. Say what the business offers as it says it itself, from what it does and its services, never more. You may say who the email goes to as the owner's own act (\"I'm writing to a few auto shops in {{city}}\"), never as a fact about the business.",
   "Never a price, a discount or a date in any words you write.",
   `A step after the first waits \`after_days\` after the one before: ${NEW_WAIT_DAYS.people.min} to ${NEW_WAIT_DAYS.people.max} for people, ${NEW_WAIT_DAYS.leads.min} to ${NEW_WAIT_DAYS.leads.max} for leads. To people it may go only if they have not booked since (no_booking) or not written back (no_reply); a lead stops on a reply on its own, so leave \`only_if\` empty for leads and on a first step.`,
   "A step may instead hand each person to the team: `does` call or note, with `words` saying what to do when they come up. Only when the owner asks for it, and only as the last step, never the first. A message step leaves `words` empty.",
@@ -106,6 +107,29 @@ function offeredOf(read: {
   return out;
 }
 
+/** An email as the model reads one: its subject, then its words, cut where a first email ends. */
+const emailSaid = (e: { subject: string | null; body: string }): string =>
+  `${e.subject ? `Subject: ${e.subject}\n` : ""}${e.body}`.slice(0, EXAMPLE_CHARS);
+
+/**
+ * One started first email as the drafter is told it (decision 0078 step 2): what it was for and how it did, then the pair:
+ * what Ask drafted and what the owner sent, or that they sent it as drafted, or what they sent where no draft was kept.
+ */
+function exampleSaid(e: DraftExample): string {
+  const n = e.numbers;
+  const head = [
+    e.for ? `For: ${e.for}` : null,
+    n ? `To ${n.written}, ${n.wrote_back} wrote back, ${n.said_no} said no` : null,
+  ].filter(Boolean);
+  const sent = { subject: e.subject, body: e.body };
+  const pair = !e.drafted
+    ? [`They sent:\n${emailSaid(sent)}`]
+    : sentAsDrafted(e.drafted, sent)
+      ? [`They sent it as Ask drafted it:\n${emailSaid(sent)}`]
+      : [`Ask drafted:\n${emailSaid(e.drafted)}`, `They sent:\n${emailSaid(sent)}`];
+  return fenced("record", [...(head.length ? [head.join(" · ")] : []), ...pair].join("\n\n"));
+}
+
 /** What the model is told: the business, its moments, lists, searches and messages, the choices made, and the line. */
 function draftAsked(known: DraftKnown, ask: NewDraftAsk): string {
   const count = (n: number | null) => (n === null ? "" : `, ${n} now`);
@@ -131,10 +155,8 @@ function draftAsked(known: DraftKnown, ask: NewDraftAsk): string {
       : null,
     known.examples?.length
       ? lines(
-          "First emails to leads the owner started before, as they left them",
-          known.examples.map((e) =>
-            fenced("record", `${e.subject ? `Subject: ${e.subject}\n` : ""}${e.body}`.slice(0, EXAMPLE_CHARS)),
-          ),
+          "First emails to leads the owner started before, newest first: what each was for, how it did, what Ask drafted and what they sent",
+          known.examples.map(exampleSaid),
         )
       : null,
     lines(
@@ -210,7 +232,7 @@ async function ownerOf(
   const [about, memory, examples] = await Promise.all([
     orNull(workspaceAbout(ctx.supabase, tenantId), "about", tenantId),
     orNull(askMemoryLines(ctx.supabase, tenantId, ASK_MEMORY_LIMITS.liveMax), "memory", tenantId),
-    orNull(startedFirstEmails(rc, rows), "examples", tenantId),
+    orNull(startedExamples(rc, rows), "examples", tenantId),
   ]);
   return {
     about,
@@ -221,25 +243,70 @@ async function ownerOf(
   };
 }
 
+/** A chain's first email, as the drafter reads one: an email with words, never a call's or a note's. */
+type FirstOf = { steps: ReadonlyArray<{ subject: string | null; body: string; hand: unknown }> };
+const firstEmailOf = (c: FirstOf) => {
+  const first = c.steps[0];
+  return first && !first.hand && first.body.trim() ? first : null;
+};
+
 /**
- * The first emails of the workspace's newest started sequences to leads, as their owner left them (decision 0078): the
- * words a draft follows for how this owner writes. A draft never started is Ask's own, so it is not read.
+ * The first emails of the workspace's newest started sequences to leads (decision 0078 and its step 2), as their owner
+ * left them, each with what Ask drafted for it (its make's `as_drafted`), what it was for and how it did. Pure: the
+ * chains, the makes and the first steps' counts are read by startedExamples.
  */
-async function startedFirstEmails(
+export function examplesOf(
+  chains: ReadonlyArray<FirstOf & { root_id: string; search: { name: string } | null }>,
+  drafted: ReadonlyMap<string, { subject: string | null; body: string } | null>,
+  counts: ReadonlyMap<string, { written: number; wrote_back: number; said_no: number } | null>,
+): DraftExample[] {
+  return chains.flatMap((c) => {
+    const first = firstEmailOf(c);
+    if (!first) return [];
+    return [
+      {
+        subject: first.subject,
+        body: first.body,
+        drafted: drafted.get(c.root_id) ?? null,
+        for: c.search?.name ?? null,
+        numbers: counts.get(c.root_id) ?? null,
+      },
+    ];
+  });
+}
+
+/**
+ * The newest started sequences to leads, read for the drafter: their chains, their makes and each first step's counts. A
+ * draft never started is not read (decision 0078); a count or a make that cannot be read leaves that part unsaid.
+ */
+async function startedExamples(
   rc: ReaderContext,
   rows: ReadonlyArray<{ id: string; starts: string; state: string }>,
-): Promise<NonNullable<DraftKnown["examples"]>> {
+): Promise<DraftExample[]> {
   const started = new Set(rows.filter((r) => r.starts === "leads" && r.state !== "draft").map((r) => r.id));
   if (started.size === 0) return [];
-  const chains = await chainsOf(rc.ctx, rc.tenantId);
-  return chains
-    .filter((c) => started.has(c.root_id))
+  const chains = (await chainsOf(rc.ctx, rc.tenantId))
+    .filter((c) => started.has(c.root_id) && firstEmailOf(c))
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
-    .slice(0, EXAMPLES_MAX)
-    .flatMap((c) => {
-      const first = c.steps[0];
-      return first && !first.hand && first.body.trim() ? [{ subject: first.subject, body: first.body }] : [];
-    });
+    .slice(0, EXAMPLES_MAX);
+  if (chains.length === 0) return [];
+  const ids = chains.map((c) => c.root_id);
+  const [makes, reports] = await Promise.all([
+    orNull(
+      sequenceMakes(rc.ctx.supabase, { tenantId: rc.tenantId, ids, limit: EXAMPLES_MAX * 4 }),
+      "makes",
+      rc.tenantId,
+    ),
+    Promise.all(ids.map((id) => orNull(chainReportOf(rc.ctx, rc.tenantId, id), "counts", rc.tenantId))),
+  ]);
+  const drafted = new Map((makes ?? []).map((m) => [m.sequence_id, m.as_drafted?.steps[0] ?? null]));
+  const counts = new Map(
+    ids.map((id, i) => {
+      const step = reports[i]?.steps.find((s) => s.n === 1);
+      return [id, step ? { written: step.written, wrote_back: step.wrote_back, said_no: step.said_no } : null];
+    }),
+  );
+  return examplesOf(chains, drafted, counts);
 }
 
 /** A read the draft can do without: logged once, and the draft drafted from what was read. */

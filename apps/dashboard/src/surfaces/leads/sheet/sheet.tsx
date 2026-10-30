@@ -306,7 +306,10 @@ async function pickAndAdd(d: SheetDraw, row: LeadPickerRowVM) {
   }
 }
 
-/** Ask's draft of the emails, from New's one engine (the workspace's goal, the lead's search): its steps, or a refusal said. */
+/**
+ * Ask's draft of the emails, from New's one engine (the workspace's goal, the lead's search): its steps and what Ask
+ * drafted, which the make keeps beside them (decision 0078 step 2), or a refusal said.
+ */
 async function askDraft(d: SheetDraw, name: string) {
   if (!d.vm) return null;
   const r = await reachOuts.draftLeads({ name, lead_ids: [d.vm.id], search_name: d.p.row?.searchName ?? null });
@@ -314,7 +317,7 @@ async function askDraft(d: SheetDraw, name: string) {
     d.p.flash(refusalToast(r, "Ask could not write a draft"));
     return null;
   }
-  return r.data.steps;
+  return r.data;
 }
 
 /** New: a draft by name, made with the lead in it, the pick from now; in a pile, on to the next. */
@@ -323,14 +326,14 @@ async function makeAndAdd(d: SheetDraw, name: string, start: NewStart) {
   if (!vm) return;
   d.busy.set(true);
   try {
-    const steps = start.kind === "ask" ? await askDraft(d, name) : null;
-    if (start.kind === "ask" && !steps) return;
+    const asked = start.kind === "ask" ? await askDraft(d, name) : null;
+    if (start.kind === "ask" && !asked) return;
     const first = {
       starts: "leads",
       name,
       lead_ids: [vm.id],
       ...(start.kind === "copy" ? { from: start.from } : {}),
-      ...(steps ? { steps } : {}),
+      ...(asked ? { steps: asked.steps, as_drafted: asked.as_drafted } : {}),
       ...(p.searchId ? { aim_search_id: p.searchId } : {}),
     };
     const r = await commitVerb("sequence_make", { first, start: false, lead_name: vm.name });

@@ -155,7 +155,8 @@ export async function makeSequenceNow(ctx: RouteContext, tenantId: string, input
 async function makeLeadSequenceNow(ctx: RouteContext, tenantId: string, input: NewSequenceBody) {
   const parsed = LEAD_FIRST_BODY.safeParse(input.first);
   if (!parsed.success) throw new AppError("validation", parsed.error.issues[0]?.message ?? "Name it.", 422);
-  const first = parsed.data;
+  // What Ask drafted is the decision's, beside what the owner made of it (decision 0078 step 2); never a step's.
+  const { as_drafted: asDrafted, ...first } = parsed.data;
   const steps = (first.steps ?? []).map(({ id: _id, hand, ...s }) => (hand ? { ...s, hand } : s));
   steps.forEach((s, i) => {
     if ("hand" in s || !s.body.trim()) return;
@@ -168,7 +169,11 @@ async function makeLeadSequenceNow(ctx: RouteContext, tenantId: string, input: N
       first: { ...first, ...(steps.length > 0 ? { steps } : {}) },
       then: [],
       start: input.start,
-      ...decided(ctx, { name: first.name, copied: first.from ?? null }),
+      ...decided(ctx, {
+        name: first.name,
+        copied: first.from ?? null,
+        ...(asDrafted ? { as_drafted: asDrafted } : {}),
+      }),
     }),
   );
 }

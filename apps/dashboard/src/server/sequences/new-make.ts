@@ -175,6 +175,7 @@ export function leadFirstOf(b: NewMakeBody): Record<string, unknown> {
     ...from,
     ...(b.mode ? { mode: b.mode } : {}),
     ...(b.owner_sends !== undefined ? { owner_sends: b.owner_sends } : {}),
+    ...(b.as_drafted ? { as_drafted: b.as_drafted } : {}),
   };
 }
 

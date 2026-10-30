@@ -2612,6 +2612,7 @@ Writes; for a member of the workspace the request names, operator or above; coun
 | `adds_new` | boolean | yes |  |
 | `owner_sends` | boolean | no |  |
 | `draft_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `as_drafted` | object | no |  |
 | `steps` | array of object | yes | at least 1; at most 6 |
 | `start` | boolean | yes |  |
 
