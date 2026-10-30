@@ -43,6 +43,11 @@ interface BulkBarProps {
   onClear: () => void;
   onSelectAllMatching: () => void;
   allMatching: boolean;
+  /**
+   * Whether the box, a chip, a fit or the Filter hides a loaded row. "All that match" is the view the server knows, wider
+   * than what is shown then, so it is not offered: the bars act on the rows they show.
+   */
+  narrowed: boolean;
   onCopyEmails: (picked: LeadRowVM[]) => void;
   onNotAFit: (why: LeadNotAFitWhy, body: LeadsBulkInput) => unknown;
   whyOpen: boolean;
@@ -167,6 +172,7 @@ function phoneSheets(p: BulkBarProps, f: ReturnType<typeof bulkFacts>) {
     canFind,
     canExport,
     allMatching,
+    narrowed,
     total,
     rows,
     whyNot,
@@ -212,7 +218,7 @@ function phoneSheets(p: BulkBarProps, f: ReturnType<typeof bulkFacts>) {
         />
       ) : (
         <div className="pp-sheet-rows">
-          {!allMatching && total > rows.length ? (
+          {!allMatching && !narrowed && total > rows.length ? (
             <PhoneSheetRow
               icon="check"
               label={`Select all ${total.toLocaleString()} that match`}
@@ -341,7 +347,7 @@ function phoneBulkBar(p: BulkBarProps, f: ReturnType<typeof bulkFacts>) {
  * selection, then Not a fit, Later and Add with ▴ for the picker, and More.
  */
 function deskBulkBar(p: BulkBarProps, f: ReturnType<typeof bulkFacts>) {
-  const { busy, canFind, allMatching, total, rows, whyNot, whyOpen, onWhyOpen, view } = p;
+  const { busy, canFind, allMatching, narrowed, total, rows, whyNot, whyOpen, onWhyOpen, view } = p;
   const { picked, ids, count, hidden, acts, noEmail } = f;
   const review = p.review as ReviewDoors;
   const gateWork = canFind ? {} : gate("find", "work these leads");
@@ -360,7 +366,7 @@ function deskBulkBar(p: BulkBarProps, f: ReturnType<typeof bulkFacts>) {
         ) : null}
         {hidden > 0 ? <span data-testid="leads-bulk-hidden"> · {hidden} more not shown</span> : null}
       </span>
-      {!allMatching && total > rows.length && (
+      {!allMatching && !narrowed && total > rows.length && (
         <button
           type="button"
           className="cl-bucket-link"
