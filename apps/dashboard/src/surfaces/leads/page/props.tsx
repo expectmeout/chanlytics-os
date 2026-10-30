@@ -11,6 +11,7 @@ import {
   leadMapPlot,
   leadKindKey,
   leadMonthPlanFacts,
+  leadReachOf,
   leadReviewGroups,
   leadsRoute,
   type leadsStanding,
@@ -68,6 +69,8 @@ export type LeadsPage = Controls &
     leadView: LeadView;
     leadShown: LeadRowVM[];
     filtered: boolean;
+    /** Whether the box, a chip, a fit or the Filter hides a loaded row (reads.ts useLeadRows). */
+    narrowed: boolean;
     shownIds: string[];
     viewLanded: boolean;
     deckMove: (step: number) => void;
@@ -131,7 +134,7 @@ const isOwnList = (s: LeadSearchDto | null) => isLeadList(s);
 
 /** The rail, the list's head and the table. */
 export const leadsListProps = (p: LeadsPage) => {
-  const { leads, rail, leadView, openSearch, leadShown, lists, setListsOpen, setQ, setChip, setFitChip, goto } = p;
+  const { leads, rail, leadView, openSearch, leadShown, lists, setListsOpen, setQ } = p;
   // What the phone's bar says it is showing: the search that is open, or the list, and its count apart, which the bar never
   // shortens (Task 18; PeoplePhoneBar's listCount).
   const openList = rail.lists.find((l) => l.id === leadView.list);
@@ -202,18 +205,16 @@ export const leadsListProps = (p: LeadsPage) => {
     scrolled: p.scrolledX,
     onScrolled: p.setScrolledX,
     filtered: p.filtered,
-    onClearFilters: () => {
-      setQ("");
-      setChip(null);
-      setFitChip(null);
-      goto({ list: "all", cls: null });
-    },
+    onClearFilters: () => clearFilters(p),
   };
 };
 
 /** What the list says when it is empty: Needs review done, a search waiting on its answer, a list of your own, or none yet. */
 const emptyOf = (p: LeadsPage): TableEmpty => {
   const { leadView, openSearch, canFind, openFind } = p;
+  // The view holds leads and the box, a chip, a fit or the Filter left none of them: never "none yet", and the way back.
+  if (p.narrowed && p.leads.rows.length > 0)
+    return { title: "No leads match.", action: { label: "Clear filters", onClick: () => clearFilters(p) } };
   if (leadView.cls === "review")
     return { title: "Nothing needs a look.", body: "Every lead here has been checked or decided.", action: null };
   if (!leadView.cls && p.waitsOn(leadView.searchId))
@@ -273,6 +274,14 @@ export const leadsBandProps = (p: LeadsPage) => {
     },
     fit: p.fitChip,
     onPickFit: p.setFitChip,
+    // The Filter (contracts leadReaches): a switch flipped on or off. A selection of "all that match" was a claim about the
+    // view the server knows, wider than the rows the Filter leaves, so it goes back to the rows picked.
+    reach: p.reach,
+    onReach: (f: string) => {
+      const on = p.reach.some((x) => x === f);
+      p.setReach(leadReachOf(on ? p.reach.filter((x) => x !== f) : [...p.reach, f]));
+      p.setAllMatching(false);
+    },
     values: p.values,
     onValues: (v: boolean) => {
       setValues(v);
@@ -360,6 +369,8 @@ export const leadsBulkProps = (p: LeadsPage) => {
     },
     review: reviewDoors(p),
     allMatching,
+    // Offered only where nothing on the page hides a loaded row: "all that match" acts on the view the server knows.
+    narrowed: p.narrowed,
     onSelectAllMatching: () => setAllMatching(true),
     bulkView,
     bulkBusy: p.leadBusy,
@@ -380,8 +391,9 @@ export const leadsBulkProps = (p: LeadsPage) => {
     // Add N and Later (the canvas's DeskBulk): the rows chosen and shown, never all that match (a view is not a list of ids).
     bulkAdd: p.bulkAdd,
     bulkSearch: p.openSearch ? { id: p.openSearch.id, name: p.openSearch.name } : null,
-    // The view as a file: a press that POSTs (acts.tsx exportLeads), since marking what it took moves the month's count.
-    onExport: () => p.exportLeads(bulkView),
+    // The view as a file: a press that POSTs (acts.tsx exportLeads), since marking what it took moves the month's count. The
+    // Filter goes with it, so the file is the email list or the call list on screen.
+    onExport: () => p.exportLeads(p.reach.length ? { ...bulkView, reach: p.reach } : bulkView),
     ...railDoors(p),
     chip: p.chip,
     onPickChip: p.setChip,
@@ -389,6 +401,15 @@ export const leadsBulkProps = (p: LeadsPage) => {
     exportFor: p.exportFor,
     searchWordsFor: p.searchWordsFor,
   };
+};
+
+/** Clear filters: the words in the box, the Excluded view's chip, the fit, the Filter, and the list and class with them. */
+const clearFilters = (p: LeadsPage) => {
+  p.setQ("");
+  p.setChip(null);
+  p.setFitChip(null);
+  p.setReach([]);
+  p.goto({ list: "all", cls: null });
 };
 
 /** Whether an idea's kind is already searched for in its place: by the plan's own key and the area's label. */

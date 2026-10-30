@@ -106,9 +106,13 @@ const yamlCode = (file) =>
     .filter((l) => !/^\s*#/.test(l))
     .join("\n");
 
-test("the nightly evals run on a clock once they are switched on and on demand, fail with no key, and hold no other secret: never the production key", () => {
-  const y = yamlCode(".github/workflows/nightly-evals.yml");
-  assert.match(y, /cron: "0 10 \* \* \*"/);
+/**
+ * What every eval workflow holds (nightly-evals.yml, opening-check-eval.yml): the eval key, given to the step that asks
+ * whether it is set and the one that asks the model, and no other secret but the token; never the production key; every
+ * step that does the work waits on the key; off until the repository's switch, a run with no key fails and says so, and
+ * nothing ends green having skipped. Its runner reads the eval key and never the production key.
+ */
+function holdsTheEvalKeyAlone(y, variable, runnerFile) {
   assert.ok(y.includes("workflow_dispatch:"));
   const given = y.split("ANTHROPIC_EVAL_KEY: $" + "{{ secrets.ANTHROPIC_EVAL_KEY }}").length - 1;
   assert.equal(
@@ -131,11 +135,9 @@ test("the nightly evals run on a clock once they are switched on and on demand, 
   assert.ok(work.length >= 5);
   for (const st of work)
     assert.ok(st.includes("steps.key.outputs.set == 'true'"), "a step that runs without the key: " + st.split("\n")[0]);
-  // Off, the night is skipped in grey and no runner starts; asked for with no key, the run fails. Never green for nothing.
+  // Off, the run is skipped in grey and no runner starts; asked for with no key, the run fails. Never green for nothing.
   assert.ok(
-    y.includes(
-      "    if: $" + "{{ vars.NIGHTLY_EVALS == '1' || github.event_name == 'workflow_dispatch' }}\n    runs-on:",
-    ),
+    y.includes("    if: $" + `{{ vars.${variable} == '1' || github.event_name == 'workflow_dispatch' }}\n    runs-on:`),
     "the job waits for the repository's switch, or a hand",
   );
   assert.ok(
@@ -144,9 +146,44 @@ test("the nightly evals run on a clock once they are switched on and on demand, 
   );
   assert.ok(!y.includes("SKIPPED"), "and nothing ends green having said it skipped");
   assert.ok(y.includes("permissions:\n  contents: read"));
-  // The runner reads the eval key and never the production key (its behaviour is nightly-evals.test.mjs's).
-  const runner = readRaw("tooling/scripts/evals/nightly.mjs").replace(/^\s*(\*|\/\/|\/\*).*$/gm, "");
+  const runner = readRaw(runnerFile).replace(/^\s*(\*|\/\/|\/\*).*$/gm, "");
   assert.ok(runner.includes("process.env.ANTHROPIC_EVAL_KEY") && !runner.includes("ANTHROPIC_API_KEY"));
+  return steps;
+}
+
+test("the nightly evals run on a clock once they are switched on and on demand, fail with no key, and hold no other secret: never the production key", () => {
+  const y = yamlCode(".github/workflows/nightly-evals.yml");
+  assert.match(y, /cron: "0 10 \* \* \*"/);
+  // Its behaviour is nightly-evals.test.mjs's.
+  holdsTheEvalKeyAlone(y, "NIGHTLY_EVALS", "tooling/scripts/evals/nightly.mjs");
+});
+
+test("the opening check is graded weekly once it is switched on, and by hand: the eval key alone, a cap on what it spends, every opening kept, and one issue that a held week closes", () => {
+  const y = yamlCode(".github/workflows/opening-check-eval.yml");
+  assert.match(y, /cron: "0 11 \* \* 1"/, "Mondays, after the nightly evals");
+  // Its behaviour is tests/ai/opening-check-eval.test.mjs's.
+  const steps = holdsTheEvalKeyAlone(y, "OPENING_EVAL", "tooling/scripts/evals/opening-check.mjs");
+  const run = steps.find((st) => st.includes("id: eval"));
+  assert.ok(
+    run.includes(
+      "node --import tsx tooling/scripts/evals/opening-check.mjs --live --cap 0.30 --out opening-check.json",
+    ),
+  );
+  assert.ok(
+    run.includes('echo "code=$code" >> "$GITHUB_OUTPUT"') && run.includes('exit "$code"'),
+    "its exit is the step's",
+  );
+  const kept = steps.find((st) => st.includes("actions/upload-artifact@"));
+  assert.ok(kept.includes("path: opening-check.json") && kept.includes("always()"), "kept whether it held or not");
+  const say = steps.find((st) => st.includes("rolling-issue.mjs"));
+  assert.ok(say.includes("always()") && say.includes("steps.eval.outputs.code != ''"));
+  assert.ok(
+    say.includes('--title "The opening check missed its line"') &&
+      say.includes('--title "The opening check could not run"'),
+  );
+  assert.ok(
+    say.includes('--match "The opening check"') && say.includes("--state green") && say.includes('--assignee "$OWNER"'),
+  );
 });
 
 test("the nightly checks Ask's day against its lines (the Ask Rewired Phase 6 plan, D4), apart from the suite: its verdict is its own step and its own issue, titled by whether Ask crossed a line or the check could not run (I2:2), and never turns the suite red", () => {

@@ -3,7 +3,7 @@ import { z } from "zod";
 import {
   ASK_SELECTION_MAX,
   CONSENT_SOURCES,
-  LIST_DRAFT_JSON_SCHEMA,
+  LIST_CONDITIONS_JSON_SCHEMA,
   NOTE_LINE_MAX,
   OWN_MESSAGE_REFUSALS,
   PERSON_MODE_WORDS,
@@ -45,7 +45,7 @@ import {
 const SELECTION = {
   all: z
     .array(z.unknown())
-    .meta(LIST_DRAFT_JSON_SCHEMA.properties.all)
+    .meta(LIST_CONDITIONS_JSON_SCHEMA)
     .optional()
     .describe("Who: conditions in the lists' vocabulary, as people with action search and propose_list take them."),
   list: z.string().optional().describe("Who: a list's token (seg:<id>, list:<id>) or a People list's bare id."),

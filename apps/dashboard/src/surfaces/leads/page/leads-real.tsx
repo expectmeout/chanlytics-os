@@ -5,7 +5,7 @@
  * (useSurface("leads")). Its state is the hooks beside it, one concern each, called in the order it always called them; its
  * acts are plain functions over the draw's state; and what it hands LeadsScope comes from the five builders (props.tsx).
  */
-import { leadBand, leadRail, leadsStanding, type LeadRowVM } from "@chanlytics/contracts";
+import { leadBand, leadRail, leadReachOf, leadsStanding, type LeadRowVM } from "@chanlytics/contracts";
 import { navigate } from "../../legacy-verbs";
 import { useSwapMotion } from "../../kit/motion/use-swap-motion";
 import { TABLE_BODIES } from "../../people/table/table";
@@ -96,16 +96,17 @@ function useLeadsView({ leadsRoute, onNavigate }: { leadsRoute: string | null; o
   const st = useLeadsState();
   const { peekId, setPeekId, peekMode, setPeekMode, armed, setArmed, setLightboxId } = st;
   const { chip, setChip, fitChip, setFitChip, setBenchGroup, mapOpen, setMapOpen, setMapPick, setBulkWhy } = st;
+  const { reach, setReach } = st;
   // Where Add goes, for the lead sheet and the pile alike (sheet/use-aim.ts: one choice per search, the door's answers kept
   // by lead). The pile walks the rows in the order the page has them (To decide is the pile): nothing moves under it.
   const aim = useLeadAim({ searches: leads.searches, searchId: leadView.searchId });
   const pile = useLeadPile({ flash: plFlash, aim });
   const order = { sortBy, sortDir };
   const read = useLeadsRead({ leadView, viewRoute, ...order, plFlash });
-  const rows = useLeadRows({ leads, q, chip, fitChip, leadView, viewRoute, ...order });
+  const rows = useLeadRows({ leads, q, chip, fitChip, reach, leadView, viewRoute, ...order });
   const { leadShown, shownIds, viewLanded } = rows;
-  // Each view keeps its place by the address's view (viewRoute), its map with it. A view opened after the first starts with
-  // none of the last one's filters.
+  // Each view keeps its place by the address's view (viewRoute), its map and its Filter with it. A view opened after the
+  // first starts with none of the last one's filters.
   const place = usePlPlace({
     controls,
     page: "leads",
@@ -114,9 +115,10 @@ function useLeadsView({ leadsRoute, onNavigate }: { leadsRoute: string | null; o
     noun: "lead",
     landed: viewLanded,
     selectionOf: `${viewRoute}|${chip}`,
-    extra: { map: mapOpen },
+    extra: { map: mapOpen, reach },
     onPlace: (at, again) => {
       setMapOpen(!!at.map);
+      setReach(leadReachOf(at.reach));
       if (again) {
         setChip(null);
         setFitChip(null);

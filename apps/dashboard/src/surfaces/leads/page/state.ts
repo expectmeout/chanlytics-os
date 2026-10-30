@@ -6,7 +6,7 @@
  */
 import { useReducer, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
-import { leadsRoute, parseLeadsRoute, type LeadBand } from "@chanlytics/contracts";
+import { leadsRoute, parseLeadsRoute, type LeadBand, type LeadReachFilter } from "@chanlytics/contracts";
 import { useSurface } from "../../use-surface";
 import type { LeadsSurface } from "../surface";
 import type { Armed, DraftState, PeekMode } from "../peek/types";
@@ -140,6 +140,9 @@ export const useLeadsState = () => {
   const [values, setValues] = useState(ldValuesPref());
   const [lightboxId, setLightboxId] = useState<string | null>(null);
   const [fitChip, setFitChip] = useState<LeadFit | null>(null);
+  // The Filter's reach (contracts leadReaches): only the leads with a checked email, a checked phone, or both. Kept with
+  // the view's place, as the map is, so Back puts it back and another view starts without it.
+  const [reach, setReach] = useState<LeadReachFilter[]>([]);
   const [benchGroup, setBenchGroup] = useState<string | null>(null);
   const [mapOpen, setMapOpen] = useState(false);
   // A phone's New search: the first day's question over the page (Ruben, 10 Oct 2026), held for the view it was pressed on,
@@ -176,6 +179,8 @@ export const useLeadsState = () => {
     setLightboxId,
     fitChip,
     setFitChip,
+    reach,
+    setReach,
     benchGroup,
     setBenchGroup,
     mapOpen,

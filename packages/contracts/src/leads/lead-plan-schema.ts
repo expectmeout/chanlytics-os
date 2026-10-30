@@ -15,6 +15,7 @@ import {
   leadNotBusinessesLine,
 } from "./lead-words";
 import { BUSINESS_LINE_MAX, LEAD_MAX_PLACES } from "./search/caps";
+import { LEAD_REACH_FILTERS } from "./search/sets";
 import { leadKindKey, stateCode } from "./search/clean";
 import { lowerFirst } from "./search/sentence";
 import type { LeadArea, LeadSearchPlan } from "./search/plan";
@@ -103,7 +104,10 @@ export const LeadDraftInputSchema = z.object({
   previous: z.object({ subject: z.string().max(200), body: z.string().max(4000) }).optional(),
 });
 
-export const LeadExportQuerySchema = LeadsViewSchema;
+/** The view as a file, narrowed as the table is by a lead's reach (leadReaches), so it holds the rows the owner saw. */
+export const LeadExportQuerySchema = LeadsViewSchema.extend({
+  reach: z.array(z.enum(LEAD_REACH_FILTERS)).max(LEAD_REACH_FILTERS.length).optional(),
+});
 
 export const RenameLeadSearchSchema = z.object({ name: z.string().trim().min(1).max(80) });
 

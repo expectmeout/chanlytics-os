@@ -6,6 +6,7 @@ import type { LeadRowDto, LeadSearchDto } from "./lead-dtos";
 import { CLOCK, hourOf } from "./lead-helpers";
 import type { LeadSlot, LeadSlotState } from "./lead-row";
 import { LEAD_KIND_KEY, LEAD_UNREACHABLE_KEY, leadKindWord } from "./search/class";
+import { LEAD_REACH_FILTERS, type LeadReachFilter } from "./search/sets";
 import { LEAD_CHECK_WORDS, LEAD_LEFT_OUT_WORD, LEAD_MAILBOX_WORDS, LEAD_UNREACHABLE_WORD } from "./lead-words";
 import { weekdayNamed } from "../calendar/day-keys";
 import { clockInZone, dayInZone, dayPlusInZone } from "../calendar/zone-math";
@@ -223,6 +224,37 @@ export function leadSlots(r: Pick<LeadRowDto, "phone" | "phone_agrees" | "phone_
                 copy: true,
               };
   return { phone, mailbox };
+}
+
+/**
+ * Whether a lead meets every reach asked of it (Ruben, 30 Oct 2026: "an email list to send a sequence to vs a call
+ * list"); asked none, every lead does. Checked is the slot's own `ok`, the shape and the word the Reach column draws: a
+ * mailbox that exists, a number the same on Google Maps and on their website. The page asks it of a row's slots, the
+ * export of its DTO's (leadSlots), so the file holds the rows the table showed.
+ */
+export function leadReaches(slots: { phone: LeadSlot; mailbox: LeadSlot }, want: readonly LeadReachFilter[]): boolean {
+  return want.every((w) => (w === "email" ? slots.mailbox : slots.phone).state === "ok");
+}
+
+/** A kept or a flipped set of reach filters, each once and in the set's one order; anything else is dropped. */
+export const leadReachOf = (v: unknown): LeadReachFilter[] =>
+  Array.isArray(v) ? LEAD_REACH_FILTERS.filter((f) => v.includes(f)) : [];
+
+/** The filter's words: its two switches, their heading and the line under them, and its control with none or both on. */
+export const LEAD_REACH_WORDS = {
+  email: "Checked email",
+  phone: "Checked phone",
+  header: "Show only",
+  caption: "Checked: the mailbox exists, or the number is the same on Google Maps and their website.",
+  none: "Filter",
+  both: "Checked email and phone",
+} as const;
+
+/** What the filter's control says: Filter with nothing on, else what is on, so the row says the view it shows. */
+export function leadReachWord(want: readonly LeadReachFilter[]): string {
+  const [one, ...more] = want;
+  if (!one) return LEAD_REACH_WORDS.none;
+  return more.length ? LEAD_REACH_WORDS.both : LEAD_REACH_WORDS[one];
 }
 
 /** The tile's tint, one of six, from the kind of business: the same kind wears the same tint on every row and in the peek. */
