@@ -135,3 +135,23 @@ test("REGRESSION guard: a caller cannot write a discount, an instruction, contac
     "sensitive",
   );
 });
+
+test("a product without something and the customer's own free time are no money; a free thing still is (the 30 Oct 2026 replay)", () => {
+  const turns = [
+    said("I'm allergic to PPD, I had a bad reaction last year so I need the ammonia-free stuff please."),
+    said("Sorry, I'm only free after 5 on weekdays because of work, and feel free to text me anytime."),
+    said("Last time you said my next cut would be free, and kids cuts are free on Tuesdays right?"),
+  ];
+  const why = (kind, text, quote) => {
+    const r = checkNoteSuggestion({ worth: true, kind, text, quote }, turns, []);
+    return r.ok ? "kept" : r.why;
+  };
+  assert.equal(
+    why("sensitivity", "Allergic to PPD; needs ammonia-free colour.", "I need the ammonia-free stuff"),
+    "kept",
+  );
+  assert.equal(why("timing", "Free after 5pm on weekdays.", "I'm only free after 5 on weekdays"), "kept");
+  assert.equal(why("contact", "Happy to be texted anytime.", "feel free to text me anytime"), "kept");
+  assert.equal(why("context", "Was told the next cut is free.", "you said my next cut would be free"), "money");
+  assert.equal(why("context", "Gets kids' cuts free on Tuesdays.", "kids cuts are free on Tuesdays"), "money");
+});
