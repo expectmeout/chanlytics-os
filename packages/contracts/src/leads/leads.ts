@@ -17,9 +17,11 @@ import {
   LEAD_EMAIL_STATES,
   LEAD_FITS,
   LEAD_OPERATION_KINDS,
+  LEAD_REACH_FILTERS,
   LEAD_STAGES,
   type LeadEmailState,
   type LeadFit,
+  type LeadReachFilter,
 } from "./search/sets";
 import {
   LEAD_ERASE_WORDS,
@@ -131,6 +133,10 @@ export {
   leadCheckWord,
   LEAD_SLOT_WORDS,
   leadSlots,
+  leadReaches,
+  leadReachOf,
+  LEAD_REACH_WORDS,
+  leadReachWord,
   leadTintOf,
   LEAD_TILE_PX,
   leadTileSrc,
@@ -194,8 +200,8 @@ export type { LeadSlotState, LeadSlot, LeadRowCard, LeadBand, LeadRowVM } from "
  * here first fails `schema-sets.ts:122` with `Type 'false' does not satisfy the constraint 'true'` until the
  * generated set carries the two new kinds. Nothing below re-declares a stored set.
  */
-export { LEAD_CLOSED_REASONS, LEAD_EMAIL_STATES, LEAD_FITS, LEAD_OPERATION_KINDS, LEAD_STAGES };
-export type { LeadEmailState, LeadFit }; // A's, re-exported so a page reads one name
+export { LEAD_CLOSED_REASONS, LEAD_EMAIL_STATES, LEAD_FITS, LEAD_OPERATION_KINDS, LEAD_REACH_FILTERS, LEAD_STAGES };
+export type { LeadEmailState, LeadFit, LeadReachFilter }; // A's, re-exported so a page reads one name
 /**
  * The first day of Leads, before a workspace has kept one search or holds one lead (§8.9; redrawn 7 Oct 2026 as one
  * question and the door to Ask, canvas "Leads, the first day", option A). `ask` is what the door says, in the place a
