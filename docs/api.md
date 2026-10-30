@@ -1291,6 +1291,7 @@ Writes; for a member of the workspace the request names, owner or above; counts 
 | `sort` | one of `"fit"`, `"found"`, `"distance"`, `"business"`, `"rating"`, `"stage"`, `"pile"` | no |  |
 | `dir` | one of `"asc"`, `"desc"` | no |  |
 | `pile_list` | string (uuid) | no |  |
+| `reach` | array of one of `"email"`, `"phone"` | no | at most 2 |
 
 ## lines
 
