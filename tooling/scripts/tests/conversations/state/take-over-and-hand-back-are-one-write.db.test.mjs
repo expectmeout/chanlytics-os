@@ -548,6 +548,9 @@ test(
     if not exists (select 1 from public.tenants where id = '${t}') then
       raise exception 'not_this_database';
     end if;
+    -- The ledger's strongest lock first, held to the end: the block makes and drops a trigger on it, and taking the lower
+    -- lock CREATE TRIGGER needs and then the one DROP TRIGGER needs, while other suites write the ledger, deadlocked.
+    lock table public.decisions in access exclusive mode;
     -- The owner's own session, as PostgREST would set it: auth.uid() is theirs for the rest of the block.
     perform set_config('request.jwt.claims', '{"sub":"${owner.id}","role":"authenticated"}', true);
     -- A ledger that refuses every decision of this workspace, after the change it records has been made.
