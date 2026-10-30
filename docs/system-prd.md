@@ -1079,8 +1079,9 @@ chain end with a call or a note for the team.
   memory (a line learned from an email the owner pasted is `learned`, 00493) and the first emails of the last three started
   sequences to leads (`server/sequences/draft.ts`, `server/sequences/voice.ts`), each with what Ask drafted for it (kept
   as `as_drafted` in its `make_sequence` decision: New and Leads' "A draft by Ask" send it), its search and its first
-  email's counts (decision 0078 step 2). Ask's morning reads the cold emails the member edited since yesterday (the
-  sequences read's `edited`) and may propose a `learned` line about how they write, a card that waits for their press. A business whose domain a person in People
+  email's counts (decision 0078 step 2). On a morning after the member edited a cold email since yesterday, and only then,
+  Ask's morning reads them (the sequences read's `edited`) and may propose a `learned` line about how they write, a card
+  that waits for their press (titled "Remember this?"). A business whose domain a person in People
   writes from, or that reads like a chain, is held first. A held send (`held`, with its reason and detail) waits for its
   owner and keeps its run open; fourteen days from its planning it is given up (`kept_waiting`). A send its owner
   included past a hold carries `included_for`: past a business hold (a customer's domain, a chain, a language, abroad)

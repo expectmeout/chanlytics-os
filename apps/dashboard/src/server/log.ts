@@ -45,6 +45,7 @@ export const DASHBOARD_LOG_EVENTS = [
   "ask_model_unknown",
   "ask_model_warm_failed",
   "ask_model_warmed",
+  "ask_morning_edited_unread",
   "ask_morning_failed",
   "ask_morning_told_failed",
   "ask_notice_waits_failed",
