@@ -23,8 +23,8 @@
 
 /**
  * The models the platform asks, by their API ids: the only place an id is written (model-registry.test.mjs). Haiku 5.5
- * (15 Oct 2026, the speed plan's step 1) asks the small reads since 30 Oct 2026; Haiku 4.5 is asked by no route since,
- * and stays listed so a model a variable names is still priced.
+ * (15 Oct 2026, the speed plan's step 1) asks the small reads since 30 Oct 2026; Haiku 4.5 and Opus 5 are asked by no
+ * route since, and Sonnet 5 is a fallback alone. Each stays listed so a model a variable names is still priced.
  */
 export const MODELS = {
   OPUS_5_5: "claude-opus-5-5",
@@ -174,21 +174,27 @@ export interface ModelRoute {
 const THINKING_OFF_EFFORTS: readonly unknown[] = [undefined, "low", "medium", "high"];
 
 /**
+ * The least thinking `model` takes: `disabled` where it takes that, `between_tools` for Sonnet 5.5, whose lowest it is;
+ * null where it takes neither (Opus 5.5 cannot stop thinking), the registry does not list it, or the effort is past high.
+ */
+export function thinkingOffOf(model: string, effort?: unknown): { type: "disabled" | "between_tools" } | null {
+  const takes = modelTakes(model);
+  if (!takes || !THINKING_OFF_EFFORTS.includes(effort)) return null;
+  if (takes.thinking.includes("disabled")) return { type: "disabled" };
+  if (takes.thinking.includes("between_tools")) return { type: "between_tools" };
+  return null;
+}
+
+/**
  * The thinking a request on this purpose sends `model` when the request names none: for a route with its thinking off,
- * `disabled` to a model that takes it, `between_tools` to Sonnet 5.5, whose lowest it is; null where the route leaves
- * thinking alone, the model takes neither (Opus 5.5 cannot stop thinking), the registry does not list it, or the
- * request's effort is past high.
+ * the least the model takes (thinkingOffOf); null where the route leaves thinking alone.
  */
 export function routeThinkingFor(
   purpose: ModelPurpose,
   model: string,
   effort?: unknown,
 ): { type: "disabled" | "between_tools" } | null {
-  const takes = modelTakes(model);
-  if (modelRoute(purpose).thinking !== "off" || !takes || !THINKING_OFF_EFFORTS.includes(effort)) return null;
-  if (takes.thinking.includes("disabled")) return { type: "disabled" };
-  if (takes.thinking.includes("between_tools")) return { type: "between_tools" };
-  return null;
+  return modelRoute(purpose).thinking === "off" ? thinkingOffOf(model, effort) : null;
 }
 
 /**
@@ -222,6 +228,13 @@ const WEBSITE_READ_TRY_MS = 25_000;
  * Opus 5 held, a quarter cheaper and sooner; Haiku 5.5 with its thinking off read as well or better than Haiku 4.5 at a
  * ninth of the price, and a reach-out's honest openings went from 42% of its checks to 85%; Sonnet 5.5 costs what
  * Sonnet 5 does. Each fallback that was Sonnet 5 on these routes is Sonnet 5.5.
+ *
+ * The same day, the routes left on Sonnet 5, each draft asked through the dashboard's own code: Sonnet 5 thinks inside a
+ * small cap, and the template drafter ran out of its 900 tokens on 3 drafts in 12 ("not well-formed"); Sonnet 5.5 with
+ * its thinking off wrote all 12 in a third of the time, and every lead draft and review reply, keeping to the facts
+ * given where Sonnet 5 once offered a person's own booked visit as an open slot. Sonnet 5.5 as it thinks by default
+ * ran out of a review reply's 300 tokens and wrote nothing, so these routes keep their thinking off. Ask's rounds on
+ * Sonnet 5.5 chose the tools Sonnet 5 chose, sooner and for less.
  */
 export const MODEL_ROUTES = {
   // Its intent, the class that intent falls under, and whether the customer asked to stop, are closed sets.
@@ -234,10 +247,28 @@ export const MODEL_ROUTES = {
     shadow: "typesafe",
   },
   reply_draft: { model: OPUS_5_5, fallback: SONNET_5_5, timeoutMs: RECEPTIONIST_TRY_MS, retries: 1, maxTokens: 900 },
-  ask: { model: OPUS_5_5, fallback: SONNET_5, timeoutMs: ASK_TRY_MS, retries: 0, maxTokens: 4000 },
-  lead_json: { model: SONNET_5, fallback: OPUS_5, timeoutMs: DRAFT_TRY_MS, retries: 0, maxTokens: 2000 },
-  template_draft: { model: SONNET_5, fallback: OPUS_5, timeoutMs: DRAFT_TRY_MS, retries: 0, maxTokens: 900 },
-  review_reply: { model: SONNET_5, fallback: OPUS_5, timeoutMs: REVIEW_TRY_MS, retries: 1, maxTokens: 300 },
+  ask: { model: OPUS_5_5, fallback: SONNET_5_5, timeoutMs: ASK_TRY_MS, retries: 0, maxTokens: 4000 },
+  // The dashboard's small drafts (a lead's email, a person's message, a list, a sequence), each a record at low effort.
+  lead_json: {
+    model: SONNET_5_5,
+    fallback: SONNET_5,
+    timeoutMs: DRAFT_TRY_MS,
+    retries: 0,
+    maxTokens: 2000,
+    thinking: "off",
+  },
+  // Its model is the template drafter's (campaigns/templates.ts DRAFT_MODEL), which asks as Ask's round and names its
+  // own thinking off (thinkingOffOf). What is asked as this purpose is a skill's craft call on Ask's model at high
+  // effort, whose fallback is this model: that one keeps its thinking, so the route leaves thinking alone.
+  template_draft: { model: SONNET_5_5, fallback: SONNET_5, timeoutMs: DRAFT_TRY_MS, retries: 0, maxTokens: 900 },
+  review_reply: {
+    model: SONNET_5_5,
+    fallback: SONNET_5,
+    timeoutMs: REVIEW_TRY_MS,
+    retries: 1,
+    maxTokens: 300,
+    thinking: "off",
+  },
   // The judge's own rescue is the API's server-side fallback (decision 14); an overload is the jobs ledger's retry.
   // Opus 5.5 answers a call in 9 seconds where Opus 5 took 12, and reads a website or an email the listing does not show
   // as missing (fail), where Opus 5 said it could not tell (Ruben, 30 Oct 2026: missing).

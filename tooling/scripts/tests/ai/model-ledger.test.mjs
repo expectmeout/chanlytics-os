@@ -9,7 +9,7 @@
 import { test, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
-import { MODEL_ROUTES, MODELS, BRAIN_OUTPUT_JSON_SCHEMA } from "@chanlytics/contracts";
+import { MODEL_ROUTES, BRAIN_OUTPUT_JSON_SCHEMA } from "@chanlytics/contracts";
 import { resetBreakers } from "@chanlytics/channels";
 import { fakeDb } from "../_fake-db.mjs";
 import { at, withEnv } from "../_cron-doors-world.mjs";
@@ -322,7 +322,7 @@ test("the notes sweep, the reach-out check and the review reply each write their
     t.ai_usage.map((x) => x.purpose),
     ["note_suggest", "reach_out_check", "review_reply"],
   );
-  assert.equal(t.ai_usage[2].model, MODELS.SONNET_5);
+  assert.equal(t.ai_usage[2].model, MODEL_ROUTES.review_reply.model);
 
   world({ status: "paused" });
   const held = await draftReviewReply(
