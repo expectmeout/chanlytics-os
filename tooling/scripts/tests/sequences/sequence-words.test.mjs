@@ -419,6 +419,26 @@ test("a row ends on its state only where it is not On; the head's line says what
     "none asks",
   );
   assert.equal(sequenceSubLine(oneOff, rec, NOW), "One message · goes on its own");
+  // A sequence to leads fed by a list asks before each first email whatever its mode (00426: each lead was added by
+  // hand); one on its search holds as its mode says (30 Oct 2026: the line said it held what waited for an OK).
+  const leads = row({
+    starts: "leads",
+    mode: "veto",
+    first: { ...row().first, search_name: "Auto shops", owner_sends: false },
+  });
+  assert.equal(
+    sequenceSubLine(leads, { ...rec, fed_by: "list" }, NOW),
+    "Leads from “Auto shops” · asks you before each first email",
+  );
+  assert.equal(
+    sequenceSubLine(leads, { ...rec, fed_by: "search" }, NOW),
+    "Leads from “Auto shops” · holds each batch for you to stop",
+  );
+  assert.equal(
+    sequenceSubLine(leads, rec, NOW),
+    "Leads from “Auto shops” · holds each batch for you to stop",
+    "a list's row knows no feed",
+  );
 });
 
 test("what goes next: a made batch's day and size, else its first step's next run by its hour, never what it cannot know", () => {

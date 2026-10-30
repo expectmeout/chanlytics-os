@@ -4,7 +4,7 @@
  * every number is counted from what the readers answer (sequence-dto.ts), so a figure here is the one Reports says.
  */
 import { toSendRowOf, type ToSendRowVM } from "../reach-out/reach-out-approval";
-import { HELD_TAKE_OUT, heldAnswersOf, heldWhyOf, type HeldAnswer } from "./sequence-held";
+import { HELD_TAKE_OUT, heldAnswersOf, heldWhyOf, waitingAnswersOf, type HeldAnswer } from "./sequence-held";
 import { isReachOutHold, type ReachOutHold } from "../reach-out/reach-out-words";
 import { personHandWords, type HandKind } from "../reach-out/reach-out-hand";
 import { REPLY_INTENT_WORDS, isReplyIntent } from "../reach-out/reach-out-replies";
@@ -235,7 +235,51 @@ export const SEQUENCE_PEOPLE_WORDS = {
   addedAt: (at: string) => `Added ${at}`,
   /** Leads added and not planned yet, by the sequence's state: what the Added fold says beside its count. */
   queued: { draft: "they join when you start it", paused: "they wait until it's on", on: "in its next batch" },
+  /** An email waiting for an OK whose opening the check is writing: asked again, or not written yet. */
+  writing: "Its opening is being written…",
 } as const;
+
+/**
+ * An email waiting for your OK, as People lays it out (30 Oct 2026): the opening it goes with, read before the batch is
+ * approved, and what may be done about it alone. The opening is its send's, as the business reads it.
+ */
+export interface SequenceWaitingEmailVM {
+  id: string;
+  /** The batch it waits in: what its answer's receipt names. */
+  batchId: string | null;
+  leadId: string | null;
+  name: string;
+  /** The opening in its quotes; the words for one being written; null where its step's words have none. */
+  opening: string | null;
+  /** Its opening is being written: no rewrite is asked while it is. */
+  checking: boolean;
+  answers: HeldAnswer[];
+}
+
+/**
+ * The emails waiting for an OK, from People's read, each with its opening and its answers, both quiet since nothing is
+ * wrong with it: Rewrite the opening where it has one, and leaving it out, Take out at step 1 (its lead leaves the
+ * sequence) and Skip this email after it, as a held email's (heldAnswersOf). A row from a server that carries no opening
+ * is not among them: it is drawn as it was (30 Oct 2026: an OK sent openings the owner never read, five of them guesses).
+ */
+export function waitingEmailsOf(rows: readonly SequencePersonDto[]): SequenceWaitingEmailVM[] {
+  return rows.flatMap((r): SequenceWaitingEmailVM[] => {
+    if (r.group !== "waiting" || !r.send_id || r.checked === undefined || r.opening === undefined) return [];
+    const opening = r.opening?.trim() || null;
+    const checking = !r.checked;
+    return [
+      {
+        id: r.send_id,
+        batchId: r.batch_id,
+        leadId: r.lead_id,
+        name: r.name ?? SEQUENCE_PEOPLE_WORDS.someone,
+        opening: checking ? SEQUENCE_PEOPLE_WORDS.writing : opening ? `“${opening}”` : null,
+        checking,
+        answers: waitingAnswersOf({ opening, checking }, r.place),
+      },
+    ];
+  });
+}
 
 /** The periods History counts over: the kit's segmented choice, the last 30 days first. */
 export const SEQUENCE_HISTORY_PERIODS = [

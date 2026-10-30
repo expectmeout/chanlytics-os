@@ -25,6 +25,7 @@ import {
   listStartsSentence,
   peopleNeedsOf,
   stepApprovalOf,
+  waitingEmailsOf,
 } from "@chanlytics/contracts";
 
 const TZ = "America/New_York";
@@ -261,4 +262,62 @@ test("a new sequence starts on a list by the token the composer writes; the edit
   // A list's start reads the same on a record and on a draft about to be made.
   assert.equal(listStartsSentence("Clients", 10), "Someone joins Clients, at 10:00 AM");
   assert.equal(listStartsSentence(null, null), "Someone joins the list");
+});
+
+test("an email waiting for your OK shows the opening it carries, and may be rewritten or left out before you approve (30 Oct 2026)", () => {
+  const waiting = (id, over = {}) => ({
+    group: "waiting",
+    send_id: id,
+    name: `Shop ${id}`,
+    lead_id: `lead-${id}`,
+    enrollment_id: null,
+    contact_id: null,
+    batch_id: "b1",
+    place: 1,
+    at: "2026-10-30T13:00:00Z",
+    why: null,
+    hold_detail: null,
+    opening: "Shop a runs Monday through Saturday with a 4.8 rating across 66 reviews.",
+    checked: true,
+    ...over,
+  });
+  const [written, again, plain, later] = waitingEmailsOf([
+    waiting("a"),
+    waiting("b", { opening: null, checked: false }),
+    waiting("c", { opening: null }),
+    waiting("d", { place: 2 }),
+  ]);
+  // The sentence it goes with, as the business reads it, and both answers quiet: nothing is wrong with it.
+  assert.equal(written.id, "a");
+  assert.equal(written.batchId, "b1");
+  assert.equal(written.opening, "“Shop a runs Monday through Saturday with a 4.8 rating across 66 reviews.”");
+  assert.deepEqual(
+    written.answers.map((a) => [a.door, a.words, a.lead]),
+    [
+      ["rewrite", "Rewrite the opening", false],
+      ["take_out", SEQUENCE_PEOPLE_WORDS.takeOut, false],
+    ],
+  );
+  // Asked again: said so, and not rewritten twice while the check writes it.
+  assert.equal(again.opening, SEQUENCE_PEOPLE_WORDS.writing);
+  assert.equal(again.checking, true);
+  assert.deepEqual(
+    again.answers.map((a) => a.door),
+    ["take_out"],
+  );
+  // A step whose words have no opening: nothing to rewrite.
+  assert.equal(plain.opening, null);
+  assert.deepEqual(
+    plain.answers.map((a) => a.door),
+    ["take_out"],
+  );
+  // From step 2 an email is skipped, its lead staying in for the steps after.
+  assert.deepEqual(
+    later.answers.map((a) => a.door),
+    ["rewrite", "skip"],
+  );
+  // A server before this read carries no opening: its rows are drawn as they were, with no answers.
+  assert.deepEqual(waitingEmailsOf([{ ...waiting("e"), opening: undefined, checked: undefined }]), []);
+  // Only those waiting: a held email has its own row (peopleNeedsOf).
+  assert.deepEqual(waitingEmailsOf([{ ...waiting("f"), group: "held", why: "chain" }]), []);
 });

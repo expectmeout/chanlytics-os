@@ -8,7 +8,7 @@
  * person or the lead. Someone still in it may be taken out, alone or with the rest of their group: a send of theirs not
  * yet gone is skipped with them (00442 sequence_leave).
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   PEOPLE_GROUP_WORDS,
   SEQUENCE_NEEDS_WORDS as N,
@@ -19,9 +19,12 @@ import {
   peopleNeedsOf,
   sequenceLeftWords,
   sequenceRepliesRoute,
+  waitingEmailsOf,
+  type HeldChoice,
   type SequencePeopleGroup,
   type SequencePersonDto,
   type SequenceRecordDto,
+  type SequenceWaitingEmailVM,
 } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { FailedRead } from "../../kit/empty/empty";
@@ -29,7 +32,7 @@ import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { ListRow } from "../../kit/list-row/list-row";
 import { RecordDisclosure } from "../../kit/record/disclosure";
-import { gate, routeDoor } from "../../legacy-verbs";
+import { canDo, gate, routeDoor } from "../../legacy-verbs";
 import type { LegacyFlash } from "../../legacy-verbs";
 import { leadOverDoor, useLeadOver } from "../../leads/sheet/lead-over";
 import { tripNow } from "./trip";
@@ -178,9 +181,120 @@ function GroupRows({ g, rows, whole, rec, busy, takeOut, lit }: GroupProps) {
   );
 }
 
+interface WaitingProps {
+  rows: SequencePersonDto[];
+  emails: readonly SequenceWaitingEmailVM[];
+  rec: SequenceRecordDto;
+  flash: Flash;
+  moved: () => void;
+  lit: string | null;
+}
+
+/**
+ * The emails waiting for your OK, each read before the batch goes (30 Oct 2026): its step and when, the opening it goes
+ * with in its quotes, and its answers, quiet, each pressed alone without opening the lead the row is a door to. Take out,
+ * at step 1, is the leave verb on its lead; every other answer the decide verb a held email's takes.
+ */
+function WaitingEmails({ rows, emails, rec, flash, moved, lit }: WaitingProps) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const nowMs = Date.now();
+  const may = canDo("approve");
+  const answer = async (e: SequenceWaitingEmailVM, door: HeldChoice) => {
+    setBusy(e.id);
+    if (door === "take_out")
+      await pressed(
+        "sequence_leave",
+        { sequence_id: rec.sequence.id, enrollment_ids: [], lead_ids: e.leadId ? [e.leadId] : [], name: e.name },
+        flash,
+        moved,
+      );
+    else
+      await pressed(
+        "sequence_send_decide",
+        { send_id: e.id, decision: door, name: e.name, run_id: e.batchId },
+        flash,
+        moved,
+      );
+    setBusy(null);
+  };
+  return (
+    <div className="sq-group-rows">
+      {emails.map((e) => {
+        const r = rows.find((x) => x.send_id === e.id);
+        return (
+          <ListRow
+            key={e.id}
+            face={{ person: { name: e.name }, size: "sm" }}
+            name={e.name}
+            said={(place) => (
+              <div className={`${place} sq-waiting-said`}>
+                {r ? personLineOf(r, rec.timezone, nowMs) : null}
+                {e.opening ? (
+                  <q
+                    className={e.checking ? "sq-waiting-opening sq-waiting-writing" : "sq-waiting-opening"}
+                    data-testid="sq-waiting-opening"
+                  >
+                    {e.checking ? e.opening : e.opening.slice(1, -1)}
+                  </q>
+                ) : null}
+              </div>
+            )}
+            facts={
+              may && e.answers.length > 0
+                ? [
+                    <div key="answers" className="sq-held-answers">
+                      {e.answers.map((a) => (
+                        <Button
+                          key={a.door}
+                          size="sm"
+                          variant="quiet"
+                          disabled={busy !== null}
+                          aria-busy={busy === e.id || undefined}
+                          onClick={(ev) => {
+                            // The row is a door to the lead (leadOverDoor): the press answers the email, and opens nothing.
+                            ev.preventDefault();
+                            ev.stopPropagation();
+                            void answer(e, a.door);
+                          }}
+                          data-testid={`sq-waiting-${a.door}`}
+                        >
+                          {a.words}
+                        </Button>
+                      ))}
+                    </div>,
+                  ]
+                : []
+            }
+            className={lit && e.leadId === lit ? "sq-row-lit" : undefined}
+            ref={lit && e.leadId === lit ? litInView : undefined}
+            data-testid="sq-waiting-email"
+            {...(e.leadId ? leadOverDoor(e.leadId) : {})}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+/** How often People is read again while an opening it shows is being written: the check's clock runs every minute. */
+const WRITING_READ_MS = 15_000;
+
+/** People's read, read again while an opening it shows is being written, until it is back. */
+function usePeopleRead(id: string, again: number) {
+  const [tick, setTick] = useState(0);
+  const read = useSequenceRead(id, verbs.people, verbs.peekPeople, { again: again + tick });
+  const writing = read.state === "read" && waitingEmailsOf(read.data.rows).some((e) => e.checking);
+  useEffect(() => {
+    if (!writing) return undefined;
+    const t = setInterval(() => setTick((n) => n + 1), WRITING_READ_MS);
+    return () => clearInterval(t);
+  }, [writing]);
+  return read;
+}
+
 export function SequencePeople(p: { rec: SequenceRecordDto; flash: Flash; again: number; moved: () => void }) {
   const { rec, flash, again, moved } = p;
-  const read = useSequenceRead(rec.sequence.id, verbs.people, verbs.peekPeople, { again });
+  const read = usePeopleRead(rec.sequence.id, again);
   const [busy, setBusy] = useState<string | null>(null);
   const lit = useLitLead();
   if (read.state === "failed")
@@ -199,6 +313,9 @@ export function SequencePeople(p: { rec: SequenceRecordDto; flash: Flash; again:
   const of = (g: SequencePeopleGroup) => rows.filter((r) => r.group === g);
   const needs = (counts.held ?? 0) + (counts.to_send ?? 0);
   const waiting = of("waiting");
+  const emails = waitingEmailsOf(waiting);
+  // A row with no email read with it (a server before the openings) is drawn as it was.
+  const plainWaiting = waiting.filter((r) => !emails.some((e) => e.id === r.send_id));
   const folded = FOLDED.filter((g) => (counts[g] ?? 0) > 0);
   const { wroteBack } = peopleNeedsOf(rows, { timezone: rec.timezone, now: nowMs });
   // From a server before 00455 there is no replied group: the sequence's needs say how many, and the Inbox has them.
@@ -258,15 +375,20 @@ export function SequencePeople(p: { rec: SequenceRecordDto; flash: Flash; again:
             {PEOPLE_GROUP_WORDS.waiting}
             <span className="tally tally-warn">{counts.waiting}</span>
           </h3>
-          <GroupRows
-            g="waiting"
-            rows={waiting}
-            whole={counts.waiting ?? 0}
-            rec={rec}
-            busy={busy}
-            takeOut={takeOut}
-            lit={lit}
-          />
+          {emails.length > 0 ? (
+            <WaitingEmails rows={waiting} emails={emails} rec={rec} flash={flash} moved={moved} lit={lit} />
+          ) : null}
+          {plainWaiting.length > 0 || (counts.waiting ?? 0) > waiting.length ? (
+            <GroupRows
+              g="waiting"
+              rows={plainWaiting}
+              whole={(counts.waiting ?? 0) - emails.length}
+              rec={rec}
+              busy={busy}
+              takeOut={takeOut}
+              lit={lit}
+            />
+          ) : null}
         </section>
       ) : null}
       <div className="sq-folds">

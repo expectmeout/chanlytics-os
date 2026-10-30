@@ -64,3 +64,17 @@ export function heldAnswersOf(h: { reason: string | null; detail: string | null 
     return { door, words: door === "take_out" ? HELD_TAKE_OUT : HOLD_DOOR_WORDS[d], lead: at === 0 && fixes };
   });
 }
+
+/**
+ * The answers an email waiting for an OK offers, read before its batch goes (30 Oct 2026; a sequence's Leads tab and a
+ * run's Who gets it, one rule): Rewrite the opening where it has one and the check is not writing it, then the no at its
+ * step, Take out at step 1 and Skip this email after, as a held email's. None leads: nothing is wrong with it.
+ */
+export function waitingAnswersOf(e: { opening: string | null; checking: boolean }, place: number | null): HeldAnswer[] {
+  const rewrite: HeldAnswer[] =
+    e.opening && !e.checking ? [{ door: "rewrite", words: HOLD_DOOR_WORDS.rewrite, lead: false }] : [];
+  const no = heldAnswersOf({ reason: null, detail: null }, place)
+    .filter((a) => a.door !== "include")
+    .map((a) => ({ ...a, lead: false }));
+  return [...rewrite, ...no];
+}

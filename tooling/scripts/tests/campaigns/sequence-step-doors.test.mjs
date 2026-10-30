@@ -289,3 +289,45 @@ test("Ask's cold email starts at the pace every new sequence starts at, one emai
   // One the model names is kept.
   assert.equal((await card({ gap_minutes: 30 })).payload.chain.gap_minutes, 30);
 });
+
+test("Ask's cold email is signed as New signs it, by the member's first name, unless it names who signs (30 Oct 2026)", async () => {
+  const SEARCH = "5eed0000-0000-4000-8000-000000000001";
+  const card = async (profiles, more = {}) => {
+    const supabase = fakeDb(
+      {
+        memberships: [
+          { user_id: USER, tenant_id: A, role: "operator", tenants: { slug: "harbor" }, created_at: "2026-01-01" },
+        ],
+        tenants: [{ id: A, name: "Harbor", timezone: TZ, config: {} }],
+        policies: [],
+        lead_searches_view: [{ id: SEARCH, tenant_id: A, name: "Plumbers in Queens" }],
+        mailbox_connections: [],
+        profiles,
+      },
+      {},
+      {},
+    );
+    const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "operator", TZ, NOW);
+    const out = await buildProposal(t, "propose_sequence", {
+      action: "cold_email",
+      name: "Plumbers in Queens",
+      search_id: SEARCH,
+      steps: [
+        { subject: "Quick one for {{business}}", body: "{{opening}}\n\nI run Harbor. Would it be worth a look?" },
+        { body: "Just following up.\n\n- {{your name}}", after_days: 4 },
+      ],
+      ...more,
+    });
+    assert.ok(out.proposal, out.result);
+    return out.proposal.payload.chain;
+  };
+  // REGRESSION: Ask made a sequence with no one to sign it; its first emails ended unsigned and its second, which names
+  // {{your name}}, was held by the sender (no_signed_by) while its preview signed it with the member's name.
+  assert.equal((await card([{ user_id: USER, display_name: "Ada Lovelace" }])).signed_by, "Ada");
+  assert.equal(
+    (await card([{ user_id: USER, display_name: "Ada Lovelace" }], { signed_by: "Grace" })).signed_by,
+    "Grace",
+  );
+  // A member with no name of their own is never signed as their address: the step's sender then says so.
+  assert.equal((await card([])).signed_by, null);
+});

@@ -191,7 +191,7 @@ function OpenRecord(p: {
     <CmPane
       title={row.name}
       badge={<StatePill kind="tone" value={sequenceStateTone(row)} label={sequenceStateWords(row)} />}
-      sub={sequenceSubLine(row, { word: rec.word, timezone: rec.timezone }, Date.now())}
+      sub={sequenceSubLine(row, { word: rec.word, timezone: rec.timezone, fed_by: rec.fed_by }, Date.now())}
       tools={<HeadActs a={a} phone={phone} />}
       foot={foot}
       onClose={close}

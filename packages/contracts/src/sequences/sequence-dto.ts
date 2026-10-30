@@ -186,6 +186,13 @@ export interface SequencePersonDto {
    */
   draft?: SequencePersonDraftDto | null;
   /**
+   * On a reached-out email waiting for an OK or held (its send's), the opening it goes with: null while the check writes
+   * it, or where its step's words have none. Absent on every other row, and from a server before it (30 Oct 2026).
+   */
+  opening?: string | null;
+  /** Beside `opening`: whether the check has read the email yet. */
+  checked?: boolean;
+  /**
    * On a replied row (00455), the reply that asks for an answer, the one the overview counts: what they said and the
    * conversation it is answered in. Null on every other row, and absent from a server before 00455.
    */

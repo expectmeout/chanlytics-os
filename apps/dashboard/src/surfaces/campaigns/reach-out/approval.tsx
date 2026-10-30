@@ -204,6 +204,17 @@ function RoRunMail({ vm }: { vm: RunWords }) {
             ),
           )}
         </p>
+        {/* How it ends as they read it (0077): the mailbox's signature where it signs with one, then the send's foot. */}
+        {mail.signature ? (
+          <p className="ro-mail-body ro-mail-sig" data-testid="ro-run-signature">
+            {mail.signature}
+          </p>
+        ) : null}
+        {mail.foot ? (
+          <p className="ro-mail-legal" data-testid="ro-run-legal">
+            {mail.foot}
+          </p>
+        ) : null}
         {mail.opening || mail.same ? (
           <p className="ro-mail-foot">
             {mail.opening ? <span className="ro-mail-note ro-mail-own">{mail.opening}</span> : null}
@@ -257,14 +268,33 @@ function RoName({ name, leadId, testid }: { name: string; leadId: string | null;
   );
 }
 
+/** The doors a row of Who gets it presses (useRoRunDoors): the same walk a held row's answer takes. */
+interface RowDoors {
+  busy: string | null;
+  said: Said | null;
+  answer: (id: string, door: HeldChoice, name: string, leadId: string | null) => Promise<unknown>;
+}
+
 /**
- * Who gets it: the checked, ready sends, each its tile, its name and when, a clock time in figures; those still being
- * checked said under them (R21). A pane folded under its head (the name, how many, the chevron), open from the start on a
- * run that is going; opened by a press, it is brought into view.
+ * Who gets it: the checked, ready sends, each its tile, its name and when, a clock time in figures; under the name the
+ * opening it goes with and its answers, Rewrite the opening and Take out, read before Approve sends it (30 Oct 2026: the
+ * Leads tab's same row); those still being checked said under them (R21). A pane folded under its head (the name, how
+ * many, the chevron), open from the start on a run that is going; opened by a press, it is brought into view.
  */
-function RoRunList({ vm, runId, startOpen }: { vm: RunWords; runId: string; startOpen: boolean }) {
+function RoRunList({
+  vm,
+  runId,
+  startOpen,
+  doors,
+}: {
+  vm: RunWords;
+  runId: string;
+  startOpen: boolean;
+  doors: RowDoors;
+}) {
   const [open, setOpen] = useState(startOpen);
   const pressedOpen = useRef(false);
+  const may = canDo("approve");
   if (vm.list.length === 0) return null;
   const id = `ro-who-${runId}`;
   return (
@@ -300,7 +330,36 @@ function RoRunList({ vm, runId, startOpen }: { vm: RunWords; runId: string; star
           ? vm.list.map((x) => (
               <div key={x.id} className="ro-whor" data-testid="ro-run-person">
                 <Face person={{ name: x.name }} tile={faceTileOf(x.name)} />
-                <RoName name={x.name} leadId={x.leadId} testid="ro-person-lead" />
+                <div className="ro-whor-main">
+                  <RoName name={x.name} leadId={x.leadId} testid="ro-person-lead" />
+                  {x.opening ? (
+                    <q className="ro-whor-opening" data-testid="ro-person-opening">
+                      {x.opening}
+                    </q>
+                  ) : null}
+                  {may && x.answers.length > 0 ? (
+                    <div className="ro-hrow-acts">
+                      {x.answers.map((a) => (
+                        <Button
+                          key={a.door}
+                          variant="quiet"
+                          className="ro-ans ro-ans-q"
+                          disabled={doors.busy !== null}
+                          aria-busy={doors.busy === x.id || undefined}
+                          onClick={() => void doors.answer(x.id, a.door, x.name, x.leadId)}
+                          data-testid={`ro-person-door-${a.door}`}
+                        >
+                          {a.words}
+                        </Button>
+                      ))}
+                    </div>
+                  ) : null}
+                  {doors.said && doors.said.id === x.id ? (
+                    <p className="ro-hrow-said" role="alert" data-testid="ro-person-said">
+                      {doors.said.text}
+                    </p>
+                  ) : null}
+                </div>
                 <small className={x.clock ? "mono" : undefined}>{x.at}</small>
               </div>
             ))
@@ -506,7 +565,7 @@ export function ReachOutRun({ d, onDecided = () => undefined, flash = null, arme
         onRecheck={() => void doors.recheck()}
       />
     ) : null;
-  const list = <RoRunList key="list" vm={vm} runId={b.id} startOpen={!waiting} />;
+  const list = <RoRunList key="list" vm={vm} runId={b.id} startOpen={!waiting} doors={doors} />;
   return (
     <div className="bc-sheet ro-run bc-approval" data-testid="ro-run" data-state={b.state}>
       {armed ? <div className="ro-scrim" aria-hidden="true" /> : null}

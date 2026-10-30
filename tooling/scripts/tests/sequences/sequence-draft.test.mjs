@@ -848,3 +848,14 @@ test("Meta's review holds a scheduled one-off too; late at night 'now' says when
     words: "A step can wait on a booking.",
   });
 });
+
+test("an email to leads is the same words for every business: the draft is told to claim nothing about the business, which only the opening may (30 Oct 2026)", async () => {
+  answerWith(
+    answer({ audience: "leads", who: "s1", steps: [step({ subject: "Hi", body: "{{opening}}\n\nWorth a look?" })] }),
+  );
+  await draftFrom(KNOWN, LINE, { tenantId: "t1", userId: "u1" });
+  const system = String(calls[calls.length - 1].request.system);
+  // REGRESSION: a draft wrote "I imagine the phone keeps ringing while you're mid-repair" into every email of a sequence.
+  assert.match(system, /the same words for every business/);
+  assert.match(system, /how busy it is/);
+});

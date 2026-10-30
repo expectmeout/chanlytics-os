@@ -19,6 +19,7 @@ import {
   nextRunWords,
   paceWords,
   reachLineOf,
+  reachOutRunWordsOf,
   sheetFootWords,
   startWords,
   stepLabel,
@@ -242,6 +243,9 @@ test("a run waiting on its owner says the decision first: how many go and of how
     subject: "The calls you miss",
     opening: "Opening: its own for each",
     same: "Offer and ask: the same for all 41",
+    // A run read with no ending of its own: its words alone (30 Oct 2026).
+    signature: null,
+    foot: null,
   });
   // Approve says the count it releases (the run-to-leads canvas's "Approve 2"); when it goes is the foot's, beside it.
   assert.equal(w.approve, "Approve 30");
@@ -583,4 +587,42 @@ test("the chain row's own words: its pace from its mailboxes, its path, the held
     "no mailbox: never a pace of 0 a day",
   );
   assert.equal(REACH_OUT_ROW_WORDS.paused("Movers"), "Movers is paused — nothing more is planned until you resume it");
+});
+
+test("who gets it carries each email's opening and its answers, read before the batch goes; none from a read before them (30 Oct 2026)", () => {
+  const at = {
+    state: "pending_approval",
+    timezone: "America/Chicago",
+    today: "2026-09-28",
+    now: Date.parse("2026-09-28T14:00:00Z"),
+  };
+  const run = (step_n, planned) => reachOutRunWordsOf(RUN({ step_n, planned, today: planned.length, checking: 0 }), at);
+  const p = (n, opening) => ({
+    send_id: `p${n}`,
+    lead_id: `l${n}`,
+    business_name: `Studio ${n}`,
+    send_at: "2026-09-28T15:40:00Z",
+    checked: true,
+    opening,
+  });
+  const first = run(0, [p(1, "A 4.9 from 16 reviews says people find you."), p(2, null)]).list;
+  assert.equal(first[0].opening, "A 4.9 from 16 reviews says people find you.");
+  assert.deepEqual(
+    first[0].answers.map((a) => [a.door, a.words, a.lead]),
+    [
+      ["rewrite", "Rewrite the opening", false],
+      ["take_out", "Take out", false],
+    ],
+  );
+  // Not written yet: nothing to rewrite, and the lead may still be taken out.
+  assert.deepEqual([first[1].opening, first[1].answers.map((a) => a.door)], [null, ["take_out"]]);
+  // From step 2 the email is skipped, the lead staying in for the steps after.
+  assert.deepEqual(
+    run(1, [p(1, "Hi.")]).list[0].answers.map((a) => a.door),
+    ["rewrite", "skip"],
+  );
+  // A read from a server before the openings offers nothing at the row: it is drawn as it was.
+  const before = run(0, [{ send_id: "p1", business_name: "Studio 1", send_at: "2026-09-28T15:40:00Z", checked: true }])
+    .list[0];
+  assert.deepEqual([before.opening, before.answers], [null, []]);
 });

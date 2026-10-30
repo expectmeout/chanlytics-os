@@ -540,7 +540,8 @@ const theirs = (name: string) => (/s$/i.test(name) ? `${name}'` : `${name}'s`);
 
 const DECIDED: Record<(typeof REACH_OUT_DECISIONS)[number], (name: string) => string> = {
   include: (name) => `${theirs(name)} email goes as written`,
-  rewrite: (name) => `${theirs(name)} opening is written again`,
+  // Said as it is: the check writes it within the minute, and People shows it being written until it is back.
+  rewrite: (name) => `${theirs(name)} opening is being written again`,
   skip: (name) => `${name} is left out of this batch`,
   not_a_fit: (name) => `${name} is set aside: not a fit`,
 };
