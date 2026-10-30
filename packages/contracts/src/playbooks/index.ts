@@ -61,6 +61,8 @@ export {
   lifecycleStateOf,
 } from "./lifecycle/lifecycle-words";
 export type { LifecycleState } from "./lifecycle/lifecycle-words";
+export { campaignBlockWords, campaignFixCard, campaignLine, campaignReachable, nobodyNamedWords } from "./new-campaign";
+export type { CampaignBlock } from "./new-campaign";
 export { campaignChannelsOf, playbookChannelsRead, WHATSAPP_VERSION_ALONE } from "./playbook-channels";
 export type { ChannelStand, PlaybookChannelsRead, PlaybookMessage } from "./playbook-channels";
 export { PLAYBOOK_CALENDAR_UNREAD, playbookFailedAbout, playbookFailedWords } from "./playbook-failed";

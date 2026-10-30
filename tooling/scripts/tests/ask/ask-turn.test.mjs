@@ -59,6 +59,7 @@ import {
   v1FromAnswer,
   EVERYONE_LABEL,
   NO_NUMBER_REACH,
+  PLAYBOOK_CARD_REFUSALS,
   noChannelWords,
   noNumberWords,
   toPersonVM,
@@ -4828,7 +4829,7 @@ test("REGRESSION: campaigns.playbooks tells who said yes from who a run can reac
   }
 });
 
-test("REGRESSION: a proposed playbook's card says who said yes apart from who a run reaches -- '0 on the list said yes now' about a list whose yes had no number", async () => {
+test("REGRESSION: a proposed playbook says who said yes apart from who a run reaches -- '0 on the list said yes now' about a list whose yes had no number; one that reaches nobody is no card, and says what they lack", async () => {
   const t = tables({
     templates: [
       {
@@ -4845,24 +4846,30 @@ test("REGRESSION: a proposed playbook's card says who said yes apart from who a 
       },
     ],
   });
-  /** The card's summary, the words the owner approves it from and the model reads back. */
-  const summary = async (people) => {
+  /** What the act answers for these people: the card, or why there is none. */
+  const proposed = async (people) => {
     const tc = newToolContext(ctxFor(t, { ...RPCS, people_list: () => people }), A, "owner", TZ, NOW);
-    const r = await buildProposal(tc, "propose_sequence", {
+    return buildProposal(tc, "propose_sequence", {
       action: "moment",
       trigger: "everyone_monthly",
       template_id: TPL,
       params: [],
     });
+  };
+  /** The card's summary, the words the owner approves it from and the model reads back. */
+  const summary = async (people) => {
+    const r = await proposed(people);
     assert.equal(r.isError, false, r.result);
     return r.proposal.summary;
   };
-  // Ana said yes to offers and has no number; Luis has one and said yes to messages only: nobody can be sent a run.
+  // Ana said yes to offers and has no number; Luis has one and said yes to messages only: nobody can be sent a run, so no
+  // card (the 30 Oct 2026 review, item 6), and the model hears that Ana's yes has no number to go to, never "0 said yes".
   const [ana, luis] = threeAnswers();
-  const noNumber = await summary([ana, luis]);
-  assert.ok(
-    noNumber.includes(" · 1 person on the list said yes to offers, with no number to send to · "),
-    `REGRESSION: ${noNumber}`,
+  const noNumber = await proposed([ana, luis]);
+  assert.equal(noNumber.isError, true, `REGRESSION: a card that reaches nobody was made: ${noNumber.result}`);
+  assert.equal(
+    JSON.parse(noNumber.result).error,
+    PLAYBOOK_CARD_REFUSALS.reachesNobody("1 person said yes to offers, and has no number to send to.", null),
   );
   // Where a run reaches somebody, the count is who it reaches, as People and the send screen say it.
   const reaches = await summary(threeAnswers());
@@ -4942,21 +4949,24 @@ test("REGRESSION: on a US WhatsApp number the moments read says 26 said yes to t
   );
 });
 
-test("REGRESSION: on a US WhatsApp number a proposed playbook's card says 26 said yes and names the channel that holds them -- it said '0 people on the list said yes to offers'", async () => {
+test("REGRESSION: on a US WhatsApp number a proposed playbook says 26 said yes and names the channel that holds them -- it said '0 people on the list said yes to offers'; reaching nobody, it is no card", async () => {
   const r = await buildProposal(usNumberWorld(), "propose_sequence", {
     action: "moment",
     trigger: "everyone_monthly",
     template_id: TPL,
     params: [],
   });
-  assert.equal(r.isError, false, r.result);
-  const { summary } = r.proposal;
-  assert.ok(!summary.includes("0 people on the list said yes"), `REGRESSION: ${summary}`);
-  assert.ok(
-    summary.includes(
-      " · 26 people on the list said yes to offers, none can be sent an offer — Meta has paused offers on WhatsApp to US numbers. Reminders, confirmations and replies still go. · ",
+  // WhatsApp alone, and Meta holds every offer on it: no card (the 30 Oct 2026 review, item 6). The model hears the 26 and
+  // Meta's pause, and no page to fix it on, since it is Meta's rule and no setting of the workspace's.
+  assert.equal(r.isError, true, `REGRESSION: a card that reaches nobody was made: ${r.result}`);
+  const said = JSON.parse(r.result).error;
+  assert.ok(!said.includes("0 people"), `REGRESSION: ${said}`);
+  assert.equal(
+    said,
+    PLAYBOOK_CARD_REFUSALS.reachesNobody(
+      "26 people said yes to offers, but none can be reached now. Meta has paused offers on WhatsApp to US numbers. Reminders, confirmations and replies still go.",
+      null,
     ),
-    summary,
   );
 });
 
@@ -9820,11 +9830,21 @@ test("a broadcast or a playbook proposed on a workspace with no WhatsApp number 
   };
   const held2 = await buildProposal(toolContext([unpaid]), "propose_sequence", broadcast);
   assert.match(JSON.parse(held2.result).error, /Meta needs a payment method on your WhatsApp account/);
-  // A playbook is still proposed with no number (a run holds everyone), and its card says so.
+  // A playbook is no longer proposed with no number (its runs would hold everyone): no campaign card, as for the broadcast,
+  // but a card of the one thing to fix, in the route's words, with Connections for its door (the 30 Oct 2026 review, item 6).
   const playbook = { action: "moment", trigger: "everyone_monthly", template_id: TPL, params: [] };
   const held = await buildProposal(toolContext([]), "propose_sequence", playbook);
   assert.equal(held.isError, false, held.result);
-  assert.match(held.proposal.summary, /Connect a WhatsApp number first\. Its runs hold everyone until it is\./);
+  assert.deepEqual(
+    [held.proposal.kind, held.proposal.title, held.proposal.line, held.proposal.payload.door, held.proposal.payload.to],
+    [
+      "fix",
+      "Fix WhatsApp first",
+      "Connect a WhatsApp number first. Until then the “The month's offer” campaign would reach no one.",
+      "Open Connections",
+      "admin/integrations",
+    ],
+  );
 });
 
 test("the column the answer is drawn in rides in the turn's words (18 Oct 2026): its width, a phone or a desk, about the characters a line holds, and that a table wider than three short columns scrolls sideways; a spoken turn and a tab that sent none say nothing of it; through the loop the model reads it", async () => {

@@ -4,6 +4,7 @@
  * entry (`@chanlytics/contracts/ask-only`).
  */
 export {
+  FIX_CARD_WORDS,
   MESSAGE_WORDS,
   PLAYBOOK_CARD_REFUSALS,
   PLAYBOOK_CARD_WORDS,

@@ -14,6 +14,7 @@ import {
 } from "@chanlytics/contracts";
 import { undoVerb } from "@/legacy-bridge/verbs/commit";
 import { Button } from "../../kit";
+import { RecordDisclosure } from "../../kit/record/disclosure";
 import { askAbout, askCards, canDo, gate } from "../shell";
 import { Acts, Done, type WorkProps } from "./parts";
 import { useRowState } from "./row-state";
@@ -38,9 +39,10 @@ function keptOnTurn(messageId: string | null, p: AskMorningCard, o: AskProposalO
 }
 
 /**
- * One of Ask's ideas as a row's work: its act (Approve, or Open in Ask for a plan's step) and Not today. What became of
- * it is said in the row at once and kept on its turn behind it; an approval whose verb has an undo offers it there.
- * `keep` holds the row in its place for the visit: a card with an outcome leaves the morning's next read.
+ * One of Ask's ideas as a row's work: its act (Approve, Open in Ask for a plan's step, or a fix card's door) and Not today.
+ * What became of it is said in the row at once and kept on its turn behind it; an approval whose verb has an undo offers
+ * it there. `keep` holds the row in its place for the visit: a card with an outcome leaves the morning's next read. `nav`
+ * opens a fix card's door, where the thing that stops a campaign is mended; it commits and records nothing.
  */
 export function IdeaWork(
   p: Pick<WorkProps, "main" | "flash" | "foot"> & {
@@ -48,6 +50,7 @@ export function IdeaWork(
     messageId: string | null;
     threadId: string | null;
     keep: () => void;
+    nav: (to: string) => void;
   },
 ) {
   const { card, messageId, threadId, main, flash } = p;
@@ -108,30 +111,84 @@ export function IdeaWork(
       />
     );
   return (
-    <Acts
-      foot={p.foot}
-      start={
-        <Button variant="quiet" onClick={() => void notToday()} disabled={busy}>
-          {W.idea.notToday}
-        </Button>
-      }
-      end={
-        card.plan ? (
-          <Button variant={main} onClick={open}>
-            {W.idea.openInAsk}
+    <>
+      <IdeaDetails card={card} />
+      <Acts
+        foot={p.foot}
+        start={
+          <Button variant="quiet" onClick={() => void notToday()} disabled={busy}>
+            {W.idea.notToday}
           </Button>
-        ) : (
-          <Button
-            variant={main}
-            onClick={() => void approve()}
-            disabled={busy}
-            aria-busy={busy || undefined}
-            {...gate("approve", "approve Ask's card")}
-          >
-            {W.idea.approve}
-          </Button>
-        )
-      }
-    />
+        }
+        end={
+          card.kind === "fix" ? (
+            <FixDoor card={card} main={main} nav={p.nav} />
+          ) : card.plan ? (
+            <Button variant={main} onClick={open}>
+              {W.idea.openInAsk}
+            </Button>
+          ) : (
+            <Button
+              variant={main}
+              onClick={() => void approve()}
+              disabled={busy}
+              aria-busy={busy || undefined}
+              {...gate("approve", "approve Ask's card")}
+            >
+              {W.idea.approve}
+            </Button>
+          )
+        }
+      />
+    </>
+  );
+}
+
+/**
+ * A fix card's act (the 30 Oct 2026 review, item 6): its door, named as the card names it ("Get their yes", "Open
+ * Connections"), which opens where the thing that stops the campaign is mended. Never Approve: it commits nothing.
+ */
+function FixDoor({
+  card,
+  main,
+  nav,
+}: {
+  card: AskMorningCard;
+  main: "primary" | "secondary";
+  nav: (to: string) => void;
+}) {
+  const to = typeof card.payload.to === "string" ? card.payload.to : null;
+  const label = typeof card.payload.door === "string" ? card.payload.door : null;
+  if (!to || !label) return null;
+  return (
+    <Button variant={main} onClick={() => nav(to)} data-testid="queue-idea-door">
+      {label}
+    </Button>
+  );
+}
+
+/**
+ * A new campaign's rules, behind Details under its one line (the 30 Oct 2026 review, item 6: Today drew them as one
+ * run-on paragraph): what holds it from sending first, then a row a fact, as Ask's own card draws its sheet. Nothing for a
+ * card with no line or no sheet, whose summary is its row's words.
+ */
+function IdeaDetails({ card }: { card: AskMorningCard }) {
+  if (!card.line || !card.sheet?.rows.length) return null;
+  return (
+    <RecordDisclosure id={`idea-${card.id}-details`} label={W.idea.details} testid="queue-idea-details">
+      {card.sheet.holds.map((h) => (
+        <p key={h} className="ny-idea-hold">
+          {h}
+        </p>
+      ))}
+      <dl className="ny-idea-rows">
+        {card.sheet.rows.map((r) => (
+          <div key={r.label}>
+            <dt>{r.label}</dt>
+            <dd>{r.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </RecordDisclosure>
   );
 }

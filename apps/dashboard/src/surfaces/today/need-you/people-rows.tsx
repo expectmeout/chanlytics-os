@@ -148,7 +148,8 @@ export function ideaRows(
         glyph="three"
         name={card.title}
         meta={W.idea.tag}
-        sentence={card.summary}
+        // A new campaign's one line (its rules are behind Details, idea-work.tsx); any other card's summary.
+        sentence={card.line ?? card.summary}
         status={[]}
         tone=""
         testid="queue-idea"
@@ -160,6 +161,7 @@ export function ideaRows(
             main={kind === "primary" ? "primary" : "secondary"}
             flash={c.flash}
             keep={() => c.keepIdea(card)}
+            nav={c.nav}
           />
         }
       />

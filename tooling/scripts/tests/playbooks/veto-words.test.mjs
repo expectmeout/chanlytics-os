@@ -83,7 +83,17 @@ function world() {
     ],
     tenants: [{ id: A, name: "Harbor", timezone: TZ }],
     tenant_config: [],
-    tenant_channels: [],
+    // A number that can send: a campaign no channel of its own can carry is no card (the 30 Oct 2026 review, item 6), and
+    // this one's words are the case.
+    tenant_channels: [
+      {
+        tenant_id: A,
+        kind: "whatsapp",
+        status: "active",
+        number_e164: "+442079460100",
+        config: { quality_rating: "GREEN", messaging_limit: "TIER_1K" },
+      },
+    ],
     policies: ["reengage", "campaign"].map((cls, i) => ({
       id: `pol-${i}`,
       tenant_id: A,

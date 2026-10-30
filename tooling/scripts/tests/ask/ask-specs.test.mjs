@@ -96,6 +96,8 @@ const KINDS = [
   "playbook_run",
   "booking_request",
   "fact_suggestion",
+  // A campaign's one thing to fix first (30 Oct 2026, the review's item 6): its door, never a commit.
+  "fix",
   "call_hand_over",
   "lead_stage",
   "lead_mark",
@@ -175,6 +177,7 @@ test("the gate each kind checks before Approve is the one it checked at a993b71d
     booking_request: "approve",
     // A note kept for the receptionist is a change to the settings (decision 0063): the settings gate, a partner up.
     fact_suggestion: "settings",
+    fix: "approve",
     call_hand_over: "approve",
     lead_stage: "approve",
     lead_mark: "find",
@@ -608,6 +611,8 @@ const SHAPES = {
     }),
   ],
   memory_forget: [card("memory_forget", { memory_id: "m1", text: "We close at noon on Fridays." })],
+  // A fix card commits nothing (its act is its door, campaigns.ts fixSpec): no shape reaches a route.
+  fix: [],
 };
 
 /**
@@ -835,6 +840,7 @@ test("every kind has a spec -- the twenty-one Ask proposed and every page's verb
     memory: ["DELETE ask/memory/[id]", "POST ask/memory"],
     memory_change: ["PATCH ask/memory/[id]"],
     memory_forget: ["DELETE ask/memory/[id]", "POST ask/memory"],
+    fix: [],
   });
   for (const routes of Object.values(named)) for (const r of routes) assert.ok(ROUTE_KEYS.includes(r), r);
 });

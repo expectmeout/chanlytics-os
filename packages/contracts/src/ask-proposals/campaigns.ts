@@ -100,7 +100,35 @@ export const PLAYBOOK_CARD_REFUSALS = {
     `a playbook on a list needs list: the list's token from ${from} (seg:<id> or list:<id>)`,
   templateId: (from: string): string =>
     `template_id must be an id ${from} returned, or omitted for the trigger's starter`,
+  /**
+   * A campaign nobody could be sent, whenever its moment named them (contracts campaignReachable): what stops it, in the
+   * owner's words (campaignBlockWords), and where that is fixed. No card: its Approve would start a campaign that sends
+   * nothing (the 30 Oct 2026 review, item 6: three on Today, "0 people on the list said yes to messages" in each).
+   */
+  reachesNobody: (says: string, fix: string | null): string =>
+    `${says} So this campaign would reach no one: make no card for it, and say that in one sentence${fix ? `, pointing to ${fix}` : ""}.`,
 } as const;
+
+/**
+ * A card of the one thing to fix before a campaign can reach anyone (contracts campaignFixCard): what it answers an
+ * Approve, which it never offers, and what the model is told of it once made, in place of a campaign card's note.
+ */
+export const FIX_CARD_WORDS = {
+  nothingToApprove: "This card has nothing to approve: its door opens where this is fixed.",
+  note: "Nothing to approve: this card is the one thing to fix before the campaign can reach anyone, with its door to where it is fixed. Say that one thing in a sentence, never that a campaign was proposed or is running, and propose the campaign again once it is fixed.",
+} as const;
+
+/**
+ * The fix card (the 30 Oct 2026 review, item 6): it commits nothing, so an Approve, which no card of it offers, is refused
+ * in its words; its Open is its door, where the thing is fixed (Get their yes, Connections, Messages).
+ */
+export const fixSpec: ProposalSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: () => refuseWith(FIX_CARD_WORDS.nothingToApprove),
+  receipt: () => "",
+  open: ({ payload }) => asText(payload.to) || null,
+};
 
 /**
  * What POST playbooks answers, 409, a card's start (x-via ask) that a running twin refuses (the dashboard's
@@ -121,8 +149,9 @@ export const PLAYBOOK_CARD_WORDS = {
    * A reminder the day before or a check after an appointment (D2): one message per appointment, sent whatever else
    * the person hears from you within a week of it, sent or due (BREATH_WHY), since the run is daily and the appointment
    * is on one day (contracts playbookRunReach), so the week's breath, which holds every other moment, does not hold it.
+   * In the owner's words: it said "exempt from one a week per person" (the 30 Oct 2026 review, item 6).
    */
-  appointmentBreath: `exempt from one a week per person: each goes whatever else they hear ${BREATH_WHY}`,
+  appointmentBreath: `sent whatever else they hear ${BREATH_WHY}`,
 } as const;
 
 /**

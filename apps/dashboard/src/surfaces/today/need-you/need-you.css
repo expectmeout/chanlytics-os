@@ -81,6 +81,44 @@
 .ny-avoid {
   color: var(--ink-dim);
 }
+/* Ask found on a phone draws an idea with no face (dashboard-a-v2.css gives faces to Need you's and Going today's rows
+   alone), so its row is one column: its work goes under its words across it, as a desk's goes under its own. Placed in the
+   column a face would leave, it stood beside them, and the words had 108px (the 30 Oct 2026 review, item 6) and none once
+   Details was there. */
+.today-ask-found [data-testid="queue-idea"] > .cl-attn-work {
+  grid-column: 1 / -1;
+}
+/* A new campaign's rules behind Details (idea-work.tsx IdeaDetails): what holds it first, in the warn ink, then a row a
+   fact on a key column, as Ask's own card draws its sheet (ask.css .ask-spec). */
+.ny-idea-hold {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  color: var(--warn-ink);
+}
+.ny-idea-rows {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+}
+.ny-idea-rows > div {
+  display: grid;
+  grid-template-columns: 7rem minmax(0, 1fr);
+  gap: var(--space-2);
+  align-items: baseline;
+}
+.ny-idea-rows dt {
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  color: var(--ink-dim);
+}
+.ny-idea-rows dd {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
 /* Ask writing: two lines of the inset's own fill where its words will be. */
 /* Where Ask's words will stand while it writes them: each bar a line of .ny-words tall, the bar in its middle. */
 .ny-sk-lines {
