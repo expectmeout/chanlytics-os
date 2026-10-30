@@ -12,7 +12,7 @@
  *                checked its day's share is handed back an hour on before any call (R2, R12); a tick past its budget
  *                hands its sends back untouched; a check_unavailable hold is put back an hour on (R4).
  */
-import { test } from "node:test";
+import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { fakeDb, fakeLog } from "../_fake-db.mjs";
 import { at } from "../_cron-doors-world.mjs";
@@ -300,7 +300,9 @@ test("a fact the reader cannot back goes the writer's way, as an opening with no
 /* ------------------------------------------- what a business's own website says (30 Oct 2026) -- */
 
 const { siteReaderOf } = await import(at("apps/edge/lib/reach-out/check-one.ts"));
-const { siteWordsOf, WEBSITE_SAYS_MAX } = await import(at("apps/edge/lib/public-page.ts"));
+const { siteWordsOf } = await import(at("apps/edge/lib/public-page.ts"));
+/** The most a website is said in (public-page.ts): a directory's about's 600 characters. */
+const WEBSITE_SAYS_MAX = 600;
 
 test("the writer is given what the business's own website says, read once, and only when the writer is asked", async () => {
   let reads = 0;
@@ -598,10 +600,15 @@ function byBusiness(scripts) {
   };
   return { ask, calls };
 }
-/** A website that answers nothing: the tick's sends are read from their records alone. */
-const noSite = async () => new Response("", { status: 404 });
+// A business's website is read through the platform's fetch (check.ts sendInputOf): here no site answers, so no tick
+// reads the network, and each send's opening is written from its record alone.
+const realFetch = globalThis.fetch;
+globalThis.fetch = async () => new Response("", { status: 404 });
+after(() => {
+  globalThis.fetch = realFetch;
+});
 const tick = (w, ask, over = {}) =>
-  checkSends({ db: w.db, now: new Date(), started: Date.now(), log: fakeLog(), ask, fetchPage: noSite, ...over });
+  checkSends({ db: w.db, now: new Date(), started: Date.now(), log: fakeLog(), ask, ...over });
 
 test("a tick checks each leased send once: the opening kept, a hold with its reason, the words it was checked against", async () => {
   const plain = send({ lead_id: "plain" });

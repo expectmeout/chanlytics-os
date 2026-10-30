@@ -69,7 +69,7 @@ async function textUpTo(body: ReadableStream<Uint8Array>, maxBytes: number): Pro
 }
 
 /** The most a business's website is said in, in characters: as much as a directory's about (core leads/cards.ts). */
-export const WEBSITE_SAYS_MAX = 600;
+const WEBSITE_SAYS_MAX = 600;
 
 const TITLE = /<title[^>]*>([\s\S]*?)<\/title\s*>/i;
 const META = /<meta\b[^>]*>/gi;
@@ -89,7 +89,7 @@ function descriptionOf(html: string): string {
 }
 
 /** HTML's words in one line, as an email's are read (channels emailPlainText): entities read, no script, no style. */
-const lineOf = (html: string): string => (emailPlainText({ text: null, html }) ?? "").replace(/\s+/g, " ").trim();
+const pageLineOf = (html: string): string => (emailPlainText({ text: null, html }) ?? "").replace(/\s+/g, " ").trim();
 
 /**
  * What a business's own home page says of itself, in one line: its title, its description, then its page's words, each
@@ -98,9 +98,9 @@ const lineOf = (html: string): string => (emailPlainText({ text: null, html }) ?
 export function siteWordsOf(html: string): string | null {
   const parts: string[] = [];
   for (const part of [
-    lineOf(`<p>${TITLE.exec(html)?.[1] ?? ""}</p>`),
-    lineOf(`<p>${descriptionOf(html)}</p>`),
-    lineOf(html),
+    pageLineOf(`<p>${TITLE.exec(html)?.[1] ?? ""}</p>`),
+    pageLineOf(`<p>${descriptionOf(html)}</p>`),
+    pageLineOf(html),
   ])
     if (part && !parts.some((p) => p.includes(part))) parts.push(part);
   const said = parts.join(" · ");
