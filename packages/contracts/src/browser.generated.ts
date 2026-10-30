@@ -271,7 +271,7 @@ export { legacyErasedEmailHash, legacyErasedPhoneHash, legacyLeadSuppressionHash
 export { BUILTIN_LISTS, LIST_GROUP_WORDS, listAsks, PEOPLE_LIST_GROUPS, PEOPLE_LISTS } from "./people/lists/builtin-lists";
 export { LIST_ANY_MAX, LIST_ASSIGNED, LIST_DEAL_STAGES, LIST_NEEDS, LIST_PURPOSES, LIST_RULE_FIELDS, LIST_RULE_MAX, LIST_STANDINGS } from "./people/lists/list-fields";
 export { listRuleMatches, ruleLists, ruleNeeds } from "./people/lists/list-match";
-export { asListRule, draftListRule, LIST_DRAFT_JSON_SCHEMA, ListConditionSchema, listConditionWords, listDraftFieldLines, ListFactSchema, listFactWords, listRuleParts, ListRuleSchema, listRuleWhy, ruleUndated } from "./people/lists/list-rules";
+export { asListRule, draftListRule, LIST_CONDITIONS_JSON_SCHEMA, ListConditionSchema, listConditionWords, listDraftFieldLines, ListFactSchema, listFactWords, listRuleParts, ListRuleSchema, listRuleWhy, ruleUndated } from "./people/lists/list-rules";
 export { listToken, parseListToken } from "./people/lists/list-token";
 export { listMembers, listNamer, listNeeds, listsFor, listUnknownWords, membersOf, resolveList, ruleNeedsViewer, savedListIds, savedListLookup, savedListTip, unmetNeed, viewerListWords } from "./people/lists/lists";
 export { GET_YES_PARAM, GET_YES_ROUTE, parsePeopleRoute, peopleRoute } from "./people/lists/people-route";

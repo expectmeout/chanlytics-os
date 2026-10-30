@@ -301,7 +301,7 @@ export function numberedValues(
 }
 
 /**
- * The shape the model fills, in the house's convention (people/lists/list-rules.ts LIST_DRAFT_JSON_SCHEMA): every
+ * The shape the model fills, in the house's convention (people/lists/list-schemas.ts LIST_DRAFT_JSON_SCHEMA): every
  * property required, "" and [] for none. Who and a held message are named by the keys the request lists them under,
  * so nothing the model writes is an id. A step either sends a message (a person's: a held one by its key, with `texts`
  * for its typed values, or one written in `write`; a lead's: `subject` and `body`), or hands the person over (`words`).
