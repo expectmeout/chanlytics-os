@@ -21,8 +21,7 @@ import { REPLY_INTENT_WORDS, isReplyIntent } from "../reach-out/reach-out-replie
 import { REPORT_MIN_N } from "../reports/report-tiles";
 import { broadcastFailureWords } from "../broadcasts/broadcast-failure-words";
 import { addressOf } from "../activity/record-address";
-import { clockHistoryDay, clockTime, clockWhen, zoneDayKey } from "../shared/clock";
-import { nextSendWords } from "./sequence-words";
+import { clockHistoryDay, clockNextSend, clockTime, clockWhen, zoneDayKey } from "../shared/clock";
 import { pct } from "../shared/numbers";
 import { RUN_OPEN_WORDS, RUN_WAITING_SHORT } from "../shell/campaign-rooms";
 import { plural } from "../shared/words";
@@ -261,7 +260,7 @@ export const SEQUENCE_PEOPLE_WORDS = {
   takeOutAll: (n: number) => `Take these ${n} out`,
   more: (n: number) => `and ${n} more`,
   /** A fold of people still to hear from it: when the soonest of them goes. */
-  next: (atMs: number, tz: string, nowMs: number) => nextSendWords(atMs, tz, nowMs),
+  next: (atMs: number, tz: string, nowMs: number) => clockNextSend(atMs, tz, nowMs),
   /** One up next whose time has come, under its name. */
   goingNow: "going out now",
   /** Why someone finished with no reason of their own: they had the last step. */

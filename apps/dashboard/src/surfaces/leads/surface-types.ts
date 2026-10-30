@@ -1,6 +1,7 @@
 /**
- * The Leads surface's shapes (surface.ts): the view a page reads, and what the surface publishes for it. Apart from the
- * surface's reads and acts, so the page's types and its state read them without the module that fetches.
+ * The Leads surface's shapes (surface.ts): the view a page reads, what the surface publishes for it, and what its reads
+ * answer. Apart from the surface's reads and acts, so the page's types and its state read them without the module that
+ * fetches.
  */
 import type {
   LeadChips,
@@ -9,6 +10,7 @@ import type {
   LeadList,
   LeadMonthDto,
   LeadPileCountsDto,
+  LeadRowDto,
   LeadRowVM,
   LeadSearchDto,
   LeadSort,
@@ -57,4 +59,19 @@ export interface LeadsSurface {
    * by a read that began after it. fetchedAt is the publish time, which moves on a republish with no read.
    */
   readAt?: number;
+}
+
+/** What `GET lead-searches` and `GET leads` answer (4.6's DTOs); the counts ride with whichever read made them. */
+export interface LeadSearchesAnswer {
+  searches: LeadSearchDto[];
+  counts?: LeadCounts;
+  /** The cards that find leads now (00430). */
+  cards_live?: string[];
+}
+export interface LeadsPageAnswer {
+  rows: LeadRowDto[];
+  next: { key: string; id: string } | null;
+  counts?: LeadCounts;
+  month?: LeadMonthDto;
+  pile?: LeadPileCountsDto;
 }

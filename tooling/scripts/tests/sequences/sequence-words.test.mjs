@@ -36,8 +36,8 @@ import {
   sequenceNextOf,
   sequenceNextWords,
   leadsPlannedWords,
-  sendWhenWords,
-  nextSendWords,
+  clockAhead,
+  clockNextSend,
   sequencePausedDock,
   sequenceRowState,
   sequenceSubLine,
@@ -473,9 +473,9 @@ test("a sequence to leads that is on says when it plans the leads added to it: i
 test("a send whose time has come is going out now, never a time already gone (the walk of 30 Oct 2026)", () => {
   // NOW is 10:00 AM in New York: a batch made for 9:00 and approved after it is going out.
   const going = { id: "b1", at: "2026-10-14T13:00:00Z", people: 2, state: "sending", place: 1 };
-  assert.equal(sendWhenWords(Date.parse(going.at), TZ, NOW), "now");
-  assert.equal(nextSendWords(Date.parse(going.at), TZ, NOW), "going out now");
-  assert.equal(nextSendWords(NOW + 3_600_000, TZ, NOW), "next today 11:00 AM");
+  assert.equal(clockAhead(Date.parse(going.at), TZ, NOW), "now");
+  assert.equal(clockNextSend(Date.parse(going.at), TZ, NOW), "going out now");
+  assert.equal(clockNextSend(NOW + 3_600_000, TZ, NOW), "next today 11:00 AM");
   assert.equal(sequenceRowLine(row({ state: "on", starts: "leads", next: going }), TZ, NOW), "going out now");
   assert.equal(sequenceNextWords(sequenceNextOf(row({ next: going }), null, TZ, NOW), TZ, NOW), "now · 2 people");
 });

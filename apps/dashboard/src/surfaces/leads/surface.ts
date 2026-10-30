@@ -44,22 +44,7 @@ import { unwrap, type ApiResult, type RouteKey } from "@/client/api";
 import { setSurfaceValue, surfaceValue } from "../surface-values";
 
 export type { LeadsSurface } from "./surface-types";
-import type { LeadsView } from "./surface-types";
-
-/** What `GET lead-searches` and `GET leads` answer (4.6's DTOs); the counts ride with whichever read made them. */
-interface LeadSearchesAnswer {
-  searches: LeadSearchDto[];
-  counts?: LeadCounts;
-  /** The cards that find leads now (00430). */
-  cards_live?: string[];
-}
-interface LeadsPageAnswer {
-  rows: LeadRowDto[];
-  next: { key: string; id: string } | null;
-  counts?: LeadCounts;
-  month?: LeadMonthDto;
-  pile?: LeadPileCountsDto;
-}
+import type { LeadSearchesAnswer, LeadsPageAnswer, LeadsView } from "./surface-types";
 
 const NO_COUNTS: LeadCounts = { all: 0, ready: 0, nurture: 0, converted: 0, said_no: 0, not_a_fit: 0 };
 const DEFAULT_VIEW: LeadsView = { searchId: null, list: "all", cls: null, chips: {}, sort: "fit", dir: "asc" };

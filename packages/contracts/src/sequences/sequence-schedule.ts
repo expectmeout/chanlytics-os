@@ -7,7 +7,7 @@
  */
 import type { AppointmentWord } from "../journey/appointment-word";
 import { triggerOf } from "../playbooks/playbook-triggers";
-import { clockDate, clockTime } from "../shared/clock";
+import { clockAhead, clockDate, clockTime } from "../shared/clock";
 import { plural } from "../shared/words";
 import type { SequencePeopleDto, SequenceRowDto, SequenceStepDto } from "./sequence-dto";
 import {
@@ -18,7 +18,6 @@ import {
   sequenceChannelsWords,
   sequenceNextOf,
   sequenceNextWords,
-  sendWhenWords,
 } from "./sequence-words";
 
 /** The schedule's own words, said once. */
@@ -268,7 +267,7 @@ function leadStepNow(row: SequenceRowDto, step: SequenceStepDto, ctx: ScheduleCt
   const toSend = ofStep("to_send");
   const parts = [held > 0 ? `${held} held by the check` : null, toSend > 0 ? `${toSend} for you to send` : null];
   if (going && next) {
-    const when = sendWhenWords(Date.parse(next.at), ctx.tz, ctx.nowMs);
+    const when = clockAhead(Date.parse(next.at), ctx.tz, ctx.nowMs);
     parts.push(next.people > 0 ? `${next.people} go ${when}` : `goes ${when}`);
   }
   const said = parts.filter((p): p is string => !!p);

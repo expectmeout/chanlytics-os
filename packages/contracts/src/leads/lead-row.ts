@@ -335,8 +335,7 @@ export function toLeadRowVM(r: LeadRowDto, tz: string, now: Date, search: LeadSe
       : "",
     foundAt: `${clockDateYear(foundMs, tz)} · ${clockTime(foundMs, tz)}`,
     distance: milesLabel(m.distance_m),
-    // Where its facts came from, as foundLine says it: a directory, the owner's own list, else its Maps listing.
-    source: r.kind === "company" ? LEAD_DIRECTORY_WORDS.source : r.place_id ? LEAD_SOURCE_WORD : "Your list",
+    source: sourceOf(r),
     host: siteHost(r.website) ?? "",
     excludedBy,
     version: r.version,
@@ -380,6 +379,12 @@ function subLineOf(r: LeadRowDto, distanceM: number | null): string {
   ]
     .filter((x): x is string => !!x)
     .join(" · ");
+}
+
+/** Where a lead's facts came from, as foundLine says it: a directory, its Maps listing, else the owner's own list. */
+function sourceOf(r: LeadRowDto): string {
+  if (r.kind === "company") return LEAD_DIRECTORY_WORDS.source;
+  return r.place_id ? LEAD_SOURCE_WORD : "Your list";
 }
 
 /** What a list of leads is called beside a search of the same name. */

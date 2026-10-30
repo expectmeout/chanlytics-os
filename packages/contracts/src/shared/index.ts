@@ -8,12 +8,14 @@ export { SCHEMA_SETS } from "../schema-sets.generated";
 export { hexOf, utf8Bytes } from "./bytes";
 export {
   callLength,
+  clockAhead,
   clockDate,
   clockDateYear,
   clockDayLabel,
   clockHour,
   clockNear,
   clockNearWhen,
+  clockNextSend,
   clockShort,
   clockStamp,
   clockTime,
