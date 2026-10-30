@@ -3,10 +3,12 @@
  * kept for real as the turn is saved, so its card arrives kept, with Undo; and what every later turn is told of it.
  *
  * Only the member's own words become a line: the act's quote must be words of this question, so nothing a customer wrote,
- * a page shows or a read returned is kept, and a turn Ask asks itself (the morning's) keeps nothing; a line the question
- * does not bear out (a number they did not say, words that are not theirs) waits on its card for their press, never
- * kept unseen; a password, a key or a card's number is never kept whatever was said. The door answers the line, the same line again, or a refusal (full),
- * and the card says each. The memory block every turn reads fences each line as data.
+ * a page shows or a read returned is kept, and a turn Ask asks itself (the morning's) keeps nothing of its question; a
+ * line about how they write may quote their own cold emails a read returned (decision 0078 step 2), learned, always
+ * waiting for their press; a line the question does not bear out (a number they did not say, words that are not theirs)
+ * waits on its card for their press, never kept unseen; a password, a key or a card's number is never kept whatever was
+ * said. The door answers the line, the same line again, or a refusal (full), and the card says each. The memory block
+ * every turn reads fences each line as data.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -191,4 +193,115 @@ test("every turn is told what Ask remembers and its journal's days, each line fe
     "a line cannot close its fence",
   );
   assert.match(block, /- 2026-10-20: <record>Dana approved the win-back; three people booked\.<\/record>/);
+});
+
+/* ---------------------------------------- a line learned from what they wrote (decision 0078, step 2) */
+
+const { readEdited } = await import(at("apps/dashboard/src/server/ask/tools/read/sequences.ts"));
+const { keepMemoryLine } = await import(at("apps/dashboard/src/server/ask/companion/memory-pane.ts"));
+const { proposalSpec } = await import("@chanlytics/contracts");
+
+/** The member's own cold email, changed from Ask's draft, as the ledger and Campaigns hold it. */
+const SENT = { subject: "Phones at your shop", body: "{{opening}}\n\nSam here. Worth a chat? Cheers, Sam" };
+const DRAFTED = { subject: "A quick idea", body: "{{opening}}\n\nHello! We built a tool for shops." };
+
+/** A turn, asked `question`, that has read the member's edited cold emails (sequences, action edited). */
+async function afterEdited(question) {
+  const supabase = fakeDb(
+    {
+      decisions: [
+        {
+          id: "99999999-9999-4999-8999-000000000001",
+          tenant_id: T,
+          subject_type: "sequence",
+          subject_id: "11111111-1111-4111-8111-000000000001",
+          verb: "make_sequence",
+          actor_type: "user",
+          actor_user_id: "u1",
+          payload: {
+            name: "Auto shops",
+            starts: "leads",
+            as_drafted: { asked: "Write to auto shops", steps: [DRAFTED] },
+          },
+          undo_of: null,
+          created_at: "2026-10-21T10:00:00.000Z",
+        },
+      ],
+    },
+    {},
+    {},
+  );
+  const t = newToolContext({ supabase, userId: "u1", email: "ada@example.com", params: {} }, T, "operator", "UTC", NOW);
+  t.rc.turn.seed("reachOutChains", {
+    chains: [
+      {
+        root_id: "11111111-1111-4111-8111-000000000001",
+        name: "Auto shops",
+        search: null,
+        state: "running",
+        steps: [{ id: "s1", n: 1, after_days: null, hand: null, ...SENT }],
+      },
+    ],
+  });
+  await readEdited(t, {});
+  return { ...t, question, theirs: t.theirs };
+}
+
+test("a line about how they write may quote their own cold emails a read returned: it is learned and always waits for their press, in the morning too", async () => {
+  for (const question of [ASK_MORNING_QUESTION, "What did I change in your drafts lately?"]) {
+    const t = await afterEdited(question);
+    const out = await buildProposal(t, "remember", {
+      text: "In cold emails: short, signed Cheers with a first name.",
+      quote: "Worth a chat? Cheers, Sam",
+    });
+    assert.equal(out.isError, false, question);
+    assert.deepEqual(out.proposal.payload, {
+      text: "In cold emails: short, signed Cheers with a first name.",
+      learned: true,
+    });
+    assert.equal(JSON.parse(out.result).kept, false, "evidence of a habit, never their word: it waits");
+  }
+});
+
+test("a line quoting what they wrote says it is about how they write; Ask's draft, and a morning with nothing of theirs, are never quoted", async () => {
+  const t = await afterEdited(ASK_MORNING_QUESTION);
+  const unled = await buildProposal(t, "remember", { text: "Signs with Cheers.", quote: "Worth a chat? Cheers, Sam" });
+  assert.equal(unled.isError, true);
+  assert.match(JSON.parse(unled.result).error, /In cold emails:/);
+  // Ask's own draft is not theirs, whatever the read showed beside it.
+  const asks = await buildProposal(t, "remember", {
+    text: "In cold emails: says hello first.",
+    quote: "We built a tool for shops",
+  });
+  assert.equal(asks.isError, true);
+  assert.match(JSON.parse(asks.result).error, /morning/);
+  // A morning that read nothing of theirs keeps nothing, as before.
+  const { t: bare } = asked(ASK_MORNING_QUESTION);
+  const out = await buildProposal(bare, "remember", {
+    text: "In cold emails: short, signed Cheers with a first name.",
+    quote: "Worth a chat? Cheers, Sam",
+  });
+  assert.equal(out.isError, true);
+});
+
+test("a learned card is kept through the memory route as learned; any other card, and the pane's Add, as before", async () => {
+  const spec = proposalSpec("memory");
+  const card = (payload) => ({ id: "p1", kind: "memory", summary: "", payload });
+  assert.equal(spec.commit(card({ text: "In cold emails: short.", learned: true })).body.source, "learned");
+  assert.equal("source" in spec.commit(card({ text: "We close on Mondays." })).body, false);
+  const sources = [];
+  const supabase = fakeDb(
+    {},
+    {},
+    {
+      ask_memory_write: (args) => {
+        sources.push(args.p_source);
+        return { memory: { id: LINE, text: args.p_text }, again: false };
+      },
+    },
+  );
+  const ctx = { supabase, userId: "u1", email: "ada@example.com", params: {} };
+  for (const source of ["learned", "ask", undefined, "anything"])
+    await keepMemoryLine(ctx, { tenantId: T }, { text: "In cold emails: short.", ...(source ? { source } : {}) });
+  assert.deepEqual(sources, ["learned", "ask", "pane", "pane"]);
 });

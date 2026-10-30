@@ -95,6 +95,19 @@ export interface KnownMessage {
 /** A sequence the workspace keeps, for its twin (lib/new-checks.ts, which New's page reads it by too). */
 export type KnownRunning = NewRunning;
 
+/**
+ * One first email of a started sequence to leads, as the drafter is handed it (decision 0078 and its step 2): the words as
+ * the owner left them, what Ask drafted for them where the make kept it (null where the sequence was written by hand or
+ * made before it was kept), what it was for (its search's name), and how it did, as its record counts it.
+ */
+export interface DraftExample {
+  subject: string | null;
+  body: string;
+  drafted?: { subject: string | null; body: string } | null;
+  for?: string | null;
+  numbers?: { written: number; wrote_back: number; said_no: number } | null;
+}
+
 /** What a draft is judged against: the business, what it offers and holds, and what already runs. */
 export interface DraftKnown {
   business: string;
@@ -109,7 +122,7 @@ export interface DraftKnown {
   /** Ask's live memory (0070): what a member told it, and what it learned from how the owner writes (0078). */
   memory?: Array<{ text: string; source: string }>;
   /** The first emails of the workspace's last started sequences to leads, as the owner left them (0078). */
-  examples?: Array<{ subject: string | null; body: string }>;
+  examples?: DraftExample[];
   /** The business's day and time now ("YYYY-MM-DDTHH:MM"), which a one-off's moment is set from. */
   localNow: string;
   moments: KnownMoment[];

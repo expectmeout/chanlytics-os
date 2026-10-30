@@ -83,6 +83,8 @@ export const ADDED_SINCE = [
   "recall",
   "remember",
   "sequences.cold_emails",
+  // Decision 0078 step 2: the cold emails the member edited from Ask's drafts, which a line about how they write may quote.
+  "sequences.edited",
   "signals",
   "workspace.activity",
   "workspace.connections",

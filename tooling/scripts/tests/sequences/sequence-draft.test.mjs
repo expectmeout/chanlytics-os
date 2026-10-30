@@ -32,15 +32,25 @@ import { fakeDb } from "../_fake-db.mjs";
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const { setModelStream } = await import("../../../../apps/dashboard/src/server/model-json.ts");
-const { draftFrom } = await import("../../../../apps/dashboard/src/server/sequences/draft.ts");
+const { draftFrom, examplesOf } = await import("../../../../apps/dashboard/src/server/sequences/draft.ts");
 const { draftKept } = await import("../../../../apps/dashboard/src/server/sequences/draft-judge.ts");
 const M = await import("../../../../apps/dashboard/src/surfaces/campaigns/sequences/new/new-model.ts");
 const { onceChannelsOf, leadFirstOf } = await import("../../../../apps/dashboard/src/server/sequences/new-make.ts");
 const { NEW_MAKE_BODY, LEAD_FIRST_BODY, VOICE_BODY } =
   await import("../../../../apps/dashboard/src/server/sequences/bodies.ts");
 const { learnVoice } = await import("../../../../apps/dashboard/src/server/sequences/voice.ts");
-const { NEW_WORDS, VOICE_WORDS, leadChainStepOf, newListOf, voiceLineOf, voiceSaid } =
-  await import("../../../../packages/contracts/src/index.ts");
+const {
+  NEW_WORDS,
+  NEW_WORDS_MAX,
+  VOICE_WORDS,
+  asDraftedFrom,
+  asDraftedOf,
+  leadChainStepOf,
+  newListOf,
+  sentAsDrafted,
+  voiceLineOf,
+  voiceSaid,
+} = await import("../../../../packages/contracts/src/index.ts");
 
 let calls;
 /** The model, answering `said`: one text event and a stop, as the gateway streams them. */
@@ -719,6 +729,68 @@ test("Keep and Start to leads pass the leads door's own check: the search, how b
   assert.deepEqual([one.steps.length, "mode" in one], [1, false]);
 });
 
+test("a draft to leads Ask wrote is made with what Ask drafted beside the steps as the owner left them; one by hand, or to people, carries none (decision 0078 step 2)", () => {
+  const toLeads = M.redraftShapeOf(M.draftByHand("sequence", "people", "Harbor Studio"), {
+    kind: "sequence",
+    audience: "leads",
+  });
+  // Ask's answer as it came: the owner's line, and its emails.
+  const asked = M.setEmail(
+    { ...M.setWho(toLeads, { kind: "search", id: ID(9), label: "Auto shops" }), said: "Write to auto shops" },
+    0,
+    { subject: "A quick idea", body: "{{opening}}\n\nHello! We built a tool for shops." },
+  );
+  // What the owner made of it before Start.
+  const edited = M.setEmail(asked, 0, {
+    subject: "Phones at your shop",
+    body: "{{opening}}\n\nSam here. Worth a chat?",
+  });
+  const body = NEW_MAKE_BODY.safeParse(M.makeBodyOf(edited, true, null, asked));
+  assert.ok(body.success, body.error?.issues[0]?.message);
+  assert.deepEqual(body.data.as_drafted, {
+    asked: "Write to auto shops",
+    steps: [{ subject: "A quick idea", body: "{{opening}}\n\nHello! We built a tool for shops." }],
+  });
+  const first = LEAD_FIRST_BODY.safeParse(leadFirstOf(body.data));
+  assert.ok(first.success, first.error?.issues.map((i) => i.message).join("; "));
+  assert.deepEqual(first.data.as_drafted, body.data.as_drafted, "the leads door is handed it with the first step");
+  assert.equal(first.data.steps[0].subject, "Phones at your shop", "the steps are the owner's");
+
+  // By hand there is no line to Ask, and to people nothing is kept.
+  assert.equal("as_drafted" in M.makeBodyOf(edited, true, null, { ...asked, said: "" }), false);
+  assert.equal("as_drafted" in M.makeBodyOf(edited, true, null, null), false);
+  const people = M.setWho(M.draftByHand("sequence", "people", "Harbor Studio"), {
+    kind: "moment",
+    trigger: "visited",
+    label: "after a visit",
+  });
+  assert.equal("as_drafted" in M.makeBodyOf(people, true, null, { ...people, said: "Thank them" }), false);
+  // What a make takes of it is bounded as a step is.
+  const long = { asked: "x", steps: [{ subject: null, body: "y".repeat(5000) }] };
+  assert.equal(NEW_MAKE_BODY.safeParse({ ...body.data, as_drafted: long }).success, false);
+});
+
+test("what Ask drafted is kept as it came, read back whatever the ledger holds, and an email sent as drafted is told from one the owner changed (decision 0078 step 2)", () => {
+  const email = { subject: "Phones", body: "{{opening}}\n\nWorth a look?" };
+  const kept = asDraftedOf("  Write to auto shops in Brooklyn  ", [email, null]);
+  assert.deepEqual(kept, { asked: "Write to auto shops in Brooklyn", steps: [email, null] });
+  assert.equal(asDraftedOf("x".repeat(NEW_WORDS_MAX + 50), []).asked.length, NEW_WORDS_MAX);
+  assert.deepEqual(asDraftedFrom(JSON.parse(JSON.stringify(kept))), kept);
+  assert.deepEqual(asDraftedFrom({ asked: "x", steps: [{ body: "b" }, { subject: "s" }, "no"] }), {
+    asked: "x",
+    steps: [{ subject: null, body: "b" }, null, null],
+  });
+  for (const v of [null, "x", { steps: [] }, { asked: "x" }, { asked: 1, steps: [] }])
+    assert.equal(asDraftedFrom(v), null);
+  assert.equal(
+    sentAsDrafted(email, { subject: "Phones ", body: "{{opening}}\n\n Worth a  look?" }),
+    true,
+    "spacing aside",
+  );
+  assert.equal(sentAsDrafted(email, { subject: "Phones", body: "{{opening}}\n\nWorth a quick look?" }), false);
+  assert.equal(sentAsDrafted(email, { subject: null, body: email.body }), false, "a subject taken away is a change");
+});
+
 const library = {
   messages: [
     {
@@ -897,7 +969,7 @@ test("the drafter is told what the business says about itself and how its owner 
   assert.match(told, /<record>Our best customers are independent auto shops\.<\/record>/);
   assert.match(
     told,
-    /<record>\\nSubject: Phones at your shop\\n\{\{opening\}\}\\n\\nI'm Sam\. Worth a look\?\\n<\/record>/,
+    /<record>\\nThey sent:\\nSubject: Phones at your shop\\n\{\{opening\}\}\\n\\nI'm Sam\. Worth a look\?\\n<\/record>/,
   );
   assert.match(system, /in the owner's own voice/);
   assert.match(system, /never copy a sentence/);
@@ -914,6 +986,91 @@ test("the drafter is told what the business says about itself and how its owner 
   const toldBare = JSON.stringify(calls[1].request.messages);
   assert.doesNotMatch(toldBare, /in its own words|Ask remembers|started before/);
   assert.deepEqual(bare.voice, []);
+});
+
+test("the drafter is told each started first email's pair, what it was for and how it did, and what a pair means (decision 0078 step 2)", async () => {
+  answerWith(
+    answer({ audience: "leads", who: "s1", steps: [step({ subject: "Hi", body: "{{opening}}\n\nWorth a look?" })] }),
+  );
+  await draftFrom(
+    {
+      ...KNOWN,
+      examples: [
+        {
+          subject: "Phones at your shop",
+          body: "{{opening}}\n\nSam here. Worth a chat? Cheers, Sam",
+          drafted: { subject: "A quick idea for your shop", body: "{{opening}}\n\nHello! We built a tool for shops." },
+          for: "Auto shops in Brooklyn",
+          numbers: { written: 14, wrote_back: 3, said_no: 1 },
+        },
+        {
+          subject: "Phones",
+          body: "{{opening}}\n\nWorth a look?",
+          drafted: { subject: "Phones", body: "{{opening}}\n\nWorth a look?" },
+        },
+        { subject: "By my hand", body: "{{opening}}\n\nMine, start to end.", drafted: null },
+      ],
+    },
+    LINE,
+    { tenantId: "t1", userId: "u1" },
+  );
+  const told = String(calls[0].request.messages[0].content);
+  const system = String(calls[0].request.system);
+  assert.match(
+    told,
+    /First emails to leads the owner started before, newest first: what each was for, how it did, what Ask drafted and what they sent:/,
+  );
+  const records = [...told.matchAll(/<record>\n([\s\S]*?)\n<\/record>/g)].map((m) => m[1]);
+  const changed = records.find((r) => r.includes("Phones at your shop"));
+  assert.equal(
+    changed,
+    [
+      "For: Auto shops in Brooklyn · To 14, 3 wrote back, 1 said no",
+      "",
+      "Ask drafted:\nSubject: A quick idea for your shop\n{{opening}}\n\nHello! We built a tool for shops.",
+      "",
+      "They sent:\nSubject: Phones at your shop\n{{opening}}\n\nSam here. Worth a chat? Cheers, Sam",
+    ].join("\n"),
+  );
+  assert.equal(
+    records.find((r) => r.includes("Subject: Phones\n")),
+    "They sent it as Ask drafted it:\nSubject: Phones\n{{opening}}\n\nWorth a look?",
+  );
+  assert.equal(
+    records.find((r) => r.includes("By my hand")),
+    "They sent:\nSubject: By my hand\n{{opening}}\n\nMine, start to end.",
+    "written by hand: no draft, and no numbers unsaid as zero",
+  );
+  assert.match(system, /what they changed is how they want it, and what wrote back is what worked/);
+  assert.match(system, /never copy a sentence/);
+});
+
+test("the examples are the started chains' first emails in the order read, each with what Ask drafted, its search and its first step's counts; a call first or an empty email is none (decision 0078 step 2)", () => {
+  const chain = (id, steps, search = null) => ({ root_id: id, search, steps });
+  const email = (subject, body) => ({ subject, body, hand: null });
+  const out = examplesOf(
+    [
+      chain("r1", [email("S1", "B1")], { name: "Auto shops" }),
+      chain("r2", [{ subject: null, body: "", hand: { kind: "call", words: "Call them" } }]),
+      chain("r3", [email(null, "  ")]),
+      chain("r4", [email("S4", "B4")]),
+    ],
+    new Map([["r1", { subject: "D1", body: "DB1" }]]),
+    new Map([
+      ["r1", { written: 14, wrote_back: 3, said_no: 1 }],
+      ["r4", null],
+    ]),
+  );
+  assert.deepEqual(out, [
+    {
+      subject: "S1",
+      body: "B1",
+      drafted: { subject: "D1", body: "DB1" },
+      for: "Auto shops",
+      numbers: { written: 14, wrote_back: 3, said_no: 1 },
+    },
+    { subject: "S4", body: "B4", drafted: null, for: null, numbers: null },
+  ]);
 });
 
 /* --------------------------------------------- the owner's voice, learned from a paste (decision 0078) */

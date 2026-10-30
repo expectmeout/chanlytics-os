@@ -63,14 +63,14 @@ import {
   MESSAGES_ROUTE,
 } from "@chanlytics/contracts";
 import { load } from "../../../readers";
-import { readSequence, readSequences } from "./sequences";
+import { EDITED_DAYS, readColdEmails, readEdited, readSequence, readSequences } from "./sequences";
 import { audiencePool } from "../../../readers/audience-pool";
 import { broadcast as broadcastReader, broadcasts as broadcastsReader } from "../../../readers/broadcasts";
 import { lastDaysBySource, lastDaysOf } from "../../../readers/campaign-report";
 import { channels as channelsReader } from "../../../readers/channels";
 import * as readers from "../../../readers/facts";
 import { lists as listsReader } from "../../../readers/lists";
-import { playbooks, reachOutChains } from "../../../readers/playbooks";
+import { playbooks } from "../../../readers/playbooks";
 import { messageReadsOf, templates as templatesReader, type TemplatesRead } from "../../../readers/templates";
 import {
   UUID,
@@ -688,39 +688,17 @@ export async function readJourney(t: ToolContext) {
 }
 
 /**
- * The cold email sequences (Reach out, decision 0056) as Campaigns lists them (readers/playbooks.ts reachOutChains, GET
- * reach-outs' own read): each with its id, name, the search or list of leads it writes to, whether it runs, its emails and
- * their waits, its pace and who it is in it. Every one is a row an answer may cite, opened on its drawer.
- */
-async function readColdEmails(t: ToolContext): Promise<unknown> {
-  const read = await load(t.rc, reachOutChains, undefined);
-  noteRows(t.read, read.rows);
-  return {
-    route: SEQUENCES_ROUTE,
-    cold_emails: read.data.chains.map((c) => ({
-      root_id: c.root_id,
-      name: c.name,
-      writes_to: c.search ? { search_id: c.search.id, name: c.search.name } : null,
-      state: c.state,
-      emails: c.steps.length,
-      gap_minutes: c.gap_minutes,
-      owner_sends: c.owner_sends === true,
-      ...(c.people ? { people: { waiting: c.people.waiting, writing: c.people.writing, done: c.people.done } } : {}),
-    })),
-  };
-}
-
-/**
  * Everything that sends on its own (decision 0060; the operator, 15 Oct 2026, once the campaigns tool): every sequence as
  * the Sequences page lists them (list) and one as its record shows it (sequence); the moments a sequence can start at,
  * with who each names and the autonomy modes (moments, once playbooks); who a send can go to and the messages it may use
  * (lists, once audiences); the Library whole (messages); what went out and one batch of it (sent and batch, once
- * broadcasts and broadcast); the customer journey (journey); and the cold email sequences (cold_emails).
+ * broadcasts and broadcast); the customer journey (journey); the cold email sequences (cold_emails), and the ones the
+ * member edited from Ask's drafts (edited, decision 0078 step 2).
  */
 export const sequencesTool = defineActions({
   name: "sequences",
   description:
-    "Everything that sends on its own, as Campaigns reads it (every such thing is a sequence), by action: the sequences, one sequence's steps and people, the moments of the customer journey a sequence can start at, who a send can go to and the messages it may use, the Library, what went out and how it did, the journey, and cold email to leads.",
+    "Everything that sends on its own, as Campaigns reads it (every such thing is a sequence), by action: the sequences, one sequence's steps and people, the moments of the customer journey a sequence can start at, who a send can go to and the messages it may use, the Library, what went out and how it did, the journey, and cold email to leads, with the cold emails the person edited from Ask's drafts.",
   tail: "Read action lists before a send, and to say who a message would reach; action moments to say what is running, and before a new sequence at a moment. Pick the message first, then quote its can_be_sent count as who it reaches, never a larger one, for a message that goes by WhatsApp; for a message whose channels hold email or sms, propose it with channels naming them and quote the card's count, since the can_be_sent counts are by WhatsApp alone and a 0 there does not mean nobody can be reached; when a WhatsApp message's count is 0 and its said_yes is not, and its channels hold no other, the ones who said yes cannot be sent it: say how many said yes and what they lack, as the audience's why_none words say it (a number to send to, or a channel that can carry it, which offers_go_by names), and never send the owner to get a yes they already have. When a moment's can_be_sent_now is 0 and said_yes_now is not, the ones who said yes have no number to send to, no channel that can carry it now (action lists' offers_go_by names which), or hear from you within a week of today: say so the same way. A list that cannot be counted here carries cannot_count and no counts; a null count means the page could not count it just now, and nothing has run because it was read. A person reads campaign or sequence, never playbook or broadcast; the fields keep those names.",
   actions: {
     list: readAction({
@@ -794,6 +772,24 @@ export const sequencesTool = defineActions({
       words:
         "Action cold_emails reads the cold email sequences to leads: each with its root_id, name, the search or list of leads it writes to, whether it runs, its emails, its pace, whether the owner sends each from their own inbox, and who is in it (waiting, writing, done).",
       run: readColdEmails,
+    }),
+    edited: readAction({
+      input: z.object({
+        days: z
+          .number()
+          .int()
+          .min(1)
+          .max(EDITED_DAYS.max)
+          .optional()
+          .describe(
+            `How many days back, ${EDITED_DAYS.default} (since yesterday) when left out, ${EDITED_DAYS.max} at most.`,
+          ),
+      }),
+      examples: [{}, { days: 7 }],
+      label: "Reading the cold emails you edited",
+      words:
+        "Action edited reads the cold emails to leads the person made in the last days whose first email is theirs: one they changed from what Ask drafted (drafted beside sent), or wrote themself (drafted null). A sequence sent as Ask drafted it, or a teammate's, is not one. Their sent words are their own, so a line about how they write may quote them (remember).",
+      run: readEdited,
     }),
   },
 });
