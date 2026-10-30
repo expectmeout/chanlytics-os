@@ -33,7 +33,7 @@
  * floors (the nightly runs the suite in four parts: one runner took longer than its cap from 14 Oct 2026). A part
  * without TEST_LCOV is not measured, as CI's parts are not.
  */
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -66,9 +66,32 @@ const STAND_IN_CSS = "./tooling/scripts/tests/shared/_stand-in-css.mjs";
 /**
  * Every import a test makes, slow, loaded before every test file when `TEST_SLOW_IMPORTS=1`: a test that counts turns
  * of the loop for work that reads a module fails every time, as it fails once in a while beside a heavy job
- * (tests/shared/_slow-imports.mjs says how).
+ * (tests/shared/_slow-imports.mjs says how). Only where tsx loads modules off the main thread (importsLeaveTheThread).
  */
 const SLOW_IMPORTS = "./tooling/scripts/tests/shared/_slow-imports.mjs";
+
+/**
+ * Whether tsx answers an import off the main thread, which is what TEST_SLOW_IMPORTS slows: twenty imports asked under
+ * tsx, and at least one not answered within its turn of the loop. A newer Node's tsx loads modules in the main thread
+ * (Node 24 on CI), where an import is answered within the turn every time: no count of turns falls short across one,
+ * there is nothing to slow, and an off-thread hook beside tsx's would change how CommonJS is loaded.
+ */
+export function importsLeaveTheThread() {
+  const probe = `let late = 0;
+for (let i = 0; i < 20; i += 1) {
+  let answered = false;
+  import("node:path").then(() => (answered = true));
+  await new Promise((r) => setImmediate(r));
+  if (!answered) late += 1;
+}
+console.log(late > 0 ? "off" : "in");`;
+  const run = spawnSync(
+    process.execPath,
+    ["--conditions=react-server", "--import", "tsx", "--input-type=module", "-e", probe],
+    { cwd: ROOT, encoding: "utf8" },
+  );
+  return run.status === 0 && run.stdout.trim() === "off";
+}
 
 /**
  * The export condition that hands a test a package's bundle, not its sources (decision 0074): each package's `exports`
@@ -169,6 +192,14 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     plan = planOf(process.argv.slice(2), process.env);
   } catch (e) {
     console.error(e instanceof Error ? e.message : e);
+    process.exit(2);
+  }
+  if (process.env.TEST_SLOW_IMPORTS === "1" && !importsLeaveTheThread()) {
+    console.error(
+      `TEST_SLOW_IMPORTS: on Node ${process.version}, tsx loads modules in the main thread and answers an import within ` +
+        "its turn, so no count of turns falls short across one and there is nothing to slow. Run it on a Node whose " +
+        "tsx loads off the main thread (an older Node).",
+    );
     process.exit(2);
   }
   // On stderr, so a TAP reader of stdout sees only the runner's report.
