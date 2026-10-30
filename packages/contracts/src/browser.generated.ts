@@ -367,7 +367,7 @@ export { REVIEWS_WAITING_SHOWN, toReviewsReportVM } from "./reports/review-repor
 export { ROUTE_KEYS } from "./route-keys.generated";
 export { SCHEMA_SETS } from "./schema-sets.generated";
 export { FOLLOW_UP_CONDITIONS, followUpLeaves, followUpReach, followUpStop, messageAboutOfClass } from "./sequences/follow-up";
-export { handStepsHold, leadChainStepOf, NEW_AUDIENCES, NEW_DRAFT_JSON_SCHEMA, NEW_KINDS, NEW_ONCE_AHEAD_DAYS, NEW_STEP_DOES, NEW_STEPS_MAX, NEW_VALUES, NEW_WAIT_DAYS, NEW_WORDS_MAX, newConditionsOf, newListOf, newWaitOf, numberedValues, whoSuits, VOICE_LINE_LEAD, VOICE_LINES_MAX, VOICE_PASTE_MAX, VOICE_PASTE_MIN, VOICE_WORDS, voiceLineOf, voiceSaid } from "./sequences/new-draft";
+export { asDraftedFrom, asDraftedOf, handStepsHold, leadChainStepOf, NEW_AUDIENCES, NEW_DRAFT_JSON_SCHEMA, NEW_KINDS, NEW_ONCE_AHEAD_DAYS, NEW_STEP_DOES, NEW_STEPS_MAX, NEW_VALUES, NEW_WAIT_DAYS, NEW_WORDS_MAX, newConditionsOf, newListOf, newWaitOf, numberedValues, sentAsDrafted, whoSuits, VOICE_LINE_LEAD, VOICE_LINES_MAX, VOICE_PASTE_MAX, VOICE_PASTE_MIN, VOICE_WORDS, voiceLineOf, voiceSaid } from "./sequences/new-draft";
 export { handTitleOf, NEW_WORDS } from "./sequences/new-words";
 export { batchModeOf, isSequenceMode, newSequenceMode, SEQUENCE_MODE_LABEL, SEQUENCE_MODE_WORDS, SEQUENCE_MODES, SEQUENCE_NEW_WORDS_ASK, SEQUENCE_STARTS, SEQUENCE_STATES, sequenceModesFor } from "./sequences/sequence";
 export { SEQUENCE_ACT_REASONS, SEQUENCE_ACT_WHY, SEQUENCE_ACT_WORDS, SEQUENCE_ACTS, sequenceActsOf, sequenceResumeAsk } from "./sequences/sequence-acts";

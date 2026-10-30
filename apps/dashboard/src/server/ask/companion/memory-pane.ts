@@ -69,7 +69,8 @@ export async function keepMemoryLine(
 ): Promise<AskMemoryDoorDto> {
   const text = lineText(body?.text);
   const threadId = typeof body?.thread_id === "string" && body.thread_id ? requireUuid(body.thread_id, "thread") : null;
-  const source: AskMemorySource = body?.source === "ask" ? "ask" : "pane";
+  // Ask's card, or one Ask learned from how they write (decision 0078); anything else is the pane's.
+  const source: AskMemorySource = body?.source === "ask" || body?.source === "learned" ? body.source : "pane";
   const kept = await keepAskMemory(ctx.supabase, { tenantId: member.tenantId, text, source, threadId }).catch(
     asRefusal,
   );

@@ -1,5 +1,6 @@
 import "server-only";
 import {
+  DAY_MS,
   PEOPLE_GROUP_WORDS,
   SEQUENCE_PEOPLE_GROUPS,
   UUID,
@@ -20,11 +21,15 @@ import {
   sequenceStateWords,
   sequenceStopsSentence,
   sequenceWaitWords,
+  sentAsDrafted,
+  type ReachOutChainDto,
   type SequenceRowDto,
   type AppointmentWord,
   SEQUENCES_ROUTE,
 } from "@chanlytics/contracts";
+import { sequenceMakes, type SequenceMake } from "@chanlytics/db";
 import { load } from "../../../readers";
+import { reachOutChains } from "../../../readers/playbooks";
 import { sequence, sequenceHistory, sequencePeople, sequences } from "../../../readers/sequences";
 import { notePerson, str, unlessNotFound, type ToolContext } from "../context";
 
@@ -158,5 +163,95 @@ export async function readSequence(t: ToolContext, input: { sequence_id: string 
       ...(b.failure ? { failure: b.failure } : {}),
     })),
     older_history: history.more || history.batches.length > HISTORY_CAP,
+  };
+}
+
+/**
+ * The cold email sequences (Reach out, decision 0056) as Campaigns lists them (readers/playbooks.ts reachOutChains, GET
+ * reach-outs' own read): each with its id, name, the search or list of leads it writes to, whether it runs, its emails and
+ * their waits, its pace and who it is in it. Every one is a row an answer may cite, opened on its drawer.
+ */
+export async function readColdEmails(t: ToolContext): Promise<unknown> {
+  const read = await load(t.rc, reachOutChains, undefined);
+  noteRows(t.read, read.rows);
+  return {
+    route: SEQUENCES_ROUTE,
+    cold_emails: read.data.chains.map((c) => ({
+      root_id: c.root_id,
+      name: c.name,
+      writes_to: c.search ? { search_id: c.search.id, name: c.search.name } : null,
+      state: c.state,
+      emails: c.steps.length,
+      gap_minutes: c.gap_minutes,
+      owner_sends: c.owner_sends === true,
+      ...(c.people ? { people: { waiting: c.people.waiting, writing: c.people.writing, done: c.people.done } } : {}),
+    })),
+  };
+}
+
+/** How far back `edited` reads, in days: one when left out, as the morning asks ("since yesterday"); a month at most. */
+export const EDITED_DAYS = { default: 1, max: 30 } as const;
+/** The cold emails one `edited` read says, newest first: enough to see a habit, never a history. */
+const EDITED_CAP = 3;
+/** The member's makes one `edited` read looks through, newest first. */
+const EDITED_MAKES = 20;
+
+/** One cold email the member made whose first email is theirs, as `edited` says it. */
+interface EditedEmail {
+  sequence_id: string;
+  name: string;
+  /** What it was for: the search it writes to. */
+  for: string | null;
+  state: ReachOutChainDto["state"];
+  /** Ask's draft of the first email, or null where they wrote it themself. */
+  drafted: { subject: string | null; body: string } | null;
+  /** The first email as it stands: their words. */
+  sent: { subject: string | null; body: string };
+}
+
+/**
+ * The member's own cold emails whose first email is theirs (decision 0078 step 2): changed from what Ask drafted, or
+ * written whole by them, newest first. Pure, over the member's makes (newest first) and the chains as Campaigns reads
+ * them; one sent as Ask drafted it, a call's or a note's first step, and an email with no words are not theirs.
+ */
+export function editedOf(makes: readonly SequenceMake[], chains: readonly ReachOutChainDto[]): EditedEmail[] {
+  const byId = new Map(chains.map((c) => [c.root_id, c]));
+  return makes.flatMap((m) => {
+    const c = byId.get(m.sequence_id);
+    const first = c?.steps[0];
+    if (!c || !first || first.hand || !first.body.trim()) return [];
+    const sent = { subject: first.subject, body: first.body };
+    const drafted = m.as_drafted?.steps[0] ?? null;
+    if (drafted && sentAsDrafted(drafted, sent)) return [];
+    return [{ sequence_id: c.root_id, name: c.name, for: c.search?.name ?? null, state: c.state, drafted, sent }];
+  });
+}
+
+/**
+ * The cold emails to leads the member made in the last days whose first email is theirs (decision 0078 step 2): what
+ * Ask drafted beside what they sent, or what they wrote themself. Only the member's own makes are read: a teammate's
+ * words are not theirs to quote. What they sent is marked as theirs on the turn, the one place a line about how they
+ * write may quote from besides their question (act/remember.ts); nothing else a read returns is ever marked.
+ */
+export async function readEdited(t: ToolContext, input: { days?: number }): Promise<unknown> {
+  const days = Math.min(Math.max(input.days ?? EDITED_DAYS.default, 1), EDITED_DAYS.max);
+  const since = new Date(t.now.getTime() - days * DAY_MS).toISOString();
+  const [makes, chains] = await Promise.all([
+    sequenceMakes(t.ctx.supabase, { tenantId: t.tenantId, by: t.ctx.userId, since, limit: EDITED_MAKES }),
+    load(t.rc, reachOutChains, undefined),
+  ]);
+  const edited = editedOf(makes, chains.data.chains).slice(0, EDITED_CAP);
+  noteRows(
+    t.read,
+    chains.rows.filter((r) => edited.some((e) => e.sequence_id === r.id)),
+  );
+  t.theirs = [...(t.theirs ?? []), ...edited.flatMap((e) => [e.sent.subject ?? "", e.sent.body].filter(Boolean))];
+  return {
+    route: SEQUENCES_ROUTE,
+    days,
+    edited,
+    ...(edited.length === 0
+      ? { none: `No cold email you made in the last ${days === 1 ? "day" : `${days} days`} has words of your own.` }
+      : {}),
   };
 }

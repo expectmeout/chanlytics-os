@@ -238,10 +238,10 @@ function startedWords(d: NewDraftDto, start: boolean, tz: string): string {
 function useMake(keptId: string | null, flash: Flash, letGo: () => void, tz: string) {
   const hosted = useCampaignsToast();
   const [busy, setBusy] = useState(false);
-  const make = async (draft: NewDraftDto, start: boolean) => {
+  const make = async (draft: NewDraftDto, start: boolean, drafted: NewDraftDto | null) => {
     if (!draft.who) return false;
     setBusy(true);
-    const r = await commitVerb("sequence_new", M.makeBodyOf(draft, start, keptId));
+    const r = await commitVerb("sequence_new", M.makeBodyOf(draft, start, keptId, drafted));
     setBusy(false);
     if (!r.ok) {
       flash(refusalToast(r));
@@ -312,10 +312,14 @@ function shownDraftOf(
   return held ?? (opened ? M.recounted(null, M.onReadyChannels(opened, reads.draft.ready), k) : null);
 }
 
-/** What New keeps in the tab while it holds a draft: the draft and the line, under the address it was opened on. */
+/**
+ * What New keeps in the tab while it holds a draft: the draft, the line, and the draft as Ask answered it (decision 0078
+ * step 2: what a make keeps beside the owner's words), under the address it was opened on.
+ */
 interface KeptHere {
   draft: NewDraftDto | null;
   line: string | null;
+  drafted?: NewDraftDto | null;
 }
 
 interface NewSequenceProps {
@@ -340,6 +344,8 @@ export function NewSequence({ moment = null, who = null, to = null, kept = null 
   const [typed, setTyped] = useState<string | null>(back?.line ?? null);
   const line = typed ?? seed;
   const [held, setDraft] = useState<NewDraftDto | null>(back?.draft ?? null);
+  // The draft as Ask last answered it, never as it is being edited: what a make keeps beside the owner's words.
+  const [drafted, setDrafted] = useState<NewDraftDto | null>(() => back?.drafted ?? null);
   const { opened, letGo } = useOpenedOn(who, kept, reads);
   // Who it reaches, its twin and its checks, said again as it changes (decision 0065 step 7); what Ask answered stands.
   const recount = (prev: NewDraftDto | null, next: NewDraftDto) =>
@@ -347,7 +353,7 @@ export function NewSequence({ moment = null, who = null, to = null, kept = null 
   const draft = shownDraftOf(held, back?.draft ?? null, opened, reads);
   const [saying, setSaying] = useState(false);
   const work = useUnsavedWork("new", here, {
-    value: { draft: held, line: typed } satisfies KeptHere,
+    value: { draft: held, line: typed, drafted } satisfies KeptHere,
     dirty: !!held?.who,
     onLeave: () => navigate(SEQUENCES_ROUTE),
   });
@@ -357,11 +363,14 @@ export function NewSequence({ moment = null, who = null, to = null, kept = null 
     setSaying(false);
     work.stay();
   };
-  const asking = useAsk(door, flash, show);
+  const asking = useAsk(door, flash, (d) => {
+    setDrafted(d);
+    show(d);
+  });
   const made = useMake(kept, flash, letGo, reads?.draft.timezone ?? "UTC");
   const busy = made.busy;
   const make = async (d: NewDraftDto, start: boolean) => {
-    if (await made.make(d, start)) work.done();
+    if (await made.make(d, start, drafted)) work.done();
   };
   const may = canDo("approve");
   // What Ask is drafting it again as, while it does: the draft stands in that shape, with Undo (F1).
@@ -375,6 +384,7 @@ export function NewSequence({ moment = null, who = null, to = null, kept = null 
     const previous = { name: draft.name, steps: draft.steps.length };
     // By hand, the draft is built again here; Ask's is drafted again from the same line.
     if (!draft.said) {
+      setDrafted(null);
       setDraft(recount(null, { ...M.draftByHand(kind, audience, draft.business), ...keep }));
       return;
     }
@@ -390,6 +400,7 @@ export function NewSequence({ moment = null, who = null, to = null, kept = null 
   };
   const byHand = (kind?: NewKind) => {
     const d = M.draftByHand(kind ?? door.kind ?? "sequence", door.audience ?? "people", reads?.business ?? "");
+    setDrafted(null);
     show(recount(null, door.who && whoSuits(door.who, d.audience, d.kind) ? M.setWho(d, door.who) : d));
     asking.clear();
   };
@@ -397,6 +408,7 @@ export function NewSequence({ moment = null, who = null, to = null, kept = null 
   const discard = () => {
     letGo();
     setDraft(null);
+    setDrafted(null);
     work.done();
     work.stay();
     if (!kept) return;

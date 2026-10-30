@@ -6,6 +6,7 @@
  * the audience) is Ask's to draft again from the same line.
  */
 import {
+  asDraftedOf,
   CONSENT_CHANNELS,
   DAY_MS,
   EVERYONE_LABEL,
@@ -604,8 +605,11 @@ export function recounted(prev: NewDraftDto | null, next: NewDraftDto, k: Recoun
   return { ...counted, checks: newChecksOf(counted, k.ready) };
 }
 
-/** The body Keep (start false) and Start or Send (true) send: the draft as it stands. */
-export function makeBodyOf(d: NewDraftDto, start: boolean, draftId: string | null) {
+/**
+ * The body Keep (start false) and Start or Send (true) send: the draft as it stands, and, for a draft to leads Ask wrote,
+ * what Ask drafted (`drafted`, its answer as it came), which the make keeps beside it (decision 0078 step 2).
+ */
+export function makeBodyOf(d: NewDraftDto, start: boolean, draftId: string | null, drafted: NewDraftDto | null = null) {
   if (!d.who) throw new Error("a draft is made with who it is for");
   return {
     kind: d.kind,
@@ -619,6 +623,14 @@ export function makeBodyOf(d: NewDraftDto, start: boolean, draftId: string | nul
     adds_new: d.adds_new,
     ...(d.mailbox ? { owner_sends: d.mailbox.owner_sends } : {}),
     ...(draftId ? { draft_id: draftId } : {}),
+    ...(d.audience === "leads" && drafted?.audience === "leads" && drafted.said
+      ? {
+          as_drafted: asDraftedOf(
+            drafted.said,
+            drafted.steps.map((s) => s.email),
+          ),
+        }
+      : {}),
     steps: d.steps.map((s) => ({
       name: s.name,
       after_days: s.after_days,

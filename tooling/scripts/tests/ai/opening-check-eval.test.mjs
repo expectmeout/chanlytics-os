@@ -155,7 +155,7 @@ const message = (obj) => ({
 
 /**
  * A model that reads every sentence and writes for each business by its name. The reader refuses "a waiting list" and
- * "on weekends too" (the barber's listing sentence: its Sunday ends at 4 PM), and passes the rest. The thin auto shop's
+ * "on Sundays" (the barber's listing sentence, standing for one a reader cannot back), and passes the rest. The thin auto shop's
  * writer guesses at first and then writes from the record; the barber's always claims a waiting list. The grader calls a
  * sentence with "probably" or "waiting" a guess, and the rest honest.
  */
@@ -177,7 +177,7 @@ function world() {
     }
     if (READER.test(system)) {
       const sentence = user.slice(user.indexOf("The sentence: ") + 14);
-      const unbacked = /waiting list|on weekends too/.exec(sentence)?.[0] ?? "";
+      const unbacked = /waiting list|on Sundays/.exec(sentence)?.[0] ?? "";
       return message({ backed: !unbacked, unbacked, pitch: false, language: "en" });
     }
     if (GRADER.test(system)) {

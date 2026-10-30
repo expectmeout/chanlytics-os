@@ -3,11 +3,12 @@
  * checked, and the cases that stop or bend a draft. The engine (the server's sequences/new-draft.ts) says its checks and
  * what it could not do in these words, and the page says everything else in them.
  */
+import { CAMPAIGN_ROOMS } from "../shell/campaign-rooms";
 import type { NewAudience, NewKind, NewNobody, NewStepDoes } from "./new-draft";
 import type { SequenceMode } from "./sequence";
 
 export const NEW_WORDS = {
-  title: "New",
+  title: CAMPAIGN_ROOMS.new,
   /** The head's act on Sequences, its noun said where the row has room for it. */
   act: "New sequence",
   /** A one-off built by hand, before it is named. */

@@ -84,11 +84,11 @@ export function useBulkAdd(p: BulkAddProps) {
   /** New: a draft by name holding them all, the pick from now. */
   const make = (name: string, start: NewStart) =>
     run(async () => {
-      let steps: unknown = null;
+      let asked: { steps: unknown; as_drafted: unknown } | null = null;
       if (start.kind === "ask") {
         const d = await reachOuts.draftLeads({ name, lead_ids: p.ids, search_name: p.search?.name ?? null });
         if (!d.ok) return p.flash(refusalToast(d, "Ask could not write a draft"));
-        steps = d.data.steps;
+        asked = d.data;
       }
       const r = await commitVerb("sequence_make", {
         first: {
@@ -96,7 +96,8 @@ export function useBulkAdd(p: BulkAddProps) {
           name,
           lead_ids: p.ids,
           ...(start.kind === "copy" ? { from: start.from } : {}),
-          ...(steps ? { steps } : {}),
+          // Ask's words, and what Ask drafted, which the make keeps beside them (decision 0078 step 2).
+          ...(asked ? { steps: asked.steps, as_drafted: asked.as_drafted } : {}),
           ...(p.search ? { aim_search_id: p.search.id } : {}),
         },
         start: false,
