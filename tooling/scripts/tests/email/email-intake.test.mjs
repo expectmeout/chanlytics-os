@@ -222,6 +222,161 @@ test("an email's words are its plain-text part; one with only HTML is reduced to
   assert.equal(emailPlainText({ text: null, html: "<p> </p>" }), null);
 });
 
+/**
+ * A hosting platform's notice as a connected mailbox read it on 28 Oct 2026 (names and links made up): its plain-text
+ * part was its HTML stripped of tags by the sender, so the style sheet at the foot of the HTML's body is in it as
+ * words, wrapped at 76 columns by quoted-printable, and Inbox showed the CSS as the email's words.
+ */
+const NOTICE_TEXT = `Hostingana@example.com attempted to deploy a commit to
+fixture-studio's projects on Hosting through GitHub, but they're not
+a member of the team.
+
+To resolve this:
+
+* Add them as a collaborator
+(https://hosting.example/fixture-studio/~/settings/members)
+* If already a member, ensure their GitHub account is connected
+on their Authentication Settings
+(https://hosting.example/account/settings/authentication) page
+
+------------------------------------------------------------------
+
+If you'd like to report an issue, reach out to Hosting Help
+(https://hosting.example/help).
+
+Copyright © 2026 Hosting Inc.
+(https://hosting.example)
+All rights reserved.
+
+440 Example Ave #4133 Springfield, CA 91723
+
+:root { color-scheme: light dark; }
+
+.body { background-color: #ffffff; margin: 0; padding: 0; }
+.outer-table, .outer-td, .inner-td { background-color: #ffffff; }
+
+p {
+color: #171717;
+font-family: -apple-system,BlinkMacSystemFont,'Segoe
+UI','Roboto',sans-serif;
+font-size: 16px; line-height: 1.5; margin: 0 0 16px 0;
+overflow-wrap: anywhere;
+}
+h2 { color: #171717; font-size: 18px; font-weight: 600; margin: 0
+0 16px 0; }
+.footer-text a { color: #7D7D7D !important; text-decoration:
+underline !important; font-weight: 400 !important; }
+.block-row.block-row--button_set-v1
+.block-button.block-button--solid.block-button--sm {
+background-color: #000000; border-radius: 8px !important; color:
+#ffffff;
+mso-line-height-rule: exactly; padding: 12px 20px !important;
+}
+.block-row.block-row--markdown-v1 .block-markdown > :first-child
+{ margin-top: 0; }
+.block-row.block-row--button_set-v1 .block-button { display:
+inline-block; box-sizing: border-box; text-decoration: none;
+-webkit-text-size-adjust: none; }
+
+@media (prefers-color-scheme: dark) {
+.body, .outer-table, .outer-td, .inner-td { background-color:
+#111111 !important; }
+a { color: #4da3ff !important; }
+td[bgcolor="#000000"], .email-cta { background-color: #EDEDED
+!important; }
+}
+
+@media only screen and (max-width: 620px) {
+.outer-td { padding: 32px 16px !important; }
+}
+`.replace(/\n/g, "\r\n");
+
+/** Its HTML part: a style sheet in the head, another at the foot of the body (where the text part's came from), a pixel. */
+const NOTICE_HTML = `<html style="color-scheme:light dark"><head><style type="text/css" rel="stylesheet" media="all">
+.block-row.block-row--button_set-v1 .block-button {
+  display: inline-block;
+}
+</style><meta name="color-scheme" content="light dark"/></head><body class="body" style="background-color:#ffffff;margin:0;padding:0"><table class="outer-table" width="100%"><tbody><tr><td class="outer-td" align="center"><div style="margin-bottom:48px"><img class="logo" src="https://hosting.example/icon.png" width="24" height="21" alt="Hosting"/></div><p><span style="font-weight:500;">ana@example.com</span> attempted to deploy a commit to <span style="font-weight:500;">fixture-studio&#39;s projects</span> on Hosting through GitHub, but they&#39;re not a member of the team.</p><p>To resolve this:</p><ul><li><a href="https://hosting.example/fixture-studio/~/settings/members">Add them as a collaborator</a></li><li>If already a member, ensure their GitHub account is connected on their <a href="https://hosting.example/account/settings/authentication">Authentication Settings</a> page</li></ul><table role="presentation"><tbody><tr><td bgcolor="#000000"><a href="https://hosting.example/fixture-studio/~/settings/members" target="_blank">Add collaborator</a></td></tr></tbody></table><hr class="footer-hr"/><p class="footer-text">If you&#39;d like to report an issue, reach out to <a class="footer-link" href="https://hosting.example/help">Hosting Help</a>.</p><p class="footer-text">
+                    Copyright © 2026 <a class="footer-link" href="https://hosting.example">Hosting Inc.</a> All rights reserved.<br/>
+                    440 Example Ave #4133 Springfield, CA 91723
+                  </p></td></tr></tbody></table><style>
+  :root { color-scheme: light dark; }
+  .body { background-color: #ffffff; margin: 0; padding: 0; }
+  @media (prefers-color-scheme: dark) {
+    .body { background-color: #111111 !important; }
+  }
+</style><img src="https://track.example/t/open.png" class="k-png" width="1px" height="1px" role="none"/></body></html>`;
+
+test("a text part that carries the sender's style sheet is not the words: its HTML twin is read instead, and with no twin the style sheet at its head or foot is cut; a person's braces stay", () => {
+  const words =
+    "ana@example.com attempted to deploy a commit to fixture-studio's projects on Hosting through GitHub, but they're not a member of the team.\n\n" +
+    "To resolve this:\n\n" +
+    " * Add them as a collaborator [https://hosting.example/fixture-studio/~/settings/members]\n" +
+    " * If already a member, ensure their GitHub account is connected on their Authentication Settings [https://hosting.example/account/settings/authentication] page\n\n" +
+    "Add collaborator [https://hosting.example/fixture-studio/~/settings/members]\n\n" +
+    "----------------------------------------\n\n" +
+    "If you'd like to report an issue, reach out to Hosting Help [https://hosting.example/help].\n\n" +
+    "Copyright © 2026 Hosting Inc. [https://hosting.example] All rights reserved.\n" +
+    "440 Example Ave #4133 Springfield, CA 91723";
+  assert.equal(
+    emailPlainText({ text: NOTICE_TEXT, html: NOTICE_HTML }),
+    words,
+    "the twin's words, as an HTML-only email's",
+  );
+  assert.equal(
+    emailPlainText({ text: null, html: NOTICE_HTML }),
+    words,
+    "an HTML-only email: both style sheets dropped",
+  );
+
+  // No twin: the run of rules at the foot is cut, nested @media and a value wrapped over lines with it.
+  const alone = emailPlainText({ text: NOTICE_TEXT, html: null });
+  assert.equal(
+    alone,
+    NOTICE_TEXT.replace(/\r\n/g, "\n").slice(0, NOTICE_TEXT.replace(/\r\n/g, "\n").indexOf(":root")).trim(),
+  );
+  assert.doesNotMatch(alone, /[{}]|color-scheme|!important/);
+  // ...and one at the head, as a sender whose style sheet sits first in its body writes it.
+  assert.equal(
+    emailPlainText({
+      text: "<!--\n@import url(https://fonts.example/a.css);\n.wrapper { width: 100%; }\n-->\nYour receipt\n\nPaid: $40.00",
+      html: null,
+    }),
+    "Your receipt\n\nPaid: $40.00",
+  );
+
+  // A person's own words with braces in them are words: not a style sheet, so neither twin nor cut.
+  for (const said of [
+    "Can we do {Tuesday: 3pm}? The form said { name: Ana; phone: 555-0142 }.",
+    'The quote tool sent {"color": "red", "size": 2} back to me.',
+    "Saturday works.\n\nmeeting { time: 9am; place: the shop }",
+  ]) {
+    assert.equal(emailPlainText({ text: said, html: "<p>the twin</p>" }), said, said);
+    assert.equal(emailPlainText({ text: said, html: null }), said, said);
+  }
+});
+
+test("of an HTML-only email, only what a reader reads is words: no head or title without a body, no fallback for scripts, no template, no drawing's labels, no embedded media's fallback", () => {
+  assert.equal(
+    emailPlainText({
+      text: null,
+      html:
+        "<head><title>Your receipt from Fixture Studio</title><style>.a{color:red}</style></head>" +
+        "<p>Paid: $40.00</p>" +
+        "<noscript>Turn on JavaScript to see this email.</noscript>" +
+        "<template><p>A row the page fills in</p></template>" +
+        '<svg width="80" height="20"><title>Fixture Studio logo</title><text x="0" y="15">FIXTURE</text></svg>' +
+        '<iframe src="https://video.example/v/1">Your client cannot show this frame.</iframe>' +
+        '<object data="https://video.example/v/1.swf">Flash is needed.</object>' +
+        '<video src="https://video.example/v/1.mp4">Your client cannot play video.</video>' +
+        '<audio src="https://video.example/v/1.mp3">No audio.</audio>' +
+        "<canvas>A chart.</canvas>" +
+        "<p>Thank you.</p>",
+    }),
+    "Paid: $40.00\n\nThank you.",
+  );
+});
+
 test("what a message claims to be: a report and an automatic reply before the generic automated mark, because both carry it; a person otherwise", () => {
   const claim = (headers, from = "ana@example.com") =>
     classifyReceived({ headers, from: { address: from, name: null } });
@@ -285,6 +440,54 @@ test("what a message claims to be: a report and an automatic reply before the ge
     assert.equal(claim({}, robot), "automated", robot);
   for (const person of ["noreen@example.com", "reply@example.com", "norma.replyson@example.com"])
     assert.equal(claim({}, person), "person", person);
+});
+
+test("a program's own mailbox is automated by its name (notifications@, alerts@, news@, updates@ and the like), and so is mail whose replies go to a no-reply address; a person's name that holds the letters, and a reply-to that is a person, are a person's", () => {
+  const claim = (from, headers = {}) => classifyReceived({ headers, from: { address: from, name: null } });
+  // A hosting platform's notice as a connected mailbox read it on 28 Oct 2026: none of the automated headers, filed
+  // under Gmail's Updates, from a sender already in People, so it came in as a person and waited in Need you.
+  for (const robot of [
+    "notifications@hosting.example",
+    "notification@shop.example",
+    "notify@bank.example",
+    "alerts@bank.example",
+    "alert@bank.example",
+    "mailer@shop.example",
+    "bounces@brand.example",
+    "newsletter@brand.example",
+    "newsletters@brand.example",
+    "news@brand.example",
+    "store-news@amazon.com",
+    "digest@forum.example",
+    "updates@brand.example",
+    "account-update@amazon.com",
+    "info-notifications@brand.example",
+    "notifications+abc123@brand.example",
+  ])
+    assert.equal(claim(robot), "automated", robot);
+  for (const person of [
+    "newton@example.com",
+    "newsom.ana@example.com",
+    "alerta@example.com",
+    "updike@example.com",
+    "info@example.com",
+    "support@example.com",
+    "hello@example.com",
+  ])
+    assert.equal(claim(person), "person", person);
+
+  // Replies go nowhere: every address the Reply-To line names is a no-reply one.
+  assert.equal(claim("billing@hosting.example", { "reply-to": "no-reply@hosting.example" }), "automated");
+  assert.equal(claim("team@hosting.example", { "reply-to": "Hosting <noreply@hosting.example>" }), "automated");
+  assert.equal(
+    claim("team@hosting.example", { "reply-to": "noreply@hosting.example, do-not-reply@hosting.example" }),
+    "automated",
+  );
+  // A form's notice whose replies go to the person who filled it in, and a reply-to that names a person beside a
+  // no-reply, are somebody's to answer; a Reply-To that is no address at all says nothing.
+  assert.equal(claim("forms@site.example", { "reply-to": "Ana Reyes <ana@example.com>" }), "person");
+  assert.equal(claim("team@hosting.example", { "reply-to": "noreply@hosting.example, ana@example.com" }), "person");
+  assert.equal(claim("team@hosting.example", { "reply-to": "undisclosed-recipients:;" }), "person");
 });
 
 test("a DMARC aggregate report is automated whoever writes it, by RFC 7489's subject or by DMARC as a word of the sender's local part; a reply to one, a forward of one and a name that holds the letters are a person's", () => {

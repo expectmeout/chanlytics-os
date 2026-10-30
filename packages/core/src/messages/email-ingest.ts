@@ -24,8 +24,8 @@ const emailLog = logger();
  * answers: until the receptionist drafts email replies, every email from a
  * person is a person's to answer, and the day it does draft, it drafts only
  * for mail whose sender could be verified. A claim decides how LITTLE is done
- * (an automatic reply is kept and never flagged; a delivery report is not a
- * conversation at all), never how much.
+ * (an automatic reply and a program's mail are kept and never flagged; a
+ * delivery report is not a conversation at all), never how much.
  *
  * It resumes. The replay gate is the provider's id for the delivery, so a run
  * that died after the message was stored finds it on the next try and carries
@@ -264,12 +264,13 @@ export async function ingestEmail(
   // so a failed read or a failed schedule is the job's to try again, and the next try finds the reading scheduled.
   const reachOut = await ports.reachOutReply(mailbox.tenant_id, kept.message_id);
 
-  if (taken !== "auto_reply")
+  const flagged = flaggedAs(taken, claim, reachOut);
+  if (flagged)
     await flagForAPerson(ports, email, {
       tenantId: mailbox.tenant_id,
       conversationId: kept.conversation_id,
       address,
-      claim: taken,
+      claim: flagged,
       reachOut,
     });
   // After the flag: the reading closes what the intake opened (reply-read.ts closeWhatTheIntakeOpened), so it must find
@@ -281,7 +282,23 @@ export async function ingestEmail(
   await ports.markProcessed(mailbox.tenant_id, kept.message_id);
   await ports.received(mailbox.id, at);
   if (reachOut) return "kept_for_the_reading";
-  return taken === "auto_reply" ? "kept_quietly" : "kept_for_a_person";
+  return flagged ? "kept_for_a_person" : "kept_quietly";
+}
+
+/**
+ * Whether a kept email asks a person, and in whose words, or null for one kept quietly. A person's email does; so does
+ * a reply to a reach-out, whatever it claims (the reading tells the owner what it meant), and a tool's notice or a
+ * forwarding check the intake could not trust, which is about the business's own appointments or settings. An
+ * automatic reply and a program's own mail (a notification, a list, a no-reply sender's) are kept for the record, and
+ * nobody is asked to answer them, as a connected mailbox leaves them where they are (edge mailbox-sorting.ts).
+ */
+function flaggedAs(
+  taken: Exclude<EmailClaim, "report" | "booking_notice" | "forwarding_confirmation">,
+  claim: EmailClaim,
+  reachOut: boolean,
+): "person" | "automated" | null {
+  if (taken === "auto_reply") return null;
+  return taken === "person" || reachOut || claim !== "automated" ? taken : null;
 }
 
 /**
@@ -333,8 +350,8 @@ async function keptAside(
 }
 
 /**
- * Flag the thread for a person, and tell them unless the reading will (a reach-out's reply). Every claim but an
- * automatic reply is flagged.
+ * Flag the thread for a person, and tell them unless the reading will (a reach-out's reply). Which emails are flagged
+ * is flaggedAs's.
  */
 async function flagForAPerson(
   ports: EmailIngestPorts,
