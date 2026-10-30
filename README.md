@@ -71,8 +71,8 @@ corepack pnpm -r typecheck                    # each package once, through its p
 corepack pnpm test                            # builds the packages' bundles the suite reads, then runs it
 ```
 
-`pnpm` is corepack-only here — bare `pnpm` is not on PATH. Node 22+ is required
-(`.nvmrc`); the test suite runs under `tsx`, so a test can import the app's own
+`pnpm` is corepack-only here — bare `pnpm` is not on PATH. Node 24 is required
+(`.nvmrc`, and `engines` says `24.x`); the test suite runs under `tsx`, so a test can import the app's own
 TypeScript — the edge handlers, the permission layer, the packages — and
 execute it. It used to run on Node's type stripping, which could load only leaf
 modules with no imports, and that limit is why so many tests assert on source

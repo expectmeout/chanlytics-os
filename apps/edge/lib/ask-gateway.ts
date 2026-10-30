@@ -97,7 +97,7 @@ export async function recordAskUsage(
 }
 
 /**
- * A transformer with the cancel step the Streams standard has given it, which Node 22 (the engines' floor) runs when
+ * A transformer with the cancel step the Streams standard has given it, which Node 24 (the engines' major) runs when
  * the readable side is cancelled or the writable side aborted. TypeScript's DOM types do not name it yet.
  */
 type CancellableTransformer<I, O> = Transformer<I, O> & { cancel?: (reason: unknown) => Promise<void> | void };
