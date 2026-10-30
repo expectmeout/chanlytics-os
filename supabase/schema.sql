@@ -33754,8 +33754,9 @@ CREATE VIEW public.lead_searches_view WITH (security_invoker='true') AS
     COALESCE(c.look, (0)::bigint) AS look,
     COALESCE(c.long, (0)::bigint) AS long,
     s.thread_id,
-    s.adds_to
-   FROM (((public.lead_searches s
+    s.adds_to,
+    COALESCE(q.owned, false) AS sequence_list
+   FROM ((((public.lead_searches s
      LEFT JOIN LATERAL ( SELECT r_1.id,
             r_1.seq,
             r_1.purpose,
@@ -33775,15 +33776,15 @@ CREATE VIEW public.lead_searches_view WITH (security_invoker='true') AS
           WHERE (r_1.search_id = s.id)
           ORDER BY r_1.seq DESC
          LIMIT 1) r ON (true))
-     LEFT JOIN LATERAL ( SELECT count(*) FILTER (WHERE ((m.class = 'qualified'::text) AND (m.blanked_at IS NULL))) AS qualified,
+     LEFT JOIN LATERAL ( SELECT count(*) FILTER (WHERE ((m.class = 'qualified'::text) AND (m.blanked_at IS NULL) AND public.lead_member_shown(m.class, m.counted))) AS qualified,
             count(*) FILTER (WHERE ((m.class = 'review'::text) AND (m.blanked_at IS NULL))) AS review,
             count(*) FILTER (WHERE (m.class = 'excluded'::text)) AS excluded,
             count(*) FILTER (WHERE m.counted) AS counted,
-            count(*) FILTER (WHERE ((m.class = 'qualified'::text) AND (m.blanked_at IS NULL) AND (l.email_state = 'ok'::text))) AS emails_checked,
-            count(*) FILTER (WHERE ((m.class = 'qualified'::text) AND (m.blanked_at IS NULL) AND (l.phone_e164 IS NOT NULL) AND (NOT l.phone_wrong))) AS with_phone,
-            count(*) FILTER (WHERE ((m.class = 'qualified'::text) AND (m.blanked_at IS NULL) AND (m.fit = 'strong'::text))) AS strong,
-            count(*) FILTER (WHERE ((m.class = 'qualified'::text) AND (m.blanked_at IS NULL) AND (m.fit = 'look'::text))) AS look,
-            count(*) FILTER (WHERE ((m.class = 'qualified'::text) AND (m.blanked_at IS NULL) AND (m.fit = 'long'::text))) AS long
+            count(*) FILTER (WHERE ((m.class = 'qualified'::text) AND (m.blanked_at IS NULL) AND public.lead_member_shown(m.class, m.counted) AND (l.email_state = 'ok'::text))) AS emails_checked,
+            count(*) FILTER (WHERE ((m.class = 'qualified'::text) AND (m.blanked_at IS NULL) AND public.lead_member_shown(m.class, m.counted) AND (l.phone_e164 IS NOT NULL) AND (NOT l.phone_wrong))) AS with_phone,
+            count(*) FILTER (WHERE ((m.class = 'qualified'::text) AND (m.blanked_at IS NULL) AND public.lead_member_shown(m.class, m.counted) AND (m.fit = 'strong'::text))) AS strong,
+            count(*) FILTER (WHERE ((m.class = 'qualified'::text) AND (m.blanked_at IS NULL) AND public.lead_member_shown(m.class, m.counted) AND (m.fit = 'look'::text))) AS look,
+            count(*) FILTER (WHERE ((m.class = 'qualified'::text) AND (m.blanked_at IS NULL) AND public.lead_member_shown(m.class, m.counted) AND (m.fit = 'long'::text))) AS long
            FROM (public.lead_search_members m
              JOIN public.leads l ON ((l.id = m.lead_id)))
           WHERE (m.search_id = s.id)) c ON (true))
@@ -33792,14 +33793,18 @@ CREATE VIEW public.lead_searches_view WITH (security_invoker='true') AS
            FROM public.lead_operations o
           WHERE ((o.search_id = s.id) AND (o.kind = 'undo_search'::text) AND (o.undone_at IS NULL) AND (o.at > (now() - '24:00:00'::interval)))
           ORDER BY o.at DESC
-         LIMIT 1) u ON (true));
+         LIMIT 1) u ON (true))
+     LEFT JOIN LATERAL ( SELECT true AS owned
+           FROM public.sequence_steps st
+          WHERE (st.lead_search_id = s.id)
+         LIMIT 1) q ON (true));
 
 
 --
 -- Name: VIEW lead_searches_view; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON VIEW public.lead_searches_view IS 'Every column of lead_searches with its latest round (round_id, seq, purpose, state, ending, ending_pending, question, answered, target, plan_version, judge_tokens, cost_usd -- what that round has spent, so cost per Qualified lead is read from here -- waiting_since and ended_at) and its counts over the members: qualified, review, excluded, counted, emails_checked (a qualified lead whose address was checked and answered) and with_phone (a qualified lead with a number nobody has marked wrong). Excluded members stay counted after their details are blanked, so "40 left out" stays 40. undo_op_id and undo_version name the operation this search''s Undo takes while its twenty-four hours run, and are null once it is undone or the day is out. nearby (00145): where to look next when the round ran dry, the nearest ZIP centres past its area, nearest first; [] otherwise. strong, look and long (00146): the qualified members by fit band, for the band bar over the table. thread_id (00172): the Ask thread the search was planned in, or null. adds_to (00459): the sequence this search''s Add goes to.';
+COMMENT ON VIEW public.lead_searches_view IS 'Every column of lead_searches with its latest round (round_id, seq, purpose, state, ending, ending_pending, question, answered, target, plan_version, judge_tokens, cost_usd -- what that round has spent, so cost per Qualified lead is read from here -- waiting_since and ended_at) and its counts over the members: qualified (what the Qualified tab shows: a qualified membership once it is counted, lead_member_shown, 00494), review, excluded, counted, emails_checked (a lead Qualified shows whose address was checked and answered) and with_phone (a lead Qualified shows with a number nobody has marked wrong). Excluded members stay counted after their details are blanked, so "40 left out" stays 40. undo_op_id and undo_version name the operation this search''s Undo takes while its twenty-four hours run, and are null once it is undone or the day is out. nearby (00145): where to look next when the round ran dry, the nearest ZIP centres past its area, nearest first; [] otherwise. strong, look and long (00146): the leads Qualified shows by fit band, for the band bar over the table. thread_id (00172): the Ask thread the search was planned in, or null. adds_to (00459): the sequence this search''s Add goes to. sequence_list (00494): whether this search is a sequence''s own list, the one its steps name (sequence_steps.lead_search_id), which the rail draws with the sequences.';
 
 
 --

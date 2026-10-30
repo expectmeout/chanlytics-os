@@ -3724,6 +3724,7 @@ test("Leads' rows, compact in a phone's sheet: an empty list is said in a line, 
       { id: "not_a_fit", label: "Not a fit", count: 0 },
     ],
     searches: [{ id: SEARCH_B, name: "Chiropractors · Round Rock", count: 0, mark: "question", undoable: false }],
+    sequences: [{ id: SEARCH_A, name: "Chiropractors", count: 3, mark: null, undoable: false, list: true }],
   };
   const props = {
     rail,
@@ -3745,6 +3746,8 @@ test("Leads' rows, compact in a phone's sheet: an empty list is said in a line, 
   assert.deepEqual(lists(compact), ["leads-list-all", "leads-list-ready", "leads-list-not_a_fit"]);
   assert.equal(textOf(byTestId(compact, "leads-lists-empty")), "Empty now: Contacted · Talking");
   assert.ok(byTestId(compact, `leads-search-${SEARCH_B}`), "a search with nothing counted yet is still drawn");
+  // A sequence's own list is drawn under Sequences, apart from the searches (00494; the walk of 30 Oct 2026).
+  assert.ok(byTestId(byTestId(compact, "leads-sequence-lists"), `leads-search-${SEARCH_A}`));
   frames.begin();
   const desk = LeadsRailRows(props);
   assert.equal(lists(desk).length, 5, "a desktop's rail draws every list");
