@@ -16,7 +16,7 @@ import { exampleParams, type ParamSpec } from "../templates/templates";
 import { messageAboutOfClass } from "./follow-up";
 import { emailFoot } from "../templates/email-foot";
 import { whyFrom } from "../reach-out/reach-out";
-import { leadCalledByOf } from "../leads/search/clean";
+import { leadCalledByOf } from "../leads/search/called-by";
 import {
   coldSignedOff,
   REACH_OUT_LANGUAGE,

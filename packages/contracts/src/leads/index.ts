@@ -319,6 +319,7 @@ export type {
   LeadWeekRow,
   PeoplePlanned,
 } from "./leads";
+export { leadCalledByOf } from "./search/called-by";
 export {
   BUSINESS_LINE_MAX,
   LEAD_ASK_MAX_FACTOR,
@@ -356,7 +357,6 @@ export {
   LEAD_PLACEHOLDER_LOCALS,
   LEAD_PLATFORM_HOSTS,
   LEAD_ROLE_LOCALS,
-  leadCalledByOf,
   leadKindKey,
   siteHost,
   stateCode,

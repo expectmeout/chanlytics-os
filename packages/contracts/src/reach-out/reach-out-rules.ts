@@ -25,7 +25,7 @@ import type { DeliveryRefusal } from "../consent/consent";
 import { renderOwnVersion } from "../templates/message-versions";
 import { slotHoles, slotMentions, slotValueOf, slotValues, slotsWritten } from "../templates/slot-sets";
 import { LEAD_ROLE_WORDS, leadAddresseeOf } from "../leads/lead-kind";
-import { leadCalledByOf } from "../leads/search/clean";
+import { leadCalledByOf } from "../leads/search/called-by";
 import { REACH_OUT_SLOT_FALLBACKS, REACH_OUT_SLOT_SET, linkCount } from "./reach-out-words";
 
 export interface OutreachLeadFacts {

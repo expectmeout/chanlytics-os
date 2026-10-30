@@ -27,7 +27,8 @@
 import { isFreeMail } from "../email/free-mail";
 import { posesAsReply } from "../email/email-subject";
 import { languageName } from "../templates/template-languages";
-import { leadCalledByOf, siteHost } from "../leads/search/clean";
+import { leadCalledByOf } from "../leads/search/called-by";
+import { siteHost } from "../leads/search/clean";
 import { violatesNoPrices } from "../config/policy";
 import { normalizeEmail } from "../shared/email-address";
 import { emailIssues } from "../templates/message-versions";

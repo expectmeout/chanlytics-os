@@ -21,7 +21,7 @@ import {
   type OpeningRecord,
 } from "./reach-out-words";
 import { languageBase } from "../templates/template-languages";
-import { leadCalledByOf } from "../leads/search/clean";
+import { leadCalledByOf } from "../leads/search/called-by";
 import { MODEL_ROUTES } from "../ai/models";
 
 export const REACH_OUT_MODEL = MODEL_ROUTES.reach_out_check.model;
