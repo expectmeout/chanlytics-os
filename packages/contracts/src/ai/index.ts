@@ -41,6 +41,7 @@ export {
   routeThinkingFor,
   shadowPortOf,
   THINKING_TYPES,
+  thinkingOffOf,
 } from "./models";
 export type {
   ModelEffort,

@@ -4,10 +4,14 @@
  * (D3), its sheets (a run's, To send, Get their yes, the send screen) kept at their addresses. Broadcasts, Templates and
  * Playbooks are what the routes, the code and the database call them, and what people typed before; a sentence a person
  * reads, on a page, in a toast, a notice or an email, names a room from here, so a word changes in one place. New message
- * is the verb, whichever room it starts from.
+ * is the verb, whichever room it starts from. The frame's crumbs and strip name each room from here too, so the words of
+ * Sequences' and New's pages stay out of the frame every page loads (lane 1 of the cold-load review, 30 Oct 2026).
  */
 export const CAMPAIGN_ROOMS = {
   home: "Campaigns",
+  sequences: "Sequences",
+  /** Where a sequence or a one-off is begun (decision 0065). */
+  new: "New",
   library: "Messages",
   newMessage: "New message",
 } as const;

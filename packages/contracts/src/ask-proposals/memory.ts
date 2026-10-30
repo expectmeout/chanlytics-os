@@ -22,7 +22,12 @@ export const memorySpec: ProposalSpec = {
   gate: "approve",
   commit: ({ payload: pl }) => ({
     route: "POST ask/memory",
-    body: { text: asText(pl.text), ...(asText(pl.thread_id) ? { thread_id: asText(pl.thread_id) } : {}) },
+    body: {
+      text: asText(pl.text),
+      ...(asText(pl.thread_id) ? { thread_id: asText(pl.thread_id) } : {}),
+      // A line Ask read from what they wrote is learned, as a pasted email's lines are (decision 0078 step 2).
+      ...(pl.learned === true ? { source: "learned" } : {}),
+    },
   }),
   receipt: ({ payload: pl }, data) => {
     const d = (data && typeof data === "object" ? data : {}) as { memory?: { text?: unknown } };

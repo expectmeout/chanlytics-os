@@ -285,7 +285,7 @@ test("the wiring: the migration, the edge, the routes, the bridge, the pane and 
       MODEL_ROUTES.review_reply.retries,
       MODEL_ROUTES.review_reply.maxTokens,
     ],
-    [MODELS.SONNET_5, 15_000, 1, 300],
+    [MODELS.SONNET_5_5, 15_000, 1, 300],
   );
   const model = readCode("apps/edge/lib/google/review-reply.ts");
   assert.ok(model.includes('if (!r) return { ok: false, error: "no_model_key" };'), "no key: no draft, said so");

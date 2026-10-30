@@ -9,6 +9,7 @@
  * through the typed client, and the refresh map reads the surfaces again behind it.
  */
 import {
+  asDraftedOf,
   NEW_WORDS,
   HOLD_DOOR_WORDS,
   REACH_OUT_RUN_REREAD_MS,
@@ -155,7 +156,8 @@ export const reachOuts = {
   /**
    * Ask's draft of a new sequence to the leads picked (Leads' "A draft by Ask"), from New's one engine (POST sequences/draft,
    * decision 0065): the line a search's leads are drafted from, the workspace's goal and its messages, as New drafts one;
-   * its steps as a sequence to leads holds them.
+   * its steps as a sequence to leads holds them, and what Ask drafted, which the make keeps beside them (decision 0078
+   * step 2).
    */
   draftLeads: async (body: { name: string; lead_ids: string[]; search_name?: string | null }) => {
     const words = body.search_name ? NEW_WORDS.starts.leadsLine(body.search_name) : NEW_WORDS.starts.leadsPicked;
@@ -164,7 +166,18 @@ export const reachOuts = {
       body: { words, kind: "sequence", audience: "leads", who },
       once: true,
     });
-    return r.ok ? { ...r, data: { steps: r.data.steps.map(leadChainStepOf) } } : r;
+    return r.ok
+      ? {
+          ...r,
+          data: {
+            steps: r.data.steps.map(leadChainStepOf),
+            as_drafted: asDraftedOf(
+              words,
+              r.data.steps.map((s) => s.email),
+            ),
+          },
+        }
+      : r;
   },
   /** A chain's report and its search's reach, read when one of its rows opens (Playbooks' chain, a Templates email). */
   report: (rootId: string) => api()("GET reach-outs/[id]", { params: { id: rootId } }),

@@ -406,3 +406,46 @@ export const VOICE_WORDS = {
         : `Ask kept ${n} lines on how you write, and is drafting again.`,
   full: ASK_MEMORY_WORDS.full,
 } as const;
+
+/* ---------------------------------------------------------------------------------------------- what Ask drafted */
+
+/*
+ * What Ask drafted for a sequence to leads (decision 0078, step 2), kept with the sequence's make decision
+ * (make_sequence, 00459 sequence_create_leads): the owner's line to Ask, and each step's email as Ask wrote it, null for
+ * a call or a note. The drafter reads it beside the words as they stand, so what the owner changed, before Start or
+ * after, is said to the next draft; Ask's morning reads it to see what they changed.
+ */
+export interface AsDrafted {
+  asked: string;
+  steps: Array<NewEmail | null>;
+}
+
+/** The pair's half a page sends with its make: from Ask's answer as it came, never from the draft being edited. */
+export function asDraftedOf(asked: string, emails: ReadonlyArray<NewEmail | null>): AsDrafted {
+  return {
+    asked: asked.trim().slice(0, NEW_WORDS_MAX),
+    steps: emails.map((e) => (e ? { subject: e.subject, body: e.body } : null)),
+  };
+}
+
+/** One email of a kept draft read back, or null where it is a call's, a note's, or in no shape this reads. */
+function draftedEmailOf(v: unknown): NewEmail | null {
+  if (!v || typeof v !== "object") return null;
+  const { subject, body } = v as { subject?: unknown; body?: unknown };
+  return typeof body === "string" ? { subject: typeof subject === "string" ? subject : null, body } : null;
+}
+
+/** What a make decision kept, read back from its payload's `as_drafted`, or null where it kept none. */
+export function asDraftedFrom(v: unknown): AsDrafted | null {
+  if (!v || typeof v !== "object") return null;
+  const { asked, steps } = v as { asked?: unknown; steps?: unknown };
+  if (typeof asked !== "string" || !Array.isArray(steps)) return null;
+  return { asked, steps: steps.map(draftedEmailOf) };
+}
+
+/** Whether an email went as Ask drafted it: the same subject and words, the spacing between them aside. */
+export function sentAsDrafted(drafted: NewEmail, sent: NewEmail): boolean {
+  const same = (a: string | null, b: string | null) =>
+    (a ?? "").replace(/\s+/g, " ").trim() === (b ?? "").replace(/\s+/g, " ").trim();
+  return same(drafted.subject, sent.subject) && same(drafted.body, sent.body);
+}

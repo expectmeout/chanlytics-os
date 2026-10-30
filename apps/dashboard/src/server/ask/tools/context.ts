@@ -92,6 +92,12 @@ export interface ToolContext {
    */
   question?: string;
   /**
+   * The member's own words a read of this turn returned (decision 0078 step 2: sequences, action edited, the cold emails
+   * they wrote), which a line about how they write may quote besides their question (act/remember.ts). Never anything a
+   * customer, a lead's record, a page or Ask wrote. Absent until such a read runs.
+   */
+  theirs?: string[];
+  /**
    * When the turn's own time runs out (loop.ts budgetOf, a typed turn's or a spoken one's, from its start), where a turn
    * runs the tool: a craft call made inside the turn ends before it. Absent outside a turn.
    */

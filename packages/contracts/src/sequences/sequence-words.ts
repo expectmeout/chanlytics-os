@@ -9,7 +9,7 @@ import { triggerOf } from "../playbooks/playbook-triggers";
 import { clockDate, clockTime, clockWhen, wallClockAt, zoneDayKey } from "../shared/clock";
 import { DAY_MS } from "../shared/time";
 import { plural } from "../shared/words";
-import { RUN_WAITING_SHORT, runApproveWords } from "../shell/campaign-rooms";
+import { CAMPAIGN_ROOMS, RUN_WAITING_SHORT, runApproveWords } from "../shell/campaign-rooms";
 import { runWaitsOnYou, type RunDays } from "../waits/waits";
 import type { SequenceNeedsDto, SequencePeopleGroup, SequenceRowDto, SequenceStepDto } from "./sequence-dto";
 import { SEQUENCE_MODE_WORDS, isSequenceMode, type SequenceState } from "./sequence";
@@ -18,7 +18,7 @@ import type { ReachOutFedBy } from "../reach-out/reach-out-leads";
 
 /** The page's own words, said once. */
 export const SEQUENCE_WORDS = {
-  title: "Sequences",
+  title: CAMPAIGN_ROOMS.sequences,
   /** The head's way back to Leads, where a trip from a lead did not say its name. */
   backToLeads: "Leads",
   /** A phone record's Back, where Leads opened it: the way back is the screen's only one. */

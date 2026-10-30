@@ -18,9 +18,12 @@ export const ASK_MORNING_CARDS_MAX = 3;
  * turn apart from these words. Since decision 0071 the people waiting are Today's rows, each with its reply or its call's
  * brief drafted there, so the morning makes no card that only answers or rings one of them (its card stood under their
  * row, saying it twice), says how the day stands rather than what it made, and words each card as its act and its why.
+ * Since decision 0078's second step it reads the cold emails the member edited since yesterday (sequences, action
+ * edited), and where what they changed in Ask's drafts shows a lasting habit, one card may be a line to remember about
+ * how they write: a card that waits for their press, as every line not in their own words does (act/remember.ts).
  */
 export const ASK_MORNING_QUESTION =
-  "Good morning. Look at my day: what is due, what happened since yesterday, what you remember about the business, and the lead finder's ideas if Leads has any. The people waiting on me already have their replies or call briefs drafted on Today, so make no card that only answers or calls back someone who is waiting. Give me at most three other things worth doing first, each as a card I can approve: its title the act in a few words, its line why it comes first, without repeating the name. Begin with one sentence on how the day stands, never about the cards you made. If nothing else is worth doing, say so in one sentence and make no card.";
+  'Good morning. Look at my day: what is due, what happened since yesterday, what you remember about the business, and the lead finder\'s ideas if Leads has any. The people waiting on me already have their replies or call briefs drafted on Today, so make no card that only answers or calls back someone who is waiting. Read the cold emails I edited since yesterday: where what I changed in your drafts shows a lasting habit in how I write them, one card may be a line to remember about it, starting "In cold emails:". Give me at most three other things worth doing first, each as a card I can approve: its title the act in a few words, its line why it comes first, without repeating the name. Begin with one sentence on how the day stands, never about the cards you made. If nothing else is worth doing, say so in one sentence and make no card.';
 
 /** A card the morning left waiting, as Today draws it: nothing has become of it yet, so it carries no outcome. */
 export type AskMorningCard = Omit<AskProposal, "outcome">;

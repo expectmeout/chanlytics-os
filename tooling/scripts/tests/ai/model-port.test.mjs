@@ -242,7 +242,7 @@ test("fast mode's own limit (a 429) is no failure: the same model is asked again
   assert.deepEqual([b.fellBack, b.slowed, b.speed], [true, true, "standard"]);
 });
 
-test("a fallback is sent only what it takes: Opus 5.5's fast request falls back to Sonnet 5 at standard speed, and a thinking type the fallback refuses is left off", async () => {
+test("a fallback is sent only what it takes: Opus 5.5's fast request falls back to Sonnet 5.5 at standard speed, and a thinking type the fallback refuses is left off", async () => {
   const api = scripted(status(503, "down"), said("Here."));
   const r = await askModel(
     KEY,
@@ -251,7 +251,7 @@ test("a fallback is sent only what it takes: Opus 5.5's fast request falls back 
   );
   assert.equal(r.outcome, "ok");
   assert.equal(api.calls[0].body.speed, "fast");
-  assert.deepEqual(api.calls[1].body.thinking, { type: "adaptive" }, "Sonnet 5 takes adaptive");
+  assert.deepEqual(api.calls[1].body.thinking, { type: "adaptive" }, "Sonnet 5.5 takes adaptive");
   assert.equal(api.calls[1].model, MODEL_ROUTES.ask.fallback);
   assert.equal(api.calls[1].body.speed, undefined);
   assert.equal(api.calls[1].headers["anthropic-beta"], undefined);
@@ -302,7 +302,33 @@ test("a route with its thinking off: the small read's Haiku 5.5 is sent disabled
   assert.equal(answer.calls[0].body.thinking, undefined, "the receptionist thinks as it does");
 });
 
-test("an effort said in the messages goes, with its beta, to a model that takes one; its fallback that takes none (Sonnet 5) is asked at the effort they ended on, the messages without them", async () => {
+test("the dashboard's drafts and a review's reply: Sonnet 5.5 is sent between_tools and its Sonnet 5 fallback disabled; a skill's craft call on this route's purpose keeps its thinking on its fallback", async () => {
+  const msg = { messages: [{ role: "user", content: "Write it." }] };
+  for (const [purpose, body] of [
+    ["lead_json", { ...msg, output_config: { effort: "low" } }],
+    ["review_reply", msg],
+  ]) {
+    const api = scripted(status(529, "Overloaded"), said("{}"));
+    const r = await askModel(KEY, ask({ purpose, body }), { fetch: api.fetch, ...noWait });
+    assert.equal(r.outcome, "ok", purpose);
+    assert.deepEqual(
+      [api.calls[0].model, api.calls[0].body.thinking, api.calls[1].model, api.calls[1].body.thinking],
+      [MODELS.SONNET_5_5, { type: "between_tools" }, MODELS.SONNET_5, { type: "disabled" }],
+      purpose,
+    );
+  }
+  // A craft call (message_draft, asked as template_draft) names Opus 5.5 at high effort; its fallback is the route's model.
+  const craft = scripted(status(529, "Overloaded"), said("{}"));
+  await askModel(
+    KEY,
+    ask({ purpose: "template_draft", model: MODELS.OPUS_5_5, body: { ...msg, output_config: { effort: "high" } } }),
+    { fetch: craft.fetch, ...noWait },
+  );
+  assert.equal(craft.calls[1].model, MODELS.SONNET_5_5);
+  assert.equal(craft.calls[1].body.thinking, undefined, "it thinks as it does");
+});
+
+test("an effort said in the messages goes, with its beta, to a model that takes one, Ask's fallback among them; a model that takes none (Sonnet 5) is asked at the effort they ended on, the messages without them", async () => {
   const q = { role: "user", content: [{ type: "text", text: "set up my campaigns" }] };
   const raised = { role: "system", content: [], output_config: { effort: "high" } };
   const body = { messages: [q, raised], output_config: { effort: "low", format: { type: "json_schema", schema: {} } } };
@@ -317,13 +343,22 @@ test("an effort said in the messages goes, with its beta, to a model that takes 
   assert.equal(api.calls[0].body.output_config.effort, "low", "and the request's own effort, as the cache keys it");
   assert.equal(api.calls[0].headers["anthropic-beta"], EFFORT_MESSAGE_BETA);
   assert.equal(api.calls[1].model, MODEL_ROUTES.ask.fallback);
-  assert.deepEqual(api.calls[1].body.messages, [q], "Sonnet 5 refuses an effort message: left out");
+  assert.deepEqual(api.calls[1].body.messages, [q, raised], "Sonnet 5.5, thinking, takes it where it stands too");
+  assert.equal(api.calls[1].headers["anthropic-beta"], EFFORT_MESSAGE_BETA);
+
+  // A deployment's Ask model that takes none (Sonnet 5, named): asked at the effort they ended on.
+  const old = scripted(said("Here."));
+  await askModel(KEY, ask({ purpose: "ask", model: MODELS.SONNET_5, body, betas: [EFFORT_MESSAGE_BETA] }), {
+    fetch: old.fetch,
+    ...noWait,
+  });
+  assert.deepEqual(old.calls[0].body.messages, [q], "Sonnet 5 refuses an effort message: left out");
   assert.deepEqual(
-    api.calls[1].body.output_config,
+    old.calls[0].body.output_config,
     { effort: "high", format: { type: "json_schema", schema: {} } },
     "asked as hard, as its own effort",
   );
-  assert.equal(api.calls[1].headers["anthropic-beta"], undefined, "and without the beta");
+  assert.equal(old.calls[0].headers["anthropic-beta"], undefined, "and without the beta");
 
   // The beta is the port's to add, named or not, beside fast mode's.
   const unnamed = scripted(said("Here."));
@@ -335,7 +370,7 @@ test("an effort said in the messages goes, with its beta, to a model that takes 
   assert.equal(none.calls[0].headers["anthropic-beta"], undefined);
 });
 
-test("the operator's words said in the messages go to a model that takes them as a system message; its fallback that takes none (Sonnet 5) is told them in the person's turn, ahead of the question, with no system message left (contracts ai/words-message.ts)", async () => {
+test("the operator's words said in the messages go to a model that takes them as a system message, Ask's fallback among them; a model that takes none (Sonnet 5) is told them in the person's turn, ahead of the question, with no system message left (contracts ai/words-message.ts)", async () => {
   const data = { type: "search_result", source: "page://today", title: "Today", content: [] };
   const question = { type: "text", text: "who needs me?" };
   const q = { role: "user", content: [data, question] };
@@ -350,8 +385,16 @@ test("the operator's words said in the messages go to a model that takes them as
   assert.equal(r.outcome, "ok");
   assert.deepEqual(api.calls[0].body.messages, [q, words, raised], "Opus 5.5 is sent them where they stand");
   assert.equal(api.calls[1].model, MODEL_ROUTES.ask.fallback);
+  assert.deepEqual(api.calls[1].body.messages, [q, words, raised], "and Sonnet 5.5, its fallback");
+
+  // A deployment's Ask model that takes neither (Sonnet 5, named).
+  const old = scripted(said("Here."));
+  await askModel(KEY, ask({ purpose: "ask", model: MODELS.SONNET_5, body, betas: [EFFORT_MESSAGE_BETA] }), {
+    fetch: old.fetch,
+    ...noWait,
+  });
   assert.deepEqual(
-    api.calls[1].body.messages,
+    old.calls[0].body.messages,
     [{ role: "user", content: [data, words.content[0], question] }],
     "Sonnet 5 hears the words in the person's turn, before the question, and no effort message",
   );

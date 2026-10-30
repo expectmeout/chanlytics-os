@@ -14,6 +14,9 @@ import {
   NEW_AUDIENCES,
   NEW_KINDS,
   NEW_WORDS_MAX,
+  REACH_OUT_BODY_MAX,
+  REACH_OUT_STEPS_MAX,
+  REACH_OUT_SUBJECT_MAX,
   isListToken,
   HAND_KINDS,
   HAND_WORDS_MAX,
@@ -37,6 +40,26 @@ const STEP_NAME = z.string().trim().min(1).max(120);
 const PARAMS = z.array(z.unknown()).max(20);
 /** An id, as every route reads one (contracts UUID). */
 const anId = (words: string) => z.string().regex(UUID, words);
+/**
+ * What Ask drafted for a sequence to leads (contracts AsDrafted, decision 0078 step 2): the owner's line and each step's
+ * email as Ask wrote it, null for a call or a note, each within what a step takes. Kept with the make's decision.
+ */
+const AS_DRAFTED = z.strictObject({
+  asked: z.string().max(NEW_WORDS_MAX),
+  steps: z
+    .array(
+      z
+        .strictObject({
+          subject: z
+            .string()
+            .max(REACH_OUT_SUBJECT_MAX * 2)
+            .nullable(),
+          body: z.string().max(REACH_OUT_BODY_MAX * 2),
+        })
+        .nullable(),
+    )
+    .max(REACH_OUT_STEPS_MAX),
+});
 
 /** A call or a note for the team in place of a message (decision 0065): what to do when the person comes up. */
 const HAND = z
@@ -129,7 +152,8 @@ export type NewSequenceBody = z.infer<typeof NEW_SEQUENCE_BODY>;
  * one named for it holding the leads chosen (`lead_ids`); drawing from a search where one is named (`source_search_id`,
  * auto-add); and the search a pile works through, whose pick it becomes (`aim_search_id`). As New makes one (00465): the
  * search whose ready leads go on its list (`search_id`), how its batches are decided (`mode`; the door holds a sequence
- * to leads off auto), and whether the owner sends each email from their own inbox (`owner_sends`).
+ * to leads off auto), and whether the owner sends each email from their own inbox (`owner_sends`). Where its words are
+ * Ask's draft, what Ask drafted (`as_drafted`, decision 0078 step 2), kept with the make's decision and never in a step.
  */
 export const LEAD_FIRST_BODY = z.strictObject({
   starts: z.literal("leads"),
@@ -143,6 +167,7 @@ export const LEAD_FIRST_BODY = z.strictObject({
   steps: z.array(ReachOutStepSchema).max(5, "At most five steps.").optional(),
   mode: z.enum(SEQUENCE_MODES).optional(),
   owner_sends: z.boolean().optional(),
+  as_drafted: AS_DRAFTED.optional(),
 });
 
 /**
@@ -263,6 +288,8 @@ export const NEW_MAKE_BODY = z.strictObject({
   adds_new: z.boolean(),
   owner_sends: z.boolean().optional(),
   draft_id: anId("Which draft?").optional(),
+  /** A draft to leads from Ask: what Ask drafted, beside the steps as the owner left them (decision 0078 step 2). */
+  as_drafted: AS_DRAFTED.optional(),
   steps: z.array(NEW_STEP).min(1, "Add a step.").max(6),
   start: z.boolean(),
 });

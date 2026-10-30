@@ -808,7 +808,7 @@ test("a smart list drafted from the owner's words: a name, a rule, and what it c
   );
   assert.equal(calls[0].purpose, "list_draft", "counted as the assistant's, under its own purpose");
   assert.equal(calls[0].request.model, JSON_MODEL, "the request names the lead purposes' own model");
-  assert.equal(calls[0].request.model, "claude-sonnet-5", "the lead purposes keep their model when Ask's moves");
+  assert.equal(calls[0].request.model, "claude-sonnet-5-5", "the lead purposes keep their model when Ask's moves");
   answerWith({ name: "Big spenders", cannot: "what they spend", all: [] });
   await assert.rejects(
     draft.POST.run(send("POST", { words: "people who spend a lot" }), ctxFor(tables())),

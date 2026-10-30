@@ -3047,6 +3047,7 @@ test("every read, each an action of the read tools, runs against the database in
       "report",
       "sequences.batch",
       "sequences.cold_emails",
+      "sequences.edited",
       "sequences.journey",
       "sequences.list",
       "sequences.lists",
@@ -3061,11 +3062,12 @@ test("every read, each an action of the read tools, runs against the database in
       "workspace.notifications",
       "workspace.settings",
     ],
-    "the reads the loop offers: the fourteen old tools, each an action now, PR 4.3's ten, PR 4.5's search, the library, the journey, the room, the operator's (the guide, the signals, the ideas, what comes back, the winners, the cold emails), and recall (decision 0070)",
+    "the reads the loop offers: the fourteen old tools, each an action now, PR 4.3's ten, PR 4.5's search, the library, the journey, the room, the operator's (the guide, the signals, the ideas, what comes back, the winners, the cold emails), recall (decision 0070), and the cold emails the member edited (decision 0078 step 2)",
   );
   // The operator's reads (15 Oct 2026) answer an empty workspace in their shape, never as a failure.
   for (const key of ["guide", "signals", "leads.ideas", "leads.back", "people.winners", "sequences.cold_emails"])
     assert.equal(out[key].isError, false, `${key}: ${out[key].result}`);
+  assert.equal(out["sequences.edited"].isError, false, out["sequences.edited"].result);
   assert.equal(JSON.parse(out.signals.result).route, "today");
   const found = JSON.parse(out["inbox.search"].result);
   assert.equal(out["inbox.search"].isError, false, out["inbox.search"].result);

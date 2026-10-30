@@ -16,8 +16,6 @@ import {
   MESSAGES_ROUTE,
   RUN_UNNAMED_WORDS,
   SEQUENCES_ROUTE,
-  NEW_WORDS,
-  SEQUENCE_WORDS,
   isAdsParam,
   isMessagesParam,
   messageOfRoute,
@@ -61,7 +59,7 @@ function campaignsViews(picked: "sequences" | "messages" | "ads"): SurfaceViews 
     testid: "campaigns-views",
     picked,
     tabs: [
-      { id: "sequences", label: SEQUENCE_WORDS.title, to: SEQUENCES_ROUTE, testid: "campaigns-view-sequences" },
+      { id: "sequences", label: CAMPAIGN_ROOMS.sequences, to: SEQUENCES_ROUTE, testid: "campaigns-view-sequences" },
       { id: "messages", label: ADS_WORDS.messagesTab, to: MESSAGES_ROUTE, testid: "campaigns-view-messages" },
       ...ads,
     ],
@@ -102,7 +100,7 @@ function sequencesChrome(): { crumbs: Crumb[]; mount: string; act: null; views: 
       : named
         ? [CAMPAIGNS, named]
         : place?.view === "new"
-          ? [CAMPAIGNS, NEW_WORDS.title]
+          ? [CAMPAIGNS, CAMPAIGN_ROOMS.new]
           : [CAMPAIGN_ROOMS.home],
     mount: "campaigns",
     act: null,
