@@ -12,7 +12,9 @@ import {
   ANGLE_WORDS_MAX,
   OPENING_CHARS_MAX,
   OPENING_FACT_KEYS,
+  OPENING_HEDGES,
   OPENING_WORDS_MAX,
+  openingGuess,
   openingProblemWords,
   type WrittenOpening,
   type OpeningProblem,
@@ -25,10 +27,17 @@ export const REACH_OUT_MODEL = MODEL_ROUTES.reach_out_check.model;
 
 /**
  * What no business's record states, so the reader refuses a claim about it unless the record says it: said once, read
- * by the reader's prompt and by the rewrite the writer is asked for, so the writer is told the kind of claim it made and
- * not only its words (29 Oct 2026: told the words alone, a rewrite made the same guess at how busy a business is).
+ * by the writer's prompt, the reader's, and the rewrite the writer is asked for, so the writer is told the kind of claim
+ * before it writes and again when it made one (29 Oct 2026: the writer, never told, guessed at how busy a business is
+ * in most openings, and a rewrite told only its words made the same guess in others).
  */
-export const OPENING_UNSTATED = "the business's feelings, busyness, revenue, problems or plans";
+export const OPENING_UNSTATED =
+  "how busy they are, how often their phone rings, how many customers or calls they get, their revenue, their feelings, their problems or their plans";
+
+/** The guesses the prompts quote (contracts OPENING_HEDGES' first five), each in its marks. */
+const HEDGES_QUOTED = OPENING_HEDGES.slice(0, 5)
+  .map((h) => `“${h}”`)
+  .join(", ");
 
 export const OPENING_SCHEMA = {
   type: "object",
@@ -65,7 +74,9 @@ export function openingSystemPrompt(): string {
   return [
     "You write the first sentence of a cold email one local business owner is sending to another local business.",
     "The owner's own email follows your sentence word for word. You write only the opening: the part that shows the owner looked at this business.",
-    "Use only the facts in the business's record, the lines inside <record>. Never guess or invent a detail, a number, a name, a feeling or a problem the record does not state.",
+    `Use only the facts in the business's record, the lines inside <record>. Never guess or invent a detail, a number or a name the record does not state, nor ${OPENING_UNSTATED}, unless the record says it.`,
+    "The owner's email makes the case for what they offer: never lead into it with a guess about this business. Say only what the record shows.",
+    `A guess said softly is still a guess: never write ${HEDGES_QUOTED} or any word that supposes what the record does not say.`,
     "What the owner searched for is their own words about their search, not a fact about this business: never say it about them.",
     `At most ${OPENING_WORDS_MAX} words, one or two sentences, plain and specific, in the owner's tone. No greeting, no sign-off, no link or web address, no price, no promise, no flattery the record cannot back.`,
     `Tag it with its angle: ${ANGLE_WORDS_MAX} words or fewer naming what it leans on, such as "their reviews", "booking page" or "open late".`,
@@ -133,6 +144,7 @@ export function readingSystemPrompt(): string {
   return [
     "You check one sentence that opens a cold email, against the record of the business it was written for.",
     `backed: true only if every claim in the sentence is stated in the record. A claim about ${OPENING_UNSTATED} is not stated unless the record says it.`,
+    `A guess is a claim: a sentence that supposes or infers anything about the business (${HEDGES_QUOTED}, or a conclusion drawn from its rating, reviews or hours) is not backed unless the record states it.`,
     "unbacked: when backed is false, the shortest part of the sentence that is not in the record; otherwise an empty string.",
     "pitch: true if the sentence names a price, a discount, a guarantee, or a result it promises.",
     "language: the ISO 639-1 code of the language the record's about text is written in; \"unknown\" when there is no about text or it is too short to tell. Never judge it from the business's name, category or city: a business with a name in one language often writes in another.",
@@ -211,16 +223,21 @@ export type OpeningVerdict =
     };
 
 /**
- * What one written opening comes to, given code's reading of it (checkOpening) and the reader's (F2).
+ * What one written opening comes to, given its words, code's reading of them (checkOpening) and the reader's (F2).
  *   - A language that is not the step's holds it with no rewrite. Both sides are compared as base codes ("en_US" is
  *     "en"), and a reader's answer that names no language ("english", "und") is no language hold.
- *   - A claim or a number the record does not hold: unbacked_fact.
+ *   - A claim or a number the record does not hold, or a guess: unbacked_fact, a guess with the clause it said.
  *   - A link, a line in capitals, a price, or the reader's pitch: reads_like_spam, with the rule it broke.
  *   - Empty, too long, a brace, an angle out of bounds: the writer failed, not the business; check_unavailable, with
  *     the rule it broke, so the owner reads what happened and never "a pitch".
  * Each asks for one rewrite, told why, then holds.
  */
-export function openingVerdict(code: OpeningProblem | null, reading: Reading, stepLanguage: string): OpeningVerdict {
+export function openingVerdict(
+  code: OpeningProblem | null,
+  reading: Reading,
+  stepLanguage: string,
+  written: string,
+): OpeningVerdict {
   const theirs = languageBase(reading.language);
   const ours = languageBase(stepLanguage);
   if (theirs && ours && theirs !== ours)
@@ -234,6 +251,16 @@ export function openingVerdict(code: OpeningProblem | null, reading: Reading, st
       rewrite: true,
       // The kind of claim, not only its words: told the words alone, a rewrite made the same guess in others.
       why: `${detail ? `it said “${detail}”, which the record does not hold` : "it said something the record does not hold"}; no record holds ${OPENING_UNSTATED}`,
+    };
+  }
+  if (code === "guess") {
+    const said = (openingGuess(written) ?? written).slice(0, 120);
+    return {
+      ok: false,
+      hold: "unbacked_fact",
+      detail: said,
+      rewrite: true,
+      why: `it guessed (“${said}”), and a guess is a claim the record does not hold; no record holds ${OPENING_UNSTATED}`,
     };
   }
   if (code === "unnamed_fact" || code === "unbacked_number")
