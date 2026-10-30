@@ -202,7 +202,7 @@ export async function checkOne(
       if ("failed" in r) return failed(r.failed);
       const reading = parseReading(r.answer);
       if (!reading) return failed("unparseable");
-      const v = openingVerdict(checkOpening(o, i.record), reading, i.language);
+      const v = openingVerdict(checkOpening(o, i.record), reading, i.language, o.opening);
       opening = o;
       if (v.ok) {
         hold = null;

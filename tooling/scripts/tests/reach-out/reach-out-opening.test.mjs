@@ -44,6 +44,8 @@ const RECORD = {
   what_you_asked: "independent movers in Austin",
 };
 const opening = (text, over = {}) => ({ opening: text, angle: "their reviews", facts_used: ["rating"], ...over });
+/** The words a verdict is given when its words are not what it is about. */
+const SAID = "A 4.9 from 1,204 reviews.";
 
 test("an opening code can send: short, no link, no brace, every number the record's, every fact one it has", () => {
   assert.equal(
@@ -215,25 +217,25 @@ test("the answers are read as far as they can be trusted", () => {
 
 test("what an opening comes to: another language holds with no rewrite; an unbacked claim or a pitch rewrites once", () => {
   const read = (over = {}) => ({ backed: true, unbacked: "", pitch: false, language: "en", ...over });
-  assert.deepEqual(openingVerdict(null, read(), "en"), { ok: true });
-  assert.deepEqual(openingVerdict(null, read({ language: "unknown" }), "en"), { ok: true });
-  assert.deepEqual(openingVerdict(null, read({ language: "es" }), "en"), {
+  assert.deepEqual(openingVerdict(null, read(), "en", SAID), { ok: true });
+  assert.deepEqual(openingVerdict(null, read({ language: "unknown" }), "en", SAID), { ok: true });
+  assert.deepEqual(openingVerdict(null, read({ language: "es" }), "en", SAID), {
     ok: false,
     hold: "language",
     detail: "es",
     rewrite: false,
     why: "",
   });
-  assert.deepEqual(openingVerdict(null, read({ backed: false, unbacked: "loved by locals" }), "en"), {
+  assert.deepEqual(openingVerdict(null, read({ backed: false, unbacked: "loved by locals" }), "en", SAID), {
     ok: false,
     hold: "unbacked_fact",
     detail: "loved by locals",
     rewrite: true,
     why: `it said “loved by locals”, which the record does not hold; no record holds ${OPENING_UNSTATED}`,
   });
-  assert.equal(openingVerdict("unbacked_number", read(), "en").hold, "unbacked_fact");
-  assert.equal(openingVerdict("link", read(), "en").hold, "reads_like_spam");
-  assert.equal(openingVerdict(null, read({ pitch: true }), "en").hold, "reads_like_spam");
+  assert.equal(openingVerdict("unbacked_number", read(), "en", SAID).hold, "unbacked_fact");
+  assert.equal(openingVerdict("link", read(), "en", SAID).hold, "reads_like_spam");
+  assert.equal(openingVerdict(null, read({ pitch: true }), "en", SAID).hold, "reads_like_spam");
 });
 
 test("a language is compared by its base code, and a reader's guess that names none holds nothing", () => {
@@ -242,9 +244,9 @@ test("a language is compared by its base code, and a reader's guess that names n
   assert.equal(languageBase("EN-us"), "en");
   for (const c of ["english", "und", "", null]) assert.equal(languageBase(c), null, String(c));
   for (const l of ["en", "en-us", "EN_GB", "english", "und", "unknown"])
-    assert.deepEqual(openingVerdict(null, read(l.toLowerCase()), "en_US"), { ok: true }, l);
-  assert.equal(openingVerdict(null, read("es-mx"), "en_US").hold, "language");
-  assert.equal(openingVerdict(null, read("es-mx"), "en_US").detail, "es");
+    assert.deepEqual(openingVerdict(null, read(l.toLowerCase()), "en_US", SAID), { ok: true }, l);
+  assert.equal(openingVerdict(null, read("es-mx"), "en_US", SAID).hold, "language");
+  assert.equal(openingVerdict(null, read("es-mx"), "en_US", SAID).detail, "es");
 });
 
 test("the reader judges the language from the business's own words, never its name", () => {
@@ -289,12 +291,12 @@ test("a rating's scale, the business's own dotted name and a city's abbreviation
 test("a held opening says the rule it broke, and an opening that could not be written is never called a pitch", () => {
   const read = { backed: true, unbacked: "", pitch: false, language: "en" };
   for (const code of ["empty", "too_long", "brace", "angle"]) {
-    const v = openingVerdict(code, read, "en");
+    const v = openingVerdict(code, read, "en", SAID);
     assert.equal(v.hold, "check_unavailable", code);
     assert.equal(v.detail, code);
     assert.doesNotMatch(holdWords(v.hold, v.detail), /pitch/);
   }
-  const link = openingVerdict("link", read, "en");
+  const link = openingVerdict("link", read, "en", SAID);
   assert.deepEqual([link.hold, link.detail], ["reads_like_spam", "link"]);
   assert.equal(holdWords(link.hold, link.detail), "the opening read like a pitch: it carried a link or a web address");
   assert.equal(holdWords("check_unavailable", null), "the check couldn't run");
@@ -321,9 +323,9 @@ test("words need an opening when their subject or their body names it", () => {
 test("a rewrite is told the kind of claim the reader refused, and an angle never holds an email (29 Oct 2026)", () => {
   // One list of what no record states: the reader refuses it, and a rewrite is told it, so the writer hears the kind of
   // claim it made and not only its words (told the words alone, a rewrite made the same guess at how busy they are).
-  assert.match(OPENING_UNSTATED, /busyness/);
+  assert.match(OPENING_UNSTATED, /how busy they are/);
   assert.ok(readingSystemPrompt().includes(OPENING_UNSTATED), "the reader refuses it");
-  const v = openingVerdict(null, { backed: false, unbacked: "you're busy", pitch: false, language: "en" }, "en");
+  const v = openingVerdict(null, { backed: false, unbacked: "you're busy", pitch: false, language: "en" }, "en", SAID);
   assert.ok(v.why.includes(OPENING_UNSTATED), v.why);
   // The angle is a tag (Reports' replies by angle): its bound is said on its field, and a long one is cut, never held.
   assert.match(OPENING_SCHEMA.properties.angle.description, /3 words or fewer/);
@@ -340,4 +342,63 @@ test("a rewrite is told the kind of claim the reader refused, and an angle never
     facts_used: ["rating"],
   });
   assert.equal(checkOpening(parsed, RECORD), null, "a true sentence with a long tag sends");
+});
+
+test("a guess is never sent, however softly it is said: the writer is told, the reader and code refuse it (29 Oct 2026)", () => {
+  // Openings the check passed on production on 29 Oct 2026, each a guess at how busy the business is, written here
+  // over this file's record: code holds each, with the words it said, before any owner reads it.
+  for (const [text, said] of [
+    [
+      "Austin Movers has 1,204 reviews and a 4.9 rating, which tells me you're handling real volume—probably more calls than you can grab during jobs.",
+      "which tells me you're handling real volume",
+    ],
+    [
+      "With 1,204 reviews, you're probably fielding calls while you're on a job.",
+      "you're probably fielding calls while you're on a job",
+    ],
+    [
+      "You're open Mon–Fri 8–6, but I'm guessing some calls still slip through.",
+      "but I'm guessing some calls still slip through",
+    ],
+    [
+      "Family-run since 2009—I’d guess some calls come in when you can’t pick up.",
+      "I’d guess some calls come in when you can’t pick up",
+    ],
+    ["A 4.9 from 1,204 reviews—clearly people trust you.", "clearly people trust you"],
+    ["A 4.9 from 1,204 reviews—sounds like steady demand.", "sounds like steady demand"],
+    [
+      "Hours of Mon–Fri 8–6 that mean steady calls while you're on a job.",
+      "Hours of Mon–Fri 8–6 that mean steady calls while you're on a job",
+    ],
+  ]) {
+    assert.equal(checkOpening(opening(text), RECORD), "guess", text);
+    const v = openingVerdict("guess", { backed: true, unbacked: "", pitch: false, language: "en" }, "en", text);
+    assert.deepEqual(
+      v,
+      {
+        ok: false,
+        hold: "unbacked_fact",
+        detail: said,
+        rewrite: true,
+        why: `it guessed (“${said}”), and a guess is a claim the record does not hold; no record holds ${OPENING_UNSTATED}`,
+      },
+      text,
+    );
+    assert.equal(holdWords(v.hold, v.detail), `the opening said “${said}”, which their record doesn't hold`);
+  }
+  // What the record holds, said plainly, and a question, are no guess; a word only holds where it stands alone.
+  for (const text of [
+    "Austin Movers is open Mon–Fri 8–6, with a 4.9 rating across 1,204 reviews.",
+    "Is every call caught when your team is out on a move?",
+    "An unlikely mover for Austin: family-run since 2009.",
+  ])
+    assert.equal(checkOpening(opening(text), RECORD), null, text);
+  // The writer is told what no record holds, never to lead into the owner's offer with a guess, and that a guess said
+  // softly is one; the reader reads one as a claim the record must state.
+  assert.ok(openingSystemPrompt().includes(OPENING_UNSTATED), "the writer is told the list");
+  assert.match(openingSystemPrompt(), /never lead into it with a guess/i);
+  for (const prompt of [openingSystemPrompt(), readingSystemPrompt()])
+    for (const hedge of ["probably", "I'd guess", "tells me", "clearly", "sounds like"])
+      assert.ok(prompt.includes(`“${hedge}”`), hedge);
+  assert.match(readingSystemPrompt(), /a guess is a claim/i);
 });

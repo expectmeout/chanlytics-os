@@ -449,8 +449,78 @@ export const OPENING_PROBLEMS = [
   "angle",
   "unnamed_fact",
   "unbacked_number",
+  "guess",
 ] as const;
 export type OpeningProblem = (typeof OPENING_PROBLEMS)[number];
+
+/**
+ * The words a guess is said in: a sentence holding one supposes something about the business, however true it sounds,
+ * and no record states a supposition. The first five are the ones the writer's and the reader's prompts quote (29 Oct
+ * 2026: the reader passed "which tells me you're handling real volume—probably more calls than you can grab").
+ */
+export const OPENING_HEDGES = [
+  "probably",
+  "I'd guess",
+  "tells me",
+  "clearly",
+  "sounds like",
+  "I guess",
+  "I'm guessing",
+  "my guess",
+  "likely",
+  "presumably",
+  "surely",
+  "obviously",
+  "no doubt",
+  "I bet",
+  "I'd bet",
+  "I imagine",
+  "I'd imagine",
+  "I assume",
+  "I'm assuming",
+  "I suspect",
+  "I'm sure",
+  "chances are",
+  "odds are",
+  "must be",
+  "must get",
+  "must have",
+  "which means",
+  "which mean",
+  "that means",
+  "that mean",
+  "seems like",
+  "seems to",
+  "seem to",
+  "typically",
+  "might",
+  "could be",
+] as const;
+
+const HEDGE = new RegExp(`\\b(?:${OPENING_HEDGES.map((h) => h.replace(/ /g, "\\s+")).join("|")})\\b`, "i");
+/** Where a clause ends: a stop, a comma or a colon before a space, a dash, a bracket; never the point in "4.9". */
+const CLAUSE_END = /[.!?;:,](?=\s|$)|[—()]|\s[-–]\s/g;
+
+/**
+ * The clause an opening guesses in (OPENING_HEDGES), as it was written, or null: what a hold says the opening said. A
+ * curly apostrophe reads as a straight one ("I’d guess").
+ */
+export function openingGuess(text: string): string | null {
+  const plain = text.replace(/[‘’]/g, "'");
+  const hedge = HEDGE.exec(plain);
+  if (!hedge) return null;
+  let start = 0;
+  let end = plain.length;
+  for (const m of plain.matchAll(CLAUSE_END)) {
+    const at = m.index ?? 0;
+    if (at < hedge.index) start = at + m[0].length;
+    else if (at >= hedge.index + hedge[0].length) {
+      end = at;
+      break;
+    }
+  }
+  return text.slice(start, end).trim();
+}
 export function isOpeningProblem(p: string | null | undefined): p is OpeningProblem {
   return (OPENING_PROBLEMS as readonly string[]).includes(p ?? "");
 }
@@ -458,7 +528,7 @@ export function isOpeningProblem(p: string | null | undefined): p is OpeningProb
 /**
  * An opening as the writer wrote it, read by code before the reader reads it (§4.4, F2): something to say, forty
  * words at most, no link (the owner's words carry theirs), no brace, no line in capitals, no price, an angle of one to three
- * words, every fact it names one the record has, and every number in it one the record holds.
+ * words, every fact it names one the record has, every number in it one the record holds, and no guess.
  */
 export function checkOpening(o: WrittenOpening, r: OpeningRecord): OpeningProblem | null {
   const text = o.opening.trim();
@@ -478,6 +548,7 @@ export function checkOpening(o: WrittenOpening, r: OpeningRecord): OpeningProble
   for (const k of o.facts_used) if (!isOpeningFactKey(k) || !factValue(r, k)) return "unnamed_fact";
   const known = recordNumbers(r);
   for (const m of text.matchAll(NUMBER)) if (!known.has(m[0].replace(/,$/, ""))) return "unbacked_number";
+  if (openingGuess(text) !== null) return "guess";
   return null;
 }
 
@@ -502,6 +573,8 @@ export function openingProblemWords(p: OpeningProblem): string {
       return "it leaned on a fact the record does not hold";
     case "unbacked_number":
       return "it named a number the record does not hold";
+    case "guess":
+      return "it guessed at something the record does not say";
   }
 }
 
