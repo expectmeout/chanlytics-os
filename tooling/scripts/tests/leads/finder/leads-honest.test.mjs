@@ -27,6 +27,7 @@ import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { legacyAddress } from "../../shell/address/_address.mjs";
 import { installRoleStore, kitPages, useStubHooks } from "../../_legacy-react.mjs";
+import { until } from "../../shared/_until.mjs";
 import { importSrc } from "../../_source.mjs";
 import {
   LEAD_WORDS,
@@ -853,16 +854,14 @@ const tick = () => new Promise((r) => setTimeout(r, 0));
 const settle = async (n = 8) => {
   for (let i = 0; i < n; i += 1) await tick();
 };
-/**
- * Until a flash is said, for an act whose answer comes through the wire's Response (its body is read in turns of the
- * event loop that a busy machine spends more of than eight): at most two hundred turns, then the test says what it saw.
- */
-const flashSaid = async (before) => {
-  for (let i = 0; i < 200 && flashes.length <= before; i += 1) await tick();
-};
-/** Until `done()` says so, for the same answers through the wire's Response: at most two hundred turns of the loop. */
-const until = async (done) => {
-  for (let i = 0; i < 200 && !done(); i += 1) await tick();
+/** Until a flash past the `before`th is said: an act's answer reads a module first, off the main thread (shared/_until.mjs). */
+const flashSaid = (before) => until(() => flashes.length > before, "the act's toast");
+/** An act run until its toast is up, and the toast: a press can hand back nothing to wait on. */
+const toastAfter = async (act, what) => {
+  const from = flashes.length;
+  await act();
+  await until(() => flashes.length > from, `the toast: ${what}`);
+  return flashes.at(-1);
 };
 /**
  * The files the kit offers the app's bridge (kit/download.ts: an `app:file` event the bridge takes and cancels): taken here, so a
@@ -1438,7 +1437,7 @@ test("an idea that carries its search opens Ask on its card (Ruben, 23 Oct 2026)
   await fresh({ leads: { ...FIRST_DAY, suggestions: withPlan } });
   const before = asks.length;
   click(byTestId(byTestId(draw(), "leads-first-day"), "ld-sug-gym"));
-  await settle();
+  await until(() => asks.length > before, "Ask opened on the card's thread");
   assert.deepEqual(
     writes.filter((w) => w.key === "POST /api/v1/ask/idea"),
     [{ key: "POST /api/v1/ask/idea", body: { words: "gyms in Denver" } }],
@@ -1555,8 +1554,7 @@ test("Edit opens the business line in a sheet of its own: Cancel closes it, Save
     [{ key: "PUT /api/v1/lead-suggestions", body: { business_line: "a yoga studio in Boulder" } }],
     "Save sends the owner's own words, once",
   );
-  // The answer is read through the wire's Response, in turns a busy machine spends more of than eight (flashSaid).
-  await until(() => sheet(day()) === null);
+  await until(() => sheet(day()) === null, "the sheet closed on the answer");
   assert.equal(sheet(day()), null, "and the sheet closes on the answer");
 });
 
@@ -3180,8 +3178,7 @@ test("REGRESSION: on a phone Leads' selection is the dock -- Clear, Not a fit, A
     const whys = openSheet(tree, "leads-bulk-why");
     assert.ok(whys, "the five whys, as the sheet's step");
     assert.equal(whys.props.back, null, "the dock's own step walks back to nothing");
-    click(byTestId(whys, "leads-bulk-why-chain"));
-    await settle();
+    await toastAfter(() => click(byTestId(whys, "leads-bulk-why-chain")), "not a fit, for the five");
     // bulkNotAFit sends LeadsBulkSchema's body, which carries no reason: the ids shown and selected.
     assert.deepEqual(lastWrite(), {
       key: "POST /api/v1/leads/bulk",
@@ -3349,8 +3346,7 @@ test("a kept search's menu says what was asked and when, and offers Rename, Find
     m.items.find((i) => i.label === "Remove this search").meta,
     "Keeps the ones you contacted or are talking to.",
   );
-  m.items.find((i) => i.label === "Find new ones").onClick();
-  await settle();
+  await toastAfter(() => m.items.find((i) => i.label === "Find new ones").onClick(), "the new round");
   assert.deepEqual(
     lastWrite(),
     { key: `POST /api/v1/lead-searches/${SEARCH_A}/more`, body: { purpose: "renew", plan: search().plan } },
@@ -3382,8 +3378,10 @@ test("Search again, changed opens the plan with what was asked; Rename renames t
     .items.find((i) => i.label === "Rename")
     .onClick();
   let tree = draw();
-  byTestId(tree, "leads-rename-name").props.onKeyDown({ key: "Enter", target: { value: "Trainers, Austin" } });
-  await settle();
+  await toastAfter(
+    () => byTestId(tree, "leads-rename-name").props.onKeyDown({ key: "Enter", target: { value: "Trainers, Austin" } }),
+    "the rename",
+  );
   assert.deepEqual(lastWrite(), {
     key: `PATCH /api/v1/lead-searches/${SEARCH_A}`,
     body: { name: "Trainers, Austin" },
@@ -3399,7 +3397,7 @@ test("Search again, changed opens the plan with what was asked; Rename renames t
   const asked = confirms.at(-1);
   assert.equal(asked.question, "Remove “Personal trainers · Austin”?");
   assert.equal(asked.detail, "Keeps the ones you contacted or are talking to.");
-  await asked.onYes();
+  await toastAfter(() => asked.onYes(), "the removal");
   assert.deepEqual(lastWrite(), { key: `DELETE /api/v1/lead-searches/${SEARCH_A}` });
   assert.equal(textOf(flashes.at(-1).msg), "Removed. The 18 you contacted or are talking to are kept.");
   assert.deepEqual(went.at(-1), "clients/leads", "the rail lost that row, so the view is every lead again");
@@ -4046,8 +4044,7 @@ test("the search menu removes the untouched leads and credits the month, named f
     !waitingMenu.items.some((i) => i.label === "Remove the ones you haven't touched"),
     "a round still running has nothing to remove yet",
   );
-  item.onClick();
-  await settle();
+  await toastAfter(() => item.onClick(), "the untouched leads removed");
   assert.deepEqual(lastWrite(), { key: `POST /api/v1/lead-searches/${SEARCH_A}/undo` });
   assert.equal(textOf(flashes.at(-1).msg), "Removed 160 · 160 given back");
   await flashes.at(-1).undo();

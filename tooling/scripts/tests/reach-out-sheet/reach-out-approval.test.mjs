@@ -23,6 +23,7 @@ import {
   press,
   settle,
 } from "../_legacy-react.mjs";
+import { until } from "../shared/_until.mjs";
 
 installLegacyReact({ __DEMO_MODE: false, __chrome: { state: contracts.stateOf } });
 const W = globalThis;
@@ -424,16 +425,13 @@ test("R20: a scheduled run with held opens to them; each door presses its decisi
   const reads = w.reads;
   press(byTestId(held[0], "ro-door-include"));
   // The verb's walk reads the surfaces it moved before it answers, so a fixed number of turns is not enough: a condition is.
-  for (let i = 0; i < 50 && w.reads === reads; i += 1) {
-    await settle();
-    redraw();
-  }
+  await until(() => (redraw(), w.reads > reads), "the run read again");
   assert.deepEqual(w.pressed.at(-1), ["decide", "h1", "include"]);
   assert.ok(w.reads > reads, "the run read again once the decision landed");
   w.answer = { ok: false, message: contracts.REACH_OUT_REFUSALS.gone };
   tree = redraw();
   press(byTestId(all(tree, (n) => n.props?.["data-testid"] === "ro-held")[0], "ro-door-rewrite"));
-  for (let i = 0; i < 50 && !byTestId(redraw(), "ro-held-said"); i += 1) await settle();
+  await until(() => byTestId(redraw(), "ro-held-said"), "the refusal said at its row");
   assert.equal(textOf(byTestId(redraw(), "ro-held-said")), contracts.REACH_OUT_REFUSALS.gone);
 });
 
@@ -451,10 +449,7 @@ test("a held email's Take out, at step 1, is the leave verb on the run's sequenc
     ["ro-door-take_out"],
   );
   press(byTestId(held[1], "ro-door-take_out"));
-  for (let i = 0; i < 50 && w.reads === reads; i += 1) {
-    await settle();
-    redraw();
-  }
+  await until(() => (redraw(), w.reads > reads), "the run read again");
   assert.deepEqual(w.pressed.at(-1), ["leave", "r1", { enrollment_ids: [], lead_ids: ["l2"] }]);
   assert.ok(w.reads > reads, "the run read again once they were taken out");
 });

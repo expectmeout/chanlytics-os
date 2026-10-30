@@ -11,19 +11,9 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { BOOKING_REQUEST_WORDS, toTodayVM, zoneDayKey, clockTime } from "@chanlytics/contracts";
-import {
-  installLegacyReact,
-  fresh,
-  again,
-  all,
-  find,
-  byTestId,
-  textOf,
-  classes,
-  press,
-  settle,
-} from "../_legacy-react.mjs";
+import { installLegacyReact, fresh, again, all, find, byTestId, textOf, classes, press } from "../_legacy-react.mjs";
 import { NOW, ZONE, metrics, waiting } from "./_world.mjs";
+import { until } from "../shared/_until.mjs";
 
 const went = [];
 const flashes = [];
@@ -115,11 +105,6 @@ const work = () =>
     keep: (r) => kept.push(r.id),
   });
 const buttonsIn = (tree, words) => all(tree, (n) => n.type === "button" && textOf(n).trim() === words);
-/** Until the door has answered and the row has heard it (the press runs the verb's walk, its specs fetched once). */
-async function until(done) {
-  for (let i = 0; i < 400 && !done(); i++) await settle();
-  assert.ok(done(), "the door answered");
-}
 const reset = () => {
   doors.length = 0;
   kept.length = 0;
@@ -135,14 +120,14 @@ test("Booked it answers through the door and lays the confirmation it drafts in 
   let release;
   doorSays = () => new Promise((resolve) => (release = () => resolve(answered(CONFIRM))));
   press(buttonsIn(work(), "Booked it")[0]);
-  await until(() => doors.length === 1);
+  await until(() => doors.length === 1, "the door was asked");
   assert.deepEqual(doors, [["POST", "/api/v1/conversations/cv-a/booking-request", { booked: true }]]);
   assert.deepEqual(kept, ["q-e-a"], "kept in its place on the card before the door answers");
   const asking = again(work);
   assert.equal(buttonsIn(asking, "Booked it")[0].props.disabled, true, "a second press waits for the first");
   assert.equal(buttonsIn(asking, "Can't")[0].props.disabled, true);
   release();
-  await until(() => textOf(again(work)).includes(CONFIRM));
+  await until(() => textOf(again(work)).includes(CONFIRM), "the confirmation is drafted in the row");
   const drafted = again(work);
   assert.ok(textOf(drafted).includes("Confirmation, drafted"), textOf(drafted));
   assert.equal(buttonsIn(drafted, "Send").length, 1, "sent from the row, through the reply's door");
@@ -155,7 +140,10 @@ test("Can't says the thread waits on their reply; a refusal is the door's own se
   reset();
   doorSays = () => answered(null);
   press(buttonsIn(work(), "Can't")[0]);
-  await until(() => textOf(again(work)).includes(BOOKING_REQUEST_WORDS.said.cant("Ana Reyes")));
+  await until(
+    () => textOf(again(work)).includes(BOOKING_REQUEST_WORDS.said.cant("Ana Reyes")),
+    "Can't is said in the row",
+  );
   assert.deepEqual(doors, [["POST", "/api/v1/conversations/cv-a/booking-request", { booked: false }]]);
   assert.equal(buttonsIn(again(work), "Send").length, 0, "nothing drafted to send");
 
@@ -165,7 +153,7 @@ test("Can't says the thread waits on their reply; a refusal is the door's own se
     body: { ok: false, error: { code: "conflict", message: "It was answered already." } },
   });
   press(buttonsIn(work(), "Booked it")[0]);
-  await until(() => flashes.length > 0);
+  await until(() => flashes.length > 0, "the refusal is said");
   assert.equal(flashes.at(-1).tone, "danger");
   assert.equal(textOf(flashes.at(-1).msg), "It was answered already.");
   const still = again(work);

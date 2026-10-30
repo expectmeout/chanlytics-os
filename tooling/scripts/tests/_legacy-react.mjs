@@ -24,7 +24,6 @@
  *
  * Not named *.test.mjs on purpose: the runner globs that pattern.
  */
-import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -498,16 +497,6 @@ export const classes = (n) =>
     .filter(Boolean);
 export const press = (node) => node.props.onClick({ stopPropagation() {}, preventDefault() {} });
 export const settle = () => new Promise((r) => setImmediate(r));
-/**
- * Until a condition holds, waited for by looking a turn of settle's at a time for as long as `ms` allows, and said if it
- * never does. A count of turns is no wait: on a busy machine the work a test waits on (a fake wire's answer, a module the
- * loader reads off the main thread) can outlast any count, and two tests failed so on 29 Oct 2026 beside a second run.
- * settle's turn, not a timer's: a test whose window is globalThis may stub setTimeout out (inbox-place.test.mjs does).
- */
-export const until = async (cond, what, ms = 5000) => {
-  for (const from = Date.now(); !cond() && Date.now() - from < ms;) await settle();
-  assert.ok(cond(), `never: ${what}`);
-};
 
 /**
  * A window whose width answers the kit's phone query, `(max-width: 760px)`, as a browser's does, and can be resized:

@@ -20,7 +20,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { legacyAddress, historyOf } from "../shell/address/_address.mjs";
-import { installRoleStore, kitPages, peoplePages, until, useStubHooks } from "../_legacy-react.mjs";
+import { installRoleStore, kitPages, peoplePages, useStubHooks } from "../_legacy-react.mjs";
+import { until } from "../shared/_until.mjs";
 import {
   CONSENT_SOURCES,
   ROLE_PERMS,
@@ -595,10 +596,7 @@ const drained = async () => {
     quiet = inFlight > 0 ? 0 : quiet + 1;
   }
 };
-/**
- * A search's answer in the page's state, its rows or its refusal: the table is busy from the moment the box asks until
- * then (usePeopleFarther's `searching`).
- */
+/** A search's answer in the page's state, rows or refusal: the table is busy from the box's ask until then (`searching`). */
 const searchAnswered = () =>
   until(() => {
     const table = byTestId(draw(), "people-table-scroll");
