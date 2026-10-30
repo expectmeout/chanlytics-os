@@ -100,26 +100,31 @@ TypeScript whose imports name no extension. Contracts' browser entry,
 `src/browser.generated.ts`, stays committed: every build of the dashboard reads
 it, and Vercel's build command is not in the repository.
 
-**`apps/dashboard/src/legacy` is the operator UI, and it began as a design
-mockup.** A single-page shell of hand-written JSX, routed by the address after
-the workspace's slug (`/w/acme/inbox`), imported in a fixed order by
-`src/legacy-bridge/manifest.ts`, talking through `window` globals. Surfaces were made real one at a time by _branching inside the
-existing components_ (`XReal`/`XSeed`), never by redesigning them; the seam
-that feeds a real surface from `/api/v1` is `src/legacy-bridge`, and
-`surface-registry.ts` there is the table that says which routes are real. The
-mockup's unbuilt surfaces (agent fleet, store, studio, tasks, content, the
-pipeline board, the shared report viewer) stay in
-the tree and hidden from every real workspace, by decision; their files, the
-seeded twin of each real page and the seeds only they read live under
-`src/legacy/demo/`, listed by `src/legacy-bridge/manifest-demo.ts`, which the
-app loads only in a declared demo session. The mockup's own
-prose (its audits and demo scripts) lives in `docs/mockup/`, not in the app.
+**`apps/dashboard/src/surfaces` is the operator UI, and it began as a design mockup.** Each page is a surface, a
+folder under `src/surfaces/` beside the kit and the frame, drawn on an App Router page under
+`app/(os)/w/[workspace]/` that reads no request, so each is one prerender for every person and workspace; its address
+is a path after the workspace's slug (`/w/acme/inbox`). The frame (the route table, the sidebar, the top bar) is TSX in
+`src/surfaces/frame/`, mounted once by the workspace's layout through `src/legacy-bridge/LegacyHost.tsx`, so it stays
+up across a move. Every page reads its data through one seam, in `src/legacy-bridge/`: `surface-data.ts` (an override
+reads `/api/v1`, maps the rows through a contracts view model and publishes what the page draws),
+`surface-registry.ts` (the table that says which routes are real and which are demo, drawing the "Not in this release"
+card outside a declared demo session) and `surface-runner.ts` (when each surface is read). The mockup was a
+single-page shell of hand-written JSX, imported in a fixed order by `src/legacy-bridge/manifest.ts` and talking through
+`window` globals; its surfaces were made real one at a time by _branching inside the existing components_, never by
+redesigning them, and then each left for TSX in the order decision 0015 gives, the frame after them. `src/legacy`
+keeps what has not left: Ask's five pages and its face, the stylesheets, the standalone mockup (`Chanlytics.html`) and
+its stand-ins for what the bridge publishes. Nothing new goes in that tree, and the `legacy-files`, `window-globals`
+and `window-publishers` measures count what remains and may only fall (`docs/debt.md`). The unbuilt surfaces (agent
+fleet, store, studio, tasks, content) are parked by decision: each address draws that card, in a demo session too; the
+shared report viewer opens only in a demo session, and the retired deal board's address lands on People. The mockup's
+own prose (its audits and demo scripts) lives in `docs/mockup/`, not in the app.
 
-**The legacy app never runs on the server.** `seed-globals.ts`, the shell's files and the seed publishers (the
-demo's `demo/data/people-data.jsx` among them) do unguarded module-scope `window` access and throw during prerender.
-`LegacyHost` imports the shell as `#frame-shell` (`apps/dashboard/package.json` "imports"): a browser's build resolves
-it to `LegacyApp`, the server's to `src/frame-shell.ts`, an empty component, and `dynamic(ssr:false)` keeps the
-server from drawing even that.
+**The shell never runs on the server.** `src/legacy-bridge/seed-globals.ts` and the shell's files read `window` at
+module scope and would throw during prerender, so `LegacyHost` imports the shell as `#frame-shell`
+(`apps/dashboard/package.json` "imports"): a browser's build resolves it to `LegacyApp`, the server's to
+`src/frame-shell.ts`, an empty component, and `dynamic(ssr: false)` keeps the server from drawing even that. Until the
+frame is placed, a visitor sees the outline (`src/surfaces/frame/outline.tsx`): the frame's own chrome, in its own
+classes.
 
 **Nothing in the UI may state a fact the database cannot support.** Unbacked
 mockup regions stay behind `window.__DEMO_MODE`. A zero is a real measurement
