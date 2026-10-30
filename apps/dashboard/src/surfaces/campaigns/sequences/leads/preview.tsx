@@ -12,9 +12,11 @@ import {
   coldEndingOf,
   emailFoot,
   leadDraftChainOf,
+  leadFactOf,
   leadPreviewEmailOf,
   sequenceRoute,
   whyFrom,
+  withOpeningSaid,
   type LeadCardLead,
   type SequenceRecordDto,
 } from "@chanlytics/contracts";
@@ -91,9 +93,20 @@ export function LeadPreview({ rec, lc, place, leads, at, onAt }: PreviewProps) {
   const row = useLeadRow(one?.id ?? null);
   const lead = row ? cardLeadOf(row) : one ? null : exampleCardLead();
   const workspace = workspaceOf(lc.draft.signed_by);
-  const email = lead
+  // The opening the lead's listing says, where it says one (decision 0078): the check writes the same sentence.
+  const fact = row
+    ? leadFactOf({
+        business_name: row.business_name,
+        city: row.city,
+        hours: row.hours ?? null,
+        rating: row.rating,
+        reviews: row.reviews,
+      })
+    : null;
+  const drafted = lead
     ? leadPreviewEmailOf({ chain: leadDraftChainOf(lc.chain, lc.draft), lead, workspace, place })
     : null;
+  const email = drafted ? withOpeningSaid(drafted, fact?.opening ?? null) : null;
   const name = one ? one.name || row?.business_name || "" : (lead?.business_name ?? "");
   const held = rec.sequence.needs.held;
   return (

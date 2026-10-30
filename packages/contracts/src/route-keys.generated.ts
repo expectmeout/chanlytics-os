@@ -295,6 +295,7 @@ export const ROUTE_KEYS = [
   "POST sequences/[id]/steps/[step]/words",
   "POST sequences/draft",
   "POST sequences/new",
+  "POST sequences/voice",
   "POST settings/receptionist",
   "POST setup/request",
   "POST support/report",

@@ -23,6 +23,7 @@ import {
   chainOf,
   checkOpening,
   customerDomainOf,
+  leadFactOf,
   openingSystemPrompt,
   openingUserContent,
   openingVerdict,
@@ -34,6 +35,7 @@ import {
   reachOutCountryOf,
   wordsNeedOpening,
   type OpeningRecord,
+  type OpeningVerdict,
   type OpeningWorkspace,
   type ReachOutHold,
   type WrittenOpening,
@@ -115,6 +117,11 @@ export interface CheckInput {
   /** The lead's country when it is one its owner says yes to first (contracts reachOutCountryOf: held); else null. */
   abroad: string | null;
   /**
+   * The opening the listing's own fields say (contracts leadFactOf, decision 0078): read by the reader before the
+   * writer is asked. Null, or absent, where the listing says nothing code can write.
+   */
+  fact?: WrittenOpening | null;
+  /**
    * The holds this send's owner included it, or its lead in this chain, past (the planner's union over the lead's sends):
    * one an Include carries (contracts HOLDS_INCLUDED_FOR_CHAIN) is never made again; the rest covered one email (R7).
    */
@@ -174,12 +181,39 @@ export async function checkOne(
   };
   const failed = (why: CheckFailure): CheckOutcome => ({ kind: "failed", why, tokens, calls });
   const late = (): CheckOutcome => ({ kind: "late", tokens, calls });
+  // The reader's verdict on an opening against the record, after code's own reading of it: the call every opening takes,
+  // a fact's and each one the writer wrote; an outcome where the check ends there.
+  const verdictOn = async (o: WrittenOpening): Promise<OpeningVerdict | CheckOutcome> => {
+    const r = await call(
+      readingSystemPrompt(),
+      readingUserContent({ record: i.record, opening: o.opening }),
+      READING_SCHEMA,
+      200,
+    );
+    if (r === "late") return late();
+    if ("failed" in r) return failed(r.failed);
+    const reading = parseReading(r.answer);
+    if (!reading) return failed("unparseable");
+    return openingVerdict(checkOpening(o, i.record), reading, i.language, o.opening);
+  };
 
   let opening: WrittenOpening | null = null;
   let hold: ReachOutHold | null = null;
   let detail: string | null = null;
   let rewritten = false;
-  if (i.needsOpening) {
+  // An opening the listing's own fields say (decision 0078): read once, by the reader, as every opening is. It stands
+  // where it passes, and where its hold is one no rewrite changes (the business's language); one the reader or code
+  // cannot back is the writer's to write, as an opening with no fact is.
+  if (i.needsOpening && i.fact) {
+    const v = await verdictOn(i.fact);
+    if ("kind" in v) return v;
+    if (v.ok || !v.rewrite) {
+      opening = i.fact;
+      hold = v.ok ? null : v.hold;
+      detail = v.ok ? null : v.detail;
+    }
+  }
+  if (i.needsOpening && opening === null) {
     let retry: { opening: string; why: string } | undefined;
     for (let round = 0; round < 2; round += 1) {
       const w = await call(
@@ -192,17 +226,8 @@ export async function checkOne(
       if ("failed" in w) return failed(w.failed);
       const o = parseOpening(w.answer);
       if (!o) return failed("unparseable");
-      const r = await call(
-        readingSystemPrompt(),
-        readingUserContent({ record: i.record, opening: o.opening }),
-        READING_SCHEMA,
-        200,
-      );
-      if (r === "late") return late();
-      if ("failed" in r) return failed(r.failed);
-      const reading = parseReading(r.answer);
-      if (!reading) return failed("unparseable");
-      const v = openingVerdict(checkOpening(o, i.record), reading, i.language, o.opening);
+      const v = await verdictOn(o);
+      if ("kind" in v) return v;
       opening = o;
       if (v.ok) {
         hold = null;
@@ -295,6 +320,13 @@ export function checkInputOf(
     customerDomain: customerDomainOf(r.email, r.email_domain_shared),
     abroad: reachOutCountryOf(country) === "held" ? (country ?? "").trim().toUpperCase() : null,
     included,
+    fact: leadFactOf({
+      business_name: r.business_name,
+      city: r.city,
+      hours: r.hours,
+      rating: r.rating,
+      reviews: r.reviews,
+    }),
   };
 }
 

@@ -5,8 +5,14 @@
  * 1080 to 1560). Hours that cannot be read are the default week, Monday to Friday, nine to five, and `read` says so.
  * One day whose words do not read is that day of the default week, never a day closed; a day this cannot name leaves the
  * whole week unread. The display readers (lead-facts.ts) are left as they are: they read one range for a line of text.
+ *
+ * The same reading says a cold email's opening where the week reads whole (leadFactOf, decision 0078): "is open until
+ * 5 PM on weekdays and until 1 PM on Saturdays", or the listing's rating where its hours say nothing whole.
  */
 import { weekdayNamed, type WeekdayKey } from "../calendar/day-keys";
+import { DAYS } from "../config/workspace-config/config-rules";
+import { leadCalledByOf } from "../leads/search/called-by";
+import type { WrittenOpening } from "./reach-out-words";
 
 export interface OpenWindow {
   from: number;
@@ -109,4 +115,124 @@ export function weekHoursOf(hours: unknown): { week: WeekHours; read: boolean } 
     if (windows !== null) readAny = true;
   }
   return readAny ? { week, read: true } : { week: DEFAULT_WEEK, read: false };
+}
+
+/* ------------------------------------------------- the opening the week says */
+
+/** What the opening is written from: the listing as the check's record row holds it. */
+export interface FactListing {
+  business_name: string | null;
+  city?: string | null;
+  /** The finder's hours (00144); anything else is no week. */
+  hours: unknown;
+  rating: number | null;
+  reviews: number | null;
+}
+
+/** The least a rating says anything at, and the fewest reviews it is said from. */
+const RATING_MIN = 4;
+const REVIEWS_MIN = 20;
+
+/** A day as the opening says it: closed, open around the clock, or open until a time ("5 PM", "8:30 PM", "midnight"). */
+type SaidDay = { closed: true } | { allDay: true } | { until: string };
+
+/** A close as a person says it, from minutes after midnight (one past midnight is the next day's): twelve at night is midnight. */
+function closeSaid(to: number): string {
+  const min = to % (24 * 60);
+  if (min === 0) return "midnight";
+  const hour = Math.floor(min / 60);
+  const minutes = min % 60;
+  return `${hour % 12 || 12}${minutes ? `:${String(minutes).padStart(2, "0")}` : ""} ${hour < 12 ? "AM" : "PM"}`;
+}
+
+/** One day's windows as the opening says them; a day of two stretches ("9 AM to 1 PM, 2 to 6 PM") is a shape not said. */
+function saidDayOf(windows: OpenWindow[] | null): SaidDay | null {
+  if (!windows) return null;
+  const [only, second] = windows;
+  if (!only) return { closed: true };
+  if (second) return null;
+  if (only.from === 0 && only.to === 24 * 60) return { allDay: true };
+  return { until: closeSaid(only.to) };
+}
+
+/** The listing's week, Monday first, read as the send window reads it, or null where any day is missing or unread. */
+function saidWeekOf(hours: unknown): SaidDay[] | null {
+  if (!Array.isArray(hours)) return null;
+  const byDay = new Map<WeekdayKey, SaidDay>();
+  for (const e of hours) {
+    if (!e || typeof e !== "object") return null;
+    const day = dayNameOf((e as { day?: unknown }).day);
+    const words = (e as { hours?: unknown }).hours;
+    const said = day && typeof words === "string" ? saidDayOf(dayOf(words)) : null;
+    if (!day || !said) return null;
+    byDay.set(day, said);
+  }
+  const week: SaidDay[] = [];
+  for (const d of DAYS) {
+    const said = byDay.get(d);
+    if (!said) return null;
+    week.push(said);
+  }
+  return week;
+}
+
+const untilOf = (d: SaidDay | undefined): string | null => (d && "until" in d ? d.until : null);
+const isClosed = (d: SaidDay | undefined): boolean => !!d && "closed" in d;
+const isAllDay = (d: SaidDay | undefined): boolean => !!d && "allDay" in d;
+
+/** What the week says after the name ("is open until 5 PM on weekdays"), and its angle; null where it says nothing whole. */
+function hoursSaid(week: SaidDay[]): { said: string; angle: string } | null {
+  if (week.every(isAllDay)) return { said: "is open 24 hours, seven days a week", angle: "open 24 hours" };
+  const weekday = week.slice(0, 5);
+  const [sat, sun] = [week[5], week[6]];
+  const all = untilOf(week[0]);
+  if (all && week.every((d) => untilOf(d) === all))
+    return { said: `is open until ${all} every day`, angle: "their hours" };
+  const close = untilOf(weekday[0]);
+  if (!close || !weekday.every((d) => untilOf(d) === close)) return null;
+  return { said: weekendSaid(close, sat, sun), angle: "their hours" };
+}
+
+/**
+ * The weekdays' one close and the weekend as the listing has it. A weekend open both days says each day's close, so no
+ * close is said that the listing does not give ("until 8 PM Monday to Saturday and until 4 PM on Sundays"); both at the
+ * weekdays' close is every day, said before this.
+ */
+function weekendSaid(close: string, sat: SaidDay | undefined, sun: SaidDay | undefined): string {
+  const satUntil = untilOf(sat);
+  const sunUntil = untilOf(sun);
+  if (isClosed(sat) && isClosed(sun)) return `is open until ${close} on weekdays and closed on weekends`;
+  if (satUntil && isClosed(sun))
+    return satUntil === close
+      ? `is open until ${close} Monday to Saturday`
+      : `is open until ${close} on weekdays and until ${satUntil} on Saturdays`;
+  if (!satUntil || !sunUntil) return `is open until ${close} on weekdays`;
+  if (satUntil === close) return `is open until ${close} Monday to Saturday and until ${sunUntil} on Sundays`;
+  if (satUntil === sunUntil) return `is open until ${close} on weekdays and until ${satUntil} on weekends`;
+  return `is open until ${close} on weekdays, until ${satUntil} on Saturdays and until ${sunUntil} on Sundays`;
+}
+
+/**
+ * The opening a listing's own fields say, or null (decision 0078): its hours where the whole week reads, else its rating
+ * where it is 4.0 or more from 20 reviews or more. One sentence said by code, so nothing in it is a guess and the writer is
+ * not asked for it; the check's reader still reads it, as it reads every opening, for the business's language and
+ * against the record. The business is named as every email names it (leadCalledByOf).
+ */
+export function leadFactOf(l: FactListing): WrittenOpening | null {
+  const name = (
+    leadCalledByOf({ business_name: l.business_name, city: l.city ?? null }) ??
+    l.business_name ??
+    ""
+  ).trim();
+  if (!name) return null;
+  const week = saidWeekOf(l.hours);
+  const hours = week ? hoursSaid(week) : null;
+  if (hours) return { opening: `${name} ${hours.said}.`, angle: hours.angle, facts_used: ["hours"] };
+  if (l.rating !== null && l.reviews !== null && l.rating >= RATING_MIN && l.reviews >= REVIEWS_MIN)
+    return {
+      opening: `${name} has a ${l.rating.toFixed(1)} rating across ${l.reviews} reviews.`,
+      angle: "their rating",
+      facts_used: ["rating", "reviews"],
+    };
+  return null;
 }

@@ -1,13 +1,15 @@
 /**
- * The desk's controls at the right of the search (moved from legacy/pages/leads-scope.jsx, decision 0015): the map,
- * Values ⁄ Signals, which columns show and the file, as words beside Columns (the ⋯ that folded them is gone). The page's acts, Reach out's door and Ask's (spec F1: the three's still mark, never a second live
+ * The desk's controls at the right of the search (moved from legacy/pages/leads-scope.jsx, decision 0015): the Filter, the
+ * map, Values ⁄ Signals, which columns show and the file, as words beside Columns (the ⋯ that folded them is gone). The page's acts, Reach out's door and Ask's (spec F1: the three's still mark, never a second live
  * canvas), stand at the right of the strip over the list, as People's Add a person does (`LeadsActs`).
  */
 import type { ReactNode } from "react";
+import { LEAD_REACH_FILTERS, LEAD_REACH_WORDS, leadReachWord, type LeadReachFilter } from "@chanlytics/contracts";
 import { ActWords } from "../../kit/head/act-words";
 import { useStanding } from "../../kit/head/standing";
 import { Icon } from "../../kit/icon/icon";
 import { Button } from "../../kit/button/button";
+import { Menu } from "../../kit/menu/menu";
 import { gate } from "../../legacy-verbs";
 import type { ColumnOption } from "../../people/table/columns";
 import type { TableLayout } from "../../people/table/use-layout";
@@ -21,6 +23,8 @@ interface ControlsProps {
   onMap: (on: boolean) => void;
   values: boolean;
   onValues: (on: boolean) => void;
+  reach: readonly LeadReachFilter[];
+  onReach: (filter: string) => void;
   colOptions: readonly ColumnOption[];
   onPickColumn: (key: string) => void;
   layout: TableLayout | null;
@@ -61,6 +65,46 @@ export const LeadsHead = ({ act }: { act?: ReactNode }) => {
   return null;
 };
 
+/**
+ * The Filter (Ruben, 30 Oct 2026: "a specific email list to send a sequence to vs a call list"): only the leads with a
+ * checked email, a checked phone, or both, as the Reach column says Checked. The kit's switches, as Columns draws them,
+ * the menu open while each is flipped; its word says what is on, as Map and Values say the view they show. The phone's is
+ * the same two switches in its Sort sheet (phone-bar.tsx).
+ */
+const LeadsFilterMenu = ({
+  reach,
+  onReach,
+}: {
+  reach: readonly LeadReachFilter[];
+  onReach: (filter: string) => void;
+}) => (
+  <Menu
+    label={LEAD_REACH_WORDS.none}
+    groups={[leadReachGroup(reach, onReach, false)]}
+    trigger={
+      <Button variant="quiet" size="sm" data-tip={LEAD_REACH_WORDS.header} data-testid="leads-filter">
+        {leadReachWord(reach)}
+      </Button>
+    }
+  />
+);
+
+/** The Filter's switches as the kit's Menu takes them: rows on a desk, chips on a line in a phone's sheet. */
+export const leadReachGroup = (
+  reach: readonly LeadReachFilter[],
+  onReach: (filter: string) => void,
+  chips: boolean,
+) => ({
+  header: LEAD_REACH_WORDS.header,
+  caption: LEAD_REACH_WORDS.caption,
+  toggles: {
+    onToggle: onReach,
+    tick: <Icon name="check" size={13} />,
+    chips,
+    items: LEAD_REACH_FILTERS.map((f) => ({ value: f, label: LEAD_REACH_WORDS[f], on: reach.includes(f) })),
+  },
+});
+
 export const LeadsControlsRight = ({ p }: { p: ControlsProps }) => {
   // Export: a role that may not keeps the button and says why at it (gate's props come last, so its handler is the one that runs).
   const exportPress = p.canExport
@@ -71,6 +115,7 @@ export const LeadsControlsRight = ({ p }: { p: ControlsProps }) => {
     : { onClick: () => undefined, ...gate("export", "export these leads") };
   return (
     <div className="cl-controls-right">
+      <LeadsFilterMenu reach={p.reach} onReach={p.onReach} />
       <PeopleColumnsMenu options={p.colOptions} onPick={p.onPickColumn} layout={p.layout} rowHeight={false} />
       {/* The map, Values / Signals and the file stand beside Columns as words, as People's Import and Export do (the ⋯ that
           folded them away is gone, Ruben, 9 Oct 2026). */}

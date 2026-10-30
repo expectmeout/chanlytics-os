@@ -41,6 +41,7 @@ import {
   sequenceStepRemoveSpec,
   sequenceStepSpec,
   sequenceTestSpec,
+  sequenceVoiceSpec,
   sequenceWordsSpec,
 } from "./sequences";
 import type { ProposalGate, ProposalSpec } from "./spec";
@@ -82,6 +83,8 @@ export const PAGE_SPECS = {
   sequence_end: sequenceEndSpec,
   // A step's message mailed to the member who pressed Send me a test, and to nobody else.
   sequence_test: sequenceTestSpec,
+  // The owner's voice read from an email they paste under New's draft to leads (decision 0078).
+  sequence_voice: sequenceVoiceSpec,
   playbook_change: playbookChangeSpec,
   run: runSpec,
   // A campaign run now at the member's request: Run now, under a sequence's More.

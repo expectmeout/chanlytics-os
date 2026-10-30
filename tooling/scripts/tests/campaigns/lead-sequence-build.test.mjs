@@ -15,6 +15,7 @@
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
+import { until } from "../shared/_until.mjs";
 import * as contracts from "@chanlytics/contracts";
 import { installLegacyReact, fresh, again, find, byTestId, textOf, press, settle, unmount } from "../_legacy-react.mjs";
 
@@ -260,6 +261,64 @@ test("nobody in it yet: the preview reads as the example business, said so, with
   assert.ok(email, "the email, drawn whole by the part the lead sheet draws it with");
   assert.match(email.props.foot, /1200 Barton Springs Rd, Austin, TX/, "the business's address, as the send writes it");
   assert.match(email.props.from, /^Sam · /, "from the name it signs with, and your own inbox");
+});
+
+test("a lead whose listing says a fact is previewed with that fact as its opening, read in the browser with no call (0078)", async () => {
+  const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+  const row = {
+    id: "lead-1",
+    business_name: "Harbor Auto Repair",
+    city: "Staten Island",
+    kind: "place",
+    facts: null,
+    email: "hello@harborauto.example",
+    email_state: "ok",
+    phone: null,
+    phone_wrong: false,
+    rating: 4.8,
+    reviews: 66,
+    hours: days.map((day, i) => ({ day, hours: i < 5 ? "8 AM to 5 PM" : "Closed" })),
+  };
+  answer = ([m, p]) => (m === "GET" && p === "leads/lead-1" ? { ok: true, data: { row } } : { ok: true, data: {} });
+  const draw = () => {
+    let tree = null;
+    again(() => {
+      tree = W.React.createElement(() => {
+        lc = useLeadChain(
+          REC,
+          (f) => flashes.push(f),
+          () => {},
+        );
+        const leads = [{ id: "lead-1", name: "Harbor Auto Repair" }];
+        return lc ? W.React.createElement(LeadPreview, { rec: REC, lc, place: 1, leads, at: 0, onAt: () => {} }) : null;
+      });
+      return tree;
+    });
+    return tree;
+  };
+  draw();
+  // The lead's row is read as the preview opens; the opening is said once it is in.
+  const opened = (t) =>
+    find(
+      t,
+      (n) => n.type === "span" && n.props?.["data-testid"] === "lead-card-opening" && n.props?.className === "lw-val",
+    );
+  await until(() => opened(draw()), "the lead's row read, and its opening said");
+  const tree = draw();
+  const email = find(tree, (n) => n.type === EmailAs);
+  assert.ok(email, "the lead's email");
+  const said = find(tree, (n) => n.type === "span" && n.props?.["data-testid"] === "lead-card-opening");
+  assert.ok(said, "the opening is drawn");
+  assert.equal(said.props.className, "lw-val", "a said opening wears a value's mark, not the line still to come");
+  assert.deepEqual(
+    email.props.email.body.filter((p) => p.kind === "opening"),
+    [{ kind: "opening", text: "Harbor Auto Repair is open until 5 PM on weekdays and closed on weekends." }],
+  );
+  assert.deepEqual(
+    wire.map(([m, p]) => `${m} ${p}`),
+    ["GET leads/lead-1"],
+    "the fact is read off the lead's row: no call writes it",
+  );
 });
 
 test("with no business address the preview carries no foot: the send refuses then, and How it runs says so", () => {

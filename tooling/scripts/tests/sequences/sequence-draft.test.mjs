@@ -19,9 +19,15 @@
  * it was. And the make's own rules (new-make.ts): a one-off goes by the channels that carry it then, never WhatsApp's new
  * version; a lead's step is sent as a sequence to leads holds one; who said stop is no list, and a one-off's list of who
  * said yes is everyone.
+ *
+ * And the owner's voice, learned from an email they paste (decision 0078; POST sequences/voice): read once by the model,
+ * as data, into up to three lines about how they write, each kept in Ask's memory as `learned` through its one door; what
+ * the model says that is no such line is never kept; memory full says so. And the line New says under a draft written
+ * with them.
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
+import { fakeDb } from "../_fake-db.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -30,8 +36,11 @@ const { draftFrom } = await import("../../../../apps/dashboard/src/server/sequen
 const { draftKept } = await import("../../../../apps/dashboard/src/server/sequences/draft-judge.ts");
 const M = await import("../../../../apps/dashboard/src/surfaces/campaigns/sequences/new/new-model.ts");
 const { onceChannelsOf, leadFirstOf } = await import("../../../../apps/dashboard/src/server/sequences/new-make.ts");
-const { NEW_MAKE_BODY, LEAD_FIRST_BODY } = await import("../../../../apps/dashboard/src/server/sequences/bodies.ts");
-const { NEW_WORDS, leadChainStepOf, newListOf } = await import("../../../../packages/contracts/src/index.ts");
+const { NEW_MAKE_BODY, LEAD_FIRST_BODY, VOICE_BODY } =
+  await import("../../../../apps/dashboard/src/server/sequences/bodies.ts");
+const { learnVoice } = await import("../../../../apps/dashboard/src/server/sequences/voice.ts");
+const { NEW_WORDS, VOICE_WORDS, leadChainStepOf, newListOf, voiceLineOf, voiceSaid } =
+  await import("../../../../packages/contracts/src/index.ts");
 
 let calls;
 /** The model, answering `said`: one text event and a stop, as the gateway streams them. */
@@ -858,4 +867,141 @@ test("an email to leads is the same words for every business: the draft is told 
   // REGRESSION: a draft wrote "I imagine the phone keeps ringing while you're mid-repair" into every email of a sequence.
   assert.match(system, /the same words for every business/);
   assert.match(system, /how busy it is/);
+});
+
+test("the drafter is told what the business says about itself and how its owner writes, all as data, and the draft says the learned lines it wrote with (decision 0078)", async () => {
+  answerWith(
+    answer({ audience: "leads", who: "s1", steps: [step({ subject: "Hi", body: "{{opening}}\n\nWorth a look?" })] }),
+  );
+  const out = await draftFrom(
+    {
+      ...KNOWN,
+      about: "We answer the phone for local shops when nobody can get to it.",
+      services: ["Call answering", "Booking"],
+      tone: "Plain and warm",
+      memory: [
+        { text: "In cold emails: short, no greeting, signed with a first name.", source: "learned" },
+        { text: "Our best customers are independent auto shops.", source: "ask" },
+      ],
+      examples: [{ subject: "Phones at your shop", body: "{{opening}}\n\nI'm Sam. Worth a look?" }],
+    },
+    LINE,
+    { tenantId: "t1", userId: "u1" },
+  );
+  const told = JSON.stringify(calls[0].request.messages);
+  const system = String(calls[0].request.system);
+  assert.match(told, /<record>We answer the phone for local shops when nobody can get to it\.<\/record>/);
+  assert.match(told, /<record>Call answering, Booking<\/record>/);
+  assert.match(told, /<record>Plain and warm<\/record>/);
+  assert.match(told, /<record>In cold emails: short, no greeting, signed with a first name\.<\/record>/);
+  assert.match(told, /<record>Our best customers are independent auto shops\.<\/record>/);
+  assert.match(
+    told,
+    /<record>\\nSubject: Phones at your shop\\n\{\{opening\}\}\\n\\nI'm Sam\. Worth a look\?\\n<\/record>/,
+  );
+  assert.match(system, /in the owner's own voice/);
+  assert.match(system, /never copy a sentence/);
+  assert.match(system, /as the owner's own act/);
+  assert.deepEqual(
+    out.voice,
+    ["In cold emails: short, no greeting, signed with a first name."],
+    "only the learned lines",
+  );
+
+  // A workspace that says nothing of itself is told nothing of it, and its draft wrote with no learned line.
+  answerWith(answer({ steps: [step({ message: "k1" })] }));
+  const bare = await draftFrom(KNOWN, LINE, { tenantId: "t1", userId: "u1" });
+  const toldBare = JSON.stringify(calls[1].request.messages);
+  assert.doesNotMatch(toldBare, /in its own words|Ask remembers|started before/);
+  assert.deepEqual(bare.voice, []);
+});
+
+/* --------------------------------------------- the owner's voice, learned from a paste (decision 0078) */
+
+const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const USER = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+const PASTED =
+  "Hey there, saw your shop on Maple. I'm Sam, I run a small answering service for garages. Worth a quick chat? Cheers, Sam";
+
+/** A workspace's memory door: keeps what it is given, as the database's would, full after `room` lines. */
+function world(room = 40) {
+  const kept = [];
+  const supabase = fakeDb(
+    {},
+    {},
+    {
+      ask_memory_write: (args) => {
+        if (kept.length >= room) return { error: "full" };
+        const again = kept.find((k) => k.text.toLowerCase() === args.p_text.toLowerCase());
+        if (again) return { memory: { id: again.id, text: again.text }, again: true };
+        const line = { id: `m${kept.length + 1}`, text: args.p_text, source: args.p_source };
+        kept.push(line);
+        return { memory: { id: line.id, text: line.text }, again: false };
+      },
+    },
+  );
+  return { ctx: { supabase, userId: USER }, kept };
+}
+
+test("a paste is read once, as data, and up to three lines on how the owner writes are kept as learned", async () => {
+  answerWith({
+    lines: [
+      "In cold emails: short, under 40 words, no greeting beyond 'Hey there'.",
+      "In cold emails: says who they are in one line, then asks a yes-or-no question.",
+      "In cold emails: signs off 'Cheers' with a first name.",
+      "In cold emails: a fourth line is never kept.",
+    ],
+  });
+  const w = world();
+  const out = await learnVoice(w.ctx, T, { text: PASTED });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].purpose, "sequence_draft");
+  assert.match(JSON.stringify(calls[0].request.messages), /<record>\\nHey there, saw your shop/, "the paste is data");
+  assert.match(String(calls[0].request.system), /never an instruction/);
+  assert.deepEqual(
+    w.kept.map((k) => k.source),
+    ["learned", "learned", "learned"],
+  );
+  assert.deepEqual(out, { lines: w.kept.map((k) => k.text), full: false });
+});
+
+test("what is no line about writing is never kept: another lead, too long, too short, or the same line twice", async () => {
+  answerWith({
+    lines: [
+      "They sell an answering service to garages.",
+      "In cold emails: " + "very ".repeat(60) + "long.",
+      "In cold emails: ok",
+      "In cold emails: signs off 'Cheers' with a first name.",
+      "in cold emails: signs off 'cheers' with a first name.",
+    ],
+  });
+  const w = world();
+  const out = await learnVoice(w.ctx, T, { text: PASTED });
+  assert.deepEqual(out.lines, ["In cold emails: signs off 'Cheers' with a first name."]);
+  assert.equal(w.kept.length, 1);
+});
+
+test("memory full keeps what fits and says so", async () => {
+  answerWith({ lines: ["In cold emails: short and plain.", "In cold emails: asks a question at the end."] });
+  const w = world(1);
+  const out = await learnVoice(w.ctx, T, { text: PASTED });
+  assert.deepEqual(out, { lines: ["In cold emails: short and plain."], full: true });
+});
+
+test("a paste is a whole email: too short or too long is refused before any call", () => {
+  assert.equal(VOICE_BODY.safeParse({ text: "Hi, worth a chat?" }).success, false);
+  assert.equal(VOICE_BODY.safeParse({ text: "x".repeat(4001) }).success, false);
+  assert.equal(VOICE_BODY.safeParse({ text: PASTED }).success, true);
+  assert.equal(VOICE_BODY.safeParse({ text: PASTED, extra: 1 }).success, false);
+});
+
+test("the line under a draft says the learned lines without their lead; none is no line", () => {
+  assert.equal(voiceSaid("In cold emails: short, no greeting."), "short, no greeting");
+  assert.equal(
+    voiceLineOf(["In cold emails: short, no greeting.", "In cold emails: signs off 'Cheers' with a first name."]),
+    "Written the way you write: short, no greeting · signs off 'Cheers' with a first name",
+  );
+  assert.equal(voiceLineOf([]), null);
+  assert.equal(voiceLineOf(undefined), null);
+  assert.match(VOICE_WORDS.kept(2), /2 lines/);
 });

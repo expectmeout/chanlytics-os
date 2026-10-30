@@ -86,7 +86,7 @@ export type { InList } from "./lists/list-match";
 export {
   asListRule,
   draftListRule,
-  LIST_DRAFT_JSON_SCHEMA,
+  LIST_CONDITIONS_JSON_SCHEMA,
   ListConditionSchema,
   listConditionWords,
   listDraftFieldLines,
@@ -98,7 +98,7 @@ export {
   ruleUndated,
 } from "./lists/list-rules";
 export type { ListAny, ListCondition, ListFact, ListRule } from "./lists/list-rules";
-export { ListDraftAnswerSchema, PeopleExportQuerySchema } from "./lists/list-schemas";
+export { LIST_DRAFT_JSON_SCHEMA, ListDraftAnswerSchema, PeopleExportQuerySchema } from "./lists/list-schemas";
 export type { ListDraftAnswer } from "./lists/list-schemas";
 export { listToken, parseListToken } from "./lists/list-token";
 export type { ListRef } from "./lists/list-token";

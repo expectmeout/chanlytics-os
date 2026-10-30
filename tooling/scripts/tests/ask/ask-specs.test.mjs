@@ -92,6 +92,7 @@ const KINDS = [
   "sequence_end",
   "sequence_discard",
   "sequence_test",
+  "sequence_voice",
   "playbook_run",
   "booking_request",
   "fact_suggestion",
@@ -171,6 +172,7 @@ test("the gate each kind checks before Approve is the one it checked at a993b71d
     sequence_end: "approve",
     sequence_discard: "approve",
     sequence_test: "approve",
+    sequence_voice: "approve",
     playbook_run: "approve",
     booking_request: "approve",
     // A note kept for the receptionist is a change to the settings (decision 0063): the settings gate, a partner up.
@@ -559,6 +561,7 @@ const SHAPES = {
   sequence_end: [card("sequence_end", { sequence_id: "q1", name: "After a visit" })],
   sequence_discard: [card("sequence_discard", { sequence_id: "q1" })],
   sequence_test: [card("sequence_test", { sequence_id: "q1", step_id: "s1" })],
+  sequence_voice: [card("sequence_voice", { text: "Hey there, saw your shop on Maple. Worth a quick chat? Sam" })],
   playbook_run: [card("playbook_run", { playbook_id: "pb1", name: "Win-back", timezone: "America/New_York" })],
   booking_request: [
     card("booking_request", { conversation_id: "c1", booked: true, who: "Rosa" }),
@@ -815,6 +818,7 @@ test("every kind has a spec -- the twenty-one Ask proposed and every page's verb
     sequence_end: ["DELETE playbooks/[id]"],
     sequence_discard: ["DELETE sequences/[id]"],
     sequence_test: ["POST sequences/[id]/steps/[step]/test"],
+    sequence_voice: ["POST sequences/voice"],
     playbook_run: ["POST playbooks/[id]/run"],
     booking_request: ["POST conversations/[id]/booking-request"],
     fact_suggestion: ["POST fact-suggestions/[id]"],

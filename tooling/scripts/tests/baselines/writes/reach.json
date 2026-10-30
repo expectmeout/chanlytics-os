@@ -1,6 +1,6 @@
 {
-  "rows": 152,
-  "same": 7,
+  "rows": 153,
+  "same": 8,
   "differ": 145,
   "writes": {
     "DELETE ask/memory/[id]": {
@@ -1934,6 +1934,9 @@
         "setup": "admin/integrations, admin/receptionist, start, today",
         "today": "every page"
       }
+    },
+    "POST sequences/voice": {
+      "changes": "ask_memory_lines INSERT UPDATE"
     },
     "POST settings/receptionist": {
       "changes": "tenant_config UPDATE",

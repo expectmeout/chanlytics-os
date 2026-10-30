@@ -511,6 +511,9 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // A line of what Ask remembers kept, changed or forgotten (decision 0070): the Memory pane's own read, where it is drawn.
   // Nothing else a page draws reads the memory: Ask reads it fresh with every question.
   "POST ask/memory": memoryIfDrawn,
+  // An email the owner pasted, read into lines of how they write and kept in Ask's memory (decision 0078): the Memory
+  // pane's own read, where it is drawn. New drafts again from the answer itself.
+  "POST sequences/voice": memoryIfDrawn,
   // A card's outcome, kept on Ask's own message: the card's own call refreshed what it changed, and Today's morning, which
   // offers the cards of one turn, reads again where it is drawn.
   "POST ask/messages/[id]/proposals/[pid]": morningIfDrawn,

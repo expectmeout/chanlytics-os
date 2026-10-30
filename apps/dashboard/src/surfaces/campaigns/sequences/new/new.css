@@ -313,6 +313,20 @@
 .sq-nw-note.is-warn {
   color: var(--warn-ink);
 }
+/* The owner's voice under a draft to leads (decision 0078): the paste's line, its box and its act, one under another. */
+.sq-nw-voice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0 var(--space-1);
+}
+.sq-nw-voice > .sq-nw-note {
+  margin: 0;
+}
+.sq-nw-voice-act {
+  display: flex;
+  justify-content: flex-end;
+}
 /* The foot: its line, then its act or its pair (Keep as a draft and Start, the house's pair on a phone, kit.css). */
 .sq-nw-foot {
   display: flex;
