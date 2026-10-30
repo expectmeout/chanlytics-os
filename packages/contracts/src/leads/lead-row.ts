@@ -335,7 +335,7 @@ export function toLeadRowVM(r: LeadRowDto, tz: string, now: Date, search: LeadSe
       : "",
     foundAt: `${clockDateYear(foundMs, tz)} · ${clockTime(foundMs, tz)}`,
     distance: milesLabel(m.distance_m),
-    source: sourceOf(r),
+    source: leadSourceWord(r),
     host: siteHost(r.website) ?? "",
     excludedBy,
     version: r.version,
@@ -382,7 +382,7 @@ function subLineOf(r: LeadRowDto, distanceM: number | null): string {
 }
 
 /** Where a lead's facts came from, as foundLine says it: a directory, its Maps listing, else the owner's own list. */
-function sourceOf(r: LeadRowDto): string {
+function leadSourceWord(r: LeadRowDto): string {
   if (r.kind === "company") return LEAD_DIRECTORY_WORDS.source;
   return r.place_id ? LEAD_SOURCE_WORD : "Your list";
 }
