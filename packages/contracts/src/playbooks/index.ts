@@ -74,9 +74,18 @@ export {
   passesHandoverPause,
 } from "./playbook-purpose";
 export type { RunMessage } from "./playbook-purpose";
+export { campaignBlockWords, campaignFixCard, campaignReachable } from "./playbook-reach";
+export type { CampaignBlock } from "./playbook-reach";
 export { heldBackOfOneRun, runReadingOf } from "./playbook-run-split";
 export type { RunReading, RunSplit } from "./playbook-run-split";
-export { campaignDayWords, campaignEnded, campaignRunsOn, sendingEndsAt } from "./playbook-schedule";
+export {
+  campaignDayWords,
+  campaignEnded,
+  campaignLine,
+  campaignRunsOn,
+  nobodyNamedWords,
+  sendingEndsAt,
+} from "./playbook-schedule";
 export { isPlaybookTotalsDto } from "./playbook-totals";
 export type { PlaybookTotalsDto } from "./playbook-totals";
 export {

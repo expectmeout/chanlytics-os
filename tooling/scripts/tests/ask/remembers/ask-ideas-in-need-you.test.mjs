@@ -130,3 +130,133 @@ test("what became of each idea is kept on its turn one after another, never two 
   outcomes[1].land();
   await Promise.all([first, second]);
 });
+
+/**
+ * A new campaign's card, as the propose_sequence act makes it (act/playbook.ts): its one line, and its sheet, what holds
+ * it first and then a row a fact. On production Today drew its summary, one run-on paragraph of every rule (the 30 Oct
+ * 2026 review, item 6).
+ */
+const CAMPAIGN = {
+  id: "p-c",
+  kind: "playbook",
+  needs: "operator",
+  title: "Campaign: Meeting reminder",
+  summary:
+    "Meeting reminder — the day before a meeting on the calendar · Daily 10:00 AM · everyone with a meeting tomorrow · up to 25 · sent whatever else they hear from you within a week of it · …",
+  line: "Reminds everyone the day before their meeting, 10:00 AM, by text and by email",
+  sheet: {
+    holds: ["WhatsApp waits: its WhatsApp version goes to WhatsApp for review when you approve."],
+    rows: [
+      { label: "Runs", value: "Daily 10:00 AM, everyone with a meeting tomorrow, up to 25" },
+      { label: "Other messages", value: "Sent whatever else they hear from you within a week of it" },
+      { label: "Reaches", value: "Nobody has a meeting tomorrow" },
+    ],
+  },
+  payload: {},
+  undo: null,
+};
+
+test("a campaign idea's rules fold behind Details, holds first, then a row a fact; an idea with no sheet has no fold", () => {
+  door();
+  clearRowStates();
+  fresh();
+  const work = (c) =>
+    W.React.createElement(IdeaWork, {
+      card: c,
+      messageId: MESSAGE,
+      threadId: THREAD,
+      main: "primary",
+      flash: () => {},
+      keep: () => {},
+    });
+  const tree = work(CAMPAIGN);
+  const fold = all(tree, (n) => n.props?.["data-testid"] === "queue-idea-details");
+  assert.equal(fold.length, 1, "the campaign's rules are one press away");
+  const press = all(fold[0], (n) => n.type === "button");
+  assert.equal(textOf(press[0]).trim(), NEED_YOU_WORDS.idea.details);
+  assert.equal(press[0].props["aria-expanded"], false, "closed until pressed: the line is the card");
+  const inside = textOf(fold[0]);
+  for (const s of [...CAMPAIGN.sheet.holds, ...CAMPAIGN.sheet.rows.flatMap((r) => [r.label, r.value])])
+    assert.ok(inside.includes(s), `${s} is behind Details`);
+  assert.ok(inside.indexOf(CAMPAIGN.sheet.holds[0]) < inside.indexOf("Runs"), "what holds it is read first");
+  // Approve and Not today stand as they did.
+  assert.ok(pressOf(tree, 0, NEED_YOU_WORDS.idea.approve));
+  assert.ok(pressOf(tree, 0, NEED_YOU_WORDS.idea.notToday));
+  const plain = work(CARDS[0]);
+  assert.equal(all(plain, (n) => n.props?.["data-testid"] === "queue-idea-details").length, 0);
+});
+
+test("Today's row says a campaign idea in its one line, and any other idea in its summary", async () => {
+  const { ideaRows } = await import("../../../../../apps/dashboard/src/surfaces/today/need-you/people-rows.tsx");
+  fresh();
+  const ctx = {
+    nav: () => {},
+    verbKind: () => "ghost",
+    may: true,
+    tz: "America/New_York",
+    flash: () => {},
+    keep: () => {},
+    kept: new Set(),
+    expanded: new Set(),
+    expand: () => {},
+    word: "meeting",
+    stepDone: () => {},
+    keepIdea: () => {},
+    keepReview: () => {},
+  };
+  const rows = W.React.createElement(
+    "div",
+    null,
+    ...ideaRows([CAMPAIGN, CARDS[0]], { messageId: MESSAGE, threadId: THREAD }, ctx),
+  );
+  const text = textOf(rows);
+  assert.ok(text.includes(CAMPAIGN.line), text);
+  assert.ok(
+    !text.includes("Meeting reminder — the day before"),
+    "REGRESSION: the run-on summary stood as the row's words",
+  );
+  assert.ok(text.includes(CARDS[0].summary), "a card with no line keeps its summary");
+});
+
+/**
+ * A card of the one thing to fix before a campaign can reach anyone (act/playbook-card.ts blockedOutcome): its act is its
+ * door, never Approve, since it commits nothing (the 30 Oct 2026 review, item 6).
+ */
+const FIX = {
+  id: "p-f",
+  kind: "fix",
+  needs: "operator",
+  title: "Get their yes to offers",
+  summary:
+    "Nobody has said yes to offers yet, so the “Win-back” campaign would reach no one. It is fixed under People › Get their yes.",
+  line: "Nobody has said yes to offers yet, so the “Win-back” campaign would reach no one.",
+  payload: { trigger: "quiet_30", door: "Get their yes", to: "clients/get-yes" },
+  undo: null,
+};
+
+test("a fix idea's act is its door, never Approve: pressed, it opens where the thing is fixed and records nothing; it has no Details", async () => {
+  const { commits, outcomes } = door();
+  clearRowStates();
+  fresh();
+  const went = [];
+  const tree = W.React.createElement(IdeaWork, {
+    card: FIX,
+    messageId: MESSAGE,
+    threadId: THREAD,
+    main: "primary",
+    flash: () => {},
+    keep: () => {},
+    nav: (to) => went.push(to),
+  });
+  assert.equal(
+    pressOf(tree, 0, NEED_YOU_WORDS.idea.approve),
+    undefined,
+    "REGRESSION: Approve on a card with nothing to approve",
+  );
+  assert.equal(all(tree, (n) => n.props?.["data-testid"] === "queue-idea-details").length, 0);
+  await press(pressOf(tree, 0, "Get their yes"));
+  await settle();
+  assert.deepEqual(went, ["clients/get-yes"], "the door opens where it is fixed");
+  assert.deepEqual([commits.length, outcomes.length], [0, 0], "nothing is committed or recorded");
+  assert.ok(pressOf(tree, 0, NEED_YOU_WORDS.idea.notToday), "Not today stands");
+});

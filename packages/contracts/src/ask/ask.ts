@@ -287,12 +287,20 @@ export interface AskProposal {
     // What Ask remembers (decision 0070): a line kept (Ask's own card, kept as the turn is saved), changed, forgotten.
     | "memory"
     | "memory_change"
-    | "memory_forget";
+    | "memory_forget"
+    // A campaign that would reach no one: the one thing to fix first, with its door (playbooks campaignFixCard). It
+    // commits nothing; its act is its door (the 30 Oct 2026 review, item 6).
+    | "fix";
   /** The lowest role that may commit it, its spec's (ask-proposals/); the route re-checks on Approve. */
   needs: ProposalNeeds;
   title: string;
   /** The exact change, in the person's words. */
   summary: string;
+  /**
+   * The card in one plain line, where its maker gives one: what it does, to whom and when, as Today's row says it (a new
+   * campaign's, contracts campaignLine); its sheet holds the rest, behind Details. A card without one shows its summary.
+   */
+  line?: string;
   payload: Record<string, unknown>;
   /** What undo looks like, when the verb has one. */
   undo: string | null;

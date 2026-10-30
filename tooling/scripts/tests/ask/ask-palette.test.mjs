@@ -5586,3 +5586,32 @@ test("a campaign's card draws its sheet (the answer canvas, C1): what holds it f
     "no sheet: the summary",
   );
 });
+
+test("a card of the one thing to fix before a campaign reaches anyone (the 30 Oct 2026 review, item 6) is drawn as its own kind: its word in English and Spanish, its mark, its line, and its door in Approve's place, which opens where it is fixed", () => {
+  const { AskCard } = globalThis.window.AskAnswerKit;
+  const p = {
+    id: "p-f",
+    kind: "fix",
+    needs: "operator",
+    title: "Fix WhatsApp first",
+    summary:
+      "Meta reports a problem with the payment method on your WhatsApp account. It is fixed under Settings › Connections.",
+    line: "Meta reports a problem with the payment method on your WhatsApp account. Until then the “Win-back” campaign would reach no one.",
+    payload: { trigger: "quiet_30", door: "Open Connections", to: "admin/integrations" },
+    undo: null,
+  };
+  const words = { en: "to fix first", es: "por arreglar antes" };
+  for (const lang of ["en", "es"]) {
+    const went = [];
+    const tree = render(AskCard, { p, t: globalThis.window.askText(lang), onNav: (to) => went.push(to) });
+    const head = byClass(tree, "ask-card-head")[0];
+    assert.equal(textOf(byClass(head, "ask-card-kind")[0]), words[lang], `its word in ${lang}`);
+    assert.equal(find(head, (n) => n.type === "Icon").props.name, "alert", "its mark");
+    assert.equal(textOf(byClass(tree, "ask-card-summary")[0]), p.line, "its one line");
+    assert.equal(byTestId(tree, "ask-card-approve"), null, "REGRESSION: Approve on a card with nothing to approve");
+    const door = byTestId(tree, "ask-card-door");
+    assert.equal(textOf(door), "Open Connections");
+    press(door);
+    assert.deepEqual(went, ["admin/integrations"], "its door opens where it is fixed");
+  }
+});

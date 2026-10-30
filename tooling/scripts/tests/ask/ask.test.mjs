@@ -1457,6 +1457,7 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
     playbook_run: "approve",
     booking_request: "approve",
     fact_suggestion: "settings",
+    fix: "approve",
     call_hand_over: "approve",
     lead_stage: "approve",
     lead_mark: "find",

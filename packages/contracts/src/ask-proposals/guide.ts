@@ -47,8 +47,8 @@ export const ASK_GUIDE_PAGES: readonly GuidePage[] = [
   {
     page: "Today",
     route: "today",
-    for: "Who waits on you right now, replies about to time out, a booking the receptionist asked for (Booked it or Can't), today's calls and bookings, and the day's recap.",
-    verbs: ["booking_request"],
+    for: "Who waits on you right now, replies about to time out, a booking the receptionist asked for (Booked it or Can't), today's calls and bookings, the day's recap, and Ask's ideas, among them the one thing to fix before a campaign can reach anyone.",
+    verbs: ["booking_request", "fix"],
     pageOnly: [],
   },
   {

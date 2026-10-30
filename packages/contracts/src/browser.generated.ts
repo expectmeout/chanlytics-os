@@ -27,7 +27,7 @@ export { foldWordsMessages, isWordsMessage, wordsMessage } from "./ai/words-mess
 export { checkJournal, JOURNAL_SCHEMA, journalSystemPrompt, journalUserContent } from "./ask-memory/journal";
 export { ASK_JOURNAL_LIMITS, ASK_MEMORY_LIMITS, ASK_MEMORY_WORDS, memoryText, memoryTextProblem } from "./ask-memory/memory";
 export { ASK_MORNING_CARDS_MAX, ASK_MORNING_QUESTION, ASK_MORNING_WORDS } from "./ask-memory/morning";
-export { MESSAGE_WORDS, PLAYBOOK_CARD_REFUSALS, PLAYBOOK_CARD_WORDS, proposalChannelsWords, RUN_VERBS, stepOfferWords, twinRunsWords } from "./ask-proposals/campaigns";
+export { FIX_CARD_WORDS, MESSAGE_WORDS, PLAYBOOK_CARD_REFUSALS, PLAYBOOK_CARD_WORDS, proposalChannelsWords, RUN_VERBS, stepOfferWords, twinRunsWords } from "./ask-proposals/campaigns";
 export { answerStyleOf, ASK_FOLLOW_UPS_MAX, ASK_STYLE_MAX, ASK_STYLE_PAGE, ASK_VIEW_PAGE, FOLLOW_UP_PROMPT_MAX, FOLLOW_UP_SAID_MAX, FOLLOW_UP_WAKES, followUpDue, followUpsOf } from "./ask-proposals/follow-ups";
 export { ASK_GUIDE_PAGES, ASK_PAGE_ONLY_VERBS } from "./ask-proposals/guide";
 export { ASK_THREAD_ROUTES } from "./ask-proposals/inbox";
@@ -315,9 +315,9 @@ export { PLAYBOOK_CALENDAR_UNREAD, playbookFailedAbout, playbookFailedWords } fr
 export { FOLLOW_UP_NEEDS_LINK, FOLLOW_UP_ONE, followUpIsFor, followUpKey, followUpNames, followUpRunAt, followUpStandOf, followUpWords, PLAYBOOK_TOUCH_WINDOW_MS, playbookRunStop, playbookStopBy } from "./playbooks/playbook-follow-ups";
 export { PLAYBOOK_PATCH_KEYS, PLAYBOOK_PATCH_WORDS } from "./playbooks/playbook-patch";
 export { enrolPurpose, MESSAGE_MOMENT_WORDS, messageAboutOfTrigger, messageFitsMoment, passesHandoverPause } from "./playbooks/playbook-purpose";
-export { eligibleForPlaybook, PLAYBOOK_CLASS_LABEL, PLAYBOOK_REACH_WORDS, playbookNoNumberWords, playbookPoolKey, playbookReach, playbookReachDoor, playbookRunReach, theirVisitTest, touchesAfterRun, visitMomentDay, visitOnDay } from "./playbooks/playbook-reach";
+export { campaignBlockWords, campaignFixCard, campaignReachable, eligibleForPlaybook, PLAYBOOK_CLASS_LABEL, PLAYBOOK_REACH_WORDS, playbookNoNumberWords, playbookPoolKey, playbookReach, playbookReachDoor, playbookRunReach, theirVisitTest, touchesAfterRun, visitMomentDay, visitOnDay } from "./playbooks/playbook-reach";
 export { heldBackOfOneRun, runReadingOf } from "./playbooks/playbook-run-split";
-export { campaignDayWords, campaignEnded, campaignRunsOn, sendingEndsAt, inLastSendingHour, localDate, localHour, nextOpenMoment, nextRunLabel, planRun, runDueNow, runsWords, scheduleLine } from "./playbooks/playbook-schedule";
+export { campaignDayWords, campaignEnded, campaignLine, campaignRunsOn, nobodyNamedWords, sendingEndsAt, inLastSendingHour, localDate, localHour, nextOpenMoment, nextRunLabel, planRun, runDueNow, runsWords, scheduleLine } from "./playbooks/playbook-schedule";
 export { PLAYBOOK_BREATH_MS } from "./playbooks/playbook-time";
 export { isPlaybookTotalsDto } from "./playbooks/playbook-totals";
 export { CAMPAIGN_NOT_FOUND, delayWords, isPlaybookState, isWinBack, MOMENT_TRIGGERS, momentOffered, momentReadsCalendar, MOMENTS_RETIRED, PLAYBOOK_CAP_CHOICES, PLAYBOOK_DEFAULTS, PLAYBOOK_HOURS, PLAYBOOK_LIMITS, PLAYBOOK_NAME_MAX, PLAYBOOK_STATES, PLAYBOOK_TRIGGERS, PLAYBOOK_VETO_DELAY_MS, PLAYBOOK_VETO_DELAY_WORDS, policyClassOffered, REACH_OUT_IS_NOT_A_MOMENT, readyRunNotice, SEND_ONCE_STOP_MS, SEND_ONCE_STOP_WORDS, SENDING_HOURS_WORDS, SENDING_NOW_WORDS, sendsWaitWords, skippedRunNotice, triggerOf, triggerOffered, triggerWords, vetoRunNotice, VISIT_TRIGGERS, whenItGoes, winBackWords } from "./playbooks/playbook-triggers";

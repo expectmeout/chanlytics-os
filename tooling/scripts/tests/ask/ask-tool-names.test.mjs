@@ -557,8 +557,9 @@ async function answer(name, input, role = "owner", rpcs = RPCS) {
     const p = await buildProposal(t, name, input);
     // 17 Oct 2026 (the answer canvas, C1): a campaign's card and a one-off send's carry their sheet beside the bytes
     // these hold, made of the summary's own pieces (starter-card.test.mjs holds the two to one derivation), so the card
-    // is compared without it.
-    const { sheet: _sheet, ...card } = p.proposal ?? {};
+    // is compared without it; and since 30 Oct 2026 (the review's item 6) a campaign's card carries its one line, as
+    // Today's row says it (reaches-someone.test.mjs holds it), beside them too.
+    const { sheet: _sheet, line: _line, ...card } = p.proposal ?? {};
     out = {
       result: withoutId(p.result),
       isError: p.isError,
@@ -1169,13 +1170,14 @@ function withTheBreathsWords(frozen) {
  * a message sent or due, never one playbook message a week, and the appointment moments are exempt from it and from the
  * playbook's gap (contracts playbookRunReach returns before either), so campaigns.playbooks' note says both in the
  * contracts' words (BREATH_WHY, PLAYBOOK_CARD_WORDS.appointmentBreath), in this workspace's word (it sells by proposal: a
- * meeting). The one sentence, once; this world lists no playbook, so the fields that say a campaign's end and its trial
+ * meeting). The one sentence, once (in the owner's words since the 30 Oct 2026 review, item 6: it said "exempt from one a
+ * week per person"); this world lists no playbook, so the fields that say a campaign's end and its trial
  * are not in these bytes.
  */
 function withTheRunsBreath(frozen) {
   return frozen.replace(
     "and sends one playbook message per person per week.",
-    "and holds whoever hears from you within a week of it, by a message already sent or one due, for a later run; a reminder the day before a meeting and a check the day after go one per meeting, exempt from the gap and exempt from one a week per person: each goes whatever else they hear from you within a week of it.",
+    "and holds whoever hears from you within a week of it, by a message already sent or one due, for a later run; a reminder the day before a meeting and a check the day after go one per meeting, exempt from the gap and sent whatever else they hear from you within a week of it.",
   );
 }
 
@@ -1300,6 +1302,13 @@ const withTheSequencesStart = (frozen) =>
     "Each batch waits for your OK (Re-engage).",
   );
 
+/**
+ * 30 Oct 2026 (the review of the live app, item 6): a campaign whose moment names nobody today says so in the moment's
+ * words, where it said "0 people on the list said yes" of a day or a list with nobody on it. This world has nobody quiet.
+ */
+const withNobodyNamed = (frozen) =>
+  frozen.replaceAll("0 people on the list said yes to offers", "Nobody has gone quiet for 30 days");
+
 test("every old tool's call, made by its new name and action, answers the bytes the old tool answered at 7405e34b, and makes the same reads", async () => {
   assert.equal(FIXTURE.length, CASES.length, "one frozen answer per call");
   for (let i = 0; i < CASES.length; i++) {
@@ -1365,7 +1374,7 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     if (campaignsOwn) result = withTheClocksHour(result);
     // 9 Oct 2026: and a playbook card's title says "Campaign" (withCampaignWord), in its result and in the card.
     const playbookCard = NAMES[old] === "propose_sequence.moment";
-    if (playbookCard) result = withTheSequencesStart(withCampaignWord(result));
+    if (playbookCard) result = withNobodyNamed(withTheSequencesStart(withCampaignWord(result)));
     // 11 Oct 2026: a plan's sentence and its kind (withThePlansWords), in the result and in the card.
     const leadPlan = NAMES[old] === "propose_lead_search.find";
     if (leadPlan) result = withThePlansWords(result);
@@ -1373,7 +1382,7 @@ test("every old tool's call, made by its new name and action, answers the bytes 
       campaignsOwn && typeof want.proposal === "string"
         ? {
             proposal: playbookCard
-              ? withTheSequencesStart(withCampaignWord(withTheClocksHour(want.proposal)))
+              ? withNobodyNamed(withTheSequencesStart(withCampaignWord(withTheClocksHour(want.proposal))))
               : withTheClocksHour(want.proposal),
           }
         : leadPlan && typeof want.proposal === "string"

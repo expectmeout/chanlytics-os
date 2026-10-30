@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { z } from "zod";
 import {
   AppError,
+  FIX_CARD_WORDS,
   PROPOSAL_SPECS,
   addressOf,
   STEP_TOKEN,
@@ -533,7 +534,10 @@ export const propose = (p: Omit<AskProposal, "id" | "needs" | "undo" | "made_at"
       card: proposal.title,
       summary: proposal.summary,
       ...(noted ? { also_say: `${noted}: say so in the answer beside the card` } : {}),
-      note: "Nothing has happened yet. This is a card the person can approve, edit or dismiss. Say what you proposed; never say it is done.",
+      note:
+        p.kind === "fix"
+          ? FIX_CARD_WORDS.note
+          : "Nothing has happened yet. This is a card the person can approve, edit or dismiss. Say what you proposed; never say it is done.",
     }),
   };
 };

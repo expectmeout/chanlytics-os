@@ -235,6 +235,12 @@ const asSequence = (input) =>
   input?.action === "plan"
     ? ["propose_plan", { ...input, action: "offer" }]
     : ["propose_sequence", { ...input, action: SEQUENCE_ACTIONS[input?.action] ?? input?.action }];
+/**
+ * The same people with a yes to offers by email too: a win-back that goes by email reaches them. A campaign that would
+ * reach nobody is no card (the 30 Oct 2026 review, item 6), so a case about what a card by email says draws people it reaches.
+ */
+const YES_BY_EMAIL = PEOPLE.map((p) => ({ ...p, email_marketing: "opted_in" }));
+
 const propose = (input, db = {}, people = PEOPLE) => {
   const supabase = fakeDb(tables(db), {}, { people_list: () => people });
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, NOW);
@@ -1012,17 +1018,17 @@ test("a message with no WhatsApp row is proposed by the channels it holds on a w
   // A playbook on it is held to the same: by its email it is made, by none named it is refused in the same words.
   const quiet = { action: "playbook", trigger: "quiet_30", template_id: NOTE, params: ["@first_name"] };
   const offer = { ...world, templates: [emailNote({ category: "marketing" })] };
-  const kept = await propose({ ...quiet, channels: ["email"] }, offer);
+  const kept = await propose({ ...quiet, channels: ["email"] }, offer, YES_BY_EMAIL);
   assert.equal(kept.isError, false, kept.result);
   assert.deepEqual(kept.proposal.payload.channels, ["email"]);
   // Its WhatsApp tick is one the check would keep, but a card has no WhatsApp words to quote of it: refused, as for any
   // version the message lacks, never drawn as the email's.
-  const waTick = await propose({ ...quiet, channels: ["whatsapp", "email"] }, offer);
+  const waTick = await propose({ ...quiet, channels: ["whatsapp", "email"] }, offer, YES_BY_EMAIL);
   assert.equal(waTick.isError, true);
   assert.ok(said(waTick).startsWith(`${noVersionWords("whatsapp")} Say so: `), said(waTick));
   // Naming none, it goes by what the composer would tick for it: its email, the one channel that holds it here (8 Oct
   // 2026). It was refused in WhatsApp's words, with "name channels among email" for the model to ask again.
-  const unnamed = await propose(quiet, offer);
+  const unnamed = await propose(quiet, offer, YES_BY_EMAIL);
   assert.equal(unnamed.isError, false, unnamed.result);
   assert.deepEqual(unnamed.proposal.payload.channels, ["email"]);
   assert.deepEqual(commitBody(unnamed.proposal).channels, ["email"]);
@@ -1041,7 +1047,7 @@ test("a moment's starter is found among the messages the composers offer: one wh
     templates: [{ ...email, category: "marketing", variables: [{ position: 1 }, { position: 2 }] }],
   };
   const quiet = { action: "playbook", trigger: "quiet_30" };
-  const found = await propose({ ...quiet, channels: ["email"] }, world);
+  const found = await propose({ ...quiet, channels: ["email"] }, world, YES_BY_EMAIL);
   assert.equal(found.isError, false, found.result);
   assert.equal(found.proposal.payload.template_id, "ffffffff-ffff-4fff-8fff-ffffffffff21", "the message's anchor");
   endsWith(found, "Says: By email: “We miss you” — Hi Dani, from the business.");
@@ -1052,7 +1058,7 @@ test("a moment's starter is found among the messages the composers offer: one wh
     r.proposal?.payload.starter_key,
     r.proposal && "template_id" in r.proposal.payload,
   ];
-  const none = await propose({ ...quiet, channels: ["email"] }, { templates: [] });
+  const none = await propose({ ...quiet, channels: ["email"] }, { templates: [] }, YES_BY_EMAIL);
   assert.deepEqual(onStarter(none), [false, starter, false], none.result);
   // A WhatsApp version this product cannot put on the wire whole holds nothing: a starter filed only so is not held, and
   // the card adds the starter's email version.
@@ -1062,7 +1068,7 @@ test("a moment's starter is found among the messages the composers offer: one wh
       { type: "BODY", text: "Hi" },
     ],
   });
-  const blocked = await propose({ ...quiet, channels: ["email"] }, { templates: [picture] });
+  const blocked = await propose({ ...quiet, channels: ["email"] }, { templates: [picture] }, YES_BY_EMAIL);
   assert.deepEqual(onStarter(blocked), [false, starter, false], blocked.result);
   // The one the workspace hid is not held, whichever channel its version is on, and no card adds it back.
   const hidden = await propose(
@@ -1145,13 +1151,13 @@ test("a WhatsApp version in review is no longer lost to Ask: its message is list
     variables: [{ position: 1 }, { position: 2 }],
   };
   const quiet = { action: "playbook", trigger: "quiet_30", channels: ["email"] };
-  const found = await propose(quiet, { templates: [waiting, email] });
+  const found = await propose(quiet, { templates: [waiting, email] }, YES_BY_EMAIL);
   assert.equal(found.isError, false, found.result);
   assert.equal(found.proposal.payload.template_id, WAITING, "the message's anchor, whichever of its rows is held");
   endsWith(found, "Says: By email: “We miss you” — Hi Dani, from the business.");
   // With its WhatsApp row in review alone, no version of the starter can be sent: not held, as before, and the card adds
   // the starter's email version at its Approve (A0).
-  const alone = await propose(quiet, { templates: [waiting] });
+  const alone = await propose(quiet, { templates: [waiting] }, YES_BY_EMAIL);
   assert.equal(alone.isError, false, alone.result);
   assert.equal(alone.proposal.payload.starter_key, starter);
 });

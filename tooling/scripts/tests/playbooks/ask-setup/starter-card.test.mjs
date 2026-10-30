@@ -218,9 +218,15 @@ beforeEach(async () => {
 });
 after(() => (globalThis.fetch = real));
 
-const propose = (input, db = {}) => {
+/**
+ * The same three with a yes to offers by email too: a starter card on a number that cannot carry its offer reaches them by
+ * email, where a campaign that reached nobody would be no card at all (the 30 Oct 2026 review, item 6).
+ */
+const YES_BY_EMAIL = PEOPLE.map((p) => ({ ...p, email_marketing: "opted_in" }));
+
+const propose = (input, db = {}, people = PEOPLE) => {
   const rows = tables({ templates: [], ...db });
-  const supabase = fakeDb(rows, {}, { people_list: () => PEOPLE });
+  const supabase = fakeDb(rows, {}, { people_list: () => people });
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, NOW);
   return { made: buildProposal(t, "propose_sequence", { action: "moment", ...input }), rows };
 };
@@ -301,7 +307,7 @@ test("a starter card is refused for what its Approve would be refused for, in th
 });
 
 test("a starter card says every channel it goes by and which hold their people until they can send: with no number email alone and nothing for WhatsApp; with offers by email closed, email waits too", async () => {
-  const noNumber = await propose({ trigger: "quiet_30" }, { tenant_channels: [] }).made;
+  const noNumber = await propose({ trigger: "quiet_30" }, { tenant_channels: [] }, YES_BY_EMAIL).made;
   assert.equal(noNumber.isError, false, noNumber.result);
   assert.deepEqual(noNumber.proposal.payload.channels, ["email"]);
   assert.match(noNumber.proposal.summary, / · by email/);
@@ -317,7 +323,7 @@ test("a starter card on a number WhatsApp flagged keeps the workspace's own reas
   const red = [
     { tenant_id: A, kind: "whatsapp", status: "active", config: { quality_rating: "RED", messaging_limit: "TIER_1K" } },
   ];
-  const r = await propose({ trigger: "quiet_30" }, { tenant_channels: red }).made;
+  const r = await propose({ trigger: "quiet_30" }, { tenant_channels: red }, YES_BY_EMAIL).made;
   assert.equal(r.isError, false, r.result);
   const s = r.proposal.summary;
   assert.match(
@@ -357,11 +363,22 @@ test("a starter whose WhatsApp version is on file says what it is, never that it
   assert.ok(pending.proposal.summary.includes(` · ${LIBRARY_STARTER_WORDS.addsFirst(STARTER.title)} · `));
   assert.ok(!/for review|taken back/.test(pending.proposal.summary), pending.proposal.summary);
   assert.equal(rows.templates.length, 1, "nothing is filed at the card");
-  // Refused, with WhatsApp named: it waits on a version WhatsApp refused, said so, and nothing goes for review.
-  const named = await propose(
-    { trigger: "quiet_30", channels: ["whatsapp", "email"] },
-    { templates: [onFile("rejected")] },
-  ).made;
+  // Refused, with WhatsApp named: it waits on a version WhatsApp refused, said so, and nothing goes for review. It reaches
+  // those whose yes covers email; where nobody's does, it reaches no one and is no campaign card (the 30 Oct 2026 review,
+  // item 6), but a card of that one thing, with Messages, where a version is written again, for its door.
+  const refused = { templates: [onFile("rejected")] };
+  const nobody = await propose({ trigger: "quiet_30", channels: ["whatsapp", "email"] }, refused).made;
+  assert.equal(nobody.isError, false, nobody.result);
+  assert.deepEqual(
+    [nobody.proposal.kind, nobody.proposal.title, nobody.proposal.line, nobody.proposal.payload.to],
+    [
+      "fix",
+      "Fix the message's WhatsApp version first",
+      "WhatsApp refused this message's WhatsApp version. Until then the “Win-back” campaign would reach no one.",
+      "campaigns/messages",
+    ],
+  );
+  const named = await propose({ trigger: "quiet_30", channels: ["whatsapp", "email"] }, refused, YES_BY_EMAIL).made;
   assert.equal(named.isError, false, named.result);
   assert.deepEqual(named.proposal.payload.channels, ["whatsapp", "email"]);
   assert.ok(
@@ -372,7 +389,7 @@ test("a starter whose WhatsApp version is on file says what it is, never that it
   );
   assert.ok(!/for review|taken back|still reviewing/.test(named.proposal.summary), named.proposal.summary);
   // Refused, with none named: it goes by its email alone, and says nothing of WhatsApp.
-  const unnamed = await propose({ trigger: "quiet_30" }, { templates: [onFile("rejected")] }).made;
+  const unnamed = await propose({ trigger: "quiet_30" }, refused, YES_BY_EMAIL).made;
   assert.equal(unnamed.isError, false, unnamed.result);
   assert.deepEqual(unnamed.proposal.payload.channels, ["email"]);
   assert.ok(!/WhatsApp/.test(unnamed.proposal.summary), unnamed.proposal.summary);
@@ -441,11 +458,8 @@ test("an appointment moment is proposed where a calendar is connected (D2): the 
   // What the eval's remind_day_before reads off the card (ask-cases.json card_fields).
   assert.deepEqual([p.kind, p.payload.trigger, p.payload.starter_key], ["playbook", "visit_tomorrow", REMINDER.key]);
   // The breath is two-sided (a message sent or due within a week of it, contracts BREATH_WHY), so the words never say
-  // "this week".
-  assert.equal(
-    PLAYBOOK_CARD_WORDS.appointmentBreath,
-    "exempt from one a week per person: each goes whatever else they hear from you within a week of it",
-  );
+  // "this week"; and in the owner's words, never "exempt from one a week per person" (the 30 Oct 2026 review, item 6).
+  assert.equal(PLAYBOOK_CARD_WORDS.appointmentBreath, "sent whatever else they hear from you within a week of it");
   assert.ok(p.summary.includes(` · ${PLAYBOOK_CARD_WORDS.appointmentBreath} · `), p.summary);
   assert.deepEqual([rows.templates, rows.playbooks], [[], []], "nothing is filed at the card");
   // The check after one, likewise, and only an appointment moment says it: a win-back is held to the week.

@@ -252,6 +252,20 @@ export const HELD_ON: readonly HeldOn[] = (Object.keys(HELD_ORDER) as HeldOn[]).
 );
 
 /**
+ * The channels a campaign ticks that can carry its message now, in the product's order: the workspace can send on each,
+ * and it carries this kind of message (channelRefuses). The pick reads them (reachFor), and so does a new campaign's card
+ * where it says how it goes (playbook-schedule.ts campaignLine).
+ */
+export function usableChannels(
+  purpose: AskedPurpose,
+  o: { channels: readonly string[]; ready: ChannelsReady; about: MessageAbout },
+): ConsentChannel[] {
+  return CONSENT_CHANNELS.filter(
+    (c) => o.channels.includes(c) && o.ready[c].ready && channelRefuses(c, purpose, o.about, o.ready) === null,
+  );
+}
+
+/**
  * The channel a campaign reaches this person on, or why it reaches them on none (the rules at the head of this file).
  * `channels` are the campaign's ticks; `ready` the workspace's channels now; `about` what its message is about, which
  * by email decides whether a yes is asked (consent.ts MessageAbout).
@@ -261,9 +275,7 @@ export function reachFor(
   purpose: AskedPurpose,
   o: { channels: readonly string[]; ready: ChannelsReady; about: MessageAbout },
 ): { channel: ConsentChannel; held: null } | { channel: null; held: HeldOn } {
-  const usable = CONSENT_CHANNELS.filter(
-    (c) => o.channels.includes(c) && o.ready[c].ready && channelRefuses(c, purpose, o.about, o.ready) === null,
-  );
+  const usable = usableChannels(purpose, o);
   if (usable.length === 0) return { channel: null, held: "no_channel" };
   const last = usable.find((c) => c === r.lastChannel) ?? null;
   const order = last ? [last, ...usable.filter((c) => c !== last)] : usable;
