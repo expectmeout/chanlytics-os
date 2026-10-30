@@ -637,3 +637,86 @@ test("the watch stops on a run this member may not read, or that is gone: a 4xx 
     mock.timers.reset();
   }
 });
+
+test("the email is drawn as they read it: its paragraphs, the name under its words or the mailbox's signature, then the foot (30 Oct 2026)", async () => {
+  const first = {
+    ...RUN().first,
+    signature: "Sam Rivera\nHarbor Moving Co.",
+    foot: "I found your business on Google Maps.\nThis is a marketing email.\nHarbor Moving Co. · 1 Main St, Austin, TX\nNo thanks? Just reply and say so.",
+  };
+  world("pending_approval", RUN({ first }));
+  const tree = (await open({ sheet: SHEET() }))();
+  // REGRESSION: "As they read it" ended at the ask: no name, no signature, no foot, every paragraph run into one.
+  const words = textOf(byTestId(tree, "ro-run-words"));
+  assert.match(words, /I run Harbor Moving Co\.\n\nSam/, "the name under the words, its paragraphs kept");
+  assert.equal(textOf(byTestId(tree, "ro-run-signature")), "Sam Rivera\nHarbor Moving Co.");
+  assert.equal(textOf(byTestId(tree, "ro-run-legal")), first.foot);
+  // A run read from a server before them draws its words alone.
+  world("pending_approval", RUN());
+  const plain = (await open({ sheet: SHEET() }))();
+  assert.equal(byTestId(plain, "ro-run-signature"), null);
+  assert.equal(byTestId(plain, "ro-run-legal"), null);
+});
+
+test("a mailbox that has not sent yet goes on its first day of sending, never its zeroth (30 Oct 2026)", async () => {
+  world(
+    "pending_approval",
+    RUN({ mailboxes: [{ address: "sam@harbor-mail.example", sent_days: 0, daily_cap: 40, customer_domain: false }] }),
+  );
+  const tree = (await open({ sheet: SHEET() }))();
+  assert.equal(textOf(byTestId(tree, "ro-run-from")), "From sam@harbor-mail.example · its first day of sending");
+});
+
+test("who gets it shows each email's opening, with Rewrite the opening and Take out at its row, each pressing its verb (30 Oct 2026)", async () => {
+  const w = world(
+    "pending_approval",
+    RUN({
+      today: 2,
+      planned: [
+        {
+          send_id: "p1",
+          lead_id: "l1",
+          business_name: "Studio Two",
+          send_at: FIRST_AT,
+          checked: true,
+          opening: "A 4.9 from 16 reviews says people find you.",
+        },
+        {
+          send_id: "p2",
+          lead_id: "l2",
+          business_name: "Studio Three",
+          send_at: FIRST_AT,
+          checked: true,
+          opening: null,
+        },
+      ],
+    }),
+  );
+  const flashed = [];
+  const redraw = await open({ sheet: SHEET(), flash: (f) => flashed.push(f) });
+  let tree = redraw();
+  press(byTestId(tree, "ro-run-list-press"));
+  tree = redraw();
+  const rows = all(tree, (n) => n.props?.["data-testid"] === "ro-run-person");
+  assert.equal(rows.length, 2);
+  // REGRESSION: the run's screen, where Approve is, listed names and times alone: an OK sent openings nobody read.
+  assert.equal(textOf(byTestId(rows[0], "ro-person-opening")), "A 4.9 from 16 reviews says people find you.");
+  assert.equal(byTestId(rows[1], "ro-person-opening"), null, "not written yet: nothing to show");
+  // The buttons drawn: a kit Button is its own node and the host button it draws, both carrying the id.
+  const doorsOf = (row) =>
+    all(row, (n) => n.type === "button" && /^ro-person-door-/.test(n.props?.["data-testid"] ?? "")).map(textOf);
+  assert.deepEqual(doorsOf(rows[0]), ["Rewrite the opening", "Take out"]);
+  assert.deepEqual(doorsOf(rows[1]), ["Take out"]);
+  const reads = w.reads;
+  press(byTestId(rows[0], "ro-person-door-rewrite"));
+  // The verb's walk reads the surfaces it moved before it answers: a condition, never a fixed number of turns.
+  await until(() => (redraw(), w.reads > reads), "the run read again");
+  assert.deepEqual(
+    w.pressed.filter((p) => p[0] === "decide"),
+    [["decide", "p1", "rewrite"]],
+  );
+  press(byTestId(redraw(), "ro-person-door-take_out"));
+  await until(() => w.pressed.some((p) => p[0] === "leave"), "Take out pressed");
+  const left = w.pressed.find((p) => p[0] === "leave");
+  assert.deepEqual([left[1], left[2].lead_ids], ["r1", ["l1"]], "Take out is the leave verb on the lead");
+});

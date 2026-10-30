@@ -315,8 +315,9 @@ function runFromLine(r: ReachOutRunDto): string | null {
   if (r.owner_sends === true) return null;
   const [only, ...others] = r.mailboxes;
   if (!only) return null;
+  // One that has not sent yet goes on its first day, never its zeroth.
   if (others.length === 0)
-    return `From ${only.address} · ${plural(only.sent_days, "day of sending", "days of sending")}`;
+    return `From ${only.address} · ${only.sent_days > 0 ? plural(only.sent_days, "day of sending", "days of sending") : "its first day of sending"}`;
   const addresses = r.mailboxes.map((m) => m.address);
   return `From ${addresses.slice(0, -1).join(", ")} and ${addresses[addresses.length - 1]}`;
 }
@@ -467,6 +468,9 @@ export function approvalWordsOf(
           subject: r.first.subject,
           opening: words.some((w) => w.opening) ? "Opening: its own for each" : null,
           same: total > 1 ? `Offer and ask: the same for all ${total}` : null,
+          // How it ends, as they read it (0077): the mailbox's signature where it signs with one, then the send's foot.
+          signature: r.first.signature?.trim() || null,
+          foot: r.first.foot?.trim() || null,
         }
       : null,
     heldHead: `${held} held by the check`,

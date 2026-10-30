@@ -3318,6 +3318,21 @@ html.legacy-on .cm-pane-sub .bc-run-link {
   font-size: var(--text-mail);
   line-height: 1.62;
   color: var(--ink);
+  /* Its paragraphs and the name under it kept, as they read it. */
+  white-space: pre-line;
+}
+/* The mailbox's signature, under the words; then the send's foot, quiet, as their mail app shows it. */
+.ro-mail-sig {
+  padding-top: 0;
+  color: var(--ink-dim);
+}
+.ro-mail-legal {
+  margin: 0;
+  padding: 10px 16px 4px;
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--ink-muted);
+  white-space: pre-line;
 }
 .ro-slot {
   padding: 1px 4px;
@@ -3421,9 +3436,26 @@ html.legacy-on .cm-pane-sub .bc-run-link {
   display: grid;
   grid-template-columns: var(--row-face) minmax(0, 1fr) auto;
   gap: 10px;
-  align-items: center;
+  align-items: start;
   min-height: 54px;
   padding: 8px 12px;
+}
+/* Under the name: the opening it goes with, as they read it, and its answers as pills (the held card's). */
+.ro-whor-main {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  padding-top: 8px;
+}
+.ro-whor-opening {
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--ink);
+  quotes: "\201C" "\201D";
+}
+.ro-whor > small {
+  padding-top: 10px;
 }
 .ro-whor > small {
   font-size: var(--text-sm);

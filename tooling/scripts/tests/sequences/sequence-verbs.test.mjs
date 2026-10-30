@@ -285,7 +285,7 @@ test("an email the check held is decided, and one handed over said of, through o
     decide.receipt(card("sequence_send_decide", { send_id: SEND, decision, name: "Bloom Bar" }).card, {});
   assert.deepEqual(["include", "rewrite", "skip", "not_a_fit"].map(said), [
     "Bloom Bar's email goes as written",
-    "Bloom Bar's opening is written again",
+    "Bloom Bar's opening is being written again",
     "Bloom Bar is left out of this batch",
     "Bloom Bar is set aside: not a fit",
   ]);

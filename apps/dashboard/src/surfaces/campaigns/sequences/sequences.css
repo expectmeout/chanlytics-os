@@ -488,6 +488,25 @@
 .sq-group-rows > .sq-group-act {
   align-self: flex-end;
 }
+/* An email waiting for your OK: its step and when, then the opening it goes with, read whole before the batch is
+   approved; one being written again, quiet. */
+.sq-waiting-said {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+}
+.sq-waiting-opening {
+  color: var(--ink);
+  font-size: var(--text-sm);
+}
+.sq-waiting-writing {
+  color: var(--ink-muted);
+  font-style: italic;
+  quotes: none;
+}
 /* Why the check held an email is the answer's reason: said whole, however many lines it takes. */
 .sq-needs.sq-held-why {
   overflow: visible;

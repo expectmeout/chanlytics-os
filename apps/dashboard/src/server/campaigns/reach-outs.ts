@@ -9,6 +9,10 @@ import {
   AppError,
   REACH_OUT_LANGUAGE,
   REACH_OUT_REFUSALS,
+  coldEndingOf,
+  coldSignedOff,
+  emailFoot,
+  whyFrom,
   chainIssueWords,
   isReachOutHold,
   draftRefusalOf,
@@ -225,7 +229,30 @@ export const dtoOf = <T>(data: unknown): T => data as T;
 
 /** The workspace's booking link, which {{booking link}} needs. */
 async function bookingLinkOf(ctx: RouteContext, tenantId: string): Promise<string | null> {
-  return parseTenantConfig(await storedConfigOf(ctx.supabase, tenantId))?.brain?.booking_link?.trim() || null;
+  return (await businessOf(ctx, tenantId)).bookingLink;
+}
+
+/**
+ * The business an email names, the postal address its foot gives, and its booking link, as a send reads them: from the
+ * workspace's one configuration (Business), its name from the workspace where the configuration names none. The run
+ * sheet's email and the step's test mail both read it. `workspaceName` is the workspace's own name, which the edge's
+ * send fills {{your business}} and the foot with (sender.ts).
+ */
+export async function businessOf(
+  ctx: RouteContext,
+  tenantId: string,
+): Promise<{ name: string; workspaceName: string; address: string | null; bookingLink: string | null }> {
+  const [facts, stored] = await Promise.all([
+    tenantFacts(ctx.supabase, tenantId),
+    storedConfigOf(ctx.supabase, tenantId),
+  ]);
+  const brain = parseTenantConfig(stored ?? null)?.brain;
+  return {
+    name: brain?.business_name || facts.name || "your business",
+    workspaceName: facts.name,
+    address: brain?.profile?.address?.trim() || null,
+    bookingLink: brain?.booking_link?.trim() || null,
+  };
 }
 
 /** What Start did (R14): the edge's outcome with its reason, or that the edge could not be asked. */
@@ -405,17 +432,23 @@ type SendRow = ReachOutRunSend;
 async function firstEmailOf(
   ctx: RouteContext,
   tenantId: string,
-  p: { lead: SendRow | undefined; step: StepRow | null; first: boolean; signedBy: string | null },
+  p: {
+    lead: SendRow | undefined;
+    step: StepRow | null;
+    first: boolean;
+    signedBy: string | null;
+    signsWith: string | null;
+    mailboxes: readonly MailboxConnectionRow[];
+  },
 ): Promise<ReachOutRunDto["first"]> {
   const { lead, step } = p;
   if (!lead || !step?.template_id) return null;
-  const [words, facts, link] = await Promise.all([
+  const [words, business] = await Promise.all([
     emailWordsOf(ctx.supabase, tenantId, step.template_id),
-    tenantFacts(ctx.supabase, tenantId),
-    bookingLinkOf(ctx, tenantId),
+    businessOf(ctx, tenantId),
   ]);
   if (!words) return null;
-  const slots = { businessName: facts.name, yourName: p.signedBy, bookingLink: link };
+  const slots = { businessName: business.workspaceName, yourName: p.signedBy, bookingLink: business.bookingLink };
   // A company's addressee fills the person slots (00430), as the send fills them.
   const leadSlots = {
     business_name: lead.lead?.business_name ?? null,
@@ -433,13 +466,40 @@ async function firstEmailOf(
     lead.opening,
   );
   if (!email.ok) return null;
+  // How it ends, as the send ends it (0077, edge request.ts): the name under the words, or the signature of the mailbox
+  // it leaves from where the sequence chose it; then the send's foot (30 Oct 2026: "As they read it" ended at the ask).
+  const box = p.mailboxes.find((m) => m.id === lead.mailbox_id) ?? null;
+  const ending = coldEndingOf({
+    signsWith: p.signsWith === "mailbox" ? "mailbox" : "name",
+    signedBy: p.signedBy,
+    signature: box ? (mailboxSignatureOf(box)?.text ?? null) : null,
+    first: p.first,
+    body: words.body,
+  });
   return {
     business_name: lead.lead?.business_name ?? "",
     subject: email.subject,
-    body: email.body,
+    body: coldSignedOff(email.body, ending.signOff),
     opening: lead.opening,
     angle: lead.angle,
+    signature: ending.signature,
+    foot: coldFootOf(business.workspaceName, business.address, lead.lead?.source ?? null),
   };
+}
+
+/** The foot a cold email is sent with (contracts emailFoot, the send's own), or none while the business lacks a part. */
+function coldFootOf(business: string | null, address: string | null, source: string | null): string | null {
+  if (!business?.trim() || !address) return null;
+  try {
+    return emailFoot(
+      business,
+      address,
+      { kind: "cold", why: whyFrom(source), unsubscribeUrl: null },
+      REACH_OUT_LANGUAGE,
+    );
+  } catch {
+    return null;
+  }
 }
 
 /** A mailbox as the sheet and the approval say its day (contracts mailboxDailyCap): never its token's name. */
@@ -478,15 +538,11 @@ function mailboxChoiceOf(m: MailboxConnectionRow, ids: string[], nowMs: number):
   };
 }
 
-/** The mailboxes a run's sends go from, with what each one's day is made of (R22). */
-async function runMailboxesOf(
-  ctx: RouteContext,
-  tenantId: string,
-  rows: SendRow[],
-): Promise<ReachOutRunDto["mailboxes"]> {
+/** The mailboxes a run's sends go from: what each one's day is made of (R22), and what each signs with. */
+async function runMailboxRowsOf(ctx: RouteContext, tenantId: string, rows: SendRow[]): Promise<MailboxConnectionRow[]> {
   const ids = new Set(rows.map((s) => s.mailbox_id).filter((x): x is string => !!x));
   if (ids.size === 0) return [];
-  return (await mailboxConnectionsOf(ctx.supabase, tenantId)).filter((m) => ids.has(m.id)).map(mailboxFactsOf);
+  return (await mailboxConnectionsOf(ctx.supabase, tenantId)).filter((m) => ids.has(m.id));
 }
 
 /** A run's sends counted as its approval sheet says them (R21): checked and due today, later, still being checked. */
@@ -534,11 +590,19 @@ export async function reachOutRunOf(
   const stepN = at < 0 ? null : at;
   const step = stepN === null ? null : steps[stepN];
   const c = approvalCountsOf(rows, facts.timezone);
-  const [first, mailboxes, refused] = await Promise.all([
-    firstEmailOf(ctx, tenantId, { lead: c.checked[0], step, first: stepN === 0, signedBy: root.signed_by }),
-    runMailboxesOf(ctx, tenantId, rows),
+  const boxes = await runMailboxRowsOf(ctx, tenantId, rows);
+  const [first, refused] = await Promise.all([
+    firstEmailOf(ctx, tenantId, {
+      lead: c.checked[0],
+      step,
+      first: stepN === 0,
+      signedBy: root.signed_by,
+      signsWith: root.signs_with,
+      mailboxes: boxes,
+    }),
     draftsRefusedOf(tenantId, run.id, rows),
   ]);
+  const mailboxes = boxes.map(mailboxFactsOf);
   return {
     root_id: root.id,
     chain_name: root.name,
@@ -563,6 +627,7 @@ export async function reachOutRunOf(
               business_name: s.lead?.business_name ?? "",
               send_at: s.send_at,
               checked: !!s.checked_at,
+              opening: s.opening,
             },
           ]
         : [],

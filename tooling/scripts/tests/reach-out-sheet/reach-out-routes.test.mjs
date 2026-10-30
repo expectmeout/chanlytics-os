@@ -733,7 +733,38 @@ test("a reach-out run's block: today and later from the checked only, the still-
     body: "A 4.9 from 16 reviews.\n\nI run Harbor.\n\nSam",
     opening: "A 4.9 from 16 reviews.",
     angle: "reviews",
+    // Its words sign it already ({{your name}}): no second name; no signature chosen, and no address for a foot.
+    signature: null,
+    foot: null,
   });
+  // As they read it (30 Oct 2026): the mailbox's signature where the sequence signs with it, and the send's foot once
+  // the business has an address, why they hear from you by where the finder found them.
+  const signed = tables("viewer", {
+    reach_out_sends: t.reach_out_sends,
+    mailbox_connections: [
+      box(DOM, "sam@harbor-mail.example", { sent_days: 12, signature: "Sam Rivera\nHarbor Moving Co" }),
+    ],
+    // A whole Business, as the read takes one: a part missing and the whole is unread.
+    tenant_config: [
+      {
+        tenant_id: A,
+        config: {
+          brain: {
+            business_name: "Harbor Moving Co",
+            system_prompt: "You answer for Harbor Moving Co, a moving company in Austin.",
+            fallbacks: { greeting: "Hi!", error: "Sorry, try again.", non_text: "I can read text only." },
+            booking_link: "https://example.com/book",
+            profile: { address: "1 Main St, Austin, TX 78701" },
+          },
+        },
+      },
+    ],
+  });
+  for (const p of signed.playbooks) if (p.signed_by === "Sam") p.signs_with = "mailbox";
+  const as = (await server.reachOutRunOf(ctxFor(signed), A, signed.broadcasts[0])).first;
+  assert.equal(as.signature, "Sam Rivera\nHarbor Moving Co");
+  assert.match(as.foot, /Harbor Moving Co · 1 Main St, Austin, TX 78701/);
+  assert.match(as.foot, /This is a marketing email/);
   assert.deepEqual(run.mailboxes, [
     { address: "sam@harbor-mail.example", sent_days: 12, daily_cap: 40, customer_domain: false },
   ]);

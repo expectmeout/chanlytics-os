@@ -14,6 +14,7 @@ import { runWaitsOnYou, type RunDays } from "../waits/waits";
 import type { SequenceNeedsDto, SequencePeopleGroup, SequenceRowDto, SequenceStepDto } from "./sequence-dto";
 import { SEQUENCE_MODE_WORDS, isSequenceMode, type SequenceState } from "./sequence";
 import { sequenceRunOff, type RunOffReason } from "./sequence-run-off";
+import type { ReachOutFedBy } from "../reach-out/reach-out-leads";
 
 /** The page's own words, said once. */
 export const SEQUENCE_WORDS = {
@@ -68,6 +69,8 @@ export const SEQUENCE_WORDS = {
   untilTonight: "until tonight",
   /** A phone dock's line over a batch waiting for an OK: its Approve says how many (the run review's item 12, 19 Oct 2026). */
   waitsForOk: "Waits for your OK",
+  /** Who approves a sequence to leads fed by a list: each first email waits for an OK (00426), whatever its mode. */
+  asksFirstEmail: "asks you before each first email",
   /** Who approves its batches, said in the record's More, which opens How it runs, where it is changed (decision 0064). */
   whoApproves: "Who approves",
   turnOff: "Turn this off",
@@ -398,7 +401,7 @@ export function sequenceHeadLine(row: SequenceRowDto, word: AppointmentWord, tz:
  */
 export function sequenceSubLine(
   row: SequenceRowDto,
-  rec: { word: AppointmentWord; timezone: string },
+  rec: { word: AppointmentWord; timezone: string; fed_by?: ReachOutFedBy },
   nowMs: number,
 ): string {
   if (row.starts === "date" && row.date) {
@@ -415,7 +418,9 @@ export function sequenceSubLine(
   }
   if (row.starts === "leads") {
     const from = row.first?.search_name ? `Leads from “${row.first.search_name}”` : "Leads";
-    return `${from} · ${row.first?.owner_sends ? "you send each one" : sequenceApprovalWords(row.mode)}`;
+    // Fed by a list, each first email waits for an OK whatever its mode (00426: each of its leads was added by hand).
+    const asks = rec.fed_by === "list" ? SEQUENCE_WORDS.asksFirstEmail : sequenceApprovalWords(row.mode);
+    return `${from} · ${row.first?.owner_sends ? "you send each one" : asks}`;
   }
   return `${sequenceStartWords(row, rec.word)} · ${sequenceApprovalWords(row.mode)}`;
 }

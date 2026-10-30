@@ -16,6 +16,7 @@ import { holdDoors, HOLD_DOOR_WORDS, type ReachOutHold } from "./reach-out-words
 import { reachOutRootOf } from "./reach-out-rules";
 import { approvalWordsOf, stepLabel } from "./reach-out-sheet";
 import { TO_SEND_ROUTE, runRoute } from "../sequences/sequence-address";
+import { waitingAnswersOf } from "../sequences/sequence-held";
 
 /**
  * Why a send was skipped, as a run's block says it after the count and a lead's story says it (Part 6): the reasons
@@ -108,6 +109,7 @@ export function reachOutRunWordsOf(
   // Who gets it: only the checked, ready sends, by name and time (R21); the rest are being checked.
   const checked = r.planned.filter((x) => x.checked);
   const owner = r.owner_sends === true;
+  const place = r.step_n === null ? null : r.step_n + 1;
   return {
     ...a,
     k: STATE_WORDS[p.state] ?? "To leads",
@@ -127,6 +129,13 @@ export function reachOutRunWordsOf(
         at: owner ? HANDED : retimed ? RETIMED : clockWhen(ms, p.timezone, p.now),
         // Whether `at` is a time on the clock, which is set in figures; the words that stand for one are not.
         clock: !owner && !retimed,
+        // The opening it goes with and what may be done about it alone (30 Oct 2026), the Leads tab's one rule
+        // (sequences waitingAnswersOf); a read from before carries none, and its row is drawn as it was.
+        opening: x.opening?.trim() || null,
+        answers:
+          x.opening === undefined
+            ? []
+            : waitingAnswersOf({ opening: x.opening?.trim() || null, checking: false }, place),
       };
     }),
     skipAsk: `Skip ${r.chain_name}'s run?`,

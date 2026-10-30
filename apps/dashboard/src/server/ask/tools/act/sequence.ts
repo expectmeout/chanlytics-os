@@ -17,6 +17,7 @@ import {
   SEQUENCE_DRAFT_THEN_MAX,
   SEQUENCE_MODE_WORDS,
   SEQUENCE_WORDS,
+  firstNameOf,
   handTitleOf,
   isSequenceMode,
   plural,
@@ -27,6 +28,7 @@ import {
   type SequenceRecordDto,
   AppError,
 } from "@chanlytics/contracts";
+import { journalMemberNames } from "@chanlytics/db";
 import { mailboxConnectionsFor } from "../../../connections/mailbox-connections";
 import { searchRow } from "../../../leads/leads";
 import { load } from "../../../readers";
@@ -463,7 +465,11 @@ const COLD_STEP = z.object({
     .string()
     .optional()
     .describe("The email's subject; the steps after the first may leave it out to reply in the same thread."),
-  body: z.string().describe("The email's words; {first_name} and {business_name} are filled for each business."),
+  body: z
+    .string()
+    .describe(
+      "The email's words, the same for every business it goes to: they claim and suppose nothing about the business, not how busy it is, its calls or what it wants; {{opening}} on its own first line is written for each business from its record, and {first_name} and {business_name} are filled for each.",
+    ),
   after_days: z
     .number()
     .int()
@@ -480,6 +486,16 @@ const COLD_STEP = z.object({
 async function hasMailbox(t: ToolContext): Promise<boolean> {
   const boxes = await mailboxConnectionsFor(t.ctx.supabase, t.tenantId).catch(() => []);
   return boxes.some((m) => m.state === "connected");
+}
+
+/**
+ * Who signs a sequence the model did not say a signer for: the member's first name, as New and the editor offer it
+ * (use-chain.ts, firstNameOf over the name they gave themselves); none where they gave none, never their address. A read
+ * that fails is none (30 Oct 2026: Ask made a sequence no one signed, whose sends ended unsigned or were held).
+ */
+async function signerOf(t: ToolContext): Promise<string | null> {
+  const names = await journalMemberNames(t.ctx.supabase, [t.ctx.userId]).catch((): Record<string, string> => ({}));
+  return firstNameOf(names[t.ctx.userId] ?? null, null);
 }
 
 async function proposeColdEmail(
@@ -519,7 +535,7 @@ async function proposeColdEmail(
     // Unsaid, it sends as a new sequence does (00459 sequence_create_leads): from the connected mailboxes while there
     // is one, else handed to the owner to send, so a sequence never waits on a mailbox nobody connected.
     owner_sends: input.owner_sends ?? !(await hasMailbox(t)),
-    signed_by: input.signed_by?.trim() || null,
+    signed_by: input.signed_by?.trim() || (await signerOf(t)),
     steps: input.steps.map((s, i) => ({
       subject: s.subject?.trim() || null,
       body: s.body,

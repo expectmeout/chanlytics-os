@@ -27,6 +27,7 @@ import type {
 import type { Database, Json } from "../../database.types";
 import { readAllRows } from "../../paged";
 import { answer, type DoorResult } from "./reach-out-leads";
+import { withOpenings, withReadyCounts } from "./sequence-waiting";
 
 type Db = SupabaseClient<Database>;
 
@@ -233,7 +234,7 @@ export async function sequenceOverview(db: Db, tenantId: string, sequenceId?: st
     ...(sequenceId ? { p_sequence_id: sequenceId } : {}),
   });
   if (error) throw new Error(`cannot read the sequences: ${error.message}`);
-  return readerRowsOf<SequenceRowDto>(data);
+  return withReadyCounts(db, tenantId, readerRowsOf<SequenceRowDto>(data));
 }
 
 /**
@@ -494,7 +495,8 @@ export async function sequencePeopleOf(
   });
   if (error) throw new Error(`cannot read who is in the sequence: ${error.message}`);
   const got = (data ?? {}) as Partial<SequencePeopleDto>;
-  return { counts: got.counts ?? {}, rows: Array.isArray(got.rows) ? got.rows : [] };
+  const rows = Array.isArray(got.rows) ? got.rows : [];
+  return { counts: got.counts ?? {}, rows: await withOpenings(db, p.tenantId, rows) };
 }
 
 /** One lead's place in the sequence it stands in, or the last it was in (00459 sequence_place); null in none. */

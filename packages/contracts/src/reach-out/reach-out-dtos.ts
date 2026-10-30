@@ -224,16 +224,31 @@ export interface ReachOutRunDto {
    * Who gets it: each planned business, when its email goes, and whether it is checked yet. `lead_id` is the business's
    * lead, which the sheet's name opens in Leads; a read from before it was carried has none.
    */
-  planned: Array<{ send_id: string; lead_id?: string; business_name: string; send_at: string; checked: boolean }>;
+  planned: Array<{
+    send_id: string;
+    lead_id?: string;
+    business_name: string;
+    send_at: string;
+    checked: boolean;
+    /** The opening it goes with, read before the batch is approved (30 Oct 2026); absent from a server before it. */
+    opening?: string | null;
+  }>;
   /** Skipped at planning or by the check, by reason (closed_every_day, missing_value, owner_skipped, …). */
   skipped: Record<string, number>;
-  /** The first checked business's email as it reads: its values in, its opening written. */
+  /**
+   * The first checked business's email as it reads: its values in, its opening written, and the name under its words
+   * where the sequence signs with its name (0077: in `body`, as the send writes it).
+   */
   first: {
     business_name: string;
     subject: string | null;
     body: string;
     opening: string | null;
     angle: string | null;
+    /** The mailbox's signature it ends with, where the sequence chose it (0077); absent from a server before it. */
+    signature?: string | null;
+    /** The foot the send writes under it (why they hear from you, who and where, how to say no); absent before it. */
+    foot?: string | null;
   } | null;
   /** The mailboxes its sends go from, each with what its day is made of (R22). */
   mailboxes: ReachOutMailboxFacts[];

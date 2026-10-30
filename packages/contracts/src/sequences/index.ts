@@ -115,7 +115,7 @@ export type {
 } from "./sequence-dto";
 export { classEvidenceLine, EVIDENCE_DAYS, evidenceOf, evidenceWords } from "./sequence-evidence";
 export type { SequenceEvidence, SequenceEvidenceDto } from "./sequence-evidence";
-export { HELD_TAKE_OUT, heldAnswersOf, heldChoicesOf, heldWhyOf } from "./sequence-held";
+export { HELD_TAKE_OUT, heldAnswersOf, heldChoicesOf, heldWhyOf, waitingAnswersOf } from "./sequence-held";
 export type { HeldAnswer, HeldChoice } from "./sequence-held";
 export {
   LEAD_BUILD_WORDS,
@@ -196,12 +196,14 @@ export {
   SEQUENCE_NEEDS_WORDS,
   SEQUENCE_PEOPLE_WORDS,
   SEQUENCE_REPLIES_WORDS,
+  waitingEmailsOf,
 } from "./sequence-tab-words";
 export type {
   SequenceHeldVM,
   SequenceHistoryFigure,
   SequenceHistoryPeriod,
   SequenceNeedsVM,
+  SequenceWaitingEmailVM,
   SequenceWroteBackVM,
 } from "./sequence-tab-words";
 export { leadStepTestMail, SEQUENCE_TEST_LIMITS, SEQUENCE_TEST_WORDS, stepTestMail } from "./sequence-test";
