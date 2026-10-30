@@ -38,7 +38,7 @@ corepack pnpm lint                            # ESLint: an error fails; the warn
 corepack pnpm format                          # Prettier over the tree; the pre-commit hook does this for staged files
 corepack pnpm test                            # the node suite, in UTC (~20 min; run the files a change touches instead, one per command: node tooling/scripts/checks/test.mjs <file>), and what it ran of the code held at a floor; database suites skip without credentials
 TEST_TZ=Pacific/Auckland corepack pnpm test   # the same suite with the clock twelve hours east: CI's second leg (PowerShell: $env:TEST_TZ='Pacific/Auckland'). CI runs both legs only on a pull request labelled `suite`, or by hand (Ruben, 1 Oct 2026); every other pull request runs the tests of what it changed (tooling/scripts/checks/changed-tests.mjs), never the whole suite (Ruben, 10 Oct 2026: a push is through CI in under ten minutes), and the nightly the whole suite
-TEST_SLOW_IMPORTS=1 node tooling/scripts/checks/test.mjs <file>   # every import the file's tests make waits 20 to 80 ms: a test that counts turns of the loop for an act's work fails every time here, where it failed once in a while beside a heavy job; a test waits for what it asserts (tooling/scripts/tests/shared/_until.mjs)
+TEST_SLOW_IMPORTS=1 node tooling/scripts/checks/test.mjs <file>   # where tsx loads modules off the main thread (an older Node), every import the file's tests make waits 20 to 80 ms: a test that counts turns of the loop for an act's work fails every time here, where it failed once in a while beside a heavy job; a test waits for what it asserts (tooling/scripts/tests/shared/_until.mjs). Where tsx loads in the main thread (Node 24) an import takes one turn, and the launcher says so and runs nothing
 corepack pnpm check:debt                      # every number the build holds, this tree against origin/main: a rise or a new offender fails unless the pull request says `Debt: <why>` (CI's debt job; -- --parts measures for seconds, -- --totals for the register's numbers)
 corepack pnpm check:dead-exports              # knip's dead exports, counted (check:debt holds them)
 corepack pnpm check:bundle                    # after a dashboard build: the route's JS and CSS and each page's own JS, gzipped bytes, against the ceilings; CI holds each change to what it adds against main's own build, and growth past its line (route 1 KB, a page 2 KB) passes when the PR's description has a line `Bundle: <why>`; nothing in the repository changes for it
@@ -58,7 +58,7 @@ corepack pnpm gen:data-model                  # docs/data-model.md, from the sna
 corepack pnpm gen:sorted-lists                # every package's barrels in one order, so two lanes' new names land apart (land runs it)
 ```
 
-`pnpm` is corepack-only. Node 22 or newer.
+`pnpm` is corepack-only. Node 24 (`.nvmrc`; `engines` is `24.x`, as Vercel runs).
 
 **To look at a page you changed, run the app** -- `corepack pnpm --filter @chanlytics/dashboard dev`, then
 `/w/<workspace-slug>/`. The standalone mockup (`Chanlytics.html`) stubs the bridge, so Today, the Calendar,
@@ -137,7 +137,8 @@ Each of these is enforced by a test or a workflow. Breaking one is a red build, 
   bare number (name it from `contracts/shared/time.ts`, or give it a constant); a width the layout changes at that is
   not one of `tokens.css`'s breakpoints; lint warnings; a type size, radius, shadow, colour or blur a stylesheet writes
   instead of reading a token; a button, chip, tab, card, sheet, field or face class of a page's own;
-  a `style` prop (`docs/plans/2026-09-28-the-interface-kit-and-its-looks.md`). CI's debt job measures each
+  a `style` prop (`docs/plans/2026-09-28-the-interface-kit-and-its-looks.md`); a test's wait that counts turns of
+  the loop or time instead of waiting for what it asserts (`counted-waits`). CI's debt job measures each
   pull request's base and head (decision 0074): a number that rose, or an offender that is new, fails unless the
   description carries a line `Debt: <why>`; a fall needs nothing, and no number is kept in the repository, so nothing
   is banked. Where a tree's functions are all under the limits, the limits are lint errors (`LIMITED_TREES` in

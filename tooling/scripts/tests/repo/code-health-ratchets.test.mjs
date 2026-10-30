@@ -24,6 +24,7 @@ import {
   needsHumanReads,
   resumesUnasked,
   linesOf,
+  fixedWaitsIn,
 } from "../_ast.mjs";
 
 // The measure the limits above rest on, kept honest: if the compiler ever stops
@@ -314,5 +315,60 @@ test("the test-length measure counts a file's lines as file-length does, over th
     SUITE_FILES.filter((f) => !f.endsWith(".test.mjs")),
     [],
     "only test files",
+  );
+});
+
+// The counted-waits measure on a test file written for it: each line marked `yes` waits a fixed count of turns or a fixed
+// time, by a turn written out, a helper of the file's own, or one a module beside it exports (named, as a namespace, or
+// loaded by `await import`), once however often its loop turns. A wait bounded by time, a microtask's hop, a mocked
+// clock and a name that shadows a helper are none. A miss would let a new count of turns in unseen.
+test("the counted-waits measure counts waits of a fixed count of turns or time, and nothing else", () => {
+  const lines = [
+    'import { settle } from "../_legacy-react.mjs";',
+    'import * as LR from "../_legacy-react.mjs";',
+    'import { until } from "../shared/_until.mjs";',
+    "const tick = () => new Promise((r) => setTimeout(r, 0));",
+    "const turn = () => new Promise((go) => setImmediate(go));",
+    "const sleep = (ms) => new Promise((r) => setTimeout(() => r(), ms));",
+    "const many = async (n = 8) => { for (let i = 0; i < n; i += 1) await tick(); };",
+    "const idle = async () => { for (let i = 0; i < 200 && pending > 0; i += 1) await turn(); await turn(); };",
+    "const looked = async (cond) => { for (const from = Date.now(); !cond() && Date.now() - from < 5000; ) await tick(); };",
+    "const flush = async () => { for (let i = 0; i < 30; i += 1) await Promise.resolve(); };",
+    "const open = async () => { draw(); await many(); return draw(); }; // yes",
+    'const L = await import("../_legacy-react.mjs");',
+    'const { settle: s } = await import("../_legacy-react.mjs");',
+    "await tick(); // yes",
+    "await turn(); // yes",
+    "await sleep(260); // yes",
+    "await many(); // yes",
+    "await idle(); // yes",
+    "await settle(); // yes",
+    "await LR.settle(); // yes",
+    "await L.settle(); // yes",
+    "await s(); // yes",
+    "for (let i = 0; i < 12; i += 1) await settle(); // yes",
+    "for (let i = 0; i < 400 && !done; i += 1) await new Promise((r) => setImmediate(r)); // yes",
+    "await new Promise((resolve) => setTimeout(resolve, 20)); // yes",
+    'await until(() => done, "done");',
+    "await looked(() => done);",
+    "for (const from = Date.now(); !done && Date.now() - from < 5000; ) await tick();",
+    "await flush();",
+    "await open();",
+    "await Promise.resolve();",
+    "await new Promise((r) => queueMicrotask(r));",
+    "t.mock.timers.tick(100);",
+    "{ const settle = (C) => draw(C); await settle(1); }",
+  ];
+  const sf = ts.createSourceFile(
+    "tooling/scripts/tests/repo/fixture.test.mjs",
+    lines.join("\n"),
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.JS,
+  );
+  const marked = lines.flatMap((l, i) => (l.match(/\byes\b/g) ?? []).map(() => i + 1));
+  assert.deepEqual(
+    fixedWaitsIn(sf).map((w) => w.line),
+    marked,
   );
 });

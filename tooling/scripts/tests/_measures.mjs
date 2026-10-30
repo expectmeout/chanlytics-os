@@ -49,6 +49,7 @@ import {
   mediaWidths,
   stringsIn,
   visitsWrittenIn,
+  fixedWaitsIn,
   SOURCE,
 } from "./_ast.mjs";
 import { cssOf, isPrimitiveClass, STYLE_VALUE_FIELDS } from "./_css.mjs";
@@ -1093,6 +1094,29 @@ export const TEST_LENGTH = {
   advice: `Split it by concern: a file each, named for what it proves, the world they share in their folder's _<name>.mjs, and a folder of their own where this one is at its limit of modules (tree-shape). A test file over ${TEST_FILE_LIMIT} lines is two files.`,
 };
 
+/* ---- Waits that count turns of the loop, or time, in the suite's tests ---- */
+
+/**
+ * The node suite's waits for work a test cannot await that wait a fixed count of turns of the loop, or a fixed time
+ * (fixedWaitsIn, _ast.mjs), by file. Such a wait passes while the work takes no longer than it counts, and fails once in
+ * a while when it does: on 29 Oct 2026 two did beside a second run of the suite, where an import() went through tsx's
+ * loader off the main thread. A wait for what the next lines read (`until`, tests/shared/_until.mjs) holds on any
+ * machine. Seeded on 30 Oct 2026; a wait before asserting that nothing more happened stays one, since there is nothing
+ * to wait for, so the measure falls as waits are moved to conditions and never reaches nothing.
+ */
+export const COUNTED_WAITS = {
+  name: "waits that count turns or time in tests",
+  key: "counted-waits",
+  measure: () =>
+    Object.fromEntries(
+      suiteFiles()
+        .map((f) => [f, fixedWaitsIn(parse(f)).length])
+        .filter(([, n]) => n > 0),
+    ),
+  advice:
+    'Wait for what the next lines read: `await until(() => <it>, "<what>")` from tooling/scripts/tests/shared/_until.mjs (a toast up, a write the fake wire saw, the page drawn as it is after the answer). A wait before asserting that nothing more happened is the one a count is for: argue it in the pull request.',
+};
+
 /* ---- Event kinds written only from TypeScript (repo/event-kinds.test.mjs reads the same map) ---- */
 
 /** An event kind as the product spells it: `<record>.<what happened>`. */
@@ -1219,6 +1243,7 @@ export const RATCHETS = [
   WIRE_CASING,
   UNCHECKED_INDEX,
   TEST_LENGTH,
+  COUNTED_WAITS,
   TS_ONLY_EVENTS,
   APPOINTMENT_WORDS,
   SOURCE_SCAN,

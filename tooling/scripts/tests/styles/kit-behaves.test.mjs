@@ -55,7 +55,7 @@ async function serverBundle() {
     bundle: true,
     format: "cjs",
     platform: "node",
-    target: "node22",
+    target: "node24",
     jsx: "automatic",
     write: false,
     metafile: true,

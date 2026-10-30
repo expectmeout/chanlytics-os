@@ -1647,3 +1647,198 @@ export function resumesUnasked(sf) {
   visit(sf);
   return n;
 }
+
+/* ---- Waits that count turns of the loop or time (the counted-waits ratchet) ---- */
+
+/** `Date.now()` or `performance.now()`: a loop whose condition reads one is a wait bounded by time, as until's is. */
+const isNow = (n) =>
+  ts.isCallExpression(n) &&
+  ts.isPropertyAccessExpression(n.expression) &&
+  n.expression.name.text === "now" &&
+  ts.isIdentifier(n.expression.expression) &&
+  (n.expression.expression.text === "Date" || n.expression.expression.text === "performance");
+const loopCondition = (n) =>
+  ts.isForStatement(n) ? n.condition : ts.isWhileStatement(n) || ts.isDoStatement(n) ? n.expression : undefined;
+const boundedByTime = (n) => {
+  const condition = loopCondition(n);
+  return !!condition && holdsNode(condition, isNow);
+};
+
+/**
+ * One turn of the loop, or a sleep: a promise whose executor hands its resolve to `setImmediate` or `setTimeout`
+ * (`new Promise((r) => setImmediate(r))`, `new Promise((go) => setTimeout(go, 20))`, `setTimeout(() => r(), 0)`).
+ */
+const isTurn = (n) => {
+  if (!ts.isNewExpression(n) || !ts.isIdentifier(n.expression) || n.expression.text !== "Promise") return false;
+  const executor = n.arguments?.[0];
+  const resolve = executor && isFunction(executor) ? executor.parameters[0]?.name : null;
+  if (!resolve || !ts.isIdentifier(resolve)) return false;
+  const isResolve = (a) => ts.isIdentifier(a) && a.text === resolve.text;
+  const handsResolve = (a) =>
+    isResolve(a) || (isFunction(a) && holdsNode(a.body, (c) => ts.isCallExpression(c) && isResolve(c.expression)));
+  return holdsNode(
+    executor.body,
+    (c) =>
+      ts.isCallExpression(c) &&
+      ts.isIdentifier(c.expression) &&
+      (c.expression.text === "setImmediate" || c.expression.text === "setTimeout") &&
+      c.arguments.length > 0 &&
+      handsResolve(c.arguments[0]),
+  );
+};
+
+/**
+ * Whether a function is a wait and nothing else: its body one wait (`() => new Promise((r) => setImmediate(r))`), or
+ * statements that are each one (`await tick();`, `return settle();`) or a loop of them not bounded by time
+ * (`for (let i = 0; i < n; i += 1) await tick();`).
+ */
+function isWaitOnly(fn, isWait) {
+  if (!fn.body) return false;
+  const waits = (e) => !!e && isWait(ts.isAwaitExpression(e) ? e.expression : e);
+  if (!ts.isBlock(fn.body)) return waits(fn.body);
+  const waitStatement = (s) => {
+    if (ts.isExpressionStatement(s) || ts.isReturnStatement(s)) return waits(s.expression);
+    if (!loopCondition(s) && !ts.isForStatement(s)) return false;
+    if (boundedByTime(s)) return false;
+    const inner = ts.isBlock(s.statement) ? s.statement.statements : [s.statement];
+    return inner.length > 0 && inner.every(waitStatement);
+  };
+  return fn.body.statements.length > 0 && fn.body.statements.every(waitStatement);
+}
+
+/** The wait helpers a module exports by name (`export const settle = () => …`), read once per file. */
+const exportedWaitHelpers = new Map();
+function exportedWaitsOf(file) {
+  const known = exportedWaitHelpers.get(file);
+  if (known) return known;
+  const out = new Set();
+  exportedWaitHelpers.set(file, out); // a module that imports one importing it reads as exporting none meanwhile
+  const sf = parse(file);
+  const { helpers } = waitsOf(sf);
+  for (const s of sf.statements) {
+    if (!s.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)) continue;
+    if (ts.isFunctionDeclaration(s) && s.name && helpers.has(s)) out.add(s.name.text);
+    if (ts.isVariableStatement(s))
+      for (const d of s.declarationList.declarations)
+        if (helpers.has(d) && ts.isIdentifier(d.name)) out.add(d.name.text);
+  }
+  return out;
+}
+
+/** The wait helpers a file takes from the modules beside it: by name (`settle`) and by namespace (`LR.settle`). */
+function importedWaitsOf(sf) {
+  const names = new Set();
+  const namespaces = new Map();
+  for (const s of sf.statements) {
+    if (!ts.isImportDeclaration(s) || !ts.isStringLiteral(s.moduleSpecifier)) continue;
+    const file = besideOf(sf, s.moduleSpecifier.text);
+    if (!file) continue;
+    const waits = exportedWaitsOf(file);
+    const bound = s.importClause?.namedBindings;
+    if (bound && ts.isNamedImports(bound))
+      for (const e of bound.elements) if (waits.has((e.propertyName ?? e.name).text)) names.add(e.name.text);
+    if (bound && ts.isNamespaceImport(bound)) namespaces.set(bound.name.text, waits);
+  }
+  return { names, namespaces };
+}
+
+/** The module beside `sf` a relative specifier names, when it is a script there is: `../_legacy-react.mjs`. */
+const besideOf = (sf, specifier) => {
+  if (!specifier.startsWith(".")) return null;
+  const file = path.posix.normalize(path.posix.join(path.posix.dirname(sf.fileName), specifier));
+  return /\.m?js$/.test(file) && fs.existsSync(path.join(ROOT, file)) ? file : null;
+};
+
+/** `await import("../_legacy-react.mjs")`: the module beside it a declaration takes, or null. */
+const awaitedImportOf = (sf, init) =>
+  init &&
+  ts.isAwaitExpression(init) &&
+  ts.isCallExpression(init.expression) &&
+  init.expression.expression.kind === ts.SyntaxKind.ImportKeyword &&
+  init.expression.arguments[0] &&
+  ts.isStringLiteral(init.expression.arguments[0])
+    ? besideOf(sf, init.expression.arguments[0].text)
+    : null;
+
+/** A file's wait helpers, each by the declaration its name is bound to, and the test a wait answers. */
+function waitsOf(sf) {
+  const fns = new Map();
+  // `const LR = await import("../_legacy-react.mjs")` and `const { settle } = await import(…)`: the module's own waits.
+  const loaded = new Map();
+  const collect = (n) => {
+    if (ts.isFunctionDeclaration(n) && n.name && n.body) fns.set(n, n);
+    else if (
+      ts.isVariableDeclaration(n) &&
+      ts.isIdentifier(n.name) &&
+      n.initializer &&
+      (ts.isArrowFunction(n.initializer) || ts.isFunctionExpression(n.initializer))
+    )
+      fns.set(n, n.initializer);
+    else if (ts.isVariableDeclaration(n)) {
+      const file = awaitedImportOf(sf, n.initializer);
+      if (file) loaded.set(n, exportedWaitsOf(file));
+    }
+    ts.forEachChild(n, collect);
+  };
+  collect(sf);
+  const imported = importedWaitsOf(sf);
+  const helpers = new Set();
+  const isWaitCall = (x) => {
+    if (!ts.isCallExpression(x)) return false;
+    const callee = x.expression;
+    if (ts.isIdentifier(callee)) {
+      const d = bindingOf(x, callee.text);
+      if (!d) return imported.names.has(callee.text);
+      if (helpers.has(d)) return true;
+      const waits = loaded.get(d);
+      const element =
+        waits && ts.isObjectBindingPattern(d.name)
+          ? d.name.elements.find((e) => ts.isIdentifier(e.name) && e.name.text === callee.text)
+          : null;
+      return !!element && waits.has((element.propertyName ?? element.name).getText(sf));
+    }
+    if (ts.isPropertyAccessExpression(callee) && ts.isIdentifier(callee.expression)) {
+      const d = bindingOf(x, callee.expression.text);
+      const waits = d
+        ? ts.isIdentifier(d.name)
+          ? loaded.get(d)
+          : null
+        : imported.namespaces.get(callee.expression.text);
+      return !!waits && waits.has(callee.name.text);
+    }
+    return false;
+  };
+  const isWait = (x) => isTurn(x) || isWaitCall(x);
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const [d, fn] of fns)
+      if (!helpers.has(d) && isWaitOnly(fn, isWait)) {
+        helpers.add(d);
+        grew = true;
+      }
+  }
+  return { helpers, functions: new Set([...helpers].map((d) => fns.get(d))), isWait };
+}
+
+/**
+ * Each wait in a test that waits a fixed count of turns of the loop, or a fixed time, for work it cannot await: an
+ * `await` of one turn or sleep (isTurn), or of a call of a wait helper, a function that is waits and nothing else
+ * (isWaitOnly: `settle`, `tick`, `idle`), the file's own or one it imports from a module beside it. A wait in a loop is
+ * one wait, however many times the loop turns.
+ *
+ * Not counted: a loop bounded by time (`Date.now()` in its condition: until's, `drained()`), which waits for a
+ * condition; a wait helper's own turns, counted where it is called; `await Promise.resolve()`, whose count of microtask
+ * hops a busy machine cannot change; and a mocked clock's ticks, which are not awaited turns.
+ */
+export function fixedWaitsIn(sf) {
+  const { functions, isWait } = waitsOf(sf);
+  const out = [];
+  const visit = (n) => {
+    if (boundedByTime(n) || functions.has(n)) return;
+    if (ts.isAwaitExpression(n) && isWait(n.expression))
+      out.push({ line: sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1, text: n.getText(sf).slice(0, 120) });
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return out;
+}

@@ -15,8 +15,12 @@ is right.
 
 Both Vercel projects deploy production from `main` on every merge and a
 preview for every pull request, independently of each other. Vercel builds
-with Node 24, and so does CI. Node 22 still runs everything locally: `engines`
-says `>=22`, and the types are Node 22's, so nothing may call an API only 24 has.
+with Node 24, and so do CI and `.nvmrc`. `engines` says `24.x`, a major, never a
+range: Vercel reads it over the project's setting, and a `>=` would move
+production to the next major the day Vercel offers it (Node 26 became LTS on
+28 Oct 2026; Vercel offered 24 and 22 then). The types are Node 24's
+(`@types/node`), and the next major is a change of its own: `engines`,
+`.nvmrc`, CI and the types together.
 
 ## Run it locally
 
@@ -207,12 +211,15 @@ date with no zone, gives the wrong day. A test that reads the wall clock pins it
 
 **A wait is for what it asserts.** A page test presses something and reads what it did. Where the press hands back
 nothing to wait on, the test waits with `until` (`tooling/scripts/tests/shared/_until.mjs`) for the thing it is about to
-read: the toast, the write the fake wire saw, the table no longer busy. It never waits a count of turns. An `import()`
-goes through tsx's loader, off the main thread, and takes from one turn of the loop to some hundreds, more on a busy
-machine, and every write the bridge makes reads its refresh map that way: on 29 Oct 2026, 24 tests that counted turns
-passed alone and could fail beside a heavy job. `TEST_SLOW_IMPORTS=1 node tooling/scripts/checks/test.mjs <file>` makes
-every import wait 20 to 80 ms, and a test that counts turns then fails every time. A wait before asserting that nothing
-more happened stays a count: there is nothing to wait for.
+read: the toast, the write the fake wire saw, the table no longer busy. It never waits a count of turns. Where tsx loads
+modules off the main thread (an older Node), an `import()` takes from one turn of the loop to some hundreds, more on a
+busy machine, and every write the bridge makes reads its refresh map that way: on 29 Oct 2026, 24 tests that counted
+turns passed alone and could fail beside a heavy job. There, `TEST_SLOW_IMPORTS=1 node tooling/scripts/checks/test.mjs
+<file>` makes every import wait 20 to 80 ms, and a test that counts turns then fails every time. Where tsx loads in the
+main thread (Node 24, as on CI) an import takes one turn: the launcher says so and runs nothing, since there is nothing
+to slow. A wait before asserting that nothing more happened stays a count: there is nothing to wait for. Every
+count of turns or of time is the `counted-waits` measure's (`corepack pnpm check:debt`), so a new one is argued in its
+pull request.
 
 **What the suite ran of the code.** A full run in UTC has Node measure line coverage and prints it per package and
 per tree at its end, with the floor of the three that are held: `core`, the edge's doors (`apps/edge/api`) and the
