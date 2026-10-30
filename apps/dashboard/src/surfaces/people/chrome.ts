@@ -11,13 +11,14 @@ import {
   isIdentifierName,
   parseLeadsRoute,
   parsePeopleRoute,
+  parsePipelineRoute,
   personRouteOf,
+  pipelineViewLabel,
   shortName,
 } from "@chanlytics/contracts";
 import { demoCode } from "./hooks/demo";
 import { surfaceValue } from "../surface-values";
 import { demoSession } from "../legacy-verbs";
-import { P } from "./pipeline/pipe";
 import type { PeopleSurface } from "./surface";
 import { heldPerson } from "./person/read";
 import type { SurfaceViews } from "../routes";
@@ -85,13 +86,18 @@ function viewLabel(param: string): string {
 
 /**
  * The crumbs of the Pipeline's address (0008): the Pipeline, and under it the view the rail picked (the crumb back to
- * the Pipeline's own list, then the view's name).
+ * the Pipeline's own list, then the view's name). Read from contracts' address and words alone, not the Pipeline's
+ * helpers (pipeline/pipe.ts), whose board, peek and sheet are the page's to load (lane 1 of the cold-load review).
  */
 function pipelineCrumbs(param: string) {
   const people = surfaceValue("people");
-  const at = P.parse(param);
+  const at = parsePipelineRoute(param);
   if (!at || at.view === "all") return [PEOPLE_CRUMB, "Pipeline"];
-  return [PEOPLE_CRUMB, { label: "Pipeline", to: "clients/pipeline" }, P.viewLabel(at.view, people?.dealPace ?? null)];
+  return [
+    PEOPLE_CRUMB,
+    { label: "Pipeline", to: "clients/pipeline" },
+    pipelineViewLabel(at.view, people?.dealPace ?? null),
+  ];
 }
 
 /**
