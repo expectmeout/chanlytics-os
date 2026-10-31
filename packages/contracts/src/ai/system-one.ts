@@ -17,9 +17,13 @@
  */
 import { z } from "zod";
 
-/** The one model asked, by its versioned id. An alias would change under a week of data. */
-export const SYSTEM_ONE_MODEL = "jev-1.13.0";
-/** Dollars per million input tokens (TypeSafe's list, read 29 September 2026); output tokens are free. */
+/**
+ * The one model asked, by its versioned id. An alias would change under a week of data. 1.14 since 31 October 2026:
+ * asked the 29 September pilot again, it read the replies as 1.13 did and told a person from an automatic reply better
+ * (decision 0023).
+ */
+export const SYSTEM_ONE_MODEL = "jev-1.14.0";
+/** Dollars per million input tokens (TypeSafe's list, read 31 October 2026); output tokens are free. */
 const SYSTEM_ONE_INPUT_USD_PER_MILLION = 0.042;
 /** How much of a state is sent: well inside the 32,000 tokens a state and its longest question may share. */
 export const SYSTEM_ONE_STATE_MAX_CHARS = 20_000;

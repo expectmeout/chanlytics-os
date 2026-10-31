@@ -722,10 +722,15 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "POST templates/versions/rewrite":
     "a version's words written again, handed back to the editor; only its Save keeps them",
   "POST leads/check-again": "the checks are scheduled; each row moves as its check lands, through the live feed",
+  // Their preview made (decision 0079): the line is the sheet's own read, and Today's rows are the leads who tried one.
+  "POST leads/[id]/preview":
+    "the lead sheet's Their preview reads its own line again after the press (sheet/preview.tsx); no surface draws a preview",
   // Somewhere else: the page leaves, or the provider's page opens.
   "POST billing/checkout": "Stripe's checkout opens; the return reads Billing again (billing.ts outcome)",
   "POST billing/portal": "Stripe's portal opens",
   "POST workspaces/create": "the tab switches to the new workspace, which boots",
+  "POST preview-claims":
+    "a lead's preview made theirs (decision 0079): the tab goes to the workspace it made, whose first run boots (auth/preview-claim.ts)",
   "POST workspaces/logo/lookup":
     "a look that stores nothing: the Logo row draws the picture it answers, and only a save keeps it",
   "POST me/invitations/accept":
