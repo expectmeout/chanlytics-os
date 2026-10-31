@@ -58,6 +58,11 @@ export { Switch } from "./switch/switch";
 export type { SwitchProps } from "./switch/switch";
 export { TabBar } from "./tab-bar/tab-bar";
 export type { TabBarMore, TabBarPlace, TabBarProps } from "./tab-bar/tab-bar";
+// The table's types alone: its component is imported from its own module (kit/table/data-table), because a value
+// here rides into every page that takes a Button from the index, the table and its window of rows with it (31 Oct
+// 2026: 19 KB on the route).
+export type { DataCard, DataColumn, Density, SortDir } from "./table/columns";
+export type { DataTableProps } from "./table/data-table";
 export { useToast } from "./toast/toast";
 export type { ToastFlash, ToastGlyphs } from "./toast/toast";
 export { Tooltip } from "./tooltip/tooltip";

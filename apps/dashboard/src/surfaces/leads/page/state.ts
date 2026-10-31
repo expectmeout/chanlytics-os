@@ -6,7 +6,7 @@
  */
 import { useReducer, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
-import { leadsRoute, parseLeadsRoute, type LeadBand, type LeadReachFilter } from "@chanlytics/contracts";
+import { leadsRoute, parseLeadsRoute } from "@chanlytics/contracts";
 import { useSurface } from "../../use-surface";
 import type { LeadsSurface } from "../surface";
 import type { Armed, DraftState, PeekMode } from "../peek/types";
@@ -113,8 +113,6 @@ export interface LeadLine {
 }
 
 type RailSearch = LeadRail["searches"][number];
-/** One of the band's fits (D5): the strong ones, the ones worth a look, the long shots. */
-type LeadFit = LeadBand["fits"][number]["id"];
 
 /** The page's own state. */
 export const useLeadsState = () => {
@@ -136,21 +134,16 @@ export const useLeadsState = () => {
   // "Did you send it?" after a draft, "How did the call go?" after a call. `asked` turns true only once the tab is
   // theirs again (leadArmOnReturn, Task 13), so nothing is asked while they are away.
   const [armed, setArmed] = useState<Armed | null>(null);
-  // D5: the row's Values ⁄ Signals choice (kept per viewer), the photo expanded, and the band's fit filter.
+  // D5: the row's Values ⁄ Signals choice (kept per viewer), and the photo expanded. The band's fit, the Excluded view's
+  // chip and the Filter's reach are the table's filters (reads.ts leadNarrowings, decision 0083).
   const [values, setValues] = useState(ldValuesPref());
   const [lightboxId, setLightboxId] = useState<string | null>(null);
-  const [fitChip, setFitChip] = useState<LeadFit | null>(null);
-  // The Filter's reach (contracts leadReaches): only the leads with a checked email, a checked phone, or both. Kept with
-  // the view's place, as the map is, so Back puts it back and another view starts without it.
-  const [reach, setReach] = useState<LeadReachFilter[]>([]);
   const [benchGroup, setBenchGroup] = useState<string | null>(null);
   const [mapOpen, setMapOpen] = useState(false);
   // A phone's New search: the first day's question over the page (Ruben, 10 Oct 2026), held for the view it was pressed on,
   // so a search opened, a list picked or Back ends it with nothing to clear.
   const [newSearchAt, setNewSearchAt] = useState<string | null>(null);
   const [mapPick, setMapPick] = useState<string | null>(null);
-  // One criterion of the Excluded view, from the chips at its head.
-  const [chip, setChip] = useState<string | null>(null);
   // The search being renamed, and the one being removed: each asked where the search is, on the rail.
   const [renaming, setRenaming] = useState<RailSearch | null>(null);
   const [removing, setRemoving] = useState<RailSearch | null>(null);
@@ -177,10 +170,6 @@ export const useLeadsState = () => {
     setValues,
     lightboxId,
     setLightboxId,
-    fitChip,
-    setFitChip,
-    reach,
-    setReach,
     benchGroup,
     setBenchGroup,
     mapOpen,
@@ -189,8 +178,6 @@ export const useLeadsState = () => {
     setNewSearchAt,
     mapPick,
     setMapPick,
-    chip,
-    setChip,
     renaming,
     setRenaming,
     removing,

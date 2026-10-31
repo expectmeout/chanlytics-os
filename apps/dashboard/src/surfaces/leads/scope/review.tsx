@@ -7,7 +7,7 @@
  */
 import { LEAD_REVIEW_ACT_WORDS, type LeadReviewAct, type LeadReviewGroup, type LeadRowVM } from "@chanlytics/contracts";
 import { gate } from "../../legacy-verbs";
-import type { TableSection } from "../../people/table/table";
+import type { TableSection } from "../../kit/table/groups";
 import type { ReviewDoors } from "../bench/types";
 
 export function ldReviewSections(p: {

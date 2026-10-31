@@ -11,15 +11,17 @@ import { LEAD_WORDS, leadReviewGroups, type LeadPeekVM, type LeadRowVM } from "@
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { PeopleListsSheet } from "../../people/rail/lists-sheet";
+import { PL_TABLE_CLASSES } from "../../people/words";
 import { PeopleRail } from "../../people/rail/people-rail";
 import { PeopleStanding } from "../../people/rail/standing";
-import { PeopleTable, type TableSection } from "../../people/table/table";
+import { DataTable } from "../../kit/table/data-table";
+import type { TableSection } from "../../kit/table/groups";
 import { LeadBand } from "../bench/band";
 import { LeadsBackToday } from "../pile/back-today";
 import { LeadReviewBench } from "../bench/bench";
 import { LeadExcludedChips, LeadReviewGroups, ldExcludedChips } from "../bench/chips";
 import { LeadRowsCallMenu } from "../cells/call-menu";
-import { ldCardRowClass } from "../cells/columns";
+import { LEAD_CARD } from "../cells/columns";
 import { ldRowClass } from "../cells/name-cell";
 import { LeadsFirstDay } from "../finder/first-day";
 import { planPickTitle } from "../finder/plan-card";
@@ -79,14 +81,18 @@ const railRowsOf = (p: P, phone: boolean) => (
 
 /** The rows: the list's view, and on a phone the leads under the map too. */
 const tableOf = (p: P, phone: boolean, sections: Sections) => (
-  <PeopleTable
+  <DataTable
+    table={p.model.table}
+    state={p.table}
+    classNames={PL_TABLE_CLASSES}
     busy={!!p.loading}
     noun="lead"
     columns={p.columns}
+    card={phone ? LEAD_CARD : null}
     ctx={sections ? { ...p.cellCtx, sectioned: true } : p.cellCtx}
     rows={p.rows}
     swapRef={p.swapRef}
-    rowClass={phone ? ldCardRowClass : ldRowClass}
+    rowClass={ldRowClass}
     sections={sections}
     total={p.total}
     sortBy={p.sortBy}
@@ -97,14 +103,9 @@ const tableOf = (p: P, phone: boolean, sections: Sections) => (
     onClearFilters={p.onClearFilters}
     selectable={p.canFind || p.canExport}
     selectMode={p.selectMode}
-    sel={p.sel}
-    onToggle={p.onToggle}
     onToggleAll={p.onToggleAll}
     cursor={p.cursor}
     onCursor={p.onCursor}
-    scrolled={p.scrolled}
-    onScrolled={p.onScrolled}
-    layout={p.layout}
     empty={p.empty}
   />
 );

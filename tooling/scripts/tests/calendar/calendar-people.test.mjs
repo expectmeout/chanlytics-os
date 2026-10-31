@@ -1920,7 +1920,7 @@ test("the list page: the rail is grouped, a state is a chip, a list has its step
   plSaveView("people", { columns: { offers: true } });
   const sent = await onTheWire(async () => {
     const kept = drawn();
-    press(find(kept.tree, (n) => classes(n).includes("cl-th-sort") && textOf(n).includes("Offers")));
+    press(find(kept.tree, (n) => classes(n).includes("dtable-sort") && textOf(n).includes("Offers")));
     kept.draw();
   });
   const device = JSON.parse(globalThis.localStorage.getItem("chanlytics-people-view"));
@@ -2125,7 +2125,12 @@ test("bulk actions: a selection becomes people on a list, a yes on record (one r
     "with no column shown the file holds who they are and the consent, nothing invented",
   );
   const { PL_COLUMNS } = await importSrc("apps/dashboard/src/surfaces/people/cells/columns.tsx");
-  const { plShownColumns } = await importSrc("apps/dashboard/src/surfaces/people/table/columns.ts");
+  const { columnsIn, shownColumnsOf, visibilityOf } = await importSrc(
+    "apps/dashboard/src/surfaces/kit/table/columns.ts",
+  );
+  // The columns a desk draws for what the workspace is, with the member's choices (kit/table/columns.ts).
+  const plShownColumns = (columns, choices, x) =>
+    shownColumnsOf(columnsIn(columns, x), visibilityOf(columns, choices), []);
   assert.equal(
     plCsv([], plShownColumns(PL_COLUMNS, {}, { withCalendar: true })),
     "Name,Phone,Email,Consent,Offers,State,Next step,Last contact,Next appointment",
@@ -2328,7 +2333,9 @@ test("the table: identity that says who, Offers where First contact was, Visits 
   // The table's own cells, drawn (surfaces/people/cells/columns.tsx) on the stub React the page test draws on.
   const { PL_COLUMNS } = await importSrc("apps/dashboard/src/surfaces/people/cells/columns.tsx");
   const { offersOf, plMatcher, plWhen } = await importSrc("apps/dashboard/src/surfaces/people/words.ts");
-  const { PeopleTable } = await importSrc("apps/dashboard/src/surfaces/people/table/table.tsx");
+  const { DataTable } = await importSrc("apps/dashboard/src/surfaces/kit/table/data-table.tsx");
+  const { useTableState } = await importSrc("apps/dashboard/src/surfaces/kit/table/state.ts");
+  const { useDataTable } = await importSrc("apps/dashboard/src/surfaces/kit/table/use-data-table.ts");
   const { went } = await peopleHarness();
   const cellOf = (key, p, x = {}) => {
     fresh();
@@ -2338,7 +2345,7 @@ test("the table: identity that says who, Offers where First contact was, Visits 
   // until a member asks for it (Offers took its place on screen then, and has since gone the same way); it sorts by its day.
   const since = PL_COLUMNS.find((c) => c.key === "since");
   assert.deepEqual(
-    [since.label, since.sortable, since.on],
+    [since.label, !!since.sort, since.on],
     ["First contact", true, false],
     "First contact is a column a member may choose, not on screen by default",
   );
@@ -2393,25 +2400,37 @@ test("the table: identity that says who, Offers where First contact was, Visits 
   assert.equal(at, plWhen(talking.lastContact.at), "the exact time on hover");
   assert.match(at, /^[A-Z][a-z]{2} \d{1,2}, 2026 · \d{1,2}:\d{2} [AP]M$/);
   // A row no longer counts threads and calls ("no messages yet" was that count at zero): the profile has them.
+  const NAME = [PL_COLUMNS[0]];
+  const ROWS = [talking];
+  function Foot({ total }) {
+    const state = useTableState({
+      scope: "people",
+      columns: NAME,
+      first: { by: "name", dir: "asc" },
+      saved: null,
+      landed: true,
+      store: { load: () => ({}), save() {}, saver: () => () => {} },
+    });
+    const model = useDataTable({ state, columns: NAME, data: ROWS });
+    return globalThis.React.createElement(DataTable, {
+      table: model.table,
+      rows: model.rows,
+      state,
+      columns: NAME,
+      ctx: { attention: {}, onOpen() {} },
+      total,
+      noun: "person",
+      sortBy: "name",
+      sortDir: "asc",
+      onSort() {},
+      onOpen() {},
+      filtered: false,
+      onClearFilters() {},
+    });
+  }
   const footOf = (total) => {
     fresh();
-    return textOf(
-      again(() =>
-        PeopleTable({
-          columns: [PL_COLUMNS[0]],
-          ctx: { attention: {}, onOpen() {} },
-          rows: [talking],
-          total,
-          noun: "person",
-          sortBy: "name",
-          sortDir: "asc",
-          onSort() {},
-          onOpen() {},
-          filtered: false,
-          onClearFilters() {},
-        }),
-      ),
-    );
+    return textOf(again(() => globalThis.React.createElement(Foot, { total })));
   };
   assert.match(footOf(1), /(^|\D)1 person$/, "honest words");
   assert.match(footOf(2), /(^|\D)2 people$/, "honest words");
@@ -2431,10 +2450,10 @@ test("the table: identity that says who, Offers where First contact was, Visits 
   assert.ok(plMatcher(day)(booked), "the day they are coming");
   assert.ok(!plMatcher(day)({ ...booked, nextVisit: null }), "and only that: the day is the row's own");
   const css = readCode("apps/dashboard/src/legacy/styles/clients.css");
+  // The header that sticks is the kit's table's (kit.css, the gallery's Table family holds it); the cards are People's.
   assert.ok(
-    css.includes("overflow: clip;") &&
-      css.includes('grid-template-areas: "sel name state" "sel last visits" "sel offers offers";'),
-    "a header that sticks; cards under 900px",
+    css.includes('grid-template-areas: "sel name state" "sel last visits" "sel offers offers";'),
+    "cards under 900px",
   );
   // The link as the settings hold it (calendar-settings.ts calendarOf), on the list's envelope (people-visits.ts).
   const svc = ["calendar-settings", "people-visits"]

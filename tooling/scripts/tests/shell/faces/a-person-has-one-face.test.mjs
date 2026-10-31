@@ -33,8 +33,8 @@ const S = "../../../../../apps/dashboard/src";
 const { Face } = await import(`${S}/surfaces/kit/face/face.tsx`);
 const { Icon } = await import(`${S}/surfaces/kit/icon/icon.tsx`);
 const { AttnRow } = await import(`${S}/surfaces/kit/attention/attn-row.tsx`);
-const { PL_COLUMNS, PL_PHONE_COLUMNS } = await import(`${S}/surfaces/people/cells/columns.tsx`);
-const { pipeGlassColumns, pipePhoneColumns } = await import(`${S}/surfaces/people/pipeline/columns.tsx`);
+const { PL_COLUMNS, PL_CARD } = await import(`${S}/surfaces/people/cells/columns.tsx`);
+const { pipeGlassColumns, pipeCard } = await import(`${S}/surfaces/people/pipeline/columns.tsx`);
 
 const h = (type, props, ...kids) => globalThis.React.createElement(type, props, ...kids);
 
@@ -241,7 +241,7 @@ test("Today's attention row draws a person with the Face, and what is not one as
 test("People's table and phone card draw the same face for a number and for an address, and initials for a name", () => {
   fresh();
   const name = PL_COLUMNS.find((c) => c.key === "name");
-  const card = PL_PHONE_COLUMNS[0];
+  const card = PL_CARD;
   const rows = [
     [vmOf("p-name", "Rosa Example"), null, "RE"],
     [vmOf("p-number", NUMBER, { phone_e164: "+13055550100" }), "phone", ""],
@@ -268,7 +268,7 @@ test("People's table and phone card draw the same face for a number and for an a
 test("the Pipeline's table and phone card draw the same face as People's, for the same person", () => {
   fresh();
   const [tableName] = pipeGlassColumns();
-  const [phoneCard] = pipePhoneColumns();
+  const phoneCard = pipeCard();
   const ctx = { ...CTX, attention: null };
   for (const [name, glyph, over] of [
     ["Rosa Example", null, {}],

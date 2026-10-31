@@ -162,11 +162,15 @@ const pipeLeftColumn = (e: DragEvent<HTMLElement>) =>
     e.currentTarget.contains(e.relatedTarget as Node)
   );
 
-/** One column's head: its name, how many, what it comes to, and the fold that opens a folded one. */
+/**
+ * One column's head: its name, how many, what it comes to, and the fold that opens a folded one. Its name and its fold
+ * are a table group's (the kit's, kit.css .dtable-group-label and .dtable-group-toggle): a stage is the same group on the
+ * list and on the board.
+ */
 function columnHead(s: PipelineSection) {
   return (
     <header className="pipe-col-head">
-      <span className="pl-sec-label">{s.label}</span>
+      <span className="dtable-group-label">{s.label}</span>
       <span className="tally">{s.rows.length}</span>
       {s.meta ? (
         <span className="pipe-col-meta" data-testid="pipeline-col-meta">
@@ -176,7 +180,7 @@ function columnHead(s: PipelineSection) {
       {s.onToggle && s.toggle ? (
         <button
           type="button"
-          className="pl-sec-toggle"
+          className="dtable-group-toggle"
           aria-expanded={!s.collapsed}
           onClick={s.onToggle}
           data-testid="pipeline-col-toggle"

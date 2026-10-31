@@ -99,7 +99,7 @@
   .sq-row:is(:hover, [data-hover]) + .sq-row::after {
     opacity: 0;
   }
-  /* A group's head as the Pipeline's section head is on a phone (clients.css, .pipe-scope .pl-sec-head; Ruben, 20 Oct
+  /* A group's head as the Pipeline's section head is on a phone (kit.css, the stages' groups; Ruben, 20 Oct
      2026: "the different groups like proposal out and clients looks cleaner"): its name in ink at the base step and
      semibold, its count beside it at the small step, a hairline under the head across the list, and the head's own
      room above it parting one group from the next. */

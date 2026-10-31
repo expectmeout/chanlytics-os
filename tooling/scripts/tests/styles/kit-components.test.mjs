@@ -41,6 +41,9 @@ import { Panel } from "../../../../apps/dashboard/src/surfaces/kit/panel/panel.t
 import { Search } from "../../../../apps/dashboard/src/surfaces/kit/search/search.tsx";
 import { ViewTabs } from "../../../../apps/dashboard/src/surfaces/kit/view-tabs/view-tabs.tsx";
 import { TabBar } from "../../../../apps/dashboard/src/surfaces/kit/tab-bar/tab-bar.tsx";
+import { DataTable } from "../../../../apps/dashboard/src/surfaces/kit/table/data-table.tsx";
+import { useTableState } from "../../../../apps/dashboard/src/surfaces/kit/table/state.ts";
+import { useDataTable } from "../../../../apps/dashboard/src/surfaces/kit/table/use-data-table.ts";
 import { cx } from "../../../../apps/dashboard/src/surfaces/kit/variants.ts";
 
 installLegacyReact();
@@ -1423,4 +1426,115 @@ test("Search draws the gallery's Search family: the field in its capsule, and th
   assert.equal(kept, true, "a press on the clear keeps the field's focus");
   press(clear);
   assert.equal(words, "", "the clear empties the field");
+});
+
+/* ---- the table: DataTable over the state a page makes for it (kit/table/, decision 0083) ---- */
+
+/** A browser that can watch a list's box, where the window draws a long list in part: one that never says anything. */
+const watching = (run) => {
+  const kept = globalThis.ResizeObserver;
+  globalThis.ResizeObserver = class {
+    observe() {}
+    disconnect() {}
+  };
+  try {
+    return run();
+  } finally {
+    globalThis.ResizeObserver = kept;
+  }
+};
+
+const TABLE_STORE = { load: () => ({}), save() {}, saver: () => () => {} };
+const tableCell = (key, said) => (r) => h("td", { key }, said(r));
+/** The gallery's columns (kit-gallery.mjs TABLE_COLUMNS), as a page declares them. */
+const TABLE_COLUMNS = [
+  { key: "name", label: "Person", fill: true, sort: { first: "asc" }, cell: tableCell("name", (r) => r.name) },
+  { key: "visits", label: "Visits", align: "end", sort: { first: "desc" }, cell: tableCell("visits", (r) => r.visits) },
+  { key: "note", label: "Last said", cell: tableCell("note", (r) => r.note) },
+  {
+    key: "actions",
+    label: "",
+    fixed: true,
+    cell: () => h("td", { key: "actions" }, h(Button, { variant: "quiet", size: "sm" }, "Open")),
+  },
+];
+const TABLE_PEOPLE = [
+  { id: "a1", name: "Aisha Rahman", visits: "3", note: "Asked about Saturday" },
+  { id: "b2", name: "Bo Lindqvist", visits: "1", note: "Wants a quote" },
+  { id: "c3", name: "Carmen Diaz", visits: "7", note: "Comes every month" },
+];
+const TABLE_MANY = Array.from({ length: 48 }, (_, i) => ({
+  id: `m${i + 1}`,
+  name: `Person ${i + 1}`,
+  visits: String((i % 9) + 1),
+  note: "Booked online",
+}));
+/** A phone's card: one cell, the kit's row. */
+const TABLE_CARD = { label: "Person", cell: () => h("td", { key: "card" }, row({ said: false })) };
+/** The Pipeline's stages, as the gallery's groups (TABLE_STAGES). */
+const TABLE_STAGES = [
+  { key: "consultations", label: "Consultations", meta: "2 this week", rows: TABLE_PEOPLE.slice(0, 2) },
+  {
+    key: "passed",
+    label: "Passed or ended",
+    rows: TABLE_PEOPLE.slice(2),
+    collapsed: true,
+    onToggle() {},
+    toggle: "Show",
+  },
+];
+
+/** A page: the table's state and the table over its rows, then the kit's table, with the picks and the density given. */
+function TablePage(p) {
+  const state = useTableState({
+    scope: "people",
+    columns: TABLE_COLUMNS,
+    first: { by: "name", dir: "asc" },
+    saved: null,
+    landed: true,
+    store: TABLE_STORE,
+  });
+  const { table, rows } = useDataTable({ state, columns: TABLE_COLUMNS, data: p.rows, server: { sorting: true } });
+  return h(DataTable, {
+    table,
+    rows,
+    columns: TABLE_COLUMNS,
+    ctx: {},
+    state: { ...state, selected: new Set(p.picked ?? []), density: p.density ?? state.density },
+    total: p.total ?? rows.length,
+    filtered: !!p.filtered,
+    onClearFilters() {},
+    sortBy: p.sortBy ?? "name",
+    sortDir: p.sortDir ?? "asc",
+    onSort() {},
+    onOpen() {},
+    selectable: p.selectable ?? true,
+    cursor: p.cursor ?? null,
+    card: p.card ?? null,
+    sections: p.sections ?? null,
+    groups: p.groups ?? null,
+  });
+}
+const tableOf = (p = {}) => watching(() => again(() => h(TablePage, { rows: TABLE_PEOPLE, ...p })));
+
+/**
+ * The gallery's Table family, entry by entry: a desk's table at rest, some picked, everyone picked at the compact
+ * height, nobody to show, the stages, a long list; a phone's cards, and its stages. What the gallery writes as the table
+ * says it on its elements while it is used (scrolled, dragged, dropped on, sized, some picked) is no tag, class or
+ * attribute the skeleton reads, so the component draws those entries as it draws them at rest.
+ */
+const TABLES = {
+  dtable: () => tableOf({ cursor: "a1" }),
+  "dtable-picked": () => tableOf({ cursor: "a1", picked: ["b2"] }),
+  "dtable-all": () => tableOf({ picked: ["a1", "b2", "c3"], density: "compact", sortBy: "visits", sortDir: "desc" }),
+  "dtable-empty": () => tableOf({ rows: [], selectable: false, filtered: true, total: 12 }),
+  "dtable-groups": () => tableOf({ sections: TABLE_STAGES, groups: "stages", selectable: false }),
+  "dtable-long": () => tableOf({ rows: TABLE_MANY, selectable: false }),
+  "dtable-cards": () => tableOf({ card: TABLE_CARD, cursor: "a1", picked: ["b2"] }),
+  "dtable-cards-groups": () =>
+    tableOf({ card: TABLE_CARD, sections: TABLE_STAGES, groups: "stages", selectable: false }),
+};
+
+test("DataTable draws the gallery's Table family: a desk's columns with their heads and edges, picks, nobody, groups, a long list's gap; a phone's cards", () => {
+  assert.deepEqual(parting(FAMILIES, "Table", TABLES), HELD);
 });

@@ -2,15 +2,17 @@
  * What the Leads page reads (moved from legacy/pages/leads-real.jsx, decision 0015): one read per view, the rows the box
  * and the chips leave shown, a row's photo asked for as it is rested on, and the cells' context that holds still.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import {
-  leadReaches,
+  leadReachOf,
+  type LeadBand,
   type LeadReachFilter,
   type LeadRowVM,
   type LeadSort,
   type PersonRowVM,
 } from "@chanlytics/contracts";
+import type { TableState } from "../../kit/table/state";
 import { refusalToast } from "../../legacy-verbs";
 import type { Flash } from "../../people/types";
 import { leadPhotoWarm } from "../peek/seams";
@@ -71,48 +73,61 @@ export const useLeadsRead = ({
   return { leadsMoreBusy, leadsMore: loadMore };
 };
 
+/** What the box's words keep of a lead: its name, its kind and its area. A sentence is not sent anywhere: words to chips is release C. */
+export const leadWords = (q: string): ((l: LeadRowVM) => boolean) | null => {
+  const needle = q.trim().toLowerCase();
+  if (!needle) return null;
+  return (l) =>
+    l.name.toLowerCase().includes(needle) ||
+    (l.category || "").toLowerCase().includes(needle) ||
+    (l.area || "").toLowerCase().includes(needle);
+};
+
+/** One of the band's fits (D5): the strong ones, the ones worth a look, the long shots. */
+type LeadFit = LeadBand["fits"][number]["id"];
+const NO_REACH: LeadReachFilter[] = [];
+
 /**
- * The leads loaded, filtered at once by the box (their name, their kind and their area), by one criterion of the
- * Excluded view, by a fit, and by the Filter's reach (a checked email, a checked phone, or both). A sentence is not sent
- * anywhere: words to chips is release C. `narrowed` is whether any of those hides a loaded row: then "all that match" is
- * no claim the bars can make, since the view the server knows is wider than the rows on screen.
+ * The page's narrowings, each a filter of the table's (kit/table/state.ts) on its column (cells/columns.tsx): one
+ * criterion of the Excluded view (`f_excluded`), a fit, and the Filter's reach (`f_reach`: a checked email, a checked
+ * phone, or both). The Filter is kept with the view's place, as the map is, so Back puts it back and another view starts
+ * without it.
+ */
+export const leadNarrowings = (table: TableState) => {
+  const reach = table.filterOf("f_reach");
+  return {
+    chip: (table.filterOf("f_excluded") as string | null) ?? null,
+    setChip: (why: string | null) => table.setFilter("f_excluded", why),
+    fitChip: (table.filterOf("fit") as LeadFit | null) ?? null,
+    setFitChip: (fit: LeadFit | null) => table.setFilter("fit", fit),
+    reach: Array.isArray(reach) ? leadReachOf(reach) : NO_REACH,
+    setReach: (r: readonly LeadReachFilter[]) => table.setFilter("f_reach", r.length ? leadReachOf(r) : null),
+  };
+};
+export type LeadNarrowings = ReturnType<typeof leadNarrowings>;
+
+/**
+ * The leads loaded, as the table shows them (the box's words and the page's narrowings over the view's rows, in the
+ * order the server read them). `narrowed` is whether any of those hides a loaded row: then "all that match" is no claim
+ * the bars can make, since the view the server knows is wider than the rows on screen.
  */
 export const useLeadRows = ({
   leads,
-  q,
-  chip,
-  fitChip,
-  reach,
+  leadShown,
+  narrowed,
   leadView,
   viewRoute,
   sortBy,
   sortDir,
 }: {
   leads: LeadsSurface;
-  q: string;
-  chip: string | null;
-  fitChip: string | null;
-  reach: readonly LeadReachFilter[];
+  leadShown: LeadRowVM[];
+  narrowed: boolean;
   leadView: LeadView;
   viewRoute: string;
   sortBy: string;
   sortDir: string;
 }) => {
-  const leadShown = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    let list = leads.rows;
-    if (chip) list = list.filter((l) => l.excludedBy === chip);
-    if (fitChip) list = list.filter((l) => l.fit === fitChip);
-    if (reach.length) list = list.filter((l) => leadReaches(l.slots, reach));
-    if (!needle) return list;
-    return list.filter(
-      (l) =>
-        l.name.toLowerCase().includes(needle) ||
-        (l.category || "").toLowerCase().includes(needle) ||
-        (l.area || "").toLowerCase().includes(needle),
-    );
-  }, [leads.rows, q, chip, fitChip, reach]);
-  const narrowed = !!q.trim() || !!chip || !!fitChip || reach.length > 0;
   const filtered = narrowed || !!leadView.cls || leadView.list !== "all";
   const shownIds = leadShown.map((r) => r.id);
   // The surface holds the view the address names, in the order this page asked for: a sort is a read too (never the

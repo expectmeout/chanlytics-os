@@ -43,7 +43,13 @@ import { importSrc } from "../../_source.mjs";
 
 const { CALL_OUTCOME_WORDS } = await importSrc("packages/contracts/src/conversations/call-dto.ts");
 const { invitationExpired } = await importSrc("packages/contracts/src/shell/identity.ts");
-const { plShownColumns, plColumnOptions } = await importSrc("apps/dashboard/src/surfaces/people/table/columns.ts");
+const { columnOptionsOf, columnsIn, shownColumnsOf, visibilityOf } = await importSrc(
+  "apps/dashboard/src/surfaces/kit/table/columns.ts",
+);
+/** The columns a desk draws for what the workspace is, nobody having chosen any. */
+const plShownColumns = (columns, choices, x) =>
+  shownColumnsOf(columnsIn(columns, x), visibilityOf(columns, choices), []);
+const plColumnOptions = (columns, choices, x) => columnOptionsOf(columnsIn(columns, x), visibilityOf(columns, choices));
 const { plSortedBy } = await importSrc("apps/dashboard/src/surfaces/people/words.ts");
 const { peopleSortItems } = await importSrc("apps/dashboard/src/surfaces/people/page/phone-menu.ts");
 
@@ -466,7 +472,7 @@ test("D1-visit-words: People's table heads the column in the workspace's word, i
     key: "visits",
     label: "Appointments",
     labelOf: (x) => appointmentWords(x.word ?? "appointment").Many,
-    sortable: true,
+    sort: { first: "asc" },
     needs: (x) => !!x.withCalendar,
     cell: () => null,
   };
@@ -480,7 +486,7 @@ test("D1-visit-words: People's table heads the column in the workspace's word, i
   );
   // A column with no word of its own keeps its label.
   assert.deepEqual(
-    plShownColumns([{ key: "last", label: "Last contact", sortable: true, cell: () => null }], {}, {}).map(
+    plShownColumns([{ key: "last", label: "Last contact", sort: { first: "desc" }, cell: () => null }], {}, {}).map(
       (c) => c.label,
     ),
     ["Last contact"],
