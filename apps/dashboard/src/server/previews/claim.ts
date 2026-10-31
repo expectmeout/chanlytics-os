@@ -64,7 +64,7 @@ export async function previewForSignup(token: string): Promise<PreviewForSignup 
 }
 
 /** The claim's refusal, in the door's own words: none found, someone's own already, ended, or the account's ten. */
-function refusalOf(reason: PreviewRefusal, message: string): AppError {
+function claimRefusalOf(reason: PreviewRefusal, message: string): AppError {
   if (reason === "not_found") return new AppError("not_found", message, 404);
   if (reason === "signed_out") return new AppError("forbidden", message, 403);
   if (reason === "taken" || reason === "ended" || reason === "limit") return new AppError("conflict", message, 409);
@@ -87,7 +87,7 @@ export async function claimPreviewFor(ctx: RouteContext, token: string) {
   // Read before the claim, for its marks: what it was used for does not change once it is theirs.
   const used = await claimableRow(linkPageDb(), token).catch(() => null);
   const r = await claimPreview(ctx.supabase, token);
-  if (!r.ok) throw refusalOf(r.reason, r.message);
+  if (!r.ok) throw claimRefusalOf(r.reason, r.message);
   const workspace = r.value;
   log.info("preview_claimed", { tenant_id: workspace.id });
 

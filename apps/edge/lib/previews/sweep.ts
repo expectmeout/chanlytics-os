@@ -8,7 +8,7 @@
  * leaves the preview for the next hour, never an agent with no workspace behind it. A preview that never had a call has
  * no agent, and ends at once.
  *
- * The work is bounded by time: no preview starts after YIELD_AT_MS from the door's first line, and what is left is first
+ * The work is bounded by time: no preview starts after PREVIEWS_YIELD_AT_MS from the door's first line, and what is left is first
  * in line the next hour. It answers 200 with the counts whatever the provider said, and 503 only when the previews
  * cannot be read. Its lines carry `sweep: "previews"`, and the tick ends in one previews_swept.
  */
@@ -23,9 +23,9 @@ import type { SweepTick } from "../ops/sweep-door.js";
 type Db = SupabaseClient<Database>;
 
 /** No preview starts after this, counted from the door's first line: each is two calls and a write, under ten seconds. */
-const YIELD_AT_MS = 40_000;
+const PREVIEWS_YIELD_AT_MS = 40_000;
 /** The most previews one tick reads. */
-const BATCH = 50;
+const PREVIEWS_PER_TICK = 50;
 
 /** The provider's two deletes, as ports: the real ones, or a test's. */
 interface PreviewProvider {
@@ -72,14 +72,14 @@ export async function sweepPreviews(
 ): Promise<Response> {
   let rows: Awaited<ReturnType<typeof previewsPastTheirEnd>>;
   try {
-    rows = await previewsPastTheirEnd(db, new Date(now()), BATCH);
+    rows = await previewsPastTheirEnd(db, new Date(now()), PREVIEWS_PER_TICK);
   } catch (e) {
     L.error("preview_end_failed", { step: "read", error: errField(e) });
     return refuse(503, "no_database");
   }
   const counts: Record<Swept | "left", number> = { ended: 0, held: 0, failed: 0, left: 0 };
   for (const row of rows) {
-    if (now() - started > YIELD_AT_MS) {
+    if (now() - started > PREVIEWS_YIELD_AT_MS) {
       counts.left += 1;
       continue;
     }

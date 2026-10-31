@@ -12,7 +12,7 @@ import { contactName, initialsOf } from "../conversations/thread-contact";
 import type { ConversationDto } from "../conversations/thread-dto";
 import { waWindow } from "../config/policy";
 import { leadQuestionRoute, type LeadSearchDto } from "../leads/leads";
-import { previewSaidOf, previewTriedWords, type PreviewTriedDto } from "../previews/preview-line";
+import { previewSaidOf, previewTriedWords, type PreviewTriedDto } from "../previews/preview-tried";
 import { NEED_YOU_WORDS } from "../need-you/need-you-words";
 import { MIN_MS, HOUR_MS } from "../shared/time";
 import { tzClock } from "./today-clock";

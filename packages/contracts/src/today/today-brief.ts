@@ -19,7 +19,7 @@ import type { CallDto } from "../conversations/call-dto";
 import type { EscalationDto } from "../conversations/escalations";
 import type { ConversationDto } from "../conversations/thread-dto";
 import type { LeadSearchDto } from "../leads/leads";
-import type { PreviewTriedDto } from "../previews/preview-line";
+import type { PreviewTriedDto } from "../previews/preview-tried";
 import { runDaysAt } from "../playbooks/playbook-approval";
 import { runsThatWait, type WaitingRun } from "../waits/waits";
 import {

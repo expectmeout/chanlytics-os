@@ -20,7 +20,7 @@ const BODY_MAX_BYTES = 4096;
 type Ctx = { params: Promise<{ token: string }> };
 
 /** A body read as an object of fields, or an empty one: a field of the wrong kind is each door's to refuse. */
-async function bodyOf(req: Request): Promise<Record<string, unknown>> {
+async function fieldsOf(req: Request): Promise<Record<string, unknown>> {
   const text = await req.text().catch(() => "");
   if (text.length > BODY_MAX_BYTES) throw new AppError("validation", "That is too long.", 413);
   try {
@@ -41,7 +41,7 @@ export function previewRoute<T>(
       if (!isSameOrigin(req)) throw new AppError("forbidden", "This page's own buttons ask here.", 403);
       await takeRate(`ip:${hashKey(ipOf(req))}`, bucket);
       const { token } = await ctx.params;
-      return NextResponse.json(ok(await run(token, await bodyOf(req))), { headers: PRIVATE });
+      return NextResponse.json(ok(await run(token, await fieldsOf(req))), { headers: PRIVATE });
     } catch (e) {
       if (e instanceof AppError)
         return NextResponse.json(err(e.code, e.message), { status: e.status, headers: PRIVATE });

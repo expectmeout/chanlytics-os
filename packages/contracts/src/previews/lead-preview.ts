@@ -39,8 +39,7 @@ export const PREVIEW_LIMITS = {
 } as const;
 
 /** Why a preview could not be made, as its row keeps it (lead_previews.failed_why). */
-export const PREVIEW_FAILURES = ["no_name", "build_failed"] as const;
-export type PreviewFailure = (typeof PREVIEW_FAILURES)[number];
+export type PreviewFailure = "no_name" | "build_failed";
 
 /* ---- its page ---- */
 
@@ -93,7 +92,7 @@ export interface PreviewPageFacts {
   call_seconds: number;
 }
 
-const TONES: ReadonlySet<string> = new Set(["sends", "waits", "yours"]);
+const TURN_TONES: ReadonlySet<string> = new Set(["sends", "waits", "yours"]);
 type Tone = NonNullable<PreviewTurnVM["then"]>["tone"];
 
 /** The chat as the row keeps it (00497 preview_said: {role, content, then?}), read for what each turn is. */
@@ -104,7 +103,7 @@ export function previewTurnsOf(raw: unknown): PreviewTurnVM[] {
     if (!o || (o.role !== "user" && o.role !== "assistant") || typeof o.content !== "string") return [];
     const then = o.then && typeof o.then === "object" ? (o.then as Record<string, unknown>) : null;
     const said =
-      o.role === "assistant" && then && typeof then.words === "string" && TONES.has(String(then.tone))
+      o.role === "assistant" && then && typeof then.words === "string" && TURN_TONES.has(String(then.tone))
         ? { words: then.words, tone: then.tone as Tone }
         : null;
     return [{ role: o.role, text: o.content, then: said }];

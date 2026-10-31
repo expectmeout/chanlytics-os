@@ -626,8 +626,10 @@ test(
         builds.map((j) => j.payload.preview_id),
         [made[0].id],
       );
-      // Nothing here runs: the email's job and the build, withdrawn, so a runner beside this suite does neither.
-      ok(await db.from("jobs").update({ state: "canceled" }).eq("tenant_id", C));
+      // Nothing here runs: the email's job and the build, withdrawn, so a runner beside this suite does neither. One a
+      // runner beside it claimed already is fired, which only finishes or fails: it is left to it, and the workspace's
+      // end below takes it.
+      ok(await db.from("jobs").update({ state: "canceled" }).eq("tenant_id", C).eq("state", "scheduled"));
     } finally {
       ok(await db.from("tenants").delete().eq("id", C));
     }

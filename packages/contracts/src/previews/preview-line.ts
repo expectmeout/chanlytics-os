@@ -6,11 +6,12 @@
  *   previewLineOf    the line: none yet, being set up, couldn't be made (why), ready, sent, opened, tried, made theirs or
  *                    ended; what they said is not right under it; and which of Make their preview, Open it and Copy link
  *                    it offers
- *   previewTriedWords  what a lead's trying came to, said once for the line and Today's row
+ *
+ * What a lead's trying came to, and what it said is not right, are preview-tried.ts's, which Today shares.
  */
-import { DAY_MS, MIN_MS, SECOND_MS } from "../shared/time";
+import { DAY_MS } from "../shared/time";
 import { previewClaimable, previewStateOf } from "./lead-preview";
-import { LEAD_PREVIEW_WORDS } from "./preview-words";
+import { previewSaidOf, previewTriedWords } from "./preview-tried";
 
 /** A lead's preview as its sender's workspace reads it: the row's facts the line says, never its chat. */
 export interface LeadPreviewFacts {
@@ -33,22 +34,6 @@ export interface LeadPreviewFacts {
 export interface LeadPreviewDto {
   preview: LeadPreviewFacts | null;
   makes: boolean;
-}
-
-/** How far back Today names a lead who tried their preview: a hot lead goes cold in days, not weeks. */
-export const PREVIEW_TRIED_DAYS = 3;
-
-/** A preview its lead tried (GET lead-previews): Today's row, by its lead and the business's name. */
-export interface PreviewTriedDto {
-  id: string;
-  lead_id: string;
-  state: string;
-  tried_at: string;
-  asked_count: number;
-  call_count: number;
-  call_seconds: number;
-  not_right: unknown;
-  business: string | null;
 }
 
 /** The lead sheet's line. */
@@ -83,38 +68,7 @@ export const PREVIEW_LINE_WORDS = {
   copy: "Copy link",
   copied: "Link copied",
   notOurs: "Only Chanlytics' own workspace makes previews.",
-  /** One thing they said is not right: the fact by its row's name, and their words where they gave some. */
-  notRight: (fact: string, said: string | null) => {
-    // The page sends the fact by its row's label ("Hours"); a key ("hours") reads the same.
-    const name = ((LEAD_PREVIEW_WORDS.rows as Record<string, string>)[fact] ?? fact).toLowerCase();
-    const isNot = name === "hours" || name === "services" ? "aren't" : "isn't";
-    return said ? `Says the ${name} ${isNot} right: “${said}”` : `Says the ${name} ${isNot} right`;
-  },
 } as const;
-
-/** What a lead's trying came to: its messages and its calls, said as one line ("4 messages · a call of 2 minutes"). */
-export function previewTriedWords(f: Pick<LeadPreviewFacts, "asked_count" | "call_count" | "call_seconds">): string {
-  const bits: string[] = [];
-  if (f.asked_count > 0) bits.push(f.asked_count === 1 ? "1 message" : `${f.asked_count} messages`);
-  if (f.call_count > 0) {
-    const min = Math.max(1, Math.round((f.call_seconds * SECOND_MS) / MIN_MS));
-    const length = min === 1 ? "a minute" : `${min} minutes`;
-    bits.push(f.call_count === 1 ? `a call of ${length}` : `${f.call_count} calls, ${length} in all`);
-  }
-  return bits.join(" · ");
-}
-
-/** What they said is not right, as the row keeps it: each a line, the newest last, three at most. */
-export function previewSaidOf(notRight: unknown): string[] {
-  if (!Array.isArray(notRight)) return [];
-  return notRight
-    .filter(
-      (n: unknown): n is { fact: string; said?: unknown } =>
-        !!n && typeof n === "object" && typeof (n as { fact?: unknown }).fact === "string",
-    )
-    .slice(-3)
-    .map((n) => PREVIEW_LINE_WORDS.notRight(n.fact, typeof n.said === "string" ? n.said : null));
-}
 
 /** The line for a lead's preview, or null where there is none and this workspace makes none. */
 export function previewLineOf(dto: LeadPreviewDto, now: Date): LeadPreviewLineVM | null {

@@ -4,8 +4,8 @@
  * /preview/<token>/mine), where someone signed in makes it theirs with one press and a new account as its code signs it
  * in; and asked by the first screen (legacy-bridge/CreateWorkspace.tsx), for an account that comes back to sign in later.
  */
-import { FIRST_RUN_ROUTE, SIGNUP_WORDS } from "@chanlytics/contracts";
-import { rememberWorkspace, workspaceHref } from "@/legacy-bridge/workspace";
+import { FIRST_RUN_ROUTE, SIGNUP_WORDS, appLink } from "@chanlytics/contracts";
+import { rememberWorkspace } from "@/legacy-bridge/workspace";
 
 /** A preview's link as sign-up reads it (server/previews/claim.ts): whose receptionist, and the address it was sent to. */
 export interface SignupPreview {
@@ -50,5 +50,5 @@ export async function claimPreviewNow(token: string): Promise<ClaimAnswer> {
 /** Where a workspace made theirs opens from sign-up: its first run, and the one this browser opens next. */
 export function openClaimed(slug: string): void {
   rememberWorkspace(slug);
-  window.location.assign(workspaceHref(slug, `#/${FIRST_RUN_ROUTE}`));
+  window.location.assign(appLink(slug, FIRST_RUN_ROUTE));
 }

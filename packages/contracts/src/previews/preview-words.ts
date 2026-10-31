@@ -4,13 +4,12 @@
  * contracts' (lead-preview.ts says which state is which, on the server).
  */
 import { MIN_MS } from "../shared/time";
-
-/** A business's, as a sentence says it: "Luna's", and "Fixture Barbers'" for a name that ends in s. */
-const theirs = (business: string): string => (/s$/i.test(business.trim()) ? `${business}'` : `${business}'s`);
+import { possessive } from "../shared/words";
+import { PREVIEW_FACT_NAMES } from "./preview-tried";
 
 export const LEAD_PREVIEW_WORDS = {
   /** The tab's title and the page's heading. */
-  title: (business: string) => `${theirs(business)} receptionist`,
+  title: (business: string) => `${possessive(business.trim())} receptionist`,
   chip: "Preview",
   setUp: (business: string) => `Chanlytics set this up for ${business}.`,
 
@@ -49,7 +48,7 @@ export const LEAD_PREVIEW_WORDS = {
 
   knowsTitle: "What it knows",
   from: { google: "Google", site: "Your site" },
-  rows: { hours: "Hours", address: "Address", phone: "Phone", website: "Website", services: "Services" },
+  rows: PREVIEW_FACT_NAMES,
   notRight: "Not right",
   notRightLabel: "What's right? (optional)",
   notRightSend: "Send",
@@ -62,7 +61,7 @@ export const LEAD_PREVIEW_WORDS = {
 
   /** Sign-up, from Make it mine (L4): whose receptionist waits, and the one press of someone already signed in. */
   signup: {
-    title: (business: string) => `${theirs(business)} receptionist is waiting for you`,
+    title: (business: string) => `${possessive(business.trim())} receptionist is waiting for you`,
     lead: "Make an account to keep it. Everything it knows comes with it.",
     signedIn: (email: string) =>
       `You're signed in as ${email}. It becomes a workspace of yours, with everything it knows.`,
@@ -74,7 +73,7 @@ export const LEAD_PREVIEW_WORDS = {
   },
 
   building: {
-    title: (business: string) => `Setting up ${theirs(business)} receptionist`,
+    title: (business: string) => `Setting up ${possessive(business.trim())} receptionist`,
     sub: "This takes about half a minute.",
   },
   ended: { title: "This preview has ended.", body: "You can set one up yourself in a few minutes.", start: "Start" },

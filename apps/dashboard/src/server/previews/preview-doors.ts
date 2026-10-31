@@ -65,14 +65,14 @@ async function openPreview(
 }
 
 /** A door's refusal as the page says it. */
-function refused(reason: PreviewRefusal): AppError {
+function doorRefused(reason: PreviewRefusal): AppError {
   if (reason === "limit") return new AppError("conflict", W.spent, 409);
-  if (reason === "refused") return new AppError("validation", W.failed, 400);
+  if (reason === "doorRefused") return new AppError("validation", W.failed, 400);
   return new AppError("conflict", W.ended.title, 409);
 }
 
 /** What a message comes back as: the answer, what a live chat would do with it, and how many it will still answer. */
-export interface PreviewAnswer {
+interface PreviewAnswer {
   turn: PreviewTurnVM;
   left: number;
 }
@@ -95,7 +95,7 @@ export async function previewMessage(token: string, raw: unknown): Promise<Previ
     throw new AppError("upstream_anthropic", W.failed, 502);
   }
   const kept = await previewSaid(dbOrFail(), p.id, text, { text: vm.said, then: vm.then });
-  if (!kept.ok) throw refused(kept.reason);
+  if (!kept.ok) throw doorRefused(kept.reason);
   return {
     turn: { role: "assistant", text: vm.said, then: vm.then },
     left: Math.max(0, PREVIEW_LIMITS.messages - kept.value),
@@ -117,12 +117,12 @@ export async function previewNotRightBy(token: string, fact: unknown, said: unkn
   const right = typeof said === "string" && said.trim() ? said.trim().slice(0, 300) : null;
   const p = await openPreview(token, { calls: false });
   const kept = await previewNotRight(dbOrFail(), p.id, named, right);
-  if (!kept.ok) throw refused(kept.reason);
+  if (!kept.ok) throw doorRefused(kept.reason);
   return { kept: kept.value };
 }
 
 /** What a call comes back as: the call the browser joins, how long it may run, and what is left after it. */
-export interface PreviewCall {
+interface PreviewCall {
   rehearsal_id: string;
   call: RehearsalStartDto["call"];
   max_ms: number;

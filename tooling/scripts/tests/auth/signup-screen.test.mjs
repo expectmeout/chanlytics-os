@@ -381,7 +381,7 @@ test("from a preview's link, the code makes it theirs and opens its first run; a
 test("signed in, from a preview's link: one press makes it theirs; refused, the door's words; or another account", async () => {
   let signedOut = 0;
   let reloaded = 0;
-  window.location.reload = () => (reloaded += 1);
+  globalThis.window.location.reload = () => (reloaded += 1);
   auth = { session: { user: { email: "ada@example.com" } }, signOut: () => ((signedOut += 1), { error: null }) };
   await openFromLink("invite", { [CLAIM]: CLAIMED });
   assert.equal(card().props["data-testid"], "signup-claim", "no form, no code: one press");
@@ -404,6 +404,6 @@ test("signed in, from a preview's link: one press makes it theirs; refused, the 
 
   await find((n) => n.type === "button" && textOf(n) === W.other).props.onClick();
   assert.deepEqual([signedOut, reloaded], [1, 1], "signed out, and the page is the form again");
-  delete window.location.reload;
+  delete globalThis.window.location.reload;
   preview = null;
 });

@@ -39,7 +39,7 @@ export function previewZoneOf(l: Pick<LeadListingInput, "region">): string {
 }
 
 /** "12 Main St, Austin, TX 78701": the parts the lead holds, in the order an address is written; null for none. */
-function addressOf(l: LeadListingInput): string | null {
+function listingAddressOf(l: LeadListingInput): string | null {
   const place = [l.region, l.postal_code]
     .map((x) => x?.trim())
     .filter(Boolean)
@@ -68,7 +68,7 @@ export function leadAsListing(l: LeadListingInput): NonNullable<FirstReceptionis
   };
   return {
     name: leadCalledByOf({ business_name: l.business_name, city: l.city }),
-    address: addressOf(l),
+    address: listingAddressOf(l),
     facts,
   };
 }

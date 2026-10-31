@@ -10,6 +10,7 @@
  *   - Every write is a door: made, built, sent, opened, said, called, not right and ended on the service role; claimed
  *     on the claimer's own session (`claimPreview`). A door's refusal comes back as its reason, never as a throw.
  */
+import type { PreviewTriedDto } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../database.types";
 import { platformWide, tenantDb } from "../../tenant-db";
@@ -23,7 +24,7 @@ export type LeadPreviewRow = Database["public"]["Tables"]["lead_previews"]["Row"
 export type PreviewRefusal = "limit" | "ended" | "not_found" | "taken" | "not_ours" | "refused" | "signed_out";
 
 /** A door's raised code, read as its reason. 55000 is a claim's: taken when it names a business set up, else ended. */
-export function previewRefusalOf(error: { code?: string; message?: string }): PreviewRefusal {
+function previewRefusalOf(error: { code?: string; message?: string }): PreviewRefusal {
   switch (error.code) {
     case "54000":
       return "limit";
@@ -44,7 +45,7 @@ export function previewRefusalOf(error: { code?: string; message?: string }): Pr
 export type PreviewDoor<T> = { ok: true; value: T } | { ok: false; reason: PreviewRefusal; message: string };
 
 /** One of the doors' answers, read: a known refusal is its reason; anything else is the database's, thrown. */
-function doorOf<T>(r: { data: unknown; error: { code?: string; message: string } | null }): PreviewDoor<T> {
+function previewDoorOf<T>(r: { data: unknown; error: { code?: string; message: string } | null }): PreviewDoor<T> {
   if (!r.error) return { ok: true, value: r.data as T };
   const reason = previewRefusalOf(r.error);
   if (reason === "refused" && r.error.code !== "22023") throw new Error(r.error.message);
@@ -65,7 +66,7 @@ export async function makeLeadPreview(
   db: Db,
   p: { tenantId: string; leadId: string; name: string; timezone: string | null; by: string | null },
 ): Promise<PreviewDoor<PreviewMade>> {
-  return doorOf<PreviewMade>(
+  return previewDoorOf<PreviewMade>(
     await db.rpc("preview_make", {
       p_tenant_id: p.tenantId,
       p_lead_id: p.leadId,
@@ -104,7 +105,7 @@ export async function previewSaid(
   text: string,
   reply: { text: string; then?: Json | null },
 ): Promise<PreviewDoor<number>> {
-  return doorOf<number>(
+  return previewDoorOf<number>(
     await db.rpc("preview_said", { p_id: id, p_text: text, p_reply: { text: reply.text, then: reply.then ?? null } }),
   );
 }
@@ -126,7 +127,7 @@ export async function previewNotRight(
   fact: string,
   said: string | null,
 ): Promise<PreviewDoor<number>> {
-  return doorOf<number>(
+  return previewDoorOf<number>(
     await db.rpc("preview_not_right", { p_id: id, p_fact: fact, ...(said ? { p_said: said } : {}) }),
   );
 }
@@ -143,7 +144,7 @@ export interface ClaimedWorkspace {
 
 /** Make it mine, on the claimer's own session: the workspace now theirs, or why not. */
 export async function claimPreview(session: Db, token: string): Promise<PreviewDoor<ClaimedWorkspace>> {
-  const r = doorOf<ClaimedWorkspace[]>(await session.rpc("preview_claim", { p_token: token }));
+  const r = previewDoorOf<ClaimedWorkspace[]>(await session.rpc("preview_claim", { p_token: token }));
   if (!r.ok) return r;
   const workspace = r.value[0];
   if (!workspace) throw new Error("preview_claim answered no row");
@@ -227,21 +228,8 @@ export async function leadPreviewOfWorkspace(db: Db, previewTenantId: string): P
   return data;
 }
 
-/** A preview its lead tried, as Today's row says it: what came of it, and the business by its lead's name. */
-export interface PreviewTriedRow {
-  id: string;
-  lead_id: string;
-  state: string;
-  tried_at: string;
-  asked_count: number;
-  call_count: number;
-  call_seconds: number;
-  not_right: Json;
-  business: string | null;
-}
-
 /** The previews a workspace's leads tried since a moment, the newest first (Today's rows, under the member's session). */
-export async function previewsTriedSince(db: Db, tenantId: string, since: string): Promise<PreviewTriedRow[]> {
+export async function previewsTriedSince(db: Db, tenantId: string, since: string): Promise<PreviewTriedDto[]> {
   const { data, error } = await tenantDb(db, tenantId)
     .from("lead_previews")
     .select("id, lead_id, state, tried_at, asked_count, call_count, call_seconds, not_right, lead:leads(business_name)")

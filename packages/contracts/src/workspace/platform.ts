@@ -211,7 +211,15 @@ function verdictFor(r: PlatformTenantDto, nowMs: number): PlatformVerdict {
   return "live";
 }
 
-function sentenceFor(r: PlatformTenantDto, verdict: PlatformVerdict, nowMs: number): string {
+/** The verdicts that are no customer, each said in a sentence with nothing of the workspace in it. */
+const NOT_A_CUSTOMER = {
+  test: "Not a customer — a test workspace.",
+  preview: "A lead's own receptionist, made for them to try before they sign up. Not a customer yet.",
+} as const satisfies Partial<Record<PlatformVerdict, string>>;
+type CustomerVerdict = Exclude<PlatformVerdict, keyof typeof NOT_A_CUSTOMER>;
+const isCustomer = (v: PlatformVerdict): v is CustomerVerdict => !(v in NOT_A_CUSTOMER);
+
+function sentenceFor(r: PlatformTenantDto, verdict: CustomerVerdict, nowMs: number): string {
   const heard = at(r.last_inbound_at);
   const quietFor = heard === null ? null : Math.floor((nowMs - heard) / DAY_MS);
   switch (verdict) {
@@ -262,10 +270,6 @@ function sentenceFor(r: PlatformTenantDto, verdict: PlatformVerdict, nowMs: numb
       return `Answering; last heard from ${heard === null ? "never" : agoWords(heard, nowMs)}.`;
     case "paused":
       return `The workspace is paused, by design: ${PAUSED_CALL}.`;
-    case "test":
-      return "Not a customer — a test workspace.";
-    case "preview":
-      return "A lead's own receptionist, made for them to try before they sign up. Not a customer yet.";
   }
 }
 
@@ -321,7 +325,7 @@ export function platformRows(rows: readonly PlatformTenantDto[], nowMs = Date.no
         slug: r.slug,
         name: r.name,
         verdict,
-        sentence: sentenceFor(r, verdict, nowMs),
+        sentence: isCustomer(verdict) ? sentenceFor(r, verdict, nowMs) : NOT_A_CUSTOMER[verdict],
         facts: factsFor(r, nowMs),
         age: agoWords(at(r.created_at) ?? nowMs, nowMs),
         members: r.members,
@@ -344,7 +348,7 @@ export function platformSummary(rows: readonly PlatformRowVM[]): {
   previews: number;
   sentence: string;
 } {
-  const customers = rows.filter((r) => r.verdict !== "test" && r.verdict !== "preview");
+  const customers = rows.filter((r) => isCustomer(r.verdict));
   const previews = rows.filter((r) => r.verdict === "preview").length;
   const needsUs = customers.filter((r) => r.verdict === "broken" || r.verdict === "rehearsal").length;
   const needsThem = customers.filter(

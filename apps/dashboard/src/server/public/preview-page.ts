@@ -24,7 +24,7 @@ import { linkPageDb, linkPageLookOf, NO_LOOK, type LinkPageLook } from "./link-p
 type Db = SupabaseClient<Database>;
 
 /** What the page is drawn from, and the row its routes act on. */
-export interface PreviewPageRead {
+interface PreviewPageRead {
   row: LeadPreviewRow;
   facts: PreviewPageFacts;
   look: LinkPageLook;
@@ -37,7 +37,7 @@ async function profileOf(db: Db, tenantId: string): Promise<PreviewPageFacts["pr
 }
 
 /** The number the business's listing gives, from the lead it was made from; none where the lead is gone. */
-async function phoneOf(db: Db, row: LeadPreviewRow): Promise<string | null> {
+async function listingPhoneOf(db: Db, row: LeadPreviewRow): Promise<string | null> {
   const lead = await leadForPreview(db, row.tenant_id, row.lead_id).catch(() => null);
   return formatPhoneDisplay(lead?.phone_e164 ?? null);
 }
@@ -49,7 +49,7 @@ export async function previewPageFor(token: string, db: Db | null = linkPageDb()
   if (!row) return null;
   const ws = row.preview_tenant_id;
   const [look, profile, phone] = ws
-    ? await Promise.all([linkPageLookOf(db, ws), profileOf(db, ws), phoneOf(db, row)])
+    ? await Promise.all([linkPageLookOf(db, ws), profileOf(db, ws), listingPhoneOf(db, row)])
     : [NO_LOOK, null, null];
   return {
     row,

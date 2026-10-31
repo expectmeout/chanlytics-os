@@ -9324,10 +9324,10 @@ COMMENT ON FUNCTION public.lead_plan_check(p_plan jsonb) IS 'Raises 22023 naming
 
 
 --
--- Name: lead_previews_end_with_their_lead(); Type: FUNCTION; Schema: public; Owner: -
+-- Name: lead_previews_erase_with_their_lead(); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.lead_previews_end_with_their_lead() RETURNS trigger
+CREATE FUNCTION public.lead_previews_erase_with_their_lead() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -40194,10 +40194,10 @@ CREATE TRIGGER jobs_wake AFTER INSERT ON public.jobs REFERENCING NEW TABLE AS ne
 
 
 --
--- Name: leads lead_previews_end_with_their_lead; Type: TRIGGER; Schema: public; Owner: -
+-- Name: leads lead_previews_erase_with_their_lead; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER lead_previews_end_with_their_lead AFTER UPDATE OF blanked_at, erased_at ON public.leads FOR EACH ROW WHEN ((((new.blanked_at IS NOT NULL) AND (old.blanked_at IS NULL)) OR ((new.erased_at IS NOT NULL) AND (old.erased_at IS NULL)))) EXECUTE FUNCTION public.lead_previews_end_with_their_lead();
+CREATE TRIGGER lead_previews_erase_with_their_lead AFTER UPDATE OF blanked_at, erased_at ON public.leads FOR EACH ROW WHEN ((((new.blanked_at IS NOT NULL) AND (old.blanked_at IS NULL)) OR ((new.erased_at IS NOT NULL) AND (old.erased_at IS NULL)))) EXECUTE FUNCTION public.lead_previews_erase_with_their_lead();
 
 
 --
@@ -46599,11 +46599,11 @@ GRANT ALL ON FUNCTION public.lead_plan_check(p_plan jsonb) TO service_role;
 
 
 --
--- Name: FUNCTION lead_previews_end_with_their_lead(); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION lead_previews_erase_with_their_lead(); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.lead_previews_end_with_their_lead() FROM PUBLIC;
-GRANT ALL ON FUNCTION public.lead_previews_end_with_their_lead() TO service_role;
+REVOKE ALL ON FUNCTION public.lead_previews_erase_with_their_lead() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.lead_previews_erase_with_their_lead() TO service_role;
 
 
 --

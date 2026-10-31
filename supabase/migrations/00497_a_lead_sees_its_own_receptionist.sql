@@ -109,7 +109,7 @@ create trigger lead_previews_take_their_workspace after delete on public.lead_pr
 
 -- A lead blanked or erased (lead_blank, lead_erase, a person's erasure) ends its preview at once: what the business
 -- wrote to it and said was not right cleared, its workspace erased. One made theirs is theirs, and stays.
-create or replace function public.lead_previews_end_with_their_lead()
+create or replace function public.lead_previews_erase_with_their_lead()
 returns trigger
 language plpgsql
 security definer
@@ -127,12 +127,12 @@ begin
   end if;
   return new;
 end $$;
-revoke execute on function public.lead_previews_end_with_their_lead() from public, anon, authenticated;
-drop trigger if exists lead_previews_end_with_their_lead on public.leads;
-create trigger lead_previews_end_with_their_lead after update of blanked_at, erased_at on public.leads
+revoke execute on function public.lead_previews_erase_with_their_lead() from public, anon, authenticated;
+drop trigger if exists lead_previews_erase_with_their_lead on public.leads;
+create trigger lead_previews_erase_with_their_lead after update of blanked_at, erased_at on public.leads
   for each row when ((new.blanked_at is not null and old.blanked_at is null)
                      or (new.erased_at is not null and old.erased_at is null))
-  execute function public.lead_previews_end_with_their_lead();
+  execute function public.lead_previews_erase_with_their_lead();
 
 /* ------------------------------------------------------- 2. the slug, once -- */
 

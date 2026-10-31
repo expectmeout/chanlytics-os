@@ -7,7 +7,7 @@ import type { PreviewTurnVM } from "@chanlytics/contracts";
 import type { CallStarted } from "@/legacy-bridge/rehearse/call";
 
 /** A door's answer: what it said, or its refusal in the page's own words. */
-export type PreviewAsked<T> = { ok: true; data: T } | { ok: false; message: string | null };
+type PreviewAsked<T> = { ok: true; data: T } | { ok: false; message: string | null };
 
 async function post<T>(token: string, door: string, body: Record<string, unknown>): Promise<PreviewAsked<T>> {
   try {

@@ -49,7 +49,7 @@ type Db = SupabaseClient<Database>;
 type SiteReader = (db: Db, tenantId: string, url: string, deadline: number) => Promise<WebsiteReadKept>;
 
 /** The receptionist from the lead's listing, with what its site said worn; null where the lead gives it no name. */
-async function receptionistOf(
+async function receptionistFromListing(
   db: Db,
   p: LeadPreviewRow & { preview_tenant_id: string },
   deadline: number,
@@ -111,7 +111,7 @@ async function buildPreview(db: Db, job: ClaimedJob, deadline: number, read: Sit
   if (!p || p.state !== "building" || !p.preview_tenant_id) return;
   const preview = { ...p, preview_tenant_id: p.preview_tenant_id };
   try {
-    const brain = await receptionistOf(db, preview, deadline, read);
+    const brain = await receptionistFromListing(db, preview, deadline, read);
     if (typeof brain === "string") {
       await previewBuilt(db, p.id, false, brain);
       L.info("preview_build_failed", { preview_id: p.id, why: brain });

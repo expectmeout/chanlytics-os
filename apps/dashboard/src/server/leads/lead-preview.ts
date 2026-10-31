@@ -16,7 +16,7 @@ import type { RouteContext } from "../with-route";
 type Ctx = Pick<RouteContext, "supabase" | "userId">;
 
 /** The row's facts the line says: never its chat. */
-const factsOf = (r: LeadPreviewRow): NonNullable<LeadPreviewDto["preview"]> => ({
+const previewFactsOf = (r: LeadPreviewRow): NonNullable<LeadPreviewDto["preview"]> => ({
   state: r.state,
   token: r.token,
   failed_why: r.failed_why,
@@ -36,11 +36,11 @@ export async function leadPreviewFor(ctx: Ctx, tenantId: string, leadId: string)
     leadPreviewOf(ctx.supabase, tenantId, leadId),
     makesPreviews(ctx.supabase, tenantId),
   ]);
-  return { preview: row ? factsOf(row) : null, makes };
+  return { preview: row ? previewFactsOf(row) : null, makes };
 }
 
 /** The edge door's refusals, said in its words: none such, not a workspace of ours, or the door's own (switched off). */
-const REFUSED: Record<number, { code: "not_found" | "forbidden" | "conflict"; status: number }> = {
+const MAKE_REFUSED: Record<number, { code: "not_found" | "forbidden" | "conflict"; status: number }> = {
   404: { code: "not_found", status: 404 },
   403: { code: "forbidden", status: 403 },
   409: { code: "conflict", status: 409 },
@@ -53,7 +53,7 @@ export async function makeLeadPreviewFor(ctx: Ctx, tenantId: string, leadId: str
     { workspace: tenantId, user: ctx.userId },
   );
   if (r.status !== 200) {
-    const refused = REFUSED[r.status];
+    const refused = MAKE_REFUSED[r.status];
     const words = edgeRefusalWords(r.body) ?? "Their preview couldn't be made just now.";
     throw refused ? new AppError(refused.code, words, refused.status) : new AppError("internal", words, 503);
   }
