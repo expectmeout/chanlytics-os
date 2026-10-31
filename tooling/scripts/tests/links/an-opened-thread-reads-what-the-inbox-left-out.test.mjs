@@ -16,6 +16,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
 import { LIST_MESSAGES_EACH, memberWords, stateOf, toConversationVM, toInboxThreadVM } from "@chanlytics/contracts";
 import { installLegacyReact, fresh, again as drawAgain } from "../_legacy-react.mjs";
+import { until } from "../shared/_until.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -397,9 +398,14 @@ test("Conversations' box asks the server for the threads that say its words, and
   fresh();
   Box();
   assert.equal(visible.length, 0, "no row's own words say it");
-  await new Promise((resolve) => setTimeout(resolve, 400));
-  assert.ok(asked.includes("/api/v1/conversations?q=invoice"), "asked of the server, over every thread's words");
-  drawAgain(() => Box());
+  await until(
+    () => asked.includes("/api/v1/conversations?q=invoice"),
+    "the box asks the server, over every thread's words",
+  );
+  await until(() => {
+    drawAgain(() => Box());
+    return visible.length > 0;
+  }, "the row the server named, drawn");
   assert.deepEqual(
     visible.map((r) => r.id),
     [listed[0].id],

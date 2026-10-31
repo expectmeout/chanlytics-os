@@ -40,9 +40,9 @@ const WHOLE_KEPT = 20;
 type InboxThread = InboxThreadVM & { partial?: true };
 
 /** Each thread read whole: its own read's messages in reading order; what the Inbox's read held, where that read failed. */
-const whole = new Map<string, MessageDto[]>();
+const keptWhole = new Map<string, MessageDto[]>();
 /** The reads out now, by thread. */
-const reading = new Map<string, Promise<void>>();
+const wholeReads = new Map<string, Promise<void>>();
 /** The threads read again since the Inbox's newest stopped meeting what was kept: once, until a read lands. */
 const readAgain = new Set<string>();
 /** What the Inbox's last read made each thread of, and in which zone: a thread read whole is made again from it. */
@@ -63,7 +63,7 @@ const newestMissKept = (kept: readonly MessageDto[], newest: readonly MessageDto
   kept.length > 0 && newest.length >= LIST_MESSAGES_EACH && !newest.some((m) => kept.some((k) => k.id === m.id));
 
 function inboxThreadOf(dto: ConversationDto, escalation: EscalationDto | null, tz: string): InboxThread {
-  const kept = whole.get(dto.id);
+  const kept = keptWhole.get(dto.id);
   if (kept) {
     if (newestMissKept(kept, dto.messages) && !readAgain.has(dto.id)) {
       readAgain.add(dto.id);
@@ -108,16 +108,16 @@ function republish(conversationId: string): void {
 
 /** Kept as the last opened: past WHOLE_KEPT, the one opened longest ago is let go. */
 function keepWhole(conversationId: string, messages: MessageDto[]): void {
-  whole.delete(conversationId);
-  whole.set(conversationId, messages);
-  for (const id of whole.keys()) {
-    if (whole.size <= WHOLE_KEPT) break;
-    whole.delete(id);
+  keptWhole.delete(conversationId);
+  keptWhole.set(conversationId, messages);
+  for (const id of keptWhole.keys()) {
+    if (keptWhole.size <= WHOLE_KEPT) break;
+    keptWhole.delete(id);
   }
 }
 
 function readWhole(conversationId: string): Promise<void> {
-  const asked = reading.get(conversationId);
+  const asked = wholeReads.get(conversationId);
   if (asked) return asked;
   const landed = read("GET conversations/[id]", { params: { id: conversationId } })
     .then(
@@ -126,13 +126,13 @@ function readWhole(conversationId: string): Promise<void> {
         keepWhole(conversationId, page.messages);
       },
       // Not read: the thread is drawn from what the Inbox's read holds of it, rather than waiting on nothing.
-      () => keepWhole(conversationId, whole.get(conversationId) ?? []),
+      () => keepWhole(conversationId, keptWhole.get(conversationId) ?? []),
     )
     .finally(() => {
-      reading.delete(conversationId);
+      wholeReads.delete(conversationId);
       republish(conversationId);
     });
-  reading.set(conversationId, landed);
+  wholeReads.set(conversationId, landed);
   return landed;
 }
 
@@ -141,7 +141,7 @@ function readWhole(conversationId: string): Promise<void> {
  * lands. Settles when it is drawn, read or not; at once for a thread kept whole.
  */
 export function readThreadWhole(conversationId: string): Promise<void> {
-  return whole.has(conversationId) ? Promise.resolve() : readWhole(conversationId);
+  return keptWhole.has(conversationId) ? Promise.resolve() : readWhole(conversationId);
 }
 
 /** A thread's messages in its drawn conversation: its words, and the team's notes between them. */
@@ -154,7 +154,7 @@ const messagesDrawn = (t: Thread): number =>
  * would be drawn, then emptied by the first read, then drawn again.
  */
 export function revivedThread(t: Thread): Thread {
-  return t.real && !t.partial && !whole.has(t.conversationId) && messagesDrawn(t) >= LIST_MESSAGES_EACH
+  return t.real && !t.partial && !keptWhole.has(t.conversationId) && messagesDrawn(t) >= LIST_MESSAGES_EACH
     ? { ...t, partial: true as const }
     : t;
 }

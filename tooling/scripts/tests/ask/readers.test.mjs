@@ -502,8 +502,7 @@ test("conversations: the Inbox as GET conversations answers it -- the named work
   );
   assert.deepEqual(inBayside.rows, [{ kind: "thread", id: "c-b", route: "inbox/th-c-b", label: "Eli" }]);
 
-  // inbox-server.test.mjs, "the Inbox's read reaches every thread's messages past PostgREST's thousand rows": each
-  // thread's newest LIST_MESSAGES_EACH, as one list a row cap under them all does not cut.
+  // inbox-server.test.mjs, "the Inbox's read reaches every thread's messages past PostgREST's thousand rows".
   const threads = Array.from({ length: 30 }, (_, i) => conversation(uuid(i), A, { last_message_at: ago(i * HOUR) }));
   const said = threads.flatMap((c, i) =>
     Array.from({ length: 90 }, (_, j) =>
@@ -519,7 +518,7 @@ test("conversations: the Inbox as GET conversations answers it -- the named work
   );
   assert.equal(
     newest.data.conversations.reduce((n, c) => n + c.messages.length, 0),
-    30 * contracts.LIST_MESSAGES_EACH,
+    300,
   );
   assert.deepEqual(
     selects(ctx, "conversations").map((q) => [q.order, q.desc, q.limit]),
@@ -530,15 +529,8 @@ test("conversations: the Inbox as GET conversations answers it -- the named work
     ctx.supabase.seen
       .filter((q) => q.rpc === "newest_messages")
       .map((q) => ({ ...q.args, p_threads: q.args.p_threads.length })),
-    [
-      {
-        p_tenant_id: A,
-        p_threads: 30,
-        p_each: contracts.LIST_MESSAGES_EACH,
-        p_most: 100 * contracts.LIST_MESSAGES_EACH,
-      },
-    ],
-    "the messages in one read (00258): each thread's newest LIST_MESSAGES_EACH, and never so many in all that one is cut",
+    [{ p_tenant_id: A, p_threads: 30, p_each: 10, p_most: 1000 }],
+    "the messages in one read (00258), under a row cap: each thread's newest ten (LIST_MESSAGES_EACH), never one cut",
   );
   assert.equal(selects(ctx, "messages").length, 0, "never the table a page at a time");
   assert.deepEqual(
