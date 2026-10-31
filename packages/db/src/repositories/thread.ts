@@ -4,9 +4,10 @@
  * service role, or a member's session client) and is never made here. This one only reads: what the agents and the
  * dashboard know about a conversation, from Postgres, the only place the receptionist's memory lives (messages,
  * contacts, conversations, deals and person_notes, and the search_messages function). Its groups:
- *   - A thread's state (readThreadState, assembleHistory, HISTORY_COLUMNS): the turns the model is shown, the pause a
- *     human set (handed in by the caller), the receptionist's own sends in the last day (its rate cap), and whether
- *     a text of ours ever reached them (textedBefore, which decides the A2P footer). assembleHistory alone decides what counts as a
+ *   - A thread's state (readThreadState, assembleHistory, HISTORY_COLUMNS, liveHoldOf): the turns the model is shown,
+ *     the pause a human set (handed in by the caller), the receptionist's own sends in the last day (its rate cap),
+ *     whether a text of ours ever reached them (textedBefore, which decides the A2P footer), and the live hold on the
+ *     thread (control: a call in progress, a person who took it over). assembleHistory alone decides what counts as a
  *     turn, so the WhatsApp receptionist and the voice agent cannot disagree about what was said. Called by the edge's
  *     WhatsApp persistence, steer door and reach-out reply draft.
  *   - A lead's context (readLeadContext, readDealForPhone, describeLead, notesForReceptionist): one person by phone
@@ -62,6 +63,34 @@ export interface PgThreadState {
    * person a WhatsApp or email campaign had reached: their first text reply then went out without the line.
    */
   textedBefore: boolean;
+  /**
+   * The live hold on the thread (00132): who is speaking on it now, the call's own id when a call holds it, and until
+   * when; null when nobody does. The same columns the send door reads at the wire (core deliver.ts wireFacts), read
+   * here so the receptionist can ask the wire's question before the model is asked, and spend no turn on words a
+   * call's hold would refuse.
+   */
+  control: LiveHold | null;
+}
+
+/** The thread's live hold as its row says it (00132): who, the call's own ref, until when. */
+export interface LiveHold {
+  kind: string;
+  ref: string | null;
+  until: string;
+}
+
+/**
+ * The live hold a conversation row carries, or null: a kind with no end is none, as the send door reads the same
+ * columns (core deliver.ts wireFacts). THE one reading of those columns.
+ */
+export function liveHoldOf(row: {
+  control_kind?: string | null;
+  control_ref?: string | null;
+  control_until?: string | null;
+}): LiveHold | null {
+  return row.control_kind && row.control_until
+    ? { kind: row.control_kind, ref: row.control_ref ?? null, until: row.control_until }
+    : null;
 }
 
 /** Outbound rows only count as memory once they actually left. A canceled or
@@ -151,7 +180,7 @@ export async function readThreadState(
 ): Promise<PgThreadState> {
   const since = new Date(Date.now() - DAY_MS).toISOString();
 
-  const [recent, replies, texted] = await Promise.all([
+  const [recent, replies, texted, hold] = await Promise.all([
     db
       .from("messages")
       .select(HISTORY_COLUMNS)
@@ -179,11 +208,20 @@ export async function readThreadState(
       .eq("channel", "sms")
       .in("status", DELIVERED)
       .limit(1),
+    // The thread's live hold (00132): the columns the send door reads at the wire, read here so a text that arrives
+    // while a call holds the thread is set aside before the model is asked (core inbound reply-gates.ts).
+    db
+      .from("conversations")
+      .select("control_kind, control_ref, control_until")
+      .eq("tenant_id", tenantId)
+      .eq("id", conversationId)
+      .maybeSingle(),
   ]);
 
   if (recent.error) throw new Error(`readThreadState/history: ${recent.error.message}`);
   if (replies.error) throw new Error(`readThreadState/replies: ${replies.error.message}`);
   if (texted.error) throw new Error(`readThreadState/texted: ${texted.error.message}`);
+  if (hold.error) throw new Error(`readThreadState/hold: ${hold.error.message}`);
 
   const history = assembleHistory(recent.data ?? [], historyLimit);
 
@@ -191,6 +229,7 @@ export async function readThreadState(
     history,
     textedBefore: (texted.data ?? []).length > 0,
     pausedUntil: pausedUntilIso ? new Date(pausedUntilIso).getTime() : 0,
+    control: liveHoldOf(hold.data ?? {}),
     // Imported rows carry the timestamp of the IMPORT, not of a send. Counting
     // them would let a backfill silence the bot for a day against a cap it
     // never actually spent.

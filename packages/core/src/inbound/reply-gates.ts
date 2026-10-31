@@ -17,9 +17,10 @@
  *
  * heldForThePerson: what every sender that speaks without a person asks, in its one order (./reply-posture.ts
  * unattendedHold: the thread's pause, its day's reply cap, the billing pause, the mode in force), then, for a message
- * that would reach the model, the workspace's day of model tokens (off when its limit is 0 or absent) and its persona.
- * Only 'auto' and 'veto', and a workspace with a persona, go on to the model; a hold the owner chose for one person
- * alerts once per open hold.
+ * that would reach the model, the live hold a call or a person has on the thread (the send door's own question,
+ * ../deliver-hold.ts heldByThread, asked here first so no turn is spent on words the wire would refuse), the
+ * workspace's day of model tokens (off when its limit is 0 or absent) and its persona. Only 'auto' and 'veto', and a
+ * workspace with a persona, go on to the model; a hold the owner chose for one person alerts once per open hold.
  *
  * A stop marks the message processed and, unless a person already holds the thread, escalates it under its own reason
  * and tells the owner, so a customer at a limit is never left to a log line. Each stop logs an event of its own (the
@@ -45,8 +46,9 @@ import { GO, type Answering } from "./context";
 const sentAtSecondsOf = (iso: string | null): number | undefined =>
   iso === null ? undefined : Date.parse(iso) / SECOND_MS;
 import { unattendedHold } from "./reply-posture";
-import { escalationOf, handledOf, processedAfter, type Asked } from "./handled";
+import { escalationOf, handledOf, processedAfter, SET_ASIDE, type Asked } from "./handled";
 import { toldFromItsEvent } from "../subscribers";
+import { heldByThread } from "../deliver-hold";
 
 /**
  * What a START's confirmation adds about offers, or nothing: one row, read by the id the ingest answered. Never fatal
@@ -255,7 +257,26 @@ async function heldWhileTheirs(at: Answering, bodyText: string): Promise<void> {
   ]);
 }
 
-/** The one order every unattended sender asks (unattendedHold), then the token budget and the persona. */
+/**
+ * The live hold (00132): a call in progress on this thread, or a person who took it over and whose pause the gate
+ * before this one did not see. The send door refuses the receptionist's words under it as human_has_it
+ * (../deliver-hold.ts heldByThread), so the model was asked for a reply that never went: a text sent mid-call cost a
+ * turn and was set aside at the wire. The wire's own question, asked here first, with the wire's own answer: the
+ * message is kept, nobody is asked (the call, or the person, has them), nothing is said, and the wire's check stays
+ * the second line. The pause is not asked again (null): the gate before answered it, with a person told. An answer
+ * and a draft meet a live hold alike, so the veto window's draft is not written either.
+ */
+async function heldByTheLiveHold(at: Answering): Promise<typeof GO | undefined> {
+  const { thread, L, sink } = at;
+  const hold = { control: thread.control, pausedUntil: null };
+  const refused = heldByThread({ trigger: null, onCall: null }, hold, Date.now(), "answer");
+  if (!refused) return GO;
+  L.info("wa_refused_at_wire", { reason: refused, held_by: thread.control?.kind ?? null });
+  await sink.processed(handledOf(SET_ASIDE));
+  return undefined;
+}
+
+/** The one order every unattended sender asks (unattendedHold), then the live hold, the token budget and the persona. */
 export async function heldForThePerson(at: Answering, bodyText: string): Promise<typeof GO | undefined> {
   const {
     thread,
@@ -334,6 +355,9 @@ export async function heldForThePerson(at: Answering, bodyText: string): Promise
     ]);
     return;
   }
+
+  // THE LIVE HOLD (00132), only where the model would be asked: a stop found above keeps its own reason and notice.
+  if (held === null && brainCfg && (await heldByTheLiveHold(at)) !== GO) return;
 
   // THE TOKEN BUDGET (limits.max_llm_tokens_day; 0 or absent is off), asked of a message that would reach the model:
   // a held one makes no call, so its hold, not the budget, is what the Inbox says.

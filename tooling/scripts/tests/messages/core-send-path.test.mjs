@@ -617,23 +617,43 @@ test("a send the provider did not take (retry by outcome) is handed to a fresh j
   assert.equal(last.log[0][1].holdIfNotTaken, false);
 });
 
-test("every wait spent, a wire still unbound fails the job loudly by name, and nothing it says is 'reconnect the number'", async () => {
-  // The tick fails the job and settles the row (jobs settle.ts: failed, its
-  // thread flagged, its owner told) in the ledger's own words for a run that
-  // did not finish. What this verb must not do is guess: no refusal, no
-  // "not connected", no fresh job past the last wait.
+test("every wait spent, a reply that still could not leave fails the job loudly by name, as a failure that is certain and says why; the unbound wire is paged once more, and nothing said is 'reconnect the number'", async () => {
+  // The tick fails the job and settles the row (jobs settle.ts: failed, its thread flagged, its owner told). What this
+  // verb must not do is guess: no refusal, no "not connected", no fresh job past the last wait. And what it must say:
+  // nothing left, every time (the door threw before anything was written), so the row is settled as never delivered,
+  // in these words, and never as a run whose outcome is unknown (core CertainFailure, jobs tick.ts conclude).
+  const tries = core.SEND_RETRY_WAITS_MS.length + 1;
   const spent = fakes({ deliver: new WireUnavailableError("whatsapp", "vault unavailable") });
   await assert.rejects(core.sendQueued(spent.ports, send({ resumes: core.SEND_RETRY_WAITS_MS.length })), (e) => {
     assert.match(e.message, /outbound_send: .*could not be bound/);
     assert.match(e.message, /vault unavailable/);
     assert.ok(!/not connected|reconnect/i.test(e.message));
+    assert.ok(core.isCertainFailure(e), "the ledger settles it as certain: nothing left");
+    assert.equal(e.why, `the whatsapp wire's credentials could not be read, ${tries} tries in a row`);
     return true;
   });
-  assert.deepEqual(spent.ops(), ["deliver"], "no flag, no owner alert, no fresh job: the ledger says it");
+  assert.deepEqual(spent.ops(), ["deliver", "page"], "no flag, no owner alert, no fresh job: the ledger says it");
+  assert.equal(spent.log[1][1], "wire_unavailable:whatsapp", "the platform's condition, under the same key");
+  assert.match(spent.log[1][3], /failed for good/);
+  assert.ok(!/not connected|reconnect/i.test(spent.log[1][2] + spent.log[1][3]), "nobody is told the number is off");
 
-  // Any other throw from the door is still the door's, and still loud.
+  // A provider that still did not take it: the same certain failure, in its own words, and nobody paged.
+  const stillNo = fakes({ deliver: new NotTakenError("whatsapp", { status: 429, errorBody: "too many" }) });
+  await assert.rejects(core.sendQueued(stillNo.ports, send({ resumes: core.SEND_RETRY_WAITS_MS.length })), (e) => {
+    assert.match(e.message, /outbound_send: .*provider did not take it/);
+    assert.ok(core.isCertainFailure(e));
+    assert.equal(e.why, `the whatsapp provider did not take it, ${tries} tries in a row`);
+    return true;
+  });
+  assert.deepEqual(stillNo.ops(), ["deliver"], "a throttle is nobody's page");
+
+  // Any other throw from the door is still the door's, still loud, and claims nothing about what left.
   const other = fakes({ deliver: new Error("deliver: cannot read the wire for conversation c1: timeout") });
-  await assert.rejects(core.sendQueued(other.ports, send()), /cannot read the wire/);
+  await assert.rejects(core.sendQueued(other.ports, send()), (e) => {
+    assert.match(e.message, /cannot read the wire/);
+    assert.ok(!core.isCertainFailure(e), "a read that failed is not a send that provably never left");
+    return true;
+  });
   assert.deepEqual(other.ops(), ["deliver"]);
 });
 

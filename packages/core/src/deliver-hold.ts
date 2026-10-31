@@ -7,8 +7,11 @@ import { passesHandoverPause, type DeliveryRefusal } from "@chanlytics/contracts
 import type { SendKind } from "./deliver";
 import { pastReplyHorizon } from "./inbound/steps";
 
-/** The thread's live hold (00132) and its pause, as the door read them at the wire. */
-interface HoldFacts {
+/**
+ * The thread's live hold (00132) and its pause, as the door read them at the wire. The inbound path reads the hold in
+ * this shape too (inbound/thread.ts ThreadState.control), so it can ask the question below before the model is asked.
+ */
+export interface HoldFacts {
   /** Who is speaking on the thread now, the call's own id when a call holds it (control_ref), and until when. */
   control: { kind: string; ref: string | null; until: string } | null;
   pausedUntil: string | null;

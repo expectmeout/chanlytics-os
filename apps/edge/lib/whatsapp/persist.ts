@@ -84,6 +84,8 @@ export async function pgThread(
       // where a voice call note (an inbound row whose sender is "system") reads as an assistant turn, and a
       // campaign on another wire as something we texted.
       textedBefore: s.textedBefore,
+      // The live hold on the thread (00132), as the wire reads it: asked before the model is (core reply-gates.ts).
+      control: s.control,
     };
   } catch (e) {
     logger({ tenant_id: tenantId }).error("pg_thread_read_failed", { error: errField(e) });

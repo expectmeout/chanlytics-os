@@ -21,6 +21,7 @@ import {
   STOP_ENDED_OFFERS_SOURCE,
 } from "@chanlytics/contracts";
 import { FROM, FROM_ITS_EVENT, GREETING, ingested, runtime, text, world } from "../inbound/_world.mjs";
+import { linesOf } from "../_log-lines.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
@@ -1397,6 +1398,14 @@ test("each way out says what the message became, and what it was about where the
       never,
       [["handoff", null]],
     ],
+    // The wire's own refusal (human_has_it), asked before the model instead of after it: set aside, nobody asked.
+    [
+      "a text while a call holds the thread",
+      world({ ...live, control: onCall() }),
+      text("are you open?"),
+      never,
+      [["blocked", null]],
+    ],
   ];
   const reached = new Set();
   for (const [name, w, message, extra, want, unprocessed] of cases) {
@@ -1577,6 +1586,44 @@ test("REGRESSION: a customer who writes after a person took the thread with no h
   );
   assert.match(w.seen.escalations[1].details, /They sent a \w+ message while your team had this thread/);
   assert.equal(w.seen.sent.length, 0);
+});
+
+/** The thread's live hold (00132) as the memory reads it: a call in progress on it, until then. */
+const onCall = (until = Date.now() + 10 * 60_000) => ({
+  kind: "call",
+  ref: "call_1",
+  until: new Date(until).toISOString(),
+});
+
+test("a text that arrives while a call holds the thread is set aside before the model is asked: the wire's own answer, a step early, and no turn spent on it", async () => {
+  const live = { env: { modelKey: "sk-test" } };
+  // The model was asked, and the wire then refused its reply as human_has_it (deliver-hold.ts heldByThread): a turn
+  // spent on words that never went. The same answer, now before the model: nothing said, nobody asked (the call has
+  // them), the message handled, and said as the wire says it.
+  const held = world({ ...live, control: onCall() });
+  const { lines } = await linesOf(() => held.run(text("are you open?"), never));
+  assert.deepEqual(held.seen.sent, [], "nothing left");
+  assert.deepEqual(held.seen.escalations, [], "nobody is asked: the call has them");
+  assert.deepEqual(held.seen.usage, [], "no model turn was spent");
+  assert.deepEqual(handledOf(held), [["blocked", null]], "set aside, as the wire sets a refused reply aside");
+  assert.equal(held.seen.processed, 1);
+  assert.deepEqual(
+    lines.filter((l) => l.event === "wa_refused_at_wire").map((l) => [l.reason, l.held_by]),
+    [["human_has_it", "call"]],
+    "the wire's own event and reason, and whose hold it was",
+  );
+  // A hold that has run out holds nothing: the fact expires, and the text is answered as always.
+  const lapsed = world({ ...live, control: onCall(Date.now() - 1000) });
+  await lapsed.run(text("are you open?", "wamid.2"), reply("We open at 9."));
+  assert.equal(lapsed.seen.sent.length, 1, "a hold that ran out holds nothing");
+  // A person's hold the pause did not say (the pause's gate is above this one): held the same way the wire holds it.
+  const theirs = world({ ...live, control: { kind: "person", ref: null, until: onCall().until } });
+  await theirs.run(text("hello?", "wamid.3"), never);
+  assert.deepEqual([theirs.seen.sent, theirs.seen.escalations, handledOf(theirs)], [[], [], [["blocked", null]]]);
+  // Under the veto window too: the draft would meet the same hold at the wire, so no draft is written either.
+  const drafted = world({ ...live, rt: veto, queue: true, control: onCall() });
+  await drafted.run(text("are you open?", "wamid.4"), never);
+  assert.deepEqual([drafted.seen.queued, drafted.seen.sent, handledOf(drafted)], [[], [], [["blocked", null]]]);
 });
 
 test("a stamp the database refuses never costs the customer their reply: the real sink's processed, over a database without the door", async () => {

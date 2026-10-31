@@ -856,6 +856,7 @@ export {
   describeLead,
   failedMessageErrors,
   HISTORY_COLUMNS,
+  liveHoldOf,
   messageSenders,
   notesForReceptionist,
   openConversation,
@@ -868,7 +869,14 @@ export {
   searchMessages,
   textReached,
 } from "./repositories/thread";
-export type { LeadContext, MessageHit, MessageSender, PgThreadState, ThreadTurn } from "./repositories/thread";
+export type {
+  LeadContext,
+  LiveHold,
+  MessageHit,
+  MessageSender,
+  PgThreadState,
+  ThreadTurn,
+} from "./repositories/thread";
 export { followUpTouchesSince, recentTouches, touchesSince, touchIndex } from "./repositories/touches";
 export type { Touch, TouchIndex } from "./repositories/touches";
 export { lastClosedHolds, threadIdsWaitingOnYou } from "./repositories/waiting-on-you";

@@ -383,7 +383,7 @@ export {
   mailboxSignatureOf,
 } from "./mailbox/mailbox-signature";
 export { META_SIGNATURE_HEADER, metaSignatureValid } from "./meta-signature";
-export { askModel, formatRejected, resetFastHolds, streamModel } from "./models/anthropic";
+export { askModel, formatRejected, resetFastHolds, streamModel, tryBound } from "./models/anthropic";
 export type {
   ModelAsk,
   ModelBlock,

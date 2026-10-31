@@ -17,6 +17,7 @@
  * next, so the rule holds slot by slot.
  */
 import { jittered, jobNewsWords, jobRecordOf, type JobEnd, type JobNews } from "@chanlytics/contracts";
+import { isCertainFailure } from "@chanlytics/core";
 import {
   verdictFor,
   retryWait,
@@ -48,8 +49,11 @@ export interface TickPorts {
   defer(job: LedgerRow, untilIso: string, reason: string): Promise<boolean>;
   /** Keep a job of a kind this runner does not know, its claim given back (ledger deferUnknownJob). False when this run no longer holds it. */
   deferUnknown(job: LedgerRow, untilIso: string, reason: string): Promise<boolean>;
-  /** Never throws: a write that failed comes back as a row with its error. */
-  settle(job: LedgerRow, certain: boolean): Promise<Settled[]>;
+  /**
+   * Never throws: a write that failed comes back as a row with its error. `why` is a certain failure's own words for
+   * what it left (core CertainFailure), where the throw gave them; absent, the ledger's own words say it.
+   */
+  settle(job: LedgerRow, certain: boolean, why?: string): Promise<Settled[]>;
   alert(job: LedgerRow, news: JobNews): Promise<void>;
   /**
    * The platform's own pager (the edge's pageOperator: one page per condition per window), for a failure that is the
@@ -189,7 +193,11 @@ async function runOne(ports: TickPorts, job: LedgerRow, deadline: number, c: Tic
       c.deferred += 1;
       return;
     }
-    await conclude(ports, job, msg, false, "failed");
+    // A throw that says its work provably never happened (core CertainFailure: a reply whose wire could not be bound,
+    // or that the provider did not take, for every fresh job it was given) is settled as certain, in its own words, as
+    // a kind nobody knows is. Any other throw ran, and may have sent: its outcome is unknown.
+    const sure = isCertainFailure(e) ? { why: e.why } : null;
+    await conclude(ports, job, msg, sure !== null, "failed", sure?.why);
     c.failed += 1;
     return;
   }
@@ -273,6 +281,7 @@ async function conclude(
   reason: string,
   certain: boolean,
   end: JobEnd,
+  why?: string,
 ): Promise<void> {
   let failed: boolean;
   try {
@@ -293,7 +302,7 @@ async function conclude(
   // says neither (contracts jobNewsWords).
   let resumed: boolean | null;
   try {
-    const settled = await ports.settle(job, certain);
+    const settled = await ports.settle(job, certain, why);
     resumed = settled.some((s) => s.resumed === true && !s.error);
     for (const s of settled) {
       if (s.error) ports.log.error("job_settle_failed", { job_id: job.id, what: s.what, error: s.error });
