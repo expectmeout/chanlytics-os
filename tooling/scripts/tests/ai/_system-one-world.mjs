@@ -21,7 +21,7 @@ import crypto from "node:crypto";
 export const aKey = () => `tsk_${crypto.randomBytes(18).toString("hex")}`;
 
 /** The pinned model the API answers as, and the input tokens it counts for one request. */
-export const JEV = "jev-1.13.0";
+export const JEV = "jev-1.14.0";
 export const INPUT_TOKENS = 312;
 
 function recorder(handler) {
