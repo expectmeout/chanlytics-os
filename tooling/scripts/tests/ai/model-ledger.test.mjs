@@ -293,7 +293,10 @@ test("the reply reader writes what it spent (defect 53), with the reply it read"
   const t = world();
   model(json({ intent: "no", summary: "Not interested.", day: null, refer_to: null }));
   const reader = replyReader(fakeDb({}), { now: () => 0 });
-  const answer = await reader.ask("Read the reply.", "<reply>No thanks</reply>", 60_000, { tenantId: T, subjectId: C });
+  const { answer } = await reader.ask("Read the reply.", "<reply>No thanks</reply>", 60_000, {
+    tenantId: T,
+    subjectId: C,
+  });
   assert.equal(answer.intent, "no");
   assert.deepEqual(
     t.ai_usage.map((x) => [x.purpose, x.model_asked, x.subject_id, x.input_tokens]),

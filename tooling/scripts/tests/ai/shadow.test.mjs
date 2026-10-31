@@ -17,7 +17,17 @@
 import { test, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { resetBreakers } from "@chanlytics/channels";
-import { SHADOW_GRACE_MS, SHADOW_WRITE_MS, judgeQuestions, shadowWordsOf } from "@chanlytics/contracts";
+import {
+  MODEL_PURPOSES,
+  SECOND_KEY_OFF,
+  SHADOW_GRACE_MS,
+  SHADOW_WRITE_MS,
+  judgeQuestions,
+  modelRoute,
+  secondKeyFloorOf,
+  secondKeyLets,
+  shadowWordsOf,
+} from "@chanlytics/contracts";
 import { PLAN } from "../_lead-fixtures.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 import { at, withEnv } from "../_cron-doors-world.mjs";
@@ -26,7 +36,13 @@ import { scripted, answering, json, status } from "./_model-world.mjs";
 import { INPUT_TOKENS, JEV, aKey, drops, failing, hangs, jev, junk } from "./_system-one-world.mjs";
 
 process.env.ANTHROPIC_API_KEY = "model-key-for-this-file";
-for (const k of ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "TYPESAFE_API_KEY", "TYPESAFE_SHADOW"])
+for (const k of [
+  "SUPABASE_URL",
+  "SUPABASE_SERVICE_ROLE_KEY",
+  "TYPESAFE_API_KEY",
+  "TYPESAFE_SHADOW",
+  "TYPESAFE_SECOND_KEY",
+])
   delete process.env[k];
 
 const { setPg } = await import(at("apps/edge/lib/pg.ts"));
@@ -309,6 +325,70 @@ test("the reader's intent is put to the shadow, and the person-or-automatic read
   const down = await ask(failing(529));
   assert.deepEqual(down.result, off.result, "a failing shadow costs the reader nothing");
   assert.equal(off.tables.ai_usage.filter((r) => r.shadow).length, 0);
+});
+
+/* ----------------------------------------------------------- the second key -- */
+
+test("the second key: only a route with a shadow names a floor, the reply reader's is 0.8, and an act goes only on the same label at it", () => {
+  for (const purpose of MODEL_PURPOSES) {
+    const r = modelRoute(purpose);
+    if (r.secondKey === undefined) continue;
+    assert.ok(r.shadow, `${purpose}: a floor with no shadow to read it from`);
+    assert.ok(r.secondKey > 0.5 && r.secondKey <= 1, `${purpose}: a floor is surer than a coin`);
+  }
+  assert.equal(secondKeyFloorOf("reply_read"), 0.8);
+  assert.equal(secondKeyFloorOf("receptionist"), null, "a shadow alone is compared, never a key");
+  const read = (answer, confidence) => ({ on: true, read: { answer, confidence, confident: confidence >= 0.8 } });
+  assert.equal(secondKeyLets("reply_read", SECOND_KEY_OFF, "no"), true, "off: the primary acts alone, as before");
+  assert.equal(secondKeyLets("reply_read", read("no", 0.8), "no"), true);
+  assert.equal(secondKeyLets("reply_read", read("no", 0.79), "no"), false, "under the floor holds");
+  assert.equal(secondKeyLets("reply_read", read("not_now", 0.99), "no"), false, "another label holds");
+  assert.equal(secondKeyLets("reply_read", { on: true, read: null }, "no"), false, "nothing read holds");
+});
+
+test("the reply reader's second key: its own switch asks the second model and hands its read back with the reader's answer; off, the answer is as it was", async () => {
+  const user = "The reply:\n<reply>\nwords: No thanks, remove me\n</reply>";
+  const answer = { intent: "no", summary: "They do not want it.", day: null, refer_to: null };
+  const ask = async (api, env) => {
+    const tables = world();
+    primaryFetch = scripted(json(answer)).fetch;
+    shadowFetch = api.fetch;
+    const reader = replyReader(fakeDb({}), { now: () => 0 });
+    const { result } = await logged(() =>
+      withEnv(env, () => reader.ask("Read the reply.", user, 60_000, { tenantId: T, subjectId: C })),
+    );
+    return { result, tables };
+  };
+  const KEYED = { TYPESAFE_API_KEY: KEY, TYPESAFE_SHADOW: undefined, TYPESAFE_SECOND_KEY: "1" };
+  const agree = jev({ reply_intent: { choice: "no", confidence: 0.95 } });
+  const on = await ask(agree, KEYED);
+  assert.equal(agree.calls.length, 1, "the key's own switch asks the second model, the shadow's off");
+  assert.deepEqual(on.result.answer, answer, "the reader's answer is its own");
+  assert.deepEqual(on.result.second, { on: true, read: { answer: "no", confidence: 0.95, confident: true } });
+  assert.deepEqual(
+    shadowRows(on.tables).map((r) => [r.question, r.primary_answer, r.shadow_answer, r.agrees]),
+    [["reply_intent", "no", "no", true]],
+    "and its rows are kept as the shadow's are",
+  );
+  const apart = await ask(jev({ reply_intent: { choice: "not_now", confidence: 0.9 } }), KEYED);
+  assert.equal(apart.result.second.read.answer, "not_now");
+  const down = await ask(failing(529), KEYED);
+  assert.deepEqual(down.result.second, { on: true, read: null }, "a second model that failed read nothing");
+  assert.deepEqual(down.result.answer, answer, "and costs the reader nothing");
+  for (const [why, env] of [
+    ["the switch off", { TYPESAFE_API_KEY: KEY, TYPESAFE_SHADOW: undefined, TYPESAFE_SECOND_KEY: undefined }],
+    ["no key", { TYPESAFE_API_KEY: undefined, TYPESAFE_SHADOW: undefined, TYPESAFE_SECOND_KEY: "1" }],
+    ["another workspace", { TYPESAFE_API_KEY: KEY, TYPESAFE_SHADOW: undefined, TYPESAFE_SECOND_KEY: "bbbb" }],
+    ["the shadow alone", { ...ON, TYPESAFE_SECOND_KEY: undefined }],
+  ]) {
+    const quiet = await ask(jev({ reply_intent: { choice: "no", confidence: 0.95 } }), env);
+    assert.deepEqual(quiet.result, { answer, second: SECOND_KEY_OFF }, `${why}: no key, the answer as it was`);
+  }
+  const listed = await ask(jev({ reply_intent: { choice: "no", confidence: 0.95 } }), {
+    ...KEYED,
+    TYPESAFE_SECOND_KEY: `bbbb, ${T.toUpperCase()}`,
+  });
+  assert.equal(listed.result.second.on, true, "a list names its workspaces as the shadow's does");
 });
 
 /* ---------------------------------------------------------------- the judge -- */

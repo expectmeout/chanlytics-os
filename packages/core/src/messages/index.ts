@@ -25,6 +25,7 @@ export type {
   KeptReading,
   ReadReplyCommand,
   ReadReplyOutcome,
+  ReplyAsked,
   ReplyFacts,
   ReplyNotice,
   ReplyReadPorts,
