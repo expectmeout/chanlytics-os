@@ -5,9 +5,11 @@
  * what they share is safe (each makes its own workspace), but a few rows belong to the platform: the lead finder's
  * switch list, `lead_platform.tenants_on`, is one array a suite reads, adds itself to and writes back, and two suites
  * that do it at once lose one of the two writes; the workspace whose write was lost then finds its searches paused.
- * The jobs ledger is the other: one queue that `claim_due_jobs` takes the oldest due row of, and `jobs_backlog()`
- * counts every due row of. The suites that write or count either take this lock (under a name each) for the whole
- * file, so they run one after the other.
+ * The jobs ledger is another: one queue that `claim_due_jobs` takes the oldest due row of, and `jobs_backlog()`
+ * counts every due row of. The partner ledger is the third: `partner_earnings_sweep` matures and judges every
+ * partner's rows and counts what it moved, so a suite's sweep moved another's rows and counted them (31 Oct 2026). The
+ * suites that write or count any of them take this lock (under a name each) for the whole file, so they run one after
+ * the other.
  *
  *   const release = await takeLock("lead-platform-list");   // in before()
  *   await release();                                        // last in after()

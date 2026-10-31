@@ -106,6 +106,44 @@ export const SUITES = {
   db: ["tooling/scripts/tests/**/*.db.test.mjs", "tooling/scripts/tests/**/*.integration.test.mjs"],
 };
 
+/**
+ * A database suite that changes a shared table's definition while it runs, in a block it rolls back: a trigger made on
+ * the ledger (`events`, `decisions`) to refuse a write, a column renamed, a constraint added, a table locked. Its lock
+ * is held until the block ends, and while it is still waited for (behind another suite's long transaction) every other
+ * suite's write to that table queues behind it, where a request through PostgREST gives up after eight seconds (the
+ * `authenticator` role's lock_timeout). On 31 Oct 2026 the transferred-call suite's trigger on `events`, waiting on
+ * playbook-totals' 20-second world, timed out the WhatsApp suites' writes in three runs of one pull request, and
+ * take-over's block deadlocked with other suites' writes in three more. So such a suite runs alone, after the others.
+ */
+export const CHANGES_A_TABLE =
+  /\b(?:create|drop)\s+trigger\b[^;]*?\bon\s+public\.|\balter\s+table\s+public\.|\block\s+table\s+public\./i;
+
+/** The names a database suite ends with: SUITES.db's two kinds. */
+const DATABASE_ENDINGS = SUITES.db.map((glob) => glob.slice(glob.lastIndexOf("*") + 1));
+
+/** The test files under a folder, sorted as the runner orders them: every one, or the database suites alone. */
+function testsUnder(dir, databaseOnly) {
+  const endings = databaseOnly ? DATABASE_ENDINGS : [".test.mjs"];
+  return fs
+    .readdirSync(path.resolve(ROOT, dir), { recursive: true })
+    .map((f) => `${dir}/${String(f).replaceAll("\\", "/")}`)
+    .filter((f) => endings.some((e) => f.endsWith(e)))
+    .sort();
+}
+
+/**
+ * A database run's files in its two passes: the suites that may share the stack, at the runner's concurrency, then the
+ * ones that change a shared table's definition (CHANGES_A_TABLE), alone, one at a time. With nothing asked, every
+ * database suite; a folder asked for is every test in it; a glob is not read, so it runs in the first pass as it is.
+ */
+export function databasePasses(asked, read = (f) => fs.readFileSync(path.resolve(ROOT, f), "utf8")) {
+  const files = asked.length
+    ? asked.flatMap((a) => (isDirectory(a) ? testsUnder(a, false) : [a]))
+    : testsUnder("tooling/scripts/tests", true);
+  const alone = files.filter((f) => !/[*?[{]/.test(f) && f.endsWith(".mjs") && CHANGES_A_TABLE.test(read(f)));
+  return { together: files.filter((f) => !alone.includes(f)), alone };
+}
+
 /** The zone a run is in: `TEST_TZ` when it names one, else UTC. */
 export function zoneOf(env) {
   const asked = String(env.TEST_TZ ?? "").trim();
@@ -122,16 +160,17 @@ export function zoneOf(env) {
  * The command a run is: Node's own runner over the suite's files (or the ones asked for), with the loader every test
  * needs, and the environment it runs in. A directory asked for is every `*.test.mjs` under it. `coverage` is where a
  * measured run's lcov report is written, or null for a run that is not measured; `held` is whether the floors judge it.
+ * A database run is two passes (databasePasses): `args`, then `alone`, the suites that change a shared table's
+ * definition, one at a time; `alone` is null where there is no second pass.
  */
 export function planOf(argv, env) {
   const args = argv.filter((a) => a !== "--");
   const db = args.includes("--db");
   const flags = args.filter((a) => a.startsWith("-") && a !== "--db");
-  const asked = args
-    .filter((a) => !a.startsWith("-"))
-    .map((a) => a.replaceAll("\\", "/").replace(/\/$/, ""))
-    .map((a) => (isDirectory(a) ? `${a}/**/*.test.mjs` : a));
-  const files = asked.length ? asked : db ? SUITES.db : SUITES.test;
+  const named = args.filter((a) => !a.startsWith("-")).map((a) => a.replaceAll("\\", "/").replace(/\/$/, ""));
+  const asked = named.map((a) => (isDirectory(a) ? `${a}/**/*.test.mjs` : a));
+  const { first, alone, lone } = passFilesOf(db, named, asked);
+  const oneAtATime = [...flags.filter((f) => !f.startsWith("--test-concurrency")), "--test-concurrency=1"];
   const zone = zoneOf(env);
   // A part of the suite (`--test-shard=i/n`) is the suite, cut: measured when TEST_LCOV names where its report is
   // kept, and judged by no floor, since the floors are the whole suite's (coverage.mjs judges the parts' reports
@@ -150,32 +189,43 @@ export function planOf(argv, env) {
         `--test-reporter-destination=${coverage}`,
       ]
     : [];
+  const loader = [
+    "--conditions=react-server",
+    `--conditions=${BUNDLED}`,
+    "--import",
+    "tsx",
+    "--import",
+    STAND_IN_NETWORK,
+    "--import",
+    STAND_IN_BASE_UI,
+    "--import",
+    STAND_IN_CSS,
+    ...(env.TEST_SLOW_IMPORTS === "1" ? ["--import", SLOW_IMPORTS] : []),
+    "--test",
+  ];
   return {
     zone,
     coverage,
     held: measured && full && !part,
     // a part's report stays where TEST_LCOV put it, for the judge of all the parts
     keep: kept !== null,
-    args: [
-      "--conditions=react-server",
-      `--conditions=${BUNDLED}`,
-      "--import",
-      "tsx",
-      "--import",
-      STAND_IN_NETWORK,
-      "--import",
-      STAND_IN_BASE_UI,
-      "--import",
-      STAND_IN_CSS,
-      ...(env.TEST_SLOW_IMPORTS === "1" ? ["--import", SLOW_IMPORTS] : []),
-      "--test",
-      ...report,
-      ...flags,
-      ...files,
-    ],
+    args: [...loader, ...report, ...(lone ? oneAtATime : flags), ...first],
+    alone: alone ? [...loader, ...oneAtATime, ...alone] : null,
     // A script a test starts (a check, an eval, an ops script) reads the packages as the test does.
     env: { ...env, TZ: zone, NODE_OPTIONS: [env.NODE_OPTIONS, `--conditions=${BUNDLED}`].filter(Boolean).join(" ") },
   };
+}
+
+/**
+ * The files a run's first pass names, and its second pass's suites (null where there is none): a database run's two
+ * passes (databasePasses), or the files asked for, else the suite. `lone` where every suite asked for runs alone, so the
+ * one pass is theirs, one at a time (a runner handed no file would look for its own).
+ */
+function passFilesOf(db, named, asked) {
+  if (!db) return { first: asked.length ? asked : SUITES.test, alone: null, lone: false };
+  const { together, alone } = databasePasses(named);
+  if (!together.length) return { first: alone, alone: null, lone: true };
+  return { first: together, alone: alone.length ? alone : null, lone: false };
 }
 
 function isDirectory(p) {
@@ -206,13 +256,27 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   console.error(`# the suite runs in ${plan.zone}${plan.zone === "UTC" ? "" : " (TEST_TZ)"}`);
   const built = await buildPackages();
   if (built.length) console.error(`# built the bundles of ${built.join(", ")}`);
-  const child = spawn(process.execPath, plan.args, { cwd: ROOT, env: plan.env, stdio: "inherit" });
-  child.on("exit", (code, signal) => {
-    const status = signal ? 1 : (code ?? 1);
-    process.exit(
-      plan.coverage
-        ? finish({ coverage: plan.coverage, status, env: process.env, held: plan.held, root: ROOT, keep: plan.keep })
-        : status,
+  // One pass after another, every pass run; the status is the first that failed.
+  const runPasses = (passes, failed) => {
+    const [args, ...rest] = passes;
+    if (!args) {
+      return process.exit(
+        plan.coverage
+          ? finish({
+              coverage: plan.coverage,
+              status: failed,
+              env: process.env,
+              held: plan.held,
+              root: ROOT,
+              keep: plan.keep,
+            })
+          : failed,
+      );
+    }
+    if (args === plan.alone) console.error("# then, one at a time, the suites that change a shared table's definition");
+    spawn(process.execPath, args, { cwd: ROOT, env: plan.env, stdio: "inherit" }).on("exit", (code, signal) =>
+      runPasses(rest, failed || (signal ? 1 : (code ?? 1))),
     );
-  });
+  };
+  runPasses([plan.args, ...(plan.alone ? [plan.alone] : [])], 0);
 }

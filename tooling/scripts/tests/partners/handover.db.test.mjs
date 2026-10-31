@@ -8,6 +8,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
+import { takeLock } from "../_file-lock.mjs";
 import { showSecondFactor } from "../_second-factor.mjs";
 
 const URL_ = process.env.SUPABASE_URL;
@@ -51,8 +52,13 @@ async function person(email, { factor = false } = {}) {
   return { client, userId: u.data.user.id, email };
 }
 
+// The partner ledger is the platform's: partner_earnings_sweep matures and judges every partner's rows, and counts
+// them. The suites that write it or sweep it take its lock for the whole file (_file-lock.mjs), one after the other.
+let releaseLedger;
+
 before(async () => {
   if (skip) return;
+  releaseLedger = await takeLock("partner-ledger");
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
   partner = await person(`partner@${DOMAIN}`, { factor: true });
   owner = await person(`owner@${DOMAIN}`);
@@ -63,9 +69,13 @@ before(async () => {
 });
 
 after(async () => {
-  if (skip) return;
-  for (const id of tenants) await db.from("tenants").delete().eq("id", id);
-  for (const id of users) await db.auth.admin.deleteUser(id).catch(() => {});
+  try {
+    if (skip) return;
+    for (const id of tenants) await db.from("tenants").delete().eq("id", id);
+    for (const id of users) await db.auth.admin.deleteUser(id).catch(() => {});
+  } finally {
+    await releaseLedger?.();
+  }
 });
 
 test(
