@@ -27,7 +27,7 @@ const { ListTitle, DeleteListButton } = await importSrc("apps/dashboard/src/surf
 const { PeopleListsSheet } = await importSrc("apps/dashboard/src/surfaces/people/rail/lists-sheet.tsx");
 const { PeopleBulkBar } = await importSrc("apps/dashboard/src/surfaces/people/bulk/bulk-bar.tsx");
 const { PL_COLUMNS } = await importSrc("apps/dashboard/src/surfaces/people/cells/columns.tsx");
-const { plPeopleShown } = await importSrc("apps/dashboard/src/surfaces/people/page/shown.ts");
+const { plViewRows } = await importSrc("apps/dashboard/src/surfaces/people/page/shown.ts");
 const { plListRoute } = await importSrc("apps/dashboard/src/surfaces/people/words.ts");
 
 test("the tables: the workspace's, members read, acting members write, a person of another workspace or an erased one cannot be put on a list", () => {
@@ -167,10 +167,10 @@ test("the page: the rail's Saved section is real, a name typed there is the only
   assert.deepEqual(made, [["Regulars", null]], "the name is the only thing typed");
   // The demo-only block ("Saved lists need a segments table (Tier 2)") stood in the deleted people.jsx: a demo session
   // draws this page over the sample's lists now (people-sample.test.mjs), so there is no second block to be gone.
-  // A saved list filters the table like a computed one: the page's shown rows are the list's ids, and its title says so.
+  // A saved list is a view like a computed one: the view's rows are the list's ids, and its title says so.
   const rows = [personRow({ id: "p1" }), personRow({ id: "p2" })];
   const shownFor = (savedId) =>
-    plPeopleShown({
+    plViewRows({
       rows,
       found: null,
       lists: [],
@@ -178,10 +178,6 @@ test("the page: the rail's Saved section is real, a name typed there is the only
       tab: "all",
       listId: null,
       savedId,
-      q: "",
-      sortBy: "last",
-      sortDir: "desc",
-      columns: PL_COLUMNS,
     })
       .map((r) => r.id)
       .sort();

@@ -14,12 +14,12 @@ import { menuGroups } from "../menu-groups";
 import { PeopleBulkBar } from "../bulk/bulk-bar";
 import { PeopleListsSheet } from "../rail/lists-sheet";
 import { BarWord, PeoplePhoneBar, SELECT_WORDS } from "../rail/phone-bar";
-import { PeopleColumnsMenu } from "../table/columns-menu";
-import { PeopleTable } from "../table/table";
-import { PL_SEARCH_LABEL } from "../words";
+import { TableColumnsMenu } from "../../kit/table/columns-menu";
+import { DataTable } from "../../kit/table/data-table";
+import { PL_SEARCH_LABEL, PL_TABLE_CLASSES } from "../words";
 import { PipelineBoard } from "./board";
 import { PL_FILE_COLUMNS } from "../cells/columns";
-import { pipeCardRow } from "./columns";
+import { pipeCard } from "./columns";
 import { PipelineNew } from "./new";
 import { PipelinePeekWhenRead } from "./peek-code";
 import { P } from "./pipe";
@@ -197,7 +197,7 @@ function listHead(s: PipelineState) {
 /** The controls row: the search, which columns show, the list or the board, and the page's one filled button. */
 function controlsRow(s: PipelineState) {
   const { f, r } = s;
-  const { q, setQ, searchRef, colOptions, pickColumn, layout: tableLayout, clearSelection, setExtraView } = f.controls;
+  const { q, setQ, searchRef, table, declared, phone, clearSelection, setExtraView } = f.controls;
   const { board, layout } = r;
   const { words } = P;
   return (
@@ -214,8 +214,8 @@ function controlsRow(s: PipelineState) {
         />
       </div>
       <div className="cl-controls-right">
-        {/* Which columns show, a member's own, kept in their view: People's menu (table/columns-menu.tsx). */}
-        {!board ? <PeopleColumnsMenu options={colOptions} onPick={pickColumn} layout={tableLayout} /> : null}
+        {/* Which columns show, a member's own, kept in their view: the kit's menu (kit/table/columns-menu.tsx). */}
+        {!board ? <TableColumnsMenu state={table} columns={declared} desk={!phone} /> : null}
         {/* The list or the board: the house's small tab pair, a pressed state each, kept in the member's view. */}
         <div className="cl-tabs pipe-views" role="group" aria-label={words.views.label} data-testid="pipeline-views">
           {PIPE_LAYOUTS.map((v) => (
@@ -243,8 +243,8 @@ function controlsRow(s: PipelineState) {
 
 /** The rows: the board, or the table in its groups. */
 function rowsView(s: PipelineState) {
-  const { f, ui, r, place, d, tableColumns, boardColumns, boardActs, emptyWords } = s;
-  const { phone, sel, toggleSel, sortBy, sortDir, onSort, setQ, scrolledX, setScrolledX, selectMode } = f.controls;
+  const { f, ui, r, model, place, d, tableColumns, boardColumns, boardActs, emptyWords } = s;
+  const { phone, toggleSel, sortBy, sortDir, onSort, setQ, selectMode } = f.controls;
   const { canRecord, selectable, shown, sections, viewCount, searching } = r;
   const { cursor, setCursor, toggleAll } = place;
   if (boardColumns) {
@@ -274,14 +274,17 @@ function rowsView(s: PipelineState) {
     );
   }
   return (
-    <PeopleTable
+    <DataTable
+      table={model.table}
+      state={f.controls.table}
+      classNames={PL_TABLE_CLASSES}
+      groups="stages"
       noun="deal"
       selectMode={phone && selectMode}
       columns={tableColumns}
+      card={phone ? pipeCard() : null}
       ctx={d.ctx}
       selectable={selectable}
-      sel={sel}
-      onToggle={toggleSel}
       onToggleAll={toggleAll}
       rows={shown}
       sections={sections}
@@ -296,10 +299,6 @@ function rowsView(s: PipelineState) {
       onClearFilters={() => setQ("")}
       cursor={cursor}
       onCursor={setCursor}
-      rowClass={phone ? pipeCardRow : null}
-      scrolled={scrolledX}
-      onScrolled={setScrolledX}
-      layout={f.controls.layout}
       empty={emptyWords}
     />
   );

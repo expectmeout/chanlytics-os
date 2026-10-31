@@ -4,16 +4,24 @@
  * PRD §6.2's Leads columns as the redesign cuts them (D5): three that differ row to row -- who they are, whether you can
  * reach them, how well they are rated -- and when they were found, whose cell holds the row's acts on hover. Fit, Why it
  * fits and Stage stay in the Columns menu, off: the band bar says the fits, the name's card and the peek say why, and the
- * row wears its stage as a tag. In the shape the table takes (surfaces/people/table/table.tsx): { key, label, sortable,
- * pinned, fixed, on, needs, cell(l, x) }. The six that sort are the six `leads_page` takes.
+ * row wears its stage as a tag. In the kit's shape (kit/table/columns.ts DataColumn). The six that sort are the six
+ * `leads_page` takes, and the server sorts them (the table runs on the read's order); the filters' columns hold the
+ * page's narrowings over the rows a view loaded: the Excluded view's chip, the band's fit, the Filter's reach.
  */
-import { LEAD_REVIEW_ACT_WORDS, placeWordOf, type LeadRowVM } from "@chanlytics/contracts";
+import {
+  LEAD_REVIEW_ACT_WORDS,
+  leadReaches,
+  placeWordOf,
+  type LeadReachFilter,
+  type LeadRowVM,
+} from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
 import { StatePill } from "../../kit/pill/state-pill";
 import { gate, hasTouchSwipe, touchSwipe } from "../../legacy-verbs";
 import { plRowCard } from "../../people/cells/row-card";
 import { plPhoneNow } from "../../people/words";
-import type { RowPick, TableColumn } from "../../people/types";
+import type { DataCard, DataColumn, RowPick } from "../../kit/table/columns";
+import type { ColCtx } from "../../people/types";
 import { reachOuts } from "../../campaigns/reach-out/surface";
 import { PlaceWord } from "../../campaigns/sequences/place/parts";
 import { leadDtoFor } from "../surface";
@@ -155,13 +163,16 @@ const reachCell = (l: LeadRowVM, x: LeadCellCtx) => (
   </td>
 );
 
-export const LEAD_COLUMNS: readonly TableColumn<LeadRowVM, LeadCellCtx>[] = [
+/** Every one of Leads' sorts is the server's (leads_page): a first press goes the most first, as it always went. */
+const BY_SERVER = { first: "desc" } as const;
+
+export const LEAD_COLUMNS: readonly DataColumn<LeadRowVM, LeadCellCtx, ColCtx>[] = [
   {
     key: "business",
     label: "Business",
-    sortable: true,
-    pinned: true,
-    width: { base: 300, min: 240, max: 640, grow: 4 },
+    sort: BY_SERVER,
+    fill: true,
+    width: { base: 300, min: 240, max: 640 },
     cell: ldBusinessCell,
   },
   // Beside the name (Reach out Part 6, H8: "Columns puts the Stage beside the name"), with where this business stands in
@@ -169,8 +180,8 @@ export const LEAD_COLUMNS: readonly TableColumn<LeadRowVM, LeadCellCtx>[] = [
   {
     key: "stage",
     label: "Stage",
-    sortable: true,
-    width: { base: 148, min: 124, max: 260, grow: 1 },
+    sort: BY_SERVER,
+    width: { base: 148, min: 124, max: 260 },
     on: false,
     cell: (l, x) => (
       <td key="stage" className="ld-stage-cell" data-testid="lead-stage">
@@ -180,11 +191,11 @@ export const LEAD_COLUMNS: readonly TableColumn<LeadRowVM, LeadCellCtx>[] = [
       </td>
     ),
   },
-  { key: "reach", label: "Reach", sortable: false, width: { base: 150, min: 120, max: 240, grow: 1 }, cell: reachCell },
+  { key: "reach", label: "Reach", width: { base: 150, min: 120, max: 240 }, cell: reachCell },
   {
     key: "rating",
     label: "Rated",
-    sortable: true,
+    sort: BY_SERVER,
     width: { base: 96, min: 84 },
     cell: (l) => (
       <LeadHover
@@ -206,7 +217,7 @@ export const LEAD_COLUMNS: readonly TableColumn<LeadRowVM, LeadCellCtx>[] = [
   {
     key: "found",
     label: "Found",
-    sortable: true,
+    sort: BY_SERVER,
     width: { base: 120, min: 104 },
     cell: (l) => (
       <td
@@ -229,7 +240,9 @@ export const LEAD_COLUMNS: readonly TableColumn<LeadRowVM, LeadCellCtx>[] = [
   {
     key: "fit",
     label: "Fit",
-    sortable: true,
+    sort: BY_SERVER,
+    // The band's fit (D5): one of the search's fits, the strong ones, the ones worth a look, the long shots.
+    filter: (l, fit) => l.fit === fit,
     width: { base: 100, min: 84 },
     on: false,
     cell: (l) => (
@@ -241,8 +254,7 @@ export const LEAD_COLUMNS: readonly TableColumn<LeadRowVM, LeadCellCtx>[] = [
   {
     key: "why",
     label: "Why it fits",
-    sortable: false,
-    width: { base: 280, min: 160, max: 520, grow: 2 },
+    width: { base: 280, min: 160, max: 520 },
     on: false,
     cell: (l) => (
       <td key="why" className="dim cl-cut ld-why-cell" title={l.why}>
@@ -253,7 +265,7 @@ export const LEAD_COLUMNS: readonly TableColumn<LeadRowVM, LeadCellCtx>[] = [
   {
     key: "distance",
     label: "Distance",
-    sortable: true,
+    sort: BY_SERVER,
     width: { base: 104, min: 88 },
     needs: (x) => !!x.hasCenter,
     on: false,
@@ -266,8 +278,7 @@ export const LEAD_COLUMNS: readonly TableColumn<LeadRowVM, LeadCellCtx>[] = [
   {
     key: "source",
     label: "Source",
-    sortable: false,
-    width: { base: 128, min: 96, max: 220, grow: 1 },
+    width: { base: 128, min: 96, max: 220 },
     on: false,
     cell: (l) => (
       <td key="source" className="dim cl-cut ld-source-cell">
@@ -278,8 +289,7 @@ export const LEAD_COLUMNS: readonly TableColumn<LeadRowVM, LeadCellCtx>[] = [
   {
     key: "website",
     label: "Website",
-    sortable: false,
-    width: { base: 170, min: 120, max: 280, grow: 1 },
+    width: { base: 170, min: 120, max: 280 },
     on: false,
     cell: (l) => (
       <td key="website" className="dim cl-cut ld-website-cell">
@@ -290,8 +300,7 @@ export const LEAD_COLUMNS: readonly TableColumn<LeadRowVM, LeadCellCtx>[] = [
   {
     key: "search",
     label: "Search",
-    sortable: false,
-    width: { base: 150, min: 108, max: 260, grow: 1 },
+    width: { base: 150, min: 108, max: 260 },
     on: false,
     cell: (l) => (
       <td key="search" className="dim cl-cut ld-search-cell">
@@ -303,7 +312,6 @@ export const LEAD_COLUMNS: readonly TableColumn<LeadRowVM, LeadCellCtx>[] = [
   {
     key: "actions",
     label: "",
-    sortable: false,
     width: { base: 84 },
     fixed: true,
     cell: (l, x) => (
@@ -320,6 +328,10 @@ export const LEAD_COLUMNS: readonly TableColumn<LeadRowVM, LeadCellCtx>[] = [
       </td>
     ),
   },
+  // The Excluded view's chip: one criterion that left a lead out, in the words the row holds (contracts excludedBy).
+  { key: "f_excluded", label: "", hidden: true, filter: (l, why) => l.excludedBy === why },
+  // The Filter (contracts leadReaches): only the leads with a checked email, a checked phone, or both.
+  { key: "f_reach", label: "", hidden: true, filter: (l, reach) => leadReaches(l.slots, reach as LeadReachFilter[]) },
 ];
 
 /* --------------------------------------------------------------- the phone */
@@ -401,9 +413,9 @@ const ldCardCell = (l: LeadRowVM, x: LeadCellCtx, pick?: RowPick) => {
   });
 };
 
-/** A phone's one column for Leads, and the class its rows wear: People's (clients.css draws both from it). */
-export const LEAD_PHONE_COLUMNS: readonly TableColumn<LeadRowVM, LeadCellCtx>[] = [
-  { key: "card", label: "Business", sortable: false, pinned: true, cell: ldCardCell },
-];
-
-export const ldCardRowClass = () => "pl-card-row";
+/** A phone's one cell for Leads, and the class its rows wear: People's (clients.css draws both from it). */
+export const LEAD_CARD: DataCard<LeadRowVM, LeadCellCtx> = {
+  label: "Business",
+  cell: ldCardCell,
+  rowClass: "pl-card-row",
+};

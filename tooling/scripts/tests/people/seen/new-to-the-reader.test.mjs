@@ -417,7 +417,7 @@ test("the bell's half: a person with a note still unread in the bell says so on 
 const { cvCallsStandAsTheirThread, cvOnePerPerson, cvSeenOf, cvWhoseRow } = await import(
   `${S}/surfaces/inbox/cv-rules.ts`
 );
-const { PL_COLUMNS, PL_PHONE_COLUMNS, plNameCell, plReading } = await import(`${S}/surfaces/people/cells/columns.tsx`);
+const { PL_COLUMNS, PL_CARD, plNameCell, plReading } = await import(`${S}/surfaces/people/cells/columns.tsx`);
 const walk = (n, fn) => {
   if (!n || typeof n !== "object") return;
   if (Array.isArray(n)) return void n.forEach((k) => walk(k, fn));
@@ -488,7 +488,7 @@ test("People's own row wears it, a desk's and a phone's; a read row and the Pipe
   assert.ok(!classesIn(name.cell(seen, ctx)).includes("unread"));
   assert.ok(!classesIn(plNameCell(fresh, ctx)).includes("unread"), "the Pipeline's rows say nothing of it");
 
-  const card = PL_PHONE_COLUMNS[0];
+  const card = PL_CARD;
   const drawn = classesIn(card.cell(fresh, ctx));
   assert.ok(drawn.includes("pl-unread"), "a phone's card: the name");
   assert.ok(drawn.includes("pl-unread-said"), "and what they said");

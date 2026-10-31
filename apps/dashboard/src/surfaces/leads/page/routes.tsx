@@ -73,13 +73,13 @@ export const leadStripActs = (a: {
   openPlanFor: (s: LeadSearchDto, plan: LeadSearchPlan, how: "answer" | "more") => void;
   goto: (patch: ViewPatch) => void;
   undoRound: (searchId: string | null | undefined) => Promise<void>;
-  setSortBy: (by: string) => void;
-  setSortDir: (dir: string) => void;
+  /** A sort picked for the member, as a menu's is: theirs, saved with the view. */
+  pickSort: (by: string, dir: string) => void;
   openFinder: (card: Partial<FinderState>) => void;
   /** Find people, filled in with a people search's plan: its strip's Find more like these (00430). */
   openFindPeople: (from?: LeadPeoplePlan | null) => void;
 }) => {
-  const { openSearch, leadAct, searchAnswerOf, openPlanFor, goto, undoRound, setSortBy, setSortDir, openFinder } = a;
+  const { openSearch, leadAct, searchAnswerOf, openPlanFor, goto, undoRound, pickSort, openFinder } = a;
   // "12 new": the view read again in its order. The strip's door and the list head's are this one.
   const takeOffered = () => leadsTakeOffered();
   const onStripAction = (id: string, arg?: unknown) => {
@@ -110,8 +110,7 @@ export const leadStripActs = (a: {
     // Sort by fit is a new read of the same view, not a re-order of the rows on the page: the sort is the page's own
     // state and the read asks the surface for it (E8).
     if (id === "sort_fit") {
-      setSortBy("fit");
-      setSortDir("asc");
+      pickSort("fit", "asc");
       return undefined;
     }
     // A people search's next step is its own sheet, filled in with its plan (00430): never a places door.

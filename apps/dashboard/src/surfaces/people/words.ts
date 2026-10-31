@@ -8,7 +8,17 @@ import { appointmentWords, csvCell, PEOPLE_TABS, stateOf, type AppointmentWord }
 import type { PersonRowVM } from "@chanlytics/contracts";
 import { surfaceValue } from "../surface-values";
 import { pageClock } from "@/legacy-bridge/zone";
-import type { PeopleRead, TableColumn } from "./types";
+import type { PeopleRead } from "./types";
+
+/**
+ * The classes People's three scopes hand the kit's table (kit/table/data-table.tsx `classNames`): the page's own, which
+ * clients.css and leads.css draw the cells under and place the table by. The table's own look is the kit's.
+ */
+export const PL_TABLE_CLASSES = {
+  wrap: "cl-table-wrap pl-table-wrap",
+  scroll: "pl-table-scroll",
+  table: "cl-table pl-table",
+} as const;
 
 /** The states an address may still name (state:<x>). Needs you and You have it are lists (decision 0009): their state address opens the list. */
 export const PL_TABS = ["new", "quiet", "active"];
@@ -45,7 +55,7 @@ export const offersOf = (marketing: string): OffersSaid => PL_OFFERS[marketing] 
  */
 export const plCsv = (
   rows: readonly PersonRowVM[],
-  columns: readonly Pick<TableColumn<PersonRowVM>, "key" | "csv">[],
+  columns: readonly { key: string; csv?: { head: string; cell: (p: PersonRowVM) => string } }[],
 ): string => {
   const identity = ["name", "phone", "email", "offers"];
   const shown = columns.flatMap((c) => (c.csv && !identity.includes(c.key) ? [c.csv] : []));

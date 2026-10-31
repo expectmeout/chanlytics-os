@@ -158,7 +158,9 @@ const ROW_CLASSES = new Set([
   "set-nav-row",
   "cl-rail-row",
 ]);
-const ROW_TABLES = new Set(["pl-table", "cl-table"]);
+/** The tables a hovered `tr` is a list row of: the kit's (`dtable`, decision 0083: People's, Leads' and the Pipeline's), and the
+ * classes People hands it, under which its phone rows keep their own fill. */
+const ROW_TABLES = new Set(["pl-table", "cl-table", "dtable"]);
 const compoundsOf = (selector) => {
   let compound = [];
   const compounds = [compound];
@@ -291,7 +293,7 @@ test("a list's row keeps its hover fill under a finger: the row last opened is t
         if (row && !guarded) under.set(row, true);
       }
     });
-  for (const row of ["ix-thread", "cv-row", "lm-row", "pl-table", "cl-table", "msg-row", "sq-row"])
+  for (const row of ["ix-thread", "cv-row", "lm-row", "pl-table", "dtable", "msg-row", "sq-row"])
     assert.ok(
       under.get(row),
       `.${row}'s hover fill stands under @media (hover: hover), so a phone's tapped row is not lit`,

@@ -3,6 +3,7 @@
  * legacy/pages/pipeline-scope.jsx PipelineScope, decision 0015). `usePipelineState` is the whole of its state and what
  * the elements are drawn from; scope-screen.tsx draws them.
  */
+import { useDataTable } from "../../kit/table/use-data-table";
 import { P } from "./pipe";
 import { pipelineBoardActs, pipelineBoardColumns, pipelineNewActs, pipelinePickView } from "./scope-acts";
 import {
@@ -29,6 +30,14 @@ export function usePipelineState(props: PipelineScopeProps) {
   const f = usePipelineFrame(props);
   const ui = usePipelineUi();
   const r = usePipelineRows(f, ui);
+  // The table over the rows drawn: contracts order them, with their groups, and the words choose them (P.of, P.sorted),
+  // one derivation for the board and the list; the table holds the heading's sort, the columns and the selection.
+  const model = useDataTable({
+    state: f.controls.table,
+    columns: f.controls.declared,
+    data: r.shown,
+    server: { sorting: true, filtering: true },
+  });
   usePipelineAsk(r);
   // Each view keeps its own place (the words in the box, the cursor, the scroll), as each of People's lists does.
   const place = usePipelinePlace(f.controls, r);
@@ -79,6 +88,7 @@ export function usePipelineState(props: PipelineScopeProps) {
     f,
     ui,
     r,
+    model,
     place,
     doors,
     closeSheets,

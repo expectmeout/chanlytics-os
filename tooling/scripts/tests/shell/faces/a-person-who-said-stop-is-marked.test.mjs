@@ -38,8 +38,8 @@ const S = "../../../../../apps/dashboard/src";
 const { Face } = await import(`${S}/surfaces/kit/face/face.tsx`);
 const { Icon } = await import(`${S}/surfaces/kit/icon/icon.tsx`);
 const { StoppedMark } = await import(`${S}/surfaces/kit/pill/stopped-mark.tsx`);
-const { PL_COLUMNS, PL_PHONE_COLUMNS } = await import(`${S}/surfaces/people/cells/columns.tsx`);
-const { pipeGlassColumns, pipePhoneColumns } = await import(`${S}/surfaces/people/pipeline/columns.tsx`);
+const { PL_COLUMNS, PL_CARD } = await import(`${S}/surfaces/people/cells/columns.tsx`);
+const { pipeGlassColumns, pipeCard } = await import(`${S}/surfaces/people/pipeline/columns.tsx`);
 const { threadRows } = await import(`${S}/surfaces/inbox/pages/list-rows.tsx`);
 const { IxWho } = await import(`${S}/surfaces/inbox/thread/who.tsx`);
 const { LrList } = await import(`${S}/surfaces/live/list.tsx`);
@@ -323,7 +323,7 @@ test("People says a stop beside its pill only where the pill says something else
   assert.equal(hasMark(state.cell(busyStop, CTX)), true, "the table's State cell");
   assert.equal(hasMark(state.cell(quietStop, CTX)), false, "its pill says Opted out");
   assert.equal(hasMark(state.cell(busyFine, CTX)), false);
-  const card = PL_PHONE_COLUMNS[0];
+  const card = PL_CARD;
   assert.equal(hasMark(card.cell(busyStop, CTX)), true, "the phone's card, among its facts");
   assert.equal(hasMark(card.cell(quietStop, CTX)), false);
   assert.equal(hasMark(card.cell(busyFine, CTX)), false);
@@ -332,7 +332,7 @@ test("People says a stop beside its pill only where the pill says something else
 test("the Pipeline says a stop on its table's person cell and on its phone card, and not for anyone who can be answered", () => {
   fresh();
   const [tableName] = pipeGlassColumns();
-  const [phoneCard] = pipePhoneColumns();
+  const phoneCard = pipeCard();
   const ctx = { ...CTX, attention: null };
   const stopped = pipelineOf(
     [vmOf("p-1", "Dana Cole", { ...STOPPED, ...proposal })],

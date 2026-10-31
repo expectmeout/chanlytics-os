@@ -7,16 +7,18 @@ import { useMemo } from "react";
 import type { ScopeView } from "../scope-view";
 import { mayAtLeast, navigate } from "../../legacy-verbs";
 import { useSwapMotion } from "../../kit/motion/use-swap-motion";
-import { PL_COLUMNS, PL_PHONE_COLUMNS } from "../cells/columns";
-import { TABLE_BODIES } from "../table/table";
+import { TABLE_BODIES } from "../../kit/table/data-table";
+import { useDataTable } from "../../kit/table/use-data-table";
+import { PL_COLUMNS } from "../cells/columns";
+import { plSortThen } from "../cells/sorts";
 import { usePlControls } from "../hooks/use-controls";
 import { usePeople } from "../hooks/use-people";
-import { PL_NO_LISTS } from "../words";
+import { PL_NO_LISTS, plMatcher } from "../words";
 import { usePeopleCells, usePeoplePlace } from "./cells-hook";
 import { peopleViewToken } from "./own-address";
 import { usePeoplePeek } from "../peek/use-people-peek";
 import { peopleListActs, peopleListDoors, peoplePhoneSheetActs } from "./list-acts";
-import { plPeopleShown } from "./shown";
+import { plViewRows } from "./shown";
 import {
   usePeopleAddress,
   usePeopleFarther,
@@ -68,12 +70,12 @@ export function usePeopleState({
   const controls = usePlControls({
     scope: "people",
     cols: PL_COLUMNS,
-    phoneCols: PL_PHONE_COLUMNS,
     colCtx: { withCalendar, word },
     people,
     sortFirst: { by: "last", dir: "desc" },
+    sortThen: plSortThen,
   });
-  const { phone, selectMode, canExport, plFlash, sel, toggleSel, sortBy, sortDir, q } = controls;
+  const { phone, selectMode, canExport, plFlash, sel, toggleSel, q } = controls;
   const sheets = usePeopleSheets(newList, savedId);
   const { setListsOpen } = sheets;
   // The roles ROLE_PERMS gives `approve`: owner, operator, and the partner (0012).
@@ -81,9 +83,10 @@ export function usePeopleState({
   usePeopleAddress(listId, savedId, tab);
   const farther = usePeopleFarther({ people, q, plFlash });
   const { found } = farther;
-  const shown = useMemo(
-    () => plPeopleShown({ rows, found, lists, saved, tab, listId, savedId, q, sortBy, sortDir, columns: PL_COLUMNS }),
-    [rows, found, lists, saved, tab, listId, savedId, q, sortBy, sortDir],
+  // The view's rows (its state and its list), which the table narrows by the words and orders by the sort.
+  const viewRows = useMemo(
+    () => plViewRows({ rows, found, lists, saved, tab, listId, savedId }),
+    [rows, found, lists, saved, tab, listId, savedId],
   );
   const open = usePeopleOpenList({ people, lists, saved, listId, savedId, tab, q });
   const doors = peopleListDoors({ plFlash, setListId, setSavedId, setMadeId: open.setMadeId, setListsOpen });
@@ -98,6 +101,14 @@ export function usePeopleState({
     onOpenProfile,
     dropFromList: acts.dropFromList,
   });
+  const model = useDataTable({
+    state: controls.table,
+    columns: controls.declared,
+    data: viewRows,
+    words: plMatcher,
+    sorting: controls.applied,
+  });
+  const shown = model.rows;
   const place = usePeoplePlace({ controls, shown, tab, listId, savedId, q });
   // On a desk a row's press peeks at the person beside the rows (canvas A, PEEK-01); on a phone it opens their page.
   const peek = usePeoplePeek({
@@ -154,6 +165,7 @@ export function usePeopleState({
     ...place,
     ...phoneActs,
     ...peek,
+    model,
     columns,
     onOpenProfile,
     nav,

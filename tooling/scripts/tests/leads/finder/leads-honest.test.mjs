@@ -536,7 +536,7 @@ const { LeadsPhoneBar, LeadPlanSheet } = await importSrc("apps/dashboard/src/sur
 const { LeadsRailRows } = await importSrc("apps/dashboard/src/surfaces/leads/scope/rail.tsx");
 const { LeadImportSheet } = await importSrc("apps/dashboard/src/surfaces/leads/reach-out/lists.tsx");
 const { RecordSheet } = await importSrc("apps/dashboard/src/surfaces/kit/record/sheet.tsx");
-const { LEAD_COLUMNS, LEAD_PHONE_COLUMNS } = await importSrc("apps/dashboard/src/surfaces/leads/cells/columns.tsx");
+const { LEAD_COLUMNS, LEAD_CARD } = await importSrc("apps/dashboard/src/surfaces/leads/cells/columns.tsx");
 const { LeadHover, ldPlacePop } = await importSrc("apps/dashboard/src/surfaces/leads/cells/hover.tsx");
 recorded.set(MoreMenu, menus);
 // Leads' menus are the kit's Menu (Base UI's) since 5 Oct 2026, read here as every menu in this file is read: its name as
@@ -849,7 +849,7 @@ const sortByHeading = (tree, label) =>
         n.type === "button" &&
         String(n.props?.className || "")
           .split(/\s+/)
-          .includes("cl-th-sort") &&
+          .includes("dtable-sort") &&
         textOf(n).startsWith(label),
     ),
   );
@@ -1052,10 +1052,10 @@ test("Leads draws every row of a list on its first draw where its box cannot be 
 test("Leads' rows swap in with the kit's rise as a view's rows land, as People's and the Inbox's lists do", async () => {
   // A rail pick came in at once while People's lists rose (5 Oct 2026): the page hands its table the swap's ref
   // (kit/motion/use-swap-motion.ts, keyed on the view the surface's rows are of).
-  const { PeopleTable } = await import("../../../../../apps/dashboard/src/surfaces/people/table/table.tsx");
+  const { DataTable } = await import("../../../../../apps/dashboard/src/surfaces/kit/table/data-table.tsx");
   await fresh();
-  const table = find(draw(), (n) => n.type === PeopleTable);
-  assert.ok(table, "the Leads scope draws People's table");
+  const table = find(draw(), (n) => n.type === DataTable);
+  assert.ok(table, "the Leads scope draws the kit's table");
   assert.ok(table.props.swapRef && "current" in table.props.swapRef, "and hands it the swap's ref");
 });
 
@@ -1097,7 +1097,7 @@ test("the Leads scope draws the rows the surface read, in the order it read them
     "every heading is keyed by its column; the ones that sort say so with their caret",
   );
   assert.deepEqual(
-    all(tree, (n) => n.props?.className === "cl-th-sort").map(textOf),
+    all(tree, (n) => n.props?.className === "dtable-sort").map(textOf),
     ["Business↕", "Rated↕", "Found↕"],
     "the headings that sort are buttons",
   );
@@ -1147,7 +1147,7 @@ test("the Leads scope draws the rows the surface read, in the order it read them
   );
   globalThis.__phone = false;
   assert.equal(
-    textOf(find(tree, (n) => n.props?.className === "cl-table-foot")).startsWith("322 leads"),
+    textOf(find(tree, (n) => n.props?.className === "dtable-foot")).startsWith("322 leads"),
     true,
     "the table calls its rows leads",
   );
@@ -2861,11 +2861,11 @@ test("typing in the box keeps the selection: leads the words hide are still sele
   assert.equal(byTestId(tree, "leads-bulk-hidden"), null, "with nothing hidden, nothing is said about it");
 });
 
-/** The table's rows as drawn (surfaces/people/table/table.tsx PeopleRow, or its memo). */
+/** The table's rows as drawn (surfaces/kit/table/rows.tsx TableRowView, or its memo). */
 const tableRowsOf = (tree) =>
   all(
     tree,
-    (n) => (n.type && n.type.name === "PeopleRow") || (n.type && n.type.type && n.type.type.name === "PeopleRow"),
+    (n) => (n.type && n.type.name === "TableRowView") || (n.type && n.type.type && n.type.type.name === "TableRowView"),
   );
 /** What a row is handed that is not its own: each the same object from one draw to the next, or every row draws again. */
 const ROW_HELD = ["columns", "ctx", "onToggle", "onCursor", "onOpen", "rowClass", "words"];
@@ -2878,7 +2878,7 @@ test("a row is drawn from what is its own, so a draw that changed nothing of a r
   draw();
   let tree = draw();
   const a = rowsOf(tree);
-  assert.ok(a.length >= 5, "the table draws its rows as PeopleRow");
+  assert.ok(a.length >= 5, "the table draws its rows as the kit's TableRowView");
   tree = draw();
   const b = rowsOf(tree);
   const stable = ROW_HELD;
@@ -2887,7 +2887,7 @@ test("a row is drawn from what is its own, so a draw that changed nothing of a r
   for (const k of ["selected", "focused", "tabStop", "selectable"])
     assert.equal(typeof a[0].props[k], "boolean", `${k} is a boolean, never the whole selection or the cursor`);
   assert.ok(
-    Object.is(a[0].props.p, b[0].props.p),
+    Object.is(a[0].props.row, b[0].props.row),
     "and the row's own view model, which the surface rebuilds only when it publishes",
   );
   // What a press changes is the pressed row's alone.
@@ -2944,14 +2944,14 @@ test("REGRESSION: the Pipeline's rows too -- a draw that changed nothing of a ro
   try {
     const a = tableRowsOf(drawPipeline());
     assert.deepEqual(
-      a.map((r) => r.props.p.name),
+      a.map((r) => r.props.row.name),
       ["Ana", "Ben", "Cy"],
       "the Pipeline draws People's table",
     );
     const b = tableRowsOf(drawPipeline());
     for (const k of ROW_HELD)
       assert.ok(Object.is(a[0].props[k], b[0].props[k]), `${k} is the same object on a draw that changed nothing`);
-    assert.ok(Object.is(a[0].props.p, b[0].props.p), "and the row's own view model: one clock, the surface's");
+    assert.ok(Object.is(a[0].props.row, b[0].props.row), "and the row's own view model: one clock, the surface's");
     press("j");
     const c = tableRowsOf(drawPipeline());
     assert.deepEqual(
@@ -2959,7 +2959,7 @@ test("REGRESSION: the Pipeline's rows too -- a draw that changed nothing of a ro
       [true, false, false],
     );
     for (const k of ROW_HELD) assert.ok(Object.is(c[1].props[k], b[1].props[k]), `${k} held through a key`);
-    assert.ok(Object.is(c[1].props.p, b[1].props.p), "a row the key did not touch keeps its view model");
+    assert.ok(Object.is(c[1].props.row, b[1].props.row), "a row the key did not touch keeps its view model");
   } finally {
     setSurfaceValue("people", undefined);
   }
@@ -3441,7 +3441,7 @@ test("REGRESSION: on a phone a lead's row is People's row -- one cell of the fac
     assert.ok(String(tr.props.className).split(/\s+/).includes("pl-card-row"), "the row People's rows wear");
     assert.deepEqual(
       all(tr, (n) => n.type === "td").map((td) => String(td.props.className)),
-      ["cl-sel", "pl-card-cell"],
+      ["dtable-sel", "pl-card-cell"],
       "one cell beside the face's box, as a person's row",
     );
     const card = cardOf("l1");
@@ -4226,7 +4226,7 @@ test("a lead's state and fit are the one StatePill, in the registry's tones -- a
   // Said once: while the Stage column shows a lead's state, the name's tag does not say it again.
   const rowNode = find(
     tree,
-    (n) => n.type && (n.type.name === "PeopleRow" || (n.type.type && n.type.type.name === "PeopleRow")),
+    (n) => n.type && (n.type.name === "TableRowView" || (n.type.type && n.type.type.name === "TableRowView")),
   );
   const business = LEAD_COLUMNS.find((c) => c.key === "business");
   const tagIn = (td) => find(td, (n) => n.props?.testid === "lead-state-tag");
@@ -4417,19 +4417,16 @@ test("a converted lead whose person became a client reads Client, on the desktop
   // from there -- with the global emptied, a context carrying the rows still says Client, and one without them does not.
   const rowNode = find(
     tree,
-    (n) => n.type && (n.type.name === "PeopleRow" || (n.type.type && n.type.type.name === "PeopleRow")),
+    (n) => n.type && (n.type.name === "TableRowView" || (n.type.type && n.type.type.name === "TableRowView")),
   );
-  assert.ok(rowNode, "the table draws its rows as PeopleRow");
+  assert.ok(rowNode, "the table draws its rows as the kit's TableRowView");
   assert.equal(rowNode.props.ctx.peopleRows, people, "REGRESSION: the cell context carried nothing from People");
   const business = LEAD_COLUMNS.find((c) => c.key === "business");
   const pillOf = (td, testid) => find(td, (n) => n.props?.testid === testid);
   surfaceValue("people").rows = [];
   const withRows = pillOf(business.cell(rows[0], { ...rowNode.props.ctx, peopleRows: people }), "lead-state-tag");
   assert.deepEqual([withRows.props.kind, withRows.props.value], ["deal", "won"], "the context's rows say Client");
-  const withCard = pillOf(
-    LEAD_PHONE_COLUMNS[0].cell(rows[0], { ...rowNode.props.ctx, peopleRows: people }),
-    "lead-state",
-  );
+  const withCard = pillOf(LEAD_CARD.cell(rows[0], { ...rowNode.props.ctx, peopleRows: people }), "lead-state");
   assert.deepEqual([withCard.props.kind, withCard.props.value], ["deal", "won"], "and so does the phone's card");
   // D1-lead-person-door: the Client pill is the way to the person, through the cell context's own door (the page's
   // onOpenProfile); a proposal out has no Client pill, and so no door, and neither has a row whose people are not read.

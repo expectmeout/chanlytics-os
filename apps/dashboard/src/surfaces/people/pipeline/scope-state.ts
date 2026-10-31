@@ -5,18 +5,18 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ScopeView } from "../scope-view";
-import type { PersonVM, PipelineGroupKey, PipelineRowVM } from "@chanlytics/contracts";
+import type { PersonVM, PipelineGroupKey, PipelineRowVM, PipelineVM } from "@chanlytics/contracts";
 import { pageClock } from "@/legacy-bridge/zone";
 import { askOnScreenKey, navigate, setAskOnScreen } from "../../legacy-verbs";
 import type { FocusOn } from "../../kit/record/focus";
 import { useSwapMotion } from "../../kit/motion/use-swap-motion";
-import { TABLE_BODIES } from "../table/table";
+import { TABLE_BODIES } from "../../kit/table/data-table";
 import { usePlControls } from "../hooks/use-controls";
 import { usePeople } from "../hooks/use-people";
 import { usePlPlace } from "../hooks/use-place";
 import { peekPerson, personDeletedHere, personDetail, warmPeople, warmPerson } from "../people-detail";
 import { PL_NO_PEOPLE, plLoadedWords, plMatcher } from "../words";
-import { pipeGlassColumns, pipePhoneColumns } from "./columns";
+import { pipeGlassColumns } from "./columns";
 import { P } from "./pipe";
 import type { PipelineSection } from "./pipe";
 import {
@@ -70,7 +70,6 @@ export function usePipelineFrame({ onNavigate = null, pipelineRoute = null }: Pi
     scope: "pipeline",
     // The table's columns are canvas D1's (columns.tsx).
     cols: pipeGlassColumns(),
-    phoneCols: pipePhoneColumns(),
     colCtx: PIPE_CTX,
     people,
     sortFirst: PIPE_SORT,
@@ -151,6 +150,19 @@ function usePipelineGroups(f: PipelineFrame) {
   return { rows, pace, all, inView, vm, sortBy, sortDir };
 }
 
+/** The rows drawn, group by group, in contracts' order: none of a folded group's, and a board column's first `cap`. */
+const pipelineShown = (
+  ordered: PipelineVM,
+  searching: boolean,
+  cap: number,
+  folds: { opened: Readonly<Record<string, boolean>>; every: Readonly<Record<string, boolean>> },
+): PipelineRowVM[] => {
+  const { opened, every } = folds;
+  return ordered.groups
+    .filter((gr) => !(gr.collapsed && !searching && !opened[gr.key]))
+    .flatMap((gr) => (every[gr.key] ? gr.rows : gr.rows.slice(0, cap)));
+};
+
 /** The rows the page draws, in the groups they stand in, and what it says over them. */
 export function usePipelineRows(f: PipelineFrame, ui: PipelineUi) {
   const { people, view, nowMs, controls } = f;
@@ -187,9 +199,13 @@ export function usePipelineRows(f: PipelineFrame, ui: PipelineUi) {
       toggle: collapsed ? P.words.show : P.words.hide,
     };
   });
-  // The rows drawn, which the keys walk: on the board, a column's first twenty until the rest are asked for.
+  // The rows drawn, which the keys walk: on the board, a column's first twenty until the rest are asked for. Held still
+  // while they are the same rows, as the table's rows are (kit/table/use-data-table.ts).
   const cap = board && P.boardCap ? P.boardCap : Infinity;
-  const shown = sections.filter((s) => !s.collapsed).flatMap((s) => (every[s.key] ? s.rows : s.rows.slice(0, cap)));
+  const shown = useMemo(
+    () => pipelineShown(ordered, searching, cap, { opened, every }),
+    [ordered, opened, searching, every, cap],
+  );
   const ids = shown.map((r) => r.id);
   return {
     layout,
