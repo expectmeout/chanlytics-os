@@ -6,6 +6,12 @@
  * write is once by the provider's id. A provider that cannot be asked throws, and the job ledger tries the part again;
  * a grant that is gone stops the source, said on its row with Try again (imports/again).
  *
+ * What a mailbox brings is that mailbox's (decision 0086): its own row, cursor and run (contracts PER_MAILBOX_SOURCES),
+ * so two mailboxes read side by side, each from its own place. A run holds its row: Stop on Connections, or a later run
+ * of the same mailbox (Resume, a reconnect), ends the parts of the one before as they wake (runHolds). Its owner chose
+ * as it connected whether its six months come at all (mailbox_connections.history); from now on, they come only when
+ * asked for on its row (bringMailboxHistory).
+ *
  *   mailbox    six months of mail from people, each into their thread as before Chanlytics (mail-history.ts)
  *   contacts   the owner's contacts and the people they wrote to, into People (mail-people.ts)
  *   calendar   a calendar read through the mailbox's grant, read now rather than on the hour (calendar-part.ts)
@@ -17,12 +23,23 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   IMPORT_SOURCES,
   IMPORT_STOPPED_WORDS,
+  PER_MAILBOX_SOURCES,
   SECOND_MS,
   type ImportSource,
+  type MailboxHistory,
   type MailboxProvider,
 } from "../packages/contracts.js";
 import { grantHolds } from "../packages/channels.js";
-import { importsOf, noteCalendarGrant, noteImport, type Database, type Json } from "../packages/db.js";
+import {
+  importRowOf,
+  importsOf,
+  noteCalendarGrant,
+  noteImport,
+  patchMailboxConnection,
+  type Database,
+  type Json,
+  type MailboxConnectionRow,
+} from "../packages/db.js";
 import { retryWait, scheduleJobOnce, type ClaimedJob, type JobContext } from "../packages/jobs.js";
 import { errField, logger, type Logger } from "../log.js";
 import { mailHistoryPart } from "./mail-history.js";
@@ -40,6 +57,8 @@ export interface Part {
   tenantId: string;
   /** The connection the history is read through (a mailbox's id); null for a source that has none. */
   connectionId: string | null;
+  /** The run it is a part of: its writes change nothing once another run, or Stop, holds the row (0086). */
+  run: string;
   /** This part's number in its run, from 1. */
   n: number;
   /** No provider call starts after this. */
@@ -94,49 +113,56 @@ async function schedulePart(
   });
 }
 
-/**
- * The sources every connected mailbox adds to: the ledger keeps one row a source for the workspace, so a mailbox's first
- * run adds what it brings to what the mailboxes before it brought. Started afresh, a second mailbox's run set the row to
- * its own (27 Oct 2026: connecting a second mailbox left the Email card saying 222 emails and 0 people, where the first
- * had brought 414 and 249). The calendar is the workspace's one, read whole each run.
- */
-const SUMMED_ACROSS_MAILBOXES: ReadonlySet<ImportSource> = new Set(["mailbox", "contacts"]);
+/** The mailbox whose row a source's run writes: its own for what a mailbox brings, none for the workspace's sources. */
+const ledgerMailboxOf = (source: ImportSource, connectionId: string | null): string | null =>
+  PER_MAILBOX_SOURCES.includes(source) ? connectionId : null;
 
 /**
- * A source started (a connect) or started again where it stopped (Try again): its row queued, its cursor emptied for a
- * first run and kept for a second (it reads on from where it stopped), and its first part scheduled.
+ * Whether a part's run still holds its mailbox's row (0086): a row Stop (or a failure) ended, or one a later run of the
+ * mailbox took, ends the parts of the run before as they wake, so two parts never read one mailbox at once. A row an
+ * earlier ledger wrote names no run, and holds every part. The workspace's own sources are read as before.
+ */
+async function runHolds(
+  db: Db,
+  p: { tenantId: string; source: ImportSource; connectionId: string | null; run: string },
+): Promise<boolean> {
+  const mailbox = ledgerMailboxOf(p.source, p.connectionId);
+  if (!mailbox) return true;
+  const row = await importRowOf(db, p.tenantId, p.source, mailbox);
+  if (!row) return true;
+  return row.state !== "failed" && (row.run === null || row.run === p.run);
+}
+
+/**
+ * A source started (a connect, or Bring in on a mailbox that chose from now on) or started again where it stopped (Try
+ * again, Resume, a reconnect): its row queued and held by the new run, its counts and cursor emptied for a first run and
+ * kept for a second (it reads on from where it stopped, adding to what came), and its first part scheduled. What a
+ * mailbox brings is its own row, so a first run starts afresh whatever another mailbox brought.
  */
 export async function startHistory(
   db: Db,
   p: { tenantId: string; source: ImportSource; connectionId: string | null; via: string | null; again: boolean },
 ): Promise<void> {
   if (!runnerOf(p.source)) throw new Error(`history_import: nothing here brings ${p.source} in`);
-  // A first run starts its cursor afresh, and its counts too unless the source sums every mailbox's; a second adds to
-  // what the first brought, from where it stopped.
-  const first = SUMMED_ACROSS_MAILBOXES.has(p.source)
-    ? { add: true, partsDone: 0, cursor: {} }
-    : { counts: {}, partsDone: 0, cursor: {} };
+  const run = p.again ? String(Date.now()) : "1";
+  const mailbox = ledgerMailboxOf(p.source, p.connectionId);
   await noteImport(db, {
     tenantId: p.tenantId,
     source: p.source,
     state: "queued",
     via: p.via,
-    ...(p.again ? { add: true } : first),
+    ...(mailbox ? { connectionId: mailbox, run, take: true } : {}),
+    ...(p.again ? { add: true } : { counts: {}, partsDone: 0, cursor: {} }),
   });
-  await schedulePart(db, {
-    tenantId: p.tenantId,
-    source: p.source,
-    run: p.again ? String(Date.now()) : "1",
-    n: 1,
-    connectionId: p.connectionId,
-  });
+  await schedulePart(db, { tenantId: p.tenantId, source: p.source, run, n: 1, connectionId: p.connectionId });
 }
 
 /**
- * What a mailbox brings beside its mail (decision 0073, R19, R20), started as it connects: its six months, its people
- * where the owner left the contacts ticked, and its calendar where they left that ticked, which becomes the calendar the
- * workspace reads (calendar_grant_note). A reconnect starts again only what stopped, from where it stopped. Nothing here
- * undoes a connect that stands: a start that fails is logged, and Connections offers Try again.
+ * What a mailbox brings beside its mail (decision 0073, R19, R20), started as it connects: its six months unless its
+ * owner chose from now on (0086), its people where the owner left the contacts ticked, and its calendar where they left
+ * that ticked, which becomes the calendar the workspace reads (calendar_grant_note). A reconnect starts again only what
+ * of its own stopped, from where it stopped. Nothing here undoes a connect that stands: a start that fails is logged,
+ * and Connections offers Try again.
  */
 export async function startMailboxHistory(
   db: Db,
@@ -146,12 +172,14 @@ export async function startMailboxHistory(
     provider: MailboxProvider;
     scopes: readonly string[];
     first: boolean;
+    /** What its owner chose as it connected: from now on brings no six months now. */
+    history: MailboxHistory;
     /** Who connected it, for the settings' record of the calendar it brings. */
     by: string | null;
     log: Logger;
   },
 ): Promise<void> {
-  const wanted: ImportSource[] = ["mailbox"];
+  const wanted: ImportSource[] = p.first && p.history === "from_now" ? [] : ["mailbox"];
   if (grantHolds(p.provider, p.scopes, "contacts")) wanted.push("contacts");
   const calendar = grantHolds(p.provider, p.scopes, "calendar");
   if (calendar) wanted.push("calendar");
@@ -165,9 +193,19 @@ export async function startMailboxHistory(
         by: p.by,
       });
     // A reconnect: what stopped (signed out, most often) starts again from where it stopped; what is done stays done.
+    // What a mailbox brings is its own row's; the calendar is the workspace's.
     const stoppedNow = p.first
       ? null
-      : new Set((await importsOf(db, p.tenantId)).filter((r) => r.state === "failed").map((r) => r.source));
+      : new Set(
+          (await importsOf(db, p.tenantId))
+            .filter(
+              (r) =>
+                isSource(r.source) &&
+                r.state === "failed" &&
+                r.connection_id === ledgerMailboxOf(r.source, p.mailboxId),
+            )
+            .map((r) => r.source),
+        );
     for (const source of wanted) {
       if (stoppedNow && !stoppedNow.has(source)) continue;
       await startHistory(db, {
@@ -181,6 +219,69 @@ export async function startMailboxHistory(
   } catch (e) {
     p.log.error("history_start_failed", { mailbox: p.mailboxId, error: e instanceof Error ? e.message : String(e) });
   }
+}
+
+/** A mailbox on Connections, as its history's acts read it. */
+type MailboxOf = Pick<MailboxConnectionRow, "tenant_id" | "id" | "provider" | "history">;
+
+/**
+ * Stop, on a mailbox's row in Connections (0086): what it is still bringing in stops where it stands, said on its row
+ * (IMPORT_STOPPED_WORDS.byYou), and Stop takes the row from every run, so a part mid-read writes nothing over it and
+ * the next ends as it wakes. What came in is kept. Answers whether anything was coming in.
+ */
+export async function stopMailboxHistory(db: Db, m: MailboxOf, nowMs: number): Promise<boolean> {
+  const going = (await importsOf(db, m.tenant_id)).filter(
+    (r) => r.connection_id === m.id && (r.state === "queued" || r.state === "running"),
+  );
+  for (const r of going)
+    await noteImport(db, {
+      tenantId: m.tenant_id,
+      source: r.source,
+      connectionId: m.id,
+      state: "failed",
+      error: IMPORT_STOPPED_WORDS.byYou,
+      add: true,
+      run: `stopped:${nowMs}`,
+      take: true,
+    });
+  return going.length > 0;
+}
+
+/**
+ * Resume after Stop, or Try again after a failure, on a mailbox's row (0086): what of its own stopped starts again from
+ * where it stopped, a run of its own. Answers whether anything had stopped.
+ */
+export async function resumeMailboxHistory(db: Db, m: MailboxOf): Promise<boolean> {
+  const stopped = (await importsOf(db, m.tenant_id)).filter((r) => r.connection_id === m.id && r.state === "failed");
+  for (const r of stopped)
+    if (isSource(r.source))
+      await startHistory(db, {
+        tenantId: m.tenant_id,
+        source: r.source,
+        connectionId: m.id,
+        via: m.provider,
+        again: true,
+      });
+  return stopped.length > 0;
+}
+
+/**
+ * Bring in the last 6 months, on a mailbox its owner connected from now on (0086): its first run starts, its window the
+ * six months before it connected (mail-history.ts firstWindow), which ends where the live read began, and its choice
+ * becomes the six months. Once: a mailbox with a run of its own resumes that instead. Answers whether it started.
+ */
+export async function bringMailboxHistory(db: Db, m: MailboxOf): Promise<boolean> {
+  if (m.history !== "from_now") return false;
+  if ((await importsOf(db, m.tenant_id)).some((r) => r.source === "mailbox" && r.connection_id === m.id)) return false;
+  await startHistory(db, {
+    tenantId: m.tenant_id,
+    source: "mailbox",
+    connectionId: m.id,
+    via: m.provider,
+    again: false,
+  });
+  await patchMailboxConnection(db, { tenantId: m.tenant_id, id: m.id, patch: { history: "six_months" } });
+  return true;
 }
 
 /**
@@ -248,9 +349,14 @@ export function historyImports(db: Db): NonNullable<JobContext["imports"]> {
       const { run: runId, n } = seqOf(job.payload.seq);
       const connectionId = typeof job.payload.connection_id === "string" ? job.payload.connection_id : null;
       const log = logger({ tenant_id: job.tenant_id });
+      if (!(await runHolds(db, { tenantId: job.tenant_id, source, connectionId, run: runId }))) {
+        log.info("history_part", { source, run: runId, n, more: false, ended: "not_its_run" });
+        return;
+      }
       const out = await run(db, {
         tenantId: job.tenant_id,
         connectionId,
+        run: runId,
         n,
         until: Math.min(deadline, Date.now() + PART_MS),
         log,
@@ -270,6 +376,8 @@ export function historyImports(db: Db): NonNullable<JobContext["imports"]> {
           await noteImport(db, {
             tenantId: job.tenant_id,
             source,
+            connectionId: ledgerMailboxOf(source, connectionId),
+            run: runId,
             state: "failed",
             error: IMPORT_STOPPED_WORDS.failed,
             add: true,

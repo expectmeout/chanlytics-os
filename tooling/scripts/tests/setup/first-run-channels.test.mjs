@@ -267,7 +267,7 @@ test("your dashboard filling in: people, email and chats together, the calendar 
     vm.filling.rows.map((r) => [r.key, r.value, r.sub]),
     [
       ["people", "1,640", "your clients, contacts, WhatsApp"],
-      ["inbox", "420", "six months of email and chats"],
+      ["inbox", "420", "email and chats"],
       ["calendar", "9", "coming up · 412 back"],
       ["reviews", "—", "all of them, from your profile"],
     ],

@@ -1,7 +1,7 @@
 {
-  "rows": 153,
+  "rows": 154,
   "same": 8,
-  "differ": 145,
+  "differ": 146,
   "writes": {
     "DELETE ask/memory/[id]": {
       "changes": "ask_memory_lines INSERT UPDATE"
@@ -1401,6 +1401,13 @@
       }
     },
     "POST mailbox-connections/[id]/check": {
+      "changes": "",
+      "doors": "contacts · conversations · imports · leads · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_config",
+      "door": {
+        "setup": "every page"
+      }
+    },
+    "POST mailbox-connections/[id]/history": {
       "changes": "",
       "doors": "contacts · conversations · imports · leads · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_config",
       "door": {

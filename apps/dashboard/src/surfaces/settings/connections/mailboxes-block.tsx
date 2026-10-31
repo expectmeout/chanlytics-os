@@ -13,15 +13,22 @@
  * `EmailCard` and `ConnectedMailboxes` keep their state; a row, its buttons, its questions and the foot are plain
  * functions that return the JSX, called and not drawn, as the block before it did. A domain's records are the DNS
  * sheet's (dns-sheet.tsx): the card says how many are still to add, and Set up DNS opens them.
+ *
+ * What a mailbox brings in is its own (decision 0086): under each Connect, what connecting brings and Change
+ * (history-choice.tsx); on its row (or, for one mailbox, its Inbox fact), where its history stands and the one act
+ * that fits it.
  */
 import { Fragment, useState } from "react";
 import {
   IMPORT_WORDS,
   importLineOf,
+  sourceRowsOf,
   type ConnectionRow,
   type ImportRowDto,
   type ImportSource,
   type MailboxConnectionDto,
+  type MailboxHistory,
+  type MailboxHistoryAct,
   type MailboxProvider,
   type SetupDto,
 } from "@chanlytics/contracts";
@@ -38,6 +45,7 @@ import { canDo, gate, gateTitle, refusalToast, type LegacyFlash } from "../../le
 import { connectedMailboxes } from "./connected-mailboxes";
 import { LeftSenders } from "./left-senders";
 import { DnsSheet, copyWords } from "./dns-sheet";
+import { HistoryAct, HistoryChoice } from "./history-choice";
 import { MailboxSheet } from "./mailbox-sheet";
 import { setupVerbs } from "../../setup/surface";
 
@@ -60,8 +68,11 @@ interface MailboxActs {
   check: (m: MailboxConnectionDto) => Promise<void>;
   test: (m: MailboxConnectionDto) => Promise<void>;
   remove: (m: MailboxConnectionDto) => Promise<void>;
-  /** To the provider, for a new mailbox or to Reconnect one: a refusal is said here, and the browser stays. */
-  connect: (provider: MailboxProvider, m?: MailboxConnectionDto) => Promise<void>;
+  /**
+   * To the provider, for a new mailbox (with what its owner chose of its history) or to Reconnect one: a refusal is
+   * said here, and the browser stays.
+   */
+  connect: (provider: MailboxProvider, m?: MailboxConnectionDto, history?: MailboxHistory) => Promise<void>;
   /** The link for a Microsoft 365 admin, asked for and shown under the block to copy and send them. */
   adminLink: () => Promise<void>;
 }
@@ -73,10 +84,10 @@ function mailboxActsOf(
   setArm: (a: Arm | null) => void,
   setAdminUrl: (url: string | null) => void,
 ): MailboxActs {
-  const connect = async (provider: MailboxProvider, m?: MailboxConnectionDto) => {
+  const connect = async (provider: MailboxProvider, m?: MailboxConnectionDto, history?: MailboxHistory) => {
     // Its own key, so a row's Check never reads "Checking…" while the page is only leaving for the provider.
     setBusy(`connect:${m?.id ?? provider}`);
-    const r = await MAILBOXES.connect(provider, m?.id);
+    const r = await MAILBOXES.connect(provider, m?.id, undefined, history);
     // Given a way to the provider, the browser is leaving; a page brought back from the history is pressable again.
     setBusy(null);
     if (!r.ok) flash(refusalToast(r, "Not connected"));
@@ -283,13 +294,34 @@ function dnsNeed(m: MailboxConnectionDto) {
   );
 }
 
+/** Where a mailbox's history stands on its line, and the act that fits it (an owner's). */
+function historyNote(m: MailboxConnectionDto, says: string, act: MailboxHistoryAct | null, ctx: RowContext) {
+  return (
+    <span data-testid={`mailbox-history-${m.address}`}>
+      {says}
+      {act && ctx.owner ? (
+        <>
+          {" · "}
+          <HistoryAct id={m.id} address={m.address} act={act} flash={ctx.flash} />
+        </>
+      ) : null}
+    </span>
+  );
+}
+
 /**
- * One mailbox of several: what came in through it and its pill, its act and its caret, and its records while one is
- * missing. Its settings open in the card's sheet.
+ * One mailbox of several: what came in through it and its pill, where its history stands, its act and its caret, and
+ * its records while one is missing. Its settings open in the card's sheet.
  */
-function mailboxRow(m: MailboxConnectionDto, ctx: RowContext, now: number, zone: string) {
+function mailboxRow(
+  m: MailboxConnectionDto,
+  ctx: RowContext,
+  imports: readonly ImportRowDto[] | null | undefined,
+  { now, zone }: { now: number; zone: string },
+) {
   const r = MAILBOXES.row(m, now, zone);
   const missing = missingOf(m);
+  const history = MAILBOXES.historyLine(m, imports, now, zone);
   return (
     <Fragment key={m.id}>
       <div className="set-dom" data-testid={`mailbox-${m.address}`} data-state={m.state}>
@@ -298,6 +330,7 @@ function mailboxRow(m: MailboxConnectionDto, ctx: RowContext, now: number, zone:
           <b>{m.address}</b>
           {r.cameIn ? <span data-testid={`mailbox-came-in-${m.address}`}>{r.cameIn}</span> : null}
           {r.standing ? <span>{r.standing}</span> : null}
+          {history ? historyNote(m, history.says, history.act, ctx) : null}
           {dnsNeed(m) ?? (r.fix ? <span>{r.fix}</span> : null)}
           {mailboxQuestions(m, r.fix, ctx)}
         </span>
@@ -311,11 +344,17 @@ function mailboxRow(m: MailboxConnectionDto, ctx: RowContext, now: number, zone:
   );
 }
 
+/** What a new mailbox brings as it connects (0086), chosen under its Connect: the owner's, and theirs to change. */
+interface Choice {
+  history: MailboxHistory;
+  setHistory: (history: MailboxHistory) => void;
+}
+
 /**
- * The foot: the rule once, and a Connect for each provider this deployment offers, while there is room; beside
- * Microsoft's, the link for an organisation whose admin approves apps.
+ * The foot: the rule once, what connecting brings and Change, and a Connect for each provider this deployment offers,
+ * while there is room; beside Microsoft's, the link for an organisation whose admin approves apps.
  */
-function mailboxesFoot(count: number, providers: readonly MailboxProvider[], ctx: RowContext) {
+function mailboxesFoot(count: number, providers: readonly MailboxProvider[], ctx: RowContext, choice: Choice) {
   const { owner, busy, acts } = ctx;
   const room = count < MAILBOXES.max;
   const gated = (what: string) => (owner ? {} : gate(MAILBOX_PERM, what));
@@ -324,6 +363,9 @@ function mailboxesFoot(count: number, providers: readonly MailboxProvider[], ctx
       <span />
       <span className="t">
         <span>{MAILBOXES.foot(count)}</span>
+        {room && owner ? (
+          <HistoryChoice value={choice.history} onChange={choice.setHistory} lineClass="set-mbx-says" />
+        ) : null}
       </span>
       <span />
       <span />
@@ -334,7 +376,7 @@ function mailboxesFoot(count: number, providers: readonly MailboxProvider[], ctx
               key={p}
               size="sm"
               variant={i === 0 && count === 0 ? "primary" : undefined}
-              onClick={() => void acts.connect(p)}
+              onClick={() => void acts.connect(p, undefined, choice.history)}
               disabled={busy !== null}
               data-testid={`mailbox-connect-${p}`}
               {...gated("connect a mailbox")}
@@ -416,6 +458,7 @@ export function ConnectedMailboxes({ email, flash, note, onNote }: ConnectedMail
   const [busy, setBusy] = useState<string | null>(null);
   const [arm, setArm] = useState<Arm | null>(null);
   const [adminUrl, setAdminUrl] = useState<string | null>(null);
+  const [history, setHistory] = useState<MailboxHistory>("six_months");
   const owner = canDo(MAILBOX_PERM);
   const acts = mailboxActsOf(flash, setBusy, setArm, setAdminUrl);
   const ctx: RowContext = { owner, busy, arm, acts, flash, setArm };
@@ -440,7 +483,7 @@ export function ConnectedMailboxes({ email, flash, note, onNote }: ConnectedMail
           </span>
         </div>
       )}
-      {mailboxesFoot(0, providers, ctx)}
+      {mailboxesFoot(0, providers, ctx, { history, setHistory })}
     </div>
   );
 }
@@ -473,29 +516,46 @@ function ImportAgain({ source, flash }: { source: ImportSource; flash: Flash }) 
   );
 }
 
+/** One of the card's facts: its words, and Try again on a source that stopped or the one mailbox's history act. */
+interface CardFact {
+  key: string;
+  label: string;
+  value: string;
+  again: ImportSource | null;
+  act: MailboxHistoryAct | null;
+}
+
 /**
- * The Email card's facts, in place of sentences: what came in from the mailbox and its contacts (the ledger's line for
- * each, with where it stands while it is still coming), and, for one mailbox, the most it sends a day and what it signs
- * as. A fact with nothing to say is left out.
+ * The Email card's facts, in place of sentences: what came in from the mailboxes and their contacts (the ledger's line
+ * for each source, every mailbox's rows said as one: contracts sourceRowsOf, with where it stands while it is still
+ * coming), and, for one mailbox, the most it sends a day and what it signs as. One mailbox's Inbox is its own history's
+ * line (contracts mailboxHistoryLine), with the act that fits it in place of Try again: Stop while it comes in, and
+ * Bring in the last 6 months where it was connected from now on. A fact with nothing to say is left out.
  */
-function cardFacts(one: MailboxConnectionDto | null, imports: readonly ImportRowDto[] | null | undefined) {
+function cardFacts(one: MailboxConnectionDto | null, imports: readonly ImportRowDto[] | null | undefined): CardFact[] {
   const C = MAILBOXES.card;
-  const brought = BROUGHT_FACTS.map(({ source, label }) => {
-    const row = imports?.find((r) => r.source === source);
+  const zone = pageClock().zone();
+  const rows = sourceRowsOf(imports);
+  const history = one ? MAILBOXES.historyLine(one, imports, Date.now(), zone) : null;
+  const brought = BROUGHT_FACTS.map(({ source, label }): CardFact | null => {
+    if (source === "mailbox" && history)
+      return { key: source, label, value: history.says, again: null, act: history.act };
+    const row = rows.find((r) => r.source === source);
     if (!row) return null;
-    const l = importLineOf(row, pageClock().zone());
+    const l = importLineOf(row, zone);
     return {
       key: source,
       label,
       // A stopped line says so in its own words, Try again beside it; only one still coming says where it stands.
       value: l.state === "done" || l.state === "failed" ? l.says : `${l.says} · ${l.stand}`,
       again: l.retry ? source : null,
+      act: null,
     };
   });
-  const own = one
+  const own: CardFact[] = one
     ? [
-        { key: "sends", label: C.sends, value: C.sendsUpTo(one.daily_cap), again: null },
-        { key: "signs", label: C.signsAs, value: MAILBOXES.signs.as(one), again: null },
+        { key: "sends", label: C.sends, value: C.sendsUpTo(one.daily_cap), again: null, act: null },
+        { key: "signs", label: C.signsAs, value: MAILBOXES.signs.as(one), again: null, act: null },
       ]
     : [];
   return [...brought, ...own].filter((f) => f !== null);
@@ -552,6 +612,7 @@ export function EmailCard({ r, email, imports, businessName, flash, note, onNote
   const [busy, setBusy] = useState<string | null>(null);
   const [arm, setArm] = useState<Arm | null>(null);
   const [adminUrl, setAdminUrl] = useState<string | null>(null);
+  const [history, setHistory] = useState<MailboxHistory>("six_months");
   const owner = canDo(MAILBOX_PERM);
   const acts = mailboxActsOf(flash, setBusy, setArm, setAdminUrl);
   const ctx: RowContext = { owner, busy, arm, acts, flash, setArm };
@@ -595,7 +656,16 @@ export function EmailCard({ r, email, imports, businessName, flash, note, onNote
                   <dt>{f.label}</dt>
                   <dd>
                     {f.value}
-                    {f.again && owner ? <ImportAgain source={f.again} flash={flash} /> : null}
+                    {f.again && owner ? (
+                      <span className="set-mbx-fact-act">
+                        <ImportAgain source={f.again} flash={flash} />
+                      </span>
+                    ) : null}
+                    {f.act && one && owner ? (
+                      <span className="set-mbx-fact-act">
+                        <HistoryAct id={one.id} address={one.address} act={f.act} flash={flash} />
+                      </span>
+                    ) : null}
                   </dd>
                 </div>
               ))}
@@ -604,7 +674,7 @@ export function EmailCard({ r, email, imports, businessName, flash, note, onNote
           {one ? (
             <>{mailboxQuestions(one, w?.fix ?? null, ctx)}</>
           ) : (
-            <div className="set-domains">{boxes.map((m) => mailboxRow(m, ctx, now, zone))}</div>
+            <div className="set-domains">{boxes.map((m) => mailboxRow(m, ctx, imports, { now, zone }))}</div>
           )}
           <div className="set-mbx-foot">
             <div className="set-mbx-left">
@@ -620,7 +690,7 @@ export function EmailCard({ r, email, imports, businessName, flash, note, onNote
               ? providers.map((p) => (
                   <LinkButton
                     key={p}
-                    onClick={() => void acts.connect(p)}
+                    onClick={() => void acts.connect(p, undefined, history)}
                     disabled={busy !== null}
                     data-testid={`mailbox-connect-${p}`}
                   >
@@ -628,6 +698,11 @@ export function EmailCard({ r, email, imports, businessName, flash, note, onNote
                   </LinkButton>
                 ))
               : null}
+            {room ? (
+              <div className="set-mbx-choice">
+                <HistoryChoice value={history} onChange={setHistory} lineClass="set-mbx-says" />
+              </div>
+            ) : null}
             {/* At the most a workspace writes from, Add a mailbox goes, and the card says why. */}
             {owner && boxes.length >= MAILBOXES.max ? (
               <span className="set-mbx-says" data-testid="mailbox-most">

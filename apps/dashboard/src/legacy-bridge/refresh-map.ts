@@ -613,10 +613,11 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST mailboxes": () => [setupOverride, todayOverride, calendarOverride, ...channelChange()],
   // The mailbox's own facts are what email's readiness reads (its offers pause among them), so a save of it re-reads them.
   "PUT mailboxes/[id]": setupAndReadiness,
-  // A connected mailbox paused, set, checked, resumed, tested or removed: the Email row's block reads again from Setup
-  // (a connect comes back from the provider to a page that reads it afresh).
+  // A connected mailbox paused, set, checked, resumed, tested or removed, or its history stopped, resumed or brought
+  // (0086): the Email row's block reads again from Setup; a connect comes back to a page that reads it afresh.
   "PATCH mailbox-connections/[id]": setup,
   "POST mailbox-connections/[id]/check": setup,
+  "POST mailbox-connections/[id]/history": setup,
   "POST mailbox-connections/[id]/resume": setup,
   "POST mailbox-connections/[id]/test": setup,
   "DELETE mailbox-connections/[id]": setup,

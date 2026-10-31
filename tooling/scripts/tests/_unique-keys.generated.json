@@ -899,15 +899,30 @@
     },
     {
       "table": "imports",
-      "name": "imports_pkey",
-      "primary": true,
-      "nullsNotDistinct": false,
+      "name": "imports_one_a_source",
+      "primary": false,
+      "nullsNotDistinct": true,
       "keys": [
         {
           "column": "tenant_id"
         },
         {
           "column": "source"
+        },
+        {
+          "column": "connection_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "imports",
+      "name": "imports_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
         }
       ],
       "where": null

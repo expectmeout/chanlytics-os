@@ -13,6 +13,10 @@
  * it is read, never kept, so it cannot be counted again. Written through the ledger's own door (import_ledger_note),
  * the counts set whole, each row's state as it stands. A source with no row is left alone.
  *
+ * Since decision 0086 (00499) each mailbox keeps its own rows and counts only what it brought, and the pages add them
+ * up: a workspace whose ledger holds a mailbox's own row is left alone, since a whole count written on the workspace's
+ * row would be counted twice.
+ *
  * Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
  * Usage:
  *   node tooling/scripts/ops/imports-recount-mail.mjs --tenant <workspace id>
@@ -28,6 +32,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
  * `{ messages, oldest, contactsPeople }`; a row's other counts are kept as they are.
  */
 export function planRecount(rows, counted) {
+  if (rows.some((r) => r.connection_id)) return [];
   const by = (s) => rows.find((r) => r.source === s) ?? null;
   const plan = [];
   const mail = by("mailbox");
@@ -99,7 +104,7 @@ async function main() {
   const db = createClient(url, key, { auth: { persistSession: false } });
   const read = await db
     .from("imports")
-    .select("source, state, counts, oldest")
+    .select("source, connection_id, state, counts, oldest")
     .eq("tenant_id", tenantId)
     .in("source", ["mailbox", "contacts"]);
   if (read.error) throw new Error(`read the ledger: ${read.error.message}`);

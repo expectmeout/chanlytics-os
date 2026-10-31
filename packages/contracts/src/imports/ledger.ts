@@ -1,5 +1,6 @@
 /**
- * What was brought in (decision 0073, R23): one row per workspace and source in the imports ledger, written by the jobs
+ * What was brought in (decision 0073, R23; 0086): one row a workspace and source in the imports ledger, and one a mailbox
+ * for what a mailbox brings (PER_MAILBOX_SOURCES), each source said once (sourceRowsOf), written by the jobs
  * that bring a connection's history in (Google's reviews, the calendar, the clients' file, the mailbox, the contacts,
  * WhatsApp's contacts and chats) and read by the first run's "Bringing it in", Today's "Brought in" and Connections'
  * sentences. Everything brought is "before Chanlytics": shown, never counted as today's, never answered, never a yes
@@ -22,6 +23,9 @@ export const IMPORT_SOURCES = [
 ] as const;
 export type ImportSource = (typeof IMPORT_SOURCES)[number];
 
+/** What a mailbox brings, each mailbox its own row (00499): its six months, its contacts. Every other source is the workspace's. */
+export const PER_MAILBOX_SOURCES: readonly ImportSource[] = ["mailbox", "contacts"];
+
 /** How far back a connection's history reaches: six months (decision 0073, R19 to R21). */
 export const HISTORY_BACK_DAYS = 180;
 
@@ -41,6 +45,8 @@ export const IMPORT_STOPPED_WORDS = {
   /** Meta offers the kept app's contacts and chats once, while the number connects (decision 0073, R21). */
   offeredOnce: "Meta offers it once, while the number connects. To bring it, connect WhatsApp again from Settings.",
   numberGone: "That WhatsApp number is no longer connected, so nothing more comes from it.",
+  /** Stopped on Connections by someone who may change the settings (0086): Resume picks it up where it stopped. */
+  byYou: "Stopped. What came in is kept.",
 } as const;
 
 /** What comes once, as a connection is made: a stop there is no Try again for (Meta's coexistence sync, R21). */
@@ -71,9 +77,11 @@ export interface ImportCounts {
   unreadable?: number;
 }
 
-/** One source's row in the ledger, as the page reads it. */
+/** One row of the ledger, as the page reads it: a source's, or one mailbox's of a source it brings. */
 export interface ImportRowDto {
   source: ImportSource;
+  /** The mailbox it came through (PER_MAILBOX_SOURCES); null for the workspace's own source. */
+  connection_id: string | null;
   state: ImportState;
   counts: ImportCounts;
   /** Parts done of the parts there are, where the source runs in parts (Meta's three, the mailbox's pages). */
@@ -353,12 +361,65 @@ export function importNotesOf(
   tz: string,
 ): { text: string; live: true }[] {
   if (!sources || !rows) return [];
-  return rows
+  return sourceRowsOf(rows)
     .filter((r) => sources.includes(r.source))
     .map((r) => {
       const l = importLineOf(r, tz);
       return { text: `${l.title}: ${l.says}${l.state === "done" ? "" : ` · ${l.stand}`}`, live: true as const };
     });
+}
+
+/** A source's stands, the most pressing first: one still coming says it is coming, else one that stopped, else done. */
+const STANDING: readonly ImportState[] = ["running", "queued", "failed", "done"];
+
+/** The earliest, or the latest, of some moments; null where none is. */
+const momentOf = (pick: "min" | "max", at: readonly (string | null)[]): string | null => {
+  const ms = at.flatMap((a) => (a ? [Date.parse(a)] : [])).filter(Number.isFinite);
+  return ms.length ? new Date(pick === "min" ? Math.min(...ms) : Math.max(...ms)).toISOString() : null;
+};
+
+/**
+ * One row a source (0086): every mailbox's row of a source a mailbox brings, said as the one source the pages name
+ * ("Your inbox · 414 emails"), its counts added, its stand the most pressing of theirs (a mailbox still bringing its mail
+ * in says the inbox is), how far back the furthest reached. A source with one row is that row.
+ */
+export function sourceRowsOf(rows: readonly ImportRowDto[] | null | undefined): ImportRowDto[] {
+  const by = new Map<ImportSource, ImportRowDto[]>();
+  for (const r of rows ?? []) by.set(r.source, [...(by.get(r.source) ?? []), r]);
+  return [...by.values()].map((group) => {
+    const [only, ...more] = group;
+    if (!more.length && only) return only;
+    const state = STANDING.find((s) => group.some((r) => r.state === s)) ?? "done";
+    const counts: Record<string, number> = {};
+    for (const r of group)
+      for (const [k, n] of Object.entries(r.counts)) if (typeof n === "number") counts[k] = (counts[k] ?? 0) + n;
+    const totals = group.map((r) => r.parts_total);
+    return {
+      source: group[0]?.source ?? "mailbox",
+      connection_id: null,
+      state,
+      counts,
+      parts_done: group.reduce((n, r) => n + r.parts_done, 0),
+      parts_total: totals.every((t) => t !== null) ? totals.reduce<number>((n, t) => n + (t ?? 0), 0) : null,
+      oldest: momentOf(
+        "min",
+        group.map((r) => r.oldest),
+      ),
+      started_at: momentOf(
+        "min",
+        group.map((r) => r.started_at),
+      ),
+      finished_at:
+        state === "done"
+          ? momentOf(
+              "max",
+              group.map((r) => r.finished_at),
+            )
+          : null,
+      last_error: state === "failed" ? (group.find((r) => r.state === "failed")?.last_error ?? null) : null,
+      via: group.find((r) => r.via)?.via ?? null,
+    };
+  });
 }
 
 /** Sources in the order they are said: what came first, then what is still coming. */
@@ -382,7 +443,7 @@ export function importLinesOf(
   tz: string,
   o: { whatsappWaiting: boolean } = { whatsappWaiting: false },
 ): { lines: ImportLineVM[]; done: number; of: number; running: boolean } {
-  const got = [...(rows ?? [])].sort((a, b) => SAID_ORDER.indexOf(a.source) - SAID_ORDER.indexOf(b.source));
+  const got = sourceRowsOf(rows).sort((a, b) => SAID_ORDER.indexOf(a.source) - SAID_ORDER.indexOf(b.source));
   const lines = got.map((r) => importLineOf(r, tz));
   const hasWhatsapp = got.some((r) => r.source === "whatsapp_contacts" || r.source === "whatsapp_history");
   if (o.whatsappWaiting && !hasWhatsapp)
@@ -425,7 +486,7 @@ export function broughtInCardOf(
   count: number | null,
   tz: string,
 ): { title: string; state: BroughtInStateVM; facts: BroughtInFactVM[] } | null {
-  const got = rows ?? [];
+  const got = sourceRowsOf(rows);
   if (!got.length) return null;
   const by = (s: ImportSource) => got.find((r) => r.source === s) ?? null;
   const reviews = by("google_reviews");
@@ -463,7 +524,7 @@ const BROUGHT_IN_SHOWN_MS = DAY_MS;
  * Calendar's own.
  */
 export function broughtInShown(rows: readonly ImportRowDto[] | null | undefined, nowMs: number): boolean {
-  const got = rows ?? [];
+  const got = sourceRowsOf(rows);
   if (!got.length) return false;
   if (got.some((r) => r.state !== "done")) return true;
   const last = Math.max(...got.map((r) => (r.finished_at ? Date.parse(r.finished_at) : 0)));

@@ -14,12 +14,14 @@ import {
   type FirstRunChannelsVM,
   type FirstRunPhoneVM,
   type ImportLineVM,
+  type MailboxHistory,
   type SetupPhoneWant,
   type WhatsappChoice,
 } from "@chanlytics/contracts";
 import { RecordField, RecordToggleGroup } from "../../../kit/record/field";
 import { canDo, gate, refusalToast, type LegacyFlash } from "../../../legacy-verbs";
 import { connectedMailboxes } from "../../../settings/connections/connected-mailboxes";
+import { HistoryChoice } from "../../../settings/connections/history-choice";
 import { businessTabSave } from "../../shell";
 import { setupVerbs } from "../../surface";
 import type { KeptPhoneChoice } from "../memory";
@@ -219,10 +221,14 @@ function BookingsTile({
   );
 }
 
-/** The mailbox tile: connected, a press per provider this deployment connects, or coming soon. */
+/**
+ * The mailbox tile: connected, a press per provider this deployment connects with what connecting brings under it and
+ * Change (decision 0086), or coming soon.
+ */
 function EmailTile({ e, flash }: { e: FirstRunChannelsVM["email"]; flash: (f: LegacyFlash) => void }) {
+  const [history, setHistory] = useState<MailboxHistory>("six_months");
   const connect = async (p: "google" | "microsoft") => {
-    const r = await connectedMailboxes.connect(p, null, "start");
+    const r = await connectedMailboxes.connect(p, null, "start", history);
     if (!r.ok) flash(refusalToast(r, W.find.notLinked));
   };
   return (
@@ -252,6 +258,9 @@ function EmailTile({ e, flash }: { e: FirstRunChannelsVM["email"]; flash: (f: Le
             </button>
           ))}
         </div>
+      ) : null}
+      {e.providers.length && canDo("settings") ? (
+        <HistoryChoice value={history} onChange={setHistory} lineClass="fr-detail" />
       ) : null}
       <p className="fr-detail">{e.note}</p>
     </section>
