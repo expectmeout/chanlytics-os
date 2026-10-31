@@ -420,33 +420,33 @@ test("the page: Later puts a row off through the bridge, and waits for it like a
   assert.equal(facts.also, null, "a row the receptionist needs is never put off");
 });
 
-test("the page as Today draws it: Skip says the row's own words in the card's toast, whose Undo puts the row back as it stood", async () => {
+test("the page as Today draws it: a row it may put off takes Today's own Skip in its Later's place, and a row back from its week says so by its name", () => {
   setSurfaceValue("setup", { dto, role: "owner", later: [], rests: {}, vm, fetchedAt: NOW });
-  const lent = [];
-  const said = "Put off for a week. Until it is set up, only calls to your receptionist's own number are answered.";
+  const asked = [];
   drawAs = {
-    // Today's card hands each row its toast's words (contracts SetupCardRowVM.said), and a row back from its week a word.
-    rows: vm.rows.map((r) => ({ ...r, said: r.id === "keep" ? said : null, back: r.id === "keep" })),
+    rows: vm.rows.map((r) => ({ ...r, back: r.id === "keep" })),
     later: { put: "Skip", back: "Back after a week", backShort: "Back" },
     look: "card",
-    flash: (m) => lent.push(m),
+    // Today's card hands each row its Skip, a menu of a week or for good (today/pages/setup-card-body.tsx SkipMenu).
+    skip: (id) => {
+      asked.push(id);
+      return `skip:${id}`;
+    },
   };
   try {
     fresh();
-    let row = null;
+    const rows = {};
     walk(mount(), (n) => {
-      if (!row && n.props?.testid === "setup-row-keep") row = n.props;
+      const id = n.props?.testid;
+      if (typeof id === "string" && id.startsWith("setup-row-") && !rows[id]) rows[id] = n.props;
     });
-    assert.deepEqual(row.note, { long: "Back after a week", short: "Back" }, "back from its week: said by its name");
-    assert.equal(row.also.label, "Skip");
-    const own = calls.flash.length;
-    await row.also.onClick();
-    await tick();
-    assert.deepEqual(calls.later.at(-1), ["keep", { on: true, why: "rest" }]);
-    assert.equal(calls.flash.length, own, "said in the toast the card lent, which outlives the row");
-    assert.equal(textOf(lent.at(-1).msg), said);
-    await lent.at(-1).undo();
-    assert.deepEqual(calls.later.at(-1), ["keep", "undo"], "Undo is the put-off's own: the row as it stood");
+    const keep = rows["setup-row-keep"];
+    assert.deepEqual(keep.note, { long: "Back after a week", short: "Back" }, "back from its week: said by its name");
+    assert.equal(keep.also, null, "no Later of the rows' own: one press put it off for a week, then for good");
+    assert.equal(keep.menu, "skip:keep", "the card's Skip, which says both choices before either is pressed");
+    const facts = rows["setup-row-facts"];
+    assert.equal(facts.menu ?? null, null, "a row the receptionist needs is never put off");
+    assert.ok(!asked.includes("facts"), "and its Skip is never asked for");
   } finally {
     drawAs = { later: FIRST_RUN_WORDS.putOff };
   }

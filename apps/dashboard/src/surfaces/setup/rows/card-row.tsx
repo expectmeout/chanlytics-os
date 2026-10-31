@@ -4,7 +4,8 @@
  * outlined, putting it off a quiet link. Hookless; the acts are the caller's, gate spreads included. `left` is how many
  * are left, beside the words, for canvas P9's phone of one row with no head; every width now draws the head's count over
  * every row, and hides this. `note` rides beside the name, at every width, where a phone hides the sentence: a row back
- * from a week put off says so there, since its next Skip is for good; its shorter words on a phone, as a button's.
+ * from a week put off says so there; its shorter words on a phone, as a button's. `menu` is the caller's control in the
+ * second act's place (Today's Skip, a menu of a week or for good), drawn as it comes.
  */
 import type { ReactNode } from "react";
 
@@ -28,6 +29,7 @@ interface SetupCardRowProps {
   left?: ReactNode;
   cta?: SetupCardAct | null;
   also?: SetupCardAct | null;
+  menu?: ReactNode;
   testid?: string;
   ctaTestid?: string;
 }
@@ -41,6 +43,7 @@ export const SetupCardRow = ({
   left = null,
   cta = null,
   also = null,
+  menu = null,
   testid,
   ctaTestid = "setup-verb",
 }: SetupCardRowProps) => (
@@ -67,7 +70,7 @@ export const SetupCardRow = ({
         ) : null}
       </span>
     </div>
-    {cta || also ? (
+    {cta || also || menu ? (
       <div className="setup-card-acts">
         {cta ? (
           <button
@@ -101,7 +104,9 @@ export const SetupCardRow = ({
           >
             {also.label}
           </button>
-        ) : null}
+        ) : (
+          menu
+        )}
       </div>
     ) : null}
   </div>

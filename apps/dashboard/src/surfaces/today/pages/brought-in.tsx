@@ -1,11 +1,11 @@
 /**
- * Brought in (decision 0073, R23, canvas T-today and T·g): Today's small card of what came in before Chanlytics, from the
- * imports ledger Setup reads. Closed, where it all stands in its head ("Bringing it in · 2 of 3", "All in", "1 stopped")
- * and a fact or three under it: the people and the reviews, how far back email reached, the calendar. A press opens it
- * in place, the facts folding into the sources one by one (the first run's own lines, setup/first-run/channels/brought.tsx),
- * each with how far it has come and Try again where one stopped (Ruben, 27 Oct 2026: the sheet was a near-empty pane
- * and too wordy). Drawn while anything is coming in, a source stopped, or for the first week after (contracts
- * broughtInShown).
+ * Your history (decision 0073, R23, canvas T-today and T·g; "Brought in" until the refined canvas, 31 Oct 2026): Today's
+ * small card of what came in before Chanlytics, from the imports ledger Setup reads. Closed, where it all stands in its
+ * head ("Bringing it in · 2 of 3", "All in", "1 stopped") and a fact or three under it: the people and the reviews, how
+ * far back email reached, the calendar. A press opens it in place, the facts folding into the sources one by one (the
+ * first run's own lines, setup/first-run/channels/brought.tsx), each with how far it has come and Try again where one
+ * stopped (Ruben, 27 Oct 2026: the sheet was a near-empty pane and too wordy). Drawn while anything is coming in, a source
+ * stopped, or for the day it finished (contracts broughtInShown): a week of All in was a card with nothing to press.
  */
 import { useId, useState } from "react";
 import { FIRST_RUN_HELPERS, broughtInCardOf, broughtInShown, type BroughtInFactVM } from "@chanlytics/contracts";
