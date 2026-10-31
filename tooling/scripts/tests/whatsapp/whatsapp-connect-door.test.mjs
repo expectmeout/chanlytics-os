@@ -74,21 +74,28 @@ const signedUp = (over = {}) => ({
 
 /* ------------------------------- the knock -------------------------------- */
 
-const token = (aud, o = {}) =>
-  signEdgeToken(o.secret ?? process.env.EDGE_CALL_SECRET, o.aud ?? aud, {
-    workspace: "workspace" in o ? o.workspace : A,
-    user: OWNER,
-  });
+const token = (aud, o = {}) => {
+  const secret = o.secret ?? process.env.EDGE_CALL_SECRET;
+  return (body) =>
+    signEdgeToken(secret, o.aud ?? aud, {
+      workspace: "workspace" in o ? o.workspace : A,
+      user: OWNER,
+      body,
+    });
+};
+/** The headers a knock sends, each token minted for the body it rides with: the edge refuses a token that names none. */
+const minted = (headers, raw) =>
+  Object.fromEntries(Object.entries(headers).map(([k, v]) => [k, typeof v === "function" ? v(raw) : v]));
 const knock = (body, headers = { "x-edge-token": token(CONNECT) }) =>
   connect.POST(
     new Request(`http://edge${CONNECT}`, {
       method: "POST",
-      headers: { ...headers, "content-type": "application/json" },
+      headers: minted({ ...headers, "content-type": "application/json" }, JSON.stringify(body)),
       body: JSON.stringify(body),
     }),
   );
 const ask = (headers = { "x-edge-token": token(CONFIG, { workspace: null }) }) =>
-  signup.GET(new Request(`http://edge${CONFIG}`, { headers }));
+  signup.GET(new Request(`http://edge${CONFIG}`, { headers: minted(headers, undefined) }));
 const answer = async (res) => [res.status, await res.json()];
 
 /** Set variables for one call and put every one of them back afterwards; `undefined` unsets. */

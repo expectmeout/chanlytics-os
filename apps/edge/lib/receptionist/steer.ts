@@ -165,6 +165,17 @@ function draftOf(db: NonNullable<ReturnType<typeof pg>>, messageId: string, work
 }
 
 /**
+ * The door's refusal before any draft is read, or null to go on: no model to rewrite with, or a token that names no
+ * workspace, refused as the live-call doors refuse it. A knock with the platform's key names none and goes on.
+ */
+function refusedBeforeRead(auth: Admitted): Response | null {
+  if (!env.ANTHROPIC_API_KEY) return refuse(503, "no_model_key");
+  const workspace = tokenWorkspace(auth);
+  if (auth.via !== "token" || (workspace && UUID.test(workspace))) return null;
+  return refuse(400, "bad_tenant", "this door acts only for a workspace its credential names, and this one names none");
+}
+
+/**
  * The door's refusal of a draft that cannot be rewritten, or null when it can: it is not the receptionist's draft
  * waiting its turn, or its send job has claimed it (sending_at, 00352) and it is on its way to the customer, queued only
  * until the provider answers. There is nothing left to rewrite then, and the model is not asked.
@@ -231,8 +242,8 @@ export async function steerHeldDraft(
   brain?: BrainPort | null,
 ): Promise<Response> {
   const ask = brain?.generateReply ?? generateReply;
-  if (!env.ANTHROPIC_API_KEY) return refuse(503, "no_model_key");
-  const workspace = tokenWorkspace(auth, "/api/admin/steer");
+  const refused = refusedBeforeRead(auth);
+  if (refused) return refused;
   const messageId = String(body.message_id || "");
   const text = String(body.text || "").trim();
   if (!UUID.test(messageId) || !text || text.length > MAX_CHARS) {
@@ -241,7 +252,7 @@ export async function steerHeldDraft(
 
   const db = pg();
   if (!db) return refuse(503, "no_database");
-  const { data: m, error: mErr } = await draftOf(db, messageId, workspace);
+  const { data: m, error: mErr } = await draftOf(db, messageId, tokenWorkspace(auth));
   if (mErr) return refuse(500, "message_read_failed");
   if (!m) return refuse(404, "not_found");
   const held = notRewritable(m);

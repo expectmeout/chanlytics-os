@@ -98,7 +98,7 @@ export const env = {
   get RETELL_API_KEY() {
     return trimmedEnv(process.env.RETELL_API_KEY);
   },
-  /** Switch: the badged key Retell's signature is checked with; unset, RETELL_API_KEY is tried instead (a fallback with a sunset). */
+  /** The badged key Retell's signature is checked with, the only one; unset, no signature verifies. */
   get RETELL_WEBHOOK_KEY() {
     return trimmedEnv(process.env.RETELL_WEBHOOK_KEY);
   },

@@ -15,13 +15,8 @@ const OPEN: Readonly<Record<string, () => boolean>> = {
   RETELL_DOORS_SIGNED: () => !signatureOnly(),
   // The secret opens a door only while it is set and the signature is not the only key.
   RETELL_FN_SECRET: () => !!env.RETELL_FN_SECRET && !signatureOnly(),
-  // Unset, the signature is checked with the API key rather than the badged webhook key.
-  RETELL_WEBHOOK_KEY: () => !env.RETELL_WEBHOOK_KEY,
   // Without the secret, the key alone opens every admin door (admin-auth.ts).
   DIAG_KEY: () => !env.EDGE_CALL_SECRET && !!env.DIAG_KEY,
-  // A token with no body hash, or no workspace on the steer, is still accepted (admin-auth.ts; the live-call doors
-  // refuse one).
-  EDGE_TOKEN_UNBOUND: () => !!env.EDGE_CALL_SECRET,
 };
 
 interface SwitchHere {

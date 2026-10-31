@@ -9,7 +9,7 @@
  * a caller's history back (inbound), or text a stranger the booking link (fn).
  *
  * THE SIGNATURE, CHECKED ONE WAY. `retellSigned` is the webhook's check, moved here so the four doors cannot come to
- * disagree: the badged key (RETELL_WEBHOOK_KEY, the API key when it is unset) over the raw body, then over the body
+ * disagree: the badged key (RETELL_WEBHOOK_KEY; unset, nothing verifies) over the raw body, then over the body
  * re-serialised, because Retell's own example signs `JSON.stringify(req.body)` and the two differ whenever an encoder
  * escapes non-ASCII. A knock that carries it comes in on any door: the caller signed, so that is the credential.
  *
@@ -47,7 +47,7 @@ export function retellSigned(
   raw: string,
   header: string | null,
 ): { ok: boolean; raw: boolean; restringified: boolean } {
-  const key = env.RETELL_WEBHOOK_KEY || env.RETELL_API_KEY;
+  const key = env.RETELL_WEBHOOK_KEY;
   const sigRaw = verifyRetellSignature(raw, header, key);
   let restringified: string | null = null;
   try {

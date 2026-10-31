@@ -26,7 +26,7 @@ import { tokenWorkspace, type Admitted } from "../admin-auth.js";
 
 /** Whether this door may act on this call for the token's workspace: an answer to return, or null to go on. */
 export async function refusedCall(auth: Admitted, aud: string, callId: string): Promise<Response | null> {
-  const workspace = tokenWorkspace(auth, aud);
+  const workspace = tokenWorkspace(auth);
   if (!workspace || !UUID.test(workspace)) {
     logger().warn("live_call_unbound_refused", { door: aud, via: auth.via, call_id: callId });
     return refuse(
