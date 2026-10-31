@@ -9,7 +9,7 @@
  * not start. Now the brief's own words go to the speech route and the first word comes back in about a second; where the
  * clip cannot be made the button says why, and nothing else speaks.
  */
-import { useRef, useState, useSyncExternalStore } from "react";
+import { useRef, useSyncExternalStore } from "react";
 import { mmss } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
@@ -27,6 +27,29 @@ type SpeechState = "idle" | "loading" | "speaking";
 
 const noWatch = () => () => {};
 const idle = (): SpeechState => "idle";
+
+/**
+ * Why the voice could not be had, said once for the page: on a phone Listen stands in the frame's head, the page's act
+ * (pages/today-head.tsx), and the line that says why stands under the page's own head (phone/head.tsx).
+ */
+let whyNow: string | null = null;
+const whyWatchers = new Set<() => void>();
+const watchWhy = (on: () => void) => {
+  whyWatchers.add(on);
+  return () => {
+    whyWatchers.delete(on);
+  };
+};
+const readWhy = () => whyNow;
+const noWhy = (): string | null => null;
+function setWhy(why: string | null): void {
+  if (why === whyNow) return;
+  whyNow = why;
+  whyWatchers.forEach((on) => on());
+}
+
+/** Why Listen could not speak, wherever its button stands. */
+export const useSpeechWhy = (): string | null => useSyncExternalStore(watchWhy, readWhy, noWhy);
 
 /** Listen's press and what it is doing. */
 interface Speech {
@@ -52,7 +75,7 @@ export function useSpeech(text: string | null): Speech {
     speech ? () => speech.state() : idle,
     idle,
   );
-  const [why, setWhy] = useState<string | null>(null);
+  const why = useSpeechWhy();
   /** Which press is the current one: a refusal that lands after a later press, or after Stop, is not said. */
   const press = useRef(0);
   const toggle = () => {

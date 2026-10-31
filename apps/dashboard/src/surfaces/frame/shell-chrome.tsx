@@ -237,6 +237,7 @@ interface ChromeAt {
   content: ReactNode;
   viewKey: string;
   routeStay: boolean;
+  routeLanded: boolean;
   routeSlide: string | null;
   routeStrip: string | null;
   routeLoading: boolean;
@@ -334,6 +335,7 @@ const routeMain = (s: ChromeAt, glass: boolean) => {
       className={`main-scroll route-view ${s.pane ? "pane" : ""} ${s.routeStay ? "route-stay" : ""}`}
       data-strip={s.routeStrip || undefined}
       data-slide={s.routeSlide || undefined}
+      data-landed={s.routeLanded || undefined}
       aria-busy={s.routeLoading ? "true" : undefined}
       {...swipe()}
     >

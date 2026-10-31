@@ -12,6 +12,7 @@
  */
 import type { ReactNode } from "react";
 import { askAbout } from "../frame-doors";
+import type { HeadFirst } from "../kit/head/standing";
 import type { SurfaceAct, SurfaceRoute, SurfaceViews } from "../routes";
 import { frameGlyph, isDemoFrame } from "./frame-window";
 
@@ -28,6 +29,7 @@ interface RouteAnswer {
   ask?: string | null;
   views?: SurfaceViews | null;
   ownHead?: boolean;
+  head?: HeadFirst | null;
 }
 
 /** The route as the frame resolved it (shell-routes.ts routeAt), with the frame's doors and what it hands a moved page. */
@@ -172,6 +174,7 @@ const drawNotFound = ({ page, navigate }: DrawnRoute) => ({
 const routeGated = (drawn: RouteAnswer, { page, navigate }: DrawnRoute): RouteAnswer => ({
   ...drawn,
   crumbs: [soonTitle(page)],
+  head: null,
   pane: false,
   primaryAction: null,
   content: <ComingSoon surface={page} onNavigate={navigate} />,
@@ -249,6 +252,8 @@ function surfaceAnswer(surface: SurfaceRoute, r: DrawnRoute): Partial<RouteAnswe
     views: chrome && chrome.views ? chrome.views : null,
     // The page draws its own head (a person's hero): the head draws no name over it while it is on its way.
     ownHead: !!(chrome && chrome.ownHead),
+    // What the page will say in the head, said from the first draw (Today's greeting): no crumb drawn and taken back.
+    head: (chrome && chrome.head) || null,
     primaryAction: act ? surfaceAct(act, r.openAsk) : null,
     content: r.routePage,
     mount: (chrome && chrome.mount) || surface.mount,

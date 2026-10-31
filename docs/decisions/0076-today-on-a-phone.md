@@ -65,6 +65,17 @@ See all; a row says since when only on a desk, a call-back's sentence leaves its
 brief on a card is its first line with Read, and a run waiting for your OK says so once and opens with Review; the day
 card's head is its note on one line. The spec's "Refined after his look on production" says each.
 
+One headline (Ruben, 31 Oct 2026: the old "Today" showed and went before the greeting came; "only one", in the old Today's
+type). Item 1's head is the frame's again: the greeting is the page's name, `.pg-title` on every width, said by Today's
+address from the frame's first draw (`today/chrome.ts`, through the chrome's `head`, kit/head/standing.ts `HeadFirst`), so
+the head never draws the crumb "Today" first. On a phone Listen is the page's act at the greeting's right, its seat held
+from that first draw and while Your brief's words are on their way (`seat`, components.css `.pg-act-seat`); the page's own
+head is what now and its line. And a view landing where its own reading view stood keeps the head it holds still while
+its words fade in (shell-hooks.ts `landed`, components.css `data-landed`): Today's head is in the page's own scroll, and the
+whole view faded, so the greeting went out and came in again as the page was read. Measured on production before it, as
+the e2e owner: "Today" from 0.8s, the greeting from 3.2s on a desk and 7.9s on a phone; on the lane after it, the greeting
+from the first draw (0.44s), one entrance, and nothing moving as the page lands.
+
 Not built: a swipe on a row for Not now (a new gesture beside #1811's scroll handling, and every card and sheet has Not
 now); the docked player showing the line being read (the speech route gives no timings); the week's sparkline
 (`reports_headline` has no days); the pinned lists as chips (Ruben, 20 Oct 2026: chips under the cards "read as

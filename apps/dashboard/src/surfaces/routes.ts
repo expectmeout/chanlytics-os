@@ -20,6 +20,8 @@ import { liveChrome } from "./live/routes";
 import { peopleChrome, peopleTakes } from "./people/chrome";
 import { reportsChrome, reportsTakes } from "./reports/chrome";
 import { settingsCrumbs } from "./settings/frame/tabs";
+import { todayChrome } from "./today/chrome";
+import type { HeadFirst } from "./kit/head/standing";
 
 /** A crumb: its words, and where it goes (`to`, or the page's own move, `go`, as a person's People crumb is). */
 type Crumb = string | { label: string; to: string } | { label: string; to?: string; go: unknown };
@@ -69,6 +71,11 @@ interface SurfaceChrome {
    * the first draw, while the page is still on its way, as it draws none once the page says so (kit/head/standing.ts).
    */
   ownHead?: boolean;
+  /**
+   * What the page at this address will say in the head, said from the first draw, so the head never draws a crumb it then
+   * takes back (Today's greeting, kit/head/standing.ts HeadFirst).
+   */
+  head?: HeadFirst | null;
   /**
    * Whether the page at this address is a pane that scrolls inside itself, where the route's own `pane` says otherwise:
    * Campaigns' home scrolls as a page, and its Sequences view is a list and a record beside it, as Sent is.
@@ -120,6 +127,7 @@ export const SURFACE_ROUTES: Readonly<Record<string, SurfaceRoute>> = {
     crumbs: ["Today"],
     pane: false,
     act: { label: "New task", glyph: "plus", primary: true, ask: true, prompt: "New task: " },
+    chrome: () => todayChrome(),
   },
   inbox: { activeNav: "inbox", crumbs: inboxCrumbs, pane: true, params: true, mount: "inbox" },
   conversations: {
