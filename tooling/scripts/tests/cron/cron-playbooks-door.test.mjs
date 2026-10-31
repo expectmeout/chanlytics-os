@@ -1116,6 +1116,32 @@ test("a freed time's batch nobody approved ends when its time comes (0082), told
   );
 });
 
+test("a freed time that has come is ended behind a page of the day's runs still waiting: it has no day, and is read on its own (0082)", async () => {
+  const w = world();
+  workspace(w.tables, A, "America/New_York", "ask");
+  const today = localDate("America/New_York", new Date());
+  const audience = (id, label, trigger) => ({ kind: "playbook", id, label, trigger });
+  // More runs for today, still to be approved, than one read takes: oldest day first, a batch with no day sorts after them all.
+  for (let i = 0; i < 60; i += 1)
+    w.tables.broadcasts.push({
+      ...{ id: `run-day-${i}`, tenant_id: A, playbook_id: `pb-day-${i}`, name: `Win-back · ${today}` },
+      ...{ state: "pending_approval", run_for: today, recipient_count: 1, created_at: iso(2 * H) },
+      audience: audience(`pb-day-${i}`, "Win-back", "quiet_30"),
+    });
+  w.tables.broadcasts.push({
+    ...{ id: "run-gone", tenant_id: A, playbook_id: "pb-gone", name: "Fill a cancellation · a time" },
+    ...{ state: "pending_approval", run_for: null, recipient_count: 2, created_at: iso(H) },
+    offered_start: new Date(Date.now() - H).toISOString(),
+    offered_end: new Date(Date.now()).toISOString(),
+    audience: audience("pb-gone", "Fill a cancellation", "slot_opened"),
+  });
+  const [status, body] = await answer(await w.tick());
+  assert.equal(status, 200);
+  assert.equal(body.ended, 1, "the freed time whose time came, and none of the day's runs");
+  assert.equal(w.tables.broadcasts.find((b) => b.id === "run-gone").state, "canceled");
+  assert.equal(w.tables.broadcasts.filter((b) => b.state === "pending_approval").length, 60);
+});
+
 test("two playbooks due in the same hour keep the week's breath between them: the second leaves out whoever the first just enrolled, and keeps whoever it did not (P1 3)", async () => {
   // The first reaches one person (its cap); the second would reach all three, and is left with the two the first did not.
   let w = world({ people: { [A]: [person("c1"), person("c2"), person("c3")] } });

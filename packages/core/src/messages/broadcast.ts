@@ -229,13 +229,14 @@ async function sendOne(w: Work, r: RecipientRow): Promise<Verdict> {
   if (!target) return skip("no_thread");
 
   // Their own words in the slots: a first name nobody has on file reads "there"; a slot nothing can fill (a review link
-  // nobody keeps) holds the person, never a blank send. A visit run's words were resolved when the run was made.
+  // nobody keeps) holds the person, never a blank send. A visit run's words were resolved when the run was made; a freed
+  // time's are read as it goes.
   const params = resolveParams(w.specs, {
     firstName: firstNameOf(c.display_name, c.wa_profile_name, { source: c.name_source, settled: !!c.name_settled_at }),
     businessName: w.facts.businessName,
     bookingLink: w.facts.bookingLink,
     reviewLink: w.reviewLink,
-    ...wordsKeptOnRow(rowFacts(r)),
+    ...wordsKeptOnRow(rowFacts(r), { b: w.b, tz: w.facts.timezone, nowMs: w.ports.now() }),
   });
   if (params.some((v) => !v)) return skip("missing_value");
   const made = await prepare(w, { r, c, channel, to: where.to, conversationId: target.conversationId, params });
