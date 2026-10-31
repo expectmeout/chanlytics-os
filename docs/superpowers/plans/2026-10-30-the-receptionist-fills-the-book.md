@@ -98,7 +98,7 @@ Nothing is offered until a workspace turns the moment on, so no switch is needed
   for Ruben's word and a workspace to run it on.
 - **Not built:** a "took" figure on a run's own sheet (its report counts from its recipients; Today, History and
   Reports say it), and a taken batch's own words on its History day (it says Canceled; the owner was told once).
-- **Debt:** the db barrel grows 854 to 860 for the four reads, recorded under Rises in `docs/debt.md`; the pull request
+- **Debt:** the db barrel grows 855 to 861 for the four reads, recorded under Rises in `docs/debt.md`; the pull request
   carries a `Debt:` line for it.
 
 **How each task runs:**

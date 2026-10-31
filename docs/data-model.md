@@ -3057,7 +3057,7 @@ Decision 0060: what goes at one time in a sequence, the unit a person approves (
 Foreign keys:
 
 - `created_by` → `auth.users` (`id`), on delete set null
-- `offered_from` → [`appointments`](#appointments) (`id`), on delete set null
+- `tenant_id`, `offered_from` → [`appointments`](#appointments) (`tenant_id`, `id`), on delete set null
 - `tenant_id`, `sequence_id` → [`sequences`](#sequences) (`tenant_id`, `id`), on delete cascade
 - `tenant_id`, `step_id` → [`sequence_steps`](#sequence_steps) (`tenant_id`, `id`), on delete set null
 - `tenant_id`, `template_id` → [`templates`](#templates) (`tenant_id`, `id`)

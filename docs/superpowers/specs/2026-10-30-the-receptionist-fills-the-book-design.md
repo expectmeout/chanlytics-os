@@ -169,8 +169,8 @@ So a freed time is one more moment, run by the parts that exist, started by the 
   event's data; `appointments_feed_sync` (00419's form) adds `'was_at', v_row.starts_at` to its `moved` events. Both
   re-created whole, from `supabase/schema.sql`, with the one addition each.
 - **`freed_time_taken(p_batch_id uuid) returns integer`,** `security definer`, `stable`: the count of decision 9.
-- **`run_counts`:** each run's counts gain `took`, `freed_time_taken(b.id)` where `offered_from is not null`, else
-  null.
+- **`run_counts`:** a freed time's run's counts gain `took`, `freed_time_taken(b.id)`; any other run's say nothing of
+  it (the key absent, so the counts every other reader compares stay as they were).
 - **The subscription:** `insert into event_subscriptions (kind, subscriber, lane) values ('appointment.changed',
   'freed_time_offer', 2) on conflict do nothing`.
 - **The generated files,** on this lane's local stack: `gen:schema-sets`, `gen:schema-snapshot`, `gen:db-types`,
@@ -282,7 +282,7 @@ The owner's, inside their plan. Nothing new is spent on the platform's account.
   - `freed_time_taken` counts a booking inside the span after the batch, and not one before, outside, vanished or
     cancelled
   - the unique index makes a second batch for one appointment a conflict
-  - `run_counts` says `took` for a freed time's run and null for others
+  - `run_counts` says `took` for a freed time's run and nothing of it for others
 - **Core:**
   - `tooling/scripts/tests/broadcasts/core-campaigns.test.mjs` (existing file, new cases): a run with a freed time
     resolves the list, orders by last contact, caps, keeps the freed time on the batch and `freed_when` on each send,

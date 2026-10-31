@@ -250,9 +250,9 @@ export interface SequenceBatchDto {
   failure: string | null;
   place: number | null;
   counts: Partial<SequenceBatchCountsDto>;
-  /** A freed time's batch (00498, decision 0082): the time it offers; null for any other, absent from a database before it. */
+  /** A freed time's batch (00498, decision 0082): the time it offers; said for such a batch alone. */
   offered_start?: string | null;
-  /** How many of the people a freed time's batch reached took the time (freed_time_taken); null for any other batch. */
+  /** How many of the people a freed time's batch reached took the time (freed_time_taken); said for it alone. */
   took?: number | null;
 }
 

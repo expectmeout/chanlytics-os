@@ -37,8 +37,12 @@ alter table public.sequence_steps add constraint sequence_steps_trigger_check ch
 
 alter table public.sequence_batches add column if not exists offered_start timestamptz;
 alter table public.sequence_batches add column if not exists offered_end timestamptz;
-alter table public.sequence_batches add column if not exists offered_from uuid
-  references public.appointments(id) on delete set null;
+alter table public.sequence_batches add column if not exists offered_from uuid;
+-- The appointment is the workspace's own, named with the workspace as every child key here names its parent; its row
+-- gone leaves the batch and clears the one column.
+alter table public.sequence_batches drop constraint if exists sequence_batches_offered_from_same_workspace;
+alter table public.sequence_batches add constraint sequence_batches_offered_from_same_workspace
+  foreign key (tenant_id, offered_from) references public.appointments(tenant_id, id) on delete set null (offered_from);
 alter table public.sequence_batches drop constraint if exists sequence_batches_offered_check;
 alter table public.sequence_batches add constraint sequence_batches_offered_check check (
   (offered_start is null and offered_end is null and offered_from is null)
@@ -315,9 +319,10 @@ create or replace function public.run_counts(p_tenant_id uuid, p_run_ids uuid[])
            'delivered', c.delivered,
            'read', c.was_read,
            'replied', coalesce(y.replied, 0),
-           'sent_by', jsonb_build_object('whatsapp', c.by_whatsapp, 'sms', c.by_sms, 'email', c.by_email),
-           -- Who took the time a run offered (decision 0082, freed_time_taken); null for a run that offered none.
-           'took', case when b.offered_from is not null then public.freed_time_taken(b.id) end)), '{}'::jsonb)
+           'sent_by', jsonb_build_object('whatsapp', c.by_whatsapp, 'sms', c.by_sms, 'email', c.by_email))
+           -- Who took the time a run offered (decision 0082, freed_time_taken): said only for a run that offered one.
+           || case when b.offered_from is not null then jsonb_build_object('took', public.freed_time_taken(b.id))
+              else '{}'::jsonb end), '{}'::jsonb)
     from counted c
     left join replied y on y.broadcast_id = c.broadcast_id
     left join public.sequence_batches b on b.id = c.broadcast_id
@@ -441,10 +446,11 @@ create or replace function public.sequence_history(p_tenant_id uuid, p_sequence_
                            'people', p.recipient_count,
                            'failure', p.failure,
                            'place', (select st.place from public.sequence_steps st where st.id = p.step_id),
-                           'counts', coalesce((select c from counts) -> p.id::text, '{}'::jsonb),
-                           -- A freed time's batch (decision 0082): the time it offers, and who took it; null for any other.
-                           'offered_start', p.offered_start,
-                           'took', case when p.offered_from is not null then public.freed_time_taken(p.id) end)
+                           'counts', coalesce((select c from counts) -> p.id::text, '{}'::jsonb))
+                           -- A freed time's batch (decision 0082): the time it offers, and who took it; said for it alone.
+                           || case when p.offered_from is not null then jsonb_build_object(
+                                'offered_start', p.offered_start, 'took', public.freed_time_taken(p.id))
+                              else '{}'::jsonb end
                            order by p.at desc, p.id desc)
                            from page p), '[]'::jsonb),
     'more', (select count(*) from batches) > (select l.n from lim l))

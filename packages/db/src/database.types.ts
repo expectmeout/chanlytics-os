@@ -6170,11 +6170,11 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "sequence_batches_offered_from_fkey"
-            columns: ["offered_from"]
+            foreignKeyName: "sequence_batches_offered_from_same_workspace"
+            columns: ["tenant_id", "offered_from"]
             isOneToOne: false
             referencedRelation: "appointments"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "sequence_batches_sequence_id_same_workspace"

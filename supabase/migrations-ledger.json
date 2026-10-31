@@ -500,6 +500,6 @@
     "00493_a_memory_line_may_be_learned.sql": "8c8d4a143fba30129c44ffadad16476cb69ac2d148b057c798accedc236e94ac",
     "00495_a_mailbox_reads_each_sender_once.sql": "bf2ed879d6fb9da1285bc8e36d5568db12e500a245dd9e8180786ef2300e3c94",
     "00496_a_search_counts_the_leads_it_shows.sql": "7f72c22a3fe365ed45df1def2c02b711593cd9ac11edfa4134045c768f3191d0",
-    "00498_a_time_a_cancellation_frees_is_offered.sql": "3389420d830129084f3e5f7987eea7765c17e01e9b56dc8750daa4e8372a404a"
+    "00498_a_time_a_cancellation_frees_is_offered.sql": "be914ab141eff733d533c5b89ae3964b99143cfb10ee223fefa51fa99a148387"
   }
 }

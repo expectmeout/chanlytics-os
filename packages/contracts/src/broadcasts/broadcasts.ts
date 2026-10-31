@@ -246,8 +246,8 @@ export interface BroadcastCounts {
    */
   sent_by?: Record<ConsentChannel, number>;
   /**
-   * How many of the people a freed time's run sent to took the time it offered (00498 freed_time_taken, decision 0082): null
-   * for a run that offered none, absent from a database before it.
+   * How many of the people a freed time's run sent to took the time it offered (00498 freed_time_taken, decision 0082):
+   * said only for a run that offered one.
    */
   took?: number | null;
 }
@@ -276,7 +276,7 @@ export function runCountsOf(answer: unknown): Record<string, BroadcastCounts> | 
     }
     const { whatsapp, sms, email } = by;
     if (!isCount(whatsapp) || !isCount(sms) || !isCount(email)) return null;
-    // Who took the freed time (00498): a count, null for a run that offered none, absent from a database before it.
+    // Who took the freed time (00498): a count, said only for a run that offered one.
     const took = c.took;
     if (took !== undefined && took !== null && !isCount(took)) return null;
     out[id] = { ...counts, sent_by: { whatsapp, sms, email }, ...(took === undefined ? {} : { took }) };

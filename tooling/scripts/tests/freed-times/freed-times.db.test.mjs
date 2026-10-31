@@ -331,7 +331,7 @@ test(
     assert.equal(counts[offering].sent, 5);
     assert.equal(counts[offering].took, 2, "the run's counts say who took the time");
     assert.equal(counts[ordinary].sent, 1);
-    assert.equal(counts[ordinary].took, null, "a run that offered no time says nothing of it");
+    assert.equal("took" in counts[ordinary], false, "a run that offered no time says nothing of it");
 
     // The sequence's History says the same of each batch, with the time a freed time's offers (L3).
     const history = ok(
@@ -341,7 +341,7 @@ test(
     const day = (id) => history.batches.find((b) => b.id === id);
     assert.equal(day(offering).took, 2);
     assert.equal(Date.parse(day(offering).offered_start), start.getTime());
-    assert.deepEqual([day(ordinary).took, day(ordinary).offered_start], [null, null]);
+    assert.deepEqual(["took" in day(ordinary), "offered_start" in day(ordinary)], [false, false]);
   },
 );
 
