@@ -794,6 +794,81 @@ test(
   },
 );
 
+test(
+  "Qualified counts what its tab shows: a lead found past the target is in no number until it counts",
+  { skip },
+  async () => {
+    const view = async () =>
+      ok(
+        await owner.client
+          .from("lead_searches_view")
+          .select("qualified, strong, emails_checked, with_phone, counted")
+          .eq("id", ids.search)
+          .single(),
+      );
+    const was = await view();
+    // Qualified, never counted: the page shows no row for it (lead_member_shown, 00212), so the tab says no number for it.
+    const past = ok(
+      await db
+        .from("leads")
+        .insert({
+          tenant_id: A,
+          place_id: "ChIJfixtureBPast",
+          business_name: "Fixture past the target",
+          city: "Austin",
+          region: "TX",
+          phone_e164: "+15125550188",
+          phone_sources: 2,
+          email: "hello@fixture-past.example",
+          email_state: "ok",
+        })
+        .select("id")
+        .single(),
+    ).id;
+    const member = ok(
+      await db
+        .from("lead_search_members")
+        .insert({
+          search_id: ids.search,
+          lead_id: past,
+          round_id: ids.round,
+          tenant_id: A,
+          judgment: { reasons: [], shares: [] },
+          class: "qualified",
+          fit: "strong",
+          reason: "A fixture.",
+          counted: false,
+          counted_month: null,
+        })
+        .select("id")
+        .single(),
+    ).id;
+    try {
+      assert.deepEqual(
+        await view(),
+        was,
+        "every number Qualified holds is as it was (the walk of 30 Oct 2026: 21 over 20 rows)",
+      );
+      // Counted (Keep counts it, through the month): it is a row now, and every number has it.
+      ok(await db.from("lead_search_members").update({ counted: true, counted_month: "2026-09" }).eq("id", member));
+      assert.deepEqual(
+        await view(),
+        {
+          qualified: was.qualified + 1,
+          strong: was.strong + 1,
+          emails_checked: was.emails_checked + 1,
+          with_phone: was.with_phone + 1,
+          counted: was.counted + 1,
+        },
+        "once counted, it is in each",
+      );
+    } finally {
+      await db.from("lead_search_members").delete().eq("id", member);
+      await db.from("leads").delete().eq("id", past);
+    }
+  },
+);
+
 test("a lead with only an address converts into an email-only person, with the same event", { skip }, async () => {
   const a = ok(await setStage(operator, ids.lead6, { kind: "outcome", outcome: "interested" }));
   assert.deepEqual([a.converted, a.existed], [true, false]);

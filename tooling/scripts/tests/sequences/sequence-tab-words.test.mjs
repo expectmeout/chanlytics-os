@@ -24,6 +24,7 @@ import {
   leadStepStand,
   listStartsSentence,
   peopleNeedsOf,
+  personWhenWords,
   stepApprovalOf,
   waitingEmailsOf,
 } from "@chanlytics/contracts";
@@ -412,4 +413,16 @@ test("a held email shows the opening it would send with the words the check refu
   assert.deepEqual([lead.rewrite, lead.cause, lead.advice], [[], null, null]);
   assert.equal(SEQUENCE_NEEDS_WORDS.rewriteAll(7), "Rewrite all 7");
   assert.equal(SEQUENCE_NEEDS_WORDS.sendAll(2), "Send 2 anyway");
+});
+
+test("a row under People never says a time already gone: going out, once you approve, or nothing while held", () => {
+  const ahead = NOW + 3_600_000;
+  const gone = NOW - 2 * 3_600_000;
+  assert.equal(personWhenWords("waiting", ahead, TZ, NOW), "1:00 PM", "a time ahead, as the clock says it");
+  // The review of the walk's fixes, 30 Oct 2026: "step 1 · 5:05 PM" at 7:05 PM over an email waiting for its OK.
+  assert.equal(personWhenWords("waiting", gone, TZ, NOW), "goes once you approve");
+  assert.equal(personWhenWords("next", gone, TZ, NOW), "going out now");
+  assert.equal(personWhenWords("held", gone, TZ, NOW), null, "held: its why says what it waits on");
+  assert.equal(personWhenWords("left", gone, TZ, NOW), "10:00 AM", "what happened says when it did");
+  assert.equal(personWhenWords("queued", gone, TZ, NOW), "10:00 AM", "and so does when one joined");
 });

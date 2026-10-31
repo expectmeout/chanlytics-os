@@ -7411,6 +7411,7 @@ export type Database = {
           review: number | null
           round_id: string | null
           seq: number | null
+          sequence_list: boolean | null
           state: string | null
           strong: number | null
           target: number | null

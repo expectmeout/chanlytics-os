@@ -1,12 +1,12 @@
 /**
  * The rail under Leads (moved from legacy/pages/leads-scope.jsx, decision 0015), drawn with People's kit (RailSection,
  * RailRow) and picked the way People's is: one row at a time, a list or a search. The lists, then the searches, each with
- * its count, a live dot while it runs and a "?" in the accent while it waits on the owner. Renaming and removing are asked
+ * its count, a live dot while it runs and a "?" in the accent while it waits on the owner, then the sequences' own lists. Renaming and removing are asked
  * where the search is, so the rail never loses the row that is being named.
  */
 import type { ReactNode } from "react";
 import { LEAD_WORDS as W } from "@chanlytics/contracts";
-import type { leadRail } from "@chanlytics/contracts";
+import type { LeadRailRow, leadRail } from "@chanlytics/contracts";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
 import { Menu } from "../../kit/menu/menu";
@@ -15,7 +15,7 @@ import { MenuInPlace, menuGroups, moreButton } from "../../people/menu-groups";
 import { RailEmpty, RailRow, RailSection, railQuiet } from "../../people/rail/rail-kit";
 
 export type LeadRail = ReturnType<typeof leadRail>;
-type RailSearch = LeadRail["searches"][number];
+type RailSearch = LeadRailRow;
 interface SearchWords {
   askedLine: string;
   keepsLine: string;
@@ -289,6 +289,13 @@ export const LeadsRailRows = (p: RailRowsProps) => {
           <div className="cl-rail-hint">No searches yet. Describe the businesses you want and Claude finds them.</div>
         )}
       </RailSection>
+      {/* A sequence's own list (00496), named for it: the leads added to it, apart from the search they came from, which
+          it read as twice among the searches (the walk of 30 Oct 2026). */}
+      {rail.sequences.length > 0 && (
+        <RailSection label={W.sequencesHeading} testid="leads-sequence-lists">
+          {rail.sequences.map((s) => railSearchRow(s, p))}
+        </RailSection>
+      )}
       {/* A phone's sheet is the lists alone: New search is its head's act and Import its bar's word (Ruben, 10 Oct
           2026), so the sheet's foot would say each again. */}
       {compact ? null : (
