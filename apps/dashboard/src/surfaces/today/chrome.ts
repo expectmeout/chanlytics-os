@@ -14,7 +14,10 @@ import type { HeadFirst } from "../kit/head/standing";
 import { windowObject } from "../legacy-verbs";
 import { todayOnPhone } from "./phone";
 
-/** Who is signed in (`window.__ME`, the workspace's read) and the business's clock (`window.__clock`), as shell.ts reads them. */
+/**
+ * Who is signed in (`window.__ME`, the workspace's read), for the greeting, and the business's clock (`window.__clock`, as
+ * shell.ts reads it).
+ */
 const signedInMember = () => windowObject<{ display_name?: string | null }>("__ME");
 const businessClock = () => windowObject<PageClock>("__clock");
 /** Whether Ask's voice can play here (`window.__ask`, today/shell.ts askSpeech): Listen's seat is held only where it can. */
