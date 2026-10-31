@@ -73,6 +73,7 @@ import {
   AppError,
   addressOf,
   audienceTrigger,
+  clockNearWhen,
   localDate,
   runDaysAt,
   runDueNow,
@@ -144,11 +145,17 @@ async function endRunsWhoseDayPassed(tick: Tick): Promise<void> {
           record: (subjectType, subjectId, verb, payload) =>
             recordSystemDecision(db, { tenantId: r.tenant_id, subjectType, subjectId, verb, payload }),
         },
-        { row: { id: r.id, state: r.state, name: r.name }, reason: "day_passed" },
+        // A freed time's batch ends when its time comes (0082); every other run when its day passes.
+        { row: { id: r.id, state: r.state, name: r.name }, reason: r.offered_start ? "time_passed" : "day_passed" },
       );
       out.ended += 1;
-      L.info("run_day_passed_skipped", { tenant_id: r.tenant_id, broadcast_id: r.id, run_for: r.run_for });
-      await tellSkipped(db, r, L);
+      L.info("run_day_passed_skipped", {
+        tenant_id: r.tenant_id,
+        broadcast_id: r.id,
+        run_for: r.run_for,
+        ...(r.offered_start ? { offered_start: r.offered_start } : {}),
+      });
+      await tellSkipped(db, r, L, now);
     } catch (e) {
       if (e instanceof AppError && e.code === "conflict") continue;
       L.error("run_day_passed_failed", {
@@ -164,13 +171,20 @@ async function endRunsWhoseDayPassed(tick: Tick): Promise<void> {
  * A skipped run told to its owner (decision 0064): the bell row opens the run, which says it was skipped and why, and the
  * mail goes where the workspace's notices go. The skip stands either way: a notice that fails is logged, never retried.
  */
-async function tellSkipped(db: Tick["db"], r: Awaited<ReturnType<typeof waitingPlaybookRuns>>[number], L: Logger) {
+async function tellSkipped(
+  db: Tick["db"],
+  r: Awaited<ReturnType<typeof waitingPlaybookRuns>>[number],
+  L: Logger,
+  now: Date,
+) {
   const about = r.audience && typeof r.audience === "object" ? (r.audience as { label?: unknown }).label : null;
-  // Its moment, as the run kept it: a visit's people are not in line for a later batch, and the notice says so.
+  // Its moment, as the run kept it: a visit's people are not in line for a later batch, and the notice says so; a freed
+  // time's says the time it offered.
   const told = skippedRunNotice(
     typeof about === "string" && about ? about : r.name,
     r.recipient_count,
     audienceTrigger(r.audience),
+    r.offered_start ? clockNearWhen(Date.parse(r.offered_start), r.timezone, now.getTime()) : null,
   );
   try {
     const target = await loadTenantNotifications(db, r.tenant_id);

@@ -2,7 +2,8 @@
  * How a customer's sequence runs, opened by Start's Change (the Sequences loop review's item 7) and by the head's Who
  * approves: what happens before each batch (its own mode, decision 0064: ask, hold it for a stop, or send it; new words
  * always ask first), its hour, the most it sends each day, the days before the same person hears it again (a moment over a
- * group of people), the days between runs (the month's offer), and the day it stops. The kit's sheet: from the bottom on a
+ * group of people), the days between runs (the month's offer), and the day it stops; a freed time's (decision 0082) runs when a
+ * cancellation frees a time, so it offers no hour: the people each time goes to, and how far ahead it offers. The kit's sheet: from the bottom on a
  * phone, a side pane on a desk. Saved through the campaign's own verb (`playbook_change`), only what changed, with its
  * receipt and its undo; the first step's settings reach every step after it (00453). A list's sequence says it goes once to
  * each person, which is no setting. Every word is contracts' (SCHEDULE_WORDS.settings, SEQUENCE_MODE_WORDS).
@@ -36,6 +37,8 @@ const hourWords = (h: number) => clockTime(Date.UTC(2026, 0, 1, h), "UTC");
 
 const HOURS = Array.from({ length: PLAYBOOK_HOURS.max - PLAYBOOK_HOURS.min + 1 }, (_, i) => PLAYBOOK_HOURS.min + i);
 const CAPS = [10, 25, 50, 100, 200, 500];
+/** How many people a freed time goes to (decision 0082): it is taken by one, so a few at a time. */
+const FREED_CAPS = [2, 4, 6, 10];
 const GAPS = [30, 60, 90, 180, 365];
 const EVERY = [7, 14, 30, 60, 90];
 
@@ -111,30 +114,37 @@ function SettingsFields(p: { rec: SequenceRecordDto; v: Values; set: (k: keyof V
           />
         }
       />
+      {takes.freed ? null : (
+        <Field
+          label={HOW_IT_RUNS.hour}
+          control={
+            <Select
+              value={v.run_hour}
+              onValueChange={(x) => set("run_hour", x)}
+              options={HOURS.map((h) => ({ value: String(h), label: hourWords(h) }))}
+              chevron={chevron}
+              data-testid="sq-settings-hour"
+            />
+          }
+        />
+      )}
       <Field
-        label={HOW_IT_RUNS.hour}
-        control={
-          <Select
-            value={v.run_hour}
-            onValueChange={(x) => set("run_hour", x)}
-            options={HOURS.map((h) => ({ value: String(h), label: hourWords(h) }))}
-            chevron={chevron}
-            data-testid="sq-settings-hour"
-          />
-        }
-      />
-      <Field
-        label={HOW_IT_RUNS.cap}
+        label={takes.freed ? HOW_IT_RUNS.freedCap : HOW_IT_RUNS.cap}
         control={
           <Select
             value={v.cap_per_run}
             onValueChange={(x) => set("cap_per_run", x)}
-            options={optionsOf(CAPS, Number(v.cap_per_run), HOW_IT_RUNS.people)}
+            options={optionsOf(takes.freed ? FREED_CAPS : CAPS, Number(v.cap_per_run), HOW_IT_RUNS.people)}
             chevron={chevron}
             data-testid="sq-settings-cap"
           />
         }
       />
+      {takes.freed && rec.settings?.days_ahead !== undefined ? (
+        <p className="sq-settings-note" data-testid="sq-settings-ahead">
+          {HOW_IT_RUNS.freedAhead(rec.settings.days_ahead)}. {HOW_IT_RUNS.freedAheadHint}
+        </p>
+      ) : null}
       {takes.gap ? (
         <Field
           label={HOW_IT_RUNS.gap}

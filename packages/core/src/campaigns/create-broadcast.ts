@@ -303,6 +303,7 @@ export async function createBroadcast(
     params: want.params,
     visits: false,
     proposal: false,
+    freed: false,
   });
 
   // 3. When, as asked; and the channels it may go by, which a flagged number or a message with no version on one

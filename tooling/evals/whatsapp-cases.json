@@ -143,5 +143,22 @@
       "booking": true,
       "excludes": ["you'?re (all )?booked", "confirmed (your|the) appointment", "i'?ve booked"]
     }
+  },
+  {
+    "id": "freed_time_yes_en",
+    "provisional": true,
+    "history": [
+      {
+        "role": "assistant",
+        "content": "Hi Ana, it's the studio. A time just opened on Tuesday at 3:00 PM. Want it? Reply here."
+      }
+    ],
+    "text": "Yes, I'll take it!",
+    "expect": {
+      "intent": "booking",
+      "language": "en",
+      "booking": true,
+      "excludes": ["you'?re (all )?booked", "confirmed (your|the) appointment", "i'?ve booked"]
+    }
   }
 ]

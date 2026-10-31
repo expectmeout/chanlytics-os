@@ -25,13 +25,16 @@ import {
   type Database,
   appointmentStates,
   campaignMonthSent,
+  cancelBroadcastFrom,
   claimQueuedSend,
   emitEvent,
+  freedTimeFactsOf,
   insertQueuedEmail,
   mailboxOfTenant,
   messageVersionRowsOf,
   queuedRecipients,
   recordEvent,
+  recordSystemDecision,
   releaseQueuedSend,
   resolveOutboundTarget,
   resolveOutboundTargetForContact,
@@ -368,7 +371,7 @@ export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<v
         const { data, error } = await db
           .from("sequence_batches")
           .select(
-            "id, state, name, template_name, template_language, params, recipient_count, playbook_id:step_id, audience",
+            "id, state, name, template_name, template_language, params, recipient_count, playbook_id:step_id, audience, offered_start, offered_end, offered_from",
           )
           .eq("id", id)
           .eq("tenant_id", job.tenant_id)
@@ -412,6 +415,12 @@ export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<v
         );
         return !!rows && rows.length > 0;
       },
+      // A freed time's batch asks the record before its first send (decision 0082): the appointment that freed it and what
+      // stands now; a time booked since is taken, and the batch is cancelled as the system and told once.
+      freedTimeFacts: (appointmentId) => freedTimeFactsOf(db, job.tenant_id, appointmentId, Date.now()),
+      cancelFrom: (id, from) => cancelBroadcastFrom(db, { tenantId: job.tenant_id, id, from }),
+      recordDecision: (subjectType, subjectId, verb, payload) =>
+        recordSystemDecision(db, { tenantId: job.tenant_id, subjectType, subjectId, verb, payload }),
       // The message is its rows of that name and language on every channel: WhatsApp's `category` is Meta's verdict on
       // what kind of message this is, and it decides which consent the send needs. A message that cannot be READ is not
       // one Meta withdrew: the read throws, where none would fail the whole broadcast and email the owner that WhatsApp

@@ -51,6 +51,8 @@ function notHereOf(m: NewMessage, first: boolean, who: DraftWho | null): string 
     return moment === "visit" ? W.sheets.firstStepOnly : W.sheets.visitOnly;
   if (kinds.includes("proposal_link") && !(first && moment === "deal"))
     return moment === "deal" ? W.sheets.proposalFirstOnly : W.sheets.dealOnly;
+  if (kinds.includes("freed_when") && !(first && moment === "freed"))
+    return moment === "freed" ? W.sheets.freedFirstOnly : W.sheets.freedOnly;
   return null;
 }
 

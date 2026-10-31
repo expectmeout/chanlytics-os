@@ -62,7 +62,7 @@ export const PLAYBOOK_CARD_REFUSALS = {
   typedSlot: (label: string): string =>
     `this template takes typed words for “${label}”; ask the person what to say there, then propose again with params`,
   value:
-    "each value is text, or @first_name, @business_name, @booking_link or @review_link, or @visit_when or @visit_service on a reminder or a check after an appointment, or @proposal_link on the proposal follow-up",
+    "each value is text, or @first_name, @business_name, @booking_link or @review_link, or @visit_when or @visit_service on a reminder or a check after an appointment, @proposal_link on the proposal follow-up, or @freed_when when a cancellation frees a time",
   plainText: "every typed value must be plain text under 1024 characters, without line breaks",
   /** The moment's starter, hidden in this workspace's Library: no card adds it back. */
   starterHidden: (title: string, from: string): string =>

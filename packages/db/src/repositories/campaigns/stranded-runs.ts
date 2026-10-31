@@ -100,7 +100,10 @@ export interface WaitingPlaybookRun {
   name: string;
   state: string;
   playbook_id: string;
-  run_for: string;
+  /** The day it was made for; null for a freed time's batch, which has none (decision 0082). */
+  run_for: string | null;
+  /** The time a freed time's batch offers (0082): its wait ends when that time comes. Null for every other run. */
+  offered_start: string | null;
   audience: unknown;
   /** How many it was for: what the owner is told it did not reach, once the sweep skips it (decision 0064). */
   recipient_count: number;
@@ -116,10 +119,11 @@ export interface WaitingPlaybookRun {
 export async function waitingPlaybookRuns(db: Db, p: { limit: number }): Promise<WaitingPlaybookRun[]> {
   const { data, error } = await db
     .from("sequence_batches")
-    .select("id, tenant_id, name, state, playbook_id:step_id, run_for, audience, recipient_count")
+    .select("id, tenant_id, name, state, playbook_id:step_id, run_for, offered_start, audience, recipient_count")
     .eq("state", "pending_approval")
     .not("step_id", "is", null)
-    .not("run_for", "is", null)
+    // A run for a day, or a freed time's batch, which has its time instead (0082).
+    .or("run_for.not.is.null,offered_start.not.is.null")
     .or("audience->>kind.is.null,audience->>kind.neq.reach_out")
     .order("run_for", { ascending: true })
     .order("created_at", { ascending: true })
@@ -134,7 +138,7 @@ export async function waitingPlaybookRuns(db: Db, p: { limit: number }): Promise
   if (zones.error) throw new Error(`waiting runs: cannot read their workspaces' zones: ${zones.error.message}`);
   const zoneOf = new Map((zones.data ?? []).map((t) => [t.id, t.timezone]));
   return runs.flatMap((r) =>
-    r.playbook_id && r.run_for
+    r.playbook_id && (r.run_for || r.offered_start)
       ? [
           {
             id: r.id,
@@ -143,6 +147,7 @@ export async function waitingPlaybookRuns(db: Db, p: { limit: number }): Promise
             state: r.state,
             playbook_id: r.playbook_id,
             run_for: r.run_for,
+            offered_start: r.offered_start,
             audience: r.audience,
             recipient_count: r.recipient_count ?? 0,
             timezone: zoneOf.get(r.tenant_id) || DEFAULT_TIMEZONE,

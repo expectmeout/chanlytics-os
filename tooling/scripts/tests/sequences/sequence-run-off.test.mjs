@@ -89,18 +89,21 @@ test("an ended sequence sits under Ended, folded at the list's foot; a paused on
 });
 
 test("Start's Change offers the gap to a moment over a group of people, the cadence to the month's offer, neither else", () => {
-  assert.deepEqual(scheduleSettingsOf(row()), { gap: true, every: false });
+  assert.deepEqual(scheduleSettingsOf(row()), { gap: true, every: false, freed: false });
   assert.deepEqual(scheduleSettingsOf(row({ first: { ...row().first, trigger: "everyone_monthly" } })), {
     gap: false,
     every: true,
+    freed: false,
   });
   assert.deepEqual(scheduleSettingsOf(row({ first: { ...row().first, trigger: "visit_tomorrow" } })), {
     gap: false,
     every: false,
+    freed: false,
   });
   assert.deepEqual(scheduleSettingsOf(row({ first: { ...row().first, trigger: "saved_list" } })), {
     gap: false,
     every: false,
+    freed: false,
   });
-  assert.deepEqual(scheduleSettingsOf(row({ first: null })), { gap: false, every: false });
+  assert.deepEqual(scheduleSettingsOf(row({ first: null })), { gap: false, every: false, freed: false });
 });

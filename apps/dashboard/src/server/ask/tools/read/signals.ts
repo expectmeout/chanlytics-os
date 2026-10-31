@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
-import { DAY_MS, followUpsOf, parseTenantConfigResult, plural } from "@chanlytics/contracts";
+import { DAY_MS, followUpsOf, freedTimesUnoffered, parseTenantConfigResult, plural } from "@chanlytics/contracts";
+import { cancellationsSince } from "@chanlytics/db";
 import { load } from "../../../readers";
 import { audiencePool } from "../../../readers/audience-pool";
 import { config as configReader, facts as factsReader } from "../../../readers/facts";
@@ -35,7 +36,8 @@ interface Signal {
 /** The workspace as the signals read it: each part as its page reads it, null where its read failed. */
 async function seeAll(t: ToolContext) {
   const failed = (read: string) => unread(t, "signals", read);
-  const [pool, kept, seqs, pb, chains, finder, cfg, zone, views] = await Promise.all([
+  const since = new Date(t.now.getTime() - NEW_DAYS * DAY_MS).toISOString();
+  const [pool, kept, seqs, pb, chains, finder, cfg, zone, views, cancellations] = await Promise.all([
     load(t.rc, audiencePool, undefined).then((r) => r.data, failed("people")),
     load(t.rc, listsReader, undefined).then((r) => r.data.lists, failed("lists")),
     load(t.rc, sequencesReader, undefined).then((r) => r.data, failed("sequences")),
@@ -45,8 +47,10 @@ async function seeAll(t: ToolContext) {
     load(t.rc, configReader, undefined).then((r) => r.data, failed("settings")),
     load(t.rc, factsReader, undefined).then((r) => r.data.timezone, failed("facts")),
     t.ctx.userId ? load(t.rc, memberViews, undefined).then((r) => r.data, failed("follow-ups")) : Promise.resolve(null),
+    // The cancellations whose time a freed time's step would have offered (decision 0082), in the same window.
+    cancellationsSince(t.rc.ctx.supabase, t.rc.tenantId, since).then((n) => n, failed("cancellations")),
   ]);
-  return { pool, kept, seqs, pb, chains, finder, cfg, zone, views, nowMs: t.now.getTime() };
+  return { pool, kept, seqs, pb, chains, finder, cfg, zone, views, cancellations, nowMs: t.now.getTime() };
 }
 type Seen = Awaited<ReturnType<typeof seeAll>>;
 /** One thing that may stand out, read off what was seen; null where it does not, or its parts could not be read. */
@@ -168,6 +172,20 @@ const dealsWithoutAStep: Spot = ({ pool }) => {
   };
 };
 
+/** Appointments cancelled in the window whose time nothing offered (contracts freedTimesUnoffered, decision 0082). */
+const freedTimesNotOffered: Spot = ({ pb, cancellations, nowMs }) => {
+  if (!pb) return null;
+  const said = freedTimesUnoffered({
+    cancellations,
+    calendar: pb.calendar,
+    steps: pb.playbooks,
+    tz: pb.timezone,
+    nowMs,
+    days: NEW_DAYS,
+  });
+  return said ? { key: "freed_times_unoffered", ...said, weight: 2 } : null;
+};
+
 /** Every spot, in no order of its own: each signal's weight orders them. */
 const SPOTS: readonly Spot[] = [
   nothingSends,
@@ -178,6 +196,7 @@ const SPOTS: readonly Spot[] = [
   batchesWaiting,
   offersNeverAsked,
   dealsWithoutAStep,
+  freedTimesNotOffered,
 ];
 
 /** The parts that could not be read, said beside the signals, never as nothing to notice. */
@@ -228,7 +247,7 @@ async function readSignals(t: ToolContext): Promise<unknown> {
 export const signalsTool = defineRead({
   name: "signals",
   description:
-    "What stands out across the workspace now, computed from its pages, each with its numbers and the cards that fit it: a follow-up of yours that is due, people with nothing sending on its own, lists that feed nothing, leads nobody writes to, a search that asks a question, replies and batches waiting, people never asked for the yes to offers, deals with no next step; and the owner's goal. Read it at the start of a conversation, when they ask what to do next or how to get more customers, and before proposing a plan of your own. It takes nothing and changes nothing.",
+    "What stands out across the workspace now, computed from its pages, each with its numbers and the cards that fit it: a follow-up of yours that is due, people with nothing sending on its own, lists that feed nothing, leads nobody writes to, a search that asks a question, replies and batches waiting, people never asked for the yes to offers, deals with no next step, cancellations whose time nothing offered; and the owner's goal. Read it at the start of a conversation, when they ask what to do next or how to get more customers, and before proposing a plan of your own. It takes nothing and changes nothing.",
   input: z.object({}),
   label: "Looking across the workspace",
   run: readSignals,

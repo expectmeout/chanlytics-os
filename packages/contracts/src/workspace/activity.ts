@@ -530,6 +530,13 @@ const recordChangedWords = (p: Record<string, unknown>): string | null => {
   return moved.length ? moved.slice(0, 4).map(businessFieldLabel).join(", ") : "nothing changed";
 };
 
+/** Why the system canceled a run, by the reason its decision keeps: the sweep's and the send's (decision 0082). */
+const CANCELED_BY_SYSTEM: Readonly<Record<string, string>> = {
+  day_passed: "Skipped a run whose day had passed",
+  time_passed: "Skipped a freed time's run when its time came",
+  taken: "Stopped a freed time's run: someone booked the time",
+};
+
 /** The kinds whose sentence is written whole, by its own function. */
 const WHOLE_SENTENCE = new Map<string, (p: Record<string, unknown>, base: string) => string>([
   ["broadcast.sent", (p, base) => runEndWords("broadcast.sent", p, base)],
@@ -566,11 +573,14 @@ const WHOLE_SENTENCE = new Map<string, (p: Record<string, unknown>, base: string
       ] as const,
   ),
   ["business.recorded", (p, base) => joinBits(base, [recordChangedWords(p)])],
-  // A run the hourly sweep skipped because its day had passed (no approval could send it, S7-3): the system's, named.
+  // A run the hourly sweep skipped because its day had passed (no approval could send it, S7-3), or a freed time's whose
+  // time came first or was booked before it went (decision 0082): the system's, named.
   [
     "cancel_broadcast",
-    (p, base) =>
-      textAt(p, "reason") === "day_passed" ? joinBits("Skipped a run whose day had passed", [textAt(p, "name")]) : base,
+    (p, base) => {
+      const said = CANCELED_BY_SYSTEM[textAt(p, "reason") ?? ""];
+      return said ? joinBits(said, [textAt(p, "name")]) : base;
+    },
   ],
   ["channel.standing", (p, base) => joinBits(base, [standingChangeWords(p)])],
   ["workspace.activated", (p, base) => joinBits(base, [wordOf(ACTIVATED_WORDS, textAt(p, "milestone"))])],

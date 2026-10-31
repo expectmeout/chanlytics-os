@@ -7,7 +7,7 @@ import { audienceTrigger } from "../broadcasts/broadcast-audience";
 import { batchWaitWords } from "../playbooks/playbook-triggers";
 import { isReachOutRun } from "../reach-out/reach-out-rules";
 import { RUN_WAITING_WORDS, heldEmailsWords, runApprovedTail, runStopWords } from "../shell/campaign-rooms";
-import { plural } from "../shared/words";
+import { capitalize, plural } from "../shared/words";
 import { runDraftedEmails, runHeldEmails } from "../waits/waits";
 import { waitEndsWords } from "../waits/wait-rules";
 
@@ -19,7 +19,7 @@ export interface RunLike {
   recipient_count: number;
   /** "today 9:00 AM" / "Sep 12 · 10:00 AM", by the business's clock (toBroadcastVM). */
   when: string;
-  counts: { sent: number; replied: number };
+  counts: { sent: number; replied: number; took?: number | null };
   /**
    * Whom it goes to: a reach-out's run (kind `reach_out`) writes to businesses, and says so. Its moment (`trigger`) says
    * how a customer batch's wait ends: a visit's with the day's sending hours.
@@ -34,6 +34,8 @@ export interface RunLike {
   held?: number | null;
   /** How many of a going run's emails are handed to you to send from your inbox (waits.ts runDraftedEmails, 00429). */
   drafted?: number | null;
+  /** The time a freed time's run offers, as its view model says it ("tomorrow 3:00 PM", 0082); absent on any other run. */
+  offered?: string | null;
 }
 
 export interface TodayRunWordsVM {
@@ -83,8 +85,13 @@ export function todayRunWords(r: RunLike): TodayRunWordsVM {
   const drafted = `${plural(r.drafted ?? 0, "email", "emails")} to send from your inbox, each written and checked.`;
   // How its wait ends, by the wait rule (decision 0064): a customer batch's until its day ends, then skipped and told, a
   // visit's until 21:00, as its notice says (batchWaitWords); a reach-out's or a one-off's until it is answered.
-  const ends = !reach && r.playbook_id ? batchWaitWords(audienceTrigger(r.audience)) : waitEndsWords("leads_batch");
-  const waiting = `${people}. ${ends}.`;
+  const ends =
+    !reach && r.playbook_id ? batchWaitWords(audienceTrigger(r.audience), r.offered) : waitEndsWords("leads_batch");
+  // A freed time's run says the time first, and why these people (0082): they asked and never booked.
+  const waiting = r.offered
+    ? `${capitalize(r.offered)} opened. ${people} asked this month and never booked. ${ends}.`
+    : `${people}. ${ends}.`;
+  const took = typeof r.counts.took === "number" ? `, ${r.counts.took} took it` : "";
   return {
     people,
     waiting: {
@@ -100,7 +107,10 @@ export function todayRunWords(r: RunLike): TodayRunWordsVM {
       sentence: `${people}. ${runStopWords("scheduled").verb} it if you'd rather not.`,
       status: ["Scheduled", `sends ${r.when}`],
     },
-    done: { counts: r.counts.replied ? `${sent}, ${r.counts.replied} replied` : sent, still: r.state === "sending" },
+    done: {
+      counts: `${r.counts.replied ? `${sent}, ${r.counts.replied} replied` : sent}${took}`,
+      still: r.state === "sending",
+    },
     held: {
       meta: `${kind} · going`,
       sentence: held,

@@ -120,7 +120,7 @@ test("its words: as many values as its message takes, each judged as a new campa
   await refusedWith(judge({ params: "15% off" }), "This template takes 2 values.");
   await refusedWith(
     judge({ params: [{ kind: "first_name" }, { kind: "nope" }] }),
-    "Each value is typed text, their first name, the business name, the booking link, the review link, the booked time or service, or a proposal's link.",
+    "Each value is typed text, their first name, the business name, the booking link, the review link, the booked time or service, a proposal's link, or the freed time.",
   );
   await refusedWith(
     judge({ params: [{ kind: "first_name" }, { kind: "visit_when" }] }),

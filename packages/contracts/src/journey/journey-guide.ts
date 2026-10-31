@@ -18,7 +18,7 @@ import { journeyOf, type JourneyStageId } from "./journey";
 
 /** One touch point: the stage it stands on, the moment a campaign on it starts from, and what goes out when. */
 export interface GuideRow {
-  /** Null for the month's offer, which stands on no stage of the journey. */
+  /** Null for the month's offer and a freed time, which stand on no stage of the journey. */
   stage: JourneyStageId | null;
   /** Null for first contact: the receptionist answers it, and no campaign leads it. */
   moment: PlaybookTrigger | null;
@@ -54,11 +54,22 @@ const MONTHS_OFFER: GuideRow = {
 };
 
 /**
+ * A freed time (decision 0082): a touch point of a journey with a calendar, on no stage of it. A cancellation, a move or a
+ * vanished entry frees a time, and it goes to the people who asked in the last 30 days and never booked, by text, by
+ * email, or by WhatsApp's utility message (the follow-ups' class: about theirs, so no yes to offers).
+ */
+const FREED_TIME: GuideRow = {
+  stage: null,
+  moment: "slot_opened",
+  sends: "when a cancellation frees a time: that time, to the people who asked and never booked",
+};
+
+/**
  * The guide for a workspace's shape: `calendarOn` a calendar connected, `hasDeals` a deal recorded here, `word` what it
  * calls an appointment (contracts appointmentWordOf: "appointment" where it never picked). The stages in the journey's
  * order, those that need a calendar only with one and a proposal's only where a deal was recorded, each moment's
- * said when its moment says it is (its hint in the word, lowercased as winBackWords says it), then the month's offer. Pure
- * and total.
+ * said when its moment says it is (its hint in the word, lowercased as winBackWords says it), then with a calendar a freed
+ * time, then the month's offer. Pure and total.
  */
 export function journeyGuide(input: { calendarOn: boolean; hasDeals: boolean; word: AppointmentWord }): GuideRow[] {
   const stages = journeyOf({ ...input, held: new Set() }).filter((s) => s.unmet === null);
@@ -71,6 +82,7 @@ export function journeyGuide(input: { calendarOn: boolean; hasDeals: boolean; wo
         sends: t ? `${triggerWords(t, input.word).hint.toLowerCase()}: ${STAGE_SENDS[s.id]}` : STAGE_SENDS[s.id],
       };
     }),
+    ...(input.calendarOn ? [{ ...FREED_TIME }] : []),
     { ...MONTHS_OFFER },
   ];
 }

@@ -22,6 +22,8 @@ import {
   guessSlotKind,
   isLibrarySample,
   paramSaid,
+  parseParamSpec,
+  resolveParams,
   slotLabels,
   starterByKey,
   starterByName,
@@ -48,6 +50,7 @@ const OFFERED = [
   "after_visit_check",
   "after_visit_review",
   "proposal_follow_up",
+  "time_freed",
   "quick_note",
   "call_text",
 ];
@@ -56,7 +59,7 @@ const RETIRED = ["winback_offer", "welcome_new", "save_our_number", "monthly_off
 /** A workspace's shape as the set is offered by it: deals on, and its Google listing keeping a review link. */
 const ALL = { reviewLink: true };
 
-test("eight starters are offered in the library's order, six are retired and still found by name; each in English and Spanish", () => {
+test("nine starters are offered in the library's order, six are retired and still found by name; each in English and Spanish", () => {
   assert.deepEqual(
     startersOffered(ALL).map((s) => s.key),
     OFFERED,
@@ -158,8 +161,8 @@ test("every email and text version passes its channel's check with no warnings, 
     startersOffered(ALL)
       .filter((s) => s.email && s.sms)
       .map((s) => s.key),
-    ["visit_reminder", "after_visit_check", "after_visit_review", "proposal_follow_up"],
-    "the four about a person's own appointment or proposal go by every channel",
+    ["visit_reminder", "after_visit_check", "after_visit_review", "proposal_follow_up", "time_freed"],
+    "the five about a person's own appointment, proposal or ask go by every channel",
   );
 });
 
@@ -215,6 +218,7 @@ test("one starter per moment, one for any broadcast; titles for people, names fo
         "visit_tomorrow",
         "visited",
         "proposal_waiting",
+        "slot_opened",
         "new_week",
         "phoned_only",
       ].map((id) => [id, starterForTrigger(id)?.key]),
@@ -226,6 +230,7 @@ test("one starter per moment, one for any broadcast; titles for people, names fo
       visit_tomorrow: "visit_reminder",
       visited: "after_visit_check",
       proposal_waiting: "proposal_follow_up",
+      slot_opened: "time_freed",
       new_week: "welcome_new",
       phoned_only: "save_our_number",
     },
@@ -702,6 +707,53 @@ test("the set a workspace is offered (0006): the proposal follow-up in every wor
       `${l.id}: no price, date or amount in its words`,
     );
   assert.equal(guessSlotKind("Proposal link"), "proposal_link", "a label that names the proposal is its link");
+});
+
+test("a freed time (0082): a utility message about a freed time, its third slot the time, asking for a reply and carrying no link, in every version and both languages", () => {
+  const s = starterByKey("time_freed");
+  assert.deepEqual(
+    [s.name, s.title, s.category, s.trigger, s.retired],
+    ["time_freed", "A time freed up", "utility", "slot_opened", undefined],
+  );
+  for (const l of STARTER_LANGUAGES) {
+    assert.deepEqual(
+      s.texts[l.id].slots.map((x) => x.kind),
+      ["first_name", "business_name", "freed_when"],
+      `${l.id}: the person, the business and the time`,
+    );
+    const versions = [
+      s.texts[l.id].body,
+      starterEmailText(s, l.id).subject,
+      starterEmailText(s, l.id).body,
+      starterSmsText(s, l.id).body,
+    ];
+    for (const words of versions) {
+      assert.ok(words.includes("{{3}}"), `${l.id}: every version says the time: ${words}`);
+      assert.ok(!/https?:|www\./.test(words), `${l.id}: no link: the reply is the receptionist's to take`);
+      assert.ok(!/[$€£%]/.test(words), `${l.id}: no price and no offer`);
+    }
+  }
+  assert.equal(
+    starterPreview(s, "en_US", "Harbor Studio"),
+    "Hi Dani, it's Harbor Studio. A time just opened tomorrow at 2:00 PM. Want it? Reply here.",
+  );
+  // The time is the freed time's own, filled from what the batch kept for each send; a name for it is parsed as every source.
+  assert.deepEqual(parseParamSpec("@freed_when"), { kind: "freed_when" });
+  assert.deepEqual(
+    resolveParams([{ kind: "first_name" }, { kind: "freed_when" }], {
+      firstName: "Ana",
+      businessName: "Harbor Studio",
+      bookingLink: null,
+      freedWhen: "on Thursday at 3:00 PM",
+    }),
+    ["Ana", "on Thursday at 3:00 PM"],
+  );
+  assert.deepEqual(
+    resolveParams([{ kind: "freed_when" }], { firstName: null, businessName: "Harbor Studio", bookingLink: null }),
+    [""],
+    "nothing kept, nothing filled: the send holds the person (missing_value), never a blank",
+  );
+  assert.equal(paramSaid({ kind: "freed_when" }), "the freed time");
 });
 
 /** repo/trade-neutral.test.mjs's two predicates, as it writes them: one trade's words, and a visit where an appointment is. */

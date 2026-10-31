@@ -335,6 +335,8 @@ begin
       insert into events (tenant_id, kind, category, subject_type, subject_id, data)
       values (p_tenant_id, 'appointment.changed', 'appointment', 'appointment', v_id,
               jsonb_build_object('change', v_change, 'source', 'calendar_feed', 'starts_at', v_in.starts_at)
+              -- A move says the time it left (decision 0082, 00498): v_row is the row as it stood before this read.
+              || case when v_change = 'moved' then jsonb_build_object('was_at', v_row.starts_at) else '{}'::jsonb end
               || case when v_change = 'added'
                       then jsonb_build_object('named', v_contact is not null, 'series', v_in.series, 'twin', v_in.twin,
                                               'first', v_first)
@@ -458,6 +460,8 @@ begin
   values (new.tenant_id, 'appointment.changed', 'appointment', 'appointment', new.id,
           jsonb_build_object('change', v_change, 'source', new.source, 'starts_at', new.starts_at)
           -- Whose word it is, whatever source the visit came by: a signed-in member's, or the service's (00436).
+          -- A move says the time it left (decision 0082, 00498): the freed time is that span.
+          || case when v_change = 'moved' then jsonb_build_object('was_at', old.starts_at) else '{}'::jsonb end
           || jsonb_build_object('by', case when auth.uid() is not null then 'member' else 'service' end));
   return null;
 end $$;
@@ -992,12 +996,15 @@ begin
        select 1 from public.sequence_steps b where b.id = (p_run->>'playbook_id')::uuid and b.tenant_id = p_tenant) then
     raise exception 'assemble_broadcast: the playbook is not workspace %''s', p_tenant using errcode = '42501';
   end if;
+  -- A freed time's batch (decision 0082, 00498) keeps the time it offers and the appointment that freed it.
   insert into public.sequence_batches (tenant_id, name, template_id, template_name, template_language, params, audience,
-                                 state, scheduled_for, recipient_count, created_by, step_id, run_for, channels)
+                                 state, scheduled_for, recipient_count, created_by, step_id, run_for, channels,
+                                 offered_start, offered_end, offered_from)
   values (p_tenant, p_run->>'name', (p_run->>'template_id')::uuid, p_run->>'template_name',
           p_run->>'template_language', coalesce(p_run->'params', '[]'::jsonb), coalesce(p_run->'audience', '{}'::jsonb),
           p_run->>'state', (p_run->>'scheduled_for')::timestamptz, (p_run->>'recipient_count')::int,
-          (p_run->>'created_by')::uuid, (p_run->>'playbook_id')::uuid, (p_run->>'run_for')::date, v_channels)
+          (p_run->>'created_by')::uuid, (p_run->>'playbook_id')::uuid, (p_run->>'run_for')::date, v_channels,
+          (p_run->>'offered_start')::timestamptz, (p_run->>'offered_end')::timestamptz, (p_run->>'offered_from')::uuid)
   returning id into v_id;
 
   -- Each person is on a channel the run ticks. None named is WhatsApp (a recipient written before the channels), so a run
@@ -5827,6 +5834,32 @@ CREATE FUNCTION public.first_replies(p_tenant_id uuid, p_start timestamp with ti
               then hold_s end as ai_hold_s
     from firsts
 $$;
+
+
+--
+-- Name: freed_time_taken(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.freed_time_taken(p_batch_id uuid) RETURNS integer
+    LANGUAGE sql STABLE
+    SET search_path TO ''
+    AS $$
+  select count(distinct a.contact_id)::int
+    from public.sequence_batches b
+    join public.sequence_sends s on s.batch_id = b.id and s.state = 'sent' and s.contact_id is not null
+    join public.appointments a on a.tenant_id = b.tenant_id and a.contact_id = s.contact_id
+   where b.id = p_batch_id and b.offered_start is not null
+     and a.status in ('proposed', 'booked', 'kept') and a.vanished_at is null
+     and a.starts_at >= b.offered_start and a.starts_at < b.offered_end
+     and a.created_at >= coalesce(b.started_at, b.created_at)
+$$;
+
+
+--
+-- Name: FUNCTION freed_time_taken(p_batch_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.freed_time_taken(p_batch_id uuid) IS 'How many people a batch sent to took the time it offered (decision 0082): an appointment of theirs on the record, standing, starting inside the offered span, written after the batch started. Read as the caller under RLS; never stored.';
 
 
 --
@@ -25871,9 +25904,13 @@ CREATE FUNCTION public.run_counts(p_tenant_id uuid, p_run_ids uuid[]) RETURNS js
            'delivered', c.delivered,
            'read', c.was_read,
            'replied', coalesce(y.replied, 0),
-           'sent_by', jsonb_build_object('whatsapp', c.by_whatsapp, 'sms', c.by_sms, 'email', c.by_email))), '{}'::jsonb)
+           'sent_by', jsonb_build_object('whatsapp', c.by_whatsapp, 'sms', c.by_sms, 'email', c.by_email))
+           -- Who took the time a run offered (decision 0082, freed_time_taken): said only for a run that offered one.
+           || case when b.offered_from is not null then jsonb_build_object('took', public.freed_time_taken(b.id))
+              else '{}'::jsonb end), '{}'::jsonb)
     from counted c
     left join replied y on y.broadcast_id = c.broadcast_id
+    left join public.sequence_batches b on b.id = c.broadcast_id
 $$;
 
 
@@ -27438,7 +27475,7 @@ CREATE FUNCTION public.sequence_history(p_tenant_id uuid, p_sequence_id uuid, p_
   with lim as (select least(greatest(coalesce(p_limit, 30), 1), 100) as n),
   batches as (
     select b.id, b.step_id, b.state, b.run_for, b.scheduled_for, b.started_at, b.finished_at, b.recipient_count,
-           b.failure, coalesce(b.started_at, b.scheduled_for) as at
+           b.failure, coalesce(b.started_at, b.scheduled_for) as at, b.offered_start, b.offered_from
       from public.sequence_batches b
      where b.tenant_id = p_tenant_id and b.sequence_id = p_sequence_id
        and (p_before is null or coalesce(b.started_at, b.scheduled_for) < p_before)
@@ -27458,7 +27495,12 @@ CREATE FUNCTION public.sequence_history(p_tenant_id uuid, p_sequence_id uuid, p_
                            'people', p.recipient_count,
                            'failure', p.failure,
                            'place', (select st.place from public.sequence_steps st where st.id = p.step_id),
-                           'counts', coalesce((select c from counts) -> p.id::text, '{}'::jsonb)) order by p.at desc, p.id desc)
+                           'counts', coalesce((select c from counts) -> p.id::text, '{}'::jsonb))
+                           -- A freed time's batch (decision 0082): the time it offers, and who took it; said for it alone.
+                           || case when p.offered_from is not null then jsonb_build_object(
+                                'offered_start', p.offered_start, 'took', public.freed_time_taken(p.id))
+                              else '{}'::jsonb end
+                           order by p.at desc, p.id desc)
                            from page p), '[]'::jsonb),
     'more', (select count(*) from batches) > (select l.n from lim l))
 $$;
@@ -28799,6 +28841,8 @@ CREATE FUNCTION public.sequence_steps_due(p_kind text, p_at timestamp with time 
     cross join lateral (select public.safe_zone(coalesce(nullif(btrim(t.timezone), ''), 'America/New_York')) as tz) z
     cross join lateral (select p_at at time zone z.tz as clock) l
    where s.state = 'running' and s.kind = p_kind
+     -- A freed time's step runs when an appointment frees a time (decision 0082, 00498), never by the hour.
+     and s.trigger <> 'slot_opened'
      and (s.kind = 'reach_out' or (r.state = 'running' and q.state = 'on'))
      and t.status <> 'paused'
      and (p_tenant_id is null or s.tenant_id = p_tenant_id)
@@ -34321,7 +34365,7 @@ CASE
     WHEN (hand IS NULL) THEN ((template_id IS NOT NULL) AND (template_name IS NOT NULL) AND (template_language IS NOT NULL))
     ELSE COALESCE(((trigger = 'after_step'::text) AND (template_id IS NULL) AND (template_name IS NULL) AND (template_language IS NULL) AND (jsonb_typeof(hand) = 'object'::text) AND ((hand ->> 'kind'::text) = ANY (ARRAY['call'::text, 'note'::text])) AND (jsonb_typeof((hand -> 'words'::text)) = 'string'::text) AND ((char_length(btrim((hand ->> 'words'::text))) >= 1) AND (char_length(btrim((hand ->> 'words'::text))) <= 280)) AND (((hand - 'kind'::text) - 'words'::text) = '{}'::jsonb)), false)
 END),
-    CONSTRAINT sequence_steps_trigger_check CHECK ((trigger = ANY (ARRAY['quiet_30'::text, 'new_week'::text, 'phoned_only'::text, 'everyone_monthly'::text, 'visit_tomorrow'::text, 'visited'::text, 'lapsed'::text, 'saved_list'::text, 'proposal_waiting'::text, 'lead_first'::text, 'after_step'::text])))
+    CONSTRAINT sequence_steps_trigger_check CHECK ((trigger = ANY (ARRAY['quiet_30'::text, 'new_week'::text, 'phoned_only'::text, 'everyone_monthly'::text, 'visit_tomorrow'::text, 'visited'::text, 'lapsed'::text, 'saved_list'::text, 'proposal_waiting'::text, 'lead_first'::text, 'after_step'::text, 'slot_opened'::text])))
 );
 
 
@@ -36123,8 +36167,12 @@ CREATE TABLE public.sequence_batches (
     run_for date,
     channels text[] DEFAULT '{whatsapp}'::text[] NOT NULL,
     sequence_id uuid NOT NULL,
+    offered_start timestamp with time zone,
+    offered_end timestamp with time zone,
+    offered_from uuid,
     CONSTRAINT sequence_batches_channels_check CHECK (((channels <@ ARRAY['whatsapp'::text, 'sms'::text, 'email'::text]) AND ((cardinality(channels) >= 1) AND (cardinality(channels) <= 3)) AND (cardinality(channels) = ((((channels @> ARRAY['whatsapp'::text]))::integer + ((channels @> ARRAY['sms'::text]))::integer) + ((channels @> ARRAY['email'::text]))::integer)))),
     CONSTRAINT sequence_batches_name_check CHECK (((length(name) >= 1) AND (length(name) <= 80))),
+    CONSTRAINT sequence_batches_offered_check CHECK ((((offered_start IS NULL) AND (offered_end IS NULL) AND (offered_from IS NULL)) OR ((offered_start IS NOT NULL) AND (offered_end IS NOT NULL) AND (offered_start < offered_end)))),
     CONSTRAINT sequence_batches_state_check CHECK ((state = ANY (ARRAY['pending_approval'::text, 'scheduled'::text, 'sending'::text, 'sent'::text, 'canceled'::text, 'failed'::text]))),
     CONSTRAINT sequence_batches_template_or_hand CHECK (COALESCE((((template_id IS NOT NULL) AND (template_name IS NOT NULL) AND (template_language IS NOT NULL)) OR ((template_id IS NULL) AND (template_name IS NULL) AND (template_language IS NULL) AND ((audience ->> 'kind'::text) = 'reach_out'::text) AND ((audience ->> 'hand'::text) = ANY (ARRAY['call'::text, 'note'::text])))), false))
 );
@@ -36149,6 +36197,27 @@ COMMENT ON COLUMN public.sequence_batches.channels IS 'The channels this run tic
 --
 
 COMMENT ON COLUMN public.sequence_batches.sequence_id IS 'The sequence this batch is a day of (0060): its step''s, or a one-off''s own id.';
+
+
+--
+-- Name: COLUMN sequence_batches.offered_start; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequence_batches.offered_start IS 'A freed time''s batch (decision 0082): the start of the time it offers, freed by the appointment offered_from names. Null for every other batch.';
+
+
+--
+-- Name: COLUMN sequence_batches.offered_end; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequence_batches.offered_end IS 'A freed time''s batch (decision 0082): the end of the time it offers.';
+
+
+--
+-- Name: COLUMN sequence_batches.offered_from; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequence_batches.offered_from IS 'A freed time''s batch (decision 0082): the appointment whose cancellation, move or vanishing freed the time; one batch per step and appointment (sequence_batches_offered_once). Set null when the appointment row goes.';
 
 
 --
@@ -39419,6 +39488,13 @@ CREATE UNIQUE INDEX segments_live_name ON public.segments USING btree (tenant_id
 --
 
 CREATE INDEX sequence_batches_history ON public.sequence_batches USING btree (sequence_id, created_at DESC);
+
+
+--
+-- Name: sequence_batches_offered_once; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX sequence_batches_offered_once ON public.sequence_batches USING btree (step_id, offered_from) WHERE (offered_from IS NOT NULL);
 
 
 --
@@ -42942,6 +43018,14 @@ ALTER TABLE ONLY public.sequence_batches
 
 
 --
+-- Name: sequence_batches sequence_batches_offered_from_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.sequence_batches
+    ADD CONSTRAINT sequence_batches_offered_from_same_workspace FOREIGN KEY (tenant_id, offered_from) REFERENCES public.appointments(tenant_id, id) ON DELETE SET NULL (offered_from);
+
+
+--
 -- Name: sequence_batches sequence_batches_sequence_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -45974,6 +46058,15 @@ GRANT ALL ON FUNCTION public.fact_suggestion_answer(p_id uuid, p_keep boolean, p
 REVOKE ALL ON FUNCTION public.first_replies(p_tenant_id uuid, p_start timestamp with time zone) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.first_replies(p_tenant_id uuid, p_start timestamp with time zone) TO authenticated;
 GRANT ALL ON FUNCTION public.first_replies(p_tenant_id uuid, p_start timestamp with time zone) TO service_role;
+
+
+--
+-- Name: FUNCTION freed_time_taken(p_batch_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.freed_time_taken(p_batch_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.freed_time_taken(p_batch_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.freed_time_taken(p_batch_id uuid) TO service_role;
 
 
 --

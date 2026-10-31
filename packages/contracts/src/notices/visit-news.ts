@@ -23,6 +23,8 @@
 import type { JobNews } from "../today/notifications";
 import { visitRoute } from "../calendar/appointment-key";
 import { visitDateKey, visitLine } from "../calendar/calendar-people";
+import type { FreedTimeOffer } from "../calendar/visit/freed-time";
+import { plural } from "../shared/words";
 
 /** The changes of the record that are a booking arriving: a visit added, and a proposed one confirmed. */
 const ARRIVES: ReadonlySet<string> = new Set(["added", "confirmed"]);
@@ -164,10 +166,30 @@ const VIA_WORDS: Readonly<Record<BookingVia, string>> = {
 const visitDayOf = (v: BookedVisit): string => visitDateKey(v.start, v.timezone);
 
 /**
- * The owner's notice of a booking the customer cancelled or moved: who, the time freed or the new one, and what for,
- * opening the visit on its day. News, as a booking arriving is: a line on the bell, no mail.
+ * What the news says of the time a cancellation freed: free again, and what its offer to the people who asked and never
+ * booked came to (decision 0082), read from the offer itself, so the bell and the batch never disagree. A workspace that
+ * offers no freed time, and an offer not asked yet, hear it as before.
  */
-export function visitChangeNews(v: BookedVisit, change: VisitChange, nowMs: number): Omit<JobNews, "sourceEvent"> {
+function freedAgainLine(offer: FreedTimeOffer | null): string {
+  const said = "That time is free again";
+  if (offer?.offered) {
+    const people = plural(offer.people, "person", "people");
+    return offer.waits ? `${said} · ready to offer to ${people} when you OK it.` : `${said} · offered to ${people}.`;
+  }
+  return offer?.why === "nobody" ? `${said} · nobody asked this month who hasn't booked.` : `${said}.`;
+}
+
+/**
+ * The owner's notice of a booking the customer cancelled or moved: who, the time freed or the new one, and what for,
+ * opening the visit on its day; for a cancellation, what the offer of its time came to. News, as a booking arriving is:
+ * a line on the bell, no mail.
+ */
+export function visitChangeNews(
+  v: BookedVisit,
+  change: VisitChange,
+  nowMs: number,
+  offer: FreedTimeOffer | null = null,
+): Omit<JobNews, "sourceEvent"> {
   const when = visitLine({ start: v.start, end: v.end, allDay: v.allDay }, v.timezone, nowMs);
   const who = v.who ?? "Someone";
   const cancelled = change === "cancelled";
@@ -180,7 +202,7 @@ export function visitChangeNews(v: BookedVisit, change: VisitChange, nowMs: numb
     body: [
       cancelled ? when : `Now ${when}`,
       ...(v.service ? [v.service] : []),
-      ...(cancelled ? ["That time is free again."] : []),
+      ...(cancelled ? [freedAgainLine(offer)] : []),
       "",
       VIA_WORDS[v.via],
     ].join("\n"),

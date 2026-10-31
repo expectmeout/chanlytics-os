@@ -263,6 +263,15 @@ function visitIsTheirs(
 }
 
 /**
+ * Who a run reaches first: the longest-unheard, as a win-back wants; for a freed time whoever asked most recently (0082),
+ * since a time is taken by one person, and the one who asked yesterday is likeliest to want it.
+ */
+function reachOrder(recentFirst: boolean): (a: PersonRowVM, b: PersonRowVM) => number {
+  const at = (v: PersonRowVM) => v.lastContact.ts ?? 0;
+  return recentFirst ? (a, b) => at(b) - at(a) : (a, b) => at(a) - at(b);
+}
+
+/**
  * The run as drawn: who it reaches, its reach, and `saidYes` -- how many the
  * moment names who said the yes its messages need, a number to send to or not,
  * a channel open to carry it now or not (saidYesOnAny).
@@ -414,7 +423,7 @@ export function playbookRunReach(
     }
     return true;
   });
-  picked.sort((a, b) => (a.lastContact.ts ?? 0) - (b.lastContact.ts ?? 0));
+  picked.sort(reachOrder(t.kind === "freed"));
   const eligible = picked.slice(0, Math.max(1, p.cap_per_run));
   reach.overCap = picked.length - eligible.length;
   return done(eligible);

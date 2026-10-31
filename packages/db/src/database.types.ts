@@ -6205,6 +6205,9 @@ export type Database = {
           finished_at: string | null
           id: string
           name: string
+          offered_end: string | null
+          offered_from: string | null
+          offered_start: string | null
           params: Json
           recipient_count: number
           run_for: string | null
@@ -6228,6 +6231,9 @@ export type Database = {
           finished_at?: string | null
           id?: string
           name: string
+          offered_end?: string | null
+          offered_from?: string | null
+          offered_start?: string | null
           params?: Json
           recipient_count?: number
           run_for?: string | null
@@ -6251,6 +6257,9 @@ export type Database = {
           finished_at?: string | null
           id?: string
           name?: string
+          offered_end?: string | null
+          offered_from?: string | null
+          offered_start?: string | null
           params?: Json
           recipient_count?: number
           run_for?: string | null
@@ -6266,6 +6275,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "sequence_batches_offered_from_same_workspace"
+            columns: ["tenant_id", "offered_from"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["tenant_id", "id"]
+          },
           {
             foreignKeyName: "sequence_batches_sequence_id_same_workspace"
             columns: ["tenant_id", "sequence_id"]
@@ -8048,6 +8064,7 @@ export type Database = {
           who: string
         }[]
       }
+      freed_time_taken: { Args: { p_batch_id: string }; Returns: number }
       get_channel_credentials: { Args: { p_channel_id: string }; Returns: Json }
       get_cron_sweep_key: { Args: never; Returns: string }
       get_google_credentials: { Args: { p_tenant_id: string }; Returns: Json }

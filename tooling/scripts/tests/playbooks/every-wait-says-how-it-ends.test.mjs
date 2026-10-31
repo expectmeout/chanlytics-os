@@ -9,6 +9,7 @@ import { importSrc } from "../_source.mjs";
 import assert from "node:assert/strict";
 import {
   ALERT_TOPICS,
+  FREED_TIME_PASSED_WORDS,
   GOING_TODAY_WORDS,
   PLAYBOOK_TRIGGERS,
   NOTHING_WAITS_KNOWN,
@@ -433,4 +434,57 @@ test("a review's reply waits like everything else: held for an OK, or posted aft
     "2 replies to reviews post unless you stop them",
   );
   assert.equal(reviewDraftsBell([], TZ), null);
+});
+
+test("a freed time's batch (decision 0082) waits for an OK only until the time it offers, says the time on Today, counts who took it, and is refused once that time has come by the moment it would go", () => {
+  assert.deepEqual(waitRuleOf("freed_ask"), { goes: "with_your_ok", ends: "end_of_its_time", act: "approve" });
+  assert.equal(
+    waitEndsWords("freed_ask"),
+    "Goes only if you approve it before the time it offers; after that it is skipped",
+  );
+  assert.equal(
+    waitEndsWords("freed_ask", "Tue 3:00 PM"),
+    "Goes only if you approve it before Tue 3:00 PM; after that it is skipped",
+  );
+  assert.ok(readyRunNotice("Fill a cancellation", 4, "slot_opened").body.endsWith(`${waitEndsWords("freed_ask")}.`));
+  // Today's row: the time first, then who it reaches and why them, then how the wait ends; once it went, who took it.
+  const run = {
+    state: "pending_approval",
+    recipient_count: 4,
+    when: "today",
+    playbook_id: "p-open",
+    audience: { kind: "playbook", trigger: "slot_opened" },
+    offered: "Tue 3:00 PM",
+    counts: { sent: 0, replied: 0 },
+  };
+  assert.equal(
+    todayRunWords(run).waiting.sentence,
+    `Tue 3:00 PM opened. 4 people asked this month and never booked. ${waitEndsWords("freed_ask", "Tue 3:00 PM")}.`,
+  );
+  const went = { ...run, state: "sent", counts: { sent: 4, replied: 2, took: 1 } };
+  assert.equal(todayRunWords(went).done.counts, "4 sent, 2 replied, 1 took it");
+  assert.equal(
+    todayRunWords({ ...went, counts: { sent: 4, replied: 2, took: null } }).done.counts,
+    "4 sent, 2 replied",
+  );
+  assert.equal(todayRunWords({ ...went, counts: { sent: 4, replied: 0, took: 0 } }).done.counts, "4 sent, 0 took it");
+  // The refusal: a time that has begun by the moment an approval would send it is gone, whatever the day says.
+  const days = runDaysAt(TZ, new Date(NOW));
+  const freed = (inMs) => ({
+    playbook_id: "p-open",
+    run_for: null,
+    audience: run.audience,
+    offered_start: new Date(NOW + inMs).toISOString(),
+  });
+  assert.equal(runApprovalRefusal(freed(2 * HOUR), days), null, "two hours on: it goes now");
+  assert.equal(runApprovalRefusal(freed(-MIN), days), FREED_TIME_PASSED_WORDS, "it has begun");
+  // At 11 PM an approval waits for nine: a time at 8 AM tomorrow has begun by then; one at 11 AM has not.
+  const night = runDaysAt(TZ, new Date(Date.parse("2026-10-20T03:00:00Z")));
+  assert.equal(
+    runApprovalRefusal({ ...freed(0), offered_start: "2026-10-20T12:00:00Z" }, night),
+    FREED_TIME_PASSED_WORDS,
+  );
+  assert.equal(runApprovalRefusal({ ...freed(0), offered_start: "2026-10-20T15:00:00Z" }, night), null);
+  // A freed time has no day of its own: the day's rule never refuses it, and days that do not say when it would send refuse nothing.
+  assert.equal(runApprovalRefusal(freed(2 * HOUR), { today: "2026-10-19", sendsOn: "2026-10-20" }), null);
 });
