@@ -58,6 +58,12 @@ export type LeadJudgeAnswer =
   | { answers: JudgePlaceAnswer[]; model: string; tokens: number; raw: unknown; requestHash: string }
   | { refused: true; why: string };
 
+/** The places a screen left out before the judge (decision 0085), by their refs in the batch, and the model that read them. */
+export interface LeadScreen {
+  answers: JudgePlaceAnswer[];
+  model: string;
+}
+
 /** A people search's batch of companies, judged (contracts company-judge.ts): as a places batch is answered. */
 export type CompanyJudgeAnswer =
   | { answers: CompanyFitAnswer[]; model: string; tokens: number; raw: unknown; requestHash: string }
@@ -70,6 +76,12 @@ export interface LeadJudge {
    * the ledger by it. A call that names no round leaves the subject empty.
    */
   judge(plan: LeadSearchPlan, places: PlaceFacts[], tenantId?: string, roundId?: string): Promise<LeadJudgeAnswer>;
+  /**
+   * The screen, where the deployment puts one before the judge (decision 0085): the places a second model is sure are
+   * left out, each with its answer (contracts screenedAnswer), and the model that answered; null when it is off. The
+   * judge is never asked of a place it answers. It never throws: a screen that could not ask screens nothing.
+   */
+  screen?(plan: LeadSearchPlan, places: PlaceFacts[], tenantId?: string, roundId?: string): Promise<LeadScreen | null>;
   /** One batch of a people search's companies read against what it asked for, paid as a places batch is. */
   judgeCompanies(
     plan: LeadPeoplePlan,

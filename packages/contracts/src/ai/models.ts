@@ -174,6 +174,12 @@ export interface ModelRoute {
    * sent the off it takes (routeThinkingFor). Absent: each model thinks as it does by default.
    */
   thinking?: "off";
+  /**
+   * Where the second port screens before the primary (decision 0085): how sure its answer to a question that leaves
+   * something out must be before that thing is left out on it, and the primary is never asked of it. Only beside a
+   * shadow; absent where the primary is asked everything.
+   */
+  screen?: number;
 }
 
 /** The efforts a model still takes a thinking off at: Haiku 5.5's `disabled` and Sonnet 5.5's `between_tools` stop at high. */
@@ -285,6 +291,8 @@ export const MODEL_ROUTES = {
     retries: 0,
     maxTokens: 6000,
     shadow: "typesafe",
+    // A place the second model is this sure is the wrong kind, or one the plan leaves out, is never judged (decision 0085).
+    screen: 0.9,
   },
   // The small reads, each a short answer into a fixed shape: the smallest model, with its thinking off.
   note_suggest: {
@@ -385,6 +393,12 @@ export function fallbackModel(purpose: ModelPurpose, asked: string): ModelId | n
   const r = modelRoute(purpose);
   if (!r.fallback) return null;
   return asked === r.model ? r.fallback : r.model;
+}
+
+/** How sure a purpose's screen must be before it leaves something out unasked, or null when it has none (decision 0085). */
+export function screenFloorOf(purpose: ModelPurpose): number | null {
+  const r = modelRoute(purpose);
+  return r.shadow && r.screen !== undefined ? r.screen : null;
 }
 
 /** The port a purpose is put beside in shadow, or null when it has none. */
