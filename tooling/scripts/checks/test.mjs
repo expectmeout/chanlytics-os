@@ -118,6 +118,16 @@ export const SUITES = {
 export const CHANGES_A_TABLE =
   /\b(?:create|drop)\s+trigger\b[^;]*?\bon\s+public\.|\balter\s+table\s+public\.|\block\s+table\s+public\./i;
 
+/**
+ * A database suite that runs a migration's own statement again, as the file has it (a backfill, to prove it fills what it
+ * should and is re-runnable): the file named in its code, which is how the suite reads the statement to run. A backfill
+ * names no workspace, so it reaches every suite's rows. On 31 Oct 2026 consent-channels' replay of 00297's backfill gave
+ * email-offers' opted-in person, mid-test, the WhatsApp list that suite expects never to be kept, and main went red.
+ * So such a suite runs alone, after the others. A suite that reads a migration only to compare a body (`migration(n)`,
+ * by its number) runs nothing of it, and a file named in words is not read.
+ */
+export const REPLAYS_A_MIGRATION = /["'/]\d{5}_[a-z0-9_]+\.sql["']/;
+
 /** The names a database suite ends with: SUITES.db's two kinds. */
 const DATABASE_ENDINGS = SUITES.db.map((glob) => glob.slice(glob.lastIndexOf("*") + 1));
 
@@ -133,14 +143,16 @@ function testsUnder(dir, databaseOnly) {
 
 /**
  * A database run's files in its two passes: the suites that may share the stack, at the runner's concurrency, then the
- * ones that change a shared table's definition (CHANGES_A_TABLE), alone, one at a time. With nothing asked, every
- * database suite; a folder asked for is every test in it; a glob is not read, so it runs in the first pass as it is.
+ * ones that change a shared table's definition (CHANGES_A_TABLE) or replay a migration (REPLAYS_A_MIGRATION), alone,
+ * one at a time. With nothing asked, every database suite; a folder asked for is every test in it; a glob is not read,
+ * so it runs in the first pass as it is.
  */
 export function databasePasses(asked, read = (f) => fs.readFileSync(path.resolve(ROOT, f), "utf8")) {
   const files = asked.length
     ? asked.flatMap((a) => (isDirectory(a) ? testsUnder(a, false) : [a]))
     : testsUnder("tooling/scripts/tests", true);
-  const alone = files.filter((f) => !/[*?[{]/.test(f) && f.endsWith(".mjs") && CHANGES_A_TABLE.test(read(f)));
+  const runsAlone = (text) => CHANGES_A_TABLE.test(text) || REPLAYS_A_MIGRATION.test(text);
+  const alone = files.filter((f) => !/[*?[{]/.test(f) && f.endsWith(".mjs") && runsAlone(read(f)));
   return { together: files.filter((f) => !alone.includes(f)), alone };
 }
 
@@ -161,7 +173,7 @@ export function zoneOf(env) {
  * needs, and the environment it runs in. A directory asked for is every `*.test.mjs` under it. `coverage` is where a
  * measured run's lcov report is written, or null for a run that is not measured; `held` is whether the floors judge it.
  * A database run is two passes (databasePasses): `args`, then `alone`, the suites that change a shared table's
- * definition, one at a time; `alone` is null where there is no second pass.
+ * definition or replay a migration, one at a time; `alone` is null where there is no second pass.
  */
 export function planOf(argv, env) {
   const args = argv.filter((a) => a !== "--");
@@ -273,7 +285,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
           : failed,
       );
     }
-    if (args === plan.alone) console.error("# then, one at a time, the suites that change a shared table's definition");
+    if (args === plan.alone)
+      console.error("# then, one at a time, the suites that change a shared table's definition or replay a migration");
     spawn(process.execPath, args, { cwd: ROOT, env: plan.env, stdio: "inherit" }).on("exit", (code, signal) =>
       runPasses(rest, failed || (signal ? 1 : (code ?? 1))),
     );

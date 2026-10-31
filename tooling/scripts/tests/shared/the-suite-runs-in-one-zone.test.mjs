@@ -7,7 +7,15 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { CHANGES_A_TABLE, databasePasses, importsLeaveTheThread, planOf, SUITES, zoneOf } from "../../checks/test.mjs";
+import {
+  CHANGES_A_TABLE,
+  databasePasses,
+  importsLeaveTheThread,
+  planOf,
+  REPLAYS_A_MIGRATION,
+  SUITES,
+  zoneOf,
+} from "../../checks/test.mjs";
 
 const LAUNCHER = fileURLToPath(new URL("../../checks/test.mjs", import.meta.url));
 const PROBE = "tooling/scripts/tests/fixtures/zone-probe.mjs";
@@ -110,6 +118,41 @@ test("a database suite that changes a shared table's definition runs alone, afte
   assert.equal(one.alone, null);
   // Not a database run: one pass, as ever.
   assert.equal(planOf([PROBE], {}).alone, null);
+});
+
+test("a database suite that replays a migration's own statement runs alone too: a backfill names no workspace (31 Oct 2026)", () => {
+  // The file named in the suite's code, as each replay reads its statement. A body compared by the migration's number,
+  // or a file named in a comment's words, runs nothing of it.
+  for (const code of [
+    'const MIGRATION = path.join(ROOT, "supabase", "migrations", "00297_a_yes_covers_the_channels_it_was_given_for.sql");',
+    'readFileSync(path.join(ROOT, "supabase/migrations/00439_the_business_has_one_name.sql"), "utf8")',
+  ])
+    assert.ok(REPLAYS_A_MIGRATION.test(code), code);
+  for (const code of [
+    " * (release B, migration 00142_the_leads_are_worked.sql; PRD v3 §9, §0.4).",
+    "// The pilot is the first workspace: 00001_foundation.sql made it",
+    "fs.readdirSync(dir).find((f) => f.startsWith(`${n}_`))",
+  ])
+    assert.equal(REPLAYS_A_MIGRATION.test(code), false, code);
+
+  const read = (f) => (f.includes("backfill") ? 'fs.readFileSync("supabase/migrations/00297_a.sql")' : "select 1");
+  assert.deepEqual(databasePasses(["a.db.test.mjs", "the-backfill.db.test.mjs"], read), {
+    together: ["a.db.test.mjs"],
+    alone: ["the-backfill.db.test.mjs"],
+  });
+
+  // The whole run: the three suites that replay one alone, and the suite consent-channels' replay reached beside the rest.
+  const files = (args) => args.filter((a) => a.startsWith("tooling/scripts/tests/") && a.endsWith(".mjs"));
+  const run = planOf(["--db", "--test-concurrency=3"], {});
+  const [together, alone] = [files(run.args), files(run.alone ?? [])];
+  for (const f of [
+    "consent/consent-channels.db.test.mjs",
+    "google/a-review-s-first-notices-open-the-review.db.test.mjs",
+    "public/the-business-has-one-name.db.test.mjs",
+  ])
+    assert.ok(alone.includes(`tooling/scripts/tests/${f}`), f);
+  assert.ok(together.includes("tooling/scripts/tests/consent/email-offers.db.test.mjs"));
+  assert.ok(together.includes("tooling/scripts/tests/lead-lists/lead-lists.db.test.mjs"), "a body compared, not run");
 });
 
 test("under TEST_SLOW_IMPORTS=1 an import a test makes waits where tsx loads off the main thread; where tsx loads in it, the launcher says so and runs nothing", () => {
