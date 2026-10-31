@@ -110,7 +110,15 @@ test("a route with its thinking off sends each model the off it takes, and its m
 test("what the 30 Oct 2026 replay moved: the receptionist, its drafts and the judge on Opus 5.5, the small reads on Haiku 5.5 with thinking off, their fallbacks Sonnet 5.5", () => {
   for (const p of ["receptionist", "reply_draft", "lead_judge"])
     assert.equal(MODEL_ROUTES[p].model, MODELS.OPUS_5_5, p);
-  for (const p of ["note_suggest", "reach_out_check", "reply_read", "booking_read", "fix_route", "website_read"]) {
+  for (const p of [
+    "note_suggest",
+    "reach_out_check",
+    "reply_read",
+    "booking_read",
+    "fix_route",
+    "website_read",
+    "sender_read",
+  ]) {
     assert.equal(MODEL_ROUTES[p].model, MODELS.HAIKU_5_5, p);
     assert.equal(MODEL_ROUTES[p].thinking, "off", p);
     assert.equal(MODEL_ROUTES[p].fallback, MODELS.SONNET_5_5, p);

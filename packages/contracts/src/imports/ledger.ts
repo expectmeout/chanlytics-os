@@ -56,6 +56,11 @@ export interface ImportCounts {
   messages?: number;
   /** Mail read and dropped: newsletters, receipts and the rest (decision 0073, D9). */
   dropped?: number;
+  /**
+   * Strangers the mailbox's six months found asking about the business's services (decision 0080): each read as an
+   * inquiry, and each someone the owner never wrote to, so never answered by email.
+   */
+  asked?: number;
   /** Visits before today, and those coming up. */
   past?: number;
   coming?: number;
@@ -95,7 +100,7 @@ export interface ImportLineVM {
   retry: boolean;
   /** How far a run has come, 0 to 1, where the row can say it (shareOf); null where nothing does, and once it is in. */
   share: number | null;
-  /** What the mailbox read and set aside, said apart under the line: "195 newsletters and notices set aside". */
+  /** What the mailbox read and set aside, said apart under the line: "195 newsletters, notices and pitches set aside". */
   aside: string | null;
   /** Where the line opens: the page what came in is on (IMPORT_DOORS); null for WhatsApp's line waiting for Go live. */
   door: string | null;
@@ -148,7 +153,9 @@ export const IMPORT_WORDS = {
   stoppedCount: (n: number) => `${n} stopped`,
   /** A run that stopped part way (IMPORT_STOPPED_WORDS.failed), said on its line with what it kept. */
   stoppedPartWay: "Stopped part way",
-  setAside: (n: number) => `${n.toLocaleString("en-US")} newsletters and notices set aside`,
+  setAside: (n: number) => `${n.toLocaleString("en-US")} newsletters, notices and pitches set aside`,
+  /** The strangers who asked about the business's services and were never answered by email (decision 0080). */
+  asked: (n: number) => `${n.toLocaleString("en-US")} asked about your services and never got an answer`,
   card: "Brought in",
   whatsappLater: "Contacts and chats, once you approve",
 } as const;
@@ -166,6 +173,7 @@ function mailSaysOf(r: ImportRowDto, tz: string): string {
   const read = n ? `${groupedPlural(n, "email")}${r.state === "done" ? "" : " so far"}` : null;
   return joined(
     read ?? (r.state === "done" ? "No email from people" : "Reading your inbox"),
+    c.asked ? IMPORT_WORDS.asked(c.asked) : null,
     since(r.oldest, tz),
     c.unreadable ? `${c.unreadable.toLocaleString("en-US")} couldn't be read` : null,
   );
