@@ -33713,6 +33713,201 @@ COMMENT ON COLUMN public.leads.facts IS 'What the lead''s source named beyond it
 
 
 --
+-- Name: sequence_steps; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.sequence_steps (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    name text NOT NULL,
+    trigger text NOT NULL,
+    template_id uuid,
+    template_name text,
+    template_language text,
+    params jsonb DEFAULT '[]'::jsonb NOT NULL,
+    policy_class text NOT NULL,
+    state text DEFAULT 'running'::text NOT NULL,
+    run_hour integer DEFAULT 10 NOT NULL,
+    cap_per_run integer DEFAULT 25 NOT NULL,
+    gap_days integer DEFAULT 90 NOT NULL,
+    cadence_days integer DEFAULT 30 NOT NULL,
+    created_by uuid,
+    last_run_for date,
+    last_run_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    list_id uuid,
+    list_key text,
+    kind text DEFAULT 'moment'::text NOT NULL,
+    lead_search_id uuid,
+    after_step_id uuid,
+    after_days integer,
+    gap_minutes integer,
+    signed_by text,
+    include_unconfirmed boolean DEFAULT false NOT NULL,
+    hand jsonb,
+    channels text[] DEFAULT '{whatsapp}'::text[] NOT NULL,
+    until date,
+    mailbox_ids uuid[] DEFAULT '{}'::uuid[] NOT NULL,
+    owner_sends boolean DEFAULT false NOT NULL,
+    sequence_id uuid NOT NULL,
+    place integer NOT NULL,
+    only_if text[] DEFAULT '{}'::text[] NOT NULL,
+    next_template_id uuid,
+    next_template_name text,
+    next_template_language text,
+    next_params jsonb,
+    source_search_id uuid,
+    words_ok_at timestamp with time zone,
+    signs_with text DEFAULT 'name'::text NOT NULL,
+    CONSTRAINT sequence_steps_cadence_days_check CHECK (((cadence_days >= 1) AND (cadence_days <= 90))),
+    CONSTRAINT sequence_steps_cap_per_run_check CHECK (((cap_per_run >= 1) AND (cap_per_run <= 500))),
+    CONSTRAINT sequence_steps_channels_check CHECK (((channels <@ ARRAY['whatsapp'::text, 'sms'::text, 'email'::text]) AND ((cardinality(channels) >= 1) AND (cardinality(channels) <= 3)) AND (cardinality(channels) = ((((channels @> ARRAY['whatsapp'::text]))::integer + ((channels @> ARRAY['sms'::text]))::integer) + ((channels @> ARRAY['email'::text]))::integer)))),
+    CONSTRAINT sequence_steps_gap_days_check CHECK (((gap_days >= 7) AND (gap_days <= 365))),
+    CONSTRAINT sequence_steps_kind_check CHECK ((kind = ANY (ARRAY['moment'::text, 'reach_out'::text]))),
+    CONSTRAINT sequence_steps_list_key_shape CHECK (((list_key IS NULL) OR (list_key ~ '^[a-z_]{1,40}$'::text))),
+    CONSTRAINT sequence_steps_name_check CHECK (((length(name) >= 1) AND (length(name) <= 80))),
+    CONSTRAINT sequence_steps_next_words_whole CHECK ((((next_template_name IS NULL) = (next_template_language IS NULL)) AND ((next_template_id IS NULL) OR (next_template_name IS NOT NULL)) AND ((next_params IS NULL) OR (next_template_name IS NOT NULL)))),
+    CONSTRAINT sequence_steps_one_list CHECK (((list_key IS NULL) OR (list_id IS NULL))),
+    CONSTRAINT sequence_steps_only_if_check CHECK (((only_if <@ ARRAY['no_booking'::text, 'no_reply'::text]) AND ((only_if = '{}'::text[]) OR ((kind = 'moment'::text) AND (trigger = 'after_step'::text))))),
+    CONSTRAINT sequence_steps_owner_sends_is_a_root_s CHECK (((NOT owner_sends) OR ((kind = 'reach_out'::text) AND (trigger = 'lead_first'::text)))),
+    CONSTRAINT sequence_steps_place_check CHECK (((place >= 1) AND (place <= 20))),
+    CONSTRAINT sequence_steps_policy_class_check CHECK ((policy_class = ANY (ARRAY['reengage'::text, 'campaign'::text, 'booking'::text, 'follow_up'::text, 'outreach'::text]))),
+    CONSTRAINT sequence_steps_reach_out_gap CHECK (((kind <> 'reach_out'::text) OR (gap_minutes = ANY (ARRAY[5, 8, 12, 20, 30, 60])))),
+    CONSTRAINT sequence_steps_root_settings CHECK ((((signed_by IS NULL) OR ((char_length(btrim(signed_by)) >= 1) AND (char_length(btrim(signed_by)) <= 60))) AND (((kind = 'reach_out'::text) AND (trigger = 'lead_first'::text)) OR ((signed_by IS NULL) AND (NOT include_unconfirmed))))),
+    CONSTRAINT sequence_steps_run_hour_check CHECK (((run_hour >= 9) AND (run_hour <= 20))),
+    CONSTRAINT sequence_steps_shape CHECK (
+CASE kind
+    WHEN 'reach_out'::text THEN COALESCE(((policy_class = 'outreach'::text) AND (gap_minutes IS NOT NULL) AND ((gap_minutes >= 5) AND (gap_minutes <= 120)) AND
+    CASE trigger
+        WHEN 'lead_first'::text THEN ((lead_search_id IS NOT NULL) AND (after_step_id IS NULL) AND (after_days IS NULL))
+        WHEN 'after_step'::text THEN ((after_step_id IS NOT NULL) AND ((after_days >= 2) AND (after_days <= 30)) AND (lead_search_id IS NULL))
+        ELSE false
+    END), false)
+    ELSE COALESCE(((policy_class <> 'outreach'::text) AND (trigger <> 'lead_first'::text) AND (lead_search_id IS NULL) AND (gap_minutes IS NULL) AND
+    CASE trigger
+        WHEN 'after_step'::text THEN ((after_step_id IS NOT NULL) AND ((after_days >= 1) AND (after_days <= 90)))
+        ELSE ((after_step_id IS NULL) AND (after_days IS NULL))
+    END), false)
+END),
+    CONSTRAINT sequence_steps_signs_with_shape CHECK ((signs_with = ANY (ARRAY['name'::text, 'mailbox'::text]))),
+    CONSTRAINT sequence_steps_source_is_a_lead_first_step CHECK (((source_search_id IS NULL) OR ((kind = 'reach_out'::text) AND (trigger = 'lead_first'::text)))),
+    CONSTRAINT sequence_steps_state_check CHECK ((state = ANY (ARRAY['running'::text, 'paused'::text]))),
+    CONSTRAINT sequence_steps_template_or_hand CHECK (
+CASE
+    WHEN (hand IS NULL) THEN ((template_id IS NOT NULL) AND (template_name IS NOT NULL) AND (template_language IS NOT NULL))
+    ELSE COALESCE(((trigger = 'after_step'::text) AND (template_id IS NULL) AND (template_name IS NULL) AND (template_language IS NULL) AND (jsonb_typeof(hand) = 'object'::text) AND ((hand ->> 'kind'::text) = ANY (ARRAY['call'::text, 'note'::text])) AND (jsonb_typeof((hand -> 'words'::text)) = 'string'::text) AND ((char_length(btrim((hand ->> 'words'::text))) >= 1) AND (char_length(btrim((hand ->> 'words'::text))) <= 280)) AND (((hand - 'kind'::text) - 'words'::text) = '{}'::jsonb)), false)
+END),
+    CONSTRAINT sequence_steps_trigger_check CHECK ((trigger = ANY (ARRAY['quiet_30'::text, 'new_week'::text, 'phoned_only'::text, 'everyone_monthly'::text, 'visit_tomorrow'::text, 'visited'::text, 'lapsed'::text, 'saved_list'::text, 'proposal_waiting'::text, 'lead_first'::text, 'after_step'::text])))
+);
+
+
+--
+-- Name: TABLE sequence_steps; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.sequence_steps IS 'Decision 0060: each step of a sequence in its place (playbooks until 00440). A step is one message (a template, on the channels it ticks) or, last in a sequence to leads, a call or note for the team (hand).';
+
+
+--
+-- Name: COLUMN sequence_steps.list_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequence_steps.list_id IS 'The list of the workspace''s own a saved_list playbook runs on. A list a playbook names is archived, never deleted (0009): the playbook pauses and keeps it.';
+
+
+--
+-- Name: COLUMN sequence_steps.list_key; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequence_steps.list_key IS 'The People list a saved_list playbook runs on, by its id (contracts lists.ts BUILTIN_LISTS). Null when it runs on one of the workspace''s own lists (list_id), and for every other trigger.';
+
+
+--
+-- Name: COLUMN sequence_steps.hand; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequence_steps.hand IS 'A reach-out''s last step that hands each lead it reaches to the team (Reach out Part 5, G20): {kind: call | note, words}. Such a step has no template.';
+
+
+--
+-- Name: COLUMN sequence_steps.channels; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequence_steps.channels IS 'The channels this campaign may go by (whatsapp, sms, email, each once, at least one): the composer''s ticks. Each person is reached once, on one of them (contracts'' reachFor). WhatsApp alone by default, as every campaign was before (00298).';
+
+
+--
+-- Name: COLUMN sequence_steps.until; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequence_steps.until IS 'The last day this campaign runs, on the business''s clock: a run on a day past it sends nothing. Null: it runs until it is paused (00416).';
+
+
+--
+-- Name: COLUMN sequence_steps.mailbox_ids; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequence_steps.mailbox_ids IS 'A reach-out step''s mailboxes (00424): the ones its owner picked, or none for every connected one of its workspace.';
+
+
+--
+-- Name: COLUMN sequence_steps.owner_sends; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequence_steps.owner_sends IS 'A reach-out''s root (00429): its owner sends its emails from their own inbox, each handed to them written and checked (state drafted), rather than its mailboxes (mailbox_ids). Its steps read it from the root.';
+
+
+--
+-- Name: COLUMN sequence_steps.sequence_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequence_steps.sequence_id IS 'The sequence this step is part of (0060); the first step''s own id.';
+
+
+--
+-- Name: COLUMN sequence_steps.place; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequence_steps.place IS 'Where this step stands in its sequence: 1 is the first, each after_step_id one more.';
+
+
+--
+-- Name: COLUMN sequence_steps.only_if; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequence_steps.only_if IS 'A customer''s step after the first (D6): what must still hold of the person when it is due, else they leave the sequence: no_booking (no appointment ahead of them), no_reply (nothing written since the step before went). Empty: it goes to everyone due.';
+
+
+--
+-- Name: COLUMN sequence_steps.next_template_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequence_steps.next_template_id IS 'New words for this step that wait for WhatsApp to approve them (0060): the step keeps sending its message (template_*) until WhatsApp approves these, which then become its message. Null: nothing waits.';
+
+
+--
+-- Name: COLUMN sequence_steps.source_search_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequence_steps.source_search_id IS 'A sequence to leads'' first step only (00459): the search whose ready leads join its list without a press (auto-add). Its own list (lead_search_id) holds the leads added by hand; a lead taken out stays on that list, blanked, so it never comes back from here.';
+
+
+--
+-- Name: COLUMN sequence_steps.words_ok_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequence_steps.words_ok_at IS 'When a person last let a batch of this step''s words go (0064): approved it, or ran it now. Null while its words are new to the owner: at its making, after its message or slots change, after its message''s words change on any channel. A batch of a step whose words are new waits for an OK.';
+
+
+--
+-- Name: COLUMN sequence_steps.signs_with; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequence_steps.signs_with IS 'How a sequence to leads ends its emails (00492, decision 0077), read on its first step: ''name'', its Signed line (signed_by) under the words, unless their last line names it; ''mailbox'', its mailbox''s own signature, except on a first email when that signature carries a link, which then ends with the name. Written by reach_out_save; members have no grant on it.';
+
+
+--
 -- Name: lead_searches_view; Type: VIEW; Schema: public; Owner: -
 --
 
@@ -35539,201 +35734,6 @@ COMMENT ON COLUMN public.sequence_replies.signer_state IS 'What became of the si
 --
 
 COMMENT ON COLUMN public.sequence_replies.said_by IS 'For a reading its owner gave (claim owner, 00429): the member who said what the business wrote back. Its message_id is the note that says so on the person''s thread (reach_out_reply_said).';
-
-
---
--- Name: sequence_steps; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.sequence_steps (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    tenant_id uuid NOT NULL,
-    name text NOT NULL,
-    trigger text NOT NULL,
-    template_id uuid,
-    template_name text,
-    template_language text,
-    params jsonb DEFAULT '[]'::jsonb NOT NULL,
-    policy_class text NOT NULL,
-    state text DEFAULT 'running'::text NOT NULL,
-    run_hour integer DEFAULT 10 NOT NULL,
-    cap_per_run integer DEFAULT 25 NOT NULL,
-    gap_days integer DEFAULT 90 NOT NULL,
-    cadence_days integer DEFAULT 30 NOT NULL,
-    created_by uuid,
-    last_run_for date,
-    last_run_at timestamp with time zone,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    list_id uuid,
-    list_key text,
-    kind text DEFAULT 'moment'::text NOT NULL,
-    lead_search_id uuid,
-    after_step_id uuid,
-    after_days integer,
-    gap_minutes integer,
-    signed_by text,
-    include_unconfirmed boolean DEFAULT false NOT NULL,
-    hand jsonb,
-    channels text[] DEFAULT '{whatsapp}'::text[] NOT NULL,
-    until date,
-    mailbox_ids uuid[] DEFAULT '{}'::uuid[] NOT NULL,
-    owner_sends boolean DEFAULT false NOT NULL,
-    sequence_id uuid NOT NULL,
-    place integer NOT NULL,
-    only_if text[] DEFAULT '{}'::text[] NOT NULL,
-    next_template_id uuid,
-    next_template_name text,
-    next_template_language text,
-    next_params jsonb,
-    source_search_id uuid,
-    words_ok_at timestamp with time zone,
-    signs_with text DEFAULT 'name'::text NOT NULL,
-    CONSTRAINT sequence_steps_cadence_days_check CHECK (((cadence_days >= 1) AND (cadence_days <= 90))),
-    CONSTRAINT sequence_steps_cap_per_run_check CHECK (((cap_per_run >= 1) AND (cap_per_run <= 500))),
-    CONSTRAINT sequence_steps_channels_check CHECK (((channels <@ ARRAY['whatsapp'::text, 'sms'::text, 'email'::text]) AND ((cardinality(channels) >= 1) AND (cardinality(channels) <= 3)) AND (cardinality(channels) = ((((channels @> ARRAY['whatsapp'::text]))::integer + ((channels @> ARRAY['sms'::text]))::integer) + ((channels @> ARRAY['email'::text]))::integer)))),
-    CONSTRAINT sequence_steps_gap_days_check CHECK (((gap_days >= 7) AND (gap_days <= 365))),
-    CONSTRAINT sequence_steps_kind_check CHECK ((kind = ANY (ARRAY['moment'::text, 'reach_out'::text]))),
-    CONSTRAINT sequence_steps_list_key_shape CHECK (((list_key IS NULL) OR (list_key ~ '^[a-z_]{1,40}$'::text))),
-    CONSTRAINT sequence_steps_name_check CHECK (((length(name) >= 1) AND (length(name) <= 80))),
-    CONSTRAINT sequence_steps_next_words_whole CHECK ((((next_template_name IS NULL) = (next_template_language IS NULL)) AND ((next_template_id IS NULL) OR (next_template_name IS NOT NULL)) AND ((next_params IS NULL) OR (next_template_name IS NOT NULL)))),
-    CONSTRAINT sequence_steps_one_list CHECK (((list_key IS NULL) OR (list_id IS NULL))),
-    CONSTRAINT sequence_steps_only_if_check CHECK (((only_if <@ ARRAY['no_booking'::text, 'no_reply'::text]) AND ((only_if = '{}'::text[]) OR ((kind = 'moment'::text) AND (trigger = 'after_step'::text))))),
-    CONSTRAINT sequence_steps_owner_sends_is_a_root_s CHECK (((NOT owner_sends) OR ((kind = 'reach_out'::text) AND (trigger = 'lead_first'::text)))),
-    CONSTRAINT sequence_steps_place_check CHECK (((place >= 1) AND (place <= 20))),
-    CONSTRAINT sequence_steps_policy_class_check CHECK ((policy_class = ANY (ARRAY['reengage'::text, 'campaign'::text, 'booking'::text, 'follow_up'::text, 'outreach'::text]))),
-    CONSTRAINT sequence_steps_reach_out_gap CHECK (((kind <> 'reach_out'::text) OR (gap_minutes = ANY (ARRAY[5, 8, 12, 20, 30, 60])))),
-    CONSTRAINT sequence_steps_root_settings CHECK ((((signed_by IS NULL) OR ((char_length(btrim(signed_by)) >= 1) AND (char_length(btrim(signed_by)) <= 60))) AND (((kind = 'reach_out'::text) AND (trigger = 'lead_first'::text)) OR ((signed_by IS NULL) AND (NOT include_unconfirmed))))),
-    CONSTRAINT sequence_steps_run_hour_check CHECK (((run_hour >= 9) AND (run_hour <= 20))),
-    CONSTRAINT sequence_steps_shape CHECK (
-CASE kind
-    WHEN 'reach_out'::text THEN COALESCE(((policy_class = 'outreach'::text) AND (gap_minutes IS NOT NULL) AND ((gap_minutes >= 5) AND (gap_minutes <= 120)) AND
-    CASE trigger
-        WHEN 'lead_first'::text THEN ((lead_search_id IS NOT NULL) AND (after_step_id IS NULL) AND (after_days IS NULL))
-        WHEN 'after_step'::text THEN ((after_step_id IS NOT NULL) AND ((after_days >= 2) AND (after_days <= 30)) AND (lead_search_id IS NULL))
-        ELSE false
-    END), false)
-    ELSE COALESCE(((policy_class <> 'outreach'::text) AND (trigger <> 'lead_first'::text) AND (lead_search_id IS NULL) AND (gap_minutes IS NULL) AND
-    CASE trigger
-        WHEN 'after_step'::text THEN ((after_step_id IS NOT NULL) AND ((after_days >= 1) AND (after_days <= 90)))
-        ELSE ((after_step_id IS NULL) AND (after_days IS NULL))
-    END), false)
-END),
-    CONSTRAINT sequence_steps_signs_with_shape CHECK ((signs_with = ANY (ARRAY['name'::text, 'mailbox'::text]))),
-    CONSTRAINT sequence_steps_source_is_a_lead_first_step CHECK (((source_search_id IS NULL) OR ((kind = 'reach_out'::text) AND (trigger = 'lead_first'::text)))),
-    CONSTRAINT sequence_steps_state_check CHECK ((state = ANY (ARRAY['running'::text, 'paused'::text]))),
-    CONSTRAINT sequence_steps_template_or_hand CHECK (
-CASE
-    WHEN (hand IS NULL) THEN ((template_id IS NOT NULL) AND (template_name IS NOT NULL) AND (template_language IS NOT NULL))
-    ELSE COALESCE(((trigger = 'after_step'::text) AND (template_id IS NULL) AND (template_name IS NULL) AND (template_language IS NULL) AND (jsonb_typeof(hand) = 'object'::text) AND ((hand ->> 'kind'::text) = ANY (ARRAY['call'::text, 'note'::text])) AND (jsonb_typeof((hand -> 'words'::text)) = 'string'::text) AND ((char_length(btrim((hand ->> 'words'::text))) >= 1) AND (char_length(btrim((hand ->> 'words'::text))) <= 280)) AND (((hand - 'kind'::text) - 'words'::text) = '{}'::jsonb)), false)
-END),
-    CONSTRAINT sequence_steps_trigger_check CHECK ((trigger = ANY (ARRAY['quiet_30'::text, 'new_week'::text, 'phoned_only'::text, 'everyone_monthly'::text, 'visit_tomorrow'::text, 'visited'::text, 'lapsed'::text, 'saved_list'::text, 'proposal_waiting'::text, 'lead_first'::text, 'after_step'::text])))
-);
-
-
---
--- Name: TABLE sequence_steps; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.sequence_steps IS 'Decision 0060: each step of a sequence in its place (playbooks until 00440). A step is one message (a template, on the channels it ticks) or, last in a sequence to leads, a call or note for the team (hand).';
-
-
---
--- Name: COLUMN sequence_steps.list_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.sequence_steps.list_id IS 'The list of the workspace''s own a saved_list playbook runs on. A list a playbook names is archived, never deleted (0009): the playbook pauses and keeps it.';
-
-
---
--- Name: COLUMN sequence_steps.list_key; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.sequence_steps.list_key IS 'The People list a saved_list playbook runs on, by its id (contracts lists.ts BUILTIN_LISTS). Null when it runs on one of the workspace''s own lists (list_id), and for every other trigger.';
-
-
---
--- Name: COLUMN sequence_steps.hand; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.sequence_steps.hand IS 'A reach-out''s last step that hands each lead it reaches to the team (Reach out Part 5, G20): {kind: call | note, words}. Such a step has no template.';
-
-
---
--- Name: COLUMN sequence_steps.channels; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.sequence_steps.channels IS 'The channels this campaign may go by (whatsapp, sms, email, each once, at least one): the composer''s ticks. Each person is reached once, on one of them (contracts'' reachFor). WhatsApp alone by default, as every campaign was before (00298).';
-
-
---
--- Name: COLUMN sequence_steps.until; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.sequence_steps.until IS 'The last day this campaign runs, on the business''s clock: a run on a day past it sends nothing. Null: it runs until it is paused (00416).';
-
-
---
--- Name: COLUMN sequence_steps.mailbox_ids; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.sequence_steps.mailbox_ids IS 'A reach-out step''s mailboxes (00424): the ones its owner picked, or none for every connected one of its workspace.';
-
-
---
--- Name: COLUMN sequence_steps.owner_sends; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.sequence_steps.owner_sends IS 'A reach-out''s root (00429): its owner sends its emails from their own inbox, each handed to them written and checked (state drafted), rather than its mailboxes (mailbox_ids). Its steps read it from the root.';
-
-
---
--- Name: COLUMN sequence_steps.sequence_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.sequence_steps.sequence_id IS 'The sequence this step is part of (0060); the first step''s own id.';
-
-
---
--- Name: COLUMN sequence_steps.place; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.sequence_steps.place IS 'Where this step stands in its sequence: 1 is the first, each after_step_id one more.';
-
-
---
--- Name: COLUMN sequence_steps.only_if; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.sequence_steps.only_if IS 'A customer''s step after the first (D6): what must still hold of the person when it is due, else they leave the sequence: no_booking (no appointment ahead of them), no_reply (nothing written since the step before went). Empty: it goes to everyone due.';
-
-
---
--- Name: COLUMN sequence_steps.next_template_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.sequence_steps.next_template_id IS 'New words for this step that wait for WhatsApp to approve them (0060): the step keeps sending its message (template_*) until WhatsApp approves these, which then become its message. Null: nothing waits.';
-
-
---
--- Name: COLUMN sequence_steps.source_search_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.sequence_steps.source_search_id IS 'A sequence to leads'' first step only (00459): the search whose ready leads join its list without a press (auto-add). Its own list (lead_search_id) holds the leads added by hand; a lead taken out stays on that list, blanked, so it never comes back from here.';
-
-
---
--- Name: COLUMN sequence_steps.words_ok_at; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.sequence_steps.words_ok_at IS 'When a person last let a batch of this step''s words go (0064): approved it, or ran it now. Null while its words are new to the owner: at its making, after its message or slots change, after its message''s words change on any channel. A batch of a step whose words are new waits for an OK.';
-
-
---
--- Name: COLUMN sequence_steps.signs_with; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.sequence_steps.signs_with IS 'How a sequence to leads ends its emails (00492, decision 0077), read on its first step: ''name'', its Signed line (signed_by) under the words, unless their last line names it; ''mailbox'', its mailbox''s own signature, except on a first email when that signature carries a link, which then ends with the name. Written by reach_out_save; members have no grant on it.';
 
 
 --
