@@ -3,9 +3,9 @@
  * route, a dial, or one of the rows' own acts (asking a person, the line chooser, forwarding, activation, billing), each
  * behind its door's role (`setupGate`). `rows` are Setup's (contracts setupSteps), in the order to draw them; `primary`
  * names the row whose button is the one coral action; `later` is what a row's second button says, the caller's
- * (contracts): the first run's Later keeps the row drawn with its undo, Today's Skip takes it off the card and says so in
- * a toast with Undo (the row's own `said`, SetupCardRowVM), and a row back from a week put off says so by its name
- * (`back`). Either puts a row off for a week, then for good (contracts setupPutOffNext). Holds the panels' state and the
+ * (contracts): the first run's Later keeps the row drawn with its undo, putting it off for a week, then for good
+ * (contracts setupPutOffNext); Today's card hands each row its own Skip (`skip`), a menu that says its choices before
+ * either is pressed; and a row back from a week put off says so by its name (`back`). Holds the panels' state and the
  * one verb on its way, so a second press waits for the first
  * (S23). The list only: the caller draws the card it sits in, and may lend the toast (`flash`) where the card can go while
  * one is up -- Today's, when its last row is skipped. `look` is how a row is drawn: `row`, the attention row the first run
@@ -30,8 +30,8 @@ interface SetupLaterWords {
   backShort?: string;
 }
 
-/** A row as drawn: Setup's, with what its toast says once put off where the caller says one (Today's card). */
-type DrawnRow = SetupRowVM & { said?: string | null };
+/** A row as drawn: Setup's. */
+type DrawnRow = SetupRowVM;
 
 interface SetupRowsProps {
   S: SetupSurface;
@@ -43,6 +43,11 @@ interface SetupRowsProps {
   flash?: ((f: LegacyFlash) => void) | null;
   /** A row of the caller's after Setup's, in the same list: Today's door to the reminder. */
   tail?: ReactNode;
+  /**
+   * The caller's Skip for a row it may put off, by id, drawn in the Later's place (Today's card: a menu of a week or for
+   * good, kit Menu, which the first run's own page then never loads).
+   */
+  skip?: ((id: string) => ReactNode) | null;
   testid?: string;
 }
 
@@ -98,6 +103,7 @@ export const SetupRows = ({
   left = null,
   flash: lent = null,
   tail = null,
+  skip = null,
   testid = "setup-rows",
 }: SetupRowsProps) => {
   const [toastNode, own] = useLegacyToast();
@@ -124,26 +130,20 @@ export const SetupRows = ({
     openForwarding: () => setForwarding(true),
   };
   const act = (verb: SetupVerb | null | undefined) => void pressVerb(verb, k);
-  // Put off as a "not now" (a week, then for good), or taken back: this member's, saved to their view (surface.ts
-  // later), and said when it was not. A toast's Undo is the put-off's own, which puts the row back as it stood.
+  // The first run's Later, a "not now" (a week, then for good), or taken back: this member's, saved to their view
+  // (surface.ts later), and said when it was not. The row stays drawn with its Undo later.
   const putOff = (r: DrawnRow) =>
     void once(`later:${r.id}`, async () => {
       const res = await setupVerbs.later(r.id, r.later ? { on: false } : { on: true, why: "rest" });
       if (!res.ok) flash(refusalToast(res, "Not saved"));
-      else if (!r.later && r.said)
-        flash({
-          msg: <>{r.said}</>,
-          undo: () =>
-            res.undo().then((u) => {
-              if (!u.ok) flash(refusalToast(u, "Not saved"));
-            }),
-        });
     });
   return (
     <div className="setup-rows" data-testid={testid}>
       <div className="tq-list">
         {rows.map((r, i) => {
           const { cta, also } = rowActs(r, { primary, pending, act, putOff, later });
+          // Where a row may be put off and the caller says how (Today's card), its Skip is the caller's menu.
+          const menu = skip && also && !r.undo ? skip(r.id) : null;
           return (
             <div key={r.id} className={r.later ? "setup-later" : undefined}>
               {look === "card" ? (
@@ -156,7 +156,8 @@ export const SetupRows = ({
                   sentence={r.sentence}
                   left={i === 0 ? left : null}
                   cta={cta}
-                  also={also}
+                  also={menu ? null : also}
+                  menu={menu}
                   testid={`setup-row-${r.id}`}
                 />
               ) : (

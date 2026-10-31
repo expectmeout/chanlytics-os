@@ -4,7 +4,7 @@
  * rules a "not now" and an answer follow, and the first run's own marks, kept the same way. Nothing here reads Setup's
  * facts, so setup.ts and its rows import from here and never the other way.
  */
-import { DAY_MS } from "../shared/time";
+import { dateFormat, DAY_MS } from "../shared/time";
 
 /**
  * The rows a member put off for good, as their saved Setup view keeps them (`memberships.views.setup.later`, the door
@@ -57,11 +57,22 @@ export const REMIND_SKIPPED = "remind-skipped";
 export const KEEP_ROW = "keep";
 
 /**
- * How long a "not now" puts a row off the first time (Today's Skip and Hide, the first run's Later): a week, and then it
- * is back where it was, and the next one is for good (putOffEnds). Skipped was for ever, and "It stays in Setting up"
- * pointed at a page with no way to it once the first run was done.
+ * How long a "not now" puts a row off: a week. The first run's Later rests a row a week, and once it is back the next
+ * is for good (putOffEnds). Today's Skip says which it is before it is pressed ("For a week", "I don't need this"), and
+ * its week, like Hide's, is always a week (`why: "week"`). Skipped was for ever, and "It stays in Setting up" pointed
+ * at a page with no way to it once the first run was done.
  */
 export const SETUP_REST_MS = 7 * DAY_MS;
+
+/**
+ * The day a week's rest put off now ends, as Today's card says it before and after the press ("It comes back on Sat,
+ * Nov 7."), on the business's clock: a week on is never today or tomorrow, so it is always the weekday and the date.
+ */
+export function restEndsDay(tz: string, nowMs: number): string {
+  return dateFormat("en-US", { timeZone: tz, weekday: "short", month: "short", day: "numeric" }).format(
+    new Date(nowMs + SETUP_REST_MS),
+  );
+}
 
 /** The rows a member put off for a week, by id, each with the moment it comes back (ISO): their saved view's `rests`. */
 export type SetupRests = Readonly<Record<string, string>>;
@@ -125,11 +136,12 @@ export function putOffEnds(back: boolean): "week" | "good" {
 }
 
 /**
- * Why a row is put off: `rest`, a "not now" (Today's Skip and Hide, the first run's Later), which putOffEnds decides;
- * `answer`, the member said it is not theirs (not on Google, a new number and none kept, the test call skipped), which
- * is for good at once.
+ * Why a row is put off: `rest`, the first run's Later, a week and then for good, which putOffEnds decides; `week`, a
+ * "not now" Today's card names before it is pressed (Skip's "For a week", "Hide for a week"), a week every time, never
+ * turned into for good by being pressed again; `answer`, the member said it is not theirs (Skip's "I don't need this",
+ * not on Google, a new number and none kept, the test call skipped), which is for good at once.
  */
-export type SetupPutOffWhy = "rest" | "answer";
+export type SetupPutOffWhy = "rest" | "week" | "answer";
 
 /** A put-off asked for: rows put off, and why; or taken back. */
 export type SetupPutOffChange = { on: true; why: SetupPutOffWhy } | { on: false };
@@ -152,7 +164,8 @@ export function setupPutOffNext(
       if (later.has(id)) later.delete(id);
       else rests.delete(id);
     } else if (!setupOffNow(s, id, nowMs)) {
-      if (change.why === "answer" || putOffEnds(setupBack(s, id, nowMs)) === "good") later.add(id);
+      const good = change.why === "answer" || (change.why === "rest" && putOffEnds(setupBack(s, id, nowMs)) === "good");
+      if (good) later.add(id);
       else rests.set(id, new Date(nowMs + SETUP_REST_MS).toISOString());
     }
   }

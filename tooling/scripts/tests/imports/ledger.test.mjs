@@ -285,7 +285,7 @@ test("Today's Brought in card: where it all stands in one place, and closed, the
     row("whatsapp_history", "running", {}, { parts_done: 1, parts_total: 3 }),
   ];
   assert.deepEqual(broughtInCardOf(rows, 640), {
-    title: "Brought in",
+    title: "Your history",
     state: { tone: "live", words: "Bringing it in · 3 of 4" },
     facts: [
       { key: "people", text: "640 people · 212 reviews" },
@@ -294,7 +294,7 @@ test("Today's Brought in card: where it all stands in one place, and closed, the
     ],
   });
   assert.deepEqual(broughtInCardOf([row("contacts", "done", { people: 1 })], 1), {
-    title: "Brought in",
+    title: "Your history",
     state: { tone: "ok", words: "All in" },
     facts: [{ key: "people", text: "1 person" }],
   });
@@ -310,14 +310,11 @@ test("Today's Brought in card: where it all stands in one place, and closed, the
   assert.equal(broughtInCardOf([], 10), null, "nothing came: no card");
 });
 
-test("Today keeps the card while anything is coming or stopped, and a week after the last source finished", () => {
-  const done = row("google_reviews", "done", {}, { finished_at: new Date(NOW - 2 * DAY).toISOString() });
-  assert.equal(broughtInShown([done], NOW), true, "two days after");
-  assert.equal(
-    broughtInShown([done], NOW + 6 * DAY),
-    false,
-    "past the week: People's, the Inbox's, the Calendar's own",
-  );
+test("Today keeps the card while anything is coming or stopped, and for the day the last source finished", () => {
+  // A week of All in was a card with nothing to press beside the queue (the refined canvas, 31 Oct 2026).
+  const done = row("google_reviews", "done", {}, { finished_at: new Date(NOW - 2 * 3600 * 1000).toISOString() });
+  assert.equal(broughtInShown([done], NOW), true, "two hours after: All in, seen once");
+  assert.equal(broughtInShown([done], NOW + DAY), false, "past the day: People's, the Inbox's, the Calendar's own");
   assert.equal(broughtInShown([done, row("mailbox", "running")], NOW + 30 * DAY), true, "still coming");
   assert.equal(
     broughtInShown([row("calendar", "failed")], NOW + 30 * DAY),

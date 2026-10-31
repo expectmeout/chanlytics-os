@@ -29,6 +29,8 @@ import {
   setupRestsOf,
   setupPutOffNext,
   putOffEnds,
+  restEndsDay,
+  SETUP_CARD_WORDS,
   keptNumberRowOf,
   SETUP_REST_MS,
   setupPhoneWantOf,
@@ -387,27 +389,43 @@ test("Today's card: while a step is open, one row back to where the owner left o
   assert.equal(after.start, null);
   assert.deepEqual(ids(after.rows), ["keep"], "the one thing a workspace answering everywhere has left");
   assert.equal(after.left, "2 left", "the row, and the reminder's row its calendar offers");
-  // Each put off for a week, as its own Skip would put it; never "It stays in Setting up", a page nothing reached.
-  assert.deepEqual(after.hide, { put: "Hide", said: `All 2 put off for a week. ${WAITING}` });
+  // Every row off for a week at once ("Hide for a week"), the kept number's cost said with it; never "It stays in Setting
+  // up", a page nothing reached.
+  assert.deepEqual(after.hide, { put: "Hide for a week", cost: WAITING });
   assert.deepEqual(after.skip, { put: "Skip", back: "Back after a week", backShort: "Back" });
-  assert.equal(after.rows[0].said, `Put off for a week. ${WAITING}`, "the kept number's Skip says what waiting costs");
+  assert.deepEqual(
+    after.rows[0].put,
+    {
+      week: `Put off for a week. ${WAITING}`,
+      good: `Off your list. It's in Settings › How it answers. ${WAITING}`,
+      home: "It's in Settings › How it answers.",
+      cost: WAITING,
+    },
+    "Skip's two choices for the kept number, each saying what waiting costs",
+  );
   const alone = setupCardOf(setupSteps(live({ later: [REMIND_SKIPPED] }), NOW));
   assert.equal(alone.left, "1 left");
-  assert.deepEqual(alone.hide, { put: "Hide", said: alone.rows[0].said }, "one row: Hide says its own words");
   assert.equal(setupCardOf(setupSteps(live({ later: ["keep"] }), NOW)), null, "nothing left once it is put off");
 
   const quiet = live({ calendar: { state: "none" }, team: { members: 1, invitesOpen: 0, alertEmails: 0 } });
   const three = setupCardOf(setupSteps(quiet, NOW));
   assert.deepEqual(ids(three.rows), ["calendar", "team", "keep"], "WhatsApp, the calendar, a back-up, then the rest");
-  assert.equal(three.hide.said, `All 3 put off for a week. ${WAITING}`);
+  assert.deepEqual(three.hide, { put: "Hide for a week", cost: WAITING });
+  const noKeep = setupCardOf(setupSteps(live({ calendar: { state: "none" }, later: [KEEP_ROW] }), NOW));
+  assert.deepEqual(noKeep.hide, { put: "Hide for a week", cost: null }, "no kept number among them: no cost said");
   assert.doesNotMatch(JSON.stringify([after, alone, three]), /Setting up/, "no word sends anyone to Setting up");
 });
 
-test("a Skip rests a row a week: off the card while it rests, back after with a word by its name, and the next is for good, said with where it lives", () => {
+test("Skip says both choices before either is pressed: a week, or for good with where it lives; a row back from its week says so by its name", () => {
   const quiet = (over = {}) =>
     live({ calendar: { state: "none" }, team: { members: 1, invitesOpen: 0, alertEmails: 0 }, ...over });
   const first = setupCardOf(setupSteps(quiet(), NOW));
-  assert.equal(first.rows.find((r) => r.id === "calendar").said, "Put off for a week.");
+  assert.deepEqual(first.rows.find((r) => r.id === "calendar").put, {
+    week: "Put off for a week.",
+    good: "Off your list. It's in Settings › Hours & booking.",
+    home: "It's in Settings › Hours & booking.",
+    cost: null,
+  });
   assert.equal(first.rows.find((r) => r.id === "calendar").back, false);
 
   // Resting: off the card and the first run's open rows, as a row put off always was.
@@ -415,11 +433,11 @@ test("a Skip rests a row a week: off the card while it rests, back after with a 
   assert.equal(resting.rows.find((r) => r.id === "calendar").later, true);
   assert.deepEqual(ids(setupCardOf(resting).rows), ["team", "keep"]);
 
-  // Its week ended: back where it was, saying so, and its Skip is for good, with the page it is set up on.
+  // Its week ended: back where it was, saying so; its Skip offers the same two choices, and the member picks.
   const back = setupSteps(quiet({ rests: { calendar: ENDED } }), NOW);
   const calendar = setupCardOf(back).rows.find((r) => r.id === "calendar");
   assert.deepEqual([calendar.later, calendar.back], [false, true]);
-  assert.equal(calendar.said, "Off your list. It's in Settings › Hours & booking.");
+  assert.deepEqual(calendar.put, first.rows.find((r) => r.id === "calendar").put, "a week is offered again");
   assert.deepEqual(ids(setupCardOf(back).rows), ["calendar", "team", "keep"], "in its own place, not at the end");
 
   // Put off for good: off the card for ever, as every row put off before rests was.
@@ -431,7 +449,8 @@ test("a Skip rests a row a week: off the card while it rests, back after with a 
 
 test("each row put off for good says where it is set up from then: the page its own button opens", () => {
   const backFrom = (rowIds) => Object.fromEntries(rowIds.map((id) => [id, ENDED]));
-  const homes = (over) => Object.fromEntries(setupCardOf(setupSteps(live(over), NOW)).rows.map((r) => [r.id, r.said]));
+  const homes = (over) =>
+    Object.fromEntries(setupCardOf(setupSteps(live(over), NOW)).rows.map((r) => [r.id, r.put.good]));
   const said = homes({
     calendar: { state: "none" },
     team: { members: 1, invitesOpen: 0, alertEmails: 0 },
@@ -461,13 +480,21 @@ test("each row put off for good says where it is set up from then: the page its 
 test("the number you already have goes for good as every row does, now that How it answers holds it, and says what waiting costs", () => {
   assert.deepEqual([putOffEnds(false), putOffEnds(true)], ["week", "good"]);
   const first = setupCardOf(setupSteps(live(), NOW)).rows.find((r) => r.id === KEEP_ROW);
-  assert.equal(first.said, `Put off for a week. ${WAITING}`);
+  assert.equal(first.put.week, `Put off for a week. ${WAITING}`);
   const back = setupCardOf(setupSteps(live({ rests: { [KEEP_ROW]: ENDED } }), NOW));
   const keep = back.rows.find((r) => r.id === KEEP_ROW);
   assert.equal(keep.back, true, "back after its week, and said to be");
-  assert.equal(keep.said, `Off your list. It's in Settings › How it answers. ${WAITING}`, "for good, with its home");
+  assert.equal(
+    keep.put.good,
+    `Off your list. It's in Settings › How it answers. ${WAITING}`,
+    "for good, with its home",
+  );
+  // The first run's Later: back from its week, the next is for good.
   const next = setupPutOffNext({ later: [], rests: { [KEEP_ROW]: ENDED } }, [KEEP_ROW], { on: true, why: "rest" }, NOW);
   assert.deepEqual(next, { later: [KEEP_ROW], rests: { [KEEP_ROW]: ENDED } });
+  // Today's "For a week": a week again, never turned into for good by being pressed again.
+  const week = setupPutOffNext({ later: [], rests: { [KEEP_ROW]: ENDED } }, [KEEP_ROW], { on: true, why: "week" }, NOW);
+  assert.deepEqual(week, { later: [], rests: { [KEEP_ROW]: RESTING } });
 });
 
 test("Settings' row for the number kept is Setup's own: its name, its sentence and its act, the number once one is saved", () => {
@@ -514,26 +541,23 @@ test("Settings' row for the number kept is Setup's own: its name, its sentence a
   assert.equal(keptNumberRowOf(setupSteps(empty(), NOW), undefined), null);
 });
 
-test("what Hide says counts each row as its own Skip would put it: a week, or for good", () => {
-  const quiet = live({
-    calendar: { state: "none" },
-    team: { members: 1, invitesOpen: 0, alertEmails: 0 },
-    rests: { calendar: ENDED },
+test("Hide for a week is a week for every row, however often it is pressed, and says the day the card comes back", () => {
+  // Rows back from their week are rested a week again by Hide: it never puts one off for good.
+  const back = { later: [], rests: { calendar: ENDED, team: ENDED } };
+  assert.deepEqual(setupPutOffNext(back, ["calendar", "team"], { on: true, why: "week" }, NOW), {
+    later: [],
+    rests: { calendar: RESTING, team: RESTING },
   });
-  assert.equal(setupCardOf(setupSteps(quiet, NOW)).hide.said, `2 put off for a week, 1 off your list. ${WAITING}`);
-  const noKeep = setupSteps(live({ calendar: { state: "none" }, later: [KEEP_ROW], rests: { calendar: ENDED } }), NOW);
-  assert.equal(
-    setupCardOf(noKeep).hide.said,
-    "Off your list. It's in Settings › Hours & booking.",
-    "one row: its words",
+  // The day it comes back, on the business's clock: a week on is the weekday and the date.
+  assert.equal(restEndsDay("America/New_York", NOW), "Mon, Sep 14");
+  assert.equal(restEndsDay("Pacific/Auckland", Date.parse("2026-09-07T13:00:00Z")), "Tue, Sep 15", "its own day");
+  assert.equal(SETUP_CARD_WORDS.hidden("Mon, Sep 14"), "Finish setting up is hidden until Mon, Sep 14.");
+  assert.equal(SETUP_CARD_WORDS.skip.backOn("Mon, Sep 14"), "It comes back on Mon, Sep 14.");
+  assert.deepEqual(
+    [SETUP_CARD_WORDS.skip.week, SETUP_CARD_WORDS.skip.good],
+    ["For a week", "I don't need this"],
+    "Skip's choices, said before either is pressed",
   );
-  const bothBack = live({
-    calendar: { state: "none" },
-    team: { members: 1, invitesOpen: 0, alertEmails: 0 },
-    later: [KEEP_ROW],
-    rests: { calendar: ENDED, team: ENDED },
-  });
-  assert.equal(setupCardOf(setupSteps(bothBack, NOW)).hide.said, "All 2 off your list.");
 });
 
 test("a put-off rests a week, then is for good; an answer is for good at once; taking back undoes the last one", () => {
@@ -584,7 +608,12 @@ test("after the first run, with the calendar in, Today's card carries one door t
     words: "Your calendar is in. Remind each customer the day before.",
     label: "Turn on",
     to: "campaigns/sequences/new:moment:visit_tomorrow",
-    said: "Put off for a week.",
+    put: {
+      week: "Put off for a week.",
+      good: "Off your list. Turn it on any time in Sequences.",
+      home: "Turn it on any time in Sequences.",
+      cost: null,
+    },
     back: false,
   });
   assert.doesNotMatch(`${after.remind.name} ${after.remind.words}`, /appointment|visit|meeting|session|lesson/i);
@@ -647,13 +676,13 @@ test("the reminder's row, skipped, is put off as a row is: the member's, on ever
   assert.equal(skipped.remindSkipped, true);
   assert.equal(setupCardOf(skipped).remind, null, "skipped: no reminder on the card");
   assert.ok(setupCardOf(setupSteps(live({ later: [] }), NOW)).remind, "taken back: the reminder again");
-  // Skipped for a week: off the card while it rests, then back, saying so, and its next Skip is for good.
+  // Skipped for a week: off the card while it rests, then back, saying so, its Skip offering the same two choices.
   assert.equal(setupCardOf(setupSteps(live({ rests: { [REMIND_SKIPPED]: RESTING } }), NOW)).remind, null);
   const back = setupSteps(live({ rests: { [REMIND_SKIPPED]: ENDED } }), NOW);
   assert.deepEqual([back.remindSkipped, back.remindBack], [false, true]);
   const remind = setupCardOf(back).remind;
   assert.equal(remind.back, true);
-  assert.equal(remind.said, "Off your list. Turn it on any time in Sequences.");
+  assert.equal(remind.put.good, "Off your list. Turn it on any time in Sequences.");
 });
 
 test("Today's reminder door stands only where Campaigns can make the reminder: a calendar link connected", () => {

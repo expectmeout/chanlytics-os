@@ -56,7 +56,7 @@ export {
 } from "./first-run";
 export type { FirstRunCheckVM, FirstRunStepState, FirstRunStepVM, FirstRunVM, FirstRunWho } from "./first-run";
 export { SETUP_CARD_WORDS, setupCardOf } from "./first-run-card";
-export type { SetupCardRowVM, SetupCardVM, SetupCardWho } from "./first-run-card";
+export type { SetupCardPutOff, SetupCardRowVM, SetupCardVM, SetupCardWho } from "./first-run-card";
 export { FIRST_RUN_CHANNELS_WORDS, firstRunChannelsOf, lineLookupOf } from "./first-run-channels";
 export type { ChannelsInput, FirstRunChannelsVM, LineLookupDto } from "./first-run-channels";
 export { FIRST_RUN_GOLIVE_WORDS, firstRunGoLiveOf } from "./first-run-golive";
@@ -122,6 +122,7 @@ export {
   RECEPTIONIST_MET,
   REHEARSE_SKIPPED,
   REMIND_SKIPPED,
+  restEndsDay,
   SETUP_LATER_REFUSED,
   SETUP_REST_MS,
   setupLaterOf,
