@@ -16,7 +16,7 @@ import {
   proposalLinkOf,
   proposalMessage,
 } from "@chanlytics/contracts";
-import { PERSON_ACT_WORDS } from "@chanlytics/contracts";
+import { MAILBOX_SENDERS_WORDS } from "@chanlytics/contracts";
 import type { DealVM, PersonNextStepVM, PersonRowVM, VisitLineVM } from "@chanlytics/contracts";
 import { useState, type ReactNode } from "react";
 import { Icon } from "../../kit/icon/icon";
@@ -343,8 +343,8 @@ function actionsMenu(thread: Thread, dealActs: MenuItem[], acts: HeaderActs) {
     ...(thread.real && thread.clientId && thread.primaryChannel === "email" && mayAtLeast("owner")
       ? [
           {
-            label: PERSON_ACT_WORDS.notAPerson,
-            hint: PERSON_ACT_WORDS.notAPersonHint,
+            label: MAILBOX_SENDERS_WORDS.act,
+            hint: MAILBOX_SENDERS_WORDS.actHint,
             glyph: ixGlyph("ban"),
             tone: "danger" as const,
             onSelect: () => {
