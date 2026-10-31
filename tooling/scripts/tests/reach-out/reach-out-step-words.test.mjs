@@ -185,6 +185,12 @@ test("the first step goes on day one, each after it waits its days; a name to si
 test("one link rule: a bare web address is a link in the words and the subject, an email address is not", () => {
   assert.deepEqual(linksIn("see example.com and harbor.example/book"), ["example.com", "harbor.example/book"]);
   assert.deepEqual(linksIn("write to me@harbor.example, St.Louis, a 4.9"), []);
+  // A name with capitals before its dot is an address all the same: a mail app links it (30 Oct 2026: a signature's
+  // "RJCapital.io" passed as no link). A capital after the dot is still a name: "Dr.Smith".
+  assert.deepEqual(linksIn("RJCapital.io | Harbor-Moving.example/book and Dr.Smith"), [
+    "RJCapital.io",
+    "Harbor-Moving.example/book",
+  ]);
   assert.deepEqual(linksIn("HTTPS://Harbor.example/x and www.harbor.example"), [
     "HTTPS://Harbor.example/x",
     "www.harbor.example",
