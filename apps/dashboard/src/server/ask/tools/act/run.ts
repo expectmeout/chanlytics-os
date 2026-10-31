@@ -6,8 +6,10 @@ import {
   SENDING_HOURS_WORDS,
   SEQUENCE_ACT_WHY,
   SEQUENCE_FLOW_WORDS,
+  batchOkSendsNothing,
   clockTime,
   fmtDay,
+  heldByCheckWords,
   isReachOutRun,
   localDate,
   nextOpenMoment,
@@ -34,6 +36,9 @@ import {
 
 /** Where a waiting run's id is read, said as the model calls it. */
 const RUN_FROM = "sequences with action moments (a playbook's waiting) or action sent (waiting_on_you)";
+
+/** Where a held email's send_id is read, said as the model calls it (action decide's own words). */
+const HELD_FROM = "sequences with action sequence, waiting_on_you";
 
 /** A broadcast that is neither a playbook's run nor a one-off of its own: nothing here waits on a person for it. */
 const NOT_A_RUN = "that broadcast is not a playbook's run: only a playbook's run waits for a person to approve or skip";
@@ -63,7 +68,9 @@ async function proposeOneOffCancel(
 /**
  * A batch to leads waiting for an OK, approved or skipped: how many emails it holds, how many the check is still reading,
  * and how many it held, which stay held until each is decided on the sequence's People (an approval sends none of them).
- * Each email goes at its own time (core approveRun's reach-out branch), so the card names no single hour.
+ * Each email goes at its own time (core approveRun's reach-out branch), so the card names no single hour. One with none
+ * ready and some held is not approved: an OK would send nothing, so its sequence asks for none (contracts
+ * batchOkSendsNothing), and the model is told to decide each held email instead.
  */
 function proposeLeadsBatch(
   input: { verb: (typeof RUN_VERBS)[number] },
@@ -75,6 +82,10 @@ function proposeLeadsBatch(
   // The emails it holds, as its leads' read says them; the batch's own count where that read has none.
   const emails = r?.planned.length ?? run.recipient_count;
   const approve = input.verb === "approve";
+  if (approve && r && batchOkSendsNothing(emails, r.held.length))
+    return refuse(
+      `an OK sends none of ${r.chain_name || run.name}: ${heldByCheckWords(r.held.length)}, and each is decided on its own, with action decide by its send_id (${HELD_FROM})`,
+    );
   const said = [
     plural(emails, "email", "emails"),
     ...(r && r.checking > 0 ? [`${r.checking} still being checked`] : []),
