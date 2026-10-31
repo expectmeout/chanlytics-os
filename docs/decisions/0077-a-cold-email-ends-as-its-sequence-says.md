@@ -40,7 +40,10 @@ A sequence to leads sends from the workspace's own mailboxes (0056). Read at `b2
    signature's lines that hold no link, and ends with the name only where none with a letter is left, since one web
    address had dropped "Ruben Segura / Founder" for a bare "Ruben"; every cold email leaves out the signature's line
    that says the business's address, which the foot says; a name with capitals before its dot, "RJCapital.io", is a
-   link. A cold email stays words alone, never Gmail's markup, logo or links: those go with a reply from the Inbox.)
+   link. A cold email stays words alone, never Gmail's markup, logo or links: those go with a reply from the Inbox.
+   Amended 31 Oct 2026: a cold email holds one link at most, as its words do, so a follow-up whose words hold a link
+   (`{{booking link}}`, `{{their preview}}`, one written out), or whose signature alone would carry two, leaves out the
+   signature's link lines as a first email does; #1968 had done it for `{{their preview}}` alone.)
 2. **The preview and the test show the ending the send makes,** from the first mailbox the sequence writes from.
 3. **Mailboxes are a pick.** How it runs lists every mailbox of the workspace with a tick, its day, its state and its DNS,
    and saves `mailbox_ids`; one always stays ticked while the mailboxes send. A new sequence ticks the connected mailboxes
