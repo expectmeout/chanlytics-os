@@ -144,6 +144,26 @@ test("a time still free, or held only by the calendar's copy of the cancelled vi
   }
 });
 
+test("the time's words are read as the send goes: approved the morning after, it says today, never the tomorrow it was made with", async () => {
+  // Made Monday at 10 PM, waiting for the owner's OK; approved and sent Tuesday at 10 AM, the day the time is.
+  const f = fakes({
+    batch: [{ contact_id: "k1", facts: { freed_when: "tomorrow at 3:00 PM", appointment: "appt-1" } }],
+  });
+  const tuesday = Date.parse("2026-09-08T10:00:00Z");
+  f.ports.now = () => tuesday;
+  await sendBroadcastBatch(f.ports, { ...cmd, deadline: tuesday + 60_000 });
+  const sent = JSON.stringify(f.of("deliver")[0]);
+  assert.match(sent, /today at 3:00 PM/);
+  assert.doesNotMatch(sent, /tomorrow at 3:00 PM/);
+  // A batch that offers no time keeps the words its row was made with.
+  const plain = fakes({
+    broadcast: batchRow({ offered_start: null, offered_end: null, offered_from: null }),
+    batch: [{ contact_id: "k1", facts: { freed_when: "tomorrow at 3:00 PM" } }],
+  });
+  await sendBroadcastBatch(plain.ports, cmd);
+  assert.match(JSON.stringify(plain.of("deliver")[0]), /tomorrow at 3:00 PM/);
+});
+
 test("a batch already sending goes on, and a batch that offers no freed time never asks the record", async () => {
   const sending = fakes({
     broadcast: batchRow({ state: "sending" }),

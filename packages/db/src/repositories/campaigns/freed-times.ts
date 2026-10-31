@@ -140,6 +140,8 @@ export async function freedTimeBatchOf(
 
 /** The most events one count reads: a busy calendar's month of cancellations, many times over. */
 const EVENTS_MAX = 2000;
+/** How many ids one `in` list carries: the URL's own limit, as the readers that page by id keep it. */
+const CANCELLATIONS_IN_CHUNK = 200;
 
 /**
  * How many appointments with a person the service cancelled, or the owner's calendar dropped, since `sinceIso`: the times
@@ -167,13 +169,16 @@ export async function cancellationsSince(db: Db, tenantId: string, sinceIso: str
         .flatMap((e) => (e.subject_id ? [e.subject_id] : [])),
     ),
   ];
-  if (ids.length === 0) return 0;
-  const { count, error: cErr } = await db
-    .from("appointments")
-    .select("id", { count: "exact", head: true })
-    .eq("tenant_id", tenantId)
-    .in("id", ids)
-    .not("contact_id", "is", null);
-  if (cErr) throw new Error(`cannot count the cancellations' people: ${cErr.message}`);
-  return count ?? 0;
+  let withPeople = 0;
+  for (let i = 0; i < ids.length; i += CANCELLATIONS_IN_CHUNK) {
+    const { count, error: cErr } = await db
+      .from("appointments")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", tenantId)
+      .in("id", ids.slice(i, i + CANCELLATIONS_IN_CHUNK))
+      .not("contact_id", "is", null);
+    if (cErr) throw new Error(`cannot count the cancellations' people: ${cErr.message}`);
+    withPeople += count ?? 0;
+  }
+  return withPeople;
 }
