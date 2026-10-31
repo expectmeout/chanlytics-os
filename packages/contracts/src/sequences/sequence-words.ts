@@ -225,9 +225,22 @@ function twinLineOf(row: Pick<SequenceRowDto, "first">): string {
 export const visitTwinWords = (name: string): string =>
   `“${name}” already sends at this moment, so each person would get two. Turn it off first.`;
 
+/**
+ * Whether an OK would send nothing: every batch waiting is one to leads, counted as its emails ready (the server's
+ * withReadyCounts), with none ready and the check holding some. What waits on the owner is what is held, so it is said as
+ * that (31 Oct 2026: Brooklyn's batch said "The next batch waits for your OK" over Approve with all 7 held, and an OK sent
+ * nothing). A batch with nobody named yet, being planned, still waits for an OK.
+ */
+function okSendsNothing(n: SequenceNeedsDto): boolean {
+  return (
+    n.held > 0 && n.batches.length > 0 && n.batches.every((b) => b.audience?.kind === "reach_out" && b.people === 0)
+  );
+}
+
 /** How many of a sequence's people or emails wait for you: the one count the list, the badge, Today and Ask say. */
 export function needsCount(n: SequenceNeedsDto): number {
-  return n.waiting_people + n.held + n.to_send + n.replies + (n.waiting > 0 && n.waiting_people === 0 ? n.waiting : 0);
+  const batches = n.waiting > 0 && n.waiting_people === 0 && !okSendsNothing(n) ? n.waiting : 0;
+  return n.waiting_people + n.held + n.to_send + n.replies + batches;
 }
 
 /**
@@ -274,7 +287,7 @@ export function sequenceGroupOf(row: SequenceRowDto, twin: SequenceTwin | null =
 export function needsWords(n: SequenceNeedsDto): string {
   const parts: string[] = [];
   if (n.waiting_people > 0) parts.push(`${n.waiting_people} wait for your OK`);
-  else if (n.waiting > 0) parts.push("waits for your OK");
+  else if (n.waiting > 0 && !okSendsNothing(n)) parts.push("waits for your OK");
   if (n.held > 0) parts.push(`${n.held} held`);
   if (n.to_send > 0) parts.push(`${n.to_send} for you to send`);
   if (n.replies > 0) parts.push(`${plural(n.replies, "wrote back", "wrote back")} · answer them`);
@@ -582,8 +595,9 @@ export function sequenceNotice(
   lastRun: { off: string | null | undefined; for: string | null | undefined; tz: string; nowMs: number } | null = null,
 ): SequenceNotice | null {
   const n = row.needs;
-  // The batch an OK goes to: the soonest of those an OK can still send (sequenceWaitsNow).
-  const batch = n.waiting > 0 ? (n.batches[0] ?? null) : null;
+  // The batch an OK goes to: the soonest of those an OK can still send (sequenceWaitsNow). One that would send nothing,
+  // its emails all held, is said below as what is held.
+  const batch = n.waiting > 0 && !okSendsNothing(n) ? (n.batches[0] ?? null) : null;
   if (batch) return waitingNotice(steps, batch);
   // On, and its last run did nothing: said with the door that mends it, until a run goes again (sequence-run-off.ts).
   const off = lastRun ? sequenceRunOff(row, lastRun, { tz: lastRun.tz, nowMs: lastRun.nowMs }) : null;
