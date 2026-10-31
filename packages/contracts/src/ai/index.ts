@@ -39,6 +39,7 @@ export {
   readsAsModel,
   RETELL_MODELS,
   routeThinkingFor,
+  screenFloorOf,
   shadowPortOf,
   THINKING_TYPES,
   thinkingOffOf,
@@ -72,6 +73,7 @@ export {
 } from "./shadow";
 export type { ShadowCallFor, ShadowCallOutcome, ShadowCallSpec, ShadowRead } from "./shadow";
 export {
+  isSystemOneModel,
   parseSystemOneResponse,
   SYSTEM_ONE_MODEL,
   SYSTEM_ONE_STATE_MAX_CHARS,

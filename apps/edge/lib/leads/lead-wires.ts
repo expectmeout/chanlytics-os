@@ -33,6 +33,7 @@ import { edgeOrigin } from "../dashboard-origin.js";
 import { callModel } from "../model.js";
 import { startShadow } from "../shadow.js";
 import { imageBytes, markPageText } from "./lead-marks.js";
+import { screened } from "./lead-screen.js";
 
 export interface LeadWires {
   apify: ApifyClient;
@@ -133,7 +134,8 @@ export function leadWires(fetchImpl?: typeof fetch): LeadWires | undefined {
   if (!token || !env.ANTHROPIC_API_KEY) return undefined;
   return {
     apify: apifyClient(fetchImpl ?? fetch, token),
-    judge: shadowed(leadJudge(portJudgeClient(), leadJudgeModel(), leadJudgeFallbacks())),
+    // The screen first (decision 0085), when it is on: the places it is sure are left out never reach the judge.
+    judge: screened(shadowed(leadJudge(portJudgeClient(), leadJudgeModel(), leadJudgeFallbacks()))),
     webhookBase: leadWebhookBase(),
     webhookToken: leadWebhookToken,
     fetchText: markPageText,

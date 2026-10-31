@@ -304,6 +304,7 @@ export const LOG_EVENTS = [
   "lead_mark_store_failed",
   "lead_pin_unreadable",
   "lead_round_start",
+  "lead_screen_failed",
   "lead_tell_failed",
   "leads_sweep_action_failed",
   "leads_sweep_done",

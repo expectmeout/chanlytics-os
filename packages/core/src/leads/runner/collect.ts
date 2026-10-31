@@ -202,7 +202,7 @@ async function collectHeld(
     const { said, judgments, refused } = await judgedBatch(p, round, run.id, from, toJudge);
     if (refused) judgeRefused = refused;
     const places = rows.map((r) => {
-      const { answer, judgment } = said.get(r.prep) ?? { answer: null, judgment: null };
+      const { answer, judgment, model } = said.get(r.prep) ?? { answer: null, judgment: null, model: null };
       const rule =
         r.duplicateOf && !r.prep.rule
           ? { class: "excluded" as const, reason: DUPLICATE_REASON, token: "duplicate", excluded_by: "duplicate" }
@@ -213,7 +213,7 @@ async function collectHeld(
         r.prep.clean,
         answer,
         judgment?.op_id ?? null,
-        judgment?.model ?? null,
+        model,
         rule,
         geo,
         r.shares,
@@ -274,12 +274,40 @@ async function collectHeld(
   };
 }
 
-/** What the judge said of one place: its answer, and the judgment it was kept under (null when its call refused). */
-type Said = { answer: JudgePlaceAnswer | null; judgment: CollectJudgment | null };
+/**
+ * What was said of one place: its answer, the judgment it was kept under (null when its call refused, or the screen
+ * answered it), and the model that answered.
+ */
+type Said = { answer: JudgePlaceAnswer | null; judgment: CollectJudgment | null; model: string | null };
 
 /**
- * The judge over one batch: in the calls it can answer in time, side by side (core judgeInCalls), each kept by its
- * operation id; a call refused twice is Needs review (§7.1). What each place was told, and under which judgment.
+ * The screen over one batch (decision 0085): the places a second model is sure are left out, with their answers and its
+ * model, by the place they are. None where the deployment has no screen, it is off, or it could not ask: every place
+ * is then the judge's, as before.
+ */
+async function screened(p: LeadPorts, round: LeadRoundRow, toJudge: Prepared[]): Promise<Map<Prepared, Said>> {
+  const out = new Map<Prepared, Said>();
+  if (!p.judge.screen) return out;
+  // A screen that throws, which it promises not to, screens nothing: the judge is asked as it always was.
+  const said = await p.judge
+    .screen(
+      round.plan,
+      toJudge.map((prep, ref) => factsOf(ref, prep.clean)),
+      round.tenant_id,
+      round.id,
+    )
+    .catch(() => null);
+  for (const answer of said?.answers ?? []) {
+    const prep = toJudge[answer.ref];
+    if (prep && said) out.set(prep, { answer, judgment: null, model: said.model });
+  }
+  return out;
+}
+
+/**
+ * The judge over one batch: the screen first (decision 0085), then the places it left in, in the calls the judge can
+ * answer in time, side by side (core judgeInCalls), each kept by its operation id; a call refused twice is Needs review
+ * (§7.1). What each place was told, and under which judgment.
  */
 async function judgedBatch(
   p: LeadPorts,
@@ -291,10 +319,14 @@ async function judgedBatch(
   const out = { said: new Map<Prepared, Said>(), judgments: [] as CollectJudgment[], refused: null as string | null };
   if (!toJudge.length) return out;
   if (outOfTime(p, JUDGE_MARGIN_MS)) throw new LeadRetry("out of time before the judge");
+  const left = await screened(p, round, toJudge);
+  for (const [prep, said] of left) out.said.set(prep, said);
+  const rest = toJudge.filter((prep) => !left.has(prep));
+  if (!rest.length) return out;
   const calls = await judgeInCalls(
     p.judge,
     round.plan,
-    toJudge,
+    rest,
     (prep, ref) => factsOf(ref, prep.clean),
     (call) => opIdFor(runId, from, call),
     round,
@@ -303,7 +335,7 @@ async function judgedBatch(
     if (judged.refused && judged.why) out.refused = judged.why;
     if (judged.judgment) out.judgments.push(judged.judgment);
     asked.forEach((prep, ref) =>
-      out.said.set(prep, { answer: judged.answers.get(ref) ?? null, judgment: judged.judgment }),
+      out.said.set(prep, { answer: judged.answers.get(ref) ?? null, judgment: judged.judgment, model: judged.model }),
     );
   }
   return out;

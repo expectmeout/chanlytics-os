@@ -259,6 +259,14 @@ export const env = {
   get ELEVENLABS_WEBHOOK_SECRET() {
     return trimmedEnv(process.env.ELEVENLABS_WEBHOOK_SECRET);
   },
+  /**
+   * Switch: the lead judge's screen (decision 0085), the second model asked first and a place it is sure is left out never
+   * judged ('1' for every workspace, or a comma-separated list of workspace ids), with its key set; anything else asks
+   * the judge everything, as before.
+   */
+  get TYPESAFE_SCREEN() {
+    return trimmedEnv(process.env.TYPESAFE_SCREEN);
+  },
   /** TypeSafe's key for the second model asked in shadow (decision 0023): never a literal, never logged. */
   get TYPESAFE_API_KEY() {
     return trimmedEnv(process.env.TYPESAFE_API_KEY);
