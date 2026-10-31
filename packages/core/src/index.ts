@@ -32,6 +32,7 @@ export type {
   Wire,
   WirePayload,
 } from "./deliver";
+export { liveHoldOf } from "./deliver-hold";
 export { textRefusal } from "./deliver-text";
 export * from "./inbound";
 export * from "./leads";

@@ -22,10 +22,11 @@ export type { SendQueuedCommand } from "./ports";
 /**
  * How long a reply whose wire could not be bound waits before a FRESH job tries it again, by how many fresh jobs it
  * already is the result of (payload.resumes): a blip, a bad minute, a short outage, and one more before a person is
- * told. The list's length is the bound: a send past its last wait fails loudly by name, and the ledger settles the
- * row and tells the owner as it does for any run that did not finish -- never "reconnect the number", because
- * nobody knows that it is off. Fresh rows rather than the ledger's own retry (RETRY_WAITS_MS), which is closed to a
- * kind that speaks to a person: a run that threw mid-send may have sent, and this one provably did not.
+ * told. The list's length is the bound: a send past its last wait fails loudly by name, as a failure that is certain
+ * (CertainFailure: nothing left, every time), so the ledger settles the row as never delivered, in its words, and
+ * tells the owner; never as a run whose outcome is unknown, and never "reconnect the number", because nobody knows
+ * that it is off. Fresh rows rather than the ledger's own retry (RETRY_WAITS_MS), which is closed to a kind that
+ * speaks to a person: a run that threw mid-send may have sent, and this one provably did not.
  *
  * The same waits hold a send the provider provably did not take (retry by outcome: its "not now", a connection that
  * never opened; NotTakenError), which used to fail at once, flag the thread and tell the owner over a minute's
@@ -177,9 +178,30 @@ function resumesOf(p: SendQueuedCommand["payload"]): number {
 }
 
 /**
+ * A failure the ledger may settle as certain: the work provably never happened. Thrown where a verb knows nothing
+ * left (resendLater: a wire that could not be bound, or a provider that did not take it, for every fresh job the send
+ * was given), so the job fails as any throw does, and its row is settled as never delivered, in `why`'s words (jobs
+ * tick.ts conclude, settle.ts), never as a run whose outcome is unknown. Told apart by name, not by class, as the
+ * wire's own errors are (../wire-senders.ts).
+ */
+export class CertainFailure extends Error {
+  /** Why nothing left, in the words the row and the thread's flag carry. */
+  readonly why: string;
+  constructor(message: string, why: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "CertainFailure";
+    this.why = why;
+  }
+}
+export function isCertainFailure(e: unknown): e is CertainFailure {
+  return e instanceof Error && e.name === "CertainFailure";
+}
+
+/**
  * A reply whose wire could not be BOUND (deliver WireUnavailableError), or that the provider did not take
  * (NotTakenError), handed to a fresh job a while on, a bounded number of times (SEND_RETRY_WAITS_MS); past the last
- * wait it fails loudly by name. A wire that could not be bound pages the platform; a send not taken does not.
+ * wait it fails loudly by name, as a failure that is certain and says why (CertainFailure). A wire that could not be
+ * bound pages the platform, at every hand-off and once more at the end; a send not taken does not.
  */
 async function resendLater(
   ports: SendQueuedPorts,
@@ -191,11 +213,28 @@ async function resendLater(
   const resumes = resumesOf(p);
   const table = SEND_RETRY_WAITS_MS[resumes];
   const unbound = isWireUnavailableError(e);
-  if (table === undefined)
-    throw new Error(
+  if (table === undefined) {
+    // Nothing left, every time: the door threw before anything was written on each try. The platform hears the unbound
+    // wire once more, under the same condition's key (the pager sends once per condition per window), now as a reply
+    // lost to it; a provider still saying no is nobody's page. Then the job fails as a failure that is certain, in
+    // these words: the ledger settles the row as never delivered and flags the thread with them (jobs settle.ts).
+    const tries = resumes + 1;
+    if (unbound)
+      await ports
+        .page?.(
+          `wire_unavailable:${channel}`,
+          `${channel}: a workspace's credentials could not be read`,
+          `Tenant ${cmd.tenantId}, message ${p.message_id}: ${e.message}. The reply has failed for good after ${tries} tries; its thread is flagged for a person.`,
+        )
+        ?.catch(() => undefined);
+    throw new CertainFailure(
       `outbound_send: the ${channel} ${unbound ? "wire could not be bound" : "provider did not take it"} for ${resumes} fresh jobs in a row (${e.message})`,
+      unbound
+        ? `the ${channel} wire's credentials could not be read, ${tries} tries in a row`
+        : `the ${channel} provider did not take it, ${tries} tries in a row`,
       { cause: e },
     );
+  }
   // Drawn a little longer at random, so the replies one outage held are not all tried again in the same heartbeat.
   const wait = jittered(table, ports.random);
   // The fresh job first: it is what keeps the reply. The page is the platform's news, and a pager that throws must

@@ -27,6 +27,7 @@ import {
   pauseConversation,
   emitEvent,
   recordActivation,
+  readLiveHold,
   readThreadState,
   repliedTo,
   openBookingRequest,
@@ -37,6 +38,7 @@ import { upsertEscalation, type EscalationOutcome } from "../packages/jobs.js";
 import {
   deliverSafely,
   IngestFailed,
+  liveHoldOf,
   unreadableThread,
   type BookingRequestHold,
   type Delivered,
@@ -75,7 +77,13 @@ export async function pgThread(
 ): Promise<ThreadState> {
   if (!db || !tenantId || !ing) return unreadableThread();
   try {
-    const s = await readThreadState(db, tenantId, ing.conversation_id, ing.paused_until);
+    // The memory, and beside it the thread's live hold (00132: a call in progress, a person who took it over), read
+    // as the send door reads it at the wire (core liveHoldOf), so the gates can ask the door's own question before the
+    // model is asked (core reply-gates.ts). A hold that could not be read is a thread that could not be, below.
+    const [s, hold] = await Promise.all([
+      readThreadState(db, tenantId, ing.conversation_id, ing.paused_until),
+      readLiveHold(db, tenantId, ing.conversation_id),
+    ]);
     return {
       history: s.history,
       pausedUntil: s.pausedUntil,
@@ -84,6 +92,7 @@ export async function pgThread(
       // where a voice call note (an inbound row whose sender is "system") reads as an assistant turn, and a
       // campaign on another wire as something we texted.
       textedBefore: s.textedBefore,
+      control: liveHoldOf(hold ?? {}),
     };
   } catch (e) {
     logger({ tenant_id: tenantId }).error("pg_thread_read_failed", { error: errField(e) });

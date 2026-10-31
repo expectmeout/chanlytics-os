@@ -109,6 +109,28 @@ export async function holdsReplyTurn(db: Db, conversationId: string, messageId: 
   return data !== false;
 }
 
+/**
+ * The thread's live hold as its row says it: who holds it, the call's own ref and until when, as columns; null when the
+ * thread is not there. Read by the receptionist's memory (the edge's pgThread) beside the rest of the thread's state, so
+ * the send door's question can be asked before the model is asked; the columns are read into a hold by one function,
+ * core's liveHoldOf, off this row and off the wire's own (wireRowOf). A read that fails throws: a thread the database
+ * could not produce is unknown, never one nobody holds.
+ */
+export async function readLiveHold(
+  db: Db,
+  tenantId: string,
+  conversationId: string,
+): Promise<{ control_kind: string | null; control_ref: string | null; control_until: string | null } | null> {
+  const { data, error } = await db
+    .from("conversations")
+    .select("control_kind, control_ref, control_until")
+    .eq("tenant_id", tenantId)
+    .eq("id", conversationId)
+    .maybeSingle();
+  if (error) throw new Error(`readLiveHold: ${error.message}`);
+  return data;
+}
+
 /** What the door names a take-over or a hand-back by: the thread, and what the request carried (the `via`, an undo link). */
 interface MemberMove {
   tenantId: string;

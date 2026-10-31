@@ -30,5 +30,5 @@ export type {
   ReplyNotice,
   ReplyReadPorts,
 } from "./reply-read";
-export { SEND_RETRY_WAITS_MS, sendQueued } from "./send";
+export { CertainFailure, isCertainFailure, SEND_RETRY_WAITS_MS, sendQueued } from "./send";
 export type { SendQueuedCommand } from "./send";

@@ -8,8 +8,11 @@
  * middle of, so settlement is per kind.
  *
  * `certain` says whether the work provably never happened: a job whose kind no
- * runner knows is certain; one that ran and threw, or ran and never came back,
- * is not. It changes the words recorded, never the conditions. Every write here
+ * runner knows is certain, and so is one that threw saying so (core
+ * CertainFailure: a reply whose wire could not be bound, or that the provider
+ * did not take, for every fresh job it was given; `why` is its own words for
+ * the row); one that ran and threw otherwise, or ran and never came back, is
+ * not. It changes the words recorded, never the conditions. Every write here
  * is conditional on the downstream row still claiming to be in flight, so a
  * handler that DID record its send before dying is left exactly as it left it
  * either way. That condition, not `certain`, is what makes this safe to run on
@@ -74,6 +77,12 @@ const NEVER_SENT = "the job that would have sent this never ran";
 const EMAIL_UNFINISHED =
   "An email arrived and could not be taken in: it did not finish being filed, and no reply was drafted. Read it here and reply from the Inbox.";
 const MAY_HAVE_SENT = "the run that was sending this did not finish";
+
+/**
+ * What the row and the thread's flag say of a send: a failure that said why it is certain, in its own words (core
+ * CertainFailure's `why`); a job that never ran, in the ledger's; a run that died, in the words for one that may have sent.
+ */
+const noteOf = (certain: boolean, why?: string): string => (certain ? (why ?? NEVER_SENT) : MAY_HAVE_SENT);
 
 /**
  * What the MAILBOX carries after an intake died, which is a different reader
@@ -188,7 +197,7 @@ async function failBroadcast(
  * cannot be written is reported in its own row, because the caller's job is to
  * tell an owner the truth and "we could not check" is part of the truth.
  */
-export async function settleJob(db: Db, job: TerminalJob, certain: boolean): Promise<Settled[]> {
+export async function settleJob(db: Db, job: TerminalJob, certain: boolean, why?: string): Promise<Settled[]> {
   const reason = certain ? "never_delivered" : "run_interrupted";
 
   if (job.kind === "outbound_send") {
@@ -203,7 +212,7 @@ export async function settleJob(db: Db, job: TerminalJob, certain: boolean): Pro
     const { row, error } = await failQueuedSend(db, {
       tenantId: job.tenant_id,
       messageId,
-      error: { reason, note: certain ? NEVER_SENT : MAY_HAVE_SENT, ...(certain ? {} : { outcome: "unknown" }) },
+      error: { reason, note: noteOf(certain, why), ...(certain ? {} : { outcome: "unknown" }) },
     });
     // A reply that never left is a customer with no answer: the thread is flagged for a person, as a failed
     // delivery flags it (core send.ts). A job that died marked the row failed and flagged nothing (I5). A campaign's
@@ -216,7 +225,7 @@ export async function settleJob(db: Db, job: TerminalJob, certain: boolean): Pro
             job.tenant_id,
             row.conversation_id,
             "send_failed",
-            `${row.sender === "ai" ? "The receptionist's reply" : "A reply"} never left: ${certain ? NEVER_SENT : MAY_HAVE_SENT}.`,
+            `${row.sender === "ai" ? "The receptionist's reply" : "A reply"} never left: ${noteOf(certain, why)}.`,
           )
         : null;
     return [

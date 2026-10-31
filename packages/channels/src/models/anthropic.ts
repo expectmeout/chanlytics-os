@@ -115,7 +115,7 @@ export interface ModelAsk {
   model?: string;
   /** Beta features, sent as the anthropic-beta header. */
   betas?: string[];
-  /** A sooner bound than the route's, for one try. */
+  /** A sooner bound than the route's, for one try; a later one does not widen the route's (tryBound). */
   timeoutMs?: number;
   /** Tries after the first on a "not now"; the route's when absent. */
   retries?: number;
@@ -282,6 +282,16 @@ const fastRefused = (a: ProviderReply): boolean => a.status === 429 || a.status 
 const leftOf = (ask: ModelAsk, p: Plan): number =>
   ask.deadlineMs === undefined ? Infinity : ask.deadlineMs - (p.d.now() - p.started);
 
+/**
+ * One try's bound, in ms: the route's (contracts ai/models.ts, the ceiling the registry set for the purpose), a
+ * caller's sooner one when it gave one, and never past what is left of the deadline. Never later than the route's: a
+ * caller handing over its own ceiling (a job's time left) widened the registry's number instead of narrowing it, so
+ * booking_read's 30 s rode over the 8 s its row says. At least a millisecond.
+ */
+export function tryBound(route: { timeoutMs: number }, ask: { timeoutMs?: number }, left: number): number {
+  return Math.max(1, Math.min(route.timeoutMs, ask.timeoutMs ?? Infinity, left));
+}
+
 /** One model's tries: the route's bound (or the caller's sooner one), its retries on "not now", inside the deadline. */
 function tryModel(
   key: string,
@@ -292,7 +302,7 @@ function tryModel(
   stream: boolean,
 ): Promise<ProviderReply> {
   const left = leftOf(ask, p);
-  const timeoutMs = Math.max(1, Math.min(ask.timeoutMs ?? p.route.timeoutMs, left));
+  const timeoutMs = tryBound(p.route, ask, left);
   return providerFetch(
     "anthropic",
     ANTHROPIC_MESSAGES_URL,
