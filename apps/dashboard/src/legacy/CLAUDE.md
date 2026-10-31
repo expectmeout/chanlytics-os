@@ -1,5 +1,13 @@
 # Chanlytics — Code Contracts & Conventions
 
+> **Status, 31 October 2026.** This tree keeps what has not left the shell (decision 0015): Ask's Line, its five pages
+> (`pages/ask-*.jsx`) and its face (`components/ask-face.jsx`); the stylesheets (`styles/`, `styles/tokens.css` among
+> them); and the standalone harness (`Chanlytics.html`) with its stand-ins for what the bridge publishes
+> (`data/bridge-stubs.jsx`). Every other surface is TSX under `src/surfaces/` (`docs/architecture.md`, The shell).
+> Nothing new goes in this tree; the `legacy-files`, `window-globals` and `window-publishers` measures in `docs/debt.md`
+> count what remains and may only fall. The notes below are kept for the files that remain; the status of 11 September
+> describes the tree as it was.
+>
 > **Status, 11 September 2026.** This tree is the signed-in operator shell, bridged to real data by `src/legacy-bridge`
 > (see `surface-registry.ts` for which surfaces are real). The mockup-only surfaces — Agents (fleet, store, studio,
 > tasks), Content, the Deal board (`#/pipeline`), the shared report viewer — stay here and stay hidden from every real
