@@ -65,6 +65,7 @@ export type {
 export {
   MAILBOX_LEFT_WHY_WORDS,
   MAILBOX_SENDERS_WORDS,
+  mailboxLeftLine,
   senderDomainOffered,
   senderSortRefusal,
   senderVerdictOf,
@@ -87,3 +88,13 @@ export {
   mailboxRampShare,
 } from "./mailbox-standing";
 export type { MailboxHold } from "./mailbox-standing";
+export {
+  SENDER_KINDS,
+  SENDER_READ_MAX_TOKENS,
+  SENDER_READING_SCHEMA,
+  senderLeftWhy,
+  senderReadingAsk,
+  senderReadingOf,
+  senderReadingSystem,
+} from "./sender-reading";
+export type { SenderFacts, SenderKind, SenderReading } from "./sender-reading";

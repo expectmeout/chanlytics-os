@@ -11,6 +11,7 @@ import { useEffect, useId, useRef, useState, type Dispatch, type ReactNode, type
 import {
   MAILBOX_LEFT_WHY_WORDS,
   MAILBOX_SENDERS_WORDS as W,
+  mailboxLeftLine,
   senderDomainOffered,
   type MailboxSenderVerdict,
   type MailboxSendersDto,
@@ -128,7 +129,7 @@ export function LeftSenders({
         senderRow({
           key: l.address,
           says: l.name ? `${l.name} · ${l.address}` : l.address,
-          sub: `${MAILBOX_LEFT_WHY_WORDS[l.why]} · ${W.emails(l.count)}`,
+          sub: mailboxLeftLine(l),
           acts: owner ? (
             <LinkButton
               onClick={() => void sort(l.address, "person")}

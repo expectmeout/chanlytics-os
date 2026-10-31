@@ -96,7 +96,7 @@ test("Today's Brought in opens in place: the facts fold, the sources unfold, and
   assert.match(card.props.className, /\bopen\b/);
   assert.equal(byTestId(card, "today-brought-open").props["aria-expanded"], true);
   const inbox = byTestId(card, "fr-import-mailbox");
-  assert.match(textOf(inbox), /^Your inbox214 emails so far · since .+131 newsletters and notices set aside$/);
+  assert.match(textOf(inbox), /^Your inbox214 emails so far · since .+131 newsletters, notices and pitches set aside$/);
   // Each line is a door to its page, and what the mailbox set aside a door to where it is listed.
   const doorTo = (id) => byTestId(card, id).props.href;
   assert.match(doorTo("fr-import-door-mailbox"), /inbox$/, "the inbox's line opens the Inbox");
@@ -202,7 +202,7 @@ test("the first run's sheet draws the same lines with no doors: its owner stays 
       state: "done",
       retry: false,
       share: null,
-      aside: "195 newsletters and notices set aside",
+      aside: "195 newsletters, notices and pitches set aside",
       door: "inbox",
       asideDoor: "admin/integrations/left",
       count: 414,

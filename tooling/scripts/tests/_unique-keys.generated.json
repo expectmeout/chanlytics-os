@@ -1713,6 +1713,21 @@
       "where": null
     },
     {
+      "table": "mailbox_sender_reads",
+      "name": "mailbox_sender_reads_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "address"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "mailbox_senders",
       "name": "mailbox_senders_pkey",
       "primary": true,

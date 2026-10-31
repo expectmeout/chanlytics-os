@@ -308,6 +308,7 @@ export type { TxtAnswer } from "./mailbox/mailbox-dns";
 export {
   gmailDayUsed,
   gmailFindSent,
+  gmailHead,
   gmailHistory,
   gmailMessage,
   gmailNoMailbox,
@@ -374,6 +375,7 @@ export {
 export type { BounceClass, DeliveryReport, FoundSent, MailboxEmail, ReadVerdict } from "./mailbox/mailbox-read";
 export { sendFromMailbox } from "./mailbox/mailbox-send";
 export type { MailboxSendInput, MailboxSendResult } from "./mailbox/mailbox-send";
+export { gmailHeadOf, replyToElsewhere, sentByAService } from "./mailbox/mailbox-sender";
 export {
   cleanGmailSignature,
   gmailSignatureWords,

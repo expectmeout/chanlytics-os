@@ -141,6 +141,7 @@ before(async () => {
   // What the workspace said of a sender, and what its mailbox left (00483): members read theirs, the doors write.
   await seed("mailbox_senders", { tenant_id: A, sender: "news.example", verdict: "automated" }, null);
   await seed("mailbox_left", { tenant_id: A, address: "deals@news.example", why: "gmail_tab" }, null);
+  await seed("mailbox_sender_reads", { tenant_id: A, address: "offers@news.example", kind: "pitch" }, null);
   await seed("escalations", { tenant_id: A, conversation_id: ctx.conversation, reason: "manual", details: "tenancy" });
   // When the thread's person last wrote on WhatsApp (00484); the stranger's attempt is a text, so one a thread and wire
   // refuses nothing on its own.
@@ -852,6 +853,11 @@ const TENANT_TABLES = {
   mailbox_left: [
     "member",
     () => ({ tenant_id: A, address: `x-${Date.now().toString(36)}@stranger.example`, why: "updates" }),
+  ],
+  // What Chanlytics read a sender to be (00495): members read their workspace's; only the edge's service role writes.
+  mailbox_sender_reads: [
+    "member",
+    () => ({ tenant_id: A, address: `r-${Date.now().toString(36)}@stranger.example`, kind: "notice" }),
   ],
   // A mailbox a business connected (00423, decision 0056): members read their workspace's, and only the edge's service
   // role writes one, once the provider's grant is in hand.

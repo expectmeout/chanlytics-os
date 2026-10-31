@@ -42,7 +42,9 @@
     "00325": "unused: #1417 (a message's status is told to its workspace) held it, but 00326 (two records of one person become one) reached production first, so #1417 landed as 00327 above the head",
     "00378": "held for the doors lane (#1537), whose eleven moved above #1539's 00379 and 00380 when that merged first: they landed as 00381 to 00391",
     "00428": "the silent records are told (the wiring's second audit, R6) took it and was applied to production on 14 Oct before its merge; main's head passed it (#1588), and it landed as 00431, production's ledger row re-keyed to it by migration repair",
-    "00445": "claimed by the sequences phone lane (cm-phone, sequences/phone-and-wiring), not on main when 00446 took the next number and production applied it; the lane landed above it as 00447"
+    "00445": "claimed by the sequences phone lane (cm-phone, sequences/phone-and-wiring), not on main when 00446 took the next number and production applied it; the lane landed above it as 00447",
+    "00494": "worked by #1962 (leads/the-review-s-three) and by the lead preview lane (decision 0079, cm-lead-preview) while open, before the mailbox lane (decision 0080) took 00495 and production applied it; both renumbered above it (00496 and 00497), and no file takes it",
+    "00496": "claimed by #1962 (leads/the-review-s-three, 00496_a_search_counts_the_leads_it_shows), renumbered from 00494 and open, not on main when the lead preview lane (decision 0079) took 00497; its pull request fills it"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -496,6 +498,7 @@
     "00491_a_search_whose_source_failed_says_it_stopped.sql": "5325fa99a50dc5e0c8344d99df8eccf5da2ea186dd075e2268c98f2fc5398366",
     "00492_a_cold_email_ends_as_its_sequence_says.sql": "6bdca5b3a5766e7fbc0150b39be2c681768ae5f9b9782802cc8079b57a35da3a",
     "00493_a_memory_line_may_be_learned.sql": "8c8d4a143fba30129c44ffadad16476cb69ac2d148b057c798accedc236e94ac",
+    "00495_a_mailbox_reads_each_sender_once.sql": "bf2ed879d6fb9da1285bc8e36d5568db12e500a245dd9e8180786ef2300e3c94",
     "00497_a_lead_sees_its_own_receptionist.sql": "25461d8e1be92dcfd4604d9741e30ccfdd9756522da581416b331cb3336623ca"
   }
 }

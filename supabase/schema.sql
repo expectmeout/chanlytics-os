@@ -2805,7 +2805,7 @@ COMMENT ON COLUMN public.jobs.dedupe_key IS 'What makes this row once-only while
 -- Name: COLUMN jobs.lane; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.jobs.lane IS 'Which work a claim takes first (decision 0018): 0 a reply, 1 someone waiting who is not a customer (a line bought, a lead''s reply read, a booking notice read, a website read for Check, 00479, a lead''s preview built, 00494), 2 bulk (a history brought in, 00478, among it). Generated from kind and payload; an event_deliver runs in its subscription''s lane (payload.lane, 00334), a text''s answer in a reply''s (inbound_answer, 00347); null for a kind the case does not name, claimed last.';
+COMMENT ON COLUMN public.jobs.lane IS 'Which work a claim takes first (decision 0018): 0 a reply, 1 someone waiting who is not a customer (a line bought, a lead''s reply read, a booking notice read, a website read for Check, 00479, a lead''s preview built, 00497), 2 bulk (a history brought in, 00478, among it). Generated from kind and payload; an event_deliver runs in its subscription''s lane (payload.lane, 00334), a text''s answer in a reply''s (inbound_answer, 00347); null for a kind the case does not name, claimed last.';
 
 
 --
@@ -3940,7 +3940,7 @@ begin
     raise exception 'This account already owns 10 workspaces.' using errcode = '54000';
   end if;
 
-  -- Slug: one rule for every workspace's (slug_for_workspace, 00494).
+  -- Slug: one rule for every workspace's (slug_for_workspace, 00497).
   v_slug := public.slug_for_workspace(v_name);
 
   -- The AFTER INSERT trigger from 00017 provisions policies + config here.
@@ -8369,7 +8369,7 @@ end $$;
 -- Name: FUNCTION lead_convert_by(p_tenant_id uuid, p_lead_id uuid, p_how text, p_data jsonb, p_any_stage boolean); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_convert_by(p_tenant_id uuid, p_lead_id uuid, p_how text, p_data jsonb, p_any_stage boolean) IS 'A lead''s conversion, written once for every door that converts (Reach out Part 5, G19; the person door''s link since 00346): a ready or nurture lead (any, with p_any_stage) becomes converted, closed_reason null, converted_at and contacted_at kept or now, version + 1, with lead.converted {how} and what the caller adds. how is call, reply, booking, deal, arrived (their person wrote or called) added (their person was named by a member, a file, the calendar or the finder) or claimed (their preview made theirs, 00494). Answers {moved, version}. Called only by definer doors; nobody holds EXECUTE.';
+COMMENT ON FUNCTION public.lead_convert_by(p_tenant_id uuid, p_lead_id uuid, p_how text, p_data jsonb, p_any_stage boolean) IS 'A lead''s conversion, written once for every door that converts (Reach out Part 5, G19; the person door''s link since 00346): a ready or nurture lead (any, with p_any_stage) becomes converted, closed_reason null, converted_at and contacted_at kept or now, version + 1, with lead.converted {how} and what the caller adds. how is call, reply, booking, deal, arrived (their person wrote or called) added (their person was named by a member, a file, the calendar or the finder) or claimed (their preview made theirs, 00497). Answers {moved, version}. Called only by definer doors; nobody holds EXECUTE.';
 
 
 --
@@ -9321,6 +9321,28 @@ end $_$;
 --
 
 COMMENT ON FUNCTION public.lead_plan_check(p_plan jsonb) IS 'Raises 22023 naming the key when a plan is not the shape LeadSearchPlanSchema describes: the same rules, including at most five terms and no phrase twice, at most eight criteria and eight exclusions with a key each, a radius of 500 to 200000 metres with a centre to draw it around, a real state, the area''s query, and a ZIP for a ZIP ask. The door is granted to authenticated, so this is what a plan is held to when the route is stepped around.';
+
+
+--
+-- Name: lead_previews_end_with_their_lead(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.lead_previews_end_with_their_lead() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_ws uuid;
+begin
+  update public.lead_previews p
+     set state = 'ended', ended_at = now(), turns = '[]'::jsonb, not_right = '[]'::jsonb
+   where p.tenant_id = new.tenant_id and p.lead_id = new.id and p.state in ('building', 'ready', 'failed')
+  returning p.preview_tenant_id into v_ws;
+  if v_ws is not null then
+    delete from public.tenants t where t.id = v_ws and t.status = 'preview';
+  end if;
+  return new;
+end $$;
 
 
 --
@@ -12576,6 +12598,7 @@ begin
     delete from public.mailbox_left where tenant_id = new.tenant_id and address = lower(old.email);
     delete from public.mailbox_senders
      where tenant_id = new.tenant_id and sender = lower(old.email) and verdict = 'person';
+    delete from public.mailbox_sender_reads where tenant_id = new.tenant_id and address = lower(old.email);
   end if;
   return null;
 end $$;
@@ -26331,6 +26354,30 @@ end $$;
 
 
 --
+-- Name: sender_domain_said_automated(uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sender_domain_said_automated(p_tenant_id uuid, p_domain text) RETURNS boolean
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  select count(distinct s.tenant_id) >= 3
+    from public.mailbox_senders s
+   where s.verdict = 'automated'
+     and s.set_by is not null
+     and s.tenant_id <> p_tenant_id
+     and (s.sender = lower(btrim(p_domain)) or split_part(s.sender, '@', 2) = lower(btrim(p_domain)));
+$$;
+
+
+--
+-- Name: FUNCTION sender_domain_said_automated(p_tenant_id uuid, p_domain text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.sender_domain_said_automated(p_tenant_id uuid, p_domain text) IS 'Whether three or more workspaces other than p_tenant_id had an owner say the domain p_domain, or an address at it, is automated (00495, decision 0080): their own words (mailbox_senders.set_by), never a reading; a yes or a no, never which workspaces. The service role''s: the edge''s sorting of a stranger''s mail. A free-mail domain is never asked (contracts isFreeMail).';
+
+
+--
 -- Name: sequence_batch_cancel(uuid, uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -30063,7 +30110,7 @@ end $$;
 -- Name: FUNCTION slug_for_workspace(p_name text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.slug_for_workspace(p_name text) IS 'A workspace''s slug from its name (create_workspace_for''s rule since 00021, lifted out in 00494 for a preview''s claim): lowercase ASCII, single dashes, at most 40, the first free of -1 to -50, then a random tail. Definer doors only.';
+COMMENT ON FUNCTION public.slug_for_workspace(p_name text) IS 'A workspace''s slug from its name (create_workspace_for''s rule since 00021, lifted out in 00497 for a preview''s claim): lowercase ASCII, single dashes, at most 40, the first free of -1 to -50, then a random tail. Definer doors only.';
 
 
 --
@@ -32200,7 +32247,7 @@ CREATE TABLE public.ai_usage (
     CONSTRAINT ai_usage_output_tokens_check CHECK ((output_tokens >= 0)),
     CONSTRAINT ai_usage_port_check CHECK ((port = ANY (ARRAY['anthropic'::text, 'typesafe'::text]))),
     CONSTRAINT ai_usage_prompt_hash_check CHECK (((prompt_hash IS NULL) OR (prompt_hash ~ '^[0-9a-f]{16,64}$'::text))),
-    CONSTRAINT ai_usage_purpose_check CHECK ((purpose = ANY (ARRAY['receptionist'::text, 'reply_draft'::text, 'ask'::text, 'lead_json'::text, 'template_draft'::text, 'review_reply'::text, 'lead_judge'::text, 'note_suggest'::text, 'reach_out_check'::text, 'reply_read'::text, 'booking_read'::text, 'lead_suggest'::text, 'ask_journal'::text, 'receptionist_review'::text, 'fix_route'::text, 'website_read'::text]))),
+    CONSTRAINT ai_usage_purpose_check CHECK ((purpose = ANY (ARRAY['receptionist'::text, 'reply_draft'::text, 'ask'::text, 'lead_json'::text, 'template_draft'::text, 'review_reply'::text, 'lead_judge'::text, 'note_suggest'::text, 'reach_out_check'::text, 'reply_read'::text, 'booking_read'::text, 'lead_suggest'::text, 'ask_journal'::text, 'receptionist_review'::text, 'fix_route'::text, 'website_read'::text, 'sender_read'::text]))),
     CONSTRAINT ai_usage_shadow_check CHECK (((shadow AND (port <> 'anthropic'::text)) OR ((NOT shadow) AND (question IS NULL) AND (primary_answer IS NULL) AND (shadow_answer IS NULL) AND (shadow_confidence IS NULL) AND (confident IS NULL) AND (agrees IS NULL)))),
     CONSTRAINT ai_usage_shadow_words_check CHECK (((char_length(COALESCE(question, ''::text)) <= 80) AND (char_length(COALESCE(primary_answer, ''::text)) <= 80) AND (char_length(COALESCE(shadow_answer, ''::text)) <= 80) AND ((shadow_confidence IS NULL) OR ((shadow_confidence >= (0)::numeric) AND (shadow_confidence <= (1)::numeric))))),
     CONSTRAINT ai_usage_usd_check CHECK (((usd IS NULL) OR (usd >= (0)::numeric)))
@@ -34538,7 +34585,7 @@ CREATE TABLE public.mailbox_left (
     CONSTRAINT mailbox_left_address_check CHECK (((address = lower(btrim(address))) AND ((char_length(address) >= 3) AND (char_length(address) <= 254)))),
     CONSTRAINT mailbox_left_count_check CHECK ((count >= 1)),
     CONSTRAINT mailbox_left_name_check CHECK (((name IS NULL) OR (char_length(name) <= 200))),
-    CONSTRAINT mailbox_left_why_check CHECK ((why = ANY (ARRAY['automated'::text, 'auto_reply'::text, 'report'::text, 'booking_notice'::text, 'forwarding_confirmation'::text, 'gmail_tab'::text, 'updates'::text, 'said'::text])))
+    CONSTRAINT mailbox_left_why_check CHECK ((why = ANY (ARRAY['automated'::text, 'auto_reply'::text, 'report'::text, 'booking_notice'::text, 'forwarding_confirmation'::text, 'gmail_tab'::text, 'updates'::text, 'said'::text, 'service'::text, 'pitch'::text, 'notice'::text, 'relayed'::text, 'others_said'::text])))
 );
 
 
@@ -34547,6 +34594,29 @@ CREATE TABLE public.mailbox_left (
 --
 
 COMMENT ON TABLE public.mailbox_left IS 'What a connected mailbox left where it was, one row a sender (00483): the name it gave, why (the latest), how many, first and last. Members read; the edge writes through mailbox_left_note.';
+
+
+--
+-- Name: mailbox_sender_reads; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.mailbox_sender_reads (
+    tenant_id uuid NOT NULL,
+    address text NOT NULL,
+    kind text NOT NULL,
+    about text,
+    read_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT mailbox_sender_reads_about_check CHECK (((about IS NULL) OR (char_length(about) <= 120))),
+    CONSTRAINT mailbox_sender_reads_address_check CHECK (((address = lower(btrim(address))) AND ((char_length(address) >= 3) AND (char_length(address) <= 254)) AND (address !~ '[[:space:]<>]'::text))),
+    CONSTRAINT mailbox_sender_reads_kind_check CHECK ((kind = ANY (ARRAY['inquiry'::text, 'person'::text, 'pitch'::text, 'notice'::text, 'relayed'::text])))
+);
+
+
+--
+-- Name: TABLE mailbox_sender_reads; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.mailbox_sender_reads IS 'What Chanlytics read a sender of mail to a connected mailbox to be, one row a sender (00495, decision 0080): inquiry or person (their mail comes in), pitch, notice or relayed (it stays in the mailbox), and in under twelve words what they wanted. What the workspace said (mailbox_senders) comes first. Members read; the edge writes as the service role.';
 
 
 --
@@ -37446,6 +37516,14 @@ ALTER TABLE ONLY public.mailbox_left
 
 
 --
+-- Name: mailbox_sender_reads mailbox_sender_reads_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.mailbox_sender_reads
+    ADD CONSTRAINT mailbox_sender_reads_pkey PRIMARY KEY (tenant_id, address);
+
+
+--
 -- Name: mailbox_senders mailbox_senders_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -40116,6 +40194,13 @@ CREATE TRIGGER jobs_wake AFTER INSERT ON public.jobs REFERENCING NEW TABLE AS ne
 
 
 --
+-- Name: leads lead_previews_end_with_their_lead; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER lead_previews_end_with_their_lead AFTER UPDATE OF blanked_at, erased_at ON public.leads FOR EACH ROW WHEN ((((new.blanked_at IS NOT NULL) AND (old.blanked_at IS NULL)) OR ((new.erased_at IS NOT NULL) AND (old.erased_at IS NULL)))) EXECUTE FUNCTION public.lead_previews_end_with_their_lead();
+
+
+--
 -- Name: lead_previews lead_previews_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -42292,6 +42377,14 @@ ALTER TABLE ONLY public.mailbox_left
 
 
 --
+-- Name: mailbox_sender_reads mailbox_sender_reads_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.mailbox_sender_reads
+    ADD CONSTRAINT mailbox_sender_reads_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: mailbox_senders mailbox_senders_set_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -44126,6 +44219,21 @@ ALTER TABLE public.mailbox_left ENABLE ROW LEVEL SECURITY;
 --
 
 CREATE POLICY mailbox_left_member_select ON public.mailbox_left FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
+-- Name: mailbox_sender_reads; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.mailbox_sender_reads ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: mailbox_sender_reads mailbox_sender_reads_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY mailbox_sender_reads_member_select ON public.mailbox_sender_reads FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
    FROM public.memberships m
   WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
 
@@ -46488,6 +46596,14 @@ GRANT ALL ON FUNCTION public.lead_pile_counts(p_tenant_id uuid, p_search_id uuid
 
 REVOKE ALL ON FUNCTION public.lead_plan_check(p_plan jsonb) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.lead_plan_check(p_plan jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION lead_previews_end_with_their_lead(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.lead_previews_end_with_their_lead() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.lead_previews_end_with_their_lead() TO service_role;
 
 
 --
@@ -48975,6 +49091,14 @@ GRANT ALL ON FUNCTION public.segment_members_on_erase() TO service_role;
 
 
 --
+-- Name: FUNCTION sender_domain_said_automated(p_tenant_id uuid, p_domain text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.sender_domain_said_automated(p_tenant_id uuid, p_domain text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sender_domain_said_automated(p_tenant_id uuid, p_domain text) TO service_role;
+
+
+--
 -- Name: FUNCTION sequence_batch_cancel(p_tenant_id uuid, p_batch_id uuid, p_from text); Type: ACL; Schema: public; Owner: -
 --
 
@@ -50862,6 +50986,14 @@ GRANT ALL ON TABLE public.mailbox_connections TO service_role;
 
 GRANT SELECT ON TABLE public.mailbox_left TO authenticated;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.mailbox_left TO service_role;
+
+
+--
+-- Name: TABLE mailbox_sender_reads; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.mailbox_sender_reads TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.mailbox_sender_reads TO service_role;
 
 
 --
