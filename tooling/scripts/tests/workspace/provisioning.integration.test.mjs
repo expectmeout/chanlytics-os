@@ -25,6 +25,8 @@ import { POLICY_CLASSES } from "@chanlytics/contracts";
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const skip = !URL_ || !KEY ? "no service-role credentials in env" : false;
+/** The workspace 00002 made for the smoke checks: a `test` one, never a business. */
+const SMOKE_SLUG = "chanlytics-smoke-test";
 
 let db;
 let tenantId;
@@ -111,19 +113,34 @@ test("provision_tenant is idempotent — the trigger, backfill and onboarding ca
   assert.equal(policies.length, POLICY_CLASSES.length, "a second call duplicated the matrix");
 });
 
-test("every existing tenant was backfilled", { skip }, async () => {
-  // The migration repairs tenants created between 00012 and now, including the
-  // live one — a partially provisioned production tenant is the same defect.
-  const { data: tenants } = await db.from("tenants").select("id, slug");
-  for (const t of tenants ?? []) {
-    const { data: p } = await db.from("policies").select("id").eq("tenant_id", t.id).is("subject_type", null);
-    const { data: c } = await db.from("tenant_config").select("tenant_id").eq("tenant_id", t.id).maybeSingle();
-    // The database suites run side by side and each makes and removes its own
-    // workspaces: one that was deleted between the listing above and these
-    // reads has no rows because it is gone, not because it was never backfilled.
-    const { data: still } = await db.from("tenants").select("id").eq("id", t.id).maybeSingle();
-    if (!still) continue;
-    assert.equal(p.length, POLICY_CLASSES.length, `${t.slug} has ${p.length} policy rows`);
-    assert.ok(c, `${t.slug} has no tenant_config row`);
-  }
-});
+test(
+  "the workspaces that were there before the trigger were backfilled: the pilot and the smoke workspace",
+  { skip },
+  async () => {
+    // The migration repairs tenants created between 00012 and now, including the
+    // live one — a partially provisioned production tenant is the same defect.
+    // On a replayed stack those are the two the first migrations made: the pilot
+    // (00001, the first active workspace; its name lives there, not here) and the
+    // smoke workspace (00002). Every workspace made since is the trigger's, proved
+    // above on one made here. Not every tenant in the table: the database suites
+    // run side by side, and some take a row of their own workspace away on purpose
+    // while they run (the feed suite's second workspace has no config row from its
+    // "missing" case to its end), which a check over every tenant read mid-test
+    // and failed on (30 and 31 Oct 2026).
+    const { data: pilot } = await db
+      .from("tenants")
+      .select("id, slug")
+      .eq("status", "active")
+      .order("created_at")
+      .limit(1)
+      .single();
+    const { data: smoke } = await db.from("tenants").select("id, slug").eq("slug", SMOKE_SLUG).single();
+    for (const t of [pilot, smoke]) {
+      assert.ok(t?.id, "the replay made it");
+      const { data: p } = await db.from("policies").select("id").eq("tenant_id", t.id).is("subject_type", null);
+      const { data: c } = await db.from("tenant_config").select("tenant_id").eq("tenant_id", t.id).maybeSingle();
+      assert.equal(p.length, POLICY_CLASSES.length, `${t.slug} has ${p.length} policy rows`);
+      assert.ok(c, `${t.slug} has no tenant_config row`);
+    }
+  },
+);
