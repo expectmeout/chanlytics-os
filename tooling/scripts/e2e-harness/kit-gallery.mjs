@@ -291,6 +291,19 @@ const PANE_WORDS = `<h3>Hours</h3><p>Open today until six.</p>`;
 const PANE_ROWS = ["Consultation", "Follow-up visit", "Full treatment"]
   .map((name) => `<div class="gx-panel-row">${name}</div>`)
   .join("");
+/**
+ * A choice a pane holds, open, as MoreMenu draws it (its press, the wash and the menu, one of a set): the pane that
+ * holds it stands over the panes after it until it closes (Settings › Autonomy's reply mode, #1825).
+ */
+const PANE_MENU =
+  `<div class="more-wrap"><button class="btn btn-sm btn-ghost" aria-haspopup="menu" aria-expanded="true">` +
+  `Asks you ${icon("chevron-down", 10)}</button>` +
+  `<div class="more-backdrop" role="presentation"></div>` +
+  `<div class="more-menu align-left" role="menu">` +
+  `<button class="more-item" role="menuitemradio" aria-checked="true">${icon("check", 13)}` +
+  `<span class="more-item-label">Asks you</span></button>` +
+  `<button class="more-item" role="menuitemradio" aria-checked="false">${icon("check", 13)}` +
+  `<span class="more-item-label">Sends it</span></button></div></div>`;
 
 /** A face's picture: a made-up one, drawn inline, so the page asks for nothing. */
 const PHOTO =
@@ -349,11 +362,12 @@ const SHEET_PARTS =
 const going = (leaving) => (leaving ? ' data-leaving="true"' : "");
 /**
  * The kit's sheet over its wash, the composer inside; `handle` draws the handle a phone shows (a desk hides it, and the
- * record sheet, a desk's twin, has none), `leaving` the still copies that play its leaving.
+ * record sheet, a desk's twin, has none), `leaving` the still copies that play its leaving, `fit` Sheet's `fit`.
  */
-const sheet = ({ handle = true, leaving = false } = {}) =>
+const sheet = ({ handle = true, leaving = false, fit = false } = {}) =>
   `<div class="sheet-backdrop" aria-hidden="true"${going(leaving)}></div>` +
-  `<section class="sheet" role="dialog" aria-modal="true" aria-label="Services" tabindex="-1"${going(leaving)}>` +
+  `<section class="sheet" role="dialog" aria-modal="true" aria-label="Services" tabindex="-1"` +
+  `${fit ? ' data-fit="true"' : ""}${going(leaving)}>` +
   (handle ? `<div class="sheet-handle" aria-hidden="true"></div>` : "") +
   `${SHEET_PARTS}</section>`;
 /** The same composer in RecordSheet's frame (surfaces/kit/record/sheet.tsx), a desk's twin. */
@@ -1832,7 +1846,7 @@ export const FAMILIES = [
   {
     family: "Record card and rows",
     about:
-      "The record kit's card and its rows (RecordRow): a label, a value, where it came from, one act; empty, wrong, disputed, a row of chips, a value just saved.",
+      "The record kit's card and its rows (RecordRow): a label, a value, where it came from, one act; empty, wrong, disputed, a row of chips, a value just saved, a value that is a menu, open, which stands its card over the cards after it.",
     entries: [
       {
         id: "rec-card",
@@ -1909,6 +1923,15 @@ export const FAMILIES = [
             `<div class="rec-row-val"><span class="rec-row-value">Not asked</span></div>${recAct("Record a yes")}</div>` +
             `<div class="rec-row rec-row-stacked" data-empty="false"><span class="rec-row-key">Offers by email</span>` +
             `<div class="rec-row-val"><span class="rec-row-value">Not asked · read only</span></div></div>`,
+        ),
+      },
+      {
+        // A choice as a row's value (Settings › business's choice rows: RecordRow's value a MoreMenu), open.
+        id: "rec-card-menu",
+        stage: "pop",
+        html: recCard(
+          `<div class="rec-row" data-empty="false"><span class="rec-row-key">Google reviews</span>` +
+            `<div class="rec-row-val"><span class="rec-row-value">${PANE_MENU}</span></div></div>`,
         ),
       },
     ],
@@ -2252,7 +2275,8 @@ export const FAMILIES = [
     family: "Panel",
     about:
       "kit.css's panel (step 2.2): a pane of content, an inset inside one, what pops over the page, a field the member " +
-      "types in where it stands; md padding, sm, or none for rows edge to edge, which it clips. Each but the field " +
+      "types in where it stands, a pane holding an open menu, which stands over the panes after it; md padding, sm, " +
+      "or none for rows edge to edge, which it clips. Each but the field and the menu's pane " +
       "beside the rule it reproduces, which the spec holds it equal " +
       "to, but for what that rule sets of its own page's: a card's shrinking in a grid, Confirm's column and entrance, " +
       "the tip card's width, the bell's place and entrance.",
@@ -2282,6 +2306,11 @@ export const FAMILIES = [
         html: `<div class="confirm-block">Their conversations and notes go with them.</div>`,
       },
       { id: "panel-field", html: `<div class="panel panel-field panel-sm">Friday at two works. See you then.</div>` },
+      {
+        id: "panel-menu",
+        stage: "pop",
+        html: `<section class="panel"><h3>Google reviews</h3><p>A reply to each new review.</p>${PANE_MENU}</section>`,
+      },
       {
         id: "panel-pop",
         html: `<div class="panel panel-pop panel-sm">Your hours come from Google once it is linked.</div>`,
@@ -2529,7 +2558,8 @@ export const FAMILIES = [
       "phone from the bottom edge, as tall as what it holds, a handle over its head and the ink's wash behind it; a " +
       "column at both widths, so the composer's foot stays at its foot. A toast raised while it is open stands clear " +
       "of that foot, beside the sheet on a desk and above it on a phone, which the spec checks at both widths. At " +
-      "a desk's width beside the record sheet it reproduces, open and leaving, which the spec holds it equal to. On " +
+      "a desk's width beside the record sheet it reproduces, open and leaving, which the spec holds it equal to, and " +
+      "fitted, as tall as what it holds. On " +
       "a phone also in a small job's shape: a step's way back, the title and a word to close it, then the job. " +
       "People's phone sheet drew those until 5 Oct 2026, when twins held the kit's equal to it before it went.",
     entries: [
@@ -2557,6 +2587,8 @@ export const FAMILIES = [
         source: "surfaces/kit/kit.css:1139, styles/components.css:3050",
         html: recSheetFrame(true),
       },
+      // Fitted (Sheet's `fit`: the Calendar's Hours and rules): on a desk as tall as what it holds, from its top edge.
+      { id: "sheet-desk-fit", stage: "sheet", width: "desk", html: sheet({ fit: true }) },
       { id: "sheet-phone", stage: "sheet", width: "phone", html: sheet() },
       { id: "sheet-phone-leaving", stage: "sheet", width: "phone", html: sheet({ leaving: true }) },
       { id: "sheet-job", stage: "sheet", width: "phone", html: jobSheet() },

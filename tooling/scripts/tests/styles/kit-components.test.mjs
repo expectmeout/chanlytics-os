@@ -486,12 +486,49 @@ test("LinkButton draws the gallery's Link button family: quiet words that act as
 const paneRows = () =>
   ["Consultation", "Follow-up visit", "Full treatment"].map((name) => h("div", { className: "gx-panel-row" }, name));
 
+/** A choice the pane holds, open, as MoreMenu draws it: its press, the wash and the menu, one of a set. */
+const paneMenu = () =>
+  h(
+    "div",
+    { className: "more-wrap" },
+    h(
+      "button",
+      { className: "btn btn-sm btn-ghost", "aria-haspopup": "menu", "aria-expanded": true },
+      "Asks you ",
+      glyph(),
+    ),
+    h("div", { className: "more-backdrop", role: "presentation" }),
+    h(
+      "div",
+      { className: "more-menu align-left", role: "menu" },
+      ...[
+        ["Asks you", true],
+        ["Sends it", false],
+      ].map(([label, checked]) =>
+        h(
+          "button",
+          { className: "more-item", role: "menuitemradio", "aria-checked": checked },
+          glyph(),
+          h("span", { className: "more-item-label" }, label),
+        ),
+      ),
+    ),
+  );
+
 /** The gallery's Panel family, entry by entry. */
 const PANELS = {
   panel: () => h(Panel, { as: "section" }, h("h3", null, "Hours"), h("p", null, "Open today until six.")),
   "panel-flush": () => h(Panel, { as: "section", size: "flush" }, ...paneRows()),
   "panel-inset": () => h(Panel, { variant: "inset", size: "sm" }, "Their conversations and notes go with them."),
   "panel-field": () => h(Panel, { variant: "field", size: "sm" }, "Friday at two works. See you then."),
+  "panel-menu": () =>
+    h(
+      Panel,
+      { as: "section" },
+      h("h3", null, "Google reviews"),
+      h("p", null, "A reply to each new review."),
+      paneMenu(),
+    ),
   "panel-pop": () => h(Panel, { variant: "pop", size: "sm" }, "Your hours come from Google once it is linked."),
   "panel-pop-flush": () => h(Panel, { as: "section", variant: "pop", size: "flush" }, ...paneRows()),
 };
