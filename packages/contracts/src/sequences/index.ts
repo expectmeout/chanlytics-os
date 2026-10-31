@@ -212,6 +212,7 @@ export {
   historyStamp,
   historyUpcomingWords,
   peopleNeedsOf,
+  personWhenWords,
   SEQUENCE_EDIT_WORDS,
   SEQUENCE_HISTORY_PERIODS,
   SEQUENCE_HISTORY_WORDS,

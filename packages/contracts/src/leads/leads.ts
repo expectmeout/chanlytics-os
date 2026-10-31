@@ -192,7 +192,7 @@ export {
   leadSearchEmptyWords,
   leadsStanding,
 } from "./lead-row";
-export type { LeadSlotState, LeadSlot, LeadRowCard, LeadBand, LeadRowVM } from "./lead-row";
+export type { LeadSlotState, LeadSlot, LeadRowCard, LeadBand, LeadRailRow, LeadRowVM } from "./lead-row";
 
 /**
  * One home per set. Release A declares all six in `search/sets.ts` and `schema-sets.ts:122` holds
@@ -338,12 +338,13 @@ export const LEAD_WORDS = {
   ratedHeading: "What people say",
   closePhotos: "Close",
   /**
-   * The rail's two sections. The first is six views of a lead's stage (LEAD_LIST_WORDS), not lists: "Lists" is People's word
+   * The rail's sections. The first is six views of a lead's stage (LEAD_LIST_WORDS), not lists: "Lists" is People's word
    * for a rule over facts (decision 0009, LIST_GROUP_WORDS), and a list of the owner's own made from a file sits under
-   * Searches here.
+   * Searches here. The third is the sequences' own lists (00496), each named for its sequence: the leads added to it.
    */
   viewsHeading: "Views",
   searchesHeading: "Searches",
+  sequencesHeading: "Sequences",
   // D5, on a phone: one lead at a time, and the question when you are back from the call.
   deckOf: (at: number, of: number) => `${at} of ${of}`,
   deckPrev: "The lead before",

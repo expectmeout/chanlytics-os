@@ -1533,14 +1533,34 @@ test("a row's Source says where its facts came from: a Maps listing, a business 
   assert.equal(toLeadRowVM(row({ place_id: null }), TZ, NOW).source, "Your list");
 });
 
-test("the rail says a list is one beside a search of the same name, so a search never reads twice", () => {
-  const search = searchWith({ id: SEARCH_A, name: "Agency owners" });
-  const list = searchWith({ id: SEARCH_B, name: "Agency owners", via: "chosen" });
-  const other = searchWith({ id: "00000000-0000-4000-8000-0000000000c3", name: "Leads you add", via: "chosen" });
-  assert.deepEqual(
-    leadRail(COUNTS, [search, list, other], NOW).searches.map((s) => s.name),
-    ["Agency owners", "Agency owners · list", "Leads you add"],
+test("the rail draws a sequence's own list with the sequences, apart from the search its leads came from", () => {
+  const search = searchWith({ id: SEARCH_A, name: "Agency owners" }, { counted: 20 });
+  const list = searchWith({ id: SEARCH_B, name: "Agency owners", via: "chosen", sequence_list: true }, { counted: 20 });
+  const empty = searchWith(
+    { id: "00000000-0000-4000-8000-0000000000c3", name: "Auto shops", via: "chosen", sequence_list: true },
+    { counted: 0 },
   );
+  const own = searchWith(
+    { id: "00000000-0000-4000-8000-0000000000c4", name: "Expo gyms", via: "import" },
+    { counted: 4 },
+  );
+  const rail = leadRail(COUNTS, [search, list, empty, own], NOW);
+  assert.deepEqual(
+    rail.searches.map((s) => s.name),
+    ["Agency owners", "Expo gyms"],
+    "a list of the owner's own stays a search",
+  );
+  assert.deepEqual(
+    rail.sequences.map((s) => [s.name, s.count]),
+    [["Agency owners", 20]],
+    "one with nobody added by hand is no row: its 0 said nobody was in a sequence that had people",
+  );
+  assert.deepEqual(
+    leadRail(COUNTS, [search, list, empty, own], NOW, empty.id).sequences.map((s) => s.name),
+    ["Agency owners", "Auto shops"],
+    "unless it is the one open",
+  );
+  assert.deepEqual(leadRail(COUNTS, [search], NOW).sequences, [], "a server before 00496 says none");
 });
 
 test("a search's empty view says what its round holds: leads to look at, or that it is still looking", () => {
@@ -1561,16 +1581,4 @@ test("a search's empty view says what its round holds: leads to look at, or that
     "an ended search with none: the page's words",
   );
   assert.equal(leadSearchEmptyWords(null), null);
-});
-
-test("the band's tab on screen counts the rows its read holds once the search has ended, never the round's counter", () => {
-  const ended = searchWith({}, { state: "ended", qualified: 21, review: 46, excluded: 0 });
-  const shown = leadBand(ended, { cls: "qualified", n: 20 }).classes.map((c) => c.label);
-  assert.deepEqual(shown, ["20 Qualified", "46 Needs review", "0 Left out"], "a people search counts people");
-  const live = searchWith({}, { state: "running", ending: null, ended_at: null, qualified: 21 });
-  assert.equal(
-    leadBand(live, { cls: "qualified", n: 3 }).classes[0].label,
-    "21 Qualified",
-    "still finding: the round's",
-  );
 });

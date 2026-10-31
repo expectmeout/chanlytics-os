@@ -70,24 +70,15 @@ export interface LeadBand {
 /** The band's tabs, in the order the search's shape reads: what met the plan, what needs a person, what was left out. */
 const LEAD_BAND_ORDER = ["qualified", "review", "excluded"] as const satisfies readonly LeadClass[];
 
-/**
- * `shown`: the class on screen and how many leads its read holds, every page of it, for a search whose round has ended.
- * Its tab says that number, never the round's (the walk of 30 Oct 2026 read "21 Qualified" over 20 rows: a people search
- * counts people, and two can work at one company).
- */
-export function leadBand(
-  search: LeadSearchDto | null,
-  shown: { cls: LeadClass; n: number } | null = null,
-): LeadBand | null {
+export function leadBand(search: LeadSearchDto | null): LeadBand | null {
   const r = search?.round;
   if (!r) return null;
-  const countOf = (id: LeadClass) => (shown && shown.cls === id && !roundIsLive(r.state) ? shown.n : r[id]);
   const f = r.fits ?? { strong: 0, look: 0, long: 0 };
   const fits = (["strong", "look", "long"] as const).map((id) => ({ id, label: LEAD_FIT_WORDS[id], count: f[id] }));
   return {
     // The tabs say the pills' words (LEAD_CLASS_WORDS: Qualified, Needs review, Left out) with the count in front, and the
     // page draws them in the pills' tones (stateOf("lead_class")): a tab and a pill for one state read one map.
-    classes: LEAD_BAND_ORDER.map((id) => ({ id, label: `${countOf(id)} ${LEAD_CLASS_WORDS[id]}`, count: countOf(id) })),
+    classes: LEAD_BAND_ORDER.map((id) => ({ id, label: `${r[id]} ${LEAD_CLASS_WORDS[id]}`, count: r[id] })),
     fits,
     mixed: fits.filter((x) => x.count > 0).length > 1,
   };
@@ -387,9 +378,6 @@ function leadSourceWord(r: LeadRowDto): string {
   return r.place_id ? LEAD_SOURCE_WORD : "Your list";
 }
 
-/** What a list of leads is called beside a search of the same name. */
-const LEAD_LIST_WORD = "list";
-
 /** A round that is still going; one waiting on the owner is its own mark. */
 const roundIsLive = (state: string): boolean => state !== "ended" && state !== "waiting_on_owner";
 
@@ -404,26 +392,32 @@ function foundLine(r: Pick<LeadRowDto, "place_id" | "rank" | "kind">, term: stri
   return r.rank ? `On Google Maps, #${r.rank} for “${term}”` : `On Google Maps, searching “${term}”`;
 }
 
-/** The rail's rows under Leads (§6.1): the six lists with counts, then the searches with their marks. */
+/** One search's row in the rail: its name, what its last round counted, its mark, and what its menu offers. */
+export interface LeadRailRow {
+  id: string;
+  name: string;
+  /** What its last round counted; null for a search with no round (one imported, or made from a list), never a 0. */
+  count: number | null;
+  mark: "live" | "question" | null;
+  undoable: boolean;
+  /** A list of the owner's own (00242): its menu offers nothing that searches again. */
+  list: boolean;
+  /** A people search (00430): its menu's way back is Find people, filled in, never the places card. */
+  people: boolean;
+}
+
+/**
+ * The rail's rows under Leads (§6.1): the six lists with counts, then the searches with their marks, then the sequences'
+ * own lists (00496 sequence_list), apart: a sequence's list is named for it and holds the leads added to it by hand, so
+ * among the searches it read as the search its leads came from, twice (the walk of 30 Oct 2026). One with nobody on it
+ * is drawn only while it is open (`open`): its leads joined from its search, never by hand, and a 0 there said nobody.
+ */
 export function leadRail(
   counts: LeadCounts,
   searches: LeadSearchDto[],
   now: Date = new Date(),
-): {
-  lists: { id: LeadList; label: string; count: number }[];
-  searches: {
-    id: string;
-    name: string;
-    /** What its last round counted; null for a search with no round (one imported, or made from a list), never a 0. */
-    count: number | null;
-    mark: "live" | "question" | null;
-    undoable: boolean;
-    /** A list of the owner's own (00242): its menu offers nothing that searches again. */
-    list: boolean;
-    /** A people search (00430): its menu's way back is Find people, filled in, never the places card. */
-    people: boolean;
-  }[];
-} {
+  open: string | null = null,
+): { lists: { id: LeadList; label: string; count: number }[]; searches: LeadRailRow[]; sequences: LeadRailRow[] } {
   // Said no is a list only when somebody said no: an empty row in the rail
   // teaches the owner nothing and costs them a line every day.
   const ids: LeadList[] = [
@@ -434,29 +428,25 @@ export function leadRail(
     ...(counts.said_no > 0 ? (["said_no"] as LeadList[]) : []),
     "not_a_fit",
   ];
-  // A list shares its name with the search its leads came from (00459: a sequence's own list is named for it, and New
-  // names a sequence for its search): it says it is a list, so the rail never reads one search twice (the walk of 30 Oct).
-  const named = new Map<string, number>();
-  for (const s of searches) named.set(s.name.trim().toLowerCase(), (named.get(s.name.trim().toLowerCase()) ?? 0) + 1);
-  const nameOf = (s: LeadSearchDto) =>
-    isLeadList(s) && (named.get(s.name.trim().toLowerCase()) ?? 0) > 1 ? `${s.name} · ${LEAD_LIST_WORD}` : s.name;
+  const rowOf = (s: LeadSearchDto): LeadRailRow => ({
+    id: s.id,
+    name: s.name,
+    count: s.round ? s.round.counted : null,
+    undoable: leadUndoable(s, now),
+    list: isLeadList(s),
+    people: !!s.people,
+    mark: !s.round
+      ? null
+      : s.round.state === "waiting_on_owner"
+        ? "question"
+        : roundIsLive(s.round.state)
+          ? "live"
+          : null,
+  });
   return {
     lists: ids.map((id) => ({ id, label: LEAD_LIST_WORDS[id], count: counts[id === "all" ? "all" : id] })),
-    searches: searches.map((s) => ({
-      id: s.id,
-      name: nameOf(s),
-      count: s.round ? s.round.counted : null,
-      undoable: leadUndoable(s, now),
-      list: isLeadList(s),
-      people: !!s.people,
-      mark: !s.round
-        ? null
-        : s.round.state === "waiting_on_owner"
-          ? "question"
-          : roundIsLive(s.round.state)
-            ? "live"
-            : null,
-    })),
+    searches: searches.filter((s) => !s.sequence_list).map(rowOf),
+    sequences: searches.filter((s) => s.sequence_list && ((s.round?.counted ?? 0) > 0 || s.id === open)).map(rowOf),
   };
 }
 

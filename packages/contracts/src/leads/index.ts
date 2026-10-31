@@ -309,6 +309,7 @@ export type {
   LeadPlanned,
   LeadPlanRefusalKind,
   LeadPlanView,
+  LeadRailRow,
   LeadReachFilter,
   LeadReviewAct,
   LeadReviewGroup,
