@@ -39,6 +39,8 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
     "escalations?state=open",
     "calls",
     "lead-searches",
+    // The leads who tried their own receptionist (decision 0079), read with the searches: rows of the queue.
+    "lead-previews",
     "setup",
     "views",
     "calendar?around=today",
