@@ -170,7 +170,6 @@ export const LOG_EVENTS = [
   "deliver_stamp_failed",
   "deliver_threw",
   "echo_handling_error",
-  "edge_token_unbound",
   "elevenlabs_webhook_bad_signature",
   "elevenlabs_webhook_ignored",
   "elevenlabs_webhook_not_json",

@@ -80,7 +80,7 @@ const request = (raw, url = "http://edge/api/admin/any", headers = {}) =>
  * failure says where.
  */
 async function knock({ door, aud }, raw) {
-  const token = signEdgeToken(process.env.EDGE_CALL_SECRET, aud, { workspace: A, user: "u1" });
+  const token = signEdgeToken(process.env.EDGE_CALL_SECRET, aud, { workspace: A, user: "u1", body: raw });
   try {
     const res = await door.POST(request(raw, `http://edge${aud}`, { "x-edge-token": token }));
     return [res.status, await res.json()];

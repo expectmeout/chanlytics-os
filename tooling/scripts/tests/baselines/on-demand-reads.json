@@ -135,10 +135,15 @@
     "fresh": "Read as the Inbox opens on a sequence's replies (inbox/from:<id>, History's door), and again when the address names another sequence or period.",
     "why": "It names which threads answered; the threads themselves are the Inbox surface's, heard as ever. A reply that comes in while it is open joins the filter when the door is pressed again, and the line says its count as read."
   },
-  "apps/dashboard/src/surfaces/inbox/held-threads.ts GET conversations": {
+  "apps/dashboard/src/surfaces/inbox/read-apart.ts GET conversations": {
     "kind": "surface",
     "fresh": "Read inside the Inbox's and Today's own reads: the threads of open holds past the newest hundred, by their ids.",
     "why": "It is part of two registered surfaces' reads (inbox/surface.ts, today/surface.ts), so it is read whenever they are, on every notice they hear."
+  },
+  "apps/dashboard/src/surfaces/inbox/read-apart.ts GET conversations/[id]": {
+    "kind": "on-open",
+    "fresh": "Read once, by the thread's id, as a thread the Inbox's read holds only the newest of is opened (or is the one the Inbox's first draw opens on); kept for the tab, and every read of the Inbox after lays its newest over it. Read again once where more arrived between two reads than the Inbox's read carries.",
+    "why": "What the thread says after it was read is what the Inbox's own read carries, its newest LIST_MESSAGES_EACH, which hears every message, tick and failure: what is kept is the thread's earlier words, which do not change once written."
   },
   "apps/dashboard/src/surfaces/inbox/new-conversation/verbs.ts GET contacts": {
     "kind": "search",
@@ -249,6 +254,11 @@
     "kind": "on-open",
     "fresh": "Read as a lead's sheet opens, painted first from this tab's last answer for that lead (read-cache.ts) and read again behind it, and again after Make their preview.",
     "why": "A lead's preview moves by Make their preview, which reads it again after, or by the edge building it, sending it with an email or the business trying it: each is minutes apart and none is a fact the sender acts on in the second, and closing and opening the sheet reads it afresh (decision 0079)."
+  },
+  "apps/dashboard/src/surfaces/inbox/pages/calls-saying.ts GET conversations": {
+    "kind": "search",
+    "fresh": "Asked a beat after the last key in Conversations' box, beside the calls', for the threads whose messages of the last ninety days say the box's words; asked again for each new words, never kept.",
+    "why": "A thread comes with its newest messages alone (LIST_MESSAGES_EACH), so the box asks the server for the threads that say its words; the answer is a search's, as the box's other matches are, and is gone when the words change."
   },
   "apps/dashboard/src/surfaces/inbox/pages/calls-saying.ts GET calls": {
     "kind": "search",

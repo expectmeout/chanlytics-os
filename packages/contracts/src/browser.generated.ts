@@ -162,7 +162,7 @@ export { HELD_WORDS, heldPill, INBOX_BUCKET_WORDS, inboxBucketWord, isUnseen, NE
 export { agentFor, answerWireOf, isChatMessage, isFromTheirSide, isTheirOwnWords, lastWroteOn, THREAD_CHANNEL_WORDS, threadChannelOf, threadChannelWords, writtenChannelOf } from "./conversations/thread-channel";
 export { formatWaited, inboxThreadClock, shortTime } from "./conversations/thread-clock";
 export { contactMeta, contactName, emailStoppedWords, initialsOf, isEmailStopped, isIdentifierName, personFaceOf, shortName } from "./conversations/thread-contact";
-export { isOptedOut, memberMetaOf, messageAt } from "./conversations/thread-dto";
+export { inReadingOrder, isOptedOut, LIST_MESSAGES_EACH, memberMetaOf, messageAt } from "./conversations/thread-dto";
 export { amountTotalsWords, amountWords, parseAmount } from "./deals/deal-amount";
 export { CONSULT_FOLLOW_DAYS, consultationHappened, consultationHeld, consultationsWithoutProposal, consultServiceOf, consultsHeldWords, dealStageOf, isConsultationTitle, noProposalSince } from "./deals/deal-consultations";
 export { toDealReportVM } from "./deals/deal-report";

@@ -87,14 +87,7 @@ test("every security switch says what it allows, how it is proven closable, what
   const security = FLAGS.filter((f) => f.weaker !== undefined);
   assert.deepEqual(
     security.map((f) => f.name).sort(),
-    [
-      "DIAG_KEY",
-      "EDGE_TOKEN_UNBOUND",
-      "GOOGLE_OAUTH_STATE_SECRET",
-      "RETELL_DOORS_SIGNED",
-      "RETELL_FN_SECRET",
-      "RETELL_WEBHOOK_KEY",
-    ],
+    ["DIAG_KEY", "RETELL_DOORS_SIGNED", "RETELL_FN_SECRET"],
     "the weaker modes the platform still allows: a new one is listed here, with the change that adds it",
   );
   for (const f of security) {
@@ -162,20 +155,16 @@ test("the edge answers for every weaker mode it holds, and each answer follows t
 
     assert.deepEqual(openWith({}), {
       DIAG_KEY: false,
-      EDGE_TOKEN_UNBOUND: false,
       RETELL_DOORS_SIGNED: true,
       RETELL_FN_SECRET: false,
-      RETELL_WEBHOOK_KEY: true,
     });
-    // An edge that holds the secret: the key opens nothing alone, tokens without a body are let in, the voice secret opens.
+    // An edge that holds the secret: the key opens nothing alone, the voice secret opens.
     assert.deepEqual(
       openWith({ EDGE_CALL_SECRET: "s", DIAG_KEY: "k", RETELL_FN_SECRET: "f", RETELL_WEBHOOK_KEY: "w" }),
       {
         DIAG_KEY: false,
-        EDGE_TOKEN_UNBOUND: true,
         RETELL_DOORS_SIGNED: true,
         RETELL_FN_SECRET: true,
-        RETELL_WEBHOOK_KEY: false,
       },
     );
     // A preview with a key and no secret: the key opens every admin door.

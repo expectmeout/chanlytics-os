@@ -509,7 +509,7 @@ test("conversations: the Inbox as GET conversations answers it -- the named work
       message(`m-${i}-${j}`, c.id, A, { created_at: ago(i * HOUR + j * 1000), channel_ts: ago(i * HOUR + j * 1000) }),
     ),
   );
-  const ctx = dayCtx({ conversations: threads, messages: said }, { opts: { maxRows: 1000 } });
+  const ctx = dayCtx({ conversations: threads, messages: said }, { opts: { maxRows: 100 } });
   const newest = await kernel.load(turnIn(ctx), conversations, { ids: null });
   assert.equal(
     newest.data.conversations.filter((c) => c.messages.length === 0).length,
@@ -518,7 +518,7 @@ test("conversations: the Inbox as GET conversations answers it -- the named work
   );
   assert.equal(
     newest.data.conversations.reduce((n, c) => n + c.messages.length, 0),
-    2700,
+    300,
   );
   assert.deepEqual(
     selects(ctx, "conversations").map((q) => [q.order, q.desc, q.limit]),
@@ -529,8 +529,8 @@ test("conversations: the Inbox as GET conversations answers it -- the named work
     ctx.supabase.seen
       .filter((q) => q.rpc === "newest_messages")
       .map((q) => ({ ...q.args, p_threads: q.args.p_threads.length })),
-    [{ p_tenant_id: A, p_threads: 30, p_each: 100, p_most: 4000 }],
-    "the messages in one read (00258): each thread's newest hundred, four thousand in all",
+    [{ p_tenant_id: A, p_threads: 30, p_each: 10, p_most: 1000 }],
+    "the messages in one read (00258), under a row cap: each thread's newest ten (LIST_MESSAGES_EACH), never one cut",
   );
   assert.equal(selects(ctx, "messages").length, 0, "never the table a page at a time");
   assert.deepEqual(
@@ -1067,7 +1067,7 @@ test("GET conversations/:id through its reader asks what it asked, in the same o
     assert.deepEqual(
       [m.columns, m.order, m.desc, m.limit, m.filters],
       [
-        "id, direction, sender, type, body, media, meta, created_at, status, channel_ts, channel",
+        "id, conversation_id, direction, sender, type, body, media, meta, created_at, status, channel_ts, channel, error",
         "created_at",
         true,
         100,

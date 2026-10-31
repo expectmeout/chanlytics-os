@@ -30,13 +30,18 @@ const ADA = "11111111-1111-4111-8111-111111111111";
 const STRANGER = "22222222-2222-4222-8222-222222222222";
 const MAIL = { subject: "Test: A note, Dani", text: "A test of what Harbor Moving sends.\n\nHi Dani" };
 
-const token = (user = ADA, aud = DOOR, workspace = A) =>
-  signEdgeToken(process.env.EDGE_CALL_SECRET, aud, { workspace, user });
+const token = (user = ADA, aud = DOOR, workspace = A) => {
+  const secret = process.env.EDGE_CALL_SECRET;
+  return (body) => signEdgeToken(secret, aud, { workspace, user, body });
+};
+/** The headers a knock sends, each token minted for the body it rides with: the edge refuses a token that names none. */
+const minted = (headers, raw) =>
+  Object.fromEntries(Object.entries(headers).map(([k, v]) => [k, typeof v === "function" ? v(raw) : v]));
 const knock = (body, headers = { "x-edge-token": token() }) =>
   POST(
     new Request(`http://edge${DOOR}`, {
       method: "POST",
-      headers: { ...headers, "content-type": "application/json" },
+      headers: minted({ ...headers, "content-type": "application/json" }, JSON.stringify(body)),
       body: JSON.stringify(body),
     }),
   );
