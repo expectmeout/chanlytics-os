@@ -108,16 +108,52 @@ test("a cold email ends as its sequence says: its name, or its mailbox's signatu
   const plain = "Sam Reyes\nHarbor Moving Co";
   const linked = "Sam Reyes\nHarbor Moving Co\nwww.example.com | 410 Baylor St";
   const ending = (o) =>
-    coldEndingOf({ signsWith: "name", signedBy: "Sam", signature: plain, first: true, body: "Hi.", ...o });
+    coldEndingOf({
+      signsWith: "name",
+      signedBy: "Sam",
+      signature: plain,
+      first: true,
+      body: "Hi.",
+      address: "410 Baylor St, Baltimore, MD 21201",
+      ...o,
+    });
   // The name, the default: the mailbox's signature is left off.
   assert.deepEqual(ending({}), { signOff: "Sam", signature: null });
   // The mailbox's signature, when chosen, and then no name of the sequence's own.
   assert.deepEqual(ending({ signsWith: "mailbox" }), { signOff: null, signature: plain });
-  // A first email never carries a link, so a signature with one gives way to the name; a follow-up keeps it.
-  assert.deepEqual(ending({ signsWith: "mailbox", signature: linked }), { signOff: "Sam", signature: null });
+  // A first email never carries a link: the signature's lines that hold one are left out, the rest kept (30 Oct 2026:
+  // one web address dropped the whole signature, and a first email ended with the bare first name); a follow-up keeps it.
+  assert.deepEqual(ending({ signsWith: "mailbox", signature: linked }), { signOff: null, signature: plain });
+  assert.deepEqual(ending({ signsWith: "mailbox", signature: "Sam Reyes\nFounder\nHarborMoving.com" }), {
+    signOff: null,
+    signature: "Sam Reyes\nFounder",
+  });
   assert.deepEqual(ending({ signsWith: "mailbox", signature: linked, first: false }), {
     signOff: null,
     signature: linked,
+  });
+  // A signature that is all links, or nothing but marks once they go, gives way to the name.
+  assert.deepEqual(ending({ signsWith: "mailbox", signature: "www.example.com\nexample.org" }), {
+    signOff: "Sam",
+    signature: null,
+  });
+  assert.deepEqual(ending({ signsWith: "mailbox", signature: "——\nwww.example.com" }), {
+    signOff: "Sam",
+    signature: null,
+  });
+  // The business's address is said by the foot under every cold email: a line of the signature that says it, in any
+  // case or punctuation, is left out of a first email and a follow-up alike; a line that says more is kept.
+  const addressed = "Sam Reyes\nHarbor Moving Co\n410 Baylor St., Baltimore MD 21201";
+  assert.deepEqual(ending({ signsWith: "mailbox", signature: addressed }), { signOff: null, signature: plain });
+  assert.deepEqual(ending({ signsWith: "mailbox", signature: addressed, first: false }), {
+    signOff: null,
+    signature: plain,
+  });
+  const more = "Sam Reyes\nOffice: 410 Baylor St, Baltimore, MD 21201 · (410) 555-0134";
+  assert.deepEqual(ending({ signsWith: "mailbox", signature: more }), { signOff: null, signature: more });
+  assert.deepEqual(ending({ signsWith: "mailbox", signature: addressed, address: null }), {
+    signOff: null,
+    signature: addressed,
   });
   // A mailbox that signs with nothing ends with the name.
   assert.deepEqual(ending({ signsWith: "mailbox", signature: "  " }), { signOff: "Sam", signature: null });

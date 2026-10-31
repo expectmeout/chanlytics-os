@@ -57,6 +57,7 @@ async function leadMailOf(ctx: RouteContext, seq: Sequence, stepId: string, lead
       signature: chainFirstSender(chain)?.signature?.words ?? null,
       first: step.n === 0,
       body: step.body,
+      address: business.address,
     }),
   });
   if ("why" in mail) throw new AppError("validation", mail.why, 422);

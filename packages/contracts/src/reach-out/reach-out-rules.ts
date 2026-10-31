@@ -16,8 +16,9 @@
  *                       slots with no value named (the lead workbench's decide card).
  *   reachOutExampleValues  the same slots, made up for what changes from business to business: the Templates page's preview.
  *   coldEndingOf        how a cold email ends (0077): its sequence's name under the words, or its mailbox's signature
- *                       where the sequence chose it and it carries no link to a first email. The send, the owner's
- *                       draft, the preview and the test all end by it; coldSignedOff puts the name under the words.
+ *                       where the sequence chose it, less its link lines in a first email and the address the foot
+ *                       says. The send, the owner's draft, the preview and the test all end by it; coldSignedOff puts
+ *                       the name under the words.
  *   REACH_OUT_MONTH_EMAILS   the month's allowance per workspace (§4.8's number; the price is Ruben's to set).
  *   REACH_OUT_CHECKS_PER_DAY the check's daily ceiling per workspace (Part 4, R12).
  */
@@ -246,11 +247,35 @@ function endsWithYourName(body: string): boolean {
   return closing.some((line) => slotMentions(REACH_OUT_SLOT_SET, line).some((m) => m.key === "your name"));
 }
 
+/** A line as an address is compared: its letters and digits alone, in lower case, one space between. */
+const addressKey = (text: string): string =>
+  text
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+
+/**
+ * A mailbox's signature as a cold email carries it (0077, amended 30 Oct 2026): its lines, less the one that says the
+ * business's address, which the foot under every cold email says, and in a first email less each line that holds a link
+ * (the words' own link rule, `linkCount`); null where nothing with a letter in it is left. One web address used to drop
+ * the whole signature, so a first email ended with the bare first name.
+ */
+function coldSignatureOf(signature: string | null, first: boolean, address: string | null): string | null {
+  const said = address ? addressKey(address) : "";
+  const kept = (signature ?? "")
+    .split(/\r\n|\r|\n/)
+    .filter((line) => !(first && linkCount(line) > 0) && !(said && addressKey(line) === said))
+    .join("\n")
+    .replace(/\n\s*\n(\s*\n)+/g, "\n\n")
+    .trim();
+  return /\p{L}/u.test(kept) ? kept : null;
+}
+
 /**
  * How a cold email ends (0077), the one rule the send, the owner's draft, the preview and the test take: the mailbox's
- * signature where the sequence chose it, it has words, and it carries no link to a first email (the words' own link
- * rule, `linkCount`); else the Signed line under the words, unless their sign-off names it already. `body` is the
- * step's words as written, before their values go in.
+ * signature where the sequence chose it and something of it is left to carry (coldSignatureOf); else the Signed line
+ * under the words, unless their sign-off names it already. `body` is the step's words as written, before their values
+ * go in; `address` is the business's, as its foot says it.
  */
 export function coldEndingOf(p: {
   signsWith: ReachOutSignsWith;
@@ -258,10 +283,10 @@ export function coldEndingOf(p: {
   signature: string | null;
   first: boolean;
   body: string;
+  address: string | null;
 }): ColdEnding {
-  const signature = p.signature?.trim() || null;
-  if (p.signsWith === "mailbox" && signature && !(p.first && linkCount(signature) > 0))
-    return { signOff: null, signature };
+  const signature = p.signsWith === "mailbox" ? coldSignatureOf(p.signature, p.first, p.address) : null;
+  if (signature) return { signOff: null, signature };
   const name = p.signedBy?.trim() || null;
   return { signOff: name && !endsWithYourName(p.body) ? name : null, signature: null };
 }

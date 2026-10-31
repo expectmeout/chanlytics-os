@@ -62,8 +62,15 @@ function endingOf(lc: LeadChain, place: number): string | null {
       : (chainFirstSender(lc.chain, lc.draft.mailbox_ids)?.signature?.words ?? null),
     first: place === 1,
     body: words.body,
+    address: businessAddressOf(),
   });
   return e.signature ?? e.signOff;
+}
+
+/** The business's postal address as Settings holds it, which the foot says; "" while it is not set. */
+function businessAddressOf(): string {
+  const brain = brainOf(surfaceValue("settings")?.settings);
+  return typeof brain.profile?.address === "string" ? brain.profile.address.trim() : "";
 }
 
 /**
@@ -72,8 +79,7 @@ function endingOf(lc: LeadChain, place: number): string | null {
  * it runs says so.
  */
 function previewFootOf(lead: LeadCardLead, businessName: string | null): string | null {
-  const brain = brainOf(surfaceValue("settings")?.settings);
-  const address = typeof brain.profile?.address === "string" ? brain.profile.address.trim() : "";
+  const address = businessAddressOf();
   const business = (businessName ?? "").trim();
   if (!business || !address) return null;
   try {
