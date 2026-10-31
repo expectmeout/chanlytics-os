@@ -126,3 +126,17 @@ export function heldCauseOf(held: readonly { reason: string | null; detail: stri
   const n = words.length;
   return `Same reason for ${n === held.length ? `all ${n}` : `${n} of ${held.length}`}: ${openingClaimWords(kind ?? null)}.`;
 }
+
+/**
+ * Why a person in a sequence stands where they do, as People's line and Ask's read say it, one rule: a held email in the
+ * words its row says (heldWhyOf; its stored detail carries the check's kind, 30 Oct 2026), anything else as it came, the
+ * detail first. Null where there is none.
+ */
+export function sequencePersonWhyOf(p: {
+  group: string;
+  why: string | null;
+  hold_detail: string | null;
+}): string | null {
+  if (p.group === "held" && isReachOutHold(p.why)) return heldWhyOf(p.why, p.hold_detail);
+  return p.hold_detail ?? p.why ?? null;
+}

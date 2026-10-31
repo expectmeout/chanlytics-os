@@ -384,7 +384,7 @@ export { isSequencesParam, isToSendParam, messageOfRoute, messageRoute, newForLe
 export { isListToken, newSequenceLine, SEQUENCE_DRAFT_THEN_MAX, SEQUENCE_WAIT_DAYS } from "./sequences/sequence-draft";
 export { SEQUENCE_PEOPLE_GROUPS } from "./sequences/sequence-dto";
 export { classEvidenceLine, EVIDENCE_DAYS, evidenceOf, evidenceWords } from "./sequences/sequence-evidence";
-export { HELD_TAKE_OUT, heldAnswersOf, heldChoicesOf, heldWhyOf, markedOpeningOf, waitingAnswersOf } from "./sequences/sequence-held";
+export { HELD_TAKE_OUT, heldAnswersOf, heldChoicesOf, heldWhyOf, markedOpeningOf, sequencePersonWhyOf, waitingAnswersOf } from "./sequences/sequence-held";
 export { LEAD_BUILD_WORDS, leadBuildStepsOf, leadDraftChainOf, leadDraftDockOf, leadEndingOf, leadFirstUnwritten, leadInsertRowsOf, leadMailboxesTicked, leadMailboxRowsOf, leadPaceChoicesOf, leadPreviewEmailOf, leadPreviewOfferOf, leadSendingFactsOf, leadStartOf, reachOutInsertStep, reachOutMayInsertStep, reachOutPutBackStep, reachOutRemoveStep, withOpeningSaid } from "./sequences/sequence-lead-build";
 export { SEQUENCE_LIST_WORDS, SEQUENCE_SORTS, SEQUENCE_TYPES, sequenceTypeOf, sortedSequences } from "./sequences/sequence-list";
 export { PLACE_RAIL_WORDS, PLACE_WORDS, placeRailOf, placeSpanOf, placeStands, placeToneOf, placeWordOf } from "./sequences/sequence-place";
