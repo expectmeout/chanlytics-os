@@ -5,12 +5,13 @@
  *   and what is kept for the owner so far (canvas T·a), so Later never reads as lost.
  * - Once paid and something on Go live waits on the owner (the code, the check of the line, WhatsApp's approval): those
  *   rows first, each opening its place, and what is already done (canvas T·c).
- * - After: Setup's own rows that wait on the owner, with Skip and Hide: a Skip puts a row off for a week, and once it
- *   is back, for good, with where it is set up from then (setup-put-off.ts setupPutOffNext).
+ * - After: Setup's own rows that wait on the owner, with Skip and Hide for a week: Skip asks which before it puts a row
+ *   off, for a week (back on its day) or for good, with where it is set up from then; Hide puts every row off for a
+ *   week, and a week is always a week (setup-put-off.ts setupPutOffNext, `why: "week"`; the refined canvas, 31 Oct 2026).
  */
 import { formatPhoneDisplay } from "../shared/phone";
 import { SETUP_STATE_WORDS, type SetupRowVM, type SetupVM } from "./setup";
-import { KEEP_ROW, REMIND_SKIPPED, putOffEnds } from "./setup-put-off";
+import { KEEP_ROW, REMIND_SKIPPED } from "./setup-put-off";
 import { FORWARDING_WAIT_WORDS } from "./setup-put-off";
 import { FIRST_RUN_ROUTE, firstRunStepRoute } from "./first-run-route";
 import { FINISH_SETTING_UP } from "./first-run-route";
@@ -51,16 +52,19 @@ export interface SetupCardVM {
   /** What the first run keeps for the owner while a step is open (canvas T·a "Kept for you"): a line each. */
   kept: string[];
   /**
-   * After: Setup's own rows that wait on the owner and are not put off, in SETUP_CARD_ORDER, each with what its Skip
-   * says once pressed; a row waiting on Meta, Google or a booking tool's first email is no step of theirs, and stays on
+   * After: Setup's own rows that wait on the owner and are not put off, in SETUP_CARD_ORDER, each with what Skip's two
+   * choices say; a row waiting on Meta, Google or a booking tool's first email is no step of theirs, and stays on
    * Setting up. While going live, Go live's rows that wait on the owner, which no Skip puts off. Or, while a payment
    * failed or the plan is paused, Billing's row alone (CARD_BILLING).
    */
   rows: SetupCardRowVM[];
   /** What is already done while going live (canvas T·c "Already done"): a line each. */
   done: string[];
-  /** Puts every row off at once, each as its Skip would, and what the toast says after; only where rows can be put off. */
-  hide: { put: string; said: string } | null;
+  /**
+   * Puts every row off for a week at once ("Hide for a week"), only where rows can be put off; `cost` is what waiting
+   * costs where the kept number is among them, said after the day it comes back (SETUP_CARD_WORDS.hidden).
+   */
+  hide: { put: string; cost: string | null } | null;
   /**
    * A row's second button on the card, and what a row back from a week put off says beside its name: `back` at a
    * desk, `backShort` on a phone, where the name shares its line with the row's buttons. Null while going live.
@@ -69,8 +73,8 @@ export interface SetupCardVM {
   /**
    * After the first run, with the calendar in: the one door to the appointment reminder, at the payoff (decision 22 of
    * the spec of 9 Oct 2026: no new first-run step), drawn as the card's last row: its name over its sentence, its button
-   * and a Skip that puts `id` off as a row is (`said` is the toast's, `back` whether its week put off ended), so Hide
-   * puts it off too. Null while a step is open, while skipped, once a day-before reminder runs (the routes refuse a
+   * and a Skip that puts `id` off as a row is (`put` its two choices' words, `back` whether its week put off ended), so
+   * Hide puts it off too. Null while a step is open, while skipped, once a day-before reminder runs (the routes refuse a
    * second), and without a calendar link connected, which the reminder reads (booked by hand or by email alone, Setup's
    * row is ready and the reminder cannot be made).
    */
@@ -81,32 +85,44 @@ export interface SetupCardVM {
     words: string;
     label: string;
     to: string;
-    said: string;
+    put: SetupCardPutOff;
     back: boolean;
   } | null;
 }
 
 /**
- * One of Setup's rows on Today's card: the row, and what its toast says once its Skip is pressed (its Undo is the
- * toast's); null for a row that cannot be put off (Billing's, and Go live's while going live).
+ * What Skip's two choices say of a row: what each toast says once pressed (its Undo is the toast's), where the row is
+ * set up once it is off for good, said under "I don't need this" before it is pressed, and what waiting costs, said
+ * under both (the kept number's forwarding; null for every other row).
  */
-export interface SetupCardRowVM extends SetupRowVM {
-  said: string | null;
+export interface SetupCardPutOff {
+  week: string;
+  good: string;
+  home: string;
+  cost: string | null;
 }
 
 /**
- * What putting a row off says on the card: for a week the first time, and once it is back, off the list for good, with
- * where it is set up from then (CARD_HOMES). "It stays in Setting up" named a page nothing reached once the first run
- * was done, and one that drew five of these rows.
+ * One of Setup's rows on Today's card: the row, and what Skip's choices say of it; null for a row that cannot be put
+ * off (Billing's, and Go live's while going live).
+ */
+export interface SetupCardRowVM extends SetupRowVM {
+  put: SetupCardPutOff | null;
+}
+
+/**
+ * What putting a row off says on the card: for a week, or off the list for good, with where it is set up from then
+ * (CARD_HOMES), each said in Skip's menu before it is pressed and in the toast after. "It stays in Setting up" named a
+ * page nothing reached once the first run was done, and one that drew five of these rows.
  */
 const CARD_PUT_OFF = {
   put: "Skip",
-  hide: "Hide",
+  hide: "Hide for a week",
   back: "Back after a week",
   backShort: "Back",
   week: "Put off for a week.",
   good: "Off your list.",
-  // What waiting on "The number you already have" costs, said with each of its Skips.
+  // What waiting on "The number you already have" costs, said with each of its put-offs.
   keep: FORWARDING_WAIT_WORDS,
 } as const;
 
@@ -133,29 +149,18 @@ const CARD_HOMES: Record<CardRowId, (r: SetupRowVM) => string> = {
   yes: () => "It's in People › Get their yes.",
 };
 
-/** What a row's Skip says once pressed: for a week, or for good with its home; the kept number's, with what it costs. */
-function skipSaid(id: CardRowId, r: SetupRowVM): string {
-  const said = putOffEnds(r.back) === "good" ? `${CARD_PUT_OFF.good} ${CARD_HOMES[id](r)}` : CARD_PUT_OFF.week;
-  return id === KEEP_ROW ? `${said} ${CARD_PUT_OFF.keep}` : said;
+/**
+ * What Skip's two choices say of a row: a week, or for good with where it is set up from then (`home`); the kept
+ * number's with what waiting on it costs, said in the menu and in each toast.
+ */
+function putOffOf(home: string, cost: string | null): SetupCardPutOff {
+  const tail = cost ? ` ${cost}` : "";
+  return { week: `${CARD_PUT_OFF.week}${tail}`, good: `${CARD_PUT_OFF.good} ${home}${tail}`, home, cost };
 }
 
-/**
- * What Hide says: every row on the card put off as its own Skip would put it, counted by how. One row says its own
- * words; the kept number's cost is said whenever it is among them.
- */
-function hideSaid(drawn: ReadonlyArray<{ id: string; good: boolean; said: string }>): string {
-  const [only] = drawn;
-  if (drawn.length === 1 && only) return only.said;
-  const good = drawn.filter((d) => d.good).length;
-  const week = drawn.length - good;
-  const head =
-    good === 0
-      ? `All ${drawn.length} put off for a week.`
-      : week === 0
-        ? `All ${drawn.length} off your list.`
-        : `${week} put off for a week, ${good} off your list.`;
-  return drawn.some((d) => d.id === KEEP_ROW) ? `${head} ${CARD_PUT_OFF.keep}` : head;
-}
+/** A row of Setup's on the card: Skip's choices with its home, and the kept number's cost. */
+const cardPutOffOf = (id: CardRowId, r: SetupRowVM): SetupCardPutOff =>
+  putOffOf(CARD_HOMES[id](r), id === KEEP_ROW ? CARD_PUT_OFF.keep : null);
 
 /**
  * Today's door to the reminder (decision 22): New sequence opened on the day-before moment. Its sentence names no
@@ -191,8 +196,22 @@ export const SETUP_CARD_WORDS = {
   goingLive: "Finish going live",
   needYou: (n: number) => `${n} need${n === 1 ? "s" : ""} you`,
   doneTitle: "Already done",
-  /** While someone waits on the owner the card is its head alone, under the queue, and this opens its rows. */
-  show: "Show",
+  /** The card's head folds its rows away and opens them again, as often as wanted: its chevron's names. */
+  fold: "Fold what is left to set up",
+  open: "Open what is left to set up",
+  /** "Hide for a week" once pressed: the day the card comes back, on the business's clock (restEndsDay). */
+  hidden: (day: string) => `Finish setting up is hidden until ${day}.`,
+  /**
+   * Skip's two choices, said before either is pressed (the refined canvas, 31 Oct 2026): a week, back on its day; or not
+   * theirs, with where it is set up from then. Its Skip once put off a row for a week and the next time for good, and
+   * said which only in the toast after.
+   */
+  skip: {
+    week: "For a week",
+    backOn: (day: string) => `It comes back on ${day}.`,
+    good: "I don't need this",
+    menu: (name: string) => `Skip ${name}`,
+  },
   /** What is kept, in the order the steps made it. */
   kept: {
     business: (name: string, listed: boolean) => (listed ? `${name}, read from Google` : name),
@@ -250,7 +269,7 @@ export function setupCardOf(vm: SetupVM, who?: SetupCardWho): SetupCardVM | null
       ...CARD_BILLING,
       start: null,
       kept: [],
-      rows: [{ ...billing, said: null }],
+      rows: [{ ...billing, put: null }],
       done: [],
       hide: null,
       skip: CARD_SKIP,
@@ -286,7 +305,7 @@ export function setupCardOf(vm: SetupVM, who?: SetupCardWho): SetupCardVM | null
   if (!fr.complete) {
     const rows = GOING_LIVE_ROWS.flatMap((id): SetupCardRowVM[] => {
       const r = cardRowOf(vm, id);
-      return r && r.state !== "ready" && r.state !== "waiting_them" && r.verb ? [{ ...r, said: null }] : [];
+      return r && r.state !== "ready" && r.state !== "waiting_them" && r.verb ? [{ ...r, put: null }] : [];
     });
     const line = vm.tryIt?.voiceLabel ?? null;
     return {
@@ -316,7 +335,7 @@ export function setupCardOf(vm: SetupVM, who?: SetupCardWho): SetupCardVM | null
   const rows = SETUP_CARD_ORDER.flatMap((id): SetupCardRowVM[] => {
     const r = cardRowOf(vm, id);
     return r && r.state !== "ready" && r.state !== "waiting_them" && !r.later && r.verb
-      ? [{ ...r, said: skipSaid(id, r) }]
+      ? [{ ...r, put: cardPutOffOf(id, r) }]
       : [];
   });
   if (!rows.length) return null;
@@ -324,7 +343,6 @@ export function setupCardOf(vm: SetupVM, who?: SetupCardWho): SetupCardVM | null
   // Only where Campaigns can make the reminder: a calendar link connected (SetupVM.calendarLinked, the moments'
   // calendarOn), and the row ready. The row's Ready alone also says "booked by hand" and bookings by email alone, where
   // the moment is not offered and core refuses it. Not once one runs: the routes refuse a second.
-  const remindGood = putOffEnds(vm.remindBack) === "good";
   const remind =
     vm.calendarLinked && calendar?.state === "ready" && !vm.remindSkipped && !vm.dayBeforeOn
       ? {
@@ -334,23 +352,19 @@ export function setupCardOf(vm: SetupVM, who?: SetupCardWho): SetupCardVM | null
           words: CARD_REMIND.words,
           label: CARD_REMIND.label,
           to: CARD_REMIND.to,
-          said: remindGood ? `${CARD_PUT_OFF.good} ${CARD_REMIND.home}` : CARD_PUT_OFF.week,
+          put: putOffOf(CARD_REMIND.home, null),
           back: vm.remindBack,
         }
       : null;
   // The reminder is a row of the card as drawn, so it is counted and hidden with Setup's; it is kept in Sequences.
-  const drawn = [
-    ...rows.map((r) => ({ id: r.id, good: putOffEnds(r.back) === "good", said: r.said ?? "" })),
-    ...(remind ? [{ id: remind.id, good: remindGood, said: remind.said }] : []),
-  ];
   return {
     title: FINISH_SETTING_UP,
-    left: `${drawn.length} left`,
+    left: `${rows.length + (remind ? 1 : 0)} left`,
     start: null,
     kept: [],
     rows,
     done: [],
-    hide: { put: CARD_PUT_OFF.hide, said: hideSaid(drawn) },
+    hide: { put: CARD_PUT_OFF.hide, cost: rows.some((r) => r.id === KEEP_ROW) ? CARD_PUT_OFF.keep : null },
     skip: CARD_SKIP,
     remind,
   };

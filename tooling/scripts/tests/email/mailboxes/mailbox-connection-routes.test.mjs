@@ -46,6 +46,7 @@ const one = await import(at(`${R}/[id]/route.ts`));
 const resume = await import(at(`${R}/[id]/resume/route.ts`));
 const check = await import(at(`${R}/[id]/check/route.ts`));
 const testOne = await import(at(`${R}/[id]/test/route.ts`));
+const history = await import(at(`${R}/[id]/history/route.ts`));
 const { forgetMailboxesReadiness, mailboxConnectionsFor } = await import(
   at("apps/dashboard/src/server/connections/mailbox-connections.ts")
 );
@@ -393,6 +394,70 @@ test("the pages' read of the mailboxes never carries a token's name, removed one
       [M1],
     );
     assert.ok(!JSON.stringify(out).includes("mailbox-creds"), "never a token's name");
+  } finally {
+    net.restore();
+  }
+});
+
+test("what a new mailbox brings rides the signed state to the edge (decision 0086); a Reconnect keeps its own; its history's acts are an owner's, through its own door", async () => {
+  const net = edge((b) => [
+    200,
+    b.op === "readiness"
+      ? READY
+      : b.op === "connect"
+        ? { ok: true, made: true, mailbox: DTO }
+        : { ok: true, mailbox: DTO },
+  ]);
+  const box = rows.mailboxConnection({ id: M1, tenant_id: A, provider: "google", address: "sam@getharbor.example" });
+  const signed = async (q, tables = {}) => {
+    const to = wayTo(await connect.GET.run(send("GET", null, q), ctx("owner", tables)));
+    return (await verifyState(SECRET, to.searchParams.get("state"), Date.now())).state;
+  };
+  try {
+    assert.equal((await signed("&provider=google&history=from_now")).h, "from_now");
+    assert.equal((await signed("&provider=google&history=six_months")).h, undefined, "the six months, as before");
+    assert.equal((await signed("&provider=google")).h, undefined);
+    assert.equal(
+      (await signed(`&provider=google&mailbox_id=${M1}&history=from_now`, { mailbox_connections: [box] })).h,
+      undefined,
+      "a Reconnect never asks again",
+    );
+    await refused(connect.GET.run(send("GET", null, "&provider=google&history=a_year"), ctx()), "validation");
+    const state = signState(SECRET, {
+      t: A,
+      u: USER,
+      n: newNonce(),
+      exp: Date.now() + STATE_TTL_MS,
+      p: "google",
+      h: "from_now",
+    });
+    await callback.GET.run(
+      new Request(`https://app.example.test/api/v1/mailbox-connections/callback?state=${await state}&code=c`),
+      ctx(),
+    );
+    assert.deepEqual(
+      (({ op, history }) => [op, history])(net.calls.at(-1).body),
+      ["connect", "from_now"],
+      "the edge keeps it on the new mailbox",
+    );
+    assert.deepEqual(history.POST.policy, {
+      kind: "write",
+      scope: "workspace",
+      role: "partner",
+      rate: "settings",
+      spend: false,
+    });
+    for (const act of ["stop", "resume", "bring"])
+      assert.deepEqual(await history.POST.run(send("POST", { act }), ctx()), { mailbox: DTO });
+    assert.deepEqual(
+      net.calls.slice(-3).map((c) => [c.body.op, c.body.mailbox_id, c.body.tenant_id]),
+      [
+        ["history_stop", M1, A],
+        ["history_resume", M1, A],
+        ["history_bring", M1, A],
+      ],
+    );
+    await refused(history.POST.run(send("POST", { act: "erase" }), ctx()), "validation");
   } finally {
     net.restore();
   }

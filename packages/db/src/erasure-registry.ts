@@ -200,8 +200,9 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
     before: scrubbedBy("before_trigger"),
   },
   // What was brought in (00477, decision 0073): a source's counts, where its job stands (a mailbox's id, a provider's page
-  // token, Meta's request id), the tool it came from and our words for a stop. None of it names a person.
-  imports: all(NOT_PERSONAL, "counts", "job_cursor", "last_error", "via"),
+  // token, Meta's request id), the tool it came from, our words for a stop, and the run that holds it (00499: a number,
+  // or the moment Stop was pressed). None of it names a person.
+  imports: all(NOT_PERSONAL, "counts", "job_cursor", "last_error", "via", "run"),
   // What the business's own profile and website say (00479): its services, prices, closures, rules and description, the
   // page it was read from, and our words for a read that failed. The business's public facts, not a customer's.
   business_reads: all(NOT_PERSONAL, "facts", "read_from", "error"),

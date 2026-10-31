@@ -15,10 +15,17 @@ export {
 } from "./mailbox";
 export type { EmailSetupDto, MailboxDto } from "./mailbox";
 export {
+  MAILBOX_CONNECT_WORDS,
+  MAILBOX_HISTORY_WORDS,
+  mailboxConnectOk,
+  mailboxConnectWords,
+  mailboxHistoryLine,
+} from "./mailbox-connect";
+export type { MailboxHistory, MailboxHistoryAct, MailboxHistoryLine } from "./mailbox-connect";
+export {
   customerDomainWords,
   DMARC_RECOMMENDED,
   MAILBOX_CARD_WORDS,
-  MAILBOX_CONNECT_WORDS,
   MAILBOX_CONNECTION_STATES,
   MAILBOX_CONNECTIONS_MAX,
   MAILBOX_DNS_WORDS,
@@ -27,8 +34,6 @@ export {
   MAILBOX_SIGNATURE_WORDS,
   mailboxActs,
   mailboxConnectionDtoOf,
-  mailboxConnectOk,
-  mailboxConnectWords,
   mailboxDnsOf,
   mailboxesFootWords,
   mailboxGmailSignsWords,

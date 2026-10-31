@@ -8,6 +8,7 @@
 import type { Tone } from "../shell/tone";
 import { clockDate, clockNearWhen, clockTime } from "../shared/clock";
 import { MIN_MS } from "../shared/time";
+import type { MailboxHistory } from "./mailbox-connect";
 import {
   CUSTOMER_DOMAIN_DAILY_MAX,
   MAILBOX_HOLDS,
@@ -40,7 +41,7 @@ export type MailboxDnsRecord = (typeof MAILBOX_DNS_RECORDS)[number];
 
 /** The most live mailboxes a workspace writes from, and on one domain (00423's trigger says them too). */
 export const MAILBOX_CONNECTIONS_MAX = 10;
-const MAILBOXES_PER_DOMAIN_MAX = 3;
+export const MAILBOXES_PER_DOMAIN_MAX = 3;
 
 /** Whether a mailbox sends now: connected, and not resting for its provider's own day. */
 export function mailboxSendsNow(m: { state: string; resting_until: string | null }, nowMs: number): boolean {
@@ -61,6 +62,7 @@ export function reachOutWritesFrom(m: { id: string; state: string }, named: read
 /** A connected mailbox as the pages are told of it (dashboard server/connections/mailbox-connections.ts). No token. */
 export interface MailboxConnectionDto {
   id: string;
+  history: MailboxHistory;
   provider: MailboxProvider;
   address: string;
   host: string;
@@ -163,6 +165,7 @@ export function mailboxConnectionDtoOf(
     synced_at: string | null;
     signature_off?: boolean;
     gmail_signature_at?: string | null;
+    history?: string | null; // absent where a read predates 00499: the six months, as every mailbox brought before it
   },
   day: Partial<Pick<MailboxConnectionDto, "sent_today" | "counts" | "came_in">> | null = null,
   /** Its Gmail signature as words (channels gmailSignatureWords); null where it has none or was not read. */
@@ -179,6 +182,7 @@ export function mailboxConnectionDtoOf(
   const lookups = Number(raw.spf_lookups);
   return {
     id: r.id,
+    history: r.history === "from_now" ? "from_now" : "six_months",
     provider: r.provider === "microsoft" ? "microsoft" : "google",
     address: r.address,
     host: r.host,
@@ -452,7 +456,7 @@ export const MAILBOX_CARD_WORDS = {
   backup: "Backup address",
   backupSays: (hosted: string, address: string) => `${hosted}: replies leave from it when ${address} can't send.`,
   changeName: "Change the name",
-  removeSays: "Its threads stay. Nothing more leaves from it.",
+  removeSays: "Nothing more comes in or leaves from it. What it brought stays on each person.",
   remove: (address: string) => `Remove ${address}…`,
 } as const;
 
@@ -739,49 +743,7 @@ export function mailboxRecordStateWords(r: Pick<MailboxRecordRow, "key" | "state
   return r.key === "spf" && r.note ? W.change : W.add;
 }
 
-/* ------------------------------------------------------------------------------------- connecting, in words */
-
-/** Why a connect did not finish, by the code the edge answers with, as the owner reads it once back from the provider. */
-const CONNECT_FAILED = "That didn't go through. Try again in a minute.";
-export const MAILBOX_CONNECT_WORDS: Record<string, string> = {
-  connected: "Connected: email from people comes into your Inbox, and its last six months are on their way.",
-  reconnected: "Connected again: its emails go on where they waited.",
-  declined: "Nothing was connected: the sign-in was cancelled.",
-  scopes_missing: "Nothing was connected: send and read access are both needed. Connect again and leave both ticked.",
-  no_refresh_token: "Nothing was connected: the provider gave no lasting access. Connect again.",
-  taken: "Another workspace writes from this mailbox. Remove it there first.",
-  too_many: `A workspace writes from ${MAILBOX_CONNECTIONS_MAX} mailboxes at most. Remove one to add another.`,
-  too_many_on_domain: `A workspace writes from ${MAILBOXES_PER_DOMAIN_MAX} mailboxes on one domain at most.`,
-  free_mail:
-    "A free mailbox (Gmail.com, Outlook.com and the like) isn't for writing to businesses: connect one on your own domain.",
-  not_available: "Connecting a mailbox isn't switched on here yet.",
-  // The page's own gate says the same (contracts roleGate on `settings`), and so does the door's refusal.
-  not_owner: "Only an owner can connect a mailbox.",
-  no_address: "Nothing was connected: the provider didn't say which address the account sends from. Connect again.",
-  unverified:
-    "Nothing was connected: Google hasn't verified that account's address yet. Verify it, then connect again.",
-  not_workspace:
-    "Nothing was connected: that Google account isn't a Google Workspace mailbox. Connect the one your business writes from.",
-  no_mailbox:
-    "Nothing was connected: that account has no mailbox to send from (Gmail or Exchange isn't switched on for it). Ask whoever runs your email to switch it on.",
-  wrong_account: "Nothing was connected: that's a different account. Sign in as the mailbox you're reconnecting.",
-  admin_consent:
-    "Your organisation's Microsoft 365 admin approves Chanlytics once. Copy the link for them, then connect again when they have.",
-  admin_approved: "Approved for your organisation. Connect the mailbox now.",
-  failed: CONNECT_FAILED,
-};
-
-/** The outcomes that are good news, said in the note's calm tone. */
-const CONNECT_OK = new Set(["connected", "reconnected", "admin_approved"]);
-
-/** Whether the word a connect came back with is good news. */
-export function mailboxConnectOk(code: string | null | undefined): boolean {
-  return !!code && CONNECT_OK.has(code);
-}
-
-export function mailboxConnectWords(code: string | null | undefined): string {
-  return (code && MAILBOX_CONNECT_WORDS[code]) || CONNECT_FAILED;
-}
+/* ------------------------------------------------------------------------------------- the block, in words */
 
 /** The foot of the mailboxes block: what a mailbox does, before the first; then where its mail goes (its ramp is its Sending lines'). */
 export function mailboxesFootWords(count: number): string {

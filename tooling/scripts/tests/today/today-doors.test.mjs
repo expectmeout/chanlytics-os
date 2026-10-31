@@ -200,6 +200,10 @@ const findAll = (tree, pred) => {
   });
   return out;
 };
+/** A menu item's act runs its put-off without a promise to wait on: its few awaits settled (the page's timers are stubs). */
+const settle = async () => {
+  for (let i = 0; i < 8; i++) await null;
+};
 const textOf = (n) => {
   if (n == null || typeof n === "boolean") return "";
   if (typeof n === "string" || typeof n === "number") return String(n);
@@ -438,7 +442,7 @@ test("REGRESSION: with no line connected, Today does not say the receptionist is
   }
 });
 
-test("the card once it answers: Setup's own rows, WhatsApp first, and Hide puts them all off for this person", async () => {
+test("the card once it answers: Setup's own rows, WhatsApp first, folded and opened by its chevron, and Hide puts them all off for a week", async () => {
   const put = [];
   feedSetup(
     setupSurface({
@@ -475,26 +479,56 @@ test("the card once it answers: Setup's own rows, WhatsApp first, and Hide puts 
     const verbs = rows.map((r) => find(r, (n) => n.props?.["data-testid"] === "setup-verb"));
     assert.equal(verbs[0].props.className, "setup-card-btn primary");
     assert.ok(verbs.slice(1).every((v) => v.props.className === "setup-card-btn"));
-    assert.ok(
-      rows.every((r) => find(r, (n) => n.props?.className === "setup-card-skip")),
-      "each row can be skipped",
-    );
+    // Each row's Skip is a menu that says both choices before either is pressed (the refined canvas, 31 Oct 2026).
+    const skipOf = (r) => find(r, (n) => Array.isArray(n.props?.groups) && /^Skip /.test(n.props?.label ?? ""));
+    assert.ok(rows.every(skipOf), "each row can be skipped");
+    const [week, good] = skipOf(rows[0]).props.groups[0].items;
+    assert.deepEqual([week.label, good.label], ["For a week", "I don't need this"]);
+    assert.match(week.meta, /^It comes back on \w{3}, \w{3} \d{1,2}\.$/, "the day it comes back, before the press");
+    assert.equal(good.meta, "It's in Settings › Connections.", "and where it is set up from then");
+    good.onSelect();
+    await settle();
+    assert.deepEqual(put.at(-1), [["whatsapp"], { on: true, why: "answer" }], "I don't need this: off for good");
+    assert.equal(textOf(flashes.at(-1).msg), "Off your list. It's in Settings › Connections.");
+    week.onSelect();
+    await settle();
+    assert.deepEqual(put.at(-1), [["whatsapp"], { on: true, why: "week" }], "For a week: a week, every time");
     assert.equal(textOf(find(card, (n) => n.props?.["data-testid"] === "today-setup-left")), `${rows.length} left`);
     // The count rides beside the first row's words too (canvas P9's phone), where no width draws it now: a phone draws
     // every row under the head's count, and hides each row's words.
     const aside = (r) => find(r, (n) => n.props?.className === "setup-card-aside");
     assert.ok(textOf(aside(rows[0])).endsWith(`${rows.length} left`));
     assert.ok(!aside(rows[1]), "and only there");
-    const hide = find(card, (n) => n.props?.["data-testid"] === "today-setup-hide");
+    // The chevron folds the card and opens it, as often as the owner likes: nothing is put off.
+    const before = put.length;
+    const fold = find(card, (n) => n.props?.["data-testid"] === "today-setup-fold");
+    assert.equal(fold.props["aria-expanded"], true, "open until it is folded");
+    fold.props.onClick();
+    const folded = again(() => TodaySetup());
+    assert.equal(findAll(folded, (n) => /^setup-row-/.test(n.props?.["data-testid"] ?? "")).length, 0, "folded");
+    assert.equal(
+      find(folded, (n) => n.props?.["data-testid"] === "today-setup-hide"),
+      undefined,
+      "Hide with its rows",
+    );
+    assert.equal(find(folded, (n) => n.props?.["data-testid"] === "today-setup-fold").props["aria-expanded"], false);
+    find(folded, (n) => n.props?.["data-testid"] === "today-setup-fold").props.onClick();
+    const open = again(() => TodaySetup());
+    assert.equal(findAll(open, (n) => /^setup-row-/.test(n.props?.["data-testid"] ?? "")).length, rows.length, "open");
+    assert.equal(put.length, before, "folding put nothing off");
+    const hide = find(open, (n) => n.props?.["data-testid"] === "today-setup-hide");
+    assert.equal(textOf(hide), "Hide for a week");
     await hide.props.onClick();
-    assert.deepEqual(put.at(-1)[1], { on: true, why: "rest" }, "a 'not now': each row rests a week, or goes for good");
+    assert.deepEqual(put.at(-1)[1], { on: true, why: "week" }, "a week for every row, never for good");
     const ids = rows.map((r) => r.props["data-testid"].slice("setup-row-".length));
     assert.deepEqual(put.at(-1)[0], ids, "Hide puts every row on the card off at once");
     const waiting = " Until it is set up, only calls to your receptionist's own number are answered.";
-    assert.equal(
+    assert.match(
       textOf(flashes.at(-1).msg),
-      `All ${ids.length} put off for a week.${ids.includes("keep") ? waiting : ""}`,
-      "and says so, never sending anyone to Setting up",
+      new RegExp(
+        `^Finish setting up is hidden until \\w{3}, \\w{3} \\d{1,2}\\.${ids.includes("keep") ? waiting : ""}$`,
+      ),
+      "and says the day it comes back, never sending anyone to Setting up",
     );
     await flashes.at(-1).undo();
     assert.deepEqual(put.at(-1), [ids, "undo"], "its Undo is the put-off's own: every row back as it stood");
@@ -558,12 +592,14 @@ test("after the first run, with the calendar in, the card's last row is the door
     assert.equal(textOf(remind), "Turn on");
     remind.props.onClick();
     assert.equal(went.at(-1), "campaigns/sequences/new:moment:visit_tomorrow");
-    const skip = find(card, (n) => n.props?.["data-testid"] === "today-setup-remind-skip");
-    await skip.props.onClick();
+    const skip = find(row, (n) => Array.isArray(n.props?.groups) && n.props?.label === "Skip The day-before reminder");
+    assert.ok(skip, "its Skip is the card's menu, as a row's is");
+    skip.props.groups[0].items[0].onSelect();
+    await settle();
     assert.deepEqual(
       put.at(-1),
-      [["remind-skipped"], { on: true, why: "rest" }],
-      "Skip puts the reminder off, as a row is put off: a week, then for good",
+      [["remind-skipped"], { on: true, why: "week" }],
+      "For a week puts the reminder off, as a row is put off",
     );
     const hide = find(card, (n) => n.props?.["data-testid"] === "today-setup-hide");
     await hide.props.onClick();
@@ -632,7 +668,7 @@ const answeringSetup = () =>
     },
   });
 
-test("while someone waits on you, what is left to set up is its head and Show, under the queue (the live walk's TODAY-1, 27 Oct 2026)", () => {
+test("while someone waits on you, what is left to set up stands under the queue, open as the owner left it, its acts quiet (the live walk's TODAY-1, 27 Oct 2026; the refined canvas, 31 Oct)", () => {
   const rowsOf = (t) => findAll(t, (n) => /^setup-row-/.test(n.props?.["data-testid"] ?? ""));
   const byId = (t, id) => find(t, (n) => n.props?.["data-testid"] === id);
   feedSetup(answeringSetup());
@@ -640,26 +676,17 @@ test("while someone waits on you, what is left to set up is its head and Show, u
   try {
     const card = mountSetup();
     assert.ok(byId(card, "today-setup"), "the card stands");
-    assert.equal(rowsOf(card).length, 0, "its rows wait: at 1024 Need you started past the bottom of the screen");
-    const show = byId(card, "today-setup-show");
-    assert.equal(textOf(show), "Show");
-    show.props.onClick();
-    const open = again(() => TodaySetup());
-    assert.ok(rowsOf(open).length > 1, "Show opens them");
-    assert.equal(byId(open, "today-setup-show"), undefined);
+    // It folded itself while someone waited, and its Show opened it for the visit while Hide put every row off for a
+    // week: two presses that read as one toggle. It stays open now, under the queue, until its chevron folds it.
+    assert.ok(rowsOf(card).length > 1, "open: nothing folds it but its chevron");
+    assert.equal(byId(card, "today-setup-show"), undefined, "no Show");
+    const verbs = findAll(card, (n) => n.props?.["data-testid"] === "setup-verb");
+    assert.ok(
+      verbs.every((v) => v.props.className === "setup-card-btn"),
+      "the coral is the queue's while someone waits: every act here is quiet",
+    );
   } finally {
     queueHoldsCoral(false);
-    feedSetup(undefined);
-  }
-  // The card folds by the page's own count of who waits (useWaitsOnToday), before the queue says a word: a cold Today,
-  // the Inbox not read, the day saying three wait.
-  feedSetup(answeringSetup());
-  try {
-    const day = todayWith([]);
-    setSurfaceValue("today", { ...day, needsYou: { ...day.needsYou, count: 3, holds: 3, sends: 0 } });
-    assert.ok(byId(mountSetup(), "today-setup-show"), "folded from its first draw");
-  } finally {
-    setSurfaceValue("today", undefined);
     feedSetup(undefined);
   }
   // The page: the work first while anyone waits on the owner, the chores first while nobody does.

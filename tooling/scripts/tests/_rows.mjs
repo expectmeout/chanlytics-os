@@ -177,6 +177,7 @@ const DEFAULTS = {
     sent_days: 0,
     dns: {},
     connected_at: AT,
+    history: "six_months",
     created_at: AT,
     updated_at: AT,
   }),

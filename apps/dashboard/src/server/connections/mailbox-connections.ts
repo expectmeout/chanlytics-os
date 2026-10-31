@@ -25,6 +25,7 @@ import {
   type EdgeErrorCode,
   type GoogleAudience,
   type MailboxConnectionDto,
+  type MailboxHistory,
   type MailboxProvider,
 } from "@chanlytics/contracts";
 import {
@@ -228,6 +229,17 @@ export async function resumeMailbox(tenantId: string, userId: string, id: string
   );
 }
 
+/**
+ * What it brings in (decision 0086): Stop where it stands, Resume (or Try again) from where it stopped, or bring in the
+ * last six months of one connected from now on.
+ */
+export async function mailboxHistory(tenantId: string, userId: string, id: string, act: "stop" | "resume" | "bring") {
+  return mailboxAnswered(
+    await edgeMailboxes({ op: `history_${act}`, tenant_id: tenantId, user_id: userId, mailbox_id: id }),
+    act === "stop" ? "stopped" : "started",
+  );
+}
+
 /** Its domain's records read again, now. */
 export async function checkMailbox(tenantId: string, userId: string, id: string) {
   return mailboxAnswered(
@@ -277,14 +289,14 @@ function afterMailbox(
  * The way to the provider's consent screen, answered as data for the page to follow (so a refusal is said on the page,
  * never as a bare answer the browser lands on): a signed state naming the workspace, the person and the provider. A
  * Reconnect names its mailbox, so the provider is asked for that address (login_hint) and the account that comes back
- * must be its own. `admin` asks instead for the link a Microsoft 365 admin opens to approve Chanlytics for their
+ * must be its own. A new mailbox carries what its owner chose of its history (0086: from now on, no six months). `admin` asks instead for the link a Microsoft 365 admin opens to approve Chanlytics for their
  * whole organisation, once, where the tenant lets no member consent alone.
  */
 export async function startMailboxConnect(
   ctx: RouteContext,
   member: Member,
   provider: string,
-  opts: { mailboxId?: string | null; admin?: boolean; back?: "start" | null } = {},
+  opts: { mailboxId?: string | null; admin?: boolean; back?: "start" | null; history?: MailboxHistory | null } = {},
 ): Promise<{ url: string }> {
   if (!isProvider(provider)) throw new AppError("validation", "Connect a Google or a Microsoft mailbox.", 400);
   if (opts.admin && provider !== "microsoft")
@@ -312,6 +324,8 @@ export async function startMailboxConnect(
     ...(opts.mailboxId ? { m: opts.mailboxId } : {}),
     ...(opts.admin ? { a: 1 } : {}),
     ...(opts.back === "start" ? { b: "start" } : {}),
+    // What its owner chose of a new mailbox's history (0086); a Reconnect keeps its own.
+    ...(opts.history === "from_now" && !opts.mailboxId ? { h: "from_now" } : {}),
     ...(pkce ? { k: 1 } : {}),
   });
   const cfg = { clientId: oauth.client_id, redirectUri: oauth.redirect_uri };
@@ -381,6 +395,7 @@ export async function mailboxCallback(ctx: RouteContext, req: Request) {
       code,
       ...(proof.state.k === 1 ? { code_verifier: await mailboxPkceVerifier(secret, proof.state.n) } : {}),
       ...(proof.state.m ? { mailbox_id: proof.state.m } : {}),
+      ...(proof.state.h === "from_now" ? { history: "from_now" } : {}),
     },
     55_000,
   );

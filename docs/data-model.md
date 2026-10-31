@@ -1321,10 +1321,10 @@ Foreign keys:
 
 ### imports
 
-What was brought in, one row per workspace and source (decision 0073, R23): its state, counts, reach, parts and last error. Everything it counts is before Chanlytics: shown, never counted as today's, never answered, never a yes. Members read their workspace's; the jobs and the clients' file import write through import_ledger_note.
+What was brought in (decision 0073, R23; 0086): one row a mailbox for what a mailbox brings (mailbox, contacts), one a workspace for every other source; its state, counts, reach, parts, last error and the run that holds it. Everything it counts is before Chanlytics: shown, never counted as today's, never answered, never a yes. Members read their workspace's; the jobs and the clients' file import write through import_ledger_note.
 
 - Owned by: `packages/db/src/repositories/imports/ledger.ts`
-- Primary key: `tenant_id`, `source`
+- Primary key: `id`
 - Row-level security: on, 1 policy
 
 | Column | Type | Null | Default | Note |
@@ -1343,9 +1343,13 @@ What was brought in, one row per workspace and source (decision 0073, R23): its 
 | `last_error` | text | yes |  |  |
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `updated_at` | timestamp with time zone | no | `now()` |  |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `connection_id` | uuid | yes |  | The mailbox this row's mail or contacts came through (0086); null for a source that is the workspace's, and for a row an earlier ledger kept before its mailbox took it. |
+| `run` | text | yes |  | The run that holds this row (0086), taken as a run starts or as its owner stops it: a write of another run changes nothing, and its part ends. |
 
 Foreign keys:
 
+- `tenant_id`, `connection_id` → [`mailbox_connections`](#mailbox_connections) (`tenant_id`, `id`), on delete cascade
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
 | Policy | For | To | Using | With check |
@@ -2032,6 +2036,7 @@ A mailbox a business connected to write from (decision 0056): its provider (goog
 | `gmail_signature` | text | yes |  | The signature its owner keeps in Gmail for this address, as Gmail keeps it (HTML), read at connect and once a day; null where Gmail has none or it was not read. Sent as it is in what the mailbox sends; drawn in the app only as words. |
 | `gmail_signature_at` | timestamp with time zone | yes |  | When its Gmail signature was last read; null until it is. |
 | `signature_off` | boolean | no | `false` | Its owner sends no signature: neither Gmail's nor their own. |
+| `history` | text | no | `'six_months'::text` | What its owner chose as it connected (0086): six_months brings the mail of the six months before it in; from_now only what comes after. Bringing the six months in later sets it back to six_months. |
 
 Foreign keys:
 

@@ -6,19 +6,36 @@
  * mailbox connected; what the owner sent is read before the rest (decision 0080); a part that runs out of time keeps its
  * place; a mailbox removed or signed out stops and says so.
  * The contacts come in through the one person door, only the lists the owner left ticked.
+ * What a mailbox brings is its own (decision 0086): its rows and cursor, a run that holds them (Stop and Resume), and
+ * its owner's choice of the six months or from now on (Bring in the last 6 months later).
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { DAY_MS, HISTORY_BACK_DAYS, IMPORT_STOPPED_WORDS } from "@chanlytics/contracts";
+import {
+  DAY_MS,
+  HISTORY_BACK_DAYS,
+  IMPORT_STOPPED_WORDS,
+  MAILBOX_HISTORY_WORDS,
+  mailboxHistoryLine,
+  sourceRowsOf,
+} from "@chanlytics/contracts";
 import { importSrc } from "../../_source.mjs";
 import { fakeDb } from "../../_fake-db.mjs";
 import { rows } from "../../_rows.mjs";
 import { fieldsOf, linesOf } from "../../_log-lines.mjs";
+import { ledgerDoor } from "../../imports/_ledger-door.mjs";
 import { MAILBOX_ENV, b64url, gmailReceived, liveCredentials, providers, vault, withEnv } from "./_mailbox-world.mjs";
 
 const restore = withEnv(MAILBOX_ENV);
 after(restore);
-const { historyImports, startMailboxHistory } = await importSrc("apps/edge/lib/imports/history-import.ts");
+const {
+  bringMailboxHistory,
+  historyImports,
+  resumeMailboxHistory,
+  startHistory,
+  startMailboxHistory,
+  stopMailboxHistory,
+} = await importSrc("apps/edge/lib/imports/history-import.ts");
 const { setPg } = await importSrc("apps/edge/lib/pg.ts");
 after(() => setPg(null));
 
@@ -114,29 +131,7 @@ function world({
         asked.push(...a.p_thread_ids);
         return a.p_thread_ids.filter((t) => reached.includes(t));
       },
-      import_ledger_note: (a) => {
-        const i = tables.imports.findIndex((r) => r.tenant_id === a.p_tenant_id && r.source === a.p_source);
-        const was = i >= 0 ? tables.imports[i] : null;
-        const add = (from, to) => {
-          const out = { ...(from ?? {}) };
-          for (const [k, n] of Object.entries(to ?? {})) out[k] = (out[k] ?? 0) + n;
-          return out;
-        };
-        const next = {
-          tenant_id: a.p_tenant_id,
-          source: a.p_source,
-          state: a.p_state,
-          counts: a.p_add ? add(was?.counts, a.p_counts) : (a.p_counts ?? {}),
-          parts_done: a.p_parts_done ?? was?.parts_done ?? 0,
-          oldest: a.p_oldest ?? was?.oldest ?? null,
-          via: a.p_via ?? was?.via ?? null,
-          job_cursor: a.p_cursor ?? was?.job_cursor ?? null,
-          last_error: a.p_state === "failed" ? (a.p_error ?? null) : null,
-        };
-        if (i >= 0) tables.imports[i] = next;
-        else tables.imports.push(next);
-        return null;
-      },
+      import_ledger_note: ledgerDoor(tables),
     },
   );
   return { db, tables, kept, people, asked, left, mailbox };
@@ -155,6 +150,12 @@ const part = (w, source, n = 1, deadline = Date.now() + 30_000, attempts = 1) =>
     deadline,
   );
 const ledger = (w, source) => w.tables.imports.find((r) => r.source === source);
+/** A part the ledger holds, as the runner hands it: a start's, or the next a part scheduled. */
+const partOf = (w, job, deadline = Date.now() + 30_000) =>
+  historyImports(w.db).part(
+    { id: job.id ?? "job", tenant_id: T, kind: "history_import", payload: job.payload, attempts: 1 },
+    deadline,
+  );
 
 /** Gmail's list of the window, a page of ids, and each message as users.messages.get answers it. */
 const mail = (messages, next = null) => ({
@@ -509,10 +510,28 @@ test("a part the provider stops part way notes what it brought and where it stoo
   }
   row = ledger(w, "mailbox");
   assert.deepEqual([row.state, row.last_error], ["failed", IMPORT_STOPPED_WORDS.failed]);
-  // Gmail answers again: read on from the message it stopped at, nothing kept or read twice.
+  // A part of the stopped run that wakes reads nothing (decision 0086): only a run of its own starts it again.
+  const asleep = gmailWith(listed);
+  try {
+    await part(w, "mailbox", 2);
+  } finally {
+    asleep.restore();
+  }
+  assert.deepEqual(
+    [asleep.calls.length, ledger(w, "mailbox").state],
+    [0, "failed"],
+    "the stopped run ends as it wakes",
+  );
+  // Try again (imports/again) starts a run of its own, and Gmail answers again: read on from the message it stopped
+  // at, nothing kept or read twice.
+  await startHistory(w.db, { tenantId: T, source: "mailbox", connectionId: w.mailbox.id, via: "google", again: true });
+  const [next] = w.tables.jobs.filter((j) => j.payload.source === "mailbox");
   const again = gmailWith(listed);
   try {
-    await part(w, "mailbox", 1, undefined, 2);
+    await historyImports(w.db).part(
+      { id: "job-again", tenant_id: T, kind: "history_import", payload: next.payload, attempts: 1 },
+      Date.now() + 30_000,
+    );
   } finally {
     again.restore();
   }
@@ -949,72 +968,6 @@ test("the mailbox's people: its own contacts, through the one person door, a pag
   assert.deepEqual([row.state, row.counts], ["done", { people: 2 }]);
 });
 
-test("a second mailbox adds what it brings to the first's: its first run keeps the workspace's counts and reads from a cursor of its own", async () => {
-  // On 27 Oct 2026 a second mailbox connected and the Email card said 222 emails and 0 people: its runs had started the
-  // workspace's rows afresh, and the first mailbox's 414 emails and 249 people were gone from them.
-  const w = world();
-  w.tables.imports.push(
-    {
-      tenant_id: T,
-      source: "mailbox",
-      state: "done",
-      counts: { messages: 414, people: 34, dropped: 900 },
-      parts_done: 9,
-      oldest: "2026-06-07T00:00:00Z",
-      via: "google",
-      job_cursor: { connection: "first-box", window: { from: "2026-04-01T00:00:00Z", to: "2026-10-01T00:00:00Z" } },
-      last_error: null,
-    },
-    {
-      tenant_id: T,
-      source: "contacts",
-      state: "done",
-      counts: { people: 249 },
-      parts_done: 1,
-      oldest: null,
-      via: "google",
-      job_cursor: { list: "contacts", page: null, connection: "first-box" },
-      last_error: null,
-    },
-  );
-  const quiet = { error() {}, warn() {}, info() {} };
-  await startMailboxHistory(w.db, {
-    tenantId: T,
-    mailboxId: w.mailbox.id,
-    provider: "google",
-    scopes: [...SCOPES.mail, SCOPES.contacts],
-    first: true,
-    by: null,
-    log: quiet,
-  });
-  for (const source of ["mailbox", "contacts"]) {
-    const row = ledger(w, source);
-    assert.deepEqual([row.state, row.parts_done, row.job_cursor], ["queued", 0, {}], `${source}: a run of its own`);
-  }
-  assert.deepEqual(
-    ledger(w, "mailbox").counts,
-    { messages: 414, people: 34, dropped: 900 },
-    "the first's mail counted",
-  );
-  assert.deepEqual(ledger(w, "contacts").counts, { people: 249 }, "and its people");
-  // The second mailbox's people come in on top of the first's.
-  const net = providers((c) =>
-    c.url.startsWith(`${PEOPLE}/people/me/connections`)
-      ? {
-          json: {
-            connections: [{ names: [{ displayName: "Rosa Diaz" }], emailAddresses: [{ value: "rosa@example.com" }] }],
-          },
-        }
-      : { status: 404 },
-  );
-  try {
-    await part(w, "contacts");
-  } finally {
-    net.restore();
-  }
-  assert.deepEqual([ledger(w, "contacts").state, ledger(w, "contacts").counts], ["done", { people: 250 }]);
-});
-
 test("the mailbox's people: only the lists the owner left ticked are read, and with none ticked the row says how to bring them", async () => {
   const onlyMine = world({ box: { scopes: [...SCOPES.mail, SCOPES.contacts] } });
   const net = providers((c) =>
@@ -1031,5 +984,262 @@ test("the mailbox's people: only the lists the owner left ticked are read, and w
   assert.deepEqual(
     [ledger(none, "contacts").state, ledger(none, "contacts").last_error],
     ["failed", IMPORT_STOPPED_WORDS.notTicked("Your contacts")],
+  );
+});
+
+/* ------------------------------------------------------- a mailbox's own history (decision 0086) */
+
+const QUIET = { error() {}, warn() {}, info() {} };
+const NOW = Date.parse("2026-10-31T16:00:00Z");
+const ZONE = "America/New_York";
+/** As the mailbox connected: its own rows started, its six months unless its owner chose from now on. */
+const connectHistory = (w, box, history = "six_months") =>
+  startMailboxHistory(w.db, {
+    tenantId: T,
+    mailboxId: box.id,
+    provider: "google",
+    scopes: box.scopes,
+    first: true,
+    history,
+    by: null,
+    log: QUIET,
+  });
+
+test("each mailbox brings its own: two connected side by side start rows and parts of their own, and the card says them as one", async () => {
+  // To 31 Oct 2026 the ledger kept one row a workspace and source: a second mailbox connected while the first was still
+  // bringing its six months in set the shared cursor back, and each read on from the other's place.
+  const w = world();
+  const second = rows.mailboxConnection({
+    tenant_id: T,
+    provider: "google",
+    provider_account: "100000000000000000002",
+    address: "ops@getharbor.example",
+    connected_at: CONNECTED,
+    scopes: [...SCOPES.mail, SCOPES.contacts],
+  });
+  w.tables.mailbox_connections.push(second);
+  await connectHistory(w, w.mailbox);
+  await connectHistory(w, second);
+  const mine = (id) => (r) => r.connection_id === id;
+  assert.deepEqual(
+    [w.mailbox.id, second.id].map((id) =>
+      w.tables.imports.filter(mine(id)).map((r) => [r.source, r.state, r.run, r.job_cursor]),
+    ),
+    [
+      [
+        ["mailbox", "queued", "1", {}],
+        ["contacts", "queued", "1", {}],
+      ],
+      [
+        ["mailbox", "queued", "1", {}],
+        ["contacts", "queued", "1", {}],
+      ],
+    ],
+    "a row of its own for each source each mailbox brings",
+  );
+  assert.deepEqual(
+    w.tables.jobs.map((j) => [j.payload.source, j.payload.seq, j.payload.connection_id]),
+    [
+      ["mailbox", "1:1", w.mailbox.id],
+      ["contacts", "1:1", w.mailbox.id],
+      ["mailbox", "1:1", second.id],
+      ["contacts", "1:1", second.id],
+    ],
+    "each one's first part on the job ledger: the same run's number never finds another mailbox's part",
+  );
+  // The first's people come in; the second's are still to come: one source, still coming, its people added up.
+  const net = providers((c) =>
+    c.url.startsWith(`${PEOPLE}/people/me/connections`)
+      ? {
+          json: {
+            connections: [{ names: [{ displayName: "Rosa Diaz" }], emailAddresses: [{ value: "rosa@example.com" }] }],
+          },
+        }
+      : { status: 404 },
+  );
+  try {
+    await partOf(w, w.tables.jobs[1]);
+  } finally {
+    net.restore();
+  }
+  assert.deepEqual(
+    w.tables.imports.filter((r) => r.source === "contacts").map((r) => [r.connection_id, r.state]),
+    [
+      [w.mailbox.id, "done"],
+      [second.id, "queued"],
+    ],
+    "the second's row left as it stood",
+  );
+  const contacts = sourceRowsOf(w.tables.imports).find((r) => r.source === "contacts");
+  assert.deepEqual([contacts.state, contacts.counts, contacts.connection_id], ["queued", { people: 1 }, null]);
+});
+
+test("from now on brings no six months as it connects: its people still come, its row says since when, and Bring in the last 6 months starts them once", async () => {
+  const w = world({ box: { history: "from_now" } });
+  await connectHistory(w, w.mailbox, "from_now");
+  assert.deepEqual(
+    w.tables.imports.map((r) => r.source),
+    ["contacts"],
+    "its people, which the owner left ticked on Google's screen",
+  );
+  assert.deepEqual(mailboxHistoryLine(w.mailbox, w.tables.imports, NOW, ZONE), {
+    says: MAILBOX_HISTORY_WORDS.fromNow("Oct 20"),
+    act: "bring",
+  });
+  assert.equal(await bringMailboxHistory(w.db, w.mailbox), true);
+  const row = ledger(w, "mailbox");
+  assert.deepEqual([row.connection_id, row.state, row.run], [w.mailbox.id, "queued", "1"]);
+  assert.equal(w.tables.mailbox_connections[0].history, "six_months", "its choice, the six months now");
+  assert.equal(await bringMailboxHistory(w.db, { ...w.mailbox, history: "from_now" }), false, "once");
+  assert.equal(await bringMailboxHistory(w.db, { ...w.mailbox, history: "six_months" }), false, "a six months' never");
+  // Its first part reads the six months before it connected, up to the moment it did: where the live read began.
+  const net = gmailWith([]);
+  try {
+    await partOf(
+      w,
+      w.tables.jobs.find((j) => j.payload.source === "mailbox"),
+    );
+  } finally {
+    net.restore();
+  }
+  const to = Date.parse(CONNECTED) / 1000;
+  assert.equal(
+    new URL(net.calls[0].url).searchParams.get("q"),
+    `after:${to - (HISTORY_BACK_DAYS * DAY_MS) / 1000} before:${to} in:sent`,
+  );
+  assert.equal(mailboxHistoryLine(w.mailbox, w.tables.imports, NOW, ZONE), null, "in: the Email card counts it");
+});
+
+test("Stop ends the run where it stands: a part mid-read writes nothing over it, the next ends as it wakes, and Resume reads on from there with what came kept", async () => {
+  const w = world();
+  const listed = [MESSAGES.p1, MESSAGES.o1, { id: "x1", threadId: "t8" }, MESSAGES.n1];
+  const paced = gmailWith(listed, { x1: PACED });
+  try {
+    await part(w, "mailbox");
+  } finally {
+    paced.restore();
+  }
+  assert.deepEqual(mailboxHistoryLine(w.mailbox, w.tables.imports, NOW, ZONE)?.act, "stop", "Stop, while it comes in");
+  assert.equal(await stopMailboxHistory(w.db, w.mailbox, NOW), true);
+  let row = ledger(w, "mailbox");
+  assert.deepEqual(
+    [row.state, row.last_error, row.counts.messages, row.job_cursor.at, row.run],
+    ["failed", IMPORT_STOPPED_WORDS.byYou, 2, 1, `stopped:${NOW}`],
+    "stopped where it stood, what came kept, the row taken from every run",
+  );
+  assert.deepEqual(mailboxHistoryLine(w.mailbox, w.tables.imports, NOW, ZONE), {
+    says: IMPORT_STOPPED_WORDS.byYou,
+    act: "resume",
+  });
+  // A part mid-read as Stop was pressed writes as it ends: its run no longer holds the row, so nothing changes.
+  await w.db.rpc("import_ledger_note", {
+    p_tenant_id: T,
+    p_source: "mailbox",
+    p_state: "running",
+    p_counts: { messages: 1 },
+    p_add: true,
+    p_connection_id: w.mailbox.id,
+    p_run: "run",
+  });
+  assert.deepEqual([ledger(w, "mailbox").state, ledger(w, "mailbox").counts.messages], ["failed", 2]);
+  // The part it had scheduled wakes, reads nothing and schedules nothing.
+  const asleep = gmailWith(listed);
+  let lines;
+  try {
+    ({ lines } = await linesOf(() => part(w, "mailbox", 2)));
+  } finally {
+    asleep.restore();
+  }
+  assert.equal(asleep.calls.length, 0, "Gmail never asked");
+  assert.deepEqual(
+    w.tables.jobs.map((j) => j.payload.seq),
+    ["run:2"],
+    "nothing scheduled after it",
+  );
+  assert.deepEqual(
+    lines
+      .filter((l) => l.event === "history_part")
+      .map(fieldsOf)
+      .map((l) => [l.n, l.ended]),
+    [[2, "not_its_run"]],
+  );
+  assert.equal(await resumeMailboxHistory(w.db, w.mailbox), true);
+  row = ledger(w, "mailbox");
+  assert.deepEqual(
+    [row.state, row.counts.messages, row.job_cursor.at],
+    ["queued", 2, 1],
+    "queued again where it stood",
+  );
+  assert.notEqual(row.run, `stopped:${NOW}`, "a run of its own");
+  const again = gmailWith(listed);
+  try {
+    await partOf(
+      w,
+      w.tables.jobs.find((j) => j.payload.seq === `${row.run}:1`),
+    );
+  } finally {
+    again.restore();
+  }
+  row = ledger(w, "mailbox");
+  assert.equal(row.state, "done");
+  assert.deepEqual(keptIds(w), ["o1", "p1"]);
+  assert.equal(
+    again.calls.filter((c) => /\/messages\/(p1|o1)\?/.test(c.url)).length,
+    0,
+    "what came before the stop is not read again",
+  );
+  assert.equal(await stopMailboxHistory(w.db, w.mailbox, NOW), false, "nothing coming in: nothing to stop");
+  assert.equal(await resumeMailboxHistory(w.db, w.mailbox), false, "nothing stopped: nothing to resume");
+});
+
+test("a row an earlier ledger kept for the workspace is the mailbox's the first time it writes: one going on reads on from its place, one queued before any part starts the window", async () => {
+  const listed = [MESSAGES.p1, MESSAGES.o1, { id: "x1", threadId: "t8" }, MESSAGES.n1];
+  const going = world();
+  const paced = gmailWith(listed, { x1: PACED });
+  try {
+    await part(going, "mailbox");
+  } finally {
+    paced.restore();
+  }
+  // As the ledger before 0086 kept it: the workspace's, no run; its cursor names the mailbox it reads.
+  Object.assign(ledger(going, "mailbox"), { connection_id: null, run: null });
+  const again = gmailWith(listed);
+  try {
+    await part(going, "mailbox", 2);
+  } finally {
+    again.restore();
+  }
+  assert.deepEqual(
+    going.tables.imports.map((r) => [r.source, r.connection_id, r.state]),
+    [["mailbox", going.mailbox.id, "done"]],
+    "the one row, the mailbox's now",
+  );
+  assert.deepEqual(keptIds(going), ["o1", "p1"], "read on from its place");
+  // Queued by an edge before 0086, its first part read by the one after: no mailbox named, nothing read yet.
+  const queued = world();
+  queued.tables.imports.push({
+    tenant_id: T,
+    source: "mailbox",
+    connection_id: null,
+    run: null,
+    state: "queued",
+    counts: {},
+    parts_done: 0,
+    parts_total: null,
+    oldest: null,
+    via: "google",
+    job_cursor: {},
+    last_error: null,
+  });
+  const first = gmailWith([MESSAGES.p1]);
+  try {
+    await part(queued, "mailbox");
+  } finally {
+    first.restore();
+  }
+  assert.deepEqual(
+    queued.tables.imports.map((r) => [r.connection_id, r.state]),
+    [[queued.mailbox.id, "done"]],
+    "taken, never left queued beside a row of its own",
   );
 });

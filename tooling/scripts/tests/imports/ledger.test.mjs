@@ -15,6 +15,7 @@ import {
   importLineOf,
   importLinesOf,
   importNotesOf,
+  sourceRowsOf,
   whatsappPartsOf,
 } from "@chanlytics/contracts";
 
@@ -285,7 +286,7 @@ test("Today's Brought in card: where it all stands in one place, and closed, the
     row("whatsapp_history", "running", {}, { parts_done: 1, parts_total: 3 }),
   ];
   assert.deepEqual(broughtInCardOf(rows, 640), {
-    title: "Brought in",
+    title: "Your history",
     state: { tone: "live", words: "Bringing it in · 3 of 4" },
     facts: [
       { key: "people", text: "640 people · 212 reviews" },
@@ -294,7 +295,7 @@ test("Today's Brought in card: where it all stands in one place, and closed, the
     ],
   });
   assert.deepEqual(broughtInCardOf([row("contacts", "done", { people: 1 })], 1), {
-    title: "Brought in",
+    title: "Your history",
     state: { tone: "ok", words: "All in" },
     facts: [{ key: "people", text: "1 person" }],
   });
@@ -310,14 +311,11 @@ test("Today's Brought in card: where it all stands in one place, and closed, the
   assert.equal(broughtInCardOf([], 10), null, "nothing came: no card");
 });
 
-test("Today keeps the card while anything is coming or stopped, and a week after the last source finished", () => {
-  const done = row("google_reviews", "done", {}, { finished_at: new Date(NOW - 2 * DAY).toISOString() });
-  assert.equal(broughtInShown([done], NOW), true, "two days after");
-  assert.equal(
-    broughtInShown([done], NOW + 6 * DAY),
-    false,
-    "past the week: People's, the Inbox's, the Calendar's own",
-  );
+test("Today keeps the card while anything is coming or stopped, and for the day the last source finished", () => {
+  // A week of All in was a card with nothing to press beside the queue (the refined canvas, 31 Oct 2026).
+  const done = row("google_reviews", "done", {}, { finished_at: new Date(NOW - 2 * 3600 * 1000).toISOString() });
+  assert.equal(broughtInShown([done], NOW), true, "two hours after: All in, seen once");
+  assert.equal(broughtInShown([done], NOW + DAY), false, "past the day: People's, the Inbox's, the Calendar's own");
   assert.equal(broughtInShown([done, row("mailbox", "running")], NOW + 30 * DAY), true, "still coming");
   assert.equal(
     broughtInShown([row("calendar", "failed")], NOW + 30 * DAY),
@@ -325,6 +323,47 @@ test("Today keeps the card while anything is coming or stopped, and a week after
     "stopped: its Try again stays in reach",
   );
   assert.equal(broughtInShown([], NOW), false);
+});
+
+test("every mailbox's row of a source is said as the one source (decision 0086): its counts added, its stand the most pressing, its reach the furthest", () => {
+  const first = row(
+    "mailbox",
+    "done",
+    { messages: 414, asked: 4 },
+    { connection_id: "box-1", oldest: "2026-05-01T00:00:00Z", finished_at: "2026-09-07T14:05:00Z" },
+  );
+  const second = row(
+    "mailbox",
+    "running",
+    { messages: 130 },
+    { connection_id: "box-2", oldest: "2026-07-02T00:00:00Z", parts_done: 3, parts_total: null },
+  );
+  const [mail] = sourceRowsOf([first, second]);
+  assert.deepEqual(
+    [mail.source, mail.connection_id, mail.state, mail.counts, mail.oldest, mail.parts_done, mail.finished_at],
+    ["mailbox", null, "running", { messages: 544, asked: 4 }, "2026-05-01T00:00:00.000Z", 4, null],
+    "one still coming says the inbox is",
+  );
+  const stopped = row("mailbox", "failed", { messages: 2 }, { connection_id: "box-2", last_error: "Signed out." });
+  assert.deepEqual(
+    (({ state, last_error, finished_at }) => [state, last_error, finished_at])(sourceRowsOf([first, stopped])[0]),
+    ["failed", "Signed out.", null],
+    "one stopped says why, its Try again the act",
+  );
+  const later = { ...second, state: "done", finished_at: "2026-09-07T15:00:00Z" };
+  assert.equal(sourceRowsOf([first, later])[0].finished_at, "2026-09-07T15:00:00.000Z", "in when the last one was");
+  assert.equal(sourceRowsOf([first])[0], first, "a source with one row is that row");
+  assert.deepEqual(sourceRowsOf(null), []);
+  assert.deepEqual(
+    broughtInCardOf([first, second], 10)?.facts.find((f) => f.key === "mail"),
+    { key: "mail", text: `Email since ${dayWords("2026-05-01T00:00:00Z")}` },
+    "Today's card: the furthest any mailbox reached",
+  );
+  assert.deepEqual(
+    importLinesOf([first, second], "UTC").lines.map((l) => [l.source, l.count]),
+    [["mailbox", 544]],
+    "Bringing it in: one line",
+  );
 });
 
 test("counting again what every mailbox brought (ops imports-recount-mail): the kept mail and the contacts' people, nothing else", async () => {
@@ -355,4 +394,9 @@ test("counting again what every mailbox brought (ops imports-recount-mail): the 
   ];
   assert.deepEqual(planRecount(done, counted), [], "a second run finds nothing to change");
   assert.deepEqual(planRecount([], counted), [], "a source with no row is left alone");
+  assert.deepEqual(
+    planRecount([{ ...rows[0], connection_id: "box-1" }], counted),
+    [],
+    "each mailbox counting its own (0086): nothing written whole on the workspace's row",
+  );
 });

@@ -6485,16 +6485,17 @@ COMMENT ON FUNCTION public.holds_reply_turn(p_conversation uuid, p_message uuid)
 
 
 --
--- Name: import_ledger_note(uuid, text, text, jsonb, boolean, integer, integer, timestamp with time zone, text, text, jsonb); Type: FUNCTION; Schema: public; Owner: -
+-- Name: import_ledger_note(uuid, text, text, jsonb, boolean, integer, integer, timestamp with time zone, text, text, jsonb, uuid, text, boolean); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.import_ledger_note(p_tenant_id uuid, p_source text, p_state text, p_counts jsonb DEFAULT '{}'::jsonb, p_add boolean DEFAULT false, p_parts_done integer DEFAULT NULL::integer, p_parts_total integer DEFAULT NULL::integer, p_oldest timestamp with time zone DEFAULT NULL::timestamp with time zone, p_via text DEFAULT NULL::text, p_error text DEFAULT NULL::text, p_cursor jsonb DEFAULT NULL::jsonb) RETURNS void
+CREATE FUNCTION public.import_ledger_note(p_tenant_id uuid, p_source text, p_state text, p_counts jsonb DEFAULT '{}'::jsonb, p_add boolean DEFAULT false, p_parts_done integer DEFAULT NULL::integer, p_parts_total integer DEFAULT NULL::integer, p_oldest timestamp with time zone DEFAULT NULL::timestamp with time zone, p_via text DEFAULT NULL::text, p_error text DEFAULT NULL::text, p_cursor jsonb DEFAULT NULL::jsonb, p_connection_id uuid DEFAULT NULL::uuid, p_run text DEFAULT NULL::text, p_take boolean DEFAULT false) RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
 declare
   v_service boolean := coalesce((select auth.role()), '') = 'service_role';
   v_counts  jsonb := coalesce(p_counts, '{}'::jsonb);
+  v_run     text := nullif(btrim(coalesce(p_run, '')), '');
 begin
   if not v_service then
     if (select auth.uid()) is null then
@@ -6507,14 +6508,23 @@ begin
   if jsonb_typeof(v_counts) <> 'object' then
     raise exception 'Counts are an object.' using errcode = '22023';
   end if;
-  insert into public.imports as i (tenant_id, source, state, counts, parts_done, parts_total, oldest, via, job_cursor,
-                                   started_at, finished_at, last_error)
-  values (p_tenant_id, p_source, p_state, v_counts, coalesce(p_parts_done, 0), p_parts_total, p_oldest,
-          nullif(btrim(coalesce(p_via, '')), ''), p_cursor,
+  if p_connection_id is not null and not exists (
+       select 1 from public.imports
+        where tenant_id = p_tenant_id and source = p_source and connection_id = p_connection_id) then
+    update public.imports
+       set connection_id = p_connection_id
+     where tenant_id = p_tenant_id and source = p_source and connection_id is null
+       and (job_cursor->>'connection' = p_connection_id::text
+            or (coalesce(job_cursor->>'connection', '') = '' and state in ('queued', 'running')));
+  end if;
+  insert into public.imports as i (tenant_id, source, connection_id, run, state, counts, parts_done, parts_total, oldest,
+                                   via, job_cursor, started_at, finished_at, last_error)
+  values (p_tenant_id, p_source, p_connection_id, v_run, p_state, v_counts,
+          coalesce(p_parts_done, 0), p_parts_total, p_oldest, nullif(btrim(coalesce(p_via, '')), ''), p_cursor,
           case when p_state in ('running', 'done', 'failed') then now() end,
           case when p_state in ('done', 'failed') then now() end,
           left(nullif(btrim(coalesce(p_error, '')), ''), 500))
-  on conflict (tenant_id, source) do update set
+  on conflict (tenant_id, source, connection_id) do update set
     state       = excluded.state,
     counts      = case when p_add then
                     (select coalesce(jsonb_object_agg(k, coalesce((i.counts->>k)::numeric, 0) + coalesce((v_counts->>k)::numeric, 0)), '{}'::jsonb)
@@ -6525,19 +6535,22 @@ begin
     oldest      = case when p_oldest is null then i.oldest when i.oldest is null then p_oldest else least(i.oldest, p_oldest) end,
     via         = coalesce(excluded.via, i.via),
     job_cursor  = coalesce(p_cursor, i.job_cursor),
+    run         = case when p_take then excluded.run else i.run end,
     -- A run that starts again starts its clock again; one still running keeps the clock it started.
     started_at  = case when i.state in ('done', 'failed') and excluded.state in ('queued', 'running') then now()
                        else coalesce(i.started_at, excluded.started_at) end,
     finished_at = case when excluded.state in ('done', 'failed') then now() else null end,
-    last_error  = case when excluded.state = 'failed' then excluded.last_error else null end;
+    last_error  = case when excluded.state = 'failed' then excluded.last_error else null end
+  -- A part of a run Stop or a later run took the row from writes nothing.
+  where p_take or v_run is null or i.run is null or i.run = v_run;
 end $$;
 
 
 --
--- Name: FUNCTION import_ledger_note(p_tenant_id uuid, p_source text, p_state text, p_counts jsonb, p_add boolean, p_parts_done integer, p_parts_total integer, p_oldest timestamp with time zone, p_via text, p_error text, p_cursor jsonb); Type: COMMENT; Schema: public; Owner: -
+-- Name: FUNCTION import_ledger_note(p_tenant_id uuid, p_source text, p_state text, p_counts jsonb, p_add boolean, p_parts_done integer, p_parts_total integer, p_oldest timestamp with time zone, p_via text, p_error text, p_cursor jsonb, p_connection_id uuid, p_run text, p_take boolean); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.import_ledger_note(p_tenant_id uuid, p_source text, p_state text, p_counts jsonb, p_add boolean, p_parts_done integer, p_parts_total integer, p_oldest timestamp with time zone, p_via text, p_error text, p_cursor jsonb) IS 'A run of bringing history in, recorded in imports (decision 0073, R23): its state, counts (added or set), parts, reach, cursor and error. The service role writes any source; an acting member of the workspace only its clients'' file.';
+COMMENT ON FUNCTION public.import_ledger_note(p_tenant_id uuid, p_source text, p_state text, p_counts jsonb, p_add boolean, p_parts_done integer, p_parts_total integer, p_oldest timestamp with time zone, p_via text, p_error text, p_cursor jsonb, p_connection_id uuid, p_run text, p_take boolean) IS 'A run of bringing history in, recorded in imports (decision 0073, R23; 0086): its state, counts (added or set), parts, reach, cursor, error, the mailbox it came through and the run that holds it (a run that no longer holds it writes nothing). The service role writes any source; an acting member of the workspace only its clients'' file.';
 
 
 --
@@ -33583,11 +33596,16 @@ CREATE TABLE public.imports (
     last_error text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    connection_id uuid,
+    run text,
+    CONSTRAINT imports_connection_check CHECK (((connection_id IS NULL) OR (source = ANY (ARRAY['mailbox'::text, 'contacts'::text])))),
     CONSTRAINT imports_counts_check CHECK ((jsonb_typeof(counts) = 'object'::text)),
     CONSTRAINT imports_job_cursor_check CHECK (((job_cursor IS NULL) OR (jsonb_typeof(job_cursor) = 'object'::text))),
     CONSTRAINT imports_last_error_check CHECK (((last_error IS NULL) OR (char_length(last_error) <= 500))),
     CONSTRAINT imports_parts_done_check CHECK ((parts_done >= 0)),
     CONSTRAINT imports_parts_total_check CHECK (((parts_total IS NULL) OR (parts_total >= 1))),
+    CONSTRAINT imports_run_check CHECK (((run IS NULL) OR ((char_length(run) >= 1) AND (char_length(run) <= 40)))),
     CONSTRAINT imports_source_check CHECK ((source = ANY (ARRAY['google_reviews'::text, 'calendar'::text, 'clients_file'::text, 'mailbox'::text, 'contacts'::text, 'whatsapp_contacts'::text, 'whatsapp_history'::text]))),
     CONSTRAINT imports_state_check CHECK ((state = ANY (ARRAY['queued'::text, 'running'::text, 'done'::text, 'failed'::text]))),
     CONSTRAINT imports_via_check CHECK (((via IS NULL) OR ((char_length(via) >= 1) AND (char_length(via) <= 40))))
@@ -33598,7 +33616,21 @@ CREATE TABLE public.imports (
 -- Name: TABLE imports; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.imports IS 'What was brought in, one row per workspace and source (decision 0073, R23): its state, counts, reach, parts and last error. Everything it counts is before Chanlytics: shown, never counted as today''s, never answered, never a yes. Members read their workspace''s; the jobs and the clients'' file import write through import_ledger_note.';
+COMMENT ON TABLE public.imports IS 'What was brought in (decision 0073, R23; 0086): one row a mailbox for what a mailbox brings (mailbox, contacts), one a workspace for every other source; its state, counts, reach, parts, last error and the run that holds it. Everything it counts is before Chanlytics: shown, never counted as today''s, never answered, never a yes. Members read their workspace''s; the jobs and the clients'' file import write through import_ledger_note.';
+
+
+--
+-- Name: COLUMN imports.connection_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.imports.connection_id IS 'The mailbox this row''s mail or contacts came through (0086); null for a source that is the workspace''s, and for a row an earlier ledger kept before its mailbox took it.';
+
+
+--
+-- Name: COLUMN imports.run; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.imports.run IS 'The run that holds this row (0086), taken as a run starts or as its owner stops it: a write of another run changes nothing, and its part ends.';
 
 
 --
@@ -34752,6 +34784,7 @@ CREATE TABLE public.mailbox_connections (
     gmail_signature text,
     gmail_signature_at timestamp with time zone,
     signature_off boolean DEFAULT false NOT NULL,
+    history text DEFAULT 'six_months'::text NOT NULL,
     CONSTRAINT mailbox_connections_address_check CHECK ((((char_length(address) >= 6) AND (char_length(address) <= 254)) AND (address = lower(btrim(address))) AND (address ~ '^[a-z0-9._%+''-]+@([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$'::text))),
     CONSTRAINT mailbox_connections_daily_cap_check CHECK (((daily_cap >= 1) AND (daily_cap <= 50))),
     CONSTRAINT mailbox_connections_dns_check CHECK ((jsonb_typeof(dns) = 'object'::text)),
@@ -34759,6 +34792,7 @@ CREATE TABLE public.mailbox_connections (
     CONSTRAINT mailbox_connections_gmail_signature_check CHECK (((gmail_signature IS NULL) OR (char_length(gmail_signature) <= 10000))),
     CONSTRAINT mailbox_connections_held_is_whole CHECK ((((state = 'held'::text) = (held_why IS NOT NULL)) AND ((held_why IS NULL) = (held_at IS NULL)))),
     CONSTRAINT mailbox_connections_held_why_check CHECK ((held_why = ANY (ARRAY['bounces'::text, 'complaint'::text, 'unsubscribes'::text]))),
+    CONSTRAINT mailbox_connections_history_check CHECK ((history = ANY (ARRAY['six_months'::text, 'from_now'::text]))),
     CONSTRAINT mailbox_connections_host_is_address CHECK ((host = split_part(address, '@'::text, 2))),
     CONSTRAINT mailbox_connections_last_error_check CHECK (((last_error IS NULL) OR (char_length(last_error) <= 300))),
     CONSTRAINT mailbox_connections_provider_account_check CHECK (((char_length(provider_account) >= 1) AND (char_length(provider_account) <= 200))),
@@ -34812,6 +34846,13 @@ COMMENT ON COLUMN public.mailbox_connections.gmail_signature_at IS 'When its Gma
 --
 
 COMMENT ON COLUMN public.mailbox_connections.signature_off IS 'Its owner sends no signature: neither Gmail''s nor their own.';
+
+
+--
+-- Name: COLUMN mailbox_connections.history; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mailbox_connections.history IS 'What its owner chose as it connected (0086): six_months brings the mail of the six months before it in; from_now only what comes after. Bringing the six months in later sets it back to six_months.';
 
 
 --
@@ -37330,7 +37371,7 @@ ALTER TABLE ONLY public.idempotency_keys
 --
 
 ALTER TABLE ONLY public.imports
-    ADD CONSTRAINT imports_pkey PRIMARY KEY (tenant_id, source);
+    ADD CONSTRAINT imports_pkey PRIMARY KEY (id);
 
 
 --
@@ -38704,6 +38745,20 @@ CREATE INDEX google_reviews_tenant_published_idx ON public.google_reviews USING 
 --
 
 CREATE INDEX idempotency_keys_created_at ON public.idempotency_keys USING btree (created_at);
+
+
+--
+-- Name: imports_connection; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX imports_connection ON public.imports USING btree (tenant_id, connection_id) WHERE (connection_id IS NOT NULL);
+
+
+--
+-- Name: imports_one_a_source; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX imports_one_a_source ON public.imports USING btree (tenant_id, source, connection_id) NULLS NOT DISTINCT;
 
 
 --
@@ -41447,7 +41502,7 @@ CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.lines REFERENCING NE
 -- Name: mailbox_connections workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER workspace_tell_update AFTER UPDATE OF state, held_why, resting_until, daily_cap, customer_domain, sent_days, dns, last_error, from_name, signature, address ON public.mailbox_connections FOR EACH ROW WHEN (((old.state IS DISTINCT FROM new.state) OR (old.held_why IS DISTINCT FROM new.held_why) OR (old.resting_until IS DISTINCT FROM new.resting_until) OR (old.daily_cap IS DISTINCT FROM new.daily_cap) OR (old.customer_domain IS DISTINCT FROM new.customer_domain) OR (old.sent_days IS DISTINCT FROM new.sent_days) OR (old.dns IS DISTINCT FROM new.dns) OR (old.last_error IS DISTINCT FROM new.last_error) OR (old.from_name IS DISTINCT FROM new.from_name) OR (old.signature IS DISTINCT FROM new.signature) OR (old.address IS DISTINCT FROM new.address))) EXECUTE FUNCTION public.workspace_tell_row_change();
+CREATE TRIGGER workspace_tell_update AFTER UPDATE OF state, held_why, resting_until, daily_cap, customer_domain, sent_days, dns, last_error, from_name, signature, address, history ON public.mailbox_connections FOR EACH ROW WHEN (((old.state IS DISTINCT FROM new.state) OR (old.held_why IS DISTINCT FROM new.held_why) OR (old.resting_until IS DISTINCT FROM new.resting_until) OR (old.daily_cap IS DISTINCT FROM new.daily_cap) OR (old.customer_domain IS DISTINCT FROM new.customer_domain) OR (old.sent_days IS DISTINCT FROM new.sent_days) OR (old.dns IS DISTINCT FROM new.dns) OR (old.last_error IS DISTINCT FROM new.last_error) OR (old.from_name IS DISTINCT FROM new.from_name) OR (old.signature IS DISTINCT FROM new.signature) OR (old.address IS DISTINCT FROM new.address) OR (old.history IS DISTINCT FROM new.history))) EXECUTE FUNCTION public.workspace_tell_row_change();
 
 
 --
@@ -42175,6 +42230,14 @@ ALTER TABLE ONLY public.google_reviews
 
 ALTER TABLE ONLY public.idempotency_keys
     ADD CONSTRAINT idempotency_keys_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: imports imports_connection_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.imports
+    ADD CONSTRAINT imports_connection_fk FOREIGN KEY (tenant_id, connection_id) REFERENCES public.mailbox_connections(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -46195,12 +46258,12 @@ GRANT ALL ON FUNCTION public.holds_reply_turn(p_conversation uuid, p_message uui
 
 
 --
--- Name: FUNCTION import_ledger_note(p_tenant_id uuid, p_source text, p_state text, p_counts jsonb, p_add boolean, p_parts_done integer, p_parts_total integer, p_oldest timestamp with time zone, p_via text, p_error text, p_cursor jsonb); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION import_ledger_note(p_tenant_id uuid, p_source text, p_state text, p_counts jsonb, p_add boolean, p_parts_done integer, p_parts_total integer, p_oldest timestamp with time zone, p_via text, p_error text, p_cursor jsonb, p_connection_id uuid, p_run text, p_take boolean); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.import_ledger_note(p_tenant_id uuid, p_source text, p_state text, p_counts jsonb, p_add boolean, p_parts_done integer, p_parts_total integer, p_oldest timestamp with time zone, p_via text, p_error text, p_cursor jsonb) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.import_ledger_note(p_tenant_id uuid, p_source text, p_state text, p_counts jsonb, p_add boolean, p_parts_done integer, p_parts_total integer, p_oldest timestamp with time zone, p_via text, p_error text, p_cursor jsonb) TO authenticated;
-GRANT ALL ON FUNCTION public.import_ledger_note(p_tenant_id uuid, p_source text, p_state text, p_counts jsonb, p_add boolean, p_parts_done integer, p_parts_total integer, p_oldest timestamp with time zone, p_via text, p_error text, p_cursor jsonb) TO service_role;
+REVOKE ALL ON FUNCTION public.import_ledger_note(p_tenant_id uuid, p_source text, p_state text, p_counts jsonb, p_add boolean, p_parts_done integer, p_parts_total integer, p_oldest timestamp with time zone, p_via text, p_error text, p_cursor jsonb, p_connection_id uuid, p_run text, p_take boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.import_ledger_note(p_tenant_id uuid, p_source text, p_state text, p_counts jsonb, p_add boolean, p_parts_done integer, p_parts_total integer, p_oldest timestamp with time zone, p_via text, p_error text, p_cursor jsonb, p_connection_id uuid, p_run text, p_take boolean) TO authenticated;
+GRANT ALL ON FUNCTION public.import_ledger_note(p_tenant_id uuid, p_source text, p_state text, p_counts jsonb, p_add boolean, p_parts_done integer, p_parts_total integer, p_oldest timestamp with time zone, p_via text, p_error text, p_cursor jsonb, p_connection_id uuid, p_run text, p_take boolean) TO service_role;
 
 
 --

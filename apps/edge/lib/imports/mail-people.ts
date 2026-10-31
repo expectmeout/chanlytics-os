@@ -94,7 +94,15 @@ async function bring(db: Db, box: { tenantId: string; own: string; via: string }
 }
 
 async function contactsStopped(db: Db, part: Part, error: string): Promise<PartOutcome> {
-  await noteImport(db, { tenantId: part.tenantId, source: "contacts", state: "failed", error, add: true });
+  await noteImport(db, {
+    tenantId: part.tenantId,
+    source: "contacts",
+    connectionId: part.connectionId,
+    run: part.run,
+    state: "failed",
+    error,
+    add: true,
+  });
   return { more: false };
 }
 
@@ -111,9 +119,17 @@ export async function contactsPart(db: Db, part: Part): Promise<PartOutcome> {
     if (t.why === "signed_out") await markSignedOut(db, row, part.log, now);
     return contactsStopped(db, part, IMPORT_STOPPED_WORDS.signedOut);
   }
-  const was = cursorOf(await importCursorOf(db, part.tenantId, "contacts"));
+  const was = cursorOf(await importCursorOf(db, part.tenantId, "contacts", row.id));
   let cur: PeopleCursor = was && lists.includes(was.list) ? was : { list: first, page: null };
-  await noteImport(db, { tenantId: part.tenantId, source: "contacts", state: "running", via: row.provider, add: true });
+  await noteImport(db, {
+    tenantId: part.tenantId,
+    source: "contacts",
+    connectionId: row.id,
+    run: part.run,
+    state: "running",
+    via: row.provider,
+    add: true,
+  });
 
   const own = row.address.toLowerCase();
   let added = 0;
@@ -144,6 +160,8 @@ export async function contactsPart(db: Db, part: Part): Promise<PartOutcome> {
   await noteImport(db, {
     tenantId: part.tenantId,
     source: "contacts",
+    connectionId: row.id,
+    run: part.run,
     state: done ? "done" : "running",
     counts: { people: added },
     add: true,

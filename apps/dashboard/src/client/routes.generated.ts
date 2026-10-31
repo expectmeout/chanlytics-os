@@ -230,6 +230,7 @@ export const ROUTES = {
   "POST lines/retry": { method: "POST", path: "/api/v1/lines/retry" },
   "POST lines/search": { method: "POST", path: "/api/v1/lines/search" },
   "POST mailbox-connections/[id]/check": { method: "POST", path: "/api/v1/mailbox-connections/[id]/check" },
+  "POST mailbox-connections/[id]/history": { method: "POST", path: "/api/v1/mailbox-connections/[id]/history" },
   "POST mailbox-connections/[id]/resume": { method: "POST", path: "/api/v1/mailbox-connections/[id]/resume" },
   "POST mailbox-connections/[id]/test": { method: "POST", path: "/api/v1/mailbox-connections/[id]/test" },
   "POST mailbox-senders": { method: "POST", path: "/api/v1/mailbox-senders" },
@@ -574,6 +575,7 @@ export type Routes = {
   "POST lines/retry": typeof import("../../app/api/v1/lines/retry/route").POST;
   "POST lines/search": typeof import("../../app/api/v1/lines/search/route").POST;
   "POST mailbox-connections/[id]/check": typeof import("../../app/api/v1/mailbox-connections/[id]/check/route").POST;
+  "POST mailbox-connections/[id]/history": typeof import("../../app/api/v1/mailbox-connections/[id]/history/route").POST;
   "POST mailbox-connections/[id]/resume": typeof import("../../app/api/v1/mailbox-connections/[id]/resume/route").POST;
   "POST mailbox-connections/[id]/test": typeof import("../../app/api/v1/mailbox-connections/[id]/test/route").POST;
   "POST mailbox-senders": typeof import("../../app/api/v1/mailbox-senders/route").POST;

@@ -1912,6 +1912,10 @@ html.legacy-on .bt-link { position: relative; }
 .set-mbx-fact dt { font-size: var(--text-xs); color: var(--ink-dim); }
 .set-mbx-fact dd { margin: 0; font-size: var(--text-sm); font-weight: 600; color: var(--ink); overflow-wrap: break-word; }
 .set-mbx-foot { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2) var(--space-4); padding-top: var(--space-2); border-top: 1px dashed var(--line); }
+/* What a new mailbox brings (decision 0086): its line, and its two ways once opened, on a row of their own under the foot. */
+.set-mbx-choice { flex: 1 0 100%; min-width: 0; }
+/* A fact's act (Stop, Resume, Try again, Bring in the last 6 months) on a line of its own under the fact's words. */
+.set-mbx-fact-act { display: block; }
 .set-mbx-left { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
 .set-mbx-left .set-dom { grid-template-columns: minmax(0, 1fr) auto; padding: var(--space-1) 0; border-top: 0; }
 .set-mbx-left .set-dom > :empty { display: none; }

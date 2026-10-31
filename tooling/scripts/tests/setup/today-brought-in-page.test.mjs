@@ -2,7 +2,7 @@
  * Today's Brought in (decision 0073, R23, canvas T-today and T·g; today/pages/brought-in.tsx), drawn without a browser:
  * the small card of what came in before Chanlytics, from the imports ledger Setup reads: where it all stands in its head,
  * a few facts closed, and opened in place the sources one by one in the first run's own lines, with Try again that
- * answers at the press; drawn while anything is coming in, a source stopped, or for a week after. The world is the first
+ * answers at the press; drawn while anything is coming in, a source stopped, or for the day after. The world is the first
  * run's (_first-run-world.mjs): the card reads the same Setup surface.
  */
 import { test } from "node:test";
@@ -103,7 +103,10 @@ test("Today's Brought in opens in place: the facts fold, the sources unfold, and
   assert.match(doorTo("fr-import-door-contacts"), /clients$/, "the contacts' line opens People");
   assert.match(doorTo("fr-import-aside-mailbox"), /admin\/integrations\/left$/, "Left in your mailbox, open");
   assert.equal(typeof byTestId(card, "fr-import-door-mailbox").props.onClick, "function", "a press goes the app's way");
-  assert.match(textOf(card), /Keeps going if you leave\. Shown on each person as history, never answered\.$/);
+  assert.match(
+    textOf(card),
+    /Keeps going if you leave\. Shown on each person as history\. Nobody in it is answered\.$/,
+  );
   byTestId(tree, "today-brought-open").props.onClick();
   tree = draw();
   assert.doesNotMatch(byTestId(tree, "today-brought-in").props.className, /\bopen\b/, "a second press closes it");
@@ -171,10 +174,10 @@ test("Try again answers at the press: Starting, and still, until the run is hear
   assert.equal(flashes.length, 1, "the refusal said once");
 });
 
-test("Today's Brought in is drawn while it helps: nothing before anything came, and nothing a week after the last source finished", () => {
+test("Today's Your history is drawn while it helps: nothing before anything came, and nothing a day after the last source finished", () => {
   setSetup(surface({ ...withFacts, imports: [] }));
   assert.equal(byTestId(draw(), "today-brought-in"), null, "nothing came");
-  const old = new Date(Date.now() - 9 * DAY).toISOString();
+  const old = new Date(Date.now() - 2 * DAY).toISOString();
   setSetup(
     surface({
       ...withFacts,
@@ -185,7 +188,7 @@ test("Today's Brought in is drawn while it helps: nothing before anything came, 
   assert.equal(
     byTestId(draw(), "today-brought-in"),
     null,
-    "past the week: People's, the Inbox's and the Calendar's own",
+    "past the day: People's, the Inbox's and the Calendar's own",
   );
   setSetup(undefined);
   assert.equal(byTestId(draw(), "today-brought-in"), null, "Setup not read yet");

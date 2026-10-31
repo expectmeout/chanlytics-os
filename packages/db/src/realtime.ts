@@ -183,6 +183,7 @@ const NARROWED_UPDATES: Readonly<Record<string, readonly string[] | null>> = {
     "last_error",
   ],
   // A mailbox the business connected (00423): what Connections draws, never the sync's cursor, its watch or a send's stamp.
+  // Its choice of history (00499): Bring in the last 6 months goes once it is the six months.
   mailbox_connections: [
     "state",
     "held_why",
@@ -195,6 +196,7 @@ const NARROWED_UPDATES: Readonly<Record<string, readonly string[] | null>> = {
     "from_name",
     "signature",
     "address",
+    "history",
   ],
   // A seat's role. Not the member's saved views or push choices, which are their own.
   memberships: ["role"],

@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-340 handlers in 55 domains.
+341 handlers in 55 domains.
 
 ## activity
 
@@ -1397,6 +1397,14 @@ Writes; for a member of the workspace the request names, partner or above; count
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/mailbox-connections/[id]/check/route.ts`).
 
+### `POST /api/v1/mailbox-connections/[id]/history`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `act` | one of `"stop"`, `"resume"`, `"bring"` | yes |  |
+
 ### `POST /api/v1/mailbox-connections/[id]/resume`
 
 Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
@@ -1425,6 +1433,7 @@ Reads; for a member of the workspace the request names, partner or above; counts
 | `mailbox_id` | string (uuid) | no |  |
 | `admin` | one of `"1"` | no |  |
 | `back` | one of `"start"` | no |  |
+| `history` | one of `"six_months"`, `"from_now"` | no |  |
 
 ## mailbox-senders
 

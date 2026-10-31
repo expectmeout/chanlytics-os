@@ -147,6 +147,7 @@ export const SCHEMA_SETS = {
   "lines.voice_state": ["none", "provisioning", "answering", "failed"],
   "lines.whatsapp_state": ["none", "connecting", "connected", "coexistence", "failed"],
   "mailbox_connections.held_why": ["bounces", "complaint", "unsubscribes"],
+  "mailbox_connections.history": ["six_months", "from_now"],
   "mailbox_connections.provider": ["google", "microsoft"],
   "mailbox_connections.state": ["connected", "reconnect", "paused", "held", "removed"],
   "mailbox_left.why": [

@@ -1743,7 +1743,11 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
    eyebrow and Hide are every width's, over the same rows (Ruben, 21 Oct 2026); a phone's rows go without their
    sentence (mobile.css; Ruben, 7 Oct 2026: three lines beside the button is a desk's). */
 .dash-a-v2 .today-setup > :first-child { align-items: center; }
+/* The eyebrow takes the head's room, so Hide for a week and the chevron that folds the card stand together at its right
+   (the refined canvas, 31 Oct 2026: Show and Hide read as one toggle, and Hide put every row off for a week). */
 .dash-a-v2 .today-setup > :first-child > :first-child {
+  flex: 1 1 auto;
+  min-width: 0;
   gap: 6px;
   font-family: var(--font-mono);
   font-size: var(--text-xs);
@@ -1754,6 +1758,16 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 }
 .dash-a-v2 .today-setup > :first-child > :first-child::after { content: "·"; }
 .dash-a-v2 .today-setup [data-testid="today-setup-left"] { order: 1; font: inherit; color: inherit; }
+/* The chevron points the way the card goes: up while open (a press folds it), down while folded. */
+.dash-a-v2 .today-setup [data-testid="today-setup-fold"] svg { rotate: 180deg; transition: rotate var(--duration-base) var(--ease-out); }
+.dash-a-v2 .today-setup [data-testid="today-setup-fold"][data-folded] svg { rotate: 0deg; }
+@media (prefers-reduced-motion: reduce) { .dash-a-v2 .today-setup [data-testid="today-setup-fold"] svg { transition: none; } }
+/* On a phone the eyebrow and Hide for a week do not fit one line: the count stands under the title, each whole, where
+   side by side they broke into three ragged lines beside Hide. */
+@media (max-width: 720px) {
+  .dash-a-v2 .today-setup > :first-child > :first-child { flex-direction: column; align-items: flex-start; gap: 2px; white-space: nowrap; }
+  .dash-a-v2 .today-setup > :first-child > :first-child::after { content: none; }
+}
 @media (min-width: 721px) {
   .dash-a-v2 .today-setup { gap: 4px; padding: 12px 18px; }
   .dash-a-v2 .today-setup [data-testid="today-setup-hide"] { font-size: var(--text-sm); }

@@ -343,9 +343,10 @@ function whatsappRow(i: SetupInputs, ctx: SetupRowContext): SetupRowDraft {
 
 /**
  * Email — the business's own mailbox (decision 0073, R13): connected, the email people write to it comes into the
- * Inbox, six months of it with it; offered where this deployment connects one. A workspace that already has a hosted
- * address keeps it, said as before; no new one is offered (the hosted address is retired for new workspaces). Absent
- * where neither can work: a row never draws a verb that cannot. Never required: a workspace answers without it.
+ * Inbox, and its last six months unless its owner chose from now on (0086); offered where this deployment connects
+ * one. A workspace that already has a hosted address keeps it, said as before; no new one is offered (the hosted
+ * address is retired for new workspaces). Absent where neither can work: a row never draws a verb that cannot. Never
+ * required: a workspace answers without it.
  */
 function emailRow(i: SetupInputs, ctx: SetupRowContext): SetupRowDraft | null {
   const { nowMs } = ctx;
