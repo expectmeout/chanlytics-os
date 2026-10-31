@@ -28,10 +28,11 @@
  * sign (src/server/edge.ts), so the two projects hold EDGE_CALL_SECRET
  * together or not at all: an edge without it refuses a dashboard that signs.
  *
- * A dashboard deployed before tokens named their body mints tokens without
- * one. Those are still let in, and logged as `edge_token_unbound`, so either
- * app may deploy first; the EDGE_TOKEN_UNBOUND switch dates the day they
- * stop.
+ * A token names the body it was minted for, and a door that takes a body
+ * refuses one that names none (`token_body`). Tokens without one were let in
+ * while either app might deploy first, behind the EDGE_TOKEN_UNBOUND switch;
+ * it closed on 31 October 2026, every dashboard deployed since mid-October
+ * minting bound tokens.
  *
  * A door that acts on a workspace then asks workspaceFor(): a token that
  * names one is believed over the body, and a body that names another is
@@ -110,8 +111,7 @@ export async function authorizeAdmin(
       const body = opts.body ?? (await request.clone().text());
       if (!edgeBodyMatches(v.claims, body)) return { ok: false, response: refuse(403, "token_body") };
     } else if (hasBody) {
-      // A dashboard from before tokens named their body: let in while EDGE_TOKEN_UNBOUND stands, and said.
-      logger().info("edge_token_unbound", { door: aud, missing: "body" });
+      return { ok: false, response: refuse(403, "token_body", "the token names no body, and this door takes one") };
     }
     if (!firstUse(v.claims.nonce, v.claims.exp, now)) return { ok: false, response: refuse(403, "token_replayed") };
     return { ok: true, via: "token", workspace: v.claims.ws, user: v.claims.user };
@@ -157,12 +157,10 @@ export function personFor(auth: Admitted, bodyUser: unknown): string | null {
 
 /**
  * The workspace a door that acts on one workspace's row must be told by the token (the live-call doors, the steer, the
- * line codes): the token's. A key-authorised knock (a preview, which holds no secret) names none. A token from a
- * dashboard deployed before these tokens named their workspace is said here; the live-call doors and the line codes
- * refuse either (voice/live-call-door.ts, lines/line-codes.ts), and the steer still acts as before while
- * EDGE_TOKEN_UNBOUND stands, unable to check whose row it acts on, which is what the switch dates.
+ * line codes): the token's. A key-authorised knock (a preview, which holds no secret) names none. The live-call doors
+ * and the line codes refuse a knock that names none (voice/live-call-door.ts, lines/line-codes.ts); the steer refuses a
+ * token that names none (receptionist/steer.ts), since EDGE_TOKEN_UNBOUND closed on 31 October 2026.
  */
-export function tokenWorkspace(auth: Admitted, aud: string): string | null {
-  if (auth.via === "token" && !auth.workspace) logger().info("edge_token_unbound", { door: aud, missing: "workspace" });
+export function tokenWorkspace(auth: Admitted): string | null {
   return auth.workspace;
 }

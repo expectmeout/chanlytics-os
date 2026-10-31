@@ -232,7 +232,12 @@ export async function steerHeldDraft(
 ): Promise<Response> {
   const ask = brain?.generateReply ?? generateReply;
   if (!env.ANTHROPIC_API_KEY) return refuse(503, "no_model_key");
-  const workspace = tokenWorkspace(auth, "/api/admin/steer");
+  const workspace = tokenWorkspace(auth);
+  // A token says whose draft it may steer: one that names no workspace is refused, as the live-call doors refuse it.
+  if (auth.via === "token" && (!workspace || !UUID.test(workspace))) {
+    const why = "this door acts only for a workspace its credential names, and this one names none";
+    return refuse(400, "bad_tenant", why);
+  }
   const messageId = String(body.message_id || "");
   const text = String(body.text || "").trim();
   if (!UUID.test(messageId) || !text || text.length > MAX_CHARS) {

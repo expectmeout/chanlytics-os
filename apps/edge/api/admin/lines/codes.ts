@@ -15,5 +15,5 @@ const AUD = "/api/admin/lines/codes";
 export const GET = adminDoor(async function GET(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, AUD);
   if (!auth.ok) return auth.response;
-  return lineCodes(auth, AUD);
+  return lineCodes(auth);
 });

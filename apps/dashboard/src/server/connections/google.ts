@@ -20,8 +20,7 @@ import {
 } from "@chanlytics/contracts";
 
 import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer } from "../edge";
-import { deployment, env, isProduction } from "../env";
-import { log } from "../log";
+import { deployment, env } from "../env";
 
 const LISTING_COLUMNS =
   "place_id, name, address, maps_uri, business_status, rating, review_count, linked_at, checked_at, check_error";
@@ -177,24 +176,13 @@ export async function googleReadiness(now = Date.now()): Promise<GoogleReadiness
   return value;
 }
 
-let fallbackSaid = false;
-
 /**
- * The secret that signs the OAuth state: GOOGLE_OAUTH_STATE_SECRET. Off production, while it is unset, the key the
- * dashboard shares with the edge stands in and says so once (`google_state_signed_by_diag_key`): a security switch
- * with a sunset (contracts' flag registry, ai/flags.ts). Production refuses the stand-in, so the door key never signs a
- * production state; without its own secret, Connect Google says it is not available here.
+ * The secret that signs the OAuth state (Google, Instagram, a mailbox): GOOGLE_OAUTH_STATE_SECRET, on every deployment.
+ * Without it, a connection says it is not available here. The door key the dashboard shares with the edge stood in off
+ * production until 31 October 2026 (the GOOGLE_OAUTH_STATE_SECRET switch); it signs nothing of a person's now.
  */
 export function stateSecret(): string | null {
-  const own = env.GOOGLE_OAUTH_STATE_SECRET;
-  if (own) return own;
-  if (isProduction()) return null;
-  const key = env.DIAG_KEY ?? null;
-  if (key && !fallbackSaid) {
-    fallbackSaid = true;
-    log.warn("google_state_signed_by_diag_key", { deployment: env.VERCEL_ENV ?? "development" });
-  }
-  return key;
+  return env.GOOGLE_OAUTH_STATE_SECRET ?? null;
 }
 
 /**

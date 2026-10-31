@@ -70,7 +70,11 @@ test("only the platform's key opens it: no credential, a wrong key and a workspa
   try {
     assert.deepEqual(await answer(await knock(RED, {})), [403, { ok: false }]);
     assert.deepEqual(await answer(await knock(RED, { "x-diag-key": "not-the-key" })), [403, { ok: false }]);
-    const token = signEdgeToken(process.env.EDGE_CALL_SECRET, AUD, { workspace: null, user: "u1" });
+    const token = signEdgeToken(process.env.EDGE_CALL_SECRET, AUD, {
+      workspace: null,
+      user: "u1",
+      body: JSON.stringify(RED),
+    });
     const [status, body] = await answer(await knock(RED, { "x-edge-token": token }));
     assert.equal(status, 403);
     assert.equal(body.error, "platform_only");

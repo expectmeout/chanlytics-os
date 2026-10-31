@@ -209,12 +209,19 @@ test("the webhook checks the signature the same one way (retellSigned), and stil
     restringified: true,
   });
   assert.deepEqual(retellSigned(raw, null), { ok: false, raw: false, restringified: false });
-  // With no badged key the API key is tried, as the webhook always has.
+  // With no badged key nothing verifies, the API key included (RETELL_WEBHOOK_KEY's fallback closed, 31 Oct 2026).
   const was = process.env.RETELL_WEBHOOK_KEY;
   delete process.env.RETELL_WEBHOOK_KEY;
   try {
-    assert.equal(retellSigned(raw, sign(raw, { key: "api-key-for-this-file" })).ok, true);
+    assert.equal(retellSigned(raw, sign(raw, { key: "api-key-for-this-file" })).ok, false);
+    assert.equal(
+      retellSigned(raw, sign(raw)).ok,
+      false,
+      "nor the badged key's signature, with no key here to check it",
+    );
   } finally {
     process.env.RETELL_WEBHOOK_KEY = was;
   }
+  // The API key never verifies, beside the badged one either.
+  assert.equal(retellSigned(raw, sign(raw, { key: "api-key-for-this-file" })).ok, false);
 });

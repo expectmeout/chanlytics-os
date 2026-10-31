@@ -16,7 +16,7 @@
  * allows, the log event whose readings prove the world is ready to close it, and what closes it. A security switch
  * fails closed wherever that needs no reading of production's log: production refuses to boot on a value that would
  * leave it open by accident (a typo for the value that closes it), and where a stronger secret exists production
- * refuses the fallback (the Google OAuth state; the platform key on an edge without `EDGE_CALL_SECRET`). The ones that
+ * refuses the fallback (the platform key on an edge without `EDGE_CALL_SECRET`). The ones that
  * wait on a reading of production (the voice doors' shared secret, the platform key on a preview) stay open until
  * their day, and the registry's test turns red a month after it.
  */
@@ -116,20 +116,6 @@ export const FLAGS: readonly Flag[] = [
     },
   },
   {
-    name: "RETELL_WEBHOOK_KEY",
-    mechanism: "edge_env",
-    does: "The key Retell's signature is checked with; unset, RETELL_API_KEY is tried instead.",
-    owner: "Ruben",
-    sunset: "2026-10-17",
-    weaker: {
-      allows:
-        "Unset, the signature is checked with RETELL_API_KEY instead of the badged webhook key, so a delivery Retell " +
-        "signed with the badged key reads as unsigned and only the shared secret admits it.",
-      readiness: { event: "voice_door_auth", when: "sig: true on the webhook door with RETELL_WEBHOOK_KEY set" },
-      closes: "Set RETELL_WEBHOOK_KEY on the edge; then the change that stops falling back to RETELL_API_KEY.",
-    },
-  },
-  {
     name: "DIAG_KEY",
     mechanism: "edge_env",
     does: "The platform's shared key: with EDGE_CALL_SECRET set it opens only the knocks that name it (the diagnostic and the pager); on an edge without the secret it opens every admin door.",
@@ -148,38 +134,6 @@ export const FLAGS: readonly Flag[] = [
       closes:
         "EDGE_CALL_SECRET on the preview projects (Ruben's switch); then the change that deletes DIAG_KEY from every " +
         "door but the platform's, the runbook's knock minting a token instead.",
-    },
-  },
-  {
-    name: "GOOGLE_OAUTH_STATE_SECRET",
-    mechanism: "dashboard_env",
-    does: "Signs the Google OAuth state; unset on a preview or a laptop, DIAG_KEY signs it. Production refuses the stand-in.",
-    owner: "Ruben",
-    sunset: "2026-10-17",
-    weaker: {
-      allows:
-        "Unset on a preview or a laptop, DIAG_KEY signs the Google OAuth state (src/server/connections/google.ts). " +
-        "Production refuses the fallback: without its own secret, Connect Google says it is not set up.",
-      readiness: { event: "google_state_signed_by_diag_key", when: "no line from any deployment for a week" },
-      closes:
-        "GOOGLE_OAUTH_STATE_SECRET on every project that offers Connect Google; then the change that deletes the fallback.",
-    },
-  },
-  {
-    name: "EDGE_TOKEN_UNBOUND",
-    mechanism: "rollout",
-    does: "A per-call token from a dashboard deployed before tokens named their body and workspace is still let in, so either app may deploy first.",
-    owner: "platform",
-    sunset: "2026-10-13",
-    weaker: {
-      allows:
-        "A per-call token with no body hash is accepted on a POST, and one with no workspace on the steer, a door " +
-        "that must check whose row it acts on (tokenWorkspace in lib/admin-auth.ts; the live-call doors refuse one " +
-        "since 25 October 2026), so a dashboard built before this may still call an edge that reads them. A token " +
-        "about no workspace is otherwise a platform operator's on purpose (the runbook's knock), so only the doors " +
-        "that ask tokenWorkspace say it.",
-      readiness: { event: "edge_token_unbound", when: "no line for a day after both projects deploy" },
-      closes: "The change that refuses a token with no body hash on a POST, and one with no workspace on the steer.",
     },
   },
   {

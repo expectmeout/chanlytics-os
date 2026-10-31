@@ -197,28 +197,6 @@ test("a door that names the platform's key as its credential: the key still open
   );
 });
 
-/** The lines of one event written while `fn` ran, as fields. */
-async function loggedEvent(event, fn) {
-  const lines = [];
-  const real = console.log;
-  console.log = (...args) => {
-    for (const a of args) {
-      try {
-        const o = JSON.parse(String(a));
-        if (o.event === event) lines.push(o);
-      } catch {
-        /* not a log line */
-      }
-    }
-  };
-  try {
-    await fn();
-  } finally {
-    console.log = real;
-  }
-  return lines;
-}
-
 /** A POST to a door with a raw body; `headers` may carry a token minted for that body. */
 const post = (headers, raw, aud = AUD, opts = undefined) =>
   authorizeAdmin(new Request(`https://edge.test${aud}`, { method: "POST", headers, body: raw }), aud, opts);
@@ -277,36 +255,22 @@ test("a token that names a body opens the door for that body only: another body,
   );
 });
 
-test("a dashboard from before tokens named their body is let in and said, on a POST only; a body-bound token says nothing", async () => {
+test("a token that names no body is refused on a POST, since EDGE_TOKEN_UNBOUND closed; a GET has none to name", async () => {
   const raw = JSON.stringify({ op: "status" });
-  const old = () => signEdgeToken(SECRET, AUD, { workspace: "ws-1", user: "u-1" });
-  const lines = await loggedEvent("edge_token_unbound", async () => {
-    assert.equal((await post({ "x-edge-token": old() }, raw)).ok, true);
-    assert.equal((await knock({ "x-edge-token": old() })).ok, true, "a GET has no body to name");
-    assert.equal((await post({ "x-edge-token": bound(raw) }, raw)).ok, true);
-  });
-  assert.deepEqual(
-    lines.map((l) => [l.door, l.missing]),
-    [[AUD, "body"]],
-    "one line, for the call that could have named its body and did not",
-  );
+  const unbound = () => signEdgeToken(SECRET, AUD, { workspace: "ws-1", user: "u-1" });
+  const refusedOne = await post({ "x-edge-token": unbound() }, raw);
+  assert.equal(refusedOne.ok, false);
+  assert.equal(refusedOne.response.status, 403);
+  assert.equal((await refusedOne.response.json()).error, "token_body");
+  assert.equal((await knock({ "x-edge-token": unbound() })).ok, true, "a GET has no body to name");
+  assert.equal((await post({ "x-edge-token": bound(raw) }, raw)).ok, true);
 });
 
-test("a door that acts on one workspace's row reads the workspace from the token, and says when the token names none", async () => {
+test("a door that acts on one workspace's row reads the workspace from the token; a preview's key names none", async () => {
   const { tokenWorkspace } = await importSrc("apps/edge/lib/admin-auth.ts");
-  const lines = await loggedEvent("edge_token_unbound", async () => {
-    assert.equal(tokenWorkspace({ ok: true, via: "token", workspace: "ws-1", user: "u-1" }, AUD), "ws-1");
-    assert.equal(tokenWorkspace({ ok: true, via: "token", workspace: null, user: null }, AUD), null);
-    assert.equal(
-      tokenWorkspace({ ok: true, via: "key", workspace: null, user: null }, AUD),
-      null,
-      "a preview's key names none, said nowhere",
-    );
-  });
-  assert.deepEqual(
-    lines.map((l) => [l.door, l.missing]),
-    [[AUD, "workspace"]],
-  );
+  assert.equal(tokenWorkspace({ ok: true, via: "token", workspace: "ws-1", user: "u-1" }), "ws-1");
+  assert.equal(tokenWorkspace({ ok: true, via: "token", workspace: null, user: null }), null);
+  assert.equal(tokenWorkspace({ ok: true, via: "key", workspace: null, user: null }), null);
 });
 
 test("the nonces an instance remembers are bounded: past the bound the oldest is forgotten, and a token still inside it is refused", async () => {

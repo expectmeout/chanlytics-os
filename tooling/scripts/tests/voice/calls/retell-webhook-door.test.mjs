@@ -143,14 +143,14 @@ test("the door: a refusal is a 401 with one evidence row a minute; the raw body 
     sig_restringified: true,
   });
 
-  // With RETELL_WEBHOOK_KEY empty the API key is tried underneath, as before --
-  // and the badged key then verifies nothing.
+  // With RETELL_WEBHOOK_KEY empty nothing verifies: the API key is never tried in its place (the switch closed, 31 Oct
+  // 2026), and the badged key has nothing here to be checked against.
   await withEnv({ RETELL_WEBHOOK_KEY: undefined }, async () => {
-    assert.equal((await knock(raw, { signature: sign(raw, { key: process.env.RETELL_API_KEY }) })).status, 200);
+    assert.equal((await knock(raw, { signature: sign(raw, { key: process.env.RETELL_API_KEY }) })).status, 401);
     assert.equal((await knock(raw, { signature: sign(raw, { key: "badged-key-for-this-file" }) })).status, 401);
   });
-  assert.equal(rows().length, 4, "three accepted, and the one refusal");
-  assert.equal(w.tables.events.length, 4, "a body carrying no call writes nothing but its auth row");
+  assert.equal(rows().length, 3, "two accepted, and one refusal: a refusal writes one evidence row a minute");
+  assert.equal(w.tables.events.length, 3, "a body carrying no call writes nothing but its auth row");
   assert.equal(ingests(db).length, 0);
 });
 

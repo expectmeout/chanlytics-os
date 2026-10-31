@@ -4,9 +4,10 @@
  *   BASE_URL=https://chanlytics-messaging.vercel.app EDGE_CALL_SECRET=… TENANT_ID=… \
  *     node --import tsx tooling/scripts/eval-brain.mjs [tooling/evals/whatsapp-cases.json]
  *
- * The knock is a token minted for the eval door and this workspace, as the
- * dashboard mints one (packages/channels edge-token); DIAG_KEY in place of the
- * secret opens the door only on an edge that holds no EDGE_CALL_SECRET.
+ * The knock is a token minted for the eval door, this workspace and the body it
+ * rides with, as the dashboard mints one (packages/channels edge-token): the
+ * edge refuses a token that names no body. DIAG_KEY in place of the secret
+ * opens the door only on an edge that holds no EDGE_CALL_SECRET.
  *
  * Nothing is sent to a customer and nothing is written: the edge runs the
  * brain on each case with the workspace's real composed prompt and hands the
@@ -30,9 +31,14 @@ if ((!SECRET && !KEY) || !TENANT) {
   process.exit(2);
 }
 
-/** What a batch knocks with: a token for this door and this workspace, minted per batch (a minute's life); the key only where no secret is held. */
-const credential = () =>
-  SECRET ? { "x-edge-token": signEdgeToken(SECRET, "/api/admin/eval", { workspace: TENANT }) } : { "x-diag-key": KEY };
+/**
+ * What a batch knocks with: a token for this door, this workspace and this body, minted per batch (a minute's life);
+ * the key only where no secret is held.
+ */
+const credential = (body) =>
+  SECRET
+    ? { "x-edge-token": signEdgeToken(SECRET, "/api/admin/eval", { workspace: TENANT, body }) }
+    : { "x-diag-key": KEY };
 
 const cases = JSON.parse(readFileSync(file, "utf8"));
 const problems = validateCases(cases);
@@ -50,10 +56,11 @@ for (let i = 0; i < cases.length; i += BATCH) {
   const batch = cases
     .slice(i, i + BATCH)
     .map(({ id, text, history }) => ({ id, text, ...(history ? { history } : {}) }));
+  const body = JSON.stringify({ tenant_id: TENANT, cases: batch });
   const res = await fetch(`${BASE}/api/admin/eval`, {
     method: "POST",
-    headers: { "content-type": "application/json", ...credential() },
-    body: JSON.stringify({ tenant_id: TENANT, cases: batch }),
+    headers: { "content-type": "application/json", ...credential(body) },
+    body,
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok || !data.ok) {

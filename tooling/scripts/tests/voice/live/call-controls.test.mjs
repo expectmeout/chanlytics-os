@@ -66,11 +66,17 @@ function provider(status, body = "") {
     },
   };
 }
-const token = (aud) => signEdgeToken(process.env.EDGE_CALL_SECRET, aud, { workspace: A, user: "u1" });
+const token = (aud) => {
+  const secret = process.env.EDGE_CALL_SECRET;
+  return (body) => signEdgeToken(secret, aud, { workspace: A, user: "u1", body });
+};
+/** The headers a knock sends, each token minted for the body it rides with: the edge refuses a token that names none. */
+const minted = (headers, raw) =>
+  Object.fromEntries(Object.entries(headers).map(([k, v]) => [k, typeof v === "function" ? v(raw) : v]));
 const knock = (aud, body, t = token(aud)) =>
   new Request(`http://edge${aud}`, {
     method: "POST",
-    headers: { "x-edge-token": t, "content-type": "application/json" },
+    headers: minted({ "x-edge-token": t, "content-type": "application/json" }, JSON.stringify(body)),
     body: JSON.stringify(body),
   });
 

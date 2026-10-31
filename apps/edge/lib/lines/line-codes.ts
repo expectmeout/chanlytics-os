@@ -37,8 +37,8 @@ async function ownLineAccount(db: SupabaseClient<Database>, tenantId: string) {
 }
 
 /** GET /api/admin/lines/codes: the codes sent to the token's workspace's own line lately. */
-export async function lineCodes(auth: Admitted, aud: string): Promise<Response> {
-  const tenantId = tokenWorkspace(auth, aud);
+export async function lineCodes(auth: Admitted): Promise<Response> {
+  const tenantId = tokenWorkspace(auth);
   if (!tenantId || !UUID.test(tenantId)) return refuse(400, "bad_tenant");
   const db = pg();
   if (!db) return refuse(503, "no_database");

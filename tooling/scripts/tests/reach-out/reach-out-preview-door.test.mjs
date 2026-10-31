@@ -44,12 +44,18 @@ const CONFIG = (over = {}) => ({
   },
 });
 
-const token = (workspace = A, aud = AUD) => signEdgeToken(process.env.EDGE_CALL_SECRET, aud, { workspace, user: USER });
+const token = (workspace = A, aud = AUD) => {
+  const secret = process.env.EDGE_CALL_SECRET;
+  return (body) => signEdgeToken(secret, aud, { workspace, user: USER, body });
+};
+/** The headers a knock sends, each token minted for the body it rides with: the edge refuses a token that names none. */
+const minted = (headers, raw) =>
+  Object.fromEntries(Object.entries(headers).map(([k, v]) => [k, typeof v === "function" ? v(raw) : v]));
 const knock = (body, headers = { "x-edge-token": token() }) =>
   door.POST(
     new Request(`http://edge${AUD}`, {
       method: "POST",
-      headers: { ...headers, "content-type": "application/json" },
+      headers: minted({ ...headers, "content-type": "application/json" }, JSON.stringify(body)),
       body: JSON.stringify(body),
     }),
   );
@@ -250,7 +256,8 @@ test("a preview spends the model, so it counts in Ask's daily budget as a lead d
   assert.equal(full.asked.length, 0, "no business was read for it");
   // The token's person is the asker. A token about no person leaves the body to say who, and a body that names no
   // person is refused; a token that names one is believed over whatever the body says.
-  const nobody = { "x-edge-token": signEdgeToken(process.env.EDGE_CALL_SECRET, AUD, { workspace: A, user: null }) };
+  const secret = process.env.EDGE_CALL_SECRET;
+  const nobody = { "x-edge-token": (body) => signEdgeToken(secret, AUD, { workspace: A, user: null, body }) };
   assert.deepEqual(await answer(await knock(BODY({ user_id: "ada" }), nobody)), [
     400,
     { ok: false, error: "bad_request" },

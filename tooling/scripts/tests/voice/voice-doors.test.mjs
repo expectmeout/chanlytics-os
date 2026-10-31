@@ -83,18 +83,25 @@ const KEY = process.env.RETELL_API_KEY;
 
 /* ------------------------------- the knock -------------------------------- */
 
-const token = (aud, o = {}) =>
-  signEdgeToken(o.secret ?? process.env.EDGE_CALL_SECRET, o.aud ?? aud, {
-    workspace: "workspace" in o ? o.workspace : A,
-    user: "u1",
-  });
+const token = (aud, o = {}) => {
+  const secret = o.secret ?? process.env.EDGE_CALL_SECRET;
+  return (body) =>
+    signEdgeToken(secret, o.aud ?? aud, {
+      workspace: "workspace" in o ? o.workspace : A,
+      user: "u1",
+      body,
+    });
+};
+/** The headers a knock sends, each token minted for the body it rides with: the edge refuses a token that names none. */
+const minted = (headers, raw) =>
+  Object.fromEntries(Object.entries(headers).map(([k, v]) => [k, typeof v === "function" ? v(raw) : v]));
 const knockAt =
   (door, aud) =>
   (body, headers = { "x-edge-token": token(aud) }) =>
     door.POST(
       new Request(`http://edge${aud}`, {
         method: "POST",
-        headers: { ...headers, "content-type": "application/json" },
+        headers: minted({ ...headers, "content-type": "application/json" }, JSON.stringify(body)),
         body: JSON.stringify(body),
       }),
     );
@@ -109,7 +116,7 @@ const knockRaw = (raw, headers = { "x-edge-token": token(PROVISION) }) =>
   provision.POST(
     new Request(`http://edge${PROVISION}`, {
       method: "POST",
-      headers: { ...headers, "content-type": "application/json" },
+      headers: minted({ ...headers, "content-type": "application/json" }, raw),
       body: raw,
     }),
   );
