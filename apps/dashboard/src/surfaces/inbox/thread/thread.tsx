@@ -350,7 +350,12 @@ function scrollBody(
 
       <NarrativeSummary thread={thread} />
 
-      <div className="ix-timeline">{timelineRows(p, thread, rowsAt)}</div>
+      {/* A thread whose own read is still out draws its conversation when it lands (read-apart.ts). */}
+      {thread.real && thread.partial ? (
+        <div className="ix-timeline" aria-busy="true" data-testid="ix-timeline-reading" />
+      ) : (
+        <div className="ix-timeline">{timelineRows(p, thread, rowsAt)}</div>
+      )}
     </div>
   );
 }
@@ -414,21 +419,24 @@ export const InboxThread = (props: InboxThreadProps) => {
   const focusRef = useRef<string | null>(focusMessageId);
   const threadRef = useRef<Thread | null>(thread);
   threadRef.current = thread;
-  const real = !!(thread && thread.real);
+  // A real thread whose conversation waits for its own read (read-apart.ts) is drawn without it until it lands, then
+  // opens as a thread does: at its newest, or the message it was opened at, with what it opened with simply there.
+  const waiting = !!(thread && thread.real && thread.partial);
+  const drawn = !!(thread && thread.real) && !waiting;
   const entries = thread && thread.timeline ? thread.timeline.length : 0;
   useEffect(() => {
     const el = scrollRef.current;
-    if (!real || !el) return undefined;
+    if (!drawn || !el) return undefined;
     return followTheEnd(el, { thread: threadRef, focus: focusRef, stuck: stuckRef });
-  }, [real]);
+  }, [drawn]);
   useEffect(() => {
     const el = scrollRef.current;
-    if (!real || !el || !stuckRef.current) return;
+    if (!drawn || !el || !stuckRef.current) return;
     const box = threadScroller(el);
     box.scrollTop = threadEnd(box);
-  }, [real, entries]);
+  }, [drawn, entries]);
   // A long thread is drawn from its newest entries, and the ones before as its top is scrolled near (earlier.ts).
-  const earlier = useEarlierAsScrolled(thread, focusMessageId, scrollRef);
+  const earlier = useEarlierAsScrolled(waiting ? null : thread, focusMessageId, scrollRef);
   if (!thread) return <InboxEmpty quiet={props.nothingOpen === "quiet"} />;
 
   const decided = !!thread.resolution;
@@ -449,7 +457,7 @@ export const InboxThread = (props: InboxThreadProps) => {
     // "No reply needed" on a thread left unanswered is the archive, which asks first.
     onArchive: thread.real && held.onArchive ? () => setAskArchive(true) : null,
   };
-  if (seenRef.current.id !== thread.id) seenRef.current = { id: thread.id, n: thread.timeline.length };
+  if (!waiting && seenRef.current.id !== thread.id) seenRef.current = { id: thread.id, n: thread.timeline.length };
   const seenAt = Math.max(seenRef.current.n, thread.timeline.length - 3);
 
   return (

@@ -16,7 +16,6 @@ import {
   heldThreadIds,
   inboxThreadClock,
   OPEN_HOLDS_READ_MAX,
-  toInboxThreadVM,
   waitsOnAPerson,
   type ConversationDto,
   type EscalationDto,
@@ -35,7 +34,7 @@ import { peopleHold, threadPersonSaid } from "../people/want-person";
 import { namedByRoute } from "./address";
 import { ixPlace } from "./place";
 import { ixOnPhone, ixOpeningThread } from "./rules";
-import { readHeldThreads } from "./held-threads";
+import { inboxThreadsOf, readHeldThreads, readThreadWhole, revivedThread } from "./read-apart";
 import { inboxData, REAL_BUCKETS, REAL_CHANNEL_LABELS } from "./store";
 import type { Thread } from "./types";
 
@@ -46,12 +45,18 @@ declareSurfaceValue("inbox", "INBOX_DATA");
 // thread's times are said again by the clock that paints them, from the moments it keeps, in the zone the read said them
 // in (contracts inboxThreadClock). The cache's words were the read's: "9:00 AM" on yesterday's thread and "waiting 2h" on a
 // wait of 22, until the next read landed a beat later and moved the rows (Ruben, 21 Oct 2026). A snapshot that keeps no
-// zone is painted as it was kept, since a zone guessed would move them the other way.
+// zone is painted as it was kept, since a zone guessed would move them the other way. A thread read whole before the
+// refresh is partial again, as the first read will make it (read-apart.ts revivedThread).
 revivesFromCache("inbox", (held) => {
   const zone = held.zone;
-  if (!zone) return held;
   const now = Date.now();
-  return { ...held, THREADS: held.THREADS.map((t) => (t.real ? { ...t, ...inboxThreadClock(t, zone, now) } : t)) };
+  return {
+    ...held,
+    THREADS: held.THREADS.map((t) => {
+      const revived = revivedThread(t);
+      return revived.real && zone ? { ...revived, ...inboxThreadClock(revived, zone, now) } : revived;
+    }),
+  };
 });
 
 /**
@@ -111,6 +116,8 @@ function openingThreadWaits(threads: Thread[]): void {
   firstDrawWaitsFor("inbox", surfaceSettles("reply_drafts"));
   if (thread.clientId && !peopleHold(thread.clientId))
     firstDrawWaitsFor("inbox", threadPersonSaid(thread.conversationId, thread.clientId));
+  // And its conversation, where the read holds only its newest (read-apart.ts).
+  if (thread.partial) firstDrawWaitsFor("inbox", readThreadWhole(thread.conversationId));
 }
 
 export const inboxOverride: SurfaceOverride = {
@@ -188,7 +195,8 @@ export const inboxOverride: SurfaceOverride = {
 
     // The one a link named stands last, among the oldest, where its own time puts it.
     const all = [...extra, ...convData.conversations, ...byAddress];
-    const threads = all.map((c) => toInboxThreadVM(c, byConv.get(c.id) ?? null, tz));
+    // Each from what the read carries, and a thread opened before from what was kept of it as well (read-apart.ts).
+    const threads = inboxThreadsOf(all, (id) => byConv.get(id) ?? null, tz);
     const prev = inboxData();
     // The templates are the settings read's, as it stands now: absent while that is still being read, null where its templates
     // read failed (the composer says it could not read them, with a way to try again; [] is the other answer, none approved),

@@ -1,48 +1,75 @@
 import "server-only";
-import { addressOf, contactName, theyWroteLast, type ConversationDto, type MessageDto } from "@chanlytics/contracts";
-import { failedMessageErrors, lastClosedHolds } from "@chanlytics/db";
+import {
+  DAY_MS,
+  LIST_MESSAGES_EACH,
+  addressOf,
+  contactName,
+  theyWroteLast,
+  type ConversationDto,
+  type MessageDto,
+} from "@chanlytics/contracts";
+import { failedMessageErrors, lastClosedHolds, searchMessages } from "@chanlytics/db";
 import { CONVERSATION_COLUMNS, groupMessages, messageRowsOf, toConversationDto } from "../dto";
 import { seenOfPeople } from "../people/person-seen";
-import { stamp, type Reader, type RowRef } from "./index";
+import { stamp, type Reader, type ReaderContext, type RowRef } from "./index";
 
-/** Each thread's newest messages the Inbox holds: a hundred, the page GET conversations/:id reads a thread by. */
-const EACH = 100;
-/** The Inbox's messages across the threads it shows, newest first. */
-const MESSAGES_MAX = 4000;
+/** The threads the Inbox's read holds: the newest hundred, or as many as one read by id names. */
+const THREADS_MAX = 100;
+/** The Inbox's messages across the threads it shows: every one's newest, so none is ever cut. */
+const MESSAGES_MAX = LIST_MESSAGES_EACH * THREADS_MAX;
+/** How far back the threads that say some words are looked for: search_messages' longest window (00219). */
+const SAID_DAYS = 90;
+/** The most messages that say them, whose threads are read: search_messages' own fifty. */
+const SAID_HITS = 50;
 
 /** Who a thread is with, as the Inbox row says it: toInboxThreadVM's own `who`. */
 export const whoOf: (c: ConversationDto) => string = contactName;
 
 /**
+ * The threads whose messages say `words` in the last SAID_DAYS, newest first, through search_messages (00219), which
+ * runs as the member: Conversations' search box, which matched words only in the messages the Inbox's read carried.
+ */
+async function threadsSaying(rc: ReaderContext, words: string): Promise<string[]> {
+  const since = new Date(rc.now.getTime() - SAID_DAYS * DAY_MS);
+  const hits = await searchMessages(rc.ctx.supabase, rc.tenantId, words, since, SAID_HITS);
+  return [...new Set(hits.flatMap((h) => (h.kind === "message" && h.conversationId ? [h.conversationId] : [])))];
+}
+
+/**
  * GET conversations, as the route answers it: the hundred most recent
- * conversations of the workspace with their recent messages, as the Inbox
+ * conversations of the workspace with their newest messages, as the Inbox
  * draws them, or the ones `ids` names (parsed, capped and checked by the
- * route). A thread's recent messages are its newest hundred, and the read holds
- * four thousand in all. Each is a thread a citation may name, called what the
+ * route), or the ones whose messages say `said`. A thread's messages are its
+ * newest LIST_MESSAGES_EACH: a thread opened reads the rest (GET
+ * conversations/:id). Each is a thread a citation may name, called what the
  * Inbox calls it.
  */
-export const conversations: Reader<{ ids: string[] | null }, { conversations: ConversationDto[] }> = {
+export const conversations: Reader<
+  { ids: string[] | null; said?: string | null },
+  { conversations: ConversationDto[] }
+> = {
   name: "conversations",
-  async read(rc, { ids: asked }) {
+  async read(rc, { ids: named, said }) {
     const { supabase } = rc.ctx;
     const { tenantId, userId } = rc;
+    const asked = said ? await threadsSaying(rc, said) : named;
+    if (asked && !asked.length) return { data: { conversations: [] }, rows: [], stamp: stamp() };
     const base = supabase.from("conversations").select(CONVERSATION_COLUMNS).eq("tenant_id", tenantId);
     const { data: convs, error } = await (asked
       ? base.in("id", asked)
-      : base.order("last_message_at", { ascending: false, nullsFirst: false }).limit(100));
+      : base.order("last_message_at", { ascending: false, nullsFirst: false }).limit(THREADS_MAX));
     if (error) throw new Error(error.message);
     const ids = (convs ?? []).map((c) => c.id);
     const messagesOf = async (): Promise<Map<string, MessageDto[]>> => {
       if (!ids.length) return new Map();
-      // One read, bounded by what it answers (00258): each thread's newest hundred through the thread's own index,
-      // then the newest four thousand of those, the id breaking ties, as one list PostgREST's thousand rows do not
-      // cut. Paged by OFFSET, this read every message the hundred threads ever had and sorted them for each page, up
-      // to four times on every refresh, and one thread with a long history could fill every page and leave the others
-      // reading "No messages yet" (I5).
+      // One read, bounded by what it answers (00258): each thread's newest through the thread's own index, the id
+      // breaking ties, as one list PostgREST's thousand rows do not cut. Paged by OFFSET, this read every message the
+      // hundred threads ever had and sorted them for each page, up to four times on every refresh, and one thread with a
+      // long history could fill every page and leave the others reading "No messages yet" (I5).
       const { data, error: merr } = await supabase.rpc("newest_messages", {
         p_tenant_id: tenantId,
         p_threads: ids,
-        p_each: EACH,
+        p_each: LIST_MESSAGES_EACH,
         p_most: MESSAGES_MAX,
       });
       if (merr) throw new Error(merr.message);
@@ -53,8 +80,8 @@ export const conversations: Reader<{ ids: string[] | null }, { conversations: Co
         list.filter((m) => m.status === "failed").map((m) => m.id),
       );
       if (failed.length) {
-        const said = new Map((await failedMessageErrors(supabase, tenantId, failed)).map((r) => [r.id, r.error]));
-        for (const list of grouped.values()) for (const m of list) if (said.has(m.id)) m.error = said.get(m.id);
+        const why = new Map((await failedMessageErrors(supabase, tenantId, failed)).map((r) => [r.id, r.error]));
+        for (const list of grouped.values()) for (const m of list) if (why.has(m.id)) m.error = why.get(m.id);
       }
       return grouped;
     };

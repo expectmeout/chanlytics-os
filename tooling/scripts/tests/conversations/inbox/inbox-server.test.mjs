@@ -16,7 +16,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../../_fake-db.mjs";
-import { toInboxThreadVM, stateOf, memberWords, memberMetaOf } from "@chanlytics/contracts";
+import { LIST_MESSAGES_EACH, toInboxThreadVM, stateOf, memberWords, memberMetaOf } from "@chanlytics/contracts";
 import { installLegacyReact, fresh, again, find } from "../../_legacy-react.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -153,7 +153,8 @@ test("the Inbox's read reaches every thread's messages past PostgREST's thousand
   const conversations = Array.from({ length: 30 }, (_, i) =>
     conversation(uuid(i), A, { last_message_at: ago(i * HOUR) }),
   );
-  // Ninety messages a thread, 2,700 in all: the read asked for 4,000 and PostgREST answered 1,000.
+  // Ninety messages a thread: the read asked for 4,000 and PostgREST answered 1,000. Each thread's newest
+  // LIST_MESSAGES_EACH now, three hundred in all, under a row cap of a hundred: one list, which the cap does not cut.
   const messages = conversations.flatMap((c, i) =>
     Array.from({ length: 90 }, (_, j) =>
       message(`m-${i}-${j}`, c.id, A, { created_at: ago(i * HOUR + j * 1000), channel_ts: ago(i * HOUR + j * 1000) }),
@@ -161,7 +162,7 @@ test("the Inbox's read reaches every thread's messages past PostgREST's thousand
   );
   const out = await list.GET.run(
     get(inA),
-    ctxFor({ memberships: both("viewer", "viewer"), conversations, messages }, {}, { maxRows: 1000 }),
+    ctxFor({ memberships: both("viewer", "viewer"), conversations, messages }, {}, { maxRows: 100 }),
   );
   const empty = out.conversations.filter((c) => c.messages.length === 0);
   assert.equal(
@@ -171,11 +172,11 @@ test("the Inbox's read reaches every thread's messages past PostgREST's thousand
   );
   assert.equal(
     out.conversations.reduce((n, c) => n + c.messages.length, 0),
-    2700,
+    30 * LIST_MESSAGES_EACH,
   );
 });
 
-test("a thread with a long history holds its newest hundred and leaves every other thread its own", async () => {
+test("a thread with a long history holds its newest and leaves every other thread its own", async () => {
   const conversations = Array.from({ length: 30 }, (_, i) =>
     conversation(uuid(i), A, { last_message_at: ago(i * HOUR) }),
   );
@@ -202,12 +203,12 @@ test("a thread with a long history holds its newest hundred and leaves every oth
     ),
   );
   const held = out.conversations.map((c) => c.messages.length);
-  assert.equal(held[0], 100, "the long thread holds its newest hundred");
+  assert.equal(held[0], LIST_MESSAGES_EACH, "the long thread holds its newest (an opened thread reads the rest)");
   assert.deepEqual(held.slice(1), Array(29).fill(10), 'REGRESSION: the other threads read "No messages yet"');
   assert.deepEqual(
     out.conversations[0].messages.map((m) => m.id),
-    Array.from({ length: 100 }, (_, j) => `m-0-${99 - j}`),
-    "its newest hundred, in reading order",
+    Array.from({ length: LIST_MESSAGES_EACH }, (_, j) => `m-0-${LIST_MESSAGES_EACH - 1 - j}`),
+    "its newest, in reading order",
   );
 });
 

@@ -1,4 +1,5 @@
 import {
+  inReadingOrder,
   memberMetaOf,
   normalizeEmail,
   type CallDto,
@@ -151,7 +152,15 @@ export function mediaPublic(raw: unknown): MessageDto["media"] {
   };
 }
 
-/** A row newest_messages answered (00258): a message, with the columns MESSAGE_COLUMNS names. */
+/**
+ * A thread's own read of its messages (GET conversations/:id): the columns newest_messages answers the Inbox's read
+ * (00258), and what a failed one said, which that function leaves out. Mapped by groupMessages too, so a thread opened
+ * draws each message as its row in the list drew it.
+ */
+export const THREAD_MESSAGE_COLUMNS =
+  "id, conversation_id, direction, sender, type, body, media, meta, created_at, status, channel_ts, channel, error";
+
+/** A row newest_messages answered (00258), or a thread's own read: a message, with the columns MESSAGE_COLUMNS names. */
 function isMessageRow(r: unknown): r is MessageRow {
   if (!r || typeof r !== "object") return false;
   const m = r as Record<string, unknown>;
@@ -192,9 +201,7 @@ export function groupMessages(rows: MessageRow[]): Map<string, MessageDto[]> {
   // when the call started — never created_at, which for an imported row is
   // the import moment and for a call note the moment the analysis arrived.
   // On the live line the Aug 26 call note rendered below the Aug 27 messages.
-  for (const list of byConv.values()) {
-    list.sort((a, b) => Date.parse(a.channel_ts ?? a.created_at) - Date.parse(b.channel_ts ?? b.created_at));
-  }
+  for (const list of byConv.values()) list.sort(inReadingOrder);
   return byConv;
 }
 

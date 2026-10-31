@@ -22,6 +22,7 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createClient } from "@supabase/supabase-js";
+import { LIST_MESSAGES_EACH } from "@chanlytics/contracts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
 const CLI = process.env.SUPABASE_CLI || "supabase";
@@ -276,7 +277,7 @@ test(
 );
 
 test(
-  "the Inbox's read, on the member's own session, holds each thread's newest -- more than PostgREST's thousand rows, from one call",
+  "the Inbox's read, on the member's own session, holds each thread's newest LIST_MESSAGES_EACH, from one call (a thread opened reads the rest)",
   { skip },
   async () => {
     const rc = kernel.readerContext(
@@ -285,19 +286,20 @@ test(
     );
     const read = await kernel.load(rc, conversations, { ids: null });
     const held = new Map(read.data.conversations.map((c) => [c.id, c.messages.length]));
-    assert.deepEqual([held.get(threads.long.id), held.get(threads.short.id), held.get(threads.tied.id)], [100, 3, 3]);
+    const each = LIST_MESSAGES_EACH;
+    assert.deepEqual([held.get(threads.long.id), held.get(threads.short.id), held.get(threads.tied.id)], [each, 3, 3]);
     assert.deepEqual(
       threads.more.map((t) => held.get(t.id)),
-      Array(11).fill(100),
-      "every one of the eleven its newest hundred",
+      Array(11).fill(each),
+      "every one of the eleven its newest",
     );
     const all = [...held.values()].reduce((n, x) => n + x, 0);
-    assert.equal(all, 1206, "twelve hundred and six messages: past a thousand, from one call");
+    assert.equal(all, 12 * each + 6, "each long thread's newest and the two short ones whole, from one call");
     const long = read.data.conversations.find((c) => c.id === threads.long.id);
     assert.deepEqual(
       long.messages.map((m) => m.id),
-      idsOf(said.long.slice(0, 100)).reverse(),
-      "in reading order, oldest of the hundred first",
+      idsOf(said.long.slice(0, each)).reverse(),
+      "in reading order, oldest of the newest first",
     );
   },
 );

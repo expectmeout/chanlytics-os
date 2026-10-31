@@ -202,6 +202,8 @@ export type RealThread = Omit<InboxThreadVM, keyof ThreadBase | "state"> &
   ThreadBase & {
     real: true;
     state: "escalated" | "snoozed" | "done";
+    /** The Inbox's read holds only its newest messages: its conversation is drawn when its own read lands (read-apart.ts). */
+    partial?: true;
     approval?: undefined;
     verdict?: undefined;
     contextStrip?: undefined;

@@ -1,23 +1,19 @@
 import "server-only";
-import {
-  AppError,
-  addressOf,
-  memberMetaOf,
-  personName,
-  type ConversationDto,
-  type MessageDto,
-} from "@chanlytics/contracts";
-import { mediaPublic } from "../dto";
+import { AppError, addressOf, personName, type ConversationDto, type MessageDto } from "@chanlytics/contracts";
+import { groupMessages, messageRowsOf, THREAD_MESSAGE_COLUMNS } from "../dto";
 import { loadConversation, type VerbConversation } from "../verbs";
 import { load, stamp, type Reader, type RowRef } from "./index";
 
 /**
  * One thread's messages, as GET conversations/:id answers them: the hundred
  * most recent, or the hundred before `before` when the thread pages back,
- * oldest first. The thread itself is not read here: the route's scope loaded
+ * in reading order. The thread itself is not read here: the route's scope loaded
  * it, and Ask's `conversation` below loads it the same way, so neither reads
- * the row twice. An attachment is its public facts (mediaPublic): the storage
- * path never leaves the server. A message is cited by its thread.
+ * the row twice. Each message is made as the Inbox's read makes it (dto.ts
+ * groupMessages): an attachment its public facts (mediaPublic), the storage path
+ * never leaving the server, and a failed one what it said. An opened thread puts
+ * these beside the newest the Inbox's read carries (LIST_MESSAGES_EACH), so the two
+ * are one shape. A message is cited by its thread.
  */
 export const messagesOf: Reader<{ id: string; before: string | null }, MessageDto[]> = {
   name: "messagesOf",
@@ -25,27 +21,14 @@ export const messagesOf: Reader<{ id: string; before: string | null }, MessageDt
     const { supabase } = rc.ctx;
     let q = supabase
       .from("messages")
-      .select("id, direction, sender, type, body, media, meta, created_at, status, channel_ts, channel")
+      .select(THREAD_MESSAGE_COLUMNS)
       .eq("conversation_id", id)
       .order("created_at", { ascending: false })
       .limit(100);
     if (before) q = q.lt("created_at", before);
     const { data: msgs, error: merr } = await q;
     if (merr) throw new Error(merr.message);
-    const messages: MessageDto[] = (msgs ?? []).reverse().map((m) => ({
-      id: m.id,
-      direction: m.direction as MessageDto["direction"],
-      sender: m.sender as MessageDto["sender"],
-      type: m.type,
-      body: m.body,
-      media: mediaPublic(m.media),
-      meta: memberMetaOf(m.meta),
-      status: m.status,
-      created_at: m.created_at,
-      channel_ts: m.channel_ts,
-      channel: m.channel,
-    }));
-    return { data: messages, rows: [], stamp: stamp() };
+    return { data: groupMessages(messageRowsOf(msgs)).get(id) ?? [], rows: [], stamp: stamp() };
   },
 };
 
