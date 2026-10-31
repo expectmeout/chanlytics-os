@@ -7,11 +7,29 @@ import { passesHandoverPause, type DeliveryRefusal } from "@chanlytics/contracts
 import type { SendKind } from "./deliver";
 import { pastReplyHorizon } from "./inbound/steps";
 
-/** The thread's live hold (00132) and its pause, as the door read them at the wire. */
-interface HoldFacts {
+/**
+ * The thread's live hold (00132) and its pause, as the door read them at the wire. The inbound path reads the hold in
+ * this shape too (inbound/thread.ts ThreadState.control), so it can ask the question below before the model is asked.
+ */
+export interface HoldFacts {
   /** Who is speaking on the thread now, the call's own id when a call holds it (control_ref), and until when. */
   control: { kind: string; ref: string | null; until: string } | null;
   pausedUntil: string | null;
+}
+
+/**
+ * The live hold a conversation row carries (00132), or null: a kind with no end is none. THE one reading of those
+ * columns: the send door reads them off the wire's row (deliver.ts wireFacts), the receptionist's memory off the hold's
+ * own read (db readLiveHold, the edge's pgThread), so the two can never disagree about who holds a thread.
+ */
+export function liveHoldOf(row: {
+  control_kind?: string | null;
+  control_ref?: string | null;
+  control_until?: string | null;
+}): HoldFacts["control"] {
+  return row.control_kind && row.control_until
+    ? { kind: row.control_kind, ref: row.control_ref ?? null, until: row.control_until }
+    : null;
 }
 
 /** What of the send the hold asks: the playbook moment it was made for, and the call it is made on, if any. */

@@ -65,7 +65,7 @@ import {
   type Json,
 } from "@chanlytics/db";
 import { assertFrozenFor, offerFacts, offerRefusal, type OfferFacts } from "./deliver-email";
-import { heldByThread, lateDraft } from "./deliver-hold";
+import { heldByThread, lateDraft, liveHoldOf } from "./deliver-hold";
 import { textRefusal } from "./deliver-text";
 import { namedFailure, putOnWire, type WireUnavailable } from "./wire-senders";
 
@@ -317,10 +317,8 @@ async function wireFacts({ db, emailOffers }: DeliverPorts, d: Delivery): Promis
   };
   return {
     pausedUntil: row.paused_until ?? null,
-    control:
-      row.control_kind && row.control_until
-        ? { kind: row.control_kind, ref: row.control_ref ?? null, until: row.control_until }
-        : null,
+    // The one reading of the hold's columns (deliver-hold.ts liveHoldOf): the receptionist's memory reads them the same way.
+    control: liveHoldOf(row),
     contactId: row.contact_id ?? null,
     contact: row.contacts ?? {
       consent: null,

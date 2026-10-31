@@ -291,7 +291,7 @@ test("a message still on its way is marked failed; one already sent is left exac
   assert.equal(messages[1].error, null);
 });
 
-test("certain changes the words, never the condition", async () => {
+test("certain changes the words, never the condition; a throw that said why it never left puts its words on the row and on the flag", async () => {
   const messages = [{ id: "m1", tenant_id: TENANT, status: "queued", error: null }];
   await settleJob(
     fakeDb({ messages }),
@@ -302,6 +302,38 @@ test("certain changes the words, never the condition", async () => {
     reason: "never_delivered",
     note: "the job that would have sent this never ran",
   });
+
+  // A failure that is certain and said why (core CertainFailure: a wire unbound, or a provider that did not take it,
+  // for every fresh job it was given): its words on the row, and on the flag the thread's person reads, never the
+  // ledger's own words for a job that never ran.
+  const why = "the whatsapp wire's credentials could not be read, 5 tries in a row";
+  const said = [
+    {
+      id: "m2",
+      tenant_id: TENANT,
+      conversation_id: "c2",
+      channel: "whatsapp",
+      sender: "ai",
+      status: "queued",
+      error: null,
+      meta: null,
+    },
+  ];
+  const escalations = [];
+  assert.deepEqual(
+    await settleJob(
+      fakeDb({ messages: said, escalations }),
+      { id: "j2", kind: "outbound_send", tenant_id: TENANT, payload: { message_id: "m2" } },
+      true,
+      why,
+    ),
+    [{ what: "message", changed: true, flagged: "opened" }],
+  );
+  assert.deepEqual(said[0].error, { reason: "never_delivered", note: why });
+  assert.deepEqual(
+    escalations.map((e) => [e.conversation_id, e.reason, e.details]),
+    [["c2", "send_failed", `The receptionist's reply never left: ${why}.`]],
+  );
 });
 
 /** A broadcast's people, as the table really holds them: with a tenant on every row. */

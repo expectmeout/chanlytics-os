@@ -260,7 +260,7 @@ interface JsonAsk {
    * thinking inside maxTokens, so a short answer asks for less of it. Unsaid, the model's own default.
    */
   effort?: "low" | "medium" | "high";
-  /** A sooner bound than the purpose's, and a signal that ends the call sooner. */
+  /** A sooner bound than the purpose's (never a later one: channels tryBound), and a signal that ends the call sooner. */
   timeoutMs?: number;
   signal?: AbortSignal;
   /** The whole call's end, its fallback's try included (the port asks none with too little left), in ms from its start. */
