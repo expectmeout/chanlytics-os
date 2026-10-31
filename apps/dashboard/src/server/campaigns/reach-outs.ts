@@ -475,6 +475,7 @@ async function firstEmailOf(
     signature: box ? (mailboxSignatureOf(box)?.text ?? null) : null,
     first: p.first,
     body: words.body,
+    address: business.address,
   });
   return {
     business_name: lead.lead?.business_name ?? "",
