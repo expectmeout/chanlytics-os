@@ -79,6 +79,12 @@ const EMAIL_UNFINISHED =
 const MAY_HAVE_SENT = "the run that was sending this did not finish";
 
 /**
+ * What the row and the thread's flag say of a send: a failure that said why it is certain, in its own words (core
+ * CertainFailure's `why`); a job that never ran, in the ledger's; a run that died, in the words for one that may have sent.
+ */
+const noteOf = (certain: boolean, why?: string): string => (certain ? (why ?? NEVER_SENT) : MAY_HAVE_SENT);
+
+/**
  * What the MAILBOX carries after an intake died, which is a different reader
  * from the thread's. It is shown on Connections and Setup, so it is a sentence
  * for the owner and never a provider's error text: the reason the job failed
@@ -193,9 +199,6 @@ async function failBroadcast(
  */
 export async function settleJob(db: Db, job: TerminalJob, certain: boolean, why?: string): Promise<Settled[]> {
   const reason = certain ? "never_delivered" : "run_interrupted";
-  // What the row and the thread's flag say of it: a failure that said why it is certain, in its own words (core
-  // CertainFailure); a job that never ran, in the ledger's; a run that died, in the words for one that may have sent.
-  const note = certain ? (why ?? NEVER_SENT) : MAY_HAVE_SENT;
 
   if (job.kind === "outbound_send") {
     const messageId = idFrom(job.payload, "message_id");
@@ -209,7 +212,7 @@ export async function settleJob(db: Db, job: TerminalJob, certain: boolean, why?
     const { row, error } = await failQueuedSend(db, {
       tenantId: job.tenant_id,
       messageId,
-      error: { reason, note, ...(certain ? {} : { outcome: "unknown" }) },
+      error: { reason, note: noteOf(certain, why), ...(certain ? {} : { outcome: "unknown" }) },
     });
     // A reply that never left is a customer with no answer: the thread is flagged for a person, as a failed
     // delivery flags it (core send.ts). A job that died marked the row failed and flagged nothing (I5). A campaign's
@@ -222,7 +225,7 @@ export async function settleJob(db: Db, job: TerminalJob, certain: boolean, why?
             job.tenant_id,
             row.conversation_id,
             "send_failed",
-            `${row.sender === "ai" ? "The receptionist's reply" : "A reply"} never left: ${note}.`,
+            `${row.sender === "ai" ? "The receptionist's reply" : "A reply"} never left: ${noteOf(certain, why)}.`,
           )
         : null;
     return [

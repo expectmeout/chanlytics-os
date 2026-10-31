@@ -17,6 +17,21 @@ export interface HoldFacts {
   pausedUntil: string | null;
 }
 
+/**
+ * The live hold a conversation row carries (00132), or null: a kind with no end is none. THE one reading of those
+ * columns: the send door reads them off the wire's row (deliver.ts wireFacts), the receptionist's memory off the hold's
+ * own read (db readLiveHold, the edge's pgThread), so the two can never disagree about who holds a thread.
+ */
+export function liveHoldOf(row: {
+  control_kind?: string | null;
+  control_ref?: string | null;
+  control_until?: string | null;
+}): HoldFacts["control"] {
+  return row.control_kind && row.control_until
+    ? { kind: row.control_kind, ref: row.control_ref ?? null, until: row.control_until }
+    : null;
+}
+
 /** What of the send the hold asks: the playbook moment it was made for, and the call it is made on, if any. */
 interface Held {
   trigger: string | null;
