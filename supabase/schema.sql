@@ -50145,6 +50145,203 @@ GRANT ALL ON TABLE public.leads TO service_role;
 
 
 --
+-- Name: TABLE sequence_steps; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,DELETE ON TABLE public.sequence_steps TO authenticated;
+GRANT ALL ON TABLE public.sequence_steps TO service_role;
+
+
+--
+-- Name: COLUMN sequence_steps.tenant_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(tenant_id) ON TABLE public.sequence_steps TO authenticated;
+
+
+--
+-- Name: COLUMN sequence_steps.name; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(name),UPDATE(name) ON TABLE public.sequence_steps TO authenticated;
+
+
+--
+-- Name: COLUMN sequence_steps.trigger; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(trigger),UPDATE(trigger) ON TABLE public.sequence_steps TO authenticated;
+
+
+--
+-- Name: COLUMN sequence_steps.template_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(template_id),UPDATE(template_id) ON TABLE public.sequence_steps TO authenticated;
+
+
+--
+-- Name: COLUMN sequence_steps.template_name; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(template_name),UPDATE(template_name) ON TABLE public.sequence_steps TO authenticated;
+
+
+--
+-- Name: COLUMN sequence_steps.template_language; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(template_language),UPDATE(template_language) ON TABLE public.sequence_steps TO authenticated;
+
+
+--
+-- Name: COLUMN sequence_steps.params; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(params),UPDATE(params) ON TABLE public.sequence_steps TO authenticated;
+
+
+--
+-- Name: COLUMN sequence_steps.policy_class; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(policy_class),UPDATE(policy_class) ON TABLE public.sequence_steps TO authenticated;
+
+
+--
+-- Name: COLUMN sequence_steps.state; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(state),UPDATE(state) ON TABLE public.sequence_steps TO authenticated;
+
+
+--
+-- Name: COLUMN sequence_steps.run_hour; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(run_hour),UPDATE(run_hour) ON TABLE public.sequence_steps TO authenticated;
+
+
+--
+-- Name: COLUMN sequence_steps.cap_per_run; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(cap_per_run),UPDATE(cap_per_run) ON TABLE public.sequence_steps TO authenticated;
+
+
+--
+-- Name: COLUMN sequence_steps.gap_days; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(gap_days),UPDATE(gap_days) ON TABLE public.sequence_steps TO authenticated;
+
+
+--
+-- Name: COLUMN sequence_steps.cadence_days; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(cadence_days),UPDATE(cadence_days) ON TABLE public.sequence_steps TO authenticated;
+
+
+--
+-- Name: COLUMN sequence_steps.created_by; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(created_by) ON TABLE public.sequence_steps TO authenticated;
+
+
+--
+-- Name: COLUMN sequence_steps.list_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(list_id),UPDATE(list_id) ON TABLE public.sequence_steps TO authenticated;
+
+
+--
+-- Name: COLUMN sequence_steps.list_key; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(list_key),UPDATE(list_key) ON TABLE public.sequence_steps TO authenticated;
+
+
+--
+-- Name: COLUMN sequence_steps.kind; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(kind) ON TABLE public.sequence_steps TO authenticated;
+
+
+--
+-- Name: COLUMN sequence_steps.after_step_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(after_step_id) ON TABLE public.sequence_steps TO authenticated;
+
+
+--
+-- Name: COLUMN sequence_steps.after_days; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(after_days),UPDATE(after_days) ON TABLE public.sequence_steps TO authenticated;
+
+
+--
+-- Name: COLUMN sequence_steps.hand; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(hand),UPDATE(hand) ON TABLE public.sequence_steps TO authenticated;
+
+
+--
+-- Name: COLUMN sequence_steps.channels; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(channels),UPDATE(channels) ON TABLE public.sequence_steps TO authenticated;
+
+
+--
+-- Name: COLUMN sequence_steps.until; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(until),UPDATE(until) ON TABLE public.sequence_steps TO authenticated;
+
+
+--
+-- Name: COLUMN sequence_steps.only_if; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(only_if),UPDATE(only_if) ON TABLE public.sequence_steps TO authenticated;
+
+
+--
+-- Name: COLUMN sequence_steps.next_template_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(next_template_id) ON TABLE public.sequence_steps TO authenticated;
+
+
+--
+-- Name: COLUMN sequence_steps.next_template_name; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(next_template_name) ON TABLE public.sequence_steps TO authenticated;
+
+
+--
+-- Name: COLUMN sequence_steps.next_template_language; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(next_template_language) ON TABLE public.sequence_steps TO authenticated;
+
+
+--
+-- Name: COLUMN sequence_steps.next_params; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(next_params) ON TABLE public.sequence_steps TO authenticated;
+
+
+--
 -- Name: TABLE lead_searches_view; Type: ACL; Schema: public; Owner: -
 --
 
@@ -50704,203 +50901,6 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.sequence_enrollments TO servic
 
 GRANT ALL ON TABLE public.sequence_replies TO service_role;
 GRANT SELECT ON TABLE public.sequence_replies TO authenticated;
-
-
---
--- Name: TABLE sequence_steps; Type: ACL; Schema: public; Owner: -
---
-
-GRANT SELECT,DELETE ON TABLE public.sequence_steps TO authenticated;
-GRANT ALL ON TABLE public.sequence_steps TO service_role;
-
-
---
--- Name: COLUMN sequence_steps.tenant_id; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(tenant_id) ON TABLE public.sequence_steps TO authenticated;
-
-
---
--- Name: COLUMN sequence_steps.name; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(name),UPDATE(name) ON TABLE public.sequence_steps TO authenticated;
-
-
---
--- Name: COLUMN sequence_steps.trigger; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(trigger),UPDATE(trigger) ON TABLE public.sequence_steps TO authenticated;
-
-
---
--- Name: COLUMN sequence_steps.template_id; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(template_id),UPDATE(template_id) ON TABLE public.sequence_steps TO authenticated;
-
-
---
--- Name: COLUMN sequence_steps.template_name; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(template_name),UPDATE(template_name) ON TABLE public.sequence_steps TO authenticated;
-
-
---
--- Name: COLUMN sequence_steps.template_language; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(template_language),UPDATE(template_language) ON TABLE public.sequence_steps TO authenticated;
-
-
---
--- Name: COLUMN sequence_steps.params; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(params),UPDATE(params) ON TABLE public.sequence_steps TO authenticated;
-
-
---
--- Name: COLUMN sequence_steps.policy_class; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(policy_class),UPDATE(policy_class) ON TABLE public.sequence_steps TO authenticated;
-
-
---
--- Name: COLUMN sequence_steps.state; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(state),UPDATE(state) ON TABLE public.sequence_steps TO authenticated;
-
-
---
--- Name: COLUMN sequence_steps.run_hour; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(run_hour),UPDATE(run_hour) ON TABLE public.sequence_steps TO authenticated;
-
-
---
--- Name: COLUMN sequence_steps.cap_per_run; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(cap_per_run),UPDATE(cap_per_run) ON TABLE public.sequence_steps TO authenticated;
-
-
---
--- Name: COLUMN sequence_steps.gap_days; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(gap_days),UPDATE(gap_days) ON TABLE public.sequence_steps TO authenticated;
-
-
---
--- Name: COLUMN sequence_steps.cadence_days; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(cadence_days),UPDATE(cadence_days) ON TABLE public.sequence_steps TO authenticated;
-
-
---
--- Name: COLUMN sequence_steps.created_by; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(created_by) ON TABLE public.sequence_steps TO authenticated;
-
-
---
--- Name: COLUMN sequence_steps.list_id; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(list_id),UPDATE(list_id) ON TABLE public.sequence_steps TO authenticated;
-
-
---
--- Name: COLUMN sequence_steps.list_key; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(list_key),UPDATE(list_key) ON TABLE public.sequence_steps TO authenticated;
-
-
---
--- Name: COLUMN sequence_steps.kind; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(kind) ON TABLE public.sequence_steps TO authenticated;
-
-
---
--- Name: COLUMN sequence_steps.after_step_id; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(after_step_id) ON TABLE public.sequence_steps TO authenticated;
-
-
---
--- Name: COLUMN sequence_steps.after_days; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(after_days),UPDATE(after_days) ON TABLE public.sequence_steps TO authenticated;
-
-
---
--- Name: COLUMN sequence_steps.hand; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(hand),UPDATE(hand) ON TABLE public.sequence_steps TO authenticated;
-
-
---
--- Name: COLUMN sequence_steps.channels; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(channels),UPDATE(channels) ON TABLE public.sequence_steps TO authenticated;
-
-
---
--- Name: COLUMN sequence_steps.until; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(until),UPDATE(until) ON TABLE public.sequence_steps TO authenticated;
-
-
---
--- Name: COLUMN sequence_steps.only_if; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(only_if),UPDATE(only_if) ON TABLE public.sequence_steps TO authenticated;
-
-
---
--- Name: COLUMN sequence_steps.next_template_id; Type: ACL; Schema: public; Owner: -
---
-
-GRANT UPDATE(next_template_id) ON TABLE public.sequence_steps TO authenticated;
-
-
---
--- Name: COLUMN sequence_steps.next_template_name; Type: ACL; Schema: public; Owner: -
---
-
-GRANT UPDATE(next_template_name) ON TABLE public.sequence_steps TO authenticated;
-
-
---
--- Name: COLUMN sequence_steps.next_template_language; Type: ACL; Schema: public; Owner: -
---
-
-GRANT UPDATE(next_template_language) ON TABLE public.sequence_steps TO authenticated;
-
-
---
--- Name: COLUMN sequence_steps.next_params; Type: ACL; Schema: public; Owner: -
---
-
-GRANT UPDATE(next_params) ON TABLE public.sequence_steps TO authenticated;
 
 
 --
