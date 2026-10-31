@@ -135,6 +135,7 @@ export {
   heldChoicesOf,
   heldWhyOf,
   markedOpeningOf,
+  sequencePersonWhyOf,
   waitingAnswersOf,
 } from "./sequence-held";
 export type { HeldAnswer, HeldChoice, MarkedOpening } from "./sequence-held";

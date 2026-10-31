@@ -24,6 +24,7 @@ import {
   leadStepStand,
   listStartsSentence,
   peopleNeedsOf,
+  sequencePersonWhyOf,
   personWhenWords,
   stepApprovalOf,
   waitingEmailsOf,
@@ -425,4 +426,17 @@ test("a row under People never says a time already gone: going out, once you app
   assert.equal(personWhenWords("held", gone, TZ, NOW), null, "held: its why says what it waits on");
   assert.equal(personWhenWords("left", gone, TZ, NOW), "10:00 AM", "what happened says when it did");
   assert.equal(personWhenWords("queued", gone, TZ, NOW), "10:00 AM", "and so does when one joined");
+});
+
+test("a person's why is said once for People's line and Ask's read: a held email in words, anything else as it came (31 Oct 2026)", () => {
+  const p = (group, why, hold_detail) => ({ group, why, hold_detail });
+  assert.equal(
+    sequencePersonWhyOf(p("held", "unbacked_fact", "calls:does someone answer every one")),
+    "The opening guesses at their calls; we found nothing that says so",
+  );
+  assert.equal(sequencePersonWhyOf(p("held", "chain", "site:3")), "Reads like a chain: 3 listings share their website");
+  // A held row whose reason is none of the check's, and every other group, say what came, the detail first.
+  assert.equal(sequencePersonWhyOf(p("held", "no_template", null)), "no_template");
+  assert.equal(sequencePersonWhyOf(p("in", null, null)), null);
+  assert.equal(sequencePersonWhyOf(p("next", "waiting", "x")), "x");
 });
