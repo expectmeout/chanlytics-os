@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, errors, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 
 /**
@@ -27,6 +27,23 @@ async function violationsOn(page: Page, path: string, settle: () => Promise<void
   await settle();
   page.off("console", onConsole);
   return seen;
+}
+
+/**
+ * How long a signed-in page is given to fall quiet. What it loads to draw, and so whatever the policy could refuse it,
+ * is in long before; a page still reading after that (a live re-read, the frame warming the next pages) is not waited
+ * out. The Inbox never fell quiet on 29 and 31 Oct 2026, and the walk spent its three minutes there.
+ */
+const QUIET_MS = 8_000;
+
+/** The page loaded, and quiet or given its time to be. */
+async function settled(page: Page): Promise<void> {
+  await page.waitForLoadState("load");
+  try {
+    await page.waitForLoadState("networkidle", { timeout: QUIET_MS });
+  } catch (e) {
+    if (!(e instanceof errors.TimeoutError)) throw e;
+  }
 }
 
 test.describe("Content-Security-Policy, enforced", () => {
@@ -93,7 +110,7 @@ test.describe("Content-Security-Policy, enforced", () => {
         seen.push(
           ...(await violationsOn(page, `/${hash}`, async () => {
             await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 30_000 });
-            await page.waitForLoadState("networkidle");
+            await settled(page);
           })),
         );
       }

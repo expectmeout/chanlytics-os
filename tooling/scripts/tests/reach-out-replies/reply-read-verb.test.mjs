@@ -7,7 +7,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readingPlan, parseReplyReading, replyNoticeWords, REPLY_REREADS } from "@chanlytics/contracts";
+import { readingPlan, parseReplyReading, replyNoticeWords, REPLY_REREADS, SECOND_KEY_OFF } from "@chanlytics/contracts";
 import { readReply, rereadOf } from "../../../../packages/core/src/messages/reply-read.ts";
 import { loadFixtures } from "../../evals/reply-intents.mjs";
 
@@ -65,7 +65,7 @@ function world(over = {}) {
     mayRead: call("mayRead", async () => answers.mayRead),
     ask: call("ask", async () => {
       if (answers.ask instanceof Error) throw answers.ask;
-      return answers.ask;
+      return { answer: answers.ask, second: answers.second ?? SECOND_KEY_OFF };
     }),
     apply: call("apply", async (_t, _m, p) => {
       if (answers.apply === false) return false;
@@ -432,6 +432,56 @@ test("the reading closes what the intake opened: a no resolves the flag and arch
     await run(auto);
     assert.deepEqual(closes(auto), [0, 0], `an automatic ${answer.intent} closes neither the flag nor the thread`);
   }
+});
+
+test("with the second key on, a close goes only when the second model read the same intent at 0.8 or more; else the thread stays for a person, the reading as it is", async () => {
+  const closes = (w) => [w.calls("resolveEscalation").length, w.calls("archiveConversation").length];
+  const key = (answer, confidence) => ({ on: true, read: { answer, confidence, confident: confidence >= 0.8 } });
+  const read = (answer, second) => {
+    const w = world({ answers: { ask: answer, second } });
+    return run(w).then((outcome) => ({ w, outcome }));
+  };
+  // Agreeing, at the floor or over: closed as the reading alone closes it.
+  for (const [answer, closed] of [
+    [NO, [1, 1]],
+    [NOT_NOW, [1, 0]],
+    [WRONG, [1, 0]],
+  ]) {
+    for (const confidence of [0.8, 0.97]) {
+      const { w } = await read(answer, key(answer.intent, confidence));
+      assert.deepEqual(closes(w), closed, `${answer.intent} agreed at ${confidence}: closed`);
+    }
+  }
+  // Holding: under the floor, another intent, or nothing read (a call that failed or came late).
+  const plain = world({ answers: { ask: NO } });
+  await run(plain);
+  for (const [why, second] of [
+    ["under the floor", key("no", 0.79)],
+    ["another intent", key("interested", 0.95)],
+    ["nothing read", { on: true, read: null }],
+  ]) {
+    const { w, outcome } = await read(NO, second);
+    assert.deepEqual(closes(w), [0, 0], `a no, ${why}: the flag stands and the thread stays in Needs you`);
+    assert.equal(outcome, "told", "the owner is told as before");
+    assert.equal(w.state.kept.intent, "no", "the reading is kept as the reader read it");
+    assert.deepEqual(
+      w.calls("apply")[0][3],
+      plain.calls("apply")[0][3],
+      "the reading and its plan applied as without the key: a no's opt-out among them",
+    );
+  }
+  for (const answer of [NOT_NOW, WRONG]) {
+    const { w } = await read(answer, key("interested", 0.9));
+    assert.deepEqual(closes(w), [0, 0], `${answer.intent} disagreed: the flag stands`);
+  }
+  // What closes nothing alone closes nothing with the key: a person answers an interested reply, and an automatic one.
+  assert.deepEqual(closes((await read(INTERESTED, key("interested", 0.99))).w), [0, 0]);
+  const auto = world({
+    facts: { claim: "auto_reply", from: "noreply@example.com" },
+    answers: { ask: NO, second: key("no", 0.99) },
+  });
+  await run(auto);
+  assert.deepEqual(closes(auto), [0, 0]);
 });
 
 test("the close is the applying run's: a re-read that reads a no closes then; a run that finds the reading kept closes nothing again", async () => {

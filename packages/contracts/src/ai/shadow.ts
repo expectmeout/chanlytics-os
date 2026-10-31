@@ -13,7 +13,7 @@
  * read of the ledger; the pilot of 29 September (decision 0023) found every decided answer right.
  */
 import type { AiUsageBody } from "./usage";
-import type { ModelPurpose, ShadowPort } from "./models";
+import { secondKeyFloorOf, type ModelPurpose, type ShadowPort } from "./models";
 import {
   SYSTEM_ONE_MODEL,
   systemOneDollars,
@@ -190,10 +190,13 @@ export function receptionistPrimary(intent: string | null, customerText: string)
   };
 }
 
+/** The name of the reply reader's one call. */
+const REPLY_CALL = "reply";
+
 /** The reply reader's question: the reply as the reader is shown it, and the seven intents. */
 export function replyReadShadowCall(readerUserContent: string): ShadowCallSpec {
   return {
-    ref: "reply",
+    ref: REPLY_CALL,
     state: systemOneState(readerUserContent),
     questions: { [SHADOW_QUESTIONS.reply_read.intent]: replyIntentQuestion() },
   };
@@ -203,6 +206,40 @@ export function replyReadShadowCall(readerUserContent: string): ShadowCallSpec {
 export function replyReadPrimary(answer: unknown): Record<string, string | null> {
   const intent = answer && typeof answer === "object" ? (answer as { intent?: unknown }).intent : null;
   return { [SHADOW_QUESTIONS.reply_read.intent]: isReplyIntent(intent) ? intent : null };
+}
+
+/* --------------------------------------------------------- the second key -- */
+
+/** The shadow's read of one question of one call, by the call's ref and the question's name; null where there is none. */
+export type ShadowReads = (ref: string, question: string) => ShadowRead | null;
+
+/** Reads where nothing was read: a shadow that was not asked, or failed whole. */
+export const NO_READS: ShadowReads = () => null;
+
+/**
+ * What a second key said of the label the primary gave (decision 0084): off where the workspace's switch is off, and the
+ * primary acts alone as it always did; on, its read of the question, null where it gave none (a call that failed, came
+ * after the grace, or named an option it was not offered).
+ */
+export type SecondKey = { on: false } | { on: true; read: ShadowRead | null };
+
+/** The second key where its switch is off. */
+export const SECOND_KEY_OFF: SecondKey = { on: false };
+
+/**
+ * Whether an act the primary's label leads to may go: the key is off, or it read the same label at the purpose's floor
+ * or over. A key that is on and read nothing, read it under the floor, or read another label holds the act, which is left
+ * to a person. One rule for every purpose a key holds.
+ */
+export function secondKeyLets(purpose: ModelPurpose, key: SecondKey, label: string): boolean {
+  if (!key.on) return true;
+  const floor = secondKeyFloorOf(purpose) ?? SHADOW_CONFIDENT;
+  return key.read !== null && key.read.answer === label && key.read.confidence >= floor;
+}
+
+/** The reply reader's intent as its second key read it: replyReadShadowCall's one question. */
+export function replyIntentRead(reads: ShadowReads): ShadowRead | null {
+  return reads(REPLY_CALL, SHADOW_QUESTIONS.reply_read.intent);
 }
 
 /** The judge's batch as one call per place, its criteria the questions. */

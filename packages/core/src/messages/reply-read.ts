@@ -23,7 +23,9 @@
  *     that is not an automatic one for a person (email_review), since until it is read nobody knows what it means. A
  *     no resolves that flag and archives the thread; a wrong person and a not now resolve the flag; the rest leave it
  *     to a person. An automatic reply was never flagged, so its reading closes nothing. The applying run's, after the
- *     apply and before the notice.
+ *     apply and before the notice. Where the second key is on (decision 0084), a close goes only when the second model
+ *     read the same intent at the reader's floor: otherwise the thread stays open for a person, the reading and its plan
+ *     as they are (a no's opt-out is kept: missing one is the worse mistake).
  *
  * It sends nothing to the business. The pages (PRs 7 and 8) come later.
  */
@@ -38,6 +40,8 @@ import {
   replyTextOf,
   replyUserContent,
   rereadAt,
+  SECOND_KEY_OFF,
+  secondKeyLets,
   signerAgrees,
   signerOf,
   UNREAD_READING,
@@ -47,6 +51,7 @@ import {
   type ReplyClaim,
   type ReplyIntent,
   type ReplyReading,
+  type SecondKey,
   type Unread,
 } from "@chanlytics/contracts";
 
@@ -105,6 +110,12 @@ export type DraftState = "none" | "waiting" | "written" | "not_written";
 export type DraftMark =
   { state: "waiting" } | { state: "written"; draft: string } | { state: "not_written"; why: DraftWhy };
 
+/** The reader's answer, unparsed (null when it answered nothing), and what its second key read of the intent (decision 0084). */
+export interface ReplyAsked {
+  answer: unknown;
+  second: SecondKey;
+}
+
 /** The notice as the workspace is told it: words only; where it goes and how is the runtime's. */
 export interface ReplyNotice {
   conversationId: string;
@@ -124,8 +135,8 @@ export interface ReplyReadPorts {
    * that may not spend, the day's reads spent). Throws when it cannot be asked.
    */
   mayRead(tenantId: string, at: number): Promise<Exclude<Unread, "model_failed"> | null>;
-  /** The model's answer to the reader's question, unparsed; null when it answered nothing. Throws on a failed call. */
-  ask(system: string, user: string): Promise<unknown>;
+  /** The model's answer to the reader's question, and its second key's read (ReplyAsked). Throws on a failed call. */
+  ask(system: string, user: string): Promise<ReplyAsked>;
   /** The reading and its plan, applied once (reach_out_reply_apply). True when this call applied it. */
   apply(
     tenantId: string,
@@ -201,11 +212,12 @@ async function readNow(
   ports: ReplyReadPorts,
   cmd: ReadReplyCommand,
   facts: ReplyFacts,
-): Promise<{ reading: ReplyReading | null; unread: Unread | null; now: number }> {
+): Promise<{ reading: ReplyReading | null; unread: Unread | null; now: number; second: SecondKey }> {
   const now = ports.now();
   const gate = await ports.mayRead(cmd.tenantId, now);
-  if (gate) return { reading: null, unread: gate, now };
+  if (gate) return { reading: null, unread: gate, now, second: SECOND_KEY_OFF };
   let reading: ReplyReading | null;
+  let second: SecondKey = SECOND_KEY_OFF;
   try {
     const user = replyUserContent({
       text: replyTextOf(facts.text),
@@ -214,7 +226,9 @@ async function readNow(
       receivedDay: zoneDayKey(facts.receivedAt, facts.tz),
       answered: facts.answered,
     });
-    reading = parseReplyReading(await ports.ask(replySystemPrompt(), user));
+    const asked = await ports.ask(replySystemPrompt(), user);
+    second = asked.second;
+    reading = parseReplyReading(asked.answer);
     // Who signed it, kept only when it passes the person page's gate (0052): word for word in their own lines, one
     // person's own name, never ours, the business's, the workspace's or a member's, and never from a no.
     if (reading)
@@ -236,7 +250,7 @@ async function readNow(
     // is `other` meanwhile. The read runs again on the schedule contracts' rereadAt gives (G4, below).
     reading = null;
   }
-  return { reading, unread: reading ? null : "model_failed", now };
+  return { reading, unread: reading ? null : "model_failed", now, second };
 }
 
 /** Ask the receptionist, and keep what it answered on the reading: a draft, or why there is none. It never throws. */
@@ -295,7 +309,8 @@ async function draftStage(
  * reopen does any closed thread. A wrong person and a not now resolve the flag alone: the step on Today is what is left
  * to do. An interested, a question, an away and an other leave the flag: a person answers, or reads. An automatic
  * reply's reading closes nothing, since the intake opened nothing for it: a flag on its thread is another email's, a
- * person's, and a robot's "remove us" is not the answer to it. The platform's own close, so no decision is recorded
+ * person's, and a robot's "remove us" is not the answer to it. Nor does a reading its second key did not agree with
+ * (decision 0084): a misread no would archive an interested reply, so the thread stays for a person to read. The platform's own close, so no decision is recorded
  * and no member is named, as settle.ts flags and 00222 applies. Each write is counted and guarded in the repository,
  * so a thread archived or a flag resolved already changes nothing.
  */
@@ -303,11 +318,12 @@ async function closeWhatTheIntakeOpened(
   ports: Pick<ReplyReadPorts, "resolveEscalation" | "archiveConversation">,
   tenantId: string,
   conversationId: string,
-  read: { intent: ReplyIntent; claim: ReplyClaim },
+  read: { intent: ReplyIntent; claim: ReplyClaim; second: SecondKey },
 ): Promise<void> {
-  const { intent, claim } = read;
+  const { intent, claim, second } = read;
   if (claim === "auto_reply") return;
   if (intent !== "no" && intent !== "wrong_person" && intent !== "not_now") return;
+  if (!secondKeyLets("reply_read", second, intent)) return;
   await ports.resolveEscalation(tenantId, conversationId, INTAKE_FLAG);
   if (intent === "no") await ports.archiveConversation(tenantId, conversationId);
 }
@@ -332,11 +348,14 @@ export async function readReply(ports: ReplyReadPorts, cmd: ReadReplyCommand): P
   const facts = await ports.reply(tenantId, messageId);
   if (!facts) return "not_a_reply";
   let kept = await ports.reading(tenantId, messageId);
-  // Whether THIS run applied the reading: the close below is that run's and no other's.
+  // Whether THIS run applied the reading: the close below is that run's and no other's, held by its second key.
   let applied = false;
+  let second: SecondKey = SECOND_KEY_OFF;
 
   if (isDue(kept, n)) {
-    const { reading, unread, now } = await readNow(ports, cmd, facts);
+    const read = await readNow(ports, cmd, facts);
+    const { reading, unread, now } = read;
+    second = read.second;
     const planned = readingPlan(reading, {
       claim: facts.claim,
       receivedAt: facts.receivedAt,
@@ -376,6 +395,7 @@ export async function readReply(ports: ReplyReadPorts, cmd: ReadReplyCommand): P
     await closeWhatTheIntakeOpened(ports, tenantId, facts.conversationId, {
       intent: kept.intent,
       claim: facts.claim,
+      second,
     });
 
   // Tried once, before the notice, so the notice carries it (G16). A re-read's plan never drafts.

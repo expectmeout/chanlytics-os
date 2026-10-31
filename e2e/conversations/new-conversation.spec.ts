@@ -57,6 +57,12 @@ test.describe("A conversation begins from the Inbox", () => {
   test("N opens it from the page, and a person picked is read for how they can be reached", async ({ page }) => {
     const slug = await slugOfHome(page);
     await open(page, `/w/${slug}/inbox`);
+    // N answers a role that may write (host.tsx onNewKey), and the role is a viewer's until the workspace read says who
+    // is looking: the sidebar stands before that, and an N pressed under it opened nothing (31 Oct 2026). The act's gate
+    // lifts when the read is in.
+    const act = page.getByTestId("inbox-new");
+    await expect(act).toBeVisible();
+    await expect(act).not.toHaveAttribute("data-gated");
     await page.locator("body").press("n");
     const sheet = page.getByTestId("ix-new");
     await expect(sheet).toBeVisible();
