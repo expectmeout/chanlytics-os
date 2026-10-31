@@ -10,7 +10,7 @@
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { BOOKING_REQUEST_WORDS, toTodayVM, zoneDayKey, clockTime } from "@chanlytics/contracts";
+import { BOOKING_REQUEST_WORDS, NEED_YOU_WORDS, toTodayVM, zoneDayKey, clockTime } from "@chanlytics/contracts";
 import { installLegacyReact, fresh, again, all, find, byTestId, textOf, classes, press } from "../_legacy-react.mjs";
 import { NOW, ZONE, metrics, waiting } from "./_world.mjs";
 import { until } from "../shared/_until.mjs";
@@ -127,9 +127,13 @@ test("Booked it answers through the door and lays the confirmation it drafts in 
   assert.equal(buttonsIn(asking, "Booked it")[0].props.disabled, true, "a second press waits for the first");
   assert.equal(buttonsIn(asking, "Can't")[0].props.disabled, true);
   release();
-  await until(() => textOf(again(work)).includes(CONFIRM), "the confirmation is drafted in the row");
+  // The confirmation stands in the row's words, typed in where they stand (the refined canvas, 31 Oct 2026): its box's
+  // value, under a head that says what it is and whose.
+  const typed = (tree) =>
+    find(tree, (n) => n.props?.["aria-label"] === NEED_YOU_WORDS.yourWords("Ana Reyes"))?.props.value;
+  await until(() => typed(again(work)) === CONFIRM, "the confirmation is drafted in the row");
   const drafted = again(work);
-  assert.ok(textOf(drafted).includes("Confirmation, drafted"), textOf(drafted));
+  assert.ok(textOf(drafted).includes("Confirmation · drafted by Ask"), textOf(drafted));
   assert.equal(buttonsIn(drafted, "Send").length, 1, "sent from the row, through the reply's door");
   assert.deepEqual(went, [], "the row keeps it: no trip to the thread");
   press(buttonsIn(drafted, "Don't send")[0]);

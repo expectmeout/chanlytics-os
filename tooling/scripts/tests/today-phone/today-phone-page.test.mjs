@@ -171,7 +171,9 @@ const manyWaiting = (n) => {
 };
 const footOf = (tree) => find(tree, (n) => classes(n).includes("tq-foot"));
 
-test("on a phone how long someone waited is said once, beside their name, and a desk keeps since when", () => {
+// A desk said it twice too: "Email, waited 5d" over "Escalated · wrote by email · since Mon 5:02 PM" (the refined canvas,
+// 31 Oct 2026), so the wait is said once there as well, in the meta line beside the name.
+test("how long someone waited is said once, beside their name, on a phone and on a desk", () => {
   phone = true;
   set(twoWaiting());
   const [sofiaRow] = rowsOf(draw(AgentCommand), "handoff");
@@ -179,7 +181,8 @@ test("on a phone how long someone waited is said once, beside their name, and a 
   assert.ok(!textOf(sofiaRow).includes("since "), `no since on a phone: ${textOf(sofiaRow)}`);
   phone = false;
   const [deskRow] = rowsOf(draw(AgentCommand), "handoff");
-  assert.ok(textOf(deskRow).includes("since "), `a desk keeps it: ${textOf(deskRow)}`);
+  assert.ok(textOf(deskRow).includes("waited"), `a desk says the wait: ${textOf(deskRow)}`);
+  assert.ok(!textOf(deskRow).includes("since "), `and only once: ${textOf(deskRow)}`);
   phone = true;
 });
 
@@ -247,15 +250,16 @@ test("on a phone's card Ask's brief is its first line with Read; the walk's shee
   };
   fresh();
   const card = again(() => W.React.createElement(BriefBox, { brief, onRead: () => {} }));
-  assert.ok(textOf(card).includes("Say Hi, it's the studio, returning your call."), textOf(card));
-  assert.ok(!textOf(card).includes("Ask's brief for the call"), "no head over its one line");
+  assert.ok(textOf(card).includes("Open with"), textOf(card));
+  assert.ok(textOf(card).includes("“Hi, it's the studio, returning your call.”"), textOf(card));
+  assert.ok(!textOf(card).includes("Call notes"), "no head over its one line");
   assert.ok(!textOf(card).includes("Ask about Thursday"), "the rest is the sheet's");
   assert.ok(
     find(card, (n) => n.type === "button" && textOf(n).includes("Read")),
     "Read opens it",
   );
   const whole = again(() => W.React.createElement(BriefBox, { brief }));
-  assert.ok(textOf(whole).includes("Ask's brief for the call"), textOf(whole));
+  assert.ok(textOf(whole).includes("Call notes · only you see these"), textOf(whole));
   assert.ok(textOf(whole).includes("Ask about Thursday"), textOf(whole));
 });
 

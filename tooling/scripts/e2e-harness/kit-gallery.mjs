@@ -1138,6 +1138,15 @@ const kitFieldTitle = () =>
   `<div class="rec-field"><input class="rec-input rec-input-title" type="text" ` +
   `aria-label="The playbook's name" placeholder="Win-back" value="Win-back, for people who have not been in"></div>`;
 
+/**
+ * The kit's field as sentences said in place: no label drawn, named by its own words, no box of its own, on the field's
+ * panel, which is the box they are typed in.
+ */
+const kitFieldWords = () =>
+  `<div class="panel panel-field panel-sm"><div class="rec-field">` +
+  `<textarea class="rec-input rec-input-words" rows="1" aria-label="Your reply to Ana">` +
+  `Friday at two works. See you then.</textarea></div></div>`;
+
 /* ---- the families ---- */
 
 /** The kit's families and their entries. Every class in classes.json is drawn by at least one entry. */
@@ -2242,8 +2251,9 @@ export const FAMILIES = [
   {
     family: "Panel",
     about:
-      "kit.css's panel (step 2.2): a pane of content, an inset inside one, what pops over the page; md padding, sm, or " +
-      "none for rows edge to edge, which it clips. Each beside the rule it reproduces, which the spec holds it equal " +
+      "kit.css's panel (step 2.2): a pane of content, an inset inside one, what pops over the page, a field the member " +
+      "types in where it stands; md padding, sm, or none for rows edge to edge, which it clips. Each but the field " +
+      "beside the rule it reproduces, which the spec holds it equal " +
       "to, but for what that rule sets of its own page's: a card's shrinking in a grid, Confirm's column and entrance, " +
       "the tip card's width, the bell's place and entrance.",
     entries: [
@@ -2271,6 +2281,7 @@ export const FAMILIES = [
         source: "surfaces/kit/kit.css:643",
         html: `<div class="confirm-block">Their conversations and notes go with them.</div>`,
       },
+      { id: "panel-field", html: `<div class="panel panel-field panel-sm">Friday at two works. See you then.</div>` },
       {
         id: "panel-pop",
         html: `<div class="panel panel-pop panel-sm">Your hours come from Google once it is linked.</div>`,
@@ -2697,11 +2708,13 @@ export const FAMILIES = [
     family: "Field, on Base UI",
     about:
       "The kit's Field (surfaces/kit/field/field.tsx): Base UI's field wearing the record kit's, a hint and a unit; what " +
-      "is wrong, in the one red a field wears; a box of sentences; and a title said in place.",
+      "is wrong, in the one red a field wears; a box of sentences; a title said in place; and sentences said in place, " +
+      "on the field's panel.",
     entries: [
       { id: "field-kit", html: kitFields() },
       { id: "field-kit-wrong", html: kitFieldsWrong() },
       { id: "field-kit-title", html: kitFieldTitle() },
+      { id: "field-kit-words", html: kitFieldWords() },
     ],
   },
   {

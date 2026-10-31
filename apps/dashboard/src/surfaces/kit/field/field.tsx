@@ -5,7 +5,8 @@
  * its unit beside it where it has one, and a box of sentences where it takes `rows`; or it is another of the kit's
  * controls (`control`: a Select, a Combobox, a Switch), which the field names, describes and marks the same. Where the
  * words around a box already say what it is (a title said in place, a search above its list) the label is not drawn,
- * and the box is named by its `aria-label` instead; a title (`shape="title"`) is a box only as it is hovered or touched.
+ * and the box is named by its `aria-label` instead; a title (`shape="title"`) is a box only as it is hovered or touched,
+ * and sentences said in place (`shape="words"`) are no box at all: the Panel they stand in is.
  *
  * Its behaviour is Base UI's Field (`@base-ui/react/field`, the plan's decision 15): the label names the control; the
  * hint, or what is wrong, describes it (aria-describedby); a problem marks it invalid (aria-invalid) and is read out
@@ -74,8 +75,17 @@ type FieldLine = FieldWords & {
   ref?: Ref<HTMLInputElement>;
 };
 
-/** A box of sentences, this many lines tall: a textarea, whose ref is a textarea's. */
-type FieldText = FieldWords & { rows: number; type?: undefined; shape?: undefined; ref?: Ref<HTMLTextAreaElement> };
+/**
+ * A box of sentences, this many lines tall: a textarea, whose ref is a textarea's. Its shape is the record kit's box, or
+ * sentences said in place (a reply in its row: its words as the page's own, in its type, as tall as they are, the panel
+ * they stand in the box: kit.css .rec-input-words, inside a Panel `variant="field"`).
+ */
+type FieldText = FieldWords & {
+  rows: number;
+  type?: undefined;
+  shape?: "box" | "words";
+  ref?: Ref<HTMLTextAreaElement>;
+};
 
 /** The field's own box. */
 type FieldBox = FieldLine | FieldText;
@@ -120,7 +130,7 @@ export function fieldProblem(problem: string | null | undefined): FieldProblem {
 function Box({ box, invalid }: { box: FieldBox; invalid: boolean }) {
   const { value, onValueChange, unit, placeholder, inputMode, maxLength, readOnly } = box;
   const words = {
-    className: cx("rec-input", box.shape === "title" && "rec-input-title"),
+    className: cx("rec-input", box.shape === "title" && "rec-input-title", box.shape === "words" && "rec-input-words"),
     value,
     onValueChange: (next: string) => onValueChange(next),
     placeholder,
