@@ -22,8 +22,11 @@ import {
   REACH_OUT_READS_PER_DAY,
   REPLY_READ_MAX_TOKENS,
   REPLY_SCHEMA,
+  SECOND_KEY_OFF,
+  replyIntentRead,
   replyReadPrimary,
   replyReadShadowCall,
+  type SecondKey,
 } from "../packages/contracts.js";
 import { takeReplyRead, workspaceMaySpend, type Database } from "../packages/db.js";
 import type { JobContext } from "../packages/jobs.js";
@@ -50,9 +53,11 @@ export function replyReader(
       const ms = Math.min(CHECK_CALL_MS, deadline - now());
       if (ms <= 0) throw new Error("reply_read: no time left for the reader");
       // The reply's intent is also put to a second model in shadow, when it is on (decision 0023): never the person-or-
-      // automatic read, which the intake's header claim keeps. Its answer is compared and kept, and never read here.
+      // automatic read, which the intake's header claim keeps. Its answer is compared and kept; where the second key is on
+      // (decision 0084) its read goes back with the reader's, and the verb closes the thread only when the two agree.
       const shadow = startShadow("reply_read", forWhom, () => [replyReadShadowCall(user)]);
       let answered: JsonAnswer | null = null;
+      let second: SecondKey = SECOND_KEY_OFF;
       try {
         answered = await askJson({
           purpose: "reply_read",
@@ -67,9 +72,10 @@ export function replyReader(
           for: { ...forWhom, promptHash: promptHashOf(system) },
         });
       } finally {
-        await shadow?.settle((_ref, question) => replyReadPrimary(answered?.answer)[question] ?? null);
+        const reads = await shadow?.settle((_ref, question) => replyReadPrimary(answered?.answer)[question] ?? null);
+        if (shadow?.secondKey && reads) second = { on: true, read: replyIntentRead(reads) };
       }
-      return answered?.answer ?? null;
+      return { answer: answered?.answer ?? null, second };
     },
     mayRead: async (tenantId, at) => {
       if (!env.ANTHROPIC_API_KEY) return "no_model";
