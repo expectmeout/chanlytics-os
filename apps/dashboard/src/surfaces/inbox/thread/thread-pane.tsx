@@ -21,6 +21,7 @@ import { ixDraftKey, ixHeld, ixReadAgain } from "../rules";
 import { canDo, demoSession, presenceAway, useToast, type Flash } from "../shell";
 import { unseePerson } from "../../seen";
 import { inboxData, OWN_VERBS, VW_STORE } from "../store";
+import { readThreadWhole } from "../read-apart";
 import { InboxThread, type InboxThreadProps } from "./thread";
 import { threadVerbs } from "./thread-verbs";
 import type { RealThread, Thread } from "../types";
@@ -271,6 +272,11 @@ export const ThreadPane = (props: ThreadPaneProps) => {
   const standalone = !given;
 
   useEffect(() => hearInbox(shownRef, setRepaint, redraw), []);
+  // A thread the Inbox's read holds only the newest of, shown: read whole, and drawn again when it lands (read-apart.ts).
+  const partialId = t && t.real && t.partial ? t.conversationId : null;
+  useEffect(() => {
+    if (partialId) void readThreadWhole(partialId);
+  }, [partialId]);
   // A call's card reads the calls Conversations holds (thread/call.tsx tlCallFor): drawn again when they are read.
   useSurface("conversations");
 

@@ -508,6 +508,16 @@
     },
     {
       "kind": "over-read",
+      "field": "q",
+      "why": "The Inbox reads GET conversations for its threads. The same route answers Conversations' search box (`q`, through search_messages, which looks in calls' transcripts as well as in messages) and keeps only the threads a message says the words in: the Inbox never sends the words, and the box's answer is a search's, asked again for each new words and never kept.",
+      "reads": {
+        "inbox": [
+          "calls"
+        ]
+      }
+    },
+    {
+      "kind": "over-read",
       "field": "last_inbound_at",
       "why": "The channel health the composers' Send by row says, from GET channels, which also reads the line's latest call for when the line last heard a customer (last_inbound_at). The composers draw the number, its quality and its standing, never that time, so a call ending changes nothing they say.",
       "reads": {

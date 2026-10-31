@@ -292,11 +292,16 @@ const CallPane = ({ c, onBack = null }: { c: ConversationRow; onBack?: (() => vo
 };
 
 // Where a row opens. A conversation is the one thread. A call is its thread too, opened at the call, when the thread
-// the Inbox read holds the call's note; else the call alone (CallPane). The mockup's seeded threads act only inside
+// the Inbox read holds the call's note, or holds only its newest and is read whole as it opens (read-apart.ts); else the
+// call alone (CallPane). The mockup's seeded threads act only inside
 // the Inbox page's demo state, so a seeded chat says where it acts, and a seeded call is drawn alone.
 const cvThreadHolds = (c: ConversationRow): boolean => {
   const t = (inboxData().THREADS || []).find((x) => x.id === c.threadId);
-  return !!t && (t.timeline || []).some((e) => ("messageId" in e ? e.messageId : undefined) === c.messageId);
+  if (!t) return false;
+  return (
+    (!!t.real && !!t.partial) ||
+    (t.timeline || []).some((e) => ("messageId" in e ? e.messageId : undefined) === c.messageId)
+  );
 };
 const cvOpens = (c: ConversationRow): "thread" | "call" | "inbox" => {
   if (c.callId || c.channel === "phone") {
