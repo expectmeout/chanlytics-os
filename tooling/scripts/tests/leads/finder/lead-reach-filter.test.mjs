@@ -115,7 +115,7 @@ test("the Filter's word says what is on", () => {
   assert.equal(leadReachWord([]), "Filter");
   assert.equal(leadReachWord(["email"]), LEAD_REACH_WORDS.email);
   assert.equal(leadReachWord(["phone"]), "Checked phone");
-  assert.equal(leadReachWord(["email", "phone"]), "Checked email and phone");
+  assert.equal(leadReachWord(["email", "phone"]), "Both checked");
 });
 
 test("the export takes the Filter's reach, and still takes a view without one (either deploy order)", () => {

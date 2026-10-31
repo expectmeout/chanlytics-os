@@ -240,14 +240,20 @@ export function leadReaches(slots: { phone: LeadSlot; mailbox: LeadSlot }, want:
 export const leadReachOf = (v: unknown): LeadReachFilter[] =>
   Array.isArray(v) ? LEAD_REACH_FILTERS.filter((f) => v.includes(f)) : [];
 
-/** The filter's words: its two switches, their heading and the line under them, and its control with none or both on. */
+/**
+ * The filter's words: its two switches, their heading and the line under them, its control's hover, and its control with
+ * none or both on.
+ */
 export const LEAD_REACH_WORDS = {
   email: "Checked email",
   phone: "Checked phone",
   header: "Show only",
+  tip: "Show only the leads you can email or call",
   caption: "Checked: the mailbox exists, or the number is the same on Google Maps and their website.",
   none: "Filter",
-  both: "Checked email and phone",
+  // Short enough that the desk's controls stay one row at 1024px with both on ("Checked email and phone" wrapped them
+  // below 1048px, and the table jumped as the Filter was flipped).
+  both: "Both checked",
 } as const;
 
 /** What the filter's control says: Filter with nothing on, else what is on, so the row says the view it shows. */

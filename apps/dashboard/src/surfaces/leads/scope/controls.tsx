@@ -82,7 +82,7 @@ const LeadsFilterMenu = ({
     label={LEAD_REACH_WORDS.none}
     groups={[leadReachGroup(reach, onReach, false)]}
     trigger={
-      <Button variant="quiet" size="sm" data-tip={LEAD_REACH_WORDS.header} data-testid="leads-filter">
+      <Button variant="quiet" size="sm" data-tip={LEAD_REACH_WORDS.tip} data-testid="leads-filter">
         {leadReachWord(reach)}
       </Button>
     }

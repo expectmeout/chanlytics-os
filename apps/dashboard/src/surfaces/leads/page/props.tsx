@@ -298,13 +298,12 @@ export const leadsBandProps = (p: LeadsPage) => {
     },
     fit: p.fitChip,
     onPickFit: p.setFitChip,
-    // The Filter (contracts leadReaches): a switch flipped on or off. A selection of "all that match" was a claim about the
-    // view the server knows, wider than the rows the Filter leaves, so it goes back to the rows picked.
+    // The Filter (contracts leadReaches): a switch flipped on or off. A selection of "all that match" goes back to the rows
+    // picked once it narrows the rows (leads-real.tsx, for every narrowing alike).
     reach: p.reach,
     onReach: (f: string) => {
       const on = p.reach.some((x) => x === f);
       p.setReach(leadReachOf(on ? p.reach.filter((x) => x !== f) : [...p.reach, f]));
-      p.setAllMatching(false);
     },
     values: p.values,
     onValues: (v: boolean) => {

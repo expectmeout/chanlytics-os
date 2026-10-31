@@ -86,7 +86,8 @@ test("a page's bundle is pointed at the entry, the edge runtime's and the server
   // Next's edge runtime matches `browser` too, and the entry lacks the server's names (instrumentation.ts reaches them
   // through the log), so `edge-light` is read first.
   assert.deepEqual(Object.keys(root), ["types", "bundled", "edge-light", "browser", "import", "default"]);
-  assert.equal(root.browser, `./${path.relative("packages/contracts", OUT)}`);
+  // A package's exports are written with "/" on every machine, so the path is the POSIX one (Windows' relative says "\").
+  assert.equal(root.browser, `./${path.posix.relative("packages/contracts", OUT)}`);
   assert.equal(root["edge-light"], "./src/index.ts");
   assert.equal(root.import, "./src/index.ts");
 });
