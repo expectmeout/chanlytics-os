@@ -92,14 +92,27 @@ const SHUT_TODAY = "annual stocktake";
 
 /* ------------------------------- the knock -------------------------------- */
 
-const token = (o = {}) =>
-  signEdgeToken(o.secret ?? process.env.EDGE_CALL_SECRET, o.aud ?? AUD, { workspace: o.workspace ?? null, user: "u1" });
+const token = (o = {}) => {
+  const secret = o.secret ?? process.env.EDGE_CALL_SECRET;
+  return (body) =>
+    signEdgeToken(secret, o.aud ?? AUD, {
+      workspace: o.workspace ?? null,
+      user: "u1",
+      body,
+    });
+};
+/** The headers a knock sends, each token minted for the body it rides with: the edge refuses a token that names none. */
+const minted = (headers, raw) =>
+  Object.fromEntries(Object.entries(headers).map(([k, v]) => [k, typeof v === "function" ? v(raw) : v]));
 /** A steer as the dashboard sends it: a token minted for this door and the draft's workspace, the draft's id and the owner's words. */
 const knock = (body, { headers, workspace = null, brain = null } = {}) =>
   POST(
     new Request(`http://edge${AUD}`, {
       method: "POST",
-      headers: { ...(headers ?? { "x-edge-token": token({ workspace }) }), "content-type": "application/json" },
+      headers: minted(
+        { ...(headers ?? { "x-edge-token": token({ workspace }) }), "content-type": "application/json" },
+        JSON.stringify(body),
+      ),
       body: JSON.stringify(body),
     }),
     brain,
@@ -431,35 +444,52 @@ test("the body: a draft id that is not a uuid, no words, or more than 500 of the
     { message_id: w.M, text: "x".repeat(501) },
   ]) {
     assert.deepEqual(
-      await answer(await knock(body, { brain: unasked().port })),
+      await answer(await knock(body, { workspace: w.T, brain: unasked().port })),
       [400, { ok: false, error: "bad_request", detail: "message_id + text (1-500 chars) required" }],
       JSON.stringify(body),
     );
   }
   assert.equal(db.seen.length, 0);
   setPg(null);
-  assert.deepEqual(await answer(await knock({ message_id: w.M, text: OWNER_SAYS }, { brain: unasked().port })), [
-    503,
-    { ok: false, error: "no_database" },
-  ]);
+  assert.deepEqual(
+    await answer(await knock({ message_id: w.M, text: OWNER_SAYS }, { workspace: w.T, brain: unasked().port })),
+    [503, { ok: false, error: "no_database" }],
+  );
 });
 
 /* ------------------------------- the refusals ----------------------------- */
 
+test("a token that names no workspace is refused before anything is read, as the live-call doors refuse it (EDGE_TOKEN_UNBOUND, closed 31 Oct 2026)", async () => {
+  const w = fresh();
+  const { db } = world(w);
+  assert.deepEqual(await answer(await knock({ message_id: w.M, text: OWNER_SAYS }, { brain: unasked().port })), [
+    400,
+    {
+      ok: false,
+      error: "bad_tenant",
+      detail: "this door acts only for a workspace its credential names, and this one names none",
+    },
+  ]);
+  assert.equal(db.seen.length, 0, "nothing read for a token that names no workspace");
+});
+
 test("the draft: a read that fails is a 500, an unknown id a 404, another workspace's draft a 403 -- and none of it reaches the model or writes a row", async () => {
   const w = fresh();
   const broken = world(w, { faults: { "messages.select": { message: "connection reset" } } });
-  assert.deepEqual(await answer(await knock({ message_id: w.M, text: OWNER_SAYS }, { brain: unasked().port })), [
-    500,
-    { ok: false, error: "message_read_failed" },
-  ]);
+  assert.deepEqual(
+    await answer(await knock({ message_id: w.M, text: OWNER_SAYS }, { workspace: w.T, brain: unasked().port })),
+    [500, { ok: false, error: "message_read_failed" }],
+  );
   assert.equal(writes(broken.db, "messages").length, 0);
 
   const v = fresh();
   const { tables, db } = world(v);
   assert.deepEqual(
     await answer(
-      await knock({ message_id: "dddddddd-dddd-4ddd-8ddd-ffffffffffff", text: OWNER_SAYS }, { brain: unasked().port }),
+      await knock(
+        { message_id: "dddddddd-dddd-4ddd-8ddd-ffffffffffff", text: OWNER_SAYS },
+        { workspace: v.T, brain: unasked().port },
+      ),
     ),
     [404, { ok: false, error: "not_found" }],
   );
@@ -988,15 +1018,17 @@ const said = (record) => ({
  * case passes something. Not knock(): that hands in a port, and a port is what
  * is being proven unnecessary.
  */
-const asVercelDoes = (w, ...rest) =>
-  POST(
+const asVercelDoes = (w, ...rest) => {
+  const raw = JSON.stringify({ message_id: w.M, text: OWNER_SAYS });
+  return POST(
     new Request(`http://edge${AUD}`, {
       method: "POST",
-      headers: { "x-edge-token": token({ workspace: w.T }), "content-type": "application/json" },
-      body: JSON.stringify({ message_id: w.M, text: OWNER_SAYS }),
+      headers: { "x-edge-token": token({ workspace: w.T })(raw), "content-type": "application/json" },
+      body: raw,
     }),
     ...rest,
   );
+};
 
 test("the default: called the way Vercel calls it -- POST(request), nothing in the port's place -- the door reaches the REAL brain, which carries the composed prompt, the clock, who the customer is and the owner's steer to the model, and the record that comes back is the rewrite the dashboard sees", async () => {
   const w = fresh();

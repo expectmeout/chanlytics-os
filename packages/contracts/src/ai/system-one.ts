@@ -23,6 +23,9 @@ import { z } from "zod";
  * (decision 0023).
  */
 export const SYSTEM_ONE_MODEL = "jev-1.14.0";
+/** Whether a model id is a System One model's, any version: a row it answered was answered by the second model. */
+export const isSystemOneModel = (model: unknown): boolean => typeof model === "string" && model.startsWith("jev-");
+
 /** Dollars per million input tokens (TypeSafe's list, read 31 October 2026); output tokens are free. */
 const SYSTEM_ONE_INPUT_USD_PER_MILLION = 0.042;
 /** How much of a state is sent: well inside the 32,000 tokens a state and its longest question may share. */

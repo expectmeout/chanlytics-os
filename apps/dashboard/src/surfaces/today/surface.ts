@@ -9,7 +9,7 @@ import { read } from "@/legacy-bridge/api";
 import { heldThreadIds, toTodayVM, type CallDto, type LeadSearchDto } from "@chanlytics/contracts";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { setSurfaceValue, shareUnchanged, surfaceValue } from "../surface-values";
-import { readHeldThreads } from "../inbox/held-threads";
+import { readHeldThreads } from "../inbox/read-apart";
 
 /** What Today is made of: the five reads, and the threads of the holds past the hundred, as `toTodayVM` takes them. */
 type TodayArgs = Parameters<typeof toTodayVM>;

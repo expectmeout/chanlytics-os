@@ -1,5 +1,5 @@
 /**
- * What the kit's Panel takes, proved where the compiler reads it (panel.tsx): its three surfaces and three paddings,
+ * What the kit's Panel takes, proved where the compiler reads it (panel.tsx): its four surfaces and three paddings,
  * each left out for its default or chosen as the page runs, and the element it is drawn on, a block, a section of the
  * page or a list or its item, which its ref holds as an HTMLElement. A surface or a padding the map lacks, a tone,
  * another element and a ref that holds no HTML element stop compiling.
@@ -23,17 +23,18 @@ function _panelTakes(
 ): void {
   type _Its = [
     Holds<Exactly<ComponentProps<typeof Panel>, PanelProps>>,
-    Holds<Exactly<PanelProps["variant"], "pane" | "inset" | "pop" | undefined>>,
+    Holds<Exactly<PanelProps["variant"], "pane" | "inset" | "pop" | "field" | undefined>>,
     Holds<Exactly<PanelProps["size"], "md" | "sm" | "flush" | undefined>>,
     Holds<Exactly<PanelProps["as"], "div" | "section" | "article" | "aside" | "ul" | "ol" | "li" | undefined>>,
   ];
   Panel({ children: "Open today until six." });
   Panel({ variant: "inset", size: "sm", ref: div, children: "Their notes go with them." });
   Panel({ as: "ul", variant: "pop", size: "flush", ref: list, children: "Three services" });
+  Panel({ variant: "field", size: "sm", children: "Friday at two works." });
   // Chosen as the page runs: its element, and its padding.
   Panel({ as: now.as, size: now.flag ? "flush" : "md", children: "Hours" });
 
-  // @ts-expect-error its surfaces are a pane, an inset and a pop
+  // @ts-expect-error its surfaces are a pane, an inset, a pop and a field
   Panel({ variant: "card", children: "Hours" });
   // @ts-expect-error its paddings are md, sm and flush
   Panel({ size: "lg", children: "Hours" });

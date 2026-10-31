@@ -39,6 +39,8 @@ export {
   readsAsModel,
   RETELL_MODELS,
   routeThinkingFor,
+  screenFloorOf,
+  secondKeyFloorOf,
   shadowPortOf,
   THINKING_TYPES,
   thinkingOffOf,
@@ -56,10 +58,14 @@ export type {
 } from "./models";
 export {
   judgeShadowSpecs,
+  NO_READS,
   receptionistPrimary,
   receptionistShadowCall,
+  replyIntentRead,
   replyReadPrimary,
   replyReadShadowCall,
+  SECOND_KEY_OFF,
+  secondKeyLets,
   SHADOW_CALL,
   SHADOW_CONFIDENT,
   SHADOW_GRACE_MS,
@@ -70,8 +76,9 @@ export {
   shadowSwitchOn,
   shadowWordsOf,
 } from "./shadow";
-export type { ShadowCallFor, ShadowCallOutcome, ShadowCallSpec, ShadowRead } from "./shadow";
+export type { SecondKey, ShadowCallFor, ShadowCallOutcome, ShadowCallSpec, ShadowRead, ShadowReads } from "./shadow";
 export {
+  isSystemOneModel,
   parseSystemOneResponse,
   SYSTEM_ONE_MODEL,
   SYSTEM_ONE_STATE_MAX_CHARS,

@@ -145,7 +145,6 @@ export const DASHBOARD_LOG_EVENTS = [
   "follow_up_facts_failed",
   "google_connect_failed",
   "google_search_failed",
-  "google_state_signed_by_diag_key",
   "handover_invite_failed",
   "handovers_unread",
   "idempotency_release_failed",

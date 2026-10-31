@@ -9,22 +9,19 @@
   gap: var(--space-3);
 }
 
-/* ---- The head: the greeting with Listen, what now in the page's largest words, one line under it. ---- */
+/* ---- The head: what now in the page's largest words, one line under it; the greeting over it is the frame's own head, in
+   the page head's type (kit.css .pg-title), with Listen at its right (today/chrome.ts). ---- */
 .tph {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
   padding: 0 var(--space-1);
 }
-.tph-greet {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  min-height: var(--control-h-md);
-  font-size: var(--text-base);
-  font-weight: var(--weight-medium);
-  color: var(--ink-dim);
+/* Listen in the frame's head, and its seat there before its words are in (today/chrome.ts; components.css .pg-act-seat):
+   one width, so the button takes the seat's place and nothing beside it moves. It is 112px at rest in the act's own
+   padding, and a little more where a phone's face is wider. */
+.pg-act-slot :is(.tb-listen-phone, .tb-listen-seat) {
+  min-width: 7.75rem;
 }
 .tph-title {
   margin: 0;
@@ -99,7 +96,7 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.today-queue[data-phone] .cl-attn-work .ny-draft > .ny-line:nth-of-type(n + 3),
+.today-queue[data-phone] .cl-attn-work .ny-notes > .ny-notes-part:nth-child(n + 2),
 .today-queue[data-phone] .cl-attn-work .ny-signed {
   display: none;
 }
@@ -224,6 +221,13 @@
 }
 .tps > .tq + .tq {
   border-top: 1px solid var(--line);
+}
+/* Both halves at the page's own inset, as the day and the numbers are: setup's phone padding (mobile.css, 14px) and what
+   was brought in's desk padding (18px) stood 4px apart in the one card, and neither under the cards above (his phone, 31
+   Oct 2026). */
+.dash-a-v2 .tps > .today-setup,
+.dash-a-v2 .tps :is(.today-brought-head, .today-brought-facts, .today-brought-foot) {
+  padding-inline: var(--space-4);
 }
 
 /* ---- The day: how it stands, now and next, the bar, and the rest of it folded in, opened in place. ---- */

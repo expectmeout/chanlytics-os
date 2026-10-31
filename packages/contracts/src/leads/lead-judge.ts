@@ -12,8 +12,8 @@
 import { z } from "zod";
 import type { LeadSearchPlan } from "./search/plan";
 import { LEAD_FACT_MAX, LEAD_JUDGE_BATCH, LEAD_REASON_MAX_WORDS } from "./search/caps";
-import { LEAD_KIND_KEY } from "./search/class";
-import type { SystemOneQuestion } from "../ai/system-one";
+import { LEAD_KIND_KEY, leadKindWord } from "./search/class";
+import type { SystemOneAnswer, SystemOneQuestion } from "../ai/system-one";
 
 /* ----------------------------------------------------------- the facts -- */
 
@@ -253,6 +253,62 @@ export function judgeShadowCalls(
     state: judgeUserContent([{ ...p, emails: p.emails.map(domainOnly) }]),
     questions,
   }));
+}
+
+/* ----------------------------------------------------------- the screen -- */
+
+/** The questions that leave a place out (decision 0085): the kind, then every exclusion, in the rubric's order. */
+export function judgeScreenKeys(plan: LeadSearchPlan): string[] {
+  return [LEAD_KIND_KEY, ...plan.exclusions.map((e) => e.key)];
+}
+
+/**
+ * The screen's call for each place (decision 0085): the shadow's own state and questions (judgeShadowCalls), those that
+ * leave a place out alone, so what the screen is asked is word for word what the shadow compares.
+ */
+export function judgeScreenCalls(
+  plan: LeadSearchPlan,
+  places: PlaceFacts[],
+): Array<{ ref: number; state: string; questions: Record<string, SystemOneQuestion> }> {
+  const keys = new Set(judgeScreenKeys(plan));
+  return judgeShadowCalls(plan, places).map((c) => ({
+    ...c,
+    questions: Object.fromEntries(Object.entries(c.questions).filter(([key]) => keys.has(key))),
+  }));
+}
+
+/** What a place left out on `key` is said to be, in the plan's own words: the kind's, or the exclusion's. */
+function screenReasonOf(plan: LeadSearchPlan, key: string): string {
+  if (key === LEAD_KIND_KEY) return leadKindWord(plan.name);
+  const text = plan.exclusions.find((e) => e.key === key)?.text ?? "";
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+const isJudgeAnswer = (v: string): v is JudgeCriterionAnswer => v === "pass" || v === "fail" || v === "unknown";
+
+/**
+ * A place's answer from the screen (decision 0085), or null when the screen leaves it to the judge. A place is left out
+ * only on a fail at `floor` or over to one of the questions that leave a place out; a pass, an unknown and a fail under
+ * the floor leave it to the judge. The answer holds each of those questions the screen was that sure of, and none of the
+ * plan's criteria, so it is never reused under a plan that asks them (rejudge.ts reads every key): an Include that lifts
+ * the exclusion has the place judged whole. It cites no fact (a fail may cite none), picks no email (a left-out place
+ * keeps none, PRD §0.4), and gives as its reason the question it failed, in the plan's words.
+ */
+export function screenedAnswer(
+  plan: LeadSearchPlan,
+  ref: number,
+  answers: Readonly<Record<string, SystemOneAnswer | undefined>>,
+  floor: number,
+): JudgePlaceAnswer | null {
+  const sure = judgeScreenKeys(plan).flatMap((key) => {
+    const a = answers[key];
+    if (!a || a.type !== "choice" || !isJudgeAnswer(a.choice) || a.choice === "unknown" || a.confidence < floor)
+      return [];
+    return [{ key, answer: a.choice, facts: [] as string[] }];
+  });
+  const failed = sure.find((c) => c.answer === "fail");
+  if (!failed) return null;
+  return { ref, criteria: sure, email_index: null, reason: trimWords(screenReasonOf(plan, failed.key)) };
 }
 
 /* ----------------------------------------------------------- the parser -- */

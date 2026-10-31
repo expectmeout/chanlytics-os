@@ -28,6 +28,11 @@ interface Standing {
   stacked?: boolean;
   /** The page's own act, at the right of the row of views; the frame's act where the page names none. */
   act?: ReactNode;
+  /**
+   * Where the page's act will stand, held before the act can be drawn: the frame draws a button of this class there, at its
+   * size and seen by no one (frame-head.tsx PageAct), so nothing moves as the act comes. Today's Listen, on a phone.
+   */
+  seat?: string;
   /** The way back, above the name on a desk and in the date's place on a phone: the crumb before the last where unsaid; null
    *  for none. */
   back?: BackWay | null;
@@ -68,6 +73,17 @@ export interface StripAt {
   views?: SurfaceViews | null;
 }
 
+/**
+ * What the page at an address will say in the head, said by its address from the frame's first draw (its chrome's `head`):
+ * Today's greeting, and on a phone the seat of its Listen. The head drew the last crumb ("Today") until the page was read,
+ * then the page's own words in its place: two headlines on every load, 7 seconds apart on a phone (Ruben, 31 Oct 2026).
+ */
+export interface HeadFirst {
+  title: string;
+  /** The seat of the page's act (Standing `seat`): its place held before the page draws it, so nothing moves as it comes. */
+  seat?: string;
+}
+
 /** The head as it stands over a page: what the page said, the crumbs, and the strip of views, or none. */
 export interface HeadAt {
   standing: Standing | null;
@@ -86,6 +102,8 @@ let crumbs: readonly ShownCrumb[] = [];
 let headOwn = false;
 /** What an address whose page draws its own head says before the page does: no name, and the way back its crumbs give. */
 const OWN_HEAD: Standing = { title: null };
+/** What an address says its page will say (HeadFirst), as the head draws it, until the page says it itself. */
+let headFirst: Standing | null = null;
 let strip: StripAt | null = null;
 /** The head as it stood over the page a carried page goes back to; null while nothing is carried. */
 let under: HeadAt | null = null;
@@ -100,7 +118,7 @@ const subscribe = (fn: () => void): (() => void) => {
   return () => standingWatchers.delete(fn);
 };
 
-const saidHere = (): Standing | null => said?.standing ?? (headOwn ? OWN_HEAD : null);
+const saidHere = (): Standing | null => said?.standing ?? (headOwn ? OWN_HEAD : headFirst);
 const standingNow = (): Standing | null => (under ? under.standing : saidHere());
 const crumbsNow = (): readonly ShownCrumb[] => (under ? under.crumbs : crumbs);
 const underNow = (): HeadAt | null => under;
@@ -137,13 +155,17 @@ export function useStandingSaid(): Standing | null {
 export const standingSaid = (): Standing | null => standingNow();
 
 /**
- * The crumbs the frame drew for the page on screen (frame/app-shell.tsx, through the chrome bridge), and whether that page
- * draws its own head (`ownHead`, headOwn).
+ * The crumbs the frame drew for the page on screen (frame/app-shell.tsx, through the chrome bridge), whether that page
+ * draws its own head (`ownHead`, headOwn), and what its address says the page will say (`head`, HeadFirst).
  */
-export function crumbsShown(shown: readonly ShownCrumb[], ownHead = false): void {
-  if (shown === crumbs && ownHead === headOwn) return;
+export function crumbsShown(shown: readonly ShownCrumb[], ownHead = false, head: HeadFirst | null = null): void {
+  const same = head
+    ? !!headFirst && headFirst.title === head.title && headFirst.seat === head.seat
+    : headFirst === null;
+  if (shown === crumbs && ownHead === headOwn && same) return;
   crumbs = shown;
   headOwn = ownHead;
+  if (!same) headFirst = head ? { title: head.title, stacked: true, seat: head.seat } : null;
   tellStandingWatchers();
 }
 
@@ -182,6 +204,7 @@ export function forgetStanding(): void {
   said = null;
   crumbs = noCrumbs;
   headOwn = false;
+  headFirst = null;
   strip = null;
   under = null;
   tellStandingWatchers();

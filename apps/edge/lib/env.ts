@@ -98,7 +98,7 @@ export const env = {
   get RETELL_API_KEY() {
     return trimmedEnv(process.env.RETELL_API_KEY);
   },
-  /** Switch: the badged key Retell's signature is checked with; unset, RETELL_API_KEY is tried instead (a fallback with a sunset). */
+  /** The badged key Retell's signature is checked with, the only one; unset, no signature verifies. */
   get RETELL_WEBHOOK_KEY() {
     return trimmedEnv(process.env.RETELL_WEBHOOK_KEY);
   },
@@ -259,6 +259,14 @@ export const env = {
   get ELEVENLABS_WEBHOOK_SECRET() {
     return trimmedEnv(process.env.ELEVENLABS_WEBHOOK_SECRET);
   },
+  /**
+   * Switch: the lead judge's screen (decision 0085), the second model asked first and a place it is sure is left out never
+   * judged ('1' for every workspace, or a comma-separated list of workspace ids), with its key set; anything else asks
+   * the judge everything, as before.
+   */
+  get TYPESAFE_SCREEN() {
+    return trimmedEnv(process.env.TYPESAFE_SCREEN);
+  },
   /** TypeSafe's key for the second model asked in shadow (decision 0023): never a literal, never logged. */
   get TYPESAFE_API_KEY() {
     return trimmedEnv(process.env.TYPESAFE_API_KEY);
@@ -266,6 +274,14 @@ export const env = {
   /** Switch: '1' asks the second model beside the primary for every workspace, a comma-separated list of workspace ids for those alone, with its key set; anything else asks nothing. */
   get TYPESAFE_SHADOW() {
     return trimmedEnv(process.env.TYPESAFE_SHADOW);
+  },
+  /**
+   * Switch: the second model's read made a second key (decision 0084) where a purpose's route names a floor ('1' for
+   * every workspace, or a comma-separated list of workspace ids), with its key set: an act the purpose holds on it goes
+   * only when it agrees. Anything else holds nothing.
+   */
+  get TYPESAFE_SECOND_KEY() {
+    return trimmedEnv(process.env.TYPESAFE_SECOND_KEY);
   },
   /** Switch: the receptionist's note suggestions (0007 phase 2), on unless 'off'. */
   get NOTE_SUGGESTIONS() {

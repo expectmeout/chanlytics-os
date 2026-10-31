@@ -246,7 +246,9 @@ test.describe("Phone shell on a real workspace", () => {
     await expect(page).toHaveURL(atRoute(/^calendar/));
     await page.goto("/#/inbox");
     await page.waitForLoadState("networkidle");
-    await expect(page.locator(".ix-list")).toBeVisible();
+    // The list itself, never its picture (`data-held`, below).
+    const list = page.locator(".ix-list:not([data-held])");
+    await expect(list).toBeVisible();
     await expect(page.locator(".ix-thread-pane")).toBeHidden();
     await page.screenshot({ path: "test-results/phone-inbox-list.png" });
 
@@ -258,7 +260,9 @@ test.describe("Phone shell on a real workspace", () => {
     await expect(page.getByTestId("ix-back")).toBeVisible();
     await page.screenshot({ path: "test-results/phone-inbox-thread.png" });
     await page.getByTestId("ix-back").click();
-    await expect(page.locator(".ix-list")).toBeVisible();
+    // The list comes back under a picture of itself for two frames (kit/motion/held-list.ts coverLanding), a copy that
+    // keeps the list's class: `.ix-list` alone named two lists, and a strict locator failed on the spot (31 Oct 2026).
+    await expect(list).toBeVisible();
     await expect(page.locator(".ix-thread-pane")).toBeHidden();
 
     // A bucket is a list, never a conversation. Picking Handled or Snoozed opened that bucket's first thread over
@@ -269,7 +273,7 @@ test.describe("Phone shell on a real workspace", () => {
       if ((await chip.count()) === 0) continue;
       await chip.click();
       await expect(chip, `${name} is the bucket on screen`).toHaveAttribute("aria-selected", "true");
-      await expect(page.locator(".ix-list"), `${name} shows its list`).toBeVisible();
+      await expect(list, `${name} shows its list`).toBeVisible();
       await expect(page.locator(".ix-thread-pane"), `${name} opens no conversation`).toBeHidden();
     }
   });
@@ -292,7 +296,8 @@ test.describe("Phone shell on a real workspace", () => {
     const back = page.getByTestId("ix-back");
     await expect(back).toBeVisible();
     await back.click();
-    await expect(page.locator(".cv-list")).toBeVisible();
+    // As the Inbox's: the list itself, not the picture it comes back under (held-list.ts coverLanding).
+    await expect(page.locator(".cv-list:not([data-held])")).toBeVisible();
   });
   /**
    * Campaigns on a phone is Sequences (decision 0060; Sent's list and the home that stood here went in its S6): the list,

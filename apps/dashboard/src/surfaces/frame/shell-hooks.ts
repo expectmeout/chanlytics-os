@@ -376,6 +376,7 @@ interface ViewState {
   page: string | null;
   reading: boolean;
   stay: boolean;
+  landed: boolean;
   place: Place;
   slide: "next" | "prev" | null;
 }
@@ -397,7 +398,15 @@ export function useViewFade(
 ) {
   const { page, param } = route;
   const place = fromWindow("stripPlace", stripPlace)(page, param);
-  const viewRef = useRef<ViewState>({ key: null, page: null, reading: false, stay: false, place: null, slide: null });
+  const viewRef = useRef<ViewState>({
+    key: null,
+    page: null,
+    reading: false,
+    stay: false,
+    landed: false,
+    place: null,
+    slide: null,
+  });
   const onStrip = !!place && !!viewRef.current.place && viewRef.current.place.strip === place.strip;
   // People keeps its three scopes mounted (people-route.tsx): a scope still reading is the page's to say, never the frame's,
   // from the first draw that lands on one. The frame's reading view stood one draw on a cold load, and the page drawn in
@@ -418,12 +427,16 @@ export function useViewFade(
       reading: routeLoading && !onStrip && !inPlace,
       place,
       stay: !routeLoading && prev.key !== null && ((prev.page === page && !prev.reading) || cut) && !slide,
+      // Landing where its own reading view stood: the page's words fade in, and a head drawn in the view stays as it
+      // stood (components.css `data-landed`): Today's greeting faded out and in again as Today was read (31 Oct 2026).
+      landed: !routeLoading && prev.reading && prev.page === page,
       slide,
     };
   }
   return {
     viewKey,
     routeStay: viewRef.current.stay,
+    routeLanded: viewRef.current.landed,
     routeSlide: viewRef.current.slide,
     routeStrip: place ? place.strip : null,
     readsInPlace: routeLoading && inPlace,

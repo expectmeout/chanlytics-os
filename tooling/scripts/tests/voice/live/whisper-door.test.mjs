@@ -39,16 +39,23 @@ setPg(fakeDb({ calls: [{ id: "row-1", tenant_id: A, retell_call_id: CALL }] }));
 
 /* ------------------------------- the knock -------------------------------- */
 
-const token = (o = {}) =>
-  signEdgeToken(o.secret ?? process.env.EDGE_CALL_SECRET, o.aud ?? AUD, {
-    workspace: "workspace" in o ? o.workspace : A,
-    user: "u1",
-  });
+const token = (o = {}) => {
+  const secret = o.secret ?? process.env.EDGE_CALL_SECRET;
+  return (body) =>
+    signEdgeToken(secret, o.aud ?? AUD, {
+      workspace: "workspace" in o ? o.workspace : A,
+      user: "u1",
+      body,
+    });
+};
+/** The headers a knock sends, each token minted for the body it rides with: the edge refuses a token that names none. */
+const minted = (headers, raw) =>
+  Object.fromEntries(Object.entries(headers).map(([k, v]) => [k, typeof v === "function" ? v(raw) : v]));
 const knock = (body, headers = { "x-edge-token": token() }) =>
   POST(
     new Request(`http://edge${AUD}`, {
       method: "POST",
-      headers: { ...headers, "content-type": "application/json" },
+      headers: minted({ ...headers, "content-type": "application/json" }, JSON.stringify(body)),
       body: JSON.stringify(body),
     }),
   );

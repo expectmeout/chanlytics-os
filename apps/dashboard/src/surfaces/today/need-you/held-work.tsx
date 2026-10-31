@@ -68,7 +68,7 @@ export function HeldWork(p: WorkProps) {
 
   return (
     <>
-      <Quote by={W.held.title} text={held.text} />
+      <Quote what={W.held.title} text={held.text} />
       <Going
         line={W.held.sendsIn(seconds)}
         sub={W.sendingTo(row.who, wire)}

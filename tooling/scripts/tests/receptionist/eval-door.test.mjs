@@ -81,13 +81,26 @@ const SHUT_TODAY = "annual stocktake";
 
 /* ------------------------------- the knock -------------------------------- */
 
-const token = (o = {}) =>
-  signEdgeToken(o.secret ?? process.env.EDGE_CALL_SECRET, o.aud ?? AUD, { workspace: o.workspace ?? null, user: "u1" });
+const token = (o = {}) => {
+  const secret = o.secret ?? process.env.EDGE_CALL_SECRET;
+  return (body) =>
+    signEdgeToken(secret, o.aud ?? AUD, {
+      workspace: o.workspace ?? null,
+      user: "u1",
+      body,
+    });
+};
+/** The headers a knock sends, each token minted for the body it rides with: the edge refuses a token that names none. */
+const minted = (headers, raw) =>
+  Object.fromEntries(Object.entries(headers).map(([k, v]) => [k, typeof v === "function" ? v(raw) : v]));
 const knock = (body, { headers, workspace = null, brain = null } = {}) =>
   POST(
     new Request(`http://edge${AUD}`, {
       method: "POST",
-      headers: { ...(headers ?? { "x-edge-token": token({ workspace }) }), "content-type": "application/json" },
+      headers: minted(
+        { ...(headers ?? { "x-edge-token": token({ workspace }) }), "content-type": "application/json" },
+        JSON.stringify(body),
+      ),
       body: JSON.stringify(body),
     }),
     brain,
@@ -704,15 +717,17 @@ const said = (record, over = {}) => ({
  * case passes something. Not knock(): that hands in a port, and a port is what
  * is being proven unnecessary.
  */
-const asVercelDoes = (T, cases, ...rest) =>
-  POST(
+const asVercelDoes = (T, cases, ...rest) => {
+  const raw = JSON.stringify({ tenant_id: T, cases });
+  return POST(
     new Request(`http://edge${AUD}`, {
       method: "POST",
-      headers: { "x-edge-token": token({ workspace: T }), "content-type": "application/json" },
-      body: JSON.stringify({ tenant_id: T, cases }),
+      headers: { "x-edge-token": token({ workspace: T })(raw), "content-type": "application/json" },
+      body: raw,
     }),
     ...rest,
   );
+};
 
 test("the default: called the way Vercel calls it -- POST(request), nothing in the port's place -- the REAL brain is reached once per case, each with that case's own turns, the workspace's composed prompt and the clock and NOTHING else beside them; the fallback the door hands it is what a refusal comes back as; and the database is still never written", async () => {
   const T = fresh();

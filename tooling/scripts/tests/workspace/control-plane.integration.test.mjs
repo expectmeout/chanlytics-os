@@ -16,6 +16,14 @@ import { MEMBERSHIP_ROLES, parseTenantConfig } from "@chanlytics/contracts";
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const skip = !URL_ || !KEY ? "no service-role credentials in env" : false;
+// The pilot is the oldest active workspace only on a stack the migrations replayed (the Database workflow's). The
+// nightly runs this file against production's, where the oldest active workspace is whoever it is now: from 29 Oct
+// 2026 it had neither the seeded config nor the WhatsApp line these read, and two of them failed every night.
+const pilotSkip =
+  skip ||
+  (!/^http:\/\/(127\.0\.0\.1|localhost):\d+\/?$/.test(URL_)
+    ? "the pilot is the first workspace only on a replayed stack, and this database is not on this machine"
+    : false);
 let db;
 let pilotId;
 let smokeId;
@@ -25,19 +33,21 @@ before(async () => {
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
   // The pilot is the first workspace: 00001_foundation.sql made it, and its name
   // lives there, not here. The smoke tenant is `test`, so it is never the one.
-  const { data: first } = await db
-    .from("tenants")
-    .select("id")
-    .eq("status", "active")
-    .order("created_at")
-    .limit(1)
-    .single();
-  pilotId = first.id;
+  if (!pilotSkip) {
+    const { data: first } = await db
+      .from("tenants")
+      .select("id")
+      .eq("status", "active")
+      .order("created_at")
+      .limit(1)
+      .single();
+    pilotId = first.id;
+  }
   const { data: ts } = await db.from("tenants").select("id, slug");
   smokeId = ts.find((t) => t.slug === "chanlytics-smoke-test").id;
 });
 
-test("the seeded config parses under the SAME zod schema the runtime uses", { skip }, async () => {
+test("the seeded config parses under the SAME zod schema the runtime uses", { skip: pilotSkip }, async () => {
   const { data } = await db.from("tenant_config").select("config").eq("tenant_id", pilotId).single();
   const parsed = parseTenantConfig(data.config);
   assert.ok(parsed?.brain, "the pilot's seeded config must survive schema validation");
@@ -73,7 +83,7 @@ test("the money lock holds even for the service role", { skip }, async () => {
   assert.match(error.message, /locked/);
 });
 
-test("per-tenant credentials resolve through Vault; a null ref means env fallback", { skip }, async () => {
+test("per-tenant credentials resolve through Vault; a null ref means env fallback", { skip: pilotSkip }, async () => {
   const { data: chans } = await db
     .from("tenant_channels")
     .select("id, credentials_ref, tenant_id")
@@ -94,7 +104,7 @@ test("roles are the widened set and nothing kept 'staff'", { skip }, async () =>
   for (const m of data) assert.ok(MEMBERSHIP_ROLES.includes(m.role), `unexpected role ${m.role}`);
 });
 
-test("policy seeds mirror the edge's previous hardcoded behavior", { skip }, async () => {
+test("policy seeds mirror the edge's previous hardcoded behavior", { skip: pilotSkip }, async () => {
   const { data } = await db
     .from("policies")
     .select("class, mode, limits")

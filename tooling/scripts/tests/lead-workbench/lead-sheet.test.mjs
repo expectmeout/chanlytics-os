@@ -239,11 +239,18 @@ test("Why's checks: what did not pass first, the rest folded under how many pass
     ],
   );
   assert.equal(why.fold, "3 passed");
-  assert.equal(why.legend, true);
+  assert.equal(why.legend, LEAD_SHEET_CARD_WORDS.read, "Claude read them: the legend says so");
   assert.equal(
     leadSheetWhyOf(card({ groups: [{ how: "seen", checks: [check("on_maps", "yes")] }] })).legend,
-    false,
+    null,
     "all seen: nothing to tell apart",
+  );
+  // A place the screen left out before the judge (decision 0085) was read by Chanlytics AI alone, never by Claude.
+  const byScreen = (key, answer) => ({ ...check(key, answer, "read"), source: contracts.LEAD_READ_SOURCES.screen });
+  assert.equal(
+    leadSheetWhyOf(card({ groups: [{ how: "read", checks: [byScreen("kind", "yes"), byScreen("chains", "no")] }] }))
+      .legend,
+    LEAD_SHEET_CARD_WORDS.readByAi,
   );
   assert.equal(leadSheetWhyOf(card({ groups: [] })), null);
 });

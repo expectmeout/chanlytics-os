@@ -11,12 +11,12 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { NEED_YOU_WORDS as W, type AppointmentWord, type TodayQueueRowVM } from "@chanlytics/contracts";
-import { Button, Field, Panel, Sheet } from "../../kit";
+import { Button, Field, Sheet } from "../../kit";
 import { Icon } from "../../kit/icon/icon";
 import { touchSwipe } from "../../legacy-verbs";
 import { gate } from "../shell";
 import { rewriteDraft, useDraft } from "./drafts";
-import { Note, type WorkProps } from "./parts";
+import { Note, Quote, type WorkProps } from "./parts";
 import { replyWant } from "./reply-work";
 import { useRowState } from "./row-state";
 import { workOf } from "./rows";
@@ -243,14 +243,7 @@ export function WalkSheet({ rows, at, onAt, kept, work, word, todos, onToDo }: W
     >
       {lastRow && lastRow.id !== row.id ? <LastSend row={lastRow} /> : null}
       <div className="ny-walk-body" key={row.id} {...swipe}>
-        {row.sentence ? (
-          <Panel variant="inset" size="sm" className="ny-draft ny-their">
-            <span className="ny-by">
-              <span className="ny-by-words">{W.walk.their}</span>
-            </span>
-            <span className="ny-words">{row.quoted ? `“${row.sentence}”` : row.sentence}</span>
-          </Panel>
-        ) : null}
+        {row.sentence ? <Quote what={W.walk.their} text={row.quoted ? `“${row.sentence}”` : row.sentence} /> : null}
         {workOf(row, { ...work, main: "primary", foot: footEl }, { word, stepDone: () => undefined })}
         <ChangeWithAsk row={row} may={work.may} />
       </div>

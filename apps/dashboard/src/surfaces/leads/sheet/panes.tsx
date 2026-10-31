@@ -77,7 +77,7 @@ const fitOf = (why: LeadSheetWhyVM) => (
               </span>
               <span>
                 {ldCheckMark("read", "yes")}
-                {CW.read}
+                {why.legend}
               </span>
             </p>
           ) : null}

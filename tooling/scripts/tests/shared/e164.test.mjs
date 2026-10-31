@@ -58,18 +58,21 @@ test("Retell's call adapter keeps a number only when it is E.164, and the raw ca
 });
 
 test("the hand-over door refuses a line one digit short of E.164, and puts through one at the shortest", async () => {
-  const knock = (line) =>
-    new Request("http://edge/api/admin/hand-over", {
+  const knock = (line) => {
+    const raw = JSON.stringify({ call_id: CALL, line });
+    return new Request("http://edge/api/admin/hand-over", {
       method: "POST",
       headers: {
         "x-edge-token": signEdgeToken(process.env.EDGE_CALL_SECRET, "/api/admin/hand-over", {
           workspace: WORKSPACE,
           user: "u1",
+          body: raw,
         }),
         "content-type": "application/json",
       },
-      body: JSON.stringify({ call_id: CALL, line }),
+      body: raw,
     });
+  };
   const seen = [];
   const real = globalThis.fetch;
   globalThis.fetch = async (url, init) => {

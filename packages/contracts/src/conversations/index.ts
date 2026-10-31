@@ -117,5 +117,5 @@ export {
   shortName,
 } from "./thread-contact";
 export type { EmailStopBearing } from "./thread-contact";
-export { isOptedOut, memberMetaOf, messageAt } from "./thread-dto";
+export { inReadingOrder, isOptedOut, LIST_MESSAGES_EACH, memberMetaOf, messageAt } from "./thread-dto";
 export type { ConversationDto, LastHoldDto, MessageDto } from "./thread-dto";

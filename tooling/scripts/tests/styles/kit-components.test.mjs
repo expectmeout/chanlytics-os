@@ -494,6 +494,7 @@ const PANELS = {
   panel: () => h(Panel, { as: "section" }, h("h3", null, "Hours"), h("p", null, "Open today until six.")),
   "panel-flush": () => h(Panel, { as: "section", size: "flush" }, ...paneRows()),
   "panel-inset": () => h(Panel, { variant: "inset", size: "sm" }, "Their conversations and notes go with them."),
+  "panel-field": () => h(Panel, { variant: "field", size: "sm" }, "Friday at two works. See you then."),
   "panel-pop": () => h(Panel, { variant: "pop", size: "sm" }, "Your hours come from Google once it is linked."),
   "panel-pop-flush": () => h(Panel, { as: "section", variant: "pop", size: "flush" }, ...paneRows()),
 };

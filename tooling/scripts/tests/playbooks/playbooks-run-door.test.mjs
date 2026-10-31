@@ -74,16 +74,26 @@ const IN_HOURS = Date.parse("2026-09-11T15:00:00Z");
 
 /* ------------------------------- the knock -------------------------------- */
 
-const token = (o = {}) =>
-  signEdgeToken(o.secret ?? process.env.EDGE_CALL_SECRET, o.aud ?? AUD, {
-    workspace: "workspace" in o ? o.workspace : A,
-    user: "user" in o ? o.user : U,
-  });
+const token = (o = {}) => {
+  const secret = o.secret ?? process.env.EDGE_CALL_SECRET;
+  return (body) =>
+    signEdgeToken(secret, o.aud ?? AUD, {
+      workspace: "workspace" in o ? o.workspace : A,
+      user: "user" in o ? o.user : U,
+      body,
+    });
+};
+/** The headers a knock sends, each token minted for the body it rides with: the edge refuses a token that names none. */
+const minted = (headers, raw) =>
+  Object.fromEntries(Object.entries(headers).map(([k, v]) => [k, typeof v === "function" ? v(raw) : v]));
 const knock = (body, headers = { "x-edge-token": token() }) =>
   door.POST(
     new Request(`http://edge${AUD}`, {
       method: "POST",
-      headers: { ...headers, "content-type": "application/json" },
+      headers: minted(
+        { ...headers, "content-type": "application/json" },
+        typeof body === "string" ? body : JSON.stringify(body),
+      ),
       body: typeof body === "string" ? body : JSON.stringify(body),
     }),
   );

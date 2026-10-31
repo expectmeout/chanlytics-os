@@ -152,8 +152,9 @@ async function recordWebhookAuth(
  * CALLS Retell with need not be that key, and in production it was not:
  * 127 deliveries on 2026-09-05 verified in neither form while the ?key=
  * opened every one (events, kind webhook.auth). RETELL_WEBHOOK_KEY holds
- * the badged key for verification alone; empty, the API key is tried, as
- * before, so nothing moves until it is set.
+ * the badged key for verification alone; empty, nothing verifies (the API
+ * key was tried in its place until 31 October 2026, the RETELL_WEBHOOK_KEY
+ * switch: production has held the badged key since).
  *
  * Two forms of the body are tried, because the provider's own example
  * verifies `JSON.stringify(req.body)` — the parsed body re-serialised — not
@@ -178,8 +179,8 @@ async function admitted(raw: string, signature: string | null): Promise<boolean>
   if (!env.RETELL_WEBHOOK_KEY) {
     // Named, every delivery, so the one configuration step that stands between
     // this door and a real signature is not a thing someone has to already
-    // know. The API key is tried underneath, as before.
-    L.warn("retell_webhook_key_unset", { trying: "RETELL_API_KEY", fix: "set RETELL_WEBHOOK_KEY to the badged key" });
+    // know: without it, no delivery verifies.
+    L.warn("retell_webhook_key_unset", { fix: "set RETELL_WEBHOOK_KEY to the badged key" });
   }
   // The check itself is voice-door-auth.ts's `retellSigned`, which the other three voice doors use too.
   const { ok: sigOk, raw: sigRaw, restringified: sigRestringified } = retellSigned(raw, signature);

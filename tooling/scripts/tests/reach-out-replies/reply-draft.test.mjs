@@ -21,6 +21,7 @@ import {
   leadReplyNote,
   parseTenantConfigResult,
   resolveSystemPrompt,
+  SECOND_KEY_OFF,
   tokenBudgetSpent,
 } from "@chanlytics/contracts";
 import { readReply } from "../../../../packages/core/src/messages/reply-read.ts";
@@ -143,7 +144,7 @@ function world(over = {}) {
     reply: call("reply", async () => ({ ...FACTS, ...over.facts })),
     reading: call("reading", async () => (state.kept ? { ...state.kept } : null)),
     mayRead: call("mayRead", async () => null),
-    ask: call("ask", async () => answers.ask),
+    ask: call("ask", async () => ({ answer: answers.ask, second: SECOND_KEY_OFF })),
     apply: call("apply", async (_t, _m, p) => {
       state.kept = {
         intent: p.reading.intent,

@@ -170,7 +170,7 @@ export function RequestWork(p: WorkProps) {
       <ReplyWork
         {...p}
         row={{ ...row, prepared: said.reply }}
-        by={W.booked.confirmation}
+        what={W.booked.confirmation}
         start={
           <Button variant="quiet" onClick={() => setSaid({ ...said, reply: null })}>
             {W.booked.dontSend}

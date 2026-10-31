@@ -29,13 +29,18 @@ after(() => setPg(null));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
-const token = (aud = DOOR, workspace = A) =>
-  signEdgeToken(process.env.EDGE_CALL_SECRET, aud, { workspace, user: "u1" });
+const token = (aud = DOOR, workspace = A) => {
+  const secret = process.env.EDGE_CALL_SECRET;
+  return (body) => signEdgeToken(secret, aud, { workspace, user: "u1", body });
+};
+/** The headers a knock sends, each token minted for the body it rides with: the edge refuses a token that names none. */
+const minted = (headers, raw) =>
+  Object.fromEntries(Object.entries(headers).map(([k, v]) => [k, typeof v === "function" ? v(raw) : v]));
 const knock = (body, headers = { "x-edge-token": token() }) =>
   POST(
     new Request(`http://edge${DOOR}`, {
       method: "POST",
-      headers: { ...headers, "content-type": "application/json" },
+      headers: minted({ ...headers, "content-type": "application/json" }, JSON.stringify(body)),
       body: JSON.stringify(body),
     }),
   );

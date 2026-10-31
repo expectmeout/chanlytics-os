@@ -14,7 +14,9 @@ import {
   freedTimesUnoffered,
   historyDayWords,
   journeyGuide,
+  momentStartsSentence,
   scheduleSettingsOf,
+  scheduleStart,
   sequenceActsOf,
   sequenceNextOf,
 } from "@chanlytics/contracts";
@@ -34,6 +36,23 @@ test("Start's Change for a freed time: the people each time goes to and how far 
   assert.equal(W.freedCap, "People per freed time");
   assert.equal(W.freedAhead(14), "Up to 14 days ahead");
   assert.match(W.freedAheadHint, /Booking rules/);
+});
+
+test("the Steps tab's start says when a freed time's sequence runs, never an hour it does not keep", () => {
+  const freed = { id: "s1", name: "Fill a cancellation", state: "on", starts: "moment", mode: "ask", next: null };
+  const first = { id: "s1", run_hour: 10, until: null, policy_class: "follow_up", trigger: "slot_opened" };
+  assert.deepEqual(scheduleStart({ ...freed, first }, "appointment", { tz: "UTC", nowMs: Date.now() }), {
+    lead: "When a cancellation frees a time",
+    name: null,
+    sub: "To the people who asked and never booked",
+  });
+  assert.equal(momentStartsSentence("slot_opened", 10, "appointment"), "When a cancellation frees a time");
+  // Every other moment keeps its hour.
+  const quiet = scheduleStart({ ...freed, first: { ...first, trigger: "quiet_30" } }, "appointment", {
+    tz: "UTC",
+    nowMs: Date.now(),
+  });
+  assert.deepEqual([quiet.lead, quiet.sub], ["When someone has gone quiet for 30 days", "Sends at 10:00 AM"]);
 });
 
 test("a freed time's sequence has no next run by an hour and no Run now: it runs when a cancellation frees a time", () => {

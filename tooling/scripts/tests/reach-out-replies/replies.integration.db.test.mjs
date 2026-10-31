@@ -37,7 +37,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createClient } from "@supabase/supabase-js";
-import { LEAD_CLOSED_WORDS, LEAD_STAGE_WORDS } from "@chanlytics/contracts";
+import { LEAD_CLOSED_WORDS, LEAD_STAGE_WORDS, SECOND_KEY_OFF } from "@chanlytics/contracts";
 import { MAILBOX_ENV, gmailFake, gmailReceived, liveCredentials, withEnv } from "../email/mailboxes/_mailbox-world.mjs";
 import { importSrc } from "../_source.mjs";
 
@@ -269,7 +269,9 @@ const readerCalls = [];
 const scriptedAsk = async (system, user) => {
   const key = Object.keys(READS).find((k) => user.includes(READS[k].text));
   readerCalls.push({ key, automatic: /automatic: yes/.test(user) });
-  return key ? READS[key].answer : assert.fail(`the reader was asked about a reply the proof does not know: ${user}`);
+  // The reader's answer and its second key, off (decision 0084), as the edge's reader answers with no switch on.
+  if (!key) assert.fail(`the reader was asked about a reply the proof does not know: ${user}`);
+  return { answer: READS[key].answer, second: SECOND_KEY_OFF };
 };
 /** The scripted brain, in generateReply's shape: one draft, and its tokens. */
 const brainCalls = [];

@@ -164,11 +164,22 @@ export interface ModelRoute {
   /** A second port put the same closed-set question in shadow; absent when the purpose has none. */
   shadow?: ShadowPort;
   /**
+   * Where the shadow is a second key (decision 0084): how sure its read must be, agreeing with the primary's label, before
+   * an act the purpose holds on it goes. Only beside a shadow; absent where the shadow is compared and never used.
+   */
+  secondKey?: number;
+  /**
    * `off`: a short read into a fixed shape, where a model that thinks by default spends its thinking inside the cap and
    * can run out of it before the answer (a customer's website read, 29 Oct 2026: 2,500 tokens and no facts). Each model is
    * sent the off it takes (routeThinkingFor). Absent: each model thinks as it does by default.
    */
   thinking?: "off";
+  /**
+   * Where the second port screens before the primary (decision 0085): how sure its answer to a question that leaves
+   * something out must be before that thing is left out on it, and the primary is never asked of it. Only beside a
+   * shadow; absent where the primary is asked everything.
+   */
+  screen?: number;
 }
 
 /** The efforts a model still takes a thinking off at: Haiku 5.5's `disabled` and Sonnet 5.5's `between_tools` stop at high. */
@@ -280,6 +291,8 @@ export const MODEL_ROUTES = {
     retries: 0,
     maxTokens: 6000,
     shadow: "typesafe",
+    // A place the second model is this sure is the wrong kind, or one the plan leaves out, is never judged (decision 0085).
+    screen: 0.9,
   },
   // The small reads, each a short answer into a fixed shape: the smallest model, with its thinking off.
   note_suggest: {
@@ -305,6 +318,8 @@ export const MODEL_ROUTES = {
     retries: 0,
     maxTokens: 400,
     shadow: "typesafe",
+    // A no's archive, and the flag a no, a not now or a wrong person clears, wait for the second key (decision 0084).
+    secondKey: 0.8,
     thinking: "off",
   },
   // A booking tool's notice read into an appointment (docs/plans/2026-10-07-bookings-arrive-by-email.md): a short
@@ -380,9 +395,21 @@ export function fallbackModel(purpose: ModelPurpose, asked: string): ModelId | n
   return asked === r.model ? r.fallback : r.model;
 }
 
+/** How sure a purpose's screen must be before it leaves something out unasked, or null when it has none (decision 0085). */
+export function screenFloorOf(purpose: ModelPurpose): number | null {
+  const r = modelRoute(purpose);
+  return r.shadow && r.screen !== undefined ? r.screen : null;
+}
+
 /** The port a purpose is put beside in shadow, or null when it has none. */
 export function shadowPortOf(purpose: ModelPurpose): ShadowPort | null {
   return modelRoute(purpose).shadow ?? null;
+}
+
+/** How sure a purpose's second key must be, or null when its shadow is never a key (decision 0084). */
+export function secondKeyFloorOf(purpose: ModelPurpose): number | null {
+  const r = modelRoute(purpose);
+  return r.shadow && r.secondKey !== undefined ? r.secondKey : null;
 }
 
 /** Whether a string is one of the platform's model ids. */

@@ -45,6 +45,22 @@ export function messageAt(m: MessageDto): string {
   return m.channel_ts ?? m.created_at;
 }
 
+/**
+ * The order a thread is read in, the earliest first, by when each message happened (messageAt): the Inbox's read, a
+ * thread's own read and a page putting the two together sort by it, so one message never stands in two places.
+ */
+export function inReadingOrder(a: MessageDto, b: MessageDto): number {
+  return Date.parse(messageAt(a)) - Date.parse(messageAt(b));
+}
+
+/**
+ * How many of each thread's newest messages the Inbox's read (GET conversations) carries: what its row says (the last
+ * words, what they asked, a held draft) needs no more. A thread that has more is read on its own (GET conversations/:id)
+ * when it is opened. A long thread cost every load of the Inbox its hundred messages, opened or not: 62 notices from one
+ * program were 236 KB of every phone's read (the mailbox analysis, 30 Oct 2026).
+ */
+export const LIST_MESSAGES_EACH = 10;
+
 /** The keys of a message's meta that are the operator's, never a member's: what it cost to send (K8). */
 const OPERATOR_META_KEYS = ["pricing"] as const;
 

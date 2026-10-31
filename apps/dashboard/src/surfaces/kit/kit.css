@@ -2950,6 +2950,31 @@ textarea.rec-input {
   line-height: var(--leading-normal);
   resize: vertical;
 }
+/* Sentences said in place (a reply drafted in its row, Today's Need you; the refined canvas, 31 Oct 2026): the words
+   are the page's own, in its own type, and the box is the field's panel they stand in (.panel-field), so beginning to
+   type moves nothing. No hairline, padding, fill or handle of its own, and as tall as its words: no scroll inside it.
+   Where the browser cannot size a box by its words, the page that draws one grows it as it is typed. Named with the box's
+   own class too, so the looks' rules for a box (Glass's inset ground, depth and corners on .rec-input) never reach it. */
+textarea.rec-input.rec-input-words {
+  display: block;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  font: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  resize: none;
+  overflow: hidden;
+  field-sizing: content;
+}
+/* Its panel wears the keys' quiet line (.panel-field:focus-within): the words wear none of their own. */
+textarea.rec-input.rec-input-words:focus-visible {
+  border: 0;
+  box-shadow: none;
+}
 /* A box with its unit: the ring and the red edge are the group's, since the group is what the eye reads as the box. */
 .rec-input-group {
   display: flex;
@@ -3047,7 +3072,8 @@ textarea.rec-input {
   border-color: var(--accent);
   background: var(--bg);
 }
-.rec-input-title::placeholder {
+.rec-input-title::placeholder,
+.rec-input-words::placeholder {
   color: var(--ink-dim);
 }
 @media (prefers-reduced-motion: reduce) {
@@ -3771,6 +3797,32 @@ select.rec-input :is(option, optgroup) {
   border-color: var(--surface-pop-edge);
   border-radius: var(--surface-pop-radius);
   box-shadow: var(--surface-pop-depth);
+}
+/* A panel the member types in (Today's Need you: a reply Ask drafted, changed where it stands, its words a field said
+   in place, .rec-input-words): a box's own ground and hairline (.rec-input's), an inset's corners, the hairline darker
+   under a pointer, and the box's quiet line while what it holds has the keys. Words on it read as theirs to type; an
+   inset's read as read. */
+.panel-field {
+  background: var(--bg-raised);
+  border-color: var(--line-strong);
+  border-radius: var(--surface-inset-radius);
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
+}
+@media (hover: hover) {
+  .panel-field:hover {
+    border-color: var(--ink-faint);
+  }
+}
+.panel-field:focus-within {
+  border-color: var(--accent);
+  box-shadow: var(--focus-field);
+}
+@media (prefers-reduced-motion: reduce) {
+  .panel-field {
+    transition: none;
+  }
 }
 .panel-sm {
   padding: 10px var(--space-3);

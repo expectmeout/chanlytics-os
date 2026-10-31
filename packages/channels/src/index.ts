@@ -171,7 +171,7 @@ export {
   LEAD_JUDGE_MAX_TOKENS,
   leadJudge,
 } from "./leads/lead-judge";
-export type { CompanyJudgeAnswer, LeadJudge, LeadJudgeAnswer, LeadJudgeClient } from "./leads/lead-judge";
+export type { CompanyJudgeAnswer, LeadJudge, LeadJudgeAnswer, LeadJudgeClient, LeadScreen } from "./leads/lead-judge";
 export { runA2PSaga } from "./lines/a2p-saga";
 export type { A2PAnswer, A2PPorts, A2PResult } from "./lines/a2p-saga";
 export {

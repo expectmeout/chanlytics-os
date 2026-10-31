@@ -39,17 +39,19 @@ const TOKEN = "EAAB-business-token-nobody-may-see";
 const GRAPH = `https://graph.facebook.com/${GRAPH_VERSION}`;
 const LIST_URL = `${GRAPH}/${WABA}/message_templates?fields=id,name,language,status,category,components,quality_score,rejected_reason&limit=100`;
 
-const knock = (door, aud, body) =>
-  door.POST(
+const knock = (door, aud, body) => {
+  const raw = JSON.stringify(body);
+  return door.POST(
     new Request(`http://edge${aud}`, {
       method: "POST",
       headers: {
-        "x-edge-token": signEdgeToken(process.env.EDGE_CALL_SECRET, aud, { workspace: A, user: OWNER }),
+        "x-edge-token": signEdgeToken(process.env.EDGE_CALL_SECRET, aud, { workspace: A, user: OWNER, body: raw }),
         "content-type": "application/json",
       },
-      body: JSON.stringify(body),
+      body: raw,
     }),
   );
+};
 const answer = async (res) => [res.status, await res.json()];
 
 /** The one message, on three channels: the same name and the same language. */

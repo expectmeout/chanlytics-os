@@ -11,7 +11,7 @@ import { carryReply } from "../../inbox/carried-reply";
 import { Button } from "../../kit";
 import { appNavigate, gate } from "../shell";
 import { useDraft, type DraftWant } from "./drafts";
-import { Acts, Done, Editor, Going, Note, NotNow, Words, Writing, type WorkProps } from "./parts";
+import { Acts, Done, Going, Note, NotNow, Words, Writing, whoseWords, type WorkProps } from "./parts";
 import { clearSend, sendWords, undoSend, useSend } from "./sends";
 import { useRowState } from "./row-state";
 
@@ -84,24 +84,26 @@ function sendLabel(closed: boolean, refused: Refused | null): string {
 function useWords(row: TodayQueueRowVM, mine: string | null, may: boolean) {
   const draft = useDraft(replyWant(row), may);
   const written = row.prepared ?? (draft?.state === "ready" ? draft.draft.words.text : "");
-  return { draft, words: mine ?? written };
+  return { draft, written, words: mine ?? written };
 }
 
 /**
- * What a reply row prepared and lets the member do: the draft, Send with its countdown, Not now with its Wake. `by` says
- * whose the prepared words are where they are not Ask's (a held reply of the receptionist's).
+ * What a reply row prepared and lets the member do: the draft, typed in where it stands, Send with its countdown, Not now
+ * with its Wake. `what` names the words where they are not a reply (a booking's confirmation), and `by` says whose they
+ * are where they are not Ask's (a held reply of the receptionist's).
  */
-export function ReplyWork(p: WorkProps & { by?: string; start?: ReactNode }) {
+export function ReplyWork(p: WorkProps & { what?: string; by?: string; start?: ReactNode }) {
   const { row, main, may, tz, flash, keep } = p;
   const wire = row.writes?.wire ?? row.channel;
   const [mine, setMine] = useRowState<string | null>(row.id, "mine", null);
+  // Opened by Write it myself: the empty words stand, and take the keys as they are drawn.
   const [editing, setEditing] = useRowState(row.id, "editing", false);
   const [busy, setBusy] = useState(false);
   const [snoozed, setSnoozed] = useRowState<Snoozed | null>(row.id, "snoozed", null);
   const [refused, setRefused] = useRowState<Refused | null>(row.id, "refused", null);
   // Sent from this row as it is drawn now (not a send still counting from before a move back to Today): Undo takes the keys.
   const [sentHere, setSentHere] = useState(false);
-  const { draft, words } = useWords(row, mine, may);
+  const { draft, written, words } = useWords(row, mine, may);
   const { s: send, seconds, share } = useSend(row.id);
   const notNow = useNotNow(p, setSnoozed);
   const closed = row.writes?.window_open === false;
@@ -184,31 +186,25 @@ export function ReplyWork(p: WorkProps & { by?: string; start?: ReactNode }) {
       {sendLabel(closed, refused)}
     </Button>
   );
-  const edit = () => {
-    setMine(words);
-    setEditing(true);
+  // Typed where they stand: the member's own from the first key, and a send stopped before says nothing more.
+  const type = (text: string) => {
+    setMine(text);
     if (send) clearSend(row.id);
   };
-  const cancel = () => {
-    setEditing(false);
-    setMine(null);
-  };
-  const start = editing ? (
-    <Button variant="quiet" onClick={cancel}>
-      {W.cancel}
-    </Button>
-  ) : p.start !== undefined ? (
-    p.start
-  ) : row.conversationId && may ? (
-    <NotNow
-      who={row.who}
-      choices={notNow.choices}
-      caption={notNow.caption}
-      onOpen={notNow.fresh}
-      onChoose={(i) => void notNow.choose(i)}
-      busy={notNow.busy}
-    />
-  ) : null;
+  // Not now stays at the left while the words are typed: the presses do not move as they begin.
+  const start =
+    p.start !== undefined ? (
+      p.start
+    ) : row.conversationId && may ? (
+      <NotNow
+        who={row.who}
+        choices={notNow.choices}
+        caption={notNow.caption}
+        onOpen={notNow.fresh}
+        onChoose={(i) => void notNow.choose(i)}
+        busy={notNow.busy}
+      />
+    ) : null;
   const writeIt = (
     <Button
       variant={main}
@@ -225,19 +221,20 @@ export function ReplyWork(p: WorkProps & { by?: string; start?: ReactNode }) {
       {send?.state === "stopped" ? <Note>{W.canceled}</Note> : null}
       {closed ? <Note tone="warn">{W.windowClosed}</Note> : null}
       <WordsPart
+        what={p.what}
         who={row.who}
         words={words}
         draft={draft}
-        by={mine !== null ? W.yours : (p.by ?? W.drafted)}
-        editing={editing}
-        onChange={setMine}
-        onEdit={may ? edit : null}
+        {...whoseWords(written, mine, () => setMine(null), p.by)}
+        shown={mine !== null}
+        open={editing}
+        onChange={may ? type : null}
         onRead={p.read}
         signed={wire === THREAD_CHANNEL_WORDS.email ? signedLineOf(draft) : null}
       />
       {refused ? <Note tone={refused.confirmTo ? "warn" : "danger"}>{refused.message}</Note> : null}
       {!may ? <Note>{W.viewer}</Note> : null}
-      <Acts foot={p.foot} start={start} end={words || closed || !may ? sendButton : writeIt} />
+      <Acts foot={p.foot} start={start} end={words || mine !== null || closed || !may ? sendButton : writeIt} />
     </>
   );
 }
@@ -256,27 +253,36 @@ function signedLineOf(draft: ReturnType<typeof useDraft>): string | null {
   return lines || null;
 }
 
-/** What stands where a reply's words go: the member's editor, the prepared words, or what Ask is doing about them. */
+/**
+ * What stands where a reply's words go: the words, typed in where they stand, or what Ask is doing about them. The words
+ * stand once there are some, or once the member has begun their own (`shown`, even emptied, so clearing them never takes
+ * their box away).
+ */
 function WordsPart(p: {
+  /** What the words are, where they are not a reply (a booking's confirmation). */
+  what?: string;
   who: string;
   words: string;
   draft: ReturnType<typeof useDraft>;
   by: string;
-  editing: boolean;
-  onChange: (text: string) => void;
-  onEdit: (() => void) | null;
+  shown: boolean;
+  open: boolean;
+  onChange: ((text: string) => void) | null;
+  onRestore: (() => void) | null;
   signed: string | null;
   onRead?: (() => void) | null;
 }) {
   const { draft } = p;
-  if (p.editing) return <Editor who={p.who} value={p.words} onChange={p.onChange} />;
-  if (p.words)
+  if (p.words || p.shown)
     return (
       <Words
+        what={p.what ?? W.reply}
         by={p.by}
         text={p.words}
         who={p.who}
-        onEdit={p.onEdit}
+        onChange={p.onChange}
+        onRestore={p.onRestore}
+        open={p.open}
         signed={p.signed}
         onSigned={p.signed ? () => appNavigate(SIGNATURE_ROUTE) : null}
         onRead={p.onRead}

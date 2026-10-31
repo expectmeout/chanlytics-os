@@ -15,6 +15,7 @@ import { knownZone } from "@/legacy-bridge/zone";
 import { pageDatelineParts, useMinute } from "./dateline";
 import { watchFrameTop, watchPageEdges } from "./frame-top";
 import { watchPageGive } from "../motion/page-give";
+import { Button } from "../button/button";
 import { PageHead } from "./page-head";
 import { crumbLabel, useCrumbsShown, useStandingSaid } from "./standing";
 import type { BackWay, ShownCrumb } from "./standing";
@@ -180,10 +181,27 @@ function GlassHead() {
   );
 }
 
-/** The page's own act, where it named one; the frame's act stands in the same place otherwise (frame/app-shell.tsx). */
+/**
+ * The page's own act, where it named one; else its seat, where it will name one (Standing `seat`: a button of its class,
+ * seen by no one and pressed by no one, components.css `.pg-act-seat`); the frame's act stands in the same place otherwise
+ * (frame/app-shell.tsx).
+ */
 function PageAct() {
   const said = useStandingSaid();
-  return said?.act ? <>{said.act}</> : null;
+  if (said?.act) return <>{said.act}</>;
+  if (!said?.seat) return null;
+  return (
+    <Button
+      variant="secondary"
+      size="sm"
+      className={`pg-act-seat ${said.seat}`}
+      disabled
+      tabIndex={-1}
+      aria-hidden="true"
+    >
+      {" "}
+    </Button>
+  );
 }
 
 /**
