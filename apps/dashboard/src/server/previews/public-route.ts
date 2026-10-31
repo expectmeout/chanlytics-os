@@ -10,6 +10,7 @@ import { NextResponse } from "next/server";
 import { AppError, err, ok } from "@chanlytics/contracts";
 import { isSameOrigin } from "../request-guards";
 import { takeRate, type RateBucket } from "../rate-limit";
+import { refusalHeaders } from "../with-route";
 import { hashKey, ipOf } from "../request-ip";
 import { log } from "../log";
 
@@ -47,8 +48,13 @@ export function previewRoute<T>(
       const { token } = await ctx.params;
       return NextResponse.json(ok(await run(token, await fieldsOf(req))), { headers: PRIVATE });
     } catch (e) {
+      // A limit says when it lifts, as every route's does (with-route.ts): in the envelope and in Retry-After, so the
+      // page waits out a pace of seconds rather than refusing a person who wrote twice in quick succession.
       if (e instanceof AppError)
-        return NextResponse.json(err(e.code, e.message), { status: e.status, headers: PRIVATE });
+        return NextResponse.json(err(e.code, e.message, e.code === "rate_limited" ? e.details : undefined), {
+          status: e.status,
+          headers: { ...PRIVATE, ...refusalHeaders(e) },
+        });
       log.error("preview_route_failed", { error: e });
       return NextResponse.json(err("internal", "Something went wrong. Try again in a moment."), {
         status: 500,

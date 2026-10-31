@@ -10,7 +10,7 @@ import {
 } from "@chanlytics/contracts";
 import { createClient } from "@/lib/supabase/client";
 import { sealSurfaceCache } from "@/legacy-bridge/surface-cache";
-import { signInReturnOf } from "@/auth/sign-in-return";
+import { signInLandingOf, signInReturnOf } from "@/auth/sign-in-return";
 import GoogleSignIn from "@/auth/GoogleSignIn";
 import CodeStep from "@/auth/CodeStep";
 import AuthShell from "@/auth/AuthShell";
@@ -57,7 +57,7 @@ export default function LoginPage() {
         <h1>{stage === "code" ? "Check your email" : "Welcome back"}</h1>
         <p>{signInLead(form)}</p>
 
-        {stage === "password" && <GoogleSignIn next={() => "/" + signInReturnOf(window.location)} />}
+        {stage === "password" && <GoogleSignIn next={() => signInLandingOf(window.location)} />}
 
         {stage === "password"
           ? signInPasswordForm(form, signInWithPassword, sendCode)
@@ -164,14 +164,16 @@ function signInLanding(supabase: SignInClient) {
     // Whoever signs in next must not inherit the previous account's cached
     // conversations. Sign-out already clears this; sign-in is the other half.
     sealSurfaceCache();
-    window.location.assign((await pathAfterSignIn(supabase)) + signInReturnOf(window.location));
+    const path = await pathAfterSignIn(supabase);
+    // The home, or Make it mine where the sign-in came from a preview; the second step first, carrying either.
+    window.location.assign(path === "/" ? signInLandingOf(window.location) : path + signInReturnOf(window.location));
   };
 }
 
 /** The password door's press. */
 function passwordDoor(supabase: SignInClient, form: SignInForm, landed: () => Promise<void>) {
   const { email, password, setBusy, setError, setNudge, setUnconfirmed, setStage } = form;
-  return async function signInWithPassword(e: React.FormEvent) {
+  return async function signInWithPassword(e: React.SyntheticEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
@@ -217,7 +219,7 @@ function passwordDoor(supabase: SignInClient, form: SignInForm, landed: () => Pr
 /** The code door's press: ask for a sign-in code. */
 function codeDoor(supabase: SignInClient, form: SignInForm) {
   const { email, setBusy, setError, setStage } = form;
-  return async function sendCode(e?: React.FormEvent) {
+  return async function sendCode(e?: React.SyntheticEvent) {
     e?.preventDefault();
     setBusy(true);
     setError(null);
@@ -255,8 +257,8 @@ function signInLead({ stage, unconfirmed, email }: SignInForm) {
 /** The password step: the address, the password, and the ways out (a code instead, a forgotten password). */
 function signInPasswordForm(
   form: SignInForm,
-  signInWithPassword: (e: React.FormEvent) => Promise<void>,
-  sendCode: (e?: React.FormEvent) => Promise<void>,
+  signInWithPassword: (e: React.SyntheticEvent) => Promise<void>,
+  sendCode: (e?: React.SyntheticEvent) => Promise<void>,
 ) {
   const { email, setEmail, password, setPassword, busy, fieldRef } = form;
   return (
