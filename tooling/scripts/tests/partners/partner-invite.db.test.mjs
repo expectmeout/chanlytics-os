@@ -10,6 +10,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
+import { takeLock } from "../_file-lock.mjs";
 import { DAY_MS } from "@chanlytics/contracts";
 import { showSecondFactor } from "../_second-factor.mjs";
 
@@ -74,8 +75,13 @@ async function workspace(name) {
   return w.id;
 }
 
+// The partner ledger is the platform's: partner_earnings_sweep matures and judges every partner's rows, and counts
+// them. The suites that write it or sweep it take its lock for the whole file (_file-lock.mjs), one after the other.
+let releaseLedger;
+
 before(async () => {
   if (skip) return;
+  releaseLedger = await takeLock("partner-ledger");
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
   partner = await person("partner", { factor: true });
   owner = await person("owner");
@@ -120,15 +126,19 @@ before(async () => {
 });
 
 after(async () => {
-  if (skip) return;
-  for (const id of tenants) {
-    await db.from("partner_earnings").delete().eq("tenant_id", id);
-    await db.from("partner_tenants").delete().eq("tenant_id", id);
-    await db.from("tenants").delete().eq("id", id);
+  try {
+    if (skip) return;
+    for (const id of tenants) {
+      await db.from("partner_earnings").delete().eq("tenant_id", id);
+      await db.from("partner_tenants").delete().eq("tenant_id", id);
+      await db.from("tenants").delete().eq("id", id);
+    }
+    if (admin?.userId) await db.from("platform_admins").delete().eq("user_id", admin.userId);
+    for (const p of [partner, sleeper]) if (p?.id) await db.from("partners").delete().eq("id", p.id);
+    for (const id of users) await db.auth.admin.deleteUser(id).catch(() => {});
+  } finally {
+    await releaseLedger?.();
   }
-  if (admin?.userId) await db.from("platform_admins").delete().eq("user_id", admin.userId);
-  for (const p of [partner, sleeper]) if (p?.id) await db.from("partners").delete().eq("id", p.id);
-  for (const id of users) await db.auth.admin.deleteUser(id).catch(() => {});
 });
 
 test("only the owner asks, by a code naming an active partner who is someone else", { skip }, async () => {

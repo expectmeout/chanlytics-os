@@ -20,6 +20,7 @@ import { spawn, spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
+import { takeLock } from "../_file-lock.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const CLI = process.env.SUPABASE_CLI || "supabase";
@@ -127,8 +128,13 @@ async function ledgerOf(invoice) {
   return { earned: earned.map((e) => [e.kind, e.earned_cents]), parked: parked.map((p) => p.stripe_event_id) };
 }
 
+// The partner ledger is the platform's: partner_earnings_sweep matures and judges every partner's rows, and counts
+// them. The suites that write it or sweep it take its lock for the whole file (_file-lock.mjs), one after the other.
+let releaseLedger;
+
 before(async () => {
   if (skip) return;
+  releaseLedger = await takeLock("partner-ledger");
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
   const made = await db.auth.admin.createUser({
     email: `race-partner-${RUN}@example.com`,
@@ -150,16 +156,20 @@ before(async () => {
 });
 
 after(async () => {
-  if (skip || !partnerId) return;
-  await db.from("partner_reversals_waiting").delete().like("stripe_invoice_id", `in_race_%_${RUN}`);
-  await db.from("partner_earnings").delete().eq("partner_id", partnerId);
-  await db.from("partner_tenants").delete().eq("partner_id", partnerId);
-  if (T) {
-    await db.from("events").delete().eq("tenant_id", T);
-    await db.from("tenants").delete().eq("id", T);
+  try {
+    if (skip || !partnerId) return;
+    await db.from("partner_reversals_waiting").delete().like("stripe_invoice_id", `in_race_%_${RUN}`);
+    await db.from("partner_earnings").delete().eq("partner_id", partnerId);
+    await db.from("partner_tenants").delete().eq("partner_id", partnerId);
+    if (T) {
+      await db.from("events").delete().eq("tenant_id", T);
+      await db.from("tenants").delete().eq("id", T);
+    }
+    await db.from("partners").delete().eq("id", partnerId);
+    await db.auth.admin.deleteUser(userId).catch(() => {});
+  } finally {
+    await releaseLedger?.();
   }
-  await db.from("partners").delete().eq("id", partnerId);
-  await db.auth.admin.deleteUser(userId).catch(() => {});
 });
 
 test(
