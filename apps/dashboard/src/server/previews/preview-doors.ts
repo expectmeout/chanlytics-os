@@ -67,7 +67,7 @@ async function openPreview(
 /** A door's refusal as the page says it. */
 function doorRefused(reason: PreviewRefusal): AppError {
   if (reason === "limit") return new AppError("conflict", W.spent, 409);
-  if (reason === "doorRefused") return new AppError("validation", W.failed, 400);
+  if (reason === "refused") return new AppError("validation", W.failed, 400);
   return new AppError("conflict", W.ended.title, 409);
 }
 
