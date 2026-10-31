@@ -249,10 +249,21 @@ test("a sequence ends with its name by default: under the words, and no mailbox 
     /www\.getharbor\.example/,
     "the mailbox's signature, and its link, are left off",
   );
-  // Chosen, a signature with a link still gives way on a first email: the words' own rule, no link in one.
+  // Chosen, a signature with a link loses that line on a first email (the words' own rule, no link in one) and keeps
+  // the rest, as words: the email is plain text, never Gmail's markup (30 Oct 2026, decision 0077 amended).
   const first = reachOutRequest(input({ workspace: signed, from, signsWith: "mailbox" }));
-  assert.equal(first.body, named.body);
-  assert.equal(first.signature, null);
+  assert.equal(first.body, "Hi Fixture Movers,\n\nMovers in Austin ask us for this.");
+  assert.equal(first.signature, "Sam Rivera\nHarbor Moving Co");
+  assert.ok(
+    first.request.text.startsWith(`${first.body}\n\nSam Rivera\nHarbor Moving Co\n\nI found`),
+    first.request.text,
+  );
+  assert.doesNotMatch(first.request.text, /www\.getharbor\.example/);
+  assert.equal(first.request.html, "", "a cold email is words alone");
+  // The business's address on a line of its own is the foot's to say, once: left out of the signature.
+  const addressed = { ...from, signature: `Sam Rivera\n${input().workspace.address}` };
+  const once = reachOutRequest(input({ workspace: signed, from: addressed, signsWith: "mailbox" }));
+  assert.equal(once.signature, "Sam Rivera");
   // A step after the first answers in the thread, and keeps the signature it chose.
   const parent = { messageId: "m0", rfcMessageId: "<first@getharbor.example>", references: [], subject: "Hi" };
   const later = reachOutRequest(
@@ -262,10 +273,10 @@ test("a sequence ends with its name by default: under the words, and no mailbox 
   assert.equal(later.signature, from.signature);
   assert.ok(later.request.text.startsWith(`Hi again.\n\n${from.signature}\n\n`), later.request.text);
   // Words that end with the name already are not signed twice.
-  const once = reachOutRequest(
+  const twice = reachOutRequest(
     input({ workspace: signed, words: { subject: "Hi", body: "Hello there.\n\n{{your name}}" }, signsWith: "name" }),
   );
-  assert.equal(once.body, "Hello there.\n\nSam");
+  assert.equal(twice.body, "Hello there.\n\nSam");
 });
 
 test("the email its owner sends ends with the name, never a mailbox's signature: their own mail app adds theirs", () => {

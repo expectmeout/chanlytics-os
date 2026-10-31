@@ -289,7 +289,7 @@ export const LeadsRailRows = (p: RailRowsProps) => {
           <div className="cl-rail-hint">No searches yet. Describe the businesses you want and Claude finds them.</div>
         )}
       </RailSection>
-      {/* A sequence's own list (00494), named for it: the leads added to it, apart from the search they came from, which
+      {/* A sequence's own list (00496), named for it: the leads added to it, apart from the search they came from, which
           it read as twice among the searches (the walk of 30 Oct 2026). */}
       {rail.sequences.length > 0 && (
         <RailSection label={W.sequencesHeading} testid="leads-sequence-lists">

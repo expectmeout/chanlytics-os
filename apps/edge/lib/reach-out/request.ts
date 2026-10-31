@@ -169,6 +169,7 @@ export function reachOutDraft(
     signature: null,
     first: i.parent === null,
     body: i.words.body,
+    address,
   });
   const body = coldSignedOff(words.body, signOff);
   return { ok: true, subject, body, text: `${body}\n\n${foot}` };
@@ -193,14 +194,15 @@ export function reachOutRequest(
   const url = unsubscribeUrl(i.unsubscribe.origin, token);
   // Where the finder found the lead (its source, 00430): the map, a business directory, or a file of the owner's own.
   const foot = { kind: "cold" as const, why: whyFrom(i.lead.source ?? "local_businesses"), unsubscribeUrl: url };
-  // How it ends (0077): its name under the words, or the mailbox's signature where the sequence chose it and it carries
-  // no link to a first email. The preview takes this same assembly, so it ends as the send does.
+  // How it ends (0077): its name under the words, or the mailbox's signature where the sequence chose it, less its link
+  // lines in a first email and the address the foot says. The preview takes this same assembly, so it ends as the send.
   const ending = coldEndingOf({
     signsWith: i.signsWith,
     signedBy: i.workspace.yourName,
     signature: mailboxSignatureOf(i.from)?.text ?? null,
     first: i.parent === null,
     body: i.words.body,
+    address,
   });
   const body = coldSignedOff(words.body, ending.signOff);
   let request: EmailRequest;

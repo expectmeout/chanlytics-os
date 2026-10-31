@@ -1560,7 +1560,7 @@ test("the rail draws a sequence's own list with the sequences, apart from the se
     ["Agency owners", "Auto shops"],
     "unless it is the one open",
   );
-  assert.deepEqual(leadRail(COUNTS, [search], NOW).sequences, [], "a server before 00494 says none");
+  assert.deepEqual(leadRail(COUNTS, [search], NOW).sequences, [], "a server before 00496 says none");
 });
 
 test("a search's empty view says what its round holds: leads to look at, or that it is still looking", () => {

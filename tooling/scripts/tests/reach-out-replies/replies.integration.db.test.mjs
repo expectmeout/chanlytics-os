@@ -532,6 +532,14 @@ test(
       }),
     );
     for (const key of Object.keys(BUSINESSES)) gmail.received.push(receivedFrom(key));
+    // Chanlytics read the supplier once already, as a person (00495, decision 0080): the sorting follows that reading,
+    // and no model is asked of a stranger's first email here, where the reader and the brain are scripted.
+    ok(
+      await db
+        .from("mailbox_sender_reads")
+        .insert({ tenant_id: A, address: `orders@supplier-${stamp}.example`, kind: "person" }),
+      "the supplier's reading",
+    );
     const box = ok(await db.from("mailbox_connections").select("*").eq("id", mailbox).single());
     const synced = await lib.syncMailbox(db, box, L);
     assert.deepEqual(

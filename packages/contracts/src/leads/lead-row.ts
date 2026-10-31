@@ -408,7 +408,7 @@ export interface LeadRailRow {
 
 /**
  * The rail's rows under Leads (§6.1): the six lists with counts, then the searches with their marks, then the sequences'
- * own lists (00494 sequence_list), apart: a sequence's list is named for it and holds the leads added to it by hand, so
+ * own lists (00496 sequence_list), apart: a sequence's list is named for it and holds the leads added to it by hand, so
  * among the searches it read as the search its leads came from, twice (the walk of 30 Oct 2026). One with nobody on it
  * is drawn only while it is open (`open`): its leads joined from its search, never by hand, and a 0 there said nobody.
  */

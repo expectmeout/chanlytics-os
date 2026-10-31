@@ -12585,6 +12585,7 @@ begin
     delete from public.mailbox_left where tenant_id = new.tenant_id and address = lower(old.email);
     delete from public.mailbox_senders
      where tenant_id = new.tenant_id and sender = lower(old.email) and verdict = 'person';
+    delete from public.mailbox_sender_reads where tenant_id = new.tenant_id and address = lower(old.email);
   end if;
   return null;
 end $$;
@@ -25984,6 +25985,30 @@ end $$;
 
 
 --
+-- Name: sender_domain_said_automated(uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sender_domain_said_automated(p_tenant_id uuid, p_domain text) RETURNS boolean
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  select count(distinct s.tenant_id) >= 3
+    from public.mailbox_senders s
+   where s.verdict = 'automated'
+     and s.set_by is not null
+     and s.tenant_id <> p_tenant_id
+     and (s.sender = lower(btrim(p_domain)) or split_part(s.sender, '@', 2) = lower(btrim(p_domain)));
+$$;
+
+
+--
+-- Name: FUNCTION sender_domain_said_automated(p_tenant_id uuid, p_domain text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.sender_domain_said_automated(p_tenant_id uuid, p_domain text) IS 'Whether three or more workspaces other than p_tenant_id had an owner say the domain p_domain, or an address at it, is automated (00495, decision 0080): their own words (mailbox_senders.set_by), never a reading; a yes or a no, never which workspaces. The service role''s: the edge''s sorting of a stranger''s mail. A free-mail domain is never asked (contracts isFreeMail).';
+
+
+--
 -- Name: sequence_batch_cancel(uuid, uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -31776,7 +31801,7 @@ CREATE TABLE public.ai_usage (
     CONSTRAINT ai_usage_output_tokens_check CHECK ((output_tokens >= 0)),
     CONSTRAINT ai_usage_port_check CHECK ((port = ANY (ARRAY['anthropic'::text, 'typesafe'::text]))),
     CONSTRAINT ai_usage_prompt_hash_check CHECK (((prompt_hash IS NULL) OR (prompt_hash ~ '^[0-9a-f]{16,64}$'::text))),
-    CONSTRAINT ai_usage_purpose_check CHECK ((purpose = ANY (ARRAY['receptionist'::text, 'reply_draft'::text, 'ask'::text, 'lead_json'::text, 'template_draft'::text, 'review_reply'::text, 'lead_judge'::text, 'note_suggest'::text, 'reach_out_check'::text, 'reply_read'::text, 'booking_read'::text, 'lead_suggest'::text, 'ask_journal'::text, 'receptionist_review'::text, 'fix_route'::text, 'website_read'::text]))),
+    CONSTRAINT ai_usage_purpose_check CHECK ((purpose = ANY (ARRAY['receptionist'::text, 'reply_draft'::text, 'ask'::text, 'lead_json'::text, 'template_draft'::text, 'review_reply'::text, 'lead_judge'::text, 'note_suggest'::text, 'reach_out_check'::text, 'reply_read'::text, 'booking_read'::text, 'lead_suggest'::text, 'ask_journal'::text, 'receptionist_review'::text, 'fix_route'::text, 'website_read'::text, 'sender_read'::text]))),
     CONSTRAINT ai_usage_shadow_check CHECK (((shadow AND (port <> 'anthropic'::text)) OR ((NOT shadow) AND (question IS NULL) AND (primary_answer IS NULL) AND (shadow_answer IS NULL) AND (shadow_confidence IS NULL) AND (confident IS NULL) AND (agrees IS NULL)))),
     CONSTRAINT ai_usage_shadow_words_check CHECK (((char_length(COALESCE(question, ''::text)) <= 80) AND (char_length(COALESCE(primary_answer, ''::text)) <= 80) AND (char_length(COALESCE(shadow_answer, ''::text)) <= 80) AND ((shadow_confidence IS NULL) OR ((shadow_confidence >= (0)::numeric) AND (shadow_confidence <= (1)::numeric))))),
     CONSTRAINT ai_usage_usd_check CHECK (((usd IS NULL) OR (usd >= (0)::numeric)))
@@ -33999,7 +34024,7 @@ CREATE VIEW public.lead_searches_view WITH (security_invoker='true') AS
 -- Name: VIEW lead_searches_view; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON VIEW public.lead_searches_view IS 'Every column of lead_searches with its latest round (round_id, seq, purpose, state, ending, ending_pending, question, answered, target, plan_version, judge_tokens, cost_usd -- what that round has spent, so cost per Qualified lead is read from here -- waiting_since and ended_at) and its counts over the members: qualified (what the Qualified tab shows: a qualified membership once it is counted, lead_member_shown, 00494), review, excluded, counted, emails_checked (a lead Qualified shows whose address was checked and answered) and with_phone (a lead Qualified shows with a number nobody has marked wrong). Excluded members stay counted after their details are blanked, so "40 left out" stays 40. undo_op_id and undo_version name the operation this search''s Undo takes while its twenty-four hours run, and are null once it is undone or the day is out. nearby (00145): where to look next when the round ran dry, the nearest ZIP centres past its area, nearest first; [] otherwise. strong, look and long (00146): the leads Qualified shows by fit band, for the band bar over the table. thread_id (00172): the Ask thread the search was planned in, or null. adds_to (00459): the sequence this search''s Add goes to. sequence_list (00494): whether this search is a sequence''s own list, the one its steps name (sequence_steps.lead_search_id), which the rail draws with the sequences.';
+COMMENT ON VIEW public.lead_searches_view IS 'Every column of lead_searches with its latest round (round_id, seq, purpose, state, ending, ending_pending, question, answered, target, plan_version, judge_tokens, cost_usd -- what that round has spent, so cost per Qualified lead is read from here -- waiting_since and ended_at) and its counts over the members: qualified (what the Qualified tab shows: a qualified membership once it is counted, lead_member_shown, 00496), review, excluded, counted, emails_checked (a lead Qualified shows whose address was checked and answered) and with_phone (a lead Qualified shows with a number nobody has marked wrong). Excluded members stay counted after their details are blanked, so "40 left out" stays 40. undo_op_id and undo_version name the operation this search''s Undo takes while its twenty-four hours run, and are null once it is undone or the day is out. nearby (00145): where to look next when the round ran dry, the nearest ZIP centres past its area, nearest first; [] otherwise. strong, look and long (00146): the leads Qualified shows by fit band, for the band bar over the table. thread_id (00172): the Ask thread the search was planned in, or null. adds_to (00459): the sequence this search''s Add goes to. sequence_list (00496): whether this search is a sequence''s own list, the one its steps name (sequence_steps.lead_search_id), which the rail draws with the sequences.';
 
 
 --
@@ -34262,7 +34287,7 @@ CREATE TABLE public.mailbox_left (
     CONSTRAINT mailbox_left_address_check CHECK (((address = lower(btrim(address))) AND ((char_length(address) >= 3) AND (char_length(address) <= 254)))),
     CONSTRAINT mailbox_left_count_check CHECK ((count >= 1)),
     CONSTRAINT mailbox_left_name_check CHECK (((name IS NULL) OR (char_length(name) <= 200))),
-    CONSTRAINT mailbox_left_why_check CHECK ((why = ANY (ARRAY['automated'::text, 'auto_reply'::text, 'report'::text, 'booking_notice'::text, 'forwarding_confirmation'::text, 'gmail_tab'::text, 'updates'::text, 'said'::text])))
+    CONSTRAINT mailbox_left_why_check CHECK ((why = ANY (ARRAY['automated'::text, 'auto_reply'::text, 'report'::text, 'booking_notice'::text, 'forwarding_confirmation'::text, 'gmail_tab'::text, 'updates'::text, 'said'::text, 'service'::text, 'pitch'::text, 'notice'::text, 'relayed'::text, 'others_said'::text])))
 );
 
 
@@ -34271,6 +34296,29 @@ CREATE TABLE public.mailbox_left (
 --
 
 COMMENT ON TABLE public.mailbox_left IS 'What a connected mailbox left where it was, one row a sender (00483): the name it gave, why (the latest), how many, first and last. Members read; the edge writes through mailbox_left_note.';
+
+
+--
+-- Name: mailbox_sender_reads; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.mailbox_sender_reads (
+    tenant_id uuid NOT NULL,
+    address text NOT NULL,
+    kind text NOT NULL,
+    about text,
+    read_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT mailbox_sender_reads_about_check CHECK (((about IS NULL) OR (char_length(about) <= 120))),
+    CONSTRAINT mailbox_sender_reads_address_check CHECK (((address = lower(btrim(address))) AND ((char_length(address) >= 3) AND (char_length(address) <= 254)) AND (address !~ '[[:space:]<>]'::text))),
+    CONSTRAINT mailbox_sender_reads_kind_check CHECK ((kind = ANY (ARRAY['inquiry'::text, 'person'::text, 'pitch'::text, 'notice'::text, 'relayed'::text])))
+);
+
+
+--
+-- Name: TABLE mailbox_sender_reads; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.mailbox_sender_reads IS 'What Chanlytics read a sender of mail to a connected mailbox to be, one row a sender (00495, decision 0080): inquiry or person (their mail comes in), pitch, notice or relayed (it stays in the mailbox), and in under twelve words what they wanted. What the workspace said (mailbox_senders) comes first. Members read; the edge writes as the service role.';
 
 
 --
@@ -36964,6 +37012,14 @@ ALTER TABLE ONLY public.mailbox_connections
 
 ALTER TABLE ONLY public.mailbox_left
     ADD CONSTRAINT mailbox_left_pkey PRIMARY KEY (tenant_id, address);
+
+
+--
+-- Name: mailbox_sender_reads mailbox_sender_reads_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.mailbox_sender_reads
+    ADD CONSTRAINT mailbox_sender_reads_pkey PRIMARY KEY (tenant_id, address);
 
 
 --
@@ -41740,6 +41796,14 @@ ALTER TABLE ONLY public.mailbox_left
 
 
 --
+-- Name: mailbox_sender_reads mailbox_sender_reads_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.mailbox_sender_reads
+    ADD CONSTRAINT mailbox_sender_reads_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: mailbox_senders mailbox_senders_set_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -43559,6 +43623,21 @@ ALTER TABLE public.mailbox_left ENABLE ROW LEVEL SECURITY;
 --
 
 CREATE POLICY mailbox_left_member_select ON public.mailbox_left FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
+-- Name: mailbox_sender_reads; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.mailbox_sender_reads ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: mailbox_sender_reads mailbox_sender_reads_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY mailbox_sender_reads_member_select ON public.mailbox_sender_reads FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
    FROM public.memberships m
   WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
 
@@ -48327,6 +48406,14 @@ GRANT ALL ON FUNCTION public.segment_members_on_erase() TO service_role;
 
 
 --
+-- Name: FUNCTION sender_domain_said_automated(p_tenant_id uuid, p_domain text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.sender_domain_said_automated(p_tenant_id uuid, p_domain text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sender_domain_said_automated(p_tenant_id uuid, p_domain text) TO service_role;
+
+
+--
 -- Name: FUNCTION sequence_batch_cancel(p_tenant_id uuid, p_batch_id uuid, p_from text); Type: ACL; Schema: public; Owner: -
 --
 
@@ -50387,6 +50474,14 @@ GRANT ALL ON TABLE public.mailbox_connections TO service_role;
 
 GRANT SELECT ON TABLE public.mailbox_left TO authenticated;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.mailbox_left TO service_role;
+
+
+--
+-- Name: TABLE mailbox_sender_reads; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.mailbox_sender_reads TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.mailbox_sender_reads TO service_role;
 
 
 --

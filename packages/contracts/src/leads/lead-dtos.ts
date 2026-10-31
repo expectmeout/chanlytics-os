@@ -179,7 +179,7 @@ export interface LeadSearchDto {
   adds_to?: string | null;
   /**
    * A sequence's own list (00459 reach_out_list_for: the leads added to it by hand, named for it), which its steps name
-   * (00494 sequence_list): the rail draws it with the sequences, never among the searches. Absent from a server before it.
+   * (00496 sequence_list): the rail draws it with the sequences, never among the searches. Absent from a server before it.
    */
   sequence_list?: boolean;
   round: LeadSearchRoundDto | null;

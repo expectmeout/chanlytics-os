@@ -220,6 +220,9 @@ export function senderAuthenticated(e: Pick<ReceivedEmail, "from" | "headers" | 
  */
 const NO_REPLY = /(?:^|[-_.+])(?:no[-_.]?reply|do[-_.]?not[-_.]?reply)(?:[-_.+]|$)/i;
 
+/** Whether an address says nobody reads what is sent back to it (NO_REPLY, a word of its local part). */
+export const noReplyAddress = (address: string): boolean => NO_REPLY.test(address.split("@")[0] ?? "");
+
 /**
  * A program's own mailbox, by its name: notifications, alerts, a newsletter, a digest, updates, as a word of the
  * address's local part (notifications@, store-news@, account-update@). A hosting platform's notice carried none of the
@@ -237,7 +240,7 @@ const PROGRAM_MAILBOX =
  */
 function repliesGoNowhere(h: Record<string, string>): boolean {
   const to = addressesOf((h["reply-to"] ?? "").split(","));
-  return to.length > 0 && to.every((a) => NO_REPLY.test(a.split("@")[0] ?? ""));
+  return to.length > 0 && to.every(noReplyAddress);
 }
 
 /**

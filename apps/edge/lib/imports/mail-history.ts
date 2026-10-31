@@ -1,17 +1,23 @@
 /**
- * A connected mailbox's six months (decision 0073, R19): the mail it holds from before it connected, read a page at a
- * time through its own grant, each message sorted as the live read sorts it (email/mailbox/mailbox-sorting.ts). An
- * email a person wrote, and one the owner sent to one person, is kept in that person's thread as before Chanlytics (db
- * keepBefore, ingest_before: the person resolved as a client list's would be, the message once by its provider id,
+ * A connected mailbox's six months (decision 0073, R19; decision 0080): the mail it holds from before it connected, read
+ * a page at a time through its own grant, each message sorted as the live read sorts it (email/mailbox/mailbox-sorting.ts).
+ * An email a person wrote, and one the owner sent to one person, is kept in that person's thread as before Chanlytics
+ * (db keepBefore, ingest_before: the person resolved as a client list's would be, the message once by its provider id,
  * never answered, never a yes, never today's); everything else (lists, receipts, notifications, automatic replies, what
- * Gmail filed as promotions, social or forums, a notice from a stranger in Updates, what the workspace said is
- * automated, mail to many) is left where it is, counted as dropped and noted one line a sender. A booking tool's notice
- * is dropped too: a mailbox hands over no proof of who sent it (channels mailbox-read.ts), so it is never read as a
- * booking; the calendar brings the visits.
+ * Gmail filed as promotions, social or forums, a notice from a stranger in Updates or through a mailing service, what the
+ * workspace said is automated, a sender read as selling to the business or as a program, mail to many) is left where it
+ * is, counted as dropped and noted one line a sender. A booking tool's notice is dropped too: a mailbox hands over no
+ * proof of who sent it (channels mailbox-read.ts), so it is never read as a booking; the calendar brings the visits.
+ *
+ * Gmail's mailbox is read the way a person would read it (decision 0080): what the owner sent first, so whom they write
+ * to is known before the mail written to them is judged, then the rest, drafts never; and each received message by its
+ * headers first (format=metadata), so what the rules leave on them is never read whole. Graph's road reads everything at
+ * once, every message whole, as it did (Microsoft is halted, 27 Oct 2026).
  *
  * The window ends where the mailbox connected, and the live read (mailbox-sync.ts) starts there: nothing is read twice
- * and nothing between them is missed. The cursor (the ledger's job_cursor) is the window, the provider's page and how
- * far into it a part got, so a part that stops mid-page picks up at the next message.
+ * and nothing between them is missed. The cursor (the ledger's job_cursor) is the window, which of the mailbox's mail
+ * the part reads, the provider's page and how far into it a part got, so a part that stops mid-page picks up at the next
+ * message.
  *
  * A message the mailbox refuses to hand over (mailbox-sync.ts readEmail) is counted unreadable and gone on without, so
  * one odd message never holds the rest back. The mailbox's pace or quota of requests is no failure: the part notes
@@ -37,6 +43,7 @@ import {
   MIN_MS,
   SECOND_MS,
   normalizeEmail,
+  senderLeftWhy,
 } from "../packages/contracts.js";
 import { EMAIL_BODY_MAX } from "../packages/core.js";
 import {
@@ -53,10 +60,11 @@ import { tokenFor } from "../email/mailbox/mailbox-credentials.js";
 import { markSignedOut } from "../email/mailbox/mailbox-wire.js";
 import { mailboxEmailMeta, readEmail } from "../email/mailbox/mailbox-sync.js";
 import {
-  leftWhy,
   mailSortingFor,
   noteLeft,
+  sortByRules,
   type MailSorting,
+  type RulesSay,
   type SortedWhy,
 } from "../email/mailbox/mailbox-sorting.js";
 import type { Part, PartOutcome } from "./history-import.js";
@@ -75,13 +83,21 @@ const PACE_REST_MS = MIN_MS;
 const PACE_REST_IDLE_MS = 10 * MIN_MS;
 
 /**
- * Where the read stands: the mailbox it reads (Try again finds it there), its window, the provider's page it is on (null
- * for the first), and how far into it.
+ * Which of the mailbox's mail a part reads: what the owner sent, then the rest (Gmail's, decision 0080); or all of it at
+ * once (Graph's, a sender brought in, and a run that began before the two were read apart).
  */
-interface MailCursor {
-  window: MailWindow;
+type MailPhase = "sent" | "received" | "all";
+
+/** Where in the window a part stands: which mail, the provider's page it is on (null for the first), and how far into it. */
+interface MailPlace {
+  phase: MailPhase;
   page: string | null;
   at: number;
+}
+
+/** Where the read stands: the mailbox it reads (Try again finds it there), its window, and its place in it. */
+interface MailCursor extends MailPlace {
+  window: MailWindow;
 }
 
 function cursorOf(raw: Json | null): MailCursor | null {
@@ -90,6 +106,7 @@ function cursorOf(raw: Json | null): MailCursor | null {
   if (!w || typeof w.from !== "string" || typeof w.to !== "string") return null;
   return {
     window: { from: w.from, to: w.to },
+    phase: c?.phase === "sent" || c?.phase === "received" ? c.phase : "all",
     page: typeof c?.page === "string" ? c.page : null,
     at: typeof c?.at === "number" && c.at >= 0 ? c.at : 0,
   };
@@ -101,6 +118,13 @@ function firstWindow(row: MailboxConnectionRow): MailWindow {
   const to = Number.isFinite(connected) ? connected : Date.now();
   return { from: new Date(to - HISTORY_BACK_DAYS * DAY_MS).toISOString(), to: new Date(to).toISOString() };
 }
+
+/** Where a first run starts: Gmail with what the owner sent, Graph with everything. */
+const firstPhase = (row: MailboxConnectionRow): MailPhase => (row.provider === "microsoft" ? "all" : "sent");
+
+/** The window a phase lists: the mail it reads of the cursor's window. */
+const listedIn = (window: MailWindow, phase: MailPhase): MailWindow =>
+  phase === "all" ? window : { ...window, only: phase };
 
 /** Who a message is with: the person who wrote it, or the one person the owner wrote to; null for anything else. */
 function mailPersonOf(e: MailboxEmail, own: string): { address: string; name: string | null; out: boolean } | null {
@@ -116,20 +140,20 @@ function mailPersonOf(e: MailboxEmail, own: string): { address: string; name: st
   return { address: from, name: e.from?.name ?? null, out: false };
 }
 
-/** The reasons the mailbox leaves an email by where Gmail filed it: never a reply in a thread a reach-out started. */
-const BY_GMAIL_TAB: ReadonlySet<SortedWhy> = new Set(["gmail_tab", "updates"]);
-
 /**
- * Why the six months leave what someone else wrote (mailbox-sorting.ts leftWhy), or null to keep it. Where Gmail filed
- * it leaves nothing inside a thread a reach-out started: a reply there is a reply, whatever Gmail calls it. A mailbox
- * connected again reads back over its earlier connection's months, reach-outs among them; the threads are asked only
- * when a tab alone would leave one.
+ * The reasons a thread a reach-out started overrules: where Gmail filed an email, a mailing service, and what was read
+ * or said of its sender. A reply there is a reply, whatever it looks like; what an email claims (a report, an automatic
+ * reply) still stands.
  */
-async function leftByImport(r: MailRead, e: MailboxEmail): Promise<SortedWhy | null> {
-  const why = await leftWhy(e, r.sorting);
-  if (!why || !BY_GMAIL_TAB.has(why) || !e.threadId) return why;
-  return (await knownThreads(r.db, r.part.tenantId, [e.threadId])).has(e.threadId) ? null : why;
-}
+const OVERRULED_IN_A_REACH_OUT: ReadonlySet<SortedWhy> = new Set<SortedWhy>([
+  "gmail_tab",
+  "updates",
+  "service",
+  "pitch",
+  "notice",
+  "relayed",
+  "others_said",
+]);
 
 /** The mailbox's history stopped: said on its row, with Try again; nothing more is scheduled. */
 async function mailStopped(db: Db, part: Part, error: string): Promise<PartOutcome> {
@@ -145,14 +169,18 @@ interface MailRead {
   row: MailboxConnectionRow;
   token: string;
   window: MailWindow;
-  began: { page: string | null; at: number };
-  /** What the workspace said of its senders, read once a part (mailbox-sorting.ts). */
+  /** Which mail is being read now: a part that finishes what the owner sent reads on into the rest. */
+  phase: MailPhase;
+  began: MailPlace;
+  /** What the workspace said of its senders, and what it knows of them, read once a part (mailbox-sorting.ts). */
   sorting: MailSorting;
+  /** Whether a thread is one a reach-out started, asked once a thread a part. */
+  reached: Map<string, boolean>;
 }
 
 /** What a part brought: its counts, and the oldest message it kept. */
 interface MailTally {
-  counts: { messages: number; people: number; dropped: number; unreadable?: number };
+  counts: { messages: number; people: number; dropped: number; unreadable?: number; asked?: number };
   oldest: number | null;
 }
 
@@ -163,7 +191,7 @@ interface MailTally {
 function noteMail(
   r: MailRead,
   tally: MailTally,
-  where: { page: string | null; at: number },
+  where: MailPlace,
   end: { state: "running" | "done"; partsDone?: number },
 ): Promise<void> {
   return noteImport(r.db, {
@@ -180,12 +208,7 @@ function noteMail(
 }
 
 /** A provider that could not be asked now: what came in is noted, and the job ledger tries the part again. */
-async function askAgain(
-  r: MailRead,
-  tally: MailTally,
-  where: { page: string | null; at: number },
-  why: string,
-): Promise<never> {
+async function askAgain(r: MailRead, tally: MailTally, where: MailPlace, why: string): Promise<never> {
   await noteMail(r, tally, where, { state: "running" });
   throw new Error(why);
 }
@@ -195,50 +218,88 @@ async function askAgain(
  * stopped at, the part ends, and the next reads on from there after a rest: the provider's Retry-After when it said one,
  * else a minute, or ten when this part read nothing, so a quota that has run out is not asked every minute.
  */
-async function restAfterPace(
-  r: MailRead,
-  tally: MailTally,
-  where: { page: string | null; at: number },
-  v: ReadVerdict,
-): Promise<PartOutcome> {
-  const moved = where.page !== r.began.page || where.at !== r.began.at;
+async function restAfterPace(r: MailRead, tally: MailTally, where: MailPlace, v: ReadVerdict): Promise<PartOutcome> {
+  const moved = where.phase !== r.began.phase || where.page !== r.began.page || where.at !== r.began.at;
   const restMs = Math.max(v.retryAfterMs ?? 0, moved ? PACE_REST_MS : PACE_REST_IDLE_MS);
   r.part.log.info("history_part_paced", { mailbox: r.row.id, status: v.status, reason: v.reason, rest_ms: restMs });
   await noteMail(r, tally, where, { state: "running", partsDone: r.part.n });
   return { more: true, restMs };
 }
 
+/** Whether an email sits in a thread a reach-out started, asked once a thread a part. */
+async function inAReachOut(r: MailRead, e: MailboxEmail): Promise<boolean> {
+  const t = e.threadId;
+  if (!t) return false;
+  const had = r.reached.get(t);
+  if (had !== undefined) return had;
+  const yes = (await knownThreads(r.db, r.part.tenantId, [t])).has(t);
+  r.reached.set(t, yes);
+  return yes;
+}
+
 /**
- * One listed message: read, and kept in its person's thread as before Chanlytics, or left and counted. Refused when the
- * mailbox will not hand it over (said here; the part counts it); the provider's verdict when it paces the reads. Throws
- * when the provider could not be asked now.
+ * What the rules say of what someone else wrote (mailbox-sorting.ts sortByRules), a thread a reach-out started taking in
+ * what only a tab, a mailing service or what was read of its sender would leave, and its stranger too: never read. A
+ * mailbox connected again reads back over its earlier connection's months, reach-outs among them; the threads are asked
+ * only when such a reason alone would leave an email.
  */
-async function takeListed(
-  r: MailRead,
-  tally: MailTally,
-  l: { id: string; from?: string | null },
-): Promise<"taken" | "refused" | ReadVerdict> {
-  const { counts } = tally;
-  // Graph names the sender before the message is read: a delivery report or the mailbox's own bulk is not read.
-  if (l.from && /^(mailer-daemon|postmaster)@/.test(l.from)) {
-    counts.dropped++;
-    return "taken";
-  }
-  const read = await readEmail(r.row, r.token, l.id);
-  if ("gone" in read) return "taken";
+async function rulesOfImport(r: MailRead, e: MailboxEmail): Promise<RulesSay> {
+  const say = await sortByRules(e, r.sorting);
+  if (say === "in" || (say !== "stranger" && !OVERRULED_IN_A_REACH_OUT.has(say))) return say;
+  return (await inAReachOut(r, e)) ? "in" : say;
+}
+
+/**
+ * Why the six months leave what someone else wrote, or null to keep it: the rules, then a stranger's first email read
+ * (mailbox-reader.ts), which counts one more who asked about the business's services where it reads them so.
+ */
+async function leftByImport(r: MailRead, tally: MailTally, e: MailboxEmail): Promise<SortedWhy | null> {
+  const say = await rulesOfImport(r, e);
+  if (say === "in") return null;
+  if (say !== "stranger") return say;
+  const read = await r.sorting.read(e, r.part.until);
+  if (read?.kind === "inquiry") tally.counts.asked = (tally.counts.asked ?? 0) + 1;
+  return read ? senderLeftWhy(read.kind) : null;
+}
+
+/** One message read, as a part goes on: the email, or what the part does with it (gone, refused, the provider's pace). */
+type Listed = { email: MailboxEmail } | { done: "taken" | "refused" | ReadVerdict };
+
+async function readListed(r: MailRead, id: string, how: "whole" | "head"): Promise<Listed> {
+  const read = await readEmail(r.row, r.token, id, how);
+  if ("gone" in read) return { done: "taken" };
   if ("refused" in read) {
     r.part.log.warn("mailbox_message_unreadable", {
       mailbox: r.row.id,
-      message: l.id,
+      message: id,
       stage: "history",
       ...read.refused,
     });
-    return "refused";
+    return { done: "refused" };
   }
-  if ("paced" in read) return read.paced;
-  const e = read.email;
+  if ("paced" in read) return { done: read.paced };
+  return { email: read.email };
+}
+
+/**
+ * Whether a message read by its headers alone is left on them, counted and noted: mail to many, or what someone else
+ * wrote that the rules leave. What the owner wrote to one person, and what may come in, is read whole.
+ */
+async function leftOnItsHead(r: MailRead, tally: MailTally, head: MailboxEmail): Promise<boolean> {
+  const who = mailPersonOf(head, r.row.address.toLowerCase());
+  if (who?.out) return false;
+  const say = who ? await rulesOfImport(r, head) : null;
+  if (who && (say === "in" || say === "stranger")) return false;
+  if (say && say !== "in" && say !== "stranger") await noteLeft(r.db, r.part.tenantId, head, say);
+  tally.counts.dropped++;
+  return true;
+}
+
+/** A message read whole: kept in its person's thread as before Chanlytics, or left and counted. */
+async function keepOrLeave(r: MailRead, tally: MailTally, e: MailboxEmail): Promise<"taken"> {
+  const { counts } = tally;
   const who = mailPersonOf(e, r.row.address.toLowerCase());
-  const why = who && !who.out ? await leftByImport(r, e) : null;
+  const why = who && !who.out ? await leftByImport(r, tally, e) : null;
   if (why) await noteLeft(r.db, r.part.tenantId, e, why);
   if (!who || why) {
     counts.dropped++;
@@ -266,6 +327,32 @@ async function takeListed(
   const ms = Date.parse(when);
   if (Number.isFinite(ms)) tally.oldest = tally.oldest === null ? ms : Math.min(tally.oldest, ms);
   return "taken";
+}
+
+/**
+ * One listed message: judged on its headers where the mailbox hands them over alone, then, where it may come in, read
+ * whole and kept in its person's thread as before Chanlytics, or left and counted. Refused when the mailbox will not
+ * hand it over (said here; the part counts it); the provider's verdict when it paces the reads. Throws when the provider
+ * could not be asked now.
+ */
+async function takeListed(
+  r: MailRead,
+  tally: MailTally,
+  l: { id: string; from?: string | null },
+): Promise<"taken" | "refused" | ReadVerdict> {
+  // Graph names the sender before the message is read: a delivery report or the mailbox's own bulk is not read.
+  if (l.from && /^(mailer-daemon|postmaster)@/.test(l.from)) {
+    tally.counts.dropped++;
+    return "taken";
+  }
+  if (r.phase !== "all") {
+    const head = await readListed(r, l.id, "head");
+    if ("done" in head) return head.done;
+    if (await leftOnItsHead(r, tally, head.email)) return "taken";
+  }
+  const read = await readListed(r, l.id, "whole");
+  if ("done" in read) return read.done;
+  return keepOrLeave(r, tally, read.email);
 }
 
 /** How many of a sender's emails one bring-in reads: a press's worth, inside one request. */
@@ -306,8 +393,10 @@ export async function bringInSender(p: {
     row: p.row,
     token: p.token,
     window,
-    began: { page: null, at: 0 },
-    sorting: await mailSortingFor(p.db, p.row.tenant_id),
+    phase: "all",
+    began: { phase: "all", page: null, at: 0 },
+    sorting: await mailSortingFor(p.db, p.row.tenant_id, p.log),
+    reached: new Map(),
   };
   const tally: MailTally = { counts: { messages: 0, people: 0, dropped: 0 }, oldest: null };
   for (const l of listed.listed.slice(0, BRING_IN_MAX)) {
@@ -329,6 +418,7 @@ export async function mailHistoryPart(db: Db, part: Part): Promise<PartOutcome> 
   }
   const cur = cursorOf(await importCursorOf(db, part.tenantId, "mailbox")) ?? {
     window: firstWindow(row),
+    phase: firstPhase(row),
     page: null,
     at: 0,
   };
@@ -340,8 +430,10 @@ export async function mailHistoryPart(db: Db, part: Part): Promise<PartOutcome> 
     row,
     token: t.token,
     window: cur.window,
-    began: { page: cur.page, at: cur.at },
-    sorting: await mailSortingFor(db, part.tenantId),
+    phase: cur.phase,
+    began: { phase: cur.phase, page: cur.page, at: cur.at },
+    sorting: await mailSortingFor(db, part.tenantId, part.log),
+    reached: new Map(),
   };
   const tally: MailTally = { counts: { messages: 0, people: 0, dropped: 0 }, oldest: null };
   let { page, at } = cur;
@@ -350,14 +442,19 @@ export async function mailHistoryPart(db: Db, part: Part): Promise<PartOutcome> 
     const listed =
       row.provider === "microsoft"
         ? await graphListSince(t.token, cur.window, page)
-        : await gmailListSince(t.token, cur.window, page);
+        : await gmailListSince(t.token, listedIn(cur.window, r.phase), page);
     if (!listed.ok) {
       const out = row.provider === "microsoft" ? graphSignedOut(listed.reply) : gmailSignedOut(listed.reply);
       if (out) {
         await markSignedOut(db, row, part.log, Date.now());
         return mailStopped(db, part, IMPORT_STOPPED_WORDS.signedOut);
       }
-      return askAgain(r, tally, { page, at }, `the mailbox's past could not be listed: ${listed.reply.status}`);
+      return askAgain(
+        r,
+        tally,
+        { phase: r.phase, page, at },
+        `the mailbox's past could not be listed: ${listed.reply.status}`,
+      );
     }
     let refusedInARow = 0;
     for (; at < listed.listed.length; at++) {
@@ -368,9 +465,9 @@ export async function mailHistoryPart(db: Db, part: Part): Promise<PartOutcome> 
       try {
         took = await takeListed(r, tally, l);
       } catch (err) {
-        return askAgain(r, tally, { page, at }, err instanceof Error ? err.message : String(err));
+        return askAgain(r, tally, { phase: r.phase, page, at }, err instanceof Error ? err.message : String(err));
       }
-      if (typeof took === "object") return restAfterPace(r, tally, { page, at }, took);
+      if (typeof took === "object") return restAfterPace(r, tally, { phase: r.phase, page, at }, took);
       if (took === "taken") {
         refusedInARow = 0;
         continue;
@@ -385,17 +482,21 @@ export async function mailHistoryPart(db: Db, part: Part): Promise<PartOutcome> 
       return askAgain(
         r,
         tally,
-        { page, at: at - (refusedInARow - 1) },
+        { phase: r.phase, page, at: at - (refusedInARow - 1) },
         `the mailbox refused ${refusedInARow} messages in a row`,
       );
     }
     page = listed.next;
     at = 0;
-    if (!page) {
-      done = true;
-      break;
+    if (page) continue;
+    // What the owner sent is read: the rest of the window now, whom they write to known.
+    if (r.phase === "sent") {
+      r.phase = "received";
+      continue;
     }
+    done = true;
+    break;
   }
-  await noteMail(r, tally, { page, at }, { state: done ? "done" : "running", partsDone: part.n });
+  await noteMail(r, tally, { phase: r.phase, page, at }, { state: done ? "done" : "running", partsDone: part.n });
   return { more: !done };
 }

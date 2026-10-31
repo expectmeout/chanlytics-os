@@ -141,6 +141,7 @@ export const MODEL_PURPOSES = [
   "receptionist_review",
   "fix_route",
   "website_read",
+  "sender_read",
 ] as const;
 export type ModelPurpose = (typeof MODEL_PURPOSES)[number];
 
@@ -349,6 +350,17 @@ export const MODEL_ROUTES = {
     timeoutMs: WEBSITE_READ_TRY_MS,
     retries: 0,
     maxTokens: 2500,
+    thinking: "off",
+  },
+  // A stranger's first email to a connected mailbox, read for what its sender is (decision 0080): a short email into a
+  // fixed shape, inside a sync's or an import part's minute. Nothing waits on it: no answer leaves the email to the
+  // rules, and the next email from the sender is read again.
+  sender_read: {
+    model: HAIKU_5_5,
+    fallback: SONNET_5_5,
+    timeoutMs: READ_TRY_MS,
+    retries: 0,
+    maxTokens: 200,
     thinking: "off",
   },
 } as const satisfies Record<ModelPurpose, ModelRoute>;

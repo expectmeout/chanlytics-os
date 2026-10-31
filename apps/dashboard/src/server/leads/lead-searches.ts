@@ -70,7 +70,7 @@ export interface SearchViewRow {
   thread_id: string | null;
   /** 00459: the sequence this search's Add goes to, or null. */
   adds_to?: string | null;
-  /** 00494: whether this search is a sequence's own list; absent before it. */
+  /** 00496: whether this search is a sequence's own list; absent before it. */
   sequence_list?: boolean | null;
 }
 

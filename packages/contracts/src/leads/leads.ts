@@ -340,7 +340,7 @@ export const LEAD_WORDS = {
   /**
    * The rail's sections. The first is six views of a lead's stage (LEAD_LIST_WORDS), not lists: "Lists" is People's word
    * for a rule over facts (decision 0009, LIST_GROUP_WORDS), and a list of the owner's own made from a file sits under
-   * Searches here. The third is the sequences' own lists (00494), each named for its sequence: the leads added to it.
+   * Searches here. The third is the sequences' own lists (00496), each named for its sequence: the leads added to it.
    */
   viewsHeading: "Views",
   searchesHeading: "Searches",

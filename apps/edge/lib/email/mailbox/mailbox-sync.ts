@@ -27,6 +27,8 @@ import {
   deliveryReportOf,
   emailPlainText,
   gmailEmailOf,
+  gmailHead,
+  gmailHeadOf,
   gmailHistory,
   gmailMessage,
   gmailProfile,
@@ -258,11 +260,23 @@ async function graphChanges(
  */
 type EmailRead = { email: MailboxEmail } | { gone: true } | { refused: ReadVerdict } | { paced: ReadVerdict };
 
-export async function readEmail(row: MailboxConnectionRow, token: string, id: string): Promise<EmailRead> {
+export async function readEmail(
+  row: MailboxConnectionRow,
+  token: string,
+  id: string,
+  how: "whole" | "head" = "whole",
+): Promise<EmailRead> {
   const microsoft = row.provider === "microsoft";
-  const r = microsoft ? await graphMessage(token, id) : await gmailMessage(token, id);
+  // By its headers alone (Gmail's metadata, its first words its snippet): what the six months judge most mail by before
+  // reading it whole (decision 0080). Graph's road reads every message whole, as it did.
+  const head = how === "head" && !microsoft;
+  const r = microsoft
+    ? await graphMessage(token, id)
+    : head
+      ? await gmailHead(token, id)
+      : await gmailMessage(token, id);
   if (r.outcome === "ok") {
-    const email = microsoft ? graphEmailOf(r.json) : gmailEmailOf(r.json);
+    const email = microsoft ? graphEmailOf(r.json) : head ? gmailHeadOf(r.json) : gmailEmailOf(r.json);
     return email ? { email } : { gone: true };
   }
   if (r.status === 404) return { gone: true };
@@ -427,6 +441,8 @@ async function takeArrival(
     now: number;
     log: Logger;
     sorting: MailSorting;
+    /** The sync's line: a stranger's reading never runs past it (mailbox-reader.ts). */
+    until: number;
   },
   a: Arrived,
 ): Promise<ArrivalTaken> {
@@ -452,7 +468,7 @@ async function takeArrival(
   }
   const inOurs = (!!a.threadId && ours.has(a.threadId)) || (!!e.threadId && ours.has(e.threadId));
   if (!inOurs && (a.report || (a.from !== null && REPORTER.test(a.from)))) return "dropped";
-  const why = inOurs ? null : await leftWhy(e, p.sorting);
+  const why = inOurs ? null : await leftWhy(e, p.sorting, p.until);
   if (why) {
     await noteLeft(db, row.tenant_id, e, why);
     return "dropped";
@@ -525,7 +541,7 @@ export async function syncMailbox(
       arrived.map((a) => a.threadId).filter((t): t is string => !!t),
     );
     const own = row.address.toLowerCase();
-    const sorting = await mailSortingFor(db, row.tenant_id);
+    const sorting = await mailSortingFor(db, row.tenant_id, log);
     const wanted = arrived.filter(
       (a) => !a.mine && a.from !== own && (!a.junk || (!!a.threadId && ours.has(a.threadId))),
     );
@@ -541,7 +557,7 @@ export async function syncMailbox(
       if (seen.has(a.id)) continue;
       seen.add(a.id);
       try {
-        const got = await takeArrival(db, { row, token: t.token, ours, own, at, now, log, sorting }, a);
+        const got = await takeArrival(db, { row, token: t.token, ours, own, at, now, log, sorting, until }, a);
         if (got === "paced") {
           // The provider's pace: what is left waits for the next sync, from the cursor where it was.
           behind = true;

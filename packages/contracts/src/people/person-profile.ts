@@ -14,6 +14,7 @@ import type { PersonCampaignVM, PersonDetailDto, PersonSequenceVM } from "./pers
 import { MERGE_WORDS } from "./person-merge";
 import { DOUBT_WORDS, type DoubtSeen } from "./person-doubts";
 import { personName } from "./person-name";
+import { MAILBOX_SENDERS_WORDS } from "../email/mailbox-senders";
 import { formatPhoneDisplay } from "../shared/phone";
 import type { HolderNames, PersonMode } from "./person-receptionist";
 import { DM_CLOSED, mayReach, type PersonProposalVM, proposalAction } from "./person-reach";
@@ -292,8 +293,8 @@ export const PERSON_ACT_WORDS = {
    * A sender of automated mail made a person (00483): the act of its own, where it rode Delete person alone and the live
    * walk never found it (27 Oct 2026). It opens the same question with the switch on.
    */
-  notAPerson: "Not a person…",
-  notAPersonHint: "A notice or a newsletter: its mail stays in your mailbox, and it leaves People",
+  notAPerson: MAILBOX_SENDERS_WORDS.act,
+  notAPersonHint: MAILBOX_SENDERS_WORDS.actHint,
   /** Their own copy (R14 X5): everything kept about them, for when they ask what the business holds. */
   download: "Download their records",
   downloadHint: "Everything kept about them, in one file: for when they ask what you hold",

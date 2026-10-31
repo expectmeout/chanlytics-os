@@ -3,7 +3,8 @@
  * mail-people.ts), run as the job runner runs a part (history-import.ts historyImports) over a database in memory, with
  * Gmail and Google's People API answered by the test. What a person wrote, and what the owner wrote to one person, is
  * kept as before Chanlytics; lists, mail to many and delivery reports are left and counted; the window ends where the
- * mailbox connected; a part that runs out of time keeps its place; a mailbox removed or signed out stops and says so.
+ * mailbox connected; what the owner sent is read before the rest (decision 0080); a part that runs out of time keeps its
+ * place; a mailbox removed or signed out stops and says so.
  * The contacts come in through the one person door, only the lists the owner left ticked.
  */
 import { test, after } from "node:test";
@@ -18,6 +19,8 @@ import { MAILBOX_ENV, b64url, gmailReceived, liveCredentials, providers, vault, 
 const restore = withEnv(MAILBOX_ENV);
 after(restore);
 const { historyImports, startMailboxHistory } = await importSrc("apps/edge/lib/imports/history-import.ts");
+const { setPg } = await importSrc("apps/edge/lib/pg.ts");
+after(() => setPg(null));
 
 const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const OWN = "sam@getharbor.example";
@@ -34,7 +37,14 @@ const SCOPES = {
  * ingest_before was handed (a person new the first time an address is seen), resolve_person's people, and the threads
  * a reach-out started (`reached`), with the ones asked about.
  */
-function world({ box = {}, credentials = liveCredentials("ya29.sam"), reached = [], contacts = [] } = {}) {
+function world({
+  box = {},
+  credentials = liveCredentials("ya29.sam"),
+  reached = [],
+  contacts = [],
+  messages = [],
+  othersSaid = [],
+} = {}) {
   const mailbox = rows.mailboxConnection({
     tenant_id: T,
     provider: "google",
@@ -53,8 +63,23 @@ function world({ box = {}, credentials = liveCredentials("ya29.sam"), reached = 
     imports: [],
     jobs: [],
     events: [],
-    contacts: contacts.map((c) => ({ tenant_id: T, erased_at: null, merged_into_contact_id: null, ...c })),
+    contacts: contacts.map((c) => ({
+      tenant_id: T,
+      erased_at: null,
+      merged_into_contact_id: null,
+      acquired_via: null,
+      ...c,
+    })),
+    messages: messages.map((m) => ({ tenant_id: T, ...m })),
     mailbox_senders: [],
+    mailbox_sender_reads: [],
+    // What a stranger's reading asks (decision 0080): whether the model may answer for the workspace, its name and its
+    // own words, and the model's ledger.
+    tenants: [{ id: T, name: "Harbor Moving", status: "active", left_empty_at: null }],
+    billing_accounts: [{ tenant_id: T, mode: "stripe", status: "trialing" }],
+    business_records: [{ tenant_id: T, about: "Local and long-distance moves." }],
+    tenant_config: [],
+    ai_usage: [],
   };
   const db = fakeDb(
     tables,
@@ -82,6 +107,8 @@ function world({ box = {}, credentials = liveCredentials("ya29.sam"), reached = 
         left.push([a.p_address, a.p_why]);
         return null;
       },
+      // 00495: whether three or more other workspaces' owners said the domain is automated.
+      sender_domain_said_automated: (a) => othersSaid.includes(a.p_domain),
       // 00424: of the threads asked about, the ones holding an email this workspace sent.
       mailbox_threads_known: (a) => {
         asked.push(...a.p_thread_ids);
@@ -134,6 +161,21 @@ const mail = (messages, next = null) => ({
   messages: messages.map((m) => ({ id: m.id, threadId: m.threadId })),
   ...(next ? { nextPageToken: next } : {}),
 });
+
+/** Gmail's list as a part's search asks it: what the mailbox sent (in:sent), the rest (-in:sent), or everything. */
+const listedFor = (url, messages, next = null) => {
+  const q = new URL(url).searchParams.get("q") ?? "";
+  const sent = (m) => (m.labelIds ?? []).includes("SENT");
+  if (q.includes("-in:sent"))
+    return mail(
+      messages.filter((m) => !sent(m)),
+      next,
+    );
+  return q.includes("in:sent") ? mail(messages.filter(sent), next) : mail(messages, next);
+};
+
+/** A message the mailbox sent: Gmail's SENT label on it. */
+const sentOne = (m) => ({ ...gmailReceived(m), labelIds: ["SENT"] });
 const MESSAGES = {
   p1: gmailReceived({
     id: "p1",
@@ -144,7 +186,7 @@ const MESSAGES = {
     messageId: "<p1@example.com>",
     text: "Do you move pianos?",
   }),
-  o1: gmailReceived({
+  o1: sentOne({
     id: "o1",
     threadId: "t1",
     from: `Sam <${OWN}>`,
@@ -163,7 +205,7 @@ const MESSAGES = {
     text: "20% off",
     headers: { "List-Unsubscribe": "<mailto:leave@shop.example>" },
   }),
-  m1: gmailReceived({
+  m1: sentOne({
     id: "m1",
     threadId: "t3",
     from: `Sam <${OWN}>`,
@@ -186,7 +228,7 @@ const MESSAGES = {
 test("a mailbox's six months: what a person wrote and what the owner wrote to one person kept as before Chanlytics, lists and mail to many and reports left and counted, the window ending where it connected", async () => {
   const w = world();
   const net = providers((c) => {
-    if (c.url.startsWith(`${GMAIL}/messages?`)) return { json: mail(Object.values(MESSAGES)) };
+    if (c.url.startsWith(`${GMAIL}/messages?`)) return { json: listedFor(c.url, Object.values(MESSAGES)) };
     const id = /\/messages\/([a-z0-9]+)\?/.exec(c.url)?.[1];
     return id && MESSAGES[id] ? { json: MESSAGES[id] } : { status: 404 };
   });
@@ -195,21 +237,30 @@ test("a mailbox's six months: what a person wrote and what the owner wrote to on
   } finally {
     net.restore();
   }
-  // The window: six months before the mailbox connected, up to the moment it did (the live read starts there).
-  const list = new URL(net.calls.find((c) => c.url.startsWith(`${GMAIL}/messages?`)).url);
+  // The window: six months before the mailbox connected, up to the moment it did (the live read starts there); what the
+  // owner sent first, then the rest, drafts never (decision 0080).
+  const lists = net.calls
+    .filter((c) => c.url.startsWith(`${GMAIL}/messages?`))
+    .map((c) => new URL(c.url).searchParams.get("q"));
   const to = Date.parse(CONNECTED) / 1000;
-  assert.equal(list.searchParams.get("q"), `after:${to - (HISTORY_BACK_DAYS * DAY_MS) / 1000} before:${to}`);
+  const span = `after:${to - (HISTORY_BACK_DAYS * DAY_MS) / 1000} before:${to}`;
+  assert.deepEqual(lists, [`${span} in:sent`, `${span} -in:sent -in:drafts`]);
   assert.equal(net.calls[0].headers.Authorization, "Bearer ya29.sam", "through the mailbox's own grant");
   assert.deepEqual(
     w.kept.map((k) => [k.p_external, k.p_direction, k.p_channel, k.p_body]),
     [
-      ["rosa@example.com", "inbound", "email", "Do you move pianos?"],
       ["rosa@example.com", "outbound", "email", "We do."],
+      ["rosa@example.com", "inbound", "email", "Do you move pianos?"],
     ],
-    "the person's email, and the owner's answer to that one person, each in Rosa's thread",
+    "the owner's answer to that one person, read first, and the person's email, each in Rosa's thread",
   );
-  assert.equal(w.kept[0].p_meta.email.claim, "person");
-  assert.equal(w.kept[0].p_meta.source, "mailbox");
+  assert.equal(w.kept[1].p_meta.email.claim, "person");
+  assert.equal(w.kept[1].p_meta.source, "mailbox");
+  // The list, the mail to many and the report are left on their headers: never read whole.
+  const whole = net.calls
+    .filter((c) => c.url.includes("format=full"))
+    .map((c) => /\/messages\/(\w+)\?/.exec(c.url)?.[1]);
+  assert.deepEqual(whole, ["o1", "p1"], "only what came in is read whole");
   const row = ledger(w, "mailbox");
   assert.equal(row.state, "done");
   assert.deepEqual(row.counts, { messages: 2, people: 1, dropped: 3 }, "the list, the mail to many and the report");
@@ -237,7 +288,7 @@ test("an email with only HTML is kept with its words, as the live read keeps the
   };
   const w = world();
   const net = providers((c) => {
-    if (c.url.startsWith(`${GMAIL}/messages?`)) return { json: mail([alert]) };
+    if (c.url.startsWith(`${GMAIL}/messages?`)) return { json: listedFor(c.url, [alert]) };
     return /\/messages\/h1\?/.test(c.url) ? { json: alert } : { status: 404 };
   });
   try {
@@ -257,12 +308,22 @@ test("a part that runs out of time keeps its place in the page, and the next par
   const w = world();
   const realNow = Date.now;
   let late = false;
+  const again = gmailReceived({
+    id: "p2",
+    threadId: "t1",
+    from: "Rosa Diaz <rosa@example.com>",
+    to: OWN,
+    subject: "Re: Pianos?",
+    messageId: "<p2@example.com>",
+    text: "Great, Friday then.",
+  });
+  const all = { ...MESSAGES, p2: again };
   const net = providers((c) => {
-    if (c.url.startsWith(`${GMAIL}/messages?`)) return { json: mail([MESSAGES.p1, MESSAGES.o1]) };
+    if (c.url.startsWith(`${GMAIL}/messages?`)) return { json: listedFor(c.url, [MESSAGES.p1, again, MESSAGES.o1]) };
     const id = /\/messages\/([a-z0-9]+)\?/.exec(c.url)?.[1];
-    // The clock runs out as the first message is read.
+    // The clock runs out as the first message of the rest is read.
     if (id === "p1") late = true;
-    return id && MESSAGES[id] ? { json: MESSAGES[id] } : { status: 404 };
+    return id && all[id] ? { json: all[id] } : { status: 404 };
   });
   Date.now = () => (late ? realNow() + 120_000 : realNow());
   try {
@@ -272,8 +333,12 @@ test("a part that runs out of time keeps its place in the page, and the next par
   }
   let row = ledger(w, "mailbox");
   assert.equal(row.state, "running");
-  assert.deepEqual([row.job_cursor.page, row.job_cursor.at], [null, 1], "the first page, past its first message");
-  assert.equal(w.kept.length, 1);
+  assert.deepEqual(
+    [row.job_cursor.phase, row.job_cursor.page, row.job_cursor.at],
+    ["received", null, 1],
+    "the rest's first page, past its first message",
+  );
+  assert.equal(w.kept.length, 2, "the owner's answer, and the first of the rest");
   assert.deepEqual(
     w.tables.jobs.map((j) => [j.payload.source, j.payload.seq]),
     [["mailbox", "run:2"]],
@@ -288,10 +353,14 @@ test("a part that runs out of time keeps its place in the page, and the next par
   assert.equal(row.state, "done");
   assert.deepEqual(
     w.kept.map((k) => k.p_message_external_id),
-    ["p1", "o1"],
-    "each message once, the second picked up where the first part stopped",
+    ["o1", "p1", "p2"],
+    "each message once, the next picked up where the first part stopped",
   );
-  assert.equal(net.calls.filter((c) => c.url.includes("/messages/p1?")).length, 1, "the first is not read again");
+  assert.equal(
+    net.calls.filter((c) => c.url.includes("/messages/p1?format=full")).length,
+    1,
+    "the first is not read again",
+  );
 });
 
 test("a mailbox removed, or signed out, stops its history and says so on its row, with nothing scheduled after it", async () => {
@@ -342,7 +411,7 @@ const DOWN = { status: 500, json: { error: { code: 500, errors: [{ reason: "back
 /** The window's list, and each message as Gmail answers it, but the ids `odd` answers otherwise. */
 const gmailWith = (listed, odd = {}) =>
   providers((c) => {
-    if (c.url.startsWith(`${GMAIL}/messages?`)) return { json: mail(listed) };
+    if (c.url.startsWith(`${GMAIL}/messages?`)) return { json: listedFor(c.url, listed) };
     const id = /\/messages\/([a-z0-9]+)\?/.exec(c.url)?.[1];
     if (id && odd[id]) return odd[id];
     const m = listed.find((x) => x.id === id && x.payload);
@@ -359,7 +428,7 @@ test("a message the mailbox refuses for good is counted, said and gone on withou
   } finally {
     net.restore();
   }
-  assert.deepEqual(keptIds(w), ["p1", "o1"], "the message after it kept");
+  assert.deepEqual(keptIds(w), ["o1", "p1"], "the rest kept, the refused one gone on without");
   const row = ledger(w, "mailbox");
   assert.equal(row.state, "done");
   assert.deepEqual(row.counts, { messages: 2, people: 1, dropped: 0, unreadable: 1 });
@@ -389,7 +458,11 @@ test("a part the provider stops part way notes what it brought and where it stoo
   let row = ledger(w, "mailbox");
   assert.equal(row.state, "running", "a first try: the ledger tries it again");
   assert.deepEqual(row.counts, { messages: 2, people: 1, dropped: 0 }, "what came in before it stopped, counted");
-  assert.equal(row.job_cursor.at, 2, "where it stood: the message it could not read");
+  assert.deepEqual(
+    [row.job_cursor.phase, row.job_cursor.at],
+    ["received", 1],
+    "where it stood: the message it could not read, among the rest",
+  );
   // The try the ledger will not repeat: the row says it stopped, with Try again beside it.
   const last = gmailWith(listed, { x1: DOWN });
   try {
@@ -411,7 +484,7 @@ test("a part the provider stops part way notes what it brought and where it stoo
   }
   row = ledger(w, "mailbox");
   assert.equal(row.state, "done");
-  assert.deepEqual(keptIds(w), ["p1", "o1"]);
+  assert.deepEqual(keptIds(w), ["o1", "p1"]);
   assert.equal(
     again.calls.filter((c) => /\/messages\/(p1|o1)\?/.test(c.url)).length,
     0,
@@ -435,7 +508,11 @@ test("the mailbox's pace is no failure: the part notes where it stood and ends, 
   let row = ledger(w, "mailbox");
   assert.deepEqual([row.state, row.last_error], ["running", null], "no stop, and no try used");
   assert.deepEqual(row.counts, { messages: 2, people: 1, dropped: 0 });
-  assert.equal(row.job_cursor.at, 2, "where it stood: the message Gmail paced");
+  assert.deepEqual(
+    [row.job_cursor.phase, row.job_cursor.at],
+    ["received", 1],
+    "where it stood: the message Gmail paced",
+  );
   assert.deepEqual(
     w.tables.jobs.map((j) => j.payload.seq),
     ["run:2"],
@@ -471,7 +548,7 @@ test("the mailbox's pace is no failure: the part notes where it stood and ends, 
   }
   row = ledger(w, "mailbox");
   assert.equal(row.state, "done");
-  assert.deepEqual(keptIds(w), ["p1", "o1"]);
+  assert.deepEqual(keptIds(w), ["o1", "p1"]);
   assert.deepEqual(row.counts, { messages: 2, people: 1, dropped: 1 });
 });
 
@@ -489,8 +566,8 @@ test("three messages refused in a row is the grant or the provider, not the mess
   }
   const row = ledger(w, "mailbox");
   assert.equal(row.state, "running");
-  assert.deepEqual(row.counts, { messages: 1, people: 1, dropped: 0 }, "none of the run counted as unreadable");
-  assert.equal(row.job_cursor.at, 1, "the run read again from its first");
+  assert.deepEqual(row.counts, { messages: 2, people: 1, dropped: 0 }, "none of the run counted as unreadable");
+  assert.deepEqual([row.job_cursor.phase, row.job_cursor.at], ["received", 1], "the run read again from its first");
 });
 
 test("mail from a no-reply sender is left and counted, however Google's reports and alerts spell it", async () => {
@@ -612,7 +689,11 @@ test("what came in as people on 26 and 27 Oct 2026 is left and counted: DMARC re
   }
   assert.deepEqual(keptIds(w), ["p1"], "only what a person wrote");
   assert.deepEqual(ledger(w, "mailbox").counts, { messages: 1, people: 1, dropped: 5 });
-  assert.deepEqual(w.asked, ["tso1", "tfo1"], "whether a reach-out started it, asked of a tab's message alone");
+  assert.deepEqual(
+    w.asked,
+    ["tso1", "tfo1", "t1"],
+    "whether a reach-out started it, asked of a tab's message, and of a stranger's before anything reads them",
+  );
   assert.deepEqual(
     w.left,
     [
@@ -626,8 +707,16 @@ test("what came in as people on 26 and 27 Oct 2026 is left and counted: DMARC re
   );
 });
 
-test("Gmail's tabs never leave a reply in a thread a reach-out started; under Updates a stranger's notice that answers nothing is left and listed, and a person the workspace knows, or a reply, comes in", async () => {
-  const w = world({ reached: ["g-reach"], contacts: [{ id: "k-rosa", email: "rosa@example.com" }] });
+test("Gmail's tabs never leave a reply in a thread a reach-out started; under Updates a stranger's notice that answers nothing is left and listed, and a person the business talks with, or a reply, comes in; a person a notice made is no one it talks with", async () => {
+  const w = world({
+    reached: ["g-reach"],
+    contacts: [
+      // Rosa: added by hand. The vendor: made by its own notice, which the mailbox brought in before (30 Oct 2026).
+      { id: "k-rosa", email: "rosa@example.com", acquired_via: "manual" },
+      { id: "k-vend", email: "hello@vend.example", acquired_via: "import" },
+    ],
+    messages: [{ id: "m-vend", contact_id: "k-vend", channel: "email", direction: "inbound", sender: "customer" }],
+  });
   const net = gmailWith([
     // A mailbox connected again reads back over its earlier connection's months, a reach-out's thread among them.
     filed(["CATEGORY_PROMOTIONS"], {
@@ -671,6 +760,16 @@ test("Gmail's tabs never leave a reply in a thread a reach-out started; under Up
       text: "Yes, Tuesday works.",
       headers: { "In-Reply-To": "<quote-1@getharbor.example>" },
     }),
+    // A notice from a sender a notice once made a person: no one the business talks with, so left as any stranger's.
+    filed(["CATEGORY_UPDATES"], {
+      id: "up4",
+      threadId: "tup4",
+      from: "Vend <hello@vend.example>",
+      to: OWN,
+      subject: "Your weekly summary",
+      messageId: "<up4@vend.example>",
+      text: "Here is your week.",
+    }),
   ]);
   try {
     await part(w, "mailbox");
@@ -678,9 +777,99 @@ test("Gmail's tabs never leave a reply in a thread a reach-out started; under Up
     net.restore();
   }
   assert.deepEqual(keptIds(w), ["re1", "up1", "up3"]);
-  assert.deepEqual(ledger(w, "mailbox").counts, { messages: 3, people: 3, dropped: 1 });
-  assert.deepEqual(w.left, [["service@bank.example", "updates"]], "the notice is on the owner's list");
-  assert.deepEqual(w.asked, ["g-reach", "tup2"], "a reach-out's thread is asked only of what a tab alone would leave");
+  assert.deepEqual(ledger(w, "mailbox").counts, { messages: 3, people: 3, dropped: 2 });
+  assert.deepEqual(
+    w.left,
+    [
+      ["service@bank.example", "updates"],
+      ["hello@vend.example", "updates"],
+    ],
+    "the notices are on the owner's list",
+  );
+  assert.deepEqual(
+    w.asked,
+    ["g-reach", "tup2", "tup3", "tup4"],
+    "a reach-out's thread is asked of what a tab alone would leave, and of a stranger's reply before it is read",
+  );
+});
+
+test("the six months read a stranger once and count who asked about the business: someone asking comes in, a pitch is left as selling to you, and a notice through a mailing service is left on its headers, never read whole or asked about", async () => {
+  const key = withEnv({ ANTHROPIC_API_KEY: "sk-ant-made-up-for-this-file" });
+  const w = world();
+  setPg(w.db);
+  const stranger = (id, from, text, extra = {}) =>
+    gmailReceived({
+      id,
+      threadId: `t-${id}`,
+      from,
+      to: OWN,
+      subject: "Hello",
+      messageId: `<${id}@x.example>`,
+      text,
+      ...extra,
+    });
+  const listed = [
+    stranger("ses1", "Fixture Host <team@host.example>", "A deployment failed.", {
+      messageId: "<0101019a835dab19-000000@us-west-2.amazonses.com>",
+    }),
+    stranger("pi1", "Growth Team <growth@agency.example>", "We can double your reviews this month."),
+    stranger("in1", "Lee Park <lee@example.com>", "Do you store furniture between moves?"),
+    stranger("in2", "Lee Park <lee@example.com>", "And how much a month?"),
+  ];
+  const asks = [];
+  const net = providers((c) => {
+    if (c.url === "https://api.anthropic.com/v1/messages") {
+      const user = JSON.parse(c.body).messages[0].content;
+      asks.push(/^From: .*<([^>]+)>$/m.exec(user)?.[1]);
+      const answer = user.includes("growth@agency.example")
+        ? { kind: "pitch", about: "offers more reviews" }
+        : { kind: "inquiry", about: "asked about storage between moves" };
+      return {
+        json: {
+          id: "msg_1",
+          type: "message",
+          role: "assistant",
+          model: "claude-haiku-5-5",
+          content: [{ type: "text", text: JSON.stringify(answer) }],
+          stop_reason: "end_turn",
+          usage: { input_tokens: 600, output_tokens: 30 },
+        },
+      };
+    }
+    if (c.url.startsWith(`${GMAIL}/messages?`)) return { json: listedFor(c.url, listed) };
+    const id = /\/messages\/([a-z0-9]+)\?/.exec(c.url)?.[1];
+    const m = listed.find((x) => x.id === id);
+    return m ? { json: m } : { status: 404 };
+  });
+  try {
+    await part(w, "mailbox");
+  } finally {
+    net.restore();
+    key();
+  }
+  assert.deepEqual(keptIds(w), ["in1", "in2"], "the one who asked, both their emails");
+  assert.deepEqual(ledger(w, "mailbox").counts, { messages: 2, people: 1, dropped: 2, asked: 1 });
+  assert.deepEqual(
+    w.left,
+    [
+      ["team@host.example", "service"],
+      ["growth@agency.example", "pitch"],
+    ],
+    "each sender left on the owner's list, with why",
+  );
+  assert.deepEqual(asks, ["growth@agency.example", "lee@example.com"], "each stranger read once; the service never");
+  assert.deepEqual(
+    net.calls.filter((c) => c.url.includes("format=full")).map((c) => /\/messages\/(\w+)\?/.exec(c.url)?.[1]),
+    ["pi1", "in1", "in2"],
+    "the service's notice never read whole",
+  );
+  assert.deepEqual(
+    w.tables.mailbox_sender_reads.map((r) => [r.address, r.kind]),
+    [
+      ["growth@agency.example", "pitch"],
+      ["lee@example.com", "inquiry"],
+    ],
+  );
 });
 
 test("the mailbox's people: its own contacts, through the one person door, a page at a time; Google's other contacts never asked", async () => {

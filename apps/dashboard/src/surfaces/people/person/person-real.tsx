@@ -35,7 +35,7 @@ import { backToPeople, hear, saidBy, usePersonToast } from "../person-verbs";
 import { personMovedTo, warmPerson } from "../people-detail";
 import { armWalk, noteStep, takeStep, walkOf, type PersonWalk } from "../walk";
 import { dealPersonOf } from "./ctx";
-import { MERGE_CLOSED } from "./ctx";
+import { AskedFromTheThread, MERGE_CLOSED } from "./ctx";
 import type { DelState, DoubtState, MergeState, PageCtx, RmState } from "./ctx";
 import { BusinessSheet, WorksAtCard } from "./business";
 import { ListsSheet } from "./sheets/lists-sheet";
@@ -281,6 +281,7 @@ function personPage(
         </div>
       </div>
       <PhoneDock c={c} />
+      <AskedFromTheThread c={c} />
       <BusinessSheet c={c} />
       <CallSheet c={c} />
       <ListsSheet c={c} />
