@@ -165,7 +165,7 @@ export const LEAD_BUILD_WORDS = {
     endsWith: "Ends with",
     endsName: (name: string) => (name.trim() ? `“${name.trim()}”` : "Your name"),
     endsSignature: (address: string) => `${address}'s signature`,
-    signatureHasLink: "First emails leave out its link.",
+    signatureHasLink: "Its link stays out of first emails, and of any that has a link already.",
     noName: "Write the name it ends with.",
   },
 } as const;

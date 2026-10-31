@@ -10,7 +10,10 @@ import { lookupLogo } from "@/server/workspace/logo/lookup";
  * The handle is lookupLogo in src/server/workspace/logo/lookup.ts: the route is its declaration (who may, how often),
  * the verb is what it does.
  */
-/** Up to two page reads (the website as typed, then its other spelling; 6 s each) and three image reads (4 s each). */
+/**
+ * The edge's look: up to two page reads (the website as typed, then its other spelling; 6 s each) and three
+ * image reads (4 s each).
+ */
 export const maxDuration = 30;
 
 export const POST = write({

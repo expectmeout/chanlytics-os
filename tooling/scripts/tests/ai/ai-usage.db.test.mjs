@@ -70,8 +70,8 @@ const call = (tenant, over = {}) => ({
 const shadow = (tenant, over = {}) => ({
   tenant_id: tenant,
   purpose: "reply_read",
-  model_asked: "jev-1.13.0",
-  model: "jev-1.13.0",
+  model_asked: "jev-1.14.0",
+  model: "jev-1.14.0",
   outcome: "answered",
   port: "typesafe",
   shadow: true,
@@ -375,7 +375,7 @@ test(
       before.count,
       "the meter counts the calls a workspace used",
     );
-    assert.equal(mine.data.filter((r) => r.model === "jev-1.13.0").length, 0);
+    assert.equal(mine.data.filter((r) => r.model === "jev-1.14.0").length, 0);
     const hot = await db.rpc("ai_failures_hour", { p_min: 5 });
     assert.equal(
       hot.data.filter((r) => r.tenant_id === A).length,

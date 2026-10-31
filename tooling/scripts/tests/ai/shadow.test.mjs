@@ -161,7 +161,7 @@ test("on, each question answered is one ledger row: the primary's label, the sha
   const [call] = api.calls;
   assert.equal(call.url, "https://api.typesafe.ai/v1/systemone");
   assert.equal(call.headers.authorization, `Bearer ${KEY}`);
-  assert.deepEqual([call.body.model, call.body.state], ["jev-1.13.0", TEXT]);
+  assert.deepEqual([call.body.model, call.body.state], ["jev-1.14.0", TEXT]);
   assert.deepEqual(Object.keys(call.body.questions), ["money_class", "injection", "stop_request"]);
   // The ledger.
   assert.equal(primaryRows(on.tables).length, 1);

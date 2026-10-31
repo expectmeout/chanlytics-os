@@ -27,8 +27,15 @@ at that commit; the controller renumbers at landing if another note took it.
   under the line are the deliberately ambiguous pair ("Travelling this week, back on the 12th": away 0.66 against
   not_now 0.33; "Not right now, thanks": not_now 0.80 against no 0.20). The injection fixture was resisted (other 0.82).
   The weaker read is person against automatic: **17 of 19**, both misses terse opt-outs ("Remove", person 0.33; "Please
-  mark me as unsubscribed…", 0.48), both still read as intent `no`. About 900 input tokens a reply. This is the baseline
-  the week of shadow data is compared with.
+  mark me as unsubscribed…", 0.48), both still read as intent `no`. About 900 input tokens a reply.
+- **The same pilot on `jev-1.14.0`, 31 October 2026, 14:35 UTC (Ruben).** TypeSafe released 1.14 on 14 October at 1.13's
+  price and limits, and `jev-latest` moved to it. The pilot's requests, unchanged but for the model, were asked again:
+  intents **19 of 19** again; person against automatic **19 of 19**, both terse opt-outs now read as a person
+  ("Remove", 0.68; "Please mark me as unsubscribed…", 0.78); **18** decided at 0.8 or more, **all right** ("Not right
+  now, thanks": not_now 0.94 against no 0.06); the injection fixture other 0.98. One reply grew less sure ("Travelling
+  this week, back on the 12th": away 0.51 against not_now 0.46), still right and still under the line. The same input
+  tokens. The switch had never been on, so no shadow row was written on 1.13 and the pin moved to `jev-1.14.0` with
+  nothing to compare across. This is the baseline the week of shadow data is compared with.
 - **What the codebase already had.** One model port for Claude (`packages/channels/src/models/anthropic.ts` over
   `providerFetch`), a registry by purpose (`packages/contracts/src/ai/models.ts`) and a ledger in dollars (`ai_usage`,
   `00273`); so a second port is a second adapter, a column on the ledger and a comparison, not a second way to ask.
@@ -78,7 +85,7 @@ at that commit; the controller renumbers at landing if another note took it.
 
 ## Shape
 
-- Contracts: `ai/system-one.ts` (the request, the answers, the pinned model `jev-1.13.0`, the price), `ai/shadow.ts` (the
+- Contracts: `ai/system-one.ts` (the request, the answers, the pinned model `jev-1.14.0`, the price), `ai/shadow.ts` (the
   read of an answer as a label, the row it becomes, the calls each purpose makes), `ai/models.ts` (`shadow` on a route,
   the ports), the question in the module that owns its rule (`reach-out-replies.ts`, `policy-classes.ts`, `fence.ts`,
   `consent.ts`, `lead-judge.ts`).
