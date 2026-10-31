@@ -1,8 +1,8 @@
 # 0081 · An email from the hosted address signs as its sender
 
 **Status:** Decided by Ruben on 30 October 2026; built on its lane the same day, not merged, no migration: the signer
-(`signerOf`) in the reply's and the first email's freeze, what an email will be signed with said by the drafts read and
-a person's reach, and the line under the words in the Inbox's box and a new conversation's email. Lane
+(`signingMailboxOf`) in the reply's and the first email's freeze, what an email will be signed with said by the drafts
+read and a person's reach, and the line under the words in the Inbox's box and a new conversation's email. Lane
 `email/the-hosted-address-signs-as-its-sender`, written against main's `5d0394714` (#1961).
 
 ## Context
@@ -24,9 +24,10 @@ Ruben, 30 October 2026, on why a cold email's signature is plainer than his Gmai
 
 ## Decision
 
-1. **A person's email from the hosted address signs as its sender's mailbox.** One rule, `signerOf`: the connected
-   mailbox the thread answers from, or would while it does not send now, whichever address the email leaves from; else
-   the first mailbox the member sending connected (`connected_by`, the oldest `connected_at`); else none, as before.
+1. **A person's email from the hosted address signs as its sender's mailbox.** One rule, `signingMailboxOf`: the
+   connected mailbox the thread answers from, or would while it does not send now, whichever address the email leaves
+   from; else the first mailbox the member sending connected (`connected_by`, the oldest `connected_at`); else none, as
+   before.
    What that mailbox signs with is unchanged (`mailboxSignatureOf`: off, their words, Gmail's signature, their name).
    Replies and first emails both, through the reply door and New conversation (`replyPorts`' two users).
 2. **Never another member's.** A teammate who connected no mailbox sends what they typed, and is told nothing signs it.
@@ -44,9 +45,9 @@ keep a signature, with a migration and a door).
 
 ## Consequences
 
-- From the deploy on, a member with a connected mailbox signs every email from the hosted address. To undo: `signerOf`'s
-  second step answers none, and the reply-freeze test's hosted cases flip back; nothing is stored but the words a new
-  email went with.
+- From the deploy on, a member with a connected mailbox signs every email from the hosted address. To undo:
+  `signingMailboxOf`'s second step answers none, and the reply-freeze test's hosted cases flip back; nothing is stored
+  but the words a new email went with.
 - A member with two mailboxes signs as the first they connected. A "signs like" pick on the hosted address waits until
   it is asked for.
 - Open: whether a first email from the Inbox or People should leave from the sender's connected mailbox (0073, R13), a

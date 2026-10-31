@@ -108,7 +108,7 @@ export async function replyIdentitiesOf(
   ctx: RouteContext,
   tenantId: string,
   conversations: readonly string[],
-): Promise<Map<string, ReplyIdentity>> {
+): Promise<Map<string, Awaited<ReturnType<typeof replyIdentityOf>>>> {
   if (conversations.length === 0) return new Map();
   return identitiesOver(ctx, tenantId, conversations, await mailboxConnectionsOf(ctx.supabase, tenantId));
 }
@@ -146,7 +146,7 @@ async function identitiesOver(
  * sending connected, so their email ends as it does in their Gmail; else none. Never another member's: a teammate who
  * connected none sends what they typed. `who` is null for a first email, which answers no thread.
  */
-function signerOf(
+function signingMailboxOf(
   who: ReplyIdentity | null,
   rows: readonly MailboxConnectionRow[],
   userId: string,
@@ -178,7 +178,7 @@ export async function signedByThreadOf(
     .then(async (rows) => ({ rows, who: await identitiesOver(ctx, tenantId, conversations, rows) }))
     .catch(() => null);
   for (const [id, w] of read?.who ?? []) {
-    const words = signatureBy(signerOf(w, read?.rows ?? [], ctx.userId))?.text;
+    const words = signatureBy(signingMailboxOf(w, read?.rows ?? [], ctx.userId))?.text;
     if (words) signed.set(id, words);
   }
   return signed;
@@ -187,11 +187,11 @@ export async function signedByThreadOf(
 /** What the member reading's first email to a person is signed with (decision 0081); null with none, or a read that fails. */
 export async function signedFirstOf(ctx: RouteContext, tenantId: string): Promise<string | null> {
   const rows = await mailboxConnectionsOf(ctx.supabase, tenantId).catch(() => []);
-  return signatureBy(signerOf(null, rows, ctx.userId))?.text ?? null;
+  return signatureBy(signingMailboxOf(null, rows, ctx.userId))?.text ?? null;
 }
 
 /** What the composer is told of where an answer goes out from: the address, never the mailbox's row. */
-export function replyFromOf(r: ReplyIdentity): ReplyFrom {
+export function replyFromOf(r: Awaited<ReturnType<typeof replyIdentityOf>>): ReplyFrom {
   return r.from === "own" ? { from: "own", address: r.address } : r;
 }
 
@@ -204,7 +204,7 @@ const requestJson = (r: EmailRequest): Json => r as unknown as Json;
  * mailboxSignatureOf): the signature its owner keeps in Gmail, their own words
  * or their name, as Gmail signs a reply written there; it left ending on "Talk
  * soon," before. A reply from the hosted mailbox is signed as its thread's
- * mailbox, else as the member sending's own (signerOf, decision 0081): it left
+ * mailbox, else as the member sending's own (signingMailboxOf, decision 0081): it left
  * with what was typed alone before, however its sender signs in Gmail.
  * An answer whose connected mailbox sends now is frozen twice (C15, decision
  * 0056): the hosted mailbox's request, which every edge sends, and its twin
@@ -231,7 +231,7 @@ export async function freezeReply(
     mailboxes: rows.map((r) => mailboxDtoOf(r)),
   });
   // The signer's row: what it signs with, Gmail's markup included, is on the row, not the page's copy of it.
-  const signed = signatureBy(signerOf(who, rows, ctx.userId));
+  const signed = signatureBy(signingMailboxOf(who, rows, ctx.userId));
   const frozen = (identity: EmailIdentity) =>
     buildEmailRequest({
       identity,
@@ -262,7 +262,7 @@ export async function freezeReply(
 
 /**
  * A person's first email on a thread, as the request it leaves as: no email of theirs to thread under, the subject its
- * own, from the workspace's mailbox, signed as the first mailbox the member sending connected signs (signerOf, decision
+ * own, from the workspace's mailbox, signed as the first mailbox the member sending connected signs (signingMailboxOf, decision
  * 0081), as a reply from it is. `signature` is the words it went with. Null with no mail domain or no mailbox.
  */
 export async function freezeFirst(
@@ -276,7 +276,7 @@ export async function freezeFirst(
     mailboxConnectionsOf(ctx.supabase, i.tenantId),
   ]);
   if (!mailbox) return null;
-  const signed = signatureBy(signerOf(null, rows, ctx.userId));
+  const signed = signatureBy(signingMailboxOf(null, rows, ctx.userId));
   const request = buildEmailRequest({
     identity: hostedIdentity(mailbox, domain),
     to: i.to,

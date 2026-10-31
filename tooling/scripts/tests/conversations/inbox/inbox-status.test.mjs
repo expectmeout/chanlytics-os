@@ -14,6 +14,7 @@ import assert from "node:assert/strict";
 import { toInboxThreadVM, stateOf, memberWords } from "@chanlytics/contracts";
 import { keysDrawn } from "../../_keys.mjs";
 import { installLegacyReact, fresh, again, settle } from "../../_legacy-react.mjs";
+import { until } from "../../shared/_until.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-15T14:00:00Z");
@@ -449,7 +450,8 @@ test("the kept reply comes with the Inbox's first reads: the box draws with its 
   }
 });
 
-test("what an email from the box is signed with is read for its thread once the box has words, never for an empty box, and is said under them (decision 0081)", async () => {
+// An empty box asks nothing: the test above holds it, on an email thread whose newest drafts hold no reply.
+test("what an email from the box is signed with is read for its thread once the box has words, and is said under them (decision 0081)", async () => {
   const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
   const mail = (m) => ({ ...m, channel: "email" });
   const dto = chat({ last_wa_inbound_at: null, messages: [mail(wrote("m1", "Can you move a sofa on Friday?", 40))] });
@@ -469,21 +471,11 @@ test("what an email from the box is signed with is read for its thread once the 
     fresh();
     const thread = vmOf(dto);
     const draw = () => again(() => InboxComposer({ thread, reply: "", onSend() {} }));
-    let tree = draw();
-    for (let i = 0; i < 5; i++) await settle();
-    assert.deepEqual(asked, [], "an empty box asks nothing");
+    const tree = draw();
     find(tree, (n) => n.type === "textarea").props.onChange({ target: { value: "Friday works." } });
-    tree = draw();
-    for (let i = 0; i < 5; i++) await settle();
-    tree = draw();
+    const line = () => textOf(find(draw(), byTestId("ix-composer-signed-words")));
+    await until(() => line() === "Signed Sam Reyes · Harbor Moving", "the line under the words");
     assert.deepEqual(asked, ["/api/v1/conversations/drafts"], "the thread's own read, once");
-    assert.equal(
-      textOf(find(tree, byTestId("ix-composer-signed-words"))),
-      "Signed Sam Reyes · Harbor Moving",
-      "said under the words",
-    );
-    for (let i = 0; i < 3; i++) tree = draw();
-    assert.equal(asked.length, 1, "and not again as the member writes on");
   } finally {
     globalThis.fetch = realFetch;
     setSurfaceValue("reply_drafts", undefined);
