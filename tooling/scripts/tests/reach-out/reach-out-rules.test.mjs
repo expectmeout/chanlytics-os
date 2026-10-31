@@ -184,6 +184,27 @@ test("a cold email ends as its sequence says: its name, or its mailbox's signatu
   assert.equal(coldSignedOff("Would it be worth a look?", null), "Would it be worth a look?");
 });
 
+test("a cold email holds one link at most: a follow-up whose words hold one ends with the signature less its link lines", () => {
+  const signature = "Sam Reyes\nHarbor Moving Co\nwww.harbor.example";
+  const followUp = (body, sig = signature) =>
+    coldEndingOf({ signsWith: "mailbox", signedBy: "Sam", signature: sig, first: false, body, address: null });
+  const linkless = { signOff: null, signature: "Sam Reyes\nHarbor Moving Co" };
+  // Words with no link: the signature's one link is the email's one, kept.
+  assert.deepEqual(followUp("Bumping this, {{business}}."), { signOff: null, signature });
+  // Words that hold a link of their own, as a slot or written out: the signature's goes (31 Oct 2026: a nudge with the
+  // booking link went out with the signature's web address under it, two links where the words' rule allows one).
+  assert.deepEqual(followUp("Pick a time: {{booking link}}"), linkless);
+  assert.deepEqual(followUp("Here it is, {{business}}: {{their preview}}"), linkless);
+  assert.deepEqual(followUp("See harbor.example/quote for the numbers."), linkless);
+  // A signature that would be two links alone keeps neither.
+  assert.deepEqual(followUp("Bumping this.", `${signature}\nlinkedin.com/in/samreyes`), linkless);
+  // An email address is no link: it stays.
+  assert.deepEqual(followUp("Pick a time: {{booking link}}", "Sam Reyes\nsam@harbor.example"), {
+    signOff: null,
+    signature: "Sam Reyes\nsam@harbor.example",
+  });
+});
+
 // The name a business is called by, from its listing's (30 Oct 2026: a cold email read "for shops like" a listing's
 // whole title, its city and three services after bars). Made-up names in the shapes the live leads take.
 const calledBy = (business_name, city = "Springfield") => leadCalledByOf({ business_name, city });

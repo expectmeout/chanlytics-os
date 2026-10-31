@@ -482,36 +482,23 @@ test(
 
 /* --------------------------------------------------------------------------------------- atomicity */
 
-/** The most times a block runs when Postgres ends it as one side of a deadlock: it never commits, so again is safe. */
-const BLOCK_TRIES = 3;
-
-/** One run of a block on this machine's database: what the CLI, or psql where there is no CLI, said. */
-function saidByBlock(sql) {
+/**
+ * A transaction on this machine's database that never commits (as team-changes-and-their-audit.db.test.mjs runs one):
+ * `body` runs in a DO block that ends by raising what it `seen`, so everything it did, the trigger it made included,
+ * goes with it. The CLI runs it; psql does when the CLI is not on this machine. The trigger it makes is why this suite
+ * runs alone, after the others (checks/test.mjs CHANGES_A_TABLE): beside them it deadlocked on their writes.
+ */
+function rolledBack(body) {
+  const sql = `do $$ declare seen jsonb := '{}'; begin ${body} raise exception 'seen %', encode(convert_to(seen::text, 'UTF8'), 'hex'); end $$`;
   const opts = { cwd: ROOT, encoding: "utf8", maxBuffer: 16 * 1024 * 1024 };
   let r = spawnSync(CLI, ["db", "query", ...CLI_TARGET, sql], opts);
   if (r.error?.code === "ENOENT") r = spawnSync("psql", [PSQL_TARGET, "-v", "ON_ERROR_STOP=0", "-c", sql], opts);
   if (r.error)
     throw new Error(`could not run ${CLI} or psql (${r.error.message}); set SUPABASE_CLI to the supabase binary`);
-  return [r.stdout, r.stderr]
+  const said = [r.stdout, r.stderr]
     .map((s) => (s ?? "").trim())
     .filter(Boolean)
     .join("\n");
-}
-
-/**
- * A transaction on this machine's database that never commits (as team-changes-and-their-audit.db.test.mjs runs one):
- * `body` runs in a DO block that ends by raising what it `seen`, so everything it did, the trigger it made included,
- * goes with it. The CLI runs it; psql does when the CLI is not on this machine.
- *
- * Other suites run beside it and make a trigger of their own on a ledger this block writes (`events`, `decisions`)
- * while it holds the decisions' strongest lock, so Postgres may end one of the two as a deadlock (31 Oct 2026: #1963's
- * Database job, after #1960's lock had ended the deadlock of its own two triggers). Nothing of it was kept, so it runs
- * again, up to BLOCK_TRIES in all; a deadlock on the last is said as the block's failure.
- */
-function rolledBack(body) {
-  const sql = `do $$ declare seen jsonb := '{}'; begin ${body} raise exception 'seen %', encode(convert_to(seen::text, 'UTF8'), 'hex'); end $$`;
-  let said = saidByBlock(sql);
-  for (let tries = 1; tries < BLOCK_TRIES && /deadlock detected/i.test(said); tries++) said = saidByBlock(sql);
   const seen = /seen (7b[0-9a-f]*)/.exec(said);
   if (/not_this_database/.test(said))
     throw new Error(

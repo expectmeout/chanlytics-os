@@ -548,7 +548,7 @@ test("Ends with offers the name and the first ticked mailbox's signature, and sa
   assert.equal(ends.note, null);
   assert.equal(
     contracts.leadEndingOf(chain, { ...draft, signs_with: "mailbox" }).note,
-    "First emails leave out its link.",
+    "Its link stays out of first emails, and of any that has a link already.",
   );
   // The owner sends: their own mail app signs, so the name alone.
   const owner = contracts.leadEndingOf(chain, { ...draft, owner_sends: true, signs_with: "mailbox" });
