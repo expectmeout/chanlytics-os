@@ -141,27 +141,17 @@ const SCOPE = "openid email https://www.googleapis.com/auth/business.manage";
 
 const token = (o = {}) => {
   const secret = o.secret ?? process.env.EDGE_CALL_SECRET;
-  return (body) =>
-    signEdgeToken(secret, o.aud ?? AUD, {
-      workspace: "workspace" in o ? o.workspace : A,
-      user: U,
-      body,
-    });
+  const claims = { workspace: "workspace" in o ? o.workspace : A, user: U };
+  return (body) => signEdgeToken(secret, o.aud ?? AUD, { ...claims, body });
 };
 /** The headers a knock sends, each token minted for the body it rides with: the edge refuses a token that names none. */
 const minted = (headers, raw) =>
   Object.fromEntries(Object.entries(headers).map(([k, v]) => [k, typeof v === "function" ? v(raw) : v]));
-const knock = (body, headers = { "x-edge-token": token() }) =>
-  door.POST(
-    new Request(`http://edge${AUD}`, {
-      method: "POST",
-      headers: minted(
-        { ...headers, "content-type": "application/json" },
-        typeof body === "string" ? body : JSON.stringify(body),
-      ),
-      body: typeof body === "string" ? body : JSON.stringify(body),
-    }),
-  );
+const knock = (body, headers = { "x-edge-token": token() }) => {
+  const raw = typeof body === "string" ? body : JSON.stringify(body);
+  const sent = minted({ ...headers, "content-type": "application/json" }, raw);
+  return door.POST(new Request(`http://edge${AUD}`, { method: "POST", headers: sent, body: raw }));
+};
 const answer = async (res) => [res.status, await res.json()];
 
 /** Set variables for one call and put every one of them back afterwards; `undefined` unsets. */
