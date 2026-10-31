@@ -4,10 +4,35 @@
  * carrying them. The words wait in this tab's session for the thread they name, and the composer takes them as that thread
  * opens: only into an empty box, and only once (thread/composer.tsx). Four pages wrote the hand-over each in their own words
  * and one read it; this is both halves, and it imports nothing, so a page that carries a reply does not load the Inbox for it.
+ *
+ * And the other way: a question carried from a thread to its person's page (decision 0080). Not a person deletes, so it
+ * is asked where Delete person is, with its typed name, and the thread's Actions open that page with it asked.
  */
 
 /** Where the words wait: this tab's session, which another tab never reads. */
 const CARRIED = "chanlytics-compose";
+/** Where a person's page finds Not a person asked for them, in this tab's session. */
+const NOT_A_PERSON = "chanlytics-not-a-person";
+
+/** Ask Not a person of someone as their page opens. A browser that keeps no session opens the page alone. */
+export function carryNotAPerson(personId: string): void {
+  try {
+    sessionStorage.setItem(NOT_A_PERSON, personId);
+  } catch {
+    /* nothing to carry */
+  }
+}
+
+/** Whether Not a person was asked of `personId` from a thread, taken so it is asked once. */
+export function takeCarriedNotAPerson(personId: string): boolean {
+  try {
+    if (sessionStorage.getItem(NOT_A_PERSON) !== personId) return false;
+    sessionStorage.removeItem(NOT_A_PERSON);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /** The thread the words are for, as the Inbox names it (`th-<id>`): a route to it (`inbox/th-<id>`) is the same thread. */
 const threadIdOf = (to: string): string => to.replace(/^inbox\//, "");

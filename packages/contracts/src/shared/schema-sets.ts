@@ -38,6 +38,7 @@ import type {
 } from "./enums";
 import type { CAPABILITY_KINDS } from "../setup/capabilities";
 import type { MODEL_PORTS, MODEL_PURPOSES } from "../ai/models";
+import type { SENDER_KINDS } from "../email/sender-reading";
 import type { MODEL_CALL_OUTCOMES } from "../ai/usage";
 import type { BUSINESS_TYPES, COMPANY_TYPES } from "../lines/a2p-enums";
 import type { BILLING_MODES, BILLING_STATUSES } from "../workspace/billing";
@@ -131,6 +132,9 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof MODEL_PURPOSES>, SchemaSet<"ai_usage.purpose">>>,
   Holds<Exactly<Of<typeof MODEL_CALL_OUTCOMES>, SchemaSet<"ai_usage.outcome">>>,
   Holds<Exactly<Of<typeof MODEL_PORTS>, SchemaSet<"ai_usage.port">>>,
+
+  // What a connected mailbox read a sender to be (00495, decision 0080).
+  Holds<Exactly<Of<typeof SENDER_KINDS>, SchemaSet<"mailbox_sender_reads.kind">>>,
 
   // Channels and the people on them.
   Holds<Exactly<Of<typeof CHANNEL_KINDS>, SchemaSet<"tenant_channels.kind">>>,

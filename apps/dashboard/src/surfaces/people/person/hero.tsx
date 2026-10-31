@@ -38,7 +38,7 @@ import { leaveSheet } from "../../kit/sheet/back";
 import { Sheet } from "../../kit/sheet/sheet";
 import type { PickerGroup } from "../../kit/picker/picker";
 import { gate, navigate, openDealSheet } from "../../legacy-verbs";
-import { carryReply } from "../../inbox/carried-reply";
+import { carryReply, takeCarriedNotAPerson } from "../../inbox/carried-reply";
 import { openNewConversation } from "../../inbox/new-conversation/store";
 import { visitWordHere } from "../../workspace-word";
 import { deletePerson, keptOf, mergePerson, notAPerson, settleDoubt } from "../people-detail";
@@ -738,6 +738,19 @@ export function useNameAway(phone: boolean, drawn: boolean, page: RefObject<HTML
  * scroller is a container (`.cl-profile`), which a fixed bar inside it would be placed in, at the foot of its content.
  * The acts are found inside the page's own element, as the name is (useNameAway).
  */
+/**
+ * Not a person, asked from their thread's Actions (decision 0080): the question open once their page is drawn, as More's
+ * own act opens it, the typed name and all. Taken once: a second visit asks nothing.
+ */
+export function AskedFromTheThread({ c }: { c: PageCtx }): null {
+  const { setDel, setMerge } = c;
+  const id = c.p.id;
+  useEffect(() => {
+    if (takeCarriedNotAPerson(id)) askDelete({ setDel, setMerge }, true);
+  }, [id, setDel, setMerge]);
+  return null;
+}
+
 export function PhoneDock({ c }: { c: PageCtx }) {
   const [away, setAway] = useState(false);
   const page = c.page;

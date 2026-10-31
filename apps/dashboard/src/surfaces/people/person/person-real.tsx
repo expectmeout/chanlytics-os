@@ -41,7 +41,7 @@ import { BusinessSheet, WorksAtCard } from "./business";
 import { ListsSheet } from "./sheets/lists-sheet";
 import { useArrivalToast } from "./sheets/combine";
 import { CallSheet, usePersonCall } from "./call";
-import { PersonWalkNav, PhoneDock, hero, openWith, useNameAway } from "./hero";
+import { AskedFromTheThread, PersonWalkNav, PhoneDock, hero, openWith, useNameAway } from "./hero";
 import { NotesSection } from "./overview";
 import { useStanding } from "../../kit/head/standing";
 import { ListsGroup } from "./lists";
@@ -281,6 +281,7 @@ function personPage(
         </div>
       </div>
       <PhoneDock c={c} />
+      <AskedFromTheThread c={c} />
       <BusinessSheet c={c} />
       <CallSheet c={c} />
       <ListsSheet c={c} />

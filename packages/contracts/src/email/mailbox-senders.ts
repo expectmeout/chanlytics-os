@@ -13,6 +13,11 @@ import { isFreeMail } from "./free-mail";
  *   gmail_tab    Gmail filed it under Promotions, Social or Forums (channels filedAsBulk)
  *   updates      Gmail filed it under Updates, it answers nothing, and the workspace does not know the sender: a notice
  *   said         the workspace said its sender is automated
+ *   service      sent through a mailing service (Amazon SES, SendGrid, ...) by a stranger, with nobody behind it
+ *   pitch, notice, relayed
+ *                what Chanlytics read the sender to be (00495 mailbox_sender_reads, decision 0080): selling to the
+ *                business, a program's mail, or a program passing on someone's message
+ *   others_said  three or more other workspaces' owners said its domain is automated
  */
 export type MailboxLeftWhy = SchemaSet<"mailbox_left.why">;
 
@@ -47,6 +52,8 @@ export interface MailboxLeftDto {
   count: number;
   first_at: string;
   last_at: string;
+  /** What Chanlytics read the sender to want, in a few words (00495): a pitch's offer, a relayed message's ask; else null. */
+  about: string | null;
 }
 
 /** What the workspace said of a sender: an address, or a domain. */
@@ -72,7 +79,18 @@ export const MAILBOX_LEFT_WHY_WORDS: Readonly<Record<MailboxLeftWhy, string>> = 
   gmail_tab: "Gmail: Promotions, Social or Forums",
   updates: "Gmail: Updates, from someone new",
   said: "You said it's not a person",
+  service: "Sent by a mailing service",
+  pitch: "Selling to you",
+  notice: "A program's notice",
+  relayed: "A form or a tool passed on a message",
+  others_said: "Other businesses marked it automated",
 };
+
+/** What a left sender's row says under its name: why, how many, and what Chanlytics read them to want, where it read that. */
+export function mailboxLeftLine(l: Pick<MailboxLeftDto, "why" | "count" | "about">): string {
+  const said = [MAILBOX_LEFT_WHY_WORDS[l.why], MAILBOX_SENDERS_WORDS.emails(l.count)];
+  return (l.about ? [...said, `“${l.about}”`] : said).join(" · ");
+}
 
 /** The list's words, and "Not a person" on a person's page. */
 export const MAILBOX_SENDERS_WORDS = {

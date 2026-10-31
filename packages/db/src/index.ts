@@ -539,8 +539,20 @@ export { dueMailboxes, mailboxCapacityFrom, mailboxCapacityOf } from "./reposito
 export type { DueMailbox, MailboxCapacity } from "./repositories/mailboxes/day";
 export { requestMailboxesSweep, unknownMailboxEmails } from "./repositories/mailboxes/reconcile";
 export type { UnknownMailboxEmail } from "./repositories/mailboxes/reconcile";
-export { mailboxLeftSince, mailboxSenderVerdicts, noteMailboxLeft } from "./repositories/mailboxes/senders";
-export { mailboxPeopleSince, mailboxSendersOf, sortMailboxSender } from "./repositories/mailboxes/senders";
+export {
+  domainSaidAutomated,
+  keepSenderReading,
+  mailboxLeftSince,
+  mailboxSenderVerdicts,
+  noteMailboxLeft,
+} from "./repositories/mailboxes/senders";
+export {
+  mailboxPeopleSince,
+  mailboxSendersOf,
+  senderReadingOf,
+  sortMailboxSender,
+  talksWith,
+} from "./repositories/mailboxes/senders";
 export {
   endMailboxSync,
   keepMailboxWatch,

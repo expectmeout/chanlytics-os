@@ -562,6 +562,10 @@ async function seed() {
     "mailbox_left",
   );
   ok(await db.from("mailbox_senders").insert({ tenant_id: T, sender: EMAIL, verdict: "person" }), "mailbox_senders");
+  ok(
+    await db.from("mailbox_sender_reads").insert({ tenant_id: T, address: EMAIL, kind: "inquiry", about: WORDS }),
+    "mailbox_sender_reads",
+  );
 
   const pe = `pe-${RUN}`;
   made.providerEvents.push(pe);

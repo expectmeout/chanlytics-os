@@ -16,6 +16,7 @@ import {
   proposalLinkOf,
   proposalMessage,
 } from "@chanlytics/contracts";
+import { PERSON_ACT_WORDS } from "@chanlytics/contracts";
 import type { DealVM, PersonNextStepVM, PersonRowVM, VisitLineVM } from "@chanlytics/contracts";
 import { useState, type ReactNode } from "react";
 import { Icon } from "../../kit/icon/icon";
@@ -23,6 +24,7 @@ import { Menu, type MenuGroup, type MenuItem } from "../../kit/menu/menu";
 import { StoppedMark } from "../../kit/pill/stopped-mark";
 import { askAbout, refreshSurface, routeDoor } from "../../legacy-verbs";
 import { ROUTES } from "../constants";
+import { carryNotAPerson } from "../carried-reply";
 import {
   clockZone,
   demoSession,
@@ -335,6 +337,23 @@ function actionsMenu(thread: Thread, dealActs: MenuItem[], acts: HeaderActs) {
       : []),
     ...(!demoSession() && thread.clientId
       ? [{ label: "Receptionist settings", glyph: ixGlyph("shield"), onSelect: () => onOpenClient(thread.clientId) }]
+      : []),
+    // A program's mail taken for a person (decision 0080): where the owner sees it, on the thread, rather than three
+    // screens away. It deletes, so it opens their page with Not a person asked, the typed name and all (00483).
+    ...(thread.real && thread.clientId && thread.primaryChannel === "email" && mayAtLeast("owner")
+      ? [
+          {
+            label: PERSON_ACT_WORDS.notAPerson,
+            hint: PERSON_ACT_WORDS.notAPersonHint,
+            glyph: ixGlyph("ban"),
+            tone: "danger" as const,
+            onSelect: () => {
+              if (!thread.clientId) return;
+              carryNotAPerson(thread.clientId);
+              onOpenClient(thread.clientId);
+            },
+          },
+        ]
       : []),
   ];
   const file: MenuItem[] = [
