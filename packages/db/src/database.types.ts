@@ -4364,6 +4364,38 @@ export type Database = {
           },
         ]
       }
+      mailbox_sender_reads: {
+        Row: {
+          about: string | null
+          address: string
+          kind: string
+          read_at: string
+          tenant_id: string
+        }
+        Insert: {
+          about?: string | null
+          address: string
+          kind: string
+          read_at?: string
+          tenant_id: string
+        }
+        Update: {
+          about?: string | null
+          address?: string
+          kind?: string
+          read_at?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mailbox_sender_reads_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mailbox_senders: {
         Row: {
           sender: string
@@ -10023,6 +10055,10 @@ export type Database = {
           kind: string
           snippet: string
         }[]
+      }
+      sender_domain_said_automated: {
+        Args: { p_domain: string; p_tenant_id: string }
+        Returns: boolean
       }
       sequence_batch_cancel: {
         Args: { p_batch_id: string; p_from: string; p_tenant_id: string }

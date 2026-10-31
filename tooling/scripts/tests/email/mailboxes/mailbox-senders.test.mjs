@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 import {
   MAILBOX_LEFT_WHY_WORDS,
   SCHEMA_SETS,
+  mailboxLeftLine,
   senderDomainOffered,
   senderSortRefusal,
   senderVerdictOf,
@@ -43,6 +44,18 @@ test("a whole domain may be said to be automated, never a free-mail provider's o
   assert.equal(senderSortRefusal("ana@gmail.com", "automated", []), null, "one address is always one sender");
   assert.equal(senderSortRefusal("gmail.com", "person", []), null, "saying a domain is people narrows nothing");
   assert.equal(senderSortRefusal("gmail.com", null, []), null, "taking it back is always allowed");
+});
+
+test("a left sender's row says why, how many, and what Chanlytics read them to want where it read that (decision 0080)", () => {
+  assert.equal(
+    mailboxLeftLine({ why: "pitch", count: 3, about: "offers more reviews" }),
+    "Selling to you · 3 emails · “offers more reviews”",
+  );
+  assert.equal(
+    mailboxLeftLine({ why: "relayed", count: 1, about: "asked for a quote for a two-bedroom move" }),
+    "A form or a tool passed on a message · 1 email · “asked for a quote for a two-bedroom move”",
+  );
+  assert.equal(mailboxLeftLine({ why: "service", count: 12, about: null }), "Sent by a mailing service · 12 emails");
 });
 
 test("every reason the mailbox leaves an email has the owner's words, and none more", () => {

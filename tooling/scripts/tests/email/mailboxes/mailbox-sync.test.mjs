@@ -88,6 +88,8 @@ function world({ box = {}, cursor = "100", said = [] } = {}) {
     jobs: [],
     // 00483: what the workspace said of its senders, by address or domain.
     mailbox_senders: said.map(([sender, verdict]) => ({ tenant_id: T, sender, verdict })),
+    // 00495: what Chanlytics read a sender to be, once.
+    mailbox_sender_reads: [],
   };
   /** What the door for the owner's emails was handed (00482), each call; and each email left, noted (00483). */
   const owned = [];
@@ -137,6 +139,8 @@ function world({ box = {}, cursor = "100", said = [] } = {}) {
       left.push([a.p_address, a.p_why]);
       return null;
     },
+    // 00495: no other workspace said anything of a domain here.
+    sender_domain_said_automated: () => false,
     // 00128, as the receipts suite models it.
     stamp_email_sent: (a) => {
       const m = tables.messages.find((x) => x.id === a.p_message_id && x.tenant_id === a.p_tenant_id);

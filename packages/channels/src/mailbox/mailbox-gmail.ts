@@ -10,6 +10,7 @@
  *   gmailProfile    the address and the history cursor now; a mailbox with no Gmail answers 400 failedPrecondition.
  *   gmailHistory    what was added to the mailbox since a cursor: message ids and their threads, never their words.
  *   gmailMessage    one message in full, for a thread the product started.
+ *   gmailHead       one message by its headers, labels and first words alone (mailbox-sender.ts gmailHeadOf).
  *   gmailReports    the delivery reports received since a time, by who wrote them (ids alone).
  *   gmailFindSent   whether an email whose send's outcome was unknown is in what the mailbox sent.
  *   gmailWatch      the mailbox's changes published to the Pub/Sub topic; it lapses after seven days unless renewed.
@@ -261,6 +262,20 @@ export async function gmailMessage(token: string, id: string, deps?: Deps): Prom
   return providerFetch(
     "google",
     `${GMAIL_API}/messages/${encodeURIComponent(id)}?format=full`,
+    { headers: auth(token), timeoutMs: MAILBOX_READ_MS, idempotent: true, tries: 2 },
+    deps,
+  );
+}
+
+/**
+ * One message by its headers, its labels and Gmail's snippet of its first words (format=metadata, every header): what a
+ * connected mailbox's six months judge a message by before reading it whole, which only what may come in is (decision
+ * 0080). mailbox-sender.ts gmailHeadOf reads it.
+ */
+export async function gmailHead(token: string, id: string, deps?: Deps): Promise<ProviderReply> {
+  return providerFetch(
+    "google",
+    `${GMAIL_API}/messages/${encodeURIComponent(id)}?format=metadata`,
     { headers: auth(token), timeoutMs: MAILBOX_READ_MS, idempotent: true, tries: 2 },
     deps,
   );

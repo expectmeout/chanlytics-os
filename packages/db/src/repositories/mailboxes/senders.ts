@@ -3,13 +3,20 @@
  * mailbox left where it was, one row a sender (mailbox_left). The edge's sync and import read the first and note the
  * second as the service role; a member reads both and says what a sender is on their own session. And what came in
  * today, as Connections' row says it: the people who wrote through a mailbox, and the senders it left.
+ *
+ * Beside them, what the sorting reads of a stranger (decision 0080): what Chanlytics read a sender to be, once
+ * (mailbox_sender_reads, 00495), whether the business talks with an address, and whether other workspaces' owners said
+ * a domain is automated.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  SENDER_KINDS,
   senderVerdictOf,
   type MailboxLeftWhy,
   type MailboxSenderVerdict,
   type MailboxSendersDto,
+  type SenderKind,
+  type SenderReading,
 } from "@chanlytics/contracts";
 import type { Database } from "../../database.types";
 import { dbLog } from "../../observe";
@@ -69,10 +76,14 @@ export async function mailboxSendersOf(db: Db, tenantId: string): Promise<Mailbo
   const verdicts = new Map(
     (said.data ?? []).map((r) => [r.sender, r.verdict === "person" ? "person" : "automated"] as const),
   );
+  const shown = (left.data ?? []).filter((r) => senderVerdictOf(verdicts, r.address) !== "person");
+  const about = await readingsAbout(
+    db,
+    tenantId,
+    shown.map((r) => r.address),
+  );
   return {
-    left: (left.data ?? [])
-      .filter((r) => senderVerdictOf(verdicts, r.address) !== "person")
-      .map((r) => ({ ...r, why: r.why as MailboxLeftWhy })),
+    left: shown.map((r) => ({ ...r, why: r.why as MailboxLeftWhy, about: about.get(r.address) ?? null })),
     said: (said.data ?? []).map((r) => ({ ...r, verdict: r.verdict === "person" ? "person" : "automated" })),
   };
 }
@@ -92,6 +103,117 @@ export async function sortMailboxSender(
     p_verdict: p.verdict as string,
   });
   if (error) throw Object.assign(new Error(error.message), { code: error.code });
+}
+
+/** What Chanlytics read these senders to want (00495), by address: only those it said something of. */
+async function readingsAbout(db: Db, tenantId: string, addresses: string[]): Promise<Map<string, string>> {
+  if (!addresses.length) return new Map();
+  const { data, error } = await db
+    .from("mailbox_sender_reads")
+    .select("address, about")
+    .eq("tenant_id", tenantId)
+    .in("address", addresses);
+  if (error) throw new Error(`cannot read what the senders were read to be: ${error.message}`);
+  return new Map((data ?? []).flatMap((r) => (r.about ? [[r.address, r.about] as const] : [])));
+}
+
+const isSenderKind = (v: unknown): v is SenderKind => (SENDER_KINDS as readonly unknown[]).includes(v);
+
+/** What Chanlytics read a sender to be (00495), or null where it has not read them. Throws when it cannot be asked. */
+export async function senderReadingOf(db: Db, tenantId: string, address: string): Promise<SenderReading | null> {
+  const { data, error } = await db
+    .from("mailbox_sender_reads")
+    .select("kind, about")
+    .eq("tenant_id", tenantId)
+    .eq("address", address.trim().toLowerCase())
+    .maybeSingle();
+  if (error) throw new Error(`cannot read what the sender was read to be: ${error.message}`);
+  return data && isSenderKind(data.kind) ? { kind: data.kind, about: data.about } : null;
+}
+
+/**
+ * A sender read, kept so it is never read again (00495): the latest reading stands. Best effort: the email is sorted by
+ * the reading either way, so a write that fails is logged and answered false, and the next email asks again.
+ */
+export async function keepSenderReading(
+  db: Db,
+  p: { tenantId: string; address: string; reading: SenderReading; at: string },
+): Promise<boolean> {
+  const { error } = await db.from("mailbox_sender_reads").upsert(
+    {
+      tenant_id: p.tenantId,
+      address: p.address.trim().toLowerCase(),
+      kind: p.reading.kind,
+      about: p.reading.about,
+      read_at: p.at,
+    },
+    { onConflict: "tenant_id,address" },
+  );
+  if (!error) return true;
+  dbLog().error("mailbox_sender_read_failed", { tenant_id: p.tenantId, kind: p.reading.kind, error: error.message });
+  return false;
+}
+
+/** The doors an owner chose a person through (contacts.acquired_via): never an email that arrived, nor an import. */
+const OWNER_DOORS: ReadonlySet<string> = new Set([
+  "calendar",
+  "lead",
+  "manual",
+  "website",
+  "ad",
+  "whatsapp",
+  "sms",
+  "call",
+  "instagram",
+]);
+
+/** How many people one address is looked for among: one, nearly always. */
+const PEOPLE_AT_AN_ADDRESS = 5;
+/** How many of their messages are read for one the business sent or another wire: one settles it. */
+const SAID_READ = 20;
+
+/**
+ * Whether the business talks with an address (decision 0080): someone the business wrote an email to (a person's send,
+ * the owner's own from the mailbox, one Chanlytics sent for them; never the receptionist's), someone on another wire
+ * with it (WhatsApp, a text, a call, Instagram), or someone a door the owner chose made (OWNER_DOORS). A person a
+ * mailbox's own mail made, and one an import brought, is not: the first notice from a program made its person, and
+ * every later one came from "someone known" (30 Oct 2026). Throws when it cannot be asked.
+ */
+export async function talksWith(db: Db, tenantId: string, address: string): Promise<boolean> {
+  const { data: people, error } = await db
+    .from("contacts")
+    .select("id, acquired_via")
+    .eq("tenant_id", tenantId)
+    .eq("email", address.trim().toLowerCase())
+    .is("erased_at", null)
+    .is("merged_into_contact_id", null)
+    .limit(PEOPLE_AT_AN_ADDRESS);
+  if (error) throw new Error(`cannot read who has the address: ${error.message}`);
+  if (!people?.length) return false;
+  if (people.some((p) => p.acquired_via !== null && OWNER_DOORS.has(p.acquired_via))) return true;
+  const { data: said, error: saidError } = await db
+    .from("messages")
+    .select("channel, direction, sender")
+    .eq("tenant_id", tenantId)
+    .in(
+      "contact_id",
+      people.map((p) => p.id),
+    )
+    .or("channel.neq.email,direction.eq.outbound")
+    .limit(SAID_READ);
+  if (saidError) throw new Error(`cannot read what was said with the address: ${saidError.message}`);
+  return (said ?? []).some((m) => m.channel !== "email" || m.sender !== "ai");
+}
+
+/**
+ * Whether three or more other workspaces' owners said a domain, or an address at it, is automated (00495
+ * sender_domain_said_automated): a yes or a no, never who. The caller never asks of a free-mail domain. Throws when it
+ * cannot be asked.
+ */
+export async function domainSaidAutomated(db: Db, tenantId: string, domain: string): Promise<boolean> {
+  const { data, error } = await db.rpc("sender_domain_said_automated", { p_tenant_id: tenantId, p_domain: domain });
+  if (error) throw new Error(`cannot ask what others said of the domain: ${error.message}`);
+  return data === true;
 }
 
 /** The most rows a count reads: past it, the count is this many (a mailbox's day is a few dozen). */

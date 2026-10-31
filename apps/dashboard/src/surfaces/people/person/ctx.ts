@@ -2,7 +2,8 @@
  * What the person's page holds and hands to what it draws (decision 0015, step 5): the person as read, who is looking, the
  * page's own state, and the one toast. `ClientProfileReal` builds it once a draw and every part of the page is a function of it.
  */
-import type { Dispatch, RefObject, SetStateAction } from "react";
+import { useEffect, type Dispatch, type RefObject, type SetStateAction } from "react";
+import { takeCarriedNotAPerson } from "../../inbox/carried-reply";
 import type { CombineAct, PersonRowVM, PersonTab, PersonVM } from "@chanlytics/contracts";
 import type { useRecordFold } from "../../kit/record/hooks";
 import type { FlashFn } from "../person-verbs";
@@ -129,6 +130,19 @@ export interface PageCtx {
 export function askDelete(c: Pick<PageCtx, "setDel" | "setMerge">, bot = false): void {
   c.setMerge(MERGE_CLOSED);
   c.setDel({ open: true, typed: "", busy: false, error: null, bot });
+}
+
+/**
+ * Not a person, asked from their thread's Actions (decision 0080): the question open once their page is drawn, as More's
+ * own act opens it, the typed name and all. Taken once: a second visit asks nothing.
+ */
+export function AskedFromTheThread({ c }: { c: Pick<PageCtx, "p" | "setDel" | "setMerge"> }): null {
+  const { setDel, setMerge } = c;
+  const id = c.p.id;
+  useEffect(() => {
+    if (takeCarriedNotAPerson(id)) askDelete({ setDel, setMerge }, true);
+  }, [id, setDel, setMerge]);
+  return null;
 }
 
 export const digitsOf = (x: string | null | undefined): string => String(x || "").replace(/\D/g, "");
