@@ -17,6 +17,7 @@ import {
   connectedIdentity,
   hostedAddress,
   hostedIdentity,
+  mailboxDtoOf,
   mailboxSignatureOf,
   type EmailIdentity,
   type EmailRequest,
@@ -36,20 +37,16 @@ import {
 import {
   answeredReachOutEmail,
   lastInboundEmail,
-  mailboxConnectionOf,
+  mailboxConnectionsOf,
   mailboxOfTenant,
   type Database,
   type Json,
+  type MailboxConnectionRow,
   type MailboxRow,
 } from "@chanlytics/db";
 import type { EmailReplyPorts } from "@chanlytics/core";
 import { dbRefusal, type RouteContext } from "../with-route";
-import {
-  mailboxConnectionsFor,
-  mailboxConnectionsWithDaysFor,
-  mailboxesLeftTodayFor,
-  mailboxesReadiness,
-} from "./mailbox-connections";
+import { mailboxConnectionsWithDaysFor, mailboxesLeftTodayFor, mailboxesReadiness } from "./mailbox-connections";
 import { env } from "../env";
 
 /** The deployment's mail domain, lower-cased; null when email is off here (contracts emailDomainOf, as the edge reads it). */
@@ -79,7 +76,8 @@ export async function replyIdentityOf(
 ): Promise<{ from: "own"; address: string; mailbox: MailboxConnectionDto } | Extract<ReplyFrom, { from: "mailbox" }>> {
   const answered = await answeredReachOutEmail(supabase, p);
   const fromReachOut = addressOf(answered?.from ?? "")?.address.toLowerCase() ?? null;
-  const boxes = () => p.mailboxes ?? mailboxConnectionsFor(supabase, p.tenantId);
+  const boxes = async () =>
+    p.mailboxes ?? (await mailboxConnectionsOf(supabase, p.tenantId)).map((r) => mailboxDtoOf(r));
   if (!answered || !fromReachOut) {
     // Not a reach-out's answer: an email that came to a connected mailbox is answered from it, while it sends (R13).
     const to = new Set((p.addressedTo ?? []).map((a) => a.toLowerCase()));
@@ -103,14 +101,26 @@ export async function mailboxAddressOf(ctx: RouteContext, tenantId: string): Pro
   return mailbox && domain ? hostedAddress(mailbox.local_part, domain) : null;
 }
 
+type ReplyIdentity = Awaited<ReturnType<typeof replyIdentityOf>>;
+
 /** Where an answer on each thread goes out from, as the freeze will decide it: once per thread, the mailboxes read once. */
 export async function replyIdentitiesOf(
   ctx: RouteContext,
   tenantId: string,
   conversations: readonly string[],
-): Promise<Map<string, Awaited<ReturnType<typeof replyIdentityOf>>>> {
+): Promise<Map<string, ReplyIdentity>> {
   if (conversations.length === 0) return new Map();
-  const mailboxes = await mailboxConnectionsFor(ctx.supabase, tenantId);
+  return identitiesOver(ctx, tenantId, conversations, await mailboxConnectionsOf(ctx.supabase, tenantId));
+}
+
+/** The same, over the workspace's mailboxes as already read. */
+async function identitiesOver(
+  ctx: RouteContext,
+  tenantId: string,
+  conversations: readonly string[],
+  rows: readonly MailboxConnectionRow[],
+): Promise<Map<string, ReplyIdentity>> {
+  const mailboxes = rows.map((r) => mailboxDtoOf(r));
   const each = await Promise.all(
     conversations.map(async (id) => {
       const parent = await lastInboundEmail(ctx.supabase, tenantId, id);
@@ -129,13 +139,59 @@ export async function replyIdentitiesOf(
   return new Map(each);
 }
 
-/** The words an answer is signed with (00487): its connected mailbox's, where it leaves from one; else none. */
-export function signedWordsOf(who: Awaited<ReturnType<typeof replyIdentityOf>>): string | null {
-  return who.from === "own" ? who.mailbox.signs.words : null;
+/**
+ * The connected mailbox a person's email is signed as (00487; decision 0081), of the workspace's live ones (`rows`): the
+ * one the thread answers from, or would while it does not send now (paused, held, resting, signed out), whichever address
+ * the email then leaves from, as its twin would have been; else, from the hosted address, the first mailbox the member
+ * sending connected, so their email ends as it does in their Gmail; else none. Never another member's: a teammate who
+ * connected none sends what they typed. `who` is null for a first email, which answers no thread.
+ */
+function signerOf(
+  who: ReplyIdentity | null,
+  rows: readonly MailboxConnectionRow[],
+  userId: string,
+): MailboxConnectionRow | null {
+  const thread =
+    who?.from === "own"
+      ? rows.find((r) => r.id === who.mailbox.id)
+      : who?.because === "own_not_sending"
+        ? rows.find((r) => r.address.toLowerCase() === who.own.toLowerCase())
+        : undefined;
+  return thread ?? rows.find((r) => r.connected_by === userId) ?? null;
+}
+
+/** What the email is signed with, by its signer (channels mailboxSignatureOf): the words, and Gmail's markup where it has one. */
+const signatureBy = (box: MailboxConnectionRow | null) => (box ? mailboxSignatureOf(box) : null);
+
+/**
+ * What a person's email on each thread would be signed with, as its freeze will sign it, for the member reading
+ * (decision 0081): the mailboxes read once. What only says it, so a read that fails says none.
+ */
+export async function signedByThreadOf(
+  ctx: RouteContext,
+  tenantId: string,
+  conversations: readonly string[],
+): Promise<Map<string, string>> {
+  const signed = new Map<string, string>();
+  if (conversations.length === 0) return signed;
+  const read = await mailboxConnectionsOf(ctx.supabase, tenantId)
+    .then(async (rows) => ({ rows, who: await identitiesOver(ctx, tenantId, conversations, rows) }))
+    .catch(() => null);
+  for (const [id, w] of read?.who ?? []) {
+    const words = signatureBy(signerOf(w, read?.rows ?? [], ctx.userId))?.text;
+    if (words) signed.set(id, words);
+  }
+  return signed;
+}
+
+/** What the member reading's first email to a person is signed with (decision 0081); null with none, or a read that fails. */
+export async function signedFirstOf(ctx: RouteContext, tenantId: string): Promise<string | null> {
+  const rows = await mailboxConnectionsOf(ctx.supabase, tenantId).catch(() => []);
+  return signatureBy(signerOf(null, rows, ctx.userId))?.text ?? null;
 }
 
 /** What the composer is told of where an answer goes out from: the address, never the mailbox's row. */
-export function replyFromOf(r: Awaited<ReturnType<typeof replyIdentityOf>>): ReplyFrom {
+export function replyFromOf(r: ReplyIdentity): ReplyFrom {
   return r.from === "own" ? { from: "own", address: r.address } : r;
 }
 
@@ -147,7 +203,9 @@ const requestJson = (r: EmailRequest): Json => r as unknown as Json;
  * business connected is signed as that mailbox signs (00487, channels
  * mailboxSignatureOf): the signature its owner keeps in Gmail, their own words
  * or their name, as Gmail signs a reply written there; it left ending on "Talk
- * soon," before. A reply from the hosted mailbox alone carries what was typed.
+ * soon," before. A reply from the hosted mailbox is signed as its thread's
+ * mailbox, else as the member sending's own (signerOf, decision 0081): it left
+ * with what was typed alone before, however its sender signs in Gmail.
  * An answer whose connected mailbox sends now is frozen twice (C15, decision
  * 0056): the hosted mailbox's request, which every edge sends, and its twin
  * from the connected mailbox, the same words, signature, parent and id. The
@@ -161,16 +219,19 @@ export async function freezeReply(
   i: Parameters<EmailReplyPorts["freeze"]>[0],
 ): Promise<{ request: Json; subject: string; own: Json | null; signature: string | null } | null> {
   const domain = emailDomain();
-  const mailbox = domain ? await mailboxOfTenant(ctx.supabase, i.tenantId) : null;
+  const [mailbox, rows] = await Promise.all([
+    domain ? mailboxOfTenant(ctx.supabase, i.tenantId) : null,
+    mailboxConnectionsOf(ctx.supabase, i.tenantId),
+  ]);
   const who = await replyIdentityOf(ctx.supabase, {
     tenantId: i.tenantId,
     conversationId: i.conversationId,
     references: [...i.parent.references, ...(i.parent.rfcMessageId ? [i.parent.rfcMessageId] : [])],
     addressedTo: i.parent.to ?? [],
+    mailboxes: rows.map((r) => mailboxDtoOf(r)),
   });
-  // The connected mailbox's row: what it signs with, Gmail's markup included, is on the row, not the page's copy of it.
-  const box = who.from === "own" ? await mailboxConnectionOf(ctx.supabase, i.tenantId, who.mailbox.id) : null;
-  const signed = box ? mailboxSignatureOf(box) : null;
+  // The signer's row: what it signs with, Gmail's markup included, is on the row, not the page's copy of it.
+  const signed = signatureBy(signerOf(who, rows, ctx.userId));
   const frozen = (identity: EmailIdentity) =>
     buildEmailRequest({
       identity,
@@ -201,28 +262,34 @@ export async function freezeReply(
 
 /**
  * A person's first email on a thread, as the request it leaves as: no email of theirs to thread under, the subject its
- * own, from the workspace's mailbox. No signature is added, as on a reply. Null with no mail domain or no mailbox.
+ * own, from the workspace's mailbox, signed as the first mailbox the member sending connected signs (signerOf, decision
+ * 0081), as a reply from it is. `signature` is the words it went with. Null with no mail domain or no mailbox.
  */
 export async function freezeFirst(
   ctx: RouteContext,
   i: Parameters<EmailReplyPorts["first"]>[0],
-): Promise<{ request: Json; subject: string } | null> {
+): Promise<{ request: Json; subject: string; signature: string | null } | null> {
   const domain = emailDomain();
   if (!domain) return null;
-  const mailbox = await mailboxOfTenant(ctx.supabase, i.tenantId);
+  const [mailbox, rows] = await Promise.all([
+    mailboxOfTenant(ctx.supabase, i.tenantId),
+    mailboxConnectionsOf(ctx.supabase, i.tenantId),
+  ]);
   if (!mailbox) return null;
+  const signed = signatureBy(signerOf(null, rows, ctx.userId));
   const request = buildEmailRequest({
     identity: hostedIdentity(mailbox, domain),
     to: i.to,
     parent: null,
     subject: i.subject,
     body: i.body,
-    signature: null,
+    signature: signed?.text ?? null,
+    signatureHtml: signed?.html ?? null,
     actor: "human",
     messageId: i.messageId,
     tenantId: i.tenantId,
   });
-  return { request: requestJson(request), subject: request.subject };
+  return { request: requestJson(request), subject: request.subject, signature: signed?.text ?? null };
 }
 
 /** A mailbox row as the pages are told about it: its address on this deployment's domain, and never its reply route. */

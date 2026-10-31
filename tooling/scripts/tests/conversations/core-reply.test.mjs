@@ -1091,6 +1091,14 @@ test("an email that answers none of theirs names its own subject and threads und
     body: "Following up on your quote.",
   });
   assert.ok(ops().indexOf("email.first") < ops().indexOf("claimForReply"), "frozen before the thread is claimed");
+
+  // What its sender's mailbox signed it with is kept on the row as on a reply, for the thread to say under it (0081).
+  const signed = emailFakes(
+    { queue: (row) => row.id },
+    { parent: null, first: { ...FIRST, signature: "Sam\nHarbor" } },
+  );
+  await replyToConversation(signed.ports, cmd({ conv: byEmail(), body: { text: "Hello.", subject: "Your quote" } }));
+  assert.equal(signed.call("queue")[1].meta.email.signature, "Sam\nHarbor");
 });
 
 test("a second email before they answer is filed under the subject of the first; a workspace with no mailbox is told", async () => {

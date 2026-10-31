@@ -449,6 +449,47 @@ test("the kept reply comes with the Inbox's first reads: the box draws with its 
   }
 });
 
+test("what an email from the box is signed with is read for its thread once the box has words, never for an empty box, and is said under them (decision 0081)", async () => {
+  const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
+  const mail = (m) => ({ ...m, channel: "email" });
+  const dto = chat({ last_wa_inbound_at: null, messages: [mail(wrote("m1", "Can you move a sofa on Friday?", 40))] });
+  const SIG = "Sam Reyes\nHarbor Moving";
+  const realFetch = globalThis.fetch;
+  const asked = [];
+  globalThis.fetch = async (url) => {
+    asked.push(new URL(String(url), "https://app.example").pathname);
+    return new Response(JSON.stringify({ ok: true, data: { drafts: [], complete: true, signed: { c1: SIG } } }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
+  try {
+    // No draft kept for it among the newest, so they cannot say what signs it.
+    setSurfaceValue("reply_drafts", { drafts: [], complete: true, fetchedAt: Date.now() });
+    fresh();
+    const thread = vmOf(dto);
+    const draw = () => again(() => InboxComposer({ thread, reply: "", onSend() {} }));
+    let tree = draw();
+    for (let i = 0; i < 5; i++) await settle();
+    assert.deepEqual(asked, [], "an empty box asks nothing");
+    find(tree, (n) => n.type === "textarea").props.onChange({ target: { value: "Friday works." } });
+    tree = draw();
+    for (let i = 0; i < 5; i++) await settle();
+    tree = draw();
+    assert.deepEqual(asked, ["/api/v1/conversations/drafts"], "the thread's own read, once");
+    assert.equal(
+      textOf(find(tree, byTestId("ix-composer-signed-words"))),
+      "Signed Sam Reyes · Harbor Moving",
+      "said under the words",
+    );
+    for (let i = 0; i < 3; i++) tree = draw();
+    assert.equal(asked.length, 1, "and not again as the member writes on");
+  } finally {
+    globalThis.fetch = realFetch;
+    setSurfaceValue("reply_drafts", undefined);
+  }
+});
+
 test("REGRESSION: the reply box and a seeded approval draw no key -- Send said ⌘↵ and the card's foot A, D and E, beside the ? sheet that lists them", () => {
   fresh();
   const box = InboxComposer({ thread: vmOf(chat({ state: "open" })), reply: "", onSend() {} });

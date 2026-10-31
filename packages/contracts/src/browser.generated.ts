@@ -154,7 +154,7 @@ export { REFERRAL_ID_MAX } from "./conversations/first-touch";
 export { HANDLED_OUTCOMES } from "./conversations/handled";
 export { conversationWaitsOnYou, HELD_BY_ID_MAX, heldDraftWaits, heldThreadIds, snoozedThreadWords, theyWroteLast, THREAD_PANE_WORDS, threadStanding, threadsWaitingOnYou, threadWaitsOf, toInboxThreadVM } from "./conversations/inbox-thread";
 export { EMAIL_CLAIMS, isAutomatedSend, isPersonsWords, messageAuthor, messageVia, messageWhy } from "./conversations/message-author";
-export { emailLeftOutOf, emailPartsOf, emailPreviewOf, emailSignatureLine, emailSubjectsOf, repairMojibake, splitQuotedReply, tidyEmailWords } from "./conversations/message-email";
+export { emailLeftOutOf, emailPartsOf, emailPreviewOf, emailSignatureLine, emailSignedLine, emailSubjectsOf, repairMojibake, splitQuotedReply, tidyEmailWords } from "./conversations/message-email";
 export { mediaKind, mediaVM } from "./conversations/message-media";
 export { draftSendsAtMs, failureWordsOf, heldDraftOf, isHeldDraft, messageStatusLabel, messageText, messageWords, providerCodeOf, reachedCustomer, sendFailureWords } from "./conversations/message-words";
 export { HELD_WORDS, heldPill, INBOX_BUCKET_WORDS, inboxBucketWord, isUnseen, NEEDS_YOU_WORD, readingOf, replyWaitsOnYou, seenBy, standingOf, standingOfThread } from "./conversations/standing";
