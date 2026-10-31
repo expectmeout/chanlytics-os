@@ -12,7 +12,6 @@ import { Segmented } from "../../kit/segmented/segmented";
 import { refusalToast, type LegacyFlash } from "../../legacy-verbs";
 import { connectedMailboxes } from "./connected-mailboxes";
 
-const W = MAILBOX_HISTORY_WORDS;
 const WAYS = ["six_months", "from_now"] as const satisfies readonly MailboxHistory[];
 
 interface HistoryChoiceProps {
@@ -24,6 +23,7 @@ interface HistoryChoiceProps {
 
 /** Under Connect: the line, until Change opens the two ways; once open they stay, as the owner chose. */
 export function HistoryChoice({ value, onChange, lineClass }: HistoryChoiceProps) {
+  const W = MAILBOX_HISTORY_WORDS;
   const [open, setOpen] = useState(false);
   if (!open)
     return (
@@ -60,6 +60,7 @@ interface HistoryActProps {
 
 /** A mailbox's history act on its row: pressed once, said in a toast where the door refused it. */
 export function HistoryAct({ id, address, act, flash }: HistoryActProps) {
+  const W = MAILBOX_HISTORY_WORDS;
   const [busy, setBusy] = useState(false);
   const go = async () => {
     setBusy(true);
