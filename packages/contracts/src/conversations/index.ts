@@ -57,6 +57,7 @@ export {
   emailPartsOf,
   emailPreviewOf,
   emailSignatureLine,
+  emailSignedLine,
   emailSubjectsOf,
   repairMojibake,
   splitQuotedReply,

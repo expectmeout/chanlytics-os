@@ -174,6 +174,7 @@ export interface EmailReplyPorts {
   /**
    * The request a first email leaves as, frozen, and the subject it carries: an email that answers none of theirs, so
    * it names its own subject and threads under nothing. Null when the workspace has no mailbox to send from.
+   * `signature`: the words it was signed with (decision 0081), kept on the row for the thread to say, as a reply's.
    */
   first(input: {
     tenantId: TenantId;
@@ -181,7 +182,7 @@ export interface EmailReplyPorts {
     to: string;
     subject: string;
     body: string;
-  }): Promise<{ request: Json; subject: string } | null>;
+  }): Promise<{ request: Json; subject: string; signature?: string | null } | null>;
   /**
    * The subject of the newest email the business sent on this thread, or null when it has sent none: what a second
    * email is filed under when they have not answered the first.
@@ -381,7 +382,8 @@ async function shapeFirstEmail(
   const id = ports.email.newId();
   const frozen = await ports.email.first({ tenantId: conv.tenant_id, messageId: id, to, subject: named, body: text });
   if (!frozen) throw new AppError("conflict", NO_MAILBOX_REFUSAL);
-  return { id, meta: { email: { subject: frozen.subject, to: [to], request: frozen.request } } as Json };
+  const email = { subject: frozen.subject, to: [to], request: frozen.request };
+  return { id, meta: { email: frozen.signature ? { ...email, signature: frozen.signature } : email } as Json };
 }
 
 /**

@@ -702,3 +702,61 @@ test("the composer offers templates by contracts' rule, which it imports: there 
     "the one template it can send, and no picker for the promotion it cannot",
   );
 });
+
+test("an email from the box says what it is signed with once it has words, and Change goes where that is set (decision 0081)", () => {
+  const signature = "Sam Reyes\nFounder · Harbor Studio\nwww.harbor.example | 555-0142";
+  // What the drafts read said of this thread for the member reading, on the reply Ask kept for it (for an older message
+  // of theirs, so not put in the box), as the Inbox's first reads hold it.
+  const held = (signed) => ({
+    drafts: [
+      {
+        conversation_id: "c1",
+        kind: "reply",
+        for_message_id: "m0",
+        words: { text: "An older answer.", subject: "", brief: null, asks: [] },
+        made_at: ago(60),
+        ...(signed ? { signed } : {}),
+      },
+    ],
+    complete: true,
+  });
+  setSurfaceValue("reply_drafts", held(signature));
+  const email = toInboxThreadVM(
+    conv({
+      last_wa_inbound_at: null,
+      contact: person({ phone_e164: null, email: "rosa@example.com" }),
+      messages: [{ ...wrote("m1", "Can I move to Friday?", 30), channel: "email" }],
+    }),
+    null,
+    ZONE,
+    NOW,
+  );
+  assert.equal(email.replyVia, "Email");
+  let tree = composerOf(email);
+  assert.equal(find(tree, byTestId("ix-composer-signed")), undefined, "an empty box stays one row");
+  find(tree, hasClass("ix-composer-text")).props.onChange({ target: { value: "Friday works." } });
+  tree = again(() => InboxComposer({ thread: email, reply: "", onSend() {} }));
+  const line = find(tree, byTestId("ix-composer-signed"));
+  assert.equal(
+    textOf(find(line, byTestId("ix-composer-signed-words"))),
+    "Signed Sam Reyes · Founder · Harbor Studio · www.harbor.example",
+  );
+  assert.equal(find(line, byTestId("ix-composer-signed-words")).props.title, signature, "the whole of it on hover");
+  assert.ok(
+    find(line, (n) => n.props?.onClick && textOf(n).trim() === "Change"),
+    "Change, to Settings › Connections",
+  );
+
+  // A thread on WhatsApp says nothing of an email's signature; nor does an email no mailbox of theirs signs.
+  const whatsapp = toInboxThreadVM(conv({ last_wa_inbound_at: ago(30) }), null, ZONE, NOW);
+  tree = composerOf(whatsapp);
+  find(tree, hasClass("ix-composer-text")).props.onChange({ target: { value: "See you then." } });
+  tree = again(() => InboxComposer({ thread: whatsapp, reply: "", onSend() {} }));
+  assert.equal(find(tree, byTestId("ix-composer-signed")), undefined, "not by email");
+  setSurfaceValue("reply_drafts", held(null));
+  tree = composerOf(email);
+  find(tree, hasClass("ix-composer-text")).props.onChange({ target: { value: "Friday works." } });
+  tree = again(() => InboxComposer({ thread: email, reply: "", onSend() {} }));
+  assert.equal(find(tree, byTestId("ix-composer-signed")), undefined, "none signs it: no line");
+  setSurfaceValue("reply_drafts", undefined);
+});

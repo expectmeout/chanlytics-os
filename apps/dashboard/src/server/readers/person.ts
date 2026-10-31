@@ -36,6 +36,7 @@ import {
   toConversationDto,
 } from "../dto";
 import { personLike } from "../calendar/calendar-week";
+import { signedByThreadOf, signedFirstOf } from "../connections/email";
 import { personVisits } from "../calendar/person-visits";
 import { personRuns } from "../campaigns/broadcasts";
 import { leadOfPerson } from "../leads/leads";
@@ -448,7 +449,15 @@ export const personReach: Reader<{ id: string }, { reach: PersonReachDto }> = {
     ]);
     if (!row) throw new AppError("not_found", NEW_CONVERSATION_WORDS.refusals.notYours, 404);
     // Asked of their one thread, as the send asks it (core begin.ts): with no thread, nothing of ours has reached them.
-    const texted = row.latest_conversation_id ? await textReached(sb, rc.tenantId, row.latest_conversation_id) : false;
+    // And what an email to them is signed with, for the member reading (decision 0081): on that thread as its freeze will
+    // sign it, else as a first email is.
+    const thread = row.latest_conversation_id;
+    const [texted, emailSigned] = await Promise.all([
+      thread ? textReached(sb, rc.tenantId, thread) : false,
+      thread
+        ? signedByThreadOf(rc.ctx, rc.tenantId, [thread]).then((s) => s.get(thread) ?? null)
+        : signedFirstOf(rc.ctx, rc.tenantId),
+    ]);
     const mode = own ?? workspace.find((p) => p.class === "reply")?.mode ?? null;
     const brain = (settings?.config as { brain?: { business_name?: string; booking_link?: string } } | null)?.brain;
     const reach = writeReachOf(row, {
@@ -459,6 +468,7 @@ export const personReach: Reader<{ id: string }, { reach: PersonReachDto }> = {
         ? { business_name: brain.business_name, booking_link: brain.booking_link || null }
         : null,
       firstTextLine: texted ? null : SMS_FOOTER,
+      emailSigned,
       now: rc.now,
     });
     return {

@@ -22,7 +22,7 @@ import { rows } from "../_rows.mjs";
 process.env.EMAIL_DOMAIN = "mail.example.com";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { freezeReply, replyIdentityOf, replyFromOf } = await import(
+const { freezeFirst, freezeReply, replyIdentityOf, replyFromOf } = await import(
   at("apps/dashboard/src/server/connections/email.ts")
 );
 
@@ -180,7 +180,7 @@ test("which reach-out: the one the reply's References name, else the latest on t
   assert.match(latest.own.from, /sam@second\.example\.com/, "else the latest reach-out on the thread");
 });
 
-test("an answer from the connected mailbox is signed as that mailbox signs (00487), the hosted twin too; the hosted mailbox's alone carries what was typed", async () => {
+test("an answer from the connected mailbox is signed as that mailbox signs (00487), the hosted twin too", async () => {
   // With nothing set, the name it sends as ends the email: it ended on the words alone, "Talk soon," on production.
   const named = await freezeReply(world(), INPUT);
   assert.equal(named.signature, "Sam at Harbor");
@@ -191,10 +191,77 @@ test("an answer from the connected mailbox is signed as that mailbox signs (0048
   const signed = await freezeReply(world({ boxes: [box({ gmail_signature: gmail })] }), INPUT);
   assert.equal(signed.signature, "Sam Reyes\nHarbor Moving");
   assert.ok(signed.own.html.includes(`<div class="gmail_signature" data-smartmail="gmail_signature">${gmail}</div>`));
-  // Off, none; and a thread no connected mailbox answers carries what was typed.
+  // Off, none.
   const off = await freezeReply(world({ boxes: [box({ gmail_signature: gmail, signature_off: true })] }), INPUT);
   assert.equal(off.signature, null);
   assert.ok(!off.own.text.includes("Sam"), "nothing under the words");
-  const hosted = await freezeReply(world({ messages: [] }), INPUT);
-  assert.equal(hosted.signature, null, "the hosted mailbox's alone is not signed");
+});
+
+/** Gmail's signature as Gmail keeps it, for the cases below. */
+const GMAIL = '<div dir="ltr"><b>Sam Reyes</b><div>Harbor Moving</div></div>';
+const GMAIL_BLOCK = `<div class="gmail_signature" data-smartmail="gmail_signature">${GMAIL}</div>`;
+/** A second mailbox of the workspace's, on its own domain. */
+const second = (over = {}) =>
+  box({ address: "dana@second.example.com", host: "second.example.com", provider_account: "acct-2", ...over });
+
+test("an answer from the hosted address is signed as the first mailbox its sender connected (decision 0081): Gmail's signature, its markup in the HTML", async () => {
+  // No reach-out on the thread and nothing written to a connected mailbox: it leaves from the hosted address alone.
+  const out = await freezeReply(
+    world({ messages: [], boxes: [box({ connected_by: "u1", gmail_signature: GMAIL })] }),
+    INPUT,
+  );
+  assert.equal(out.own, null, "no twin: the hosted address sends it");
+  assert.equal(out.request.from, '"Harbor Moving" <harbor@mail.example.com>');
+  assert.equal(out.signature, "Sam Reyes\nHarbor Moving", "the words the thread says under it");
+  assert.ok(out.request.text.endsWith("\n\nSam Reyes\nHarbor Moving"));
+  assert.ok(out.request.html.includes(GMAIL_BLOCK), "Gmail's own markup, as an email from Gmail carries it");
+});
+
+test("never another member's: a sender who connected no mailbox sends what they typed; of their own, the first they connected; their None is none", async () => {
+  const theirs = await freezeReply(
+    world({ messages: [], boxes: [box({ connected_by: "u2", gmail_signature: GMAIL })] }),
+    INPUT,
+  );
+  assert.equal(theirs.signature, null, "a teammate's mailbox signs nothing of this member's");
+  assert.equal(theirs.request.text, INPUT.body);
+  const two = world({
+    messages: [],
+    boxes: [
+      second({ connected_by: "u1", signature: "Dana · Second", connected_at: "2026-10-02T00:00:00Z" }),
+      box({ connected_by: "u1", signature: "Sam · Harbor", connected_at: "2026-10-01T00:00:00Z" }),
+    ],
+  });
+  assert.equal(
+    (await freezeReply(two, INPUT)).signature,
+    "Sam · Harbor",
+    "the first they connected, whatever came later",
+  );
+  const off = world({ messages: [], boxes: [box({ connected_by: "u1", signature: "Sam", signature_off: true })] });
+  assert.equal((await freezeReply(off, INPUT)).signature, null, "their mailbox's None");
+});
+
+test("a thread whose mailbox is not sending leaves from the hosted address signed as that mailbox, as its twin would have; one removed signs as the sender's", async () => {
+  const paused = world({
+    boxes: [box({ state: "paused", signature: "Sam · Harbor" }), second({ connected_by: "u1", signature: "Dana" })],
+  });
+  const out = await freezeReply(paused, INPUT);
+  assert.equal(out.own, null, "the hosted address sends it");
+  assert.equal(out.signature, "Sam · Harbor", "the thread's mailbox, not the sender's own");
+  assert.ok(out.request.text.endsWith("\n\nSam · Harbor"));
+  const removed = world({ boxes: [second({ connected_by: "u1", signature: "Dana" })] });
+  assert.equal((await freezeReply(removed, INPUT)).signature, "Dana", "its mailbox gone, the sender's");
+});
+
+/** A person's first email on a thread, as the first port is asked for it. */
+const FIRST = { tenantId: A, messageId: "id-2", to: "office@example.com", subject: "Your quote", body: "Here it is." };
+
+test("a first email from the hosted address is signed as its sender's mailbox and says so; with none, it carries what was typed", async () => {
+  const signed = await freezeFirst(world({ boxes: [box({ connected_by: "u1", gmail_signature: GMAIL })] }), FIRST);
+  assert.equal(signed.request.from, '"Harbor Moving" <harbor@mail.example.com>');
+  assert.equal(signed.signature, "Sam Reyes\nHarbor Moving");
+  assert.equal(signed.request.text, "Here it is.\n\nSam Reyes\nHarbor Moving");
+  assert.ok(signed.request.html.includes(GMAIL_BLOCK));
+  const plain = await freezeFirst(world({ boxes: [box({ connected_by: "u2", gmail_signature: GMAIL })] }), FIRST);
+  assert.equal(plain.signature, null, "never another member's");
+  assert.equal(plain.request.text, "Here it is.");
 });

@@ -42,7 +42,10 @@ export interface ReplyDraftDto {
   for_message_id: string | null;
   words: ReplyDraftWords;
   made_at: string;
-  /** The words an email reply from it is signed with, where it leaves from a mailbox the business connected (00487). */
+  /**
+   * The words an email reply from it is signed with, for the member reading, where a mailbox the business connected signs
+   * it: the one it leaves from (00487), or, from the hosted address, theirs (decision 0081).
+   */
   signed?: string;
 }
 
