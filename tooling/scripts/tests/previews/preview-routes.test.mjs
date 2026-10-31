@@ -6,7 +6,9 @@
  *     (never the browser's, twelve at most), kept with its answer, and said back with what a live chat would do;
  *   - a preview that has said its twenty, ended, or is someone's own answers no message, and asks no model;
  *   - a token that names nothing is Not found; a press from another site is refused; forty an hour from one network;
- *   - the page's own count of its opening, and Not right kept for the sender.
+ *   - the page's own count of its opening, and Not right kept for the sender;
+ *   - a preview answers one message at a time, from every network; the doors that spend (a message, a call) are counted
+ *     strictly, the others are not.
  *
  * Made-up businesses only.
  */
@@ -32,7 +34,7 @@ after(() => {
   }
 });
 
-const { setRateStore, memoryStore } = await importSrc("apps/dashboard/src/server/rate-limit.ts");
+const { setRateStore, memoryStore, memoryByConfiguration } = await importSrc("apps/dashboard/src/server/rate-limit.ts");
 const { setServiceClient } = await importSrc("apps/dashboard/src/server/service-db.ts");
 const message = await importSrc("apps/dashboard/app/api/v1/previews/[token]/message/route.ts");
 const opened = await importSrc("apps/dashboard/app/api/v1/previews/[token]/opened/route.ts");
@@ -284,4 +286,28 @@ test("six calls an hour from one network, apart from its messages", async (t) =>
   for (let i = 0; i < 6; i++) assert.equal((await post(callDoor, {})).status, 200, `call ${i + 1}`);
   assert.equal((await post(callDoor, {})).status, 429);
   assert.equal((await post(opened, {})).status, 200, "its other doors have their own bucket");
+});
+
+test("one answer at a time a preview, from every network: a second message on its heels waits, and asks no model", async () => {
+  world();
+  assert.equal((await post(message, { text: "Are you open on Sunday?" })).status, 200);
+  const next = await read(await post(message, { text: "And on Saturday?" }, { ip: "198.51.100.9" }));
+  assert.equal(next.status, 429, JSON.stringify(next.body));
+  assert.equal(asked.length, 1, "the second is never asked of the model");
+  world({ id: "p2", token: "TokenTokenTokenToken02" });
+  assert.equal(
+    (await post(message, { text: "Hi" }, { token: "TokenTokenTokenToken02" })).status,
+    200,
+    "another preview has its own pace",
+  );
+});
+
+test("a door that spends is counted strictly: where the count cannot be shared, a message and a call are refused before anything is spent; a press that spends nothing goes on", async () => {
+  setRateStore(memoryByConfiguration(memoryStore(), false));
+  world();
+  assert.equal((await post(message, { text: "Hi" })).status, 503);
+  assert.equal((await post(callDoor, {})).status, 503);
+  assert.equal(asked.length, 0, "no model asked, no call made");
+  assert.equal((await post(opened, {})).status, 200);
+  assert.equal((await post(notRight, { fact: "Hours" })).status, 200);
 });

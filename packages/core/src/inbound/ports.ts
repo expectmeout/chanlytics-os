@@ -119,6 +119,8 @@ export interface InboundRuntime {
   timezone: string | null;
   /** tenants.status = 'paused', written by billing for a workspace whose subscription stopped. */
   paused: boolean;
+  /** tenants.status = 'preview': a lead's own receptionist nobody has made theirs (decision 0079), which has no line. */
+  preview: boolean;
   /** What the platform KNOWS, as opposed to what somebody typed. */
   known: KnownFacts;
   /** True when the control plane could not be read (infra blip, not config absence). */

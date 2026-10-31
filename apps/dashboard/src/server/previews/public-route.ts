@@ -31,15 +31,19 @@ async function fieldsOf(req: Request): Promise<Record<string, unknown>> {
   }
 }
 
-/** A door of the page: the knock, its bucket per network, then `run(token, body)`, whose answer is the envelope's. */
+/**
+ * A door of the page: the knock, its bucket per network, then `run(token, body)`, whose answer is the envelope's. A door
+ * that `spends` (a model's answer, the provider's minutes) is counted strictly, as route() counts a route that spends:
+ * the shared count or a refusal, never one this instance alone would hold.
+ */
 export function previewRoute<T>(
-  bucket: Extract<RateBucket, "preview_ip" | "preview_call_ip">,
+  door: { bucket: Extract<RateBucket, "preview_ip" | "preview_call_ip">; spends: boolean },
   run: (token: string, body: Record<string, unknown>) => Promise<T>,
 ): (req: Request, ctx: Ctx) => Promise<Response> {
   return async (req, ctx) => {
     try {
       if (!isSameOrigin(req)) throw new AppError("forbidden", "This page's own buttons ask here.", 403);
-      await takeRate(`ip:${hashKey(ipOf(req))}`, bucket);
+      await takeRate(`ip:${hashKey(ipOf(req))}`, door.bucket, undefined, door.spends);
       const { token } = await ctx.params;
       return NextResponse.json(ok(await run(token, await fieldsOf(req))), { headers: PRIVATE });
     } catch (e) {

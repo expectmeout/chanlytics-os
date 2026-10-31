@@ -4,12 +4,14 @@
  *
  * The door is api/admin/rehearsal/call.ts: it checks who may knock (authorizeAdmin, a token the dashboard minted for the
  * member and the workspace) and reads the body; everything after is here. In order: the provider's key and the tools'
- * secret, the workspace and its runtime (a paused one, or one with nothing to answer from, is refused), the free minutes
- * (contracts rehearsalAllowance, read over the window's spoken rehearsals), the workspace's agent (made when there is
- * none, and kept before any number: voice-agent.ts ensureVoiceAgent), the plan a real call gets (call-start.ts
- * planRehearsalStart: no memory, no line to put a caller through to), the web call at the provider with the call's own
- * voice, its length and its metadata, and the rehearsal's row, written before the token is answered so its webhooks and
- * its tools find it. The answer is what the browser joins with, and what the page says beside it.
+ * secret, the workspace and its runtime (a paused one, one with nothing to answer from, and a lead's preview while
+ * previews are switched off are refused), the rehearsal's row reserved (one start a workspace at a time, so two presses
+ * at once are one call), the free minutes (contracts rehearsalAllowance, read over the window's spoken rehearsals after
+ * the reservation), the workspace's agent (made when there is none, and kept before any number: voice-agent.ts
+ * ensureVoiceAgent), the plan a real call gets (call-start.ts planRehearsalStart: no memory, no line to put a caller
+ * through to), the web call at the provider with the call's own voice, its length and its metadata, and the row named
+ * for the call before the token is answered, so its webhooks and its tools find it; a way out that made no call gives
+ * the reservation back. The answer is what the browser joins with, and what the page says beside it.
  *
  * Its deliveries and its tools are told apart from a call on the line by the call's type (`web_call`): every web call on
  * the account is one of ours or the provider's own test, and neither is a customer.
@@ -31,6 +33,8 @@ import {
   previewCalled,
   rehearsalByCall,
   rehearsalSpokenMs,
+  releaseRehearsalCall,
+  reserveRehearsalCall,
   workspaceMaySpend,
   writeRehearsalTranscript,
   type RehearsalRow,
@@ -103,7 +107,7 @@ export async function makeRehearsalAgent(
  * The free minutes as they stand for a workspace: its plan, and what its window's spoken rehearsals spent. A lead's own
  * receptionist that nobody has made theirs (decision 0079) has its preview's six minutes in all, plan or none.
  */
-async function allowanceOf(db: Db, tenantId: string, now: Date) {
+async function allowanceOf(db: Db, tenantId: string, now: Date, except: string | null) {
   const preview = await leadPreviewOfWorkspace(db, tenantId);
   const isPreview = !!preview && preview.state !== "claimed";
   const hasPlan = isPreview ? false : await workspaceMaySpend(db, tenantId);
@@ -113,8 +117,44 @@ async function allowanceOf(db: Db, tenantId: string, now: Date) {
     now,
     runningMs: REHEARSAL_LIMITS.runningMs,
     callMs: REHEARSAL_LIMITS.callMs,
+    except,
   });
   return rehearsalAllowance({ hasPlan, preview: isPreview, spentMs: spoken.spentMs, running: spoken.running });
+}
+
+type Allowance = Awaited<ReturnType<typeof allowanceOf>>;
+
+/** The door's refusal for minutes it may not spend now: used up, or a call of the workspace already running. */
+const minutesUsed = (allowance: Allowance) =>
+  json(409, { ok: false, error: "rehearsal_minutes_used", detail: allowance.why ?? undefined, allowance });
+
+/**
+ * The start's own rehearsal, reserved before anything is asked of the provider, and the minutes it may spend: read
+ * after the reservation and without it, so two starts at one moment are one call and a refusal (the second finds the
+ * first's reservation, or the first's row once named), never two calls each sure the minutes were there.
+ */
+async function reserveStart(
+  db: Db,
+  tenantId: string,
+  userId: string | null,
+  now: Date,
+): Promise<{ ok: true; id: string; allowance: Allowance } | { ok: false; response: Response }> {
+  const L = logger();
+  const id = crypto.randomUUID();
+  try {
+    if (!(await reserveRehearsalCall(db, { id, tenantId, createdBy: userId, now }))) {
+      const allowance = await allowanceOf(db, tenantId, now, null);
+      return { ok: false, response: minutesUsed({ ...allowance, can_call: false, why: "running" }) };
+    }
+    const allowance = await allowanceOf(db, tenantId, now, id);
+    if (allowance.can_call) return { ok: true, id, allowance };
+    await releaseRehearsalCall(db, tenantId, id);
+    return { ok: false, response: minutesUsed(allowance) };
+  } catch (e) {
+    L.error("rehearsal_call_failed", { tenant_id: tenantId, step: "minutes", error: errField(e) });
+    await releaseRehearsalCall(db, tenantId, id).catch(() => undefined);
+    return { ok: false, response: refuse(503, "read_failed") };
+  }
 }
 
 export async function startRehearsalCall(
@@ -138,29 +178,34 @@ export async function startRehearsalCall(
   if (rt.loadFailed) return refuse(503, "read_failed", "the workspace could not be read");
   if (rt.paused) return refuse(402, "payment_required", "the workspace is paused");
   if (!rt.brain) return refuse(409, rt.configBroken ? "config_broken" : "no_persona");
+  // A lead's own receptionist nobody has made theirs calls only while previews are switched on (decision 0079): the
+  // switch is the one that stops what they spend, whatever pages are open.
+  if (rt.preview && env.LEAD_PREVIEWS !== "on") return refuse(409, "preview_failed", "previews are switched off");
 
-  let allowance: Awaited<ReturnType<typeof allowanceOf>>;
-  try {
-    allowance = await allowanceOf(db, tenantId, now);
-  } catch (e) {
-    L.error("rehearsal_call_failed", { tenant_id: tenantId, step: "minutes", error: errField(e) });
-    return refuse(503, "read_failed");
-  }
-  if (!allowance.can_call)
-    return json(409, { ok: false, error: "rehearsal_minutes_used", detail: allowance.why ?? undefined, allowance });
+  const start = await reserveStart(db, tenantId, userId, now);
+  if (!start.ok) return start.response;
+  const { id, allowance } = start;
+  // Every way out below that makes no call gives the reservation back, so the next start is not held for it.
+  const giveBack = () =>
+    releaseRehearsalCall(db, tenantId, id).catch((e: unknown) =>
+      L.error("rehearsal_call_failed", { tenant_id: tenantId, step: "release", error: errField(e) }),
+    );
 
   const plan = await planRehearsalStart(rt, now);
-  if (!plan) return refuse(409, "no_persona");
+  if (!plan) {
+    await giveBack();
+    return refuse(409, "no_persona");
+  }
 
   let agent: Awaited<ReturnType<typeof ensureVoiceAgent>>;
   try {
     agent = await ensureVoiceAgent(db, { apiKey }, { fnSecret }, { id: tenantId, name: rt.brain.business_name || "" });
   } catch (e) {
     L.error("rehearsal_call_failed", { tenant_id: tenantId, step: "agent", error: errField(e) });
+    await giveBack();
     return refuse(502, "provider_refused", "the receptionist could not be made at the provider");
   }
 
-  const id = crypto.randomUUID();
   const maxMs = rehearsalCallMs(allowance);
   const made = await createWebCall(
     { apiKey },
@@ -184,6 +229,7 @@ export async function startRehearsalCall(
   const call = made.ok ? webCallMadeOf(made.body) : null;
   if (!call) {
     L.error("rehearsal_call_failed", { tenant_id: tenantId, step: "call", status: made.status });
+    await giveBack();
     return refuse(502, "provider_refused", "the provider did not make the call");
   }
 
@@ -195,11 +241,11 @@ export async function startRehearsalCall(
       agentId: agent.agentId,
       configVersion: plan.configVersion,
       instructions: plan.variables.business_facts,
-      createdBy: userId,
     });
   } catch (e) {
     // The call was made and nobody will join it: its token lapses unused, and it is never counted.
     L.error("rehearsal_call_failed", { tenant_id: tenantId, step: "row", error: errField(e) });
+    await giveBack();
     return refuse(503, "write_failed");
   }
 

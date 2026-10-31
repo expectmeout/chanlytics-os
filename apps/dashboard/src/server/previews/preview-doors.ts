@@ -6,7 +6,7 @@ import "server-only";
  *
  *   previewMessage    Try it's own answer (receptionist/try.ts, the edge's eval door), for the preview's workspace and
  *                     no person, after the turns the row keeps (never the browser's), and kept with it (preview_said):
- *                     nothing is sent, and twenty is all a preview answers
+ *                     nothing is sent, twenty is all a preview answers, and one at a time (the preview_turn pace)
  *   previewOpenedBy   the page drawn in a browser, counted by its own script
  *   previewNotRightBy what the business said is not right, kept for the sender; the receptionist is never changed by it
  *   previewCall       a call in the browser to the preview's receptionist: the rehearsal's own (receptionist/rehearsal.ts,
@@ -32,6 +32,7 @@ import {
   type PreviewRefusal,
 } from "@chanlytics/db";
 import { linkPageDb } from "../public/link-page";
+import { takeRate } from "../rate-limit";
 import { startRehearsal, type RehearsalStartDto } from "../receptionist/rehearsal";
 import { tryReceptionist } from "../receptionist/try";
 import { log } from "../log";
@@ -83,6 +84,8 @@ export async function previewMessage(token: string, raw: unknown): Promise<Previ
   if (!text) throw new AppError("validation", W.textLabel, 400);
   if (text.length > PREVIEW_LIMITS.messageChars) throw new AppError("validation", W.failed, 400);
   const p = await openPreview(token, { calls: false });
+  // One answer at a time a preview, from wherever it is asked: the row counts the twenty only once each is kept.
+  await takeRate(`preview:${p.id}`, "preview_turn", undefined, true);
   const history = previewTurnsOf(p.turns)
     .slice(-HISTORY_MAX)
     .map((t) => ({ role: t.role, content: t.text }));

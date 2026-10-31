@@ -2,8 +2,10 @@
  * Rehearsals (decision 0069, 00476): a conversation the owner rehearsed, spoken in the browser or typed, and a real call
  * reviewed; and the workspace's receptionist at Retell, kept before any number.
  *
- *   - The edge writes a spoken one as its call is made (`keepRehearsalCall`, before the token is answered, so its tools
- *     and its webhooks find it by the provider's call id), its transcript as the call goes (`writeRehearsalTranscript`)
+ *   - The edge reserves a spoken one before it asks the provider for the call (`reserveRehearsalCall`: one start a
+ *     workspace at a time, held by the row's unique call id; `releaseRehearsalCall` where no call was made), names it
+ *     once the call is made (`keepRehearsalCall`, before the token is answered, so its tools and its webhooks find it by
+ *     the provider's call id), and writes its transcript as the call goes (`writeRehearsalTranscript`)
  *     and its end (`endRehearsal`); a review (`keepRehearsalReview`), a typed one when it is reviewed
  *     (`keepTypedRehearsal`), and a reviewed call (`keepCallReview`).
  *   - The free minutes are read as the window's spoken seconds (`rehearsalSpokenMs`): a call still running counts whole.
@@ -13,6 +15,7 @@
  *   - `voiceAgentOf` / `keepVoiceAgent`: the agent before the number. The service role alone.
  * Every statement on a workspace's table goes through `tenantDb`, so none can reach another workspace's row by an id.
  */
+import { MIN_MS } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../database.types";
 import { platformWide, tenantDb } from "../../tenant-db";
@@ -161,15 +164,17 @@ export async function callReviewOf(db: Db, tenantId: string, callId: string): Pr
 /**
  * The window's spoken rehearsals: each by its provider's seconds once it ended, a running one by `runningMs` (the whole
  * of a call's length), and whether one is still running (made within `runningMs` and not ended). `since` is the window's
- * start, or null for every one the workspace ever made (before its plan). A read that fails throws.
+ * start, or null for every one the workspace ever made (before its plan). `except` is the start asking, whose own
+ * reservation is no other call. A read that fails throws.
  */
 export async function rehearsalSpokenMs(
   db: Db,
   tenantId: string,
-  o: { since: string | null; now: Date; runningMs: number; callMs: number },
+  o: { since: string | null; now: Date; runningMs: number; callMs: number; except: string | null },
 ): Promise<{ spentMs: number; running: boolean }> {
   let q = tenantDb(db, tenantId).from("rehearsals").select("created_at, ended_at, seconds").eq("kind", "call");
   if (o.since) q = q.gte("created_at", o.since);
+  if (o.except) q = q.neq("id", o.except);
   const { data, error } = await q;
   if (error) throw new Error(`cannot read the rehearsals' minutes: ${error.message}`);
   let spentMs = 0;
@@ -207,6 +212,55 @@ export async function rehearsalTally(
 }
 
 /** A spoken rehearsal, as its call is made: before the token is answered, so its tools and its webhooks find it. */
+/**
+ * The call id a workspace's start holds while it asks the provider: one a workspace, so a second start at the same
+ * moment is the row's unique key (`rehearsals_retell_call_id_key`), never a second call beside the first.
+ */
+const startingCallId = (tenantId: string) => `starting:${tenantId}`;
+
+/** How long a start may hold its reservation: the call door's own most (vercel.json, 60 s) and a margin. */
+const START_HELD_MS = 2 * MIN_MS;
+
+/**
+ * A spoken rehearsal reserved before its call is asked for: the row, holding its workspace's one start, which a start
+ * that died left behind gives up once it is older than START_HELD_MS. False where another start holds it now: a call is
+ * being made already.
+ */
+export async function reserveRehearsalCall(
+  db: Db,
+  r: { id: string; tenantId: string; createdBy: string | null; now: Date },
+): Promise<boolean> {
+  const held = startingCallId(r.tenantId);
+  const t = tenantDb(db, r.tenantId);
+  const stale = await t
+    .from("rehearsals")
+    .delete()
+    .eq("retell_call_id", held)
+    .lt("created_at", new Date(r.now.getTime() - START_HELD_MS).toISOString());
+  if (stale.error) throw new Error(`cannot clear a start left behind: ${stale.error.message}`);
+  const { error } = await t.from("rehearsals").insert({
+    id: r.id,
+    tenant_id: r.tenantId,
+    kind: "call",
+    retell_call_id: held,
+    created_by: r.createdBy,
+  });
+  if (error?.code === "23505") return false;
+  if (error) throw new Error(`cannot reserve the rehearsal: ${error.message}`);
+  return true;
+}
+
+/** A reservation no call came of, given back: the minutes refused it, or the provider made no call. */
+export async function releaseRehearsalCall(db: Db, tenantId: string, id: string): Promise<void> {
+  const { error } = await tenantDb(db, tenantId)
+    .from("rehearsals")
+    .delete()
+    .eq("id", id)
+    .eq("retell_call_id", startingCallId(tenantId));
+  if (error) throw new Error(`cannot give the rehearsal back: ${error.message}`);
+}
+
+/** The reserved rehearsal, named for the call the provider made: its call id, the agent, and what it was told. */
 export async function keepRehearsalCall(
   db: Db,
   r: {
@@ -216,20 +270,21 @@ export async function keepRehearsalCall(
     agentId: string;
     configVersion: number | null;
     instructions: string;
-    createdBy: string | null;
   },
 ): Promise<void> {
-  const { error } = await tenantDb(db, r.tenantId).from("rehearsals").insert({
-    id: r.id,
-    tenant_id: r.tenantId,
-    kind: "call",
-    retell_call_id: r.retellCallId,
-    agent_id: r.agentId,
-    config_version: r.configVersion,
-    instructions: r.instructions,
-    created_by: r.createdBy,
-  });
+  const { data, error } = await tenantDb(db, r.tenantId)
+    .from("rehearsals")
+    .update({
+      retell_call_id: r.retellCallId,
+      agent_id: r.agentId,
+      config_version: r.configVersion,
+      instructions: r.instructions,
+    })
+    .eq("id", r.id)
+    .eq("retell_call_id", startingCallId(r.tenantId))
+    .select("id");
   if (error) throw new Error(`cannot keep the rehearsal: ${error.message}`);
+  if (!data?.length) throw new Error("cannot keep the rehearsal: its reservation is gone");
 }
 
 /**

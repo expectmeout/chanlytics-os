@@ -6,7 +6,10 @@
  *   - a preview has its six minutes in all, three at most a call, whatever its plan; spent, it is refused in the door's
  *     own code with its allowance, which the dashboard says in the page's words;
  *   - one made theirs is a workspace like any other, its minutes the plan's;
- *   - a call's end adds its seconds to the preview's row once, though the provider tells an end twice.
+ *   - a call's end adds its seconds to the preview's row once, though the provider tells an end twice;
+ *   - two presses at once are one call: the start reserves its row before the provider is asked, gives it back where no
+ *     call came of it, and a reservation a dead start left is given up after two minutes;
+ *   - previews switched off, a preview nobody has made theirs calls nothing.
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
@@ -14,7 +17,7 @@ import { REHEARSAL_LIMITS, rehearsalAllowance, rehearsalCallMs, REHEARSE_WORDS }
 import { importSrc } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 
-const ENV = { RETELL_API_KEY: "key_made_up_for_this_file", RETELL_FN_SECRET: "fn-secret" };
+const ENV = { RETELL_API_KEY: "key_made_up_for_this_file", RETELL_FN_SECRET: "fn-secret", LEAD_PREVIEWS: "on" };
 const was = Object.fromEntries(Object.keys(ENV).map((k) => [k, process.env[k]]));
 Object.assign(process.env, ENV);
 const realFetch = globalThis.fetch;
@@ -185,4 +188,81 @@ test("a call's end adds its seconds to the preview's row once, though the provid
   assert.equal(await settleRehearsalEvent(pg(), "call_analyzed", call), "ended");
   assert.deepEqual(called, [{ p_preview_tenant_id: WS, p_seconds: 72 }]);
   assert.deepEqual([tables.lead_previews[0].call_count, tables.lead_previews[0].call_seconds], [1, 72]);
+});
+
+/** The row a start holds while it asks the provider: its workspace's one start (packages/db rehearsals.ts). */
+const HELD = `starting:${WS}`;
+
+test("two presses at once are one call: the second is told a call is running, and the provider makes one", async () => {
+  const { tables } = world();
+  const calls = retell();
+  const answers = await Promise.all([start(), start()]);
+  assert.deepEqual(
+    answers.map(([status]) => status).sort(),
+    [200, 409],
+    JSON.stringify(answers.map(([, body]) => body)),
+  );
+  const [, refused] = answers.find(([status]) => status === 409);
+  assert.deepEqual([refused.error, refused.allowance.why], ["rehearsal_minutes_used", "running"]);
+  assert.equal(calls.filter((c) => c.path === "/v3/create-web-call").length, 1, "one call made at the provider");
+  assert.deepEqual(
+    tables.rehearsals.map((r) => r.retell_call_id),
+    ["call_new"],
+    "the one row, named for its call, and no reservation left",
+  );
+});
+
+test("a start the provider makes no call for gives its reservation back, so the next start is not held for it", async () => {
+  const { tables } = world();
+  const calls = retell();
+  const real = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    if (!String(url).endsWith("/v3/create-web-call")) return real(url, init);
+    calls.push({ path: "/v3/create-web-call", body: JSON.parse(init.body) });
+    return new Response("{}", { status: 500 });
+  };
+  const [status, body] = await start();
+  assert.deepEqual([status, body.error], [502, "provider_refused"]);
+  assert.deepEqual(tables.rehearsals, [], "nothing held, nothing counted");
+  globalThis.fetch = real;
+  assert.equal((await start())[0], 200);
+  assert.equal(calls.filter((c) => c.path === "/v3/create-web-call").length, 2);
+});
+
+test("a reservation a start left as it died holds the workspace two minutes at most; a start's own holds it while it runs", async () => {
+  const { tables } = world();
+  const calls = retell();
+  const row = { id: "r-dead", tenant_id: WS, kind: "call", retell_call_id: HELD, ended_at: null, seconds: null };
+  tables.rehearsals.push({ ...row, created_at: new Date(Date.now() - 30_000).toISOString() });
+  const [status, body] = await start();
+  assert.deepEqual(
+    [status, body.allowance?.why],
+    [409, "running"],
+    "a start of thirty seconds ago is still making its call",
+  );
+  assert.ok(!calls.some((c) => c.path === "/v3/create-web-call"));
+
+  tables.rehearsals[0].created_at = new Date(Date.now() - 10 * MIN).toISOString();
+  assert.equal((await start())[0], 200, "one of ten minutes ago died: given up, and the call made");
+  assert.deepEqual(
+    tables.rehearsals.map((r) => r.retell_call_id),
+    ["call_new"],
+  );
+});
+
+test("previews switched off, a preview nobody has made theirs calls nothing; one made theirs calls as any workspace", async () => {
+  process.env.LEAD_PREVIEWS = "";
+  try {
+    const { tables } = world();
+    const calls = retell();
+    const [status, body] = await start();
+    assert.deepEqual([status, body.error], [409, "preview_failed"]);
+    assert.ok(!calls.some((c) => c.path === "/v3/create-web-call"));
+    assert.deepEqual(tables.rehearsals, []);
+    world({ state: "claimed" });
+    retell();
+    assert.equal((await start())[0], 200);
+  } finally {
+    process.env.LEAD_PREVIEWS = "on";
+  }
 });

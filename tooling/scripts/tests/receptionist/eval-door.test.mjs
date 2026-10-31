@@ -412,6 +412,25 @@ test("the workspace's world: a channel read that fails, no persona or a broken o
   }
 });
 
+test("a lead's own receptionist nobody has made theirs answers only while previews are switched on (decision 0079): off, its page asks no model and nothing is written; one made theirs answers as any workspace", async () => {
+  for (const [status, lead, expected] of [
+    ["preview", undefined, [409, "preview_failed"]],
+    ["preview", "on", [200, undefined]],
+    ["active", undefined, [200, undefined]],
+  ]) {
+    const T = fresh();
+    const { tables, db } = world(T);
+    tables.tenants[0].status = status;
+    const b = expected[0] === 200 ? brain() : unasked();
+    const [code, body] = await withEnv({ LEAD_PREVIEWS: lead }, async () =>
+      answer(await knock({ tenant_id: T, cases: CASES }, { workspace: T, brain: b.port })),
+    );
+    assert.deepEqual([code, body.error], expected, `${status}, switch ${lead ?? "off"}`);
+    assert.equal(b.asked.length, expected[0] === 200 ? CASES.length : 0);
+    assert.equal(wrote(db).length, 0);
+  }
+});
+
 /* --------------------------------- the run -------------------------------- */
 
 test("the run: each case is handed to the brain with its own history and the workspace's composed prompt -- the same one the steer door composes, policy rules and provisioned line included -- and answers with its record; a case that fails answers for itself; the database is read and never written; the log carries counts, never the words", async () => {

@@ -23,6 +23,8 @@
  * workspace (dashboard server/receptionist/try.ts). So beside each answer is what the live turn would do with it (`then`):
  * the words layer two leaves, whether the thread goes to a person and why, and how long the reply would wait. And a
  * workspace with no WhatsApp line yet is answered as its chat would be, which is when an owner most wants to try it.
+ * A lead's own receptionist's page asks the same way for its preview's workspace and no person (decision 0079), and is
+ * answered only while previews are switched on.
  */
 import { json, refuse } from "../http.js";
 import { workspaceFor, type Admitted } from "../admin-auth.js";
@@ -154,26 +156,20 @@ async function routedFor(db: NonNullable<ReturnType<typeof pg>>, tenantId: strin
   };
 }
 
-export async function evaluateCases(
-  auth: Admitted,
-  body: Partial<{ tenant_id?: string; cases?: EvalCase[] }>,
-  brain?: BrainPort | null,
-): Promise<Response> {
-  const L = logger();
-  const MAX_CHARS = 500;
-  const ask = brain?.generateReply ?? generateReply;
-  if (!env.ANTHROPIC_API_KEY) return refuse(503, "no_model_key");
-  const ws = workspaceFor(auth, body.tenant_id);
-  if (!ws.ok) return ws.response;
-  body.tenant_id = ws.tenantId ?? undefined;
-  const tenantId = String(body.tenant_id || "");
-  const cases = Array.isArray(body.cases) ? body.cases : [];
-  if (!UUID.test(tenantId) || !cases.length || cases.length > MAX_CASES) {
-    return refuse(400, "bad_request", `tenant_id and 1-${MAX_CASES} cases required`);
-  }
+/** The most a case's text holds. */
+const CASE_MAX_CHARS = 500;
+
+/** The first case the door refuses, in its own words; null where every one is whole. */
+function caseRefusal(cases: readonly EvalCase[]): Response | null {
   for (const c of cases) {
-    if (!c || typeof c.id !== "string" || typeof c.text !== "string" || !c.text.trim() || c.text.length > MAX_CHARS) {
-      return refuse(400, "bad_request", `each case needs an id and a text of 1-${MAX_CHARS} chars`);
+    if (
+      !c ||
+      typeof c.id !== "string" ||
+      typeof c.text !== "string" ||
+      !c.text.trim() ||
+      c.text.length > CASE_MAX_CHARS
+    ) {
+      return refuse(400, "bad_request", `each case needs an id and a text of 1-${CASE_MAX_CHARS} chars`);
     }
     if (
       c.history &&
@@ -184,6 +180,27 @@ export async function evaluateCases(
       return refuse(400, "bad_request", "history is up to 12 turns of { role, content }");
     }
   }
+  return null;
+}
+
+export async function evaluateCases(
+  auth: Admitted,
+  body: Partial<{ tenant_id?: string; cases?: EvalCase[] }>,
+  brain?: BrainPort | null,
+): Promise<Response> {
+  const L = logger();
+  const ask = brain?.generateReply ?? generateReply;
+  if (!env.ANTHROPIC_API_KEY) return refuse(503, "no_model_key");
+  const ws = workspaceFor(auth, body.tenant_id);
+  if (!ws.ok) return ws.response;
+  body.tenant_id = ws.tenantId ?? undefined;
+  const tenantId = String(body.tenant_id || "");
+  const cases = Array.isArray(body.cases) ? body.cases : [];
+  if (!UUID.test(tenantId) || !cases.length || cases.length > MAX_CASES) {
+    return refuse(400, "bad_request", `tenant_id and 1-${MAX_CASES} cases required`);
+  }
+  const badCase = caseRefusal(cases);
+  if (badCase) return badCase;
 
   const db = pg();
   if (!db) return refuse(503, "no_database");
@@ -191,6 +208,9 @@ export async function evaluateCases(
   if (routed === undefined) return refuse(500, "channel_read_failed");
   const rt = await loadTenantRuntime(db, routed);
   if (!rt.brain) return refuse(409, rt.configBroken ? "config_broken" : "no_persona");
+  // A lead's own receptionist nobody has made theirs answers only while previews are switched on (decision 0079): the
+  // switch is the one that stops what they spend, whatever pages are open.
+  if (rt.preview && env.LEAD_PREVIEWS !== "on") return refuse(409, "preview_failed", "previews are switched off");
   const now = new Date(); // the run's one clock: the prompt, the clock note, the prices it may say, and its timing
   const system = resolveSystemPrompt(rt.brain, "whatsapp", rt.timezone, now, rt.policy, rt.known);
   const { nowNote, asks, said } = await turnOf(rt, now);
