@@ -10,8 +10,9 @@
  * so the token is made once at creation (its sha256 on the row), never
  * rewritten (E1), and any later job of ours can rebuild the URL it sent.
  *
- * Two more wires. A lead's own pages and pictures are read through channels' guarded fetcher (fetchText, fetchBytes):
- * a lead's website is an address somebody else typed, and it may resolve, or redirect, to a private one. And while the
+ * Two more wires. A lead's home page is read by the platform's one page reader (fetchText: Firecrawl's scrape, on its
+ * network), and the picture it names through channels' guarded fetcher (fetchBytes): a lead's website is an address
+ * somebody else typed, and the picture's may resolve, or redirect, to a private one. And while the
  * second model is on (decision 0023) the judge's criteria for each place are also put to it in shadow: its answers are
  * compared and kept, and never read by the run.
  */
@@ -31,12 +32,12 @@ import { env, httpsOriginOf } from "../env.js";
 import { edgeOrigin } from "../dashboard-origin.js";
 import { callModel } from "../model.js";
 import { startShadow } from "../shadow.js";
-import { imageBytes, pageText } from "./lead-marks.js";
+import { imageBytes, markPageText } from "./lead-marks.js";
 
 export interface LeadWires {
   apify: ApifyClient;
   judge: LeadJudge;
-  /** One GET of a page as text, for the engine's own reading (D6: a lead's mark). Null on anything we cannot read. */
+  /** A page's HTML as a browser drew it, for the engine's own reading (D6: a lead's mark). Null on anything unread. */
   fetchText(url: string, timeoutMs: number): Promise<string | null>;
   /** One GET of an image's bytes, capped (00161: the copy of a lead's mark we keep). Null on anything else. */
   fetchBytes(url: string, timeoutMs: number, maxBytes: number): Promise<Uint8Array | null>;
@@ -123,8 +124,9 @@ function shadowed(inner: LeadJudge): LeadJudge {
 
 /**
  * The finder's wires. `fetchImpl` stands in for the network in a test; unset, the provider (Apify) is called with the
- * platform's fetch, and a lead's own pages and pictures are read through the guarded one (channels publicFetcher): a
- * lead's website is an address somebody else typed, and it may resolve, or redirect, to a private one.
+ * platform's fetch. A lead's home page is read by the platform's one page reader (lead-marks.ts markPageText), and the
+ * picture it names through the guarded fetch (channels publicFetcher): a lead's website is an address somebody else
+ * typed, and the picture's may resolve, or redirect, to a private one.
  */
 export function leadWires(fetchImpl?: typeof fetch): LeadWires | undefined {
   const token = env.APIFY_TOKEN;
@@ -134,7 +136,7 @@ export function leadWires(fetchImpl?: typeof fetch): LeadWires | undefined {
     judge: shadowed(leadJudge(portJudgeClient(), leadJudgeModel(), leadJudgeFallbacks())),
     webhookBase: leadWebhookBase(),
     webhookToken: leadWebhookToken,
-    fetchText: (url, timeoutMs) => pageText(fetchImpl ?? publicFetcher(), url, timeoutMs),
+    fetchText: markPageText,
     fetchBytes: (url, timeoutMs, maxBytes) => imageBytes(fetchImpl ?? publicFetcher(), url, timeoutMs, maxBytes),
   };
 }
