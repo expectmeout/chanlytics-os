@@ -15,6 +15,7 @@ export {
   LOGO_SIDE_MIN,
   LOGO_WORDS,
   logoFoundOn,
+  logoLookupAnswerOf,
   logoLookupWords,
   WORKSPACE_LOGOS_BUCKET,
   workspaceInitials,
