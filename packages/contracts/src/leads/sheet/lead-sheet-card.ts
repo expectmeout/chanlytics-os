@@ -11,6 +11,7 @@
  *   leadSheetWhyOf          Why's checks: the exceptions, the passed ones, their count and the legend
  */
 import type { LeadCheckKey } from "../lead-dtos";
+import { LEAD_READ_SOURCES } from "../lead-words";
 import type { LeadPeekVM } from "../lead-peek";
 
 /** The card's and Why's own words. */
@@ -25,9 +26,10 @@ export const LEAD_SHEET_CARD_WORDS = {
   noPhone: "No phone",
   site: "site",
   linkedin: "LinkedIn",
-  /** The legend under Why's checks: a mark seen, and a mark Claude read. */
+  /** The legend under Why's checks: a mark seen, and a mark read, by Claude or by Chanlytics AI (LEAD_READ_SOURCES). */
   seen: "seen on the map or in the mailbox",
   read: "read by Claude from the listing and their site",
+  readByAi: "read by Chanlytics AI",
   /** What the card's two lines open, said to a screen reader and on hover. */
   openWhy: "Why it fits, every check",
   openContact: "Every way to reach them",
@@ -198,8 +200,21 @@ export interface LeadSheetWhyVM {
   passed: LeadSheetCheckVM[];
   /** "5 passed", the fold's words. */
   fold: string;
-  /** Whether a passed check was read rather than seen: the legend says the two marks apart. */
-  legend: boolean;
+  /**
+   * Where a check was read rather than seen, the words for the read mark, which say who read it: Claude, where it read
+   * one of them, else Chanlytics AI (the screen, decision 0085, or the company judge); null where every check was seen.
+   */
+  legend: string | null;
+}
+
+/** The checks Chanlytics AI read: the screen's (decision 0085) and a company judge's. Every other read is Claude's. */
+const READ_BY_AI: ReadonlySet<string> = new Set([LEAD_READ_SOURCES.screen, LEAD_READ_SOURCES.company]);
+
+/** The read mark's words, naming who read: Chanlytics AI where it read every read check, else Claude. */
+function legendOf(checks: ReadonlyArray<{ how: string; source: string }>): string | null {
+  const read = checks.filter((c) => c.how === "read");
+  if (!read.length) return null;
+  return read.every((c) => READ_BY_AI.has(c.source)) ? CW.readByAi : CW.read;
 }
 
 export function leadSheetWhyOf(vm: Pick<LeadPeekVM, "groups">): LeadSheetWhyVM | null {
@@ -211,6 +226,6 @@ export function leadSheetWhyOf(vm: Pick<LeadPeekVM, "groups">): LeadSheetWhyVM |
     exceptions: checks.filter((c) => c.answer !== "yes"),
     passed,
     fold: CW.passed(passed.length),
-    legend: checks.some((c) => c.how === "read"),
+    legend: legendOf(checks),
   };
 }

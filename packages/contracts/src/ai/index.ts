@@ -39,6 +39,7 @@ export {
   readsAsModel,
   RETELL_MODELS,
   routeThinkingFor,
+  screenFloorOf,
   secondKeyFloorOf,
   shadowPortOf,
   THINKING_TYPES,
@@ -77,6 +78,7 @@ export {
 } from "./shadow";
 export type { SecondKey, ShadowCallFor, ShadowCallOutcome, ShadowCallSpec, ShadowRead, ShadowReads } from "./shadow";
 export {
+  isSystemOneModel,
   parseSystemOneResponse,
   SYSTEM_ONE_MODEL,
   SYSTEM_ONE_STATE_MAX_CHARS,

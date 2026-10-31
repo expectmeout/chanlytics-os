@@ -135,6 +135,17 @@ export const LEAD_CONSENT_REFUSAL =
 
 /* --------------------------------------------- release B, tasks 12-15 ---- */
 
+/**
+ * Who read a check that was read, as a lead's checks say it: the judge, Claude, from a place's listing; or Chanlytics
+ * AI, which is the screen before the judge (decision 0085), from a place's listing, and a people search's company judge,
+ * from the directory.
+ */
+export const LEAD_READ_SOURCES = {
+  judge: "Claude · the listing",
+  screen: "Chanlytics AI · the listing",
+  company: "Chanlytics AI · the directory",
+} as const;
+
 /** Not a fit's five whys, in the order the peek and the bulk bar offer them (§9.5). */
 export const LEAD_NOT_A_FIT_WORDS: Record<LeadNotAFitWhy, string> = {
   chain: "A chain or franchise",

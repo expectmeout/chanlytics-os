@@ -4,8 +4,10 @@
  */
 import {
   AppError,
+  isSystemOneModel,
   LEAD_KIND_KEY,
   LEAD_MONTHLY_ALLOWANCE,
+  LEAD_READ_SOURCES,
   type LeadCheck,
   type LeadCheckKey,
   type LeadClass,
@@ -197,6 +199,8 @@ function checksOf(r: LeadPageRow): LeadCheck[] {
       reason: null,
     });
   }
+  // A place the screen left out before the judge (decision 0085) was read by the second model, never by Claude.
+  const screened = isSystemOneModel((r.judgment as { model?: unknown } | null)?.model);
   for (const [key, read] of judgedBy(r.judgment)) {
     // A seen check is measured, never read: a plan key that shared its name would say it twice.
     if (SEEN_CHECKS.has(key)) continue;
@@ -208,7 +212,7 @@ function checksOf(r: LeadPageRow): LeadCheck[] {
             key,
             how: "read",
             answer: read.answer,
-            source: company ? "Chanlytics AI · the directory" : "Claude · the listing",
+            source: company ? LEAD_READ_SOURCES.company : screened ? LEAD_READ_SOURCES.screen : LEAD_READ_SOURCES.judge,
             reason: read.reason,
           },
     );
