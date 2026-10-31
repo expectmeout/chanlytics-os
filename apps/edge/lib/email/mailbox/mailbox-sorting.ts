@@ -87,7 +87,7 @@ export interface MailSorting {
 const UNREAD_MAX = 3;
 
 /** An answer per key, asked once a sorting. */
-function once<T>(ask: (key: string) => Promise<T>): {
+function memoBy<T>(ask: (key: string) => Promise<T>): {
   get: (key: string) => Promise<T>;
   put: (key: string, v: T) => void;
 } {
@@ -117,9 +117,9 @@ export async function mailSortingFor(
   reader: SenderReader = senderReaderFor(db, tenantId, log),
 ): Promise<MailSorting> {
   const [said, boxes] = await Promise.all([mailboxSenderVerdicts(db, tenantId), mailboxConnectionsOf(db, tenantId)]);
-  const talks = once((a) => talksWith(db, tenantId, a));
-  const readings = once((a) => senderReadingOf(db, tenantId, a));
-  const others = once((d) => domainSaidAutomated(db, tenantId, d));
+  const talks = memoBy((a) => talksWith(db, tenantId, a));
+  const readings = memoBy((a) => senderReadingOf(db, tenantId, a));
+  const others = memoBy((d) => domainSaidAutomated(db, tenantId, d));
   // One reading a sender a sorting: a second email from them while the first is read waits for it, and one nothing
   // answered for stays unanswered until the next sorting.
   const reads = new Map<string, Promise<SenderReading | null>>();

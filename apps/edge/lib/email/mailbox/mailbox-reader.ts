@@ -51,7 +51,7 @@ export const answersSomething = (e: Pick<MailboxEmail, "headers">): boolean =>
   !!(e.headers["in-reply-to"] || e.headers.references);
 
 /** Where Gmail filed an email: its Primary tab or Updates, as the model is told; null where its labels say neither. */
-function tabOf(e: Pick<MailboxEmail, "labels">): SenderFacts["tab"] {
+function gmailTabOf(e: Pick<MailboxEmail, "labels">): SenderFacts["tab"] {
   if (e.labels.includes("CATEGORY_UPDATES")) return "updates";
   return e.labels.includes("CATEGORY_PERSONAL") ? "primary" : null;
 }
@@ -64,7 +64,7 @@ function senderFactsOf(e: MailboxEmail, from: string): SenderFacts {
     subject: e.subject,
     words: emailPlainText(e),
     service: sentByAService(e),
-    tab: tabOf(e),
+    tab: gmailTabOf(e),
     answers: answersSomething(e),
   };
 }
