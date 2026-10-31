@@ -11,6 +11,7 @@
  *      refuses.
  *   5. Ended: its workspace erased, its words cleared, its counts kept; a lead deleted takes its preview's workspace.
  *   6. Who reads it: the sender's members; nobody writes it but the doors.
+ *   7. A call's start (every workspace's rehearsal, a preview's among them): one at a time, held by the row's unique call id.
  *
  * Local stack only: it makes workspaces, members, leads and a sequence with the service key, and removes them.
  */
@@ -461,3 +462,57 @@ test("create_workspace_for keeps its slug rule now that the rule has its own nam
   tenants.push(blank[0].id);
   assert.match(blank[0].slug, /^workspace(-\d+)?$/);
 });
+
+test(
+  "a call's start holds its workspace's one start on the row's unique call id: a second at once is refused, one given back or left as it died frees it, and a named one leaves the minutes to say it runs",
+  { skip },
+  async () => {
+    const { reserveRehearsalCall, releaseRehearsalCall, keepRehearsalCall, rehearsalSpokenMs } =
+      await import("@chanlytics/db");
+    const MIN = 60_000;
+    const now = new Date();
+    const ids = Array.from({ length: 4 }, () => crypto.randomUUID());
+    const reserve = (id) => reserveRehearsalCall(db, { id, tenantId: B, createdBy: null, now });
+    const spoken = (except) =>
+      rehearsalSpokenMs(db, B, { since: null, now, runningMs: 5 * MIN, callMs: 3 * MIN, except });
+
+    assert.equal(await reserve(ids[0]), true);
+    assert.equal(await reserve(ids[1]), false, "a second start at the same moment: the unique call id refuses it");
+    assert.deepEqual(
+      await spoken(ids[0]),
+      { spentMs: 0, running: false },
+      "a start's own reservation is no other call",
+    );
+    assert.equal((await spoken(null)).running, true, "to anyone else, a call is being made");
+
+    await releaseRehearsalCall(db, B, ids[0]);
+    assert.equal(await reserve(ids[1]), true, "given back, the next start holds it");
+    ok(
+      await db
+        .from("rehearsals")
+        .update({ created_at: new Date(now.getTime() - 10 * MIN).toISOString() })
+        .eq("id", ids[1]),
+    );
+    assert.equal(await reserve(ids[2]), true, "one left ten minutes ago by a start that died is given up");
+    assert.deepEqual(ok(await db.from("rehearsals").select("id").eq("id", ids[1])), []);
+
+    const named = {
+      tenantId: B,
+      agentId: "agent_fixture",
+      configVersion: null,
+      instructions: "Fixture Barbers' facts",
+    };
+    await keepRehearsalCall(db, { ...named, id: ids[2], retellCallId: `call_fixture_${stamp}` });
+    assert.deepEqual(ok(await db.from("rehearsals").select("retell_call_id, agent_id").eq("id", ids[2]).single()), {
+      retell_call_id: `call_fixture_${stamp}`,
+      agent_id: "agent_fixture",
+    });
+    assert.equal(await reserve(ids[3]), true, "named for its call, the start is free again");
+    assert.equal((await spoken(ids[3])).running, true, "and the minutes say that call runs");
+    await releaseRehearsalCall(db, B, ids[3]);
+    await assert.rejects(
+      keepRehearsalCall(db, { ...named, id: ids[3], retellCallId: `call_fixture_late_${stamp}` }),
+      /its reservation is gone/,
+    );
+  },
+);
