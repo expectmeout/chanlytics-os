@@ -59,6 +59,7 @@ export const UNLISTED = {
   "stabs-badge": "the count on a tab (SurfaceTabs), which mobile.css hides on a phone's Inbox",
   "rec-seg-label": "an option's label beside its hint (RecordToggleGroup), which no stylesheet names",
   "rec-combo-label": "an option's words beside its meta (RecordCombobox), which no stylesheet names",
+  "dtable-words": "a table heading's words where it does not sort (kit/table/head.tsx), which no stylesheet names",
 };
 
 /** Icon's markup (surfaces/kit/icon/icon.tsx), its size written on the element as Icon writes it. A glyph not here throws. */
@@ -327,6 +328,191 @@ const listRow = ({ said = true, note = false, door = false, mark = false, bare =
   `<div class="list-row-facts"><span>Sat · 10:00</span><span>2 h ago</span></div>` +
   (note ? `<div class="list-row-note">Next step: call back on Monday</div>` : "") +
   (door ? `</a>` : `</div>`);
+
+/* ---- the table (surfaces/kit/table/, decision 0083) ---- */
+
+/** The table's rows, made up: who they are, how many visits, what they last said. A long list numbers them. */
+const TABLE_PEOPLE = [
+  { id: "a1", name: "Aisha Rahman", visits: "3", note: "Asked about Saturday" },
+  { id: "b2", name: "Bo Lindqvist", visits: "1", note: "Wants a quote" },
+  { id: "c3", name: "Carmen Diaz", visits: "7", note: "Comes every month" },
+];
+/** A list as long as the window draws in part (kit/rows/shown-rows.ts, whole under 40). */
+const TABLE_MANY = Array.from({ length: 48 }, (_, i) => ({
+  id: `m${i + 1}`,
+  name: `Person ${i + 1}`,
+  visits: String((i % 9) + 1),
+  note: "Booked online",
+}));
+/**
+ * Its columns, as the component's columns declare them: the fill column (pinned at the left, sorting A to Z), one that
+ * sorts with its words at the end, one that does not sort, and the row's acts (held at the right, headed for a screen
+ * reader alone).
+ */
+const TABLE_COLUMNS = [
+  { key: "name", label: "Person", fill: true, sorts: true },
+  { key: "visits", label: "Visits", align: "end", sorts: true },
+  { key: "note", label: "Last said" },
+  { key: "actions", label: "", fixed: true },
+];
+const TABLE_MOVE_KEYS = "Alt+ArrowLeft Alt+ArrowRight";
+/** One attribute of the table's markup, or nothing where it has no value (the document's `attr` is declared after the families). */
+const tableAttr = (name, value) => (value === undefined || value === null ? "" : ` ${name}="${value}"`);
+
+/** A heading's edge (kit/table/edge.tsx): a slider that takes focus, for a column with words that does not hold still. */
+const tableEdge = (c, { dragging = false } = {}) =>
+  `<span role="slider" aria-orientation="horizontal" aria-label="Width of ${c.label}" aria-valuenow="120" ` +
+  `aria-valuemin="56" aria-valuemax="1200" aria-keyshortcuts="ArrowLeft ArrowRight Enter Delete` +
+  `${c.fill ? "" : ` ${TABLE_MOVE_KEYS}`}" tabindex="0" class="dtable-edge" data-edge="${c.key}" ` +
+  `data-testid="column-edge"${dragging ? ' data-dragging="true"' : ""}></span>`;
+
+/** A heading (kit/table/head.tsx): a sort's button with its caret or arrow, else its words; on a desk its edge. */
+const tableHeading = (c, t) => {
+  const here = t.sortBy === c.key;
+  const pin = c.fill ? "start" : c.fixed ? "end" : null;
+  const movable = t.desk && !c.fill && !c.fixed;
+  const words = c.label === "" ? `<span class="rec-sr">Actions</span>` : c.label;
+  const inner = c.sorts
+    ? `<button type="button" class="dtable-sort"${tableAttr("aria-keyshortcuts", movable ? TABLE_MOVE_KEYS : undefined)}>` +
+      `${words}<span class="dtable-arrow" aria-hidden="true"${here ? "" : ' data-idle="true"'}>` +
+      `${here ? (t.sortDir === "asc" ? "▲" : "▼") : "↕"}</span></button>`
+    : `<span class="dtable-words">${words}</span>`;
+  return (
+    `<th data-key="${c.key}"${tableAttr("data-align", c.align)}${tableAttr("data-pin", pin)}${c.sorts ? ' data-sorts=""' : ""}` +
+    `${tableAttr("aria-sort", here ? (t.sortDir === "asc" ? "ascending" : "descending") : undefined)}` +
+    `${movable ? ' draggable="true"' : ""}${tableAttr("data-drop", t.drop?.[c.key])}>${inner}` +
+    `${t.desk && !c.fixed && c.label ? tableEdge(c, { dragging: t.dragging === c.key }) : ""}</th>`
+  );
+};
+
+/** A box for a selection: the head's (all of them) or a row's. */
+const tableCheck = (label, { checked = false, all = false, half = false } = {}) =>
+  `<input type="checkbox" class="dtable-check"${checked ? " checked" : ""} aria-label="${label}"` +
+  `${all ? ` title="${label}" data-testid="select-all"` : ' data-testid="row-select"'}` +
+  `${half ? " data-gx-indeterminate" : ""} />`;
+
+/** A row's cell for a column: what the page's cell draws, marked with its column and its pin by the row. */
+const tableCell = (c, r) => {
+  const pin = c.fill ? ' data-pin="start"' : c.fixed ? ' data-pin="end"' : "";
+  const said = c.key === "actions" ? `<button type="button" class="btn btn-ghost btn-sm">Open</button>` : r[c.key];
+  return `<td data-col="${c.key}"${pin}>${said}</td>`;
+};
+
+/** A row (kit/table/rows.tsx): picked, the cursor's, its box, then its cells, or a phone's one card. */
+const tableRow = (r, i, t, rowIndex) => {
+  const picked = t.picked.includes(r.id);
+  const focused = t.cursor === r.id;
+  const cls = [picked && "selected", focused && "focused"].filter(Boolean).join(" ");
+  const stop = focused || (!t.cursor && i === 0);
+  return (
+    `<tr data-index="${i}"${tableAttr("aria-rowindex", rowIndex)} id="person-${r.id}"${cls ? ` class="${cls}"` : ""}` +
+    `${t.selectable ? ` aria-selected="${picked}"` : ""}${t.desk ? "" : ' data-card=""'} tabindex="${stop ? 0 : -1}">` +
+    `${t.selectable ? `<td class="dtable-sel">${tableCheck(`Select ${r.name}`, { checked: picked })}</td>` : ""}` +
+    (t.desk ? TABLE_COLUMNS.map((c) => tableCell(c, r)).join("") : `<td>${listRow({ said: false })}</td>`) +
+    `</tr>`
+  );
+};
+
+/** A group of rows (kit/table/groups.tsx): its head, which names it, counts it and folds it, then its rows. */
+const tableGroup = (g, t, span) =>
+  `<tbody data-dims data-section="${g.key}"><tr class="dtable-group${g.folded ? " is-folded" : ""}" ` +
+  `data-testid="table-section"><th scope="rowgroup" colspan="${span}"><span class="dtable-group-line">` +
+  `<span class="dtable-group-label">${g.label}</span><span class="tally">${g.rows.length}</span>` +
+  (g.meta
+    ? `<span class="dtable-group-dot" aria-hidden="true">·</span>` +
+      `<span class="dtable-group-meta" data-testid="table-section-meta">${g.meta}</span>`
+    : "") +
+  (g.folded
+    ? `<button type="button" class="dtable-group-toggle" aria-expanded="false" data-testid="table-section-toggle">Show</button>`
+    : "") +
+  `</span></th></tr>${g.folded ? "" : g.rows.map((r, i) => tableRow(r, g.first + i, t)).join("")}</tbody>`;
+
+/**
+ * DataTable's markup (kit/table/data-table.tsx), as the stub draws it for the same rows (styles/kit-components.test.mjs
+ * TABLES): the box, the scroller, the table with its widths' cols on a desk, the heads, the rows (or the groups, or the
+ * empty row) and the foot. What the table says on its elements as they are used and not as they are drawn is written
+ * here as the gallery's: the box scrolled sideways (`data-scrolled`, `data-more`), an edge being dragged
+ * (`data-dragging`), a heading a column is dropped on (`data-drop`), a member's widths (`data-sizing`), and the head's
+ * box with some of the rows picked (`data-gx-indeterminate`, which the gallery's script makes the box's state).
+ */
+const dtable = ({
+  desk = true,
+  rows = TABLE_PEOPLE,
+  selectable = true,
+  picked = [],
+  cursor = null,
+  sortBy = "name",
+  sortDir = "asc",
+  density = "comfortable",
+  groups = null,
+  stages = false,
+  filtered = false,
+  total = rows.length,
+  shown = rows.length,
+  scrolled = false,
+  more = false,
+  dragging = null,
+  drop = null,
+  sized = false,
+} = {}) => {
+  const t = { desk, selectable, picked, cursor, sortBy, sortDir, dragging, drop };
+  const columns = desk ? TABLE_COLUMNS : [{ key: "card", label: "Person", fill: true }];
+  const span = columns.length + (selectable ? 1 : 0);
+  const count = groups ? groups.reduce((n, g) => n + g.rows.length, 0) : rows.length;
+  const indexed = !groups && rows.length > 0;
+  const heads =
+    `<thead><tr${indexed ? ' aria-rowindex="1"' : ""}>` +
+    (selectable
+      ? `<th class="dtable-sel">${tableCheck("Select everyone shown", {
+          checked: count > 0 && picked.length === count,
+          all: true,
+          half: picked.length > 0 && picked.length < count,
+        })}</th>`
+      : "") +
+    columns.map((c) => tableHeading(c, t)).join("") +
+    `</tr></thead>`;
+  const empty =
+    `<tr><td colspan="${span}" class="dtable-empty"><div class="empty empty-line empty-center">` +
+    `<div class="empty-glyph">${icon("search", 13)}</div><div class="empty-words">` +
+    `<div class="empty-title">No one matches this view.</div></div><div class="empty-acts">` +
+    `<button type="button" class="cl-bucket-link">Clear filters${icon("arrow-right", 10)}</button></div></div></td></tr>`;
+  let first = 0;
+  const bodies = groups
+    ? groups
+        .map((g) => {
+          const drawn = tableGroup({ ...g, first }, t, span);
+          first += g.folded ? 0 : g.rows.length;
+          return drawn;
+        })
+        .join("")
+    : `<tbody data-dims>${rows
+        .slice(0, shown)
+        .map((r, i) => tableRow(r, i, t, i + 2))
+        .join(
+          "",
+        )}${shown < rows.length ? `<tr class="dtable-gap" aria-hidden="true"><td colspan="${span}"></td></tr>` : ""}` +
+      `${rows.length === 0 ? empty : ""}</tbody>`;
+  return (
+    `<div class="dtable-wrap${picked.length > 0 ? " selecting" : ""}"${desk ? ` data-density="${density}"` : ""}>` +
+    `<div class="dtable-scroll" data-testid="people-table-scroll"${scrolled ? " data-scrolled" : ""}${more ? " data-more" : ""}>` +
+    `<table class="dtable" aria-label="People"${tableAttr("aria-rowcount", indexed ? rows.length + 1 : undefined)}` +
+    `${desk ? ` data-fixed="true" data-density="${density}"` : ""}${groups ? ' data-grouped="true"' : ""}` +
+    `${stages ? ' data-groups="stages"' : ""}${sized ? ' data-sizing="sized"' : desk ? ' data-sizing="fill"' : ""}>` +
+    (desk
+      ? `<colgroup>${selectable ? `<col width="42" />` : ""}${columns.map((c) => `<col data-col="${c.key}" />`).join("")}</colgroup>`
+      : "") +
+    heads +
+    bodies +
+    `</table></div>` +
+    `<div class="dtable-foot"><span>${filtered ? `Showing ${count} of ${total}` : `${total} ${total === 1 ? "person" : "people"}`}</span></div></div>`
+  );
+};
+
+/** The Pipeline's stages, as groups: one open with what it waits on beside its count, one folded with the way to open it. */
+const TABLE_STAGES = [
+  { key: "consultations", label: "Consultations", meta: "2 this week", rows: TABLE_PEOPLE.slice(0, 2) },
+  { key: "passed", label: "Passed or ended", rows: TABLE_PEOPLE.slice(2), folded: true },
+];
 
 /** A chart's parts, as SegmentBar is given its rows: a name, a share and a series colour. */
 const SERIES = [
@@ -2778,6 +2964,68 @@ export const FAMILIES = [
       },
     ],
   },
+  {
+    family: "Table",
+    about:
+      "The kit's table (surfaces/kit/table/data-table.tsx, decision 0083), which People, Leads and the Pipeline's list " +
+      "draw over TanStack Table's state. On a desk: its box, its own scroller, a fixed layout with a col for each " +
+      "column, the fill column pinned at the left and the row's acts at the right, a heading that sorts (its caret at " +
+      "rest, its arrow once it is the sort) and one that does not, an edge to size each column by, the cursor's row and " +
+      "the select column; then some of the rows picked, the box scrolled sideways with more past its edge, an edge being " +
+      "dragged and a heading a column is dropped on; everyone picked at the compact row height in a member's widths; " +
+      "nobody to show; the Pipeline's stages as groups, one folded; and a long list drawn in part, the room of the rows " +
+      "not drawn a gap row. On a phone: a card a row, the box over its face, and the stages again.",
+    entries: [
+      { id: "dtable", width: "desk", html: dtable({ cursor: "a1" }) },
+      {
+        id: "dtable-picked",
+        width: "desk",
+        html: dtable({
+          cursor: "a1",
+          picked: ["b2"],
+          scrolled: true,
+          more: true,
+          dragging: "visits",
+          drop: { note: "before" },
+        }),
+      },
+      {
+        id: "dtable-all",
+        width: "desk",
+        html: dtable({
+          picked: ["a1", "b2", "c3"],
+          density: "compact",
+          sized: true,
+          sortBy: "visits",
+          sortDir: "desc",
+          drop: { visits: "after" },
+        }),
+      },
+      { id: "dtable-empty", width: "desk", html: dtable({ rows: [], selectable: false, filtered: true, total: 12 }) },
+      { id: "dtable-groups", width: "desk", html: dtable({ groups: TABLE_STAGES, stages: true, selectable: false }) },
+      { id: "dtable-long", width: "desk", html: dtable({ rows: TABLE_MANY, selectable: false, shown: 40 }) },
+      { id: "dtable-cards", width: "phone", html: dtable({ desk: false, cursor: "a1", picked: ["b2"] }) },
+      {
+        id: "dtable-cards-groups",
+        width: "phone",
+        html: dtable({ desk: false, groups: TABLE_STAGES, stages: true, selectable: false }),
+      },
+    ],
+  },
+  {
+    family: "Table's Columns menu",
+    about:
+      "The table's Columns menu, closed (surfaces/kit/table/columns-menu.tsx): the kit's Menu (its family on Base UI) " +
+      "behind a quiet button, in the box that a phone, which draws cards and no columns, leaves out.",
+    entries: [
+      {
+        id: "dtable-cols",
+        html:
+          `<div class="more-wrap dtable-cols"><button type="button" tabindex="0" aria-haspopup="menu" aria-expanded="false" ` +
+          `class="btn btn-ghost btn-sm" data-testid="people-columns">${icon("eye", 12)} Columns</button></div>`,
+      },
+    ],
+  },
 ];
 
 /* ---- the document ---- */
@@ -2830,7 +3078,9 @@ const GALLERY_CSS = `
  * The theme from `?theme=light|dark` (dark otherwise), and the look stamped as the app stamps it (Glass, the one look
  * since Classic retired: contracts LOOK_OPTIONS); `t` turns the theme, as the mockup's document does
  * (style-equality.mjs presses it). And an entry bound to
- * a width leaves the page at the other, as it loads, at the kit's one breakpoint.
+ * a width leaves the page at the other, as it loads, at the kit's one breakpoint; a box marked
+ * `data-gx-indeterminate` is put in the state between on and off, which no attribute says (a table's head box with
+ * some of its rows picked).
  */
 const GALLERY_SCRIPT = `
     (function () {
@@ -2841,6 +3091,9 @@ const GALLERY_SCRIPT = `
       var phone = window.matchMedia("(max-width: 900px)").matches;
       document.querySelectorAll(".gx-entry[data-width]").forEach(function (entry) {
         if ((entry.getAttribute("data-width") === "phone") !== phone) entry.remove();
+      });
+      document.querySelectorAll("input[data-gx-indeterminate]").forEach(function (box) {
+        box.indeterminate = true;
       });
       window.addEventListener("keydown", function (e) {
         var tag = ((e.target && e.target.tagName) || "").toLowerCase();

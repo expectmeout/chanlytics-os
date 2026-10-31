@@ -1,25 +1,40 @@
 /**
- * The edge of a column's heading: where its width is changed. A drag with a mouse, a finger or a pen sets it (the
- * pointer is captured, so the drag holds past the edge of the heading), a double press fits the column to what it holds,
- * and for a keyboard the edge is a focusable slider (a value the arrows step, with Shift a bigger step, as a window
- * splitter is: a separator that takes focus is, in the lint's words, no interactive element), Enter fits it and Delete or Backspace gives it back its own width. A width dragged to is saved with the
- * view once the drag ends, never while it is under way (hooks/use-controls.ts).
+ * The edge of a column's heading: where its width is changed (moved from people/table/edge.tsx, decision 0083). A drag
+ * with a mouse, a finger or a pen sets it (the pointer is captured, so the drag holds past the edge of the heading), a
+ * double press fits the column to what it holds, and for a keyboard the edge is a focusable slider (a value the arrows
+ * step, with Shift a bigger step, as a window splitter is: a separator that takes focus is, in the lint's words, no
+ * interactive element), Enter fits it and Delete or Backspace gives it back its own width.
  *
- * Hookless, as the table is: one drag is under way at a time, and it lives in the closure of the press that began it.
+ * The width it stands at is read from its heading as a press or a key begins, never kept from a draw: the widths are
+ * written to the table as the sizing atom moves (widths.ts), and the heading is not drawn again for it. A drag writes the
+ * width live, so the table follows the pointer, and says it is under way (`onStart`), so the view is saved once it ends.
+ * table-core's own resize handler is not taken: it holds no floor at the heading's words, and a press that moved nothing
+ * would keep a width, which would size the fill column by a click.
+ *
+ * Hookless, as every part of the table is: one drag is under way at a time, and it lives in the closure of the press
+ * that began it.
  */
 import type { KeyboardEvent, PointerEvent } from "react";
-import { PL_DRAG_MAX_PX, PL_NUDGE_BIG_PX, PL_NUDGE_PX, plClampWidth } from "./layout";
+import { TABLE_MAX_PX, TABLE_NUDGE_BIG_PX, TABLE_NUDGE_PX, clampWidth } from "./columns";
 
 /** An edge is held down: a column's heading, which is draggable, must not start its own drag from the press that began a width's. */
 let edgeIsHeld = false;
 export const holdingEdge = (): boolean => edgeIsHeld;
 
+/** The width a heading stands at now. */
+const standingOf = (th: Element | null): number => (th ? Math.round(th.getBoundingClientRect().width) : 0);
+
 interface ColumnEdgeProps {
+  /** The column, whose width the slider is (`data-edge`). */
+  id: string;
   /** The heading's words, which name the edge to a screen reader. */
   label: string;
-  /** The column's width now, and the least it may be given. */
-  width: number;
+  /** Where the column starts, said by the slider until its width is written. */
+  base: number;
+  /** The least it may be given. */
   min: number;
+  /** A drag begins, from the width the column stands at (`from`). */
+  onStart: (from: number) => void;
   /** A width, live while a drag is under way (`commit` false) and final once it ends having moved, or a key sets it. */
   onSize: (px: number, commit: boolean) => void;
   /** A drag that ended with no width to keep (a press with no movement, or the system's cancel): the live width goes. */
@@ -33,22 +48,35 @@ interface ColumnEdgeProps {
 }
 
 /** The edge: a thin slider at the heading's right, wider to hit than to see. */
-export function ColumnEdge({ label, width, min, onSize, onCancel, onReset, onFit, onMove }: ColumnEdgeProps) {
+export function ColumnEdge({
+  id,
+  label,
+  base,
+  min,
+  onStart,
+  onSize,
+  onCancel,
+  onReset,
+  onFit,
+  onMove,
+}: ColumnEdgeProps) {
   const press = (e: PointerEvent<HTMLElement>) => {
     if (e.button !== 0) return;
     e.preventDefault();
     e.stopPropagation();
     const edge = e.currentTarget;
+    const th = edge.closest("th");
     const x0 = e.clientX;
-    const w0 = width;
+    const w0 = standingOf(th);
     // Never narrower than the heading says: its words and caret whole, or the column's own least, whichever is wider.
-    const floor = Math.max(min, headingFloorOf(edge.closest("th")));
+    const floor = Math.max(min, headingFloorOf(th));
     let px = w0;
     edgeIsHeld = true;
     edge.setPointerCapture(e.pointerId);
     edge.setAttribute("data-dragging", "true");
+    onStart(w0);
     const move = (m: globalThis.PointerEvent) => {
-      px = Math.max(Math.min(floor, w0), plClampWidth(w0 + m.clientX - x0, w0));
+      px = Math.max(Math.min(floor, w0), clampWidth(w0 + m.clientX - x0, w0));
       onSize(px, false);
     };
     const done = (u: globalThis.PointerEvent, keep: boolean) => {
@@ -82,12 +110,13 @@ export function ColumnEdge({ label, width, min, onSize, onCancel, onReset, onFit
       }
       return;
     }
-    const step = e.shiftKey ? PL_NUDGE_BIG_PX : PL_NUDGE_PX;
+    const step = e.shiftKey ? TABLE_NUDGE_BIG_PX : TABLE_NUDGE_PX;
     const heading = e.currentTarget.closest("th");
+    const width = standingOf(heading);
     const floor = Math.min(width, Math.max(min, headingFloorOf(heading)));
     let handled = true;
-    if (e.key === "ArrowLeft") onSize(Math.max(floor, plClampWidth(width - step, width)), true);
-    else if (e.key === "ArrowRight") onSize(plClampWidth(width + step, width), true);
+    if (e.key === "ArrowLeft") onSize(Math.max(floor, clampWidth(width - step, width)), true);
+    else if (e.key === "ArrowRight") onSize(clampWidth(width + step, width), true);
     else if (e.key === "Enter" && heading) onFit(heading);
     else if (e.key === "Delete" || e.key === "Backspace") onReset();
     else handled = false;
@@ -102,14 +131,15 @@ export function ColumnEdge({ label, width, min, onSize, onCancel, onReset, onFit
       role="slider"
       aria-orientation="horizontal"
       aria-label={`Width of ${label}`}
-      aria-valuenow={Math.round(width)}
+      aria-valuenow={base}
       aria-valuemin={min}
-      aria-valuemax={Math.max(PL_DRAG_MAX_PX, Math.round(width))}
+      aria-valuemax={Math.max(TABLE_MAX_PX, base)}
       aria-keyshortcuts={
         onMove ? "ArrowLeft ArrowRight Enter Delete Alt+ArrowLeft Alt+ArrowRight" : "ArrowLeft ArrowRight Enter Delete"
       }
       tabIndex={0}
-      className="pl-edge"
+      className="dtable-edge"
+      data-edge={id}
       data-testid="column-edge"
       onPointerDown={press}
       onKeyDown={key}

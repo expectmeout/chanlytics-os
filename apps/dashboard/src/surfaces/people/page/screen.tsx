@@ -9,7 +9,7 @@ import { ActWords } from "../../kit/head/act-words";
 import { Icon } from "../../kit/icon/icon";
 import { Menu } from "../../kit/menu/menu";
 import { PeopleBulkBar } from "../bulk/bulk-bar";
-import { plCardRowClass } from "../cells/columns";
+import { PL_CARD } from "../cells/columns";
 import { PeopleAddSheet } from "../import/import-sheet";
 import { DeleteListButton, ListTitle } from "../lists/list-title";
 import { plArchivedWords } from "../lists/doors";
@@ -21,15 +21,16 @@ import { BarWord, PeoplePhoneBar, SELECT_WORDS } from "../rail/phone-bar";
 import { PeopleStanding } from "../rail/standing";
 import { PeopleListActSheet } from "../sheets/list-sheets";
 import { PhoneSheetRow } from "../sheets/phone-sheet";
-import { PeopleColumnsMenu } from "../table/columns-menu";
+import { TableColumnsMenu } from "../../kit/table/columns-menu";
 import { PeopleFileActs } from "./file-acts";
-import { PeopleTable } from "../table/table";
+import { DataTable } from "../../kit/table/data-table";
+import type { TableEmpty } from "../../kit/table/rows";
 import { PersonPeekWhenRead } from "../peek/peek-code";
-import type { TableEmpty } from "../types";
 import {
   PL_DEFAULT_GROUPS,
   PL_NO_LISTS,
   PL_SEARCH_LABEL,
+  PL_TABLE_CLASSES,
   PL_TAB_LABEL,
   plLoadedWords,
   plNoMatchWords,
@@ -261,7 +262,7 @@ export function peopleAct(s: PeopleState) {
 
 /** A desktop's controls: the search, the Columns menu, and Export as a word (adding people is the page's act). */
 function peopleDeskControls(s: PeopleState) {
-  const { searchRef, q, setQ, plFlash, exportBlocked, exportHref, exportName, colOptions, pickColumn, layout } = s;
+  const { searchRef, q, setQ, plFlash, exportBlocked, exportHref, exportName, table, declared } = s;
   return (
     <div className="cl-controls">
       <div className="cl-search-wrap">
@@ -269,9 +270,9 @@ function peopleDeskControls(s: PeopleState) {
         <input ref={searchRef} placeholder={`${PL_SEARCH_LABEL}…`} value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
       <div className="cl-controls-right">
-        {/* No sort button: every heading that sorts is a button with its arrow (cl-th-sort), so "Z → A" beside them only
+        {/* No sort button: every heading that sorts is a button with its arrow (dtable-sort), so "Z → A" beside them only
             turned round an order the table already shows and changes. */}
-        <PeopleColumnsMenu options={colOptions} onPick={pickColumn} layout={layout} />
+        <TableColumnsMenu state={table} columns={declared} />
         {/* Export stands beside Columns as a word (file-acts.tsx). */}
         <PeopleFileActs exportBlocked={exportBlocked} exportHref={exportHref} exportName={exportName} flash={plFlash} />
       </div>
@@ -291,12 +292,11 @@ function peopleScroll(s: PeopleState) {
     phone,
     listStep,
     columns,
-    layout,
+    model,
+    table,
     cellCtx,
     canEditLists,
     canExport,
-    sel,
-    toggleSel,
     toggleAll,
     cursor,
     setCursor,
@@ -310,8 +310,6 @@ function peopleScroll(s: PeopleState) {
     selectMode,
     filtered,
     setQ,
-    scrolledX,
-    setScrolledX,
     searching,
     hasMore,
     q,
@@ -340,19 +338,20 @@ function peopleScroll(s: PeopleState) {
           acts. A list's own step stays, one card. */}
       {(!phone || listStep) && peopleListSection(s)}
 
-      <PeopleTable
+      <DataTable
+        table={model.table}
+        state={table}
+        classNames={PL_TABLE_CLASSES}
         swapRef={swap}
         noun="person"
         columns={columns}
+        card={phone ? PL_CARD : null}
         ctx={cellCtx}
         selectable={canEditLists || canExport}
-        sel={sel}
-        onToggle={toggleSel}
         onToggleAll={toggleAll}
         cursor={cursor}
         onCursor={setCursor}
         rows={shown}
-        rowClass={phone ? plCardRowClass : null}
         total={people.page && people.page.has_more ? people.page.total : rows.length}
         sortBy={sortBy}
         sortDir={sortDir}
@@ -366,9 +365,6 @@ function peopleScroll(s: PeopleState) {
           setListId(null);
           setSavedId(null);
         }}
-        scrolled={scrolledX}
-        onScrolled={setScrolledX}
-        layout={layout}
         busy={searching}
         empty={peopleTableEmpty(s)}
       />

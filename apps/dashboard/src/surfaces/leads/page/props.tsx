@@ -24,9 +24,11 @@ import {
   type LeadSearchPlan,
   type LeadsBulkInput,
 } from "@chanlytics/contracts";
+import type { TableEmpty } from "../../kit/table/rows";
+import type { useDataTable } from "../../kit/table/use-data-table";
 import type { usePlControls } from "../../people/hooks/use-controls";
 import type { usePlPlace } from "../../people/hooks/use-place";
-import type { PeopleRead, TableEmpty } from "../../people/types";
+import type { ColCtx, PeopleRead } from "../../people/types";
 import type { ReviewDoors } from "../bench/types";
 import type { LeadCellCtx } from "../cells/types";
 import type { SheetPileView } from "../sheet/sheet";
@@ -47,14 +49,16 @@ import type { LeadActs } from "./acts";
 import type { LeadsNav } from "./peek-hooks";
 import type { RailRoutes, StripActs } from "./routes";
 import type { FinderActs, SearchActs } from "./search-acts";
+import type { LeadNarrowings } from "./reads";
 import type { LeadsState, LeadView } from "./state";
 
-type Controls = ReturnType<typeof usePlControls<LeadRowVM, LeadCellCtx>>;
+type Controls = ReturnType<typeof usePlControls<LeadRowVM, LeadCellCtx, ColCtx>>;
 type Place = Pick<ReturnType<typeof usePlPlace>, "cursor" | "setCursor" | "toggleAll">;
 
 /** Everything the page holds this draw, as one bag the five builders read. */
 export type LeadsPage = Controls &
   LeadsState &
+  LeadNarrowings &
   LeadActs &
   FinderActs &
   SearchActs &
@@ -65,6 +69,8 @@ export type LeadsPage = Controls &
     leads: LeadsSurface;
     /** The table's element for the kit's swap rise (kit/motion): the rows rise as a view's rows land. */
     swap: RefObject<HTMLTableElement | null>;
+    /** The table over the view's rows (kit/table/use-data-table.ts). */
+    model: ReturnType<typeof useDataTable<LeadRowVM, LeadCellCtx, ColCtx>>;
     nav: LeadsNav;
     onOpenProfile: (id: string) => void;
     leadView: LeadView;
@@ -197,9 +203,9 @@ export const leadsListProps = (p: LeadsPage) => {
     // Under a search, its own rows (the read is the search's); else the view's count across the workspace.
     total: openSearch ? leads.rows.length : (leads.counts[leadView.list] ?? leads.counts.all),
     columns: p.columns,
-    layout: p.layout,
-    colOptions: p.colOptions,
-    onPickColumn: p.pickColumn,
+    declared: p.declared,
+    table: p.table,
+    model: p.model,
     cellCtx: p.cellCtxLeads,
     sortBy: p.sortBy,
     sortDir: p.sortDir,
@@ -219,8 +225,6 @@ export const leadsListProps = (p: LeadsPage) => {
     onQ: setQ,
     searchRef: p.searchRef,
     scrollRef: p.scrollRef,
-    scrolled: p.scrolledX,
-    onScrolled: p.setScrolledX,
     filtered: p.filtered,
     onClearFilters: () => clearFilters(p),
   };
@@ -428,10 +432,7 @@ export const leadsBulkProps = (p: LeadsPage) => {
 
 /** Clear filters: the words in the box, the Excluded view's chip, the fit, the Filter, and the list and class with them. */
 const clearFilters = (p: LeadsPage) => {
-  p.setQ("");
-  p.setChip(null);
-  p.setFitChip(null);
-  p.setReach([]);
+  p.table.clearFilters();
   p.goto({ list: "all", cls: null });
 };
 

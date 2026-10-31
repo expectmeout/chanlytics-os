@@ -205,7 +205,7 @@ test("the composer, the answer verb, the campaign runner, a list rule, Ask's eff
     ],
     "packages/core/src/inbound/answer.ts": ["whatsapp", "sms", "email", "intake", "conversations"],
     "packages/core/src/campaigns/run-playbook.ts": ["playbooks", "broadcasts"],
-    "apps/dashboard/src/surfaces/people/table/columns.ts": ["leads", "deals"],
+    "apps/dashboard/src/surfaces/kit/table/columns.ts": ["leads", "deals"],
     "apps/dashboard/src/surfaces/people/hooks/use-controls.ts": ["leads", "deals"],
     "apps/dashboard/src/surfaces/people/rail/people-rail.tsx": ["leads", "deals"],
   };

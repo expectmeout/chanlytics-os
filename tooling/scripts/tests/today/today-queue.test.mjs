@@ -14,7 +14,7 @@ import { PLAN } from "../_lead-fixtures.mjs";
 import { installLegacyReact, fresh, again, all, find, byTestId, textOf } from "../_legacy-react.mjs";
 
 // People's cells, from the code the page draws its rows with (surfaces/people/cells/columns.tsx).
-const { PL_COLUMNS, PL_PHONE_COLUMNS } = await importSrc("apps/dashboard/src/surfaces/people/cells/columns.tsx");
+const { PL_COLUMNS, PL_CARD } = await importSrc("apps/dashboard/src/surfaces/people/cells/columns.tsx");
 
 // 10:00 in New York on Sunday 6 September 2026.
 const NOW = new Date("2026-09-06T14:00:00Z");
@@ -481,7 +481,7 @@ test("the wiring: one row component for People and Today, the queue in the comma
   const attention = { p1: attentionRow(needsYou, ROW_TZ, ROW_NOW) };
   const ctx = { bookingLink: null, attention, onOpen() {}, onWarm() {}, drop: null, listsOf: {}, shows: {} };
   const drawn = [];
-  for (const c of [...PL_COLUMNS, ...PL_PHONE_COLUMNS]) {
+  for (const c of [...PL_COLUMNS.filter((x) => x.cell), PL_CARD]) {
     fresh();
     drawn.push(
       ...all(

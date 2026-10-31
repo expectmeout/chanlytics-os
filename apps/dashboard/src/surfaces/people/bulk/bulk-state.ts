@@ -6,7 +6,7 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
 import type { PersonRowVM } from "@chanlytics/contracts";
-import type { Flash, SavedList, TableColumn } from "../types";
+import type { Flash, SavedList } from "../types";
 
 /** A yes waiting for the note that says which forms: the purpose, and the way it was given. */
 interface SlipsAsk {
@@ -42,8 +42,11 @@ export function useBulkState() {
 export type BulkState = ReturnType<typeof useBulkState>;
 
 /** What the bar was handed, and what it worked out of it: who is picked, in fifties, and where a selection goes next. */
-/** A column as a file reads it: its key and what it says there (types.ts `csv`). */
-export type FileColumn = Pick<TableColumn<PersonRowVM>, "key" | "csv">;
+/** A column as a file reads it: its key and what it says there (kit/table/columns.ts `csv`). */
+export interface FileColumn {
+  key: string;
+  csv?: { head: string; cell: (row: PersonRowVM) => string };
+}
 
 export interface BulkProps {
   sel: ReadonlySet<string>;

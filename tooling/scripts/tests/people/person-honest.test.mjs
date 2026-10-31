@@ -617,7 +617,7 @@ test("REGRESSION (B19): People's table is titled for everyone and its first colu
     "REGRESSION: All customers",
   );
   assert.equal(
-    textOf(find(tree, (n) => n.type === "th" && n.props?.className?.includes("sortable"))).replace(/[▲▼↕]/g, ""),
+    textOf(find(tree, (n) => n.type === "th" && n.props?.["data-sorts"] !== undefined)).replace(/[▲▼↕]/g, ""),
     "Person",
     "REGRESSION: Customer",
   );

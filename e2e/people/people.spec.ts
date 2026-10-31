@@ -636,7 +636,7 @@ test.describe("People on a real workspace", () => {
     expect(stopped, "every write to a view went to the one address answered here").toEqual([]);
   });
 
-  test("the table gives every column the width it declares, fits a laptop's pane with its default columns, and a width dragged to is kept in the view", async ({
+  test("the table fills its box with Person, every other column at the width it declares, and a width dragged to is kept in the view", async ({
     page,
   }) => {
     // The view's save is answered here and noted, never sent: no choice of this test reaches the member's real view.
@@ -664,17 +664,25 @@ test.describe("People on a real workspace", () => {
     const scroller = page.getByTestId("people-table-scroll");
     const table = page.locator(".cl-table");
     await expect(table, "a desktop's table is a fixed layout").toHaveAttribute("data-fixed", "true");
-    // The columns' widths add up to the table's box: nothing is left for the browser to hand to the wrong column, and the
-    // table does not scroll sideways with its default columns beside the sidebar and the rail.
-    const sums = await page.evaluate(() => {
-      const box = document.querySelector<HTMLElement>("[data-testid='people-table-scroll']")!;
-      const cols = [...document.querySelectorAll("table.cl-table colgroup col")].map((c) =>
-        Number(c.getAttribute("width")),
-      );
-      return { box: box.clientWidth, over: box.scrollWidth - box.clientWidth, sum: cols.reduce((a, b) => a + b, 0) };
-    });
-    expect(sums.sum, "the columns add up to the table's box").toBe(sums.box);
-    expect(sums.over, "no sideways scroll at 1440").toBeLessThanOrEqual(1);
+    // Until a member sizes a column the table is its box's width, and Person, the fill column, takes the room the others
+    // leave (decision 0083, kit/table/widths.ts): nothing scrolls sideways with the default columns beside the sidebar
+    // and the rail.
+    await expect(table, "the fill column takes the room").toHaveAttribute("data-sizing", "fill");
+    const room = () =>
+      page.evaluate(() => {
+        const box = document.querySelector<HTMLElement>("[data-testid='people-table-scroll']")!;
+        const drawn = box.querySelector("table")!;
+        return {
+          box: box.clientWidth,
+          table: Math.round(drawn.getBoundingClientRect().width),
+          over: box.scrollWidth - box.clientWidth,
+        };
+      });
+    const at1440 = await room();
+    expect(Math.abs(at1440.table - at1440.box), "the table is its box's width").toBeLessThanOrEqual(1);
+    expect(at1440.over, "no sideways scroll at 1440").toBeLessThanOrEqual(1);
+    const widthOf = (key: string) =>
+      page.locator(`thead th[data-key='${key}']`).evaluate((th) => Math.round(th.getBoundingClientRect().width));
     // A long word in a cell moves no column: widths are the columns' own.
     const widthsOf = () =>
       page.evaluate(() =>
@@ -689,17 +697,20 @@ test.describe("People on a real workspace", () => {
     });
     expect(await widthsOf(), "a long line in a cell moves no column").toEqual(before);
     // A width dragged to: the edge of State's heading, by its keyboard (the arrows step it), is kept in the view saved.
+    const person = await widthOf("name");
+    const state = await widthOf("state");
     const edge = page.locator("thead th[data-key='state'] [role='slider']");
     await edge.focus();
     await page.keyboard.press("ArrowRight");
     await page.keyboard.press("ArrowRight");
     await expect.poll(() => saved.some((s) => typeof s.view?.widths?.state === "number")).toBe(true);
-    const grown = (await page.locator("thead th[data-key='state']").boundingBox())!.width;
-    expect(Math.round(grown), "State is wider by the two steps").toBeGreaterThanOrEqual(before[2]! + 30);
-    // The first width set keeps every other column where it stood (layout.ts plFrozenWidths): Person gave none of it up.
-    expect((await widthsOf())[1], "Person holds still while State grows").toBe(before[1]);
+    expect(await widthOf("state"), "State is wider by the two steps").toBeGreaterThanOrEqual(state + 30);
+    // Person gives State the room it took, so the table still fills its box and no wider.
+    expect(await widthOf("name"), "Person gives up the room State took").toBeLessThanOrEqual(person - 30);
+    const grown = await room();
+    expect(Math.abs(grown.table - grown.box), "the table still fills its box").toBeLessThanOrEqual(1);
     await expect(scroller).toBeVisible();
-    // Delete gives it back the width it was declared with, and the view drops its key (the others stay as frozen).
+    // Delete gives it back the width it was declared with, and the view drops its key.
     await page.keyboard.press("Delete");
     await expect
       .poll(() => saved.length > 0 && typeof saved[saved.length - 1]!.view?.widths?.state !== "number")
@@ -735,19 +746,19 @@ test.describe("People on a real workspace", () => {
       await scroller.evaluate((el) => el.scrollWidth > el.clientWidth + 1),
       "the table scrolls sideways at 960px",
     ).toBe(true);
-    await expect(scroller).not.toHaveClass(/\bscrolled\b/);
+    await expect(scroller).not.toHaveAttribute("data-scrolled");
     const name = rows.first().locator("td.cl-name-cell");
-    const heading = page.locator(".cl-table thead th.pl-pin");
+    const heading = page.locator('.cl-table thead th[data-pin="start"]');
     const before = { name: (await name.boundingBox())!, heading: (await heading.boundingBox())! };
     await scroller.evaluate((el) => {
       el.scrollLeft = 240;
     });
-    await expect(scroller).toHaveClass(/\bscrolled\b/);
+    await expect(scroller).toHaveAttribute("data-scrolled", "");
     const after = { name: (await name.boundingBox())!, heading: (await heading.boundingBox())! };
     expect(Math.round(after.name.x), "Person stays where it was").toBe(Math.round(before.name.x));
     expect(Math.round(after.heading.x), "and so does its heading").toBe(Math.round(before.heading.x));
     // K past the top: the row the cursor walks up to stops below the sticky header, not under it. The box's
-    // scroll-padding-top is the header's height (--pl-head), so a taller header shows here as a row under it.
+    // scroll-padding-top is the header's height (--dtable-head), so a taller header shows here as a row under it.
     await page.evaluate(() => {
       const el = document.activeElement as HTMLElement | null;
       if (el && el.blur) el.blur();

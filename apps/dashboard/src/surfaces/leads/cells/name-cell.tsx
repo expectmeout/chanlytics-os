@@ -180,7 +180,7 @@ export const ldTalkingDoor = (
 };
 
 export const ldBusinessCell = (l: LeadRowVM, x: LeadCellCtx) => (
-  <td key="business" className={`cl-name-cell pl-pin ld-biz-cell ${l.cls}`}>
+  <td key="business" className={`cl-name-cell ld-biz-cell ${l.cls}`}>
     <div className="cl-row-name ld-row-name">
       <LeadTile l={l} onExpand={x.onExpand} />
       <LeadHover as="div" className="cl-row-name-block ld-hover" card={<LeadNameCard l={l} x={x} />}>
