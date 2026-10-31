@@ -157,7 +157,7 @@ function failedCheck(s: ReachOutSendRow, now: Date, at: string) {
 }
 
 /**
- * A leased send's check input (checkInputOf), with what its business's website says read through the platform's fetch
+ * A leased send's check input (checkInputOf), with what its business's website says read by the platform's page reader
  * when the writer is asked (siteReaderOf, 30 Oct 2026).
  */
 function sendInputOf(
@@ -168,7 +168,7 @@ function sendInputOf(
 ): CheckInput {
   return {
     ...checkInputOf(u.record, words, ws.opening, u.template_language, u.included_for, country),
-    site: siteReaderOf(fetch, u.record.website_host),
+    site: siteReaderOf(u.record.website_host),
   };
 }
 

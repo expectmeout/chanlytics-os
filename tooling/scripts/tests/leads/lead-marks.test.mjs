@@ -1,12 +1,13 @@
 /**
- * The edge's wires for a lead's mark (apps/edge/lib/leads/lead-marks.ts): one GET of a home page, one capped GET of
- * an image, and the copy stored under its own hash in 00161's bucket. Each answers null rather than throwing, so a
- * site that misbehaves costs its lead a mark and nothing else.
+ * The edge's wires for a lead's mark (apps/edge/lib/leads/lead-marks.ts): its home page by the platform's page reader,
+ * one capped GET of an image, and the copy stored under its own hash in 00161's bucket. Each answers null rather than
+ * throwing, so a site that misbehaves costs its lead a mark and nothing else.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { imageBytes, leadMarkPath, pageText, storeLeadMark } from "../../../../apps/edge/lib/leads/lead-marks.ts";
+import { setSitePageReader } from "@chanlytics/channels";
+import { imageBytes, leadMarkPath, markPageText, storeLeadMark } from "../../../../apps/edge/lib/leads/lead-marks.ts";
 import { LEAD_MARK_PATH, LEAD_MARKS_BUCKET } from "../../../../packages/contracts/src/leads/leads.ts";
 import { png } from "./_mark-images.mjs";
 
@@ -87,25 +88,27 @@ test("an image that is not there, or a site that fails, is no bytes", async () =
   );
 });
 
-test("a home page is read as text only when it is a page", async () => {
-  const html = `<html><head><link rel="icon" href="/i.png"></head></html>`;
-  assert.equal(
-    await pageText(
-      async () => new Response(html, { headers: { "content-type": "text/html; charset=utf-8" } }),
-      "https://a.example",
-      4000,
-    ),
-    html,
-  );
-  assert.equal(
-    await pageText(
-      async () => new Response(png(10, 10), { headers: { "content-type": "image/png" } }),
-      "https://a.example",
-      4000,
-    ),
-    null,
-    "a site whose front door is a picture has no head to read",
-  );
+test("a home page is read by the platform's page reader as a browser drew it, its head at the top, and null where it could not be", async () => {
+  const head = `<html><head><link rel="icon" href="/i.png"></head>`;
+  const asked = [];
+  let drawn = `${head}<body>${"x".repeat(200_000)}</body></html>`;
+  // The reader stood in for (channels setSitePageReader; Firecrawl's in production).
+  const before = setSitePageReader(async (url) => {
+    asked.push(url);
+    return drawn === null ? null : { url, html: drawn, markdown: "" };
+  });
+  try {
+    const page = await markPageText("https://a.example", 4000);
+    assert.ok(page.startsWith(head), "the head, where a mark is declared");
+    assert.equal(page.length, 96_000, "the rest is not ours to hold");
+    assert.deepEqual(asked, ["https://a.example/"]);
+    drawn = null;
+    assert.equal(await markPageText("https://a.example", 4000), null, "a site the reader could not draw");
+    assert.equal(await markPageText("http://10.0.0.5/", 4000), null, "a private address is never asked for");
+    assert.equal(asked.length, 2);
+  } finally {
+    setSitePageReader(before);
+  }
 });
 
 test("the copy is stored in 00161's bucket under its own hash, as the type it was read as, cached for a year", async () => {

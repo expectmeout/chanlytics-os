@@ -1,71 +1,39 @@
 /**
- * A page of the public web, read as text for the edge's own reading of it (the booking page a listing's website names,
- * lib/google/booking-page.ts). Every address it asks -- the first, and each one a redirect sends it to -- is one on
- * the public internet (contracts feedUrlOk), so a site cannot send the read into this platform's own network. It
- * follows a few redirects and no more, takes HTML only, and reads no more than it was told it may, as the page
- * arrives, rather than reading it whole and cutting it.
+ * A business's page, read for the edge's own reading of it: the website read (lib/imports/website-read.ts), the booking
+ * page a listing's website names (lib/google/booking-page.ts), a lead's home page for its mark
+ * (lib/leads/lead-marks.ts) and for what a cold email's opening may say (lib/reach-out/check-one.ts). The page is
+ * the platform's one reader's (channels sitePageReader: Firecrawl's scrape, drawn as a browser draws it, on the
+ * provider's network and never ours). The address is judged first (contracts feedUrlOk), so one inside a private
+ * network is never asked for; past that the provider follows the site's own redirects.
  *
  * It answers null rather than throwing: a page that cannot be read says nothing, and nothing is wrong. What a
  * business's home page says of itself, in one line (siteWordsOf), is read here too: a cold email's opening is written
  * and checked against it (lib/reach-out/check-one.ts).
  */
 import { feedUrlOk } from "./packages/contracts.js";
-// Who is asking, for a site that wants to know: channels' (site-reads.ts), the one place it is said.
-import { BOT_USER_AGENT, emailPlainText } from "./packages/channels.js";
+import { emailPlainText, sitePageReader, type SitePage } from "./packages/channels.js";
+import { env } from "./env.js";
 
-/** An http to https hop and a www one are what a site does; more than this is a chain, and not followed. */
-const REDIRECTS_MAX = 3;
-
-export async function publicPageText(
-  fetchImpl: typeof fetch,
+/**
+ * A page at an address, held to `maxChars` as the readers read it (its HTML and its Markdown each), in no longer than
+ * `timeoutMs`; null with no key set (FIRECRAWL_API_KEY), an address that is not a public one (the one asked, or the one
+ * the site's redirects ended at), a page that answered an error or nothing, or no answer in time.
+ */
+export async function sitePage(
   url: string | null,
-  limits: { timeoutMs: number; maxBytes: number },
-): Promise<string | null> {
-  const stop = AbortSignal.timeout(limits.timeoutMs);
-  let at = feedUrlOk(url);
-  try {
-    for (let hop = 0; at && hop <= REDIRECTS_MAX; hop += 1) {
-      const res = await fetchImpl(at, {
-        signal: stop,
-        redirect: "manual",
-        headers: { accept: "text/html,application/xhtml+xml", "user-agent": BOT_USER_AGENT },
-      });
-      if (res.status >= 300 && res.status < 400) {
-        const next = res.headers.get("location");
-        await res.body?.cancel().catch(() => undefined);
-        at = next ? feedUrlOk(new URL(next, at).toString()) : null;
-        continue;
-      }
-      if (!res.ok || !res.body || !(res.headers.get("content-type") ?? "").toLowerCase().includes("html")) {
-        await res.body?.cancel().catch(() => undefined);
-        return null;
-      }
-      return await textUpTo(res.body, limits.maxBytes);
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-/** A body as text, up to `maxBytes` of it: what arrives past them is not read. */
-async function textUpTo(body: ReadableStream<Uint8Array>, maxBytes: number): Promise<string> {
-  const reader = body.getReader();
-  const decoder = new TextDecoder();
-  let text = "";
-  let size = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    const part = value.subarray(0, Math.max(0, maxBytes - size));
-    size += part.byteLength;
-    text += decoder.decode(part, { stream: true });
-    if (size >= maxBytes) {
-      await reader.cancel().catch(() => undefined);
-      break;
-    }
-  }
-  return text + decoder.decode();
+  limits: { timeoutMs: number; maxChars: number },
+): Promise<SitePage | null> {
+  const at = feedUrlOk(url);
+  const reader = sitePageReader(env.FIRECRAWL_API_KEY);
+  if (!at || !reader) return null;
+  const page = await reader(at, { timeoutMs: limits.timeoutMs }).catch(() => null);
+  const landed = page ? feedUrlOk(page.url) : null;
+  if (!page || !landed) return null;
+  return {
+    url: landed,
+    html: page.html.slice(0, limits.maxChars),
+    markdown: page.markdown.slice(0, limits.maxChars),
+  };
 }
 
 /** The most a business's website is said in, in characters: as much as a directory's about (core leads/cards.ts). */

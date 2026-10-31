@@ -16,6 +16,7 @@ import {
   siteHost,
 } from "@chanlytics/contracts";
 import { bookingPageLinkedFrom } from "../../../../packages/core/src/booking-page.ts";
+import { setSitePageReader } from "@chanlytics/channels";
 import { siteBookingPage } from "../../../../apps/edge/lib/google/booking-page.ts";
 
 /* ------------------------------------ what a booking page is ------------------------------------ */
@@ -135,70 +136,87 @@ test("a page with no booking link has none, and a page written to be slow to rea
 /* ------------------------------------ the edge's read of the website ------------------------------------ */
 
 const FOUND = "https://booksy.com/en-us/00000_example-studio";
-/** A wire that says what it was asked, answering each ask with `answer`. */
-const wire = (answer) => {
+/**
+ * The platform's page reader stood in for (channels setSitePageReader; Firecrawl's in production, which follows the
+ * site's own redirects): each address asked kept, and each answered with `answer`'s page, or none.
+ */
+const reading = async (answer, run) => {
   const asked = [];
-  const fetchImpl = async (url, init) => {
-    asked.push(String(url));
-    assert.equal(init.redirect, "manual", "every redirect is looked at before it is followed");
-    return answer(String(url));
-  };
-  return { asked, fetchImpl };
+  const before = setSitePageReader(async (url) => {
+    asked.push(url);
+    return answer(url);
+  });
+  try {
+    return { got: await run(), asked };
+  } finally {
+    setSitePageReader(before);
+  }
 };
-const htmlOf = (body) => new Response(page(body), { headers: { "content-type": "text/html; charset=utf-8" } });
-const redirect = (to) => new Response(null, { status: 302, headers: { location: to } });
+const drawn = (body, url = "https://studio.example.com/") => ({ url, html: page(body), markdown: "" });
 
 test("a website that is itself a booking page is the listing's booking page, and is not read", async () => {
-  const w = wire(() => {
-    throw new Error("must not be read");
-  });
-  assert.equal(
-    await siteBookingPage(w.fetchImpl, "https://www.vagaro.com/example-studio"),
-    "https://www.vagaro.com/example-studio",
+  const r = await reading(
+    () => {
+      throw new Error("must not be read");
+    },
+    () => siteBookingPage("https://www.vagaro.com/example-studio"),
   );
-  assert.deepEqual(w.asked, []);
+  assert.deepEqual([r.got, r.asked], ["https://www.vagaro.com/example-studio", []]);
 });
 
-test("a website's home page is read for the booking page it names, following its own redirects on the public internet", async () => {
-  const w = wire(() => htmlOf(`<a href="${FOUND}">Book now</a>`));
-  assert.equal(await siteBookingPage(w.fetchImpl, "https://studio.example.com"), FOUND);
-  assert.deepEqual(w.asked, ["https://studio.example.com/"]);
-  const hops = wire((url) =>
-    url === "http://studio.example.com/"
-      ? redirect("https://www.studio.example.com/")
-      : htmlOf(`<a href="${FOUND}">Book</a>`),
+test("a website's home page is read for the booking page it names, wherever its own redirects landed", async () => {
+  const r = await reading(
+    () => drawn(`<a href="${FOUND}">Book now</a>`),
+    () => siteBookingPage("https://studio.example.com"),
   );
-  assert.equal(await siteBookingPage(hops.fetchImpl, "http://studio.example.com/"), FOUND);
-  assert.deepEqual(hops.asked, ["http://studio.example.com/", "https://www.studio.example.com/"]);
+  assert.deepEqual([r.got, r.asked], [FOUND, ["https://studio.example.com/"]]);
+  const hopped = await reading(
+    () => drawn(`<a href="${FOUND}">Book</a>`, "https://www.studio.example.com/"),
+    () => siteBookingPage("http://studio.example.com/"),
+  );
+  assert.deepEqual([hopped.got, hopped.asked], [FOUND, ["http://studio.example.com/"]], "one ask; the reader follows");
 });
 
-test("a redirect into a private network, a private address, no website, a page that is not HTML and a failed read give none", async () => {
-  const inward = wire((url) =>
-    url === "https://studio.example.com/" ? redirect("http://169.254.169.254/latest/meta-data") : htmlOf(""),
+test("a page that landed in a private network, a private address, no website and a read that failed give none", async () => {
+  const inward = await reading(
+    () => drawn(`<a href="${FOUND}">Book now</a>`, "http://169.254.169.254/latest/meta-data"),
+    () => siteBookingPage("https://studio.example.com/"),
   );
-  assert.equal(await siteBookingPage(inward.fetchImpl, "https://studio.example.com/"), null);
-  assert.deepEqual(inward.asked, ["https://studio.example.com/"], "the redirect is refused, never followed");
-  const quiet = wire(() => htmlOf(`<a href="${FOUND}">Book now</a>`));
-  assert.equal(await siteBookingPage(quiet.fetchImpl, null), null);
-  assert.equal(await siteBookingPage(quiet.fetchImpl, "http://10.0.0.5/"), null);
-  assert.equal(await siteBookingPage(quiet.fetchImpl, "http://[fd00::1]/"), null);
-  assert.deepEqual(quiet.asked, [], "a private address is never read");
-  const loop = wire(() => redirect("https://studio.example.com/"));
-  assert.equal(await siteBookingPage(loop.fetchImpl, "https://studio.example.com/"), null);
-  assert.equal(loop.asked.length, 4, "the first ask and three redirects, then no more");
-  const json = wire(() => new Response("{}", { headers: { "content-type": "application/json" } }));
-  assert.equal(await siteBookingPage(json.fetchImpl, "https://studio.example.com/"), null);
-  const down = wire(() => {
-    throw new Error("offline");
-  });
-  assert.equal(await siteBookingPage(down.fetchImpl, "https://studio.example.com/"), null);
+  assert.equal(inward.got, null, "a page whose redirects ended inside a private network is not read");
+  const quiet = await reading(
+    () => drawn(`<a href="${FOUND}">Book now</a>`),
+    async () => [
+      await siteBookingPage(null),
+      await siteBookingPage("http://10.0.0.5/"),
+      await siteBookingPage("http://[fd00::1]/"),
+    ],
+  );
+  assert.deepEqual([quiet.got, quiet.asked], [[null, null, null], []], "a private address is never asked for");
+  const unread = await reading(
+    () => null,
+    () => siteBookingPage("https://studio.example.com/"),
+  );
+  assert.equal(unread.got, null);
+  const down = await reading(
+    () => {
+      throw new Error("offline");
+    },
+    () => siteBookingPage("https://studio.example.com/"),
+  );
+  assert.equal(down.got, null);
 });
 
 test("no more of a home page is read than its top: a link past it is not found", async () => {
-  const deep = wire(() => htmlOf(`${"x".repeat(300_000)}<a href="${FOUND}">Book now</a>`));
-  assert.equal(await siteBookingPage(deep.fetchImpl, "https://studio.example.com/"), null);
-  const near = wire(() => htmlOf(`${"x".repeat(200_000)}<a href="${FOUND}">Book now</a>`));
-  assert.equal(await siteBookingPage(near.fetchImpl, "https://studio.example.com/"), FOUND);
+  const deep = await reading(
+    () => drawn(`${"x".repeat(300_000)}<a href="${FOUND}">Book now</a>`),
+    () => siteBookingPage("https://studio.example.com/"),
+  );
+  assert.equal(deep.got, null);
+  const near = await reading(
+    () => drawn(`${"x".repeat(200_000)}<a href="${FOUND}">Book now</a>`),
+    () => siteBookingPage("https://studio.example.com/"),
+  );
+  assert.equal(near.got, FOUND);
 });
 
 test("a later read keeps the booking page the link found while the website is the one it was found on", () => {

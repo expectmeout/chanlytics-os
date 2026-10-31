@@ -15,7 +15,7 @@
  *
  * Needs 00161 applied, the bucket and the column: it checks both first and stops without them.
  *
- * Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+ * Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, FIRECRAWL_API_KEY (a home page is read as the collect reads it)
  * Usage:
  *   node --import tsx tooling/scripts/ops/lead-marks-backfill.mjs
  *   node --import tsx tooling/scripts/ops/lead-marks-backfill.mjs --apply
@@ -24,9 +24,10 @@ import { createClient } from "@supabase/supabase-js";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { publicFetcher } from "@chanlytics/channels";
 import { LEAD_MARKS_BUCKET } from "@chanlytics/contracts";
 import { JUDGE_MARGIN_MS, MARK_AT_ONCE, markPlaces } from "../../../packages/core/src/leads/index.ts";
-import { imageBytes, leadMarkPath, pageText, storeLeadMark } from "../../../apps/edge/lib/leads/lead-marks.ts";
+import { imageBytes, leadMarkPath, markPageText, storeLeadMark } from "../../../apps/edge/lib/leads/lead-marks.ts";
 
 const COLUMNS = "id, tenant_id, website_host, logo_url, mark_path, blanked_at, erased_at";
 
@@ -97,6 +98,11 @@ async function main() {
     console.error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY required");
     process.exit(2);
   }
+  // Without it no home page is read, and a run would say every lead has no mark.
+  if (!process.env.FIRECRAWL_API_KEY?.trim()) {
+    console.error("FIRECRAWL_API_KEY required: each home page is read through it");
+    process.exit(2);
+  }
   const apply = process.argv.includes("--apply");
   const db = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 
@@ -133,8 +139,8 @@ async function main() {
   if (!plan.length) return;
 
   const wires = {
-    fetchText: (u, ms) => pageText(fetch, u, ms),
-    fetchBytes: (u, ms, max) => imageBytes(fetch, u, ms, max),
+    fetchText: markPageText,
+    fetchBytes: (u, ms, max) => imageBytes(publicFetcher(), u, ms, max),
   };
 
   if (!apply) {

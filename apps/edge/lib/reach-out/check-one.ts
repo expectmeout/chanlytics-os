@@ -43,24 +43,24 @@ import {
 } from "../packages/contracts.js";
 import { workspaceAbout, workspaceNameAndConfig, type Database, type ReachOutRecordRow } from "../packages/db.js";
 import { askJson, type JsonAnswer, type ModelCallFor } from "../model.js";
-import { publicPageText, siteWordsOf } from "../public-page.js";
+import { sitePage, siteWordsOf } from "../public-page.js";
 
 type Db = SupabaseClient<Database>;
 
 /** How long a business's home page may take, and how much of it is read: its head and first words, never a download. */
-const SITE_READ = { timeoutMs: 4 * SECOND_MS, maxBytes: 200_000 };
+const SITE_READ = { timeoutMs: 4 * SECOND_MS, maxChars: 200_000 };
 
 /**
- * What a business's own website says of itself (siteWordsOf), read by one GET of its home page through the public
- * reader's address rule, for its opening's record (30 Oct 2026: a lead is not only its listing, and a finder's company
- * or an owner's file has none). Undefined where it has no website.
+ * What a business's own website says of itself (siteWordsOf), its home page read by the platform's one page reader
+ * (lib/public-page.ts sitePage), for its opening's record (30 Oct 2026: a lead is not only its listing, and a finder's
+ * company or an owner's file has none). Undefined where it has no website.
  */
-export function siteReaderOf(fetchImpl: typeof fetch, host: string | null): (() => Promise<string | null>) | undefined {
+export function siteReaderOf(host: string | null): (() => Promise<string | null>) | undefined {
   const at = host?.trim();
   if (!at) return undefined;
   return async () => {
-    const html = await publicPageText(fetchImpl, `https://${at}/`, SITE_READ);
-    return html ? siteWordsOf(html) : null;
+    const page = await sitePage(`https://${at}/`, SITE_READ);
+    return page ? siteWordsOf(page.html) : null;
   };
 }
 

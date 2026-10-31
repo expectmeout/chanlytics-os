@@ -1,10 +1,11 @@
 /**
  * The website read's look step (decision 0075): the page's colour read in code (core siteAccentOf), the mark the site
- * declares fetched and judged as the Logo row's lookup judges it (core siteLogoFrom), remade as the square PNG a
- * workspace wears (core remadeLogo) and stored in 00407's bucket under the workspace's own folder, and both worn through
- * wear_found_look, which fills only what no person set. What was found is answered for the read to keep, whether or not
- * it was worn: the Logo row offers a mark the server could not make square. Never throws: a look that fails is logged,
- * and the read goes on.
+ * declares fetched over the guarded fetch (channels publicFetcher: the page names the picture's address, so a private
+ * one is refused at the connect) and judged as the Logo row's lookup judges it (core siteLogoFrom), remade as the
+ * square PNG a workspace wears (core remadeLogo) and stored in 00407's bucket under the workspace's own folder, and
+ * both worn through wear_found_look, which fills only what no person set. What was found is answered for the read to
+ * keep, whether or not it was worn: the Logo row offers a mark the server could not make square. Never throws: a look
+ * that fails is logged, and the read goes on.
  */
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -16,7 +17,7 @@ import {
   workspaceLogoPath,
   type LookRead,
 } from "../packages/contracts.js";
-import { imageBytes, remadeLogo } from "../packages/channels.js";
+import { imageBytes, publicFetcher, remadeLogo } from "../packages/channels.js";
 import { siteAccentOf, siteLogoFrom } from "../packages/core.js";
 import { wearFoundLook, type Database } from "../packages/db.js";
 import { errField, logger } from "../log.js";
@@ -57,7 +58,7 @@ export async function wearSiteLook(
   const L = logger({ tenant_id: p.tenantId });
   const none: LookRead = { logo_url: null, accent: null, worn: { logo: false, accent: false } };
   try {
-    const fetchImpl = p.fetchImpl ?? fetch;
+    const fetchImpl = p.fetchImpl ?? publicFetcher();
     const accent = siteAccentOf(p.html);
     const found = await siteLogoFrom(
       (url) => imageBytes(fetchImpl, url, IMAGE_MS, LOGO_FOUND_MAX_BYTES),
