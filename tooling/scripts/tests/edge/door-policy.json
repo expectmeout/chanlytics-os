@@ -89,6 +89,14 @@
         "aud": "/api/admin/imports/again"
       }
     },
+    "POST /api/admin/imports/logo-lookup": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/imports/logo-lookup.ts",
+      "knock_args": {
+        "aud": "/api/admin/imports/logo-lookup"
+      }
+    },
     "POST /api/admin/imports/website-read": {
       "wrapper": "adminDoor",
       "knock": "authorizeAdmin",

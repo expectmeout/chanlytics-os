@@ -410,7 +410,6 @@ export {
   FIRECRAWL_SCRAPE,
   firecrawlReader,
   imageBytes,
-  pageText,
   setSitePageReader,
   type SitePage,
   type SitePageReader,
