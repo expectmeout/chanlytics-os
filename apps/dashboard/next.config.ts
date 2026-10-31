@@ -102,6 +102,16 @@ const nextConfig: NextConfig = {
         headers: NO_STORE,
       },
       { source: "/reset-password", headers: NO_STORE },
+      {
+        // A lead's own receptionist (decision 0079): its link's token is its whole authority, so its page and Make it
+        // mine's (L4) are kept by no cache, found by no search, and carry the token nowhere a link on them could lead.
+        source: "/preview/:token/:mine(mine)?",
+        headers: [
+          ...NO_STORE,
+          { key: "X-Robots-Tag", value: "noindex, nofollow" },
+          { key: "Referrer-Policy", value: "no-referrer" },
+        ],
+      },
       // The OS's documents: the home, and every workspace's address.
       { source: "/", ...OS_DOCUMENT },
       { source: "/w/:path*", ...OS_DOCUMENT },

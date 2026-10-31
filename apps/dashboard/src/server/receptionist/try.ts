@@ -38,10 +38,14 @@ function tryAnswerOf(raw: unknown): TryItAnswer | null {
   return { text: r.text, meta, then: then && typeof then.text === "string" ? then : null, booking };
 }
 
-/** POST receptionist/try: the receptionist's answer to `text`, after the turns tried before it, and why. */
+/**
+ * POST receptionist/try: the receptionist's answer to `text`, after the turns tried before it, and why. `userId` is the
+ * member who asked, or null for a lead's own receptionist tried on its preview page, which nobody is a member of yet
+ * (decision 0079): the edge's token then names the workspace alone.
+ */
 export async function tryReceptionist(
   tenantId: string,
-  userId: string,
+  userId: string | null,
   text: string,
   history: readonly TryTurn[],
 ): Promise<TryItVM> {

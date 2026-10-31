@@ -56,8 +56,14 @@ export const brainOf = (settings: SettingsRecord | null | undefined): NonNullabl
 // booking link there, and a blank for what it has not given -- never the sample filed with Meta (the
 // starters' "Luna Studio"). The rule and the slots are the contracts' (templatePreview, starterPreview).
 export const tplOwn = () => {
-  const brain = brainOf(surfaceValue("settings")?.settings);
-  return { business_name: brain.business_name || null, booking_link: brain.booking_link || null };
+  const settings = surfaceValue("settings")?.settings;
+  const brain = brainOf(settings);
+  return {
+    business_name: brain.business_name || null,
+    booking_link: brain.booking_link || null,
+    // Whether this workspace makes previews for its leads (decision 0079): {{their preview}} is offered where it does.
+    previews: settings?.previews === true,
+  };
 };
 
 // A message's state in ONE language, in the app's one vocabulary (tone.ts): a tone this file never picks for itself. A

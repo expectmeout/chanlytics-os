@@ -245,6 +245,11 @@
     "fresh": "Read as a lead's sheet opens over another page by its address (?lead=, a record's Leads row), once for that lead.",
     "why": "The sheet over a record is a look at one lead from where its row was pressed; its place is the sheet's own read, read again after each press, and closing and opening the row reads the lead afresh."
   },
+  "apps/dashboard/src/surfaces/leads/sheet/preview.tsx GET leads/[id]/preview": {
+    "kind": "on-open",
+    "fresh": "Read as a lead's sheet opens, painted first from this tab's last answer for that lead (read-cache.ts) and read again behind it, and again after Make their preview.",
+    "why": "A lead's preview moves by Make their preview, which reads it again after, or by the edge building it, sending it with an email or the business trying it: each is minutes apart and none is a fact the sender acts on in the second, and closing and opening the sheet reads it afresh (decision 0079)."
+  },
   "apps/dashboard/src/surfaces/inbox/pages/calls-saying.ts GET calls": {
     "kind": "search",
     "fresh": "Asked a beat after the last key in Conversations' box, for the calls whose stored transcript says the box's words; asked again for each new words, never kept.",

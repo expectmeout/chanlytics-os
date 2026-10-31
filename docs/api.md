@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-336 handlers in 53 domains.
+340 handlers in 55 domains.
 
 ## activity
 
@@ -983,6 +983,14 @@ Writes; for a member of the workspace the request names, operator or above; coun
 | --- | --- | --- | --- |
 | `version` | integer | yes | ≥ 0; ≤ 9007199254740991 |
 
+## lead-previews
+
+### `GET /api/v1/lead-previews`
+
+Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/lead-previews/route.ts`).
+
 ## lead-searches
 
 ### `GET /api/v1/lead-searches`
@@ -1192,6 +1200,18 @@ Writes; for a member of the workspace the request names, operator or above; coun
 Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
 
 Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/leads/[id]/place/route.ts`).
+
+### `GET /api/v1/leads/[id]/preview`
+
+Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/leads/[id]/preview/route.ts`).
+
+### `POST /api/v1/leads/[id]/preview`
+
+Writes; for a member of the workspace the request names, operator or above; counts against the `lead_member` rate; spends nothing.
+
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/leads/[id]/preview/route.ts`).
 
 ### `POST /api/v1/leads/[id]/put-back`
 
@@ -2056,6 +2076,16 @@ Writes; for a member of the workspace the request names, operator or above; coun
 | `max_llm_tokens_day` | number | no |  |
 | `max_replies_day` | number | no |  |
 | `pause_hours` | number | no |  |
+
+## preview-claims
+
+### `POST /api/v1/preview-claims`
+
+Writes; for any signed-in person, for themselves; counts against the `create_workspace` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `token` | string | yes | matches `^[A-Za-z0-9_-]{22}$` |
 
 ## reach-out-replies
 

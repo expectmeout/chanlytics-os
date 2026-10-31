@@ -33,6 +33,7 @@ import { LeadPeekParts } from "../peek/info";
 import { LeadPeekCompany, LeadPeekPeople } from "../peek/people";
 import type { PeekActs } from "../peek/types";
 import type { SheetFacts } from "./facts";
+import { SheetPreview } from "./preview";
 
 /** A section's heading, with a quiet word at its end. */
 const sectionHeadOf = (words: string, end?: ReactNode) => (
@@ -324,7 +325,7 @@ const foundOf = (vm: LeadPeekVM) =>
     </details>
   ) : null;
 
-/** The record of the lead under the quick look: Fit, About, Contact, Sequence, How we found them. */
+/** The record of the lead under the quick look: Fit, About, Contact, Sequence, Their preview, How we found them. */
 export function SheetRecord(p: { vm: LeadPeekVM; facts: SheetFacts; on: PeekActs; seq: SequenceActs }) {
   return (
     <div className="lw-record" data-testid="lead-sheet-record" aria-label={W.label}>
@@ -332,6 +333,7 @@ export function SheetRecord(p: { vm: LeadPeekVM; facts: SheetFacts; on: PeekActs
       {aboutSectionOf(p.vm, p.on)}
       {contactOf(p.vm, p.facts, p.on)}
       {sequenceOf(p.facts, p.seq)}
+      <SheetPreview leadId={p.vm.id} />
       {foundOf(p.vm)}
     </div>
   );

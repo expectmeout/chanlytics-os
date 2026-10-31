@@ -53,6 +53,15 @@ export const NEED_YOU_WORDS = {
   windowClosed: "Their WhatsApp window has closed: only an approved template reaches them now. Your words go with you.",
   viewer: "Only an owner or operator can send.",
   openThread: "Open thread",
+  /** A lead who tried their own receptionist (decision 0079): Today's row. */
+  tried: {
+    status: "Tried their receptionist",
+    claimed: "made it theirs",
+    sentence: "Opened it and tried it",
+    someone: "A lead",
+    open: "Open the lead",
+    part: (n: number) => `${n} lead${n === 1 ? "" : "s"} tried their preview`,
+  },
   more: (n: number) => `${n} more in the Inbox`,
   seeAll: "See all",
   brief: { title: "Ask's brief for the call", say: "Say", ask: "Ask", avoid: "Leave out" },

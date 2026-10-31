@@ -37,6 +37,7 @@ import {
   findGroups,
   homeSentence,
   platformRows,
+  platformSummary,
   reportCode,
   reportKindOf,
   reportProblemOf,
@@ -547,4 +548,36 @@ test("the second step says the Console's words to its staff and a partner's to a
   assert.equal(secondFactorAsked("console").enrolBody, SECOND_FACTOR_WORDS.staffEnrolBody);
   assert.equal(secondFactorAsked("partner").enrolBody, SECOND_FACTOR_WORDS.enrolBody);
   assert.equal(secondFactorAsked(null).required, SECOND_FACTOR_WORDS.required);
+});
+
+test("a lead's preview (decision 0079) is its own verdict: counted apart, never a customer, grouped as Previews", () => {
+  assert.equal(consoleGroupOf("preview"), "previews");
+  const rows = platformRows(
+    [
+      tenant({ tenant_id: "a", slug: "fine", name: "Fine" }),
+      tenant({ tenant_id: "p", slug: "fixture-barbers", name: "Fixture Barbers", status: "preview" }),
+      tenant({ tenant_id: "q", slug: "fixture-florist", name: "Fixture Florist", status: "preview" }),
+    ],
+    NOW,
+  );
+  const preview = rows.find((r) => r.slug === "fixture-barbers");
+  assert.equal(preview.verdict, "preview");
+  assert.match(preview.sentence, /before they sign up/);
+  const summary = platformSummary(rows);
+  assert.deepEqual([summary.total, summary.previews], [1, 2], "two previews, one customer");
+  assert.match(summary.sentence, /Previews: 2/);
+  assert.deepEqual(
+    consoleGroups(rows).map((g) => [g.group, g.rows.length]),
+    [
+      ["live", 1],
+      ["previews", 2],
+    ],
+  );
+  const n = consoleNumbersFrom(
+    [tenant({ tenant_id: "a" }), tenant({ tenant_id: "p", status: "preview" })],
+    null,
+    { unit_amount: 9900, currency: "usd", interval: "month" },
+    NOW,
+  );
+  assert.equal(n.paying, 1, "a preview pays nothing and is no customer");
 });

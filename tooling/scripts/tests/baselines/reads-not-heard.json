@@ -434,6 +434,21 @@
     },
     {
       "kind": "unfed",
+      "why": "The previews a lead tried (previewsTriedSince over lead_previews, decision 0079), Today's tried row, in a workspace of ours alone. The feed does not tell lead_previews: what moves it is the business texting or calling its preview, in the preview's own workspace, which this workspace's topic cannot carry. Today reads it with its other reads each time it hears its own records (heardWith), and a lead who tried theirs stays named three days, so the row is a read behind at most.",
+      "reads": {
+        "today": [
+          "lead_previews"
+        ]
+      },
+      "heardWith": {
+        "today": [
+          "conversations",
+          "calls"
+        ]
+      }
+    },
+    {
+      "kind": "unfed",
       "finding": "W-campaign-run-template-reachout-8",
       "why": "A chain's suppressions and its sends' rows (reach_out_reach, reach_out_chain_report): the feed tells neither. The chains read again when a reply they count (reach_out_replies) or their playbook moves (heardWith); a send leaving is not told, so an open pane's counts wait for its next read (W-campaign-run-template-reachout-8, lane R5).",
       "reads": {

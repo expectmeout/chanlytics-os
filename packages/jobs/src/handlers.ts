@@ -587,6 +587,12 @@ async function websiteRead(ctx: JobContext, job: ClaimedJob): Promise<void> {
   await ctx.website.read(job, ctx.deadline);
 }
 
+/** preview_build: a lead's own receptionist built (00497, decision 0079), through what the edge injects. payload: { preview_id }. */
+async function previewBuild(ctx: JobContext, job: ClaimedJob): Promise<void> {
+  if (!ctx.previews) throw new Error("preview_build: this runtime holds no preview builder");
+  await ctx.previews.build(job, ctx.deadline);
+}
+
 const HANDLERS: Record<JobKind, Handler> = {
   outbound_send: outboundSend,
   broadcast_send: broadcastSend,
@@ -603,6 +609,7 @@ const HANDLERS: Record<JobKind, Handler> = {
   inbound_answer: inboundAnswer,
   history_import: historyImport,
   website_read: websiteRead,
+  preview_build: previewBuild,
 };
 
 export async function dispatchJob(ctx: JobContext, job: ClaimedJob): Promise<"done" | "unknown_kind"> {

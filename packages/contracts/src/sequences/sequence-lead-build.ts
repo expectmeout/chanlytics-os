@@ -78,6 +78,11 @@ export const LEAD_BUILD_WORDS = {
   aboutYou: "About you",
   whenFound: "when found",
   writtenForEach: "written for each",
+  /** {{their preview}} (decision 0079): made at the first email that names it. */
+  previewMade: "made when it goes",
+  /** Why a step offers no {{their preview}}: a first email carries no link, and a company takes no bookings. */
+  previewLater: "Their preview goes in a later email: a first email carries no link.",
+  previewNotForCompanies: "Their preview is for a business that takes bookings, so a company gets none.",
   notSet: "not set",
   add: "Add",
   waits: "Waits",
@@ -339,12 +344,16 @@ const YOU: readonly ReachOutSlot[] = ["your name", "your business", "booking lin
  * The Insert list (the canvas's step sheet): each slot under About them and About you, with the value the send's own fill
  * gives it for the lead previewed (reachOutCardSlotsOf), or what stands in for it: a person's first name is found per lead,
  * the opening is written for each, and a value of yours with nothing in Settings is not set, which holds every email that
- * names it.
+ * names it. Their preview (decision 0079) is offered where it can go (leadPreviewOfferOf), made when it goes.
  */
-export function leadInsertRowsOf(lead: SlotLead | null, workspace: SlotWorkspace): LeadInsertRowVM[] {
+export function leadInsertRowsOf(
+  lead: SlotLead | null,
+  workspace: SlotWorkspace,
+  preview: { offered: boolean },
+): LeadInsertRowVM[] {
   const W = LEAD_BUILD_WORDS;
   const them = lead?.kind === "company" ? [...THEM.slice(0, 3), ...COMPANY, "opening" as const] : THEM;
-  const keys = [...them, ...YOU];
+  const keys: ReachOutSlot[] = [...them, ...(preview.offered ? (["their preview"] as const) : []), ...YOU];
   const filled = lead
     ? new Map(
         reachOutCardSlotsOf(
@@ -358,6 +367,7 @@ export function leadInsertRowsOf(lead: SlotLead | null, workspace: SlotWorkspace
     const group = YOU.includes(key) ? "you" : "them";
     const label = leadSlotLabel(key);
     if (key === "opening") return { key, label, value: W.writtenForEach, look: "later", group };
+    if (key === "their preview") return { key, label, value: W.previewMade, look: "later", group };
     const s = filled?.get(key);
     if (group === "you") {
       const value =
@@ -373,6 +383,20 @@ export function leadInsertRowsOf(lead: SlotLead | null, workspace: SlotWorkspace
     if (!s || s.value === null || s.fellBack) return { key, label, value: W.whenFound, look: "later", group };
     return { key, label, value: s.value, look: "value", group };
   });
+}
+
+/**
+ * Whether a step offers {{their preview}}, or why not (decision 0079): a workspace that makes none is told nothing; a
+ * first email carries no link; a company (an agency search's leads) takes no bookings.
+ */
+export function leadPreviewOfferOf(p: { makes: boolean; first: boolean; lead: SlotLead | null }): {
+  offered: boolean;
+  why: string | null;
+} {
+  if (!p.makes) return { offered: false, why: null };
+  if (p.first) return { offered: false, why: LEAD_BUILD_WORDS.previewLater };
+  if (p.lead?.kind === "company") return { offered: false, why: LEAD_BUILD_WORDS.previewNotForCompanies };
+  return { offered: true, why: null };
 }
 
 /** One pace the day's row offers: the most a day it comes to across its mailboxes, and how often each writes. */

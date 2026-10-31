@@ -887,6 +887,7 @@ test("Today for Ask as the page composes it: the day's metrics, the newest hundr
     "runs",
     "heldThreads",
     "going",
+    "previewsTried",
   ]);
   // What goes on its own today, each with its Stop (decision 0064): the runs set to start before the day ends, none here.
   assert.deepEqual(r.data.going, []);
@@ -5436,6 +5437,7 @@ test("the settings read, for Ask and for the page: GET settings answers its read
       "updatedBy",
       "updatedAt",
       "review_link",
+      "previews",
     ]);
     assert.equal(r.data.review_link, false, "no listing, no review link");
     assert.deepEqual(

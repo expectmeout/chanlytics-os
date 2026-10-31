@@ -1527,9 +1527,17 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     // 13 Oct 2026 (Ruben: held emails count): and the going runs, whose check may hold emails for your say (db
     // waitingRunsOf): one `broadcasts` read more. Nobody here has a going reach-out run, so no held count is asked.
     // 19 Oct 2026 (decision 0064, step 2): and the runs set to go before the day ends (db runsGoingBetween), one more.
+    // 31 Oct 2026 (decision 0079, L5): and the leads who tried their own receptionist (db previewsTriedSince), one more.
+    // Its bytes are unchanged: nobody here tried one.
     const withRunsWaiting =
       old === "get_today"
-        ? [...halves, "sequence_batches.select", "sequence_batches.select", "sequence_batches.select"]
+        ? [
+            ...halves,
+            "sequence_batches.select",
+            "sequence_batches.select",
+            "sequence_batches.select",
+            "lead_previews.select",
+          ]
         : halves;
     // 13 Oct 2026 (the wiring's second audit, R3, S5-3): a person the workspace does not show is asked once more whether
     // they were combined into another (db keptPersonOf), so their old address opens the person they became: one

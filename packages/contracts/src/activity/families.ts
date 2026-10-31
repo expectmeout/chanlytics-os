@@ -127,6 +127,7 @@ const PREFIX_FAMILY: Record<EventPrefix, ActivityFamily> = {
   google: "google",
   lead: "leads",
   reach_out: "leads",
+  preview: "leads",
   deal: "deals",
   broadcast: "campaigns",
   playbook: "campaigns",

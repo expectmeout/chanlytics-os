@@ -237,15 +237,21 @@ test("the heartbeat records that it looked, and asks the edge only when somethin
     const gone = ids.filter((id) => !alive.has(id));
     if (gone.length) await db.from("event_outbox").delete().in("event_id", gone);
   }
+  // A suite beside this one may hold work due for a moment (a send it queues and withdraws, a job it claims next), and a
+  // tick that finds any asks the edge instead of looking, which this database's missing edge answers with a note and no
+  // stamp: the look is waited for, a tick at a time, until a quiet moment comes (31 Oct 2026: a run of every database
+  // suite at once found one at 03:38:57).
   const t0 = Date.now();
-  const idle = await db.rpc("trigger_jobs_tick");
-  assert.equal(idle.error, null, idle.error?.message);
-  assert.equal(idle.data, null, "nothing due, so nothing is asked of the edge");
-  const quiet = await db.from("sweep_status").select("requested_at").eq("sweep", "jobs").single();
-  assert.ok(
-    Date.parse(quiet.data.requested_at) >= t0 - 5_000,
-    "but the look is on the record, which is what sweep_health() watches",
-  );
+  let looked = false;
+  for (const from = Date.now(); !looked && Date.now() - from < 30_000;) {
+    const idle = await db.rpc("trigger_jobs_tick");
+    assert.equal(idle.error, null, idle.error?.message);
+    assert.equal(idle.data, null, "nothing due, so nothing is asked of the edge");
+    const quiet = await db.from("sweep_status").select("requested_at").eq("sweep", "jobs").single();
+    looked = Date.parse(quiet.data.requested_at) >= t0 - 5_000;
+    if (!looked) await new Promise((r) => setTimeout(r, 200));
+  }
+  assert.ok(looked, "but the look is on the record, which is what sweep_health() watches");
 
   await insertJob();
   const busy = await db.rpc("trigger_jobs_tick");

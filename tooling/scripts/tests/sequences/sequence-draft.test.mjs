@@ -1163,3 +1163,16 @@ test("the line under a draft says the learned lines without their lead; none is 
   assert.equal(voiceLineOf(undefined), null);
   assert.match(VOICE_WORDS.kept(2), /2 lines/);
 });
+
+test("their preview (decision 0079): a workspace that makes previews is told it may name {{their preview}} after the first; any other is told nothing of it", async () => {
+  answerWith(
+    answer({ audience: "leads", who: "s1", steps: [step({ subject: "Hi", body: "{{opening}}\n\nWorth a look?" })] }),
+  );
+  await draftFrom({ ...KNOWN, previews: true }, LINE, { tenantId: "t1", userId: "u1" });
+  const ours = String(calls[calls.length - 1].request.system);
+  assert.match(ours, /\{\{their preview\}\}/);
+  assert.match(ours, /after the first/);
+  assert.match(ours, /only link/);
+  await draftFrom(KNOWN, LINE, { tenantId: "t1", userId: "u1" });
+  assert.doesNotMatch(String(calls[calls.length - 1].request.system), /their preview/);
+});

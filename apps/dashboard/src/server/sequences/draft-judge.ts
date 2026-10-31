@@ -140,6 +140,8 @@ export interface DraftKnown {
   /** Each class's Autonomy row's mode, which a new sequence of it starts as. */
   classModes: Record<string, string | null>;
   mailbox: { ids: string[]; label: string } | null;
+  /** Whether the workspace makes previews for its leads (decision 0079): a later step to leads may name {{their preview}}. */
+  previews?: boolean;
 }
 
 /** A step kept, or why it was not. */

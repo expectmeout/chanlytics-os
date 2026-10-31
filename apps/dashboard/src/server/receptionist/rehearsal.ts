@@ -47,7 +47,7 @@ const REVIEW_TIMEOUT_MS = MIN_MS - ROUTE_MARGIN_MS;
 const FIX_TIMEOUT_MS = 25_000;
 
 /** What the browser joins a call with, and what the page says beside it. */
-interface RehearsalStartDto {
+export interface RehearsalStartDto {
   rehearsal_id: string;
   call: {
     call_id: string;
@@ -58,7 +58,7 @@ interface RehearsalStartDto {
   };
   max_ms: number;
   allowance: {
-    window: "before_plan" | "thirty_days";
+    window: "before_plan" | "thirty_days" | "preview";
     of_ms: number;
     left_ms: number;
     can_call: boolean;
@@ -81,12 +81,15 @@ function edgeRefusal(a: EdgeAnswer, said: { failed: string; noPersona?: string }
   return new AppError("upstream_retell", said.failed, 502, { reason });
 }
 
-/** POST receptionist/rehearsals: a call in the browser, made at the provider, and the token the browser joins it with. */
-export async function startRehearsal(tenantId: string, userId: string): Promise<RehearsalStartDto> {
+/**
+ * POST receptionist/rehearsals: a call in the browser, made at the provider, and the token the browser joins it with.
+ * `userId` is the member who asked, or null for a lead's own receptionist called from its preview page (decision 0079).
+ */
+export async function startRehearsal(tenantId: string, userId: string | null): Promise<RehearsalStartDto> {
   if (!edgeConfigured()) throw new AppError("conflict", REHEARSE_WORDS.talk.notLive, 409);
   const a = await callEdge(
     "/api/admin/rehearsal/call",
-    { tenant_id: tenantId, user_id: userId },
+    { tenant_id: tenantId, ...(userId ? { user_id: userId } : {}) },
     { workspace: tenantId, user: userId, timeoutMs: START_TIMEOUT_MS },
   );
   const b = a.body as Partial<RehearsalStartDto> & { ok?: boolean; allowance?: RehearsalStartDto["allowance"] };

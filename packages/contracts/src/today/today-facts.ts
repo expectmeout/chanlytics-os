@@ -16,6 +16,7 @@ import { waWindow } from "../config/policy";
 import { channelKindWords } from "../lines/channels";
 import { formatPhoneDisplay } from "../shared/phone";
 import type { LeadSearchDto } from "../leads/leads";
+import type { PreviewTriedDto } from "../previews/preview-tried";
 import { MIN_MS, HOUR_MS } from "../shared/time";
 import { tzClock, tzSince } from "./today-clock";
 import type { ReplySpeed } from "../reports/report-speed";
@@ -48,6 +49,8 @@ interface TodayInput {
    * read; a hold whose thread is in neither list is counted as waiting (unknown is not handled).
    */
   heldThreads: ConversationDto[];
+  /** The leads who tried their own receptionist lately (decision 0079), newest first; empty where none was read. */
+  previewsTried: PreviewTriedDto[];
 }
 
 /**

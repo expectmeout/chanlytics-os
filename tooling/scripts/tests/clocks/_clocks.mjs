@@ -70,6 +70,12 @@ export const CLOCKS = {
     times: ["sequence_steps.run_hour", "sequence_steps.last_run_for"],
     fn: "sequence_steps_due",
   },
+  previews: {
+    kind: "due",
+    why: "ends each lead's preview at the end of its thirty days, kept on its row (00497, decision 0079): its agent deleted at the provider, its words cleared and its workspace erased",
+    times: ["lead_previews.ends_at"],
+    fn: "trigger_previews_sweep",
+  },
   purge_ask: { kind: "keep", why: "retention: Ask threads untouched for ninety days" },
   purge_client_errors: { kind: "keep", why: "retention: the errors pages hit, after thirty days (00469)" },
   purge_cron_history: { kind: "keep", why: "retention: the clocks' own run history" },

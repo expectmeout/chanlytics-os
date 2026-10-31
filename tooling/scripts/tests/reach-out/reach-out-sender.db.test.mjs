@@ -491,3 +491,147 @@ test(
     ok(await db.from("jobs").update({ state: "canceled" }).eq("tenant_id", A).eq("kind", "outbound_send"));
   },
 );
+
+test(
+  "their preview (decision 0079): one being made holds the send and is asked for once the switch is on; an open one goes with it; a failed one skips it",
+  { skip },
+  async () => {
+    // Only a workspace of ours makes previews (00497 preview_make).
+    const C = await one(
+      db
+        .from("tenants")
+        .insert({ slug: `sender-c-${stamp}`, name: "Chanlytics", timezone: "America/Chicago", ours: true }),
+    );
+    try {
+      ok(
+        await db.from("tenant_config").upsert({
+          tenant_id: C,
+          config: {
+            brain: {
+              business_name: "Chanlytics",
+              system_prompt: "You answer for Chanlytics, which sets up receptionists for businesses in Austin.",
+              fallbacks: { greeting: "g", error: "e", non_text: "n" },
+              profile: { address: "100 Example St, Austin, TX 78701" },
+            },
+          },
+        }),
+      );
+      const words = {
+        subject: "Your receptionist, {{business}}",
+        body: "Hi {{business}}, here it is: {{their preview}}",
+      };
+      const tpl = await one(
+        db.from("templates").insert({
+          tenant_id: C,
+          channel: "email",
+          source: "chanlytics",
+          name: `reach_sender_preview_${stamp}`,
+          language: "en",
+          category: "marketing",
+          meta_status: "approved",
+          components: [
+            { type: "HEADER", format: "TEXT", text: words.subject },
+            { type: "BODY", text: words.body },
+          ],
+        }),
+      );
+      const root = await chain(C, "running", tpl);
+      const dom = await mailbox(C);
+      const runId = await one(
+        db.from("sequence_batches").insert({
+          tenant_id: C,
+          name: "Movers · 2026-09-27",
+          template_id: tpl,
+          template_name: `reach_sender_preview_${stamp}`,
+          template_language: "en",
+          audience: { kind: "reach_out", root_id: root, step_id: root, search_id: search },
+          state: "scheduled",
+          scheduled_for: iso(Date.now()),
+          step_id: root,
+          run_for: "2026-09-27",
+        }),
+      );
+      const [none, open, failed] = await leads(C, 3);
+      const madeFor = async (lead) =>
+        ok(
+          await db.rpc("preview_make", {
+            p_tenant_id: C,
+            p_lead_id: lead,
+            p_name: "Fixture Movers",
+            p_timezone: "America/Chicago",
+          }),
+        );
+      const opened = await madeFor(open);
+      ok(await db.rpc("preview_built", { p_id: opened.id, p_ok: true, p_why: null }));
+      const broke = await madeFor(failed);
+      ok(await db.rpc("preview_built", { p_id: broke.id, p_ok: false, p_why: "build_failed" }));
+      const sends = await planned(C, runId, root, dom, [none, open, failed], Date.now() - MIN, {
+        checked_words: checkedWordsOf(words, null, false),
+      });
+      const lane = {
+        unsubscribeSecret: "unsubscribe-seal-for-this-suite",
+        unsubscribeOrigin: "https://app.chanlytics.com",
+      };
+      const L = log({ suite: "reach_out_sender" });
+      const stateOf = async (id) => ok(await db.from("sequence_sends").select("state, reason").eq("id", id).single());
+
+      // The switch off: the send that needs one is held, and nothing is made.
+      const was = process.env.LEAD_PREVIEWS;
+      delete process.env.LEAD_PREVIEWS;
+      try {
+        const out = await claimAndWrite({ db, now: new Date(), started: Date.now(), lane, log: L, tenantId: C });
+        assert.deepEqual([out.claimed, out.written, out.held, out.skipped], [3, 1, 1, 1]);
+      } finally {
+        if (was === undefined) delete process.env.LEAD_PREVIEWS;
+        else process.env.LEAD_PREVIEWS = was;
+      }
+      assert.deepEqual(await stateOf(sends[0]), { state: "planned", reason: null }, "held: planned again, an hour on");
+      assert.deepEqual(
+        ok(await db.from("lead_previews").select("id").eq("tenant_id", C).eq("lead_id", none)),
+        [],
+        "switched off, none is made",
+      );
+      // The open one went with its link, and its thirty days start at this first email.
+      assert.equal((await stateOf(sends[1])).state, "queued");
+      const sent = ok(await db.from("sequence_sends").select("message_id").eq("id", sends[1]).single());
+      const m = ok(await db.from("messages").select("body").eq("id", sent.message_id).single());
+      assert.ok(m.body.includes(`/preview/${opened.token}`), m.body);
+      const row = ok(await db.from("lead_previews").select("first_sent_at").eq("id", opened.id).single());
+      assert.ok(row.first_sent_at, "stamped as sent");
+      // The failed one is no link to send: skipped, and its lead's story says why.
+      assert.deepEqual(await stateOf(sends[2]), { state: "skipped", reason: "no_preview" });
+
+      // The switch on: the held send, due again, asks for the lead's preview, whose build is scheduled once.
+      process.env.LEAD_PREVIEWS = "on";
+      try {
+        ok(
+          await db
+            .from("sequence_sends")
+            .update({ send_at: iso(Date.now() - MIN) })
+            .eq("id", sends[0]),
+        );
+        const out = await claimAndWrite({ db, now: new Date(), started: Date.now(), lane, log: L, tenantId: C });
+        assert.deepEqual([out.claimed, out.held], [1, 1]);
+      } finally {
+        if (was === undefined) delete process.env.LEAD_PREVIEWS;
+        else process.env.LEAD_PREVIEWS = was;
+      }
+      const made = ok(await db.from("lead_previews").select("id, state").eq("tenant_id", C).eq("lead_id", none));
+      assert.deepEqual(
+        made.map((p) => p.state),
+        ["building"],
+      );
+      const builds = ok(await db.from("jobs").select("kind, payload").eq("tenant_id", C).eq("kind", "preview_build"));
+      assert.deepEqual(
+        builds.map((j) => j.payload.preview_id),
+        [made[0].id],
+      );
+      // Nothing here runs: the email's job and the build, withdrawn, so a runner beside this suite does neither. One a
+      // runner beside it claimed already is fired, which only finishes or fails: it is left to it, and the workspace's
+      // end below takes it.
+      ok(await db.from("jobs").update({ state: "canceled" }).eq("tenant_id", C).eq("state", "scheduled"));
+    } finally {
+      ok(await db.from("tenants").delete().eq("id", C));
+    }
+  },
+);

@@ -1279,6 +1279,61 @@
       "where": null
     },
     {
+      "table": "lead_previews",
+      "name": "lead_previews_one_per_lead",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "lead_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "lead_previews",
+      "name": "lead_previews_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "lead_previews",
+      "name": "lead_previews_preview_tenant_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "preview_tenant_id"
+        }
+      ],
+      "where": {
+        "notNull": {
+          "column": "preview_tenant_id"
+        }
+      }
+    },
+    {
+      "table": "lead_previews",
+      "name": "lead_previews_token_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "token"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "lead_rounds",
       "name": "lead_rounds_pkey",
       "primary": true,

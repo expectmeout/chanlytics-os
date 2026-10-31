@@ -76,10 +76,20 @@ export interface RequestInput {
  *   - the step's own (unknown_slot, no_subject) and the workspace's (no_signed_by, no_booking_link): the sender holds
  *     the send and the lead keeps its place (R6), since its owner can fix them;
  *   - no_opening: the words name {{opening}} and this send has none, so it goes back to be checked (R5);
+ *   - preview_building: the words name {{their preview}} and the lead's is being made, or none is yet (decision 0079):
+ *     the sender asks for it and holds the send;
+ *   - no_preview: the lead's preview failed or has ended, and this send is skipped;
  *   - missing_value: this lead has no value for a slot ({{city}} for a lead with none), and this send alone is skipped.
  */
 export type WordsRefusal =
-  "unknown_slot" | "no_subject" | "no_signed_by" | "no_booking_link" | "no_opening" | "missing_value";
+  | "unknown_slot"
+  | "no_subject"
+  | "no_signed_by"
+  | "no_booking_link"
+  | "no_opening"
+  | "preview_building"
+  | "no_preview"
+  | "missing_value";
 export type RequestRefusal = WordsRefusal | "no_business_address" | "words_unsendable";
 
 /**
@@ -104,6 +114,9 @@ export function reachOutWords(
   if (slotCount(said, "booking link") > 0 && !workspace.bookingLink?.trim())
     return { ok: false, reason: "no_booking_link" };
   if (wordsNeedOpening({ subject, body: words.body }) && !opening?.trim()) return { ok: false, reason: "no_opening" };
+  // Their preview (decision 0079), before the lead's own values: being made holds the send, gone skips it.
+  if (slotCount(said, "their preview") > 0 && lead.preview?.state !== "open")
+    return { ok: false, reason: lead.preview?.state === "gone" ? "no_preview" : "preview_building" };
   // Filled by the one fill every email takes (contracts reachOutEmailOf), the one the sheet's and the Templates page's
   // previews read: a value this lead lacks holds this email alone.
   const email = reachOutEmailOf({ subject, body: words.body }, lead, workspace, opening);

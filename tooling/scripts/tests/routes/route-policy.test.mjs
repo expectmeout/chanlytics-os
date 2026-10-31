@@ -25,7 +25,16 @@ const API = path.join(here, "../../../../apps/dashboard/app/api/v1");
 const FILE = path.join(here, "../route-policy.json");
 const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"];
 /** Public by design, behind the middleware's PUBLIC_PATHS: there is no member to resolve. */
-const OWN_DOOR = new Set(["signup", "calendar/filler.ics"]);
+const OWN_DOOR = new Set([
+  "signup",
+  "calendar/filler.ics",
+  // A lead's own receptionist's page (decision 0079), behind the proxy's /api/v1/previews/ prefix: its token is the
+  // authority, and server/previews/public-route.ts says what each keeps instead of a member.
+  "previews/[token]/message",
+  "previews/[token]/opened",
+  "previews/[token]/not-right",
+  "previews/[token]/call",
+]);
 
 const files = [];
 (function walk(dir) {

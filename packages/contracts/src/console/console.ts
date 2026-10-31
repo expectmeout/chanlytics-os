@@ -366,6 +366,7 @@ const CONSOLE_GROUPS = {
   live: ["live"],
   paused: ["paused"],
   ours: ["test"],
+  previews: ["preview"],
 } as const satisfies Record<string, readonly PlatformVerdict[]>;
 export type ConsoleGroup = keyof typeof CONSOLE_GROUPS;
 
@@ -376,6 +377,7 @@ export const CONSOLE_GROUP_WORDS: Record<ConsoleGroup, string> = {
   live: "Live",
   paused: "Paused",
   ours: "Ours",
+  previews: "Previews",
 };
 
 const GROUP_ORDER = Object.keys(CONSOLE_GROUPS) as ConsoleGroup[];
@@ -465,7 +467,8 @@ export function consoleNumbersFrom(
   nowMs: number,
 ): ConsoleNumbersDto {
   const verdictOf = new Map(platformRows(tenants, nowMs).map((r) => [r.tenantId, r.verdict]));
-  const customers = tenants.filter((t) => verdictOf.get(t.tenant_id) !== "test");
+  // Neither a test workspace nor a lead's preview (decision 0079) is a customer.
+  const customers = tenants.filter((t) => !["test", "preview"].includes(verdictOf.get(t.tenant_id) ?? ""));
   const answering = customers.filter((t) => ["live", "quiet"].includes(verdictOf.get(t.tenant_id) ?? ""));
   const trialing = customers.filter((t) => t.billing_status === "trialing");
   const endsSoon = (iso: string | null) => {

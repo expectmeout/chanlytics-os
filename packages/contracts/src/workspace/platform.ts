@@ -70,9 +70,20 @@ export interface PlatformTenantDto {
  *   live           answering, and heard from
  *   paused         the workspace itself is paused
  *   test           not a customer
+ *   preview        a lead's own receptionist, before they sign up (decision 0079): not a customer yet, counted apart
  */
 export type PlatformVerdict =
-  "broken" | "billing" | "rehearsal" | "stalled" | "waiting_owner" | "quiet" | "new" | "live" | "paused" | "test";
+  | "broken"
+  | "billing"
+  | "rehearsal"
+  | "stalled"
+  | "waiting_owner"
+  | "quiet"
+  | "new"
+  | "live"
+  | "paused"
+  | "test"
+  | "preview";
 
 export interface PlatformVerdictWords {
   label: string;
@@ -93,6 +104,7 @@ export const PLATFORM_VERDICTS: Record<PlatformVerdict, PlatformVerdictWords> = 
   live: { label: "Live", tone: "ok", rank: 10 },
   paused: { label: "Paused", tone: "plain", rank: 5 },
   test: { label: "Test", tone: "plain", rank: 0 },
+  preview: { label: "Preview", tone: "plain", rank: 0 },
 };
 
 export interface PlatformRowVM {
@@ -154,6 +166,8 @@ function billingBites(mode: BillingMode, status: BillingStatus): boolean {
 function verdictFor(r: PlatformTenantDto, nowMs: number): PlatformVerdict {
   // Not a customer: nothing below means anything about it.
   if (r.status === "test") return "test";
+  // A lead's own receptionist, before they sign up (decision 0079): made theirs, it is a workspace like any other.
+  if (r.status === "preview") return "preview";
 
   const mode = (r.billing_mode ?? "direct") as BillingMode;
   const status = (r.billing_status ?? "none") as BillingStatus;
@@ -197,7 +211,15 @@ function verdictFor(r: PlatformTenantDto, nowMs: number): PlatformVerdict {
   return "live";
 }
 
-function sentenceFor(r: PlatformTenantDto, verdict: PlatformVerdict, nowMs: number): string {
+/** The verdicts that are no customer, each said in a sentence with nothing of the workspace in it. */
+const NOT_A_CUSTOMER = {
+  test: "Not a customer — a test workspace.",
+  preview: "A lead's own receptionist, made for them to try before they sign up. Not a customer yet.",
+} as const satisfies Partial<Record<PlatformVerdict, string>>;
+type CustomerVerdict = Exclude<PlatformVerdict, keyof typeof NOT_A_CUSTOMER>;
+const isCustomer = (v: PlatformVerdict): v is CustomerVerdict => !(v in NOT_A_CUSTOMER);
+
+function sentenceFor(r: PlatformTenantDto, verdict: CustomerVerdict, nowMs: number): string {
   const heard = at(r.last_inbound_at);
   const quietFor = heard === null ? null : Math.floor((nowMs - heard) / DAY_MS);
   switch (verdict) {
@@ -248,8 +270,6 @@ function sentenceFor(r: PlatformTenantDto, verdict: PlatformVerdict, nowMs: numb
       return `Answering; last heard from ${heard === null ? "never" : agoWords(heard, nowMs)}.`;
     case "paused":
       return `The workspace is paused, by design: ${PAUSED_CALL}.`;
-    case "test":
-      return "Not a customer — a test workspace.";
   }
 }
 
@@ -305,7 +325,7 @@ export function platformRows(rows: readonly PlatformTenantDto[], nowMs = Date.no
         slug: r.slug,
         name: r.name,
         verdict,
-        sentence: sentenceFor(r, verdict, nowMs),
+        sentence: isCustomer(verdict) ? sentenceFor(r, verdict, nowMs) : NOT_A_CUSTOMER[verdict],
         facts: factsFor(r, nowMs),
         age: agoWords(at(r.created_at) ?? nowMs, nowMs),
         members: r.members,
@@ -324,9 +344,12 @@ export function platformSummary(rows: readonly PlatformRowVM[]): {
   needsUs: number;
   needsThem: number;
   live: number;
+  /** The leads' previews (decision 0079), counted apart from the customers. */
+  previews: number;
   sentence: string;
 } {
-  const customers = rows.filter((r) => r.verdict !== "test");
+  const customers = rows.filter((r) => isCustomer(r.verdict));
+  const previews = rows.filter((r) => r.verdict === "preview").length;
   const needsUs = customers.filter((r) => r.verdict === "broken" || r.verdict === "rehearsal").length;
   const needsThem = customers.filter(
     (r) => r.verdict === "billing" || r.verdict === "waiting_owner" || r.verdict === "stalled",
@@ -335,7 +358,8 @@ export function platformSummary(rows: readonly PlatformRowVM[]): {
   const parts: string[] = [`${customers.length} workspace${customers.length === 1 ? "" : "s"}`, `${live} live`];
   if (needsUs) parts.push(`${needsUs} on us`);
   if (needsThem) parts.push(`${needsThem} on them`);
-  return { total: customers.length, needsUs, needsThem, live, sentence: parts.join(" · ") };
+  if (previews) parts.push(`Previews: ${previews}`);
+  return { total: customers.length, needsUs, needsThem, live, previews, sentence: parts.join(" · ") };
 }
 
 /** A number as the back office shows it, or a dash. Support reads these aloud on calls. */

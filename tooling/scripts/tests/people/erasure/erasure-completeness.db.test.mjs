@@ -14,6 +14,8 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createClient } from "@supabase/supabase-js";
@@ -62,13 +64,24 @@ const ok = (r, what) => {
 };
 const insert = async (table, row, what = table) => ok(await db.from(table).insert(row).select("id").single(), what).id;
 
-/** One statement through the CLI, and its rows. */
+/**
+ * One statement through the CLI, and its rows. The statement goes in a file (`--file`): the search names every
+ * registered column, and as one argument it outgrew Windows' 32 KB command line (00497).
+ */
 function query(sql) {
-  const r = spawnSync(CLI, ["db", "query", "--local", "--output-format", "json", sql], {
-    cwd: ROOT,
-    encoding: "utf8",
-    maxBuffer: 16 * 1024 * 1024,
-  });
+  const dir = mkdtempSync(path.join(os.tmpdir(), "erasure-query-"));
+  const file = path.join(dir, "query.sql");
+  writeFileSync(file, sql);
+  let r;
+  try {
+    r = spawnSync(CLI, ["db", "query", "--local", "--output-format", "json", "--file", file], {
+      cwd: ROOT,
+      encoding: "utf8",
+      maxBuffer: 16 * 1024 * 1024,
+    });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
   if (r.error) throw new Error(`could not run ${CLI} (${r.error.message}); set SUPABASE_CLI to the supabase binary`);
   if (r.status !== 0) throw new Error(`${CLI} db query failed: ${(r.stderr || r.stdout || "").slice(-800)}`);
   // The CLI wraps the rows in an envelope (a boundary, a warning); the rows are what is read, as privileges.db.test.mjs reads them.
@@ -438,6 +451,17 @@ async function seed() {
     class: "qualified",
     reason: WORDS.slice(0, 120),
     counted: false,
+  });
+  // The lead's own receptionist before they sign up (00497): what they wrote to it and said was not right.
+  await insert("lead_previews", {
+    tenant_id: T,
+    lead_id: lead,
+    token: `needle${RUN}`
+      .replace(/[^A-Za-z0-9]/g, "")
+      .padEnd(22, "x")
+      .slice(0, 22),
+    turns: [{ role: "user", content: WORDS }],
+    not_right: [{ fact: WORDS.slice(0, 80), said: WORDS.slice(0, 300) }],
   });
   // A preference copied from the lead (00140), and a reach-out's run: the email it wrote the lead, from the lead's
   // record, and the person's own row in it, with the words the run kept for them (a visit's, a proposal's link).

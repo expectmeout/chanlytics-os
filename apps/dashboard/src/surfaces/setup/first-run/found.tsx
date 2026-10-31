@@ -8,7 +8,18 @@
  * foundOf reads the config the next save goes on). A read that could not be made is said once.
  */
 import type { ReactNode } from "react";
-import { FOUND_WORDS, PROFILE_LIMITS, foundOf, type BusinessReadDto, type FoundVM } from "@chanlytics/contracts";
+import {
+  FOUND_WORDS,
+  PROFILE_LIMITS,
+  foundOf,
+  foundRecordOf,
+  foundServicesRoom,
+  withFoundClosure,
+  withFoundNote,
+  withFoundServices,
+  type BusinessReadDto,
+  type FoundVM,
+} from "@chanlytics/contracts";
 import { gate, type LegacyFlash } from "../../legacy-verbs";
 import { businessTabSave } from "../shell";
 import { brainOf } from "./inputs";
@@ -34,48 +45,25 @@ function keepFound(row: string, change: (p: Profile) => Profile, said: string, f
 /** What a press adds: services (as many as there is room for), a day closed, or a rule or an answer as a note. */
 function foundActs(profile: Profile, flash: (f: LegacyFlash) => void) {
   const addServices = (picked: FoundVM["services"]) => {
-    const room = Math.max(0, PROFILE_LIMITS.services - asList(profile.services).length);
-    const take = picked.slice(0, room);
+    const take = foundServicesRoom(profile, picked);
     const [only] = take;
     if (!only) return;
-    const kept = take.map((s) => ({
-      name: s.name,
-      ...(s.price_note ? { price_note: s.price_note.slice(0, PROFILE_LIMITS.servicePrice) } : {}),
-      ...(s.duration_min ? { duration_min: s.duration_min } : {}),
-    }));
     keepFound(
       "services",
-      (p) => ({ ...p, services: [...asList(p.services), ...kept] }),
+      (p) => withFoundServices(p, take, { prices: true }),
       F.added(take.length === 1 ? only.name : `${take.length} services`),
       flash,
     );
   };
   const addClosed = (c: FoundVM["closed"][number]) =>
-    keepFound(
-      "closures",
-      (p) => ({ ...p, closures: [...asList(p.closures), { date: c.date, ...(c.until ? { until: c.until } : {}) }] }),
-      F.added(F.closed(c.date, c.until)),
-      flash,
-    );
-  const addRule = (text: string) =>
-    keepFound(
-      "booking_rules",
-      (p) => {
-        const br = (p.booking_rules || {}) as { notes?: string[] };
-        return { ...p, booking_rules: { ...br, notes: [...(br.notes ?? []), text.slice(0, PROFILE_LIMITS.ruleNote)] } };
-      },
-      F.added(F.rulesTitle),
-      flash,
-    );
+    keepFound("closures", (p) => withFoundClosure(p, c), F.added(F.closed(c.date, c.until)), flash);
   const addNote = (n: { title: string; text: string }) =>
-    n.title === F.rulesTitle
-      ? addRule(n.text)
-      : keepFound(
-          "notes",
-          (p) => ({ ...p, notes: [...asList(p.notes), { title: n.title, text: n.text }] }),
-          F.added(n.title),
-          flash,
-        );
+    keepFound(
+      n.title === F.rulesTitle ? "booking_rules" : "notes",
+      (p) => withFoundNote(p, n),
+      F.added(n.title === F.rulesTitle ? F.rulesTitle : n.title),
+      flash,
+    );
   return { addServices, addClosed, addNote };
 }
 
@@ -197,16 +185,7 @@ export function FrFound({
   const brain = brainOf(businessTabSave.saver.base());
   if (!brain || !reads?.length) return null;
   const profile = (brain.profile || {}) as Profile;
-  const rules = (profile.booking_rules || {}) as { notes?: string[] };
-  const found = foundOf(reads, {
-    services: asList(profile.services) as { name?: string }[],
-    closures: asList(profile.closures) as { date?: string }[],
-    notes: [
-      ...(asList(profile.notes) as { title?: string; text?: string }[]),
-      ...(rules.notes ?? []).map((t) => ({ title: null, text: t })),
-    ],
-    description: null,
-  });
+  const found = foundOf(reads, foundRecordOf(profile));
   if (!found.any && !found.unread) return null;
   const acts = foundActs(profile, flash);
   return (

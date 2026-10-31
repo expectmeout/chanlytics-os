@@ -733,6 +733,9 @@ const serveRead = (path, query) => {
   if (path === "/api/v1/sequences") return reply(200, { ok: true, data: { sequences: [] } });
   // A lead's place in a sequence (00459 sequence_place, the lead sheet's one reader): none of these leads is in one.
   if (/^\/api\/v1\/leads\/[^/]+\/place$/.test(path)) return reply(200, { ok: true, data: null });
+  // A lead's own preview (decision 0079, the sheet's Their preview): this workspace makes none, so the sheet draws nothing.
+  if (/^\/api\/v1\/leads\/[^/]+\/preview$/.test(path))
+    return reply(200, { ok: true, data: { preview: null, makes: false } });
   // A person read ahead of a press (People's warmPeople, which the Pipeline's rows ask as they are rested on), who is not here.
   if (/^\/api\/v1\/contacts\/[^/]+$/.test(path)) return refusal(404, "not_found", `no ${path}`);
   unexpected.push(`GET ${path}`);

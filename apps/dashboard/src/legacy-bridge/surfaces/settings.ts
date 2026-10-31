@@ -71,6 +71,8 @@ export interface SettingsRecord {
    * review ask only where it does (templates/verbs.ts starters.list). False on a broken config and from an older server.
    */
   reviewLink: boolean;
+  /** Whether this workspace makes previews for its leads (GET settings' previews, decision 0079): ours alone. */
+  previews: boolean;
 }
 
 /** A member of the workspace, and an invitation nobody has taken yet, as the team read answers them. */
@@ -259,6 +261,7 @@ export const settingsOverride: SurfaceOverride = {
           updatedBy: null,
           updatedAt: null,
           reviewLink: false,
+          previews: false,
         }
       : {
           config: cfg.config ?? {},
@@ -269,6 +272,7 @@ export const settingsOverride: SurfaceOverride = {
           updatedBy: cfg.updatedBy ?? null,
           updatedAt: cfg.updatedAt ?? null,
           reviewLink: cfg.review_link === true,
+          previews: cfg.previews === true,
         };
     // Resolved on the server, where the channel rows and the listing are. Null
     // on a broken config for the same reason the forms close: there is nothing

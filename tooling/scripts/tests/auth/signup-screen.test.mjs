@@ -11,10 +11,17 @@ import assert from "node:assert/strict";
 import { Module, createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { SIGNUP_WORDS, deviceTimezone, passwordProblem, verifyCodeWords } from "@chanlytics/contracts";
+import {
+  LEAD_PREVIEW_WORDS,
+  SIGNUP_WORDS,
+  deviceTimezone,
+  passwordProblem,
+  verifyCodeWords,
+} from "@chanlytics/contracts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
-const PAGE = path.join(ROOT, "apps/dashboard/app/signup/page.tsx");
+// The screen /signup draws with no preview, and /preview/<token>/mine with one (decision 0079).
+const PAGE = path.join(ROOT, "apps/dashboard/src/auth/SignupScreen.tsx");
 const require = createRequire(PAGE);
 
 /* ------------------------------ the world ------------------------------ */
@@ -30,6 +37,9 @@ fake.exports = {
     auth: {
       verifyOtp: async (a) => auth.verifyOtp(a),
       resend: async (a) => auth.resend(a),
+      // Signed in or not, as a preview's link asks (decision 0079); nobody unless the test says.
+      getSession: async () => ({ data: { session: auth?.session ?? null } }),
+      signOut: async () => auth.signOut(),
     },
   }),
 };
@@ -76,16 +86,22 @@ let answers = {};
 globalThis.fetch = async (url, init = {}) => {
   const method = init.method ?? "GET";
   asked.push({ url: String(url), method, body: init.body === undefined ? undefined : JSON.parse(init.body) });
-  const a = answers[method];
+  // By method and path where the test names one (a preview's link asks two GETs and two POSTs), else by method.
+  const a = answers[`${method} ${new URL(String(url), "https://app.example.com").pathname}`] ?? answers[method];
   if (a instanceof Error) throw a;
   if (a.raw !== undefined) return new Response(a.raw, { status: a.status });
   return new Response(JSON.stringify(a.body), { status: a.status, headers: { "content-type": "application/json" } });
 };
-globalThis.window = { location: { assign: (to) => went.push(to) } };
+globalThis.window = {
+  location: { assign: (to) => went.push(to) },
+  fetch: (...a) => globalThis.fetch(...a),
+};
 globalThis.sessionStorage = { removeItem() {}, getItem: () => null, setItem() {}, key: () => null, length: 0 };
 
 const mod = await import(pathToFileURL(PAGE).href);
-const SignupPage = typeof mod.default === "function" ? mod.default : mod.default.default;
+const SignupScreen = typeof mod.default === "function" ? mod.default : mod.default.default;
+/** The preview the screen is drawn for: none, as /signup draws it, unless a test says. */
+let preview = null;
 
 /* ------------------------------ driving ------------------------------ */
 
@@ -115,7 +131,7 @@ const textOf = (n) => {
 const draw = () => {
   at = 0;
   dirty = false;
-  tree = SignupPage();
+  tree = SignupScreen({ preview });
 };
 const settle = async () => {
   for (let i = 0; i < 8; i++) {
@@ -124,6 +140,7 @@ const settle = async () => {
   }
 };
 const open = async (door, post) => {
+  preview = null;
   cells = [];
   asked = [];
   went = [];
@@ -258,4 +275,135 @@ test("the code step confirms the address it was given, resends a confirmation, a
   draw();
   assert.equal(card().props["data-testid"], "signup", "back to the form, with what was typed");
   assert.equal(find((n) => n.props?.id === "email").props.value, " Owner+x@Luna.example ");
+});
+
+/* ---- Make it mine (decision 0079, L4) ---- */
+
+const TOKEN = "TokenTokenTokenToken01";
+const CLAIM = "POST /api/v1/preview-claims";
+const FIXTURE = { token: TOKEN, business: "Fixture Barbers", email: "owner@fixture.example" };
+const CLAIMED = {
+  status: 200,
+  body: {
+    ok: true,
+    data: {
+      workspace: {
+        id: "w9",
+        slug: "fixture-barbers",
+        name: "Fixture Barbers",
+        status: "active",
+        timezone: "America/Chicago",
+        locale: "en",
+      },
+    },
+  },
+};
+const W = LEAD_PREVIEW_WORDS.signup;
+
+/** The screen drawn for a preview's link (/preview/<token>/mine reads it on the server), under a posture. */
+const openFromLink = async (door, more = {}) => {
+  preview = FIXTURE;
+  cells = [];
+  asked = [];
+  went = [];
+  answers = { GET: { status: 200, body: { ok: true, data: { posture: door } } }, POST: CONFIRM, ...more };
+  draw();
+  const first = card().props["data-testid"];
+  await settle();
+  return first;
+};
+const byId = (id) => find((n) => n.props?.["data-testid"] === id);
+const postedTo = (path) => asked.filter((a) => a.method === "POST" && a.url === path).map((a) => a.body);
+
+test("from a preview's link: whose receptionist at once, the address it was sent to, the door open whatever the posture", async () => {
+  const zone = deviceTimezone();
+  for (const door of ["invite", "waitlist"]) {
+    auth = { session: null };
+    assert.equal(await openFromLink(door), "signup-preview", `${door}: its head while the session is asked, no form`);
+    assert.equal(card().props["data-testid"], "signup", door);
+    assert.equal(card().props["data-posture"], "open", `${door}: the link stands for an invite code`);
+    assert.equal(textOf(find((n) => n.type === "h1")), W.title("Fixture Barbers"));
+    assert.equal(
+      find((n) => n.props?.id === "name"),
+      null,
+      "the business is named already",
+    );
+    assert.equal(
+      find((n) => n.props?.id === "code"),
+      null,
+      "no invite code is asked",
+    );
+    assert.equal(
+      find((n) => n.props?.id === "email").props.value,
+      "owner@fixture.example",
+      "the address it was sent to",
+    );
+    const google = find((n) => typeof n.type === "function" && n.type.name === "GoogleSignIn").props;
+    assert.deepEqual(
+      [google.next, google.hint],
+      [`/preview/${TOKEN}/mine`, W.googleNext],
+      "Google comes back here, signed in, to the one press",
+    );
+    assert.equal(textOf(find((n) => n.type === "button")), W.claim, "the press is Make it mine");
+    assert.ok(!textOf(card()).includes("Your clock"), "a preview keeps its business's own clock");
+    type("password", "correct horse battery");
+    await press();
+    assert.deepEqual(postedTo("/api/v1/signup"), [
+      {
+        name: "Fixture Barbers",
+        email: "owner@fixture.example",
+        password: "correct horse battery",
+        ...(zone ? { timezone: zone } : {}),
+        preview: TOKEN,
+      },
+    ]);
+    assert.equal(card().props["data-testid"], "signup-confirm");
+  }
+});
+
+test("from a preview's link, the code makes it theirs and opens its first run; a claim refused goes home", async () => {
+  const step = () => find((n) => typeof n.type === "function" && n.type.name === "CodeStep").props;
+  for (const [claim, home] of [
+    [CLAIMED, false],
+    [{ status: 409, body: { ok: false, error: { message: "Fixture Barbers is already set up." } } }, true],
+  ]) {
+    auth = { session: null, verifyOtp: () => ({ error: null }) };
+    await openFromLink("open", { [CLAIM]: claim });
+    type("password", "correct horse battery");
+    await press();
+    assert.equal(await step().onSubmit("123456"), null);
+    assert.deepEqual(postedTo("/api/v1/preview-claims"), [{ token: TOKEN }], "claimed once, signed in now");
+    if (home) assert.deepEqual(went, ["/"], "home, where the first screen asks again and says why");
+    else assert.match(went[0] ?? "", /^\/w\/fixture-barbers\b.*start/, "its first run");
+  }
+});
+
+test("signed in, from a preview's link: one press makes it theirs; refused, the door's words; or another account", async () => {
+  let signedOut = 0;
+  let reloaded = 0;
+  globalThis.window.location.reload = () => (reloaded += 1);
+  auth = { session: { user: { email: "ada@example.com" } }, signOut: () => ((signedOut += 1), { error: null }) };
+  await openFromLink("invite", { [CLAIM]: CLAIMED });
+  assert.equal(card().props["data-testid"], "signup-claim", "no form, no code: one press");
+  assert.ok(
+    textOf(card()).includes(W.title("Fixture Barbers")) && textOf(card()).includes(W.signedIn("ada@example.com")),
+  );
+  byId("signup-claim-press").props.onClick();
+  await settle();
+  assert.deepEqual(postedTo("/api/v1/preview-claims"), [{ token: TOKEN }]);
+  assert.match(went[0] ?? "", /^\/w\/fixture-barbers\b.*start/, "its first run");
+
+  await openFromLink("open", {
+    [CLAIM]: { status: 409, body: { ok: false, error: { message: "Fixture Barbers is already set up." } } },
+  });
+  byId("signup-claim-press").props.onClick();
+  await settle();
+  assert.equal(said(), "Fixture Barbers is already set up.");
+  assert.deepEqual(went, [], "and nothing opened");
+  assert.equal(byId("signup-claim-press").props.disabled, false, "and it can be pressed again");
+
+  await find((n) => n.type === "button" && textOf(n) === W.other).props.onClick();
+  assert.deepEqual([signedOut, reloaded], [1, 1], "signed out, and the page is the form again");
+  delete globalThis.window.location.reload;
+  preview = null;
 });

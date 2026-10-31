@@ -26,17 +26,17 @@ type TenantTable = {
   [K in keyof Tables]: Tables[K]["Row"] extends { tenant_id: string } ? K : never;
 }[keyof Tables];
 
-/** The client's options as `SupabaseClient<Database>` reads them: the types' Postgrest version, else 12. */
-type ClientOptions = Database extends { __InternalSupabase: { PostgrestVersion: string } }
-  ? Database["__InternalSupabase"]
-  : { PostgrestVersion: "12" };
-
 /**
- * The table's builder, the type `db.from` gives it, written out: inferred from the call, its declaration named every
- * workspace table's builder at once, and grew past what the compiler will write (TS7056, 31 Oct 2026, decision 0082's
- * three columns on sequence_batches).
+ * The table's builder as `db.from` gives it, named: a client of these generated types takes supabase-js's default
+ * options (they name no PostgREST version). Read from the call instead, its type was inferred, and with 00497's table
+ * the declaration it emits outgrew what the compiler will write (TS7056).
  */
-type Builder<T extends TenantTable> = PostgrestQueryBuilder<ClientOptions, Database["public"], Tables[T], T>;
+type Builder<T extends TenantTable> = PostgrestQueryBuilder<
+  { PostgrestVersion: "12" },
+  Database["public"],
+  Tables[T],
+  T
+>;
 function builderOf<T extends TenantTable>(db: Db, table: T): Builder<T> {
   return db.from(table);
 }

@@ -426,6 +426,7 @@ const JOB_WORK: Record<JobKind, { stopped: string; to: string }> = {
   inbound_answer: { stopped: "A text could not be answered", to: "inbox" },
   history_import: { stopped: "Bringing your history in stopped partway", to: "admin/integrations" },
   website_read: { stopped: "Your website could not be read", to: "admin/receptionist" },
+  preview_build: { stopped: "A lead's preview could not be made", to: "clients/leads" },
 };
 
 /** A job this runner has no words for: said as what it is, on the page that says what happened today. */

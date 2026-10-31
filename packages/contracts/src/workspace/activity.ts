@@ -263,6 +263,10 @@ const WORDS: Record<string, string> = {
   "lead.converted": "A lead is Talking",
   "lead.set_aside": "A lead was set aside",
   "lead.ideas_written": "Ideas for a search were written",
+  // A lead's own receptionist before they sign up (decision 0079): made for a lead, and made theirs. The claimed
+  // workspace files the claim too, of itself (its row names no preview), and reads it as where it began.
+  "preview.made": "A preview of its own receptionist was made for a lead",
+  "preview.claimed": "A lead made their preview theirs",
   // A reply to a reach-out, read (Reach out Part 5): the case below says who and what it meant.
   "reach_out.replied": "A business wrote back to a sequence",
   "reach_out.reply_undone": "A reply read as no was undone",
@@ -540,6 +544,7 @@ const WHOLE_SENTENCE = new Map<string, (p: Record<string, unknown>, base: string
   ["import", (p) => importWords(p)],
   ["reply", replyWords],
   ["lead.converted", (p, base) => readingWords("lead.converted", p, base)],
+  ["preview.claimed", (p, base) => (textAt(p, "preview_id") ? base : "This workspace began as a preview")],
   ["reach_out.replied", (p, base) => readingWords("reach_out.replied", p, base)],
   ["mailbox.offers_paused", offersPausedWords],
   ["lead.stage", leadStageWords],

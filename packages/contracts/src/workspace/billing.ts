@@ -216,11 +216,12 @@ export function takesSignUps(open: OpenToCustomers | null | undefined): boolean 
 }
 
 /**
- * Whether a workspace has public pages at all: not a fixture (`test`), and not ended (its pages are Not found and
+ * Whether a workspace has public pages at all: not a fixture (`test`), not a lead's preview (`preview`, decision 0079:
+ * its page is the preview's own), and not ended (its pages are Not found and
  * unindexed: X4-2). A paused workspace keeps them, readable for the carriers' re-vet, and asks nobody for a yes.
  */
 export function hasPublicPages(status: string, open: OpenToCustomers): boolean {
-  return status !== "test" && open !== "ended";
+  return status !== "test" && status !== "preview" && open !== "ended";
 }
 
 /**

@@ -23,6 +23,7 @@ apps/edge/lib/
   ops/
   packages/
   partners/
+  previews/
   reach-out/
   receptionist/
   sms/
@@ -38,6 +39,7 @@ apps/dashboard/app/
   data-deletion/
   login/
   p/
+  preview/
   privacy/
   reset-password/
   signup/
@@ -68,6 +70,7 @@ apps/dashboard/src/server/
   people/
   platform/
   ports/
+  previews/
   public/
   readers/
   receptionist/
@@ -133,6 +136,7 @@ packages/contracts/src/
   people/
   person-page/
   playbooks/
+  previews/
   reach-out/
   rehearsal/
   reports/

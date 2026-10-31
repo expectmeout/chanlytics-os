@@ -8,11 +8,13 @@ import {
   ok,
   passwordProblem,
   signupPosture,
+  signupPostureFor,
 } from "@chanlytics/contracts";
 import { isSameOrigin } from "@/server/request-guards";
 import { takeRate } from "@/server/rate-limit";
 import { ipOf, hashKey as hash } from "@/server/request-ip";
 import { inviteCodeMatches, joinWaitlist, signUp } from "@/server/platform/signup";
+import { previewForSignup } from "@/server/previews/claim";
 import { env } from "@/server/env";
 import { log } from "@/server/log";
 
@@ -54,7 +56,11 @@ export async function POST(req: Request): Promise<Response> {
     const input = parsed.data;
     await takeRate(`ip:${hash(ipOf(req))}`, "signup_ip");
     await takeRate(`email:${hash(input.email)}`, "signup_email");
-    const posture = signupPosture(env.SIGNUP_CODE);
+    // A lead's own receptionist's live link opens sign-up whatever the posture (decision 0079): it stands for an
+    // invite code, and rides on the account for the first screen to claim. One that cannot be made theirs any more is
+    // no link at all, and the posture is the switch's.
+    const preview = input.preview && (await previewForSignup(input.preview)) ? input.preview : undefined;
+    const posture = signupPostureFor(signupPosture(env.SIGNUP_CODE), !!preview);
 
     // THE WAITLIST BRANCH RETURNS BEFORE ANYTHING IS CREATED.
     //
@@ -89,7 +95,7 @@ export async function POST(req: Request): Promise<Response> {
     // Narrowing a PROPERTY does not re-type the object that holds it, so the
     // proved password is handed over explicitly rather than passing `input`
     // and asserting. No cast, and the compiler keeps the guarantee.
-    const out = await signUp({ ...input, password: input.password });
+    const out = await signUp({ ...input, password: input.password, preview });
     log.info("signup", { created: out.created, code_unsent: out.codeUnsent, ms: Date.now() - started });
     // THE CODE IS THE ONLY WAY IN, so a send WE could not make is worth saying.
     // The usual answer stays deliberately opaque -- whether an address is already

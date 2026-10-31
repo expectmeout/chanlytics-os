@@ -21,6 +21,8 @@ export const REHEARSAL_LIMITS = {
   beforePlanMs: 10 * MIN_MS,
   /** What a workspace with a plan may speak in any thirty days. */
   withPlanMs: 60 * MIN_MS,
+  /** What a lead's own receptionist may speak in all, before anyone makes it theirs (decision 0079): two calls' worth. */
+  previewMs: 6 * MIN_MS,
   /** The window a plan's minutes are counted over. */
   withPlanWindowMs: 30 * DAY_MS,
   /**
@@ -31,8 +33,11 @@ export const REHEARSAL_LIMITS = {
   runningMs: 5 * MIN_MS,
 } as const;
 
-/** What a workspace's spoken minutes are counted against: before its plan, or the plan's thirty days. */
-export type RehearsalWindow = "before_plan" | "thirty_days";
+/**
+ * What a workspace's spoken minutes are counted against: before its plan, or the plan's thirty days; or, for a lead's own
+ * receptionist that nobody has made theirs yet, the preview's whole life (decision 0079).
+ */
+export type RehearsalWindow = "before_plan" | "thirty_days" | "preview";
 
 export interface RehearsalAllowance {
   window: RehearsalWindow;
@@ -52,9 +57,19 @@ export interface RehearsalAllowance {
  * `spentMs` is the window's spoken rehearsals, each counted by the provider's seconds, and a running one by its whole
  * length (REHEARSAL_LIMITS.callMs), so a call cannot run past what is left.
  */
-export function rehearsalAllowance(f: { hasPlan: boolean; spentMs: number; running: boolean }): RehearsalAllowance {
-  const window: RehearsalWindow = f.hasPlan ? "thirty_days" : "before_plan";
-  const ofMs = f.hasPlan ? REHEARSAL_LIMITS.withPlanMs : REHEARSAL_LIMITS.beforePlanMs;
+export function rehearsalAllowance(f: {
+  hasPlan: boolean;
+  /** A lead's own receptionist nobody has made theirs: its six minutes, whatever else is true. */
+  preview: boolean;
+  spentMs: number;
+  running: boolean;
+}): RehearsalAllowance {
+  const window: RehearsalWindow = f.preview ? "preview" : f.hasPlan ? "thirty_days" : "before_plan";
+  const ofMs = {
+    preview: REHEARSAL_LIMITS.previewMs,
+    thirty_days: REHEARSAL_LIMITS.withPlanMs,
+    before_plan: REHEARSAL_LIMITS.beforePlanMs,
+  }[window];
   const leftMs = Math.max(0, ofMs - Math.max(0, f.spentMs));
   // A call is let start with at least a minute left: the provider's floor for a call's length.
   const used = leftMs < MIN_MS;
@@ -178,13 +193,16 @@ export const REHEARSE_WORDS = {
   left: (leftMs: number, window: RehearsalWindow) => {
     const min = Math.floor(leftMs / MIN_MS);
     const n = `${min} free minute${min === 1 ? "" : "s"}`;
+    if (window === "preview") return `${n} left on this preview`;
     return window === "before_plan" ? `${n} left before you go live` : `${n} left this month`;
   },
   /** When none is left. */
   used: (window: RehearsalWindow) =>
-    window === "before_plan"
-      ? "Your free minutes are used. Go live to keep talking; typing is still free."
-      : "This month's minutes are used. Typing is still free.",
+    window === "preview"
+      ? "That's all a preview calls. Make it yours to keep talking."
+      : window === "before_plan"
+        ? "Your free minutes are used. Go live to keep talking; typing is still free."
+        : "This month's minutes are used. Typing is still free.",
   running: "A call is still running. End it first, or wait a minute.",
   /** On a test call, what a transfer would have done (D4): a rehearsal dials nobody. */
   transferred: (number: string | null) =>

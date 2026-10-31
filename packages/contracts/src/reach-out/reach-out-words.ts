@@ -7,10 +7,12 @@
  * (templates/slot-sets.ts), checked by the one `emailIssues` over its own rules, and filled by the one fill; what is
  * this module's own is what a cold email adds to those rules, and its words.
  *
- *   REACH_OUT_SLOTS          the ten a step may name; any other {{…}} is refused at the save, never met at a send. The
+ *   REACH_OUT_SLOTS          the eleven a step may name; any other {{…}} is refused at the save, never met at a send. The
  *                            person's four (00430: {{first name}}, {{company}}, {{title}}, {{role}}) are filled from a
  *                            company's addressee, and each has its fallback for a lead with none (REACH_OUT_SLOT_FALLBACKS)
- *   REACH_OUT_SLOT_SET       the ten as a slot set, which every reader and the fill take
+ *   REACH_OUT_SLOT_SET       the eleven as a slot set, which every reader and the fill take. The last, {{their preview}}
+ *                            (decision 0079), is the lead's own receptionist's link: a link like {{booking link}}, so a
+ *                            step's one, and never in a first email
  *   reachOutRules            what a step's email keeps to, as an email's rules: the shared checks over this set, and the
  *                            cold email's own
  *   validateReachOutWords    one step's words: its subject (the first step's only), its body, its slots, its length,
@@ -51,6 +53,9 @@ export const REACH_OUT_SLOTS = [
   "company",
   "title",
   "role",
+  // A lead's own receptionist's link (decision 0079): the sender fills it with the lead's preview, made at the first
+  // send that names it.
+  "their preview",
 ] as const;
 export type ReachOutSlot = (typeof REACH_OUT_SLOTS)[number];
 
@@ -76,6 +81,7 @@ const REACH_OUT_SLOT_LABELS: Record<ReachOutSlot, string> = {
   "your name": "Your name",
   "your business": "Your business",
   "booking link": "Booking link",
+  "their preview": "Their preview",
 };
 
 /** The ten as a slot set: named, in the sheet's order. Every reader of a step's words and the fill take this one. */
@@ -160,9 +166,9 @@ export function linksIn(text: string): string[] {
   return out;
 }
 
-/** The links a business sees: each one written out, and each {{booking link}}. */
+/** The links a business sees: each one written out, each {{booking link}} and each {{their preview}}. */
 export function linkCount(text: string): number {
-  return linksIn(text).length + slotCount(text, "booking link");
+  return linksIn(text).length + slotCount(text, "booking link") + slotCount(text, "their preview");
 }
 
 /**
@@ -286,7 +292,8 @@ export type ChainProblem =
   | "hand_not_last"
   | "hand_words_empty"
   | "hand_words_long"
-  | "first_has_a_link";
+  | "first_has_a_link"
+  | "first_has_their_preview";
 
 export interface ChainIssue {
   /** The step's index, or null for the chain's own. */
@@ -309,8 +316,11 @@ export function validateReachOutChain(c: ReachOutChainInput, has: { bookingLink:
       for (const w of validateReachOutWords({ subject: s.subject, body: s.body }, i === 0)) out.push({ step: i, ...w });
     if (i === 0 && s.after_days !== null) out.push({ step: 0, field: "after_days", problem: "first_has_a_delay" });
     // A first email to a business that never heard of you carries no link (decision 0056, 7): a link in a first touch
-    // from a mailbox is what spam filters weigh most. The booking link goes in the nudge.
-    if (
+    // from a mailbox is what spam filters weigh most. The booking link goes in the nudge. Their preview is a link like
+    // any other, said in its own words: it goes in a later step (decision 0079).
+    if (i === 0 && !s.hand && slotCount(s.body, "their preview") > 0)
+      out.push({ step: 0, field: "body", problem: "first_has_their_preview" });
+    else if (
       i === 0 &&
       !s.hand &&
       (linksIn(`${s.subject ?? ""}\n${s.body}`).length > 0 || slotCount(s.body, "booking link") > 0)
@@ -359,6 +369,8 @@ export function chainIssueWords(i: ChainIssue): string {
       return "Your words name {{your name}}. Say the name you sign with.";
     case "no_booking_link":
       return "Your words name {{booking link}}. Add your booking link in Settings › Hours & booking first.";
+    case "first_has_their_preview":
+      return "A first email carries no link. Put their preview in a later step.";
     case "first_has_a_link":
       return "Keep your first email free of links: put your booking link in the nudge.";
     default:
