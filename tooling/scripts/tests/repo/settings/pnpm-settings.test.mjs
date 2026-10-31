@@ -49,6 +49,11 @@ test("the overrides lift each advisory to its first fixed version, and query-str
   assert.equal(overrides["source-map-js@<1.2.2"], "^1.2.2", "GHSA-68fv-2mgg-jv7q, through Next's postcss");
   assert.equal(overrides["sharp@<0.35.5"], "^0.35.5", "GHSA-wq5f-xc86-pv6w, through Next");
   assert.equal(overrides["shell-quote@<1.11.0"], "^1.11.0", "GHSA-pqg4-j6r4-53mv, through react-native's devtools");
+  assert.equal(
+    overrides["node-forge@<1.4.1"],
+    "^1.4.1",
+    "GHSA-7wch-p9px-956x and four more (31 Oct 2026), through the Expo CLI",
+  );
   const patched = settingBlock("patchedDependencies");
   for (const [dependency, file] of Object.entries(patched))
     assert.ok(fs.existsSync(path.join(ROOT, file)), `${dependency}: ${file} is in the tree`);
