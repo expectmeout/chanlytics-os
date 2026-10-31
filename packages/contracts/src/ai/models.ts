@@ -164,6 +164,11 @@ export interface ModelRoute {
   /** A second port put the same closed-set question in shadow; absent when the purpose has none. */
   shadow?: ShadowPort;
   /**
+   * Where the shadow is a second key (decision 0084): how sure its read must be, agreeing with the primary's label, before
+   * an act the purpose holds on it goes. Only beside a shadow; absent where the shadow is compared and never used.
+   */
+  secondKey?: number;
+  /**
    * `off`: a short read into a fixed shape, where a model that thinks by default spends its thinking inside the cap and
    * can run out of it before the answer (a customer's website read, 29 Oct 2026: 2,500 tokens and no facts). Each model is
    * sent the off it takes (routeThinkingFor). Absent: each model thinks as it does by default.
@@ -305,6 +310,8 @@ export const MODEL_ROUTES = {
     retries: 0,
     maxTokens: 400,
     shadow: "typesafe",
+    // A no's archive, and the flag a no, a not now or a wrong person clears, wait for the second key (decision 0084).
+    secondKey: 0.8,
     thinking: "off",
   },
   // A booking tool's notice read into an appointment (docs/plans/2026-10-07-bookings-arrive-by-email.md): a short
@@ -383,6 +390,12 @@ export function fallbackModel(purpose: ModelPurpose, asked: string): ModelId | n
 /** The port a purpose is put beside in shadow, or null when it has none. */
 export function shadowPortOf(purpose: ModelPurpose): ShadowPort | null {
   return modelRoute(purpose).shadow ?? null;
+}
+
+/** How sure a purpose's second key must be, or null when its shadow is never a key (decision 0084). */
+export function secondKeyFloorOf(purpose: ModelPurpose): number | null {
+  const r = modelRoute(purpose);
+  return r.shadow && r.secondKey !== undefined ? r.secondKey : null;
 }
 
 /** Whether a string is one of the platform's model ids. */

@@ -267,6 +267,14 @@ export const env = {
   get TYPESAFE_SHADOW() {
     return trimmedEnv(process.env.TYPESAFE_SHADOW);
   },
+  /**
+   * Switch: the second model's read made a second key (decision 0084) where a purpose's route names a floor ('1' for
+   * every workspace, or a comma-separated list of workspace ids), with its key set: an act the purpose holds on it goes
+   * only when it agrees. Anything else holds nothing.
+   */
+  get TYPESAFE_SECOND_KEY() {
+    return trimmedEnv(process.env.TYPESAFE_SECOND_KEY);
+  },
   /** Switch: the receptionist's note suggestions (0007 phase 2), on unless 'off'. */
   get NOTE_SUGGESTIONS() {
     return trimmedEnv(process.env.NOTE_SUGGESTIONS);

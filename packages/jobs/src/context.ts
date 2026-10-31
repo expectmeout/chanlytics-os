@@ -4,7 +4,14 @@
  */
 import type { ReceivedEmail } from "@chanlytics/channels";
 import type { FeedNames, FreedTimeOffer, JobKind, JobNews, PushMessage, Unread } from "@chanlytics/contracts";
-import type { BookingNoticePorts, EmailIngestPorts, ReplyNotice, ReplyReadPorts, Wire } from "@chanlytics/core";
+import type {
+  BookingNoticePorts,
+  EmailIngestPorts,
+  ReplyAsked,
+  ReplyNotice,
+  ReplyReadPorts,
+  Wire,
+} from "@chanlytics/core";
 import type { Database, Json } from "@chanlytics/db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -146,15 +153,16 @@ export interface JobContext {
    */
   replies?: {
     /**
-     * The reader's answer, unparsed; null when it answered nothing usable. Throws on a failed call. No call runs past
-     * `deadline`. `forWhom` is the usage ledger's row: the reply's workspace and message.
+     * The reader's answer, unparsed (null when it answered nothing usable), and its second key's read (decision 0084).
+     * Throws on a failed call. No call runs past `deadline`. `forWhom` is the usage ledger's row: the reply's workspace
+     * and message.
      */
     ask: (
       system: string,
       user: string,
       deadline: number,
       forWhom: { tenantId: string; subjectId: string },
-    ) => Promise<unknown>;
+    ) => Promise<ReplyAsked>;
     /** One read taken, or why not: no model, a workspace that may not spend, the day's reads spent. */
     mayRead: (tenantId: string, at: Date) => Promise<Exclude<Unread, "model_failed"> | null>;
     /** Tell the workspace once (notifyOnce): true only when the owner was told. */
