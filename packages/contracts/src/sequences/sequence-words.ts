@@ -13,7 +13,7 @@ import { CAMPAIGN_ROOMS, RUN_WAITING_SHORT, runApproveWords } from "../shell/cam
 import { runWaitsOnYou, type RunDays } from "../waits/waits";
 import type { SequenceNeedsDto, SequencePeopleGroup, SequenceRowDto, SequenceStepDto } from "./sequence-dto";
 import { SEQUENCE_MODE_WORDS, isSequenceMode, type SequenceState } from "./sequence";
-import { needsCount, needsWords, okSendsNothing } from "./sequence-list";
+import { heldByCheckWords, needsCount, needsWords, okSendsNothing } from "./sequence-list";
 import { sequenceRunOff, type RunOffReason } from "./sequence-run-off";
 import type { ReachOutFedBy } from "../reach-out/reach-out-leads";
 
@@ -593,7 +593,7 @@ export function sequenceNotice(
   if (n.held > 0)
     return noticeOf({
       kind: "held",
-      words: `${plural(n.held, "email is", "emails are")} held by the check`,
+      words: heldByCheckWords(n.held),
       line: `${n.held} held by the check`,
       fact: null,
       act: SEQUENCE_WORDS.review,
