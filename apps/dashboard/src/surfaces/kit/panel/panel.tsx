@@ -1,5 +1,6 @@
 /**
- * The kit's panel (kit.css, "Panel"): a pane of content, an inset inside one, or what pops over the page; with the
+ * The kit's panel (kit.css, "Panel"): a pane of content, an inset inside one, what pops over the page, or a field: words
+ * the member types where they stand (a reply Ask drafted, its box a Field said in place); with the
  * pane's own padding (md), a small one (sm), or none, for rows edge to edge, which it clips (flush). It is drawn on the
  * element its content is: a <div> unless that is a section, an article or an aside, or a list or an item of one.
  * Where it stands, how wide it is and whether it may shrink in a grid are the page's, through `className`, which comes
@@ -14,7 +15,7 @@ import { cx, variants } from "../variants";
 const panelClasses = variants({
   base: "panel",
   variants: {
-    variant: { pane: "", inset: "panel-inset", pop: "panel-pop" },
+    variant: { pane: "", inset: "panel-inset", pop: "panel-pop", field: "panel-field" },
     size: { md: "", sm: "panel-sm", flush: "panel-flush" },
   },
   defaults: { variant: "pane", size: "md" },
@@ -28,7 +29,7 @@ type PanelTag = "div" | "section" | "article" | "aside" | "ul" | "ol" | "li";
  * takes them; its ref holds the element as an HTMLElement, whichever it is.
  */
 export type PanelProps = {
-  variant?: "pane" | "inset" | "pop";
+  variant?: "pane" | "inset" | "pop" | "field";
   size?: "md" | "sm" | "flush";
   as?: PanelTag;
 } & ComponentPropsWithRef<"section">;

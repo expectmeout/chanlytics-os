@@ -207,6 +207,7 @@ test("a server draws each entry the page draws closed as its gallery entry draws
       "field-kit",
       "field-kit-wrong",
       "field-kit-title",
+      "field-kit-words",
       "picker-kit-readonly",
       "picker-kit-inline",
     ],

@@ -18,7 +18,7 @@ import { askDraft, readReach } from "../../inbox/new-conversation/verbs";
 import { sayVisit } from "../../visit-line";
 import { Button } from "../../kit";
 import { gate } from "../shell";
-import { Acts, Done, Editor, Going, Note, Words, Writing, type WorkProps } from "./parts";
+import { Acts, Done, Going, Note, Words, Writing, whoseWords, type WorkProps } from "./parts";
 import { sendWords, undoSend, useSend } from "./sends";
 
 /** The way a first message to a person can go with words of the member's own: theirs by default, else any that takes words. */
@@ -77,9 +77,11 @@ function RebookWork(p: WorkProps & { word: AppointmentWord; onDontSend: () => vo
   const [sentHere, setSentHere] = useState(false);
   const { s: send, seconds, share } = useSend(row.id);
   const way = rebook && rebook.state !== "writing" ? rebook.way : null;
-  const words = mine ?? (rebook?.state === "ready" ? rebook.text : "");
-  const edit = (from: string) => {
-    setMine(from);
+  const drafted = rebook?.state === "ready" ? rebook.text : "";
+  const words = mine ?? drafted;
+  // Write it myself: the empty words stand, and take the keys as they are drawn.
+  const writeIt = () => {
+    setMine("");
     setEditing(true);
   };
   const sendIt = async () => {
@@ -126,22 +128,24 @@ function RebookWork(p: WorkProps & { word: AppointmentWord; onDontSend: () => vo
   // No way takes words to them: Missed stands, with why nothing can follow it.
   if (rebook?.state === "none" && !way)
     return <Done words={VISIT_WORDS.missed} detail={rebook.why} act={{ label: W.visit.change, onPress: p.onChange }} />;
-  const written = editing ? (
-    <Editor who={row.who} value={words} onChange={setMine} />
-  ) : words ? (
-    <Words
-      by={mine !== null ? W.yours : W.visit.rebook}
-      text={words}
-      who={row.who}
-      onEdit={may ? () => edit(words) : null}
-    />
-  ) : rebook?.state === "writing" ? (
-    <Writing />
-  ) : rebook?.state === "none" ? (
-    <Note>{rebook.why}</Note>
-  ) : null;
+  // Typed where they stand, as a reply's are: the member's own from the first key, kept even emptied.
+  const written =
+    words || mine !== null ? (
+      <Words
+        what={W.visit.rebook}
+        {...whoseWords(drafted, mine, () => setMine(null))}
+        text={words}
+        who={row.who}
+        onChange={may ? setMine : null}
+        open={editing}
+      />
+    ) : rebook?.state === "writing" ? (
+      <Writing />
+    ) : rebook?.state === "none" ? (
+      <Note>{rebook.why}</Note>
+    ) : null;
   const end =
-    words || !way ? (
+    words || mine !== null || !way ? (
       <Button
         variant={main}
         onClick={() => void sendIt()}
@@ -151,7 +155,7 @@ function RebookWork(p: WorkProps & { word: AppointmentWord; onDontSend: () => vo
         {W.send}
       </Button>
     ) : (
-      <Button variant={main} onClick={() => edit("")}>
+      <Button variant={main} onClick={writeIt}>
         {W.writeItMyself}
       </Button>
     );

@@ -96,7 +96,7 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.today-queue[data-phone] .cl-attn-work .ny-draft > .ny-line:nth-of-type(n + 3),
+.today-queue[data-phone] .cl-attn-work .ny-notes > .ny-notes-part:nth-child(n + 2),
 .today-queue[data-phone] .cl-attn-work .ny-signed {
   display: none;
 }

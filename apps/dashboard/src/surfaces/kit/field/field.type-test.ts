@@ -78,6 +78,15 @@ function _fieldTakes(
     "data-testid": "pb-name",
   });
   Field({ "aria-label": "Search the words", type: "search", value: now.words, onValueChange: type });
+  // Sentences said in place: a reply in its row, named by its own words, its box the panel it stands in.
+  Field({
+    "aria-label": "Your reply to Ana",
+    shape: "words",
+    rows: 1,
+    value: now.words,
+    onValueChange: type,
+    ref: refs.text,
+  });
   // A rename takes the page's keys and the focus; a code or a name is not spell-checked.
   Field({
     label: "Name",
@@ -114,4 +123,6 @@ function _fieldTakes(
   Field({ "aria-label": "Service", control: select });
   // @ts-expect-error a title said in place is a line of words, not a box of sentences
   Field({ "aria-label": "The playbook's name", value: now.words, onValueChange: type, rows: 3, shape: "title" });
+  // @ts-expect-error sentences said in place are a box of sentences, not a line of words
+  Field({ "aria-label": "Your reply to Ana", value: now.words, onValueChange: type, shape: "words" });
 }

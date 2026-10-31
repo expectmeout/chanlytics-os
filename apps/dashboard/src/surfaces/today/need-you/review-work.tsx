@@ -8,7 +8,7 @@ import { NEED_YOU_WORDS as W, type GoogleReviewDto } from "@chanlytics/contracts
 import { draftReply, replyToReview } from "@/legacy-bridge/google";
 import { Button } from "../../kit";
 import { gate } from "../shell";
-import { Acts, Done, Editor, Going, Note, Words, Writing, type WorkProps } from "./parts";
+import { Acts, Done, Going, Note, Words, Writing, whoseWords, type WorkProps } from "./parts";
 import { reviewNotToday } from "./reviews";
 import { clearSend, holdReviewPost, undoSend, useSend } from "./sends";
 import { useRowState } from "./row-state";
@@ -27,6 +27,8 @@ export function ReviewWork(
   const who = reviewerOf(review);
   // Kept by the review, not by this part: Ask found on a phone draws it in a sheet, and its card says what became of it.
   const [text, setText] = useRowState<string | null>(rowId, "text", null);
+  // What Ask drafted, kept beside the words as the member changes them: Use Ask's draft puts it back.
+  const [asked, setAsked] = useRowState<string | null>(rowId, "asked", null);
   const [phase, setPhase] = useRowState<"idle" | "writing" | "ready" | "editing" | "aside">(rowId, "phase", "idle");
   const [why, setWhy] = useRowState<string | null>(rowId, "why", null);
   const [postedHere, setPostedHere] = useState(false);
@@ -42,6 +44,7 @@ export function ReviewWork(
       return;
     }
     setText(r.text);
+    setAsked(r.text);
     setPhase("ready");
   };
   const post = () => {
@@ -79,21 +82,22 @@ export function ReviewWork(
   return (
     <>
       {send?.state === "stopped" ? <Note>{W.canceled}</Note> : null}
-      {phase === "editing" ? (
-        <Editor who={who} value={text ?? ""} onChange={setText} />
-      ) : text ? (
+      {text !== null ? (
+        // Typed where they stand, as a reply's are; Write it myself opens them empty, taking the keys.
         <Words
-          by={W.review.drafted}
+          what={W.review.drafted}
+          {...whoseWords(asked ?? "", text, () => setText(asked))}
           text={text}
           who={who}
-          onEdit={
+          onChange={
             may
-              ? () => {
-                  setPhase("editing");
+              ? (words) => {
+                  setText(words);
                   if (send) clearSend(rowId);
                 }
               : null
           }
+          open={phase === "editing"}
         />
       ) : phase === "writing" ? (
         <Writing />

@@ -242,6 +242,14 @@ const RINGLESS: { why: string; runs: RegExp; failure: RegExp }[] = [
     runs: /^phone /,
     failure: /^search[a-z-]*: div\.search > label\.search-box > span\.search-field > input draws no ring/,
   },
+  {
+    why:
+      "kit.css, `.panel-field:focus-within`: sentences said in place (.rec-input-words) are no box of their own, so the " +
+      "field's panel they stand in wears a box's line while they hold the keys (the refined Need you, 31 Oct 2026)",
+    runs: /./,
+    failure:
+      /^field-kit-words: div\.panel\.panel-field\.panel-sm > div\.rec-field > textarea\.rec-input\.rec-input-words draws no ring/,
+  },
 ];
 const twinsQ = async (width: Width): Promise<KitAsk> => {
   const { EDGE_TOLERANCE, LAID_OUT } = await recorder();
