@@ -40,6 +40,21 @@ The run is still said as the ladder says it ("waiting for your say", runsWaiting
 row says it ("Waits for your OK", the wait rule's words): those words are shared with the Inbox, Ask and Campaigns, and
 making them one is its own change.
 
+**One headline** (Ruben, 31 Oct 2026: "on today page load i still see the old Today headline flicker and then disappear for
+the new greeting … only one", in the old Today's type). The frame's head drew the crumb, "Today", until Today's page was
+read, then the greeting in its place on a desk, or on a phone nothing, with a smaller greeting of the page's own lower
+down; measured on production as the e2e owner, "Today" stood from 0.8s, and the greeting came at 3.2s on a desk and 7.9s on
+a phone. Now Today's address says its head from the frame's first draw (`today/chrome.ts`: the greeting, which needs only
+who is signed in and the business's clock), through the chrome's `head` beside People's `ownHead` (kit/head/standing.ts
+`HeadFirst`). The greeting is the page's name in the page head's own type on every width (`.pg-title`: on a phone 30px
+semibold, the page's light through the letters), and §1's head is what now and its line under it. Listen is the page's
+act at the greeting's right, where the frame stands a page's act on a phone; its seat is held from the first draw and while
+Your brief's words are on their way (`seat`, components.css `.pg-act-seat`), at one width with the button (phone.css), so
+nothing beside it moves as it comes. Why Listen could not speak is still said under the page's head (listen.tsx
+`useSpeechWhy`). The head also blinked once more: Today's head is in the page's own scroll, and a view landing where its
+reading view stood faded in whole (components.css `route-in`), the greeting with it; now such a view fades its words in and
+keeps its head as it stood (shell-hooks.ts `landed`, `data-landed`).
+
 ## What a phone shows now
 
 Under 720px the Glass bento (`today-page.tsx` DashboardA) stacks in its desk order, and the frame's head says "Today"

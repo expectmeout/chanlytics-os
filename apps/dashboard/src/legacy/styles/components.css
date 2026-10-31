@@ -641,6 +641,11 @@
   from { opacity: 0; transform: translateY(4px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+/* A page landing where its own reading view stood (shell-hooks.ts `landed`): its words fade in, and the head the view holds
+   (Today's, in the page's own scroll: shell-chrome.tsx glassHead "inside") stays as it stood. The whole view faded, so the
+   greeting went out and came in again as Today was read (Ruben, 31 Oct 2026). */
+.route-view[data-landed] { animation: none; }
+.route-view[data-landed] > :not(.pg-slot) { animation: route-in 240ms var(--ease-out); }
 /* Its leaving, the way it came (a still copy plays it: kit/motion/leaving.ts leaveOverlay). A copy that kept route-in as its own
    animation came in again from nothing as the popover went, so the bell's closed twice (Ruben, 9 Oct 2026). */
 @keyframes route-out {
@@ -648,7 +653,8 @@
   to   { opacity: 0; transform: translateY(4px); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .route-view { animation: none; }
+  .route-view,
+  .route-view[data-landed] > * { animation: none; }
 }
 /* A view from the tab beside arrives from that side by the deck (surfaces/kit/motion/view-deck.ts), on the timeline of
    the page it replaced, at every width: it says its side (surfaces/frame/shell-chrome.tsx `data-slide`; a page's own views say theirs the
@@ -2601,6 +2607,11 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 }
 #pg-act {
   display: contents;
+}
+/* The seat of an act the page will draw (kit/head/frame-head.tsx PageAct, kit/head/standing.ts `seat`): its place held, at
+   its size, seen by no one, so the name's row does not move as the act comes. */
+.pg-act-seat {
+  visibility: hidden;
 }
 /* Reports' head is the container its period measures itself against (reports.css): the capsule says its word where the
    head has the room and is the glyph's circle where it has not, by the head's own width, as the Calendar's bar does it

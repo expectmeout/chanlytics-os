@@ -1,15 +1,15 @@
 /**
  * What Glass puts above Today (surfaces/today/pages/today-head.tsx, the plan's step 5.4, canvas E3): the greeting by the
- * hour in the business's zone to the member's first name, and the day's standing as one sentence made of the view model's
- * own words.
+ * hour in the business's zone to the member's first name (said by Today's address from the frame's first draw,
+ * surfaces/today/chrome.ts), and the day's standing as one sentence made of the view model's own words.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { installLegacyReact } from "../_legacy-react.mjs";
 
 installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
-const { todayGreeting, todayStanding } =
-  await import("../../../../apps/dashboard/src/surfaces/today/pages/today-head.tsx");
+const { todayStanding } = await import("../../../../apps/dashboard/src/surfaces/today/pages/today-head.tsx");
+const { todayGreeting } = await import("../../../../apps/dashboard/src/surfaces/today/chrome.ts");
 const { PageHead } = await import("../../../../apps/dashboard/src/surfaces/kit/head/page-head.tsx");
 
 // Friday 2 October 2026, 4:02 PM in New York (20:02 UTC).

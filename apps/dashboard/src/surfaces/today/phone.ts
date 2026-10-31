@@ -25,8 +25,8 @@ const watchPhone = (fn: () => void): (() => void) => {
   return () => q?.removeEventListener?.("change", fn);
 };
 
-/** Whether Today is a phone's now. */
-const todayOnPhone = (): boolean => !!phoneQuery()?.matches;
+/** Whether Today is a phone's now: for what is read outside a draw (the head its address says first, today/chrome.ts). */
+export const todayOnPhone = (): boolean => !!phoneQuery()?.matches;
 
 /** Whether Today is a phone's, drawn again when the window crosses the width. */
 export const useTodayOnPhone = (): boolean => useSyncExternalStore(watchPhone, todayOnPhone, () => false);
