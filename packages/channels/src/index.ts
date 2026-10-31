@@ -407,11 +407,9 @@ export {
 } from "./public-fetch";
 export type { PublicFetchDeps, Resolve, Resolved } from "./public-fetch";
 export {
-  BOT_USER_AGENT,
   FIRECRAWL_SCRAPE,
   firecrawlReader,
   imageBytes,
-  pageText,
   setSitePageReader,
   type SitePage,
   type SitePageReader,

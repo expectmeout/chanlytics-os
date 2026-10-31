@@ -78,6 +78,23 @@ export type LogoLookupAnswer =
   | { outcome: "found"; host: string; image: { base64: string; content_type: string } }
   | { outcome: Exclude<LogoLookupOutcome, "found">; host: string | null };
 
+/**
+ * The edge's answer to a look (its door POST /api/admin/imports/logo-lookup) as the dashboard hands it on, or null for
+ * any answer that is not one: an outcome of the closed set, its host, and the picture where one was found.
+ */
+export function logoLookupAnswerOf(body: unknown): LogoLookupAnswer | null {
+  if (!body || typeof body !== "object") return null;
+  const b = body as { outcome?: unknown; host?: unknown; image?: { base64?: unknown; content_type?: unknown } };
+  const outcome = LOGO_LOOKUP_OUTCOMES.find((o) => o === b.outcome);
+  const host = typeof b.host === "string" && b.host ? b.host : null;
+  if (!outcome) return null;
+  if (outcome !== "found") return { outcome, host };
+  const base64 = b.image?.base64;
+  const contentType = b.image?.content_type;
+  if (!host || typeof base64 !== "string" || !base64 || typeof contentType !== "string" || !contentType) return null;
+  return { outcome, host, image: { base64, content_type: contentType } };
+}
+
 /** Every word the Logo row says. No file kind and no pixel count reaches an owner. */
 export const LOGO_WORDS = {
   label: "Logo",
@@ -96,6 +113,7 @@ export const LOGO_WORDS = {
   saved: "Saved",
   removed: "Removed",
   notSaved: "Not saved — it didn't go through. Try again.",
+  lookFailed: "We couldn't look on your website just now. Try again, or choose a picture.",
   unusable: "We couldn't use that picture. Try another.",
   wide: "This one is wide, so it will look small in the circle. A square version fits best.",
   small: "This picture is small, so it may look soft.",
