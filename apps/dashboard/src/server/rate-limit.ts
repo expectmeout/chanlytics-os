@@ -27,7 +27,7 @@
  *
  * Cross-workspace: a limit counts per person or network, never per workspace; rate_hits holds no tenant_id.
  */
-import { AppError, MIN_MS, HOUR_MS, waitWords } from "@chanlytics/contracts";
+import { AppError, MIN_MS, HOUR_MS, SECOND_MS, waitWords } from "@chanlytics/contracts";
 import type { Database } from "@chanlytics/db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isProduction } from "@/server/env";
@@ -219,6 +219,12 @@ export const RATE = {
    * model's answer. A preview answers twenty, so forty an hour is two businesses at one desk, not a script.
    */
   preview_ip: { limit: 40, windowMs: HOUR_MS, noun: "messages" },
+  /**
+   * The same page per preview, from every network at once: one answer at a time, which is how a person chats (the page
+   * waits for each). The row counts its twenty as each answer is kept, so this pace is what keeps a burst at the
+   * twentieth to one answer more, not one a request.
+   */
+  preview_turn: { limit: 1, windowMs: 5 * SECOND_MS, noun: "messages" },
   /** A call to a lead's own receptionist (decision 0079), per network: each is the provider's minutes; a preview has two. */
   preview_call_ip: { limit: 6, windowMs: HOUR_MS, noun: "calls" },
   /** Each is a paid call to Google, made for an owner who typed a few words. */

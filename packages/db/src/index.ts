@@ -474,6 +474,8 @@ export {
   rehearsalById,
   rehearsalSpokenMs,
   rehearsalTally,
+  releaseRehearsalCall,
+  reserveRehearsalCall,
   voiceAgentOf,
   voiceAgentsBeforeANumber,
   writeRehearsalTranscript,

@@ -85,6 +85,11 @@ export interface TenantRuntime {
    */
   paused: boolean;
   /**
+   * tenants.status = 'preview': a lead's own receptionist nobody has made theirs (decision 0079). It answers its preview
+   * page alone, and only while previews are switched on (LEAD_PREVIEWS).
+   */
+  preview: boolean;
+  /**
    * What the platform KNOWS, as opposed to what somebody typed: the channel
    * rows it provisioned and the Google listing it verified.
    *
@@ -216,13 +221,18 @@ async function resolveWaCredentials(
 }
 
 /**
- * What the runtime takes from the workspace's own row: its address word (an alert mail's link), its clock, and whether billing
- * paused it. A row that could not be read says none of them.
+ * What the runtime takes from the workspace's own row: its address word (an alert mail's link), its clock, whether billing
+ * paused it, and whether it is a lead's preview. A row that could not be read says none of them.
  */
 function workspaceRowFacts(
   t: { slug: string | null; timezone: string | null; status: string } | null | undefined,
-): Pick<TenantRuntime, "slug" | "timezone" | "paused"> {
-  return { slug: t?.slug ?? null, timezone: t?.timezone ?? null, paused: t?.status === "paused" };
+): Pick<TenantRuntime, "slug" | "timezone" | "paused" | "preview"> {
+  return {
+    slug: t?.slug ?? null,
+    timezone: t?.timezone ?? null,
+    paused: t?.status === "paused",
+    preview: t?.status === "preview",
+  };
 }
 
 /**
@@ -366,6 +376,7 @@ export async function loadTenantRuntime(db: SupabaseClient<Database>, routed: Ro
       timezone: null,
       known: { workspace: null, channels: [], listing: null },
       paused: false,
+      preview: false,
       loadFailed: true,
     };
   }

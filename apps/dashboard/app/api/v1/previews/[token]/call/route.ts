@@ -7,7 +7,7 @@ import { previewRoute } from "@/server/previews/public-route";
  * call, max_ms, left_ms }` back, which the browser joins (legacy-bridge/rehearse/call.ts). Public: the token is the
  * authority, and a call is its own bucket per network (server/previews/public-route.ts).
  */
-const door = previewRoute("preview_call_ip", (token) => previewCall(token));
+const door = previewRoute({ bucket: "preview_call_ip", spends: true }, (token) => previewCall(token));
 
 /** A function of its own, as /api/v1/signup's: these doors are no route() and the typed client does not post them. */
 export async function POST(req: Request, ctx: { params: Promise<{ token: string }> }): Promise<Response> {
