@@ -262,6 +262,13 @@ async function leftByImport(r: MailRead, tally: MailTally, e: MailboxEmail): Pro
   return read ? senderLeftWhy(read.kind) : null;
 }
 
+/**
+ * A draft the owner never sent (Gmail's DRAFT label): never kept and never counted. The list's search leaves drafts out
+ * (`-in:drafts`), but a run from before the mail was read apart lists everything, and a search word is no rule: a
+ * draft kept would read as an email the owner sent a person.
+ */
+const unsent = (e: MailboxEmail): boolean => e.labels.includes("DRAFT");
+
 /** One message read, as a part goes on: the email, or what the part does with it (gone, refused, the provider's pace). */
 type Listed = { email: MailboxEmail } | { done: "taken" | "refused" | ReadVerdict };
 
@@ -348,11 +355,11 @@ async function takeListed(
   if (r.phase !== "all") {
     const head = await readListed(r, l.id, "head");
     if ("done" in head) return head.done;
-    if (await leftOnItsHead(r, tally, head.email)) return "taken";
+    if (unsent(head.email) || (await leftOnItsHead(r, tally, head.email))) return "taken";
   }
   const read = await readListed(r, l.id, "whole");
   if ("done" in read) return read.done;
-  return keepOrLeave(r, tally, read.email);
+  return unsent(read.email) ? "taken" : keepOrLeave(r, tally, read.email);
 }
 
 /** How many of a sender's emails one bring-in reads: a press's worth, inside one request. */

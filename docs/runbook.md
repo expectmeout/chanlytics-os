@@ -250,8 +250,11 @@ suite writing or counting them takes for its whole file. A suite that changes a 
 on `events` or `decisions` to refuse a write, a table altered or locked, in a block it rolls back) runs alone, after the
 others, one at a time (`tooling/scripts/checks/test.mjs`, `CHANGES_A_TABLE`): beside them, its lock queued every other
 suite's write to that table, and a request through PostgREST gives up after eight seconds (31 Oct 2026). So does a
-suite that runs a migration's own statement again, the file named in its code (`REPLAYS_A_MIGRATION`): a backfill names
-no workspace, and consent-channels' replay of 00297 gave email-offers' person a list mid-test (31 Oct 2026).
+suite that runs a migration's own statement again, the file named in its code or a write picked out of its text
+(`REPLAYS_A_MIGRATION`): a backfill names no workspace, and consent-channels' replay of 00297 gave email-offers' person a
+list mid-test (31 Oct 2026). And so does a suite that builds a workspace at scale, the one it removes in SQL
+(`BUILDS_AT_SCALE`): every reach-out read that passed the service role's 30 seconds on main began while playbook-totals
+wrote its 180,000 rows (31 Oct 2026).
 `partners/partner.db.test.mjs` writes ledger rows that outlive their workspace and passes once per database: reset the
 stack (`supabase db reset`) before running it again.
 

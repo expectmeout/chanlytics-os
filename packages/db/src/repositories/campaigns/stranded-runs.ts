@@ -93,6 +93,25 @@ export async function failStrandedRun(db: Db, p: { tenantId: string; id: string 
   return true;
 }
 
+/**
+ * The playbooks' runs waiting for approval that `by` holds, earliest first, at most `limit`: a run for a day (`run_for`),
+ * or a freed time's batch (`offered_start`).
+ */
+async function waitingBy(db: Db, by: "run_for" | "offered_start", limit: number) {
+  const { data, error } = await db
+    .from("sequence_batches")
+    .select("id, tenant_id, name, state, playbook_id:step_id, run_for, offered_start, audience, recipient_count")
+    .eq("state", "pending_approval")
+    .not("step_id", "is", null)
+    .not(by, "is", null)
+    .or("audience->>kind.is.null,audience->>kind.neq.reach_out")
+    .order(by, { ascending: true })
+    .order("created_at", { ascending: true })
+    .limit(limit);
+  if (error) throw new Error(`waiting runs: cannot read the runs waiting for approval: ${error.message}`);
+  return data ?? [];
+}
+
 /** A playbook's run waiting for approval, with the zone its day is told in: what the sweep asks of its day. */
 export interface WaitingPlaybookRun {
   id: string;
@@ -112,24 +131,18 @@ export interface WaitingPlaybookRun {
 }
 
 /**
- * The playbooks' runs still waiting for approval, oldest day first, at most `limit`, across every workspace (the service
- * role's client), each with its workspace's zone. A reach-out's run is approved on any later day (decision D6), so it is
- * left out before the limit, as strandedRuns leaves it out. A read that fails THROWS: "could not look" is not "none".
+ * The playbooks' runs still waiting for approval across every workspace (the service role's client), each with its
+ * workspace's zone: the runs for a day, oldest day first, and a freed time's batches (0082), which have their time
+ * instead of a day, soonest time first, at most `limit` of each. Read apart, so a page of days still ahead never hides a
+ * freed time that has come, whose missing day sorts it last. A reach-out's run is approved on any later day (decision D6),
+ * so it is left out before the limit, as strandedRuns leaves it out. A read that fails THROWS: "could not look" is not
+ * "none".
  */
 export async function waitingPlaybookRuns(db: Db, p: { limit: number }): Promise<WaitingPlaybookRun[]> {
-  const { data, error } = await db
-    .from("sequence_batches")
-    .select("id, tenant_id, name, state, playbook_id:step_id, run_for, offered_start, audience, recipient_count")
-    .eq("state", "pending_approval")
-    .not("step_id", "is", null)
-    // A run for a day, or a freed time's batch, which has its time instead (0082).
-    .or("run_for.not.is.null,offered_start.not.is.null")
-    .or("audience->>kind.is.null,audience->>kind.neq.reach_out")
-    .order("run_for", { ascending: true })
-    .order("created_at", { ascending: true })
-    .limit(p.limit);
-  if (error) throw new Error(`waiting runs: cannot read the runs waiting for approval: ${error.message}`);
-  const runs = (data ?? []).filter((r) => !isReachOutRun(r.audience));
+  const [days, freed] = await Promise.all([waitingBy(db, "run_for", p.limit), waitingBy(db, "offered_start", p.limit)]);
+  const runs = [...new Map([...days, ...freed].map((r) => [r.id, r])).values()].filter(
+    (r) => !isReachOutRun(r.audience),
+  );
   if (!runs.length) return [];
   const zones = await db
     .from("tenants")

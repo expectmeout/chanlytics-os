@@ -11,6 +11,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   SENDER_KINDS,
+  senderLeftWhy,
   senderVerdictOf,
   type MailboxLeftWhy,
   type MailboxSenderVerdict,
@@ -80,7 +81,7 @@ export async function mailboxSendersOf(db: Db, tenantId: string): Promise<Mailbo
   const about = await readingsAbout(
     db,
     tenantId,
-    shown.map((r) => r.address),
+    shown.filter((r) => LEFT_BY_A_READING.has(r.why)).map((r) => r.address),
   );
   return {
     left: shown.map((r) => ({ ...r, why: r.why as MailboxLeftWhy, about: about.get(r.address) ?? null })),
@@ -104,6 +105,15 @@ export async function sortMailboxSender(
   });
   if (error) throw Object.assign(new Error(error.message), { code: error.code });
 }
+
+/**
+ * The reasons a reading leaves a sender for (contracts senderLeftWhy: a pitch, a notice, a relayed message): the only
+ * rows of the list that can carry what they wanted, so the only addresses asked about. Asked of every row, the read named
+ * up to LEFT_SHOWN addresses in one request's address line.
+ */
+const LEFT_BY_A_READING: ReadonlySet<string> = new Set(
+  SENDER_KINDS.map(senderLeftWhy).filter((w): w is NonNullable<typeof w> => w !== null),
+);
 
 /** What Chanlytics read these senders to want (00495), by address: only those it said something of. */
 async function readingsAbout(db: Db, tenantId: string, addresses: string[]): Promise<Map<string, string>> {

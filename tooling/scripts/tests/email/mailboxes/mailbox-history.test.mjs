@@ -269,6 +269,40 @@ test("a mailbox's six months: what a person wrote and what the owner wrote to on
   assert.equal(w.tables.jobs.length, 0, "done: no part after it");
 });
 
+test("a draft the owner never sent is neither kept nor counted, whatever the list's search let through", async () => {
+  const w = world();
+  // A draft to one person, from the mailbox: Gmail's DRAFT label, and no SENT. Kept, it read as said to Rosa.
+  const draft = {
+    ...gmailReceived({
+      id: "dr1",
+      threadId: "t1",
+      from: `Sam <${OWN}>`,
+      to: "rosa@example.com",
+      subject: "Re: Pianos?",
+      messageId: "<dr1@getharbor.example>",
+      text: "Thinking about the price...",
+    }),
+    labelIds: ["DRAFT"],
+  };
+  const net = providers((c) => {
+    if (c.url.startsWith(`${GMAIL}/messages?`)) return { json: listedFor(c.url, [draft, MESSAGES.p1]) };
+    const id = /\/messages\/([a-z0-9]+)\?/.exec(c.url)?.[1];
+    return id === "dr1" ? { json: draft } : id && MESSAGES[id] ? { json: MESSAGES[id] } : { status: 404 };
+  });
+  try {
+    await part(w, "mailbox");
+  } finally {
+    net.restore();
+  }
+  assert.deepEqual(keptIds(w), ["p1"], "only what was sent or received");
+  assert.deepEqual(
+    ledger(w, "mailbox").counts,
+    { messages: 1, people: 1, dropped: 0 },
+    "the draft is not set aside either",
+  );
+  assert.equal(net.calls.filter((c) => c.url.includes("/messages/dr1?format=full")).length, 0, "never read whole");
+});
+
 test("an email with only HTML is kept with its words, as the live read keeps them: it is the person writing", async () => {
   // A client that writes HTML alone, a form: no text part. The six months kept such mail with no words, and its person
   // read "Not heard from" beside "They wrote" (the live walk, 27 Oct 2026).
