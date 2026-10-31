@@ -3,9 +3,17 @@
  * what each means. The adapter that knows the tables and the runtime's
  * services is packages/jobs/src/handlers.ts.
  */
-import type { AppointmentState, FeedNames, JobNews, SendPurpose } from "@chanlytics/contracts";
+import type {
+  AppointmentState,
+  FeedNames,
+  FreedTimeCalendar,
+  FreedTimeRow,
+  JobNews,
+  SendPurpose,
+} from "@chanlytics/contracts";
 import type { EmailRequest } from "@chanlytics/channels";
 import type { Json, MessageVersionRow } from "@chanlytics/db";
+import type { CancelBroadcastPorts } from "../campaigns/ports";
 import type { Channel, Delivered, Delivery } from "../deliver";
 
 /** The door, handed in: a verb never builds it, so a test can answer whatever the case needs. */
@@ -127,6 +135,10 @@ export interface BroadcastRow {
   recipient_count: number | null;
   playbook_id: string | null;
   audience: unknown;
+  /** A freed time's batch (decision 0081, 00497): the time it offers and the appointment that freed it; null otherwise. */
+  offered_start?: string | null;
+  offered_end?: string | null;
+  offered_from?: string | null;
 }
 export interface RecipientRow {
   contact_id: string;
@@ -172,6 +184,15 @@ export interface BroadcastBatchPorts {
   fail(id: string, failure: string): Promise<void>;
   /** scheduled → sending, only while scheduled. True iff the row changed: false is a cancel that landed first. */
   startSending(id: string): Promise<boolean>;
+  /**
+   * The appointment a freed time's batch offers the time of, and what stands on the record over the days ahead (db
+   * freedTimeFactsOf), or null when the record no longer holds it (decision 0081): read before the batch's first send.
+   */
+  freedTimeFacts(appointmentId: string): Promise<{ row: FreedTimeRow; calendar: FreedTimeCalendar } | null>;
+  /** The batch moved to canceled as the system, only from the state it was read in (db cancelBroadcastFrom). */
+  cancelFrom: CancelBroadcastPorts["cancel"];
+  /** The system's decision on the ledger (db recordSystemDecision): its id. */
+  recordDecision: CancelBroadcastPorts["record"];
   /**
    * The message of this name and language, as the rows the workspace holds of it now, whatever their channel: WhatsApp's as
    * Meta has it (its status, its category, its words), and the email's and the text's, written here and approved the moment

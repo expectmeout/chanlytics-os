@@ -10,6 +10,7 @@
  */
 import type { ParamSpec } from "../templates/templates";
 import { visitStartTime, type VisitDto } from "../calendar/calendar-people";
+import { freedTimeWords } from "../calendar/visit/freed-time";
 import { visitServiceOf } from "../calendar/visit/visit-service";
 import type { ListRef } from "../people/lists/list-token";
 import { localDate } from "./playbook-schedule";
@@ -23,6 +24,7 @@ export {
   PLAYBOOK_STATES,
   isPlaybookState,
   PLAYBOOK_DEFAULTS,
+  FREED_TIME_DEFAULTS,
   PLAYBOOK_HOURS,
   PLAYBOOK_LIMITS,
   PLAYBOOK_CAP_CHOICES,
@@ -39,6 +41,7 @@ export {
   readyRunNotice,
   vetoRunNotice,
   skippedRunNotice,
+  freedTimeTakenNotice,
   PLAYBOOK_NAME_MAX,
   CAMPAIGN_NOT_FOUND,
   REACH_OUT_IS_NOT_A_MOMENT,
@@ -102,6 +105,7 @@ export {
 } from "./playbook-schedule";
 export type { RunPlan } from "./playbook-schedule";
 export {
+  FREED_TIME_PASSED_WORDS,
   poolWords,
   reachLines,
   runDayPassed,
@@ -180,6 +184,27 @@ export function proposalFactsFor(
   const id = row?.deal?.id;
   return id ? { proposal_link: url, deal_id: id } : { proposal_link: url };
 }
+
+/**
+ * The words every send of a freed time's batch keeps (0081): the time as it reads at the moment the batch goes, the
+ * appointment that freed it, and the span, so the send says what the batch offered and Reports reads who took it.
+ */
+export function freedTimeFactsFor(
+  freed: { from: string; start: number; end: number },
+  tz: string,
+  sendAt: Date,
+): { freed_when: string; appointment: string; offered_start: string; offered_end: string } {
+  return {
+    freed_when: freedTimeWords(freed.start, tz, sendAt),
+    appointment: freed.from,
+    offered_start: new Date(freed.start).toISOString(),
+    offered_end: new Date(freed.end).toISOString(),
+  };
+}
+
+/** Why a freed time's message must say the freed time (0081): without it, "want it?" asks of nothing. */
+export const FREED_TIME_NEEDS_WHEN =
+  "Filling a cancellation says the freed time: pick a message with a slot for it, and fill that slot with the freed time.";
 
 /**
  * The words a visit playbook's slots take for one person — when, and what

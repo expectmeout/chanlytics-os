@@ -161,6 +161,12 @@ export {
 } from "./repositories/campaigns/email-offers";
 export type { OffersYesOutcome, Unsubscribed } from "./repositories/campaigns/email-offers";
 export {
+  cancellationsSince,
+  freedTimeBatchOf,
+  freedTimeFactsOf,
+  freedTimeStepOf,
+} from "./repositories/campaigns/freed-times";
+export {
   offersAnswerOf,
   recordCarrierOptOut,
   recordLateCarrierOptOut,

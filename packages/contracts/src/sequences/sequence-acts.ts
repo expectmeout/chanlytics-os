@@ -11,6 +11,7 @@
 import { resumeDetailOf } from "../playbooks/lifecycle/lifecycle-tiles";
 import { LIFECYCLE_WORDS } from "../playbooks/lifecycle/lifecycle-words";
 import { campaignRunsOn } from "../playbooks/playbook-schedule";
+import { triggerOf } from "../playbooks/playbook-triggers";
 import type { SequenceReachDto, SequenceRecordDto, SequenceRowDto } from "./sequence-dto";
 import { leadDraftDockOf } from "./sequence-lead-build";
 
@@ -66,6 +67,7 @@ export const SEQUENCE_ACT_REASONS = [
   "not_today",
   "not_scheduled",
   "not_sent",
+  "freed_time",
 ] as const;
 export type SequenceActReason = (typeof SEQUENCE_ACT_REASONS)[number];
 
@@ -87,6 +89,7 @@ export const SEQUENCE_ACT_WHY: Record<SequenceActReason, string> = {
   not_today: "It runs nothing today.",
   not_scheduled: "It is not waiting for its day any more.",
   not_sent: "It has not gone yet.",
+  freed_time: "It runs when a cancellation frees a time, never by hand.",
 };
 
 /** An act offered, or not, with why and the act offered in its place. */
@@ -185,11 +188,13 @@ export function sequenceActsOf(rec: SequenceActsInput, at: { tz: string; nowMs: 
     discard,
     run_now: leads
       ? no("to_leads")
-      : row.needs.waiting > 0
-        ? no("batch_waiting")
-        : runsToday(row, at)
-          ? OK
-          : no("not_today"),
+      : row.first && triggerOf(row.first.trigger)?.kind === "freed"
+        ? no("freed_time")
+        : row.needs.waiting > 0
+          ? no("batch_waiting")
+          : runsToday(row, at)
+            ? OK
+            : no("not_today"),
     rename: OK,
     cancel_send: notOnce,
     send_again: notOnce,

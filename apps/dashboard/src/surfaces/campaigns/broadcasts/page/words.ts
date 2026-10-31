@@ -28,12 +28,18 @@ export const bcFooter = (t: BroadcastTemplate | null | undefined) => (t ? starte
 // first name is each person's own, its business name and booking link may be typed over, and a slot on a template
 // written elsewhere may take anything, its guess first. Every slot took any source, so a first name could be set to
 // the booking link and a broadcast greeted everyone "Hi your booking link". A broadcast has no visit, so a visit's
-// time and service are nobody's here, nor a proposal's link (0006): null when a slot can take nothing. The booking link
+// time and service are nobody's here, nor a proposal's link (0006), nor a freed time (0081): null when a slot can take nothing. The booking link
 // is offered where one is on file and the review link where the Google listing keeps one (the surface's `bookingLink`
 // and `reviewLink`); without it, its slot can only be typed.
 export const BC_TEXT: ParamSourceKind[] = ["text"];
 export const bcSlots = (t: BroadcastTemplate, links: { bookingLink: boolean; reviewLink: boolean }) =>
-  starters.slots(t, { visits: false, bookingLink: links.bookingLink, reviewLink: links.reviewLink, proposal: false });
+  starters.slots(t, {
+    visits: false,
+    bookingLink: links.bookingLink,
+    reviewLink: links.reviewLink,
+    proposal: false,
+    freed: false,
+  });
 
 /**
  * What the send screen's foot says it is waiting for (reach.ts bcStopOf), as the playbook composer's foot says its own: one

@@ -457,7 +457,7 @@ export function sequenceNextOf(
   return row.starts === "moment" || row.starts === "list" ? firstRunNext(row, lastRunFor, tz, nowMs) : null;
 }
 
-/** Its first step's next run by its hour (00462 sequence_steps_due: once a day, from its hour): null where it cannot know. */
+/** Its first step's next run by its hour (00462 sequence_steps_due); null where it cannot know, and a freed time's (0081). */
 function firstRunNext(
   row: SequenceRowDto,
   lastRunFor: string | null | undefined,
@@ -465,7 +465,7 @@ function firstRunNext(
   nowMs: number,
 ): SequenceNext | null {
   const first = row.first;
-  if (lastRunFor === undefined || !first) return null;
+  if (lastRunFor === undefined || !first || triggerOf(first.trigger)?.kind === "freed") return null;
   const now = new Date(nowMs);
   if (!campaignRunsOn(first, { tz, now })) return null;
   const run = nextRunOf({ run_hour: first.run_hour, last_run_for: lastRunFor }, tz, now);

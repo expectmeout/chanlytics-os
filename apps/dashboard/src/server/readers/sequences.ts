@@ -1,11 +1,13 @@
 import "server-only";
 import {
   AppError,
+  BOOKING_DEFAULTS,
   addressOf,
   evidenceOf,
   historyCovers,
   historyIn,
   historySince,
+  parseTenantConfig,
   runDaysAt,
   sequenceWaitsNow,
   type SequenceBatchDto,
@@ -119,6 +121,19 @@ function sequenceReads(rc: ReaderContext, id: string) {
 }
 
 /**
+ * The booking window a freed time is offered within, the days ahead (decision 0081, contracts freedTimeOf): the workspace's
+ * booking rules, else the default. Unreadable is unsaid, never a number of its own.
+ */
+async function daysAheadOf(rc: ReaderContext): Promise<number | undefined> {
+  const cfg = await load(rc, readers.config, undefined).then(
+    (r) => r.data?.config ?? null,
+    () => undefined,
+  );
+  if (cfg === undefined) return undefined;
+  return parseTenantConfig(cfg)?.brain?.profile?.booking_rules?.max_days_ahead ?? BOOKING_DEFAULTS.max_days_ahead;
+}
+
+/**
  * GET sequences/:id: one sequence (with its own mode, how its batches are decided: decision 0064) and its steps in their
  * places; what a sequence to leads writes to, and a one-off's message (startsWith). An id that is a part of one (a batch's: a run's address; a
  * step's) reads the sequence it belongs to, whose own id the answer names.
@@ -148,6 +163,8 @@ export const sequence: Reader<{ id: string }, SequenceRecordDto> = {
     const [read] = rows;
     if (!read) throw new AppError("not_found", "Sequence not found.", 404);
     const row = sequenceWaitsNow(read, runDaysAt(facts.timezone, rc.now));
+    // A freed time's sequence says how far ahead it offers (decision 0081): read for it alone.
+    const daysAhead = first && read.first?.trigger === "slot_opened" ? await daysAheadOf(rc) : undefined;
     return {
       data: {
         sequence: row,
@@ -156,7 +173,14 @@ export const sequence: Reader<{ id: string }, SequenceRecordDto> = {
         word,
         ...(first === undefined ? {} : { last_run_for: first?.last_run_for ?? null }),
         ...(first
-          ? { settings: { cap_per_run: first.cap_per_run, gap_days: first.gap_days, cadence_days: first.cadence_days } }
+          ? {
+              settings: {
+                cap_per_run: first.cap_per_run,
+                gap_days: first.gap_days,
+                cadence_days: first.cadence_days,
+                ...(daysAhead === undefined ? {} : { days_ahead: daysAhead }),
+              },
+            }
           : {}),
         ...(lastRunOff === undefined ? {} : { last_run_off: lastRunOff }),
         ...(history === undefined ? {} : { ran: history.ran, wrote: history.wrote }),

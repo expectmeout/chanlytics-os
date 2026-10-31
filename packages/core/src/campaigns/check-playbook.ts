@@ -5,6 +5,8 @@ import {
   REACH_OUT_IS_NOT_A_MOMENT,
   FOLLOW_UP_NEEDS_LINK,
   MOMENTS_RETIRED,
+  FREED_TIME_DEFAULTS,
+  FREED_TIME_NEEDS_WHEN,
   PLAYBOOK_DEFAULTS,
   PLAYBOOK_LIMITS,
   PLAYBOOK_NAME_MAX,
@@ -166,6 +168,16 @@ function refuseFollowUpWithoutLink(trig: ReturnType<typeof triggerOf>, specs: re
     throw new AppError("validation", FOLLOW_UP_NEEDS_LINK);
 }
 
+/** The numbers a new step on a moment starts with where none is asked: a freed time's own, else every moment's. */
+const numbersOf = (trig: ReturnType<typeof triggerOf>): { capPerRun: number; gapDays: number } =>
+  trig?.kind === "freed" ? FREED_TIME_DEFAULTS : PLAYBOOK_DEFAULTS;
+
+/** A freed time's message says the freed time (0081): without it, "want it?" asks of nothing. */
+function refuseFreedTimeWithoutWhen(trig: ReturnType<typeof triggerOf>, specs: readonly ParamSpec[]): void {
+  if (trig?.kind === "freed" && !specs.some((s) => s.kind === "freed_when"))
+    throw new AppError("validation", FREED_TIME_NEEDS_WHEN);
+}
+
 /** A moment and its message agree on the yes they need (contracts messageFitsMoment, decision 7), made or changed. */
 function refuseMessageThatDisagrees(cls: string, category: string | null): void {
   const fit = messageFitsMoment(cls, category);
@@ -298,8 +310,10 @@ async function patchParams(
     params: v,
     visits: trig?.kind === "visit",
     proposal: trig?.kind === "deal",
+    freed: trig?.kind === "freed",
   });
   refuseFollowUpWithoutLink(trig, specs);
+  refuseFreedTimeWithoutWhen(trig, specs);
   return specs;
 }
 
@@ -484,10 +498,12 @@ export async function checkPlaybook(
     params: body?.params,
     visits: trig.kind === "visit",
     proposal: trig.kind === "deal",
+    freed: trig.kind === "freed",
   });
   refuseMessageThatDisagrees(cls, message.category);
   const channels = channelsItMayGoBy(body?.channels, existing?.channels ?? null, cls, message);
   refuseFollowUpWithoutLink(trig, specs);
+  refuseFreedTimeWithoutWhen(trig, specs);
   return {
     // A name when none was given: the moment's alone when it sends its own starter, else with the message's title; a
     // list's own name for a playbook on a list; an appointment moment's in the workspace's word (D43).
@@ -505,8 +521,9 @@ export async function checkPlaybook(
     params: specs,
     policy_class: cls,
     run_hour: playbookNumber("run_hour", body?.run_hour, PLAYBOOK_DEFAULTS.runHour),
-    cap_per_run: playbookNumber("cap_per_run", body?.cap_per_run, PLAYBOOK_DEFAULTS.capPerRun),
-    gap_days: playbookNumber("gap_days", body?.gap_days, PLAYBOOK_DEFAULTS.gapDays),
+    // A freed time's own where none is asked (0081): four people a time, a week between freed times.
+    cap_per_run: playbookNumber("cap_per_run", body?.cap_per_run, numbersOf(trig).capPerRun),
+    gap_days: playbookNumber("gap_days", body?.gap_days, numbersOf(trig).gapDays),
     cadence_days: playbookNumber("cadence_days", body?.cadence_days, PLAYBOOK_DEFAULTS.cadenceDays),
     channels,
   };

@@ -261,8 +261,8 @@ export function handStepsHold(steps: readonly Pick<NewStep, "does">[]): boolean 
 
 /**
  * The values a person's message Ask writes may name, by the name the model writes and the source that fills each. A
- * visit's time and service, and a proposal's link, only on the step a run knows them (a visit moment's or a proposal
- * follow-up's first).
+ * visit's time and service, a proposal's link and the freed time, only on the step a run knows them (a visit
+ * moment's, a proposal follow-up's or a freed time's first).
  */
 export const NEW_VALUES: ReadonlyArray<{ say: string; kind: ParamSourceKind; label: string; example: string }> = [
   { say: "first name", kind: "first_name", label: "First name", example: "Dani" },
@@ -272,6 +272,7 @@ export const NEW_VALUES: ReadonlyArray<{ say: string; kind: ParamSourceKind; lab
   { say: "booked time", kind: "visit_when", label: "Booked time", example: "tomorrow at 2:30 PM" },
   { say: "booked service", kind: "visit_service", label: "Booked service", example: "color" },
   { say: "proposal link", kind: "proposal_link", label: "Proposal link", example: "https://example.com/proposal" },
+  { say: "freed time", kind: "freed_when", label: "Freed time", example: "tomorrow at 2:00 PM" },
 ];
 
 /**

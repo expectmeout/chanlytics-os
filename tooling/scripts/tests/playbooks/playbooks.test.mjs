@@ -36,6 +36,7 @@ import {
   followUpRunAt,
   followUpStandOf,
   messageAboutOfTrigger,
+  freedTimeFactsFor,
   policyClassOffered,
   poolWords,
   reachLines,
@@ -154,7 +155,7 @@ test("the reminder's words are relative to the moment it goes: tomorrow, today, 
   );
 });
 
-test("nine moments: People's lists and a cadence, two the calendar makes possible, Lapsed, one of the workspace's own lists, and a proposal waiting, each under one of the four autonomy rows; and a reach-out's two steps, which are no moment", () => {
+test("ten moments: People's lists and a cadence, two the calendar makes possible, Lapsed, one of the workspace's own lists, a proposal waiting and a time a cancellation freed, each under one of the four autonomy rows; and a reach-out's two steps, which are no moment", () => {
   assert.deepEqual(
     MOMENT_TRIGGERS.map((t) => t.id),
     [
@@ -167,6 +168,7 @@ test("nine moments: People's lists and a cadence, two the calendar makes possibl
       "lapsed",
       "saved_list",
       "proposal_waiting",
+      "slot_opened",
     ],
   );
   assert.deepEqual(
@@ -182,6 +184,12 @@ test("nine moments: People's lists and a cadence, two the calendar makes possibl
     ["deal", "follow_up", null],
     "a proposal's moment, under its own class (0006), on no People list: Today's rule names who waits",
   );
+  assert.deepEqual(
+    [triggerOf("slot_opened").kind, triggerOf("slot_opened").cls, triggerOf("slot_opened").list],
+    ["freed", "follow_up", "asked_never_booked"],
+    "a time a cancellation freed (0081): a follow-up to the person's own ask, offered to People's Asked, never booked",
+  );
+  assert.equal(triggerOf("slot_opened").label, "Fill a cancellation");
   assert.equal(triggerOf("lapsed").list, "lapsed", "the win-back by visits runs on People's own Lapsed list");
   // 2 Oct 2026: the two win-backs are one moment read two ways, so both are called Win-back (momentOffered offers one).
   assert.equal(triggerOf("lapsed").label, triggerOf("quiet_30").label, "one Win-back, by visits or by silence");
@@ -384,7 +392,8 @@ test("the migration and the sweep: one run per playbook per local day, touches n
     "how a new win-back sequence starts · each keeps its own on its page, and asks you before its first batch and after new words",
   );
   assert.match(POLICY_CLASS_WORDS.campaign.note, /^how a new offer or welcome sequence starts · /);
-  assert.match(POLICY_CLASS_WORDS.follow_up.note, /^how the proposal follow-up starts · /);
+  assert.match(POLICY_CLASS_WORDS.follow_up.note, /^how the proposal follow-up and filling a cancellation start · /);
+  assert.equal(POLICY_CLASS_WORDS.follow_up.name, "Follow-ups", "the row names both moments under it (0081)");
   assert.ok(
     readCode("apps/dashboard/src/legacy-bridge/policy-store.ts").includes('...W("reengage")'),
     "the Autonomy row says what the playbooks do, in the one set of words every surface reads",
@@ -991,9 +1000,10 @@ test("a reach-out's step reaches nobody among People: its run is its own, and it
   }
 });
 
-test("what a moment's message is about (decision D1): a visit's and a proposal's are theirs, every other moment's the business's own news", () => {
+test("what a moment's message is about (decision D1): a visit's, a proposal's and a freed time's are theirs, every other moment's the business's own news", () => {
   // The visit they booked, and the proposal their deal waits on: by email these ask an address and no yes.
-  for (const trigger of ["visit_tomorrow", "visited", "proposal_waiting"])
+  // A time a cancellation freed, offered to people who asked for one (0081): about their own ask, as the follow-up is.
+  for (const trigger of ["visit_tomorrow", "visited", "proposal_waiting", "slot_opened"])
     assert.equal(messageAboutOfTrigger(trigger), "theirs", trigger);
   // Everything else is news the business chose to send, by whatever list or cadence.
   for (const trigger of ["everyone_monthly", "lapsed", "saved_list", "quiet_30", "new_week", "phoned_only"])
@@ -1006,7 +1016,22 @@ test("what a moment's message is about (decision D1): a visit's and a proposal's
   for (const t of PLAYBOOK_TRIGGERS)
     assert.equal(
       messageAboutOfTrigger(t.id),
-      t.kind === "visit" || t.kind === "deal" ? "theirs" : "ours",
+      t.kind === "visit" || t.kind === "deal" || t.kind === "freed" ? "theirs" : "ours",
       `${t.id} (${t.kind})`,
     );
+});
+
+test("a freed time's words for every send of its batch (decision 0081): the time as it reads when the batch goes, the appointment that freed it, and the span", () => {
+  const freed = { from: "appt-1", start: Date.parse("2026-10-20T19:00:00Z"), end: Date.parse("2026-10-20T20:00:00Z") };
+  assert.deepEqual(freedTimeFactsFor(freed, "America/New_York", new Date("2026-10-19T18:00:00Z")), {
+    freed_when: "tomorrow at 3:00 PM",
+    appointment: "appt-1",
+    offered_start: "2026-10-20T19:00:00.000Z",
+    offered_end: "2026-10-20T20:00:00.000Z",
+  });
+  assert.equal(
+    freedTimeFactsFor(freed, "America/New_York", new Date("2026-10-20T13:00:00Z")).freed_when,
+    "today at 3:00 PM",
+    "a batch made at night goes at nine: its words are read then",
+  );
 });

@@ -34,6 +34,7 @@ import { expoPush } from "./push.js";
 import { replyReader } from "../reach-out/reply-read.js";
 import { bookingReader } from "../calendar/booking-read.js";
 import { feedNamesFor } from "../calendar/feed-names.js";
+import { offerFreedTime } from "../calendar/freed-time-offer.js";
 import { answerInboundJob } from "../whatsapp/answer-later.js";
 import {
   runTick,
@@ -179,6 +180,9 @@ export async function tickJobs({ db, L, started }: SweepTick): Promise<Response>
               // A message its door recorded and acknowledged, answered here: a text (decision 0031, Phase 2), or a
               // WhatsApp message of a workspace the edge names for it (Phase 3).
               inbound: { answer: (claimed) => answerInboundJob(db, claimed) },
+              // A freed time offered to the people who asked and never booked (decision 0081): the workspace's step on
+              // slot_opened runs through the run the sweep uses, which lives here.
+              freedTimes: { offer: (tenantId, freed) => offerFreedTime(db, tenantId, freed) },
               ...broughtIn(db),
               // A job that continues itself (a broadcast's next batch) is one
               // more row, as this job's tenant.

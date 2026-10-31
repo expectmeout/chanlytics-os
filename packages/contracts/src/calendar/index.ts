@@ -245,6 +245,23 @@ export {
 } from "./visit/booking-request";
 export { calendarPersonFactsOf, calendarPersonOf } from "./visit/calendar-person-facts";
 export type { CalendarPersonFactsDto, CalendarPersonVM } from "./visit/calendar-person-facts";
+export {
+  changeFreesATime,
+  FREED_TIME_REFUSALS,
+  freedTimeOf,
+  freedTimesUnoffered,
+  freedTimeTaken,
+  freedTimeWords,
+} from "./visit/freed-time";
+export type {
+  FreedTimeCalendar,
+  FreedTimeEvent,
+  FreedTimeOffer,
+  FreedTimeRefusal,
+  FreedTimeRow,
+  FreedTimeVerdict,
+  StandingTime,
+} from "./visit/freed-time";
 export { visitTitleWithout } from "./visit/visit-service";
 export { CALENDAR_VISIT_SHEET_WORDS, visitSheetOf } from "./visit/visit-sheet";
 export type {

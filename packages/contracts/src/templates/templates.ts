@@ -234,6 +234,7 @@ export const PARAM_SOURCES = [
   "visit_when",
   "visit_service",
   "proposal_link",
+  "freed_when",
 ] as const;
 export type ParamSourceKind = (typeof PARAM_SOURCES)[number];
 
@@ -248,7 +249,9 @@ export type ParamSpec =
   | { kind: "visit_when" }
   | { kind: "visit_service" }
   /** A follow-up's own words: the link of the proposal the person's deal waits on (0006). */
-  | { kind: "proposal_link" };
+  | { kind: "proposal_link" }
+  /** A freed time's own words (0081): the time a cancellation freed, the same for everyone its batch reaches. */
+  | { kind: "freed_when" };
 
 export const PARAM_SOURCE_LABELS: Record<ParamSourceKind, string> = {
   text: "Type it",
@@ -259,6 +262,7 @@ export const PARAM_SOURCE_LABELS: Record<ParamSourceKind, string> = {
   visit_when: "Their booked time",
   visit_service: "Their booked service",
   proposal_link: "Their proposal's link",
+  freed_when: "The freed time",
 };
 
 /**
@@ -274,6 +278,7 @@ export const PARAM_SOURCE_HINTS: Record<Exclude<ParamSourceKind, "text">, string
   visit_when: "Each one's own, from the calendar",
   visit_service: "Each one's own, from the calendar",
   proposal_link: "Each proposal's own, from its deal",
+  freed_when: "The freed time's own, from the calendar",
 };
 
 /**
@@ -283,9 +288,10 @@ export const PARAM_SOURCE_HINTS: Record<Exclude<ParamSourceKind, "text">, string
  */
 export function parseParamSpec(raw: unknown): ParamSpec | null {
   if (typeof raw === "string") {
-    const m = /^@(first_name|business_name|booking_link|review_link|visit_when|visit_service|proposal_link)$/.exec(
-      raw.trim(),
-    );
+    const m =
+      /^@(first_name|business_name|booking_link|review_link|visit_when|visit_service|proposal_link|freed_when)$/.exec(
+        raw.trim(),
+      );
     if (m) return { kind: m[1] as Exclude<ParamSourceKind, "text"> };
     return { kind: "text", value: raw };
   }
@@ -299,7 +305,8 @@ export function parseParamSpec(raw: unknown): ParamSpec | null {
       o.kind === "review_link" ||
       o.kind === "visit_when" ||
       o.kind === "visit_service" ||
-      o.kind === "proposal_link"
+      o.kind === "proposal_link" ||
+      o.kind === "freed_when"
     )
       return { kind: o.kind };
   }
@@ -355,6 +362,8 @@ export interface ParamFacts {
   visitService?: string | null;
   /** A follow-up's link for this person, frozen when the run was made (0006); absent elsewhere. */
   proposalLink?: string | null;
+  /** The freed time as its batch kept it for the send (0081); absent elsewhere. */
+  freedWhen?: string | null;
 }
 
 /**
@@ -403,6 +412,8 @@ export function resolveParams(specs: readonly ParamSpec[], f: ParamFacts): strin
         return f.visitService ?? "";
       case "proposal_link":
         return f.proposalLink ?? "";
+      case "freed_when":
+        return f.freedWhen ?? "";
     }
   });
 }
@@ -415,6 +426,7 @@ const exampleFacts = (businessName: string) => ({
   visitWhen: "tomorrow at 2:00 PM",
   visitService: "a consultation",
   proposalLink: "their proposal's link",
+  freedWhen: "tomorrow at 2:00 PM",
 });
 
 /** Example words for a preview: what a real person would see. */

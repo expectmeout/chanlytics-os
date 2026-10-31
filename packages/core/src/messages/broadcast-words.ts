@@ -144,3 +144,21 @@ export function thenWhat(
   if (!next) return again;
   return remedy ? `${remedy}. ${next}` : next;
 }
+
+/**
+ * The words a run kept on a person's row when it was made, for the slots that take them: a visit's time and service, a
+ * follow-up's link (0006) and the freed time every send of its batch carries (0081). A word not kept is null, and the
+ * slot that asks for it holds the person.
+ */
+export function keptWords(facts: Record<string, unknown>) {
+  const word = (k: string): string | null => {
+    const v = facts[k];
+    return typeof v === "string" ? v : null;
+  };
+  return {
+    visitWhen: word("visit_when"),
+    visitService: word("visit_service"),
+    proposalLink: word("proposal_link"),
+    freedWhen: word("freed_when"),
+  };
+}

@@ -57,6 +57,8 @@ export interface KnownMoment {
   /** A visit moment: its run knows each visit, so a first step on it may say the booked time or service. */
   visits: boolean;
   proposal: boolean;
+  /** Filling a cancellation (0081): its batch knows the freed time, so a first step on it may say it. */
+  freed: boolean;
   count: number | null;
   /** Who it names and who of them can hear it, as Campaigns' pools count it; null where it was not counted. */
   pool: PoolRead | null;
@@ -153,14 +155,19 @@ function paramsOf(slots: readonly ParamSourceKind[], texts: readonly string[]): 
   });
 }
 
-/** Whether a step's run can fill each value: a visit's only on a visit moment's first step, a proposal's on the follow-up's. */
+/**
+ * Whether a step's run can fill each value: a visit's only on a visit moment's first step, a proposal's on the
+ * follow-up's, the freed time on filling a cancellation's (0081).
+ */
 function fillable(slots: readonly ParamSourceKind[], first: boolean, moment: KnownMoment | null): boolean {
   return slots.every((s) =>
     s === "visit_when" || s === "visit_service"
       ? first && !!moment?.visits
       : s === "proposal_link"
         ? first && !!moment?.proposal
-        : true,
+        : s === "freed_when"
+          ? first && !!moment?.freed
+          : true,
   );
 }
 

@@ -43,8 +43,11 @@ export async function readCampaignMessage(
  */
 export async function templateValues(
   ports: TemplateValuesPorts,
-  /** `visits`: a visit playbook, whose run knows each visit; `proposal`: the follow-up, whose run knows each link. */
-  cmd: { templateId: string; params: unknown; visits: boolean; proposal: boolean },
+  /**
+   * `visits`: a visit playbook, whose run knows each visit; `proposal`: the follow-up, whose run knows each link;
+   * `freed`: a freed time (0081), whose batch knows the freed time.
+   */
+  cmd: { templateId: string; params: unknown; visits: boolean; proposal: boolean; freed: boolean },
 ): Promise<{ message: CampaignMessage; specs: ParamSpec[] }> {
   const message = await readCampaignMessage(ports, cmd.templateId);
   const expected = message.slots;
@@ -64,7 +67,7 @@ export async function templateValues(
     if (!spec)
       throw new AppError(
         "validation",
-        "Each value is typed text, their first name, the business name, the booking link, the review link, the booked time or service, or a proposal's link.",
+        "Each value is typed text, their first name, the business name, the booking link, the review link, the booked time or service, a proposal's link, or the freed time.",
       );
     if (spec.kind === "text") {
       const v = cleanParam(spec.value);
@@ -86,6 +89,10 @@ export async function templateValues(
       // A proposal's link exists only on the follow-up's run, one proposal at a time (0006).
       if (spec.kind === "proposal_link" && !cmd.proposal) {
         throw new AppError("validation", "Only the proposal follow-up can fill in a proposal's link.");
+      }
+      // The freed time exists only on a freed time's batch, the same for everyone it reaches (0081).
+      if (spec.kind === "freed_when" && !cmd.freed) {
+        throw new AppError("validation", "Only filling a cancellation can fill in the freed time.");
       }
       specs.push(spec);
     }

@@ -387,6 +387,34 @@ function offOfferRow(caps: string): LifecycleRow {
 }
 
 /**
+ * A freed time where none is made and it is offered (decision 0081: a calendar is connected): a line that turns it on, as
+ * the month's offer's does. It reaches a yes to messages: it answers the person's own ask, as the follow-up does.
+ */
+function offFreedTimeRow(caps: string): LifecycleRow {
+  const { name, hint } = LIFECYCLE_WORDS.freedTime;
+  return {
+    id: "slot_opened",
+    kind: "playbook",
+    name,
+    hint,
+    status: "off",
+    stateWords: "Off",
+    phoneWords: "Off",
+    tone: "plain",
+    needs: "messages",
+    needsWords: LIFECYCLE_WORDS.needs.messages,
+    channels: [],
+    people: { n: null, unit: "people" },
+    results: "uncounted",
+    next: NO_NEXT,
+    open: null,
+    waiting: null,
+    act: { kind: "turn_on", label: LIFECYCLE_WORDS.ledger.turnOn, moment: "slot_opened" },
+    search: rowSearchOf(name, hint, caps),
+  };
+}
+
+/**
  * The emails the check holds in a reach-out's going runs, summed, and the newest such run: what the chain's row says when no
  * run waits for approval (the wiring's second audit, W-campaign-run-template-reachout-4). Null where Sent is unread.
  */
@@ -583,17 +611,25 @@ function journeyGroup(def: JourneyStage, stage: LifecycleStage, at: GroupAt): Li
   };
 }
 
-/** Lists & offers: the month's offer, the campaigns on a list, and any other that stands on no moment. */
+/**
+ * Lists & offers: the month's offer, a freed time (0081), the campaigns on a list, and any other that stands on no moment.
+ */
 function listsGroup(at: GroupAt, onStage: ReadonlySet<string>): LifecycleGroup {
   const caps = LIFECYCLE_WORDS.ledger.groups.lists;
   const each = { ...at, caps, unit: "people", counted: true };
   const offered = (id: string) => at.playbooks.triggers.some((t) => t.id === id && t.offered);
   const offers = at.playbooks.rows.filter((p) => p.trigger === "everyone_monthly");
-  const rest = at.playbooks.rows.filter((p) => p.trigger !== "everyone_monthly" && !onStage.has(p.id));
+  const freedTimes = at.playbooks.rows.filter((p) => p.trigger === "slot_opened");
+  const rest = at.playbooks.rows.filter(
+    (p) => p.trigger !== "everyone_monthly" && p.trigger !== "slot_opened" && !onStage.has(p.id),
+  );
   const rows = [
     ...(offers.length === 0 && offered("everyone_monthly")
       ? [offOfferRow(caps)]
       : offers.map((p) => playbookRow(p, each))),
+    ...(freedTimes.length === 0 && offered("slot_opened")
+      ? [offFreedTimeRow(caps)]
+      : freedTimes.map((p) => playbookRow(p, each))),
     ...rest.map((p) => playbookRow(p, each)),
   ];
   return {

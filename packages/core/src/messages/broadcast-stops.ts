@@ -4,9 +4,13 @@
  * Split from broadcast.ts, which sends; this is what it does with a refusal.
  */
 import {
+  AppError,
   BROADCAST_HOLD_WAIT_MS,
   audienceTrigger,
+  clockNearWhen,
   emailRunStop,
+  freedTimeTaken,
+  freedTimeTakenNotice,
   jittered,
   nextOpenMoment,
   passesHandoverPause,
@@ -15,6 +19,7 @@ import {
   runRoute,
 } from "@chanlytics/contracts";
 import { errField, logger } from "@chanlytics/channels";
+import { cancelBroadcast } from "../campaigns/cancel";
 import type { DeliveryRefusal } from "../deliver";
 import type { BroadcastChannel as Channel } from "./broadcast-channels";
 import type { Work } from "./broadcast-channels";
@@ -23,6 +28,47 @@ import type { BroadcastBatchCommand, BroadcastBatchPorts, BroadcastRow, Recipien
 
 /** The batch's own lines: a release the database refused. */
 const stopLog = logger();
+
+/**
+ * Whether one of a batch's checks before its first claim holds it, each asked in turn and saying why itself: the wires it
+ * goes by (broadcast.ts wireIsUnbound), then a freed time taken since it was offered (takenBeforeItWent).
+ */
+export async function heldBeforeAnyClaim(checks: ReadonlyArray<() => Promise<boolean>>): Promise<boolean> {
+  for (const held of checks) if (await held()) return true;
+  return false;
+}
+
+/**
+ * A freed time's batch (decision 0081) asks the record before its first send: a time booked since it was offered
+ * (contracts freedTimeTaken, the freed visit's own sightings aside) is taken, and the batch is cancelled as the system
+ * through the cancel verb (reason `taken`) and told once, rather than offer a time nobody can have. A batch already
+ * sending goes on: its people were offered the time. True when the batch ends here, told or not.
+ */
+export async function takenBeforeItWent(ports: BroadcastBatchPorts, b: BroadcastRow, tz: string): Promise<boolean> {
+  if (b.state !== "scheduled" || !b.offered_from || !b.offered_start || !b.offered_end) return false;
+  const offered = { start: Date.parse(b.offered_start), end: Date.parse(b.offered_end) };
+  const facts = await ports.freedTimeFacts(b.offered_from);
+  if (!facts || !freedTimeTaken(offered, facts.row, facts.calendar.standing)) return false;
+  try {
+    await cancelBroadcast(
+      { withdraw: () => Promise.resolve(0), cancel: ports.cancelFrom, record: ports.recordDecision },
+      { row: { id: b.id, state: b.state, name: b.name }, reason: "taken" },
+    );
+  } catch (e) {
+    // Approved again, stopped or started since it was read: the row's answer stands, and this batch sends nothing.
+    if (e instanceof AppError && e.code === "conflict") return true;
+    throw e;
+  }
+  const told = freedTimeTakenNotice(b.name, clockNearWhen(offered.start, tz, ports.now()));
+  await ports.alert({
+    kind: "broadcast_stopped",
+    route: runRoute(b.id),
+    about: { type: "broadcast", id: b.id },
+    subject: told.subject,
+    body: told.body,
+  });
+  return true;
+}
 
 /** How one person's turn ended: the next goes on, the run stops, or it backs off (throttled, or never reached) by channel. */
 export type Verdict = "go on" | "stop" | { back: "throttled" | "unreachable"; channel: Channel };

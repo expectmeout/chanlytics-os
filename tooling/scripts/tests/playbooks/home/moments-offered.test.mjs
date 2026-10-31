@@ -50,6 +50,7 @@ test("which moments a new playbook may start from: none retired, the proposal's 
     "lapsed",
     "saved_list",
     "proposal_waiting",
+    "slot_opened",
   ]);
   for (const calendarOn of [false, true]) {
     const here = OFFERED(calendarOn);
@@ -72,6 +73,12 @@ test("which moments a new playbook may start from: none retired, the proposal's 
   );
 });
 
+test("a freed time is offered only where a calendar is connected: a time is freed on the calendar, and none is without one (0081)", () => {
+  assert.equal(OFFERED(false).includes("slot_opened"), false);
+  assert.equal(OFFERED(true).includes("slot_opened"), true);
+  assert.equal(triggerOffered(triggerOf("slot_opened")), true, "one made keeps running: the run never asks");
+});
+
 test("an appointment moment is offered only where a calendar is connected: without one it would skip every day (D44)", () => {
   assert.equal(
     OFFERED(false).some((id) => triggerOf(id).kind === "visit"),
@@ -85,10 +92,10 @@ test("an appointment moment is offered only where a calendar is connected: witho
   assert.equal(triggerOffered(triggerOf("visit_tomorrow")), true, "one made before keeps running: the run never asks");
 });
 
-test("the moments a calendar decides are one set: the two win-backs and the appointment moments, and no other moment's offer turns on it", () => {
+test("the moments a calendar decides are one set: the two win-backs, the appointment moments and a freed time, and no other moment's offer turns on it", () => {
   assert.deepEqual(
     PLAYBOOK_TRIGGERS.filter(momentReadsCalendar).map((t) => t.id),
-    ["quiet_30", "visit_tomorrow", "visited", "lapsed"],
+    ["quiet_30", "visit_tomorrow", "visited", "lapsed", "slot_opened"],
   );
   const outside = (calendarOn) => OFFERED(calendarOn).filter((id) => !momentReadsCalendar(triggerOf(id)));
   assert.deepEqual(outside(false), outside(true), "the calendar changes nothing else");
@@ -667,7 +674,15 @@ test("the home's input from GET playbooks is the one reading it was: the shape, 
       ["pb-follow", false, "Proposal follow-up", "today 10:00 AM", null],
       ["pb-back", false, "Win-back", "paused", null],
     ],
-    offered: ["everyone_monthly", "visit_tomorrow", "visited", "lapsed", "saved_list", "proposal_waiting"],
+    offered: [
+      "everyone_monthly",
+      "visit_tomorrow",
+      "visited",
+      "lapsed",
+      "saved_list",
+      "proposal_waiting",
+      "slot_opened",
+    ],
     number: true,
   });
   assert.deepEqual(composed(second), {

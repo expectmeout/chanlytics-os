@@ -62,8 +62,9 @@ const asProposableNow = (schema) => {
   const out = structuredClone(schema);
   const t = out.properties.trigger;
   if (t)
+    // The appointment moments joined it later, and a freed time (decision 0081, 30 Oct 2026) after them.
     t.enum = MOMENT_TRIGGERS.filter(
-      (m) => (t.enum.includes(m.id) || m.kind === "visit") && !(m.id in MOMENTS_RETIRED),
+      (m) => (t.enum.includes(m.id) || m.kind === "visit" || m.kind === "freed") && !(m.id in MOMENTS_RETIRED),
     ).map((m) => m.id);
   return out;
 };
@@ -689,7 +690,7 @@ test("an input a schema refuses comes back in the zod's words, under the tool's 
     await words("propose_sequence", { action: "moment", trigger: "never" }),
     // 2 Oct 2026: the moments a new playbook may start from; welcome and save our number are no longer among them. 11
     // Oct 2026 (D2): the reminder the day before and the check after an appointment are, where a calendar is connected.
-    'propose_sequence: trigger Invalid option: expected one of "quiet_30"|"everyone_monthly"|"visit_tomorrow"|"visited"|"lapsed"|"saved_list"|"proposal_waiting"',
+    'propose_sequence: trigger Invalid option: expected one of "quiet_30"|"everyone_monthly"|"visit_tomorrow"|"visited"|"lapsed"|"saved_list"|"proposal_waiting"|"slot_opened"',
   );
   // An owner's action, asked by an owner: past the role (D2), to the zod.
   const merge = await buildProposal(contextFor("owner").t, "propose_person", { action: "merge", contact_id: C1 });

@@ -110,7 +110,7 @@ const withVisits = (id, next, last, over = {}) =>
   );
 const untouched = { byThis: new Map(), byAny: new Map() };
 
-test("the moments: People's lists and a cadence, two the calendar makes possible, Lapsed, the workspace's own lists and a proposal waiting, each under one of the four autonomy rows", () => {
+test("the moments: People's lists and a cadence, two the calendar makes possible, Lapsed, the workspace's own lists, a proposal waiting and a freed time, each under one of the four autonomy rows", () => {
   assert.deepEqual(
     MOMENT_TRIGGERS.map((t) => t.id),
     [
@@ -123,11 +123,12 @@ test("the moments: People's lists and a cadence, two the calendar makes possible
       "lapsed",
       "saved_list",
       "proposal_waiting",
+      "slot_opened",
     ],
   );
   assert.deepEqual(
     MOMENT_TRIGGERS.map((t) => t.kind),
-    ["list", "list", "list", "cadence", "visit", "visit", "list", "saved", "deal"],
+    ["list", "list", "list", "cadence", "visit", "visit", "list", "saved", "deal", "freed"],
   );
   assert.equal(
     triggerOf("visit_tomorrow").cls,

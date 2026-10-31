@@ -27,16 +27,25 @@
  *                     a read that adds more than a customer could book in an hour (a calendar newly connected) tells
  *                     nobody. A visit withdrawn or already past by the time the delivery runs is not news. A booking the
  *                     customer cancelled or moved through their booking tool (by the service, 00436: never a member's own
- *                     word) is told once too, while the visit is still ahead (R11 S6-6, contracts bookingChanged).
+ *                     word) is told once too, while the visit is still ahead (R11 S6-6, contracts bookingChanged), and a
+ *                     cancellation's news says what the offer of its time came to (decision 0081), asked of the offer
+ *                     itself, so the bell and the batch never disagree.
  *   team_notice       a teammate who accepted an invitation and joined (member.joined: 00410, S1-19) is told once on the
  *                     bell, opening Settings > Team; so is one who left, by their own hand or with their account
  *                     (member.left: 00437, R11 W-channel-team-plus-5).
+ *   freed_time_offer  the time an appointment's change freed (the service's cancel or move, the feed's vanished entry:
+ *                     appointment.changed) is decided by the one rule (contracts freedTimeOf) over the record and the
+ *                     receptionist's calendar, and offered through the edge's door, which runs the workspace's step on
+ *                     slot_opened (decision 0081, 00497). Each change that offers nothing says why in one log line. The
+ *                     offer is once per appointment (sequence_batches_offered_once), so a second run makes nothing new.
  */
 import {
   bookingArriving,
   bookingChanged,
   CATCH_UP_VISITS,
+  changeFreesATime,
   feedAdditionIsBooking,
+  freedTimeOf,
   holdNotice,
   memberJoinedBy,
   memberJoinedNotice,
@@ -49,12 +58,19 @@ import {
   waitsOnAPerson,
   type BookedVisit,
   type EventSubscriber,
+  type FreedTimeCalendar,
+  type FreedTimeEvent,
+  type FreedTimeOffer,
+  type FreedTimeRefusal,
+  type FreedTimeRow,
   type HoldFacts,
   type JobNews,
   type MemberJoined,
   type OptOutPerson,
 } from "@chanlytics/contracts";
+import { errField, logger } from "@chanlytics/channels";
 import type { DeliveredEvent } from "@chanlytics/db";
+import type { FreedTimeRun } from "./campaigns/ports";
 
 /** What a subscriber acts through: the job's own database, behind the verbs it needs. */
 export interface SubscriberPorts {
@@ -115,6 +131,21 @@ export interface SubscriberPorts {
   /** The address of a person who left, from the identity store (packages/db memberEmailOf); null for an account that is gone. */
   memberEmail(userId: string): Promise<string | null>;
   /**
+   * The appointment an event is about and the calendar the receptionist reads over it (packages/db freedTimeFactsOf), or
+   * null when the record no longer holds the row.
+   */
+  freedTimeFacts(
+    tenantId: string,
+    appointmentId: string,
+    nowMs: number,
+  ): Promise<{ row: FreedTimeRow; calendar: FreedTimeCalendar } | null>;
+  /**
+   * The edge's offer of a freed time (decision 0081): the workspace's running step on `slot_opened` runs for it, once per
+   * appointment, and a second ask answers the batch the first made. Throws when it could not be asked, so the delivery
+   * tries again.
+   */
+  offerFreedTime(tenantId: string, freed: FreedTimeRun): Promise<FreedTimeOffer>;
+  /**
    * Tell the workspace: the bell, the email its settings allow, the phones each member allows (decision 0040), exactly
    * once for the event the news names. Throws when it could not, so the delivery tries again.
    */
@@ -157,6 +188,59 @@ const TOLD_WHERE_TAKEN_IN = "email_review";
 
 /** The changes that may book a lead: an appointment that is there now (a cancelled one books nobody). */
 const BOOKS = new Set(["added", "confirmed", "moved"]);
+
+/** What an event's freed time came to: the offer's answer, or why none was asked (the rule's refusal, or the row gone). */
+type FreedTimeAsked = FreedTimeOffer | { offered: false; why: FreedTimeRefusal | "gone" };
+
+/** What an `appointment.changed` event says, as a freed time reads it; null where it names no change. */
+function freedTimeEventOf(data: unknown): FreedTimeEvent | null {
+  const d = data && typeof data === "object" && !Array.isArray(data) ? (data as Record<string, unknown>) : {};
+  if (typeof d.change !== "string") return null;
+  const text = (v: unknown): string | null => (typeof v === "string" ? v : null);
+  return { change: d.change, by: text(d.by), source: text(d.source), was_at: text(d.was_at) };
+}
+
+/**
+ * The time an appointment's change freed, offered (decision 0081), or why not; null for an event that frees no time (a
+ * booking added or confirmed), which is nobody's refusal. The one path `freed_time_offer` takes and `visit_notice` asks
+ * for its clause: the offer is once per appointment (the edge's, over sequence_batches_offered_once), so whichever
+ * delivery asks first makes it and the other hears the batch it made.
+ */
+async function freedTimeAsked(
+  event: DeliveredEvent,
+  ports: SubscriberPorts,
+  nowMs: number,
+): Promise<FreedTimeAsked | null> {
+  if (event.kind !== "appointment.changed" || event.subject_type !== "appointment" || !event.subject_id) return null;
+  const said = freedTimeEventOf(event.data);
+  if (!said || !changeFreesATime(said.change)) return null;
+  const facts = await ports.freedTimeFacts(event.tenant_id, event.subject_id, nowMs);
+  if (!facts) return { offered: false, why: "gone" };
+  const verdict = freedTimeOf(said, facts.row, facts.calendar, new Date(nowMs));
+  if (!verdict.ok) return { offered: false, why: verdict.why };
+  return ports.offerFreedTime(event.tenant_id, { from: event.subject_id, start: verdict.start, end: verdict.end });
+}
+
+/**
+ * What a cancellation's news says its offer came to: a batch, or nobody to offer it to; null where the workspace offers
+ * no freed time or the time was not offered. An offer that could not be asked is left out and said in the log: the
+ * subscriber's own delivery asks again, and the news never waits on it.
+ */
+async function offerForNews(
+  event: DeliveredEvent,
+  ports: SubscriberPorts,
+  nowMs: number,
+): Promise<FreedTimeOffer | null> {
+  try {
+    const asked = await freedTimeAsked(event, ports, nowMs);
+    if (!asked) return null;
+    if (asked.offered) return asked;
+    return asked.why === "nobody" ? { offered: false, why: "nobody" } : null;
+  } catch (e) {
+    logger().warn("freed_time_offer_unasked", { tenant_id: event.tenant_id, event_id: event.id, error: errField(e) });
+    return null;
+  }
+}
 
 export const SUBSCRIBERS: Readonly<Record<EventSubscriber, Subscriber>> = {
   reach_out_booked: async (event, ports) => {
@@ -209,7 +293,8 @@ export const SUBSCRIBERS: Readonly<Record<EventSubscriber, Subscriber>> = {
       const status = changed.change === "cancelled" ? "cancelled" : "booked";
       const visit = (await ports.bookedVisits(event.tenant_id, [changed.appointmentId], nowMs, status)).at(0);
       if (!visit) return;
-      await ports.tell({ ...visitChangeNews(visit, changed.change, nowMs), sourceEvent: event.id });
+      const offer = changed.change === "cancelled" ? await offerForNews(event, ports, nowMs) : null;
+      await ports.tell({ ...visitChangeNews(visit, changed.change, nowMs, offer), sourceEvent: event.id });
       return;
     }
     const arriving = bookingArriving(event);
@@ -253,5 +338,16 @@ export const SUBSCRIBERS: Readonly<Record<EventSubscriber, Subscriber>> = {
     const member = await ports.memberJoined(event.tenant_id, invitationId);
     if (!member) return;
     await ports.tell({ ...memberJoinedNotice(member), sourceEvent: event.id });
+  },
+  freed_time_offer: async (event, ports) => {
+    const asked = await freedTimeAsked(event, ports, Date.now());
+    if (!asked) return;
+    const about = { tenant_id: event.tenant_id, appointment: event.subject_id, event_id: event.id };
+    if (asked.offered) {
+      logger().info("freed_time_offered", { ...about, people: asked.people, waits: asked.waits });
+      return;
+    }
+    const detail = "detail" in asked && asked.detail ? { detail: asked.detail } : {};
+    logger().info("freed_time_not_offered", { ...about, why: asked.why, ...detail });
   },
 };

@@ -78,6 +78,7 @@ function craftValueLength(kind: ParamSourceKind, business: string): number {
     visit_when: 21,
     visit_service: 20,
     proposal_link: 30,
+    freed_when: 22,
     text: 40,
   };
   return typical[kind];

@@ -39,6 +39,8 @@ export interface WaitingRun {
   /** The business's day the run was made for (a playbook's run). */
   run_for?: string | null;
   audience?: unknown;
+  /** The time a freed time's run offers (0081): its wait ends when that time comes. */
+  offered_start?: string | null;
   /** How many of a going run's emails the check holds for the owner's say (absent where Sent did not say). */
   held?: number | null;
   /** How many of a going run's emails are handed to its owner to send from their inbox (00429; absent where not said). */
@@ -49,6 +51,8 @@ export interface WaitingRun {
 export interface RunDays {
   today: string;
   sendsOn: string;
+  /** The moment an approval now would send a run (runDaysAt): what a freed time is read against (0081). */
+  sendsAt?: number;
 }
 
 /** What waits on a person, by what it is. A thread is one wait: a hold wins over a send. */
@@ -106,6 +110,7 @@ const runAsked = (run: WaitingRun) => ({
   playbook_id: run.playbook_id ?? null,
   run_for: run.run_for ?? null,
   audience: run.audience,
+  offered_start: run.offered_start ?? null,
 });
 
 /**

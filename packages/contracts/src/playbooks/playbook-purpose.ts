@@ -10,16 +10,17 @@ import { type AskedPurpose, type MessageAbout, purposeOfPlaybook, purposeOfTempl
 import { triggerOf } from "./playbook-triggers";
 
 /**
- * What a moment's message is about (consent.ts MessageAbout, decision D1): a visit's and a follow-up's are theirs, the
- * visit they booked and the proposal their deal waits on; every other moment's, and a broadcast's (no moment at all), is news
- * the business chose to send. THE one reading of it: the enrolment asks it of the playbook's moment, and the send asks it of
- * the run's (the trigger its audience keeps), so the two cannot disagree about anyone.
+ * What a moment's message is about (consent.ts MessageAbout, decision D1): a visit's, a follow-up's and a freed time's are
+ * theirs, the visit they booked, the proposal their deal waits on and the time they asked about (0081); every other
+ * moment's, and a broadcast's (no moment at all), is news the business chose to send. THE one reading of it: the
+ * enrolment asks it of the playbook's moment, and the send asks it of the run's (the trigger its audience keeps), so the
+ * two cannot disagree about anyone.
  * Kept here, beside the yes a moment's message needs, so the run's reach and the playbooks' words both import it without
  * importing each other.
  */
 export function messageAboutOfTrigger(trigger: string | null | undefined): MessageAbout {
   const kind = triggerOf(trigger ?? "")?.kind;
-  return kind === "visit" || kind === "deal" ? "theirs" : "ours";
+  return kind === "visit" || kind === "deal" || kind === "freed" ? "theirs" : "ours";
 }
 
 /**

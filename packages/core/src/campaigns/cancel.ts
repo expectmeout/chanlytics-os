@@ -17,11 +17,13 @@ export interface CancelReceipt {
  * under the ask mode): skipped, nothing was ever scheduled. Anything else
  * has already ended and says so. The ledger records the decision, with why
  * where the system skipped it (`day_passed`: the edge's playbooks sweep ends a
- * run waiting for approval after its day, which no approval can send).
+ * run waiting for approval after its day, which no approval can send;
+ * `time_passed`: the same for a freed time's batch whose time has come, 0081;
+ * `taken`: a freed time's batch whose time was booked before it went).
  */
 export async function cancelBroadcast(
   ports: CancelBroadcastPorts,
-  cmd: { row: Pick<BroadcastRef, "id" | "state" | "name">; reason?: "day_passed" },
+  cmd: { row: Pick<BroadcastRef, "id" | "state" | "name">; reason?: "day_passed" | "time_passed" | "taken" },
 ): Promise<CancelReceipt> {
   const b = cmd.row;
   if (b.state !== "scheduled" && b.state !== "sending" && b.state !== "pending_approval") {

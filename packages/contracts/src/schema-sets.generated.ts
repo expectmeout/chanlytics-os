@@ -213,7 +213,7 @@ export const SCHEMA_SETS = {
   "sequence_steps.state": ["running", "paused"],
   "sequence_steps.trigger": [
     "quiet_30", "new_week", "phoned_only", "everyone_monthly", "visit_tomorrow", "visited", "lapsed",
-    "saved_list", "proposal_waiting", "lead_first", "after_step",
+    "saved_list", "proposal_waiting", "lead_first", "after_step", "slot_opened",
   ],
   "sequences.mode": ["auto", "veto", "ask"],
   "sequences.starts": ["moment", "list", "leads", "date"],

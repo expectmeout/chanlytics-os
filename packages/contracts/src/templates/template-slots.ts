@@ -70,7 +70,7 @@ export function defaultParamSpecs(t: { name: string; variables: unknown }): Para
  */
 export function slotChoices(
   kind: StarterSlotKind,
-  o: { known: boolean; visits: boolean; bookingLink: boolean; reviewLink: boolean; proposal: boolean },
+  o: { known: boolean; visits: boolean; bookingLink: boolean; reviewLink: boolean; proposal: boolean; freed: boolean },
 ): ParamSourceKind[] {
   const may = (k: ParamSourceKind) =>
     k === "booking_link"
@@ -81,7 +81,9 @@ export function slotChoices(
           ? o.visits
           : k === "proposal_link"
             ? o.proposal
-            : true;
+            : k === "freed_when"
+              ? o.freed
+              : true;
   if (!o.known) return [kind, ...PARAM_SOURCES.filter((k) => k !== kind)].filter(may);
   switch (kind) {
     case "first_name":
@@ -98,6 +100,9 @@ export function slotChoices(
     // A proposal's link is each proposal's, and there is one only on the follow-up (0006).
     case "proposal_link":
       return o.proposal ? [kind] : [];
+    // The freed time is a freed time's batch's, the same for everyone it reaches (0081).
+    case "freed_when":
+      return o.freed ? [kind] : [];
     default:
       return ["text"];
   }
@@ -111,7 +116,7 @@ export function slotChoices(
  */
 export function templateSlots(
   t: { name: string; variables: unknown },
-  o: { visits: boolean; bookingLink: boolean; reviewLink: boolean; proposal: boolean },
+  o: { visits: boolean; bookingLink: boolean; reviewLink: boolean; proposal: boolean; freed: boolean },
 ): ParamSourceKind[][] | null {
   const known = starterByName(t.name) !== null;
   const each = defaultSlotKinds(t).map((k) =>
@@ -121,9 +126,11 @@ export function templateSlots(
       bookingLink: o.bookingLink,
       reviewLink: o.reviewLink,
       proposal: o.proposal,
+      freed: o.freed,
     }),
   );
   if (!each.every((c) => c.length > 0)) return null;
+  if (o.freed && !each.some((c) => c.includes("freed_when"))) return null;
   return o.proposal && !each.some((c) => c.includes("proposal_link")) ? null : each;
 }
 

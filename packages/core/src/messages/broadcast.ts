@@ -39,9 +39,17 @@ import {
   type Work,
 } from "./broadcast-channels";
 import { appointmentsOf, feedOf, visitStands } from "./broadcast-feed";
-import { afterRefusal, pageTheDomain, release, stopForTheWorkspace, type Verdict } from "./broadcast-stops";
+import {
+  afterRefusal,
+  heldBeforeAnyClaim,
+  pageTheDomain,
+  release,
+  stopForTheWorkspace,
+  takenBeforeItWent,
+  type Verdict,
+} from "./broadcast-stops";
 import type { BroadcastBatchCommand, BroadcastBatchPorts, BroadcastRow, ContactRow, RecipientRow } from "./ports";
-import { LIMIT_WORDS, WIRE_WORDS, gotIt, thenWhat } from "./broadcast-words";
+import { LIMIT_WORDS, WIRE_WORDS, gotIt, keptWords, thenWhat } from "./broadcast-words";
 import { pageTheProvider } from "./provider-page";
 
 /** A run as its stop's alert reads it: its name, and whose it is (thenWhat: a playbook's run is not sent again). */
@@ -222,16 +230,12 @@ async function sendOne(w: Work, r: RecipientRow): Promise<Verdict> {
 
   // Their own words in the slots: a first name nobody has on file reads "there"; a slot nothing can fill (a review link
   // nobody keeps) holds the person, never a blank send. A visit run's words were resolved when the run was made.
-  const facts = rowFacts(r);
   const params = resolveParams(w.specs, {
     firstName: firstNameOf(c.display_name, c.wa_profile_name, { source: c.name_source, settled: !!c.name_settled_at }),
     businessName: w.facts.businessName,
     bookingLink: w.facts.bookingLink,
     reviewLink: w.reviewLink,
-    visitWhen: typeof facts.visit_when === "string" ? facts.visit_when : null,
-    visitService: typeof facts.visit_service === "string" ? facts.visit_service : null,
-    // A follow-up's link, frozen when the run was made (0006).
-    proposalLink: typeof facts.proposal_link === "string" ? facts.proposal_link : null,
+    ...keptWords(rowFacts(r)),
   });
   if (params.some((v) => !v)) return skip("missing_value");
   const made = await prepare(w, { r, c, channel, to: where.to, conversationId: target.conversationId, params });
@@ -329,7 +333,8 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
   const slots = await batchSlots(ports, b.params);
   // Who is next, before the wires are asked about: the channels this batch goes by are its people's.
   const batch = await ports.batch(b.id, BROADCAST_CHUNK);
-  if (await wireIsUnbound(ports, b, cmd, batch)) return;
+  const held = [() => wireIsUnbound(ports, b, cmd, batch), () => takenBeforeItWent(ports, b, facts.timezone)];
+  if (await heldBeforeAnyClaim(held)) return;
   // Only while still scheduled: a cancel that landed between the read above
   // and this write is the row's answer, and the batch sends nothing.
   if (b.state === "scheduled" && !(await ports.startSending(b.id))) return;

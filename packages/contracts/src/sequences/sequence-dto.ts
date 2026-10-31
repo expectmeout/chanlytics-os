@@ -250,6 +250,10 @@ export interface SequenceBatchDto {
   failure: string | null;
   place: number | null;
   counts: Partial<SequenceBatchCountsDto>;
+  /** A freed time's batch (00497, decision 0081): the time it offers; null for any other, absent from a database before it. */
+  offered_start?: string | null;
+  /** How many of the people a freed time's batch reached took the time (freed_time_taken); null for any other batch. */
+  took?: number | null;
 }
 
 /**
@@ -309,7 +313,13 @@ export interface SequenceRecordDto {
    * moment's), and the days between runs (the month's offer). What Start's Change opens with. Absent on a sequence to
    * leads and a one-off, and from a server before it.
    */
-  settings?: { cap_per_run: number; gap_days: number; cadence_days: number };
+  settings?: {
+    cap_per_run: number;
+    gap_days: number;
+    cadence_days: number;
+    /** A freed time's (decision 0081): the booking window it offers within, the days ahead. Absent on any other. */
+    days_ahead?: number;
+  };
   /**
    * A sequence to leads: what it writes to, a list its owner adds leads to (Add leads opens Leads to add to it) or its
    * search, which the finder keeps current (contracts isLeadList over the search's `via`). Absent on any other sequence,
