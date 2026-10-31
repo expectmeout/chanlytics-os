@@ -676,6 +676,16 @@ test("B13: every kind either ledger writes has words of its own, so no owner rea
   assert.deepEqual(raw, [], "these still fall to the raw label; give each its words");
 });
 
+test("a lead's own receptionist (decision 0079): made for a lead, made theirs, and where a claimed workspace began", () => {
+  // preview_claim (00497) files the claim on both workspaces: the sender's names the preview, the claimed one itself.
+  assert.equal(
+    activityWords("preview.made", { preview_id: "p1", by: null }),
+    "A preview of its own receptionist was made for a lead",
+  );
+  assert.equal(activityWords("preview.claimed", { preview_id: "p1" }), "A lead made their preview theirs");
+  assert.equal(activityWords("preview.claimed", { by: "u1" }), "This workspace began as a preview");
+});
+
 test("a lead's life says what happened, from the fields its writers file, in the words the Leads page uses", () => {
   // lead_set_stage (00220): the stage it went to, and why when it was closed; the reply's undo and the bulk door write it too.
   assert.equal(activityWords("lead.stage", { stage: "nurture", reason: null, by: "u1" }), "A lead moved · Contacted");

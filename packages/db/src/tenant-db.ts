@@ -14,6 +14,7 @@
  * other door, by name, for the sweeps that read every workspace on purpose: a reader sees which statements chose it,
  * and the ratchet counts neither.
  */
+import type { PostgrestQueryBuilder } from "@supabase/postgrest-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "./database.types";
 
@@ -25,11 +26,20 @@ type TenantTable = {
   [K in keyof Tables]: Tables[K]["Row"] extends { tenant_id: string } ? K : never;
 }[keyof Tables];
 
-/** The table's builder as `db.from` gives it: the type the scoped builder keeps, read from the call itself. */
-function builderOf<T extends TenantTable>(db: Db, table: T) {
+/**
+ * The table's builder as `db.from` gives it, named: a client of these generated types takes supabase-js's default
+ * options (they name no PostgREST version). Read from the call instead, its type was inferred, and with 00497's table
+ * the declaration it emits outgrew what the compiler will write (TS7056).
+ */
+type Builder<T extends TenantTable> = PostgrestQueryBuilder<
+  { PostgrestVersion: "12" },
+  Database["public"],
+  Tables[T],
+  T
+>;
+function builderOf<T extends TenantTable>(db: Db, table: T): Builder<T> {
   return db.from(table);
 }
-type Builder<T extends TenantTable> = ReturnType<typeof builderOf<T>>;
 
 /** One workspace's rows, through the service role. */
 export interface TenantDb {

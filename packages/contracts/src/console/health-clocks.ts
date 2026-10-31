@@ -309,6 +309,7 @@ const JOB_WORDS: Record<JobKind, string> = {
   inbound_answer: "Answering a text",
   history_import: "Bringing a connection's history in",
   website_read: "Reading a business's website",
+  preview_build: "Making a lead's preview",
 };
 
 /** A job's kind in words; an unknown kind said as it is. */

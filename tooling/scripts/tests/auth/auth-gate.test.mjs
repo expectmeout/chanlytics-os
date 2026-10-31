@@ -131,7 +131,7 @@ test("the one public door under /api/ask is the voice agent's brain door, at its
   assert.ok(!paths.some((p) => p.startsWith("/api/v1/ask")), "every member route of Ask stays behind the gate");
 });
 
-test("six public PREFIXES, and only a workspace's own pages, the unsubscribe link, a partner's link and a sign-up's confirmation live under them", () => {
+test("eight public PREFIXES, and only a workspace's own pages, the unsubscribe link, a partner's link, a sign-up's confirmation and a lead's own receptionist live under them", () => {
   const block = /PUBLIC_PREFIXES\s*=\s*\[([^\]]*)\]/.exec(middleware);
   assert.ok(block, "PUBLIC_PREFIXES must be a literal array so this test can read it");
   const prefixes = [...block[1].matchAll(/["']([^"']+)["']/g)].map((m) => m[1]);
@@ -171,7 +171,14 @@ test("six public PREFIXES, and only a workspace's own pages, the unsubscribe lin
   // confirmed_signup: the email is the sign-up's, it left, it is at most seven days old, it went to the person's
   // address now, and they did not say STOP), so a press can say yes for nobody but the inbox the email reached
   // (signup-confirm-page.test.mjs).
-  assert.deepEqual(prefixes, ["/yes/", "/b/", "/.well-known/", "/u/", "/p/", "/c/"]);
+  //
+  // `/preview/` and `/api/v1/previews/` joined with a lead's own receptionist (decision 0079): the link a cold email
+  // carries to a business that has no account, and the three doors its page presses. Let in on /u/'s terms: the token is
+  // the authority (22 characters over 16 random bytes, kept on its row), so a link we did not make reads nothing; the
+  // page is noindex and sends no referrer; a GET changes nothing, and its opening is counted by its own script; each
+  // door makes the same-origin check, takes a bucket per network and acts through a service-role door that holds the
+  // preview's limits (00497; previews/preview-routes.test.mjs). Making one theirs is behind sign-in, outside both.
+  assert.deepEqual(prefixes, ["/yes/", "/b/", "/.well-known/", "/u/", "/p/", "/c/", "/preview/", "/api/v1/previews/"]);
   assert.match(middleware, /PUBLIC_PREFIXES\.some\(\(p\) => path\.startsWith\(p\)\)/);
   //
   // `/yes/<slug>/form` joined the opt-in page when a yes to offers had to be
@@ -349,7 +356,21 @@ test("every /api/v1 route verifies the user itself", () => {
   assert.ok(routes.length >= 20, `expected the v1 surface, found ${routes.length} routes`);
   // route()'s read() and write() are withRoute underneath: a route declared
   // through them verifies the user exactly as a bare withRoute does.
+  //
+  // A lead's own receptionist's page's four doors (decision 0079) have no user to verify: they are public under the proxy's
+  // /api/v1/previews/ prefix, the token is the authority, and each is the page's own door, which makes the same-origin
+  // check and takes a bucket per network (server/previews/public-route.ts). Named here, and held to that door.
+  const PREVIEW_DOORS = ["message", "opened", "not-right", "call"].map((d) =>
+    path.join("app/api/v1/previews/[token]", d, "route.ts"),
+  );
+  for (const door of PREVIEW_DOORS)
+    assert.match(
+      fs.readFileSync(path.join(DASH, door), "utf8"),
+      /const door = previewRoute\([^]*export async function POST\([^)]*\)[^{]*\{\s*return door\(req, ctx\);/,
+      `${door} is the page's own door`,
+    );
   const raw = routes.filter((f) => {
+    if (PREVIEW_DOORS.includes(path.relative(DASH, f))) return false;
     const src = fs.readFileSync(f, "utf8");
     return !src.includes("withRoute") && !src.includes('from "@/server/route"');
   });
@@ -722,4 +743,14 @@ test("a workspace's documents and the home are never stored; the router's reques
     assert.equal(await cacheOf(path, { rsc: "1" }), null, `${path}: the router's request is Next's to say`);
   }
   assert.equal(await cacheOf("/b/acme"), null, "a business's public page says its own");
+  // A lead's own receptionist's page and Make it mine's (decision 0079): the token is the whole authority, so neither is
+  // stored, indexed, or sends it on as a referrer.
+  for (const path of ["/preview/TokenTokenTokenToken01", "/preview/TokenTokenTokenToken01/mine"]) {
+    const res = await unstable_getResponseFromNextConfig({ url: `${APP}${path}`, nextConfig: loadedConfig });
+    assert.deepEqual(
+      [res.headers.get("cache-control"), res.headers.get("x-robots-tag"), res.headers.get("referrer-policy")],
+      ["private, no-store, max-age=0", "noindex, nofollow", "no-referrer"],
+      path,
+    );
+  }
 });

@@ -603,3 +603,28 @@ test("How it runs draws the mailboxes' ticks, every batch of first emails waitin
   const put = wire.filter(([m, p]) => m === "PUT" && p === `sequences/${SEQ}/chain`).at(-1);
   assert.deepEqual([put[2].signs_with, put[2].mailbox_ids], ["mailbox", ["sam"]]);
 });
+
+test("their preview (decision 0079): Insert offers it in a later email of a workspace that makes previews, or says why not", () => {
+  const { leadInsertRowsOf, leadPreviewOfferOf, LEAD_BUILD_WORDS: B } = contracts;
+  const place = { business_name: "Fixture Barbers", city: "Austin", kind: "place" };
+  const company = { business_name: "Fixture Agency", city: "Austin", kind: "company" };
+  assert.deepEqual(leadPreviewOfferOf({ makes: false, first: false, lead: place }), { offered: false, why: null });
+  assert.deepEqual(leadPreviewOfferOf({ makes: true, first: true, lead: place }), {
+    offered: false,
+    why: B.previewLater,
+  });
+  assert.deepEqual(leadPreviewOfferOf({ makes: true, first: false, lead: company }), {
+    offered: false,
+    why: B.previewNotForCompanies,
+  });
+  const offer = leadPreviewOfferOf({ makes: true, first: false, lead: place });
+  assert.deepEqual(offer, { offered: true, why: null });
+  const workspace = { businessName: "Chanlytics", bookingLink: null, yourName: "Ruben" };
+  const rows = leadInsertRowsOf(place, workspace, offer);
+  const row = rows.find((r) => r.key === "their preview");
+  assert.deepEqual([row.group, row.value, row.look], ["them", B.previewMade, "later"], "made when it goes");
+  assert.equal(
+    leadInsertRowsOf(place, workspace, { offered: false }).some((r) => r.key === "their preview"),
+    false,
+  );
+});

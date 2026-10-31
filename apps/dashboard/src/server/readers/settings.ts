@@ -53,11 +53,12 @@ export function withHiddenFeed(role: string, incoming: unknown, stored: unknown)
  * Resolved HERE rather than on the client: the server can read the channel rows
  * and the Google listing under RLS in one round trip, while the browser only
  * ever had a listing DTO with no address on it. One place that knows, so there
- * is one answer — which is the whole point of facts.ts.
+ * is one answer — which is the whole point of facts.ts. With it, from the same row, whether the workspace is ours
+ * (00469): only ours makes previews for its leads (decision 0079).
  */
-export async function knownFacts(ctx: RouteContext, tenantId: string): Promise<KnownFacts> {
+export async function knownFacts(ctx: RouteContext, tenantId: string): Promise<KnownFacts & { ours: boolean }> {
   const [ws, ch, gl, lines] = await Promise.all([
-    ctx.supabase.from("tenants").select("name, timezone").eq("id", tenantId).maybeSingle(),
+    ctx.supabase.from("tenants").select("name, timezone, ours").eq("id", tenantId).maybeSingle(),
     ctx.supabase.from("tenant_channels").select("kind, number_e164, status").eq("tenant_id", tenantId),
     ctx.supabase.from("google_listings").select("name, address").eq("tenant_id", tenantId).maybeSingle(),
     // The number the business keeps and forwards: the same rows, read the same way, as Setup's line rows. A failed
@@ -69,7 +70,8 @@ export async function knownFacts(ctx: RouteContext, tenantId: string): Promise<K
   // channels could not be listed sees its typed values unresolved, which is
   // exactly where it was before any of this existed.
   return {
-    workspace: ws.error ? null : ws.data,
+    workspace: ws.error || !ws.data ? null : { name: ws.data.name, timezone: ws.data.timezone },
+    ours: !ws.error && ws.data?.ours === true,
     channels: ch.error ? [] : (ch.data ?? []),
     listing: gl.error ? null : gl.data,
     forwarding: knownForwarding(lines),
@@ -90,6 +92,8 @@ type SettingsRead =
       updatedAt: string | null;
       /** Whether the Google listing keeps a review link (db reviewLinkOf, 00415): never the link itself. */
       review_link: boolean;
+      /** Whether this workspace makes previews for its leads (decision 0079): ours alone. */
+      previews: boolean;
     }
   | { config: null; version: number; role: ReaderContext["role"]; configBroken: true; issues: string[] };
 
@@ -155,6 +159,8 @@ export const settings: Reader<undefined, SettingsRead> = {
           updatedBy: row.updated_by ?? null,
           updatedAt: row.updated_at ?? null,
           review_link: reviewLink !== null,
+          // Whether it makes previews (decision 0079): the step editor offers {{their preview}} where it does.
+          previews: known.ours,
         },
         rows: [],
         stamp: stamp(),

@@ -42,63 +42,83 @@ const PAGE_TEXT_MAX = 12_000;
 /** The most the reading may take of the job's time. */
 const READ_CALL_MS = 30 * SECOND_MS;
 
+/** What a read kept: its facts as business_reads holds them, and why it could not be read, or null where it was. */
+export interface WebsiteReadKept {
+  facts: Json;
+  error: string | null;
+}
+
+/**
+ * A workspace's website read and kept (business_reads), its look worn: the job's read, and a lead's preview's build
+ * (decision 0079, previews/build.ts), which reads the site of a workspace nobody is a member of yet. No model call
+ * starts after `deadline`. Answers what it kept.
+ */
+export async function readWebsite(
+  db: Db,
+  tenantId: string,
+  raw: string | null,
+  deadline: number,
+): Promise<WebsiteReadKept> {
+  const L = logger({ tenant_id: tenantId });
+  const url = feedUrlOk(raw);
+  const keep = async (facts: Json, error: string | null): Promise<WebsiteReadKept> => {
+    await keepBusinessRead(db, { tenantId, source: "website", facts, readFrom: url ?? raw, error });
+    return { facts, error };
+  };
+  if (!url) return keep({}, WEBSITE_UNREAD_WORDS.address);
+  const home = await publicPageText(fetch, url, PAGE_READ);
+  if (!home) return keep({}, WEBSITE_UNREAD_WORDS.silent);
+  // The business's look, off the home page already in hand (decision 0075): its colour and the mark it declares,
+  // worn where the workspace has none of its own and no person set them. Kept with the read, model or no model.
+  const worn = await wearSiteLook(db, { tenantId, html: home, origin: new URL(url).origin });
+  const look: Json = { logo_url: worn.logo_url, accent: worn.accent, worn: { ...worn.worn } };
+  if (!env.ANTHROPIC_API_KEY) return keep({ look }, WEBSITE_UNREAD_WORDS.failed);
+  const more = sitePagesLinkedFrom(home, url, 2);
+  const pages = [
+    { at: url, html: home },
+    ...(await Promise.all(more.map(async (at) => ({ at, html: await publicPageText(fetch, at, PAGE_READ) })))),
+  ].filter((p): p is { at: string; html: string } => !!p.html);
+  const user = pages
+    .map((p) => `Page ${p.at}\n${(emailPlainText({ text: null, html: p.html }) ?? "").slice(0, PAGE_TEXT_MAX)}`)
+    .join("\n\n---\n\n");
+  const ms = Math.min(READ_CALL_MS, deadline - Date.now());
+  if (ms <= 0) throw new Error("website_read: no time left for the reading");
+  let answer: unknown;
+  try {
+    const answered = await askJson({
+      purpose: "website_read",
+      system: WEBSITE_READ_SYSTEM,
+      user,
+      schema: WEBSITE_READ_SCHEMA,
+      maxTokens: 2500,
+      plainJsonHint: "Answer with only a JSON object in the shape asked.",
+      timeoutMs: ms,
+      signal: AbortSignal.timeout(ms),
+      for: { tenantId, subjectId: null, promptHash: promptHashOf(WEBSITE_READ_SYSTEM) },
+    });
+    answer = answered?.answer ?? null;
+  } catch (e) {
+    L.warn("website_read_failed", { error: errField(e) });
+    return keep({ look }, WEBSITE_UNREAD_WORDS.failed);
+  }
+  const facts = businessReadFactsOf(answer);
+  const found = facts.services.length + facts.rules.length + facts.answers.length + facts.closed.length;
+  L.info("website_read", { pages: pages.length, services: facts.services.length, found });
+  const kept: Json = {
+    services: facts.services,
+    closed: facts.closed,
+    rules: facts.rules,
+    answers: facts.answers,
+    description: facts.description,
+    look,
+  };
+  return keep(kept, found || facts.description ? null : WEBSITE_UNREAD_WORDS.nothing);
+}
+
 export function websiteReader(db: Db): NonNullable<JobContext["website"]> {
   return {
     read: async (job: ClaimedJob, deadline: number) => {
-      const tenantId = job.tenant_id;
-      const L = logger({ tenant_id: tenantId });
-      const raw = typeof job.payload.url === "string" ? job.payload.url : null;
-      const url = feedUrlOk(raw);
-      const keep = (facts: Json, error: string | null) =>
-        keepBusinessRead(db, { tenantId, source: "website", facts, readFrom: url ?? raw, error });
-      if (!url) return keep({}, WEBSITE_UNREAD_WORDS.address);
-      const home = await publicPageText(fetch, url, PAGE_READ);
-      if (!home) return keep({}, WEBSITE_UNREAD_WORDS.silent);
-      // The business's look, off the home page already in hand (decision 0075): its colour and the mark it declares,
-      // worn where the workspace has none of its own and no person set them. Kept with the read, model or no model.
-      const worn = await wearSiteLook(db, { tenantId, html: home, origin: new URL(url).origin });
-      const look: Json = { logo_url: worn.logo_url, accent: worn.accent, worn: { ...worn.worn } };
-      if (!env.ANTHROPIC_API_KEY) return keep({ look }, WEBSITE_UNREAD_WORDS.failed);
-      const more = sitePagesLinkedFrom(home, url, 2);
-      const pages = [
-        { at: url, html: home },
-        ...(await Promise.all(more.map(async (at) => ({ at, html: await publicPageText(fetch, at, PAGE_READ) })))),
-      ].filter((p): p is { at: string; html: string } => !!p.html);
-      const user = pages
-        .map((p) => `Page ${p.at}\n${(emailPlainText({ text: null, html: p.html }) ?? "").slice(0, PAGE_TEXT_MAX)}`)
-        .join("\n\n---\n\n");
-      const ms = Math.min(READ_CALL_MS, deadline - Date.now());
-      if (ms <= 0) throw new Error("website_read: no time left for the reading");
-      let answer: unknown;
-      try {
-        const answered = await askJson({
-          purpose: "website_read",
-          system: WEBSITE_READ_SYSTEM,
-          user,
-          schema: WEBSITE_READ_SCHEMA,
-          maxTokens: 2500,
-          plainJsonHint: "Answer with only a JSON object in the shape asked.",
-          timeoutMs: ms,
-          signal: AbortSignal.timeout(ms),
-          for: { tenantId, subjectId: null, promptHash: promptHashOf(WEBSITE_READ_SYSTEM) },
-        });
-        answer = answered?.answer ?? null;
-      } catch (e) {
-        L.warn("website_read_failed", { error: errField(e) });
-        return keep({ look }, WEBSITE_UNREAD_WORDS.failed);
-      }
-      const facts = businessReadFactsOf(answer);
-      const found = facts.services.length + facts.rules.length + facts.answers.length + facts.closed.length;
-      L.info("website_read", { pages: pages.length, services: facts.services.length, found });
-      const kept: Json = {
-        services: facts.services,
-        closed: facts.closed,
-        rules: facts.rules,
-        answers: facts.answers,
-        description: facts.description,
-        look,
-      };
-      await keep(kept, found || facts.description ? null : WEBSITE_UNREAD_WORDS.nothing);
+      await readWebsite(db, job.tenant_id, typeof job.payload.url === "string" ? job.payload.url : null, deadline);
     },
   };
 }

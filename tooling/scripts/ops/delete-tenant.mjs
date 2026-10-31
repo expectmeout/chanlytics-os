@@ -152,6 +152,8 @@ const TABLES = [
   // What was brought in, and what the profile and the website say (00477, 00479; decision 0073).
   "imports",
   "business_reads",
+  // A lead's own receptionist before they sign up (00497, decision 0079): the sender's row; its workspace is its own.
+  "lead_previews",
   "reply_turns",
   "segment_members",
   "segments",

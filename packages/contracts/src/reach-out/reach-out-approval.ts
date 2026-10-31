@@ -51,6 +51,9 @@ export function skippedReasonWords(reason: string): string {
       return "the mailbox their emails came from was removed";
     case "outreach_country":
       return "are where a cold email may not go without their say";
+    // Decision 0079: words that name {{their preview}}, for a lead whose preview failed or has ended.
+    case "no_preview":
+      return "had no preview to send: it couldn't be made, or it ended";
     // The person door's refusals when its owner said an email went (00429 reach_out_send_said).
     case "lead_closed":
       return "had closed before it went";

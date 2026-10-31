@@ -574,6 +574,24 @@ export async function deletePhoneNumber(cfg: RetellConfig, number: string): Prom
   return { ok: r.outcome === "ok" || r.status === 404, status: r.status };
 }
 
+/**
+ * DELETE /delete-agent — an agent taken off Retell, every version of it (a lead's preview ended, decision 0079: its
+ * workspace is erased, and nothing answers in its agent again). Gone already (404) is gone.
+ */
+export async function deleteAgent(cfg: RetellConfig, agentId: string): Promise<{ ok: boolean; status: number }> {
+  const r = answered(await retell(cfg, "DELETE", `/delete-agent/${encodeURIComponent(agentId)}`), "delete-agent");
+  return { ok: r.outcome === "ok" || r.status === 404, status: r.status };
+}
+
+/** DELETE /delete-retell-llm — the LLM an agent was over, taken off Retell with it. Gone already (404) is gone. */
+export async function deleteRetellLlm(cfg: RetellConfig, llmId: string): Promise<{ ok: boolean; status: number }> {
+  const r = answered(
+    await retell(cfg, "DELETE", `/delete-retell-llm/${encodeURIComponent(llmId)}`),
+    "delete-retell-llm",
+  );
+  return { ok: r.outcome === "ok" || r.status === 404, status: r.status };
+}
+
 /** PATCH /update-phone-number — the agents on a number, its inbound webhook, its nickname. */
 export function updatePhoneNumber(
   cfg: RetellConfig,

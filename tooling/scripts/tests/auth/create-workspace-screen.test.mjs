@@ -14,7 +14,7 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { SIGNUP_WORDS, SignupSchema } from "@chanlytics/contracts";
+import { LEAD_PREVIEW_WORDS, SIGNUP_WORDS, SignupSchema } from "@chanlytics/contracts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const SCREEN = path.join(ROOT, "apps/dashboard/src/legacy-bridge/CreateWorkspace.tsx");
@@ -624,4 +624,65 @@ test("no handover, or none on an older server: nothing is asked", () => {
   globalThis.window.__ME = { email: "owner@luna.example" };
   cells = [];
   assert.equal(ask(), null);
+});
+
+/* ---- Make it mine (decision 0079, L4) ---- */
+
+const FROM_PREVIEW = { name: "Fixture Barbers", timezone: "America/Chicago", preview: "TokenTokenTokenToken01" };
+const CLAIMED = {
+  status: 200,
+  body: {
+    ok: true,
+    data: {
+      workspace: {
+        id: "w9",
+        slug: "fixture-barbers",
+        name: "Fixture Barbers",
+        status: "active",
+        timezone: "America/Chicago",
+        locale: "en",
+      },
+    },
+  },
+};
+
+test("a first workspace whose sign-up came from a preview's link claims it on arrival, whatever the posture", async () => {
+  for (const posture of ["open", "invite", "waitlist"]) {
+    const w = standIn(CLAIMED);
+    globalThis.window = w;
+    const created = [];
+    const props = { email: "owner@fixture.example", posture, initial: FROM_PREVIEW, onCreated: (x) => created.push(x) };
+    const tree = render(props);
+    assert.equal(
+      textOf(byTestId(tree, "cw-making")),
+      `Fixture Barbers${LEAD_PREVIEW_WORDS.signup.claiming}`,
+      `${posture}: it says it is making it theirs, and asks nothing`,
+    );
+    await settle(props);
+    assert.deepEqual(
+      w.asked.map((a) => [a.url, a.method, a.body]),
+      [["/api/v1/preview-claims", "POST", { token: "TokenTokenTokenToken01" }]],
+      `${posture}: one claim, and no workspace made beside it`,
+    );
+    assert.deepEqual(
+      created.map((x) => x.slug),
+      ["fixture-barbers"],
+      `${posture}: the app opens on it`,
+    );
+  }
+});
+
+test("a claim refused leaves the form, filled in, with the door's own sentence", async () => {
+  const w = standIn({
+    status: 409,
+    body: { ok: false, error: { code: "conflict", message: "Fixture Barbers is already set up." } },
+  });
+  globalThis.window = w;
+  const props = { email: "owner@fixture.example", posture: "open", initial: FROM_PREVIEW, onCreated() {} };
+  render(props);
+  const tree = await settle(props);
+  assert.equal(byTestId(tree, "cw-making"), null);
+  assert.ok(find(tree, (n) => n.type === "input" && n.props.value === "Fixture Barbers"));
+  assert.equal(textOf(find(tree, (n) => n.props?.role === "alert")), "Fixture Barbers is already set up.");
+  assert.equal(w.asked.length, 1, "asked once, and not again by itself");
 });

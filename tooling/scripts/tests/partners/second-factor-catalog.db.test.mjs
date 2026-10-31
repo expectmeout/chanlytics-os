@@ -120,6 +120,8 @@ const NOT_A_SEATS_DOOR = {
   "handover_accept(uuid)": "answers the person a workspace is handed to, by their proved address, never a seat",
   "handover_decline(uuid)": "answers the person a workspace is handed to, by their proved address, never a seat",
   "handovers_mine()": "lists the handovers addressed to the caller's proved address, and excludes the partner's own",
+  "preview_claim(text)":
+    "counts the workspaces the caller owns against the ten, as create_workspace_for does, and seats them on a preview by its link: no seat is read for access",
   "notification_mark(uuid,boolean,boolean)": "writes the caller's own read marks; answers no workspace content",
   "notifications_seen(uuid)": "writes the caller's own seen mark; answers no workspace content",
   "partner_invite(uuid,text)": "an owner of the workspace only (is_workspace_owner): a partner's seat is not one",

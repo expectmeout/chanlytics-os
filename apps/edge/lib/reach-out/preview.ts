@@ -11,12 +11,15 @@ import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   REACH_OUT_PREVIEW_INDEX_MAX,
+  previewSlotOf,
+  slotCount,
   type ReachOutHold,
   type ReachOutSignsWith,
   type SlotLead,
 } from "../packages/contracts.js";
 import {
   leadCountriesOf,
+  leadPreviewOf,
   leadSlotsOf,
   mailboxConnectionOf,
   reachOutAudience,
@@ -34,6 +37,7 @@ import {
   type CheckBudget,
 } from "./check.js";
 import { reachOutRequest, type RequestRefusal } from "./request.js";
+import { dashboardOrigin } from "../dashboard-origin.js";
 
 type Db = SupabaseClient<Database>;
 
@@ -108,6 +112,12 @@ const slotLeadOf = (
   source: slots?.source ?? null,
 });
 
+/** Their preview as the send would read it (decision 0079), never made by a look: one not made yet waits for it. */
+const previewSlotFor = async (db: Db, i: PreviewInput, leadId: string) =>
+  slotCount(i.words.body, "their preview") > 0
+    ? previewSlotOf(await leadPreviewOf(db, i.tenantId, leadId), new Date(), dashboardOrigin())
+    : null;
+
 export async function previewOne(
   db: Db,
   i: PreviewInput,
@@ -127,7 +137,7 @@ export async function previewOne(
   });
   const lead = leads[index];
   if (!lead) return none;
-  const [record, workspace, countries, slots, mailbox] = await Promise.all([
+  const [record, workspace, countries, slots, mailbox, preview] = await Promise.all([
     reachOutRecord(db, { tenantId: i.tenantId, searchId: i.searchId, leadId: lead.lead_id }),
     checkWorkspaceOf(db, i.tenantId),
     leadCountriesOf(db, [lead.lead_id]),
@@ -135,6 +145,7 @@ export async function previewOne(
     leadSlotsOf(db, i.tenantId, lead.lead_id),
     // The mailbox it would leave from, this workspace's and not removed: its signature is the one the email may end with.
     i.mailboxId ? mailboxConnectionOf(db, i.tenantId, i.mailboxId) : Promise.resolve(null),
+    previewSlotFor(db, i, lead.lead_id),
   ]);
   if (!record) return none;
   const input = {
@@ -154,7 +165,7 @@ export async function previewOne(
     contactId: randomUUID(),
     to: lead.email,
     words: i.words,
-    lead: slotLeadOf(lead, slots),
+    lead: { ...slotLeadOf(lead, slots), preview },
     workspace: {
       businessName: workspace.businessName,
       address: workspace.address,

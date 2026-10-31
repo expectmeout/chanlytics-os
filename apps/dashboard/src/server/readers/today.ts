@@ -1,5 +1,12 @@
 import "server-only";
-import type { CallDto, ConversationDto, EscalationDto, LeadSearchDto, MetricsSummaryDto } from "@chanlytics/contracts";
+import type {
+  CallDto,
+  ConversationDto,
+  EscalationDto,
+  LeadSearchDto,
+  MetricsSummaryDto,
+  PreviewTriedDto,
+} from "@chanlytics/contracts";
 import type { GoingRunRow, WaitingRunRow } from "@chanlytics/db";
 import { load, stamp, type Reader } from "./index";
 import { goingRuns, waitingRuns } from "./broadcasts";
@@ -9,6 +16,7 @@ import { conversations } from "./conversations";
 import { escalations } from "./escalations";
 import { calls } from "./calls";
 import { searches } from "./searches";
+import { previewsTried } from "./leads";
 import { log } from "@/server/log";
 
 interface TodayRead {
@@ -27,6 +35,8 @@ interface TodayRead {
   heldThreads: ConversationDto[] | null;
   /** The runs set to go on their own in the next day (decision 0064: Going today); null where the read failed. */
   going: GoingRunRow[] | null;
+  /** The leads who tried their own receptionist lately (decision 0079); null where the read failed. */
+  previewsTried: PreviewTriedDto[] | null;
 }
 
 /**
@@ -41,7 +51,7 @@ interface TodayRead {
 export const today: Reader<undefined, TodayRead> = {
   name: "today",
   async read(rc) {
-    const [m, c, e, k, s, r, g] = await Promise.all([
+    const [m, c, e, k, s, r, g, t] = await Promise.all([
       load(rc, metrics, { days: 1 }),
       load(rc, conversations, { ids: null }),
       load(rc, escalations, { state: "open" }),
@@ -61,6 +71,10 @@ export const today: Reader<undefined, TodayRead> = {
         log.error("today_runs_fetch_failed", { error: err });
         return null;
       }),
+      load(rc, previewsTried, undefined).catch((err: unknown) => {
+        log.error("today_previews_fetch_failed", { error: err });
+        return null;
+      }),
     ]);
     const held = await heldThreadsBeyond(rc, c.data.conversations, e.data.escalations);
     if (held.threads === null) log.error("today_held_threads_fetch_failed", { asked: held.missing.length });
@@ -74,6 +88,7 @@ export const today: Reader<undefined, TodayRead> = {
         runs: r ? r.data.runs : null,
         heldThreads: held.threads,
         going: g ? g.data.runs : null,
+        previewsTried: t ? t.data.previews : null,
       },
       rows: [...c.rows, ...(k?.rows ?? []), ...(r?.rows ?? []), ...(g?.rows ?? [])],
       stamp: stamp(),

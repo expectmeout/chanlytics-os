@@ -16,7 +16,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { signupPosture, SIGNUP_WAITLIST, SIGNUP_WORDS } from "@chanlytics/contracts";
+import { signupPosture, signupPostureFor, SIGNUP_WAITLIST, SIGNUP_WORDS } from "@chanlytics/contracts";
 import { readCode, readRaw } from "../_source.mjs";
 
 test("one environment variable, three postures", () => {
@@ -27,6 +27,15 @@ test("one environment variable, three postures", () => {
   // The sentinel is a word nobody would choose as an invite code by accident,
   // and short enough to type into a Vercel field without a mistake.
   assert.equal(SIGNUP_WAITLIST, "waitlist");
+});
+
+test("a lead's own receptionist's live link opens sign-up whatever the posture, and only a live one", () => {
+  // Only Chanlytics sends one (decision 0079), so it stands for an invite code; the route and the page ask the same
+  // rule, and previews/preview-claim.test.mjs runs the route under each posture.
+  for (const posture of ["open", "waitlist", "invite"]) {
+    assert.equal(signupPostureFor(posture, true), "open", posture);
+    assert.equal(signupPostureFor(posture, false), posture, `${posture}: no link, the switch's`);
+  }
 });
 
 test("the waitlist branch creates nothing, and returns before it could", () => {
@@ -113,7 +122,7 @@ test("the table is a queue, not a mailing list", () => {
 });
 
 test("the page renders the door it actually is", () => {
-  const page = readCode("apps/dashboard/app/signup/page.tsx");
+  const page = readCode("apps/dashboard/src/auth/SignupScreen.tsx");
   // A button that says "Create workspace" on a page that is really a waitlist
   // is a promise the next screen breaks, so nothing renders until the server
   // has said which door this is.

@@ -219,6 +219,14 @@ export interface JobContext {
     read: (job: ClaimedJob, deadline: number) => Promise<void>;
   };
   /**
+   * A lead's own receptionist built (00497, decision 0079), as the edge holds it: the website read and the model's key
+   * live there. INJECTED like the website reader; a preview_build job in a runtime without it fails loudly.
+   */
+  previews?: {
+    /** The preview's receptionist written and its website worn; answers the preview built or failed. Throws to be tried again. */
+    build: (job: ClaimedJob, deadline: number) => Promise<void>;
+  };
+  /**
    * Schedule a job of this tenant — how a broadcast continues itself, one
    * batch after another, through the same door the dashboard uses.
    */

@@ -430,6 +430,8 @@ before(async () => {
     null,
   );
   await seed("lead_places", { tenant_id: A, lead_id: ctx.lead, place_id: "ChIJtenancy0002" }, null);
+  // A lead's own receptionist before they sign up (00497, decision 0079): members read their workspace's, the doors write.
+  await seed("lead_previews", { tenant_id: A, lead_id: ctx.lead, token: "tenancyTenancyTenancy1" }, null);
   await seed(
     "lead_search_members",
     { tenant_id: A, search_id: ctx.leadSearch, lead_id: ctx.lead, round_id: ctx.leadRound, class: "review" },
@@ -941,6 +943,7 @@ const TENANT_TABLES = {
   lead_judgments: ["none", () => ({ tenant_id: A, round_id: ctx.leadRound, op_id: "stranger", answer: {} })],
   leads: ["member", () => ({ tenant_id: A, place_id: "ChIJstranger0001", business_name: "Stranger" })],
   lead_places: ["member", () => ({ tenant_id: A, lead_id: ctx.lead, place_id: "ChIJstranger0002" })],
+  lead_previews: ["member", () => ({ tenant_id: A, lead_id: ctx.lead, token: "strangerStrangerStran1" })],
   lead_search_members: [
     "member",
     () => ({ tenant_id: A, search_id: ctx.leadSearch, lead_id: ctx.lead, class: "review" }),

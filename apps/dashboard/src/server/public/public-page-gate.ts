@@ -11,19 +11,23 @@ import "server-only";
  *
  * The rules are the pages' own: the opt-in page, its paper form and its desk sign need the workspace's consent facts
  * (`consentPageFor`); the business's page and its texting terms need a record that says who the business is
- * (`businessPageVM`, `textingTermsVM`). The pages keep their own `notFound()` for their metadata and as the floor.
+ * (`businessPageVM`, `textingTermsVM`); a lead's own receptionist's page needs a preview its token names (decision 0079,
+ * preview-page.ts), whatever state it is in, since an ended one still says so. The pages keep their own `notFound()`
+ * for their metadata and as the floor.
  */
 import { businessPageVM, textingTermsVM, type BusinessPageFacts } from "@chanlytics/contracts";
 import { businessPageFor } from "./business-page";
 import { consentPageFor } from "./consent-page";
+import { previewNamed } from "./preview-page";
 
 /** The reads the rules ask: the pages' own, or a test's. */
 interface PublicPageReads {
   consent: (slug: string) => Promise<unknown>;
   business: (slug: string) => Promise<BusinessPageFacts | null>;
+  preview: (token: string) => Promise<boolean>;
 }
 
-const PAGES_READ: PublicPageReads = { consent: consentPageFor, business: businessPageFor };
+const PAGES_READ: PublicPageReads = { consent: consentPageFor, business: businessPageFor, preview: previewNamed };
 
 /** Each public page under a slug, and whether a slug has it. */
 const PAGES: { at: RegExp; has: (slug: string, read: PublicPageReads) => Promise<boolean> }[] = [
@@ -35,6 +39,8 @@ const PAGES: { at: RegExp; has: (slug: string, read: PublicPageReads) => Promise
       return !!facts && !businessPageVM(facts).empty;
     },
   },
+  // Its page, and Make it mine's (L4), which sends one it cannot make theirs back to its page.
+  { at: /^\/preview\/([^/]+)(?:\/mine)?\/?$/, has: (token, read) => read.preview(token) },
   {
     at: /^\/b\/([^/]+)\/terms\/?$/,
     has: async (slug, read) => {

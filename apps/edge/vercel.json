@@ -47,6 +47,9 @@
           "api/admin/rehearsal/review.ts": {
             "maxDuration": 60
           },
+          "api/admin/previews/make.ts": {
+            "maxDuration": 15
+          },
           "api/admin/reach-out-preview.ts": {
             "maxDuration": 30
           },
@@ -120,6 +123,9 @@
             "maxDuration": 60
           },
           "api/cron/playbooks.ts": {
+            "maxDuration": 60
+          },
+          "api/cron/previews.ts": {
             "maxDuration": 60
           },
           "api/cron/registrations.ts": {

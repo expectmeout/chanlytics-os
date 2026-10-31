@@ -325,6 +325,45 @@ test("a search waiting on its owner is a row in the queue, by its wait, with one
   }
 });
 
+test("a lead who tried their own receptionist is a row (decision 0079), after everyone waiting, opening the lead", () => {
+  const tried = {
+    id: "p1",
+    lead_id: "l1",
+    state: "ready",
+    tried_at: "2026-09-06T13:30:00Z",
+    asked_count: 4,
+    call_count: 1,
+    call_seconds: 72,
+    not_right: [{ fact: "Hours", said: "Saturday we close at 1", at: "x" }],
+    business: "Fixture Barbers",
+  };
+  const vm = toTodayVM(metrics(), conversations, escalations, calls, NOW, null, { previewsTried: [tried] });
+  const rows = vm.queue.rows;
+  assert.deepEqual(
+    rows.map((r) => r.kind),
+    ["handoff", "callback", "window", "call", "tried"],
+    "a hot lead, never a person waiting: after everyone",
+  );
+  const row = rows.at(-1);
+  assert.deepEqual([row.who, row.channel, row.person_id, row.conversationId], ["Fixture Barbers", "Leads", null, null]);
+  assert.equal(row.sentence, "4 messages · a call of a minute · Says the hours aren't right: “Saturday we close at 1”");
+  assert.deepEqual(row.status, ["Tried their receptionist"]);
+  assert.deepEqual(row.cta.label, "Open the lead");
+  assert.match(row.cta.to, /l1/);
+  assert.ok(vm.queue.parts.includes("1 lead tried their preview"), vm.queue.parts.join(" · "));
+  const claimed = toTodayVM(metrics(), conversations, escalations, calls, NOW, null, {
+    previewsTried: [{ ...tried, state: "claimed" }],
+  });
+  assert.deepEqual(claimed.queue.rows.at(-1).status, ["Tried their receptionist", "made it theirs"]);
+  // Not read, or none: the queue is what it was.
+  for (const beside of [{}, { previewsTried: null }, { previewsTried: [] }])
+    assert.ok(
+      !toTodayVM(metrics(), conversations, escalations, calls, NOW, null, beside).queue.rows.some(
+        (r) => r.kind === "tried",
+      ),
+    );
+});
+
 test("the cap and the rest: six rows on Today, the rest counted for the Inbox link; a quiet day has an empty queue", () => {
   const many = Array.from({ length: 8 }, (_, i) => ({
     id: `e${i}`,

@@ -3,7 +3,8 @@
  * column at compile time by schema-sets.ts, against sets generated from the
  * database itself (tooling/scripts/gen/schema-sets.mjs).
  */
-export const TENANT_STATUSES = ["active", "paused", "test"] as const;
+/** `preview`: a workspace built for a lead before anyone signs up, with no member (00497, decision 0079). */
+export const TENANT_STATUSES = ["active", "paused", "test", "preview"] as const;
 export type TenantStatus = (typeof TENANT_STATUSES)[number];
 
 export const MEMBERSHIP_ROLES = ["owner", "operator", "partner", "viewer"] as const;
@@ -142,6 +143,13 @@ export const JOB_KINDS = [
    * in the lane of someone waiting. Written to be run again: the read is kept whole, the newest standing.
    */
   "website_read",
+  /**
+   * A lead's own receptionist built before they sign up (00497, decision 0079): written from the lead's listing, its
+   * website read and worn, in the lane of someone waiting (a send held for it, or the member who pressed). payload
+   * { preview_id }, keyed 'preview_build:<preview>' while one waits. Written to be run again: a built preview moves no
+   * more, and the config write is the settings' compare-and-swap.
+   */
+  "preview_build",
 ] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 
@@ -458,6 +466,12 @@ export const EVENT_KINDS = [
   /** A search renamed ({ name, by }) or removed ({ kept, archived, by }), on the search. */
   "lead.search_renamed",
   "lead.search_removed",
+  /**
+   * A lead's own receptionist before they sign up (00497, decision 0079): made ({ preview_id, by }), on the lead; made
+   * theirs ({ preview_id }) on the lead, and ({ by }) on the workspace that became theirs.
+   */
+  "preview.made",
+  "preview.claimed",
   /** A sequence to leads set to add a search's new ready leads, or not ({ search_id, by }), on its first step (00459). */
   "reach_out.source_set",
   /** Two records a doubt named, said to be two people ({ by }), on the person. */

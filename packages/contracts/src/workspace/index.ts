@@ -239,6 +239,7 @@ export {
   SIGNUP_WAITLIST,
   SIGNUP_WORDS,
   signupPosture,
+  signupPostureFor,
   verifyCodeWords,
 } from "./signup";
 export type { FirstWorkspaceDoor, SignupPosture } from "./signup";
@@ -247,6 +248,7 @@ export {
   pendingCodeOf,
   pendingWorkspaceOf,
   PendingWorkspaceSchema,
+  PreviewTokenSchema,
   SignupSchema,
 } from "./signup-schema";
 export type { PendingWorkspace, SignupInput } from "./signup-schema";

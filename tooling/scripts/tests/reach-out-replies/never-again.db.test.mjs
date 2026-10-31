@@ -446,7 +446,7 @@ test(
     assert.deepEqual(convert(ready, "reply", false, B), { moved: false, version: null }, "only the workspace's own");
     assert.deepEqual(convert(closed, "deal", true), { moved: true, version: 2 }, "any stage, when asked");
     assert.equal((await leadRow(talking)).converted_at, "2026-09-02T12:00:00+00:00");
-    assert.throws(() => convert(nurture, "click"), /how must be call, reply, booking, deal, arrived or added/);
+    assert.throws(() => convert(nurture, "click"), /how must be call, reply, booking, deal, arrived, added or claimed/);
     // The person door's two words (00346): their person wrote or called, or was named by a member, a file or a feed.
     for (const how of ["arrived", "added"]) assert.equal(convert(await lead(), how).moved, true, how);
 

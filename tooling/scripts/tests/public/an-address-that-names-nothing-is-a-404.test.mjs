@@ -56,6 +56,11 @@ function world(faults = {}) {
           { tenant_id: BARE, config: {} },
         ],
         tenant_channels: [{ tenant_id: T, kind: "sms", status: "active", number_e164: "+13055550100" }],
+        // A lead's own receptionist (decision 0079): one open to try, and one whose thirty days are up.
+        lead_previews: [
+          { id: "p-open", tenant_id: T, lead_id: "l1", token: "OpenPreviewOpenPreview", state: "ready" },
+          { id: "p-ended", tenant_id: T, lead_id: "l2", token: "EndedPreviewEndedPrevi", state: "ended" },
+        ],
       },
       faults,
     ),
@@ -93,6 +98,25 @@ test("a workspace's own pages pass to the page, which draws them", async (t) => 
   }
   // The slug is read as the page reads it: in any case, and with a trailing slash.
   assert.equal(outcomeOf(await ask("/yes/Harbor/")), "page");
+});
+
+test("a lead's own receptionist: a token that names nothing is the not-found page; one named, ended or not, is its page", async (t) => {
+  t.after(() => setServiceClient(null));
+  world();
+  assert.equal(outcomeOf(await ask("/preview/OpenPreviewOpenPreview")), "page");
+  assert.equal(outcomeOf(await ask("/preview/EndedPreviewEndedPrevi")), "page", "an ended one says it ended");
+  // Make it mine's page (L4), signed in or out: its own page sends one it cannot make theirs back to the preview's.
+  assert.equal(outcomeOf(await ask("/preview/OpenPreviewOpenPreview/mine")), "page");
+  assert.equal(outcomeOf(await ask("/preview/EndedPreviewEndedPrevi/mine")), "page");
+  for (const path of [
+    "/preview/NoSuchPreviewNoSuchPre",
+    "/preview/NoSuchPreviewNoSuchPre/mine",
+    "/preview/short",
+    "/preview/..%2F..%2Fetc",
+    "/preview/%E0%A4%A",
+  ]) {
+    assert.equal(outcomeOf(await ask(path)), "not found", path);
+  }
 });
 
 test("REGRESSION: a business page with no business on record is the not-found page, so a carrier's check reads it as none", async (t) => {

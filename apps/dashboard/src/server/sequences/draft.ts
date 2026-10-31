@@ -36,7 +36,14 @@ import {
   type NewDraftAsk,
   type NewDraftDto,
 } from "@chanlytics/contracts";
-import { askMemoryLines, listPolicies, mailboxConnectionsOf, sequenceMakes, workspaceAbout } from "@chanlytics/db";
+import {
+  askMemoryLines,
+  listPolicies,
+  mailboxConnectionsOf,
+  makesPreviews,
+  sequenceMakes,
+  workspaceAbout,
+} from "@chanlytics/db";
 import type { PoolRead } from "@/lib/campaign-channels";
 import { runningOf } from "@/lib/new-checks";
 import { calendarOf } from "../calendar/calendar-settings";
@@ -78,6 +85,13 @@ const RULES = [
   "If the owner asks for something nothing here can do, build the closest part you can and say in `cannot` what is left out, in two short sentences: “Left out: “<their words>”.”, then why, and what the draft does instead. Leave `cannot` empty when everything fit.",
   DATA_NOT_INSTRUCTIONS,
 ];
+
+/**
+ * The one rule a workspace that makes previews adds (decision 0079): {{their preview}} in a later step to leads, as that
+ * email's only link. Nothing is said of it to any other workspace, whose sends would have none to fill it.
+ */
+const PREVIEW_RULE =
+  'This business sets up each business it writes to a receptionist of their own to try: a step to leads after the first may name {{their preview}}, its link, once, as that email\'s only link (never with {{booking link}}), said as theirs to try ("I set one up for {{business}}. Try it: {{their preview}}"). Only for a search of businesses that take bookings, never an agency.';
 
 /** The messages a step may send now, each keyed for the model: offered, with a channel it can go by. */
 function offeredOf(read: {
@@ -204,7 +218,7 @@ export async function draftFrom(
       purpose: "sequence_draft",
       request: {
         max_tokens: 2400,
-        system: RULES.join("\n"),
+        system: [...RULES, ...(known.previews ? [PREVIEW_RULE] : [])].join("\n"),
         schema: NEW_DRAFT_JSON_SCHEMA,
         messages: [{ role: "user", content: draftAsked(known, ask) }],
       },
@@ -340,21 +354,23 @@ function momentsOf(
 /** The route's handle: everything a draft is judged against, read at once, then the draft. */
 export async function draftSequence(rc: ReaderContext, ask: NewDraftAsk): Promise<NewDraftDto> {
   const { ctx, tenantId } = rc;
-  const [library, shape, named, calendarOn, pb, seqs, sources, policies, mailboxes, config] = await Promise.all([
-    load(rc, templates, { all: false }),
-    load(rc, facts.businessShape, undefined),
-    load(rc, facts.facts, undefined),
-    calendarOf(ctx, tenantId).then(
-      (c) => !!c.url || c.lostCalendar,
-      () => false,
-    ),
-    orNull(load(rc, playbooks, undefined), "playbooks", tenantId),
-    orNull(load(rc, sequences, undefined), "sequences", tenantId),
-    orNull(reachOutSourcesOf(ctx, tenantId), "sources", tenantId),
-    orNull(listPolicies(ctx.supabase, tenantId), "policies", tenantId),
-    orNull(mailboxConnectionsOf(ctx.supabase, tenantId), "mailboxes", tenantId),
-    orNull(storedConfigOf(ctx.supabase, tenantId).then(parseTenantConfig), "config", tenantId),
-  ]);
+  const [library, shape, named, calendarOn, pb, seqs, sources, policies, mailboxes, config, previews] =
+    await Promise.all([
+      load(rc, templates, { all: false }),
+      load(rc, facts.businessShape, undefined),
+      load(rc, facts.facts, undefined),
+      calendarOf(ctx, tenantId).then(
+        (c) => !!c.url || c.lostCalendar,
+        () => false,
+      ),
+      orNull(load(rc, playbooks, undefined), "playbooks", tenantId),
+      orNull(load(rc, sequences, undefined), "sequences", tenantId),
+      orNull(reachOutSourcesOf(ctx, tenantId), "sources", tenantId),
+      orNull(listPolicies(ctx.supabase, tenantId), "policies", tenantId),
+      orNull(mailboxConnectionsOf(ctx.supabase, tenantId), "mailboxes", tenantId),
+      orNull(storedConfigOf(ctx.supabase, tenantId).then(parseTenantConfig), "config", tenantId),
+      orNull(makesPreviews(ctx.supabase, tenantId), "previews", tenantId),
+    ]);
   const rows = seqs?.data.sequences ?? [];
   const owner = await ownerOf(rc, rows, config);
   const pools = pb?.data.pools ?? null;
@@ -397,6 +413,7 @@ export async function draftSequence(rc: ReaderContext, ask: NewDraftAsk): Promis
     classModes: Object.fromEntries((policies ?? []).map((p) => [p.class, p.mode])),
     // None named is every connected mailbox (00424): the draft names none, and says the first.
     mailbox: live.length ? { ids: [], label: live[0]?.address ?? "" } : null,
+    previews: previews === true,
   };
   return draftFrom(known, ask, { tenantId, userId: rc.userId });
 }

@@ -10,7 +10,9 @@
  * 5 PM on weekdays and until 1 PM on Saturdays", or the listing's rating where its hours say nothing whole.
  */
 import { weekdayNamed, type WeekdayKey } from "../calendar/day-keys";
+import { WEEKDAY_KEYS } from "../calendar/zone-math";
 import { DAYS } from "../config/workspace-config/config-rules";
+import type { GooglePeriod } from "../google/google";
 import { leadCalledByOf } from "../leads/search/called-by";
 import type { WrittenOpening } from "./reach-out-words";
 
@@ -115,6 +117,39 @@ export function weekHoursOf(hours: unknown): { week: WeekHours; read: boolean } 
     if (windows !== null) readAny = true;
   }
   return readAny ? { week, read: true } : { week: DEFAULT_WEEK, read: false };
+}
+
+/** A moment of Google's week (day 0 is Sunday) from a weekday and minutes after its midnight, a day on past 24 hours. */
+function googlePointOf(day: WeekdayKey, minutes: number): GooglePeriod["open"] {
+  const start = WEEKDAY_KEYS.indexOf(day);
+  const into = Math.floor(minutes / (24 * 60));
+  const min = minutes % (24 * 60);
+  return { day: (start + into) % 7, hour: Math.floor(min / 60), minute: min % 60 };
+}
+
+/**
+ * The listing's week as Google's opening periods, for a lead's own receptionist (decision 0079): every day named and
+ * read, else null, since a week guessed is a week the receptionist would say. A day closed has no period; open around the
+ * clock every day is Google's one period with no close; a window past midnight closes on the next day, which
+ * hoursFromGoogle then asks about rather than guesses.
+ */
+export function listingPeriodsOf(hours: unknown): GooglePeriod[] | null {
+  if (!Array.isArray(hours)) return null;
+  const byDay = new Map<WeekdayKey, OpenWindow[]>();
+  for (const e of hours) {
+    if (!e || typeof e !== "object") return null;
+    const day = dayNameOf((e as { day?: unknown }).day);
+    const words = (e as { hours?: unknown }).hours;
+    const windows = day && typeof words === "string" ? dayOf(words) : null;
+    if (!day || !windows) return null;
+    byDay.set(day, windows);
+  }
+  if (DAYS.some((d) => !byDay.has(d))) return null;
+  const allDay = (w: OpenWindow[]) => w.length === 1 && w[0]?.from === 0 && w[0]?.to === 24 * 60;
+  if (DAYS.every((d) => allDay(byDay.get(d) ?? []))) return [{ open: { day: 0, hour: 0, minute: 0 }, close: null }];
+  return DAYS.flatMap((d) =>
+    (byDay.get(d) ?? []).map((w) => ({ open: googlePointOf(d, w.from), close: googlePointOf(d, w.to) })),
+  );
 }
 
 /* ------------------------------------------------- the opening the week says */

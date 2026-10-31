@@ -11,8 +11,10 @@
    set of values that can drift. */
 @import "../src/legacy/styles/tokens.css";
 /* The kit (src/surfaces/kit/kit.css) is the shell's: legacy-bridge/legacy.css imports it. No page outside the shell
-   draws a kit class, so none of them waits on the kit's CSS to paint; the change that first draws one imports it
-   here, right after the tokens (the plan's §3.3). */
+   draws a kit class here, so none of them waits on the kit's CSS to paint; the change that first draws one imports it
+   here, right after the tokens (the plan's §3.3). A lead's own receptionist (/preview/<token>, decision 0079) is a
+   surface drawn outside the shell, and its module imports the kit itself (surfaces/preview/preview-page.tsx), so its
+   route alone loads it: imported here, every page in the shell would load it twice. */
 
 /* Glass's type: GitHub's Mona Sans (SIL Open Font License 1.1, public/fonts/OFL.txt), the build Google Fonts serves
    (v4), vendored byte for byte in Google's three subsets, so a name in Vietnamese or Polish takes its own glyphs rather

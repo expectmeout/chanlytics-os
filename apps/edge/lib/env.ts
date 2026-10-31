@@ -170,6 +170,13 @@ export const env = {
   get UNSUBSCRIBE_ORIGIN() {
     return trimmedEnv(process.env.UNSUBSCRIBE_ORIGIN);
   },
+  /**
+   * Switch: a lead's own receptionist before they sign up (decision 0079). "on" builds a preview where a send names
+   * {{their preview}} or a member asks for one; anything else builds none, and such a send waits.
+   */
+  get LEAD_PREVIEWS() {
+    return trimmedEnv(process.env.LEAD_PREVIEWS);
+  },
 
   // Connected mailboxes (decision 0056): the OAuth clients a business connects its Gmail or Microsoft 365 mailbox
   // with, the callback both return to, and how each provider tells the edge a mailbox changed.

@@ -498,6 +498,7 @@
     "00492_a_cold_email_ends_as_its_sequence_says.sql": "6bdca5b3a5766e7fbc0150b39be2c681768ae5f9b9782802cc8079b57a35da3a",
     "00493_a_memory_line_may_be_learned.sql": "8c8d4a143fba30129c44ffadad16476cb69ac2d148b057c798accedc236e94ac",
     "00495_a_mailbox_reads_each_sender_once.sql": "bf2ed879d6fb9da1285bc8e36d5568db12e500a245dd9e8180786ef2300e3c94",
-    "00496_a_search_counts_the_leads_it_shows.sql": "7f72c22a3fe365ed45df1def2c02b711593cd9ac11edfa4134045c768f3191d0"
+    "00496_a_search_counts_the_leads_it_shows.sql": "7f72c22a3fe365ed45df1def2c02b711593cd9ac11edfa4134045c768f3191d0",
+    "00497_a_lead_sees_its_own_receptionist.sql": "c29e2726768c4c917c5c90956a2333107fa1f44199e75a1e4dd315407b2d43ac"
   }
 }

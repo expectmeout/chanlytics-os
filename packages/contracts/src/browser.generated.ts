@@ -192,6 +192,7 @@ export { bookingPageKept, bookingPageOffered, checkedWords, connectionWords, gai
 export { autoReplyBell, autoReplyCandidates, autoReplyHold, cleanDraft, heldReviewReplyOf, REVIEW_AUTO_REPLIES_PER_SYNC, REVIEW_AUTO_REPLY_MAX_AGE_MS, REVIEW_HOLD_MS, REVIEW_REPLY_HELD_TITLE, REVIEW_REPLY_MAX_CHARS, REVIEW_REPLY_MAX_WORDS, reviewDraftsBell, reviewHeldReplyWords, reviewHeldWords, reviewReplyModeOf, reviewReplyPrompt, reviewReplyWords } from "./google/review-reply";
 export { BUSINESS_READ_SOURCES, businessReadFactsOf, FOUND_WORDS, foundOf, WEBSITE_READ_SCHEMA, WEBSITE_READ_SYSTEM, WEBSITE_UNREAD_WORDS } from "./imports/business-reads";
 export { csvCell, fileDateOf, importCounts, importRowsOf, matchColumns, parseCsv, viaWords } from "./imports/csv";
+export { foundRecordOf, foundServicesRoom, withFoundClosure, withFoundNote, withFoundServices, withFoundWorn } from "./imports/found-adds";
 export { broughtInCardOf, broughtInShown, HISTORY_BACK_DAYS, IMPORT_SOURCES, IMPORT_STATES, IMPORT_STOPPED_WORDS, IMPORT_WORDS, importLineOf, importLinesOf, importNotesOf, MAILBOX_LEFT_ROW, WHATSAPP_PART_WORDS, whatsappPartsOf } from "./imports/ledger";
 export { APPOINTMENT_WORD_REFUSAL, APPOINTMENT_WORDS, appointmentWordOf, appointmentWords, appointmentWordSaved, appointmentWordVM, isAppointmentWord } from "./journey/appointment-word";
 export { JOURNEY_STAGE_IDS, journeyOf, journeyStageOf } from "./journey/journey";
@@ -324,7 +325,12 @@ export { PLAYBOOK_BREATH_MS } from "./playbooks/playbook-time";
 export { isPlaybookTotalsDto } from "./playbooks/playbook-totals";
 export { CAMPAIGN_NOT_FOUND, delayWords, isPlaybookState, isWinBack, MOMENT_TRIGGERS, momentOffered, momentReadsCalendar, MOMENTS_RETIRED, PLAYBOOK_CAP_CHOICES, PLAYBOOK_DEFAULTS, PLAYBOOK_HOURS, PLAYBOOK_LIMITS, PLAYBOOK_NAME_MAX, PLAYBOOK_STATES, PLAYBOOK_TRIGGERS, PLAYBOOK_VETO_DELAY_MS, PLAYBOOK_VETO_DELAY_WORDS, policyClassOffered, REACH_OUT_IS_NOT_A_MOMENT, readyRunNotice, SEND_ONCE_STOP_MS, SEND_ONCE_STOP_WORDS, SENDING_HOURS_WORDS, SENDING_NOW_WORDS, sendsWaitWords, skippedRunNotice, triggerOf, triggerOffered, triggerWords, vetoRunNotice, VISIT_TRIGGERS, whenItGoes, winBackWords } from "./playbooks/playbook-triggers";
 export { LIST_PLAYBOOK_CLASSES, playbookListRef, proposalFactsFor, visitDayWord, visitFactsFor } from "./playbooks/playbooks";
-export { DEFAULT_WEEK, leadFactOf, weekHoursOf } from "./reach-out/lead-hours";
+export { leadAsListing, previewZoneOf } from "./previews/lead-as-listing";
+export { PREVIEW_LIMITS, PREVIEW_STATES, previewClaimable, previewFirstRunMarks, previewKnowsOf, previewMinePath, previewPageOf, previewSlotOf, previewStartersOf, previewStateOf, previewTurnsOf } from "./previews/lead-preview";
+export { PREVIEW_LINE_WORDS, previewLineOf } from "./previews/preview-line";
+export { PREVIEW_TRIED_DAYS, previewSaidOf, previewTriedWords } from "./previews/preview-tried";
+export { LEAD_PREVIEW_WORDS } from "./previews/preview-words";
+export { DEFAULT_WEEK, leadFactOf, listingPeriodsOf, weekHoursOf } from "./reach-out/lead-hours";
 export { composeLinksOf, mailtoOf } from "./reach-out/owner/compose";
 export { REACH_OUT_SAID_WORDS, REACH_OUT_STOP_WORDS, REACH_OUT_UNDO_WORDS } from "./reach-out/owner/lead-doors";
 export { CAMPAIGN_EMAIL_TAG, isCampaignEmail, UNSUBSCRIBE_PAGE_HEADER, unsubscribePageWords, WHY_FROM_MAPS, whyFrom } from "./reach-out/reach-out";
@@ -378,7 +384,7 @@ export { isListToken, newSequenceLine, SEQUENCE_DRAFT_THEN_MAX, SEQUENCE_WAIT_DA
 export { SEQUENCE_PEOPLE_GROUPS } from "./sequences/sequence-dto";
 export { classEvidenceLine, EVIDENCE_DAYS, evidenceOf, evidenceWords } from "./sequences/sequence-evidence";
 export { HELD_TAKE_OUT, heldAnswersOf, heldChoicesOf, heldWhyOf, markedOpeningOf, waitingAnswersOf } from "./sequences/sequence-held";
-export { LEAD_BUILD_WORDS, leadBuildStepsOf, leadDraftChainOf, leadDraftDockOf, leadEndingOf, leadFirstUnwritten, leadInsertRowsOf, leadMailboxesTicked, leadMailboxRowsOf, leadPaceChoicesOf, leadPreviewEmailOf, leadSendingFactsOf, leadStartOf, reachOutInsertStep, reachOutMayInsertStep, reachOutPutBackStep, reachOutRemoveStep, withOpeningSaid } from "./sequences/sequence-lead-build";
+export { LEAD_BUILD_WORDS, leadBuildStepsOf, leadDraftChainOf, leadDraftDockOf, leadEndingOf, leadFirstUnwritten, leadInsertRowsOf, leadMailboxesTicked, leadMailboxRowsOf, leadPaceChoicesOf, leadPreviewEmailOf, leadPreviewOfferOf, leadSendingFactsOf, leadStartOf, reachOutInsertStep, reachOutMayInsertStep, reachOutPutBackStep, reachOutRemoveStep, withOpeningSaid } from "./sequences/sequence-lead-build";
 export { SEQUENCE_LIST_WORDS, SEQUENCE_SORTS, SEQUENCE_TYPES, sequenceTypeOf, sortedSequences } from "./sequences/sequence-list";
 export { PLACE_RAIL_WORDS, PLACE_WORDS, placeRailOf, placeSpanOf, placeStands, placeToneOf, placeWordOf } from "./sequences/sequence-place";
 export { SCHEDULE_WORDS, scheduleChannels, scheduleDays, scheduleEnd, scheduleInLine, scheduleSettingsOf, scheduleSpan, scheduleStart, scheduleStepFacts, scheduleStepState, scheduleStepSub, scheduleWait } from "./sequences/sequence-schedule";
@@ -495,5 +501,5 @@ export { PLATFORM_NEW_DAYS, PLATFORM_QUIET_DAYS, PLATFORM_VERDICTS, platformActi
 export { pastTarget, pastTargetPage, PLATFORM_DAYS_READ, PLATFORM_NUMBERS, platformDaysWords } from "./workspace/platform-days";
 export { EVENT_EVIDENCE_KINDS, RATE_HITS_RETENTION_HOURS, RECORDING_PURGED_WORDS, RECORDING_RETENTION_DAYS, RETENTION_DAYS, retentionWords } from "./workspace/retention";
 export { cleanFactorCode, enrolRefusalWords, factorCodeWords, factorStepNeeded, seatNeedsSecondFactor, SECOND_FACTOR_LEVEL, SECOND_FACTOR_PATH, SECOND_FACTOR_REQUIRED_PATH, SECOND_FACTOR_STAFF_PATH, SECOND_FACTOR_WORDS, secondFactorAsked, secondFactorResetWords, secondFactorShown } from "./workspace/second-factor";
-export { addressAlreadyKnown, deviceTimezone, emailNotConfirmed, firstWorkspaceDoor, googleCallbackUrl, PENDING_WORKSPACE_KEY, requestCodeWords, resendLeft, sendFailureIsOurs, SIGNIN_RESEND_COOLDOWN_S, SIGNUP_NAME_MAX, SIGNUP_NAME_MIN, SIGNUP_WAITLIST, SIGNUP_WORDS, signupPosture, verifyCodeWords } from "./workspace/signup";
+export { addressAlreadyKnown, deviceTimezone, emailNotConfirmed, firstWorkspaceDoor, googleCallbackUrl, PENDING_WORKSPACE_KEY, requestCodeWords, resendLeft, sendFailureIsOurs, SIGNIN_RESEND_COOLDOWN_S, SIGNUP_NAME_MAX, SIGNUP_NAME_MIN, SIGNUP_WAITLIST, SIGNUP_WORDS, signupPosture, signupPostureFor, verifyCodeWords } from "./workspace/signup";
 export { cleanTimezone, cleanWorkspaceName, DEFAULT_TIMEZONE, isTimezone, knownTimezones, timezoneWords, usableDeviceTimezone, zoneSearchWords } from "./workspace/workspace";

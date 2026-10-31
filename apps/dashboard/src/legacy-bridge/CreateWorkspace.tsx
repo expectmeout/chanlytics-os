@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   DEFAULT_TIMEZONE,
+  LEAD_PREVIEW_WORDS,
   PARTNER_COOKIE,
   PARTNER_WORDS,
   SIGNUP_WORDS,
@@ -12,6 +13,7 @@ import {
   type PendingWorkspace,
   type SignupPosture,
 } from "@chanlytics/contracts";
+import { claimPreviewNow } from "@/auth/preview-claim";
 import { api } from "./api";
 import { joinWaitlistFrom, loadWaitlistRule } from "./waitlist";
 
@@ -114,15 +116,20 @@ export default function CreateWorkspace({
   // checked, which the create route reads for itself -- so there is no second
   // screen. A refusal (a name taken, a code that changed since) leaves the
   // form, filled in, with the server's sentence, as a press on it would.
+  //
+  // MAKE IT MINE (decision 0079): sign-up from a lead's own receptionist's link kept its token, so the screen claims
+  // that workspace instead of making one, whatever the posture, since the link stands for an invite code. A claim
+  // refused (ended, someone's own already) leaves the form, filled in, with the door's sentence.
+  const claiming = another ? null : (initial?.preview ?? null);
   const kept = keptName(form, initial);
-  const [making, setMaking] = useState(kept.length >= 2);
+  const [making, setMaking] = useState(kept.length >= 2 || !!claiming);
   const started = useRef(false);
-  const { create, submit, join } = workspacePresses(form, email, onCreated);
+  const { create, claim, submit, join } = workspacePresses(form, email, onCreated);
 
   useEffect(() => {
     if (!making || started.current) return;
     started.current = true;
-    void create(kept, "").then((made) => {
+    void (claiming ? claim(claiming) : create(kept, "")).then((made) => {
       if (!made) setMaking(false);
     });
     // Once, on arrival: its inputs are sign-up's, and they do not change while the screen is open.
@@ -141,7 +148,10 @@ export default function CreateWorkspace({
   const leave = another ? null : leaveLinks();
 
   // Being made, from what sign-up kept: nothing to ask, so nothing asked.
-  if (making) return makingCard(kept);
+  if (making)
+    return claiming
+      ? makingCard(initial?.name ?? "", LEAD_PREVIEW_WORDS.signup.claiming)
+      : makingCard(kept, SIGNUP_WORDS.making);
 
   // The list, not the workspace form: a waitlist takes details and makes
   // nothing, and a first workspace behind one is refused by the route anyway.
@@ -238,6 +248,20 @@ function workspacePresses(form: WorkspaceForm, email: string | null, onCreated: 
     return true;
   };
 
+  /** Make the preview sign-up came from theirs (decision 0079): the arrival's way when it kept one. True once it is. */
+  const claim = async (token: string): Promise<boolean> => {
+    setBusy(true);
+    setError(null);
+    const r = await claimPreviewNow(token);
+    if (!r.ok) {
+      setError(r.message);
+      setBusy(false);
+      return false;
+    }
+    onCreated(r.workspace);
+    return true;
+  };
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (busy) return;
@@ -266,7 +290,7 @@ function workspacePresses(form: WorkspaceForm, email: string | null, onCreated: 
     else setError(r.message);
   };
 
-  return { create, submit, join };
+  return { create, claim, submit, join };
 }
 
 /** Sign out, and the pages signing up agreed to: a first workspace's way out. */
@@ -289,13 +313,13 @@ function leaveLinks() {
   );
 }
 
-/** The workspace being made from what sign-up kept: its name, and that it is being made. */
-function makingCard(kept: string) {
+/** The workspace being made from what sign-up kept, or the preview it came from made theirs: its name, and what is happening. */
+function makingCard(kept: string, doing: string) {
   return (
     <div className="cw-screen">
       <div className="cw-card" role="status" aria-live="polite" data-testid="cw-making">
         <h1 className="cw-title">{kept}</h1>
-        <p className="cw-lede">{SIGNUP_WORDS.making}</p>
+        <p className="cw-lede">{doing}</p>
       </div>
     </div>
   );

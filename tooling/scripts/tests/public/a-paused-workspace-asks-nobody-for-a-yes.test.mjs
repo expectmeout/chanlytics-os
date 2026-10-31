@@ -197,6 +197,11 @@ test("the one rule: open, paused or ended, by the workspace's own standing and i
   assert.equal(takesSignUps(undefined), true);
   assert.equal(takesSignUps("paused"), false);
   assert.equal(hasPublicPages("test", "open"), false, "a fixture has no pages");
+  assert.equal(
+    hasPublicPages("preview", "open"),
+    false,
+    "a lead's preview has none: its page is the preview's own (0079)",
+  );
   assert.equal(hasPublicPages("active", "ended"), false, "an ended workspace has none");
   assert.equal(hasPublicPages("paused", "paused"), true, "a paused one keeps them, for the carriers' re-vet");
 });

@@ -64,6 +64,9 @@ function dedupeKeyOf({ tenantId, kind, payload }: ScheduleParams): string | null
     // One read of a workspace's website waiting at a time (00479): a link and a save told together read it once.
     case "website_read":
       return `website_read:${tenantId}`;
+    // One build of a lead's preview waiting at a time (00497): a send and a press told together build it once.
+    case "preview_build":
+      return field("preview_id") ? `preview_build:${field("preview_id")}` : null;
     default:
       return null;
   }
