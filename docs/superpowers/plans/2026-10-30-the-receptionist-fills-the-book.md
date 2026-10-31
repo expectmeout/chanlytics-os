@@ -1,7 +1,7 @@
 # The receptionist fills the book: the build
 
 The spec is `docs/superpowers/specs/2026-10-30-the-receptionist-fills-the-book-design.md` (decided by Ruben on 30 Oct
-2026), and the decision note is 0081. Built on `sequences/the-receptionist-fills-the-book` in the `cm-fills-the-book`
+2026), and the decision note is 0082. Built on `sequences/the-receptionist-fills-the-book` in the `cm-fills-the-book`
 worktree from `5d0394714`, one branch, one pull request. The migration takes the next free number when it is pushed
 (00494 is claimed twice on 30 Oct, by #1962 and the 0079 lane; read `Claude Video/docs/migration-claims.md` and claim
 the number there first; the plan writes it as `NNNNN`) and goes to production before the merge (`land --applied`).
@@ -14,7 +14,7 @@ Nothing is offered until a workspace turns the moment on, so no switch is needed
   cancellation", the code says a freed time (`freed`, `freed_when`, `freed_ask`, `calendar/freed-time.ts`,
   `freed_time_taken`, `freed_time_offer`), and the starter is "A time freed up" (`time_freed`). The plan's names below
   are the built ones.
-- **The migration is 00497,** applied on the lane's throwaway stack (`cm-fills-the-book-test`, ports 583xx) and
+- **The migration is 00498,** applied on the lane's throwaway stack (`cm-fills-the-book-test`, ports 583xx) and
   recorded in the ledger, with 00494's gap argued (held by #1962 and the 0079 lane). `took` rides `run_counts`, which
   Sent and Today read, rather than `campaign_ledger`.
 - **The freed time** is read over the receptionist's own `freeWindows`, so it is a time the receptionist would offer;
@@ -35,8 +35,8 @@ Nothing is offered until a workspace turns the moment on, so no switch is needed
 
 **L2 as built (31 Oct 2026, uncommitted in `cm-fills-the-book`).** Tasks 6 to 9, with what the build found:
 
-- **The migration is 00497 now.** Main moved while L2 was built: #1964 took 00495 (on production) and #1962 holds
-  00496, so this lane's file was renumbered from 00495 to 00497 as a working number, listed under "waiting for a
+- **The migration is 00498 now.** Main moved while L2 was built: #1964 took 00495 (on production) and #1962 holds
+  00496, so this lane's file was renumbered from 00495 to 00498 as a working number, listed under "waiting for a
   number" in the shared claims file, not claimed. The ledger argues 00494 to 00496 until main is merged in. L2 added
   two functions to it: `assemble_broadcast` keeps a batch's `offered_*`, and `sequence_steps_due` never hands the hourly
   sweep a step on `slot_opened`.
@@ -85,7 +85,7 @@ Nothing is offered until a workspace turns the moment on, so no switch is needed
   none was added. The record's `settings.days_ahead` is read for a freed time's sequence alone.
 - **The sequence's row and head:** no next run by its hour (it runs when a cancellation frees a time), and Run now is
   not offered (`freed_time`: "It runs when a cancellation frees a time, never by hand.").
-- **History and Reports' "Each send":** `sequence_history` is re-created in 00497 to say each batch's `offered_start`
+- **History and Reports' "Each send":** `sequence_history` is re-created in 00498 to say each batch's `offered_start`
   and `took`, and a day says "1 took it" as Today's line does.
 - **The guide:** a row on no stage, just before the month's offer, only with a calendar.
 - **The activity log:** a cancel the system made says why: "Skipped a freed time's run when its time came", "Stopped a
@@ -142,7 +142,7 @@ Steps:
 2. **The migration, re-runnable:**
 
    ```sql
-   -- NNNNN · A time a cancellation frees is offered (decision 0081).
+   -- NNNNN · A time a cancellation frees is offered (decision 0082).
    set local lock_timeout = '3s';
 
    alter table public.sequence_steps drop constraint if exists playbooks_trigger_check;
@@ -213,7 +213,7 @@ Steps:
 2. **The entry,** after `proposal_waiting`:
 
    ```ts
-   // 0081: a time a cancellation freed, offered within the hour to the people who asked this month and never booked.
+   // 0082: a time a cancellation freed, offered within the hour to the people who asked this month and never booked.
    // Conversational, about their own ask (playbook-purpose.ts): a text may carry it, an email needs no yes.
    {
      id: "slot_opened",
@@ -410,7 +410,7 @@ Steps:
    ```ts
    /** The appointment an event is about, as the record holds it now (packages/db appointmentOf); null when gone. */
    appointmentOf(tenantId: string, id: string): Promise<FreedTimeRow | null>;
-   /** The edge's door: the workspace's running slot_opened step runs for this freed time (0081). */
+   /** The edge's door: the workspace's running slot_opened step runs for this freed time (0082). */
    offerFreedTime(tenantId: string, freed: { from: string; start: number; end: number }): Promise<OfferOutcome>;
    /** The batch this appointment's freed time made, if any, for the news's clause (packages/db freedTimeBatchOf). */
    freedTimeBatchOf(tenantId: string, appointmentId: string): Promise<{ people: number } | null>;
@@ -524,7 +524,7 @@ Files:
 - `docs/glossary.md` (Freed time, under the campaign words)
 - `docs/system-prd.md` (S-14.3 the moments; S-20 `sequence_batches`)
 - `docs/data-model.md` (regenerated)
-- `docs/decisions/README.md` (the 0081 row's status, if it moves)
+- `docs/decisions/README.md` (the 0082 row's status, if it moves)
 
 Steps:
 

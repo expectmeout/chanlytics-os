@@ -39,7 +39,7 @@ export async function heldBeforeAnyClaim(checks: ReadonlyArray<() => Promise<boo
 }
 
 /**
- * A freed time's batch (decision 0081) asks the record before its first send: a time booked since it was offered
+ * A freed time's batch (decision 0082) asks the record before its first send: a time booked since it was offered
  * (contracts freedTimeTaken, the freed visit's own sightings aside) is taken, and the batch is cancelled as the system
  * through the cancel verb (reason `taken`) and told once, rather than offer a time nobody can have. A batch already
  * sending goes on: its people were offered the time. True when the batch ends here, told or not.

@@ -21,12 +21,12 @@ import { REPLY_INTENT_WORDS, isReplyIntent } from "../reach-out/reach-out-replie
 import { REPORT_MIN_N } from "../reports/report-tiles";
 import { broadcastFailureWords } from "../broadcasts/broadcast-failure-words";
 import { addressOf } from "../activity/record-address";
-import { clockHistoryDay, clockNextSend, clockTime, clockWhen, zoneDayKey } from "../shared/clock";
+import { clockHistoryDay, clockNextSend, clockStamp, clockTime, clockWhen, zoneDayKey } from "../shared/clock";
 import { pct } from "../shared/numbers";
 import { RUN_OPEN_WORDS, RUN_WAITING_SHORT } from "../shell/campaign-rooms";
 import { plural } from "../shared/words";
 import { DAY_MS } from "../shared/time";
-import type { SequenceBatchDto, SequenceHistoryDto, SequencePersonDto } from "./sequence-dto";
+import type { SequenceBatchDto, SequenceHistoryDto, SequencePeopleGroup, SequencePersonDto } from "./sequence-dto";
 
 /** A step opened to be changed (the canvas's Editor board): its fields, what a save reaches, and its preview. */
 export const SEQUENCE_EDIT_WORDS = {
@@ -263,6 +263,8 @@ export const SEQUENCE_PEOPLE_WORDS = {
   next: (atMs: number, tz: string, nowMs: number) => clockNextSend(atMs, tz, nowMs),
   /** One up next whose time has come, under its name. */
   goingNow: "going out now",
+  /** One waiting for an OK whose time has come: an approval plans it again from then (the reach-out clock's restale). */
+  onYourOk: "goes once you approve",
   /** Why someone finished with no reason of their own: they had the last step. */
   lastStep: "had the last step",
   /** A lead added and not planned yet, under its name: when it joined the list. */
@@ -291,6 +293,20 @@ export interface SequenceWaitingEmailVM {
   /** Its opening is being written: no rewrite is asked while it is. */
   checking: boolean;
   answers: HeldAnswer[];
+}
+
+/**
+ * When a row under People goes, or went, by its group: a time ahead as the clock says it, and a time already gone never
+ * (the walk of 30 Oct 2026 and its review: "step 1 · 5:05 PM" at 7 PM). Up next, it is going out, paced by its mailboxes;
+ * waiting for an OK, it goes once you approve, planned again from then; held, nothing: its why says what it waits on. A row
+ * that says what happened (left, done, replied) or when one joined says its own time.
+ */
+export function personWhenWords(group: SequencePeopleGroup, atMs: number, tz: string, nowMs: number): string | null {
+  if (atMs > nowMs) return clockStamp(atMs, tz, nowMs);
+  if (group === "next") return SEQUENCE_PEOPLE_WORDS.goingNow;
+  if (group === "waiting") return SEQUENCE_PEOPLE_WORDS.onYourOk;
+  if (group === "held") return null;
+  return clockStamp(atMs, tz, nowMs);
 }
 
 /**
@@ -523,7 +539,7 @@ export function historyDayWords(b: SequenceBatchDto, place: string | null): { en
   if ((c.held ?? 0) > 0) parts.push(`${c.held} held`);
   if ((c.to_send ?? 0) > 0) parts.push(`${c.to_send} for you to send`);
   if ((c.failed ?? 0) > 0) parts.push(`${c.failed} failed`);
-  // A freed time's batch says who took the time it offered (decision 0081), as Today's line says it.
+  // A freed time's batch says who took the time it offered (decision 0082), as Today's line says it.
   if (typeof b.took === "number") parts.push(`${b.took} took it`);
   return {
     end: b.state === "sending" ? "Going out" : b.state === "failed" ? "Failed" : `${c.sent ?? 0} sent`,

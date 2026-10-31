@@ -167,7 +167,7 @@ const visitDayOf = (v: BookedVisit): string => visitDateKey(v.start, v.timezone)
 
 /**
  * What the news says of the time a cancellation freed: free again, and what its offer to the people who asked and never
- * booked came to (decision 0081), read from the offer itself, so the bell and the batch never disagree. A workspace that
+ * booked came to (decision 0082), read from the offer itself, so the bell and the batch never disagree. A workspace that
  * offers no freed time, and an offer not asked yet, hear it as before.
  */
 function freedAgainLine(offer: FreedTimeOffer | null): string {

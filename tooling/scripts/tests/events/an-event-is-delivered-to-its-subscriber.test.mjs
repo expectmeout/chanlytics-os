@@ -76,7 +76,7 @@ const READS = {
     data: { by: "99999999-9999-4999-8999-999999999999", role: "operator" },
     created_at: "2026-10-06T00:00:00Z",
   },
-  // A booking tool's cancel by the service, its time offered to the people who asked (decision 0081).
+  // A booking tool's cancel by the service, its time offered to the people who asked (decision 0082).
   freed_time_offer: {
     kind: "appointment.changed",
     category: "appointment",
@@ -120,7 +120,7 @@ const SOON = (() => {
 })();
 const ALL_DAY_OPEN = { open: "00:00", close: "23:59" };
 
-/** A person's visit cancelled by the service, in a workspace open every day (decision 0081). */
+/** A person's visit cancelled by the service, in a workspace open every day (decision 0082). */
 const aCancellation = () => ({
   appointments: [
     aVisit({

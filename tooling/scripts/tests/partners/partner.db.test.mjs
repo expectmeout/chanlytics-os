@@ -8,6 +8,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
+import { takeLock } from "../_file-lock.mjs";
 import { showSecondFactor } from "../_second-factor.mjs";
 
 const URL_ = process.env.SUPABASE_URL;
@@ -54,8 +55,13 @@ async function person(label, { factor = false } = {}) {
 
 const CODE = `ada-${Math.random().toString(36).slice(2, 8)}`;
 
+// The partner ledger is the platform's: partner_earnings_sweep matures and judges every partner's rows, and counts
+// them. The suites that write it or sweep it take its lock for the whole file (_file-lock.mjs), one after the other.
+let releaseLedger;
+
 before(async () => {
   if (skip) return;
+  releaseLedger = await takeLock("partner-ledger");
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
   partner = await person("partner", { factor: true });
   // Becomes one too, to be told the code is taken.
@@ -64,9 +70,13 @@ before(async () => {
 });
 
 after(async () => {
-  if (skip) return;
-  for (const id of tenants) await db.from("tenants").delete().eq("id", id);
-  for (const id of users) await db.auth.admin.deleteUser(id).catch(() => {});
+  try {
+    if (skip) return;
+    for (const id of tenants) await db.from("tenants").delete().eq("id", id);
+    for (const id of users) await db.auth.admin.deleteUser(id).catch(() => {});
+  } finally {
+    await releaseLedger?.();
+  }
 });
 
 test(
@@ -301,14 +311,21 @@ test(
     );
 
     out = ok(await db.rpc("partner_earnings_sweep", { p_now: new Date("2026-09-01T00:00:00Z").toISOString() }));
+    // The sweep's counts are the whole ledger's: another suite's earnings and links due by then are swept with these
+    // (7 made payable on main, 31 Oct 2026: the racing refund suite's two, paid the same day). This suite's own are counted.
+    const due = await rows("in_led_1");
     assert.ok(
-      (await rows("in_led_1")).every((r) => r.state === "payable"),
+      due.every((r) => r.state === "payable"),
       "due, and the workspace qualifies",
     );
-    assert.equal(out.judged, 0, "judged once, not again");
-    assert.equal(out.payable, 5, "the share, its two refunds, the dispute and the dispute won");
+    assert.equal(due.length, 5, "the share, its two refunds, the dispute and the dispute won");
+    assert.ok(out.payable >= due.length, "the sweep made them payable");
     const again = ok(await db.from("partner_tenants").select("standing_at").eq("tenant_id", brought).single());
-    assert.equal(Date.parse(again.standing_at), Date.parse(before), "the standing keeps the day it was decided");
+    assert.equal(
+      Date.parse(again.standing_at),
+      Date.parse(before),
+      "judged once, not again: the standing keeps its day",
+    );
   },
 );
 

@@ -368,7 +368,7 @@ interface RunRequest {
   runFor?: string;
   /** Who asked: the sweep (system) or a person (their decision, sends now unless the class is never). */
   by: RunBy;
-  /** The time a freed time's step offers (decision 0081, lib/calendar/freed-time-offer.ts): its batch has no day. */
+  /** The time a freed time's step offers (decision 0082, lib/calendar/freed-time-offer.ts): its batch has no day. */
   freed?: FreedTimeRun;
 }
 
@@ -427,7 +427,7 @@ export async function runPlaybook(ctx: TenantRunContext, p: PlaybookRow, req: Ru
             playbook_id: row.playbook_id ?? null,
             run_for: row.run_for ?? null,
             channels: row.channels,
-            // A freed time's batch (decision 0081, 00497): the time it offers and the appointment that freed it.
+            // A freed time's batch (decision 0082, 00498): the time it offers and the appointment that freed it.
             ...(row.offered_from
               ? { offered_start: row.offered_start, offered_end: row.offered_end, offered_from: row.offered_from }
               : {}),

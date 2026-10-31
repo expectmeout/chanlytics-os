@@ -189,7 +189,7 @@ test("the pools: counted over everyone by the runner's predicate; the week's tou
       "proposal_waiting",
       "quiet_30",
       "saved_list",
-      // A freed time (0081): its pool is who asked and never booked, counted as every moment's.
+      // A freed time (0082): its pool is who asked and never booked, counted as every moment's.
       "slot_opened",
       "visit_tomorrow",
       "visited",

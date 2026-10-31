@@ -436,7 +436,7 @@ test("a review's reply waits like everything else: held for an OK, or posted aft
   assert.equal(reviewDraftsBell([], TZ), null);
 });
 
-test("a freed time's batch (decision 0081) waits for an OK only until the time it offers, says the time on Today, counts who took it, and is refused once that time has come by the moment it would go", () => {
+test("a freed time's batch (decision 0082) waits for an OK only until the time it offers, says the time on Today, counts who took it, and is refused once that time has come by the moment it would go", () => {
   assert.deepEqual(waitRuleOf("freed_ask"), { goes: "with_your_ok", ends: "end_of_its_time", act: "approve" });
   assert.equal(
     waitEndsWords("freed_ask"),

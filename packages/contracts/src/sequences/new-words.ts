@@ -342,7 +342,7 @@ export const NEW_WORDS = {
     /** A proposal's message where no deal starts it, or after step 1: its run knows no proposal there. */
     dealOnly: "Names their proposal, so only where a deal starts it",
     proposalFirstOnly: "Names their proposal, so step 1 only",
-    /** A freed time's message where filling a cancellation does not start it, or after step 1: its run knows no freed time there (0081). */
+    /** A freed time's message where filling a cancellation does not start it, or after step 1: its run knows no freed time there (0082). */
     freedOnly: "Names the freed time, so only where filling a cancellation starts it",
     freedFirstOnly: "Names the freed time, so step 1 only",
     newMessage: "A new message",

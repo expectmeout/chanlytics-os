@@ -1079,7 +1079,7 @@ test("REGRESSION: a reminder nobody approved by 21:00 is skipped, and its owner 
   ]);
 });
 
-test("a freed time's batch nobody approved ends when its time comes (0081), told in its time's words; one whose time is ahead waits on", async () => {
+test("a freed time's batch nobody approved ends when its time comes (0082), told in its time's words; one whose time is ahead waits on", async () => {
   const w = world();
   workspace(w.tables, A, "America/New_York", "ask");
   const freed = (id, startMs) => ({

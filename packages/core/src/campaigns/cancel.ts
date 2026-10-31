@@ -18,7 +18,7 @@ export interface CancelReceipt {
  * has already ended and says so. The ledger records the decision, with why
  * where the system skipped it (`day_passed`: the edge's playbooks sweep ends a
  * run waiting for approval after its day, which no approval can send;
- * `time_passed`: the same for a freed time's batch whose time has come, 0081;
+ * `time_passed`: the same for a freed time's batch whose time has come, 0082;
  * `taken`: a freed time's batch whose time was booked before it went).
  */
 export async function cancelBroadcast(

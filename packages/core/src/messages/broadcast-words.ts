@@ -147,7 +147,7 @@ export function thenWhat(
 
 /**
  * The words a run kept on a person's row when it was made, for the slots that take them: a visit's time and service, a
- * follow-up's link (0006) and the freed time every send of its batch carries (0081). A word not kept is null, and the
+ * follow-up's link (0006) and the freed time every send of its batch carries (0082). A word not kept is null, and the
  * slot that asks for it holds the person.
  */
 export function keptWords(facts: Record<string, unknown>) {

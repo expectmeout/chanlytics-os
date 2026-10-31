@@ -145,7 +145,7 @@ async function endRunsWhoseDayPassed(tick: Tick): Promise<void> {
           record: (subjectType, subjectId, verb, payload) =>
             recordSystemDecision(db, { tenantId: r.tenant_id, subjectType, subjectId, verb, payload }),
         },
-        // A freed time's batch ends when its time comes (0081); every other run when its day passes.
+        // A freed time's batch ends when its time comes (0082); every other run when its day passes.
         { row: { id: r.id, state: r.state, name: r.name }, reason: r.offered_start ? "time_passed" : "day_passed" },
       );
       out.ended += 1;

@@ -165,7 +165,23 @@ test("every hold has words, and only a hold the workspace words itself has none 
 const FACTS = { business_name: "Harbor Studio", booking_link: "https://book.example/h" };
 const LINE = "Msg & data rates may apply. Reply STOP to opt out, HELP for help.";
 const reachOf = (row, mode = null, facts = FACTS) =>
-  writeReachOf(row, { firstTextLine: LINE, ready: READY, mode, facts, now: NOW });
+  writeReachOf(row, { firstTextLine: LINE, emailSigned: null, ready: READY, mode, facts, now: NOW });
+
+test("an email to them says the signature it will carry, where an email can go (decision 0081)", () => {
+  const row = {
+    ...person({ last_inbound_channel: "email", last_wrote_at: hoursAgo(2) }),
+    id: "k1",
+    display_name: "Robin Example",
+    wa_profile_name: null,
+    latest_conversation_id: "c1",
+  };
+  const at = { firstTextLine: LINE, ready: READY, mode: null, facts: FACTS, now: NOW };
+  const SIGNED = "Sam Reyes\nHarbor Studio";
+  assert.equal(writeReachOf(row, { ...at, emailSigned: SIGNED }).email_signed, SIGNED, "said before the send");
+  assert.equal(writeReachOf(row, { ...at, emailSigned: null }).email_signed, null, "none signs this member's emails");
+  const stopped = { ...row, email_suppressed_at: hoursAgo(1) };
+  assert.equal(writeReachOf(stopped, { ...at, emailSigned: SIGNED }).email_signed, null, "no email can go to them");
+});
 
 test("the reach read's answer: who, their thread, each wire, the call, and whether the receptionist answers", () => {
   const row = {

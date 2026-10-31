@@ -1,5 +1,5 @@
 /**
- * How it runs, for a freed time's sequence (sequences/settings-sheet.tsx, decision 0081): it runs when a cancellation
+ * How it runs, for a freed time's sequence (sequences/settings-sheet.tsx, decision 0082): it runs when a cancellation
  * frees a time, so it offers no hour; the most it sends is the people each freed time goes to (2, 4, 6 or 10); it says
  * how far ahead it offers, the workspace's booking window; and Save sends only what changed. Run through the real sheet
  * on the stub React, the verbs' one door and the typed client, with the wire answered by the test.

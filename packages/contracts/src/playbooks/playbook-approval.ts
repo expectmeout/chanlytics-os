@@ -274,7 +274,7 @@ interface ApprovalDays {
   say?: (ymd: string) => string;
 }
 
-/** Why a freed time's batch is refused (0081): the time it offers has come by the moment an approval would send it. */
+/** Why a freed time's batch is refused (0082): the time it offers has come by the moment an approval would send it. */
 export const FREED_TIME_PASSED_WORDS =
   "The freed time this run offered has come by the moment it would go, so it would offer a time that is gone. Skip it; the next cancellation offers its own.";
 
@@ -312,7 +312,7 @@ export function runApprovalRefusal(
   days: ApprovalDays,
 ): string | null {
   if (isReachOutRun(run.audience)) return null;
-  // A freed time's batch has no day of its own (0081): it is refused once the time it offers has come by its send.
+  // A freed time's batch has no day of its own (0082): it is refused once the time it offers has come by its send.
   const offered = run.offered_start ? Date.parse(run.offered_start) : Number.NaN;
   if (Number.isFinite(offered) && days.sendsAt !== undefined && offered <= days.sendsAt) return FREED_TIME_PASSED_WORDS;
   const day =

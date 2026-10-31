@@ -94,7 +94,7 @@ export const PLAYBOOK_TRIGGERS = [
     kind: "deal",
     hint: "A proposal waiting with nothing back",
   },
-  // A time a cancellation freed on the calendar (decision 0081): one batch per freed appointment, offered within the
+  // A time a cancellation freed on the calendar (decision 0082): one batch per freed appointment, offered within the
   // hour to the people who asked and never booked. Under the follow-ups' row: it answers the person's own ask, so a text
   // may carry it and an email asks no yes (playbook-purpose.ts). Run by the event that freed it, never by the hour.
   {
@@ -151,7 +151,7 @@ export function isPlaybookState(v: unknown): v is PlaybookState {
 export const PLAYBOOK_DEFAULTS = { runHour: 10, capPerRun: 25, gapDays: 90, cadenceDays: 30 } as const;
 
 /**
- * A freed time's own (decision 0081): one time is taken by one person, so four are written to, and nobody hears of
+ * A freed time's own (decision 0082): one time is taken by one person, so four are written to, and nobody hears of
  * another freed time within a week (the limits' floor). What a new step on `slot_opened` starts with where none is asked.
  */
 export const FREED_TIME_DEFAULTS = { capPerRun: 4, gapDays: 7 } as const;
@@ -276,7 +276,7 @@ export function approvalEndsWithSendingHours(trigger: string | null | undefined)
 
 /**
  * How a customer's batch waiting for an OK ends, by its wait rule (contracts waitEndsWords): a visit's with the day's
- * sending hours, after which it reaches nobody (visit_ask), a freed time's with the time it offers (freed_ask, 0081: `at`
+ * sending hours, after which it reaches nobody (visit_ask), a freed time's with the time it offers (freed_ask, 0082: `at`
  * says the time where the caller has it), any other's with its day (batch_ask). The ready notice and Today's row
  * (contracts todayRunWords) both say it from here.
  */
@@ -296,7 +296,7 @@ export function readyRunNotice(
   name: string,
   people: number,
   trigger: string | null,
-  /** The time a freed time's batch offers, in the business's words ("Tue 3:00 PM", 0081): its wait ends then. */
+  /** The time a freed time's batch offers, in the business's words ("Tue 3:00 PM", 0082): its wait ends then. */
   at?: string | null,
 ): { subject: string; body: string } {
   return {
@@ -336,7 +336,7 @@ export function skippedRunNotice(
   name: string,
   people: number,
   trigger: string | null,
-  /** The time a freed time's batch offered, in the business's words ("Tue 3:00 PM", 0081): its wait ended then. */
+  /** The time a freed time's batch offered, in the business's words ("Tue 3:00 PM", 0082): its wait ended then. */
   at?: string | null,
 ): { subject: string; body: string } {
   const who = plural(people, "person", "people");
@@ -358,7 +358,7 @@ export function skippedRunNotice(
 }
 
 /**
- * A freed time's batch stopped before it went because the time was booked since it was offered (decision 0081), told once,
+ * A freed time's batch stopped before it went because the time was booked since it was offered (decision 0082), told once,
  * as a stopped run is. `at` is the time in the business's words ("Tue 3:00 PM").
  */
 export function freedTimeTakenNotice(name: string, at: string): { subject: string; body: string } {
@@ -446,7 +446,7 @@ export function winBackWords(word: AppointmentWord): { quiet_30: string; lapsed:
 /**
  * Whether a new campaign on a moment is offered by whether a calendar is connected here: the two win-backs (by visits
  * only with one, by silence only without), the appointment moments and a freed time (only with one: a time is freed on the
- * calendar, decision 0081). The calendar set, declared once: momentOffered reads it, and so does the check that makes a
+ * calendar, decision 0082). The calendar set, declared once: momentOffered reads it, and so does the check that makes a
  * campaign, which asks for the calendar only here and says why a moment of it is refused.
  */
 export function momentReadsCalendar(t: { id: string; kind: string }): boolean {

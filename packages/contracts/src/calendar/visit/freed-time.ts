@@ -1,5 +1,5 @@
 /**
- * A freed time (decision 0081): the time a client's cancellation, a move or a vanished calendar entry freed, as the
+ * A freed time (decision 0082): the time a client's cancellation, a move or a vanished calendar entry freed, as the
  * receptionist would offer it to a caller now, or why there is none. One rule, over the receptionist's own open windows
  * (availability.ts freeWindows: the hours, the closures, the least notice, the booking window and the buffer around what
  * stands), so a freed time is never a time the receptionist would not offer: the part of the freed span that is open now, at
@@ -48,7 +48,7 @@ export interface FreedTimeEvent {
   /** Whose word it was (00436): "service" or "member"; absent on the feed's own events. */
   by?: string | null;
   source?: string | null;
-  /** The time a moved appointment left (00497); absent on an event from before it. */
+  /** The time a moved appointment left (00498); absent on an event from before it. */
   was_at?: string | null;
 }
 
@@ -81,7 +81,7 @@ export interface FreedTimeCalendar {
 }
 
 /**
- * What a freed time's offer came to (the edge's, decision 0081): a batch and its people, and whether it waits for the
+ * What a freed time's offer came to (the edge's, decision 0082): a batch and its people, and whether it waits for the
  * owner's OK; or none, and why: no running step on `slot_opened`, the workspace or its step paused, nobody to offer it
  * to, or a run that was off (its reason the detail).
  */
@@ -134,7 +134,7 @@ function standingBesides(cal: FreedTimeCalendar, row: FreedTimeRow, spanStart: n
 }
 
 /**
- * Whether a time a batch offers was taken since (decision 0081): something stands over it on the record now, the freed
+ * Whether a time a batch offers was taken since (decision 0082): something stands over it on the record now, the freed
  * visit's own sightings aside (at its start, or at the time offered, which a move's sighting starts at). Asked before the
  * batch's first send, so a time booked meanwhile is offered to nobody.
  */
@@ -237,7 +237,7 @@ export function freedTimeWords(startMs: number, tz: string, sendAt: Date): strin
 const UNOFFERED_MIN = 3;
 
 /**
- * Ask's notice of the times nothing offered (decision 0081): at least three appointments cancelled in the window, a
+ * Ask's notice of the times nothing offered (decision 0082): at least three appointments cancelled in the window, a
  * calendar connected (the moment is offered there), and no step on the moment running by the one rule (campaignRunsOn: a
  * paused step, or one past its last day, offers nothing). Null otherwise, and where the count could not be read.
  */

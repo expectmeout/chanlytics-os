@@ -116,6 +116,7 @@ const TABLES = [
   "mailbox_connections",
   // What the workspace said of a sender, and what its mailbox left where it was (00483).
   "mailbox_left",
+  "mailbox_sender_reads",
   "mailbox_senders",
   "mailboxes",
   "memberships",

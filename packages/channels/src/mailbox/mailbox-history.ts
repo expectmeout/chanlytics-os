@@ -33,7 +33,18 @@ export interface MailWindow {
   to: string;
   /** Only mail from this address: a sender the owner brought in (00483). A lower-cased address, never a query. */
   sender?: string;
+  /**
+   * Only what the mailbox sent, or only the rest (drafts never): the six months read whom the owner wrote to before the
+   * mail written to them (decision 0080). Gmail's alone; absent, everything but spam and the bin.
+   */
+  only?: "sent" | "received";
 }
+
+/** The words a window's `only` adds to Gmail's search. */
+const ONLY_WORDS: Readonly<Record<NonNullable<MailWindow["only"]>, string>> = {
+  sent: " in:sent",
+  received: " -in:sent -in:drafts",
+};
 
 const seconds = (iso: string): number => Math.max(0, Math.floor(Date.parse(iso) / 1000));
 
@@ -48,7 +59,7 @@ export async function gmailListSince(
   deps?: Deps,
 ): Promise<MailPage> {
   const q = new URLSearchParams({
-    q: `after:${seconds(window.from)} before:${seconds(window.to)}${window.sender ? ` from:${window.sender}` : ""}`,
+    q: `after:${seconds(window.from)} before:${seconds(window.to)}${window.sender ? ` from:${window.sender}` : ""}${window.only ? ONLY_WORDS[window.only] : ""}`,
     maxResults: GMAIL_PAGE,
   });
   if (pageToken) q.set("pageToken", pageToken);

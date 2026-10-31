@@ -1124,7 +1124,7 @@ test("a door to New that names a list it can't send to says so: the composer it 
   );
 });
 
-test("a freed time's run (decision 0081): the time it offers in the business's words, and who took it, read from the database's counts", () => {
+test("a freed time's run (decision 0082): the time it offers in the business's words, and who took it, read from the database's counts", () => {
   const run = {
     id: "b-open",
     name: "Fill a cancellation · Tue 3:00 PM",
@@ -1156,7 +1156,7 @@ test("a freed time's run (decision 0081): the time it offers in the business's w
   assert.equal(
     toBroadcastVM({ ...run, offered_start: undefined }, "America/New_York", now).offered,
     null,
-    "a server from before 00497",
+    "a server from before 00498",
   );
   const counted = (took) => ({
     "b-open": {
@@ -1176,7 +1176,7 @@ test("a freed time's run (decision 0081): the time it offers in the business's w
   assert.equal(
     "took" in runCountsOf(counted(undefined))["b-open"],
     false,
-    "a database from before 00497 says nothing of it",
+    "a database from before 00498 says nothing of it",
   );
   assert.equal(runCountsOf(counted("one")), null, "a count that is not a count is a shape the read does not know");
 });

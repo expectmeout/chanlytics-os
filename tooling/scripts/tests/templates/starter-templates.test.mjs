@@ -709,7 +709,7 @@ test("the set a workspace is offered (0006): the proposal follow-up in every wor
   assert.equal(guessSlotKind("Proposal link"), "proposal_link", "a label that names the proposal is its link");
 });
 
-test("a freed time (0081): a utility message about a freed time, its third slot the time, asking for a reply and carrying no link, in every version and both languages", () => {
+test("a freed time (0082): a utility message about a freed time, its third slot the time, asking for a reply and carrying no link, in every version and both languages", () => {
   const s = starterByKey("time_freed");
   assert.deepEqual(
     [s.name, s.title, s.category, s.trigger, s.retired],

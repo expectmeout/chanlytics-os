@@ -152,7 +152,7 @@ export type JobKind = (typeof JOB_KINDS)[number];
  * `consent_notice` tells it once on the bell when a customer asked to stop, from the consent event whichever door wrote
  * it (decision 0048, 00409); `visit_notice` tells it once on the bell when a booking arrived, from the appointment's
  * event whichever door wrote it (00410, S1-01); `team_notice` tells it once on the bell when a teammate joined, from
- * the seat's event (00410, S1-19); `freed_time_offer` offers a freed time to who asked and never booked (decision 0081).
+ * the seat's event (00410, S1-19); `freed_time_offer` offers a freed time to who asked and never booked (decision 0082).
  */
 export const EVENT_SUBSCRIBERS = [
   "reach_out_booked",

@@ -1,5 +1,5 @@
 /**
- * A freed time's batch asks the record before its first send (decision 0081, core broadcast-stops.ts takenBeforeItWent):
+ * A freed time's batch asks the record before its first send (decision 0082, core broadcast-stops.ts takenBeforeItWent):
  * a time booked since it was offered is taken, and the batch is cancelled as the system through the cancel verb (reason
  * `taken`), told once, with nobody claimed and nothing sent; a time still free sends as every batch does; the calendar's
  * copy of the cancelled visit takes nothing; a batch already sending goes on. Over fakes that log their calls.

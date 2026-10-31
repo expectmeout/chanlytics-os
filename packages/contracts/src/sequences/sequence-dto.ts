@@ -250,7 +250,7 @@ export interface SequenceBatchDto {
   failure: string | null;
   place: number | null;
   counts: Partial<SequenceBatchCountsDto>;
-  /** A freed time's batch (00497, decision 0081): the time it offers; null for any other, absent from a database before it. */
+  /** A freed time's batch (00498, decision 0082): the time it offers; null for any other, absent from a database before it. */
   offered_start?: string | null;
   /** How many of the people a freed time's batch reached took the time (freed_time_taken); null for any other batch. */
   took?: number | null;
@@ -317,7 +317,7 @@ export interface SequenceRecordDto {
     cap_per_run: number;
     gap_days: number;
     cadence_days: number;
-    /** A freed time's (decision 0081): the booking window it offers within, the days ahead. Absent on any other. */
+    /** A freed time's (decision 0082): the booking window it offers within, the days ahead. Absent on any other. */
     days_ahead?: number;
   };
   /**

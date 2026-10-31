@@ -1,5 +1,5 @@
 /**
- * The edge's offer of a freed time (decision 0081, apps/edge/lib/calendar/freed-time-offer.ts), over a database in
+ * The edge's offer of a freed time (decision 0082, apps/edge/lib/calendar/freed-time-offer.ts), over a database in
  * memory: the workspace's running step on `slot_opened` runs for the time through the run the sweep and Run now use
  * (lib/playbooks.ts runPlaybook), and its batch keeps the time it offers and the appointment that freed it; a second ask
  * answers that batch and runs nothing; no step, a paused step and a paused workspace ask nothing; the run's outcome is

@@ -1,10 +1,11 @@
-# 0081 · The receptionist fills the book
+# 0082 · The receptionist fills the book
 
-**Status:** Decided by Ruben on 30 October 2026, not built. The design brief was approved with its spend ("Approve,
+**Status:** Decided by Ruben on 30 October 2026, and built on 31 October in L1 to L3 (the plan's "as built" notes); its
+pull request is open, and 00498 is not on production yet. The design brief was approved with its spend ("Approve,
 write spec"). Spec `docs/superpowers/specs/2026-10-30-the-receptionist-fills-the-book-design.md`, plan
 `docs/superpowers/plans/2026-10-30-the-receptionist-fills-the-book.md`, lane
 `sequences/the-receptionist-fills-the-book`. Written against main's `5d0394714` (#1961), and verified against the
-code at it. Numbered 0081 because 0079 and 0080 are held by open lanes.
+code at it. Numbered 0082: 0079 is the lead preview's lane, and 0080 and 0081 landed first (#1964, #1965).
 
 ## Context
 

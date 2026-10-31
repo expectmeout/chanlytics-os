@@ -1,5 +1,5 @@
 /**
- * Where a freed time is seen (decision 0081, L3): Start's Change offers how many people each freed time goes to and says how
+ * Where a freed time is seen (decision 0082, L3): Start's Change offers how many people each freed time goes to and says how
  * far ahead it offers, never an hour; a batch's History day says who took the time; the journey's guide names the moment
  * on no stage where a calendar is connected; the activity log says why the system canceled a freed time's run; Ask's
  * signals notice the cancellations nothing offered, and its definitions say what a freed time is.

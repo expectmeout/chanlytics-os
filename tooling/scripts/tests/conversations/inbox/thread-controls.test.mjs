@@ -932,6 +932,58 @@ test("Actions carry the deal's moves as a group of their own, by the stage of th
   }
 });
 
+test("an owner reading a person's email thread may say they are not a person from its Actions: their page opens with the question asked, the typed name and all (decision 0080); not on another wire, nor for a member who may not", async () => {
+  const email = toInboxThreadVM(
+    conv({
+      contact: {
+        id: "k9",
+        display_name: "Fixture Host",
+        wa_profile_name: null,
+        phone_e164: null,
+        email: "team@host.example",
+        consent: "unknown",
+        dnc: false,
+      },
+      messages: [m("m1", 40, { channel: "email", body: "A deployment failed." })],
+    }),
+    asked,
+    ZONE,
+    NOW,
+  );
+  const was = { may: globalThis.window.mayAtLeast, store: globalThis.sessionStorage };
+  const kept = new Map();
+  globalThis.sessionStorage = {
+    getItem: (k) => kept.get(k) ?? null,
+    setItem: (k, v) => kept.set(k, String(v)),
+    removeItem: (k) => kept.delete(k),
+  };
+  const opened = [];
+  const itemsOf = (vm) => itemsIn(find(draw(vm, { onOpenClient: (id) => opened.push(id) }), (n) => n.type === Menu));
+  try {
+    globalThis.window.mayAtLeast = (rung) => rung === "owner";
+    const item = itemsOf(email).find((it) => it.label === "Not a person…");
+    assert.ok(item, "offered beside the person's other acts");
+    assert.equal(item.tone, "danger");
+    item.onSelect();
+    assert.deepEqual(opened, ["k9"], "their page, where Delete person asks its typed name");
+    assert.deepEqual([...kept.values()], ["k9"], "the question carried to it");
+    // Their page takes it as it is drawn, once: a second visit asks nothing.
+    const { takeCarriedNotAPerson } = await import(`${S}/inbox/carried-reply.ts`);
+    assert.equal(takeCarriedNotAPerson("k1"), false, "another person's page takes nothing");
+    assert.equal(takeCarriedNotAPerson("k9"), true);
+    assert.equal(takeCarriedNotAPerson("k9"), false);
+    assert.ok(
+      !itemsOf(toInboxThreadVM(conv(), asked, ZONE, NOW)).some((it) => it.label === "Not a person…"),
+      "a WhatsApp thread: not a mail sender",
+    );
+    globalThis.window.mayAtLeast = () => false;
+    assert.ok(!itemsOf(email).some((it) => it.label === "Not a person…"), "only an owner deletes a person");
+  } finally {
+    globalThis.window.mayAtLeast = was.may;
+    globalThis.sessionStorage = was.store;
+  }
+});
+
 /* ------------------------------ it moves as one ------------------------------ */
 
 test("a message that arrives while the thread is open rises into place; the ones it opened with are simply there", () => {

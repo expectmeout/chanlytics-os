@@ -28,7 +28,7 @@
  *                     nobody. A visit withdrawn or already past by the time the delivery runs is not news. A booking the
  *                     customer cancelled or moved through their booking tool (by the service, 00436: never a member's own
  *                     word) is told once too, while the visit is still ahead (R11 S6-6, contracts bookingChanged), and a
- *                     cancellation's news says what the offer of its time came to (decision 0081), asked of the offer
+ *                     cancellation's news says what the offer of its time came to (decision 0082), asked of the offer
  *                     itself, so the bell and the batch never disagree.
  *   team_notice       a teammate who accepted an invitation and joined (member.joined: 00410, S1-19) is told once on the
  *                     bell, opening Settings > Team; so is one who left, by their own hand or with their account
@@ -36,7 +36,7 @@
  *   freed_time_offer  the time an appointment's change freed (the service's cancel or move, the feed's vanished entry:
  *                     appointment.changed) is decided by the one rule (contracts freedTimeOf) over the record and the
  *                     receptionist's calendar, and offered through the edge's door, which runs the workspace's step on
- *                     slot_opened (decision 0081, 00497). Each change that offers nothing says why in one log line. The
+ *                     slot_opened (decision 0082, 00498). Each change that offers nothing says why in one log line. The
  *                     offer is once per appointment (sequence_batches_offered_once), so a second run makes nothing new.
  */
 import {
@@ -140,7 +140,7 @@ export interface SubscriberPorts {
     nowMs: number,
   ): Promise<{ row: FreedTimeRow; calendar: FreedTimeCalendar } | null>;
   /**
-   * The edge's offer of a freed time (decision 0081): the workspace's running step on `slot_opened` runs for it, once per
+   * The edge's offer of a freed time (decision 0082): the workspace's running step on `slot_opened` runs for it, once per
    * appointment, and a second ask answers the batch the first made. Throws when it could not be asked, so the delivery
    * tries again.
    */
@@ -201,7 +201,7 @@ function freedTimeEventOf(data: unknown): FreedTimeEvent | null {
 }
 
 /**
- * The time an appointment's change freed, offered (decision 0081), or why not; null for an event that frees no time (a
+ * The time an appointment's change freed, offered (decision 0082), or why not; null for an event that frees no time (a
  * booking added or confirmed), which is nobody's refusal. The one path `freed_time_offer` takes and `visit_notice` asks
  * for its clause: the offer is once per appointment (the edge's, over sequence_batches_offered_once), so whichever
  * delivery asks first makes it and the other hears the batch it made.

@@ -387,7 +387,7 @@ function offOfferRow(caps: string): LifecycleRow {
 }
 
 /**
- * A freed time where none is made and it is offered (decision 0081: a calendar is connected): a line that turns it on, as
+ * A freed time where none is made and it is offered (decision 0082: a calendar is connected): a line that turns it on, as
  * the month's offer's does. It reaches a yes to messages: it answers the person's own ask, as the follow-up does.
  */
 function offFreedTimeRow(caps: string): LifecycleRow {
@@ -612,7 +612,7 @@ function journeyGroup(def: JourneyStage, stage: LifecycleStage, at: GroupAt): Li
 }
 
 /**
- * Lists & offers: the month's offer, a freed time (0081), the campaigns on a list, and any other that stands on no moment.
+ * Lists & offers: the month's offer, a freed time (0082), the campaigns on a list, and any other that stands on no moment.
  */
 function listsGroup(at: GroupAt, onStage: ReadonlySet<string>): LifecycleGroup {
   const caps = LIFECYCLE_WORDS.ledger.groups.lists;

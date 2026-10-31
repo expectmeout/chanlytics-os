@@ -4,7 +4,7 @@
 "Shape #1": when an appointment on the business's calendar is cancelled or moved, the time it frees is offered to the
 few people who asked this month and never booked, and the receptionist takes their reply. The design brief (`Claude
 Video/docs/2026-10-30-fills-the-book-brief.md`, outside the repository) was approved with its spend: "Approve, write
-spec". Written against main's `5d0394714` (#1961), by hand, no sub-agents. Decision note 0081 (0079 and 0080 are held
+spec". Written against main's `5d0394714` (#1961), by hand, no sub-agents. Decision note 0082 (0079 and 0080 are held
 by open lanes).
 
 **Status:** decided, not built. The lane is `sequences/the-receptionist-fills-the-book` in `cm-fills-the-book`, one
@@ -235,7 +235,7 @@ So a freed time is one more moment, run by the parts that exist, started by the 
 
 ### 6. Docs
 
-- `docs/decisions/0081-the-receptionist-fills-the-book.md` and its README row.
+- `docs/decisions/0082-the-receptionist-fills-the-book.md` and its README row.
 - `docs/glossary.md`: Freed time (a moment).
 - `docs/system-prd.md` S-14.3's moments, S-20's `sequence_batches`.
 - `docs/data-model.md` regenerated.

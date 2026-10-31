@@ -68,7 +68,7 @@ const decided = (ctx: RouteContext, decision: { [key: string]: Json }) => ({
 
 /**
  * The values a step's message takes, judged as a playbook's are (core templateValues): as many as its slots, each typed
- * words or a value a run can fill. A step after the first knows no visit, no proposal and no freed time (0081) of the
+ * words or a value a run can fill. A step after the first knows no visit, no proposal and no freed time (0082) of the
  * person it reaches.
  */
 async function valuesOf(

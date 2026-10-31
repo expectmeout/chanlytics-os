@@ -97,4 +97,10 @@ export interface PersonReachDto {
    * what lands on a person's phone is never a surprise to whoever sent it.
    */
   first_text_line: string | null;
+  /**
+   * The signature an email from the member reading carries under their words (decision 0081): their own mailbox's, or
+   * the one their thread answers from; where an email can go to them and something signs it, null otherwise. Shown
+   * before the send, as the first text's line is.
+   */
+  email_signed: string | null;
 }

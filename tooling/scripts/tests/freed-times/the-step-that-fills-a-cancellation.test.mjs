@@ -1,5 +1,5 @@
 /**
- * The step that fills a cancellation (decision 0081): checked as every step is (core checkPlaybook: the moment, where a
+ * The step that fills a cancellation (decision 0082): checked as every step is (core checkPlaybook: the moment, where a
  * calendar is connected, under the follow-ups' class, its message naming the freed time), and run by the event that
  * freed a time, never by the hour (core runPlaybook with a freed time): the people who asked and never booked, the most
  * recent first, at most its cap, each held by the week's breath and the step's gap; the batch keeps the time it offers;

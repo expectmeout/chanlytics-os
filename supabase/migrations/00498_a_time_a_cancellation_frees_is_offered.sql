@@ -1,4 +1,4 @@
--- 00497 · A time a cancellation frees is offered (decision 0081).
+-- 00498 · A time a cancellation frees is offered (decision 0082).
 --
 -- When a client's appointment is cancelled, moved or vanishes from the owner's calendar, the time it frees is offered
 -- within the hour to the people who asked this month and never booked (People's "Asked, never booked"), by a sequence
@@ -46,11 +46,11 @@ alter table public.sequence_batches add constraint sequence_batches_offered_chec
 create unique index if not exists sequence_batches_offered_once
   on public.sequence_batches (step_id, offered_from) where offered_from is not null;
 comment on column public.sequence_batches.offered_start is
-  'A freed time''s batch (decision 0081): the start of the time it offers, freed by the appointment offered_from names. Null for every other batch.';
+  'A freed time''s batch (decision 0082): the start of the time it offers, freed by the appointment offered_from names. Null for every other batch.';
 comment on column public.sequence_batches.offered_end is
-  'A freed time''s batch (decision 0081): the end of the time it offers.';
+  'A freed time''s batch (decision 0082): the end of the time it offers.';
 comment on column public.sequence_batches.offered_from is
-  'A freed time''s batch (decision 0081): the appointment whose cancellation, move or vanishing freed the time; one batch per step and appointment (sequence_batches_offered_once). Set null when the appointment row goes.';
+  'A freed time''s batch (decision 0082): the appointment whose cancellation, move or vanishing freed the time; one batch per step and appointment (sequence_batches_offered_once). Set null when the appointment row goes.';
 
 create or replace function public.appointments_note_change() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
@@ -76,7 +76,7 @@ begin
   values (new.tenant_id, 'appointment.changed', 'appointment', 'appointment', new.id,
           jsonb_build_object('change', v_change, 'source', new.source, 'starts_at', new.starts_at)
           -- Whose word it is, whatever source the visit came by: a signed-in member's, or the service's (00436).
-          -- A move says the time it left (decision 0081, 00497): the freed time is that span.
+          -- A move says the time it left (decision 0082, 00498): the freed time is that span.
           || case when v_change = 'moved' then jsonb_build_object('was_at', old.starts_at) else '{}'::jsonb end
           || jsonb_build_object('by', case when auth.uid() is not null then 'member' else 'service' end));
   return null;
@@ -195,7 +195,7 @@ begin
       insert into events (tenant_id, kind, category, subject_type, subject_id, data)
       values (p_tenant_id, 'appointment.changed', 'appointment', 'appointment', v_id,
               jsonb_build_object('change', v_change, 'source', 'calendar_feed', 'starts_at', v_in.starts_at)
-              -- A move says the time it left (decision 0081, 00497): v_row is the row as it stood before this read.
+              -- A move says the time it left (decision 0082, 00498): v_row is the row as it stood before this read.
               || case when v_change = 'moved' then jsonb_build_object('was_at', v_row.starts_at) else '{}'::jsonb end
               || case when v_change = 'added'
                       then jsonb_build_object('named', v_contact is not null, 'series', v_in.series, 'twin', v_in.twin,
@@ -225,7 +225,7 @@ begin
                             'seen', cardinality(v_seen), 'stale', false, 'first', v_first);
 end $$;
 
--- Who took the time a batch offered (decision 0081): the people it sent to with an appointment on the record that
+-- Who took the time a batch offered (decision 0082): the people it sent to with an appointment on the record that
 -- stands (proposed, booked or kept, not vanished), starts inside the offered span and was written after the batch
 -- started, from any source. Read, never stored. Runs as the caller: a member counts their own workspace's rows under
 -- RLS, and a batch of another workspace counts 0.
@@ -245,7 +245,7 @@ $$;
 revoke execute on function public.freed_time_taken(uuid) from public, anon;
 grant execute on function public.freed_time_taken(uuid) to authenticated, service_role;
 comment on function public.freed_time_taken(uuid) is
-  'How many people a batch sent to took the time it offered (decision 0081): an appointment of theirs on the record, standing, starting inside the offered span, written after the batch started. Read as the caller under RLS; never stored.';
+  'How many people a batch sent to took the time it offered (decision 0082): an appointment of theirs on the record, standing, starting inside the offered span, written after the batch started. Read as the caller under RLS; never stored.';
 
 create or replace function public.run_counts(p_tenant_id uuid, p_run_ids uuid[]) RETURNS jsonb
     LANGUAGE sql STABLE
@@ -316,7 +316,7 @@ create or replace function public.run_counts(p_tenant_id uuid, p_run_ids uuid[])
            'read', c.was_read,
            'replied', coalesce(y.replied, 0),
            'sent_by', jsonb_build_object('whatsapp', c.by_whatsapp, 'sms', c.by_sms, 'email', c.by_email),
-           -- Who took the time a run offered (decision 0081, freed_time_taken); null for a run that offered none.
+           -- Who took the time a run offered (decision 0082, freed_time_taken); null for a run that offered none.
            'took', case when b.offered_from is not null then public.freed_time_taken(b.id) end)), '{}'::jsonb)
     from counted c
     left join replied y on y.broadcast_id = c.broadcast_id
@@ -352,7 +352,7 @@ begin
        select 1 from public.sequence_steps b where b.id = (p_run->>'playbook_id')::uuid and b.tenant_id = p_tenant) then
     raise exception 'assemble_broadcast: the playbook is not workspace %''s', p_tenant using errcode = '42501';
   end if;
-  -- A freed time's batch (decision 0081, 00497) keeps the time it offers and the appointment that freed it.
+  -- A freed time's batch (decision 0082, 00498) keeps the time it offers and the appointment that freed it.
   insert into public.sequence_batches (tenant_id, name, template_id, template_name, template_language, params, audience,
                                  state, scheduled_for, recipient_count, created_by, step_id, run_for, channels,
                                  offered_start, offered_end, offered_from)
@@ -403,7 +403,7 @@ create or replace function public.sequence_steps_due(p_kind text, p_at timestamp
     cross join lateral (select public.safe_zone(coalesce(nullif(btrim(t.timezone), ''), 'America/New_York')) as tz) z
     cross join lateral (select p_at at time zone z.tz as clock) l
    where s.state = 'running' and s.kind = p_kind
-     -- A freed time's step runs when an appointment frees a time (decision 0081, 00497), never by the hour.
+     -- A freed time's step runs when an appointment frees a time (decision 0082, 00498), never by the hour.
      and s.trigger <> 'slot_opened'
      and (s.kind = 'reach_out' or (r.state = 'running' and q.state = 'on'))
      and t.status <> 'paused'
@@ -442,7 +442,7 @@ create or replace function public.sequence_history(p_tenant_id uuid, p_sequence_
                            'failure', p.failure,
                            'place', (select st.place from public.sequence_steps st where st.id = p.step_id),
                            'counts', coalesce((select c from counts) -> p.id::text, '{}'::jsonb),
-                           -- A freed time's batch (decision 0081): the time it offers, and who took it; null for any other.
+                           -- A freed time's batch (decision 0082): the time it offers, and who took it; null for any other.
                            'offered_start', p.offered_start,
                            'took', case when p.offered_from is not null then public.freed_time_taken(p.id) end)
                            order by p.at desc, p.id desc)

@@ -232,7 +232,7 @@ test("the rail's foot carries Import leads, which opens the sheet", () => {
   const h = hooked();
   const door = h.got().importDoor;
   const rail = LeadsRailRows({
-    rail: { lists: [], searches: [] },
+    rail: { lists: [], searches: [], sequences: [] },
     list: "all",
     searchId: null,
     canFind: true,

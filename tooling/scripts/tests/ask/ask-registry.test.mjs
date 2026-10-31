@@ -62,7 +62,7 @@ const asProposableNow = (schema) => {
   const out = structuredClone(schema);
   const t = out.properties.trigger;
   if (t)
-    // The appointment moments joined it later, and a freed time (decision 0081, 30 Oct 2026) after them.
+    // The appointment moments joined it later, and a freed time (decision 0082, 30 Oct 2026) after them.
     t.enum = MOMENT_TRIGGERS.filter(
       (m) => (t.enum.includes(m.id) || m.kind === "visit" || m.kind === "freed") && !(m.id in MOMENTS_RETIRED),
     ).map((m) => m.id);

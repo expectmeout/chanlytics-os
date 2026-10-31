@@ -10,7 +10,7 @@
  *   batch_ask     a customer batch waiting for an OK: it waits until its day ends, then it is skipped and the owner told
  *   visit_ask     a visit's batch waiting for an OK: its words name the day, so it waits only until the day's sending
  *                 hours end, then it is skipped and reaches nobody (contracts runApprovalRefusal)
- *   freed_ask   a freed time's batch waiting for an OK (0081): it offers a time, so it waits only until that time comes,
+ *   freed_ask   a freed time's batch waiting for an OK (0082): it offers a time, so it waits only until that time comes,
  *                 then it is skipped (contracts runApprovalRefusal)
  *   batch_hold    a customer batch held for a stop: it goes at its time unless stopped
  *   leads_batch   a batch to leads waiting for an OK: it has no day to pass, so it waits until answered

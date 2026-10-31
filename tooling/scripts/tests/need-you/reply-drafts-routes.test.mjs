@@ -216,9 +216,38 @@ test("a reply to an email written to the connected mailbox is read as signed wit
       [C1, "Sam Reyes\nHarbor Moving"],
       [C3, null],
     ],
-    "the line under the card says what the send will sign with, and none where it leaves from the hosted mailbox",
+    "the line under the card says what the send will sign with, and none where no mailbox of the reader's signs it",
   );
   assert.equal(writes(ctx), 0, "a read writes nothing");
+
+  // The same mailbox, connected by the member reading: the email left from the hosted address is signed as theirs (0081).
+  const theirs = (drafted) =>
+    ctxFor({
+      memberships: [membership("operator")],
+      mailbox_connections: [
+        rows.mailboxConnection({
+          tenant_id: A,
+          address: "sam@owndomain.example.com",
+          host: "owndomain.example.com",
+          from_name: "Sam at Harbor",
+          gmail_signature: "Sam Reyes<br>Harbor Moving",
+          connected_by: USER,
+        }),
+      ],
+      messages: [email(M2, C3, "office@example.com")],
+      conversation_drafts: drafted,
+    });
+  const hosted = await dataOf(await drafts.GET.run(get(`ids=${C3}`), theirs([kept(C3, M2, "Thursday then.")])));
+  assert.deepEqual(
+    hosted.drafts.map((x) => x.signed ?? null),
+    ["Sam Reyes\nHarbor Moving"],
+    "from the hosted address, the reader's own mailbox signs it",
+  );
+  assert.deepEqual(hosted.signed, { [C3]: "Sam Reyes\nHarbor Moving" }, "and by thread, as the Inbox's box reads it");
+  // A thread named with no draft kept says it too: the Inbox's box says what its email will be signed with, drafted or not.
+  const bare = await dataOf(await drafts.GET.run(get(`ids=${C3}`), theirs([])));
+  assert.deepEqual(bare.drafts, []);
+  assert.deepEqual(bare.signed, { [C3]: "Sam Reyes\nHarbor Moving" });
 });
 
 test("naming no thread, the read answers the workspace's newest kept drafts, newest first, and whether they are all it keeps: Today reads them with its own, before it knows its rows", async () => {

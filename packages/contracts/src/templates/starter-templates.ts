@@ -109,7 +109,7 @@ const PROPOSAL = {
   example: "https://docs.example.com/proposal",
 };
 const PROPOSAL_ES = { ...PROPOSAL, label: "Enlace de la propuesta" };
-// The time a cancellation freed (0081), as the batch kept it for every send: "tomorrow at 2:00 PM", "on Thursday at 3:00 PM".
+// The time a cancellation freed (0082), as the batch kept it for every send: "tomorrow at 2:00 PM", "on Thursday at 3:00 PM".
 const FREED_WHEN = { kind: "freed_when" as const, label: "When", example: "tomorrow at 2:00 PM" };
 const FREED_WHEN_ES = { ...FREED_WHEN, label: "Cuándo", example: "mañana a las 2:00 PM" };
 // Where a customer leaves the business a review: the link its Google listing keeps (00415), filled at the send.
@@ -351,7 +351,7 @@ export const STARTER_TEMPLATES: readonly StarterTemplate[] = [
     },
   },
   {
-    // A time a cancellation freed, offered to the people who asked and never booked (0081). About their own ask and
+    // A time a cancellation freed, offered to the people who asked and never booked (0082). About their own ask and
     // nothing else: no offer, no price and no link, so it is utility and reaches a yes to texts. Their reply opens
     // WhatsApp's 24 hours, inside which the receptionist answers it as any thread, and holds the time where the workspace
     // takes booking requests (0061).

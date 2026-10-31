@@ -100,9 +100,9 @@ export interface WaitingPlaybookRun {
   name: string;
   state: string;
   playbook_id: string;
-  /** The day it was made for; null for a freed time's batch, which has none (decision 0081). */
+  /** The day it was made for; null for a freed time's batch, which has none (decision 0082). */
   run_for: string | null;
-  /** The time a freed time's batch offers (0081): its wait ends when that time comes. Null for every other run. */
+  /** The time a freed time's batch offers (0082): its wait ends when that time comes. Null for every other run. */
   offered_start: string | null;
   audience: unknown;
   /** How many it was for: what the owner is told it did not reach, once the sweep skips it (decision 0064). */
@@ -122,7 +122,7 @@ export async function waitingPlaybookRuns(db: Db, p: { limit: number }): Promise
     .select("id, tenant_id, name, state, playbook_id:step_id, run_for, offered_start, audience, recipient_count")
     .eq("state", "pending_approval")
     .not("step_id", "is", null)
-    // A run for a day, or a freed time's batch, which has its time instead (0081).
+    // A run for a day, or a freed time's batch, which has its time instead (0082).
     .or("run_for.not.is.null,offered_start.not.is.null")
     .or("audience->>kind.is.null,audience->>kind.neq.reach_out")
     .order("run_for", { ascending: true })

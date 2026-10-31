@@ -57,7 +57,7 @@ export const POLICY_CLASS_WORDS: Record<PolicyClass, { name: string; short: stri
     note: `replies under new reviews on Google, through the connected Business Profile · auto answers each within the hour, veto writes it and posts it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask writes one and holds it for your OK, never leaves them all to you`,
   },
   money: { name: "Refunds · rates · negotiation", short: "Money", note: "always goes to you" },
-  // 0006: one nudge per proposal, with its link, once it has waited past the workspace's pace with nothing back. 0081: a
+  // 0006: one nudge per proposal, with its link, once it has waited past the workspace's pace with nothing back. 0082: a
   // time a cancellation freed, to the people who asked and never booked, under the same row: both answer their own ask.
   follow_up: {
     name: "Follow-ups",

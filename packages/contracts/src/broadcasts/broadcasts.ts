@@ -246,7 +246,7 @@ export interface BroadcastCounts {
    */
   sent_by?: Record<ConsentChannel, number>;
   /**
-   * How many of the people a freed time's run sent to took the time it offered (00497 freed_time_taken, decision 0081): null
+   * How many of the people a freed time's run sent to took the time it offered (00498 freed_time_taken, decision 0082): null
    * for a run that offered none, absent from a database before it.
    */
   took?: number | null;
@@ -276,7 +276,7 @@ export function runCountsOf(answer: unknown): Record<string, BroadcastCounts> | 
     }
     const { whatsapp, sms, email } = by;
     if (!isCount(whatsapp) || !isCount(sms) || !isCount(email)) return null;
-    // Who took the freed time (00497): a count, null for a run that offered none, absent from a database before it.
+    // Who took the freed time (00498): a count, null for a run that offered none, absent from a database before it.
     const took = c.took;
     if (took !== undefined && took !== null && !isCount(took)) return null;
     out[id] = { ...counts, sent_by: { whatsapp, sms, email }, ...(took === undefined ? {} : { took }) };
@@ -304,7 +304,7 @@ export interface BroadcastDto {
   playbook_id: string | null;
   run_for: string | null;
   /**
-   * A freed time's run (00497, decision 0081): the time it offers and the appointment that freed it; null for every other
+   * A freed time's run (00498, decision 0082): the time it offers and the appointment that freed it; null for every other
    * run, absent from a server before it.
    */
   offered_start?: string | null;

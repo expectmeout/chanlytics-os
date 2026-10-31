@@ -2,7 +2,7 @@
  * How a customer's sequence runs, opened by Start's Change (the Sequences loop review's item 7) and by the head's Who
  * approves: what happens before each batch (its own mode, decision 0064: ask, hold it for a stop, or send it; new words
  * always ask first), its hour, the most it sends each day, the days before the same person hears it again (a moment over a
- * group of people), the days between runs (the month's offer), and the day it stops; a freed time's (decision 0081) runs when a
+ * group of people), the days between runs (the month's offer), and the day it stops; a freed time's (decision 0082) runs when a
  * cancellation frees a time, so it offers no hour: the people each time goes to, and how far ahead it offers. The kit's sheet: from the bottom on a
  * phone, a side pane on a desk. Saved through the campaign's own verb (`playbook_change`), only what changed, with its
  * receipt and its undo; the first step's settings reach every step after it (00453). A list's sequence says it goes once to
@@ -37,7 +37,7 @@ const hourWords = (h: number) => clockTime(Date.UTC(2026, 0, 1, h), "UTC");
 
 const HOURS = Array.from({ length: PLAYBOOK_HOURS.max - PLAYBOOK_HOURS.min + 1 }, (_, i) => PLAYBOOK_HOURS.min + i);
 const CAPS = [10, 25, 50, 100, 200, 500];
-/** How many people a freed time goes to (decision 0081): it is taken by one, so a few at a time. */
+/** How many people a freed time goes to (decision 0082): it is taken by one, so a few at a time. */
 const FREED_CAPS = [2, 4, 6, 10];
 const GAPS = [30, 60, 90, 180, 365];
 const EVERY = [7, 14, 30, 60, 90];

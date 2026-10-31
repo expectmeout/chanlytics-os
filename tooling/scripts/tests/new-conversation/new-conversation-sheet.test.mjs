@@ -56,13 +56,14 @@ const row = (over = {}) => ({
   deal_id: null,
   ...over,
 });
-const reachOf = (over = {}, mode = null) =>
+const reachOf = (over = {}, mode = null, emailSigned = null) =>
   writeReachOf(row(over), {
     ready: READY,
     mode,
     facts: { business_name: "Harbor Studio", booking_link: null },
     // No text of ours has reached them: the first one carries the line, as channels says it (SMS_FOOTER).
     firstTextLine: LINE,
+    emailSigned,
     now: NOW,
   });
 const LINE = "Msg & data rates may apply. Reply STOP to opt out, HELP for help.";
@@ -158,6 +159,12 @@ test("an email has its subject, and its answer comes to the team: there is no ch
   assert.deepEqual(seen.patched.at(-1), { subject: "Your quote" });
   assert.equal(said(tree, "ix-new-then-fixed"), W.then.comesToYou);
   assert.equal(byTestId(tree, "ix-new-then-me"), null);
+  assert.equal(byTestId(tree, "ix-new-signed"), null, "nothing signs this member's emails: no line");
+  // What their mailbox signs it with is said under the words before the send, in a line, the whole of it on hover (0081).
+  const signed = reachOf({ deal_id: "d1" }, null, "Sam Reyes\nFounder · Harbor Studio\nwww.harbor.example | 555-0142");
+  const drawn = draw(NewMessage, { s: stateOf(signed, "email").s, reach: signed });
+  assert.equal(said(drawn, "ix-new-signed"), "Signed Sam Reyes · Founder · Harbor Studio · www.harbor.example");
+  assert.equal(byTestId(drawn, "ix-new-signed").props.title, signed.email_signed);
 });
 
 test("where WhatsApp carries only an approved message, the ones that can go are offered with the words of the one chosen", () => {

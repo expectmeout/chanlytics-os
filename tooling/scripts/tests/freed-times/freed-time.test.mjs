@@ -1,5 +1,5 @@
 /**
- * A freed time (decision 0081): the time a cancellation, a move or a vanished calendar entry freed, as the receptionist
+ * A freed time (decision 0082): the time a cancellation, a move or a vanished calendar entry freed, as the receptionist
  * would offer it, or why there is none. One rule (contracts calendar/visit/freed-time.ts freedTimeOf) over the receptionist's own open
  * windows (freeWindows), so a freed time is never a time the receptionist would not offer a caller: inside the hours, past
  * the least notice, inside the booking window, not on a closure, and free on the record now. And the words a message says
@@ -84,7 +84,7 @@ test("a move frees the time it left (was_at), as long as the row is; an event th
     start: oct(20, 11),
     end: oct(20, 12),
   });
-  assert.equal(refused(freedTimeOf(moved, now, calendar(), NOW)), "no_was_at", "an event from before 00497");
+  assert.equal(refused(freedTimeOf(moved, now, calendar(), NOW)), "no_was_at", "an event from before 00498");
 });
 
 test("the least notice and the booking window are the receptionist's: too soon, part too soon, past the window", () => {

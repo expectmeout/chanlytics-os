@@ -54,7 +54,7 @@ const MONTHS_OFFER: GuideRow = {
 };
 
 /**
- * A freed time (decision 0081): a touch point of a journey with a calendar, on no stage of it. A cancellation, a move or a
+ * A freed time (decision 0082): a touch point of a journey with a calendar, on no stage of it. A cancellation, a move or a
  * vanished entry frees a time, and it goes to the people who asked in the last 30 days and never booked, by text, by
  * email, or by WhatsApp's utility message (the follow-ups' class: about theirs, so no yes to offers).
  */

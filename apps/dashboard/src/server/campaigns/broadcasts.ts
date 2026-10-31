@@ -61,7 +61,7 @@ interface BroadcastRow {
   playbook_id: string | null;
   run_for: string | null;
   sequence_id: string;
-  /** A freed time's batch (00497, decision 0081): the time it offers and the appointment that freed it. */
+  /** A freed time's batch (00498, decision 0082): the time it offers and the appointment that freed it. */
   offered_start: string | null;
   offered_end: string | null;
   offered_from: string | null;

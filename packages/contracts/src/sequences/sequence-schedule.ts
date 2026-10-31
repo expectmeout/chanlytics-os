@@ -65,7 +65,7 @@ export const SCHEDULE_WORDS = {
     until: "Runs until",
     untilHint: "Leave it empty and it keeps running. On that day it stops.",
     onceEach: "It goes once to each person: who is on the list now, then each who joins.",
-    /** A freed time's sequence (decision 0081): how many people each freed time goes to, and how far ahead it offers. */
+    /** A freed time's sequence (decision 0082): how many people each freed time goes to, and how far ahead it offers. */
     freedCap: "People per freed time",
     freedAhead: (n: number) => `Up to ${n} days ahead`,
     freedAheadHint: "The days ahead your receptionist offers times: change it in Settings, under Booking rules.",
@@ -81,7 +81,7 @@ const hourWords = (h: number): string => clockTime(Date.UTC(2026, 0, 1, h), "UTC
  * What Start's Change offers beside the most each day and the last day: the days before the same person hears it again,
  * for a moment over a group of people (gone quiet, lapsed: its kind `list`); the days between runs, for the month's offer
  * (`cadence`). A visit's, a proposal's and a list's sequence have neither: each visit, each proposal, once each. A freed
- * time's (`freed`, decision 0081) runs when a cancellation frees a time, never at an hour: it offers how many people each
+ * time's (`freed`, decision 0082) runs when a cancellation frees a time, never at an hour: it offers how many people each
  * time goes to, and says how far ahead it offers.
  */
 export function scheduleSettingsOf(row: Pick<SequenceRowDto, "first">): {

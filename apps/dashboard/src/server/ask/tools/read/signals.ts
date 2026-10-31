@@ -47,7 +47,7 @@ async function seeAll(t: ToolContext) {
     load(t.rc, configReader, undefined).then((r) => r.data, failed("settings")),
     load(t.rc, factsReader, undefined).then((r) => r.data.timezone, failed("facts")),
     t.ctx.userId ? load(t.rc, memberViews, undefined).then((r) => r.data, failed("follow-ups")) : Promise.resolve(null),
-    // The cancellations whose time a freed time's step would have offered (decision 0081), in the same window.
+    // The cancellations whose time a freed time's step would have offered (decision 0082), in the same window.
     cancellationsSince(t.rc.ctx.supabase, t.rc.tenantId, since).then((n) => n, failed("cancellations")),
   ]);
   return { pool, kept, seqs, pb, chains, finder, cfg, zone, views, cancellations, nowMs: t.now.getTime() };
@@ -172,7 +172,7 @@ const dealsWithoutAStep: Spot = ({ pool }) => {
   };
 };
 
-/** Appointments cancelled in the window whose time nothing offered (contracts freedTimesUnoffered, decision 0081). */
+/** Appointments cancelled in the window whose time nothing offered (contracts freedTimesUnoffered, decision 0082). */
 const freedTimesNotOffered: Spot = ({ pb, cancellations, nowMs }) => {
   if (!pb) return null;
   const said = freedTimesUnoffered({

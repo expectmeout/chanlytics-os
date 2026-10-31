@@ -250,7 +250,7 @@ export type ParamSpec =
   | { kind: "visit_service" }
   /** A follow-up's own words: the link of the proposal the person's deal waits on (0006). */
   | { kind: "proposal_link" }
-  /** A freed time's own words (0081): the time a cancellation freed, the same for everyone its batch reaches. */
+  /** A freed time's own words (0082): the time a cancellation freed, the same for everyone its batch reaches. */
   | { kind: "freed_when" };
 
 export const PARAM_SOURCE_LABELS: Record<ParamSourceKind, string> = {
@@ -362,7 +362,7 @@ export interface ParamFacts {
   visitService?: string | null;
   /** A follow-up's link for this person, frozen when the run was made (0006); absent elsewhere. */
   proposalLink?: string | null;
-  /** The freed time as its batch kept it for the send (0081); absent elsewhere. */
+  /** The freed time as its batch kept it for the send (0082); absent elsewhere. */
   freedWhen?: string | null;
 }
 

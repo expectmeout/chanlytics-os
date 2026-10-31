@@ -1,5 +1,5 @@
 /**
- * A time a cancellation frees is offered (00497, decision 0081), against the replayed database.
+ * A time a cancellation frees is offered (00498, decision 0082), against the replayed database.
  *
  * The moment is a closed set the database holds too: a step on slot_opened is accepted and a trigger nobody wrote is
  * refused. A batch carries the time it offers and the appointment that freed it, once per step and appointment, and a

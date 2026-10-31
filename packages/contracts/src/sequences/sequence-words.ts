@@ -457,7 +457,7 @@ export function sequenceNextOf(
   return row.starts === "moment" || row.starts === "list" ? firstRunNext(row, lastRunFor, tz, nowMs) : null;
 }
 
-/** Its first step's next run by its hour (00462 sequence_steps_due); null where it cannot know, and a freed time's (0081). */
+/** Its first step's next run by its hour (00462 sequence_steps_due); null where it cannot know, and a freed time's (0082). */
 function firstRunNext(
   row: SequenceRowDto,
   lastRunFor: string | null | undefined,

@@ -39,7 +39,7 @@ export interface NewBroadcast {
   run_for?: string;
   /** The channels the run may go by (contracts reach-for.ts): `broadcasts.channels`, each person on one of them. */
   channels: string[];
-  /** A freed time's batch (decision 0081, 00497): the time it offers and the appointment that freed it. */
+  /** A freed time's batch (decision 0082, 00498): the time it offers and the appointment that freed it. */
   offered_start?: string;
   offered_end?: string;
   offered_from?: string;
@@ -262,7 +262,7 @@ export type RunOutcome =
         | "list_uncounted"
         /** A run for a day past the campaign's last (00416 `until`): it has ended, and sends nothing more. */
         | "ended"
-        /** A step on a freed time run with none (decision 0081): it runs when an appointment frees one, never by the hour. */
+        /** A step on a freed time run with none (decision 0082): it runs when an appointment frees one, never by the hour. */
         | "no_freed_time"
         /** A freed time handed to a step on another moment: only a freed time's step offers one. */
         | "not_a_freed_time_step"
@@ -316,7 +316,7 @@ export interface RunPlaybookCommand {
   runFor?: string;
   by: RunBy;
   /**
-   * The time a cancellation, a move or a vanished calendar entry freed (decision 0081, contracts freedTimeOf), for a step
+   * The time a cancellation, a move or a vanished calendar entry freed (decision 0082, contracts freedTimeOf), for a step
    * on `slot_opened`: its batch offers it, and has no day of its own.
    */
   freed?: FreedTimeRun;
@@ -361,7 +361,7 @@ export interface BroadcastRef {
   audience?: unknown;
   /** When it is set to go: a reach-out's first send. */
   scheduled_for?: string | null;
-  /** The time a freed time's run offers (00497, decision 0081): approved once that time has come, it is refused. */
+  /** The time a freed time's run offers (00498, decision 0082): approved once that time has come, it is refused. */
   offered_start?: string | null;
 }
 

@@ -39,7 +39,7 @@ export interface WaitingRun {
   /** The business's day the run was made for (a playbook's run). */
   run_for?: string | null;
   audience?: unknown;
-  /** The time a freed time's run offers (0081): its wait ends when that time comes. */
+  /** The time a freed time's run offers (0082): its wait ends when that time comes. */
   offered_start?: string | null;
   /** How many of a going run's emails the check holds for the owner's say (absent where Sent did not say). */
   held?: number | null;
@@ -51,7 +51,7 @@ export interface WaitingRun {
 export interface RunDays {
   today: string;
   sendsOn: string;
-  /** The moment an approval now would send a run (runDaysAt): what a freed time is read against (0081). */
+  /** The moment an approval now would send a run (runDaysAt): what a freed time is read against (0082). */
   sendsAt?: number;
 }
 

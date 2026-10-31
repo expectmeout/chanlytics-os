@@ -876,7 +876,7 @@
     },
     {
       "kind": "over-read",
-      "why": "A freed time's run says how many of the people it offered the time to took it (run_counts' took, freed_time_taken over their appointments since the batch, decision 0081). The count rides with the run's own row and is said on the run's next read: hearing every appointment would read Sent and the Calendar's marks for each booking, for a figure that moves once a run at most.",
+      "why": "A freed time's run says how many of the people it offered the time to took it (run_counts' took, freed_time_taken over their appointments since the batch, decision 0082). The count rides with the run's own row and is said on the run's next read: hearing every appointment would read Sent and the Calendar's marks for each booking, for a figure that moves once a run at most.",
       "reads": {
         "broadcasts": [
           "appointments"

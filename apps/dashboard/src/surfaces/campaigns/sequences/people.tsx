@@ -14,10 +14,10 @@ import {
   SEQUENCE_NEEDS_WORDS as N,
   SEQUENCE_PEOPLE_WORDS as P,
   addressOf,
-  clockStamp,
   heldWhyOf,
   isReachOutHold,
   peopleNeedsOf,
+  personWhenWords,
   leadsPlannedWords,
   sequenceLeftWords,
   sequenceRepliesRoute,
@@ -80,12 +80,8 @@ const litInView = (el: HTMLElement | null) => {
 
 /** What a row says under the name: its step, when, and why for someone held or gone. */
 function personLineOf(p: SequencePersonDto, tz: string, nowMs: number): string {
-  // Up next with its time come is going out (paced by its mailboxes), never a time already gone (the walk of 30 Oct 2026).
-  const at = !p.at
-    ? null
-    : p.group === "next" && Date.parse(p.at) <= nowMs
-      ? P.goingNow
-      : clockStamp(Date.parse(p.at), tz, nowMs);
+  // Never a time already gone: going out, once you approve, or nothing for one held (personWhenWords).
+  const at = p.at ? personWhenWords(p.group, Date.parse(p.at), tz, nowMs) : null;
   // Added and not planned yet: when they joined its list.
   if (p.group === "queued") return at ? P.addedAt(at) : P.added;
   const place = p.place ? P.step(p.place) : null;

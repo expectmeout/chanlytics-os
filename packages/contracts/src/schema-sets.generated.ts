@@ -12,7 +12,7 @@ export const SCHEMA_SETS = {
   "ai_usage.purpose": [
     "receptionist", "reply_draft", "ask", "lead_json", "template_draft", "review_reply", "lead_judge",
     "note_suggest", "reach_out_check", "reply_read", "booking_read", "lead_suggest", "ask_journal",
-    "receptionist_review", "fix_route", "website_read",
+    "receptionist_review", "fix_route", "website_read", "sender_read",
   ],
   "appointment_notices.hold_reason": [
     "no_model", "may_not_spend", "unreadable", "not_a_booking", "no_time", "no_client", "gone",
@@ -150,8 +150,9 @@ export const SCHEMA_SETS = {
   "mailbox_connections.state": ["connected", "reconnect", "paused", "held", "removed"],
   "mailbox_left.why": [
     "automated", "auto_reply", "report", "booking_notice", "forwarding_confirmation", "gmail_tab",
-    "updates", "said",
+    "updates", "said", "service", "pitch", "notice", "relayed", "others_said",
   ],
+  "mailbox_sender_reads.kind": ["inquiry", "person", "pitch", "notice", "relayed"],
   "mailbox_senders.verdict": ["automated", "person"],
   "mailboxes.offers_paused_reason": ["complaints", "bounces"],
   "mailboxes.reply_mode": ["draft", "veto", "auto"],

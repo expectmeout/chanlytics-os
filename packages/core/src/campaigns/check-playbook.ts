@@ -172,7 +172,7 @@ function refuseFollowUpWithoutLink(trig: ReturnType<typeof triggerOf>, specs: re
 const numbersOf = (trig: ReturnType<typeof triggerOf>): { capPerRun: number; gapDays: number } =>
   trig?.kind === "freed" ? FREED_TIME_DEFAULTS : PLAYBOOK_DEFAULTS;
 
-/** A freed time's message says the freed time (0081): without it, "want it?" asks of nothing. */
+/** A freed time's message says the freed time (0082): without it, "want it?" asks of nothing. */
 function refuseFreedTimeWithoutWhen(trig: ReturnType<typeof triggerOf>, specs: readonly ParamSpec[]): void {
   if (trig?.kind === "freed" && !specs.some((s) => s.kind === "freed_when"))
     throw new AppError("validation", FREED_TIME_NEEDS_WHEN);
@@ -521,7 +521,7 @@ export async function checkPlaybook(
     params: specs,
     policy_class: cls,
     run_hour: playbookNumber("run_hour", body?.run_hour, PLAYBOOK_DEFAULTS.runHour),
-    // A freed time's own where none is asked (0081): four people a time, a week between freed times.
+    // A freed time's own where none is asked (0082): four people a time, a week between freed times.
     cap_per_run: playbookNumber("cap_per_run", body?.cap_per_run, numbersOf(trig).capPerRun),
     gap_days: playbookNumber("gap_days", body?.gap_days, numbersOf(trig).gapDays),
     cadence_days: playbookNumber("cadence_days", body?.cadence_days, PLAYBOOK_DEFAULTS.cadenceDays),

@@ -135,7 +135,7 @@ export interface BroadcastRow {
   recipient_count: number | null;
   playbook_id: string | null;
   audience: unknown;
-  /** A freed time's batch (decision 0081, 00497): the time it offers and the appointment that freed it; null otherwise. */
+  /** A freed time's batch (decision 0082, 00498): the time it offers and the appointment that freed it; null otherwise. */
   offered_start?: string | null;
   offered_end?: string | null;
   offered_from?: string | null;
@@ -186,7 +186,7 @@ export interface BroadcastBatchPorts {
   startSending(id: string): Promise<boolean>;
   /**
    * The appointment a freed time's batch offers the time of, and what stands on the record over the days ahead (db
-   * freedTimeFactsOf), or null when the record no longer holds it (decision 0081): read before the batch's first send.
+   * freedTimeFactsOf), or null when the record no longer holds it (decision 0082): read before the batch's first send.
    */
   freedTimeFacts(appointmentId: string): Promise<{ row: FreedTimeRow; calendar: FreedTimeCalendar } | null>;
   /** The batch moved to canceled as the system, only from the state it was read in (db cancelBroadcastFrom). */

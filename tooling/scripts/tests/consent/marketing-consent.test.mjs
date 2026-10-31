@@ -184,7 +184,7 @@ test("what a message IS comes from what was already recorded, and NULL means mar
     "conversational",
     "a nudge on the proposal they asked for is about their own request, as a reminder of their visit is (0006)",
   );
-  // A time a cancellation freed, offered to someone who asked and never booked (0081), runs under the same row: about
+  // A time a cancellation freed, offered to someone who asked and never booked (0082), runs under the same row: about
   // their own ask, so a text may carry it (no offer rides it) and an email asks no yes, only an address that works.
   const freed = triggerOf("slot_opened");
   assert.equal(purposeOfPlaybook(freed.cls), "conversational");

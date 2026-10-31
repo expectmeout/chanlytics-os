@@ -76,7 +76,7 @@ interface Run {
   mode: SequenceMode;
   /** The channels the playbook ticks (contracts reachFor reads them at enrolment). */
   channels: ConsentChannel[];
-  /** The time a freed time's run offers (decision 0081): its batch has no day of its own. Null for every other run. */
+  /** The time a freed time's run offers (decision 0082): its batch has no day of its own. Null for every other run. */
   freed: FreedTimeRun | null;
   record(data: Record<string, unknown>): Promise<void>;
   off(skipped: Skipped, opts?: { record?: boolean }): Promise<RunOutcome>;
@@ -438,7 +438,7 @@ function recipientFacts(r: Run, goesAt: Date): (person: PersonRowVM) => Record<s
   const { p, ctx } = r;
   // A step after the first keeps no visit's or proposal's words: what it says is its own.
   if (isFollowUp(p)) return () => null;
-  // A freed time's words are the same for everyone its batch reaches, read at the moment it goes (0081).
+  // A freed time's words are the same for everyone its batch reaches, read at the moment it goes (0082).
   const freed = r.freed;
   if (freed) return () => freedTimeFactsFor(freed, ctx.tz, goesAt);
   const trig = triggerOf(p.trigger);
@@ -536,7 +536,7 @@ async function sayTheRun(run: Run, made: { madeId: string; n: number; at: Date |
 }
 
 /**
- * Why a run and its freed time do not go together (0081), or null: a freed time's step runs when an appointment frees a
+ * Why a run and its freed time do not go together (0082), or null: a freed time's step runs when an appointment frees a
  * time and only then, any other step never for one, and a freed time that has begun by the moment its batch would go is
  * a time nobody can have. Said, and never recorded, so a Run now on it learns why and the day stays open.
  */
@@ -548,7 +548,7 @@ function freedTimeRefusal(p: PlaybookRow, freed: FreedTimeRun | null, goesAt: Da
 
 /**
  * A batch's name and what it is kept by: a run's day, or for a freed time, which has no day of its own, the time it offers
- * and the appointment that freed it, the name saying the time ("Fill a cancellation · Tue 3:00 PM", 0081).
+ * and the appointment that freed it, the name saying the time ("Fill a cancellation · Tue 3:00 PM", 0082).
  */
 function batchWhen(p: PlaybookRow, freed: FreedTimeRun | null, runFor: string, ctx: RunContext) {
   if (!freed) return { name: `${p.name} · ${runFor}`, run_for: runFor };

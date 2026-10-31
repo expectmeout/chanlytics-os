@@ -526,7 +526,7 @@ const recordChangedWords = (p: Record<string, unknown>): string | null => {
   return moved.length ? moved.slice(0, 4).map(businessFieldLabel).join(", ") : "nothing changed";
 };
 
-/** Why the system canceled a run, by the reason its decision keeps: the sweep's and the send's (decision 0081). */
+/** Why the system canceled a run, by the reason its decision keeps: the sweep's and the send's (decision 0082). */
 const CANCELED_BY_SYSTEM: Readonly<Record<string, string>> = {
   day_passed: "Skipped a run whose day had passed",
   time_passed: "Skipped a freed time's run when its time came",
@@ -569,7 +569,7 @@ const WHOLE_SENTENCE = new Map<string, (p: Record<string, unknown>, base: string
   ),
   ["business.recorded", (p, base) => joinBits(base, [recordChangedWords(p)])],
   // A run the hourly sweep skipped because its day had passed (no approval could send it, S7-3), or a freed time's whose
-  // time came first or was booked before it went (decision 0081): the system's, named.
+  // time came first or was booked before it went (decision 0082): the system's, named.
   [
     "cancel_broadcast",
     (p, base) => {

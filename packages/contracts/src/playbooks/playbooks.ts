@@ -186,7 +186,7 @@ export function proposalFactsFor(
 }
 
 /**
- * The words every send of a freed time's batch keeps (0081): the time as it reads at the moment the batch goes, the
+ * The words every send of a freed time's batch keeps (0082): the time as it reads at the moment the batch goes, the
  * appointment that freed it, and the span, so the send says what the batch offered and Reports reads who took it.
  */
 export function freedTimeFactsFor(
@@ -202,7 +202,7 @@ export function freedTimeFactsFor(
   };
 }
 
-/** Why a freed time's message must say the freed time (0081): without it, "want it?" asks of nothing. */
+/** Why a freed time's message must say the freed time (0082): without it, "want it?" asks of nothing. */
 export const FREED_TIME_NEEDS_WHEN =
   "Filling a cancellation says the freed time: pick a message with a slot for it, and fill that slot with the freed time.";
 

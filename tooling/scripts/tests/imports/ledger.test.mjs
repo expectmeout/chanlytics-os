@@ -95,14 +95,21 @@ test("a source's line says what came and how far back, in its own words, and whe
   assert.equal(importLineOf(row("calendar", "queued")).stand, "Starting");
 });
 
+test("the strangers the six months found asking about the business, and never answered, are said on the mailbox's line (decision 0080)", () => {
+  const says = (counts, state = "done") => importLineOf(row("mailbox", state, counts)).says;
+  assert.match(says({ messages: 414, asked: 4 }), /^414 emails · 4 asked about your services and never got an answer/);
+  assert.match(says({ messages: 30, asked: 1 }, "running"), /^30 emails so far · 1 asked about your services/);
+  assert.doesNotMatch(says({ messages: 414 }), /asked/, "none found: nothing said");
+});
+
 test("what the mailbox set aside is said apart, under its line, and only for the mailbox", () => {
   assert.equal(
     importLineOf(row("mailbox", "done", { messages: 414, dropped: 195 })).aside,
-    "195 newsletters and notices set aside",
+    "195 newsletters, notices and pitches set aside",
   );
   assert.equal(
     importLineOf(row("mailbox", "running", { messages: 3, dropped: 1200 })).aside,
-    "1,200 newsletters and notices set aside",
+    "1,200 newsletters, notices and pitches set aside",
   );
   assert.equal(importLineOf(row("mailbox", "done", { messages: 4 })).aside, null, "nothing set aside: no line");
   assert.equal(

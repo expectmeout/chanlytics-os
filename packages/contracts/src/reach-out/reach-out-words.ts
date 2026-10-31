@@ -139,9 +139,10 @@ export function emailWordCount(text: string): number {
 
 const ADDRESS = /[^\s@<>]+@[^\s@<>]+/g;
 const SCHEME_OR_WWW = /\bhttps?:\/\/[^\s<>]+|\bwww\.[^\s<>]+/gi;
-// A bare name.tld as an address is written, in lower case: "example.com", "harbor.example/book". "St.Louis",
-// "Dr.Smith" and a rating's "4.9" are not: a capital after the dot, or no letters.
-const BARE_HOST = /\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,24}\b(?:\/[^\s<>]*)?/g;
+// A bare name.tld as an address is written: "example.com", "harbor.example/book", and "RJCapital.io" with capitals
+// before its dot, which a mail app links all the same (30 Oct 2026). "St.Louis", "Dr.Smith" and a rating's "4.9" are
+// not: a capital after the last dot, or no letters.
+const BARE_HOST = /\b[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[a-z]{2,24}\b(?:\/[^\s<>]*)?/g;
 
 /**
  * The web addresses a reader sees in the words: each with a scheme or a www., and each bare name.tld. An email

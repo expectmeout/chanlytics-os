@@ -1,5 +1,5 @@
 /**
- * A freed time offered (decision 0081, 00497): the door the subscriber `freed_time_offer` and `visit_notice`'s clause ask
+ * A freed time offered (decision 0082, 00498): the door the subscriber `freed_time_offer` and `visit_notice`'s clause ask
  * through (core subscribers.ts), injected into the job context by the tick (ops/jobs-tick.ts) as the website reader is.
  *
  * The workspace's running step on `slot_opened` runs for the time, through the implementation the hourly sweep and Run

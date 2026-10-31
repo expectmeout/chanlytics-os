@@ -415,7 +415,7 @@ export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<v
         );
         return !!rows && rows.length > 0;
       },
-      // A freed time's batch asks the record before its first send (decision 0081): the appointment that freed it and what
+      // A freed time's batch asks the record before its first send (decision 0082): the appointment that freed it and what
       // stands now; a time booked since is taken, and the batch is cancelled as the system and told once.
       freedTimeFacts: (appointmentId) => freedTimeFactsOf(db, job.tenant_id, appointmentId, Date.now()),
       cancelFrom: (id, from) => cancelBroadcastFrom(db, { tenantId: job.tenant_id, id, from }),

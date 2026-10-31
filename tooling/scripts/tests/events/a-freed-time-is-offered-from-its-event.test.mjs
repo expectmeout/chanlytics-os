@@ -1,5 +1,5 @@
 /**
- * A time a cancellation frees is offered from its event (decision 0081): the subscriber `freed_time_offer` reads an
+ * A time a cancellation frees is offered from its event (decision 0082): the subscriber `freed_time_offer` reads an
  * `appointment.changed`, asks the record for the row and the calendar the receptionist reads, decides the freed time by
  * the one rule (contracts freedTimeOf), and hands it to the edge's offer, which runs the workspace's step on
  * `slot_opened`. Every change that offers nothing says why in one log line; a change that frees nothing (a booking

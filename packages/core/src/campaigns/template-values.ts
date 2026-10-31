@@ -45,7 +45,7 @@ export async function templateValues(
   ports: TemplateValuesPorts,
   /**
    * `visits`: a visit playbook, whose run knows each visit; `proposal`: the follow-up, whose run knows each link;
-   * `freed`: a freed time (0081), whose batch knows the freed time.
+   * `freed`: a freed time (0082), whose batch knows the freed time.
    */
   cmd: { templateId: string; params: unknown; visits: boolean; proposal: boolean; freed: boolean },
 ): Promise<{ message: CampaignMessage; specs: ParamSpec[] }> {
@@ -90,7 +90,7 @@ export async function templateValues(
       if (spec.kind === "proposal_link" && !cmd.proposal) {
         throw new AppError("validation", "Only the proposal follow-up can fill in a proposal's link.");
       }
-      // The freed time exists only on a freed time's batch, the same for everyone it reaches (0081).
+      // The freed time exists only on a freed time's batch, the same for everyone it reaches (0082).
       if (spec.kind === "freed_when" && !cmd.freed) {
         throw new AppError("validation", "Only filling a cancellation can fill in the freed time.");
       }

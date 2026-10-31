@@ -34,7 +34,7 @@ export interface RunLike {
   held?: number | null;
   /** How many of a going run's emails are handed to you to send from your inbox (waits.ts runDraftedEmails, 00429). */
   drafted?: number | null;
-  /** The time a freed time's run offers, as its view model says it ("tomorrow 3:00 PM", 0081); absent on any other run. */
+  /** The time a freed time's run offers, as its view model says it ("tomorrow 3:00 PM", 0082); absent on any other run. */
   offered?: string | null;
 }
 
@@ -87,7 +87,7 @@ export function todayRunWords(r: RunLike): TodayRunWordsVM {
   // visit's until 21:00, as its notice says (batchWaitWords); a reach-out's or a one-off's until it is answered.
   const ends =
     !reach && r.playbook_id ? batchWaitWords(audienceTrigger(r.audience), r.offered) : waitEndsWords("leads_batch");
-  // A freed time's run says the time first, and why these people (0081): they asked and never booked.
+  // A freed time's run says the time first, and why these people (0082): they asked and never booked.
   const waiting = r.offered
     ? `${capitalize(r.offered)} opened. ${people} asked this month and never booked. ${ends}.`
     : `${people}. ${ends}.`;

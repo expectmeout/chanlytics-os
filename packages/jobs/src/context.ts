@@ -219,7 +219,7 @@ export interface JobContext {
     read: (job: ClaimedJob, deadline: number) => Promise<void>;
   };
   /**
-   * A freed time offered to the people who asked and never booked (decision 0081), as the edge holds it: the workspace's
+   * A freed time offered to the people who asked and never booked (decision 0082), as the edge holds it: the workspace's
    * run context and its step on `slot_opened` live there. INJECTED like the website reader; a delivery to
    * `freed_time_offer` in a runtime without it fails loudly.
    */

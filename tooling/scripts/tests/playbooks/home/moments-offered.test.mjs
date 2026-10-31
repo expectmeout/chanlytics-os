@@ -73,7 +73,7 @@ test("which moments a new playbook may start from: none retired, the proposal's 
   );
 });
 
-test("a freed time is offered only where a calendar is connected: a time is freed on the calendar, and none is without one (0081)", () => {
+test("a freed time is offered only where a calendar is connected: a time is freed on the calendar, and none is without one (0082)", () => {
   assert.equal(OFFERED(false).includes("slot_opened"), false);
   assert.equal(OFFERED(true).includes("slot_opened"), true);
   assert.equal(triggerOffered(triggerOf("slot_opened")), true, "one made keeps running: the run never asks");

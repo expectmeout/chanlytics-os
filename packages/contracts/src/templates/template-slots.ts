@@ -100,7 +100,7 @@ export function slotChoices(
     // A proposal's link is each proposal's, and there is one only on the follow-up (0006).
     case "proposal_link":
       return o.proposal ? [kind] : [];
-    // The freed time is a freed time's batch's, the same for everyone it reaches (0081).
+    // The freed time is a freed time's batch's, the same for everyone it reaches (0082).
     case "freed_when":
       return o.freed ? [kind] : [];
     default:

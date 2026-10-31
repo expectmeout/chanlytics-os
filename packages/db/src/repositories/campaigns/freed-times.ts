@@ -1,5 +1,5 @@
 /**
- * A freed time, as the database holds what it is decided over and what it made (decision 0081, 00497), read with the
+ * A freed time, as the database holds what it is decided over and what it made (decision 0082, 00498), read with the
  * service role: the appointment an event is about and the calendar the receptionist reads over it (its hours, closures
  * and booking rules from the workspace's profile, its zone, and every time that stands on the record over the days it
  * may offer: a booking's row, a request still held, the owner's calendar as the feed's last read left it), for the
@@ -143,7 +143,7 @@ const EVENTS_MAX = 2000;
 
 /**
  * How many appointments with a person the service cancelled, or the owner's calendar dropped, since `sinceIso`: the times
- * a freed time's step would have been handed (decision 0081), read off their events (appointment.changed: cancelled by
+ * a freed time's step would have been handed (decision 0082), read off their events (appointment.changed: cancelled by
  * the service, 00436, or vanished from the feed). Ask's signals count them where nothing offers them. Under the caller's
  * row security; a read that fails throws.
  */

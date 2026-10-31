@@ -14,6 +14,7 @@ import assert from "node:assert/strict";
 import { toInboxThreadVM, stateOf, memberWords } from "@chanlytics/contracts";
 import { keysDrawn } from "../../_keys.mjs";
 import { installLegacyReact, fresh, again, settle } from "../../_legacy-react.mjs";
+import { until } from "../../shared/_until.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-15T14:00:00Z");
@@ -443,6 +444,38 @@ test("the kept reply comes with the Inbox's first reads: the box draws with its 
     assert.deepEqual(asked, [], "the thread's own read is asked for neither");
     assert.equal(await firstWords({ drafts: [], complete: false }), "", "not among the newest: read by the thread");
     assert.deepEqual(asked, ["/api/v1/conversations/drafts"]);
+  } finally {
+    globalThis.fetch = realFetch;
+    setSurfaceValue("reply_drafts", undefined);
+  }
+});
+
+// An empty box asks nothing: the test above holds it, on an email thread whose newest drafts hold no reply.
+test("what an email from the box is signed with is read for its thread once the box has words, and is said under them (decision 0081)", async () => {
+  const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
+  const mail = (m) => ({ ...m, channel: "email" });
+  const dto = chat({ last_wa_inbound_at: null, messages: [mail(wrote("m1", "Can you move a sofa on Friday?", 40))] });
+  const SIG = "Sam Reyes\nHarbor Moving";
+  const realFetch = globalThis.fetch;
+  const asked = [];
+  globalThis.fetch = async (url) => {
+    asked.push(new URL(String(url), "https://app.example").pathname);
+    return new Response(JSON.stringify({ ok: true, data: { drafts: [], complete: true, signed: { c1: SIG } } }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
+  try {
+    // No draft kept for it among the newest, so they cannot say what signs it.
+    setSurfaceValue("reply_drafts", { drafts: [], complete: true, fetchedAt: Date.now() });
+    fresh();
+    const thread = vmOf(dto);
+    const draw = () => again(() => InboxComposer({ thread, reply: "", onSend() {} }));
+    const tree = draw();
+    find(tree, (n) => n.type === "textarea").props.onChange({ target: { value: "Friday works." } });
+    const line = () => textOf(find(draw(), byTestId("ix-composer-signed-words")));
+    await until(() => line() === "Signed Sam Reyes · Harbor Moving", "the line under the words");
+    assert.deepEqual(asked, ["/api/v1/conversations/drafts"], "the thread's own read, once");
   } finally {
     globalThis.fetch = realFetch;
     setSurfaceValue("reply_drafts", undefined);

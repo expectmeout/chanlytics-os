@@ -121,7 +121,7 @@ function sequenceReads(rc: ReaderContext, id: string) {
 }
 
 /**
- * The booking window a freed time is offered within, the days ahead (decision 0081, contracts freedTimeOf): the workspace's
+ * The booking window a freed time is offered within, the days ahead (decision 0082, contracts freedTimeOf): the workspace's
  * booking rules, else the default. Unreadable is unsaid, never a number of its own.
  */
 async function daysAheadOf(rc: ReaderContext): Promise<number | undefined> {
@@ -163,7 +163,7 @@ export const sequence: Reader<{ id: string }, SequenceRecordDto> = {
     const [read] = rows;
     if (!read) throw new AppError("not_found", "Sequence not found.", 404);
     const row = sequenceWaitsNow(read, runDaysAt(facts.timezone, rc.now));
-    // A freed time's sequence says how far ahead it offers (decision 0081): read for it alone.
+    // A freed time's sequence says how far ahead it offers (decision 0082): read for it alone.
     const daysAhead = first && read.first?.trigger === "slot_opened" ? await daysAheadOf(rc) : undefined;
     return {
       data: {

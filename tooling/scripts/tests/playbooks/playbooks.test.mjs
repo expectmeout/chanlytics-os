@@ -187,7 +187,7 @@ test("ten moments: People's lists and a cadence, two the calendar makes possible
   assert.deepEqual(
     [triggerOf("slot_opened").kind, triggerOf("slot_opened").cls, triggerOf("slot_opened").list],
     ["freed", "follow_up", "asked_never_booked"],
-    "a time a cancellation freed (0081): a follow-up to the person's own ask, offered to People's Asked, never booked",
+    "a time a cancellation freed (0082): a follow-up to the person's own ask, offered to People's Asked, never booked",
   );
   assert.equal(triggerOf("slot_opened").label, "Fill a cancellation");
   assert.equal(triggerOf("lapsed").list, "lapsed", "the win-back by visits runs on People's own Lapsed list");
@@ -393,7 +393,7 @@ test("the migration and the sweep: one run per playbook per local day, touches n
   );
   assert.match(POLICY_CLASS_WORDS.campaign.note, /^how a new offer or welcome sequence starts · /);
   assert.match(POLICY_CLASS_WORDS.follow_up.note, /^how the proposal follow-up and filling a cancellation start · /);
-  assert.equal(POLICY_CLASS_WORDS.follow_up.name, "Follow-ups", "the row names both moments under it (0081)");
+  assert.equal(POLICY_CLASS_WORDS.follow_up.name, "Follow-ups", "the row names both moments under it (0082)");
   assert.ok(
     readCode("apps/dashboard/src/legacy-bridge/policy-store.ts").includes('...W("reengage")'),
     "the Autonomy row says what the playbooks do, in the one set of words every surface reads",
@@ -1002,7 +1002,7 @@ test("a reach-out's step reaches nobody among People: its run is its own, and it
 
 test("what a moment's message is about (decision D1): a visit's, a proposal's and a freed time's are theirs, every other moment's the business's own news", () => {
   // The visit they booked, and the proposal their deal waits on: by email these ask an address and no yes.
-  // A time a cancellation freed, offered to people who asked for one (0081): about their own ask, as the follow-up is.
+  // A time a cancellation freed, offered to people who asked for one (0082): about their own ask, as the follow-up is.
   for (const trigger of ["visit_tomorrow", "visited", "proposal_waiting", "slot_opened"])
     assert.equal(messageAboutOfTrigger(trigger), "theirs", trigger);
   // Everything else is news the business chose to send, by whatever list or cadence.
@@ -1021,7 +1021,7 @@ test("what a moment's message is about (decision D1): a visit's, a proposal's an
     );
 });
 
-test("a freed time's words for every send of its batch (decision 0081): the time as it reads when the batch goes, the appointment that freed it, and the span", () => {
+test("a freed time's words for every send of its batch (decision 0082): the time as it reads when the batch goes, the appointment that freed it, and the span", () => {
   const freed = { from: "appt-1", start: Date.parse("2026-10-20T19:00:00Z"), end: Date.parse("2026-10-20T20:00:00Z") };
   assert.deepEqual(freedTimeFactsFor(freed, "America/New_York", new Date("2026-10-19T18:00:00Z")), {
     freed_when: "tomorrow at 3:00 PM",
