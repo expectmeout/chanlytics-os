@@ -1153,6 +1153,16 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       const at = stampOf(tables);
       const id = crypto.randomUUID();
       const run = Object.fromEntries(Object.entries(p_run).filter(([, v]) => v !== null));
+      // The run's row is judged on its table's unique keys as the function's insert is (one batch per step and day, and
+      // per step and freed appointment, 00498): a clash is the database's 23505, and nothing is written.
+      const base = { id, tenant_id: p_tenant, ...run, step_id: run.playbook_id ?? null };
+      const clash = uniqueViolation(
+        keysOf("sequence_batches"),
+        "sequence_batches",
+        [base],
+        tables.sequence_batches ?? [],
+      );
+      if (clash) throw Object.assign(new Error(clash.message), { code: clash.code });
       (tables.broadcasts ??= []).push(
         written("broadcasts", {
           id,

@@ -5,9 +5,9 @@
  * The workspace's running step on `slot_opened` runs for the time, through the implementation the hourly sweep and Run
  * now use (lib/playbooks.ts runPlaybook over core's run-playbook), as the system's decision under its sequence's mode.
  * Once per appointment: the batch made for it answers a second ask, and the database's unique index
- * (sequence_batches_offered_once) refuses a second made at the same moment, which fails that run, so its delivery asks
- * again and hears the first. A run that failed, or a workspace that could not be read, throws, so the delivery tries
- * again; every other outcome is an answer.
+ * (sequence_batches_offered_once) refuses a second made at the same moment, which fails that run; the batch the first
+ * made then answers it too, so the bell's news says the offer whichever delivery made it. A run that failed with no batch
+ * standing, or a workspace that could not be read, throws, so the delivery tries again; every other outcome is an answer.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { FreedTimeOffer } from "../packages/contracts.js";
@@ -50,6 +50,22 @@ export async function offerFreedTime(
     case "off":
       return { offered: false, why: "off", detail: r.skipped };
     case "failed":
-      throw new Error(`the freed time's run failed: ${r.error}`);
+      return madeMeanwhile(db, tenantId, step.id, freed.from, r.error);
   }
+}
+
+/**
+ * A run that failed may have lost to the other ask (the subscriber and the news's clause run in one tick): the batch it
+ * made answers, as a second ask's does. Anything else throws, so the delivery tries again.
+ */
+async function madeMeanwhile(
+  db: Db,
+  tenantId: string,
+  stepId: string,
+  appointmentId: string,
+  error: string,
+): Promise<FreedTimeOffer> {
+  const made = await freedTimeBatchOf(db, tenantId, stepId, appointmentId);
+  if (made) return { offered: true, people: made.people, waits: made.waits };
+  throw new Error(`the freed time's run failed: ${error}`);
 }
