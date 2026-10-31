@@ -291,9 +291,13 @@ test("six calls an hour from one network, apart from its messages", async (t) =>
 test("one answer at a time a preview, from every network: a second message on its heels waits, and asks no model", async () => {
   world();
   assert.equal((await post(message, { text: "Are you open on Sunday?" })).status, 200);
-  const next = await read(await post(message, { text: "And on Saturday?" }, { ip: "198.51.100.9" }));
+  const res = await post(message, { text: "And on Saturday?" }, { ip: "198.51.100.9" });
+  const next = await read(res);
   assert.equal(next.status, 429, JSON.stringify(next.body));
   assert.equal(asked.length, 1, "the second is never asked of the model");
+  const wait = next.body.error.details.retry_after_s;
+  assert.ok(wait >= 1 && wait <= 5, `it says the seconds the pace lifts in (${wait}), which the page waits out`);
+  assert.equal(res.headers.get("retry-after"), String(wait), "and in Retry-After, as every route's limit does");
   world({ id: "p2", token: "TokenTokenTokenToken02" });
   assert.equal(
     (await post(message, { text: "Hi" }, { token: "TokenTokenTokenToken02" })).status,
@@ -310,4 +314,42 @@ test("a door that spends is counted strictly: where the count cannot be shared, 
   assert.equal(asked.length, 0, "no model asked, no call made");
   assert.equal((await post(opened, {})).status, 200);
   assert.equal((await post(notRight, { fact: "Hours" })).status, 200);
+});
+
+test("the page waits out the pace once: a follow-up written on the heels of an answer is sent again after the seconds the door names; a network's hour is said, never waited", async () => {
+  const { previewVerbs } = await importSrc("apps/dashboard/src/surfaces/preview/verbs.ts");
+  const sent = [];
+  let replies = [];
+  globalThis.fetch = async (url) => {
+    sent.push(String(url));
+    const [status, body] = replies.shift();
+    return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+  };
+  const paced = (s, message = "Too many messages in a short time — try again in a moment.") => [
+    429,
+    { ok: false, error: { code: "rate_limited", message, details: { retry_after_s: s } } },
+  ];
+  replies = [
+    paced(0),
+    [200, { ok: true, data: { turn: { role: "assistant", text: "We open at 9.", then: null }, left: 18 } }],
+  ];
+  const r = await previewVerbs.say(TOKEN, "And on Saturday?");
+  assert.deepEqual([r.ok, r.data?.left, sent.length], [true, 18, 2]);
+  assert.ok(sent.every((u) => u.endsWith(`/api/v1/previews/${TOKEN}/message`)));
+
+  sent.length = 0;
+  replies = [paced(3600, "Too many messages in a short time — try again in an hour.")];
+  const later = await previewVerbs.say(TOKEN, "Hi");
+  assert.deepEqual(
+    [later.ok, later.message, sent.length],
+    [false, "Too many messages in a short time — try again in an hour.", 1],
+    "said, and the person's words are theirs to send again",
+  );
+  sent.length = 0;
+  replies = [[409, { ok: false, error: { code: "conflict", message: W.spent } }]];
+  assert.deepEqual(
+    [(await previewVerbs.say(TOKEN, "Hi")).message, sent.length],
+    [W.spent, 1],
+    "a refusal that is no pace is said at once",
+  );
 });

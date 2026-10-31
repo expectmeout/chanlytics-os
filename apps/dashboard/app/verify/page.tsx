@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { CONSOLE_PATH, SECOND_FACTOR_WORDS, secondFactorAsked } from "@chanlytics/contracts";
 import { createClient } from "@/lib/supabase/client";
 import AuthShell from "@/auth/AuthShell";
-import { signInReturnOf } from "@/auth/sign-in-return";
+import { signInLandingOf } from "@/auth/sign-in-return";
 import { confirmEnrolment, secondStep, startEnrolment, verifyFactor, type Enrolment } from "@/auth/second-factor";
 
 /**
@@ -28,8 +28,7 @@ type Phase = "reading" | "code" | "enrol";
 const askedFor = () => new URLSearchParams(window.location.search).get("for");
 
 // In, with the return the sign-in carried here: the workspace and the route (sign-in-return.ts); or the Console.
-const inside = () =>
-  window.location.assign(askedFor() === "console" ? CONSOLE_PATH : "/" + signInReturnOf(window.location));
+const inside = () => window.location.assign(askedFor() === "console" ? CONSOLE_PATH : signInLandingOf(window.location));
 
 export default function VerifyPage() {
   const supabase = createClient();
@@ -103,7 +102,7 @@ function CodeStep({ supabase, reading }: { supabase: Supabase; reading: boolean 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function submit(e: React.FormEvent) {
+  async function submit(e: React.SyntheticEvent) {
     e.preventDefault();
     if (busy || reading) return;
     setBusy(true);
@@ -148,7 +147,7 @@ function EnrolStep({ supabase }: { supabase: Supabase }) {
     else setError(r.message);
   }
 
-  async function confirm(e: React.FormEvent) {
+  async function confirm(e: React.SyntheticEvent) {
     e.preventDefault();
     if (busy || !enrolment) return;
     setBusy(true);

@@ -17,6 +17,7 @@ import GoogleSignIn from "@/auth/GoogleSignIn";
 import CodeStep from "@/auth/CodeStep";
 import AuthShell from "@/auth/AuthShell";
 import { claimPreviewNow, openClaimed, type SignupPreview } from "@/auth/preview-claim";
+import { RETURN_PREVIEW } from "@/auth/sign-in-return";
 
 /**
  * Sign-up: a business name, a work email and a password. The account exists
@@ -48,7 +49,7 @@ import { claimPreviewNow, openClaimed, type SignupPreview } from "@/auth/preview
  */
 export default function SignupScreen({ preview }: { preview: SignupPreview | null }) {
   const s = useSignupState(preview);
-  if (s.unsent) return unsentCard(s.unsent, s.email);
+  if (s.unsent) return unsentCard(s.unsent, s.email, preview);
   if (s.joined) return joinedCard(s.email);
   if (s.stage === "confirm") return confirmCard(s);
   if (preview && s.signedInAs === undefined) return previewHead(preview);
@@ -212,15 +213,30 @@ function takeSignupAnswer({ setError, setJoined, setUnsent, setStage }: SignupSt
   setStage("confirm");
 }
 
+/**
+ * Sign-in, from this screen. Opened from a preview, it carries the preview (sign-in-return.ts) and the address typed, so
+ * someone who has an account lands back on Make it mine, where one press makes it theirs; else the plain page.
+ */
+function signInHref(preview: SignupPreview | null, email: string): string {
+  if (!preview) return "/login";
+  const q = new URLSearchParams();
+  if (email.trim()) q.set("email", email.trim());
+  q.set(RETURN_PREVIEW, preview.token);
+  return `/login?${q.toString()}`;
+}
+
 /** The code did not go out: the route's sentence, and the way to ask for it at sign-in. */
-function unsentCard(unsent: string, email: string) {
+function unsentCard(unsent: string, email: string, preview: SignupPreview | null) {
   return (
     <AuthShell>
       <div className="auth-card" data-testid="signup-unsent">
         <h1>{SIGNUP_WORDS.notSentTitle}</h1>
         <p>{unsent}</p>
         <div className="hint">
-          <a href={`/login?email=${encodeURIComponent(email.trim())}`}>Go to sign-in</a> and ask for the code there.
+          <a href={preview ? signInHref(preview, email) : `/login?email=${encodeURIComponent(email.trim())}`}>
+            Go to sign-in
+          </a>{" "}
+          and ask for the code there.
         </div>
       </div>
     </AuthShell>
@@ -291,7 +307,7 @@ function confirmCard({ supabase, email, setStage, setError, preview }: SignupSta
             a code nobody sent. This is the way out, and it gives nothing away —
             it is shown to everyone who reaches this step. */}
         <div className="hint">
-          {SIGNUP_WORDS.haveOne} <a href="/login">Sign in</a>
+          {SIGNUP_WORDS.haveOne} <a href={signInHref(preview, email)}>Sign in</a>
         </div>
       </div>
     </AuthShell>
@@ -384,7 +400,7 @@ function formCard(s: SignupState, submit: (e: React.SyntheticEvent) => Promise<v
           {error && <div className="error">{error}</div>}
         </div>
         <div className="hint">
-          {SIGNUP_WORDS.haveOne} <a href="/login">Sign in</a>
+          {SIGNUP_WORDS.haveOne} <a href={signInHref(preview, s.email)}>Sign in</a>
         </div>
       </div>
     </AuthShell>

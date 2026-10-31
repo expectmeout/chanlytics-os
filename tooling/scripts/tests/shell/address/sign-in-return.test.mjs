@@ -12,9 +12,11 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
 
-const { returnFragmentOf, signInReturnOf } = await importSrc("apps/dashboard/src/auth/sign-in-return.ts");
+const { returnFragmentOf, signInReturnOf, signInLandingOf, RETURN_PREVIEW } = await importSrc(
+  "apps/dashboard/src/auth/sign-in-return.ts",
+);
 const { returnQueryOf } = await importSrc("apps/dashboard/src/auth/workspace-return.ts");
-const { routeOfHash, routeOfPath } = await import("@chanlytics/contracts");
+const { routeOfHash, routeOfPath, PreviewTokenSchema, previewMinePath } = await import("@chanlytics/contracts");
 
 test("a page of a workspace comes back as its route, in the fragment the sign-in page keeps", () => {
   assert.equal(returnFragmentOf("/w/acme/inbox"), "#/inbox");
@@ -73,5 +75,48 @@ test("what it writes is what the sign-in page and the frame read back: the same 
   for (const path of ["/w/acme/inbox/th-1", "/w/acme/clients/leads:s-1", "/w/acme/start/phone"]) {
     const fragment = returnFragmentOf(path);
     assert.equal(routeOfHash(fragment), routeOfPath(path), path);
+  }
+});
+
+test("a sign-in from a lead's own receptionist's Make it mine (decision 0079) carries its preview and lands back on it, where one press makes it theirs", () => {
+  const token = "TokenTokenTokenToken01";
+  assert.equal(RETURN_PREVIEW, "preview");
+  assert.equal(
+    signInReturnOf({ search: `?email=a%40example.com&preview=${token}` }),
+    `?preview=${token}`,
+    "the page's own email stays behind",
+  );
+  assert.equal(
+    signInReturnOf({ search: `?w=acme&preview=${token}`, hash: "#/inbox" }),
+    `?w=acme&preview=${token}#/inbox`,
+  );
+  assert.equal(signInLandingOf({ search: `?preview=${token}` }), previewMinePath(token), "contracts' own path for it");
+  assert.equal(
+    signInLandingOf({ search: "?w=acme", hash: "#/inbox/th-1" }),
+    "/?w=acme#/inbox/th-1",
+    "else the home, as before",
+  );
+  assert.equal(signInLandingOf({}), "/");
+});
+
+test("a preview's token is carried only in the link's own shape, the one the claim's door holds: anything else lands on the home", () => {
+  for (const value of [
+    "TokenTokenTokenToken01",
+    "a_b-c_d-e_f-g_h-i_j-kl",
+    "short",
+    "TokenTokenTokenToken012",
+    "../../../w/acme/admin..",
+    "Token/TokenTokenToken0",
+    "https:%2F%2Fevil.examp",
+    "",
+  ]) {
+    const door = PreviewTokenSchema.safeParse(value).success;
+    const landing = signInLandingOf({ search: `?preview=${encodeURIComponent(value)}` });
+    assert.equal(
+      landing === previewMinePath(value),
+      door,
+      `${JSON.stringify(value)}: carried exactly where the door takes it`,
+    );
+    if (!door) assert.equal(landing, "/", value);
   }
 });
