@@ -76,6 +76,15 @@ const READS = {
     data: { by: "99999999-9999-4999-8999-999999999999", role: "operator" },
     created_at: "2026-10-06T00:00:00Z",
   },
+  // A booking tool's cancel by the service, its time offered to the people who asked (decision 0082).
+  freed_time_offer: {
+    kind: "appointment.changed",
+    category: "appointment",
+    subject_type: "appointment",
+    subject_id: "a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1",
+    data: { change: "cancelled", source: "booking_email", by: "service" },
+    created_at: "2026-10-06T00:00:00Z",
+  },
 };
 
 const CONV = "c0c0c0c0-c0c0-4c0c-8c0c-c0c0c0c0c0c0";
@@ -102,6 +111,46 @@ const aVisit = (over = {}) => ({
 
 /** A booking that arrived, and a bell with nothing on it yet (S1-01). */
 const aBooking = () => ({ appointments: [aVisit()], contacts: [], notifications: [] });
+
+/** Three days from now at 3:00 PM UTC: a time the receptionist would offer, whatever the clock says. */
+const SOON = (() => {
+  const d = new Date(Date.now() + 3 * 24 * 3_600_000);
+  d.setUTCHours(15, 0, 0, 0);
+  return d.getTime();
+})();
+const ALL_DAY_OPEN = { open: "00:00", close: "23:59" };
+
+/** A person's visit cancelled by the service, in a workspace open every day (decision 0082). */
+const aCancellation = () => ({
+  appointments: [
+    aVisit({
+      status: "cancelled",
+      contact_id: PERSON,
+      starts_at: new Date(SOON).toISOString(),
+      ends_at: new Date(SOON + 3_600_000).toISOString(),
+      expires_at: null,
+    }),
+  ],
+  tenants: [rows.tenant({ id: T, timezone: "UTC" })],
+  tenant_config: [
+    rows.config({
+      tenant_id: T,
+      config: {
+        brain: {
+          business_name: "Harbor",
+          booking_link: "https://book.example/harbor",
+          system_prompt: "Answer as the front desk of Harbor: brief and warm, never a price.",
+          fallbacks: { greeting: "g", error: "e", non_text: "n" },
+          profile: {
+            hours: Object.fromEntries(["mon", "tue", "wed", "thu", "fri", "sat", "sun"].map((d) => [d, ALL_DAY_OPEN])),
+          },
+        },
+      },
+    }),
+  ],
+  contacts: [rows.contact({ id: PERSON, tenant_id: T, display_name: "Rosa Diaz", phone_e164: "+13055550142" })],
+  notifications: [],
+});
 
 /** An invitation that was accepted, and a bell with nothing on it yet (S1-19). */
 const anAcceptedInvitation = () => ({
@@ -163,6 +212,7 @@ function world({ paused = false, withEvent = true, subscriber = "reach_out_booke
     ...(subscriber === "consent_notice" ? aPerson() : {}),
     ...(subscriber === "visit_notice" ? aBooking() : {}),
     ...(subscriber === "team_notice" ? anAcceptedInvitation() : {}),
+    ...(subscriber === "freed_time_offer" ? aCancellation() : {}),
     events: withEvent ? [rows.event({ id: E, tenant_id: T, ...read })] : [],
     event_subscriptions: [{ kind, subscriber, lane: 2, paused, created_at: "2026-10-06T00:00:00Z" }],
     event_deliveries: [
@@ -196,6 +246,8 @@ function world({ paused = false, withEvent = true, subscriber = "reach_out_booke
   const pages = [];
   // The workspace told as the edge's alertFor tells it: the bell's row, keeping the event it answers.
   const told = [];
+  // The edge's offer of a freed time, recorded: it makes its batch once per appointment, so a second ask answers it.
+  const offered = [];
   const ctx = {
     db,
     wire: { whatsapp: null, sms: null },
@@ -217,6 +269,12 @@ function world({ paused = false, withEvent = true, subscriber = "reach_out_booke
     page: async (key, subject, body) => {
       pages.push({ key, subject, body });
     },
+    freedTimes: {
+      offer: async (tenantId, freed) => {
+        offered.push([tenantId, freed]);
+        return { offered: true, people: 2, waits: false };
+      },
+    },
   };
   const job = {
     id: "j-1",
@@ -224,7 +282,7 @@ function world({ paused = false, withEvent = true, subscriber = "reach_out_booke
     kind: "event_deliver",
     payload: { event_id: E, subscriber, kind, lane: "2" },
   };
-  return { tables, ctx, job, pages, booked, told, delivery: () => tables.event_deliveries[0] };
+  return { tables, ctx, job, pages, booked, told, offered, delivery: () => tables.event_deliveries[0] };
 }
 
 test("a subscriber runs and the delivery is done, counted once", async () => {
@@ -317,6 +375,15 @@ test("the harness: every subscriber run twice on one delivery leaves the same ro
     const twice = JSON.parse(JSON.stringify(w.tables));
     twice.event_deliveries[0].attempts = 1; // the delivery counts its runs; everything else is the same
     assert.equal(JSON.stringify(twice), once, `${subscriber}: a second run changes nothing but the count`);
+    if (subscriber === "freed_time_offer")
+      assert.deepEqual(
+        w.offered.map(([tenantId, freed]) => [tenantId, freed.from]),
+        [
+          [T, APPT],
+          [T, APPT],
+        ],
+        "the offer is asked each time, and is the edge's to keep once",
+      );
   }
 });
 

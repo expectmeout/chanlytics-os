@@ -14,6 +14,8 @@ import {
   playbookRunReach,
   playbookStopBy,
   enrolPurpose,
+  freedTimeFactsFor,
+  clockNearWhen,
   followUpLeaves,
   followUpReach,
   followUpStop,
@@ -46,6 +48,7 @@ import { allowanceRecord, pastTheMonth } from "./allowance";
 import { parseChannels } from "./message-channels";
 import type {
   AssembleDecision,
+  FreedTimeRun,
   PlaybookRow,
   RunBy,
   RunContext,
@@ -73,6 +76,8 @@ interface Run {
   mode: SequenceMode;
   /** The channels the playbook ticks (contracts reachFor reads them at enrolment). */
   channels: ConsentChannel[];
+  /** The time a freed time's run offers (decision 0082): its batch has no day of its own. Null for every other run. */
+  freed: FreedTimeRun | null;
   record(data: Record<string, unknown>): Promise<void>;
   off(skipped: Skipped, opts?: { record?: boolean }): Promise<RunOutcome>;
 }
@@ -144,8 +149,10 @@ async function allowed(
     numberCanSend: ctx.health.canSend,
   });
   if (stop) return { ended: await r.off(stop) };
-  // One run per local day: a second ask says so and records nothing twice.
-  if (await r.ports.alreadyRan(p.id, r.runFor)) return { ended: await r.off("already_ran_today", { record: false }) };
+  // One run per local day: a second ask says so and records nothing twice. A freed time has no day: one batch per freed
+  // appointment, which the database holds (sequence_batches_offered_once).
+  if (!r.freed && (await r.ports.alreadyRan(p.id, r.runFor)))
+    return { ended: await r.off("already_ran_today", { record: false }) };
   // A step after the first reaches whoever its sequence brought to it: no moment or list of its own. One that goes only to
   // those who haven't booked judges a booking by the calendar, so a calendar that could not be READ fails the run, as a
   // visit moment's does, and the next sweep asks again: never a day on which nobody looks booked.
@@ -431,6 +438,9 @@ function recipientFacts(r: Run, goesAt: Date): (person: PersonRowVM) => Record<s
   const { p, ctx } = r;
   // A step after the first keeps no visit's or proposal's words: what it says is its own.
   if (isFollowUp(p)) return () => null;
+  // A freed time's words are the same for everyone its batch reaches, read at the moment it goes (0082).
+  const freed = r.freed;
+  if (freed) return () => freedTimeFactsFor(freed, ctx.tz, goesAt);
   const trig = triggerOf(p.trigger);
   // Whose a visit is, as the run judged it when it named them (contracts theirVisitTest): the same rows, the same test.
   const theirs = theirVisitTest(ctx.people);
@@ -507,7 +517,12 @@ async function sayTheRun(run: Run, made: { madeId: string; n: number; at: Date |
     // and reads the old word too (contracts today-away.ts), since the bell keeps rows written before. How its wait ends is
     // the wait rule's (contracts batchWaitWords: until the end of its day, then skipped and told), but for a visit's, which
     // ends with the day's sending hours and reaches nobody after: its moment says which.
-    const told = readyRunNotice(p.name, n, p.trigger);
+    const told = readyRunNotice(
+      p.name,
+      n,
+      p.trigger,
+      run.freed ? clockNearWhen(run.freed.start, ctx.tz, ctx.now.getTime()) : null,
+    );
     await ports.notify(told.subject, told.body, made.madeId);
     return;
   }
@@ -518,6 +533,31 @@ async function sayTheRun(run: Run, made: { madeId: string; n: number; at: Date |
     // go (the adapter says so in its own log), where the ask notice, the only way a waiting run is found, is not.
     await ports.notify(told.subject, told.body, made.madeId).catch(() => undefined);
   }
+}
+
+/**
+ * Why a run and its freed time do not go together (0082), or null: a freed time's step runs when an appointment frees a
+ * time and only then, any other step never for one, and a freed time that has begun by the moment its batch would go is
+ * a time nobody can have. Said, and never recorded, so a Run now on it learns why and the day stays open.
+ */
+function freedTimeRefusal(p: PlaybookRow, freed: FreedTimeRun | null, goesAt: Date): Skipped | null {
+  const freedStep = triggerOf(p.trigger)?.kind === "freed";
+  if (freedStep !== (freed !== null)) return freedStep ? "no_freed_time" : "not_a_freed_time_step";
+  return freed && freed.start <= goesAt.getTime() ? "freed_time_passed" : null;
+}
+
+/**
+ * A batch's name and what it is kept by: a run's day, or for a freed time, which has no day of its own, the time it offers
+ * and the appointment that freed it, the name saying the time ("Fill a cancellation · Tue 3:00 PM", 0082).
+ */
+function batchWhen(p: PlaybookRow, freed: FreedTimeRun | null, runFor: string, ctx: RunContext) {
+  if (!freed) return { name: `${p.name} · ${runFor}`, run_for: runFor };
+  return {
+    name: `${p.name} · ${clockNearWhen(freed.start, ctx.tz, ctx.now.getTime())}`,
+    offered_start: new Date(freed.start).toISOString(),
+    offered_end: new Date(freed.end).toISOString(),
+    offered_from: freed.from,
+  };
 }
 
 /**
@@ -548,6 +588,17 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
   const runFor = cmd.runFor ?? localDate(ctx.tz, now);
   // Its sequence's mode, or ask while the step's words are new to the owner or the mode is none this build knows.
   const mode = batchModeOf({ mode: p.mode, words_ok_at: p.words_ok_at });
+  // A person who asks has decided: it sends now.
+  const plan: RunPlan = by.kind === "user" ? { kind: "send", state: "scheduled", at: now } : planRun(mode, now);
+  // Never at 3 AM, whoever asks: the same hours a run keeps on its own, by
+  // the business's clock. A send that would go out past them moves to nine.
+  const send = plan.kind === "send" ? plan : null;
+  const open = send ? nextOpenMoment(ctx.tz, send.at) : null;
+  const movedFrom = send && open?.moved ? send.at.toISOString() : null;
+  const goesAt = open ? open.at : now;
+  const freed = cmd.freed ?? null;
+  const notForIt = freedTimeRefusal(p, freed, goesAt);
+  if (notForIt) return { outcome: "off", mode, skipped: notForIt };
   const record = (data: Record<string, unknown>) =>
     ports.record(p.id, runFor, now, { run_for: runFor, by: by.kind, ...data });
   // Off, and the run says why -- recorded, unless the day's run already stands.
@@ -558,18 +609,10 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
   // A campaign past its last day (00416 `until`, the business's day) runs nothing more, whoever asks: said, and recorded
   // for the day, before anything is read.
   if (campaignEnded(p, runFor)) return off("ended");
-  // A person who asks has decided: it sends now.
-  const plan: RunPlan = by.kind === "user" ? { kind: "send", state: "scheduled", at: now } : planRun(mode, now);
-  // Never at 3 AM, whoever asks: the same hours a run keeps on its own, by
-  // the business's clock. A send that would go out past them moves to nine.
-  const send = plan.kind === "send" ? plan : null;
-  const open = send ? nextOpenMoment(ctx.tz, send.at) : null;
-  const movedFrom = send && open?.moved ? send.at.toISOString() : null;
-  const goesAt = open ? open.at : now;
 
   // Which of WhatsApp, text and email the playbook ticks: a playbook made before ticks WhatsApp alone.
   const channels = parseChannels(undefined, p.channels ?? null);
-  const run: Run = { ports, p, ctx, by, runFor, mode, channels, record, off };
+  const run: Run = { ports, p, ctx, by, runFor, mode, channels, freed, record, off };
   // A call or a note for the team (decision 0065): nothing is sent, so no message is read and no channel asked of.
   const hand = isFollowUp(p) ? handOf(p.hand) : null;
   if (hand) return runPeopleHand(run, hand);
@@ -608,7 +651,7 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
   const n = eligible.length;
   const made = await assembleRun(ports, {
     broadcast: {
-      name: `${p.name} · ${runFor}`,
+      ...batchWhen(p, freed, runFor, ctx),
       template_id: p.template_id,
       template_name: p.template_name,
       template_language: p.template_language,
@@ -628,7 +671,6 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
       recipient_count: n,
       created_by: by.kind === "user" ? by.userId : p.created_by,
       playbook_id: p.id,
-      run_for: runFor,
       channels: [...channels],
     },
     // Each person on the channel the pick gave them (reachFor): written on their row, which the sender goes by.

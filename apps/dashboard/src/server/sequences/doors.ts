@@ -68,7 +68,8 @@ const decided = (ctx: RouteContext, decision: { [key: string]: Json }) => ({
 
 /**
  * The values a step's message takes, judged as a playbook's are (core templateValues): as many as its slots, each typed
- * words or a value a run can fill. A step after the first knows no visit and no proposal of the person it reaches.
+ * words or a value a run can fill. A step after the first knows no visit, no proposal and no freed time (0082) of the
+ * person it reaches.
  */
 async function valuesOf(
   ctx: RouteContext,
@@ -77,7 +78,13 @@ async function valuesOf(
   params: unknown,
 ): Promise<ParamSpec[]> {
   const ports = templateValuePorts(ctx, tenantId);
-  const { specs } = await templateValues(ports, { templateId, params: params ?? [], visits: false, proposal: false });
+  const { specs } = await templateValues(ports, {
+    templateId,
+    params: params ?? [],
+    visits: false,
+    proposal: false,
+    freed: false,
+  });
   return specs;
 }
 

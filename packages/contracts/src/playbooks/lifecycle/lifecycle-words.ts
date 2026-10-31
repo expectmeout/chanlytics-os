@@ -76,6 +76,11 @@ export const LIFECYCLE_WORDS = {
     quiet: "Brings back people who've gone quiet",
   } as Record<string, string>,
   monthsOffer: { name: "The month's offer" },
+  /** A time a cancellation freed, offered to the people who asked and never booked (decision 0082): its line off. */
+  freedTime: {
+    name: "Fill a cancellation",
+    hint: "When a cancellation frees a time, to the people who asked and never booked",
+  },
   /** A campaign past its last day (00416 `until`), its state: "Ended Oct 1", the day by the business's calendar. */
   ended: (day: string): string => `Ended ${day}`,
   gone: {

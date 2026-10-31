@@ -36,6 +36,7 @@ import {
   whenLabel,
   whyNotReceive,
   offersNote,
+  runCountsOf,
 } from "@chanlytics/contracts";
 import { readCode, readRaw, importSrc } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
@@ -1121,4 +1122,61 @@ test("a door to New that names a list it can't send to says so: the composer it 
     UNKNOWN_AUDIENCE_WORDS,
     "That list can't be messaged right now, so check who this is addressed to before you send.",
   );
+});
+
+test("a freed time's run (decision 0082): the time it offers in the business's words, and who took it, read from the database's counts", () => {
+  const run = {
+    id: "b-open",
+    name: "Fill a cancellation · Tue 3:00 PM",
+    template_id: "t",
+    template_name: "time_freed",
+    template_language: "en_US",
+    params: [],
+    audience: { kind: "playbook", trigger: "slot_opened" },
+    state: "sent",
+    scheduled_for: "2026-10-19T19:00:00Z",
+    started_at: "2026-10-19T19:00:00Z",
+    finished_at: "2026-10-19T19:01:00Z",
+    recipient_count: 4,
+    failure: null,
+    created_at: "2026-10-19T18:59:00Z",
+    offered_start: "2026-10-20T19:00:00Z",
+    offered_end: "2026-10-20T20:00:00Z",
+    offered_from: "appt-1",
+    counts: { queued: 0, sent: 4, skipped: 0, failed: 0, delivered: 4, read: 2, replied: 2, took: 1 },
+  };
+  const now = new Date("2026-10-19T19:05:00Z");
+  assert.equal(toBroadcastVM(run, "America/New_York", now).offered, "tomorrow 3:00 PM");
+  assert.equal(
+    toBroadcastVM({ ...run, offered_start: null, offered_end: null, offered_from: null }, "America/New_York", now)
+      .offered,
+    null,
+    "a run that offered no time says none",
+  );
+  assert.equal(
+    toBroadcastVM({ ...run, offered_start: undefined }, "America/New_York", now).offered,
+    null,
+    "a server from before 00498",
+  );
+  const counted = (took) => ({
+    "b-open": {
+      queued: 0,
+      sent: 4,
+      skipped: 0,
+      failed: 0,
+      delivered: 4,
+      read: 2,
+      replied: 2,
+      took,
+      sent_by: { whatsapp: 2, sms: 1, email: 1 },
+    },
+  });
+  assert.equal(runCountsOf(counted(1))["b-open"].took, 1);
+  assert.equal(runCountsOf(counted(null))["b-open"].took, null, "a run that offered no time");
+  assert.equal(
+    "took" in runCountsOf(counted(undefined))["b-open"],
+    false,
+    "a database from before 00498 says nothing of it",
+  );
+  assert.equal(runCountsOf(counted("one")), null, "a count that is not a count is a shape the read does not know");
 });

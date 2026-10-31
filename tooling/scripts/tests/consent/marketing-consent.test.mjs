@@ -48,6 +48,9 @@ import {
   CONVERSATION_PHRASE,
   PEOPLE_LISTS,
   peopleListAction,
+  triggerOf,
+  messageAboutOfTrigger,
+  channelNeverCarries,
 } from "@chanlytics/contracts";
 import { importSrc, readCode, readRaw } from "../_source.mjs";
 import { optInConfirmation, verbalOptInScript } from "@chanlytics/contracts";
@@ -180,6 +183,21 @@ test("what a message IS comes from what was already recorded, and NULL means mar
     purposeOfPlaybook("follow_up"),
     "conversational",
     "a nudge on the proposal they asked for is about their own request, as a reminder of their visit is (0006)",
+  );
+  // A time a cancellation freed, offered to someone who asked and never booked (0082), runs under the same row: about
+  // their own ask, so a text may carry it (no offer rides it) and an email asks no yes, only an address that works.
+  const freed = triggerOf("slot_opened");
+  assert.equal(purposeOfPlaybook(freed.cls), "conversational");
+  assert.equal(messageAboutOfTrigger(freed.id), "theirs");
+  assert.equal(channelNeverCarries("sms", purposeOfPlaybook(freed.cls)), null, "a text carries a freed time");
+  assert.deepEqual(
+    mayMessageFor({ consent: "unknown", marketing_consent: "unknown", email_marketing: "unknown" }, "conversational", {
+      proactive: true,
+      channel: "email",
+      about: messageAboutOfTrigger(freed.id),
+    }),
+    { ok: true, reason: null },
+    "by email a freed time is about their own ask, as a reminder is: no yes asked",
   );
   assert.equal(
     purposeOfTemplate("MARKETING"),

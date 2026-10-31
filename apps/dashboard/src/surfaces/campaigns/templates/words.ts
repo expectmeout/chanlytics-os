@@ -91,6 +91,7 @@ const TPL_SLOT_WORDS: Record<string, string> = {
   visit_when: "time",
   visit_service: "service",
   proposal_link: "proposal link",
+  freed_when: "time",
 };
 export const tplSlotWord = (kind: string | undefined, label: string | undefined, n: string): string =>
   (kind && TPL_SLOT_WORDS[kind]) ||

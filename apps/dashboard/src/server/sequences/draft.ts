@@ -346,6 +346,7 @@ function momentsOf(
     cls: t.cls,
     visits: t.kind === "visit",
     proposal: t.kind === "deal",
+    freed: t.kind === "freed",
     count: pools?.[t.id]?.candidates ?? null,
     pool: pools?.[t.id] ?? null,
   }));

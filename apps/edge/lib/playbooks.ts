@@ -33,6 +33,7 @@ import {
 } from "./packages/db.js";
 import {
   runPlaybook as runOverPorts,
+  type FreedTimeRun,
   type PlaybookRow,
   type RunBy,
   type RunContext,
@@ -367,6 +368,8 @@ interface RunRequest {
   runFor?: string;
   /** Who asked: the sweep (system) or a person (their decision, sends now unless the class is never). */
   by: RunBy;
+  /** The time a freed time's step offers (decision 0082, lib/calendar/freed-time-offer.ts): its batch has no day. */
+  freed?: FreedTimeRun;
 }
 
 /** The run over this runtime's ports: the rules are core's. */
@@ -424,6 +427,10 @@ export async function runPlaybook(ctx: TenantRunContext, p: PlaybookRow, req: Ru
             playbook_id: row.playbook_id ?? null,
             run_for: row.run_for ?? null,
             channels: row.channels,
+            // A freed time's batch (decision 0082, 00498): the time it offers and the appointment that freed it.
+            ...(row.offered_from
+              ? { offered_start: row.offered_start, offered_end: row.offered_end, offered_from: row.offered_from }
+              : {}),
           },
           recipients: recipients.map((r) => ({ contact_id: r.contact_id, facts: r.facts, channel: r.channel })),
           sendAt,
@@ -456,6 +463,6 @@ export async function runPlaybook(ctx: TenantRunContext, p: PlaybookRow, req: Ru
         );
       },
     },
-    { playbook: p, ctx, runFor: req.runFor, by: req.by },
+    { playbook: p, ctx, runFor: req.runFor, by: req.by, ...(req.freed ? { freed: req.freed } : {}) },
   );
 }

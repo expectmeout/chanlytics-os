@@ -89,6 +89,7 @@ export { foldName, matchService, needsConsultation, offerFor, offerLead, sameLis
 export { bookedAfterAsk } from "./calendar/visit/booked-after-ask";
 export { BOOKING_REQUEST_INSTRUCTION, BOOKING_REQUEST_REFUSALS, BOOKING_REQUEST_SCHEMA_FIELDS, BOOKING_REQUEST_WORDS, bookingRequestRefusalOf, requestedBookingOf, slotLong, slotShort, takesBookingRequests } from "./calendar/visit/booking-request";
 export { calendarPersonFactsOf, calendarPersonOf } from "./calendar/visit/calendar-person-facts";
+export { changeFreesATime, FREED_TIME_REFUSALS, freedTimeOf, freedTimesUnoffered, freedTimeTaken, freedTimeWords } from "./calendar/visit/freed-time";
 export { visitTitleWithout } from "./calendar/visit/visit-service";
 export { CALENDAR_VISIT_SHEET_WORDS, visitSheetOf } from "./calendar/visit/visit-sheet";
 export { clockInZone, dayInZone, dayPlusInZone, localToUtcMs, usableZone, WEEKDAY_KEYS, zoneOffsetMs, zoneParts } from "./calendar/zone-math";
@@ -312,7 +313,7 @@ export { chainResultsOf, isLedgerCampaign, LEDGER_STATUSES, ledgerRowIn, lifecyc
 export { reachCountsOf } from "./playbooks/lifecycle/lifecycle-tiles";
 export { channelsGoesByWords, LIFECYCLE_TOAST, LIFECYCLE_WORDS, lifecycleChainStateOf, lifecycleStateOf } from "./playbooks/lifecycle/lifecycle-words";
 export { campaignBlockWords, campaignFixCard, campaignLine, campaignReachable, nobodyNamedWords } from "./playbooks/new-campaign";
-export { poolWords, reachLines, runApprovalRefusal, runDayPassed, runDaysAt, toApprovalVM, waitingRunOffer } from "./playbooks/playbook-approval";
+export { FREED_TIME_PASSED_WORDS, poolWords, reachLines, runApprovalRefusal, runDayPassed, runDaysAt, toApprovalVM, waitingRunOffer } from "./playbooks/playbook-approval";
 export { campaignChannelsOf, playbookChannelsRead, WHATSAPP_VERSION_ALONE } from "./playbooks/playbook-channels";
 export { PLAYBOOK_CALENDAR_UNREAD, playbookFailedAbout, playbookFailedWords } from "./playbooks/playbook-failed";
 export { FOLLOW_UP_NEEDS_LINK, FOLLOW_UP_ONE, followUpIsFor, followUpKey, followUpNames, followUpRunAt, followUpStandOf, followUpWords, PLAYBOOK_TOUCH_WINDOW_MS, playbookRunStop, playbookStopBy } from "./playbooks/playbook-follow-ups";
@@ -323,8 +324,8 @@ export { heldBackOfOneRun, runReadingOf } from "./playbooks/playbook-run-split";
 export { campaignDayWords, campaignEnded, campaignRunsOn, sendingEndsAt, inLastSendingHour, localDate, localHour, nextOpenMoment, nextRunLabel, planRun, runDueNow, runsWords, scheduleLine } from "./playbooks/playbook-schedule";
 export { PLAYBOOK_BREATH_MS } from "./playbooks/playbook-time";
 export { isPlaybookTotalsDto } from "./playbooks/playbook-totals";
-export { CAMPAIGN_NOT_FOUND, delayWords, isPlaybookState, isWinBack, MOMENT_TRIGGERS, momentOffered, momentReadsCalendar, MOMENTS_RETIRED, PLAYBOOK_CAP_CHOICES, PLAYBOOK_DEFAULTS, PLAYBOOK_HOURS, PLAYBOOK_LIMITS, PLAYBOOK_NAME_MAX, PLAYBOOK_STATES, PLAYBOOK_TRIGGERS, PLAYBOOK_VETO_DELAY_MS, PLAYBOOK_VETO_DELAY_WORDS, policyClassOffered, REACH_OUT_IS_NOT_A_MOMENT, readyRunNotice, SEND_ONCE_STOP_MS, SEND_ONCE_STOP_WORDS, SENDING_HOURS_WORDS, SENDING_NOW_WORDS, sendsWaitWords, skippedRunNotice, triggerOf, triggerOffered, triggerWords, vetoRunNotice, VISIT_TRIGGERS, whenItGoes, winBackWords } from "./playbooks/playbook-triggers";
-export { LIST_PLAYBOOK_CLASSES, playbookListRef, proposalFactsFor, visitDayWord, visitFactsFor } from "./playbooks/playbooks";
+export { CAMPAIGN_NOT_FOUND, delayWords, FREED_TIME_DEFAULTS, freedTimeTakenNotice, isPlaybookState, isWinBack, MOMENT_TRIGGERS, momentOffered, momentReadsCalendar, MOMENTS_RETIRED, PLAYBOOK_CAP_CHOICES, PLAYBOOK_DEFAULTS, PLAYBOOK_HOURS, PLAYBOOK_LIMITS, PLAYBOOK_NAME_MAX, PLAYBOOK_STATES, PLAYBOOK_TRIGGERS, PLAYBOOK_VETO_DELAY_MS, PLAYBOOK_VETO_DELAY_WORDS, policyClassOffered, REACH_OUT_IS_NOT_A_MOMENT, readyRunNotice, SEND_ONCE_STOP_MS, SEND_ONCE_STOP_WORDS, SENDING_HOURS_WORDS, SENDING_NOW_WORDS, sendsWaitWords, skippedRunNotice, triggerOf, triggerOffered, triggerWords, vetoRunNotice, VISIT_TRIGGERS, whenItGoes, winBackWords } from "./playbooks/playbook-triggers";
+export { FREED_TIME_NEEDS_WHEN, freedTimeFactsFor, LIST_PLAYBOOK_CLASSES, playbookListRef, proposalFactsFor, visitDayWord, visitFactsFor } from "./playbooks/playbooks";
 export { leadAsListing, previewZoneOf } from "./previews/lead-as-listing";
 export { PREVIEW_LIMITS, PREVIEW_STATES, previewClaimable, previewFirstRunMarks, previewKnowsOf, previewMinePath, previewPageOf, previewSlotOf, previewStartersOf, previewStateOf, previewTurnsOf } from "./previews/lead-preview";
 export { PREVIEW_LINE_WORDS, previewLineOf } from "./previews/preview-line";

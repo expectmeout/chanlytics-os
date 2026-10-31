@@ -160,7 +160,7 @@ export type JobKind = (typeof JOB_KINDS)[number];
  * `consent_notice` tells it once on the bell when a customer asked to stop, from the consent event whichever door wrote
  * it (decision 0048, 00409); `visit_notice` tells it once on the bell when a booking arrived, from the appointment's
  * event whichever door wrote it (00410, S1-01); `team_notice` tells it once on the bell when a teammate joined, from
- * the seat's event (00410, S1-19).
+ * the seat's event (00410, S1-19); `freed_time_offer` offers a freed time to who asked and never booked (decision 0082).
  */
 export const EVENT_SUBSCRIBERS = [
   "reach_out_booked",
@@ -168,6 +168,7 @@ export const EVENT_SUBSCRIBERS = [
   "consent_notice",
   "visit_notice",
   "team_notice",
+  "freed_time_offer",
 ] as const;
 export type EventSubscriber = (typeof EVENT_SUBSCRIBERS)[number];
 
@@ -181,9 +182,8 @@ export const JOB_STATES = ["scheduled", "fired", "done", "canceled", "failed"] a
 export type JobState = (typeof JOB_STATES)[number];
 
 /**
- * Meta's account-level webhook fields (WABA). Each arrives as an event of kind
- * `channel.<field>`, so this list is also the one computed family of event
- * kinds; the edge's WABA_FIELDS is a Set of it.
+ * Meta's account-level webhook fields (WABA). Each arrives as an event of kind `channel.<field>`, so this list is also
+ * the one computed family of event kinds; the edge's WABA_FIELDS is a Set of it.
  */
 export const WABA_FIELDS = [
   "phone_number_quality_update",

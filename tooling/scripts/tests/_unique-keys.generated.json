@@ -2484,6 +2484,25 @@
     },
     {
       "table": "sequence_batches",
+      "name": "sequence_batches_offered_once",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "step_id"
+        },
+        {
+          "column": "offered_from"
+        }
+      ],
+      "where": {
+        "notNull": {
+          "column": "offered_from"
+        }
+      }
+    },
+    {
+      "table": "sequence_batches",
       "name": "sequence_batches_pkey",
       "primary": true,
       "nullsNotDistinct": false,

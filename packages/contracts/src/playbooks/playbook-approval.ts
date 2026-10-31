@@ -269,8 +269,14 @@ function dayGoneWords(runFor: string, say: (ymd: string) => string = (ymd) => ym
 interface ApprovalDays {
   today: string;
   sendsOn: string;
+  /** The moment an approval now would send it (nextOpenMoment), where the caller has it: what a freed time is read against. */
+  sendsAt?: number;
   say?: (ymd: string) => string;
 }
+
+/** Why a freed time's batch is refused (0082): the time it offers has come by the moment an approval would send it. */
+export const FREED_TIME_PASSED_WORDS =
+  "The freed time this run offered has come by the moment it would go, so it would offer a time that is gone. Skip it; the next cancellation offers its own.";
 
 /**
  * The days a waiting run is judged by, in a business's zone: its day now, and the day of the next open sending moment
@@ -278,8 +284,9 @@ interface ApprovalDays {
  * the count of what waits on you (waits.ts runWaitsOnYou), the page's clock and the hourly sweep that ends a run whose
  * day has passed all read the days here, so none of them calls a run waiting that another calls too late.
  */
-export function runDaysAt(tz: string, now: Date): { today: string; sendsOn: string } {
-  return { today: localDate(tz, now), sendsOn: localDate(tz, nextOpenMoment(tz, now).at) };
+export function runDaysAt(tz: string, now: Date): { today: string; sendsOn: string; sendsAt: number } {
+  const sends = nextOpenMoment(tz, now).at;
+  return { today: localDate(tz, now), sendsOn: localDate(tz, sends), sendsAt: sends.getTime() };
 }
 
 /**
@@ -301,10 +308,13 @@ function visitRunTooLate(run: { run_for?: string | null; audience?: unknown }, d
  * before it asks this; decision D6): the exemption is here, so every page that asks agrees with the verb.
  */
 export function runApprovalRefusal(
-  run: { playbook_id: string | null; run_for?: string | null; audience?: unknown },
+  run: { playbook_id: string | null; run_for?: string | null; audience?: unknown; offered_start?: string | null },
   days: ApprovalDays,
 ): string | null {
   if (isReachOutRun(run.audience)) return null;
+  // A freed time's batch has no day of its own (0082): it is refused once the time it offers has come by its send.
+  const offered = run.offered_start ? Date.parse(run.offered_start) : Number.NaN;
+  if (Number.isFinite(offered) && days.sendsAt !== undefined && offered <= days.sendsAt) return FREED_TIME_PASSED_WORDS;
   const day =
     dayHasPassed(run, days.today) ??
     (run.playbook_id && run.run_for && visitRunTooLate(run, days) ? run.run_for : null);

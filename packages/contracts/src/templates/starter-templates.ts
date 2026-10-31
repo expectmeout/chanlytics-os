@@ -109,6 +109,9 @@ const PROPOSAL = {
   example: "https://docs.example.com/proposal",
 };
 const PROPOSAL_ES = { ...PROPOSAL, label: "Enlace de la propuesta" };
+// The time a cancellation freed (0082), as the batch kept it for every send: "tomorrow at 2:00 PM", "on Thursday at 3:00 PM".
+const FREED_WHEN = { kind: "freed_when" as const, label: "When", example: "tomorrow at 2:00 PM" };
+const FREED_WHEN_ES = { ...FREED_WHEN, label: "Cuándo", example: "mañana a las 2:00 PM" };
 // Where a customer leaves the business a review: the link its Google listing keeps (00415), filled at the send.
 const REVIEW = { kind: "review_link" as const, label: "Review link", example: "https://g.page/r/example/review" };
 const REVIEW_ES = { ...REVIEW, label: "Enlace de reseñas" };
@@ -344,6 +347,49 @@ export const STARTER_TEMPLATES: readonly StarterTemplate[] = [
       },
       es: {
         body: "Hola {{1}}, queremos confirmar que recibiste la propuesta de {{2}}: {{3}} Responde a este mensaje con cualquier pregunta.",
+      },
+    },
+  },
+  {
+    // A time a cancellation freed, offered to the people who asked and never booked (0082). About their own ask and
+    // nothing else: no offer, no price and no link, so it is utility and reaches a yes to texts. Their reply opens
+    // WhatsApp's 24 hours, inside which the receptionist answers it as any thread, and holds the time where the workspace
+    // takes booking requests (0061).
+    key: "time_freed",
+    name: "time_freed",
+    title: "A time freed up",
+    purpose: "for a time a cancellation freed, to the people who asked and never booked",
+    category: "utility",
+    trigger: "slot_opened",
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, it's {{2}}. A time just opened {{3}}. Want it? Reply here.",
+        footer: null,
+        slots: [FIRST, BUSINESS, FREED_WHEN],
+      },
+      es: {
+        body: "Hola {{1}}, te escribimos de {{2}}. Se abrió un espacio {{3}}. ¿Lo quieres? Responde aquí.",
+        footer: null,
+        slots: [FIRST_ES, BUSINESS_ES, FREED_WHEN_ES],
+      },
+    },
+    email: {
+      en_US: {
+        subject: "A time opened {{3}}",
+        body: "Hi {{1}},\n\nA time just opened at {{2}} {{3}}. Want it? Reply to this email.",
+      },
+      es: {
+        subject: "Se abrió un espacio {{3}}",
+        body: "Hola {{1}}:\n\nSe abrió un espacio en {{2}} {{3}}. ¿Lo quieres? Responde a este correo.",
+      },
+    },
+    sms: {
+      en_US: {
+        body: "Hi {{1}}, it's {{2}}. A time just opened {{3}}. Want it? Reply here.",
+      },
+      es: {
+        // Spanish texts keep to the letters the carriers send plainly (é, ñ, ¿ but not á, í, ó, ú), so each goes as one part.
+        body: "Hola {{1}}, te escribimos de {{2}}. Hay un espacio libre {{3}}. ¿Lo quieres? Responde a este mensaje.",
       },
     },
   },

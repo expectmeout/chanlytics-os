@@ -282,7 +282,7 @@ interface AgainAt {
  * is put right, as Sent's Send it again put it right.
  */
 function againKinds(kept: KeptSend, id: string, row: Library["rows"][number] | null, links: AgainAt["links"]) {
-  const may = row ? templateSlots(row, { visits: false, proposal: false, ...links }) : null;
+  const may = row ? templateSlots(row, { visits: false, proposal: false, freed: false, ...links }) : null;
   const kinds = kept.sources?.[id] ?? [];
   const typed = kept.params?.[id] ?? [];
   return (p: ParamSpec, i: number): ParamSpec => {

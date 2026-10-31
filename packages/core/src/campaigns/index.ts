@@ -27,6 +27,7 @@ export type {
   CancelBroadcastPorts,
   CreateBroadcastCommand,
   CreateBroadcastPorts,
+  FreedTimeRun,
   ListCount,
   NewBroadcast,
   NewRecipient,

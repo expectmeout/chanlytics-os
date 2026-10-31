@@ -41,7 +41,7 @@ const RECENT = 50;
 const IN_CHUNK = 200;
 
 const ROW_COLUMNS =
-  "id, name, template_id, template_name, template_language, params, audience, state, scheduled_for, started_at, finished_at, recipient_count, failure, created_at, playbook_id:step_id, run_for, sequence_id";
+  "id, name, template_id, template_name, template_language, params, audience, state, scheduled_for, started_at, finished_at, recipient_count, failure, created_at, playbook_id:step_id, run_for, sequence_id, offered_start, offered_end, offered_from";
 
 interface BroadcastRow {
   id: string;
@@ -61,6 +61,10 @@ interface BroadcastRow {
   playbook_id: string | null;
   run_for: string | null;
   sequence_id: string;
+  /** A freed time's batch (00498, decision 0082): the time it offers and the appointment that freed it. */
+  offered_start: string | null;
+  offered_end: string | null;
+  offered_from: string | null;
 }
 
 interface RecipientRow {
@@ -327,6 +331,9 @@ function toDto(r: BroadcastRow, counts: BroadcastCounts): BroadcastDto {
     playbook_id: r.playbook_id,
     run_for: r.run_for,
     sequence_id: r.sequence_id,
+    offered_start: r.offered_start,
+    offered_end: r.offered_end,
+    offered_from: r.offered_from,
     counts,
   };
 }

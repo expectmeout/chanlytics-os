@@ -539,6 +539,8 @@ export function historyDayWords(b: SequenceBatchDto, place: string | null): { en
   if ((c.held ?? 0) > 0) parts.push(`${c.held} held`);
   if ((c.to_send ?? 0) > 0) parts.push(`${c.to_send} for you to send`);
   if ((c.failed ?? 0) > 0) parts.push(`${c.failed} failed`);
+  // A freed time's batch says who took the time it offered (decision 0082), as Today's line says it.
+  if (typeof b.took === "number") parts.push(`${b.took} took it`);
   return {
     end: b.state === "sending" ? "Going out" : b.state === "failed" ? "Failed" : `${c.sent ?? 0} sent`,
     // Why a batch stopped, in the owner's words (its run's report said it there; a day that went opens Reports now).

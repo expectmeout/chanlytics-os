@@ -94,6 +94,17 @@ export const PLAYBOOK_TRIGGERS = [
     kind: "deal",
     hint: "A proposal waiting with nothing back",
   },
+  // A time a cancellation freed on the calendar (decision 0082): one batch per freed appointment, offered within the
+  // hour to the people who asked and never booked. Under the follow-ups' row: it answers the person's own ask, so a text
+  // may carry it and an email asks no yes (playbook-purpose.ts). Run by the event that freed it, never by the hour.
+  {
+    id: "slot_opened",
+    label: "Fill a cancellation",
+    list: "asked_never_booked",
+    cls: "follow_up",
+    kind: "freed",
+    hint: "A time a cancellation freed, offered to the people who asked and never booked",
+  },
   // Reach out (Part 3): a chain's first email, over a lead search, and a step days after the one before it. Made by
   // the reach-out sheet (Part 4), never offered among the moments (triggerOffered).
   {
@@ -138,6 +149,12 @@ export function isPlaybookState(v: unknown): v is PlaybookState {
 }
 
 export const PLAYBOOK_DEFAULTS = { runHour: 10, capPerRun: 25, gapDays: 90, cadenceDays: 30 } as const;
+
+/**
+ * A freed time's own (decision 0082): one time is taken by one person, so four are written to, and nobody hears of
+ * another freed time within a week (the limits' floor). What a new step on `slot_opened` starts with where none is asked.
+ */
+export const FREED_TIME_DEFAULTS = { capPerRun: 4, gapDays: 7 } as const;
 
 export const PLAYBOOK_HOURS = { min: 9, max: 20 } as const;
 
@@ -259,10 +276,12 @@ export function approvalEndsWithSendingHours(trigger: string | null | undefined)
 
 /**
  * How a customer's batch waiting for an OK ends, by its wait rule (contracts waitEndsWords): a visit's with the day's
- * sending hours, after which it reaches nobody (visit_ask), any other's with its day (batch_ask). The ready notice and
- * Today's row (contracts todayRunWords) both say it from here.
+ * sending hours, after which it reaches nobody (visit_ask), a freed time's with the time it offers (freed_ask, 0082: `at`
+ * says the time where the caller has it), any other's with its day (batch_ask). The ready notice and Today's row
+ * (contracts todayRunWords) both say it from here.
  */
-export function batchWaitWords(trigger: string | null | undefined): string {
+export function batchWaitWords(trigger: string | null | undefined, at?: string | null): string {
+  if (triggerOf(trigger ?? "")?.kind === "freed") return waitEndsWords("freed_ask", at);
   return approvalEndsWithSendingHours(trigger)
     ? waitEndsWords("visit_ask", SENDING_HOURS_WORDS.end)
     : waitEndsWords("batch_ask");
@@ -277,10 +296,12 @@ export function readyRunNotice(
   name: string,
   people: number,
   trigger: string | null,
+  /** The time a freed time's batch offers, in the business's words ("Tue 3:00 PM", 0082): its wait ends then. */
+  at?: string | null,
 ): { subject: string; body: string } {
   return {
     subject: `Campaign “${name}” is ready: ${plural(people, "person", "people")}`,
-    body: `${plural(people, "person has", "people have")} become eligible for “${name}”. Approve or skip it from your Inbox or Today. ${batchWaitWords(trigger)}.`,
+    body: `${plural(people, "person has", "people have")} become eligible for “${name}”. Approve or skip it from your Inbox or Today. ${batchWaitWords(trigger, at)}.`,
   };
 }
 
@@ -315,9 +336,16 @@ export function skippedRunNotice(
   name: string,
   people: number,
   trigger: string | null,
+  /** The time a freed time's batch offered, in the business's words ("Tue 3:00 PM", 0082): its wait ended then. */
+  at?: string | null,
 ): { subject: string; body: string } {
   const who = plural(people, "person", "people");
   const subject = `“${name}” didn’t go: nobody approved it`;
+  if (at && triggerOf(trigger ?? "")?.kind === "freed")
+    return {
+      subject,
+      body: `${who} waited for your OK until ${at} came, and nothing was sent: that time has passed. The next cancellation offers its own time, and waits for your OK too: ${NEXT_BATCH_WAITS}.`,
+    };
   if (approvalEndsWithSendingHours(trigger))
     return {
       subject,
@@ -326,6 +354,17 @@ export function skippedRunNotice(
   return {
     subject,
     body: `${who} waited for your OK until the day ended, and nothing was sent. They are in line for its next batch, which waits for your OK too: ${NEXT_BATCH_WAITS}.`,
+  };
+}
+
+/**
+ * A freed time's batch stopped before it went because the time was booked since it was offered (decision 0082), told once,
+ * as a stopped run is. `at` is the time in the business's words ("Tue 3:00 PM").
+ */
+export function freedTimeTakenNotice(name: string, at: string): { subject: string; body: string } {
+  return {
+    subject: `“${name}” didn’t go: ${at} was taken`,
+    body: `${at} was taken before it went: someone booked it since it freed up, so nobody was offered it. The next cancellation offers its own time.`,
   };
 }
 
@@ -406,12 +445,12 @@ export function winBackWords(word: AppointmentWord): { quiet_30: string; lapsed:
 
 /**
  * Whether a new campaign on a moment is offered by whether a calendar is connected here: the two win-backs (by visits
- * only with one, by silence only without) and the appointment moments (only with one). The calendar set, declared once:
- * momentOffered reads it, and so does the check that makes a campaign, which asks for the calendar only here and says
- * why a moment of it is refused.
+ * only with one, by silence only without), the appointment moments and a freed time (only with one: a time is freed on the
+ * calendar, decision 0082). The calendar set, declared once: momentOffered reads it, and so does the check that makes a
+ * campaign, which asks for the calendar only here and says why a moment of it is refused.
  */
 export function momentReadsCalendar(t: { id: string; kind: string }): boolean {
-  return isWinBack(t.id) || t.kind === "visit";
+  return isWinBack(t.id) || t.kind === "visit" || t.kind === "freed";
 }
 
 /**

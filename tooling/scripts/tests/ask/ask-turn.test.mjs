@@ -6441,9 +6441,9 @@ test("the assistant offers the moments a new playbook may start from (2 Oct 2026
   };
   const offered = (read) => read.triggers.map((x) => x.trigger);
   // No calendar: no appointment moment either (D44, 9 Oct 2026), since without one its run reads nothing. And the
-  // proposal follow-up's moment, every workspace's (0008, amended 18 Oct 2026).
+  // proposal follow-up's moment, every workspace's (0008, amended 18 Oct 2026). A calendar frees times too (0082).
   const SILENCE = ["quiet_30", "everyone_monthly", "saved_list", "proposal_waiting"];
-  const VISITS = ["everyone_monthly", "visit_tomorrow", "visited", "lapsed", "saved_list", "proposal_waiting"];
+  const VISITS = ["everyone_monthly", "visit_tomorrow", "visited", "lapsed", ...SILENCE.slice(2), "slot_opened"];
   const feed = (status) => async () => new Response(status === 200 ? ICS : "down", { status });
   const fetchWas = globalThis.fetch;
   try {

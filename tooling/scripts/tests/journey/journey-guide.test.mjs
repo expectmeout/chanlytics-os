@@ -25,12 +25,13 @@ const SHAPES = [
 
 const rowsOf = (shape) => C.journeyGuide(shape).map((r) => [r.stage, r.moment]);
 
-test("with a calendar, five rows in the journey's order, the day before and the day after among them, each on the moment that runs it here, the month's offer last on no stage", () => {
+test("with a calendar, six rows in the journey's order, the day before and the day after among them, each on the moment that runs it here, a freed time and the month's offer last on no stage", () => {
   assert.deepEqual(rowsOf(SHAPES[1]), [
     ["first_contact", null],
     ["before", "visit_tomorrow"],
     ["after", "visited"],
     ["quiet", "lapsed"],
+    [null, "slot_opened"],
     [null, "everyone_monthly"],
   ]);
   const guide = C.journeyGuide(SHAPES[1]);
@@ -126,7 +127,7 @@ test("a proposal's row only once a deal is on file, before quiet, on the follow-
     assert.deepEqual(rows[at], ["proposal", "proposal_waiting"], JSON.stringify(shape));
     assert.equal(rows[at + 1][0], "quiet", `${JSON.stringify(shape)}: before quiet`);
   }
-  assert.equal(C.journeyGuide(SHAPES[2]).length, 6);
+  assert.equal(C.journeyGuide(SHAPES[2]).length, 7);
 });
 
 test("every row's moment is a trigger a campaign starts from, offered here, and its stage the one that trigger stands on", () => {

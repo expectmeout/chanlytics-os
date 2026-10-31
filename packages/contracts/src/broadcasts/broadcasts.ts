@@ -27,7 +27,7 @@ import { RUN_WAITING_WORDS } from "../shell/campaign-rooms";
 import { isCount, recordOrNull } from "../shared/unknown";
 import type { ReachOutRunDto } from "../reach-out/reach-out-dtos";
 import { templateTitle } from "../templates/template-titles";
-import { clockDate, clockWhen } from "../shared/clock";
+import { clockDate, clockNearWhen, clockWhen } from "../shared/clock";
 import { noNumberWords } from "../people/people-lists";
 import type { PersonRowVM } from "../people/person-row";
 import type { ParamSpec } from "../templates/templates";
@@ -245,6 +245,11 @@ export interface BroadcastCounts {
    * count them.
    */
   sent_by?: Record<ConsentChannel, number>;
+  /**
+   * How many of the people a freed time's run sent to took the time it offered (00498 freed_time_taken, decision 0082):
+   * said only for a run that offered one.
+   */
+  took?: number | null;
 }
 
 /** What run_counts says of each run (00374), in the order Sent writes a run's counts. */
@@ -271,7 +276,10 @@ export function runCountsOf(answer: unknown): Record<string, BroadcastCounts> | 
     }
     const { whatsapp, sms, email } = by;
     if (!isCount(whatsapp) || !isCount(sms) || !isCount(email)) return null;
-    out[id] = { ...counts, sent_by: { whatsapp, sms, email } };
+    // Who took the freed time (00498): a count, said only for a run that offered one.
+    const took = c.took;
+    if (took !== undefined && took !== null && !isCount(took)) return null;
+    out[id] = { ...counts, sent_by: { whatsapp, sms, email }, ...(took === undefined ? {} : { took }) };
   }
   return out;
 }
@@ -295,6 +303,13 @@ export interface BroadcastDto {
   /** A playbook's run: which one, and which local day it ran for. */
   playbook_id: string | null;
   run_for: string | null;
+  /**
+   * A freed time's run (00498, decision 0082): the time it offers and the appointment that freed it; null for every other
+   * run, absent from a server before it.
+   */
+  offered_start?: string | null;
+  offered_end?: string | null;
+  offered_from?: string | null;
   /**
    * The sequence this run is a day of (0060: every run is a sequence's batch), whatever step made it: where a link to the
    * run lands once it has gone (its History, that day open), with no lookup of the run's id to find it.
@@ -323,6 +338,8 @@ export interface BroadcastVM extends BroadcastDto {
   progress: number;
   /** A failed broadcast's reason in the owner's words; null in any other state. */
   failureLabel: string | null;
+  /** The time a freed time's run offers, by the business's clock ("tomorrow 3:00 PM", clockNearWhen); null for any other run. */
+  offered: string | null;
 }
 
 /**
@@ -368,6 +385,7 @@ export function toBroadcastVM(d: BroadcastDto, tz: string, now = new Date()): Br
     open: d.state === "scheduled" || d.state === "sending" || d.state === "pending_approval",
     progress: d.recipient_count > 0 ? Math.min(1, attempted / d.recipient_count) : 0,
     failureLabel: d.state === "failed" ? broadcastFailureWords(d.failure) : null,
+    offered: d.offered_start ? clockNearWhen(Date.parse(d.offered_start), tz, now.getTime()) : null,
   };
 }
 

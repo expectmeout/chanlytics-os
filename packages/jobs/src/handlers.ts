@@ -70,6 +70,7 @@ import {
   twinTold,
   memberJoinedOf,
   memberEmailOf,
+  freedTimeFactsOf,
   noticeKept,
   unreadOfReaders,
   threadDraftFacts,
@@ -536,6 +537,12 @@ async function eventDeliver(ctx: JobContext, job: ClaimedJob): Promise<void> {
     memberTold: (tenantId, invitationId) =>
       noticeKept(ctx.db, { tenantId, kind: "member_joined", subjectType: "invitation", subjectId: invitationId }),
     memberEmail: (userId) => memberEmailOf(ctx.db, userId),
+    freedTimeFacts: (tenantId, appointmentId, nowMs) => freedTimeFactsOf(ctx.db, tenantId, appointmentId, nowMs),
+    // The edge's offer (decision 0082): the run lives with the edge's run context, injected like the website reader.
+    offerFreedTime: (tenantId, freed) => {
+      if (!ctx.freedTimes) throw new Error("freed_time_offer: this runtime holds no offer of a freed time");
+      return ctx.freedTimes.offer(tenantId, freed);
+    },
     // The delivery is the event's workspace's job, so the runtime addresses the notice to it (job-alert.ts).
     tell: (news) => ctx.alert(news),
   };

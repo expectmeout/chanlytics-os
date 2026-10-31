@@ -1079,6 +1079,43 @@ test("REGRESSION: a reminder nobody approved by 21:00 is skipped, and its owner 
   ]);
 });
 
+test("a freed time's batch nobody approved ends when its time comes (0082), told in its time's words; one whose time is ahead waits on", async () => {
+  const w = world();
+  workspace(w.tables, A, "America/New_York", "ask");
+  const freed = (id, startMs) => ({
+    id,
+    tenant_id: A,
+    playbook_id: `pb-${id}`,
+    name: "Fill a cancellation · a time",
+    state: "pending_approval",
+    run_for: null,
+    offered_start: new Date(startMs).toISOString(),
+    offered_end: new Date(startMs + H).toISOString(),
+    audience: { kind: "playbook", id: `pb-${id}`, label: "Fill a cancellation", trigger: "slot_opened" },
+    recipient_count: 2,
+    created_at: iso(3 * H),
+  });
+  w.tables.broadcasts.push(freed("run-gone", Date.now() - H), freed("run-ahead", Date.now() + 3 * D));
+  const [status, body] = await answer(await w.tick());
+  assert.equal(status, 200);
+  assert.equal(body.ended, 1, "the one whose time came, as the system");
+  assert.deepEqual(
+    w.tables.broadcasts.map((b) => [b.id, b.state]),
+    [
+      ["run-gone", "canceled"],
+      ["run-ahead", "pending_approval"],
+    ],
+  );
+  const skip = w.tables.decisions.find((d) => d.subject_id === "run-gone");
+  assert.equal(skip.payload.reason, "time_passed");
+  const [told] = bellOf(w, A).filter((n) => n.subject_id === "run-gone");
+  assert.equal(told.title, "“Fill a cancellation” didn’t go: nobody approved it");
+  assert.match(
+    told.body,
+    /^2 people waited for your OK until .+ came, and nothing was sent: that time has passed\. The next cancellation offers its own time/,
+  );
+});
+
 test("two playbooks due in the same hour keep the week's breath between them: the second leaves out whoever the first just enrolled, and keeps whoever it did not (P1 3)", async () => {
   // The first reaches one person (its cap); the second would reach all three, and is left with the two the first did not.
   let w = world({ people: { [A]: [person("c1"), person("c2"), person("c3")] } });

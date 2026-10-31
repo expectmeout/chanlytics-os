@@ -435,7 +435,9 @@ async function loadBroadcast(ctx: RouteContext, id: string) {
   const broadcastId = requireUuid(id, "broadcast");
   const { data, error } = await ctx.supabase
     .from("sequence_batches")
-    .select("id, tenant_id, state, name, recipient_count, playbook_id:step_id, run_for, audience, scheduled_for")
+    .select(
+      "id, tenant_id, state, name, recipient_count, playbook_id:step_id, run_for, audience, scheduled_for, offered_start",
+    )
     .eq("id", broadcastId)
     .maybeSingle();
   if (error) throw new Error(error.message);

@@ -3,7 +3,7 @@
  * from handlers.ts (Reach out Part 2.5), which re-exports its public names.
  */
 import type { ReceivedEmail } from "@chanlytics/channels";
-import type { FeedNames, JobKind, JobNews, PushMessage, Unread } from "@chanlytics/contracts";
+import type { FeedNames, FreedTimeOffer, JobKind, JobNews, PushMessage, Unread } from "@chanlytics/contracts";
 import type { BookingNoticePorts, EmailIngestPorts, ReplyNotice, ReplyReadPorts, Wire } from "@chanlytics/core";
 import type { Database, Json } from "@chanlytics/db";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -217,6 +217,15 @@ export interface JobContext {
   website?: {
     /** The site read and its facts kept (business_reads); no call starts after `deadline`. Throws on a failed read. */
     read: (job: ClaimedJob, deadline: number) => Promise<void>;
+  };
+  /**
+   * A freed time offered to the people who asked and never booked (decision 0082), as the edge holds it: the workspace's
+   * run context and its step on `slot_opened` live there. INJECTED like the website reader; a delivery to
+   * `freed_time_offer` in a runtime without it fails loudly.
+   */
+  freedTimes?: {
+    /** The workspace's running step runs for the freed time, once per appointment. Throws when it could not be asked. */
+    offer: (tenantId: string, freed: { from: string; start: number; end: number }) => Promise<FreedTimeOffer>;
   };
   /**
    * A lead's own receptionist built (00497, decision 0079), as the edge holds it: the website read and the model's key
