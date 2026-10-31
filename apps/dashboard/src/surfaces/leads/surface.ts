@@ -26,7 +26,6 @@ import {
   type LeadMonthDto,
   type LeadPileCountsDto,
   type LeadPeekVM,
-  type LeadReachFilter,
   type LeadRowDto,
   type LeadSearchDto,
   type LeadSearchPlan,
@@ -44,7 +43,7 @@ import { unwrap, type ApiResult, type RouteKey } from "@/client/api";
 import { setSurfaceValue, surfaceValue } from "../surface-values";
 
 export type { LeadsSurface } from "./surface-types";
-import type { LeadSearchesAnswer, LeadsPageAnswer, LeadsView } from "./surface-types";
+import type { LeadSearchesAnswer, LeadsExportView, LeadsPageAnswer, LeadsView } from "./surface-types";
 
 const NO_COUNTS: LeadCounts = { all: 0, ready: 0, nurture: 0, converted: 0, said_no: 0, not_a_fit: 0 };
 const DEFAULT_VIEW: LeadsView = { searchId: null, list: "all", cls: null, chips: {}, sort: "fit", dir: "asc" };
@@ -588,9 +587,7 @@ export async function bulkLeads(body: LeadsBulkInput) {
  * Marking what it took moves the month's count (§0.2), so it is a press that POSTs and not a link that GETs (decision 0047,
  * lane 6); the leads read again behind the answer.
  */
-export async function exportLeadsFile(
-  view: Extract<LeadsBulkInput, { by: "view" }>["view"] & { reach?: readonly LeadReachFilter[] },
-) {
+export async function exportLeadsFile(view: LeadsExportView) {
   return leadCall<{ file: string; csv: string; rows: number }>("POST leads/export", {
     body: view,
     refresh: "behind",
