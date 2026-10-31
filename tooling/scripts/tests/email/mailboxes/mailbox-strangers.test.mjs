@@ -17,6 +17,7 @@ after(restore);
 const { leftWhy, mailSortingFor, sortByRules } = await importSrc("apps/edge/lib/email/mailbox/mailbox-sorting.ts");
 const { senderReaderFor } = await importSrc("apps/edge/lib/email/mailbox/mailbox-reader.ts");
 const { setPg } = await importSrc("apps/edge/lib/pg.ts");
+const { mailboxSendersOf } = await importSrc("packages/db/src/repositories/mailboxes/senders.ts");
 const { logger } = await importSrc("apps/edge/lib/log.ts");
 after(() => setPg(null));
 
@@ -225,6 +226,57 @@ test("a sender is read once a sorting, their second email waiting for the first'
     ["a@one.example", "b@two.example", "c@three.example"],
     "a model that is down is let be",
   );
+});
+
+test("the list of what was left says what a reading found a pitch or a relayed message wanted, and asks for no other sender's reading", async () => {
+  const w = world({
+    reads: [
+      { address: "growth@agency.example", kind: "pitch", about: "offers more reviews" },
+      // A reading that left nobody: its sender is not on the list as a reading's, and its words are never asked for.
+      { address: "team@host.example", kind: "notice", about: "a stale word" },
+    ],
+  });
+  w.tables.mailbox_left = [
+    {
+      tenant_id: T,
+      address: "growth@agency.example",
+      name: null,
+      why: "pitch",
+      count: 2,
+      first_at: "2026-10-30T00:00:00Z",
+      last_at: "2026-10-31T00:00:00Z",
+    },
+    {
+      tenant_id: T,
+      address: "team@host.example",
+      name: "Fixture Host",
+      why: "service",
+      count: 9,
+      first_at: "2026-10-30T00:00:00Z",
+      last_at: "2026-10-30T12:00:00Z",
+    },
+  ];
+  const asked = [];
+  const from = w.db.from.bind(w.db);
+  w.db.from = (table) => {
+    const q = from(table);
+    if (table !== "mailbox_sender_reads") return q;
+    const inOf = q.in.bind(q);
+    q.in = (col, vals) => {
+      asked.push(...vals);
+      return inOf(col, vals);
+    };
+    return q;
+  };
+  const list = await mailboxSendersOf(w.db, T);
+  assert.deepEqual(
+    list.left.map((l) => [l.address, l.why, l.about]),
+    [
+      ["growth@agency.example", "pitch", "offers more reviews"],
+      ["team@host.example", "service", null],
+    ],
+  );
+  assert.deepEqual(asked, ["growth@agency.example"], "only the rows a reading left are asked about");
 });
 
 /** The model's API as the reader asks it: each request kept, and the answer given. */
