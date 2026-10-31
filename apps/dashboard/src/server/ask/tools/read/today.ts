@@ -18,13 +18,17 @@ async function getToday(t: ToolContext): Promise<unknown> {
   // Today as the page composes it (readers/today.ts), read once in the turn: the Inbox's threads, the metrics the
   // page's Today reads (every line, the workspace's email one too), the calls and the searches. A calls or searches
   // read that failed is null, its own state on the page, never none.
-  const { metrics, conversations, escalations, calls, searches, runs, heldThreads, going } = (
+  const { metrics, conversations, escalations, calls, searches, runs, heldThreads, going, previewsTried } = (
     await load(t.rc, today, undefined)
   ).data;
   // The page's own builder, with the waiting searches the page passes (the queue reads them), and the runs waiting and
   // the threads of holds past the hundred beside it, so the head and the count are the badge's (the wiring's second
   // audit, S7-1 and W-thread-wait-step-4).
-  const vm = toTodayVM(metrics, conversations, escalations, calls, t.now, searches, { runs, heldThreads });
+  const vm = toTodayVM(metrics, conversations, escalations, calls, t.now, searches, {
+    runs,
+    heldThreads,
+    previewsTried,
+  });
   const searchRows = vm.queue.rows.filter((r) => r.kind === "search");
   // A search waiting on its owner is a row a citation names (the queue's row id is `q-s-<search>`).
   for (const r of searchRows) noteRow(t, "search", r.id.replace(/^q-s-/, ""), r.who, r.cta.to);

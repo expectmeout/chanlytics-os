@@ -28,6 +28,7 @@ import { Icon } from "../../../kit/icon/icon";
 import { Segmented } from "../../../kit/segmented/segmented";
 import { routeDoor } from "../../../legacy-verbs";
 import { templates as templateVerbs } from "../../templates/verbs";
+import { tplOwn } from "../../templates/words";
 import { channelsSaidOf, heldMessageOf } from "./new-model";
 import { Choice, PickSheet } from "./new-sheets";
 
@@ -399,8 +400,9 @@ function LeadWords(p: {
       {p.first ? <Field label={W.sheets.subject} value={subject} onValueChange={setSubject} maxLength={80} /> : null}
       <Field label={W.sheets.words} rows={6} value={body} onValueChange={setBody} maxLength={1200} />
       <p className="sq-nw-note">
+        {/* The six every lead has, and their preview in an email after the first where this workspace makes them (0079). */}
         {W.sheets.valuesSaid(
-          REACH_OUT_SLOTS.slice(0, 6)
+          [...REACH_OUT_SLOTS.slice(0, 6), ...(!p.first && tplOwn().previews ? ["their preview"] : [])]
             .map((s) => `{{${s}}}`)
             .join(", "),
         )}

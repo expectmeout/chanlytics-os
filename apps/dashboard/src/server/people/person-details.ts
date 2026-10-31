@@ -92,16 +92,21 @@ export async function setPersonDetails(
         ...(email !== undefined ? { email: stood.email ?? "" } : {}),
       };
   }
-  const rpc = ctx.supabase.rpc.bind(ctx.supabase);
+  // The session's doors, called on the client itself: a bound copy of its rpc made the compiler weigh every function's
+  // overload at once, which 00497's doors took past its depth (TS2589).
+  const db = ctx.supabase;
   if (email !== undefined)
-    out.email = whatTheDoorStored(await rpc("set_person_email", { p_contact_id: id, p_email: email ?? "" }), "email");
+    out.email = whatTheDoorStored(
+      await db.rpc("set_person_email", { p_contact_id: id, p_email: email ?? "" }),
+      "email",
+    );
   if (name !== undefined)
-    out.name = whatTheDoorStored(await rpc("set_person_name", { p_contact_id: id, p_name: name }), "name");
+    out.name = whatTheDoorStored(await db.rpc("set_person_name", { p_contact_id: id, p_name: name }), "name");
   if (notes !== undefined)
-    out.notes = whatTheDoorStored(await rpc("set_person_notes", { p_contact_id: id, p_notes: notes }), "notes");
+    out.notes = whatTheDoorStored(await db.rpc("set_person_notes", { p_contact_id: id, p_notes: notes }), "notes");
   if (proposal !== undefined)
     out.proposal_url = whatTheDoorStored(
-      await rpc("set_person_proposal", { p_contact_id: id, p_url: proposal ?? "" }),
+      await db.rpc("set_person_proposal", { p_contact_id: id, p_url: proposal ?? "" }),
       "proposal_url",
     );
   return out;

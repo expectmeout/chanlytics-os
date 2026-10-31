@@ -54,6 +54,8 @@ test("the six slots, named in any case and spacing, and a brace without its pair
       "company",
       "title",
       "role",
+      // A lead's own receptionist (decision 0079), the eleventh.
+      "their preview",
     ],
   );
   // The six are a slot set, read by the one reader every email's slots take (templates/slot-sets.ts).
@@ -228,4 +230,34 @@ test("capitals shout across lines, and a line ending of any kind splits them", (
 test("a customer's domain is read from a real address", () => {
   assert.equal(customerDomainOf("Owner@HydePark.Example", true), "hydepark.example");
   assert.equal(customerDomainOf("a@b@c.example", true), null);
+});
+
+test("their preview (decision 0079): a link like any other, the step's one, and never in a first email", () => {
+  assert.equal(linkCount("See {{their preview}}"), 1, "a link a business sees");
+  assert.equal(linkCount("{{ Their Preview }} or https://example.com/book"), 2);
+  const later = validateReachOutWords(
+    { subject: null, body: "Try {{their preview}}, or book at example.com/book" },
+    false,
+  );
+  assert.deepEqual(
+    later.map((i) => i.problem),
+    ["too_many_links"],
+    "with another link, one too many",
+  );
+  assert.deepEqual(validateReachOutWords({ subject: null, body: "Here it is: {{their preview}}" }, false), []);
+  const issues = validateReachOutChain(
+    chain({
+      steps: [
+        { subject: "Hi", body: "I set up {{their preview}} for {{business}}.", after_days: null },
+        { subject: null, body: "Here it is: {{their preview}}", after_days: 3 },
+      ],
+    }),
+    { bookingLink: true },
+  );
+  assert.deepEqual(
+    issues.map((i) => `${i.step}:${i.field}:${i.problem}`),
+    ["0:body:first_has_their_preview"],
+    "said once, in its own words, and a later step may name it",
+  );
+  assert.equal(chainIssueWords(issues[0]), "A first email carries no link. Put their preview in a later step.");
 });

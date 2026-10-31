@@ -54,12 +54,14 @@ export const applyToday: SurfaceOverride["apply"] = async () => {
   // Calls are additive context, not a precondition — a voice outage must not
   // blank the brief — but they are fetched WITH the others rather than
   // waterfalled behind them, so the slowest request sets the wall clock.
-  const [metricsRes, convData, escData, callsRes, searchesRes] = await Promise.all([
+  const [metricsRes, convData, escData, callsRes, searchesRes, triedRes] = await Promise.all([
     read("GET metrics", { query: { days: "1" } }),
     read("GET conversations"),
     read("GET escalations", { query: { state: "open" } }),
     read("GET calls").catch((e: unknown) => e as Error),
     read("GET lead-searches").catch((e: unknown) => e as Error),
+    // The leads who tried their own receptionist (decision 0079): additive, as the searches are.
+    read("GET lead-previews").catch((e: unknown) => e as Error),
   ]);
   // Null, not []: a calls read that failed is its own state, and the brief
   // says so rather than counting none.
@@ -92,7 +94,7 @@ export const applyToday: SurfaceOverride["apply"] = async () => {
     escalations: escData.escalations,
     calls,
     searches,
-    beside: { heldThreads },
+    beside: { heldThreads, previewsTried: triedRes instanceof Error ? null : triedRes.previews },
   };
   publishToday(lastHeld, new Date());
   // Today publishes no count for the badge, the tabs, the title or the phone. It used to send one after every read

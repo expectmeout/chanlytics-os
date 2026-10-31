@@ -214,6 +214,13 @@ export const RATE = {
   /** A stranger at the door: per network they came from and per address they typed. */
   signup_ip: { limit: 5, windowMs: HOUR_MS, noun: "sign-ups" },
   signup_email: { limit: 3, windowMs: HOUR_MS, noun: "sign-ups" },
+  /**
+   * A lead's own receptionist's page (decision 0079), per network: what a person types and presses there, each message a
+   * model's answer. A preview answers twenty, so forty an hour is two businesses at one desk, not a script.
+   */
+  preview_ip: { limit: 40, windowMs: HOUR_MS, noun: "messages" },
+  /** A call to a lead's own receptionist (decision 0079), per network: each is the provider's minutes; a preview has two. */
+  preview_call_ip: { limit: 6, windowMs: HOUR_MS, noun: "calls" },
   /** Each is a paid call to Google, made for an owner who typed a few words. */
   google_search: { limit: 20, windowMs: HOUR_MS, noun: "listing searches" },
   google_link: { limit: 10, windowMs: HOUR_MS, noun: "listing changes" },

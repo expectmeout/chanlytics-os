@@ -96,7 +96,7 @@ export const SCHEMA_SETS = {
   "jobs.kind": [
     "outbound_send", "broadcast_send", "line_provision", "email_ingest", "lead_round_start",
     "lead_collect", "lead_check", "push_send", "push_receipts", "reply_read", "event_deliver",
-    "booking_read", "inbound_answer", "history_import", "website_read",
+    "booking_read", "inbound_answer", "history_import", "website_read", "preview_build",
   ],
   "jobs.state": ["scheduled", "fired", "done", "canceled", "failed"],
   "lead_counters.kind": ["allowance", "budget", "day"],
@@ -105,6 +105,7 @@ export const SCHEMA_SETS = {
     "leave",
   ],
   "lead_preferences.kind": ["chain", "wrong_kind", "too_far"],
+  "lead_previews.state": ["building", "ready", "failed", "claimed", "ended"],
   "lead_rounds.answered": ["keep", "include", "stop"],
   "lead_rounds.ending": [
     "target_reached", "searched_everything", "month_leads_used", "budget_used", "few_new_matches",
@@ -227,5 +228,5 @@ export const SCHEMA_SETS = {
   "tenant_channels.kind": ["whatsapp", "voice", "sms", "email", "instagram"],
   "tenant_channels.status": ["active", "disabled"],
   "tenants.appointment_word": ["appointment", "visit", "meeting", "session", "lesson"],
-  "tenants.status": ["active", "paused", "test"],
+  "tenants.status": ["active", "paused", "test", "preview"],
 } as const;

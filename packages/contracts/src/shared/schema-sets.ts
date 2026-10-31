@@ -52,6 +52,7 @@ import type { BROADCAST_STATES, REACH_OUT_SEND_STATES, RECIPIENT_STATES } from "
 import type { REPLY_INTENTS, REPLY_UNREADS } from "../reach-out/reach-out-replies";
 import type { SEQUENCE_MODES, SEQUENCE_STARTS, SEQUENCE_STATES } from "../sequences/sequence";
 import type { CALL_OUTCOMES } from "../voice/call-words";
+import type { PREVIEW_STATES } from "../previews/lead-preview";
 import type { POLICY_CLASSES, POLICY_MODES } from "../config/workspace-config/policy-classes";
 import type { DEAL_LOST_REASONS, DEAL_PERS, DEAL_SOURCES, DEAL_STAGES } from "../deals/deal-words";
 import type { APPOINTMENT_WORDS } from "../journey/appointment-word";
@@ -211,6 +212,8 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof LEAD_ROUND_ENDINGS>, SchemaSet<"lead_rounds.ending">>>,
   Holds<Exactly<Of<typeof LEAD_ROUND_ENDINGS>, SchemaSet<"lead_rounds.ending_pending">>>,
   Holds<Exactly<Of<typeof LEAD_ROUND_ANSWERS>, SchemaSet<"lead_rounds.answered">>>,
+  // A lead's own receptionist before they sign up (00497, decision 0079).
+  Holds<Exactly<Of<typeof PREVIEW_STATES>, SchemaSet<"lead_previews.state">>>,
   Holds<Exactly<Of<typeof LEAD_RUN_PURPOSES>, SchemaSet<"lead_runs.purpose">>>,
   Holds<Exactly<Of<typeof LEAD_RUN_STATES>, SchemaSet<"lead_runs.state">>>,
   Holds<Exactly<Of<typeof LEAD_EMAIL_STATES>, SchemaSet<"leads.email_state">>>,

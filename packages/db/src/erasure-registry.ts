@@ -45,6 +45,8 @@ export const ERASURE_LEGS = {
   deals_trigger: "deals_erase_on_contact: a deal's note, evidence and link cleared",
   leads_trigger:
     "leads_erase_on_contact: their lead blanked (lead_blank), its places deleted, a reach-out's opening and a preference's example cleared (00391), its drafts cleared (00429), a company's people and key cleared and its domain kept as a digest (00430), its keys kept as digests; one of several people at a business takes only their own address, number and the call's note from it (lead_person_leg, 00413); a person named at any company leaves it, its drafts to them cleared and their address kept as a digest (lead_person_forget, 00430)",
+  preview_trigger:
+    "lead_previews_end_with_their_lead: a lead blanked or erased ends its preview, what the business wrote to it and said was not right cleared and its workspace erased, unless it was made theirs (00497)",
   signer_trigger:
     "person_signer_erase_on_contact: the name and title a reply's reading found as its signer, and what became of it, cleared (00413)",
   recipients_trigger:
@@ -297,6 +299,12 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
     "webhook_token_hash",
   ),
   lead_places: all(withPerson("leads_trigger"), "place_id", "title", "street"),
+  // A lead's own receptionist before they sign up (00497, decision 0079): what someone at the business wrote to it and
+  // said was not right, ended with its lead; its link's token and our words for a build that failed name no one.
+  lead_previews: {
+    ...all(scrubbedBy("leads_trigger", "preview_trigger"), "turns", "not_right"),
+    ...all(NOT_PERSONAL, "token", "failed_why"),
+  },
   lead_search_members: {
     ...all(scrubbedBy("leads_trigger"), "judgment", "reason"),
     ...all(NOT_PERSONAL, "counted_month", "excluded_by"),

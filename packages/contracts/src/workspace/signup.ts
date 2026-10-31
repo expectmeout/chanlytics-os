@@ -31,6 +31,14 @@ export function signupPosture(code: string | undefined | null): SignupPosture {
 }
 
 /**
+ * The posture a person meets: a lead's own receptionist's live link (decision 0079) opens sign-up whatever the posture,
+ * because only Chanlytics sends one. It stands for an invite code, and only while its preview can still be made theirs.
+ */
+export function signupPostureFor(posture: SignupPosture, previewLive: boolean): SignupPosture {
+  return previewLive ? "open" : posture;
+}
+
+/**
  * WHAT THE FORM SAID, KEPT UNTIL ITS OWNER PROVES THE INBOX.
  *
  * Sign-up used to make the workspace on the spot, for an address nobody had

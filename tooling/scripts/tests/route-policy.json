@@ -930,6 +930,13 @@
       "rate": "lead_search",
       "spend": true
     },
+    "GET lead-previews": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
     "GET lead-searches": {
       "kind": "read",
       "scope": "workspace",
@@ -1005,6 +1012,20 @@
       "scope": "workspace",
       "role": null,
       "rate": null,
+      "spend": false
+    },
+    "GET leads/[id]/preview": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "POST leads/[id]/preview": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "lead_member",
       "spend": false
     },
     "POST leads/[id]/put-back": {
@@ -1693,6 +1714,13 @@
       "scope": "workspace",
       "role": "operator",
       "rate": "settings",
+      "spend": false
+    },
+    "POST preview-claims": {
+      "kind": "write",
+      "scope": "account",
+      "role": null,
+      "rate": "create_workspace",
       "spend": false
     },
     "POST reach-out-replies/[id]/undo": {

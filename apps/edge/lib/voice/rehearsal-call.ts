@@ -27,6 +27,8 @@ import { createWebCall, webCallBody, webCallMadeOf, type RetellCall } from "../p
 import {
   endRehearsal,
   keepRehearsalCall,
+  leadPreviewOfWorkspace,
+  previewCalled,
   rehearsalByCall,
   rehearsalSpokenMs,
   workspaceMaySpend,
@@ -39,6 +41,7 @@ import {
   rehearsalCallMs,
   turnsOfTranscript,
   REHEARSAL_LIMITS,
+  SECOND_MS,
   UUID,
 } from "../packages/contracts.js";
 import { ensureVoiceAgent } from "./voice-agent.js";
@@ -96,9 +99,14 @@ export async function makeRehearsalAgent(
   }
 }
 
-/** The free minutes as they stand for a workspace: its plan, and what its window's spoken rehearsals spent. */
+/**
+ * The free minutes as they stand for a workspace: its plan, and what its window's spoken rehearsals spent. A lead's own
+ * receptionist that nobody has made theirs (decision 0079) has its preview's six minutes in all, plan or none.
+ */
 async function allowanceOf(db: Db, tenantId: string, now: Date) {
-  const hasPlan = await workspaceMaySpend(db, tenantId);
+  const preview = await leadPreviewOfWorkspace(db, tenantId);
+  const isPreview = !!preview && preview.state !== "claimed";
+  const hasPlan = isPreview ? false : await workspaceMaySpend(db, tenantId);
   const since = hasPlan ? new Date(now.getTime() - REHEARSAL_LIMITS.withPlanWindowMs).toISOString() : null;
   const spoken = await rehearsalSpokenMs(db, tenantId, {
     since,
@@ -106,7 +114,7 @@ async function allowanceOf(db: Db, tenantId: string, now: Date) {
     runningMs: REHEARSAL_LIMITS.runningMs,
     callMs: REHEARSAL_LIMITS.callMs,
   });
-  return rehearsalAllowance({ hasPlan, spentMs: spoken.spentMs, running: spoken.running });
+  return rehearsalAllowance({ hasPlan, preview: isPreview, spentMs: spoken.spentMs, running: spoken.running });
 }
 
 export async function startRehearsalCall(
@@ -265,6 +273,12 @@ export async function settleRehearsalEvent(
       ms,
       reason: call.disconnection_reason ?? null,
     });
+    // A lead's own receptionist counts its calls on its row (decision 0079), once a call: on its first end, since the
+    // provider tells an end twice (call_ended, then call_analyzed). Any other workspace is none, and nothing moves.
+    if (r.ended_at === null)
+      await previewCalled(db, r.tenant_id, Math.max(0, ms) / SECOND_MS).catch((e: unknown) =>
+        L.warn("preview_called_failed", { tenant_id: r.tenant_id, rehearsal_id: r.id, error: errField(e) }),
+      );
     return "ended";
   } catch (e) {
     L.error("rehearsal_event_failed", { tenant_id: r.tenant_id, retell_event: event, error: errField(e) });

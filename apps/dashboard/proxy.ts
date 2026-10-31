@@ -83,11 +83,20 @@ const PUBLIC_PATHS = new Set([
  *           only write is the person's own yes to offers by email, which the
  *           yes door judges itself (src/server/public/confirm.ts).
  *
+ *   /preview/          a lead's own receptionist (decision 0079), the link a cold email carries to a business that has
+ *   /api/v1/previews/  no account. Let in on /u/'s terms: the token is the authority (22 characters over 16 random
+ *           bytes, kept on its row), so a link we did not make reads nothing; the page is noindex and sends no
+ *           referrer; a GET changes nothing (scanners), its opening is counted by its own script; and its doors' only
+ *           writes are a message and its answer, a press of Not right and that script's count, each through a
+ *           service-role door that holds the preview's limits (00497). Its sign-up, /preview/<token>/mine, is a page as
+ *           /signup is, and makes nothing. Making it theirs is not under the prefix: it is /api/v1/preview-claims,
+ *           behind sign-in.
+ *
  * Adding one here is adding a page anybody on the internet may read. Each was
  * built for exactly that; nothing else goes on this list without the same
  * argument.
  */
-const PUBLIC_PREFIXES = ["/yes/", "/b/", "/.well-known/", "/u/", "/p/", "/c/"];
+const PUBLIC_PREFIXES = ["/yes/", "/b/", "/.well-known/", "/u/", "/p/", "/c/", "/preview/", "/api/v1/previews/"];
 
 /**
  * An auth redirect must never be stored. These responses depend entirely on a

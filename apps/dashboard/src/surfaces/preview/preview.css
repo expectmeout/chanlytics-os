@@ -1,0 +1,185 @@
+/* A lead's own receptionist (decision 0079): one column on the product's paper, the business's mark over it, the chat,
+   what it knows, and a foot that stays. Layout here; every colour, size, radius and shadow is a token, and the chat's
+   turns read the thread's own (clients.css .cl-prof-word-text), so what is tried here is what the Inbox shows. */
+
+.pv-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-4) calc(var(--space-20) + var(--space-12));
+  color: var(--ink);
+}
+
+.pv-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.pv-head-top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.pv-logo {
+  display: block;
+  height: 40px;
+  width: auto;
+  max-width: 160px;
+  object-fit: contain;
+}
+.pv-title {
+  margin: 0;
+  font-size: var(--text-xl);
+  line-height: 1.2;
+  text-wrap: balance;
+}
+.pv-by {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+
+.pv-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.pv-section-title {
+  margin: 0;
+  font-size: var(--text-md);
+}
+
+.pv-chat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pv-turn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-width: 86%;
+}
+.pv-turn[data-mine] {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+.pv-said {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-bubble) var(--radius-bubble) var(--radius-bubble) var(--radius-sm);
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-ring), var(--surface-inset-depth);
+  font-size: var(--text-base);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.pv-turn[data-mine] > .pv-said {
+  border-radius: var(--radius-bubble) var(--radius-bubble) var(--radius-sm) var(--radius-bubble);
+  background: var(--selected-fill);
+  box-shadow: var(--selected-depth);
+}
+.pv-then {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+}
+.pv-then-label {
+  font-weight: 600;
+}
+.pv-starters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.pv-ask {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.pv-ask-acts {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.pv-end {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+.pv-quiet {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+}
+
+.pv-knows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.pv-knows > summary {
+  cursor: pointer;
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+.pv-knows-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+}
+.pv-knows-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.pv-knows-row dt {
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+}
+.pv-knows-row dd {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+.pv-knows-from {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+}
+
+.pv-foot {
+  position: fixed;
+  inset: auto 0 0 0;
+  display: flex;
+  justify-content: center;
+  padding: var(--space-3) var(--space-4) calc(var(--space-3) + env(safe-area-inset-bottom));
+  background: var(--surface-page-fill);
+  box-shadow: var(--surface-float-depth);
+}
+.pv-foot-in {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  width: 100%;
+  max-width: 560px;
+  text-align: center;
+}
+
+.pv-alone {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+}

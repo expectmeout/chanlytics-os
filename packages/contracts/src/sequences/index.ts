@@ -150,6 +150,7 @@ export {
   leadMailboxRowsOf,
   leadPaceChoicesOf,
   leadPreviewEmailOf,
+  leadPreviewOfferOf,
   leadSendingFactsOf,
   leadStartOf,
   reachOutInsertStep,

@@ -1,14 +1,17 @@
 import "server-only";
 import {
+  DAY_MS,
+  PREVIEW_TRIED_DAYS,
   ROLE_PERMS,
   addressOf,
   leadsRoute,
   personName,
   type LeadsQuery,
   type PersonAtLeadDto,
+  type PreviewTriedDto,
   type SequencePlaceDto,
 } from "@chanlytics/contracts";
-import { peopleAtLead, sequencePlaceOf } from "@chanlytics/db";
+import { peopleAtLead, previewsTriedSince, sequencePlaceOf } from "@chanlytics/db";
 import { leadOne, leadsPage } from "../leads/lead-page";
 import { stamp, type Reader } from "./index";
 
@@ -58,6 +61,29 @@ export const lead: Reader<{ id: string; search?: string }, Awaited<ReturnType<ty
           label: data.row.business_name,
         },
       ],
+      stamp: stamp(),
+    };
+  },
+};
+
+/**
+ * GET lead-previews: the leads who tried their own receptionist in the last three days (decision 0079), newest first,
+ * each with what came of it and the business's name: Today's rows, and what Ask reads of them. Each lead is a row a
+ * citation names, opened at its peek.
+ */
+export const previewsTried: Reader<undefined, { previews: PreviewTriedDto[] }> = {
+  name: "previews_tried",
+  async read(rc) {
+    const since = new Date(rc.now.getTime() - PREVIEW_TRIED_DAYS * DAY_MS).toISOString();
+    const previews: PreviewTriedDto[] = await previewsTriedSince(rc.ctx.supabase, rc.tenantId, since);
+    return {
+      data: { previews },
+      rows: previews.map((p) => ({
+        kind: "lead" as const,
+        id: p.lead_id,
+        route: addressOf({ kind: "lead", id: p.lead_id }),
+        label: p.business ?? "A lead",
+      })),
       stamp: stamp(),
     };
   },

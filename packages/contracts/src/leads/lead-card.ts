@@ -335,6 +335,7 @@ const LEAD_CARD_SLOT_FROM = {
   signs: "The name this sequence signs with",
   booking: "Your booking link, in Settings",
   opening: "Written for them when its batch is planned, and read by you before it goes",
+  preview: "Their own receptionist, made when the first email that names it goes",
   fallback: (said: string) => `Nobody is named here, so it says “${said}”`,
   gap: "They have none, so the send would hold this email",
 } as const;
@@ -364,6 +365,8 @@ export function leadCardSlotsOf(p: {
     const label = capitalize(slotLabel(s.key));
     if (s.key === "opening")
       return { key: s.key, label, value: null, from: LEAD_CARD_SLOT_FROM.opening, look: "later" };
+    if (s.key === "their preview" && s.value === null && p.lead.preview?.state !== "gone")
+      return { key: s.key, label, value: null, from: LEAD_CARD_SLOT_FROM.preview, look: "later" };
     if (s.value === null) return { key: s.key, label, value: null, from: LEAD_CARD_SLOT_FROM.gap, look: "gap" };
     if (s.fellBack)
       return { key: s.key, label, value: s.value, from: LEAD_CARD_SLOT_FROM.fallback(s.value), look: "fallback" };

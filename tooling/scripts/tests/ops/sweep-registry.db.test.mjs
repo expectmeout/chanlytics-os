@@ -105,6 +105,9 @@ const EVERY_CLOCK = {
   // A connected Instagram account's token (00486, decision 0001 step 8): a daily clock that asks the edge only when an
   // account is connected, and records that it looked otherwise.
   instagram_tokens: "instagram-token-sweep",
+  // A lead's preview past its thirty days (00497, decision 0079): an hourly clock that asks the edge only when one is
+  // past its end, and records that it looked otherwise.
+  previews: "previews-sweep",
   // Each workspace's day, counted (00277): nightly at 00:17 UTC, judged by its run.
   platform_metrics_roll: "platform-metrics-roll",
   // A voice conversation's row, a day after its token expired (00288): nightly, judged by its run.
@@ -368,6 +371,9 @@ test(
       insert into public.sequence_batches (tenant_id, name, scheduled_for, state, audience)
            values (t, 'Every clock', now(), 'scheduled', '{"kind":"reach_out","hand":"note"}') returning id into b;
       insert into public.leads (tenant_id) values (t) returning id into l;
+      -- previews: a lead's preview past its thirty days (00497).
+      insert into public.lead_previews (tenant_id, lead_id, token, ends_at)
+           values (t, l, rpad('everyclock' || tag, 22, 'x'), now() - interval '1 hour');
       insert into public.sequence_sends (id, tenant_id, batch_id, sequence_id, lead_id, state, reason, created_at, updated_at)
            values (gen_random_uuid(), t, b, pb, l, 'held', 'check_unavailable', now() - interval '15 days',
                    now() - interval '2 hours');

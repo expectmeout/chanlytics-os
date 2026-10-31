@@ -27,7 +27,8 @@ import { renderOwnVersion } from "../templates/message-versions";
 import { slotHoles, slotMentions, slotValueOf, slotValues, slotsWritten } from "../templates/slot-sets";
 import { LEAD_ROLE_WORDS, leadAddresseeOf } from "../leads/lead-kind";
 import { leadCalledByOf } from "../leads/search/called-by";
-import { REACH_OUT_SLOT_FALLBACKS, REACH_OUT_SLOT_SET, linkCount } from "./reach-out-words";
+import type { LeadPreviewSlot } from "../previews/lead-preview";
+import { REACH_OUT_SLOT_FALLBACKS, REACH_OUT_SLOT_SET, linkCount, slotCount } from "./reach-out-words";
 
 export interface OutreachLeadFacts {
   leadStage: string | null;
@@ -161,6 +162,11 @@ export interface SlotLead {
   facts?: unknown;
   /** Where it was found (00430 leads.source), which the foot's first line says (whyFrom). Absent: the Maps card. */
   source?: string | null;
+  /**
+   * Its own receptionist (decision 0079), for {{their preview}}: its link while it is open, being made, or gone (failed,
+   * ended). Absent where none was read (words that name no preview): the slot is a hole.
+   */
+  preview?: LeadPreviewSlot | null;
 }
 /** The workspace's slots: its name, the name the chain signs with, its booking link. */
 export interface SlotWorkspace {
@@ -189,6 +195,7 @@ function reachOutValues(lead: SlotLead, workspace: SlotWorkspace, opening: strin
     "your business": workspace.businessName,
     "your name": workspace.yourName,
     "booking link": workspace.bookingLink,
+    "their preview": lead.preview?.state === "open" ? lead.preview.url : null,
     opening,
   });
 }
@@ -285,7 +292,10 @@ export function coldEndingOf(p: {
   body: string;
   address: string | null;
 }): ColdEnding {
-  const signature = p.signsWith === "mailbox" ? coldSignatureOf(p.signature, p.first, p.address) : null;
+  // A step that names their preview (decision 0079) carries it as its one link, so the signature goes as a first email's
+  // does: less each line that holds a link.
+  const linkless = p.first || slotCount(p.body, "their preview") > 0;
+  const signature = p.signsWith === "mailbox" ? coldSignatureOf(p.signature, linkless, p.address) : null;
   if (signature) return { signOff: null, signature };
   const name = p.signedBy?.trim() || null;
   return { signOff: name && !endsWithYourName(p.body) ? name : null, signature: null };
@@ -333,7 +343,12 @@ export function reachOutCardEmailOf(
   const values = reachOutValues(lead, workspace, REACH_OUT_OPENING_MARK);
   const texts = words.subject === null ? [words.body] : [words.subject, words.body];
   const written = [...new Set(texts.flatMap((t) => slotsWritten(REACH_OUT_SLOT_SET, t).keys))];
-  const holes = written.filter((k) => (slotValueOf(REACH_OUT_SLOT_SET, k, values) ?? null) === null);
+  // Their preview with no link yet is made when the email goes (decision 0079): no hole, unless it can't be.
+  const holes = written.filter((k) =>
+    k === "their preview"
+      ? lead.preview?.state === "gone"
+      : (slotValueOf(REACH_OUT_SLOT_SET, k, values) ?? null) === null,
+  );
   const named = leadAddresseeOf(lead)?.first_name;
   const fellBack = !named && written.includes("first name") ? ["first name"] : [];
   // Each value the card shows is marked where it stands (REACH_OUT_VALUE_MARKS), so the card draws it as a value; the
@@ -377,6 +392,8 @@ const EXAMPLE_LEAD = {
   business_name: "Lakeside Bakery",
   city: "Springfield",
   opening: "Your 4.8 stars from 212 reviews caught my eye.",
+  // Its own receptionist (decision 0079), made up as the rest is.
+  preview: "https://app.chanlytics.com/preview/LakesideBakeryExample",
   // A person at it, so the person slots show a name, not their fallback.
   person: { name: "Dana Reyes", first_name: "Dana", title: "Owner", role: "owner", email: null, profile_url: null },
 } as const;
@@ -388,6 +405,7 @@ export const reachOutExampleLead = (): SlotLead => ({
   kind: "company",
   facts: { people: [EXAMPLE_LEAD.person], addressee: 0 },
   source: "local_businesses",
+  preview: { state: "open", url: EXAMPLE_LEAD.preview },
 });
 
 /**
@@ -402,6 +420,7 @@ export function reachOutExampleValues(workspace: SlotWorkspace): Array<string | 
       city: EXAMPLE_LEAD.city,
       kind: "company",
       facts: { people: [EXAMPLE_LEAD.person], addressee: 0 },
+      preview: { state: "open", url: EXAMPLE_LEAD.preview },
     },
     workspace,
     EXAMPLE_LEAD.opening,

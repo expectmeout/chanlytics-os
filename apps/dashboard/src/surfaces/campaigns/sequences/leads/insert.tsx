@@ -29,6 +29,8 @@ import { pressed } from "../verbs";
 interface InsertProps {
   lead: SlotLead | null;
   workspace: SlotWorkspace;
+  /** Whether this step offers {{their preview}}, or why not (contracts leadPreviewOfferOf). */
+  preview: { offered: boolean; why: string | null };
   seats: SlotSeats;
   flash: (f: LegacyFlash) => void;
   /** The name the sequence signs with, as it is typed: saved with the chain. */
@@ -94,8 +96,8 @@ function BookingLinkField({ flash, onDone }: { flash: (f: LegacyFlash) => void; 
   );
 }
 
-export function LeadInsert({ lead, workspace, seats, flash, onSigned }: InsertProps) {
-  const rows = leadInsertRowsOf(lead, workspace);
+export function LeadInsert({ lead, workspace, preview, seats, flash, onSigned }: InsertProps) {
+  const rows = leadInsertRowsOf(lead, workspace, preview);
   const [adding, setAdding] = useState<"booking link" | "your name" | null>(null);
   const group = (g: LeadInsertRowVM["group"]) =>
     rows
@@ -116,6 +118,11 @@ export function LeadInsert({ lead, workspace, seats, flash, onSigned }: InsertPr
     <div className="ld-ins" data-testid="ld-insert">
       <p className="ld-ins-k">{W.aboutThem}</p>
       <ul className="ld-ins-list">{group("them")}</ul>
+      {preview.why ? (
+        <p className="ld-note" data-testid="ld-insert-no-preview">
+          {preview.why}
+        </p>
+      ) : null}
       <p className="ld-ins-k">{W.aboutYou}</p>
       <ul className="ld-ins-list">{group("you")}</ul>
       {adding === "booking link" ? <BookingLinkField flash={flash} onDone={() => setAdding(null)} /> : null}

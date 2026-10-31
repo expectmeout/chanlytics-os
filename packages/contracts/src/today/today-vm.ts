@@ -60,7 +60,19 @@ export interface TodayQueueRowVM {
    * the Calendar on yesterday (withVisitsAsked, 0047): the team's to-do as a step is, and no person waiting either.
    */
   kind:
-    "handoff" | "callback" | "window" | "call" | "search" | "reply" | "step" | "steps" | "visit" | "visits" | "held";
+    | "handoff"
+    | "callback"
+    | "window"
+    | "call"
+    | "search"
+    | "reply"
+    | "step"
+    | "steps"
+    | "visit"
+    | "visits"
+    | "held"
+    // A lead who tried their own receptionist (decision 0079): the team's to-do, a business and no person waiting.
+    | "tried";
   /** The thread this row is about; null for a call with no thread. The away card drops a bell row about the same thread. */
   conversationId: string | null;
   /** The call this row is about: a call-back's newest call, a call worth a listen; null otherwise. */

@@ -3431,6 +3431,112 @@ export type Database = {
           },
         ]
       }
+      lead_previews: {
+        Row: {
+          asked_count: number
+          built_at: string | null
+          call_count: number
+          call_seconds: number
+          claimed_at: string | null
+          claimed_by: string | null
+          created_at: string
+          ended_at: string | null
+          ends_at: string
+          failed_why: string | null
+          first_sent_at: string | null
+          id: string
+          last_opened_at: string | null
+          lead_id: string
+          made_by: string | null
+          not_right: Json
+          opened_at: string | null
+          opened_count: number
+          preview_tenant_id: string | null
+          state: string
+          tenant_id: string
+          token: string
+          tried_at: string | null
+          turns: Json
+          updated_at: string
+        }
+        Insert: {
+          asked_count?: number
+          built_at?: string | null
+          call_count?: number
+          call_seconds?: number
+          claimed_at?: string | null
+          claimed_by?: string | null
+          created_at?: string
+          ended_at?: string | null
+          ends_at?: string
+          failed_why?: string | null
+          first_sent_at?: string | null
+          id?: string
+          last_opened_at?: string | null
+          lead_id: string
+          made_by?: string | null
+          not_right?: Json
+          opened_at?: string | null
+          opened_count?: number
+          preview_tenant_id?: string | null
+          state?: string
+          tenant_id: string
+          token: string
+          tried_at?: string | null
+          turns?: Json
+          updated_at?: string
+        }
+        Update: {
+          asked_count?: number
+          built_at?: string | null
+          call_count?: number
+          call_seconds?: number
+          claimed_at?: string | null
+          claimed_by?: string | null
+          created_at?: string
+          ended_at?: string | null
+          ends_at?: string
+          failed_why?: string | null
+          first_sent_at?: string | null
+          id?: string
+          last_opened_at?: string | null
+          lead_id?: string
+          made_by?: string | null
+          not_right?: Json
+          opened_at?: string | null
+          opened_count?: number
+          preview_tenant_id?: string | null
+          state?: string
+          tenant_id?: string
+          token?: string
+          tried_at?: string | null
+          turns?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_previews_lead_fkey"
+            columns: ["tenant_id", "lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "lead_previews_preview_tenant_id_fkey"
+            columns: ["preview_tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_previews_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lead_rounds: {
         Row: {
           allowance_reserved: number
@@ -9465,6 +9571,46 @@ export type Database = {
         Args: { p_history?: number; p_tenant_id: string }
         Returns: Json
       }
+      preview_built: {
+        Args: { p_id: string; p_ok: boolean; p_why?: string }
+        Returns: boolean
+      }
+      preview_called: {
+        Args: { p_preview_tenant_id: string; p_seconds: number }
+        Returns: boolean
+      }
+      preview_claim: {
+        Args: { p_token: string }
+        Returns: {
+          id: string
+          locale: string
+          name: string
+          slug: string
+          status: string
+          timezone: string
+        }[]
+      }
+      preview_end: { Args: { p_id: string }; Returns: boolean }
+      preview_make: {
+        Args: {
+          p_by?: string
+          p_lead_id: string
+          p_name: string
+          p_tenant_id: string
+          p_timezone: string
+        }
+        Returns: Json
+      }
+      preview_not_right: {
+        Args: { p_fact: string; p_id: string; p_said?: string }
+        Returns: number
+      }
+      preview_opened: { Args: { p_id: string }; Returns: number }
+      preview_said: {
+        Args: { p_id: string; p_reply: Json; p_text: string }
+        Returns: number
+      }
+      preview_sent: { Args: { p_id: string }; Returns: boolean }
       profile_set: { Args: { p_display_name: string }; Returns: Json }
       provider_code_of: { Args: { p_error: Json }; Returns: number }
       provider_events_scrub: {
@@ -10582,6 +10728,7 @@ export type Database = {
         Args: { p_tenant_id: string; p_what: string }
         Returns: Json
       }
+      slug_for_workspace: { Args: { p_name: string }; Returns: string }
       sole_proprietor_of: { Args: { p_tenant_id: string }; Returns: boolean }
       stamp_email_complaint: {
         Args: { p_at: string; p_message_id: string; p_tenant_id: string }
@@ -10816,6 +10963,7 @@ export type Database = {
       trigger_notes_sweep: { Args: never; Returns: number }
       trigger_partners_sweep: { Args: never; Returns: number }
       trigger_playbooks_sweep: { Args: never; Returns: number }
+      trigger_previews_sweep: { Args: never; Returns: number }
       trigger_reach_out_check_sweep: { Args: never; Returns: number }
       trigger_reach_out_sweep: { Args: never; Returns: number }
       trigger_registration_sweep: { Args: never; Returns: number }

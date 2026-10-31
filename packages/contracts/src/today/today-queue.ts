@@ -12,6 +12,7 @@ import { contactName, initialsOf } from "../conversations/thread-contact";
 import type { ConversationDto } from "../conversations/thread-dto";
 import { waWindow } from "../config/policy";
 import { leadQuestionRoute, type LeadSearchDto } from "../leads/leads";
+import { previewSaidOf, previewTriedWords, type PreviewTriedDto } from "../previews/preview-line";
 import { NEED_YOU_WORDS } from "../need-you/need-you-words";
 import { MIN_MS, HOUR_MS } from "../shared/time";
 import { tzClock } from "./today-clock";
@@ -50,7 +51,7 @@ export function isHoldRow(r: Pick<TodayQueueRowVM, "kind">): boolean {
  * visit to mark and a call worth a listen name a person without being one waiting on you, which isPersonRow keeps apart.
  */
 export function namesAPerson(r: Pick<TodayQueueRowVM, "kind">): boolean {
-  return r.kind !== "search" && r.kind !== "steps" && r.kind !== "visits";
+  return r.kind !== "search" && r.kind !== "steps" && r.kind !== "visits" && r.kind !== "tried";
 }
 
 /** A question waited this long is warned: the sweep stops it after a day. */
@@ -302,6 +303,34 @@ function searchRow(s: LeadSearchDto, now: Date): TodayQueueRowVM | null {
   };
 }
 
+/**
+ * A lead who tried their own receptionist (decision 0079): the business, what came of it and the first thing they said
+ * is not right, and one button to open the lead. A hot lead, never a person waiting, so it sorts after everyone who is.
+ */
+function triedRow(t: PreviewTriedDto, f: TodayFacts): TodayQueueRowVM {
+  const who = t.business?.trim() || NEED_YOU_WORDS.tried.someone;
+  const [said] = previewSaidOf(t.not_right);
+  return {
+    id: `q-t-${t.id}`,
+    kind: "tried",
+    conversationId: null,
+    callId: null,
+    person_id: null,
+    who,
+    initials: initialsOf(who),
+    channel: "Leads",
+    when: tzClock(t.tried_at, f.tz, f.now) ?? "",
+    sentence: [previewTriedWords(t), said].filter(Boolean).join(" · ") || NEED_YOU_WORDS.tried.sentence,
+    quoted: false,
+    status: [NEED_YOU_WORDS.tried.status, ...(t.state === "claimed" ? [NEED_YOU_WORDS.tried.claimed] : [])],
+    tone: "warn",
+    warn: false,
+    cta: { label: NEED_YOU_WORDS.tried.open, to: addressOf({ kind: "lead", id: t.lead_id }) },
+    also: null,
+    waitedMs: Number.NEGATIVE_INFINITY,
+  };
+}
+
 /** The queue: the rows in order, the rest as a count, what the rows hold in words, and how many people are waiting on you. */
 export function todayQueue(f: TodayFacts, callRows: TodayCallRowVM[], empty: TodayQueueEmptyVM): TodayVM["queue"] {
   const { escRecords, closingConvs, searches, now } = f;
@@ -331,12 +360,15 @@ export function todayQueue(f: TodayFacts, callRows: TodayCallRowVM[], empty: Tod
     const row = searchRow(s, now);
     if (row) queueAll.push(row);
   }
+  // The leads who tried their preview, newest first, after everyone waiting (decision 0079).
+  for (const t of f.previewsTried) queueAll.push(triedRow(t, f));
   queueAll.sort((a, b) => b.waitedMs - a.waitedMs);
   const countOf = (...kinds: TodayQueueRowVM["kind"][]) => queueAll.filter((r) => kinds.includes(r.kind)).length;
   const needN = countOf("handoff", "callback");
   const winN = countOf("window");
   const earN = countOf("call");
   const searchN = countOf("search");
+  const triedN = countOf("tried");
   // The people waiting are said as people: the head's count beside this line is every one of them and every run
   // waiting for a word (needs-you.ts), and "25 need you" beside a 28 read as two answers to one question (Ruben's
   // screenshot, 18 Oct 2026); "25 people" and "3 runs waiting" add up to it.
@@ -345,6 +377,7 @@ export function todayQueue(f: TodayFacts, callRows: TodayCallRowVM[], empty: Tod
     searchN ? `${searchN} ${searchN === 1 ? "search" : "searches"} waiting for your answer` : "",
     winN ? `${winN} reply window${winN === 1 ? "" : "s"} closing` : "",
     earN ? `${earN} call${earN === 1 ? "" : "s"} worth a listen` : "",
+    triedN ? NEED_YOU_WORDS.tried.part(triedN) : "",
   ].filter(Boolean);
   return {
     rows: queueAll.slice(0, TODAY_QUEUE_MAX),

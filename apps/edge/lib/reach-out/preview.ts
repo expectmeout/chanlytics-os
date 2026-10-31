@@ -11,12 +11,15 @@ import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   REACH_OUT_PREVIEW_INDEX_MAX,
+  previewSlotOf,
+  slotCount,
   type ReachOutHold,
   type ReachOutSignsWith,
   type SlotLead,
 } from "../packages/contracts.js";
 import {
   leadCountriesOf,
+  leadPreviewOf,
   leadSlotsOf,
   mailboxConnectionOf,
   reachOutAudience,
@@ -34,6 +37,7 @@ import {
   type CheckBudget,
 } from "./check.js";
 import { reachOutRequest, type RequestRefusal } from "./request.js";
+import { dashboardOrigin } from "../dashboard-origin.js";
 
 type Db = SupabaseClient<Database>;
 
@@ -154,7 +158,14 @@ export async function previewOne(
     contactId: randomUUID(),
     to: lead.email,
     words: i.words,
-    lead: slotLeadOf(lead, slots),
+    // Their preview as the send would read it (decision 0079), never made by a look: one not made yet waits for it.
+    lead: {
+      ...slotLeadOf(lead, slots),
+      preview:
+        slotCount(i.words.body, "their preview") > 0
+          ? previewSlotOf(await leadPreviewOf(db, i.tenantId, lead.lead_id), new Date(), dashboardOrigin())
+          : null,
+    },
     workspace: {
       businessName: workspace.businessName,
       address: workspace.address,

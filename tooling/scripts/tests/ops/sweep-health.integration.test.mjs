@@ -56,6 +56,7 @@ test("sweep_health() names every watched sweep and every schedule exists", { ski
   // 00423 took 'domains' and 'sending_domain_days' off with the cold lane, and added 'mailboxes', the five-minute
   // sweep of the mailboxes a business connected (decision 0056).
   // 00486 added 'instagram_tokens', the daily refresh of each connected Instagram account's token (decision 0001, step 8).
+  // 00497 added 'previews', the hourly end of each lead's preview past its thirty days (decision 0079).
   assert.deepEqual(
     data.map((r) => r.sweep),
     [
@@ -76,6 +77,7 @@ test("sweep_health() names every watched sweep and every schedule exists", { ski
       "pauses",
       "platform_metrics_roll",
       "playbooks",
+      "previews",
       "purge_ask",
       "purge_client_errors",
       "purge_config_versions",
@@ -157,6 +159,7 @@ test("an unexpected sweep name cannot be added behind sweep_health()'s back", { 
     "pauses",
     "platform_metrics_roll",
     "playbooks",
+    "previews",
     "purge_ask",
     "purge_client_errors",
     "purge_config_versions",

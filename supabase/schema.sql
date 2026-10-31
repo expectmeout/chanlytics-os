@@ -2772,7 +2772,7 @@ CREATE TABLE public.jobs (
 CASE
     WHEN (kind = 'inbound_answer'::text) THEN 0
     WHEN ((kind = ANY (ARRAY['outbound_send'::text, 'email_ingest'::text, 'push_send'::text])) AND (COALESCE((payload ->> 'purpose'::text), ''::text) <> 'outreach'::text)) THEN 0
-    WHEN (kind = ANY (ARRAY['line_provision'::text, 'reply_read'::text, 'booking_read'::text, 'website_read'::text])) THEN 1
+    WHEN (kind = ANY (ARRAY['line_provision'::text, 'reply_read'::text, 'booking_read'::text, 'website_read'::text, 'preview_build'::text])) THEN 1
     WHEN (kind = ANY (ARRAY['broadcast_send'::text, 'outbound_send'::text, 'lead_round_start'::text, 'lead_collect'::text, 'lead_check'::text, 'push_receipts'::text, 'history_import'::text])) THEN 2
     WHEN (kind = 'event_deliver'::text) THEN
     CASE
@@ -2782,7 +2782,7 @@ CASE
     ELSE NULL::integer
 END) STORED,
     spoke_at timestamp with time zone,
-    CONSTRAINT jobs_kind_check CHECK ((kind = ANY (ARRAY['outbound_send'::text, 'broadcast_send'::text, 'line_provision'::text, 'email_ingest'::text, 'lead_round_start'::text, 'lead_collect'::text, 'lead_check'::text, 'push_send'::text, 'push_receipts'::text, 'reply_read'::text, 'event_deliver'::text, 'booking_read'::text, 'inbound_answer'::text, 'history_import'::text, 'website_read'::text]))),
+    CONSTRAINT jobs_kind_check CHECK ((kind = ANY (ARRAY['outbound_send'::text, 'broadcast_send'::text, 'line_provision'::text, 'email_ingest'::text, 'lead_round_start'::text, 'lead_collect'::text, 'lead_check'::text, 'push_send'::text, 'push_receipts'::text, 'reply_read'::text, 'event_deliver'::text, 'booking_read'::text, 'inbound_answer'::text, 'history_import'::text, 'website_read'::text, 'preview_build'::text]))),
     CONSTRAINT jobs_state_check CHECK ((state = ANY (ARRAY['scheduled'::text, 'fired'::text, 'done'::text, 'canceled'::text, 'failed'::text])))
 );
 
@@ -2805,7 +2805,7 @@ COMMENT ON COLUMN public.jobs.dedupe_key IS 'What makes this row once-only while
 -- Name: COLUMN jobs.lane; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.jobs.lane IS 'Which work a claim takes first (decision 0018): 0 a reply, 1 someone waiting who is not a customer (a line bought, a lead''s reply read, a booking notice read, a website read for Check, 00479), 2 bulk (a history brought in, 00478, among it). Generated from kind and payload; an event_deliver runs in its subscription''s lane (payload.lane, 00334), a text''s answer in a reply''s (inbound_answer, 00347); null for a kind the case does not name, claimed last.';
+COMMENT ON COLUMN public.jobs.lane IS 'Which work a claim takes first (decision 0018): 0 a reply, 1 someone waiting who is not a customer (a line bought, a lead''s reply read, a booking notice read, a website read for Check, 00479, a lead''s preview built, 00494), 2 bulk (a history brought in, 00478, among it). Generated from kind and payload; an event_deliver runs in its subscription''s lane (payload.lane, 00334), a text''s answer in a reply''s (inbound_answer, 00347); null for a kind the case does not name, claimed last.';
 
 
 --
@@ -3905,9 +3905,7 @@ declare
   v_name    text := btrim(coalesce(p_name, ''));
   v_tz      text := nullif(btrim(coalesce(p_timezone, '')), '');
   v_code    text := nullif(lower(btrim(coalesce(p_partner_code, ''))), '');
-  v_base    text;
   v_slug    text;
-  v_try     int := 0;
   v_owned   int;
   v_id      uuid;
   v_partner public.partners;
@@ -3942,31 +3940,8 @@ begin
     raise exception 'This account already owns 10 workspaces.' using errcode = '54000';
   end if;
 
-  -- Slug: lowercase ASCII, single dashes, no leading or trailing dash.
-  v_base := lower(v_name);
-  v_base := translate(
-    v_base,
-    'àáâãäåāăąèéêëēĕėęěìíîïĩīĭįòóôõöøōŏőùúûüũūŭůñńçćčšž',
-    'aaaaaaaaaeeeeeeeeeiiiiiiiiooooooooouuuuuuuunncccsz'
-  );
-  v_base := regexp_replace(v_base, '[^a-z0-9]+', '-', 'g');
-  v_base := btrim(v_base, '-');
-  v_base := left(v_base, 40);
-  v_base := btrim(v_base, '-');
-  if v_base = '' then
-    v_base := 'workspace';
-  end if;
-
-  -- Collision handling that terminates.
-  v_slug := v_base;
-  while exists (select 1 from public.tenants t where t.slug = v_slug) loop
-    v_try := v_try + 1;
-    if v_try > 50 then
-      v_slug := v_base || '-' || substr(replace(gen_random_uuid()::text, '-', ''), 1, 8);
-      exit;
-    end if;
-    v_slug := v_base || '-' || v_try::text;
-  end loop;
+  -- Slug: one rule for every workspace's (slug_for_workspace, 00494).
+  v_slug := public.slug_for_workspace(v_name);
 
   -- The AFTER INSERT trigger from 00017 provisions policies + config here.
   insert into public.tenants (slug, name, timezone)
@@ -8365,8 +8340,8 @@ CREATE FUNCTION public.lead_convert_by(p_tenant_id uuid, p_lead_id uuid, p_how t
 declare
   v_lead public.leads%rowtype;
 begin
-  if p_how is null or p_how not in ('call', 'reply', 'booking', 'deal', 'arrived', 'added') then
-    raise exception 'how must be call, reply, booking, deal, arrived or added' using errcode = '22023';
+  if p_how is null or p_how not in ('call', 'reply', 'booking', 'deal', 'arrived', 'added', 'claimed') then
+    raise exception 'how must be call, reply, booking, deal, arrived, added or claimed' using errcode = '22023';
   end if;
   update public.leads l
      set stage        = 'converted',
@@ -8394,7 +8369,7 @@ end $$;
 -- Name: FUNCTION lead_convert_by(p_tenant_id uuid, p_lead_id uuid, p_how text, p_data jsonb, p_any_stage boolean); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_convert_by(p_tenant_id uuid, p_lead_id uuid, p_how text, p_data jsonb, p_any_stage boolean) IS 'A lead''s conversion, written once for every door that converts (Reach out Part 5, G19; the person door''s link since 00346): a ready or nurture lead (any, with p_any_stage) becomes converted, closed_reason null, converted_at and contacted_at kept or now, version + 1, with lead.converted {how} and what the caller adds. how is call, reply, booking, deal, arrived (their person wrote or called) or added (their person was named by a member, a file, the calendar or the finder). Answers {moved, version}. Called only by definer doors; nobody holds EXECUTE.';
+COMMENT ON FUNCTION public.lead_convert_by(p_tenant_id uuid, p_lead_id uuid, p_how text, p_data jsonb, p_any_stage boolean) IS 'A lead''s conversion, written once for every door that converts (Reach out Part 5, G19; the person door''s link since 00346): a ready or nurture lead (any, with p_any_stage) becomes converted, closed_reason null, converted_at and contacted_at kept or now, version + 1, with lead.converted {how} and what the caller adds. how is call, reply, booking, deal, arrived (their person wrote or called) added (their person was named by a member, a file, the calendar or the finder) or claimed (their preview made theirs, 00494). Answers {moved, version}. Called only by definer doors; nobody holds EXECUTE.';
 
 
 --
@@ -9346,6 +9321,22 @@ end $_$;
 --
 
 COMMENT ON FUNCTION public.lead_plan_check(p_plan jsonb) IS 'Raises 22023 naming the key when a plan is not the shape LeadSearchPlanSchema describes: the same rules, including at most five terms and no phrase twice, at most eight criteria and eight exclusions with a key each, a radius of 500 to 200000 metres with a centre to draw it around, a real state, the area''s query, and a ZIP for a ZIP ask. The door is granted to authenticated, so this is what a plan is held to when the route is stepped around.';
+
+
+--
+-- Name: lead_previews_take_their_workspace(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.lead_previews_take_their_workspace() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if old.preview_tenant_id is not null then
+    delete from public.tenants t where t.id = old.preview_tenant_id and t.status = 'preview';
+  end if;
+  return old;
+end $$;
 
 
 --
@@ -19474,6 +19465,362 @@ $$;
 --
 
 COMMENT ON FUNCTION public.playbook_totals(p_tenant_id uuid, p_history integer) IS 'Each moment playbook''s runs, sent, delivered, replied and held (its people skipped or failed), its newest run (last_run), the run waiting for a person (waiting, else null) and its newest p_history runs (history, newest first), by playbook id, from run_counts; a playbook with no run is absent, and a reach-out step''s runs are never scanned. One jsonb, which PostgREST''s row cap never cuts: what GET playbooks answers of every card (00374). Security invoker: row security decides what is read.';
+
+
+--
+-- Name: preview_built(uuid, boolean, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.preview_built(p_id uuid, p_ok boolean, p_why text DEFAULT NULL::text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_why text := left(nullif(btrim(coalesce(p_why, '')), ''), 60);
+begin
+  if p_ok then
+    update public.lead_previews p
+       set state = 'ready', built_at = now(), ends_at = coalesce(p.first_sent_at, now()) + interval '30 days'
+     where p.id = p_id and p.state = 'building';
+  else
+    update public.lead_previews p
+       set state = 'failed', failed_why = coalesce(v_why, 'build_failed')
+     where p.id = p_id and p.state = 'building';
+  end if;
+  return found;
+end $$;
+
+
+--
+-- Name: FUNCTION preview_built(p_id uuid, p_ok boolean, p_why text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.preview_built(p_id uuid, p_ok boolean, p_why text) IS 'A preview''s build answered (0079): ready, its thirty days from now or from the first email that carried it, or failed with why. Only a building preview moves. Service role only.';
+
+
+--
+-- Name: preview_called(uuid, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.preview_called(p_preview_tenant_id uuid, p_seconds integer) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  update public.lead_previews p
+     set call_count = p.call_count + 1, call_seconds = p.call_seconds + greatest(0, coalesce(p_seconds, 0)),
+         tried_at = coalesce(p.tried_at, now())
+   where p.preview_tenant_id = p_preview_tenant_id and p.state = 'ready';
+  return found;
+end $$;
+
+
+--
+-- Name: FUNCTION preview_called(p_preview_tenant_id uuid, p_seconds integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.preview_called(p_preview_tenant_id uuid, p_seconds integer) IS 'A call to a preview ended (0079): one more call and its seconds, the first stamping tried_at. Service role only.';
+
+
+--
+-- Name: preview_claim(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.preview_claim(p_token text) RETURNS TABLE(id uuid, slug text, name text, status text, timezone text, locale text)
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_user  uuid := auth.uid();
+  v_row   public.lead_previews%rowtype;
+  v_name  text;
+  v_owned int;
+  v_slug  text;
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  select * into v_row from public.lead_previews p where p.token = p_token for update;
+  if not found then
+    raise exception 'This preview was not found.' using errcode = 'P0002';
+  end if;
+  select t.name into v_name from public.tenants t where t.id = v_row.preview_tenant_id;
+  if v_row.state = 'claimed' then
+    raise exception '% is already set up.', coalesce(v_name, 'This business') using errcode = '55000';
+  end if;
+  if v_row.state <> 'ready' or v_name is null then
+    raise exception 'This preview has ended.' using errcode = '55000';
+  end if;
+  -- Anti-abuse, as create_workspace_for's.
+  select count(*) into v_owned from public.memberships m where m.user_id = v_user and m.role = 'owner';
+  if v_owned >= 10 then
+    raise exception 'This account already owns 10 workspaces.' using errcode = '54000';
+  end if;
+  v_slug := public.slug_for_workspace(v_name);
+  update public.tenants t set status = 'active', slug = v_slug
+   where t.id = v_row.preview_tenant_id and t.status = 'preview';
+  if not found then
+    raise exception 'This preview has ended.' using errcode = '55000';
+  end if;
+  insert into public.memberships (tenant_id, user_id, role) values (v_row.preview_tenant_id, v_user, 'owner');
+  update public.lead_previews p set state = 'claimed', claimed_at = now(), claimed_by = v_user where p.id = v_row.id;
+  -- The sender's side: the lead is converted, its places leave every sequence and what was planned is skipped, as
+  -- reach_out_lead_stop skips it.
+  perform public.lead_convert_by(v_row.tenant_id, v_row.lead_id, 'claimed',
+                                 jsonb_build_object('preview_id', v_row.id));
+  perform public.sequence_enrollments_leave(
+    v_row.tenant_id,
+    array(select e.id from public.sequence_enrollments e
+           where e.tenant_id = v_row.tenant_id and e.lead_id = v_row.lead_id and e.state = 'in'),
+    'made_it_theirs', null);
+  update public.sequence_sends s
+     set state = 'skipped', reason = 'made_it_theirs'
+    from public.sequence_batches b
+   where s.lead_id is not null and b.id = s.batch_id and b.state in ('pending_approval', 'scheduled', 'sending')
+     and s.tenant_id = v_row.tenant_id and s.lead_id = v_row.lead_id and s.state in ('planned', 'held', 'drafted');
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_row.tenant_id, 'preview.claimed', 'lead', 'lead', v_row.lead_id,
+          jsonb_build_object('preview_id', v_row.id)),
+         (v_row.preview_tenant_id, 'preview.claimed', 'workspace', 'tenant', v_row.preview_tenant_id,
+          jsonb_build_object('by', v_user));
+  return query
+    select t.id, t.slug, t.name, t.status, t.timezone, t.locale
+      from public.tenants t
+     where t.id = v_row.preview_tenant_id;
+end $$;
+
+
+--
+-- Name: FUNCTION preview_claim(p_token text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.preview_claim(p_token text) IS 'Make it mine (0079): the signed-in caller claims a ready preview by its token. The first claim wins (the row is locked first); the workspace becomes active under its own slug with the caller as owner; the sender''s lead is converted (claimed), its places leave every sequence and its planned sends are skipped (made_it_theirs). At most ten owned, as create_workspace_for. Answers the workspace as /api/v1/workspaces lists it.';
+
+
+--
+-- Name: preview_end(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.preview_end(p_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_row public.lead_previews%rowtype;
+begin
+  select * into v_row from public.lead_previews p where p.id = p_id for update;
+  if not found or v_row.state in ('claimed', 'ended') then
+    return false;
+  end if;
+  update public.lead_previews p
+     set state = 'ended', ended_at = now(), turns = '[]'::jsonb, not_right = '[]'::jsonb
+   where p.id = p_id;
+  if v_row.preview_tenant_id is not null then
+    delete from public.tenants t where t.id = v_row.preview_tenant_id and t.status = 'preview';
+  end if;
+  return true;
+end $$;
+
+
+--
+-- Name: FUNCTION preview_end(p_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.preview_end(p_id uuid) IS 'A preview past its thirty days (0079): ended, its turns and not-right lines cleared, its workspace deleted (everything of it cascades); its counts and dates kept. A claimed one is never ended. Its agent at the provider is the sweep''s to delete first. Service role only.';
+
+
+--
+-- Name: preview_make(uuid, uuid, text, text, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.preview_make(p_tenant_id uuid, p_lead_id uuid, p_name text, p_timezone text, p_by uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions'
+    AS $$
+declare
+  v_name text := left(btrim(coalesce(p_name, '')), 120);
+  v_tz   text := nullif(btrim(coalesce(p_timezone, '')), '');
+  v_lead public.leads%rowtype;
+  v_row  public.lead_previews%rowtype;
+  v_ws   uuid;
+begin
+  if not exists (select 1 from public.tenants t where t.id = p_tenant_id and t.ours) then
+    raise exception 'Only Chanlytics'' own workspace makes previews.' using errcode = '42501';
+  end if;
+  select * into v_lead from public.leads l where l.id = p_lead_id and l.tenant_id = p_tenant_id for update;
+  if not found or v_lead.erased_at is not null or v_lead.blanked_at is not null then
+    raise exception 'Lead not found.' using errcode = 'P0002';
+  end if;
+  select * into v_row from public.lead_previews p where p.tenant_id = p_tenant_id and p.lead_id = p_lead_id;
+  if found then
+    return jsonb_build_object('id', v_row.id, 'token', v_row.token, 'state', v_row.state,
+                              'preview_tenant_id', v_row.preview_tenant_id, 'made', false);
+  end if;
+  if v_lead.kind <> 'place' then
+    raise exception 'A preview is for a business that takes bookings.' using errcode = '22023';
+  end if;
+  if v_lead.stage not in ('ready', 'nurture') then
+    raise exception 'This lead is closed.' using errcode = '22023';
+  end if;
+  if length(v_name) < 2 then
+    raise exception 'A preview needs the business''s name.' using errcode = '22023';
+  end if;
+  if v_tz is not null and not exists (select 1 from pg_timezone_names z where z.name = v_tz) then
+    v_tz := null;
+  end if;
+  -- Its own slug until it is claimed: a preview holds no business's name on /b/.
+  -- The AFTER INSERT trigger from 00017 provisions its policies and config.
+  insert into public.tenants (slug, name, timezone, status)
+  values ('preview-' || replace(gen_random_uuid()::text, '-', ''), v_name, coalesce(v_tz, 'America/New_York'),
+          'preview')
+  returning id into v_ws;
+  insert into public.lead_previews (tenant_id, lead_id, preview_tenant_id, token, made_by)
+  values (p_tenant_id, p_lead_id, v_ws,
+          left(translate(encode(gen_random_bytes(16), 'base64'), '+/=', '-_'), 22), p_by)
+  returning * into v_row;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'preview.made', 'lead', 'lead', p_lead_id,
+          jsonb_build_object('preview_id', v_row.id, 'by', p_by));
+  return jsonb_build_object('id', v_row.id, 'token', v_row.token, 'state', v_row.state,
+                            'preview_tenant_id', v_ws, 'made', true);
+end $$;
+
+
+--
+-- Name: FUNCTION preview_make(p_tenant_id uuid, p_lead_id uuid, p_name text, p_timezone text, p_by uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.preview_make(p_tenant_id uuid, p_lead_id uuid, p_name text, p_timezone text, p_by uuid) IS 'A lead''s preview (0079): its workspace (status preview, no member, its own slug) and its row in building, or the row that stands. Only a workspace marked ours makes one, for a place lead that is ready or in nurture. Answers {id, token, state, preview_tenant_id, made}. Service role only.';
+
+
+--
+-- Name: preview_not_right(uuid, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.preview_not_right(p_id uuid, p_fact text, p_said text DEFAULT NULL::text) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_fact text := btrim(coalesce(p_fact, ''));
+  v_said text := nullif(btrim(coalesce(p_said, '')), '');
+  v_row  public.lead_previews%rowtype;
+begin
+  if char_length(v_fact) not between 1 and 80 or char_length(coalesce(v_said, '')) > 300 then
+    raise exception 'Say which fact is not right.' using errcode = '22023';
+  end if;
+  select * into v_row from public.lead_previews p where p.id = p_id for update;
+  if not found or v_row.state <> 'ready' then
+    raise exception 'This preview has ended.' using errcode = 'P0002';
+  end if;
+  if jsonb_array_length(v_row.not_right) >= 10 then
+    raise exception 'That''s all a preview keeps.' using errcode = '54000';
+  end if;
+  update public.lead_previews p
+     set not_right = p.not_right || jsonb_build_array(
+                       jsonb_strip_nulls(jsonb_build_object('fact', v_fact, 'said', v_said, 'at', now())))
+   where p.id = p_id;
+  return jsonb_array_length(v_row.not_right) + 1;
+end $$;
+
+
+--
+-- Name: FUNCTION preview_not_right(p_id uuid, p_fact text, p_said text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.preview_not_right(p_id uuid, p_fact text, p_said text) IS 'What a business said is not right on its preview (0079): kept for the sender, ten at most, never written into the receptionist. Service role only.';
+
+
+--
+-- Name: preview_opened(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.preview_opened(p_id uuid) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_n integer;
+begin
+  update public.lead_previews p
+     set opened_count = p.opened_count + 1, opened_at = coalesce(p.opened_at, now()), last_opened_at = now()
+   where p.id = p_id and p.state = 'ready'
+  returning p.opened_count into v_n;
+  return v_n;
+end $$;
+
+
+--
+-- Name: FUNCTION preview_opened(p_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.preview_opened(p_id uuid) IS 'A preview''s page drawn in a browser (0079): counted by the page''s own script, so a scanner''s fetch is no open. Answers the count, or null for a preview not open to try. Service role only.';
+
+
+--
+-- Name: preview_said(uuid, text, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.preview_said(p_id uuid, p_text text, p_reply jsonb) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_text text := btrim(coalesce(p_text, ''));
+  v_said text := btrim(coalesce(p_reply->>'text', ''));
+  v_row  public.lead_previews%rowtype;
+begin
+  if char_length(v_text) not between 1 and 500 or v_said = '' then
+    raise exception 'A message and its answer are needed.' using errcode = '22023';
+  end if;
+  select * into v_row from public.lead_previews p where p.id = p_id for update;
+  if not found or v_row.state <> 'ready' then
+    raise exception 'This preview has ended.' using errcode = 'P0002';
+  end if;
+  if v_row.asked_count >= 20 then
+    raise exception 'That''s all a preview answers.' using errcode = '54000';
+  end if;
+  update public.lead_previews p
+     set turns = p.turns
+                 || jsonb_build_array(
+                      jsonb_build_object('role', 'user', 'content', v_text, 'at', now()),
+                      jsonb_strip_nulls(jsonb_build_object('role', 'assistant', 'content', left(v_said, 2000),
+                                                           'then', p_reply->'then', 'at', now()))),
+         asked_count = p.asked_count + 1,
+         tried_at = coalesce(p.tried_at, now())
+   where p.id = p_id;
+  return v_row.asked_count + 1;
+end $$;
+
+
+--
+-- Name: FUNCTION preview_said(p_id uuid, p_text text, p_reply jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.preview_said(p_id uuid, p_text text, p_reply jsonb) IS 'A message to a preview and its receptionist''s answer (0079), kept in its turns: twenty at most (54000 past them), the first stamping tried_at. Refused for a preview not open to try (P0002). Answers the count. Service role only.';
+
+
+--
+-- Name: preview_sent(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.preview_sent(p_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  update public.lead_previews p
+     set first_sent_at = now(), ends_at = now() + interval '30 days'
+   where p.id = p_id and p.first_sent_at is null and p.state in ('building', 'ready');
+  return found;
+end $$;
+
+
+--
+-- Name: FUNCTION preview_sent(p_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.preview_sent(p_id uuid) IS 'The first email that carried a preview (0079): stamped once, its thirty days counted from it. Service role only.';
 
 
 --
@@ -29670,6 +30017,56 @@ COMMENT ON FUNCTION public.setup_request(p_tenant_id uuid, p_what text) IS 'Setu
 
 
 --
+-- Name: slug_for_workspace(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.slug_for_workspace(p_name text) RETURNS text
+    LANGUAGE plpgsql STABLE
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_name text := btrim(coalesce(p_name, ''));
+  v_base text;
+  v_slug text;
+  v_try  int := 0;
+begin
+  -- Slug: lowercase ASCII, single dashes, no leading or trailing dash.
+  v_base := lower(v_name);
+  v_base := translate(
+    v_base,
+    'àáâãäåāăąèéêëēĕėęěìíîïĩīĭįòóôõöøōŏőùúûüũūŭůñńçćčšž',
+    'aaaaaaaaaeeeeeeeeeiiiiiiiiooooooooouuuuuuuunncccsz'
+  );
+  v_base := regexp_replace(v_base, '[^a-z0-9]+', '-', 'g');
+  v_base := btrim(v_base, '-');
+  v_base := left(v_base, 40);
+  v_base := btrim(v_base, '-');
+  if v_base = '' then
+    v_base := 'workspace';
+  end if;
+
+  -- Collision handling that terminates.
+  v_slug := v_base;
+  while exists (select 1 from public.tenants t where t.slug = v_slug) loop
+    v_try := v_try + 1;
+    if v_try > 50 then
+      v_slug := v_base || '-' || substr(replace(gen_random_uuid()::text, '-', ''), 1, 8);
+      exit;
+    end if;
+    v_slug := v_base || '-' || v_try::text;
+  end loop;
+  return v_slug;
+end $$;
+
+
+--
+-- Name: FUNCTION slug_for_workspace(p_name text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.slug_for_workspace(p_name text) IS 'A workspace''s slug from its name (create_workspace_for''s rule since 00021, lifted out in 00494 for a preview''s claim): lowercase ASCII, single dashes, at most 40, the first free of -1 to -50, then a random tail. Definer doors only.';
+
+
+--
 -- Name: sole_proprietor_of(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -31206,6 +31603,33 @@ CREATE FUNCTION public.trigger_playbooks_sweep() RETURNS bigint
 --
 
 COMMENT ON FUNCTION public.trigger_playbooks_sweep() IS 'Asks the edge to run the playbooks whose hour has come, by each business''s own clock. Recorded in public.sweep_status.';
+
+
+--
+-- Name: trigger_previews_sweep(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.trigger_previews_sweep() RETURNS bigint
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions'
+    AS $$
+begin
+  if exists (
+       select 1 from lead_previews p where p.state in ('building', 'ready', 'failed') and p.ends_at < now()
+     ) then
+    return public.request_sweep('previews', '/api/cron/previews');
+  end if;
+  insert into public.sweep_status (sweep, requested_at) values ('previews', now())
+  on conflict (sweep) do update set requested_at = excluded.requested_at;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION trigger_previews_sweep(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.trigger_previews_sweep() IS 'The previews sweep''s clock (0079). Calls the edge (/api/cron/previews) only when a preview is past its thirty days; otherwise records that it looked.';
 
 
 --
@@ -33278,6 +33702,58 @@ CREATE TABLE public.lead_preferences (
 --
 
 COMMENT ON TABLE public.lead_preferences IS 'Learned exclusions, scoped to the kind of business (P5). Release C draws them; A1 holds the rows.';
+
+
+--
+-- Name: lead_previews; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.lead_previews (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    lead_id uuid NOT NULL,
+    preview_tenant_id uuid,
+    token text NOT NULL,
+    state text DEFAULT 'building'::text NOT NULL,
+    failed_why text,
+    made_by uuid,
+    built_at timestamp with time zone,
+    first_sent_at timestamp with time zone,
+    ends_at timestamp with time zone DEFAULT (now() + '30 days'::interval) NOT NULL,
+    opened_count integer DEFAULT 0 NOT NULL,
+    opened_at timestamp with time zone,
+    last_opened_at timestamp with time zone,
+    turns jsonb DEFAULT '[]'::jsonb NOT NULL,
+    asked_count smallint DEFAULT 0 NOT NULL,
+    tried_at timestamp with time zone,
+    call_count smallint DEFAULT 0 NOT NULL,
+    call_seconds integer DEFAULT 0 NOT NULL,
+    not_right jsonb DEFAULT '[]'::jsonb NOT NULL,
+    claimed_at timestamp with time zone,
+    claimed_by uuid,
+    ended_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT lead_previews_asked_count_check CHECK (((asked_count >= 0) AND (asked_count <= 20))),
+    CONSTRAINT lead_previews_call_count_check CHECK ((call_count >= 0)),
+    CONSTRAINT lead_previews_call_seconds_check CHECK ((call_seconds >= 0)),
+    CONSTRAINT lead_previews_claimed_is_dated CHECK (((state = 'claimed'::text) = (claimed_at IS NOT NULL))),
+    CONSTRAINT lead_previews_ended_is_dated CHECK (((state = 'ended'::text) = (ended_at IS NOT NULL))),
+    CONSTRAINT lead_previews_failed_says_why CHECK (((state = 'failed'::text) = (failed_why IS NOT NULL))),
+    CONSTRAINT lead_previews_failed_why_check CHECK (((failed_why IS NULL) OR ((char_length(failed_why) >= 1) AND (char_length(failed_why) <= 60)))),
+    CONSTRAINT lead_previews_not_right_check CHECK (((jsonb_typeof(not_right) = 'array'::text) AND (jsonb_array_length(not_right) <= 10))),
+    CONSTRAINT lead_previews_opened_count_check CHECK ((opened_count >= 0)),
+    CONSTRAINT lead_previews_state_check CHECK ((state = ANY (ARRAY['building'::text, 'ready'::text, 'failed'::text, 'claimed'::text, 'ended'::text]))),
+    CONSTRAINT lead_previews_token_check CHECK ((token ~ '^[A-Za-z0-9_-]{22}$'::text)),
+    CONSTRAINT lead_previews_turns_check CHECK (((jsonb_typeof(turns) = 'array'::text) AND (jsonb_array_length(turns) <= 40)))
+);
+
+
+--
+-- Name: TABLE lead_previews; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.lead_previews IS 'A lead''s own receptionist before they sign up (decision 0079): the preview workspace, its link''s token, its state and clock, what the business asked it and what it answered, its calls, what it said was not right, and who made it theirs. Members of the sender read it; only the preview doors write it.';
 
 
 --
@@ -36115,7 +36591,7 @@ CREATE TABLE public.tenants (
     CONSTRAINT tenants_accent_shape CHECK (((accent IS NULL) OR (accent ~ '^#[0-9a-f]{6}$'::text))),
     CONSTRAINT tenants_appointment_word_check CHECK (((appointment_word IS NULL) OR (appointment_word = ANY (ARRAY['appointment'::text, 'visit'::text, 'meeting'::text, 'session'::text, 'lesson'::text])))),
     CONSTRAINT tenants_logo_path_shape CHECK (((logo_path IS NULL) OR ((split_part(logo_path, '/'::text, 1) = (id)::text) AND (logo_path ~ '^[0-9a-f-]{36}/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.png$'::text)))),
-    CONSTRAINT tenants_status_check CHECK ((status = ANY (ARRAY['active'::text, 'paused'::text, 'test'::text])))
+    CONSTRAINT tenants_status_check CHECK ((status = ANY (ARRAY['active'::text, 'paused'::text, 'test'::text, 'preview'::text])))
 );
 
 
@@ -36815,6 +37291,14 @@ ALTER TABLE ONLY public.lead_platform
 
 ALTER TABLE ONLY public.lead_preferences
     ADD CONSTRAINT lead_preferences_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: lead_previews lead_previews_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.lead_previews
+    ADD CONSTRAINT lead_previews_pkey PRIMARY KEY (id);
 
 
 --
@@ -38194,6 +38678,41 @@ CREATE INDEX lead_places_lead ON public.lead_places USING btree (lead_id);
 --
 
 CREATE INDEX lead_preferences_from_lead ON public.lead_preferences USING btree (tenant_id, from_lead_id) WHERE (from_lead_id IS NOT NULL);
+
+
+--
+-- Name: lead_previews_ending; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX lead_previews_ending ON public.lead_previews USING btree (ends_at) WHERE (state = ANY (ARRAY['building'::text, 'ready'::text, 'failed'::text]));
+
+
+--
+-- Name: lead_previews_one_per_lead; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX lead_previews_one_per_lead ON public.lead_previews USING btree (tenant_id, lead_id);
+
+
+--
+-- Name: lead_previews_preview_tenant_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX lead_previews_preview_tenant_key ON public.lead_previews USING btree (preview_tenant_id) WHERE (preview_tenant_id IS NOT NULL);
+
+
+--
+-- Name: lead_previews_token_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX lead_previews_token_key ON public.lead_previews USING btree (token);
+
+
+--
+-- Name: lead_previews_tried; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX lead_previews_tried ON public.lead_previews USING btree (tenant_id, tried_at DESC) WHERE (tried_at IS NOT NULL);
 
 
 --
@@ -39594,6 +40113,20 @@ CREATE TRIGGER jobs_set_updated_at BEFORE UPDATE ON public.jobs FOR EACH ROW EXE
 --
 
 CREATE TRIGGER jobs_wake AFTER INSERT ON public.jobs REFERENCING NEW TABLE AS new_rows FOR EACH STATEMENT EXECUTE FUNCTION public.jobs_wake();
+
+
+--
+-- Name: lead_previews lead_previews_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER lead_previews_set_updated_at BEFORE UPDATE ON public.lead_previews FOR EACH ROW EXECUTE FUNCTION extensions.moddatetime('updated_at');
+
+
+--
+-- Name: lead_previews lead_previews_take_their_workspace; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER lead_previews_take_their_workspace AFTER DELETE ON public.lead_previews FOR EACH ROW EXECUTE FUNCTION public.lead_previews_take_their_workspace();
 
 
 --
@@ -41583,6 +42116,30 @@ ALTER TABLE ONLY public.lead_preferences
 
 
 --
+-- Name: lead_previews lead_previews_lead_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.lead_previews
+    ADD CONSTRAINT lead_previews_lead_fkey FOREIGN KEY (tenant_id, lead_id) REFERENCES public.leads(tenant_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: lead_previews lead_previews_preview_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.lead_previews
+    ADD CONSTRAINT lead_previews_preview_tenant_id_fkey FOREIGN KEY (preview_tenant_id) REFERENCES public.tenants(id) ON DELETE SET NULL;
+
+
+--
+-- Name: lead_previews lead_previews_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.lead_previews
+    ADD CONSTRAINT lead_previews_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: lead_rounds lead_rounds_search_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -43404,6 +43961,21 @@ ALTER TABLE public.lead_preferences ENABLE ROW LEVEL SECURITY;
 --
 
 CREATE POLICY lead_preferences_member_select ON public.lead_preferences FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
+-- Name: lead_previews; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.lead_previews ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: lead_previews lead_previews_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY lead_previews_member_select ON public.lead_previews FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
    FROM public.memberships m
   WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
 
@@ -45919,6 +46491,14 @@ GRANT ALL ON FUNCTION public.lead_plan_check(p_plan jsonb) TO service_role;
 
 
 --
+-- Name: FUNCTION lead_previews_take_their_workspace(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.lead_previews_take_their_workspace() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.lead_previews_take_their_workspace() TO service_role;
+
+
+--
 -- Name: FUNCTION lead_release(p_tenant_id uuid, p_month text, p_day text, p_platform_day text, p_leads integer, p_usd numeric); Type: ACL; Schema: public; Owner: -
 --
 
@@ -47441,6 +48021,79 @@ GRANT ALL ON FUNCTION public.playbook_totals(p_tenant_id uuid, p_history integer
 
 
 --
+-- Name: FUNCTION preview_built(p_id uuid, p_ok boolean, p_why text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.preview_built(p_id uuid, p_ok boolean, p_why text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.preview_built(p_id uuid, p_ok boolean, p_why text) TO service_role;
+
+
+--
+-- Name: FUNCTION preview_called(p_preview_tenant_id uuid, p_seconds integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.preview_called(p_preview_tenant_id uuid, p_seconds integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.preview_called(p_preview_tenant_id uuid, p_seconds integer) TO service_role;
+
+
+--
+-- Name: FUNCTION preview_claim(p_token text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.preview_claim(p_token text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.preview_claim(p_token text) TO authenticated;
+GRANT ALL ON FUNCTION public.preview_claim(p_token text) TO service_role;
+
+
+--
+-- Name: FUNCTION preview_end(p_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.preview_end(p_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.preview_end(p_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION preview_make(p_tenant_id uuid, p_lead_id uuid, p_name text, p_timezone text, p_by uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.preview_make(p_tenant_id uuid, p_lead_id uuid, p_name text, p_timezone text, p_by uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.preview_make(p_tenant_id uuid, p_lead_id uuid, p_name text, p_timezone text, p_by uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION preview_not_right(p_id uuid, p_fact text, p_said text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.preview_not_right(p_id uuid, p_fact text, p_said text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.preview_not_right(p_id uuid, p_fact text, p_said text) TO service_role;
+
+
+--
+-- Name: FUNCTION preview_opened(p_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.preview_opened(p_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.preview_opened(p_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION preview_said(p_id uuid, p_text text, p_reply jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.preview_said(p_id uuid, p_text text, p_reply jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.preview_said(p_id uuid, p_text text, p_reply jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION preview_sent(p_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.preview_sent(p_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.preview_sent(p_id uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION profile_set(p_display_name text); Type: ACL; Schema: public; Owner: -
 --
 
@@ -48919,6 +49572,14 @@ GRANT ALL ON FUNCTION public.setup_request(p_tenant_id uuid, p_what text) TO ser
 
 
 --
+-- Name: FUNCTION slug_for_workspace(p_name text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.slug_for_workspace(p_name text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.slug_for_workspace(p_name text) TO service_role;
+
+
+--
 -- Name: FUNCTION sole_proprietor_of(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -49291,6 +49952,14 @@ GRANT ALL ON FUNCTION public.trigger_partners_sweep() TO service_role;
 
 REVOKE ALL ON FUNCTION public.trigger_playbooks_sweep() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.trigger_playbooks_sweep() TO service_role;
+
+
+--
+-- Name: FUNCTION trigger_previews_sweep(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.trigger_previews_sweep() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.trigger_previews_sweep() TO service_role;
 
 
 --
@@ -50097,6 +50766,14 @@ GRANT ALL ON TABLE public.lead_platform TO service_role;
 
 GRANT SELECT ON TABLE public.lead_preferences TO authenticated;
 GRANT ALL ON TABLE public.lead_preferences TO service_role;
+
+
+--
+-- Name: TABLE lead_previews; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.lead_previews TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.lead_previews TO service_role;
 
 
 --

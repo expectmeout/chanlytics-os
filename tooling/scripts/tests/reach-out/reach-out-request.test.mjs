@@ -292,3 +292,66 @@ test("the email its owner sends ends with the name, never a mailbox's signature:
   assert.equal(d.body, "Hi Fixture Movers.\n\nSam");
   assert.ok(d.text.startsWith("Hi Fixture Movers.\n\nSam\n\nI found your business on Google Maps."), d.text);
 });
+
+test("their preview (decision 0079): its link filled in; being made holds, gone skips, before the lead's own values", () => {
+  const words = { subject: null, body: "Hi {{business}}, I set this up for you in {{city}}: {{their preview}}" };
+  const ws = input().workspace;
+  const lead = (preview) => ({ business_name: "Fixture Movers", city: null, preview });
+  // No city either: the preview's refusal comes first, since the sender may still make it.
+  assert.deepEqual(reachOutWords(words, lead({ state: "building" }), ws, true, null), {
+    ok: false,
+    reason: "preview_building",
+  });
+  assert.deepEqual(reachOutWords(words, lead(undefined), ws, true, null), { ok: false, reason: "preview_building" });
+  assert.deepEqual(reachOutWords(words, lead({ state: "gone" }), ws, true, null), { ok: false, reason: "no_preview" });
+  const url = "https://app.chanlytics.com/preview/TokenTokenTokenToken01";
+  const open = reachOutWords(words, { ...lead({ state: "open", url }), city: "Austin" }, ws, true, null);
+  assert.deepEqual(open, {
+    ok: true,
+    subject: null,
+    body: `Hi Fixture Movers, I set this up for you in Austin: ${url}`,
+  });
+  assert.deepEqual(
+    reachOutWords({ subject: null, body: "No preview named, {{business}}." }, lead({ state: "gone" }), ws, true, null)
+      .ok,
+    true,
+    "words that name no preview never ask after one",
+  );
+});
+
+test("a step that names their preview ends with the mailbox's signature less its link lines: the preview is its one link", () => {
+  const out = reachOutRequest(
+    input({
+      words: { subject: null, body: "Here it is, {{business}}: {{their preview}}" },
+      lead: {
+        business_name: "Fixture Movers",
+        city: "Austin",
+        preview: { state: "open", url: "https://app.chanlytics.com/preview/TokenTokenTokenToken01" },
+      },
+      signsWith: "mailbox",
+      from: { ...input().from, signature: "Sam Rivera\nhttps://getharbor.example\nHarbor Moving Co" },
+      parent: {
+        messageId: "44444444-4444-4444-8444-444444444444",
+        rfcMessageId: "<first@getharbor.example>",
+        references: [],
+        subject: "A quote for Fixture Movers",
+      },
+    }),
+  );
+  assert.equal(out.ok, true);
+  assert.equal(out.signature, "Sam Rivera\nHarbor Moving Co");
+  const plain = reachOutRequest(
+    input({
+      words: { subject: null, body: "Bumping this, {{business}}." },
+      signsWith: "mailbox",
+      from: { ...input().from, signature: "Sam Rivera\nhttps://getharbor.example" },
+      parent: {
+        messageId: "44444444-4444-4444-8444-444444444444",
+        rfcMessageId: "<first@getharbor.example>",
+        references: [],
+        subject: "A quote for Fixture Movers",
+      },
+    }),
+  );
+  assert.equal(plain.signature, "Sam Rivera\nhttps://getharbor.example", "a nudge naming no preview keeps its link");
+});

@@ -19,6 +19,7 @@ import type { CallDto } from "../conversations/call-dto";
 import type { EscalationDto } from "../conversations/escalations";
 import type { ConversationDto } from "../conversations/thread-dto";
 import type { LeadSearchDto } from "../leads/leads";
+import type { PreviewTriedDto } from "../previews/preview-line";
 import { runDaysAt } from "../playbooks/playbook-approval";
 import { runsThatWait, type WaitingRun } from "../waits/waits";
 import {
@@ -60,6 +61,8 @@ const QUIET_CALM: TodayCalmVM = { also: [], traffic: null, handled_all: true, an
 interface TodayBeside {
   runs?: readonly WaitingRun[] | null;
   heldThreads?: readonly ConversationDto[] | null;
+  /** The leads who tried their own receptionist lately (decision 0079): each a row. Null or absent: not read. */
+  previewsTried?: readonly PreviewTriedDto[] | null;
 }
 
 /**
@@ -85,6 +88,7 @@ export function toTodayVM(
     now,
     searches,
     heldThreads: [...(beside.heldThreads ?? [])],
+    previewsTried: [...(beside.previewsTried ?? [])],
   });
   // The runs waiting for a word that can still send them, by the business's days (the verb's own rule): null unread.
   const runsWaiting = beside.runs ? runsThatWait(beside.runs, runDaysAt(f.tz, now)).length : null;

@@ -62,11 +62,13 @@ export const ROUTES = {
   "GET google/callback": { method: "GET", path: "/api/v1/google/callback" },
   "GET google/connect": { method: "GET", path: "/api/v1/google/connect" },
   "GET google/locations": { method: "GET", path: "/api/v1/google/locations" },
+  "GET lead-previews": { method: "GET", path: "/api/v1/lead-previews" },
   "GET lead-searches": { method: "GET", path: "/api/v1/lead-searches" },
   "GET lead-suggestions": { method: "GET", path: "/api/v1/lead-suggestions" },
   "GET leads": { method: "GET", path: "/api/v1/leads" },
   "GET leads/[id]": { method: "GET", path: "/api/v1/leads/[id]" },
   "GET leads/[id]/place": { method: "GET", path: "/api/v1/leads/[id]/place" },
+  "GET leads/[id]/preview": { method: "GET", path: "/api/v1/leads/[id]/preview" },
   "GET leads/back": { method: "GET", path: "/api/v1/leads/back" },
   "GET lines/codes": { method: "GET", path: "/api/v1/lines/codes" },
   "GET mailbox-connections/callback": { method: "GET", path: "/api/v1/mailbox-connections/callback" },
@@ -214,6 +216,7 @@ export const ROUTES = {
   "POST leads/[id]/exclude": { method: "POST", path: "/api/v1/leads/[id]/exclude" },
   "POST leads/[id]/keep": { method: "POST", path: "/api/v1/leads/[id]/keep" },
   "POST leads/[id]/later": { method: "POST", path: "/api/v1/leads/[id]/later" },
+  "POST leads/[id]/preview": { method: "POST", path: "/api/v1/leads/[id]/preview" },
   "POST leads/[id]/put-back": { method: "POST", path: "/api/v1/leads/[id]/put-back" },
   "POST leads/[id]/stage": { method: "POST", path: "/api/v1/leads/[id]/stage" },
   "POST leads/bulk": { method: "POST", path: "/api/v1/leads/bulk" },
@@ -263,6 +266,7 @@ export const ROUTES = {
   "POST platform/waitlist/invited": { method: "POST", path: "/api/v1/platform/waitlist/invited" },
   "POST playbooks": { method: "POST", path: "/api/v1/playbooks" },
   "POST playbooks/[id]/run": { method: "POST", path: "/api/v1/playbooks/[id]/run" },
+  "POST preview-claims": { method: "POST", path: "/api/v1/preview-claims" },
   "POST reach-out-replies/[id]/undo": { method: "POST", path: "/api/v1/reach-out-replies/[id]/undo" },
   "POST reach-out-sends/[id]/decide": { method: "POST", path: "/api/v1/reach-out-sends/[id]/decide" },
   "POST reach-out-sends/[id]/said": { method: "POST", path: "/api/v1/reach-out-sends/[id]/said" },
@@ -402,11 +406,13 @@ export type Routes = {
   "GET google/callback": typeof import("../../app/api/v1/google/callback/route").GET;
   "GET google/connect": typeof import("../../app/api/v1/google/connect/route").GET;
   "GET google/locations": typeof import("../../app/api/v1/google/locations/route").GET;
+  "GET lead-previews": typeof import("../../app/api/v1/lead-previews/route").GET;
   "GET lead-searches": typeof import("../../app/api/v1/lead-searches/route").GET;
   "GET lead-suggestions": typeof import("../../app/api/v1/lead-suggestions/route").GET;
   "GET leads": typeof import("../../app/api/v1/leads/route").GET;
   "GET leads/[id]": typeof import("../../app/api/v1/leads/[id]/route").GET;
   "GET leads/[id]/place": typeof import("../../app/api/v1/leads/[id]/place/route").GET;
+  "GET leads/[id]/preview": typeof import("../../app/api/v1/leads/[id]/preview/route").GET;
   "GET leads/back": typeof import("../../app/api/v1/leads/back/route").GET;
   "GET lines/codes": typeof import("../../app/api/v1/lines/codes/route").GET;
   "GET mailbox-connections/callback": typeof import("../../app/api/v1/mailbox-connections/callback/route").GET;
@@ -554,6 +560,7 @@ export type Routes = {
   "POST leads/[id]/exclude": typeof import("../../app/api/v1/leads/[id]/exclude/route").POST;
   "POST leads/[id]/keep": typeof import("../../app/api/v1/leads/[id]/keep/route").POST;
   "POST leads/[id]/later": typeof import("../../app/api/v1/leads/[id]/later/route").POST;
+  "POST leads/[id]/preview": typeof import("../../app/api/v1/leads/[id]/preview/route").POST;
   "POST leads/[id]/put-back": typeof import("../../app/api/v1/leads/[id]/put-back/route").POST;
   "POST leads/[id]/stage": typeof import("../../app/api/v1/leads/[id]/stage/route").POST;
   "POST leads/bulk": typeof import("../../app/api/v1/leads/bulk/route").POST;
@@ -603,6 +610,7 @@ export type Routes = {
   "POST platform/waitlist/invited": typeof import("../../app/api/v1/platform/waitlist/invited/route").POST;
   "POST playbooks": typeof import("../../app/api/v1/playbooks/route").POST;
   "POST playbooks/[id]/run": typeof import("../../app/api/v1/playbooks/[id]/run/route").POST;
+  "POST preview-claims": typeof import("../../app/api/v1/preview-claims/route").POST;
   "POST reach-out-replies/[id]/undo": typeof import("../../app/api/v1/reach-out-replies/[id]/undo/route").POST;
   "POST reach-out-sends/[id]/decide": typeof import("../../app/api/v1/reach-out-sends/[id]/decide/route").POST;
   "POST reach-out-sends/[id]/said": typeof import("../../app/api/v1/reach-out-sends/[id]/said/route").POST;

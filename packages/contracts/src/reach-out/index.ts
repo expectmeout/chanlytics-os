@@ -1,5 +1,5 @@
 /** Reach out: the campaign email's words and rules, its timetable, and the hours and time zones the window keeps. */
-export { DEFAULT_WEEK, leadFactOf, weekHoursOf } from "./lead-hours";
+export { DEFAULT_WEEK, leadFactOf, listingPeriodsOf, weekHoursOf } from "./lead-hours";
 export type { FactListing, OpenWindow, WeekHours } from "./lead-hours";
 export { composeLinksOf, mailtoOf } from "./owner/compose";
 export type { ComposeLinks } from "./owner/compose";

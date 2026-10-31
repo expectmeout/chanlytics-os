@@ -11,6 +11,7 @@ import {
   LEAD_BUILD_WORDS as W,
   REACH_OUT_SLOT_SET,
   SEQUENCE_TEST_WORDS as T,
+  leadPreviewOfferOf,
   reachOutAfterDayChoices,
   reachOutPutBackStep,
   reachOutRemoveStep,
@@ -29,6 +30,7 @@ import { Sheet } from "../../../kit/sheet/sheet";
 import { askAbout, gate, type LegacyFlash } from "../../../legacy-verbs";
 import { cmChevron, cmNumbers } from "../../parts/picks";
 import { useSlotSeats } from "../../templates/slots/slot-seats";
+import { tplOwn } from "../../templates/words";
 import { WordsField } from "../../templates/slots/words-field";
 import { pressed } from "../verbs";
 import { LeadInsert } from "./insert";
@@ -117,6 +119,7 @@ function EmailWrite({ lc, place, step, lead, flash, onPreview, onAsk }: WritePro
         <LeadInsert
           lead={slotLead}
           workspace={workspaceOf(lc.draft.signed_by)}
+          preview={leadPreviewOfferOf({ makes: tplOwn().previews, first: i === 0, lead: slotLead })}
           seats={seats}
           flash={flash}
           onSigned={(name) => lc.edit((d) => ({ ...d, signed_by: name }))}

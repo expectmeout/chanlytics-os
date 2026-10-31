@@ -275,6 +275,11 @@ export const RETRY_WAITS_MS: Readonly<Record<string, readonly number[]>> = {
   // try, after a wait that outlasts the lease; a second throw fails it, and the deadman sweep then hands the message to
   // a person (lib/receptionist/unfinished.ts), as it would a turn that died in the door.
   inbound_answer: [2 * MIN_MS],
+  // A lead's preview built (00497, decision 0079). Written to be run again: a built preview moves no more, and the
+  // receptionist's write is the settings' compare-and-swap. A model's or the database's bad minute throws and lands
+  // here: one more try, after a wait that outlasts the lease; the second try marks the preview failed itself
+  // (edge previews/build.ts), so a send waiting on it is skipped with why, never left waiting.
+  preview_build: [2 * MIN_MS],
 };
 
 /**

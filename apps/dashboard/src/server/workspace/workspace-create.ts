@@ -106,20 +106,25 @@ export async function createWorkspace(ctx: RouteContext, req: Request) {
   // told. Best effort, like the notice above.
   await giveFirstAlertAddress(ctx.supabase, data.id, ctx.email, ctx.userId);
 
-  // The name typed at sign-up rode in the user's metadata to prefill this
-  // screen (signup.ts); the workspace exists now, so it goes -- or the next
-  // "create a workspace" screen would offer a name already taken. Best
-  // effort: metadata that would not clear must not fail a workspace made.
-  if (pendingWorkspaceOf(ctx.metadata)) {
-    try {
-      const { error: clearErr } = await ctx.supabase.auth.updateUser({ data: { [PENDING_WORKSPACE_KEY]: null } });
-      if (clearErr) log.error("pending_workspace_clear_failed", { error: clearErr.message });
-    } catch (e) {
-      log.error("pending_workspace_clear_failed", { error: e });
-    }
-  }
+  await clearPendingWorkspace(ctx);
 
   // Returned in the same shape /api/v1/workspaces lists, so the client can put
   // it straight into its workspace list without a second round trip.
   return { workspace: data };
+}
+
+/**
+ * The name typed at sign-up rode in the user's metadata to prefill the create screen (signup.ts); a workspace exists
+ * now, made or claimed (a preview made theirs, server/previews/claim.ts), so it goes -- or the next "create a
+ * workspace" screen would offer a name already taken. Best effort: metadata that would not clear must not fail a
+ * workspace made.
+ */
+export async function clearPendingWorkspace(ctx: RouteContext): Promise<void> {
+  if (!pendingWorkspaceOf(ctx.metadata)) return;
+  try {
+    const { error: clearErr } = await ctx.supabase.auth.updateUser({ data: { [PENDING_WORKSPACE_KEY]: null } });
+    if (clearErr) log.error("pending_workspace_clear_failed", { error: clearErr.message });
+  } catch (e) {
+    log.error("pending_workspace_clear_failed", { error: e });
+  }
 }

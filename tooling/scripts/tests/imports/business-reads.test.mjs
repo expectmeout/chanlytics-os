@@ -5,7 +5,18 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { FOUND_WORDS, WEBSITE_READ_SCHEMA, businessReadFactsOf, foundOf } from "@chanlytics/contracts";
+import {
+  FOUND_WORDS,
+  PROFILE_LIMITS,
+  WEBSITE_READ_SCHEMA,
+  businessReadFactsOf,
+  foundOf,
+  foundServicesRoom,
+  withFoundClosure,
+  withFoundNote,
+  withFoundServices,
+  withFoundWorn,
+} from "@chanlytics/contracts";
 
 const read = (source, facts, over = {}) => ({
   source,
@@ -138,4 +149,76 @@ test("what the record already holds is never offered again, and a read that coul
     unread: null,
     any: false,
   });
+});
+
+/** What a site says, read and offered, for the adds below. */
+const SITE_FOUND = () =>
+  foundOf(
+    [
+      {
+        source: "website",
+        read_from: "https://fixture.example.com",
+        read_at: "2026-10-30T12:00:00Z",
+        error: null,
+        facts: {
+          services: [
+            { name: "Fade", price_note: "$35", duration_min: 30 },
+            { name: "Beard trim", price_note: "from $15", duration_min: null },
+          ],
+          closed: [{ date: "2026-12-24", until: "2026-12-26" }],
+          rules: ["Cancel 24 hours ahead"],
+          answers: [{ q: "Do you take walk-ins?", a: "Yes, until 5 PM." }],
+          description: "A neighbourhood barber.",
+          look: null,
+        },
+      },
+    ],
+    { services: [], closures: [], notes: [], description: null },
+  );
+
+test("a press adds what it always added: a service with its price, a day closed, a rule, an answer", () => {
+  const found = SITE_FOUND();
+  const priced = withFoundServices({}, found.services, { prices: true });
+  assert.deepEqual(priced.services, [
+    { name: "Fade", price_note: "$35", duration_min: 30 },
+    { name: "Beard trim", price_note: "from $15" },
+  ]);
+  assert.deepEqual(withFoundClosure({}, found.closed[0]).closures, [{ date: "2026-12-24", until: "2026-12-26" }]);
+  const rule = found.notes.find((n) => n.title === FOUND_WORDS.rulesTitle);
+  assert.deepEqual(withFoundNote({ booking_rules: { lead_hours: 2 } }, rule).booking_rules, {
+    lead_hours: 2,
+    notes: ["Cancel 24 hours ahead"],
+  });
+  assert.deepEqual(withFoundNote({}, { title: "Do you take walk-ins?", text: "Yes, until 5 PM." }).notes, [
+    { title: "Do you take walk-ins?", text: "Yes, until 5 PM." },
+  ]);
+  const full = { services: Array.from({ length: PROFILE_LIMITS.services - 1 }, (_, i) => ({ name: `S${i}` })) };
+  assert.deepEqual(
+    foundServicesRoom(full, found.services).map((s) => s.name),
+    ["Fade"],
+    "as many as the record has room for",
+  );
+});
+
+test("worn at once, for a preview: every service without its price, the day closed, the rule, the answer, the words", () => {
+  const worn = withFoundWorn({ hours: { mon: { open: "09:00", close: "17:00" } } }, SITE_FOUND());
+  assert.deepEqual(worn.services, [{ name: "Fade", duration_min: 30 }, { name: "Beard trim" }], "no price, ever");
+  assert.deepEqual(worn.closures, [{ date: "2026-12-24", until: "2026-12-26" }]);
+  assert.deepEqual(worn.booking_rules, { notes: ["Cancel 24 hours ahead"] });
+  assert.deepEqual(worn.notes, [
+    { title: "Do you take walk-ins?", text: "Yes, until 5 PM." },
+    { title: FOUND_WORDS.aboutTitle, text: "A neighbourhood barber." },
+  ]);
+  assert.deepEqual(worn.hours, { mon: { open: "09:00", close: "17:00" } }, "what the record held stays");
+});
+
+test("worn at once, only where the record has room", () => {
+  const full = {
+    notes: Array.from({ length: PROFILE_LIMITS.notes }, (_, i) => ({ title: `N${i}`, text: "x" })),
+    booking_rules: { notes: Array.from({ length: PROFILE_LIMITS.ruleNotes }, (_, i) => `R${i}`) },
+  };
+  const worn = withFoundWorn(full, SITE_FOUND());
+  assert.equal(worn.notes.length, PROFILE_LIMITS.notes);
+  assert.equal(worn.booking_rules.notes.length, PROFILE_LIMITS.ruleNotes);
+  assert.equal(worn.services.length, 2, "services had room");
 });

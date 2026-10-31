@@ -102,6 +102,8 @@ export async function signUp(input: SignupInput & { password: string }): Promise
           name: input.name,
           timezone: input.timezone ?? null,
           ...(input.code ? { code: input.code } : {}),
+          // The preview it came from, checked live by the route: the first screen claims it (decision 0079).
+          ...(input.preview ? { preview: input.preview } : {}),
         },
       },
     },

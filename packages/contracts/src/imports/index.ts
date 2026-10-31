@@ -8,6 +8,14 @@ export type { BusinessReadDto, BusinessReadFacts, BusinessReadSource, FoundVM, L
 export { csvCell, fileDateOf, importCounts, importRowsOf, matchColumns, parseCsv, viaWords } from "./csv";
 export type { CsvCell, ImportColumns, ImportFacts, ImportRow } from "./csv";
 export {
+  foundRecordOf,
+  foundServicesRoom,
+  withFoundClosure,
+  withFoundNote,
+  withFoundServices,
+  withFoundWorn,
+} from "./found-adds";
+export {
   broughtInCardOf,
   broughtInShown,
   HISTORY_BACK_DAYS,

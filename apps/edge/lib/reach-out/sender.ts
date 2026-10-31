@@ -44,12 +44,14 @@ import {
   dueMailboxes,
   emailWordsOf,
   insertQueuedEmail,
+  leadPreviewOf,
   leadSlotsOf,
   mailboxCapacityOf,
   mailboxConnectionOf,
   monthSent,
   moveSend,
   parentEmailOf,
+  previewSent,
   recheckSends,
   reachOutPerson,
   runHanded,
@@ -76,10 +78,14 @@ import {
   mailboxDailyCap,
   mailboxSendsNow,
   parseTenantConfig,
+  previewSlotOf,
+  slotCount,
+  type LeadPreviewSlot,
   type SlotLead,
 } from "../packages/contracts.js";
-import { unsubscribeOrigin } from "../dashboard-origin.js";
+import { dashboardOrigin, unsubscribeOrigin } from "../dashboard-origin.js";
 import { env } from "../env.js";
+import { askPreview } from "../previews/make.js";
 import { checkedWordsOf, reachOutDraft, reachOutRequest, reachOutWords } from "./request.js";
 import { REPLAN_GIVE_UP_MS, replanSends, type Replan } from "./replan.js";
 import type { LogEvent, Logger } from "../log.js";
@@ -115,6 +121,8 @@ const HOLDS = new Set([
   // Part 4 (R6): words that name the name the chain signs with, or the booking link, when there is none.
   "no_signed_by",
   "no_booking_link",
+  // Decision 0079: words that name {{their preview}} while the lead's is being made, asked for as it is held.
+  "preview_building",
 ]);
 
 /** What a reach-out needs to write an email beside its mailbox: the seal for its unsubscribe, and the origin its page answers on. */
@@ -315,6 +323,23 @@ interface Made {
   parent: ParentEmail | null;
   /** How its sequence ends its emails (00492, decision 0077). */
   signsWith: "name" | "mailbox";
+  /** The lead's preview its words carry as {{their preview}} (decision 0079): its first send starts its thirty days. */
+  previewId: string | null;
+}
+
+/**
+ * The lead's own receptionist, for words that name {{their preview}} (decision 0079): open, with its link; being made,
+ * and asked for where none is (askPreview, its build scheduled once), or held with the switch off and nothing made; or
+ * gone, its door refusing one for this lead for good (not a business that takes bookings, a lead closed), which skips
+ * the send as a failed or ended one does.
+ */
+async function previewForWords(t: Tick, s: ReachOutSendRow): Promise<{ slot: LeadPreviewSlot; id: string | null }> {
+  const row = await leadPreviewOf(t.db, s.tenant_id, s.lead_id);
+  const slot = previewSlotOf(row, t.now, dashboardOrigin());
+  if (slot.state !== "building" || row?.state === "building" || env.LEAD_PREVIEWS !== "on")
+    return { slot, id: slot.state === "open" ? (row?.id ?? null) : null };
+  const asked = await askPreview(t.db, { tenantId: s.tenant_id, leadId: s.lead_id, by: null });
+  return { slot: asked.ok ? slot : { state: "gone" }, id: null };
 }
 
 /**
@@ -403,6 +428,9 @@ async function writeOne(t: Tick, s: ReachOutSendRow): Promise<Outcome> {
     ? await parentEmailOf(db, { tenantId: s.tenant_id, rootId: s.sequence_id, leadId: s.lead_id, stepId: after })
     : null;
   if (after && !parent) return skip("no_parent");
+  // Their preview, read only for words that name it (decision 0079).
+  const preview =
+    slotCount(`${words.subject ?? ""}\n${words.body}`, "their preview") > 0 ? await previewForWords(t, s) : null;
   const made: Made = {
     afterStep: after,
     lead,
@@ -414,6 +442,7 @@ async function writeOne(t: Tick, s: ReachOutSendRow): Promise<Outcome> {
       kind: lead.kind,
       facts: lead.facts,
       source: lead.source,
+      preview: preview?.slot ?? null,
     },
     workspace: {
       businessName: workspace.businessName,
@@ -423,6 +452,7 @@ async function writeOne(t: Tick, s: ReachOutSendRow): Promise<Outcome> {
     },
     parent,
     signsWith: standing.signsWith,
+    previewId: preview?.id ?? null,
   };
   if (standing.ownerSends || parent?.ownerSent) return handOver(t, s, turns, made);
   return sendFromMailbox(t, s, turns, made, { mailbox, messageId });
@@ -550,6 +580,11 @@ async function sendFromMailbox(
       error: e instanceof Error ? e.message : String(e),
     }),
   );
+  // Their preview went with it (decision 0079): its thirty days start at the first email that carries it.
+  if (m.previewId)
+    await previewSent(db, m.previewId).catch((e: unknown) =>
+      t.log.warn("preview_sent_failed", { error: e instanceof Error ? e.message : String(e) }),
+    );
   return "written";
 }
 

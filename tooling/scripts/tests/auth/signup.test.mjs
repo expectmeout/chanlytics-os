@@ -34,12 +34,18 @@ test("the form's shape: a name, a lower-cased address, an optional zone and code
     code: "abc",
   });
   assert.ok(SignupSchema.safeParse({ name: "Luna", email: "o@example.com" }).success, "zone and code are optional");
+  // A lead's own receptionist's link (decision 0079): its token, kept for the claim.
+  assert.equal(
+    SignupSchema.safeParse({ name: "Luna", email: "o@example.com", preview: "TokenTokenTokenToken01" }).data?.preview,
+    "TokenTokenTokenToken01",
+  );
   for (const bad of [
     { name: "L", email: "o@example.com" },
     { name: "Luna", email: "not-an-email" },
     { name: "Luna", email: "o@example.com", role: "owner" },
     { name: "x".repeat(121), email: "o@example.com" },
     { name: "Luna", email: "o@example.com", code: "c".repeat(81) },
+    { name: "Luna", email: "o@example.com", preview: "not/a/token" },
   ])
     assert.equal(SignupSchema.safeParse(bad).success, false, JSON.stringify(bad));
 });
@@ -96,6 +102,16 @@ test("what the form said waits on the user, and is a prefilled form rather than 
     { name: "Luna", timezone: null },
     "a field this build does not know is dropped, not fatal",
   );
+  // The preview sign-up came from, for the first screen to claim (decision 0079); one that is no token is none, and
+  // the name and clock still stand.
+  assert.deepEqual(
+    pendingWorkspaceOf({ pending_workspace: { name: "Luna", timezone: null, preview: "TokenTokenTokenToken01" } }),
+    { name: "Luna", timezone: null, preview: "TokenTokenTokenToken01" },
+  );
+  assert.deepEqual(pendingWorkspaceOf({ pending_workspace: { name: "Luna", timezone: null, preview: "x" } }), {
+    name: "Luna",
+    timezone: null,
+  });
   // Whatever Supabase holds: a user made by /login has no such key, an old
   // or hand-edited value has the wrong shape, and none of it may throw.
   for (const meta of [
@@ -243,7 +259,7 @@ test("the wiring: two public paths, the guards on the route, a service role that
       login.includes('await supabase.auth.resend({ type: "signup", email: email.trim() });'),
     "an unconfirmed account is sent a fresh confirmation rather than the neutral refusal",
   );
-  const page = readCode("apps/dashboard/app/signup/page.tsx");
+  const page = readCode("apps/dashboard/src/auth/SignupScreen.tsx");
   // The server says which of the three doors this is; the field belongs to
   // exactly one of them.
   assert.ok(
