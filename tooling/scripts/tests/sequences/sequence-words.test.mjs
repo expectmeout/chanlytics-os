@@ -234,6 +234,21 @@ test("the one notice: a batch waiting for an OK with its act and how long it wai
   );
   assert.deepEqual([leads.words, leads.fact], ["4 people wait for your OK", null]);
   assert.equal(sequenceNotice(row({ needs: { ...NONE, held: 2 } }), []).words, "2 emails are held by the check");
+  // A batch to leads with every email held: an OK sends nothing, so it is said as what is held, never "waits for your OK"
+  // over an Approve (31 Oct 2026: Brooklyn's 7). One with nobody named yet, being planned, still waits.
+  const allHeld = {
+    ...NONE,
+    waiting: 1,
+    held: 7,
+    batches: [batch({ people: 0, audience: { kind: "reach_out", trigger: null } })],
+  };
+  const held = sequenceNotice(row({ starts: "leads", needs: allHeld }), []);
+  assert.deepEqual([held.kind, held.words, held.batchId], ["held", "7 emails are held by the check", null]);
+  assert.deepEqual([needsWords(allHeld), needsCount(allHeld)], ["7 held", 7]);
+  assert.equal(sequenceRowLine(row({ starts: "leads", needs: allHeld }), TZ, NOW), "7 held");
+  const planning = { ...allHeld, held: 0 };
+  assert.equal(sequenceNotice(row({ starts: "leads", needs: planning }), []).kind, "waiting");
+  assert.equal(needsWords(planning), "waits for your OK");
   assert.equal(sequenceNotice(row(), []), null);
 });
 

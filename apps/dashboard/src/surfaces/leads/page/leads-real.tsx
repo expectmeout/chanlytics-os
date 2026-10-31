@@ -5,6 +5,7 @@
  * (useSurface("leads")). Its state is the hooks beside it, one concern each, called in the order it always called them; its
  * acts are plain functions over the draw's state; and what it hands LeadsScope comes from the five builders (props.tsx).
  */
+import { useEffect } from "react";
 import { leadBand, leadRail, leadReachOf, leadsStanding, type LeadRowVM } from "@chanlytics/contracts";
 import { navigate } from "../../legacy-verbs";
 import { useSwapMotion } from "../../kit/motion/use-swap-motion";
@@ -105,6 +106,13 @@ function useLeadsView({ leadsRoute, onNavigate }: { leadsRoute: string | null; o
   const read = useLeadsRead({ leadView, viewRoute, ...order, plFlash });
   const rows = useLeadRows({ leads, q, chip, fitChip, reach, leadView, viewRoute, ...order });
   const { leadShown, shownIds, viewLanded } = rows;
+  // "All that match" is a claim about the view the server knows. Once the box, a chip, a fit or the Filter hides a loaded
+  // row, the bars act on the rows they show, so a claim taken before goes back to the rows picked (use-place.ts takes it
+  // back for the box's words alone).
+  const { setAllMatching } = controls;
+  useEffect(() => {
+    if (rows.narrowed) setAllMatching(false);
+  }, [rows.narrowed]); // eslint-disable-line react-hooks/exhaustive-deps
   // Each view keeps its place by the address's view (viewRoute), its map and its Filter with it. A view opened after the
   // first starts with none of the last one's filters.
   const place = usePlPlace({

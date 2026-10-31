@@ -35,6 +35,9 @@
           "api/admin/imports/website-read.ts": {
             "maxDuration": 15
           },
+          "api/admin/imports/logo-lookup.ts": {
+            "maxDuration": 30
+          },
           "api/admin/calendar/feed.ts": {
             "maxDuration": 30
           },

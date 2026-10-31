@@ -10,12 +10,20 @@ import type {
   LeadList,
   LeadMonthDto,
   LeadPileCountsDto,
+  LeadReachFilter,
   LeadRowDto,
   LeadRowVM,
   LeadSearchDto,
   LeadSort,
   LeadSuggestionsDto,
+  LeadsBulkInput,
 } from "@chanlytics/contracts";
+
+/**
+ * The view an export names: the keys GET leads takes, as a bulk act names a view (LeadsViewSchema), and the Filter's reach
+ * where one is on, so the file is the table's rows and not the view's every lead.
+ */
+export type LeadsExportView = Extract<LeadsBulkInput, { by: "view" }>["view"] & { reach?: readonly LeadReachFilter[] };
 
 export interface LeadsView {
   searchId: string | null;

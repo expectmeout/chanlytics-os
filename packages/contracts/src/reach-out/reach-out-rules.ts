@@ -28,7 +28,7 @@ import { slotHoles, slotMentions, slotValueOf, slotValues, slotsWritten } from "
 import { LEAD_ROLE_WORDS, leadAddresseeOf } from "../leads/lead-kind";
 import { leadCalledByOf } from "../leads/search/called-by";
 import type { LeadPreviewSlot } from "../previews/lead-preview";
-import { REACH_OUT_SLOT_FALLBACKS, REACH_OUT_SLOT_SET, linkCount, slotCount } from "./reach-out-words";
+import { REACH_OUT_SLOT_FALLBACKS, REACH_OUT_SLOT_SET, linkCount } from "./reach-out-words";
 
 export interface OutreachLeadFacts {
   leadStage: string | null;
@@ -262,16 +262,16 @@ const addressKey = (text: string): string =>
     .trim();
 
 /**
- * A mailbox's signature as a cold email carries it (0077, amended 30 Oct 2026): its lines, less the one that says the
- * business's address, which the foot under every cold email says, and in a first email less each line that holds a link
- * (the words' own link rule, `linkCount`); null where nothing with a letter in it is left. One web address used to drop
- * the whole signature, so a first email ended with the bare first name.
+ * A mailbox's signature as a cold email carries it (0077, amended 30 and 31 Oct 2026): its lines, less the one that says
+ * the business's address, which the foot under every cold email says, and less each line that holds a link where the
+ * email is to carry none of the signature's (`linkless`, coldEndingOf); null where nothing with a letter in it is left.
+ * One web address used to drop the whole signature, so a first email ended with the bare first name.
  */
-function coldSignatureOf(signature: string | null, first: boolean, address: string | null): string | null {
+function coldSignatureOf(signature: string | null, linkless: boolean, address: string | null): string | null {
   const said = address ? addressKey(address) : "";
   const kept = (signature ?? "")
     .split(/\r\n|\r|\n/)
-    .filter((line) => !(first && linkCount(line) > 0) && !(said && addressKey(line) === said))
+    .filter((line) => !(linkless && linkCount(line) > 0) && !(said && addressKey(line) === said))
     .join("\n")
     .replace(/\n\s*\n(\s*\n)+/g, "\n\n")
     .trim();
@@ -292,9 +292,11 @@ export function coldEndingOf(p: {
   body: string;
   address: string | null;
 }): ColdEnding {
-  // A step that names their preview (decision 0079) carries it as its one link, so the signature goes as a first email's
-  // does: less each line that holds a link.
-  const linkless = p.first || slotCount(p.body, "their preview") > 0;
+  // A cold email holds one link at most, a first email none (the words' own rule, `linkCount`): the signature's link lines
+  // go from a first email, from one whose words hold a link already ({{booking link}}, {{their preview}}, one written
+  // out), and where the signature alone would be more than one (31 Oct 2026: a nudge with the booking link went out with
+  // the signature's web address under it).
+  const linkless = p.first || linkCount(p.body) > 0 || linkCount(p.signature ?? "") > 1;
   const signature = p.signsWith === "mailbox" ? coldSignatureOf(p.signature, linkless, p.address) : null;
   if (signature) return { signOff: null, signature };
   const name = p.signedBy?.trim() || null;

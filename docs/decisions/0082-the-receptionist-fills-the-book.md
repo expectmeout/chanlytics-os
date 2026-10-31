@@ -1,7 +1,7 @@
 # 0082 · The receptionist fills the book
 
-**Status:** Decided by Ruben on 30 October 2026, and built on 31 October in L1 to L3 (the plan's "as built" notes); its
-pull request is open, and 00498 is not on production yet. The design brief was approved with its spend ("Approve,
+**Status:** Decided by Ruben on 30 October 2026, built on 31 October in L1 to L3 (the plan's "as built" notes) and
+landed that day: #1969 = `d4e8ae47d`, its migration 00498 on production before the merge. The design brief was approved with its spend ("Approve,
 write spec"). Spec `docs/superpowers/specs/2026-10-30-the-receptionist-fills-the-book-design.md`, plan
 `docs/superpowers/plans/2026-10-30-the-receptionist-fills-the-book.md`, lane
 `sequences/the-receptionist-fills-the-book`. Written against main's `5d0394714` (#1961), and verified against the

@@ -1,8 +1,15 @@
 /**
  * What a broadcast says to its owner when it stops on a wire, in the owner's words, one set per channel (broadcast.ts).
  */
-import { audienceTrigger, playbookRunNext, type PlaybookRunNextBy, type RunStop } from "@chanlytics/contracts";
+import {
+  audienceTrigger,
+  freedTimeWords,
+  playbookRunNext,
+  type PlaybookRunNextBy,
+  type RunStop,
+} from "@chanlytics/contracts";
 import type { BroadcastChannel as Channel } from "./broadcast-channels";
+import type { BroadcastRow } from "./ports";
 
 /**
  * What a run says of each wire it goes out on, in the owner's words: the credentials it could not read, why the wire is
@@ -146,19 +153,25 @@ export function thenWhat(
 }
 
 /**
- * The words a run kept on a person's row when it was made, for the slots that take them: a visit's time and service, a
- * follow-up's link (0006) and the freed time every send of its batch carries (0082). A word not kept is null, and the
- * slot that asks for it holds the person.
+ * The words a run kept on a person's row when it was made, for the slots that take them: a visit's time and service and a
+ * follow-up's link (0006). A word not kept is null, and the slot that asks for it holds the person. A freed time's (0082)
+ * is read again as the send goes, from the time its batch offers, by the business's clock (contracts freedTimeWords): a
+ * batch that waited overnight for the owner's OK says "today at 2:00 PM", never the "tomorrow" it was made with. The row's
+ * kept words stand only where the batch says no time.
  */
-export function wordsKeptOnRow(facts: Record<string, unknown>) {
+export function wordsKeptOnRow(
+  facts: Record<string, unknown>,
+  at: { b: Pick<BroadcastRow, "offered_start">; tz: string; nowMs: number },
+) {
   const word = (k: string): string | null => {
     const v = facts[k];
     return typeof v === "string" ? v : null;
   };
+  const offered = at.b.offered_start ? Date.parse(at.b.offered_start) : Number.NaN;
   return {
     visitWhen: word("visit_when"),
     visitService: word("visit_service"),
     proposalLink: word("proposal_link"),
-    freedWhen: word("freed_when"),
+    freedWhen: Number.isFinite(offered) ? freedTimeWords(offered, at.tz, new Date(at.nowMs)) : word("freed_when"),
   };
 }

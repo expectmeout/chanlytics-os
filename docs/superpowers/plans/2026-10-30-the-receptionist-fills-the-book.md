@@ -101,6 +101,23 @@ Nothing is offered until a workspace turns the moment on, so no switch is needed
 - **Debt:** the db barrel grows 855 to 861 for the four reads, recorded under Rises in `docs/debt.md`; the pull request
   carries a `Debt:` line for it.
 
+**L4 as built (31 Oct 2026).** #1969 = `d4e8ae47d`, with 00498 applied to production before the merge. #1968's 00497
+was on production while its pull request was still open, so the CLI's dry run refused until its file stood in the lane,
+for the dry run and the push alone. #1968 landed while this one did: main had fixed the same TS7056 in `tenantDb`, so its
+type was taken; the barrel moved 882 to 888 over it. Not done: step 3's walk of the real app on a stack, and the eval
+case (production's eval door, on Ruben's word).
+
+**After landing, from a review (31 Oct 2026, `sequences/freed-time-loose-ends`):**
+
+- **The words of a held batch:** a batch waiting for the owner's OK kept the words it was made with, so approved the
+  morning after, its message said "tomorrow at 2:00 PM" of a time that day. The send reads the time's words as it goes,
+  from the batch's `offered_start` (core broadcast-words `wordsKeptOnRow`).
+- **A freed time's wait behind the day's runs:** the sweep read 50 waiting runs, oldest day first, and a freed time's
+  batch, which has no day, sorted after them all: behind a page of the day's runs it could wait on after its time came.
+  The two are read apart (db `waitingPlaybookRuns`).
+- **Ask's count on a busy calendar:** `cancellationsSince` named every appointment in one `in` list; it asks 200 at a
+  time, as the readers that page by id do.
+
 **How each task runs:**
 
 - Each task writes its test first and runs that one file, red, then makes it pass:

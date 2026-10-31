@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
+  BUILDS_AT_SCALE,
   CHANGES_A_TABLE,
   databasePasses,
   importsLeaveTheThread,
@@ -121,17 +122,19 @@ test("a database suite that changes a shared table's definition runs alone, afte
 });
 
 test("a database suite that replays a migration's own statement runs alone too: a backfill names no workspace (31 Oct 2026)", () => {
-  // The file named in the suite's code, as each replay reads its statement. A body compared by the migration's number,
-  // or a file named in a comment's words, runs nothing of it.
+  // The file named in the suite's code, or a write picked out of the migration's text by its first words, as each replay
+  // reads its statement. A body compared by the migration's number, or a file named in a comment's words, runs nothing.
   for (const code of [
     'const MIGRATION = path.join(ROOT, "supabase", "migrations", "00297_a_yes_covers_the_channels_it_was_given_for.sql");',
     'readFileSync(path.join(ROOT, "supabase/migrations/00439_the_business_has_one_name.sql"), "utf8")',
+    String.raw`const backfills = sql.match(/^insert into public\.conversation_channel_state[\s\S]*?;\n/gm);`,
   ])
     assert.ok(REPLAYS_A_MIGRATION.test(code), code);
   for (const code of [
     " * (release B, migration 00142_the_leads_are_worked.sql; PRD v3 §9, §0.4).",
     "// The pilot is the first workspace: 00001_foundation.sql made it",
     "fs.readdirSync(dir).find((f) => f.startsWith(`${n}_`))",
+    'const body = bodyIn(migration(479), "create or replace function public.website_read(");',
   ])
     assert.equal(REPLAYS_A_MIGRATION.test(code), false, code);
 
@@ -141,7 +144,7 @@ test("a database suite that replays a migration's own statement runs alone too: 
     alone: ["the-backfill.db.test.mjs"],
   });
 
-  // The whole run: the three suites that replay one alone, and the suite consent-channels' replay reached beside the rest.
+  // The whole run: the four suites that replay one alone, and the suite consent-channels' replay reached beside the rest.
   const files = (args) => args.filter((a) => a.startsWith("tooling/scripts/tests/") && a.endsWith(".mjs"));
   const run = planOf(["--db", "--test-concurrency=3"], {});
   const [together, alone] = [files(run.args), files(run.alone ?? [])];
@@ -149,10 +152,41 @@ test("a database suite that replays a migration's own statement runs alone too: 
     "consent/consent-channels.db.test.mjs",
     "google/a-review-s-first-notices-open-the-review.db.test.mjs",
     "public/the-business-has-one-name.db.test.mjs",
+    "inbound/a-thread-keeps-when-each-wire-last-heard.db.test.mjs",
   ])
     assert.ok(alone.includes(`tooling/scripts/tests/${f}`), f);
   assert.ok(together.includes("tooling/scripts/tests/consent/email-offers.db.test.mjs"));
   assert.ok(together.includes("tooling/scripts/tests/lead-lists/lead-lists.db.test.mjs"), "a body compared, not run");
+});
+
+test("a database suite that builds a workspace at scale runs alone too: the others' reads are planned while it is written (31 Oct 2026)", () => {
+  // Known by how it goes: in SQL, as a workspace too big for the API inside the service role's 30 seconds is removed. A
+  // workspace removed through the API, or a word in a comment, is not one.
+  for (const code of [
+    "for (const id of scaled) query(`delete from public.tenants where id = '${id}'`);",
+    "attempt(`workspace ${id}`, () => query(`delete from public.tenants where id = '${id}'`));",
+  ])
+    assert.ok(BUILDS_AT_SCALE.test(code), code);
+  for (const code of [
+    'for (const id of tenants) await db.from("tenants").delete().eq("id", id);',
+    "delete from public.tenant_config where tenant_id = t",
+  ])
+    assert.equal(BUILDS_AT_SCALE.test(code), false, code);
+
+  const read = (f) => (f.includes("scale") ? "query(`delete from public.tenants where id = '${id}'`)" : "select 1");
+  assert.deepEqual(databasePasses(["a.db.test.mjs", "at-scale.db.test.mjs"], read), {
+    together: ["a.db.test.mjs"],
+    alone: ["at-scale.db.test.mjs"],
+  });
+
+  // The whole run: the two worlds at scale alone, and the reach-out reads that timed out beside them run with the rest.
+  const files = (args) => args.filter((a) => a.startsWith("tooling/scripts/tests/") && a.endsWith(".mjs"));
+  const run = planOf(["--db", "--test-concurrency=3"], {});
+  const [together, alone] = [files(run.args), files(run.alone ?? [])];
+  for (const f of ["playbooks/totals/playbook-totals.db.test.mjs", "reports/campaigns/campaign-scale.db.test.mjs"])
+    assert.ok(alone.includes(`tooling/scripts/tests/${f}`), f);
+  for (const f of ["reach-out/reach-out-run.db.test.mjs", "reach-out-stops/reply-away.db.test.mjs"])
+    assert.ok(together.includes(`tooling/scripts/tests/${f}`), f);
 });
 
 test("under TEST_SLOW_IMPORTS=1 an import a test makes waits where tsx loads off the main thread; where tsx loads in it, the launcher says so and runs nothing", () => {

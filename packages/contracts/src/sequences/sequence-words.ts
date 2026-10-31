@@ -13,6 +13,7 @@ import { CAMPAIGN_ROOMS, RUN_WAITING_SHORT, runApproveWords } from "../shell/cam
 import { runWaitsOnYou, type RunDays } from "../waits/waits";
 import type { SequenceNeedsDto, SequencePeopleGroup, SequenceRowDto, SequenceStepDto } from "./sequence-dto";
 import { SEQUENCE_MODE_WORDS, isSequenceMode, type SequenceState } from "./sequence";
+import { heldByCheckWords, needsCount, needsWords, okSendsNothing } from "./sequence-list";
 import { sequenceRunOff, type RunOffReason } from "./sequence-run-off";
 import type { ReachOutFedBy } from "../reach-out/reach-out-leads";
 
@@ -225,11 +226,6 @@ function twinLineOf(row: Pick<SequenceRowDto, "first">): string {
 export const visitTwinWords = (name: string): string =>
   `“${name}” already sends at this moment, so each person would get two. Turn it off first.`;
 
-/** How many of a sequence's people or emails wait for you: the one count the list, the badge, Today and Ask say. */
-export function needsCount(n: SequenceNeedsDto): number {
-  return n.waiting_people + n.held + n.to_send + n.replies + (n.waiting > 0 && n.waiting_people === 0 ? n.waiting : 0);
-}
-
 /**
  * A sequence as the badge counts it (decision 0048's one count): only the batches an OK can still send wait for you,
  * judged as every Approve is (contracts runWaitsOnYou, by the business's day); a batch whose day has passed is no one's
@@ -268,17 +264,6 @@ export function sequenceGroupOf(row: SequenceRowDto, twin: SequenceTwin | null =
   if (row.state === "paused") return "off";
   if (row.starts === "leads") return "leads";
   return "customers";
-}
-
-/** What needs you in a sequence, in a few words: "14 wait for your OK · 3 held · 2 wrote back". Empty when nothing does. */
-export function needsWords(n: SequenceNeedsDto): string {
-  const parts: string[] = [];
-  if (n.waiting_people > 0) parts.push(`${n.waiting_people} wait for your OK`);
-  else if (n.waiting > 0) parts.push("waits for your OK");
-  if (n.held > 0) parts.push(`${n.held} held`);
-  if (n.to_send > 0) parts.push(`${n.to_send} for you to send`);
-  if (n.replies > 0) parts.push(`${plural(n.replies, "wrote back", "wrote back")} · answer them`);
-  return parts.join(" · ");
 }
 
 /** What starts a sequence, short: "Before a visit", "Gone quiet", "Joins Regulars", "Salon owners · Queens". */
@@ -582,8 +567,9 @@ export function sequenceNotice(
   lastRun: { off: string | null | undefined; for: string | null | undefined; tz: string; nowMs: number } | null = null,
 ): SequenceNotice | null {
   const n = row.needs;
-  // The batch an OK goes to: the soonest of those an OK can still send (sequenceWaitsNow).
-  const batch = n.waiting > 0 ? (n.batches[0] ?? null) : null;
+  // The batch an OK goes to: the soonest of those an OK can still send (sequenceWaitsNow). One that would send nothing,
+  // its emails all held, is said below as what is held.
+  const batch = n.waiting > 0 && !okSendsNothing(n) ? (n.batches[0] ?? null) : null;
   if (batch) return waitingNotice(steps, batch);
   // On, and its last run did nothing: said with the door that mends it, until a run goes again (sequence-run-off.ts).
   const off = lastRun ? sequenceRunOff(row, lastRun, { tz: lastRun.tz, nowMs: lastRun.nowMs }) : null;
@@ -607,7 +593,7 @@ export function sequenceNotice(
   if (n.held > 0)
     return noticeOf({
       kind: "held",
-      words: `${plural(n.held, "email is", "emails are")} held by the check`,
+      words: heldByCheckWords(n.held),
       line: `${n.held} held by the check`,
       fact: null,
       act: SEQUENCE_WORDS.review,

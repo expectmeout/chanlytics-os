@@ -75,8 +75,8 @@ repository's root. `tooling/scripts/tests/docs/docs-paths.test.mjs` fails when o
 3. **Database client**: the session client in `src/lib/supabase`; the service role in `packages/db/src/service-client.ts` and the dashboard's `src/server/service-db.ts`; the edge's `apps/edge/lib/pg.ts`.
 4. **API calls**: a page calls the bridge (`src/legacy-bridge/api.ts`), which calls the typed client (`src/client/api.ts` over `src/client/routes.generated.ts`), which calls `app/api/v1`. The dashboard reaches the edge through `src/server/edge.ts` with a per-call token.
 5. **Business logic**: `packages/core` verbs; the receptionist's decisions in `apps/edge/lib`; privileged writes in SQL doors. Booking logic lives nowhere, by charter: the receptionist never books.
-6. **Shared components**: `src/legacy/components` and `src/legacy/styles/tokens.css`.
-7. **Feature components**: `src/legacy/pages/<surface>*.jsx`, fed through `src/legacy-bridge`.
+6. **Shared components**: the kit, `src/surfaces/kit/` (`src/surfaces/kit/kit.css`), and the tokens in `src/legacy/styles/tokens.css`.
+7. **Feature components**: `src/surfaces/<surface>/`, a folder per surface, fed through the seam (`src/legacy-bridge/surface-data.ts`); Ask's pages, not yet moved, in `src/legacy/pages/ask-*.jsx` through `src/legacy-bridge/ask/`.
 8. **Global state**: `docs/architecture.md`, The shell; the `*_STORE`s and who owns them in `apps/dashboard/src/legacy/CLAUDE.md`; which surface retires each in decision 0015.
 9. **Server state cache**: `src/legacy-bridge/{surface-cache,read-cache,surface-runner,surface-realtime,refresh-map}.ts`.
 10. **Errors**: `AppError` in `packages/contracts/src/shared/errors.ts` and the envelope in `src/server/route.ts`, `refusalOf` in `packages/contracts/src/shell/refusal.ts`, `FailedRead` and `EmptyState` in `src/surfaces/kit/empty/empty.tsx`; the edge's logger in `apps/edge/lib/log.ts` and the pager in `apps/edge/lib/ops/page-operator.ts`.
@@ -87,7 +87,7 @@ repository's root. `tooling/scripts/tests/docs/docs-paths.test.mjs` fails when o
 15. **Background jobs**: `packages/jobs`, `apps/edge/api/jobs/tick.ts`, the sweeps under `apps/edge/api/cron`.
 16. **AI**: one receptionist (`apps/edge/lib/receptionist/brain.ts`, the composer in `packages/contracts/src/config/workspace-config/compose.ts`, the structured answer in `packages/contracts/src/config/brain.ts`); Ask under `src/server/ask`; the lead judge in `packages/channels/src/leads/lead-judge.ts` and `packages/core/src/leads`. The mockup's agent fleet is not built, by decision.
 17. **Adding a feature**: `CLAUDE.md`, Where new code goes, and the canonical example table.
-18. **Reusing a component**: `src/legacy/components`, and the `btn`, `set-input`, `record-*` classes the pages already use.
+18. **Reusing a component**: the kit, `src/surfaces/kit/`, and its classes in `src/surfaces/kit/kit.css`.
 19. **A new endpoint**: copy the snooze route; add its row to `tooling/scripts/tests/route-policy.json` (the test prints what it expects); run `tooling/scripts/gen/route-types.mjs`.
 20. **Writing a test**: copy `tooling/scripts/tests/sms/sms-door.test.mjs` for a door, `tooling/scripts/tests/conversations/core-thread-verbs.test.mjs` for a verb, any `tooling/scripts/tests/<domain>/*.db.test.mjs` for the database.
 21. **Run locally**: `docs/runbook.md`.
