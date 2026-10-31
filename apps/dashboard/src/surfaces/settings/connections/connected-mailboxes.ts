@@ -1,7 +1,8 @@
 /**
  * The mailboxes a workspace connected to write its reach-outs from, on Settings › Connections (decision 0056): the
- * owner's acts -- connect one at Google or Microsoft, pause it, resume one its own mail held, set its name, signature
- * and cap, send a test to itself, Check its records, remove it -- and what each row says, which are contracts'
+ * owner's acts -- connect one at Google or Microsoft (its last six months or from now on: decision 0086), pause it,
+ * resume one its own mail held, set its name, signature and cap, send a test to itself, Check its records, stop, resume
+ * or bring in what it brings, remove it -- and what each row says, which are contracts'
  * (email/mailbox-connections.ts), so the row says the same sentence the door and the clock decided.
  *
  * Every write is in the refresh map under Setup: the block repaints from Setup's re-read, and the mailboxes clock's
@@ -14,6 +15,7 @@ import {
   MAILBOX_CONNECTIONS_MAX,
   MAILBOX_DAILY_CAP_MAX,
   MAILBOX_DNS_WORDS,
+  MAILBOX_HISTORY_WORDS,
   MAILBOX_PROVIDER_WORDS,
   MAILBOX_SIGNATURE_WORDS,
   customerDomainWords,
@@ -22,6 +24,7 @@ import {
   mailboxConnectWords,
   mailboxDnsOf,
   mailboxGmailSignsWords,
+  mailboxHistoryLine,
   mailboxRecordRows,
   mailboxRecordStateWords,
   mailboxRowWords,
@@ -30,6 +33,7 @@ import {
   mailboxSignsChoiceOf,
   mailboxSignsOf,
   mailboxesFootWords,
+  type MailboxHistory,
   type MailboxProvider,
 } from "@chanlytics/contracts";
 import { api } from "@/legacy-bridge/api";
@@ -41,7 +45,13 @@ interface ConnectedMailboxesApi {
    * one, so a refusal comes back here to be said on the page. A Reconnect names its mailbox.
    */
   /** `back: "start"` brings the owner back to the first run that asked (decision 0073), not to Connections. */
-  connect(provider: MailboxProvider, mailboxId?: string | null, back?: "start"): Promise<ApiResult<unknown>>;
+  /** `history` is what its owner chose of a new mailbox's history (decision 0086); absent, its last six months. */
+  connect(
+    provider: MailboxProvider,
+    mailboxId?: string | null,
+    back?: "start",
+    history?: MailboxHistory,
+  ): Promise<ApiResult<unknown>>;
   /** The link a Microsoft 365 admin opens to approve Chanlytics for their organisation, once. */
   adminLink(): Promise<ApiResult<{ url: string }>>;
   set(
@@ -58,6 +68,11 @@ interface ConnectedMailboxesApi {
   check(id: string): Promise<ApiResult<unknown>>;
   test(id: string): Promise<ApiResult<unknown>>;
   remove(id: string): Promise<ApiResult<unknown>>;
+  /** What it brings in (0086): Stop where it stands, Resume (or Try again) where it stopped, or its six months brought. */
+  history(id: string, act: "stop" | "resume" | "bring"): Promise<ApiResult<unknown>>;
+  /** Where its history stands on its row, and the act that fits; and the choice's words. */
+  historyLine: typeof mailboxHistoryLine;
+  historyWords: typeof MAILBOX_HISTORY_WORDS;
   /** What the browser came back from the provider with, said once: its words, whether it is good news, and its word. */
   outcome(): { ok: boolean; words: string; code: string | null } | null;
   row: typeof mailboxRowWords;
@@ -85,9 +100,14 @@ interface ConnectedMailboxesApi {
 }
 
 export const connectedMailboxes: ConnectedMailboxesApi = {
-  connect: async (provider, mailboxId, back) => {
+  connect: async (provider, mailboxId, back, history) => {
     const r = await api()("GET mailbox-connections/connect", {
-      query: { provider, ...(mailboxId ? { mailbox_id: mailboxId } : {}), ...(back ? { back } : {}) },
+      query: {
+        provider,
+        ...(mailboxId ? { mailbox_id: mailboxId } : {}),
+        ...(back ? { back } : {}),
+        ...(history && !mailboxId ? { history } : {}),
+      },
     });
     if (r.ok) window.location.assign(r.data.url);
     return r;
@@ -98,6 +118,9 @@ export const connectedMailboxes: ConnectedMailboxesApi = {
   check: (id) => api()("POST mailbox-connections/[id]/check", { params: { id } }),
   test: (id) => api()("POST mailbox-connections/[id]/test", { params: { id } }),
   remove: (id) => api()("DELETE mailbox-connections/[id]", { params: { id } }),
+  history: (id, act) => api()("POST mailbox-connections/[id]/history", { params: { id }, body: { act } }),
+  historyLine: mailboxHistoryLine,
+  historyWords: MAILBOX_HISTORY_WORDS,
   outcome() {
     try {
       const q = new URLSearchParams(window.location.search);

@@ -25,6 +25,7 @@ import {
   isFreeMail,
   parseTenantConfig,
   siteHost,
+  type MailboxHistory,
   type MailboxProvider,
 } from "../../packages/contracts.js";
 import {
@@ -184,6 +185,8 @@ export async function mailboxConnect(
     verifier?: string | null;
     /** The mailbox a Reconnect is for: the account that comes back must be that one. */
     mailboxId?: string | null;
+    /** What its owner chose under Connect (0086): kept on a new mailbox; a reconnect keeps what it was. */
+    history?: MailboxHistory | null;
   },
 ): Promise<
   { ok: true; id: string; made: boolean; address: string } | { ok: false; why: ConnectError; detail?: string }
@@ -258,12 +261,17 @@ export async function mailboxConnect(
     );
     return refused("failed");
   }
-  // Its domain's records and its watch: neither stops a connect that stands; the clock reads both again.
+  // Its domain's records and its watch: neither stops a connect that stands; the clock reads both again. A new mailbox
+  // keeps what its owner chose of its history.
   const dns = await readMailboxDns(host, i.provider).catch(() => null);
+  const history: MailboxHistory = i.history === "from_now" ? "from_now" : "six_months";
   const row = await patchMailboxConnection(p.db, {
     tenantId: i.tenantId,
     id: made.id,
-    patch: dns ? { dns, dns_checked_at: new Date(now).toISOString() } : {},
+    patch: {
+      ...(dns ? { dns, dns_checked_at: new Date(now).toISOString() } : {}),
+      ...(made.made ? { history } : {}),
+    },
   });
   if (row)
     await keepWatch(p.db, row, grant.access_token, p.log, now).catch((e: unknown) =>
@@ -282,14 +290,15 @@ export async function mailboxConnect(
   });
   // Connected again, its sign-out's warning is mended (contracts NOTICE_MENDS).
   if (!made.made) await mendMailbox(p.db, i.tenantId, made.id, "mailbox_connection.connected");
-  // What it brings beside its mail (decision 0073, R19, R20): its six months, its people and its calendar, while the
-  // owner goes on; a reconnect starts again what stopped.
+  // What it brings beside its mail (decision 0073, R19, R20): its six months unless its owner chose from now on (0086),
+  // its people and its calendar, while the owner goes on; a reconnect starts again what stopped.
   await startMailboxHistory(p.db, {
     tenantId: i.tenantId,
     mailboxId: made.id,
     provider: i.provider,
     scopes: grantScopes(grant.scope),
     first: made.made,
+    history,
     by: i.userId,
     log: p.log,
   });

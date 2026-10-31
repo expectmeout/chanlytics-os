@@ -146,7 +146,7 @@ export const FIRST_RUN_CHANNELS_WORDS = {
   },
   email: {
     title: "Your email",
-    says: "Connect the inbox you already use: six months of customers' emails and your contacts come in, and offers and sequences go from your address.",
+    says: "Connect the inbox you already use: customers' emails and your contacts come in, and offers and sequences go from your address.",
     google: "Connect Gmail",
     microsoft: "Connect Outlook",
     soon: "Coming soon",
@@ -160,7 +160,7 @@ export const FIRST_RUN_CHANNELS_WORDS = {
     people: "People",
     peopleSub: "your clients, contacts, WhatsApp",
     inbox: "Inbox",
-    inboxSub: "six months of email and chats",
+    inboxSub: "email and chats",
     calendar: "Calendar",
     calendarSub: "coming up",
     reviews: "Reviews",

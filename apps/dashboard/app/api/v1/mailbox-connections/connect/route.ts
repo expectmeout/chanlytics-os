@@ -8,12 +8,14 @@ const Query = z.object({
   admin: z.enum(["1"]).optional(),
   /** Back to the first run that asked (decision 0073), not to Connections. */
   back: z.enum(["start"]).optional(),
+  /** What its owner chose of a new mailbox's history (decision 0086); absent, its last six months. */
+  history: z.enum(["six_months", "from_now"]).optional(),
 });
 
 /**
- * GET /api/v1/mailbox-connections/connect?provider=google|microsoft[&mailbox_id=…][&admin=1] — `{ url }`, the way to
- * the provider's consent screen, for the page to follow: a signed state naming the workspace, the person and the
- * provider, and for a Reconnect the mailbox it is for (the provider is asked for that address, and the account that
+ * GET /api/v1/mailbox-connections/connect?provider=google|microsoft[&mailbox_id=…][&admin=1][&history=from_now] —
+ * `{ url }`, the way to the provider's consent screen, for the page to follow: a signed state naming the workspace, the
+ * person and the provider, what its owner chose of a new mailbox's history, and for a Reconnect the mailbox it is for (the provider is asked for that address, and the account that
  * comes back must be its own). `admin=1` (Microsoft only) answers instead the link a Microsoft 365 admin opens to
  * approve Chanlytics for their organisation. Owners and managers. Answered as data, so every refusal is said on the
  * page; the callback proves the state before trusting anything that comes back with it.
@@ -30,5 +32,6 @@ export const GET = read({
       mailboxId: input.mailbox_id,
       admin: input.admin === "1",
       back: input.back ?? null,
+      history: input.history ?? null,
     }),
 });

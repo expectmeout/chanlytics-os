@@ -40,6 +40,7 @@ const { waConnect } = await importSrc("apps/dashboard/src/surfaces/settings/conn
 const { connectedMailboxes } = await importSrc(
   "apps/dashboard/src/surfaces/settings/connections/connected-mailboxes.ts",
 );
+const { Segmented } = await importSrc("apps/dashboard/src/surfaces/kit/segmented/segmented.tsx");
 const PW = FIRST_RUN_HELPERS.phoneWords;
 const CW = FIRST_RUN_HELPERS.channelsWords;
 /** This deployment's Meta door, as the page asks whether it connects keeping the app (R12). */
@@ -367,8 +368,8 @@ test("Where it answers: the owner's own mailbox -- Gmail and Outlook where this 
   const was = { connect: connectedMailboxes.connect, outcome: connectedMailboxes.outcome };
   t.after(() => Object.assign(connectedMailboxes, was));
   Object.assign(connectedMailboxes, {
-    connect: async (p, id, back) => {
-      asked.push([p, id, back]);
+    connect: async (p, id, back, history) => {
+      asked.push([p, id, back, history]);
       return { ok: true, message: "" };
     },
     outcome: () => null,
@@ -378,8 +379,32 @@ test("Where it answers: the owner's own mailbox -- Gmail and Outlook where this 
   assert.equal(byTestId(tree, "fr-email").props["data-state"], "connect");
   assert.equal(textOf(byTestId(tree, "fr-email-google")), "Connect Gmail");
   assert.equal(textOf(byTestId(tree, "fr-email-microsoft")), "Connect Outlook");
+  // What connecting brings, once, under the presses (decision 0086): Change opens the two ways in place.
+  assert.equal(
+    textOf(byTestId(tree, "mailbox-history-line")),
+    "Brings in the last 6 months of email from people. Change",
+  );
   await byTestId(tree, "fr-email-google").props.onClick();
-  assert.deepEqual(asked, [["google", null, "start"]], "the consent screen comes back to the first run");
+  assert.deepEqual(
+    asked,
+    [["google", null, "start", "six_months"]],
+    "the consent screen comes back to the first run, the six months by default",
+  );
+  byTestId(tree, "mailbox-history-change").props.onClick();
+  tree = mount();
+  assert.equal(byTestId(tree, "mailbox-history-line"), null);
+  let ways = null;
+  walk(byTestId(tree, "mailbox-history-ways"), (n) => {
+    if (n.type === Segmented) ways = n;
+  });
+  assert.deepEqual(
+    ways.props.options.map((o) => o.label),
+    ["Last 6 months", "From now on"],
+  );
+  ways.props.onValueChange("from_now");
+  tree = mount();
+  await byTestId(tree, "fr-email-microsoft").props.onClick();
+  assert.deepEqual(asked.at(-1), ["microsoft", null, "start", "from_now"], "the choice rides the connect");
   setSetup(
     atChannels({
       ...phoneReady(),

@@ -617,6 +617,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // (a connect comes back from the provider to a page that reads it afresh).
   "PATCH mailbox-connections/[id]": setup,
   "POST mailbox-connections/[id]/check": setup,
+  // What it brings in, stopped, started again or brought (0086): its row and the Email card read again from Setup.
+  "POST mailbox-connections/[id]/history": setup,
   "POST mailbox-connections/[id]/resume": setup,
   "POST mailbox-connections/[id]/test": setup,
   "DELETE mailbox-connections/[id]": setup,
