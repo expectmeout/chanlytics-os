@@ -26,7 +26,12 @@ import { addPeopleFromCalendar } from "./calendar-people.js";
 type Db = SupabaseClient<Database>;
 type Bookings = NonNullable<JobContext["bookings"]>;
 
-/** The most one read may take of the job's time: a short email into a fixed shape. */
+/**
+ * The most one read may take of the job's time: a short email into a fixed shape. The whole read's ceiling (both
+ * tries, the fallback and the plain-JSON second call, through the signal); one try's bound is the registry's for
+ * booking_read (contracts ai/models.ts, READ_TRY_MS), which a caller's bound narrows and never widens (channels
+ * tryBound), so a try takes the job's time left only where that is the shorter.
+ */
 const NOTICE_CALL_MS = 30_000;
 
 /** The reader over this database. The tests give their own clock. */

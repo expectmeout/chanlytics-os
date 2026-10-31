@@ -19,20 +19,32 @@ function leftWords(seconds: number): string {
   return `${Math.floor(seconds / MINUTE_S)}:${String(seconds % MINUTE_S).padStart(2, "0")}`;
 }
 
-/** What the section says, row by row. */
+/**
+ * What the section says, row by row. What Ask prepared is headed by what it is, then whose (the refined canvas, 31 Oct
+ * 2026): "Reply · drafted by Ask" over words that go to them, which the member types in where they stand; "Call notes ·
+ * only you see these" over words that are read and never sent, which is why nothing there is typed in.
+ */
 export const NEED_YOU_WORDS = {
   door: "Open Inbox",
-  drafted: "Ask drafted",
+  reply: "Reply",
+  drafted: "drafted by Ask",
   drafting: "Ask is writing…",
   couldNot: "Ask couldn't write this one.",
   asks: (question: string) => `Ask needs to know: ${question}`,
   edit: "Edit",
-  editDraft: (who: string) => `Ask's draft to ${who}. Press to change it.`,
+  editDraft: (who: string) => `Change the reply to ${who}`,
+  /** While the member types in the words: what the head says, and the press that leaves them as they are. */
+  editing: "editing",
+  done: "Done",
+  /** Once the member's words differ from what Ask drafted: Ask's words back in their place. */
+  useAsks: "Use Ask's draft",
   /** The signature an email reply leaves with (00487), under the draft: what is sent is what is seen. */
   changeSignature: "Change",
   changeSignatureTip: "Change what this mailbox signs with, in Settings › Connections",
-  yourWords: (who: string) => `Your words to ${who}`,
-  yours: "Your words",
+  yourWords: (who: string) => `Your reply to ${who}`,
+  yours: "your words",
+  /** Where the member writes it from nothing: what stands in the empty words. */
+  writeHere: (who: string) => `Write to ${who}…`,
   writeItMyself: "Write it myself",
   cancel: "Cancel",
   send: "Send",
@@ -64,7 +76,18 @@ export const NEED_YOU_WORDS = {
   },
   more: (n: number) => `${n} more in the Inbox`,
   seeAll: "See all",
-  brief: { title: "Ask's brief for the call", say: "Say", ask: "Ask", avoid: "Leave out" },
+  /**
+   * A call's notes, for the member on the call and never sent: its head, then each part on a key column. "Find out", not
+   * "Ask": the assistant is Ask, and "Ask Ask what they…" read as a stutter.
+   */
+  brief: {
+    title: "Call notes",
+    only: "only you see these",
+    say: "Open with",
+    points: "Mention",
+    ask: "Find out",
+    avoid: "Avoid",
+  },
   call: {
     call: "Call",
     how: "How did it go?",
@@ -82,7 +105,7 @@ export const NEED_YOU_WORDS = {
     by: (wire: string) => `Your receptionist · ${wire}`,
     stop: "Stop",
     held: "Held for you",
-    heldReply: "Your receptionist's reply, held",
+    heldReply: "written by your receptionist",
     change: "Change it with Ask",
     changeLabel: "What should change",
     changeHint: "Shorter, warmer, ask for a day…",
@@ -90,9 +113,9 @@ export const NEED_YOU_WORDS = {
     rewritten: "Rewritten. The new draft waits its turn.",
     gone: "It went before it could be stopped.",
   },
-  booked: { confirmation: "Confirmation, drafted", dontSend: "Don't send" },
+  booked: { confirmation: "Confirmation", dontSend: "Don't send" },
   visit: {
-    rebook: "Ask drafted · the rebook",
+    rebook: "Rebook",
     rebookAbout: (word: string, when: string) =>
       `They missed their ${word} ${when}. Say sorry we missed them, and ask whether they would like another time. Use the booking link where one helps.`,
     rebookSent: "Missed · rebook sent",
@@ -102,7 +125,7 @@ export const NEED_YOU_WORDS = {
   step: { moved: (day: string) => `Moved to ${day}`, moveFor: "Not now: move this step" },
   review: {
     draft: "Draft a reply",
-    drafted: "Ask drafted · public",
+    drafted: "Public reply",
     post: "Post",
     postingIn: (seconds: number) => `Posting in ${leftWords(seconds)}`,
     where: "public on Google",

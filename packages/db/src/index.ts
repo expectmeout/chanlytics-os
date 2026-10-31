@@ -379,6 +379,7 @@ export {
   memberWithdrawDrafts,
   memberWithdrawMessage,
   openEscalation,
+  readLiveHold,
   releaseControl,
   takeOverThread,
   withdrawAiDrafts,

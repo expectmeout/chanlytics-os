@@ -287,7 +287,9 @@ flowchart TD
   G -- yes --> G1[Record, acknowledge or escalate]
   G -- no --> H{Late · paused · daily cap · workspace paused · mode ask or never · token budget}
   H -- yes --> H1[Escalate with its reason]
-  H -- no --> I[Brain composes]
+  H -- no --> H2{A call or a person holds the thread}
+  H2 -- yes --> H3[Set aside: the wire's own refusal, before the model]
+  H2 -- no --> I[Brain composes]
   I --> J[Layer two: price block, ask classes]
   J --> K{Veto window or low confidence?}
   K -- yes --> K1[Queued draft + outbound_send job]

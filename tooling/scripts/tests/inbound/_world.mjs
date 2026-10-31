@@ -92,7 +92,14 @@ export const FROM_ITS_EVENT = "the hold is written, so its event tells the owner
 export function world(over = {}) {
   // The rows, as Postgres would hold them for this one conversation.
   // A thread a person already has (`pausedUntil`): taken over, or claimed by their reply, with no hold open.
-  const memory = { history: [], replies: [], pausedUntil: over.pausedUntil ?? 0, textedBefore: false };
+  // The live hold on it (`control`, 00132: a call in progress, a person who took it over), as the wire reads it.
+  const memory = {
+    history: [],
+    replies: [],
+    pausedUntil: over.pausedUntil ?? 0,
+    textedBefore: false,
+    control: over.control ?? null,
+  };
   const delivered = new Set();
   const seen = {
     sent: [],
@@ -139,8 +146,9 @@ export function world(over = {}) {
               pausedUntil: memory.pausedUntil,
               replies: memory.replies,
               textedBefore: memory.textedBefore,
+              control: memory.control,
             })
-          : { history: [], pausedUntil: -1, replies: [], unknown: true },
+          : { history: [], pausedUntil: -1, replies: [], control: null, unknown: true },
       // Persist first, with the atomic is_new claim that IS the redelivery
       // gate. Bound per run, where the message id is known.
       ingest: recordIngest,

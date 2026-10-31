@@ -21,10 +21,11 @@ test("the draft shows the signature it will leave with, under its words, its lin
   let changed = 0;
   const signature = "Rubén Segura\nFounder · Chanlytics\nwww.chanlytics.agency  |  3495 US-1, Princeton, NJ 08540";
   const tree = Words({
+    what: NEED_YOU_WORDS.reply,
     by: NEED_YOU_WORDS.drafted,
     text: "Hi Ruben,\n\nThanks for reaching out.\n\nTalk soon.",
     who: "Ruben Segura",
-    onEdit: null,
+    onChange: null,
     signed: signature,
     onSigned: () => changed++,
   });
@@ -40,6 +41,12 @@ test("the draft shows the signature it will leave with, under its words, its lin
 
 test("a reply that carries no signature says nothing about one", () => {
   fresh();
-  const tree = Words({ by: NEED_YOU_WORDS.drafted, text: "Friday works.", who: "Ana", onEdit: null });
+  const tree = Words({
+    what: NEED_YOU_WORDS.reply,
+    by: NEED_YOU_WORDS.drafted,
+    text: "Friday works.",
+    who: "Ana",
+    onChange: null,
+  });
   assert.equal(lineOf(tree), undefined);
 });

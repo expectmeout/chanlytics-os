@@ -23,6 +23,7 @@ import {
   Menu,
   MenuTrigger,
   type MenuOption,
+  Panel,
   Picker,
   Popover,
   Segmented,
@@ -1059,6 +1060,25 @@ function FieldKitTitle() {
   );
 }
 
+/** Sentences said in place: a reply typed where it stands, its box the field's panel. */
+function FieldKitWords() {
+  const [reply, setReply] = useState("Friday at two works. See you then.");
+  return (
+    <Figure id="field-kit-words" about="the kit's Field as sentences said in place, on the field's panel">
+      <Panel variant="field" size="sm">
+        <Field
+          aria-label="Your reply to Ana"
+          shape="words"
+          rows={1}
+          placeholder="Write to Ana…"
+          value={reply}
+          onValueChange={setReply}
+        />
+      </Panel>
+    </Figure>
+  );
+}
+
 /**
  * The entries, in the page's order, each by the gallery id it draws. `closed` is what the entry draws before anyone
  * touches it, with nothing portaled: a server draws that too, and the node suite holds it there.
@@ -1094,6 +1114,7 @@ export const ENTRIES: { id: string; Draw: () => ReactElement; closed: boolean }[
   { id: "field-kit", Draw: FieldKit, closed: true },
   { id: "field-kit-wrong", Draw: FieldKitWrong, closed: true },
   { id: "field-kit-title", Draw: FieldKitTitle, closed: true },
+  { id: "field-kit-words", Draw: FieldKitWords, closed: true },
   { id: "datepicker-kit", Draw: DatePickerKit, closed: false },
   { id: "picker-kit", Draw: PickerKit, closed: false },
   { id: "picker-kit-find", Draw: PickerKitFind, closed: false },

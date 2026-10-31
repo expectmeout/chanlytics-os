@@ -24,7 +24,11 @@
   color: var(--accent);
 }
 
-/* What Ask prepared: whose it is over it, then the words, or a call's brief line by line. */
+/* What the row prepared (the refined canvas, 31 Oct 2026; the 23 Oct canvas's .wr-draft and .wr-brief): words that go to
+   them stand on the field's panel and are typed in where they stand; words that are read (a call's notes, their own
+   words, a reply that goes on its own) stand in the inset. The size says whose words they are: what passes between the
+   member and the person at the body's step, notes for the member a step under it, and every label, state and press at
+   the small step, the head over what was prepared among them, so what a box is never reads smaller than a time. */
 .ny-draft {
   display: flex;
   flex-direction: column;
@@ -35,12 +39,18 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
   color: var(--ink-dim);
 }
 .ny-by-words {
   flex: 1 1 auto;
   min-width: 0;
+}
+/* What it is, before whose: "Reply · drafted by Ask", "Call notes · only you see these". */
+.ny-by-words b {
+  font-weight: var(--weight-medium);
+  color: var(--ink-muted);
 }
 .ny-words {
   font-size: var(--text-md);
@@ -49,8 +59,16 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+/* The words typed where they stand (the kit's Field said in place, which takes its type from here): the same step and
+   leading as the words read, so the first key moves nothing. */
+.ny-typed {
+  font-size: var(--text-md);
+  line-height: var(--leading-normal);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
 /* The signature an email reply leaves with, under its words, as the email carries it (00487; the mailbox canvas, 27 Oct
-   2026): its lines in the quieter ink, and Change beside the first. What is sent is what is seen. */
+   2026): its lines in the quieter ink, and Change beside the first. What is sent is what is seen, typing or not. */
 .ny-signed {
   display: flex;
   align-items: flex-start;
@@ -66,20 +84,64 @@
   white-space: pre-line;
   overflow-wrap: anywhere;
 }
-.ny-line {
+/* A call's notes: each part on a key column, its key at the small step and what it says at the base step; a list one
+   thing to a line, its mark hung in the gutter so every line starts where a one-line part does. The words to open with
+   are said in quotes, in the darker ink: they are the ones said aloud. */
+.ny-notes {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+}
+.ny-notes-part {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: baseline;
+}
+.ny-notes-part dt {
   font-size: var(--text-sm);
-  line-height: var(--leading-snug);
-  color: var(--ink-muted);
-}
-.ny-line b {
-  color: var(--ink);
-  font-weight: var(--weight-semibold);
-}
-.ny-point::before {
-  content: "· ";
-}
-.ny-avoid {
+  line-height: var(--leading-normal);
   color: var(--ink-dim);
+}
+.ny-notes-part dd {
+  margin: 0;
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+.ny-notes-said {
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  color: var(--ink);
+}
+/* A phone's card says the opening in its head's line: its key at a key's step, the words at the notes'. */
+.ny-notes-said > b {
+  font-size: var(--text-sm);
+}
+.ny-notes-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ny-notes-list li {
+  position: relative;
+  padding-left: var(--space-3);
+}
+.ny-notes-list li::before {
+  content: "";
+  position: absolute;
+  left: 1px;
+  top: calc((1em * var(--leading-normal) - 4px) / 2);
+  width: 4px;
+  height: 4px;
+  border-radius: var(--radius-full);
+  background: var(--ink-faint);
+}
+/* An email's subject before their words: the darker ink's middle weight, so it leads the sentence without standing as
+   loud as the name over it. */
+.today-queue .cl-attn-sentence > b {
+  font-weight: var(--weight-medium);
 }
 /* Ask found on a phone draws an idea with no face (dashboard-a-v2.css gives faces to Need you's and Going today's rows
    alone), so its row is one column: its work goes under its words across it, as a desk's goes under its own. Placed in the

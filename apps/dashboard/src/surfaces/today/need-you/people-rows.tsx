@@ -79,8 +79,9 @@ export function needYouRows(rows: readonly TodayQueueRowVM[], c: NeedYouRowsCtx)
       sentence: r.sentence,
       quoted: r.quoted,
       lead: r.lead,
-      // Since when is said once on a phone: the wait beside the name says how long.
-      status: phone && r.when && r.since ? r.status.filter((s) => s !== r.since) : r.status,
+      // Since when is said once, on a phone and a desk alike: the wait beside the name says how long ("Phone, waited 12d"
+      // over "Needs a call back · since Oct 19, 3:55 PM" said it twice; the refined canvas, 31 Oct 2026).
+      status: r.when && r.since ? r.status.filter((s) => s !== r.since) : r.status,
       tone: r.tone,
       testid: `queue-${r.kind}`,
     };

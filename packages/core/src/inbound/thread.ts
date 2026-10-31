@@ -14,6 +14,7 @@
  * handling the conversation and re-greets a customer mid-thread. There is
  * nowhere to fall back to, so an unknown thread goes to a person instead.
  */
+import type { HoldFacts } from "../deliver-hold";
 
 export interface ThreadTurn {
   role: "user" | "assistant";
@@ -27,6 +28,13 @@ export interface ThreadState {
   pausedUntil: number;
   /** Epoch ms of the bot's replies in the last day (the rate cap). */
   replies: number[];
+  /**
+   * The live hold on the thread (00132): a call in progress on it, or a person who took it over, until when, in the
+   * shape the send door reads at the wire (deliver-hold.ts HoldFacts), so the gates can ask the wire's own question
+   * before the model is asked (reply-gates.ts heldForThePerson). Null when nobody holds it, and on a thread that could
+   * not be read, which is unknown before it is anything else.
+   */
+  control: HoldFacts["control"];
   /**
    * Postgres could not produce this thread.
    *
@@ -56,6 +64,7 @@ export const unreadableThread = (): ThreadState => ({
   history: [],
   pausedUntil: -1,
   replies: [],
+  control: null,
   unknown: true,
 });
 

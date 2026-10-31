@@ -209,7 +209,7 @@ export async function tickJobs({ db, L, started }: SweepTick): Promise<Response>
         defer: (job, untilIso, reason) => deferJob(db, job, untilIso, reason),
         // Nothing ran, so the claim is given back: the next runner to claim it finds a first claim.
         deferUnknown: (job, untilIso, reason) => deferJob(db, job, untilIso, reason, true),
-        settle: (job, certain) => settleJob(db, job, certain),
+        settle: (job, certain, why) => settleJob(db, job, certain, why),
         alert: (job, news) => alertFor(db, job)(news),
         page: pagerOf(db),
         log: L,

@@ -8,7 +8,7 @@
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { askModel, streamModel, formatRejected, resetBreakers, resetFastHolds } from "@chanlytics/channels";
+import { askModel, streamModel, formatRejected, resetBreakers, resetFastHolds, tryBound } from "@chanlytics/channels";
 import { EFFORT_MESSAGE_BETA, FAST_MODE_BETA, MODELS, MODEL_ROUTES } from "@chanlytics/contracts";
 import { scripted, said, status, hang, thrown, streamed } from "./_model-world.mjs";
 
@@ -66,6 +66,18 @@ test("a 5xx on both is unreachable, never a refusal; a timeout is asked of the f
   const t = await askModel(KEY, ask({ timeoutMs: 30 }), { fetch: slow.fetch, ...noWait });
   assert.equal(t.outcome, "ok");
   assert.equal(t.fellBack, true);
+});
+
+test("one try's bound is the route's, or a caller's sooner one, never a later one, and never past what is left of the deadline", () => {
+  // A caller may give a sooner bound than the purpose's (ModelAsk.timeoutMs): the registry's number is the ceiling it
+  // set for that purpose (contracts ai/models.ts), and a caller passing its own ceiling (a job's time left, a notice's
+  // read: booking_read's 30 s over the route's 8) widened it instead of narrowing it.
+  const route = MODEL_ROUTES.booking_read;
+  assert.equal(tryBound(route, {}, Infinity), route.timeoutMs, "the route's own, with no deadline");
+  assert.equal(tryBound(route, { timeoutMs: 30 }, Infinity), 30, "a caller's sooner bound");
+  assert.equal(tryBound(route, { timeoutMs: route.timeoutMs * 4 }, Infinity), route.timeoutMs, "never a later one");
+  assert.equal(tryBound(route, { timeoutMs: route.timeoutMs * 4 }, 5), 5, "what is left of the deadline, when less");
+  assert.equal(tryBound(route, { timeoutMs: 0 }, 0), 1, "a bound is at least a millisecond");
 });
 
 test("a 429 is asked again on the same model up to the route's retries, then is unreachable: the model was not heard", async () => {

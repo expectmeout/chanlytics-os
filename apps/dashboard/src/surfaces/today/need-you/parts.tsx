@@ -4,7 +4,17 @@
  * at the row's foot, Not now's menu at the left. Drawn under the row's words by the kit's attention row (`work`), from the
  * kit's own parts: the inset panel, the field, the meter, the menu, the button.
  */
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type FocusEvent,
+  type KeyboardEvent,
+  type MouseEvent,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import { createPortal } from "react-dom";
 import { NEED_YOU_WORDS as W, type CallBrief, type NotNowChoice, type TodayQueueRowVM } from "@chanlytics/contracts";
 import { Button, Field, Menu, Meter, Panel } from "../../kit";
@@ -55,20 +65,113 @@ function AskMark({ live = false }: { live?: boolean }) {
   );
 }
 
-/** Words Ask prepared, as the row offers them: whose they are over them, and Edit, which opens the box. */
+/**
+ * The head over what the row prepared: Ask's mark where the words are Ask's, what they are in the darker ink, whose they
+ * are after it ("Reply · drafted by Ask", "Call notes · only you see these"), and the presses at its right. Labels,
+ * like every state and press on the card, stand at the small step (need-you.css): what a box is never reads smaller
+ * than the time beside a name.
+ */
+function Head({
+  mark = null,
+  what,
+  by = null,
+  children = null,
+}: {
+  mark?: ReactNode;
+  what: ReactNode;
+  by?: string | null;
+  children?: ReactNode;
+}) {
+  return (
+    <span className="ny-by">
+      {mark}
+      <span className="ny-by-words">
+        <b>{what}</b>
+        {by ? ` · ${by}` : null}
+      </span>
+      {children}
+    </span>
+  );
+}
+
+/** The signature an email reply leaves with, under its words, and where it is changed. */
+function Signature({ signed, onSigned }: { signed: string; onSigned: (() => void) | null }) {
+  return (
+    <span className="ny-signed" data-testid="ny-signed">
+      <span className="ny-signed-words">{signed}</span>
+      {onSigned ? (
+        <Button variant="quiet" size="text" onClick={onSigned} title={W.changeSignatureTip}>
+          {W.changeSignature}
+        </Button>
+      ) : null}
+    </span>
+  );
+}
+
+/** A press beside words being typed answers its click without taking the keys from them first. */
+const keepKeys = (event: MouseEvent) => event.preventDefault();
+
+/**
+ * Where the browser cannot size a box by its words (kit.css .rec-input-words, `field-sizing`), the box grows as they are
+ * typed, so nothing scrolls inside it.
+ */
+function useGrowAsTyped(box: RefObject<HTMLTextAreaElement | null>, text: string) {
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (!el || typeof CSS === "undefined" || CSS.supports("field-sizing", "content")) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [box, text]);
+}
+
+/**
+ * Whose a row's words are, and the way back to the drafted ones, from what was drafted and what the member has typed:
+ * the drafted words' own (`by`, Ask's unless said) until the member's differ, theirs where nothing was drafted, and Use
+ * Ask's draft only once there is a draft to go back to.
+ */
+export function whoseWords(
+  drafted: string,
+  mine: string | null,
+  restore: () => void,
+  by: string = W.drafted,
+): { by: string; onRestore: (() => void) | null } {
+  const changed = mine !== null && mine !== drafted;
+  return { by: drafted && !changed ? by : W.yours, onRestore: changed && drafted ? restore : null };
+}
+
+/**
+ * Words that go to them, as the row offers them (the refined canvas, 31 Oct 2026; the 23 Oct canvas drew them so, as a
+ * field): on the field's panel, headed by what they are and whose, and typed in where they stand. The words are the
+ * box (the kit's Field said in place), at the size they are read at, so beginning to type moves nothing: no second
+ * box, no smaller type, no label in the head's place, and the signature stays under them, since what is sent is what is
+ * seen. Edit takes the keys at their end, Done or Escape lets them go, and Use Ask's draft puts the drafted words back
+ * once the member's differ. A viewer, who sends nothing, reads them in the inset; a phone's card, drawn short of them,
+ * shows two lines with Read, and the walk's sheet is where they are typed in.
+ */
 export function Words({
+  what,
   by,
   text,
   who,
-  onEdit,
+  onChange,
+  onRestore = null,
+  open = false,
   signed = null,
   onSigned = null,
   onRead = null,
 }: {
+  /** What they are: a reply, a rebook, a public reply, a confirmation. */
+  what: string;
+  /** Whose they are: drafted by Ask, written by your receptionist, your words. */
   by: string;
   text: string;
   who: string;
-  onEdit: (() => void) | null;
+  /** The member's words as they type them; null where they may not (a viewer): the words are read, in the inset. */
+  onChange: ((text: string) => void) | null;
+  /** Where the member's words differ from what was drafted: the drafted words back in their place. */
+  onRestore?: (() => void) | null;
+  /** Opened by a press (Write it myself): the words take the keys as they are drawn, where the screen lets them. */
+  open?: boolean;
   /** The signature an email reply leaves with, its lines as the email carries them (00487); null where it carries none. */
   signed?: string | null;
   /** Where what it signs with is changed: Settings › Connections. */
@@ -76,30 +179,71 @@ export function Words({
   /** The door to the whole work where the row is drawn short of it (WorkProps `read`). */
   onRead?: (() => void) | null;
 }) {
+  const box = useRef<HTMLTextAreaElement>(null);
+  const [typing, setTyping] = useState(false);
+  useGrowAsTyped(box, text);
+  // Opened by a press, the words take the keys as they are drawn, as a box a press opened does (OpenedBox); on a touch
+  // screen the field's panel takes them instead (editorBox), and a tap on the words begins the typing.
+  useEffect(() => {
+    if (open && focusAsDrawn()) box.current?.focus();
+  }, [open]);
+  const signature = signed ? <Signature signed={signed} onSigned={onSigned} /> : null;
+  if (!onChange || onRead)
+    return (
+      <Panel variant={onChange ? "field" : "inset"} size="sm" className="ny-draft">
+        <Head mark={<AskMark />} what={what} by={by}>
+          {readDoor(onRead)}
+        </Head>
+        <span className="ny-words">{text}</span>
+        {signature}
+      </Panel>
+    );
+  const toTheEnd = () => {
+    const el = box.current;
+    if (!el) return;
+    el.focus();
+    el.setSelectionRange(el.value.length, el.value.length);
+  };
+  // Escape lets the words go and goes no further: in the walk's sheet it would have closed the sheet too.
+  const keys = (event: KeyboardEvent) => {
+    if (event.key !== "Escape") return;
+    event.stopPropagation();
+    box.current?.blur();
+  };
+  const took = (event: FocusEvent) => event.target === box.current && setTyping(true);
+  const left = (event: FocusEvent) => event.target === box.current && setTyping(false);
   return (
-    <Panel variant="inset" size="sm" className="ny-draft">
-      <span className="ny-by">
-        <AskMark />
-        <span className="ny-by-words">{by}</span>
-        {onEdit ? (
-          <Button variant="quiet" size="text" onClick={onEdit} aria-label={W.editDraft(who)} className="ny-edit">
-            <Icon name="pencil" size={12} />
-            {W.edit}
+    <Panel variant="field" size="sm" className="ny-draft" onFocus={took} onBlur={left} {...(open ? editorBox : {})}>
+      <Head mark={<AskMark />} what={what} by={typing ? W.editing : by}>
+        {onRestore ? (
+          <Button variant="quiet" size="text" onMouseDown={keepKeys} onClick={onRestore}>
+            {W.useAsks}
           </Button>
         ) : null}
-        {readDoor(onRead)}
-      </span>
-      <span className="ny-words">{text}</span>
-      {signed ? (
-        <span className="ny-signed" data-testid="ny-signed">
-          <span className="ny-signed-words">{signed}</span>
-          {onSigned ? (
-            <Button variant="quiet" size="text" onClick={onSigned} title={W.changeSignatureTip}>
-              {W.changeSignature}
-            </Button>
-          ) : null}
-        </span>
-      ) : null}
+        <Button
+          variant="quiet"
+          size="text"
+          onMouseDown={keepKeys}
+          onClick={typing ? () => box.current?.blur() : toTheEnd}
+          aria-label={typing ? undefined : W.editDraft(who)}
+          className="ny-edit"
+        >
+          {typing ? null : <Icon name="pencil" size={12} />}
+          {typing ? W.done : W.edit}
+        </Button>
+      </Head>
+      <Field
+        ref={box}
+        aria-label={W.yourWords(who)}
+        shape="words"
+        rows={1}
+        value={text}
+        onValueChange={onChange}
+        onKeyDown={keys}
+        placeholder={W.writeHere(who)}
+        className="ny-typed"
+      />
+      {signature}
     </Panel>
   );
 }
@@ -107,11 +251,12 @@ export function Words({
 /**
  * Ask writing the words: the row lands first, the draft fills in a moment later, where the four lines it stands on are
  * a draft's usual height (need-you.css .ny-sk-lines), so the words take their place with the row moving as little as it can.
- * It stood on two thin bars, and a draft of five lines pushed everything under it down as it came.
+ * It stood on two thin bars, and a draft of five lines pushed everything under it down as it came. It stands on the
+ * field the words will be typed in, so the surface does not change as they come.
  */
 export function Writing() {
   return (
-    <Panel variant="inset" size="sm" className="ny-draft" aria-busy="true">
+    <Panel variant="field" size="sm" className="ny-draft" aria-busy="true">
       <span className="ny-by">
         <AskMark live />
         <span className="ny-by-words">{W.drafting}</span>
@@ -155,12 +300,42 @@ export function OpenedBox(p: {
   );
 }
 
-/** The words in their box, to change before they go: the member's own from here on. */
-export function Editor({ who, value, onChange }: { who: string; value: string; onChange: (v: string) => void }) {
-  return <OpenedBox label={W.yourWords(who)} rows={4} value={value} onChange={onChange} />;
+/**
+ * What a call's notes say to find out, as the key column heads it: "Find out" over "What they were hoping to…". Ask's
+ * brief writes it as an order ("Ask what they were hoping to…"), which under the key read "Find out Ask what…".
+ */
+function findOut(ask: string): string {
+  const rest = ask.replace(/^ask\s+(them\s+)?/i, "");
+  return rest === ask || !rest ? ask : rest.charAt(0).toUpperCase() + rest.slice(1);
 }
 
-/** A call's brief: what to say, what to ask, what to leave out. Read, not sent. */
+/** One part of a call's notes: its key, and what it says, one line or a list. */
+function NotesPart({ term, children }: { term: string; children: ReactNode }) {
+  return (
+    <div className="ny-notes-part">
+      <dt>{term}</dt>
+      <dd>{children}</dd>
+    </div>
+  );
+}
+
+/** A list in a call's notes: each thing on a line of its own, never run together with a dot that also separates. */
+function NotesList({ items }: { items: readonly string[] }) {
+  return (
+    <ul className="ny-notes-list">
+      {items.map((item, i) => (
+        <li key={i}>{item}</li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * A call's notes (the refined canvas, 31 Oct 2026): what to open with, what to mention, what to find out, what to avoid,
+ * each on a key column. Read on the call and never sent, so it stands in the inset, never on a field, under a head that
+ * says so ("Call notes · only you see these"): nothing in it is typed in, and the head says why before anyone wonders.
+ * Notes for the member stand a step under the words that pass between them and the person (need-you.css).
+ */
 export function BriefBox({ brief, onRead = null }: { brief: CallBrief; onRead?: (() => void) | null }) {
   // A phone's card says the first thing to say, with Read for the rest, which the walk's sheet holds whole (his look on a
   // phone, 29 Oct 2026: the brief's own head stood over one line of it).
@@ -169,8 +344,8 @@ export function BriefBox({ brief, onRead = null }: { brief: CallBrief; onRead?: 
       <Panel variant="inset" size="sm" className="ny-draft" aria-label={W.brief.title}>
         <span className="ny-by">
           <AskMark />
-          <span className="ny-by-words ny-line ny-said">
-            <b>{W.brief.say}</b> {brief.opening}
+          <span className="ny-by-words ny-notes-said ny-said">
+            <b>{W.brief.say}</b> “{brief.opening}”
           </span>
           {readDoor(onRead)}
         </span>
@@ -178,42 +353,39 @@ export function BriefBox({ brief, onRead = null }: { brief: CallBrief; onRead?: 
     );
   return (
     <Panel variant="inset" size="sm" className="ny-draft">
-      <span className="ny-by">
-        <AskMark />
-        <span className="ny-by-words">{W.brief.title}</span>
+      <Head mark={<AskMark />} what={W.brief.title} by={W.brief.only}>
         {readDoor(onRead)}
-      </span>
-      {brief.opening ? (
-        <span className="ny-line">
-          <b>{W.brief.say}</b> {brief.opening}
-        </span>
-      ) : null}
-      {brief.points.map((p, i) => (
-        <span key={i} className="ny-line ny-point">
-          {p}
-        </span>
-      ))}
-      {brief.ask ? (
-        <span className="ny-line">
-          <b>{W.brief.ask}</b> {brief.ask}
-        </span>
-      ) : null}
-      {brief.avoid.length ? (
-        <span className="ny-line ny-avoid">
-          <b>{W.brief.avoid}</b> {brief.avoid.join(" · ")}
-        </span>
-      ) : null}
+      </Head>
+      <dl className="ny-notes">
+        {brief.opening ? (
+          <NotesPart term={W.brief.say}>
+            <span className="ny-notes-said">“{brief.opening}”</span>
+          </NotesPart>
+        ) : null}
+        {brief.points.length ? (
+          <NotesPart term={W.brief.points}>
+            <NotesList items={brief.points} />
+          </NotesPart>
+        ) : null}
+        {brief.ask ? <NotesPart term={W.brief.ask}>{findOut(brief.ask)}</NotesPart> : null}
+        {brief.avoid.length ? (
+          <NotesPart term={W.brief.avoid}>
+            <NotesList items={brief.avoid} />
+          </NotesPart>
+        ) : null}
+      </dl>
     </Panel>
   );
 }
 
-/** Something read, not sent: their receptionist's words, a run's first message. */
-export function Quote({ by, text }: { by: string; text: string }) {
+/**
+ * Words read and not typed in here: their receptionist's reply going on its own (changed with Ask, never by hand),
+ * their own words in the walk's sheet. In the inset, at the size the words between the member and the person are read at.
+ */
+export function Quote({ what, text }: { what: string; text: string }) {
   return (
     <Panel variant="inset" size="sm" className="ny-draft">
-      <span className="ny-by">
-        <span className="ny-by-words">{by}</span>
-      </span>
+      <Head what={what} />
       <span className="ny-words">{text}</span>
     </Panel>
   );

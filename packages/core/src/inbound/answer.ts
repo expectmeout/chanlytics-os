@@ -13,8 +13,9 @@
  * hold and what kind of message it is (./gates.ts); its age, before anything
  * automated may be said of it (./reply-gates.ts); a message the receptionist
  * may not read (./unreadable.ts); a yes to confirm, the thread's pause and the
- * day's cap, the token budget, the billing pause and the mode in force
- * (./reply-gates.ts). Past the gates a photo's bytes are
+ * day's cap, the billing pause, the live hold a call or a person has on the
+ * thread, the token budget and the mode in force (./reply-gates.ts). Past the
+ * gates a photo's bytes are
  * fetched (./unreadable.ts), the message claims the thread's reply turn, the
  * brain composes and layer two checks the words (./model-turn.ts, over
  * steps.ts), the turn is asked again (./turn.ts: a newer message of the thread

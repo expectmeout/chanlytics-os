@@ -9,6 +9,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { runTick, lateFields } from "../../../../packages/jobs/src/tick.ts";
+import { CertainFailure } from "../../../../packages/core/src/messages/send.ts";
 import {
   RUN_INTERRUPTED,
   MAX_ATTEMPTS,
@@ -59,6 +60,8 @@ function fakes(jobs, o = {}) {
       trail.push(`run ${j.id}`);
       calls.dispatch.push([j.id, deadline]);
       if (has(o.throwOn, j.id)) throw new Error(`boom ${j.id}`);
+      // A throw of a case's own making (a failure that says it is certain).
+      if (o.throwWith?.has(j.id)) throw o.throwWith.get(j.id);
       return has(o.unknown, j.id) ? "unknown_kind" : "done";
     },
     complete: async (j) => {
@@ -79,8 +82,9 @@ function fakes(jobs, o = {}) {
       calls.deferUnknown.push([j.id, untilIso, reason]);
       return !has(o.deferLost, j.id);
     },
-    settle: async (j, certain) => {
-      calls.settle.push([j.id, certain]);
+    settle: async (j, certain, why) => {
+      // The words a certain failure gave, when it gave any: a case that expects none sees the two-part shape.
+      calls.settle.push(why === undefined ? [j.id, certain] : [j.id, certain, why]);
       if (o.settleThrows) throw new Error("the ledger could not be read");
       return o.settled ?? [{ what: "message", changed: true }];
     },
@@ -168,6 +172,24 @@ test("a handler that throws is failed, settled as an unknown outcome and reporte
     replyLateMs: 0,
   });
   assert.deepEqual(calls.defer, [], "a send is never kept to be tried again: a second try could reach a person twice");
+});
+
+test("a throw that says its work provably never happened is failed and settled as certain, with its words, never as an unknown outcome", async () => {
+  // A reply whose wire could not be bound, or that the provider did not take, for every fresh job it was given (core
+  // send.ts resendLater): nothing ever left, and the throw says so (core CertainFailure). The row is settled as never
+  // delivered, in the words the throw gave, where a plain throw settles it as a run whose outcome is unknown.
+  const reason = "outbound_send: the whatsapp wire could not be bound for 4 fresh jobs in a row (vault unavailable)";
+  const why = "the whatsapp wire's credentials could not be read, 5 tries in a row";
+  const { ports, calls } = fakes([job("a", "outbound_send"), job("b", "outbound_send")], {
+    throwWith: new Map([["a", new CertainFailure(reason, why)]]),
+  });
+  const counts = await runTick(ports, OPTS);
+  assert.deepEqual(calls.fail, [["a", reason]]);
+  assert.deepEqual(calls.settle, [["a", true, why]], "nothing left, so that much is certain, and the row says why");
+  assert.equal(calls.alert.length, 1, "the owner is told once, as of any job that will not run again");
+  assert.match(calls.alert[0].body, /^It stopped and will not start again on its own\./);
+  assert.deepEqual([counts.failed, counts.done, counts.deferred], [1, 1, 0]);
+  assert.deepEqual(calls.defer, [], "and it is not kept to be tried again");
 });
 
 /* ------------------------------------------------- an intake is tried again */
