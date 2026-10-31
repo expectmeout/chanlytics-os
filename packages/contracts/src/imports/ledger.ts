@@ -152,8 +152,11 @@ export const IMPORT_WORDS = {
   /** Try again, pressed, until the run is heard starting. */
   starting: "Starting",
   heading: "Coming in while you go on",
-  /** Under the sources, once: what came in is history on each person, never answered (decision 0073, D15 and D16). */
-  foot: "Shown on each person as history, never answered.",
+  /**
+   * Under the sources, once: what came in is history on each person, never answered (decision 0073, D15 and D16). Said
+   * of the people in it, plainly, so an owner who brought six months of mail in knows nobody in it is written to.
+   */
+  foot: "Shown on each person as history. Nobody in it is answered.",
   /** Said only while something is still coming in. */
   keepsGoing: "Keeps going if you leave.",
   bringing: (done: number, of: number) => `Bringing it in · ${done} of ${of}`,
@@ -164,7 +167,8 @@ export const IMPORT_WORDS = {
   setAside: (n: number) => `${n.toLocaleString("en-US")} newsletters, notices and pitches set aside`,
   /** The strangers who asked about the business's services and were never answered by email (decision 0080). */
   asked: (n: number) => `${n.toLocaleString("en-US")} asked about your services and never got an answer`,
-  card: "Brought in",
+  /** Today's card, named for what it holds: the business's history from before Chanlytics. "Brought in" said how. */
+  card: "Your history",
   whatsappLater: "Contacts and chats, once you approve",
 } as const;
 
@@ -507,12 +511,17 @@ export function broughtInCardOf(
   return { title: W.card, state, facts };
 }
 
-/** How long Today keeps its Brought in card after the last source finished: the first week. */
-const BROUGHT_IN_SHOWN_MS = 7 * DAY_MS;
+/**
+ * How long Today keeps its card after the last source finished: the day it finished, so All in is seen once. A week of
+ * All in was a card with nothing to press beside the queue (the refined canvas, 31 Oct 2026); People, the Inbox and the
+ * Calendar hold what came in, and Setup keeps the list.
+ */
+const BROUGHT_IN_SHOWN_MS = DAY_MS;
 
 /**
- * Whether Today draws its Brought in card (T-today): while anything is still coming in, a source stopped, or within a
- * week of the last one finishing. After that what came in is People's, the Inbox's and the Calendar's own.
+ * Whether Today draws its card of the business's history (T-today, "Your history"): while anything is still coming in,
+ * a source stopped, or within a day of the last one finishing. After that what came in is People's, the Inbox's and the
+ * Calendar's own.
  */
 export function broughtInShown(rows: readonly ImportRowDto[] | null | undefined, nowMs: number): boolean {
   const got = sourceRowsOf(rows);

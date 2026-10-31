@@ -1112,12 +1112,18 @@ Object.assign(globalThis.window, {
   requestAnimationFrame: () => 0,
   cancelAnimationFrame: () => {},
 });
-// People's TSX, which the Pipeline draws by import (decision 0015): its table and columns menu are the types the tree is
-// found by below, and the page is the module itself; the parts the shell still draws by name are published as it does.
+// People's TSX, which the Pipeline draws by import (decision 0015), and the kit's table and Columns menu it draws with
+// (decision 0083): the types the tree is found by below, and the page is the module itself; the parts the shell still
+// draws by name are published as it does.
 const { PEOPLE_GLOBALS } = await import("../../../../apps/dashboard/src/surfaces/people/people-globals.ts");
 Object.assign(globalThis.window, PEOPLE_GLOBALS);
-const { PeopleTable } = await import("../../../../apps/dashboard/src/surfaces/people/table/table.tsx");
-const { PeopleColumnsMenu } = await import("../../../../apps/dashboard/src/surfaces/people/table/columns-menu.tsx");
+const { DataTable } = await import("../../../../apps/dashboard/src/surfaces/kit/table/data-table.tsx");
+const { TableColumnsMenu } = await import("../../../../apps/dashboard/src/surfaces/kit/table/columns-menu.tsx");
+const { columnOptionsOf, orderedColumns } =
+  await import("../../../../apps/dashboard/src/surfaces/kit/table/columns.ts");
+/** The Columns menu's rows as it draws them, from what it is handed: the table's state and the declared columns. */
+const menuOptions = (menu) =>
+  columnOptionsOf(orderedColumns(menu.props.columns, menu.props.state.order), menu.props.state.visibility);
 const { plLoadedWords } = await import("../../../../apps/dashboard/src/surfaces/people/words.ts");
 const { PipelineScope } = await import("../../../../apps/dashboard/src/surfaces/people/pipeline/scope.tsx");
 // The deal sheet is a chunk of its own (pipeline/peek-code.tsx), fetched once the list is idle: in before the first draw,
@@ -1271,7 +1277,7 @@ const rowIds = (tree) =>
   all(tree, (n) => n.type === "tr" && n.props?.id).map((n) => n.props.id.replace(/^person-/, ""));
 const heads = (tree) =>
   all(tree, (n) => n.props?.["data-testid"] === "table-section").map((tr) => ({
-    label: textOf(byClass(tr, "pl-sec-label")),
+    label: textOf(byClass(tr, "dtable-group-label")),
     count: textOf(byClass(tr, "tally")),
     meta: textOf(byTestId(tr, "table-section-meta")) || null,
     toggle: textOf(byTestId(tr, "table-section-toggle")) || null,
@@ -1339,7 +1345,7 @@ test("the Pipeline has its own rail under People's switch (the frame's strip), t
   // The rows under the heads, in the Pipeline's order; Passed or ended folded; Nobody, with nothing to follow, absent.
   assert.deepEqual(rowIds(tree), ["hana", "sara", "wes", "nia", "cat"]);
   // A head is a row of its own across every column, with no id: the cursor and select-all go by rows' ids.
-  const head = find(tree, (n) => n.type === "tr" && String(n.props?.className || "").includes("pl-sec-head"));
+  const head = find(tree, (n) => n.type === "tr" && String(n.props?.className || "").includes("dtable-group"));
   assert.equal(head.props.id, undefined);
   const th = find(head, (n) => n.type === "th");
   assert.deepEqual([th.props.scope, th.props.colSpan], ["rowgroup", 6]);
@@ -1355,12 +1361,12 @@ test("the Pipeline has its own rail under People's switch (the frame's strip), t
     ["", "Person↕", "Value↕", "Where it stands▲", "Next step↕", "More"],
   );
   assert.deepEqual(
-    all(tree, (n) => n.props?.className === "cl-th-sort").map(textOf),
+    all(tree, (n) => n.props?.className === "dtable-sort").map(textOf),
     ["Person↕", "Value↕", "Where it stands▲", "Next step↕"],
     "the headings that sort are buttons, and where it stands is the order it opens in",
   );
   assert.deepEqual(
-    all(tree, (n) => n.props?.className === "sort-arr").map((n) => [textOf(n), n.props["data-idle"]]),
+    all(tree, (n) => n.props?.className === "dtable-arrow").map((n) => [textOf(n), n.props["data-idle"]]),
     [
       ["↕", "true"],
       ["↕", "true"],
@@ -1370,7 +1376,7 @@ test("the Pipeline has its own rail under People's switch (the frame's strip), t
     "the caret is idle on the headings that are not the order, and the arrow of the one that is is not",
   );
   assert.equal(
-    all(tree, (n) => n.props?.className === "cl-th-text")
+    all(tree, (n) => n.props?.className === "dtable-words")
       .map(textOf)
       .join("|"),
     "More",
@@ -1403,7 +1409,7 @@ test("the Pipeline has its own rail under People's switch (the frame's strip), t
     rowOf(vm, "sara").chip.words,
   );
   // The foot counts every deal in the Pipeline, the folded included (Ruben, 10 Oct 2026: a row is a deal).
-  assert.match(textOf(find(tree, (n) => n.props?.className === "cl-table-foot")), /^7 deals/);
+  assert.match(textOf(find(tree, (n) => n.props?.className === "dtable-foot")), /^7 deals/);
 });
 
 test("Passed or ended opens with its Show, folds again with Hide, and a row opens its peek, not the person's page", async () => {
@@ -1472,7 +1478,7 @@ test("the words in the box find people in every group, the folded one opened, an
   tree = draw();
   assert.deepEqual(rowIds(tree), ["dan"]);
   assert.deepEqual(heads(tree), [{ label: "Passed or ended", count: "1", meta: null, toggle: null }]);
-  assert.match(textOf(find(tree, (n) => n.props?.className === "cl-table-foot")), /^Showing 1 of 7/);
+  assert.match(textOf(find(tree, (n) => n.props?.className === "dtable-foot")), /^Showing 1 of 7/);
   assert.match(textOf(byTestId(tree, "pipeline-summary")), /^2 proposals out/);
   byTestId(tree, "pipeline-search").props.onChange({ target: { value: "zed" } });
   tree = draw();
@@ -1544,7 +1550,7 @@ test("with nobody to follow, the table says so in contracts' words", async () =>
   assert.equal(byTestId(tree, "pipeline-summary"), null, "a line with nothing in it is not drawn");
   assert.match(textOf(tree), /No deals yet\./);
   assert.match(textOf(tree), /Proposals you start show here, with what they come to\./);
-  assert.match(textOf(find(tree, (n) => n.props?.className === "cl-table-foot")), /^0 deals/);
+  assert.match(textOf(find(tree, (n) => n.props?.className === "dtable-foot")), /^0 deals/);
 });
 
 test("the Pipeline's address draws the Pipeline in every workspace, with no deal on file too (0008, amended 18 Oct 2026)", async () => {
@@ -1585,11 +1591,7 @@ test("a view in the address holds its rows alone; the line's press opens it, and
     "the rail says the same view",
   );
   assert.deepEqual(rowIds(tree), ["wes", "nia"], "the view's rows alone");
-  assert.match(
-    textOf(find(tree, (n) => n.props?.className === "cl-table-foot")),
-    /^2 deals/,
-    "the foot counts the view",
-  );
+  assert.match(textOf(find(tree, (n) => n.props?.className === "dtable-foot")), /^2 deals/, "the foot counts the view");
   assert.deepEqual(
     lineParts(tree),
     pipelineOf(globalThis.window.__PEOPLE.rows, globalThis.window.__PEOPLE.fetchedAt, ZONE, null).summary,
@@ -2343,7 +2345,7 @@ test("on a desk the rows can be a board: every group a column, the cards, a drop
   assert.deepEqual(
     cols.map((c) => [
       c.props["data-group"],
-      textOf(byClass(c, "pl-sec-label")),
+      textOf(byClass(c, "dtable-group-label")),
       textOf(byClass(c, "tally")),
       all(c, (n) => n.props?.["data-testid"] === "pipeline-card").length,
     ]),
@@ -2837,7 +2839,7 @@ test("the headings sort within each group, kept in the member's view: Value, the
   const seen = await fresh();
   let tree = draw();
   assert.deepEqual(rowIds(tree), ["hana", "sara", "wes", "nia", "cat"]);
-  click(find(tree, (n) => n.props?.className === "cl-th-sort" && textOf(n).startsWith("Value")));
+  click(find(tree, (n) => n.props?.className === "dtable-sort" && textOf(n).startsWith("Value")));
   tree = draw();
   assert.deepEqual(
     rowIds(tree),
@@ -2847,13 +2849,13 @@ test("the headings sort within each group, kept in the member's view: Value, the
   await tick();
   assert.deepEqual([seen.viewSaves.at(-1).view.sortBy, seen.viewSaves.at(-1).view.sortDir], ["value", "desc"]);
   // Person: by name, A first, then the other way on a second press.
-  click(find(tree, (n) => n.props?.className === "cl-th-sort" && textOf(n).startsWith("Person")));
+  click(find(tree, (n) => n.props?.className === "dtable-sort" && textOf(n).startsWith("Person")));
   tree = draw();
-  click(find(tree, (n) => n.props?.className === "cl-th-sort" && textOf(n).startsWith("Person")));
+  click(find(tree, (n) => n.props?.className === "dtable-sort" && textOf(n).startsWith("Person")));
   tree = draw();
   assert.deepEqual(rowIds(tree), ["sara", "hana", "wes", "nia", "cat"]);
   // Where it stands again: the Pipeline's own order, the way it opened, on the first press.
-  click(find(tree, (n) => n.props?.className === "cl-th-sort" && textOf(n).startsWith("Where it stands")));
+  click(find(tree, (n) => n.props?.className === "dtable-sort" && textOf(n).startsWith("Where it stands")));
   tree = draw();
   assert.deepEqual(rowIds(tree), ["hana", "sara", "wes", "nia", "cat"]);
 });
@@ -2869,9 +2871,9 @@ test("Columns shows where they came from and the day a proposal stands until, as
     ],
   });
   let tree = draw();
-  const menu = find(tree, (n) => n.type === PeopleColumnsMenu);
+  const menu = find(tree, (n) => n.type === TableColumnsMenu);
   assert.deepEqual(
-    menu.props.options.map((o) => [o.key, o.on]),
+    menuOptions(menu).map((o) => [o.key, o.on]),
     [
       ["name", true],
       ["value", true],
@@ -2881,7 +2883,7 @@ test("Columns shows where they came from and the day a proposal stands until, as
       ["valid", false],
     ],
   );
-  menu.props.onPick("valid");
+  menu.props.state.toggleColumn("valid");
   tree = draw();
   const valid = (id) => byTestId(rowNode(tree, id), "pipe-valid");
   assert.ok(textOf(valid("val")).trim(), "the day alone, under its heading");
@@ -3079,8 +3081,8 @@ test("a person with two open deals is two rows (0029): each is read, peeked, ope
   globalThis.window.usePPToast = () => [null, () => {}];
   try {
     tree = draw();
-    const table = find(tree, (n) => n.type === PeopleTable);
-    for (const id of ["noa_d-web", "noa"]) table.props.onToggle(id);
+    const table = find(tree, (n) => n.type === DataTable);
+    for (const id of ["noa_d-web", "noa"]) table.props.state.toggleSelected(id);
     tree = draw();
     assert.equal(textOf(byTestId(byTestId(tree, "bulk-bar"), "pipe-pass-open")).trim(), "Mark as passed · 2");
     click(byTestId(tree, "pipe-pass-open"));
@@ -3093,7 +3095,11 @@ test("a person with two open deals is two rows (0029): each is read, peeked, ope
       { id: "noa", body: { stage: "lost", deal_id: "d-web", version: 2, lost_reason: "timing" } },
       { id: "noa", body: { stage: "lost", deal_id: "d-proposed-6", version: 3, lost_reason: "timing" } },
     ]);
-    assert.deepEqual([...find(draw(), (n) => n.type === PeopleTable).props.sel], [], "both rows passed, and left");
+    assert.deepEqual(
+      [...find(draw(), (n) => n.type === DataTable).props.state.selected],
+      [],
+      "both rows passed, and left",
+    );
   } finally {
     globalThis.window.usePPToast = keepToast;
   }
@@ -3159,27 +3165,27 @@ test("a person's further deal on the page (0029's review): People's bar counts p
     };
   };
   wireNoa(seen);
-  const table = () => find(draw(), (n) => n.type === PeopleTable);
+  const table = () => find(draw(), (n) => n.type === DataTable);
   const count = () => textOf(byClass(byTestId(draw(), "bulk-bar"), "cl-bulk-count")).trim();
   // People's bar acts on people: one of Noa's rows, or both, is one person.
-  table().props.onToggle("noa_d-web");
+  table().props.state.toggleSelected("noa_d-web");
   assert.equal(count(), "1 selected");
-  table().props.onToggle("noa");
+  table().props.state.toggleSelected("noa");
   assert.equal(count(), "1 selected", "one person, however many of their rows");
-  table().props.onToggle("wes");
+  table().props.state.toggleSelected("wes");
   assert.equal(count(), "2 selected");
-  for (const id of ["noa_d-web", "noa", "wes"]) table().props.onToggle(id);
+  for (const id of ["noa_d-web", "noa", "wes"]) table().props.state.toggleSelected(id);
   // The box finds any open deal's service, whichever deal their row shows.
   let tree = draw();
   byTestId(tree, "pipeline-search").props.onChange({ target: { value: "website" } });
   assert.deepEqual(rowIds(draw()), ["noa_d-web", "noa"]);
   byTestId(draw(), "pipeline-search").props.onChange({ target: { value: "" } });
   // A client's row stands until no day, whatever their proposal's is.
-  find(draw(), (n) => n.type === PeopleColumnsMenu).props.onPick("valid");
+  find(draw(), (n) => n.type === TableColumnsMenu).props.state.toggleColumn("valid");
   tree = draw();
   const valid = (id) => textOf(byTestId(rowNode(tree, id), "pipe-valid")).trim();
   assert.deepEqual([!!valid("mia"), valid("mia_d-won-40")], [true, ""]);
-  find(draw(), (n) => n.type === PeopleColumnsMenu).props.onPick("valid");
+  find(draw(), (n) => n.type === TableColumnsMenu).props.state.toggleColumn("valid");
   // On a phone, the sheet's foot acts on the row's own deal: the website's link, not the ads'.
   await onPhone(async () => {
     wireNoa(await fresh({ people: [...peopleNow(), noa, mia] }));
@@ -3195,7 +3201,7 @@ test("a person's further deal on the page (0029's review): People's bar counts p
   // takes their id; the peek and the pick follow it there.
   wireNoa(await fresh({ people: [...peopleNow(), noa, mia] }));
   find(draw(), (n) => n.type === "tr" && n.props?.id === "person-noa_d-web").props.onClick();
-  table().props.onToggle("noa_d-web");
+  table().props.state.toggleSelected("noa_d-web");
   draw();
   await settled();
   const { recordDeal } = await import("../../../../apps/dashboard/src/surfaces/people/people-detail.ts");
@@ -3236,7 +3242,7 @@ test("a person's further deal on the page (0029's review): People's bar counts p
       "the website's row is their first now",
     );
     assert.equal(textOf(byTestId(peekOf(tree), "pipeline-peek-sub")), "Website · $4,000", "the sheet followed it");
-    assert.deepEqual([...find(tree, (n) => n.type === PeopleTable).props.sel], ["noa"], "and so did the pick");
+    assert.deepEqual([...find(tree, (n) => n.type === DataTable).props.state.selected], ["noa"], "and so did the pick");
   } finally {
     globalThis.window.fetch = old;
   }
@@ -3246,7 +3252,7 @@ test("the Pipeline's groups swap in with the kit's rise on a rail pick, the tabl
   // People's lists rose on a pick and the Pipeline's groups came in at once (5 Oct 2026): the scope hands its table the
   // swap's ref, which rises the table's row groups (kit/motion/use-swap-motion.ts with TABLE_BODIES).
   await fresh();
-  const table = find(draw(), (n) => n.type === PeopleTable);
+  const table = find(draw(), (n) => n.type === DataTable);
   assert.ok(table.props.swapRef && "current" in table.props.swapRef, "the table carries the swap's ref");
 });
 
@@ -3264,9 +3270,9 @@ test("a selection: People's bar leads with Mark as passed · N; why is asked onc
   };
   try {
     let tree = draw();
-    const table = find(tree, (n) => n.type === PeopleTable);
+    const table = find(tree, (n) => n.type === DataTable);
     assert.equal(table.props.selectable, true);
-    for (const id of ["wes", "nia", "cat"]) table.props.onToggle(id);
+    for (const id of ["wes", "nia", "cat"]) table.props.state.toggleSelected(id);
     tree = draw();
     const bar = byTestId(tree, "bulk-bar");
     assert.ok(bar, "People's own bar");
@@ -3314,7 +3320,7 @@ test("a selection: People's bar leads with Mark as passed · N; why is asked onc
     });
     tree = draw();
     assert.deepEqual(
-      [...find(tree, (n) => n.type === PeopleTable).props.sel].sort(),
+      [...find(tree, (n) => n.type === DataTable).props.state.selected].sort(),
       ["cat", "nia"],
       "only Wes, who passed, leaves the selection: the one that had changed, and the client, stay picked",
     );
@@ -3592,7 +3598,7 @@ test("their next step on the page: a column after Stage that sorts by its day, i
     );
   const seen = await fresh({ people: people() });
   let tree = draw();
-  const heads = all(tree, (n) => n.props?.className === "cl-th-sort").map((n) => textOf(n).trim());
+  const heads = all(tree, (n) => n.props?.className === "dtable-sort").map((n) => textOf(n).trim());
   const at = (w) => heads.findIndex((h) => h.startsWith(w));
   assert.ok(at("Next step") === at("Where it stands") + 1, `after where it stands: ${heads.join(", ")}`);
   const cell = (id) => byTestId(rowNode(tree, id), "pipe-next");
@@ -3604,7 +3610,7 @@ test("their next step on the page: a column after Stage that sorts by its day, i
   assert.equal(textOf(cell("cat")), "", "no step: an empty cell, never a word for nothing");
   assert.equal(cell("wes").props.title, "Send the revised quote", "the words whole, where the cell cuts them");
   // The heading sorts by the day, within each group, and the member's view keeps it.
-  const nextHead = (t) => find(t, (n) => n.props?.className === "cl-th-sort" && textOf(n).startsWith("Next step"));
+  const nextHead = (t) => find(t, (n) => n.props?.className === "dtable-sort" && textOf(n).startsWith("Next step"));
   click(nextHead(tree));
   tree = draw();
   await tick();

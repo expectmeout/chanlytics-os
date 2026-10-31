@@ -812,64 +812,12 @@
   box-shadow: var(--shadow-sm);
 }
 
-/* === Dense table === */
+/* === The table ===
+   Its box, heads, rows, widths and groups are the kit's (kit/table/, kit.css .dtable*), which People's three scopes
+   draw; what is People's own of it stays here, under the classes the scopes hand it (words.ts PL_TABLE_CLASSES): the
+   box's place on the page, and the cells. */
 .cl-table-wrap {
   margin: 0 28px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  /* clip, not hidden: hidden makes this box the scrollport and the sticky header never sticks to the page. */
-  overflow: clip;
-  background: var(--bg);
-}
-.cl-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--text-sm);
-}
-.cl-table thead th {
-  text-align: left;
-  font-weight: 500;
-  font-size: 10px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ink-dim);
-  padding: 10px 12px;
-  background: var(--bg-sunken);
-  border-bottom: 1px solid var(--line);
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  user-select: none;
-}
-.cl-table thead th.sortable { cursor: pointer; }
-@media (hover: hover) { .cl-table thead th.sortable:hover { color: var(--ink); } }
-.cl-table thead th.num { text-align: right; }
-.cl-table thead th .sort-arr {
-  display: inline-block;
-  margin-left: 4px;
-  color: var(--ink);
-  font-size: 9px;
-}
-/* A heading that sorts is a button in the cell, in the cell's own type; its ring is the shared one, restated because
-   `all: unset` takes the base rule's box-shadow with it. */
-.cl-table thead th .cl-th-sort { all: unset; display: inline-flex; align-items: center; cursor: pointer; font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; border-radius: 3px; }
-.cl-table thead th .cl-th-sort:focus-visible { box-shadow: var(--focus-ring); }
-
-.cl-table tbody tr {
-  border-bottom: 1px solid var(--line);
-  cursor: pointer;
-  transition: background 80ms;
-}
-/* A row keeps its fill under a finger: the row last opened stays lit (Ruben, 19 Oct 2026). */
-.cl-table tbody tr:hover { background: var(--bg-hover); }
-.cl-table tbody tr:last-child { border-bottom: none; }
-.cl-table tbody tr.checked { background: var(--accent-soft); }
-
-.cl-table td {
-  padding: 9px 12px;
-  vertical-align: middle;
-  color: var(--ink);
-  line-height: 1.4;
 }
 .cl-table td.num {
   text-align: right;
@@ -950,16 +898,6 @@
 .cl-table tbody tr:hover .cl-row-checkbox,
 .cl-table tbody tr.checked .cl-row-checkbox { opacity: 1; }
 
-.cl-table-foot {
-  padding: 10px 14px;
-  border-top: 1px solid var(--line);
-  background: var(--bg-sunken);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: var(--text-xs);
-  color: var(--ink-dim);
-}
 
 /* ====================================================================
    Direction B: Segments-first
@@ -2049,15 +1987,6 @@
 
 /* ---- Selecting people: a quiet checkbox, a bar that says what they can become ---- */
 .cl-main { position: relative; }
-.cl-table th.cl-sel, .cl-table td.cl-sel { width: 28px; padding-right: 0; }
-.cl-check { width: 14px; height: 14px; margin: 0; accent-color: var(--accent); cursor: pointer; opacity: 0.35; transition: opacity 120ms ease; }
-.cl-table tr:hover .cl-check, .cl-check:checked, .cl-table-wrap.selecting .cl-check, .cl-table th .cl-check { opacity: 1; }
-/* A picked row: an ink tint that shows in light as in dark. It was --bg-raised on --bg -- white on warm paper, which
-   nobody could see -- with the accent's edge, and the accent is kept for the receptionist's live state. */
-.clients { --pl-selected: oklch(from var(--ink) l c h / 0.07); }
-/* On dark paper 7% of the ink sat within a shade of a hovered row and the cursor's; 12% stands apart from both. */
-[data-theme="dark"] .clients { --pl-selected: oklch(from var(--ink) l c h / 0.12); }
-.cl-table tbody tr.selected { background: var(--pl-selected); }
 .cl-bulk { position: absolute; left: 50%; bottom: 64px; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; padding: 8px 10px 8px 14px; border: 1px solid var(--line-strong); border-radius: var(--radius-full); background: var(--bg-raised); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28); z-index: 5; animation: cl-bulk-in 160ms ease-out; white-space: nowrap; }
 @keyframes cl-bulk-in { from { opacity: 0; transform: translate(-50%, 6px); } to { opacity: 1; transform: translate(-50%, 0); } }
 @media (prefers-reduced-motion: reduce) { .cl-bulk { animation: none; } }
@@ -2172,18 +2101,11 @@
   .cl-table tbody tr:is(:hover, .focused) .cl-row-name-them, .cl-table .cl-row-name-them:focus-visible { max-width: none; margin-left: 0; }
 }
 .cl-row-last-visit { font-size: 11.5px; color: var(--ink-faint); }
-.cl-table td.cl-actions-cell { width: 1%; white-space: nowrap; padding-left: 0; }
-.cl-table th.cl-actions-head { width: 1%; }
+.cl-table td.cl-actions-cell { width: 1%; white-space: nowrap; }
 .cl-row-actions { display: inline-flex; gap: 4px; opacity: 0; transition: opacity 120ms ease; }
 .cl-table tbody tr:hover .cl-row-actions, .cl-table tbody tr.focused .cl-row-actions, .cl-row-actions:focus-within { opacity: 1; }
-.cl-table tbody tr.focused { background: var(--bg-hover); box-shadow: inset 2px 0 0 var(--accent); }
-/* The cursor's row holds focus (a tab stop that follows the cursor): the ring, drawn as an outline because a row
-   paints no box-shadow, inside the row so the pinned cells do not cover it. */
-.cl-table tbody tr:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .cl-table-keys { display: inline-flex; align-items: center; gap: 4px; }
 .cl-table-keys kbd { font: inherit; font-size: 10px; padding: 0 4px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: var(--radius-xs); color: var(--ink-dim); background: var(--bg-raised); }
-/* The Columns menu is the kit's (kit.css draws its ticks and Person's lock). A phone draws cards, not columns. */
-@media (max-width: 900px) { .pl-cols { display: none; } }
 /* People's controls wrap on a desktop too. Beside the sidebar and the rail, Add a person, Export CSV, Columns and the
    sort outgrow one row from 901px to about 1200px, and a row that never wrapped pushed the whole page sideways (178px
    at 1024px, with the Columns button cut and its menu clipped). People's alone: pipeline and the store share
@@ -2200,10 +2122,8 @@
      768px), and up to about 790px the card's last cell, a person's state or a lead's Call, ended past the wrap's
      visible edge (26px at 768px). */
   .cl-table.pl-table { min-width: 0; }
-  .cl-table thead { display: none; }
   .cl-table tbody tr { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; grid-template-areas: "sel name state" "sel last visits" "sel offers offers"; column-gap: 8px; row-gap: 2px; padding: 8px 10px; width: 100%; box-sizing: border-box; }
   .cl-table td, .cl-table td.shrink { display: block; width: auto; min-width: 0; padding: 0; border: none; white-space: normal; }
-  .cl-table td.cl-sel { grid-area: sel; align-self: start; padding-top: 2px; }
   .cl-table td.cl-name-cell { grid-area: name; }
   .cl-table td.cl-state-cell { grid-area: state; justify-self: end; }
   .cl-table td.cl-last-cell { grid-area: last; }
@@ -2218,12 +2138,8 @@
 }
 
 /* ---- On a desktop the People table is its own scroller -----------------------------------------------------
-   The page above it holds still and the table scrolls in its box, both ways: the header sticks to its top, the
-   checkbox and Person to its left, and a hairline shows beside Person once it has scrolled sideways (.scrolled, the
-   page's state). The box used to clip what did not fit (overflow: clip, so that the header could stick to the page),
-   so the columns past its right edge were cut off with no way to reach them. The cells draw the row's lines and its
-   colour (--pl-row), because a pinned cell sits over the others and must paint its own. Phones and tablets keep the
-   cards (max-width: 900px). */
+   The page above it holds still and the table scrolls in its box, both ways (kit.css, a desk's table): what is People's
+   of it is the box's place in the pane. Phones and tablets keep the cards (max-width: 900px). */
 @media (width > 900px) {
   /* The table's box reaches the pane's foot, 8px off it as it stands 8px off its sides: the pane's 40px (.cl-main-scroll,
      for a page that scrolled whole) left 55px empty under the count once the table scrolled in its own box (28 Oct 2026). */
@@ -2233,54 +2149,7 @@
   /* A short window leaves the box 240px once it holds more than three rows. A shorter table fits its own height: a
      floor under one person, or nobody, was a gap inside the box. */
   .clients .pl-main > .pl-table-wrap:has(tbody > tr:nth-child(4)) { min-height: 240px; }
-  /* The header is --pl-head tall, and a row scrolled to (J, K, Tab, Shift+Tab) stops below it, not under it; with
-     people selected, above the bulk bar that floats over the box's bottom edge too. */
-  .pl-table-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; --pl-head: 39px; scroll-padding-top: var(--pl-head); }
-  /* With people selected the bar floats over the box's foot (22px off the pane's edge, 48px tall): the rows' last scroll
-     leaves room under the last row, so it can be brought clear of the bar. */
-  .pl-table-wrap.selecting .pl-table-scroll { scroll-padding-bottom: 32px; padding-bottom: 24px; }
-  .pl-table { border-collapse: separate; border-spacing: 0; --pl-row: var(--bg); }
-  .pl-table tbody tr:is(:hover, [data-hover]) { --pl-row: var(--bg-hover); }
-  .pl-table tbody tr.selected { --pl-row: linear-gradient(var(--pl-selected), var(--pl-selected)), var(--bg); }
-  .pl-table tbody tr.focused { --pl-row: var(--bg-hover); }
-  .pl-table tbody td { border-bottom: 1px solid var(--line); }
-  .pl-table tbody tr:last-child td { border-bottom: none; }
-  /* One line each, so no heading grows past --pl-head. */
-  .pl-table thead th { z-index: 2; height: var(--pl-head); white-space: nowrap; }
-  /* An empty table's headings may wrap: it has no row to scroll to under them, and on one line each they made it wider
-     than its box (72px at 960px), with its one sentence off-centre. */
-  .pl-table:has(tbody .empty) thead th { white-space: normal; }
-  /* A pinned cell changes colour with its row: the row fades in 80ms. */
-  .pl-table .cl-sel, .pl-table .pl-pin { position: sticky; left: 0; z-index: 1; background: var(--pl-row); transition: background-color 80ms; }
-  .pl-table thead th.cl-sel, .pl-table thead th.pl-pin { z-index: 3; background: var(--bg-sunken); }
-  /* A pinned cell is sticky, and sticky with a z-index is its own stacking context: whatever opens inside it -- a
-     lead's name card -- can climb only as high as the cell does, and the next row's pinned cell, at the same level,
-     later in the page and opaque, painted straight over it. The one being hovered or focused rises above its pinned
-     neighbours for as long as it is, and stays under the pinned header (3). */
-  .pl-table tbody td.pl-pin:hover, .pl-table tbody td.pl-pin:focus-within { z-index: 2; }
-  /* The checkbox's column is Person's offset, 28px, by what it holds: 12px of padding, the 14px box and these 2px.
-     Its width of 28px alone was squeezed to the 26px of its content, and a cell's min- and max-width are undefined in
-     CSS, so neither can be what holds it. */
-  .pl-table .cl-check { margin-right: 2px; }
-  .pl-table .cl-sel + .pl-pin { left: 28px; }
-  .pl-table .pl-pin { border-right: 1px solid transparent; }
-  .pl-table-scroll.scrolled .pl-pin { border-right-color: var(--line); }
-  /* The row's acts stay in sight at the box's right edge when the table scrolls sideways: as the last column they stood
-     past it, out of reach of the row being pointed at. At rest they are clear (the acts are not drawn until a pointer
-     reaches the row); a row under the pointer or the cursor paints them its colour, so the words under them do not show. */
-  .pl-table td.cl-actions-cell, .pl-table thead th.cl-actions-head { position: sticky; right: 0; z-index: 1; }
-  .pl-table thead th.cl-actions-head { z-index: 3; }
-  .pl-table tbody tr:is(:hover, [data-hover], .focused) td.cl-actions-cell { background: var(--pl-row); }
-  /* While more columns lie past the box's right edge, the acts' column draws a hairline there, as Person's does once the
-     table has scrolled under it (use-layout.ts plMarkMore says it on the box). */
-  .pl-table :is(td.cl-actions-cell, thead th.cl-actions-head) { border-left: 1px solid transparent; }
-  .pl-table-scroll[data-more] .pl-table :is(td.cl-actions-cell, thead th.cl-actions-head) { border-left-color: var(--line); }
-  /* Nobody to show is said in the box, wherever the table's width runs: centred across a table wider than its box, a
-     search that found nobody stood past the box's right edge and looked like an empty box (27 Oct 2026). */
-  .pl-table-scroll { container: pl-room / inline-size; }
-  .pl-table td.pl-nobody-cell > * { position: sticky; left: 0; width: 100cqi; box-sizing: border-box; }
-  /* The cursor's edge, on the first cell: a pinned cell paints over the row's own. */
-  .pl-table tbody tr.focused > td:first-child { box-shadow: inset 2px 0 0 var(--accent); }
+  /* The table in the box scrolls itself (the kit's .dtable-scroll), its heads, its pinned columns and its acts held. */
 }
 
 /* ---- The widths are the columns' own (surfaces/people/table/layout.ts) ---------------------------------------------
@@ -2291,39 +2160,14 @@
    column (a Receptionist's "Escalated, wrote by email" lay 76px over Offers, 28 Oct 2026). A plain-text one (cl-cut)
    ends in an ellipsis; one that holds a hover card (Leads') is not cut, since the card is drawn inside the cell. */
 @media (width > 900px) {
-  .pl-table[data-fixed] { table-layout: fixed; }
-  /* Fitted, the table is its box's width; sized by a member, it is as wide as its columns (its width attribute, which a
-     rule here would override), wider than the box or narrower. */
-  .pl-table[data-fixed]:not([data-sizing="sized"]) { width: 100%; }
-  .pl-table[data-fixed] td { white-space: nowrap; }
-  .pl-table[data-fixed] tbody td:not(.pl-pin, .ld-hover, :has(.ld-hover)) { overflow: hidden; }
+  /* The table is the kit's fixed layout (kit.css, the desk's widths): a cell cuts what it cannot show, but the fill
+     column's, whose name card climbs out of it, and a lead's hover cells, whose cards are drawn inside them. */
+  .pl-table[data-fixed] tbody td:not([data-pin="start"], .ld-hover, :has(.ld-hover)) { overflow: hidden; }
   .pl-table[data-fixed] td.cl-cut { overflow: hidden; text-overflow: ellipsis; }
   /* A visit's day and hours end in an ellipsis in their column. */
   .pl-table[data-fixed] .cl-row-visit { display: block; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-  .pl-table[data-fixed] thead th { overflow: hidden; }
   /* Where a cell's words end the cell does: an ellipsis, never into the next column. */
   .pl-table[data-fixed] :is(.cl-row-step-when, .cl-row-last-when, .cl-row-last-by, .cl-row-reach-wire, .cl-row-reach-id:not(.tabular), .cl-row-reach-may, .ld-stage-cell .cl-row-meta) { overflow: hidden; text-overflow: ellipsis; }
-  /* The empty table's one sentence wraps: it is the row's, not a cell's of the columns. */
-  .pl-table[data-fixed] td.pl-nobody-cell { white-space: normal; }
-  /* A number sits against the column's right edge, with its heading. */
-  .pl-table thead th[data-align="end"] { text-align: right; }
-  /* A heading that sorts is pressed anywhere in its cell: the button's own box is the words, and this is the rest of it. */
-  .pl-table thead .cl-th-sort::after { content: ""; position: absolute; inset: 0; }
-  /* The caret says which headings sort before one does: faint at rest, nearer on approach, the arrow once it is the sort. */
-  .pl-table thead .sort-arr[data-idle] { color: var(--ink-faint); opacity: 0.55; transition: opacity 120ms ease; }
-  .pl-table thead th:hover .sort-arr[data-idle], .pl-table thead .cl-th-sort:focus-visible .sort-arr[data-idle] { opacity: 1; }
-  /* The edge: a thin separator at the heading's right, wider to hit than to see. It is the keyboard's too (it takes focus). */
-  .pl-edge { position: absolute; top: 0; right: 0; bottom: 0; z-index: 1; width: 10px; cursor: col-resize; touch-action: none; outline: none; }
-  .pl-edge::after { content: ""; position: absolute; top: 26%; right: 4px; bottom: 26%; width: 1px; background: var(--line-strong); opacity: 0; transition: opacity 120ms ease; }
-  .pl-table thead th:hover .pl-edge::after, .pl-edge:focus-visible::after { opacity: 1; }
-  .pl-edge:hover::after, .pl-edge[data-dragging]::after { opacity: 1; width: 2px; right: 3px; background: var(--ink-muted); }
-  .pl-edge[data-dragging]::after { background: var(--ink); }
-  .pl-edge:focus-visible::after { background: var(--ink); }
-  .pl-edge:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
-  /* A column dragged over another says on which side it would land. */
-  .pl-table thead th[data-drop]::before { content: ""; position: absolute; top: 0; bottom: 0; z-index: 1; width: 2px; background: var(--ink); }
-  .pl-table thead th[data-drop="before"]::before { left: 0; }
-  .pl-table thead th[data-drop="after"]::before { right: 0; }
   /* Compact: a row is one line. What the second line said goes beside the first (their words after the name, a step's
      day after its words, a contact's speaker after its time), and what is only a reason (the State's detail and the
      reach's stopped mail) is the cell's tip. */
@@ -2350,7 +2194,6 @@
   .pl-table-wrap[data-density="compact"] :is(.cl-row-state-detail, .cl-row-reach-may) { display: none; }
   /* On one line the secondary words give way first, so the primary ones are what stays whole. */
   .pl-table-wrap[data-density="compact"] :is(.cl-row-step-when, .cl-row-last-by, .cl-row-reach-id) { flex-shrink: 8; }
-  .main-scroll .pl-table-wrap[data-density="compact"] .cl-table td { padding-top: 4px; padding-bottom: 4px; }
 }
 
 /* ---- Where your attention matters, redrawn to the mockup ------------------
@@ -2384,7 +2227,6 @@
   /* The number, the WhatsApp name, the thread count and the first contact are
      the profile's, one tap away; the row keeps the name, the words and when. */
   .pl-table .cl-row-meta { display: none; }
-  .pl-table td.cl-sel { grid-area: sel; align-self: start; padding-top: 4px; }
   .pl-table td.cl-name-cell { grid-area: name; }
   .pl-table td.cl-state-cell { grid-area: state; justify-self: end; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; max-width: 100%; }
   .pl-table .cl-row-recept-mark { margin-left: 0; }
@@ -2649,12 +2491,7 @@
 @media (max-width: 900px) {
   /* People's rows and Leads': one card cell each (plRowCard: plCardCell, ldCardCell), edge to edge, a hairline between
      -- the Inbox's list, one list to the eye on both scopes. The wrap's box and its 16px margin are a desktop's. */
-  .clients .pl-table-wrap { margin: 0; border: 0; border-radius: 0; background: transparent; }
-  .clients .cl-table-foot { padding: 12px 16px; border-top: 0; background: transparent; }
-  .pl-table tbody tr.pl-card-row { display: block; position: relative; padding: 0; border-bottom: 1px solid var(--line); cursor: pointer; }
-  /* A tap is not a keyboard's cursor: the accent edge and the hover ground belong to the desktop's J and K. */
-  .pl-table tbody tr.pl-card-row.focused { background: transparent; box-shadow: none; }
-  .pl-table tbody tr.pl-card-row.selected { background: var(--pl-selected); }
+  .clients .pl-table-wrap { margin: 0; }
   .pl-table tbody tr.pl-card-row > td.pl-card-cell { display: block; min-width: 0; padding: 0; border: 0; }
   /* The row every list wears on a phone is the kit's list row (plRowCard draws it, kit.css), through tokens.css's --row-*,
      so the Inbox's, Conversations', Live's and a lead's are this one row, part for part. What stays here is what the
@@ -2676,11 +2513,10 @@
      tap there selects and a tap on the rest opens the person. While anyone is selected every face is a ring and a
      picked one the ink with its tick (the kit's face, its `pick`, which plRowCard is told by the table), and a tap
      anywhere on a row selects it (clients-a.jsx, the table's onOpen). */
-  .pl-table tbody tr.pl-card-row > td.cl-sel { position: absolute; left: 10px; top: 6px; z-index: 1; display: block; width: 44px; height: 44px; padding: 0; border: 0; }
-  .pl-table tbody tr.pl-card-row > td.cl-sel .cl-check { display: block; width: 44px; height: 44px; margin: 0; opacity: 0; cursor: pointer; }
-  /* Asked of the box's own cell, and its row's card beside it: a :has() over the whole row styled every row's spans again
-     each time the page under the strip changed (the strips review, 18 Oct 2026: 17 ms a swap on a phone's CPU, 3.6 so). */
-  .pl-table tbody tr.pl-card-row > td.cl-sel:has(> .cl-check:focus-visible) ~ td > .pl-card > span:first-child { outline: 2px solid var(--accent); outline-offset: 2px; }
+  /* The box over the face is the kit's (kit.css, a phone's cards); its focus rings the face. Asked of the box's own cell,
+     and its row's card beside it: a :has() over the whole row styled every row's spans again each time the page under
+     the strip changed (the strips review, 18 Oct 2026: 17 ms a swap on a phone's CPU, 3.6 so). */
+  .pl-table tbody tr.pl-card-row > td:first-child:has(> input:focus-visible) ~ td > .pl-card > span:first-child { outline: 2px solid var(--accent); outline-offset: 2px; }
   /* A toast rises over the docked row rather than covering it: its Undo and the row's ✕ are both a thumb's. From 721
      to 900px the row stands at the screen's foot, where toasts sat 14px up (mobile.css). */
   body:has(.cl-bulk.pp-bulk) .pp-toast-stack { bottom: calc(78px + env(safe-area-inset-bottom, 0px)); }
@@ -2746,46 +2582,9 @@
    they come to, in the table's own small ink-dim, on the rows' ground, with a hairline under it; a folded section's
    toggle is a quiet word at the line's end. It is words, not a row to press: no pointer, no hover, and the cursor
    passes it (it has no id). */
-/* The foot of a long table's window (surfaces/people/table/row-window.ts PL_WINDOW_ROWS): a row with nothing in it, there to be watched. */
-.cl-table tbody tr.pl-foot, .pl-table tbody tr.pl-foot { display: block; height: 1px; margin: 0; padding: 0; border: 0; background: none; box-shadow: none; }
-.cl-table tbody tr.pl-foot > td { display: none; }
-.cl-table tbody tr.pl-sec-head { cursor: default; }
-.cl-table tbody tr.pl-sec-head:hover { background: transparent; }
-.pl-sec-head > th { padding: 14px 12px 6px; text-align: left; font-size: var(--text-xs); font-weight: var(--weight-regular); line-height: 18px; color: var(--ink-dim); background: var(--bg); border-bottom: 1px solid var(--line); }
-.pl-sec-line { display: inline-flex; align-items: baseline; gap: 6px; white-space: nowrap; }
-.pl-sec-label { font-weight: var(--weight-medium); }
-.pl-sec-meta { font-variant-numeric: tabular-nums; }
-.pl-sec-dot { color: var(--ink-faint); }
-.pl-sec-toggle { margin-left: 6px; padding: 0; border: 0; background: none; font: inherit; color: var(--ink-dim); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 2px; cursor: pointer; }
-@media (hover: hover) { .pl-sec-toggle:hover { color: var(--ink); text-decoration-color: currentColor; } }
-.pl-sec-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
-/* On a touch screen the word keeps its look and grows its target, as a pressed chip does (legacy.css): the touch
-   floor would make it a 44px box in a line of small type. */
-@media (pointer: coarse) {
-  html.legacy-on .pl-sec-toggle { position: relative; min-height: 0; }
-  html.legacy-on .pl-sec-toggle::after { content: ""; position: absolute; inset: -12px -8px; }
-}
-@media (width > 900px) {
-  /* A section after another: the hairline over its head closes the one above, whose last row draws none (a card on
-     a phone draws its own). */
-  .cl-table tbody + tbody > tr.pl-sec-head > th { border-top: 1px solid var(--line); }
-  /* A folded section is its head alone, and the next head's hairline is the only one it needs. */
-  .cl-table tbody > tr.pl-sec-head.is-folded > th { border-bottom: 0; padding-bottom: 12px; }
-  /* The head's words stay at the box's left edge when the table scrolls sideways, as Person's cells do. */
-  .pl-sec-line { position: sticky; left: 12px; }
-}
+/* The table's groups are the kit's (kit.css .dtable-group*), and so are the board's column heads' name and fold
+   (board.tsx). */
 @media (max-width: 900px) {
-  /* A card list's head: the row's gutter, edge to edge, a hairline under it, and none over it. */
-  .pl-table tbody tr.pl-sec-head { display: block; padding: 0; border-bottom: 0; }
-  .pl-table tbody tr.pl-sec-head > th { display: block; padding: 14px 16px 6px; border-bottom: 1px solid var(--line); background: transparent; }
-  .pl-table tbody tr.pl-sec-head.is-folded > th { padding-bottom: 10px; }
-  .pl-table tbody tr.pl-sec-head:hover { background: transparent; }
-  /* A group's head as a desk's Glass draws it (Ruben, 10 Oct 2026): its name in the semibold at the rows' size, its
-     count and what its deals come to beside it in the dim ink, a long meta giving way at the line's end. */
-  .pipe-scope .pl-table tbody tr.pl-sec-head > th { padding: 18px 16px 8px; font-size: var(--text-sm); }
-  .pipe-scope .pl-sec-line { display: flex; min-width: 0; overflow: hidden; }
-  .pipe-scope .pl-sec-label { font-size: var(--text-base); font-weight: var(--weight-semibold); color: var(--ink); }
-  .pipe-scope .pl-sec-meta { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
   /* The Pipeline's line over its rows (scope-screen.tsx phoneFilters): its counts as filters, each with its dot, the one
      shown in ink at 600 and the others quieter. It stands where People's line does (.pl-standing, below: under the
@@ -2821,7 +2620,6 @@
 .pipe-board { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(200px, 1fr); gap: 10px; padding: 14px 28px 24px; overflow-x: auto; align-items: start; }
 .pipe-col { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 .pipe-col-head { display: flex; align-items: baseline; gap: 6px; padding: 0 4px; font-size: var(--text-xs); line-height: 18px; color: var(--ink-dim); white-space: nowrap; overflow: hidden; }
-.pipe-col-head .pl-sec-label { font-weight: var(--weight-medium); }
 .pipe-col-meta { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
 .pipe-col-meta::before { content: "·"; margin-right: 6px; color: var(--ink-faint); }
 .pipe-col-cards { display: flex; flex-direction: column; gap: 6px; min-height: 56px; padding: 4px; margin: -4px; border-radius: var(--radius-md); border: 1px dashed transparent; }
@@ -2894,9 +2692,6 @@
 .pipe-card .pipe-track { margin-top: 2px; }
 .pl-card .pipe-track { align-self: center; }
 @media (min-width: 901px) {
-  /* Under the table's own head (--pl-head, its one height), above the pinned cells even hovered or focused (z 2). */
-  .pipe-scope .pl-table tbody tr.pl-sec-head > th { position: sticky; top: var(--pl-head, 39px); z-index: 3; }
-  .pipe-scope .pl-table thead th { z-index: 4; }
   /* With a peek open the table makes room for it (leads.css .pk, 408px, and a 16px gap), so the columns kept beside it
      are seen; the line and the controls above it stay where they are, and nothing over the rows moves. */
   :is(.pipe-scope, .pp-scope) .cl-main.has-peek .cl-table-wrap { margin-right: calc(408px + 16px); }
@@ -2980,7 +2775,7 @@
 .pipe-deal-circle { flex: none; }
 /* While the caret's sheet stands over a phone's foot, the foot steps out from under its glass. */
 .pipe-deal .pipe-deal-acts:has([aria-expanded="true"]) { opacity: 0; }
-/* A phone's open deal lights its row above the sheet; a tap is no cursor otherwise (.pl-card-row.focused above). */
+/* A phone's open deal lights its row above the sheet; a tap is no cursor otherwise (kit.css, a phone's cards). */
 .pipe-scope .cl-main.has-deal .pl-table tbody tr.focused { background: var(--bg-hover); }
 .pipe-deal-pass { display: flex; flex: 1 1 auto; flex-direction: column; gap: 8px; min-width: 0; }
 .pipe-deal-pass-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-left: 10px; }
@@ -3196,92 +2991,11 @@
     font-size: var(--text-sm);
     color: var(--ink-dim);
   }
-  /* The table sits on the pane itself, as the canvases draw it (P1, L1, D1): rows told apart by hairlines, no box of
-     its own. Its pinned cells and its sticky head paint their own ground over the rows that pass under (--pl-row), so
-     that ground is the pane's solid: the token that lays the pane's fill over the page, opaque. */
+  /* The table sits on the pane itself, as the canvases draw it (P1, L1, D1): the kit's look (kit.css), 8px off the pane's
+     sides. The face 28px in --face-fill, the name at 600, their words and the state's detail under them in the dim ink,
+     every other cell at the small step. */
   .main-scroll .cl-table-wrap {
     margin: 0 8px;
-    border-color: transparent;
-    border-radius: 0;
-    background: transparent;
-    box-shadow: none;
-  }
-  .main-scroll .pl-table {
-    --pl-row: transparent;
-    --pl-hover: color-mix(in oklab, var(--surface-pane-solid) 92%, var(--ink));
-  }
-  /* A pinned cell paints its own ground only once the rows have scrolled sideways under it. */
-  .main-scroll .pl-table-scroll.scrolled .pl-table {
-    --pl-row: var(--surface-pane-solid);
-  }
-  /* So does a pinned heading: Person's once the table has scrolled under it, the acts' while columns lie past the box's
-     edge (use-layout.ts plMarkMore). As clear glass each blurred the heading sliding under it to a smear (the live walk's
-     PEOPLE-4, 27 Oct 2026). */
-  .main-scroll .pl-table-scroll.scrolled .pl-table thead th.pl-pin,
-  .main-scroll .pl-table-scroll[data-more] .pl-table thead th.cl-actions-head {
-    background: var(--surface-pane-solid);
-    backdrop-filter: none;
-  }
-  .main-scroll .pl-table tbody tr.focused {
-    --pl-row: var(--pl-hover);
-    background: transparent;
-    box-shadow: none;
-  }
-  .main-scroll .pl-table tbody tr:is(:hover, [data-hover]) {
-    --pl-row: var(--pl-hover);
-    background: transparent;
-    box-shadow: none;
-  }
-  .main-scroll .pl-table tbody tr.selected {
-    --pl-row: linear-gradient(var(--pl-selected), var(--pl-selected)), var(--surface-pane-solid);
-    background: transparent;
-  }
-  /* A row as the canvas sets it (P1): 10px over and under its cells, 18px at the pane's sides past the 8px the wrap
-     keeps, no hairline between rows; the one under a pointer, the cursor's and a picked one a lozenge of the inset's
-     corners, drawn on the cells so the corners round (a table row has none). The face 28px in --face-fill, the name at
-     600, their words and the state's detail under them in the dim ink, every other cell at the small step. */
-  .main-scroll .cl-table tbody tr,
-  .main-scroll .pl-table tbody tr > td {
-    border-bottom: 0;
-  }
-  .main-scroll .cl-table td {
-    padding: 10px 6px;
-  }
-  .main-scroll .cl-table td:first-child,
-  .main-scroll .cl-table thead th:first-child {
-    padding-left: 18px;
-  }
-  .main-scroll .cl-table td:last-child,
-  .main-scroll .cl-table thead th:last-child {
-    padding-right: 18px;
-  }
-  .main-scroll .cl-table :is(th, td).cl-sel {
-    width: 24px;
-  }
-  /* Pinned after the select column's whole width: its 24px and the 18px the table's first cell pads. At 24px the Person
-     column slid 18px under the boxes as the table scrolled sideways. */
-  .main-scroll .pl-table .cl-sel + .pl-pin {
-    left: 42px;
-  }
-  /* The row under the pointer and the cursor's row (the person last opened), at both widths: #1718 held this to a
-     pointer whole, and the cursor's row lost its lozenge on a phone with the hover (19 Oct 2026). */
-  .main-scroll .pl-table tbody tr:is(:hover, [data-hover], .focused) > td {
-    background: var(--pl-hover);
-  }
-  /* The cursor's row is the lozenge, not the accent's edge Classic draws down its first cell. */
-  .main-scroll .pl-table tbody tr.focused > td:first-child {
-    box-shadow: none;
-  }
-  .main-scroll .pl-table tbody tr.selected > td {
-    background: var(--bubble-us-bg);
-  }
-  .main-scroll .pl-table tbody tr:is(:hover, [data-hover], .focused, .selected) > td:first-child {
-    border-top-left-radius: var(--surface-inset-radius);
-    border-bottom-left-radius: var(--surface-inset-radius);
-  }
-  .main-scroll .pl-table tbody tr:is(:hover, [data-hover], .focused, .selected) > td:last-child {
-    border-top-right-radius: var(--surface-inset-radius);
-    border-bottom-right-radius: var(--surface-inset-radius);
   }
   .main-scroll .cl-table td.dim {
     font-size: var(--text-sm);
@@ -3298,58 +3012,6 @@
     font-size: var(--text-xs);
     color: var(--ink-dim);
   }
-  /* The box for a selection: a 16px square of the inset's fill, faint until a pointer reaches the row or it is picked
-     (the base rule), checked in ink. */
-  .main-scroll .cl-check {
-    appearance: none;
-    position: relative;
-    width: 16px;
-    height: 16px;
-    border-radius: var(--radius-xs);
-    background: var(--surface-inset-fill);
-    box-shadow:
-      var(--surface-inset-ring),
-      var(--surface-inset-depth);
-  }
-  .main-scroll .cl-check:checked {
-    background: var(--count-fill);
-    box-shadow: none;
-  }
-  .main-scroll .cl-check:checked::after {
-    content: "";
-    position: absolute;
-    left: 5px;
-    top: 2px;
-    width: 4px;
-    height: 8px;
-    border: solid var(--count-ink);
-    border-width: 0 1.5px 1.5px 0;
-    transform: rotate(45deg);
-  }
-  .main-scroll .cl-check:focus-visible {
-    outline: none;
-    box-shadow: var(--focus-ring);
-  }
-  /* Some of the rows picked: neither on nor off, a dash in the box. */
-  .main-scroll .cl-check:indeterminate {
-    background: var(--count-fill);
-    box-shadow: none;
-  }
-  .main-scroll .cl-check:indeterminate:focus-visible {
-    box-shadow: var(--focus-ring);
-  }
-  .main-scroll .cl-check:indeterminate::after {
-    content: "";
-    position: absolute;
-    left: 4px;
-    top: 7px;
-    width: 8px;
-    height: 2px;
-    background: var(--count-ink);
-  }
-  .main-scroll .cl-table th .cl-check:indeterminate {
-    opacity: 1;
-  }
   /* What a list says it can do for the people on it (the broadcast's door) is an inset too. */
   .main-scroll .cl-list-action {
     margin: 0 10px 12px;
@@ -3364,26 +3026,6 @@
   .main-scroll .cl-list-action-text {
     font-size: var(--text-base);
     color: var(--ink);
-  }
-  /* The head is clear on the pane, as the canvases draw it; it stays sticky, so it blurs the rows that pass under it. */
-  .main-scroll .cl-table thead th,
-  .main-scroll .pl-table thead th.cl-sel,
-  .main-scroll .pl-table thead th.pl-pin {
-    padding: 6px 6px 8px;
-    font-family: var(--font-mono);
-    font-size: var(--text-2xs);
-    letter-spacing: 0.08em;
-    color: var(--ink-dim);
-    background: transparent;
-    backdrop-filter: blur(var(--blur-md));
-  }
-  /* The foot (P1): how many, at the small step, over a hairline; the keys are the ? sheet's, never drawn here. */
-  .main-scroll .cl-table-foot {
-    padding: 12px 10px 14px;
-    border-top: 1px solid var(--line);
-    background: transparent;
-    font-size: var(--text-sm);
-    color: var(--ink-dim);
   }
   /* The bar a selection becomes is the control layer: glass, a capsule, floating at the foot of the pane. */
   .main-scroll .cl-bulk {
@@ -3406,15 +3048,6 @@
 
   /* ---- The parity pass (2 October 2026, against canvas P1 and P2) ---- */
 
-  /* The select-all box is the rows' box, not a fixture of the head: it shows when a pointer is over the table, a key is
-     in it or anyone is picked, as a row's own does. */
-  .main-scroll .cl-table th .cl-check {
-    opacity: 0;
-  }
-  .main-scroll .cl-table-wrap:is(:hover, :focus-within, .selecting) th .cl-check,
-  .main-scroll .cl-table th .cl-check:checked {
-    opacity: 1;
-  }
   /* A row's words and its state's detail say a line each and end in an ellipsis where their column ends (the column's
      width is its own, table/layout.ts), and a visit the same. */
   .main-scroll .cl-row-visit {
@@ -3449,15 +3082,8 @@
 /* A row's box for a selection is not there until a pointer reaches the row, the keyboard is on it or anyone is picked, as
    the Inbox's is (I1): it was faint on every row at rest. A screen with no pointer cannot reach a row, so there the box
    and the row's acts and its "Name them" stay drawn. */
-@media (hover: hover) {
-  .main-scroll .cl-table td .cl-check { opacity: 0; }
-  .main-scroll .cl-table tr:is(:hover, .focused, .selected) td .cl-check,
-  .main-scroll .cl-table-wrap.selecting td .cl-check,
-  .main-scroll .cl-table td .cl-check:is(:checked, :focus-visible) { opacity: 1; }
-}
 @media (hover: none) {
   .cl-row-actions, .cl-row-name-them { opacity: 1; }
-  .pl-edge::after { opacity: 0.6; }
 }
 
 @media (max-width: 900px) {
@@ -5043,18 +4669,6 @@ a.cl-prof-word:focus-visible > .cl-prof-word-text {
    edge. Each rule names the look inside :where() and none matches in Classic.
    ==================================================================== */
 @media (width > 900px) {
-  /* A group's head (D1): its name in the semibold at the rows' size, its count and its meta beside it in the dim ink. */
-  .main-scroll .pl-sec-head > th {
-    padding-top: 16px;
-    font-size: var(--text-sm);
-    background: transparent;
-    backdrop-filter: blur(var(--blur-md));
-  }
-  .main-scroll .pl-sec-head .pl-sec-label {
-    font-size: var(--text-base);
-    font-weight: var(--weight-semibold);
-    color: var(--ink);
-  }
   /* Where a deal stands, in words (canvas D1, pipeline/columns.tsx pipeGlassColumns): the chip's words over how long it
      has stood there, in the dim ink. */
   .main-scroll .pipe-stands-in {

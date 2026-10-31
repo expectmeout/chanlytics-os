@@ -3,11 +3,23 @@
  * decision 0015, step 4; the first run's Today card, canvas R10 and P9): the card itself, a chunk of its own, which
  * Today draws through setup-card.tsx once Setup's read and this code are in.
  *
- * The rows are Setup's own (surfaces/setup/rows: `SetupCardRow`, `SetupRows`), imported.
+ * The rows are Setup's own (surfaces/setup/rows: `SetupCardRow`, `SetupRows`), imported; each row's Skip is this
+ * card's (SkipMenu), so the first run's own page never loads the kit's Menu.
  */
 import { useState, type ReactNode } from "react";
-import { FIRST_RUN_HELPERS, SETUP_CARD_WORDS, type SetupCardVM, type SetupCardWho } from "@chanlytics/contracts";
+import {
+  FIRST_RUN_HELPERS,
+  SETUP_CARD_WORDS,
+  restEndsDay,
+  type SetupCardPutOff,
+  type SetupCardVM,
+  type SetupCardWho,
+  type SetupPutOffWhy,
+} from "@chanlytics/contracts";
+import { pageClock } from "@/legacy-bridge/zone";
+import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
+import { Menu } from "../../kit/menu/menu";
 import { surfaceValue } from "../../surface-values";
 import { SetupCardRow } from "../../setup/rows/card-row";
 import { SetupRows } from "../../setup/rows/rows";
@@ -73,6 +85,73 @@ function setupWhoOf(S: SetupSurface): SetupCardWho {
 }
 
 /**
+ * Where the card's fold is kept: this device's, as a pane left open or closed is. Never the member's saved view, which
+ * holds what they put off: folding is no put-off, and nothing comes back after a week. A browser that keeps nothing
+ * (a private window) keeps it for the visit.
+ */
+const FOLD_KEY = "today-setup-folded";
+
+/** The card folded or open, as this device last left it: open until it is folded. */
+function useFold(): [boolean, () => void] {
+  const [folded, setFolded] = useState(() => {
+    try {
+      return localStorage.getItem(FOLD_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const toggle = () =>
+    setFolded((was) => {
+      try {
+        if (was) localStorage.removeItem(FOLD_KEY);
+        else localStorage.setItem(FOLD_KEY, "1");
+      } catch {
+        // Kept for the visit alone.
+      }
+      return !was;
+    });
+  return [folded, toggle];
+}
+
+/**
+ * A row's Skip (the refined canvas, 31 Oct 2026): a menu that says both choices before either is pressed: for a week,
+ * back on its day; or "I don't need this", with where it is set up from then; and what waiting costs, where it costs
+ * (the kept number's forwarding). It was one press that put a row off for a week and the next time for good, and said
+ * which only in the toast after.
+ */
+function SkipMenu(p: {
+  name: string;
+  put: SetupCardPutOff;
+  word: string;
+  day: string;
+  testid: string;
+  onPut: (why: SetupPutOffWhy, said: string) => void;
+}) {
+  const W = SETUP_CARD_WORDS.skip;
+  return (
+    <Menu
+      align="end"
+      label={W.menu(p.name)}
+      trigger={
+        <Button variant="quiet" size="sm" data-testid={p.testid}>
+          {p.word}
+          <Icon name="chevron-down" size={12} />
+        </Button>
+      }
+      groups={[
+        {
+          items: [
+            { label: W.week, meta: W.backOn(p.day), onSelect: () => p.onPut("week", p.put.week) },
+            { label: W.good, meta: p.put.home, onSelect: () => p.onPut("answer", p.put.good) },
+          ],
+          ...(p.put.cost ? { caption: p.put.cost } : {}),
+        },
+      ]}
+    />
+  );
+}
+
+/**
  * After the first run, with the calendar in: the one door to the appointment reminder (decision 22), as the card's last
  * row in Setup's list, drawn as Setup's are: its dot, its name over its sentence, its button and its Skip.
  */
@@ -80,7 +159,7 @@ function remindRow(
   remind: NonNullable<SetupCardVM["remind"]>,
   skip: NonNullable<SetupCardVM["skip"]>,
   nav: (to: string) => void,
-  putOff: () => void,
+  menu: ReactNode,
 ) {
   return (
     <div>
@@ -91,7 +170,7 @@ function remindRow(
         note={remind.back ? { long: skip.back, short: skip.backShort } : null}
         sentence={remind.words}
         cta={{ label: remind.label, onClick: () => nav(remind.to) }}
-        also={{ label: skip.put, onClick: putOff, testid: "today-setup-remind-skip" }}
+        menu={menu}
         testid="today-setup-remind"
         ctaTestid="today-setup-remind-go"
       />
@@ -104,7 +183,7 @@ function optionalRows(
   S: SetupSurface,
   card: SetupCardVM,
   flash: (flash: Flash) => void,
-  { tail, quiet }: { tail: ReactNode; quiet: boolean },
+  { tail, quiet, skip }: { tail: ReactNode; quiet: boolean; skip: (id: string) => ReactNode },
 ) {
   return (
     <SetupRows
@@ -118,6 +197,7 @@ function optionalRows(
       later={card.skip ?? { put: "" }}
       flash={flash}
       tail={tail}
+      skip={card.skip ? skip : null}
       testid="today-setup-rows"
     />
   );
@@ -125,29 +205,30 @@ function optionalRows(
 
 // What is left to set up, as one card above the queue in its column (the first run's Today card, canvas R10 and P9):
 // while a step is open, the one row that opens the first run; after, Setup's own optional rows in the order they help
-// most, each with its act and a Skip this person keeps on every device (their saved view), and the reminder's row last.
-// A Skip puts a row off for a week, and once it is back, for good (contracts setupPutOffNext); Hide does the same to
-// every row at once. Gone once nothing is left. Every word is contracts' (first-run.ts setupCardOf); the rows are
-// Setup's own, drawn as the card's compact rows (setup/rows SetupRows look="card", SetupCardRow). A phone draws the same
-// rows and acts as a desk, each row without its sentence (mobile.css), and a row back from its week says so by its name.
+// most, each with its act and its Skip, and the reminder's row last. Two presses that do two things (the refined canvas,
+// 31 Oct 2026): the chevron folds the card and opens it, as often as wanted, kept on this device; "Hide for a week" puts
+// every row off for a week, and a week is always a week. Skip says its choices before either is pressed: a week, back
+// on its day, or for good, with where it is set up from then (contracts setupPutOffNext, `week` and `answer`). Each put-
+// off is said in the card's toast with its Undo, which puts the rows back as they stood. Gone once nothing is left. Every
+// word is contracts' (first-run-card.ts setupCardOf); the rows are Setup's own, drawn as the card's compact rows. A phone
+// draws the same rows and acts as a desk, each row without its sentence (mobile.css).
 export const TodaySetupCard = ({ S }: { S: SetupSurface }) => {
   // The card's toast, lent to its rows: a Skip or a Hide can take the card away while its Undo is still up.
   const [toastNode, flash] = useToast();
   // Anyone waiting on the owner (surfaces/needs-you.ts), or any row the queue drew with its coral (a step due, a visit to
-  // mark: queue-coral.ts): the queue then holds the page's coral. The count alone is known before the queue draws.
+  // mark: queue-coral.ts): the queue then holds the page's coral, and the card's acts are quiet.
   const needs = useWaitsOnToday();
   const queued = useQueueHoldsCoral();
   const waiting = needs || queued;
-  // While someone waits the card is its head alone, under the queue, and Show opens its rows (the live walk, 27 Oct 2026).
-  const [shown, setShown] = useState(false);
-  const folded = waiting && !shown;
+  const [folded, toggle] = useFold();
   const card = FIRST_RUN_HELPERS.todayCard(S.vm, setupWhoOf(S));
   if (!card) return toastNode;
   const nav = (to: string) => appNavigate(to);
-  // Put off as a "not now", said in the card's toast with its Undo, which puts every row back as it stood: every row at
-  // once (Hide, the reminder's row with them), or the reminder's alone (its Skip; Setup's rows skip through SetupRows).
-  const putAway = async (ids: string[], said: string | undefined) => {
-    const r = await setupVerbs.later(ids, { on: true, why: "rest" });
+  // The day a week put off now ends, on the business's clock: said in Skip's menu before the press, and after Hide.
+  const day = restEndsDay(pageClock().zone(), Date.now());
+  // Put off, said in the card's toast with its Undo, which puts every row back as it stood.
+  const putAway = async (ids: string[], why: SetupPutOffWhy, said: string) => {
+    const r = await setupVerbs.later(ids, { on: true, why });
     if (!r.ok) return flash(refusalFlash(r, "Not saved"));
     flash({
       msg: <>{said}</>,
@@ -158,7 +239,30 @@ export const TodaySetupCard = ({ S }: { S: SetupSurface }) => {
     });
   };
   const remind = card.remind;
-  const hide = () => putAway([...card.rows.map((r) => r.id), ...(remind ? [remind.id] : [])], card.hide?.said);
+  const hide = card.hide;
+  const hideAll = () =>
+    hide &&
+    putAway(
+      [...card.rows.map((r) => r.id), ...(remind ? [remind.id] : [])],
+      "week",
+      hide.cost ? `${SETUP_CARD_WORDS.hidden(day)} ${hide.cost}` : SETUP_CARD_WORDS.hidden(day),
+    );
+  // A row's Skip, by its id: a menu of a week or for good, its words the row's own (SetupCardRowVM.put).
+  const skipMenu = (id: string, name: string, put: SetupCardPutOff | null) =>
+    put && card.skip ? (
+      <SkipMenu
+        name={name}
+        put={put}
+        word={card.skip.put}
+        day={day}
+        testid={`setup-later-${id}`}
+        onPut={(why, said) => void putAway([id], why, said)}
+      />
+    ) : null;
+  const skipRow = (id: string) => {
+    const row = card.rows.find((r) => r.id === id);
+    return row ? skipMenu(id, row.title, row.put) : null;
+  };
   return (
     <section className="tq today-setup" data-testid="today-setup">
       <div className="setup-card-head">
@@ -168,25 +272,23 @@ export const TodaySetupCard = ({ S }: { S: SetupSurface }) => {
             {card.left}
           </span>
         </span>
-        {folded ? (
-          <button
-            type="button"
-            className="setup-card-skip today-setup-show"
-            onClick={() => setShown(true)}
-            data-testid="today-setup-show"
-          >
-            {SETUP_CARD_WORDS.show}
-          </button>
-        ) : card.hide ? (
-          <button
-            type="button"
-            className="setup-card-skip today-setup-hide"
-            onClick={hide}
-            data-testid="today-setup-hide"
-          >
-            {card.hide.put}
-          </button>
+        {!folded && hide ? (
+          <Button variant="quiet" size="sm" onClick={() => void hideAll()} data-testid="today-setup-hide">
+            {hide.put}
+          </Button>
         ) : null}
+        <Button
+          variant="quiet"
+          size="sm"
+          iconOnly
+          aria-label={folded ? SETUP_CARD_WORDS.open : SETUP_CARD_WORDS.fold}
+          aria-expanded={!folded}
+          onClick={toggle}
+          data-folded={folded || undefined}
+          data-testid="today-setup-fold"
+        >
+          <Icon name="chevron-down" size={14} />
+        </Button>
       </div>
       {folded ? null : (
         <>
@@ -196,9 +298,10 @@ export const TodaySetupCard = ({ S }: { S: SetupSurface }) => {
             : optionalRows(S, card, flash, {
                 tail:
                   remind && card.skip
-                    ? remindRow(remind, card.skip, nav, () => void putAway([remind.id], remind.said))
+                    ? remindRow(remind, card.skip, nav, skipMenu(remind.id, remind.name, remind.put))
                     : null,
                 quiet: waiting,
+                skip: skipRow,
               })}
           {ticks(SETUP_CARD_WORDS.doneTitle, card.done, "today-setup-done")}
         </>

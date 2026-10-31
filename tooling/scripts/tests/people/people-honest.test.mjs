@@ -1082,7 +1082,7 @@ const sortByHeading = (tree, label) =>
     find(
       tree,
       (n) =>
-        n.type === "button" && /\bcl-th-sort\b/.test(String(n.props?.className || "")) && textOf(n).startsWith(label),
+        n.type === "button" && /\bdtable-sort\b/.test(String(n.props?.className || "")) && textOf(n).startsWith(label),
     ),
   );
 
@@ -2465,7 +2465,7 @@ const rowOf = (tree, id) => find(tree, (n) => n.type === "tr" && n.props?.id ===
 test("the table's columns: Person, State, Next step and Last contact, and with a calendar Visits; every other column waits in the Columns menu", async () => {
   // The headings a press sorts by, as the table marks them; and each body row's cells against the headings above them.
   const sorting = (tree) =>
-    all(tree, (n) => n.type === "th" && /\bsortable\b/.test(String(n.props?.className || ""))).map((th) =>
+    all(tree, (n) => n.type === "th" && n.props?.["data-sorts"] !== undefined).map((th) =>
       textOf(th).replace(/[▲▼↕]/g, "").trim(),
     );
   const oneCellPerHeading = (tree, why) => {
@@ -2854,11 +2854,7 @@ test("REGRESSION: People draws no key -- the table's foot named every one (J K x
     null,
     "the foot's line of keys",
   );
-  assert.equal(
-    textOf(find(tree, (n) => n.props?.className === "cl-table-foot")),
-    "2 people",
-    "the foot says the count",
-  );
+  assert.equal(textOf(find(tree, (n) => n.props?.className === "dtable-foot")), "2 people", "the foot says the count");
   assert.deepEqual(keysDrawn(tree), []);
 });
 
@@ -3159,7 +3155,9 @@ test("a view keeps its columns with its sort, and every save sends every key -- 
   tree = draw();
   assert.deepEqual(
     savedViews(seen).at(-1),
-    ["people", { sortBy: "name", sortDir: "asc", columns: { came_from: false, email: true, lists: true } }],
+    // A choice the way its column's default has it (Came from off) is no choice, and goes from the view at its next save
+    // (kit/table/columns.ts choicesFrom, decision 0083).
+    ["people", { sortBy: "name", sortDir: "asc", columns: { email: true, lists: true } }],
     "a column change keeps the sort",
   );
   sortByHeading(tree, "State");
@@ -3168,7 +3166,7 @@ test("a view keeps its columns with its sort, and every save sends every key -- 
   await until(() => seen.viewSaves.length === 2, "the sort's save went after the column's landed");
   assert.deepEqual(
     savedViews(seen).at(-1),
-    ["people", { sortBy: "state", sortDir: "desc", columns: { came_from: false, email: true, lists: true } }],
+    ["people", { sortBy: "state", sortDir: "desc", columns: { email: true, lists: true } }],
     "and a new sort keeps the columns",
   );
 });
@@ -3685,28 +3683,39 @@ test("on a desktop the table scrolls in its own box, Person pinned, and the hair
     "the page's column is the layout that gives the table its own box",
   );
   const scroller = (t) => byTestId(t, "people-table-scroll");
-  assert.doesNotMatch(scroller(tree).props.className, /\bscrolled\b/, "no hairline at rest");
-  scroller(tree).props.onScroll({ currentTarget: { scrollLeft: 120, toggleAttribute() {} } });
+  assert.equal(scroller(tree).props["data-scrolled"], undefined, "no hairline at rest");
+  // The box says it has scrolled on itself, as it scrolls (kit/table/data-table.tsx): no draw of the page for a scroll.
+  const box = (scrollLeft, on = new Set()) => ({
+    on,
+    scrollLeft,
+    clientWidth: 600,
+    scrollWidth: 900,
+    toggleAttribute: (name, yes) => (yes ? on.add(name) : on.delete(name)),
+  });
+  const away = box(120);
+  scroller(tree).props.onScroll({ currentTarget: away });
+  assert.ok(away.on.has("data-scrolled"), "scrolled sideways: the hairline");
+  const back = box(0, new Set(["data-scrolled"]));
+  scroller(tree).props.onScroll({ currentTarget: back });
+  assert.ok(!back.on.has("data-scrolled"), "back at the start: none");
   tree = draw();
-  assert.match(scroller(tree).props.className, /\bscrolled\b/, "scrolled sideways: the hairline");
-  scroller(tree).props.onScroll({ currentTarget: { scrollLeft: 0, toggleAttribute() {} } });
-  tree = draw();
-  assert.doesNotMatch(scroller(tree).props.className, /\bscrolled\b/, "back at the start: none");
-  assert.match(
-    find(tree, (n) => n.type === "th" && textOf(n).startsWith("Person")).props.className,
-    /\bpl-pin\b/,
+  assert.equal(
+    find(tree, (n) => n.type === "th" && textOf(n).startsWith("Person")).props["data-pin"],
+    "start",
     "Person's heading is pinned",
   );
-  assert.match(
-    find(rowOf(tree, "p1"), (n) => n.type === "td" && /\bcl-name-cell\b/.test(n.props?.className || "")).props
-      .className,
-    /\bpl-pin\b/,
+  assert.equal(
+    find(rowOf(tree, "p1"), (n) => n.type === "td" && /\bcl-name-cell\b/.test(n.props?.className || "")).props[
+      "data-pin"
+    ],
+    "start",
     "and so are its cells",
   );
 });
 
 test("Person is the cell right after the checkbox, in the header and in every row -- its pin sits at the checkbox's width, 28px, beside it", async () => {
-  // clients.css pins Person with `.cl-sel + .pl-pin { left: 28px }`: that holds only while Person follows the checkbox.
+  // The kit pins Person with `.dtable-sel + [data-pin="start"] { left: 28px }`: that holds only while Person follows the
+  // checkbox.
   const cells = (tr) => tr.props.children.filter((k) => k && (k.type === "th" || k.type === "td"));
   const lines = (tree) =>
     [
@@ -3720,14 +3729,15 @@ test("Person is the cell right after the checkbox, in the header and in every ro
       ),
     ].map(cells);
   const is = (cell, cls) => new RegExp(`\\b${cls}\\b`).test(String(cell.props.className || ""));
+  const pinned = (cell) => cell.props["data-pin"] === "start";
   for (const calendar of ["none", "ok"]) {
     await freshPage({ people: [person(1), person(2), person(3)], calendar });
     const drawn = lines(draw());
     assert.equal(drawn.length, 4, "the header and three rows");
     for (const line of drawn) {
-      assert.ok(is(line[0], "cl-sel"), `the checkbox first (calendar ${calendar})`);
-      assert.ok(is(line[1], "pl-pin"), `then Person, pinned beside it (calendar ${calendar})`);
-      assert.equal(line.filter((c) => is(c, "pl-pin")).length, 1, "and nothing else pinned");
+      assert.ok(is(line[0], "dtable-sel"), `the checkbox first (calendar ${calendar})`);
+      assert.ok(pinned(line[1]), `then Person, pinned beside it (calendar ${calendar})`);
+      assert.equal(line.filter(pinned).length, 1, "and nothing else pinned at the left");
     }
   }
   // A member who can neither edit lists nor export has no checkbox: Person is the first cell, pinned at 0.
@@ -3736,8 +3746,8 @@ test("Person is the cell right after the checkbox, in the header and in every ro
   globalThis.window.__ME = { role: "viewer" };
   try {
     for (const line of lines(draw())) {
-      assert.ok(is(line[0], "pl-pin"), "Person first");
-      assert.ok(!line.some((c) => is(c, "cl-sel")), "and no checkbox before it");
+      assert.ok(pinned(line[0]), "Person first");
+      assert.ok(!line.some((c) => is(c, "dtable-sel")), "and no checkbox before it");
     }
   } finally {
     globalThis.window.__ME = me;
@@ -3797,7 +3807,7 @@ test("REGRESSION: a phone row is one cell -- the face, the name and the state; w
     const tds = row.props.children.filter((k) => k && k.type === "td");
     assert.deepEqual(
       tds.map((td) => String(td.props.className)),
-      ["cl-sel", "pl-card-cell"],
+      ["dtable-sel", "pl-card-cell"],
       "REGRESSION: the desktop's cells re-gridded into a box, 119 to 168px a person",
     );
     const card = tds[1];
@@ -3954,7 +3964,7 @@ test("a heading that sorts is a button a keyboard reaches; one that does not is 
     find(tree, (n) => n.type === "thead"),
     (n) => n.type === "th",
   );
-  const isSort = (n) => n.type === "button" && /\bcl-th-sort\b/.test(String(n.props?.className || ""));
+  const isSort = (n) => n.type === "button" && /\bdtable-sort\b/.test(String(n.props?.className || ""));
   const withButton = ths.filter((th) => find(th, isSort));
   assert.deepEqual(
     withButton.map((th) => textOf(th).replace(/[▲▼↕]/g, "").trim()),
@@ -3970,13 +3980,13 @@ test("a heading that sorts is a button a keyboard reaches; one that does not is 
     "Came from does not sort, so it is words",
   );
   assert.equal(
-    textOf(find(cameFrom, (n) => /\bcl-th-text\b/.test(String(n.props?.className || "")))).trim(),
+    textOf(find(cameFrom, (n) => /\bdtable-words\b/.test(String(n.props?.className || "")))).trim(),
     "Came from",
     "in a span of their own",
   );
   // Each heading that sorts carries a caret: the arrow for the sort the table is in (Last contact, most recent first), and a
   // quiet idle one on the others, so the ones that sort can be told from the ones that do not. Both are for the eye alone.
-  const caret = (th) => find(th, (n) => /\bsort-arr\b/.test(String(n.props?.className || "")));
+  const caret = (th) => find(th, (n) => /\bdtable-arrow\b/.test(String(n.props?.className || "")));
   const sorted = withButton.find((th) => th.props["data-key"] === "last");
   assert.equal(textOf(caret(sorted)), "▼", "the sorted heading says which way");
   assert.equal(caret(sorted).props["data-idle"], undefined, "and is not idle");
@@ -4036,11 +4046,12 @@ test("a People row is drawn from what is its own: every prop is a primitive or t
   const rowsOf = (tree) =>
     all(
       tree,
-      (n) => (n.type && n.type.name === "PeopleRow") || (n.type && n.type.type && n.type.type.name === "PeopleRow"),
+      (n) =>
+        (n.type && n.type.name === "TableRowView") || (n.type && n.type.type && n.type.type.name === "TableRowView"),
     );
   let tree = draw();
   const a = rowsOf(tree);
-  assert.ok(a.length >= 5, "the table draws its rows as PeopleRow");
+  assert.ok(a.length >= 5, "the table draws its rows as the kit's TableRowView");
   tree = draw();
   const b = rowsOf(tree);
   // (Not the columns, the toggle or the cursor setter: this stub's useMemo, useCallback and useState hand out new ones on
@@ -4055,7 +4066,7 @@ test("a People row is drawn from what is its own: every prop is a primitive or t
   const c = rowsOf(tree);
   assert.ok(
     Object.is(a[0].props.ctx, c[0].props.ctx),
-    "REGRESSION: the context was a new object on every draw, and PeopleRowMemo compares it by identity",
+    "REGRESSION: the context was a new object on every draw, and the kit's row memo compares it by identity",
   );
   // The doors inside it are still the page's latest.
   a[0].props.ctx.onOpen("p1");
@@ -4179,7 +4190,7 @@ test("a long list draws a window of its rows, and the cursor's row wherever the 
     press("j");
     tree = draw();
     const isPerson = (n) =>
-      n.type === "button" && /\bcl-th-sort\b/.test(String(n.props?.className || "")) && textOf(n).startsWith("Person");
+      n.type === "button" && /\bdtable-sort\b/.test(String(n.props?.className || "")) && textOf(n).startsWith("Person");
     find(tree, isPerson).props.onClick();
     find(draw(), isPerson).props.onClick();
     tree = draw();

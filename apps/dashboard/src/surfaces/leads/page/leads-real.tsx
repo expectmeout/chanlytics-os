@@ -1,19 +1,21 @@
 /**
  * People › Leads, the real surface (moved from legacy/pages/leads-real.jsx, decision 0015): LeadsReal and what only it
  * reads. People's App Router page draws it for the addresses under `clients/leads` (../../people/people-route.tsx), over
- * People's two hooks (usePlControls before the view works out its rows, usePlPlace after) and the Leads surface
- * (useSurface("leads")). Its state is the hooks beside it, one concern each, called in the order it always called them; its
+ * People's two hooks (usePlControls before the view works out its rows, usePlPlace after), the kit's table between them
+ * (decision 0083), and the Leads surface (useSurface("leads")). Its state is the hooks beside it, one concern each, called in the order it always called them; its
  * acts are plain functions over the draw's state; and what it hands LeadsScope comes from the five builders (props.tsx).
  */
 import { useEffect } from "react";
 import { leadBand, leadRail, leadReachOf, leadsStanding, type LeadRowVM } from "@chanlytics/contracts";
 import { navigate } from "../../legacy-verbs";
 import { useSwapMotion } from "../../kit/motion/use-swap-motion";
-import { TABLE_BODIES } from "../../people/table/table";
+import { TABLE_BODIES } from "../../kit/table/data-table";
+import { useDataTable } from "../../kit/table/use-data-table";
 import { usePlControls } from "../../people/hooks/use-controls";
+import type { ColCtx } from "../../people/types";
 import { usePeople } from "../../people/hooks/use-people";
 import { usePlPlace } from "../../people/hooks/use-place";
-import { LEAD_COLUMNS, LEAD_PHONE_COLUMNS } from "../cells/columns";
+import { LEAD_COLUMNS } from "../cells/columns";
 import type { LeadCellCtx } from "../cells/types";
 import { leadPeekEscape } from "../peek/seams";
 import { useLeadLists } from "../reach-out/lists";
@@ -33,7 +35,7 @@ import {
   leadsPeekProps,
   type LeadsPage,
 } from "./props";
-import { useLeadCells, useLeadRows, useLeadsRead } from "./reads";
+import { leadNarrowings, leadWords, useLeadCells, useLeadRows, useLeadsRead } from "./reads";
 import { leadRailRoutes, leadStripActs } from "./routes";
 import { leadFinderActs, leadSearchActs } from "./search-acts";
 import { leadsViewAt, useLeads, useLeadsState } from "./state";
@@ -84,27 +86,43 @@ function useLeadsView({ leadsRoute, onNavigate }: { leadsRoute: string | null; o
   const { leadView, viewRoute, addrPeek, leadList } = leadsViewAt(leadsRoute);
   const hasCenter = leads.searches.some((s) => s.plan && s.plan.area && !!s.plan.area.center);
   // The columns this scope draws with: the Leads scope's (LEAD_COLUMNS).
-  const controls = usePlControls<LeadRowVM, LeadCellCtx>({
+  const controls = usePlControls<LeadRowVM, LeadCellCtx, ColCtx>({
     scope: "leads",
     cols: LEAD_COLUMNS,
-    phoneCols: LEAD_PHONE_COLUMNS,
     colCtx: { hasCenter },
     people,
     sortFirst: { by: "fit", dir: "asc" },
     railRow: leadList,
   });
-  const { plFlash, sortBy, sortDir, q } = controls;
+  const { plFlash, sortBy, sortDir } = controls;
   const st = useLeadsState();
   const { peekId, setPeekId, peekMode, setPeekMode, armed, setArmed, setLightboxId } = st;
-  const { chip, setChip, fitChip, setFitChip, setBenchGroup, mapOpen, setMapOpen, setMapPick, setBulkWhy } = st;
-  const { reach, setReach } = st;
+  const { setBenchGroup, mapOpen, setMapOpen, setMapPick, setBulkWhy } = st;
+  // The Excluded view's chip, the band's fit and the Filter's reach: the table's filters.
+  const narrow = leadNarrowings(controls.table);
+  const { reach, setReach, setChip, setFitChip } = narrow;
   // Where Add goes, for the lead sheet and the pile alike (sheet/use-aim.ts: one choice per search, the door's answers kept
   // by lead). The pile walks the rows in the order the page has them (To decide is the pile): nothing moves under it.
   const aim = useLeadAim({ searches: leads.searches, searchId: leadView.searchId });
   const pile = useLeadPile({ flash: plFlash, aim });
   const order = { sortBy, sortDir };
   const read = useLeadsRead({ leadView, viewRoute, ...order, plFlash });
-  const rows = useLeadRows({ leads, q, chip, fitChip, reach, leadView, viewRoute, ...order });
+  // The view's rows as the table shows them: in the order the server read them, narrowed by the words and the filters.
+  const model = useDataTable({
+    state: controls.table,
+    columns: controls.declared,
+    data: leads.rows,
+    words: leadWords,
+    server: { sorting: true },
+  });
+  const rows = useLeadRows({
+    leads,
+    leadShown: model.rows,
+    narrowed: controls.table.narrowed,
+    leadView,
+    viewRoute,
+    ...order,
+  });
   const { leadShown, shownIds, viewLanded } = rows;
   // "All that match" is a claim about the view the server knows. Once the box, a chip, a fit or the Filter hides a loaded
   // row, the bars act on the rows they show, so a claim taken before goes back to the rows picked (use-place.ts takes it
@@ -114,7 +132,8 @@ function useLeadsView({ leadsRoute, onNavigate }: { leadsRoute: string | null; o
     if (rows.narrowed) setAllMatching(false);
   }, [rows.narrowed]); // eslint-disable-line react-hooks/exhaustive-deps
   // Each view keeps its place by the address's view (viewRoute), its map and its Filter with it. A view opened after the
-  // first starts with none of the last one's filters.
+  // first starts with none of the last one's filters. The selection goes with the view, never with a narrowing: a chip,
+  // as the box, the fit and the Filter, keeps it (decision 0083, §6.8), and the bars act on the rows shown.
   const place = usePlPlace({
     controls,
     page: "leads",
@@ -122,7 +141,7 @@ function useLeadsView({ leadsRoute, onNavigate }: { leadsRoute: string | null; o
     ids: shownIds,
     noun: "lead",
     landed: viewLanded,
-    selectionOf: `${viewRoute}|${chip}`,
+    selectionOf: viewRoute,
     extra: { map: mapOpen, reach },
     onPlace: (at, again) => {
       setMapOpen(!!at.map);
@@ -171,6 +190,8 @@ function useLeadsView({ leadsRoute, onNavigate }: { leadsRoute: string | null; o
     hasCenter,
     controls,
     st,
+    narrow,
+    model,
     read,
     rows,
     place,
@@ -185,8 +206,9 @@ function useLeadsView({ leadsRoute, onNavigate }: { leadsRoute: string | null; o
  * line, the open search's reach-out and the lists of one's own, the cells' context, and the strip's steps.
  */
 function useLeadsPage(v: ReturnType<typeof useLeadsView>, onOpenProfile: (id: string) => void): LeadsPage {
-  const { people, leads, swap, nav, leadView, hasCenter, controls, st, read, rows, place, deckMove, pile, aim } = v;
-  const { canExport, plFlash, setSel, setAllMatching, setSortBy, setSortDir, columns } = controls;
+  const { people, leads, swap, nav, leadView, hasCenter, controls, st, narrow, model, read, rows, place } = v;
+  const { deckMove, pile, aim } = v;
+  const { canExport, plFlash, setSel, setAllMatching, pickSort, columns } = controls;
   const { peekId, setPeekId, finder, closeFinder, peekMode, setPeekMode, armed, setArmed } = st;
   const { values, lightboxId, setLightboxId } = st;
   const acts = leadActs({ leads, leadView, plFlash, setSel, setAllMatching, ...st });
@@ -273,14 +295,15 @@ function useLeadsPage(v: ReturnType<typeof useLeadsView>, onOpenProfile: (id: st
     ...finderActs,
     ...searches,
     ...routes,
-    setSortBy,
-    setSortDir,
+    pickSort,
     ...st,
     openFindPeople: lists.openFindPeople,
   });
   return {
     ...controls,
     ...st,
+    ...narrow,
+    model,
     ...acts,
     ...finderActs,
     ...searches,

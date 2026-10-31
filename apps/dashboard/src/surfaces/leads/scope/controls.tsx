@@ -11,9 +11,9 @@ import { Icon } from "../../kit/icon/icon";
 import { Button } from "../../kit/button/button";
 import { Menu } from "../../kit/menu/menu";
 import { gate } from "../../legacy-verbs";
-import type { ColumnOption } from "../../people/table/columns";
-import type { TableLayout } from "../../people/table/use-layout";
-import { PeopleColumnsMenu } from "../../people/table/columns-menu";
+import type { AnyDataColumn } from "../../kit/table/columns";
+import { TableColumnsMenu } from "../../kit/table/columns-menu";
+import type { TableState } from "../../kit/table/state";
 
 interface ControlsProps {
   canExport: boolean;
@@ -25,9 +25,10 @@ interface ControlsProps {
   onValues: (on: boolean) => void;
   reach: readonly LeadReachFilter[];
   onReach: (filter: string) => void;
-  colOptions: readonly ColumnOption[];
-  onPickColumn: (key: string) => void;
-  layout: TableLayout | null;
+  /** The table's state, and the columns this workspace declares: what the Columns menu draws. */
+  table: TableState;
+  declared: readonly AnyDataColumn[];
+  phone: boolean;
 }
 
 /**
@@ -116,7 +117,7 @@ export const LeadsControlsRight = ({ p }: { p: ControlsProps }) => {
   return (
     <div className="cl-controls-right">
       <LeadsFilterMenu reach={p.reach} onReach={p.onReach} />
-      <PeopleColumnsMenu options={p.colOptions} onPick={p.onPickColumn} layout={p.layout} rowHeight={false} />
+      <TableColumnsMenu state={p.table} columns={p.declared} desk={!p.phone} rowHeight={false} />
       {/* The map, Values / Signals and the file stand beside Columns as words, as People's Import and Export do (the ⋯ that
           folded them away is gone, Ruben, 9 Oct 2026). */}
       <div className="pl-file-acts">

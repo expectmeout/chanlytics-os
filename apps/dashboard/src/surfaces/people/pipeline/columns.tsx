@@ -5,15 +5,17 @@
  * from and the day a proposal stands until (a member shows those two with Columns), its one chip, whose heading only a
  * screen reader hears (the house's .rec-sr: no one word is right for "Fri 2:00 PM" and "Since Sep 18" alike), and the
  * row's own menu. Their next step (0007, amended) stands after Stage: what, then when, the day in the warn ink once it
- * has come. Person, Value, Stage and Next step sort within each group (contracts pipelineSorted); Stage is the
- * Pipeline's own order, as the page opens. And a row on a phone: People's card.
+ * has come. Person, Value, Stage and Next step sort within each group (contracts pipelineSorted, which orders the board
+ * and the list alike: the table holds the heading's sort and draws contracts' order); Stage is the Pipeline's own order,
+ * as the page opens. And a row on a phone: People's card.
  */
 import { isIdentifierName, type PipelineRowVM } from "@chanlytics/contracts";
 import { StatePill } from "../../kit/pill/state-pill";
 import { StoppedMark } from "../../kit/pill/stopped-mark";
 import { plNameCell } from "../cells/columns";
 import { plRowCard } from "../cells/row-card";
-import type { RowPick, TableColumn, TableCtx } from "../types";
+import type { DataCard, DataColumn, RowPick } from "../../kit/table/columns";
+import type { TableCtx } from "../types";
 import { P } from "./pipe";
 import { PipelineRowMenu, PipelineTrack } from "./row";
 
@@ -27,7 +29,7 @@ interface PipelineCellCtx extends TableCtx {
 }
 
 /** A column of the Pipeline's table. */
-type PipelineColumn = TableColumn<PipelineRowVM, PipelineCellCtx>;
+type PipelineColumn = DataColumn<PipelineRowVM, PipelineCellCtx>;
 
 // Made once, from contracts' headings, so the list page's memo sees one list from one draw to the next.
 let PIPE_COLUMNS: PipelineColumn[] | null = null;
@@ -38,17 +40,15 @@ const pipeColumns = (): PipelineColumn[] => {
     {
       key: "name",
       label: w.person,
-      sortable: true,
-      sortFirst: "asc",
-      width: { base: 300, min: 240, max: 640, grow: 4 },
-      pinned: true,
+      sort: { first: "asc" },
+      width: { base: 300, min: 240, max: 640 },
+      fill: true,
       cell: (r, x) => plNameCell(r.person, { ...x, stopMark: true }, undefined, r.id),
     },
     {
       key: "service",
       label: w.service,
-      sortable: false,
-      width: { base: 200, min: 140, max: 360, grow: 2 },
+      width: { base: 200, min: 140, max: 360 },
       cell: (r) => (
         <td key="service" className="pipe-service" data-testid="pipe-service">
           {r.service || ""}
@@ -58,7 +58,7 @@ const pipeColumns = (): PipelineColumn[] => {
     {
       key: "value",
       label: w.value,
-      sortable: true,
+      sort: { first: "desc" },
       width: { base: 112, min: 96 },
       cell: (r) => (
         <td key="value" className="tabular pipe-value" data-testid="pipe-value">
@@ -69,9 +69,8 @@ const pipeColumns = (): PipelineColumn[] => {
     {
       key: "stage",
       label: w.stage,
-      sortable: true,
-      sortFirst: "asc",
-      width: { base: 180, min: 150, max: 280, grow: 1 },
+      sort: { first: "asc" },
+      width: { base: 180, min: 150, max: 280 },
       cell: (r) => (
         <td key="stage" className="dim tabular pipe-stage">
           <span className="pipe-stage-in">
@@ -84,9 +83,8 @@ const pipeColumns = (): PipelineColumn[] => {
     {
       key: "next",
       label: w.next,
-      sortable: true,
-      sortFirst: "asc",
-      width: { base: 160, min: 130, max: 280, grow: 1 },
+      sort: { first: "asc" },
+      width: { base: 160, min: 130, max: 280 },
       cell: (r) => (
         <td
           key="next"
@@ -107,8 +105,7 @@ const pipeColumns = (): PipelineColumn[] => {
     {
       key: "came",
       label: w.came,
-      sortable: false,
-      width: { base: 130, min: 100, max: 220, grow: 1 },
+      width: { base: 130, min: 100, max: 220 },
       on: false,
       cell: (r) => (
         <td key="came" className="dim pipe-came" data-testid="pipe-came">
@@ -119,7 +116,6 @@ const pipeColumns = (): PipelineColumn[] => {
     {
       key: "valid",
       label: w.valid,
-      sortable: false,
       width: { base: 112, min: 96 },
       on: false,
       cell: (r) => {
@@ -135,7 +131,6 @@ const pipeColumns = (): PipelineColumn[] => {
     {
       key: "chip",
       label: <span className="rec-sr">{w.chip}</span>,
-      sortable: false,
       width: { base: 120, min: 100 },
       fixed: true,
       cell: (r) => (
@@ -147,7 +142,6 @@ const pipeColumns = (): PipelineColumn[] => {
     {
       key: "actions",
       label: <span className="rec-sr">{w.acts}</span>,
-      sortable: false,
       width: { base: 84 },
       fixed: true,
       cell: (r, x) => (
@@ -176,19 +170,17 @@ export const pipeGlassColumns = (): PipelineColumn[] => {
     {
       key: "name",
       label: w.person,
-      sortable: true,
-      sortFirst: "asc",
-      width: { base: 300, min: 240, max: 640, grow: 4 },
-      pinned: true,
+      sort: { first: "asc" },
+      width: { base: 300, min: 240, max: 640 },
+      fill: true,
       cell: (r, x) => plNameCell(r.person, { ...x, stopMark: true }, r.service, r.id),
     },
     kept("value"),
     {
       key: "stage",
       label: w.chip,
-      sortable: true,
-      sortFirst: "asc",
-      width: { base: 180, min: 150, max: 280, grow: 1 },
+      sort: { first: "asc" },
+      width: { base: 180, min: 150, max: 280 },
       cell: (r) => (
         <td key="stage" className="pipe-stands" data-testid="pipe-stands">
           <span className="pipe-stands-in">
@@ -246,10 +238,7 @@ const pipeCardCell = (r: PipelineRowVM, _x: unknown, pick?: RowPick) => {
     ) : null,
   });
 };
-let PIPE_PHONE_COLUMNS: PipelineColumn[] | null = null;
-export const pipePhoneColumns = (): PipelineColumn[] =>
-  PIPE_PHONE_COLUMNS ||
-  (PIPE_PHONE_COLUMNS = [
-    { key: "card", label: P.words.columns.person, sortable: false, pinned: true, cell: pipeCardCell },
-  ]);
-export const pipeCardRow = () => "pl-card-row";
+let PIPE_CARD: DataCard<PipelineRowVM, PipelineCellCtx> | null = null;
+/** A phone's one cell a row, and the class its rows wear. */
+export const pipeCard = (): DataCard<PipelineRowVM, PipelineCellCtx> =>
+  PIPE_CARD || (PIPE_CARD = { label: P.words.columns.person, cell: pipeCardCell, rowClass: "pl-card-row" });

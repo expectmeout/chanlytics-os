@@ -16,7 +16,7 @@ import type { ReactElement, ReactNode } from "react";
 import type { FacePerson } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
 import { ListRow } from "../../kit/list-row/list-row";
-import type { RowPick } from "../types";
+import type { RowPick } from "../../kit/table/columns";
 
 /**
  * The card's face: a person (the kit's Face tells initials from the glyph of a number or an address, by contracts'

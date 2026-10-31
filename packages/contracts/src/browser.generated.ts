@@ -408,7 +408,7 @@ export { businessNameOf, receptionistCardOf, soundsWords } from "./setup/first-r
 export { FIRST_RUN_FIND_ROUTE, FIRST_RUN_ROUTE, firstRunStepRoute, FINISH_SETTING_UP, FIRST_RUN_LANDED_KEY, FIRST_RUN_TITLE, shouldLandOnFirstRun, firstRunStepOf } from "./setup/first-run-route";
 export { FIRST_RUN_TRY_WORDS, firstRunTryOf, TRY_QUIET_AFTER_MS } from "./setup/first-run-try";
 export { BROKEN_CONFIG_WORDS, forwardedLineOf, keptPhoneKind, LINE_STEP_WORDS, lineRetryRefusal, lineStuckProvisioning, MOCK_TEXTING_SENTENCE, PROVISIONING_DEADLINE_MS, SETUP_REQUEST_KINDS, SETUP_STATE_WORDS, setupChoicesOf, setupPhoneWantOf, SOLE_PROP_CEILING_SENTENCE, SOLE_PROP_TEXTING_SENTENCE, TEXTING_NEEDS_RECORD_CLAUSE, TEXTING_NEEDS_RECORD_SENTENCE, textingWords } from "./setup/setup";
-export { CHANNELS_SEEN, GOOGLE_CONNECT_LATER, KEEP_ROW, putOffEnds, RECEPTIONIST_MET, REHEARSE_SKIPPED, REMIND_SKIPPED, SETUP_LATER_REFUSED, SETUP_REST_MS, setupLaterOf, setupPutOffNext, setupRestsOf, TRY_SKIPPED } from "./setup/setup-put-off";
+export { CHANNELS_SEEN, GOOGLE_CONNECT_LATER, KEEP_ROW, putOffEnds, RECEPTIONIST_MET, REHEARSE_SKIPPED, REMIND_SKIPPED, restEndsDay, SETUP_LATER_REFUSED, SETUP_REST_MS, setupLaterOf, setupPutOffNext, setupRestsOf, TRY_SKIPPED } from "./setup/setup-put-off";
 export { setupSteps } from "./setup/setup-rows";
 export { keptNumberRowOf } from "./setup/setup-rows-phone";
 export { hexOf, utf8Bytes } from "./shared/bytes";
