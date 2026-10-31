@@ -407,3 +407,22 @@ test("signed in, from a preview's link: one press makes it theirs; refused, the 
   delete globalThis.window.location.reload;
   preview = null;
 });
+
+test("from a preview's link, someone who has an account signs in and comes back to Make it mine: the form's and the code step's Sign in carry the preview", async () => {
+  auth = { session: null };
+  await openFromLink("open");
+  const signIn = () => find((n) => n.type === "a" && textOf(n) === "Sign in").props.href;
+  const back = `/login?email=owner%40fixture.example&preview=${TOKEN}`;
+  assert.equal(signIn(), back, "the address it was sent to, and the preview to land back on");
+  type("password", "correct horse battery");
+  await press();
+  assert.equal(card().props["data-testid"], "signup-confirm");
+  assert.equal(signIn(), back, "the way out of a code nobody sent, for an address that had an account");
+
+  preview = null;
+  cells = [];
+  answers = { GET: { status: 200, body: { ok: true, data: { posture: "open" } } }, POST: CONFIRM };
+  draw();
+  await settle();
+  assert.equal(signIn(), "/login", "sign-up's own screen keeps the plain page");
+});

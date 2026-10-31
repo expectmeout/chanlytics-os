@@ -1,7 +1,8 @@
 # 0079 · Their receptionist, before they sign up
 
-**Status:** Decided by Ruben on 30 October 2026, not built. The design brief was approved with its spend ("Approve,
-write spec"). Spec `docs/superpowers/specs/2026-10-30-their-receptionist-before-they-sign-up-design.md`, plan
+**Status:** Decided by Ruben on 30 October 2026, built on 31 October 2026 (#1968, migration 00497 on production; its
+spend guards #1971) and switched on in production that day (`LEAD_PREVIEWS=on`). The design brief was approved with its
+spend ("Approve, write spec"). Spec `docs/superpowers/specs/2026-10-30-their-receptionist-before-they-sign-up-design.md`, plan
 `docs/superpowers/plans/2026-10-30-their-receptionist-before-they-sign-up.md`, lane
 `leads/their-receptionist-before-they-sign-up`. Written against main's `5d7e3d533` (#1960), and verified against the
 code at it.
