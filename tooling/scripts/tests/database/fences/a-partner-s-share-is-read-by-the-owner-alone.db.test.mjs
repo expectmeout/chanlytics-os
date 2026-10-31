@@ -9,6 +9,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
+import { takeLock } from "../../_file-lock.mjs";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -44,8 +45,13 @@ async function member(role) {
   return session;
 }
 
+// The partner ledger is the platform's: partner_earnings_sweep matures and judges every partner's rows, and counts
+// them. The suites that write it or sweep it take its lock for the whole file (_file-lock.mjs), one after the other.
+let releaseLedger;
+
 before(async () => {
   if (skip) return;
+  releaseLedger = await takeLock("partner-ledger");
   admin = createClient(URL_, KEY, { auth: { persistSession: false } });
   tenant = ok(
     await admin
@@ -82,13 +88,17 @@ before(async () => {
 });
 
 after(async () => {
-  if (skip) return;
-  // events has no foreign key to tenants (it is partitioned), so the tenant's rows go first or they outlive it.
-  for (const id of made.tenants) {
-    await admin.from("events").delete().eq("tenant_id", id);
-    await admin.from("tenants").delete().eq("id", id);
+  try {
+    if (skip) return;
+    // events has no foreign key to tenants (it is partitioned), so the tenant's rows go first or they outlive it.
+    for (const id of made.tenants) {
+      await admin.from("events").delete().eq("tenant_id", id);
+      await admin.from("tenants").delete().eq("id", id);
+    }
+    for (const id of made.users) await admin.auth.admin.deleteUser(id).catch(() => undefined);
+  } finally {
+    await releaseLedger?.();
   }
-  for (const id of made.users) await admin.auth.admin.deleteUser(id).catch(() => undefined);
 });
 
 /** The kinds this suite wrote, as a session reads them (a new workspace writes its own events beside them). */
