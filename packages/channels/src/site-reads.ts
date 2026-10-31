@@ -17,7 +17,7 @@
 import { answerObject, providerFetch } from "./provider-fetch";
 
 /** Who is asking, for a site that wants to know: the platform's own reader, with the page that says what it does. */
-export const BOT_USER_AGENT = "ChanlyticsBot/1.0 (+https://chanlytics.com/bot)";
+const BOT_USER_AGENT = "ChanlyticsBot/1.0 (+https://chanlytics.com/bot)";
 
 /** A read is given at least this, whatever the caller has left, and at most the cap for what it reads. */
 const READ_FLOOR_MS = 500;
