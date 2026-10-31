@@ -13,6 +13,7 @@ import { CAMPAIGN_ROOMS, RUN_WAITING_SHORT, runApproveWords } from "../shell/cam
 import { runWaitsOnYou, type RunDays } from "../waits/waits";
 import type { SequenceNeedsDto, SequencePeopleGroup, SequenceRowDto, SequenceStepDto } from "./sequence-dto";
 import { SEQUENCE_MODE_WORDS, isSequenceMode, type SequenceState } from "./sequence";
+import { needsCount, needsWords, okSendsNothing } from "./sequence-list";
 import { sequenceRunOff, type RunOffReason } from "./sequence-run-off";
 import type { ReachOutFedBy } from "../reach-out/reach-out-leads";
 
@@ -226,24 +227,6 @@ export const visitTwinWords = (name: string): string =>
   `“${name}” already sends at this moment, so each person would get two. Turn it off first.`;
 
 /**
- * Whether an OK would send nothing: every batch waiting is one to leads, counted as its emails ready (the server's
- * withReadyCounts), with none ready and the check holding some. What waits on the owner is what is held, so it is said as
- * that (31 Oct 2026: Brooklyn's batch said "The next batch waits for your OK" over Approve with all 7 held, and an OK sent
- * nothing). A batch with nobody named yet, being planned, still waits for an OK.
- */
-function okSendsNothing(n: SequenceNeedsDto): boolean {
-  return (
-    n.held > 0 && n.batches.length > 0 && n.batches.every((b) => b.audience?.kind === "reach_out" && b.people === 0)
-  );
-}
-
-/** How many of a sequence's people or emails wait for you: the one count the list, the badge, Today and Ask say. */
-export function needsCount(n: SequenceNeedsDto): number {
-  const batches = n.waiting > 0 && n.waiting_people === 0 && !okSendsNothing(n) ? n.waiting : 0;
-  return n.waiting_people + n.held + n.to_send + n.replies + batches;
-}
-
-/**
  * A sequence as the badge counts it (decision 0048's one count): only the batches an OK can still send wait for you,
  * judged as every Approve is (contracts runWaitsOnYou, by the business's day); a batch whose day has passed is no one's
  * to approve, and is neither counted nor offered. The server's reader asks it of every row it answers.
@@ -281,17 +264,6 @@ export function sequenceGroupOf(row: SequenceRowDto, twin: SequenceTwin | null =
   if (row.state === "paused") return "off";
   if (row.starts === "leads") return "leads";
   return "customers";
-}
-
-/** What needs you in a sequence, in a few words: "14 wait for your OK · 3 held · 2 wrote back". Empty when nothing does. */
-export function needsWords(n: SequenceNeedsDto): string {
-  const parts: string[] = [];
-  if (n.waiting_people > 0) parts.push(`${n.waiting_people} wait for your OK`);
-  else if (n.waiting > 0 && !okSendsNothing(n)) parts.push("waits for your OK");
-  if (n.held > 0) parts.push(`${n.held} held`);
-  if (n.to_send > 0) parts.push(`${n.to_send} for you to send`);
-  if (n.replies > 0) parts.push(`${plural(n.replies, "wrote back", "wrote back")} · answer them`);
-  return parts.join(" · ");
 }
 
 /** What starts a sequence, short: "Before a visit", "Gone quiet", "Joins Regulars", "Salon owners · Queens". */

@@ -166,7 +166,15 @@ export type {
   LeadMailboxRowVM,
   LeadPaceChoice,
 } from "./sequence-lead-build";
-export { SEQUENCE_LIST_WORDS, SEQUENCE_SORTS, SEQUENCE_TYPES, sequenceTypeOf, sortedSequences } from "./sequence-list";
+export {
+  needsCount,
+  needsWords,
+  SEQUENCE_LIST_WORDS,
+  SEQUENCE_SORTS,
+  SEQUENCE_TYPES,
+  sequenceTypeOf,
+  sortedSequences,
+} from "./sequence-list";
 export type { SequenceSort, SequenceType } from "./sequence-list";
 export {
   PLACE_RAIL_WORDS,
@@ -238,8 +246,6 @@ export {
   leadStepStand,
   listStartsSentence,
   momentStartsSentence,
-  needsCount,
-  needsWords,
   PEOPLE_GROUP_WORDS,
   peopleTabWord,
   SEQUENCE_FLOW_WORDS,
