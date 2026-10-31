@@ -51,7 +51,7 @@ const noul = { type: "noul", instructions: "Yes?" };
 /* ------------------------------------------------------------- the shapes -- */
 
 test("the request is one pinned model, and the answer is read by question name, with its model and input tokens", () => {
-  assert.equal(SYSTEM_ONE_MODEL, "jev-1.13.0", "a version, never an alias");
+  assert.equal(SYSTEM_ONE_MODEL, "jev-1.14.0", "a version, never an alias");
   const read = parseSystemOneResponse({
     model: JEV,
     answers: {
@@ -118,7 +118,7 @@ test("the adapter sends the pinned model, the named questions and the bearer key
   assert.equal(call.url, "https://api.typesafe.ai/v1/systemone");
   assert.equal(call.method, "POST");
   assert.equal(call.headers.authorization, `Bearer ${key}`);
-  assert.deepEqual(call.body, { state: "Hello there", model: "jev-1.13.0", questions: { q: choice, yes: noul } });
+  assert.deepEqual(call.body, { state: "Hello there", model: "jev-1.14.0", questions: { q: choice, yes: noul } });
 });
 
 test("a 401 and a 422 are the API's no, a 429 is not now, a 529 and a 5xx are no answer, and asking is never repeated", async () => {
