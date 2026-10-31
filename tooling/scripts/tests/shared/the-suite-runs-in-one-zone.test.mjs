@@ -7,7 +7,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { importsLeaveTheThread, planOf, SUITES, zoneOf } from "../../checks/test.mjs";
+import { CHANGES_A_TABLE, databasePasses, importsLeaveTheThread, planOf, SUITES, zoneOf } from "../../checks/test.mjs";
 
 const LAUNCHER = fileURLToPath(new URL("../../checks/test.mjs", import.meta.url));
 const PROBE = "tooling/scripts/tests/fixtures/zone-probe.mjs";
@@ -40,7 +40,7 @@ test("with no files it runs the suite; files, globs and directories asked for re
   const full = args([]);
   assert.deepEqual([full.slice(0, loader.length), full.slice(-SUITES.test.length)], [loader, SUITES.test]);
   assert.ok(full.includes("--experimental-test-coverage"));
-  assert.deepEqual(args(["--db"]), [...loader, ...SUITES.db]);
+  assert.deepEqual(args(["--db"]).slice(0, loader.length), loader);
   // pnpm hands on the `--` that separates its own arguments from the script's
   assert.deepEqual(args(["--", PROBE]), [...loader, PROBE]);
   assert.deepEqual(args(["--test-name-pattern=zone", "tooling/scripts/tests/repo/"]), [
@@ -56,6 +56,60 @@ test("with no files it runs the suite; files, globs and directories asked for re
     "--test",
     PROBE,
   ]);
+});
+
+test("a database suite that changes a shared table's definition runs alone, after the rest, one at a time (31 Oct 2026)", () => {
+  // What changes a table: a trigger made or dropped on one, a table altered or locked. A table named only in words, or
+  // one of a schema the test made for itself, does not.
+  for (const sql of [
+    "create trigger __transfer_refused before insert on public.events",
+    "drop trigger if exists __thread_decision_refused on public.decisions;",
+    "alter table public.deals rename column lost_reason to lost_reason_x;",
+    "lock table public.jobs in share row exclusive mode;",
+  ])
+    assert.ok(CHANGES_A_TABLE.test(sql), sql);
+  for (const sql of [
+    "a key that is not valid: validate it in a migration of its own (alter table <child> validate constraint <key>)",
+    "create trigger t after insert on x for each row execute function touch();",
+    "create function public.__refused() returns trigger language plpgsql",
+  ])
+    assert.equal(CHANGES_A_TABLE.test(sql), false, sql);
+
+  const read = (f) => (f.includes("ledger") ? "create trigger x before insert on public.events" : "select 1");
+  assert.deepEqual(databasePasses(["a.db.test.mjs", "the-ledger.db.test.mjs", "t/**/*.db.test.mjs"], read), {
+    together: ["a.db.test.mjs", "t/**/*.db.test.mjs"],
+    alone: ["the-ledger.db.test.mjs"],
+  });
+
+  // The whole run: every database suite in one pass or the other; the second one at a time, whatever the first's pace.
+  const files = (args) => args.filter((a) => a.startsWith("tooling/scripts/tests/") && a.endsWith(".mjs"));
+  const run = planOf(["--db", "--test-concurrency=3"], {});
+  const [together, alone] = [files(run.args), files(run.alone ?? [])];
+  assert.ok(together.length > 0 && alone.length > 0);
+  for (const f of [...together, ...alone]) assert.match(f, /\.(db|integration)\.test\.mjs$/);
+  assert.ok(
+    alone.includes("tooling/scripts/tests/voice/calls/a-transferred-call-says-whether-it-was-answered.db.test.mjs"),
+  );
+  assert.ok(
+    alone.includes("tooling/scripts/tests/conversations/state/take-over-and-hand-back-are-one-write.db.test.mjs"),
+  );
+  assert.ok(together.includes("tooling/scripts/tests/whatsapp/echo-replay.db.test.mjs"));
+  assert.equal(together.filter((f) => alone.includes(f)).length, 0, "never both");
+  assert.deepEqual(
+    run.args.filter((a) => a.startsWith("--test-concurrency")),
+    ["--test-concurrency=3"],
+  );
+  assert.deepEqual(
+    run.alone.filter((a) => a.startsWith("--test-concurrency")),
+    ["--test-concurrency=1"],
+  );
+  // Asked for alone: its one pass is one at a time, and there is no second.
+  const one = planOf(["--db", alone[0]], {});
+  assert.deepEqual(files(one.args), [alone[0]]);
+  assert.ok(one.args.includes("--test-concurrency=1"));
+  assert.equal(one.alone, null);
+  // Not a database run: one pass, as ever.
+  assert.equal(planOf([PROBE], {}).alone, null);
 });
 
 test("under TEST_SLOW_IMPORTS=1 an import a test makes waits where tsx loads off the main thread; where tsx loads in it, the launcher says so and runs nothing", () => {

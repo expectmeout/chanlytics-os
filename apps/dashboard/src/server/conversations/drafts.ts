@@ -15,7 +15,7 @@ import type { RouteContext } from "../with-route";
 import type { Member } from "../route";
 import { readerContext } from "../readers";
 import { replyChannelOf, type VerbConversation } from "../verbs";
-import { replyIdentitiesOf, signedWordsOf } from "../connections/email";
+import { signedByThreadOf } from "../connections/email";
 import { PERSON_DRAFT_RULES, draftForPerson } from "../new-conversation/person-draft";
 
 /**
@@ -87,24 +87,12 @@ function dtoOf(r: ConversationDraftRow, signed: string | null = null): ReplyDraf
 }
 
 /**
- * What each thread's reply would be signed with, as its freeze decides where it leaves from (00487): the mailbox's
- * signature, read once for the threads. What only says it, so a read that fails says none and drafts nothing less.
- */
-async function signedByThread(ctx: RouteContext, tenantId: string, ids: string[]): Promise<Map<string, string>> {
-  const who = await replyIdentitiesOf(ctx, tenantId, ids).catch(() => null);
-  const signed = new Map<string, string>();
-  for (const [id, w] of who ?? []) {
-    const words = signedWordsOf(w);
-    if (words) signed.set(id, words);
-  }
-  return signed;
-}
-
-/**
  * The drafts kept on these threads (GET conversations/drafts): whatever was kept, current or not; the page judges. With no
  * threads named, the workspace's newest (contracts REPLY_DRAFTS_NEWEST_MAX), and whether they are all it keeps
  * (`complete`): Today reads them with its own first reads, before it knows its rows, so each row draws with its words
- * (the Today load review, 27 Oct 2026). Named threads' are always all of theirs.
+ * (the Today load review, 27 Oct 2026). Named threads' are always all of theirs. `signed`: what an email reply on each
+ * would be signed with, for the member reading (00487, decision 0081): every named thread's, drafted or not, as the
+ * Inbox's box says it before Send; else the drafted threads'.
  */
 export async function draftsKept(ctx: RouteContext, member: Pick<Member, "tenantId">, ids: string[] | null) {
   const read = (
@@ -112,10 +100,11 @@ export async function draftsKept(ctx: RouteContext, member: Pick<Member, "tenant
   ).filter(underTheRules);
   const rows = ids ? read : read.slice(0, REPLY_DRAFTS_NEWEST_MAX);
   const replies = [...new Set(rows.filter((r) => r.kind !== "brief").map((r) => r.conversation_id))];
-  const signed = await signedByThread(ctx, member.tenantId, replies);
+  const signed = await signedByThreadOf(ctx, member.tenantId, ids ?? replies);
   return {
     drafts: rows.map((r) => dtoOf(r, signed.get(r.conversation_id) ?? null)),
     complete: rows.length === read.length,
+    signed: Object.fromEntries(signed),
   };
 }
 
@@ -141,7 +130,7 @@ export async function draftForThread(
   ]);
   const mine = kept.find((r) => r.kind === kind && underTheRules(r));
   const signed =
-    kind === "reply" ? ((await signedByThread(ctx, conv.tenant_id, [conv.id])).get(conv.id) ?? null) : null;
+    kind === "reply" ? ((await signedByThreadOf(ctx, conv.tenant_id, [conv.id])).get(conv.id) ?? null) : null;
   if (mine && draftIsCurrent(mine, facts.forMessageId) && !instruction) return dtoOf(mine, signed);
   const wire = kind === "reply" ? await replyChannelOf(ctx, conv) : undefined;
   const drafted = await draftForPerson(readerContext(ctx, member), conv.contact_id, {

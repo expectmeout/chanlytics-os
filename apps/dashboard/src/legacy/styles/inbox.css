@@ -2071,7 +2071,21 @@ button.ix-ctx { text-align: left; cursor: pointer; transition: background 100ms;
    One line that grows as it fills, with Send beside it (Composer): it was a three-line field over a line repeating the
    channel and the name, 185px of a phone.
    ==================================================================== */
-.ix-composer-row { display: flex; align-items: flex-end; gap: 8px; }
+.ix-composer-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
+/* What an email from the box is signed with (decision 0081): the capsule's second line, under the words and Send, one
+   line long, its whole on hover. */
+.ix-composer-signed {
+  display: flex;
+  flex-basis: 100%;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  margin-top: -4px;
+  padding: 0 10px 4px 0;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.ix-composer-signed-words { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ix-composer-row .ix-composer-text { flex: 1; min-width: 0; min-height: 36px; max-height: 160px; overflow-y: auto; padding: 8px 12px; }
 .ix-composer-send { flex: none; height: 36px; }
 @media (pointer: coarse) {

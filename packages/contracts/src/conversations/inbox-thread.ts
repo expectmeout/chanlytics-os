@@ -225,6 +225,9 @@ export const THREAD_PANE_WORDS = {
   others: "Others",
   /** A template of the sample data, said beside its name where its title said "(sample)" (inboxTemplates `sample`). */
   sample: "Sample",
+  /** Under an email's words, what it will be signed with (emailSignedLine): where that is changed (decision 0081). */
+  changeSignature: "Change",
+  changeSignatureTip: "Change what your emails are signed with, in Settings › Connections",
 } as const;
 
 /** The wire one message travelled: a call's note is the phone, and words are the channel they were written on. */
