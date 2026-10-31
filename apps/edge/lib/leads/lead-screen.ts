@@ -64,7 +64,7 @@ async function askAll(key: string, calls: ReturnType<typeof judgeScreenCalls>): 
 }
 
 /** One call as the usage ledger keeps it: the second model's port, not a shadow, so nothing compared. */
-function usageOf(tenantId: string, roundId: string | undefined, reply: SystemOneReply): AiUsageBody {
+function screenUsageOf(tenantId: string, roundId: string | undefined, reply: SystemOneReply): AiUsageBody {
   const ok = reply.outcome === "ok";
   return {
     tenant_id: tenantId,
@@ -115,7 +115,7 @@ async function screenPlaces(
     const calls = judgeScreenCalls(plan, places);
     const replies = await askAll(key, calls);
     await keepUsage(
-      replies.map((r) => usageOf(tenantId, roundId, r)),
+      replies.map((r) => screenUsageOf(tenantId, roundId, r)),
       L,
     );
     const failed = replies.filter((r) => r.outcome !== "ok").length;
