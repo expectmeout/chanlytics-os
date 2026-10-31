@@ -3,9 +3,11 @@
 **Status:** Decided by Ruben on 30 October 2026 ("Build lane A", after the analysis
 `Claude Video/docs/2026-10-30-mailbox-noise-and-phone-load.md` and his question "how can the importing be smarter to
 avoid these types of emails appearing on chanlytics? the idea is to get leads and contacts not these types of
-service/promo software stuff"); built on the lane `email/the-mailbox-brings-people-not-programs` from main's
-`5d7e3d533` (#1960), with migration 00495 (a working number: claim it when the lane lands). Written against
-`5d7e3d533`.
+service/promo software stuff"); built and merged as #1964 (3c058adbd, 31 October 2026, from the lane
+`email/the-mailbox-brings-people-not-programs`), its migration 00495 applied to production at 02:00 UTC that day, before
+the merge, on Ruben's "Apply and merge". Written against `5d7e3d533` (#1960). Loose ends tied on
+`email/mailbox-sorting-loose-ends`: the six months never keep a draft, and the Left list asks only for the readings it
+shows.
 
 ## Context
 
