@@ -245,9 +245,13 @@ per table for the thirteen the suite seeds most: every column the table has, so 
 breaks one factory, not forty fixtures. After a migration, `corepack pnpm gen:db-types` writes the types and the unique
 keys from the stack, and `database/generated/unique-keys.db.test.mjs` fails a stale file. The database suites run in parallel
 processes against one database, and each makes its own workspace; the few rows that are the platform's (the lead finder's
-switch list, the jobs ledger) are behind a file lock (`tooling/scripts/tests/_file-lock.mjs`) that a suite writing or
-counting them takes for its whole file. `partners/partner.db.test.mjs` writes ledger rows that outlive their workspace
-and passes once per database: reset the stack (`supabase db reset`) before running it again.
+switch list, the jobs ledger, the partner ledger) are behind a file lock (`tooling/scripts/tests/_file-lock.mjs`) that a
+suite writing or counting them takes for its whole file. A suite that changes a shared table's definition (a trigger made
+on `events` or `decisions` to refuse a write, a table altered or locked, in a block it rolls back) runs alone, after the
+others, one at a time (`tooling/scripts/checks/test.mjs`, `CHANGES_A_TABLE`): beside them, its lock queued every other
+suite's write to that table, and a request through PostgREST gives up after eight seconds (31 Oct 2026).
+`partners/partner.db.test.mjs` writes ledger rows that outlive their workspace and passes once per database: reset the
+stack (`supabase db reset`) before running it again.
 
 ### A signed-in spec, on this machine
 

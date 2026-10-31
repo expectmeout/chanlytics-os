@@ -10,6 +10,7 @@ import {
   REPLY_LIMITS,
   THREAD_PANE_WORDS,
   approvedWordsFor,
+  emailSignedLine,
   writeWayWords,
   writeWireName,
   type PersonReachDto,
@@ -71,6 +72,8 @@ function wordsPart(s: SheetState, reach: PersonReachDto, way: WriteWay) {
   const { written, ask } = s;
   // The line the first text to them carries: shown before it is sent, and given its room in what may be typed.
   const line = way.wire === "sms" ? reach.first_text_line : null;
+  // What an email from this member is signed with (decision 0081), said under the words as the Inbox's box says it.
+  const signed = way.wire === "email" ? reach.email_signed : null;
   const sendKey = onSendKey(() => void s.send());
   return (
     <section className="ix-new-part">
@@ -96,6 +99,11 @@ function wordsPart(s: SheetState, reach: PersonReachDto, way: WriteWay) {
       {line ? (
         <p className="ix-new-said" data-testid="ix-new-first-text">
           {W.firstText(line)}
+        </p>
+      ) : null}
+      {signed ? (
+        <p className="ix-new-said" data-testid="ix-new-signed" title={signed}>
+          {emailSignedLine(signed)}
         </p>
       ) : null}
       {written.text.trim() && written.about.trim() ? (

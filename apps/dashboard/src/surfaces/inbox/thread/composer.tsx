@@ -5,15 +5,15 @@
  * The composer is a function per box, called by `Composer` and not drawn as a component of its own, so the tree is the
  * tree it was; its hooks stay in `Composer`, in the order they were, and each effect's body is a function beside it.
  */
-import { optOutWords, THREAD_PANE_WORDS } from "@chanlytics/contracts";
+import { emailSignedLine, optOutWords, THREAD_PANE_WORDS } from "@chanlytics/contracts";
 import { useEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from "react";
 import { Icon } from "../../kit/icon/icon";
 import { FOCUS_COMPOSER_MS, SAVED_NOTICE_MS } from "../constants";
 import { ixInDialog } from "../keys";
-import { canDo, gate, tabMemory } from "../shell";
+import { appNavigate, canDo, gate, tabMemory } from "../shell";
 import type { Thread } from "../types";
 import { takeCarriedReply } from "../carried-reply";
-import { keptReplyNow, keptReplyOf } from "./kept-draft";
+import { keptReplyNow, keptReplyOf, signedNow, signedOf } from "./kept-draft";
 import { useReplyDraftDoor } from "./reply-strip";
 import { detailField } from "./shell-thread";
 import { holderName } from "../../holder-names";
@@ -23,6 +23,8 @@ import { TemplateComposer } from "./template-box";
 import { Button } from "../../kit/button/button";
 
 type SetText = Dispatch<SetStateAction<string>>;
+/** What an email from the box is signed with: words, none, or not said yet (undefined). */
+type SetSigned = (s: string | null) => void;
 type BoxRef = RefObject<HTMLTextAreaElement | null>;
 
 /** A reply carried in from another page ("Text the booking link", carried-reply.ts): only into an empty composer, and once. */
@@ -38,9 +40,9 @@ function putCarriedReply(threadId: string, setText: SetText, taRef: BoxRef) {
 /**
  * Need you's drafted reply (kept-draft.ts), where the strip says it can be changed or sent from here: only into an empty
  * box, and only while this thread is the one open. The box is drawn with it where the newest kept drafts hold it (Composer's
- * first words); the thread's own read is asked for only where they cannot say.
+ * first words); the thread's own read is asked for only where they cannot say, and what it says of the signature is kept too.
  */
-function putKeptDraft(thread: Thread, setText: SetText) {
+function putKeptDraft(thread: Thread, setText: SetText, setSigned: SetSigned) {
   if (!thread.real) return;
   const now = keptReplyNow(thread);
   if (now !== undefined) {
@@ -50,14 +52,34 @@ function putKeptDraft(thread: Thread, setText: SetText) {
   let open = true;
   // A read that fails puts nothing: the box stays as the member left it.
   void keptReplyOf(thread)
-    .then((words) => {
-      if (open && words) setText((cur) => (cur && cur.trim() ? cur : words));
+    .then(({ words, signed }) => {
+      if (!open) return;
+      if (words) setText((cur) => (cur && cur.trim() ? cur : words));
+      if (signed !== undefined) setSigned(signed);
     })
     .catch(() => undefined);
   return () => {
     open = false;
   };
 }
+
+/**
+ * What an email from the box is signed with (decision 0081), where nothing said it yet: the thread's own read, asked once
+ * the box has words (an empty box says none, so it asks none), and put only while the thread is still the one open.
+ */
+function putSigned(thread: Thread, wanted: boolean, setSigned: SetSigned) {
+  if (!wanted) return;
+  let open = true;
+  void signedOf(thread).then((s) => {
+    if (open) setSigned(s);
+  });
+  return () => {
+    open = false;
+  };
+}
+
+/** Where what an email is signed with is changed: Settings › Connections, each mailbox's sheet. */
+const SIGNATURE_ROUTE = "admin/integrations";
 
 interface ComposerKeys {
   text: string;
@@ -138,6 +160,8 @@ interface ComposerDraw extends ComposerProps {
   setAlt: (v: boolean) => void;
   saved: boolean;
   setSaved: (v: boolean) => void;
+  /** What an email from the box is signed with, for the member writing (decision 0081); null where nothing signs it. */
+  signed: string | null;
 }
 
 // Checked BEFORE the window branch: an opt-out is stronger than a closed
@@ -212,6 +236,29 @@ function closedComposer(thread: Thread, onSend: OnSend) {
   return <TemplateComposer key={thread.id} onSend={onSend} threadId={thread.id} real={!!thread.real} thread={thread} />;
 }
 
+/**
+ * Under an email's words, once the box has any, what it will be signed with (decision 0081), as a line of the capsule:
+ * what is sent is what is seen. An empty box stays one row, so a phone keeps its height.
+ */
+function signedLine(c: ComposerDraw) {
+  if (!c.signed || !c.text.trim()) return null;
+  return (
+    <div className="ix-composer-signed" data-testid="ix-composer-signed">
+      <span className="ix-composer-signed-words" data-testid="ix-composer-signed-words" title={c.signed}>
+        {emailSignedLine(c.signed)}
+      </span>
+      <Button
+        variant="quiet"
+        size="text"
+        onClick={() => appNavigate(SIGNATURE_ROUTE)}
+        title={THREAD_PANE_WORDS.changeSignatureTip}
+      >
+        {THREAD_PANE_WORDS.changeSignature}
+      </Button>
+    </div>
+  );
+}
+
 // A real thread's reply box is one line that grows, with Send beside it: it was a three-line field over a line
 // saying the channel and the name the header already shows, 185px of a phone. The field names the channel.
 function realComposer(c: ComposerDraw) {
@@ -245,6 +292,7 @@ function realComposer(c: ComposerDraw) {
       >
         {sending ? "Sending…" : isApproveAndSend ? "Approve & send" : "Send"}
       </Button>
+      {signedLine(c)}
     </div>
   );
 }
@@ -379,8 +427,14 @@ export const Composer = ({ thread, reply, hasApproval, onType = null, onSend = (
   }, [reply]);
 
   useEffect(() => putCarriedReply(thread.id, setText, taRef), [thread.id]);
+  // What an email from the box is signed with: drawn with the box where the newest kept drafts say it (undefined where they
+  // cannot), else from the thread's own read, the kept draft's where the box asks that one, else once the box has words.
+  const [signed, setSigned] = useState<string | null | undefined>(() => signedNow(thread));
   // eslint-disable-next-line react-hooks/exhaustive-deps -- once a thread: the box is filled as it opens, never again under the member
-  useEffect(() => putKeptDraft(thread, setText), [thread.id]);
+  useEffect(() => putKeptDraft(thread, setText, setSigned), [thread.id]);
+  const signedWanted = signed === undefined && !!text.trim();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- once a thread, when the box first has words and nothing said it
+  useEffect(() => putSigned(thread, signedWanted, setSigned), [thread.id, signedWanted]);
 
   const [sending, setSending] = useState(false);
   const doSend = () => {
@@ -429,6 +483,7 @@ export const Composer = ({ thread, reply, hasApproval, onType = null, onSend = (
     setAlt,
     saved,
     setSaved,
+    signed: signed ?? null,
   };
   if (thread.real) return realComposer(c);
   return seededComposer(c);

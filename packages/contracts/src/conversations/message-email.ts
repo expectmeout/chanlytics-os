@@ -268,6 +268,14 @@ export function emailSignatureLine(signature: string): string {
     .join(" · ");
 }
 
+/**
+ * What an email about to be sent will be signed with, in a line under the words written for it (decision 0081): the
+ * Inbox's box and a new conversation's email say it the same way, the whole signature on hover.
+ */
+export function emailSignedLine(signature: string): string {
+  return `Signed ${emailSignatureLine(signature)}`;
+}
+
 /** The words an email of ours was signed with, as the reply that sent it kept them (00487 meta.email.signature); else null. */
 export function emailSignedWithOf(m: MessageDto): string | null {
   if (m.sender === "customer") return null;

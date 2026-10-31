@@ -18,7 +18,8 @@ import { defaultWriteWire, writeWaysOf, type WriteRow } from "./write-ways";
  * them, and what fills an approved message's slots. `mode` is the receptionist's mode in force for them (their own
  * setting, else the workspace's; null where neither says): it answers unless told to ask first or never. `facts` are the
  * workspace's own words for the slots that name it, as the send reads them; null with none. `firstTextLine` is the line
- * a first text to them would carry, where no text of ours has reached them yet.
+ * a first text to them would carry, where no text of ours has reached them yet. `emailSigned` is the signature an email
+ * from the member reading would carry (decision 0081); null where none would.
  */
 export function writeReachOf(
   r: WriteRow & Pick<PersonRowDto, "id" | "display_name" | "wa_profile_name" | "name_source" | "name_settled_at">,
@@ -27,6 +28,7 @@ export function writeReachOf(
     mode: string | null;
     facts: { business_name: string; booking_link: string | null } | null;
     firstTextLine: string | null;
+    emailSigned: string | null;
     now?: Date;
   },
 ): PersonReachDto {
@@ -55,5 +57,6 @@ export function writeReachOf(
         }
       : null,
     first_text_line: ways.some((w) => w.wire === "sms" && w.ok) ? at.firstTextLine : null,
+    email_signed: ways.some((w) => w.wire === "email" && w.ok) ? at.emailSigned : null,
   };
 }
