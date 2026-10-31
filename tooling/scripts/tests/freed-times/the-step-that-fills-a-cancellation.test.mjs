@@ -221,7 +221,7 @@ test("the run offers the time to whoever asked and never booked, the most recent
     ["c", "a"],
     "the one who asked yesterday, then two days ago; the third waits for the next time, and who never asked is not named",
   );
-  assert.equal(row.name, "Fill a cancellation · Tue 3:00 PM");
+  assert.equal(row.name, "Fill a cancellation · Tue, Sep 8, 3:00 PM", "by its date: a name is kept");
   assert.equal(row.run_for, undefined, "no day of its own: the one-run-a-day index never holds it");
   assert.deepEqual(
     [row.offered_start, row.offered_end, row.offered_from],
@@ -265,7 +265,17 @@ test("a batch whose words are new waits for an OK, and its notice says it ends w
   assert.equal(f.of("assemble")[0][1].state, "pending_approval");
   const [, subject, body] = f.of("notify")[0];
   assert.equal(subject, "Campaign “Fill a cancellation” is ready: 1 person");
-  assert.match(body, /Goes only if you approve it before Tue 3:00 PM; after that it is skipped\.$/);
+  assert.match(body, /Goes only if you approve it before Tue, Sep 8, 3:00 PM; after that it is skipped\.$/);
+  // Made the evening before, its name and its notice still say the date: kept words, read the next morning too.
+  const eve = runPorts();
+  const evening = new Date("2026-09-08T00:30:00Z"); // Monday 8:30 PM in New York
+  const people = [asker("a", 1)];
+  await runPlaybook(
+    eve.ports,
+    cmd({ playbook: freedStep({ words_ok_at: null }), ctx: context({ now: evening, people }), freed: FREED }),
+  );
+  assert.equal(eve.of("assemble")[0][1].name, "Fill a cancellation · Tue, Sep 8, 3:00 PM");
+  assert.doesNotMatch(eve.of("notify")[0][2], /tomorrow/);
 });
 
 test("no freed time, no run; a freed time handed to any other step is refused; neither is recorded", async () => {

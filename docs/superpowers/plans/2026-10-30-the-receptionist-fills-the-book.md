@@ -118,6 +118,20 @@ case (production's eval door, on Ruben's word).
 - **Ask's count on a busy calendar:** `cancellationsSince` named every appointment in one `in` list; it asks 200 at a
   time, as the readers that page by id do.
 
+**The real app, walked (31 Oct 2026, step 3, `sequences/freed-time-walk-fixes`):** on the lane's stack, with the edge's
+own job tick and inbound text door run by a script, the dry line for texts and the public fetcher's stand-in for the
+calendar link: a booking cancelled as the service, the batch waiting on Today, Approve, four texts, a customer's "Can I
+grab the 3pm for a trim?" held as a request, and "4 sent, 3 replied, 1 took it" on Today and History. It found three:
+
+- **The news lost its clause in the race:** the subscriber and visit_notice's clause ask in one tick, and the loser's run
+  met `sequence_batches_offered_once`, so the bell said "That time is free again" alone. A failed run now answers with the
+  batch that stands (edge `freed-time-offer.ts`); the fake's `assemble_broadcast` refuses a second batch as the
+  database does, which is what let the test see it.
+- **The Steps tab's start said "Sends at 10:00 AM":** it says "When a cancellation frees a time", to "the people who asked
+  and never booked" (contracts `momentStartsSentence`, `scheduleStart`).
+- **The batch's name kept "tomorrow":** a kept name and the ready notice say the time by its date ("Tue, Sep 8, 3:00 PM",
+  `slotShort`), so they read true the next morning; what is drawn fresh (Today's line, History) keeps "tomorrow".
+
 **How each task runs:**
 
 - Each task writes its test first and runs that one file, red, then makes it pass:

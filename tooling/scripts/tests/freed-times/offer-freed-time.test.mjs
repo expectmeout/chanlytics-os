@@ -143,7 +143,7 @@ test("the running step offers the freed time: one batch, the time and the appoin
     [batch.step_id, batch.offered_start, batch.offered_end, batch.offered_from, batch.run_for ?? null],
     [STEP, "2026-09-08T19:00:00.000Z", "2026-09-08T20:00:00.000Z", APPT, null],
   );
-  assert.equal(batch.name, "Fill a cancellation · Tue 3:00 PM");
+  assert.equal(batch.name, "Fill a cancellation · Tue, Sep 8, 3:00 PM");
   const sends = w.tables.sequence_sends.filter((s) => s.batch_id === batch.id);
   assert.deepEqual(
     sends.map((s) => s.contact_id),
@@ -157,6 +157,16 @@ test("the running step offers the freed time: one batch, the time and the appoin
   assert.deepEqual(await w.offer(), { offered: true, people: 2, waits: false });
   assert.equal(w.tables.sequence_batches.length, 1);
   assert.equal(w.loads(), 1, "the workspace is read for a run, never for an answer it already has");
+});
+
+test("two asks at once (the subscriber and the news, in one tick): one batch, and both answer it", async () => {
+  const w = world({ mode: "ask" });
+  const answers = await Promise.all([w.offer(), w.offer()]);
+  assert.deepEqual(answers, [
+    { offered: true, people: 2, waits: true },
+    { offered: true, people: 2, waits: true },
+  ]);
+  assert.equal(w.tables.sequence_batches.length, 1, "the database keeps one batch per step and appointment");
 });
 
 test("a sequence that asks makes a batch that waits for the owner's OK", async () => {

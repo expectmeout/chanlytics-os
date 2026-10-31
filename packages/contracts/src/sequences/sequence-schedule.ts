@@ -31,6 +31,8 @@ export const SCHEDULE_WORDS = {
   editStep: (n: number) => `Edit step ${n}`,
   /** What the figures on every box count, said once over their column. */
   per: "last 30 days",
+  /** Under a freed time's start, where another moment says its hour (decision 0082). */
+  freedTo: "To the people who asked and never booked",
   addStep: "Add a step",
   /** Where Add a step stood on a customer's rail that a call or a note closes (00465: nothing goes after one). */
   handLast: (kind: string) =>
@@ -176,7 +178,9 @@ export function scheduleStart(
       name: f?.list_name ?? "the list",
       sub: at ? `Once each · ${at.charAt(0).toLowerCase()}${at.slice(1)}` : "Once each",
     };
-  return { lead: momentStartsSentence(f?.trigger ?? null, null, word), name: null, sub: at };
+  // A freed time's runs when a cancellation frees one (decision 0082): no hour, and the people it goes to instead.
+  const sub = scheduleSettingsOf(row).freed ? SCHEDULE_WORDS.freedTo : at;
+  return { lead: momentStartsSentence(f?.trigger ?? null, null, word), name: null, sub };
 }
 
 /** Who a step keeps going to after its wait, by its conditions; null where it goes to everyone still in. */

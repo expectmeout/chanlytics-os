@@ -15,7 +15,7 @@ import {
   playbookStopBy,
   enrolPurpose,
   freedTimeFactsFor,
-  clockNearWhen,
+  slotShort,
   followUpLeaves,
   followUpReach,
   followUpStop,
@@ -517,12 +517,7 @@ async function sayTheRun(run: Run, made: { madeId: string; n: number; at: Date |
     // and reads the old word too (contracts today-away.ts), since the bell keeps rows written before. How its wait ends is
     // the wait rule's (contracts batchWaitWords: until the end of its day, then skipped and told), but for a visit's, which
     // ends with the day's sending hours and reaches nobody after: its moment says which.
-    const told = readyRunNotice(
-      p.name,
-      n,
-      p.trigger,
-      run.freed ? clockNearWhen(run.freed.start, ctx.tz, ctx.now.getTime()) : null,
-    );
+    const told = readyRunNotice(p.name, n, p.trigger, run.freed ? slotShort(run.freed.start, ctx.tz) : null);
     await ports.notify(told.subject, told.body, made.madeId);
     return;
   }
@@ -548,12 +543,13 @@ function freedTimeRefusal(p: PlaybookRow, freed: FreedTimeRun | null, goesAt: Da
 
 /**
  * A batch's name and what it is kept by: a run's day, or for a freed time, which has no day of its own, the time it offers
- * and the appointment that freed it, the name saying the time ("Fill a cancellation · Tue 3:00 PM", 0082).
+ * and the appointment that freed it, the name saying the time by its date ("Fill a cancellation · Tue, Sep 8, 3:00 PM", 0082):
+ * a name is kept, and a "tomorrow" in it would be wrong by morning.
  */
 function batchWhen(p: PlaybookRow, freed: FreedTimeRun | null, runFor: string, ctx: RunContext) {
   if (!freed) return { name: `${p.name} · ${runFor}`, run_for: runFor };
   return {
-    name: `${p.name} · ${clockNearWhen(freed.start, ctx.tz, ctx.now.getTime())}`,
+    name: `${p.name} · ${slotShort(freed.start, ctx.tz)}`,
     offered_start: new Date(freed.start).toISOString(),
     offered_end: new Date(freed.end).toISOString(),
     offered_from: freed.from,

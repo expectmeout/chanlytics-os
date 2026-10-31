@@ -685,6 +685,8 @@ export function momentStartsSentence(trigger: string | null, hour: number | null
       return `Once a month, to everyone who said yes${at}`;
     case "proposal_waiting":
       return `When a proposal waits with nothing back${at}`;
+    case "slot_opened":
+      return "When a cancellation frees a time"; // never by the hour (decision 0082)
     default:
       return `At its moment${at}`;
   }
