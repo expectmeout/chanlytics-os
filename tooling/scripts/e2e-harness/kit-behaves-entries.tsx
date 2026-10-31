@@ -1066,7 +1066,14 @@ function FieldKitWords() {
   return (
     <Figure id="field-kit-words" about="the kit's Field as sentences said in place, on the field's panel">
       <Panel variant="field" size="sm">
-        <Field aria-label="Your reply to Ana" shape="words" rows={1} value={reply} onValueChange={setReply} />
+        <Field
+          aria-label="Your reply to Ana"
+          shape="words"
+          rows={1}
+          placeholder="Write to Ana…"
+          value={reply}
+          onValueChange={setReply}
+        />
       </Panel>
     </Figure>
   );

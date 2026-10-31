@@ -1144,7 +1144,7 @@ const kitFieldTitle = () =>
  */
 const kitFieldWords = () =>
   `<div class="panel panel-field panel-sm"><div class="rec-field">` +
-  `<textarea class="rec-input rec-input-words" rows="1" aria-label="Your reply to Ana">` +
+  `<textarea class="rec-input rec-input-words" rows="1" aria-label="Your reply to Ana" placeholder="Write to Ana…">` +
   `Friday at two works. See you then.</textarea></div></div>`;
 
 /* ---- the families ---- */
