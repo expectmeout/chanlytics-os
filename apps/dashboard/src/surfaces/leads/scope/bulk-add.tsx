@@ -42,6 +42,8 @@ const leftOutOf = (data: unknown): string[] => {
 export function useBulkAdd(p: BulkAddProps) {
   const [busy, setBusy] = useState(false);
   const [step, setStep] = useState<"pick" | "new">("pick");
+  // Whether a desk's picker is open, held here so the search's own "Adds go to" can open it at New (ask).
+  const [open, setOpen] = useState(false);
   const n = p.ids.length;
   const target = p.aim.target;
   const rows = p.aim.targets ? leadPickerRowsOf(p.aim.targets, target ? target.rootId : null) : null;
@@ -126,7 +128,12 @@ export function useBulkAdd(p: BulkAddProps) {
       p.onDone(p.ids.slice(done));
     });
 
-  return { n, busy: busy || p.busy, step, setStep, target, rows, addTo, make, later };
+  /** Open at New: what the search's "Adds go to ▾" New sequence asks, once its leads are chosen. */
+  const ask = () => {
+    setStep("new");
+    setOpen(true);
+  };
+  return { n, busy: busy || p.busy, step, setStep, open, setOpen, ask, target, rows, addTo, make, later };
 }
 export type BulkAdd = ReturnType<typeof useBulkAdd>;
 
@@ -175,7 +182,7 @@ export function BulkChoose({
 
 /** A desk's Add: to the pick at once, ▴ for the picker; with no pick, the whole press opens it. */
 export function BulkAddDesk({ b, search }: { b: BulkAdd; search: { name: string } | null }) {
-  const [open, setOpen] = useState(false);
+  const { open, setOpen } = b;
   const close = () => {
     setOpen(false);
     b.setStep("pick");

@@ -13,6 +13,7 @@ import {
   leadMonthPlanFacts,
   leadReachOf,
   leadReviewGroups,
+  leadSearchEmptyWords,
   leadsRoute,
   type leadsStanding,
   type LeadArea,
@@ -94,6 +95,8 @@ export type LeadsPage = Controls &
     aim: LeadAim;
     /** Add N and Later for the leads chosen and shown (scope/bulk-add.tsx); none while nobody is. */
     bulkAdd: BulkAdd | null;
+    /** Add opened at New, for the search's own picker once it has chosen the leads shown. */
+    bulkAsk: () => void;
   };
 
 /**
@@ -132,6 +135,20 @@ const leadsSortItems = (p: LeadsPage) =>
 /** A list of your own (Reach out Part 7, 00242: `via` import or chosen): no area to draw or widen, and no round strip. */
 const isOwnList = (s: LeadSearchDto | null) => isLeadList(s);
 
+/**
+ * The search's "New sequence for these…" (the walk of 30 Oct 2026): every lead shown chosen, and Add opened at New, a
+ * phone's as its sheet; none where nothing is shown, or nobody here may add.
+ */
+const newSequenceFor = (p: LeadsPage) =>
+  p.leadShown.length && p.canFind
+    ? () => {
+        p.setSel(new Set(p.leadShown.map((l) => l.id)));
+        p.setAllMatching(false);
+        p.bulkAsk();
+        if (p.phone) p.setBulkSheet("add");
+      }
+    : null;
+
 /** The rail, the list's head and the table. */
 export const leadsListProps = (p: LeadsPage) => {
   const { leads, rail, leadView, openSearch, leadShown, lists, setListsOpen, setQ } = p;
@@ -167,7 +184,7 @@ export const leadsListProps = (p: LeadsPage) => {
       lists.stripOf(openSearch) ||
       (!isOwnList(openSearch) ? p.ldStrip(openSearch, new Date(), { offered: leads.offered }) : null),
     // Where this search's Add goes (the canvas's "Adds go to ▾"): the pick, kept on the search, changed here or in the picker.
-    addsGoTo: openSearch ? <AddsGoTo aim={p.aim} flash={p.plFlash} /> : null,
+    addsGoTo: openSearch ? <AddsGoTo aim={p.aim} flash={p.plFlash} onNew={newSequenceFor(p)} /> : null,
     pileSheet: p.pileSheet,
     pileDoor: p.pileDoor,
     rows: leadShown,
@@ -219,6 +236,13 @@ const emptyOf = (p: LeadsPage): TableEmpty => {
     return { title: "Nothing needs a look.", body: "Every lead here has been checked or decided.", action: null };
   if (!leadView.cls && p.waitsOn(leadView.searchId))
     return { title: "Nothing is counted yet.", body: "It is waiting for your answer above.", action: null };
+  const searching = !leadView.cls && openSearch ? leadSearchEmptyWords(openSearch.round) : null;
+  if (searching)
+    return {
+      title: searching.title,
+      body: searching.body,
+      action: searching.review ? { label: "Show them", onClick: () => p.goto({ cls: "review" }) } : null,
+    };
   return (
     p.lists.emptyOf(openSearch) || {
       title: "No leads in this view yet.",

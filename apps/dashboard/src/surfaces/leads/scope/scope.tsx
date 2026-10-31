@@ -268,6 +268,7 @@ const bandOf = (p: P) =>
 const firstDayOf = (p: P, phone: boolean) => (
   <LeadsFirstDay
     suggestions={p.ideas}
+    ideasReading={!!p.surface.ideasReading}
     canFind={p.canFind}
     phone={phone}
     lineOpen={p.lineOpen}

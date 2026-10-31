@@ -33,6 +33,8 @@ export const LEAD_DIRECTORY_WORDS = {
   found: "From a business directory",
   address: "the address came with its people",
   addressAlone: "The address came with its people",
+  /** The Source column's word for it. */
+  source: "Business directory",
 } as const;
 
 /**

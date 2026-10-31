@@ -189,6 +189,7 @@ export {
   toLeadRowVM,
   leadRowOf,
   leadRail,
+  leadSearchEmptyWords,
   leadsStanding,
 } from "./lead-row";
 export type { LeadSlotState, LeadSlot, LeadRowCard, LeadBand, LeadRowVM } from "./lead-row";

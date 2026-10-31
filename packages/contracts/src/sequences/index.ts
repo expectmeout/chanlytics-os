@@ -232,6 +232,7 @@ export { leadStepTestMail, SEQUENCE_TEST_LIMITS, SEQUENCE_TEST_WORDS, stepTestMa
 export type { StepTestMail, StepTestMessage } from "./sequence-test";
 export {
   batchWaitsUntilTonight,
+  leadsPlannedWords,
   leadStepStand,
   listStartsSentence,
   momentStartsSentence,

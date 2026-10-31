@@ -3586,8 +3586,11 @@
      up, 6px around 50px acts, over rows that scroll under it, so it blurs them. Its clear and its acts are the kit's
      buttons; an act is drawn as the tab bar draws a tab, its glyph at 19 over its word at the scale's smallest step
      (phone-bulk.tsx dockAct; Ruben, 10 Oct 2026). The rows keep room under their last, and a picked row is the pick's
-     tint where Classic laid a band. */
+     tint where Classic laid a band. Fixed to the screen: the window scrolls a phone's list (mobile.css, a page of panes),
+     so a dock absolute in the list's column stood at the foot of every row, thousands of pixels down, and a selection
+     on a phone had no acts in sight (the walk of 30 Oct 2026). */
   .cl-bulk.pp-bulk {
+    position: fixed;
     right: 14px;
     bottom: var(--bar-foot, calc(12px + env(safe-area-inset-bottom, 0px)));
     left: 14px;

@@ -8,12 +8,12 @@
  * through the batch's own door, as its run's sheet reads it (useBatchRead), and follows the list while it can still move.
  */
 import { useEffect, useRef, useState } from "react";
-import { runStillMoving, type BroadcastDetailDto } from "@chanlytics/contracts";
+import { runStillMoving, waitingEmailsOf, type BroadcastDetailDto } from "@chanlytics/contracts";
 import type { ApiResult } from "@/client/api";
 import { aheadWhenIdle } from "@/legacy-bridge/workspace";
 import { useSurface } from "../../use-surface";
 import { broadcasts } from "../broadcasts/verbs";
-import { warmRecordsAhead } from "./verbs";
+import { sequenceVerbs, warmRecordsAhead } from "./verbs";
 
 /** What a read is now: not answered yet, its answer, or why it could not be read. */
 type Read<T> = { state: "reading" } | { state: "read"; data: T } | { state: "failed"; why: string };
@@ -109,4 +109,24 @@ export function useRecordsAhead(ids: readonly string[]): void {
       stop();
     };
   }, [key]);
+}
+
+/** How often People is read again while an opening it shows is being written: the check's clock runs every minute. */
+const WRITING_READ_MS = 15_000;
+
+/**
+ * Who is in it (null: none wanted), read again while an opening it shows is being written, until it is back: the People
+ * tab's read, and the record's while a batch to leads waits, so its Approve waits for the openings it would send (the walk
+ * of 30 Oct 2026: Approve stood pressable over an opening still being written again).
+ */
+export function usePeopleRead(id: string | null, again: number) {
+  const [tick, setTick] = useState(0);
+  const read = useSequenceRead(id, sequenceVerbs.people, sequenceVerbs.peekPeople, { again: again + tick });
+  const writing = read.state === "read" && waitingEmailsOf(read.data.rows).some((e) => e.checking);
+  useEffect(() => {
+    if (!writing) return undefined;
+    const t = setInterval(() => setTick((n) => n + 1), WRITING_READ_MS);
+    return () => clearInterval(t);
+  }, [writing]);
+  return { read, writing };
 }

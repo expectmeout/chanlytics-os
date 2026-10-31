@@ -15,6 +15,8 @@
  *   clockShort     today "3:10 PM", else "Sep 6"                 a list row
  *   clockStamp     today "3:10 PM", else "Sep 6 · 3:10 PM"       a message
  *   clockWhen      "today 6:00 PM" · "tomorrow 10:00 AM" · "Sep 12 · 10:00 AM"
+ *   clockAhead     "today 6:00 PM" while it is ahead, "now" once it has come    a send, never a time already gone
+ *   clockNextSend  "next today 4:20 PM" · "going out now"
  *   clockDayLabel  "Today · Sep 4" · "Yesterday · Sep 3" · "Sep 2"
  *   clockNear      "today" · "yesterday" · "tomorrow" · "Tue" · "Sep 12"     a chip, a week either side by name
  *   clockNearWhen  "today 2:00 PM" · "Fri 2:00 PM" · "Oct 2 · 2:00 PM"
@@ -133,6 +135,20 @@ export function clockWhen(atMs: number, tz: string, nowMs: number): string {
   if (day === today) return `today ${time}`;
   if (day === shiftKey(today, 1)) return `tomorrow ${time}`;
   return `${clockDate(atMs, tz, nowMs)} · ${time}`;
+}
+
+/**
+ * A send's time as a page says it after "next" or "go": its day and time while it is ahead, "now" once it has come (a batch
+ * going out, or one approved after its hour, its emails paced by their mailboxes). Never a time already gone: the walk of
+ * 30 Oct 2026 read "next today 9:00 AM" at 4 PM, after an approve.
+ */
+export function clockAhead(atMs: number, tz: string, nowMs: number): string {
+  return atMs > nowMs ? clockWhen(atMs, tz, nowMs) : "now";
+}
+
+/** A line's "next today 4:20 PM", or "going out now" once its time has come (clockAhead). */
+export function clockNextSend(atMs: number, tz: string, nowMs: number): string {
+  return atMs > nowMs ? `next ${clockWhen(atMs, tz, nowMs)}` : "going out now";
 }
 
 /** Whole days from one business day to another ("2026-09-06" to "2026-09-08" is 2): the dates alone, never a clock. */

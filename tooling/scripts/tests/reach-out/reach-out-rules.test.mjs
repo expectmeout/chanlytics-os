@@ -196,8 +196,13 @@ test("a name in capitals is said in a person's capitals, one in small letters to
   assert.equal(calledBy("Brothers auto Repairs"), "Brothers Auto Repairs");
   assert.equal(calledBy("harbor movers of the valley"), "Harbor Movers of the Valley");
   assert.equal(calledBy("fixit.co repairs"), "fixit.co Repairs");
-  for (const own of ["iFix Movers", "NOVA Movers", "Euro Lab AUTOWORKS", "MovEasy", "24 HR Movers", "Movers & More"])
+  for (const own of ["iFix Movers", "NOVA Movers", "MovEasy", "24 HR Movers", "Movers & More"])
     assert.equal(calledBy(own), own);
+  // A long word in capitals in a name otherwise in a person's is shouting, and a city's letters are said one by one (the
+  // walk of 30 Oct 2026 read "Euro Nyc AUTOWORKS" in an opening).
+  assert.equal(calledBy("Euro Nyc AUTOWORKS"), "Euro NYC Autoworks");
+  assert.equal(calledBy("Euro Lab AUTOWORKS"), "Euro Lab Autoworks");
+  assert.equal(calledBy("Smith CONSTRUCTION LLC"), "Smith Construction");
 });
 
 test("the send's fill says the name the business is called by, in the subject and the words alike", () => {

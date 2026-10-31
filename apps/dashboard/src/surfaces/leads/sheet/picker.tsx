@@ -10,7 +10,7 @@
  */
 import { useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
-import { LEAD_SHEET_WORDS as W, type LeadPickerRowVM } from "@chanlytics/contracts";
+import { LEAD_SHEET_WORDS as W, newStartFirst, type LeadPickerRowVM } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { Field } from "../../kit/field/field";
 import { Icon } from "../../kit/icon/icon";
@@ -168,7 +168,7 @@ export function SheetNew(p: NewProps) {
   const [name, setName] = useState(p.suggest ?? "");
   const [copyAt, setCopyAt] = useState(0);
   const copy = p.copies.length ? p.copies[copyAt % p.copies.length] : null;
-  const [how, setHow] = useState<"copy" | "ask" | "blank">(copy ? "copy" : p.canAsk ? "ask" : "blank");
+  const [how, setHow] = useState(() => newStartFirst(p.copies, p.canAsk));
   const who = "name" in p.who ? p.who.name : null;
   const start: NewStart =
     how === "copy" && copy

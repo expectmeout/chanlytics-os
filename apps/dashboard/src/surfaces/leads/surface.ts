@@ -44,22 +44,7 @@ import { unwrap, type ApiResult, type RouteKey } from "@/client/api";
 import { setSurfaceValue, surfaceValue } from "../surface-values";
 
 export type { LeadsSurface } from "./surface-types";
-import type { LeadsView } from "./surface-types";
-
-/** What `GET lead-searches` and `GET leads` answer (4.6's DTOs); the counts ride with whichever read made them. */
-interface LeadSearchesAnswer {
-  searches: LeadSearchDto[];
-  counts?: LeadCounts;
-  /** The cards that find leads now (00430). */
-  cards_live?: string[];
-}
-interface LeadsPageAnswer {
-  rows: LeadRowDto[];
-  next: { key: string; id: string } | null;
-  counts?: LeadCounts;
-  month?: LeadMonthDto;
-  pile?: LeadPileCountsDto;
-}
+import type { LeadSearchesAnswer, LeadsPageAnswer, LeadsView } from "./surface-types";
 
 const NO_COUNTS: LeadCounts = { all: 0, ready: 0, nurture: 0, converted: 0, said_no: 0, not_a_fit: 0 };
 const DEFAULT_VIEW: LeadsView = { searchId: null, list: "all", cls: null, chips: {}, sort: "fit", dir: "asc" };
@@ -124,6 +109,8 @@ interface LeadsLoaded {
   asOfChange: number;
 }
 let leadsLoaded: LeadsLoaded | null = null;
+/** A read of the ideas is out (readSuggestions): the first day says they are being written, not that they are not. */
+let ideasReading = false;
 /**
  * How many times Leads has changed, as this tab knows it: Realtime on its tables or a write's re-read, both through the
  * surface's `apply`. A view held from before the last one is read again behind its paint; one asked since paints with
@@ -204,6 +191,7 @@ function publishLeads(failed = false): void {
     view: shown,
     route: leadsRoute(shown),
     suggestions: L?.suggestions ?? null,
+    ideasReading,
     month: L?.month ?? null,
     pile: L?.pile ?? null,
     peeked: peekedHere()
@@ -655,8 +643,12 @@ export async function removeSearch(id: string) {
  * asked for again after each of IDEAS_WAITS_MS, until they land or the waits run out.
  */
 export async function readSuggestions(wait = 0): Promise<void> {
+  // Said while out, so a sheet opened over no ideas yet says they are coming, never that they are not available.
+  ideasReading = true;
+  publishLeads();
   const suggestions = await firstSearchIdeas();
-  if (!leadsLoaded) return;
+  ideasReading = false;
+  if (!leadsLoaded) return publishLeads();
   leadsLoaded = { ...leadsLoaded, suggestions };
   publishLeads();
   window.dispatchEvent(new CustomEvent("surface:leads"));

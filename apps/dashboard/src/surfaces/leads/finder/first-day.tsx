@@ -77,6 +77,8 @@ const LeadIdea = ({
 
 interface FirstDayProps {
   suggestions?: LeadSuggestionsDto | null;
+  /** A read of the ideas is out: none yet says they are being written. */
+  ideasReading?: boolean;
   canFind?: boolean;
   phone?: boolean;
   lineOpen?: boolean;
@@ -246,12 +248,14 @@ const LeadLineDeskSheet = (p: LineSheetProps) => (
 
 /**
  * What stands where the ideas would: the server's reason it could not write them (suggestions.note), "writing" while
- * another read writes them, or, for a read that never landed, that they are not available; nothing while there are
- * ideas to show.
+ * another read writes them or this page's first read is out, or, for a read that never landed, that they are not
+ * available; nothing while there are ideas to show.
  */
-const noteOf = (suggestions: LeadSuggestionsDto | null, shown: number): string | null =>
+const noteOf = (suggestions: LeadSuggestionsDto | null, shown: number, reading: boolean): string | null =>
   !suggestions
-    ? LEAD_WORDS.suggestUnavailable
+    ? reading
+      ? FIRST_DAY_SAYS.writing
+      : LEAD_WORDS.suggestUnavailable
     : suggestions.pending && !shown
       ? FIRST_DAY_SAYS.writing
       : suggestions.note || null;
@@ -356,6 +360,7 @@ const AskField = ({
 
 export const LeadsFirstDay = ({
   suggestions = null,
+  ideasReading = false,
   canFind = false,
   phone = false,
   lineOpen = false,
@@ -375,7 +380,7 @@ export const LeadsFirstDay = ({
   onCancelLine = () => undefined,
 }: FirstDayProps) => {
   const items = (suggestions && suggestions.items) || [];
-  const note = noteOf(suggestions, items.length);
+  const note = noteOf(suggestions, items.length, ideasReading);
   const findGate = canFind ? {} : gate("find", "find businesses for you");
   const line: LineSheetProps = {
     draft: lineDraft,

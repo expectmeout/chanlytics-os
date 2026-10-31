@@ -27,7 +27,7 @@ import {
 } from "./lead-words";
 import { agoShort, agoWords } from "../shared/time";
 import { publicObjectSrc } from "../shared/link";
-import { reviewsPhrase } from "../shared/words";
+import { plural, reviewsPhrase } from "../shared/words";
 import { initialsOf } from "../conversations/thread-contact";
 
 /* ------------------------------------------------ what the page is given -- */
@@ -70,15 +70,24 @@ export interface LeadBand {
 /** The band's tabs, in the order the search's shape reads: what met the plan, what needs a person, what was left out. */
 const LEAD_BAND_ORDER = ["qualified", "review", "excluded"] as const satisfies readonly LeadClass[];
 
-export function leadBand(search: LeadSearchDto | null): LeadBand | null {
+/**
+ * `shown`: the class on screen and how many leads its read holds, every page of it, for a search whose round has ended.
+ * Its tab says that number, never the round's (the walk of 30 Oct 2026 read "21 Qualified" over 20 rows: a people search
+ * counts people, and two can work at one company).
+ */
+export function leadBand(
+  search: LeadSearchDto | null,
+  shown: { cls: LeadClass; n: number } | null = null,
+): LeadBand | null {
   const r = search?.round;
   if (!r) return null;
+  const countOf = (id: LeadClass) => (shown && shown.cls === id && !roundIsLive(r.state) ? shown.n : r[id]);
   const f = r.fits ?? { strong: 0, look: 0, long: 0 };
   const fits = (["strong", "look", "long"] as const).map((id) => ({ id, label: LEAD_FIT_WORDS[id], count: f[id] }));
   return {
     // The tabs say the pills' words (LEAD_CLASS_WORDS: Qualified, Needs review, Left out) with the count in front, and the
     // page draws them in the pills' tones (stateOf("lead_class")): a tab and a pill for one state read one map.
-    classes: LEAD_BAND_ORDER.map((id) => ({ id, label: `${r[id]} ${LEAD_CLASS_WORDS[id]}`, count: r[id] })),
+    classes: LEAD_BAND_ORDER.map((id) => ({ id, label: `${countOf(id)} ${LEAD_CLASS_WORDS[id]}`, count: countOf(id) })),
     fits,
     mixed: fits.filter((x) => x.count > 0).length > 1,
   };
@@ -326,7 +335,7 @@ export function toLeadRowVM(r: LeadRowDto, tz: string, now: Date, search: LeadSe
       : "",
     foundAt: `${clockDateYear(foundMs, tz)} · ${clockTime(foundMs, tz)}`,
     distance: milesLabel(m.distance_m),
-    source: LEAD_SOURCE_WORD,
+    source: leadSourceWord(r),
     host: siteHost(r.website) ?? "",
     excludedBy,
     version: r.version,
@@ -372,6 +381,15 @@ function subLineOf(r: LeadRowDto, distanceM: number | null): string {
     .join(" · ");
 }
 
+/** Where a lead's facts came from, as foundLine says it: a directory, its Maps listing, else the owner's own list. */
+function leadSourceWord(r: LeadRowDto): string {
+  if (r.kind === "company") return LEAD_DIRECTORY_WORDS.source;
+  return r.place_id ? LEAD_SOURCE_WORD : "Your list";
+}
+
+/** What a list of leads is called beside a search of the same name. */
+const LEAD_LIST_WORD = "list";
+
 /** A round that is still going; one waiting on the owner is its own mark. */
 const roundIsLive = (state: string): boolean => state !== "ended" && state !== "waiting_on_owner";
 
@@ -416,11 +434,17 @@ export function leadRail(
     ...(counts.said_no > 0 ? (["said_no"] as LeadList[]) : []),
     "not_a_fit",
   ];
+  // A list shares its name with the search its leads came from (00459: a sequence's own list is named for it, and New
+  // names a sequence for its search): it says it is a list, so the rail never reads one search twice (the walk of 30 Oct).
+  const named = new Map<string, number>();
+  for (const s of searches) named.set(s.name.trim().toLowerCase(), (named.get(s.name.trim().toLowerCase()) ?? 0) + 1);
+  const nameOf = (s: LeadSearchDto) =>
+    isLeadList(s) && (named.get(s.name.trim().toLowerCase()) ?? 0) > 1 ? `${s.name} · ${LEAD_LIST_WORD}` : s.name;
   return {
     lists: ids.map((id) => ({ id, label: LEAD_LIST_WORDS[id], count: counts[id === "all" ? "all" : id] })),
     searches: searches.map((s) => ({
       id: s.id,
-      name: s.name,
+      name: nameOf(s),
       count: s.round ? s.round.counted : null,
       undoable: leadUndoable(s, now),
       list: isLeadList(s),
@@ -434,6 +458,28 @@ export function leadRail(
             : null,
     })),
   };
+}
+
+/**
+ * What a search's own view says while it shows nobody: the leads Claude could not decide on, with the way to them, or that
+ * it is still looking. Never "describe the businesses you want" over a search that has leads (the walk of 30 Oct 2026: 67
+ * waited under Needs review beneath that line). Null where neither holds, for the page's own words.
+ */
+export function leadSearchEmptyWords(
+  round: { state: string; review: number } | null | undefined,
+): { title: string; body: string; review: boolean } | null {
+  if (!round) return null;
+  if (round.review > 0)
+    return {
+      title: `${plural(round.review, "lead needs", "leads need")} a look.`,
+      body: roundIsLive(round.state)
+        ? "Claude is still checking them, and could not decide on these yet."
+        : "Claude could not decide on these by itself.",
+      review: true,
+    };
+  if (roundIsLive(round.state))
+    return { title: "Still looking.", body: "Leads come in here as Claude checks them.", review: false };
+  return null;
 }
 
 /** "322 leads · 272 ready · 3 searches", and "1 search needs you" when one waits. */

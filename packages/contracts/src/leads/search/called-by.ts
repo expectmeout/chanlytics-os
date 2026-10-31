@@ -70,13 +70,32 @@ const raised = (word: string, first: boolean): string =>
     ? word.charAt(0).toUpperCase() + word.slice(1)
     : word;
 
-/** A name's capitals as a person writes them: one in capitals said in theirs, a word in small letters raised. */
+/** A city's or a country's letters, said one by one wherever a name writes them ("Nyc" is NYC). */
+const PLACE_INITIALS = new Set(["nyc", "usa", "ny", "nj", "dc", "sf", "uk", "atl"]);
+/** As long as a word in capitals in a name not all in capitals gets before it is shouting, not the name's own ("NOVA"). */
+const SHOUTED_AT = 6;
+
+/**
+ * One word of a name not all in capitals (the walk of 30 Oct 2026: "Euro Nyc AUTOWORKS"): a city's letters said one by
+ * one, a long word in capitals said as a person writes it, else as `raised` says it.
+ */
+function saidInMixed(word: string, first: boolean): string {
+  const letters = word.replace(/[^\p{L}]/gu, "");
+  if (PLACE_INITIALS.has(letters.toLowerCase())) return word.toUpperCase();
+  if (letters.length >= SHOUTED_AT && letters === letters.toUpperCase()) return saidFromCapitals(word, first);
+  return raised(word, first);
+}
+
+/**
+ * A name's capitals as a person writes them: one in capitals said in theirs; in any other, a long word in capitals said in
+ * theirs too, a city's letters said one by one and a word in small letters raised.
+ */
 function casedAsSaid(name: string): string {
   const letters = name.replace(/[^\p{L}]/gu, "");
   const shouting = letters === letters.toUpperCase() && letters !== letters.toLowerCase();
   return name
     .split(" ")
-    .map((w, i) => (shouting ? saidFromCapitals(w, i === 0) : raised(w, i === 0)))
+    .map((w, i) => (shouting ? saidFromCapitals(w, i === 0) : saidInMixed(w, i === 0)))
     .join(" ");
 }
 
@@ -84,8 +103,9 @@ function casedAsSaid(name: string): string {
  * The name a business is called by in what it reads (30 Oct 2026: a cold email said "for shops like" a listing's whole
  * title, its city and three services after bars): its listing's name without what a listing adds to be found. A tail
  * after a bar, a spaced dash, a colon or a semicolon, or after a comma that follows two words; a city on the end with
- * its state, or marked off; Inc, LLC, Corp and the like; a name in capitals said in a person's, and a word in small
- * letters raised. What these cannot tell stays as its listing writes it: a name's own capitals ("NOVA", "iFix"), a city
+ * its state, or marked off; Inc, LLC, Corp and the like; a name in capitals said in a person's, a long word in capitals
+ * in any other name too ("AUTOWORKS"), a city's letters said one by one ("Nyc"), and a word in small letters raised.
+ * What these cannot tell stays as its listing writes it: a name's own capitals ("NOVA", "iFix"), a city
  * with no state after it, services with no mark before them. Nothing is cut to nothing. The listing's name stays the
  * lead's, as Leads shows it; every email's fill says this (reach-out-rules reachOutValues), and so do the opening's
  * record and its check.
