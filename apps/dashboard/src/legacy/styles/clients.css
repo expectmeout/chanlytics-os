@@ -245,47 +245,6 @@
   margin-left: 12px;
 }
 
-/* === Search row === */
-.cl-controls {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 28px;
-  border-bottom: 1px solid var(--line);
-  background: var(--bg);
-}
-.cl-search-wrap {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: var(--bg-sunken);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  padding: 6px 10px;
-  max-width: 360px;
-}
-.cl-search-wrap:focus-within {
-  border-color: var(--ink-faint);
-  background: var(--bg);
-}
-.cl-search-wrap .icon { color: var(--ink-faint); }
-.cl-search-wrap input {
-  flex: 1;
-  background: transparent;
-  border: none;
-  outline: none;
-  font-size: var(--text-sm);
-  color: var(--ink);
-}
-.cl-search-wrap input::placeholder { color: var(--ink-faint); }
-
-.cl-controls-right {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
 /* The file acts (Import, Export; Leads' map and Values too) stand beside Columns as words. */
 .pl-file-acts { display: flex; align-items: center; gap: 8px; }
 
@@ -2106,14 +2065,6 @@
 .cl-table tbody tr:hover .cl-row-actions, .cl-table tbody tr.focused .cl-row-actions, .cl-row-actions:focus-within { opacity: 1; }
 .cl-table-keys { display: inline-flex; align-items: center; gap: 4px; }
 .cl-table-keys kbd { font: inherit; font-size: 10px; padding: 0 4px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: var(--radius-xs); color: var(--ink-dim); background: var(--bg-raised); }
-/* People's controls wrap on a desktop too. Beside the sidebar and the rail, Add a person, Export CSV, Columns and the
-   sort outgrow one row from 901px to about 1200px, and a row that never wrapped pushed the whole page sideways (178px
-   at 1024px, with the Columns button cut and its menu clipped). People's alone: pipeline and the store share
-   .cl-controls. At 900px and under, mobile.css wraps every one. */
-@media (width > 900px) {
-  .clients .cl-controls { flex-wrap: wrap; row-gap: 8px; }
-  .clients .cl-controls-right { flex-wrap: wrap; row-gap: 8px; justify-content: flex-end; }
-}
 @media (max-width: 900px) {
   /* Cards: the table and its body become blocks so each row's grid takes the full width; the shrink columns give up their 1%. */
   .cl-table, .cl-table tbody { display: block; width: 100%; }
@@ -2263,16 +2214,12 @@
        the section's own 8px was added to the head's, so People's table started 8px after Leads'. The section
        gives that back, and a list's next step (.cl-list-action), the one thing that can stand between the name
        and the table, carries its own gap instead.
-   The rest is the same room taken back on both: the line 12px down, the controls row 8px each side of a search
-   exactly as tall as the 26px buttons beside it (it was ~30px, so the row was sized by its tallest thing and the
-   buttons floated in it), and the list's name 12px under the rule. A phone's head is its own (PeoplePhoneBar). The
-   search's 26px went on 26 Oct 2026: in Glass it is the 36px capsule (the Glass block below), which this rule's stronger
-   selector had kept at 26 beside 32px buttons. */
+   The rest is the same room taken back on both: the line 12px down, and the list's name 12px under it. A phone's head
+   is its own (PeoplePhoneBar). The controls row between them went on 31 Oct 2026: its search is the bar's line and its
+   tools stand on the row of views (components.css .pg-tools). */
 @media (min-width: 901px) {
   .pl-standing { padding-top: 12px; line-height: 20px; }
   .pl-standing-needs { min-height: 24px; margin-block: -2px; }
-  .clients .cl-controls { padding-top: 8px; padding-bottom: 8px; }
-  .clients .cl-controls .cl-search-wrap { padding-top: 0; padding-bottom: 0; }
   .clients .cl-section { padding-top: 12px; padding-bottom: 0; }
   .clients .cl-list-action { margin-bottom: 8px; }
   .clients .ld-list-head { padding-top: 12px; }
@@ -2925,52 +2872,8 @@
   .main-scroll .pl-standing {
     display: none;
   }
-  /* The controls (P1): the search a 36px capsule 320 wide (its parts reached by their place: its class is a primitive's
-     word), Add a person the inset capsule, Columns and the menu words at the same height; under them the list's name at
-     600 with what it is beside it. */
-  .main-scroll .cl-controls {
-    gap: 8px;
-    padding: 14px 18px 12px;
-    border-bottom: 0;
-    background: transparent;
-  }
-  .main-scroll .cl-search-wrap {
-    gap: 9px;
-    height: 36px;
-    max-width: 320px;
-    padding: 0 12px;
-    border: 0;
-    border-radius: var(--radius-full);
-    background: var(--surface-inset-fill);
-    box-shadow:
-      var(--surface-inset-ring),
-      var(--surface-inset-depth);
-    color: var(--ink-dim);
-  }
-  .main-scroll .cl-controls > :first-child > .icon {
-    width: 15px;
-    height: 15px;
-    color: var(--ink-dim);
-  }
-  /* Squeezed by an open peek, its words end in an ellipsis, never cut mid-word ("…numbers and er"). */
-  .main-scroll .cl-controls > :first-child > input {
-    min-width: 0;
-    font-size: var(--text-base);
-    text-overflow: ellipsis;
-  }
-  /* One height for the row: the search's 36, its word buttons and the Pipeline's List and Board beside it. An older desk
-     rule above (22 Sep, Classic's row) held the search to 26px with a stronger selector than this block's, so the row
-     stood at 26, 32 and 38 (the switch's buttons took the word buttons' 32 inside its own frame). */
-  .main-scroll .cl-controls .cl-controls-right > :not([data-testid="add-person"], .pipe-views) > button {
-    height: var(--control-h-lg);
-    padding: 0 10px;
-    border: 0;
-    border-radius: var(--radius-full);
-    font-size: var(--text-base);
-    font-weight: var(--weight-medium);
-    color: var(--ink-muted);
-  }
-  .main-scroll .pipe-views {
+  /* The List and Board pair at the strip's height, on the row of views beside Columns (components.css .pg-tools). */
+  .pg-tools > .pipe-views {
     box-sizing: border-box;
     height: var(--control-h-lg);
   }
@@ -4749,7 +4652,6 @@ a.cl-prof-word:focus-visible > .cl-prof-word-text {
   .main-scroll .pipe-scope .cl-main:has(.pipe-board)::after {
     content: none;
   }
-  .main-scroll .pipe-scope .cl-main:has(.pipe-board) .cl-controls,
   .main-scroll .pipe-scope .cl-main:has(.pipe-board) .cl-section {
     padding-inline: 0;
   }

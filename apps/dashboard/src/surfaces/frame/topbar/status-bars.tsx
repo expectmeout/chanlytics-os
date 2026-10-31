@@ -2,10 +2,18 @@
  * The two lines under the top bar (moved from legacy/components/topbar.jsx, the one-system plan's step 7d): a call going
  * on, and the shell's one status. The frame's JSX draws them by their old names (`LiveCallBar`, `ShellStatusBar`,
  * frame-globals.ts) until the frame itself is TypeScript (step 7e). And yesterday's visits nobody has marked, in the
- * call's place while no call is up (`UnmarkedVisitsBar`).
+ * call's place while no call is up (`UnmarkedVisitsBar`), and what is next on the day while neither is (`NextVisitBar`).
  */
 import { useEffect, useReducer, useState } from "react";
-import { VISIT_ASK_WORDS, todayVisitsAsked, todayVisitsSub, type CalendarLike } from "@chanlytics/contracts";
+import {
+  MIN_MS,
+  VISIT_ASK_WORDS,
+  todayDayNext,
+  todayVisitsAsked,
+  todayVisitsSub,
+  type CalendarLike,
+} from "@chanlytics/contracts";
+import { routeDoor } from "../../legacy-verbs";
 import { surfaceValue } from "../../surface-values";
 import { visitWordHere } from "../../workspace-word";
 import { frameChrome, frameGlyph, frameSurfaceHook } from "../frame-window";
@@ -130,6 +138,35 @@ export function UnmarkedVisitsBar({ page }: { page: string }) {
         <Glyph name="chevron" size={11} />
       </span>
     </button>
+  );
+}
+
+/**
+ * What is next on the day, in the header beside the bell (the page heads canvas, H2, 31 Oct 2026): the visit under way,
+ * else the next to come, on every page; the strip under Today's head said it on Today alone. The least of the header's
+ * three: a call going on and the visits to mark outrank it, and it is a desk's alone, wider than 1280px, where the row has
+ * room for it beside the bell (components.css). Read from the Calendar's weeks as the tab holds them, as the visits to mark
+ * are: nothing is read for it. Against the clock each minute (contracts todayDayNext), so Next turns to Now as it begins
+ * and goes as it ends. A press opens the visit.
+ */
+export function NextVisitBar() {
+  const [, tick] = useReducer((n: number) => n + 1, 0);
+  useCalendarRead();
+  const cal = surfaceValue("calendar");
+  const next = cal && cal.vm ? todayDayNext(cal.vm as CalendarLike & { timezone: string }, Date.now()) : null;
+  const up = !!next;
+  useEffect(() => {
+    if (!up) return undefined;
+    const t = window.setInterval(tick, MIN_MS);
+    return () => window.clearInterval(t);
+  }, [up]);
+  if (!next) return null;
+  return (
+    <a className="next-bar" {...routeDoor(next.to)} aria-label={next.label} title={next.label} data-testid="next-bar">
+      <span className="next-bar-phase">{next.phase}</span>
+      <b className="next-bar-start">{next.start}</b>
+      <span className="next-bar-who">{next.who}</span>
+    </a>
   );
 }
 

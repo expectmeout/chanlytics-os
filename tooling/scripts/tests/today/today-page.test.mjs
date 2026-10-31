@@ -60,14 +60,13 @@ installLegacyReact({
 // The kit's parts the pages here draw by name or the tests reach (kitParts: the attention row, the record kit ...).
 Object.assign(globalThis.window, kitPages);
 const { HeroBrief } = await import("../../../../apps/dashboard/src/surfaces/today/pages/brief.tsx");
-const { TodayCard } = await import("../../../../apps/dashboard/src/surfaces/today/pages/card.tsx");
+const { TodayCard, TodayHeadFigures } = await import("../../../../apps/dashboard/src/surfaces/today/pages/card.tsx");
 const { TodaySetup } = await import("../../../../apps/dashboard/src/surfaces/today/pages/setup-card.tsx");
 const { AgentCommand } = await import("../../../../apps/dashboard/src/surfaces/today/pages/queue.tsx");
 const { TodayLeaks } = await import("../../../../apps/dashboard/src/surfaces/today/pages/leaks.tsx");
 const { TodayPins } = await import("../../../../apps/dashboard/src/surfaces/today/pages/pins.tsx");
 const { TodayAway } = await import("../../../../apps/dashboard/src/surfaces/today/pages/away.tsx");
 const { TodayBriefPane } = await import("../../../../apps/dashboard/src/surfaces/today/pages/brief-pane.tsx");
-const { TodayStrip } = await import("../../../../apps/dashboard/src/surfaces/today/pages/strip.tsx");
 const { DashboardA } = await import("../../../../apps/dashboard/src/surfaces/today/pages/today-page.tsx");
 const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
 // When a run really goes, in the one sentence every receipt says (Today imports it from Campaigns).
@@ -631,7 +630,7 @@ test("a review that landed this morning is a line in the brief, and its one door
   }
 });
 
-test("the card: four figures in order, each with its clause; nothing said twice; the receipts under them", () => {
+test("the figures: four in order, each with its clause; nothing said twice; the receipts under them", () => {
   clear();
   const vm = busy();
   set({ today: vm, __BROADCASTS: broadcasts() });
@@ -641,7 +640,11 @@ test("the card: four figures in order, each with its clause; nothing said twice;
   const heading = find(card, (n) => n.type === "h2");
   assert.equal(textOf(heading), "Today so far", "a section with its own heading");
   assert.equal(card.props["aria-labelledby"], heading.props.id);
-  const figs = vm.figures.map((f) => byTestId(card, `today-figure-${f.id}`));
+  // A desk's four stand in the head beside the greeting (the page heads canvas, H1, 31 Oct 2026), and the card says the
+  // rest: said once.
+  assert.equal(byTestId(card, "today-figures"), null, "the card draws no figures on a desk");
+  const head = draw(TodayHeadFigures);
+  const figs = vm.figures.map((f) => byTestId(head, `today-figure-${f.id}`));
   assert.deepEqual(
     figs.map((n) => !!n),
     [true, true, true, true],
@@ -649,7 +652,7 @@ test("the card: four figures in order, each with its clause; nothing said twice;
   for (const [i, f] of vm.figures.entries()) {
     const said = textOf(figs[i]);
     assert.ok(said.includes(String(f.value)) && said.includes(f.label) && said.includes(f.meta), `${f.id}: ${said}`);
-    assert.equal(byTestId(card, `today-receipt-${f.id}`), null, "a receipt waits for a hover, a focus or a tap");
+    assert.equal(byTestId(head, `today-receipt-${f.id}`), null, "a receipt waits for a hover, a focus or a tap");
   }
   assert.equal(byTestId(card, "today-recap"), null, "the lines that are not numbers are the brief's (brief-pane.tsx)");
 });
@@ -658,10 +661,10 @@ test("a receipt opens on hover, focus or a tap, says its why with one door, neve
   clear();
   const vm = busy();
   set({ today: vm });
-  const first = draw(TodayCard);
+  const first = draw(TodayHeadFigures);
   const fig = byTestId(first, "today-figure-messages");
   fig.props.onMouseEnter();
-  const hovered = again(() => W.React.createElement(TodayCard));
+  const hovered = again(() => W.React.createElement(TodayHeadFigures));
   const receipt = byTestId(hovered, "today-receipt-messages");
   assert.ok(receipt, "hover opens it");
   assert.equal(receipt.props.role, "dialog");
@@ -683,19 +686,19 @@ test("a receipt opens on hover, focus or a tap, says its why with one door, neve
   assert.equal(went.at(-1), f.receipt.door.to);
   assert.equal(byTestId(hovered, "today-receipt-answered"), null, "one at a time");
   byTestId(hovered, "today-figures").props.onMouseLeave();
-  const left = again(() => W.React.createElement(TodayCard));
+  const left = again(() => W.React.createElement(TodayHeadFigures));
   assert.equal(byTestId(left, "today-receipt-messages"), null);
   // A tap or a keyboard: the figure is the button.
   const btn = find(byTestId(left, "today-figure-calls"), (n) => n.type === "button");
   assert.equal(btn.props["aria-expanded"], false);
   press(btn);
-  const tapped = again(() => W.React.createElement(TodayCard));
+  const tapped = again(() => W.React.createElement(TodayHeadFigures));
   assert.ok(byTestId(tapped, "today-receipt-calls"));
   assert.equal(find(byTestId(tapped, "today-figure-calls"), (n) => n.type === "button").props["aria-expanded"], true);
   find(byTestId(tapped, "today-figure-calls"), (n) => n.type === "button").props.onKeyDown({ key: "Escape" });
   assert.equal(
     byTestId(
-      again(() => W.React.createElement(TodayCard)),
+      again(() => W.React.createElement(TodayHeadFigures)),
       "today-receipt-calls",
     ),
     null,
@@ -725,7 +728,7 @@ test("a receipt opens on hover, focus or a tap, says its why with one door, neve
     NOW,
   );
   set({ today: thin });
-  const plain = draw(TodayCard);
+  const plain = draw(TodayHeadFigures);
   assert.equal(
     find(byTestId(plain, "today-figure-calls"), (n) => n.type === "button"),
     null,
@@ -758,7 +761,7 @@ test("a quiet day: the tile is four zeros, and the brief says nothing came in an
   const vm = quietDay();
   set({ today: vm, headline: headline() });
   const tree = draw(TodayCard);
-  assert.ok(byTestId(tree, "today-figures"), "the tile whole: four zeros (E3)");
+  assert.ok(byTestId(draw(TodayHeadFigures), "today-figures"), "the tile whole: four zeros (E3), in the head");
   assert.equal(byTestId(tree, "today-quiet-line"), null, "no sentence in the head: the brief says the day");
   assert.match(
     vm.proof,
@@ -805,7 +808,7 @@ test("a quiet day: the tile is four zeros, and the brief says nothing came in an
   assert.ok(waiting.zero_figures, "nothing counted: the zeros");
   set({ today: waiting });
   const held = draw(TodayCard);
-  assert.ok(byTestId(held, "today-figures"), "the four zeros");
+  assert.ok(byTestId(draw(TodayHeadFigures), "today-figures"), "the four zeros");
   assert.equal(byTestId(held, "today-quiet-line"), null);
   assert.ok(
     textOf(byTestId(draw(TodayBriefPane), "today-brief-line")).includes(waiting.proof),
@@ -1153,10 +1156,10 @@ test("a search waiting on you is a row of the queue like a person: its name, its
 test("the day listens for People too: it reads People for a visit that needs someone and a person's channel, and on a cold boot People lands last", () => {
   // The boot reads what Today draws right after its own surface, People last (surface-registry.ts ROUTE_DRAWS):
   // the day drew once with the calendar and never again, so the flag and the glyphs a person's row carries were
-  // missing until something else redrew it. The strip and the brief read the one derivation (day.tsx useDayVm).
+  // missing until something else redrew it. The brief and the queue read the one derivation (day.tsx useDayVm).
   clear();
   set({ today: busy(), __CALENDAR: calendar([block("b9", 9, "Slot 9")]), __PLAYBOOKS: noPlaybooks() });
-  draw(TodayStrip);
+  draw(TodayBriefPane);
   for (const key of ["calendar", "playbooks", "people"]) {
     quiet();
     surfaceLanded(key);
@@ -1180,8 +1183,6 @@ test("each band of Today is drawn again when a surface it draws from lands, and 
     ["the queue", AgentCommand, ["today", "broadcasts", "live", "people", "calendar", "inbox"]],
     ["Worth a look", TodayLeaks, ["reports_headline", "people", "today"]],
     ["the pins", TodayPins, ["people"]],
-    // A call is the header's, not the strip's (Ruben, 20 Oct 2026): the strip no longer hears Live.
-    ["the strip, which reads the day", TodayStrip, ["calendar", "playbooks", "people"]],
   ];
   for (const [name, Band, drawnFrom] of bands) {
     draw(Band);
@@ -2027,11 +2028,11 @@ test("the brief: who needs you in bold with the oldest wait, the calendar's day,
   assert.ok(asked.at(-1).prompt.startsWith(said), "the follow-up is grounded in the brief as drawn");
 });
 
-test("the card on a quiet day: the four figures as zeros, no quiet sentence in the head", () => {
+test("a quiet day: the four figures as zeros in the head, and no quiet sentence in the card's", () => {
   clear();
   set({ today: quietDay(), headline: headline() });
-  const glass = byTestId(draw(TodayCard), "today-card");
-  assert.equal(byTestId(glass, "today-quiet-line"), null, "the tile is the figures");
+  assert.equal(byTestId(byTestId(draw(TodayCard), "today-card"), "today-quiet-line"), null, "the tile is the figures");
+  const glass = draw(TodayHeadFigures);
   assert.deepEqual(
     all(glass, (n) => classes(n).includes("tc-fig-n")).map(textOf),
     ["0", "0", "0", "0"],
@@ -2067,37 +2068,7 @@ test("the card's door to Reports stands in the head as words, none in the foot",
   assert.ok(byTestId(glass, "today-period"), "the period's line stays");
 });
 
-test("the strip: the next appointment's start in bold before its words, the cell saying Next", () => {
-  clear();
-  set({ today: busy(), __CALENDAR: calendar([block("b17", 17, "Color", { id: "p1", name: "Dulce Amaro" })]) });
-  const strip = byTestId(draw(TodayStrip), "today-strip");
-  assert.ok(strip, "the strip stands: an appointment to come");
-  assert.equal(byTestId(strip, "today-strip-live"), null, "no call up");
-  const words = find(byTestId(strip, "today-strip-next"), (n) => classes(n).includes("ts-words"));
-  assert.equal(words.props["data-phase"], "Next", "a phone draws the phase into the words");
-  assert.ok(textOf(find(words, (n) => n.type === "b")).length > 0, "the start, in bold");
-  assert.match(textOf(find(words, (n) => classes(n).includes("ts-rest"))), /Dulce Amaro/, "then who it is with");
-});
-
-test("REGRESSION (S9-7): the strip's Next opens the visit itself -- every other visit link does -- and its day where it has none", () => {
-  clear();
-  const next = (b) => {
-    set({ today: busy(), __CALENDAR: calendar([b]) });
-    return byTestId(byTestId(draw(TodayStrip), "today-strip"), "today-strip-next");
-  };
-  const visit = next({
-    ...block("b17", 17, "Color", { id: "p1", name: "Dulce Amaro" }),
-    visit: { id: "v9", status: null },
-  });
-  assert.equal(visit.type, "a", "a link: a long press or a new tab opens it too");
-  assert.match(visit.props.href, /\/calendar\/(\d{4}-\d{2}-\d{2}:)?a-v9$/, "the visit's own address");
-  assert.equal(typeof visit.props.onClick, "function");
-  assert.match(visit.props.title, /^Open Dulce Amaro on the Calendar$/);
-  const day = next(block("b17", 17, "Color", { id: "p1", name: "Dulce Amaro" }));
-  assert.match(day.props.href, /\/calendar\/\d{4}-\d{2}-\d{2}$/, "a block with no visit row opens its day");
-});
-
-test("the bento (E3): the strip, the queue's column beside the brief and the bell, the card beside Worth a look, the pins; no day pane", () => {
+test("the bento (E3): the queue's column beside the brief and the bell, the card beside Worth a look, the pins; no day pane, and no strip (its Next is the bar's)", () => {
   clear();
   set({
     today: busy(),
@@ -2114,7 +2085,6 @@ test("the bento (E3): the strip, the queue's column beside the brief and the bel
   assert.ok(page, "the Glass composition");
   assert.deepEqual(page.props.children.map(name), [
     "HeroBrief",
-    "TodayStrip",
     "dash-a-v2-work",
     "dash-a-v2-side",
     "dash-a-v2-bottom",

@@ -1,7 +1,9 @@
 /**
- * The desk's controls at the right of the search (moved from legacy/pages/leads-scope.jsx, decision 0015): the Filter, the
- * map, Values ⁄ Signals, which columns show and the file, as words beside Columns (the ⋯ that folded them is gone). The page's acts, Reach out's door and Ask's (spec F1: the three's still mark, never a second live
- * canvas), stand at the right of the strip over the list, as People's Add a person does (`LeadsActs`).
+ * The desk's tools (moved from legacy/pages/leads-scope.jsx, decision 0015): the Filter, the map, Values ⁄ Signals, which
+ * columns show and the file, as words beside Columns (the ⋯ that folded them is gone), on the row of views before the
+ * page's acts (the page heads canvas, H1, 31 Oct 2026), where they stood at the right of the search in a row of their own.
+ * The page's acts, Reach out's door and Ask's (spec F1: the three's still mark, never a second live canvas), stand at the
+ * right of the strip over the list, as People's Add a person does (`LeadsActs`).
  */
 import type { ReactNode } from "react";
 import { LEAD_REACH_FILTERS, LEAD_REACH_WORDS, leadReachWord, type LeadReachFilter } from "@chanlytics/contracts";
@@ -115,7 +117,7 @@ export const LeadsControlsRight = ({ p }: { p: ControlsProps }) => {
       }
     : { onClick: () => undefined, ...gate("export", "export these leads") };
   return (
-    <div className="cl-controls-right">
+    <div className="pg-tools">
       <LeadsFilterMenu reach={p.reach} onReach={p.onReach} />
       <TableColumnsMenu state={p.table} columns={p.declared} desk={!p.phone} rowHeight={false} />
       {/* The map, Values / Signals and the file stand beside Columns as words, as People's Import and Export do (the ⋯ that

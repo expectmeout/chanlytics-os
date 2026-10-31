@@ -250,37 +250,42 @@ function peopleListSection(s: PeopleState) {
  * list, where Campaigns' Library and New message stand (6 Oct 2026); on a phone beside the page's name (7 Oct). A role
  * that may not change lists has none.
  */
+/**
+ * The page's acts, said to the frame's head: Add people, and on a desk the list's tools before it, on the row of views (the
+ * page heads canvas, H1, 31 Oct 2026). The row they stood on under the standing line held the search too, which is the
+ * bar's line now (people-real.tsx), so the row is gone and the table starts under the list's name.
+ */
 export function peopleAct(s: PeopleState) {
-  const { canEditLists, setAddOpen } = s;
-  if (!canEditLists) return null;
-  return (
+  const { canEditLists, setAddOpen, phone } = s;
+  const add = canEditLists ? (
     <Button variant="primary" size="sm" onClick={() => setAddOpen(true)} data-testid="add-people">
       <ActWords icon={<Icon name="plus" size={12} />} words="Add people" />
     </Button>
+  ) : null;
+  if (phone) return add;
+  return (
+    <>
+      {peopleDeskTools(s)}
+      {add}
+    </>
   );
 }
 
-/** A desktop's controls: the search, the Columns menu, and Export as a word (adding people is the page's act). */
-function peopleDeskControls(s: PeopleState) {
-  const { searchRef, q, setQ, plFlash, exportBlocked, exportHref, exportName, table, declared } = s;
+/** A desktop's tools: the Columns menu, and Export as a word (adding people is the page's act). */
+function peopleDeskTools(s: PeopleState) {
+  const { plFlash, exportBlocked, exportHref, exportName, table, declared } = s;
   return (
-    <div className="cl-controls">
-      <div className="cl-search-wrap">
-        <Icon name="search" size={13} />
-        <input ref={searchRef} placeholder={`${PL_SEARCH_LABEL}…`} value={q} onChange={(e) => setQ(e.target.value)} />
-      </div>
-      <div className="cl-controls-right">
-        {/* No sort button: every heading that sorts is a button with its arrow (dtable-sort), so "Z → A" beside them only
-            turned round an order the table already shows and changes. */}
-        <TableColumnsMenu state={table} columns={declared} />
-        {/* Export stands beside Columns as a word (file-acts.tsx). */}
-        <PeopleFileActs exportBlocked={exportBlocked} exportHref={exportHref} exportName={exportName} flash={plFlash} />
-      </div>
+    <div className="pg-tools">
+      {/* No sort button: every heading that sorts is a button with its arrow (dtable-sort), so "Z → A" beside them only
+          turned round an order the table already shows and changes. */}
+      <TableColumnsMenu state={table} columns={declared} />
+      {/* Export stands beside Columns as a word (file-acts.tsx). */}
+      <PeopleFileActs exportBlocked={exportBlocked} exportHref={exportHref} exportName={exportName} flash={plFlash} />
     </div>
   );
 }
 
-/** The scroller: the standing line, a desktop's controls and the list's head, the table, and the line under it. */
+/** The scroller: the standing line, a desktop's list head, the table, and the line under it. */
 function peopleScroll(s: PeopleState) {
   const {
     scrollRef,
@@ -331,8 +336,6 @@ function peopleScroll(s: PeopleState) {
           setListId((l) => (l === "needs_you" ? null : "needs_you"));
         }}
       />
-
-      {!phone && peopleDeskControls(s)}
 
       {/* A phone draws no list head: the bar names the list, the Lists sheet has Everyone and the more-menu the list's own
           acts. A list's own step stays, one card. */}

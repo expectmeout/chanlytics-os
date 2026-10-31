@@ -29,6 +29,11 @@
 /* The search, with the select-all box before it once a pick starts (pages/pick.tsx; inbox.css draws the box), where
    Needs you's stands in the same pane (inbox.css .ix-search-row), so the capsule holds still as the tab changes. */
 .cv-list-head { display: flex; align-items: center; padding: 14px 18px 10px; }
+/* On a desk the search is the bar's line (the page heads canvas, H2, 31 Oct 2026): the head holds the select-all alone,
+   and takes no room until a pick starts, so the list opens on its tabs. */
+.cv-list:not(.picking) > .cv-list-head[data-line] { display: none; }
+/* The tabs first then, 8px under the pane's edge: their words level with the open thread's name beside them. */
+.cv-list:not(.picking) > .cv-list-head[data-line] + .cv-filters { padding-top: 8px; }
 .cv-lookup { flex: 1 1 auto; min-width: 0; }
 /* What is picked, over the rows: the Inbox's own line (inbox.css .ix-list-head), which stands third in its list. */
 .cv-list > .ix-list-head { order: 0; }

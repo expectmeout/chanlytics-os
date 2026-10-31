@@ -13,6 +13,7 @@ import {
   visitStands,
   type VisitLineVM,
 } from "../calendar/calendar-words";
+import { clockInZone } from "../calendar/zone-math";
 import { HELD_WORDS, NEEDS_YOU_WORD } from "../conversations/standing";
 import { initialsOf } from "../conversations/thread-contact";
 import { appointmentWords, type AppointmentWord } from "../journey/appointment-word";
@@ -357,6 +358,50 @@ export function todayDay(
     nextOpening: feed === "ok" && cal.stats.next !== "—" ? cal.stats.next : null,
     reminders,
     word,
+  };
+}
+
+/* ------------------------------ what is next, in the frame's top bar (the page heads canvas, H2) ---------------------- */
+
+/**
+ * What is next on the day, as the frame's top bar says it beside the bell on every page (the page heads canvas, H2, 31 Oct
+ * 2026): the visit under way, else the next to come, today only. The strip under Today's head said it on Today alone, and
+ * the brief's sentence says it again there.
+ */
+export interface TodayDayNextVM {
+  /** "Now" while it is under way, else "Next". */
+  phase: "Now" | "Next";
+  /** "10:45 AM", in the bold. */
+  start: string;
+  /** Who it is with, else what it is for: the bar's room holds one. */
+  who: string;
+  /** All of it as a reader hears it and a pointer reads it: "Next at 10:45 AM: Dulce Amaro · Color · 1h 30m". */
+  label: string;
+  /** The visit (visitDoor): the bar is its door. */
+  to: string;
+}
+
+/**
+ * The visit under way or next today, against the clock now in the business's zone: the bar stays up across pages, while
+ * the Calendar's own `now` is the minute its weeks were read, so a visit that began since reads as under way, and one that
+ * ended is gone. A visit said kept and still under way says so; one said missed or cancelled is never here (todayDay).
+ */
+export function todayDayNext(cal: (CalendarLike & { timezone: string }) | null, nowMs: number): TodayDayNextVM | null {
+  if (!cal || cal.feed.state !== "ok" || !cal.days.some((d) => d.today)) return null;
+  const at = clockInZone(cal.timezone, nowMs);
+  const day = todayDay({ ...cal, now: at.hh + at.mm / 60 }, null);
+  const items = day.frames.find((f) => f.today)?.items ?? [];
+  const b = items.find((i) => i.phase === "now") ?? items.find((i) => i.phase === "next");
+  if (!b) return null;
+  const phase = b.phase === "now" ? "Now" : "Next";
+  const what = b.person ? [b.person.name, b.service].filter(Boolean) : [b.service || b.title];
+  const rest = [what.join(" · "), b.dur, b.said?.word].filter(Boolean).join(" · ");
+  return {
+    phase,
+    start: b.start,
+    who: b.person ? b.person.name : b.service || b.title,
+    label: `${phase === "Now" ? "Now, since" : "Next at"} ${b.start}: ${rest}`,
+    to: b.to,
   };
 }
 

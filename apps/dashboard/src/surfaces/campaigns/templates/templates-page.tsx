@@ -32,6 +32,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import {
+  BAR_LINE_WORDS,
   LIBRARY_WORDS,
   LIFECYCLE_WORDS,
   MESSAGES_ROUTE,
@@ -45,6 +46,7 @@ import { canDo, demoSession, gateTitle, navigate, replaceRoute, useLegacyToast }
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { tabDraft } from "../../kit/record/work";
+import { usePageSearch } from "../../page-search";
 import { usePartShown, useSurface } from "../../use-surface";
 import { CmHead } from "../parts/head";
 import { CmSplit, useCmPhone, type CmView } from "../parts/split";
@@ -117,6 +119,8 @@ function usePageState() {
   const [pressed, setPressed] = useState<{ key: string; at: string } | null>(null);
   // What the search box holds: the rows whose words have it stay, the rest stand down.
   const [q, setQ] = useState("");
+  // On a desk the box is the bar's line (page-search.ts); a phone keeps its box over the list.
+  const inLine = usePageSearch({ label: BAR_LINE_WORDS.messages, value: q, onValue: setQ, testid: "templates-search" });
   const [toastNode, flash] = useLegacyToast();
   return {
     doing,
@@ -132,6 +136,7 @@ function usePageState() {
     setPressed,
     q,
     setQ,
+    inLine,
     toastNode,
     flash,
   };
@@ -249,7 +254,7 @@ function MessagesReal({ view, route }: { view?: CmView; route: string }) {
   const state = usePageState();
   const phone = useCmPhone();
   const { doing, setDoing, doingRef, composing, setComposing, showHidden, setShowHidden } = state;
-  const { openKey, q, setQ, toastNode, flash } = state;
+  const { openKey, q, setQ, inLine, toastNode, flash } = state;
   const named = useNamedMessage(route, setComposing);
   const busy = doing !== null;
   // Who may add, change or remove a message: the role store's answer, View-as included.
@@ -350,7 +355,7 @@ function MessagesReal({ view, route }: { view?: CmView; route: string }) {
         right={headRight({ onNew: startNew })}
       />
       {/* The top of the list, as the Inbox's opens: the search, and beside it when WhatsApp was last asked. */}
-      {listBar({ q, setQ, hasWhatsApp, lastSync: listing.lastSync, doing, busy, sync })}
+      {listBar({ q, setQ, inLine, hasWhatsApp, lastSync: listing.lastSync, doing, busy, sync })}
       {roleHint(canAct, hasWhatsApp)}
       {numberNotice({ channels, hasWhatsApp })}
       {allMissing && startersOffer({ S, langs, busy, addingAll, addStarters, hasNumber: hasWhatsApp })}

@@ -15,6 +15,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toInboxThreadVM, stateOf, memberWords } from "@chanlytics/contracts";
 import { installLegacyReact, fresh, again, all, find, textOf, walk } from "../../_legacy-react.mjs";
+import { lineBox } from "../../shared/_line.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-15T14:00:00Z");
@@ -318,7 +319,7 @@ test("REGRESSION: the list has no head line until a search or a pick -- it said 
   assert.equal(box.props["aria-label"], "Select all 2 conversations");
 
   // A search says what it found, by the words the rows show: what they asked, not only the last message.
-  find(tree, (n) => n.props?.["data-testid"] === "inbox-search").props.onChange({
+  lineBox().props.onChange({
     target: { value: "friday" },
   });
   tree = listOf(threads);

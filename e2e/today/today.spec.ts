@@ -142,9 +142,7 @@ test.describe("Today on a real workspace", () => {
       const bar = document.querySelector(".topbar")?.getBoundingClientRect().bottom ?? 0;
       return { first: el?.className ?? "", gap: el ? el.getBoundingClientRect().top - bar : -1 };
     });
-    expect(first, "nothing stands above the queue but the strip or a line that is down").toMatch(
-      /dash-a-v2-work|today-strip|today-alert/,
-    );
+    expect(first, "nothing stands above the queue but a line that is down").toMatch(/dash-a-v2-work|today-alert/);
     expect(gap, "the first band keeps the page's gap under the top bar").toBeGreaterThanOrEqual(8);
     // A page with no Ask client (the standalone mockup) draws the mockup's palette; a workspace, and the local harness
     // since Ask Rewired's Phase 7, open the real one.

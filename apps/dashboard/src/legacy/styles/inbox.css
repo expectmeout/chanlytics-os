@@ -2247,6 +2247,16 @@ button.ix-ctx { text-align: left; cursor: pointer; transition: background 100ms;
   padding: 14px 18px 10px;
   border-bottom: 0;
 }
+/* On a desk the search is the bar's line (inbox-list.tsx searchBox; the page heads canvas, H2, 31 Oct 2026): the row
+   holds the select-all and the saved views' toggle, and takes no room while neither is there to see, so the list opens
+   on its buckets. */
+.ix-list:not(.picking) > .ix-search-row[data-line]:not(:has(> .ix-views-toggle)) {
+  display: none;
+}
+/* The buckets first then, 8px under the pane's edge: their words level with the open thread's name beside them. */
+.ix-list:not(.picking):has(> .ix-search-row[data-line]):not(:has(> .ix-search-row > .ix-views-toggle)) > .ix-buckets {
+  padding-top: 8px;
+}
 .ix-list > .ix-buckets {
   order: 2;
 }

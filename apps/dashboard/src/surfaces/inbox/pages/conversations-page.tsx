@@ -5,7 +5,7 @@
  * The rules of which tab a row is in and of the address are cv-rules.ts. Rows are picked for an act over several as
  * the Inbox's are, by the same parts (pick.tsx): the box over the face, the select-all, the bar, the keys.
  */
-import { mmss } from "@chanlytics/contracts";
+import { BAR_LINE_WORDS, mmss } from "@chanlytics/contracts";
 import { useEffect, useMemo, useReducer, useRef, useState, type KeyboardEvent } from "react";
 import { useHeldList } from "../../kit/motion/held-list";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
@@ -17,6 +17,7 @@ import { Search } from "../../kit/search/search";
 import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
 import { OutcomePill } from "./outcome-pill";
 import { StoppedMark } from "../../kit/pill/stopped-mark";
+import { usePageSearch } from "../../page-search";
 import { usePartShown, useSurface } from "../../use-surface";
 import { ROUTES, TICK_MS } from "../constants";
 import {
@@ -348,6 +349,8 @@ function listPane(p: {
   rows: ConversationRow[];
   query: string;
   setQuery: (v: string) => void;
+  /** The search is the bar's line (a desk's): the list's head draws no box of its own. */
+  inLine: boolean;
   channel: string;
   counts: Record<string, number>;
   /** The person's row open, which the part open is one of. */
@@ -359,7 +362,7 @@ function listPane(p: {
   /** The pick (pick.tsx): the rows chosen for an act over several, the bar over them, and the question an archive asks. */
   pick: CvPick;
 }) {
-  const { data, rows, query, setQuery, channel, counts, selectedRow, openRow, pick, shown, listRef } = p;
+  const { data, rows, query, setQuery, inLine, channel, counts, selectedRow, openRow, pick, shown, listRef } = p;
   const { CONVERSATIONS, CV_CHANNELS, CALLS_READ } = data;
   // Each row on screen as a pick reads it, worked out once and kept by the row's id: null for one that wears no box.
   const picks = new Map(rows.map((c) => [c.id, pick.of(c)]));
@@ -378,17 +381,20 @@ function listPane(p: {
   });
   return (
     <aside className={`cv-list ${pick.selected.length > 0 ? "picking" : ""}`}>
-      <div className="cv-list-head">
+      <div className="cv-list-head" data-line={inLine ? "" : undefined}>
         {canPick.length > 0 &&
           pickAll({ ids: canPick, selected: pick.selected, onToggle: pick.toggle, onClear: pick.clear })}
-        {/* The kit's search, Needs you's and People's capsule (it was People's old desk box, a second look on one page). */}
-        <Search
-          className="cv-lookup"
-          label="Search names, transcripts, messages"
-          value={query}
-          onChange={setQuery}
-          testid="cv-search"
-        />
+        {/* The kit's search, Needs you's and People's capsule (it was People's old desk box, a second look on one page);
+            on a desk the bar's line is the search. */}
+        {!inLine && (
+          <Search
+            className="cv-lookup"
+            label="Search names, transcripts, messages"
+            value={query}
+            onChange={setQuery}
+            testid="cv-search"
+          />
+        )}
       </div>
       {CALLS_READ === false && (
         <FailedRead
@@ -583,6 +589,27 @@ function useCvParts(listRead: boolean, open: { id: string } | null): void {
   usePartShown("conversations", "thread", !!open, open ? open.id : null);
 }
 
+/**
+ * The box's words, per tab: typed here this visit, else what the tab kept. The page is one mount across its tabs (its
+ * route row's `mount`, frame/route-table.tsx), so a tab pressed reads its own words at once, with no draw in between. On a
+ * desk the box is the bar's line (page-search.ts), the tab's own words in it; a phone keeps its box (`inLine` false).
+ */
+function useCvQuery(channel: string) {
+  const [typed, setTyped] = useState<Record<string, string>>({});
+  const query = typed[channel] !== undefined ? typed[channel] : cvKept(channel);
+  const setQuery = (v: string) => {
+    setTyped((t) => ({ ...t, [channel]: v }));
+    cvKeepPlace(channel, { q: v });
+  };
+  const inLine = usePageSearch({
+    label: BAR_LINE_WORDS.conversations,
+    value: query,
+    onValue: setQuery,
+    testid: "cv-search",
+  });
+  return { query, setQuery, inLine };
+}
+
 export const ConversationsPage = ({
   channel = "all",
   initialId = null,
@@ -595,14 +622,7 @@ export const ConversationsPage = ({
 }) => {
   const data = conversationsData();
   const { CONVERSATIONS, CV_CHANNELS } = data;
-  // The box's words, per tab: typed here this visit, else what the tab kept. The page is one mount across its tabs
-  // (its route row's `mount`, frame/route-table.tsx), so a tab pressed reads its own words at once, with no draw in between.
-  const [typed, setTyped] = useState<Record<string, string>>({});
-  const query = typed[channel] !== undefined ? typed[channel] : cvKept(channel);
-  const setQuery = (v: string) => {
-    setTyped((t) => ({ ...t, [channel]: v }));
-    cvKeepPlace(channel, { q: v });
-  };
+  const { query, setQuery, inLine } = useCvQuery(channel);
   const [selectedId, setSelectedId] = useState<string | null>(initialId);
   const swap = useSwapMotion(channel);
   // Phone: the list and the viewer take turns (mobile.css owns the breakpoint).
@@ -709,6 +729,7 @@ export const ConversationsPage = ({
         rows: visible,
         query,
         setQuery,
+        inLine,
         channel,
         counts,
         selectedRow,

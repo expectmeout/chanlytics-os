@@ -141,30 +141,23 @@ const phoneBarOf = (p: P) => (
   />
 );
 
-/** A desk's standing line (with the page's acts, which the frame's head draws at the strip's right) and controls row, over the rows. */
+/**
+ * A desk's standing line, with the page's acts, which the frame's head draws at the strip's right: the list's tools, then
+ * Find leads (the page heads canvas, H1, 31 Oct 2026). The controls row under the line held them and the search, which is
+ * the bar's line now (leads-real.tsx), so the row is gone.
+ */
 const deskTopOf = (p: P) => (
-  <>
-    <PeopleStanding
-      scope="leads"
-      leads={p.standing}
-      onNeeds={p.onNeedsYou}
-      act={<LeadsActs canFind={p.canFind} onFind={p.onFind} />}
-    />
-
-    <div className="cl-controls">
-      <div className="cl-search-wrap">
-        <Icon name="search" size={13} />
-        <input
-          ref={p.searchRef}
-          placeholder="Search leads"
-          aria-label="Search leads"
-          value={p.q}
-          onChange={(e) => p.onQ(e.target.value)}
-        />
-      </div>
-      <LeadsControlsRight p={p} />
-    </div>
-  </>
+  <PeopleStanding
+    scope="leads"
+    leads={p.standing}
+    onNeeds={p.onNeedsYou}
+    act={
+      <>
+        <LeadsControlsRight p={p} />
+        <LeadsActs canFind={p.canFind} onFind={p.onFind} />
+      </>
+    }
+  />
 );
 
 /**

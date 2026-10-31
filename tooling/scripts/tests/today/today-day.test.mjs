@@ -31,7 +31,7 @@ import { installLegacyReact, fresh, all, byTestId, textOf } from "../_legacy-rea
 installLegacyReact({ __DEMO_MODE: false, __surfaceState: () => "live" });
 const { TODAY_HELPERS } = await import("../../../../apps/dashboard/src/surfaces/today/helpers.ts");
 const { HeroBrief } = await import("../../../../apps/dashboard/src/surfaces/today/pages/brief.tsx");
-const { TodayCard } = await import("../../../../apps/dashboard/src/surfaces/today/pages/card.tsx");
+const { TodayCard, TodayHeadFigures } = await import("../../../../apps/dashboard/src/surfaces/today/pages/card.tsx");
 const { DashboardA } = await import("../../../../apps/dashboard/src/surfaces/today/pages/today-page.tsx");
 const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
 
@@ -495,7 +495,9 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
   const hero = draw(HeroBrief);
   assert.equal(textOf(hero), "", "the hero says nothing while every line is up: no sentence of the day, no stat cards");
   const card = draw(TodayCard);
-  assert.ok(byTestId(card, "today-figures"), "the day's numbers are the card's figures");
+  // A desk draws the four in the head beside the greeting (the page heads canvas, H1, 31 Oct 2026), not in the card.
+  assert.ok(byTestId(draw(TodayHeadFigures), "today-figures"), "the day's numbers are the figures");
+  assert.equal(byTestId(card, "today-figures"), null, "said once: the head's on a desk");
   for (const tree of [hero, card]) {
     assert.equal(byTestId(tree, "brief-calendar"), null, "the one-line calendar beat is the module now");
     const parts = all(tree, (n) => typeof n.type === "function").map((n) => n.type.name);

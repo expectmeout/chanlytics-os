@@ -61,6 +61,7 @@ import {
 } from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
 import { EVERY_EVENT, changesOf, toldFor } from "../_live-feed.mjs";
+import { lineBox } from "../shared/_line.mjs";
 
 const TZ = "America/New_York";
 const H = 3_600_000;
@@ -1133,6 +1134,8 @@ await (await import("../../../../apps/dashboard/src/surfaces/people/pipeline/pee
 const { Menu } = await import("../../../../apps/dashboard/src/surfaces/kit/menu/menu.tsx");
 const { Sheet } = await import("../../../../apps/dashboard/src/surfaces/kit/sheet/sheet.tsx");
 const { standingSaid } = await import("../../../../apps/dashboard/src/surfaces/kit/head/standing.ts");
+/** The page as a desk shows it: what it draws, and what it says to the head beside the strip (Columns, List and Board). */
+const withHead = (tree) => ({ type: "page", props: { children: [tree, standingSaid()?.act ?? null] } });
 /** The page's one filled button: in the frame's head at every width (what the page says to it, standing.tsx). */
 const newOpen = (tree) =>
   byTestId(tree, "pipeline-new-open") ??
@@ -1473,14 +1476,14 @@ test("the keys are People's: J walks the rows shown, Enter opens the peek, Esc c
 
 test("the words in the box find people in every group, the folded one opened, and the line stays the whole Pipeline's", async () => {
   await fresh();
+  draw();
+  lineBox().props.onChange({ target: { value: "dan" } });
   let tree = draw();
-  byTestId(tree, "pipeline-search").props.onChange({ target: { value: "dan" } });
-  tree = draw();
   assert.deepEqual(rowIds(tree), ["dan"]);
   assert.deepEqual(heads(tree), [{ label: "Passed or ended", count: "1", meta: null, toggle: null }]);
   assert.match(textOf(find(tree, (n) => n.props?.className === "dtable-foot")), /^Showing 1 of 7/);
   assert.match(textOf(byTestId(tree, "pipeline-summary")), /^2 proposals out/);
-  byTestId(tree, "pipeline-search").props.onChange({ target: { value: "zed" } });
+  lineBox().props.onChange({ target: { value: "zed" } });
   tree = draw();
   assert.match(textOf(tree), /No one matches this view\./);
   click(find(tree, (n) => n.type === "button" && textOf(n).includes("Clear filters")));
@@ -1490,13 +1493,13 @@ test("the words in the box find people in every group, the folded one opened, an
 
 test("the Pipeline keeps a view of its own, apart from People's and Leads': the layout is the member's", async () => {
   const seen = await fresh();
+  draw();
+  lineBox().props.onChange({ target: { value: "wes" } });
   let tree = draw();
-  byTestId(tree, "pipeline-search").props.onChange({ target: { value: "wes" } });
-  tree = draw();
   draw();
   assert.deepEqual(seen.viewSaves, [], "words in the box are not a view");
   // #941 kept List | Board in this browser; it is the member's saved view now, beside People's and Leads'.
-  click(byTestId(tree, "pipeline-view-board"));
+  click(byTestId(withHead(tree), "pipeline-view-board"));
   draw();
   assert.deepEqual(
     seen.viewSaves.map((v) => [v.page, v.view.layout]),
@@ -2320,7 +2323,7 @@ test("on a desk the rows can be a board: every group a column, the cards, a drop
   };
   globalThis.localStorage.removeItem("pipeline.view");
   let tree = draw();
-  const views = byTestId(tree, "pipeline-views");
+  const views = byTestId(withHead(tree), "pipeline-views");
   assert.deepEqual(
     all(views, (n) => n.type === "button").map((n) => [textOf(n), n.props["aria-pressed"]]),
     [
@@ -2332,7 +2335,7 @@ test("on a desk the rows can be a board: every group a column, the cards, a drop
     find(tree, (n) => n.type === "table"),
     "the list first",
   );
-  click(byTestId(tree, "pipeline-view-board"));
+  click(byTestId(withHead(tree), "pipeline-view-board"));
   tree = draw();
   assert.equal(seen.viewSaves.at(-1).view.layout, "board", "kept in the member's view");
   assert.equal(
@@ -2432,7 +2435,7 @@ test("on a desk the rows can be a board: every group a column, the cards, a drop
   assert.deepEqual(asked.at(-1), { personId: "cat", mode: "ended", dealId: "d-won-12" });
   // Back to the list.
   tree = draw();
-  click(byTestId(tree, "pipeline-view-list"));
+  click(byTestId(withHead(tree), "pipeline-view-list"));
   tree = draw();
   assert.ok(find(tree, (n) => n.type === "table"));
   // Saves go one at a time (clients-a.jsx plViewSaver): the list waits for the board's to land.
@@ -2453,7 +2456,7 @@ test("a viewer's cards do not drag, and a phone keeps the list whatever was chos
       globalThis.localStorage.setItem("pipeline.view", "board");
       tree = draw();
       assert.equal(byTestId(tree, "pipeline-board"), null);
-      assert.equal(byTestId(tree, "pipeline-views"), null, "no switch on a phone");
+      assert.equal(byTestId(withHead(tree), "pipeline-views"), null, "no switch on a phone");
       assert.ok(
         find(tree, (n) => n.type === "table"),
         "the list",
@@ -2467,15 +2470,15 @@ test("a viewer's cards do not drag, and a phone keeps the list whatever was chos
 
 test("the words in the box find a deal's service too", async () => {
   await fresh();
+  draw();
+  lineBox().props.onChange({ target: { value: "color corr" } });
   let tree = draw();
-  byTestId(tree, "pipeline-search").props.onChange({ target: { value: "color corr" } });
-  tree = draw();
   assert.deepEqual(
     rowIds(tree),
     ["wes", "nia", "cat", "ed", "dan"],
     "everyone with a deal for it, the folded group opened",
   );
-  byTestId(tree, "pipeline-search").props.onChange({ target: { value: "" } });
+  lineBox().props.onChange({ target: { value: "" } });
   tree = draw();
   assert.deepEqual(rowIds(tree), ["hana", "sara", "wes", "nia", "cat"]);
 });
@@ -2801,7 +2804,7 @@ test("a view nobody touched is not written to the workspace: a first open saves 
   await new Promise((r) => setTimeout(r, 0));
   assert.deepEqual(seen.viewSaves, [], "the defaults were written for a member who had saved nothing");
   // A choice is theirs, and saved.
-  click(byTestId(draw(), "pipeline-view-board"));
+  click(byTestId(withHead(draw()), "pipeline-view-board"));
   draw();
   await new Promise((r) => setTimeout(r, 0));
   assert.equal(seen.viewSaves.at(-1).view.layout, "board");
@@ -2871,7 +2874,7 @@ test("Columns shows where they came from and the day a proposal stands until, as
     ],
   });
   let tree = draw();
-  const menu = find(tree, (n) => n.type === TableColumnsMenu);
+  const menu = find(withHead(tree), (n) => n.type === TableColumnsMenu);
   assert.deepEqual(
     menuOptions(menu).map((o) => [o.key, o.on]),
     [
@@ -3177,15 +3180,15 @@ test("a person's further deal on the page (0029's review): People's bar counts p
   for (const id of ["noa_d-web", "noa", "wes"]) table().props.state.toggleSelected(id);
   // The box finds any open deal's service, whichever deal their row shows.
   let tree = draw();
-  byTestId(tree, "pipeline-search").props.onChange({ target: { value: "website" } });
+  lineBox().props.onChange({ target: { value: "website" } });
   assert.deepEqual(rowIds(draw()), ["noa_d-web", "noa"]);
-  byTestId(draw(), "pipeline-search").props.onChange({ target: { value: "" } });
+  (draw(), lineBox()).props.onChange({ target: { value: "" } });
   // A client's row stands until no day, whatever their proposal's is.
-  find(draw(), (n) => n.type === TableColumnsMenu).props.state.toggleColumn("valid");
+  find(withHead(draw()), (n) => n.type === TableColumnsMenu).props.state.toggleColumn("valid");
   tree = draw();
   const valid = (id) => textOf(byTestId(rowNode(tree, id), "pipe-valid")).trim();
   assert.deepEqual([!!valid("mia"), valid("mia_d-won-40")], [true, ""]);
-  find(draw(), (n) => n.type === TableColumnsMenu).props.state.toggleColumn("valid");
+  find(withHead(draw()), (n) => n.type === TableColumnsMenu).props.state.toggleColumn("valid");
   // On a phone, the sheet's foot acts on the row's own deal: the website's link, not the ads'.
   await onPhone(async () => {
     wireNoa(await fresh({ people: [...peopleNow(), noa, mia] }));
@@ -3427,7 +3430,7 @@ test("on the board a card wears its steps and a Move to menu of the columns it m
   const asked = [];
   globalThis.window.openDealSheet = (a) => asked.push(a);
   let tree = draw();
-  click(byTestId(tree, "pipeline-view-board"));
+  click(byTestId(withHead(tree), "pipeline-view-board"));
   tree = draw();
   const col = byTestId(tree, "pipeline-col-proposals");
   const cards = () =>
@@ -3633,7 +3636,7 @@ test("their next step on the page: a column after Stage that sorts by its day, i
   assert.deepEqual(rowIds(draw({ pipelineRoute: "pipeline:v-steps" })), ["wes"]);
   // The board's card: one quiet line under the chip.
   await fresh({ people: people() });
-  click(byTestId(draw(), "pipeline-view-board"));
+  click(byTestId(withHead(draw()), "pipeline-view-board"));
   const cards = all(byTestId(draw(), "pipeline-col-proposals"), (n) => n.props?.["data-testid"] === "pipeline-card");
   const wesCard = cards.find((c) => textOf(c).includes("Wes"));
   const line = byTestId(wesCard, "pipe-next");
@@ -3726,9 +3729,9 @@ test("the page waits by the workspace's pace as People reads it: the line, the r
   tree = draw({ pipelineRoute: "pipeline:v-waiting" });
   assert.deepEqual(rowIds(tree), ["wes"], "the view holds those past the pace");
   // A search inside the view judges by the same pace: Nia is not waiting yet, Wes is.
-  byTestId(tree, "pipeline-search").props.onChange({ target: { value: "nia" } });
+  lineBox().props.onChange({ target: { value: "nia" } });
   assert.deepEqual(rowIds(draw({ pipelineRoute: "pipeline:v-waiting" })), []);
-  byTestId(draw({ pipelineRoute: "pipeline:v-waiting" }), "pipeline-search").props.onChange({
+  (draw({ pipelineRoute: "pipeline:v-waiting" }), lineBox()).props.onChange({
     target: { value: "wes" },
   });
   assert.deepEqual(rowIds(draw({ pipelineRoute: "pipeline:v-waiting" })), ["wes"]);

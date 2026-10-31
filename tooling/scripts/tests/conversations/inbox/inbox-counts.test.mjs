@@ -28,6 +28,7 @@ import {
   unmount,
 } from "../../_legacy-react.mjs";
 import { until } from "../../shared/_until.mjs";
+import { lineBox } from "../../shared/_line.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-15T14:00:00Z");
@@ -615,7 +616,7 @@ test("each row says whose it is -- nothing more where the bucket already says Ne
     );
 
     // A search spans every bucket, so a row there says Needs you again -- only the one that does.
-    find(tree, (n) => n.props?.["data-testid"] === "inbox-search").props.onChange({
+    lineBox().props.onChange({
       target: { value: "a" },
     });
     tree = draw();

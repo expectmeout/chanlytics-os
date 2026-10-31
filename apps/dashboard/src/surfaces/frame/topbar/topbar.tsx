@@ -11,6 +11,10 @@ import type { Dispatch, ReactNode, SetStateAction } from "react";
 import type { LegacyFlash } from "../../legacy-verbs";
 import type { DemoNote } from "./bell-demo";
 import { tbOverlay, useDemoBell, useDemoPresence } from "./bell-demo-acts";
+import { BAR_LINE_WORDS } from "@chanlytics/contracts";
+import { askAbout, openAsk } from "../../frame-doors";
+import { Button } from "../../kit/button/button";
+import { usePageSearchSaid, type PageSearch } from "../../page-search";
 import { frameBell, frameChrome, frameGlyph, frameMoreMenu, frameToastHook, isDemoFrame } from "../frame-window";
 import { NotifPopover, type BellAlerts, type BellNote } from "./notif-popover";
 
@@ -38,10 +42,81 @@ function TbAskDue() {
 // in either look: the ? sheet is the one place a key is drawn (Ruben, 23 Sep and again 1 Oct 2026).
 const tbAskLabel = (label: string | null | undefined) => (
   <>
-    <span className="tb-ask-label">{label || "Ask Chanlytics"}</span>
+    <span className="tb-ask-label">{label || BAR_LINE_WORDS.ask}</span>
     <TbAskDue />
   </>
 );
+
+/** Ask's face, the three (ask-face.jsx), or the sparkle where they are not loaded: what leads the line, as it led the capsule. */
+const tbFace = () => {
+  const TbFace = window.AskFace || null;
+  const Glyph = frameGlyph();
+  return TbFace ? <TbFace className="tb-ask-face" testId="tb-ask-face" /> : <Glyph name="sparkle" size={13} />;
+};
+
+/**
+ * The page's search as the line (page-search.ts): its words are the page's, so the list narrows as they are typed; Enter,
+ * or the line's Ask, asks Ask about them in a conversation of its own, which Ask scopes to the page as ⌘K's would be (a
+ * page's own search, ask-real.jsx `fresh`), and empties the line; Esc empties it too, and the page keeps that press only
+ * when there was nothing in it to empty (its own Esc: a selection let go).
+ */
+function TbSearchLine({ search }: { search: PageSearch }) {
+  const asked = search.value.trim();
+  // The words go to Ask and leave the line, so the list stands whole behind Ask, never narrowed to a question's words.
+  const ask = () => {
+    if (!asked) return openAsk();
+    askAbout({ prompt: asked, fresh: true });
+    search.onValue("");
+  };
+  return (
+    <div className="tb-ask tb-line" role="search">
+      {tbFace()}
+      <input
+        ref={search.inputRef}
+        className="tb-line-words"
+        value={search.value}
+        placeholder={search.label}
+        aria-label={search.label}
+        onChange={(e) => search.onValue(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+            e.preventDefault();
+            ask();
+          } else if (e.key === "Escape" && search.value) {
+            e.preventDefault();
+            search.onValue("");
+          }
+        }}
+        data-testid={search.testid || "tb-line"}
+      />
+      {asked ? (
+        <Button size="sm" onClick={ask} data-testid="tb-line-ask">
+          {BAR_LINE_WORDS.send}
+        </Button>
+      ) : (
+        <TbAskDue />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Ask in the bar (the page heads canvas, H2, 31 Oct 2026: "one line to search or ask"): on a desk, the line in the bar's
+ * middle, where the page's own search stood a row lower in its pane while the middle stood empty; a phone's bar has none,
+ * since Ask is the tab bar's circle there (mobile.css). Where the page said a search, the line is it (TbSearchLine); where it
+ * said none, the line is Ask's capsule, and a press opens Ask's Line over the page as ⌘K does, where its suggestions and
+ * what it holds are.
+ */
+function TbLine({ onAsk, askLabel }: { onAsk: () => void; askLabel: string | null | undefined }) {
+  const search = usePageSearchSaid();
+  if (search) return <TbSearchLine search={search} />;
+  return (
+    <button className="tb-ask" onClick={onAsk} title={BAR_LINE_WORDS.ask} data-testid="tb-ask">
+      {tbFace()}
+      {tbAskLabel(askLabel)}
+    </button>
+  );
+}
 
 /** The unread rows the real bell does not list (S6-10): its badge counts them, as the bell's number everywhere else does. */
 const tbOlderOf = (real: Bell | null) => (real && real.older ? real.older() : 0);
@@ -338,8 +413,6 @@ export function Topbar({
   right = null,
 }: TopbarProps) {
   const Glyph = frameGlyph();
-  // The Ask button's icon: the three (components/ask-face.jsx), or the sparkle where they are not loaded.
-  const TbFace = window.AskFace || null;
   const [toastNode, flash] = (frameToastHook() as NonNullable<Window["usePPToast"]>)();
   const bell = useBell(flash);
   const { next: themeNext, said: themeSaid } = themeOf(theme, themePref);
@@ -352,13 +425,10 @@ export function Topbar({
 
       <div className="topbar-spacer" />
 
-      {/* Ask reads the workspace as the signed-in person (ask-real.jsx); in a demo it answers the seed world. Either way the
-          button opens it. Its icon is the three (ask-face.jsx), Ask's face: ink at rest, coral and moving while Ask
-          listens, reads or answers, on every page. */}
-      <button className="tb-ask" onClick={onAsk} title="Ask Chanlytics" data-testid="tb-ask">
-        {TbFace ? <TbFace className="tb-ask-face" testId="tb-ask-face" /> : <Glyph name="sparkle" size={13} />}
-        {tbAskLabel(askLabel)}
-      </button>
+      {/* Ask reads the workspace as the signed-in person (ask-real.jsx); in a demo it answers the seed world. Its icon is
+          the three (ask-face.jsx), Ask's face: ink at rest, coral and moving while Ask listens, reads or answers, on every
+          page. On a desk it stands in the bar's middle, the page's search where the page has one (TbLine). */}
+      <TbLine onAsk={onAsk} askLabel={askLabel} />
 
       {right}
 

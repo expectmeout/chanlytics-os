@@ -427,7 +427,7 @@ export { finiteOrNull, finiteOrZero, lineOrNull, nonBlankOrNull, recordOrNull, t
 export { clipAtWord, plural } from "./shared/words";
 export { appLink, canonicalRoute, isMessagesParam, MESSAGES_ROUTE, movedAddress, retiredRouteOf, ROUTE_WORDS, routeOfAddress, routeOfHash, routeOfPath, workspacePath } from "./shell/address";
 export { BROADCAST_WORDS, CAMPAIGN_ROOMS, heldEmailsWords, LIBRARY_STARTER_WORDS, LIBRARY_WORDS, NEW_MESSAGE_WORDS, OFFERS_IN_WRITING_WORDS, RUN_OPEN_WORDS, RUN_UNNAMED_WORDS, RUN_WAITING_SHORT, RUN_WAITING_WORDS, runApprovedTail, runApproveWords, runStopDoorWords, runStoppedWords, runStopWords, runsWaitingSentence, WHO_GETS_IT_WORDS } from "./shell/campaign-rooms";
-export { APP_KEYS_RESIZE_CLASS, DEFAULT_LOOK_PREF, DEFAULT_SIDEBAR_PREF, DEFAULT_THEME_PREF, DEVICE_PREFS_STORAGE, IN_APP_CLASS, IN_APP_UA_RE, inAppBootScript, inAppFrom, isLookPref, isSidebarPref, isThemePref, isTypingTarget, LOOK_OFFERED, LOOK_OPTIONS, lookPrefOf, nextThemePref, notFoundPageMetadata, outlineBootScript, pageTitle, resolveTheme, shellStatusLine, shortcutGroups, SHORTCUTS, THEME_COLOR_META, THEME_COLORS, THEME_INK, THEME_OPTIONS, themeBootScript, themeButtonWords, themeColorOf, themePrefOf, TOAST_ICONS, TOAST_MAX_MS, TOAST_MIN_MS, TOAST_MS, TOAST_TONES, TOAST_UNDO_MS, toastShape } from "./shell/chrome";
+export { APP_KEYS_RESIZE_CLASS, BAR_LINE_WORDS, DEFAULT_LOOK_PREF, DEFAULT_SIDEBAR_PREF, DEFAULT_THEME_PREF, DEVICE_PREFS_STORAGE, IN_APP_CLASS, IN_APP_UA_RE, inAppBootScript, inAppFrom, isLookPref, isSidebarPref, isThemePref, isTypingTarget, LOOK_OFFERED, LOOK_OPTIONS, lookPrefOf, nextThemePref, notFoundPageMetadata, outlineBootScript, pageTitle, resolveTheme, shellStatusLine, shortcutGroups, SHORTCUTS, THEME_COLOR_META, THEME_COLORS, THEME_INK, THEME_OPTIONS, themeBootScript, themeButtonWords, themeColorOf, themePrefOf, TOAST_ICONS, TOAST_MAX_MS, TOAST_MIN_MS, TOAST_MS, TOAST_TONES, TOAST_UNDO_MS, toastShape } from "./shell/chrome";
 export { CLIENT_ERROR_BOUNDARIES, CLIENT_ERROR_LIMITS, clientErrorOf, errorIdOf } from "./shell/client-error";
 export { cleanDisplayName, DISPLAY_NAME_MAX, identityWords, invitationWords, joinedWords, memberWords, personInitials, providerNameOf, ROLE_WORDS, TEAM_INVITE_DAYS, youJoinedWords } from "./shell/identity";
 export { PAGE_SPEED_MIN, PAGE_SPEED_READ, pageSpeedWords } from "./shell/page-speed";
@@ -464,7 +464,7 @@ export { standingWithRuns, TODAY_PHONE_WORDS, todayDraftsSub, todayPhoneHead } f
 export { toTodayVM } from "./today/today-brief";
 export { todayBriefWords } from "./today/today-brief-words";
 export { tzClock, tzSince } from "./today/today-clock";
-export { durationLabel, TODAY_DAY_MAX, todayDay, todayDayBar, todayDayNote, todayVisitsAsked, todayVisitsFoot, todayVisitsSub, withVisitsAsked } from "./today/today-day";
+export { durationLabel, TODAY_DAY_MAX, todayDay, todayDayBar, todayDayNext, todayDayNote, todayVisitsAsked, todayVisitsFoot, todayVisitsSub, withVisitsAsked } from "./today/today-day";
 export { QUOTE_MAX } from "./today/today-facts";
 export { todayProof } from "./today/today-figures";
 export { TODAY_LEAK_MAX, todayLeaks } from "./today/today-leaks";

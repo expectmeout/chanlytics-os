@@ -47,7 +47,7 @@ W.fetch = async () =>
   });
 const { AgentCommand } = await import("../../../../apps/dashboard/src/surfaces/today/pages/queue.tsx");
 const { TodayToDo } = await import("../../../../apps/dashboard/src/surfaces/today/phone/to-do.tsx");
-const { TodayCard } = await import("../../../../apps/dashboard/src/surfaces/today/pages/card.tsx");
+const { TodayCard, TodayHeadFigures } = await import("../../../../apps/dashboard/src/surfaces/today/pages/card.tsx");
 const { PhoneWarnings } = await import("../../../../apps/dashboard/src/surfaces/today/phone/warnings.tsx");
 const { BriefBox } = await import("../../../../apps/dashboard/src/surfaces/today/need-you/parts.tsx");
 const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
@@ -106,7 +106,9 @@ test("on a phone the day's four numbers are one row, each by its short name", ()
   const names = all(card, (n) => classes(n).includes("tc-fig-w")).map(textOf);
   assert.deepEqual(names, ["messages", "answered", "calls", "new people"]);
   phone = false;
-  const desk = draw(TodayCard);
+  // A desk's four stand in the frame's head beside the greeting (card.tsx TodayHeadFigures), by their long names.
+  assert.equal(byTestId(draw(TodayCard), "today-figures"), null, "a desk's card draws none");
+  const desk = draw(TodayHeadFigures);
   assert.ok(
     all(desk, (n) => classes(n).includes("tc-fig-w"))
       .map(textOf)

@@ -23,7 +23,9 @@
  */
 import { usePipelineState } from "./scope-hook";
 import type { PipelineScopeProps } from "./scope-state";
-import { pipelineScreen } from "./scope-screen";
+import { BAR_LINE_WORDS } from "@chanlytics/contracts";
+import { usePageSearch } from "../../page-search";
+import { pipelineScreen, pipelineTools } from "./scope-screen";
 import { usePipelineStanding } from "./standing";
 import { usePartShown } from "../../use-surface";
 import { asScopeView } from "../scope-view";
@@ -31,7 +33,14 @@ import { asScopeView } from "../scope-view";
 export const PipelineScope = (props: PipelineScopeProps) => {
   const s = usePipelineState(props);
   // What the page says to the frame's head in Glass: its name, the line over the table, and New proposal (standing.tsx).
-  usePipelineStanding(s.r.all.line, { openNew: s.newActs.openNew, gate: s.newGate });
+  usePipelineStanding(s.r.all.line, { openNew: s.newActs.openNew, gate: s.newGate }, pipelineTools(s));
+  // On a desk the deals' search is the bar's line (page-search.ts); a phone's is the box in its bar.
+  const { phone, q, setQ, searchRef } = s.f.controls;
+  usePageSearch(
+    phone
+      ? null
+      : { label: BAR_LINE_WORDS.pipeline, value: q, onValue: setQ, inputRef: searchRef, testid: "pipeline-search" },
+  );
   // The Pipeline's first part (client/page-speed.ts): drawn from People's rows, which it is drawn only once it has.
   usePartShown("pipeline", "board", true);
   // A scope People's page keeps: its root is the deck's view (scope-view.ts).

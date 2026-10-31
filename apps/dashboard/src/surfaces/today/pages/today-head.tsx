@@ -15,6 +15,7 @@ import { useSurface } from "../../use-surface";
 import { LISTEN_SEAT, todayGreetingNow } from "../chrome";
 import { useTodayOnPhone } from "../phone";
 import { useBriefWords } from "./brief-pane";
+import { TodayHeadFigures } from "./card";
 import { listenButton, useSpeech } from "./listen";
 
 /**
@@ -28,8 +29,9 @@ export function todayStanding(standing: { headline: string; detail: string | nul
 
 /**
  * Today's standing, said to the frame's head as the page draws: the greeting, the same words its address said from the
- * first draw (today/chrome.ts), over the day's sentence. A phone's head is the name alone (kit.css), so the sentence is a
- * desk's; there what now stands under the greeting in the page's own head (phone/head.tsx), and Listen is the page's act,
+ * first draw (today/chrome.ts), over the day's sentence, and on a desk the day's four figures at its right (the page heads
+ * canvas, H1, 31 Oct 2026). A phone's head is the name alone (kit.css), so the sentence is a desk's; there what now stands
+ * under the greeting in the page's own head (phone/head.tsx), and Listen is the page's act,
  * at the greeting's right: the seat the address held for it while Your brief's words are on their way, the button once they
  * are in, nothing where Ask cannot speak. Why a press could not speak is said under the page's head (listen.tsx).
  */
@@ -47,6 +49,13 @@ export function useTodayStanding(): void {
     stacked: true,
     title: todayGreetingNow(),
     sentence: standing ? todayStanding(standing) : undefined,
-    ...(listens && line ? { act: listenButton(speech, line, "phone") } : listens ? { seat: LISTEN_SEAT } : {}),
+    // A desk's act is the day's four figures, at the greeting's right (card.tsx TodayHeadFigures).
+    ...(!phone
+      ? { act: <TodayHeadFigures /> }
+      : listens && line
+        ? { act: listenButton(speech, line, "phone") }
+        : listens
+          ? { seat: LISTEN_SEAT }
+          : {}),
   });
 }

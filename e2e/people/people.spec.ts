@@ -795,11 +795,10 @@ test.describe("People on a real workspace", () => {
    * you" (a button in a line of plain words on Leads) and from two different rules for the space above and below the
    * list's name. This holds the two to the same geometry, measured from the top of each page's list pane: in Glass the
    * standing line is the frame's head, kept for a reader on a desk, so it is no edge to measure from (5 Oct: the line
-   * hid, and People's table had drifted 8px again).
+   * hid, and People's table had drifted 8px again). Since 31 Oct 2026 the search is the bar's line and the controls row
+   * is gone (the page heads canvas, H2), so the pane opens on the list's name.
    */
-  test("People's head and Leads' are the same head: the search, the rule, the list's name and the table land alike", async ({
-    page,
-  }) => {
+  test("People's head and Leads' are the same head: the list's name and the table land alike", async ({ page }) => {
     await page.setViewportSize({ width: 1445, height: 900 });
     const measure = async () =>
       page.locator(".clients").evaluate((root) => {
@@ -807,24 +806,12 @@ test.describe("People on a real workspace", () => {
         // The list's pane, beside the rail under the strip, on both pages: the standing over it is the frame's head in
         // Glass, a 1px box kept for a reader on a desk, and the page's own line is hidden.
         const st = q(".cl-main");
-        const ctl = q(".cl-controls");
-        const search = q(".cl-controls .cl-search-wrap");
         const title = q(".cl-section-title");
         const table = q(".pl-table-wrap");
-        if (!st || !ctl || !search || !title || !table) return null;
+        if (!st || !title || !table) return null;
         const top = st.getBoundingClientRect().top;
         const at = (el: HTMLElement) => Math.round(el.getBoundingClientRect().top - top);
-        const buttons = [...root.querySelectorAll(".cl-controls-right .btn")].map((b) =>
-          Math.round(b.getBoundingClientRect().height),
-        );
-        return {
-          search: at(search),
-          searchHeight: Math.round(search.getBoundingClientRect().height),
-          tallestButton: Math.max(...buttons),
-          rule: Math.round(ctl.getBoundingClientRect().bottom - top),
-          title: at(title),
-          table: at(table),
-        };
+        return { title: at(title), table: at(table) };
       });
     await page.goto("/#/clients");
     await page.locator(".clients:not(.leads-scope) .cl-section-title").waitFor();
@@ -841,8 +828,6 @@ test.describe("People on a real workspace", () => {
     test.skip(!leadsHead, "this workspace draws Leads' first day, not a list");
     const leads = await measure();
     test.skip(!people || !leads, "a head this workspace does not draw");
-    // The search's height and the buttons' are each held equal on the two pages here. That the search was as tall as the
-    // buttons was Classic's row (22 Sep): in Glass the search is a capsule of its own (canvas P1, clients.css).
     expect(leads, "REGRESSION: the two heads drifted -- a button's floor, and two rules for one gap").toEqual(people);
   });
 });

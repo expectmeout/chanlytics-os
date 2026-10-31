@@ -109,8 +109,6 @@
   .cl-head-stats.stat-strip { display: grid; }
   .cl-head-stats.stat-strip .stat-cell { min-width: 0; }
   .stat-strip .stat-cell:last-child:nth-child(odd) { grid-column: 1 / -1; border-right: none; }
-  .cl-controls { flex-wrap: wrap; gap: 8px; padding: 10px 16px; }
-  .cl-controls-right { margin-left: 0; flex-wrap: wrap; row-gap: 8px; }
   .fleet-filter { overflow-x: auto; max-width: 100%; scrollbar-width: none; }
   .fleet-filter::-webkit-scrollbar { display: none; }
   .rp-body, .st-body { padding-left: 16px; padding-right: 16px; }
@@ -294,7 +292,6 @@
 
   /* Keyboard chrome is dead weight on touch widths */
   .ix-approval-shortcuts { display: none; }
-  .cl-search-wrap .kbd { display: none; }
 
   /* Entity crumbs (“Inbox / Aisha Khan”) never push the bell off-screen */
   .crumbs { white-space: nowrap; }

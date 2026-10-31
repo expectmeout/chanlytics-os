@@ -161,7 +161,7 @@ globalThis.window.usePPToast = () => [null, (m) => flashes.push(m)];
 // Today's pages are TSX (surfaces/today/pages), drawn by import over the day and Setup the seam holds (surface-values.ts).
 // Setup's rows are the surface's own (surfaces/setup/rows), imported by the card, not published on the window.
 const { HeroBrief } = await import("../../../../apps/dashboard/src/surfaces/today/pages/brief.tsx");
-const { TodayCard } = await import("../../../../apps/dashboard/src/surfaces/today/pages/card.tsx");
+const { TodayCard, TodayHeadFigures } = await import("../../../../apps/dashboard/src/surfaces/today/pages/card.tsx");
 const { TodayBriefPane } = await import("../../../../apps/dashboard/src/surfaces/today/pages/brief-pane.tsx");
 // The card is a chunk of its own (setup-card-body.tsx), asked for as Today's page loads: drawn here once it is in.
 const { TodaySetup, setupCardReady } =
@@ -219,6 +219,12 @@ const mountCard = (vm) => {
   fresh();
   return again(() => TodayCard());
 };
+/** The day's four figures, which a desk draws in the head beside the greeting (card.tsx TodayHeadFigures). */
+const mountFigures = (vm) => {
+  setSurfaceValue("today", vm);
+  fresh();
+  return again(() => TodayHeadFigures());
+};
 const mountBrief = (vm) => {
   setSurfaceValue("today", vm);
   fresh();
@@ -275,10 +281,10 @@ test("REGRESSION: Today's first screen is the work -- above it stood a greeting,
     "REGRESSION: six stat cards over the work",
   );
 
-  // Under the work: the day's figures, and only the lines they do not carry.
-  const card = mountCard(vm);
+  // In the head, the day's figures (a desk's, beside the greeting), and under the work only the lines they do not carry.
+  const figures = mountFigures(vm);
   assert.ok(
-    find(card, (n) => n.props?.["data-testid"] === "today-figure-messages"),
+    find(figures, (n) => n.props?.["data-testid"] === "today-figure-messages"),
     "the day's figures",
   );
   const beats = findAll(

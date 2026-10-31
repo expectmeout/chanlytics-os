@@ -454,11 +454,6 @@ textarea.ld-line-box { height: auto; min-height: 80px; max-height: 40vh; field-s
      with nothing in it (Ruben, 23 Oct 2026). */
   .app-root:has(.leads-scope[data-first-day]) { min-height: 100dvh; }
 
-  /* One bar replaces the rail and the controls row: People's (PeoplePhoneBar, clients.css .pp-bar). The rail is
-     already display: none at this width (mobile.css) and the Leads scope draws neither of them here; the rule stands
-     for a window dragged past the band between two state changes, and it is scoped to Leads, because People's own
-     controls row at this width is People's business. */
-  .leads-scope .cl-controls { display: none; }
   /* Find leads as the bar's last control, the three's still mark, in ink: from 721px to 900px the controls row is
      gone and the shell draws no ✦, so this is the page's one door. */
   .ld-bar-find { color: var(--ink); }

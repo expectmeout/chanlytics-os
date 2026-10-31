@@ -6,7 +6,7 @@
  * acts are plain functions over the draw's state; and what it hands LeadsScope comes from the five builders (props.tsx).
  */
 import { useEffect } from "react";
-import { leadBand, leadRail, leadReachOf, leadsStanding, type LeadRowVM } from "@chanlytics/contracts";
+import { BAR_LINE_WORDS, leadBand, leadRail, leadReachOf, leadsStanding, type LeadRowVM } from "@chanlytics/contracts";
 import { navigate } from "../../legacy-verbs";
 import { useSwapMotion } from "../../kit/motion/use-swap-motion";
 import { TABLE_BODIES } from "../../kit/table/data-table";
@@ -20,6 +20,7 @@ import type { LeadCellCtx } from "../cells/types";
 import { leadPeekEscape } from "../peek/seams";
 import { useLeadLists } from "../reach-out/lists";
 import { LeadsScope } from "../scope/scope";
+import { usePageSearch } from "../../page-search";
 import type { ScopeView } from "../../people/scope-view";
 import { useLeadPileView } from "../pile/page-pile";
 import { useBulkAdd } from "../scope/bulk-add";
@@ -345,6 +346,14 @@ export const LeadsReal = ({
   scopeView,
 }: LeadsRealProps) => {
   const p = useLeadsPage(useLeadsView({ leadsRoute, onNavigate }), onOpenProfile);
+  const foot = leadsFootProps(p);
+  // On a desk the leads' search is the bar's line (page-search.ts); a phone's is the box in its bar, and the first day,
+  // whose page is its question alone, has none.
+  usePageSearch(
+    p.phone || foot.firstDay
+      ? null
+      : { label: BAR_LINE_WORDS.leads, value: p.q, onValue: p.setQ, inputRef: p.searchRef },
+  );
   // A scope People's page keeps: its root is the deck's view (people/scope-view.ts).
   return (
     <LeadsScope
@@ -353,7 +362,7 @@ export const LeadsReal = ({
       {...leadsBandProps(p)}
       {...leadsBulkProps(p)}
       {...leadsPeekProps(p)}
-      {...leadsFootProps(p)}
+      {...foot}
     />
   );
 };
