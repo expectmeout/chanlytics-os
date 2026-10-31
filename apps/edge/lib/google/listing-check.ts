@@ -5,7 +5,7 @@
  * A connected profile's own read is profile-sync.ts.
  */
 import { emitEvent, type Database } from "../packages/db.js";
-import { planListingCheck, publicFetcher, type PlaceDetails } from "../packages/channels.js";
+import { planListingCheck, type PlaceDetails } from "../packages/channels.js";
 import { bookingPageKept, listingFactsOf, localDate, HOUR_MS } from "../packages/contracts.js";
 import { siteBookingPage } from "./booking-page.js";
 import { scheduleWebsiteRead } from "../imports/website-read.js";
@@ -93,7 +93,7 @@ export async function checkListing(
 
   const booking_page =
     site === "read"
-      ? await siteBookingPage(publicFetcher(), details.facts.website)
+      ? await siteBookingPage(details.facts.website)
       : bookingPageKept(listingFactsOf(row.facts), details.facts.website);
   details = { ...details, facts: { ...details.facts, booking_page } };
   // A listing just linked has its website read for Check too (decision 0073, R10): its services, prices and rules.

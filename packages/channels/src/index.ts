@@ -406,7 +406,16 @@ export {
   setPublicFetch,
 } from "./public-fetch";
 export type { PublicFetchDeps, Resolve, Resolved } from "./public-fetch";
-export { BOT_USER_AGENT, imageBytes, pageText } from "./site-reads";
+export {
+  FIRECRAWL_SCRAPE,
+  firecrawlReader,
+  imageBytes,
+  pageText,
+  setSitePageReader,
+  type SitePage,
+  type SitePageReader,
+  sitePageReader,
+} from "./site-reads";
 export { CONFIRM_PATH, confirmUrl, signConfirmToken, verifyConfirmToken } from "./tokens/confirm-token";
 export type { ConfirmClaims } from "./tokens/confirm-token";
 export { EDGE_TOKEN_TTL_MS, edgeBodyMatches, signEdgeToken, verifyEdgeToken } from "./tokens/edge-token";

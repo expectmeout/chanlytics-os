@@ -14,6 +14,7 @@
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
+import { setSitePageReader } from "@chanlytics/channels";
 import { fakeDb, fakeLog } from "../_fake-db.mjs";
 import { at } from "../_cron-doors-world.mjs";
 
@@ -359,19 +360,24 @@ test("a home page says what the business says of itself: its title, its descript
   assert.equal(siteWordsOf("<html><body><script>x()</script></body></html>"), null);
 });
 
-test("a lead's site is asked for at its own host, through the public page reader, and none is asked without one", async () => {
+test("a lead's site is asked for at its own host, through the platform's page reader, and none is asked without one", async () => {
   const asked = [];
-  const fetcher = async (url) => {
+  // The reader stood in for (channels setSitePageReader; Firecrawl's in production).
+  const before = setSitePageReader(async (url) => {
     asked.push(url);
-    return new Response("<title>Austin Movers</title>", { headers: { "content-type": "text/html" } });
-  };
-  assert.equal(await siteReaderOf(fetcher, "austinmovers.example")(), "Austin Movers");
-  assert.deepEqual(asked, ["https://austinmovers.example/"]);
-  assert.equal(siteReaderOf(fetcher, null), undefined);
-  assert.equal(siteReaderOf(fetcher, "  "), undefined);
-  // An address inside the platform's own network is never read.
-  assert.equal(await siteReaderOf(fetcher, "10.0.0.5")(), null);
-  assert.equal(asked.length, 1);
+    return { url, html: "<title>Austin Movers</title>", markdown: "Austin Movers" };
+  });
+  try {
+    assert.equal(await siteReaderOf("austinmovers.example")(), "Austin Movers");
+    assert.deepEqual(asked, ["https://austinmovers.example/"]);
+    assert.equal(siteReaderOf(null), undefined);
+    assert.equal(siteReaderOf("  "), undefined);
+    // An address inside the platform's own network is never asked for.
+    assert.equal(await siteReaderOf("10.0.0.5")(), null);
+    assert.equal(asked.length, 1);
+  } finally {
+    setSitePageReader(before);
+  }
 });
 
 test("words that name no opening ask nothing of a fact either", async () => {

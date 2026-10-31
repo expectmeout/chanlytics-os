@@ -1,11 +1,14 @@
 /**
- * The wires the collect's mark step runs on (D6): reading a business's home page, and (00161) the copy we keep.
+ * The wires the collect's mark step runs on (D6): reading a business's home page, and (00161) the copy we keep. The
+ * collect's own wires (lead-wires.ts) and the backfill for leads found before 00161 (tooling/scripts/ops) read through
+ * these, so a mark is found one way.
  *
- * A mark drawn straight off a business's site never shows, because the dashboard's content policy lets images in
- * from three hosts. So the collect asks for the bytes once (`imageBytes`), core judges them (mark-image.ts), and a
- * copy is kept in the public lead-marks bucket under its own hash (`storeLeadMark`), on the Supabase origin the
- * policy already allows. The same logo found by two workspaces is one file, and a file never changes once written,
- * so it is served with a year's cache.
+ * The home page is read by the platform's one page reader (`markPageText`: lib/public-page.ts sitePage, Firecrawl's
+ * scrape). A mark drawn straight off a business's site never shows, because the dashboard's content policy lets images
+ * in from three hosts. So the collect asks for the bytes once (`imageBytes`, over the guarded fetch: the page names the
+ * picture's address), core judges them (mark-image.ts), and a copy is kept in the public lead-marks bucket under its
+ * own hash (`storeLeadMark`), on the Supabase origin the policy already allows. The same logo found by two workspaces
+ * is one file, and a file never changes once written, so it is served with a year's cache.
  *
  * All three answer null rather than throwing: a lead without a mark is an ordinary lead, and the next round tries again.
  */
@@ -15,12 +18,21 @@ import type { Database } from "../packages/db.js";
 import type { MarkImage } from "../packages/core.js";
 import { LEAD_MARKS_BUCKET } from "../packages/contracts.js";
 import { logger } from "../log.js";
+import { sitePage } from "../public-page.js";
 
 /**
- * The page and the image reads are channels' (site-reads.ts): one reading of a business's own site, which the
+ * The image read is channels' (site-reads.ts): one reading of a picture a business's own site names, which the
  * dashboard's look for a workspace's logo makes too. Named here for the collect's wires.
  */
-export { pageText, imageBytes } from "../packages/channels.js";
+export { imageBytes } from "../packages/channels.js";
+
+/** How much of a home page is read for a mark: a head is at the top, and the rest is not ours to hold. */
+const MARK_PAGE_CHARS = 96_000;
+
+/** A lead's home page as a browser drew it, for the marks its head declares; null where it could not be read. */
+export async function markPageText(url: string, timeoutMs: number): Promise<string | null> {
+  return (await sitePage(url, { timeoutMs, maxChars: MARK_PAGE_CHARS }))?.html ?? null;
+}
 
 const STORE_TIMEOUT_MS = 4_000;
 const A_YEAR_S = String(365 * 24 * 60 * 60);

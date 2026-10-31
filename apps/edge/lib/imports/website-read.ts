@@ -1,10 +1,11 @@
 /**
  * The business's website read for Check (decision 0073, R10; 00479's website_read), as the job runner is handed it: its
  * home page and up to two pages it links to for its services, prices, rules and questions (core sitePagesLinkedFrom),
- * each through the public reader's address rule (lib/public-page.ts), made plain text (channels emailPlainText), and
- * drawn out by the smallest model into a fixed shape (contracts WEBSITE_READ_SCHEMA), its answer read in code
- * (businessReadFactsOf). Kept whole in business_reads, the newest read standing; one that could not be made says why,
- * which Check says. Nothing reaches a customer: the owner taps what is right into the record, a price with its service.
+ * each read by the platform's one page reader (lib/public-page.ts sitePage: Firecrawl's scrape, the page's main content
+ * as Markdown), and drawn out by the smallest model into a fixed shape (contracts WEBSITE_READ_SCHEMA), its answer read
+ * in code (businessReadFactsOf). Kept whole in business_reads, the newest read standing; one that could not be made
+ * says why, which Check says. Nothing reaches a customer: the owner taps what is right into the record, a price with
+ * its service.
  *
  * Platform-spent, as a booking notice's reading is: a few pages once, at the first run; never a workspace's spend.
  */
@@ -20,13 +21,13 @@ import {
   listingFactsOf,
   parseTenantConfig,
 } from "../packages/contracts.js";
-import { emailPlainText } from "../packages/channels.js";
+import type { SitePage } from "../packages/channels.js";
 import { sitePagesLinkedFrom } from "../packages/core.js";
 import { getTenantConfig, keepBusinessRead, listingFactsStored, type Database, type Json } from "../packages/db.js";
 import { scheduleJobOnce, type ClaimedJob, type JobContext } from "../packages/jobs.js";
 import { askJson, promptHashOf } from "../model.js";
 import { env } from "../env.js";
-import { publicPageText } from "../public-page.js";
+import { sitePage } from "../public-page.js";
 import { wearSiteLook } from "./look.js";
 import { json, refuse } from "../http.js";
 import { pg } from "../pg.js";
@@ -35,8 +36,8 @@ import { errField, logger } from "../log.js";
 
 type Db = SupabaseClient<Database>;
 
-/** How long a page may take, and how much of it is read: a site's own pages, never a download. */
-const PAGE_READ = { timeoutMs: 6 * SECOND_MS, maxBytes: 400_000 };
+/** How long a page may take, its scripts run, and how much of it is read: a site's own pages, never a download. */
+const PAGE_READ = { timeoutMs: 10 * SECOND_MS, maxChars: 400_000 };
 /** How much of each page's text the model is shown, in characters: a services page, a price list, a policy. */
 const PAGE_TEXT_MAX = 12_000;
 /** The most the reading may take of the job's time. */
@@ -66,21 +67,19 @@ export async function readWebsite(
     return { facts, error };
   };
   if (!url) return keep({}, WEBSITE_UNREAD_WORDS.address);
-  const home = await publicPageText(fetch, url, PAGE_READ);
+  const home = await sitePage(url, PAGE_READ);
   if (!home) return keep({}, WEBSITE_UNREAD_WORDS.silent);
   // The business's look, off the home page already in hand (decision 0075): its colour and the mark it declares,
   // worn where the workspace has none of its own and no person set them. Kept with the read, model or no model.
-  const worn = await wearSiteLook(db, { tenantId, html: home, origin: new URL(url).origin });
+  const worn = await wearSiteLook(db, { tenantId, html: home.html, origin: new URL(home.url).origin });
   const look: Json = { logo_url: worn.logo_url, accent: worn.accent, worn: { ...worn.worn } };
   if (!env.ANTHROPIC_API_KEY) return keep({ look }, WEBSITE_UNREAD_WORDS.failed);
-  const more = sitePagesLinkedFrom(home, url, 2);
+  const more = sitePagesLinkedFrom(home.html, home.url, 2);
   const pages = [
-    { at: url, html: home },
-    ...(await Promise.all(more.map(async (at) => ({ at, html: await publicPageText(fetch, at, PAGE_READ) })))),
-  ].filter((p): p is { at: string; html: string } => !!p.html);
-  const user = pages
-    .map((p) => `Page ${p.at}\n${(emailPlainText({ text: null, html: p.html }) ?? "").slice(0, PAGE_TEXT_MAX)}`)
-    .join("\n\n---\n\n");
+    { at: url, page: home },
+    ...(await Promise.all(more.map(async (at) => ({ at, page: await sitePage(at, PAGE_READ) })))),
+  ].filter((p): p is { at: string; page: SitePage } => !!p.page);
+  const user = pages.map((p) => `Page ${p.at}\n${p.page.markdown.slice(0, PAGE_TEXT_MAX)}`).join("\n\n---\n\n");
   const ms = Math.min(READ_CALL_MS, deadline - Date.now());
   if (ms <= 0) throw new Error("website_read: no time left for the reading");
   let answer: unknown;

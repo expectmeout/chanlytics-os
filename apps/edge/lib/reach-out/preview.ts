@@ -151,7 +151,7 @@ export async function previewOne(
   const input = {
     ...checkInputOf(record, i.words, workspace.opening, i.language, [], countries.get(lead.lead_id) ?? null),
     // Its website read as a send's is, so the preview's opening is the one the send would write.
-    site: siteReaderOf(fetch, record.website_host),
+    site: siteReaderOf(record.website_host),
   };
   const c = await checkOne(input, ask, budget, {
     tenantId: i.tenantId,

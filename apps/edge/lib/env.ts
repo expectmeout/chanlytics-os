@@ -280,6 +280,10 @@ export const env = {
   get APIFY_TOKEN() {
     return trimmedEnv(process.env.APIFY_TOKEN);
   },
+  /** A business's page read for what it says and declares (lib/public-page.ts sitePage); unset, none is read. */
+  get FIRECRAWL_API_KEY() {
+    return trimmedEnv(process.env.FIRECRAWL_API_KEY);
+  },
   /** Switch: another Claude model for the lead judge; empty is the registry's. */
   get LEAD_JUDGE_MODEL() {
     return trimmedEnv(process.env.LEAD_JUDGE_MODEL);
