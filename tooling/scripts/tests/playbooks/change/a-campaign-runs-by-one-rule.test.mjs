@@ -167,7 +167,7 @@ const OTHER_STATES = {
     n: 3,
     why: "The imports ledger's own run (decision 0073, R23): a connection's history coming in, and Meta's parts of it.",
   },
-  "packages/contracts/src/email/mailbox-connections.ts": {
+  "packages/contracts/src/email/mailbox-connect.ts": {
     n: 1,
     why: "A mailbox's own history on its row in Connections (decision 0086): the imports ledger's run coming in, with Stop, not a campaign.",
   },
