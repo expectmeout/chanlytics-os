@@ -14,7 +14,7 @@
 import type { Closure, Hours } from "../../config/workspace-config/business-profile";
 import { campaignRunsOn } from "../../playbooks/playbook-schedule";
 import { clockDate, clockTime, localDaysBetween } from "../../shared/clock";
-import { dateFormat } from "../../shared/time";
+import { HOUR_MS, MIN_MS, dateFormat } from "../../shared/time";
 import { plural } from "../../shared/words";
 import { BOOKING_DEFAULTS, freeWindows, hasHours, openAt, type BookingRulesLike } from "../availability";
 import { sameVisitStart } from "../calendar-people";
@@ -94,7 +94,7 @@ export type FreedTimeVerdict = { ok: true; start: number; end: number } | { ok: 
 const no = (why: FreedTimeRefusal): FreedTimeVerdict => ({ ok: false, why });
 
 /** The quarter hours a span is looked at by, for whether any part of it is open. */
-const LOOK_STEP_MS = 15 * 60_000;
+const LOOK_STEP_MS = 15 * MIN_MS;
 
 /** The time the change freed: the row's own span, or for a move the span it left, as long as the row is. */
 function freedSpan(event: FreedTimeEvent, row: FreedTimeRow): { start: number; end: number } | null {
@@ -174,10 +174,10 @@ function whyNot(
   now: Date,
 ): FreedTimeRefusal {
   const { start, end } = span;
-  if (end <= now.getTime() + rules.lead_hours * 3_600_000) return "too_soon";
+  if (end <= now.getTime() + rules.lead_hours * HOUR_MS) return "too_soon";
   if (localDaysBetween(now.getTime(), start, cal.tz) >= rules.max_days_ahead) return "past_window";
   if (!anyOpen(cal, start, end)) return "closed";
-  return leftOf(standing, rules.buffer_min * 60_000, start, end) === 0 ? "not_free" : "too_short";
+  return leftOf(standing, rules.buffer_min * MIN_MS, start, end) === 0 ? "not_free" : "too_short";
 }
 
 /**
@@ -199,7 +199,7 @@ export function freedTimeOf(
   if (!span) return no("no_was_at");
   if (!hasHours(cal.hours)) return no("no_hours");
   const rules = { ...BOOKING_DEFAULTS, ...(cal.rules ?? {}) };
-  const slot = rules.slot_min * 60_000;
+  const slot = rules.slot_min * MIN_MS;
   const standing = standingBesides(cal, row, span.start);
   let best: { start: number; end: number } | null = null;
   const days = freeWindows({

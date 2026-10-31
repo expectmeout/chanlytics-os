@@ -8,6 +8,7 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
 import { installLegacyReact, fresh, again, find, byTestId, press, unmount } from "../_legacy-react.mjs";
+import { until } from "../shared/_until.mjs";
 
 installLegacyReact({ __DEMO_MODE: false, __surfaceState: () => "live", __chrome: { state: contracts.stateOf } });
 const W = globalThis;
@@ -124,7 +125,7 @@ test("Save sends the people per freed time and nothing that did not change", asy
   const rec = record({ cap_per_run: 4, gap_days: 7, cadence_days: 30, days_ahead: 14 });
   byTestId(sheetOf(draw(rec)), "sq-settings-cap").props.onValueChange("6");
   press(byTestId(sheetOf(draw(rec)), "sq-settings-save"));
-  for (let i = 0; i < 200 && closed === 0; i += 1) await new Promise((r) => setTimeout(r, 5));
+  await until(() => closed === 1, "the sheet closes on the door's answer");
   const puts = wire.filter(([m]) => m === "PUT");
   assert.equal(puts.length, 1);
   assert.deepEqual([puts[0][1], puts[0][2]], [`playbooks/${SEQ}`, { name: "Fill a cancellation", cap_per_run: 6 }]);

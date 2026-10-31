@@ -150,7 +150,7 @@ export function thenWhat(
  * follow-up's link (0006) and the freed time every send of its batch carries (0082). A word not kept is null, and the
  * slot that asks for it holds the person.
  */
-export function keptWords(facts: Record<string, unknown>) {
+export function wordsKeptOnRow(facts: Record<string, unknown>) {
   const word = (k: string): string | null => {
     const v = facts[k];
     return typeof v === "string" ? v : null;

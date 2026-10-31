@@ -30,7 +30,7 @@ Nothing is offered until a workspace turns the moment on, so no switch is needed
   Ask's frozen tool schemas (refrozen).
 - **One dead export left for L2:** `freedTimeFactsFor`, which task 6's run calls.
 - **Checks run:** every touched test file (29, one per run), the database suite on the stack (6 of 6), `pnpm -r
-  typecheck`, ESLint uncached on the touched files (no new warning; one complexity error fixed by `keptWords`),
+  typecheck`, ESLint uncached on the touched files (no new warning; one complexity error fixed by `wordsKeptOnRow`),
   Prettier.
 
 **L2 as built (31 Oct 2026, uncommitted in `cm-fills-the-book`).** Tasks 6 to 9, with what the build found:
@@ -60,7 +60,7 @@ Nothing is offered until a workspace turns the moment on, so no switch is needed
   would go at nine after the time starts.
 - **Taken, at the first send:** `takenBeforeItWent` (core broadcast-stops.ts) asks the record before a scheduled
   batch's first send, cancels through the cancel verb as the system (reason `taken`) and tells once
-  (`freedTimeTakenNotice`). `keptWords` moved to broadcast-words.ts, so broadcast.ts stays under 800 lines.
+  (`freedTimeTakenNotice`). `wordsKeptOnRow` moved to broadcast-words.ts, so broadcast.ts stays under 800 lines.
 - **Time passed, in the sweep:** `waitingPlaybookRuns` reads a freed time's batch (it has `offered_start`, no
   `run_for`), the cancel's reason is `time_passed`, and `skippedRunNotice` says the time it offered.
 - **Where things went, against this plan:** the freed time's rule is `packages/contracts/src/calendar/visit/freed-time.ts`

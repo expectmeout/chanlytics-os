@@ -49,7 +49,7 @@ import {
   type Verdict,
 } from "./broadcast-stops";
 import type { BroadcastBatchCommand, BroadcastBatchPorts, BroadcastRow, ContactRow, RecipientRow } from "./ports";
-import { LIMIT_WORDS, WIRE_WORDS, gotIt, keptWords, thenWhat } from "./broadcast-words";
+import { LIMIT_WORDS, WIRE_WORDS, gotIt, wordsKeptOnRow, thenWhat } from "./broadcast-words";
 import { pageTheProvider } from "./provider-page";
 
 /** A run as its stop's alert reads it: its name, and whose it is (thenWhat: a playbook's run is not sent again). */
@@ -235,7 +235,7 @@ async function sendOne(w: Work, r: RecipientRow): Promise<Verdict> {
     businessName: w.facts.businessName,
     bookingLink: w.facts.bookingLink,
     reviewLink: w.reviewLink,
-    ...keptWords(rowFacts(r)),
+    ...wordsKeptOnRow(rowFacts(r)),
   });
   if (params.some((v) => !v)) return skip("missing_value");
   const made = await prepare(w, { r, c, channel, to: where.to, conversationId: target.conversationId, params });
