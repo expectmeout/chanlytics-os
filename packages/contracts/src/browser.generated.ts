@@ -242,7 +242,7 @@ export { REGISTRATION_COST_WORDS, REGISTRATION_PATH_WORDS, REGISTRATION_PATHS, R
 export { WHATSAPP_COST_WORDS } from "./lines/whatsapp-cost";
 export { tryItLink } from "./lines/whatsapp-try-it";
 export { LOGO_PAD, LOGO_PLATE_DARK, LOGO_PLATE_LIGHT, logoDrawRect, logoLayout } from "./logo/layout";
-export { isLogoPathOf, LOGO_BASE64_MAX, LOGO_BYTES_MAX, LOGO_CHOSEN_MAX_BYTES, LOGO_CHOSEN_TYPES, LOGO_FOUND_MAX_BYTES, LOGO_FOUND_SIDE_MAX, LOGO_FOUND_SIDE_MIN, LOGO_LOOKUP_OUTCOMES, LOGO_SIDE, LOGO_SIDE_MIN, LOGO_WORDS, logoFoundOn, logoLookupWords, WORKSPACE_LOGOS_BUCKET, workspaceInitials, workspaceLogoPath, workspaceLogoSrc } from "./logo/logo";
+export { isLogoPathOf, LOGO_BASE64_MAX, LOGO_BYTES_MAX, LOGO_CHOSEN_MAX_BYTES, LOGO_CHOSEN_TYPES, LOGO_FOUND_MAX_BYTES, LOGO_FOUND_SIDE_MAX, LOGO_FOUND_SIDE_MIN, LOGO_LOOKUP_OUTCOMES, LOGO_SIDE, LOGO_SIDE_MIN, LOGO_WORDS, logoFoundOn, logoLookupAnswerOf, logoLookupWords, WORKSPACE_LOGOS_BUCKET, workspaceInitials, workspaceLogoPath, workspaceLogoSrc } from "./logo/logo";
 export { accentOk, contrastOnWhite, hexOfRgb, isAccentLike, parseCssColour, readableOnWhite } from "./look/colour";
 export { letterHtml } from "./look/letter";
 export { accentOf, LOOK_WORDS } from "./look/look";

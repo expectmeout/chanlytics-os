@@ -1,7 +1,7 @@
 /**
  * A workspace's logo through its routes (00407): the real route modules, run over a database in memory, a storage that
- * records what it was asked, and a network that answers what each test says. What is proved is who may, what is stored
- * and removed, what the door is asked, and what a look on the business's website answers.
+ * records what it was asked, and an edge that answers what each test says. What is proved is who may, what is stored
+ * and removed, what the door is asked, and that a look on the business's website is the edge's, handed on as it said.
  */
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
@@ -9,8 +9,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { crc32, deflateSync } from "node:zlib";
 import { fakeDb } from "../_fake-db.mjs";
-import { LOGO_WORDS, parseTenantConfig } from "@chanlytics/contracts";
-import { setPublicFetch } from "@chanlytics/channels";
+import { LOGO_WORDS } from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -118,7 +117,6 @@ async function refused(p, code, status, words) {
 beforeEach(() => setRateStore(memoryStore()));
 afterEach(() => {
   setServiceClient(null);
-  setPublicFetch(null);
 });
 
 test("the three declare their policy: whoever may change the workspace's settings, each counted in a bucket of its own", () => {
@@ -301,145 +299,63 @@ test("where you are answers each workspace's logo as the address it is served at
 
 /* ---------------------------------------------------------------------- the look on the website -- */
 
-const CONFIG = (website) => ({
-  brain: {
-    business_name: "Bella Studio",
-    system_prompt: "x".repeat(50),
-    fallbacks: { greeting: "g", error: "e", non_text: "n" },
-    profile: website ? { website } : {},
-  },
-});
-
-/** The workspace's tables for a look: its config (the owner's website) and its linked listing (Google's). */
-function lookTables({ own = null, google = null } = {}) {
-  return {
-    tables: {
-      memberships: membership(),
-      google_listings: google
-        ? [{ tenant_id: A, place_id: "p1", name: "Bella Studio", address: null, facts: { website: google } }]
-        : [],
-    },
-    rpcs: {
-      tenant_config_read: () =>
-        own === undefined
-          ? null
-          : { tenant_id: A, config: CONFIG(own), version: 1, updated_at: "2026-10-01T00:00:00Z", feed_hidden: false },
-    },
+/**
+ * The edge, as a test says its door answers (POST /api/admin/imports/logo-lookup; the look itself is held by
+ * a-logo-is-looked-for-on-the-website.test.mjs): every call kept with the address it asked and the body it sent.
+ */
+function edge(answer) {
+  const calls = [];
+  const real = globalThis.fetch;
+  globalThis.fetch = async (url, init = {}) => {
+    calls.push({ url: String(url), body: JSON.parse(String(init.body ?? "{}")) });
+    const a = typeof answer === "function" ? await answer() : answer;
+    return a instanceof Response
+      ? a
+      : new Response(JSON.stringify(a), { status: 200, headers: { "content-type": "application/json" } });
   };
+  return { calls, restore: () => (globalThis.fetch = real) };
 }
+const look = () => lookup.POST.run(send("POST"), ctxFor({ memberships: membership() }));
 
-/** A PNG's first bytes, saying its size: all the lookup reads of a picture. */
-function pngHead(w, h) {
-  const b = Buffer.alloc(64);
-  b.set([137, 80, 78, 71, 13, 10, 26, 10], 0);
-  b.writeUInt32BE(13, 8);
-  b.write("IHDR", 12, "latin1");
-  b.writeUInt32BE(w, 16);
-  b.writeUInt32BE(h, 20);
-  return b;
-}
-
-/** The network: each address a test names answers what it says; anything else is not reached. */
-function network(pages) {
-  const asked = [];
-  setPublicFetch(async (url) => {
-    asked.push(String(url));
-    const said = pages[String(url)];
-    if (!said) throw new TypeError("fetch failed");
-    return new Response(said.body, { status: 200, headers: { "content-type": said.type } });
-  });
-  return asked;
-}
-
-const html = (head) => ({ type: "text/html; charset=utf-8", body: `<html><head>${head}</head><body></body></html>` });
-
-test("a config the test builds is one the app reads, so the owner's website is what the look reads first", () => {
-  assert.equal(
-    parseTenantConfig(CONFIG("https://bellastudio.example.com"))?.brain?.profile?.website,
-    "https://bellastudio.example.com",
-  );
-});
-
-test("the look reads the owner's website, finds what it declares as its logo, and answers the picture with the site's host", async () => {
-  const asked = network({
-    "https://bellastudio.example.com": html(
-      '<script type="application/ld+json">{"@type":"Organization","logo":"https://cdn.example.net/bella-logo.png"}</script>',
-    ),
-    "https://cdn.example.net/bella-logo.png": { type: "image/png", body: pngHead(400, 300) },
-  });
-  const { tables, rpcs } = lookTables({
-    own: "https://www.bellastudio.example.com/about",
-    google: "https://other.example.org",
-  });
-  const out = await lookup.POST.run(send("POST"), ctxFor(tables, rpcs));
-  assert.equal(out.outcome, "found");
-  assert.equal(out.host, "bellastudio.example.com", "the website's host the owner gave, never the image's");
-  assert.equal(out.image.content_type, "image/png");
-  assert.deepEqual(Buffer.from(out.image.base64, "base64"), pngHead(400, 300));
-  assert.deepEqual(
-    asked,
-    [
-      "https://www.bellastudio.example.com",
-      "https://bellastudio.example.com",
-      "https://cdn.example.net/bella-logo.png",
-    ],
-    "the website as the owner typed it first, then its other spelling, which answers here",
-  );
-});
-
-test("a website that is a page on another service is not looked at: its logo would be the service's", async () => {
-  const asked = network({});
-  const { tables, rpcs } = lookTables({
-    own: "https://www.facebook.com/bellastudio",
-    google: "https://booksy.com/en-us/123_bella",
-  });
-  assert.deepEqual(await lookup.POST.run(send("POST"), ctxFor(tables, rpcs)), { outcome: "not_its_own", host: null });
-  assert.deepEqual(asked, [], "nothing asked of anyone");
-});
-
-test("the owner's website being another service's page, the listing's own website is looked at instead", async () => {
-  network({
-    "https://bella.example.org": html('<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">'),
-    "https://bella.example.org/apple-touch-icon.png": { type: "image/png", body: pngHead(180, 180) },
-  });
-  const { tables, rpcs } = lookTables({ own: "https://instagram.com/bella", google: "https://bella.example.org" });
-  const out = await lookup.POST.run(send("POST"), ctxFor(tables, rpcs));
-  assert.equal(out.outcome, "found");
-  assert.equal(out.host, "bella.example.org");
-});
-
-test("no website at all says so; a site that cannot be reached says so; one with nothing usable says so", async () => {
-  network({
-    "https://quiet.example.com": html(
-      [
-        '<link rel="icon" type="image/svg+xml" href="/mark.svg">',
-        '<link rel="icon" href="/favicon.ico">',
-        '<link rel="apple-touch-icon" href="https://quiet.example.com:8443/touch.png">',
-        '<link rel="icon" sizes="64x64" href="/small.png">',
-      ].join(""),
-    ),
-    "https://quiet.example.com/small.png": { type: "image/png", body: pngHead(64, 64) },
-  });
-  assert.deepEqual(await lookup.POST.run(send("POST"), ctxFor(lookTables().tables, lookTables().rpcs)), {
-    outcome: "no_website",
-    host: null,
-  });
-  const down = lookTables({ own: "https://down.example.com" });
-  assert.deepEqual(await lookup.POST.run(send("POST"), ctxFor(down.tables, down.rpcs)), {
-    outcome: "unreachable",
-    host: "down.example.com",
-  });
-  const quiet = lookTables({ own: "https://quiet.example.com" });
-  assert.deepEqual(
-    await lookup.POST.run(send("POST"), ctxFor(quiet.tables, quiet.rpcs)),
+test("the look is the edge's: the route asks its door for the member's workspace and hands on what it found", async () => {
+  const image = { base64: Buffer.from("a picture").toString("base64"), content_type: "image/png" };
+  const found = edge({ ok: true, outcome: "found", host: "bellastudio.example.com", image });
+  try {
+    assert.deepEqual(await look(), { outcome: "found", host: "bellastudio.example.com", image });
+  } finally {
+    found.restore();
+  }
+  assert.equal(found.calls.length, 1);
+  assert.ok(found.calls[0].url.endsWith("/api/admin/imports/logo-lookup"), found.calls[0].url);
+  assert.deepEqual(found.calls[0].body, { tenant_id: A });
+  for (const said of [
     { outcome: "none", host: "quiet.example.com" },
-    "an SVG, a favicon file, a candidate on another port and a picture too small are each passed over",
-  );
+    { outcome: "unreachable", host: "down.example.com" },
+    { outcome: "no_website", host: null },
+  ]) {
+    const e = edge({ ok: true, ...said });
+    try {
+      assert.deepEqual(await look(), said);
+    } finally {
+      e.restore();
+    }
+  }
 });
 
-test("our own website is no business's logo", async () => {
-  const asked = network({});
-  const { tables, rpcs } = lookTables({ own: "https://app.chanlytics.com/b/bella" });
-  assert.deepEqual(await lookup.POST.run(send("POST"), ctxFor(tables, rpcs)), { outcome: "not_its_own", host: null });
-  assert.deepEqual(asked, []);
+test("an edge that did not answer, refused, or answered no look is said in the owner's words, never as their website's fault", async () => {
+  for (const answer of [
+    () => {
+      throw new TypeError("fetch failed");
+    },
+    () => new Response(JSON.stringify({ ok: false, error: "no_database" }), { status: 503 }),
+    { ok: true, outcome: "found", host: "bellastudio.example.com" },
+    { ok: true },
+  ]) {
+    const e = edge(answer);
+    try {
+      await refused(look(), "internal", 502, LOGO_WORDS.lookFailed);
+    } finally {
+      e.restore();
+    }
+  }
 });
