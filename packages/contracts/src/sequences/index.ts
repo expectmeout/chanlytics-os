@@ -168,6 +168,8 @@ export type {
   LeadPaceChoice,
 } from "./sequence-lead-build";
 export {
+  batchOkSendsNothing,
+  heldByCheckWords,
   needsCount,
   needsWords,
   SEQUENCE_LIST_WORDS,

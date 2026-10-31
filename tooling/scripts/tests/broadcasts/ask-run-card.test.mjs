@@ -42,8 +42,10 @@ const REACH = "88888888-8888-4888-8888-888888888884";
 const MINE = "88888888-8888-4888-8888-888888888885";
 const GOING = "88888888-8888-4888-8888-888888888886";
 const THEIRS = "88888888-8888-4888-8888-88888888888b";
+const HELD = "88888888-8888-4888-8888-888888888887";
 const PB1 = "99999999-9999-4999-8999-999999999991";
 const STEP1 = "99999999-9999-4999-8999-999999999992";
+const FLORISTS = "99999999-9999-4999-8999-999999999993";
 const P = (n) => `abababab-abab-4aba-8aba-abababababa${n}`;
 const USER = "u1";
 const TZ = "America/New_York";
@@ -85,9 +87,27 @@ const enrolled = (broadcast_id, n, name) => ({
   messages: null,
   contacts: { display_name: name, wa_profile_name: null, phone_e164: `+1555555010${n}`, email: null },
 });
+/** A lead's email in a batch the check held (as reach-out-routes.test.mjs's run block holds one). */
+const heldSend = (n) => ({
+  id: `held-${n}`,
+  tenant_id: A,
+  broadcast_id: HELD,
+  lead_id: `lead-${n}`,
+  state: "held",
+  reason: "chain",
+  hold_detail: null,
+  opening: null,
+  angle: null,
+  send_at: "2026-09-21T14:00:00.000Z",
+  checked_at: "2026-09-20T15:00:00.000Z",
+  created_at: "2026-09-20T14:00:00.000Z",
+  mailbox_id: null,
+  lead: { business_name: `Florist ${n}`, email: `owner@florist${n}.example`, city: "Denver" },
+});
 /**
  * Harbor's runs: today's win-back waiting on a person (three enrolled), yesterday's still waiting, one sent, a
- * reach-out's run waiting, and a broadcast a person scheduled; and Bayside's run, which a member of both could read.
+ * reach-out's run waiting, one whose every email the check held, and a broadcast a person scheduled; and Bayside's run,
+ * which a member of both could read.
  */
 function world(role = "operator") {
   return {
@@ -108,6 +128,12 @@ function world(role = "operator") {
         playbook_id: STEP1,
         audience: { kind: "reach_out", root_id: STEP1, label: "Dentists in Austin" },
       }),
+      bcRow(HELD, A, {
+        name: "Florists in Denver · step 1",
+        playbook_id: FLORISTS,
+        recipient_count: 2,
+        audience: { kind: "reach_out", root_id: FLORISTS, label: "Florists in Denver" },
+      }),
       bcRow(MINE, A, { name: "October offer", state: "scheduled", playbook_id: null, run_for: null }),
       bcRow(GOING, A, { name: "October news", state: "sending", playbook_id: null, run_for: null }),
       bcRow(THEIRS, B, { name: `Recupera · ${TODAY}` }),
@@ -116,8 +142,28 @@ function world(role = "operator") {
     messages: [],
     events: [],
     conversations: [],
-    reach_out_sends: [],
-    playbooks: [],
+    reach_out_sends: [heldSend(1), heldSend(2)],
+    playbooks: [
+      {
+        id: FLORISTS,
+        tenant_id: A,
+        kind: "reach_out",
+        name: "Florists in Denver",
+        state: "running",
+        trigger: "lead_first",
+        lead_search_id: null,
+        after_playbook_id: null,
+        after_days: null,
+        gap_minutes: 12,
+        mailbox_ids: [],
+        signed_by: "Sam",
+        include_unconfirmed: false,
+        template_id: null,
+        run_hour: 9,
+        last_run_for: TODAY,
+        created_at: "2026-09-20T00:00:00Z",
+      },
+    ],
     decisions: [],
     jobs: [],
   };
@@ -233,6 +279,33 @@ const RUN_CALLS = [
       title: "Skip the batch: Dentists in Austin · step 1",
       summary: "3 emails · none of them goes, and the sequence keeps running",
       payload: { broadcast_id: REACH, verb: "skip", name: "Dentists in Austin · step 1", people: 3 },
+      undo: null,
+    },
+    null,
+  ],
+  [
+    // 31 Oct 2026: Brooklyn's batch, every email held, was carded "Approve the batch · 0 emails"; an OK sent nothing, and
+    // its sequence asks for none (contracts batchOkSendsNothing): what waits is each held email, decided on its own.
+    "a batch to leads whose every email the check held: no OK, each held email decided instead",
+    { broadcast_id: HELD, verb: "approve" },
+    {},
+    {
+      error:
+        "an OK sends none of Florists in Denver: 2 emails are held by the check, and each is decided on its own, with action decide by its send_id (sequences with action sequence, waiting_on_you)",
+    },
+    null,
+  ],
+  [
+    "the same batch skipped: a card, its held emails staying held",
+    { broadcast_id: HELD, verb: "skip" },
+    {},
+    {
+      kind: "run",
+      needs: "operator",
+      title: "Skip the batch: Florists in Denver",
+      summary:
+        "0 emails · 2 emails the check held stay held until you decide them · none of them goes, and the sequence keeps running",
+      payload: { broadcast_id: HELD, verb: "skip", name: "Florists in Denver", people: 0 },
       undo: null,
     },
     null,
