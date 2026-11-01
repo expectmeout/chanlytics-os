@@ -231,7 +231,7 @@
      Android reloaded it). Every other page's lists give way under a thumb on purpose (below, "every list pulls"). */
   .set-pane { padding: 16px 16px 48px; gap: 16px; overscroll-behavior-y: none; }
   html.legacy-on:has(.settings), html.legacy-on:has(.settings) body { overscroll-behavior-y: none; }
-  /* Nor does the page give way where the window scrolls it (kit motion/page-give.ts reads this off the page). */
+  /* Nor does the page draw a pull of its own at its top (kit motion/page-give.ts reads this off the page). */
   .settings { overscroll-behavior-y: none; }
   /* A card that scrolls sideways (below, for wide tables) gets min-height 0 in
      this bounded flex column and collapsed to its head with an inner scroll —
@@ -1011,27 +1011,37 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
   html.legacy-on:has(:is([aria-modal="true"], .side-wrap.open)) {
     overflow: hidden;
   }
-  /* A pull past the page's end: the page gives way under the thumb and the frame holds, as the Calendar's board did
-     inside its own box (Ruben, 19 Oct 2026: on the Inbox and People the date, the name and the strip came down with
-     the rows). The screen's own band dragged the frame's top, the tab bar and Ask's circle with the page, fixed as they
-     are, so the screen holds (here, the document's root and its body, as Settings' were), and the page moves alone, by
-     kit motion/page-give.ts: on the band's curve while the thumb is down (data-give="held"), and back on the band's
-     spring once it lets go ("back"), which a flick's glide reaching the end rides out and back as an iPhone's does (1
-     Nov 2026); at once where motion is reduced. The spring is a web animation the compositor plays, so no transition
-     eases it. What would give is readied for its own layer as the thumb first goes down the page ("ready"), never as
-     the bounce begins, where promoting a tall list flashed on an iPhone. Where a box under the thumb scrolls itself (a
-     sheet's, a reply box's words) that box gives as it always did. */
+  /* The page's ends: the screen's own band (kit motion/page-give.ts). A glide that reaches the page's top or foot, and a
+     thumb that scrolls on past one, carry the page on past it and spring it back on the screen's own clock, with the
+     frame's top, the tab bar and Ask's circle holding where they stand, since WebKit keeps what is fixed on the screen
+     while the page bands. It was off from 19 Oct 2026 and drawn by the page, which could never take over from the
+     screen's glide without a stall or a jump (1 Nov 2026: "it flickers, it glitches"). `contain`, not auto: Android's
+     Chrome draws its band and never pulls the page to reload it.
+     But for the one pull it is not given: a thumb pulling down a page at rest at its top, which Safari takes for its
+     pull to refresh, sliding the screen down with the frame's top in it (Ruben, 19 Oct 2026: on the Inbox and People
+     the date, the name and the strip came down with the rows) and reloading the app when let go far enough. While the
+     page rests there (data-page-top on the root, page-give.ts) the band is off, and the page draws that pull itself:
+     on the band's curve while the thumb is down (data-give="held", on a layer of its own), and home on the band's
+     spring once it lets go ("back", a web animation, so no transition eases it), at once where motion is reduced. An
+     app on the home screen has no pull to refresh, and keeps its band there too (below, the installed app). Where a box
+     under the thumb scrolls itself (a sheet's, a reply box's words) that box gives as it always did. */
   html.legacy-on,
   html.legacy-on body {
+    overscroll-behavior-y: contain;
+  }
+  html.legacy-on[data-page-top],
+  html.legacy-on[data-page-top] body {
     overscroll-behavior-y: none;
   }
   [data-give] {
     will-change: translate;
   }
-  /* And on a page of rows only the rows give: what stands over them on the page (the buckets, the search, the list's name
-     and its count) holds, as the Calendar's bar holds over its board (Ruben, 19 Oct 2026: "only the table rows should be
-     draggable down"). The box of rows says so; page-give.ts moves the first one drawn, and the route view where none is.
-     People's is the table with its foot, so the count under the last row goes with them. */
+  /* And where the page draws that pull, on a page of rows only the rows give: what stands over them on the page (the
+     buckets, the search, the list's name and its count) holds, as the Calendar's bar holds over its board (Ruben, 19 Oct
+     2026: "only the table rows should be draggable down"), and on a page with a foot of its own (a thread's reply box,
+     below) what is stuck to the screen holds, as it holds through the screen's band. The box of rows says so;
+     page-give.ts moves the first one drawn, and the route view where none is. People's is the table with its foot, so
+     the count under the last row goes with them. */
   .main-scroll.pane > .inbox:not([data-takeover]) .ix-threads,
   .main-scroll.pane > .conversations:not([data-takeover]) .cv-rows,
   .main-scroll.pane > .clients .cl-table-wrap {
@@ -1094,7 +1104,7 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
      nearer the foot than the point Safari reads (tokens.css --foot-clear): at the tab bar's 4px in an iPhone's browser
      a reply box stood on that point's line, and a pixel lower Safari would paint its band under it for as long as the
      thread stayed open. A capsule the page passes under takes its blur on a layer of its own (a filter on it would hold
-     its menu, kit.css). Only the rows give under a pull (page-give.ts). */
+     its menu, kit.css). Where the page draws a pull at its top, only the rows give (page-give.ts). */
   :root {
     --held-foot: max(var(--bar-foot), var(--foot-clear, 0px));
   }
@@ -1297,6 +1307,13 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
 @media (max-width: 720px) and (display-mode: standalone) {
   :root {
     --frame-top-at: calc(env(safe-area-inset-top, 0px) - 10px);
+  }
+  /* An app on the home screen has no pull to refresh, so the screen's own band stays on at the page's top as well: a
+     pull there bands as everywhere, with what is fixed holding, and the page draws nothing (page-give.ts asks the
+     root's band). Settings holds still here as anywhere. */
+  html.legacy-on[data-page-top]:not(:has(.settings)),
+  html.legacy-on[data-page-top]:not(:has(.settings)) body {
+    overscroll-behavior-y: contain;
   }
 }
 
