@@ -1129,6 +1129,80 @@ test("the reply box says whose its words are while they are the receptionist's d
   assert.equal(find(draw(toInboxThreadVM(conv(), asked, ZONE, NOW)), byTestId("ix-composer-drafted")), undefined);
 });
 
+test("beside a real thread on a desk, who they are in People's words: their business and reach, then each fact of their row -- a zero said, a visit only where a calendar is read", async () => {
+  // It was a page away, behind the header's door (the thread canvas, 1 Nov 2026). Made-up values.
+  const { ThreadContext } = await import(`${S}/inbox/pages/thread-context.tsx`);
+  const vm = toInboxThreadVM(conv(), asked, ZONE, NOW);
+  const row = (over = {}) => ({
+    id: "k1",
+    email: "rosa@example.com",
+    standIn: false,
+    worksAt: { leadId: "l1", name: "Fixture Studio", gone: false },
+    receptionist: { tone: "escalated", label: "Waiting for a person" },
+    firstContact: { ts: 1, label: "Sep 2", estimate: false, evidence: true },
+    cameFrom: { key: "whatsapp", label: "WhatsApp" },
+    lastContact: { by: "They wrote", when: "40m ago" },
+    threads: 1,
+    calls: 0,
+    calendar: "ok",
+    nextVisitLine: null,
+    lastVisitLine: null,
+    deal: null,
+    nextStep: null,
+    consent: { label: "Opted in" },
+    ...over,
+  });
+  const opened = [];
+  const rail = () => {
+    fresh();
+    return ThreadContext({ thread: vm, onOpenClient: (id) => opened.push(id) });
+  };
+  try {
+    peopleAre(undefined);
+    assert.equal(textOf(find(rail(), hasClass("ix-context-reading"))), "Reading…", "People not read yet");
+    peopleAre({ rows: [row()] });
+    const drawn = rail();
+    assert.equal(drawn.props["aria-label"], "About Rosa Díaz");
+    assert.equal(textOf(find(drawn, byTestId("ix-context-works"))).trim(), "Works at Fixture Studio");
+    assert.ok(textOf(drawn).includes("rosa@example.com"));
+    const said = (key) => textOf(find(drawn, byTestId(`ix-context-${key}`)));
+    assert.equal(said("receptionist"), "ReceptionistWaiting for a person");
+    assert.equal(said("first"), "First contactSep 2 · WhatsApp");
+    assert.equal(said("last"), "Last contactThey wrote · 40m ago");
+    assert.equal(said("history"), "History1 conversation · 0 calls");
+    assert.equal(said("visit"), "VisitNone yet", "a zero is shown");
+    assert.equal(find(drawn, byTestId("ix-context-visit")).props["data-none"], "", "in the dim ink");
+    assert.equal(said("deal"), "DealNone");
+    assert.equal(said("step"), "Next stepNone");
+    assert.equal(said("consent"), "ConsentOpted in");
+    find(drawn, byTestId("ix-context-door")).props.onClick({ button: 0, preventDefault() {} });
+    // No calendar read: nothing is said of a visit, since "None yet" would not be known.
+    peopleAre({ rows: [row({ calendar: "none" })] });
+    assert.equal(find(rail(), byTestId("ix-context-visit")), undefined);
+    peopleAre({
+      rows: [
+        row({
+          nextVisitLine: visitLine("Tue, Sep 8", "2:00 PM"),
+          deal: { id: "d1", stage: "won", brief: "Client · since Oct 1" },
+          nextStep: { id: "s1", words: "Send the quote", day: { words: "Due today" } },
+        }),
+      ],
+    });
+    const full = rail();
+    assert.equal(textOf(find(full, byTestId("ix-context-visit"))), "VisitTue, Sep 8 · 2:00 PM");
+    assert.equal(textOf(find(full, byTestId("ix-context-deal"))), "DealClient · since Oct 1");
+    assert.equal(textOf(find(full, byTestId("ix-context-step"))), "Next stepSend the quote · Due today");
+  } finally {
+    peopleAre(undefined);
+  }
+  fresh();
+  assert.equal(
+    ThreadContext({ thread: { ...vm, clientId: null }, onOpenClient: () => {} }),
+    null,
+    "no person, no rail",
+  );
+});
+
 test("where a thread was held for a person is a quiet mark between the words, its reason a clause -- the dock says what is owed", () => {
   const tree = draw(toInboxThreadVM(conv(), asked, ZONE, NOW));
   const mark = find(tree, byTestId("tl-held"));

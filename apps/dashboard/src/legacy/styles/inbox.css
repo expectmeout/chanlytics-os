@@ -2236,6 +2236,92 @@ button.ix-ctx { text-align: left; cursor: pointer; transition: background 100ms;
   }
 }
 
+/* ---- Who a real thread is with, beside it on a wide desk (pages/thread-context.tsx; the thread canvas, 1 Nov 2026) ----
+   A third pane of the look's own, the face at a page's head, their name, where they work and how to reach them, then
+   People's facts of them on a key column. Past the desk's breakpoint alone; narrower, the header's door is the way. */
+.ix-context {
+  display: none;
+}
+@media (width > 1280px) {
+  .inbox.with-context {
+    grid-template-columns: var(--rail-list) minmax(0, 1fr) 300px;
+  }
+  .inbox.with-context > .ix-context {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    min-width: 0;
+    padding: 22px 20px;
+    overflow-y: auto;
+    border-radius: var(--surface-pane-radius);
+    background: var(--surface-pane-fill);
+    box-shadow: var(--surface-pane-depth);
+  }
+}
+.ix-context-who {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+}
+.ix-context-name {
+  margin-top: 4px;
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+.ix-context-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  min-width: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+.ix-context-glyph {
+  flex: none;
+}
+.ix-context-words {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ix-context-door {
+  margin-top: 4px;
+  gap: 4px;
+}
+.ix-context-facts {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 10px 12px;
+  margin: 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  font-size: var(--text-sm);
+}
+.ix-context-fact {
+  display: contents;
+}
+.ix-context-fact > dt {
+  color: var(--ink-dim);
+}
+.ix-context-fact > dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+}
+.ix-context-fact[data-none] > dd {
+  color: var(--ink-dim);
+}
+.ix-context-reading {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+
 /* ---- The list: the search first, then the buckets as text tabs on a hairline, the picked one underlined in ink ---- */
 .ix-search-row {
   gap: 0;
