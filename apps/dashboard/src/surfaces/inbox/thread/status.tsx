@@ -23,6 +23,7 @@ import { gate, navigate } from "../shell";
 import type { Thread, TimelineEntry as TlEntry } from "../types";
 import { ixDockDials } from "./band";
 import { hasVeto, SteerBox, VetoBar } from "./veto";
+import { IxWhy } from "./send-words";
 import { Button } from "../../kit/button/button";
 import { LinkButton } from "../../kit/link-button/link-button";
 
@@ -269,18 +270,77 @@ function handBackAsk(p: DockProps, go: () => void) {
   );
 }
 
-/** A real thread that needs you: the reason, and the two things to do about it. */
+/**
+ * Whether words can go to them from the reply box under the dock: free words or an approved message. Sending one is the
+ * answer, and takes the thread (core reply: takeControl, resolveEscalation), so the dock offers no take-over beside it;
+ * where nothing can go (a stop, an address that stopped, Instagram shut, a caller with no chat), taking it is the act.
+ */
+const replyGoes = (thread: Thread): boolean =>
+  !!thread.real &&
+  !thread.optedOut &&
+  !thread.emailStopped &&
+  thread.hasChat !== false &&
+  !(thread.windowOpen === false && thread.primaryChannel === "instagram");
+
+/** The whole of why it was held, and what the hold noted, a press away under the dock's line (contracts holdWordsOf). */
+function holdWhy(thread: Thread): ReactNode {
+  if (!thread.real || !thread.holdWhy) return null;
+  return (
+    <IxWhy
+      said={
+        <>
+          {thread.holdWhy}
+          {thread.holdNote ? <> “{thread.holdNote}”</> : null}
+        </>
+      }
+      testid="ix-hold-why"
+    />
+  );
+}
+
+/** The lead act of a hold that asks for a person: a call back, or taking it where no reply can go; none where one can. */
+function takeAct(p: DockProps, thread: Thread): ReactNode {
+  const { onTakeOver } = p;
+  if (thread.holdAct === "hand_back") return null;
+  if (ixDockDials(thread))
+    return (
+      <Button size="sm" href={`tel:${thread.phone}`} onClick={() => onTakeOver(thread.id)} data-testid="ix-call-back">
+        <Icon name="phone" size={12} /> Call back
+      </Button>
+    );
+  if (thread.primaryChannel === "phone")
+    return (
+      <Button size="sm" onClick={() => onTakeOver(thread.id)} {...gate("approve", "take over a conversation")}>
+        <Icon name="phone" size={12} /> Call back
+      </Button>
+    );
+  if (replyGoes(thread)) return null;
+  return (
+    <Button size="sm" onClick={() => onTakeOver(thread.id)} {...gate("approve", "take over a conversation")}>
+      {HOLD_ACT_WORDS.reply.take}
+    </Button>
+  );
+}
+
+/**
+ * A real thread that needs you: the one line of what is owed (contracts reasonLineOf), its whole why a press away, and
+ * what to do about it beside the reply box under it. The dock said the reason's sentence, up to forty words, over a
+ * flag in the conversation that said it again, and offered "I'll answer this" beside a reply box whose Send already
+ * answers and takes the thread (the thread canvas, 1 Nov 2026).
+ */
 function needsYouState(p: DockProps, thread: Thread) {
-  const { onTakeOver, onDecide } = p;
+  const { onDecide } = p;
   const handBack = () => onDecide(thread.id, "__HANDBACK__");
   if (p.asking === thread.id) return handBackAsk(p, handBack);
+  const line = (thread.real && thread.holdLine) || thread.summary;
   return (
     <Dock
       testid="ix-needs-you"
-      label={thread.summary}
-      // The reason's own sentence (ESCALATION_SUMMARIES), never one line for every reason: a held message was not
-      // "already answered", and a call back is not a reply. What they asked is the bubble right above it.
-      fact={thread.summary}
+      label={line}
+      // The reason's own line, never one line for every reason: a held message was not "already answered", and a call
+      // back is not a reply. What they asked is the conversation right above it.
+      fact={line}
+      source={holdWhy(thread)}
       acts={
         thread.holdAct === "confirm" ? (
           requestActsOf(thread, onDecide)
@@ -288,26 +348,7 @@ function needsYouState(p: DockProps, thread: Thread) {
           <>
             {/* A hold nothing may be sent for (its reason's act is to hand back, escalations.ts HOLD_ACT_WORDS) offers no
               reply to write: Hand back is the thread's own verb. */}
-            {thread.holdAct === "hand_back" ? null : ixDockDials(thread) ? (
-              <Button
-                size="sm"
-                href={`tel:${thread.phone}`}
-                onClick={() => onTakeOver(thread.id)}
-                data-testid="ix-call-back"
-              >
-                <Icon name="phone" size={12} /> Call back
-              </Button>
-            ) : (
-              <Button size="sm" onClick={() => onTakeOver(thread.id)} {...gate("approve", "take over a conversation")}>
-                {thread.primaryChannel === "phone" ? (
-                  <>
-                    <Icon name="phone" size={12} /> Call back
-                  </>
-                ) : (
-                  HOLD_ACT_WORDS.reply.take
-                )}
-              </Button>
-            )}
+            {takeAct(p, thread)}
             {/* Two words on the screen, the whole sentence for a screen reader: it was a sentence wearing a button. */}
             {thread.escalationId && (
               <Button
@@ -454,9 +495,16 @@ function yoursBar(p: DockProps) {
   );
 }
 
+/**
+ * The countdown on a seeded draft, and the controls that stop it. A real thread's stand under the draft's own bubble
+ * (thread.tsx heldDraftRow), once its conversation is drawn.
+ */
+const draftInTheConversation = (thread: Thread): boolean => !!thread.real && !thread.partial;
+
 /** The countdown on a draft, and the controls that stop it. */
 function vetoStatus(p: StatusProps) {
   const { thread, decided, veto, vetoPaused, onVetoAct, onTakeOver } = p;
+  if (draftInTheConversation(thread)) return false;
   // The same trap the composer already documents: in the mockup "done"
   // means decided, nothing left to do. On a REAL thread "handled" is the
   // normal resting state — the receptionist answered and nothing
@@ -475,6 +523,7 @@ function vetoStatus(p: StatusProps) {
 /** The text whisper: only on a real draft that is still counting down. */
 function steerStatus(p: StatusProps) {
   const { thread, decided, veto } = p;
+  if (draftInTheConversation(thread)) return false;
   // A held (manual) draft has Edit; a seeded one has no edge to ask.
   return (
     hasVeto(thread) &&

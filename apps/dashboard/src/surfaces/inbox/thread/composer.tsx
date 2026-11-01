@@ -43,11 +43,14 @@ function putCarriedReply(threadId: string, setText: SetText, taRef: BoxRef) {
  * box, and only while this thread is the one open. The box is drawn with it where the newest kept drafts hold it (Composer's
  * first words); the thread's own read is asked for only where they cannot say, and what it says of the signature is kept too.
  */
-function putKeptDraft(thread: Thread, setText: SetText, setSigned: SetSigned) {
+function putKeptDraft(thread: Thread, setText: SetText, setSigned: SetSigned, setDrafted: (w: string) => void) {
   if (!thread.real) return;
   const now = keptReplyNow(thread);
   if (now !== undefined) {
-    if (now) setText((cur) => (cur && cur.trim() ? cur : now));
+    if (now) {
+      setDrafted(now);
+      setText((cur) => (cur && cur.trim() ? cur : now));
+    }
     return;
   }
   let open = true;
@@ -55,7 +58,10 @@ function putKeptDraft(thread: Thread, setText: SetText, setSigned: SetSigned) {
   void keptReplyOf(thread)
     .then(({ words, signed }) => {
       if (!open) return;
-      if (words) setText((cur) => (cur && cur.trim() ? cur : words));
+      if (words) {
+        setDrafted(words);
+        setText((cur) => (cur && cur.trim() ? cur : words));
+      }
       if (signed !== undefined) setSigned(signed);
     })
     .catch(() => undefined);
@@ -163,6 +169,8 @@ interface ComposerDraw extends ComposerProps {
   setSaved: (v: boolean) => void;
   /** What an email from the box is signed with, for the member writing (decision 0081); null where nothing signs it. */
   signed: string | null;
+  /** The receptionist's draft the box was given (kept-draft.ts), said as its while the box holds it unchanged. */
+  drafted: string | null;
 }
 
 // Checked BEFORE the window branch: an opt-out is stronger than a closed
@@ -270,10 +278,25 @@ function signedLine(c: ComposerDraw) {
 
 // A real thread's reply box is one line that grows, with Send beside it: it was a three-line field over a line
 // saying the channel and the name the header already shows, 185px of a phone. The field names the channel.
+/**
+ * Over the words, while the box holds the receptionist's draft as it wrote it: whose they are (the thread canvas, 1 Nov
+ * 2026). The draft sat in the box unlabelled and read as the member's own typing; once it is changed, it is theirs.
+ */
+function draftedLine(c: ComposerDraw) {
+  if (!c.drafted || !c.text.trim() || c.text.trim() !== c.drafted.trim()) return null;
+  return (
+    <div className="ix-composer-drafted" data-testid="ix-composer-drafted">
+      <Icon name="sparkle" size={11} className="ix-composer-drafted-spark" />
+      {THREAD_PANE_WORDS.drafted}
+    </div>
+  );
+}
+
 function realComposer(c: ComposerDraw) {
   const { thread, text, write, taRef, sending, doSend, isApproveAndSend, onType } = c;
   return (
     <div className="ix-composer ix-composer-row">
+      {draftedLine(c)}
       <textarea
         ref={taRef}
         className="ix-composer-text"
@@ -439,8 +462,10 @@ export const Composer = ({ thread, reply, hasApproval, onType = null, onSend = (
   // What an email from the box is signed with: drawn with the box where the newest kept drafts say it (undefined where they
   // cannot), else from the thread's own read, the kept draft's where the box asks that one, else once the box has words.
   const [signed, setSigned] = useState<string | null | undefined>(() => signedNow(thread));
+  // The receptionist's draft the box was given, where it was (kept-draft.ts): the box says whose its words are.
+  const [drafted, setDrafted] = useState<string | null>(() => (thread.real ? keptReplyNow(thread) || null : null));
   // eslint-disable-next-line react-hooks/exhaustive-deps -- once a thread: the box is filled as it opens, never again under the member
-  useEffect(() => putKeptDraft(thread, setText, setSigned), [thread.id]);
+  useEffect(() => putKeptDraft(thread, setText, setSigned, setDrafted), [thread.id]);
   const signedWanted = signed === undefined && !!text.trim();
   // eslint-disable-next-line react-hooks/exhaustive-deps -- once a thread, when the box first has words and nothing said it
   useEffect(() => putSigned(thread, signedWanted, setSigned), [thread.id, signedWanted]);
@@ -493,6 +518,7 @@ export const Composer = ({ thread, reply, hasApproval, onType = null, onSend = (
     saved,
     setSaved,
     signed: signed ?? null,
+    drafted,
   };
   if (thread.real) return realComposer(c);
   return seededComposer(c);

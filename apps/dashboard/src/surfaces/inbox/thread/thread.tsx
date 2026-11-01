@@ -47,6 +47,7 @@ import { useEarlierAsScrolled } from "./earlier";
 import { threadEnd, threadScroller, threadShown } from "./scroller";
 import { isDocumentScroller, shownHeight } from "../../kit/motion/page-scroll";
 import { TimelineEntry } from "./timeline";
+import { hasVeto, SteerBox, VetoBar } from "./veto";
 
 // The newest thing said in a thread: its last message, written or a call. A flag after it is not something said.
 const ixNewestSaid = (timeline: TlEntry[] | null | undefined) => {
@@ -301,6 +302,8 @@ function timelineRows(p: Held, thread: Thread, at: RowsAt) {
             window.dispatchEvent(new CustomEvent("inbox:focus-composer", { detail: { threadId: thread.id, text } })),
         }
       : null;
+  // A real draft counting down: its countdown and its controls under its own bubble (heldDraftRow).
+  const heldId = thread.real && !thread.resolution && hasVeto(thread) ? (thread.veto.messageId ?? null) : null;
   // The thread's subject heads its first email (contracts' emailSubjectsOf), where a chip in the header cut it to "What
   // Reddit's 202…" on a phone (the thread canvas, 1 Nov 2026).
   const firstEmail = thread.real ? thread.timeline.findIndex((e) => e.type === "msg" && e.channel === "email") : -1;
@@ -322,6 +325,7 @@ function timelineRows(p: Held, thread: Thread, at: RowsAt) {
           {entry.day}
         </span>
       ) : null;
+    const held = heldId && entry.type === "msg" && entry.messageId === heldId ? heldDraftRow(p, thread, i) : null;
     const row = (
       <TimelineEntry
         key={i}
@@ -336,11 +340,27 @@ function timelineRows(p: Held, thread: Thread, at: RowsAt) {
         arrived={!!thread.real && i >= seenAt}
       />
     );
-    return day ? [day, row] : [row];
+    return [day, row, held].filter((n): n is NonNullable<typeof n> => !!n);
   });
   // A thread drawn whole is its rows and nothing else, as it always was.
   if (from <= 0) return rows;
   return [<div key="ix-earlier" className="ix-timeline-more" ref={moreRef} aria-hidden="true" />, ...rows];
+}
+
+/**
+ * A real draft counting down, under its own bubble (the thread canvas, 1 Nov 2026): when it sends and the controls that
+ * stop it, then the line that has the receptionist write it again. They stood in the foot, under a reply box filled with
+ * the same words, so the draft was on the screen twice and its controls away from it.
+ */
+function heldDraftRow(p: Held, thread: Thread, i: number) {
+  const { veto, vetoPaused, onVetoAct, onTakeOver } = p;
+  if (!hasVeto(thread)) return null;
+  return (
+    <div key={`held-${i}`} className="ix-held-draft" data-testid="ix-held-draft">
+      <VetoBar thread={thread} remaining={veto} paused={vetoPaused} onAct={onVetoAct} onTakeOver={onTakeOver} />
+      {veto != null && thread.veto.messageId ? <SteerBox messageId={thread.veto.messageId} /> : null}
+    </div>
+  );
 }
 
 /** The pane's scroller: what a seeded thread's cards say over its story, then the story. */
@@ -444,7 +464,9 @@ function replyBox(p: Held, thread: Thread, decided: boolean) {
     (thread.real || thread.state !== "done") && (
       <Composer
         thread={thread}
-        reply={thread.veto ? thread.veto.draft : replies ? replies.draftOf(thread.id) : ""}
+        // A real draft counting down stands once, as the next bubble with its countdown (heldDraftRow): the box holds the
+        // member's own words, and Edit puts the draft's in it (thread-verbs.tsx).
+        reply={thread.veto ? (thread.real ? "" : thread.veto.draft) : replies ? replies.draftOf(thread.id) : ""}
         onType={thread.veto ? () => onVetoAct(thread.id, "type") : null}
         onSend={onSend}
       />

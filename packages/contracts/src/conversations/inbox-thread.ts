@@ -247,6 +247,8 @@ export const THREAD_PANE_WORDS = {
   emailEarlier: "Earlier in the thread",
   /** An owner's first email from someone: the way to say it is not a person writing, beside the conversation. */
   firstEmail: (first: string) => `First email from ${first}. A newsletter, a notice or a pitch?`,
+  /** Over the reply box's words while they are the receptionist's draft, unchanged: whose they are. */
+  drafted: "Drafted by the receptionist",
   more: "More",
   moreFor: (who: string) => `More for the conversation with ${who}`,
   groupConversation: "This conversation",

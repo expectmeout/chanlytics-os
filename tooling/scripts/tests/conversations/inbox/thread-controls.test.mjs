@@ -432,12 +432,12 @@ test("the header's menu is More: a glyph on an inset round a thumb finds, its na
 
 /* ------------------------------ what it needs from you ------------------------------ */
 
-test("Needs you: the pill its row wears and how long they have waited, in the bar under the header; the reason's sentence and soft acts by the reply box -- no white slab", () => {
+test("Needs you: the pill its row wears and how long they have waited, under the name; the reason's one line, its why a press away, and Hand back by the reply box whose Send is the answer -- no white slab", () => {
   const tree = draw(toInboxThreadVM(conv(), asked, ZONE, NOW));
   const standing = find(tree, byTestId("ix-th-standing"));
   assert.ok(
     find(standing, (n) => n.props?.kind === "thread" && n.props?.value === "escalated"),
-    "the row's own pill, in the bar",
+    "the row's own pill, under the name",
   );
   assert.equal(textOf(find(standing, hasClass("ix-th-standing-meta"))), "· waiting 40m");
   const needs = find(tree, byTestId("ix-needs-you"));
@@ -447,13 +447,32 @@ test("Needs you: the pill its row wears and how long they have waited, in the ba
     undefined,
     "REGRESSION: the pill said the state again by the reply box",
   );
-  const acts = find(needs, hasClass("notice-acts"));
-  const answer = find(acts, (n) => n.type === "button" && textOf(n).includes("I'll answer this"));
-  assert.ok(answer, "the act that answers it");
-  assert.ok(!hasClass("btn-primary")(answer), "REGRESSION: a white slab beside the reply box's Send");
+  // One line of what is owed (the thread canvas, 1 Nov 2026): it was the reason's sentence, up to forty words.
   assert.ok(
-    find(acts, (n) => n.type === "button" && textOf(n).trim() === "Hand back"),
-    "and the way out",
+    textOf(find(needs, hasClass("notice-fact"))).startsWith("They asked for a person — a holding message went out"),
+    textOf(needs),
+  );
+  const why = find(needs, (n) => n.type === "button" && hasClass("ix-why")(n));
+  assert.ok(why, "the whole of it a press away");
+  assert.equal(find(needs, byTestId("ix-hold-why")), undefined, "not until it is asked");
+  const acts = find(needs, hasClass("notice-acts"));
+  // The reply box's Send is the answer, and takes the thread (core reply: takeControl, resolveEscalation): a take-over
+  // beside it was a second way to say the same thing.
+  assert.equal(
+    find(acts, (n) => n.type === "button" && textOf(n).includes("I'll answer this")),
+    undefined,
+    "REGRESSION: a take-over beside the Send that already answers",
+  );
+  const hand = find(acts, (n) => n.type === "button" && textOf(n).trim() === "Hand back");
+  assert.ok(hand, "the way out");
+  assert.ok(!hasClass("btn-primary")(hand), "REGRESSION: a white slab beside the reply box's Send");
+  // Where nothing can be sent from the box, taking it is the act.
+  const stopped = draw(
+    toInboxThreadVM(conv({ contact: { ...conv().contact, consent: "opted_out", dnc: true } }), asked, ZONE, NOW),
+  );
+  assert.ok(
+    find(find(stopped, byTestId("ix-needs-you")), (n) => n.type === "button" && textOf(n).includes("I'll answer this")),
+    "no reply can go: take it",
   );
 });
 
@@ -1079,6 +1098,35 @@ test("an owner's first email from someone asks under the conversation whether it
     globalThis.window.mayAtLeast = was.may;
     globalThis.sessionStorage = was.store;
   }
+});
+
+test("the reply box says whose its words are while they are the receptionist's draft, unchanged -- once changed, they are the member's", () => {
+  // The draft sat in the box unlabelled and read as the member's own typing (the thread canvas, 1 Nov 2026).
+  setSurfaceValue("reply_drafts", {
+    drafts: [
+      {
+        conversation_id: "c1",
+        kind: "reply",
+        for_message_id: "m1",
+        words: { text: "Hi Rosa, Friday at 3 works." },
+        made_at: at(1),
+      },
+    ],
+    complete: true,
+  });
+  try {
+    const vm = toInboxThreadVM(conv(), asked, ZONE, NOW);
+    const tree = draw(vm);
+    const box = find(tree, (n) => n.type === "textarea" && hasClass("ix-composer-text")(n));
+    assert.equal(box.props.value, "Hi Rosa, Friday at 3 works.", "the box holds the draft");
+    assert.equal(textOf(find(tree, byTestId("ix-composer-drafted"))).trim(), "Drafted by the receptionist");
+    box.props.onChange({ target: { value: "Hi Rosa, Friday at 3 works for us." } });
+    const changed = again(() => InboxThread({ thread: vm, channelLabels: labels, onArchive: () => {} }));
+    assert.equal(find(changed, byTestId("ix-composer-drafted")), undefined, "changed, the words are the member's");
+  } finally {
+    setSurfaceValue("reply_drafts", undefined);
+  }
+  assert.equal(find(draw(toInboxThreadVM(conv(), asked, ZONE, NOW)), byTestId("ix-composer-drafted")), undefined);
 });
 
 test("where a thread was held for a person is a quiet mark between the words, its reason a clause -- the dock says what is owed", () => {

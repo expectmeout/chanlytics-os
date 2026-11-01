@@ -2783,6 +2783,45 @@ button.tl-stamp:focus-visible {
   margin-top: 6px;
 }
 
+/* A real draft counting down, under its own bubble (thread.tsx heldDraftRow; the thread canvas, 1 Nov 2026): when it
+   sends and the controls that stop it at the bubble's width, then the line that has it written again. They stood in the
+   foot, under a reply box filled with the same words. */
+.ix-held-draft {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-self: flex-end;
+  width: 72%;
+  margin-top: -6px;
+}
+.ix-held-draft > .ix-veto {
+  flex-wrap: wrap;
+  row-gap: 6px;
+  margin: 0;
+}
+.ix-held-draft > .ix-steer {
+  border-bottom: 0;
+  border-radius: var(--surface-row-radius);
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-ring);
+}
+/* Whose the box's words are while they are the receptionist's draft, unchanged: the capsule's first line. */
+.ix-composer-drafted {
+  display: flex;
+  flex-basis: 100%;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding-top: 4px;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  color: var(--ink-dim);
+}
+.ix-composer-drafted-spark {
+  flex: none;
+  color: var(--accent-ink);
+}
+
 /* An email, drawn as one (timeline.tsx emailEntry; the thread canvas, 1 Nov 2026): the conversation's width, who it is
    from and when at its head, its subject, its words at the reading step, folded to their first lines where they run long,
    and what is not its words folded under them, a hairline each. It was a chat bubble three-quarters wide. */
@@ -3301,12 +3340,16 @@ button.tl-stamp:focus-visible {
     > :not(.tl-msg-meta, .tl-msg-by) {
     max-width: 88%;
   }
+  /* A draft's countdown at the phone's bubble width. */
+  :is(.inbox, .conversations)[data-takeover] .ix-held-draft {
+    width: 88%;
+  }
   /* An email keeps the conversation's width on a phone too. */
   :is(.inbox, .conversations)[data-takeover] .ix-thread-pane .tl-msg.tl-email .tl-msg-bubble > * {
     max-width: none;
   }
   :is(.inbox, .conversations)[data-takeover] .ix-th-status {
-    padding: 6px 12px 0;
+    padding: 12px 14px 0;
   }
   :is(.inbox, .conversations)[data-takeover] .ix-composer {
     padding: 10px 12px 14px;

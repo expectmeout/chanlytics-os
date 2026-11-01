@@ -180,7 +180,8 @@ test("REGRESSION: on a real thread what it needs from you sits under the convers
     assert.equal(find(scroller, hasClass(cls)), undefined, `REGRESSION: ${cls} scrolled away with the words`);
   const take = find(find(pane, byTestId("ix-th-status")), byTestId("ix-needs-you"));
   assert.ok(take, "what Needs you asks is by the reply box");
-  assert.match(textOf(take), /I'll answer this/);
+  assert.match(textOf(take), /^They asked for a person — a holding message went out/);
+  assert.doesNotMatch(textOf(take), /I'll answer this/, "the reply box under it answers, and takes it");
   // Its name and its wait are the bar's, under the header (the thread state bar).
   const standing = find(pane, byTestId("ix-th-standing"));
   assert.match(textOf(standing), /Needs you/);
@@ -239,7 +240,13 @@ test("REGRESSION: a draft waiting to go out is the thread's one state -- 'They w
   assert.equal(vm.lastWord.text, "They wrote last — no reply yet.", "the view model still knows who wrote last");
   const pane = paneOf(vm, { veto: 72 });
   const status = find(pane, byTestId("ix-th-status"));
-  assert.match(textOf(find(status, hasClass("ix-veto"))), /Auto-sends in 72s/, "the countdown is by the reply box");
+  // Under the draft's own bubble, in the conversation (the thread canvas, 1 Nov 2026): it stood by a reply box filled
+  // with the same words, so the draft was on the screen twice.
+  const held = find(find(pane, hasClass("ix-th-scroll")), byTestId("ix-held-draft"));
+  assert.match(textOf(find(held, hasClass("ix-veto"))), /Auto-sends in 72s/, "the countdown is under the draft");
+  assert.equal(find(status, hasClass("ix-veto")), undefined, "said once");
+  const box = find(pane, (n) => n.type === "textarea" && hasClass("ix-composer-text")(n));
+  assert.equal(box.props.value, "", "the box holds the member's own words, not the draft again");
   assert.equal(
     find(pane, byTestId("ix-last-word")),
     undefined,

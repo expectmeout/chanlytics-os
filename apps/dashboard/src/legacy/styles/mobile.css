@@ -1142,6 +1142,18 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     z-index: 3;
     display: flex;
     flex-direction: column;
+    /* One solid card, 8px from the sides as the header's capsule is at the top: the conversation passed under the dock's
+       glass, and a line of it printed through the dock's own words (the thread canvas, 1 Nov 2026). */
+    margin-inline: 8px;
+    border-radius: var(--radius-3xl);
+    background: var(--surface-pane-solid);
+    box-shadow: var(--surface-pane-depth);
+  }
+  /* What the thread needs from you sits on the card's own ground, not a second inset inside it. */
+  :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane > .ix-th-foot > .ix-th-status > .ix-dock {
+    padding: 0;
+    background: none;
+    box-shadow: none;
   }
   /* What the thread needs from you is as tall as what it says, as the rest of the page is. On a desk it may take half
      the pane and scroll inside it (inbox.css); in the foot that half was half of the foot, the state and the reply box
