@@ -280,6 +280,11 @@ export const RETRY_WAITS_MS: Readonly<Record<string, readonly number[]>> = {
   // here: one more try, after a wait that outlasts the lease; the second try marks the preview failed itself
   // (edge previews/build.ts), so a send waiting on it is skipped with why, never left waiting.
   preview_build: [2 * MIN_MS],
+  // An erasure a press left unfinished (00501, decision 0036). Written to be run again: every leg is a delete or an
+  // overwrite keyed on the person, and the block is idempotent. A leg the database refused throws and lands here: five
+  // minutes for its bad minute, then thirty for a short outage, each outlasting the lease; the third try fails the
+  // row, and the person stays blocked, never live, until the owner presses again.
+  erasure_finish: [5 * MIN_MS, 30 * MIN_MS],
 };
 
 /**

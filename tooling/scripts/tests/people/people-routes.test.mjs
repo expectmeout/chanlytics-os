@@ -28,7 +28,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/rate-limit.ts"));
 const { setServiceClient } = await import(at("apps/dashboard/src/server/service-db.ts"));
-const { erasureKeys } = await import(at("apps/dashboard/src/server/people/erasure.ts"));
+const { erasureKeys } = await import("@chanlytics/db");
 const contacts = await import(at("apps/dashboard/app/api/v1/contacts/route.ts"));
 const receptionistMany = await import(at("apps/dashboard/app/api/v1/contacts/receptionist/route.ts"));
 const notesMany = await import(at("apps/dashboard/app/api/v1/contacts/notes/route.ts"));

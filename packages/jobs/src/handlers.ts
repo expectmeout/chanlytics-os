@@ -77,6 +77,7 @@ import {
 } from "@chanlytics/db";
 import { upsertEscalation, type EscalationOutcome } from "./escalate";
 import { broadcastSend } from "./broadcast-send";
+import { erasureFinish } from "./erasure";
 import { replyRead } from "./reply-read";
 import { bookingRead } from "./booking-read";
 import { deliveryPage, deliveryPageKey } from "./delivery-page";
@@ -610,6 +611,7 @@ const HANDLERS: Record<JobKind, Handler> = {
   history_import: historyImport,
   website_read: websiteRead,
   preview_build: previewBuild,
+  erasure_finish: erasureFinish,
 };
 
 export async function dispatchJob(ctx: JobContext, job: ClaimedJob): Promise<"done" | "unknown_kind"> {
