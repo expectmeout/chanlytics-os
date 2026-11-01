@@ -1,6 +1,6 @@
 /**
  * The thread's header (moved from pages/inbox-thread.jsx, decision 0015): who the conversation is with, the wires it is
- * on, their deal or their visit in one chip, the Actions menu, and the step due under the head.
+ * on, where it stands, their deal or their visit in one chip, the More menu, and the step due under the head.
  *
  * The header is a function per part, called by `ThreadHeader` and not drawn as a component of its own, so the tree is
  * the tree it was; its hooks stay in `ThreadHeader`, in the order they were.
@@ -227,7 +227,7 @@ const DEAL_ICON: Readonly<Record<string, string> & { send: string }> = {
 function dealGroup(thread: Thread, facts: HeaderFacts): MenuItem[] {
   const { person, proposalUrl } = facts;
   const kit = dealKit();
-  // The sheet gives focus back to whatever held it as it opened, and a menu's item is gone by then: the Actions button
+  // The sheet gives focus back to whatever held it as it opened, and a menu's item is gone by then: the More button
   // holds it first, so closing the sheet lands there.
   const toActions = () => {
     const b =
@@ -311,7 +311,7 @@ function alsoInLeads(thread: Thread) {
   );
 }
 
-/** The Actions menu: what to do with the conversation, then with the person, the deal, the file. */
+/** The More menu: what to do with the conversation, then with the person, the deal, the file. */
 interface HeaderActs {
   onSnooze: (threadId: string) => void;
   onMarkUnread: (threadId: string) => void;
