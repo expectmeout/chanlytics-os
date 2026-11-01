@@ -6,15 +6,9 @@
  * fits and Stage stay in the Columns menu, off: the band bar says the fits, the name's card and the peek say why, and the
  * row wears its stage as a tag. In the kit's shape (kit/table/columns.ts DataColumn). The six that sort are the six
  * `leads_page` takes, and the server sorts them (the table runs on the read's order); the filters' columns hold the
- * page's narrowings over the rows a view loaded: the Excluded view's chip, the band's fit, the Filter's reach.
+ * page's narrowings, which the read applies (00500): the Excluded view's chip, the band's fit, the Filter's reach.
  */
-import {
-  LEAD_REVIEW_ACT_WORDS,
-  leadReaches,
-  placeWordOf,
-  type LeadReachFilter,
-  type LeadRowVM,
-} from "@chanlytics/contracts";
+import { LEAD_REVIEW_ACT_WORDS, placeWordOf, type LeadRowVM } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
 import { StatePill } from "../../kit/pill/state-pill";
 import { gate, hasTouchSwipe, touchSwipe } from "../../legacy-verbs";
@@ -241,8 +235,7 @@ export const LEAD_COLUMNS: readonly DataColumn<LeadRowVM, LeadCellCtx, ColCtx>[]
     key: "fit",
     label: "Fit",
     sort: BY_SERVER,
-    // The band's fit (D5): one of the search's fits, the strong ones, the ones worth a look, the long shots.
-    filter: (l, fit) => l.fit === fit,
+    // The band's fit (D5) is a filter on this column, which the read narrows by (00500 lead_matches).
     width: { base: 100, min: 84 },
     on: false,
     cell: (l) => (
@@ -328,10 +321,10 @@ export const LEAD_COLUMNS: readonly DataColumn<LeadRowVM, LeadCellCtx, ColCtx>[]
       </td>
     ),
   },
-  // The Excluded view's chip: one criterion that left a lead out, in the words the row holds (contracts excludedBy).
-  { key: "f_excluded", label: "", hidden: true, filter: (l, why) => l.excludedBy === why },
-  // The Filter (contracts leadReaches): only the leads with a checked email, a checked phone, or both.
-  { key: "f_reach", label: "", hidden: true, filter: (l, reach) => leadReaches(l.slots, reach as LeadReachFilter[]) },
+  // The page's narrowings the table holds and the read applies (00500 lead_matches, the one rule): the Excluded view's
+  // chip (a criterion's key) and the Filter (a checked email, a checked phone, or both).
+  { key: "f_excluded", label: "", hidden: true },
+  { key: "f_reach", label: "", hidden: true },
 ];
 
 /* --------------------------------------------------------------- the phone */

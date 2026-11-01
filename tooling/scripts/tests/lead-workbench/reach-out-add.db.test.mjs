@@ -662,7 +662,8 @@ test("the doors are a signed-in member's; the predicate, the lines and the recor
     now: "reach_out_people_counts(uuid)",
     sources: "reach_out_sources(uuid, integer)",
     leave: "reach_out_leave_out(uuid, uuid)",
-    page: "leads_page(uuid, uuid, text, text, text, integer, text, text, uuid, uuid)",
+    // 00500 made it again with the page's filters (p_filters jsonb).
+    page: "leads_page(uuid, uuid, text, text, text, integer, text, text, uuid, uuid, jsonb)",
   };
   const inner = {
     why: "reach_out_why_not(uuid, uuid[], boolean)",

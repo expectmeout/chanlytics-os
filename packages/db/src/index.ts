@@ -535,6 +535,7 @@ export {
   leadCompanyUpsert,
   leadCountriesOf,
   leadPeopleSearchCreate,
+  leadViewCounts,
   readIdeaHistory,
   readLeadOne,
   saveIdeasLine,

@@ -108,7 +108,9 @@ export type {
 } from "./lead-words";
 export {
   stageArgs,
+  leadFiltersOf,
   leadsRoute,
+  leadsRouteUnchipped,
   parseLeadsRoute,
   LEAD_DRAFT_JSON_SCHEMA,
   leadDraftFooter,
@@ -134,7 +136,6 @@ export {
   leadCheckWord,
   LEAD_SLOT_WORDS,
   leadSlots,
-  leadReaches,
   leadReachOf,
   LEAD_REACH_WORDS,
   leadReachWord,
@@ -160,6 +161,7 @@ export type {
   LeadSearchDto,
   LeadCounts,
   LeadMonthDto,
+  LeadViewCountsDto,
   LeadSuggestionsDto,
   LeadIdeaDto,
   LeadIdeaRole,
@@ -184,6 +186,7 @@ export {
 export type { LeadReviewGroupId, LeadReviewAct, LeadReviewGroup, LeadMapPin, LeadMapPlot } from "./lead-review";
 export {
   leadBand,
+  leadCriterionWords,
   LEAD_MARKS_BUCKET,
   LEAD_MARK_PATH,
   leadMarkSrc,

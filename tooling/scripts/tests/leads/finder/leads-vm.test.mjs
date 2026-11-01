@@ -441,6 +441,7 @@ test("one row is words and shapes, never a stored value: the fit band, the email
     source: "Google Maps listing",
     host: "zilkerstrength.example",
     excludedBy: null,
+    excludedKey: null,
     version: 1,
     // D5: the row as the redesign reads it.
     sub: "Personal trainer · 78704 · 1.2 mi",
