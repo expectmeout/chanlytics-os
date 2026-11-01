@@ -8,7 +8,6 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  max-width: var(--measure-wide);
   position: relative;
 }
 
@@ -1450,18 +1449,6 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 /* The receipt under its figure (`--i`, a quarter each, as the card's are), never past the capsule's right edge. */
 .today-head-figs .tc-receipt { top: calc(100% + 8px); left: min(var(--i, 0) * 25%, 100% - 312px); right: auto; }
 .today-head-figs .tc-receipt[data-last="true"] { left: auto; right: 0; }
-/* Today's bar and head end where its page does, at its measure (--measure-wide, on the left): on a window wider, the bell,
-   the line and the figures stood out at the window's right edge, past the panes under them. The bar's capsules beside the
-   bell read how far short of the window the bar ends (components.css --bar-end). */
-@media (min-width: 901px) {
-  .main:has(> .main-scroll > .dash-a-v2) {
-    --bar-end: max(0px, 100% - var(--measure-wide));
-  }
-  .main:has(> .main-scroll > .dash-a-v2) > .frame-top > .topbar,
-  .main-scroll:has(> .dash-a-v2) > .pg-slot {
-    max-width: var(--measure-wide);
-  }
-}
 
 /* The call rides in the header (status-bars.tsx), not above the queue's rows. */
 .dash-a-v2 .tq-live { display: none; }

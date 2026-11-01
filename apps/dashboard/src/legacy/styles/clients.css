@@ -962,7 +962,7 @@
    PROFILE PAGE
    ==================================================================== */
 
-/* A person's page is one scroll: a column at Today's measure and on the left, as Today and Reports are, the head,
+/* A person's page is one scroll: a column at --measure-wide and on the left, as Reports is, the head,
    then what is coming and what has happened beside what is known about them. It stood centred at --measure-page, so
    it began somewhere else than every other page did. It fills the shell's row as People and the Inbox do: a flex item with no width was
    as wide as its content, 1,115px in a 1,419px pane at 1667, and it was two panes that scrolled apart, each with its
