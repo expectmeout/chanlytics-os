@@ -97,6 +97,8 @@ export function headRight({ onNew }: HeadRightProps) {
 interface BarProps {
   q: string;
   setQ: (q: string) => void;
+  /** The search is the bar's line (a desk's): the bar draws no box of its own. */
+  inLine: boolean;
   hasWhatsApp: boolean;
   lastSync: string | null;
   doing: string | null;
@@ -110,12 +112,14 @@ interface BarProps {
  * remembers: it says when it last looked and presses to look again, and while it looks it is the only control that says
  * it is working (C20). Both were the frame head's (the search in its act, the state in its sentence), which a phone turns
  * into one coral circle and Glass leaves out of the list's reach. The box is the kit's search, as Sequences' beside it is: a
- * plain field here had no glyph and another fill (the sample walk, 18 Oct 2026).
+ * plain field here had no glyph and another fill (the sample walk, 18 Oct 2026). On a desk the box is the bar's line
+ * (the page heads canvas, H2, 31 Oct 2026), and the bar holds the sync alone.
  */
-export function listBar({ q, setQ, hasWhatsApp, lastSync, doing, busy, sync }: BarProps) {
+export function listBar({ q, setQ, inLine, hasWhatsApp, lastSync, doing, busy, sync }: BarProps) {
+  if (inLine && !hasWhatsApp) return null;
   return (
     <div className="tpl-bar">
-      <Search label="Search messages" value={q} onChange={setQ} testid="templates-search" />
+      {!inLine && <Search label="Search messages" value={q} onChange={setQ} testid="templates-search" />}
       {hasWhatsApp && (
         <LinkButton
           className={`tpl-fresh${doing === "sync" ? " is-busy" : ""}`}

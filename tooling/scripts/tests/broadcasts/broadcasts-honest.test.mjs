@@ -30,6 +30,7 @@ import {
   press,
   settle,
 } from "../_legacy-react.mjs";
+import { lineBox } from "../shared/_line.mjs";
 
 const { toBroadcastVM, stateOf, numberHealth } = contracts;
 const TID = "t-studio";
@@ -1527,8 +1528,12 @@ test("Templates is the Inbox's shape: the search and WhatsApp's sync are the lis
     assert.ok(byTestId(head, "template-new"), "the head's act is New");
     assert.equal(byTestId(head, "templates-search"), null, "not the search");
     assert.equal(byTestId(head, "sync-templates"), null, "nor the sync");
+    // On a desk the search is the top bar's line (page-search.ts; the page heads canvas, H2, 31 Oct 2026), and the list's
+    // top bar holds the sync.
     const bar = find(tree, (n) => n.props?.className === "tpl-bar");
-    assert.ok(byTestId(bar, "templates-search") && byTestId(bar, "sync-templates"), "the list's top bar holds both");
+    assert.ok(byTestId(bar, "sync-templates"), "the list's top bar holds the sync");
+    assert.equal(byTestId(bar, "templates-search"), null, "and not the search, which is the line");
+    assert.equal(lineBox()?.props["data-testid"], "templates-search", "the line searches the messages");
     assert.equal(byTestId(tree, "messages-real").props["data-open"], undefined, "nothing open: the list alone");
 
     // A row opens its message in a pane beside the list, and its verbs are the menu in the pane's head.

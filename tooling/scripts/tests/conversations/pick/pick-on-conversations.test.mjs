@@ -15,6 +15,7 @@ import assert from "node:assert/strict";
 import { toConversationVM, toCallVM, stateOf } from "@chanlytics/contracts";
 import { legacyAddress } from "../../shell/address/_address.mjs";
 import { installLegacyReact, fresh as freshTree, again, all, find, textOf, settle } from "../../_legacy-react.mjs";
+import { lineBox } from "../../shared/_line.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-14T14:00:00Z");
@@ -332,7 +333,7 @@ test("the rows take the Inbox's keys: Space picks a row, Enter opens it, and Spa
 test("a pick ends with its tab, and lasts through a search", () => {
   draw();
   pick("Rosa");
-  const box = find(tree, (n) => n.type === "input" && String(n.props?.placeholder || "").startsWith("Search names"));
+  const box = lineBox();
   box.props.onChange({ target: { value: "Nina" } });
   draw();
   assert.match(textOf(bar()), /^1 selected/, "Rosa is still picked though the search hides her row");

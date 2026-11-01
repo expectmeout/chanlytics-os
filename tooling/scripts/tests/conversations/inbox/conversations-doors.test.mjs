@@ -18,6 +18,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toConversationVM, toInboxThreadVM, toCallVM, stateOf, memberWords } from "@chanlytics/contracts";
 import { installLegacyReact, fresh, again, find as findNode, textOf } from "../../_legacy-react.mjs";
+import { lineBox } from "../../shared/_line.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-14T14:00:00Z");
@@ -287,10 +288,8 @@ test("REGRESSION (A22): a new workspace's Conversations says there are none yet 
 
   withRows([toConversationVM(conv([msg({ id: "m1" }), ours()]), null, ZONE, NOW)]);
   fresh();
-  find(
-    page(),
-    (n) => n.type === "input" && String(n.props?.placeholder || "").startsWith("Search names"),
-  ).props.onChange({ target: { value: "zzz" } });
+  page();
+  lineBox().props.onChange({ target: { value: "zzz" } });
   const searched = page();
   assert.ok(!textOf(searched).includes("Pick one on the left"));
   assert.match(textOf(searched), /Nothing matches your search/);
@@ -343,10 +342,7 @@ test("REGRESSION: a search that stops matching the open conversation keeps it op
     row(first, "Rosa Díaz").props.onSelect(row(first, "Rosa Díaz").props.c.id);
     const chosen = page();
     assert.equal(handedTo(chosen), "th-c1", "Rosa is open");
-    find(
-      chosen,
-      (n) => n.type === "input" && String(n.props?.placeholder || "").startsWith("Search names"),
-    ).props.onChange({ target: { value: "gel" } });
+    lineBox().props.onChange({ target: { value: "gel" } });
     const searched = page();
     assert.equal(row(searched, "Rosa Díaz"), undefined, "the words hide her row");
     assert.equal(

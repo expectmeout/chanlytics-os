@@ -2165,6 +2165,52 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
     background-color: var(--surface-control-fill);
   }
 }
+/* The line in the bar's middle on a desk (topbar.tsx TbLine; the page heads canvas, H2, 31 Oct 2026): Ask's capsule held
+   to the middle of the bar whatever stands beside it, so it never moves from page to page, the canvas's 560 wide or a
+   share of a narrow bar. On a narrow desk the middle comes too close to the date's place at the bar's left (the longest
+   day and hour, "WEDNESDAY, SEPTEMBER 30 · 12:42 PM", is about 260px in the mono), so there the line begins clear of it,
+   `--line-from`, and ends clear of the bell. Where it is the page's search its words are typed in it, the placeholder in
+   the dim ink the capsule's words wore, and Ask's own button comes in at its right as there are words to ask about. A
+   tablet's and a phone's are below and in mobile.css. */
+@media (min-width: 901px) {
+  .topbar {
+    position: relative;
+  }
+  .topbar > .tb-ask {
+    --line-half: min(280px, 22%);
+    --line-from: max(50% - var(--line-half), var(--gutter-page) + 272px);
+    position: absolute;
+    top: 28px;
+    left: var(--line-from);
+    width: min(2 * var(--line-half), 100% - var(--line-from) - var(--gutter-page) - 52px);
+    max-width: none;
+  }
+}
+.tb-line {
+  padding-right: 4px;
+  cursor: text;
+}
+.tb-line-words {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-overflow: ellipsis;
+}
+.tb-line-words::placeholder {
+  color: var(--ink-dim);
+  opacity: 1;
+}
+/* A box typed in wears the box's focus, the accent's hairline and its wash (the capsule has no border of its own), from a
+   pointer as from a key: never the keyboard's ring. */
+.tb-line:focus-within {
+  box-shadow: var(--focus-field-edged), var(--surface-control-depth);
+}
 .topbar :is(.tb-bell, .tb-theme) {
   width: 40px;
   color: var(--ink-muted);
@@ -2414,27 +2460,114 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 .main:has(> .frame-top > :is(.live-bar, .unmarked-bar)) > .frame-top > .pg-dateline-slot:not(:has(> :is(.pg-back, .pg-back-after))) {
   visibility: hidden;
 }
-@media (min-width: 1281px) {
+/* What is next on the day (status-bars.tsx NextVisitBar; the page heads canvas, H2, 31 Oct 2026): the least of the three,
+   in the same glass as the visits to mark, its eyebrow in the mono face, the start in the semibold and who it is with in
+   the muted ink. A desk's alone, wider than 1280px (below), and only while neither of the other two is up. */
+.next-bar {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px 0 13px;
+  background-color: var(--surface-control-fill);
+  background-image: var(--surface-control-sheen);
+  backdrop-filter: var(--surface-control-blur);
+  box-shadow: var(--surface-control-depth);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  text-decoration: none;
+}
+.next-bar:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring), var(--surface-control-depth);
+}
+.next-bar-phase {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.next-bar-start {
+  flex: none;
+  font-weight: var(--weight-semibold);
+}
+.next-bar-who {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--ink-muted);
+}
+@media (hover: hover) {
+  .next-bar:hover .next-bar-who {
+    color: var(--ink);
+  }
+}
+/* Wider than 1280px the three stand at the bar's right, beside the bell, in the row of its controls, as wide as the room
+   the line in the bar's middle leaves them (the page heads canvas, H2: the middle is the line to search or ask, which the
+   call stood over). The date keeps its place, and so does a way back. Each says the least that tells it, as a phone's
+   does (below): the name or the count and the clock, the count of the visits to mark, the arrow; the rest is its label.
+   Where the bar ends short of the window (Today, at its measure), `--bar-end` is how far short. */
+/* 901 to 1280px the call and the visits to mark stand in the date's place, as wide as the room the line leaves them
+   (the line's own `--line-from`, read against the bar the way the line reads it). */
+@media (min-width: 901px) and (max-width: 1280px) {
   :is(.live-bar, .unmarked-bar) {
-    top: 14px;
-    left: 50%;
-    max-width: 36%;
-    translate: -50% 0;
+    max-width: calc(
+      max(50% - min(280px, 22%), var(--gutter-page) + 272px) - var(--gutter-page) - 12px
+    );
+  }
+}
+@media (min-width: 1281px) {
+  :is(.live-bar, .unmarked-bar, .next-bar) {
+    --bar-w: calc(100% - var(--bar-end, 0px));
+    --line-half: min(280px, var(--bar-w) * 0.22);
+    position: absolute;
+    top: 30px;
+    right: calc(var(--bar-end, 0px) + var(--gutter-page) + 52px);
+    left: auto;
+    z-index: 2;
+    min-height: var(--control-h-lg);
+    max-width: calc(
+      var(--bar-w) - var(--gutter-page) - 64px - max(var(--bar-w) / 2 - var(--line-half), var(--gutter-page) + 272px) -
+        2 * var(--line-half)
+    );
+    border-radius: var(--radius-full);
+    white-space: nowrap;
+  }
+  .next-bar {
+    display: flex;
+  }
+  .frame-top:has(> :is(.live-bar, .unmarked-bar)) > .next-bar {
+    display: none;
   }
   .main:has(> .frame-top > :is(.live-bar, .unmarked-bar)) > .frame-top > .pg-dateline-slot {
     visibility: visible;
   }
+  .frame-top > .live-bar :is(.live-bar-more, .live-bar-act-words, .live-bar-checking),
+  .frame-top > .unmarked-bar .unmarked-bar-act-words {
+    display: none;
+  }
+  .frame-top > .live-bar .live-bar-act,
+  .frame-top > .unmarked-bar .unmarked-bar-act {
+    height: auto;
+    padding: 0 6px 0 0;
+    background: none;
+    color: var(--ink-muted);
+  }
 }
-/* Where the date's place holds a way back: under the top bar, in the middle of the page's width, as it stood before. The
-   visits to mark stand down there instead: they wait for a page with room for them, and never push one down. */
-.main:has(> .frame-top > .pg-dateline-slot > :is(.pg-back, .pg-back-after)) > .frame-top > .live-bar {
-  position: static;
-  max-width: calc(100% - 32px);
-  margin: 2px 0 6px;
-  translate: none;
-}
-.main:has(> .frame-top > .pg-dateline-slot > :is(.pg-back, .pg-back-after)) > .frame-top > .unmarked-bar {
-  display: none;
+/* Where the date's place holds a way back, 1280px and under: under the top bar, in the middle of the page's width, as it
+   stood before. The visits to mark stand down there instead: they wait for a page with room for them, and never push one
+   down. Wider, the three stand beside the bell, clear of it. */
+@media (max-width: 1280px) {
+  .main:has(> .frame-top > .pg-dateline-slot > :is(.pg-back, .pg-back-after)) > .frame-top > .live-bar {
+    position: static;
+    max-width: calc(100% - 32px);
+    margin: 2px 0 6px;
+    translate: none;
+  }
+  .main:has(> .frame-top > .pg-dateline-slot > :is(.pg-back, .pg-back-after)) > .frame-top > .unmarked-bar {
+    display: none;
+  }
 }
 /* A phone (and a tablet, which wears the phone's head): the date's place is on the bell's line, 10px down, and the island
    is the bell's height there. It says the least that tells the call: the name or the count, the clock (or each of two),
@@ -2571,6 +2704,26 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
     height: var(--control-h-lg);
     padding: 0 16px;
     font-size: var(--text-base);
+  }
+  /* A list's tools before its act (People, Leads and the Pipeline: Columns, Export, Leads' Filter, Map and Values, the
+     Pipeline's list or board; the page heads canvas, H1, 31 Oct 2026): words at the strip's height in the muted ink, as
+     they stood in the list's controls row, which the bar's line left with nothing else to hold. Reached by their place:
+     each is the kit's quiet button, alone or in its menu's wrap. */
+  .pg-tools {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    margin-right: var(--space-2);
+  }
+  .pg-tools > button,
+  .pg-tools > :not(.pipe-views) > button {
+    height: var(--control-h-lg);
+    padding: 0 10px;
+    border: 0;
+    border-radius: var(--radius-full);
+    font-size: var(--text-base);
+    font-weight: var(--weight-medium);
+    color: var(--ink-muted);
   }
 }
 .pg-slot > .stabs {

@@ -15,6 +15,7 @@
  * of acts over it, its keys -- is pick.tsx, which Conversations draws too.
  */
 import { useCallback, useEffect, useState, type KeyboardEvent, type ReactNode } from "react";
+import { BAR_LINE_WORDS } from "@chanlytics/contracts";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { Search } from "../../kit/search/search";
@@ -23,6 +24,7 @@ import { useSwapMotion } from "../../kit/motion/use-swap-motion";
 import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
 import { ixKeepPlace, ixPlace } from "../place";
 import { useNeedsYouParts } from "../../needs-you";
+import { usePageSearch } from "../../kit/head/page-search";
 import type { Flash } from "../../shell-doors";
 import { InboxRunsWaiting } from "./inbox-runs";
 import { threadRows, useShownThreads } from "./list-rows";
@@ -133,6 +135,8 @@ function listProps({
 export interface ListCtx extends ReturnType<typeof listProps> {
   query: string;
   setQuery: (v: string) => void;
+  /** The search is the bar's line (a desk's): the row draws no box of its own. */
+  inLine: boolean;
   showViews: boolean;
   setShowViews: (v: boolean) => void;
   askArchive: boolean;
@@ -170,6 +174,13 @@ function visibleRows(p: { query: string; allThreads: Thread[]; threads: Thread[]
   return [...visible].sort((a, b) => (priorityRank[a.priority] ?? 9) - (priorityRank[b.priority] ?? 9));
 }
 
+/**
+ * Whether the list opens on its buckets, with no row over them: on a desk, where the search is the bar's line (page heads,
+ * H2), while nothing is picked and no saved view has anything in it, so neither the select-all nor the views' toggle shows.
+ */
+const bareOf = (L: Pick<ListCtx, "inLine" | "views" | "selected">): boolean =>
+  L.inLine && L.selected.length === 0 && !L.views.some((v) => v.count > 0);
+
 /** The threads picked, in the order they were picked. */
 const pickedThreads = (L: Pick<ListCtx, "selected" | "allThreads">): Thread[] =>
   L.selected.flatMap((id) => L.allThreads.find((t) => t.id === id) ?? []);
@@ -189,6 +200,13 @@ export function InboxList(props: InboxListProps) {
     setQueryNow(v);
     ixKeepPlace({ q: v });
   };
+  // On a desk the search is the bar's line (page-search.ts), and the list opens on its buckets; a phone keeps its box.
+  const inLine = usePageSearch({
+    label: BAR_LINE_WORDS.inbox,
+    value: query,
+    onValue: setQuery,
+    testid: "inbox-search",
+  });
   const [showViews, setShowViews] = useState(false);
   // Archiving real threads cannot be undone, so the bar asks first; a cleared selection drops the question.
   const [askArchive, setAskArchive] = useState(false);
@@ -257,6 +275,7 @@ export function InboxList(props: InboxListProps) {
     ...base,
     query,
     setQuery,
+    inLine,
     showViews,
     setShowViews,
     askArchive,
@@ -270,7 +289,10 @@ export function InboxList(props: InboxListProps) {
   };
 
   return (
-    <div className={`ix-list ${L.density} ${selected.length > 0 ? "picking" : ""}`}>
+    <div
+      className={`ix-list ${L.density} ${selected.length > 0 ? "picking" : ""}`}
+      data-bare={bareOf(L) ? "" : undefined}
+    >
       {bucketTabs(L)}
       {searchBox(L)}
       {viewChips(L)}
@@ -331,10 +353,13 @@ function bucketTabs(L: ListCtx) {
 /**
  * Search + saved-views toggle row. The select-all box leads it, over the rows' own boxes: it sat on the list's
  * head, a 38px line of its own beside a count the chip already said. The search is the kit's, People's capsule: the
- * field, a press on it the first word's place.
+ * field, a press on it the first word's place. On a desk the search is the bar's line, and the row holds the rest; while
+ * none of it is there to see (`bare`) it takes no room until a key reaches its select-all (inbox.css), so the list opens
+ * on its buckets.
  */
 function searchBox(L: ListCtx) {
-  const { visible, allThreads, query, setQuery, views, showViews, setShowViews } = L;
+  const { visible, allThreads, query, setQuery, views, showViews, setShowViews, inLine } = L;
+  const toggle = views.some((v) => v.count > 0);
   return (
     <div className="ix-search-row">
       {visible.length > 0 &&
@@ -344,14 +369,16 @@ function searchBox(L: ListCtx) {
           onToggle: L.onToggleSelect,
           onClear: L.onClearSelection,
         })}
-      <Search
-        className="ix-lookup"
-        label={allThreads.some((t) => t.real) ? "Search by name or message" : "Search threads, clients, tags"}
-        value={query}
-        onChange={setQuery}
-        testid="inbox-search"
-      />
-      {views.some((v) => v.count > 0) && (
+      {!inLine && (
+        <Search
+          className="ix-lookup"
+          label={allThreads.some((t) => t.real) ? "Search by name or message" : "Search threads, clients, tags"}
+          value={query}
+          onChange={setQuery}
+          testid="inbox-search"
+        />
+      )}
+      {toggle && (
         <button
           className={`ix-views-toggle ${showViews ? "open" : ""}`}
           onClick={() => setShowViews(!showViews)}

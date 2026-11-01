@@ -2247,6 +2247,18 @@ button.ix-ctx { text-align: left; cursor: pointer; transition: background 100ms;
   padding: 14px 18px 10px;
   border-bottom: 0;
 }
+/* On a desk the search is the bar's line (the page heads canvas, H2, 31 Oct 2026), and while nothing else stands over
+   the buckets (inbox-list.tsx bareOf) the row that held it takes no room until a key reaches its select-all, as the box
+   itself does (below), and the list opens on its buckets, 8px under the pane's edge: their words level with the open
+   thread's name beside them. The row is the list's second part, reached by its place: its class is a primitive's word. */
+.ix-list[data-bare] > :nth-child(2):not(:focus-within) {
+  height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+.ix-list[data-bare] > .ix-buckets {
+  padding-top: 8px;
+}
 .ix-list > .ix-buckets {
   order: 2;
 }

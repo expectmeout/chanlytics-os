@@ -39,6 +39,7 @@ export {
 export type { RunStopWords } from "./campaign-rooms";
 export {
   APP_KEYS_RESIZE_CLASS,
+  BAR_LINE_WORDS,
   DEFAULT_LOOK_PREF,
   DEFAULT_SIDEBAR_PREF,
   DEFAULT_THEME_PREF,

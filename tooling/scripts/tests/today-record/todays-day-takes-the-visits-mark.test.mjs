@@ -7,11 +7,12 @@
  * decision 0002 chose never to use for a visit). Today's day now takes the mark from the calendar's block: a cancelled visit is
  * none, a missed one is never under way or next, a kept one says Kept, and a day that is over says it is past.
  *
- * Run on todayDay and todayBriefWords over the blocks the calendar surface publishes, and on the strip drawn on the stub React.
+ * Run on todayDay, todayBriefWords and todayDayNext over the blocks the calendar surface publishes, and on the top bar's
+ * Next (frame/topbar/status-bars.tsx NextVisitBar), the strip's next appointment since 31 Oct 2026, drawn on the stub React.
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { todayBriefWords, todayDay } from "@chanlytics/contracts";
+import { HOUR_MS, todayBriefWords, todayDay, todayDayNext } from "@chanlytics/contracts";
 import { installLegacyReact, fresh, all, byTestId, textOf } from "../_legacy-react.mjs";
 import { handoffDay } from "./_world.mjs";
 
@@ -24,7 +25,8 @@ installLegacyReact({
   clearInterval() {},
 });
 const W = globalThis.window;
-const { TodayStrip } = await import("../../../../apps/dashboard/src/surfaces/today/pages/strip.tsx");
+const { NextVisitBar } = await import("../../../../apps/dashboard/src/surfaces/frame/topbar/status-bars.tsx");
+const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
 
 /** A visit on the board: [id, hour, what it is for, the record's word on it, the person]. One hour long. */
 const visit = (id, t, service, status = "booked", person = null) => ({
@@ -194,45 +196,79 @@ test("a day that is over says it is past, never 'all done': the word decision 00
   for (const cal of [over(19), ended]) assert.ok(!/all done/.test(briefDay(cal)), briefDay(cal));
 });
 
-/* ------------------------------------------------------ the strip ------------------------------------------------------ */
+/* ----------------------------------------- what is next, in the frame's top bar ----------------------------------------- */
 
-const drawStrip = () => {
+/** The clock at `h` hours on the calendar's day, in its zone (America/New_York, four hours behind UTC in September). */
+const at = (h) => Date.UTC(2026, 8, 18, 4) + h * HOUR_MS;
+
+const drawNext = (cal, h = 16) => {
   fresh();
-  return W.React.createElement(TodayStrip, {});
+  setSurfaceValue("calendar", { vm: cal });
+  Date.now = () => at(h);
+  return W.React.createElement(NextVisitBar, {});
 };
+const realNow = Date.now;
 after(() => {
-  delete W.__CALENDAR;
+  setSurfaceValue("calendar", undefined);
+  Date.now = realNow;
 });
-const next = (cal) => {
-  W.__CALENDAR = { vm: cal };
-  return byTestId(drawStrip(), "today-strip-next");
-};
 
-test("the strip's Next cell names the next visit that stands: a cancelled one is never it, a missed one is not under way", () => {
-  const cell = next(afternoon());
-  const words = textOf(cell);
-  assert.ok(words.includes("5 PM") && words.includes("Dulce Amaro"), words);
-  assert.ok(!words.includes("Priya Nair") && !words.includes("Balayage"), `the cancelled visit is not named: ${words}`);
-  assert.match(words, /^Next/);
-  // Said missed in its slot: the cell says what comes next, not "Now".
-  const gone = next(
+test("the bar's Next names the next visit that stands: a cancelled one is never it, a missed one is not under way", () => {
+  const next = todayDayNext(afternoon(), at(16));
+  assert.equal(next.phase, "Next");
+  assert.equal(next.start, "5 PM");
+  assert.equal(next.who, "Dulce Amaro");
+  assert.ok(!/Priya Nair|Balayage/.test(next.label), `the cancelled visit is not named: ${next.label}`);
+  // Said missed in its slot: the bar says what comes next, not "Now".
+  const gone = todayDayNext(
     calendar([visit("m", 15.5, "Trim", "missed", "Ana Reyes"), visit("n", 17, "Color", "booked", "Dulce Amaro")]),
+    at(16),
   );
-  assert.match(textOf(gone), /^Next/);
-  assert.ok(textOf(gone).includes("Dulce Amaro") && !textOf(gone).includes("Ana Reyes"), textOf(gone));
-  // Nothing left that stands: no Next cell at all.
-  W.__CALENDAR = {
-    vm: calendar([visit("m", 15.5, "Trim", "missed", "Ana Reyes"), visit("c", 17, "Cut", "cancelled")]),
-  };
-  assert.equal(all(drawStrip(), (n) => n.props?.["data-testid"] === "today-strip-next").length, 0);
+  assert.equal(gone.phase, "Next");
+  assert.equal(gone.who, "Dulce Amaro");
+  // Nothing left that stands: no Next at all, and the bar draws nothing.
+  const none = calendar([visit("m", 15.5, "Trim", "missed", "Ana Reyes"), visit("c", 17, "Cut", "cancelled")]);
+  assert.equal(todayDayNext(none, at(16)), null);
+  assert.equal(all(drawNext(none), (n) => n.props?.["data-testid"] === "next-bar").length, 0);
 });
 
-test("the strip says Kept beside a visit that is said kept and still under way", () => {
-  const cell = next(
+test("the bar says Kept beside a visit that is said kept and still under way", () => {
+  const next = todayDayNext(
     calendar([visit("k", 15.5, "Trim", "kept", "Ana Reyes"), visit("n", 17, "Color", "booked", "Dulce Amaro")]),
+    at(16),
   );
-  assert.match(textOf(cell), /^Now/);
-  assert.ok(textOf(cell).includes("Ana Reyes") && textOf(cell).includes("Kept"), textOf(cell));
+  assert.equal(next.phase, "Now");
+  assert.equal(next.who, "Ana Reyes");
+  assert.match(next.label, /Kept/);
+});
+
+test("the bar reads the clock now, not the minute the Calendar was read: a visit that began since is under way", () => {
+  // The Calendar was read at four (its `now`); the bar stays up across pages, and at half past five Dulce Amaro is in.
+  const cal = afternoon();
+  assert.equal(todayDayNext(cal, at(16)).phase, "Next");
+  const later = todayDayNext(cal, at(17.5));
+  assert.equal(later.phase, "Now");
+  assert.equal(later.who, "Dulce Amaro");
+  // Past the last visit, nothing is next.
+  assert.equal(todayDayNext(cal, at(19.5)), null);
+  // No calendar, or one that could not be read: nothing is claimed.
+  assert.equal(todayDayNext(null, at(16)), null);
+  assert.equal(todayDayNext({ ...cal, feed: { ...cal.feed, state: "unavailable" } }, at(16)), null);
+});
+
+test("REGRESSION (S9-7): the bar's Next opens the visit itself, a link, and its day where it has none", () => {
+  const door = (b) => byTestId(drawNext(calendar([b])), "next-bar");
+  const visitDoor = door(visit("v9", 17, "Color", "booked", "Dulce Amaro"));
+  assert.equal(visitDoor.type, "a", "a link: a long press or a new tab opens it too");
+  assert.match(visitDoor.props.href, /\/calendar\/(\d{4}-\d{2}-\d{2}:)?a-ap-v9$/, "the visit's own address");
+  assert.equal(typeof visitDoor.props.onClick, "function");
+  assert.equal(visitDoor.props["aria-label"], "Next at 5 PM: Dulce Amaro · Color · 1h");
+  assert.equal(
+    textOf(byTestId(drawNext(calendar([visit("v9", 17, "Color", "booked", "Dulce Amaro")])), "next-bar")),
+    "Next5 PMDulce Amaro",
+  );
+  const day = door({ ...visit("b17", 17, "Color", "booked", "Dulce Amaro"), visit: null });
+  assert.match(day.props.href, /\/calendar\/\d{4}-\d{2}-\d{2}$/, "a block with no visit row opens its day");
 });
 
 test("the brief counts in the workspace's word for an appointment, as Campaigns says it (decision 0041, D1-visit-words)", () => {

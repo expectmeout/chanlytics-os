@@ -41,6 +41,7 @@ import {
 } from "@chanlytics/contracts";
 import { hookFrames } from "../../_hook-frames.mjs";
 import { keysDrawn } from "../../_keys.mjs";
+import { lineBox } from "../../shared/_line.mjs";
 
 // People's TSX, the Leads page and the surface it reads, loaded as the app's own modules are (one instance of the surface's value
 // store and of its signal, which the page's hooks and this file share): the page, how many rows a table draws first, and the
@@ -592,11 +593,12 @@ const menuOf = (name) => menus.find((m) => m.title === `More for ${name}`);
 /** The Leads tree `draw` last made: what the person is looking at, for the controls a test presses without being handed it. */
 let lastDrawn = null;
 /**
- * The desk's map switch: Map (or Table), a quiet button of its own beside Columns (leads/scope/controls.tsx), as the last
- * draw made it (the phone's is its bar's, which this does not find: a desk is drawn here).
+ * The desk's map switch: Map (or Table), a quiet button of its own beside Columns (leads/scope/controls.tsx), on the row of
+ * views where the page's act stands, as the last draw said it (the phone's is its bar's, which this does not find: a desk
+ * is drawn here).
  */
 const mapToggle = () => {
-  const button = lastDrawn && byTestId(lastDrawn, "leads-map-toggle");
+  const button = lastDrawn && byTestId(seen(lastDrawn), "leads-map-toggle");
   assert.ok(button, "the desk's controls offer the map");
   assert.ok(["Map", "Table"].includes(textOf(button)), `the map's button says Map or Table, not ${textOf(button)}`);
   return { props: { onClick: button.props.onClick } };
@@ -1222,7 +1224,7 @@ test("the Leads scope draws the rows the surface read, in the order it read them
 test("the desk's map, Values / Signals and Export stand beside Columns as three quiet words, each doing its own act -- the ⋯ that folded them is gone", async () => {
   await fresh();
   let tree = draw();
-  const acts = (t) => find(t, (n) => n.props?.className === "pl-file-acts");
+  const acts = (t) => find(seen(t), (n) => n.props?.className === "pl-file-acts");
   const ids = ["leads-map-toggle", "leads-values-toggle", "leads-export"];
   const word = (id) => textOf(byTestId(acts(tree), id));
   assert.ok(acts(tree), "the file acts stand in the controls row");
@@ -1294,7 +1296,7 @@ test("the desk's map, Values / Signals and Export stand beside Columns as three 
 test("Export, for a role that may not take the file, stays on the page, says why at the button and downloads nothing", async () => {
   await fresh({ role: "operator" });
   const tree = draw();
-  const exportIt = byTestId(tree, "leads-export");
+  const exportIt = byTestId(seen(tree), "leads-export");
   assert.ok(exportIt, "the button stays");
   assert.deepEqual(
     [exportIt.props["aria-disabled"], exportIt.props["data-gated"]],
@@ -1307,8 +1309,8 @@ test("Export, for a role that may not take the file, stays on the page, says why
   assert.deepEqual(wrote(), [], "a press exports nothing");
   assert.deepEqual(navigated, [], "and sends the browser nowhere");
   // The map and Values are not the file: a role that may not export may still look.
-  assert.equal(byTestId(tree, "leads-map-toggle").props["data-gated"], undefined);
-  assert.equal(byTestId(tree, "leads-values-toggle").props["data-gated"], undefined);
+  assert.equal(byTestId(seen(tree), "leads-map-toggle").props["data-gated"], undefined);
+  assert.equal(byTestId(seen(tree), "leads-values-toggle").props["data-gated"], undefined);
 });
 
 test("a press on a gated Export shows the reason at the button, as every gate does (a finger has no hover)", async () => {
@@ -1317,7 +1319,7 @@ test("a press on a gated Export shows the reason at the button, as every gate do
   const keep = globalThis.window.__tip;
   globalThis.window.__tip = { show: (el) => shown.push(el) };
   try {
-    const exportIt = byTestId(draw(), "leads-export");
+    const exportIt = byTestId(seen(draw()), "leads-export");
     const pressed = { stopPropagation() {}, preventDefault() {}, currentTarget: { name: "the Export button" } };
     exportIt.props.onClick(pressed);
     assert.deepEqual(shown, [pressed.currentTarget], "the tip is shown at the button that was pressed");
@@ -2107,9 +2109,8 @@ test("People and Leads are two components: each keeps its own state, and People 
   // They were one component, every hook of both scopes declared in both in one order: the order the stub kept hooks
   // by. Each is its own now (PeopleReal, LeadsReal, over the same two hooks), and the shell mounts them apart.
   await fresh();
-  const peopleBox = (tree) =>
-    find(tree, (n) => n.type === "input" && n.props?.placeholder === "Search names, numbers and emails…");
-  const leadsBox = (tree) => find(tree, (n) => n.type === "input" && n.props?.placeholder === "Search leads");
+  const peopleBox = () => lineBox();
+  const leadsBox = () => lineBox();
   peopleBox(draw({ scope: "people", leadsRoute: null })).props.onChange({ target: { value: "zilker" } });
   assert.equal(peopleBox(draw({ scope: "people", leadsRoute: null })).props.value, "zilker");
   assert.equal(listeners["surface:leads"]?.size ?? 0, 0, "a Leads refresh does not draw People again");
@@ -2270,8 +2271,8 @@ test("a click on a lead's row peeks it, as Enter does", async () => {
 
 test("the search box's words are read, once typing stops, by name, kind and area, over the whole view", async () => {
   await fresh();
-  let tree = draw();
-  const box = find(tree, (n) => n.type === "input" && n.props?.placeholder === "Search leads");
+  draw();
+  const box = lineBox();
   const asked = () =>
     reads.filter((r) => r.startsWith("/api/v1/leads?")).map((r) => new URLSearchParams(r.split("?")[1]).get("q"));
   const before = asked().length;
@@ -2281,7 +2282,7 @@ test("the search box's words are read, once typing stops, by name, kind and area
     draw();
   }
   await wordsRead("lamar");
-  tree = draw();
+  const tree = draw();
   assert.deepEqual(names(tree), ["Lamar Strength Co."]);
   assert.deepEqual(asked().slice(before), ["lamar"], "one read, for the words typing stopped on");
   box.props.onChange({ target: { value: "78704" } });
@@ -2626,7 +2627,7 @@ test("a lead opened over a view is not a new view: nothing is read again, the se
 
 /* ------------------------------ the page keeps your place ------------------------------ */
 
-const searchBox = (tree) => find(tree, (n) => n.type === "input" && n.props?.placeholder === "Search leads");
+const searchBox = () => lineBox();
 /** The tab refreshed, or the owner went to the Inbox and came back: the page's state is gone, the tab's storage is not. */
 const comeBack = (props) => {
   cells = [];

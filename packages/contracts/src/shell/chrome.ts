@@ -250,6 +250,23 @@ export function pageTitle(crumbs: readonly Crumb[] | null | undefined, needs?: n
   return n > 0 ? `(${n}) ${where}` : where;
 }
 
+/**
+ * The line in the top bar's middle on a desk (the page heads canvas, H2, 31 Oct 2026): one line to search the page's list
+ * or ask. While it is empty it says what it searches where the page has a list to search, and that the words can be asked
+ * about, else Ask's own name; its one button asks. No page's name: the sidebar's row says it (Ruben, 1 Oct 2026).
+ */
+export const BAR_LINE_WORDS = {
+  ask: "Ask Chanlytics",
+  send: "Ask",
+  people: "Search people, or ask about them",
+  leads: "Search leads, or ask about them",
+  pipeline: "Search deals, or ask about them",
+  inbox: "Search the inbox, or ask about it",
+  conversations: "Search conversations, or ask about them",
+  campaigns: "Search campaigns, or ask about them",
+  messages: "Search messages, or ask about them",
+} as const;
+
 /** What a public page's tab and search listing say about it: the fields of Next's metadata those pages set. */
 export interface PublicPageMetadata {
   title: string;

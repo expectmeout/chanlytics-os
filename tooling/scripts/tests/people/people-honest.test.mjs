@@ -22,6 +22,7 @@ import assert from "node:assert/strict";
 import { legacyAddress, historyOf } from "../shell/address/_address.mjs";
 import { installRoleStore, kitPages, peoplePages, useStubHooks } from "../_legacy-react.mjs";
 import { until } from "../shared/_until.mjs";
+import { lineBox } from "../shared/_line.mjs";
 import {
   CONSENT_SOURCES,
   ROLE_PERMS,
@@ -503,6 +504,8 @@ const { PeopleReal } = await import("../../../../apps/dashboard/src/surfaces/peo
 await (await import("../../../../apps/dashboard/src/surfaces/people/peek/peek-code.tsx")).peekCode();
 const { PeopleAddSheet } = await import("../../../../apps/dashboard/src/surfaces/people/import/import-sheet.tsx");
 const { standingSaid } = await import("../../../../apps/dashboard/src/surfaces/kit/head/standing.ts");
+/** What the page said to the head beside the strip: a desk's Columns and Export, then Add people. */
+const headAct = () => standingSaid()?.act ?? null;
 /** A browser that can watch a list's box, where the table draws a window of its rows (kit/rows/shown-rows.ts). */
 const watchingBoxes = () => {
   const kept = globalThis.ResizeObserver;
@@ -877,7 +880,7 @@ test("a selection never outlives its view, and does outlive a search: a list pic
       ),
     ),
   ];
-  const box = (tree) => find(tree, (n) => n.type === "input" && /^Search/.test(String(n.props?.placeholder || "")));
+  const box = () => lineBox();
   byTestId(draw(), "select-all").props.onChange();
   assert.ok(byTestId(draw(), "bulk-bar"), "everyone shown is selected");
   box(draw()).props.onChange({ target: { value: "zz-nobody" } });
@@ -941,14 +944,14 @@ test("REGRESSION (B6): past everyone loaded, a search keeps the loaded people it
     search: () => ({ people: [person(99, { display_name: "Saturday Jones" })], total: 1, has_more: false }),
   });
   globalThis.window.__PEOPLE.page = { ...globalThis.window.__PEOPLE.page, total: 60000, has_more: true };
-  let tree = draw();
-  find(tree, (n) => n.type === "input" && /Search/.test(n.props?.placeholder || "")).props.onChange({
+  draw();
+  lineBox().props.onChange({
     target: { value: "saturday" },
   });
   draw();
   await searchLanded(seen, 0);
   assert.deepEqual(seen.queries, ["saturday"], "the box asked the server once, for its words");
-  tree = draw();
+  let tree = draw();
   const names = all(tree, (n) => n.props?.["data-testid"] === "row-select").map((n) => n.props["aria-label"]);
   assert.ok(names.includes("Select Saturday Jones"), `the server's match is shown: ${names}`);
   assert.ok(
@@ -959,7 +962,7 @@ test("REGRESSION (B6): past everyone loaded, a search keeps the loaded people it
   assert.ok(textOf(tree).includes("Showing 2 of 60000"), "the foot counts against everyone, not the rows in hand");
 
   seen.search = () => ({ fail: "That search is too long." });
-  find(tree, (n) => n.type === "input" && /Search/.test(n.props?.placeholder || "")).props.onChange({
+  lineBox().props.onChange({
     target: { value: "saturday!" },
   });
   draw();
@@ -1263,11 +1266,22 @@ test("on a phone the top is the list's row and the search under the frame's stri
     assert.ok(byTestId(top, "people-phone-lists"), "and the list stays over it");
   }));
 
-test("a desktop draws no phone bar, and keeps its controls row and its list head", async () => {
+test("a desktop draws no phone bar and no controls row: its search is the bar's line and its tools stand by the act; the list head stays", async () => {
   await freshPage({ people: [person(1)] });
   const tree = draw();
   assert.equal(byTestId(tree, "people-phone-bar"), null);
-  assert.ok(find(tree, (n) => n.props?.className === "cl-controls"));
+  assert.equal(
+    find(tree, (n) => n.props?.className === "cl-controls"),
+    null,
+    "the row under the line held them",
+  );
+  assert.equal(
+    find(tree, (n) => n.type === "input" && /^Search/.test(String(n.props?.placeholder || ""))),
+    null,
+    "no search box of the page's own",
+  );
+  assert.equal(lineBox().props.placeholder, "Search people, or ask about them", "the bar's line is the search");
+  assert.ok(columnsMenu() && byTestId(headAct(), "people-export"), "Columns and Export by the act");
   assert.ok(find(tree, (n) => n.props?.className === "cl-section-head"));
 });
 
@@ -2171,7 +2185,7 @@ test("export follows the list that is open, and is not offered for a list that c
   // Export is a quiet button in the controls row after Columns (file-acts.tsx; the ⋯ that folded it away is gone): the
   // link is the route's (the client's own url for GET contacts/export), opened in place, with its path and the list it is
   // asked for. Its tip is what the item's title was.
-  const exportItem = (tree) => byTestId(tree, "people-export");
+  const exportItem = () => byTestId(headAct(), "people-export");
   const opened = [];
   const open = globalThis.window.open;
   globalThis.window.open = (u) => opened.push(String(u));
@@ -2222,8 +2236,8 @@ test("export follows the list that is open, and is not offered for a list that c
     const me = globalThis.window.__ME;
     globalThis.window.__ME = { role: "viewer" };
     try {
-      const tree = draw();
-      const denied = byTestId(tree, "people-export");
+      draw();
+      const denied = byTestId(headAct(), "people-export");
       assert.ok(denied, "Export stays, so the member sees it is held rather than missing");
       assert.equal(denied.props["data-gated"], "", "gated");
       assert.equal(typeof denied.props["data-tip"], "string", "with the role's reason as its tip");
@@ -2659,7 +2673,8 @@ test("the keyboard: J/K and the arrows move, x and Space select, Enter opens, / 
   assert.equal(press("Enter", { tagName: "TR", isContentEditable: false, closest: () => null }), true);
   assert.equal(peeked(), "Preview of Person 2", "Enter opens the person under the cursor, in the peek on a desk");
   assert.deepEqual(opened, [], "and not their page");
-  const box = find(draw(), (n) => n.type === "input" && /Search/.test(n.props?.placeholder || ""));
+  draw();
+  const box = lineBox();
   let focusedSearch = 0;
   box.props.ref.current = {
     focus: () => {
@@ -2860,7 +2875,8 @@ test("REGRESSION: People draws no key -- the table's foot named every one (J K x
 
 test("/ goes to the search on an empty table too", async () => {
   await freshPage({ people: [] });
-  const box = find(draw(), (n) => n.type === "input" && /Search/.test(n.props?.placeholder || ""));
+  draw();
+  const box = lineBox();
   let focused = 0;
   box.props.ref.current = {
     focus: () => {
@@ -2896,7 +2912,7 @@ test("a radio's arrow keys are the radio's; a held x, Space or Enter acts once, 
  * Its opening, its staying open while a switch flips, Person's refusal of a press and its Esc are Base UI's, driven in a
  * browser by e2e/kit/kit-behaves.spec.ts ("a menu of switches"); here, what the page hands it and what a flip does.
  */
-const columnsMenu = (tree) => find(tree, (n) => n.type === Menu && n.props.label === "Columns");
+const columnsMenu = () => find(headAct(), (n) => n.type === Menu && n.props.label === "Columns");
 const switches = (tree) => columnsMenu(tree).props.groups.find((g) => g.toggles).toggles;
 /** Its switches: which column, whether it shows, and whether it is Person's, which always does; one flipped as Base UI does. */
 const menuItems = (tree) =>
@@ -3608,7 +3624,7 @@ test("REGRESSION: a search match past the people loaded is exported with the res
   globalThis.window.__PEOPLE.page = { ...globalThis.window.__PEOPLE.page, total: 60000, has_more: true };
   const { blobs, restore } = catchExports();
   try {
-    find(draw(), (n) => n.type === "input" && /Search/.test(n.props?.placeholder || "")).props.onChange({
+    (draw(), lineBox()).props.onChange({
       target: { value: "saturday" },
     });
     draw();
@@ -4059,7 +4075,7 @@ test("a People row is drawn from what is its own: every prop is a primitive or t
   for (const k of ["ctx", "onOpen", "rowClass", "words"])
     assert.ok(Object.is(a[0].props[k], b[0].props[k]), `${k} is the same object on a draw that changed nothing`);
   // A keystroke in the box is not a row's own either.
-  find(tree, (n) => n.type === "input" && /Search/.test(n.props?.placeholder || "")).props.onChange({
+  lineBox().props.onChange({
     target: { value: "p" },
   });
   tree = draw();
@@ -4093,7 +4109,7 @@ test("People keeps its place per view in the tab: the words in the box and the c
       people: [person(1), person(2), person(3)],
       lists: [{ id: "s1", name: "Regulars", ids: ["p1", "p2"] }],
     });
-    const box = (tree) => find(tree, (n) => n.type === "input" && /Search/.test(n.props?.placeholder || ""));
+    const box = () => lineBox();
     draw();
     let tree = draw();
     assert.equal(box(tree).props.value, "", "nothing kept yet");
@@ -4214,11 +4230,11 @@ test("past everyone loaded, the line under the table says the server is being se
       }),
   });
   globalThis.window.__PEOPLE.page = { ...globalThis.window.__PEOPLE.page, total: 60000, has_more: true };
-  let tree = draw();
-  find(tree, (n) => n.type === "input" && /Search/.test(n.props?.placeholder || "")).props.onChange({
+  draw();
+  lineBox().props.onChange({
     target: { value: "person" },
   });
-  tree = draw();
+  let tree = draw();
   assert.ok(
     !/searching everyone/.test(textOf(byTestId(tree, "people-more"))),
     "not yet: the box waits a moment before asking",

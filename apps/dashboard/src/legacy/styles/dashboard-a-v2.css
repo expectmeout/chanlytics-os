@@ -1402,7 +1402,7 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   gap: 14px;
   align-items: stretch;
 }
-.dash-a-v2-glass > :is(.today-alert, .today-strip, .dash-a-v2-bottom, .tsec.tp) { grid-column: 1 / -1; }
+.dash-a-v2-glass > :is(.today-alert, .dash-a-v2-bottom, .tsec.tp) { grid-column: 1 / -1; }
 .dash-a-v2-glass > .dash-a-v2-work { grid-column: span 8; gap: 14px; }
 .dash-a-v2-glass > .dash-a-v2-work > .today-queue { flex: 1 1 auto; display: flex; flex-direction: column; }
 /* The foot follows the last row, the room the queue stands tall by under it: pinned to the bottom, it stood 130px under
@@ -1420,78 +1420,49 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   .dash-a-v2-bottom { grid-template-columns: minmax(0, 1fr); }
 }
 
-/* The strip: one capsule of cells, a hairline between them -- the call with its clock and its door, the next appointment
-   under its eyebrow, and the next opening as the one green capsule at the right (the canvas's "Open until"). It is as
-   wide as what it says, at the page's left, 56px tall, as the canvas draws it. */
-.today-strip {
+/* The day's four figures in the head's right on a desk (card.tsx TodayHeadFigures; the page heads canvas, H1 and H2,
+   31 Oct 2026): one capsule of the control layer's glass beside the greeting, a hairline between the four, each its
+   number over its word. The clause under each is the card's, and in the head it is its receipt's, which opens under the
+   figure over the page. The receipt's press keeps the card's shape, reached by its place (its class is a primitive's word). */
+/* Above the panes under the head, so a receipt opened from the head stands over them. */
+.today-head-figs {
   position: relative;
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: stretch;
-  justify-self: start;
-  max-width: 100%;
-  min-height: 56px;
-  border-radius: var(--radius-full);
-  background: var(--surface-control-fill);
-  box-shadow: var(--surface-control-depth);
-  overflow: hidden;
+  z-index: 3;
 }
-/* The strip is the control layer's glass (E3: the same glass as the sidebar and Ask), and blurs what passes behind it
-   on a desk. */
-@media (min-width: 901px) {
-  .today-strip { backdrop-filter: var(--surface-control-blur); }
-}
-.today-strip::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  padding: 1px;
-  border-radius: inherit;
-  background: var(--surface-control-rim);
-  mask:
-    linear-gradient(#000 0 0) content-box exclude,
-    linear-gradient(#000 0 0);
-  pointer-events: none;
-}
-.ts-cell {
+.today-head-figs > .tc-figs {
   display: flex;
-  align-items: center;
-  gap: 9px;
-  min-width: 0;
-  min-height: 56px;
-  padding: 0 18px;
-  font-size: var(--text-base);
-  color: var(--ink);
+  gap: 0;
+  padding: 0 6px;
+  border-radius: var(--radius-2xl);
+  background-color: var(--surface-control-fill);
+  background-image: var(--surface-control-sheen);
+  box-shadow: var(--surface-control-depth);
 }
-.ts-cell + .ts-cell { border-left: 1px solid var(--line); }
-/* The next appointment opens it (S9-7): the cell as E3 draws it, its words a shade darker under a pointer. */
-a.ts-next { text-decoration: none; }
-@media (hover: hover) { a.ts-next:hover .ts-rest { color: var(--ink); } }
-.ts-words { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ts-words b { font-weight: var(--weight-semibold); }
-.ts-eyebrow {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ink-dim);
+@media (min-width: 901px) {
+  .today-head-figs > .tc-figs { backdrop-filter: var(--surface-control-blur); }
 }
-/* The appointment's start in the semibold, the rest of its words in the muted ink (E3). */
-.ts-rest { color: var(--ink-muted); }
-.ts-open { padding-right: 20px; }
-.ts-capsule {
-  display: inline-flex;
-  align-items: center;
-  height: 22px;
-  padding: 0 10px;
-  border-radius: var(--radius-full);
-  background: var(--ok-soft);
-  color: var(--ok-ink);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-semibold);
-  white-space: nowrap;
+.today-head-figs .tc-fig { display: flex; padding: 6px 4px; }
+.today-head-figs .tc-fig + .tc-fig { border-left: 1px solid var(--line); }
+.today-head-figs .tc-fig > :first-child { width: auto; margin: 0; padding: 6px 14px; gap: 2px; }
+.today-head-figs .tc-fig-n { font-size: var(--text-2xl); font-weight: var(--weight-semibold); letter-spacing: -0.01em; line-height: 1.2; }
+.today-head-figs .tc-fig-w { font-size: var(--text-sm); white-space: nowrap; color: var(--ink-dim); }
+.today-head-figs .tc-fig-m { display: none; }
+/* The receipt under its figure (`--i`, a quarter each, as the card's are), never past the capsule's right edge. */
+.today-head-figs .tc-receipt { top: calc(100% + 8px); left: min(var(--i, 0) * 25%, 100% - 312px); right: auto; }
+.today-head-figs .tc-receipt[data-last="true"] { left: auto; right: 0; }
+/* Today's bar and head end where its page does, at its measure (--measure-wide, on the left): on a window wider, the bell,
+   the line and the figures stood out at the window's right edge, past the panes under them. The bar's capsules beside the
+   bell read how far short of the window the bar ends (components.css --bar-end). */
+@media (min-width: 901px) {
+  .main:has(> .main-scroll > .dash-a-v2) {
+    --bar-end: max(0px, 100% - var(--measure-wide));
+  }
+  .main:has(> .main-scroll > .dash-a-v2) > .frame-top > .topbar,
+  .main-scroll:has(> .dash-a-v2) > .pg-slot {
+    max-width: var(--measure-wide);
+  }
 }
-.ts-capsule.ts-closed { background: var(--surface-inset-fill); color: var(--ink-muted); }
+
 /* The call rides in the header (status-bars.tsx), not above the queue's rows. */
 .dash-a-v2 .tq-live { display: none; }
 
@@ -1811,42 +1782,8 @@ a.ts-next { text-decoration: none; }
   .dash-a-v2 .today-setup > .tq-list > * > :nth-child(2) > :last-child > :last-child { display: none; }
 }
 
-/* A phone: the strip's cells are capsules in a row that scrolls, the rest one column. */
+/* A phone: one column. */
 @media (max-width: 720px) {
-  .today-strip {
-    display: flex;
-    flex-wrap: nowrap;
-    justify-self: stretch;
-    gap: 8px;
-    max-width: none;
-    min-height: 0;
-    margin: 0 calc(-1 * var(--gutter-page));
-    padding: 2px var(--gutter-page) 4px;
-    border-radius: 0;
-    background: transparent;
-    box-shadow: none;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-  .today-strip::after { display: none; }
-  /* Each cell a 40px capsule of the control layer's glass (E3's phone board), gap 8; the appointment's cell says "Next"
-     or "Now" in its bold words, the eyebrow being a desk's; Listen in is a desk's too, the Inbox's Live view a phone's. */
-  .ts-cell {
-    flex: none;
-    max-width: 82vw;
-    height: 40px;
-    min-height: 0;
-    padding: 0 14px;
-    gap: 8px;
-    border-radius: var(--radius-full);
-    background: var(--surface-control-fill);
-    box-shadow: var(--surface-control-depth);
-  }
-  .ts-cell + .ts-cell { border-left: 0; }
-  .ts-eyebrow { display: none; }
-  .ts-next .ts-words::before { content: attr(data-phase) " "; font-weight: var(--weight-semibold); }
-  .ts-open { padding-right: 14px; }
-  .ts-capsule { padding: 0; background: transparent; }
   /* The queue's head is the count, the name and the door: the sentence under them is a desk's. */
   .dash-a-v2 :is(.today-queue, .today-going) .tq-head { padding: 16px 0 10px; }
   /* The dash keeps the boards' 12px from the screen's edges (E3's phone board: the strip and the panes at 12, the head

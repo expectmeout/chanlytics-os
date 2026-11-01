@@ -1,13 +1,12 @@
 /**
  * PipelineScope's elements, one concern to a function (moved from legacy/pages/pipeline-scope.jsx PipelineScope,
- * decision 0015): the switch and the rail, a phone's top, the line over the table, the controls row, the board or the
+ * decision 0015): the switch and the rail, a phone's top, the line over the table, a desk's tools, the board or the
  * table, the peek, the sheets and a selection's bar. Each is a plain function of the page's state, so the tree keeps the
  * nodes the JSX drew.
  */
 import { PIPELINE_PHONE_SORTS, pipelineCsv } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { downloadCsv } from "../../kit/download";
-import { Icon } from "../../kit/icon/icon";
 import { Menu } from "../../kit/menu/menu";
 import { gate } from "../../legacy-verbs";
 import { menuGroups } from "../menu-groups";
@@ -194,48 +193,38 @@ function listHead(s: PipelineState) {
   );
 }
 
-/** The controls row: the search, which columns show, the list or the board, and the page's one filled button. */
-function controlsRow(s: PipelineState) {
+/**
+ * A desk's tools, on the row of views before the page's one filled button (the page heads canvas, H1, 31 Oct 2026; the
+ * button is standing.tsx's): which columns show, and the list or the board. They stood in a controls row of their own at
+ * the right of the search, which is the bar's line now (scope.tsx); a phone's are its bar's.
+ */
+export function pipelineTools(s: PipelineState) {
   const { f, r } = s;
-  const { q, setQ, searchRef, table, declared, phone, clearSelection, setExtraView } = f.controls;
+  const { table, declared, phone, clearSelection, setExtraView } = f.controls;
   const { board, layout } = r;
   const { words } = P;
+  if (phone) return null;
   return (
-    <div className="cl-controls">
-      <div className="cl-search-wrap">
-        <Icon name="search" size={13} />
-        <input
-          ref={searchRef}
-          placeholder={`${PL_SEARCH_LABEL}…`}
-          aria-label={PL_SEARCH_LABEL}
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          data-testid="pipeline-search"
-        />
-      </div>
-      <div className="cl-controls-right">
-        {/* Which columns show, a member's own, kept in their view: the kit's menu (kit/table/columns-menu.tsx). */}
-        {!board ? <TableColumnsMenu state={table} columns={declared} desk={!phone} /> : null}
-        {/* The list or the board: the house's small tab pair, a pressed state each, kept in the member's view. */}
-        <div className="cl-tabs pipe-views" role="group" aria-label={words.views.label} data-testid="pipeline-views">
-          {PIPE_LAYOUTS.map((v) => (
-            <button
-              key={v}
-              type="button"
-              className={`cl-tab${layout === v ? " active" : ""}`}
-              aria-pressed={layout === v}
-              onClick={() => {
-                if (v === "board") clearSelection();
-                setExtraView({ layout: v });
-              }}
-              data-testid={`pipeline-view-${v}`}
-            >
-              {words.views[v as "list" | "board"]}
-            </button>
-          ))}
-        </div>
-        {/* The page's one filled button stands in the frame's head, at the right of the row of views (standing.tsx,
-            canvas D1), not here. */}
+    <div className="pg-tools">
+      {/* Which columns show, a member's own, kept in their view: the kit's menu (kit/table/columns-menu.tsx). */}
+      {!board ? <TableColumnsMenu state={table} columns={declared} desk /> : null}
+      {/* The list or the board: the house's small tab pair, a pressed state each, kept in the member's view. */}
+      <div className="cl-tabs pipe-views" role="group" aria-label={words.views.label} data-testid="pipeline-views">
+        {PIPE_LAYOUTS.map((v) => (
+          <button
+            key={v}
+            type="button"
+            className={`cl-tab${layout === v ? " active" : ""}`}
+            aria-pressed={layout === v}
+            onClick={() => {
+              if (v === "board") clearSelection();
+              setExtraView({ layout: v });
+            }}
+            data-testid={`pipeline-view-${v}`}
+          >
+            {words.views[v as "list" | "board"]}
+          </button>
+        ))}
       </div>
     </div>
   );
@@ -459,7 +448,6 @@ export function pipelineScreen(s: PipelineState) {
         {phone && phoneBar(s)}
         <div className="cl-main-scroll pl-main" ref={scrollRef}>
           {phone ? phoneFilters(s) : standingLine(s)}
-          {!phone && controlsRow(s)}
           {!phone && listHead(s)}
           {rowsView(s)}
         </div>

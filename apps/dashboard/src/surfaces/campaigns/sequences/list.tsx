@@ -12,6 +12,7 @@
  */
 import { useMemo, useState } from "react";
 import {
+  BAR_LINE_WORDS,
   SEQUENCE_WORDS,
   onceDraftRoute,
   sequenceRoute,
@@ -34,6 +35,7 @@ import { PUSH_WAIT_MS, pushesOver } from "../../kit/motion/held-list";
 import { Search } from "../../kit/search/search";
 import { StatePill } from "../../kit/pill/state-pill";
 import { navigate, routeDoor } from "../../legacy-verbs";
+import { usePageSearch } from "../../kit/head/page-search";
 import { ListBar, groupedOf, type SequencesType, type SequencesView } from "./list-bar";
 import { useRecordsAhead } from "./use-record";
 import { sequenceVerbs as verbs } from "./verbs";
@@ -130,6 +132,13 @@ function typeCounts(rows: readonly SequenceRowDto[]): Record<SequenceType, numbe
 
 export function SequencesList({ page, openId }: SequencesListProps) {
   const [search, setSearch] = useState("");
+  // On a desk the search is the bar's line (page-search.ts); a phone keeps its box over the list.
+  const inLine = usePageSearch({
+    label: BAR_LINE_WORDS.campaigns,
+    value: search,
+    onValue: setSearch,
+    testid: "sq-search",
+  });
   const [picked, setView] = useState<SequencesView>("all");
   const [pickedType, setType] = useState<SequencesType>("all");
   const [sort, setSort] = useState<SequenceSort>("newest");
@@ -172,7 +181,7 @@ export function SequencesList({ page, openId }: SequencesListProps) {
             onSort={setSort}
           />
         ) : null}
-        <Search label={SEQUENCE_WORDS.search} value={search} onChange={setSearch} testid="sq-search" />
+        {!inLine && <Search label={SEQUENCE_WORDS.search} value={search} onChange={setSearch} testid="sq-search" />}
       </div>
       <div className="sq-list-rows" data-testid="sq-rows">
         {groups.map(({ group, rows }) => (

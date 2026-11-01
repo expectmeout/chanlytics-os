@@ -29,6 +29,7 @@ import {
   textOf,
   press,
 } from "../../_legacy-react.mjs";
+import { lineBox } from "../../shared/_line.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-14T14:00:00Z");
@@ -67,8 +68,8 @@ const TM = globalThis.window.__tabMemory;
 /* ---------------------------------- walking a tree ---------------------------------- */
 
 const rows = (tree) => all(tree, (n) => String(n.props?.className || "").startsWith("cv-row "));
-const searchBox = (tree) =>
-  find(tree, (n) => n.type === "input" && String(n.props?.placeholder || "").startsWith("Search names"));
+/** The search: the top bar's line on a desk (page-search.ts), where the list's box stood. */
+const searchBox = () => lineBox();
 /** A fresh mount, as React mounts the page a person came back to. */
 const fresh = () => {
   freshTree();

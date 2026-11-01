@@ -643,6 +643,9 @@ test("the template send is the reply box's capsule: the message it will send at 
 
 test("the search asks for what it searches, and a teammate's email keeps its own letters", () => {
   globalThis.window.__TEAM = [{ userId: "u-b", email: "billing@rjcapital.io", displayName: "" }];
+  // The list's own box is a phone's: on a desk the search is the top bar's line (page-search.ts).
+  const keep = globalThis.window.matchMedia;
+  globalThis.window.matchMedia = (q) => ({ matches: q === "(max-width: 900px)" });
   try {
     const theirs = toInboxThreadVM(conv({ assignee_user_id: "u-b", assignee_is_me: false }), asked(), ZONE, NOW);
     fresh();
@@ -671,6 +674,7 @@ test("the search asks for what it searches, and a teammate's email keeps its own
       "REGRESSION: a pill that capitalises shouted the email: BILLING@RJCAPITAL.IO HAS IT",
     );
   } finally {
+    globalThis.window.matchMedia = keep;
     globalThis.window.__TEAM = null;
   }
 });

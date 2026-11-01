@@ -183,6 +183,8 @@ globalThis.React = {
   useCallback: (fn, deps) => memo(() => fn, deps),
   useEffect: effect,
   useLayoutEffect: effect,
+  // A store outside React (the bar's line reads what the page said, page-search.ts): what it holds as the draw is made.
+  useSyncExternalStore: (_subscribe, snapshot) => snapshot(),
   useId: () => {
     const k = slot();
     if (!cells.has(k)) cells.set(k, `id-${k}`);

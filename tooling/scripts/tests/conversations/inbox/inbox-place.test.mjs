@@ -19,6 +19,7 @@ import { legacyAddress } from "../../shell/address/_address.mjs";
 import { toInboxThreadVM, stateOf, memberWords, replyWaitsOnYou } from "@chanlytics/contracts";
 import { installLegacyReact, fresh, again, find, textOf, settle } from "../../_legacy-react.mjs";
 import { until } from "../../shared/_until.mjs";
+import { lineBox } from "../../shared/_line.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-14T14:00:00Z");
@@ -612,7 +613,7 @@ test("the words in the Inbox's search come back after a refresh, in this tab onl
       }),
     );
   };
-  const box = (tree) => find(tree, (n) => n.props?.["data-testid"] === "inbox-search");
+  const box = () => lineBox();
   try {
     box(draw()).props.onChange({ target: { value: "friday" } });
     assert.equal(box(draw()).props.value, "friday", "a refresh brings the words back");

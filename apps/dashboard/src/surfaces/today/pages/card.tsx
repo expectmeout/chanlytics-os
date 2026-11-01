@@ -273,18 +273,13 @@ export function recapBeats(vm: TodayVM, nav: Nav) {
   );
 }
 
-export const TodayCard = () => {
-  useMoved(["today"]);
-  // The period in one small read (the headline), through the seam, and whether its read failed, by the seam's own hook: both hooks, so
-  // they stand before the early return below. (`surfaceFailed("reports_headline")` is false for ever: the shell's door maps its
-  // argument through the routes' surfaces, which name no headline.)
-  const R = useSurface("reports_headline");
-  const headlineFailed = useSurfaceFailed("reports_headline");
+/**
+ * The open figure's receipt and the key that closes it: an open receipt closes on Escape wherever the focus is, as every
+ * other dialog does: the phone app's Back hands the page an Escape (legacy-bridge/app-bridge.ts watchOverlays), and a
+ * figure's own key reached it only from the figure.
+ */
+function useReceiptOpen() {
   const [open, setOpen] = useState<TodayFigureId | null>(null);
-  // On a phone the four are one row and Worth a look is under them, as what the numbers mean (decision 0076).
-  const phone = useTodayOnPhone();
-  // An open receipt closes on Escape wherever the focus is, as every other dialog does: the phone app's Back hands the
-  // page an Escape (legacy-bridge/app-bridge.ts watchOverlays), and a figure's own key reached it only from the figure.
   useEffect(() => {
     if (open === null) return undefined;
     const onKey = (e: KeyboardEvent) => {
@@ -293,14 +288,51 @@ export const TodayCard = () => {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
+  return { open, setOpen };
+}
+
+/**
+ * The tile whole (canvas E3): on a quiet day the four figures are zeros, each with what is true under it (contracts
+ * quietFigures), and so is a day with people waiting but nothing counted (vm.zero_figures).
+ */
+const dayTileFigures = (vm: TodayVM): TodayFigureVM[] | null =>
+  vm.figures ?? vm.quiet?.figures ?? vm.zero_figures ?? null;
+
+/**
+ * The four figures in the head's right on a desk, beside the greeting (the page heads canvas, H1 and H2, 31 Oct 2026): the
+ * day's numbers where the page opens, the card's own row with its receipts, which open under each figure over the page.
+ * The day's card keeps the rest of what it says. A phone's are the card's (decision 0076).
+ */
+export const TodayHeadFigures = () => {
+  useMoved(["today"]);
+  const { open, setOpen } = useReceiptOpen();
+  const vm = surfaceValue("today");
+  const figures = vm ? dayTileFigures(vm) : null;
+  if (!figures) return null;
+  return (
+    <div className="today-head-figs">
+      {figuresRow(figures, { open, setOpen, nav: (to) => appNavigate(to), phone: false })}
+    </div>
+  );
+};
+
+export const TodayCard = () => {
+  useMoved(["today"]);
+  // The period in one small read (the headline), through the seam, and whether its read failed, by the seam's own hook: both hooks, so
+  // they stand before the early return below. (`surfaceFailed("reports_headline")` is false for ever: the shell's door maps its
+  // argument through the routes' surfaces, which name no headline.)
+  const R = useSurface("reports_headline");
+  const headlineFailed = useSurfaceFailed("reports_headline");
+  const { open, setOpen } = useReceiptOpen();
+  // On a phone the four are one row and Worth a look is under them, as what the numbers mean (decision 0076). On a desk
+  // they stand in the head (TodayHeadFigures), and the card says the rest.
+  const phone = useTodayOnPhone();
   const vm = surfaceValue("today");
   // Drawn with the day and its period line, or with the line's read failed (client/page-speed.ts).
   usePartShown("today", "card", !!vm && (!!R || headlineFailed));
   if (!vm) return null;
   const { recap, quiet } = vm;
-  // The tile whole (canvas E3): on a quiet day the four figures are zeros, each with what is true under it (contracts
-  // quietFigures), and so is a day with people waiting but nothing counted (vm.zero_figures).
-  const figures = vm.figures ?? quiet?.figures ?? vm.zero_figures ?? null;
+  const figures = dayTileFigures(vm);
   const nav: Nav = (to) => appNavigate(to);
   const period = R ? TODAY_HELPERS.periodLine(R) : null;
   // Not read yet is not failed: the foot is silent while Reports loads and says so when its read failed.
@@ -325,7 +357,7 @@ export const TodayCard = () => {
           </Button>
         )}
       </div>
-      {figures && figuresRow(figures, { open, setOpen, nav, phone })}
+      {figures && phone && figuresRow(figures, { open, setOpen, nav, phone })}
       {(period || reportsFailed) && (
         <div className="tc-foot">
           {period ? (
