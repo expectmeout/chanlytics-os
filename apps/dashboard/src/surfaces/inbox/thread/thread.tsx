@@ -16,23 +16,38 @@
  */
 import { useEffect, useRef, useState, type HTMLAttributes, type ReactNode, type RefObject } from "react";
 import { Confirm } from "../../kit/confirm/confirm";
-import { RUN_OPEN_WORDS, runRoute, runsWaitingSentence } from "@chanlytics/contracts";
+import {
+  MAILBOX_SENDERS_WORDS,
+  RUN_OPEN_WORDS,
+  runRoute,
+  runsWaitingSentence,
+  shortName,
+  THREAD_PANE_WORDS,
+} from "@chanlytics/contracts";
+import { Button } from "../../kit/button/button";
+import { Icon } from "../../kit/icon/icon";
+import { mayAtLeast } from "../../legacy-verbs";
+import { personOnThread, useThreadPersonMoved } from "../../people/want-person";
+import { carryNotAPerson } from "../carried-reply";
+import { demoSession } from "../shell";
+import { usePeopleMoved } from "./shell-thread";
 import { EmptyState } from "../../kit/empty/empty";
 import { useNeedsYouParts, waitingRunsNow } from "../../needs-you";
 import { ReplyStrip } from "./reply-strip";
 import { touchSwipe } from "../shell";
 import { heldAlong, heldUnder, showHeld } from "../../kit/motion/held-list";
 import { repliesDoor } from "./shell-thread";
-import type { Approval, Thread, TimelineEntry as TlEntry, VerdictOption } from "../types";
+import type { Approval, RealThread, Thread, TimelineEntry as TlEntry, VerdictOption } from "../types";
 import { ApprovalCard, ContextStrip, hasVerdict, NarrativeSummary, VerdictCard, type DecideExtra } from "./approval";
 import { Composer } from "./composer";
 import type { OnSend } from "./send-words";
 import { ThreadHeader } from "./header";
-import { ThreadBar, ThreadStatus, type Stale, type StatusProps } from "./status";
+import { ThreadStatus, type Stale, type StatusProps } from "./status";
 import { useEarlierAsScrolled } from "./earlier";
 import { threadEnd, threadScroller, threadShown } from "./scroller";
 import { isDocumentScroller, shownHeight } from "../../kit/motion/page-scroll";
 import { TimelineEntry } from "./timeline";
+import { hasVeto, SteerBox, VetoBar } from "./veto";
 
 // The newest thing said in a thread: its last message, written or a call. A flag after it is not something said.
 const ixNewestSaid = (timeline: TlEntry[] | null | undefined) => {
@@ -287,6 +302,12 @@ function timelineRows(p: Held, thread: Thread, at: RowsAt) {
             window.dispatchEvent(new CustomEvent("inbox:focus-composer", { detail: { threadId: thread.id, text } })),
         }
       : null;
+  // A real draft counting down: its countdown and its controls under its own bubble (heldDraftRow).
+  const heldId = thread.real && !thread.resolution && hasVeto(thread) ? (thread.veto.messageId ?? null) : null;
+  // The thread's subject heads its first email (contracts' emailSubjectsOf), where a chip in the header cut it to "What
+  // Reddit's 202…" on a phone (the thread canvas, 1 Nov 2026).
+  const firstEmail = thread.real ? thread.timeline.findIndex((e) => e.type === "msg" && e.channel === "email") : -1;
+  const topic = thread.real ? (thread.emailSubject ?? null) : null;
   const rows = thread.timeline.slice(from).flatMap((entry, k) => {
     // Its place in the whole thread, which its key and its neighbours are read by.
     const i = from + k;
@@ -304,12 +325,14 @@ function timelineRows(p: Held, thread: Thread, at: RowsAt) {
           {entry.day}
         </span>
       ) : null;
+    const held = heldId && entry.type === "msg" && entry.messageId === heldId ? heldDraftRow(p, thread, i) : null;
     const row = (
       <TimelineEntry
         key={i}
         entry={entry}
         thread={thread}
         channelLabels={channelLabels}
+        topic={i === firstEmail ? topic : null}
         lines={lines}
         again={again}
         focus={!!focusMessageId && entry.type === "msg" && entry.messageId === focusMessageId}
@@ -317,11 +340,27 @@ function timelineRows(p: Held, thread: Thread, at: RowsAt) {
         arrived={!!thread.real && i >= seenAt}
       />
     );
-    return day ? [day, row] : [row];
+    return [day, row, held].filter((n): n is NonNullable<typeof n> => !!n);
   });
   // A thread drawn whole is its rows and nothing else, as it always was.
   if (from <= 0) return rows;
   return [<div key="ix-earlier" className="ix-timeline-more" ref={moreRef} aria-hidden="true" />, ...rows];
+}
+
+/**
+ * A real draft counting down, under its own bubble (the thread canvas, 1 Nov 2026): when it sends and the controls that
+ * stop it, then the line that has the receptionist write it again. They stood in the foot, under a reply box filled with
+ * the same words, so the draft was on the screen twice and its controls away from it.
+ */
+function heldDraftRow(p: Held, thread: Thread, i: number) {
+  const { veto, vetoPaused, onVetoAct, onTakeOver } = p;
+  if (!hasVeto(thread)) return null;
+  return (
+    <div key={`held-${i}`} className="ix-held-draft" data-testid="ix-held-draft">
+      <VetoBar thread={thread} remaining={veto} paused={vetoPaused} onAct={onVetoAct} onTakeOver={onTakeOver} />
+      {veto != null && thread.veto.messageId ? <SteerBox messageId={thread.veto.messageId} /> : null}
+    </div>
+  );
 }
 
 /** The pane's scroller: what a seeded thread's cards say over its story, then the story. */
@@ -356,6 +395,41 @@ function scrollBody(
       ) : (
         <div className="ix-timeline">{timelineRows(p, thread, rowsAt)}</div>
       )}
+      {thread.real && !thread.partial && <FirstEmailAsk thread={thread} onOpenClient={p.onOpenClient} />}
+    </div>
+  );
+}
+
+/**
+ * An owner's first email from someone, under the conversation (decision 0080): a newsletter, a notice or a pitch the
+ * intake took for a person is said not to be one here, beside what it wrote, with the same act the header's More holds
+ * (its page opens with Not a person asked, the typed name and all). It was the fourth item of a menu, owner-only and
+ * nowhere near the email that needed it (the thread canvas, 1 Nov 2026). Only where nothing says they are someone the
+ * business serves: their first conversation, no deal and no visit, as People's row says; never in a demo.
+ */
+function FirstEmailAsk({ thread, onOpenClient }: { thread: RealThread; onOpenClient: (id: string) => void }) {
+  usePeopleMoved(); // drawn again when People's rows land
+  useThreadPersonMoved(); // and when the thread's own read of its person lands
+  const clientId = thread.clientId;
+  const row = personOnThread(thread.conversationId, clientId)?.row ?? null;
+  if (!clientId || !row || demoSession() || thread.archived || thread.primaryChannel !== "email") return null;
+  if (!mayAtLeast("owner") || row.threads > 1 || row.deal || row.nextVisitLine || row.lastVisitLine) return null;
+  return (
+    <div className="ix-first-email" data-testid="ix-first-email">
+      <Icon name="user" size={14} className="ix-first-email-glyph" />
+      <span className="ix-first-email-words">{THREAD_PANE_WORDS.firstEmail(shortName(thread.who))}</span>
+      <Button
+        variant="quiet"
+        size="sm"
+        title={MAILBOX_SENDERS_WORDS.actHint}
+        onClick={() => {
+          carryNotAPerson(clientId);
+          onOpenClient(clientId);
+        }}
+        data-testid="ix-first-email-act"
+      >
+        {MAILBOX_SENDERS_WORDS.act}
+      </Button>
     </div>
   );
 }
@@ -390,7 +464,9 @@ function replyBox(p: Held, thread: Thread, decided: boolean) {
     (thread.real || thread.state !== "done") && (
       <Composer
         thread={thread}
-        reply={thread.veto ? thread.veto.draft : replies ? replies.draftOf(thread.id) : ""}
+        // A real draft counting down stands once, as the next bubble with its countdown (heldDraftRow): the box holds the
+        // member's own words, and Edit puts the draft's in it (thread-verbs.tsx).
+        reply={thread.veto ? (thread.real ? "" : thread.veto.draft) : replies ? replies.draftOf(thread.id) : ""}
         onType={thread.veto ? () => onVetoAct(thread.id, "type") : null}
         onSend={onSend}
       />
@@ -468,11 +544,11 @@ export const InboxThread = (props: InboxThreadProps) => {
         channelLabels={channelLabels}
         onOpenClient={onOpenClient}
         onSnooze={onSnooze}
+        onTakeOver={onTakeOver}
         onMarkUnread={onMarkUnread}
         onBack={onBack}
         onArchive={thread.real && held.onArchive ? () => setAskArchive(true) : null}
       />
-      {thread.real && <ThreadBar thread={thread} />}
       {askArchive && thread.real && archiveAsk(held, thread, setAskArchive)}
       <ContextStrip thread={thread} />
       {notice && (

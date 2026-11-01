@@ -5,7 +5,7 @@ import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
  * Today on a cold load draws as one page: nothing lands over the queue once it is drawn, and nothing pushes it down. Each of
  * these did, on production, before the Today load review (27 Oct 2026): the Setup card landing from its own chunk after the
  * queue (4 of 13 desk loads, 10 of 41 phone ones), the frame's head filling in a frame after the page and moving all of it
- * down 92 px, Going today and a run's seat from the stream's second tier, the drafts' words after the rows. A fresh context
+ * down 92 px, Going today (since folded into the day) and a run's seat from the stream's second tier, the drafts' words after the rows. A fresh context
  * holds no cache, so this is a first load, as after every deploy.
  *
  * Measured in the page from its first script (an init script): the queue's top, every frame, from when it first appears.
@@ -21,7 +21,7 @@ const RECORD = `(() => {
     const top = Math.round(q.getBoundingClientRect().top + window.scrollY);
     if (log.above === null) {
       // What stands above the queue in the frame it is first drawn in, and the head over the page then.
-      log.above = ["today-setup", "today-brought-in", "today-going"].filter((id) => document.querySelector('[data-testid="' + id + '"]'));
+      log.above = ["today-warnings", "today-setup", "today-brought-in"].filter((id) => document.querySelector('[data-testid="' + id + '"]'));
       const head = document.querySelector("header.pg-head");
       log.head = head ? Math.round(head.getBoundingClientRect().height) : 0;
     }
@@ -54,7 +54,7 @@ test.describe("Today on a cold load", () => {
     expect(moved, `the queue's tops, frame by frame: ${load.queue.join(" > ")}`).toBeLessThanOrEqual(ENTRANCE_PX);
     // Whatever stands above the queue at the end stood there in its first frame: nothing landed over it.
     const aboveNow = await page.evaluate(() =>
-      ["today-setup", "today-brought-in", "today-going"].filter((id) =>
+      ["today-warnings", "today-setup", "today-brought-in"].filter((id) =>
         document.querySelector(`[data-testid="${id}"]`),
       ),
     );

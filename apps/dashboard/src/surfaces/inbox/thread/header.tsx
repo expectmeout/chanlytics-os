@@ -1,6 +1,6 @@
 /**
  * The thread's header (moved from pages/inbox-thread.jsx, decision 0015): who the conversation is with, the wires it is
- * on, their deal or their visit in one chip, the Actions menu, and the step due under the head.
+ * on, where it stands, their deal or their visit in one chip, the More menu, and the step due under the head.
  *
  * The header is a function per part, called by `ThreadHeader` and not drawn as a component of its own, so the tree is
  * the tree it was; its hooks stay in `ThreadHeader`, in the order they were.
@@ -16,7 +16,7 @@ import {
   proposalLinkOf,
   proposalMessage,
 } from "@chanlytics/contracts";
-import { MAILBOX_SENDERS_WORDS } from "@chanlytics/contracts";
+import { HOLD_ACT_WORDS, MAILBOX_SENDERS_WORDS, shortName, THREAD_PANE_WORDS } from "@chanlytics/contracts";
 import type { DealVM, PersonNextStepVM, PersonRowVM, VisitLineVM } from "@chanlytics/contracts";
 import { useState, type ReactNode } from "react";
 import { Icon } from "../../kit/icon/icon";
@@ -41,6 +41,7 @@ import type { Thread } from "../types";
 import { ixBandCallBack } from "./band";
 import { channelIconOf } from "./timeline";
 import { IxWho } from "./who";
+import { whereItStands, takeInTheMenu } from "./status";
 import { NameOffer } from "../../people/person/name-offer";
 import { mayAtLeast } from "../../legacy-verbs";
 import { Button } from "../../kit/button/button";
@@ -132,8 +133,33 @@ const ixWires = (thread: Thread, labels: Record<string, string>) => {
   return [...new Set(ws.map((c) => labels[c] || c))].join(" · ");
 };
 
-// A menu's groups: the kit's menu draws a line between each two, so a group with nothing in it is not one.
-const ixMenu = (groups: MenuItem[][]): MenuGroup[] => groups.filter((g) => g.length).map((items) => ({ items }));
+/**
+ * The wires as glyphs after the name, one for each the thread has used (two wires drawn alike, WhatsApp and a text, are
+ * one glyph), their words for a pointer and a screen reader: the line under the name says where the thread stands
+ * (whereItStands), and said "Email" there, a word for what the glyph says (the thread canvas, 1 Nov 2026).
+ */
+function wireGlyphs(thread: Thread, labels: Record<string, string>) {
+  const ws = (thread.channels && thread.channels.length ? thread.channels : [thread.primaryChannel]).filter(Boolean);
+  const glyphs = [...new Set(ws.map(channelIconOf))];
+  if (!glyphs.length) return null;
+  const said = ixWires(thread, labels);
+  return (
+    <span className="ix-th-wire" role="img" aria-label={said} title={said} data-testid="ix-th-wire">
+      {glyphs.map((g) => (
+        <Icon key={g} name={g} size={12} />
+      ))}
+    </span>
+  );
+}
+
+/**
+ * A menu's groups, each under its heading where it has one: the kit's menu draws a line between each two, so a group
+ * with nothing in it is not one.
+ */
+const ixMenu = (groups: Array<{ header?: string; items: MenuItem[] }>): MenuGroup[] =>
+  groups
+    .filter((g) => g.items.length)
+    .map((g) => (g.header ? { header: g.header, items: g.items } : { items: g.items }));
 
 // An item's glyph, at the size the menu draws it.
 const ixGlyph = (name: string) => <Icon name={name} size={13} />;
@@ -201,7 +227,7 @@ const DEAL_ICON: Readonly<Record<string, string> & { send: string }> = {
 function dealGroup(thread: Thread, facts: HeaderFacts): MenuItem[] {
   const { person, proposalUrl } = facts;
   const kit = dealKit();
-  // The sheet gives focus back to whatever held it as it opened, and a menu's item is gone by then: the Actions button
+  // The sheet gives focus back to whatever held it as it opened, and a menu's item is gone by then: the More button
   // holds it first, so closing the sheet lands there.
   const toActions = () => {
     const b =
@@ -285,18 +311,32 @@ function alsoInLeads(thread: Thread) {
   );
 }
 
-/** The Actions menu: what to do with the conversation, then with the person, the deal, the file. */
+/** The More menu: what to do with the conversation, then with the person, the deal, the file. */
 interface HeaderActs {
   onSnooze: (threadId: string) => void;
+  onTakeOver: (threadId: string) => void;
   onMarkUnread: (threadId: string) => void;
   onOpenClient: (clientId: string | null | undefined) => void;
   onArchive: (() => void) | null;
 }
 
 function actionsMenu(thread: Thread, dealActs: MenuItem[], acts: HeaderActs) {
-  const { onSnooze, onMarkUnread, onOpenClient, onArchive } = acts;
+  const { onSnooze, onTakeOver, onMarkUnread, onOpenClient, onArchive } = acts;
   const snoozed = thread.state === "snoozed";
   const conversation: MenuItem[] = [
+    // Taking it before a word is written (status.tsx takeInTheMenu): the dock's "I'll answer this" stood beside a reply
+    // box whose Send already answers and takes it, so it is here, for a team member claiming it first.
+    ...(takeInTheMenu(thread) && HOLD_ACT_WORDS.reply.take
+      ? [
+          {
+            label: HOLD_ACT_WORDS.reply.take,
+            meta: THREAD_PANE_WORDS.takeMeta,
+            glyph: ixGlyph("users"),
+            onSelect: () => onTakeOver(thread.id),
+            gate: gate("approve", "take over a conversation"),
+          },
+        ]
+      : []),
     // A snoozed thread wakes from its status line ("Wake now"); the header's Snooze button read "Wakes …", disabled.
     ...(snoozed
       ? []
@@ -344,7 +384,9 @@ function actionsMenu(thread: Thread, dealActs: MenuItem[], acts: HeaderActs) {
       ? [
           {
             label: MAILBOX_SENDERS_WORDS.act,
-            hint: MAILBOX_SENDERS_WORDS.actHint,
+            // A sentence, so its second line: as the word at the item's end it broke the label onto three lines on a
+            // phone's sheet (the thread canvas, 1 Nov 2026).
+            meta: MAILBOX_SENDERS_WORDS.actHint,
             glyph: ixGlyph("ban"),
             tone: "danger" as const,
             onSelect: () => {
@@ -372,29 +414,32 @@ function actionsMenu(thread: Thread, dealActs: MenuItem[], acts: HeaderActs) {
         ]
       : []),
   ];
+  const W = THREAD_PANE_WORDS;
   return ixMenu([
-    conversation,
-    person,
+    { header: W.groupConversation, items: conversation },
+    { header: shortName(thread.who), items: person },
     // The deal (0008): its proposal into the box -- the deal's link (above), only where free text can go, never to
     // someone who said stop, only on a real thread; the hint says where the link lives (contracts linkHost) -- and the
     // moves for its stage, each opening the sheet. Every workspace's (0008, amended 18 Oct 2026).
-    dealActs,
-    file,
-    demoSession()
-      ? [
-          {
-            label: "Block sender",
-            glyph: ixGlyph("x"),
-            tone: "danger" as const,
-            onSelect: () => askAbout({ mode: "compose", prompt: "Block this sender because " }),
-          },
-        ]
-      : [],
+    { header: W.groupDeal, items: dealActs },
+    { header: W.groupFile, items: file },
+    {
+      items: demoSession()
+        ? [
+            {
+              label: "Block sender",
+              glyph: ixGlyph("x"),
+              tone: "danger" as const,
+              onSelect: () => askAbout({ mode: "compose", prompt: "Block this sender because " }),
+            },
+          ]
+        : [],
+    },
   ]);
 }
 
 /** The name, the pin, the human-contact mark and the door's chevron. */
-function headerName(thread: Thread, personTo: string | null, facts: HeaderFacts) {
+function headerName(thread: Thread, personTo: string | null, facts: HeaderFacts, labels: Record<string, string>) {
   // The business a named person works at, dim after their name (0052); a stand-in's name is the business's already.
   const trail = facts.person ? businessTrailOf(facts.person) : null;
   return (
@@ -406,6 +451,7 @@ function headerName(thread: Thread, personTo: string | null, facts: HeaderFacts)
         </span>
       )}
       {/* They asked to stop: said beside the name, before the reply box turns into a banner (D1-stop-unseen). */}
+      {thread.real && wireGlyphs(thread, labels)}
       {thread.real && thread.optedOut && <StoppedMark testid="ix-th-stopped" />}
       {thread.pinned && <Icon name="pin" size={11} style={{ color: "var(--ink-faint)" }} />}
       {thread.hasHumanContact && (
@@ -468,17 +514,18 @@ function headerSub(thread: Thread, channelLabels: Record<string, string>, facts:
   const { deal, visit, person } = facts;
   // Where they work, as words inside the head's door, when there is no deal or visit to say (0052): a phone's, whose head
   // has no room beside it for the door a desk draws (worksAtDoor), and a business removed since, which has no sheet.
-  const works = !deal && !visit && person && person.worksAt && !person.standIn ? person.worksAt : null;
-  // What the thread's emails are about, said once here: it was over every bubble, "Re:" and all.
-  const subject = thread.real ? thread.emailSubject : undefined;
+  // Not where the name's trail says it already (headerName, businessTrailOf): "Maya Chen · Northwind Media" over "Works
+  // at…" said the business twice on a phone.
+  const said = person ? businessTrailOf(person) : null;
+  const works = !deal && !visit && !said && person && person.worksAt && !person.standIn ? person.worksAt : null;
+  // Where it stands first (whereItStands), else the wires in words: the glyphs after the name say them on a thread that
+  // stands somewhere. What its emails are about heads the first email in the conversation (timeline.tsx), where it was
+  // a chip here cut to "What Reddit's 202…" on a phone (the thread canvas, 1 Nov 2026).
+  const standing = thread.real ? whereItStands(thread) : null;
   return (
-    <div className="ix-th-sub">
-      <div className="ix-th-meta">{thread.real ? ixWires(thread, channelLabels || {}) : thread.whoMeta}</div>
-      {subject && (
-        <span className="ix-th-visit" title={subject} data-testid="ix-th-subject">
-          <Icon name="mail" size={10} />
-          <span className="ix-th-visit-words">{subject}</span>
-        </span>
+    <div className="ix-th-sub" data-testid="ix-th-sub">
+      {standing ?? (
+        <div className="ix-th-meta">{thread.real ? ixWires(thread, channelLabels || {}) : thread.whoMeta}</div>
       )}
       {deal && (
         <span className={`ix-th-visit${deal.stage === "won" ? " ahead" : ""}`} data-testid="ix-th-deal">
@@ -512,6 +559,7 @@ interface ThreadHeaderProps {
   channelLabels: Record<string, string>;
   onOpenClient?: (clientId: string | null | undefined) => void;
   onSnooze?: (threadId: string) => void;
+  onTakeOver?: (threadId: string) => void;
   onMarkUnread?: (threadId: string) => void;
   onBack?: (() => void) | null;
   onArchive?: (() => void) | null;
@@ -597,7 +645,7 @@ function headerMain(props: ThreadHeaderProps, facts: HeaderFacts, alsoLeads: Rea
         avatar={thread.avatar}
         priority={thread.priority}
       >
-        {headerName(thread, personTo, facts)}
+        {headerName(thread, personTo, facts, channelLabels || {})}
         {headerSub(thread, channelLabels, facts)}
       </IxWho>
       {thread.real && !demoSession() ? visitDoor(facts) : null}
@@ -626,6 +674,7 @@ export const ThreadHeader = (props: ThreadHeaderProps) => {
     channelLabels,
     onOpenClient = () => {},
     onSnooze = () => {},
+    onTakeOver = () => {},
     onMarkUnread = () => {},
     onArchive = null,
   } = props;
@@ -665,17 +714,27 @@ export const ThreadHeader = (props: ThreadHeaderProps) => {
               <Icon name="phone" size={12} /> Call back
             </Button>
           )}
-        {/* A ghost button with a word, lit only while its menu is open: a ⋯ alone in the dim ink was too faint to
-            find on a phone. The menu says what to do with the conversation, then with the person, then the file --
-            no eyebrow: the menu is the thread's. "Conversation" headed a list of five in capitals, and
-            "Receptionist for this person…" broke onto two lines. */}
+        {/* More, a glyph on an inset round a thumb finds (the thread canvas, 1 Nov 2026): "Actions" and its chevron
+            took a third of the header on a phone, beside a name cut short. Its menu says what to do with the
+            conversation, the person, the deal and the file, each under its heading; on a phone it is the kit's sheet,
+            headed by who it is about. */}
         <Menu
           trigger={
-            <Button variant="quiet" size="sm" className="ix-th-more" title="Actions">
-              Actions <Icon name="chevron-down" size={10} />
+            <Button
+              variant="quiet"
+              size="sm"
+              iconOnly
+              className="ix-th-more"
+              title={THREAD_PANE_WORDS.more}
+              aria-label={THREAD_PANE_WORDS.moreFor(thread.who)}
+              data-testid="ix-th-more"
+            >
+              <Icon name="more" size={16} />
             </Button>
           }
-          groups={actionsMenu(thread, dealActs, { onSnooze, onMarkUnread, onOpenClient, onArchive })}
+          label={THREAD_PANE_WORDS.moreFor(thread.who)}
+          head={{ title: thread.who, close: <Icon name="x" size={13} /> }}
+          groups={actionsMenu(thread, dealActs, { onSnooze, onTakeOver, onMarkUnread, onOpenClient, onArchive })}
         />
       </div>
       {thread.fromAd ? fromAdLine(thread.fromAd) : null}

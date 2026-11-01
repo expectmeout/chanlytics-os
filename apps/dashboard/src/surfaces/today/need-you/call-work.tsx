@@ -6,7 +6,14 @@
  * Yesterday's visit is visit-work.tsx's.
  */
 import { useState } from "react";
-import { BOOKING_REQUEST_WORDS, NEED_YOU_WORDS as W, NOTE_WORDS, callDays, stepDays } from "@chanlytics/contracts";
+import {
+  BOOKING_REQUEST_WORDS,
+  NEED_YOU_OLD_MS,
+  NEED_YOU_WORDS as W,
+  NOTE_WORDS,
+  callDays,
+  stepDays,
+} from "@chanlytics/contracts";
 import { commitVerb, undoVerb } from "@/legacy-bridge/verbs/commit";
 import { answerRequest } from "../../booking-request";
 import { Button } from "../../kit";
@@ -16,7 +23,7 @@ import { Acts, BriefBox, Done, Note, NotNow, Writing, type WorkProps } from "./p
 import { ReplyWork, useNotNow, type Snoozed } from "./reply-work";
 import { useRowState } from "./row-state";
 
-/** A call back: Ask's brief, Call, then how it went. */
+/** A call back: Ask's brief, Call, then how it went. One that has waited past a week says first it may be let go. */
 export function CallWork(p: WorkProps) {
   const { row, main, may, tz, flash, keep } = p;
   const want =
@@ -112,6 +119,7 @@ export function CallWork(p: WorkProps) {
     );
   return (
     <>
+      {row.waitedMs >= NEED_YOU_OLD_MS ? <Note>{W.staleCall}</Note> : null}
       {draft?.state === "ready" && draft.draft.words.brief ? (
         <BriefBox brief={draft.draft.words.brief} onRead={p.read} />
       ) : draft?.state === "writing" ? (

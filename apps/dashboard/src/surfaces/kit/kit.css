@@ -6246,6 +6246,27 @@ textarea.rec-input,
     background-image: var(--surface-page-light), linear-gradient(var(--ink-dim), var(--ink-dim));
   }
 }
+/* A head stacked, a greeting over one whole sentence (Today's; the redesign of 1 Nov 2026): on a phone the sentence stays,
+   since it is the page's one standing where every other page's phone head is its name alone, and the greeting stands a
+   step under a page's name in the page's own ink. The light through the letters read as grey beside the darker words
+   under it, and the two read as two headlines (his phone, 1 Nov 2026). */
+@media (max-width: 900px) {
+  .pg-head-stacked .pg-sentence {
+    display: block;
+  }
+  .pg-head-stacked .pg-title {
+    font-size: var(--text-hero);
+    color: var(--ink);
+    -webkit-text-fill-color: currentColor;
+    background: none;
+  }
+}
+/* What leads a sentence, where the page sets a part of it in bold (Today's count of who needs you): the page's ink, a
+   step heavier, so the rest reads after it. */
+.pg-sentence b {
+  color: var(--ink);
+  font-weight: var(--weight-semibold);
+}
 /* A phone's top bar at its centre (frame-head.tsx BarTitleSaid; canvas A's hand-off): once the page's own head has
    scrolled away, a name and the dot of where they stand, between the way back and the bell, fading in and out. Amber is
    for what needs someone; every other state's dot is the muted ink. Laid over the bar as the date's place is. */

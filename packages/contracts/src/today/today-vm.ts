@@ -2,6 +2,7 @@
  * Today's view model: the shape of the brief (`TodayVM`) and of each row and figure in it. Types only; the brief
  * that builds it is today-brief.ts, over the facts (today-facts.ts) and the bands, rows and queue beside them.
  */
+import type { HoldAct } from "../conversations/escalations";
 import type { VisitWord } from "../shared/enums";
 
 export interface TodayNeedsRowVM {
@@ -150,6 +151,17 @@ export interface TodayQueueRowVM {
   reason?: string | null;
   /** For the order: the longest wait first; a window by how soon it closes; a call last. */
   waitedMs: number;
+  /**
+   * On a handoff: what its reason asks of you (escalations.ts holdActOf), a reply, a call back, a time to confirm, or
+   * nothing that may be sent. Need you's filters read it (need-you-groups.ts needYouVerbOf).
+   */
+  act?: HoldAct;
+  /**
+   * How long until the row's clock runs out, where it has one: a reply your receptionist sends on its own, a WhatsApp
+   * window that shuts. A clock under two hours puts the row before every wait (need-you-groups.ts), since a window that
+   * shuts cannot be answered later and an old wait still can. Null or absent where nothing closes.
+   */
+  clock_ms?: number | null;
 }
 
 /** What an empty queue MEANS for this workspace: the colour rides with a glyph and the words. */

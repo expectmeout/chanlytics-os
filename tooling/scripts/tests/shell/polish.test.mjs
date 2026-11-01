@@ -99,10 +99,10 @@ test("the wiring: words on the edge, a bounded reply on both sides, the layout f
     ),
   );
   assert.ok(
-    readRaw("apps/dashboard/src/legacy/styles/dashboard-a-v2.css").includes(
-      ".brief-beat-text { flex: 1; min-width: 0; }",
+    readRaw("apps/dashboard/src/surfaces/today/phone/phone.css").includes(
+      ".tpw-words {\n  flex: 1 1 auto;\n  min-width: 0;\n}",
     ),
-    "a long beat wraps beside its dot, not under it",
+    "a long warning wraps beside its glyph, not under it",
   );
   assert.ok(
     readRaw("apps/dashboard/src/legacy/styles/components.css").includes(

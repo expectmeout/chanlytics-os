@@ -51,7 +51,8 @@ const { surfaceMoved } = await importSrc(`${SRC}/legacy-bridge/surface-status.ts
 const { VW_STORE, IX_STORE, inboxData } = await importSrc(`${SRC}/surfaces/inbox/store.ts`);
 // The demo's seed, fetched only in a demo session (inbox/shell.ts demoCode): it hands its rows to the store as it lands.
 const { demoCode } = await importSrc(`${SRC}/surfaces/inbox/shell.ts`);
-const { AgentCommand } = await importSrc(`${SRC}/surfaces/today/pages/queue.tsx`);
+const { useTodayStanding } = await importSrc(`${SRC}/surfaces/today/pages/today-head.tsx`);
+const { standingSaid } = await importSrc(`${SRC}/surfaces/kit/head/standing.ts`);
 
 const nowMs = Date.now();
 const NOW = new Date(nowMs);
@@ -468,11 +469,18 @@ test("the readers are told when what the count is made of moves, and not when so
 
 /* ----------------------------------------------- Today's head, drawn ----------------------------------------------- */
 
+/** What Today's head says leads its sentence, as the page tells it to the frame's head (today-head.tsx): "3 need you.". */
+function HeadProbe() {
+  useTodayStanding();
+  return null;
+}
 const head = (vm) => {
   setSurfaceValue("today", vm);
   fresh();
   try {
-    return textOf(byTestId(W.React.createElement(AgentCommand, {}), "today-queue-count")).trim();
+    W.React.createElement(HeadProbe, {});
+    const lead = textOf(byTestId(standingSaid()?.sentence ?? null, "today-head-lead")).trim();
+    return /^(\d+) needs? you\.$/.exec(lead)?.[1] ?? lead;
   } finally {
     setSurfaceValue("today", undefined);
   }
@@ -509,7 +517,7 @@ test("Today's head says the runs waiting for a word until the Inbox is read, and
   setSurfaceValue("broadcasts", runs);
   W.__BROADCASTS = runs;
   try {
-    assert.equal(head(day), "1", "one run waits for a word; the one about to go is said in the sub-line");
+    assert.equal(head(day), "1", "one run waits for a word; the one about to go is the day's, with its Stop");
   } finally {
     setSurfaceValue("broadcasts", undefined);
     delete W.__BROADCASTS;

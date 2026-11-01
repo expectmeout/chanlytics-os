@@ -2965,7 +2965,7 @@ export const FAMILIES = [
         html:
           `<header class="pg-head pg-head-stacked"><p class="pg-dateline">Friday, October 2<span class="pg-dateline-time"> · 4:02 PM</span></p>` +
           `<div class="pg-line"><h1 class="pg-title">Good afternoon, Marisa</h1>` +
-          `<p class="pg-sentence">2 conversations need you. The oldest has been waiting since 2:26 PM.</p></div></header>`,
+          `<p class="pg-sentence"><b>3 need you.</b> Ask drafted 2 replies, and Sam's reply window closes at 5:10 PM.</p></div></header>`,
       },
       {
         id: "page-bartitle",

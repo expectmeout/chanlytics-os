@@ -13,7 +13,6 @@ import { TODAY_HELPERS } from "../helpers";
 import { appNavigate, bell, holdStill } from "../shell";
 import { runsPending } from "../../waits/run-acts";
 import { Button } from "../../kit/button/button";
-import { reviewLineOf } from "./review-line";
 import { reviewsToAnswer } from "../need-you/reviews";
 
 /** A bell row as the away card's rules read it: the bell writes its tone from a notification's, one of these three. */
@@ -39,6 +38,24 @@ const feedOf = (api: BellApi): AwayBellRow[] => api.feed() as AwayBellRow[];
 // jumped to one page left the records it never showed unseen and counted as read (task 5.2, D1-notice-two-drawings). The card
 // lists the unread alone, and has no dismiss of its own (E3): the bell keeps the read ones under Earlier.
 /**
+ * The bell's warnings said under the head (phone/warnings.tsx), by their kind (notifications.ts SERVER_LOOK): what stops
+ * customers being answered. A WhatsApp number's health (a rating flagged, a limit lowered, the account restricted), a line
+ * or a mailbox that stopped being read, and the subscription (a card declined pauses the receptionist). Everything else
+ * waits where it is answered: a person in Need you, a run waiting for your OK in Need you's own row, a search's question
+ * in the list, and a job that did not finish in the bell (his look on a phone, 29 Oct 2026: the run was said three times
+ * above the fold, and "16 jobs did not finish" stood over the people waiting).
+ */
+const STOPS_ANSWERS = new Set(["number", "sweep", "billing"]);
+
+/** Two warnings at most under the head: the bell holds the rest. */
+const WARNINGS_MAX = 2;
+
+/** The bell's groups said under the head: its warnings that stop customers being answered, two at most. */
+export function warningsUnderHead<G extends { row: { tone: string; kind: string } }>(groups: readonly G[]): G[] {
+  return groups.filter((g) => g.row.tone === "warn" && STOPS_ANSWERS.has(g.row.kind)).slice(0, WARNINGS_MAX);
+}
+
+/**
  * The bell's unread rows as Today reads them: grouped, less what the page draws above (contracts todayAwayGrouped), and how a
  * note is opened. While you were away draws them on a desk; on a phone the bell holds them and only a warning keeps a row
  * under the head (phone/warnings.tsx; the phone canvas, 28 Oct 2026). Null where no bell is published.
@@ -46,11 +63,8 @@ const feedOf = (api: BellApi): AwayBellRow[] => api.feed() as AwayBellRow[];
 export function useAwayGroups() {
   const api = bell() || null;
   const [rows, setRows] = useState<AwayBellRow[]>(() => (api ? feedOf(api) : []));
-  // The review the card's line draws: its notice is that news a second time (review-line.ts); and the reviews Need you
-  // offers to answer, which are rows above (decision 0071).
-  const google = useSurface("google");
-  const review = reviewLineOf(google);
-  const answering = reviewsToAnswer(google);
+  // The reviews To do offers to answer, which are counted above (decision 0071): their notices are that work a second time.
+  const answering = reviewsToAnswer(useSurface("google"));
   useEffect(() => {
     if (!api) return undefined;
     const refresh = () => setRows(feedOf(api));
@@ -74,7 +88,6 @@ export function useAwayGroups() {
         }))
       : []),
     ...runsDrawn.map((r) => ({ runLabel: r.audience.label })),
-    ...(review ? [{ review: review.review }] : []),
     ...answering.map((r) => ({ review: { id: r.id, reviewId: r.review_id } })),
   ];
   // And the unread rows the bell does not list (older than its newest sixty), counted in the head (S6-10).
@@ -94,7 +107,10 @@ export const TodayAway = () => {
   const away = useAwayGroups();
   // E3's rows carry no dismiss of their own: a note is read when it is opened, and Mark all read clears the rest.
   if (!away) return null;
-  const { groups, total, foot, empty, openNote } = away;
+  const { total, foot, empty, openNote } = away;
+  // What the warnings under the head say is not said again here (phone/warnings.tsx).
+  const said = warningsUnderHead(away.groups);
+  const groups = away.groups.filter((g) => !said.includes(g));
   // One note: its mark, its words and the time, as the bell draws it; its press is its first action.
   const note = (n: AwayBellRow, inGroup: boolean) => {
     const act = n.actions && n.actions[0];
