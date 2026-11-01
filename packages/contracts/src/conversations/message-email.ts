@@ -11,6 +11,15 @@ export function emailSubjectOf(m: MessageDto): string | null {
 }
 
 /**
+ * A file's name that is a machine's, not a person's: an id ("055004a9-a643-4d83-85b2-87c72e848c96", with or without an
+ * extension) or a long run of hex. "1 attachment was not kept: 055004a9-a643-…" printed a storage id for a person to read
+ * (the thread canvas, 1 Nov 2026); such a file is counted and not named.
+ */
+const STORAGE_NAME =
+  /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{16,})(?:\.[a-z0-9]{1,5})?$/i;
+const storageNamed = (name: string): boolean => STORAGE_NAME.test(name.trim());
+
+/**
  * What an email carried that the thread does not show. The intake keeps the
  * names of an email's files and never the files, and a bounded amount of its
  * words (core email-ingest.ts); an owner reading "see the attached floor plan"
@@ -25,7 +34,7 @@ export function emailLeftOutOf(meta: unknown): string | null {
   const unnamed = typeof email.more_attachments === "number" && email.more_attachments > 0 ? email.more_attachments : 0;
   const names = files
     .map((f) => (f as { filename?: unknown } | null)?.filename)
-    .filter((n): n is string => typeof n === "string" && n.trim().length > 0);
+    .filter((n): n is string => typeof n === "string" && n.trim().length > 0 && !storageNamed(n));
   const total = files.length + unnamed;
   const said: string[] = [];
   if (total) {
@@ -116,10 +125,12 @@ export function splitQuotedReply(body: string): { text: string; quoted: string |
    words. The signature is found in the words as they were kept, and only where it looks like one: hiding a customer's
    words is worse than a long bubble, so a sign-off and their name stay words, and so does a form's "Phone: …". */
 
-/** What an email says, in its parts; `signature` and `quoted` are null when it has none. */
+/** What an email says, in its parts; `signature`, `footer` and `quoted` are null when it has none. */
 export interface EmailParts {
   said: string;
   signature: string | null;
+  /** What a list or a sales tool puts at an email's foot: its postal address and the way to stop its mail. */
+  footer: string | null;
   quoted: string | null;
 }
 
@@ -180,6 +191,62 @@ function signatureStart(lines: readonly string[], fromName: string | null): numb
   return pictured || named || shaped ? blank + 1 + (signedOff ? 1 : 0) : null;
 }
 
+/*
+ * An email's foot, the part a list or a sales tool adds under the sender (the thread canvas, 1 Nov 2026): a sequence's
+ * "If you'd like to stop receiving these emails, let me know https://…/unsubscribe" under "548 Market Street #16093, San
+ * Francisco, CA 94104-5401", drawn as the sender's words. It is folded only where it is plainly a foot: the email's last
+ * paragraph says how to stop its mail AND carries a link or stands under a postal address. "Please unsubscribe me" from a
+ * customer has neither, and stays their words; so does every paragraph above the foot that is not an address.
+ */
+const UNSUBSCRIBE =
+  /\b(unsubscribe|stop receiving|no longer (?:wish|want) to receive|manage (?:your )?(?:email |subscription |notification )?preferences|update your (?:email )?preferences|email preferences|you(?:'|’)?re receiving this|you are receiving this|this (?:e-?mail|message) was sent to)\b/i;
+const STREET =
+  /^\d{1,6}[A-Za-z]?\s+[\p{L}\d.'’ -]{2,60}?\b(?:street|st|avenue|ave|road|rd|boulevard|blvd|lane|ln|drive|dr|way|suite|ste|floor|fl|plaza|place|pl|court|ct|parkway|pkwy|highway|hwy)\b/iu;
+const TOWN_ZIP = /,\s*[A-Z]{2}\s+\d{5}(?:-\d{4})?\b/;
+const FOOT_LINK = /\bhttps?:\/\/\S+/i;
+const FOOT_PARA_MAX = 4;
+
+/** A line that is a postal address, as a list's foot writes it. */
+const postalLine = (l: string): boolean => STREET.test(l.trim()) || TOWN_ZIP.test(l);
+
+/** The paragraphs of some lines, as [first, last] line indexes, the last paragraph first. */
+function paragraphsFromTheFoot(lines: readonly string[]): Array<[number, number]> {
+  const paras: Array<[number, number]> = [];
+  let end = -1;
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (!blankLine(lines.at(i) ?? "")) {
+      if (end < 0) end = i;
+    } else if (end >= 0) {
+      paras.push([i + 1, end]);
+      end = -1;
+    }
+  }
+  if (end >= 0) paras.push([0, end]);
+  return paras;
+}
+
+/** Where an email's foot begins among its lines (above), or null when it has none, or when it would be all of it. */
+function footerStart(lines: readonly string[]): number | null {
+  const worded = ([a, b]: [number, number]): string[] => lines.slice(a, b + 1).filter((l) => HAS_WORDS.test(l));
+  const paras = paragraphsFromTheFoot(lines);
+  let k = 0;
+  while (k < paras.length && worded(paras.at(k) ?? [0, -1]).length === 0) k++;
+  const foot = paras.at(k);
+  if (!foot) return null;
+  const said = worded(foot);
+  if (said.length > FOOT_PARA_MAX || !said.some((l) => UNSUBSCRIBE.test(l))) return null;
+  let start = foot[0];
+  let addressed = false;
+  for (const p of paras.slice(k + 1)) {
+    const above = worded(p);
+    if (!above.length || above.length > FOOT_PARA_MAX || !above.every(postalLine)) break;
+    start = p[0];
+    addressed = true;
+  }
+  if (!addressed && !said.some((l) => FOOT_LINK.test(l))) return null;
+  return lines.slice(0, start).some((l) => HAS_WORDS.test(l)) ? start : null;
+}
+
 /** An address as a bubble compares it: no scheme, no "www.", no closing slash. */
 const bareAddress = (s: string): string =>
   s
@@ -223,14 +290,19 @@ export function tidyEmailWords(text: string): string {
  * signature keeps them as words: a bubble is never empty.
  */
 export function emailPartsOf(body: string, fromName: string | null): EmailParts {
-  const { text, quoted } = splitQuotedReply(repairMojibake(body).replace(/\r\n?/g, "\n"));
+  const { text: whole, quoted } = splitQuotedReply(repairMojibake(body).replace(/\r\n?/g, "\n"));
+  // A foot is theirs alone: words of ours carry none in what was typed.
+  const all = whole.split("\n");
+  const footAt = fromName === null ? null : footerStart(all);
+  const footer = footAt === null ? null : tidyEmailWords(all.slice(footAt).join("\n")) || null;
+  const text = footAt === null ? whole : all.slice(0, footAt).join("\n").trimEnd();
   const lines = text.split("\n");
   const at = fromName === null ? null : signatureStart(lines, fromName);
   const said = tidyEmailWords(at === null ? text : lines.slice(0, at).join("\n"));
-  if (at === null || !said)
-    return { said: tidyEmailWords(text), signature: null, quoted: quoted && tidyEmailWords(quoted) };
+  const chain = quoted && tidyEmailWords(quoted);
+  if (at === null || !said) return { said: tidyEmailWords(text), signature: null, footer, quoted: chain };
   const signed = lines.slice(SIG_DASHES.test(lines.at(at) ?? "") ? at + 1 : at).join("\n");
-  return { said, signature: tidyEmailWords(signed) || null, quoted: quoted && tidyEmailWords(quoted) };
+  return { said, signature: tidyEmailWords(signed) || null, footer, quoted: chain };
 }
 
 /** A link written the way a mail list writes it in plain text: "[Conditions of Use](https://…)". */

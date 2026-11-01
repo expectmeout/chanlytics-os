@@ -160,8 +160,8 @@
 /* A held draft has NOT been sent. It must not read like the messages above it
    that the customer has already seen — dashed, dimmed, and labelled, so an
    operator can tell at a glance what is still theirs to change. */
-.tl-msg.held .tl-msg-bubble {
-  border-style: dashed;
+.tl-msg.held .tl-msg-body {
+  border: 1px dashed var(--line-strong);
   opacity: 0.82;
 }
 .tl-held-tag {

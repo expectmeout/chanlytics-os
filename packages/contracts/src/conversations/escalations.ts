@@ -180,6 +180,44 @@ export function reasonSummaryOf(reason: string): string {
 }
 
 /**
+ * What a held thread owes, in the one line its reply dock opens with (the thread canvas, 1 Nov 2026): the thing to do or
+ * the fact that matters, then whether anything reached them. The summary above is the whole of it, said under the line's
+ * Why? on a press. The dock opened with the summary, a sentence of up to forty words over the reply box, and the flag in
+ * the conversation said it again above it: "They wrote by email. Nothing was sent: a reply is drafted for you in Need you,
+ * to change or send from here." on the thread that is that place. Never more than the summary says: a holding message is
+ * named only where one went out, and a draft only where the reply box holds one (it says so itself).
+ */
+const ESCALATION_LINES: Record<EscalationReason, string> = {
+  human_token: "They asked for a person — a holding message went out",
+  refusal: "The receptionist wouldn't answer this — a holding message went out",
+  brain_error: "The receptionist hit an error — a holding message went out",
+  non_text: "They sent something the receptionist can't read",
+  send_failed: "Our reply never reached them",
+  policy_block: "Held by your reply setting — nothing has been sent",
+  policy_ask: "Set to Ask me first — they were told someone will follow up",
+  person_hold: "You handle this person — nothing has been sent",
+  rate_cap: "The daily reply limit was reached — nothing has been sent",
+  deadman: "Nobody has replied yet",
+  manual: "Flagged by hand",
+  opt_out: `${STOP_WORDS.said("They")} — nothing may be sent`,
+  state_unavailable: "The receptionist couldn't read this thread — nothing has been sent",
+  stale: "Too late for an automatic reply — nothing has been sent",
+  budget: "The day's model budget is used up — nothing has been sent",
+  callback: "They're owed a call back",
+  paused: "The workspace is paused — nothing has been sent",
+  carriers: "Texting isn't approved for this line yet — nothing has been sent",
+  email_review: "They wrote by email — nothing has been sent",
+  booking_request: "Confirm the time they picked — they're waiting to hear",
+  booking_reply: "They asked to book — reply with a time that works",
+  wrote_while_held: "They wrote while your team had the thread — nothing has been sent",
+};
+
+/** The dock's line for a reason, or the reason's label for one the set does not know. */
+export function reasonLineOf(reason: string): string {
+  return (ESCALATION_LINES as Record<string, string>)[reason] ?? reasonLabelOf(reason);
+}
+
+/**
  * What a person does about a hold, by its reason, beside the reason's words (decision 0048): write to the customer
  * (`reply`), ring them back (`call_back`), or nothing may be sent and the thread only goes back (`hand_back`: Done, or
  * Hand back, and no reply). Every page and notice that draws a hold reads the verb from here, so a customer who asked to

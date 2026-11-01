@@ -290,7 +290,7 @@ export { callerName, personName } from "./people/person-name";
 export { filterTimeline, PERSON_ACT_WORDS, PERSON_DELETE_WORDS, personActs, personNextFor, TIMELINE_FILTERS, timelineFilterLabel, toPersonVM } from "./people/person-profile";
 export { bookingLinkAction, mayReach, proposalAction, proposalMessage, repliesWords, rowReachWords } from "./people/person-reach";
 export { asPersonMode, OWN_MODE_NAMED, ownModesOf, ownModesWords, PERSON_MODE_LABELS, PERSON_MODE_WORDS, PERSON_MODES } from "./people/person-receptionist";
-export { cameFromOf, toPersonRowVM, visitLineForDto } from "./people/person-row";
+export { cameFromOf, threadPersonFactsOf, toPersonRowVM, visitLineForDto } from "./people/person-row";
 export { ago } from "./people/person-row-facts";
 export { attentionOf, holderOf, NEW_WINDOW_DAYS, PEOPLE_TABS, PERSON_STATE_LABELS, personStanding, personStateFor, QUIET_AFTER_DAYS, stopToldBesideState } from "./people/person-state";
 export { consentChangeWords } from "./people/person-timeline";

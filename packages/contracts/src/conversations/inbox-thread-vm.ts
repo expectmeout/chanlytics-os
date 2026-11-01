@@ -141,6 +141,13 @@ export interface InboxThreadVM {
    */
   previewChannel: ThreadChannel | null;
   summary: string;
+  /**
+   * An open hold in the dock's words (inbox-thread.ts holdWordsOf): the one line it opens with, the reason's whole sentence
+   * under its Why?, and what the hold noted. None with no hold, or on a thread a teammate has.
+   */
+  holdLine?: string;
+  holdWhy?: string;
+  holdNote?: string;
   lastAt: string;
   lastAtFull: string;
   /** Absolute times, epoch ms, for anything that must not drift with the
@@ -185,6 +192,8 @@ export interface InboxThreadVM {
         subject?: string;
         /** The chain an email quoted back at us, when it did: kept, and shown on a tap. */
         quoted?: string;
+        /** What a list or a sales tool put at the foot of an email of theirs, folded under its words (emailPartsOf). */
+        footer?: string;
         /** The signature under an email of theirs: one line, and the whole of it on a tap (emailPartsOf). */
         signature?: { line: string; full: string };
         /** What an email carried that is not shown: files whose names alone were kept, words past the bound (emailLeftOutOf). */

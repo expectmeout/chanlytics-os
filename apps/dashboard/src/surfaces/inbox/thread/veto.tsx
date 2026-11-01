@@ -113,7 +113,7 @@ export const VetoBar = ({
       role="timer"
       data-tip={
         thread.real
-          ? "This draft sends itself at zero. Hold stops it, and so does starting to type a reply."
+          ? "This draft sends itself at zero. Edit, Hold or starting to type a reply stops it."
           : "This draft sends itself at zero — Edit, Hold, or typing a reply cancels it"
       }
     >
