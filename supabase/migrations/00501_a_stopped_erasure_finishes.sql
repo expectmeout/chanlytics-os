@@ -1,4 +1,4 @@
--- 00500 · A stopped erasure finishes (decision 0036).
+-- 00501 · A stopped erasure finishes (decision 0036).
 --
 -- An erasure that stopped at a fail-closed leg (the Ask scrub, the finished jobs, the kept deliveries, other people's
 -- notes, the receptionist's kept turns, Storage), or whose press died, left the person blocked (contacts.erasing_since,
@@ -40,7 +40,7 @@ alter table public.jobs alter column lane set expression as (
   end
 );
 comment on column public.jobs.lane is
-  'Which work a claim takes first (decision 0018): 0 a reply, 1 someone waiting who is not a customer (a line bought, a lead''s reply read, a booking notice read, a website read for Check, 00479, a lead''s preview built, 00497, an erasure finished, 00500), 2 bulk (a history brought in, 00478, among it). Generated from kind and payload; an event_deliver runs in its subscription''s lane (payload.lane, 00334), a text''s answer in a reply''s (inbound_answer, 00347); null for a kind the case does not name, claimed last.';
+  'Which work a claim takes first (decision 0018): 0 a reply, 1 someone waiting who is not a customer (a line bought, a lead''s reply read, a booking notice read, a website read for Check, 00479, a lead''s preview built, 00497, an erasure finished, 00501), 2 bulk (a history brought in, 00478, among it). Generated from kind and payload; an event_deliver runs in its subscription''s lane (payload.lane, 00334), a text''s answer in a reply''s (inbound_answer, 00347); null for a kind the case does not name, claimed last.';
 
 /* ------------------------------------------------ 2. the rows, as the system -- */
 
@@ -53,7 +53,7 @@ set search_path = public
 as $$
 declare
   v_user          uuid := auth.uid();
-  -- The system finishing what an owner began (00500): the erasure_finish job, on the service role.
+  -- The system finishing what an owner began (00501): the erasure_finish job, on the service role.
   v_service       boolean := coalesce((select auth.role()), '') = 'service_role';
   v_tenant        uuid;
   v_erased        timestamptz;
@@ -191,7 +191,7 @@ begin
      this person is withdrawn -- and its payload scrubbed in the same
      statement (jobs_guard allows a payload change on any row): the number it
      carried must not outlive the row, and a re-driven erasure has no digits
-     to find it by. The erasure's own finish (erasure_finish, 00500) is among
+     to find it by. The erasure's own finish (erasure_finish, 00501) is among
      them: a press that reaches this row needs none. */
   update jobs
      set state = 'canceled', last_error = 'contact erased',
@@ -316,7 +316,7 @@ end $$;
 revoke execute on function public.erase_contact(uuid, jsonb) from public, anon, authenticated;
 grant execute on function public.erase_contact(uuid, jsonb) to authenticated, service_role;
 comment on function public.erase_contact(uuid, jsonb) is
-  'Erase one customer: delete their calls and messages explicitly (the call FKs are SET NULL and the message FK is NO ACTION), cascade the conversation, cancel every scheduled job that names them, scrub decision payloads, and tombstone the contact. Returns the Storage paths the caller must remove. Owner-only, checked against auth.uid() inside the body; the service role may finish one an owner began (erasing_since set: the erasure_finish job, 00500), and the ledger''s row then says the system erased them.';
+  'Erase one customer: delete their calls and messages explicitly (the call FKs are SET NULL and the message FK is NO ACTION), cascade the conversation, cancel every scheduled job that names them, scrub decision payloads, and tombstone the contact. Returns the Storage paths the caller must remove. Owner-only, checked against auth.uid() inside the body; the service role may finish one an owner began (erasing_since set: the erasure_finish job, 00501), and the ledger''s row then says the system erased them.';
 
 /* -------------------------------------------- 3. the Ask scrub, as the system -- */
 
@@ -349,7 +349,7 @@ declare
   v_days     integer;
 begin
   -- An owner of the workspace, or the system finishing what an owner began (the erasure_finish job, on the service
-  -- role, 00500): either way only a person being erased, checked next.
+  -- role, 00501): either way only a person being erased, checked next.
   if coalesce((select auth.role()), '') <> 'service_role' and not exists (
     select 1 from public.memberships m
      where m.user_id = (select auth.uid()) and m.tenant_id = p_tenant_id and m.role = 'owner'
@@ -459,4 +459,4 @@ end $_$;
 revoke execute on function public.scrub_ask_for_contact(uuid, uuid, text[]) from public, anon;
 grant execute on function public.scrub_ask_for_contact(uuid, uuid, text[]) to authenticated, service_role;
 comment on function public.scrub_ask_for_contact(uuid, uuid, text[]) is
-  'An owner''s, or the service role''s finishing what an owner began (the erasure_finish job, 00500), and only for a person being erased: removes every Ask message in the workspace whose words hold their id, a conversation or call id of theirs, or a spelling of their number or address; strips the raw turn off a message whose raw alone does; and in the threads those make theirs (or that are scoped to them) removes every message naming them, strips every raw, clears the title and scope, and removes a thread left empty (00238). Then every line of Ask''s memory and every day of its journal that holds one of those, or their name as a whole word (00470). Returns the messages removed, the raws stripped, the lines and the days removed.';
+  'An owner''s, or the service role''s finishing what an owner began (the erasure_finish job, 00501), and only for a person being erased: removes every Ask message in the workspace whose words hold their id, a conversation or call id of theirs, or a spelling of their number or address; strips the raw turn off a message whose raw alone does; and in the threads those make theirs (or that are scoped to them) removes every message naming them, strips every raw, clears the title and scope, and removes a thread left empty (00238). Then every line of Ask''s memory and every day of its journal that holds one of those, or their name as a whole word (00470). Returns the messages removed, the raws stripped, the lines and the days removed.';

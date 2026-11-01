@@ -20,10 +20,10 @@ import { readRaw } from "../../_source.mjs";
 // ("the customer's phone digits") opens a phantom string literal that swallows
 // real SQL up to the next apostrophe.
 //
-// 00500 holds the CURRENT text of erase_contact (the service role admitted for a person an owner's press blocked);
+// 00501 holds the CURRENT text of erase_contact (the service role admitted for a person an owner's press blocked);
 // 00027 declared it, 00151 and 00326 re-created it, and those are history. Reading an older file would pin a
 // definition the database does not run.
-const sql = readRaw("supabase/migrations/00500_a_stopped_erasure_finishes.sql");
+const sql = readRaw("supabase/migrations/00501_a_stopped_erasure_finishes.sql");
 const statements = sql.replace(/^\s*--.*$/gm, "");
 
 test("the destructive order is collect, then calls, then messages, then the cascade", () => {

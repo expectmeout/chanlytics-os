@@ -878,7 +878,7 @@ test(
     assert.deepEqual(finish.payload, { contact_id: id });
 
     // The tick claims it and runs the handler on the service role: the rows' leg and the Ask scrub admit the system for
-    // a person whose block an owner's press wrote (00500).
+    // a person whose block an owner's press wrote (00501).
     const ran = await dispatchJob({ db }, { ...finish, attempts: 1 });
     assert.equal(ran, "done");
     assert.deepEqual(needlesLeft(digits, email), [], "nothing of them is left");

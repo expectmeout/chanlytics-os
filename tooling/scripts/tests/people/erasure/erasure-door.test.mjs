@@ -74,7 +74,7 @@ async function erase({ erased = false, faults = {}, storage = [], rpcs = {}, tab
     person_notes_scrub: () => 1,
     model_turns_scrub: () => 1,
     appointments_scrub: () => 1,
-    // The rows' leg, as it treats the ledger (00151, 00500): every scheduled job naming the person withdrawn and its
+    // The rows' leg, as it treats the ledger (00151, 00501): every scheduled job naming the person withdrawn and its
     // payload scrubbed in the same transaction, the erasure's own finish among them; one naming them by their number
     // or address alone is left to the scrub after the rows.
     erase_contact: ({ p_contact_id }) => {
@@ -125,7 +125,7 @@ test("an erasure runs its legs in the design's order: the block and the finish b
   assert.deepEqual(steps, [
     "rpc:erasure_digests", // the digests the block keeps, the database's own (00263)
     "contacts.update", // the block, with the number still on the row
-    "jobs.insert", // the finish, on the ledger beside the block (erasure_finish, 00500)
+    "jobs.insert", // the finish, on the ledger beside the block (erasure_finish, 00501)
     "rpc:scrub_ask_for_contact", // the copies keyed on the number, before anything is destroyed
     "jobs.update", // the finished job only
     "rpc:provider_events_scrub", // the deliveries the intake ledger keeps a week, by the same identifiers (00336)
@@ -287,7 +287,7 @@ test("REGRESSION: a leg that stopped an erasure after the Ask scrub said nothing
 });
 
 test("the finish is a net under the erasure, never a leg of it: a ledger that refuses it leaves the press to go on, and a stop then says to delete again", async () => {
-  // A database before 00500 refuses the kind; either app may deploy first.
+  // A database before 00501 refuses the kind; either app may deploy first.
   const went = await erase({ faults: { "jobs.insert": { message: "jobs_kind_check" } } });
   assert.equal(went.value?.erased, true, "a finish that would not schedule does not stop an erasure");
   assert.ok(!went.tables.jobs.some((j) => j.kind === "erasure_finish"));

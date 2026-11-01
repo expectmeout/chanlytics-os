@@ -1,6 +1,6 @@
 /**
  * erasure_finish, the job (packages/jobs/src/erasure.ts), run through the dispatcher over a database in memory: a
- * stopped erasure finishes without a second press (decision 0036; 00500).
+ * stopped erasure finishes without a second press (decision 0036; 00501).
  *
  * Every press puts the finish on the ledger beside the block, due once the press has had time to end. A press that
  * ended well had erase_contact withdraw it with every other scheduled job naming the person; one that stopped at a

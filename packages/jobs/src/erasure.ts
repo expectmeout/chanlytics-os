@@ -7,7 +7,7 @@
  * Three stores hold the customer: Postgres rows, the private `media` bucket, and the scheduled jobs that would still
  * speak to them. ORDER IS THE DESIGN. The keys are read first (reads only, retryable with nothing to undo). Then the
  * BLOCK (beginErasure, 00124): from that moment the wire refuses the person and the passive doors will not bring them
- * back, whatever happens to the legs below; and beside it the FINISH goes on the ledger (erasure_finish, 00500), a job
+ * back, whatever happens to the legs below; and beside it the FINISH goes on the ledger (erasure_finish, 00501), a job
  * due once any press has had time to end, which finds the person erased and itself withdrawn with every other job that
  * named them (erase_contact cancels the scheduled ones), or finds them still blocked and finishes the erasure, tried
  * again by the ledger's waits. Then the copies keyed on the number (Ask turns, finished jobs, kept deliveries, other
@@ -21,7 +21,7 @@
  * caller's: the route hands its session's for the key reads, the Ask scrub, the policy delete and erase_contact (RLS
  * the floor, the owner's role the door, and erase_contact reads the owner from auth.uid()), and the service role's for
  * the block, Storage and the scrubs granted to it alone; the job hands the service role's for both, which erase_contact
- * and the Ask scrub admit for a person whose block an owner's press wrote (00500).
+ * and the Ask scrub admit for a person whose block an owner's press wrote (00501).
  */
 import { AppError, MIN_MS } from "@chanlytics/contracts";
 import { logger } from "@chanlytics/channels";
@@ -176,10 +176,10 @@ async function blockErasure(db: Db, contact: ErasurePerson): Promise<void> {
 }
 
 /**
- * The finish, on the ledger beside the block (erasure_finish, 00500): once per person while one waits (its key), due
+ * The finish, on the ledger beside the block (erasure_finish, 00501): once per person while one waits (its key), due
  * ERASURE_FINISH_AFTER_MS on, naming them by the id alone. A press that ends well leaves it to erase_contact, which
  * withdraws it with every scheduled job naming the person; one that stops, or dies, leaves it to run. A ledger that
- * would not take it (a database before 00500 refuses the kind: either app may deploy first) is logged and the press
+ * would not take it (a database before 00501 refuses the kind: either app may deploy first) is logged and the press
  * goes on: the finish is a net under the erasure, never a leg of it. True when one waits.
  */
 async function scheduleFinish(db: Db, contact: ErasurePerson): Promise<boolean> {
@@ -522,7 +522,7 @@ async function scrubAppointmentsBestEffort(
 /* ---- the finish: the job ---- */
 
 /**
- * erasure_finish: an erasure a press left unfinished, finished (decision 0036; 00500). payload: { contact_id }, put on
+ * erasure_finish: an erasure a press left unfinished, finished (decision 0036; 00501). payload: { contact_id }, put on
  * the ledger beside the block by every press, due ERASURE_FINISH_AFTER_MS on; a press that ended well had erase_contact
  * withdraw it. Written to be run again (ledger RETRY_WAITS_MS): every leg is a delete or an overwrite keyed on the
  * person, so a second run repeats nothing it should not. A person already erased has the id-keyed legs run again; one

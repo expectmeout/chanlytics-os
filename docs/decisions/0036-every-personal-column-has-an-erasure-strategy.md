@@ -7,7 +7,7 @@ and its ratchet, and the notes' scrub, 00341); step 2's test built on 7 October 
 as the owner, every column searched after; its number on the back office is not yet written); step 3 built on
 10 October 2026 (00391): 187 of the 195 classified; its three open questions answered the same day (Ruben: "go with the
 best recommendations") and built (00392), so 2 stay counted, the message's words, on purpose; step 4 built on
-31 October 2026 (00500): a second press re-drives every leg a press may still owe, the visits' scrub among them, and a
+31 October 2026 (00501): a second press re-drives every leg a press may still owe, the visits' scrub among them, and a
 press that stopped is finished by the `erasure_finish` job without one. Proposed the same day as the decision: the
 registry 0031's invariant 10 names ("every table has a tenant, a floor and an erasure strategy") and leaves to a note
 of its own. Written against commit `163f367` (main, 6 October 2026) with Phase 1's pull request (#1447) on it, built on
@@ -87,7 +87,7 @@ erasure again on the service role, tried again by the ledger's waits (five minut
 and never live meanwhile. `erase_contact` and `scrub_ask_for_contact` admit the service role for a person whose block
 an owner's press wrote and for nobody else, and the ledger's row then says the system erased them; a session is judged
 as before, in the body, from `auth.uid()`. The finish is a net under the erasure, never a leg of it: a ledger that would
-not take it (a database before 00500) is logged, and the press goes on.
+not take it (a database before 00501) is logged, and the press goes on.
 
 ## Steps
 
@@ -113,7 +113,7 @@ not take it (a database before 00500) is logged, and the press goes on.
    cleared with its payload (`scrubErasedJobs`): a provider's refusal can quote the number. A reply to a reach-out goes
    with the replier's message, by cascade. Eight stayed counted that day: the two message columns, and six named since
    as their tables were decided (the registry is the record), so two stay counted, on purpose.
-4. **The erasure finishes** (built 31 October 2026, 00500). The re-drive covers every id-keyed leg: the visits' scrub
+4. **The erasure finishes** (built 31 October 2026, 00501). The re-drive covers every id-keyed leg: the visits' scrub
    joins the policy rows, the Ask turns and the jobs, and the answer says which of the four held. The finish is the
    `erasure_finish` job: its kind, handler, caller, CHECK and lane in one change, as every kind arrives; its handler
    runs `erasePerson` or the re-drive on the service role, which the two SQL doors now admit for a blocked person. The
