@@ -1895,6 +1895,10 @@ button.ix-ctx { text-align: left; cursor: pointer; transition: background 100ms;
 }
 @media (hover: hover) { .ix-why:hover { color: var(--ink); } }
 .ix-why-said { display: block; margin-top: 4px; color: var(--ink-dim); }
+/* In a line of words (the dock's, the thread canvas of 1 Nov 2026) it keeps the line's height, and a thumb's reach past
+   it: the touch floor made the line it sat on 44px tall. */
+html.legacy-on .ix-dock .ix-why { position: relative; min-height: 0; }
+.ix-dock .ix-why::after { content: ""; position: absolute; inset: -12px -8px; }
 .ix-tpl-none {
   font-size: 12px;
   color: var(--ink-dim);
