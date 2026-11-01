@@ -142,6 +142,30 @@ test("Try again finds the mailbox that reads it now: its own removed, the newest
   ]);
 });
 
+test("Try again on a source two mailboxes brought (decision 0086): each one's stopped row starts again through its own mailbox, a row still coming left as it is", async () => {
+  const w = world({
+    imports: [
+      { ...stopped("mailbox", OLD), connection_id: OLD },
+      { ...stopped("mailbox", NEW), connection_id: NEW },
+      { ...stopped("mailbox", GRANT), connection_id: GRANT, state: "running", last_error: null },
+    ],
+    boxes: [box(OLD), box(NEW), box(GRANT)],
+  });
+  assert.deepEqual(await ask({ source: "mailbox" }), [200, { ok: true }]);
+  assert.deepEqual(
+    w.notes.map((n) => [n.p_connection_id, n.p_state, n.p_take]),
+    [
+      [OLD, "queued", true],
+      [NEW, "queued", true],
+    ],
+    "each mailbox's own row, taken by a run of its own",
+  );
+  assert.deepEqual(
+    w.tables.jobs.map((j) => j.payload.connection_id),
+    [OLD, NEW],
+  );
+});
+
 test("Try again refuses what it cannot start here: a source by another name, one brought in where it was first brought in, one never brought in, another workspace's", async () => {
   world();
   assert.equal((await ask({ source: "everything" }))[0], 400);

@@ -81,7 +81,7 @@ export function mailboxRow(i: ConnectionInputs): ConnectionDraft {
       detail: one ? (boxes[0]?.address ?? null) : `${boxes.length} mailboxes`,
       state: needs ? "attention" : "connected",
       stateWords: needs ? `${needs} to look at` : "On",
-      sentence: `Email people write to ${one ? "it" : "them"} comes into your Inbox, six months of it with it, and sequences to leads write from ${one ? "it" : "them"}.`,
+      sentence: `Email people write to ${one ? "it" : "them"} comes into your Inbox, and sequences to leads write from ${one ? "it" : "them"}.`,
       verb: null,
       body: "mailboxes",
     };
@@ -96,7 +96,7 @@ export function mailboxRow(i: ConnectionInputs): ConnectionDraft {
       detail: null,
       state: "none",
       stateWords: "Not connected",
-      sentence: `Connect your Google Workspace or Microsoft 365 mailbox: email from people comes into your Inbox, six months of it with it, and sequences to leads write from it.${note ? ` ${note}` : ""}`,
+      sentence: `Connect your Google Workspace or Microsoft 365 mailbox: email from people comes into your Inbox, and sequences to leads write from it.${note ? ` ${note}` : ""}`,
       verb: null,
       body: "mailboxes",
     };

@@ -158,7 +158,15 @@ const OVERRULED_IN_A_REACH_OUT: ReadonlySet<SortedWhy> = new Set<SortedWhy>([
 /** The mailbox's history stopped: said on its row, with Try again; nothing more is scheduled. */
 async function mailStopped(db: Db, part: Part, error: string): Promise<PartOutcome> {
   // Added to, never set: what earlier parts brought stays counted.
-  await noteImport(db, { tenantId: part.tenantId, source: "mailbox", state: "failed", error, add: true });
+  await noteImport(db, {
+    tenantId: part.tenantId,
+    source: "mailbox",
+    connectionId: part.connectionId,
+    run: part.run,
+    state: "failed",
+    error,
+    add: true,
+  });
   return { more: false };
 }
 
@@ -197,6 +205,8 @@ function noteMail(
   return noteImport(r.db, {
     tenantId: r.part.tenantId,
     source: "mailbox",
+    connectionId: r.row.id,
+    run: r.part.run,
     state: end.state,
     counts: tally.counts,
     add: true,
@@ -390,6 +400,8 @@ export async function bringInSender(p: {
   const part: Part = {
     tenantId: p.row.tenant_id,
     connectionId: p.row.id,
+    // A sender brought in writes no row of the ledger: it is no run's.
+    run: "sender",
     n: 0,
     until: Date.now() + BRING_IN_MS,
     log: p.log,
@@ -423,13 +435,21 @@ export async function mailHistoryPart(db: Db, part: Part): Promise<PartOutcome> 
     if (t.why === "signed_out") await markSignedOut(db, row, part.log, now);
     return mailStopped(db, part, IMPORT_STOPPED_WORDS.signedOut);
   }
-  const cur = cursorOf(await importCursorOf(db, part.tenantId, "mailbox")) ?? {
+  const cur = cursorOf(await importCursorOf(db, part.tenantId, "mailbox", row.id)) ?? {
     window: firstWindow(row),
     phase: firstPhase(row),
     page: null,
     at: 0,
   };
-  await noteImport(db, { tenantId: part.tenantId, source: "mailbox", state: "running", via: row.provider, add: true });
+  await noteImport(db, {
+    tenantId: part.tenantId,
+    source: "mailbox",
+    connectionId: row.id,
+    run: part.run,
+    state: "running",
+    via: row.provider,
+    add: true,
+  });
 
   const r: MailRead = {
     db,

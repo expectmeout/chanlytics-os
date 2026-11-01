@@ -2941,14 +2941,17 @@ export type Database = {
       }
       imports: {
         Row: {
+          connection_id: string | null
           counts: Json
           created_at: string
           finished_at: string | null
+          id: string
           job_cursor: Json | null
           last_error: string | null
           oldest: string | null
           parts_done: number
           parts_total: number | null
+          run: string | null
           source: string
           started_at: string | null
           state: string
@@ -2957,14 +2960,17 @@ export type Database = {
           via: string | null
         }
         Insert: {
+          connection_id?: string | null
           counts?: Json
           created_at?: string
           finished_at?: string | null
+          id?: string
           job_cursor?: Json | null
           last_error?: string | null
           oldest?: string | null
           parts_done?: number
           parts_total?: number | null
+          run?: string | null
           source: string
           started_at?: string | null
           state?: string
@@ -2973,14 +2979,17 @@ export type Database = {
           via?: string | null
         }
         Update: {
+          connection_id?: string | null
           counts?: Json
           created_at?: string
           finished_at?: string | null
+          id?: string
           job_cursor?: Json | null
           last_error?: string | null
           oldest?: string | null
           parts_done?: number
           parts_total?: number | null
+          run?: string | null
           source?: string
           started_at?: string | null
           state?: string
@@ -2989,6 +2998,13 @@ export type Database = {
           via?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "imports_connection_fk"
+            columns: ["tenant_id", "connection_id"]
+            isOneToOne: false
+            referencedRelation: "mailbox_connections"
+            referencedColumns: ["tenant_id", "id"]
+          },
           {
             foreignKeyName: "imports_tenant_id_fkey"
             columns: ["tenant_id"]
@@ -4319,6 +4335,7 @@ export type Database = {
           gmail_signature_at: string | null
           held_at: string | null
           held_why: string | null
+          history: string
           host: string
           id: string
           judged_at: string | null
@@ -4359,6 +4376,7 @@ export type Database = {
           gmail_signature_at?: string | null
           held_at?: string | null
           held_why?: string | null
+          history?: string
           host: string
           id?: string
           judged_at?: string | null
@@ -4399,6 +4417,7 @@ export type Database = {
           gmail_signature_at?: string | null
           held_at?: string | null
           held_why?: string | null
+          history?: string
           host?: string
           id?: string
           judged_at?: string | null
@@ -8121,14 +8140,17 @@ export type Database = {
       import_ledger_note: {
         Args: {
           p_add?: boolean
+          p_connection_id?: string
           p_counts?: Json
           p_cursor?: Json
           p_error?: string
           p_oldest?: string
           p_parts_done?: number
           p_parts_total?: number
+          p_run?: string
           p_source: string
           p_state: string
+          p_take?: boolean
           p_tenant_id: string
           p_via?: string
         }

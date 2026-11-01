@@ -6,7 +6,8 @@
  *   connect    the code exchanged; a grant without send and read, without lasting access, or of a free mailbox refused
  *              and given back; the mailbox's row made, its token kept in Vault and never on the row, its records read,
  *              the Activity log told; a mailbox another workspace holds refused by the database's own word;
- *   pause, unpause, resume, settings, test, check, remove   each from the states it may, each answering the page's row.
+ *   pause, unpause, resume, settings, test, check, remove   each from the states it may, each answering the page's row;
+ *   history_bring, history_stop, history_resume   a mailbox's own history (decision 0086), each where it may.
  */
 import { test, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
@@ -14,6 +15,8 @@ import { signEdgeToken } from "@chanlytics/channels";
 import { importSrc } from "../../_source.mjs";
 import { fakeDb } from "../../_fake-db.mjs";
 import { rows } from "../../_rows.mjs";
+import { IMPORT_STOPPED_WORDS } from "@chanlytics/contracts";
+import { ledgerDoor } from "../../imports/_ledger-door.mjs";
 import { MAILBOX_ENV, b64url, dnsAnswers, liveCredentials, providers, vault, withEnv } from "./_mailbox-world.mjs";
 
 const SECRET = "edge-secret-for-this-file";
@@ -67,10 +70,14 @@ function world({ boxes = [], refuse = null, creds = {}, said = [] } = {}) {
     notifications: [],
     // 00483: what the workspace said of its senders.
     mailbox_senders: said.map(([sender, verdict]) => ({ tenant_id: A, sender, verdict })),
+    // 00477, 00499: what a mailbox brings, its own rows; and the parts that bring it.
+    imports: [],
+    jobs: [],
   };
   const kept = [];
   const rpcs = {
     ...v.rpcs,
+    import_ledger_note: ledgerDoor(tables),
     // 00478: a message from before Chanlytics, once by its provider id.
     ingest_before: (a) => {
       const again = kept.some((k) => k.p_message_external_id === a.p_message_external_id);
@@ -502,4 +509,43 @@ test("bring in: a sender the owner said is a person, their mail of the six month
   } finally {
     net.restore();
   }
+});
+
+test("what its owner chose rides the connect (decision 0086): from now on keeps the six months out of a new mailbox, a reconnect keeps its own; Bring in, Stop and Resume, each where it may", async () => {
+  const w = world();
+  const net = google();
+  let id;
+  try {
+    const [s, body] = await ask({ op: "connect", provider: "google", code: "4/code", history: "from_now" });
+    assert.equal(s, 200, JSON.stringify(body));
+    assert.equal(body.mailbox.history, "from_now");
+    id = body.mailbox.id;
+    assert.deepEqual(w.tables.imports, [], "no six months, and nothing else it was granted");
+    const [, again] = await ask({ op: "connect", provider: "google", code: "4/again" });
+    assert.deepEqual([again.made, again.mailbox.history], [false, "from_now"], "a reconnect is never asked again");
+  } finally {
+    net.restore();
+  }
+  let [s, body] = await ask({ op: "history_bring", mailbox_id: id });
+  assert.deepEqual([s, body.mailbox.history], [200, "six_months"]);
+  assert.deepEqual(
+    w.tables.imports.map((r) => [r.source, r.connection_id, r.state]),
+    [["mailbox", id, "queued"]],
+  );
+  assert.deepEqual(await ask({ op: "history_bring", mailbox_id: id }), [
+    409,
+    { ok: false, error: "not_ready", detail: "Its last 6 months are already brought in." },
+  ]);
+  [s] = await ask({ op: "history_stop", mailbox_id: id });
+  assert.equal(s, 200);
+  assert.deepEqual([w.tables.imports[0].state, w.tables.imports[0].last_error], ["failed", IMPORT_STOPPED_WORDS.byYou]);
+  assert.deepEqual((await ask({ op: "history_stop", mailbox_id: id }))[1].error, "not_ready", "nothing coming in");
+  [s] = await ask({ op: "history_resume", mailbox_id: id });
+  assert.deepEqual([s, w.tables.imports[0].state], [200, "queued"]);
+  assert.deepEqual((await ask({ op: "history_resume", mailbox_id: id }))[1].error, "not_ready", "nothing stopped");
+  assert.equal(
+    (await ask({ op: "history_stop", mailbox_id: "22222222-2222-4222-8222-222222222222" }))[0],
+    404,
+    "another workspace's mailbox is not found",
+  );
 });

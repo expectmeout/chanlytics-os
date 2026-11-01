@@ -233,6 +233,7 @@ export const ROUTE_KEYS = [
   "POST lines/retry",
   "POST lines/search",
   "POST mailbox-connections/[id]/check",
+  "POST mailbox-connections/[id]/history",
   "POST mailbox-connections/[id]/resume",
   "POST mailbox-connections/[id]/test",
   "POST mailbox-senders",

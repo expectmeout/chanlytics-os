@@ -15,6 +15,11 @@
  *   { op: "bring_in", tenant_id, address }                  → a sender the owner said is a person: their mail of the
  *                                                             mailboxes' six months and since kept in their thread
  *                                                             (imports/mail-history.ts bringInSender), how many
+ *   { op: "history_stop" | "history_resume" | "history_bring", tenant_id, mailbox_id }
+ *                                                           → its history stopped where it stands, started again where
+ *                                                             it stopped, or (connected from now on) its six months
+ *                                                             brought in (imports/history-import.ts, decision 0086)
+ *   A connect's history ("six_months" | "from_now") is what its owner chose under Connect; a reconnect keeps its own.
  *
  * A row's answer is its page row (channels mailboxDtoOf, its Gmail signature said in words). A connect that did not finish answers its reason
  * (contracts MAILBOX_CONNECT_WORDS says each) beside the code a caller compares.
@@ -27,6 +32,7 @@ import { mailboxConnectionOf, mailboxConnectionsOf, type MailboxConnectionRow } 
 import { MAILBOX_PROVIDERS, UUID, normalizeEmail, type MailboxProvider } from "../../packages/contracts.js";
 import { mailboxDtoOf } from "../../packages/channels.js";
 import { bringInSender } from "../../imports/mail-history.js";
+import { bringMailboxHistory, resumeMailboxHistory, stopMailboxHistory } from "../../imports/history-import.js";
 import { tokenFor } from "./mailbox-credentials.js";
 import { mailboxReadiness } from "./mailbox-config.js";
 import {
@@ -55,9 +61,24 @@ export interface Body {
   signature_off?: unknown;
   daily_cap?: unknown;
   address?: unknown;
+  /** What its owner chose under Connect (0086). */
+  history?: unknown;
 }
 
-const OPS = new Set(["connect", "remove", "pause", "unpause", "resume", "settings", "test", "check", "bring_in"]);
+const OPS = new Set([
+  "connect",
+  "remove",
+  "pause",
+  "unpause",
+  "resume",
+  "settings",
+  "test",
+  "check",
+  "bring_in",
+  "history_stop",
+  "history_resume",
+  "history_bring",
+]);
 
 /** A connect that did not finish, as the code a caller compares, with its reason beside it for the owner's words. */
 function connectRefused(why: ConnectError): Response {
@@ -109,6 +130,7 @@ async function connectOp(p: MailboxPorts, tenantId: string, by: string | null, b
     code,
     verifier: verifier || null,
     mailboxId: reconnecting || null,
+    history: body.history === "from_now" ? "from_now" : null,
   });
   if (out.ok) {
     const row = await mailboxConnectionOf(p.db, tenantId, out.id);
@@ -169,6 +191,16 @@ async function rowOp(
       return (await mailboxResume(p, row, by ?? "owner")) ? answer() : refuse(409, "not_held");
     case "check":
       return (await mailboxCheck(p, row)) ? answer() : refuse(503, "unavailable");
+    case "history_stop":
+      return (await stopMailboxHistory(p.db, row, Date.now()))
+        ? answer()
+        : refuse(409, "not_ready", "Nothing is coming in from it.");
+    case "history_resume":
+      return (await resumeMailboxHistory(p.db, row)) ? answer() : refuse(409, "not_ready", "Nothing of it stopped.");
+    case "history_bring":
+      return (await bringMailboxHistory(p.db, row))
+        ? answer()
+        : refuse(409, "not_ready", "Its last 6 months are already brought in.");
     case "settings": {
       const out = await mailboxSettings(p, row, settingsOf(body));
       if ("error" in out) return refuse(400, "invalid", out.error);

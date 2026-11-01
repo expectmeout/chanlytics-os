@@ -10,6 +10,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { installLegacyReact, fresh, again, find, all, byTestId, textOf, press, settle } from "../../_legacy-react.mjs";
+import { until } from "../../shared/_until.mjs";
 
 installLegacyReact();
 const SAM = "sam@getharbor.example";
@@ -562,4 +563,91 @@ test("a mailbox whose Gmail has no signature ends its emails with its name, and 
     shown,
     /Gmail has none for this address, so its emails end with its name\. Saving reads it from Gmail now\./,
   );
+});
+
+test("what a mailbox brings is its own (decision 0086): its Inbox says where its history stands with the one act that fits, and under Add a mailbox what connecting brings, with Change", async () => {
+  const { IMPORT_STOPPED_WORDS, MAILBOX_HISTORY_WORDS } = await import("@chanlytics/contracts");
+  const pressed = [];
+  const went = [];
+  Object.assign(connectedMailboxes, {
+    history: async (id, act) => (pressed.push([id, act]), { ok: true, data: { mailbox: null } }),
+    connect: async (p, id, _back, history) => (
+      went.push([p, id ?? null, history ?? null]),
+      { ok: true, data: { url: "https://provider.example/" } }
+    ),
+  });
+  /** The mailbox's own row of the ledger (00499), still coming in unless said. */
+  const own = (over = {}) => ({
+    source: "mailbox",
+    connection_id: "m1",
+    state: "running",
+    counts: { messages: 130 },
+    parts_done: 1,
+    parts_total: null,
+    oldest: null,
+    started_at: null,
+    finished_at: null,
+    last_error: null,
+    via: "google",
+    ...over,
+  });
+  // Coming in: where it stands, and Stop in place of Try again.
+  let tree = open([mbx()], null, { imports: [own()] });
+  assert.match(factsOf(tree)[0], /^Inbox: 130 emails so far · …Stop$/);
+  press(byTestId(tree, `mailbox-history-stop-${SAM}`));
+  await until(() => pressed.length === 1, "Stop pressed through the door");
+  // Stopped by its owner: Resume, through the same door.
+  tree = open([mbx()], null, { imports: [own({ state: "failed", last_error: IMPORT_STOPPED_WORDS.byYou })] });
+  assert.equal(factsOf(tree)[0], `Inbox: ${IMPORT_STOPPED_WORDS.byYou}Resume`);
+  assert.equal(byTestId(tree, "mailbox-import-again-mailbox"), null, "one act, never Try again beside it");
+  press(byTestId(tree, `mailbox-history-resume-${SAM}`));
+  await until(() => pressed.length === 2, "Resume pressed through the door");
+  // Connected from now on: since when, by the workspace's calendar, and the six months to bring.
+  tree = open([mbx({ history: "from_now" })]);
+  assert.equal(factsOf(tree)[0], `Inbox: ${MAILBOX_HISTORY_WORDS.fromNow("Sep 19")}Bring in the last 6 months`);
+  press(byTestId(tree, `mailbox-history-bring-${SAM}`));
+  await until(() => pressed.length === 3, "Bring in pressed through the door");
+  assert.deepEqual(pressed, [
+    ["m1", "stop"],
+    ["m1", "resume"],
+    ["m1", "bring"],
+  ]);
+  // Several mailboxes: each line its own, the card's Inbox all of them as one.
+  const ops = "ops@getharbor.example";
+  tree = open([mbx(), mbx({ id: "m2", address: ops })], null, {
+    imports: [own(), own({ connection_id: "m2", state: "failed", last_error: IMPORT_STOPPED_WORDS.failed })],
+  });
+  assert.equal(said(byTestId(tree, `mailbox-history-${SAM}`)), "130 emails so far · … · Stop");
+  assert.match(said(byTestId(tree, `mailbox-history-${ops}`)), /^Stopped part way · 130 emails kept · Try again$/);
+  press(byTestId(tree, `mailbox-history-again-${ops}`));
+  await until(() => pressed.length === 4, "Try again pressed through the door");
+  assert.deepEqual(pressed.at(-1), ["m2", "resume"], "Try again starts it again where it stopped");
+  // One who may not change the mailboxes reads where it stands, and is offered nothing.
+  role.owner = false;
+  try {
+    tree = open([mbx()], null, { imports: [own()] });
+    assert.equal(factsOf(tree)[0], "Inbox: 130 emails so far · …");
+    assert.equal(byTestId(tree, "mailbox-history-line"), null, "nor a choice of what connecting brings");
+  } finally {
+    role.owner = true;
+  }
+  // Under Add a mailbox: what connecting brings, and Change opens the two ways in place; the choice rides the connect.
+  tree = open([mbx()]);
+  assert.equal(said(byTestId(tree, "mailbox-history-line")), `${MAILBOX_HISTORY_WORDS.line.six_months} Change`);
+  press(byTestId(tree, "mailbox-history-change"));
+  tree = redraw();
+  const ways = () => find(tree, (n) => n.type === Segmented && n.props.label === MAILBOX_HISTORY_WORDS.choose);
+  assert.deepEqual(
+    ways().props.options.map((o) => [o.label, o.hint]),
+    [
+      ["Last 6 months", MAILBOX_HISTORY_WORDS.ways.six_months.says],
+      ["From now on", MAILBOX_HISTORY_WORDS.ways.from_now.says],
+    ],
+  );
+  ways().props.onValueChange("from_now");
+  tree = redraw();
+  assert.equal(ways().props.value, "from_now");
+  press(byTestId(tree, "mailbox-connect-google"));
+  await until(() => went.length === 1, "the connect asked");
+  assert.deepEqual(went, [["google", null, "from_now"]]);
 });

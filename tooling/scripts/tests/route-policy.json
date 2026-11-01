@@ -1156,6 +1156,13 @@
       "rate": "settings",
       "spend": false
     },
+    "POST mailbox-connections/[id]/history": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
     "POST mailbox-connections/[id]/resume": {
       "kind": "write",
       "scope": "workspace",
