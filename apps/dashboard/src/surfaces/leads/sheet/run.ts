@@ -141,7 +141,7 @@ async function notFitOne(r: SheetRun) {
         notFitToast(
           r.name,
           (why) => void r.pile?.notFitWhy(row, why),
-          () => void r.pile?.undo(),
+          () => r.pile?.undoNotFit(row),
         ),
       );
     return;
@@ -150,23 +150,35 @@ async function notFitOne(r: SheetRun) {
   if (!res.ok) return r.flash(refusalToast(res, "That did not go through"));
   // The act Undo takes back: the tap's, then the reason's. A reason is the tap taken back and made again with it, as the
   // pile's is (use-pile.ts giveWhy): written over the tap, it moved the lead's version, and the tap's Undo was refused as
-  // changed, the lead left set aside (the nightly, 25 Oct 2026).
-  let last = { op: res.data.op_id, version: res.data.version };
+  // changed, the lead left set aside (the nightly, 25 Oct 2026). Undo waits for a reason on its way: pressed before the
+  // reason's answer it named the tap, already taken back, and was refused with the lead still aside (1 Nov 2026).
+  let last: { op: string | null; version: number } = { op: res.data.op_id, version: res.data.version };
+  let giving: Promise<void> | null = null;
   const giveWhy = async (why: LeadNotAFitWhy) => {
     if (last.op) {
       const u = await undoLeadOperation(last.op, last.version);
       if (!u.ok) return r.flash(refusalToast(u, "The reason was not kept"));
+      last = { ...last, op: null };
     }
     const again = await setLeadStage(r.leadId, { kind: "not_a_fit", why });
     if (!again.ok) return r.flash(refusalToast(again, "The reason was not kept"));
     last = { op: again.data.op_id, version: again.data.version };
     r.moved();
   };
+  const undo = async () => {
+    await giving;
+    if (!last.op) return;
+    const u = await undoLeadOperation(last.op, last.version);
+    if (!u.ok) r.flash(refusalToast(u, "Nothing was put back"));
+    r.moved();
+  };
   r.flash(
     notFitToast(
       r.name,
-      (why) => void giveWhy(why),
-      last.op ? () => void undoLeadOperation(last.op, last.version).then(r.moved) : null,
+      (why) => {
+        giving = giveWhy(why);
+      },
+      last.op ? undo : null,
     ),
   );
   r.moved();

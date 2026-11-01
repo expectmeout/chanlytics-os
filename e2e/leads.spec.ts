@@ -214,6 +214,11 @@ test.describe("Leads on a real workspace", () => {
     // Every act carries ?workspace= (the scoped client), so a glob ends in *, as the other specs' do.
     const sent = await watch(page, "**/api/v1/leads/*/stage*");
     const undone = await watch(page, "**/api/v1/lead-operations/*/undo*");
+    // What the door answered each undo: `undone` counts what was sent, and leaving the page cancels what is on its way.
+    const answered: number[] = [];
+    page.on("response", (r) => {
+      if (/\/lead-operations\/[^/]+\/undo/.test(r.url())) answered.push(r.status());
+    });
     await page.goto("/#/clients/leads:l-nurture");
     await page.waitForLoadState("networkidle");
     const row = page.locator(".cl-table tbody tr", { hasText: HYDE_PARK });
@@ -236,9 +241,10 @@ test.describe("Leads on a real workspace", () => {
       ]);
     // The reason is the tap taken back and made again with it (sheet/run.ts notFitOne), so Undo takes back the lead's
     // newest act: the tap's version, moved by a reason written over it, was refused as changed and left the lead aside.
+    // Pressed here the reason may still be on its way: Undo waits for it, and the door takes both.
     await expect.poll(() => undone.length).toBe(1);
     await page.getByRole("button", { name: "Undo" }).click();
-    await expect.poll(() => undone.length).toBe(2);
+    await expect.poll(() => answered).toEqual([200, 200]);
     for (const u of undone) expect(u.body).toMatchObject({ version: expect.any(Number) });
     await page.goto("/#/clients/leads:l-nurture");
     await expectRowUnchangedAfterUndo(page, HYDE_PARK, before);
