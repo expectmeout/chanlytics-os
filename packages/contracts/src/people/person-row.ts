@@ -39,6 +39,8 @@ import {
 } from "../calendar/calendar-people";
 import { bookedAfterAsk } from "../calendar/visit/booked-after-ask";
 import { visitDoor } from "../calendar/appointment-key";
+import { appointmentWords, type AppointmentWord } from "../journey/appointment-word";
+import { plural } from "../shared/words";
 import { visitTitleWithout } from "../calendar/visit/visit-service";
 import { visitLineOf, visitMarkOfDto, type VisitLineVM } from "../calendar/calendar-words";
 import { nextStepOf, stepIsDue, type PersonNextStepVM } from "../notes/steps";
@@ -688,15 +690,13 @@ export interface ThreadPersonFact {
   none?: boolean;
 }
 
-const countOf = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
-
 /**
  * Who someone is, beside their conversation on a desk (the Inbox's rail; the thread canvas, 1 Nov 2026), in People's own
  * words for their row: how the receptionist stands with them, when and how they first came, the last contact, how much
  * has passed between you, their visit (only where a calendar is read, so "None yet" is true), their deal, their next step,
  * and what they agreed to. It was a page away, behind the header's door. Every value is the row's, never a guess.
  */
-export function threadPersonFactsOf(row: PersonRowVM): ThreadPersonFact[] {
+export function threadPersonFactsOf(row: PersonRowVM, word: AppointmentWord): ThreadPersonFact[] {
   const facts: ThreadPersonFact[] = [{ key: "receptionist", label: "Receptionist", value: row.receptionist.label }];
   const came = row.cameFrom ? ` · ${row.cameFrom.label}` : "";
   facts.push({ key: "first", label: "First contact", value: `${row.firstContact.label}${came}` });
@@ -705,9 +705,11 @@ export function threadPersonFactsOf(row: PersonRowVM): ThreadPersonFact[] {
   facts.push({
     key: "history",
     label: "History",
-    value: `${countOf(row.threads, "conversation", "conversations")} · ${countOf(row.calls, "call", "calls")}`,
+    value: `${plural(row.threads, "conversation")} · ${plural(row.calls, "call")}`,
   });
   if (row.calendar === "ok") {
+    // The workspace's word for it (contracts appointmentWords): a studio's meeting, a clinic's appointment.
+    const label = appointmentWords(word).Title;
     const ahead = row.nextVisitLine;
     const behind = row.lastVisitLine;
     const visit = ahead
@@ -715,11 +717,7 @@ export function threadPersonFactsOf(row: PersonRowVM): ThreadPersonFact[] {
       : behind
         ? `Last · ${behind.day}${behind.state ? ` · ${behind.state.text}` : ""}`
         : null;
-    facts.push(
-      visit
-        ? { key: "visit", label: "Visit", value: visit }
-        : { key: "visit", label: "Visit", value: "None yet", none: true },
-    );
+    facts.push(visit ? { key: "visit", label, value: visit } : { key: "visit", label, value: "None yet", none: true });
   }
   facts.push(
     row.deal && row.deal.brief

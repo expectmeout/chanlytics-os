@@ -6,13 +6,14 @@
  * decided what to answer. A thread with no person behind it (a caller never added) has no rail, and the page draws it only
  * past the desk's breakpoint (inbox.css .ix-context): the header's door is the way there on anything narrower.
  */
-import { threadPersonFactsOf, WORKS_AT_WORDS } from "@chanlytics/contracts";
+import { addressOf, threadPersonFactsOf, WORKS_AT_WORDS } from "@chanlytics/contracts";
 import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { routeDoor } from "../../legacy-verbs";
 import { personOnThread, useThreadPersonMoved } from "../../people/want-person";
 import { usePeopleMoved } from "../thread/shell-thread";
+import { visitWordHere } from "../../workspace-word";
 import type { RealThread } from "../types";
 
 /** The rail's own words: its name to a screen reader, its door, and the beat before People's row is read. */
@@ -59,7 +60,7 @@ export const ThreadContext = ({
         ) : null}
         <LinkButton
           className="ix-context-door"
-          {...routeDoor(`clients/${clientId}`, () => onOpenClient(clientId))}
+          {...routeDoor(addressOf({ kind: "person", id: clientId }), () => onOpenClient(clientId))}
           data-testid="ix-context-door"
         >
           {CONTEXT_WORDS.open} <Icon name="chevron" size={10} />
@@ -67,7 +68,7 @@ export const ThreadContext = ({
       </div>
       {row ? (
         <dl className="ix-context-facts">
-          {threadPersonFactsOf(row).map((f) => (
+          {threadPersonFactsOf(row, visitWordHere()).map((f) => (
             <div
               key={f.key}
               className="ix-context-fact"

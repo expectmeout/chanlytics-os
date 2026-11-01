@@ -436,10 +436,8 @@ export function toInboxThreadVM(
       type: "event" as const,
       kind: "flag",
       at: shortTime(escalation.created_at, tz, now),
-      // A quiet mark where it was held, and why in a clause: the dock under the conversation says what is owed, and its
-      // Why? the whole of it with the hold's details (holdWhyOf). The flag said its label and quoted the details here, over
-      // a dock that said the reason's sentence, so a phone read the same thing three times, two of them printed over each
-      // other (the thread canvas, 1 Nov 2026). An escalation is read here only while it is open, as the dock is.
+      // A quiet mark, its reason a clause: the dock says what is owed, its Why? the details (holdWordsOf). The label and the
+      // details quoted here said it a third time, printed under the dock on a phone (the thread canvas, 1 Nov 2026).
       body: `Held for you — ${reasonShort(escalation.reason)}`,
     };
     if (idx === -1) timeline.push(entry);

@@ -41,7 +41,7 @@ import type { Thread } from "../types";
 import { ixBandCallBack } from "./band";
 import { channelIconOf } from "./timeline";
 import { IxWho } from "./who";
-import { standingLine, takeInTheMenu } from "./status";
+import { whereItStands, takeInTheMenu } from "./status";
 import { NameOffer } from "../../people/person/name-offer";
 import { mayAtLeast } from "../../legacy-verbs";
 import { Button } from "../../kit/button/button";
@@ -136,7 +136,7 @@ const ixWires = (thread: Thread, labels: Record<string, string>) => {
 /**
  * The wires as glyphs after the name, one for each the thread has used (two wires drawn alike, WhatsApp and a text, are
  * one glyph), their words for a pointer and a screen reader: the line under the name says where the thread stands
- * (standingLine), and said "Email" there, a word for what the glyph says (the thread canvas, 1 Nov 2026).
+ * (whereItStands), and said "Email" there, a word for what the glyph says (the thread canvas, 1 Nov 2026).
  */
 function wireGlyphs(thread: Thread, labels: Record<string, string>) {
   const ws = (thread.channels && thread.channels.length ? thread.channels : [thread.primaryChannel]).filter(Boolean);
@@ -518,10 +518,10 @@ function headerSub(thread: Thread, channelLabels: Record<string, string>, facts:
   // at…" said the business twice on a phone.
   const said = person ? businessTrailOf(person) : null;
   const works = !deal && !visit && !said && person && person.worksAt && !person.standIn ? person.worksAt : null;
-  // Where it stands first (standingLine), else the wires in words: the glyphs after the name say them on a thread that
+  // Where it stands first (whereItStands), else the wires in words: the glyphs after the name say them on a thread that
   // stands somewhere. What its emails are about heads the first email in the conversation (timeline.tsx), where it was
   // a chip here cut to "What Reddit's 202…" on a phone (the thread canvas, 1 Nov 2026).
-  const standing = thread.real ? standingLine(thread) : null;
+  const standing = thread.real ? whereItStands(thread) : null;
   return (
     <div className="ix-th-sub" data-testid="ix-th-sub">
       {standing ?? (

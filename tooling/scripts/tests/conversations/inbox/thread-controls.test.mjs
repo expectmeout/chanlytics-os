@@ -1187,7 +1187,8 @@ test("beside a real thread on a desk, who they are in People's words: their busi
     assert.equal(said("first"), "First contactSep 2 · WhatsApp");
     assert.equal(said("last"), "Last contactThey wrote · 40m ago");
     assert.equal(said("history"), "History1 conversation · 0 calls");
-    assert.equal(said("visit"), "VisitNone yet", "a zero is shown");
+    // In the workspace's word for it (contracts appointmentWords): "appointment" where none was set.
+    assert.equal(said("visit"), "AppointmentNone yet", "a zero is shown");
     assert.equal(find(drawn, byTestId("ix-context-visit")).props["data-none"], "", "in the dim ink");
     assert.equal(said("deal"), "DealNone");
     assert.equal(said("step"), "Next stepNone");
@@ -1206,7 +1207,7 @@ test("beside a real thread on a desk, who they are in People's words: their busi
       ],
     });
     const full = rail();
-    assert.equal(textOf(find(full, byTestId("ix-context-visit"))), "VisitTue, Sep 8 · 2:00 PM");
+    assert.equal(textOf(find(full, byTestId("ix-context-visit"))), "AppointmentTue, Sep 8 · 2:00 PM");
     assert.equal(textOf(find(full, byTestId("ix-context-deal"))), "DealClient · since Oct 1");
     assert.equal(textOf(find(full, byTestId("ix-context-step"))), "Next stepSend the quote · Due today");
   } finally {
