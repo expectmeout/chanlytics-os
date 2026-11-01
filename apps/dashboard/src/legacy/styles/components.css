@@ -2506,8 +2506,7 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 /* Wider than 1280px the three stand at the bar's right, beside the bell, in the row of its controls, as wide as the room
    the line in the bar's middle leaves them (the page heads canvas, H2: the middle is the line to search or ask, which the
    call stood over). The date keeps its place, and so does a way back. Each says the least that tells it, as a phone's
-   does (below): the name or the count and the clock, the count of the visits to mark, the arrow; the rest is its label.
-   Where the bar ends short of the window (Today, at its measure), `--bar-end` is how far short. */
+   does (below): the name or the count and the clock, the count of the visits to mark, the arrow; the rest is its label. */
 /* 901 to 1280px the call and the visits to mark stand in the date's place, as wide as the room the line leaves them
    (the line's own `--line-from`, read against the bar the way the line reads it). */
 @media (min-width: 901px) and (max-width: 1280px) {
@@ -2519,17 +2518,15 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 }
 @media (min-width: 1281px) {
   :is(.live-bar, .unmarked-bar, .next-bar) {
-    --bar-w: calc(100% - var(--bar-end, 0px));
-    --line-half: min(280px, var(--bar-w) * 0.22);
+    --line-half: min(280px, 22%);
     position: absolute;
     top: 30px;
-    right: calc(var(--bar-end, 0px) + var(--gutter-page) + 52px);
+    right: calc(var(--gutter-page) + 52px);
     left: auto;
     z-index: 2;
     min-height: var(--control-h-lg);
     max-width: calc(
-      var(--bar-w) - var(--gutter-page) - 64px - max(var(--bar-w) / 2 - var(--line-half), var(--gutter-page) + 272px) -
-        2 * var(--line-half)
+      100% - var(--gutter-page) - 64px - max(50% - var(--line-half), var(--gutter-page) + 272px) - 2 * var(--line-half)
     );
     border-radius: var(--radius-full);
     white-space: nowrap;
