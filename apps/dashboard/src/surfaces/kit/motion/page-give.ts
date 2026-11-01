@@ -18,6 +18,14 @@
  * what gives that speed, and the spring carries it out and back, as UIScrollView's bounce does. A thumb that lands while
  * it is out holds it there, as it holds one going back.
  *
+ * The spring is played by the compositor, not drawn frame by frame from here (the deck's way, view-deck.ts): its frames
+ * are written once as a web animation of `translate`, so a draw the main thread is busy with as the glide ends (the rows
+ * the window brings in near the top, a page's own hearing of the scroll) never stalls it. And what would give is readied
+ * for that before anything moves (`data-give="ready"`, which mobile.css gives `will-change`): as the thumb first goes
+ * down the page, never at the end, where promoting a tall list to its own layer flashed as the bounce began on an iPhone
+ * (Ruben, 1 Nov 2026: "it flickers, it glitches when transitioning to the bounce"). Let go of once the gesture is over
+ * with no glide, once the glide stops short of an end, or once the bounce has settled.
+ *
  * Nothing here knows a page; it asks the styles:
  * - the screen holds (the root's overscroll-behavior-y is none) and the window scrolls the page (the route view, the
  *   document's `main`, is no box of its own): else a pull is the browser's (a desk, a page that holds still in its own
@@ -25,8 +33,8 @@
  * - what the thumb is on gives way: nothing under it says it holds still (overscroll-behavior-y: none, as Settings
  *   does), scrolls by itself, stands fixed (a sheet, a peek) or takes its own drag (a map: its touch-action, or
  *   data-own-drag, the house's mark for it);
- * - what would move has nothing fixed on the screen in it as the pull begins (the Inbox's sending strip, a person's
- *   dock): a moved box carries its fixed layers with it, so that pull is left to hold still;
+ * - what would move has nothing fixed on the screen in it as the gesture begins (the Inbox's sending strip, a person's
+ *   dock): a moved box carries its fixed layers with it, so that gesture is left to hold still;
  * - rows go up past the page's foot only once nothing of the page over them is on the screen: on a page shorter than
  *   the screen they would slide up over the search.
  * Where motion is reduced a let-go puts it back at once, and a glide stops at the end as it did.
@@ -55,20 +63,17 @@ export function watchPageGive(win: Window): () => void {
     if (was) give.settle(was, give.shownAt(was), 0);
   };
 
-  // The pull has gone past an end (`way`): what gives, or null where it holds still this time.
-  const giverFor = (page: HTMLElement, way: 1 | -1): HTMLElement | null => {
-    const rows = declaredRows(page, style);
-    const box = rows ?? page;
-    if (holdsFixed(box, style)) return null;
-    if (rows && way === -1 && rows.getBoundingClientRect().top > shownFrom()) return null;
-    return box;
-  };
-
   // A glide that reached an end still moving: what gives goes on past it at that speed, and the spring brings it back.
-  const flings = hearFlings(win, atTop, atFoot, (page, way, speed, at) => {
-    if (!screenHolds(page, doc, style)) return;
-    const box = giverFor(page, way);
-    if (box) give.settle(box, give.shownAt(box), way * Math.min(speed, MAX_FLING), at);
+  const flings = hearFlings(win, {
+    atTop,
+    atFoot,
+    reached: (glide, way, speed, at) => {
+      const { page, giver } = glide;
+      if (screenHolds(page, doc, style) && givesWay(giver, way, shownFrom()))
+        give.settle(giver.box, give.shownAt(giver.box), way * Math.min(speed, MAX_FLING), at);
+      else give.release();
+    },
+    ended: () => give.release(),
   });
 
   const onStart = (e: TouchEvent) => {
@@ -89,6 +94,7 @@ export function watchPageGive(win: Window): () => void {
       way: 0,
       from: 0,
       page,
+      giver: null,
       box: null,
     };
     // A thumb that lands on the page while what gave is let go (going back, or out on a glide's bounce) holds it where it
@@ -120,18 +126,26 @@ export function watchPageGive(win: Window): () => void {
         goBack();
         return;
       }
+      // The thumb is scrolling the page: what would give is known now, and readied for the screen.
+      g.giver = giverOf(g.page, style);
+      if (!g.giver) {
+        g.page = null;
+        return;
+      }
+      give.ready(g.giver.box);
     }
     const page = g.page;
-    if (!page) return;
+    const giver = g.giver;
+    if (!page || !giver) return;
     if (g.way === 0) {
       const step = y - g.last;
       const way = step > 0 && atTop() ? 1 : step < 0 && atFoot() ? -1 : 0;
       if (way !== 0) {
-        g.box = giverFor(page, way);
-        if (!g.box) {
+        if (!givesWay(giver, way, shownFrom())) {
           g.page = null;
           return;
         }
+        g.box = giver.box;
         g.way = way;
         g.from = g.last;
       }
@@ -152,8 +166,10 @@ export function watchPageGive(win: Window): () => void {
     const g = grip;
     if (!g || !Array.from(e.changedTouches).some((k) => k.identifier === g.id)) return;
     grip = null;
-    // A thumb that scrolled the page up or down may have let it glide: heard until the glide stops.
-    if (g.axis === "y" && g.page) flings.arm(g.page);
+    // A thumb that scrolled the page up or down may have let it glide: heard until the glide stops. Else what was readied
+    // for this gesture is let go of.
+    const glides = g.axis === "y" && g.page && g.giver && flings.arm({ page: g.page, giver: g.giver });
+    if (!glides) give.release();
     goBack();
   };
 
@@ -169,7 +185,32 @@ export function watchPageGive(win: Window): () => void {
     win.removeEventListener("touchcancel", onEnd, opts);
     flings.stop();
     give.clear();
+    give.release();
   };
+}
+
+/** What gives on a page: the box, and whether it is the page's rows (else the route view itself). */
+interface Giver {
+  box: HTMLElement;
+  rows: boolean;
+}
+
+/**
+ * What would give under a gesture on `page`: its rows where it names them, else the page; null where moving that would
+ * take something fixed along.
+ */
+function giverOf(page: HTMLElement, style: (el: Element) => CSSStyleDeclaration): Giver | null {
+  const rows = declaredRows(page, style);
+  const box = rows ?? page;
+  return holdsFixed(box, style) ? null : { box, rows: rows !== null };
+}
+
+/**
+ * Whether it gives this way now: rows go up past the foot only once nothing over them is on the screen (`shownFrom`,
+ * where the window's view of the page begins under the frame's top).
+ */
+function givesWay(giver: Giver, way: 1 | -1, shownFrom: number): boolean {
+  return !(giver.rows && way === -1 && giver.box.getBoundingClientRect().top > shownFrom);
 }
 
 /** A thumb on the page, from where it landed to now. */
@@ -187,6 +228,8 @@ interface Grip {
   from: number;
   /** The route view under it while a pull may move it or its rows, else null. */
   page: HTMLElement | null;
+  /** What would give under this gesture, once the thumb has gone down the page. */
+  giver: Giver | null;
   /** What gives, once the pull has gone past an end. */
   box: HTMLElement | null;
 }
@@ -207,6 +250,17 @@ const GIVE_PULL = 0.01;
 /** Where the spring is still enough to call it at rest: half a pixel from its place, at a hundredth of a pixel a ms. */
 const REST_PX = 0.5;
 const REST_SPEED = 0.01;
+/** The spring's frames are written this far apart; the compositor draws straight lines between them. */
+const SAMPLE_MS = 16;
+/** The longest a settle is written for: the hardest flick counted is at rest well within it. */
+const SETTLE_MAX_MS = 2000;
+/**
+ * A frame of the screen. The spring is first drawn this far in, however late the end was heard: on a phone the screen
+ * scrolls ahead of the page, which hears of the end a frame or two later, and a spring begun at the moment of the end
+ * caught up on those frames at once, a jump after a stall. So the frame that hears the end carries a frame's travel, as
+ * the glide's own frames did, and no more.
+ */
+const FRAME_MS = 1000 / 60;
 /** The slowest glide, in pixels a millisecond, that carries the page past its end: slower stops there, as it did. */
 const MIN_FLING = 0.25;
 /** The fastest one counted: a harder flick than this goes no further past the end. */
@@ -237,6 +291,11 @@ function settleAt(from: number, speed: number, ms: number): { at: number; speed:
   return { at: (from + b * ms) * fade, speed: (b - GIVE_PULL * (from + b * ms)) * fade };
 }
 
+/** Whether the spring is at rest here. */
+function atRest(spring: { at: number; speed: number }): boolean {
+  return Math.abs(spring.at) < REST_PX && Math.abs(spring.speed) < REST_SPEED;
+}
+
 /**
  * What the spring's way out is drawn as, on a screen `tall` high: its own pixels near the place, fewer the further it
  * goes, and never the screen's height. The hardest flick counted (MAX_FLING) carries it out a fifth of the screen.
@@ -250,6 +309,20 @@ function unsoften(shown: number, tall: number): number {
   return (shown * tall) / (tall - Math.min(Math.abs(shown), tall - 1));
 }
 
+/**
+ * The spring's whole settle, let go `out` at `speed` on a screen `tall` high, as the frames of a web animation: one each
+ * SAMPLE_MS until it is at rest, the last exactly at its place. Written once, played by the compositor.
+ */
+function settleFrames(out: number, speed: number, tall: number): { frames: Keyframe[]; ms: number } {
+  let ms = SAMPLE_MS;
+  while (ms < SETTLE_MAX_MS && !atRest(settleAt(out, speed, ms))) ms += SAMPLE_MS;
+  const frames: Keyframe[] = [];
+  for (let t = 0; t < ms; t += SAMPLE_MS)
+    frames.push({ offset: t / ms, translate: `0 ${soften(settleAt(out, speed, t).at, tall)}px` });
+  frames.push({ offset: 1, translate: "0 0px" });
+  return { frames, ms };
+}
+
 /** How far a `translate` puts a box down the screen, as it is written or read back ("0 37.5px", "0px 37.5px", none). */
 function downOf(translate: string): number {
   return parseFloat(translate.trim().split(/\s+/)[1] ?? "") || 0;
@@ -260,63 +333,86 @@ function stillMotion(win: Window): boolean {
   return typeof win.matchMedia === "function" && win.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-/** The window's clock, in the milliseconds its frames are stamped with; null where it keeps none. */
+/**
+ * The window's clock, in the milliseconds its frames and its animations are stamped with: the document's timeline, which
+ * stands still through a frame, else the performance clock; null where it keeps neither.
+ */
 function clockOf(win: Window): number | null {
+  const frame = win.document?.timeline?.currentTime;
+  if (typeof frame === "number") return frame;
   return typeof win.performance?.now === "function" ? win.performance.now() : null;
 }
 
 /**
  * What gave, and how it is moved: by `translate`, never `transform`, since the deck moves the route view by its
- * transform, and its arrival plays a transform of its own. `place` stands it somewhere (under the thumb, `held`);
- * `settle` lets it go on the spring (`back`), from where it stands and at a speed, frame by frame until it is at rest;
- * `clear` takes off what was written. One box at a time.
+ * transform, and its arrival plays a transform of its own. `ready` names the box that would give, so the screen has it on
+ * a layer of its own before it moves (`data-give="ready"`); `place` stands it somewhere (under the thumb, `held`);
+ * `settle` lets it go on the spring (`back`), from where it stands and at a speed, as one web animation the compositor
+ * plays to rest; `clear` takes off what was written, and `release` lets a readied box go. One box moves at a time, and
+ * one is readied.
  */
 function mover(win: Window, tall: () => number) {
+  const style = (el: Element) => win.getComputedStyle(el);
   // What moved, and what was written to move it (as the browser reads it back).
   let moved: { box: HTMLElement; wrote: string } | null = null;
-  let frame = 0;
+  /** The spring's frames playing on it, while they are. */
+  let playing: Animation | null = null;
+  let readied: HTMLElement | null = null;
   const halt = () => {
-    if (frame && typeof win.cancelAnimationFrame === "function") win.cancelAnimationFrame(frame);
-    frame = 0;
+    const was = playing;
+    playing = null;
+    was?.cancel();
   };
   const draw = (box: HTMLElement, by: number) => {
     box.style.translate = `0 ${by}px`;
     moved = { box, wrote: box.style.translate };
+  };
+  const release = () => {
+    const box = readied;
+    readied = null;
+    if (box && box.dataset.give === "ready") delete box.dataset.give;
   };
   const clear = () => {
     halt();
     if (!moved) return;
     const { box, wrote } = moved;
     moved = null;
+    if (readied === box) readied = null;
     delete box.dataset.give;
     if (box.style.translate === wrote) box.style.translate = "";
   };
+  const ready = (box: HTMLElement) => {
+    if (readied !== box) release();
+    if (moved?.box === box) return;
+    readied = box;
+    if (!box.dataset.give) box.dataset.give = "ready";
+  };
   const place = (box: HTMLElement, by: number, way: "held" | "back") => {
-    halt();
     if (moved && moved.box !== box) clear();
+    else halt();
+    if (readied === box) readied = null;
     box.dataset.give = way;
     draw(box, by);
   };
-  // `start` is when the spring was let go, on the window's clock: else the first frame it is drawn in.
+  // `start` is when the spring was let go, on the window's clock; else now.
   const settle = (box: HTMLElement, from: number, speed: number, start: number | null = null) => {
-    place(box, from, "back");
-    const still = Math.abs(from) < REST_PX && Math.abs(speed) < REST_SPEED;
-    if (still || stillMotion(win) || typeof win.requestAnimationFrame !== "function") return clear();
     const high = tall();
-    const out = unsoften(from, high);
-    let began = start;
-    const step = (now: number) => {
-      began ??= now;
-      const spring = settleAt(out, speed, Math.max(0, now - began));
-      if (Math.abs(spring.at) < REST_PX && Math.abs(spring.speed) < REST_SPEED) return clear();
-      draw(box, soften(spring.at, high));
-      frame = win.requestAnimationFrame(step);
+    const now = clockOf(win);
+    // Where it rests is what is written: the spring's frames play over it, and leave it there as they end.
+    place(box, 0, "back");
+    const still = Math.abs(from) < REST_PX && Math.abs(speed) < REST_SPEED;
+    if (still || now === null || stillMotion(win) || typeof box.animate !== "function") return clear();
+    const settling = settleFrames(unsoften(from, high), speed, high);
+    const anim = box.animate(settling.frames, { duration: settling.ms, easing: "linear", fill: "none" });
+    anim.startTime = Math.max(start ?? now, now - FRAME_MS);
+    anim.onfinish = () => {
+      if (playing === anim) clear();
     };
-    frame = win.requestAnimationFrame(step);
+    playing = anim;
   };
-  // Where a box stands now: what was last written to it, which is what is drawn, since nothing eases it in between.
-  const shownAt = (box: HTMLElement) => (moved?.box === box ? downOf(box.style.translate) : 0);
-  return { place, settle, clear, shownAt, moved: () => moved?.box ?? null };
+  // Where a box stands now, as it is drawn: what the thumb put there, or where the spring has it this frame.
+  const shownAt = (box: HTMLElement) => (moved?.box === box ? downOf(style(box).translate) : 0);
+  return { ready, release, place, settle, clear, shownAt, moved: () => moved?.box ?? null };
 }
 
 /** The window's scroll at a moment: where it stood, and when. */
@@ -325,39 +421,59 @@ interface Seen {
   y: number;
 }
 
+/** A glide the window is on after a thumb let go of `page`, and what gives on it. */
+interface Glide {
+  page: HTMLElement;
+  giver: Giver;
+}
+
 /**
- * The window's glide after a vertical let-go on `page`, heard from its scroll: where it reaches the top (`way` 1) or the
- * foot (-1) at `MIN_FLING` or faster, `reached` is told the page, the end, the speed it reached it at and when. The
- * speed is read from the scroll before the last step, which the end cut short, and "when" is the moment the glide
- * crossed the end at that speed, not the frame that said so: the spring goes on from there, so the frame the end cut
- * short is not a stall with a jump after it (a glide at 5.6 pixels a millisecond went 35px into its last frame, then
- * stood, then the rows went 69px at once: Chromium's own fling, measured 1 Nov 2026). Heard from the let-go until a new
- * touch, an end reached, or the window stops (`FLING_GAP_MS` with no scroll), so a scroll the page makes by itself (a
- * list put back, a tap on the frame's top) is never a glide.
+ * The window's glide after a vertical let-go, heard from its scroll: where it reaches the top (`way` 1) or the foot (-1)
+ * at `MIN_FLING` or faster, `reached` is told the glide, the end, the speed it reached it at and when; where it stops
+ * short of an end (`FLING_GAP_MS` with no scroll), `ended`. The speed is read from the scroll before the last step, which
+ * the end cut short, and "when" is the moment the glide crossed the end at that speed, not the frame that said so (the
+ * spring never goes on from it by more than a frame, FRAME_MS). Heard from the let-go until a new touch, an end reached
+ * or the glide stopped, so a scroll the page makes by itself (a list put back, a tap on the frame's top) is never a glide.
  */
 function hearFlings(
   win: Window,
-  atTop: () => boolean,
-  atFoot: () => boolean,
-  reached: (page: HTMLElement, way: 1 | -1, speed: number, at: number) => void,
+  on: {
+    atTop: () => boolean;
+    atFoot: () => boolean;
+    reached: (glide: Glide, way: 1 | -1, speed: number, at: number) => void;
+    ended: (glide: Glide) => void;
+  },
 ) {
-  let gliding: { page: HTMLElement; last: number } | null = null;
+  let gliding: { glide: Glide; last: number } | null = null;
   let seen: Seen[] = [];
+  let quiet = 0;
+  const stopped = () => {
+    const was = gliding;
+    gliding = null;
+    if (was) on.ended(was.glide);
+  };
+  const stillHeard = () => {
+    win.clearTimeout(quiet);
+    quiet = win.setTimeout(stopped, FLING_GAP_MS);
+  };
   const onScroll = () => {
     const at = clockOf(win);
     if (at === null) return;
     const g = gliding;
-    if (g && at - g.last > FLING_GAP_MS) gliding = null;
+    if (g && at - g.last > FLING_GAP_MS) stopped();
     else if (g) {
-      g.last = at;
       const first = seen[0];
       const last = seen[seen.length - 1];
       const speed = first && last && last.at > first.at ? (last.y - first.y) / (last.at - first.at) : 0;
-      const way = speed <= -MIN_FLING && atTop() ? 1 : speed >= MIN_FLING && atFoot() ? -1 : 0;
+      const way = speed <= -MIN_FLING && on.atTop() ? 1 : speed >= MIN_FLING && on.atFoot() ? -1 : 0;
       if (way !== 0 && last) {
         gliding = null;
+        win.clearTimeout(quiet);
         const crossed = last.at + Math.abs(win.scrollY - last.y) / Math.abs(speed);
-        reached(g.page, way, Math.abs(speed), Math.min(crossed, at));
+        on.reached(g.glide, way, Math.abs(speed), Math.min(crossed, at));
+      } else {
+        g.last = at;
+        stillHeard();
       }
     }
     seen = seen.filter((s) => at - s.at <= SPEED_WINDOW_MS);
@@ -366,14 +482,22 @@ function hearFlings(
   const opts: AddEventListenerOptions = { passive: true };
   win.addEventListener("scroll", onScroll, opts);
   return {
-    arm: (page: HTMLElement) => {
+    /** Hear the glide after this let-go; false where the window keeps no clock to hear it by. */
+    arm: (glide: Glide): boolean => {
       const at = clockOf(win);
-      gliding = at === null ? null : { page, last: at };
+      if (at === null) return false;
+      gliding = { glide, last: at };
+      stillHeard();
+      return true;
     },
     disarm: () => {
+      win.clearTimeout(quiet);
       gliding = null;
     },
-    stop: () => win.removeEventListener("scroll", onScroll, opts),
+    stop: () => {
+      win.clearTimeout(quiet);
+      win.removeEventListener("scroll", onScroll, opts);
+    },
   };
 }
 
