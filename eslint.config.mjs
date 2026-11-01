@@ -315,8 +315,9 @@ export const FUNCTION_LIMITS = { lines: 150, branches: 30, depth: 5, params: 4 }
  * The trees in which the complexity measure finds nothing: a package's src, an app area, or a domain folder in one. A
  * tree joins in the change that fixes its last function, and a new tree with its first file (src/surfaces, where the shell's pages
  * land as decision 0015 moves them, joined with the kit's); a parent replaces its folders once all of it is held. The
- * shell (legacy/) is not here, since it leaves with decision 0015, and neither are the trees of the programs in flight
- * (Ask Rewired), which join as they land, by the day repo/lint-boundaries.test.mjs's IN_FLIGHT names. repo/lint-boundaries.test.mjs holds each entry
+ * shell (legacy/) is not here, since it leaves with decision 0015, and neither are the trees of a program in flight,
+ * which join as it lands, by the day repo/lint-boundaries.test.mjs's IN_FLIGHT names (Ask Rewired's joined on 1
+ * November 2026, and none is in flight since). repo/lint-boundaries.test.mjs holds each entry
  * to real source with no entry left in the baseline, asks ESLint that the limits apply there, and fails a tree the
  * ratchet has emptied that is not here (its header says which folders are trees).
  */
@@ -333,6 +334,7 @@ export const LIMITED_TREES = [
   "apps/dashboard/src/legacy-bridge/surfaces",
   "apps/dashboard/src/legacy-bridge/verbs",
   "apps/dashboard/src/lib",
+  "apps/dashboard/src/server/ask",
   "apps/dashboard/src/server/auth",
   "apps/dashboard/src/server/calendar",
   "apps/dashboard/src/server/connections",
@@ -371,6 +373,7 @@ export const LIMITED_TREES = [
   "packages/contracts/src/activity",
   "packages/contracts/src/ads",
   "packages/contracts/src/ai",
+  "packages/contracts/src/ask",
   "packages/contracts/src/ask-memory",
   "packages/contracts/src/ask-proposals",
   "packages/contracts/src/ask-skills",
@@ -413,17 +416,20 @@ export const LIMITED_TREES = [
  * db's widest at 7 and today-sample's at 11; Reach out's timetable and the partners' ledger joined on 29 September). `max-params` waits in these; a tree leaves this list when its last one
  * takes an object instead. The dashboard's calendar reader joined on 7 October 2026, the day its tree was held, and
  * contracts' config on 28 October 2026 (the prompt's composer and resolver, which take the business, its profile, the
- * wire, the zone, the day, the Autonomy rows and who reads it).
+ * wire, the zone, the day, the Autonomy rows and who reads it). Ask's two trees joined on 1 November 2026, the day they
+ * were held: 17 functions there take five or six (the act tools' card builders, the tools' context, the voice door).
  */
 export const WIDE_PARAMS = [
   "packages/db/src",
   "packages/contracts/src/ai",
+  "packages/contracts/src/ask",
   "packages/contracts/src/ask-proposals",
   "packages/contracts/src/broadcasts",
   "packages/contracts/src/config",
   "packages/contracts/src/playbooks",
   "packages/contracts/src/reach-out",
   "apps/dashboard/src/legacy-bridge/mascot",
+  "apps/dashboard/src/server/ask",
   "apps/dashboard/src/server/calendar",
   "apps/dashboard/src/server/platform",
   "apps/dashboard/src/server/ports",

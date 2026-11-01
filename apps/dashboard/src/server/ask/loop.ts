@@ -8,16 +8,11 @@ import {
   failedAnswer,
   isUngrounded,
   noteRows,
-  partialSay,
-  answerSoFar,
-  proseAnswer,
-  waitingSearchWords,
   type AskAnswer,
   type AskColumn,
   type AskLanguage,
   type AskMessageVM,
   type AskProposal,
-  type AskReadSet,
   type AskRowRef,
   type AskScope,
   type AskShowPreview,
@@ -26,13 +21,12 @@ import {
 } from "@chanlytics/contracts";
 import type { AskModelProfile, EffortMessage, MembershipRole, WordsMessage } from "@chanlytics/contracts";
 import type { RouteContext } from "../with-route";
-import { load, type ReaderContext } from "../readers";
+import type { ReaderContext } from "../readers";
 import { log } from "@/server/log";
-import { GatewayRefused } from "./gateway";
+import { GatewayRefused, type GatewayRefusal } from "./gateway";
 import { DROP_EVENTS, dropFor, letGo, refusalSaid, type Offer } from "./refusals";
 import {
   ACT_TOOL_NAMES,
-  aboveRoleWords,
   buildProposal,
   calledName,
   cardsOf,
@@ -41,13 +35,13 @@ import {
   toApiTools,
   toolLabel,
   type ToolContext,
-  type ToolRun,
 } from "./tools";
-import { stableSystem, systemBlocks, systemHash, turnWords, type WorkspaceFacts } from "./prompt";
-import { buildContext, shapeBlock, type BuiltContext, type SearchResultBlock } from "./context";
-import { crossPagePlan, readBlock, scopedRead, withSkillGuides } from "./cross-page";
-import { shape as shapeReader } from "../readers/shape";
-import { remembered, rememberedBlock } from "./companion/remembered";
+import { stableSystem, systemBlocks, systemHash, type WorkspaceFacts } from "./prompt";
+import { buildContext, type BuiltContext, type SearchResultBlock } from "./context";
+import { readBlock } from "./cross-page";
+import { firstReads, readsIn, shapeOf, type FirstReads } from "./loop/first-reads";
+import { sayAsWritten } from "./loop/say";
+import { wordsBlock } from "./loop/words";
 import { argsOf, cutOff, replayBlocks, resultBlocks, runRound, type RoundBlock } from "./round";
 import { askModel } from "./model";
 import { turnEffort } from "./effort";
@@ -109,9 +103,6 @@ import { LAST_ROUND_WORDS, answerInput, everyCallAnswered, roundAnswer } from ".
 // but the edge clamped every round to 2000, so 2000 was the real ceiling; it is
 // one number now, 4000 since the lead plan's card was cut at 2000 (D10). A cap
 // is not a spend, only a ceiling on what may be generated.
-
-/** Say is sent at most this often while it is written (spec 7.4). */
-const SAY_EVERY_MS = 50;
 
 export interface TurnEvent {
   t: "trace" | "say" | "final" | "error";
@@ -227,19 +218,6 @@ export interface AskPorts {
   tool: typeof runTool;
   propose: typeof buildProposal;
 }
-const shapeOf = async (rc: ReaderContext): Promise<string> => {
-  const [shape, kept] = await Promise.all([
-    load(rc, shapeReader, undefined).then((r) => shapeBlock(r.data)),
-    load(rc, remembered, undefined).then(
-      (r) => rememberedBlock(r.data),
-      (e: unknown) => {
-        log.error("ask_remembered_failed", { error: e, tenant_id: rc.tenantId });
-        return "";
-      },
-    ),
-  ]);
-  return kept ? `${shape}\n\n${kept}` : shape;
-};
 let overrides: Partial<AskPorts> | null = null;
 export function setAskPorts(p: Partial<AskPorts> | null): void {
   overrides = p;
@@ -270,59 +248,6 @@ function toolContextOf(input: TurnInput, now: Date, endsAt: number): ToolContext
   };
   noteRows(tc.read, input.cited ?? []);
   return tc;
-}
-
-/**
- * This turn's words, as the text block before the question (prompt.ts turnWords): who is asking, where, when, the row
- * their words point at and whether the read set holds it, and -- while the question still carries it (`dataDropped`
- * false) -- that the data before them is read already: the page's, the reads made for another page, the scope's row.
- * A live turn's also say what happened since (D8). Made once the read set holds every read before the model's. The guide
- * of a skill the question asks for follows them (cross-page.ts withSkillGuides).
- */
-function wordsBlock(
-  input: TurnInput,
-  now: Date,
-  rode: { built: BuiltContext | null; crossBlocks: SearchResultBlock[]; scopedRow: unknown; read: AskReadSet },
-) {
-  const focus = input.context?.focus;
-  // A focus is a scope: a run is cited, and so read, as its broadcast; a page is never a row, and an ad has no read
-  // until the Ads read lands (decision 0049), so neither is looked for in the read set.
-  const kind = focus?.kind === "run" ? "broadcast" : focus?.kind === "ad" ? "page" : focus?.kind;
-  const facts = {
-    role: input.role,
-    personLabel: input.personLabel,
-    scope: input.scope,
-    surface: input.surface,
-    timezone: input.timezone,
-    closures: input.facts.closures,
-    focus,
-    focusRead: !!focus && !!kind && kind !== "page" && rode.read[kind].has(focus.id),
-    // A reach-out's drawer: the page they are on, at its address (contracts scopeFromRoute), whose row the page holds.
-    scopeOnPage: input.scope?.kind === "page" && input.scope.id === input.context?.route,
-    now,
-    spoken: input.spoken ?? false,
-    column: input.column ?? null,
-    style: input.style ?? "",
-    above: aboveRoleWords(input.role),
-  };
-  // The search card waiting in this thread for its press, said whole as find would take its plan (contracts
-  // waitingSearchWords), so a change said to Ask is that plan changed only there, never planned again from its title.
-  const searchCard = waitingSearchWords(input.waiting ?? []);
-  const words = (live: boolean, dataDropped: boolean) => ({
-    type: "text" as const,
-    text: [
-      turnWords({
-        ...facts,
-        since: live ? input.chain?.since : undefined,
-        replayedAt: live ? input.chain?.readAt : undefined,
-        context: !dataDropped && (rode.built?.blocks.length ?? 0) > 0,
-        crossPage: !dataDropped && rode.crossBlocks.length > 0,
-        scopeRead: !dataDropped && !!rode.scopedRow,
-      }),
-      ...(searchCard ? [searchCard] : []),
-    ].join("\n"),
-  });
-  return withSkillGuides(words, input.text);
 }
 
 /**
@@ -369,68 +294,81 @@ const budgetOf = (input: TurnInput): number => (input.spoken ? ASK_SPOKEN_TURN_B
 const pausedByServer = (stopReason: string | null, calls: number, last: boolean): boolean =>
   stopReason === "pause_turn" && calls === 0 && !last;
 
-export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts()): Promise<TurnResult> {
+/** What a round's request is built from, and a cold opening's messages (requestFor, coldOf). */
+interface TurnRequests {
+  input: TurnInput;
+  model: AskModelProfile;
+  head: ReturnType<typeof turnHead>;
+  /** How hard each round is asked: the turn's own effort, or a draft's, said in its messages (effort.ts). */
+  effort: ReturnType<typeof turnEffort>;
+  pageBlocks: SearchResultBlock[];
+  crossBlocks: SearchResultBlock[];
+  /**
+   * Whether the question still carries the data blocks: a request the API refuses for them is asked once more without
+   * them (D14), and the words stop pointing at them (wordsBlock).
+   */
+  dataDropped: boolean;
+  sayWords: ReturnType<typeof wordsBlock>;
+  question: { type: string; text: string };
+  /** What the requests offer that the turn can do without, until the API refuses it (refusals.ts letGo). */
+  offer: Offer;
+  tools: ReturnType<typeof turnHead>["tools"];
+}
+
+/**
+ * A turn as its rounds share it (openTurn): what it was asked and read first, its requests as they stand, and what its
+ * rounds made. A refusal changes the requests -- a part of the offer, the page's data or the replay let go -- and the
+ * same round is asked again (letGoOf); a later round only appends to its messages.
+ */
+interface TurnState extends TurnRequests {
+  ports: AskPorts;
+  t0: number;
+  budgetMs: number;
+  es: boolean;
+  tc: ToolContext;
+  /** Where the time went and what the model was fed (AskTurnShape, turn-end.ts): only the loop sees all of it. */
+  meter: ReturnType<typeof turnMeter>;
+  first: FirstReads;
+  messages: Msg[];
+  anchor: unknown;
+  words: ReturnType<TurnRequests["sayWords"]>;
+  /** A replay the API refuses (D12) is asked again cold, once: the turn then keeps its words history, the next base. */
+  live: boolean;
+  /** Where the question sits in every request of the turn, its words after it: a later round only appends. */
+  questionAt: number;
+  controller: AbortController;
+  timer: ReturnType<typeof setTimeout>;
+  /** What ends the model's stream: the turn's time, or the Stop. */
+  signal: AbortSignal;
+  say: ReturnType<typeof sayAsWritten>;
+  reads: number;
+  toolsUsed: string[];
+  /** Its cards, and its plans' words (roundPlan). */
+  proposals: AskProposal[];
+  planWords: PlanSaid[];
+  /** What was asked that no card carries, which the answer must say. */
+  unmade: ReturnType<typeof turnUnmade>;
+  /** How the answer that ends the turn was written (AskTurnShape). */
+  answerIn: "tool" | "text" | null;
+  /** A plan made, whose answer the next round writes (planAnswerOwed). */
+  planOwed: PlanOwed | null;
+}
+
+/**
+ * A turn opened: what it reads first (loop/first-reads.ts), then its first request's messages, and its own time
+ * started.
+ */
+async function openTurn(input: TurnInput, ports: AskPorts): Promise<TurnState> {
   const t0 = Date.now();
   const budgetMs = budgetOf(input);
   const model = askModel();
   const now = input.now ?? new Date();
-  const es = input.language === "es";
   const tc = toolContextOf(input, now, t0 + budgetMs);
-  const toolsUsed: string[] = [];
-  const [proposals, planWords]: [AskProposal[], PlanSaid[]] = [[], []]; // its cards, and its plans' words (roundPlan)
-  const unmade = turnUnmade(); // what was asked that no card carries, which the answer must say
-  let reads = 0;
-  // Where the time went and what the model was fed (AskTurnShape, turn-end.ts): only the loop sees all of it.
+  const unmade = turnUnmade();
   const meter = turnMeter(t0);
-  // How hard each round is asked: the turn's own effort, or a draft's, said in its messages (effort.ts).
   const effort = turnEffort(model, input, meter);
-
-  // Before the model is asked, in parallel (the Phase 2 plan, PR 2.4): the page the person is on (context.ts: the
-  // warm's build if it is kept, else a build now), the shape of the workspace, the reads the question names of another
-  // page (cross-page.ts), and the row the scope names, read whole as its tool reads it. Each rides into the first round
-  // as data, so its rows enter the read set and the answer can cite them. A failure costs that block, never the turn.
-  const tCtx = Date.now();
-  const plan = crossPagePlan(input.text, input.surface, input.context?.view ?? null);
-  const scoped = scopedRead(input.scope, input.context?.route);
-  const runRead = async (run: ToolRun) => {
-    try {
-      return { run, out: await ports.tool(tc, run) };
-    } catch (e) {
-      log.error("ask_cross_page_failed", { error: e, tenant_id: input.tenantId });
-      return { run, out: { result: "", isError: true } };
-    }
-  };
-  const [built, shape, preOuts, scopedOut] = await Promise.all([
-    input.context
-      ? ports.context(tc.rc, input.context).catch((e: unknown): BuiltContext | null => {
-          log.error("ask_context_failed", { error: e, tenant_id: input.tenantId });
-          return null;
-        })
-      : null,
-    ports.shape(tc.rc).catch((e: unknown) => {
-      log.error("ask_shape_failed", { error: e, tenant_id: input.tenantId });
-      return "";
-    }),
-    Promise.all(plan.map(runRead)),
-    scoped ? runRead(scoped) : null,
-  ]);
-  // The page's rows a citation may name enter the read set; the page counts as one read, so a figure answered from it
-  // is grounded (isUngrounded) -- when something on it was read: not a page whose read failed, nor one that is its
-  // address alone (other) and shows no row.
-  if (built) noteRows(tc.read, built.refs);
-  const pageRead =
-    !!built && built.blocks.length > 0 && (built.rows > 0 || (!built.failed && input.context?.surface !== "other"));
-  if (pageRead) reads++;
-  const prefetched = preOuts.filter((p) => !p.out.isError);
-  for (const p of prefetched) {
-    toolsUsed.push(calledName(p.run.name, p.run.input));
-    reads++;
-  }
-  const scopedRow = scopedOut && !scopedOut.out.isError ? scopedOut : null;
-  // The scope's row is read for the model, not by it: it counts as a read, and stays off the turn's tools, as the
-  // snapshot's scoped row did.
-  if (scopedRow) reads++;
-  const contextMs = Date.now() - tCtx;
+  const first = await firstReads(input, ports, tc);
+  const { built, prefetched, scopedRow } = first;
 
   // Two cache breakpoints in system: the rules and facts for every turn in the workspace, and the shape of the
   // workspace, the same bytes for its people for five minutes. A third on the page's data, its last block (D10): this
@@ -438,333 +376,398 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   // cache's life. A follow-up does not: its earlier turns come before the page, as text, so its prefix after the
   // shape is new bytes and the page is written to the cache again. The clock, the person and the question come after
   // it; the fourth is on each request's last block (withMarkers), so the next round reads all before it.
-  const head = turnHead(model, input.role, input.facts, shape);
-  const { system } = head;
+  const head = turnHead(model, input.role, input.facts, first.shape);
   const pageBlocks: SearchResultBlock[] = [
     ...(built?.blocks ?? []),
     ...(scopedRow ? [readBlock(scopedRow.run, scopedRow.out.result)] : []),
   ];
   const crossBlocks = prefetched.map((p) => readBlock(p.run, p.out.result));
-  // Whether the question still carries the data blocks: a request the API refuses for them is asked once more without
-  // them (D14), and the words stop pointing at them (wordsBlock).
-  let dataDropped = pageBlocks.length === 0 && crossBlocks.length === 0;
-  const sayWords = wordsBlock(input, now, { built, crossBlocks, scopedRow, read: tc.read });
-  const question = { type: "text", text: input.text };
-  // The tools (registry.ts), the same bytes every round, and the answer's format, until the API refuses a part of the
-  // offer: then it is let go (refusals.ts letGo) and the same round asked again. No tool is strict: the API takes twenty
-  // strict tools and twenty-four optional parameters across them (26 tools, then 31 parameters in the act tools alone,
-  // were refused on every operator turn, 23 Sep), and the tools ran as they always had without it.
-  const offer: Offer = { search: true, format: true, words: true, answer: model.answerTool };
-  let { tools } = head;
-  // A round's request: its messages a copy with the cache's markers (withMarkers), at `at` and on its last block.
-  const requestOf = (msgs: Msg[], at: unknown, noTool: boolean) => ({
-    ...(head.speed ? { model: head.model, speed: head.speed } : { model: head.model }),
-    ...effort.of(msgs),
-    system,
-    messages: withMarkers(msgs, at),
-    tools,
-    // A round that may call no tool: all that is left is the answer, as text.
-    tool_choice: noTool ? { type: "none" as const } : head.tool_choice,
-    output_config: offer.format ? head.output_config : { effort: model.effort },
-  });
+  const requests: TurnRequests = {
+    input,
+    model,
+    head,
+    effort,
+    pageBlocks,
+    crossBlocks,
+    dataDropped: pageBlocks.length === 0 && crossBlocks.length === 0,
+    sayWords: wordsBlock(input, now, { built, crossBlocks, scopedRow, read: tc.read }),
+    question: { type: "text", text: input.text },
+    // The tools (registry.ts), the same bytes every round, and the answer's format, until the API refuses a part of the
+    // offer: then it is let go (refusals.ts letGo) and the same round asked again. No tool is strict: the API takes twenty
+    // strict tools and twenty-four optional parameters across them (26 tools, then 31 parameters in the act tools alone,
+    // were refused on every operator turn, 23 Sep), and the tools ran as they always had without it.
+    offer: { search: true, format: true, words: true, answer: model.answerTool },
+    tools: head.tools,
+  };
   // The earlier turns (memory.ts, the Phase 5 plan, D1–D4): replayed as the model was sent them while the thread is
   // warm, round one on the same model and prefix and within the bound (bpR where the last request ended); else the
   // rebuilt history, each answer one line, the question after it (bp3 on the page's last block).
-  const cold = () => {
-    const words = sayWords(false, dataDropped);
-    const data = dataDropped ? [] : [...pageBlocks, ...crossBlocks];
-    const messages = withWords(foldHistory(input.history, [...data, question]), words, offer.words);
-    return { messages, anchor: pageBlocks.at(-1), words };
-  };
   const asked = {
     data: [...pageBlocks, ...crossBlocks],
-    words: sayWords(true, dataDropped),
-    question,
-    asSystem: offer.words,
+    words: requests.sayWords(true, requests.dataDropped),
+    question: requests.question,
+    asSystem: requests.offer.words,
   };
-  const replayed = replayFor(input.chain, asked, (msgs, at) => requestOf(msgs, at, false));
-  let { messages, anchor, words } = replayed ?? cold();
-  // A replay the API refuses (D12) is asked again cold, once: the turn then keeps its words history, the next base.
-  let live = !!replayed;
-  // Where the question sits in every request of the turn, its words after it: a later round only appends.
-  let questionAt = questionIn(messages);
+  const replayed = replayFor(input.chain, asked, (msgs, at) => requestFor(requests, msgs, at, false));
+  const { messages, anchor, words } = replayed ?? coldOf(requests);
+  const questionAt = questionIn(messages);
   effort.open(messages);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), budgetMs);
-
-  let answerIn: "tool" | "text" | null = null; // how the answer that ends the turn was written (AskTurnShape)
-  const done = (r: TurnEnd): TurnResult => {
-    clearTimeout(timer);
-    return finishTurn(r, {
-      answerIn,
-      input,
-      model,
-      t0,
-      built,
-      contextMs,
-      dataDropped,
-      pageBlocks,
-      crossBlocks,
-      plan,
-      meter,
-      format: offer.format,
-      toolsUsed,
-      proposals,
-      questionAt,
-      live,
-      promptHash: systemHash(system),
-    });
+  return {
+    ...requests,
+    ports,
+    t0,
+    budgetMs,
+    es: input.language === "es",
+    tc,
+    meter,
+    first,
+    messages,
+    anchor,
+    words,
+    live: !!replayed,
+    questionAt,
+    controller,
+    timer,
+    signal: halted(controller.signal, input.signal),
+    say: sayAsWritten(input, tc, requests.offer, meter),
+    reads: readsIn(first),
+    toolsUsed: prefetched.map((p) => calledName(p.run.name, p.run.input)),
+    proposals: [],
+    planWords: [],
+    unmade,
+    answerIn: null,
+    planOwed: null,
   };
-  let planOwed: PlanOwed | null = null; // a plan made, whose answer the next round writes (planAnswerOwed)
-  /** A turn that could not be answered: its sentence, in the person's language, heads it; once a plan is made, its words. */
-  const fail = (sentence: string, failure: string, rounds: number) =>
-    done(
-      planOwed
-        ? planFallback(planOwed, input, rounds)
-        : { answer: failedAnswer(sentence, input.language), failed: true, failure, rounds },
+}
+
+/** A round's request: its messages a copy with the cache's markers (withMarkers), at `at` and on its last block. */
+function requestFor(turn: TurnRequests, msgs: Msg[], at: unknown, noTool: boolean) {
+  const { head, model, offer } = turn;
+  return {
+    ...(head.speed ? { model: head.model, speed: head.speed } : { model: head.model }),
+    ...turn.effort.of(msgs),
+    system: head.system,
+    messages: withMarkers(msgs, at),
+    tools: turn.tools,
+    // A round that may call no tool: all that is left is the answer, as text.
+    tool_choice: noTool ? { type: "none" as const } : head.tool_choice,
+    output_config: offer.format ? head.output_config : { effort: model.effort },
+  };
+}
+
+/** A turn opened cold: the rebuilt history, then the data while the question still carries it, and the question. */
+function coldOf(turn: TurnRequests) {
+  const words = turn.sayWords(false, turn.dataDropped);
+  const data = turn.dataDropped ? [] : [...turn.pageBlocks, ...turn.crossBlocks];
+  const messages = withWords(foldHistory(turn.input.history, [...data, turn.question]), words, turn.offer.words);
+  return { messages, anchor: turn.pageBlocks.at(-1), words };
+}
+
+/** The turn as it returns (turn-end.ts finishTurn), its own time stopped. */
+function done(turn: TurnState, r: TurnEnd): TurnResult {
+  clearTimeout(turn.timer);
+  const { answerIn, input, model, t0, first, dataDropped, pageBlocks, crossBlocks, meter } = turn;
+  return finishTurn(r, {
+    answerIn,
+    input,
+    model,
+    t0,
+    built: first.built,
+    contextMs: first.contextMs,
+    dataDropped,
+    pageBlocks,
+    crossBlocks,
+    plan: first.plan,
+    meter,
+    format: turn.offer.format,
+    toolsUsed: turn.toolsUsed,
+    proposals: turn.proposals,
+    questionAt: turn.questionAt,
+    live: turn.live,
+    promptHash: systemHash(turn.head.system),
+  });
+}
+
+/** A turn that could not be answered: its sentence, in the person's language, heads it; once a plan is made, its words. */
+function fail(turn: TurnState, sentence: string, failure: string, rounds: number): TurnResult {
+  return done(
+    turn,
+    turn.planOwed
+      ? planFallback(turn.planOwed, turn.input, rounds)
+      : { answer: failedAnswer(sentence, turn.input.language), failed: true, failure, rounds },
+  );
+}
+
+/** A round ended by the person's Stop (turn.ts words it) or, where it `cut` the round, by the turn's own time. */
+const endedEarly = (turn: TurnState, rounds: number, cut: boolean): TurnResult | null =>
+  turn.input.signal?.aborted
+    ? fail(turn, "", "stopped", rounds)
+    : cut && turn.controller.signal.aborted
+      ? fail(turn, TIME_UP_WORDS[turn.es ? "es" : "en"], "timeout", rounds)
+      : null;
+
+/** A tool call's time, kept in the order the calls ran. */
+async function timed<T>(turn: TurnState, name: string, run: () => Promise<T>): Promise<T> {
+  const t = Date.now();
+  try {
+    return await run();
+  } finally {
+    turn.meter.toolsMs.push({ name, ms: Date.now() - t });
+  }
+}
+
+/** An act tool's call: it checks and proposes, never acts; its cards, its plan's words and what it left are the turn's. */
+async function proposeCall(turn: TurnState, b: RoundBlock) {
+  const { input, ports, tc, proposals } = turn;
+  const args = argsOf(b);
+  turn.toolsUsed.push(calledName(b.name, args));
+  if (!args) return cutOff(b, input.tenantId);
+  return timed(turn, calledName(b.name, args), async () => {
+    const p = notAgain(await ports.propose(tc, b.name, args), [...(input.waiting ?? []), ...proposals]);
+    proposals.push(...cardsOf(p));
+    if (p.words) turn.planWords.push({ words: p.words, lead: p.lead });
+    turn.unmade.heard(calledName(b.name, args), p);
+    return { result: p.result, isError: p.isError, noted: !!p.noted };
+  });
+}
+
+/** A read tool's call, as the person: one that comes back is a read the answer is grounded on (isUngrounded). */
+async function readCall(turn: TurnState, b: RoundBlock) {
+  const { input, ports, tc } = turn;
+  const args = argsOf(b);
+  turn.toolsUsed.push(calledName(b.name, args));
+  if (!args) return cutOff(b, input.tenantId);
+  return timed(turn, calledName(b.name, args), async () => {
+    const out = await ports.tool(tc, { name: b.name, input: args });
+    if (!out.isError) turn.reads++;
+    return { result: out.result, isError: out.isError };
+  });
+}
+
+/**
+ * Something the turn can do without, refused (refusals.ts): let go, so the same round is asked again without it, once
+ * each (true). Without the page's data, their reads leave the count and the words stop pointing at them; without the
+ * format, what comes back is read as JSON when it is, else as prose (D15). False when nothing it names can be let go.
+ */
+function letGoOf(turn: TurnState, refusal: GatewayRefusal, round: number): boolean {
+  const m = refusal.kind === "bad_request" ? refusal.message : "";
+  const drop = dropFor(m, { replay: turn.live && round === 1, context: !turn.dataDropped, ...turn.offer });
+  if (!drop) return false;
+  log.error(DROP_EVENTS[drop], { error: m.slice(0, 200), tenant_id: turn.input.tenantId });
+  if (drop === "replay") {
+    Object.assign(turn, coldOf(turn));
+    turn.live = false;
+    turn.questionAt = questionIn(turn.messages);
+    turn.effort.open(turn.messages);
+  } else if (drop === "context") {
+    turn.dataDropped = true;
+    turn.reads -= readsIn(turn.first);
+    turn.messages = withoutData(turn.messages, turn.questionAt, turn.words, turn.sayWords(turn.live, turn.dataDropped));
+  } else Object.assign(turn, letGo(turn.offer, drop, turn.input.role, { tools: turn.tools, messages: turn.messages }));
+  return true;
+}
+
+/** A round as the model's stream brought it back, with the request it answered and when that went out. */
+interface RoundCame {
+  request: LastRound["request"];
+  roundAt: number;
+  blocks: RoundBlock[];
+  stopReason: string | null;
+  streamError: string | null;
+}
+
+/**
+ * What a round leaves the turn: its end; the same round asked again ("again": a part of the offer let go, or a draft
+ * begun at the turn's own effort); the next round after the model's blocks went back ("on"); or the next round after
+ * the round's results went back too ("answered"), which runAskTurn may make the last.
+ */
+type RoundStep = { end: TurnResult } | "again" | "on" | "answered";
+
+/** A round asked: its request out, its stream back; or, where the round threw, its end or the round asked again. */
+async function askRound(turn: TurnState, round: number, noTool: boolean): Promise<RoundCame | RoundStep> {
+  const { input, ports, meter, signal } = turn;
+  const request = {
+    ...requestFor(turn, turn.messages, turn.anchor, noTool),
+    diagnostics: meter.follows(turn.live, input.chain),
+  };
+  const roundAt = Date.now();
+  try {
+    const r = await ports.round(
+      { tenantId: input.tenantId, userId: input.ctx.userId, request, signal },
+      turn.say.onText,
+      answerInput(turn.say.onText),
     );
-  const signal = halted(controller.signal, input.signal); // what ends the model's stream: the turn's time, or the Stop
-  /** A round ended by the person's Stop (turn.ts words it) or, where it `cut` the round, by the turn's own time. */
-  const timedOut = (rounds: number) => fail(TIME_UP_WORDS[es ? "es" : "en"], "timeout", rounds);
-  const endedEarly = (rounds: number, cut: boolean) =>
-    input.signal?.aborted ? fail("", "stopped", rounds) : cut && controller.signal.aborted ? timedOut(rounds) : null;
+    meter.round(r, roundAt);
+    return { request, roundAt, blocks: r.blocks, stopReason: r.stopReason, streamError: r.streamError };
+  } catch (e) {
+    // The person's Stop, or the turn's own time run out: whatever the round threw for it (a gateway unreached).
+    const early = endedEarly(turn, round, true);
+    if (early) return { end: early };
+    if (!(e instanceof GatewayRefused)) throw e;
+    if (letGoOf(turn, e.refusal, round)) return "again";
+    const said = refusalSaid(e.refusal, turn.es, { tenant_id: input.tenantId, round });
+    return { end: fail(turn, said, e.refusal.kind, round) };
+  }
+}
 
-  // Say while the answer is written (spec 7.4): read from the JSON so far --
-  // the model may write it with the format refused too -- sent only when it
-  // changed and at most every SAY_EVERY_MS. A preview: the final message is
-  // the truth. With the format refused, words are said as they come; with it,
-  // words before a call are the model thinking aloud, and are not said.
-  let said = "";
-  let saidAt = 0;
-  let firstKey: string | null = null;
-  const onText = (soFar: string) => {
-    const json = soFar.trimStart().startsWith("{");
-    if (json && firstKey === null) {
-      const k = /^\s*\{\s*"([^"]*)"/.exec(soFar);
-      if (k) {
-        firstKey = k[1];
-        if (firstKey !== "say")
-          log.warn("ask_say_not_first", { first: firstKey.slice(0, 40), tenant_id: input.tenantId });
-      }
-    }
-    // Drawn as the final message will draw it (contracts partialSay, proseAnswer): nothing past a tag, the leak seen on
-    // production, the detail's lines kept, and Show's figures and rows once each closes (answerSoFar).
-    const part = json ? partialSay(soFar) : offer.format ? null : proseAnswer(soFar, input.language).say;
-    if (!part || (!part.headline && !part.detail)) return;
-    const say = answerSoFar(part, json ? soFar : "", tc.read, input.language);
-    const key = JSON.stringify(say);
-    const at = Date.now();
-    if (key === said || at - saidAt < SAY_EVERY_MS) return;
-    said = key;
-    saidAt = at;
+/**
+ * One round: asked (askRound), and what it wrote judged -- an answer, calls, both, or neither -- and its calls run,
+ * reads and proposals in parallel; then the turn ends on its answer, or on its cards alone, or goes on.
+ */
+async function roundOf(
+  turn: TurnState,
+  { round, last, noTool }: { round: number; last: boolean; noTool: boolean },
+): Promise<RoundStep> {
+  const { input, meter, es, proposals } = turn;
+  const came = await askRound(turn, round, noTool);
+  if (typeof came === "string" || "end" in came) return came;
+  const { request, roundAt, blocks, stopReason, streamError } = came;
+
+  // A stream the turn's own time cut is the time's, not a dropped connection.
+  const ended = endedEarly(turn, round, !!streamError);
+  if (ended) return { end: ended };
+
+  if (streamError && !blocks.length) return { end: fail(turn, DROPPED_WORDS[es ? "es" : "en"], streamError, round) };
+  // The cap was reached: what the round wrote may be half-written, and it is recorded (turn-end.ts capped).
+  meter.capped(stopReason, round, blocks, input.tenantId);
+  if (stopReason === "refusal") {
+    return { end: fail(turn, es ? "No puedo responder a eso aquí." : "I can't answer that here.", "refusal", round) };
+  }
+
+  // The answer, if this round wrote one, and its calls with the answer tool's apart (tools/answer.ts).
+  const split = roundAnswer(blocks, turn.offer.format);
+  const { used, answered, calls } = split;
+  // A draft begun at the turn's own effort is set aside, its calls unrun, and the round asked again at the draft's
+  // (effort.ts): the question did not say it was one.
+  if (turn.effort.redraft(calls, turn.messages)) {
+    turn.say.unsay();
+    return "again";
+  }
+  const acts = calls.filter((b) => ACT_TOOL_NAMES.has(b.name));
+  let { written } = split;
+
+  // An answer beside a read was written before its rows: it is set aside,
+  // and the model answers next round with them.
+  if (written && calls.length > acts.length) {
+    log.warn("ask_answer_beside_read", {
+      tools: calls.map((b) => calledName(b.name, argsOf(b))),
+      tenant_id: input.tenantId,
+    });
+    written = "";
+    turn.say.unsay();
+  }
+
+  if (pausedByServer(stopReason, calls.length, last)) {
+    turn.messages.push({ role: "assistant", content: replayBlocks(blocks) });
+    return "on";
+  }
+
+  // A round that wrote nothing and called nothing is a glitch of ours, not an empty read.
+  if (!written && !calls.length) {
+    return {
+      end: fail(
+        turn,
+        es ? "Perdí el hilo. Pregúntamelo de nuevo." : "I lost my train of thought. Ask me again.",
+        stopReason === "max_tokens" ? "cap" : "no_tool_no_text",
+        round,
+      ),
+    };
+  }
+
+  // Reads and proposals, in parallel; every result goes back at once.
+  for (const b of calls) input.emit({ t: "trace", text: toolLabel(b.name, argsOf(b)) });
+  const [before, saidBefore] = [proposals.length, turn.planWords.length];
+  const outcomes = await Promise.all(
+    calls.map(async (b) => ({
+      block: b,
+      out: ACT_TOOL_NAMES.has(b.name) ? await proposeCall(turn, b) : await readCall(turn, b),
+    })),
+  );
+  const refused = outcomes.some(({ out }) => out.isError);
+  const leftOut = outcomes.some(({ out }) => "noted" in out && out.noted);
+
+  const planned = roundPlan(calls, acts, refused, turn.planWords.slice(saidBefore));
+  written = besideActs(written, {
+    refused,
+    leftOut,
+    planned,
+    unsay: turn.say.unsay,
+    log: () =>
+      log.warn("ask_answer_beside_refused_card", {
+        tools: acts.map((b) => calledName(b.name, argsOf(b))),
+        tenant_id: input.tenantId,
+      }),
+  });
+  const ordered = everyCallAnswered(used, outcomes, answered, !!written);
+  // The round as it went out and came back: a turn that ends on it keeps it as the turn it was (memory.ts).
+  const lastRound: LastRound = { request, blocks, outcomes: ordered, roundAt, streamError };
+
+  if (written) {
+    turn.answerIn = split.via;
+    const from = {
+      read: turn.tc.read,
+      proposals,
+      format: turn.offer.format,
+      stopReason,
+      streamError,
+      owed: turn.planOwed,
+    };
+    const w = writtenAnswer(written, input, from);
+    if (!w.ok) return { end: fail(turn, w.sentence, w.failure, round) };
+    const ungrounded = isUngrounded(answerWords(w.answer), turn.reads + proposals.length);
+    return {
+      end: done(turn, { answer: w.answer, ungrounded, failed: false, failure: null, rounds: round, lastRound }),
+    };
+  }
+
+  // Cards alone, every one of them made: they are the Do, said in a sentence (a plan's by the model, from its result,
+  // in the round after it), with no second round -- unless part of what was asked is no card, which the next round
+  // says (turn-end.ts turnUnmade).
+  const alone = turn.unmade.alone({ acts: acts.length, calls: calls.length, refused, made: proposals.slice(before) });
+  if (planAnswerOwed(alone, planned, { last, leftMs: turn.budgetMs - (Date.now() - turn.t0) })) {
+    turn.planOwed = { cards: proposals.slice(before), plan: planned, lastRound };
+    turn.messages.push({ role: "assistant", content: replayBlocks(blocks) });
+    turn.messages.push({ role: "user", content: resultBlocks(ordered) });
+    tellNext(turn.messages, PLAN_ANSWER_WORDS);
+    return "on";
+  }
+  if (alone === "answer") {
+    const answer = cardsAnswer(proposals.slice(before), input, planned);
     meter.said();
-    input.emit({ t: "say", ...say });
-  };
-  /** An answer set aside after its Say was sent: an empty Say takes it back, and the Line shows the reads again. */
-  const unsay = () => {
-    if (!said) return;
-    said = "";
-    saidAt = 0;
-    input.emit({ t: "say", headline: "", detail: "" });
-  };
+    input.emit({ t: "say", headline: answer.say.headline, detail: answer.say.detail });
+    return { end: done(turn, { answer, failed: false, failure: null, rounds: round, lastRound }) };
+  }
+  turn.messages.push({ role: "assistant", content: replayBlocks(blocks) });
+  turn.messages.push({ role: "user", content: resultBlocks(ordered) });
+  if (alone === "owed") tellNext(turn.messages, turn.unmade.words());
+  return "answered";
+}
 
-  /** A tool call's time, kept in the order the calls ran. */
-  const timed = async <T>(name: string, run: () => Promise<T>): Promise<T> => {
-    const t = Date.now();
-    try {
-      return await run();
-    } finally {
-      meter.toolsMs.push({ name, ms: Date.now() - t });
-    }
-  };
-
-  const propose = async (b: RoundBlock) => {
-    const args = argsOf(b);
-    toolsUsed.push(calledName(b.name, args));
-    if (!args) return cutOff(b, input.tenantId);
-    return timed(calledName(b.name, args), async () => {
-      const p = notAgain(await ports.propose(tc, b.name, args), [...(input.waiting ?? []), ...proposals]);
-      proposals.push(...cardsOf(p));
-      if (p.words) planWords.push({ words: p.words, lead: p.lead });
-      unmade.heard(calledName(b.name, args), p);
-      return { result: p.result, isError: p.isError, noted: !!p.noted };
-    });
-  };
-
-  const read = async (b: RoundBlock) => {
-    const args = argsOf(b);
-    toolsUsed.push(calledName(b.name, args));
-    if (!args) return cutOff(b, input.tenantId);
-    return timed(calledName(b.name, args), async () => {
-      const out = await ports.tool(tc, { name: b.name, input: args });
-      if (!out.isError) reads++;
-      return { result: out.result, isError: out.isError };
-    });
-  };
-
+export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts()): Promise<TurnResult> {
+  const turn = await openTurn(input, ports);
+  const { model, es } = turn;
   // With the answer tool, calling it is how the last round answers: it may call tools, and a read it makes anyway is
   // answered before one closing round that may call none.
   let closing = false;
   try {
     for (let round = 1; round <= ASK_MAX_ROUNDS + Number(closing); round++) {
       const last = round >= ASK_MAX_ROUNDS;
-      const noTool = model.answerTool ? closing : last;
-      const request = { ...requestOf(messages, anchor, noTool), diagnostics: meter.follows(live, input.chain) };
-
-      const roundAt = Date.now();
-      let blocks: RoundBlock[];
-      let stopReason: string | null;
-      let streamError: string | null;
-      try {
-        const r = await ports.round(
-          { tenantId: input.tenantId, userId: input.ctx.userId, request, signal },
-          onText,
-          answerInput(onText),
-        );
-        ({ blocks, stopReason, streamError } = r);
-        meter.round(r, roundAt);
-      } catch (e) {
-        // The person's Stop, or the turn's own time run out: whatever the round threw for it (a gateway unreached).
-        const early = endedEarly(round, true);
-        if (early) return early;
-        if (e instanceof GatewayRefused) {
-          // Something the turn can do without, refused (refusals.ts): the same round is asked again without it, once
-          // each. Without the page's data, their reads leave the count and the words stop pointing at them; without
-          // the format, what comes back is read as JSON when it is, else as prose (D15).
-          const m = e.refusal.kind === "bad_request" ? e.refusal.message : "";
-          const drop = dropFor(m, { replay: live && round === 1, context: !dataDropped, ...offer });
-          if (drop) {
-            log.error(DROP_EVENTS[drop], { error: m.slice(0, 200), tenant_id: input.tenantId });
-            if (drop === "replay") {
-              ({ messages, anchor, words } = cold());
-              live = false;
-              questionAt = questionIn(messages);
-              effort.open(messages);
-            } else if (drop === "context") {
-              dataDropped = true;
-              reads -= (pageRead ? 1 : 0) + prefetched.length + (scopedRow ? 1 : 0);
-              messages = withoutData(messages, questionAt, words, sayWords(live, dataDropped));
-            } else ({ tools, messages } = letGo(offer, drop, input.role, { tools, messages }));
-            round--;
-            continue;
-          }
-          return fail(refusalSaid(e.refusal, es, { tenant_id: input.tenantId, round }), e.refusal.kind, round);
-        }
-        throw e;
-      }
-
-      // A stream the turn's own time cut is the time's, not a dropped connection.
-      const ended = endedEarly(round, !!streamError);
-      if (ended) return ended;
-
-      if (streamError && !blocks.length) return fail(DROPPED_WORDS[es ? "es" : "en"], streamError, round);
-      // The cap was reached: what the round wrote may be half-written, and it is recorded (turn-end.ts capped).
-      meter.capped(stopReason, round, blocks, input.tenantId);
-      if (stopReason === "refusal") {
-        return fail(es ? "No puedo responder a eso aquí." : "I can't answer that here.", "refusal", round);
-      }
-
-      // The answer, if this round wrote one, and its calls with the answer tool's apart (tools/answer.ts).
-      const split = roundAnswer(blocks, offer.format);
-      const { used, answered, calls } = split;
-      // A draft begun at the turn's own effort is set aside, its calls unrun, and the round asked again at the draft's
-      // (effort.ts): the question did not say it was one.
-      if (effort.redraft(calls, messages)) {
-        unsay();
-        round--;
-        continue;
-      }
-      const acts = calls.filter((b) => ACT_TOOL_NAMES.has(b.name));
-      let { written } = split;
-
-      // An answer beside a read was written before its rows: it is set aside,
-      // and the model answers next round with them.
-      if (written && calls.length > acts.length) {
-        log.warn("ask_answer_beside_read", {
-          tools: calls.map((b) => calledName(b.name, argsOf(b))),
-          tenant_id: input.tenantId,
-        });
-        written = "";
-        unsay();
-      }
-
-      if (pausedByServer(stopReason, calls.length, last)) {
-        messages.push({ role: "assistant", content: replayBlocks(blocks) });
-        continue;
-      }
-
-      // A round that wrote nothing and called nothing is a glitch of ours, not an empty read.
-      if (!written && !calls.length) {
-        return fail(
-          es ? "Perdí el hilo. Pregúntamelo de nuevo." : "I lost my train of thought. Ask me again.",
-          stopReason === "max_tokens" ? "cap" : "no_tool_no_text",
-          round,
-        );
-      }
-
-      // Reads and proposals, in parallel; every result goes back at once.
-      for (const b of calls) input.emit({ t: "trace", text: toolLabel(b.name, argsOf(b)) });
-      const [before, saidBefore] = [proposals.length, planWords.length];
-      const outcomes = await Promise.all(
-        calls.map(async (b) => ({ block: b, out: ACT_TOOL_NAMES.has(b.name) ? await propose(b) : await read(b) })),
-      );
-      const refused = outcomes.some(({ out }) => out.isError);
-      const leftOut = outcomes.some(({ out }) => "noted" in out && out.noted);
-
-      const planned = roundPlan(calls, acts, refused, planWords.slice(saidBefore));
-      written = besideActs(written, {
-        refused,
-        leftOut,
-        planned,
-        unsay,
-        log: () =>
-          log.warn("ask_answer_beside_refused_card", {
-            tools: acts.map((b) => calledName(b.name, argsOf(b))),
-            tenant_id: input.tenantId,
-          }),
-      });
-      const ordered = everyCallAnswered(used, outcomes, answered, !!written);
-      // The round as it went out and came back: a turn that ends on it keeps it as the turn it was (memory.ts).
-      const lastRound: LastRound = { request, blocks, outcomes: ordered, roundAt, streamError };
-
-      if (written) {
-        answerIn = split.via;
-        const from = { read: tc.read, proposals, format: offer.format, stopReason, streamError, owed: planOwed };
-        const w = writtenAnswer(written, input, from);
-        if (!w.ok) return fail(w.sentence, w.failure, round);
-        const ungrounded = isUngrounded(answerWords(w.answer), reads + proposals.length);
-        return done({ answer: w.answer, ungrounded, failed: false, failure: null, rounds: round, lastRound });
-      }
-
-      // Cards alone, every one of them made: they are the Do, said in a sentence (a plan's by the model, from its result,
-      // in the round after it), with no second round -- unless part of what was asked is no card, which the next round
-      // says (turn-end.ts turnUnmade).
-      const alone = unmade.alone({ acts: acts.length, calls: calls.length, refused, made: proposals.slice(before) });
-      if (planAnswerOwed(alone, planned, { last, leftMs: budgetMs - (Date.now() - t0) })) {
-        planOwed = { cards: proposals.slice(before), plan: planned, lastRound };
-        messages.push({ role: "assistant", content: replayBlocks(blocks) });
-        messages.push({ role: "user", content: resultBlocks(ordered) });
-        tellNext(messages, PLAN_ANSWER_WORDS);
-        continue;
-      }
-      if (alone === "answer") {
-        const answer = cardsAnswer(proposals.slice(before), input, planned);
-        meter.said();
-        input.emit({ t: "say", headline: answer.say.headline, detail: answer.say.detail });
-        return done({ answer, failed: false, failure: null, rounds: round, lastRound });
-      }
-      messages.push({ role: "assistant", content: replayBlocks(blocks) });
-      messages.push({ role: "user", content: resultBlocks(ordered) });
-      if (alone === "owed") tellNext(messages, unmade.words());
-      if (Date.now() - t0 > budgetMs - 8_000 && !last) {
-        // Not enough time for another read: the next round is the last, and
-        // answers with what there is.
-        tellNext(messages, "Time is up for reads. Answer now with what you have.");
-        round = ASK_MAX_ROUNDS - 1;
-      } else if (model.answerTool && round + 1 === ASK_MAX_ROUNDS) tellNext(messages, LAST_ROUND_WORDS);
-      closing = model.answerTool && last;
+      const step = await roundOf(turn, { round, last, noTool: model.answerTool ? closing : last });
+      if (step === "again") round--;
+      else if (step === "answered") {
+        if (Date.now() - turn.t0 > turn.budgetMs - 8_000 && !last) {
+          // Not enough time for another read: the next round is the last, and
+          // answers with what there is.
+          tellNext(turn.messages, "Time is up for reads. Answer now with what you have.");
+          round = ASK_MAX_ROUNDS - 1;
+        } else if (model.answerTool && round + 1 === ASK_MAX_ROUNDS) tellNext(turn.messages, LAST_ROUND_WORDS);
+        closing = model.answerTool && last;
+      } else if (step !== "on") return step.end;
     }
     return fail(
+      turn,
       es ? "No llegué a una respuesta. Inténtalo de nuevo." : "I did not reach an answer. Try again.",
       "rounds_exhausted",
       ASK_MAX_ROUNDS,
@@ -772,6 +775,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   } catch (e) {
     log.error("ask_turn_failed", { error: e, tenant_id: input.tenantId });
     return fail(
+      turn,
       es ? "Algo falló al responder. Inténtalo de nuevo." : "Something went wrong while answering. Try again.",
       e instanceof Error ? e.message : String(e),
       0,
