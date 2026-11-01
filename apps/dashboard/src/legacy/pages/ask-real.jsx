@@ -7,7 +7,7 @@
 // On a phone it is the whole screen, and ×, Esc, a pull down and Back close it. On a desk it is a panel of glass docked
 // at the right, the sidebar's twin, over a page that keeps its layout and stays the member's (Ruben, 16 Oct 2026): ×, Esc
 // and a press outside close it, that press going on to what it was on; an answer that opens a place moves the page there
-// with Ask still open; and the keys pressed in either are that one's own.
+// with Ask still open; and the keys pressed in either are that one's own, an Esc the page has no use for being Ask's.
 // This file is the shell: the state of one open Line, its keys and the turn runner. The rows are ask-home.jsx's, the
 // words ask-text.jsx's and the hooks ask-hooks.jsx's; everything that talks to the workspace goes through window.__ask.
 // No key symbol is drawn (D17): the shortcuts sheet lists the keys (contracts SHORTCUTS), opened by ? or the account menu.
@@ -251,7 +251,7 @@ const useArOpen = ({ open, A, route, openedAt, setScope, threadsReady, setThread
 };
 
 /** What Ask puts over the page itself, whose presses are not a press outside a desk's panel: its toasts, a card's menu, pop or sheet, and the top bar's Ask, which toggles it. */
-const AR_OVER_ASK = '[role="dialog"], [role="alertdialog"], [role="menu"], .pop-place, .pp-toast-stack, .tb-ask';
+const arOverAsk = (H) => `${H.openOver}, .pp-toast-stack, .tb-ask`;
 
 /** Closing: Back on a phone, a press outside a desk's panel, and what the Line forgets once closed. */
 const useArClose = ({ H, open, onClose, setQuick, setDoomed, setView, speech, pushed, dialogRef }) => {
@@ -259,7 +259,7 @@ const useArClose = ({ H, open, onClose, setQuick, setDoomed, setView, speech, pu
   // the place (nav). A desk's panel closes on a press outside it, which goes on to what it was on (Ruben, 16 Oct 2026:
   // "users can click away and it closes"). Both are ask-hooks.jsx's.
   H.useAskBack(open && arPhone(), pushed, onClose);
-  H.useAskPressAway(open && !arPhone(), dialogRef, AR_OVER_ASK, onClose);
+  H.useAskPressAway(open && !arPhone(), dialogRef, arOverAsk(H), onClose);
 
   // Closed: nothing keeps reading or talking and the rows are home again; the words typed and an open conversation
   // come back until Clear (D14, S9).
@@ -335,7 +335,7 @@ const arEscape = ({ live, stop, view, setView, onClose }) => {
 };
 
 /** What the shell sends as it opens the Line, and the keys anywhere in it. */
-const useArSeedKeys = ({ open, A, onClose, live, view, asked, setTick, setView, setScope, setActive, setQuick, setQuery, stop, openThread, submit }) => {
+const useArSeedKeys = ({ open, A, H, onClose, live, view, asked, setTick, setView, setScope, setActive, setQuick, setQuery, stop, openThread, submit }) => {
   // What the shell sends as it opens the Line: a question to ask or to finish, or a thread to open (`askAbout({ thread })`, any caller). The
   // shell opens and sends in the same moment, so the Line listens while closed too and keeps the last request.
   useArEffect(() => {
@@ -344,19 +344,19 @@ const useArSeedKeys = ({ open, A, onClose, live, view, asked, setTick, setView, 
     return () => window.removeEventListener("ask:seed", onSeed);
   }, []);
 
+  const beside = H.useAskEscBeside(open && !!A);
   useArEffect(() => {
     if (!open || !A) return;
-    // Anywhere in the Line, not only on the line: ⌘J (or Ctrl J) opens Earlier, before the browser's Downloads can;
-    // Esc stops a turn in flight, else steps back out of Earlier, else closes (the line takes Esc first when it has
-    // focus, onKey). On a desk an Esc pressed in the page beside the panel is the page's: the panel takes its own
-    // (ask-hooks.jsx panelKeys).
+    // Anywhere in the Line, not only on the line: ⌘J (or Ctrl J) opens Earlier, before the browser's Downloads can; Esc
+    // stops a turn in flight, else steps back out of Earlier, else closes. The line takes Esc first when it has focus
+    // (onKey), a desk's panel next (panelKeys), and one pressed in the page beside it is Ask's if `beside` says so.
     const onKeys = (e) => {
       if ((e.metaKey || e.ctrlKey) && !e.altKey && (e.key === "j" || e.key === "J")) {
         e.preventDefault();
         setView((v) => (v === "earlier" ? "rows" : "earlier"));
         return;
       }
-      if (e.key === "Escape" && !e.defaultPrevented && arPhone()) arEscape({ live, stop, view, setView, onClose });
+      if (e.key === "Escape" && !e.defaultPrevented && (arPhone() || beside.current)) arEscape({ live, stop, view, setView, onClose });
     };
     window.addEventListener("keydown", onKeys);
     // Taken once open, after the route's own scope, so a request's scope wins.
