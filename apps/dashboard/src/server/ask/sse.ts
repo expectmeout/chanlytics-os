@@ -144,7 +144,6 @@ function cacheMissOf(diagnostics: unknown): string | null {
   return typeof type === "string" && type ? type : "unavailable";
 }
 
-/** One SSE frame → one event, or nothing for pings and the frames the loop does not use. */
 /** A block as its start names it; anything else is text. */
 function blockOf(b: NonNullable<RawEvent["content_block"]>): GatewayBlockStart["block"] {
   switch (b.type) {
@@ -167,11 +166,31 @@ function blockOf(b: NonNullable<RawEvent["content_block"]>): GatewayBlockStart["
   }
 }
 
-export function parseFrame(frame: string): GatewayEvent | null {
+/** A frame's data lines, joined; "" for a frame with none (a comment, a ping's event line alone). */
+function frameData(frame: string): string {
   let data = "";
   for (const line of frame.split("\n")) {
     if (line.startsWith("data:")) data += line.slice(5).trim();
   }
+  return data;
+}
+
+/** A block's delta as it streams: its text, its input's JSON, its thinking or its signature; nothing for any other. */
+function deltaOf(ev: RawEvent): GatewayEvent | null {
+  if (typeof ev.index !== "number" || !ev.delta) return null;
+  if (ev.delta.type === "text_delta") return { type: "text", index: ev.index, text: ev.delta.text ?? "" };
+  if (ev.delta.type === "input_json_delta")
+    return { type: "input_json", index: ev.index, partial: ev.delta.partial_json ?? "" };
+  if (ev.delta.type === "thinking_delta")
+    return { type: "thinking", index: ev.index, thinking: ev.delta.thinking ?? "" };
+  if (ev.delta.type === "signature_delta")
+    return { type: "signature", index: ev.index, signature: ev.delta.signature ?? "" };
+  return null;
+}
+
+/** One SSE frame → one event, or nothing for pings and the frames the loop does not use. */
+export function parseFrame(frame: string): GatewayEvent | null {
+  const data = frameData(frame);
   if (!data) return null;
   let ev: RawEvent;
   try {
@@ -185,17 +204,8 @@ export function parseFrame(frame: string): GatewayEvent | null {
       if (!b || typeof ev.index !== "number") return null;
       return { type: "block_start", index: ev.index, block: blockOf(b) };
     }
-    case "content_block_delta": {
-      if (typeof ev.index !== "number" || !ev.delta) return null;
-      if (ev.delta.type === "text_delta") return { type: "text", index: ev.index, text: ev.delta.text ?? "" };
-      if (ev.delta.type === "input_json_delta")
-        return { type: "input_json", index: ev.index, partial: ev.delta.partial_json ?? "" };
-      if (ev.delta.type === "thinking_delta")
-        return { type: "thinking", index: ev.index, thinking: ev.delta.thinking ?? "" };
-      if (ev.delta.type === "signature_delta")
-        return { type: "signature", index: ev.index, signature: ev.delta.signature ?? "" };
-      return null;
-    }
+    case "content_block_delta":
+      return deltaOf(ev);
     case "content_block_stop":
       return typeof ev.index === "number" ? { type: "block_stop", index: ev.index } : null;
     case "message_start": {
