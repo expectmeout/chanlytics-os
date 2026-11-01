@@ -124,17 +124,8 @@
   .dash-a-v2-core, .dash-a-v2-foot { grid-template-columns: 1fr; }
   .rail { position: static; }
   .fleet-grid { grid-template-columns: 1fr 1fr; }
-  /* The real queue's head and its call in progress wrap on a phone; they held one line and cut the words off. */
+  /* The real queue's head wraps on a phone; it held one line and cut the words off. */
   .tq-head { flex-wrap: wrap; }
-  .tq-sub { flex-basis: 100%; white-space: normal; }
-  .tq-live { flex-wrap: wrap; }
-  .tq-live-text { white-space: normal; }
-  /* The day card's lines on a phone: the words take the row and the door goes under them, its words lined up with
-     theirs (the mark is 24px and the gap 10px; the door's own padding is 6px). Beside the words, a door that never
-     wraps left them a column one word wide, and they ran under it (24 Sep). A list that draws no mark says its own
-     indent (--beat-door-indent: the brief's, dashboard-a-v2.css) instead of a second rule over the door. */
-  :where(.dash-a-v2) .tc-beats .brief-beat-text { flex-basis: calc(100% - 34px); }
-  :where(.dash-a-v2) .tc-beats .brief-beat-text ~ .brief-chip { margin-left: var(--beat-door-indent, 28px); }
   /* What is left to set up, on a phone: the rows and acts a desk has (Ruben, 21 Oct 2026: a phone showed the first row
      alone, with no Skip or Hide), each row its dot, its name, its button and Skip, and Hide in the head. The row's
      sentence stays a desk's: three lines of it beside the button left both pinched, and held to one line it was "What

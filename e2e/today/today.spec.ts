@@ -5,9 +5,10 @@ import { expectAwayAddsUp, expectLeaksWellFormed, expectNoQueueRepeat, expectWar
 import { WAITING_PLACES, WAITING_QUESTION, WAITING_SEARCH_NAME, refuseAnswers, waitingSearch } from "../waiting-search";
 
 /**
- * Today on a real workspace: the work first, then the day's own card (four figures, each with its receipt), then
- * what is left over. Everything that asks for a person is one queue in the strip's row grammar; every number is one
- * the page it links to prints; nothing is said twice.
+ * Today on a real workspace (the redesign of 1 Nov 2026): the head's one sentence and, on a desk, the day's four figures
+ * beside the greeting, each with its receipt; then the work, Need you in its groups, beside the day; then what is left
+ * over. Everything that asks for a person is one queue in the kit's row grammar; every number is one the page it links
+ * to prints; nothing is said twice.
  */
 test.describe("Today on a real workspace", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
@@ -17,7 +18,7 @@ test.describe("Today on a real workspace", () => {
     await page.waitForLoadState("networkidle");
   });
 
-  test("nothing above the work, then one queue: every row a sentence, a state line and a verb; one primary verb; no seed", async ({
+  test("nothing above the work, then one queue: every row a sentence and a verb, someone waiting how long beside their name; one primary verb; no seed", async ({
     page,
   }) => {
     // Nothing above the work while every line is up; a line that is down is one red line that says so.
@@ -28,13 +29,18 @@ test.describe("Today on a real workspace", () => {
     await expect(queue).toBeVisible();
     const rows = queue.locator(".tq-list .cl-attn-row");
     const n = await rows.count();
-    // Need you's rows (decision 0071, need-you/people-rows.tsx): a person's says where it stands; Ask's idea says what it
-    // is in its tag instead, and is worked in place. Every row offers a verb: its own, or its work's.
+    // Need you's rows (decision 0071, need-you/people-rows.tsx): someone waiting on you says how long beside their name and
+    // no state line; Ask's idea says what it is in its tag, and is worked in place; anything else (a run, a search, your
+    // own to-do) says where it stands. Every row offers a verb: its own, or its work's.
+    const WAITING = ["queue-handoff", "queue-callback", "queue-window", "queue-reply", "queue-held"];
     for (const row of await rows.all()) {
       expect((await row.locator(".cl-attn-sentence").innerText()).trim().length).toBeGreaterThan(0);
-      if ((await row.getAttribute("data-testid")) === "queue-idea")
-        await expect(row.locator(".cl-attn-meta")).toHaveText("Ask's idea");
-      else expect((await row.locator(".cl-attn-status").innerText()).trim().length).toBeGreaterThan(0);
+      const id = (await row.getAttribute("data-testid")) ?? "";
+      if (id === "queue-idea") await expect(row.locator(".cl-attn-meta")).toHaveText("Ask's idea");
+      else if (WAITING.includes(id)) {
+        await expect(row.locator(".cl-attn-wait")).toHaveCount(1);
+        await expect(row.locator(".cl-attn-status")).toHaveCount(0);
+      } else expect((await row.locator(".cl-attn-status").innerText()).trim().length).toBeGreaterThan(0);
       const verbs = (await row.locator(".cl-attn-cta").count()) + (await row.locator(".cl-attn-work button").count());
       expect(verbs, "a row with nothing to do").toBeGreaterThan(0);
       expect(await row.locator(".cl-attn-cta").count()).toBeLessThanOrEqual(2);
@@ -53,20 +59,15 @@ test.describe("Today on a real workspace", () => {
       expect(cell).not.toMatch(/\$\d/);
   });
 
-  test("the day's card: four figures with their clauses, or the quiet line with its proof; a receipt on hover adds to its figure", async ({
+  test("the head's four figures with their clauses, zeros on a quiet day; a receipt on hover adds to its figure", async ({
     page,
   }) => {
-    const card = page.getByTestId("today-card");
+    // A desk's four stand in the frame's head beside the greeting (card.tsx TodayHeadFigures); Today so far is a phone's.
+    await expect(page.getByTestId("today-card")).toHaveCount(0);
+    const card = page.locator(".today-head-figs");
     await expect(card).toBeVisible();
     const figures = card.locator('[data-testid^="today-figure-"]');
-    const n = await figures.count();
-    if (n === 0) {
-      await expect(card.getByTestId("today-quiet-line")).toContainText(
-        /^Nothing has come in yet today\. (The last message arrived .+|No messages have arrived yet\.)/,
-      );
-      return;
-    }
-    expect(n).toBe(4);
+    await expect(figures).toHaveCount(4);
     for (const id of ["messages", "answered", "calls", "new"]) {
       const fig = card.getByTestId(`today-figure-${id}`);
       await expect(fig.locator(".tc-fig-n")).toHaveText(/^\d+$/);
@@ -93,9 +94,9 @@ test.describe("Today on a real workspace", () => {
     const said = (await line.innerText()).trim();
     const m = /^Last (7|30|90) days: (\d+) messages?/.exec(said);
     expect(m, said).not.toBeNull();
-    const door = page.getByTestId("today-card").getByRole("button", { name: /Open Reports/ });
-    await expect(door).toHaveCount(1);
-    await door.click();
+    // The line is the one door, at Worth a look's foot (leaks.tsx WeekLine).
+    await expect(page.getByTestId("today-leaks").getByTestId("today-period")).toHaveCount(1);
+    await line.click();
     await expect(page).toHaveURL(atRoute(/^reports/));
     await page.waitForLoadState("networkidle");
     // Reports' messages figure, over the same range, prints the same count (the strip is one list of the kit's figures, each
@@ -105,9 +106,16 @@ test.describe("Today on a real workspace", () => {
     ).toContainText(m![2]);
   });
 
-  test("no day pane beside the queue: the strip says the day, and the Calendar has the rest", async ({ page }) => {
-    // Canvas E3 folds the day into the strip's Next cell (today-page.tsx DashboardA, 1 Oct 2026).
-    await expect(page.getByTestId("today-day")).toHaveCount(0);
+  test("the day beside the work: its note, the bar, the rest of it; its door is the Calendar", async ({ page }) => {
+    // The redesign of 1 Nov 2026 (today-page.tsx DashboardA, day-card.tsx TodayDay): beside Need you, over the bell. A
+    // workspace with no calendar and nothing going out today draws no day.
+    const day = page.getByTestId("today-day");
+    if ((await day.count()) === 0) return;
+    await expect(day).toBeInViewport();
+    const door = day.getByRole("link", { name: "Calendar", exact: true });
+    await expect(door).toHaveCount(1);
+    await door.click();
+    await expect(page).toHaveURL(atRoute(/^calendar/));
   });
 
   test("worth a look: every row a claim with its arithmetic, a word for its tone, an Ask door that asks the row's own sentence", async ({
@@ -163,13 +171,13 @@ test.describe("Today on a real workspace", () => {
     const attempts = await refuseAnswers(page);
     const search = await waitingSearch(page);
     const queue = page.getByTestId("today-queue");
-    await expect(queue.locator(".tq-sub")).toContainText("1 search waiting for your answer");
-    const row = queue.getByTestId("queue-search");
+    // A question waits for your OK, as a run does: in Your OK.
+    const row = queue.getByTestId("today-group-ok").getByTestId("queue-search");
     await expect(row).toHaveCount(1);
     await expect(row).toBeInViewport({ ratio: 1 });
     await expect(row.locator(".cl-attn-who")).toHaveText(WAITING_SEARCH_NAME);
     // Waited three hours when the seed ran: the number moves with the clock, the words do not.
-    await expect(row.locator(".cl-attn-meta")).toHaveText(/^Leads, waited \d+h$/);
+    await expect(row.locator(".cl-attn-wait")).toHaveText(/^\d+h$/);
     await expect(row.locator(".cl-attn-sentence")).toHaveText(WAITING_QUESTION);
     await expect(row.locator(".cl-attn-status")).toHaveText(
       "Waiting for your answer · nothing is spent while it waits",
@@ -219,6 +227,8 @@ test.describe("Today on a phone", () => {
     for (const status of await queue.locator(".tq-list .cl-attn-status").all()) {
       expect(await status.evaluate((el) => el.scrollWidth <= el.clientWidth + 1), await status.innerText()).toBe(true);
     }
+    // The head is the greeting and one sentence: no second headline under it (the redesign of 1 Nov 2026).
+    await expect(page.getByTestId("today-head-lead")).toHaveCount(1);
     const fig = page.getByTestId("today-card").locator("button.tc-fig-btn").first();
     if ((await fig.count()) === 0) return;
     await fig.scrollIntoViewIfNeeded();

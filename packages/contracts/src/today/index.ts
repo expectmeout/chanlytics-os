@@ -96,8 +96,8 @@ export type {
   BellSectionVM,
   TodayAwayVM,
 } from "./today-away";
-export { standingWithRuns, TODAY_PHONE_WORDS, todayDraftsSub, todayPhoneHead } from "./today-bands";
-export type { TodayPhoneHeadVM } from "./today-bands";
+export { standingWithRuns, TODAY_PHONE_WORDS, todayDraftsSub, todayHeadLine } from "./today-bands";
+export type { TodayHeadLineVM } from "./today-bands";
 export { toTodayVM } from "./today-brief";
 export { todayBriefWords } from "./today-brief-words";
 export type { TodayBriefRun, TodayBriefWords } from "./today-brief-words";
@@ -110,7 +110,6 @@ export {
   todayDayNext,
   todayDayNote,
   todayVisitsAsked,
-  todayVisitsFoot,
   todayVisitsSub,
   withVisitsAsked,
 } from "./today-day";
@@ -137,7 +136,7 @@ export { isHoldRow, isPersonRow, namesAPerson } from "./today-queue";
 export { NO_REPLY_AFTER_MS } from "./today-rows";
 export { todayLateRunsSub, todayRunApproved, todayRunsSub, todayRunWords } from "./today-runs";
 export type { RunLike, TodayRunWordsVM } from "./today-runs";
-export { todaySteps, todayStepsFoot, todayStepsSub, withSteps } from "./today-steps";
+export { todaySteps, todayStepsSub, withSteps } from "./today-steps";
 export type { TodayStepsVM, TodayStepVM } from "./today-steps";
 export type {
   TodayCallRowVM,

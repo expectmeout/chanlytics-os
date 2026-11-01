@@ -77,6 +77,38 @@ export const NEED_YOU_WORDS = {
   more: (n: number) => `${n} more in the Inbox`,
   seeAll: "See all",
   /**
+   * Need you's groups (the redesign of 1 Nov 2026, need-you-groups.ts): the one thing to do first, who waits on you, what
+   * waits for your OK, and who has waited past a week, folded at the end.
+   */
+  group: { next: "Up next", waiting: "Waiting on you", ok: "Your OK", old: "Over a week" },
+  /** The strip that cuts Need you by what each row asks of you, and its name to a screen reader. */
+  filter: { label: "Need you, by what it asks of you", all: "All", reply: "Reply", call: "Call", approve: "Approve" },
+  /** How many need you, as the head says it before anything else: the badge's number. */
+  count: (n: number) => (n === 1 ? "1 needs you." : `${n} need you.`),
+  /** The same count said after a line that is down, which leads. */
+  countAsWell: (n: number) => (n === 1 ? "1 needs you as well." : `${n} need you as well.`),
+  /** Every row past a week marked done at once, asked first: they leave Need you until they write again. */
+  oldDone: {
+    act: "Mark all done",
+    question: (n: number) => (n === 1 ? "Mark this one done?" : `Mark all ${n} done?`),
+    detail: "They leave Need you. A new message from them brings them back.",
+    yes: "Mark done",
+    done: (n: number) => (n === 1 ? "Marked done" : `${n} marked done`),
+    failed: (n: number) => (n === 1 ? "One couldn't be marked done" : `${n} couldn't be marked done`),
+  },
+  /** Over a call back that waited past a week, before its notes: Ask's word that it may be let go. */
+  staleCall: "A call back this old is rarely still wanted. If the number means nothing to you, mark it done.",
+  /** The two lines at Need you's foot, each opening in place: your own to-dos, and what Ask found worth a look. */
+  todo: {
+    title: "To do",
+    reviews: (n: number) => (n === 1 ? "1 review to answer" : `${n} reviews to answer`),
+  },
+  found: {
+    title: "Ask found",
+    ideas: (n: number, first: string) => (n === 1 ? first : `${n} ideas`),
+    calls: (n: number) => (n === 1 ? "a call worth a listen" : `${n} calls worth a listen`),
+  },
+  /**
    * A call's notes, for the member on the call and never sent: its head, then each part on a key column. "Find out", not
    * "Ask": the assistant is Ask, and "Ask Ask what they…" read as a stutter.
    */
@@ -274,7 +306,7 @@ export function sendCountdown(pressedMs: number, untilMs: number, nowMs: number)
   return { seconds: left > 0 ? Math.ceil(left / COUNTDOWN_SECOND_MS) : 0, share: Math.min(1, left / whole) };
 }
 
-/** What the section has prepared, as its one line counts it. */
+/** What Need you has prepared and what cannot wait, as the head's sentence says it after the count. */
 export interface NeedYouSayFacts {
   /** Replies drafted and waiting for a press. */
   replies: number;
@@ -282,30 +314,28 @@ export interface NeedYouSayFacts {
   briefs: number;
   /** Drafts still being written. */
   writing: number;
-  /** The person whose WhatsApp window closes first, among the rows; null when none is closing. */
-  firstWindow: string | null;
-  /** Replies your receptionist sends on its own unless stopped. */
-  held: number;
+  /** The first WhatsApp window to close among the rows, who and when on the business's clock; null when none is. */
+  firstWindow: { who: string; at: string } | null;
+  /** The first reply your receptionist sends on its own unless stopped, by whom it answers; null when none counts down. */
+  held: { who: string } | null;
 }
 
 const oneOrCount = (n: number, one: string, many: string) => `${n === 1 ? "a" : n} ${n === 1 ? one : many}`;
 
 /**
- * Ask's one line over the rows: what it prepared, then the one thing that cannot wait. Null when it prepared nothing and
- * nothing is being written: the rows say the rest, and an empty queue says its own words (contracts today.ts).
+ * What the head says after how many need you (the redesign of 1 Nov 2026): what Ask prepared, then the one thing that
+ * cannot wait, in one sentence ("Ask drafted 3 replies, and Dana's reply window closes at 11:52 AM."). A reply that goes
+ * on its own leads, since it goes in minutes, before a window that closes in hours. Null when Ask prepared nothing,
+ * writes nothing and nothing closes: the head says the count alone, and the rows say the rest.
  */
 export function needYouSay(f: NeedYouSayFacts): string | null {
+  const held = f.held ? `Your receptionist answers ${f.held.who} on its own unless you stop it.` : "";
   const ready = [
     f.replies ? oneOrCount(f.replies, "reply", "replies") : "",
     f.briefs ? oneOrCount(f.briefs, "call brief", "call briefs") : "",
   ].filter(Boolean);
-  // The one thing that cannot wait: a reply that goes on its own in minutes, before a window that closes in hours.
-  const then = f.held
-    ? ` Your receptionist sends ${f.held === 1 ? "one reply" : `${f.held} replies`} on its own unless you stop it.`
-    : f.firstWindow
-      ? ` ${f.firstWindow}'s window closes first.`
-      : "";
-  if (ready.length) return `I drafted ${ready.join(" and ")}.${then}`;
-  if (f.writing) return NEED_YOU_WORDS.drafting;
-  return then ? then.trim() : null;
+  const drafted = ready.length ? `Ask drafted ${ready.join(" and ")}` : f.writing ? "Ask is drafting your replies" : "";
+  const window = f.firstWindow ? `${f.firstWindow.who}'s reply window closes at ${f.firstWindow.at}` : "";
+  const then = drafted && window ? `${drafted}, and ${window}.` : drafted || window ? `${drafted || window}.` : "";
+  return [held, then].filter(Boolean).join(" ") || null;
 }

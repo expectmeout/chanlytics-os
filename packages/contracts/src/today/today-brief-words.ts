@@ -1,8 +1,8 @@
 /**
  * The brief's words (canvas E3, Glass): what the day says in a few sentences, composed from what Today already holds
  * and nothing read twice -- who needs you and how long the oldest has waited, the calendar's day, what came in, and
- * the playbook runs waiting for a word. A name is set in bold, as the canvas sets it; the same words are read aloud
- * (brief-pane.tsx). It said "Nothing has come in yet today" over two conversations waiting since the 18th and a day
+ * the playbook runs waiting for a word. A name is set in bold, as the canvas set it; the words are what Listen reads aloud
+ * and Ask is handed (the dashboard's pages/listen.tsx). It said "Nothing has come in yet today" over two conversations waiting since the 18th and a day
  * of appointments (Ruben, 1 Oct 2026): the brief is everything that needs a person now, then the day, then the rest.
  */
 import { appointmentWords } from "../journey/appointment-word";

@@ -5,8 +5,9 @@
  * A visit could be marked Kept or Missed in one place, the Calendar's panel, and nothing asked the owner to: a no-show nobody
  * marked counted as a visit that happened, and the after-the-visit message thanked them. Yesterday's unmarked visits now ask
  * "Did they come?" in the queue's own grammar, with Kept and Missed as the two verbs and the visit on the Calendar as the door,
- * three at most and one row for the rest, after the steps due and before a call worth a listen. They are the team's to-do and
- * nobody waiting: counted in the head's sub-line and the foot, never in the number that says who needs you.
+ * three at most and one row for the rest, after the steps due. They are the team's to-do and nobody waiting: since the
+ * redesign of 1 Nov 2026 To do's rows, under its line at Need you's foot (counted there, opened in place, open from the start
+ * where nobody waits), never in the number that says who needs you.
  *
  * Since decision 0071 the two verbs are the row's own work (need-you/visit-work.tsx), and Missed goes on to the rebook Ask
  * writes, sent from the row.
@@ -100,6 +101,16 @@ const draw = () => {
   return W.React.createElement(AgentCommand, {});
 };
 const queueOf = (tree) => byTestId(tree, "today-queue");
+const lineOf = (tree) => byTestId(queueOf(tree), "today-todo-line");
+/** The queue with To do opened: its line pressed where it stood closed, and the queue drawn again. */
+const drawOpen = () => {
+  const tree = draw();
+  if (lineOf(tree) && !byTestId(queueOf(tree), "today-todo")) {
+    press(byTestId(lineOf(tree), "today-todo-open"));
+    return again(() => W.React.createElement(AgentCommand, {}));
+  }
+  return tree;
+};
 const rowsOf = (tree) => all(queueOf(tree), (n) => n.props?.["data-testid"] === "queue-visit");
 const whoOf = (row) => textOf(find(row, (n) => classes(n).includes("cl-attn-who")));
 const buttons = (tree, words) => all(tree, (n) => n.type === "button" && textOf(n).trim() === words);
@@ -114,19 +125,22 @@ after(() => {
   setSurfaceValue("today", undefined);
 });
 
-test("yesterday's unmarked visits are rows of the queue: the person, 'Did they come?', Kept and Missed as the verbs, the visit on the Calendar as the door; three at most, under the person waiting", () => {
+test("yesterday's unmarked visits are To do's rows: the person, 'Did they come?', Kept and Missed as the verbs, the visit on the Calendar as the door; three at most, then one row for the rest", () => {
   clear();
-  const tree = draw();
+  const closed = draw();
+  assert.match(textOf(lineOf(closed)), /To do.*4 appointments to mark/, "the line counts them before it is opened");
+  assert.equal(rowsOf(closed).length, 0, "closed while someone waits on you");
+  assert.equal(
+    all(queueOf(closed), (n) => n.props?.["data-testid"] === "queue-handoff").length,
+    1,
+    "the person waiting is the queue's row",
+  );
+  const tree = drawOpen();
   const rows = rowsOf(tree);
   assert.deepEqual(
     rows.map(whoOf),
     ["Ana a", "Ana c", "Ana f"],
     "three, in the day's order: not a kept one, a row-less one, or an event nobody is matched to",
-  );
-  assert.equal(
-    all(queueOf(tree), (n) => n.props?.["data-testid"] === "queue-handoff").length,
-    1,
-    "the person waiting is still first",
   );
   const first = rows[0];
   const said = textOf(first);
@@ -134,11 +148,8 @@ test("yesterday's unmarked visits are rows of the queue: the person, 'Did they c
     said.includes("Did they come?") && said.includes("Not marked yet") && said.includes("Colour · Ana a"),
     said,
   );
-  assert.equal(
-    textOf(find(first, (n) => classes(n).includes("cl-attn-meta"))),
-    "Calendar, Yesterday, 2:00 PM",
-    "where it is, and when",
-  );
+  assert.ok(textOf(find(first, (n) => classes(n).includes("cl-attn-via"))).includes("Calendar"), "where it is");
+  assert.equal(textOf(find(first, (n) => classes(n).includes("cl-attn-wait"))), "Yesterday, 2:00 PM", "and when");
   assert.equal(buttons(first, "Kept").length, 1);
   assert.equal(buttons(first, "Missed").length, 1);
   assert.equal(
@@ -154,32 +165,22 @@ test("yesterday's unmarked visits are rows of the queue: the person, 'Did they c
   // The row opens the visit on the Calendar, on its day: its words do, since the row holds presses of its own.
   find(first, (n) => classes(n).includes("cl-attn-body")).props.onClick();
   assert.equal(went.at(-1), "calendar/2026-09-17:a-r-a");
-  // The head says them in its sub-line; its number is who is waiting on a person, and a visit to mark is nobody waiting.
-  assert.match(textOf(find(queueOf(tree), (n) => classes(n).includes("tq-sub"))), /1 person · 4 appointments to mark/);
-  assert.equal(textOf(byTestId(queueOf(tree), "today-queue-count")), "1");
-  // The card is four rows: the fourth visit is cut, and the foot counts it with the Calendar as its door.
-  const foot = find(queueOf(tree), (n) => classes(n).includes("tq-foot"));
-  assert.ok(textOf(foot).includes("1 appointment to mark on the Calendar"), textOf(foot));
+  // The row for the rest: how many more, and the Calendar on yesterday as its door.
+  const more = byTestId(queueOf(tree), "queue-visits");
+  assert.ok(textOf(more).includes("1 more appointment to mark"), textOf(more));
   went.length = 0;
-  byTestId(foot, "today-queue-visits-cut").props.onClick();
+  more.props.onClick();
   assert.equal(went.at(-1), "calendar/2026-09-17");
 });
 
-test("with room on the card, the rest is one row: how many more, and a door to the Calendar on yesterday", () => {
+test("with nobody waiting, To do is open from the start, and the queue has no foot", () => {
   clear();
   const vm = handoffDay();
   vm.queue.rows = [];
   setSurfaceValue("today", vm);
   const tree = draw();
   assert.deepEqual(rowsOf(tree).map(whoOf), ["Ana a", "Ana c", "Ana f"]);
-  const more = byTestId(queueOf(tree), "queue-visits");
-  assert.ok(textOf(more).includes("1 more appointment to mark"), textOf(more));
-  more.props.onClick();
-  assert.equal(went.at(-1), "calendar/2026-09-17");
-  assert.ok(
-    textOf(find(queueOf(tree), (n) => classes(n).includes("tq-foot"))).includes("Nothing more in the Inbox"),
-    "the card holds every visit: the foot cuts nothing",
-  );
+  assert.equal(byTestId(queueOf(tree), "today-queue-foot"), null, "nothing was cut");
 });
 
 test("a day with only visits to mark is not an empty queue; none to mark, an unread Calendar, or one that does not hold yesterday draws nothing of them", () => {
@@ -197,18 +198,17 @@ test("a day with only visits to mark is not an empty queue; none to mark, an unr
     all(queueOf(tree), (n) => String(n.props?.["data-testid"] ?? "").startsWith("today-queue-empty-")).length,
     0,
   );
-  assert.match(textOf(find(queueOf(tree), (n) => classes(n).includes("tq-sub"))), /1 appointment to mark/);
-  assert.equal(textOf(byTestId(queueOf(tree), "today-queue-count")), "0", "and nobody is waiting on a person");
+  assert.match(textOf(lineOf(tree)), /1 appointment to mark/);
   clear([block("a", 14, "kept")]);
-  assert.equal(rowsOf(draw()).length, 0, "marked: nothing to ask");
+  assert.equal(rowsOf(drawOpen()).length, 0, "marked: nothing to ask");
   clear();
   W.__CALENDAR = { vm: calendar(FOUR(), { feed: { present: true, state: "unavailable" } }), fetchedAt: 1 };
-  assert.equal(rowsOf(draw()).length, 0, "a calendar that could not be read: no visit is claimed on a guess");
+  assert.equal(rowsOf(drawOpen()).length, 0, "a calendar that could not be read: no visit is claimed on a guess");
   clear();
   W.__CALENDAR = { vm: calendar(FOUR(), { days: [frame("2026-09-18", { today: true })] }), fetchedAt: 1 };
-  assert.equal(rowsOf(draw()).length, 0, "and one that does not hold yesterday asks about nothing");
+  assert.equal(rowsOf(drawOpen()).length, 0, "and one that does not hold yesterday asks about nothing");
   delete W.__CALENDAR;
-  assert.equal(rowsOf(draw()).length, 0, "the Calendar not read yet");
+  assert.equal(rowsOf(drawOpen()).length, 0, "the Calendar not read yet");
 });
 
 /* ------------------------------------------ the row's work, pressed ------------------------------------------ */

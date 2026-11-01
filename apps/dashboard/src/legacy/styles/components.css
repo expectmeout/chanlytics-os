@@ -2761,11 +2761,6 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 #pg-act {
   display: contents;
 }
-/* The seat of an act the page will draw (kit/head/frame-head.tsx PageAct, kit/head/standing.ts `seat`): its place held, at
-   its size, seen by no one, so the name's row does not move as the act comes. */
-.pg-act-seat {
-  visibility: hidden;
-}
 /* Reports' head is the container its period measures itself against (reports.css): the capsule says its word where the
    head has the room and is the glyph's circle where it has not, by the head's own width, as the Calendar's bar does it
    (calendar.css `cal-bar`). `--rpt-when-w` is the capsule's one width, which the place for it keeps before it is drawn. */

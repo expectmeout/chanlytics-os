@@ -15,6 +15,7 @@ import { EMAIL_NOT_ANSWERED_SENTENCE } from "../email/mailbox";
 import { lineOffGets } from "../lines/caller-gets";
 import { CHANNEL_ANSWERED, channelNoun } from "../lines/channels";
 import type { ReplySpeed } from "../reports/report-speed";
+import { NEED_YOU_WORDS } from "../need-you/need-you-words";
 import { durationWords } from "../shared/clock";
 import { runsWaitingSentence } from "../shell/campaign-rooms";
 import { PAUSED_WORDS } from "../workspace/billing";
@@ -349,76 +350,71 @@ export function standingWithRuns<S extends TodayHead>(standing: S, runs: number)
   return runs > 0 && standing.calm ? { ...standing, ...calmStanding(standing.calm, runs) } : standing;
 }
 
-/** What Today says on a phone besides the ladder (the phone canvas, 28 Oct 2026): its parts' names and the day's lines. */
+/**
+ * What Today says besides the ladder (the phone canvas, 28 Oct 2026; on a desk too since the redesign of 1 Nov 2026): its
+ * parts' names and the day's lines.
+ */
 export const TODAY_PHONE_WORDS = {
-  todo: "To do",
-  askFound: "Ask found",
   askWhy: "Ask why",
+  /** The day's card: its name, Now or Next and Then over its two visits, and its door. */
+  day: "The day",
   now: "Now",
   next: "Next",
   then: "Then",
   calendar: "Calendar",
   end: "That's everything for today.",
-  /**
-   * The day card's one line for the rest of the day: the visits still to come past the two it names, and what goes on its
-   * own today ("2 more visits · Spring offer goes at 6:00 PM", "3 sends today"); null when nothing is left.
-   */
-  dayRest: (more: number, sends: ReadonlyArray<{ name: string; clock: string }>, many: string, one: string) => {
-    const visits = more ? `${more} more ${more === 1 ? one : many}` : "";
-    const [first] = sends;
-    const going =
-      sends.length === 1 && first
-        ? `${first.name} goes at ${first.clock}`
-        : sends.length
-          ? `${sends.length} sends today`
-          : "";
-    return [visits, going].filter(Boolean).join(" · ") || null;
-  },
-  /** A run that went out today, in the day's rest: "went out at 9:00 AM". */
-  wentOut: (clock: string) => `went out at ${clock}`,
+  /** The visits past what the day draws of the rest of it: "3 more visits on the Calendar". */
+  dayMore: (n: number, one: string, many: string) => `${n} more ${n === 1 ? one : many} on the Calendar`,
+  /** A run that went out today, in the day's rest: "went out at 9:00 AM", and a playbook's "ran at 9:00 AM". */
+  wentOut: (clock: string, ran = false) => `${ran ? "ran" : "went out"} at ${clock}`,
   /**
    * Each of the day's four figures by its short name, for a phone's one row of numbers (0076): the figure's own label is a
    * desk's ("answered by the receptionist"), and its clause and receipt say the rest when it is pressed.
    */
   figure: { messages: "messages", answered: "answered", calls: "calls", new: "new people" },
   worth: "Worth a look",
+  /** The day's figures on a phone, with Worth a look and the week under them: the card's name. */
+  soFar: "Today so far",
 } as const;
 
-/** A sentence said as a title: its full stop gone ("3 conversations need you"). */
-const asTitle = (sentence: string): string => sentence.replace(/[.!]$/, "");
-
-/** Today's head on a phone: the page's largest words, and the one line under them. */
-export interface TodayPhoneHeadVM {
-  title: string;
-  line: string | null;
+/** Today's head after the greeting: what leads it, said in the darker ink, and the rest of its one sentence. */
+export interface TodayHeadLineVM {
+  lead: string;
+  rest: string | null;
 }
 
 /**
- * The same ladder said as a phone's head (the phone canvas, 28 Oct 2026): what now in a few words, and the rest in one line
- * under it. The needs rung is its headline, and its line says only the runs waiting, which the badge counts and the headline
- * does not: who has waited longest is the first card's, right under it, with how long beside their name (his look on a
- * phone, 29 Oct 2026: the oldest wait was said three times above the fold). On the calm rung what still waits leads, so
- * "Nothing needs you" is never the title over a run, a search or a closing window (S7-1); with nothing waiting it is, and
- * the traffic is the line. No word here that the ladder does not say.
+ * The head's one sentence (the redesign of 1 Nov 2026), on a desk and a phone alike, under the greeting the frame says as
+ * the page's name: what leads, then the rest. A line that is down leads, and how many need you as well. Else how many need
+ * you, in the badge's number (`waiting`: needs-you.ts, the holds, the replies counting down and the runs waiting for a
+ * word), then what Ask prepared and the one thing that cannot wait (`say`: need-you-words.ts needYouSay), or where it
+ * says nothing the oldest wait, or what still waits besides and the day's traffic. With nobody waiting, what still waits
+ * besides leads (a window closing, a call worth a listen, a search), so "Nothing needs you" is never said over it; else
+ * that, with the day's traffic, or on a day nothing came in what is listening (`quiet`). One sentence, said once: the
+ * count was a second headline over a sub-line that said the runs again (his phone, 1 Nov 2026).
  */
-export function todayPhoneHead(standing: TodayHead, runs: number): TodayPhoneHeadVM {
+export function todayHeadLine(
+  standing: TodayHead,
+  waiting: number,
+  say: string | null,
+  quiet: string | null = null,
+): TodayHeadLineVM {
+  if (standing.tone === "alert")
+    return { lead: standing.headline, rest: waiting > 0 ? NEED_YOU_WORDS.countAsWell(waiting) : null };
   const { calm } = standing;
-  if (standing.tone !== "calm" || !calm) {
-    const line = standing.tone === "needs" && runs > 0 ? runsWaitingSentence(runs) : null;
-    return { title: asTitle(standing.headline), line };
+  const traffic = calm?.traffic ? `${calm.traffic} today.` : null;
+  if (waiting > 0) {
+    const besides = calm ? [...calm.also, traffic].filter(Boolean).join(" ") : "";
+    const oldest = standing.tone === "needs" ? standing.detail : null;
+    return { lead: NEED_YOU_WORDS.count(waiting), rest: say ?? oldest ?? (besides || null) };
   }
-  const also = [...(runs > 0 ? [runsWaitingSentence(runs)] : []), ...calm.also];
-  const traffic = calm.traffic ? `${calm.traffic} today.` : null;
-  const [lead, ...rest] = also;
-  if (lead) {
-    const line = [...rest, traffic].filter(Boolean).join(" ");
-    return { title: asTitle(lead), line: line || null };
-  }
+  if (!calm) return { lead: "Nothing needs you.", rest: quiet };
+  const [first, ...more] = calm.also;
+  if (first) return { lead: first, rest: [...more, traffic].filter(Boolean).join(" ") || null };
   const named = !!traffic && calm.handled_all;
   const said = traffic ? (named ? `The receptionist handled everything — ${traffic}` : traffic) : null;
   const answered = calm.answered ? `${named ? "It" : "The receptionist"} ${calm.answered}` : null;
-  const line = [said, answered].filter(Boolean).join(" ");
-  return { title: "Nothing needs you", line: line || null };
+  return { lead: "Nothing needs you.", rest: [said, answered].filter(Boolean).join(" ") || quiet };
 }
 
 /** "1 draft on its way" beside the queue's parts: the replies counting down to send, which have no row; null for none. */

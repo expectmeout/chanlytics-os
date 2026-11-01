@@ -2279,6 +2279,8 @@
   overflow: hidden; overflow-wrap: anywhere;
 }
 .cl-attn-sentence.quoted { font-style: italic; color: var(--ink); }
+/* The wire a row came by, as a glyph before the sentence (AttnRow `via`): the dim ink, on the words' line. */
+.cl-attn-via { display: inline-flex; align-items: center; margin-right: 6px; vertical-align: -1px; color: var(--ink-dim); font-style: normal; }
 .cl-attn-status { font-size: 10.5px; color: var(--ink-dim); line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cl-attn-status .lead { color: var(--ink-muted); }
 /* What the row offers to do in place (Today's Need you, decision 0071): under its words, across the row, its own presses. */

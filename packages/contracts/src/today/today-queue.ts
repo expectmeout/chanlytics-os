@@ -13,6 +13,7 @@ import type { ConversationDto } from "../conversations/thread-dto";
 import { waWindow } from "../config/policy";
 import { leadQuestionRoute, type LeadSearchDto } from "../leads/leads";
 import { previewSaidOf, previewTriedWords, type PreviewTriedDto } from "../previews/preview-tried";
+import { clockIsNear } from "../need-you/need-you-groups";
 import { NEED_YOU_WORDS } from "../need-you/need-you-words";
 import { MIN_MS, HOUR_MS } from "../shared/time";
 import { tzClock } from "./today-clock";
@@ -80,6 +81,16 @@ function writesOf(conv: ConversationDto | undefined, f: Pick<TodayFacts, "tz" | 
 }
 
 /**
+ * How long until a thread's WhatsApp window shuts, while it is open: the row's clock (need-you-groups.ts), which puts a
+ * reply that must go before it shuts ahead of every wait. Null on another wire, or a window already shut.
+ */
+function windowLeftMs(conv: ConversationDto | undefined, now: Date): number | null {
+  if (!conv || threadChannelWords(conv.messages) !== "WhatsApp") return null;
+  const w = waWindow(conv.last_wa_inbound_at, now);
+  return w.open && w.closesAtIso ? Math.max(0, new Date(w.closesAtIso).getTime() - now.getTime()) : null;
+}
+
+/**
  * A reply the receptionist wrote and holds out its veto window, as a row (decision 0071, E5): it sends on its own unless
  * someone stops it, so it stands first. Its words are the sentence's draft; their words are the sentence. Null for a
  * thread with no reply counting down, or one whose deadline has passed: that one is going out, not waiting.
@@ -112,6 +123,7 @@ function heldRow(c: ConversationDto, f: TodayFacts): TodayQueueRowVM | null {
     held: { message_id: draft.id, text: messageText(draft), sends_at_ms: sendsAtMs },
     // Before everyone waiting: it goes on its own in seconds.
     waitedMs: Number.MAX_SAFE_INTEGER,
+    clock_ms: sendsAtMs - f.now.getTime(),
   };
 }
 
@@ -208,6 +220,8 @@ function handoffOf(r: EscalationRecord, f: TodayFacts): TodayQueueRowVM {
     writes: writesOf(r.conv, f),
     reason: reasonLabelOf(e.reason),
     waitedMs: r.waitedMs,
+    act: holdActOf(e.reason),
+    clock_ms: windowLeftMs(r.conv, f.now),
   };
 }
 
@@ -245,6 +259,7 @@ function windowRow(c: ConversationDto, f: TodayFacts): TodayQueueRowVM {
     writes: writesOf(c, f),
     // After every escalation (which waited ≥ 0), the soonest to close first.
     waitedMs: -leftMs,
+    clock_ms: leftMs,
   };
 }
 
@@ -362,7 +377,15 @@ export function todayQueue(f: TodayFacts, callRows: TodayCallRowVM[], empty: Tod
   }
   // The leads who tried their preview, newest first, after everyone waiting (decision 0079).
   for (const t of f.previewsTried) queueAll.push(triedRow(t, f));
-  queueAll.sort((a, b) => b.waitedMs - a.waitedMs);
+  // A clock near enough first, the nearest before the rest (a reply that goes on its own in seconds, then a window that
+  // shuts within two hours): a window that shuts cannot be answered later, and an old wait still can. Then the longest
+  // wait first, a window by how soon it closes, a call worth an ear last (need-you-groups.ts says what each is).
+  queueAll.sort((a, b) => {
+    const near = Number(clockIsNear(b)) - Number(clockIsNear(a));
+    if (near) return near;
+    if (clockIsNear(a)) return (a.clock_ms ?? 0) - (b.clock_ms ?? 0);
+    return b.waitedMs - a.waitedMs;
+  });
   const countOf = (...kinds: TodayQueueRowVM["kind"][]) => queueAll.filter((r) => kinds.includes(r.kind)).length;
   const needN = countOf("handoff", "callback");
   const winN = countOf("window");

@@ -1,3 +1,12 @@
+export {
+  clockIsNear,
+  NEED_YOU_CLOCK_MS,
+  NEED_YOU_OLD_MS,
+  needYouGroupsOf,
+  needYouVerbOf,
+  needYouWaitOf,
+} from "./need-you-groups";
+export type { NeedYouGroupId, NeedYouGroups, NeedYouVerb } from "./need-you-groups";
 export { NEED_YOU_WORDS, needYouSay, notNowChoices, sendCountdown } from "./need-you-words";
 export type { NeedYouSayFacts, NotNowChoice } from "./need-you-words";
 export {

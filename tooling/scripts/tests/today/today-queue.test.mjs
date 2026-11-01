@@ -402,6 +402,7 @@ test("the cap and the rest: six rows on Today, the rest counted for the Inbox li
 installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
 const { AgentCommand } = await import("../../../../apps/dashboard/src/surfaces/today/pages/queue.tsx");
 const { AttnRow } = await import("../../../../apps/dashboard/src/surfaces/kit/attention/attn-row.tsx");
+const { SubTabs } = await import("../../../../apps/dashboard/src/surfaces/kit/sub-tabs/sub-tabs.tsx");
 const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
 
 /** The queue drawn over a day and the runs the broadcasts surface holds: the rows it handed the kit's row, by testid. */
@@ -431,10 +432,12 @@ test("the wiring: one row component for People and Today, the queue in the comma
   const day = toTodayVM(metrics(), conversations, escalations, calls, NOW);
   const { tree, testids } = rowsDrawn(day);
   assert.ok(byTestId(tree, "today-queue"), "the queue is drawn over the day the seam holds");
+  // The call worth a listen is Ask found's, a line at the queue's foot (the redesign of 1 Nov 2026): never a row of who
+  // waits on you, and drawn only once its line is opened.
   assert.deepEqual(
     testids,
-    ["queue-handoff", "queue-callback", "queue-window", "queue-call"],
-    "the row component the manifest loaded first is the one the queue draws, once for each row of the day",
+    ["queue-handoff", "queue-callback", "queue-window"],
+    "the row component the manifest loaded first is the one the queue draws, once for each of the day's rows that waits",
   );
   // The runs are drawn by queue-runs.tsx (the queue's own file holds no such text): one waiting for a word, one about to send.
   const runs = [
@@ -460,7 +463,7 @@ test("the wiring: one row component for People and Today, the queue in the comma
     },
   ];
   const quietDay = toTodayVM(metrics(), [], [], [], NOW);
-  // The run under its Stop is Going today's (going-today.tsx, decision 0064), above the queue: the queue draws the one waiting.
+  // The run under its Stop is the day's, at its time (day-card.tsx, decision 0064): the queue draws the one waiting.
   assert.deepEqual(
     rowsDrawn(quietDay, runs).testids,
     ["brief-run-row"],
@@ -509,20 +512,16 @@ test("the wiring: one row component for People and Today, the queue in the comma
     'surfaceValue("today")',
     "<TodayQueue vm={vm} />",
     "vm.queue.rows",
-    'data-testid="brief-live-call"',
-    // The call in progress is read through the one hook the strip reads too (live-now.ts), which watches Live.
-    "useLiveNow()",
     // A reach-out's reply read redraws the queue: it is that reply's row (the wiring's second audit, W-campaign-run-template-reachout-7).
-    // Ask's morning and Google's reviews do too: their ideas and the reviews to answer are rows of it (decision 0071).
+    // Ask's morning and Google's reviews do too: Ask found and To do are lines of it (decision 0071).
     'useMoved(["broadcasts", "people", "calendar", "reach_out_replies", "ask_morning", "google"])',
   ])
     assert.ok(queue.includes(s), s);
-  const real = queue.slice(queue.indexOf("const LiveRail"));
   assert.ok(
-    real.includes("Need you") && !real.includes("Agent Command"),
+    queue.includes("Need you") && !queue.includes("Agent Command"),
     "the queue, not a command bar; the seed is gone",
   );
-  assert.ok(!real.includes("tq-count"), "no count over rows that say it");
+  assert.ok(!queue.includes("tq-count"), "no count over rows that say it");
   const brief = readCode("apps/dashboard/src/surfaces/today/pages/brief.tsx");
   for (const gone of [
     "needsYou.rows.slice(0, 2)",
@@ -532,14 +531,8 @@ test("the wiring: one row component for People and Today, the queue in the comma
     "<RunsWaiting",
   ])
     assert.ok(!brief.includes(gone), `${gone} left the hero`);
-  // The day's card (card.tsx) draws them: the JSX's one brief file is the hero (brief.tsx) and the card apart.
-  const card = readCode("apps/dashboard/src/surfaces/today/pages/card.tsx");
-  assert.ok(
-    card.includes("<RunsDone nav={nav} />") && card.includes('data-testid="brief-run-done"'),
-    "what went out today is a line of the day's card",
-  );
   const css = readRaw("apps/dashboard/src/legacy/styles/dashboard-a-v2.css");
-  assert.ok(css.includes(".tq-live {") && css.includes(".tq-list .cl-attn-row:first-child { border-top: none; }"));
+  assert.ok(css.includes(".tq-list .cl-attn-row:first-child { border-top: none; }"));
   const attn = readRaw("apps/dashboard/src/legacy/styles/clients.css");
   assert.ok(attn.includes(".cl-attn-acts { display: inline-flex; align-items: center; gap: 6px; }"));
   // The line a person decides from gets TWO lines, with a real ellipsis past
@@ -795,23 +788,29 @@ test("a person and four calls: the brief says one person needs you, not 'and 4 m
   assert.match(words, /7 calls are worth a listen\./, words);
 });
 
-test("the queue's head counts who is waiting and the calls worth a listen apart; its foot counts the people the card could not hold", () => {
-  // Two need you, a reply window is closing and a call is worth a listen: the head said four, then three, with the window.
-  // Its number is the count every surface says of what needs you (decision 0048): the window and the call are said beside it.
+test("Need you cuts its rows by what each asks of you, says no count of its own, and its foot counts only the people it could not hold", () => {
+  // Two need you, a reply window is closing and a call is worth a listen. How many need you is the head's sentence, the
+  // badge's number (today-head.tsx): the queue's own disc counted the call, then the window (decision 0048).
   const four = toTodayVM(metrics(), conversations, escalations, calls, NOW);
   assert.equal(four.queue.rows.length, 4);
   const head = rowsDrawn(four);
-  assert.equal(
-    textOf(byTestId(head.tree, "today-queue-count")).trim(),
-    "2",
-    "REGRESSION: the head counted the call, then the window closing: it counts who needs you, the badge's number",
+  assert.equal(byTestId(head.tree, "today-queue-count"), null, "the queue says no count of its own: the head says it");
+  // The strip: All, with no figure (a window is a row the badge does not count), then each verb with rows: the handoff and
+  // the closing window are replies, the call back a call.
+  const strip = find(head.tree, (n) => n.type === SubTabs).props;
+  assert.deepEqual(
+    strip.tabs.map((t) => [t.label, t.count ?? null]),
+    [
+      ["All", null],
+      ["Reply", 2],
+      ["Call", 1],
+    ],
   );
-  assert.match(
-    textOf(find(head.tree, (n) => n.props?.className === "tq-sub")),
-    /2 people · 1 reply window closing · 1 call worth a listen/,
-    "the sentence beside it still says the call, apart",
-  );
-  // Six people and four calls: the card draws four rows, so two people are left; the foot said six, counting the calls.
+  assert.equal(strip.value, "all", "everything, until a cut is picked");
+  // The call worth a listen is Ask found's line, which says it before it is opened.
+  assert.ok(!head.testids.includes("queue-call"), "a call worth a listen is no row of who waits on you");
+  assert.match(textOf(byTestId(head.tree, "today-found-line")), /Ask found.*a call worth a listen/);
+  // Six people and four calls: the six are drawn, and the foot says nothing of the calls, which live in Conversations.
   const { people, asking } = crowd(6);
   const busy = toTodayVM(
     metrics({ now: { ...metrics().now, escalations_open: 6 } }),
@@ -822,12 +821,13 @@ test("the queue's head counts who is waiting and the calls worth a listen apart;
   );
   assert.equal(busy.queue.more, 4, "the four calls sit past the six rows");
   const drawn = rowsDrawn(busy);
-  assert.equal(textOf(byTestId(drawn.tree, "today-queue-count")).trim(), "6", "the six people");
-  assert.match(
-    textOf(find(drawn.tree, (n) => n.props?.className === "tq-foot")),
-    /^2 more in the Inbox/,
+  assert.equal(drawn.testids.length, 6, "the six people, in their groups");
+  assert.equal(
+    byTestId(drawn.tree, "today-queue-foot"),
+    null,
     "REGRESSION: it said 6 more in the Inbox, counting four calls that live in Conversations",
   );
+  assert.match(textOf(byTestId(drawn.tree, "today-found-line")), /4 calls worth a listen/);
 });
 
 test("an email's row says what it is about, then their words without the signature (the email canvas, 27 Oct 2026)", () => {

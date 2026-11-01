@@ -1,8 +1,9 @@
 /**
- * Listen: the brief read aloud in Ask's one voice (the one-way speech: the words on screen, spoken as the vendor makes them,
- * nobody speaking back; docs/superpowers/specs/2026-10-03-ask-spoken-design.md, §3.5 as amended 4 Oct 2026), with how long
- * it takes to hear beside it. Drawn by Your brief on a desk (brief-pane.tsx) and by the head on a phone (phone/head.tsx),
- * which say the same words; moved here from the pane as it was.
+ * Listen: Your brief read aloud in Ask's one voice (the one-way speech: the words on screen, spoken as the vendor makes
+ * them, nobody speaking back; docs/superpowers/specs/2026-10-03-ask-spoken-design.md, §3.5 as amended 4 Oct 2026), with
+ * how long it takes to hear beside it. It stands at the end of the head's one sentence on a desk and a phone alike
+ * (pages/today-head.tsx; the redesign of 1 Nov 2026): Your brief's pane went, since all it said the page says where it
+ * is acted on, and its words are what Listen reads and Ask is handed (useBriefWords).
  *
  * Listen was a conversation with the agent asked "Brief me on today" (3 Oct): nine seconds of silence before the model
  * said what the page already showed, a second tap that hung up, and the browser's robotic voice whenever the agent could
@@ -10,10 +11,43 @@
  * clip cannot be made the button says why, and nothing else speaks.
  */
 import { useRef, useSyncExternalStore } from "react";
-import { mmss } from "@chanlytics/contracts";
+import {
+  TO_SEND_ALL_WORDS,
+  WAIT_ROW_WORDS,
+  mmss,
+  runTitleOf,
+  waitRowsOf,
+  type TodayBriefRun,
+  type TodayBriefWords,
+} from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
-import { askSpeech } from "../shell";
+import { surfaceValue } from "../../surface-values";
+import { runsPending } from "../../waits/run-acts";
+import { TODAY_HELPERS } from "../helpers";
+import { askSpeech, useMoved } from "../shell";
+import { useDayVm } from "./day";
+
+/**
+ * Your brief's words, over what the page already holds: the day's view model, the day's own, and the runs waiting for a word
+ * an approval can still send, said as the queue's rows say them (contracts waitRowsOf, the queue's and the Inbox's own):
+ * the emails handed to you are one line, as two or more runs waiting for an OK are, each other run its own
+ * (todayRunWords). A run whose day has passed waits on nobody: its row says so, and the brief says nothing of it (S7-3).
+ * Listen reads them and Ask is handed them, on a desk and a phone alike.
+ */
+export function useBriefWords(): TodayBriefWords | null {
+  useMoved(["today", "broadcasts"]);
+  const vm = surfaceValue("today");
+  const day = useDayVm();
+  const runs: TodayBriefRun[] = waitRowsOf(runsPending().waiting).map((row) =>
+    row.kind === "to_send"
+      ? { ...TO_SEND_ALL_WORDS.brief(row.from), sentence: TO_SEND_ALL_WORDS.sentence(row.count, row.from) }
+      : row.kind === "approvals"
+        ? WAIT_ROW_WORDS.approvals.brief(row.runs.map(runTitleOf))
+        : { label: runTitleOf(row.run), ...TODAY_HELPERS.runs(row.run).brief },
+  );
+  return vm ? TODAY_HELPERS.briefWords(vm, day, runs) : null;
+}
 
 /** How long the brief takes to hear at a reader's pace, 160 words a minute, as "0:48": from the words, never a recording. */
 function spokenLength(text: string): string {
@@ -28,10 +62,7 @@ type SpeechState = "idle" | "loading" | "speaking";
 const noWatch = () => () => {};
 const idle = (): SpeechState => "idle";
 
-/**
- * Why the voice could not be had, said once for the page: on a phone Listen stands in the frame's head, the page's act
- * (pages/today-head.tsx), and the line that says why stands under the page's own head (phone/head.tsx).
- */
+/** Why the voice could not be had, said once for the page, beside Listen at the end of the head's sentence. */
 let whyNow: string | null = null;
 const whyWatchers = new Set<() => void>();
 const watchWhy = (on: () => void) => {
@@ -49,7 +80,7 @@ function setWhy(why: string | null): void {
 }
 
 /** Why Listen could not speak, wherever its button stands. */
-export const useSpeechWhy = (): string | null => useSyncExternalStore(watchWhy, readWhy, noWhy);
+const useSpeechWhy = (): string | null => useSyncExternalStore(watchWhy, readWhy, noWhy);
 
 /** Listen's press and what it is doing. */
 interface Speech {
@@ -97,34 +128,18 @@ export function useSpeech(text: string | null): Speech {
   return { can: !!speech, state, why, toggle, warm };
 }
 
-/** Where Listen stands: Your brief's head on a phone-sized pane, its acts on a desk, or the phone's own head. */
-type ListenPlace = "head" | "foot" | "phone";
-
-const LISTEN_CLASS: Record<ListenPlace, string> = {
-  head: "tb-listen tb-listen-head",
-  foot: "tb-listen",
-  phone: "tb-listen tb-listen-phone",
-};
-
-const LISTEN_TESTID: Record<ListenPlace, string> = {
-  head: "today-brief-listen-head",
-  foot: "today-brief-listen",
-  phone: "today-listen",
-};
-
 /**
- * Listen, as E3 draws it: in the acts under the line on a desk, at the right of the head on a phone. The pane draws it in
- * both of its places and shows one by the sheet's breakpoint (dashboard-a-v2.css .tb-listen-head), so it needs no measure
- * of its own; the hidden one is out of the reader's tree. The phone's head draws it once, at the greeting's right.
+ * Listen, at the end of the head's sentence: the play glyph, the word and how long it takes to hear, and Stop while it
+ * plays. The kit's quiet secondary button, placed by the page (phone.css .today-listen).
  */
-export function listenButton(speech: Speech, line: string, place: ListenPlace) {
+export function listenButton(speech: Speech, line: string) {
   const busy = speech.state !== "idle";
   const word = speech.state === "speaking" ? "Stop" : speech.state === "loading" ? "Getting Ask's voice…" : "Listen";
   return (
     <Button
       variant="secondary"
       size="sm"
-      className={LISTEN_CLASS[place]}
+      className="tb-listen today-listen"
       aria-pressed={speech.state === "speaking"}
       aria-busy={speech.state === "loading" || undefined}
       onClick={speech.toggle}
@@ -132,7 +147,7 @@ export function listenButton(speech: Speech, line: string, place: ListenPlace) {
         if (e.pointerType === "mouse" && e.button === 0) speech.warm();
       }}
       data-state={speech.state}
-      data-testid={LISTEN_TESTID[place]}
+      data-testid="today-listen"
     >
       <Icon name={speech.state === "speaking" ? "stop" : "play"} size={11} />
       {word}
