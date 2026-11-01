@@ -1050,7 +1050,7 @@ test("an owner's first email from someone asks under the conversation whether it
     consent: "unknown",
     dnc: false,
   };
-  const email = (over = {}) =>
+  const email = () =>
     toInboxThreadVM(
       conv({ contact, messages: [m("m1", 40, { channel: "email", body: "Would 15 minutes next week be useful?" })] }),
       { ...asked, reason: "email_review" },
