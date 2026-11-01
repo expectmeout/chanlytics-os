@@ -225,10 +225,12 @@ test.describe("The thread, in the nightly's own workspace", () => {
       await expect(
         pane.locator(".tl-msg").filter({ hasText: words }).getByRole("img", { name: "Didn't send" }),
       ).toBeVisible();
-      const flag = pane.getByText(/Flagged for a human/);
-      await expect(flag).toContainText("Reply failed to deliver");
-      await expect(flag).toContainText("the WhatsApp number is not connected");
+      // Where it was held, a quiet mark with its reason as a clause; the cause a press away under the dock's Why? (the
+      // thread canvas, 1 Nov 2026): the flag quoted it over a dock that said the reason again.
+      await expect(pane.getByTestId("tl-held")).toContainText("reply failed to deliver");
       await expect(pane.getByText(/The reply never reached them/)).toBeVisible();
+      await pane.getByTestId("ix-yours").getByRole("button", { name: "Why?" }).click();
+      await expect(pane.getByTestId("ix-hold-why")).toContainText("the WhatsApp number is not connected");
     });
 
     await test.step("the decision fits the screen: the banner's words keep their width, every control stays on the pane, the Inbox ends where the screen does, and the thread opens at its newest entry, at 1280, on a short window, at 1024 and on a phone", async () => {
@@ -303,11 +305,11 @@ test.describe("The thread, in the nightly's own workspace", () => {
       await expect(queue).toBeVisible();
       // One rule (standing.ts): a thread you took by replying is yours, not the queue's, escalation or not; the
       // Inbox lists it under Handled as yours (#852), Today's queue does not repeat it. What Today
-      // must never be quiet about is the failure itself: the recap's warning line, with the door to the thread.
+      // must never be quiet about is the failure itself: the recap's warning, under the head, with the door to the thread.
       await expect(queue.locator(".cl-attn-row").filter({ hasText: ROBIN.name })).toHaveCount(0);
       const failed = page
-        .getByTestId("today-recap")
-        .locator(".brief-beat")
+        .getByTestId("today-warnings")
+        .getByTestId("today-failed-reply")
         .filter({ hasText: /failed to deliver/ });
       await expect(failed).toHaveCount(1);
       await expect(failed).toContainText("the customer got no answer");
@@ -317,8 +319,8 @@ test.describe("The thread, in the nightly's own workspace", () => {
     await test.step("snoozed, the thread lets go of the person holding it and keeps the request; woken, it waits for someone", async () => {
       await freshLoad(page, "#/inbox");
       let pane = await openRobin(page, "Handled");
-      // Snooze is in the thread's menu: the header had it as a button too, beside the menu that held it.
-      await pane.getByRole("button", { name: "Actions", exact: true }).click();
+      // Snooze is in the thread's More: the header had it as a button too, beside the menu that held it.
+      await pane.getByRole("button", { name: /^More for the conversation with/ }).click();
       // The menu is the kit's (Base UI), drawn on the page's body, not inside the pane.
       await page.getByRole("menuitem", { name: "Snooze" }).click();
       await expect(page.getByText(/snoozed until/)).toBeVisible();
@@ -327,12 +329,14 @@ test.describe("The thread, in the nightly's own workspace", () => {
       await pane.getByRole("button", { name: /Wake now/ }).click();
       await expect(page.getByText(/back in the queue/)).toBeVisible();
       pane = await openRobin(page, "Needs you");
-      await expect(pane.getByRole("button", { name: "I'll answer this" })).toBeVisible();
+      await expect(pane.getByTestId("ix-needs-you")).toBeVisible();
     });
 
     await test.step("taken over from the thread: the receptionist is paused and the thread is yours", async () => {
       let pane = await openRobin(page, "Needs you");
-      await pane.getByRole("button", { name: "I'll answer this" }).click();
+      // Taking it before a word is written is More's (the dock's Send already answers and takes it).
+      await pane.getByRole("button", { name: /^More for the conversation with/ }).click();
+      await page.getByRole("menuitem", { name: /^I'll answer this/ }).click();
       await expect(page.getByText(/the receptionist is paused/)).toBeVisible();
       // Taken over, it is yours: Handled (#852).
       pane = await openRobin(page, "Handled");
@@ -361,7 +365,7 @@ test.describe("The thread, in the nightly's own workspace", () => {
 
       await freshLoad(page, "#/inbox");
       const pane = await openRobin(page, "Handled");
-      await expect(pane.getByText(/Flagged for a human/)).toHaveCount(0);
+      await expect(pane.getByTestId("tl-held")).toHaveCount(0);
       // Resolving what the thread was about does not hand it back: it is still yours.
       await expect(pane.getByTestId("ix-yours")).toBeVisible();
     });

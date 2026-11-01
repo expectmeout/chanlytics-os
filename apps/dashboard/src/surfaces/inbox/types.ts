@@ -130,6 +130,8 @@ export interface MsgEntry {
   body: string;
   subject?: string;
   quoted?: string;
+  /** What a list or a sales tool put at the foot of an email of theirs (contracts' emailPartsOf). */
+  footer?: string;
   signature?: { line: string; full: string };
   leftOut?: string;
   media?: MediaVM;

@@ -11,7 +11,7 @@
  * the panel's (surfaces/visit-line.tsx sayVisit): an operator's, said to anyone else by the button, which is Need you's own
  * (need-you/visit-work.tsx, decision 0071: Missed goes on to the rebook Ask writes).
  */
-import type { AppointmentWord, CalendarLike, TodayQueueRowVM, TodayVisitsAskedVM } from "@chanlytics/contracts";
+import type { AppointmentWord, CalendarLike, TodayVisitsAskedVM } from "@chanlytics/contracts";
 import type { CalendarSurface } from "@/surfaces/calendar/surface";
 import { TODAY_HELPERS } from "../helpers";
 import { borrowed } from "../shell";
@@ -24,19 +24,4 @@ export function askedVisits(word: AppointmentWord): TodayVisitsAskedVM | null {
   const cal = borrowed<CalendarSurface>("__CALENDAR");
   if (!cal || !cal.vm || cal.vm.feed.state !== "ok") return null;
   return TODAY_HELPERS.visitsAsked(cal.vm as CalendarLike, Date.now(), word);
-}
-
-/**
- * How many are to mark and not already marked here, and how many of them the card cut: said in the head and the foot. The row
- * for the rest stands for every visit the named rows are not, so with it drawn nothing is left out.
- */
-export function visitsLeft(
-  asked: TodayVisitsAskedVM | null,
-  marked: readonly string[],
-  drawn: readonly TodayQueueRowVM[],
-): { due: number; cut: number } {
-  if (!asked) return { due: 0, cut: 0 };
-  const due = asked.count - asked.items.filter((a) => marked.includes(a.markId)).length;
-  const named = drawn.filter((r) => r.kind === "visit").length;
-  return { due, cut: drawn.some((r) => r.kind === "visits") ? 0 : due - named };
 }

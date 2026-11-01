@@ -28,11 +28,6 @@ interface Standing {
   stacked?: boolean;
   /** The page's own act, at the right of the row of views; the frame's act where the page names none. */
   act?: ReactNode;
-  /**
-   * Where the page's act will stand, held before the act can be drawn: the frame draws a button of this class there, at its
-   * size and seen by no one (frame-head.tsx PageAct), so nothing moves as the act comes. Today's Listen, on a phone.
-   */
-  seat?: string;
   /** The way back, above the name on a desk and in the date's place on a phone: the crumb before the last where unsaid; null
    *  for none. */
   back?: BackWay | null;
@@ -75,13 +70,11 @@ export interface StripAt {
 
 /**
  * What the page at an address will say in the head, said by its address from the frame's first draw (its chrome's `head`):
- * Today's greeting, and on a phone the seat of its Listen. The head drew the last crumb ("Today") until the page was read,
+ * Today's greeting. The head drew the last crumb ("Today") until the page was read,
  * then the page's own words in its place: two headlines on every load, 7 seconds apart on a phone (Ruben, 31 Oct 2026).
  */
 export interface HeadFirst {
   title: string;
-  /** The seat of the page's act (Standing `seat`): its place held before the page draws it, so nothing moves as it comes. */
-  seat?: string;
 }
 
 /** The head as it stands over a page: what the page said, the crumbs, and the strip of views, or none. */
@@ -159,13 +152,11 @@ export const standingSaid = (): Standing | null => standingNow();
  * draws its own head (`ownHead`, headOwn), and what its address says the page will say (`head`, HeadFirst).
  */
 export function crumbsShown(shown: readonly ShownCrumb[], ownHead = false, head: HeadFirst | null = null): void {
-  const same = head
-    ? !!headFirst && headFirst.title === head.title && headFirst.seat === head.seat
-    : headFirst === null;
+  const same = head ? !!headFirst && headFirst.title === head.title : headFirst === null;
   if (shown === crumbs && ownHead === headOwn && same) return;
   crumbs = shown;
   headOwn = ownHead;
-  if (!same) headFirst = head ? { title: head.title, stacked: true, seat: head.seat } : null;
+  if (!same) headFirst = head ? { title: head.title, stacked: true } : null;
   tellStandingWatchers();
 }
 

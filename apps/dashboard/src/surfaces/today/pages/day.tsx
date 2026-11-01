@@ -1,14 +1,13 @@
 /**
- * The day (moved from pages/dashboard-a-day.jsx, decision 0015, step 4), as the brief and the queue read it: today and
+ * The day (moved from pages/dashboard-a-day.jsx, decision 0015, step 4), as the day's card, Listen and To do read it: today and
  * tomorrow from the calendar the receptionist reads -- who is coming and when, what is open, what is closed -- and the
  * visit playbooks' line. Reads the calendar and playbooks surfaces the page already holds, and People for a visit that
  * needs someone and a person's channel -- People lands last on a cold boot (surface-registry.ts ROUTE_DRAWS), so a reader
  * redraws on it too; the words are contracts/today.ts todayDay, which the page reaches as TODAY_HELPERS.
  *
- * No pane draws it any more: canvas E3 folded the day into a strip under the head (its next appointment is the frame's
- * now, beside the bell on every page: frame/topbar/status-bars.tsx NextVisitBar) and the brief's sentence (brief-pane.tsx),
- * and the steps due that stood at the pane's head are rows of the queue (queue-steps.tsx; decision 0007, amended). What is
- * left here is the one derivation both read.
+ * The day's card draws it beside the work on a desk and under Need you on a phone (day-card.tsx, the redesign of 1 Nov
+ * 2026); Listen reads its sentence (listen.tsx useBriefWords), and the steps due that stood at a pane's head are To do's
+ * (queue-steps.tsx; decision 0007, amended). What is here is the one derivation each reads.
  */
 import type { CalendarLike, TodayDayVM } from "@chanlytics/contracts";
 import type { CalendarSurface } from "@/surfaces/calendar/surface";

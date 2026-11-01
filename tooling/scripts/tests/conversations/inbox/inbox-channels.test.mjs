@@ -83,9 +83,10 @@ test("a caller with no WhatsApp thread: phone is the channel, no reply window, t
   );
   assert.equal(
     vm.timeline.find((e) => e.type === "event").body,
-    "Flagged for a human — Needs a call back — they phoned and are still owed a call",
-    "the flag says why, not the to-do again",
+    "Held for you — needs a call back",
+    "the mark says why in a clause, not the to-do again",
   );
+  assert.equal(vm.holdLine, "Call Emily back to confirm the bridal trial on Oct 3", "the to-do is the dock's line");
   assert.equal(vm.waited, "56m");
 });
 
@@ -341,6 +342,13 @@ test("an email says what it carried that the thread does not show: files by name
     "a file with no name is still a file",
   );
   assert.equal(said({ attachments: [file("a.pdf"), file(null)] }), "2 attachments were not kept: a.pdf and 1 more.");
+  // A machine's name for a file is counted, never printed: it said "1 attachment was not kept: 055004a9-a643-…" (the
+  // thread canvas, 1 Nov 2026). Made-up ids.
+  assert.equal(said({ attachments: [file("0a1b2c3d-1111-4222-8333-444455556666")] }), "1 attachment was not kept.");
+  assert.equal(
+    said({ attachments: [file("quote.pdf"), file("9f8e7d6c5b4a39281706f5e4d3c2b1a0.png")] }),
+    "2 attachments were not kept: quote.pdf and 1 more.",
+  );
   assert.equal(
     said({ attachments: [], truncated: true }),
     "This email was longer than Chanlytics keeps; the rest was left out.",

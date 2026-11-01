@@ -1,7 +1,7 @@
 /**
  * What Today says on a phone (the phone canvas, 28 Oct 2026; docs/superpowers/specs/2026-10-28-today-on-a-phone-design.md):
- * the ladder said as a head, in a few words with one line under them, never "Nothing needs you" over something that waits
- * (S7-1); the day as a bar over every visit that stands, with now on it, and the line over it; a call-back's row saying
+ * the head's one sentence under the greeting, on a desk and a phone alike since the redesign of 1 Nov 2026 (what leads,
+ * then the rest), never "Nothing needs you" over something that waits (S7-1); the day as a bar over every visit that stands, with now on it, and the line over it; a call-back's row saying
  * what happened, its ask said once; and Change it with Ask on Ask's own draft, the draft door taking the member's words.
  * All of it pure, in contracts.
  */
@@ -14,7 +14,7 @@ import {
   todayDay,
   todayDayBar,
   todayDayNote,
-  todayPhoneHead,
+  todayHeadLine,
   toTodayVM,
   unansweredCallTodo,
 } from "@chanlytics/contracts";
@@ -25,31 +25,34 @@ import { NOW, escalation, metrics, waiting } from "../today-record/_world.mjs";
 const calm = (over = {}) => ({ also: [], traffic: null, handled_all: false, answered: null, ...over });
 const calmHead = (c) => ({ headline: "Nothing needs you.", detail: null, tone: "calm", calm: c });
 
-test("the needs rung: its headline as the title, without its full stop; who waited longest is the first card's, not a line", () => {
+test("someone waits: how many lead, in the badge's number, then what Ask prepared, else the oldest wait", () => {
   const needs = {
-    headline: "3 conversations need you.",
+    headline: "4 conversations need you.",
     detail: "The oldest has been waiting since 2:26 PM.",
     tone: "needs",
     calm: null,
   };
-  // His look on a phone (29 Oct 2026): the oldest wait was said by the line, the card's wait and its state line at once.
-  assert.deepEqual(todayPhoneHead(needs, 0), { title: "3 conversations need you", line: null });
-  assert.equal(
-    todayPhoneHead({ ...needs, headline: "One conversation needs you" }, 0).title,
-    "One conversation needs you",
+  // His phone (1 Nov 2026): "4 conversations need you" as a second headline over "2 campaign runs are waiting for your
+  // say", while the badge said 6. One number now, the badge's, and the runs are in it.
+  assert.deepEqual(todayHeadLine(needs, 6, null), {
+    lead: "6 need you.",
+    rest: "The oldest has been waiting since 2:26 PM.",
+  });
+  assert.deepEqual(
+    todayHeadLine(needs, 6, "Ask drafted 3 replies, and Dana's reply window closes at 11:52 AM."),
+    { lead: "6 need you.", rest: "Ask drafted 3 replies, and Dana's reply window closes at 11:52 AM." },
+    "what Ask prepared and the one thing that cannot wait, in place of the oldest wait",
   );
+  assert.equal(todayHeadLine(needs, 1, null).lead, "1 needs you.");
 });
 
-test("the needs rung's line says only the runs waiting, which the badge counts and the headline does not", () => {
-  const needs = {
-    headline: "6 conversations need you.",
-    detail: "The oldest has been waiting since Oct 19, 3:55 PM.",
-    tone: "needs",
-    calm: null,
-  };
-  assert.equal(todayPhoneHead(needs, 1).line, "A campaign run is waiting for your say.");
-  assert.equal(todayPhoneHead(needs, 2).line, "2 campaign runs are waiting for your say.");
-  assert.equal(todayPhoneHead(needs, 0).line, null, "no line at all with nothing to say");
+test("only runs wait: they are in the count, and what else waits and the day's traffic are the rest", () => {
+  const c = calm({ also: ["One reply window is closing."], traffic: "4 messages" });
+  assert.deepEqual(todayHeadLine(calmHead(c), 2, null), {
+    lead: "2 need you.",
+    rest: "One reply window is closing. 4 messages today.",
+  });
+  assert.deepEqual(todayHeadLine(calmHead(calm()), 1, null), { lead: "1 needs you.", rest: null });
 });
 
 test("a call-back's sentence is what happened: its ask is the row's state line and its Call, said once", () => {
@@ -76,43 +79,49 @@ test("a call-back's sentence is what happened: its ask is the row's state line a
   );
 });
 
-test("a line that is down is said whole, with no line under it: the alert stands under the head", () => {
+test("a line that is down leads, and how many need you as well is the rest", () => {
   const alert = { headline: "Check your connection before anything else.", detail: null, tone: "alert", calm: null };
-  assert.deepEqual(todayPhoneHead(alert, 2), { title: "Check your connection before anything else", line: null });
+  assert.deepEqual(todayHeadLine(alert, 2, "Ask drafted a reply."), {
+    lead: "Check your connection before anything else.",
+    rest: "2 need you as well.",
+  });
+  assert.deepEqual(todayHeadLine(alert, 0, null), {
+    lead: "Check your connection before anything else.",
+    rest: null,
+  });
 });
 
-test("a calm day with nothing waiting: Nothing needs you, and what came in and how it was answered is the line", () => {
+test("a calm day with nothing waiting: Nothing needs you, and what came in and how it was answered is the rest", () => {
   const c = calm({
     traffic: "9 messages from 6 people",
     handled_all: true,
     answered: "answered 9 of the 9 on its own, typically in about 20s.",
   });
-  assert.deepEqual(todayPhoneHead(calmHead(c), 0), {
-    title: "Nothing needs you",
-    line: "The receptionist handled everything — 9 messages from 6 people today. It answered 9 of the 9 on its own, typically in about 20s.",
+  assert.deepEqual(todayHeadLine(calmHead(c), 0, null), {
+    lead: "Nothing needs you.",
+    rest: "The receptionist handled everything — 9 messages from 6 people today. It answered 9 of the 9 on its own, typically in about 20s.",
   });
-  assert.deepEqual(todayPhoneHead(calmHead(calm()), 0), { title: "Nothing needs you", line: null }, "a quiet day");
+  assert.deepEqual(
+    todayHeadLine(calmHead(calm()), 0, null, "WhatsApp and Phone are connected."),
+    { lead: "Nothing needs you.", rest: "WhatsApp and Phone are connected." },
+    "a quiet day says what is listening",
+  );
   assert.equal(
-    todayPhoneHead(calmHead(calm({ traffic: "2 messages", answered: "answered 1 of the 2 on its own." })), 0).line,
+    todayHeadLine(calmHead(calm({ traffic: "2 messages", answered: "answered 1 of the 2 on its own." })), 0, null).rest,
     "2 messages today. The receptionist answered 1 of the 2 on its own.",
-    "the receptionist named where the line before it did not",
+    "the receptionist named where the words before it did not",
   );
 });
 
-test("REGRESSION (S7-1): never Nothing needs you over a run, a search or a closing window", () => {
-  assert.deepEqual(todayPhoneHead(calmHead(calm()), 1), {
-    title: "A campaign run is waiting for your say",
-    line: null,
-  });
+test("REGRESSION (S7-1): never Nothing needs you over a search or a closing window", () => {
   const also = calm({
     also: ["A search is waiting on your answer.", "One reply window is closing."],
     traffic: "4 messages",
   });
-  assert.deepEqual(todayPhoneHead(calmHead(also), 0), {
-    title: "A search is waiting on your answer",
-    line: "One reply window is closing. 4 messages today.",
+  assert.deepEqual(todayHeadLine(calmHead(also), 0, null), {
+    lead: "A search is waiting on your answer.",
+    rest: "One reply window is closing. 4 messages today.",
   });
-  assert.equal(todayPhoneHead(calmHead(also), 2).title, "2 campaign runs are waiting for your say", "a run leads");
 });
 
 /* ------------------------------------------------ the day */

@@ -631,11 +631,8 @@ test("hidden from the composers: the door, the routes, the sync's first sight, t
   assert.ok(s.includes('"data-testid": "template-hide"') && s.includes('data-testid="templates-hidden"'));
   const b = readCode("apps/dashboard/src/surfaces/campaigns/templates/verbs.ts");
   assert.ok(b.includes("body: { hidden: true } })") && b.includes("body: { hidden: false } })"));
-  const going = readCode("apps/dashboard/src/surfaces/today/pages/going-today.tsx");
-  assert.ok(
-    going.includes('testid="today-going-row"') && going.includes("GOING_TODAY_WORDS.stop"),
-    "a run under the veto window is Today's Going today row, with its Stop (decision 0064)",
-  );
+  // A run under the veto window is a row of Today's day, at its time, with its Stop (decision 0064): runs-honest.test.mjs
+  // presses it.
   const top = readCode("apps/dashboard/src/surfaces/frame/topbar/topbar.tsx");
   assert.ok(
     top.includes('className="btn btn-ghost btn-icon btn-sm tb-theme"'),

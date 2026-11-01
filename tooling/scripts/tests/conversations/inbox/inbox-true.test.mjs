@@ -237,31 +237,42 @@ test("a call back's flag says why it was flagged, and its to-do is said once, wh
     "Call Emily back to confirm the bridal trial on October 3 — she needs a quote for three people and asked to speak with Marisa directly";
   const flag = vm(long).timeline.find((e) => e.type === "event").body;
   // It quoted the to-do (cut at 120 characters), under the band that said it again beside "From the call".
-  assert.equal(
-    flag,
-    "Flagged for a human — Needs a call back — they phoned and are still owed a call",
-    "REGRESSION: the flag quoted the to-do a third time",
-  );
+  assert.equal(flag, "Held for you — needs a call back", "REGRESSION: the flag quoted the to-do a third time");
   assert.equal(vm(long).summary, long, "said whole, where it is acted on");
+  assert.equal(vm(long).holdLine, long, "and it is the dock's line");
 });
 
-test("any other flag's details are said there, whole, or cut at a word with an ellipsis -- never mid-word inside their quotes", () => {
-  // The cause of a failed send is said only on the flag (thread.spec.ts reads it there).
-  const flag = (details) =>
+test("any other hold's details are the dock's, under its Why?, whole or cut at a word -- the mark in the conversation says a clause", () => {
+  // The cause of a failed send is said under the dock's Why? (thread.spec.ts reads it there); the mark says why in a
+  // clause, and quoted the details over a dock that said the reason's sentence (the thread canvas, 1 Nov 2026).
+  const of = (details) =>
     vmOf(
       quiet([wrote("m1", "Can I book at 3?", 60)], { state: "needs_human" }),
       asked({ reason: "send_failed", details }),
-    ).timeline.find((e) => e.type === "event").body;
-  assert.match(
-    flag("the WhatsApp number is not connected"),
-    /^Flagged for a human — .* · “the WhatsApp number is not connected”$/,
-  );
+    );
+  const vm = of("the WhatsApp number is not connected");
+  assert.equal(vm.timeline.find((e) => e.type === "event").body, "Held for you — reply failed to deliver");
+  assert.equal(vm.holdLine, "Our reply never reached them");
+  assert.match(vm.holdWhy, /^The reply never reached them/);
+  assert.equal(vm.holdNote, "the WhatsApp number is not connected");
   const long =
-    "The reply could not be delivered because the WhatsApp number is not connected to this workspace any more, so reconnect it from Settings before anything else";
-  const cut = flag(long);
-  assert.match(cut, /…”$/, "REGRESSION: cut at 120 characters, mid-word, with nothing to say so");
-  const kept = cut.slice(cut.indexOf("“") + 1, -2);
+    "The reply could not be delivered because the WhatsApp number is not connected to this workspace any more, so reconnect it from Settings before anything else. " +
+    "Until then nothing the receptionist writes on WhatsApp can leave, and every customer who writes there waits for a person";
+  const cut = of(long).holdNote;
+  assert.match(cut, /…$/, "REGRESSION: cut mid-word, with nothing to say so");
+  const kept = cut.slice(0, -1);
   assert.ok(long.startsWith(kept) && long[kept.length] === " ", `cut after a whole word: "${kept}"`);
+});
+
+test("an email's hold says its line, and what the email claimed to be in the reason's place under Why?", () => {
+  const claim = "An automated email arrived (a form, a notification or a list). Nothing answers those.";
+  const vm = vmOf(
+    quiet([wrote("m1", "Your order shipped", 60)], { state: "needs_human" }),
+    asked({ reason: "email_review", details: claim }),
+  );
+  assert.equal(vm.holdLine, "They wrote by email — nothing has been sent");
+  assert.equal(vm.holdWhy, claim);
+  assert.equal(vm.holdNote, undefined, "said once");
 });
 
 /* ------------------------------ the pane, drawn ------------------------------ */

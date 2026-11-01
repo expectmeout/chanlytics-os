@@ -44,6 +44,11 @@ interface AttnRowProps {
    */
   wait?: { words: string; long: boolean } | null;
   sentence?: string;
+  /**
+   * The wire it came by, as a glyph before the sentence (Today's Need you, the redesign of 1 Nov 2026): the kit's Icon by
+   * name, and its words for a screen reader, where the meta line would have said them.
+   */
+  via?: { glyph: string; words: string } | null;
   quoted?: boolean;
   /** What the sentence is about, said before it in bold: an email's subject, before the words they wrote. */
   lead?: string;
@@ -127,12 +132,28 @@ function attnName(name: ReactNode, trail: string | null, meta: string, wait: { w
   );
 }
 
-/** The row's one sentence: their words in quotes, after what they are about in bold where it says (an email's subject). */
-function attnSentence(sentence: string, quoted: boolean, lead: string) {
+/**
+ * The row's one sentence: their words in quotes, after what they are about in bold where it says (an email's subject), and
+ * the wire's glyph before them where the row names it.
+ */
+function attnSentence(sentence: string, quoted: boolean, lead: string, via: { glyph: string; words: string } | null) {
   const said = quoted ? `“${sentence}”` : sentence;
-  if (!lead) return <div className={`cl-attn-sentence ${quoted ? "quoted" : ""}`}>{said}</div>;
+  const wire = via ? (
+    <span className="cl-attn-via">
+      <Icon name={via.glyph} size={12} />
+      <span className="rec-sr">{via.words}: </span>
+    </span>
+  ) : null;
+  if (!lead)
+    return (
+      <div className={`cl-attn-sentence ${quoted ? "quoted" : ""}`}>
+        {wire}
+        {said}
+      </div>
+    );
   return (
     <div className={`cl-attn-sentence ${quoted ? "quoted" : ""}`}>
+      {wire}
       <b>{lead}</b>
       {" — "}
       {said}
@@ -159,6 +180,7 @@ export function AttnRow({
   meta = "",
   wait = null,
   sentence = "",
+  via = null,
   quoted = false,
   lead = "",
   status = [],
@@ -197,7 +219,7 @@ export function AttnRow({
       {attnFace(person, glyph, initials)}
       <div className="cl-attn-body" {...(work && onOpen ? opener : {})}>
         {attnName(name, trail, meta, wait)}
-        {attnSentence(sentence, quoted, lead)}
+        {attnSentence(sentence, quoted, lead, via)}
         <div className="cl-attn-status">
           {status.map((seg, i) => (
             <span key={i} className={i === 0 ? "lead" : ""}>

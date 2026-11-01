@@ -108,7 +108,7 @@ function templateGap(p: {
   // so an operator needs to know the gap is at Meta and not on this screen --
   // and which gap, where the read counted them (noTemplateWords: waiting, refused,
   // paused, hidden).
-  // The window itself is the bar's to say (ThreadBar): it was said here too.
+  // The window itself is the box's head to say (ChatClosed), once.
   if (real && templates && templates.length === 0) {
     return quiet ? null : <span className="ix-tpl-none">{noTemplateWords(held)}</span>;
   }

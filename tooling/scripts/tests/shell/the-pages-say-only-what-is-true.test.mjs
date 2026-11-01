@@ -375,7 +375,7 @@ Object.assign(globalThis.window, {
 // Today's pages are TSX (decision 0015): they draw the kit's AttnRow and read the day over the seam.
 const { HeroBrief } = await import("../../../../apps/dashboard/src/surfaces/today/pages/brief.tsx");
 const { TodayCard } = await import("../../../../apps/dashboard/src/surfaces/today/pages/card.tsx");
-const { TodayBriefPane } = await import("../../../../apps/dashboard/src/surfaces/today/pages/brief-pane.tsx");
+const { TodayDay } = await import("../../../../apps/dashboard/src/surfaces/today/pages/day-card.tsx");
 const { AgentCommand } = await import("../../../../apps/dashboard/src/surfaces/today/pages/queue.tsx");
 const { setSurfaceValue, surfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
 
@@ -777,14 +777,11 @@ test("REGRESSION (D5): Today's 'went out' line is the business's today, at the b
     setSurfaceValue("today", todayWith([{ kind: "whatsapp", status: "active", number: "+1 305" }]));
     cells = [];
     frames.begin();
-    // The line is drawn by a component that returns a list, which the walk does not enter: read it off its own node.
-    let lines = null;
-    walk(TodayBriefPane(), (n) => {
-      if (lines === null && typeof n.type === "function" && n.type.name === "RunsDone") lines = n.rendered;
-    });
-    const said = (lines || []).map(textOf).join(" | ");
+    // A run that went out today is a line of the day, at the time it went (day-card.tsx; Your brief's line until the
+    // redesign of 1 Nov 2026), drawn with or without a calendar.
+    const said = textOf(TodayDay());
     assert.ok(
-      said.includes("went out at 1:30 AM: 8 sent, 1 replied") && said.includes("Spring offer"),
+      said.includes("went out at 1:30 AM · 8 sent, 1 replied") && said.includes("Spring offer"),
       `REGRESSION: yesterday in New York, so not said at all: ${said}`,
     );
   });

@@ -263,8 +263,7 @@ const { installPolicyStore } = await import(`${S}/legacy-bridge/policy-store.ts`
 installPolicyStore(globalThis.window);
 // Today's queue and card (TSX since decision 0015): the day comes over the seam, the rows a run needs off the window.
 const { AgentCommand } = await import(`${S}/surfaces/today/pages/queue.tsx`);
-const { TodayBriefPane } = await import(`${S}/surfaces/today/pages/brief-pane.tsx`);
-const { TodayGoing } = await import(`${S}/surfaces/today/pages/going-today.tsx`);
+const { TodayDay } = await import(`${S}/surfaces/today/pages/day-card.tsx`);
 // The moved surfaces: TSX, drawn over the values the seam holds, their verbs imported.
 const { BroadcastRun } = await import(`${S}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
 const { broadcasts } = await import(`${S}/surfaces/campaigns/broadcasts/verbs.ts`);
@@ -567,16 +566,16 @@ test("REGRESSION (A21): Today's run rows open the run -- a run waiting for you o
       ["campaigns/sequences/b-wait/runs/b-wait", "campaigns/sequences/b-wait/runs/b-wait"],
       "REGRESSION: Playbooks",
     );
-    // The run about to send is Going today's row (decision 0064), above the queue: it opens its run too.
+    // The run about to send is the day's, at its time with its Stop (decision 0064; Going today's band until the redesign
+    // of 1 Nov 2026): its words open its run too.
     fresh();
-    const next = byTestId(TodayGoing(), "today-going-row");
-    next.props.onClick();
+    const day = TodayDay();
+    byTestId(day, "today-day-send-open").props.onClick({ preventDefault() {} });
     assert.deepEqual(went, ["campaigns/sequences/b-soon/runs/b-soon"], "REGRESSION: the page of every broadcast");
-    fresh();
-    // What ran today is a line of the brief beside the queue (TodayBriefPane, canvas E3); it was a beat of the hero
-    // above it, then of the day's card.
-    const recap = TodayBriefPane();
-    press(buttonsSaying(byTestId(recap, "brief-run-done"), "Open")[0]);
+    went.length = 0;
+    // What ran today is a line of the day, at the time it went (Your brief's line until the redesign); it opens its run.
+    const ran = all(day, (n) => n.type === "a" && textOf(n).includes("Save our number"))[0];
+    ran.props.onClick({ preventDefault() {} });
     assert.deepEqual(went, ["campaigns/sequences/b-done/runs/b-done"]);
   } finally {
     setSurfaceValue("today", undefined);
@@ -620,7 +619,7 @@ test("REGRESSION: a playbook's list that could not be read is not called deleted
   }
 });
 
-test("D1-run-words: a run still to come is stopped on Today's Going today as Sent cancels it -- the same question first, the same words after (decision 0064)", async () => {
+test("D1-run-words: a run still to come is stopped on Today's day as Sent cancels it -- the same question first, the same words after (decision 0064)", async () => {
   const quiet = { queued: 3, sent: 0, skipped: 0, failed: 0, delivered: 0, read: 0, replied: 0 };
   const soon = dto({
     id: "b-soon",
@@ -650,28 +649,28 @@ test("D1-run-words: a run still to come is stopped on Today's Going today as Sen
   globalThis.window.usePPToast = () => [null, (t) => toasts.push(t)];
   try {
     fresh();
-    let band = TodayGoing();
-    const row = byTestId(band, "today-going-row");
+    let band = TodayDay();
+    const row = byTestId(band, "today-day-send");
     // Its one verb is the wait rule's Stop, and its sentence says when it goes unless it is stopped.
     assert.match(textOf(row), /3 people\. Goes at .+ unless you stop it\./);
     assert.equal(buttonsSaying(row, "Cancel").length, 0, "one word for it: Stop");
     press(buttonsSaying(row, "Stop")[0]);
     assert.deepEqual(cancelled, [], "a press asks; it does not cancel");
     // The question Sent asks before the same cancel (contracts runStopWords), in the kit's Confirm under the row.
-    band = drawAgain(TodayGoing);
-    const ask = byTestId(band, "today-going-stop-confirm");
+    band = drawAgain(TodayDay);
+    const ask = byTestId(band, "today-day-stop-confirm");
     assert.ok(ask, "REGRESSION: Today canceled a scheduled run at one tap, where Sent asks first");
     assert.ok(textOf(ask).includes("Cancel Offers?") && textOf(ask).includes("Nothing will send."), textOf(ask));
-    assert.equal(textOf(byTestId(band, "today-going-stop-yes")).trim(), "Yes, cancel it");
+    assert.equal(textOf(byTestId(band, "today-day-stop-yes")).trim(), "Yes, cancel it");
     // No keeps it as it was.
-    press(byTestId(band, "today-going-stop-no"));
-    band = drawAgain(TodayGoing);
-    assert.equal(byTestId(band, "today-going-stop-confirm"), null);
+    press(byTestId(band, "today-day-stop-no"));
+    band = drawAgain(TodayDay);
+    assert.equal(byTestId(band, "today-day-stop-confirm"), null);
     assert.deepEqual(cancelled, []);
     // Yes cancels it, and says what Sent says of a run canceled (runStoppedWords), not "stopped: nothing sends".
-    press(buttonsSaying(byTestId(band, "today-going-row"), "Stop")[0]);
-    band = drawAgain(TodayGoing);
-    await press(byTestId(band, "today-going-stop-yes"));
+    press(buttonsSaying(byTestId(band, "today-day-send"), "Stop")[0]);
+    band = drawAgain(TodayDay);
+    await press(byTestId(band, "today-day-stop-yes"));
     await settle();
     assert.deepEqual(cancelled, ["b-soon"]);
     assert.equal(textOf(toasts.at(-1).msg), "Offers canceled — nothing will send");

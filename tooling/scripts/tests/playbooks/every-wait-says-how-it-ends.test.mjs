@@ -2,7 +2,7 @@
  * Every wait says how it ends, the one way wherever it is shown (decision 0064, step 2): the wait rule and its words
  * (contracts wait-rules.ts), the notices that read them (a batch ready, held for a stop or skipped; a reach-out's; a reply
  * waiting to go in the owner's name), the bell's close of a held reply's row (notice-closes.ts, judged by the threads the
- * Inbox holds), and Today's Going today (waits/going-today.ts): what goes on its own today, soonest first, each with its Stop.
+ * Inbox holds), and what goes on its own today in Today's day (waits/going-today.ts): soonest first, each with its Stop.
  */
 import { test } from "node:test";
 import { importSrc } from "../_source.mjs";

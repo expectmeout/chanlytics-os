@@ -166,10 +166,11 @@ test("REGRESSION: a real thread's header names its channel once and keeps Snooze
   const pane = paneOf(vm);
   assert.equal(find(pane, hasClass("ix-context-strip")), null);
   const head = headOf(pane);
-  // The wire, once: the number was the line's other half, and it is on their profile, one tap away in the menu.
-  assert.equal(textOf(find(head, hasClass("ix-th-meta"))), "WhatsApp");
+  // The wire, once: the number was the line's other half, and it is on their profile, one tap away in the menu. It is
+  // the glyph after the name, its word said to a reader, and the line under the name says where the thread stands.
+  assert.equal(find(head, byTestId("ix-th-wire")).props["aria-label"], "WhatsApp");
   assert.equal(find(head, hasClass("ix-channel-chip")), null, "REGRESSION: a chip said WhatsApp again");
-  assert.equal(textOf(head).split("WhatsApp").length - 1, 1, `the channel once: ${textOf(head)}`);
+  assert.equal(textOf(head).split("WhatsApp").length - 1, 0, `the channel is the glyph's, not words: ${textOf(head)}`);
   assert.equal(
     find(head, (n) => (n.type === "button" || n.type === "a") && /Snooze|Open profile|Call back/.test(textOf(n))),
     null,
@@ -412,7 +413,7 @@ test("REGRESSION: a row says each thing once -- why a person is needed, what the
   assert.ok(samRow.wait && !samRow.time, "a snoozed row says when it wakes, and not also when it last moved");
 });
 
-test("an email in the thread is drawn as one: its subject said once in the head, then above a bubble only where it changes, the envelope where it came another way than the reply goes; a WhatsApp bubble has no subject line", () => {
+test("an email in the thread is drawn as one: its subject said once over the first email, then over an email only where it changes, the envelope where it came another way than the reply goes; a WhatsApp bubble has no subject line", () => {
   const ana = person("p9", null, { phone_e164: null, email: "ana@example.com" });
   const emailed = {
     ...wrote("m9", "Can you do Saturday at 9?", 20),
@@ -430,13 +431,15 @@ test("an email in the thread is drawn as one: its subject said once in the head,
   const bubbles = findAll(pane, hasClass("tl-msg"));
   assert.equal(bubbles.length, 2);
   const [chatBubble, emailBubble] = bubbles;
-  assert.equal(textOf(find(pane, byTestId("ix-th-subject"))).trim(), "Quote for Saturday", "the head says it, once");
-  assert.equal(
-    find(emailBubble, byTestId("tl-msg-subject")),
-    null,
-    "REGRESSION: the subject stood over the bubble too",
-  );
+  // The thread's subject heads its first email, once: a chip in the header cut it to "What Reddit's 202…" on a phone
+  // (the thread canvas, 1 Nov 2026), and the header now says where the thread stands.
+  assert.equal(find(pane, byTestId("ix-th-subject")), null, "not a chip in the head");
+  assert.equal(textOf(find(emailBubble, byTestId("tl-msg-subject"))).trim(), "Quote for Saturday", "said once");
+  assert.equal(textOf(pane).split("Quote for Saturday").length - 1, 1, "and only there");
+  assert.ok(hasClass("tl-email")(emailBubble), "an email is drawn as one");
+  assert.equal(textOf(find(emailBubble, byTestId("tl-email-from"))), vm.who, "who it is from, at its head");
   assert.equal(find(chatBubble, byTestId("tl-msg-subject")), null, "a subject is an email's");
+  assert.ok(!hasClass("tl-email")(chatBubble), "a WhatsApp message stays a bubble");
   // A bubble names its wire, in its corner, where it came another way than the thread's own (the reply box's, which is
   // where they last wrote): here she last wrote by email, so the WhatsApp bubble wears the chat's glyph, named.
   const wire = (b, name) => find(b, (n) => n.props?.role === "img" && n.props?.["aria-label"] === name);

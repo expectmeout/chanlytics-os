@@ -1,19 +1,181 @@
-/* Today's Need you, with Ask (decision 0071): what Ask prepared under each row's words, the presses at its foot, a send
-   counting down, and what became of it. The kit draws every control (the inset panel, the field, the meter, the menu, the
-   button); this places them and says the words around them. Every value is a token. */
+/* Today's Need you, with Ask (decision 0071; the redesign of 1 Nov 2026): the strip that cuts it by what each row asks of you,
+   its groups under their small heads, a row drawn short (who, what they want behind the wire's glyph, how long they have
+   waited or when its clock runs out, and the verb) or open with what Ask prepared under its words, the presses at its
+   foot, a send counting down, what became of it, and the two lines at its foot. The kit draws every control (the strip,
+   the inset panel, the field, the meter, the menu, the button); this places them and says the words around them. Every
+   value is a token. */
 
-/* Ask's one line over the rows: its mark the ink at rest, the accent while it writes. */
-.ny-say {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-2);
-  margin: 0;
-  padding: 0 0 var(--space-3);
-  font-size: var(--text-sm);
-  line-height: var(--leading-snug);
-  color: var(--ink-muted);
-  text-wrap: pretty;
+/* The strip that cuts Need you (the kit's SubTabs, as the Inbox's buckets): under the head on a desk, across the pane to
+   its edges with the rows' gutter as its sides; at the pane's top on a phone. */
+.ny-cuts {
+  --subtabs-side: 18px;
+  margin: 0 -18px 2px;
 }
+@media (max-width: 720px) {
+  .ny-cuts {
+    margin: 10px 0 2px;
+  }
+}
+
+/* The groups: each its small head in the mono face over its rows, the first under the strip. */
+.ny-groups {
+  gap: var(--space-1);
+}
+.ny-group-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+  padding: 14px 0 2px;
+}
+.ny-group-title {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.ny-group-n {
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.ny-group-act {
+  margin-left: auto;
+}
+.ny-group-ask {
+  flex: 1 1 100%;
+}
+
+/* How long they have waited, or when the row's clock runs out, by itself at the name line's right: the dim ink, amber
+   past a day or where the clock is near (contracts needYouWaitOf). */
+.today-queue .cl-attn-wait {
+  flex: none;
+  margin-left: auto;
+  padding-left: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-regular);
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.today-queue .cl-attn-wait[data-long] {
+  color: var(--warn-ink);
+  font-weight: var(--weight-medium);
+}
+
+/* A row drawn short: no state line, its verb at its right as words in the accent's ink, with Ask's mark before it where
+   Ask prepared it. On a desk one line (who, what they want, how long, the verb); on a phone two (who and how long, then
+   what they want and the verb). Its words and its name are laid on the row's own grid. */
+.today-queue .cl-attn-row:not(:has(> .cl-attn-work)) > .cl-attn-body,
+.today-queue .cl-attn-row:not(:has(> .cl-attn-work)) .cl-attn-name {
+  display: contents;
+}
+.today-queue .cl-attn-row:not(:has(> .cl-attn-work)) .cl-attn-status {
+  display: none;
+}
+.today-queue .cl-attn-row:not(:has(> .cl-attn-work)) .cl-attn-sentence {
+  grid-area: said;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--text-base);
+  line-height: 1.4;
+  color: var(--ink-muted);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.today-queue .cl-attn-row:not(:has(> .cl-attn-work)) .cl-attn-who {
+  grid-area: who;
+  min-width: 0;
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+}
+.today-queue .cl-attn-row:not(:has(> .cl-attn-work)) .cl-attn-wait {
+  grid-area: wait;
+  justify-self: end;
+  margin-left: 0;
+}
+.today-queue .cl-attn-row:not(:has(> .cl-attn-work)) > :first-child {
+  grid-area: face;
+}
+/* What a run is, where a person's row says how long they waited ("Campaign · ready"): a desk's, in the dim ink. */
+.today-queue .cl-attn-row:not(:has(> .cl-attn-work)) .cl-attn-meta {
+  grid-area: wait;
+  justify-self: end;
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
+.today-queue .cl-attn-row:not(:has(> .cl-attn-work)) > .cl-attn-acts {
+  grid-area: acts;
+  justify-self: end;
+  gap: var(--space-1);
+  padding: 0;
+}
+.today-queue .cl-attn-row:not(:has(> .cl-attn-work)) > .cl-attn-acts > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: auto;
+  min-height: 0;
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  box-shadow: none;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--accent-ink);
+  white-space: nowrap;
+}
+/* A second verb (a run's See who's on it) in the muted ink, before the first. */
+.today-queue .cl-attn-row:not(:has(> .cl-attn-work)) > .cl-attn-acts > button:not(:last-child) {
+  color: var(--ink-muted);
+  font-weight: var(--weight-medium);
+}
+@media (hover: hover) {
+  .today-queue .cl-attn-row:not(:has(> .cl-attn-work)) > .cl-attn-acts > button:hover {
+    background: var(--surface-inset-fill);
+  }
+}
+@media (min-width: 721px) {
+  .dash-a-v2 .today-queue .cl-attn-row:not(:has(> .cl-attn-work)) {
+    grid-template-columns: 34px minmax(7rem, 12rem) minmax(0, 1fr) auto auto;
+    grid-template-areas: "face who said wait acts";
+    align-items: center;
+    column-gap: 14px;
+    min-height: 56px;
+    padding: 8px 0;
+  }
+  .dash-a-v2 .today-queue .cl-attn-row:not(:has(> .cl-attn-work)) > :first-child {
+    width: 34px;
+    height: 34px;
+    font-size: var(--text-sm);
+  }
+}
+@media (max-width: 720px) {
+  .dash-a-v2 .today-queue .cl-attn-row:not(:has(> .cl-attn-work)) {
+    grid-template-columns: 36px minmax(0, 1fr) auto;
+    grid-template-areas:
+      "face who wait"
+      "face said acts";
+    align-items: center;
+    row-gap: 2px;
+  }
+  /* One verb on a phone's short row: a run's second (See who's on it) is the run's own page, which the row opens. */
+  .today-queue .cl-attn-row:not(:has(> .cl-attn-work)) > .cl-attn-acts > button:not(:last-child) {
+    display: none;
+  }
+}
+/* The wire's glyph before what they want, in the dim ink. */
+.today-queue .cl-attn-via {
+  color: var(--ink-dim);
+}
+/* Ask's mark before a verb whose words Ask prepared, in the accent: Ask's own colour, as its mark wears it. */
+.ny-ready {
+  flex: none;
+  color: var(--accent);
+}
+/* Ask's mark at the head of what it prepared: the ink at rest, the accent while it writes. */
 .ny-three {
   display: inline-flex;
   flex: none;
@@ -22,6 +184,86 @@
 }
 .ny-three[data-live] {
   color: var(--accent);
+}
+
+/* The two lines at Need you's foot (need-you/groups.tsx): a line each, To do and Ask found, side by side on a desk while
+   both are closed, one over the other once either opens or on a phone; a line opened lays its rows under it. */
+.ny-foot-lines {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+  padding: var(--space-3) 0 18px;
+}
+.ny-foot-lines:empty {
+  display: none;
+}
+@media (min-width: 721px) {
+  .ny-foot-lines:not(:has([aria-expanded="true"])):has(> :nth-child(2)) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.ny-more {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.today-queue .ny-more > .ny-line {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto 14px;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  height: auto;
+  min-height: 56px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: var(--radius-xl);
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-depth);
+  color: var(--ink-muted);
+  text-align: left;
+}
+.ny-line-glyph {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-lg);
+  background: var(--surface-pane-fill);
+  color: var(--ink-muted);
+}
+.ny-line-words {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.ny-line-words > b {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+.ny-line-words > span {
+  overflow: hidden;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-regular);
+  color: var(--ink-dim);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.ny-line-n {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  color: var(--ink-muted);
+}
+.ny-more > .tq-list {
+  padding-top: var(--space-1);
+}
+/* Ask found's ideas have no face (dashboard-a-v2.css gives faces to Need you's rows), so an idea's row is one column: its
+   work goes under its words across it. Placed in the column a face would leave, it stood beside them, and the words had
+   108px (the 30 Oct 2026 review, item 6). */
+[data-testid="today-ask-found"] [data-testid="queue-idea"] > .cl-attn-work {
+  grid-column: 1 / -1;
 }
 
 /* What the row prepared (the refined canvas, 31 Oct 2026; the 23 Oct canvas's .wr-draft and .wr-brief): words that go to
@@ -142,13 +384,6 @@
    loud as the name over it. */
 .today-queue .cl-attn-sentence > b {
   font-weight: var(--weight-medium);
-}
-/* Ask found on a phone draws an idea with no face (dashboard-a-v2.css gives faces to Need you's and Going today's rows
-   alone), so its row is one column: its work goes under its words across it, as a desk's goes under its own. Placed in the
-   column a face would leave, it stood beside them, and the words had 108px (the 30 Oct 2026 review, item 6) and none once
-   Details was there. */
-.today-ask-found [data-testid="queue-idea"] > .cl-attn-work {
-  grid-column: 1 / -1;
 }
 /* A new campaign's rules behind Details (idea-work.tsx IdeaDetails): what holds it first, in the warn ink, then a row a
    fact on a key column, as Ask's own card draws its sheet (ask.css .ask-spec). */

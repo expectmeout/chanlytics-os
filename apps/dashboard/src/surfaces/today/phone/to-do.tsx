@@ -1,15 +1,15 @@
 /**
- * To do on a phone (decision 0076): the owner's own to-dos, in Need you's pane under who waits on them, apart and never in
- * their count. A person's next step whose day has come (0007: queue-steps.tsx, Done or Not now that moves its day),
- * yesterday's visits nobody has said whether they came to (0047: queue-visits.tsx, Kept or Missed and Ask's rebook), and
- * the reviews to answer (0071's, need-you/review-work.tsx: Ask's draft, posted with its grace), as a desk draws them, with
- * their caps and their row for the rest from contracts (withSteps, withVisitsAsked). The same derivations, the same rows and
- * presses (need-you/people-rows.tsx); it takes the page's coral only where Need you holds none.
+ * To do (decision 0076): the owner's own to-dos, opened from their line at Need you's foot (need-you/groups.tsx ToDoLine),
+ * on a desk and a phone alike since the redesign of 1 Nov 2026, apart from who waits on them and never in their count. A
+ * person's next step whose day has come (0007: queue-steps.tsx, Done or Not now that moves its day), yesterday's visits
+ * nobody has said whether they came to (0047: queue-visits.tsx, Kept or Missed and Ask's rebook), and the reviews to answer
+ * (0071's, need-you/review-work.tsx: Ask's draft, posted with its grace), with their caps and their row for the rest from
+ * contracts (withSteps, withVisitsAsked). The same derivations, the same rows and presses (need-you/people-rows.tsx); it
+ * takes the page's coral only where Need you holds none.
  */
 import { useLayoutEffect, useState } from "react";
 import {
   DEFAULT_TIMEZONE,
-  TODAY_PHONE_WORDS,
   type AppointmentWord,
   type GoogleReviewDto,
   type TodayQueueRowVM,
@@ -36,12 +36,9 @@ export function useToDoCount(): number {
   return (dueSteps()?.count ?? 0) + (askedVisits(word)?.count ?? 0) + reviews;
 }
 
-/** The group's id, which its rows are named by. */
-const TODO_TITLE_ID = "today-todo-title";
-
 /**
- * To do, drawn in Need you's pane (queue.tsx). `queueHolds`: whether Need you's rows above it took the coral, said by the
- * queue as it draws; drawn alone (a test), it hears the queue's word instead.
+ * To do's rows, drawn under their line (need-you/groups.tsx ToDoLine). `queueHolds`: whether Need you's rows above them
+ * took the coral, said by the queue as it draws; drawn alone (a test), it hears the queue's word instead.
  */
 export function TodayToDo({ queueHolds }: { queueHolds?: boolean }) {
   // People's rows are the steps', the Calendar's blocks the visits', Google's the reviews': each moves this.
@@ -82,8 +79,8 @@ export function TodayToDo({ queueHolds }: { queueHolds?: boolean }) {
     keep: (row) =>
       setKept((was) => ({ ...was, [row.id]: { row, at: was[row.id]?.at ?? rows.findIndex((r) => r.id === row.id) } })),
     kept: new Set([...Object.keys(kept), ...keptReviews.map((r) => `q-r-${r.id}`)]),
-    expanded: new Set(),
-    expand: () => undefined,
+    focus: null,
+    open: () => undefined,
     word,
     stepDone: (r) =>
       void stepDone(r, flash, {
@@ -100,16 +97,9 @@ export function TodayToDo({ queueHolds }: { queueHolds?: boolean }) {
   }, [holds]);
   useLayoutEffect(() => () => holdsCoral("todo", false), []);
   if (!drawn.length) return toastNode;
-  const due = (steps ? steps.count - done.length : 0) + (visits ? visits.count : 0) + answering.length;
   return (
-    <div className="today-todo" data-testid="today-todo" role="group" aria-labelledby={TODO_TITLE_ID}>
-      <div className="tq-head">
-        <span className="tq-title" id={TODO_TITLE_ID}>
-          {TODAY_PHONE_WORDS.todo}
-        </span>
-        {due > 0 ? <span className="tq-count tabular">{due}</span> : null}
-      </div>
-      <div className="tq-list">{drawn}</div>
+    <div className="today-todo tq-list" data-testid="today-todo">
+      {drawn}
       {toastNode}
     </div>
   );

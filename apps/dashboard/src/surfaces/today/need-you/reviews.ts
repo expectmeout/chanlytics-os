@@ -1,7 +1,7 @@
 /**
  * The Google reviews Need you offers to answer (decision 0071): on a connected Business Profile (only then can a reply be
  * posted), not answered, not held by a reply of the receptionist's (Reports' Reviews lens stops or sends that one), the
- * newest two. Today's card says a new review as news (review-line.ts); one this offers is said here instead, once.
+ * newest two, in To do. A new review the profile cannot answer from here is the bell's news (While you were away).
  * Not today hides one for the rest of the tab's session.
  */
 import type { GoogleReviewDto } from "@chanlytics/contracts";

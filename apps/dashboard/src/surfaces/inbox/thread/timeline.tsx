@@ -97,6 +97,34 @@ const TlMsgSig = ({ signature }: { signature: { line: string; full: string } }) 
   );
 };
 
+/**
+ * What an email carried that is not its words, folded under them as its signature is: a list's foot and the chain it
+ * quoted, each a line of its own that opens on a press (the thread canvas, 1 Nov 2026: "548 Market Street … stop
+ * receiving these emails" read as the sender's words). `testid` names the opened words, and `<testid>-toggle` the press.
+ */
+const TlFold = ({ label, text, testid }: { label: string; text: string; testid: string }) => {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        className={`tl-msg-sig${open ? " open" : ""}`}
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        data-testid={`${testid}-toggle`}
+      >
+        <span className="tl-msg-sig-line">{label}</span>
+        <Icon name="chevron-down" size={11} className="tl-msg-sig-turn" />
+      </button>
+      {open && (
+        <div className="tl-msg-sig-full" data-testid={testid}>
+          <Linked text={text} />
+        </div>
+      )}
+    </>
+  );
+};
+
 const TlMsgBody = ({
   text,
   quoted,
@@ -167,6 +195,8 @@ interface TimelineEntryProps {
   entry: TlEntry;
   thread: Thread;
   channelLabels: Record<string, string>;
+  /** The thread's subject, given to its first email, which it heads (contracts' emailSubjectsOf). */
+  topic?: string | null;
   lines?: TlLines | null;
   again?: TlAgain | null;
   focus?: boolean;
@@ -182,6 +212,7 @@ export const TimelineEntry = ({
   entry,
   thread,
   channelLabels,
+  topic = null,
   lines = null,
   again = null,
   focus = false,
@@ -211,6 +242,19 @@ export const TimelineEntry = ({
     );
   }
 
+  // Where a real thread was held for a person: a quiet mark between the words, its spark and its time, the reason a clause
+  // (contracts' "Held for you — wrote by email"). The dock under the conversation says what is owed; the mark said it too,
+  // with a dot and the reason's details quoted, printed under the dock's glass on a phone (the thread canvas, 1 Nov 2026).
+  if (entry.type === "event" && thread.real && entry.kind === "flag") {
+    return (
+      <div className="tl-event tl-held" data-testid="tl-held">
+        <Icon name="sparkle" size={11} className="tl-held-spark" />
+        <span className="tl-event-text">{entry.body}</span>
+        <span className="tl-event-time tabular">{entry.at}</span>
+      </div>
+    );
+  }
+
   if (entry.type === "event") {
     return (
       <div className="tl-event">
@@ -226,6 +270,7 @@ export const TimelineEntry = ({
       entry={entry}
       thread={thread}
       channelLabels={channelLabels}
+      topic={topic}
       lines={lines}
       again={again}
       channelIcon={channelIcon}
@@ -240,6 +285,7 @@ interface TlMsgEntryProps {
   entry: MsgEntry;
   thread: Thread;
   channelLabels: Record<string, string>;
+  topic?: string | null;
   lines: TlLines | null;
   again: TlAgain | null;
   channelIcon: (c: string) => string;
@@ -358,7 +404,12 @@ function statusGlyph(entry: MsgEntry) {
  * and the spark and the time are one press to why it said them, where the row remembers (the phone canvas, D1): the line
  * under every reply said "by WhatsApp Receptionist · Why · Delivered".
  */
-function bubbleCorner(p: TlMsgEntryProps, named: boolean, why: { open: boolean; toggle: () => void }) {
+function bubbleCorner(
+  p: TlMsgEntryProps,
+  named: boolean,
+  why: { open: boolean; toggle: () => void },
+  signedAbove = false,
+) {
   const { entry, thread, channelLabels, channelIcon } = p;
   // The wire said only where a bubble came another way than the thread's own: every bubble of a WhatsApp and email
   // thread wore the chat's glyph.
@@ -367,7 +418,7 @@ function bubbleCorner(p: TlMsgEntryProps, named: boolean, why: { open: boolean; 
   const receptionist = ours && !entry.byYou && !entry.via;
   // Words of ours a person or a run sent are signed (A9, A23): "Your team", or the campaign's name.
   const signed = entry.via ? entry.via.name : entry.byWords || "your team";
-  const author = !ours || receptionist ? null : signed.charAt(0).toUpperCase() + signed.slice(1);
+  const author = !ours || receptionist || signedAbove ? null : signed.charAt(0).toUpperCase() + signed.slice(1);
   const time = entry.time || entry.at;
   const inner = (
     <>
@@ -467,11 +518,113 @@ function bubbleFoot(p: TlMsgEntryProps, why: { open: boolean; toggle: () => void
   return undelivered && entry.status === "failed" && again && entry.body ? againActs(again, entry.body) : null;
 }
 
+/**
+ * An email long enough to fold to its first six lines (inbox.css .tl-email): more than about ten lines of a phone, so a
+ * fold never hides one or two.
+ */
+const LONG_EMAIL_CHARS = 420;
+const LONG_EMAIL_LINES = 8;
+const longEmail = (words: string): boolean =>
+  words.length > LONG_EMAIL_CHARS || words.split("\n").length > LONG_EMAIL_LINES;
+
+/** Who an email in the conversation is from, as its head says it: them, a campaign, a teammate, or the receptionist. */
+function emailFrom(entry: MsgEntry, thread: Thread): string {
+  if (entry.from === "client") return thread.who;
+  if (entry.via) return entry.via.name;
+  if (entry.byYou) {
+    const by = entry.byWords || "your team";
+    return by.charAt(0).toUpperCase() + by.slice(1);
+  }
+  return entry.agentName || thread.agent.name;
+}
+
+/** What an email carried under its words, each folded: its signature, a list's foot, the chain it quoted. */
+function emailFolds(entry: MsgEntry) {
+  const W = THREAD_PANE_WORDS;
+  if (!entry.signature && !entry.footer && !entry.quoted) return null;
+  return (
+    <div className="tl-email-folds" data-testid="tl-email-folds">
+      {entry.signature && <TlMsgSig signature={entry.signature} />}
+      {entry.footer && <TlFold label={W.emailFooter} text={entry.footer} testid="tl-msg-footer" />}
+      {entry.quoted && <TlFold label={W.emailEarlier} text={entry.quoted} testid="tl-msg-quote" />}
+    </div>
+  );
+}
+
+/**
+ * An email in a real thread, drawn as one (the thread canvas, 1 Nov 2026): the width of the conversation, who it is from
+ * and when at its head, the thread's subject over the first and a changed one over the email that changed it, its words
+ * folded to their first lines where they run long, and what is not its words folded under them. Drawn as a chat bubble it
+ * was a column three-quarters wide whose sender's card, street address and unsubscribe link read as the message.
+ */
+function emailEntry(
+  p: TlMsgEntryProps,
+  why: { open: boolean; toggle: () => void },
+  whole: [boolean, (v: boolean) => void],
+) {
+  const { entry, thread, lines, arrived = false, topic } = p;
+  const W = THREAD_PANE_WORDS;
+  const named = (thread.channels || []).filter((c) => c !== "phone").length > 1;
+  const subject = entry.subject || topic || null;
+  const words = entry.body == null ? "" : String(entry.body).trim();
+  const long = longEmail(words);
+  const [shown, show] = whole;
+  return (
+    <div className={`${bubbleClass(entry, lines, arrived)} tl-email`} data-mid={entry.messageId}>
+      <div className="tl-msg-bubble">
+        <div className="tl-email-head">
+          <span className="tl-email-from" data-testid="tl-email-from">
+            {emailFrom(entry, thread)}
+          </span>
+          {bubbleCorner(p, named, why, true)}
+        </div>
+        {subject && (
+          <div className="tl-msg-subject" data-testid="tl-msg-subject">
+            {subject}
+          </div>
+        )}
+        <div className="tl-msg-body" data-folded={long && !shown ? "" : undefined}>
+          <Linked text={words} />
+        </div>
+        {long && (
+          <Button
+            variant="quiet"
+            size="text"
+            className="tl-email-whole"
+            aria-expanded={shown}
+            onClick={() => show(!shown)}
+            data-testid="tl-email-whole"
+          >
+            {shown ? W.emailLess : W.emailWhole}
+            <Icon name={shown ? "chevron-up" : "chevron-down"} size={11} />
+          </Button>
+        )}
+        {emailFolds(entry)}
+        {entry.media && <TlMedia media={entry.media} />}
+        {entry.leftOut && (
+          <div className="tl-msg-note" data-testid="tl-msg-left-out">
+            <Icon name="info" size={11} /> {entry.leftOut}
+          </div>
+        )}
+        {entry.failedWhy && (
+          <div className="tl-msg-note" data-testid="tl-msg-failed-why">
+            <Icon name="alert" size={11} /> {entry.failedWhy}
+          </div>
+        )}
+        {bubbleFoot(p, why)}
+        {entry.why && why.open && <TlWhyPanel why={entry.why} />}
+      </div>
+    </div>
+  );
+}
+
 // The message branch, with the hooks its two disclosures need. It is its own component so those
 // hooks are not behind the event and agent-thinking returns above.
 const TlMsgEntry = (props: TlMsgEntryProps) => {
   const { entry, thread, lines, focus = false, newest = false, arrived = false } = props;
   const [whyOpen, setWhyOpen] = useState(false);
+  // An email folded to its first lines, opened whole (emailEntry).
+  const [whole, setWhole] = useState(false);
   // A call is part of the conversation, where it happened: its note was a dashed bubble of words nobody said. Its lines
   // are shown when it is the newest thing said, or the call Conversations opened the thread at.
   if (thread.real && entry.channel === "phone")
@@ -485,6 +638,8 @@ const TlMsgEntry = (props: TlMsgEntryProps) => {
         open={focus || newest}
       />
     );
+  if (thread.real && entry.channel === "email")
+    return emailEntry(props, { open: whyOpen, toggle: () => setWhyOpen((v) => !v) }, [whole, setWhole]);
   // A held draft is a message the customer has NOT seen, and words that never left are dashed (bubbleClass): drawn as an
   // ordinary agent bubble, a held draft reads as already sent, and the receptionist's failed reply did (I1).
   // A real thread whose words travelled one wire says the time alone: the wire is in the header, and it was over every

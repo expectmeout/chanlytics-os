@@ -36,7 +36,15 @@ import {
   clipAtWord,
 } from "./message-words";
 import { messageVia, messageAuthor, messageWhy, lastWordLine, type MessageAuthor } from "./message-author";
-import { openHoldAct, reasonLabelOf, reasonSummaryOf, waitsOnAPerson, type EscalationDto } from "./escalations";
+import {
+  openHoldAct,
+  reasonLabelOf,
+  reasonLineOf,
+  reasonShort,
+  reasonSummaryOf,
+  waitsOnAPerson,
+  type EscalationDto,
+} from "./escalations";
 import type { InboxThreadVM } from "./inbox-thread-vm";
 
 /**
@@ -225,6 +233,29 @@ export const THREAD_PANE_WORDS = {
   others: "Others",
   /** A template of the sample data, said beside its name where its title said "(sample)" (inboxTemplates `sample`). */
   sample: "Sample",
+  /**
+   * The header's one control, a glyph (the thread canvas, 1 Nov 2026): its name for a pointer and a screen reader, and
+   * the headings of its menu's groups -- the conversation, the person (by their first name), the deal, the file.
+   */
+  /**
+   * An email in the conversation, drawn as one (the thread canvas, 1 Nov 2026): a long one folded to its first lines
+   * with the way to the rest, and what is not its words folded under them, each its own press.
+   */
+  emailWhole: "Show the whole email",
+  emailLess: "Show less",
+  emailFooter: "Footer and unsubscribe link",
+  emailEarlier: "Earlier in the thread",
+  /** An owner's first email from someone: the way to say it is not a person writing, beside the conversation. */
+  firstEmail: (first: string) => `First email from ${first}. A newsletter, a notice or a pitch?`,
+  /** Taking a thread before a word is written, from More: what it does, under its words. */
+  takeMeta: "The receptionist pauses, and your team sees you have it",
+  /** Over the reply box's words while they are the receptionist's draft, unchanged: whose they are. */
+  drafted: "Drafted by the receptionist",
+  more: "More",
+  moreFor: (who: string) => `More for the conversation with ${who}`,
+  groupConversation: "This conversation",
+  groupDeal: "Deal",
+  groupFile: "File",
   /** Under an email's words, what it will be signed with (emailSignedLine): where that is changed (decision 0081). */
   changeSignature: "Change",
   changeSignatureTip: "Change what your emails are signed with, in Settings › Connections",
@@ -285,7 +316,14 @@ const clocksOf = (dto: ConversationDto) => ({ whatsapp: dto.last_wa_inbound_at, 
 function bubbleWordsOf(
   m: MessageDto,
   changed: ReadonlyMap<string, string>,
-): { body: string; subject?: string; leftOut?: string; quoted?: string; signature?: { line: string; full: string } } {
+): {
+  body: string;
+  subject?: string;
+  leftOut?: string;
+  quoted?: string;
+  footer?: string;
+  signature?: { line: string; full: string };
+} {
   if (m.channel !== "email") return { body: messageText(m) };
   const parts = emailPartsOf(messageText(m), emailFromNameOf(m));
   const subject = changed.get(m.id);
@@ -297,6 +335,7 @@ function bubbleWordsOf(
     ...(subject ? { subject } : {}),
     ...(leftOut ? { leftOut } : {}),
     ...(parts.quoted ? { quoted: parts.quoted } : {}),
+    ...(parts.footer ? { footer: parts.footer } : {}),
     ...(signed ? { signature: { line: emailSignatureLine(signed), full: signed } } : {}),
   };
 }
@@ -397,10 +436,9 @@ export function toInboxThreadVM(
       type: "event" as const,
       kind: "flag",
       at: shortTime(escalation.created_at, tz, now),
-      // Why it was flagged, and the details that say more -- except a call back's, which are the band's own sentence (the
-      // to-do): quoted here as well, they were said a third time. Any other reason's details, the cause of a failed send,
-      // are said only here.
-      body: `Flagged for a human — ${reasonLabel}${escalation.details && escalation.reason !== "callback" ? ` · “${clipAtWord(escalation.details, 120)}”` : ""}`,
+      // A quiet mark, its reason a clause: the dock says what is owed, its Why? the details (holdWordsOf). The label and the
+      // details quoted here said it a third time, printed under the dock on a phone (the thread canvas, 1 Nov 2026).
+      body: `Held for you — ${reasonShort(escalation.reason)}`,
     };
     if (idx === -1) timeline.push(entry);
     else timeline.splice(idx, 0, entry);
@@ -478,6 +516,7 @@ export function toInboxThreadVM(
           : lastWord
             ? lastWord.text
             : "The receptionist answered this on its own. Nothing is owed.",
+    ...holdWordsOf(escalation, claimedByOther),
     ...moments,
     ...inboxThreadClock(moments, tz, now.getTime()),
     // The dot is the reader's own (standing.ts isUnseen, 00349; inbox-thread-vm.ts says what it meant before).
@@ -486,6 +525,30 @@ export function toInboxThreadVM(
     tags: [],
     priority: "P2",
     timeline,
+  };
+}
+
+/**
+ * What the dock says of an open hold: its one line (escalations.ts reasonLineOf), and under its Why? the reason's whole
+ * sentence and what the hold noted (the cause of a failed send, the words of a flag by hand). An email's hold notes what
+ * the email claimed to be (core email-ingest EMAIL_REVIEW_WORDS), the reason's sentence said for that email, so it is said
+ * in its place. A call back's details are its to-do, which is the line. Nothing with no hold, or on a thread a teammate
+ * has: its reply box says what a reply does.
+ */
+function holdWordsOf(
+  escalation: EscalationDto | null,
+  claimedByOther: boolean,
+): Pick<InboxThreadVM, "holdLine" | "holdWhy" | "holdNote"> {
+  if (!escalation || claimedByOther) return {};
+  const details = escalation.details?.trim() || "";
+  const sentence = reasonSummaryOf(escalation.reason);
+  if (escalation.reason === "callback") return { holdLine: details || reasonLineOf("callback"), holdWhy: sentence };
+  if (escalation.reason === "email_review" && details)
+    return { holdLine: reasonLineOf(escalation.reason), holdWhy: details };
+  return {
+    holdLine: reasonLineOf(escalation.reason),
+    holdWhy: sentence,
+    ...(details && details !== sentence ? { holdNote: clipAtWord(details, 240) } : {}),
   };
 }
 

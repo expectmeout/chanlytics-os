@@ -23,6 +23,7 @@ import { gate, navigate } from "../shell";
 import type { Thread, TimelineEntry as TlEntry } from "../types";
 import { ixDockDials } from "./band";
 import { hasVeto, SteerBox, VetoBar } from "./veto";
+import { IxWhy } from "./send-words";
 import { Button } from "../../kit/button/button";
 import { LinkButton } from "../../kit/link-button/link-button";
 
@@ -59,7 +60,7 @@ type DockProps = StatusProps & HandBackAsk;
 // What a real thread asks of you, said one way whatever the state: the dock over the reply box (the phone canvas, B1),
 // the kit's notice. The one line of what is owed, one fact the page does not already show after it in the dim ink (never
 // the bar's wait, never their last bubble, which is right above it), and at most two acts, the lead a capsule and the
-// other words. The state's name -- the pill its row wears, and its wait -- is the bar's under the header (ThreadBar).
+// other words. The state's name -- the pill its row wears, and its wait -- is the header's, under the name (whereItStands).
 // It was a sentence at 600 over their last message quoted again over the acts: three blocks for what the bar named.
 interface DockLine {
   fact: ReactNode;
@@ -269,18 +270,96 @@ function handBackAsk(p: DockProps, go: () => void) {
   );
 }
 
-/** A real thread that needs you: the reason, and the two things to do about it. */
+/**
+ * Whether words can go to them from the reply box under the dock: free words or an approved message. Sending one is the
+ * answer, and takes the thread (core reply: takeControl, resolveEscalation), so the dock offers no take-over beside it;
+ * where nothing can go (a stop, an address that stopped, Instagram shut, a caller with no chat), taking it is the act.
+ */
+const replyGoes = (thread: Thread): boolean =>
+  !!thread.real &&
+  !thread.optedOut &&
+  !thread.emailStopped &&
+  thread.hasChat !== false &&
+  !(thread.windowOpen === false && thread.primaryChannel === "instagram");
+
+/** The whole of why it was held, and what the hold noted, a press away under the dock's line (contracts holdWordsOf). */
+function holdWhy(thread: Thread): ReactNode {
+  if (!thread.real || !thread.holdWhy) return null;
+  return (
+    <IxWhy
+      said={
+        <>
+          {thread.holdWhy}
+          {thread.holdNote ? <> “{thread.holdNote}”</> : null}
+        </>
+      }
+      testid="ix-hold-why"
+    />
+  );
+}
+
+/**
+ * Whether taking the thread without a word is More's to offer (header.tsx): a hold that asks for a reply, where the reply
+ * box can send one, so the dock offers no take-over (takeAct). Claiming it first still tells the team it is yours, and
+ * pauses the receptionist, before a word is written.
+ */
+export const takeInTheMenu = (thread: Thread): boolean =>
+  !!thread.real &&
+  thread.state === "escalated" &&
+  !thread.takenOver &&
+  !thread.claimedByOther &&
+  thread.holdAct !== "hand_back" &&
+  thread.holdAct !== "confirm" &&
+  !ixDockDials(thread) &&
+  thread.primaryChannel !== "phone" &&
+  replyGoes(thread);
+
+/** The lead act of a hold that asks for a person: a call back, or taking it where no reply can go; none where one can. */
+function takeAct(p: DockProps, thread: Thread): ReactNode {
+  const { onTakeOver } = p;
+  if (thread.holdAct === "hand_back") return null;
+  if (ixDockDials(thread))
+    return (
+      <Button size="sm" href={`tel:${thread.phone}`} onClick={() => onTakeOver(thread.id)} data-testid="ix-call-back">
+        <Icon name="phone" size={12} /> Call back
+      </Button>
+    );
+  if (thread.primaryChannel === "phone")
+    return (
+      <Button size="sm" onClick={() => onTakeOver(thread.id)} {...gate("approve", "take over a conversation")}>
+        <Icon name="phone" size={12} /> Call back
+      </Button>
+    );
+  if (replyGoes(thread)) return null;
+  return (
+    <Button size="sm" onClick={() => onTakeOver(thread.id)} {...gate("approve", "take over a conversation")}>
+      {HOLD_ACT_WORDS.reply.take}
+    </Button>
+  );
+}
+
+/**
+ * A real thread that needs you: the one line of what is owed (contracts reasonLineOf), its whole why a press away, and
+ * what to do about it beside the reply box under it. The dock said the reason's sentence, up to forty words, over a
+ * flag in the conversation that said it again, and offered "I'll answer this" beside a reply box whose Send already
+ * answers and takes the thread (the thread canvas, 1 Nov 2026).
+ */
 function needsYouState(p: DockProps, thread: Thread) {
-  const { onTakeOver, onDecide } = p;
+  const { onDecide } = p;
   const handBack = () => onDecide(thread.id, "__HANDBACK__");
   if (p.asking === thread.id) return handBackAsk(p, handBack);
+  const line = (thread.real && thread.holdLine) || thread.summary;
   return (
     <Dock
       testid="ix-needs-you"
-      label={thread.summary}
-      // The reason's own sentence (ESCALATION_SUMMARIES), never one line for every reason: a held message was not
-      // "already answered", and a call back is not a reply. What they asked is the bubble right above it.
-      fact={thread.summary}
+      label={line}
+      // The reason's own line, never one line for every reason: a held message was not "already answered", and a call
+      // back is not a reply. What they asked is the conversation right above it.
+      fact={line}
+      source={holdWhy(thread)}
+      // One row, its acts beside the line, as a thread you have says it: the acts stood under the line, a thumb tall,
+      // with the reply box under them (the thread canvas, 1 Nov 2026).
+      line
       acts={
         thread.holdAct === "confirm" ? (
           requestActsOf(thread, onDecide)
@@ -288,26 +367,7 @@ function needsYouState(p: DockProps, thread: Thread) {
           <>
             {/* A hold nothing may be sent for (its reason's act is to hand back, escalations.ts HOLD_ACT_WORDS) offers no
               reply to write: Hand back is the thread's own verb. */}
-            {thread.holdAct === "hand_back" ? null : ixDockDials(thread) ? (
-              <Button
-                size="sm"
-                href={`tel:${thread.phone}`}
-                onClick={() => onTakeOver(thread.id)}
-                data-testid="ix-call-back"
-              >
-                <Icon name="phone" size={12} /> Call back
-              </Button>
-            ) : (
-              <Button size="sm" onClick={() => onTakeOver(thread.id)} {...gate("approve", "take over a conversation")}>
-                {thread.primaryChannel === "phone" ? (
-                  <>
-                    <Icon name="phone" size={12} /> Call back
-                  </>
-                ) : (
-                  HOLD_ACT_WORDS.reply.take
-                )}
-              </Button>
-            )}
+            {takeAct(p, thread)}
             {/* Two words on the screen, the whole sentence for a screen reader: it was a sentence wearing a button. */}
             {thread.escalationId && (
               <Button
@@ -427,8 +487,18 @@ function yoursBar(p: DockProps) {
       line
       label={W.yours}
       fact={W.yours}
-      // The reason it was flagged is said here, once: "Where this stands" said it below (I1).
-      source={thread.escalationId && thread.summary ? thread.summary : W.yoursFact}
+      // The reason it was flagged is said here, once: "Where this stands" said it below (I1). What the hold noted (the
+      // cause of a failed send) is a press away, as the dock for Needs you keeps it: the mark in the conversation quoted it.
+      source={
+        thread.escalationId && thread.summary ? (
+          <>
+            {thread.summary}
+            {thread.real && thread.holdNote ? <IxWhy said={`“${thread.holdNote}”`} testid="ix-hold-why" /> : null}
+          </>
+        ) : (
+          W.yoursFact
+        )
+      }
       acts={
         <Button
           variant="quiet"
@@ -454,9 +524,16 @@ function yoursBar(p: DockProps) {
   );
 }
 
+/**
+ * The countdown on a seeded draft, and the controls that stop it. A real thread's stand under the draft's own bubble
+ * (thread.tsx heldDraftRow), once its conversation is drawn.
+ */
+const draftInTheConversation = (thread: Thread): boolean => !!thread.real && !thread.partial;
+
 /** The countdown on a draft, and the controls that stop it. */
 function vetoStatus(p: StatusProps) {
   const { thread, decided, veto, vetoPaused, onVetoAct, onTakeOver } = p;
+  if (draftInTheConversation(thread)) return false;
   // The same trap the composer already documents: in the mockup "done"
   // means decided, nothing left to do. On a REAL thread "handled" is the
   // normal resting state — the receptionist answered and nothing
@@ -475,6 +552,7 @@ function vetoStatus(p: StatusProps) {
 /** The text whisper: only on a real draft that is still counting down. */
 function steerStatus(p: StatusProps) {
   const { thread, decided, veto } = p;
+  if (draftInTheConversation(thread)) return false;
   // A held (manual) draft has Edit; a seeded one has no edge to ask.
   return (
     hasVeto(thread) &&
@@ -509,11 +587,12 @@ export const ThreadStatus = (props: StatusProps) => {
   );
 };
 
-// =============== THE BAR — where the conversation stands, under the header ===============
-// One slim line a thread opens on: the pill its row in the list wears (StatePill -- one vocabulary for both) and how
-// long they have waited, or a quiet thread's one sentence; and, when WhatsApp's reply window has closed, that it has,
-// with why a tap away. It was said three times at the foot of a phone: the standing as a line of its own, the window
-// as a red block, and the reply box's refusal under both. Nothing when there is nothing to say.
+// =============== WHERE IT STANDS — the header's second line ===============
+// What the thread's row in the list wears (StatePill -- one vocabulary for both) and how long they have waited, said
+// under the name in the header (header.tsx), where the wires were (the thread canvas, 1 Nov 2026). It was a bar of its
+// own under the header, a row of the phone's height for one pill, over the dock that said the reason again. WhatsApp's
+// window, shut, is the template box's to say (ChatClosed, template-box.tsx): the line under the name is the person's
+// link, and a press inside a link is not one. Nothing when there is nothing to say: the header says the wires instead.
 
 /** Where a thread stands: the pill its row wears with how long they have waited, or a quiet thread's one sentence. */
 interface Standing {
@@ -559,12 +638,26 @@ const ixStanding = (thread: Thread): Standing | null => {
   };
 };
 
+/** Where a real thread stands, as the header's second line says it; null where it stands nowhere worth a word. */
+export function whereItStands(thread: Thread): ReactElement | null {
+  const standing = ixStanding(thread);
+  if (!standing) return null;
+  return (
+    <span className="ix-th-standing" data-testid="ix-th-standing">
+      {standing.pill}
+      {standing.meta && (
+        <span className={`ix-th-standing-meta tabular${standing.late ? " late" : ""}`}>· {standing.meta}</span>
+      )}
+    </span>
+  );
+}
+
 /**
- * WhatsApp's window, shut: one quiet fact at the bar's end, a lock and its words, that opens why on a press. It was a dot
- * in the warning's amber, "Window closed" and an underlined "Why?" over a 44px press, which made the bar 64px and cut the
- * standing beside it to "Answered by the receptionist — n…" on a phone (the phone canvas, A1). Amber says one thing.
+ * WhatsApp's window, shut: a lock and its words, that open why on a press, at the head of the template box that is the
+ * one send left (template-box.tsx). A DM's says why in Instagram's words. It stood at the end of the bar under the header,
+ * away from the box it explains.
  */
-function ChatClosed({ dm }: { dm: boolean }) {
+export function ChatClosed({ dm }: { dm: boolean }) {
   const [open, setOpen] = useState(false);
   const W = THREAD_PANE_WORDS;
   return (
@@ -589,24 +682,3 @@ function ChatClosed({ dm }: { dm: boolean }) {
     </>
   );
 }
-
-export const ThreadBar = ({ thread }: { thread: Thread }) => {
-  const standing = ixStanding(thread);
-  // WhatsApp and Instagram have a window (replyWindow), and it is the reply box's concern when they opted out, or never
-  // wrote on WhatsApp at all: then nothing about a window is true enough to say. A DM's says why in Instagram's words.
-  const closed = thread.hasChat !== false && !thread.optedOut && thread.windowOpen === false;
-  if (!standing && !closed) return null;
-  return (
-    <div className="ix-th-bar" data-testid="ix-th-bar">
-      {standing && (
-        <span className="ix-th-standing" data-testid="ix-th-standing">
-          {standing.pill}
-          {standing.meta && (
-            <span className={`ix-th-standing-meta tabular${standing.late ? " late" : ""}`}>· {standing.meta}</span>
-          )}
-        </span>
-      )}
-      {closed && <ChatClosed dm={thread.primaryChannel === "instagram"} />}
-    </div>
-  );
-};

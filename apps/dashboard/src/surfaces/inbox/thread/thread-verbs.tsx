@@ -124,8 +124,11 @@ export const threadVerbs = (flash: (flash: Flash) => void) => {
    * was still on its way.
    *
    *   hold  — withdraw the draft outright; nothing is sent
-   *   edit  — focus the composer, which is already pre-filled with the draft;
-   *           the send REPLACES it (the reply route withdraws it server-side)
+   *   edit  — put the draft's words in the reply box and focus it, and
+   *           withdraw the draft as typing does: the words are the
+   *           member's to change now. The box is not filled with the draft
+   *           while it counts down: it stands once, as the next bubble with
+   *           its countdown under it (the thread canvas, 1 Nov 2026)
    *   type  — the first keystroke means the operator is taking this one, so
    *           the draft is withdrawn ONCE rather than racing the timer
    *
@@ -136,10 +139,13 @@ export const threadVerbs = (flash: (flash: Flash) => void) => {
     const heldKey = ixDraftKey(t);
     const st = VW_STORE.state[heldKey] || (VW_STORE.state[heldKey] = {});
     if (act === "edit") {
-      window.setTimeout(() => window.dispatchEvent(new CustomEvent("inbox:focus-composer")), FOCUS_COMPOSER_MS);
-      return;
-    }
-    if (act !== "hold" && act !== "type") return;
+      const words = t.veto ? t.veto.draft : "";
+      window.setTimeout(
+        () =>
+          window.dispatchEvent(new CustomEvent("inbox:focus-composer", { detail: { threadId: t.id, text: words } })),
+        FOCUS_COMPOSER_MS,
+      );
+    } else if (act !== "hold" && act !== "type") return;
     if (st.held || !t.veto) return;
     st.held = true; // optimistic: stops the countdown now
     bump();
