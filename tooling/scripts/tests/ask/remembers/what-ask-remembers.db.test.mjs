@@ -37,6 +37,7 @@ const { listThreads } = skip
 
 const stamp = Date.now().toString(36);
 const DAY = 86_400_000;
+const HOUR = 3_600_000;
 /** A UTC day, as the doors take it. */
 const dayOf = (ms) => new Date(ms).toISOString().slice(0, 10);
 const TODAY = dayOf(Date.now());
@@ -255,8 +256,10 @@ test(
   "the journal's door is the service's: a due day handed over once and kept once, read by owners alone",
   { skip },
   async () => {
-    // Something happened in the workspace yesterday, by its own clock (UTC), which ended over an hour ago.
-    const yesterday = dayOf(Date.now() - DAY);
+    // Something happened in the workspace on its last day that ended over an hour ago, by its own clock (UTC): yesterday,
+    // except in the first hour of a day, when yesterday has not been over for an hour (ask_journal_open_days) and the
+    // day before is that day. Read as yesterday, the suite failed every night between midnight and one.
+    const yesterday = dayOf(Date.now() - DAY - HOUR);
     const noon = new Date(`${yesterday}T12:00:00Z`).toISOString();
     ok(
       await db.from("events").insert({
