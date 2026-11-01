@@ -370,8 +370,10 @@ test("where they work is a door to the business's sheet beside the head on a des
     assert.match(textOf(door), /Works at\s+Bloom & Vow Bridal/);
     const head = find(tree, byTestId("ix-th-person"));
     if (head) assert.equal(find(head, byTestId("ix-th-works-door")), undefined, "beside the link to their page");
-    const words = find(tree, byTestId("ix-th-works-at"));
-    assert.ok(hasClass("ix-th-works-said")(words), "the phone's words, which a desk hides");
+    // On a phone the name's trail says it ("· Bloom & Vow Bridal"): words under the name said it again, cut to "Works
+    // at…" beside where the thread stands (the thread canvas, 1 Nov 2026).
+    assert.match(textOf(find(tree, byTestId("ix-th-business"))), /Bloom & Vow Bridal/);
+    assert.equal(find(tree, byTestId("ix-th-works-at")), undefined, "said once");
     // A stand-in's name is the business's already; a business removed has no sheet, and is said as words everywhere.
     peopleAre({ rows: [person({ standIn: true })] });
     assert.equal(find(draw(vm), byTestId("ix-th-works-door")), undefined);

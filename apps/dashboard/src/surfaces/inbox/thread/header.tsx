@@ -370,7 +370,9 @@ function actionsMenu(thread: Thread, dealActs: MenuItem[], acts: HeaderActs) {
       ? [
           {
             label: MAILBOX_SENDERS_WORDS.act,
-            hint: MAILBOX_SENDERS_WORDS.actHint,
+            // A sentence, so its second line: as the word at the item's end it broke the label onto three lines on a
+            // phone's sheet (the thread canvas, 1 Nov 2026).
+            meta: MAILBOX_SENDERS_WORDS.actHint,
             glyph: ixGlyph("ban"),
             tone: "danger" as const,
             onSelect: () => {
@@ -498,7 +500,10 @@ function headerSub(thread: Thread, channelLabels: Record<string, string>, facts:
   const { deal, visit, person } = facts;
   // Where they work, as words inside the head's door, when there is no deal or visit to say (0052): a phone's, whose head
   // has no room beside it for the door a desk draws (worksAtDoor), and a business removed since, which has no sheet.
-  const works = !deal && !visit && person && person.worksAt && !person.standIn ? person.worksAt : null;
+  // Not where the name's trail says it already (headerName, businessTrailOf): "Maya Chen · Northwind Media" over "Works
+  // at…" said the business twice on a phone.
+  const said = person ? businessTrailOf(person) : null;
+  const works = !deal && !visit && !said && person && person.worksAt && !person.standIn ? person.worksAt : null;
   // Where it stands first (standingLine), else the wires in words: the glyphs after the name say them on a thread that
   // stands somewhere. What its emails are about heads the first email in the conversation (timeline.tsx), where it was
   // a chip here cut to "What Reddit's 202…" on a phone (the thread canvas, 1 Nov 2026).

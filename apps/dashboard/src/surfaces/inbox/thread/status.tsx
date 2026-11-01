@@ -341,6 +341,9 @@ function needsYouState(p: DockProps, thread: Thread) {
       // back is not a reply. What they asked is the conversation right above it.
       fact={line}
       source={holdWhy(thread)}
+      // One row, its acts beside the line, as a thread you have says it: the acts stood under the line, a thumb tall,
+      // with the reply box under them (the thread canvas, 1 Nov 2026).
+      line
       acts={
         thread.holdAct === "confirm" ? (
           requestActsOf(thread, onDecide)

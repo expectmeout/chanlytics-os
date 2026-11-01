@@ -1156,8 +1156,13 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     max-height: none;
     overflow: visible;
   }
+  /* Inside the card, its parts on its ground: no hairline over what it needs from you, and the reply box clear of the
+     card's lower edge. */
+  :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane > .ix-th-foot > .ix-th-status {
+    border-top: 0;
+  }
   :is(.inbox, .conversations)[data-takeover] .ix-th-foot > .ix-composer.ix-composer-row {
-    margin-bottom: 0;
+    margin-bottom: 12px;
   }
 
   /* The Calendar: its days as long as they are (the agenda's list, a month of dots and its day, the board at its hours),
