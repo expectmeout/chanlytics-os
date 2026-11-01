@@ -1850,10 +1850,13 @@ test("a window the board has read paints at once on the way back, and is read ag
   try {
     await release();
     assert.equal(shown(), home, "the weeks around today, read at boot");
-    const toNov = realVerbs.goTo("2026-11-23", 63);
+    // A window no read ahead reaches: the module keeps what it holds past this test, and a window of the months around
+    // today would be one the read-ahead test below skips (in November 2026 it was this one's old 2026-11-23).
+    const away = "2031-06-02";
+    const toAway = realVerbs.goTo(away, 63);
     await release();
-    assert.equal(await toNov, true);
-    assert.equal(shown(), "2026-11-23");
+    assert.equal(await toAway, true);
+    assert.equal(shown(), away);
     // Back home: held, so painted before any read lands, and read again behind.
     seen.length = 0;
     let back = false;
@@ -1866,10 +1869,10 @@ test("a window the board has read paints at once on the way back, and is read ag
     assert.deepEqual(seen, [home], "read again behind all the same");
     await release();
     assert.equal(getCalendarSpan().from, null);
-    // And back to November: held too.
-    realVerbs.goTo("2026-11-23", 63);
+    // And back there: held too.
+    realVerbs.goTo(away, 63);
     await pause();
-    assert.equal(shown(), "2026-11-23", "the way back is at once");
+    assert.equal(shown(), away, "the way back is at once");
     await release();
   } finally {
     stop();
