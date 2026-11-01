@@ -36,7 +36,15 @@ import {
   clipAtWord,
 } from "./message-words";
 import { messageVia, messageAuthor, messageWhy, lastWordLine, type MessageAuthor } from "./message-author";
-import { openHoldAct, reasonLabelOf, reasonSummaryOf, waitsOnAPerson, type EscalationDto } from "./escalations";
+import {
+  openHoldAct,
+  reasonLabelOf,
+  reasonLineOf,
+  reasonShort,
+  reasonSummaryOf,
+  waitsOnAPerson,
+  type EscalationDto,
+} from "./escalations";
 import type { InboxThreadVM } from "./inbox-thread-vm";
 
 /**
@@ -285,7 +293,14 @@ const clocksOf = (dto: ConversationDto) => ({ whatsapp: dto.last_wa_inbound_at, 
 function bubbleWordsOf(
   m: MessageDto,
   changed: ReadonlyMap<string, string>,
-): { body: string; subject?: string; leftOut?: string; quoted?: string; signature?: { line: string; full: string } } {
+): {
+  body: string;
+  subject?: string;
+  leftOut?: string;
+  quoted?: string;
+  footer?: string;
+  signature?: { line: string; full: string };
+} {
   if (m.channel !== "email") return { body: messageText(m) };
   const parts = emailPartsOf(messageText(m), emailFromNameOf(m));
   const subject = changed.get(m.id);
@@ -297,6 +312,7 @@ function bubbleWordsOf(
     ...(subject ? { subject } : {}),
     ...(leftOut ? { leftOut } : {}),
     ...(parts.quoted ? { quoted: parts.quoted } : {}),
+    ...(parts.footer ? { footer: parts.footer } : {}),
     ...(signed ? { signature: { line: emailSignatureLine(signed), full: signed } } : {}),
   };
 }
@@ -397,10 +413,11 @@ export function toInboxThreadVM(
       type: "event" as const,
       kind: "flag",
       at: shortTime(escalation.created_at, tz, now),
-      // Why it was flagged, and the details that say more -- except a call back's, which are the band's own sentence (the
-      // to-do): quoted here as well, they were said a third time. Any other reason's details, the cause of a failed send,
-      // are said only here.
-      body: `Flagged for a human — ${reasonLabel}${escalation.details && escalation.reason !== "callback" ? ` · “${clipAtWord(escalation.details, 120)}”` : ""}`,
+      // A quiet mark where it was held, and why in a clause: the dock under the conversation says what is owed, and its
+      // Why? the whole of it with the hold's details (holdWhyOf). The flag said its label and quoted the details here, over
+      // a dock that said the reason's sentence, so a phone read the same thing three times, two of them printed over each
+      // other (the thread canvas, 1 Nov 2026). An escalation is read here only while it is open, as the dock is.
+      body: `Held for you — ${reasonShort(escalation.reason)}`,
     };
     if (idx === -1) timeline.push(entry);
     else timeline.splice(idx, 0, entry);
@@ -478,6 +495,7 @@ export function toInboxThreadVM(
           : lastWord
             ? lastWord.text
             : "The receptionist answered this on its own. Nothing is owed.",
+    ...holdWordsOf(escalation, claimedByOther),
     ...moments,
     ...inboxThreadClock(moments, tz, now.getTime()),
     // The dot is the reader's own (standing.ts isUnseen, 00349; inbox-thread-vm.ts says what it meant before).
@@ -486,6 +504,30 @@ export function toInboxThreadVM(
     tags: [],
     priority: "P2",
     timeline,
+  };
+}
+
+/**
+ * What the dock says of an open hold: its one line (escalations.ts reasonLineOf), and under its Why? the reason's whole
+ * sentence and what the hold noted (the cause of a failed send, the words of a flag by hand). An email's hold notes what
+ * the email claimed to be (core email-ingest EMAIL_REVIEW_WORDS), the reason's sentence said for that email, so it is said
+ * in its place. A call back's details are its to-do, which is the line. Nothing with no hold, or on a thread a teammate
+ * has: its reply box says what a reply does.
+ */
+function holdWordsOf(
+  escalation: EscalationDto | null,
+  claimedByOther: boolean,
+): Pick<InboxThreadVM, "holdLine" | "holdWhy" | "holdNote"> {
+  if (!escalation || claimedByOther) return {};
+  const details = escalation.details?.trim() || "";
+  const sentence = reasonSummaryOf(escalation.reason);
+  if (escalation.reason === "callback") return { holdLine: details || reasonLineOf("callback"), holdWhy: sentence };
+  if (escalation.reason === "email_review" && details)
+    return { holdLine: reasonLineOf(escalation.reason), holdWhy: details };
+  return {
+    holdLine: reasonLineOf(escalation.reason),
+    holdWhy: sentence,
+    ...(details && details !== sentence ? { holdNote: clipAtWord(details, 240) } : {}),
   };
 }
 

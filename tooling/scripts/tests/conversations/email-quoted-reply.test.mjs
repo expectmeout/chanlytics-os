@@ -394,11 +394,13 @@ test("a '-- ' line starts a signature, and a 'Sent from my iPhone' last line is 
   assert.deepEqual(emailPartsOf("Yes, Tuesday.\n-- \nAna\nLopez Salon", "Ana"), {
     said: "Yes, Tuesday.",
     signature: "Ana\nLopez Salon",
+    footer: null,
     quoted: null,
   });
   assert.deepEqual(emailPartsOf("Yes, Tuesday.\n\nSent from my iPhone", ""), {
     said: "Yes, Tuesday.",
     signature: "Sent from my iPhone",
+    footer: null,
     quoted: null,
   });
 });
@@ -413,6 +415,7 @@ test("words of ours carry no signature in what was typed: 'Talk soon,' stays the
   assert.deepEqual(emailPartsOf("Hi Ruben,\n\nThanks.\n\nTalk soon,\nRuben Segura\nchanlytics.agency", null), {
     said: "Hi Ruben,\n\nThanks.\n\nTalk soon,\nRuben Segura\nchanlytics.agency",
     signature: null,
+    footer: null,
     quoted: null,
   });
 });
@@ -425,6 +428,48 @@ test("a reply that quotes and signs: the words, the signature above the chain, a
   assert.equal(p.said, "Thursday at 2 works.");
   assert.equal(p.signature, "Ruben Segura\nFounder, RJ Capital");
   assert.ok(p.quoted.startsWith("On Tue, Oct 27, 2026"), p.quoted);
+});
+
+/* ------------------------------- the foot ------------------------------- */
+
+// A sales sequence's email, as the thread canvas found it (1 Nov 2026): the sender's card, then the tool's postal address
+// and its way out, every line drawn as the sender's words. Made-up values throughout.
+const SEQUENCE =
+  "Hi Ruben,\n\nWould 15 minutes next week be useful?\n\nMaya Chen\nPartner, advisory firms\n\n" +
+  "Email: maya@northwind.example\n\n548 Market Street #16093, San Francisco, CA 94104-5401\n\n" +
+  "If you'd like to stop receiving these emails, let me know https://unsubscribe.example.com/u/abc\n.";
+
+test("a list's foot is folded: its postal address and its way out, never the words or the card above them", () => {
+  const p = emailPartsOf(SEQUENCE, "Maya Chen");
+  assert.equal(
+    p.footer,
+    "548 Market Street #16093, San Francisco, CA 94104-5401\n\n" +
+      "If you'd like to stop receiving these emails, let me know https://unsubscribe.example.com/u/abc\n.",
+  );
+  assert.ok(p.said.startsWith("Hi Ruben,\n\nWould 15 minutes next week be useful?"), p.said);
+  assert.ok(p.said.includes("Email: maya@northwind.example"), "a labelled line above the foot stays words");
+  assert.ok(!p.said.includes("Market Street") && !p.said.includes("stop receiving"), "and the foot is not said");
+  assert.equal(emailPreviewOf(SEQUENCE).includes("stop receiving"), false, "a row's preview never says the foot");
+});
+
+test("a way out with a link is a foot on its own; a customer's 'please unsubscribe me' is their words", () => {
+  const linked = emailPartsOf(
+    "Our autumn menu is out.\n\nUnsubscribe: https://lists.example.com/u?id=9 | Manage preferences",
+    "Fixture Bakery",
+  );
+  assert.equal(linked.said, "Our autumn menu is out.");
+  assert.equal(linked.footer, "Unsubscribe: https://lists.example.com/u?id=9 | Manage preferences");
+
+  const asked = "Hi, I booked for Friday.\n\nAlso, please unsubscribe me from the newsletter.";
+  const theirs = emailPartsOf(asked, "Jen Park");
+  assert.equal(theirs.footer, null, "no link and no address above it: not a foot");
+  assert.equal(theirs.said, asked);
+});
+
+test("an email that is nothing but a foot keeps it as its words, and words of ours have none", () => {
+  const only = "If you no longer wish to receive these emails, unsubscribe here: https://example.com/u";
+  assert.deepEqual(emailPartsOf(only, "Fixture List"), { said: only, signature: null, footer: null, quoted: null });
+  assert.equal(emailPartsOf(SEQUENCE, null).footer, null, "ours are never cut");
 });
 
 /* ------------------------------- tidy words ------------------------------- */
