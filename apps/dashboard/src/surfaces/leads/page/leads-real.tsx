@@ -20,7 +20,7 @@ import type { LeadCellCtx } from "../cells/types";
 import { leadPeekEscape } from "../peek/seams";
 import { useLeadLists } from "../reach-out/lists";
 import { LeadsScope } from "../scope/scope";
-import { usePageSearch } from "../../page-search";
+import { usePageSearch } from "../../kit/head/page-search";
 import type { ScopeView } from "../../people/scope-view";
 import { useLeadPileView } from "../pile/page-pile";
 import { useBulkAdd } from "../scope/bulk-add";

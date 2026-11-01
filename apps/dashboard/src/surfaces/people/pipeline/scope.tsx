@@ -24,7 +24,7 @@
 import { usePipelineState } from "./scope-hook";
 import type { PipelineScopeProps } from "./scope-state";
 import { BAR_LINE_WORDS } from "@chanlytics/contracts";
-import { usePageSearch } from "../../page-search";
+import { usePageSearch } from "../../kit/head/page-search";
 import { pipelineScreen, pipelineTools } from "./scope-screen";
 import { usePipelineStanding } from "./standing";
 import { usePartShown } from "../../use-surface";

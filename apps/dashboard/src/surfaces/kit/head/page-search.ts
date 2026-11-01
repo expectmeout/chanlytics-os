@@ -28,21 +28,21 @@ interface Said {
   search: PageSearch;
 }
 
-let said: Said | null = null;
-const watchers = new Set<() => void>();
-const tell = () => watchers.forEach((fn) => fn());
+let lineSaid: Said | null = null;
+const lineWatchers = new Set<() => void>();
+const tellLine = () => lineWatchers.forEach((fn) => fn());
 
 const watch = (fn: () => void): (() => void) => {
-  watchers.add(fn);
+  lineWatchers.add(fn);
   return () => {
-    watchers.delete(fn);
+    lineWatchers.delete(fn);
   };
 };
 
-const unsay = (mine: symbol) => {
-  if (said?.token !== mine) return;
-  said = null;
-  tell();
+const unsayLine = (mine: symbol) => {
+  if (lineSaid?.token !== mine) return;
+  lineSaid = null;
+  tellLine();
 };
 
 /**
@@ -82,20 +82,20 @@ export function usePageSearch(search: PageSearch | null): boolean {
   const shown = line ? search : null;
   useLayoutEffect(() => {
     const mine = token.current as symbol;
-    return () => unsay(mine);
+    return () => unsayLine(mine);
   }, []);
   useLayoutEffect(() => {
     const mine = token.current as symbol;
     // The page on screen says its search or none: none is none, whoever said one before it.
     if (!shown) {
-      if (said) {
-        said = null;
-        tell();
+      if (lineSaid) {
+        lineSaid = null;
+        tellLine();
       }
       return;
     }
-    said = { token: mine, search: shown };
-    tell();
+    lineSaid = { token: mine, search: shown };
+    tellLine();
   });
   return !!shown;
 }
@@ -104,10 +104,10 @@ export function usePageSearch(search: PageSearch | null): boolean {
 export function usePageSearchSaid(): PageSearch | null {
   return useSyncExternalStore(
     watch,
-    () => said?.search ?? null,
+    () => lineSaid?.search ?? null,
     () => null,
   );
 }
 
 /** The search said now, read once: for a test that draws a page and asks what it told the bar. */
-export const pageSearchSaid = (): PageSearch | null => said?.search ?? null;
+export const pageSearchSaid = (): PageSearch | null => lineSaid?.search ?? null;

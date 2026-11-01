@@ -17,7 +17,7 @@ import { Search } from "../../kit/search/search";
 import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
 import { OutcomePill } from "./outcome-pill";
 import { StoppedMark } from "../../kit/pill/stopped-mark";
-import { usePageSearch } from "../../page-search";
+import { usePageSearch } from "../../kit/head/page-search";
 import { usePartShown, useSurface } from "../../use-surface";
 import { ROUTES, TICK_MS } from "../constants";
 import {

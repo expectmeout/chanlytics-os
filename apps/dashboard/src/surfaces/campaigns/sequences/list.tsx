@@ -35,7 +35,7 @@ import { PUSH_WAIT_MS, pushesOver } from "../../kit/motion/held-list";
 import { Search } from "../../kit/search/search";
 import { StatePill } from "../../kit/pill/state-pill";
 import { navigate, routeDoor } from "../../legacy-verbs";
-import { usePageSearch } from "../../page-search";
+import { usePageSearch } from "../../kit/head/page-search";
 import { ListBar, groupedOf, type SequencesType, type SequencesView } from "./list-bar";
 import { useRecordsAhead } from "./use-record";
 import { sequenceVerbs as verbs } from "./verbs";

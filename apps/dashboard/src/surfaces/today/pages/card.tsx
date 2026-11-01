@@ -295,7 +295,8 @@ function useReceiptOpen() {
  * The tile whole (canvas E3): on a quiet day the four figures are zeros, each with what is true under it (contracts
  * quietFigures), and so is a day with people waiting but nothing counted (vm.zero_figures).
  */
-const figuresOf = (vm: TodayVM): TodayFigureVM[] | null => vm.figures ?? vm.quiet?.figures ?? vm.zero_figures ?? null;
+const dayTileFigures = (vm: TodayVM): TodayFigureVM[] | null =>
+  vm.figures ?? vm.quiet?.figures ?? vm.zero_figures ?? null;
 
 /**
  * The four figures in the head's right on a desk, beside the greeting (the page heads canvas, H1 and H2, 31 Oct 2026): the
@@ -306,7 +307,7 @@ export const TodayHeadFigures = () => {
   useMoved(["today"]);
   const { open, setOpen } = useReceiptOpen();
   const vm = surfaceValue("today");
-  const figures = vm ? figuresOf(vm) : null;
+  const figures = vm ? dayTileFigures(vm) : null;
   if (!figures) return null;
   return (
     <div className="today-head-figs">
@@ -331,7 +332,7 @@ export const TodayCard = () => {
   usePartShown("today", "card", !!vm && (!!R || headlineFailed));
   if (!vm) return null;
   const { recap, quiet } = vm;
-  const figures = figuresOf(vm);
+  const figures = dayTileFigures(vm);
   const nav: Nav = (to) => appNavigate(to);
   const period = R ? TODAY_HELPERS.periodLine(R) : null;
   // Not read yet is not failed: the foot is silent while Reports loads and says so when its read failed.

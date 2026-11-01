@@ -7,7 +7,7 @@
  * elements it returns, one concern to a function (screen.tsx).
  */
 import { BAR_LINE_WORDS } from "@chanlytics/contracts";
-import { usePageSearch } from "../../page-search";
+import { usePageSearch } from "../../kit/head/page-search";
 import { asScopeView } from "../scope-view";
 import { usePeopleStanding } from "./people-head";
 import { peopleAct, peopleScreen } from "./screen";

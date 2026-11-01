@@ -46,7 +46,7 @@ import { canDo, demoSession, gateTitle, navigate, replaceRoute, useLegacyToast }
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { tabDraft } from "../../kit/record/work";
-import { usePageSearch } from "../../page-search";
+import { usePageSearch } from "../../kit/head/page-search";
 import { usePartShown, useSurface } from "../../use-surface";
 import { CmHead } from "../parts/head";
 import { CmSplit, useCmPhone, type CmView } from "../parts/split";

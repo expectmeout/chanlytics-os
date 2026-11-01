@@ -30,8 +30,8 @@
    Needs you's stands in the same pane (inbox.css .ix-search-row), so the capsule holds still as the tab changes. */
 .cv-list-head { display: flex; align-items: center; padding: 14px 18px 10px; }
 /* On a desk the search is the bar's line (the page heads canvas, H2, 31 Oct 2026): the head holds the select-all alone,
-   and takes no room until a pick starts, so the list opens on its tabs. */
-.cv-list:not(.picking) > .cv-list-head[data-line] { display: none; }
+   and takes no room until a pick starts or a key reaches the box (inbox.css draws it), so the list opens on its tabs. */
+.cv-list:not(.picking) > .cv-list-head[data-line]:not(:focus-within) { height: 0; padding: 0; overflow: hidden; }
 /* The tabs first then, 8px under the pane's edge: their words level with the open thread's name beside them. */
 .cv-list:not(.picking) > .cv-list-head[data-line] + .cv-filters { padding-top: 8px; }
 .cv-lookup { flex: 1 1 auto; min-width: 0; }

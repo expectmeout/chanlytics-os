@@ -14,7 +14,7 @@ import { tbOverlay, useDemoBell, useDemoPresence } from "./bell-demo-acts";
 import { BAR_LINE_WORDS } from "@chanlytics/contracts";
 import { askAbout, openAsk } from "../../frame-doors";
 import { Button } from "../../kit/button/button";
-import { usePageSearchSaid, type PageSearch } from "../../page-search";
+import { usePageSearchSaid, type PageSearch } from "../../kit/head/page-search";
 import { frameBell, frameChrome, frameGlyph, frameMoreMenu, frameToastHook, isDemoFrame } from "../frame-window";
 import { NotifPopover, type BellAlerts, type BellNote } from "./notif-popover";
 
