@@ -226,13 +226,15 @@ function pageChips(
 }
 
 /**
- * Questions the workspace can answer today, for where the person is. Built from the data, in the person's language,
- * never from a seed; a workspace with no missed call is not offered a question about missed calls.
+ * The questions, the first seven offered at `at` (the page whose chips these are): the scope's, the page's own, those
+ * the workspace's state asks for, the page's list, and the ones every page has. Says too whether the page's own chips
+ * leave a win-back no act to offer (pageChips).
  */
-export function buildAskSuggestions(input: SuggestionInput): AskSuggestion[] {
-  const t = T[input.language === "es" ? "es" : "en"];
-  // A page with no chips of its own yet is offered those it was offered before it had a name.
-  const at: AskSurface = CHIPS_OF[input.surface] ?? input.surface;
+function askChips(
+  input: SuggestionInput,
+  t: (typeof T)[keyof typeof T],
+  at: AskSurface,
+): { asks: AskSuggestion[]; winBackSaid: boolean } {
   const out: AskSuggestion[] = [];
   const add = (q: string, kind: AskSuggestion["kind"], icon: string, fast = false, label?: string) => {
     if (!out.some((s) => s.q === q)) out.push({ q, kind, icon, fast, ...(label ? { label } : {}) });
@@ -258,11 +260,21 @@ export function buildAskSuggestions(input: SuggestionInput): AskSuggestion[] {
   if (input.needsYou === 0) add(t.needs, "ask", "inbox", true);
   add(t.week, "ask", "trending-up");
   add(t.rules, "ask", "shield");
-  const asks = out.slice(0, 7);
-  if (!input.canAct) return asks;
-  // The Act group: each becomes a card, never an action. A scoped person gets
-  // the two that name them; the rest are the settings an owner changes from
-  // the floor, left for the person to finish in the input.
+  return { asks: out.slice(0, 7), winBackSaid };
+}
+
+/**
+ * The Act group: each becomes a card, never an action. A scoped person gets
+ * the two that name them; the rest are the settings an owner changes from
+ * the floor, left for the person to finish in the input.
+ */
+function actChips(
+  input: SuggestionInput,
+  t: (typeof T)[keyof typeof T],
+  at: AskSurface,
+  winBackSaid: boolean,
+): AskSuggestion[] {
+  const s = input.scope;
   const acts: AskSuggestion[] = [];
   const act = (label: string, q: string, icon: string, compose = false) => {
     if (!acts.some((a) => a.q === q)) acts.push({ q, kind: "act", icon, label, compose });
@@ -277,5 +289,18 @@ export function buildAskSuggestions(input: SuggestionInput): AskSuggestion[] {
   if (input.surface === "inbox" || input.heldDrafts > 0) act(t.actHold, t.actHoldQ, "shield");
   if (at === "people" || at === "other") act(t.actOffer, t.actOfferQ, "wave", true);
   if ((at === "people" || at === "other") && !winBackSaid) act(t.actPlaybook, t.actPlaybookQ, "bolt");
-  return [...asks, ...acts.slice(0, 4)];
+  return acts.slice(0, 4);
+}
+
+/**
+ * Questions the workspace can answer today, for where the person is. Built from the data, in the person's language,
+ * never from a seed; a workspace with no missed call is not offered a question about missed calls.
+ */
+export function buildAskSuggestions(input: SuggestionInput): AskSuggestion[] {
+  const t = T[input.language === "es" ? "es" : "en"];
+  // A page with no chips of its own yet is offered those it was offered before it had a name.
+  const at: AskSurface = CHIPS_OF[input.surface] ?? input.surface;
+  const { asks, winBackSaid } = askChips(input, t, at);
+  if (!input.canAct) return asks;
+  return [...asks, ...actChips(input, t, at, winBackSaid)];
 }

@@ -501,7 +501,11 @@ const mainOf = (p: P, phone: boolean, railRows: ReactElement, sections: Sections
             {p.pileDoor}
             {p.addsGoTo}
             {p.view.cls === "excluded" && (
-              <LeadExcludedChips chips={ldExcludedChips(L.rows)} active={p.chip} onPick={p.onPickChip} />
+              <LeadExcludedChips
+                chips={ldExcludedChips(L.rows, L.viewCounts ? L.viewCounts.excluded_by : null)}
+                active={p.chip}
+                onPick={p.onPickChip}
+              />
             )}
             {p.view.cls === "review" && !p.benchGroups.length && (
               <LeadReviewGroups groups={leadReviewGroups(L.rows, search)} onPick={p.onSelectIds} />

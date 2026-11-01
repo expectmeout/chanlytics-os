@@ -226,16 +226,6 @@ export function leadSlots(r: Pick<LeadRowDto, "phone" | "phone_agrees" | "phone_
   return { phone, mailbox };
 }
 
-/**
- * Whether a lead meets every reach asked of it (Ruben, 30 Oct 2026: "an email list to send a sequence to vs a call
- * list"); asked none, every lead does. Checked is the slot's own `ok`, the shape and the word the Reach column draws: a
- * mailbox that exists, a number the same on Google Maps and on their website. The page asks it of a row's slots, the
- * export of its DTO's (leadSlots), so the file holds the rows the table showed.
- */
-export function leadReaches(slots: { phone: LeadSlot; mailbox: LeadSlot }, want: readonly LeadReachFilter[]): boolean {
-  return want.every((w) => (w === "email" ? slots.mailbox : slots.phone).state === "ok");
-}
-
 /** A kept or a flipped set of reach filters, each once and in the set's one order; anything else is dropped. */
 export const leadReachOf = (v: unknown): LeadReachFilter[] =>
   Array.isArray(v) ? LEAD_REACH_FILTERS.filter((f) => v.includes(f)) : [];

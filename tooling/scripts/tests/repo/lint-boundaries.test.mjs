@@ -34,9 +34,9 @@
  *     client, lib, surfaces, yes), but the shell's `legacy`, which leaves with
  *     decision 0015 rather than joining;
  *
- * less the trees of the programs in flight (IN_FLIGHT: Ask Rewired), which join
- * as they land, as eslint.config.mjs says, each by the day its program's entry
- * names.
+ * less the trees of the programs in flight (IN_FLIGHT, empty since Ask Rewired's
+ * joined on 1 November 2026), which join as they land, as eslint.config.mjs says,
+ * each by the day its program's entry names.
  *
  * Nothing here reads the config's text; it asks ESLint.
  */
@@ -518,20 +518,11 @@ test("a tree is held once the measure holds nothing in it, and every tree it nam
  * functions to the ratchet, which may raise with a reason, where the lint could not. A tree leaves this list in the
  * change that lists it there. Each program says the day it was granted the exemption and the day it ends: past that
  * day the test below fails, and the program's trees join LIMITED_TREES, or the day moves in a change that says why.
- * Reach out (Part 7, #1329) and partners (0020, #1206) have landed: their emptied trees are held.
+ * Reach out (Part 7, #1329) and partners (0020, #1206) have landed: their emptied trees are held. So has Ask Rewired
+ * (28 September to 1 November 2026): its last four functions over the limits were split, and contracts' ask and the
+ * dashboard's server/ask are held.
  */
-const IN_FLIGHT = {
-  // Moved from 13 to 31 October 2026 (the wiring audit's R4, 14 October): its proposals and its bridge are emptied and held
-  // (LIMITED_TREES), and four functions still stand over the limits: buildAskSuggestions (contracts), and the turn's loop, the
-  // stream's frame parse and the deal proposal (server/ask). The phone app's tree was emptied and is held; it left this list.
-  // Moved again to 14 November 2026 (Ruben, 1 November): the four still stand over (measured that day: runAskTurn 409 lines,
-  // 65 branches; parseFrame 35 branches; proposeDeal 57; buildAskSuggestions 39), and splitting them is a lane of its own.
-  "Ask Rewired": {
-    since: "28 September 2026",
-    until: "14 November 2026",
-    trees: ["packages/contracts/src/ask", "apps/dashboard/src/server/ask"],
-  },
-};
+const IN_FLIGHT = {};
 const inFlight = Object.values(IN_FLIGHT).flatMap((p) => p.trees);
 
 const MONTHS = [

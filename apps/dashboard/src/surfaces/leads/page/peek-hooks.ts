@@ -118,7 +118,14 @@ export const useLeadPeekAddress = (a: {
       return;
     }
     if (peekId === addrPeek) return;
-    const want = leadsRoute({ searchId: leadView.searchId, list: leadView.list, cls: leadView.cls, peek: peekId });
+    // The view's chips stay in the address under an open lead (00500): opening one narrows nothing away.
+    const want = leadsRoute({
+      searchId: leadView.searchId,
+      list: leadView.list,
+      cls: leadView.cls,
+      chips: leadView.chips,
+      peek: peekId,
+    });
     // Said once: the shell follows a push in its next draw, and every draw until then finds the address as it was.
     if (at.asked === want) return;
     at.asked = want;

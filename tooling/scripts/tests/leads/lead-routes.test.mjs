@@ -1485,22 +1485,26 @@ test("Ask's leads, lead and search answer what the Leads page's builders answer 
         assert.equal(out.matching, page.data.rows.length);
       },
     ],
+    // The box's words go to the read, as the page's do (00500 lead_matches, proved in lead-filters.db.test.mjs): Ask
+    // matches nothing itself, and answers the rows the read answered.
     [
       "leads, the box's words",
       { action: "leads", words: "AUSTIN" },
-      (out) =>
+      (out) => {
+        assert.deepEqual(rpcCalls("leads_page").at(-1).p_filters, { q: "AUSTIN" }, "the words, handed to the read");
         assert.deepEqual(
           out.leads.map((l) => l.lead_id),
-          page.data.rows
-            .map(vmOf)
-            .filter((l) => l.area.toLowerCase().includes("austin"))
-            .map((l) => l.id),
-        ),
+          page.data.rows.map((r) => r.id),
+        );
+      },
     ],
     [
-      "leads, words that match nobody",
-      { action: "leads", words: "nobody here" },
-      (out) => assert.deepEqual([out.matching, out.leads], [0, []]),
+      "leads, words of spaces alone",
+      { action: "leads", words: "   " },
+      (out) => {
+        assert.equal(rpcCalls("leads_page").at(-1).p_filters, undefined, "no words, no filter");
+        assert.equal(out.matching, page.data.rows.length);
+      },
     ],
     [
       "lead",

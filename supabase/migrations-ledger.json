@@ -43,8 +43,7 @@
     "00378": "held for the doors lane (#1537), whose eleven moved above #1539's 00379 and 00380 when that merged first: they landed as 00381 to 00391",
     "00428": "the silent records are told (the wiring's second audit, R6) took it and was applied to production on 14 Oct before its merge; main's head passed it (#1588), and it landed as 00431, production's ledger row re-keyed to it by migration repair",
     "00445": "claimed by the sequences phone lane (cm-phone, sequences/phone-and-wiring), not on main when 00446 took the next number and production applied it; the lane landed above it as 00447",
-    "00494": "taken by #1962 (leads/the-review-s-three, a_search_counts_the_leads_it_shows), open and not on main when the mailbox lane (decision 0080) took 00495 and production applied it; #1962 landed above it as 00496",
-    "00500": "the Leads read takes the page's filters took it first (cm-leads-in-sql, decision 0083 Phase B, claimed 1 Nov 2026 00:05Z); a stopped erasure finishes, worked as 00500, landed as 00501"
+    "00494": "taken by #1962 (leads/the-review-s-three, a_search_counts_the_leads_it_shows), open and not on main when the mailbox lane (decision 0080) took 00495 and production applied it; #1962 landed above it as 00496"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -503,6 +502,7 @@
     "00497_a_lead_sees_its_own_receptionist.sql": "c29e2726768c4c917c5c90956a2333107fa1f44199e75a1e4dd315407b2d43ac",
     "00498_a_time_a_cancellation_frees_is_offered.sql": "be914ab141eff733d533c5b89ae3964b99143cfb10ee223fefa51fa99a148387",
     "00499_a_mailbox_brings_its_own_history.sql": "99053e92fc7931b3a74b4154efb7e739d3c1539aacf9dae7aaae1927724889f4",
+    "00500_the_leads_read_takes_the_page_s_filters.sql": "8052c2974811464cdf2de3f10180e8e4f46ad11cb9aeef76855d3eae331dfcb8",
     "00501_a_stopped_erasure_finishes.sql": "6bb9bed2b8523bb7ca1b7e2b6150169c637ad7d4f82580e0de5cdd3a77159ad5"
   }
 }

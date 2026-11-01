@@ -137,9 +137,9 @@ const searchesById = async (t: ToolContext, why: string) =>
 
 /**
  * The leads themselves, as the Leads page's view lists them (readers/leads.ts, the page's own read of five hundred):
- * the view by its list, one search, a class and a sort, as the address and the member's view name them, then the
- * page's box -- its words matched on a lead's name, kind and area, over the rows the page holds, as the box matches
- * them. The rail's counts and, for a member who may find, the month ride with the first page.
+ * the view by its list, one search, a class and a sort, as the address and the member's view name them, and the
+ * page's box -- its words matched on a lead's name, kind and area in the read, as the page's are (00500 lead_matches),
+ * over the whole view. The rail's counts and, for a member who may find, the month ride with the first page.
  */
 async function listLeads(
   t: ToolContext,
@@ -165,6 +165,8 @@ async function listLeads(
     ...(input.sort ? { sort: input.sort } : {}),
     // The order as the page's column asks it: each sort's own first (the database's ascending key), or reversed.
     ...(input.dir ? { dir: input.dir } : {}),
+    // The box's words, matched where the page's are: in the read (00500 lead_matches), over the whole view.
+    ...(str(input.words, 80).trim() ? { q: str(input.words, 80) } : {}),
     ...after,
   });
   if (!asked.success) return { error: "after must be the next_page an earlier read returned" };
@@ -172,16 +174,7 @@ async function listLeads(
   const [read, bySearch] = await Promise.all([load(t.rc, leadsReader, q), searchesById(t, "leads.leads")]);
   const page = read.data;
   const refs = new Map(read.rows.map((r) => [r.id, r]));
-  const needle = str(input.words, 80).toLowerCase();
-  const vms = page.rows
-    .map((r) => toLeadRowVM(r, t.timezone, t.now, bySearch.get(r.search_id) ?? null))
-    .filter(
-      (l) =>
-        !needle ||
-        l.name.toLowerCase().includes(needle) ||
-        (l.category || "").toLowerCase().includes(needle) ||
-        (l.area || "").toLowerCase().includes(needle),
-    );
+  const vms = page.rows.map((r) => toLeadRowVM(r, t.timezone, t.now, bySearch.get(r.search_id) ?? null));
   const shown = vms.slice(0, LEADS_CAP);
   // Every lead it says is a row an answer may cite, opened at its peek on this view: the reader's RowRefs.
   noteRows(

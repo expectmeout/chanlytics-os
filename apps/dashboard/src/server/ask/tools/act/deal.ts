@@ -69,22 +69,26 @@ function dealBody(
   return { body: { ...body, ...(row ? { deal_id: row.id, version: row.version } : {}) }, wrong };
 }
 
-async function proposeDeal(
-  t: ToolContext,
-  input: {
-    contact_id: string;
-    stage: string;
-    service?: string;
-    amount_cents?: number;
-    per?: string;
-    note?: string;
-    proposal_url?: string;
-    valid_until?: string;
-    lost_reason?: string;
-    next_step?: string;
-    next_step_due?: string;
-  },
-): Promise<ProposalOutcome> {
+/** What a deal card is asked with: propose_deal's input, below. */
+interface DealInput {
+  contact_id: string;
+  stage: string;
+  service?: string;
+  amount_cents?: number;
+  per?: string;
+  note?: string;
+  proposal_url?: string;
+  valid_until?: string;
+  lost_reason?: string;
+  next_step?: string;
+  next_step_due?: string;
+}
+
+/**
+ * What the card says, checked before anything is read: the person's id and the stage, the proposal's link, the reason
+ * for a pass and the next step with its day; or the words it is refused in.
+ */
+function checkedDeal(t: ToolContext, input: DealInput) {
   const id = str(input.contact_id, 40);
   const stage = str(input.stage, 10);
   if (!UUID.test(id)) return refuse("contact_id must be an id a read returned");
@@ -107,6 +111,42 @@ async function proposeDeal(
   const stepDay = stepDue ? stepDayOf(stepDue, t.timezone, t.now.getTime()) : null;
   if (stepDue && !stepDay) return refuse("next_step_due must be a day, like 2026-09-30");
   if (stepDay && stepDay.due === "past") return refuse("next_step_due must be today or later");
+  return { id, stage, url, day, reason, stepWords, stepDay };
+}
+
+/**
+ * The row a card moves and the service it says, or the words it is refused in.
+ */
+function dealRowOf<Row extends { stage: string; service: string | null; created_at: string }>(
+  stage: string,
+  named: string | null,
+  rows: readonly Row[],
+): { sameRow: Row | null; service: string | null } | ProposalOutcome {
+  const current = pickCurrentDeal(rows);
+  // The rows a move may move: the open ones (proposed, won; already_open is per service, so there may be two), else
+  // the current row unless it has ended -- so a passed row moves to won, lost or ended too, since the door allows
+  // any move but out of ended. A named service picks its own row among them (foldName: case and accents aside);
+  // unnamed, the one row moves (0029). A proposal is a new row, unless it is a passed one sent again for its service.
+  const isOpen = (r: Row) => r.stage === "proposed" || r.stage === "won";
+  const sameService = (r: Row) => foldName((r.service ?? "").trim()) === foldName(named ?? "");
+  const open = rows.filter(isOpen);
+  const movable: Row[] = open.length ? open : current && current.stage !== "ended" ? [current] : [];
+  let sameRow: Row | null = null;
+  if (stage !== "proposed") {
+    if (!movable.length) return refuse("they have no open deal to move; record a proposal first");
+    sameRow = named ? (movable.find(sameService) ?? null) : open.length > 1 ? null : current;
+    if (!sameRow) return refuse(whichRowWords(open.length, movable));
+  } else if (current && current.stage === "lost" && (!named || sameService(current))) {
+    sameRow = current;
+  }
+  // On a move the row's own service is said, never the input's: the door never changes a row's service.
+  return { sameRow, service: sameRow ? sameRow.service : (named ?? current?.service ?? null) };
+}
+
+async function proposeDeal(t: ToolContext, input: DealInput): Promise<ProposalOutcome> {
+  const checked = checkedDeal(t, input);
+  if ("result" in checked) return checked;
+  const { id, stage, url, day, reason, stepWords, stepDay } = checked;
   const { data: c, error } = await t.ctx.supabase
     .from("contacts")
     .select("id, display_name, wa_profile_name, phone_e164, email, erased_at")
@@ -124,32 +164,15 @@ async function proposeDeal(
     .eq("contact_id", id)
     .order("created_at", { ascending: false });
   if (dErr) throw new Error(dErr.message);
-  const current = pickCurrentDeal(rows ?? []);
   const who = personName(c);
   const named = str(input.service, 80) || null;
   const amount =
     typeof input.amount_cents === "number" && input.amount_cents >= 0 ? Math.round(input.amount_cents) : null;
   const per = (DEAL_PERS as readonly string[]).includes(str(input.per, 10)) ? str(input.per, 10) : null;
   const note = str(input.note, 200);
-  // The rows a move may move: the open ones (proposed, won; already_open is per service, so there may be two), else
-  // the current row unless it has ended -- so a passed row moves to won, lost or ended too, since the door allows
-  // any move but out of ended. A named service picks its own row among them (foldName: case and accents aside);
-  // unnamed, the one row moves (0029). A proposal is a new row, unless it is a passed one sent again for its service.
-  type Row = NonNullable<typeof current>;
-  const isOpen = (r: Row) => r.stage === "proposed" || r.stage === "won";
-  const sameService = (r: Row) => foldName((r.service ?? "").trim()) === foldName(named ?? "");
-  const open = (rows ?? []).filter(isOpen);
-  const movable: Row[] = open.length ? open : current && current.stage !== "ended" ? [current] : [];
-  let sameRow: Row | null = null;
-  if (stage !== "proposed") {
-    if (!movable.length) return refuse("they have no open deal to move; record a proposal first");
-    sameRow = named ? (movable.find(sameService) ?? null) : open.length > 1 ? null : current;
-    if (!sameRow) return refuse(whichRowWords(open.length, movable));
-  } else if (current && current.stage === "lost" && (!named || sameService(current))) {
-    sameRow = current;
-  }
-  // On a move the row's own service is said, never the input's: the door never changes a row's service.
-  const service = sameRow ? sameRow.service : (named ?? current?.service ?? null);
+  const moved = dealRowOf(stage, named, rows ?? []);
+  if ("result" in moved) return moved;
+  const { sameRow, service } = moved;
   noteRow(t, "person", id, who, `clients/${id}`);
   const words = DEAL_STAGE_WORDS[stage as DealStage];
   // A proposal's value is said as a client's is (0008), and the card says where the link lives and why they passed.

@@ -11,6 +11,7 @@ import {
   leadMapPlot,
   leadKindKey,
   leadMonthPlanFacts,
+  leadFiltersOf,
   leadReachOf,
   leadReviewGroups,
   leadSearchEmptyWords,
@@ -76,7 +77,9 @@ export type LeadsPage = Controls &
     leadView: LeadView;
     leadShown: LeadRowVM[];
     filtered: boolean;
-    /** Whether the box, a chip, a fit or the Filter hides a loaded row (reads.ts useLeadRows). */
+    /** Whether the box, a chip, a fit or the Filter narrows the view (reads.ts useLeadRows). */
+    asked: boolean;
+    /** Whether it does and the server has not counted what it keeps: then no "all that match" (reads.ts useLeadRows). */
     narrowed: boolean;
     shownIds: string[];
     viewLanded: boolean;
@@ -200,8 +203,13 @@ export const leadsListProps = (p: LeadsPage) => {
     // order asked (a view read before paints at once; one not yet read is on its way): said, not left looking right and
     // being wrong.
     loading: !p.viewLanded,
-    // Under a search, its own rows (the read is the search's); else the view's count across the workspace.
-    total: openSearch ? leads.rows.length : (leads.counts[leadView.list] ?? leads.counts.all),
+    // What the filters keep of the view, counted by the server (00500 lead_view_counts), past the 500 loaded; where it was
+    // not counted, under a search its own rows, else the view's count across the workspace.
+    total: leads.viewCounts
+      ? leads.viewCounts.matching
+      : openSearch
+        ? leads.rows.length
+        : (leads.counts[leadView.list] ?? leads.counts.all),
     columns: p.columns,
     declared: p.declared,
     table: p.table,
@@ -234,7 +242,7 @@ export const leadsListProps = (p: LeadsPage) => {
 const emptyOf = (p: LeadsPage): TableEmpty => {
   const { leadView, openSearch, canFind, openFind } = p;
   // The view holds leads and the box, a chip, a fit or the Filter left none of them: never "none yet", and the way back.
-  if (p.narrowed && p.leads.rows.length > 0)
+  if (p.asked && (!p.leads.viewCounts || p.leads.viewCounts.view > 0))
     return { title: "No leads match.", action: { label: "Clear filters", onClick: () => clearFilters(p) } };
   if (leadView.cls === "review")
     return { title: "Nothing needs a look.", body: "Every lead here has been checked or decided.", action: null };
@@ -302,8 +310,8 @@ export const leadsBandProps = (p: LeadsPage) => {
     },
     fit: p.fitChip,
     onPickFit: p.setFitChip,
-    // The Filter (contracts leadReaches): a switch flipped on or off. A selection of "all that match" goes back to the rows
-    // picked once it narrows the rows (leads-real.tsx, for every narrowing alike).
+    // The Filter (the read's rule, 00500): a switch flipped on or off. A selection of "all that match" goes back to the rows
+    // picked once a filter changes (leads-real.tsx, for every narrowing alike).
     reach: p.reach,
     onReach: (f: string) => {
       const on = p.reach.some((x) => x === f);
@@ -344,7 +352,10 @@ const reviewDoors = (p: LeadsPage): ReviewDoors => {
   };
 };
 
-/** The view a selection of "all that match" stands for, and the file of it: the list, the search, the class and the sort. */
+/**
+ * The view a selection of "all that match" stands for, and the file of it: the list, the search, the class and the sort,
+ * and the filters the read narrows by (00500), so the act and the file are the rows the table shows.
+ */
 const bulkViewOf = (p: LeadsPage) => {
   const { leadView, sortBy, sortDir } = p;
   return {
@@ -353,6 +364,7 @@ const bulkViewOf = (p: LeadsPage) => {
     ...(leadView.cls ? { class: leadView.cls } : {}),
     sort: sortBy,
     dir: sortDir,
+    ...leadFiltersOf({ q: p.q, excluded_by: p.chip, fit: p.fitChip, reach: p.reach }),
   } as Extract<LeadsBulkInput, { by: "view" }>["view"];
 };
 
@@ -418,9 +430,9 @@ export const leadsBulkProps = (p: LeadsPage) => {
     // Add N and Later (the canvas's DeskBulk): the rows chosen and shown, never all that match (a view is not a list of ids).
     bulkAdd: p.bulkAdd,
     bulkSearch: p.openSearch ? { id: p.openSearch.id, name: p.openSearch.name } : null,
-    // The view as a file: a press that POSTs (acts.tsx exportLeads), since marking what it took moves the month's count. The
-    // Filter goes with it, so the file is the email list or the call list on screen.
-    onExport: () => p.exportLeads(p.reach.length ? { ...bulkView, reach: p.reach } : bulkView),
+    // The view as a file: a press that POSTs (acts.tsx exportLeads), since marking what it took moves the month's count. Its
+    // filters go with it, so the file is the email list or the call list on screen.
+    onExport: () => p.exportLeads(bulkView),
     ...railDoors(p),
     chip: p.chip,
     onPickChip: p.setChip,
