@@ -50,6 +50,12 @@ export interface SequencePlaceRowDto {
   hold_detail: string | null;
   draft: SequencePersonDraftDto | null;
   reply: SequencePersonReplyDto | null;
+  /**
+   * On an email waiting for an OK or held, the opening it goes with (null while the check writes it, or where its step's
+   * words have none) and whether the check has read it. Absent on every other row, as People's read has them.
+   */
+  opening?: string | null;
+  checked?: boolean;
 }
 
 /**
@@ -65,6 +71,8 @@ export interface SequencePlaceDto {
   owner_sends: boolean;
   /** When they joined its list: by hand, or from the search it adds from (auto-add). */
   joined: { at: string | null; auto: boolean } | null;
+  /** The leave Put back would undo, where it took this lead alone out; absent or null where there is none. */
+  put_back?: { decision_id: string } | null;
 }
 
 /** Many leads' places (00459 sequence_places_of): one row a lead in a sequence, the place that stands first. */

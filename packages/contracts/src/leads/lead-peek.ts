@@ -152,6 +152,8 @@ export interface LeadPeekVM {
   }[];
   others: { summary: string; picked: string | null; items: { email: string; why: string }[] } | null;
   found: { at: string; what: string }[];
+  /** Your last call to them, as you logged it: History says it. */
+  worked: { outcome: string | null; note: string | null; at: string | null };
   links: {
     website: { label: string; href: string } | null;
     instagram: { label: string; href: string } | null;
@@ -338,6 +340,15 @@ function checksSummaryOf(checks: ReadonlyArray<{ answer: string }>): string {
   ].join(" · ");
 }
 
+/** The tile a row draws: its initials on its category's tint, its photo, the band behind it, its logo. */
+const leadTileOf = (r: LeadRowDto) => ({
+  initials: initialsOf(r.business_name),
+  tint: leadTintOf(r.category),
+  image: leadTileSrc(r.image_url),
+  band: r.image_url ?? null,
+  logo: r.mark_url ?? null,
+});
+
 export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: string, now: Date): LeadPeekVM {
   const m = r.member;
   const area = [r.city, r.state].filter(Boolean).join(", ");
@@ -411,13 +422,7 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
     id: r.id,
     searchId: r.search_id ?? null,
     mark: initialsOf(r.business_name),
-    tile: {
-      initials: initialsOf(r.business_name),
-      tint: leadTintOf(r.category),
-      image: leadTileSrc(r.image_url),
-      band: r.image_url ?? null,
-      logo: r.mark_url ?? null,
-    },
+    tile: leadTileOf(r),
     rated,
     slots: leadSlots(r),
     week,
@@ -492,6 +497,7 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
       // The mailbox's long sentence is the email row's to say; here it is the state's one word.
       { at: clockIn(tz, r.email_checked_at ?? r.found_at, now), what: `Mailbox · ${LEAD_EMAIL_WORDS[r.email_state]}` },
     ],
+    worked: { outcome: r.last_outcome, note: r.last_note, at: r.contacted_at },
     links: {
       website: host ? { label: host, href: `https://${host}` } : null,
       instagram: r.instagram ? { label: "Instagram", href: r.instagram } : null,

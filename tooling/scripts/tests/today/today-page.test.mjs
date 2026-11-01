@@ -904,7 +904,7 @@ test("a reach-out's run waiting on Today is opened, never approved from the row 
   const playbook = byTestId(byTestId(draw(AgentCommand), "today-queue"), "brief-run-row");
   assert.equal(buttons(playbook, "Approve").length, 1);
   assert.equal(textOf(buttons(playbook, "Approve")[0]), LIFECYCLE_WORDS.ledger.approve(3));
-  assert.equal(textOf(buttons(playbook, "Approve")[0]), "Approve · 3 people");
+  assert.equal(textOf(buttons(playbook, "Approve")[0]), "Approve all 3");
   assert.deepEqual(approvals, [], "nothing was approved by drawing the card");
 });
 

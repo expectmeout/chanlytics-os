@@ -700,7 +700,7 @@ test("a run waiting on you opens as the sheet the canvas draws -- where it sits 
       "the case nobody is shown before a send, shown before this one",
     );
     assert.ok(
-      textOf(byTestId(sheet, "bc-sheet-approve")).includes("Approve \u00b7 2 people"),
+      textOf(byTestId(sheet, "bc-sheet-approve")).includes("Approve all 2"),
       textOf(byTestId(sheet, "bc-sheet-approve")),
     );
     // Who gets it, folded under its head, its press at the head's right (19 Oct 2026: it was a half of the foot beside

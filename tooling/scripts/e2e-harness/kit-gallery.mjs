@@ -135,6 +135,15 @@ const recDisclosureGroup = ({ open = false } = {}) =>
   `<p>Visit messages · Not asked</p><p>Offers &amp; news · Not asked</p>` +
   `</div></div></div>`;
 
+/** A row of a list of properties (RecordDisclosure look="row", the lead sheet's lines): its label, its answer, and what it opens. */
+const recDisclosureRow = ({ open = false } = {}) =>
+  `<div class="rec-disclosure" data-open="${open}" data-look="row">` +
+  `<button type="button" class="rec-disclosure-press" aria-expanded="${open}">` +
+  `<span class="rec-disclosure-label">Contact</span><span class="rec-disclosure-value">hello@example.com</span>` +
+  `${icon("chevron", 12)}</button>` +
+  `<div class="rec-disclosure-panel" role="region"><div class="rec-disclosure-inner">` +
+  `<p>Checked · the sequence writes here</p></div></div></div>`;
+
 /** A field (RecordField): its label holding the box, and a hint under it. */
 const recField = (label, value, hint = null) =>
   `<div class="rec-field"><label><span class="rec-field-label">${label}</span>` +
@@ -2337,6 +2346,8 @@ export const FAMILIES = [
       { id: "rec-says-folded-open", html: recCard(recSaysFolded({ open: true, mark: "Changed" })) },
       { id: "rec-disclosure-group", html: recCard(recDisclosureGroup()) },
       { id: "rec-disclosure-group-open", html: recCard(recDisclosureGroup({ open: true })) },
+      { id: "rec-disclosure-row", html: recCard(recDisclosureRow()) },
+      { id: "rec-disclosure-row-open", html: recCard(recDisclosureRow({ open: true })) },
       {
         id: "rec-inline-saving",
         html: recCard(

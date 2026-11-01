@@ -190,8 +190,10 @@ export async function expectStripEnding(page: Page, words: string): Promise<void
 export async function expectPeekSeenVersusRead(page: Page): Promise<void> {
   const peek = page.getByTestId("lead-peek");
   await expect(peek).toBeVisible();
-  // The lead sheet opens on Why: every check on its own line, what was seen and what Claude read told apart by their
-  // marks (sheet/panes.tsx).
+  // Fit is the sheet's first line, folded until pressed unless a check failed: every check on its own line, what was
+  // seen and what Claude read told apart by their marks (sheet/panes.tsx).
+  const fit = peek.getByTestId("lead-sheet-sec-fit-press");
+  if ((await fit.getAttribute("aria-expanded")) !== "true") await fit.click();
   const checks = peek.getByTestId("peek-checks-open");
   await expect(checks).toBeVisible();
   expect(await checks.locator(".lw-ck").count(), "the checks are drawn").toBeGreaterThan(0);

@@ -62,7 +62,7 @@ export interface ApprovalVM {
   readerChannel: ConsentChannel;
   /** How many a greeting by name reaches with no name on file: they get "Hi there" (resolveParams). */
   hiThere: number;
-  /** The act, "Approve · 186 people"; when it goes is `goes` (approveRun sends at the next open moment). Null when approveRun would refuse it. */
+  /** The act, "Approve all 186"; when it goes is `goes` (approveRun sends at the next open moment). Null when approveRun would refuse it. */
   approve: string | null;
   /**
    * Why it cannot be approved, in the verb's own words (runApprovalRefusal): a playbook's run is a day's run, and approveRun

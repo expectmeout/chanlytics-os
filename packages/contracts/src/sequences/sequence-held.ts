@@ -27,15 +27,6 @@ export function heldWhyOf(reason: ReachOutHold, detail: string | null): string {
   return reason === "check_unavailable" && !detail ? `${why}; it tries again on its own within the hour` : why;
 }
 
-/**
- * The choices a held email offers, by why it was held (contracts holdDoors) and its step: Skip this email from step 2,
- * where the lead goes on to the next step (00459); at step 1 skipping would end their place, which Take out says.
- */
-export function heldChoicesOf(hold: string | null, place: number | null): [HoldDoor, string][] {
-  const doors: HoldDoor[] = isReachOutHold(hold) ? holdDoors(hold) : ["include", "skip"];
-  return doors.filter((d) => d !== "skip" || (place ?? 1) > 1).map((d) => [d, HOLD_DOOR_WORDS[d]]);
-}
-
 /** Taking a lead out of the sequence their place stands in: the leave verb, which Put back undoes. */
 export const HELD_TAKE_OUT = "Take out";
 
@@ -51,9 +42,8 @@ export interface HeldAnswer {
 }
 
 /**
- * Every answer a held email's row offers where it stands alone, with no Take out of its own beside it (a run's screen, a
- * sequence's Needs you; the lead sheet keeps its own in the place's pane): heldChoicesOf's, and the no at every step, Take
- * out where Skip would end their place. A check that could not run and broke no rule is tried again by the clock and by
+ * Every answer a held email's row offers (a run's screen, a sequence's Needs you, the lead sheet's dock): its hold's doors,
+ * and the no at every step, Take out where Skip would end their place, which at step 1 it would (00459). A check that could not run and broke no rule is tried again by the clock and by
  * the run's Check the held again, so nothing asks to rewrite words nobody faulted. Only the reason's own fix leads: a
  * rewrite for the words, leaving out a customer's colleague; a hold about who they are suggests nothing.
  */

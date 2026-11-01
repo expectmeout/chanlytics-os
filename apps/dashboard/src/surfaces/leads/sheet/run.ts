@@ -4,19 +4,22 @@
  * through `pressed`, so a press here and one on the record say one receipt and keep one undo). In a pile its own acts
  * (use-pile.ts: its Undo, its line, the card turning); out of one the lead's own (peek/acts.tsx, the stage and the call)
  * or the add and Later doors said in a toast. A trip into Sequences carries the way back to this lead (contracts
- * sequenceRouteBack; trip.ts holds the names), and Take out is the sequence's own leave, whose undo is Put back.
+ * sequenceRouteBack; trip.ts holds the names), and Take out is the sequence's own leave, whose undo is Put back, which a
+ * lead who left has on the sheet too, for as long as its place can come back.
  */
 import {
   addressOf,
   routeOfPath,
   sequenceRoute,
   sequenceRouteBack,
+  type HoldDoor,
   type LeadNotAFitWhy,
   type LeadRowVM,
-  type LeadSheetAct,
+  type LeadSheetSlotVM,
   type SequencePlaceDto,
   type SequenceTab,
 } from "@chanlytics/contracts";
+import { undoVerb } from "@/legacy-bridge/verbs/commit";
 import { holdTrip } from "../../campaigns/sequences/trip";
 import { pressed } from "../../campaigns/sequences/verbs";
 import { navigate, refusalToast } from "../../legacy-verbs";
@@ -43,8 +46,7 @@ export interface SheetRun {
   next: (() => void) | null;
   /** The picker, a step of the same sheet. */
   openPicker: () => void;
-  /** The dock's own asks: an email to send, and They wrote back…. */
-  askToSend: () => void;
+  /** The dock's own ask: They wrote back…. */
   askSaid: () => void;
   /** Said once their place moved: read it again. */
   moved: () => void;
@@ -208,6 +210,27 @@ async function approveOne(r: SheetRun) {
   );
 }
 
+/** An answer to their email: the decide verb a held email's row and the record press, its door named. */
+export async function decideEmail(r: SheetRun, door: HoldDoor): Promise<void> {
+  const row = r.place ? r.place.place : null;
+  if (!row || !row.send_id) return;
+  await pressed(
+    "sequence_send_decide",
+    { send_id: row.send_id, decision: door, name: r.name, run_id: row.batch_id },
+    r.flash,
+    r.moved,
+  );
+}
+
+/** Put back: the undo of the leave that took them out, with its receipt (Take out's own). */
+async function returnOne(r: SheetRun) {
+  const leave = r.place ? r.place.put_back : null;
+  if (!leave || !r.place) return;
+  const done = await undoVerb("sequence_leave", { sequence_id: r.place.sequence.id, decision_id: leave.decision_id });
+  r.flash(done.ok ? { tone: "ok", msg: done.receipt } : refusalToast(done));
+  r.moved();
+}
+
 /** Where a press goes that opens something: the sequence's record, the thread they wrote in, or the person. */
 function openAct(act: "sequence" | "thread", r: SheetRun) {
   if (act === "sequence") {
@@ -221,7 +244,8 @@ function openAct(act: "sequence" | "thread", r: SheetRun) {
 }
 
 /** A press of the dock. */
-export async function runSheetAct(act: LeadSheetAct, r: SheetRun): Promise<void> {
+export async function runSheetAct(s: Pick<LeadSheetSlotVM, "act" | "door">, r: SheetRun): Promise<void> {
+  const { act } = s;
   switch (act) {
     case "not_a_fit":
       return notFitOne(r);
@@ -241,8 +265,12 @@ export async function runSheetAct(act: LeadSheetAct, r: SheetRun): Promise<void>
       return openAct(act, r);
     case "approve":
       return approveOne(r);
-    case "open_draft":
-      return r.askToSend();
+    case "decide":
+      return s.door ? decideEmail(r, s.door) : undefined;
+    case "take_out":
+      return takeOut(r);
+    case "return":
+      return returnOne(r);
     case "they_wrote":
       return r.askSaid();
     case "call":

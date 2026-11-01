@@ -1,25 +1,32 @@
 /**
- * What the lead sheet draws, worked out once a draw from what the page and its reads hand it (sheet.tsx): the quick look
- * (the verdict, the reason, the checks line, the email line), the head's word, the dock, and the Sequence section's rail:
- * their place in the sequence they are in (the one reader, 00459 sequence_place), or before one, the pick's steps as they
- * would get them. Every rule is contracts' (lead-sheet.ts, lead-sheet-dock.ts, lead-sheet-card.ts, sequence-place.ts,
- * lead-card.ts); this only gathers their inputs from the reads.
+ * What the lead sheet draws, worked out once a draw from what the page and its reads hand it (sheet.tsx): the one card
+ * (lead-sheet-now.ts), the five lines (lead-sheet-lines.ts), the email the card carries, the dock, and the Sequence line's
+ * steps: their place in the sequence they are in (the one reader, 00459 sequence_place), or before one, the pick's steps
+ * as they would get them. Every rule is contracts'; this only gathers their inputs from the reads.
  */
 import {
+  LEAD_SHEET_WORDS as W,
   leadCardStepsOf,
   leadDockOf,
+  leadHistoryOf,
+  leadLinesOf,
+  leadNowOf,
   leadSheetChecksLineOf,
   leadSheetClosedOf,
   leadSheetEmailLineOf,
   leadSheetStateOf,
   leadSheetSubOf,
   leadSheetWhyOf,
-  leadSheetWordOf,
   leadVerdictOf,
+  markedOpeningOf,
   placeRailOf,
   placeStands,
   type LeadCardCheck,
+  type LeadCardPart,
   type LeadCardStepVM,
+  type LeadHistoryRowVM,
+  type LeadLineVM,
+  type LeadNowVM,
   type LeadPeekVM,
   type LeadRowVM,
   type LeadSheetChecksLineVM,
@@ -30,8 +37,8 @@ import {
   type LeadSheetState,
   type LeadSheetWhyVM,
   type LeadVerdictVM,
+  type MarkedOpening,
   type PlaceRailVM,
-  type PlaceTone,
   type ReachOutChainDto,
   type SequencePlaceDto,
   type SequenceRecordDto,
@@ -60,12 +67,12 @@ interface SheetInputs {
    * while it is read.
    */
   railRecord: SequenceRecordDto | null;
-  /** How many others wait for an OK in their batch (the record's people), where it is known. */
-  batchOthers?: number;
+  /** How many an OK sends in their batch (the record's count), where it is known. */
+  batch?: number;
   pile: SheetPileFacts | null;
 }
 
-/** The Sequence section's rail: which lens, the sequence it draws, its rows, and each email's words for this lead. */
+/** The Sequence line's steps: which lens, the sequence it draws, its rows, and each email's words for this lead. */
 export interface SheetRail {
   lens: "one" | "preview";
   sequence: { id: string; name: string; state: SequenceState };
@@ -74,23 +81,40 @@ export interface SheetRail {
   steps: ReadonlyMap<number, LeadCardStepVM>;
 }
 
+/** The email the card carries: who it goes to, its words in parts, and what its opening says. */
+export interface SheetMail {
+  to: string;
+  subject: readonly LeadCardPart[] | null;
+  body: readonly LeadCardPart[];
+  /** What the check refused marked in its opening, where it is read before it goes. */
+  opening: MarkedOpening | null;
+  /** Its opening is still being written. */
+  writing: boolean;
+  /** Rewrite the opening stands under it: an email waiting for an OK, its opening written. */
+  rewrite: boolean;
+  /** Held: what it was held for stays in sight, whatever the width. */
+  tall: boolean;
+}
+
 export interface SheetFacts {
   card: LeadCardFacts;
   check: LeadCardCheck | undefined;
   state: LeadSheetState;
   closed: LeadSheetClosedVM | null;
   verdict: LeadVerdictVM;
-  /** The line under the name, the checks line, the email line, and Fit's checks. */
+  /** The line under the name, the checks in a line, how the address checked, and Fit's checks. */
   sub: string;
   checks: LeadSheetChecksLineVM | null;
   email: LeadSheetEmailLineVM;
   why: LeadSheetWhyVM | null;
-  /** The word beside their name, and its tone. */
-  word: { word: string; tone: PlaceTone };
+  now: LeadNowVM;
+  mail: SheetMail | null;
+  lines: LeadLineVM[];
+  history: LeadHistoryRowVM[];
   place: SequencePlaceDto | null;
   /** The sequence that has them, where it is not the pick. */
   elsewhere: { id: string | null; name: string; written: boolean } | null;
-  /** Only what to press; null when nothing needs you. */
+  /** Only what to press; null when nothing needs you, and the sheet draws no foot. */
   dock: LeadSheetDockVM | null;
   rail: SheetRail | null;
 }
@@ -160,7 +184,7 @@ const titlesOf = (emails: ReadonlyMap<number, LeadCardStepVM>): Map<number, stri
   );
 
 /**
- * The Sequence section's rail: their place, drawn on the record's rail for one lead, where a sequence has them; else, with
+ * The Sequence line's steps: their place, drawn on the record's rail for one lead, where a sequence has them; else, with
  * a pick and an email to write to, the pick's steps as they would get them. None while their place or the pick's record
  * is still being read, and none for a lead no sequence can take.
  */
@@ -226,6 +250,69 @@ function cardStateOf(i: SheetInputs) {
   return { card, check, lead, state, blocked, closed };
 }
 
+/** Who an email goes to: the person a company's sequence writes to, then the address. */
+function addresseeOf(vm: LeadPeekVM, address: string): string {
+  const person = vm.company ? vm.company.people.find((p) => p.addressee) : null;
+  return person ? `${person.name} · ${address}` : address;
+}
+
+/** The first email they would get from the pick. */
+function firstMailOf(vm: LeadPeekVM, card: LeadCardFacts): SheetMail | null {
+  const email = card.email;
+  if (!email) return null;
+  return {
+    to: W.mail.ifAdded(email.to ?? vm.reach.email.value),
+    subject: email.subject,
+    body: email.body,
+    opening: null,
+    writing: false,
+    rewrite: false,
+    tall: false,
+  };
+}
+
+/** The email their step holds, its opening as it goes: read before an OK, or marked where the check refused it. */
+function stepMailOf(vm: LeadPeekVM, place: SequencePlaceDto, rail: SheetRail | null): SheetMail | null {
+  const row = place.place;
+  const step = rail ? rail.steps.get(row.place ?? 1) : null;
+  if (!step) return null;
+  const writing = row.checked === false;
+  const held = row.group === "held";
+  return {
+    to: W.mail.to(addresseeOf(vm, vm.reach.email.value)),
+    subject: step.subject,
+    body: step.body,
+    opening: markedOpeningOf(row.opening, { reason: row.why, detail: row.hold_detail }),
+    writing,
+    rewrite: !held && !writing && !!row.opening,
+    tall: held,
+  };
+}
+
+/** The email handed to you, as it reads. */
+function draftMailOf(vm: LeadPeekVM, place: SequencePlaceDto): SheetMail | null {
+  const draft = place.place.draft;
+  if (!draft) return null;
+  return {
+    to: W.mail.to(addresseeOf(vm, draft.to)),
+    subject: [{ kind: "text", text: draft.subject }],
+    body: [{ kind: "text", text: draft.text }],
+    opening: null,
+    writing: false,
+    rewrite: false,
+    tall: false,
+  };
+}
+
+/** The email the card says it carries. */
+function mailOf(p: { now: LeadNowVM; i: SheetInputs; card: LeadCardFacts; rail: SheetRail | null }): SheetMail | null {
+  const place = p.i.place.place;
+  if (p.now.mail === "first") return firstMailOf(p.i.vm, p.card);
+  if (p.now.mail === "step" && place) return stepMailOf(p.i.vm, place, p.rail);
+  if (p.now.mail === "draft" && place) return draftMailOf(p.i.vm, place);
+  return null;
+}
+
 /** The sheet's facts, from the page's reads. */
 export function sheetFactsOf(i: SheetInputs, nowMs: number): SheetFacts {
   const c = cardStateOf(i);
@@ -245,24 +332,59 @@ export function sheetFactsOf(i: SheetInputs, nowMs: number): SheetFacts {
     canLater: !!(i.row && i.row.searchId),
     closed: c.closed,
     reading,
-    batchOthers: i.batchOthers,
+    batch: i.batch,
+  });
+  const verdict = leadVerdictOf(i.vm);
+  const checks = leadSheetChecksLineOf(i.vm);
+  const email = leadSheetEmailLineOf(i.vm);
+  const rail = railOf(i, c.state, nowMs);
+  const steps = rail ? rail.vm.steps.length : null;
+  const phone = i.vm.reach.phone;
+  const now = leadNowOf({
+    state: c.state,
+    place,
+    closed: c.closed,
+    elsewhere,
+    verdict,
+    fitWord: i.vm.fit.word,
+    reason: c.card.reason ? c.card.reason.text : i.vm.fit.sentence || null,
+    checks,
+    blocked: c.blocked,
+    email,
+    phone: phone ? { value: phone.value, confirmed: i.vm.slots.phone.state === "ok", today: i.vm.today } : null,
+    firstEmail: !!c.card.email,
+    steps,
+    batch: i.batch ?? null,
     tz: i.tz,
     nowMs,
   });
+  const history = leadHistoryOf({ vm: i.vm, place, tz: i.tz, nowMs });
   return {
     card: c.card,
     check: c.check,
     state: c.state,
     closed: c.closed,
-    verdict: leadVerdictOf(i.vm),
+    verdict,
     sub: leadSheetSubOf(i.vm),
-    checks: leadSheetChecksLineOf(i.vm),
-    email: leadSheetEmailLineOf(i.vm),
+    checks,
+    email,
     why: leadSheetWhyOf(i.vm),
-    word: leadSheetWordOf({ state: c.state, place, closed: c.closed }),
+    now,
+    mail: mailOf({ now, i, card: c.card, rail }),
+    lines: leadLinesOf({
+      vm: i.vm,
+      checks,
+      email,
+      place,
+      steps,
+      pick: pick ? { name: pick.name } : null,
+      canJoin: c.state === "ready" || c.state === "gap" || c.state === "finding",
+      history,
+    }),
+    history,
     place,
     elsewhere,
     dock,
-    rail: railOf(i, c.state, nowMs),
+    rail,
   };
 }
