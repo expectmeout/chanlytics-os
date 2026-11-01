@@ -1017,8 +1017,10 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
      are, so the screen holds (here, the document's root and its body, as Settings' were), and the page moves alone, by
      kit motion/page-give.ts: on the band's curve while the thumb is down (data-give="held"), and back on the band's
      spring once it lets go ("back"), which a flick's glide reaching the end rides out and back as an iPhone's does (1
-     Nov 2026); at once where motion is reduced. The spring is drawn frame by frame there, so no transition eases it.
-     Where a box under the thumb scrolls itself (a sheet's, a reply box's words) that box gives as it always did. */
+     Nov 2026); at once where motion is reduced. The spring is a web animation the compositor plays, so no transition
+     eases it. What would give is readied for its own layer as the thumb first goes down the page ("ready"), never as
+     the bounce begins, where promoting a tall list flashed on an iPhone. Where a box under the thumb scrolls itself (a
+     sheet's, a reply box's words) that box gives as it always did. */
   html.legacy-on,
   html.legacy-on body {
     overscroll-behavior-y: none;

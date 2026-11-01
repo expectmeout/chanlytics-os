@@ -7,8 +7,11 @@
  * Calendar, which scrolls in its own box, the board gives and the bar over it holds. So the screen holds (mobile.css)
  * and the route view gives by itself, on the band's curve, and goes back on the band's spring once let go. A flick's
  * glide that reaches an end still moving rides the same spring out past it and back, as an iPhone's does (1 Nov 2026).
+ * The spring is a web animation the compositor plays, and what would give is readied for its own layer as the thumb
+ * first goes down the page, never as the bounce begins.
  *
- * Run against the module itself, on a window, a page and touches that answer what it asks of them.
+ * Run against the module itself, on a window, a page and touches that answer what it asks of them: a clock, timers and
+ * animations that run only as the test lets time pass (`play`, `glide`, `wait`).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -27,7 +30,6 @@ const element = (name, css = {}, parent = null) => {
       overscrollBehaviorY: "auto",
       display: "block",
       visibility: "visible",
-      transitionDuration: "0.36s",
       translate: "none",
       touchAction: "auto",
       ...css,
@@ -41,6 +43,8 @@ const element = (name, css = {}, parent = null) => {
     clientHeight: 100,
     top: 0,
     shown: true,
+    /** The animation playing on it, while one is (`phone` gives the boxes that may give an `animate`). */
+    anim: null,
     getClientRects() {
       return this.shown ? [{}] : [];
     },
@@ -65,9 +69,13 @@ const element = (name, css = {}, parent = null) => {
   return el;
 };
 
+/** How far down the screen a translate puts a box ("0 37.5px" as written, "0px 37.5px" as read back): 0 for none. */
+const yOf = (translate) => Number(/^0(?:px)? (-?[\d.e+-]+)px$/.exec(translate ?? "")?.[1] ?? 0);
+
 /**
  * A phone's window over one page: the document's root, the route view (`main`) in it, a list in that, a row in the
- * list. The window is `tall` high over a document `long` long, scrolled to `at`.
+ * list. The window is `tall` high over a document `long` long, scrolled to `at`. Its clock stands still until the test
+ * moves it, and its timers and the animations on its boxes run as it does.
  */
 const phone = ({ tall = 800, long = 2000, at = 0, root = {}, reduced = false } = {}) => {
   const html = element("html", { overscrollBehaviorY: "none", scrollPaddingTop: "146px", ...root });
@@ -75,18 +83,55 @@ const phone = ({ tall = 800, long = 2000, at = 0, root = {}, reduced = false } =
   const list = element("list", {}, main);
   const row = element("row", {}, list);
   const heard = {};
-  // The window's clock and its frames: time passes only when the test says (`play`, `glide`, `wait`).
   let clock = 1000;
-  const frames = new Map();
+  const timers = new Map();
+  const anims = new Set();
   let made = 0;
+  /** A web animation of `translate` on `el`: its frames, how long, and when it began (set late, as the deck sets it). */
+  const animate =
+    (el) =>
+    (keyframes, { duration }) => {
+      const a = {
+        el,
+        keyframes,
+        duration,
+        startTime: null,
+        made: clock,
+        onfinish: null,
+        cancel() {
+          if (el.anim === a) el.anim = null;
+          anims.delete(a);
+        },
+      };
+      el.anim = a;
+      anims.add(a);
+      return a;
+    };
+  main.animate = animate(main);
+  list.animate = animate(list);
+  /** Where an animation has its box at `now`: a straight line between the two frames either side. */
+  const alongAt = (a, now) => {
+    const share = Math.min(1, Math.max(0, now - (a.startTime ?? a.made)) / a.duration);
+    const ks = a.keyframes;
+    let i = 0;
+    while (i < ks.length - 1 && ks[i + 1].offset <= share) i += 1;
+    const k0 = ks[i];
+    const k1 = ks[Math.min(i + 1, ks.length - 1)];
+    const span = k1.offset - k0.offset;
+    const part = span > 0 ? (share - k0.offset) / span : 0;
+    return yOf(k0.translate) + (yOf(k1.translate) - yOf(k0.translate)) * part;
+  };
+  /** Where a box is drawn now: where its animation has it, else where its own style puts it. */
+  const movedOf = (box) => (box.anim ? alongAt(box.anim, clock) : yOf(box.style.translate));
+  const moved = () => movedOf(main);
   const win = {
     innerHeight: tall,
     scrollY: at,
     document: { documentElement: html, scrollingElement: { scrollHeight: long } },
     getComputedStyle: (el) => ({
       ...el.css,
-      // While a box goes back the browser draws it somewhere on the way: the test says where (`drawnAt`).
-      ...(el.drawnAt !== undefined && { translate: `0px ${el.drawnAt}px` }),
+      // As the browser reads a translate back: the animation's, else the one written, else none.
+      translate: el.anim || el.style.translate ? `0px ${movedOf(el)}px` : el.css.translate,
       // A custom property is inherited: a row in the box of rows says what the box says.
       getPropertyValue(name) {
         for (let n = el; n; n = n.parentElement) if (n.css[name] !== undefined) return n.css[name];
@@ -96,8 +141,8 @@ const phone = ({ tall = 800, long = 2000, at = 0, root = {}, reduced = false } =
     addEventListener: (kind, fn) => (heard[kind] = fn),
     removeEventListener: (kind, fn) => heard[kind] === fn && delete heard[kind],
     performance: { now: () => clock },
-    requestAnimationFrame: (fn) => (frames.set(++made, fn), made),
-    cancelAnimationFrame: (id) => frames.delete(id),
+    setTimeout: (fn, ms) => (timers.set(++made, { at: clock + ms, fn }), made),
+    clearTimeout: (id) => timers.delete(id),
     matchMedia: (query) => ({ matches: reduced && query.includes("prefers-reduced-motion: reduce") }),
   };
   const stop = watchPageGive(win);
@@ -122,34 +167,52 @@ const phone = ({ tall = 800, long = 2000, at = 0, root = {}, reduced = false } =
       },
     };
   };
-  const movedOf = (box) => (box.style.translate ? Number(/^0 (-?[\d.e-]+)px$/.exec(box.style.translate)[1]) : 0);
-  const moved = () => movedOf(main);
+  /** `ms` pass: each timer due by then fires at its time, and each animation over by then ends. */
+  const advance = (ms) => {
+    const until = clock + ms;
+    for (;;) {
+      const due = [...timers.entries()].filter(([, t]) => t.at <= until).sort((a, b) => a[1].at - b[1].at)[0];
+      if (!due) break;
+      timers.delete(due[0]);
+      clock = Math.max(clock, due[1].at);
+      due[1].fn();
+    }
+    clock = until;
+    for (const a of [...anims]) {
+      if ((a.startTime ?? a.made) + a.duration > clock) continue;
+      a.cancel();
+      a.onfinish?.();
+    }
+  };
   /** `ms` of the screen's frames, one each 16ms: answers where `box` was drawn in each. */
   const play = (ms, box = main) => {
     const drawn = [];
     for (let t = 0; t < ms; t += FRAME_MS) {
-      clock += FRAME_MS;
-      const due = [...frames.values()];
-      frames.clear();
-      due.forEach((fn) => fn(clock));
+      advance(FRAME_MS);
       drawn.push(movedOf(box));
     }
     return drawn;
   };
-  /** The window scrolls itself through `ys`, a step each 16ms, as a glide does once the thumb has let go. */
-  const glide = (ys) => {
+  /** The window scrolls itself through `ys`, a step each 16ms, as a glide does once the thumb has let go: answers where `box` was drawn at each. */
+  const glide = (ys, box = main) => {
+    const shown = [];
     for (const y of ys) {
-      clock += FRAME_MS;
+      advance(FRAME_MS);
       win.scrollY = y;
       heard.scroll();
+      shown.push(movedOf(box));
     }
+    return shown;
   };
-  const wait = (ms) => (clock += ms);
-  return { win, html, main, list, row, heard, frames, stop, finger, moved, movedOf, play, glide, wait };
+  const wait = (ms) => advance(ms);
+  const playing = (box) => box.anim !== null;
+  return { win, html, main, list, row, heard, stop, finger, moved, movedOf, play, glide, wait, playing };
 };
 
 /** A frame of the screen's, in milliseconds. */
 const FRAME_MS = 16;
+/** How long the window may stand still before its glide is over (the module's FLING_GAP_MS), and a little more. */
+const GLIDE_OVER_MS = 101;
 
 /** A thumb flicks down the screen (the page goes up) or up it (`way` -1), and lets go mid-page. */
 const flick = (p, way = 1, on) =>
@@ -196,6 +259,7 @@ test("let go, the page goes back on the band's spring, never past its place, and
   f.up();
   assert.equal(p.main.dataset.give, "back", "let go");
   assert.equal(p.moved(), held, "from where it stood, with no jump");
+  assert.equal(p.main.style.translate, "0 0px", "what is written is where it rests: the animation plays over it");
   const drawn = p.play(1200);
   for (let i = 1; i < drawn.length; i += 1) assert.ok(drawn[i] <= drawn[i - 1], `always on its way back (${drawn})`);
   assert.ok(
@@ -206,7 +270,7 @@ test("let go, the page goes back on the band's spring, never past its place, and
   assert.ok(at400 > 0 && at400 < held * 0.15, `most of the way back 400ms on, landing softly (${at400} of ${held})`);
   assert.equal(p.main.dataset.give, undefined, "at rest within the second");
   assert.equal(p.main.style.translate, "", "no style of its own left on the page");
-  assert.equal(p.frames.size, 0, "and no frame asked for");
+  assert.equal(p.playing(p.main), false, "and nothing left playing on it");
 });
 
 test("a pull past the foot moves the page up; between the ends the window scrolls it and nothing moves", () => {
@@ -218,7 +282,7 @@ test("a pull past the foot moves the page up; between the ends the window scroll
   assert.equal(between.moved(), 0);
   pull(between, -150);
   assert.equal(between.moved(), 0);
-  assert.equal(between.main.dataset.give, undefined);
+  assert.equal(between.main.dataset.give, "ready", "readied for the screen, and nothing more");
 });
 
 test("a page shorter than the screen gives either way", () => {
@@ -296,6 +360,7 @@ test("a page with something fixed on the screen holds still, since moving it wou
   const strip = element("sending-strip", { position: "fixed" }, p.list);
   const f = pull(p, 150);
   assert.equal(p.moved(), 0, "the Inbox's sending strip is up");
+  assert.equal(p.main.dataset.give, undefined, "and the page is not even readied: a layer would take the strip too");
   f.up();
   strip.css.display = "none";
   pull(p, 150);
@@ -323,8 +388,9 @@ test("a thumb that lands on the page going back holds it where it is drawn, and 
   const f = p.finger(p.row, 2).down(180, 500);
   assert.equal(p.main.dataset.give, "held");
   assert.equal(p.moved(), drawn, "held where it was drawn");
+  assert.equal(p.playing(p.main), false, "the spring let go of it");
   p.play(200);
-  assert.equal(p.moved(), drawn, "and the spring has let go of it");
+  assert.equal(p.moved(), drawn, "and it stays");
   f.to(180, 520);
   assert.ok(p.moved() > drawn && p.moved() < drawn + 20, `on from there, with no jump (${p.moved()})`);
   f.up();
@@ -344,7 +410,56 @@ test("a second finger lets the page go back; stopping lets it go and hears no mo
   pull(p, 150);
   p.stop();
   assert.equal(p.main.style.translate, "", "let go at once");
+  assert.equal(p.main.dataset.give, undefined);
   assert.deepEqual(Object.keys(p.heard), [], "every listener removed");
+});
+
+/* ----------------------------- what would give is readied for the screen ----------------------------- */
+
+test("what would give is readied for its own layer as the thumb first goes down the page, and let go of once the gesture is over", () => {
+  const p = phone({ at: 400 });
+  const f = p.finger().down(180, 400);
+  assert.equal(p.main.dataset.give, undefined, "a landing readies nothing");
+  f.to(180, 412);
+  assert.equal(p.main.dataset.give, "ready", "the first move down the page readies the route view");
+  assert.equal(p.main.style.translate, "", "and moves nothing");
+  f.up();
+  assert.equal(p.main.dataset.give, "ready", "kept while the window may still glide");
+  p.wait(GLIDE_OVER_MS);
+  assert.equal(p.main.dataset.give, undefined, "let go of once the window has stood still for a beat");
+
+  const tap = phone({ at: 400 });
+  tap.finger().down(180, 400).up();
+  assert.equal(tap.main.dataset.give, undefined, "a tap readies nothing");
+  const across = phone({ at: 400 });
+  across.finger().down(100, 400).to(140, 404).up();
+  assert.equal(across.main.dataset.give, undefined, "nor a swipe across");
+  const settings = phone({ at: 400 });
+  settings.list.css.overscrollBehaviorY = "none";
+  settings.finger().down(180, 400).to(180, 412).up();
+  assert.equal(settings.main.dataset.give, undefined, "nor a page that holds still");
+});
+
+test("readied, it stays so through the glide, and is let go of as the glide stops, as the bounce settles, or at a touch", () => {
+  const stops = phone({ at: 400 });
+  flick(stops);
+  stops.glide([360, 320, 280]);
+  assert.equal(stops.main.dataset.give, "ready", "through the glide");
+  stops.wait(GLIDE_OVER_MS);
+  assert.equal(stops.main.dataset.give, undefined, "the glide stopped short of an end");
+
+  const bounces = phone({ at: 400 });
+  flick(bounces);
+  bounces.glide(steps(360, 0, -40));
+  assert.equal(bounces.main.dataset.give, "back", "the bounce took it over");
+  bounces.play(1200);
+  assert.equal(bounces.main.dataset.give, undefined, "settled, it is let go of");
+
+  const tapped = phone({ at: 400 });
+  flick(tapped);
+  tapped.glide([360, 320, 280]);
+  tapped.finger(tapped.row, 2).down(180, 500).up();
+  assert.equal(tapped.main.dataset.give, undefined, "a tap on the gliding page ends the glide, and lets go");
 });
 
 /* ----------------------------- a page that says where its rows are ----------------------------- */
@@ -369,6 +484,7 @@ test("a page of rows moves its rows alone: what stands over them, the page and t
   assert.ok(p.movedOf(p.list) > 20, `the rows came down (${p.movedOf(p.list)})`);
   assert.equal(p.list.dataset.give, "held");
   assert.equal(p.moved(), 0, "the route view did not move");
+  assert.equal(p.main.dataset.give, undefined, "nor was it readied: the rows were");
   assert.equal(p.bar.style.translate, "", "nor the search over the rows");
 });
 
@@ -467,6 +583,7 @@ test("a flick that glides into the top carries the page on past it at its speed,
   // 2.5 pixels a millisecond: a quick flick's glide as it reaches the top.
   p.glide(steps(360, 0, -40));
   assert.equal(p.main.dataset.give, "back", "let go, on the spring");
+  assert.equal(p.playing(p.main), true, "which the screen plays by itself");
   const drawn = p.play(1200);
   const { peak, at } = furthest(drawn);
   assert.ok(drawn[0] > 30 && drawn[0] < 40, `on at the glide's speed, 40px a frame and slowing (${drawn[0]})`);
@@ -478,20 +595,27 @@ test("a flick that glides into the top carries the page on past it at its speed,
   );
   assert.equal(p.main.dataset.give, undefined, "at rest within the second");
   assert.equal(p.main.style.translate, "");
+  assert.equal(p.playing(p.main), false);
 });
 
-test("the glide's last step, cut short by the end, is no stall: the page goes on from the moment it crossed", () => {
-  const firstFrame = (ys) => {
+test("the frame that hears the end carries the travel the end cut off, and a frame's worth at most however late it hears", () => {
+  // Where the page is drawn in the frame that hears the end, the glide's last step `late` ms after the one before.
+  const heardAt = (ys, late = 0) => {
     const p = phone({ at: 400 });
     flick(p);
-    p.glide(ys);
-    return p.play(FRAME_MS)[0];
+    p.glide(ys.slice(0, -1));
+    p.wait(late);
+    return p.glide(ys.slice(-1))[0];
   };
-  // Both glide at 2.5 pixels a millisecond. One lands on the top with its last step; the other crosses it 4ms into a
-  // step it had only 10px of left, and the end said so 12ms after it had crossed.
-  const landed = firstFrame(steps(360, 0, -40));
-  const cut = firstFrame([...steps(370, 10, -40), 0]);
-  assert.ok(cut - landed > 10 && cut - landed < 30, `on by the 12ms it had already gone (${landed}, ${cut})`);
+  // Both glide at 2.5 pixels a millisecond. One lands on the top with its last step: nothing is owed. The other crossed
+  // it 4ms into a step it had only 10px of left: the frame that hears it carries the 12ms it had already gone.
+  const landed = heardAt(steps(360, 0, -40));
+  const cut = heardAt([...steps(370, 10, -40), 0]);
+  assert.equal(landed, 0);
+  assert.ok(cut > 20 && cut < 30, `the 12ms it had already gone, at its speed (${cut})`);
+  // Heard late (on a phone the screen scrolls ahead of the page): a frame's travel, never the frames missed caught up.
+  const late = heardAt(steps(360, 0, -40), 34);
+  assert.ok(late > 30 && late < 36, `one frame on (${late})`);
 });
 
 test("a flick that glides into the foot carries the page up past it", () => {
@@ -600,6 +724,7 @@ test("a glide over what does not give is not heard: a sideways swipe, a box of i
   dialog.glide(steps(240, 0, -40));
   dialog.play(300);
   assert.equal(dialog.moved(), 0, "a sheet came up over the page as it glided");
+  assert.equal(dialog.main.dataset.give, undefined, "and what was readied is let go of");
 });
 
 test("on a page of rows the glide carries the rows alone, and up past the foot only once the search is off the screen", () => {
@@ -616,6 +741,7 @@ test("on a page of rows the glide carries the rows alone, and up past the foot o
   short.glide(steps(40, 200, 40));
   short.play(300, short.list);
   assert.equal(short.movedOf(short.list), 0, "the search is on the screen over the rows: they hold");
+  assert.equal(short.list.dataset.give, undefined, "and are let go of");
 
   const long = rowsPage({ at: 1000 });
   long.list.top = -900;
@@ -636,5 +762,5 @@ test("where motion is reduced a let-go puts the page back at once, and a glide s
   flung.glide(steps(360, 0, -40));
   flung.play(300);
   assert.equal(flung.moved(), 0);
-  assert.equal(flung.frames.size, 0);
+  assert.equal(flung.playing(flung.main), false);
 });
