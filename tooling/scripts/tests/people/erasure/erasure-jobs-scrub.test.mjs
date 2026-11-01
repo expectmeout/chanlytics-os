@@ -9,18 +9,14 @@
  * id or by the number, while an email send carries neither: `to_email` and the body, so an erasure left the
  * person's address and every email the receptionist wrote them.
  *
- * Run over the fake database with PostgREST's cap on (maxRows), through the real scrub on the service client.
+ * Run over the fake database with PostgREST's cap on (maxRows), through the real scrub, handed it as the service
+ * role's client.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../../_fake-db.mjs";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
-const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { scrubErasedJobs, FINISHED_JOB_STATES } = await import(at("apps/dashboard/src/server/people/erasure.ts"));
-const { setServiceClient } = await import(at("apps/dashboard/src/server/service-db.ts"));
+const { scrubErasedJobs, FINISHED_JOB_STATES } = await import("@chanlytics/db");
 
 const TENANT = "00000000-0000-4000-8000-000000000001";
 const OTHER_TENANT = "00000000-0000-4000-8000-000000000002";
@@ -42,9 +38,7 @@ const noise = (n) => ({
 /** A workspace with `before` other jobs first, then the person's own. */
 function world(before, own, { maxRows = 1000 } = {}) {
   const jobs = [...Array.from({ length: before }, (_, i) => noise(i + 1)), ...own];
-  const db = fakeDb({ jobs }, {}, {}, { maxRows });
-  setServiceClient(db);
-  return { jobs };
+  return { jobs, db: fakeDb({ jobs }, {}, {}, { maxRows }) };
 }
 const payloadOf = (jobs, jid) => jobs.find((j) => j.id === jid).payload;
 const scrubbed = (p) => typeof p.scrubbed_at === "string" && p.reason === "contact erased" && !("body" in p);
@@ -57,15 +51,11 @@ test("a job past the workspace's thousandth is scrubbed like the first", async (
     state: "done",
     payload: { to_phone: NUMBER, body: "your appointment" },
   };
-  const { jobs } = world(2500, [late]);
-  try {
-    const n = await scrubErasedJobs(TENANT, PERSON, [DIGITS]);
-    assert.equal(n, 1, "the one job that carried the number");
-    assert.ok(scrubbed(payloadOf(jobs, late.id)), "its number and words are gone");
-    assert.equal(payloadOf(jobs, id(1)).body, "someone else 1", "no one else's job is touched");
-  } finally {
-    setServiceClient(null);
-  }
+  const { jobs, db } = world(2500, [late]);
+  const n = await scrubErasedJobs(db, TENANT, PERSON, [DIGITS]);
+  assert.equal(n, 1, "the one job that carried the number");
+  assert.ok(scrubbed(payloadOf(jobs, late.id)), "its number and words are gone");
+  assert.equal(payloadOf(jobs, id(1)).body, "someone else 1", "no one else's job is touched");
 });
 
 test("only the finished states are read when the caller names them, and still every page of them", async () => {
@@ -83,19 +73,15 @@ test("only the finished states are read when the caller names them, and still ev
     state: "queued",
     payload: { to_phone: NUMBER, body: "y" },
   };
-  const { jobs } = world(1500, [done, queued]);
-  try {
-    const n = await scrubErasedJobs(TENANT, PERSON, [DIGITS], FINISHED_JOB_STATES);
-    assert.equal(n, 1);
-    assert.ok(scrubbed(payloadOf(jobs, done.id)));
-    assert.equal(
-      payloadOf(jobs, queued.id).body,
-      "y",
-      "a job still to run is erase_contact's to cancel, not this pass's",
-    );
-  } finally {
-    setServiceClient(null);
-  }
+  const { jobs, db } = world(1500, [done, queued]);
+  const n = await scrubErasedJobs(db, TENANT, PERSON, [DIGITS], FINISHED_JOB_STATES);
+  assert.equal(n, 1);
+  assert.ok(scrubbed(payloadOf(jobs, done.id)));
+  assert.equal(
+    payloadOf(jobs, queued.id).body,
+    "y",
+    "a job still to run is erase_contact's to cancel, not this pass's",
+  );
 });
 
 test("an email the receptionist sent them is scrubbed by its address, which it carries in place of a number", async () => {
@@ -120,16 +106,12 @@ test("an email the receptionist sent them is scrubbed by its address, which it c
     state: "done",
     payload: { to_email: "bo@example.com", body: "not theirs" },
   };
-  const { jobs } = world(10, [mail, shouted, stranger]);
-  try {
-    const n = await scrubErasedJobs(TENANT, PERSON, [DIGITS, ADDRESS]);
-    assert.equal(n, 2, "their two emails, however the address was cased");
-    assert.ok(scrubbed(payloadOf(jobs, mail.id)));
-    assert.ok(scrubbed(payloadOf(jobs, shouted.id)));
-    assert.equal(payloadOf(jobs, stranger.id).body, "not theirs");
-  } finally {
-    setServiceClient(null);
-  }
+  const { jobs, db } = world(10, [mail, shouted, stranger]);
+  const n = await scrubErasedJobs(db, TENANT, PERSON, [DIGITS, ADDRESS]);
+  assert.equal(n, 2, "their two emails, however the address was cased");
+  assert.ok(scrubbed(payloadOf(jobs, mail.id)));
+  assert.ok(scrubbed(payloadOf(jobs, shouted.id)));
+  assert.equal(payloadOf(jobs, stranger.id).body, "not theirs");
 });
 
 test("the contact id still finds a job with neither a number nor an address, in this workspace only", async () => {
@@ -147,24 +129,16 @@ test("the contact id still finds a job with neither a number nor an address, in 
     state: "done",
     payload: { to_phone: NUMBER, body: "another workspace's" },
   };
-  const { jobs } = world(1200, [policy, elsewhere]);
-  try {
-    const n = await scrubErasedJobs(TENANT, PERSON, []);
-    assert.equal(n, 1);
-    assert.ok(scrubbed(payloadOf(jobs, policy.id)));
-    assert.equal(payloadOf(jobs, elsewhere.id).body, "another workspace's", "a scrub never reaches past its workspace");
-  } finally {
-    setServiceClient(null);
-  }
+  const { jobs, db } = world(1200, [policy, elsewhere]);
+  const n = await scrubErasedJobs(db, TENANT, PERSON, []);
+  assert.equal(n, 1);
+  assert.ok(scrubbed(payloadOf(jobs, policy.id)));
+  assert.equal(payloadOf(jobs, elsewhere.id).body, "another workspace's", "a scrub never reaches past its workspace");
 });
 
 test("a read that fails is a failure the route can refuse on, never a scrub believed whole", async () => {
-  setServiceClient(fakeDb({ jobs: [] }, { "jobs.select": { message: "the database is away" } }));
-  try {
-    await assert.rejects(() => scrubErasedJobs(TENANT, PERSON, [DIGITS]), /scrub_jobs_read: the database is away/);
-  } finally {
-    setServiceClient(null);
-  }
+  const db = fakeDb({ jobs: [] }, { "jobs.select": { message: "the database is away" } });
+  await assert.rejects(() => scrubErasedJobs(db, TENANT, PERSON, [DIGITS]), /scrub_jobs_read: the database is away/);
 });
 
 test("jobs purged while the scrub reads do not hide the person's job behind them", async () => {
@@ -188,13 +162,9 @@ test("jobs purged while the scrub reads do not hide the person's job behind them
       return undefined;
     },
   };
-  setServiceClient(fakeDb({ jobs }, faults, {}, { maxRows: 1000 }));
-  try {
-    const n = await scrubErasedJobs(TENANT, PERSON, [DIGITS], FINISHED_JOB_STATES);
-    assert.equal(reads, 2, "two pages were read, and the purge came between them");
-    assert.equal(n, 1, "the person's job was read");
-    assert.ok(scrubbed(payloadOf(jobs, own.id)), "and its number and words are gone");
-  } finally {
-    setServiceClient(null);
-  }
+  const db = fakeDb({ jobs }, faults, {}, { maxRows: 1000 });
+  const n = await scrubErasedJobs(db, TENANT, PERSON, [DIGITS], FINISHED_JOB_STATES);
+  assert.equal(reads, 2, "two pages were read, and the purge came between them");
+  assert.equal(n, 1, "the person's job was read");
+  assert.ok(scrubbed(payloadOf(jobs, own.id)), "and its number and words are gone");
 });

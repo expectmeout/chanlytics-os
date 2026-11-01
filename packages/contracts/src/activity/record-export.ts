@@ -4,7 +4,7 @@
  *
  * The card, the privacy page and the Terms said "everything", and the file held people, conversations, calls and the
  * consent history: 54 of the 59 workspace tables an owner's session can read were in no section of it, and nothing failed
- * as the gap grew. Erasure has a rule that makes a new column say how it is reached (packages/db erasure-registry.ts);
+ * as the gap grew. Erasure has a rule that makes a new column say how it is reached (packages/db erasure/registry.ts);
  * this is the export's. Every kind of record (RECORD_KINDS) names one of three answers, and a kind added there does not
  * compile until it names one here:
  *

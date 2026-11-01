@@ -97,6 +97,7 @@ export const SCHEMA_SETS = {
     "outbound_send", "broadcast_send", "line_provision", "email_ingest", "lead_round_start",
     "lead_collect", "lead_check", "push_send", "push_receipts", "reply_read", "event_deliver",
     "booking_read", "inbound_answer", "history_import", "website_read", "preview_build",
+    "erasure_finish",
   ],
   "jobs.state": ["scheduled", "fired", "done", "canceled", "failed"],
   "lead_counters.kind": ["allowance", "budget", "day"],
