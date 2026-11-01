@@ -164,6 +164,8 @@ test("the thread's menu: the conversation, then the person by their first name, 
   const shape = menuShape(menu);
   assert.deepEqual(shape, [
     "[This conversation]",
+    // Taking it before a word is written, which the dock offered beside a Send that already answers and takes it.
+    "I'll answer this",
     "Snooze",
     "Archive",
     // The reader's own mark on the person (00349): on a real thread it is kept, so the menu offers it again.
@@ -178,6 +180,18 @@ test("the thread's menu: the conversation, then the person by their first name, 
   ]);
   // On a phone the menu is the kit's sheet, headed by who it is about, with the kit's one Close.
   assert.equal(menu.props.head.title, "Rosa Díaz");
+  const take = itemsIn(menu).find((it) => it.label === "I'll answer this");
+  assert.equal(take.meta, "The receptionist pauses, and your team sees you have it", "what taking it does");
+  const taken = [];
+  itemsIn(
+    find(
+      draw(toInboxThreadVM(conv(), asked, ZONE, NOW), { onTakeOver: (id) => taken.push(id) }),
+      (n) => n.type === Menu,
+    ),
+  )
+    .find((it) => it.label === "I'll answer this")
+    .onSelect();
+  assert.deepEqual(taken, ["th-c1"], "it takes the thread");
   assert.equal(menu.props.label, "More for the conversation with Rosa Díaz");
   assert.equal(
     itemsIn(menu).find((it) => it.label === "Snooze").hint,
@@ -925,6 +939,7 @@ test("Actions carry the deal's moves as a group of their own, by the stage of th
     people(null);
     assert.deepEqual(shape(draw(vm)), [
       "[This conversation]",
+      "I'll answer this",
       "Snooze",
       "Archive",
       "Mark as unread",
@@ -951,7 +966,7 @@ test("Actions carry the deal's moves as a group of their own, by the stage of th
     assert.deepEqual(order, ["actions", "sheet"]);
     // A proposal out (with no link to send on People's row here): its moves, each on this deal.
     people({ id: "d1", stage: "proposed", proposal: null });
-    assert.deepEqual(shape(draw(vm)).slice(10, 13), ["Mark as client", "Mark as passed", "Edit proposal"]);
+    assert.deepEqual(shape(draw(vm)).slice(11, 14), ["Mark as client", "Mark as passed", "Edit proposal"]);
     for (const [label, mode] of [
       ["Mark as client", "won"],
       ["Mark as passed", "lost"],
@@ -963,7 +978,7 @@ test("Actions carry the deal's moves as a group of their own, by the stage of th
       assert.deepEqual(order, ["actions", "sheet"], label);
     }
     people({ id: "d1", stage: "won" });
-    assert.deepEqual(shape(draw(vm)).slice(10, 11), ["End the engagement"]);
+    assert.deepEqual(shape(draw(vm)).slice(11, 12), ["End the engagement"]);
     press("End the engagement");
     assert.deepEqual(opened.at(-1), { personId: "k1", mode: "ended", dealId: "d1" });
     people({ id: "d1", stage: "lost" });

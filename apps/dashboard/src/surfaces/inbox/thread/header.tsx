@@ -16,7 +16,7 @@ import {
   proposalLinkOf,
   proposalMessage,
 } from "@chanlytics/contracts";
-import { MAILBOX_SENDERS_WORDS, shortName, THREAD_PANE_WORDS } from "@chanlytics/contracts";
+import { HOLD_ACT_WORDS, MAILBOX_SENDERS_WORDS, shortName, THREAD_PANE_WORDS } from "@chanlytics/contracts";
 import type { DealVM, PersonNextStepVM, PersonRowVM, VisitLineVM } from "@chanlytics/contracts";
 import { useState, type ReactNode } from "react";
 import { Icon } from "../../kit/icon/icon";
@@ -41,7 +41,7 @@ import type { Thread } from "../types";
 import { ixBandCallBack } from "./band";
 import { channelIconOf } from "./timeline";
 import { IxWho } from "./who";
-import { standingLine } from "./status";
+import { standingLine, takeInTheMenu } from "./status";
 import { NameOffer } from "../../people/person/name-offer";
 import { mayAtLeast } from "../../legacy-verbs";
 import { Button } from "../../kit/button/button";
@@ -314,15 +314,29 @@ function alsoInLeads(thread: Thread) {
 /** The More menu: what to do with the conversation, then with the person, the deal, the file. */
 interface HeaderActs {
   onSnooze: (threadId: string) => void;
+  onTakeOver: (threadId: string) => void;
   onMarkUnread: (threadId: string) => void;
   onOpenClient: (clientId: string | null | undefined) => void;
   onArchive: (() => void) | null;
 }
 
 function actionsMenu(thread: Thread, dealActs: MenuItem[], acts: HeaderActs) {
-  const { onSnooze, onMarkUnread, onOpenClient, onArchive } = acts;
+  const { onSnooze, onTakeOver, onMarkUnread, onOpenClient, onArchive } = acts;
   const snoozed = thread.state === "snoozed";
   const conversation: MenuItem[] = [
+    // Taking it before a word is written (status.tsx takeInTheMenu): the dock's "I'll answer this" stood beside a reply
+    // box whose Send already answers and takes it, so it is here, for a team member claiming it first.
+    ...(takeInTheMenu(thread) && HOLD_ACT_WORDS.reply.take
+      ? [
+          {
+            label: HOLD_ACT_WORDS.reply.take,
+            meta: THREAD_PANE_WORDS.takeMeta,
+            glyph: ixGlyph("users"),
+            onSelect: () => onTakeOver(thread.id),
+            gate: gate("approve", "take over a conversation"),
+          },
+        ]
+      : []),
     // A snoozed thread wakes from its status line ("Wake now"); the header's Snooze button read "Wakes …", disabled.
     ...(snoozed
       ? []
@@ -545,6 +559,7 @@ interface ThreadHeaderProps {
   channelLabels: Record<string, string>;
   onOpenClient?: (clientId: string | null | undefined) => void;
   onSnooze?: (threadId: string) => void;
+  onTakeOver?: (threadId: string) => void;
   onMarkUnread?: (threadId: string) => void;
   onBack?: (() => void) | null;
   onArchive?: (() => void) | null;
@@ -659,6 +674,7 @@ export const ThreadHeader = (props: ThreadHeaderProps) => {
     channelLabels,
     onOpenClient = () => {},
     onSnooze = () => {},
+    onTakeOver = () => {},
     onMarkUnread = () => {},
     onArchive = null,
   } = props;
@@ -718,7 +734,7 @@ export const ThreadHeader = (props: ThreadHeaderProps) => {
           }
           label={THREAD_PANE_WORDS.moreFor(thread.who)}
           head={{ title: thread.who, close: <Icon name="x" size={13} /> }}
-          groups={actionsMenu(thread, dealActs, { onSnooze, onMarkUnread, onOpenClient, onArchive })}
+          groups={actionsMenu(thread, dealActs, { onSnooze, onTakeOver, onMarkUnread, onOpenClient, onArchive })}
         />
       </div>
       {thread.fromAd ? fromAdLine(thread.fromAd) : null}

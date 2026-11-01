@@ -544,6 +544,7 @@ export const InboxThread = (props: InboxThreadProps) => {
         channelLabels={channelLabels}
         onOpenClient={onOpenClient}
         onSnooze={onSnooze}
+        onTakeOver={onTakeOver}
         onMarkUnread={onMarkUnread}
         onBack={onBack}
         onArchive={thread.real && held.onArchive ? () => setAskArchive(true) : null}

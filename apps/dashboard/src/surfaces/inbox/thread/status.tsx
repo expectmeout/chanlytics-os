@@ -298,6 +298,22 @@ function holdWhy(thread: Thread): ReactNode {
   );
 }
 
+/**
+ * Whether taking the thread without a word is More's to offer (header.tsx): a hold that asks for a reply, where the reply
+ * box can send one, so the dock offers no take-over (takeAct). Claiming it first still tells the team it is yours, and
+ * pauses the receptionist, before a word is written.
+ */
+export const takeInTheMenu = (thread: Thread): boolean =>
+  !!thread.real &&
+  thread.state === "escalated" &&
+  !thread.takenOver &&
+  !thread.claimedByOther &&
+  thread.holdAct !== "hand_back" &&
+  thread.holdAct !== "confirm" &&
+  !ixDockDials(thread) &&
+  thread.primaryChannel !== "phone" &&
+  replyGoes(thread);
+
 /** The lead act of a hold that asks for a person: a call back, or taking it where no reply can go; none where one can. */
 function takeAct(p: DockProps, thread: Thread): ReactNode {
   const { onTakeOver } = p;
@@ -471,8 +487,18 @@ function yoursBar(p: DockProps) {
       line
       label={W.yours}
       fact={W.yours}
-      // The reason it was flagged is said here, once: "Where this stands" said it below (I1).
-      source={thread.escalationId && thread.summary ? thread.summary : W.yoursFact}
+      // The reason it was flagged is said here, once: "Where this stands" said it below (I1). What the hold noted (the
+      // cause of a failed send) is a press away, as the dock for Needs you keeps it: the mark in the conversation quoted it.
+      source={
+        thread.escalationId && thread.summary ? (
+          <>
+            {thread.summary}
+            {thread.real && thread.holdNote ? <IxWhy said={`“${thread.holdNote}”`} testid="ix-hold-why" /> : null}
+          </>
+        ) : (
+          W.yoursFact
+        )
+      }
       acts={
         <Button
           variant="quiet"

@@ -247,6 +247,8 @@ export const THREAD_PANE_WORDS = {
   emailEarlier: "Earlier in the thread",
   /** An owner's first email from someone: the way to say it is not a person writing, beside the conversation. */
   firstEmail: (first: string) => `First email from ${first}. A newsletter, a notice or a pitch?`,
+  /** Taking a thread before a word is written, from More: what it does, under its words. */
+  takeMeta: "The receptionist pauses, and your team sees you have it",
   /** Over the reply box's words while they are the receptionist's draft, unchanged: whose they are. */
   drafted: "Drafted by the receptionist",
   more: "More",
