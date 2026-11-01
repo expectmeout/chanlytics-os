@@ -524,9 +524,11 @@ const IN_FLIGHT = {
   // Moved from 13 to 31 October 2026 (the wiring audit's R4, 14 October): its proposals and its bridge are emptied and held
   // (LIMITED_TREES), and four functions still stand over the limits: buildAskSuggestions (contracts), and the turn's loop, the
   // stream's frame parse and the deal proposal (server/ask). The phone app's tree was emptied and is held; it left this list.
+  // Moved again to 14 November 2026 (Ruben, 1 November): the four still stand over (measured that day: runAskTurn 409 lines,
+  // 65 branches; parseFrame 35 branches; proposeDeal 57; buildAskSuggestions 39), and splitting them is a lane of its own.
   "Ask Rewired": {
     since: "28 September 2026",
-    until: "31 October 2026",
+    until: "14 November 2026",
     trees: ["packages/contracts/src/ask", "apps/dashboard/src/server/ask"],
   },
 };
