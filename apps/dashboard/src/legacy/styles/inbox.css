@@ -1997,25 +1997,21 @@ button.ix-ctx { text-align: left; cursor: pointer; transition: background 100ms;
 @media (hover: hover) { .btn.ix-state-go:hover { background: color-mix(in oklab, var(--ink) 15%, transparent); border-color: transparent; } }
 .btn.ix-state-go .icon { color: currentColor; }
 
-/* ---- Where the conversation stands: one slim bar under the header (ThreadBar) ----
-   The pill its row wears and its wait, or a quiet thread's one sentence, on the left; the reply window on the right
-   when it has closed, its why a tap away, on a line of its own under the bar. A thread opens on it, before a word is
-   read: the standing sat at the foot of the screen, over a red block about the window, over the reply box's refusal.
-   The standing gives way when the line is short (a phone): its words clip, the window's never do. */
-.ix-th-bar {
+/* ---- Where the conversation stands: the header's second line (status.tsx standingLine) ----
+   The pill its row wears and its wait, or a quiet thread's one sentence, under the name where the wires were; the wires
+   are glyphs after the name (.ix-th-wire). It was a bar of its own under the header (the thread canvas, 1 Nov 2026).
+   WhatsApp's window, shut, heads the template box (.ix-th-closed), its why a tap away on a line of its own. */
+.ix-th-wire { flex: none; display: inline-flex; align-items: center; gap: 3px; color: var(--ink-faint); }
+.ix-th-closed {
   flex-shrink: 0;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  column-gap: 12px;
+  column-gap: 8px;
   row-gap: 4px;
-  border-bottom: 1px solid var(--line);
-  background: var(--bg-sunken);
   color: var(--ink-dim);
 }
-/* The state and its wait, "Needs you · waiting 42m": as far apart as the space after the dot, which 8px made
-   "Needs you  ·waiting" (the sample walk, 18 Oct 2026). */
-.ix-th-standing { flex: 1 1 0; display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
+.ix-th-standing { flex: 0 1 auto; display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
 /* The pill names the state, with a dot in its colour: how much it asks of you, said without a word more. */
 .ix-th-standing .pill { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; line-height: 20px; }
 /* Inline-block so the words clip: the quiet state's dot is laid inline, and a filled pill draws none (a dot inside a
@@ -2031,10 +2027,9 @@ button.ix-ctx { text-align: left; cursor: pointer; transition: background 100ms;
 .ix-th-standing-meta { white-space: nowrap; }
 /* As the row's pill does: amber once they have waited past half an hour. */
 .ix-th-standing-meta.late { color: var(--warn-ink); }
-.ix-th-window { flex: none; display: inline-flex; align-items: center; gap: 6px; margin-left: auto; white-space: nowrap; }
+.ix-th-window { flex: none; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .ix-th-window::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--warn); }
-.ix-th-bar .ix-why { flex: none; }
-.ix-th-bar .ix-why-said { flex-basis: 100%; margin-top: 0; line-height: 1.4; }
+.ix-th-closed .ix-why-said { flex-basis: 100%; margin-top: 0; line-height: 1.4; }
 /* The thread's Actions: a ghost button with a word, lit while its menu is open. A ⋯ alone in the dim ink was too
    faint to find on a phone. */
 .btn.ix-th-more { height: var(--control-h-md); padding: 0 10px; border-radius: var(--control-radius); color: var(--ink-muted); font-size: 12px; }
@@ -2407,7 +2402,7 @@ button.ix-ctx { text-align: left; cursor: pointer; transition: background 100ms;
 }
 
 /* ---- The thread: its head, the standing under it, the conversation anchored at its foot, the band, the reply ---- */
-.ix-thread-pane :is(.ix-th-head, .ix-th-bar, .ix-th-status) {
+.ix-thread-pane :is(.ix-th-head, .ix-th-status) {
   background: transparent;
 }
 .ix-th-head {
@@ -2447,13 +2442,15 @@ button.ix-ctx { text-align: left; cursor: pointer; transition: background 100ms;
 .ix-th-visit.ahead {
   color: var(--ink-muted);
 }
-/* Actions: a word and its chevron, transparent, lit as a pointer reaches it. */
+/* More: a glyph on an inset round, lit as a pointer reaches it or while its menu is open (the thread canvas, 1 Nov 2026:
+   "Actions" and its chevron took a third of the header on a phone). */
 .ix-th-actions .ix-th-more {
+  width: var(--control-h-md);
   height: var(--control-h-md);
-  padding: 0 10px;
+  padding: 0;
   border: 0;
   border-radius: var(--radius-full);
-  background: transparent;
+  background: var(--surface-inset-fill);
   font-size: var(--text-base);
   font-weight: var(--weight-medium);
   color: var(--ink-muted);
@@ -2469,35 +2466,35 @@ button.ix-ctx { text-align: left; cursor: pointer; transition: background 100ms;
   }
 }
 /* Where it stands: the kit's pill as Glass draws a state, its dot and its words in the tone's ink (amber is the one
-   warning), and the wait beside it in the dim ink; the chat's state, when WhatsApp's window is shut, a lock and its words
-   at the line's end that open why (the phone thread's canvas, A1). It was a neutral capsule that cut its sentence short
-   beside an amber dot, "Window closed" and a 44px "Why?", 64px of bar on a phone. */
-.ix-th-bar {
-  gap: 10px;
-  min-height: 0;
-  padding: 10px 20px;
-  border-bottom-color: var(--line);
+   warning), and the wait beside it in the dim ink, under the name. The chat's state, when WhatsApp's window is shut, a
+   lock and its words at the head of the template box that open why (the phone thread's canvas, A1; the thread canvas,
+   1 Nov 2026). It was a neutral capsule that cut its sentence short beside an amber dot, "Window closed" and a 44px
+   "Why?", 64px of bar on a phone. */
+.ix-th-sub .ix-th-standing {
   font-size: var(--text-sm);
 }
-.ix-thread-pane .ix-th-bar .ix-th-window {
+.ix-th-closed {
+  padding: 10px 20px 0;
+  font-size: var(--text-sm);
+}
+.ix-thread-pane .ix-th-closed .ix-th-window {
   position: relative;
   gap: 5px;
   min-height: 0;
-  margin-left: auto;
   font-size: var(--text-sm);
   color: var(--ink-dim);
 }
-.ix-th-bar .ix-th-window::before {
+.ix-th-closed .ix-th-window::before {
   content: none;
 }
-/* Drawn at its words' height, pressed through a thumb's 44px round it: the touch floor made the bar 58px. */
-.ix-thread-pane .ix-th-bar .ix-th-window::after {
+/* Drawn at its words' height, pressed through a thumb's 44px round it. */
+.ix-thread-pane .ix-th-closed .ix-th-window::after {
   content: "";
   position: absolute;
   inset: -12px -8px;
 }
 @media (hover: hover) {
-  .ix-th-bar .ix-th-window:hover {
+  .ix-th-closed .ix-th-window:hover {
     color: var(--ink);
   }
 }
@@ -2784,6 +2781,112 @@ button.tl-stamp:focus-visible {
   justify-content: flex-end;
   gap: 6px;
   margin-top: 6px;
+}
+
+/* An email, drawn as one (timeline.tsx emailEntry; the thread canvas, 1 Nov 2026): the conversation's width, who it is
+   from and when at its head, its subject, its words at the reading step, folded to their first lines where they run long,
+   and what is not its words folded under them, a hairline each. It was a chat bubble three-quarters wide. */
+.ix-thread-pane .tl-msg.tl-email .tl-msg-bubble {
+  width: 100%;
+  max-width: none;
+  gap: 6px;
+  padding: 12px 16px;
+  border-radius: var(--surface-row-radius);
+}
+.ix-thread-pane .tl-msg.tl-email .tl-msg-bubble > * {
+  max-width: none;
+}
+.ix-thread-pane .tl-msg.client.tl-email .tl-msg-bubble {
+  background: var(--surface-inset-fill);
+  box-shadow:
+    var(--surface-inset-ring),
+    var(--surface-inset-depth);
+}
+.ix-thread-pane .tl-msg.agent.tl-email .tl-msg-bubble {
+  background: var(--bubble-us-bg);
+}
+.ix-thread-pane .tl-msg.tl-email .tl-msg-body {
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  font-size: var(--text-mail);
+  line-height: 1.55;
+}
+.tl-msg.tl-email .tl-msg-body[data-folded] {
+  max-height: calc(1.55em * 6);
+  overflow: hidden;
+}
+.tl-email-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+.tl-email-from {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+.tl-email-head .tl-stamp {
+  float: none;
+  flex: none;
+  margin: 0;
+}
+.ix-thread-pane .tl-msg.tl-email .tl-msg-subject {
+  margin: 0;
+  font-size: var(--text-md);
+  line-height: 1.3;
+}
+.tl-email-whole {
+  align-self: flex-start;
+  gap: 4px;
+}
+.tl-email-folds {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Where it was held for a person: a quiet mark between the words, its spark and its clause, centred as the day is
+   (timeline.tsx). It was a dotted line with the reason's label and its details quoted, under the dock's glass on a phone. */
+.tl-event.tl-held {
+  align-self: center;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: var(--text-xs);
+}
+.tl-held > .tl-event-text {
+  flex: 0 1 auto;
+}
+.tl-held-spark {
+  flex: none;
+  color: var(--ink-faint);
+}
+
+/* An owner's first email from someone (thread.tsx FirstEmailAsk): one quiet line under the conversation, its act a word. */
+.ix-first-email {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 6px 6px 14px;
+  border-radius: var(--surface-row-radius);
+  box-shadow: var(--surface-inset-ring);
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+.ix-first-email-glyph {
+  flex: none;
+  color: var(--ink-dim);
+}
+.ix-first-email-words {
+  flex: 1;
+  min-width: 0;
 }
 
 /* The template box (C1): the chosen message's name, a door to the others, and what sending it does; then its sentence
@@ -3159,11 +3262,11 @@ button.tl-stamp:focus-visible {
   :is(.inbox, .conversations)[data-takeover] .ix-th-actions .ix-th-more {
     position: relative;
     gap: 5px;
-    width: auto;
+    width: 36px;
     min-width: 0;
-    height: 34px;
+    height: 36px;
     min-height: 0;
-    padding: 0 12px 0 14px;
+    padding: 0;
     border-radius: var(--radius-full);
     background: var(--surface-inset-fill);
     box-shadow:
@@ -3173,20 +3276,19 @@ button.tl-stamp:focus-visible {
     font-weight: var(--weight-medium);
     color: var(--ink);
   }
-  /* A thumb's 44px, as an invisible margin round the 34px capsule. */
+  /* A thumb's 44px, as an invisible margin round the 36px round. */
   :is(.inbox, .conversations)[data-takeover] .ix-th-actions .ix-th-more::before {
     content: "";
     position: absolute;
-    inset: -5px -4px;
+    inset: -4px;
   }
   :is(.inbox, .conversations)[data-takeover] .ix-th-actions .ix-th-more > .icon {
     color: var(--ink-dim);
   }
   /* Under the capsule the standing on the page itself, no hairline; the conversation at the phone's sides, the
      bubbles at the phone's 88%; the band and the reply box at the phone's padding. */
-  :is(.inbox, .conversations)[data-takeover] .ix-th-bar {
-    padding: 8px 18px 6px;
-    border-bottom: 0;
+  :is(.inbox, .conversations)[data-takeover] .ix-th-closed {
+    padding: 8px 18px 0;
   }
   :is(.inbox, .conversations)[data-takeover] .ix-th-scroll {
     gap: 10px;
@@ -3198,6 +3300,10 @@ button.tl-stamp:focus-visible {
     .tl-msg-bubble
     > :not(.tl-msg-meta, .tl-msg-by) {
     max-width: 88%;
+  }
+  /* An email keeps the conversation's width on a phone too. */
+  :is(.inbox, .conversations)[data-takeover] .ix-thread-pane .tl-msg.tl-email .tl-msg-bubble > * {
+    max-width: none;
   }
   :is(.inbox, .conversations)[data-takeover] .ix-th-status {
     padding: 6px 12px 0;

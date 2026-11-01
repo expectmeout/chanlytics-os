@@ -154,7 +154,7 @@
   .ix-agent-rail { display: none; }
   .ix-list { border-right: none; border-bottom: 1px solid var(--line); }
   .ix-th-head { padding: 12px 16px; }
-  .ix-th-bar { padding: 5px 16px; }
+  .ix-th-closed { padding: 6px 16px 0; }
   .ix-th-channels-meta { display: none; }
   .ix-context-strip { padding: 0 16px; }
   .ix-thread-pane > .confirm-block { margin: 10px 16px 4px; }
@@ -501,9 +501,9 @@
   /* The thread's own rules sit on the thread (.ix-thread-pane), not on the page that mounts it: the one thread opens in
      Conversations too, and a rule written as .inbox … drew it there without them -- two looks from one component. */
   .ix-thread-pane .ix-th-actions { flex-wrap: nowrap; justify-content: flex-end; }
-  /* The menu holds Snooze, Archive and the profile now: a thumb tall, as Back beside it is, where it was 26px. */
-  .ix-thread-pane .btn.ix-th-more { min-height: 44px; padding: 0 12px; }
-  /* One line under the name: the wires, then the visit's day. Its time is a desktop's; here it took the whole line. */
+  /* More holds Snooze, Archive and the profile: a thumb's round, as Back beside it is, where it was 26px. */
+  .ix-thread-pane .btn.ix-th-more { min-width: 44px; min-height: 44px; padding: 0; }
+  /* One line under the name: where it stands (or the wires), then the visit's day. Its time is a desktop's; here it took the whole line. */
   .ix-th-visit-time { display: none; }
   .ix-thread-pane .ix-context-strip { display: none; }
   /* The list on a phone shows the threads first too (I6). The buckets sit in one row of three, where a grid of two

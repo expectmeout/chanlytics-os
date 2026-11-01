@@ -157,22 +157,28 @@ const draw = (vm, props = {}) => {
 
 /* --------------------------------- the menu --------------------------------- */
 
-test("the thread's menu: what to do with the conversation, then the person, then the file -- no eyebrow, nothing broken onto two lines", () => {
+test("the thread's menu: the conversation, then the person by their first name, then the file, each under its heading -- nothing broken onto two lines", () => {
   const tree = draw(toInboxThreadVM(conv(), asked, ZONE, NOW));
   const menu = find(tree, (n) => n.type === Menu);
   assert.ok(menu, "the thread has its menu");
   const shape = menuShape(menu);
   assert.deepEqual(shape, [
+    "[This conversation]",
     "Snooze",
     "Archive",
     // The reader's own mark on the person (00349): on a real thread it is kept, so the menu offers it again.
     "Mark as unread",
     "|",
+    "[Rosa]",
     "Open profile",
     "Receptionist settings",
     "|",
+    "[File]",
     "Export transcript",
   ]);
+  // On a phone the menu is the kit's sheet, headed by who it is about, with the kit's one Close.
+  assert.equal(menu.props.head.title, "Rosa Díaz");
+  assert.equal(menu.props.label, "More for the conversation with Rosa Díaz");
   assert.equal(
     itemsIn(menu).find((it) => it.label === "Snooze").hint,
     "until tomorrow 10:00",
@@ -239,9 +245,13 @@ test("the menu draws a hint as one short word at the item's end, apart from the 
 
 /* ------------------------------ the line under the name ------------------------------ */
 
-test("the line under the name says the wires the conversation is on, once -- never a number or 'no name saved'", () => {
-  const head = (vm) => textOf(find(draw(vm), hasClass("ix-th-meta")));
+test("the wires the conversation is on are glyphs after the name, said once in words to a reader -- never a number or 'no name saved'", () => {
+  // The line under the name says where the thread stands; it said "Email" in words, beside a subject cut short (the
+  // thread canvas, 1 Nov 2026). The wires are glyphs after the name, their words for a pointer and a screen reader.
+  const wire = (vm) => find(draw(vm), byTestId("ix-th-wire"));
+  const head = (vm) => wire(vm).props["aria-label"];
   assert.equal(head(toInboxThreadVM(conv(), asked, ZONE, NOW)), "WhatsApp");
+  assert.equal(wire(toInboxThreadVM(conv(), asked, ZONE, NOW)).props.role, "img");
   const call = {
     id: "k1",
     direction: "inbound",
@@ -260,7 +270,15 @@ test("the line under the name says the wires the conversation is on, once -- nev
     "WhatsApp · Phone",
     "both wires, the chat's first",
   );
+  assert.equal(
+    all(wire(toInboxThreadVM(conv({ messages: [m("m1", 40), call] }), asked, ZONE, NOW)), (n) => n.props?.name).length,
+    2,
+    "a glyph each",
+  );
   assert.ok(!/\+1|no name/.test(head(toInboxThreadVM(conv(), asked, ZONE, NOW))));
+  // A thread that stands nowhere worth a word (answered, owed nothing) says its wires in words under the name instead.
+  const quietVm = toInboxThreadVM(conv({ state: "open" }), null, ZONE, NOW);
+  assert.equal(textOf(find(draw(quietVm), hasClass("ix-th-meta"))), "WhatsApp");
 });
 
 /** A visit as People's row carries it (contracts visitLineOf): the chip draws its day, its time and how it stands. */
@@ -294,7 +312,11 @@ test("beside the wires, the person's next visit from People -- or their last -- 
     let tree = draw(vm);
     assert.equal(textOf(chip(tree)).trim(), "Tue, Sep 8 · 2:00 – 5:00 PM", "a visit ahead: its day and time");
     assert.ok(chip(tree).props.className.split(" ").includes("ahead"), "marked as ahead");
-    assert.equal(textOf(find(tree, hasClass("ix-th-meta"))), "WhatsApp", "the wires' line says the wires, once");
+    assert.match(
+      textOf(find(find(tree, byTestId("ix-th-sub")), byTestId("ix-th-standing"))),
+      /^Needs you/,
+      "the line says where it stands, then the chip",
+    );
     peopleAre({
       rows: [person({ lastVisitLine: visitLine("Thu, Aug 20", "10:00 AM – 12:00 PM", PAST) })],
     });
@@ -370,8 +392,8 @@ test("REGRESSION: who the thread is with opens their page -- the face, the name 
   assert.equal(link.type, "a");
   assert.equal(link.props.href, "#/clients/k1", "their page's address, so a long press or a new tab opens it too");
   assert.ok(
-    find(link, hasClass("face")) && find(link, hasClass("ix-th-name")) && find(link, hasClass("ix-th-meta")),
-    "the face, the name and the wires' line are one door, a thumb tall",
+    find(link, hasClass("face")) && find(link, hasClass("ix-th-name")) && find(link, byTestId("ix-th-sub")),
+    "the face, the name and the line under it are one door, a thumb tall",
   );
   assert.equal(textOf(find(link, hasClass("ix-th-name-words"))), "Rosa Díaz");
   let prevented = false;
@@ -385,17 +407,27 @@ test("REGRESSION: who the thread is with opens their page -- the face, the name 
   const none = draw({ ...vm, clientId: null });
   assert.equal(find(none, byTestId("ix-th-person")), undefined);
   assert.ok(find(none, hasClass("ix-th-who")), "the face and the name stand as they did");
+  // Nothing in the door is a press of its own: a button inside a link is not one.
+  assert.equal(
+    find(link, (n) => n.type === "button"),
+    undefined,
+    "no press inside the door",
+  );
 });
 
-test("the header's menu says what it is -- Actions, with the chevron -- and stays a ghost beside the name", () => {
-  // A ⋯ alone, in the dim ink, was too faint to find on a phone (Ruben, 22 Sep 2026). A word says it opens something.
+test("the header's menu is More: a glyph on an inset round a thumb finds, its name said to a pointer and a screen reader", () => {
+  // "Actions" and its chevron took a third of the header on a phone, beside a name cut short (the thread canvas, 1 Nov
+  // 2026). The ⋯ that was too faint to find (Ruben, 22 Sep 2026) was the dim ink on nothing; this one stands on an inset
+  // round (inbox.css .ix-th-more), 44px under a thumb.
   const trigger = find(draw(toInboxThreadVM(conv(), asked, ZONE, NOW)), (n) => n.type === Menu).props.trigger;
-  assert.ok(textOf(trigger).startsWith("Actions"), "the word, then the chevron");
-  assert.equal(trigger.props.title, "Actions", "and its tooltip says the same word, not More");
+  assert.ok(trigger.props.iconOnly && trigger.props.className === "ix-th-more", "a glyph alone, on its round");
+  assert.equal(trigger.props.title, "More");
+  assert.equal(trigger.props["aria-label"], "More for the conversation with Rosa Díaz", "what it opens, to a reader");
   assert.ok(
-    trigger.props.variant === "quiet" && trigger.props.className === "ix-th-more" && !trigger.props.iconOnly,
-    "a ghost button with words, not a boxed icon",
+    find(trigger, (n) => n.props?.name === "more"),
+    "the glyph",
   );
+  assert.equal(textOf(trigger).trim(), "", "no word beside it");
 });
 
 /* ------------------------------ what it needs from you ------------------------------ */
@@ -479,7 +511,7 @@ const DAY = 24 * 60;
 const closedConv = (over = {}) =>
   conv({ last_wa_inbound_at: at(2 * DAY), last_message_at: at(2 * DAY), messages: [m("m1", 2 * DAY)], ...over });
 
-test("the bar under the header says where the conversation stands and that the window has closed, once; the reply box is only the send that works", () => {
+test("the line under the name says where the conversation stands; the template box says the window has closed, once, and is the send that works", () => {
   setSurfaceValue("inbox", {
     INBOX_BUCKETS: [],
     INBOX_VIEWS: [],
@@ -490,16 +522,15 @@ test("the bar under the header says where the conversation stands and that the w
   });
   try {
     const tree = draw(toInboxThreadVM(closedConv(), asked, ZONE, NOW));
-    const bar = find(tree, byTestId("ix-th-bar"));
-    assert.ok(bar, "the bar");
-    // Under the header, over the conversation: a thread opens on it.
-    const rows = tree.props.children
-      .filter((k) => k && typeof k === "object")
-      .map((k) => k.type?.name || k.props?.className || k.type);
-    assert.deepEqual(rows.slice(0, 2), ["ThreadHeader", "ThreadBar"], `header, then the bar: ${rows.join(", ")}`);
-    assert.match(textOf(find(bar, byTestId("ix-th-standing"))), /^Needs you· waiting 40m$/);
-    // One quiet fact at the bar's end, a lock and its words, that opens why on a press (the phone canvas, A1): a dot in
-    // the warning's amber, "Window closed" and an underlined "Why?" made the bar 64px.
+    assert.equal(find(tree, byTestId("ix-th-bar")), undefined, "no bar of its own under the header");
+    // Under the name, in the header a thread opens on (the thread canvas, 1 Nov 2026).
+    const sub = find(tree, byTestId("ix-th-sub"));
+    assert.match(textOf(find(sub, byTestId("ix-th-standing"))), /^Needs you· waiting 40m$/);
+    assert.equal(find(sub, byTestId("ix-th-window")), undefined, "the person's door holds no press");
+    // One quiet fact at the head of the template box, a lock and its words, that opens why on a press (the phone
+    // canvas, A1): a dot in the warning's amber, "Window closed" and an underlined "Why?" made the bar 64px.
+    const bar = find(tree, byTestId("ix-th-closed"));
+    assert.ok(bar, "the box's head");
     const shut = find(bar, (n) => n.type === "button" && byTestId("ix-th-window")(n));
     assert.equal(textOf(shut).trim(), "Chat closed");
     assert.equal(shut.props["aria-expanded"], false);
@@ -858,7 +889,7 @@ test("Actions carry the deal's moves as a group of their own, by the stage of th
     order.push("sheet");
     return true;
   };
-  // The header's Actions button, as the page has it.
+  // The header's More button, as the page has it.
   const actions = { focus: () => order.push("actions") };
   globalThis.document.querySelector = (sel) => (sel === ".ix-th-head .ix-th-more" ? actions : null);
   const people = (deal) => {
@@ -872,15 +903,19 @@ test("Actions carry the deal's moves as a group of their own, by the stage of th
     // No deal: a proposal to start, in a group of its own after the person's.
     people(null);
     assert.deepEqual(shape(draw(vm)), [
+      "[This conversation]",
       "Snooze",
       "Archive",
       "Mark as unread",
       "|",
+      "[Rosa]",
       "Open profile",
       "Receptionist settings",
       "|",
+      "[Deal]",
       "Start a proposal",
       "|",
+      "[File]",
       "Export transcript",
     ]);
     assert.equal(itemsOf(draw(vm)).find((it) => it.label === "Start a proposal").glyph.props.name, "deal");
@@ -895,7 +930,7 @@ test("Actions carry the deal's moves as a group of their own, by the stage of th
     assert.deepEqual(order, ["actions", "sheet"]);
     // A proposal out (with no link to send on People's row here): its moves, each on this deal.
     people({ id: "d1", stage: "proposed", proposal: null });
-    assert.deepEqual(shape(draw(vm)).slice(7, 10), ["Mark as client", "Mark as passed", "Edit proposal"]);
+    assert.deepEqual(shape(draw(vm)).slice(10, 13), ["Mark as client", "Mark as passed", "Edit proposal"]);
     for (const [label, mode] of [
       ["Mark as client", "won"],
       ["Mark as passed", "lost"],
@@ -907,7 +942,7 @@ test("Actions carry the deal's moves as a group of their own, by the stage of th
       assert.deepEqual(order, ["actions", "sheet"], label);
     }
     people({ id: "d1", stage: "won" });
-    assert.deepEqual(shape(draw(vm)).slice(7, 8), ["End the engagement"]);
+    assert.deepEqual(shape(draw(vm)).slice(10, 11), ["End the engagement"]);
     press("End the engagement");
     assert.deepEqual(opened.at(-1), { personId: "k1", mode: "ended", dealId: "d1" });
     people({ id: "d1", stage: "lost" });
@@ -982,6 +1017,76 @@ test("an owner reading a person's email thread may say they are not a person fro
     globalThis.window.mayAtLeast = was.may;
     globalThis.sessionStorage = was.store;
   }
+});
+
+test("an owner's first email from someone asks under the conversation whether it is a person writing, with the same act -- never for someone the business already serves, a member who may not, or another wire", () => {
+  // The thread canvas, 1 Nov 2026: a sales sequence's email waited in Needs you, and the one act that fit was the fourth
+  // item of the header's menu. Made-up values.
+  const contact = {
+    id: "k9",
+    display_name: "Maya Chen",
+    wa_profile_name: null,
+    phone_e164: null,
+    email: "maya@northwind.example",
+    consent: "unknown",
+    dnc: false,
+  };
+  const email = (over = {}) =>
+    toInboxThreadVM(
+      conv({ contact, messages: [m("m1", 40, { channel: "email", body: "Would 15 minutes next week be useful?" })] }),
+      { ...asked, reason: "email_review" },
+      ZONE,
+      NOW,
+    );
+  const row = (over = {}) => ({ id: "k9", threads: 1, deal: null, nextVisitLine: null, lastVisitLine: null, ...over });
+  const was = { may: globalThis.window.mayAtLeast, store: globalThis.sessionStorage };
+  const kept = new Map();
+  globalThis.sessionStorage = {
+    getItem: (k) => kept.get(k) ?? null,
+    setItem: (k, v) => kept.set(k, String(v)),
+    removeItem: (k) => kept.delete(k),
+  };
+  const opened = [];
+  const ask = (vm) => find(draw(vm, { onOpenClient: (id) => opened.push(id) }), byTestId("ix-first-email"));
+  try {
+    globalThis.window.mayAtLeast = (rung) => rung === "owner";
+    peopleAre({ rows: [row()] });
+    const line = ask(email());
+    assert.ok(line, "the line under the conversation");
+    assert.equal(
+      textOf(find(line, hasClass("ix-first-email-words"))),
+      "First email from Maya. A newsletter, a notice or a pitch?",
+    );
+    const act = find(line, byTestId("ix-first-email-act"));
+    assert.equal(textOf(act).trim(), "Not a person…", "the header's act, in its words");
+    act.props.onClick();
+    assert.deepEqual(opened, ["k9"], "their page, with the question asked");
+    assert.deepEqual([...kept.values()], ["k9"]);
+    for (const [over, why] of [
+      [{ threads: 2 }, "a second conversation"],
+      [{ deal: { id: "d1", stage: "won", brief: "Client" } }, "a deal"],
+      [{ nextVisitLine: visitLine("Tue, Sep 8", "2:00 PM") }, "a visit"],
+    ]) {
+      peopleAre({ rows: [row(over)] });
+      assert.equal(ask(email()), undefined, `not for someone the business serves: ${why}`);
+    }
+    peopleAre({ rows: [row()] });
+    assert.equal(ask(toInboxThreadVM(conv(), asked, ZONE, NOW)), undefined, "a WhatsApp thread: not a mail sender");
+    globalThis.window.mayAtLeast = () => false;
+    assert.equal(ask(email()), undefined, "only an owner says a person is not one");
+  } finally {
+    peopleAre(undefined);
+    globalThis.window.mayAtLeast = was.may;
+    globalThis.sessionStorage = was.store;
+  }
+});
+
+test("where a thread was held for a person is a quiet mark between the words, its reason a clause -- the dock says what is owed", () => {
+  const tree = draw(toInboxThreadVM(conv(), asked, ZONE, NOW));
+  const mark = find(tree, byTestId("tl-held"));
+  assert.ok(mark, "the mark");
+  assert.match(textOf(mark), /^Held for you — asked for a person/);
+  assert.ok(!textOf(tree).includes("Flagged for a human"), "REGRESSION: the flag's label, said over the dock's");
 });
 
 /* ------------------------------ it moves as one ------------------------------ */

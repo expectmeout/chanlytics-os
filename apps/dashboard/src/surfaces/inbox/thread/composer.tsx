@@ -20,6 +20,7 @@ import { holderName } from "../../holder-names";
 import { ixBandCallBack } from "./band";
 import { growWithWords, isPromise, type OnSend } from "./send-words";
 import { TemplateComposer } from "./template-box";
+import { ChatClosed } from "./status";
 import { Button } from "../../kit/button/button";
 
 type SetText = Dispatch<SetStateAction<string>>;
@@ -229,11 +230,19 @@ function noChatComposer(thread: Thread, onSend: OnSend) {
   );
 }
 
-// The window has closed: the bar under the header says so, and why (ThreadBar), and the header names the wire and
-// the person. What is left is the one send that works. It was a red block saying the window had closed, over a
-// line saying "WhatsApp · to Rosa Díaz" again, over the send: three rows at the foot of a phone.
+// The window has closed: the box says so at its head, and why on a press (ChatClosed), over the one send that works.
+// It was a red block saying the window had closed, over a line saying "WhatsApp · to Rosa Díaz" again, over the send:
+// three rows at the foot of a phone; then a bar under the header, away from the box it explained (the thread canvas,
+// 1 Nov 2026).
 function closedComposer(thread: Thread, onSend: OnSend) {
-  return <TemplateComposer key={thread.id} onSend={onSend} threadId={thread.id} real={!!thread.real} thread={thread} />;
+  return (
+    <>
+      <div className="ix-th-closed" data-testid="ix-th-closed">
+        <ChatClosed dm={false} />
+      </div>
+      <TemplateComposer key={thread.id} onSend={onSend} threadId={thread.id} real={!!thread.real} thread={thread} />
+    </>
+  );
 }
 
 /**

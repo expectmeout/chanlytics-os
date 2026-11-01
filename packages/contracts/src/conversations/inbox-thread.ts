@@ -233,6 +233,25 @@ export const THREAD_PANE_WORDS = {
   others: "Others",
   /** A template of the sample data, said beside its name where its title said "(sample)" (inboxTemplates `sample`). */
   sample: "Sample",
+  /**
+   * The header's one control, a glyph (the thread canvas, 1 Nov 2026): its name for a pointer and a screen reader, and
+   * the headings of its menu's groups -- the conversation, the person (by their first name), the deal, the file.
+   */
+  /**
+   * An email in the conversation, drawn as one (the thread canvas, 1 Nov 2026): a long one folded to its first lines
+   * with the way to the rest, and what is not its words folded under them, each its own press.
+   */
+  emailWhole: "Show the whole email",
+  emailLess: "Show less",
+  emailFooter: "Footer and unsubscribe link",
+  emailEarlier: "Earlier in the thread",
+  /** An owner's first email from someone: the way to say it is not a person writing, beside the conversation. */
+  firstEmail: (first: string) => `First email from ${first}. A newsletter, a notice or a pitch?`,
+  more: "More",
+  moreFor: (who: string) => `More for the conversation with ${who}`,
+  groupConversation: "This conversation",
+  groupDeal: "Deal",
+  groupFile: "File",
   /** Under an email's words, what it will be signed with (emailSignedLine): where that is changed (decision 0081). */
   changeSignature: "Change",
   changeSignatureTip: "Change what your emails are signed with, in Settings › Connections",

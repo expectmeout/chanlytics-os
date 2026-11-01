@@ -59,7 +59,7 @@ type DockProps = StatusProps & HandBackAsk;
 // What a real thread asks of you, said one way whatever the state: the dock over the reply box (the phone canvas, B1),
 // the kit's notice. The one line of what is owed, one fact the page does not already show after it in the dim ink (never
 // the bar's wait, never their last bubble, which is right above it), and at most two acts, the lead a capsule and the
-// other words. The state's name -- the pill its row wears, and its wait -- is the bar's under the header (ThreadBar).
+// other words. The state's name -- the pill its row wears, and its wait -- is the header's, under the name (standingLine).
 // It was a sentence at 600 over their last message quoted again over the acts: three blocks for what the bar named.
 interface DockLine {
   fact: ReactNode;
@@ -509,11 +509,12 @@ export const ThreadStatus = (props: StatusProps) => {
   );
 };
 
-// =============== THE BAR — where the conversation stands, under the header ===============
-// One slim line a thread opens on: the pill its row in the list wears (StatePill -- one vocabulary for both) and how
-// long they have waited, or a quiet thread's one sentence; and, when WhatsApp's reply window has closed, that it has,
-// with why a tap away. It was said three times at the foot of a phone: the standing as a line of its own, the window
-// as a red block, and the reply box's refusal under both. Nothing when there is nothing to say.
+// =============== WHERE IT STANDS — the header's second line ===============
+// What the thread's row in the list wears (StatePill -- one vocabulary for both) and how long they have waited, said
+// under the name in the header (header.tsx), where the wires were (the thread canvas, 1 Nov 2026). It was a bar of its
+// own under the header, a row of the phone's height for one pill, over the dock that said the reason again. WhatsApp's
+// window, shut, is the template box's to say (ChatClosed, template-box.tsx): the line under the name is the person's
+// link, and a press inside a link is not one. Nothing when there is nothing to say: the header says the wires instead.
 
 /** Where a thread stands: the pill its row wears with how long they have waited, or a quiet thread's one sentence. */
 interface Standing {
@@ -559,12 +560,26 @@ const ixStanding = (thread: Thread): Standing | null => {
   };
 };
 
+/** Where a real thread stands, as the header's second line says it; null where it stands nowhere worth a word. */
+export function standingLine(thread: Thread): ReactElement | null {
+  const standing = ixStanding(thread);
+  if (!standing) return null;
+  return (
+    <span className="ix-th-standing" data-testid="ix-th-standing">
+      {standing.pill}
+      {standing.meta && (
+        <span className={`ix-th-standing-meta tabular${standing.late ? " late" : ""}`}>· {standing.meta}</span>
+      )}
+    </span>
+  );
+}
+
 /**
- * WhatsApp's window, shut: one quiet fact at the bar's end, a lock and its words, that opens why on a press. It was a dot
- * in the warning's amber, "Window closed" and an underlined "Why?" over a 44px press, which made the bar 64px and cut the
- * standing beside it to "Answered by the receptionist — n…" on a phone (the phone canvas, A1). Amber says one thing.
+ * WhatsApp's window, shut: a lock and its words, that open why on a press, at the head of the template box that is the
+ * one send left (template-box.tsx). A DM's says why in Instagram's words. It stood at the end of the bar under the header,
+ * away from the box it explains.
  */
-function ChatClosed({ dm }: { dm: boolean }) {
+export function ChatClosed({ dm }: { dm: boolean }) {
   const [open, setOpen] = useState(false);
   const W = THREAD_PANE_WORDS;
   return (
@@ -589,24 +604,3 @@ function ChatClosed({ dm }: { dm: boolean }) {
     </>
   );
 }
-
-export const ThreadBar = ({ thread }: { thread: Thread }) => {
-  const standing = ixStanding(thread);
-  // WhatsApp and Instagram have a window (replyWindow), and it is the reply box's concern when they opted out, or never
-  // wrote on WhatsApp at all: then nothing about a window is true enough to say. A DM's says why in Instagram's words.
-  const closed = thread.hasChat !== false && !thread.optedOut && thread.windowOpen === false;
-  if (!standing && !closed) return null;
-  return (
-    <div className="ix-th-bar" data-testid="ix-th-bar">
-      {standing && (
-        <span className="ix-th-standing" data-testid="ix-th-standing">
-          {standing.pill}
-          {standing.meta && (
-            <span className={`ix-th-standing-meta tabular${standing.late ? " late" : ""}`}>· {standing.meta}</span>
-          )}
-        </span>
-      )}
-      {closed && <ChatClosed dm={thread.primaryChannel === "instagram"} />}
-    </div>
-  );
-};
