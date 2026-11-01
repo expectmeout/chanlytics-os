@@ -303,11 +303,11 @@ test.describe("The thread, in the nightly's own workspace", () => {
       await expect(queue).toBeVisible();
       // One rule (standing.ts): a thread you took by replying is yours, not the queue's, escalation or not; the
       // Inbox lists it under Handled as yours (#852), Today's queue does not repeat it. What Today
-      // must never be quiet about is the failure itself: the recap's warning line, with the door to the thread.
+      // must never be quiet about is the failure itself: the recap's warning, under the head, with the door to the thread.
       await expect(queue.locator(".cl-attn-row").filter({ hasText: ROBIN.name })).toHaveCount(0);
       const failed = page
-        .getByTestId("today-recap")
-        .locator(".brief-beat")
+        .getByTestId("today-warnings")
+        .getByTestId("today-failed-reply")
         .filter({ hasText: /failed to deliver/ });
       await expect(failed).toHaveCount(1);
       await expect(failed).toContainText("the customer got no answer");

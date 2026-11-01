@@ -88,3 +88,23 @@ unfinished"); setup as a progress row (its card's head and one row stand as they
   (`pages/listen.tsx`, `useBriefWords`), the bell's grouping with While you were away (`useAwayGroups`).
 - The kit's Meter gains the ink and ground tones and a mark (its gallery's `meter-mark`); the attention row gains `wait`.
 - Reverse a call by drawing that part as the desk does: each is one branch of `today-page.tsx` `PhoneToday`.
+
+## Amended 1 November 2026 · One sentence, Need you in groups, the day on a desk
+
+Asked for by Ruben on 1 November 2026 (the Today canvas, approved end to end): the head and Need you were confusing and
+cluttered on a phone, and the page under them said things twice. What changed, on a desk and a phone alike:
+
+- **The head** is the greeting and one sentence (contracts `todayHeadLine`): what leads in the darker ink, a line that is
+  down or how many need you in the badge's number, then what Ask prepared and the one thing that cannot wait
+  (`needYouSay`), with Listen at its end. The phone's second headline (`todayPhoneHead`) and Listen's seat at the
+  greeting's right went.
+- **Need you** is in groups (contracts `needYouGroupsOf`): Up next, Waiting on you, Your OK, and Over a week with Mark all
+  done (each handed back to the receptionist, asked first, one Undo). A strip of the kit's `SubTabs` cuts them by what each
+  asks (Reply, Call, Approve) where two or more do. A person waiting has no state line: who, how long, the wire it came by
+  and their words. To do and Ask found are a line each at Need you's foot that opens in place, on a desk too.
+- **Under it** what cannot wait stands across the page on a desk as on a phone (`phone/warnings.tsx`); the day is a card
+  beside the work on a desk (`pages/day-card.tsx`, item 5's card, with what goes on its own today and what went out at
+  their times); Today so far is a phone's alone; the week is Worth a look's foot. Your brief's pane, Going today and the
+  desk's day card went: each thing they said is said where it is acted on.
+
+Item 1's head, item 4's To do under the people and item 7's Ask found as a pane of its own are replaced by the above.

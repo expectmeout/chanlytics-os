@@ -1,11 +1,12 @@
 /**
  * Today on a phone, EXECUTED on the stub React (decision 0076; docs/superpowers/specs/2026-10-28-today-on-a-phone-design.md):
- * Need you under the head with no head and no Ask's line of its own, who waits on the owner first and To do under them in
- * the same pane, one card and the rest short, a short row opening the walk rather than opening in place, the coral passing
- * from Need you to To do when nobody waits, and the day's numbers in one row by their short names. The same queue on a
- * desk is as it was. After his look on a phone (29 Oct 2026): each thing said once above the fold (how long someone waited
- * beside their name, a run's wait in its sentence, the brief's first line with Read), a foot where the card left someone
- * out, and under the head only the warnings that stop customers being answered.
+ * Need you under the head with no head and no Ask's line of its own, who waits on the owner first and To do a line at its
+ * foot that opens under them (the redesign of 1 Nov 2026), one card and the rest short, a short row opening the walk rather
+ * than opening in place, the coral passing from Need you to To do when nobody waits, and the day's numbers in one row by
+ * their short names. On a desk the same queue keeps its head and door, and opens a row in place. After his look on a phone
+ * (29 Oct 2026): each thing said once above the fold (how long someone waited beside their name, a run's wait in its
+ * sentence, the brief's first line with Read), a foot where the card left someone out, and under the head only the
+ * warnings that stop customers being answered.
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
@@ -48,7 +49,7 @@ W.fetch = async () =>
 const { AgentCommand } = await import("../../../../apps/dashboard/src/surfaces/today/pages/queue.tsx");
 const { TodayToDo } = await import("../../../../apps/dashboard/src/surfaces/today/phone/to-do.tsx");
 const { TodayCard, TodayHeadFigures } = await import("../../../../apps/dashboard/src/surfaces/today/pages/card.tsx");
-const { PhoneWarnings } = await import("../../../../apps/dashboard/src/surfaces/today/phone/warnings.tsx");
+const { TodayWarnings } = await import("../../../../apps/dashboard/src/surfaces/today/phone/warnings.tsx");
 const { BriefBox } = await import("../../../../apps/dashboard/src/surfaces/today/need-you/parts.tsx");
 const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
 
@@ -79,7 +80,7 @@ const rowsOf = (tree, kind) => all(tree, (n) => n.props?.["data-testid"] === `qu
 const isPrimary = (n) => classes(n).some((c) => c === "btn-primary" || c === "primary");
 const pressesOf = (tree) => all(tree, (n) => n.type === "button");
 
-test("on a phone Need you is the people under the page's head, and To do is under them in the same pane", () => {
+test("on a phone Need you is the people under the page's head, and To do is a line at its foot that opens under them", () => {
   phone = true;
   set(twoWaiting());
   const queue = draw(AgentCommand);
@@ -87,9 +88,15 @@ test("on a phone Need you is the people under the page's head, and To do is unde
   assert.equal(byTestId(queue, "today-queue-door"), null, "and the Inbox is the tab bar's");
   assert.equal(byTestId(queue, "today-queue-ask"), null, "each card says what Ask prepared: no line over them");
   assert.equal(byTestId(queue, "today-queue").props["data-phone"], true);
-  const todo = byTestId(queue, "today-todo");
-  assert.ok(todo, "To do is in the pane");
-  const people = rowsOf(queue, "handoff");
+  const line = byTestId(queue, "today-todo-line");
+  assert.ok(line, "To do is in the pane, as a line");
+  assert.equal(byTestId(queue, "today-todo"), null, "closed while someone waits on you: they are the work");
+  assert.match(textOf(line), /To do/);
+  press(byTestId(line, "today-todo-open"));
+  const opened = again(() => W.React.createElement(AgentCommand, {}));
+  const todo = byTestId(opened, "today-todo");
+  assert.ok(todo, "opened in place");
+  const people = rowsOf(opened, "handoff");
   assert.equal(people.length, 2, "both people waiting");
   assert.ok(
     people.every((p) => !all(todo, (n) => n === p).length),
@@ -106,8 +113,8 @@ test("on a phone the day's four numbers are one row, each by its short name", ()
   const names = all(card, (n) => classes(n).includes("tc-fig-w")).map(textOf);
   assert.deepEqual(names, ["messages", "answered", "calls", "new people"]);
   phone = false;
-  // A desk's four stand in the frame's head beside the greeting (card.tsx TodayHeadFigures), by their long names.
-  assert.equal(byTestId(draw(TodayCard), "today-figures"), null, "a desk's card draws none");
+  // A desk's four stand in the frame's head beside the greeting (card.tsx TodayHeadFigures), by their long names; the
+  // card is a phone's alone (today-page.tsx).
   const desk = draw(TodayHeadFigures);
   assert.ok(
     all(desk, (n) => classes(n).includes("tc-fig-w"))
@@ -151,18 +158,30 @@ test("the coral is Need you's first act while someone waits, and To do's when no
   assert.equal(pressesOf(calm).filter(isPrimary).length, 1, "with nobody waiting, To do's Done is the coral");
 });
 
-test("on a desk the queue is as it was: its head, the steps among its rows, and the second row worked in place", () => {
+test("on a desk the queue has its head and door, the steps in To do at its foot, Up next worked in place and the next opened in its stead", () => {
   phone = false;
   set(twoWaiting());
   const queue = draw(AgentCommand);
-  assert.ok(byTestId(queue, "today-queue-count"), "its head");
-  assert.equal(rowsOf(queue, "step").length, 1, "Ben's step among the rows (decision 0007)");
-  assert.ok(byTestId(rowsOf(queue, "handoff")[1], "queue-handoff-work"), "the first two are worked in place");
+  assert.ok(byTestId(queue, "today-queue-door"), "its head, with its door");
+  assert.equal(byTestId(queue, "today-queue-count"), null, "how many is the page head's, said once");
+  assert.equal(rowsOf(queue, "step").length, 0, "Ben's step is To do's (decision 0007), behind its line");
+  assert.ok(byTestId(queue, "today-todo-line"));
+  const [first, second] = rowsOf(queue, "handoff");
+  assert.ok(byTestId(first, "queue-handoff-work"), "Up next is worked in place");
+  assert.equal(byTestId(second, "queue-handoff-work"), null, "the next is short");
+  press(find(second, (n) => n.type === "button" && textOf(n).includes("Reply")));
+  const opened = rowsOf(
+    again(() => W.React.createElement(AgentCommand, {})),
+    "handoff",
+  );
+  assert.ok(byTestId(opened[1], "queue-handoff-work"), "opened in place, on a desk");
+  assert.equal(byTestId(opened[0], "queue-handoff-work"), null, "one open at a time");
+  assert.deepEqual(went, [], "and nobody sent to a thread");
   assert.equal(byTestId(queue, "today-queue").props["data-phone"], undefined);
   phone = true;
 });
 
-/** `n` people waiting on a person, an hour apart, the first the longest: more than the card holds past four. */
+/** `n` people waiting on a person, an hour apart, the first the longest: more than the card holds past six. */
 const manyWaiting = (n) => {
   const at = (h) => new Date(NOW.getTime() - h * 3_600_000).toISOString();
   const threads = Array.from({ length: n }, (_, i) =>
@@ -178,13 +197,14 @@ const footOf = (tree) => find(tree, (n) => classes(n).includes("tq-foot"));
 test("how long someone waited is said once, beside their name, on a phone and on a desk", () => {
   phone = true;
   set(twoWaiting());
+  const once = (row) => textOf(row).split("3h").length === 2;
   const [sofiaRow] = rowsOf(draw(AgentCommand), "handoff");
-  assert.ok(textOf(sofiaRow).includes("waited"), textOf(sofiaRow));
+  assert.ok(once(sofiaRow), textOf(sofiaRow));
   assert.ok(!textOf(sofiaRow).includes("since "), `no since on a phone: ${textOf(sofiaRow)}`);
   phone = false;
   const [deskRow] = rowsOf(draw(AgentCommand), "handoff");
-  assert.ok(textOf(deskRow).includes("waited"), `a desk says the wait: ${textOf(deskRow)}`);
-  assert.ok(!textOf(deskRow).includes("since "), `and only once: ${textOf(deskRow)}`);
+  assert.ok(once(deskRow), `a desk says the wait, once: ${textOf(deskRow)}`);
+  assert.ok(!textOf(deskRow).includes("since "), `and no since: ${textOf(deskRow)}`);
   phone = true;
 });
 
@@ -192,9 +212,10 @@ test("on a phone the card says who it left out, with See all, and says nothing w
   phone = true;
   set(twoWaiting());
   assert.equal(footOf(draw(AgentCommand)), null, "two people, both drawn: no foot");
-  set(manyWaiting(6));
+  // The day holds six (contracts today-queue.ts), each a row of its group; past them the foot counts the rest.
+  set(manyWaiting(8));
   const queue = draw(AgentCommand);
-  assert.equal(rowsOf(queue, "handoff").length, 4, "the card holds four");
+  assert.equal(rowsOf(queue, "handoff").length, 6, "the card holds six");
   const foot = footOf(queue);
   assert.ok(foot, "and says the rest");
   assert.ok(textOf(foot).includes("2 more in the Inbox"), textOf(foot));
@@ -294,11 +315,41 @@ test("under a phone's head only what stops customers being answered: a run waiti
   try {
     phone = true;
     set(twoWaiting());
-    const warned = draw(PhoneWarnings);
-    const rows = all(warned, (n) => n.props?.["data-testid"] === "today-phone-warning").map(textOf);
+    const warned = draw(TodayWarnings);
+    const rows = all(warned, (n) => n.props?.["data-testid"] === "today-warning").map(textOf);
     assert.equal(rows.length, 1, rows.join(" | "));
     assert.ok(rows[0].includes("WhatsApp number"), rows[0]);
   } finally {
     delete W.__notifs;
   }
+});
+
+test("a call back that has waited past a week says first that it may be let go; a newer one goes straight to its brief", async () => {
+  const { CallWork } = await import("../../../../apps/dashboard/src/surfaces/today/need-you/call-work.tsx");
+  const { NEED_YOU_WORDS, NEED_YOU_OLD_MS, DAY_MS } = await import("@chanlytics/contracts");
+  const callBack = (waitedMs) => ({
+    id: `q-cb-${waitedMs}`,
+    kind: "callback",
+    who: "Dana Park",
+    phone: "+15555550134",
+    conversationId: null,
+    writes: null,
+    waitedMs,
+    cta: { label: "Call", to: "inbox" },
+  });
+  const work = (waitedMs) => {
+    fresh();
+    return again(() =>
+      W.React.createElement(CallWork, {
+        row: callBack(waitedMs),
+        main: "primary",
+        may: true,
+        tz: ZONE,
+        flash: () => {},
+        keep: () => {},
+      }),
+    );
+  };
+  assert.ok(textOf(work(NEED_YOU_OLD_MS + DAY_MS)).includes(NEED_YOU_WORDS.staleCall), "Ask's word, before its notes");
+  assert.ok(!textOf(work(DAY_MS)).includes(NEED_YOU_WORDS.staleCall), "a call back under a week is simply owed");
 });

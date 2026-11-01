@@ -20,7 +20,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { toTodayVM } from "@chanlytics/contracts";
 import { readRaw } from "../_source.mjs";
 import { changesOf } from "../_live-feed.mjs";
-import { installLegacyReact, fresh, all, byTestId, textOf, press } from "../_legacy-react.mjs";
+import { installLegacyReact, fresh, all, byTestId } from "../_legacy-react.mjs";
 
 // The queue and the hero are the TSX surface's (apps/dashboard/src/surfaces/today/pages, decision 0015), drawn on the
 // stub React over the day the seam holds; a stand-in window gives them the frame's door, and a timer that never fires
@@ -135,28 +135,24 @@ const draw = (Comp) => {
   return globalThis.React.createElement(Comp, {});
 };
 
-test("Today draws the call in progress first, then the people who need you, the windows closing, and the calls worth an ear last", () => {
-  // The queue (surfaces/today/pages/queue.tsx) owns the order now; the hero keeps the narrative.
+test("Today's queue leaves the call in progress to the frame's bar, draws the people who need you, and the calls worth an ear last", () => {
+  // The queue (surfaces/today/pages/queue.tsx) owns the order; a call on the line is the top bar's on every page
+  // (frame/topbar/status-bars.tsx LiveCallBar), which Glass drew instead of the queue's own rail, now gone.
   const vm = toTodayVM(metrics(), [waiting], [escalation], [], NOW);
   assert.equal(vm.queue.rows.length, 1, "a person is waiting on a person");
   setSurfaceValue("today", vm);
   globalThis.__LIVE = onTheLine();
   went.length = 0;
   const queue = byTestId(draw(AgentCommand), "today-queue");
-  const drawn = all(
-    queue,
-    (n) => n.props?.["data-testid"] === "brief-live-call" || String(n.props?.["data-testid"]).startsWith("queue-"),
-  );
-  assert.ok(drawn.length > 1, "the call on the line and the person waiting are both drawn");
   assert.equal(
-    drawn[0].props["data-testid"],
-    "brief-live-call",
-    "REGRESSION: a customer on the line was invisible on Today",
+    byTestId(queue, "brief-live-call"),
+    null,
+    "the call on the line is the frame's bar's, not a rail of the queue",
   );
-  const door = all(drawn[0], (n) => n.type === "button" && textOf(n).includes("Open Live"))[0];
-  assert.ok(door, "the call has a door");
-  press(door);
-  assert.deepEqual(went, ["live/call_live1234"], "the call's own door, not Live's list");
+  assert.ok(
+    all(queue, (n) => String(n.props?.["data-testid"]).startsWith("queue-")).length >= 1,
+    "the person waiting is drawn",
+  );
   const vmSrc = readRaw("packages/contracts/src/today/today-queue.ts");
   const esc = vmSrc.indexOf("for (const r of escRecords) {");
   const win = vmSrc.indexOf("for (const c of closingConvs) {");

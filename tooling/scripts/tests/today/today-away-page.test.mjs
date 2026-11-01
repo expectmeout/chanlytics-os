@@ -468,7 +468,7 @@ test("a new review the card's line draws is not said again by the bell's notice 
   assert.equal(other.groups.length, 1);
 });
 
-test("the card draws no review notice under the line: Today's Google surface is the line's, and an answered review has none", () => {
+test("a new review's notice stands in While you were away, since no line of the page says it (the redesign of 1 Nov 2026)", () => {
   const REV = "11111111-1111-4111-8111-111111111111";
   const hour = 3_600_000;
   const at = (ago) => new Date(Date.now() - ago).toISOString();
@@ -534,14 +534,20 @@ test("the card draws no review notice under the line: Today's Google surface is 
     return globalThis.React.createElement(TodayAway, {});
   };
   try {
-    const hidden = away(google());
-    assert.equal(all(hidden, (n) => n.props?.["data-testid"] === "today-away-row").length, 0, "the line has it");
-    assert.equal(textOf(byClass(hidden, "tq-count")).trim(), "1", "and the head still counts it: it is in the bell");
+    // The day's card said it as a line of its own, and dropped the bell's notice of it here; the card's lines went with
+    // Your brief's pane, so the notice is the one place it is said, until To do offers it to answer.
+    const news = away(google());
+    assert.equal(
+      all(news, (n) => n.props?.["data-testid"] === "today-away-row").length,
+      1,
+      "the bell's notice says it",
+    );
+    assert.equal(textOf(byClass(news, "tq-count")).trim(), "1", "and the head counts it: it is in the bell");
     const answered = away(google({ reply_text: "Thank you, Ana.", replied_at: at(10 * 60_000) }));
     assert.equal(
       all(answered, (n) => n.props?.["data-testid"] === "today-away-row").length,
       1,
-      "answered, the line has gone, and a notice the bell has not read stands for itself",
+      "answered, a notice the bell has not read stands for itself",
     );
   } finally {
     setSurfaceValue("google", undefined);

@@ -881,16 +881,6 @@
 .fcard-auton-level.muted{color:var(--ink-faint)}
 
 /* Brief beats — sentences with inline decisions (#14) */
-.brief-beats { display: flex; flex-direction: column; gap: 7px; margin-top: 10px; }
-.brief-beat { display: flex; align-items: baseline; gap: 9px; font-size: var(--text-base); color: var(--ink-muted); line-height: 1.5; flex-wrap: wrap; }
-.brief-beat-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--ink-faint); flex: none; align-self: center; }
-.brief-beat-text { flex: 1; min-width: 0; }
-.brief-beat-text b { color: var(--ink); font-weight: 500; }
-.brief-chip { display: inline-flex; align-items: center; gap: 4px; font-size: var(--text-xs); font-weight: 500; color: var(--ink-muted); background: var(--bg-sunken); border: 1px solid var(--line); border-radius: var(--radius-full); padding: 2px 10px; transition: all 110ms; white-space: nowrap; }
-@media (hover: hover) { .brief-chip:hover { color: var(--ink); border-color: var(--line-strong); } }
-.brief-chip.primary { color: var(--accent); background: var(--accent-soft); border-color: transparent; }
-@media (hover: hover) { .brief-chip.primary:hover { background: var(--accent); color: var(--accent-fg); } }
-.brief-beats .brief-inbox-link { margin-top: 4px; align-self: flex-start; }
 /* Weekly trust review (#2) */
 .trust-review { background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-lg); overflow: hidden; }
 .tr-head { display: flex; align-items: center; gap: 9px; padding: 11px 16px; border-bottom: 1px solid var(--line); background: var(--bg-sunken); }
@@ -923,15 +913,10 @@
 /* The count is the away card's head (the bell's own number); the queue's head has no number over rows that say it. */
 .tq-count { font-size: var(--text-lg); font-weight: 500; color: var(--ink); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
 .tq-count.calm { color: var(--ink-muted); }
-.tq-sub { flex: 1; min-width: 0; font-size: 11.5px; color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tq-list { display: flex; flex-direction: column; }
 .tq-list .cl-attn-row:first-child { border-top: none; }
 .tq-empty { display: flex; align-items: center; gap: 8px; padding: 22px 16px; color: var(--ink-muted); font-size: var(--text-sm); }
 .tq-foot { display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; border-top: 1px solid var(--line); background: var(--bg-sunken); font-size: 11.5px; color: var(--ink-dim); }
-.tq-live { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--accent-soft); font-size: var(--text-sm); color: var(--ink); }
-.tq-live .live-dot { width: 7px; height: 7px; }
-.tq-live-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tq-live-last { color: var(--ink-muted); }
 /* The one FailedRead under the rows (the broadcasts read): .empty-line's own padding is 12px 0, which puts it against the card's edge. */
 .tq-failed { padding: 10px 16px; border-top: 1px solid var(--line); }
 
@@ -963,11 +948,6 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 @media (hover: hover) { .tc-receipt-door:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; } }
 /* Every control here takes the house focus ring (spec 8). */
 .tc-receipt-door:focus-visible, .ta-main:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-sm); }
-.tc-beats { padding: 10px 18px 14px; margin-top: 0; }
-.tc-beats:empty { display: none; }
-.tc-foot { display: flex; align-items: center; gap: 12px; padding: 10px 18px; border-top: 1px solid var(--line); background: var(--bg-sunken); border-radius: 0 0 var(--radius-lg) var(--radius-lg); font-size: 12px; color: var(--ink-muted); }
-.tc-foot-text { flex: 1; min-width: 0; line-height: 1.45; }
-.tc-foot .empty-line { padding: 0; flex: 1; }
 
 /* ---- Below the card: worth a look, away ----------------------------------- */
 .tsec { background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-lg); overflow: hidden; }
@@ -1062,7 +1042,6 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
      sentence under it, not three stacked rows. */
   .tq-head { flex-wrap: wrap; row-gap: 2px; padding-bottom: 10px; }
   .tq-head .btn { order: 2; }
-  .tq-sub { order: 3; flex-basis: 100%; white-space: normal; }
   /* The line an owner decides from wraps on a phone rather than truncates: at 390px the box is 286px and a
      three-segment status measures 427-460px, and what an ellipsis eats from the right is the deadline (spec 4.3). */
   .tq-list .cl-attn-status { white-space: normal; overflow: visible; text-overflow: clip; }
@@ -1071,7 +1050,6 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   /* On a phone it is not a pop but a panel in the card's flow, under its row: the sunken ground, no glass. */
   .tc-receipt { position: static; grid-column: 1 / -1; width: auto; max-width: none; box-shadow: none; background: var(--bg-sunken); backdrop-filter: none; border: 1px solid var(--line); }
   .tc-receipt[data-last="true"] { right: auto; }
-  .tc-foot { flex-wrap: wrap; }
 }
 
 /* ---- The canvas's proportions ("Today, redesigned") ------------------------
@@ -1203,33 +1181,25 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   border-bottom: none;
 }
 .tq-title { grid-column: 1; font-size: var(--text-base); }
-.tq-sub { grid-column: 1; order: 0; flex-basis: auto; font-size: var(--text-sm); white-space: normal; overflow: visible; text-overflow: clip; }
 .tq-head > button { grid-column: 2; grid-row: 1 / span 2; align-self: start; }
-.tq-live { padding: 10px 18px; }
 .tq-foot, .tq-failed, .tq-empty { padding-left: 18px; padding-right: 18px; }
 /* The queue, compact (as the setup card above it, canvas R10): one head line -- the title, what the rows hold beside
    it, Open Inbox a quiet link at the right -- rows with less air, and an empty queue's mark beside its words, inside
    the card's gutter. */
-:is(.today-queue, .today-going) .tq-head { grid-template-columns: auto minmax(0, 1fr) auto; align-items: baseline; column-gap: 8px; padding: 12px 18px 6px; }
-:is(.today-queue, .today-going) .tq-title, :is(.today-queue, .today-going) .tq-sub { grid-column: auto; }
-:is(.today-queue, .today-going) .tq-sub { font-size: var(--text-sm); }
-:is(.today-queue, .today-going) .tq-head > .tq-open { grid-column: 3; grid-row: 1; align-self: baseline; }
+:is(.today-queue) .tq-head { grid-template-columns: auto minmax(0, 1fr) auto; align-items: baseline; column-gap: 8px; padding: 12px 18px 6px; }
+:is(.today-queue) .tq-title { grid-column: auto; }
+:is(.today-queue) .tq-head > .tq-open { grid-column: 3; grid-row: 1; align-self: baseline; }
 .tq-open {
   padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-sm); color: var(--ink-dim); white-space: nowrap;
   text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; cursor: pointer;
 }
 @media (hover: hover) { .tq-open:hover { color: var(--ink); } }
 .tq-open:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-:where(.dash-a-v2) :is(.today-queue, .today-going) .cl-attn-row { gap: 4px; padding: 10px 18px; }
-:where(.dash-a-v2) :is(.today-queue, .today-going) .empty-line { flex-wrap: nowrap; align-items: baseline; gap: 8px; padding: 4px 18px 12px; }
+:where(.dash-a-v2) .today-queue .cl-attn-row { gap: 4px; padding: 10px 18px; }
+:where(.dash-a-v2) .today-queue .empty-line { flex-wrap: nowrap; align-items: baseline; gap: 8px; padding: 4px 18px 12px; }
 
 /* The figures take the canvas's tighter letter-spacing. */
 .tc-fig-n { letter-spacing: -0.025em; }
-
-/* The lines that are not numbers wear the one mark (.mark), not a bullet: at
-   this size a 4px dot carried no meaning, and the mark says which kind of line
-   it is before the sentence does. It is neutral; a warning's words say it. */
-.tc-beats .brief-beat { align-items: center; gap: 10px; }
 
 /* ---- The canvas's finish ---------------------------------------------------
    The proportions landed in #699; this is the rest of what the canvas draws
@@ -1252,12 +1222,6 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 .tl-text-door { display: block; width: 100%; margin: 0; padding: 0; border: 0; border-radius: var(--radius-xs); background: none; font-family: inherit; line-height: inherit; text-align: left; cursor: pointer; text-decoration: underline dotted var(--line-strong); text-underline-offset: 3px; }
 .tl-text-door:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
-/* The doors on the day's lines are links; the period's one door is the button. */
-.tc-beats .brief-chip { background: transparent; border-color: transparent; padding: 4px 6px; font-size: var(--text-sm); color: var(--ink-muted); border-radius: var(--radius-md); }
-@media (hover: hover) { .tc-beats .brief-chip:hover { background: var(--bg-hover); border-color: transparent; color: var(--ink); } }
-.tc-foot { background: transparent; }
-.tc-foot .btn { border: 1px solid var(--line); background: var(--bg-raised); color: var(--ink-muted); padding: 8px 12px; border-radius: var(--radius-md); font-size: var(--text-sm); }
-@media (hover: hover) { .tc-foot .btn:hover { color: var(--ink); border-color: var(--line-strong); background: var(--bg-raised); } }
 
 /* The two cards under the day's card go flat like the ones above them, and a
    bell with nothing in it draws no zero. */
@@ -1303,10 +1267,10 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   gap: 14px;
 }
 
-/* The cards: the setup card and the queue, the day's card, Worth a look and While you were away are clear panes
-   with the look's rim and depth, and the head and foot bars lose their sunken fills. The day's card is reached by its
-   testid: in the bento it sits in the bottom row, not under the page, and the ratchet counts its class. */
-.dash-a-v2 :is(.tq, .tsec, [data-testid="today-card"]),
+/* The panes: the setup card and Need you, the day, Today so far, Worth a look and While you were away are clear panes
+   with the look's rim and depth, and the head and foot bars lose their sunken fills. Today so far is reached by its
+   testid, since the ratchet counts its class. */
+.dash-a-v2 :is(.tq, .tsec, .tpd, [data-testid="today-card"]),
 .dash-a-v2 > section {
   position: relative;
   border: 0;
@@ -1314,7 +1278,7 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   background: var(--surface-pane-fill);
   box-shadow: var(--surface-pane-depth);
 }
-.dash-a-v2 :is(.tq, .tsec, [data-testid="today-card"])::after,
+.dash-a-v2 :is(.tq, .tsec, .tpd, [data-testid="today-card"])::after,
 .dash-a-v2 > section::after {
   content: "";
   position: absolute;
@@ -1331,20 +1295,20 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   background: transparent;
   border-bottom-color: transparent;
 }
-.dash-a-v2 :is(.tq-foot, .tc-foot, .tsec-note) {
+.dash-a-v2 :is(.tq-foot, .tsec-note) {
   background: transparent;
   border-top-color: var(--line);
 }
 /* E3 keeps 18px inside each pane and insets the hairlines by it: the pane carries the gutter, and its head, its rows
    and its foot run edge to edge within it (the rules below that set a padding set 0 at the sides too). */
-.dash-a-v2 :is(.today-queue, .today-going, .tsec, [data-testid="today-card"]) { padding: 0 18px; }
-.dash-a-v2 :is(.today-queue, .today-going, .tsec, [data-testid="today-card"]) :is(.tq-head, .tsec-head, .tc-head, .tq-foot, .tq-failed, .tsec-note, .tl-failed, .tl-row) {
+.dash-a-v2 :is(.today-queue, .tsec, [data-testid="today-card"]) { padding: 0 18px; }
+.dash-a-v2 :is(.today-queue, .tsec, [data-testid="today-card"]) :is(.tq-head, .tsec-head, .tc-head, .tq-foot, .tq-failed, .tsec-note, .tl-failed, .tl-row) {
   padding-left: 0;
   padding-right: 0;
 }
 /* The empty states too: the queue's line is what stands in its list that is not a row, the bell's the pane's second
    child where its list is not (the ratchet counts their names). */
-.dash-a-v2 :is(.today-queue, .today-going) .tq-list > :not([role="button"]),
+.dash-a-v2 .today-queue .tq-list > :not([role="button"]),
 .dash-a-v2 .ta > :nth-child(2):not(.ta-list) {
   padding-left: 0;
   padding-right: 0;
@@ -1393,27 +1357,22 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   box-shadow: var(--surface-inset-depth);
 }
 
-/* ---- The bento (canvas E3): the strip across, the queue's column beside the brief and the bell, the day's card beside
-   Worth a look, the pinned lists across; 14px between everything, as the canvas; under 1180px one column in that order
-   (today-page.tsx GlassPage). The rows stretch: the queue is as tall as the two panes beside it, its foot at its bottom. */
+/* ---- The bento (the redesign of 1 Nov 2026, over canvas E3): what cannot wait across; Need you and setting up beside the
+   day and the bell; Worth a look beside the pinned lists; 14px between everything; under 1180px one column in that order
+   (today-page.tsx). The work's column and the day's stand as tall as each other, the bell's pane reaching the bottom. */
 .main-scroll > .dash-a-v2-glass {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: 14px;
   align-items: stretch;
 }
-.dash-a-v2-glass > :is(.today-alert, .dash-a-v2-bottom, .tsec.tp) { grid-column: 1 / -1; }
+.dash-a-v2-glass > :is(.tpw, .dash-a-v2-bottom) { grid-column: 1 / -1; }
 .dash-a-v2-glass > .dash-a-v2-work { grid-column: span 8; gap: 14px; }
-.dash-a-v2-glass > .dash-a-v2-work > .today-queue { flex: 1 1 auto; display: flex; flex-direction: column; }
-/* The foot follows the last row, the room the queue stands tall by under it: pinned to the bottom, it stood 130px under
-   a short queue's last row, a gap that read as a row missing. */
-.dash-a-v2-glass .today-queue > .tq-foot { margin-top: 0; }
 .dash-a-v2-glass > .dash-a-v2-side { grid-column: span 4; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
-/* The side's last pane reaches the queue's bottom edge (E3's right column fills its row): with one row in the bell the
-   column stopped 160px short and the page showed through. */
+/* The side's last pane reaches the work's bottom edge (E3's right column fills its row). */
 .dash-a-v2-glass > .dash-a-v2-side > :last-child { flex: 1 1 auto; }
-/* The bottom row: the day's card beside Worth a look, halves; one alone takes the row. */
-.dash-a-v2-bottom { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: stretch; }
+/* The bottom row: Worth a look over the work's width, the pinned lists over the side's; one alone takes the row. */
+.dash-a-v2-bottom { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 14px; align-items: stretch; }
 .dash-a-v2-bottom > :only-child { grid-column: 1 / -1; }
 @media (max-width: 1180px) {
   .dash-a-v2-glass > :is(.dash-a-v2-work, .dash-a-v2-side) { grid-column: 1 / -1; }
@@ -1463,9 +1422,6 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   }
 }
 
-/* The call rides in the header (status-bars.tsx), not above the queue's rows. */
-.dash-a-v2 .tq-live { display: none; }
-
 /* The panes' titles at the canvas's size, and the queue's head: the count as the filled disc before the name, the
    sentence beside it, the door to the Inbox in ink with its arrow. */
 .dash-a-v2 :is(.tq-title, .tsec-title, .tc-title) {
@@ -1473,58 +1429,33 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   font-weight: var(--weight-semibold);
   letter-spacing: -0.01em;
 }
-/* Reviewed against E3 on production, 2 October 2026: the head 18px from the pane's top as every pane's first row is,
-   the foot 18px from its bottom, the face's initials at the base step, 5px between a row's lines, the sentence's leading
-   the canvas's 1.42. */
-.dash-a-v2 :is(.today-queue, .today-going) .tq-head {
-  grid-template-columns: auto auto minmax(0, 1fr) auto;
-  align-items: center;
-  column-gap: 10px;
-  padding: 18px 0 10px;
-}
-.tq-num {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 24px;
-  height: 24px;
-  padding: 0 7px;
-  border-radius: var(--radius-lg);
-  background: var(--count-fill);
-  color: var(--count-ink);
-  font-size: var(--text-base);
-  font-weight: var(--weight-semibold);
-  line-height: 1;
-}
-.dash-a-v2 :is(.today-queue, .today-going) .tq-head > .tq-open {
-  grid-column: 4;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: var(--text-base);
-  font-weight: var(--weight-medium);
-  color: var(--ink-muted);
-  text-decoration: none;
-}
-@media (hover: hover) { .dash-a-v2 :is(.today-queue, .today-going) .tq-head > .tq-open:hover { color: var(--ink); } }
-
-/* The queue's rows as the canvas draws them: the face in a disc, who and when over the words over the state, the
-   verbs at the right in the row's middle. */
-.dash-a-v2 :is(.today-queue, .today-going) .cl-attn-row {
-  grid-template-columns: 40px minmax(0, 1fr) auto;
-  gap: 5px 14px;
-  align-items: center;
-  padding: 19px 0;
-}
-.dash-a-v2 :is(.today-queue, .today-going) .cl-attn-row > :first-child {
+/* Need you's head on a desk (the redesign of 1 Nov 2026): its name, and the door to the Inbox at its right in the muted ink
+   with its arrow; the strip that cuts it by what each row asks of you under them (need-you.css). */
+.dash-a-v2 .today-queue .tq-head {
   display: flex;
-  width: 40px;
-  height: 40px;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 0 8px;
+}
+.dash-a-v2 .today-queue .tq-head > .tq-open { margin-left: auto; }
+
+/* Need you's rows as the canvas draws them (the redesign of 1 Nov 2026): the face in a disc beside who and the words, the
+   work of a row opened under its words across the row. A row drawn short is one line on its own grid (need-you.css). */
+.dash-a-v2 .today-queue .cl-attn-row {
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  gap: 5px 14px;
+  align-items: start;
+  padding: 14px 0;
+}
+.dash-a-v2 .today-queue .cl-attn-row > :first-child {
+  display: flex;
+  width: 34px;
+  height: 34px;
   border: 0;
   background: var(--face-fill);
   box-shadow: var(--surface-inset-depth);
   color: var(--ink);
-  font-size: var(--text-base);
+  font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
 }
 .dash-a-v2 .tq .cl-attn-acts { grid-column: 3; grid-row: 1; justify-self: end; gap: 7px; padding-top: 0; }
@@ -1549,80 +1480,12 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 }
 @media (hover: hover) { .dash-a-v2 .tq-foot > button:hover { color: var(--ink); border-color: var(--line-strong); } }
 
-/* The brief (canvas E3): the three before its name, the hour it was written under the name in mono, the line in the
-   muted ink with names in the page's, the lines that are not numbers under it as prose (no marks), the doors as words,
-   and the one door to Ask at the foot. */
-.tb .tsec-head { align-items: center; gap: 12px; padding: 18px 0 0; }
-.tb-three { display: inline-flex; flex: none; width: 40px; height: 40px; color: var(--accent); }
-.tb-words { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.dash-a-v2 .tb .tsec-title { font-size: var(--text-md); font-weight: var(--weight-semibold); }
-.tb-eyebrow {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  letter-spacing: 0;
-  text-transform: uppercase;
-  color: var(--ink-dim);
-}
-.tb-body { display: flex; flex-direction: column; gap: 10px; padding: 14px 0 0; }
-.tb-line { margin: 0; font-size: var(--text-md); line-height: 1.5; color: var(--ink-muted); text-wrap: pretty; }
-.tb-line b { color: var(--ink); font-weight: var(--weight-semibold); }
-.tb-body .tc-beats { padding: 0; margin: 0; gap: 8px; }
-/* The brief is its summary; a line stands under it only for what a sentence cannot carry (a reply that failed, with
-   its door). With none, the list takes no room. */
-.tb-body .tc-beats:empty { display: none; }
-.tb-body .brief-beat { font-size: var(--text-base); line-height: 1.5; color: var(--ink-muted); }
-.tb-body .brief-beat-glyph { display: none; }
-/* The brief's acts (E3): Listen as an inset capsule with the play glyph and the length in mono beside it, Ask a follow-up
-   as words alone; 16px under the line, 8px apart. */
-.tb-foot { display: flex; align-items: center; gap: 8px; padding: 16px 0 18px; }
-.dash-a-v2 .tb .tb-listen-head { display: none; }
-.dash-a-v2 .tb .tb-listen {
-  height: 34px;
-  gap: 7px;
-  padding: 0 14px;
-  border: 1px solid var(--surface-inset-edge);
-  border-radius: var(--radius-full);
-  background: var(--surface-inset-fill);
-  box-shadow: var(--surface-inset-depth);
-  color: var(--ink);
-  font-size: var(--text-base);
-  font-weight: var(--weight-medium);
-}
-.dash-a-v2 .tb .tb-listen > svg { fill: currentColor; }
-.tb-listen-len { font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: 0; color: var(--ink-dim); }
-/* Why the voice could not be had, said once beside Listen in the server's words; nothing else speaks. */
-.tb-why { font-size: var(--text-xs); color: var(--ink-dim); min-width: 0; }
-.dash-a-v2 .tb-foot > .tb-follow {
-  height: 34px;
-  padding: 0 10px;
-  border: 0;
-  background: transparent;
-  box-shadow: none;
-  color: var(--ink-muted);
-  font-size: var(--text-base);
-  font-weight: var(--weight-medium);
-}
-@media (hover: hover) { .dash-a-v2 .tb-foot > .tb-follow:hover { color: var(--ink); background: var(--surface-inset-fill); } }
-
 /* The day's card: the figures in columns with a hairline between them, the numbers at the canvas's size and weight, the
    word under each in the semibold. */
 .dash-a-v2 .tc-head { flex-wrap: nowrap; align-items: center; gap: 10px; padding: 18px 0 10px; }
 /* The card's name never breaks (it stood on two lines beside the quiet day's line); the line gives way instead. */
 .dash-a-v2 .tc-title { flex: none; white-space: nowrap; }
 .dash-a-v2 .tc-line { flex: 1 1 auto; min-width: 0; }
-/* The door to Reports stands in the head as words with its arrow (card.tsx draws it there in Glass), not in the foot. */
-.dash-a-v2 .tc-head > button {
-  height: auto;
-  margin-left: auto;
-  padding: 0;
-  border: 0;
-  background: none;
-  box-shadow: none;
-  color: var(--ink-muted);
-  font-size: var(--text-base);
-  font-weight: var(--weight-medium);
-}
-@media (hover: hover) { .dash-a-v2 .tc-head > button:hover { color: var(--ink); } }
 .dash-a-v2 .tc-figs { gap: 0; padding: 12px 0 10px; }
 .dash-a-v2 .tc-fig { padding: 4px 16px 4px 0; }
 .dash-a-v2 .tc-fig + .tc-fig { border-left: 1px solid var(--line); padding-left: 16px; }
@@ -1635,8 +1498,6 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 @media (max-width: 720px) {
   .dash-a-v2 .tc-fig:nth-child(odd) { padding-left: 0; border-left: 0; }
 }
-/* The period's line at the foot: a hairline over it, the dim ink, no band and no button (the door is in the head). */
-.dash-a-v2 .tc-foot { margin-top: 14px; padding: 12px 0 18px; border-radius: 0; font-size: var(--text-sm); color: var(--ink-dim); }
 /* The lists this member pinned (pins.tsx): a pane in the day's card's shape, its head and its figures, each figure the door
    to its list. It has no foot, so its figures end 18 above its edge, as the card's foot does. */
 .dash-a-v2 .tp .tc-figs { padding-bottom: 18px; }
@@ -1784,40 +1645,24 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 
 /* A phone: one column. */
 @media (max-width: 720px) {
-  /* The queue's head is the count, the name and the door: the sentence under them is a desk's. */
-  .dash-a-v2 :is(.today-queue, .today-going) .tq-head { padding: 16px 0 10px; }
   /* The dash keeps the boards' 12px from the screen's edges (E3's phone board: the strip and the panes at 12, the head
      at 16); the page's other phone capsules stand at 12 too. */
   .main-scroll > .dash-a-v2 { --gutter-page: 12px; }
   /* A phone's queue ends with its last row (E3's phone board): what the card could not hold is the Inbox tab's. */
   .dash-a-v2 .tq-foot { display: none; }
-  /* The brief's foot on a phone holds the follow-up alone (Listen stands in its head), its words on the line's left edge
-     and the touch floor's height split evenly between the line above and the pane's edge below; without it the last
-     line sat on the pane's edge. */
-  .dash-a-v2 .tb-foot { padding: 6px 0 8px; }
-  .dash-a-v2 .tb-foot > .tb-follow { margin-left: -10px; }
-  /* The brief draws its lines without the mark (above), so a door under the words lines up with the words themselves,
-     not with the day card's 34px past a mark (mobile.css); the door's own padding is 6px. */
-  .dash-a-v2 .tb-body .brief-beat-text { flex-basis: 100%; }
-  .dash-a-v2 .tb-body { --beat-door-indent: -6px; }
-  /* The day's card: its name on its own row with the door to Reports at the right, what the day says under them. */
+  /* Today so far: its name on its own row, what the day says under it. */
   .dash-a-v2 .tc-head { flex-wrap: wrap; }
   .dash-a-v2 .tc-line { flex: 1 1 100%; order: 2; }
-  .dash-a-v2 .tc-head > :last-child { margin-left: auto; }
   /* Mark all read is words at the head's height, not a thumb's 44px that pushed the name down. */
   .dash-a-v2 .ta .tsec-head > :last-child { height: 32px; min-height: 32px; }
-  .dash-a-v2 :is(.today-queue, .today-going) .tq-head > .tq-sub { display: none; }
-  /* A phone's row (the canvas's phone board): the face beside the name, over the words wrapping over the state, and
-     the one verb under them at their left edge; the channel and the wait are a desk's. Beside the words, a verb of
-     117px left them a column of 149, and a reason and its times ran to four lines. */
-  .dash-a-v2 :is(.today-queue, .today-going) .cl-attn-row { grid-template-columns: 36px minmax(0, 1fr); align-items: start; gap: 3px 12px; padding: 12px 0; }
-  .dash-a-v2 :is(.today-queue, .today-going) .cl-attn-row > :first-child { width: 36px; height: 36px; font-size: var(--text-sm); }
+  /* A phone's row with its work (the canvas's phone board): the face beside the name, the words under it, the work under
+     them across the row. A row drawn short is two lines, its verb at its right (need-you.css). */
+  .dash-a-v2 .today-queue .cl-attn-row { grid-template-columns: 36px minmax(0, 1fr); align-items: start; gap: 3px 12px; padding: 12px 0; }
+  .dash-a-v2 .today-queue .cl-attn-row > :first-child { width: 36px; height: 36px; font-size: var(--text-sm); }
   .dash-a-v2 .tq .cl-attn-meta { display: none; }
   .dash-a-v2 .tq .cl-attn-sentence { font-size: var(--text-base); line-height: 1.4; color: var(--ink-muted); white-space: normal; }
-  .dash-a-v2 .tq .cl-attn-acts > button { height: 36px; padding: 0 13px; font-size: var(--text-sm); }
-  .dash-a-v2 :is(.today-queue, .today-going) .cl-attn-acts { grid-column: 2; grid-row: 2; justify-self: start; padding-top: 7px; }
   /* The panes keep 16px inside on a phone (E3's phone board). */
-  .dash-a-v2 :is(.today-queue, .today-going, .tsec, [data-testid="today-card"]) { padding: 0 16px; }
+  .dash-a-v2 :is(.today-queue, .tsec, [data-testid="today-card"]) { padding: 0 16px; }
   /* Worth a look on a phone (Ruben, 7 Oct 2026): the row's tag stands over its sentence, so the sentence has the row's
      width where it wrapped round the tag; it still opens its arithmetic, without a dotted rule under every word; and
      its doors are one line, Ask why at its start and the row's own door at its end. */
@@ -1825,8 +1670,4 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   .dash-a-v2 .tl-text-door { text-decoration: none; }
   .dash-a-v2 .tl-foot { width: 100%; gap: 8px 10px; }
   .dash-a-v2 .tl-acts { flex: 1 1 100%; justify-content: space-between; margin-left: 0; }
-  /* The brief's Listen stands at the right of its head on a phone (E3's phone board), not among the acts under the line. */
-  .dash-a-v2 .tb .tb-listen-head { display: inline-flex; margin-left: auto; }
-  .dash-a-v2 .tb-foot > .tb-listen { display: none; }
-  .dash-a-v2 .tb .tsec-head { padding-top: 16px; }
 }
