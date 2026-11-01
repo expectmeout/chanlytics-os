@@ -150,6 +150,13 @@ export const JOB_KINDS = [
    * more, and the config write is the settings' compare-and-swap.
    */
   "preview_build",
+  /**
+   * An erasure a press left unfinished, finished (00500, decision 0036): put on the ledger beside the block by every
+   * press, due once the press has had time to end, payload { contact_id }, keyed 'erasure_finish:<contact>' while one
+   * waits. erase_contact withdraws it when the press ends well; otherwise it runs the erasure again, on the service
+   * role, in the lane of someone waiting. Internal work written to be run again: every leg is keyed on the person.
+   */
+  "erasure_finish",
 ] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 

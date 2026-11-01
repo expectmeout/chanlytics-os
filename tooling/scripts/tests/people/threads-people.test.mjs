@@ -403,7 +403,7 @@ test("the API attaches the mode in force, and an erasure scrubs the jobs that ca
   // An erasure scrubs the jobs with every spelling of the number, and the address: an email send carries `to_email`,
   // never a number. people/erasure/erasure-door.test.mjs runs the door and reads the jobs it scrubbed;
   // people/erasure/erasure-jobs-scrub.test.mjs runs the scrub itself.
-  const service = readCode("apps/dashboard/src/server/people/erasure.ts");
+  const service = readCode("packages/db/src/erasure/legs.ts");
   // No kind is spared any more. One was -- the blob_thread_erase job that
   // removed the second copy of the conversation, which the scrub would
   // otherwise have wiped the digits off before it could run. That store and

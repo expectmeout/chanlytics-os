@@ -294,6 +294,9 @@ export interface ClaimedJob {
  * throws, the job fails, and settleJob says what it was in the middle of:
  * "we could not check" is not a yes.
  */
+/** An error as a log field's words: its message, or the value's own text. */
+export const errText = (e: unknown): string => (e instanceof Error ? e.message : String(e));
+
 export function must<T>(what: string, r: { data: T; error: { message: string } | null }): T {
   if (r.error) throw new Error(`${what}: ${r.error.message}`);
   return r.data;

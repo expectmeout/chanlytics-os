@@ -9,13 +9,9 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
 import { formatPhoneDisplay } from "@chanlytics/contracts";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
-const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { erasureKeys, visitNeedles } = await import(at("apps/dashboard/src/server/people/erasure.ts"));
+const { erasureKeys, visitNeedles } = await import("@chanlytics/db");
 
 const NATIONAL = ["5550100123", "(555) 010-0123", "555-010-0123", "555.010.0123", "555 010 0123"];
 

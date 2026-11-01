@@ -1,6 +1,6 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@chanlytics/db";
+import { inWorkspace, type Database } from "@chanlytics/db";
 import { AppError } from "@chanlytics/contracts";
 import { serviceDb } from "../service-db";
 import { log } from "@/server/log";
@@ -8,21 +8,9 @@ import { log } from "@/server/log";
 /**
  * Stored media, signed for a member (the attachments of a thread, the recordings of a call). The bucket is private and
  * the signer holds the service role, so nothing in the platform's storage is scoped by RLS here: a path is signed only
- * when it sits under the asking workspace's own id (inWorkspace), and the recording's audit row is written on the
- * member's own session.
+ * when it sits under the asking workspace's own id (inWorkspace, the erasure's rule for what it removes, in db's
+ * erasure/legs.ts), and the recording's audit row is written on the member's own session.
  */
-
-/**
- * Whether a stored object's path is this workspace's own: `<workspace id>/…`, as the edge writes every one (a message's
- * attachment `<tenant>/<conversation>/<message>.<ext>`, a call's recording `<tenant>/calls/<call>.<ext>`), with no
- * empty, `.` or `..` segment. The bucket is private and the signer holds the service role, so the path on the row is
- * the only thing that says whose the object is: a path that names another workspace is never signed, whatever wrote
- * it (00260 stops a member writing one on a message).
- */
-export function inWorkspace(tenantId: string, storagePath: string): boolean {
-  const parts = storagePath.split("/");
-  return parts.length >= 2 && parts[0] === tenantId && parts.every((p) => p !== "" && p !== "." && p !== "..");
-}
 
 /** The private bucket every stored file of a workspace is kept in, under its own folder (inWorkspace). */
 const mediaBucket = () => serviceDb().storage.from("media");

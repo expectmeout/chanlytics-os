@@ -2,9 +2,10 @@
  * How an erasure reaches each column of a workspace table that can hold a person's words (decision 0036; 0031's
  * invariant 10, "every table has a tenant, a floor and an erasure strategy").
  *
- * An erasure (DELETE /api/v1/contacts/:id, apps/dashboard/src/server/people/erase-contact.ts) runs its legs in order:
- * the block, the copies keyed on the number, Storage, the rows in one transaction (`erase_contact`), the triggers that
- * fire on its tombstone, then the best-effort passes. What each leg reaches was written only in its own code, so a
+ * An erasure (DELETE /api/v1/contacts/:id, packages/jobs/src/erasure.ts, its legs in erasure/legs.ts beside this)
+ * runs its legs in order: the block, the copies keyed on the number, Storage, the rows in one transaction
+ * (`erase_contact`), the triggers that fire on its tombstone, then the best-effort passes; one a press left unfinished
+ * is finished by the erasure_finish job. What each leg reaches was written only in its own code, so a
  * new column that held a person's number or words was erased only if its author remembered. Here each such column
  * names one strategy:
  *

@@ -72,6 +72,10 @@ function dedupeKeyOf({ tenantId, kind, payload }: ScheduleParams): string | null
     // One build of a lead's preview waiting at a time (00497): a send and a press told together build it once.
     case "preview_build":
       return field("preview_id") ? `preview_build:${field("preview_id")}` : null;
+    // One finish of a person's erasure waiting at a time (00500, decision 0036): a second press while one waits finds
+    // it on the ledger, and the id is the person's across every workspace.
+    case "erasure_finish":
+      return field("contact_id") ? `erasure_finish:${field("contact_id")}` : null;
     default:
       return null;
   }

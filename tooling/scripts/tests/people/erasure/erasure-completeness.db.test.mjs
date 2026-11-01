@@ -1,7 +1,7 @@
 /**
  * Erasure completeness, on a real Postgres (decision 0036, step 2; 0031's invariant 10).
  *
- * The registry (packages/db erasure-registry.ts) says, for every column of a workspace table that can hold a person's
+ * The registry (packages/db erasure/registry.ts) says, for every column of a workspace table that can hold a person's
  * words, how an erasure reaches it: with the person, scrubbed by named legs, kept as a digest, removed by age, or not
  * personal. The ratchet holds the registry to the schema; nothing held the registry to the erasure. This does: a
  * person's number and address are written into every column the registry says goes with them or is scrubbed, in a
@@ -20,6 +20,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 import { ERASURE_STRATEGIES } from "@chanlytics/db";
+import { dispatchJob } from "@chanlytics/jobs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
@@ -54,6 +55,7 @@ let A;
 let B;
 let route;
 let setServiceClient;
+let freshLimiter;
 const made = { providerEvents: [] };
 /** The Ask threads seeded, by what makes them the person's. */
 const asked = {};
@@ -121,7 +123,9 @@ before(async () => {
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
   ({ setServiceClient } = await import(at("apps/dashboard/src/server/service-db.ts")));
   const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/rate-limit.ts"));
-  setRateStore(memoryStore());
+  // Each test's presses on a limiter of their own: the bucket allows five an hour, and the suite presses more.
+  freshLimiter = () => setRateStore(memoryStore());
+  freshLimiter();
   setServiceClient(db);
   route = await import(at("apps/dashboard/app/api/v1/contacts/[id]/route.ts"));
 
@@ -609,16 +613,118 @@ async function seed() {
 }
 
 /** Each registered column with the number or the address still in it, within this workspace. */
-function needlesLeft() {
+function needlesLeft(digits = DIGITS, email = EMAIL) {
   const cols = columnsToProve();
   const unions = cols.map(({ table, column }) => {
     const scope = table === "provider_events" ? `(tenant_id = '${T}' or tenant_id is null)` : `tenant_id = '${T}'`;
     return `select '${table}.${column}' as col, count(*)::int as n from public.${table}
-             where ${scope} and (${column}::text ilike '%${DIGITS}%' or ${column}::text ilike '%${EMAIL}%')`;
+             where ${scope} and (${column}::text ilike '%${digits}%' or ${column}::text ilike '%${email}%')`;
   });
   return query(unions.join("\nunion all\n"))
     .filter((r) => r.n > 0)
     .map((r) => `${r.col} (${r.n})`);
+}
+
+/**
+ * A second person, with less: what the legs a press can stop at or leave reach. Their visit and the notice that made
+ * it (the visits' scrub, best effort after the rows), someone else's note carrying their number (a fail-closed scrub
+ * before the rows), a finished job that carried their number, a policy row, an Ask thread quoting them.
+ */
+async function seedAnother(tag) {
+  const phone = `+1646555${tag}`;
+  const digits = `1646555${tag}`;
+  const email = `erase-${tag}-${RUN}@example.com`;
+  const words = `${tag} can be reached on ${phone} or ${email}`;
+  const id = await insert("contacts", { tenant_id: T, phone_e164: phone, email, display_name: `Cy ${digits}` });
+  const visit = await insert("appointments", {
+    tenant_id: T,
+    contact_id: id,
+    source: "booking_email",
+    tool: "booksy",
+    external_id: `visit-${tag}-${RUN}`,
+    starts_at: new Date(Date.now() + 86_400_000).toISOString(),
+    ends_at: new Date(Date.now() + 90_000_000).toISOString(),
+    title: words,
+    service: "Trim",
+    note: words,
+    client_name: `Cy ${digits}`,
+    client_phone: phone,
+    client_email: email,
+    timezone: "America/New_York",
+  });
+  await insert("appointment_notices", {
+    tenant_id: T,
+    notice_id: `rcv-${tag}-${RUN}`,
+    tool: "booksy",
+    from_address: "no-reply@booksy.com",
+    subject: words,
+    received_at: new Date().toISOString(),
+    outcome: "booked",
+    appointment_id: visit,
+  });
+  await insert("person_notes", {
+    tenant_id: T,
+    contact_id: B,
+    body: words,
+    author_kind: "member",
+    state: "kept",
+    source: "page",
+  });
+  const job = await insert("jobs", {
+    tenant_id: T,
+    kind: "outbound_send",
+    due_at: new Date(Date.now() + 3_600_000).toISOString(),
+    payload: { to_phone: phone, body: words },
+  });
+  ok(await db.from("jobs").update({ state: "fired" }).eq("id", job), "fire");
+  ok(await db.from("jobs").update({ state: "done" }).eq("id", job), "finish");
+  ok(
+    await db
+      .from("policies")
+      .insert({ tenant_id: T, class: "reply", subject_type: "contact", subject_id: id, mode: "never" }),
+    "policy",
+  );
+  const thread = await insert("ask_threads", { tenant_id: T, user_id: U, title: words, scope: { kind: "person", id } });
+  await insert("ask_messages", { thread_id: thread, tenant_id: T, user_id: U, role: "user", content: { text: words } });
+  return { id, digits, email };
+}
+
+/** The service client with one function refused on its first call, as a database's bad minute refuses it; the rest as it is. */
+function refusingOnce(client, name) {
+  let refused = false;
+  return new Proxy(client, {
+    get(target, prop) {
+      if (prop === "rpc")
+        return (fn, args) => {
+          if (fn === name && !refused) {
+            refused = true;
+            return Promise.resolve({ data: null, error: { message: `${name}: refused by the test, once` } });
+          }
+          return target.rpc(fn, args);
+        };
+      const value = Reflect.get(target, prop, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+}
+
+/** The owner's press on one person, through the real route. */
+function press(id) {
+  freshLimiter();
+  const ctx = { supabase: as, userId: U, email: `owner-${RUN}@example.com`, metadata: {}, params: { id } };
+  return route.DELETE.run(new Request("http://localhost/api/v1/contacts/x", { method: "DELETE" }), ctx);
+}
+
+/** The finish that waits for one person on the ledger, as the tick would claim it. */
+async function finishWaiting(id) {
+  const rows = ok(
+    await db
+      .from("jobs")
+      .select("id, tenant_id, kind, payload, state, dedupe_key")
+      .eq("dedupe_key", `erasure_finish:${id}`),
+    "finish",
+  );
+  return rows[0] ?? null;
 }
 
 test("every registered column is seeded, and before the erasure each one holds the needles", { skip }, async () => {
@@ -701,5 +807,87 @@ test(
     );
     const [kept] = query(`select display_name, phone_e164 from public.contacts where id = '${B}'`);
     assert.deepEqual(kept, { display_name: "Bo Kept", phone_e164: "+16465550198" });
+  },
+);
+
+test(
+  "a visits' scrub the press could not run is run by the second press, by the id, and nothing of them is left; the finish the press put on the ledger was withdrawn with the rows",
+  { skip },
+  async () => {
+    const { id, digits, email } = await seedAnother("0196");
+    // The database's bad minute on the one leg that runs after the rows and finds its rows by the person's id.
+    setServiceClient(refusingOnce(db, "appointments_scrub"));
+    try {
+      const out = await press(id);
+      assert.equal(out.erased, true, "past the rows the leg is best effort: the person IS erased");
+    } finally {
+      setServiceClient(db);
+    }
+    assert.deepEqual(
+      needlesLeft(digits, email).sort(),
+      [
+        "appointment_notices.subject (1)",
+        "appointments.client_name (1)",
+        "appointments.client_email (1)",
+        "appointments.client_phone (1)",
+        "appointments.note (1)",
+        "appointments.title (1)",
+      ].sort(),
+      "the visit and its notice keep them: the one leg that failed",
+    );
+    const finish = await finishWaiting(id);
+    assert.equal(
+      finish?.state,
+      "canceled",
+      "the finish went with every scheduled job naming them: this press finished",
+    );
+    assert.equal(finish?.payload.reason, "contact erased");
+
+    const again = await press(id);
+    assert.equal(again.already_erased, true);
+    assert.deepEqual(again.redriven, { policy: true, ask: true, jobs: 0, appointments: true });
+    assert.deepEqual(needlesLeft(digits, email), [], "the second press reaches the visit by the id alone");
+  },
+);
+
+test(
+  "a press that stopped at a fail-closed leg leaves the finish on the ledger, and the finish erases the person on the service role",
+  { skip },
+  async () => {
+    const { id, digits, email } = await seedAnother("0195");
+    setServiceClient(refusingOnce(db, "model_turns_scrub"));
+    try {
+      await assert.rejects(press(id), (e) => {
+        assert.equal(e.code, "internal");
+        assert.match(
+          e.message,
+          /kept turns that named this person could not be scrubbed, so the erasure stopped partway/,
+        );
+        assert.match(e.message, /It will finish on its own within the hour, or delete them again to finish now\.$/);
+        return true;
+      });
+    } finally {
+      setServiceClient(db);
+    }
+    const [held] = query(
+      `select erasing_since is not null as blocked, erased_at from public.contacts where id = '${id}'`,
+    );
+    assert.deepEqual(held, { blocked: true, erased_at: null }, "blocked, not erased, and nothing read that before");
+    const finish = await finishWaiting(id);
+    assert.equal(finish?.state, "scheduled", "the finish waits on the ledger");
+    assert.deepEqual(finish.payload, { contact_id: id });
+
+    // The tick claims it and runs the handler on the service role: the rows' leg and the Ask scrub admit the system for
+    // a person whose block an owner's press wrote (00500).
+    const ran = await dispatchJob({ db }, { ...finish, attempts: 1 });
+    assert.equal(ran, "done");
+    assert.deepEqual(needlesLeft(digits, email), [], "nothing of them is left");
+    const [erased] = query(
+      `select c.erased_at is not null as erased,
+              (select d.actor_type from public.decisions d
+                where d.subject_id = c.id and d.verb = 'erase' order by d.created_at desc limit 1) as by
+         from public.contacts c where c.id = '${id}'`,
+    );
+    assert.deepEqual(erased, { erased: true, by: "system" }, "erased, and the ledger says the system finished it");
   },
 );

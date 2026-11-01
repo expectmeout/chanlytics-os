@@ -13,15 +13,10 @@
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 import { v1FromAnswer } from "@chanlytics/contracts";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
-const { erasureKeys } = await import(
-  pathToFileURL(path.join(ROOT, "apps/dashboard/src/server/people/erasure.ts")).href
-);
+const { erasureKeys } = await import("@chanlytics/db");
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;

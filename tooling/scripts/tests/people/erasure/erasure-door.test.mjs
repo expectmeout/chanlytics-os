@@ -35,7 +35,8 @@ const LATE = `${A}/late/c9.mp3`;
  * An owner erasing P1, who has a call recording and an address, a finished job that carried their number, two
  * scheduled ones that name them, and a policy row.
  * `faults` are the fake's; `storage` answers each remove() in turn; `rpcs` overrides erase_contact, the Ask scrub or
- * the kept deliveries' scrub (provider_events_scrub, 00336), or the scrub of other people's notes (person_notes_scrub, 00341).
+ * the kept deliveries' scrub (provider_events_scrub, 00336), the scrub of other people's notes (person_notes_scrub,
+ * 00341) or the visits' (appointments_scrub, 00345).
  * `tables` is a world an erasure before this one left, as the owner's second press of delete finds it.
  */
 async function erase({ erased = false, faults = {}, storage = [], rpcs = {}, tables: left } = {}) {
@@ -72,7 +73,22 @@ async function erase({ erased = false, faults = {}, storage = [], rpcs = {}, tab
     provider_events_scrub: () => 1,
     person_notes_scrub: () => 1,
     model_turns_scrub: () => 1,
-    erase_contact: () => ({ counts: { calls: 1 }, storage_paths: [REC], jobs_canceled: 0 }),
+    appointments_scrub: () => 1,
+    // The rows' leg, as it treats the ledger (00151, 00500): every scheduled job naming the person withdrawn and its
+    // payload scrubbed in the same transaction, the erasure's own finish among them; one naming them by their number
+    // or address alone is left to the scrub after the rows.
+    erase_contact: ({ p_contact_id }) => {
+      const named = tables.jobs.filter(
+        (j) => (j.state ?? "scheduled") === "scheduled" && j.payload?.contact_id === p_contact_id,
+      );
+      for (const j of named)
+        Object.assign(j, {
+          state: "canceled",
+          last_error: "contact erased",
+          payload: { scrubbed_at: "2026-10-31T00:00:00.000Z", reason: "contact erased" },
+        });
+      return { counts: { calls: 1 }, storage_paths: [REC], jobs_canceled: named.length };
+    },
     ...rpcs,
   });
   db.storage = {
@@ -97,49 +113,60 @@ async function erase({ erased = false, faults = {}, storage = [], rpcs = {}, tab
     const steps = db.seen
       .filter((s) => s.rpc || ["insert", "update", "delete"].includes(s.op))
       .map((s) => (s.rpc ? `rpc:${s.rpc}` : `${s.table}.${s.op}`));
-    return { ...out, steps, removed, tables };
+    return { ...out, steps, seen: db.seen, removed, tables };
   } finally {
     setServiceClient(null);
   }
 }
 
-test("an erasure runs its legs in the design's order: the block, the copies, Storage, the rows, then the rest", async () => {
+test("an erasure runs its legs in the design's order: the block and the finish beside it, the copies, Storage, the rows, then the rest", async () => {
+  const before = Date.now();
   const { value, steps, removed, tables } = await erase();
   assert.deepEqual(steps, [
     "rpc:erasure_digests", // the digests the block keeps, the database's own (00263)
     "contacts.update", // the block, with the number still on the row
+    "jobs.insert", // the finish, on the ledger beside the block (erasure_finish, 00500)
     "rpc:scrub_ask_for_contact", // the copies keyed on the number, before anything is destroyed
     "jobs.update", // the finished job only
     "rpc:provider_events_scrub", // the deliveries the intake ledger keeps a week, by the same identifiers (00336)
     "rpc:person_notes_scrub", // other people's notes, the needle overwritten in place (00341)
     "rpc:model_turns_scrub", // the receptionist's kept turns that name them, in anyone's thread (00401)
-    "rpc:erase_contact", // the rows, after Storage
+    "rpc:erase_contact", // the rows, after Storage: the scheduled jobs naming them by id withdrawn with them
     "policies.delete",
     "rpc:scrub_ask_for_contact",
-    "jobs.update", // every state now, by the id and by every identifier: the scheduled ones
-    "jobs.update",
+    "jobs.update", // every state now, by every identifier: the scheduled one that named them by their address alone
     "rpc:provider_events_scrub", // a delivery kept while the erasure ran
     "rpc:person_notes_scrub", // a note written while it ran
     "rpc:model_turns_scrub", // a turn the receptionist took while it ran
+    "rpc:appointments_scrub", // their visits keep their time and service and lose who (00345)
   ]);
   assert.deepEqual(removed, [[REC]], "Storage once, before the rows; nothing late to sweep");
   assert.deepEqual(value, {
     contact_id: P1,
     erased: true,
     counts: { calls: 1 },
-    jobs_canceled: 0,
+    jobs_canceled: 2, // the scheduled job that named them by id, and the erasure's own finish
     storage: { requested: 1, removed: 1, error: null },
   });
   assert.equal(tables.policies.length, 0, "the person's own receptionist setting goes with them");
   assert.deepEqual(
-    tables.jobs.map((j) => [j.id, j.payload.reason ?? j.payload.body]),
+    tables.jobs.slice(0, 3).map((j) => [j.id, j.payload.reason ?? j.payload.body]),
     [
       ["j1", "contact erased"],
       ["j2", "contact erased"],
       ["j3", "contact erased"],
     ],
-    "the finished job by its number first, then the rest by the id and the address",
+    "the finished job by its number first, then the scheduled ones by the id (the rows' leg) and the address (the scrub after it)",
   );
+  // The finish: once per person while one waits (its key), due once this press has had time to end, naming them by
+  // the id alone. A press that ends well needs none: erase_contact withdrew it with every scheduled job naming them.
+  const finish = tables.jobs[3];
+  assert.equal(finish.kind, "erasure_finish");
+  assert.equal(finish.dedupe_key, `erasure_finish:${P1}`);
+  const due = Date.parse(finish.due_at) - before;
+  assert.ok(due >= 10 * 60_000 && due < 11 * 60_000, `due ten minutes on, not ${due} ms`);
+  assert.equal(finish.state, "canceled", "withdrawn by the rows' leg: this press finished");
+  assert.deepEqual(finish.payload.reason, "contact erased", "and its payload scrubbed with the rest");
 });
 
 /** A scrub the database refused. */
@@ -158,15 +185,23 @@ const COPY_LEGS = [
 
 test("a leg that stops an erasure before any copy is gone says nothing was deleted: the block, and the Ask scrub, which commits whole", async () => {
   const cases = {
-    "the block": [{ faults: { "contacts.update": { message: "denied" } } }, [], /being erased, so nothing was deleted/],
-    // The one call it makes is the one the database refused, and one function commits whole or not at all.
+    // Before the block, nothing is on the ledger either: the person is live, and the owner tries again.
+    "the block": [
+      { faults: { "contacts.update": { message: "denied" } } },
+      [],
+      /being erased, so nothing was deleted\. Try again\.$/,
+      false,
+    ],
+    // The one call it makes is the one the database refused, and one function commits whole or not at all. The block
+    // is written, so the finish is on the ledger: the person is blocked, and erased within the hour without a press.
     "the Ask pre-scrub": [
       { rpcs: { scrub_ask_for_contact: refused } },
       ["rpc:scrub_ask_for_contact"],
-      /memory of this person could not be scrubbed, so nothing was deleted/,
+      /memory of this person could not be scrubbed, so nothing was deleted\. It will finish on its own within the hour, or try again now\.$/,
+      true,
     ],
   };
-  for (const [leg, [world, tried, words]] of Object.entries(cases)) {
+  for (const [leg, [world, tried, words, finishWaits]] of Object.entries(cases)) {
     const { error, steps, tables } = await erase(world);
     assert.equal(error?.code, "internal", leg);
     assert.equal(error.status, 500, leg);
@@ -179,6 +214,11 @@ test("a leg that stops an erasure before any copy is gone says nothing was delet
     assert.equal(tables.jobs[0].payload.to_phone, "+15550100123", `${leg}: the finished job is as it was`);
     assert.ok(!steps.includes("rpc:erase_contact"), `${leg}: the rows are untouched`);
     assert.equal(tables.policies.length, 1, `${leg}: nothing after it ran`);
+    assert.equal(
+      tables.jobs.some((j) => j.kind === "erasure_finish"),
+      finishWaits,
+      `${leg}: the finish ${finishWaits ? "waits on the ledger" : "is not on the ledger"}`,
+    );
   }
 });
 
@@ -225,19 +265,42 @@ test("REGRESSION: a leg that stopped an erasure after the Ask scrub said nothing
     );
     assert.match(
       error.message,
-      /, so the erasure stopped partway\. What it had already removed stays removed, and nothing more was deleted\. Delete them again to finish\.$/,
+      /, so the erasure stopped partway\. What it had already removed stays removed, and nothing more was deleted\. It will finish on its own within the hour, or delete them again to finish now\.$/,
       leg,
     );
     assert.ok(!steps.includes("rpc:erase_contact"), `${leg}: the rows are untouched`);
     assert.equal(tables.policies.length, 1, `${leg}: nothing after it ran`);
     assert.ok(tables.contacts[0].erasing_since, `${leg}: the person is held meanwhile`);
     assert.equal(tables.contacts[0].erased_at, null, `${leg}: and still there to delete again`);
+    assert.ok(
+      tables.jobs.some((j) => j.kind === "erasure_finish" && j.payload.contact_id === P1),
+      `${leg}: the finish waits on the ledger, so a second press is not needed`,
+    );
 
-    // The owner deletes them again, the refusal passed: the erasure finishes over what the first press left.
+    // The owner deletes them again, the refusal passed: the erasure finishes over what the first press left, and the
+    // finish it finds on the ledger is not scheduled twice.
     const again = await erase({ tables });
     assert.equal(again.value?.erased, true, `${leg}: deleting again finishes`);
     assert.equal(tables.jobs[0].payload.reason, "contact erased", `${leg}: the finished job scrubbed on the way`);
+    assert.equal(tables.jobs.filter((j) => j.kind === "erasure_finish").length, 1, `${leg}: one finish per person`);
   }
+});
+
+test("the finish is a net under the erasure, never a leg of it: a ledger that refuses it leaves the press to go on, and a stop then says to delete again", async () => {
+  // A database before 00500 refuses the kind; either app may deploy first.
+  const went = await erase({ faults: { "jobs.insert": { message: "jobs_kind_check" } } });
+  assert.equal(went.value?.erased, true, "a finish that would not schedule does not stop an erasure");
+  assert.ok(!went.tables.jobs.some((j) => j.kind === "erasure_finish"));
+
+  const stopped = await erase({
+    faults: { "jobs.insert": { message: "jobs_kind_check" } },
+    rpcs: { model_turns_scrub: refused },
+  });
+  assert.match(
+    stopped.error.message,
+    /nothing more was deleted\. Delete them again to finish\.$/,
+    "with no finish waiting, the owner is told to press again, and nothing else",
+  );
 });
 
 test("past the rows every leg is best effort, and a late recording is swept and written to the ledger", async () => {
@@ -340,21 +403,31 @@ test("past the rows every leg is best effort, and a late recording is swept and 
   assert.equal(noTurns.value.erased, true, "a database that keeps no turns has none to scrub, never a refused erasure");
 });
 
-test("a re-drive of an erased person repeats the id-keyed legs and says which of them held", async () => {
+test("a re-drive of an erased person repeats every id-keyed leg, the visits' scrub among them, and says which of them held", async () => {
   const held = await erase({ erased: true });
-  assert.deepEqual(held.steps, ["policies.delete", "rpc:scrub_ask_for_contact", "jobs.update"]);
+  // The header's promise: every leg that may still be outstanding. A visit is found by the person's id
+  // (appointments_scrub, 00345), so a scrub of theirs that failed after the rows is repeated here; the needles are
+  // empty, nothing being left to recover them from.
+  assert.deepEqual(held.steps, [
+    "policies.delete",
+    "rpc:scrub_ask_for_contact",
+    "jobs.update",
+    "rpc:appointments_scrub",
+  ]);
+  const visits = held.seen.find((s) => s.rpc === "appointments_scrub");
+  assert.deepEqual(visits.args, { p_tenant_id: A, p_contact_id: P1, p_needles: [] }, "by the id alone");
   assert.deepEqual(held.value, {
     contact_id: P1,
     already_erased: true,
     erased_at: "2026-09-01T00:00:00.000Z",
-    redriven: { policy: true, ask: true, jobs: 1 },
+    redriven: { policy: true, ask: true, jobs: 1, appointments: true },
   });
   assert.deepEqual(held.removed, [], "nothing destroyed twice");
 
   const failed = await erase({
     erased: true,
     faults: { "policies.delete": { message: "rls" }, "jobs.select": { message: "timeout" } },
-    rpcs: { scrub_ask_for_contact: refused },
+    rpcs: { scrub_ask_for_contact: refused, appointments_scrub: refused },
   });
-  assert.deepEqual(failed.value.redriven, { policy: false, ask: false, jobs: 0 });
+  assert.deepEqual(failed.value.redriven, { policy: false, ask: false, jobs: 0, appointments: false });
 });

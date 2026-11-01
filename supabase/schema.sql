@@ -2779,7 +2779,7 @@ CREATE TABLE public.jobs (
 CASE
     WHEN (kind = 'inbound_answer'::text) THEN 0
     WHEN ((kind = ANY (ARRAY['outbound_send'::text, 'email_ingest'::text, 'push_send'::text])) AND (COALESCE((payload ->> 'purpose'::text), ''::text) <> 'outreach'::text)) THEN 0
-    WHEN (kind = ANY (ARRAY['line_provision'::text, 'reply_read'::text, 'booking_read'::text, 'website_read'::text, 'preview_build'::text])) THEN 1
+    WHEN (kind = ANY (ARRAY['line_provision'::text, 'reply_read'::text, 'booking_read'::text, 'website_read'::text, 'preview_build'::text, 'erasure_finish'::text])) THEN 1
     WHEN (kind = ANY (ARRAY['broadcast_send'::text, 'outbound_send'::text, 'lead_round_start'::text, 'lead_collect'::text, 'lead_check'::text, 'push_receipts'::text, 'history_import'::text])) THEN 2
     WHEN (kind = 'event_deliver'::text) THEN
     CASE
@@ -2789,7 +2789,7 @@ CASE
     ELSE NULL::integer
 END) STORED,
     spoke_at timestamp with time zone,
-    CONSTRAINT jobs_kind_check CHECK ((kind = ANY (ARRAY['outbound_send'::text, 'broadcast_send'::text, 'line_provision'::text, 'email_ingest'::text, 'lead_round_start'::text, 'lead_collect'::text, 'lead_check'::text, 'push_send'::text, 'push_receipts'::text, 'reply_read'::text, 'event_deliver'::text, 'booking_read'::text, 'inbound_answer'::text, 'history_import'::text, 'website_read'::text, 'preview_build'::text]))),
+    CONSTRAINT jobs_kind_check CHECK ((kind = ANY (ARRAY['outbound_send'::text, 'broadcast_send'::text, 'line_provision'::text, 'email_ingest'::text, 'lead_round_start'::text, 'lead_collect'::text, 'lead_check'::text, 'push_send'::text, 'push_receipts'::text, 'reply_read'::text, 'event_deliver'::text, 'booking_read'::text, 'inbound_answer'::text, 'history_import'::text, 'website_read'::text, 'preview_build'::text, 'erasure_finish'::text]))),
     CONSTRAINT jobs_state_check CHECK ((state = ANY (ARRAY['scheduled'::text, 'fired'::text, 'done'::text, 'canceled'::text, 'failed'::text])))
 );
 
@@ -2812,7 +2812,7 @@ COMMENT ON COLUMN public.jobs.dedupe_key IS 'What makes this row once-only while
 -- Name: COLUMN jobs.lane; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.jobs.lane IS 'Which work a claim takes first (decision 0018): 0 a reply, 1 someone waiting who is not a customer (a line bought, a lead''s reply read, a booking notice read, a website read for Check, 00479, a lead''s preview built, 00497), 2 bulk (a history brought in, 00478, among it). Generated from kind and payload; an event_deliver runs in its subscription''s lane (payload.lane, 00334), a text''s answer in a reply''s (inbound_answer, 00347); null for a kind the case does not name, claimed last.';
+COMMENT ON COLUMN public.jobs.lane IS 'Which work a claim takes first (decision 0018): 0 a reply, 1 someone waiting who is not a customer (a line bought, a lead''s reply read, a booking notice read, a website read for Check, 00479, a lead''s preview built, 00497, an erasure finished, 00500), 2 bulk (a history brought in, 00478, among it). Generated from kind and payload; an event_deliver runs in its subscription''s lane (payload.lane, 00334), a text''s answer in a reply''s (inbound_answer, 00347); null for a kind the case does not name, claimed last.';
 
 
 --
@@ -4626,8 +4626,11 @@ CREATE FUNCTION public.erase_contact(p_contact_id uuid, p_legs jsonb DEFAULT '{}
     AS $$
 declare
   v_user          uuid := auth.uid();
+  -- The system finishing what an owner began (00500): the erasure_finish job, on the service role.
+  v_service       boolean := coalesce((select auth.role()), '') = 'service_role';
   v_tenant        uuid;
   v_erased        timestamptz;
+  v_erasing       timestamptz;
   v_conversations uuid[];
   v_messages      uuid[];
   v_escalations   uuid[];
@@ -4639,8 +4642,10 @@ declare
   v_decision_id   uuid;
 begin
   -- The caller is auth.uid(), read HERE. It is not a parameter, so it cannot
-  -- be spoofed by anyone who can reach the RPC (00021's rule).
-  if v_user is null then
+  -- be spoofed by anyone who can reach the RPC (00021's rule). The service
+  -- role has none, and is admitted below only for a person whose block an
+  -- owner's press wrote.
+  if v_user is null and not v_service then
     raise exception 'Sign in required.' using errcode = '28000';
   end if;
 
@@ -4648,31 +4653,33 @@ begin
     raise exception 'Leg report too large.' using errcode = '22023';
   end if;
 
-  select c.tenant_id, c.erased_at into v_tenant, v_erased
+  select c.tenant_id, c.erased_at, c.erasing_since into v_tenant, v_erased, v_erasing
     from contacts c where c.id = p_contact_id;
   if v_tenant is null then
     raise exception 'Contact not found.' using errcode = 'P0002';
   end if;
 
-  -- A signed-in stranger must not learn that this uuid exists. The lookup
-  -- above found the row because this function bypasses RLS, so the membership
-  -- test has to restore what RLS would have said: no membership at all is
-  -- indistinguishable from no such contact.
-  if not exists (
-    select 1 from memberships m
-     where m.tenant_id = v_tenant and m.user_id = v_user
-  ) then
-    raise exception 'Contact not found.' using errcode = 'P0002';
-  end if;
+  if not v_service then
+    -- A signed-in stranger must not learn that this uuid exists. The lookup
+    -- above found the row because this function bypasses RLS, so the membership
+    -- test has to restore what RLS would have said: no membership at all is
+    -- indistinguishable from no such contact.
+    if not exists (
+      select 1 from memberships m
+       where m.tenant_id = v_tenant and m.user_id = v_user
+    ) then
+      raise exception 'Contact not found.' using errcode = 'P0002';
+    end if;
 
-  -- OWNER, not merely a member. This is the most destructive verb in the
-  -- product and it is irreversible; an operator who can reply to a customer
-  -- must not be able to delete them.
-  if not exists (
-    select 1 from memberships m
-     where m.tenant_id = v_tenant and m.user_id = v_user and m.role = 'owner'
-  ) then
-    raise exception 'Only an owner can erase a customer''s data.' using errcode = '42501';
+    -- OWNER, not merely a member. This is the most destructive verb in the
+    -- product and it is irreversible; an operator who can reply to a customer
+    -- must not be able to delete them.
+    if not exists (
+      select 1 from memberships m
+       where m.tenant_id = v_tenant and m.user_id = v_user and m.role = 'owner'
+    ) then
+      raise exception 'Only an owner can erase a customer''s data.' using errcode = '42501';
+    end if;
   end if;
 
   -- Idempotent: a second request is answered, not re-executed. The route uses
@@ -4685,6 +4692,13 @@ begin
       'erased_at',      v_erased,
       'storage_paths',  '[]'::jsonb,
       'counts',         '{}'::jsonb);
+  end if;
+
+  -- The service role erases nobody of its own accord: only a person an owner's
+  -- press blocked (beginErasure wrote erasing_since once the route had judged
+  -- the owner) and left unfinished. The block is the owner's word, kept.
+  if v_service and v_erasing is null then
+    raise exception 'erase_contact: only a person being erased' using errcode = '55000';
   end if;
 
   /* ---- COLLECT FIRST. Everything below this block is destructive, and each
@@ -4750,7 +4764,8 @@ begin
      this person is withdrawn -- and its payload scrubbed in the same
      statement (jobs_guard allows a payload change on any row): the number it
      carried must not outlive the row, and a re-driven erasure has no digits
-     to find it by. */
+     to find it by. The erasure's own finish (erasure_finish, 00500) is among
+     them: a press that reaches this row needs none. */
   update jobs
      set state = 'canceled', last_error = 'contact erased',
          payload = jsonb_build_object('scrubbed_at', now(), 'reason', 'contact erased')
@@ -4848,10 +4863,12 @@ begin
 
   -- The ledger row. p_legs is what the caller already did (the Storage
   -- objects it removed) so one row tells the whole story and a failed leg is
-  -- visible without joining anything.
+  -- visible without joining anything. The owner's, or the system's when the
+  -- finish erased them (actor_user_id is null then, as decisions' CHECK asks).
   insert into decisions (tenant_id, subject_type, subject_id, verb,
                          actor_type, actor_user_id, payload)
-  values (v_tenant, 'contact', p_contact_id, 'erase', 'user', v_user,
+  values (v_tenant, 'contact', p_contact_id, 'erase',
+          case when v_user is null then 'system' else 'user' end, v_user,
           jsonb_build_object(
             'counts',        v_counts,
             'jobs_canceled', v_jobs_canceled,
@@ -4874,7 +4891,7 @@ end $$;
 -- Name: FUNCTION erase_contact(p_contact_id uuid, p_legs jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.erase_contact(p_contact_id uuid, p_legs jsonb) IS 'Erase one customer: delete their calls and messages explicitly (the call FKs are SET NULL and the message FK is NO ACTION), cascade the conversation, cancel every scheduled job that names them, scrub decision payloads, and tombstone the contact. Returns the Storage paths the caller must remove. Owner-only, checked against auth.uid() inside the body.';
+COMMENT ON FUNCTION public.erase_contact(p_contact_id uuid, p_legs jsonb) IS 'Erase one customer: delete their calls and messages explicitly (the call FKs are SET NULL and the message FK is NO ACTION), cascade the conversation, cancel every scheduled job that names them, scrub decision payloads, and tombstone the contact. Returns the Storage paths the caller must remove. Owner-only, checked against auth.uid() inside the body; the service role may finish one an owner began (erasing_since set: the erasure_finish job, 00500), and the ledger''s row then says the system erased them.';
 
 
 --
@@ -26122,7 +26139,9 @@ declare
   v_forgot   integer;
   v_days     integer;
 begin
-  if not exists (
+  -- An owner of the workspace, or the system finishing what an owner began (the erasure_finish job, on the service
+  -- role, 00500): either way only a person being erased, checked next.
+  if coalesce((select auth.role()), '') <> 'service_role' and not exists (
     select 1 from public.memberships m
      where m.user_id = (select auth.uid()) and m.tenant_id = p_tenant_id and m.role = 'owner'
   ) then
@@ -26233,7 +26252,7 @@ end $_$;
 -- Name: FUNCTION scrub_ask_for_contact(p_tenant_id uuid, p_contact_id uuid, p_needles text[]); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.scrub_ask_for_contact(p_tenant_id uuid, p_contact_id uuid, p_needles text[]) IS 'Owner-only, and only for a person being erased: removes every Ask message in the workspace whose words hold their id, a conversation or call id of theirs, or a spelling of their number or address; strips the raw turn off a message whose raw alone does; and in the threads those make theirs (or that are scoped to them) removes every message naming them, strips every raw, clears the title and scope, and removes a thread left empty (00238). Then every line of Ask''s memory and every day of its journal that holds one of those, or their name as a whole word (00470). Returns the messages removed, the raws stripped, the lines and the days removed.';
+COMMENT ON FUNCTION public.scrub_ask_for_contact(p_tenant_id uuid, p_contact_id uuid, p_needles text[]) IS 'An owner''s, or the service role''s finishing what an owner began (the erasure_finish job, 00500), and only for a person being erased: removes every Ask message in the workspace whose words hold their id, a conversation or call id of theirs, or a spelling of their number or address; strips the raw turn off a message whose raw alone does; and in the threads those make theirs (or that are scoped to them) removes every message naming them, strips every raw, clears the title and scope, and removes a thread left empty (00238). Then every line of Ask''s memory and every day of its journal that holds one of those, or their name as a whole word (00470). Returns the messages removed, the raws stripped, the lines and the days removed.';
 
 
 --
