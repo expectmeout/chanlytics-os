@@ -505,14 +505,14 @@ function HeadProbe() {
   useTodayStanding();
   return null;
 }
-/** The head's one sentence as Today said it, drawn over the same cells (`again`), or from nothing (`draw`). */
-const headSentence = (anew = false) => {
+/** What Today told the head, drawn over the same cells (`again`), or from nothing (`anew`): its sentence, its Listen. */
+const headSaid = (anew = false) => {
   if (anew) fresh();
   again(() => HeadProbe());
-  return standingSaid()?.sentence ?? null;
+  return standingSaid();
 };
-/** The head's Listen, as the sentence ends with it. */
-const headListen = (anew = false) => byTestId(headSentence(anew), "today-listen");
+const headSentence = (anew = false) => headSaid(anew)?.sentence ?? null;
+const headListen = (anew = false) => byTestId(headSaid(anew)?.beside ?? null, "today-listen");
 
 /* ------------------------------------ above the work ------------------------------------ */
 
@@ -1750,9 +1750,9 @@ test("the bell's rows carry no dismiss of their own; Mark all read stays", () =>
 test("the head: Listen is absent where the device cannot play audio, and the sentence stands alone", () => {
   clear();
   set({ today: busy(), headline: headline() });
-  const silent = headSentence(true);
-  assert.equal(byTestId(silent, "today-listen"), null, "no voice on this device: no Listen");
-  assert.ok(byTestId(silent, "today-head-lead"), "the sentence stands alone");
+  const said = headSaid(true);
+  assert.equal(said.beside, undefined, "no voice on this device: nothing beside the greeting");
+  assert.ok(byTestId(said.sentence, "today-head-lead"), "the sentence stands alone");
 });
 
 /** Ask's voice stood in for (legacy-bridge/ask/speech.ts as the pane reads it off window.__ask): the clip lands when the test says. */
@@ -1813,7 +1813,7 @@ test("the head's Listen reads the brief's words in Ask's voice, says it is getti
   globalThis.__ask = s.stub;
   try {
     const listen = headListen(true);
-    assert.ok(listen, "a voice: Listen, at the end of the head's sentence");
+    assert.ok(listen, "a voice: Listen, beside the greeting");
     assert.match(textOf(listen), /Listen\d+:\d\d/, "with how long it takes to hear");
     assert.equal(listen.props["aria-pressed"], false);
     press(listen);
@@ -1887,7 +1887,7 @@ test("the head's Listen: a clip that could not be made says why beside it, in th
     s.fail("Voice is off while this workspace is paused or its plan has ended.");
     await settled();
     const sentence = headSentence();
-    const listen = byTestId(sentence, "today-listen");
+    const listen = headListen();
     assert.equal(listen.props["aria-pressed"], false, "back to Listen");
     assert.match(textOf(listen), /^Listen/, "and it says Listen, not Stop");
     const why = byTestId(sentence, "today-listen-why");

@@ -109,8 +109,57 @@ function attnActs(cta: AttnAct | null, also: AttnAct | null, ctaTestid: string) 
   );
 }
 
-/** Who, with the business they work at, where and when, and how long they have waited. Called, not drawn, as attnActs is. */
-function attnName(name: ReactNode, trail: string | null, meta: string, wait: { words: string; long: boolean } | null) {
+/**
+ * What else is known about the row, behind its mark: the house's tip, on hover and on a press. Called, not drawn, as attnActs
+ * is.
+ */
+function noteMark(note: string) {
+  return (
+    <button
+      type="button"
+      className="set-mark"
+      data-tip={note}
+      aria-label={`What else is known: ${note}`}
+      onClick={(e) => {
+        e.stopPropagation();
+        showTip(e.currentTarget);
+      }}
+    >
+      <Icon name="info" size={12} />
+    </button>
+  );
+}
+
+/** The state line, where the row says one, with the note's mark at its end; none where it says none. Called, not drawn. */
+function attnStatus(status: readonly ReactNode[], note: string) {
+  if (!status.length) return null;
+  return (
+    <div className="cl-attn-status">
+      {status.map((seg, i) => (
+        <span key={i} className={i === 0 ? "lead" : ""}>
+          {i > 0 && <span className="sep"> · </span>}
+          {seg}
+        </span>
+      ))}
+      {note ? noteMark(note) : null}
+    </div>
+  );
+}
+
+/** The note's mark after the name, where the row has a note and no state line to carry it. Called, not drawn. */
+const nameMark = (note: string, status: readonly ReactNode[]) => (note && !status.length ? noteMark(note) : null);
+
+/**
+ * Who, with the business they work at, where and when, and how long they have waited; and, where the row says no state
+ * line, its note's mark after the name, so the mark never stands on a line of its own (Today's Need you, 1 Nov 2026: a
+ * lone mark under a person's words). Called, not drawn, as attnActs is.
+ */
+function attnName(
+  name: ReactNode,
+  trail: string | null,
+  meta: string,
+  { wait, mark }: { wait: { words: string; long: boolean } | null; mark: ReactNode },
+) {
   return (
     <div className="cl-attn-name">
       <span className="cl-attn-who">
@@ -122,6 +171,7 @@ function attnName(name: ReactNode, trail: string | null, meta: string, wait: { w
           </span>
         ) : null}
       </span>
+      {mark}
       {meta ? <span className="cl-attn-meta">{meta}</span> : null}
       {wait ? (
         <span className="cl-attn-wait" data-long={wait.long || undefined}>
@@ -218,30 +268,10 @@ export function AttnRow({
     >
       {attnFace(person, glyph, initials)}
       <div className="cl-attn-body" {...(work && onOpen ? opener : {})}>
-        {attnName(name, trail, meta, wait)}
+        {attnName(name, trail, meta, { wait, mark: nameMark(note, status) })}
         {attnSentence(sentence, quoted, lead, via)}
-        <div className="cl-attn-status">
-          {status.map((seg, i) => (
-            <span key={i} className={i === 0 ? "lead" : ""}>
-              {i > 0 && <span className="sep"> · </span>}
-              {seg}
-            </span>
-          ))}
-          {note ? (
-            <button
-              type="button"
-              className="set-mark"
-              data-tip={note}
-              aria-label={`What else is known: ${note}`}
-              onClick={(e) => {
-                e.stopPropagation();
-                showTip(e.currentTarget);
-              }}
-            >
-              <Icon name="info" size={12} />
-            </button>
-          ) : null}
-        </div>
+        {/* The state line, where the row says one: a row of someone waiting says none (Today's), and draws no empty line. */}
+        {attnStatus(status, note)}
       </div>
       {(cta || also) && attnActs(cta, also, ctaTestid)}
       {work ? (

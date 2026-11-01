@@ -1313,12 +1313,20 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   padding-right: 0;
 }
 
-/* A row you point at is lit. */
+/* A row you point at is lit; a touch lights nothing, since a tap left the row it landed on lit until the next one (Need
+   you's card on his phone, 1 Nov 2026: a grey block behind Up next). */
 .dash-a-v2 .tq .cl-attn-row:focus-visible {
   background: color-mix(in oklab, var(--surface-inset-fill) 55%, transparent);
 }
-.dash-a-v2 .tq .cl-attn-row:hover {
-  background: color-mix(in oklab, var(--surface-inset-fill) 55%, transparent);
+@media (hover: hover) {
+  .dash-a-v2 .tq .cl-attn-row:hover {
+    background: color-mix(in oklab, var(--surface-inset-fill) 55%, transparent);
+  }
+}
+@media (hover: none) {
+  .dash-a-v2 .tq .cl-attn-row:hover {
+    background: transparent;
+  }
 }
 
 /* The verbs: a row's one act is the primary role's coral capsule, its other the control layer's inset capsule. The setup
@@ -1446,6 +1454,20 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   font-weight: var(--weight-semibold);
 }
 .dash-a-v2 .tq .cl-attn-acts { grid-column: 3; grid-row: 1; justify-self: end; gap: 7px; padding-top: 0; }
+/* The row a desk has open, as the canvas sets it (1 Nov 2026): a soft card of its own inside the pane, a hairline round it,
+   standing a little out past the rows' edges; the row under it keeps no line of its own against it. */
+@media (min-width: 721px) {
+  .dash-a-v2 .today-queue .tq-list > .cl-attn-row:has(> .cl-attn-work) {
+    margin: 4px -12px;
+    padding: 14px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: color-mix(in oklab, var(--surface-inset-fill) 40%, transparent);
+  }
+  .dash-a-v2 .today-queue .tq-list > .cl-attn-row:has(> .cl-attn-work) + .cl-attn-row {
+    border-top-color: transparent;
+  }
+}
 .dash-a-v2 .tq .cl-attn-name { font-size: var(--text-md); font-weight: var(--weight-semibold); }
 .dash-a-v2 .tq .cl-attn-meta { font-size: var(--text-sm); }
 .dash-a-v2 .tq .cl-attn-body { gap: 5px; }

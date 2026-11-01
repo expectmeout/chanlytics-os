@@ -108,3 +108,9 @@ cluttered on a phone, and the page under them said things twice. What changed, o
   desk's day card went: each thing they said is said where it is acted on.
 
 Item 1's head, item 4's To do under the people and item 7's Ask found as a pane of its own are replaced by the above.
+
+A parity pass the same day (Ruben's phone: "too much fixed empty space within the component"), to the canvas as approved:
+Listen stands beside the bell on a phone and beside the greeting on a desk (the kit head's `beside`), not at the
+sentence's end; the cuts are chips; on a phone Need you has no pane of its own, each group's name standing over a pane of
+its own and To do and Ask found one pane of two rows; Up next's draft is on the inset's ground with Edit beside Send, and
+a row's note mark stands after its name rather than on a line of its own; a tap no longer leaves a row lit.

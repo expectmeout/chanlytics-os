@@ -178,6 +178,7 @@ const STATES: { entry: string; bring: (page: Page) => Promise<void>; ready: stri
   { entry: "subtabs-need", bring: async () => undefined, ready: '[data-entry="subtabs-need"] .subtab-dot.is-warn' },
   { entry: "subtabs-glyph", bring: async () => undefined, ready: '[data-entry="subtabs-glyph"] .subtabs' },
   { entry: "subtabs-capsule", bring: async () => undefined, ready: '[data-entry="subtabs-capsule"] .rec-seg' },
+  { entry: "subtabs-chips", bring: async () => undefined, ready: '[data-entry="subtabs-chips"] .subtab-chips' },
   { entry: "field-kit", bring: async () => undefined, ready: ".rec-input-group" },
   { entry: "field-kit-wrong", bring: async () => undefined, ready: ".field-error" },
   { entry: "field-kit-title", bring: async () => undefined, ready: ".rec-input-title" },

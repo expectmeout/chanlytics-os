@@ -216,6 +216,7 @@ export function ReplyWork(p: WorkProps & { what?: string; by?: string; start?: R
       {W.writeItMyself}
     </Button>
   );
+  const sendEnd = words || mine !== null || closed || !may ? sendButton : writeIt;
   return (
     <>
       {send?.state === "stopped" ? <Note>{W.canceled}</Note> : null}
@@ -234,7 +235,24 @@ export function ReplyWork(p: WorkProps & { what?: string; by?: string; start?: R
       />
       {refused ? <Note tone={refused.confirmTo ? "warn" : "danger"}>{refused.message}</Note> : null}
       {!may ? <Note>{W.viewer}</Note> : null}
-      <Acts foot={p.foot} start={start} end={words || mine !== null || closed || !may ? sendButton : writeIt} />
+      <Acts foot={p.foot} start={start} end={replyEnd(sendEnd, p.read, row.who, !!words && may && !closed)} />
+    </>
+  );
+}
+
+/**
+ * The presses at a reply's right: Send (or Write it myself), and on a phone's card, with words ready to go, Edit before it,
+ * which opens the sheet that walks the list on this row, where the words are a field (walk-sheet.tsx; the canvas of 1 Nov
+ * 2026 sets Edit there: the card reads Ask's words where they stand). Called, not drawn.
+ */
+function replyEnd(send: ReactNode, read: (() => void) | null | undefined, who: string, ready: boolean): ReactNode {
+  if (!read || !ready) return send;
+  return (
+    <>
+      <Button variant="secondary" onClick={read} aria-label={W.editDraft(who)}>
+        {W.edit}
+      </Button>
+      {send}
     </>
   );
 }

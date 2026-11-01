@@ -136,6 +136,8 @@ function BackButton({ back }: { back: BackWay }) {
  */
 function PageDateline() {
   const { back, inDate } = useBackWay();
+  const said = useStandingSaid();
+  const phone = usePhoneHead();
   const now = useMinute();
   const [zone, setZone] = useState<string | null>(() => knownZone());
   useEffect(() => {
@@ -156,10 +158,14 @@ function PageDateline() {
     );
   const { day, time } = pageDatelineParts(now, zone ?? "UTC");
   return (
-    <p className="pg-dateline">
-      {day}
-      <span className="pg-dateline-time"> · {time}</span>
-    </p>
+    <>
+      <p className="pg-dateline">
+        {day}
+        <span className="pg-dateline-time"> · {time}</span>
+      </p>
+      {/* On a phone the page's quiet act stands in the date's row, beside the bell (components.css; Standing `beside`). */}
+      {phone && said?.beside ? <span className="pg-date-act">{said.beside}</span> : null}
+    </>
   );
 }
 
@@ -168,6 +174,7 @@ function GlassHead() {
   const said = useStandingSaid();
   const crumbs = useCrumbsShown();
   const { back, inDate } = useBackWay();
+  const phone = usePhoneHead();
   // The page draws its own head (a person's hero): the frame's place stays empty.
   if (said?.title === null) return null;
   const last = crumbs.length ? crumbs[crumbs.length - 1] : undefined;
@@ -175,7 +182,7 @@ function GlassHead() {
   return (
     <>
       {back && !inDate && <BackButton back={back} />}
-      <PageHead title={title} sentence={said?.sentence} stacked={said?.stacked} />
+      <PageHead title={title} sentence={said?.sentence} stacked={said?.stacked} beside={phone ? null : said?.beside} />
     </>
   );
 }

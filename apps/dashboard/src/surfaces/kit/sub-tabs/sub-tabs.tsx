@@ -18,7 +18,9 @@
  * where even that is too wide, the strip scrolls across.
  *
  * `look="capsule"` is a pane's few tabs drawn as the segmented capsule (.rec-seg), the picked one the lozenge, the
- * tabs sharing the row: a lead sheet's Why, Contact and Sequence. They stay tabs to a screen reader, as a radio group
+ * tabs sharing the row: a lead sheet's Why, Contact and Sequence. `look="chips"` is a list's few cuts as chips (Today's
+ * Need you: All, Reply, Call, Approve), each its words and its figure on a capsule of its own, the picked one filled in the
+ * ink; they scroll across where they outgrow the row. They stay tabs to a screen reader, as a radio group
  * would not, and a tab names the pane it opens where that pane stands apart from the strip (`controls`, the pane's
  * id). A capsule may have none picked (`value` null: a phone's half sheet, where any tab raises the sheet onto its
  * pane); it has no bar, and a tab's figure, tone, glyph and dot are the line's, not its.
@@ -77,8 +79,8 @@ export type SubTabsProps = {
   quietCounts?: boolean;
   /** At the desk's size, set the tabs as a phone does: for a strip with more of them than its pane has room for. */
   dense?: boolean;
-  /** The segmented capsule in place of the line: a pane's few tabs, sharing its row. */
-  look?: "capsule";
+  /** The segmented capsule in place of the line (a pane's few tabs, sharing its row), or chips (a list's few cuts). */
+  look?: "capsule" | "chips";
   className?: string;
 };
 
@@ -124,9 +126,38 @@ function capsuleOf({ label, value, tabs, onSelect, className }: SubTabsProps) {
   );
 }
 
-/** A line of sub-tabs, one picked; or a pane's few, as the capsule. */
+/** A list's few cuts as chips: each its words and its figure, the picked one filled in the ink. */
+function chipsOf({ label, value, tabs, onSelect, className }: SubTabsProps) {
+  return (
+    <Tabs.Root
+      value={value}
+      onValueChange={(next) => onSelect(String(next))}
+      className={cx("subtabs-stand", className)}
+    >
+      <Tabs.List aria-label={label} className="subtab-chips">
+        {tabs.map((tab) => (
+          <Tabs.Tab
+            key={tab.id}
+            value={tab.id}
+            className="subtab-chip"
+            data-tone={tab.tone}
+            data-testid={tab.testid}
+            title={tab.hint}
+            aria-controls={tab.controls}
+          >
+            {tab.label}
+            {tab.count === undefined ? null : <span className="subtab-count">{tab.count}</span>}
+          </Tabs.Tab>
+        ))}
+      </Tabs.List>
+    </Tabs.Root>
+  );
+}
+
+/** A line of sub-tabs, one picked; or a pane's few, as the capsule; or a list's few cuts, as chips. */
 export function SubTabs(props: SubTabsProps) {
   if (props.look === "capsule") return capsuleOf(props);
+  if (props.look === "chips") return chipsOf(props);
   const { label, value, tabs, onSelect, quietCounts, dense, className } = props;
   return (
     <Tabs.Root
