@@ -81,7 +81,6 @@ const liveBody = (name) =>
 
 const stamp = Date.now().toString(36);
 const at = (who) => `${who}-${stamp}@fixture-lists.example`;
-const month = () => new Date().toISOString().slice(0, 7);
 
 let db;
 let A;
@@ -95,6 +94,9 @@ const ok = (res) => {
   return res.data;
 };
 const one = async (q) => ok(await q.select("id").single()).id;
+/** The month and the day a lead counts in are the workspace's, in its zone (00140): for hours at each turn, not UTC's. */
+const month = async () => ok(await db.rpc("lead_month", { p_tenant_id: A }));
+const day = async () => ok(await db.rpc("lead_day", { p_tenant_id: A }));
 const refusedWith = (res, code) => {
   assert.ok(res.error, "refused");
   assert.equal(res.error.code, code, res.error.message);
@@ -128,7 +130,7 @@ const lead = (over = {}) => {
     }),
   );
 };
-const member = (search, leadId, over = {}) =>
+const member = async (search, leadId, over = {}) =>
   one(
     db.from("lead_search_members").insert({
       search_id: search,
@@ -136,7 +138,7 @@ const member = (search, leadId, over = {}) =>
       tenant_id: A,
       class: "qualified",
       counted: true,
-      counted_month: month(),
+      counted_month: await month(),
       fit: "strong",
       judgment: { answer: "yes", reasons: [], shares: [] },
       ...over,
@@ -149,7 +151,7 @@ const allowance = async () =>
       .select("used, reserved")
       .eq("tenant_id", A)
       .eq("kind", "allowance")
-      .eq("period", month()),
+      .eq("period", await month()),
   )[0] ?? {
     used: 0,
     reserved: 0,
@@ -211,8 +213,8 @@ async function build() {
       plan_version: 1,
       target: 10,
       state: "queued",
-      month: month(),
-      day: new Date().toISOString().slice(0, 10),
+      month: await month(),
+      day: await day(),
       platform_day: new Date().toISOString().slice(0, 10),
     }),
   );
@@ -523,7 +525,7 @@ test(
         .select("id, used, reserved")
         .eq("tenant_id", A)
         .eq("kind", "allowance")
-        .eq("period", month())
+        .eq("period", await month())
         .single(),
     );
     ok(

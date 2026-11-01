@@ -370,9 +370,10 @@ test(
     );
     const month = new Date().toISOString().slice(0, 7) + "-01";
     const mine = await member.rpc("ai_usage_month", { p_tenant_id: A, p_month: month });
+    // The month's calls, not every call: the alarm's row three hours old is last month's for the first three hours of one.
     assert.equal(
       mine.data.filter((r) => r.meter === "model").reduce((n, r) => n + Number(r.uses), 0),
-      before.count,
+      await count(db, "ai_usage", A, (q) => q.eq("shadow", false).gte("created_at", month)),
       "the meter counts the calls a workspace used",
     );
     assert.equal(mine.data.filter((r) => r.model === "jev-1.14.0").length, 0);
