@@ -182,9 +182,9 @@ not take it (a database before 00501) is logged, and the press goes on.
 - Answered: a person's words in a workspace's own notes are scrubbed in place, numbers and addresses only, and nothing
   of anyone else's is deleted (Ruben, 6 October 2026). In messages they are counted until an exception to 00326 is
   costed.
-- Open (31 October 2026): **the Ask scrub's names.** `scrub_ask_for_contact` takes each part of the person's display
-  name of three letters or more as a whole word, and deletes every line of Ask's memory and every day of its journal in
-  the workspace that holds one, so erasing a Dana Reyes takes a line, or a whole journal day, about any other Dana. The
-  trade: matching the full name only, or a part only beside the person's number or address, would leave a line that
-  names the erased person by their first name alone; the matching as it stands takes what the team told Ask about
-  someone else. Ruben's call, and nothing there changed with step 4.
+- Answered (1 November 2026): **the Ask scrub keeps its wide match.** `scrub_ask_for_contact` takes each part of the
+  person's display name of three letters or more as a whole word, and deletes every line of Ask's memory and every day
+  of its journal in the workspace that holds one, so erasing a Dana Reyes also takes a line, or a whole journal day,
+  about any other Dana. Matching the full name only, or a part only beside the person's number or address, would leave
+  a line that names the erased person by their first name alone. Ruben kept it, as recommended: a line lost about
+  someone else costs less than an erased person's name kept.
