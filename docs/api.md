@@ -1140,6 +1140,10 @@ Reads; for a member of the workspace the request names; no rate bucket; spends n
 | `after_id` | string (uuid) | no |  |
 | `limit` | integer | no | ≥ 1; ≤ 500 |
 | `pile_list` | string (uuid) | no |  |
+| `q` | string | no | at most 80 characters |
+| `excluded_by` | string | no | matches `^[a-z][a-z0-9_]{0,59}$` |
+| `fit` | one of `"strong"`, `"look"`, `"long"` | no |  |
+| `reach` | array of one of `"email"`, `"phone"` or string | no |  |
 
 ### `GET /api/v1/leads/[id]`
 
@@ -1312,7 +1316,10 @@ Writes; for a member of the workspace the request names, owner or above; counts 
 | `sort` | one of `"fit"`, `"found"`, `"distance"`, `"business"`, `"rating"`, `"stage"`, `"pile"` | no |  |
 | `dir` | one of `"asc"`, `"desc"` | no |  |
 | `pile_list` | string (uuid) | no |  |
-| `reach` | array of one of `"email"`, `"phone"` | no | at most 2 |
+| `q` | string | no | at most 80 characters |
+| `excluded_by` | string | no | matches `^[a-z][a-z0-9_]{0,59}$` |
+| `fit` | one of `"strong"`, `"look"`, `"long"` | no |  |
+| `reach` | array of one of `"email"`, `"phone"` or string | no |  |
 
 ## lines
 

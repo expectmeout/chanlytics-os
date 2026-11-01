@@ -21,10 +21,10 @@ import {
   stageArgs,
   toLeadPeekVM,
   leadRowOf,
-  type LeadChips,
   type LeadCounts,
   type LeadMonthDto,
   type LeadPileCountsDto,
+  type LeadViewCountsDto,
   type LeadPeekVM,
   type LeadRowDto,
   type LeadSearchDto,
@@ -94,6 +94,8 @@ interface LeadsLoaded {
   month: LeadMonthDto | null;
   /** The pile's progress line (00426), from whichever first page of a pile last answered one. */
   pile: LeadPileCountsDto | null;
+  /** What the view holds under its filters (00500 lead_view_counts), from its first page; null where it was not read. */
+  viewCounts: LeadViewCountsDto | null;
   searches: LeadSearchDto[];
   counts: LeadCounts;
   /** The cards that find leads now (00430), from the searches' read. */
@@ -150,7 +152,7 @@ export function forgetLeadsViews(): void {
 
 /** The key a read is made under: the workspace and every part of the view. */
 function viewKey(v: LeadsView): string {
-  return `${getActiveWorkspace() ?? ""}|${leadsRoute(v)}|${v.sort}|${v.dir}|${v.sort === "pile" ? (v.pileList ?? "") : ""}`;
+  return `${getActiveWorkspace() ?? ""}|${leadsRoute(v)}|${v.q ?? ""}|${v.sort}|${v.dir}|${v.sort === "pile" ? (v.pileList ?? "") : ""}`;
 }
 
 function queryOf(v: LeadsView, after?: { key: string; id: string } | null): Record<string, string> {
@@ -158,6 +160,8 @@ function queryOf(v: LeadsView, after?: { key: string; id: string } | null): Reco
   if (v.searchId) q.search = v.searchId;
   if (v.cls) q.class = v.cls;
   if (v.sort === "pile" && v.pileList) q.pile_list = v.pileList;
+  // The box's words, read where the page's filters are (00500): a chip is part of the route, the words are not.
+  if (v.q && v.q.trim()) q.q = v.q.trim();
   for (const [k, val] of Object.entries(v.chips))
     if (val !== undefined && val !== null && val !== "") q[k] = String(val);
   if (after) {
@@ -193,6 +197,7 @@ function publishLeads(failed = false): void {
     ideasReading,
     month: L?.month ?? null,
     pile: L?.pile ?? null,
+    viewCounts: L?.viewCounts ?? null,
     peeked: peekedHere()
       .filter((r) => !drawn.has(r.id))
       .map(vmOf),
@@ -239,6 +244,7 @@ async function readPageOne(v: LeadsView): Promise<LeadsLoaded> {
     cardsLive: searches.cards_live ?? [],
     month: page.month ?? null,
     pile: page.pile ?? null,
+    viewCounts: page.view ?? null,
     rows: page.rows,
     next: page.next,
     offered: [],
@@ -279,7 +285,7 @@ export async function warmLeadsView(to: string): Promise<void> {
     searchId: parsed.searchId,
     list: parsed.list,
     cls: parsed.cls,
-    chips: parsed.chips as Partial<LeadChips>,
+    chips: parsed.chips,
     sort: view.sort,
     dir: view.dir,
   };
@@ -310,9 +316,7 @@ export function leadsBootView(route: string, restored: unknown): LeadsView {
     (was.dir === "asc" || was.dir === "desc");
   return {
     ...DEFAULT_VIEW,
-    ...(parsed
-      ? { searchId: parsed.searchId, list: parsed.list, cls: parsed.cls, chips: parsed.chips as Partial<LeadChips> }
-      : {}),
+    ...(parsed ? { searchId: parsed.searchId, list: parsed.list, cls: parsed.cls, chips: parsed.chips } : {}),
     ...(known ? { sort: was.sort as LeadSort, dir: was.dir as "asc" | "desc" } : {}),
   };
 }
@@ -342,6 +346,7 @@ async function refreshView(): Promise<void> {
   // The month moves with a refresh (D5): a Keep just spent one, so the workbench's "5 of your 238 left" follows.
   L.month = page.month ?? L.month;
   L.pile = page.pile ?? L.pile; // the pile's numbers move with it (00426): an add or a Later just decided one
+  L.viewCounts = page.view ?? L.viewCounts; // an act just moved a lead out of what the filters keep, or into it
   L.rows = rows;
   publishLeads();
   // A lead the peek read on its own is not in any page this re-read patched: it is read again too, behind.
@@ -374,7 +379,7 @@ export async function leadsView(to: string | Partial<LeadsView>): Promise<void> 
         searchId: parsed.searchId,
         list: parsed.list,
         cls: parsed.cls,
-        chips: parsed.chips as Partial<LeadChips>,
+        chips: parsed.chips,
         sort: view.sort,
         dir: view.dir,
       }
@@ -409,6 +414,7 @@ export async function leadsTakeOffered(): Promise<void> {
     counts: fresh.counts,
     month: fresh.month,
     pile: fresh.pile,
+    viewCounts: fresh.viewCounts,
     rows: fresh.rows,
     next: fresh.next,
     offered: [],

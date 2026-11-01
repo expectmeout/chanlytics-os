@@ -4,7 +4,8 @@
 design with its three open calls as written); Phase A built with this note, the old engine gone with it. Spec
 `docs/superpowers/specs/2026-10-31-the-table-design.md` (§20 says what was built and where it departs from the plan);
 lane `kit/the-table-is-tanstack-table`, from main's `1225c6a4b`. Step 0 (the spike) passed every gate (spec §18).
-Phases B and C are lanes of their own after it.
+Phase B (Leads' narrowing in the read, migration 00500) is built on its lane `leads/narrowing-in-the-read`, not yet
+merged (spec §21, §22). Phase C is a lane of its own after it.
 
 ## Context
 

@@ -6,7 +6,7 @@
  * acts are plain functions over the draw's state; and what it hands LeadsScope comes from the five builders (props.tsx).
  */
 import { useEffect } from "react";
-import { leadBand, leadRail, leadReachOf, leadsStanding, type LeadRowVM } from "@chanlytics/contracts";
+import { leadBand, leadRail, leadsStanding, type LeadRowVM } from "@chanlytics/contracts";
 import { navigate } from "../../legacy-verbs";
 import { useSwapMotion } from "../../kit/motion/use-swap-motion";
 import { TABLE_BODIES } from "../../kit/table/data-table";
@@ -35,7 +35,7 @@ import {
   leadsPeekProps,
   type LeadsPage,
 } from "./props";
-import { leadNarrowings, leadWords, useLeadCells, useLeadRows, useLeadsRead } from "./reads";
+import { leadChipsOf, leadNarrowings, useLeadCells, useLeadChipsAddress, useLeadRows, useLeadsRead } from "./reads";
 import { leadRailRoutes, leadStripActs } from "./routes";
 import { leadFinderActs, leadSearchActs } from "./search-acts";
 import { leadsViewAt, useLeads, useLeadsState } from "./state";
@@ -98,42 +98,44 @@ function useLeadsView({ leadsRoute, onNavigate }: { leadsRoute: string | null; o
   const st = useLeadsState();
   const { peekId, setPeekId, peekMode, setPeekMode, armed, setArmed, setLightboxId } = st;
   const { setBenchGroup, mapOpen, setMapOpen, setMapPick, setBulkWhy } = st;
-  // The Excluded view's chip, the band's fit and the Filter's reach: the table's filters.
+  // The Excluded view's chip, the band's fit and the Filter's reach: the table's filters, kept in the address and
+  // handed to the read with the box's words (00500: the read narrows).
   const narrow = leadNarrowings(controls.table);
-  const { reach, setReach, setChip, setFitChip } = narrow;
+  const chips = leadChipsOf(narrow);
   // Where Add goes, for the lead sheet and the pile alike (sheet/use-aim.ts: one choice per search, the door's answers kept
   // by lead). The pile walks the rows in the order the page has them (To decide is the pile): nothing moves under it.
   const aim = useLeadAim({ searches: leads.searches, searchId: leadView.searchId });
   const pile = useLeadPile({ flash: plFlash, aim });
   const order = { sortBy, sortDir };
-  const read = useLeadsRead({ leadView, viewRoute, ...order, plFlash });
-  // The view's rows as the table shows them: in the order the server read them, narrowed by the words and the filters.
+  const read = useLeadsRead({ leadView, viewRoute, ...order, plFlash, chips, words: controls.table.words });
+  // The view's rows as the table shows them: as the read answered them, in its order and narrowed by its filters.
   const model = useDataTable({
     state: controls.table,
     columns: controls.declared,
     data: leads.rows,
-    words: leadWords,
-    server: { sorting: true },
+    server: { sorting: true, filtering: true },
   });
   const rows = useLeadRows({
     leads,
     leadShown: model.rows,
-    narrowed: controls.table.narrowed,
+    asked: controls.table.narrowed,
+    chips,
+    q: read.readWords,
     leadView,
-    viewRoute,
     ...order,
   });
   const { leadShown, shownIds, viewLanded } = rows;
-  // "All that match" is a claim about the view the server knows. Once the box, a chip, a fit or the Filter hides a loaded
-  // row, the bars act on the rows they show, so a claim taken before goes back to the rows picked (use-place.ts takes it
-  // back for the box's words alone).
+  // "All that match" is a claim about what the filters keep, and its N moves with them: a claim taken before a filter
+  // changed goes back to the rows picked, and the bar says the new N before an act.
   const { setAllMatching } = controls;
+  const filtersKey = `${viewRoute}|${JSON.stringify(chips)}|${read.readWords}`;
   useEffect(() => {
-    if (rows.narrowed) setAllMatching(false);
-  }, [rows.narrowed]); // eslint-disable-line react-hooks/exhaustive-deps
-  // Each view keeps its place by the address's view (viewRoute), its map and its Filter with it. A view opened after the
-  // first starts with none of the last one's filters. The selection goes with the view, never with a narrowing: a chip,
-  // as the box, the fit and the Filter, keeps it (decision 0083, §6.8), and the bars act on the rows shown.
+    setAllMatching(false);
+  }, [filtersKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  useLeadChipsAddress({ leadView, addrPeek, narrow, nav });
+  // Each view keeps its place by the address's view without its chips (viewRoute), its map with it; its chips are the
+  // address's. The selection goes with the view, never with a narrowing: a chip, as the box, the fit and the Filter, keeps
+  // it (decision 0083, §6.8), and the bars act on the rows shown.
   const place = usePlPlace({
     controls,
     page: "leads",
@@ -142,13 +144,11 @@ function useLeadsView({ leadsRoute, onNavigate }: { leadsRoute: string | null; o
     noun: "lead",
     landed: viewLanded,
     selectionOf: viewRoute,
-    extra: { map: mapOpen, reach },
+    extra: { map: mapOpen },
     onPlace: (at, again) => {
       setMapOpen(!!at.map);
-      setReach(leadReachOf(at.reach));
+      // The chips are the address's (useLeadChipsAddress): a view opened again starts with the ones its address says.
       if (again) {
-        setChip(null);
-        setFitChip(null);
         setBenchGroup(null);
         setMapPick(null);
         setLightboxId(null);

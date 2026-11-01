@@ -1,12 +1,15 @@
 /**
- * What the Leads page reads (moved from legacy/pages/leads-real.jsx, decision 0015): one read per view, the rows the box
- * and the chips leave shown, a row's photo asked for as it is rested on, and the cells' context that holds still.
+ * What the Leads page reads (moved from legacy/pages/leads-real.jsx, decision 0015): one read per view and its filters (the
+ * read narrows, 00500), the chips kept in the address, a row's photo asked for as it is rested on, and the cells' context
+ * that holds still.
  */
 import { useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import {
   leadReachOf,
+  leadsRoute,
   type LeadBand,
+  type LeadChips,
   type LeadReachFilter,
   type LeadRowVM,
   type LeadSort,
@@ -14,20 +17,45 @@ import {
 } from "@chanlytics/contracts";
 import type { TableState } from "../../kit/table/state";
 import { refusalToast } from "../../legacy-verbs";
+import { placeLoad } from "../../people/shell-verbs";
 import type { Flash } from "../../people/types";
 import { leadPhotoWarm } from "../peek/seams";
 import { leadsMore, leadsView, type LeadsSurface } from "../surface";
 import { leadCallHandle } from "../cells/call-menu";
 import type { LeadCallHandle, LeadCellCtx } from "../cells/types";
+import type { LeadsNav } from "./peek-hooks";
 import type { LeadView } from "./state";
 
 /** How long a row is rested on before its photo is asked for: a pointer swept down the list asks for none. */
 const PHOTO_REST_MS = 120;
 
+/** How long the box's words wait for quiet before they are read: People's server search waits as long. */
+const WORDS_READ_MS = 250;
+
+/** The chips a view's filters name, as its route and its read say them (contracts LeadChips). */
+export const leadChipsOf = (n: {
+  chip: string | null;
+  fitChip: LeadChips["fit"] | null;
+  reach: readonly LeadReachFilter[];
+}): LeadChips => ({
+  ...(n.chip ? { excluded_by: n.chip } : {}),
+  ...(n.fitChip ? { fit: n.fitChip } : {}),
+  ...(n.reach.length ? { reach: [...n.reach] } : {}),
+});
+
+/** The words a view's place keeps (use-place.ts): what its box says again as it opens, and what its read asks. */
+const placeWordsOf = (view: string): string => {
+  const p = placeLoad("leads", view);
+  return p && typeof p.q === "string" ? p.q.trim() : "";
+};
+
+/** One key for a set of chips: the route's own segments, so two sets that say the same view are one key. */
+const chipsKey = (c: LeadChips) => leadsRoute({ chips: c });
+
 /**
- * One read per view (PRD 0.5, the review's E8): the address says which search, list and class, and this member's own
- * view says the sort. Every key goes at once, and the surface drops an answer a newer ask supersedes, so a slow page of
- * the old view never lands on the new one.
+ * One read per view (PRD 0.5, the review's E8): the address says which search, list, class and chips, the box the words,
+ * and this member's own view says the sort. Every key goes at once, and the surface drops an answer a newer ask supersedes,
+ * so a slow page of the old view never lands on the new one. The words are read once typing stops (WORDS_READ_MS).
  */
 export const useLeadsRead = ({
   leadView,
@@ -36,6 +64,8 @@ export const useLeadsRead = ({
   sortDir,
   plFlash,
   pileList = null,
+  chips,
+  words,
 }: {
   leadView: LeadView;
   viewRoute: string;
@@ -44,18 +74,32 @@ export const useLeadsRead = ({
   plFlash: Flash;
   /** The pile's list (00426): under its sort, the list its adds go to, which the read puts with the decided. */
   pileList?: string | null;
+  /** The view's chips (the table's filters, kept in the address). */
+  chips: LeadChips;
+  /** The box's words, as typed. */
+  words: string;
 }) => {
+  // The words the read asks, held with the view they were typed in: a view opened reads with the words its place keeps
+  // (the box says them again on the same draw's place), at once and never the last view's; typed words after the wait.
+  const [asked, setAsked] = useState(() => ({ view: viewRoute, q: words.trim() || placeWordsOf(viewRoute) }));
+  const q = asked.view === viewRoute ? asked.q : placeWordsOf(viewRoute);
+  useEffect(() => {
+    const t = setTimeout(() => setAsked({ view: viewRoute, q: words.trim() }), WORDS_READ_MS);
+    return () => clearTimeout(t);
+  }, [words]); // eslint-disable-line react-hooks/exhaustive-deps
+  const chipped = chipsKey(chips);
   useEffect(() => {
     void leadsView({
       searchId: leadView.searchId,
       list: leadView.list,
       cls: leadView.cls,
-      chips: {},
+      chips,
+      q,
       sort: sortBy as LeadSort,
       dir: sortDir === "desc" ? "desc" : "asc",
       pileList,
     });
-  }, [viewRoute, sortBy, sortDir, pileList]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [viewRoute, chipped, q, sortBy, sortDir, pileList]); // eslint-disable-line react-hooks/exhaustive-deps
   // The next page, its own flag, so the button says Loading… while THIS is out and not while a Keep is, and a second press
   // while it loads asks for nothing.
   const [leadsMoreBusy, setLeadsMoreBusy] = useState(false);
@@ -70,17 +114,7 @@ export const useLeadsRead = ({
       setLeadsMoreBusy(false);
     }
   };
-  return { leadsMoreBusy, leadsMore: loadMore };
-};
-
-/** What the box's words keep of a lead: its name, its kind and its area. A sentence is not sent anywhere: words to chips is release C. */
-export const leadWords = (q: string): ((l: LeadRowVM) => boolean) | null => {
-  const needle = q.trim().toLowerCase();
-  if (!needle) return null;
-  return (l) =>
-    l.name.toLowerCase().includes(needle) ||
-    (l.category || "").toLowerCase().includes(needle) ||
-    (l.area || "").toLowerCase().includes(needle);
+  return { leadsMoreBusy, leadsMore: loadMore, readWords: q };
 };
 
 /** One of the band's fits (D5): the strong ones, the ones worth a look, the long shots. */
@@ -107,33 +141,85 @@ export const leadNarrowings = (table: TableState) => {
 export type LeadNarrowings = ReturnType<typeof leadNarrowings>;
 
 /**
- * The leads loaded, as the table shows them (the box's words and the page's narrowings over the view's rows, in the
- * order the server read them). `narrowed` is whether any of those hides a loaded row: then "all that match" is no claim
- * the bars can make, since the view the server knows is wider than the rows on screen.
+ * The chips and the address say one view (00500): a chip, the fit or the Filter picked writes the address in place of the
+ * last, so Back is the view before and not the chip before; an address that moved (Back, a link, a rail pick) gives the
+ * table its chips. The first draw takes the address's, so a link opens filtered.
+ */
+export const useLeadChipsAddress = ({
+  leadView,
+  addrPeek,
+  narrow,
+  nav,
+}: {
+  leadView: LeadView;
+  addrPeek: string | null;
+  narrow: LeadNarrowings;
+  nav: LeadsNav;
+}) => {
+  const inAddress = chipsKey(leadView.chips);
+  const asked = leadChipsOf(narrow);
+  const inTable = chipsKey(asked);
+  // The address's chips last taken in, and the chips this hook wrote to the address and is waiting to see: a draw
+  // between the write and the address that follows it is not a Back.
+  const seen = useRef<string | null>(null);
+  const sent = useRef<string | null>(null);
+  useEffect(() => {
+    if (inAddress !== seen.current) {
+      seen.current = inAddress;
+      const ours = sent.current === inAddress;
+      sent.current = null;
+      if (!ours && inAddress !== inTable) {
+        narrow.setChip(leadView.chips.excluded_by ?? null);
+        narrow.setFitChip(leadView.chips.fit ?? null);
+        narrow.setReach(leadView.chips.reach ?? NO_REACH);
+      }
+      return;
+    }
+    if (inTable === inAddress || sent.current === inTable) return;
+    sent.current = inTable;
+    const { searchId, list, cls } = leadView;
+    nav(leadsRoute({ searchId, list, cls, chips: asked, peek: addrPeek }), { replace: true });
+  }, [inAddress, inTable]); // eslint-disable-line react-hooks/exhaustive-deps
+};
+
+/**
+ * The leads the read answered, as the table shows them (the read narrows and orders them, 00500). `asked` is whether the
+ * box, a chip, a fit or the Filter narrows the view; `narrowed` whether it does and the server has not counted what it
+ * keeps: then "all that match" is no claim the bars can make.
  */
 export const useLeadRows = ({
   leads,
   leadShown,
-  narrowed,
+  asked,
+  chips,
+  q,
   leadView,
-  viewRoute,
   sortBy,
   sortDir,
 }: {
   leads: LeadsSurface;
   leadShown: LeadRowVM[];
-  narrowed: boolean;
+  asked: boolean;
+  chips: LeadChips;
+  /** The words the read was asked (useLeadsRead's, once typing stopped). */
+  q: string;
   leadView: LeadView;
-  viewRoute: string;
   sortBy: string;
   sortDir: string;
 }) => {
-  const filtered = narrowed || !!leadView.cls || leadView.list !== "all";
+  const filtered = asked || !!leadView.cls || leadView.list !== "all";
   const shownIds = leadShown.map((r) => r.id);
-  // The surface holds the view the address names, in the order this page asked for: a sort is a read too (never the
-  // page's to re-order; leads_page's order is the one rule), and the rows on screen are the old order until it lands.
-  const viewLanded = leads.route === viewRoute && leads.view.sort === sortBy && leads.view.dir === sortDir;
-  return { leadShown, filtered, narrowed, shownIds, viewLanded };
+  // The surface holds the view the address names with its chips and words, in the order this page asked for: a sort and
+  // a filter are reads too (never the page's to re-order or narrow; leads_page is the one rule), and the rows on screen
+  // are the last answer until this one lands.
+  const { searchId, list, cls } = leadView;
+  const viewLanded =
+    leads.route === leadsRoute({ searchId, list, cls, chips }) &&
+    (leads.view.q ?? "") === q &&
+    leads.view.sort === sortBy &&
+    leads.view.dir === sortDir;
+  const narrowed = asked && !leads.viewCounts;
+  return { leadShown, filtered, asked, narrowed, shownIds, viewLanded };
 };
 
 /**

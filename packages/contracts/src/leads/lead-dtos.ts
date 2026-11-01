@@ -199,6 +199,17 @@ export interface LeadCounts {
  * renews. The workbench reads it to say what a press costs -- "5 of your 238 left" -- so a Keep is never a number
  * nobody can see. The whole is contracts' LEAD_MONTHLY_ALLOWANCE, never a number a page invents.
  */
+/**
+ * What a view of Leads holds (00500 lead_view_counts, decision 0083 Phase B): its members, how many of them its filters
+ * keep ("Select all N that match"), and how many each criterion left out over the view without the filters (the
+ * Excluded view's chips, which count what a chip would show, whichever is picked).
+ */
+export interface LeadViewCountsDto {
+  view: number;
+  matching: number;
+  excluded_by: Record<string, number>;
+}
+
 export interface LeadMonthDto {
   used: number;
   left: number;

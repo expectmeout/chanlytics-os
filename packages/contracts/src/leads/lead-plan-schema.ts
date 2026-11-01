@@ -15,7 +15,8 @@ import {
   leadNotBusinessesLine,
 } from "./lead-words";
 import { BUSINESS_LINE_MAX, LEAD_MAX_PLACES } from "./search/caps";
-import { LEAD_REACH_FILTERS } from "./search/sets";
+import { LEAD_FITS, LEAD_REACH_FILTERS } from "./search/sets";
+import { LEAD_CRITERION_KEY, LEAD_WORDS_MAX } from "./lead-plan";
 import { leadKindKey, stateCode } from "./search/clean";
 import { lowerFirst } from "./search/sentence";
 import type { LeadArea, LeadSearchPlan } from "./search/plan";
@@ -42,6 +43,27 @@ import { LeadPeoplePlanSchema } from "./search/people-plan-schema";
 
 /* --------------------------------------------------------------- requests */
 
+/**
+ * The page's narrowings, as the read takes them (decision 0083, Phase B: `leads_page`'s `p_filters`, `lead_matches`):
+ * the box's words, the criterion that left a lead out, a fit, and the reaches the Filter asks. A query says the reaches
+ * as one field, `email,phone`; a body as a list; either way they arrive each once, in the set's order.
+ */
+const LeadFiltersSchema = z.object({
+  q: z.string().trim().max(LEAD_WORDS_MAX).optional(),
+  excluded_by: z.string().regex(LEAD_CRITERION_KEY).optional(),
+  fit: z.enum(LEAD_FITS).optional(),
+  reach: z
+    .union([
+      z.array(z.enum(LEAD_REACH_FILTERS)).max(LEAD_REACH_FILTERS.length),
+      z.string().regex(/^(email|phone)(,(email|phone))?$/),
+    ])
+    .transform((v) => {
+      const asked: readonly string[] = typeof v === "string" ? v.split(",") : v;
+      return LEAD_REACH_FILTERS.filter((f) => asked.includes(f));
+    })
+    .optional(),
+});
+
 export const LeadsQuerySchema = z.object({
   list: z.enum(LEAD_LISTS).default("all"),
   search: z.string().uuid().optional(),
@@ -53,6 +75,7 @@ export const LeadsQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(500).default(500),
   /** The pile (sort=pile, 00426): the list its adds go to, whose leads it puts last, and its progress line's numbers. */
   pile_list: z.uuid().optional(),
+  ...LeadFiltersSchema.shape,
 });
 
 export type LeadsQuery = z.infer<typeof LeadsQuerySchema>;
@@ -104,10 +127,8 @@ export const LeadDraftInputSchema = z.object({
   previous: z.object({ subject: z.string().max(200), body: z.string().max(4000) }).optional(),
 });
 
-/** The view as a file, narrowed as the table is by a lead's reach (leadReaches), so it holds the rows the owner saw. */
-export const LeadExportQuerySchema = LeadsViewSchema.extend({
-  reach: z.array(z.enum(LEAD_REACH_FILTERS)).max(LEAD_REACH_FILTERS.length).optional(),
-});
+/** The view as a file, narrowed as the table is (its filters ride in the view), so it holds the rows the owner saw. */
+export const LeadExportQuerySchema = LeadsViewSchema;
 
 export const RenameLeadSearchSchema = z.object({ name: z.string().trim().min(1).max(80) });
 

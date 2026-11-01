@@ -45,7 +45,7 @@ export type LeadRunState = (typeof LEAD_RUN_STATES)[number];
 /** The five words of §10.4, plus `checking` while a batch is out. */
 export const LEAD_EMAIL_STATES = ["none", "checking", "ok", "catch_all", "unknown", "invalid"] as const;
 export type LeadEmailState = (typeof LEAD_EMAIL_STATES)[number];
-/** What the table is narrowed to by a lead's reach (contracts leadReaches): a checked email, a checked phone, or both. */
+/** What the table is narrowed to by a lead's reach (the read's rule, 00500 lead_matches): a checked email, a checked phone, or both. */
 export const LEAD_REACH_FILTERS = ["email", "phone"] as const;
 export type LeadReachFilter = (typeof LEAD_REACH_FILTERS)[number];
 export const LEAD_STAGES = ["ready", "nurture", "converted", "archived"] as const;

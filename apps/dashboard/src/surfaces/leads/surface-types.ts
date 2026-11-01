@@ -10,7 +10,7 @@ import type {
   LeadList,
   LeadMonthDto,
   LeadPileCountsDto,
-  LeadReachFilter,
+  LeadViewCountsDto,
   LeadRowDto,
   LeadRowVM,
   LeadSearchDto,
@@ -20,16 +20,18 @@ import type {
 } from "@chanlytics/contracts";
 
 /**
- * The view an export names: the keys GET leads takes, as a bulk act names a view (LeadsViewSchema), and the Filter's reach
- * where one is on, so the file is the table's rows and not the view's every lead.
+ * The view an export names: the keys GET leads takes, as a bulk act names a view (LeadsViewSchema), its filters with it
+ * (00500), so the file is the table's rows and not the view's every lead.
  */
-export type LeadsExportView = Extract<LeadsBulkInput, { by: "view" }>["view"] & { reach?: readonly LeadReachFilter[] };
+export type LeadsExportView = Extract<LeadsBulkInput, { by: "view" }>["view"];
 
 export interface LeadsView {
   searchId: string | null;
   list: LeadList;
   cls: LeadClass | null;
   chips: Partial<LeadChips>;
+  /** The box's words, read with the view (00500): not a chip, so not part of its route. */
+  q?: string;
   sort: LeadSort;
   dir: "asc" | "desc";
   /** The pile's list (sort pile, 00426): the list its adds go to, whose leads it puts with the decided. */
@@ -52,6 +54,8 @@ export interface LeadsSurface {
   month: LeadMonthDto | null;
   /** The pile's progress line (sort pile of one search, 00426), from whichever first page last answered one. */
   pile: LeadPileCountsDto | null;
+  /** What the view holds under its filters (00500 lead_view_counts): "Select all N that match" and the Excluded chips. */
+  viewCounts: LeadViewCountsDto | null;
   /**
    * The leads the peek read on their own because no page loaded holds them (PR 9: a link to a lead, one far down a
    * view), as rows: what the page's acts look a lead up in when it is not among `rows`. Never drawn as rows.
@@ -82,4 +86,6 @@ export interface LeadsPageAnswer {
   counts?: LeadCounts;
   month?: LeadMonthDto;
   pile?: LeadPileCountsDto;
+  /** What the view holds under its filters (00500), with the first page of any view but a pile. */
+  view?: LeadViewCountsDto;
 }

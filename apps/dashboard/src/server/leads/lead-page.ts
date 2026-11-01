@@ -13,6 +13,7 @@ import {
   type LeadClass,
   type LeadCounts,
   type LeadEmailState,
+  leadFiltersOf,
   leadMarkSrc,
   leadMonth,
   type LeadMonthDto,
@@ -20,9 +21,10 @@ import {
   type LeadRowDto,
   type LeadsQuery,
   type LeadStage,
+  type LeadViewCountsDto,
   type SequencePlaceOfDto,
 } from "@chanlytics/contracts";
-import { leadPileCounts, readLeadOne, sequencePlacesOf } from "@chanlytics/db";
+import { leadPileCounts, leadViewCounts, readLeadOne, sequencePlacesOf } from "@chanlytics/db";
 import { type DoorArgs, monthUsed, renewsOnOf } from "./lead-helpers";
 import { listCounts } from "./lead-searches";
 import { tenantFacts } from "../tenant";
@@ -316,6 +318,11 @@ export interface LeadsPageAnswer {
   month?: LeadMonthDto;
   /** The pile's progress line (sort=pile of one search, 00426), with the first page only. */
   pile?: LeadPileCountsDto;
+  /**
+   * What the view holds (00500 lead_view_counts), with the first page only: how many its filters keep ("Select all N
+   * that match") and the Excluded view's chips' counts. The pile reads the view whole, so it asks none.
+   */
+  view?: LeadViewCountsDto;
 }
 
 /** The pile's progress line, read under the caller's row security (00426 lead_pile_counts). */
@@ -355,6 +362,9 @@ async function monthStanding(
  * A page of the view, as the database ordered it (leads_page): the list, the
  * class, the sort and the direction are all SQL, so the next page carries on
  * from the key the database answered rather than from a count of rows read.
+ * So are the page's filters (00500, decision 0083 Phase B: lead_matches), the
+ * words, the criterion, the fit and the reaches, so a view past one page is
+ * narrowed whole, and the first page says how many it keeps.
  */
 export async function leadsPage(
   ctx: Pick<RouteContext, "supabase">,
@@ -364,7 +374,9 @@ export async function leadsPage(
 ): Promise<LeadsPageAnswer> {
   const first = !q.after_key && !q.after_id;
   const pile = first && q.sort === "pile" ? (q.search ?? null) : null;
-  const [answer, names, counts, month, piled] = await Promise.all([
+  // The pile walks every lead of its search, whatever the table is narrowed to (#1978): its read asks no filter.
+  const filters = q.sort === "pile" ? null : leadFiltersOf(q);
+  const [answer, names, counts, month, piled, view] = await Promise.all([
     ctx.supabase.rpc("leads_page", {
       p_tenant_id: tenantId,
       p_search_id: q.search ?? null,
@@ -376,6 +388,7 @@ export async function leadsPage(
       p_dir: q.dir,
       p_after_id: q.after_id ?? null,
       ...(q.pile_list ? { p_list_id: q.pile_list } : {}),
+      ...(filters ? { p_filters: filters } : {}),
     } as DoorArgs<"leads_page">),
     searchNamesOf(ctx, tenantId),
     first ? listCounts(ctx, tenantId) : Promise.resolve(null),
@@ -384,6 +397,16 @@ export async function leadsPage(
     // month's door (00143) is theirs, and refuses anyone else, which took the whole page down with it.
     first && opts.month !== false ? monthStanding(ctx, tenantId) : Promise.resolve(null),
     pile ? pileOf(ctx, tenantId, pile, q) : Promise.resolve(null),
+    // Unreadable costs the counts, never the page: without them the page offers no "all that match" while narrowed.
+    first && q.sort !== "pile"
+      ? leadViewCounts(ctx.supabase, {
+          tenantId,
+          searchId: q.search ?? null,
+          cls: q.class ?? null,
+          list: q.list,
+          filters,
+        }).catch(() => null)
+      : Promise.resolve(null),
   ]);
   if (answer.error) throw new Error(`leads_page: ${answer.error.message}`);
   const raw = (Array.isArray(answer.data) ? answer.data : []) as unknown as LeadPageRow[];
@@ -399,6 +422,7 @@ export async function leadsPage(
     ...(counts ? { counts } : {}),
     ...(month ? { month } : {}),
     ...(piled ? { pile: piled } : {}),
+    ...(view ? { view } : {}),
   };
 }
 

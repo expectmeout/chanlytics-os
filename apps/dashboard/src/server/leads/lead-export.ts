@@ -2,15 +2,7 @@
  * The Leads export: its columns and its pages. Moved whole from leads.ts (Reach out Part 2.5), which
  * re-exports it.
  */
-import {
-  LEAD_EMAIL_WORDS,
-  LEAD_STAGE_WORDS,
-  leadReaches,
-  leadSlots,
-  type LeadReachFilter,
-  type LeadRowDto,
-  type LeadsQuery,
-} from "@chanlytics/contracts";
+import { LEAD_EMAIL_WORDS, LEAD_STAGE_WORDS, type LeadRowDto, type LeadsQuery } from "@chanlytics/contracts";
 import { csvCell, dateTag, safeName } from "../export/export";
 import { leadsPage, type LeadsPageAnswer } from "./lead-page";
 import { tenantFacts } from "../tenant";
@@ -55,8 +47,8 @@ function leadsCsv(rows: LeadRowDto[]): string {
 const EXPORT_PAGES = 20;
 
 /**
- * Every lead the view matches (with a checked email or phone, where the table's Filter asks), as a CSV, and the ledger row that says a copy
- * left the building. What it took is marked so the same lead is not charged
+ * Every lead the view matches (its filters are the read's: the words, the criterion, the fit, a checked email or phone,
+ * where the table asks them; 00500), as a CSV, and the ledger row that says a copy left the building. What it took is marked so the same lead is not charged
  * twice (§0.2), and a lead already charged is not charged again.
  *
  * The file is the answer's `csv` and its name, `file`, for the page to save: marking what it took moves the month's count,
@@ -65,9 +57,8 @@ const EXPORT_PAGES = 20;
 export async function exportLeads(
   ctx: Pick<RouteContext, "supabase" | "userId" | "via" | "undoOf">,
   tenantId: string,
-  input: Omit<LeadsQuery, "after_key" | "after_id" | "limit"> & { reach?: readonly LeadReachFilter[] },
+  view: Omit<LeadsQuery, "after_key" | "after_id" | "limit">,
 ): Promise<{ file: string; csv: string; rows: number }> {
-  const { reach = [], ...view } = input;
   const rows: LeadRowDto[] = [];
   let after: { key: string; id: string } | null = null;
   // Every page, not the first: a CSV that stops at 500 is indistinguishable
@@ -76,8 +67,8 @@ export async function exportLeads(
   for (let page = 0; page < EXPORT_PAGES; page += 1) {
     const q: LeadsQuery = { ...view, limit: 500, ...(after ? { after_key: after.key, after_id: after.id } : {}) };
     const answer: LeadsPageAnswer = await leadsPage(ctx, tenantId, q);
-    // Narrowed as the table was (the Filter's checked email or phone): only what leaves is marked and counted.
-    rows.push(...answer.rows.filter((r) => leadReaches(leadSlots(r), reach)));
+    // Narrowed in the read, as the table is: only what leaves is marked and counted.
+    rows.push(...answer.rows);
     if (!answer.next) break;
     after = answer.next;
   }

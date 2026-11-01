@@ -129,6 +129,8 @@ export interface LeadRowVM {
   source: string;
   host: string;
   excludedBy: string | null;
+  /** The criterion's own key ("wrong_kind"): what the Excluded view's chip and the read name it by (00500). */
+  excludedKey: string | null;
   version: number;
   /* ---- D5: the row as the redesign reads it ---- */
   /**
@@ -165,8 +167,8 @@ export interface LeadRowVM {
   laterAt?: string | null;
 }
 
-/** A key from a plan ("chain", "wrong_kind") as a person would read it. */
-const keyInWords = (key: string): string => {
+/** A key from a plan ("chain", "wrong_kind") as a person would read it: a row's left-out reason, and its chip. */
+export const leadCriterionWords = (key: string): string => {
   const words = key.replace(/_/g, " ").trim();
   return words ? words.charAt(0).toUpperCase() + words.slice(1) : "";
 };
@@ -215,7 +217,7 @@ export function toLeadRowVM(r: LeadRowDto, tz: string, now: Date, search: LeadSe
   const nowMs = now.getTime();
   const foundMs = Date.parse(r.found_at);
   const m = r.member;
-  const excludedBy = m.excluded_by ? keyInWords(m.excluded_by) : null;
+  const excludedBy = m.excluded_by ? leadCriterionWords(m.excluded_by) : null;
   const rating = ratingLabel(r.rating, r.reviews);
   const rated = leadRatingOf(r);
   // Qualified wears its fit band; Needs review wears the judge's reason, which
@@ -329,6 +331,7 @@ export function toLeadRowVM(r: LeadRowDto, tz: string, now: Date, search: LeadSe
     source: leadSourceWord(r),
     host: siteHost(r.website) ?? "",
     excludedBy,
+    excludedKey: m.excluded_by,
     version: r.version,
     sub,
     slots: leadSlots(r),
