@@ -772,11 +772,12 @@ test.describe("Phone shell on a real workspace", () => {
    * Every list pulls under a thumb, however short (25 Sep). A list rubber-bands on a touch screen only when it holds
    * more than its box: Needs you with two threads and Live with no calls could not be pulled at all, where
    * Conversations could, and Live's panel cut its last lines off with no way to scroll to them. On a phone the window
-   * scrolls a page's list (mobile.css, "The window scrolls"), and the screen's own band past the window's end dragged
-   * the frame's top with the rows on an iPhone (Ruben, 19 Oct 2026): the screen holds now, and the page gives way by
-   * itself (mobile.css, "A pull past the page's end"), however short, while the frame's top and the strip in it stay
-   * where they stand. On a page of rows only the rows give, and what stands over them (the buckets, the search, the
-   * list's name and count) holds, as the Calendar's bar does (Ruben, 19 Oct 2026). Live kept scrollers of its own until
+   * scrolls a page's list (mobile.css, "The window scrolls"), and past its ends the screen's own band carries it, with
+   * what is fixed holding; but a pull down a page at rest at its top is Safari's pull to refresh, which slid the frame's
+   * top down with the rows on an iPhone (Ruben, 19 Oct 2026). So there the screen's band is off and the page gives way
+   * by itself (mobile.css, "The page's ends"), however short, while the frame's top and the strip in it stay where they
+   * stand. On a page of rows only the rows give, and what stands over them (the buckets, the search, the list's name and
+   * count) holds, as the Calendar's bar does (Ruben, 19 Oct 2026). Live kept scrollers of its own until
    * 21 Oct 2026, when every page came to be scrolled by the window (mobile.css, "The window scrolls": Safari floated
    * its glass toolbar over the Inbox and stood it on a flat band under Live), and it gives as Campaigns' rooms do.
    */

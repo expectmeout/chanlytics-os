@@ -278,7 +278,8 @@ export function FrameHead({ look }: { look: string }) {
   const column = places?.dateline?.parentElement ?? null;
   // A stand-in document has no observer, and no top to measure.
   useLayoutEffect(() => (column && typeof ResizeObserver === "function" ? watchFrameTop(column) : undefined), [column]);
-  // And the top holds under a pull past the page's end, where the page gives way by itself (page-give.ts).
+  // And the page's ends: the screen's own band, but for a pull down a page at rest at its top, which Safari would take
+  // for its pull to refresh and slide the top down with it, so the page draws that one itself (page-give.ts).
   useEffect(() => (column ? watchPageGive(window) : undefined), [column]);
   // A desk's page fades out under the bar or its strip once it has scrolled (frame-top.ts watchPageEdges).
   useEffect(() => watchPageEdges(), []);
