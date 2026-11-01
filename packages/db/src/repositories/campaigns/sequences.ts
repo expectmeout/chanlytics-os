@@ -499,10 +499,7 @@ export async function sequencePeopleOf(
   return { counts: got.counts ?? {}, rows: await withOpenings(db, p.tenantId, rows) };
 }
 
-/**
- * One lead's place in the sequence it stands in, or the last it was in (00459 sequence_place), with its email's opening
- * and the leave Put back would undo; null in none.
- */
+/** One lead's place in the sequence it stands in or last was in (00459), its opening and Put back; null in none. */
 export async function sequencePlaceOf(db: Db, tenantId: string, leadId: string): Promise<SequencePlaceDto | null> {
   const { data, error } = await db.rpc("sequence_place", { p_tenant_id: tenantId, p_lead_id: leadId });
   if (error) throw new Error(`cannot read where the lead stands: ${error.message}`);

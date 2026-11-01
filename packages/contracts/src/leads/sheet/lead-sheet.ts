@@ -441,7 +441,7 @@ export interface LeadSheetFactVM {
 /** The facts its own rows say, or the head and History do: never again from the listing's list. */
 const SAID_ELSEWHERE: ReadonlySet<string> = new Set(["Rated", "Listing", "Kind", "Found at"]);
 
-const fact = (k: string, v: string, tip: string | null = null): LeadSheetFactVM => ({ k, v, tip });
+const aboutFact = (k: string, v: string, tip: string | null = null): LeadSheetFactVM => ({ k, v, tip });
 
 /** The rating with how many rated it, and what five bars said that an average cannot, where it is worth saying. */
 const reviewsOf = (rated: NonNullable<LeadPeekVM["rated"]>): string =>
@@ -456,18 +456,18 @@ export function leadSheetAboutOf(
   const where = vm.where ? [vm.where.line, vm.distance].filter(Boolean).join(" · ") : null;
   const rows: LeadSheetFactVM[] = company
     ? [
-        ...(company.size ? [fact(W.size, company.size)] : []),
+        ...(company.size ? [aboutFact(W.size, company.size)] : []),
         // Where its people came from and what we keep of them is a tip, never a heading of a paragraph's length.
-        fact(W.from, LEAD_DIRECTORY_WORDS.source, company.source || null),
+        aboutFact(W.from, LEAD_DIRECTORY_WORDS.source, company.source || null),
       ]
     : [
-        ...(vm.weekSummary ? [fact(W.hours, vm.weekSummary)] : []),
-        ...(vm.claimed === null ? [] : [fact(W.listing, vm.claimed ? W.claimed : W.unclaimed)]),
-        ...(vm.rated ? [fact(W.reviews, reviewsOf(vm.rated))] : []),
-        ...(where ? [fact(W.where, where)] : []),
+        ...(vm.weekSummary ? [aboutFact(W.hours, vm.weekSummary)] : []),
+        ...(vm.claimed === null ? [] : [aboutFact(W.listing, vm.claimed ? W.claimed : W.unclaimed)]),
+        ...(vm.rated ? [aboutFact(W.reviews, reviewsOf(vm.rated))] : []),
+        ...(where ? [aboutFact(W.where, where)] : []),
       ];
   return {
     text: vm.about,
-    rows: [...rows, ...vm.facts.filter((f) => !SAID_ELSEWHERE.has(f.k)).map((f) => fact(f.k, f.v))],
+    rows: [...rows, ...vm.facts.filter((f) => !SAID_ELSEWHERE.has(f.k)).map((f) => aboutFact(f.k, f.v))],
   };
 }

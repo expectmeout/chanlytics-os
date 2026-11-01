@@ -29,6 +29,7 @@ import { EmailAs } from "../../campaigns/sequences/place/email-as";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
+import { Popover } from "../../kit/popover/popover";
 import { RecordDisclosure } from "../../kit/record/disclosure";
 import { gate } from "../../legacy-verbs";
 import { LeadCallMenu } from "../cells/call-menu";
@@ -161,24 +162,32 @@ function contactOf(vm: LeadPeekVM, f: SheetFacts, on: PeekActs) {
 
 /* ----------------------------------------------------------------------------------------------------- about -- */
 
-/** A fact about them, on the line's own column; a tip folds under it where a press says more. */
-const factRow = (r: LeadSheetFactVM) => (
+/** A fact about them, on the line's own column; a press on the words under it says more, where there is more. */
+const aboutFactRow = (r: LeadSheetFactVM) => (
   <div key={`${r.k}-${r.v}`} className="lw-kv">
     <span className="lw-kv-k">{r.k}</span>
     <span className="lw-kv-v">
       {r.v}
       {r.tip ? (
-        <details className="lw-kv-tip">
-          <summary className="lw-kv-tip-s">{W.whatWeKeep}</summary>
-          <p>{r.tip}</p>
-        </details>
+        <Popover
+          label={W.whatWeKeep}
+          align="start"
+          className="lw-kv-note"
+          trigger={
+            <LinkButton className="lw-kv-more" data-testid="lead-sheet-what-we-keep">
+              {W.whatWeKeep}
+            </LinkButton>
+          }
+        >
+          {r.tip}
+        </Popover>
       ) : null}
     </span>
   </div>
 );
 
 /** Company, or About: their own words cut short, then each fact once. */
-function aboutOf(vm: LeadPeekVM) {
+function aboutLine(vm: LeadPeekVM) {
   const about = leadSheetAboutOf(vm);
   return (
     <>
@@ -189,7 +198,7 @@ function aboutOf(vm: LeadPeekVM) {
       ) : null}
       {about.rows.length ? (
         <div className="lw-kvs" data-testid="peek-about">
-          {about.rows.map(factRow)}
+          {about.rows.map(aboutFactRow)}
         </div>
       ) : null}
     </>
@@ -291,7 +300,7 @@ function sequenceOf(f: SheetFacts, a: SequenceActs, leadId: string) {
 /* --------------------------------------------------------------------------------------------------- history -- */
 
 /** History: how we found them, then what happened, each on the line's own column. */
-const historyOf = (f: SheetFacts) => (
+const historyLine = (f: SheetFacts) => (
   <ol className="lw-found" data-testid="peek-found">
     {f.history.map((h) => (
       <li key={`${h.at}-${h.what}`} className="lw-found-i">
@@ -333,9 +342,9 @@ export function SheetLines(p: {
   const holds: Record<LeadLineId, () => ReactNode> = {
     fit: () => (p.facts.why ? fitOf(p.facts.why) : null),
     contact: () => contactOf(p.vm, p.facts, p.on),
-    about: () => aboutOf(p.vm),
+    about: () => aboutLine(p.vm),
     sequence: () => sequenceOf(p.facts, p.seq, p.vm.id),
-    history: () => historyOf(p.facts),
+    history: () => historyLine(p.facts),
   };
   return (
     <div className="lw-lines" data-testid="lead-sheet-record">

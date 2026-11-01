@@ -228,7 +228,7 @@ export { LEAD_CLOSED_REASONS, LEAD_EMAIL_STATES, LEAD_FITS, LEAD_OPERATION_KINDS
 export { LEAD_SHEET_WORDS, leadPickerRowsOf, leadPileEndOf, leadSheetAboutOf, leadSheetClosedOf, leadSheetStateOf, leadVerdictOf, newStartFirst, sheetSlot } from "./leads/sheet/lead-sheet";
 export { LEAD_SHEET_CARD_WORDS, leadSheetChecksLineOf, leadSheetEmailLineOf, leadSheetExceptionWords, leadSheetSubOf, leadSheetWhyOf } from "./leads/sheet/lead-sheet-card";
 export { dockSlotsOf, LEAD_DOCK_WORDS, leadDockOf } from "./leads/sheet/lead-sheet-dock";
-export { LEAD_LINE_WORDS, leadHistoryOf, leadLinesOf } from "./leads/sheet/lead-sheet-lines";
+export { leadHistoryOf, leadLinesOf } from "./leads/sheet/lead-sheet-lines";
 export { LEAD_NOW_WORDS, leadNowOf } from "./leads/sheet/lead-sheet-now";
 export { BUSINESS_INDUSTRIES, BUSINESS_TYPES, businessTypeOf, COMPANY_TYPES, companyTypeOf, DEFAULT_BUSINESS_TYPE, DEFAULT_COMPANY_TYPE, DEFAULT_INDUSTRY, industryOf, industryWords } from "./lines/a2p-enums";
 export { businessPageMetadata, businessPageVM, dataSentences, publishesBusinessPage, registrationPreflight, SMS_CLAUSES, smsConsentSentence, textingTermsMetadata, textingTermsVM } from "./lines/business-page";

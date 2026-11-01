@@ -254,7 +254,7 @@ function topOf(d: SheetDraw, desk: boolean) {
 }
 
 /** The five lines. */
-function linesOf(d: SheetDraw) {
+function sheetLines(d: SheetDraw) {
   const { facts, vm, p, sheet } = d;
   if (!facts || !vm || !p.on) return null;
   const run = d.run;
@@ -567,7 +567,7 @@ function sheetBodyOf(d: SheetDraw, desk: boolean) {
   return (
     <>
       {topOf(d, desk)}
-      {linesOf(d)}
+      {sheetLines(d)}
     </>
   );
 }

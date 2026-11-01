@@ -251,7 +251,7 @@ function cardStateOf(i: SheetInputs) {
 }
 
 /** Who an email goes to: the person a company's sequence writes to, then the address. */
-function whoOf(vm: LeadPeekVM, address: string): string {
+function addresseeOf(vm: LeadPeekVM, address: string): string {
   const person = vm.company ? vm.company.people.find((p) => p.addressee) : null;
   return person ? `${person.name} · ${address}` : address;
 }
@@ -279,7 +279,7 @@ function stepMailOf(vm: LeadPeekVM, place: SequencePlaceDto, rail: SheetRail | n
   const writing = row.checked === false;
   const held = row.group === "held";
   return {
-    to: W.mail.to(whoOf(vm, vm.reach.email.value)),
+    to: W.mail.to(addresseeOf(vm, vm.reach.email.value)),
     subject: step.subject,
     body: step.body,
     opening: markedOpeningOf(row.opening, { reason: row.why, detail: row.hold_detail }),
@@ -294,7 +294,7 @@ function draftMailOf(vm: LeadPeekVM, place: SequencePlaceDto): SheetMail | null 
   const draft = place.place.draft;
   if (!draft) return null;
   return {
-    to: W.mail.to(whoOf(vm, draft.to)),
+    to: W.mail.to(addresseeOf(vm, draft.to)),
     subject: [{ kind: "text", text: draft.subject }],
     body: [{ kind: "text", text: draft.text }],
     opening: null,

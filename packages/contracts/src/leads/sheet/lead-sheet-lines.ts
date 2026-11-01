@@ -43,7 +43,7 @@ export const LEAD_LINE_WORDS = {
   lastCall: (word: string, note: string | null) => (note ? `${word}: ${note}` : word),
 } as const;
 
-const W = LEAD_LINE_WORDS;
+const LW = LEAD_LINE_WORDS;
 
 export type LeadLineId = "fit" | "contact" | "about" | "sequence" | "history";
 
@@ -67,7 +67,8 @@ export interface LeadHistoryRowVM {
   what: string;
 }
 
-const dayOf = (iso: string | null | undefined, tz: string, nowMs: number): string | null => {
+/** When something happened, as briefly as it can be said, in the workspace's zone; null where nothing says when. */
+export const leadDayOf = (iso: string | null | undefined, tz: string, nowMs: number): string | null => {
   const ms = iso ? Date.parse(iso) : NaN;
   return Number.isFinite(ms) ? clockDate(ms, tz, nowMs) : null;
 };
@@ -78,23 +79,23 @@ const foundDay = (at: string) => at.split(",")[0]?.trim() ?? at;
 /** What they said, as a place's reply reads. */
 const wroteOf = (place: SequencePlaceDto): string => {
   const reply = place.place.reply;
-  return W.wrote(reply && isReplyIntent(reply.intent) ? REPLY_INTENT_WORDS[reply.intent] : null);
+  return LW.wrote(reply && isReplyIntent(reply.intent) ? REPLY_INTENT_WORDS[reply.intent] : null);
 };
 
 /** What a sequence did for them, oldest first: joining it, each step that went, and how it ended. */
 function placeRows(place: SequencePlaceDto, tz: string, nowMs: number): LeadHistoryRowVM[] {
   const name = place.sequence.name;
   const rows: LeadHistoryRowVM[] = [];
-  const joined = place.joined ? dayOf(place.joined.at, tz, nowMs) : null;
-  if (joined && place.joined) rows.push({ at: joined, what: place.joined.auto ? W.joined(name) : W.added(name) });
+  const joined = place.joined ? leadDayOf(place.joined.at, tz, nowMs) : null;
+  if (joined && place.joined) rows.push({ at: joined, what: place.joined.auto ? LW.joined(name) : LW.added(name) });
   for (const s of place.sends) {
-    const at = dayOf(s.sent_at, tz, nowMs);
-    if (at) rows.push({ at, what: W.sent(s.place) });
+    const at = leadDayOf(s.sent_at, tz, nowMs);
+    if (at) rows.push({ at, what: LW.sent(s.place) });
   }
-  const at = dayOf(place.place.at, tz, nowMs);
+  const at = leadDayOf(place.place.at, tz, nowMs);
   if (at && place.place.group === "replied") rows.push({ at, what: wroteOf(place) });
   if (at && place.place.group === "left")
-    rows.push({ at, what: W.left_(sequenceLeftWords(place.place.why) || "taken out") });
+    rows.push({ at, what: LW.left_(sequenceLeftWords(place.place.why) || "taken out") });
   return rows;
 }
 
@@ -108,16 +109,16 @@ export function leadHistoryOf(p: {
   const found = p.vm.found.map((f) => ({ at: foundDay(f.at), what: f.what }));
   const worked = p.vm.worked;
   const outcome = worked.outcome ? (LEAD_CALL_OUTCOME_WORDS[worked.outcome as LeadCallOutcome] ?? null) : null;
-  const called = dayOf(worked.at, p.tz, p.nowMs);
+  const called = leadDayOf(worked.at, p.tz, p.nowMs);
   return [
     ...found,
     ...(p.place ? placeRows(p.place, p.tz, p.nowMs) : []),
-    ...(outcome && called ? [{ at: called, what: W.lastCall(outcome, worked.note) }] : []),
+    ...(outcome && called ? [{ at: called, what: LW.lastCall(outcome, worked.note) }] : []),
   ];
 }
 
 /** What the lines read. */
-export interface LeadLinesFacts {
+interface LeadLinesFacts {
   vm: Pick<LeadPeekVM, "company" | "claimed" | "weekSummary" | "reach" | "slots" | "fit">;
   checks: LeadSheetChecksLineVM | null;
   email: LeadSheetEmailLineVM;
@@ -134,8 +135,8 @@ export interface LeadLinesFacts {
 
 const fitLine = (f: LeadLinesFacts): LeadLineVM => ({
   id: "fit",
-  label: W.fit,
-  value: W.verdict(f.vm.fit.word.split(" — ")[0] ?? f.vm.fit.word),
+  label: LW.fit,
+  value: LW.verdict(f.vm.fit.word.split(" — ")[0] ?? f.vm.fit.word),
   note: f.checks ? f.checks.words.replace(/ checks?$/, "") : null,
   warn: null,
   tick: false,
@@ -144,7 +145,7 @@ const fitLine = (f: LeadLinesFacts): LeadLineVM => ({
 
 /** Contact: the address the sequence writes to and how it checked, else the phone, else that there is neither. */
 function contactLine(f: LeadLinesFacts): LeadLineVM {
-  const base = { id: "contact", label: W.contact, note: null, warn: null, tick: false, dots: null } as const;
+  const base = { id: "contact", label: LW.contact, note: null, warn: null, tick: false, dots: null } as const;
   const { email } = f;
   if (email.address)
     return {
@@ -159,9 +160,9 @@ function contactLine(f: LeadLinesFacts): LeadLineVM {
     return {
       ...base,
       value: phone.value,
-      warn: f.vm.slots.phone.state === "ok" ? null : W.notConfirmed,
+      warn: f.vm.slots.phone.state === "ok" ? null : LW.notConfirmed,
     };
-  return { ...base, value: W.noWay };
+  return { ...base, value: LW.noWay };
 }
 
 /** Company, or About for a place: how big and who is named, or its listing and its week. */
@@ -171,26 +172,26 @@ function aboutLine(f: LeadLinesFacts): LeadLineVM {
   if (company)
     return {
       ...base,
-      label: W.company,
+      label: LW.company,
       value: company.size ?? SW.directory,
-      note: company.people.length ? W.named(company.people.length) : null,
+      note: company.people.length ? LW.named(company.people.length) : null,
     };
   const open = f.vm.weekSummary.split(" · ")[0] || null;
-  const claim = f.vm.claimed === null ? null : f.vm.claimed ? W.claimed : W.unclaimed;
-  return { ...base, label: W.about, value: claim ?? open ?? SW.noListing, note: claim ? open : null };
+  const claim = f.vm.claimed === null ? null : f.vm.claimed ? LW.claimed : LW.unclaimed;
+  return { ...base, label: LW.about, value: claim ?? open ?? SW.noListing, note: claim ? open : null };
 }
 
 /** Sequence: the one that has them and their step, or where Add would take them. */
 function sequenceLine(f: LeadLinesFacts): LeadLineVM {
-  const base = { id: "sequence", label: W.sequence, warn: null, tick: false, dots: null } as const;
+  const base = { id: "sequence", label: LW.sequence, warn: null, tick: false, dots: null } as const;
   const { place } = f;
   if (place)
     return {
       ...base,
       value: place.sequence.name,
-      note: W.stepOf(place.place.place ?? 1, f.steps),
+      note: LW.stepOf(place.place.place ?? 1, f.steps),
     };
-  return { ...base, value: W.notInOne, note: f.pick && f.canJoin ? W.addsTo(f.pick.name) : null };
+  return { ...base, value: LW.notInOne, note: f.pick && f.canJoin ? LW.addsTo(f.pick.name) : null };
 }
 
 /** History's line: the last thing that happened. */
@@ -198,7 +199,7 @@ function historyLine(f: LeadLinesFacts): LeadLineVM {
   const last = f.history.at(-1);
   return {
     id: "history",
-    label: W.history,
+    label: LW.history,
     value: last ? last.what : "",
     note: last ? last.at : null,
     warn: null,

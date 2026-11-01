@@ -340,6 +340,15 @@ function checksSummaryOf(checks: ReadonlyArray<{ answer: string }>): string {
   ].join(" · ");
 }
 
+/** The tile a row draws: its initials on its category's tint, its photo, the band behind it, its logo. */
+const leadTileOf = (r: LeadRowDto) => ({
+  initials: initialsOf(r.business_name),
+  tint: leadTintOf(r.category),
+  image: leadTileSrc(r.image_url),
+  band: r.image_url ?? null,
+  logo: r.mark_url ?? null,
+});
+
 export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: string, now: Date): LeadPeekVM {
   const m = r.member;
   const area = [r.city, r.state].filter(Boolean).join(", ");
@@ -413,13 +422,7 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
     id: r.id,
     searchId: r.search_id ?? null,
     mark: initialsOf(r.business_name),
-    tile: {
-      initials: initialsOf(r.business_name),
-      tint: leadTintOf(r.category),
-      image: leadTileSrc(r.image_url),
-      band: r.image_url ?? null,
-      logo: r.mark_url ?? null,
-    },
+    tile: leadTileOf(r),
     rated,
     slots: leadSlots(r),
     week,

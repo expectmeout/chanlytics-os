@@ -7,7 +7,7 @@
  *
  *   leadNowOf    the card: its word, tone and end, the line under it, and what it carries (the facts, the email)
  */
-import { clockDate, clockNear } from "../../shared/clock";
+import { clockNear } from "../../shared/clock";
 import { capitalize } from "../../shared/words";
 import { REPLY_INTENT_WORDS, isReplyIntent } from "../../reach-out/reach-out-replies";
 import { isReachOutHold } from "../../reach-out/reach-out-words";
@@ -22,6 +22,7 @@ import {
 import { sequenceLeftWords } from "../../sequences/sequence-words";
 import type { LeadSheetClosedVM, LeadSheetState, LeadVerdictVM } from "./lead-sheet";
 import type { LeadSheetChecksLineVM, LeadSheetEmailLineVM } from "./lead-sheet-card";
+import { LEAD_LINE_WORDS, leadDayOf } from "./lead-sheet-lines";
 
 export const LEAD_NOW_WORDS = {
   review: "To review",
@@ -32,7 +33,7 @@ export const LEAD_NOW_WORDS = {
   written: (name: string) => `Written to by ${name}`,
   writtenSay: "A business gets one sequence.",
   nothingSent: "Nothing sent to them yet.",
-  stepOf: (at: number, of: number | null) => (of ? `Step ${at} of ${of}` : `Step ${at}`),
+  stepOf: LEAD_LINE_WORDS.stepOf,
   batch: (n: number) => `Goes in today's batch of ${n}.`,
   batchOne: "Goes in today's batch.",
   writing: "Its opening is being written. Approve waits for it.",
@@ -43,7 +44,7 @@ export const LEAD_NOW_WORDS = {
   sentNothing: "Nothing was sent to them.",
 } as const;
 
-const W = LEAD_NOW_WORDS;
+const NW = LEAD_NOW_WORDS;
 
 /** A way to reach them, where it decides what happens next: its value, what is known of it, and its tone. */
 export interface LeadNowFactVM {
@@ -59,7 +60,7 @@ export interface LeadNowFactVM {
  * Which email the card carries: the first they would get from the pick, the one their step holds (waiting or held), the
  * draft handed to you, or none.
  */
-export type LeadNowMail = "first" | "step" | "draft" | null;
+type LeadNowMail = "first" | "step" | "draft" | null;
 
 export interface LeadNowVM {
   tone: PlaceTone;
@@ -78,7 +79,7 @@ export interface LeadNowVM {
 }
 
 /** What the card is read from. */
-export interface LeadNowFacts {
+interface LeadNowFacts {
   state: LeadSheetState;
   place: SequencePlaceDto | null;
   closed: LeadSheetClosedVM | null;
@@ -114,25 +115,22 @@ const card = (p: Partial<LeadNowVM> & Pick<LeadNowVM, "word">): LeadNowVM => ({
   ...p,
 });
 
-/** When something on a place happened, as briefly as it can be said. */
-const dayOf = (at: string | null, f: Pick<LeadNowFacts, "tz" | "nowMs">): string | null => {
-  const ms = at ? Date.parse(at) : NaN;
-  return Number.isFinite(ms) ? clockDate(ms, f.tz, f.nowMs) : null;
-};
+/** When something on a place happened. */
+const placeDay = (at: string | null, f: Pick<LeadNowFacts, "tz" | "nowMs">) => leadDayOf(at, f.tz, f.nowMs);
 
 /** The step a place is at, from 1, of how many. */
-const stepOf = (place: SequencePlaceDto, f: LeadNowFacts) => W.stepOf(place.place.place ?? 1, f.steps);
+const placeStep = (place: SequencePlaceDto, f: LeadNowFacts) => NW.stepOf(place.place.place ?? 1, f.steps);
 
 /** Waits for your OK: how big its batch is, or that its opening is still being written. */
 function waitingCard(f: LeadNowFacts, place: SequencePlaceDto): LeadNowVM {
   const writing = place.place.checked === false;
-  const batch = f.batch && f.batch > 1 ? W.batch(f.batch) : W.batchOne;
+  const batch = f.batch && f.batch > 1 ? NW.batch(f.batch) : NW.batchOne;
   return card({
     word: PLACE_WORDS.waiting,
     tone: "warn",
     need: true,
-    end: stepOf(place, f),
-    say: writing ? W.writing : batch,
+    end: placeStep(place, f),
+    say: writing ? NW.writing : batch,
     mail: "step",
   });
 }
@@ -141,11 +139,11 @@ function waitingCard(f: LeadNowFacts, place: SequencePlaceDto): LeadNowVM {
 function heldCard(f: LeadNowFacts, place: SequencePlaceDto): LeadNowVM {
   const { why, hold_detail: detail } = place.place;
   return card({
-    word: W.held,
+    word: NW.held,
     tone: "warn",
     need: true,
-    end: stepOf(place, f),
-    say: isReachOutHold(why) ? `${heldWhyOf(why, detail)}.` : W.heldElse,
+    end: placeStep(place, f),
+    say: isReachOutHold(why) ? `${heldWhyOf(why, detail)}.` : NW.heldElse,
     mail: "step",
   });
 }
@@ -156,12 +154,12 @@ function repliedCard(f: LeadNowFacts, place: SequencePlaceDto): LeadNowVM {
   const intent = reply && isReplyIntent(reply.intent) ? REPLY_INTENT_WORDS[reply.intent] : null;
   const at = place.place.at ? Date.parse(place.place.at) : NaN;
   return card({
-    word: W.wrote(intent),
+    word: NW.wrote(intent),
     tone: "warn",
     need: true,
     end: Number.isFinite(at) ? capitalize(clockNear(at, f.tz, f.nowMs)) : null,
     quote: reply && reply.summary ? `“${reply.summary}”` : null,
-    say: W.stopped,
+    say: NW.stopped,
   });
 }
 
@@ -172,9 +170,9 @@ const everSent = (place: SequencePlaceDto) => place.sends.some((s) => s.sent_at)
 function leftCard(f: LeadNowFacts, place: SequencePlaceDto): LeadNowVM {
   const why = capitalize(sequenceLeftWords(place.place.why) || "taken out");
   return card({
-    word: W.left(place.sequence.name),
-    end: dayOf(place.place.at, f),
-    say: everSent(place) ? `${why}.` : `${why}. ${W.sentNothing}`,
+    word: NW.left(place.sequence.name),
+    end: placeDay(place.place.at, f),
+    say: everSent(place) ? `${why}.` : `${why}. ${NW.sentNothing}`,
   });
 }
 
@@ -192,22 +190,22 @@ function placeCard(f: LeadNowFacts, place: SequencePlaceDto): LeadNowVM {
         word: PLACE_WORDS.to_send,
         tone: "warn",
         need: true,
-        end: stepOf(place, f),
-        say: W.toSend,
+        end: placeStep(place, f),
+        say: NW.toSend,
         mail: "draft",
       });
     case "replied":
       return repliedCard(f, place);
     case "done":
-      return card({ word: PLACE_WORDS.done, end: dayOf(place.place.at, f), say: `${said.line}.` });
+      return card({ word: PLACE_WORDS.done, end: placeDay(place.place.at, f), say: `${said.line}.` });
     case "left":
       return leftCard(f, place);
     default:
       return card({
-        word: W.inIt(place.sequence.name),
+        word: NW.inIt(place.sequence.name),
         tone: placeToneOf(place.place.group),
-        end: stepOf(place, f),
-        say: `${said.line}. ${W.noNeed}`,
+        end: placeStep(place, f),
+        say: `${said.line}. ${NW.noNeed}`,
       });
   }
 }
@@ -222,7 +220,7 @@ const phoneFact = (phone: NonNullable<LeadNowFacts["phone"]>): LeadNowFactVM => 
 });
 
 /** The ways to reach them the card says: a phone where it is the way in, an address still being checked or missing. */
-function factsOf(f: LeadNowFacts): LeadNowFactVM[] {
+function waysOf(f: LeadNowFacts): LeadNowFactVM[] {
   const out: LeadNowFactVM[] = [];
   if (f.state === "phone" && f.phone) out.push(phoneFact(f.phone));
   if (f.state === "finding" && f.email.address)
@@ -246,7 +244,7 @@ const fitCard = (f: LeadNowFacts): LeadNowVM =>
     end: f.checks ? f.checks.words : null,
     say: f.reason,
     unsure: f.blocked ?? unsureOf(f),
-    facts: factsOf(f),
+    facts: waysOf(f),
     mail: f.firstEmail && (f.state === "ready" || f.state === "gap") ? "first" : null,
   });
 
@@ -261,8 +259,8 @@ const closedCard = (f: LeadNowFacts): LeadNowVM =>
 /** In another sequence, with no place of theirs read here: the door's answer. */
 const elsewhereCard = (e: { name: string; written: boolean }): LeadNowVM =>
   e.written
-    ? card({ word: W.written(e.name), say: W.writtenSay })
-    : card({ word: W.inIt(e.name), tone: "ok", say: W.nothingSent });
+    ? card({ word: NW.written(e.name), say: NW.writtenSay })
+    : card({ word: NW.inIt(e.name), tone: "ok", say: NW.nothingSent });
 
 /** The card, by the lead's state and its place: their place first, whatever the pick. */
 export function leadNowOf(f: LeadNowFacts): LeadNowVM {
@@ -270,7 +268,7 @@ export function leadNowOf(f: LeadNowFacts): LeadNowVM {
   switch (f.state) {
     case "review":
       return card({
-        word: W.review,
+        word: NW.review,
         tone: "warn",
         need: true,
         end: f.checks ? f.checks.words : null,
@@ -280,7 +278,7 @@ export function leadNowOf(f: LeadNowFacts): LeadNowVM {
     case "closed":
       return closedCard(f);
     case "replied":
-      return card({ word: W.wrote(null), tone: "warn", need: true, say: W.stopped });
+      return card({ word: NW.wrote(null), tone: "warn", need: true, say: NW.stopped });
     case "elsewhere":
       return f.elsewhere ? elsewhereCard(f.elsewhere) : fitCard(f);
     default:
