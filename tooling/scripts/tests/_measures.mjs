@@ -295,7 +295,7 @@ const MANY_WRITERS_BY_DESIGN = new Set(["events", "decisions", "sweep_status"]);
  */
 const takesAway = (who) =>
   /^(purge_|erase_)|scrub|(_erase_on_contact|_on_erase)\(\)$|^lead_blank\(\)$/.test(who) ||
-  /^apps\/dashboard\/src\/server\/people\/(erasure|erase-contact)\.ts$/.test(who);
+  who === "packages/db/src/erasure/legs.ts";
 
 /**
  * Each table and who writes it: every source module whose supabase-js chain writes it (_ast.mjs tablesWrittenIn), and
@@ -721,7 +721,7 @@ export const MEASURES = [
           .map((c) => [c, 1]),
       ),
     advice:
-      "Say how an erasure reaches the column, in the change that adds it (decision 0036): its strategy in packages/db/src/erasure-registry.ts, gone with the person, scrubbed by a named leg, kept as a digest, removed by age, or not personal.",
+      "Say how an erasure reaches the column, in the change that adds it (decision 0036): its strategy in packages/db/src/erasure/registry.ts, gone with the person, scrubbed by a named leg, kept as a digest, removed by age, or not personal.",
   },
 ];
 

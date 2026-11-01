@@ -114,6 +114,7 @@ test("the queue's kinds: each one handled and each one scheduled somewhere", () 
       "history_import",
       "website_read",
       "preview_build",
+      "erasure_finish",
     ],
   );
   const handlers = readCode("packages/jobs/src/handlers.ts");

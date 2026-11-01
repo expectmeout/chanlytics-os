@@ -25,8 +25,25 @@ export { deleteSecondFactor, inviteUserByEmail, listSecondFactors, signUpOnPubli
 export { applyBilling, type BillingExpectation, type BillingPatch } from "./billing/account";
 export { keepInvoiceAmount } from "./billing/events";
 export type { Database, Json } from "./database.types";
-export { ERASURE_LEGS, ERASURE_STRATEGIES } from "./erasure-registry";
-export type { ErasureLeg, ErasureStrategy } from "./erasure-registry";
+export {
+  beginErasure,
+  dropPersonPolicy,
+  erasableContact,
+  eraseContactRows,
+  erasureKeys,
+  FINISHED_JOB_STATES,
+  identityExternalIds,
+  inWorkspace,
+  mediaPathsOf,
+  recordingPathsOf,
+  removeMediaObjects,
+  scrubAskTurns,
+  scrubErasedJobs,
+  visitNeedles,
+} from "./erasure/legs";
+export type { ErasedRows } from "./erasure/legs";
+export { ERASURE_LEGS, ERASURE_STRATEGIES } from "./erasure/registry";
+export type { ErasureLeg, ErasureStrategy } from "./erasure/registry";
 export {
   deliveryOf,
   emitEvent,

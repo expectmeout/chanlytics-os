@@ -159,6 +159,7 @@ packages/core/src/
   messages/
 packages/db/src/
   billing/
+  erasure/
   repositories/
 packages/jobs/src/
 tooling/scripts/

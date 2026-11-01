@@ -28,6 +28,7 @@ import {
   UNKNOWN_KIND_WAIT_MS,
   type LedgerRow,
 } from "./ledger";
+import { errText } from "./context";
 import { saySettled, type Settled } from "./settle";
 
 export type TickFields = Record<string, string | number | boolean | null | undefined>;
@@ -104,8 +105,6 @@ export interface TickCounts {
    */
   replyLateMs: number;
 }
-
-const errText = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
 /** Keep the worst wait among a kind's first claims: now, less the row's due time; a claim before it waited none. */
 function noteLate(c: TickCounts, job: LedgerRow, now: number): void {
