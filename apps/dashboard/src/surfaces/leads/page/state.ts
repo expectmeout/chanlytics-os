@@ -39,6 +39,7 @@ const PL_NO_LEADS: LeadsSurface = {
   readFailed: false,
   fetchedAt: 0,
   cardsLive: [],
+  viewCounts: null,
 };
 
 /**

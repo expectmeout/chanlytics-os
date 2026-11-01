@@ -7,8 +7,9 @@
  *   through the kit's state and table (kit/table/state.ts, use-data-table.ts) as People's page holds them: the sort read
  *   from a saved view (`fromView`, so a heading this page cannot sort falls back to the page's first, its way kept), the
  *   page's tiebreak (cells/sorts.ts `plSortThen`), the words as the table's global filter (`plMatcher`).
- * - Leads: the server's order kept (manual sorting), narrowed by the words, the Excluded view's chip, the band's fit and
- *   the Filter's reach as the table's filters (leads/page/reads.ts `leadNarrowings`), with whether anything narrowed.
+ * - Leads: since Phase B (00500) the read narrows and orders (manual sorting and filtering): the table keeps every row
+ *   the read answered, in its order, while its filters hold what the read asks (leads/page/reads.ts `leadNarrowings`).
+ *   The read's own answers are held to these goldens in `tooling/scripts/tests/leads/lead-filters.db.test.mjs`.
  *
  * Drawn on the suite's stub React, as the pages draw it.
  */
@@ -39,7 +40,7 @@ const { useTableState } = await importSrc("apps/dashboard/src/surfaces/kit/table
 const { useDataTable } = await importSrc("apps/dashboard/src/surfaces/kit/table/use-data-table.ts");
 const { columnsIn } = await importSrc("apps/dashboard/src/surfaces/kit/table/columns.ts");
 const { LEAD_COLUMNS } = await importSrc("apps/dashboard/src/surfaces/leads/cells/columns.tsx");
-const { leadNarrowings, leadWords } = await importSrc("apps/dashboard/src/surfaces/leads/page/reads.ts");
+const { leadNarrowings } = await importSrc("apps/dashboard/src/surfaces/leads/page/reads.ts");
 const { toLeadRowVM } = await importSrc("packages/contracts/src/leads/leads.ts");
 
 const h = (...a) => globalThis.React.createElement(...a);
@@ -99,8 +100,7 @@ function leadsShown({ q, chip, fitChip, reach }) {
       state,
       columns: LEADS_DECLARED,
       data: LEADS,
-      words: leadWords,
-      server: { sorting: true },
+      server: { sorting: true, filtering: true },
     });
     made = { state, rows: model.rows };
     return null;
@@ -113,18 +113,29 @@ function leadsShown({ q, chip, fitChip, reach }) {
   narrow.setReach(reach);
   made.state.setWords(q);
   again(() => h(Probe));
-  return { ids: made.rows.map((l) => l.id), narrowed: made.state.narrowed };
+  return { ids: made.rows.map((l) => l.id), narrowed: made.state.narrowed, asked: leadNarrowings(made.state) };
 }
 
-test("Leads' rows are the old engine's: the server's order, narrowed by the words, a left-out chip, a fit and the reach", () => {
+/** The chips name a criterion by its key (00500), where Phase A's goldens name it in the row's words. */
+const CHIP_KEYS = { Chains: "chains", "Too far": "too_far" };
+
+test("Leads' narrowing is the read's: the table keeps the rows the read answered in its order, and holds what the read asks", () => {
   const want = golden("leads-shown.json");
+  const all = LEADS.map((l) => l.id);
   let cases = 0;
   for (const q of LEAD_WORDS)
     for (const chip of LEAD_CHIPS)
       for (const fitChip of LEAD_FITS)
         for (const reach of LEAD_REACH) {
           const key = [q || "-", chip ?? "-", fitChip ?? "-", reach.join("+") || "-"].join("|");
-          assert.deepEqual(leadsShown({ q, chip, fitChip, reach }), want[key], key);
+          const shown = leadsShown({ q, chip: chip ? CHIP_KEYS[chip] : null, fitChip, reach });
+          assert.deepEqual(shown.ids, all, `${key}: every row the read answered, none hidden here`);
+          assert.equal(shown.narrowed, want[key].narrowed, `${key}: narrowed`);
+          assert.deepEqual(
+            [shown.asked.chip, shown.asked.fitChip, shown.asked.reach],
+            [chip ? CHIP_KEYS[chip] : null, fitChip, reach],
+            `${key}: what the read is asked`,
+          );
           cases++;
         }
   assert.equal(cases, Object.keys(want).length, "every recorded case is run");

@@ -868,6 +868,127 @@ to finish and now fixed (the decisions index's status, the barrels' order, the h
 touch-hover rules' row tables, one heading test, and the canonical example's paths, which pass once the new files are
 tracked), and an Inbox swipe test this change does not reach, which passes alone and failed under the run's load.
 
+## 21. Phase B — the plan (31 October 2026, on `cd8337320`)
+
+Lane `cm-leads-in-sql`, branch `leads/narrowing-in-the-read`, from main's `cd8337320` (Phase A merged). One pull
+request; its migration (working number 00500, claimed in `docs/migration-claims.md` only when it is pushed) is applied
+to production before the merge, on Ruben's word.
+
+Phase B before Phase C: C's trigger is a workspace near 1,000 people, and the largest one in reach of a read here
+(`chanlytics`) holds 332; B fixes what owners can meet today.
+
+### 21.1 What it is for
+
+- **Narrowing is right past one page.** The table filters the rows it loaded (at most 500): a search of 800 with
+  Checked email on shows the checked ones of the first 500 and says nothing of the rest.
+- **"Select all N that match" works with a filter on**, N the server's count of the rows that match (today it is
+  hidden while narrowed).
+- **The export, the bulk acts and Ask's act by view take every filter**, so the file and the act hold the rows the
+  table shows (the export applies the reach alone today, over the pages it walked).
+- **A filtered view is an address**: copied, opened again, cited by Ask.
+
+### 21.2 Calls made (each with its undo)
+
+1. **The chips join the address; the words stay in the place.** The Excluded view's chip, the fit and the Filter's
+   reach are segments of the view's route, in release C's grammar (`docs/plans/2026-09-19-lead-finder-C-extras.md`,
+   item 2), before the open lead's `p-`: `x-<criterion key>`, `f-<strong|look|long>`, `r-email`, `r-phone`. The box's
+   words stay in the view's place, as People's do, and ride in the read's key. _Why:_ a chip is a view an owner names
+   and shares; words are typed. _Undo:_ the segments leave the route and the place keeps them, as in Phase A.
+2. **A narrowing still never clears the selection** (§6.8): the selection's key is the view's route without the
+   filter segments. **"All that match" is dropped when a filter changes**, since N changes with it, and the bar says the
+   new N before an act. _Undo:_ key the selection on the whole route.
+3. **The Excluded chips keep their counts**: each criterion's count over the view without the page's filters, today's
+   numbers, answered by the server beside the rows (`lead_view_counts`), since the rows loaded are now the filtered ones.
+4. **The pile reads the view whole** (#1978): its read carries no filter.
+5. **Needs review's groups group the rows shown** (they grouped every loaded row, including rows the words hid).
+   _Undo:_ the groups' counts from `lead_view_counts`.
+6. **Words read after 250 ms of quiet**; the rows already shown stay, dimmed (`busy`), until the answer lands.
+
+### 21.3 The migration (00500, working)
+
+- **`lead_matches(p_filters jsonb, …the lead's and the membership's columns)`**, `immutable`, the one SQL rule: the
+  words (lower-cased, contained in the business's name, its kind, or its area as `lead-row.ts` builds it: `postal ·
+  city, state`), the criterion (`excluded_by` equal to the key), the fit, and the reach as `leadSlots` draws a checked
+  slot (an email with `email_state = 'ok'`; a number not marked wrong and on two sources, `phone_sources >= 2`).
+- **`leads_page`** made again (`drop` then `create`, as 00430 did) with `p_filters jsonb default null`, asked in `base`.
+  Its return type does not change.
+- **`lead_view_counts(p_tenant_id, p_search_id, p_class, p_list, p_filters) returns jsonb`**: `{ view, matching,
+  excluded_by: { <key>: n } }` under the same shown rule (`lead_member_shown`, `lead_in_list`), `matching` under the
+  filters, the rest without them.
+- **`lead_bulk`** replaced in place (its signature does not change): the view branch asks `lead_matches` of the
+  view itself (the view the bulk act names carries the read's filter keys, `q`, `excluded_by`, `fit`, `reach`, beside its
+  own), and `lead_member_shown` instead of its own copy of that rule (read equal: `class <> 'qualified' or counted`).
+- Grants and comments as the others; the schema snapshot, the database types and the data model written again.
+
+### 21.4 The code
+
+- **contracts:** `LeadFiltersSchema` (`q`, `excluded_by`, `fit`, `reach`) in `LeadsQuerySchema`, so `LeadsViewSchema`
+  takes it; `leadsRoute`/`parseLeadsRoute` read and write the three segments; `LeadChips` becomes the filters' type.
+- **server:** `lead-page.ts` hands `p_filters` and reads `lead_view_counts` beside the page; `readers/leads.ts` cites
+  rows under the filtered route; `lead-export.ts` hands its filters to the read (its own `leadReaches` pass goes);
+  `lead-work.ts`'s view carries them; Ask's read tool and its act by view take them; the typed client, `docs/api.md`
+  and `route-policy.json` written again; the pins (`reads-never-write`, `refresh-coverage`, `reads-not-heard`) kept.
+- **page:** `useDataTable({ server: { sorting: true, filtering: true } })` (`manualFiltering`); the read's key carries
+  the filters; the three filter columns keep their declarations and lose their functions (the server is the rule);
+  the claim's reset moves from "narrowed" to "a filter changed"; the chips' counts from `lead_view_counts`; the pile's
+  read without filters; Needs review's groups over the rows shown.
+- **docs:** decision 0083's status (Phase B built), this section as built, `docs/system-prd.md`'s Leads row.
+
+### 21.5 Proof
+
+- **The rule, in the database** (`tooling/scripts/tests/leads/lead-filters.db.test.mjs`, on the replayed stack): Phase
+  A's Leads fixture (`tooling/scripts/tests/table/_fixtures.mjs`) seeded; for every filter case in
+  `goldens/leads-shown.json`, `leads_page`'s rows are the golden's rows in the golden's order, `lead_view_counts`'
+  `matching` is their count, and `lead_bulk` by view acts on exactly them (inside a transaction rolled back).
+- **One reach rule:** a table of slot shapes run through `leadSlots` and through `lead_matches`; the two agree.
+- **The address:** every filter set round-trips through `leadsRoute` and `parseLeadsRoute`.
+- **The page:** Leads' specs and `e2e/people/people-table.spec.ts`'s Leads journeys; one new journey on the local
+  production build over the e2e workspace: Checked email, "Select all N that match", Export, the file holds N rows.
+- **Speed:** `leads_page` with every filter on a seeded search of 5,000 members, `explain analyze` on the local stack,
+  at or under today's read with none.
+
+### 21.6 Steps
+
+| Step | Work | Exit |
+| --- | --- | --- |
+| 1 | The migration and its database test | The test green on the replayed stack |
+| 2 | contracts: the schema, the route's segments | Their tests green |
+| 3 | server: every caller, the client, the reference, the policy | The leads tests and the pins green |
+| 4 | page: manual filtering, the read's key, the selection's key, the counts, the pile, the groups | Leads' specs green; §21.2 checked by hand |
+| 5 | Proof (§21.5) and docs | All of §21.5 |
+| 6 | Number claimed, pushed; Ruben's word to apply; `land.mjs --applied`; smoke | On production |
+
+**Effort:** two to three days (the spec said one to two; the counts, the pile's read and the selection's key are the
+third).
+
+## 22. Phase B as built (31 October 2026, on the lane)
+
+Steps 1 to 5 of §21.6 are built in `cm-leads-in-sql`; step 6 (the number claimed, Ruben's word to apply, the merge) is
+owed. Where the build departs from §21:
+
+- **The bulk view is flat.** The view a bulk act or an export names carries the read's filter keys (`q`, `excluded_by`,
+  `fit`, `reach`) beside its own, so `lead_bulk` asks `lead_matches` of the view itself, not of a nested `filters`.
+- **`lead_view_counts` counts each lead once**, as the page draws them (a view of every search holds a lead once per
+  membership) and as `lead_bulk` acts on them, so "Select all N that match" and the act's `done` are one number.
+- **The reach rule left the browser.** `leadReaches` (contracts) and the Leads columns' filter functions are gone: the
+  read is the rule, held to the Reach column's Checked in `lead-filters.db.test.mjs`. Ask's leads tool hands the box's
+  words to the read instead of matching them over the page it read, so Ask and the page narrow by one rule.
+- **The pile's read asks no filter on the server too** (`lead-page.ts`), so #1978's rule is the read's.
+- **Unreadable counts cost the counts, never the page**: without them the page offers no "all that match" while
+  narrowed, which is also the guard should the code ever run before the migration.
+- **A view's words are read with the view.** The read takes the words the view's place keeps as the view opens (no read
+  with the last view's words, then another), and typed words after 250 ms of quiet.
+- **The chips and the address are kept in step** by one hook (`useLeadChipsAddress`), which waits for its own write to
+  reach the address before it takes the address's chips again; a chip's label is the criterion's words
+  (`leadCriterionWords`, exported from contracts for it), its value the key.
+- **Proof run:** the migration replayed on a throwaway stack (`cm-leads-in-sql-test`); `lead-filters.db.test.mjs` 5 of 5
+  (every golden case, both classes; the counts; the act by view; Checked = the read's reach), and the Leads suites that
+  call these functions (`leads.db` 20, `lead-engine.db` 34, `reach-out-add.db` 10 with `leads_page`'s grant pin moved to
+  its new signature, `a-lead-s-listings-are-read-by-the-lead.db` 3, `a-lead-keeps-when-it-changed-stage.db` 12). The page's
+  tests (`leads-honest` 93) run over a test world whose read narrows as the server does.
+- **Not run here:** the browser journeys of §21.5, which need 00500 on the database the app reads (production's, for the
+  e2e workspace); and the speed reading on 5,000 members.
+
 ## Sources
 
 - TanStack Table v9 guides (React), read from the repository's `docs/framework/react/guide/`: column sizing, column

@@ -696,6 +696,30 @@ const takeEffect = (key, body) => {
   else if (key === "POST /api/v1/leads/bulk" && BULK_EFFECTS[body.action])
     changeRows(body.by === "ids" ? body.ids : "all", BULK_EFFECTS[body.action]);
 };
+/**
+ * The read's filters as the server applies them (00500 lead_matches, held to the goldens in lead-filters.db.test.mjs): the
+ * box's words in the name, the kind or the area, the criterion that left a lead out, the fit, and each reach asked. With
+ * them, what the view holds (lead_view_counts): its leads, those the filters keep, each criterion's over the view.
+ */
+const narrowAsTheRead = (rows, query) => {
+  const words = (query.q || "").trim().toLowerCase();
+  const reach = (query.reach || "").split(",").filter(Boolean);
+  const kept = rows.filter((r) => {
+    const area = [r.postal_code ?? "", [r.city, r.state].filter(Boolean).join(", ")].filter(Boolean).join(" · ");
+    if (words && ![r.business_name, r.category ?? "", area].some((w) => w.toLowerCase().includes(words))) return false;
+    if (query.excluded_by && r.member.excluded_by !== query.excluded_by) return false;
+    if (query.fit && r.member.fit !== query.fit) return false;
+    if (reach.includes("email") && !(r.email && r.email_state === "ok")) return false;
+    if (reach.includes("phone") && !(r.phone && !r.phone_wrong && r.phone_agrees)) return false;
+    return true;
+  });
+  const excluded_by = {};
+  for (const r of rows)
+    if (r.member.excluded_by) excluded_by[r.member.excluded_by] = (excluded_by[r.member.excluded_by] ?? 0) + 1;
+  return { rows: kept, view: { view: rows.length, matching: kept.length, excluded_by } };
+};
+/** Whether a read asks any of the page's filters. */
+const asksFilters = (query) => ["q", "excluded_by", "fit", "reach"].some((k) => query[k]);
 /** A read of the workspace, as the server answers it. */
 const serveRead = (path, query) => {
   if (path === "/api/v1/lead-searches")
@@ -708,12 +732,24 @@ const serveRead = (path, query) => {
   if (path === "/api/v1/leads") {
     if (query.after_key)
       return reply(200, { ok: true, data: { rows: server.more ?? [], next: null, counts: server.counts } });
-    const rows = typeof server.rows === "function" ? server.rows(query) : server.rows;
+    const read =
+      typeof server.rows === "function"
+        ? { rows: server.rows(query), view: null }
+        : narrowAsTheRead(server.rows, query);
+    const { rows } = read;
     const next =
       server.more && server.more.length ? { key: "k-page-one", id: rows.length ? rows[rows.length - 1].id : "" } : null;
     return reply(200, {
       ok: true,
-      data: { rows, next, counts: server.counts, ...(server.month ? { month: server.month } : {}) },
+      data: {
+        rows,
+        next,
+        counts: server.counts,
+        ...(server.month ? { month: server.month } : {}),
+        // A filtered view says what it holds; an unfiltered one keeps the rail's count, as this world's views are bigger
+        // than the rows it holds.
+        ...(read.view && asksFilters(query) && query.sort !== "pile" ? { view: read.view } : {}),
+      },
     });
   }
   const one = /^\/api\/v1\/leads\/([^/]+)$/.exec(path);
@@ -855,6 +891,15 @@ const sortByHeading = (tree, label) =>
         textOf(n).startsWith(label),
     ),
   );
+/**
+ * Until the surface holds the view read with these words (00500: the box's words are a read, once typing stops). The page's
+ * read goes from an effect the next draw runs, so it draws while it waits, as a browser would.
+ */
+const wordsRead = (q) =>
+  until(() => {
+    draw();
+    return (surfaceValue("leads")?.view?.q ?? "") === q;
+  }, `the read of "${q}"`);
 const tick = () => new Promise((r) => setTimeout(r, 0));
 const settle = async (n = 8) => {
   for (let i = 0; i < n; i += 1) await tick();
@@ -2224,21 +2269,34 @@ test("a click on a lead's row peeks it, as Enter does", async () => {
   assert.deepEqual(opened, [], "and a lead is never a profile");
 });
 
-test("the search box filters the leads loaded, by name, kind and area, and sends nothing", async () => {
+test("the search box's words are read, once typing stops, by name, kind and area, over the whole view", async () => {
   await fresh();
   draw();
   const box = lineBox();
-  const before = reads.length + writes.length;
-  box.props.onChange({ target: { value: "lamar" } });
-  let tree = draw();
+  const asked = () =>
+    reads.filter((r) => r.startsWith("/api/v1/leads?")).map((r) => new URLSearchParams(r.split("?")[1]).get("q"));
+  const before = asked().length;
+  // Typed letter by letter: the read waits for quiet, and asks once (decision 0083, Phase B).
+  for (const typed of ["l", "la", "lamar"]) {
+    box.props.onChange({ target: { value: typed } });
+    draw();
+  }
+  await wordsRead("lamar");
+  const tree = draw();
   assert.deepEqual(names(tree), ["Lamar Strength Co."]);
+  assert.deepEqual(asked().slice(before), ["lamar"], "one read, for the words typing stopped on");
   box.props.onChange({ target: { value: "78704" } });
-  tree = draw();
-  assert.deepEqual(names(tree).length, 5, "the area they are all in");
+  draw();
+  await wordsRead("78704");
+  assert.deepEqual(names(draw()).length, 5, "the area they are all in");
   box.props.onChange({ target: { value: "gigafit" } });
-  tree = draw();
-  assert.deepEqual(names(tree), ["GigaFit Austin"]);
-  assert.equal(reads.length + writes.length, before, "nothing was asked of the server: words to chips is release C");
+  draw();
+  await wordsRead("gigafit");
+  assert.deepEqual(names(draw()), ["GigaFit Austin"]);
+  assert.equal(writes.length, 0, "a read, never a write");
+  box.props.onChange({ target: { value: "" } });
+  draw();
+  await wordsRead("");
 });
 
 /* ------------------------------------ the keys ------------------------------------ */
@@ -2584,6 +2642,8 @@ test("the search box's words, the row the cursor was on and the map come back wi
   let tree = draw();
   searchBox(tree).props.onChange({ target: { value: "strength" } });
   draw();
+  await wordsRead("strength");
+  draw();
   press("j");
   draw();
   press("j");
@@ -2591,6 +2651,8 @@ test("the search box's words, the row the cursor was on and the map come back wi
   assert.deepEqual([names(tree), cursorRow(tree)], [["Zilker Strength Lab", "Lamar Strength Co."], "lead-l3"]);
   tree = comeBack();
   assert.equal(searchBox(tree).props.value, "strength", "the words are in the box again");
+  await wordsRead("strength");
+  tree = draw();
   assert.deepEqual(names(tree), ["Zilker Strength Lab", "Lamar Strength Co."], "and the rows are the ones they found");
   assert.equal(cursorRow(tree), "lead-l3", "the cursor is on the row it was on");
   // The map stands where the table stood, so it is its own trip: left open, it is open on the way back.
@@ -2629,6 +2691,8 @@ test("REGRESSION: the list is put back only once the rows on screen are the ones
   let tree = mounted();
   searchBox(tree).props.onChange({ target: { value: "strength" } });
   draw();
+  // The words are a read (00500): the list scrolled is the one they found.
+  await wordsRead("strength");
   table.top = 500;
   scrolls(table);
   await settled();
@@ -2642,6 +2706,7 @@ test("REGRESSION: the list is put back only once the rows on screen are the ones
   // A view with no words of its own has nothing to wait for.
   searchBox(tree).props.onChange({ target: { value: "" } });
   draw();
+  await wordsRead("");
   table.top = 300;
   scrolls(table);
   await settled();
@@ -2850,6 +2915,7 @@ test("typing in the box keeps the selection: leads the words hide are still sele
   assert.match(textOf(byTestId(tree, "leads-bulk-bar")), /5 selected/);
   searchBox(tree).props.onChange({ target: { value: "lamar" } });
   draw();
+  await wordsRead("lamar");
   tree = draw();
   const bar = byTestId(tree, "leads-bulk-bar");
   assert.ok(bar, "REGRESSION: one letter in the box dropped everything selected");
@@ -2857,6 +2923,7 @@ test("typing in the box keeps the selection: leads the words hide are still sele
   assert.match(textOf(byTestId(bar, "leads-bulk-hidden")), /4 more not shown/, "and says the rest are there");
   searchBox(tree).props.onChange({ target: { value: "" } });
   draw();
+  await wordsRead("");
   tree = draw();
   assert.match(textOf(byTestId(tree, "leads-bulk-bar")), /5 selected/, "the box cleared, they are all back");
   assert.equal(byTestId(tree, "leads-bulk-hidden"), null, "with nothing hidden, nothing is said about it");
@@ -3310,8 +3377,14 @@ test("the Excluded view's chips count by criterion, and each narrows the rows", 
   ).map((n) => textOf(n).trim());
   assert.deepEqual(chips, ["Chain 1", "Wrong kind 1"]);
   click(byTestId(tree, "lead-chip-Chain"));
+  // The chip is a read (00500): the view, narrowed to the criterion's key, and its route says the chip.
+  await until(() => {
+    draw({ leadsRoute: `leads:s-${SEARCH_A}:c-excluded` });
+    return surfaceValue("leads")?.view?.chips?.excluded_by === "chain";
+  }, "the chip's read");
   tree = draw({ leadsRoute: `leads:s-${SEARCH_A}:c-excluded` });
   assert.deepEqual(names(tree), ["GigaFit Austin"]);
+  assert.equal(went.at(-1), `clients/leads:s-${SEARCH_A}:c-excluded:x-chain`, "the address says the chip");
   assert.deepEqual(
     all(byTestId(tree, "lead-classes"), (n) => n.props?.role === "tab").map((n) => [
       textOf(n).trim(),

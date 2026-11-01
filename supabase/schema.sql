@@ -7598,8 +7598,9 @@ begin
   v_stage  := case p_action when 'contacted' then 'nurture' else 'archived' end;
   v_reason := case p_action when 'not_a_fit' then 'not_a_fit' else null end;
 
-  -- The same rows the page would show: the selection, or the view's filters
-  -- with no paging. lead_in_list holds the list rule for both.
+  -- The same rows the page would show: the selection, or the view with its
+  -- filters (lead_matches over the view's own q, excluded_by, fit and reach,
+  -- 00500) and no paging. lead_member_shown and lead_in_list hold the rest.
   if p_ids is not null then
     select coalesce(array_agg(l.id), '{}') into v_ids
       from public.leads l
@@ -7612,9 +7613,11 @@ begin
      where m.tenant_id = p_tenant_id
        and (p_view->>'search' is null or m.search_id = (p_view->>'search')::uuid)
        and m.class = coalesce(p_view->>'class', 'qualified')
-       and (m.class <> 'qualified' or m.counted)
+       and public.lead_member_shown(m.class, m.counted)
        and public.lead_in_list(l.stage, l.closed_reason, coalesce(p_view->>'list', 'all'))
-       and m.blanked_at is null and l.blanked_at is null and l.erased_at is null;
+       and m.blanked_at is null and l.blanked_at is null and l.erased_at is null
+       and public.lead_matches(p_view, l.business_name, l.category, l.postal_code, l.city, l.region, m.excluded_by, m.fit,
+                               l.email, l.email_state, l.phone_e164, l.phone_sources, l.phone_wrong);
   end if;
   if coalesce(array_length(v_ids, 1), 0) = 0 then
     return jsonb_build_object('done', 0, 'op_id', null, 'version', 1);
@@ -7662,7 +7665,7 @@ end $$;
 -- Name: FUNCTION lead_bulk(p_tenant_id uuid, p_action text, p_ids uuid[], p_view jsonb, p_search_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_bulk(p_tenant_id uuid, p_action text, p_ids uuid[], p_view jsonb, p_search_id uuid) IS 'Operator for contacted and not_a_fit; owner (permission find) for keep and exclude, which go through lead_member_move once per lead in review -- in the search named, else the lead''s newest -- and stop when the month''s leads run out ({error: month_leads_used} beside what was done). Marks many leads contacted, or not a fit: the ids the owner selected, or every lead the view matches (the same filters leads_page reads, with no paging), never both. One lead_operations row (kind bulk) holds every id with what it was and the version this act leaves it at, so lead_undo restores the rows nobody touched since and says how many it kept. Returns {done, op_id, version}.';
+COMMENT ON FUNCTION public.lead_bulk(p_tenant_id uuid, p_action text, p_ids uuid[], p_view jsonb, p_search_id uuid) IS 'Operator for contacted and not_a_fit; owner (permission find) for keep and exclude, which go through lead_member_move once per lead in review -- in the search named, else the lead''s newest -- and stop when the month''s leads run out ({error: month_leads_used} beside what was done). Marks many leads contacted, or not a fit: the ids the owner selected, or every lead the view matches (the rules leads_page reads with the view''s own filters, lead_matches, 00500, and no paging), never both. One lead_operations row (kind bulk) holds every id with what it was and the version this act leaves it at, so lead_undo restores the rows nobody touched since and says how many it kept. Returns {done, op_id, version}.';
 
 
 --
@@ -8722,6 +8725,43 @@ $$;
 --
 
 COMMENT ON FUNCTION public.lead_list_counts(p_tenant_id uuid) IS 'The six numbers under Leads in the rail: every lead the workspace owns (a qualified membership that counted, not blanked, not erased) and the five stage lists over them, counted once per lead however many searches found it. Never over an erased or blanked row. all is the total, not the sum: a lead closed stale or search_removed is in All and in no other list.';
+
+
+--
+-- Name: lead_matches(jsonb, text, text, text, text, text, text, text, text, text, text, smallint, boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.lead_matches(p_filters jsonb, p_business text, p_category text, p_postal text, p_city text, p_region text, p_excluded_by text, p_fit text, p_email text, p_email_state text, p_phone text, p_phone_sources smallint, p_phone_wrong boolean) RETURNS boolean
+    LANGUAGE sql STABLE PARALLEL SAFE
+    SET search_path TO 'public'
+    AS $$
+  with f as (
+    select lower(btrim(coalesce(p_filters->>'q', ''))) as q,
+           nullif(p_filters->>'excluded_by', '') as excluded_by,
+           nullif(p_filters->>'fit', '') as fit,
+           coalesce(jsonb_typeof(p_filters->'reach') = 'array' and p_filters->'reach' ? 'email', false) as email,
+           coalesce(jsonb_typeof(p_filters->'reach') = 'array' and p_filters->'reach' ? 'phone', false) as phone
+  )
+  select p_filters is null or (
+           (f.q = ''
+             or strpos(lower(coalesce(p_business, '')), f.q) > 0
+             or strpos(lower(coalesce(p_category, '')), f.q) > 0
+             or strpos(lower(concat_ws(' · ', nullif(p_postal, ''),
+                                       nullif(concat_ws(', ', nullif(p_city, ''), nullif(p_region, '')), ''))), f.q) > 0)
+           and (f.excluded_by is null or p_excluded_by is not distinct from f.excluded_by)
+           and (f.fit is null or p_fit is not distinct from f.fit)
+           and (not f.email or (nullif(p_email, '') is not null and p_email_state = 'ok'))
+           and (not f.phone or (nullif(p_phone, '') is not null and not coalesce(p_phone_wrong, false)
+                                and coalesce(p_phone_sources, 1) >= 2)))
+    from f
+$$;
+
+
+--
+-- Name: FUNCTION lead_matches(p_filters jsonb, p_business text, p_category text, p_postal text, p_city text, p_region text, p_excluded_by text, p_fit text, p_email text, p_email_state text, p_phone text, p_phone_sources smallint, p_phone_wrong boolean); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.lead_matches(p_filters jsonb, p_business text, p_category text, p_postal text, p_city text, p_region text, p_excluded_by text, p_fit text, p_email text, p_email_state text, p_phone text, p_phone_sources smallint, p_phone_wrong boolean) IS 'Whether a lead''s membership meets the Leads page''s filters ({q, excluded_by, fit, reach: [email|phone]}; null asks nothing): the words, lower-cased and trimmed, in the business''s name, its kind or its area (postal · city, state, as contracts lead-row.ts writes it); the criterion that left it out; its fit; and each reach asked, checked as contracts leadSlots draws a checked slot (an address whose mailbox exists, email_state ok; a number not marked wrong on two sources). The one rule leads_page, lead_view_counts and lead_bulk ask (decision 0083, Phase B).';
 
 
 --
@@ -11734,6 +11774,43 @@ COMMENT ON FUNCTION public.lead_undo(p_op_id uuid, p_version integer) IS 'Undoes
 
 
 --
+-- Name: lead_view_counts(uuid, uuid, text, text, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.lead_view_counts(p_tenant_id uuid, p_search_id uuid DEFAULT NULL::uuid, p_class text DEFAULT 'qualified'::text, p_list text DEFAULT 'all'::text, p_filters jsonb DEFAULT NULL::jsonb) RETURNS jsonb
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  with v as (
+    select m.lead_id, m.excluded_by,
+           public.lead_matches(p_filters, l.business_name, l.category, l.postal_code, l.city, l.region, m.excluded_by, m.fit,
+                               l.email, l.email_state, l.phone_e164, l.phone_sources, l.phone_wrong) as hit
+      from public.lead_search_members m
+      join public.leads l on l.id = m.lead_id
+     where m.tenant_id = p_tenant_id
+       and (p_search_id is null or m.search_id = p_search_id)
+       and m.class = coalesce(p_class, 'qualified')
+       and public.lead_member_shown(m.class, m.counted)
+       and public.lead_in_list(l.stage, l.closed_reason, coalesce(p_list, 'all'))
+       and m.blanked_at is null and l.blanked_at is null and l.erased_at is null
+  )
+  select jsonb_build_object(
+           'view', (select count(distinct v.lead_id) from v),
+           'matching', (select count(distinct v.lead_id) from v where v.hit),
+           'excluded_by', coalesce((select jsonb_object_agg(x.excluded_by, x.n)
+                                      from (select v.excluded_by, count(distinct v.lead_id) as n from v
+                                             where v.excluded_by is not null group by v.excluded_by) x), '{}'::jsonb))
+$$;
+
+
+--
+-- Name: FUNCTION lead_view_counts(p_tenant_id uuid, p_search_id uuid, p_class text, p_list text, p_filters jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.lead_view_counts(p_tenant_id uuid, p_search_id uuid, p_class text, p_list text, p_filters jsonb) IS 'What a view of Leads holds, under the caller''s row security, by the rules leads_page reads (lead_member_shown, lead_in_list, nothing blanked or erased), each lead once as the page draws it and lead_bulk acts on it: {view: its leads, matching: those meeting p_filters (lead_matches; "Select all N that match"), excluded_by: {criterion: n} over the view without the filters (the Excluded view''s chips)}. 00500, decision 0083 Phase B.';
+
+
+--
 -- Name: leads_back_today(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -11904,10 +11981,10 @@ COMMENT ON FUNCTION public.leads_note_set_aside() IS 'Writes lead.set_aside { st
 
 
 --
--- Name: leads_page(uuid, uuid, text, text, text, integer, text, text, uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+-- Name: leads_page(uuid, uuid, text, text, text, integer, text, text, uuid, uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.leads_page(p_tenant_id uuid, p_search_id uuid DEFAULT NULL::uuid, p_class text DEFAULT 'qualified'::text, p_sort text DEFAULT 'found'::text, p_after_key text DEFAULT NULL::text, p_limit integer DEFAULT 200, p_list text DEFAULT 'all'::text, p_dir text DEFAULT 'asc'::text, p_after_id uuid DEFAULT NULL::uuid, p_list_id uuid DEFAULT NULL::uuid) RETURNS TABLE(member_id uuid, lead_id uuid, place_id text, search_id uuid, round_id uuid, class text, excluded_by text, fit text, reason text, distance_m integer, counted boolean, counted_month text, judgment jsonb, shares jsonb, business_name text, category text, street text, city text, region text, postal_code text, lat double precision, lng double precision, website_host text, instagram_url text, phone_e164 text, phone_sources smallint, phone_wrong boolean, email text, email_alternates jsonb, email_state text, email_checked_at timestamp with time zone, rating numeric, reviews integer, stage text, closed_reason text, last_outcome text, last_note text, contact_id uuid, contacted_at timestamp with time zone, converted_at timestamp with time zone, exported_at timestamp with time zone, found_at timestamp with time zone, places integer, version integer, page_key text, sort_key text, about text, hours jsonb, image_url text, price text, reviews_dist jsonb, facebook_url text, linkedin_url text, tiktok_url text, claimed boolean, maps_url text, rank integer, neighborhood text, mark_path text, later_at timestamp with time zone, chain_id uuid, kind text, facts jsonb)
+CREATE FUNCTION public.leads_page(p_tenant_id uuid, p_search_id uuid DEFAULT NULL::uuid, p_class text DEFAULT 'qualified'::text, p_sort text DEFAULT 'found'::text, p_after_key text DEFAULT NULL::text, p_limit integer DEFAULT 200, p_list text DEFAULT 'all'::text, p_dir text DEFAULT 'asc'::text, p_after_id uuid DEFAULT NULL::uuid, p_list_id uuid DEFAULT NULL::uuid, p_filters jsonb DEFAULT NULL::jsonb) RETURNS TABLE(member_id uuid, lead_id uuid, place_id text, search_id uuid, round_id uuid, class text, excluded_by text, fit text, reason text, distance_m integer, counted boolean, counted_month text, judgment jsonb, shares jsonb, business_name text, category text, street text, city text, region text, postal_code text, lat double precision, lng double precision, website_host text, instagram_url text, phone_e164 text, phone_sources smallint, phone_wrong boolean, email text, email_alternates jsonb, email_state text, email_checked_at timestamp with time zone, rating numeric, reviews integer, stage text, closed_reason text, last_outcome text, last_note text, contact_id uuid, contacted_at timestamp with time zone, converted_at timestamp with time zone, exported_at timestamp with time zone, found_at timestamp with time zone, places integer, version integer, page_key text, sort_key text, about text, hours jsonb, image_url text, price text, reviews_dist jsonb, facebook_url text, linkedin_url text, tiktok_url text, claimed boolean, maps_url text, rank integer, neighborhood text, mark_path text, later_at timestamp with time zone, chain_id uuid, kind text, facts jsonb)
     LANGUAGE sql STABLE
     SET search_path TO 'public'
     AS $$
@@ -11966,6 +12043,9 @@ CREATE FUNCTION public.leads_page(p_tenant_id uuid, p_search_id uuid DEFAULT NUL
        and public.lead_member_shown(m.class, m.counted)
        and public.lead_in_list(l.stage, l.closed_reason, coalesce(p_list, 'all'))
        and m.blanked_at is null and l.blanked_at is null and l.erased_at is null
+       -- The page's filters (lead_matches, the one rule).
+       and public.lead_matches(p_filters, l.business_name, l.category, l.postal_code, l.city, l.region, m.excluded_by, m.fit,
+                               l.email, l.email_state, l.phone_e164, l.phone_sources, l.phone_wrong)
   )
   select b.member_id, b.lead_id, b.place_id, b.search_id, b.round_id, b.class, b.excluded_by, b.fit, b.reason, b.distance_m,
          b.counted, b.counted_month, b.judgment, b.shares,
@@ -11990,10 +12070,10 @@ $$;
 
 
 --
--- Name: FUNCTION leads_page(p_tenant_id uuid, p_search_id uuid, p_class text, p_sort text, p_after_key text, p_limit integer, p_list text, p_dir text, p_after_id uuid, p_list_id uuid); Type: COMMENT; Schema: public; Owner: -
+-- Name: FUNCTION leads_page(p_tenant_id uuid, p_search_id uuid, p_class text, p_sort text, p_after_key text, p_limit integer, p_list text, p_dir text, p_after_id uuid, p_list_id uuid, p_filters jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.leads_page(p_tenant_id uuid, p_search_id uuid, p_class text, p_sort text, p_after_key text, p_limit integer, p_list text, p_dir text, p_after_id uuid, p_list_id uuid) IS 'A page of members of one class (qualified: the counted ones; review; excluded) joined to their leads, narrowed to one of the rail''s lists (lead_in_list), keyset-paged on the sort key in either direction, under the caller''s row security. Seven sorts: found, fit, distance, business, rating, stage, and pile (00426: undecided first, then put off for later, oldest first, then the decided: on the list p_list_id, with a reach-out already, or no longer Ready; within each, the strongest fit, a checked address before a number alone, the newest). Each row says when it was put off (later_at), the reach-out it goes with (chain_id, lead_chain_of), and what the lead is with a company''s people (kind, facts: 00430). Hand the last row''s page_key and member_id back as p_after_key and p_after_id; A''s packed sort_key still works on its own, split here. Which memberships show is lead_member_shown (00212).';
+COMMENT ON FUNCTION public.leads_page(p_tenant_id uuid, p_search_id uuid, p_class text, p_sort text, p_after_key text, p_limit integer, p_list text, p_dir text, p_after_id uuid, p_list_id uuid, p_filters jsonb) IS 'A page of members of one class (qualified: the counted ones; review; excluded) joined to their leads, narrowed to one of the rail''s lists (lead_in_list) and to the page''s filters (p_filters, lead_matches: the words, the criterion, the fit, the reaches; 00500), keyset-paged on the sort key in either direction, under the caller''s row security. Seven sorts: found, fit, distance, business, rating, stage, and pile (00426: undecided first, then put off for later, oldest first, then the decided: on the list p_list_id, with a reach-out already, or no longer Ready; within each, the strongest fit, a checked address before a number alone, the newest). Each row says when it was put off (later_at), the reach-out it goes with (chain_id, lead_chain_of), and what the lead is with a company''s people (kind, facts: 00430). Hand the last row''s page_key and member_id back as p_after_key and p_after_id; A''s packed sort_key still works on its own, split here. Which memberships show is lead_member_shown (00212).';
 
 
 --
@@ -46622,6 +46702,15 @@ GRANT ALL ON FUNCTION public.lead_list_counts(p_tenant_id uuid) TO service_role;
 
 
 --
+-- Name: FUNCTION lead_matches(p_filters jsonb, p_business text, p_category text, p_postal text, p_city text, p_region text, p_excluded_by text, p_fit text, p_email text, p_email_state text, p_phone text, p_phone_sources smallint, p_phone_wrong boolean); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.lead_matches(p_filters jsonb, p_business text, p_category text, p_postal text, p_city text, p_region text, p_excluded_by text, p_fit text, p_email text, p_email_state text, p_phone text, p_phone_sources smallint, p_phone_wrong boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.lead_matches(p_filters jsonb, p_business text, p_category text, p_postal text, p_city text, p_region text, p_excluded_by text, p_fit text, p_email text, p_email_state text, p_phone text, p_phone_sources smallint, p_phone_wrong boolean) TO authenticated;
+GRANT ALL ON FUNCTION public.lead_matches(p_filters jsonb, p_business text, p_category text, p_postal text, p_city text, p_region text, p_excluded_by text, p_fit text, p_email text, p_email_state text, p_phone text, p_phone_sources smallint, p_phone_wrong boolean) TO service_role;
+
+
+--
 -- Name: FUNCTION lead_member_exclude(p_search_id uuid, p_lead_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -47068,6 +47157,15 @@ GRANT ALL ON FUNCTION public.lead_undo(p_op_id uuid, p_version integer) TO servi
 
 
 --
+-- Name: FUNCTION lead_view_counts(p_tenant_id uuid, p_search_id uuid, p_class text, p_list text, p_filters jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.lead_view_counts(p_tenant_id uuid, p_search_id uuid, p_class text, p_list text, p_filters jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.lead_view_counts(p_tenant_id uuid, p_search_id uuid, p_class text, p_list text, p_filters jsonb) TO authenticated;
+GRANT ALL ON FUNCTION public.lead_view_counts(p_tenant_id uuid, p_search_id uuid, p_class text, p_list text, p_filters jsonb) TO service_role;
+
+
+--
 -- Name: FUNCTION leads_back_today(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -47101,12 +47199,12 @@ GRANT ALL ON FUNCTION public.leads_note_set_aside() TO service_role;
 
 
 --
--- Name: FUNCTION leads_page(p_tenant_id uuid, p_search_id uuid, p_class text, p_sort text, p_after_key text, p_limit integer, p_list text, p_dir text, p_after_id uuid, p_list_id uuid); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION leads_page(p_tenant_id uuid, p_search_id uuid, p_class text, p_sort text, p_after_key text, p_limit integer, p_list text, p_dir text, p_after_id uuid, p_list_id uuid, p_filters jsonb); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.leads_page(p_tenant_id uuid, p_search_id uuid, p_class text, p_sort text, p_after_key text, p_limit integer, p_list text, p_dir text, p_after_id uuid, p_list_id uuid) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.leads_page(p_tenant_id uuid, p_search_id uuid, p_class text, p_sort text, p_after_key text, p_limit integer, p_list text, p_dir text, p_after_id uuid, p_list_id uuid) TO authenticated;
-GRANT ALL ON FUNCTION public.leads_page(p_tenant_id uuid, p_search_id uuid, p_class text, p_sort text, p_after_key text, p_limit integer, p_list text, p_dir text, p_after_id uuid, p_list_id uuid) TO service_role;
+REVOKE ALL ON FUNCTION public.leads_page(p_tenant_id uuid, p_search_id uuid, p_class text, p_sort text, p_after_key text, p_limit integer, p_list text, p_dir text, p_after_id uuid, p_list_id uuid, p_filters jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.leads_page(p_tenant_id uuid, p_search_id uuid, p_class text, p_sort text, p_after_key text, p_limit integer, p_list text, p_dir text, p_after_id uuid, p_list_id uuid, p_filters jsonb) TO authenticated;
+GRANT ALL ON FUNCTION public.leads_page(p_tenant_id uuid, p_search_id uuid, p_class text, p_sort text, p_after_key text, p_limit integer, p_list text, p_dir text, p_after_id uuid, p_list_id uuid, p_filters jsonb) TO service_role;
 
 
 --

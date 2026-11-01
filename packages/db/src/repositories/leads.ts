@@ -6,6 +6,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../database.types";
+import type { LeadViewCountsDto } from "@chanlytics/contracts";
 import { readAllRows } from "../paged";
 
 type Db = SupabaseClient<Database>;
@@ -93,6 +94,36 @@ export async function readLeadOne(
   const member = memberOf(m.data);
   if (!lead || lead.tenant_id !== tenantId || lead.blanked_at || lead.erased_at || !member) return null;
   return { lead, member, places: places.count ?? 1 };
+}
+
+/* ---------------------------------------------------------- what a view holds -- */
+
+/** A count the database answered, or none when it is not a whole number of rows. */
+const rowCount = (v: Json | undefined): number => (typeof v === "number" && Number.isInteger(v) && v >= 0 ? v : 0);
+
+/**
+ * What a view of Leads holds (00500 lead_view_counts, decision 0083 Phase B), under the caller's row security as
+ * leads_page reads: its members, how many its filters keep, and each criterion's count over the view without them.
+ */
+export async function leadViewCounts(
+  db: Db,
+  p: { tenantId: string; searchId: string | null; cls: string | null; list: string; filters: Json | null },
+): Promise<LeadViewCountsDto> {
+  const { data, error } = await db.rpc("lead_view_counts", {
+    p_tenant_id: p.tenantId,
+    ...(p.searchId ? { p_search_id: p.searchId } : {}),
+    ...(p.cls ? { p_class: p.cls } : {}),
+    p_list: p.list,
+    ...(p.filters ? { p_filters: p.filters } : {}),
+  });
+  if (error) throw new Error(`lead_view_counts: ${error.message}`);
+  const o = data && typeof data === "object" && !Array.isArray(data) ? data : {};
+  const by = o.excluded_by && typeof o.excluded_by === "object" && !Array.isArray(o.excluded_by) ? o.excluded_by : {};
+  return {
+    view: rowCount(o.view),
+    matching: rowCount(o.matching),
+    excluded_by: Object.fromEntries(Object.entries(by).map(([k, n]) => [k, rowCount(n)])),
+  };
 }
 
 /* ------------------------------------------------- the ideas for a new search -- */
