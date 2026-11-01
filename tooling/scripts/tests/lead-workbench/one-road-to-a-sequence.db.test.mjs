@@ -9,6 +9,7 @@
  *      stays out, and Put back brings it in again; the add door says such a lead is in already.
  *   4. Move: a lead nothing was sent to leaves one sequence as moved and joins another; one written to stays.
  *   5. Skip this email from step 2 moves the lead on to the next step; at step 1 it still leaves.
+ *   5a. Put back (00502): a lead nothing reached goes back on its list, its first email free; one written to keeps its step.
  *   6. One reader: sequence_places, and the place of one lead (sequence_place) and of many (sequence_places_of), say what
  *      sequence_people says.
  *
@@ -124,7 +125,7 @@ const stepsOf = async (seq) =>
   );
 
 /** A run of a step, its sends planned, written as core's runReachOut writes it. */
-async function planRun(root, step, leads, state = "pending_approval") {
+async function planRun(root, step, leads, state = "pending_approval", runFor = today()) {
   const id = crypto.randomUUID();
   const r = await rootOf(root);
   const s = (await stepsOf(root)).find((x) => x.id === step);
@@ -135,7 +136,7 @@ async function planRun(root, step, leads, state = "pending_approval") {
         id,
         tenant_id: A,
         playbook_id: step,
-        run_for: today(),
+        run_for: runFor,
         name: "Run",
         template_id: s.template_id,
         template_name: t.name,
@@ -364,6 +365,69 @@ test(
       await as.owner.c.rpc("sequence_move", { p_tenant_id: A, p_lead_id: W.b, p_to_root: target.id }),
       "23505",
     );
+  },
+);
+
+test(
+  "put back: a lead nothing reached goes back on its list, its first email free; one written to keeps its step",
+  { skip },
+  async () => {
+    const [fresh, written] = [await lead(), await lead()];
+    for (const id of [fresh, written]) await member(W.F, id);
+    const made = ok(
+      await create(as.owner, { name: "Bookshops, take three", from: W.intro, lead_ids: [fresh, written] }, true),
+    );
+    const [first] = await stepsOf(made.id);
+    const run = await planRun(made.id, first.id, [fresh, written]);
+    const leave = async (leadId) =>
+      ok(
+        await as.owner.c.rpc("sequence_leave", {
+          p_tenant_id: A,
+          p_sequence_id: made.id,
+          p_enrollment_ids: [],
+          p_lead_ids: [leadId],
+        }),
+      );
+    const putBack = async (left) =>
+      ok(
+        await as.owner.c.rpc("sequence_return", {
+          p_tenant_id: A,
+          p_sequence_id: made.id,
+          p_undo_of: left.decision_id,
+        }),
+      );
+    // Taken out of the batch before anything went: its email skipped, and the door says it was written to.
+    const left = await leave(fresh);
+    assert.deepEqual([(await sendOf(run, fresh)).state, (await sendOf(run, fresh)).reason], ["skipped", "removed"]);
+    const before = ok(await db.rpc("reach_out_why_not", { p_tenant_id: A, p_lead_ids: [fresh] }));
+    assert.equal(before[0].why, "written", "a skipped first email holds the lead until it is put back");
+    // Put back: on its list again, its email free, nothing left out.
+    const back = await putBack(left);
+    assert.deepEqual([back.back, back.sends_out], [1, 0]);
+    assert.equal((await sendOf(run, fresh)).reason, "moved");
+    const [place] = await placeIn(made.id, fresh);
+    assert.deepEqual([place.state, place.why], ["left", "moved"]);
+    const after_ = ok(await db.rpc("reach_out_why_not", { p_tenant_id: A, p_lead_ids: [fresh] }));
+    assert.equal(after_[0].why, null, "free to be written to");
+    const list = (await rootOf(made.id)).lead_search_id;
+    assert.ok((await audience(list)).includes(fresh), "its next batch plans its first email");
+    const read = ok(await as.operator.c.rpc("sequence_place", { p_tenant_id: A, p_lead_id: fresh }));
+    assert.deepEqual([read.sequence.id, read.place.group], [made.id, "queued"], "added again, not left");
+    // Its next batch, tomorrow's (a step has one a day): a new first email, and its place in again.
+    const tomorrow = new Date(Date.now() + DAY).toISOString().slice(0, 10);
+    const next = await planRun(made.id, first.id, [fresh], "pending_approval", tomorrow);
+    assert.equal((await sendOf(next, fresh)).state, "planned");
+    assert.equal((await placeIn(made.id, fresh))[0].state, "in");
+    // Pressed twice, nobody more comes back.
+    assert.equal((await putBack(left)).back, 0);
+    // A lead something reached keeps the step it reached, and is not offered to the list again.
+    await markSent(run, written);
+    const out = await leave(written);
+    const again = await putBack(out);
+    assert.equal(again.back, 1);
+    assert.equal((await placeIn(made.id, written))[0].state, "in", "its place stands");
+    const held = ok(await db.rpc("reach_out_why_not", { p_tenant_id: A, p_lead_ids: [written] }));
+    assert.equal(held[0].why, "written", "a business is written to once");
   },
 );
 

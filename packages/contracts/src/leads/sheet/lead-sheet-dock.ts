@@ -1,62 +1,37 @@
 /**
- * The lead sheet's dock, in every state (the canvas's States board, 18 Oct 2026: "one line, at most two acts, never a
- * pointer elsewhere"): for a lead to decide on, Not a fit, Later and Add to the pick (▾ the picker), or Add to a sequence
- * where nothing is picked; while a sequence has them, only what needs you there, by its own reading of their place
- * (contracts sequence-place.ts): an OK to give, a held email's choices, an email to send, a reply to answer, or a reply
- * to tell where none is read. Nothing at all where nothing needs you: up next, in it, done, left. Every sentence is here.
+ * The lead sheet's dock, in every state (the canvas "Lead sheet, redesigned", 1 Nov 2026): only what to press, each press
+ * saying what it does, the card above it saying why. For a lead to decide on, Not a fit, Later and Add to the pick (▾ the
+ * picker), or Add to a sequence where nothing is picked; while a sequence has them, only what needs you there, by its own
+ * reading of their place (contracts sequence-place.ts): an OK to give, a held email's answers, an email to send, a reply
+ * to answer, or a reply to tell where none is read. No dock at all where nothing needs you. One press at most is the
+ * primary. Every sentence is here.
  *
- *   leadDockOf         the dock: its line, its fact and its acts, by the lead's state and its place
- *   leadSheetWordOf    the word beside the name: the place, or the lead's own state before a sequence
+ *   leadDockOf         the dock: its presses, by the lead's state and its place
  */
-import { clockDate, clockNear } from "../../shared/clock";
-import { REPLY_INTENT_WORDS, isReplyIntent } from "../../reach-out/reach-out-replies";
-import { PLACE_WORDS, placeToneOf, type PlaceTone, type SequencePlaceDto } from "../../sequences/sequence-place";
+import { runApproveWords } from "../../shell/campaign-rooms";
+import { heldAnswersOf, waitingAnswersOf, type HeldAnswer } from "../../sequences/sequence-held";
+import type { SequencePlaceDto } from "../../sequences/sequence-place";
 import type { SequenceState } from "../../sequences/sequence";
 import { sheetSlot as slot, type LeadSheetClosedVM, type LeadSheetSlotVM, type LeadSheetState } from "./lead-sheet";
 
-/* --------------------------------------------------------------------------------------------- the word ------- */
-
-/**
- * The word beside the name: where they stand once a sequence has them (its place's own word), else the lead's own state:
- * To decide, To review, Call first, Wrote back, or what closed it.
- */
-export function leadSheetWordOf(p: {
-  state: LeadSheetState;
-  place: SequencePlaceDto | null;
-  closed: LeadSheetClosedVM | null;
-}): { word: string; tone: PlaceTone } {
-  if (p.place) return { word: PLACE_WORDS[p.place.place.group], tone: placeToneOf(p.place.place.group) };
-  switch (p.state) {
-    case "review":
-      return { word: "To review", tone: "warn" };
-    case "replied":
-      return { word: PLACE_WORDS.replied, tone: "warn" };
-    case "elsewhere":
-    case "sequence":
-      return { word: PLACE_WORDS.in, tone: "ok" };
-    case "closed":
-      return { word: p.closed ? p.closed.title : PLACE_WORDS.left, tone: "plain" };
-    case "phone":
-      return { word: "Call first", tone: "warn" };
-    default:
-      return { word: "To decide", tone: "plain" };
-  }
-}
-
 /* -------------------------------------------------------------------------------------------- the dock -------- */
 
-/** The dock: its line and fact (none where the acts say it all), Not a fit and Later as round glyphs, and its acts. */
+/** The dock: Not a fit and Later as round glyphs, its quieter presses, the one primary, and what its caret holds. */
 export interface LeadSheetDockVM {
+  /** Said where there is nothing to press yet: their place or the sequences are being read. */
   line: string | null;
-  fact: string | null;
-  /** Something is being read or checked: a spinner beside the line, and Add waits. */
+  /** Something is being read or checked: a small ring beside the line. */
   waiting: boolean;
   /** Not a fit and Later, the round glyphs before the acts, where the lead is to decide on. */
   x: boolean;
   later: boolean;
-  acts: LeadSheetSlotVM[];
-  /** A held email: its choices stand in the acts' place (contracts heldChoicesOf), the same verb as the record's. */
-  held: { sendId: string; batchId: string | null; hold: string | null; place: number | null } | null;
+  /** The quieter presses, before the primary. */
+  others: LeadSheetSlotVM[];
+  primary: LeadSheetSlotVM | null;
+  /** The primary's caret: other ways to answer the same thing. Empty where it has none. */
+  more: LeadSheetSlotVM[];
+  /** Their email handed over: the row every To send draws stands in the acts' place. */
+  toSend: boolean;
 }
 
 export const LEAD_DOCK_WORDS = {
@@ -65,34 +40,18 @@ export const LEAD_DOCK_WORDS = {
   addTo: (name: string) => `Add to ${name}`,
   addToOne: "Add to a sequence",
   choose: "Choose where it goes",
+  otherWays: "Other ways to answer",
   checking: "Checking the mailbox…",
-  noEmail: { line: "No email", fact: "Phone only" },
   call: "Call",
   moveTo: (name: string) => `Move to ${name}`,
-  inOther: (name: string) => ({ line: `In ${name}`, fact: "Nothing sent to them yet" }),
-  writtenBy: (name: string) => ({ line: `Written to by ${name}`, fact: "A business gets one sequence" }),
   open: (name: string) => `Open ${name}`,
   putBack: "Put back",
   ready: "Move back to Ready",
-  review: { line: "To review", fact: "Keep it on the search?" },
   exclude: "Leave out",
   keep: "Keep",
-  waiting: (step: number, others: number) => ({
-    line: `Step ${step} waits for your OK`,
-    fact: others > 0 ? `With ${others} others in today's batch` : "In today's batch",
-  }),
-  approve: "Approve",
-  toSend: (step: number) => ({ line: `Step ${step} is yours to send`, fact: "From your own inbox" }),
-  openDraft: "Open the draft",
-  sentByHand: (step: number, at: string | null) => ({
-    line: at ? `Step ${step} sent ${at}` : `Step ${step} sent`,
-    fact: "Replies aren't read here",
-  }),
+  approve: runApproveWords,
+  writing: "Waits for its opening to be written",
   theyWrote: "They wrote back…",
-  replied: (intent: string | null, at: string | null) => ({
-    line: intent ? `Wrote back · ${intent}` : "Wrote back",
-    fact: [at, "the sequence stopped"].filter(Boolean).join(" · "),
-  }),
   answer: "Answer",
   /** The desk's keys under the dock: in a pile, each act's key, ⇧A the picker, J and K, Z undo. */
   keys: { notFit: "not a fit", later: "later", add: "add", choose: "choose", move: "move", undo: "undo" },
@@ -120,59 +79,76 @@ export interface LeadSheetDockFacts {
   closed: LeadSheetClosedVM | null;
   /** Their place or the sequences still being read: the dock waits, offering nothing the reads could take back. */
   reading: boolean;
-  /** How many others are in the batch that waits for an OK with them (the record's people), where it is known. */
-  batchOthers?: number;
-  tz: string;
-  nowMs: number;
+  /** How many an OK sends in the batch that waits with them (the record's count), where it is known. */
+  batch?: number;
 }
 
-const dock = (p: Partial<LeadSheetDockVM> & Pick<LeadSheetDockVM, "acts">): LeadSheetDockVM => ({
+const dock = (p: Partial<LeadSheetDockVM>): LeadSheetDockVM => ({
   line: null,
-  fact: null,
   waiting: false,
   x: false,
   later: false,
-  held: null,
+  others: [],
+  primary: null,
+  more: [],
+  toSend: false,
   ...p,
 });
 
-/** The step a place is at, from 1. */
-const stepNumberOf = (place: SequencePlaceDto) => place.place.place ?? 1;
+/** An answer to an email, as a press of the dock: the decide verb's door, or the leave verb. */
+const answerSlot = (a: HeldAnswer): LeadSheetSlotVM =>
+  a.door === "take_out"
+    ? slot("take_out", a.words, "ban", "n")
+    : slot("decide", a.words, a.door === "skip" ? "ban" : "check", null, { door: a.door });
 
-/** Their last email sent by hand (no mailbox reads replies): when it went. */
-function sentByHandAt(place: SequencePlaceDto, f: LeadSheetDockFacts): string | null {
-  const sent = place.sends.filter((s) => s.sent_at).at(-1);
-  const at = sent && sent.sent_at ? Date.parse(sent.sent_at) : NaN;
-  return Number.isFinite(at) ? clockDate(at, f.tz, f.nowMs) : null;
+/** Whether an answer leaves this email out, the quiet press beside the primary. */
+const leavesOut = (a: HeldAnswer) => a.door === "take_out" || a.door === "skip";
+
+/**
+ * A held email's answers (contracts heldAnswersOf): the first that lets it go or fixes it is the primary, the one that
+ * leaves it out stands beside it, and the rest are under the caret.
+ */
+function heldDock(place: SequencePlaceDto): LeadSheetDockVM {
+  const { why, hold_detail: detail, place: at } = place.place;
+  const answers = heldAnswersOf({ reason: why, detail }, at);
+  const [first, ...rest] = answers.filter((a) => !leavesOut(a));
+  return dock({
+    others: answers.filter(leavesOut).map(answerSlot),
+    primary: first ? answerSlot(first) : null,
+    more: rest.map(answerSlot),
+  });
+}
+
+/** An email waiting for your OK: leaving this one out, and Approve, which sends every email an OK sends. */
+function waitingDock(f: LeadSheetDockFacts, place: SequencePlaceDto): LeadSheetDockVM {
+  const { place: at, checked } = place.place;
+  const no = waitingAnswersOf({ opening: null, checking: false }, at).filter(leavesOut);
+  const writing = checked === false;
+  return dock({
+    others: no.map(answerSlot),
+    primary: slot("approve", D.approve(f.batch ?? 1), "check", "a", { off: writing ? D.writing : null }),
+  });
 }
 
 /** The dock while a sequence has them: only where their place needs you, or a reply only they can tell. */
 function placeDock(f: LeadSheetDockFacts, place: SequencePlaceDto): LeadSheetDockVM | null {
   const row = place.place;
-  const step = stepNumberOf(place);
   switch (row.group) {
     case "waiting":
-      return dock({ ...D.waiting(step, f.batchOthers ?? 0), acts: [slot("approve", D.approve, "check", "a")] });
+      return waitingDock(f, place);
     case "held":
-      return row.send_id
-        ? dock({ acts: [], held: { sendId: row.send_id, batchId: row.batch_id, hold: row.why, place: row.place } })
-        : null;
+      return row.send_id ? heldDock(place) : null;
     case "to_send":
-      return dock({ ...D.toSend(step), acts: [slot("open_draft", D.openDraft, "send", "a")] });
-    case "replied": {
-      const intent = row.reply && isReplyIntent(row.reply.intent) ? REPLY_INTENT_WORDS[row.reply.intent] : null;
-      const at = row.at ? clockNear(Date.parse(row.at), f.tz, f.nowMs) : null;
-      return dock({ ...D.replied(intent, at), acts: [slot("thread", D.answer, "chat", "a")] });
-    }
+      return dock({ toSend: true });
+    case "replied":
+      return dock({ primary: slot("thread", D.answer, "chat", "a") });
+    case "left":
+      return place.put_back ? dock({ others: [slot("return", D.putBack, "undo", "a")] }) : null;
     case "in":
-    case "done": {
+    case "done":
       // Sent by hand from an inbox nobody reads here: only they can say a reply came (They wrote back…).
       if (place.reads_replies || !place.sends.some((s) => s.sent_at)) return null;
-      return dock({
-        ...D.sentByHand(step, sentByHandAt(place, f)),
-        acts: [slot("they_wrote", D.theyWrote, "chat", "a")],
-      });
-    }
+      return dock({ others: [slot("they_wrote", D.theyWrote, "chat", "a")] });
     default:
       return null;
   }
@@ -181,67 +157,52 @@ function placeDock(f: LeadSheetDockFacts, place: SequencePlaceDto): LeadSheetDoc
 /** Not a fit and Later before the acts, for a lead to decide on. */
 const deciding = (f: LeadSheetDockFacts) => ({ x: true, later: f.canLater });
 
-/** The dock for a lead not in a sequence yet: Add to the pick, or the picker; why Add can't go, and the way on. */
+/** The dock for a lead not in a sequence yet: Add to the pick, or the picker where Add can't go. */
 function readyDock(f: LeadSheetDockFacts): LeadSheetDockVM {
-  if (!f.pick) return dock({ ...deciding(f), acts: [slot("pick", D.addToOne, "plus", "a")] });
+  if (!f.pick) return dock({ ...deciding(f), primary: slot("pick", D.addToOne, "plus", "a") });
   if (f.state === "finding")
-    return dock({
-      ...deciding(f),
-      waiting: true,
-      acts: [slot("add", D.checking, "plus", "a", { off: D.checking, split: true })],
-    });
-  if (f.blocked) return dock({ ...deciding(f), line: f.blocked, acts: [slot("pick", D.choose, "plus", "a")] });
-  return dock({ ...deciding(f), acts: [slot("add", D.addTo(f.pick.name), "plus", "a", { split: true })] });
+    return dock({ ...deciding(f), primary: slot("add", D.checking, "plus", "a", { off: D.checking, split: true }) });
+  if (f.blocked) return dock({ ...deciding(f), primary: slot("pick", D.choose, "plus", "a") });
+  return dock({ ...deciding(f), primary: slot("add", D.addTo(f.pick.name), "plus", "a", { split: true }) });
 }
 
-/** A closed lead: its one fix where one exists (Put back, back to Ready, a call), its title the line. */
+/** A closed lead: its one fix where one exists; a call is the way on, the others a way back. */
 function closedDock(f: LeadSheetDockFacts): LeadSheetDockVM | null {
   const fix = f.closed ? f.closed.fix : null;
-  if (!f.closed || !fix) return null;
-  const one =
-    fix === "put_back"
-      ? slot("put_back", D.putBack, "undo", "a")
-      : fix === "ready"
-        ? slot("ready", D.ready, "undo", "a")
-        : slot("call", D.call, "phone", "c");
-  return dock({ line: f.closed.title, fact: f.closed.line || null, acts: [one] });
+  if (!fix) return null;
+  if (fix === "call") return dock({ primary: slot("call", D.call, "phone", "c") });
+  return dock({
+    others: [fix === "put_back" ? slot("put_back", D.putBack, "undo", "a") : slot("ready", D.ready, "undo", "a")],
+  });
 }
 
-/**
- * The dock, by the lead's state and its place (the canvas's States board): what needs you in their sequence where one
- * has them; else To review's Leave out and Keep, a phone's Call, another sequence's Move to (nothing sent yet) or Open
- * (written to), a closed lead's one fix, or Not a fit, Later and Add. Null where nothing needs you.
- */
 /** In another sequence than the pick: Move to the pick while nothing was sent to them, else Open that one. */
 function elsewhereDock(f: LeadSheetDockFacts): LeadSheetDockVM | null {
   const e = f.elsewhere;
   if (!e) return null;
-  if (e.written)
-    return dock({ ...D.writtenBy(e.name), acts: e.id ? [slot("sequence", D.open(e.name), "chevron", "a")] : [] });
-  return dock({
-    ...D.inOther(e.name),
-    acts: f.pick && f.pick.id !== e.id ? [slot("move", D.moveTo(f.pick.name), "chevron", "a")] : [],
-  });
+  if (e.written) return e.id ? dock({ others: [slot("sequence", D.open(e.name), "chevron", "a")] }) : null;
+  return f.pick && f.pick.id !== e.id ? dock({ primary: slot("move", D.moveTo(f.pick.name), "chevron", "a") }) : null;
 }
 
+/**
+ * The dock, by the lead's state and its place (the canvas's Logic board): what needs you in their sequence where one has
+ * them; else To review's Leave out and Keep, a phone's Call, another sequence's Move to (nothing sent yet) or Open
+ * (written to), a closed lead's one fix, or Not a fit, Later and Add. Null where nothing needs you: the sheet then draws
+ * no foot at all.
+ */
 export function leadDockOf(f: LeadSheetDockFacts): LeadSheetDockVM | null {
   // Their place first: what needs you there, whatever the pick; else, in another than the pick, Move or Open.
   if (f.place) return placeDock(f, f.place) ?? elsewhereDock(f);
-  if (f.reading) return dock({ line: D.reading, waiting: true, acts: [] });
+  if (f.reading) return dock({ line: D.reading, waiting: true });
   switch (f.state) {
     case "review":
-      return dock({
-        ...D.review,
-        acts: [slot("exclude", D.exclude, "ban", "n"), slot("keep", D.keep, "check", "a")],
-      });
+      return dock({ others: [slot("exclude", D.exclude, "ban", "n")], primary: slot("keep", D.keep, "check", "a") });
     case "phone":
-      return f.canCall
-        ? dock({ ...deciding(f), ...D.noEmail, acts: [slot("call", D.call, "phone", "c")] })
-        : dock({ ...deciding(f), ...D.noEmail, acts: [] });
+      return dock({ ...deciding(f), primary: f.canCall ? slot("call", D.call, "phone", "c") : null });
     case "elsewhere":
       return elsewhereDock(f);
     case "replied":
-      return dock({ ...D.replied(null, null), acts: [slot("thread", D.answer, "chat", "a")] });
+      return dock({ primary: slot("thread", D.answer, "chat", "a") });
     case "sequence":
       return null;
     case "closed":
@@ -250,3 +211,6 @@ export function leadDockOf(f: LeadSheetDockFacts): LeadSheetDockVM | null {
       return readyDock(f);
   }
 }
+
+/** Every press of a dock that carries a key: what a key finds in a pile. */
+export const dockSlotsOf = (d: LeadSheetDockVM): LeadSheetSlotVM[] => [...d.others, ...(d.primary ? [d.primary] : [])];

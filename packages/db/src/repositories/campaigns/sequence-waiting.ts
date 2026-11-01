@@ -4,7 +4,7 @@
  * email's opening. Read off the sends, under the caller's row security, as sequences.ts's readers are.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { SequencePeopleDto, SequenceRowDto } from "@chanlytics/contracts";
+import type { SequencePlaceDto, SequenceRowDto } from "@chanlytics/contracts";
 import type { Database } from "../../database.types";
 
 type Db = SupabaseClient<Database>;
@@ -57,11 +57,11 @@ const READ_BEFORE_IT_GOES: ReadonlySet<string> = new Set(["waiting", "held"]);
  * 2026: an OK sent openings its owner never read): read off the sends, this workspace's alone. One the read cannot find
  * is said as not written yet, never as another's words.
  */
-export async function withOpenings(
+export async function withOpenings<R extends { group: string; send_id: string | null }>(
   db: Db,
   tenantId: string,
-  rows: SequencePeopleDto["rows"],
-): Promise<SequencePeopleDto["rows"]> {
+  rows: R[],
+): Promise<R[]> {
   const ids = rows.filter((r) => READ_BEFORE_IT_GOES.has(r.group) && r.send_id).map((r) => r.send_id ?? "");
   if (ids.length === 0) return rows;
   const found = new Map<string, { opening: string | null; checked: boolean }>();
@@ -79,4 +79,33 @@ export async function withOpenings(
       ? { ...r, ...(found.get(r.send_id) ?? { opening: null, checked: false }) }
       : r,
   );
+}
+
+/**
+ * The leave Put back would undo for one lead (00450 sequence_return): the latest of its sequence that names their place,
+ * where it took this lead alone out, so the press brings back nobody else, and nothing ever went to them; and where their
+ * place still stands out for that leave's reason, which a Put back already pressed changes. None otherwise: a business
+ * that was written to stays as it is. Read off the decision the leave wrote, under the caller's row security.
+ */
+export async function putBackOf(
+  db: Db,
+  tenantId: string,
+  place: SequencePlaceDto,
+): Promise<{ decision_id: string } | null> {
+  const id = place.place.enrollment_id;
+  if (place.place.group !== "left" || !id || place.sends.some((s) => s.sent_at)) return null;
+  const { data, error } = await db
+    .from("decisions")
+    .select("id, payload")
+    .eq("tenant_id", tenantId)
+    .eq("verb", "leave_sequence")
+    .eq("subject_type", "sequence")
+    .eq("subject_id", place.sequence.id)
+    .contains("payload", { put_back: { places: [{ id }] } })
+    .order("created_at", { ascending: false })
+    .limit(1);
+  if (error) throw new Error(`cannot read the leave to put back: ${error.message}`);
+  const [leave] = data ?? [];
+  const said = leave ? (leave.payload as { left?: unknown; put_back?: { why?: unknown } } | null) : null;
+  return leave && said && said.left === 1 && said.put_back?.why === place.place.why ? { decision_id: leave.id } : null;
 }

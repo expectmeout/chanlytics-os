@@ -129,7 +129,7 @@ test("a batch to leads counts the emails an OK sends: those planned, never one t
     sequence_overview: () => [row("leads", LEADS_BATCH, "reach_out"), row("customers", CUSTOMER_BATCH, "playbook")],
   };
   const [leads, customers] = await sequenceOverview(fakeDb(tables, {}, rpcs), TID);
-  // "Approve · 4 people", as four go: the held one waits for its own answer, in Needs you; another workspace's is none of these.
+  // "Approve all 4", as four go: the held one waits for its own answer, in Needs you; another workspace's is none of these.
   assert.equal(leads.needs.batches[0].people, 4);
   assert.equal(leads.needs.waiting_people, 4);
   assert.equal(leads.next.people, 4);

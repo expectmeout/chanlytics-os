@@ -1,9 +1,9 @@
 /**
- * The lead sheet (canvas B v2, sheet/sheet.tsx), the panel of every lead opened on Leads, and everything the owner does
- * to one lead from it out of a pile: the stage in its ⋯, Not a fit and its five whys in the rail's place, Keep and Leave
- * out, Put back, Erase, a call from their own phone with its six outcomes, and a draft for their own inbox. The rail's
- * places for each state, and a pile's, are lead-workbench/lead-sheet.test.mjs's; this file is the acts the lead's panel
- * always had, carried onto the sheet, and the five tabs that say what the panel said.
+ * The lead sheet (sheet/sheet.tsx), the panel of every lead opened on Leads, and everything the owner does to one lead
+ * from it out of a pile: Not a fit, Keep and Leave out, Put back, Erase, a call from their own phone with its six
+ * outcomes, and a draft for their own inbox. The card, the lines and the dock in each state are
+ * lead-workbench/lead-sheet.test.mjs's; this file is the acts the lead's panel always had, carried onto the sheet, and
+ * its one scroll: who, the doors, the card, and the five lines.
  *
  * Drawn on the tests' stub React, as refusals-on-the-page does: a draw is a call and the page's state is this file's, the
  * way LeadsReal holds it (its mode, the question armed, the draft). Everything is imported from its TSX module: the
@@ -482,7 +482,7 @@ const reset = () => {
 const roleIs = (role) => {
   globalThis.window.ST_STORE = { can: (a) => role === "owner" || a !== "find", myRole: () => role };
 };
-/** The ⋯'s item by its words: the kit's Menu. */
+/** More's item by its words: the kit's Menu. */
 const menuItem = async (P, label) => kitItem(P.draw().tree, "peek-more", label);
 
 /* =================================================== the one scroll ==== */
@@ -491,38 +491,41 @@ const menuItem = async (P, label) => kitItem(P.draw().tree, "peek-more", label);
 const idsOf = (tree) =>
   all(tree, (n) => typeof n.props?.["data-testid"] === "string").map((n) => n.props["data-testid"]);
 
-test("the quick look: who, the word beside the name, the verdict, the checks line, Website and Call, the email; then one scroll", () => {
+test("one scroll: who, the doors, the one card, then the five lines, one open at a time", async () => {
   reset();
-  const { tree } = page().draw();
+  const P = page();
+  const { tree } = P.draw();
   assert.equal(tree.props["data-testid"], "lead-peek");
   assert.equal(textOf(byTestId(tree, "peek-name")), "Travis Heights Coaching Co.");
   assert.match(textOf(byTestId(tree, "peek-sub")), /^Personal trainer · 1200 Barton Springs Rd · ★ 5\.0 \(16\)$/);
-  assert.equal(textOf(byTestId(tree, "lead-sheet-word")), "To decide");
-  assert.match(textOf(byTestId(tree, "lead-sheet-verdict")), /Strong fit/, "the verdict first");
-  assert.equal(textOf(byTestId(tree, "lead-sheet-checks")), "7 of 7 checks");
-  assert.ok(byTestId(tree, "lead-sheet-quick"), "the quick acts at half");
+  assert.equal(textOf(byTestId(tree, "lead-sheet-word")), "Strong fit", "one status word, on the card");
+  assert.ok(byTestId(tree, "lead-sheet-quick"), "the doors");
   assert.ok(byTestId(tree, "lead-sheet-website"));
-  assert.equal(
-    textOf(byTestId(tree, "lead-sheet-contact-email")).includes("hello@travisheightscoaching.example"),
-    true,
-  );
-  const order = idsOf(tree).filter((id) => id.startsWith("lead-sheet-sec-"));
+  const order = idsOf(tree).filter((id) => /^lead-sheet-sec-[a-z]+$/.test(id));
   assert.deepEqual(
     order,
     [
       "lead-sheet-sec-fit",
-      "lead-sheet-sec-about",
       "lead-sheet-sec-contact",
+      "lead-sheet-sec-about",
       "lead-sheet-sec-sequence",
-      "lead-sheet-sec-found",
+      "lead-sheet-sec-history",
     ],
-    "Fit, About, Contact, Sequence, How we found them: one scroll, nothing behind a tab",
+    "the same five, in one order, nothing behind a tab",
   );
   assert.equal(
     find(tree, (n) => n.type === SubTabs),
     null,
     "no tabs",
   );
+  assert.equal(byTestId(tree, "peek-email"), null, "a line holds its rows closed");
+  await press(byTestId(tree, "lead-sheet-sec-contact-press"));
+  const open = P.draw().tree;
+  assert.match(textOf(byTestId(open, "peek-email-value")), /hello@travisheightscoaching\.example/);
+  await press(byTestId(open, "lead-sheet-sec-fit-press"));
+  const next = P.draw().tree;
+  assert.equal(byTestId(next, "peek-email"), null, "one line open at a time");
+  assert.ok(byTestId(next, "peek-checks-open"));
 });
 
 test("the dock for a lead to decide on: Not a fit, then Add to a sequence, which opens the picker as a step", async () => {
@@ -536,7 +539,6 @@ test("the dock for a lead to decide on: Not a fit, then Add to a sequence, which
   assert.equal(byTestId(tree, "lead-sheet-later"), null, "Later is a pass of a search's rows: none is open here");
   const add = byTestId(tree, "lead-sheet-pick");
   assert.equal(textOf(add).includes(LEAD_DOCK_WORDS.addToOne), true, "nothing picked: Add to a sequence");
-  assert.equal(byTestId(tree, "lead-sheet-dock-line"), null, "a dock is for pressing: no pointer elsewhere");
   await press(add);
   assert.ok(byTestId(P.draw().tree, "lead-sheet-picker"), "the picker, a step of the same sheet");
 });
@@ -571,15 +573,14 @@ test("a lead whose email bounced is a call: No email, phone only, and its press 
   reset();
   const P = page({ vm: vmOf({ email_state: "invalid" }) });
   const tree = P.draw().tree;
-  assert.equal(textOf(byTestId(tree, "lead-sheet-dock-line")), LEAD_DOCK_WORDS.noEmail.line);
-  assert.equal(textOf(byTestId(tree, "lead-sheet-word")), "Call first");
+  assert.match(textOf(byTestId(tree, "lead-sheet-fact-mail")), /Phone only/, "the card says why it is a call");
   assert.equal(byTestId(tree, "lead-sheet-pick"), null, "no Add where no email can go");
   await press(byTestId(tree, "lead-sheet-call"));
   assert.deepEqual(dialled, ["tel:+15125550142"], "the dock's Call rings from the owner's phone");
   assert.deepEqual([P.st.armed.kind, P.st.armed.asked], ["call", false]);
 });
 
-test("an operator, a partner, a viewer and a role the page cannot read find no Erase in the ⋯: it is the owner's", () => {
+test("an operator, a partner, a viewer and a role the page cannot read find no Erase in More: it is the owner's", () => {
   for (const role of ["operator", "partner", "viewer", null]) {
     reset();
     roleIs(role);
@@ -627,7 +628,7 @@ test("D1-lead-person-door: the name of a lead that became a person opens them in
   assert.equal(textOf(byTestId(plain, "peek-name")), "Travis Heights Coaching Co.");
 });
 
-test("the owner's ⋯ offers Erase this lead; it asks first in contracts' words, and yes erases through the one door, closes the sheet and says it is gone", async () => {
+test("the owner's More offers Erase this lead; it asks first in contracts' words, and yes erases through the one door, closes the sheet and says it is gone", async () => {
   reset();
   roleIs("owner");
   const courier = courierOf();

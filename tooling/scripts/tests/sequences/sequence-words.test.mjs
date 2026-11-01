@@ -206,7 +206,7 @@ test("the one notice: a batch waiting for an OK with its act and how long it wai
     [],
   );
   // The act in the words every Approve of a run says (decision 19 of the spec of 9 Oct 2026): its sheet's, Today's row.
-  assert.deepEqual([named.words, named.act], ["3 people wait for your OK · until tonight", "Approve · 3 people"]);
+  assert.deepEqual([named.words, named.act], ["3 people wait for your OK · until tonight", "Approve all 3"]);
   // A phone's dock says it in a line and one fact, the step where there are several; the count is its Approve's alone, never
   // said twice beside it (the run review's item 12).
   assert.deepEqual([named.line, named.fact], ["Waits for your OK", "until tonight"]);

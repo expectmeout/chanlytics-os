@@ -545,7 +545,7 @@ function waitingNotice(steps: readonly SequenceStepDto[], batch: SequenceNeedsDt
       people > 0
         ? `${plural(people, "person waits", "people wait")} for your OK${until}`
         : `The next batch waits for your OK${until}`,
-    // The dock's line beside its Approve, which says how many: "Waits for your OK" over "Approve · 6 people", where it said
+    // The dock's line beside its Approve, which says how many: "Waits for your OK" over "Approve all 6", where it said
     // the count twice, "6 wait for your OK" beside it (the run review's item 12).
     line: people > 0 ? SEQUENCE_WORDS.waitsForOk : "The next batch waits for your OK",
     fact: fact || null,

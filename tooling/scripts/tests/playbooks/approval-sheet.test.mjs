@@ -101,14 +101,14 @@ test('the words are the first named person\'s, slot by slot, and the people a gr
 test("the act says how many, and the line beside it when the send goes -- now, or at the next open hour; a run whose day has passed says so instead of offering it", () => {
   assert.equal(
     C.toApprovalVM({ broadcast: run({ recipient_count: 186 }), recipients: people }, opts()).approve,
-    "Approve · 186 people",
+    "Approve all 186",
   );
   const late = C.toApprovalVM(
     { broadcast: run({ recipient_count: 186 }), recipients: people },
     opts({ open: { time: "9:00", moved: true, on: "2026-09-21" } }),
   );
   // One word per act (decision 19 of the spec of 9 Oct 2026): the button says how many; when it goes is `goes`, once.
-  assert.equal(late.approve, "Approve · 186 people");
+  assert.equal(late.approve, "Approve all 186");
   assert.equal(
     late.goes,
     "goes at 9:00 once you approve it",
@@ -147,13 +147,13 @@ test("a visit's run that approving now would send on a later day says why instea
   }
   // Inside the hours, or before nine the same morning: it goes on the day it was made for, and the button is offered.
   const evening = opts({ open: { time: "7:30 PM", moved: false, on: "2026-09-21" } });
-  assert.equal(C.toApprovalVM({ broadcast: visitRun(), recipients: people }, evening).approve, "Approve · 3 people");
+  assert.equal(C.toApprovalVM({ broadcast: visitRun(), recipients: people }, evening).approve, "Approve all 3");
   const early = opts({ open: { time: "9:00", moved: true, on: "2026-09-21" } });
-  assert.equal(C.toApprovalVM({ broadcast: visitRun(), recipients: people }, early).approve, "Approve · 3 people");
+  assert.equal(C.toApprovalVM({ broadcast: visitRun(), recipients: people }, early).approve, "Approve all 3");
   // Another moment's words name no day: approved at night, it goes at nine, as it always did. So does a run that kept no moment.
   for (const audience of [{ trigger: "quiet_30" }, { trigger: "everyone_monthly" }, {}, null, undefined]) {
     const vm = C.toApprovalVM({ broadcast: run({ audience }), recipients: people }, after);
-    assert.equal(vm.approve, "Approve · 3 people", JSON.stringify(audience));
+    assert.equal(vm.approve, "Approve all 3", JSON.stringify(audience));
     assert.equal(vm.expired, null);
   }
 });
@@ -224,7 +224,7 @@ test("the sheet offers the button exactly where the verb does not refuse, whatev
     { broadcast: run({ playbook_id: null, run_for: "2026-09-01" }), recipients: people },
     opts(),
   );
-  assert.equal(none.approve, "Approve · 3 people");
+  assert.equal(none.approve, "Approve all 3");
   assert.equal(none.expired, null);
 });
 
@@ -243,7 +243,7 @@ test("a paused workspace is said instead of the button, in the words every campa
   // Not paused, and a readiness that was not read (Ask's card has none): the button is as it was.
   for (const was of [false, null]) {
     const vm = C.toApprovalVM({ broadcast: run(), recipients: people }, opts({ paused: was }));
-    assert.equal(vm.approve, "Approve · 3 people", String(was));
+    assert.equal(vm.approve, "Approve all 3", String(was));
     assert.equal(vm.expired, null, String(was));
   }
 });
@@ -344,7 +344,7 @@ test("the month's allowance: people it already holds are in the held line and ou
     opts(),
   );
   assert.equal(vm.will, 6, "ten enrolled, four held for the month: six will get it");
-  assert.equal(vm.approve, "Approve · 6 people", "the act says six");
+  assert.equal(vm.approve, "Approve all 6", "the act says six");
   assert.deepEqual(vm.byChannel, { whatsapp: 4, sms: 0, email: 2 }, "the four come off the channel they were to go by");
   assert.equal(vm.of.pool, 20);
   assert.equal(
@@ -370,7 +370,7 @@ test("the month's allowance: people it already holds are in the held line and ou
     opts(),
   );
   assert.equal(plain.will, 10);
-  assert.equal(plain.approve, "Approve · 10 people");
+  assert.equal(plain.approve, "Approve all 10");
   assert.ok(!plain.of.lines.some((l) => /allowance/.test(l.words)));
   // A run that kept no count of who it left out still takes the held off its number, and has no line to say them in.
   const nocount = C.toApprovalVM(

@@ -505,8 +505,6 @@ export type {
 export {
   LEAD_SHEET_CARD_WORDS,
   leadSheetChecksLineOf,
-  leadSheetChecksSaid,
-  leadSheetContactLineOf,
   leadSheetEmailLineOf,
   leadSheetExceptionWords,
   leadSheetSubOf,
@@ -515,10 +513,12 @@ export {
 export type {
   LeadSheetChecksLineVM,
   LeadSheetCheckVM,
-  LeadSheetContactLineVM,
   LeadSheetEmailLineVM,
-  LeadSheetWayVM,
   LeadSheetWhyVM,
 } from "./sheet/lead-sheet-card";
-export { LEAD_DOCK_WORDS, leadDockOf, leadSheetWordOf } from "./sheet/lead-sheet-dock";
+export { dockSlotsOf, LEAD_DOCK_WORDS, leadDockOf } from "./sheet/lead-sheet-dock";
 export type { LeadSheetDockFacts, LeadSheetDockVM } from "./sheet/lead-sheet-dock";
+export { LEAD_LINE_WORDS, leadHistoryOf, leadLinesOf } from "./sheet/lead-sheet-lines";
+export type { LeadHistoryRowVM, LeadLineId, LeadLinesFacts, LeadLineVM } from "./sheet/lead-sheet-lines";
+export { LEAD_NOW_WORDS, leadNowOf } from "./sheet/lead-sheet-now";
+export type { LeadNowFacts, LeadNowFactVM, LeadNowMail, LeadNowVM } from "./sheet/lead-sheet-now";

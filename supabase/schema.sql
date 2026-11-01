@@ -28366,6 +28366,8 @@ declare
   v_out int;
   v_on int;
   v_list uuid;
+  v_fresh int;
+  v_freed int;
 begin
   if v_actor is null then
     raise exception 'Sign in required.' using errcode = '28000';
@@ -28385,6 +28387,39 @@ begin
     raise exception 'That leave kept nothing to put back.' using errcode = 'P0001';
   end if;
   v_out := coalesce((v_left.payload #>> '{put_back,sends}')::int, 0);
+  -- A lead whose email the leave skipped, and nothing reached, goes back on its list, never onto a step: its first email
+  -- stands skipped and a lead has one, so its place alone would stand still. Its email is freed as a moved one is and its
+  -- place left as moved, so the list holds it again and its next batch plans it.
+  with was as (
+    select (x->>'id')::uuid as id
+      from jsonb_array_elements(coalesce(v_left.payload #> '{put_back,places}', '[]'::jsonb)) x),
+  fresh as (
+    select e.id, e.lead_id
+      from was w
+      join public.sequence_enrollments e on e.id = w.id
+     where e.tenant_id = p_tenant_id and e.sequence_id = p_sequence_id and e.lead_id is not null
+       and e.state = 'left' and e.why = v_why and e.left_by is not distinct from v_left.actor_user_id
+       and e.ended_at >= v_left.created_at
+       and exists (
+         select 1 from public.sequence_sends s
+          where s.tenant_id = p_tenant_id and s.sequence_id = e.sequence_id and s.lead_id = e.lead_id
+            and s.state = 'skipped' and s.reason = v_why)
+       and not exists (
+         select 1 from public.sequence_sends s
+          where s.tenant_id = p_tenant_id and s.sequence_id = e.sequence_id and s.lead_id = e.lead_id
+            and (s.sent_at is not null or s.state in ('claimed', 'queued', 'sent', 'handed', 'drafted')))),
+  freed as (
+    update public.sequence_sends s set reason = 'moved'
+      from fresh f
+     where s.tenant_id = p_tenant_id and s.sequence_id = p_sequence_id and s.lead_id = f.lead_id
+       and s.state = 'skipped' and s.reason = v_why
+    returning s.id),
+  listed as (
+    update public.sequence_enrollments e set why = 'moved'
+      from fresh f
+     where e.id = f.id
+    returning e.id)
+  select (select count(*) from listed), (select count(*) from freed) into v_fresh, v_freed;
   -- Each place still out for this leave's reason, by the member who made it, since it was made, and nobody of theirs
   -- back in the sequence since (one place in at a time: sequence_enrollments_one_in_*).
   with was as (
@@ -28422,8 +28457,8 @@ begin
     values (p_tenant_id, 'reach_out.lead_added', 'lead', 'playbook', p_sequence_id,
             jsonb_build_object('search_id', v_list, 'n', v_on, 'by', v_actor, 'put_back', true));
   end if;
-  v_back := v_back + v_on;
-  return jsonb_build_object('back', v_back, 'sends_out', case when v_back > 0 then v_out else 0 end,
+  v_back := v_back + v_on + v_fresh;
+  return jsonb_build_object('back', v_back, 'sends_out', case when v_back > 0 then greatest(v_out - v_freed, 0) else 0 end,
                             'sequence_id', p_sequence_id)
     || public.team_decision(p_tenant_id, v_actor, 'sequence', p_sequence_id, 'return_to_sequence',
          coalesce(p_decision, '{}'::jsonb) || jsonb_build_object('back', v_back), p_via, p_undo_of);

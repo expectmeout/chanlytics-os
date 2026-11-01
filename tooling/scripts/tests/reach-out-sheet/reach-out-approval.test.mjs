@@ -237,8 +237,8 @@ test("a run waiting on its owner: the decision first, the held, the skipped, the
   assert.equal(textOf(byTestId(tree, "ro-run-opening")), "A 4.9 from 16 reviews says people find you.");
   assert.equal(textOf(byTestId(tree, "ro-run-reader")), "As they read it · step 1, your email");
   assert.equal(textOf(byTestId(tree, "ro-run-subject")), "A quick one for Studio Two");
-  // Approve says the count it releases (the canvas's "Approve 2"); when it goes is the foot's line beside it.
-  assert.equal(textOf(byTestId(tree, "ro-run-approve")).trim(), "Approve 30");
+  // Approve says the count it releases ("Approve all 30"); when it goes is the foot's line beside it.
+  assert.equal(textOf(byTestId(tree, "ro-run-approve")).trim(), "Approve all 30");
   assert.equal(textOf(byTestId(tree, "ro-run-dock")), `30 go from ${FIRST_TIME}`);
   assert.equal(textOf(byTestId(tree, "ro-run-approve-note")), "2 held wait for you");
   press(byTestId(tree, "ro-run-approve"));
@@ -315,7 +315,7 @@ test("R21: a run from an earlier day goes from now, re-timed in their hours, nev
   world("pending_approval", RUN({ run_for: YESTERDAY }));
   const redraw = await open({ sheet: SHEET() });
   let tree = redraw();
-  assert.equal(textOf(byTestId(tree, "ro-run-approve")).trim(), "Approve 30");
+  assert.equal(textOf(byTestId(tree, "ro-run-approve")).trim(), "Approve all 30");
   assert.equal(textOf(byTestId(tree, "ro-run-dock")), "30 go from now");
   assert.match(textOf(byTestId(tree, "ro-run-sub")), /From now, re-timed in their hours/);
   assert.doesNotMatch(textOf(byTestId(tree, "ro-run-acts")), new RegExp(FIRST_TIME));

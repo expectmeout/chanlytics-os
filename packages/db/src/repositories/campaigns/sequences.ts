@@ -27,7 +27,7 @@ import type {
 import type { Database, Json } from "../../database.types";
 import { readAllRows } from "../../paged";
 import { answer, type DoorResult } from "./reach-out-leads";
-import { withOpenings, withReadyCounts } from "./sequence-waiting";
+import { putBackOf, withOpenings, withReadyCounts } from "./sequence-waiting";
 
 type Db = SupabaseClient<Database>;
 
@@ -499,12 +499,18 @@ export async function sequencePeopleOf(
   return { counts: got.counts ?? {}, rows: await withOpenings(db, p.tenantId, rows) };
 }
 
-/** One lead's place in the sequence it stands in, or the last it was in (00459 sequence_place); null in none. */
+/**
+ * One lead's place in the sequence it stands in, or the last it was in (00459 sequence_place), with its email's opening
+ * and the leave Put back would undo; null in none.
+ */
 export async function sequencePlaceOf(db: Db, tenantId: string, leadId: string): Promise<SequencePlaceDto | null> {
   const { data, error } = await db.rpc("sequence_place", { p_tenant_id: tenantId, p_lead_id: leadId });
   if (error) throw new Error(`cannot read where the lead stands: ${error.message}`);
   const got = data as SequencePlaceDto | null;
-  return got && got.sequence && got.place ? { ...got, sends: Array.isArray(got.sends) ? got.sends : [] } : null;
+  if (!got || !got.sequence || !got.place) return null;
+  const place = { ...got, sends: Array.isArray(got.sends) ? got.sends : [] };
+  const [row] = await withOpenings(db, tenantId, [place.place]);
+  return { ...place, place: row ?? place.place, put_back: await putBackOf(db, tenantId, place) };
 }
 
 /** Many leads' places, one row a lead in a sequence (00459 sequence_places_of): Leads' cell and the person page. */

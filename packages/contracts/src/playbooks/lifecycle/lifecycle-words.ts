@@ -312,7 +312,7 @@ export const LIFECYCLE_WORDS = {
       state: "Sent",
       hint: (when: string | null): string => (when ? `Sent once · ${when}` : "Sent once"),
     },
-    /** One word per act (decision 19): "Approve · 7 people" and "Skip", everywhere a waiting run is decided. */
+    /** One word per act (decision 19): "Approve all 7" and "Skip", everywhere a waiting run is decided. */
     approve: runApproveWords,
     skip: "Skip",
     resume: {

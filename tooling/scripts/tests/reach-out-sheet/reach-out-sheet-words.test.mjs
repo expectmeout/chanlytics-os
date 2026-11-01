@@ -247,8 +247,8 @@ test("a run waiting on its owner says the decision first: how many go and of how
     signature: null,
     foot: null,
   });
-  // Approve says the count it releases (the run-to-leads canvas's "Approve 2"); when it goes is the foot's, beside it.
-  assert.equal(w.approve, "Approve 30");
+  // Approve says the count it releases ("Approve all 30"); when it goes is the foot's, beside it.
+  assert.equal(w.approve, "Approve all 30");
   assert.deepEqual([flat(w.dock.lead), w.dock.said], ["30 go from 9:40 AM", "1 held waits for you"]);
   assert.equal(w.note, "Skipping loses this run only. The sequence keeps its place and asks again tomorrow.");
   assert.deepEqual(
@@ -278,7 +278,7 @@ test("a run waiting on its owner says the decision first: how many go and of how
 
   // Still being checked: Approve counts only the checked, the foot says the rest; an earlier day's run goes from now.
   const later = at({ checking: 5, run_for: "2026-09-26" });
-  assert.equal(later.approve, "Approve 30");
+  assert.equal(later.approve, "Approve all 30");
   assert.deepEqual([later.dock.lead, later.dock.said], ["30 go from now", "5 more go once checked"]);
   assert.deepEqual(later.when, {
     lead: "From now",
@@ -339,7 +339,7 @@ test("a run waiting on its owner says the decision first: how many go and of how
     { today: "2026-09-27", now: Date.parse("2026-09-27T17:00:00Z") },
   );
   assert.deepEqual(sunday.count, { n: 41, words: "go in the coming days", of: "of 42" });
-  assert.equal(sunday.approve, "Approve 41");
+  assert.equal(sunday.approve, "Approve all 41");
   assert.deepEqual(
     [flat(sunday.when.lead), flat(sunday.dock.lead)],
     ["From tomorrow 9:40 AM", "41 go from tomorrow 9:40 AM"],
@@ -362,7 +362,7 @@ test("a run waiting on its owner says the decision first: how many go and of how
   assert.equal(flat(friday.dock.lead), "41 go from Sep 28 · 9:40 AM");
   // Nothing today and nothing to come: the count stays, and the foot says nothing goes.
   const none = at({ today: 0, later: 0, first_at: null });
-  assert.deepEqual([none.approve, none.dock.lead], ["Approve 0", "Nothing goes yet"]);
+  assert.deepEqual([none.approve, none.dock.lead], ["Approve", "Nothing goes yet"]);
 });
 
 test("a run approved or going says the same facts in its state: going today, the run going on without the held, its own verb in the foot", () => {

@@ -11,14 +11,17 @@ import { LEAD_CARD_WORDS, LEAD_SHEET_WORDS as W, type LeadCardEmailVM, type Lead
 import { cx } from "../../../kit/variants";
 import "./place.css";
 
-/** An email's words in parts: words, a value filled for them, the opening still to come, a slot with no value. */
-const EmailParts = ({ parts }: { parts: readonly LeadCardPart[] }) => (
+/**
+ * An email's words in parts: words, a value filled for them, the opening still to come, a slot with no value. `plain`
+ * reads it as it goes, a value in the words round it, where the marks would only stand between you and the email.
+ */
+export const EmailParts = ({ parts, plain = false }: { parts: readonly LeadCardPart[]; plain?: boolean }) => (
   <>
     {parts.map((p, i) =>
       p.kind === "text" ? (
         <span key={i}>{p.text}</span>
       ) : p.kind === "value" ? (
-        <span key={i} className="lw-val">
+        <span key={i} className={plain ? undefined : "lw-val"}>
           {p.text}
         </span>
       ) : p.kind === "opening" ? (
@@ -37,7 +40,7 @@ const EmailParts = ({ parts }: { parts: readonly LeadCardPart[] }) => (
 );
 
 /** The words cut where the email breaks its lines: a paragraph each, the opening a line of its own. */
-const emailParagraphs = (parts: readonly LeadCardPart[]): LeadCardPart[][] => {
+export const emailParagraphs = (parts: readonly LeadCardPart[]): LeadCardPart[][] => {
   const out: LeadCardPart[][] = [];
   let para: LeadCardPart[] = [];
   const next = () => {

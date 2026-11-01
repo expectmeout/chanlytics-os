@@ -132,7 +132,6 @@ export type { SequenceEvidence, SequenceEvidenceDto } from "./sequence-evidence"
 export {
   HELD_TAKE_OUT,
   heldAnswersOf,
-  heldChoicesOf,
   heldWhyOf,
   markedOpeningOf,
   sequencePersonWhyOf,

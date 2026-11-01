@@ -39,19 +39,17 @@ export function SheetPreview({ leadId }: { leadId: string }) {
     else setRefused(r.message);
   };
   return (
-    <section className="lw-sec" aria-label={W.title} id="lead-sheet-preview" data-testid="lead-sheet-sec-preview">
-      <div className="lw-h">
-        <span>{W.title}</span>
-      </div>
-      <p className="lw-say" data-tone={line.tone} data-testid="lead-sheet-preview-line">
+    <section className="lw-preview" aria-label={W.title} id="lead-sheet-preview" data-testid="lead-sheet-sec-preview">
+      <p className="lw-note">{W.title}</p>
+      <p className="lw-preview-l" data-tone={line.tone} data-testid="lead-sheet-preview-line">
         {line.words}
       </p>
       {line.said.map((s) => (
-        <p key={s} className="lw-say quiet" data-testid="lead-sheet-preview-said">
+        <p key={s} className="lw-note" data-testid="lead-sheet-preview-said">
           {s}
         </p>
       ))}
-      <div className="lw-take">
+      <div className="lw-seq-foot">
         {line.make ? (
           <Button
             size="sm"
@@ -79,7 +77,7 @@ export function SheetPreview({ leadId }: { leadId: string }) {
         ) : null}
       </div>
       {refused ? (
-        <p className="lw-say quiet" role="alert" data-testid="lead-sheet-preview-refused">
+        <p className="lw-note" role="alert" data-testid="lead-sheet-preview-refused">
           {refused}
         </p>
       ) : null}

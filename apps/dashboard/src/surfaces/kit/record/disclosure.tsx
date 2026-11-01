@@ -21,6 +21,10 @@
  * `look="group"` is a group of a page's rail (a person's Messages and receptionist, canvas A's "fold with a summary"):
  * no inset of its own, its name a group's heading, and `summary` one line under it saying what it holds, which fades
  * while it is open, so nothing is said twice.
+ *
+ * `look="row"` is one row of a list of properties (the lead sheet's five lines): no inset, a hairline between rows, its
+ * label in a column, and `value` beside it saying the row's answer closed. A list that keeps one row open holds it
+ * itself: `open` says whether it is, and `onToggle` asks to turn it.
  */
 import type { ReactNode } from "react";
 import { useRememberedOpen } from "./remember";
@@ -32,8 +36,13 @@ interface RecordDisclosureProps {
   mark?: ReactNode;
   /** One line under the press while it is closed: what it holds, said short. */
   summary?: ReactNode;
-  /** A sheet's folded line (the default), or a group of a page's rail. */
-  look?: "line" | "group";
+  /** What a row says closed, beside its label (`look="row"`). */
+  value?: ReactNode;
+  /** A sheet's folded line (the default), a group of a page's rail, or a row of a list of properties. */
+  look?: "line" | "group" | "row";
+  /** Held by the page, which keeps one row of a list open: whether this one is, and the press that asks to turn it. */
+  open?: boolean;
+  onToggle?: () => void;
   forceOpen?: boolean;
   /** The tab remembers that the member left it open, by `id`; off, it starts closed every time it is drawn. */
   remember?: boolean;
@@ -44,16 +53,16 @@ interface RecordDisclosureProps {
 /** A line that opens onto what it holds. */
 export function RecordDisclosure(props: RecordDisclosureProps) {
   const { id, label, mark = null, summary = null, look = "line", forceOpen = false, testid = null } = props;
-  const { children = null, remember = false } = props;
+  const { children = null, remember = false, value = null, onToggle } = props;
   const [chosen, choose] = useRememberedOpen(remember ? id : null);
-  const open = chosen || forceOpen;
+  const open = props.open ?? (chosen || forceOpen);
   const pressId = `${id}-press`;
   const panelId = `${id}-panel`;
   return (
     <div
       className="rec-disclosure"
       data-open={open ? "true" : "false"}
-      data-look={look === "group" ? "group" : undefined}
+      data-look={look === "line" ? undefined : look}
       data-testid={testid || undefined}
     >
       <button
@@ -63,11 +72,13 @@ export function RecordDisclosure(props: RecordDisclosureProps) {
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => {
-          if (!(remember && forceOpen)) choose(!chosen);
+          if (onToggle) onToggle();
+          else if (!(remember && forceOpen)) choose(!chosen);
         }}
         data-testid={testid ? `${testid}-press` : undefined}
       >
         <span className="rec-disclosure-label">{label}</span>
+        {value ? <span className="rec-disclosure-value">{value}</span> : null}
         {mark ? <span className="rec-disclosure-mark">{mark}</span> : null}
         <Icon name="chevron" size={12} />
       </button>

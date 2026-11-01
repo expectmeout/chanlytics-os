@@ -2525,6 +2525,37 @@ a.more-item {
 .rec-disclosure[data-look="group"][data-open="true"] .rec-disclosure-inner {
   padding: 0;
 }
+/* A row of a list of properties (`look="row"`, the lead sheet's five lines): no inset, a hairline between rows, its label
+   in the row's own column and its answer beside it in ink, a 44px press on a phone. */
+.rec-disclosure[data-look="row"] {
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+.rec-disclosure[data-look="row"] + .rec-disclosure[data-look="row"] {
+  border-top: 1px solid var(--line);
+}
+.rec-disclosure[data-look="row"] .rec-disclosure-press {
+  min-height: 40px;
+  padding: 0;
+  gap: var(--space-2);
+}
+.rec-disclosure[data-look="row"] .rec-disclosure-label {
+  flex: 0 0 72px;
+  color: var(--ink-dim);
+}
+.rec-disclosure-value {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--ink);
+}
+.rec-disclosure[data-look="row"][data-open="true"] .rec-disclosure-inner {
+  gap: var(--space-2);
+  padding: 0 0 var(--space-3);
+}
 .rec-disclosure-sum {
   max-height: 5lh;
   margin: 0;
