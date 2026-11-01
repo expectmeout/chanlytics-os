@@ -1,7 +1,7 @@
 /* Today on a phone (the phone canvas, 28 Oct 2026; docs/superpowers/specs/2026-10-28-today-on-a-phone-design.md), and the
-   parts a desk now draws too (the redesign of 1 Nov 2026): Listen at the end of the head's sentence, the warnings under
-   the head, Need you's card, the day, Today so far with Worth a look and the week, setting up, and the end. The desk's
-   bento is dashboard-a-v2.css's. Every value a token. */
+   parts a desk now draws too (the redesign of 1 Nov 2026): why Listen could not speak, the warnings under the head, Need
+   you's card, the day, Today so far with Worth a look and the week, setting up, and the end. The desk's bento is
+   dashboard-a-v2.css's. Every value a token. */
 
 /* One column, 12px between the parts, where the desk's bento is a grid of twelve. */
 .main-scroll > .dash-a-v2-glass.dash-a-v2-phone {
@@ -10,13 +10,8 @@
   gap: var(--space-3);
 }
 
-/* ---- Listen, at the end of the head's one sentence (pages/today-head.tsx; the redesign of 1 Nov 2026), on a desk and a phone
-   alike: the kit's small secondary button a space after the words, on their line where it fits; and why it could not
-   speak, on a line of its own under them. ---- */
-.today-listen {
-  margin-inline-start: var(--space-2);
-  vertical-align: middle;
-}
+/* ---- Why Listen could not speak, on a line of its own under the head's sentence (pages/today-head.tsx). Listen itself
+   stands beside the greeting on a desk and beside the bell on a phone: the kit head's place for it (kit.css .pg-beside). */
 .today-listen-why {
   display: block;
   margin-top: var(--space-1);
@@ -55,11 +50,67 @@
   min-width: 0;
 }
 
-/* ---- Need you's card: Ask's words cut to two lines, Read beside whose they are, and the signature the sheet shows. ---- */
+/* ---- Need you on a phone (the canvas of 1 Nov 2026): no pane of its own. The chips under the head, then each group's
+   name over a pane of its own (need-you/groups.tsx `pane`), its rows edge to edge with a hairline between two of them
+   from where the words begin; To do and Ask found one pane of two rows at the foot (queue.tsx footLines). One block of
+   space between the parts, none inside a pane but its rows' own. ---- */
+.dash-a-v2 .today-queue[data-phone] {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+.dash-a-v2 .today-queue[data-phone]::after {
+  display: none;
+}
+.today-queue[data-phone] .ny-groups {
+  gap: 22px;
+}
+.today-queue[data-phone] .ny-group-head {
+  padding: 0 6px 8px;
+}
+.dash-a-v2 .today-queue[data-phone] .ny-pane > .cl-attn-row {
+  position: relative;
+  padding: 13px 16px 13px 14px;
+  border-top: 0;
+}
+.dash-a-v2 .today-queue[data-phone] .ny-pane > .cl-attn-row:has(> .cl-attn-work) {
+  padding: 16px 16px 14px 14px;
+}
+.today-queue[data-phone] .ny-pane > * + .cl-attn-row::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 62px;
+  height: 1px;
+  background: var(--line);
+}
+/* To do and Ask found, a row each in their pane: the glyph a tile, the name over what it holds, how many, the chevron. */
+.today-queue[data-phone] .ny-foot-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+}
+.today-queue[data-phone] .ny-foot-lines > .ny-more + .ny-more {
+  border-top: 1px solid var(--line);
+}
+.today-queue[data-phone] .ny-more > .ny-line {
+  padding: 12px 16px 12px 14px;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+
+/* ---- Need you's card: Ask's words to four lines (Edit opens them whole, in the sheet), and the signature the sheet shows. ---- */
 .today-queue[data-phone] .cl-attn-work .ny-words,
 .today-queue[data-phone] .cl-attn-work .ny-said {
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }

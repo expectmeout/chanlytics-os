@@ -360,6 +360,31 @@ test("a quiet day says what is listening in the head's sentence, and draws no li
   assert.equal(buttonsSaying(page, "earlier conversation").length, 0);
 });
 
+test("Listen stands beside the greeting, the kit head's `beside`, never at the sentence's end (the canvases of 1 Nov 2026)", () => {
+  // Ask's voice, as the bridge publishes it: the device can speak, so Listen is drawn.
+  globalThis.window.__ask = {
+    canSpeak: () => true,
+    state: () => "idle",
+    watchSpeech: () => () => {},
+    speak: async () => {},
+    stopSpeaking() {},
+  };
+  globalThis.__ask = globalThis.window.__ask;
+  try {
+    const conv = conversation("cv1", "Rosa Díaz", [msg({ created_at: "2026-09-06T12:00:00Z" })]);
+    setSurfaceValue("today", toTodayVM(metrics(), [conv], [], [], NOW));
+    fresh();
+    again(() => HeadProbe());
+    const said = standingSaid();
+    const listen = find(said.beside, (n) => n.props?.["data-testid"] === "today-listen");
+    assert.ok(listen, "Listen, beside the greeting (a phone's frame stands it beside the bell)");
+    assert.ok(!find(said.sentence, (n) => n.props?.["data-testid"] === "today-listen"), "not in the sentence");
+  } finally {
+    delete globalThis.window.__ask;
+    delete globalThis.__ask;
+  }
+});
+
 /** A workspace's Setup read, as the surface publishes it (surfaces/setup/surface.ts): Setup's own view model over a DTO. */
 const setupSurface = (over = {}) => {
   const dto = {

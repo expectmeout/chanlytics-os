@@ -4,8 +4,9 @@
  * need-you-groups.ts: a reply your receptionist sends on its own, then a reply window that shuts within two hours, else
  * the oldest wait under a week); who else waits on you, oldest first; what waits for your OK (the runs waiting for a word,
  * the very rows the Inbox's Needs you draws, surfaces/waits/wait-rows.tsx, and a search's question); and whoever has
- * waited past a week, folded at the end with Mark all done. A strip over them cuts them by what each asks of you (Reply,
- * Call, Approve) where more than one does. At the foot, a line each that opens in place: To do, your own to-dos, and Ask
+ * waited past a week, folded at the end with Mark all done. Chips over them cut them by what each asks of you (Reply,
+ * Call, Approve) where more than one does. On a phone Need you has no pane of its own: each group's name stands over a
+ * pane of its own, and To do and Ask found are one pane of two rows (the canvas of 1 Nov 2026). At the foot, a line each that opens in place: To do, your own to-dos, and Ask
  * found, what is worth a look and waits on nobody (need-you/groups.tsx). What Ask prepared and the one thing that cannot
  * wait are said by the head's sentence (need-you/head-say.ts), which said the count again over a second line here.
  *
@@ -32,6 +33,7 @@ import {
 import { Button } from "../../kit/button/button";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
+import { Panel } from "../../kit/panel/panel";
 import { SubTabs, type SubTab } from "../../kit/sub-tabs/sub-tabs";
 import { needsYouOnToday, useNeedsYouParts } from "../../needs-you";
 import { surfaceValue } from "../../surface-values";
@@ -232,10 +234,25 @@ function cutOf(groups: NeedYouGroups<TodayQueueRowVM>, runs: readonly ReactEleme
   return { tabs, by, shown, runs: by === "all" || by === "approve" ? runs : [] };
 }
 
-/** The strip over the rows, where there is one: the kit's sub-tabs, as the Inbox's buckets are. Called, not drawn. */
+/**
+ * To do and Ask found at Need you's foot: on a phone one pane of the two, a row each (the canvas of 1 Nov 2026); on a desk
+ * a line each, side by side. Called, not drawn.
+ */
+function footLines(phone: boolean, lines: ReactElement) {
+  return phone ? (
+    <Panel size="flush" className="ny-foot-lines ny-pane">
+      {lines}
+    </Panel>
+  ) : (
+    <div className="ny-foot-lines">{lines}</div>
+  );
+}
+
+/** The strip over the rows, where there is one: the kit's sub-tabs as chips (the canvas of 1 Nov 2026). Called, not drawn. */
 function cutStrip(tabs: SubTab[] | null, by: Cut, onCut: (cut: Cut) => void) {
   return tabs ? (
     <SubTabs
+      look="chips"
       label={NEED_YOU_WORDS.filter.label}
       value={by}
       tabs={tabs}
@@ -252,19 +269,27 @@ function cutStrip(tabs: SubTab[] | null, by: Cut, onCut: (cut: Cut) => void) {
 function groupsDrawn(shown: Shown, runs: readonly ReactElement[], ctx: NeedYouRowsCtx) {
   const W = NEED_YOU_WORDS.group;
   const ok = shown.ok.length + runs.length;
+  // On a phone each group is a pane of its own under its name (the canvas of 1 Nov 2026); on a desk, rows in Need you's.
+  const pane = !!ctx.phone;
   return [
     shown.next.length ? (
-      <NeedYouGroup key="next" title={W.next} count={null} testid="today-group-next">
+      <NeedYouGroup key="next" title={W.next} count={null} pane={pane} testid="today-group-next">
         {needYouRows(shown.next, ctx)}
       </NeedYouGroup>
     ) : null,
     shown.waiting.length ? (
-      <NeedYouGroup key="waiting" title={W.waiting} count={shown.waiting.length} testid="today-group-waiting">
+      <NeedYouGroup
+        key="waiting"
+        title={W.waiting}
+        count={shown.waiting.length}
+        pane={pane}
+        testid="today-group-waiting"
+      >
         {needYouRows(shown.waiting, ctx)}
       </NeedYouGroup>
     ) : null,
     ok ? (
-      <NeedYouGroup key="ok" title={W.ok} count={ok} testid="today-group-ok">
+      <NeedYouGroup key="ok" title={W.ok} count={ok} pane={pane} testid="today-group-ok">
         {[...needYouRows(shown.ok, ctx), ...runs]}
       </NeedYouGroup>
     ) : null,
@@ -274,6 +299,7 @@ function groupsDrawn(shown: Shown, runs: readonly ReactElement[], ctx: NeedYouRo
         title={W.old}
         count={shown.old.length}
         act={<OldDone rows={shown.old} flash={ctx.flash} />}
+        pane={pane}
         testid="today-group-old"
       >
         {needYouRows(shown.old, ctx)}
@@ -445,11 +471,14 @@ const TodayQueue = ({ vm }: { vm: TodayVM }) => {
         {empty ? queueEmpty(vm) : null}
       </div>
       {queueFoot({ rows: vm.queue.more_people, runs: runs.cut, sends: sendsUndrawn }, nav)}
-      <div className="ny-foot-lines">
-        {/* Nothing waits: To do is the work, open from the start. */}
-        <ToDoLine word={word} startOpen={!drawnAny} queueHolds={holdsCoral} />
-        <AskFoundLine found={groups.found} calls={vm.queue.calls} ctx={ctx} />
-      </div>
+      {footLines(
+        phone,
+        <>
+          {/* Nothing waits: To do is the work, open from the start. */}
+          <ToDoLine word={word} startOpen={!drawnAny} queueHolds={holdsCoral} />
+          <AskFoundLine found={groups.found} calls={vm.queue.calls} ctx={ctx} />
+        </>,
+      )}
       {phone ? queueWalk(order, { walk, setWalk }, ctx, toDo) : null}
       {toastNode}
     </section>

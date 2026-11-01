@@ -1271,6 +1271,19 @@ const kitSubtabsCapsule = (name, labels, on = 0) =>
     .join("") +
   "</div></div>";
 
+/** A list's few cuts as chips (SubTabs look="chips"): Base UI's tablist, each tab a capsule of its words and its figure. */
+const kitSubtabsChips = (name, tabs, on = 0) =>
+  `<div class="subtabs-stand"><div role="tablist" aria-label="${name}" class="subtab-chips">` +
+  tabs
+    .map(
+      ([label, count], at) =>
+        `<button type="button" role="tab" aria-selected="${at === on}" aria-disabled="false" ` +
+        `tabindex="${at === on ? 0 : -1}" class="subtab-chip">${label}` +
+        `${count === undefined ? "" : `<span class="subtab-count">${count}</span>`}</button>`,
+    )
+    .join("") +
+  "</div></div>";
+
 /** The phone's places, as the frame hands them to TabBar (surfaces/frame/phone-tabs.tsx PHONE_TABS): each word with its glyph. */
 const TAB_BAR_PLACES = [
   ["Today", "home"],
@@ -1927,7 +1940,7 @@ export const FAMILIES = [
   {
     family: "Sub-tabs, on Base UI",
     about:
-      "A page's own sub-menu, SubTabs (surfaces/kit/sub-tabs/sub-tabs.tsx): Base UI's tabs as small text tabs on a line under the strip of views, the picked one in ink with a bar that is the Tabs' indicator, a plain figure beside a word that has one; a strip that is quiet on a phone, which keeps only the warn tab's figure; a dense one for a desk pane with more tabs than room; a dot after the words where something there is new to the reader; a glyph before the words; and a pane's few tabs as the segmented capsule (look=\"capsule\": a lead sheet's), still tabs to a screen reader, sharing the row.",
+      "A page's own sub-menu, SubTabs (surfaces/kit/sub-tabs/sub-tabs.tsx): Base UI's tabs as small text tabs on a line under the strip of views, the picked one in ink with a bar that is the Tabs' indicator, a plain figure beside a word that has one; a strip that is quiet on a phone, which keeps only the warn tab's figure; a dense one for a desk pane with more tabs than room; a dot after the words where something there is new to the reader; a glyph before the words; a pane's few tabs as the segmented capsule (look=\"capsule\": a lead sheet's), still tabs to a screen reader, sharing the row; and a list's few cuts as chips (look=\"chips\": Today's Need you), the picked one filled in the ink.",
     entries: [
       {
         id: "subtabs",
@@ -2000,6 +2013,10 @@ export const FAMILIES = [
         ),
       },
       { id: "subtabs-capsule", html: kitSubtabsCapsule("About this lead", ["Why", "Contact", "Sequence"]) },
+      {
+        id: "subtabs-chips",
+        html: kitSubtabsChips("Need you, by what it asks of you", [["All"], ["Reply", 3], ["Call", 1], ["Approve", 1]]),
+      },
     ],
   },
   {
@@ -2950,7 +2967,8 @@ export const FAMILIES = [
     family: "Page head",
     about:
       "The kit's page head (surfaces/kit/head/page-head.tsx): the date and time in the mono face, the page's name light " +
-      "and large, and beside it the one sentence that says where the page stands. A page draws it in Glass alone, " +
+      "and large, and beside it the one sentence that says where the page stands; and the page's one quiet act after the " +
+      "name on its line (Today's Listen). A page draws it in Glass alone, " +
       "inside Glass; Classic's top bar carries the name.",
     entries: [
       {
@@ -2966,6 +2984,14 @@ export const FAMILIES = [
           `<header class="pg-head pg-head-stacked"><p class="pg-dateline">Friday, October 2<span class="pg-dateline-time"> · 4:02 PM</span></p>` +
           `<div class="pg-line"><h1 class="pg-title">Good afternoon, Marisa</h1>` +
           `<p class="pg-sentence"><b>3 need you.</b> Ask drafted 2 replies, and Sam's reply window closes at 5:10 PM.</p></div></header>`,
+      },
+      {
+        id: "page-head-beside",
+        html:
+          `<header class="pg-head pg-head-stacked"><p class="pg-dateline">Friday, October 2<span class="pg-dateline-time"> · 4:02 PM</span></p>` +
+          `<div class="pg-line"><div class="pg-titled"><h1 class="pg-title">Good afternoon, Marisa</h1>` +
+          `<span class="pg-beside"><button type="button" class="btn btn-sm">Listen</button></span></div>` +
+          `<p class="pg-sentence"><b>3 need you.</b> Ask drafted 2 replies.</p></div></header>`,
       },
       {
         id: "page-bartitle",

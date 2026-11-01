@@ -353,3 +353,119 @@ test("a call back that has waited past a week says first that it may be let go; 
   assert.ok(textOf(work(NEED_YOU_OLD_MS + DAY_MS)).includes(NEED_YOU_WORDS.staleCall), "Ask's word, before its notes");
   assert.ok(!textOf(work(DAY_MS)).includes(NEED_YOU_WORDS.staleCall), "a call back under a week is simply owed");
 });
+
+test("on a phone each group of Need you is a pane of its own under its name, the cuts are chips, To do and Ask found one pane; a desk's are rows in Need you's pane", () => {
+  phone = true;
+  set(twoWaiting());
+  const queue = draw(AgentCommand);
+  const groups = all(queue, (n) => classes(n).includes("ny-group"));
+  assert.ok(groups.length > 0, "the groups");
+  for (const g of groups)
+    assert.ok(
+      find(g, (n) => classes(n).includes("ny-pane") && classes(n).includes("panel-flush")),
+      "each a kit pane of its own, its rows edge to edge",
+    );
+  assert.ok(
+    find(queue, (n) => classes(n).includes("ny-foot-lines") && classes(n).includes("panel")),
+    "To do and Ask found in one pane",
+  );
+  phone = false;
+  const desk = draw(AgentCommand);
+  assert.equal(
+    find(desk, (n) => classes(n).includes("ny-pane")),
+    null,
+    "a desk's groups are rows in Need you's pane",
+  );
+  phone = true;
+});
+
+test("the cuts over Need you are the kit's chips, the picked one All, on a desk and a phone", () => {
+  // Two verbs ask (a reply, an approval), so the cuts are drawn.
+  W.__BROADCASTS = {
+    rows: [
+      {
+        id: "b-wait",
+        name: "Win-back",
+        state: "pending_approval",
+        playbook_id: null,
+        audience: { kind: "segment", label: "Quiet" },
+        recipient_count: 3,
+        scheduled_for: new Date(Date.now() + 2 * 3_600_000).toISOString(),
+        started_at: null,
+        when: "today 6:00 PM",
+        counts: { sent: 0, replied: 0 },
+      },
+    ],
+  };
+  try {
+    for (const width of [true, false]) {
+      phone = width;
+      set(twoWaiting());
+      const strip = find(draw(AgentCommand), (n) => typeof n.type === "function" && n.type.name === "SubTabs");
+      assert.ok(strip, "the cuts");
+      assert.equal(strip.props.look, "chips");
+      assert.equal(strip.props.value, "all");
+    }
+  } finally {
+    delete W.__BROADCASTS;
+    phone = true;
+  }
+});
+
+test("on a phone's card Ask's reply is read where it stands, and Edit beside Send opens the walk on it", () => {
+  phone = true;
+  // Sofia wrote an hour ago on WhatsApp: the window is open, so Ask's reply can be sent from the card.
+  // A thread of its own: the drafts the tab holds outlive a test, and an earlier one read Sofia's and was refused.
+  const open = thread(
+    "cv-w",
+    "Sofia Reyes",
+    [msg("w1", "What would six of us cost for a wedding?", "2026-09-18T19:00:00Z")],
+    { state: "needs_human", last_wa_inbound_at: "2026-09-18T19:00:00Z" },
+  );
+  const held = { ...sofiaHeld(), id: "e-w", conversation_id: "cv-w" };
+  const vm = toTodayVM(metrics(), [open, waiting()], [held, escalation()], [], NOW);
+  const first = vm.queue.rows[0];
+  setSurfaceValue("reply_drafts", {
+    complete: true,
+    fetchedAt: NOW.getTime(),
+    drafts: [
+      {
+        conversation_id: first.conversationId,
+        kind: "reply",
+        for_message_id: first.writes.for_message_id,
+        words: { text: "Six of us is $540 for the wedding package.", subject: "", asks: [], brief: null },
+        made_at: NOW.toISOString(),
+      },
+    ],
+  });
+  try {
+    set(vm);
+    const queue = draw(AgentCommand);
+    const card = byTestId(rowsOf(queue, "handoff")[0], "queue-handoff-work");
+    assert.ok(textOf(card).includes("Six of us is $540"), textOf(card));
+    assert.equal(
+      find(card, (n) => classes(n).includes("ny-read")),
+      null,
+      "no Read in the draft's head",
+    );
+    const draft = find(card, (n) => classes(n).includes("ny-draft"));
+    assert.ok(
+      classes(draft.rendered ?? draft).includes("panel-inset") || draft.props.variant === "inset",
+      "the inset's ground",
+    );
+    const edit = find(card, (n) => n.type === "button" && textOf(n) === "Edit");
+    assert.ok(edit, "Edit, beside Send");
+    assert.ok(
+      find(card, (n) => n.type === "button" && textOf(n) === "Send"),
+      "and Send",
+    );
+    press(edit);
+    const walk = find(
+      again(() => W.React.createElement(AgentCommand, {})),
+      (n) => typeof n.type === "function" && n.type.name === "WalkSheet",
+    );
+    assert.equal(walk.props.at, first.id, "the walk, open on this row");
+  } finally {
+    setSurfaceValue("reply_drafts", undefined);
+  }
+});

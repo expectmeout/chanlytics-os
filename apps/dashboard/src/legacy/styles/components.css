@@ -2834,6 +2834,20 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
     top: 10px;
     height: 32px;
   }
+  /* The page's quiet act in the date's row, beside the bell (frame-head.tsx PageDateline; the Today canvas, 1 Nov 2026:
+     Listen): the date's place reaches across to the bell, the date at its left and the act at its right, and takes
+     presses there as the way back does. */
+  .pg-dateline-slot:has(> .pg-date-act) {
+    right: calc(var(--gutter-page) + 40px);
+    justify-content: space-between;
+    gap: var(--space-2);
+  }
+  .pg-date-act {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    pointer-events: auto;
+  }
   .frame-top > .topbar .tbn-wrap {
     position: absolute;
     top: 10px;

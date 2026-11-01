@@ -28,6 +28,12 @@ interface Standing {
   stacked?: boolean;
   /** The page's own act, at the right of the row of views; the frame's act where the page names none. */
   act?: ReactNode;
+  /**
+   * What stands beside the name: the page's one quiet act of its own (Today's Listen). On a phone it stands in the date's
+   * row, beside the bell, where the name has no room for it and the sentence under it no break (the Today canvas, 1 Nov
+   * 2026: Listen ended the sentence and stood a capsule's height over its second line).
+   */
+  beside?: ReactNode;
   /** The way back, above the name on a desk and in the date's place on a phone: the crumb before the last where unsaid; null
    *  for none. */
   back?: BackWay | null;

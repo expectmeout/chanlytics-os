@@ -17,6 +17,7 @@ import { commitVerb, undoVerb } from "@/legacy-bridge/verbs/commit";
 import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
+import { Panel } from "../../kit/panel/panel";
 import { surfaceValue } from "../../surface-values";
 import { useSurface } from "../../use-surface";
 import { askMorningOverride } from "../ask-morning-surface";
@@ -28,17 +29,22 @@ import { canDo, gate, useMoved, type Flash } from "../shell";
 import { ideaRows, needYouRows, type NeedYouExtrasCtx, type NeedYouRowsCtx } from "./people-rows";
 import { reviewsToAnswer } from "./reviews";
 
-/** A group of Need you's rows under its small head: its words, how many, and its one act where it has one. */
+/**
+ * A group of Need you's rows under its small head: its words, how many, and its one act where it has one. On a phone its
+ * rows are a pane of their own under the head (`pane`; the canvas of 1 Nov 2026), on a desk rows in Need you's pane.
+ */
 export function NeedYouGroup({
   title,
   count,
   act = null,
+  pane = false,
   testid,
   children,
 }: {
   title: string;
   count: number | null;
   act?: ReactNode;
+  pane?: boolean;
   testid: string;
   children: ReactNode;
 }) {
@@ -52,7 +58,13 @@ export function NeedYouGroup({
         {count !== null ? <span className="ny-group-n tabular">{count}</span> : null}
         {act}
       </div>
-      <div className="tq-list">{children}</div>
+      {pane ? (
+        <Panel size="flush" className="tq-list ny-pane">
+          {children}
+        </Panel>
+      ) : (
+        <div className="tq-list">{children}</div>
+      )}
     </div>
   );
 }

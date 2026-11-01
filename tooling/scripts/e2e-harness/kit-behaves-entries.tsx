@@ -1015,6 +1015,27 @@ function SubTabsKitCapsule() {
   );
 }
 
+/** A list's four cuts as chips (Today's Need you), All picked, a figure on each cut that has one. */
+function SubTabsKitChips() {
+  const [on, setOn] = useState("all");
+  return (
+    <Figure id="subtabs-chips" about="the kit's SubTabs, as chips">
+      <SubTabs
+        look="chips"
+        label="Need you, by what it asks of you"
+        value={on}
+        onSelect={setOn}
+        tabs={[
+          { id: "all", label: "All" },
+          { id: "reply", label: "Reply", count: 3 },
+          { id: "call", label: "Call", count: 1 },
+          { id: "approve", label: "Approve", count: 1 },
+        ]}
+      />
+    </Figure>
+  );
+}
+
 /** Fields: a hint, and a unit. */
 function FieldKit() {
   const [link, setLink] = useState("https://example.com/book");
@@ -1111,6 +1132,7 @@ export const ENTRIES: { id: string; Draw: () => ReactElement; closed: boolean }[
   { id: "subtabs-need", Draw: SubTabsKitNeed, closed: true },
   { id: "subtabs-glyph", Draw: SubTabsKitGlyph, closed: true },
   { id: "subtabs-capsule", Draw: SubTabsKitCapsule, closed: true },
+  { id: "subtabs-chips", Draw: SubTabsKitChips, closed: true },
   { id: "field-kit", Draw: FieldKit, closed: true },
   { id: "field-kit-wrong", Draw: FieldKitWrong, closed: true },
   { id: "field-kit-title", Draw: FieldKitTitle, closed: true },

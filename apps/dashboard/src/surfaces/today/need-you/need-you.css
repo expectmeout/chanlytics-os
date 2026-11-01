@@ -5,15 +5,14 @@
    the inset panel, the field, the meter, the menu, the button); this places them and says the words around them. Every
    value is a token. */
 
-/* The strip that cuts Need you (the kit's SubTabs, as the Inbox's buckets): under the head on a desk, across the pane to
-   its edges with the rows' gutter as its sides; at the pane's top on a phone. */
+/* The chips that cut Need you (the kit's SubTabs as chips; the canvas of 1 Nov 2026): under the head on a desk, at the
+   rows' edge; under the page's head on a phone, where Need you has no pane of its own (phone.css). */
 .ny-cuts {
-  --subtabs-side: 18px;
-  margin: 0 -18px 2px;
+  margin: 2px 0 6px;
 }
 @media (max-width: 720px) {
   .ny-cuts {
-    margin: 10px 0 2px;
+    margin: 0;
   }
 }
 
@@ -37,8 +36,14 @@
   color: var(--ink-dim);
 }
 .ny-group-n {
+  font-family: var(--font-mono);
   font-size: var(--text-xs);
+  letter-spacing: 0.08em;
   color: var(--ink-dim);
+}
+/* "Waiting on you · 2", as the canvas says a group's count after its name. */
+.ny-group-n::before {
+  content: "·\00a0";
 }
 .ny-group-act {
   margin-left: auto;

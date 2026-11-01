@@ -188,12 +188,12 @@ export function Words({
     if (open && focusAsDrawn()) box.current?.focus();
   }, [open]);
   const signature = signed ? <Signature signed={signed} onSigned={onSigned} /> : null;
+  // Read where they stand: a viewer's, or a phone's card, whose Edit beside Send opens the sheet that walks the list on it
+  // (reply-work.tsx). The inset's ground, as the canvas sets Ask's words under theirs (1 Nov 2026).
   if (!onChange || onRead)
     return (
-      <Panel variant={onChange ? "field" : "inset"} size="sm" className="ny-draft">
-        <Head mark={<AskMark />} what={what} by={by}>
-          {readDoor(onRead)}
-        </Head>
+      <Panel variant="inset" size="sm" className="ny-draft">
+        <Head mark={<AskMark />} what={what} by={by} />
         <span className="ny-words">{text}</span>
         {signature}
       </Panel>

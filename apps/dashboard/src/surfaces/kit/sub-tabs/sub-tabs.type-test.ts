@@ -23,7 +23,7 @@ function _subTabsTake(glyph: ReactElement): void {
     Holds<Exactly<SubTab["count"], number | undefined>>,
     Holds<Exactly<SubTabsProps["quietCounts"], boolean | undefined>>,
     Holds<Exactly<SubTabsProps["dense"], boolean | undefined>>,
-    Holds<Exactly<SubTabsProps["look"], "capsule" | undefined>>,
+    Holds<Exactly<SubTabsProps["look"], "capsule" | "chips" | undefined>>,
     Holds<Exactly<SubTabsProps["value"], string | null>>,
   ];
   SubTabs({
