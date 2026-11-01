@@ -331,7 +331,7 @@ export function toLeadRowVM(r: LeadRowDto, tz: string, now: Date, search: LeadSe
     source: leadSourceWord(r),
     host: siteHost(r.website) ?? "",
     excludedBy,
-    excludedKey: m.excluded_by ?? null,
+    excludedKey: m.excluded_by,
     version: r.version,
     sub,
     slots: leadSlots(r),

@@ -44,6 +44,9 @@ export const DB_PATHS = [
   "tooling/scripts/tests/reports/campaigns/_*.mjs",
   // and a connected mailbox's world (Vault's doors, Gmail as it answers), which the reach-out stack suites send through
   "tooling/scripts/tests/email/mailboxes/_*.mjs",
+  // and the table's Leads fixture and its goldens, which the Leads read is held to (leads/lead-filters.db.test.mjs, 00500)
+  "tooling/scripts/tests/table/_fixtures.mjs",
+  "tooling/scripts/tests/table/goldens/leads-shown.json",
   // what the suites run against it: the packages that write rows, their sources (the suites read each as the bundle the
   // launcher builds from them, decision 0074)
   "packages/core/**",

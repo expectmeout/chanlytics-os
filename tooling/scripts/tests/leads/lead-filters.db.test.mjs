@@ -50,7 +50,7 @@ const ok = (res) => {
 /** The chip as the page named it in Phase A (its words) and as the read takes it (the criterion's key). */
 const CHIP_KEYS = { Chains: "chains", "Too far": "too_far" };
 
-/** One golden case's filters, as the read takes them (contracts LeadFiltersSchema). */
+/** One golden case's filters, as the read takes them (contracts LeadsQuerySchema's q, excluded_by, fit and reach). */
 const filtersOf = (q, chip, fit, reach) => ({
   ...(q ? { q } : {}),
   ...(chip ? { excluded_by: CHIP_KEYS[chip] } : {}),

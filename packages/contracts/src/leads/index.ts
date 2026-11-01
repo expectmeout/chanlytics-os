@@ -140,7 +140,6 @@ export {
   LeadDraftAnswerSchema,
   LeadDraftInputSchema,
   LeadExportQuerySchema,
-  LeadFiltersSchema,
   LeadOneQuerySchema,
   LeadsBulkSchema,
   LeadsCheckAgainSchema,
@@ -154,7 +153,6 @@ export {
   RenameLeadSearchSchema,
 } from "./lead-plan-schema";
 export type {
-  LeadFilters,
   LeadsBulkInput,
   LeadsCheckAgainInput,
   LeadsQuery,

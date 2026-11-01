@@ -44,7 +44,7 @@ export const leadChipsOf = (n: {
 });
 
 /** The words a view's place keeps (use-place.ts): what its box says again as it opens, and what its read asks. */
-const keptWords = (view: string): string => {
+const placeWordsOf = (view: string): string => {
   const p = placeLoad("leads", view);
   return p && typeof p.q === "string" ? p.q.trim() : "";
 };
@@ -81,8 +81,8 @@ export const useLeadsRead = ({
 }) => {
   // The words the read asks, held with the view they were typed in: a view opened reads with the words its place keeps
   // (the box says them again on the same draw's place), at once and never the last view's; typed words after the wait.
-  const [asked, setAsked] = useState(() => ({ view: viewRoute, q: words.trim() || keptWords(viewRoute) }));
-  const q = asked.view === viewRoute ? asked.q : keptWords(viewRoute);
+  const [asked, setAsked] = useState(() => ({ view: viewRoute, q: words.trim() || placeWordsOf(viewRoute) }));
+  const q = asked.view === viewRoute ? asked.q : placeWordsOf(viewRoute);
   useEffect(() => {
     const t = setTimeout(() => setAsked({ view: viewRoute, q: words.trim() }), WORDS_READ_MS);
     return () => clearTimeout(t);

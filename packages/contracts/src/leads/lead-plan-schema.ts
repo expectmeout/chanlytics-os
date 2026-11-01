@@ -48,7 +48,7 @@ import { LeadPeoplePlanSchema } from "./search/people-plan-schema";
  * the box's words, the criterion that left a lead out, a fit, and the reaches the Filter asks. A query says the reaches
  * as one field, `email,phone`; a body as a list; either way they arrive each once, in the set's order.
  */
-export const LeadFiltersSchema = z.object({
+const LeadFiltersSchema = z.object({
   q: z.string().trim().max(LEAD_WORDS_MAX).optional(),
   excluded_by: z.string().regex(LEAD_CRITERION_KEY).optional(),
   fit: z.enum(LEAD_FITS).optional(),
@@ -63,8 +63,6 @@ export const LeadFiltersSchema = z.object({
     })
     .optional(),
 });
-
-export type LeadFilters = z.infer<typeof LeadFiltersSchema>;
 
 export const LeadsQuerySchema = z.object({
   list: z.enum(LEAD_LISTS).default("all"),
