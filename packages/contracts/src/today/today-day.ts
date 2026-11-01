@@ -438,15 +438,10 @@ const VISITS_ASKED_WORDS = {
   calendar: "on the Calendar",
 } as const;
 
-/** Visits to mark in a count, for the queue's head: "3 appointments to mark". */
+/** Visits to mark in a count, for To do's line: "3 appointments to mark". */
 export function todayVisitsSub(n: number, word: AppointmentWord): string {
   const W = appointmentWords(word);
   return `${n} ${n === 1 ? W.one : W.many} to mark`;
-}
-
-/** The visits the card could not hold, with the door's name: "3 appointments to mark on the Calendar". */
-export function todayVisitsFoot(n: number, word: AppointmentWord): string {
-  return `${todayVisitsSub(n, word)} ${VISITS_ASKED_WORDS.calendar}`;
 }
 
 /**

@@ -5,7 +5,7 @@
  * The rules of which tab a row is in and of the address are cv-rules.ts. Rows are picked for an act over several as
  * the Inbox's are, by the same parts (pick.tsx): the box over the face, the select-all, the bar, the keys.
  */
-import { BAR_LINE_WORDS, mmss } from "@chanlytics/contracts";
+import { BAR_LINE_WORDS, mmss, THREAD_PANE_WORDS } from "@chanlytics/contracts";
 import { useEffect, useMemo, useReducer, useRef, useState, type KeyboardEvent } from "react";
 import { useHeldList } from "../../kit/motion/held-list";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
@@ -228,10 +228,19 @@ function callHead(c: ConversationRow, onBack: (() => void) | null) {
         <div className="ix-th-actions">
           <Menu
             trigger={
-              <Button variant="quiet" size="sm" className="ix-th-more" title="Actions">
-                Actions <Icon name="chevron-down" size={10} />
+              <Button
+                variant="quiet"
+                size="sm"
+                iconOnly
+                className="ix-th-more"
+                title={THREAD_PANE_WORDS.more}
+                aria-label={THREAD_PANE_WORDS.moreFor(c.who)}
+              >
+                <Icon name="more" size={16} />
               </Button>
             }
+            label={THREAD_PANE_WORDS.moreFor(c.who)}
+            head={{ title: c.who, close: <Icon name="x" size={13} /> }}
             groups={[
               {
                 items: [

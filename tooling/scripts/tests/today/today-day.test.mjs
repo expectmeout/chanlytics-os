@@ -19,13 +19,12 @@ import {
   todayLeaks,
   todayAwayGrouped,
   todaySteps,
-  todayStepsFoot,
   todayStepsSub,
   withSteps,
   withReplies,
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "../_source.mjs";
-import { installLegacyReact, fresh, all, byTestId, textOf } from "../_legacy-react.mjs";
+import { installLegacyReact, fresh, all, byTestId, find, textOf } from "../_legacy-react.mjs";
 
 // The pages the wiring test draws are the TSX surface's (apps/dashboard/src/surfaces/today, decision 0015), on the stub React.
 installLegacyReact({ __DEMO_MODE: false, __surfaceState: () => "live" });
@@ -33,6 +32,7 @@ const { TODAY_HELPERS } = await import("../../../../apps/dashboard/src/surfaces/
 const { HeroBrief } = await import("../../../../apps/dashboard/src/surfaces/today/pages/brief.tsx");
 const { TodayCard, TodayHeadFigures } = await import("../../../../apps/dashboard/src/surfaces/today/pages/card.tsx");
 const { DashboardA } = await import("../../../../apps/dashboard/src/surfaces/today/pages/today-page.tsx");
+const { TodayDay } = await import("../../../../apps/dashboard/src/surfaces/today/pages/day-card.tsx");
 const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
 
 const person = (id, name) => ({ id, name, via: "phone" });
@@ -364,7 +364,7 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
     Object.keys(TODAY_HELPERS),
     [
       "day",
-      "phoneHead",
+      "headLine",
       "dayNote",
       "briefWords",
       "periodLine",
@@ -377,11 +377,9 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
       "awayGrouped",
       "steps",
       "stepsSub",
-      "stepsFoot",
       "withSteps",
       "visitsAsked",
       "visitsSub",
-      "visitsFoot",
       "withVisitsAsked",
       "withReplies",
       "withoutWrongPerson",
@@ -402,7 +400,6 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
     awayGrouped: todayAwayGrouped,
     steps: todaySteps,
     stepsSub: todayStepsSub,
-    stepsFoot: todayStepsFoot,
     withSteps,
   }))
     assert.equal(TODAY_HELPERS[key].name, own.name, `${key} is contracts' ${own.name}`);
@@ -495,18 +492,23 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
   const hero = draw(HeroBrief);
   assert.equal(textOf(hero), "", "the hero says nothing while every line is up: no sentence of the day, no stat cards");
   const card = draw(TodayCard);
-  // A desk draws the four in the head beside the greeting (the page heads canvas, H1, 31 Oct 2026), not in the card.
+  // A desk draws the four in the head beside the greeting (the page heads canvas, H1, 31 Oct 2026); Today so far, which
+  // draws them on a phone, is no pane of a desk's (the redesign of 1 Nov 2026), so they are said once on each.
   assert.ok(byTestId(draw(TodayHeadFigures), "today-figures"), "the day's numbers are the figures");
-  assert.equal(byTestId(card, "today-figures"), null, "said once: the head's on a desk");
+  assert.ok(byTestId(card, "today-figures"), "Today so far's, on a phone");
+  assert.equal(byTestId(draw(DashboardA), "today-card"), null, "said once: the head's on a desk");
   for (const tree of [hero, card]) {
     assert.equal(byTestId(tree, "brief-calendar"), null, "the one-line calendar beat is the module now");
     const parts = all(tree, (n) => typeof n.type === "function").map((n) => n.type.name);
     assert.ok(!parts.includes("CalendarLine") && !parts.includes("DayFacts"), parts.join(", "));
   }
   assert.ok(!("dayLine" in TODAY_HELPERS), "no helper says the day's numbers as a sentence");
-  // The page draws no day pane since canvas E3 (the strip's Next cell says the day); the module stays for the Calendar's
-  // own card, which the calendar tests draw.
-  assert.equal(byTestId(draw(DashboardA), "today-day"), null, "no day pane on the page");
+  // The day is a pane beside the work on a desk, where Your brief stood (the redesign of 1 Nov 2026), drawn from the same
+  // one derivation; the steps due are To do's, at Need you's foot.
+  assert.ok(
+    find(draw(DashboardA), (n) => n.type === TodayDay),
+    "the day stands beside the work, where Your brief stood",
+  );
   delete globalThis.__CALENDAR;
   setSurfaceValue("today", undefined);
   const css = readRaw("apps/dashboard/src/legacy/styles/dashboard-a-v2.css");

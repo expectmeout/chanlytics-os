@@ -11,6 +11,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  TODAY_PHONE_WORDS,
   BROADCAST_STATES,
   DECISION_SUBJECTS,
   DECISION_VERBS,
@@ -610,11 +611,9 @@ test("Ask knows playbooks: read as the page shows them, proposed as a card, comm
     sug.some((x) => x.kind === "act" && x.q === "Start a win-back campaign for the quiet clients"),
     "an Act suggestion on People",
   );
-  const brief = readCode("apps/dashboard/src/surfaces/today/pages/card.tsx");
-  assert.ok(
-    brief.includes('data-testid="brief-run-done"') && brief.includes('{r.playbook_id ? "ran" : "went out"}'),
-    "Today says what went out today",
-  );
+  // Today's day says what went out today, a playbook's run as one that ran (contracts TODAY_PHONE_WORDS, the day's words).
+  assert.equal(TODAY_PHONE_WORDS.wentOut("9:00 AM"), "went out at 9:00 AM");
+  assert.equal(TODAY_PHONE_WORDS.wentOut("9:00 AM", true), "ran at 9:00 AM");
   // The message each channel puts on its wire is broadcast-channels.ts's since step 3; its meta is the one place a run says so.
   const h = readCode("packages/core/src/messages/broadcast-channels.ts");
   assert.ok(

@@ -173,13 +173,14 @@ test("an email's quoted chain is behind a tap, and the bubble says what they wro
   assert.ok(!textOf(shut).includes("testing back at you"), "REGRESSION: the chain filled the bubble");
   const toggle = one(shut, byTestId("tl-msg-quote-toggle"));
   assert.ok(toggle, "there is a way to see it");
-  assert.equal(textOf(toggle).trim(), "···", "three dots, as a mail client keeps the chain");
-  assert.equal(toggle.props["aria-label"], "Show quoted text", "and they say what they open");
+  // A line under their words that says what it folds, as the signature's does (the thread canvas, 1 Nov 2026).
+  assert.equal(textOf(toggle).trim(), "Earlier in the thread", "it says what it opens");
+  assert.equal(toggle.props["aria-expanded"], false);
 
   toggle.props.onClick();
   const open = redraw(dto);
   assert.ok(textOf(open).includes("testing back at you"), "the chain is kept, and opens");
-  assert.equal(one(open, byTestId("tl-msg-quote-toggle")).props["aria-label"], "Hide quoted text");
+  assert.equal(one(open, byTestId("tl-msg-quote-toggle")).props["aria-expanded"], true);
 });
 
 /* ------------------------------ the signature ------------------------------ */
@@ -211,12 +212,56 @@ test("their signature is one quiet line under their words, and the whole of it o
   assert.ok(!textOf(open).includes("Re: test need you"));
 });
 
-test("the thread's subject is said once, in its head, and not over the bubble", () => {
+test("the thread's subject heads its first email, once -- not a chip in the head cut short", () => {
   const tree = draw(
-    conv([msg({ channel: "email", body: "needs you test", meta: { email: { subject: "test need you" } } })]),
+    conv([
+      msg({ channel: "email", body: "needs you test", meta: { email: { subject: "test need you" } } }),
+      ours({ channel: "email", body: "Thanks, Ruben.", meta: { email: { subject: "Re: test need you" } } }),
+    ]),
   );
-  assert.equal(textOf(one(tree, byTestId("ix-th-subject"))).trim(), "test need you");
-  assert.equal(one(tree, byTestId("tl-msg-subject")), undefined, "REGRESSION: the subject stood over every bubble");
+  assert.equal(one(tree, byTestId("ix-th-subject")), undefined, "the head says where the thread stands");
+  const subjects = all(tree, byTestId("tl-msg-subject"));
+  assert.equal(subjects.length, 1, "REGRESSION: the subject stood over every bubble");
+  assert.equal(textOf(subjects[0]).trim(), "test need you");
+});
+
+/* ------------------------------ a long email, and a list's foot ------------------------------ */
+
+// A sales sequence's email, as the thread canvas found it (1 Nov 2026), with made-up values: long, signed, and a tool's
+// foot under it.
+const PITCH =
+  "Hi Ruben,\n\nI lead partnerships with advisory firms here at Northwind. We just published our 2027 audience outlook, " +
+  "and I put together a two-page brief on what it means for firms like yours: where attention is moving, what it costs " +
+  "to reach, and which formats are worth the spend next year. It is short, and I think the second page will interest you.\n\n" +
+  "Would 15 minutes next week be useful? I can walk you through it and leave you the brief, with the numbers behind it.\n\n" +
+  "Best,\nMaya\n\n548 Market Street #16093, San Francisco, CA 94104-5401\n\n" +
+  "If you'd like to stop receiving these emails, let me know https://unsubscribe.example.com/u/abc";
+
+test("a long email is folded to its first lines with the way to the rest, and a list's foot is folded under it", () => {
+  const dto = conv([
+    msg({ channel: "email", body: PITCH, meta: { email: { subject: "2027", from_name: "Maya Chen" } } }),
+  ]);
+  const shut = draw(dto);
+  const body = one(shut, byClass("tl-msg-body"));
+  assert.equal(body.props["data-folded"], "", "folded to its first lines");
+  assert.ok(!textOf(body).includes("Market Street"), "REGRESSION: the tool's address read as her words");
+  const whole = one(shut, byTestId("tl-email-whole"));
+  assert.equal(textOf(whole).trim(), "Show the whole email");
+  const foot = one(shut, byTestId("tl-msg-footer-toggle"));
+  assert.equal(textOf(foot).trim(), "Footer and unsubscribe link");
+  assert.equal(one(shut, byTestId("tl-msg-footer")), undefined, "shut, the foot is one line");
+
+  whole.props.onClick();
+  const open = redraw(dto);
+  assert.equal(one(open, byClass("tl-msg-body")).props["data-folded"], undefined, "opened whole");
+  assert.equal(textOf(one(open, byTestId("tl-email-whole"))).trim(), "Show less");
+  foot.props.onClick();
+  assert.ok(textOf(redraw(dto)).includes("stop receiving these emails"), "the foot is kept, and opens");
+
+  const short = draw(
+    conv([msg({ channel: "email", body: "Friday at 3 works.", meta: { email: { subject: "Fri" } } })]),
+  );
+  assert.equal(one(short, byTestId("tl-email-whole")), undefined, "a short email has nothing to fold");
 });
 
 test("a WhatsApp message that reads like a quote is not one", () => {

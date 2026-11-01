@@ -145,8 +145,9 @@ test("the wiring: every surface reads the one function, and Today's queue is nam
     "Today no longer counts the SQL's open escalations — it counts the threads that need you",
   );
   const page = readCode("apps/dashboard/src/surfaces/today/pages/queue.tsx");
+  // The queue is named for what it holds, its groups for where each row stands (the redesign of 1 Nov 2026).
   assert.ok(
-    page.includes('<span className="tq-title">Need you</span>') && page.includes("vm.queue.parts"),
+    page.includes('className="tq-title"') && page.includes("Need you") && page.includes("needYouGroupsOf(rows)"),
     "the queue says what it holds",
   );
   const brief = readCode("apps/dashboard/src/surfaces/today/pages/brief.tsx");

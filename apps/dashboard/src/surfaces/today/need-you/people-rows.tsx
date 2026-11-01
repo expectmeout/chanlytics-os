@@ -1,14 +1,18 @@
 /**
  * Need you's rows (decision 0071), each in the kit's one row grammar (AttnRow) with its work under its words: the people
- * and the team's own to-dos the queue holds, then Ask's ideas and the reviews to answer. The section's one coral is the
- * first row still open; a row acted on keeps its place for the visit and gives the coral to the next. A row past the
- * first two that is worked in place is drawn short until opened (E8).
+ * and the team's own to-dos, then Ask's ideas and the reviews to answer. Since the redesign of 1 Nov 2026 a row says four
+ * things and no state line: who, what they want behind the glyph of the wire it came by, how long they have waited or when
+ * its clock runs out, and the verb, with Ask's mark where Ask prepared it; why it was handed to you is behind the row's
+ * mark. One row is the focus and draws its work in place (the queue's `focus`: on a phone the card, the first open row;
+ * on a desk the one opened, Up next until another is), its act the page's coral; a row acted on keeps its work, its
+ * receipt and its undo, for the visit; every other row is drawn short and opens itself with its verb.
  */
 import type { ReactElement } from "react";
 import {
-  HOUR_MS,
   NEED_YOU_WORDS as W,
   namesAPerson,
+  needYouVerbOf,
+  needYouWaitOf,
   reviewRoute,
   type AppointmentWord,
   type AskMorningCard,
@@ -16,16 +20,14 @@ import {
   type TodayQueueRowVM,
 } from "@chanlytics/contracts";
 import { AttnRow } from "../../kit/attention/attn-row";
+import { Icon } from "../../kit/icon/icon";
 import { businessTrailFor } from "../../people/business-trail";
 import type { Nav, VerbKind } from "../../waits/wait-rows";
 import type { Flash } from "../shell";
+import { useDraft } from "./drafts";
 import { IdeaWork } from "./idea-work";
 import { ReviewWork, reviewerOf } from "./review-work";
-import { opensToWork, shortLabel, workOf, worksInPlace } from "./rows";
-
-/** Where a row worked in place is drawn short: from the third; on a phone, from the second still open (the phone canvas). */
-const SHORT_FROM = 2;
-const SHORT_FROM_ON_A_PHONE = 1;
+import { draftWantOf, opensToWork, shortLabel, workOf, worksInPlace } from "./rows";
 
 /** What the section hands its rows. */
 export interface NeedYouRowsCtx {
@@ -35,16 +37,20 @@ export interface NeedYouRowsCtx {
   tz: string;
   flash: (f: Flash) => void;
   keep: (row: TodayQueueRowVM) => void;
-  /** The rows acted on this visit, ideas and reviews among them: they keep their place, and the coral passes over them. */
+  /** The rows acted on this visit, ideas and reviews among them: they keep their place, and their work. */
   kept: ReadonlySet<string>;
-  expanded: ReadonlySet<string>;
-  expand: (id: string) => void;
+  /**
+   * The one row drawn open, by its id: on a phone the card, the first row still open; on a desk the one the member opened,
+   * Up next until they open another, or none where they closed it. Its act is the page's coral.
+   */
+  focus: string | null;
+  /** Open a row drawn short: on a desk in place, closing the one open; on a phone in the sheet that walks the list. */
+  open: (rowId: string) => void;
   word: AppointmentWord;
   stepDone: (row: TodayQueueRowVM) => void;
   /**
-   * On a phone (the phone canvas, 28 Oct 2026): one card, the first row still open, whose words are cut to two lines with
-   * Read; every other open row short; and a row opened walks the list in a sheet (`walk`, walk-sheet.tsx) rather than
-   * opening in place or going to its thread. How long each has waited stands beside its name.
+   * On a phone (the phone canvas, 28 Oct 2026): the card's words cut to two lines with Read, which opens the sheet that
+   * walks the list on it (walk-sheet.tsx), as a row drawn short does.
    */
   phone?: { walk: (rowId: string) => void } | null;
 }
@@ -56,57 +62,96 @@ export interface NeedYouExtrasCtx extends NeedYouRowsCtx {
 }
 
 /**
- * The kind of a row's act: the coral for the first row still open, quiet for the rest. A reply of the receptionist's
+ * The kind of a row's act: the coral for the focus still open, quiet for the rest. A reply of the receptionist's
  * counting down never takes it: it goes unless stopped, so its press is Stop, and the coral is for what waits on you.
  */
 function actKindOf(r: { id: string; kind?: TodayQueueRowVM["kind"] }, c: NeedYouRowsCtx): "primary" | "ghost" {
   return c.kept.has(r.id) || r.kind === "held" ? "ghost" : c.verbKind();
 }
 
-/** The queue's rows, worked in place where their kind is. */
+/** The glyph of the wire a row came by, before what they want: the kit's Icon by the words a row shows. */
+const VIA_GLYPH: Record<TodayQueueRowVM["channel"], string> = {
+  WhatsApp: "chat",
+  Text: "chat",
+  Phone: "phone",
+  Email: "mail",
+  Instagram: "instagram",
+  Leads: "search",
+  "Next step": "check",
+  Calendar: "calendar",
+};
+
+/**
+ * A row's verb as a short row draws it: Ask's mark first where its words for the row are ready (a reply drafted, a call's
+ * notes), then the verb. Drawn, since it hears the row's draft as it lands.
+ */
+function VerbWords({ row, may, words }: { row: TodayQueueRowVM; may: boolean; words: string }) {
+  const draft = useDraft(draftWantOf(row), may);
+  return (
+    <>
+      {draft?.state === "ready" ? <Icon name="three" size={13} className="ny-ready" /> : null}
+      {words}
+    </>
+  );
+}
+
+/** Why a row was handed to you and since when, behind its mark: had once, never printed in the line (AttnRow `note`). */
+const whyNoteOf = (r: TodayQueueRowVM): string =>
+  [r.reason, r.since, r.status.find((s) => s.startsWith("reply window closes"))].filter(Boolean).join(" · ");
+
+/** The queue's rows, worked in place where they are the focus, short where they are not. */
 export function needYouRows(rows: readonly TodayQueueRowVM[], c: NeedYouRowsCtx): ReactElement[] {
   const phone = c.phone ?? null;
-  // A phone counts the rows still open: a row acted on keeps its receipt, and the next one open is the card.
-  let worked = 0;
   return rows.map((r) => {
     const face = namesAPerson(r) ? { person: { name: r.who, initials: r.initials } } : { initials: r.initials };
+    // Someone waiting on you says no state line: how long is beside the name and why is behind the row's mark. Your own
+    // to-do keeps its line (a step's day and whom it is for, a visit's "Did they come?"), which is what it says, and so does
+    // a search waiting for your OK, as the runs beside it do ("nothing is spent while it waits").
+    const verb = needYouVerbOf(r);
+    const waits = verb === "reply" || verb === "call";
     const common = {
       ...face,
       name: r.who,
       trail: namesAPerson(r) ? businessTrailFor(r.person_id) : null,
-      meta: [r.channel, r.via, r.when].filter(Boolean).join(", "),
-      wait: phone && r.when ? { words: r.when, long: r.waitedMs >= HOUR_MS } : null,
+      // The wire is the glyph before what they want, and its name is the glyph's words for a screen reader.
+      via: { glyph: VIA_GLYPH[r.channel], words: [r.channel, r.via].filter(Boolean).join(", ") },
+      wait: needYouWaitOf(r, W.held.goesAlone),
       sentence: r.sentence,
       quoted: r.quoted,
       lead: r.lead,
-      // Since when is said once, on a phone and a desk alike: the wait beside the name says how long ("Phone, waited 12d"
-      // over "Needs a call back · since Oct 19, 3:55 PM" said it twice; the refined canvas, 31 Oct 2026).
-      status: r.when && r.since ? r.status.filter((s) => s !== r.since) : r.status,
+      status: waits ? [] : r.status,
+      note: waits ? whyNoteOf(r) : "",
       tone: r.tone,
       testid: `queue-${r.kind}`,
     };
-    // A row of no work of its own keeps its one door: a call worth a listen, a search's question, the rows for the rest.
+    // A row of no work of its own keeps its one door: a call worth a listen, a search's question, a lead who tried.
     if (!worksInPlace(r)) {
-      const kind = actKindOf(r, c);
       return (
         <AttnRow
           key={r.id}
           {...common}
-          cta={{ label: r.cta.label, kind, onClick: () => c.nav(r.cta.to) }}
+          cta={{ label: r.cta.label, kind: "ghost", onClick: () => c.nav(r.cta.to) }}
           also={null}
           onOpen={() => c.nav(r.cta.to)}
         />
       );
     }
-    const kind = actKindOf(r, c);
     const kept = c.kept.has(r.id);
-    const at = phone && kept ? -1 : worked++;
-    if (at >= (phone ? SHORT_FROM_ON_A_PHONE : SHORT_FROM) && opensToWork(r) && !c.expanded.has(r.id) && !kept) {
-      const open = phone ? () => phone.walk(r.id) : () => c.expand(r.id);
+    // Short until opened: a row that opens to be worked and is not the focus, nor acted on this visit.
+    if (opensToWork(r) && r.id !== c.focus && !kept) {
+      const open = () => c.open(r.id);
       return (
-        <AttnRow key={r.id} {...common} cta={{ label: shortLabel(r), kind, onClick: open }} also={null} onOpen={open} />
+        <AttnRow
+          key={r.id}
+          {...common}
+          note=""
+          cta={{ label: <VerbWords row={r} may={c.may} words={shortLabel(r)} />, kind: "ghost", onClick: open }}
+          also={null}
+          onOpen={open}
+        />
       );
     }
+    const kind = actKindOf(r, c);
     // The card on a phone: its words cut to two lines, Read and its own words open the sheet on it.
     const card = !!phone && !kept && opensToWork(r);
     const work = workOf(

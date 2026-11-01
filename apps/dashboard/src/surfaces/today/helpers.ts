@@ -6,15 +6,13 @@
 import {
   todayDay,
   todayDayNote,
-  todayPhoneHead,
+  todayHeadLine,
   todayAwayGrouped,
   todayBriefWords,
   todaySteps,
-  todayStepsFoot,
   todayStepsSub,
   withSteps,
   todayVisitsAsked,
-  todayVisitsFoot,
   todayVisitsSub,
   withVisitsAsked,
   todayLeaks,
@@ -36,8 +34,8 @@ const readings = () => (window as Window & { __REPLIES?: ReachOutRepliesDto | nu
 
 export const TODAY_HELPERS = {
   day: todayDay,
-  // Today on a phone (the phone canvas, 28 Oct 2026): the ladder said as a head, and the line beside the day's date.
-  phoneHead: todayPhoneHead,
+  // The head's one sentence after the greeting, on a desk and a phone alike (the redesign of 1 Nov 2026).
+  headLine: todayHeadLine,
   dayNote: todayDayNote,
   // The brief's words in Glass (canvas E3): who needs you, the day, what came in, the runs waiting.
   briefWords: todayBriefWords,
@@ -50,15 +48,13 @@ export const TODAY_HELPERS = {
   runApproved: todayRunApproved,
   leaks: todayLeaks,
   awayGrouped: todayAwayGrouped,
-  // The steps due (0007, amended): the block, its words in the queue's head and foot, and the queue's rows with them among them.
+  // The steps due (0007, amended): the block, its words in To do's line, and To do's rows with them among them.
   steps: todaySteps,
   stepsSub: todayStepsSub,
-  stepsFoot: todayStepsFoot,
   withSteps,
-  // Yesterday's visits nobody has marked (0047): the block, its words in the queue's head and foot, and the queue's rows with them among them.
+  // Yesterday's visits nobody has marked (0047): the block, its words in To do's line, and To do's rows with them among them.
   visitsAsked: todayVisitsAsked,
   visitsSub: todayVisitsSub,
-  visitsFoot: todayVisitsFoot,
   withVisitsAsked,
   // The queue's handoffs whose thread's reply to a reach-out was read, as that reply's row (Reach out Part 5, PR 8).
   withReplies: (rows: TodayQueueRowVM[]) => withReplies(rows, readings()),

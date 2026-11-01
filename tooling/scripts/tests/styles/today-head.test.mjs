@@ -1,14 +1,14 @@
 /**
  * What Glass puts above Today (surfaces/today/pages/today-head.tsx, the plan's step 5.4, canvas E3): the greeting by the
  * hour in the business's zone to the member's first name (said by Today's address from the frame's first draw,
- * surfaces/today/chrome.ts), and the day's standing as one sentence made of the view model's own words.
+ * surfaces/today/chrome.ts), stacked over its one sentence (what that sentence says is contracts' todayHeadLine, held by
+ * today-phone-words.test.mjs, and how the page tells it, by today-page.test.mjs).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { installLegacyReact } from "../_legacy-react.mjs";
 
 installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
-const { todayStanding } = await import("../../../../apps/dashboard/src/surfaces/today/pages/today-head.tsx");
 const { todayGreeting } = await import("../../../../apps/dashboard/src/surfaces/today/chrome.ts");
 const { PageHead } = await import("../../../../apps/dashboard/src/surfaces/kit/head/page-head.tsx");
 
@@ -31,25 +31,6 @@ test("a member with no name is greeted without one", () => {
   assert.equal(todayGreeting(AFTERNOON, ZONE, null), "Good afternoon");
   assert.equal(todayGreeting(AFTERNOON, ZONE, "   "), "Good afternoon");
   assert.equal(todayGreeting(AFTERNOON, ZONE, undefined), "Good afternoon");
-});
-
-test("the standing is the headline and its detail, each a sentence", () => {
-  assert.equal(
-    todayStanding({
-      headline: "2 conversations need you.",
-      detail: "The oldest has been waiting since 2:26 PM.",
-    }),
-    "2 conversations need you. The oldest has been waiting since 2:26 PM.",
-  );
-  assert.equal(
-    todayStanding({ headline: "One conversation needs you", detail: "Ana has been waiting since 2:26 PM." }),
-    "One conversation needs you. Ana has been waiting since 2:26 PM.",
-    "the singular headline has no full stop of its own",
-  );
-  assert.equal(
-    todayStanding({ headline: "Nothing has come in yet today.", detail: null }),
-    "Nothing has come in yet today.",
-  );
 });
 
 test("Today's head stands its sentence under its name", () => {

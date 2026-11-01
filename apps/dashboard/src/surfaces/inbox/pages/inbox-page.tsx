@@ -1,6 +1,7 @@
 /**
  * Inbox — composition layer + decide engine (moved from pages/inbox.jsx, decision 0015, step 3).
- * Three columns: list rail (320px) | thread pane (flex) | agent context rail (300px, the mockup's: a seeded thread only).
+ * Three columns: list rail (320px) | thread pane (flex) | a rail beside it on a wide desk: who a real thread's person is
+ * (thread-context.tsx), or the mockup's agent rail for a seeded thread.
  * Decisions are REAL here: approve/decline/snooze move threads, append timeline
  * events, update counts (the badge is a selector, needs-you.ts, told when this page's count moves), offer undo,
  * and auto-advance to the next decision. Keyboard: A approve · D decline · E edit.
@@ -14,6 +15,7 @@ import { useEffect, useRef, useState, type RefObject } from "react";
 import { EmptyState } from "../../kit/empty/empty";
 import { usePartShown, useSurface } from "../../use-surface";
 import { InboxAgentRail } from "./agent-rail";
+import { ThreadContext } from "./thread-context";
 import { SequenceRepliesLine, onlyThreadsOf, type SequenceRepliesRead } from "./inbox-from";
 import { ixHoldAll } from "./hold-all";
 import { inboxBulkActs, inboxRealBulk, type InboxRealBulk } from "./inbox-bulk";
@@ -430,9 +432,16 @@ const inboxPage = (
   // menu to a page this release hides (D11; the wiring audit's A3 and A17) -- and with no thread to show
   // it kept an empty column.
   const railThread = showAgentRail && !requestedMissing && activeThread && !activeThread.real ? activeThread : null;
+  // A real thread's person beside it on a wide desk (thread-context.tsx): who they are, from People's row. Never on a
+  // phone, where the list and the thread take turns and the header's door is the way to them.
+  const personThread =
+    !requestedMissing && activeThread && activeThread.real && activeThread.clientId && !ixOnPhone()
+      ? activeThread
+      : null;
+  const columns = railThread ? "with-rail" : personThread ? "with-context" : "";
 
   return (
-    <div ref={root} className={`inbox ${railThread ? "with-rail" : ""}`} data-takeover={phoneThreadOpen || undefined}>
+    <div ref={root} className={`inbox ${columns}`} data-takeover={phoneThreadOpen || undefined}>
       <InboxList
         threads={visible}
         allThreads={threads}
@@ -478,6 +487,7 @@ const inboxPage = (
             // seeded thread is the mockup's, and keeps this page's handlers.
             threadPane(ix, onOpenClient)}
       {railThread && <InboxAgentRail thread={railThread} />}
+      {personThread && <ThreadContext thread={personThread} onOpenClient={(id) => onOpenClient(id)} />}
 
       {sendingStrip(ix)}
 

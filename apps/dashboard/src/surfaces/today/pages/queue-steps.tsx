@@ -28,19 +28,6 @@ export function dueSteps(): TodayStepsVM | null {
   return TODAY_HELPERS.steps(people.rows, people.fetchedAt || Date.now(), zone());
 }
 
-/** How many steps are due and not already done here, and how many of them the card cut: said in the head and the foot. */
-export function stepsLeft(
-  steps: TodayStepsVM | null,
-  done: readonly string[],
-  drawn: readonly TodayQueueRowVM[],
-): { due: number; cut: number } {
-  if (!steps) return { due: 0, cut: 0 };
-  const due = steps.count - steps.items.filter((s) => done.includes(s.noteId)).length;
-  // The row for the rest stands for every step the named rows are not; with it drawn nothing is left out.
-  const named = drawn.filter((r) => r.kind === "step").length;
-  return { due, cut: drawn.some((r) => r.kind === "steps") ? 0 : due - named };
-}
-
 /**
  * Mark a step done. The row goes at once (`hide`), as the thread header's line does, and People is read again behind the verb
  * (the route's refresh); the toast says it, and its Undo brings the row back (`show`). Refused, People is read again: the

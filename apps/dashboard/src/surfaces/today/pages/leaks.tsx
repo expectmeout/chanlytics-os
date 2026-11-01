@@ -1,9 +1,9 @@
 /**
- * Below the day's card: the few things worth a look that no row above says on its own (moved from
- * pages/dashboard-a-week.jsx, decision 0015, step 4). Each reads a surface the page already holds (Reports, People) and
- * the words are contracts/today.ts todayLeaks through TODAY_HELPERS. Nothing is computed on the page; every number
- * here is the same number on the page it links to. The period card and the journey that stood here are gone: the
- * period is one line at the foot of the day's card, and the reach list's one fact is a row below.
+ * Worth a look: the few things no row above says on its own (moved from pages/dashboard-a-week.jsx, decision 0015, step 4).
+ * Each reads a surface the page already holds (Reports, People) and the words are contracts/today.ts todayLeaks through
+ * TODAY_HELPERS. Nothing is computed on the page; every number here is the same number on the page it links to. On a desk
+ * it is the pane under the work beside the pinned lists, the week in one line at its foot (WeekLine), which the day's card
+ * held until the redesign of 1 Nov 2026; on a phone it is lines under the day's figures (LeakLines, Today so far).
  */
 import { TODAY_PHONE_WORDS, type PeopleListsLike, type TodayLeakVM } from "@chanlytics/contracts";
 import { useState } from "react";
@@ -13,6 +13,7 @@ import { Icon } from "../../kit/icon/icon";
 import { StatePill } from "../../kit/pill/state-pill";
 import { surfaceValue } from "../../surface-values";
 import { usePartShown, useSurface, useSurfaceFailed } from "../../use-surface";
+import { routeDoor } from "../../legacy-verbs";
 import { TODAY_HELPERS } from "../helpers";
 import { appNavigate, doorGlyph, askAbout, borrowed, surfaceFailed, useMoved } from "../shell";
 
@@ -110,6 +111,33 @@ export function LeakLines() {
   );
 }
 
+/**
+ * The week in one line, with the one door to Reports (contracts todayPeriodLine over Reports' headline): Worth a look's foot
+ * on a desk, and Today so far's on a phone (card.tsx), since the day's card that held it on a desk went (the redesign of 1
+ * Nov 2026). Not read yet is not failed: it is silent while Reports loads, and says so where its read failed.
+ */
+export function WeekLine() {
+  const R = useSurface("reports_headline");
+  const failed = useSurfaceFailed("reports_headline");
+  const period = R ? TODAY_HELPERS.periodLine(R) : null;
+  if (period)
+    return (
+      <a className="tl-week" {...routeDoor(period.to)} data-testid="today-period">
+        <span className="tl-week-words">{period.text}</span>
+        <Icon name="chevron" size={12} />
+      </a>
+    );
+  return failed ? (
+    <FailedRead
+      kind="line"
+      what="Reports"
+      body="The day's own numbers are current."
+      surface="reports_headline"
+      testid="today-period-failed"
+    />
+  ) : null;
+}
+
 export const TodayLeaks = () => {
   const [open, setOpen] = useState<string | null>(null);
   const leaks = useLeaks();
@@ -126,7 +154,13 @@ export const TodayLeaks = () => {
     );
   }
   const { rows, moreLine } = leaks;
-  if (!rows.length) return null;
+  // Nothing worth a look: the pane is the week alone, with no name of its own and no congratulation (E3).
+  if (!rows.length)
+    return (
+      <section className="tsec tl tl-week-only" data-testid="today-leaks">
+        <WeekLine />
+      </section>
+    );
   const phone = twPhone();
   return (
     <section className="tsec tl" data-testid="today-leaks">
@@ -202,6 +236,7 @@ export const TodayLeaks = () => {
           {moreLine}
         </div>
       )}
+      <WeekLine />
     </section>
   );
 };

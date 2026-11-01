@@ -277,14 +277,15 @@ test("the pane: a teammate's thread names who is answering, and offers no take-o
   );
 });
 
-test("the pane: I'll answer this sits under what they wrote, with the reason's own sentence -- their words are not said twice", () => {
+test("the pane: the dock sits under what they wrote, with the reason's own line, over the reply box that answers it -- their words are not said twice", () => {
   const tree = paneOf(toInboxThreadVM(conv(), asked(), ZONE, NOW));
   const take = find(tree, byTestId("ix-needs-you"));
   assert.ok(take, "the dock over the reply box");
   assert.ok(
-    buttonsOf(take).some((b) => b.includes("I'll answer this")),
-    "the decision is still there to make",
+    !buttonsOf(take).some((b) => b.includes("I'll answer this")),
+    "the reply box's Send is the answer, and takes it (the thread canvas, 1 Nov 2026)",
   );
+  assert.ok(buttonsOf(take).includes("Hand back"), "and the way out");
   // What they asked is the bubble right above the dock (the phone canvas, B1): it was quoted again over the acts.
   assert.ok(
     all(tree, hasClass("tl-msg")).some((b) => textOf(b).includes("Can I move my appointment to Friday?")),
@@ -298,14 +299,13 @@ test("the pane: I'll answer this sits under what they wrote, with the reason's o
     paneOf(toInboxThreadVM(conv({ last_wa_inbound_at: null, messages: [callNote] }), callback, ZONE, NOW)),
     byTestId("ix-needs-you"),
   );
-  assert.equal(
-    textOf(find(callTake, hasClass("notice-fact"))),
-    "Call Rosa back to confirm the bridal trial on Oct 3",
+  assert.ok(
+    textOf(find(callTake, hasClass("notice-fact"))).startsWith("Call Rosa back to confirm the bridal trial on Oct 3"),
     "REGRESSION: the call back promised the details and showed none",
   );
 });
 
-test("the countdown's tip says what stops a real draft -- Hold, or starting to type -- where Edit only opens the composer", () => {
+test("the countdown's tip says what stops a real draft -- Edit, Hold, or starting to type", () => {
   const draft = {
     id: "m3",
     direction: "outbound",
@@ -328,6 +328,6 @@ test("the countdown's tip says what stops a real draft -- Hold, or starting to t
   const msg = find(paneOf(vm), hasClass("ix-veto-msg"));
   assert.equal(
     msg.props["data-tip"],
-    "This draft sends itself at zero. Hold stops it, and so does starting to type a reply.",
+    "This draft sends itself at zero. Edit, Hold or starting to type a reply stops it.",
   );
 });

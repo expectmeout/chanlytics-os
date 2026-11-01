@@ -42,14 +42,9 @@ export interface TodayStepsVM {
 /** People's Steps due (lists.ts BUILTIN_LISTS steps_due): where the rest of the steps are, and what a line about them opens. */
 const STEPS_DUE_ROUTE = "clients/seg:steps_due";
 
-/** Steps due in a count, for the queue's head: "6 steps due". */
+/** Steps due in a count, for To do's line: "6 steps due". */
 export function todayStepsSub(n: number): string {
   return `${plural(n, "step")} due`;
-}
-
-/** The steps the card could not hold, with the door's name: "3 steps due in People". */
-export function todayStepsFoot(n: number): string {
-  return `${todayStepsSub(n)} in People`;
 }
 
 /**

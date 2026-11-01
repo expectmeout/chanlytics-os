@@ -12,7 +12,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toTodayVM, toLiveVM, setupSteps } from "@chanlytics/contracts";
+import { toTodayVM, setupSteps } from "@chanlytics/contracts";
 import { installLegacyReact, fresh, again, kitPages } from "../_legacy-react.mjs";
 import { importSrc } from "../_source.mjs";
 
@@ -103,39 +103,6 @@ const conversation = (id, name, messages) => ({
   contact: contact(`c-${id}`, name),
   messages,
 });
-// A call on the line now, as the calls route returns it (live-page-controls.test.mjs), against the real clock.
-const ago = (ms) => new Date(Date.now() - ms).toISOString();
-const liveCall = () => ({
-  id: "c-live",
-  retell_call_id: "call_abc123def456",
-  direction: "inbound",
-  call_type: "phone_call",
-  status: "ongoing",
-  from_e164: "+16465550123",
-  from_raw: null,
-  to_e164: "+13055550100",
-  started_at: ago(90_000),
-  ended_at: null,
-  duration_ms: null,
-  disconnection_reason: null,
-  sentiment: null,
-  call_successful: null,
-  in_voicemail: null,
-  summary: null,
-  wanted: null,
-  outcome: null,
-  follow_up: null,
-  caller_name: null,
-  transcript_object: [{ role: "user", content: "Hi, is Marisa in?" }],
-  recording: null,
-  conversation_id: "cv1",
-  contact_id: "k1",
-  message_id: null,
-  created_at: ago(90_000),
-  updated_at: ago(2_000),
-  contact: { display_name: "Rosa Díaz", wa_profile_name: null, phone_e164: "+16465550123" },
-});
-
 /* -------------------------------- the pages, drawn -------------------------------- */
 
 const went = [];
@@ -162,7 +129,9 @@ globalThis.window.usePPToast = () => [null, (m) => flashes.push(m)];
 // Setup's rows are the surface's own (surfaces/setup/rows), imported by the card, not published on the window.
 const { HeroBrief } = await import("../../../../apps/dashboard/src/surfaces/today/pages/brief.tsx");
 const { TodayCard, TodayHeadFigures } = await import("../../../../apps/dashboard/src/surfaces/today/pages/card.tsx");
-const { TodayBriefPane } = await import("../../../../apps/dashboard/src/surfaces/today/pages/brief-pane.tsx");
+const { TodayWarnings } = await import("../../../../apps/dashboard/src/surfaces/today/phone/warnings.tsx");
+const { useTodayStanding } = await import("../../../../apps/dashboard/src/surfaces/today/pages/today-head.tsx");
+const { standingSaid } = await import("../../../../apps/dashboard/src/surfaces/kit/head/standing.ts");
 // The card is a chunk of its own (setup-card-body.tsx), asked for as Today's page loads: drawn here once it is in.
 const { TodaySetup, setupCardReady } =
   await import("../../../../apps/dashboard/src/surfaces/today/pages/setup-card.tsx");
@@ -216,8 +185,8 @@ const mountHero = (vm) => {
   fresh();
   return again(() => HeroBrief());
 };
-// The day's figures are the day's card (TodayCard); its lines (the receipts, the proof, a reply that failed) are the
-// brief's, beside the queue (TodayBriefPane, canvas E3).
+// The day's figures are Today so far's on a phone (TodayCard) and the head's on a desk; a reply that failed is said under
+// the head (TodayWarnings), and Your brief's pane, which said the rest, went (the redesign of 1 Nov 2026).
 const mountCard = (vm) => {
   setSurfaceValue("today", vm);
   fresh();
@@ -229,10 +198,27 @@ const mountFigures = (vm) => {
   fresh();
   return again(() => TodayHeadFigures());
 };
-const mountBrief = (vm) => {
+const mountWarnings = (vm) => {
   setSurfaceValue("today", vm);
   fresh();
-  return again(() => TodayBriefPane());
+  return again(() => TodayWarnings());
+};
+/** The page on a desk, whole. */
+const mountPage = (vm) => {
+  setSurfaceValue("today", vm);
+  fresh();
+  return again(() => DashboardA());
+};
+/** What the head says under the greeting, as Today tells it to the frame's head (today-head.tsx). */
+function HeadProbe() {
+  useTodayStanding();
+  return null;
+}
+const headSaid = (vm) => {
+  setSurfaceValue("today", vm);
+  fresh();
+  again(() => HeadProbe());
+  return textOf(standingSaid()?.sentence ?? null);
 };
 // What is left to set up, one card above the queue (TodaySetup): it reads Setup's surface, not the day's.
 const mountSetup = () => {
@@ -263,7 +249,8 @@ test("REGRESSION (A21): a reply that failed to deliver opens its thread -- 'See 
   const vm = toTodayVM(metrics({ period: { ...busyPeriod, send_failures: 1 } }), [failed], [], [], NOW);
   const warn = vm.recap.sentences.find((s) => s.warn);
   assert.equal(warn.to, "inbox/th-cv9", "REGRESSION: the failed send's sentence carried no thread");
-  buttonsSaying(mountBrief(vm), "See the thread")[0].props.onClick();
+  // Under the head, on a desk as on a phone: the one line that must never be quiet (it was Your brief's on a desk).
+  buttonsSaying(mountWarnings(vm), "See the thread")[0].props.onClick();
   assert.equal(went.at(-1), "inbox/th-cv9");
 });
 
@@ -285,30 +272,23 @@ test("REGRESSION: Today's first screen is the work -- above it stood a greeting,
     "REGRESSION: six stat cards over the work",
   );
 
-  // In the head, the day's figures (a desk's, beside the greeting), and under the work only the lines they do not carry.
+  // In the head, the day's figures (a desk's, beside the greeting); and no pane under the work says them again in words
+  // (Your brief's did, the redesign of 1 Nov 2026).
   const figures = mountFigures(vm);
   assert.ok(
     find(figures, (n) => n.props?.["data-testid"] === "today-figure-messages"),
     "the day's figures",
   );
-  const beats = findAll(
-    mountBrief(vm),
-    (n) => typeof n.props?.className === "string" && n.props.className.includes("brief-beat-text"),
-  ).map(textOf);
-  assert.ok(
-    !beats.some((b) => /receptionist answered|reached the phone line|messages? in/.test(b)),
-    `REGRESSION: the figures say these already: ${beats.join(" | ")}`,
+  const page = mountPage(vm);
+  assert.equal(
+    find(page, (n) => n.props?.["data-testid"] === "today-brief"),
+    undefined,
+    "no brief beside the work",
   );
-});
-
-test("REGRESSION (A21): Open Live beside a call in progress opens that call -- it opened Live's list, where the oldest call leads", () => {
-  globalThis.window.__LIVE = toLiveVM([liveCall()], [], ZONE, new Date());
-  try {
-    buttonsSaying(mountQueue(toTodayVM(metrics(), [], [], [], NOW)), "Open Live")[0].props.onClick();
-    assert.equal(went.at(-1), "live/c-live");
-  } finally {
-    delete globalThis.window.__LIVE;
-  }
+  assert.ok(
+    !/receptionist answered|reached the phone line/.test(textOf(page)),
+    `REGRESSION: the figures say these already: ${textOf(page)}`,
+  );
 });
 
 test("REGRESSION: approving a waiting run the server moved to nine says so on Today -- the toast said 'sending now'", async () => {
@@ -343,7 +323,7 @@ test("REGRESSION: approving a waiting run the server moved to nine says so on To
   }
 });
 
-test("the brief is one summary: the day's receipts are the view model's still, and none is drawn under it", () => {
+test("the day's receipts are the view model's still, and no part of the page draws them", () => {
   const names = ["Rosa Díaz", "Nina Park", "Ada Lovelace"];
   const convs = names.map((name, i) =>
     conversation(`cv${i}`, name, [
@@ -362,25 +342,22 @@ test("the brief is one summary: the day's receipts are the view model's still, a
   const vm = toTodayVM(metrics(), convs, [], [], NOW);
   assert.equal(vm.recap.receipts.length, 3, "the fixture is a day with three replies");
   // The hero drew one of the three, then the brief all three, under its summary, in a third size of text (Ruben,
-  // 7 Oct 2026: "too cluttered and busy"). What was replied is a question away now: the follow-up asks Ask.
-  const brief = mountBrief(vm);
-  assert.equal(findAll(brief, (n) => n.props?.["data-testid"] === "brief-receipt").length, 0);
-  assert.ok(
-    find(brief, (n) => n.props?.["data-testid"] === "today-brief-line"),
-    "the summary stands",
-  );
+  // 7 Oct 2026: "too cluttered and busy"). What was replied is a question away: Ask reads the receipts.
+  assert.equal(findAll(mountPage(vm), (n) => n.props?.["data-testid"] === "brief-receipt").length, 0);
 });
 
-test("a quiet day says its proof in the summary, and draws no list of lines under it", () => {
+test("a quiet day says what is listening in the head's sentence, and draws no list of lines", () => {
   const yesterday = conversation("cv1", "Rosa Díaz", [msg({ created_at: "2026-09-05T12:00:00Z" })]);
   const vm = toTodayVM(metrics({ now: zeroNow, period: quietPeriod }), [yesterday], [], [], NOW);
   assert.ok(vm.quiet && vm.quiet.launchpad, "the fixture is a quiet day with an earlier conversation");
-  const hero = mountBrief(vm);
   // The list of lines and their numbers ("WhatsApp: +1 … · on") and the door to earlier conversations stood under the
-  // summary as a block of their own. The summary says the day; which lines are on is Connections' to say.
-  assert.ok(!find(hero, (n) => n.props?.["data-testid"] === "brief-quiet-proof"));
-  assert.equal(buttonsSaying(hero, "earlier conversation").length, 0);
-  assert.ok(textOf(find(hero, (n) => n.props?.["data-testid"] === "today-brief-line")).length > 0);
+  // summary as a block of their own. The head says the day; which lines are on is Connections' to say.
+  const said = headSaid(vm);
+  assert.ok(said.startsWith("Nothing needs you."), said);
+  assert.ok(said.includes(vm.quiet.sub), `what is listening: ${said}`);
+  const page = mountPage(vm);
+  assert.ok(!find(page, (n) => n.props?.["data-testid"] === "brief-quiet-proof"));
+  assert.equal(buttonsSaying(page, "earlier conversation").length, 0);
 });
 
 /** A workspace's Setup read, as the surface publishes it (surfaces/setup/surface.ts): Setup's own view model over a DTO. */
@@ -690,21 +667,22 @@ test("while someone waits on you, what is left to set up stands under the queue,
     feedSetup(undefined);
   }
   // The page: the work first while anyone waits on the owner, the chores first while nobody does.
+  // Setting up and what was brought in are one card (the redesign of 1 Nov 2026), and what goes on its own today is the day's.
   const work = () => {
     fresh();
     const page = again(() => DashboardA());
     const col = find(page, (n) => String(n.props?.className ?? "").includes("dash-a-v2-work"));
-    return col.props.children.map((c) => c.type.name);
+    return col.props.children.map((c) => c.type.name ?? c.props["data-testid"]);
   };
   setSurfaceValue("today", todayWith([]));
   setSurfaceValue("inbox", { THREADS: [], UNREAD_HOLDS: 0 });
-  assert.deepEqual(work(), ["TodaySetup", "TodayBroughtIn", "TodayGoing", "AgentCommand"]);
+  assert.deepEqual(work(), ["today-setting-up", "AgentCommand"]);
   setSurfaceValue("inbox", { THREADS: [], UNREAD_HOLDS: 1 });
-  assert.deepEqual(work(), ["AgentCommand", "TodaySetup", "TodayBroughtIn", "TodayGoing"]);
+  assert.deepEqual(work(), ["AgentCommand", "today-setting-up"]);
   // A cold Today, the Inbox not read yet: the day's own count, as the queue counts it (production, 27 Oct 2026: three
   // people waited and the chores led).
   setSurfaceValue("inbox", undefined);
   const quiet = todayWith([]);
   setSurfaceValue("today", { ...quiet, needsYou: { ...quiet.needsYou, count: 3, holds: 3, sends: 0 } });
-  assert.deepEqual(work(), ["AgentCommand", "TodaySetup", "TodayBroughtIn", "TodayGoing"], "the queue counts them");
+  assert.deepEqual(work(), ["AgentCommand", "today-setting-up"], "the queue counts them");
 });

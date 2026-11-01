@@ -20,7 +20,6 @@ import {
   matchWordsOf,
   pipelineOf,
   todayVisitsAsked,
-  todayVisitsFoot,
   todayVisitsSub,
   toPersonRowVM,
   toPersonVM,
@@ -515,7 +514,6 @@ test("the head and the foot count them in the workspace's word for an appointmen
   assert.equal(todayVisitsSub(1, "appointment"), "1 appointment to mark");
   assert.equal(todayVisitsSub(3, "appointment"), "3 appointments to mark");
   assert.equal(todayVisitsSub(2, "meeting"), "2 meetings to mark");
-  assert.equal(todayVisitsFoot(3, "lesson"), "3 lessons to mark on the Calendar");
   const asked = todayVisitsAsked(cal([block("a", 14), block("c", 16), block("f", 19), block("g", 20)]), NOW, "session");
   assert.equal(asked.word, "session");
   assert.equal(withVisitsAsked([], asked).at(-1).who, "1 more session to mark");
