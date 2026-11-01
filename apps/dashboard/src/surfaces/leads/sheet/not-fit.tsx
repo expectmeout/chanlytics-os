@@ -48,7 +48,7 @@ function NotFitAsk({ name, onWhy }: { name: string; onWhy: (why: LeadNotAFitWhy)
 export const notFitToast = (
   name: string,
   onWhy: (why: LeadNotAFitWhy) => void,
-  undo: (() => void) | null,
+  undo: LegacyFlash["undo"],
 ): LegacyFlash => ({
   tone: "ok",
   msg: <NotFitAsk name={name} onWhy={onWhy} />,

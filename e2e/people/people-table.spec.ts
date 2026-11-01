@@ -196,7 +196,10 @@ test.describe("The kit's table on a real workspace", () => {
       await page.getByTestId("leads-filter").click();
       await page.getByRole("menuitemcheckbox", { name: word }).click();
       await page.keyboard.press("Escape");
-      await page.waitForLoadState("networkidle");
+      // A filter is a read (0083 B), and the rows are the last answer until it lands: the page says so from the press,
+      // where the network says nothing (networkidle fired long ago, so every count here read the rows before the Filter
+      // and the journey skipped itself).
+      await expect(page.locator(".leads-scope[data-loading]")).toHaveCount(0);
     };
     // The first view and switch that keep some of the leads and not all of them: the view at rest, then the leads that
     // need review (the seeded search's qualified leads all have a checked email, and those under review none).

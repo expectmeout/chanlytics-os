@@ -112,8 +112,8 @@ export const keepPileForTheWayBack = (): void => {
 /** The pile's state, one value: taken up from the one Leads last let go of, and left for the next as this one goes. */
 function usePileState() {
   const [p, setP] = useState<PileKept>(() => keptPile ?? FRESH);
+  // The pile as it stands, whichever draw asks: a toast outlives the draw that made it, and what it reads is what stands.
   const now = useRef(p);
-  now.current = p;
   // Taken once as Leads opens; kept again only as Write the emails leaves.
   useEffect(() => {
     keptPile = null;
@@ -122,41 +122,64 @@ function usePileState() {
       keepOnLeaving = false;
     };
   }, []);
-  const put = (patch: Partial<PileKept> | ((x: PileKept) => Partial<PileKept>)) =>
-    setP((x) => ({ ...x, ...(typeof patch === "function" ? patch(x) : patch) }));
-  return { p, put };
+  const put = (patch: Partial<PileKept> | ((x: PileKept) => Partial<PileKept>)) => {
+    now.current = { ...now.current, ...(typeof patch === "function" ? patch(now.current) : patch) };
+    setP(now.current);
+  };
+  return { p, now, put };
 }
 
 type PilePut = ReturnType<typeof usePileState>["put"];
+type PileNow = ReturnType<typeof usePileState>["now"];
+
+/** The Not a fit on a lead, while the pile still holds it (three deep). */
+const notFitOf = (done: readonly PileDone[], leadId: string) =>
+  done.filter((d) => d.act === "not_a_fit" && d.leadIds.includes(leadId)).at(-1) ?? null;
 
 /**
  * Not a fit's reason, given after the press (the toast's): its mark undone and made again with the reason, so the pile's
- * Undo takes back the one that stands.
+ * Undo takes back the one that stands. Refused after the mark was undone, nothing stands, and Undo names nothing.
  */
-async function giveWhy(
-  pile: { done: readonly PileDone[]; put: PilePut; flash: Flash },
-  row: LeadRowVM,
-  why: LeadNotAFitWhy,
-) {
-  const { done, put, flash } = pile;
-  let at = -1;
-  done.forEach((d, i) => {
-    if (d.act === "not_a_fit" && d.leadIds.includes(row.id)) at = i;
-  });
-  const was = at >= 0 ? done[at] : null;
+async function giveWhy(pile: { now: PileNow; put: PilePut; flash: Flash }, row: LeadRowVM, why: LeadNotAFitWhy) {
+  const { now, put, flash } = pile;
+  const was = notFitOf(now.current.done, row.id);
   if (was && was.op) {
     const u = await undoLeadOperation(was.op.id, was.op.version);
     if (!u.ok) return flash(refusalToast(u, "The reason was not kept"));
   }
   const r = await setLeadStage(row.id, { kind: "not_a_fit", why });
-  if (!r.ok) return flash(refusalToast(r, "The reason was not kept"));
-  const op = opOf(r.data);
-  put((x) => ({ lastWhy: why, done: x.done.map((d, i) => (i === at ? { ...d, op } : d)) }));
+  const op = r.ok ? opOf(r.data) : null;
+  put((x) => ({ ...(r.ok ? { lastWhy: why } : {}), done: x.done.map((d) => (d === was ? { ...d, op } : d)) }));
+  if (!r.ok) flash(refusalToast(r, "The reason was not kept"));
+}
+
+/** Take one thing done back: a lead held is let go, a Next walked back; any other act, its door's undo (00426). */
+async function takeBack(
+  pile: { put: PilePut; flash: Flash; aim: LeadAim; setBusy: (busy: boolean) => void },
+  last: PileDone,
+) {
+  const { put, flash, aim, setBusy } = pile;
+  const back = () =>
+    put((x) => ({
+      done: x.done.filter((d) => d !== last),
+      gone: new Set([...x.gone].filter((id) => !last.leadIds.includes(id))),
+      count: last.act === "later" ? x.count : Math.max(0, x.count - last.leadIds.length),
+      said: null,
+    }));
+  if (!last.op) return back();
+  setBusy(true);
+  const u = await undoLeadOperation(last.op.id, last.op.version).finally(() => setBusy(false));
+  if (!u.ok) return flash(refusalToast(u, "Nothing was put back"));
+  // An add taken back: its leads would go again, so the door's answer for them is asked afresh.
+  if (last.act === "add") aim.reset();
+  back();
 }
 
 export function useLeadPile({ flash, aim }: { flash: Flash; aim: LeadAim }) {
-  const { p, put } = usePileState();
+  const { p, now, put } = usePileState();
   const [busy, setBusy] = useState(false);
+  // A reason on its way (giveWhy): Undo waits for it, and takes back what it leaves standing, never the mark it undid.
+  const giving = useRef<Promise<void> | null>(null);
   const { searchId, done } = p;
 
   const start = (search: string, klass: LeadClass, at: string | null = null) => {
@@ -252,24 +275,21 @@ export function useLeadPile({ flash, aim }: { flash: Flash; aim: LeadAim }) {
     }
   };
 
-  /** Undo the last thing done: a lead held is let go, a Next walked back; any other act, its door's undo (00426). */
+  const backing = { put, flash, aim, setBusy };
+
+  /** Undo the last thing done. */
   const undo = async () => {
-    const last = done.at(-1);
-    if (!last || busy) return;
-    const back = () =>
-      put((x) => ({
-        done: x.done.slice(0, -1),
-        gone: new Set([...x.gone].filter((id) => !last.leadIds.includes(id))),
-        count: last.act === "later" ? x.count : Math.max(0, x.count - last.leadIds.length),
-        said: null,
-      }));
-    if (!last.op) return back();
-    setBusy(true);
-    const u = await undoLeadOperation(last.op.id, last.op.version).finally(() => setBusy(false));
-    if (!u.ok) return flash(refusalToast(u, "Nothing was put back"));
-    // An add taken back: its leads would go again, so the door's answer for them is asked afresh.
-    if (last.act === "add") aim.reset();
-    back();
+    await giving.current;
+    const last = now.current.done.at(-1);
+    if (last && !busy) await takeBack(backing, last);
+  };
+
+  /** The toast's Undo: the Not a fit it says, whatever was done since. The pile keeps three, so it can have gone. */
+  const undoNotFit = async (row: LeadRowVM) => {
+    await giving.current;
+    const last = notFitOf(now.current.done, row.id);
+    if (!last) return flash({ tone: "warn", msg: "Nothing was put back" });
+    await takeBack(backing, last);
   };
 
   return {
@@ -286,13 +306,16 @@ export function useLeadPile({ flash, aim }: { flash: Flash; aim: LeadAim }) {
     anchor: (at: string) => put({ from: at }),
     act,
     addOf,
-    notFitWhy: (row: LeadRowVM, why: LeadNotAFitWhy) => giveWhy({ done, put, flash }, row, why),
+    notFitWhy: (row: LeadRowVM, why: LeadNotAFitWhy) => {
+      giving.current = giveWhy({ now, put, flash }, row, why);
+    },
     /** Next: past a lead there is nothing to decide on (in a sequence already, talking), writing nothing. */
     skip: (row: LeadRowVM) => {
       if (!busy && searchId) decided([row.id], "next", null);
     },
     addAll,
     undo,
+    undoNotFit,
   };
 }
 export type LeadPile = ReturnType<typeof useLeadPile>;
