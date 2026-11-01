@@ -47,6 +47,8 @@ interface RowProps {
   onSay: (row: ToSendRowVM, outcome: ReachOutSaidOutcome) => void;
   /** They wrote back…, on a step after the first: what the business said, read as a reply is. */
   onTell: (row: ToSendRowVM, intent: OwnerSaidIntent, more: SaidMore) => void;
+  /** In a dock under the email: its acts alone, their mail app the primary until it was opened. */
+  dock?: boolean;
 }
 
 /** The owner's word on an email: Sent (the act, once its mail app was opened) and Skip, a quiet word beside it. */
@@ -83,8 +85,53 @@ function SentOrSkip(p: {
   );
 }
 
+/**
+ * Its mail app and the other ways to open it, one pill: the mail app at once, the caret for Gmail, Outlook, Copy and the
+ * words themselves (Ruben, 20 Oct 2026: a door of their own, not three dots beside it).
+ */
+function MailAppPill(p: {
+  row: ToSendRowVM;
+  L: RowProps["L"];
+  items: MenuItem[];
+  /** It is the next thing to press: the primary. */
+  go: boolean;
+  onOpen: () => void;
+}) {
+  const { row, L, items, go, onOpen } = p;
+  const variant = go ? "primary" : undefined;
+  return (
+    <span className="ro-send-open">
+      <Button
+        className="ro-ans ro-send-app"
+        variant={variant}
+        href={row.links.mailto}
+        onClick={onOpen}
+        data-testid="ro-to-send-app"
+      >
+        <Icon name="mail" size={14} /> {L.app}
+      </Button>
+      <Menu
+        label={L.more(row.name)}
+        trigger={
+          <Button
+            className="ro-ans ro-send-caret"
+            variant={variant}
+            iconOnly
+            aria-label={L.more(row.name)}
+            data-testid="ro-to-send-more"
+          >
+            <Icon name="chevron-down" size={14} />
+          </Button>
+        }
+        // A phone draws the menu as a sheet, headed by whose email it is (as a sequence's menu is).
+        groups={[{ header: onAPhone() ? row.name : undefined, items }]}
+      />
+    </span>
+  );
+}
+
 /** One email handed over: who, what, its mail app with the rest under More, and the owner's word on it at the end. */
-function RoToSendRow({ row, L, may, busy, said, onSay, onTell }: RowProps) {
+function RoToSendRow({ row, L, may, busy, said, onSay, onTell, dock = false }: RowProps) {
   const [copied, copy] = useCopied();
   const [asked, setAsked] = useState(false);
   const [reading, setReading] = useState(false);
@@ -119,45 +166,28 @@ function RoToSendRow({ row, L, may, busy, said, onSay, onTell }: RowProps) {
       : []),
   ];
   return (
-    <div className="ro-send" data-testid="ro-to-send-row">
-      <div className="ro-send-who">
-        <LinkButton
-          size="inherit"
-          className="ro-name"
-          title={REACH_OUT_SHEET_WORDS.openLead}
-          {...leadOverDoor(row.leadId)}
-          data-testid="ro-to-send-lead"
-        >
-          {row.name}
-        </LinkButton>
-        <small>{row.since}</small>
-      </div>
-      <p className="ro-send-subj" data-testid="ro-to-send-what">
-        {row.subject} · {row.address}
-      </p>
+    <div className="ro-send" data-dock={dock || undefined} data-testid="ro-to-send-row">
+      {dock ? null : (
+        <>
+          <div className="ro-send-who">
+            <LinkButton
+              size="inherit"
+              className="ro-name"
+              title={REACH_OUT_SHEET_WORDS.openLead}
+              {...leadOverDoor(row.leadId)}
+              data-testid="ro-to-send-lead"
+            >
+              {row.name}
+            </LinkButton>
+            <small>{row.since}</small>
+          </div>
+          <p className="ro-send-subj" data-testid="ro-to-send-what">
+            {row.subject} · {row.address}
+          </p>
+        </>
+      )}
       <div className="ro-send-acts">
-        {/* Its mail app and the other ways to open it, one pill: the mail app at once, the caret for Gmail, Outlook, Copy
-            and the words themselves (Ruben, 20 Oct 2026: a door of their own, not three dots beside it). */}
-        <span className="ro-send-open">
-          <Button className="ro-ans ro-send-app" href={row.links.mailto} onClick={opening} data-testid="ro-to-send-app">
-            <Icon name="mail" size={14} /> {L.app}
-          </Button>
-          <Menu
-            label={L.more(row.name)}
-            trigger={
-              <Button
-                className="ro-ans ro-send-caret"
-                iconOnly
-                aria-label={L.more(row.name)}
-                data-testid="ro-to-send-more"
-              >
-                <Icon name="chevron-down" size={14} />
-              </Button>
-            }
-            // A phone draws the menu as a sheet, headed by whose email it is (as a sequence's menu is).
-            groups={[{ header: onAPhone() ? row.name : undefined, items: more }]}
-          />
-        </span>
+        <MailAppPill row={row} L={L} items={more} go={dock && !asked} onOpen={opening} />
         {copied ? <CopiedWords said={L.copied} /> : null}
         <span className="ro-send-sp" />
         {/* Its word at the line's end; once the mail app was opened, asked on a line of its own (the canvas's board 6). */}
@@ -228,13 +258,15 @@ interface RowsProps {
   runOf: (row: ToSendRowVM) => string | null;
   /** What was said, once it is: the page reads again behind it. */
   onSaid: (said: string) => void;
+  /** In a dock under the email: each row's acts alone. */
+  dock?: boolean;
 }
 
 /**
  * The rows of a To send, each with the owner's word on it through its verb (`sequence_send_said`) and what the business
  * wrote back as the peek says it; a refusal said at its row. A run's list (RoToSend) and a sequence's People draw them.
  */
-export function RoToSendRows({ rows, runOf, onSaid }: RowsProps) {
+export function RoToSendRows({ rows, runOf, onSaid, dock = false }: RowsProps) {
   const [busy, setBusy] = useState<string | null>(null);
   const [refused, setRefused] = useState<{ id: string; text: string } | null>(null);
   const may = canDo("approve");
@@ -275,6 +307,7 @@ export function RoToSendRows({ rows, runOf, onSaid }: RowsProps) {
           said={refused && refused.id === row.id ? refused.text : null}
           onSay={(x, o) => void say(x, o)}
           onTell={(x, i, more) => void tell(x, i, more)}
+          dock={dock}
         />
       ))}
     </>

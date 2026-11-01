@@ -401,9 +401,9 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "DELETE sequences/[id]/steps/[step]": () => [...runsAndChains(), sequencesOverride],
   "POST sequences/[id]/steps/[step]/words": () => [...savedAndChains(), sequencesOverride, ...templates()],
   "POST sequences/[id]/leave": () => [...runsAndChains(), sequencesOverride, peopleOverride, leadsOverride],
-  // A person taken out and put back (00450) is their enrollment alone: the sends their leaving withdrew stay withdrawn, and
-  // the clock writes their next; the Sequences page reads its record again behind the press.
-  "POST sequences/[id]/return": () => [sequencesOverride],
+  // Put back reads what taking them out read: a person's place returns and the clock writes their next (00450), and a lead
+  // nothing reached goes back on its list with its skipped email freed (00502).
+  "POST sequences/[id]/return": () => [...runsAndChains(), sequencesOverride, peopleOverride, leadsOverride],
   // A new sequence's first step is a campaign the playbooks surface reads too; a discarded one leaves both.
   "POST sequences": () => [...savedAndChains(), sequencesOverride],
   // New's draft made (decision 0065): a sequence, as POST sequences makes one; a one-off, a run of Sent's; and a message Ask

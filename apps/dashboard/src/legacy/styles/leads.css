@@ -1354,10 +1354,11 @@ button.ld-slot-btn { cursor: pointer; }
   color: var(--warn-ink);
 }
 
-/* ---- The lead sheet (canvas B v2, "The Workbench"; the refined canvas, 17 Oct 2026; sheet/sheet.tsx) ----
-   A desk's panel beside the rows, or a phone's sheet with two rests over them: the card to decide on (who and where they
-   stand, the reason, what it rests on, how to reach them, the sequence box), the three tabs under it, and the dock at
-   the foot: only what needs you. The canvases' own parts, on the product's tokens. */
+/* ---- The lead sheet (the canvas "Lead sheet, redesigned", 1 Nov 2026; sheet/sheet.tsx) ----
+   A desk's panel beside the rows, or a phone's sheet with two rests over them: who they are, the one card that says what
+   this lead needs from you, five folded lines that answer closed, and the dock at the foot: only what to press, and no
+   foot where nothing needs you. One colour, one meaning, as the sequence record's: amber needs you, green runs or
+   passed, the accent the one press. */
 .lw-desk { position: absolute; top: 12px; right: 12px; bottom: 12px; width: 408px; z-index: 10; display: flex; flex-direction: column; border-radius: var(--surface-pane-radius); background: var(--surface-pane-solid); box-shadow: var(--surface-pop-depth); overflow: hidden; animation: pk-in var(--duration-base) var(--ease-out) backwards; }
 @media (prefers-reduced-motion: reduce) { .lw-desk { animation: none; } }
 .lw-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; padding: 14px 0 12px; }
@@ -1368,12 +1369,9 @@ button.ld-slot-btn { cursor: pointer; }
 /* The card's small controls keep the canvas's sizes, under the house's 44px floor for a thumb, which their hit area
    meets instead (a margin of nothing round each). */
 .lw-undo, .lw-name-go { min-height: 0; min-width: 0; }
-.lw-undo, .lw-ln { position: relative; }
 .lw-undo::after { content: ""; position: absolute; inset: -9px -4px; }
-.lw-ln::after { content: ""; position: absolute; inset: -11px 0; }
 /* The house floors a press at 44px under a coarse pointer (html.legacy-on button): the card's lines keep their 22px,
    and their margin of nothing above is the thumb's 44px. */
-.lw-turn .lw-ln { min-height: 22px; }
 /* At half on a phone the tabs sit under the card, closer than over a pane. */
 /* The pile behind the card: two edges over the sheet's top, drawn only while a pile is on. */
 .lw-phone .lw-edges { position: absolute; top: -9px; left: 18px; right: 18px; height: 10px; border: 1px solid var(--surface-pop-edge); border-bottom: 0; border-radius: var(--radius-3xl) var(--radius-3xl) 0 0; background: var(--surface-pop-fill); pointer-events: none; }
@@ -1392,28 +1390,14 @@ button.ld-slot-btn { cursor: pointer; }
 .lw-undo:disabled { opacity: 0.6; cursor: default; }
 
 /* Who: the face, the name and its line, the fit as a meter (its word only when it is news), and a desk's ⋯ and Close. */
-.lw-id { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto auto; gap: 11px; align-items: center; padding: 0 14px 0 18px; }
-.lw-id-ini { width: 40px; height: 40px; display: grid; place-items: center; border-radius: var(--radius-lg); background: var(--bg-sunken); color: var(--ink-muted); font-size: var(--text-sm); font-weight: var(--weight-semibold); }
-.lw-id-words { display: flex; flex-direction: column; min-width: 0; }
 /* The name and the word for where they stand: the word never wraps, a long name shortens instead. */
-.lw-name-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.lw-name-row > .lw-name { min-width: 0; }
-.lw-name-row > :last-child { flex: none; }
-.lw-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--text-md); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-tight); line-height: var(--leading-tight); color: var(--ink); }
 .lw-name-go { padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-md); font-weight: var(--weight-semibold); text-align: left; cursor: pointer; }
 @media (hover: hover) { .lw-name-go:hover { text-decoration: underline; } }
-.lw-sub { font-size: var(--text-sm); line-height: var(--leading-snug); color: var(--ink-dim); }
-.lw-id-end { display: inline-flex; align-items: center; gap: 2px; }
 
 /* The reason, in plain type (the refined canvas): where it came from on hover. */
-.lw-rs { margin: 10px 18px 0; font-size: var(--text-base); line-height: var(--leading-normal); color: var(--ink); }
 
 /* The checks and the ways in, a line each (the refined canvas): each opens its tab. A dot a check, a passed one Claude
    read shaded apart, one that couldn't tell amber, one that failed red; what is not as it should be in amber. */
-.lw-ln { display: flex; align-items: center; gap: 7px; width: auto; min-width: 0; min-height: 22px; margin: 8px 18px 0; color: var(--ink-muted); font-size: var(--text-sm); white-space: nowrap; text-align: left; text-decoration: none; }
-.lw-ln svg { flex: none; color: var(--ink-dim); }
-.lw-ln-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.lw-ln-w { display: inline-flex; flex: none; align-items: center; gap: 5px; margin-left: 5px; }
 .lw-amber { color: var(--warn-ink); }
 .lw-dots { display: inline-flex; flex: none; gap: 3px; }
 .lw-dots i { width: 6px; height: 6px; border-radius: var(--radius-circle); background: var(--ink-faint); }
@@ -1449,14 +1433,19 @@ button.ld-slot-btn { cursor: pointer; }
 
 /* In a sequence: their steps on the record's rail of days, done, next and still to come. */
 
-/* The dock: only what needs you, one line and its fact, a round ✕ where Not a fit is one, and at most two acts; none
-   at all when nothing needs you. A sibling of the card, held still while it turns. */
-.lw-dock { display: flex; align-items: center; gap: 4px; min-height: 56px; padding: 6px 6px 6px 16px; border-radius: var(--radius-3xl); background: var(--surface-control-fill); box-shadow: var(--surface-control-depth); }
-.lw-dock.x { padding-left: 6px; }
-.lw-dock-t { flex: 1; display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.lw-dock-l { display: flex; align-items: center; gap: 7px; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--ink); }
-.lw-dock-f { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--text-xs); color: var(--ink-dim); }
-.lw-dock-b { flex: none; height: 44px; touch-action: manipulation; }
+/* The dock: only what to press, a round ✕ where Not a fit is one, its quieter presses, and the one primary; none at all
+   when nothing needs you. A sibling of the card, held still while it turns. */
+.lw-dock { display: flex; align-items: center; gap: 6px; min-height: 56px; padding: 6px; border-radius: var(--radius-3xl); background: var(--surface-control-fill); box-shadow: var(--surface-control-depth); }
+.lw-dock-b { flex: none; justify-content: center; height: 44px; touch-action: manipulation; }
+.lw-dock-b.is-wide { flex: 1 1 auto; }
+.lw-dock-w { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lw-dock-l { flex: 1; display: flex; align-items: center; gap: 7px; min-width: 0; padding-left: 10px; font-size: var(--text-sm); color: var(--ink-muted); }
+.lw-dock-go, .lw-split { flex: 1 1 auto; display: flex; min-width: 0; }
+.lw-split { gap: 2px; }
+.lw-dock-go > .lw-dock-b, .lw-split > .lw-dock-b { flex: 1 1 auto; min-width: 0; }
+.lw-split-more { flex: none; width: 36px; height: 44px; padding: 0; }
+.lw-dock-send { flex: 1; min-width: 0; }
+.lw-dock-send .ro-send { padding: 0; border: 0; }
 .lw-dock[data-busy] { opacity: 0.8; }
 /* The keys a desk says under the dock: a pile's own and Undo, or J and K out of one. */
 .lw-keys { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 12px; margin: 0; font-size: var(--text-2xs); color: var(--ink-dim); }
@@ -1478,9 +1467,6 @@ button.ld-slot-btn { cursor: pointer; }
 /* What a held email's check flagged, before its choices. */
 
 /* The Sequence tab: Take out under their steps, and every step and who else is in it, a press away. */
-.lw-take { display: flex; align-items: center; gap: 10px; margin: 14px 0 0; }
-.lw-take-s { min-width: 0; font-size: var(--text-xs); line-height: var(--leading-snug); color: var(--ink-dim); }
-.lw-every { align-self: flex-start; margin: 12px 0 0; font-size: var(--text-sm); }
 
 /* Not a fit asks why in the dock's own place: five reasons, the last one given marked. */
 /* A reason wraps rather than leave its button at a phone's width: the button grows with it, over the height the
@@ -1498,67 +1484,117 @@ button.ld-slot-btn { cursor: pointer; }
 .lw-end-r b { font-variant-numeric: tabular-nums; }
 .lw-end-n { margin: 0; font-size: var(--text-base); line-height: var(--leading-normal); color: var(--ink-muted); }
 
-/* Full height: the tabs (the kit's capsule, which shares the row by itself), and the open one's pane. */
+/* Who: one face, one name, one line. The state is the card's word, so nothing beside the name cuts it. */
+.lw { --lw-gut: 18px; }
+.lw-phone { --lw-gut: 16px; }
+.lw-id { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 0 14px 0 var(--lw-gut); }
+.lw-phone .lw-id { padding-right: var(--lw-gut); }
+.lw-id-ini { width: 40px; height: 40px; display: grid; place-items: center; border-radius: var(--radius-tile); background: var(--surface-inset-fill); box-shadow: var(--surface-inset-ring); color: var(--ink-muted); font-size: var(--text-sm); font-weight: var(--weight-semibold); }
+.lw-id-words { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.lw-name { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--text-xl); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-tight); line-height: var(--leading-tight); color: var(--ink); }
+.lw-name-go { padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-xl); font-weight: var(--weight-semibold); text-align: left; cursor: pointer; }
+@media (hover: hover) { .lw-name-go:hover { text-decoration: underline; } }
+.lw-sub { font-size: var(--text-sm); line-height: var(--leading-snug); color: var(--ink-dim); }
+.lw-close { flex: none; align-self: flex-start; width: 34px; height: 34px; border-radius: var(--radius-circle); background: var(--surface-control-fill); box-shadow: var(--surface-control-depth); }
+
+/* The doors out, and More at the row's end. */
+.lw-doors { display: flex; align-items: center; gap: 6px; margin: 10px var(--lw-gut) 0; }
+.lw-doors-sp { flex: 1; }
+
+/* The one card: a step's box on the record, with its amber edge where it needs you. */
+.lw-now { display: flex; flex-direction: column; gap: 7px; margin: 12px calc(var(--lw-gut) - 4px) 0; padding: 12px 14px 13px; border: 1px solid var(--line); border-radius: var(--radius-xl); background: var(--surface-pane-fill); }
+.lw-now.is-need { border-color: var(--warn-line); }
+.lw-now-top { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+.lw-now-word { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: var(--text-base); font-weight: var(--weight-semibold); line-height: var(--leading-tight); color: var(--ink); }
+.lw-now-word::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: var(--radius-circle); background: var(--ink-faint); }
+.lw-now-word[data-tone="ok"]::before { background: var(--ok); }
+.lw-now-word[data-tone="warn"]::before { background: var(--warn); }
+.lw-now-end { flex: none; margin-left: auto; font-size: var(--text-sm); color: var(--ink-dim); white-space: nowrap; }
+.lw-now-say { margin: 0; font-size: var(--text-base); line-height: var(--leading-normal); color: var(--ink); overflow-wrap: anywhere; }
+.lw-now-unsure { margin: 0; font-size: var(--text-sm); line-height: var(--leading-snug); color: var(--warn-ink); }
+.lw-now-quote { margin: 0; padding: 8px 11px; border-radius: var(--radius-md); background: var(--surface-inset-fill); font-size: var(--text-base); line-height: var(--leading-normal); color: var(--ink); overflow-wrap: anywhere; }
+.lw-now-fact { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; gap: var(--space-2); align-items: center; padding-top: 7px; border-top: 1px solid var(--line); font-size: var(--text-sm); color: var(--ink); }
+.lw-now-fact svg { color: var(--ink-dim); }
+.lw-now-fact-v { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: var(--weight-medium); }
+.lw-now-fact-s { display: inline-flex; align-items: center; gap: 5px; color: var(--ink-dim); white-space: nowrap; }
+.lw-green { color: var(--ok-ink); }
+.lw-now-fact-s.lw-green { color: var(--ok-ink); }
+
+/* The email on the card, as it goes: only the line written for them is marked, since it is what a person reads. */
+.lw-now-mail { display: flex; flex-direction: column; gap: 4px; padding-top: 9px; border-top: 1px solid var(--line); }
+.lw-now-to { margin: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--text-xs); color: var(--ink-dim); }
+.lw-now-subj { margin: 0; font-size: var(--text-base); font-weight: var(--weight-semibold); line-height: var(--leading-snug); color: var(--ink); overflow-wrap: anywhere; }
+.lw-now-body { display: flex; flex-direction: column; gap: 6px; font-size: var(--text-base); line-height: var(--leading-normal); color: var(--ink-muted); overflow-wrap: anywhere; }
+.lw-now-body p { margin: 0; }
+.lw-now-body.is-clipped { max-height: 7.1em; overflow: hidden; -webkit-mask-image: linear-gradient(#000 72%, transparent); mask-image: linear-gradient(#000 72%, transparent); }
+.lw-now-body.is-clipped.is-tall { max-height: 9em; }
+.lw-opening { padding: 1px 3px; border-radius: var(--radius-xs); background: var(--selected-fill); color: var(--ink); -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.lw-refused { padding: 1px 3px; border-radius: var(--radius-xs); background: var(--warn-soft); color: var(--warn-ink); -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.lw-now-acts { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 3px; font-size: var(--text-sm); }
+
+/* The five lines: the same five, in the same order, each saying its answer closed. */
+.lw-lines { display: flex; flex-direction: column; margin-top: 8px; padding: 0 var(--lw-gut) 8px; animation: lw-rise var(--duration-base) var(--ease-out) both; }
+.lw-line-v { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.lw-line-q { flex: none; color: var(--ink-dim); white-space: nowrap; }
+.lw-line-q.lw-amber { color: var(--warn-ink); }
+
+/* Fit: what did not pass first, with why; the marks' meaning said once under them. */
+.lw-cks { display: flex; flex-direction: column; gap: 7px; }
+.lw-ck { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 2px 8px; align-items: start; font-size: var(--text-sm); line-height: var(--leading-snug); color: var(--ink); }
+.lw-ck.no { color: var(--ink-dim); }
+.lw-ck-why { grid-column: 2; color: var(--ink-dim); }
+.lw-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 2px 0 0; font-size: var(--text-xs); color: var(--ink-dim); }
+.lw-legend span { display: inline-flex; align-items: center; gap: 5px; }
+
+/* Contact and Company: rows on the line's own column, so the sheet reads as one list of properties. */
+.lw-rr { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; gap: var(--space-2); align-items: center; color: var(--ink-dim); }
+.lw-rr-w { display: flex; flex-direction: column; min-width: 0; }
+.lw-rr-v { overflow: hidden; font-size: var(--text-sm); font-weight: var(--weight-medium); white-space: nowrap; text-overflow: ellipsis; color: var(--ink); }
+.lw-rr-v.wrong { text-decoration: line-through; color: var(--ink-dim); }
+.lw-rr-s { font-size: var(--text-xs); line-height: var(--leading-snug); color: var(--ink-dim); }
+.lw-rr-s.lw-amber { color: var(--warn-ink); }
+.lw-rr-a { display: inline-flex; gap: 2px; }
+.lw-kvs { display: flex; flex-direction: column; gap: 6px; }
+.lw-kv { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: var(--space-2); align-items: baseline; font-size: var(--text-sm); line-height: var(--leading-snug); }
+.lw-kv-k { color: var(--ink-dim); }
+.lw-kv-v { min-width: 0; color: var(--ink); overflow-wrap: anywhere; }
+.lw-kv-more { display: block; margin-top: 2px; }
+.lw-kv-note { max-width: 280px; }
+.lw-blurb { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; margin: 0; overflow: hidden; font-size: var(--text-sm); line-height: var(--leading-snug); color: var(--ink-muted); }
+.lw-note { margin: 0; font-size: var(--text-xs); line-height: var(--leading-snug); color: var(--ink-dim); }
+
+/* Sequence: the record's steps, one row each. */
+.lw-rungs { display: flex; flex-direction: column; gap: 7px; }
+.lw-rung { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: var(--space-2); align-items: center; min-width: 0; font-size: var(--text-sm); color: var(--ink); }
+.lw-rung-n { width: 20px; height: 20px; display: grid; place-items: center; border-radius: var(--radius-circle); background: var(--surface-inset-fill); font-size: var(--text-2xs); font-weight: var(--weight-semibold); color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+.lw-rung-n.is-done { background: var(--ok-soft); color: var(--ok-ink); }
+.lw-rung-n.is-need { background: var(--warn-soft); color: var(--warn-ink); }
+.lw-rung-t { min-width: 0; overflow: hidden; text-align: left; white-space: nowrap; text-overflow: ellipsis; }
+.lw-rung-at { font-size: var(--text-xs); color: var(--ink-dim); white-space: nowrap; }
+.lw-rung-at.lw-amber { color: var(--warn-ink); }
+.lw-seq-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 2px; font-size: var(--text-sm); }
+.lw-preview { display: flex; flex-direction: column; gap: 4px; padding-top: var(--space-2); border-top: 1px solid var(--line); }
+.lw-preview-l { margin: 0; font-size: var(--text-sm); line-height: var(--leading-snug); color: var(--ink); }
+
+/* History: when, and what happened. */
+.lw-found { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.lw-found-i { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: var(--space-2); align-items: baseline; font-size: var(--text-sm); line-height: var(--leading-snug); color: var(--ink); }
+
+/* A step's heading and its quiet line (the picker, New). */
 .lw-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 14px 0 8px; font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--ink-muted); }
 .lw-h:first-child { margin-top: 4px; }
-.lw-h-s { font-size: var(--text-xs); font-weight: var(--weight-regular); color: var(--ink-dim); }
 .lw-say { margin: 0 0 6px; font-size: var(--text-base); line-height: var(--leading-normal); color: var(--ink); }
 .lw-say.quiet { margin: 14px 0; color: var(--ink-muted); }
-.lw-cks { display: flex; flex-direction: column; }
-.lw-ck { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 6px 0; font-size: var(--text-base); color: var(--ink); }
-.lw-ck.no { color: var(--ink-dim); }
-.lw-fold-s { display: flex; align-items: center; gap: 6px; min-height: 32px; font-size: var(--text-sm); color: var(--ink-muted); list-style: none; cursor: pointer; }
-.lw-fold-s::-webkit-details-marker { display: none; }
-.lw-fold-s svg { color: var(--ink-dim); transition: transform var(--duration-fast) var(--ease-out); }
-.lw-fold[open] > .lw-fold-s svg { transform: rotate(90deg); }
-.lw-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 6px 0 0; font-size: var(--text-xs); color: var(--ink-dim); }
-.lw-legend span { display: inline-flex; align-items: center; gap: 5px; }
-.lw-src { font-size: var(--text-xs); color: var(--ink-dim); white-space: nowrap; }
-.lw-group { display: flex; flex-direction: column; border-radius: var(--radius-xl); background: var(--surface-inset-fill); box-shadow: var(--surface-inset-ring); }
-.lw-rr { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 12px; border-top: 1px solid var(--line); color: var(--ink-muted); }
-.lw-rr:first-child { border-top: 0; }
-.lw-rr-w { display: flex; flex-direction: column; min-width: 0; }
-.lw-rr-v { overflow: hidden; font-size: var(--text-base); font-weight: var(--weight-medium); white-space: nowrap; text-overflow: ellipsis; color: var(--ink); }
-.lw-rr-v.wrong { text-decoration: line-through; color: var(--ink-dim); }
-.lw-rr-s { font-size: var(--text-xs); color: var(--ink-dim); }
-.lw-rr-a { display: inline-flex; gap: 2px; }
-.lw-kv { display: flex; flex-direction: column; border-radius: var(--radius-xl); background: var(--surface-inset-fill); box-shadow: var(--surface-inset-ring); }
-.lw-kv-r { display: grid; grid-template-columns: 92px minmax(0, 1fr) auto; gap: 10px; align-items: baseline; padding: 9px 12px; border-top: 1px solid var(--line); font-size: var(--text-sm); color: var(--ink); }
-.lw-kv-r:first-child { border-top: 0; }
-.lw-kv-r > :nth-child(2) { min-width: 0; overflow-wrap: anywhere; }
-.lw-kv-k { font-size: var(--text-xs); color: var(--ink-dim); }
-.lw-kv-r.today { font-weight: var(--weight-semibold); }
-.lw-found { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
-.lw-found-i { display: grid; grid-template-columns: 8px minmax(0, 1fr) auto; gap: 10px; align-items: baseline; font-size: var(--text-sm); color: var(--ink); }
-.lw-found-i i { width: 6px; height: 6px; border-radius: var(--radius-circle); background: var(--ok); }
-.lw-quiet { display: flex; justify-content: flex-start; margin-top: 14px; }
 
-/* The redesigned sheet (the lead-to-sequence canvas, 18 Oct 2026): the verdict first, the quick acts, one scroll of
-   sections, the picker and New as steps of the same sheet, and the dock's acts and asks. */
-.lw-verdict { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; margin: 12px 18px 0; }
-.lw-verdict .lw-rs { margin: 0; }
-.lw-quick { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 18px 0; }
-.lw-record { display: flex; flex-direction: column; padding: 6px 18px 14px; animation: lw-rise var(--duration-base) var(--ease-out) both; }
-.lw-sec { display: flex; flex-direction: column; margin-top: 8px; scroll-margin-top: 8px; }
-.lw-sec .sq-steps-body { padding-top: 0; }
-.lw-sec .sq-stepbox .lw-mail.is-short { margin: 0; padding: 0; background: none; box-shadow: none; }
-.lw-sec .lw-mail.is-short .lw-mail-b { margin-top: 0; font-size: var(--text-sm); color: var(--ink-muted); -webkit-line-clamp: 2; }
+/* The sheet's small steps. */
+
+/* The picker and New as steps of the same sheet, and the dock's asks. */
 .lw-place { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; }
 .lw-place-l { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--text-xs); color: var(--ink-dim); }
-.lw-held { display: flex; flex: none; align-items: center; gap: 4px; }
-.lw-held.is-row { flex-wrap: wrap; gap: 2px 4px; }
-.lw-split { display: inline-flex; flex: none; gap: 2px; }
-.lw-split-more { flex: none; width: 36px; height: 44px; padding: 0; }
-.lw-phone .lw-dock .lw-split-more { height: var(--control-h-touch); }
 /* On a phone the primary act takes the room the glyphs leave, its words cut short, so ▾ beside it always shows; each
    glyph says its word under it (the canvas's PhoneHalf), with no keys to name. */
-.lw-dock-w { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lw-phone .lw-dock .lw-split { flex: 1 1 auto; min-width: 0; }
-.lw-phone .lw-dock .lw-split > .lw-dock-b { flex: 1 1 auto; min-width: 0; }
 .lw-phone .lw-dock .lw-x-said { width: auto; min-width: 52px; flex-direction: column; gap: 3px; padding: 0 4px; border-radius: var(--radius-full); }
 .lw-x-w { font-size: var(--text-2xs); line-height: 1; color: var(--ink-muted); white-space: nowrap; }
-.lw-take { display: flex; align-items: center; gap: 10px; margin: 2px 0 0; }
-.lw-every { align-self: flex-start; font-size: var(--text-sm); }
 .lw-adds { display: flex; align-items: center; gap: 8px; padding: 2px var(--gutter-page) 8px; font-size: var(--text-sm); color: var(--ink-muted); }
 .lw-step { display: flex; flex-direction: column; gap: 8px; padding: 2px 18px 14px; animation: lw-rise var(--duration-base) var(--ease-out) both; }
 .lw-step-h { display: flex; align-items: flex-start; gap: 8px; }

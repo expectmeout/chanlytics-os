@@ -93,7 +93,6 @@ export function LeadPeekCompany({
           </li>
         ))}
       </ul>
-      {company.source ? <p className="pk-alt-why">{company.source}</p> : null}
     </section>
   );
 }

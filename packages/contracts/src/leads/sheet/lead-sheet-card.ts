@@ -1,43 +1,27 @@
 /**
- * The lead sheet's card, as the refined canvas draws it (17 Oct 2026, its Main and PhoneHalf boards): under the name, one
- * line of who and where; then the reason in plain type, one line for the checks (their dots, how many passed, the first
- * exception in amber), one line for the ways in (the address, the phone in amber where it is not confirmed, the site),
- * and the sequence box. Each line opens its tab. What failed comes first in Why too (decision 07): the exceptions, then
- * the rest folded under "N passed", and one legend for a mark seen and a mark read.
+ * What the lead sheet says of its checks and its address (the canvas "Lead sheet, redesigned", 1 Nov 2026). Under the name,
+ * one line of who and where; on the card and Fit's line, how many passed and what did not; in Fit, what did not pass
+ * first, each with why (decision 07), and one legend for a mark seen and a mark read.
  *
- *   leadSheetSubOf          the line under the name: the kind, the street, the rating ("4.7 (312)"), on one line
- *   leadSheetChecksLineOf   the card's checks line, its words, and what a screen reader hears of it
- *   leadSheetContactLineOf  the card's ways-in line, and what a screen reader hears of it
- *   leadSheetWhyOf          Why's checks: the exceptions, the passed ones, their count and the legend
+ *   leadSheetSubOf          the line under the name: the kind, the street, the rating ("4.7 (312)")
+ *   leadSheetChecksLineOf   the checks in a line: their dots, how many passed, and what did not
+ *   leadSheetEmailLineOf    the address the sequence writes to, and how its mailbox checked
+ *   leadSheetWhyOf          Fit's checks: the exceptions with why, then the passed ones, and the legend
  */
 import type { LeadCheckKey } from "../lead-dtos";
 import { LEAD_READ_SOURCES } from "../lead-words";
 import type { LeadPeekVM } from "../lead-peek";
 
-/** The card's and Why's own words. */
+/** What the sheet says of its checks. */
 export const LEAD_SHEET_CARD_WORDS = {
-  /** Why's first head, its count at the end ("5 of 7"). */
-  checksHead: "Checks",
   checks: (passed: number, of: number) => `${passed} of ${of} checks`,
-  couldntTell: (n: number) => `${n} couldn't tell`,
+  couldntTell: (n: number, what: readonly string[]) =>
+    what.length ? `${n} couldn't tell: ${what.join(", ")}` : `${n} couldn't tell`,
   failed: (n: number) => `${n} failed`,
-  passed: (n: number) => `${n} passed`,
-  noEmail: "No email found",
-  noPhone: "No phone",
-  site: "site",
-  linkedin: "LinkedIn",
-  /** The legend under Why's checks: a mark seen, and a mark read, by Claude or by Chanlytics AI (LEAD_READ_SOURCES). */
+  /** The legend under Fit's checks: a mark seen, and a mark read, by Claude or by Chanlytics AI (LEAD_READ_SOURCES). */
   seen: "seen on the map or in the mailbox",
   read: "read by Claude from the listing and their site",
   readByAi: "read by Chanlytics AI",
-  /** What the card's two lines open, said to a screen reader and on hover. */
-  openWhy: "Why it fits, every check",
-  openContact: "Every way to reach them",
-  opens: (tab: string) => `Opens ${tab}.`,
-  notConfirmed: "not confirmed",
-  email: "Email",
-  phone: "Phone",
-  theirSite: "their site",
 } as const;
 
 const CW = LEAD_SHEET_CARD_WORDS;
@@ -53,6 +37,12 @@ const UNSURE_WORDS: Partial<Record<LeadCheckKey, string>> = {
   right_kind: "kind unclear",
 };
 
+/** What couldn't be told, said in a word beside others ("area, phone"), where its short words have one. */
+const unsureWordOf = (key: string): string | null => {
+  const short = UNSURE_WORDS[key as LeadCheckKey];
+  return short ? (short.replace(/ (not confirmed|unclear)$/, "") ?? null) : null;
+};
+
 /** A check that did not pass, as Fit's row says it first: what is not so, in its short words, capitalized. */
 export const leadSheetExceptionWords = (key: string, label: string): string => {
   const short = UNSURE_WORDS[key as LeadCheckKey];
@@ -60,8 +50,7 @@ export const leadSheetExceptionWords = (key: string, label: string): string => {
 };
 
 /**
- * The line under the name: the kind, the street (else the area), and the rating with how many rated it, short as the
- * canvas's PhoneHalf has it ("4.7 (312)"), so the line keeps to one on a desk's panel and a phone alike.
+ * The line under the name: the kind, the street (else the area), and the rating with how many rated it ("4.7 (312)").
  */
 export function leadSheetSubOf(vm: Pick<LeadPeekVM, "sub" | "where" | "rated" | "company">): string {
   if (vm.company) return vm.sub;
@@ -72,33 +61,34 @@ export function leadSheetSubOf(vm: Pick<LeadPeekVM, "sub" | "where" | "rated" | 
   return [kind, street, rated].filter(Boolean).join(" · ");
 }
 
-/** A check as Why and the card read it: its key, words, how it was known, its answer, and its source. */
+/** A check as Fit reads it: its key, words, how it was known, its answer, its source, and why it did not pass. */
 export interface LeadSheetCheckVM {
   key: string;
   label: string;
   how: "seen" | "read";
   answer: "yes" | "no" | "unknown";
   source: string;
+  reason: string | null;
 }
 
 const checksOf = (vm: Pick<LeadPeekVM, "groups">): LeadSheetCheckVM[] =>
   vm.groups.flatMap((g) =>
-    g.checks.map((c) => ({ key: c.key, label: c.label, how: g.how, answer: c.answer, source: c.source })),
+    g.checks.map((c) => ({
+      key: c.key,
+      label: c.label,
+      how: g.how,
+      answer: c.answer,
+      source: c.source,
+      reason: c.reason,
+    })),
   );
 
-/** The card's checks line: a dot a check (a passed one read shaded apart), how many passed, the first exception. */
+/** The checks in a line: a dot a check (a passed one read shaded apart), how many passed, and what did not. */
 export interface LeadSheetChecksLineVM {
   dots: ("ok" | "read" | "warn" | "no")[];
   words: string;
-  /** What did not pass, short and in amber: one by its own words, several by how many. Null when all passed. */
+  /** What did not pass, short and in amber: one by its own words, several by how many and what. Null when all passed. */
   exception: string | null;
-  /** The verdict in full, for a screen reader and on hover ("5 checks passed · 2 couldn't tell"). */
-  tip: string;
-  /**
-   * The fit's word where it is news, before the count: Worth a look, or what left it out and by which of the owner's
-   * criteria ("Left out — Chain gyms"); null for a strong fit.
-   */
-  fit: string | null;
 }
 
 /** The check the email's own line says already (Checked, or not confirmed): the mailbox. */
@@ -116,14 +106,16 @@ function exceptionOf(checks: LeadSheetCheckVM[]): string | null {
   const [only] = unsure;
   const one = only && unsure.length === 1 && !failed.length ? UNSURE_WORDS[only.key as LeadCheckKey] : undefined;
   if (one) return one;
-  return [failed.length ? CW.failed(failed.length) : null, unsure.length ? CW.couldntTell(unsure.length) : null]
+  const said = unsure.flatMap((c) => unsureWordOf(c.key) ?? []);
+  return [
+    failed.length ? CW.failed(failed.length) : null,
+    unsure.length ? CW.couldntTell(unsure.length, said.length === unsure.length ? said : []) : null,
+  ]
     .filter(Boolean)
     .join(" · ");
 }
 
-export function leadSheetChecksLineOf(
-  vm: Pick<LeadPeekVM, "groups" | "checkDots" | "checksSummary" | "fit">,
-): LeadSheetChecksLineVM | null {
+export function leadSheetChecksLineOf(vm: Pick<LeadPeekVM, "groups" | "checkDots">): LeadSheetChecksLineVM | null {
   if (!vm.checkDots.length) return null;
   const checks = checksOf(vm);
   const passed = vm.checkDots.filter((d) => d.answer === "yes").length;
@@ -133,29 +125,10 @@ export function leadSheetChecksLineOf(
     ),
     words: CW.checks(passed, vm.checkDots.length),
     exception: exceptionOf(checks),
-    tip: vm.checksSummary,
-    fit: (vm.fit.cls === "look" || vm.fit.cls === "out") && vm.fit.word ? vm.fit.word : null,
   };
 }
 
-/** The checks line as a screen reader hears it: its words in order, then the tab it opens. */
-export const leadSheetChecksSaid = (line: LeadSheetChecksLineVM): string =>
-  `${[line.fit, line.words, line.exception].filter(Boolean).join(", ")}. ${CW.opens("Why")}`;
-
-/** One way in on the card's line: its words, and amber where it is not as it should be. */
-export interface LeadSheetWayVM {
-  text: string;
-  warn: boolean;
-}
-
-/** The card's ways-in line: the address (or that none was found), the phone, the site (a company's LinkedIn). */
-export interface LeadSheetContactLineVM {
-  email: LeadSheetWayVM;
-  phone: LeadSheetWayVM | null;
-  site: string | null;
-}
-
-/** The email line at half (the canvas's PhoneHalf): the address the sequence writes to, and how its mailbox checked. */
+/** The address the sequence writes to, and how its mailbox checked. */
 export interface LeadSheetEmailLineVM {
   address: string | null;
   /** "Checked", "Checking…", "Not confirmed", or that none was found. */
@@ -180,26 +153,12 @@ export function leadSheetEmailLineOf(vm: Pick<LeadPeekVM, "reach" | "slots">): L
   return { address, words: E.notConfirmed, tone: "warn" };
 }
 
-export function leadSheetContactLineOf(
-  vm: Pick<LeadPeekVM, "reach" | "slots" | "links" | "company">,
-): LeadSheetContactLineVM {
-  const address = vm.reach.email.address;
-  const site = vm.company && vm.links.linkedin ? CW.linkedin : vm.links.website ? CW.site : null;
-  return {
-    email: address ? { text: address, warn: vm.slots.mailbox.state !== "ok" } : { text: CW.noEmail, warn: true },
-    phone: vm.reach.phone ? { text: vm.reach.phone.value, warn: vm.slots.phone.state !== "ok" } : null,
-    site,
-  };
-}
-
-/** Why's checks: the exceptions first, the passed ones folded, their count, and the legend where a check was read. */
+/** Fit's checks: the exceptions first, each with why, then the passed ones, and the legend where a check was read. */
 export interface LeadSheetWhyVM {
-  /** "5 of 7", the end of Why's Checks head. */
-  count: string;
   exceptions: LeadSheetCheckVM[];
   passed: LeadSheetCheckVM[];
-  /** "5 passed", the fold's words. */
-  fold: string;
+  /** A check failed that says something of the lead: a way in missing is the lead's plain state, and Contact's to say. */
+  failed: boolean;
   /**
    * Where a check was read rather than seen, the words for the read mark, which say who read it: Claude, where it read
    * one of them, else Chanlytics AI (the screen, decision 0085, or the company judge); null where every check was seen.
@@ -222,10 +181,9 @@ export function leadSheetWhyOf(vm: Pick<LeadPeekVM, "groups">): LeadSheetWhyVM |
   if (!checks.length) return null;
   const passed = checks.filter((c) => c.answer === "yes");
   return {
-    count: `${passed.length} of ${checks.length}`,
     exceptions: checks.filter((c) => c.answer !== "yes"),
     passed,
-    fold: CW.passed(passed.length),
+    failed: checks.some((c) => c.answer === "no" && !REACH_CHECKS.has(c.key)),
     legend: legendOf(checks),
   };
 }

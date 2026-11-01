@@ -145,7 +145,7 @@ function runRow(r: BroadcastVM, late: boolean, p: WaitRowsPorts, acts: RunActs):
         opens
           ? { label: p.phone && !lateWords ? WAIT_ROW_WORDS.review : "Open", kind: p.verbKind(), onClick: open }
           : {
-              // One word per act (decision 19 of the spec of 9 Oct 2026): "Approve · 7 people", as every screen says it.
+              // One word per act (decision 19 of the spec of 9 Oct 2026): "Approve all 7", as every screen says it.
               label: runApproveWords(r.recipient_count),
               kind: p.verbKind(),
               onClick: () => acts.approve(r),

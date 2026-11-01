@@ -226,8 +226,10 @@ export { replacedOutcome, SEARCH_CARD_REPLACED, searchCardsReplaced, searchCardV
 export { planArea, planLeavingOut, planSaid, planSentence, planWhere, planWho, planWords } from "./leads/search/sentence";
 export { LEAD_CLOSED_REASONS, LEAD_EMAIL_STATES, LEAD_FITS, LEAD_OPERATION_KINDS, LEAD_REACH_FILTERS, LEAD_STAGES, LEAD_COUNTER_KINDS, LEAD_MEMBER_CLASSES, LEAD_PREFERENCE_KINDS, LEAD_ROUND_ANSWERS, LEAD_ROUND_ENDINGS, LEAD_ROUND_PURPOSES, LEAD_ROUND_STATES, LEAD_RUN_PURPOSES, LEAD_RUN_STATES, LEAD_SEARCH_VIAS, LEAD_SUPPRESSION_KINDS, LEAD_SUPPRESSION_WHATS } from "./leads/search/sets";
 export { LEAD_SHEET_WORDS, leadPickerRowsOf, leadPileEndOf, leadSheetAboutOf, leadSheetClosedOf, leadSheetStateOf, leadVerdictOf, newStartFirst, sheetSlot } from "./leads/sheet/lead-sheet";
-export { LEAD_SHEET_CARD_WORDS, leadSheetChecksLineOf, leadSheetChecksSaid, leadSheetContactLineOf, leadSheetEmailLineOf, leadSheetExceptionWords, leadSheetSubOf, leadSheetWhyOf } from "./leads/sheet/lead-sheet-card";
-export { LEAD_DOCK_WORDS, leadDockOf, leadSheetWordOf } from "./leads/sheet/lead-sheet-dock";
+export { LEAD_SHEET_CARD_WORDS, leadSheetChecksLineOf, leadSheetEmailLineOf, leadSheetExceptionWords, leadSheetSubOf, leadSheetWhyOf } from "./leads/sheet/lead-sheet-card";
+export { dockSlotsOf, LEAD_DOCK_WORDS, leadDockOf } from "./leads/sheet/lead-sheet-dock";
+export { leadHistoryOf, leadLinesOf } from "./leads/sheet/lead-sheet-lines";
+export { LEAD_NOW_WORDS, leadNowOf } from "./leads/sheet/lead-sheet-now";
 export { BUSINESS_INDUSTRIES, BUSINESS_TYPES, businessTypeOf, COMPANY_TYPES, companyTypeOf, DEFAULT_BUSINESS_TYPE, DEFAULT_COMPANY_TYPE, DEFAULT_INDUSTRY, industryOf, industryWords } from "./lines/a2p-enums";
 export { businessPageMetadata, businessPageVM, dataSentences, publishesBusinessPage, registrationPreflight, SMS_CLAUSES, smsConsentSentence, textingTermsMetadata, textingTermsVM } from "./lines/business-page";
 export { ABOUT_MAX, ABOUT_MIN, businessFieldsFor, businessGroupWordsFor, businessRecordForPath, businessRecordLine, businessRecordProblems, emptyBusinessRecord } from "./lines/business-record";
@@ -386,7 +388,7 @@ export { isSequencesParam, isToSendParam, messageOfRoute, messageRoute, newForLe
 export { isListToken, newSequenceLine, SEQUENCE_DRAFT_THEN_MAX, SEQUENCE_WAIT_DAYS } from "./sequences/sequence-draft";
 export { SEQUENCE_PEOPLE_GROUPS } from "./sequences/sequence-dto";
 export { classEvidenceLine, EVIDENCE_DAYS, evidenceOf, evidenceWords } from "./sequences/sequence-evidence";
-export { HELD_TAKE_OUT, heldAnswersOf, heldChoicesOf, heldWhyOf, markedOpeningOf, sequencePersonWhyOf, waitingAnswersOf } from "./sequences/sequence-held";
+export { HELD_TAKE_OUT, heldAnswersOf, heldWhyOf, markedOpeningOf, sequencePersonWhyOf, waitingAnswersOf } from "./sequences/sequence-held";
 export { LEAD_BUILD_WORDS, leadBuildStepsOf, leadDraftChainOf, leadDraftDockOf, leadEndingOf, leadFirstUnwritten, leadInsertRowsOf, leadMailboxesTicked, leadMailboxRowsOf, leadPaceChoicesOf, leadPreviewEmailOf, leadPreviewOfferOf, leadSendingFactsOf, leadStartOf, reachOutInsertStep, reachOutMayInsertStep, reachOutPutBackStep, reachOutRemoveStep, withOpeningSaid } from "./sequences/sequence-lead-build";
 export { batchOkSendsNothing, heldByCheckWords, needsCount, needsWords, SEQUENCE_LIST_WORDS, SEQUENCE_SORTS, SEQUENCE_TYPES, sequenceTypeOf, sortedSequences } from "./sequences/sequence-list";
 export { PLACE_RAIL_WORDS, PLACE_WORDS, placeRailOf, placeSpanOf, placeStands, placeToneOf, placeWordOf } from "./sequences/sequence-place";

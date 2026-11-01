@@ -211,7 +211,12 @@ test("Take out takes a lead on the list nothing was planned for; Put back puts i
     await as.operator.c.rpc("sequence_return", { p_tenant_id: A, p_sequence_id: W.R, p_undo_of: byPlace.decision_id }),
   );
   assert.equal(placeBack.back, 1);
-  assert.equal((await placeOf(W.placed))[0].state, "in", "its place put back");
+  const [listed] = await placeOf(W.placed);
+  assert.deepEqual(
+    [listed.state, listed.why],
+    ["left", "moved"],
+    "its email stood skipped: on the list for its next batch",
+  );
 
   const left = ok(await leave(as.operator, [W.waits]));
   assert.equal(left.left, 1);

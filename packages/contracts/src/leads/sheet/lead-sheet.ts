@@ -1,10 +1,9 @@
 /**
- * The lead sheet, redesigned (the canvas "Lead to sequence, redesigned", 18 Oct 2026: one road from a lead to a
- * sequence): one lead as one scroll, whose top is a quick look on a phone (the verdict, the reason, the checks line,
- * Website · Call · Maps and the email it writes to) and whose rest is a record of the lead (Fit, About, Contact, Sequence,
- * How we found them), the dock at its foot holding only what to press. Add is the one verb; the picker the one place a
- * sequence is chosen or made; where a lead stands is the sequence's own reading (contracts sequence-place.ts), never
- * worked out here. Every sentence the sheet says is here, in lead-sheet-dock.ts and lead-sheet-card.ts.
+ * The lead sheet (the canvas "Lead sheet, redesigned", 1 Nov 2026): who they are, one card that says what this lead needs
+ * from you now (lead-sheet-now.ts), five folded lines that answer before they open (lead-sheet-lines.ts), and a dock
+ * of only what to press. Add is the one verb; the picker the one place a sequence is chosen or made; where a lead stands
+ * is the sequence's own reading (contracts sequence-place.ts), never worked out here. Every sentence the sheet says is
+ * here and in those modules.
  *
  *   leadSheetStateOf     which state: needs review, finding an email, a phone and no email, a gap, in another sequence,
  *                        in a sequence, they replied, closed, or ready
@@ -12,12 +11,15 @@
  *   leadVerdictOf        the verdict first: Strong fit, Worth a look, Long shot, or Left out with the finder's reason
  *   leadPickerRowsOf     the picker: each sequence to leads Add can go to, by its state, and New sequence
  *   leadPileEndOf        the pile's end: what went where, by sequence, each row its own act
- *   leadSheetAboutOf     the place or the company as its source knows it, each fact with where it came from
+ *   leadSheetAboutOf     the place or the company as its source knows it, each fact said once
  */
 import { plural } from "../../shared/words";
+import { runApproveWords } from "../../shell/campaign-rooms";
 import type { LeadCardCheck, LeadCardEmailVM } from "../lead-card";
 import type { LeadPeekVM } from "../lead-peek";
+import { LEAD_DIRECTORY_WORDS } from "../lead-kind";
 import { LEAD_CLOSED_WORDS, LEAD_LEFT_OUT_WORD, type LeadClass, type LeadStage } from "../lead-words";
+import type { HoldDoor } from "../../reach-out/reach-out-words";
 import type { LeadEmailState } from "../search/sets";
 import type { SequencePlaceDto } from "../../sequences/sequence-place";
 import { placeSpanOf } from "../../sequences/sequence-place";
@@ -30,42 +32,48 @@ import type { SequenceState } from "../../sequences/sequence";
 export const LEAD_SHEET_WORDS = {
   label: "About this lead",
   raise: "Show everything about them",
-  lower: "Back to the quick look",
+  lower: "Back to half",
   close: "Close",
-  more: "More for this lead",
+  more: "More",
+  moreOf: "More for this lead",
   back: "Back",
   /** An email drawn whole: who it is from and to. */
   emails: { from: "From", to: "To" },
-  /** The quick acts at half: each opens outside the app. */
-  quick: { website: "Website", call: "Call", maps: "Maps" },
-  /** The sections of the one scroll, in their order. */
-  sections: {
-    fit: "Fit",
-    about: "About",
-    contact: "Contact",
-    sequence: "Sequence",
-    found: "How we found them",
+  /** The doors at the head: each opens outside the app. */
+  doors: { website: "Website", call: "Call", maps: "Maps" },
+  /** The email on the card. */
+  mail: {
+    to: (who: string) => `To ${who}`,
+    ifAdded: (who: string) => `If you add them · to ${who}`,
+    readAll: "Read it all",
+    less: "Show less",
+    rewrite: "Rewrite the opening",
+    writing: "Being written, a minute or two.",
   },
-  fitChecks: (passed: number, of: number) => `${passed} of ${of} checks`,
-  passed: (n: number) => `${n} passed`,
-  aboutFrom: (from: string) => from,
   listing: "Listing",
   claimed: "Claimed by the owner",
   unclaimed: "Nobody has claimed it",
   hours: "Hours",
+  size: "Size",
+  reviews: "Reviews",
+  where: "Where",
+  from: "From",
+  directory: "A business directory",
+  whatWeKeep: "What we keep",
+  noListing: "No listing",
   /** Contact: where the sequence writes, and changing who it writes to. */
   writesHere: "The sequence writes here",
   writeHere: "Write here",
-  checkedMailbox: "mailbox checked",
+  checkedMailbox: "Mailbox checked",
   notConfirmed: "Not confirmed",
   emailOnSite: "Email found on its contact page",
-  /** Sequence, before one: not in one yet, and the email they'd get from the pick. */
-  notInOne: "Not in one yet",
-  wouldGet: "The email they'd get",
-  wouldGetOf: (name: string) => `${name}’s step 1, filled for them`,
-  noPick: "Pick a sequence to see the email they'd get.",
+  /** Sequence, before one: the sequence Add goes to and the emails they'd get, or why none can have them. */
+  ifAdded: "If you add them",
+  stops: "Their first email waits for your OK.",
+  noPick: "Pick a sequence to see the emails they'd get.",
   noEmailToWrite: "No email to write to: no sequence can take them. Call them instead.",
-  /** The lead's ⋯: the rare acts. */
+  openSequence: (name: string) => `Open ${name}`,
+  /** The lead's More: the rare acts. */
   menu: {
     theyWrote: "They wrote back…",
     copy: "Copy details",
@@ -123,7 +131,7 @@ export const LEAD_SHEET_WORDS = {
     notFit: (n: number) => `${n} not a fit`,
     later: (n: number) => `${n} for later`,
     goThrough: "Go through them",
-    approve: (n: number) => `Approve ${n}`,
+    approve: runApproveWords,
     write: "Write the emails in Sequences",
     writeNote: (n: number) => `Next: one set of emails for the ${n}, in the draft's record. Back brings you here.`,
     approveNote: "Their first batch waits for your OK: it carries leads you added.",
@@ -259,7 +267,9 @@ export type LeadSheetAct =
   | "keep"
   | "exclude"
   | "approve"
-  | "open_draft"
+  | "decide"
+  | "take_out"
+  | "return"
   | "they_wrote"
   | "thread"
   | "next";
@@ -272,6 +282,8 @@ export interface LeadSheetSlotVM {
   key: "a" | "l" | "n" | "c" | "j" | null;
   /** Add with ▾ beside it: the picker, one press away. */
   split?: boolean;
+  /** A held email's answer, which the decide verb takes. */
+  door?: HoldDoor;
   /** Why it is off, said at the control; null when it would go. */
   off: string | null;
 }
@@ -281,7 +293,7 @@ export const sheetSlot = (
   label: string,
   icon: string,
   key: LeadSheetSlotVM["key"] = null,
-  more: Partial<Pick<LeadSheetSlotVM, "split" | "off">> = {},
+  more: Partial<Pick<LeadSheetSlotVM, "split" | "off" | "door">> = {},
 ): LeadSheetSlotVM => ({ act, label, icon, key, off: null, ...more });
 
 /* ------------------------------------------------------------------------------------------------ the picker -- */
@@ -419,26 +431,43 @@ export function leadPileEndOf(p: { added: readonly LeadPileAdded[]; notFit: numb
 
 /* --------------------------------------------------------------------------------------------- the facts -------- */
 
-/** A fact about them, and where it came from. */
+/** A fact about them, and a tip where a press says more of it. */
 export interface LeadSheetFactVM {
   k: string;
   v: string;
-  from: string | null;
+  tip: string | null;
 }
 
-/** The place or the company as its source knows it (About): each fact with its source, nothing its source didn't say. */
+/** The facts its own rows say, or the head and History do: never again from the listing's list. */
+const SAID_ELSEWHERE: ReadonlySet<string> = new Set(["Rated", "Listing", "Kind", "Found at"]);
+
+const aboutFact = (k: string, v: string, tip: string | null = null): LeadSheetFactVM => ({ k, v, tip });
+
+/** The rating with how many rated it, and what five bars said that an average cannot, where it is worth saying. */
+const reviewsOf = (rated: NonNullable<LeadPeekVM["rated"]>): string =>
+  [`★ ${rated.score} from ${rated.reviews}`, rated.low].filter(Boolean).join(" · ");
+
+/** The place or the company as its source knows it: its own words, then each fact once, nothing its source didn't say. */
 export function leadSheetAboutOf(
   vm: Pick<LeadPeekVM, "rated" | "weekSummary" | "where" | "distance" | "facts" | "company" | "about" | "claimed">,
-): { head: string; from: string; text: string | null; rows: LeadSheetFactVM[] } {
-  const listing = vm.company ? vm.company.source : "Google listing";
+): { text: string | null; rows: LeadSheetFactVM[] } {
   const W = LEAD_SHEET_WORDS;
-  const rows: LeadSheetFactVM[] = [
-    ...(vm.company || vm.claimed === null
-      ? []
-      : [{ k: W.listing, v: vm.claimed ? W.claimed : W.unclaimed, from: null }]),
-    ...(vm.weekSummary ? [{ k: W.hours, v: vm.weekSummary, from: null }] : []),
-    // The listing's own facts, each said once: the rating is the head's.
-    ...vm.facts.filter((f) => f.k !== "Rated").map((f) => ({ k: f.k, v: f.v, from: null })),
-  ];
-  return { head: vm.company ? "The company" : W.sections.about, from: listing, text: vm.about, rows };
+  const { company } = vm;
+  const where = vm.where ? [vm.where.line, vm.distance].filter(Boolean).join(" · ") : null;
+  const rows: LeadSheetFactVM[] = company
+    ? [
+        ...(company.size ? [aboutFact(W.size, company.size)] : []),
+        // Where its people came from and what we keep of them is a tip, never a heading of a paragraph's length.
+        aboutFact(W.from, LEAD_DIRECTORY_WORDS.source, company.source || null),
+      ]
+    : [
+        ...(vm.weekSummary ? [aboutFact(W.hours, vm.weekSummary)] : []),
+        ...(vm.claimed === null ? [] : [aboutFact(W.listing, vm.claimed ? W.claimed : W.unclaimed)]),
+        ...(vm.rated ? [aboutFact(W.reviews, reviewsOf(vm.rated))] : []),
+        ...(where ? [aboutFact(W.where, where)] : []),
+      ];
+  return {
+    text: vm.about,
+    rows: [...rows, ...vm.facts.filter((f) => !SAID_ELSEWHERE.has(f.k)).map((f) => aboutFact(f.k, f.v))],
+  };
 }

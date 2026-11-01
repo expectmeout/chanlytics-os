@@ -7,6 +7,7 @@ import { clockTime, clockWhen, zoneDayKey } from "../shared/clock";
 import { mailboxDailyCap } from "../email/mailbox-standing";
 import { nextRunLabel } from "../playbooks/playbook-schedule";
 import { PLAYBOOK_VETO_DELAY_WORDS } from "../playbooks/playbook-triggers";
+import { runApproveWords } from "../shell/campaign-rooms";
 // The one "3 emails" (shared/words.ts), not an eleventh copy of it.
 import { plural } from "../shared/words";
 import type {
@@ -496,8 +497,8 @@ export function approvalWordsOf(
       ),
     })),
     dock: runDockOf(r, { ready, from, state }),
-    // The count it releases (the canvas's Approve 2); when it goes is the foot's line beside it, never in it.
-    approve: waiting ? `Approve ${n}` : null,
+    // The count it releases ("Approve all 30"); when it goes is the foot's line beside it, never in it.
+    approve: waiting ? runApproveWords(n) : null,
     // What a member who may not approve is told it waits for, in the foot where Approve would be.
     waits: { lead: `${n} go once it's approved`, said: "An owner or operator approves" },
     note: "Skipping loses this run only. The sequence keeps its place and asks again tomorrow.",

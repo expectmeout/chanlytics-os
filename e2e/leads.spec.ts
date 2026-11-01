@@ -308,7 +308,8 @@ test.describe("Leads on a real workspace", () => {
     // the key reaches a lead with a number to dial, and that the peek shows it.
     // Stored canonical and dialled as stored, but drawn as the app writes numbers everywhere else (#770:
     // toLeadPeekVM's reach.phone.value is formatPhoneDisplay's). The number and its ways to call are the sheet's Contact
-    // section, one scroll with Fit, About and Sequence (sheet/panes.tsx).
+    // line, one of five folded in one scroll (sheet/panes.tsx).
+    await peek.getByTestId("lead-sheet-sec-contact-press").click();
     await expect(peek.getByTestId("peek-phone-value")).toHaveText(/^\+1 \(512\) 555-010\d$/);
     await expect(peek.getByTestId("peek-act-call")).toBeEnabled();
     await page.keyboard.press("Escape");

@@ -218,7 +218,7 @@ const stageOf = (row) => door.leads.get(row.id).stage;
 /** The lead went aside by one press: the toast it left, once the door has answered. */
 const pressNotFit = async (row, pile) => {
   const before = flashes.length;
-  await runSheetAct("not_a_fit", runOf(row, pile));
+  await runSheetAct({ act: "not_a_fit" }, runOf(row, pile));
   assert.equal(flashes.length, before + 1, "the press says what it did");
   return flashes.at(-1);
 };
@@ -333,7 +333,7 @@ test("in a pile: Undo pressed while the reason is on its way takes back the reas
 
 test("in a pile: the toast's Undo takes back its own lead, whatever was done since and before", async () => {
   reset();
-  await runSheetAct("later", runOf(TRAVIS, openPile()));
+  await runSheetAct({ act: "later" }, runOf(TRAVIS, openPile()));
   const toast = await pressNotFit(HYDE, drawPile());
   drawPile();
   await toast.undo();
@@ -342,7 +342,7 @@ test("in a pile: the toast's Undo takes back its own lead, whatever was done sin
   assert.equal(door.ops.get("op-1").undone, false);
   reset();
   const named = await pressNotFit(HYDE, openPile());
-  await runSheetAct("later", runOf(TRAVIS, drawPile()));
+  await runSheetAct({ act: "later" }, runOf(TRAVIS, drawPile()));
   drawPile();
   await named.undo();
   await until(() => stageOf(HYDE) === "nurture", "the Not a fit taken back");
@@ -353,7 +353,7 @@ test("in a pile: the toast's Undo takes back its own lead, whatever was done sin
 test("in a pile: a toast whose Not a fit has left the pile's three says nothing was put back", async () => {
   reset();
   const toast = await pressNotFit(HYDE, openPile());
-  for (let i = 0; i < 3; i++) await runSheetAct("later", runOf(TRAVIS, drawPile()));
+  for (let i = 0; i < 3; i++) await runSheetAct({ act: "later" }, runOf(TRAVIS, drawPile()));
   drawPile();
   await toast.undo();
   assert.equal(stageOf(HYDE), "archived");

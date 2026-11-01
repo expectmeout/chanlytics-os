@@ -1,29 +1,26 @@
 /**
- * The lead sheet's quick look (the canvas "Lead to sequence, redesigned", its PhoneHalf and DeskOne boards): what a
- * decision needs, in the order the eye wants it. Who they are, as a record's raised head (the face, the name, the word for
- * where they stand beside it, one line of what and where with the rating); the verdict, then the reason in plain type; one
- * line for the checks (how many passed, what did not, in amber), which raises the sheet onto Fit; Website, Call and Maps,
- * each opening outside the app; and the email the sequence writes to, with how its mailbox checked, which raises the
- * sheet onto Contact. Over it in a pile, how far through it is and Undo; at its end, what went where.
+ * The lead sheet's top (the canvas "Lead sheet, redesigned", 1 Nov 2026): who they are, with no pill beside the name to
+ * cut it; the doors out to what they are (Website, Call where the dock is not already saying it, Maps) and More, the rare
+ * acts behind one labelled caret; and the one card, which says what this lead needs from you now and carries the email
+ * where the email is what you are deciding on. Over it in a pile, how far through it is and Undo; at its end, what went
+ * where.
  *
- * Hookless: the sheet (sheet.tsx) holds what is open and hands it down. Every word is contracts' (lead-sheet.ts,
- * lead-sheet-card.ts).
+ * Hookless: the sheet (sheet.tsx) holds what is open and hands it down. Every word is contracts' (lead-sheet-now.ts,
+ * lead-sheet.ts).
  */
 import type { ReactNode } from "react";
 import {
-  LEAD_SHEET_CARD_WORDS as CW,
+  LEAD_CARD_WORDS,
   LEAD_SHEET_WORDS as W,
   LEAD_WORDS,
-  leadSheetChecksSaid,
-  type LeadCardReasonVM,
+  type LeadCardPart,
+  type LeadNowFactVM,
+  type LeadNowVM,
   type LeadPeekVM,
   type LeadPileEndVM,
   type LeadRowVM,
-  type LeadSheetChecksLineVM,
-  type LeadSheetEmailLineVM,
-  type LeadVerdictVM,
-  type PlaceTone,
 } from "@chanlytics/contracts";
+import { EmailParts, emailParagraphs } from "../../campaigns/sequences/place/email-as";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
@@ -31,22 +28,20 @@ import { Meter } from "../../kit/meter/meter";
 import { StatePill } from "../../kit/pill/state-pill";
 import { gate } from "../../legacy-verbs";
 import { LeadTile } from "../cells/tile";
+import type { SheetMail } from "./facts";
 
 /* ------------------------------------------------------------------------------------------------------- who -- */
 
 /**
- * Who they are, as a record's raised head: the face (its photo opens large), the name (a door to the person they became)
- * and beside it the word for where they stand, which never wraps (a long name shortens instead), and under it what and
- * where with the rating, which wraps.
+ * Who they are: the face (its photo opens large), the name (a door to the person they became), and under it what and
+ * where with the rating, which wraps. A desk's Close stands at the row's end.
  */
 export const SheetWho = (p: {
   vm: LeadPeekVM;
   row: Pick<LeadRowVM, "id" | "name" | "tile"> | null;
-  word: { word: string; tone: PlaceTone };
   sub: string;
   onExpand: () => void;
   onOpenPerson: (id: string) => void;
-  /** The ⋯ and, on a desk, Close, at the row's end. */
   end?: ReactNode;
 }) => (
   <div className="lw-id" data-testid="peek-identity">
@@ -58,24 +53,21 @@ export const SheetWho = (p: {
       </span>
     )}
     <span className="lw-id-words">
-      <span className="lw-name-row">
-        {p.vm.contactId ? (
-          <LinkButton
-            size="inherit"
-            className="lw-name lw-name-go"
-            title={LEAD_WORDS.openPerson}
-            onClick={() => p.vm.contactId && p.onOpenPerson(p.vm.contactId)}
-            data-testid="peek-name-person"
-          >
-            {p.vm.name}
-          </LinkButton>
-        ) : (
-          <span className="lw-name" data-testid="peek-name">
-            {p.vm.name}
-          </span>
-        )}
-        <StatePill kind="tone" value={p.word.tone} label={p.word.word} testid="lead-sheet-word" />
-      </span>
+      {p.vm.contactId ? (
+        <LinkButton
+          size="inherit"
+          className="lw-name lw-name-go"
+          title={LEAD_WORDS.openPerson}
+          onClick={() => p.vm.contactId && p.onOpenPerson(p.vm.contactId)}
+          data-testid="peek-name-person"
+        >
+          {p.vm.name}
+        </LinkButton>
+      ) : (
+        <span className="lw-name" data-testid="peek-name">
+          {p.vm.name}
+        </span>
+      )}
       <span className="lw-sub" data-testid="peek-sub">
         {p.sub}
       </span>
@@ -84,72 +76,19 @@ export const SheetWho = (p: {
   </div>
 );
 
-/* --------------------------------------------------------------------------------------- the verdict and reason -- */
+/* --------------------------------------------------------------------------------------------------- the doors -- */
 
 /**
- * The verdict first (Strong fit, Worth a look, Long shot, or Left out with the finder's reason in its words), then the
- * reason in plain type, where it came from on hover. They wrote back: what they said, as it was read.
+ * The doors out: the site in a tab of its own, your phone, then "How did it go?", and the Google listing, which has both
+ * the map and the reviews, with More at the row's end. One that has nothing to open is not drawn, and Call stands down
+ * where it is the dock's press: a door never repeats the dock.
  */
-export const SheetVerdict = (p: {
-  verdict: LeadVerdictVM;
-  reason: LeadCardReasonVM | null;
-  fallback: string;
-  reply: string | null;
-}) => {
-  const text = p.reply ?? (p.reason ? p.reason.text : p.fallback);
-  return (
-    <div className="lw-verdict" data-testid="lead-sheet-verdict">
-      <StatePill kind="tone" value={p.verdict.tone} label={p.verdict.word} testid="lead-sheet-fit" />
-      {text ? (
-        <p className="lw-rs" title={p.reason && !p.reply ? p.reason.from : undefined} data-testid="lead-pile-why">
-          {text}
-        </p>
-      ) : null}
-    </div>
-  );
-};
-
-/** The checks in one line: how many passed, and what did not, in amber; it raises the sheet onto Fit. */
-export const SheetChecksLine = ({ line, onOpen }: { line: LeadSheetChecksLineVM; onOpen: () => void }) => (
-  <LinkButton
-    size="inherit"
-    className="lw-ln"
-    onClick={onOpen}
-    title={`${line.tip} · ${CW.openWhy}`}
-    aria-label={leadSheetChecksSaid({ ...line, fit: null })}
-    data-testid="lead-sheet-checks"
-  >
-    <span className="lw-dots" aria-hidden="true">
-      {line.dots.map((d, i) => (
-        <i key={i} className={d} />
-      ))}
-    </span>
-    <span className="lw-ln-t">
-      {line.words}
-      {line.exception ? (
-        <>
-          {" · "}
-          <span className="lw-amber">{line.exception}</span>
-        </>
-      ) : null}
-    </span>
-    <Icon name="chevron" size={10} />
-  </LinkButton>
-);
-
-/* ------------------------------------------------------------------------------------------ the quick acts -- */
-
-/**
- * Website, Call and Maps: each opens outside the app (the site in a tab of its own; your phone, then "How did it go?";
- * the Google listing, which has both the map and the reviews). One that has nothing to open is not drawn.
- */
-export function SheetQuick(p: { vm: LeadPeekVM; onCall: () => void }) {
+export function SheetDoors(p: { vm: LeadPeekVM; callDoor: boolean; onCall: () => void; more: ReactNode }) {
   const site = p.vm.links.website;
   const phone = p.vm.reach.phone;
   const maps = p.vm.links.maps ?? (p.vm.where && p.vm.where.href ? { label: "", href: p.vm.where.href } : null);
-  if (!site && !(phone && phone.tel) && !maps) return null;
   return (
-    <div className="lw-quick" data-testid="lead-sheet-quick">
+    <div className="lw-doors" data-testid="lead-sheet-quick">
       {site ? (
         <Button
           variant="secondary"
@@ -159,11 +98,11 @@ export function SheetQuick(p: { vm: LeadPeekVM; onCall: () => void }) {
           rel="noopener noreferrer"
           data-testid="lead-sheet-website"
         >
-          <Icon name="globe" size={14} />
-          {W.quick.website}
+          <Icon name="globe" size={13} />
+          {W.doors.website}
         </Button>
       ) : null}
-      {phone && phone.tel ? (
+      {p.callDoor && phone && phone.tel ? (
         <Button
           variant="secondary"
           size="sm"
@@ -172,8 +111,8 @@ export function SheetQuick(p: { vm: LeadPeekVM; onCall: () => void }) {
           data-testid="lead-sheet-call"
           {...gate("approve", "call this lead")}
         >
-          <Icon name="phone" size={14} />
-          {W.quick.call}
+          <Icon name="phone" size={13} />
+          {W.doors.call}
         </Button>
       ) : null}
       {maps ? (
@@ -185,36 +124,150 @@ export function SheetQuick(p: { vm: LeadPeekVM; onCall: () => void }) {
           rel="noopener noreferrer"
           data-testid="lead-sheet-maps"
         >
-          <Icon name="map" size={14} />
-          {W.quick.maps}
+          <Icon name="map" size={13} />
+          {W.doors.maps}
         </Button>
       ) : null}
+      <span className="lw-doors-sp" />
+      {p.more}
     </div>
   );
 }
 
-/** The email the sequence writes to, and how its mailbox checked: it raises the sheet onto Contact. */
-export const SheetEmailLine = ({ line, onOpen }: { line: LeadSheetEmailLineVM; onOpen: () => void }) => (
-  <LinkButton
-    size="inherit"
-    className="lw-ln"
-    onClick={onOpen}
-    title={CW.openContact}
-    aria-label={`${line.address ?? ""} ${line.words}. ${CW.opens("Contact")}`}
-    data-testid="lead-sheet-contact"
-  >
-    <Icon name="mail" size={14} />
-    <span className="lw-ln-t" data-testid="lead-sheet-contact-email">
-      {line.address ?? line.words}
-    </span>
-    {line.address ? (
-      <span className={line.tone === "warn" ? "lw-ln-w lw-amber" : "lw-ln-w"} data-testid="lead-sheet-email-check">
-        {line.tone === "ok" ? <Icon name="check" size={12} /> : null}
-        {line.words}
+/* --------------------------------------------------------------------------------------------------- the email -- */
+
+/** The opening as it goes: still being written, the words the check refused marked, or its words as they stand. */
+function OpeningOf({ mail, part }: { mail: SheetMail; part: Extract<LeadCardPart, { kind: "opening" }> }) {
+  if (mail.writing)
+    return (
+      <span className="lw-open" data-testid="lead-card-opening">
+        {W.mail.writing}
       </span>
-    ) : null}
-  </LinkButton>
+    );
+  const o = mail.opening;
+  if (!o)
+    return (
+      <span className={part.text ? "lw-opening" : "lw-open"} data-testid="lead-card-opening">
+        {part.text ?? LEAD_CARD_WORDS.opening}
+      </span>
+    );
+  return (
+    <span className="lw-opening" data-testid="lead-card-opening">
+      {o.before}
+      {o.said ? (
+        <mark className="lw-refused" data-testid="lead-card-refused">
+          {o.said}
+        </mark>
+      ) : null}
+      {o.after}
+    </span>
+  );
+}
+
+/** A paragraph of the email: its opening as it goes, and the rest in plain words, a slot with no value as the hole it is. */
+const mailParagraph = (mail: SheetMail, para: readonly LeadCardPart[], at: number) => {
+  const opening = para.find((x) => x.kind === "opening");
+  return (
+    <p key={at}>
+      {opening && opening.kind === "opening" ? (
+        <OpeningOf mail={mail} part={opening} />
+      ) : (
+        <EmailParts parts={para} plain />
+      )}
+    </p>
+  );
+};
+
+/** The email on the card: as it goes, a few lines of it until it is asked for whole. */
+function SheetEmail(p: { mail: SheetMail; whole: boolean; onWhole: () => void; onRewrite: (() => void) | null }) {
+  const { mail } = p;
+  const clip = p.whole ? "" : mail.tall ? " is-clipped is-tall" : " is-clipped";
+  return (
+    <div className="lw-now-mail" data-testid="lead-card-email">
+      <p className="lw-now-to" data-testid="lead-card-to">
+        {mail.to}
+      </p>
+      {mail.subject ? (
+        <p className="lw-now-subj" data-testid="lead-card-subject">
+          <EmailParts parts={mail.subject} plain />
+        </p>
+      ) : null}
+      <div className={`lw-now-body${clip}`} data-testid="lead-card-body">
+        {emailParagraphs(mail.body).map((para, at) => mailParagraph(mail, para, at))}
+      </div>
+      <div className="lw-now-acts">
+        <LinkButton onClick={p.onWhole} data-testid="lead-sheet-read-all">
+          {p.whole ? W.mail.less : W.mail.readAll}
+        </LinkButton>
+        {p.onRewrite ? (
+          <LinkButton
+            onClick={p.onRewrite}
+            data-testid="lead-sheet-rewrite"
+            {...gate("approve", "rewrite the opening")}
+          >
+            {W.mail.rewrite}
+          </LinkButton>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------------------------------------------- the card -- */
+
+/** A way to reach them, where it decides what happens next. */
+const factRow = (f: LeadNowFactVM) => (
+  <div key={f.kind} className="lw-now-fact" data-testid={`lead-sheet-fact-${f.kind}`}>
+    <Icon name={f.kind === "phone" ? "phone" : "mail"} size={14} />
+    <span className="lw-now-fact-v">{f.value}</span>
+    <span className={f.tone === "ok" ? "lw-now-fact-s lw-green" : "lw-now-fact-s"}>
+      {f.busy ? <span className="lw-spin" aria-hidden="true" /> : null}
+      {f.note}
+    </span>
+  </div>
 );
+
+/**
+ * The one card: its word and what stands at its end, the line under it, what they said or what could not be told, the
+ * ways to reach them where they decide it, and the email where the email is the question. An amber edge where it needs
+ * you, as a step's box on the record has.
+ */
+export const SheetNow = (p: {
+  now: LeadNowVM;
+  mail: SheetMail | null;
+  whole: boolean;
+  onWhole: () => void;
+  onRewrite: (() => void) | null;
+}) => {
+  const { now } = p;
+  return (
+    <section className={now.need ? "lw-now is-need" : "lw-now"} aria-label={now.word} data-testid="lead-sheet-verdict">
+      <div className="lw-now-top">
+        <span className="lw-now-word" data-tone={now.tone} data-testid="lead-sheet-word">
+          {now.word}
+        </span>
+        {now.end ? <span className="lw-now-end">{now.end}</span> : null}
+      </div>
+      {now.say ? (
+        <p className="lw-now-say" data-testid="lead-pile-why">
+          {now.say}
+        </p>
+      ) : null}
+      {now.quote ? (
+        <p className="lw-now-quote" data-testid="lead-sheet-quote">
+          {now.quote}
+        </p>
+      ) : null}
+      {now.unsure ? (
+        <p className="lw-now-unsure" data-testid="lead-sheet-unsure">
+          {now.unsure}
+        </p>
+      ) : null}
+      {now.facts.map(factRow)}
+      {p.mail ? <SheetEmail mail={p.mail} whole={p.whole} onWhole={p.onWhole} onRewrite={p.onRewrite} /> : null}
+    </section>
+  );
+};
 
 /* ---------------------------------------------------------------------------------------------------- the pile -- */
 

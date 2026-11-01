@@ -1,35 +1,33 @@
 /**
- * The lead sheet, redesigned (the canvas "Lead to sequence, redesigned", 18 Oct 2026: one road from a lead to a
- * sequence): one lead, as one scroll. Its top is the quick look a phone stops at, at half height (who, the verdict and
- * reason, the checks line, Website · Call · Maps, the email it writes to); raised, the rest is a record of the lead (Fit,
- * About, Contact, Sequence, How we found them), nothing behind a tab. On a desk a panel beside the rows, the whole of it
- * in one scroll. The dock at its foot holds only what to press: Not a fit, Later and Add to the pick (▾ the picker) for a
- * lead to decide on; what needs you in their sequence once one has them; nothing where nothing does.
+ * The lead sheet (the canvas "Lead sheet, redesigned", 1 Nov 2026): one question, what does this lead need from you. Who
+ * they are, with the doors out to what they are and More; one card that changes with where they stand (the fit, the email
+ * to OK, why one was held, what they said); and five folded lines that answer before they open, the same five on every
+ * lead (Fit, Contact, Company or About, Sequence, History), nothing behind a tab. On a desk a panel beside the rows; on a
+ * phone the kit's sheet with two rests, the lines under the card at half, so half is never empty, and opening one raises
+ * it. The dock at its foot holds only what to press, and where nothing needs you there is no foot at all.
  *
  * Add is the one verb, the picker the one place a sequence is chosen or made (a step of this same sheet, as New is), and
- * the pick is kept on the search. Where the lead stands is the sequence's own reading (one reader, 00459 sequence_place),
- * drawn on the record's own rail; a held email is decided with the record's own choices; the sequence's name opens its
- * record at Leads, their row lit, with the way back to this lead. In a pile its line rides over the card (how far through,
- * a meter, Undo) and its end says what went where; out of one, J and K walk the rows. Over another page (a record's Leads
+ * the pick is kept on the search. Where the lead stands is the sequence's own reading (one reader, 00459 sequence_place);
+ * an email is answered with the record's own answers; the sequence's name opens its record at Leads, their row lit, with
+ * the way back to this lead. In a pile its line rides over the card (how far through, a meter, Undo) and its end says what
+ * went where; out of one, J and K walk the rows, the line left open staying open. Over another page (a record's Leads
  * row, `?lead=`) it is the same sheet with no pile and no rows to walk (over.tsx).
  */
 import { useEffect, useState } from "react";
 import {
   LEAD_SHEET_WORDS as W,
+  dockSlotsOf,
   leadPickerRowsOf,
+  type LeadLineId,
   type LeadPeekVM,
   type LeadPickerRowVM,
   type LeadPileEndVM,
   type LeadRowVM,
   type LeadSheetSlotVM,
   type SequenceRecordDto,
-  type ToSendRowVM,
-  toSendRowOf,
 } from "@chanlytics/contracts";
 import { commitVerb } from "@/legacy-bridge/verbs/commit";
 import { reachOuts } from "../../campaigns/reach-out/surface";
-import { RoSaidAsk } from "../../campaigns/reach-out/said-ask";
-import { RoToSendRows } from "../../campaigns/reach-out/to-send";
 import { useLeadPlace } from "../../campaigns/sequences/place/parts";
 import { useSequenceRead } from "../../campaigns/sequences/use-record";
 import { pressed, sequenceVerbs as verbs } from "../../campaigns/sequences/verbs";
@@ -39,7 +37,7 @@ import { Icon } from "../../kit/icon/icon";
 import { Menu } from "../../kit/menu/menu";
 import { Sheet } from "../../kit/sheet/sheet";
 import { refusalToast, touchSwipe } from "../../legacy-verbs";
-import { MenuInPlace, menuGroups, moreButton, type PeopleMenuItem } from "../../people/menu-groups";
+import { MenuInPlace, menuGroups, type PeopleMenuItem } from "../../people/menu-groups";
 import { LeadCallAsk, LeadPeekAsk, LeadSentAsk } from "../peek/asks";
 import { LeadDraftPane } from "../peek/draft-pane";
 import type { Armed, Deck, DraftState, Flash, PeekActs, PeekMode } from "../peek/types";
@@ -47,13 +45,14 @@ import { PileBulk, type PileBulkFacts } from "../pile/bulk";
 import { keepPileForTheWayBack, type LeadPile } from "../pile/use-pile";
 import { stopWritingTo } from "../reach-out/lines";
 import { SheetDock } from "./dock";
+import { SheetSaidAsk, SheetToSend } from "./dock-asks";
 import { railSequenceOf, sheetFactsOf, type SheetFacts, type SheetPileFacts } from "./facts";
 import { holdSheetKeys } from "./keys";
 import { closeLeadOver } from "./lead-over";
-import { SheetRecord } from "./panes";
-import { SheetChecksLine, SheetEmailLine, SheetEnd, SheetProgress, SheetQuick, SheetVerdict, SheetWho } from "./parts";
+import { SheetLines } from "./panes";
+import { SheetDoors, SheetEnd, SheetNow, SheetProgress, SheetWho } from "./parts";
 import { SheetNew, SheetPicker, type NewStart } from "./picker";
-import { openRecordFor, runSheetAct, takeOut, type SheetRun } from "./run";
+import { decideEmail, openRecordFor, runSheetAct, takeOut, type SheetRun } from "./run";
 import type { LeadAim } from "./use-aim";
 
 /** The pile, as the sheet draws it: its acts, its own facts, its line, its name, Add them all, and its end. */
@@ -92,7 +91,7 @@ interface LeadSheetProps {
 
 /** Which step of the sheet is open, and what the dock asks in its place. */
 type SheetStep = "card" | "picker" | "new";
-type DockAsk = null | "to_send" | "said" | "stop";
+type DockAsk = null | "said" | "stop";
 
 /** What the sheet holds for the lead on screen, as it was left for that lead and none other. */
 interface SheetUiState {
@@ -100,13 +99,15 @@ interface SheetUiState {
   step: SheetStep;
   full: boolean;
   ask: DockAsk;
-  /** A step of the rail opened: the email as they get it. */
+  /** A step of the Sequence line opened: the email as they get it. */
   openStep: number | null;
+  /** The card's email asked for whole. */
+  whole: boolean;
 }
 
-const FRESH = { step: "card" as SheetStep, full: false, ask: null as DockAsk, openStep: null };
+const FRESH = { step: "card" as SheetStep, full: false, ask: null as DockAsk, openStep: null, whole: false };
 
-/** The sheet's own state: a decision turns the card, and the next lead comes up at half, nothing open. */
+/** The sheet's own state: a decision turns the card, and the next lead comes up at half, its email cut short. */
 function useSheetUi(leadId: string | null) {
   const [held, setHeld] = useState<SheetUiState>({ lead: leadId, ...FRESH });
   const ui = held.lead === leadId ? held : { lead: leadId, ...FRESH };
@@ -120,6 +121,8 @@ interface SheetDraw {
   vm: LeadPeekVM | null;
   facts: SheetFacts | null;
   sheet: ReturnType<typeof useSheetUi>;
+  /** The line left open, which stays open as the rows are walked. */
+  line: { open: LeadLineId | null; turn: (id: LeadLineId) => void };
   run: SheetRun | null;
   busy: { on: boolean; set: (on: boolean) => void };
   /** The sequences the picker offers, the pick first. */
@@ -143,8 +146,9 @@ const allOf = (vm: LeadPeekVM) =>
     .join("\n");
 
 /**
- * The lead's ⋯, its rare acts: They wrote back… (an email sent by hand, where no mailbox is read), Copy details, Never
- * write to them again (every sequence), and what contracts' leadPeekMenu offers this member (Erase, the owner's).
+ * The lead's More, its rare acts behind one labelled caret (Ruben, 20 Oct 2026: no three dots): They wrote back… (an email
+ * sent by hand, where no mailbox is read), Copy details, Never write to them again (every sequence), and what contracts'
+ * leadPeekMenu offers this member (Erase, the owner's).
  */
 function sheetMoreOf(d: SheetDraw) {
   const { vm, p, facts, sheet } = d;
@@ -173,83 +177,94 @@ function sheetMoreOf(d: SheetDraw) {
   ];
   return (
     <MenuInPlace>
-      <Menu label={W.more} trigger={moreButton({ title: W.more, testid: "peek-more" })} groups={menuGroups(items)} />
+      <Menu
+        label={W.moreOf}
+        trigger={
+          <Button variant="secondary" size="sm" aria-label={W.moreOf} data-testid="peek-more">
+            {W.more}
+            <Icon name="chevron-down" size={11} />
+          </Button>
+        }
+        groups={menuGroups(items)}
+      />
     </MenuInPlace>
   );
 }
 
-/** Who they are, with the ⋯ and, on a desk, Close at the row's end. */
+/** Who they are, with Close at the row's end on a desk. */
 function sheetWhoOf(d: SheetDraw, desk: boolean) {
   const { vm, facts, p } = d;
   if (!vm || !facts) return null;
-  const end = (
-    <span className="lw-id-end">
-      {sheetMoreOf(d)}
-      {desk ? (
-        <Button
-          variant="quiet"
-          size="sm"
-          iconOnly
-          id="lead-peek-close"
-          aria-label={W.close}
-          onClick={p.onClose}
-          data-testid="peek-close"
-        >
-          <Icon name="x" size={15} />
-        </Button>
-      ) : null}
-    </span>
-  );
   return (
     <SheetWho
       vm={vm}
       row={p.row}
-      word={facts.word}
       sub={facts.sub}
       onExpand={() => p.on && p.on.onExpand()}
       onOpenPerson={(id) => p.on && p.on.onOpenPerson(id)}
-      end={end}
+      end={
+        desk ? (
+          <Button
+            variant="quiet"
+            iconOnly
+            className="lw-close"
+            id="lead-peek-close"
+            aria-label={W.close}
+            onClick={p.onClose}
+            data-testid="peek-close"
+          >
+            <Icon name="x" size={13} />
+          </Button>
+        ) : null
+      }
     />
   );
 }
 
-/* ------------------------------------------------------------------------------------------------ the quick look -- */
+/* ------------------------------------------------------------------------------------------- the card and the lines -- */
 
-/** Raise the sheet onto a section: at full height on a phone, scrolled to it on either. */
-function raiseTo(d: SheetDraw, section: "fit" | "contact") {
-  d.sheet.put({ full: true });
-  window.requestAnimationFrame(() => {
-    const el = document.getElementById(`lead-sheet-${section}`);
-    if (el && typeof el.scrollIntoView === "function") el.scrollIntoView({ block: "start", behavior: "smooth" });
-  });
+/** Rewrite the opening, under the email it is of: the decide verb's own door. */
+function rewriteOf(d: SheetDraw) {
+  const { run, facts, sheet } = d;
+  if (!run || !facts || !facts.mail || !facts.mail.rewrite) return null;
+  return () => {
+    sheet.put({ whole: false });
+    void decideEmail(run, "rewrite");
+  };
 }
 
-/** The quick look: who, the verdict and reason, the checks line, the quick acts, and the email line. */
-function quickOf(d: SheetDraw, desk: boolean) {
-  const { facts, vm, p } = d;
+/** The top of the sheet: who, the doors, the one card. */
+function topOf(d: SheetDraw, desk: boolean) {
+  const { facts, vm, p, sheet } = d;
   if (!facts || !vm) return null;
-  const replied = facts.place && facts.place.place.reply ? facts.place.place.reply.summary : null;
+  const dockCalls = !!facts.dock && !!facts.dock.primary && facts.dock.primary.act === "call";
   return (
     <article key={vm.id} className="lw-card-w lw-turn" aria-label={vm.name} data-testid="lead-pile-lead">
       {sheetWhoOf(d, desk)}
-      <SheetVerdict verdict={facts.verdict} reason={facts.card.reason} fallback={vm.fit.sentence} reply={replied} />
-      {facts.checks ? <SheetChecksLine line={facts.checks} onOpen={() => raiseTo(d, "fit")} /> : null}
-      <SheetQuick vm={vm} onCall={() => p.on && p.on.onCall(vm.id)} />
-      <SheetEmailLine line={facts.email} onOpen={() => raiseTo(d, "contact")} />
+      <SheetDoors vm={vm} callDoor={!dockCalls} onCall={() => p.on && p.on.onCall(vm.id)} more={sheetMoreOf(d)} />
+      <SheetNow
+        now={facts.now}
+        mail={facts.mail}
+        whole={sheet.ui.whole}
+        onWhole={() => sheet.put({ whole: !sheet.ui.whole })}
+        onRewrite={rewriteOf(d)}
+      />
     </article>
   );
 }
 
-/** The record under the quick look: Fit, About, Contact, Sequence, How we found them. */
-function recordOf(d: SheetDraw) {
+/** The five lines. */
+function sheetLines(d: SheetDraw) {
   const { facts, vm, p, sheet } = d;
   if (!facts || !vm || !p.on) return null;
   const run = d.run;
   return (
-    <SheetRecord
+    <SheetLines
       vm={vm}
       facts={facts}
       on={p.on}
+      open={d.line.open}
+      onOpen={d.line.turn}
       seq={{
         onOpenRecord: (id) => openSequence(d, id),
         onTakeOut: facts.place && run ? () => void takeOutNow(d) : null,
@@ -428,82 +443,16 @@ const askInView = (el: HTMLDivElement | null) => {
   if (typeof el.scrollIntoView === "function") el.scrollIntoView({ block: "nearest" });
 };
 
-/** Their email handed over to send: the row every To send draws, in the dock's place (its mail apps, Sent or Skip). */
-function toSendOf(d: SheetDraw) {
-  const { facts, vm, p } = d;
-  const row = facts && facts.place ? facts.place.place : null;
-  if (!vm || !row || !row.draft || !row.send_id) return null;
-  const vmRow: ToSendRowVM = toSendRowOf(
-    {
-      send_id: row.send_id,
-      lead_id: vm.id,
-      business_name: vm.name,
-      angle: row.draft.angle,
-      to: row.draft.to,
-      subject: row.draft.subject,
-      text: row.draft.text,
-      drafted_at: row.draft.drafted_at,
-      follow_up: row.draft.follow_up,
-    },
-    { timezone: p.tz, now: Date.now() },
-  );
-  return (
-    <div className="lw-dock-ask" data-testid="lead-sheet-to-send">
-      <RoToSendRows
-        rows={[vmRow]}
-        runOf={() => row.batch_id}
-        onSaid={(said) => {
-          p.flash({ tone: "ok", msg: said, undo: null });
-          d.sheet.put({ ask: null });
-          d.moved();
-        }}
-      />
-      <Button size="sm" variant="quiet" onClick={() => d.sheet.put({ ask: null })} data-testid="lead-sheet-ask-back">
-        {W.back}
-      </Button>
-    </div>
-  );
-}
-
-/** They wrote back…: what they replied, in five words, which stops their place as a read reply does. */
-function sentAskOf(d: SheetDraw) {
-  const { vm, p, sheet } = d;
-  if (!vm) return null;
-  return (
-    <div className="lw-dock-ask" data-testid="lead-sheet-said">
-      <RoSaidAsk
-        business={vm.name}
-        busy={d.busy.on}
-        onSay={(intent, more) => {
-          d.busy.set(true);
-          void reachOuts
-            .sayReply(vm.id, { intent, ...more })
-            .then((r) => {
-              if (!r.ok) return p.flash(refusalToast(r));
-              p.flash({
-                tone: "ok",
-                msg: reachOuts.saidReplyWords(vm.name, intent, r.data.resume_at ?? null, more.refer_to ?? null),
-              });
-              sheet.put({ ask: null });
-              d.moved();
-            })
-            .finally(() => d.busy.set(false));
-        }}
-        onBack={() => sheet.put({ ask: null })}
-        testid="lead-sheet-said"
-      />
-    </div>
-  );
-}
-
-/** The dock, or what it asks in its place: an email to send, They wrote back…, Never write to them again. */
+/** The dock, or what it asks in its place: They wrote back…, Never write to them again. */
 function dockOf(d: SheetDraw, desk: boolean) {
   const { p, vm, facts, sheet } = d;
   const pile = p.pile ? p.pile.pile : null;
   const busy = p.busy || d.busy.on || !!(pile && pile.busy);
   if (!vm || !facts || sheet.ui.step !== "card") return null;
-  if (sheet.ui.ask === "to_send") return toSendOf(d);
-  if (sheet.ui.ask === "said") return sentAskOf(d);
+  if (sheet.ui.ask === "said")
+    return (
+      <SheetSaidAsk vm={vm} flash={p.flash} moved={d.moved} busy={d.busy} onBack={() => sheet.put({ ask: null })} />
+    );
   if (sheet.ui.ask === "stop") {
     const SW = reachOuts.words.REACH_OUT_STOP_WORDS;
     return (
@@ -529,13 +478,13 @@ function dockOf(d: SheetDraw, desk: boolean) {
     <SheetDock
       dock={dock}
       busy={busy}
-      onRun={(s: LeadSheetSlotVM) => d.run && !s.off && void runSheetAct(s.act, d.run)}
+      onRun={(s: LeadSheetSlotVM) => d.run && !s.off && void runSheetAct(s, d.run)}
       onPick={() => sheet.put({ step: "picker", full: true })}
       keys={keys}
       phone={!desk}
-      name={vm.name}
-      flash={p.flash}
-      onDecided={d.moved}
+      toSend={
+        dock.toSend ? <SheetToSend vm={vm} flash={p.flash} moved={d.moved} place={facts.place} tz={p.tz} /> : null
+      }
     />
   );
 }
@@ -608,7 +557,7 @@ function pileEndDrawnOf(d: SheetDraw) {
 
 /* ------------------------------------------------------------------------------------------------- the layouts -- */
 
-/** The body: a step of the sheet, the draft for their own inbox, or the quick look and, raised or on a desk, the record. */
+/** The body: a step of the sheet, the draft for their own inbox, or who they are, the one card and the five lines. */
 function sheetBodyOf(d: SheetDraw, desk: boolean) {
   const { p, vm } = d;
   if (!vm) return p.pile ? pileEndDrawnOf(d) : null;
@@ -617,31 +566,43 @@ function sheetBodyOf(d: SheetDraw, desk: boolean) {
   if (p.mode === "draft" && p.on) return <LeadDraftPane vm={vm} draft={p.draft} busy={p.busy} on={p.on} />;
   return (
     <>
-      {quickOf(d, desk)}
-      {desk || d.sheet.ui.full ? recordOf(d) : null}
+      {topOf(d, desk)}
+      {sheetLines(d)}
     </>
   );
 }
 
+/** The foot: the dock and the pile's line. None at all where neither has anything to say. */
+function footOf(d: SheetDraw, desk: boolean) {
+  const dock = dockOf(d, desk);
+  const said = d.p.pile ? sheetSaidOf(d.p.pile) : null;
+  return dock || said ? (
+    <>
+      {dock}
+      {said}
+    </>
+  ) : null;
+}
+
 /** On a desk: a panel beside the rows, one scroll, the dock at its foot. */
-const deskOf = (d: SheetDraw) => (
-  <aside
-    className="lw lw-desk pl-peek"
-    role="dialog"
-    aria-label={d.vm ? d.vm.name : d.p.pile ? d.p.pile.searchName : W.label}
-    data-testid="lead-peek"
-  >
-    {progressOf(d.p.pile)}
-    <div className="lw-scroll" key={d.vm ? d.vm.id : "end"} data-testid="peek-body">
-      {asksOf(d)}
-      {sheetBodyOf(d, true)}
-    </div>
-    <div className="lw-foot">
-      {dockOf(d, true)}
-      {sheetSaidOf(d.p.pile)}
-    </div>
-  </aside>
-);
+function deskOf(d: SheetDraw) {
+  const foot = footOf(d, true);
+  return (
+    <aside
+      className="lw lw-desk pl-peek"
+      role="dialog"
+      aria-label={d.vm ? d.vm.name : d.p.pile ? d.p.pile.searchName : W.label}
+      data-testid="lead-peek"
+    >
+      {progressOf(d.p.pile)}
+      <div className="lw-scroll" key={d.vm ? d.vm.id : "end"} data-testid="peek-body">
+        {asksOf(d)}
+        {sheetBodyOf(d, true)}
+      </div>
+      {foot ? <div className="lw-foot">{foot}</div> : null}
+    </aside>
+  );
+}
 
 /** On a phone: the kit's sheet with two rests over the rows, the dock held still at its foot. */
 function phoneOf(d: SheetDraw) {
@@ -654,7 +615,12 @@ function phoneOf(d: SheetDraw) {
     : pileRow && p.pile
       ? touchSwipe({ onLeft: () => p.pile && p.pile.pile.skip(pileRow), onRight: null, onDown: null })
       : {};
-  const raised = !!vm && (sheet.ui.full || sheet.ui.step !== "card");
+  // A line opened raises the sheet; let down to half, what was open shuts.
+  const raised = !!vm && (sheet.ui.full || sheet.ui.step !== "card" || d.line.open !== null);
+  const onRest = (at: "half" | "full") => {
+    sheet.put({ full: at === "full" });
+    if (at === "half" && d.line.open) d.line.turn(d.line.open);
+  };
   return (
     <Sheet
       open
@@ -664,15 +630,10 @@ function phoneOf(d: SheetDraw) {
       close={{ label: W.close, glyph: <Icon name="x" size={13} /> }}
       rest={{
         at: raised ? "full" : "half",
-        onRest: (at) => sheet.put({ full: at === "full" }),
+        onRest,
         turn: { up: W.raise, down: W.lower },
       }}
-      foot={
-        <>
-          {dockOf(d, false)}
-          {sheetSaidOf(p.pile)}
-        </>
-      }
+      foot={footOf(d, false)}
       className="lw lw-phone"
       testid="lead-peek"
     >
@@ -688,12 +649,23 @@ function phoneOf(d: SheetDraw) {
   );
 }
 
-/** How many others wait for your OK in the batch the lead's step waits in, by the record's needs. */
-const batchOthersOf = (rec: SequenceRecordDto | null, batchId: string | null): number | undefined => {
+/** How many an OK sends in the batch the lead's step waits in, by the record's needs (held emails left out). */
+const batchOf = (rec: SequenceRecordDto | null, batchId: string | null): number | undefined => {
   if (!rec || !batchId) return undefined;
   const b = rec.sequence.needs.batches.find((x) => x.id === batchId);
-  return b ? Math.max(0, b.people - 1) : undefined;
+  return b ? b.people : undefined;
 };
+
+/**
+ * The line left open: the one pressed, which stays as the rows are walked; until one is pressed, Fit, where a check failed
+ * on a lead to decide on. A line opens by itself for a problem alone.
+ */
+function useLine(facts: SheetFacts | null) {
+  const [pressed_, press] = useState<{ open: LeadLineId | null } | null>(null);
+  const failed = !!facts && !facts.place && !!facts.why && facts.why.failed;
+  const open = pressed_ ? pressed_.open : failed ? ("fit" as const) : null;
+  return { open, turn: (id: LeadLineId) => press({ open: open === id ? null : id }) };
+}
 
 /** The sheet: one lead, a desk's panel or a phone's sheet. */
 export function LeadSheet(p: LeadSheetProps) {
@@ -722,7 +694,7 @@ export function LeadSheet(p: LeadSheetProps) {
           aim,
           place,
           railRecord,
-          batchOthers: batchOthersOf(railRecord, place.place ? place.place.place.batch_id : null),
+          batch: batchOf(railRecord, place.place ? place.place.place.batch_id : null),
           pile: p.pile ? p.pile.facts : null,
         },
         Date.now(),
@@ -742,14 +714,14 @@ export function LeadSheet(p: LeadSheetProps) {
         elsewhere: facts ? facts.elsewhere : null,
         next: p.deck ? p.deck.onNext : null,
         openPicker: () => sheet.put({ step: "picker", full: true }),
-        askToSend: () => sheet.put({ ask: "to_send" }),
         askSaid: () => sheet.put({ ask: "said" }),
         moved,
         over: !!p.over,
       }
     : null;
   const pickRows = aim.targets ? leadPickerRowsOf(aim.targets, pickId) : null;
-  const d: SheetDraw = { p, vm, facts, sheet, run, busy: { on: busyOn, set: setBusy }, pickRows, moved };
+  const line = useLine(facts);
+  const d: SheetDraw = { p, vm, facts, sheet, line, run, busy: { on: busyOn, set: setBusy }, pickRows, moved };
   // The dock's keys in a pile: a key does what the press in that place does; ⇧A opens the picker.
   useEffect(() => {
     const dock = facts ? facts.dock : null;
@@ -757,10 +729,10 @@ export function LeadSheet(p: LeadSheetProps) {
       p.pile && dock && run && sheet.ui.step === "card" && !sheet.ui.ask
         ? (key) => {
             if (key === "A") return sheet.put({ step: "picker", full: true });
-            if (key === "n" && dock.x) return void runSheetAct("not_a_fit", run);
-            if (key === "l" && dock.later) return void runSheetAct("later", run);
-            const s = dock.acts.find((x) => x.key === key);
-            if (s && !s.off) void runSheetAct(s.act, run);
+            if (key === "n" && dock.x) return void runSheetAct({ act: "not_a_fit" }, run);
+            if (key === "l" && dock.later) return void runSheetAct({ act: "later" }, run);
+            const s = dockSlotsOf(dock).find((x) => x.key === key);
+            if (s && !s.off) void runSheetAct(s, run);
           }
         : null,
     );

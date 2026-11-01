@@ -236,8 +236,8 @@ test("a run is called by one name wherever it is named -- its own, less the day 
     " · 2026-10-18",
     "never a name of nothing",
   );
-  assert.equal(runApproveWords(1), "Approve · 1 person");
-  assert.equal(runApproveWords(7), "Approve · 7 people");
+  assert.equal(runApproveWords(1), "Approve");
+  assert.equal(runApproveWords(7), "Approve all 7");
 });
 
 test("Sent draws nothing of its own: every address of it lands, and while it does its crumbs are Campaigns', on Sequences", () => {

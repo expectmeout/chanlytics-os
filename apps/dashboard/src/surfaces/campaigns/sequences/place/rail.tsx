@@ -1,9 +1,6 @@
 /**
- * The record's rail of days (the Steps redesign, 17 Oct 2026), one part with three lenses (the canvas's PlaceRail, "One
- * place, two windows", 18 Oct 2026): everyone's, as every sequence's Steps draws it (StepsRail); one lead's place, as the
- * lead sheet's Sequence section draws it (each step by what its send did for them, the next by when it goes); and as
- * they'd get it before they join (each email filled for them, step 1 after your OK). Its rows: Start, a step on its day,
- * the wait between two steps and who it keeps going, and End.
+ * The record's rail of days (the Steps redesign, 17 Oct 2026), as every sequence's Steps draws it (StepsRail). Its rows:
+ * Start, a step on its day, the wait between two steps and who it keeps going, and End.
  *
  * One record for every sequence (the Campaigns wiring review's rule E, lane 5, 19 Oct 2026): a sequence to customers and
  * a sequence to leads draw the one rail, and four parts change with who it is for -- who joins (its Start), where it sends
@@ -13,7 +10,7 @@
  * Hookless. Every word is contracts' (sequence-schedule.ts, sequence-place.ts).
  */
 import { Fragment, type ReactNode } from "react";
-import { SCHEDULE_WORDS as SW, type PlaceRailStepVM, type PlaceRailVM } from "@chanlytics/contracts";
+import { SCHEDULE_WORDS as SW } from "@chanlytics/contracts";
 import { Button } from "../../../kit/button/button";
 import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
@@ -230,62 +227,5 @@ export function RailAdd({ onAdd, gateProps }: { onAdd: () => void; gateProps: Re
         </Button>
       </div>
     </RailRow>
-  );
-}
-
-/** How a step goes for one lead, on its box: an email, or a task for you. */
-const byOf = (s: PlaceRailStepVM) => ({ glyph: s.hand ? "phone" : "mail", words: s.how });
-
-interface PlaceRailProps {
-  vm: PlaceRailVM;
-  /** Each email's words for this lead, by its place, under its title (as they'd get it). */
-  words?: ReadonlyMap<number, ReactNode>;
-  /** A step pressed: the email as they get it. */
-  onOpen?: (place: number) => void;
-  /** What stands under End: Take out, the record's door. */
-  foot?: ReactNode;
-  testid?: string;
-}
-
-/**
- * The rail drawn for one lead (their place) or as they'd get it (before they join): Start (when they joined, or that they
- * join when added), each step on its day by what it is doing for them, the waits between, and End (what stops it, and how
- * a reply is learned of).
- */
-export function PlaceRail({ vm, words, onOpen, foot, testid = "lead-sheet-rail" }: PlaceRailProps) {
-  return (
-    <div className="sq-steps-body" data-testid={testid}>
-      <ol className="sq-rail">
-        <RailRow day={SW.start} testid="lead-sheet-rail-start">
-          <RailLine head={<b>{vm.start.head}</b>} sub={vm.start.sub} />
-        </RailRow>
-        {vm.steps.flatMap((s) => [
-          s.wait ? (
-            <RailWait
-              key={`wait-${s.id}`}
-              wait={s.wait.wait}
-              only={s.wait.only}
-              testid={`lead-sheet-rail-wait-${s.place}`}
-            />
-          ) : null,
-          <RailRow key={s.id} day={SW.day(s.day)} tone={s.state?.tone} testid={`lead-sheet-rail-${s.place}`}>
-            <RailBox
-              place={s.place}
-              title={s.title}
-              onOpen={onOpen && !s.hand ? () => onOpen(s.place) : null}
-              by={byOf(s)}
-              pre={words?.get(s.place) ?? null}
-              state={s.state}
-              done={s.state?.tone === "done"}
-              testid={`lead-sheet-rail-now-${s.place}`}
-            />
-          </RailRow>,
-        ])}
-        <RailRow day={SW.end} testid="lead-sheet-rail-end">
-          <RailLine head={<b>{vm.end.head}</b>} sub={vm.end.sub} />
-        </RailRow>
-      </ol>
-      {foot}
-    </div>
   );
 }
