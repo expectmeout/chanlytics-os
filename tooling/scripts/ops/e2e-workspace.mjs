@@ -537,11 +537,19 @@ const SAM_ASKS = [
     answer: { held: false, language: "en", body: `Of course. Pick a new time here: ${BOOKING_LINK}` },
   },
 ];
-/** Mail a program wrote from an address Sam owns: a customer message by its row, and nobody's words (public.message_is_a_persons_words). */
+/**
+ * Mail a program wrote from an address Sam owns: a customer message by its row, and nobody's words
+ * (public.message_is_a_persons_words). Its tracking link is longer than a phone's line on purpose: an email's words once
+ * took the width of their longest link, and every line ran past the card and was cut at its edge
+ * (e2e/conversations/words-stay-in-their-bubbles.spec.ts holds that a body stays within its card).
+ */
 const SAM_AUTOMATED_MAIL = {
   daysAgo: 3,
   at: "03:12",
-  body: "Your order has shipped. This is an automated message; please do not reply.",
+  body:
+    "Your order has shipped. Track it here:\n" +
+    "https://shop.example.com/track/1Z999AA10123456784?ref=order-confirmation&utm_source=email&utm_medium=transactional\n\n" +
+    "This is an automated message; please do not reply.",
 };
 /**
  * Two handovers, resolved when they were written (the stamp trigger runs on UPDATE only, so the times are the seed's): a

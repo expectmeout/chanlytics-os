@@ -33,12 +33,12 @@ import { memberViews } from "../../../readers/notifications";
 
 /**
  * Each change's card title, in the person's words: every change the card's schema carries. A rehearsal's fix
- * (AskFixChange, decision 0069) is kept from its review, never proposed here, so it has no card and no title.
+ * (AskFixChange, decision 0069) is kept from its review, never proposed here, so it has no card and no title. A note's
+ * is its own name (noteCardTitle).
  */
-const SETTINGS_TITLE: Record<z.infer<typeof AskSettingsChangeSchema>["op"], string> = {
+const SETTINGS_TITLE: Record<Exclude<z.infer<typeof AskSettingsChangeSchema>["op"], "add_note">, string> = {
   add_closure: "Close for a day",
   set_hours: "Change the hours",
-  add_note: "Remember this",
   add_service: "Add a service",
   set_goal: "Your goal",
   set_tone: "Its voice",
@@ -115,6 +115,13 @@ function answersChangeOf(raw: Record<string, unknown>): Record<string, unknown> 
   }
 }
 
+/**
+ * A note's card says which note, as Ask calls it ("Parking note"): "Remember this" read as Ask's own memory, whose card
+ * asks the same, and an answer told to name a card by its title had no title to name it by (the weekly run, 2 November 2026).
+ */
+const noteCardTitle = (title: string): string =>
+  /\bnote$/i.test(title.trim()) ? title.trim() : `${title.trim()} note`;
+
 async function proposeSettings(t: ToolContext, input: { change: Record<string, unknown> }): Promise<ProposalOutcome> {
   // Below the card's role, by the one predicate the registry offers it by (context.ts offeredTo).
   if (!offeredTo(settingsAct, t.role)) return refuse(proposalBelowNeeds("settings"));
@@ -127,7 +134,7 @@ async function proposeSettings(t: ToolContext, input: { change: Record<string, u
   const change = parsed.data;
   return propose({
     kind: "settings",
-    title: SETTINGS_TITLE[change.op],
+    title: change.op === "add_note" ? noteCardTitle(change.title) : SETTINGS_TITLE[change.op],
     summary: describeSettingsChange(change),
     payload: { change },
   });
