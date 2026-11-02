@@ -18,6 +18,7 @@ import type { ReactElement, ReactNode } from "react";
 import {
   countdownClock,
   heldPill,
+  personFaceOf,
   stateOf,
   THREAD_PANE_WORDS,
   threadHeadFactOf,
@@ -208,7 +209,8 @@ const ixWires = (thread: Thread, labels: Record<string, string>) => {
 export function wireBadge(thread: Thread, labels: Record<string, string>) {
   const ws = (thread.channels && thread.channels.length ? thread.channels : [thread.primaryChannel]).filter(Boolean);
   const glyph = thread.primaryChannel ? channelIconOf(thread.primaryChannel) : ws[0] ? channelIconOf(ws[0]) : null;
-  if (!glyph) return null;
+  // Someone known by their address alone wears the mail glyph as their face: a mail badge on it said it twice.
+  if (!glyph || personFaceOf(thread.who).glyph === glyph) return null;
   const said = ixWires(thread, labels);
   return (
     <span className="ix-th-wire" role="img" aria-label={said} title={said} data-testid="ix-th-wire">

@@ -17,15 +17,16 @@ import {
 } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
 import { Notice } from "../../kit/notice/notice";
-import { gate, navigate } from "../shell";
+import { demoSession, gate, navigate } from "../shell";
 import type { Thread, TimelineEntry as TlEntry } from "../types";
 import { ixDockDials } from "./band";
 import { hasVeto, SteerBox, VetoBar } from "./veto";
 import { IxWhy } from "./send-words";
-import { keptReplyNow } from "./kept-draft";
+import { keptPitchNow, keptReplyNow } from "./kept-draft";
+import { carryNotAPerson } from "../carried-reply";
 import { Button } from "../../kit/button/button";
 import { LinkButton } from "../../kit/link-button/link-button";
-import { routeDoor } from "../../legacy-verbs";
+import { mayAtLeast, routeDoor } from "../../legacy-verbs";
 
 /** The other side's move while you read: who did what, and the entries it left behind. */
 export interface Stale {
@@ -53,6 +54,8 @@ export interface StatusProps {
    */
   asking?: string | null;
   setAsking?: (threadId: string | null) => void;
+  /** Their page, opened (Not a customer opens it with Not a person asked, as the first email's own ask does). */
+  onOpenClient?: ((clientId: string) => void) | null;
 }
 
 /** The thread whose hand back is being asked about (Hand back when what they wrote has no answer), and how to ask or let go. */
@@ -450,6 +453,31 @@ export function composerAside(p: StatusProps): ReactNode {
   return handBackButton({ ...p, asking, setAsking }, () => onDecide(thread.id, "__HANDBACK__"));
 }
 
+/**
+ * Not a customer, where the receptionist's draft found what they wrote was not a customer's (a sales pitch, a vendor, a
+ * newsletter): their page opens with Not a person asked, as the first email's own ask opens it (thread.tsx FirstEmailAsk).
+ * An owner's, as that is; nothing for anyone else, who has the reply box and Hand back.
+ */
+function notACustomerAct(p: DockProps, thread: Thread): ReactNode {
+  const clientId = thread.clientId;
+  const open = p.onOpenClient;
+  if (!clientId || !open || demoSession() || !mayAtLeast("owner")) return null;
+  return (
+    <Button
+      variant="soft"
+      size="sm"
+      className="ix-press"
+      onClick={() => {
+        carryNotAPerson(clientId);
+        open(clientId);
+      }}
+      data-testid="ix-dock-not-a-customer"
+    >
+      {THREAD_PANE_WORDS.notACustomer}
+    </Button>
+  );
+}
+
 /** The dock's one line, as the canvas draws it: a dot in the coral, what is owed at 600, the clause after it muted. */
 function dockLine({ lead, rest }: { lead: string; rest: string | null }) {
   return (
@@ -471,13 +499,21 @@ function needsYouState(p: DockProps, thread: Thread) {
   const { onDecide } = p;
   const handBack = () => onDecide(thread.id, "__HANDBACK__");
   if (p.asking === thread.id) return handBackAsk(p, handBack);
+  // What they wrote was not a customer's, as the receptionist's draft found (it wrote no words): the dock asks that first.
+  const pitch = boxAnswers(thread) ? keptPitchNow(thread) : null;
   const drafted = boxAnswers(thread) && !!keptReplyNow(thread);
   const said = dockLineOf((thread.real && thread.holdLine) || thread.summary);
-  const line = drafted ? { lead: THREAD_PANE_WORDS.checkDraft, rest: said.rest } : said;
+  const line = pitch
+    ? { lead: THREAD_PANE_WORDS.pitchLead, rest: pitch }
+    : drafted
+      ? { lead: THREAD_PANE_WORDS.checkDraft, rest: said.rest }
+      : said;
   const label = line.rest ? `${line.lead} — ${line.rest}` : line.lead;
   // A request its card draws (RequestCard) answers there; one whose time the hold does not carry keeps its two words.
   const card = thread.holdAct === "confirm" && thread.real && !!thread.request;
-  const acts = card ? null : thread.holdAct === "confirm" ? (
+  const acts = card ? null : pitch ? (
+    notACustomerAct(p, thread)
+  ) : thread.holdAct === "confirm" ? (
     requestActsOf(thread, onDecide)
   ) : (
     <>
@@ -505,7 +541,7 @@ function needsYouState(p: DockProps, thread: Thread) {
       fact={dockLine(line)}
       // Why it was held, a press away, where the box holds no draft whose own Why this? says what it read, and no card says
       // what was asked.
-      source={drafted || card ? null : holdWhy(thread)}
+      source={drafted || card || pitch ? null : holdWhy(thread)}
       line
       acts={acts}
     />

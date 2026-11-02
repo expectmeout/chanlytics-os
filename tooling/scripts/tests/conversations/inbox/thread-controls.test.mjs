@@ -450,8 +450,9 @@ test("the header's menu is More: a glyph on an inset round a thumb finds, its na
   assert.ok(trigger.props.iconOnly && trigger.props.className === "ix-th-more", "a glyph alone, on its round");
   assert.equal(trigger.props.title, "More");
   assert.equal(trigger.props["aria-label"], "More for the conversation with Rosa Díaz", "what it opens, to a reader");
+  // Three dots, never a caret: beside a reply box that folds, a caret read as its fold (2 Nov 2026).
   assert.ok(
-    find(trigger, (n) => n.props?.name === "chevron-down"),
+    find(trigger, (n) => n.props?.name === "more"),
     "the glyph",
   );
   assert.equal(textOf(trigger).trim(), "", "no word beside it");

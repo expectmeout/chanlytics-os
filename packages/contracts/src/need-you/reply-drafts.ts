@@ -32,6 +32,11 @@ export interface ReplyDraftWords {
   subject: string;
   brief: CallBrief | null;
   asks: string[];
+  /**
+   * What they wrote was not a customer's (a sales pitch, a vendor, a newsletter), in one sentence, and no reply was
+   * written for it. Absent from a server a deploy behind, and from a draft kept before the rules said it.
+   */
+  pitch?: string;
 }
 
 /** A draft kept on a thread, as the read and the write answer it. */
@@ -102,4 +107,13 @@ export function draftIsCurrent(d: Pick<ReplyDraftDto, "for_message_id">, forMess
 /** Whether a kept draft holds words to send (or a brief to read), not only a question Ask could not answer itself. */
 export function draftHasWords(d: Pick<ReplyDraftDto, "kind" | "words">): boolean {
   return d.kind === "brief" ? d.words.brief !== null : d.words.text.trim().length > 0;
+}
+
+/**
+ * What a kept reply says they wrote, where it was not a customer's (a sales pitch, a vendor, a newsletter): the sentence
+ * the draft gave instead of words, or null. A brief is for a call back, which a pitch never asks for.
+ */
+export function draftPitchOf(d: Pick<ReplyDraftDto, "kind" | "words">): string | null {
+  const said = d.kind === "reply" ? (d.words.pitch ?? "").trim() : "";
+  return said && !draftHasWords(d) ? said : null;
 }

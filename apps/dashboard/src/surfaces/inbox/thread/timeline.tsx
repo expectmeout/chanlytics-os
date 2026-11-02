@@ -501,8 +501,13 @@ const longEmail = (words: string): boolean =>
   words.length > LONG_EMAIL_CHARS || words.split("\n").length > LONG_EMAIL_LINES;
 
 /** Who an email in the conversation is from, as its head says it: them, a campaign, a teammate, or the receptionist. */
+/**
+ * Who an email is from, at its card's head: theirs by the name their From header gives where it gives one ("Leah Pitt"),
+ * else the thread's name, which for someone known only by their address is that address. The head over the card says it
+ * already, and the card said it a second time (2 Nov 2026).
+ */
 function emailFrom(entry: MsgEntry, thread: Thread): string {
-  if (entry.from === "client") return thread.who;
+  if (entry.from === "client") return entry.fromName || thread.who;
   if (entry.via) return entry.via.name;
   if (entry.byYou) {
     const by = entry.byWords || "your team";
