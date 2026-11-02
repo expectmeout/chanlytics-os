@@ -103,8 +103,9 @@ test("erasing a contact takes the call row with it", { skip }, async () => {
     .single();
   assert.equal(kErr, null, kErr?.message);
 
-  // The RPC reads auth.uid(), which the service role does not have — so drive
-  // the same deletion the RPC performs and assert the SHAPE the FKs produce.
+  // The RPC takes the service role only for a person an owner's press blocked
+  // (00501), and this one is not — so drive the same deletion the RPC performs
+  // and assert the SHAPE the FKs produce.
   // This is the assertion that would have caught the live defect: deleting the
   // conversation and the contact must not leave the call behind.
   await db.from("calls").delete().eq("contact_id", contact.id);
@@ -137,15 +138,57 @@ test("a contact that was erased reads as a tombstone, not as a missing row", { s
   }
 });
 
-test("erase_contact refuses a caller with no session", { skip }, async () => {
-  // The service role has no auth.uid(), so this is the guard's own error and
-  // proves the RPC never trusts an argument for the actor.
+test("erase_contact refuses the service role a person no owner has begun to erase", { skip }, async () => {
+  // 00501 let the service role past the sign-in guard so the erasure_finish job
+  // can finish what an owner's press began. The block (erasing_since) is that
+  // owner's word; without it the system erases nobody of its own accord. Who
+  // else is refused needs real sessions, and this suite's nightly holds only
+  // the service key: an-erasure-is-an-owner-s-word.db.test.mjs proves those.
+  //
+  // A person of its own, never one found in the workspace: a smoke tenant with
+  // nobody in it would pass this unproved, as a fresh stack's did, and a person
+  // found mid-erasure would really be erased here.
   const tenantId = await smokeTenantId();
-  const { data: any } = await db.from("contacts").select("id").eq("tenant_id", tenantId).limit(1);
-  if (!any?.length) return;
-  const { error } = await db.rpc("erase_contact", { p_contact_id: any[0].id, p_legs: {} });
-  assert.notEqual(error, null, "a callerless erase must be refused");
-  assert.match(error.message, /Sign in required|permission|not found/i);
+  let id = null;
+  try {
+    const { data: contact, error: cErr } = await db
+      .from("contacts")
+      .insert({ tenant_id: tenantId, display_name: "Refusal Probe" })
+      .select("id")
+      .single();
+    assert.equal(cErr, null, cErr?.message);
+    id = contact.id;
+
+    const { data, error } = await db.rpc("erase_contact", { p_contact_id: id, p_legs: {} });
+    assert.equal(data, null, "the system must not erase a person nobody asked it to");
+    assert.equal(error?.code, "55000", JSON.stringify(error));
+    assert.match(error.message, /only a person being erased/);
+
+    const { data: still, error: rErr } = await db
+      .from("contacts")
+      .select("display_name, erased_at, erasing_since")
+      .eq("id", id)
+      .single();
+    assert.equal(rErr, null, rErr?.message);
+    assert.deepEqual(
+      still,
+      { display_name: "Refusal Probe", erased_at: null, erasing_since: null },
+      "refused before anything of theirs was touched",
+    );
+    const { data: ledger, error: lErr } = await db
+      .from("decisions")
+      .select("id")
+      .eq("subject_id", id)
+      .eq("verb", "erase");
+    assert.equal(lErr, null, lErr?.message);
+    assert.deepEqual(ledger, [], "and the ledger holds no erasure");
+  } finally {
+    if (id) {
+      await db.from("events").delete().eq("subject_id", id);
+      await db.from("decisions").delete().eq("subject_id", id);
+      await db.from("contacts").delete().eq("id", id);
+    }
+  }
 });
 
 /**
@@ -199,9 +242,10 @@ test("erasing a contact takes their name out of the events ledger", { skip }, as
     ]);
     assert.equal(eErr, null, eErr?.message);
 
-    // The erasure. erase_contact reads auth.uid(), which the service role does
-    // not have — but the scrub hangs off erased_at (00130, the way 00101 and
-    // 00125 hang off it), so setting the tombstone IS the thing under test.
+    // The erasure. erase_contact takes the service role only for a person an
+    // owner's press blocked (00501) — but the scrub hangs off erased_at (00130,
+    // the way 00101 and 00125 hang off it), so setting the tombstone IS the
+    // thing under test.
     const { error: uErr } = await db.from("contacts").update({ erased_at: new Date().toISOString() }).eq("id", id);
     assert.equal(uErr, null, uErr?.message);
 
