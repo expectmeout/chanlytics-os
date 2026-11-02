@@ -165,10 +165,7 @@ const ixStanding = (thread: Thread, countdown: Countdown): Standing | null => {
 };
 
 /** Where a real thread stands, as the header's second line says it; null where it stands nowhere worth a word. */
-export function whereItStands(
-  thread: Thread,
-  countdown: Countdown = { remaining: null, paused: false },
-): ReactElement | null {
+function whereItStands(thread: Thread, countdown: Countdown = { remaining: null, paused: false }): ReactElement | null {
   const standing = ixStanding(thread, countdown);
   if (!standing) return null;
   return (

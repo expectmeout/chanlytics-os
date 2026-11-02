@@ -673,10 +673,7 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "POST ask/idea":
     "an idea of Leads' first day kept as a card in a thread of its own (#1815): the Line opens that thread from the answer, and no page draws it",
   "POST ask/warm": "a warm read of the page before a question; it changes nothing",
-  // A held reply let go now (00503): only its send job moves, to the ledger's next tick; the draft reads as going on the
-  // thread at once (thread-verbs.tsx letGo), and the send itself reaches every page through the live feed, as any send does.
-  "POST messages/[id]/send-now":
-    "a held reply's send job brought to now: the thread says it is going itself, and the send arrives by the feed",
+  "POST messages/[id]/send-now": "a held reply's send job brought to now (00503); the send arrives by the live feed",
   "POST ask/warm/model": "the model's cache, written before a question; it changes nothing a page shows",
   "POST ask/speech": "a clip of the words the page already shows, read aloud in Ask's voice; nothing on screen moves",
   // The spoken conversation (ask-spoken design, §3): its row and the vendor's session are the Line's own state; what it

@@ -66,8 +66,9 @@ type DockProps = Omit<StatusProps, "asking" | "setAsking"> & HandBackAsk;
 // What a real thread asks of you, said one way whatever the state: the dock over the reply box (the phone canvas, B1),
 // the kit's notice. The one line of what is owed, one fact the page does not already show after it in the dim ink (never
 // the bar's wait, never their last bubble, which is right above it), and at most two acts, the lead a capsule and the
-// other words. The state's name -- the pill its row wears, and its wait -- is the header's, under the name (whereItStands).
-// It was a sentence at 600 over their last message quoted again over the acts: three blocks for what the bar named.
+// other words. The state's name -- the pill its row wears, and its wait -- is the header's, under the name (who.tsx
+// whereItStands). It was a sentence at 600 over their last message quoted again over the acts: three blocks for what the
+// bar named.
 interface DockLine {
   fact: ReactNode;
   source?: ReactNode;
