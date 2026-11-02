@@ -5107,8 +5107,9 @@ a.list-row {
   font-weight: var(--weight-medium);
   color: var(--ink);
 }
-/* Chips on one line (`line`: a step's days on a phone): the row scrolls sideways where they run past it, never a second
-   row, and shows no bar for it; each chip keeps its width. */
+/* Chips on one line (`line`: a step's days on a phone): they share the row's width, each its words and an even part of
+   what is left, so a narrower phone only tightens them; past what their words need the row scrolls sideways, never a
+   second row, and shows no bar for it. */
 .rec-seg[data-line="true"] {
   flex-wrap: nowrap;
   gap: 6px;
@@ -5119,12 +5120,15 @@ a.list-row {
   display: none;
 }
 .rec-seg[data-line="true"] .rec-seg-btn {
-  flex: none;
+  flex: 1 0 auto;
 }
 .rec-seg[data-look="chips-sm"] .rec-seg-btn {
   height: var(--control-h-md);
   padding: 0 12px;
   font-size: var(--text-sm);
+}
+.rec-seg[data-line="true"][data-look="chips-sm"] .rec-seg-btn {
+  padding: 0 4px;
 }
 .rec-seg:is([data-look="chips"], [data-look="chips-sm"]) .rec-seg-btn[aria-checked="true"] {
   border-color: var(--line-strong);

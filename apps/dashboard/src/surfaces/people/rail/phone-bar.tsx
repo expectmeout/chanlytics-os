@@ -10,9 +10,13 @@
  * `listCount` (Leads') stands apart from the name and never gives way: the name is what an ellipsis shortens. With no
  * `onLists` there is no list to pick and the row draws no list button. `title`, while a selection is on, stands in the
  * list's place: how many are selected, beside Select all and Cancel, as a phone's mail and photos say it (Ruben, 10 Oct
- * 2026), so the dock at the foot holds the acts alone.
+ * 2026), so the dock at the foot holds the acts alone. `foldSearch` (the Pipeline's, whose rows start lower for the line
+ * over them, 48px higher for this) rests the search in a glyph before the words while it holds none: the field stays
+ * drawn, so the glyph's press, or /, puts the caret in it, a phone's keyboard with it, and it opens as it takes them
+ * (clients.css .pp-lookup-folded).
  */
 import type { ReactNode, RefObject } from "react";
+import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { Search } from "../../kit/search/search";
 
@@ -47,6 +51,7 @@ export function PeoplePhoneBar({
   onQ,
   searchRef,
   searchLabel,
+  foldSearch = false,
   trailing = null,
   title = null,
   testid,
@@ -59,15 +64,17 @@ export function PeoplePhoneBar({
   onQ: (q: string) => void;
   searchRef: SearchRef;
   searchLabel: string;
+  foldSearch?: boolean;
   trailing?: ReactNode;
   title?: ReactNode;
   testid: string;
 }) {
   const id = (part: string) => `${testid}-phone-${part}`;
+  const folded = foldSearch && !q;
   // The tiers are one top: `-phone-bar` names all of them, so what reads the bar (the list, search) finds them.
   return (
     <div className="pp-top" data-testid={id("bar")}>
-      {onLists || trailing ? (
+      {onLists || trailing || folded ? (
         <div className="pp-bar">
           {title != null ? (
             <span className="pp-bar-title" aria-live="polite" data-testid={id("title")}>
@@ -91,11 +98,28 @@ export function PeoplePhoneBar({
               <Icon name="chevron-down" size={11} />
             </button>
           ) : null}
-          {trailing ? <div className="pp-bar-push">{trailing}</div> : null}
+          {trailing || folded ? (
+            <div className="pp-bar-push">
+              {folded ? (
+                <Button
+                  variant="plain"
+                  size="sm"
+                  iconOnly
+                  className="pp-bar-find"
+                  aria-label={searchLabel}
+                  onClick={() => searchRef?.current?.focus()}
+                  data-testid={id("find")}
+                >
+                  <Icon name="search" size={16} />
+                </Button>
+              ) : null}
+              {trailing}
+            </div>
+          ) : null}
         </div>
       ) : null}
       <Search
-        className="pp-lookup"
+        className={folded ? "pp-lookup pp-lookup-folded" : "pp-lookup"}
         label={searchLabel}
         value={q}
         onChange={onQ}
