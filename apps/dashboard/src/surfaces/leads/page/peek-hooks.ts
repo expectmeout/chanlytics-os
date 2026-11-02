@@ -22,6 +22,7 @@ export const useLeadPeek = ({
   peekMode,
   armed,
   setArmed,
+  reach,
 }: {
   peekId: string | null;
   setPeekId: (id: string | null) => void;
@@ -32,6 +33,8 @@ export const useLeadPeek = ({
   peekMode: PeekMode;
   armed: Armed | null;
   setArmed: ArmedSetter;
+  /** A lead the sheet is about to reach: read it ahead (sheet/reach.ts). */
+  reach: (id: string) => void;
 }) => {
   // The peek's deck (D5): the lead before or after the one open, by the order on screen. It moves the cursor too, so the
   // rows behind it follow and the keyboard carries on from where the thumb left off.
@@ -42,14 +45,17 @@ export const useLeadPeek = ({
     setCursor(to);
     setPeekId(to);
   };
-  // The photos either side of the lead open are asked for now, so the deck, a swipe, and J and K find them there.
+  // The leads either side of the one open, their photos and where they stand, are asked for now, so the deck, a swipe, and
+  // J and K find them there and each sheet opens whole.
   useEffect(() => {
     if (!peekId) return;
     const i = shownIds.indexOf(peekId);
     if (i < 0) return;
     for (const j of [i + 1, i - 1]) {
       const r = leadShown[j];
-      if (r && r.tile) leadPhotoWarm(r.tile.band);
+      if (!r) continue;
+      if (r.tile) leadPhotoWarm(r.tile.band);
+      reach(r.id);
     }
   }, [peekId, shownIds.length]); // eslint-disable-line react-hooks/exhaustive-deps
   // The peek follows the row cursor while it is open, so J and K walk the leads behind it -- unless it is asking a

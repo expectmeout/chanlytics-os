@@ -4,7 +4,9 @@
  * to OK, why one was held, what they said); and five folded lines that answer before they open, the same five on every
  * lead (Fit, Contact, Company or About, Sequence, History), nothing behind a tab. On a desk a panel beside the rows; on a
  * phone the kit's sheet with two rests, the lines under the card at half, so half is never empty, and opening one raises
- * it. The dock at its foot holds only what to press, and where nothing needs you there is no foot at all.
+ * it. The dock at its foot holds only what to press, and where nothing needs you there is no foot at all. It draws once:
+ * who they are at the press, and all the rest together when the reads that decide it are in (facts.ts
+ * sheetStillReading).
  *
  * Add is the one verb, the picker the one place a sequence is chosen or made (a step of this same sheet, as New is), and
  * the pick is kept on the search. Where the lead stands is the sequence's own reading (one reader, 00459 sequence_place);
@@ -33,6 +35,7 @@ import { useSequenceRead } from "../../campaigns/sequences/use-record";
 import { pressed, sequenceVerbs as verbs } from "../../campaigns/sequences/verbs";
 import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
+import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { Menu } from "../../kit/menu/menu";
 import { Sheet } from "../../kit/sheet/sheet";
@@ -233,6 +236,23 @@ function rewriteOf(d: SheetDraw) {
   };
 }
 
+/** All of the sheet stands on its reads: until they land it says who they are and this, after a beat, or what failed. */
+const sheetHeldBy = (f: SheetFacts, retry: () => void) =>
+  f.reading ? (
+    <div className="route-reading lw-reading" role="status" aria-busy="true" data-testid="lead-sheet-reading">
+      {W.reading}
+    </div>
+  ) : f.unread !== null ? (
+    <FailedRead
+      kind="line"
+      what={W.unread}
+      why={f.unread || null}
+      onRetry={retry}
+      className="lw-reading"
+      testid="lead-sheet-unread"
+    />
+  ) : null;
+
 /** The top of the sheet: who, the doors, the one card. */
 function topOf(d: SheetDraw, desk: boolean) {
   const { facts, vm, p, sheet } = d;
@@ -241,14 +261,18 @@ function topOf(d: SheetDraw, desk: boolean) {
   return (
     <article key={vm.id} className="lw-card-w lw-turn" aria-label={vm.name} data-testid="lead-pile-lead">
       {sheetWhoOf(d, desk)}
-      <SheetDoors vm={vm} callDoor={!dockCalls} onCall={() => p.on && p.on.onCall(vm.id)} more={sheetMoreOf(d)} />
-      <SheetNow
-        now={facts.now}
-        mail={facts.mail}
-        whole={sheet.ui.whole}
-        onWhole={() => sheet.put({ whole: !sheet.ui.whole })}
-        onRewrite={rewriteOf(d)}
-      />
+      {sheetHeldBy(facts, d.moved) ?? (
+        <div className="lw-read">
+          <SheetDoors vm={vm} callDoor={!dockCalls} onCall={() => p.on && p.on.onCall(vm.id)} more={sheetMoreOf(d)} />
+          <SheetNow
+            now={facts.now}
+            mail={facts.mail}
+            whole={sheet.ui.whole}
+            onWhole={() => sheet.put({ whole: !sheet.ui.whole })}
+            onRewrite={rewriteOf(d)}
+          />
+        </div>
+      )}
     </article>
   );
 }
@@ -256,7 +280,7 @@ function topOf(d: SheetDraw, desk: boolean) {
 /** The five lines. */
 function sheetLines(d: SheetDraw) {
   const { facts, vm, p, sheet } = d;
-  if (!facts || !vm || !p.on) return null;
+  if (!facts || !vm || !p.on || facts.reading || facts.unread !== null) return null;
   const run = d.run;
   return (
     <SheetLines
@@ -680,11 +704,12 @@ export function LeadSheet(p: LeadSheetProps) {
   const railId = railSequenceOf({ place, aim });
   const rec = useSequenceRead(railId, verbs.record, verbs.peekRecord, { again });
   const railRecord = rec.state === "read" ? rec.data : null;
-  // Out of a pile, the add door is asked about this lead for the pick.
+  // The add door is asked about this lead for the pick while its answer is owed: once, whoever asks first (use-aim.ts).
   const pickId = aim.target ? aim.target.rootId : null;
+  const doorOwes = !!leadId && aim.checking(leadId);
   useEffect(() => {
-    if (leadId && pickId && !p.pile) void aim.check([leadId]);
-  }, [leadId, pickId]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (leadId && doorOwes) void aim.check([leadId]);
+  }, [leadId, pickId, doorOwes]); // eslint-disable-line react-hooks/exhaustive-deps
   const facts = vm
     ? sheetFactsOf(
         {
@@ -694,6 +719,7 @@ export function LeadSheet(p: LeadSheetProps) {
           aim,
           place,
           railRecord,
+          railReading: !!railId && rec.state === "reading",
           batch: batchOf(railRecord, place.place ? place.place.place.batch_id : null),
           pile: p.pile ? p.pile.facts : null,
         },

@@ -32,11 +32,12 @@ const peoples = readCache<PeopleAnswer>("sequence_people", (r) => r.ok, { tab: t
 const histories = readCache<HistoryAnswer>("sequence_history", (r) => r.ok, { tab: true });
 const reaches = readCache<ReachAnswer>("sequence_reach", (r) => r.ok);
 const sequenceLists = readCache<ListAnswer>("sequence_list", (r) => r.ok);
-const places = readCache<PlaceAnswer>("lead_place", (r) => r.ok);
+const places = readCache<PlaceAnswer>("lead_place", (r) => r.ok, { tab: true });
 
 const readRecord = (id: string) => api()("GET sequences/[id]", { params: { id } });
 const readPeople = (id: string) => api()("GET sequences/[id]/people", { params: { id } });
 const readHistory = (id: string) => api()("GET sequences/[id]/history", { params: { id } });
+const readPlace = (leadId: string) => api()("GET leads/[id]/place", { params: { id: leadId } });
 
 export const sequenceVerbs = {
   /** One sequence: its row, its steps, who approves its batches. */
@@ -58,7 +59,7 @@ export const sequenceVerbs = {
   list: () => sequenceLists.through("all", () => api()("GET sequences")),
   peekList: (): ListAnswer | null => sequenceLists.peek("all"),
   /** Where one lead stands (00459 sequence_place): the lead sheet's Sequence section, as the record files them. */
-  place: (leadId: string) => places.through(leadId, () => api()("GET leads/[id]/place", { params: { id: leadId } })),
+  place: (leadId: string) => places.through(leadId, () => readPlace(leadId)),
   peekPlace: (leadId: string): PlaceAnswer | null => places.peek(leadId),
   /** An email the owner wrote, read by Ask into lines on how they write, kept in its memory (decision 0078). */
   learnVoice: (text: string) => commitVerb("sequence_voice", { text }),
@@ -81,6 +82,18 @@ export function warmSequenceRoute(route: string): void {
   else void records.warm(id, () => readRecord(id));
   if (tab === "people") void peoples.warm(id, () => readPeople(id));
   else if (tab === "history") void histories.warm(id, () => readHistory(id));
+}
+
+/**
+ * A lead somebody is reaching for (their row under the pointer, the one beside the sheet open): where they stand read now,
+ * then the record of the sequence that has them, so their sheet opens whole. One the tab holds, read since the last write,
+ * reads nothing, and a read on its way is shared with the sheet's.
+ */
+export async function warmLeadPlace(leadId: string): Promise<void> {
+  const read = places.warm(leadId, () => readPlace(leadId));
+  const at = read ? await read.catch(() => null) : places.peek(leadId);
+  const id = at && at.ok && at.data ? at.data.sequence.id : null;
+  if (id) await records.warm(id, () => readRecord(id))?.catch(() => null);
 }
 
 /** Whether a sequence's Steps draws who is in it (steps.tsx usePeopleOf): a step after the first, and no one-off. */

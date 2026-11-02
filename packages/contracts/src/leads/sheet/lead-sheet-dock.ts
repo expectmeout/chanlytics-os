@@ -18,10 +18,6 @@ import { sheetSlot as slot, type LeadSheetClosedVM, type LeadSheetSlotVM, type L
 
 /** The dock: Not a fit and Later as round glyphs, its quieter presses, the one primary, and what its caret holds. */
 export interface LeadSheetDockVM {
-  /** Said where there is nothing to press yet: their place or the sequences are being read. */
-  line: string | null;
-  /** Something is being read or checked: a small ring beside the line. */
-  waiting: boolean;
   /** Not a fit and Later, the round glyphs before the acts, where the lead is to decide on. */
   x: boolean;
   later: boolean;
@@ -55,7 +51,6 @@ export const LEAD_DOCK_WORDS = {
   answer: "Answer",
   /** The desk's keys under the dock: in a pile, each act's key, ⇧A the picker, J and K, Z undo. */
   keys: { notFit: "not a fit", later: "later", add: "add", choose: "choose", move: "move", undo: "undo" },
-  reading: "Reading where they stand",
 } as const;
 
 const D = LEAD_DOCK_WORDS;
@@ -77,15 +72,11 @@ export interface LeadSheetDockFacts {
   /** A search holds the lead: Later puts it off in this pass. */
   canLater: boolean;
   closed: LeadSheetClosedVM | null;
-  /** Their place or the sequences still being read: the dock waits, offering nothing the reads could take back. */
-  reading: boolean;
   /** How many an OK sends in the batch that waits with them (the record's count), where it is known. */
   batch?: number;
 }
 
 const dock = (p: Partial<LeadSheetDockVM>): LeadSheetDockVM => ({
-  line: null,
-  waiting: false,
   x: false,
   later: false,
   others: [],
@@ -193,7 +184,6 @@ function elsewhereDock(f: LeadSheetDockFacts): LeadSheetDockVM | null {
 export function leadDockOf(f: LeadSheetDockFacts): LeadSheetDockVM | null {
   // Their place first: what needs you there, whatever the pick; else, in another than the pick, Move or Open.
   if (f.place) return placeDock(f, f.place) ?? elsewhereDock(f);
-  if (f.reading) return dock({ line: D.reading, waiting: true });
   switch (f.state) {
     case "review":
       return dock({ others: [slot("exclude", D.exclude, "ban", "n")], primary: slot("keep", D.keep, "check", "a") });

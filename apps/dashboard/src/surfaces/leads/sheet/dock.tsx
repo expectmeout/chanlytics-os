@@ -221,12 +221,6 @@ export const SheetDock = (p: DockProps) => {
       >
         {d.x ? glyphOf(p, "not_a_fit") : null}
         {d.later ? glyphOf(p, "later") : null}
-        {d.line ? (
-          <span className="lw-dock-l" data-testid="lead-sheet-dock-line">
-            {d.waiting ? <span className="lw-spin" aria-hidden="true" /> : null}
-            {d.line}
-          </span>
-        ) : null}
         {d.toSend ? p.toSend : null}
         {d.others.map((s) => otherOf(s, wide, p))}
         {d.primary ? primaryOf(d.primary, p) : null}
