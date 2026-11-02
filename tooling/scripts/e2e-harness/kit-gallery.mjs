@@ -2660,7 +2660,7 @@ export const FAMILIES = [
         id: "face-hue",
         html:
           `<div class="gx-row">` +
-          ["a", "b", "c", "d"]
+          ["a", "b", "c", "d", "e", "f"]
             .map((t) => `<span class="face face-lg face-hue face-hue-${t}" aria-hidden="true"><span>MC</span></span>`)
             .join("") +
           `</div>`,

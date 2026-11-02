@@ -564,7 +564,7 @@ const FACES = {
   face: () => [h(Face, { initials: "AR" }), h(Face, { initials: "SO" })],
   "face-glyph": () => h(Face, { glyph: glyph() }),
   "face-tile": () => ["a", "b", "c", "d"].map((t) => h(Face, { initials: "LA", tile: t })),
-  "face-hue": () => ["a", "b", "c", "d"].map((t) => h(Face, { initials: "MC", size: "lg", hue: t })),
+  "face-hue": () => ["a", "b", "c", "d", "e", "f"].map((t) => h(Face, { initials: "MC", size: "lg", hue: t })),
   "face-photo": () => h(Face, { initials: "AR", photo: PHOTO }),
   "face-sm": () => [h(Face, { initials: "AR", size: "sm" }), h(Face, { initials: "AR", size: "sm", photo: PHOTO })],
   "face-lg": () => [h(Face, { initials: "AR", size: "lg" }), h(Face, { initials: "AR", size: "lg", photo: PHOTO })],

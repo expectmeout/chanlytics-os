@@ -418,7 +418,7 @@ test("REGRESSION: a real thread that needs a person shows the one pill and how l
   const wait = byClass(tree, "ix-thread-wait");
   assert.ok(wait, "REGRESSION: the wait chip was gated the same way");
   assert.match(textOf(wait), /^\d+m$/);
-  assert.match(wait.props.title, /^waiting \d+m$/, "the bare figure, named on a hover");
+  assert.match(wait.props.title, /^Waiting \d+m$/, "the bare figure, named on a hover");
   // What waits on you is the coral line under their words (the thread canvas's list, 1 Nov 2026), not a tone on the wait.
   assert.equal(textOf(byTestId(tree, "thread-todo")), "Reply");
 });
