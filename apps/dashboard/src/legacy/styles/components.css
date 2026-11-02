@@ -2883,6 +2883,11 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
     margin-top: -7px;
     padding: 0 var(--gutter-page) 16px;
   }
+  /* A head in the page's own scroll starts under the top band, which is opaque: pulled up as a pane's is, it lost the tops
+     of its letters. A pane's head stands inside the band, which grows to hold it. */
+  .main-scroll > .pg-slot {
+    margin-top: 0;
+  }
   .pg-head-slot {
     padding-right: 56px;
   }

@@ -298,6 +298,18 @@ test("a turn answered without a Say has none; a scripted round without timing or
   assert.equal(sh.replay, "none", "a thread's first turn has no history to replay");
 });
 
+test("the morning's turn says so on its shape, asked either way: it runs with no one reading it, and a question of the person's never does", async () => {
+  const { ASK_MORNING_EDITED_QUESTION, ASK_MORNING_QUESTION } = await import("@chanlytics/contracts");
+  const said = async (text) => {
+    const s = scripted([ROUND([tool("answer", JSON.parse(answerJson("A quiet day.")))], { stopReason: "end_turn" })]);
+    return (await runAskTurn(turnInput({ text }), portsOf(s.round))).shape.morning;
+  };
+  assert.deepEqual(
+    [await said(ASK_MORNING_QUESTION), await said(ASK_MORNING_EDITED_QUESTION), await said("Who needs me?")],
+    [true, true, false],
+  );
+});
+
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/rate-limit.ts"));
 const { setAskPorts } = await import(at("apps/dashboard/src/server/ask/loop.ts"));
 const askRoute = await import(at("apps/dashboard/app/api/v1/ask/route.ts"));

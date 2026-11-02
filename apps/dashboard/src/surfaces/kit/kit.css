@@ -5107,8 +5107,9 @@ a.list-row {
   font-weight: var(--weight-medium);
   color: var(--ink);
 }
-/* Chips on one line (`line`: a step's days on a phone): the row scrolls sideways where they run past it, never a second
-   row, and shows no bar for it; each chip keeps its width. */
+/* Chips on one line (`line`: a step's days on a phone): they share the row's width, each its words and an even part of
+   what is left, so a narrower phone only tightens them; past what their words need the row scrolls sideways, never a
+   second row, and shows no bar for it. */
 .rec-seg[data-line="true"] {
   flex-wrap: nowrap;
   gap: 6px;
@@ -5119,12 +5120,15 @@ a.list-row {
   display: none;
 }
 .rec-seg[data-line="true"] .rec-seg-btn {
-  flex: none;
+  flex: 1 0 auto;
 }
 .rec-seg[data-look="chips-sm"] .rec-seg-btn {
   height: var(--control-h-md);
   padding: 0 12px;
   font-size: var(--text-sm);
+}
+.rec-seg[data-line="true"][data-look="chips-sm"] .rec-seg-btn {
+  padding: 0 4px;
 }
 .rec-seg:is([data-look="chips"], [data-look="chips-sm"]) .rec-seg-btn[aria-checked="true"] {
   border-color: var(--line-strong);
@@ -5481,7 +5485,7 @@ a.list-row {
   background: var(--tile-d);
 }
 /* A person's face in their hue (the thread canvas, 1 Nov 2026: the thread's head, its sheet and the rail beside it): the
-   circle in one of four soft hues, the initials in its ink, picked by the name (face.tsx faceTileOf), so a person wears
+   circle in one of six soft hues, the initials in its ink, picked by the name (face.tsx faceHueOf), so a person wears
    one hue wherever these draw them. */
 .face-hue {
   box-shadow: none;
@@ -5501,6 +5505,14 @@ a.list-row {
 .face-hue-d {
   background: var(--face-hue-d);
   color: var(--face-hue-d-ink);
+}
+.face-hue-e {
+  background: var(--face-hue-e);
+  color: var(--face-hue-e-ink);
+}
+.face-hue-f {
+  background: var(--face-hue-f);
+  color: var(--face-hue-f-ink);
 }
 
 /* ---- What pops over the page (every canvas's popover) ----

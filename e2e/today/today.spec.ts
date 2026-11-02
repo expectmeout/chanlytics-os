@@ -171,7 +171,7 @@ test.describe("Today on a real workspace", () => {
     const attempts = await refuseAnswers(page);
     const search = await waitingSearch(page);
     const queue = page.getByTestId("today-queue");
-    // A question waits for your OK, as a run does: in Your OK.
+    // A question waits for your answer as a run waits for your OK: in To decide.
     const row = queue.getByTestId("today-group-ok").getByTestId("queue-search");
     await expect(row).toHaveCount(1);
     await expect(row).toBeInViewport({ ratio: 1 });

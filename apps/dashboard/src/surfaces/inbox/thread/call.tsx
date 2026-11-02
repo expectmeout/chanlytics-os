@@ -414,12 +414,14 @@ function callPlayRow(c: CallDraw) {
           size="sm"
           className="tl-call-track"
           parts={
-            whole
+            // What is still to play in the strong hairline, so the run reads as one before it is pressed: on the
+            // card's raised ground the inset's fill read as nothing, and the row as a gap before Transcript.
+            whole && pos > 0
               ? [
                   { share: Math.min(pos, whole), tone: "ink" },
-                  { share: Math.max(0, whole - pos), tone: "ground" },
+                  { share: Math.max(0, whole - pos), tone: "rest" },
                 ]
-              : [{ share: 1, tone: "ground" }]
+              : [{ share: 1, tone: "rest" }]
           }
           aria-label={whole ? `${tlClock(pos)} of ${tlClock(whole)}` : "Not played yet"}
         />
@@ -436,6 +438,8 @@ function callPlayRow(c: CallDraw) {
           data-testid="tl-call-open"
         >
           {CALL_TRANSCRIPT}
+          {/* Which way it goes, as the email's Show whole email says it: open, its lines are under the card. */}
+          <Icon name={open ? "chevron-up" : "chevron-down"} size={11} />
         </Button>
       )}
     </div>
@@ -465,29 +469,40 @@ function callLine(c: CallDraw, line: CallLine, i: number) {
       data-testid="tl-spoken"
     >
       <div className="tl-msg-bubble">
-        <div className="tl-msg-meta">
-          {/* Who spoke, for a screen reader: the side says it to the eye. */}
+        {/* Its moment in the bubble's corner, as every bubble says its time (timeline.tsx bubbleCorner): it stood over the
+            words, centred above a short line. Who spoke is said to a screen reader first: the side says it to the eye. */}
+        <div className="tl-msg-body">
           {!whisper && <span className="tl-spoken-who">{line.speaker === "agent" ? "Receptionist" : them}</span>}
-          {whisper && <span className="tl-spoken-whisper">You whispered</span>}
-          {playable ? (
-            <button
-              type="button"
-              className="tl-spoken-t tabular"
-              onClick={(e) => {
-                e.stopPropagation();
-                player.playFrom(line.start);
-              }}
-              aria-label={`Play from ${tlClock(line.start)}`}
-            >
-              {tlClock(line.start)}
-            </button>
-          ) : !whisper && typeof line.start === "number" ? (
-            <span className="tl-msg-time tabular">{tlClock(line.start)}</span>
-          ) : null}
+          <span className="tl-spoken-words">{line.text}</span>
+          {spokenStamp(c, line, whisper, playable)}
         </div>
-        <div className="tl-msg-body">{line.text}</div>
       </div>
     </div>
+  );
+}
+
+/** A spoken line's corner: the moment it was said, a press away from playing from it; a whisper, whose it was. */
+function spokenStamp(c: CallDraw, line: CallLine, whisper: boolean, playable: boolean) {
+  if (whisper)
+    return (
+      <span className="tl-stamp">
+        <span className="tl-stamp-words tl-spoken-whisper">You whispered</span>
+      </span>
+    );
+  if (typeof line.start !== "number") return null;
+  if (!playable) return <span className="tl-stamp tabular">{tlClock(line.start)}</span>;
+  return (
+    <button
+      type="button"
+      className="tl-stamp tl-spoken-t tabular"
+      onClick={(e) => {
+        e.stopPropagation();
+        c.player.playFrom(line.start);
+      }}
+      aria-label={`Play from ${tlClock(line.start)}`}
+    >
+      {tlClock(line.start)}
+    </button>
   );
 }
 

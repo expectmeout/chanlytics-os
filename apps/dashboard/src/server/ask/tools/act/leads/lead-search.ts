@@ -48,18 +48,21 @@ import {
  * (ProposeAnySearchSchema, contracts: a places ask or a people ask, by looking_for) judges it after the shaping below,
  * in the handler, so the refusal keeps the plan's words and the role check (a partner or an owner, the route's door)
  * still comes first. What only a places plan reads is optional here, so a people ask is never refused for leaving it out;
- * a places ask without it is refused by the places schema, in words.
+ * a places ask without it is refused by the places schema, in words. A country left out is the US, and a region left out
+ * is the city that holds its state ("Austin, TX", shapeAsk): with the tool's examples gone (17 Oct 2026) a first call
+ * named neither, was refused here though the planner reads that place, and was written again, a round of nothing on
+ * every search (a real turn, 2 Nov 2026). A place abroad reads as no state of the US and is refused all the same.
  */
 const LeadSearchAsk = z.object({
   looking_for: z.enum(["local_businesses", "people_at_companies", "people", "online_sellers", "other"]),
-  country: z.string(),
+  country: z.string().optional(),
   count: z.number().int(),
   who: z.string(),
   who_one: z.string().optional(),
   category_key: z.string().optional(),
   terms: z.array(z.string()),
   city: z.string().optional(),
-  region: z.string(),
+  region: z.string().optional(),
   zip: z.string().optional(),
   contact: z.enum(["phone", "email"]).optional(),
   criteria: z
@@ -101,10 +104,11 @@ const shapeAsk = (input: LeadSearchAskInput) => {
       ? { who_one: input.who_one ?? input.who, contact: input.contact ?? "phone", criteria: input.criteria ?? [] }
       : {}),
     category_key: keyed || input.category_key || (unplaced ? "other" : undefined),
-    country: String(input.country ?? "")
+    country: String(input.country || "US")
       .replace(/\(.*?\)/g, "")
       .trim(),
     city: str(input.city, 60) || null,
+    region: input.region || (input.city?.includes(",") ? input.city : undefined),
     zip: /^\d{5}$/.test(String(input.zip ?? "")) ? String(input.zip) : null,
     criteria: (Array.isArray(input.criteria) ? input.criteria : []).slice(0, 6),
     leave_out: (Array.isArray(input.leave_out) ? input.leave_out : [])
@@ -283,7 +287,7 @@ const withCapWords = (made: ProposalOutcome, capped: string | null): ProposalOut
   capped && made.proposal ? { ...made, words: capped } : made;
 
 /** propose_lead_search's description, said whole: it takes no action. */
-const LEAD_SEARCH_DESCRIPTION = `Action find proposes a search for businesses in the US the owner could reach, as a plan card they approve; nothing is searched or spent before that. For named people at companies (marketing managers at agencies), looking_for is people_at_companies: terms their titles (one to five), region their US states or US, who a name for it, count how many companies, and when said seniority (owner, founder, c_suite, partner, vp, head, director, manager, senior, entry), industries (the directory's own names, as Marketing & Advertising, Accounting, Construction, Real Estate; a name it lacks comes back with the nearest), keywords (one to five words the companies' own sites use for what they do, as plumbing or HVAC, where an industry files them too broadly) and company_sizes (1 - 10, 11 - 50, 51 - 200, 201 - 500, 501 - 1000, 1001 - 5000, 5001 - 10000, 10001+); nothing else is read. The plan: what kind (who, plural, and who_one, one of them, with category_key as one lowercase word), how many (count: 50, 100, 200 or 500 unless they said a number), where (city with its two-letter region, a zip, or a region alone), the contact standard (contact: phone, or email checked), up to three terms (widest first), the criteria each with whether it is seen or likely and whether it is required, who to leave_out (chains, other kinds; short chips in plain words), looking_for (local_businesses, or people, online_sellers or other when that is what was asked: those are answered in words, not searched), and asked, the owner's words. seen is only for what a listing shows (a rating or review count, a website, an email, a phone that matches the site, open or closed) and is judged from those facts alone; what a business is or does (its kind, who owns it, what it serves or sells, who it treats) is likely, never seen, because a listing's name and category do not count as seeing it, and the kind of business itself is checked on every search without being written as a criterion. Read leads with action searches first, so a plan is not repeated: one plan, never a search. amends is the id of a search that stopped to ask (leads with action searches shows its question) when the plan is that search with the owner's answer applied and everything else kept as it was; the card then answers that search instead of starting a new one. Say the plan in one sentence; never promise how many will be found, and never say a search has started until the card is approved. ${approvalWords("lead_search")}.`;
+const LEAD_SEARCH_DESCRIPTION = `Action find proposes a search for businesses in the US the owner could reach, as a plan card they approve; nothing is searched or spent before that. For named people at companies (marketing managers at agencies), looking_for is people_at_companies: terms their titles (one to five), region their US states or US, who a name for it, count how many companies, and when said seniority (owner, founder, c_suite, partner, vp, head, director, manager, senior, entry), industries (the directory's own names, as Marketing & Advertising, Accounting, Construction, Real Estate; a name it lacks comes back with the nearest), keywords (one to five words the companies' own sites use for what they do, as plumbing or HVAC, where an industry files them too broadly) and company_sizes (1 - 10, 11 - 50, 51 - 200, 201 - 500, 501 - 1000, 1001 - 5000, 5001 - 10000, 10001+); nothing else is read. The plan: what kind (who, plural, and who_one, one of them, with category_key as one lowercase word), how many (count: 50, 100, 200 or 500 unless they said a number), where (city with its two-letter region, a zip, or a region alone), the contact standard (contact: phone, or email checked), up to three terms (widest first), the criteria each with whether it is seen or likely and whether it is required, who to leave_out (chains, other kinds; short chips in plain words), looking_for (local_businesses, or people, online_sellers or other when that is what was asked: those are answered in words, not searched), and asked, the owner's words. seen is only for what a listing shows (a rating or review count, a website, an email, a phone that matches the site, open or closed) and is judged from those facts alone; what a business is or does (its kind, who owns it, what it serves or sells, who it treats) is likely, never seen, because a listing's name and category do not count as seeing it, and the kind of business itself is checked on every search without being written as a criterion. Read leads with action searches first where they did not come with the question, so a plan is not repeated: one plan, never a search. amends is the id of a search that stopped to ask (leads with action searches shows its question) when the plan is that search with the owner's answer applied and everything else kept as it was; the card then answers that search instead of starting a new one. Say the plan in one sentence; never promise how many will be found, and never say a search has started until the card is approved. ${approvalWords("lead_search")}.`;
 
 /** A search's plan as a card, propose_lead_search's one definition: named here so its builder asks its own role. */
 const leadSearchAct: ActDef<typeof LeadSearchAsk> = {

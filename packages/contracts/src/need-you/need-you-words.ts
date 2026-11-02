@@ -88,9 +88,9 @@ export const NEED_YOU_WORDS = {
   seeAll: "See all",
   /**
    * Need you's groups (the redesign of 1 Nov 2026, need-you-groups.ts): the one thing to do first, who waits on you, what
-   * waits for your OK, and who has waited past a week, folded at the end.
+   * waits for your OK or your answer, and who has waited past a week, folded at the end.
    */
-  group: { next: "Up next", waiting: "Waiting on you", ok: "Your OK", old: "Over a week" },
+  group: { next: "Up next", waiting: "Waiting on you", ok: "To decide", old: "Over a week" },
   /** The strip that cuts Need you by what each row asks of you, and its name to a screen reader. */
   filter: { label: "Need you, by what it asks of you", all: "All", reply: "Reply", call: "Call", approve: "Approve" },
   /** How many need you, as the head says it before anything else: the badge's number. */

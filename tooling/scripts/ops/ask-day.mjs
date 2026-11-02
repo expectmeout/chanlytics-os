@@ -10,19 +10,21 @@
  * fast mode (15 Oct 2026) are a line of their own, "(fast)", and their rounds
  * priced at fast mode's own rate, so first words before and after read side by
  * side; a turn stored before has no speed and ran at standard. The drafts asked
- * harder (AskTurnShape.draft) are a line of their own under the table. Read-only; the
- * service role, because a day's turns belong to every member of every workspace.
+ * harder (AskTurnShape.draft) are a line of their own under the table, and under them
+ * the first Say by rounds over the turns a person watched (ask-stats.mjs watchedTurn).
+ * Read-only; the service role, because a day's turns belong to every member of every
+ * workspace.
  *
  *   NEXT_PUBLIC_SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… [HOURS=24] [TENANT=<uuid>] node --import tsx tooling/scripts/ops/ask-day.mjs [--json] [--check]
  *
- * --check says last, in one line, whether the day held the nightly's lines (ask-stats.mjs askDayVerdict), and exits 1
- * when it crossed one: the nightly workflow opens an issue with that line. It exits 2, with a last line that says so,
- * when the day could not be read at all (a variable missing, a read refused or thrown): that is not Ask crossing a
- * line, and the nightly titles its issue by which it was (the scorecard's I2:2).
+ * --check says last, in one line, whether the turns a person watched held the nightly's lines (ask-stats.mjs
+ * askDayVerdict), and exits 1 when they crossed one: the nightly workflow opens an issue with that line. It exits 2,
+ * with a last line that says so, when the day could not be read at all (a variable missing, a read refused or thrown):
+ * that is not Ask crossing a line, and the nightly titles its issue by which it was (the scorecard's I2:2).
  */
 import { writeFileSync, mkdirSync } from "node:fs";
 import { priceOf } from "@chanlytics/contracts";
-import { spread, pct, ms, missTally, askDayVerdict } from "../ask-stats.mjs";
+import { spread, pct, ms, missTally, askDayVerdict, roundBands, watchedTurn } from "../ask-stats.mjs";
 
 /** The exits the nightly reads: the day held its lines, crossed one, or could not be read. */
 const ASK_DAY_EXIT = { held: 0, crossed: 1, could_not_run: 2 };
@@ -199,6 +201,14 @@ if (drafts.length) {
       ` · final median ${ms(d.final.median)}, p90 ${ms(d.final.p90)} · at the cap ${d.cap_hits}`,
   );
 }
+// The first Say by rounds, of the turns a person read as they came: a day's mornings ran with no one reading them.
+const watched = turns.filter((t) => watchedTurn(t.shape));
+console.log(`\nfirst Say by rounds: ${watched.length} turns a person watched of ${turns.length}`);
+for (const b of roundBands(watched.map((t) => t.shape)))
+  console.log(
+    `  ${b.band.padEnd(10)} ${String(b.n).padStart(4)} · first Say median ${ms(b.say.median)}, p90 ${ms(b.say.p90)}` +
+      ` · final median ${ms(b.final.median)} · the first Say stood ${ms(b.held.median)} before the final`,
+  );
 for (const [model, c] of Object.entries(cost))
   if (!byModel[model])
     console.log(
@@ -227,11 +237,12 @@ if (JSON_OUT) {
 }
 
 if (CHECK) {
+  const seen = summarise(watched);
   const verdict = askDayVerdict({
-    turns: turns.length,
-    cacheHit: whole.cache_hit.median,
-    firstTextMs: whole.first_text.median,
-    misses: whole.misses,
+    turns: watched.length,
+    cacheHit: seen.cache_hit.median,
+    firstSayMs: seen.first_say.median,
+    misses: seen.misses,
   });
   console.log(`\n${verdict.line}`);
   if (!verdict.ok) process.exitCode = ASK_DAY_EXIT.crossed;

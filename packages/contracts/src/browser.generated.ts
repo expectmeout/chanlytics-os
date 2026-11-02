@@ -160,7 +160,7 @@ export { mediaKind, mediaVM } from "./conversations/message-media";
 export { draftSendsAtMs, failureWordsOf, heldDraftOf, isHeldDraft, messageStatusLabel, messageText, messageWords, providerCodeOf, reachedCustomer, sendFailureWords } from "./conversations/message-words";
 export { HELD_WORDS, heldPill, INBOX_BUCKET_WORDS, inboxBucketWord, isUnseen, NEEDS_YOU_LIST_END, NEEDS_YOU_WORD, readingOf, replyWaitsOnYou, seenBy, standingOf, standingOfThread } from "./conversations/standing";
 export { agentFor, answerWireOf, isChatMessage, isFromTheirSide, isTheirOwnWords, lastWroteOn, THREAD_CHANNEL_WORDS, threadChannelOf, threadChannelWords, writtenChannelOf } from "./conversations/thread-channel";
-export { formatWaited, inboxThreadClock, shortTime } from "./conversations/thread-clock";
+export { formatWaited, inboxThreadClock, shortTime, waitedSaid } from "./conversations/thread-clock";
 export { contactMeta, contactName, emailStoppedWords, initialsOf, isEmailStopped, isIdentifierName, personFaceOf, shortName } from "./conversations/thread-contact";
 export { inReadingOrder, isOptedOut, LIST_MESSAGES_EACH, memberMetaOf, messageAt } from "./conversations/thread-dto";
 export { amountTotalsWords, amountWords, parseAmount } from "./deals/deal-amount";

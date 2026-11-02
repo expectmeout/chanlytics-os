@@ -153,11 +153,12 @@
 /* ---- The day's numbers in one row of four on a phone, each its number over its short name; a press opens its clause
    and its door under the row. Worth a look under them, a line each: what the numbers mean. ---- */
 .dash-a-v2-phone .tc-figs {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(min-content, 1fr));
   padding: var(--space-2) 0;
 }
 .dash-a-v2-phone .tc-fig,
-.dash-a-v2-phone .tc-fig:nth-child(odd) {
+.dash-a-v2-phone .tc-fig:nth-child(odd),
+.dash-a-v2-phone .tc-fig + .tc-fig {
   padding: var(--space-1) var(--space-2);
   border-left: 1px solid var(--line);
 }

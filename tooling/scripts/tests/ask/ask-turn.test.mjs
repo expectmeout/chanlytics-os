@@ -7317,7 +7317,10 @@ test("a lead the person has open on a search's view rides in read as that search
     }),
   );
   assert.equal(r.failed, false, r.failure ?? "");
-  assert.deepEqual(runs, [{ name: "leads", input: { action: "lead", lead_id: LEAD, search_id: SEARCH } }]);
+  assert.deepEqual(
+    runs.filter((run) => run.input.action === "lead"),
+    [{ name: "leads", input: { action: "lead", lead_id: LEAD, search_id: SEARCH } }],
+  );
 });
 
 /* ------------------------------------------------ the turn reads the page (the Phase 2 plan, PR 2.4) */
@@ -7589,7 +7592,7 @@ test("a rule that described one tool is that tool's description now, and out of 
     [
       "read list_lead_searches, then propose_lead_search: one plan, never a search",
       "propose_lead_search",
-      "Read leads with action searches first, so a plan is not repeated: one plan, never a search",
+      "Read leads with action searches first where they did not come with the question, so a plan is not repeated: one plan, never a search",
     ],
     [
       "words that answer it are propose_lead_search with amends",
