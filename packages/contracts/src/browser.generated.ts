@@ -152,7 +152,7 @@ export { ABANDONED_MS, abandonedCall, CALL_TRANSCRIPT, callAttemptWords, DISCONN
 export { callEndedWords, spokenDuration, toCallVM, unansweredCallTodo } from "./conversations/call-vm";
 export { CONVERSATION_MOVES, conversationMoveAllowed, conversationPatch } from "./conversations/conversation-moves";
 export { toConversationVM } from "./conversations/conversation-vm";
-export { dockLineOf, DRAFTED_TODO, ESCALATION_ACTS, ESCALATION_REASON_LABELS, ESCALATION_REASON_SHORT, ESCALATION_SUMMARIES, HAND_BACK_REASONS, HOLD_ACT_WORDS, holdActOf, holdToDoOf, holdWaits, OPEN_HOLDS_READ_MAX, reasonLabelOf, reasonShort, reasonSummaryOf, WAITING_REASONS, waitsOnAPerson } from "./conversations/escalations";
+export { dockLineOf, DRAFTED_TODO, ESCALATION_ACTS, ESCALATION_REASON_LABELS, ESCALATION_REASON_SHORT, ESCALATION_SUMMARIES, HAND_BACK_REASONS, HOLD_ACT_WORDS, holdActOf, holdToDoOf, holdWaits, OPEN_HOLDS_READ_MAX, PITCH_TODO, reasonLabelOf, reasonShort, reasonSummaryOf, WAITING_REASONS, waitsOnAPerson } from "./conversations/escalations";
 export { REFERRAL_ID_MAX } from "./conversations/first-touch";
 export { HANDLED_OUTCOMES } from "./conversations/handled";
 export { conversationWaitsOnYou, countdownClock, HELD_BY_ID_MAX, heldDraftWaits, heldThreadIds, snoozedThreadWords, theyWroteLast, THREAD_PANE_WORDS, threadStanding, threadsWaitingOnYou, threadWaitsOf, toInboxThreadVM } from "./conversations/inbox-thread";
@@ -257,7 +257,7 @@ export { todayWidgetSnapshot } from "./mobile/today-widget";
 export { parseTodayWidgetSnapshot } from "./mobile/widget";
 export { clockIsNear, NEED_YOU_CLOCK_MS, NEED_YOU_OLD_MS, needYouGroupsOf, needYouVerbOf, needYouWaitOf } from "./need-you/need-you-groups";
 export { NEED_YOU_WORDS, needYouSay, NOT_A_PERSON_WORDS, notNowChoices, sendCountdown } from "./need-you/need-you-words";
-export { draftHasWords, draftIsCurrent, REPLY_DRAFT_KINDS, REPLY_DRAFTS_IDS_MAX, REPLY_DRAFTS_NEWEST_MAX, replyDraftAbout } from "./need-you/reply-drafts";
+export { draftHasWords, draftIsCurrent, draftPitchOf, REPLY_DRAFT_KINDS, REPLY_DRAFTS_IDS_MAX, REPLY_DRAFTS_NEWEST_MAX, replyDraftAbout } from "./need-you/reply-drafts";
 export { approvedWordsFor, NEW_CONVERSATION_WORDS, newConversationOf, planNoteOf, writeWayWords, writeWireName } from "./new-conversation/new-conversation-words";
 export { DRAFT_ABOUT_MAX, DRAFT_ANSWER_MAX, DRAFT_ASKS_MAX, DRAFT_HOWS, DRAFT_TONES, PERSON_DRAFT_JSON_SCHEMA, PLAN_NOTE_MAX } from "./new-conversation/person-draft";
 export { writeReachOf } from "./new-conversation/write-reach";

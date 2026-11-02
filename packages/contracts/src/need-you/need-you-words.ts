@@ -41,6 +41,8 @@ export const NEED_YOU_WORDS = {
   drafting: "Ask is writing…",
   couldNot: "Ask couldn't write this one.",
   asks: (question: string) => `Ask needs to know: ${question}`,
+  /** What they wrote was not a customer's, so Ask wrote no reply: what it is, in Ask's one sentence. */
+  pitch: (what: string) => `Not a customer, by the look of it: ${what}`,
   edit: "Edit",
   editDraft: (who: string) => `Change the reply to ${who}`,
   /** While the member types in the words: what the head says, and the press that leaves them as they are. */

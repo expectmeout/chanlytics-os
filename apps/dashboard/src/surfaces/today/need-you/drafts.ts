@@ -14,6 +14,7 @@ import {
   REPLY_DRAFTS_IDS_MAX,
   draftHasWords,
   draftIsCurrent,
+  draftPitchOf,
   type ReplyDraftDto,
   type ReplyDraftKind,
 } from "@chanlytics/contracts";
@@ -27,6 +28,7 @@ type DraftState =
   | { state: "writing" }
   | { state: "ready"; draft: ReplyDraftDto }
   | { state: "asks"; question: string }
+  | { state: "pitch"; what: string }
   | { state: "none" }
   | { state: "failed"; why: string };
 
@@ -56,9 +58,14 @@ function set(w: DraftWant, s: DraftState) {
   tellDrafts();
 }
 
-/** A kept draft as the row draws it: its words, or the question Ask could not answer from the facts. */
+/**
+ * A kept draft as the row draws it: its words, what they wrote where it was not a customer's (no words were written for
+ * a pitch), or the question Ask could not answer from the facts.
+ */
 function draftStateOf(d: ReplyDraftDto): DraftState {
   if (draftHasWords(d)) return { state: "ready", draft: d };
+  const pitch = draftPitchOf(d);
+  if (pitch) return { state: "pitch", what: pitch };
   const q = d.words.asks[0];
   return q ? { state: "asks", question: q } : { state: "failed", why: NEED_YOU_WORDS.couldNot };
 }

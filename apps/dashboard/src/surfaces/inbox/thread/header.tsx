@@ -714,10 +714,10 @@ export const ThreadHeader = (props: ThreadHeaderProps) => {
               <Icon name="phone" size={12} /> Call back
             </Button>
           )}
-        {/* More, a caret on an inset round a thumb finds (the thread canvas, 1 Nov 2026; a caret, never three dots):
-            "Actions" and its chevron took a third of the header on a phone, beside a name cut short. Its menu says what
-            to do with the conversation, the person, the deal and the file, each under its heading; on a phone it is the
-            kit's sheet, headed by who it is about. */}
+        {/* More, three dots on an inset round a thumb finds: "Actions" and its chevron took a third of the header on a
+            phone, beside a name cut short, and the canvas's caret read as a fold beside a reply box that folds (2 Nov
+            2026). Its menu says what to do with the conversation, the person, the deal and the file, each under its
+            heading; on a phone it is the kit's sheet, headed by who it is about. */}
         {deskActs(thread, onSnooze, onArchive)}
         <Menu
           trigger={
@@ -730,7 +730,7 @@ export const ThreadHeader = (props: ThreadHeaderProps) => {
               aria-label={THREAD_PANE_WORDS.moreFor(thread.who)}
               data-testid="ix-th-more"
             >
-              <Icon name="chevron-down" size={18} />
+              <Icon name="more" size={18} />
             </Button>
           }
           label={THREAD_PANE_WORDS.moreFor(thread.who)}

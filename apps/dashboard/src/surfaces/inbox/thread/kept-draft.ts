@@ -13,7 +13,13 @@
  * or not, which the box says under the words before Send: the newest kept drafts' threads with the first reads, any other
  * thread by itself.
  */
-import { THREAD_CHANNEL_WORDS, draftHasWords, draftIsCurrent, type ReplyDraftDto } from "@chanlytics/contracts";
+import {
+  THREAD_CHANNEL_WORDS,
+  draftHasWords,
+  draftIsCurrent,
+  draftPitchOf,
+  type ReplyDraftDto,
+} from "@chanlytics/contracts";
 import { api } from "@/legacy-bridge/api";
 import { surfaceValue } from "../../surface-values";
 import type { Thread } from "../types";
@@ -47,6 +53,20 @@ export function keptReplyNow(thread: Thread): string | null | undefined {
   const kept = held?.drafts.find((d) => d.conversation_id === thread.conversationId && d.kind === "reply");
   if (kept) return keptWords(kept, forId);
   return held?.complete ? null : undefined;
+}
+
+/**
+ * What the kept reply says of their newest message, where it found it was not a customer's (a sales pitch, a vendor, a
+ * newsletter) and wrote no words: its one sentence, or null. Read from the newest kept drafts the Inbox opens with.
+ */
+export function keptPitchNow(thread: Thread): string | null {
+  if (!thread.real) return null;
+  const forId = newestTheirs(thread);
+  if (!forId) return null;
+  const kept = surfaceValue("reply_drafts")?.drafts.find(
+    (d) => d.conversation_id === thread.conversationId && d.kind === "reply",
+  );
+  return kept && draftIsCurrent(kept, forId) ? draftPitchOf(kept) : null;
 }
 
 /** Whether the box's reply goes by email: only an email is signed. */
