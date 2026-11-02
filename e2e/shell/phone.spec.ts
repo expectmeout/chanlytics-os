@@ -110,7 +110,7 @@ test.describe("Phone shell on a real workspace", () => {
     await page.waitForLoadState("networkidle");
     const fab = page.getByTestId("phone-ask");
     await expect(fab).toBeVisible();
-    // The ✦ is Ask's face too: the three on the cards' surface, a beam on its rim (components/ask-face.jsx).
+    // The ✦ is Ask's face too: the three on the cards' surface, a beam on its rim (surfaces/kit/face/ask-face.tsx).
     await expect(fab.getByTestId("phone-ask-face")).toBeVisible();
     // In the tab bar's own row, clear of the tabs: it floated 126px up, over the page.
     const bar = await page.getByTestId("phone-tabs").boundingBox();

@@ -141,7 +141,7 @@ test("the measures see the dashboard's stylesheets and the shell's markup, and l
   assert.ok(primitives["apps/dashboard/src/legacy/styles/leads.css::btn"] > 0, "a page that restyles it is counted");
   const inline = Object.keys(measure("inline style props"));
   assert.ok(
-    inline.some((f) => f.startsWith("apps/dashboard/src/legacy/pages/")),
+    inline.some((f) => f.startsWith("apps/dashboard/src/surfaces/ask/")),
     "the pages' markup is measured",
   );
   assert.ok(

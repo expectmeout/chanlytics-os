@@ -401,7 +401,7 @@ test.describe("Leads on a real workspace", () => {
   /**
    * Find leads is Ask on the Leads surface (spec F1, F2): the button opens the
    * Line, the words go as typed, and the plan comes back as Ask's card, drawn
-   * with the page's own plan card inside it (ask-turn.jsx, LeadPlanCard).
+   * with the page's own plan card inside it (surfaces/ask/turn.tsx, LeadPlanCard).
    */
   async function askForBusinesses(page: Page, words: string): Promise<void> {
     await page.goto("/#/clients/leads");

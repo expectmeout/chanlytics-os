@@ -171,7 +171,7 @@ export function installAsk(win: Window = window, storage: Storage | null = safeS
   );
   // The page under a running conversation follows the member: the next spoken turn reads the page they moved to
   // (a window that cannot be listened to, a test's stand-in, has no page to follow). The address is read as the
-  // Line reads its own (ask-real.jsx arRoute): the page, then the rest as its param.
+  // Line reads its own (surfaces/ask/line/ arRoute): the page, then the rest as its param.
   if (typeof win.addEventListener === "function") {
     hearAddress(() => {
       if (!voice.voiceUp()) return;

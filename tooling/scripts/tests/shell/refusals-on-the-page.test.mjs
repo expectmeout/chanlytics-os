@@ -602,10 +602,9 @@ test("REGRESSION: the forms that coloured their own error red -- a new list, add
 
 /* ---------------------------------- Ask ---------------------------------- */
 
-await import("../../../../apps/dashboard/src/legacy/pages/ask-turn.jsx");
+const { AskTurn } = await import("../../../../apps/dashboard/src/surfaces/ask/turn.tsx");
 
 test("REGRESSION (N20): a failed Ask turn offers Try again on the latest answer, and only there -- it offered nothing", () => {
-  const AskTurn = globalThis.window.AskTurn;
   const t = { tryAgain: "Try again", from: "From", next: "Next", unverified: "Not checked" };
   const failed = {
     id: "e-1",

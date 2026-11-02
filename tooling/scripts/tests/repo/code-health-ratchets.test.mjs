@@ -28,11 +28,11 @@ import {
 } from "../_ast.mjs";
 
 // The measure the limits above rest on, kept honest: if the compiler ever stops
-// parsing the shell's script-mode JSX, the numbers would quietly drop to zero and
-// every ratchet would pass. This is the assertion that says so instead.
-test("the measure sees the shell's JSX and the packages' TypeScript", () => {
-  // The Line's page, the largest JSX left (the frame is TypeScript since the one-system plan's step 7e).
-  const shell = functionsIn(parse("apps/dashboard/src/legacy/pages/ask-real.jsx"));
+// parsing the pages' JSX, the numbers would quietly drop to zero and every ratchet
+// would pass. This is the assertion that says so instead.
+test("the measure sees a page's JSX and the packages' TypeScript", () => {
+  // Ask's answer, TSX since decision 0015's step 12, as the last of the shell's pages left it.
+  const shell = functionsIn(parse("apps/dashboard/src/surfaces/ask/turn.tsx"));
   const core = functionsIn(parse("packages/core/src/deliver.ts"));
   assert.ok(shell.length > 10, "the shell's page parsed as JSX and its functions were found");
   assert.ok(

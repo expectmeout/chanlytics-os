@@ -117,7 +117,7 @@ type HeldCard = Pick<AskProposal, "id" | "kind" | "payload" | "plan" | "outcome"
 
 /**
  * One step of a plan's group on the Line (planGroupOf): where it stands and what it waits for, as numbers the Line says
- * in its own language (ask-text.jsx, as it says Approve), and the refusal's own sentence where it never goes.
+ * in its own language (surfaces/ask/words.ts, as it says Approve), and the refusal's own sentence where it never goes.
  */
 interface GroupStep<P extends HeldCard> {
   card: P;
@@ -164,7 +164,7 @@ function reviewedStep(p: HeldCard, steps: ReadonlyMap<number, HeldCard>): number
  * step order, with where it stands, what it waits for in place of its Approve (planWaits, over what its plan's cards
  * became: planMadeOf) and what is said before its press; and how many steps that send nothing are not committed yet
  * (`left`), which the one press over them approves and counts, none where it is zero. Numbers, which the Line words in its
- * own language as it words its other buttons (ask-text.jsx); the plan is the first stamped card's, and a card of any other
+ * own language as it words its other buttons (surfaces/ask/words.ts); the plan is the first stamped card's, and a card of any other
  * plan, or of none, is not read.
  */
 export function planGroupOf<P extends HeldCard>(

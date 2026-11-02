@@ -1,8 +1,8 @@
-/* global React */
-// Ask's words, in the person's language. One table, read by every part of Ask
-// through window.askText(lang). Nothing else in them
-// carries a user-facing string, but the answers' own sentences, which are
-// contracts' (ask-answer.ts). No key symbol is drawn (the Line, D17).
+/**
+ * Ask's words, in the person's language. One table, read by every part of Ask through askText(lang). Nothing else in them
+ * carries a user-facing string, but the answers' own sentences, which are contracts' (ask-answer.ts). No key symbol is drawn
+ * (the Line, D17).
+ */
 
 const ASK_TEXT = {
   en: {
@@ -27,21 +27,21 @@ const ASK_TEXT = {
     findBusinesses: "Find businesses",
     leadsConsent: "You can email and call leads. Texts and offers wait for their yes.",
     // The Leads section is the finder's, not "Ask about Leads": its label is findBusinesses, said once above.
-    askAbout: (surface) =>
+    askAbout: (surface: string): string =>
       surface === "leads"
         ? ASK_TEXT.en.findBusinesses
         : `Ask about ${
-        {
-          today: "Today",
-          inbox: "the Inbox",
-          people: "People",
-          conversations: "Conversations",
-          live: "Live",
-          reports: "Reports",
-          settings: "Settings",
-          start: "setting up",
-        }[surface] || "this page"
-      }`,
+            {
+              today: "Today",
+              inbox: "the Inbox",
+              people: "People",
+              conversations: "Conversations",
+              live: "Live",
+              reports: "Reports",
+              settings: "Settings",
+              start: "setting up",
+            }[surface] || "this page"
+          }`,
     earlier: "Earlier",
     // Ask's home: the follow-ups it kept that came due (a search finished, replies came in, the day came).
     followUpsDue: "Ready now",
@@ -64,7 +64,8 @@ const ASK_TEXT = {
     listening: "Listening…",
     micDenied: "The browser needs microphone permission to talk to Ask.",
     micFailed: "Couldn't hear you — try again or type it.",
-    micBlocked: "The microphone is blocked for this site. Allow it in the browser’s site settings — the lock beside the address, or on iPhone the aA menu, Website Settings — then press again.",
+    micBlocked:
+      "The microphone is blocked for this site. Allow it in the browser’s site settings — the lock beside the address, or on iPhone the aA menu, Website Settings — then press again.",
     noVoice: "Voice needs Chrome, Edge or Safari; this browser can't listen. Type instead.",
     voice: "Talk with Chanlytics",
     readFailed: "Ask's voice couldn't be reached just now.",
@@ -73,9 +74,9 @@ const ASK_TEXT = {
     briefMe: "Brief me",
     letGo: "Let go to ask",
     typeInstead: "Type instead",
-    needYou: (n) => (n === 1 ? "1 needs you" : `${n} need you`),
-    runsWaiting: (n) => (n === 1 ? "1 run waiting" : `${n} runs waiting`),
-    searchWaiting: (n) => (n === 1 ? "1 search waiting" : `${n} searches waiting`),
+    needYou: (n: number) => (n === 1 ? "1 needs you" : `${n} need you`),
+    runsWaiting: (n: number) => (n === 1 ? "1 run waiting" : `${n} runs waiting`),
+    searchWaiting: (n: number) => (n === 1 ? "1 search waiting" : `${n} searches waiting`),
     // A phone's head in a conversation, and the pill back to its newest question (the spec 2026-09-27-ask-chat-on-a-phone, D9, D7).
     newChat: "New",
     latest: "Latest",
@@ -98,14 +99,41 @@ const ASK_TEXT = {
     tryAgain: "Try again",
     priceNote: "This looks like a price. The receptionist says only the prices your settings allow; you may say any.",
     windowNote: "Their 24-hour window is closed — only an approved template can be sent. Open the thread to pick one.",
-    // A plan's group (ask-turn.jsx AskPlan, contracts planGroupOf): a step's head, the one press for the steps that send
+    // A plan's group (card.tsx AskPlan, contracts planGroupOf): a step's head, the one press for the steps that send
     // nothing, what a send waits for in its Approve's place, and WhatsApp's review of the message a step writes.
-    stepOf: (n, of) => `Step ${n} of ${of}`,
-    approveSilent: (n) => (n === 1 ? "Approve the silent step" : `Approve the ${n} silent steps`),
-    waitingFor: (n) => `Waits for step ${n}`,
-    stepUndone: (n) => `Step ${n} was undone`,
-    afterReview: (n) => `This can be approved once WhatsApp has reviewed step ${n}'s message.`,
-    kReply: "reply", kSteer: "rewrite", kInbox: "inbox", kPerson: "receptionist", kAutonomy: "autonomy", kSettings: "settings", kWhisper: "whisper", kTeam: "team", kBroadcast: "broadcast", kPlaybook: "campaign", kLeads: "Leads", kDeal: "deal", kNote: "note", kDetails: "details", kList: "list", kRun: "run", kMessage: "message", kAnswer: "their answer", kPeople: "people", kSequence: "sequence", kCall: "call", kColdEmail: "cold email", kReview: "review", kFollowUp: "follow-up", kStyle: "your answers", kBooking: "booking", kMemory: "memory", kFix: "to fix first",
+    stepOf: (n: number, of: number) => `Step ${n} of ${of}`,
+    approveSilent: (n: number) => (n === 1 ? "Approve the silent step" : `Approve the ${n} silent steps`),
+    waitingFor: (n: number) => `Waits for step ${n}`,
+    stepUndone: (n: number) => `Step ${n} was undone`,
+    afterReview: (n: number) => `This can be approved once WhatsApp has reviewed step ${n}'s message.`,
+    kReply: "reply",
+    kSteer: "rewrite",
+    kInbox: "inbox",
+    kPerson: "receptionist",
+    kAutonomy: "autonomy",
+    kSettings: "settings",
+    kWhisper: "whisper",
+    kTeam: "team",
+    kBroadcast: "broadcast",
+    kPlaybook: "campaign",
+    kLeads: "Leads",
+    kDeal: "deal",
+    kNote: "note",
+    kDetails: "details",
+    kList: "list",
+    kRun: "run",
+    kMessage: "message",
+    kAnswer: "their answer",
+    kPeople: "people",
+    kSequence: "sequence",
+    kCall: "call",
+    kColdEmail: "cold email",
+    kReview: "review",
+    kFollowUp: "follow-up",
+    kStyle: "your answers",
+    kBooking: "booking",
+    kMemory: "memory",
+    kFix: "to fix first",
   },
   es: {
     placeholder: "Pregunta lo que quieras",
@@ -126,21 +154,21 @@ const ASK_TEXT = {
     describeCampaigns: "Describe qué debe salir, y cuándo",
     findBusinesses: "Encontrar negocios",
     leadsConsent: "Puedes escribir y llamar a los leads. Los SMS y las ofertas esperan su sí.",
-    askAbout: (surface) =>
+    askAbout: (surface: string): string =>
       surface === "leads"
         ? ASK_TEXT.es.findBusinesses
         : `Pregunta sobre ${
-        {
-          today: "Hoy",
-          inbox: "el Inbox",
-          people: "Personas",
-          conversations: "Conversaciones",
-          live: "En vivo",
-          reports: "Informes",
-          settings: "Ajustes",
-          start: "la configuración",
-        }[surface] || "esta página"
-      }`,
+            {
+              today: "Hoy",
+              inbox: "el Inbox",
+              people: "Personas",
+              conversations: "Conversaciones",
+              live: "En vivo",
+              reports: "Informes",
+              settings: "Ajustes",
+              start: "la configuración",
+            }[surface] || "esta página"
+          }`,
     earlier: "Anteriores",
     followUpsDue: "Listo ahora",
     noEarlier: "Aún no hay conversaciones anteriores.",
@@ -162,7 +190,8 @@ const ASK_TEXT = {
     listening: "Escuchando…",
     micDenied: "El navegador necesita permiso del micrófono para hablar con Ask.",
     micFailed: "No te oí — inténtalo de nuevo o escríbelo.",
-    micBlocked: "El micrófono está bloqueado para este sitio. Permítelo en los ajustes del sitio del navegador — el candado junto a la dirección, o en iPhone el menú aA, Ajustes del sitio web — y vuelve a pulsar.",
+    micBlocked:
+      "El micrófono está bloqueado para este sitio. Permítelo en los ajustes del sitio del navegador — el candado junto a la dirección, o en iPhone el menú aA, Ajustes del sitio web — y vuelve a pulsar.",
     noVoice: "La voz necesita Chrome, Edge o Safari; este navegador no puede escuchar. Escríbelo.",
     voice: "Habla con Chanlytics",
     readFailed: "No se pudo llegar a la voz de Ask ahora mismo.",
@@ -171,9 +200,9 @@ const ASK_TEXT = {
     briefMe: "Resúmeme",
     letGo: "Suelta para preguntar",
     typeInstead: "Escribir",
-    needYou: (n) => (n === 1 ? "1 te necesita" : `${n} te necesitan`),
-    runsWaiting: (n) => (n === 1 ? "1 envío en espera" : `${n} envíos en espera`),
-    searchWaiting: (n) => (n === 1 ? "1 búsqueda en espera" : `${n} búsquedas en espera`),
+    needYou: (n: number) => (n === 1 ? "1 te necesita" : `${n} te necesitan`),
+    runsWaiting: (n: number) => (n === 1 ? "1 envío en espera" : `${n} envíos en espera`),
+    searchWaiting: (n: number) => (n === 1 ? "1 búsqueda en espera" : `${n} búsquedas en espera`),
     newChat: "Nueva",
     latest: "Lo último",
     cutOff: "Se cortó la respuesta. Inténtalo de nuevo.",
@@ -191,16 +220,48 @@ const ASK_TEXT = {
     openIt: "Abrirlo",
     openNew: "Abrir en Nueva secuencia",
     tryAgain: "Reintentar",
-    priceNote: "Parece un precio. La recepcionista solo da los precios que permite tu configuración; tú puedes dar cualquiera.",
-    windowNote: "Su ventana de 24 horas está cerrada: solo se puede enviar una plantilla aprobada. Abre el hilo para elegir una.",
-    stepOf: (n, of) => `Paso ${n} de ${of}`,
-    approveSilent: (n) => (n === 1 ? "Aprobar el paso silencioso" : `Aprobar los ${n} pasos silenciosos`),
-    waitingFor: (n) => `Espera el paso ${n}`,
-    stepUndone: (n) => `El paso ${n} se deshizo`,
-    afterReview: (n) => `Se podrá aprobar cuando WhatsApp haya revisado el mensaje del paso ${n}.`,
-    kReply: "respuesta", kSteer: "reescritura", kInbox: "inbox", kPerson: "recepcionista", kAutonomy: "autonomía", kSettings: "ajustes", kWhisper: "susurro", kTeam: "equipo", kBroadcast: "difusión", kPlaybook: "campaña", kLeads: "Leads", kDeal: "acuerdo", kNote: "nota", kDetails: "datos", kList: "lista", kRun: "envío", kMessage: "mensaje", kAnswer: "su respuesta", kPeople: "personas", kSequence: "secuencia", kCall: "llamada", kColdEmail: "correo en frío", kReview: "reseña", kFollowUp: "seguimiento", kStyle: "tus respuestas", kBooking: "reserva", kMemory: "memoria", kFix: "por arreglar antes",
+    priceNote:
+      "Parece un precio. La recepcionista solo da los precios que permite tu configuración; tú puedes dar cualquiera.",
+    windowNote:
+      "Su ventana de 24 horas está cerrada: solo se puede enviar una plantilla aprobada. Abre el hilo para elegir una.",
+    stepOf: (n: number, of: number) => `Paso ${n} de ${of}`,
+    approveSilent: (n: number) => (n === 1 ? "Aprobar el paso silencioso" : `Aprobar los ${n} pasos silenciosos`),
+    waitingFor: (n: number) => `Espera el paso ${n}`,
+    stepUndone: (n: number) => `El paso ${n} se deshizo`,
+    afterReview: (n: number) => `Se podrá aprobar cuando WhatsApp haya revisado el mensaje del paso ${n}.`,
+    kReply: "respuesta",
+    kSteer: "reescritura",
+    kInbox: "inbox",
+    kPerson: "recepcionista",
+    kAutonomy: "autonomía",
+    kSettings: "ajustes",
+    kWhisper: "susurro",
+    kTeam: "equipo",
+    kBroadcast: "difusión",
+    kPlaybook: "campaña",
+    kLeads: "Leads",
+    kDeal: "acuerdo",
+    kNote: "nota",
+    kDetails: "datos",
+    kList: "lista",
+    kRun: "envío",
+    kMessage: "mensaje",
+    kAnswer: "su respuesta",
+    kPeople: "personas",
+    kSequence: "secuencia",
+    kCall: "llamada",
+    kColdEmail: "correo en frío",
+    kReview: "reseña",
+    kFollowUp: "seguimiento",
+    kStyle: "tus respuestas",
+    kBooking: "reserva",
+    kMemory: "memoria",
+    kFix: "por arreglar antes",
   },
 };
 
-window.ASK_TEXT = ASK_TEXT;
-window.askText = (lang) => ASK_TEXT[lang === "es" ? "es" : "en"];
+/** The words the Line reads, each language the same keys. */
+export type LineWords = (typeof ASK_TEXT)["en"];
+
+/** The table for a language: Spanish where the Line speaks it, English otherwise. */
+export const askText = (lang?: string | null): LineWords => ASK_TEXT[lang === "es" ? "es" : "en"];

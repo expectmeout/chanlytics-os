@@ -291,6 +291,8 @@ export const KIT_PENDING = [
   "apps/dashboard/src/surfaces/leads",
   "apps/dashboard/src/surfaces/setup",
   "apps/dashboard/src/surfaces/settings",
+  // Ask's Line, as the JSX drew it: its pieces become the kit's in its own step.
+  "apps/dashboard/src/surfaces/ask",
   // The frame's flash, moved from data-bits.jsx as the JSX drew it (the one-system plan, step 2).
   "apps/dashboard/src/surfaces/frame",
 ];
@@ -724,19 +726,7 @@ export default [
     plugins: { "react-hooks": reactHooks },
     rules: {
       "react-hooks/rules-of-hooks": "error",
-      // The files are scripts in one global scope, so each names its own copy
-      // of a hook (`const { useEffect: useCvEffect } = React`), and the plugin
-      // checks only the names it is given. The pattern is the convention, not a
-      // list: the list it replaced matched one of the shell's 38 aliases, and
-      // calls to the other 37 held 102 findings nobody saw.
-      // repo/hook-aliases-are-linted.test.mjs lints a call to every alias the
-      // shell declares, so a new one outside the pattern fails there. The plugin
-      // reads a name without "Effect" as a memo, so a `…Layout` alias is also
-      // told when a dependency is unnecessary.
-      "react-hooks/exhaustive-deps": [
-        "warn",
-        { additionalHooks: "^(use[A-Z][A-Za-z]*(Effect|Layout|Memo|Callback)|useEffectP)$" },
-      ],
+      "react-hooks/exhaustive-deps": "warn",
     },
   },
 

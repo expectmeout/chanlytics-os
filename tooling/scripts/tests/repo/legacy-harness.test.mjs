@@ -23,10 +23,10 @@
  * pages read at module scope — which makes "added at the bottom" as loud as
  * "not added at all".
  *
- * The bridge keeps two lists: `manifest.ts`, every file the frame draws, and
- * `ask/line-code.ts`, Ask's Line, a chunk of its own the frame fetches (the
- * loadability review, 19 Oct 2026); the harness loads the second after the first. The
- * mockup's own files (legacy/demo/) and their list, `manifest-demo.ts`, went on
+ * The bridge's list is `manifest.ts`, every file the frame draws. Ask's Line left the
+ * tree (surfaces/ask/, decision 0015's step 12), a chunk of its own the frame fetches,
+ * and the harness draws it from a bundle (`data/ask-line.js`). The mockup's own files
+ * (legacy/demo/) and their list, `manifest-demo.ts`, went on
  * 17 October 2026 (the closed-loop audit's S2, Ruben's word).
  *
  * The stylesheets are one list too: the app imports them from one entry
@@ -55,7 +55,7 @@ import {
 import ts from "typescript";
 import { ROOT, readCode, readRaw } from "../_source.mjs";
 import { parse as parseTs } from "../_ast.mjs";
-import { askLineGlobalsBundle, legacyDocument, send, serveStatic } from "../../serve-legacy.mjs";
+import { askLineBundle, legacyDocument, send, serveStatic } from "../../serve-legacy.mjs";
 import { PEOPLE_GLOBALS } from "../../../../apps/dashboard/src/surfaces/people/people-globals.ts";
 
 const LEGACY = "apps/dashboard/src/legacy";
@@ -69,9 +69,9 @@ const template = readRaw(`${LEGACY}/Chanlytics.html`);
 /** The harness's own seed file, standing where the bridge puts seed-globals.ts. */
 const STUBS = "data/bridge-stubs.jsx";
 
-/** Where the mockup's files are: the shell's three directories. */
-const DIRS = ["components", "data", "pages"];
-const DIR = "(?:components|data|pages)";
+/** Where the mockup's files are: the one directory of the shell's left. */
+const DIRS = ["data"];
+const DIR = "data";
 
 /** Every `src="dir/file.jsx"` the harness loads, in order. */
 const harness = [...html.matchAll(new RegExp(`<script[^>]*\\bsrc="(${DIR}\\/[^"?]+\\.jsx)[^"]*"`, "g"))].map(
@@ -86,8 +86,8 @@ const importsOf = (list) =>
       s.moduleSpecifier.text === "./seed-globals" ? STUBS : s.moduleSpecifier.text.replace(/^@\/legacy\//, ""),
     );
 
-/** Every legacy file the bridge loads for every workspace, in order: the frame's, then Ask's Line's, less the parts it publishes first. */
-const manifest = [...importsOf("manifest.ts"), ...importsOf("ask/line-code.ts").filter((f) => f !== "./line-globals")];
+/** Every legacy file the bridge loads for every workspace, in order. */
+const manifest = importsOf("manifest.ts");
 
 /** The frame (TypeScript since the one-system plan's step 7e), which is where a deleted page keeps its last reference. */
 const shell = ["app-shell.tsx", "route-table.tsx", "shell-chrome.tsx"]
@@ -270,11 +270,6 @@ test("the mockup takes the kit's components and the Inbox's and People's names f
   );
   assert.equal(
     tags[tags.indexOf(STUBS) + 4],
-    "data/ask-line-globals.js",
-    "Ask's Line draws its charts, its hold to talk and Leads' plan card by name (legacy-bridge/ask/line-globals.ts)",
-  );
-  assert.equal(
-    tags[tags.indexOf(STUBS) + 5],
     "data/frame-globals.js",
     "the frame and Ask read its toast, a thumb's gestures, the role gate and the rest by name (surfaces/frame/frame-globals.ts)",
   );
@@ -316,7 +311,7 @@ test("the kit's bundle publishes the kit's own components on the page's React, u
     "__settingsUnsaved",
     "__settingsSaving",
     "__recordFolds",
-    // The parts only Ask's Line draws come with the Line (ask/line-globals.ts), below.
+    // The parts only Ask's Line draws are its own imports (surfaces/ask/), below.
     "SegmentBar",
     "LineChart",
     "BarList",
@@ -334,17 +329,12 @@ test("the kit's bundle publishes the kit's own components on the page's React, u
     "a glyph is an <svg> from the page's own createElement",
   );
   assert.equal(win.Icon({ name: "no-such-glyph" }).children.length, 1, "an unknown name is the circle");
-  // The Line's parts, on the same React: its charts, its hold to talk and a search card's rules, published as the Line loads.
+  // The Line, on the same React, as the frame's AskBar: its charts and its hold to talk are its own imports, no global.
   const line = { React };
-  vm.runInNewContext(await askLineGlobalsBundle(), { window: line, React, console });
-  for (const name of ["SegmentBar", "LineChart", "BarList", "useHoldToTalk"])
-    assert.equal(typeof line[name], "function", `${name} is published with the Line`);
-  assert.equal(typeof line.LeadCards?.view, "function", "a search card's rules are published with the Line");
-  assert.equal(
-    line.SegmentBar({ title: "T", rows: [{ key: "a", value: 0 }], config: {} }),
-    null,
-    "a bar of nothing is nothing",
-  );
+  vm.runInNewContext(await askLineBundle(), { window: line, React, console });
+  assert.equal(typeof line.AskBar, "function", "the mockup's AskBar is the Line");
+  for (const name of ["SegmentBar", "LineChart", "BarList", "useHoldToTalk", "LeadCards", "AskLineReal"])
+    assert.equal(line[name], undefined, `${name} is no global`);
   // The house's three (surfaces/kit/house): the pill takes its tone from contracts where the mockup has no bridge, the chip
   // draws nothing where the mockup's charter is absent, and the menu is its trigger until it is pressed.
   assert.equal(win.StatePill({ kind: "call", value: "live" }).props.className, "pill pill-accent");
@@ -592,7 +582,7 @@ test("no two files the harness loads give one top-level name two meanings", () =
   // pages/pipeline.jsx, the retired seeded demo, loads after pages/pipeline-board.jsx. Both declared a top-level
   // PipelineBoard, so the demo's replaced the real one on window, and the Pipeline's Board threw "Cannot read
   // properties of undefined (reading 'map')" drawing the demo's board with the real board's props. The same happened
-  // to the seed palette's AskAnswer (dashboard-a-ask.jsx), replaced by ask-turn.jsx's. A name a later file sets on
+  // to the seed palette's AskAnswer (dashboard-a-ask.jsx), replaced by the Line's. A name a later file sets on
   // purpose with `window.X = ...` (the *-real.jsx pages) is an assignment, not a declaration, and is not held here.
   assert.deepEqual(sharedScope.twoMeanings, []);
 });

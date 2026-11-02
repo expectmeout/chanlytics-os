@@ -1,5 +1,7 @@
 {
   ".": "broadcasts inbox settings today workspace",
+  "ask": "settings",
+  "ask/line": "",
   "calendar": "calendar calendar_runs",
   "calendar/visit": "",
   "campaigns": "audiences broadcasts channels playbooks reach_outs sequences settings",

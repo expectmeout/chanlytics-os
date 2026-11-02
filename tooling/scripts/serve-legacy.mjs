@@ -23,8 +23,8 @@
  * the document's own boot draws it by,
  * `data/inbox-globals.js`, the Inbox's and Conversations' seeded rows and rules under the names the pages here still read,
  * `data/people-globals.js`, People's parts the shell still draws by name (the strip's scopes and the deal and step sheets:
- * TSX since decision 0015, step 5), `data/ask-line-globals.js`, the parts only Ask's Line draws by name (its charts, its
- * hold to talk, Leads' plan card: legacy-bridge/ask/line-globals.ts), and `data/mascot.js`
+ * TSX since decision 0015, step 5), `data/ask-line.js`, Ask's Line (surfaces/ask/, TSX since decision 0015, step 12), and
+ * `data/mascot.js`
  * (see SAMPLES below). The stylesheets the app imports from outside the tree are read where the app has them (the kit's
  * and Campaigns', outsideCss below).
  *
@@ -122,20 +122,17 @@ const SAMPLES = {
     atDashboard: true,
     watch: ["apps/dashboard/src/surfaces/people", "apps/dashboard/src/legacy-bridge"],
   },
-  // The parts only Ask's Line draws by name (legacy-bridge/ask/line-globals.ts: its charts, its hold to talk, Leads' plan
-  // card), on the page's own React; the app publishes them with the Line's own chunk.
-  "/data/ask-line-globals.js": {
-    entry: path.join(REPO, "apps/dashboard/src/legacy-bridge/ask/line-globals.ts"),
+  // Ask's Line (surfaces/ask/), on the page's own React, as the frame's AskBar: in the app that draws the Line once its
+  // chunk is in (legacy-bridge/ask/line.tsx); here every file is loaded up front, so it draws the Line at once.
+  "/data/ask-line.js": {
+    entry: path.join(REPO, "apps/dashboard/src/surfaces/ask/line/line.tsx"),
     globalName: "__AG",
-    // And the frame's AskBar, which in the app draws the Line once its chunk is in (legacy-bridge/ask/line.tsx): here
-    // every file is loaded up front, so it draws the Line at once.
-    footer:
-      "Object.assign(window, __AG.ASK_LINE_GLOBALS); window.AskBar = window.AskBar || function AskBar(p) { return window.React.createElement(window.AskLineReal, p); };",
+    footer: "window.AskBar = window.AskBar || __AG.AskReal;",
     banner: "var process = globalThis.process || { env: {} };",
     jsx: "transform",
     reactIsTheWindows: true,
     atDashboard: true,
-    watch: ["apps/dashboard/src/surfaces/kit", "apps/dashboard/src/surfaces/leads", "apps/dashboard/src/legacy-bridge"],
+    watch: ["apps/dashboard/src/surfaces/ask", "apps/dashboard/src/surfaces/kit", "apps/dashboard/src/legacy-bridge"],
   },
   // The same for the e2e harness's People record: the fixture boots People (peopleOverride) in a bundle of its own, before
   // React loads, so this bundle keeps its own copy of the surface's store and takes People from the window the fixture
@@ -150,7 +147,7 @@ const SAMPLES = {
     atDashboard: true,
     watch: ["apps/dashboard/src/surfaces/people", "apps/dashboard/src/legacy-bridge"],
   },
-  // Not a sample either: the three (legacy-bridge/mascot), the character Ask's face draws (components/ask-face.jsx:
+  // Not a sample either: the three (legacy-bridge/mascot), the character Ask's face draws (surfaces/kit/face/ask-face.tsx:
   // the top bar's button, the Stage and the phone's ✦), so the mockup's Ask has its face.
   "/data/mascot.js": {
     entry: path.join(REPO, "apps/dashboard/src/legacy-bridge/mascot/index.ts"),
@@ -226,7 +223,7 @@ export const frameGlobalsBundle = () => sampleBundle("/data/frame-globals.js");
 export const frameAppBundle = () => sampleBundle("/data/frame-app.js");
 export const inboxGlobalsBundle = () => sampleBundle("/data/inbox-globals.js");
 export const peopleGlobalsBundle = () => sampleBundle("/data/people-globals.js");
-export const askLineGlobalsBundle = () => sampleBundle("/data/ask-line-globals.js");
+export const askLineBundle = () => sampleBundle("/data/ask-line.js");
 export const peopleGlobalsHarnessBundle = () => sampleBundle("/data/people-globals-harness.js");
 export const mascotBundle = () => sampleBundle("/data/mascot.js");
 
@@ -259,21 +256,18 @@ const outsideCss = () =>
     .map((sheet) => ({ at: `/${sheet}`, file: path.join(SRC, sheet) }));
 
 /**
- * The files of the shell the app loads, in its order, each as a path under legacy/: the frame's (manifest.ts), then Ask's
- * Line's (ask/line-code.ts, a chunk of its own in the app, loaded here with the rest). Their order is the
- * shared global scope's: data seeds globals that pages read at module scope. seed-globals
- * is the app's own; the document's stand-ins (data/bridge-stubs.jsx and the bundles after it) stand where it does.
+ * The files of the shell the app loads, in its order, each as a path under legacy/ (manifest.ts): none since Ask's Line
+ * left the tree, which the document draws from its bundle, `data/ask-line.js`. seed-globals is the app's own; the document's
+ * stand-ins (data/bridge-stubs.jsx and the bundles after it) stand where it does.
  */
 const appScripts = () =>
-  ["manifest.ts", "ask/line-code.ts"].flatMap((list) =>
-    [...fs.readFileSync(path.join(BRIDGE, list), "utf8").matchAll(/^import "([^"]+)";/gm)]
-      .map((m) => m[1])
-      .filter((spec) => spec !== "./seed-globals" && spec !== "./line-globals")
-      .map((spec) => {
-        if (!spec.startsWith("@/legacy/")) throw new Error(`${list} imports ${spec}, which the mockup cannot load`);
-        return spec.slice("@/legacy/".length);
-      }),
-  );
+  [...fs.readFileSync(path.join(BRIDGE, "manifest.ts"), "utf8").matchAll(/^import "([^"]+)";/gm)]
+    .map((m) => m[1])
+    .filter((spec) => spec !== "./seed-globals")
+    .map((spec) => {
+      if (!spec.startsWith("@/legacy/")) throw new Error(`manifest.ts imports ${spec}, which the mockup cannot load`);
+      return spec.slice("@/legacy/".length);
+    });
 
 /** Where Chanlytics.html says each list goes. */
 const STYLESHEETS_HERE = "<!-- The app's stylesheets -->";

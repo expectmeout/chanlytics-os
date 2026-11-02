@@ -1,7 +1,7 @@
 /**
  * The three on a phone take a page in as it arrives, stay lit while something needs you, and notice what comes for
  * you (mascot/arrival.ts, which is pure); this is its wiring: the address and its changes (workspace.ts hearAddress), the phone (the
- * takeover's own width), Ask's door (body.ask-open, ask-real.jsx, watched as it changes), the boot (surface-runner
+ * takeover's own width), Ask's door (body.ask-open, surfaces/ask/line/, watched as it changes), the boot (surface-runner
  * afterBoot), what needs you (Ask's own standing, ask/palette.ts rightNowParts, a follow-up of Ask's come due,
  * ask/follow-ups.ts, and the bell's unread,
  * notifications.ts; asked again as the surfaces they are built from land, as the bell moves and as the phone comes
@@ -18,7 +18,7 @@ import { FOLLOW_UPS_EVENT } from "./ask/follow-ups";
 import { afterBoot, hearAddress, routeOnScreen } from "./workspace";
 
 /**
- * The surfaces what needs you is built from: Ask's standing reads Today's queue and Broadcasts' runs (ask-real.jsx
+ * The surfaces what needs you is built from: Ask's standing reads Today's queue and Broadcasts' runs (surfaces/ask/line/
  * listens to the same), the bell reads the Inbox, Live, the team and its own kept rows (notifications.ts FEED_EVENTS),
  * and Ask's follow-ups say each read of theirs (ask/follow-ups.ts FOLLOW_UPS_EVENT).
  */

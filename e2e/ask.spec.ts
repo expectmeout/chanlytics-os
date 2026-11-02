@@ -56,7 +56,7 @@ test.describe("Ask on a real workspace", () => {
     await expect(pal).toBeHidden();
     await page.getByTestId("tb-ask").click();
     await expect(page.getByTestId("ask-real")).toBeVisible();
-    // Ask's face: the three are the button's icon, and stand in the line while it is open (ask-face.jsx).
+    // Ask's face: the three are the button's icon, and stand in the line while it is open (surfaces/kit/face/ask-face.tsx).
     await expect(page.getByTestId("ask-real").getByTestId("ask-line-face")).toBeVisible();
   });
 
@@ -91,7 +91,7 @@ test.describe("Ask on a real workspace", () => {
     const pal = page.getByTestId("ask-real");
     const now = pal.getByTestId("ask-row-now");
     await expect(now).toBeInViewport({ ratio: 1 });
-    // Its counts are the hero's pills, under the three (ask-real.jsx), on a desk as on a phone.
+    // Its counts are the hero's pills, under the three (surfaces/ask/line/), on a desk as on a phone.
     await expect(
       pal
         .getByTestId("ask-hero")
@@ -400,7 +400,7 @@ test.describe("Ask on a phone", () => {
     const ask = page.getByTestId("ask-real");
     await expect(ask).toBeVisible();
     await ask.getByTestId("ask-input").fill("how did the");
-    // The takeover pushed one entry of its own as it opened (ask-real.jsx, S8): Back closes it and stays on Today.
+    // The takeover pushed one entry of its own as it opened (surfaces/ask/line/, S8): Back closes it and stays on Today.
     await page.goBack();
     await expect(ask).toHaveCount(0);
     await expect(page).toHaveURL(atRoute(/^today$/));

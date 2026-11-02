@@ -1,6 +1,6 @@
 /**
  * Ask's Line as the frame draws it (surfaces/frame/shell-chrome.tsx's `AskBar`, the one Line every page shares). Its pages and the parts
- * only they draw are a chunk of their own (line-code.ts), fetched once the frame is idle, or at once when the Line is
+ * only they draw are a chunk of their own (surfaces/ask/line/line.tsx), fetched once the frame is idle, or at once when the Line is
  * opened before that (⌘K, the top bar's Ask, a door that asks). In the frame they were about 70 KB, compressed, that every
  * first load parsed before any page could draw (the loadability review, 19 Oct 2026). The Line is drawn inside this
  * component once its code is in, so the chunk landing never swaps the component the shell draws, and the Line keeps
@@ -18,24 +18,23 @@ interface LineProps {
   onClose: () => void;
 }
 
-declare global {
-  interface Window {
-    /** The Line itself (ask-real.jsx), once its chunk is in. */
-    AskLineReal?: ComponentType<LineProps>;
-  }
-}
+/** The Line itself (surfaces/ask/line/line.tsx), once its chunk is in. */
+let lineCode: ComponentType<LineProps> | null = null;
 
 /**
  * The Line's chunk and its cards' specs (the undo and the Open its cards read through verbs/commit.ts pageSpecs): fetched
  * once and shared; a fetch that failed is asked for again by the next press.
  */
-export const askLineCode = codeOnce(() => Promise.all([import("./line-code"), pageSpecs()]).then(() => undefined));
+export const askLineCode = codeOnce(() =>
+  Promise.all([import("@/surfaces/ask/line/line"), pageSpecs()]).then(([code]) => {
+    lineCode = code.AskReal;
+  }),
+);
 
 /** How long an idle frame may wait before the Line's code is fetched: sooner than the rest, since ⌘K comes early. */
 const LINE_IDLE_MS = 2000;
 
-const lineNow = (): ComponentType<LineProps> | null =>
-  typeof window === "undefined" ? null : (window.AskLineReal ?? null);
+const lineNow = (): ComponentType<LineProps> | null => lineCode;
 
 export function AskLine(props: LineProps) {
   const [Line, setLine] = useState(lineNow);

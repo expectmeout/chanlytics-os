@@ -14,6 +14,7 @@ import { tbOverlay, useDemoBell, useDemoPresence } from "./bell-demo-acts";
 import { BAR_LINE_WORDS } from "@chanlytics/contracts";
 import { askAbout, openAsk } from "../../frame-doors";
 import { Button } from "../../kit/button/button";
+import { AskFace } from "../../kit/face/ask-face";
 import { usePageSearchSaid, type PageSearch } from "../../kit/head/page-search";
 import { frameBell, frameChrome, frameGlyph, frameMoreMenu, frameToastHook, isDemoFrame } from "../frame-window";
 import { NotifPopover, type BellAlerts, type BellNote } from "./notif-popover";
@@ -47,17 +48,13 @@ const tbAskLabel = (label: string | null | undefined) => (
   </>
 );
 
-/** Ask's face, the three (ask-face.jsx), or the sparkle where they are not loaded: what leads the line, as it led the capsule. */
-const tbFace = () => {
-  const TbFace = window.AskFace || null;
-  const Glyph = frameGlyph();
-  return TbFace ? <TbFace className="tb-ask-face" testId="tb-ask-face" /> : <Glyph name="sparkle" size={13} />;
-};
+/** Ask's face, the three (kit/face/ask-face.tsx): what leads the line, as it led the capsule. */
+const tbFace = () => <AskFace className="tb-ask-face" testId="tb-ask-face" />;
 
 /**
  * The page's search as the line (page-search.ts): its words are the page's, so the list narrows as they are typed; Enter,
  * or the line's Ask, asks Ask about them in a conversation of its own, which Ask scopes to the page as ⌘K's would be (a
- * page's own search, ask-real.jsx `fresh`), and empties the line; Esc empties it too, and the page keeps that press only
+ * page's own search, ask/line/turns.tsx `fresh`), and empties the line; Esc empties it too, and the page keeps that press only
  * when there was nothing in it to empty (its own Esc: a selection let go).
  */
 function TbSearchLine({ search }: { search: PageSearch }) {
@@ -425,8 +422,8 @@ export function Topbar({
 
       <div className="topbar-spacer" />
 
-      {/* Ask reads the workspace as the signed-in person (ask-real.jsx); in a demo it answers the seed world. Its icon is
-          the three (ask-face.jsx), Ask's face: ink at rest, coral and moving while Ask listens, reads or answers, on every
+      {/* Ask reads the workspace as the signed-in person (surfaces/ask/); in a demo it answers the seed world. Its icon is
+          the three (kit/face/ask-face.tsx), Ask's face: ink at rest, coral and moving while Ask listens, reads or answers, on every
           page. On a desk it stands in the bar's middle, the page's search where the page has one (TbLine). */}
       <TbLine onAsk={onAsk} askLabel={askLabel} />
 
