@@ -174,7 +174,7 @@ const aboutFactRow = (r: LeadSheetFactVM) => (
           align="start"
           className="lw-kv-note"
           trigger={
-            <LinkButton className="lw-kv-more" data-testid="lead-sheet-what-we-keep">
+            <LinkButton className="lw-kv-more lw-link q" data-testid="lead-sheet-what-we-keep">
               {W.whatWeKeep}
             </LinkButton>
           }
@@ -276,7 +276,11 @@ function sequenceOf(f: SheetFacts, a: SequenceActs, leadId: string) {
       ) : null}
       <p className="lw-note">{rail.vm.end.head}</p>
       <div className="lw-seq-foot">
-        <LinkButton onClick={() => a.onOpenRecord(rail.sequence.id)} data-testid="lead-sheet-every-step">
+        <LinkButton
+          className="lw-link q"
+          onClick={() => a.onOpenRecord(rail.sequence.id)}
+          data-testid="lead-sheet-every-step"
+        >
           {W.openSequence(rail.sequence.name)}
         </LinkButton>
         {a.onTakeOut && stands ? (
