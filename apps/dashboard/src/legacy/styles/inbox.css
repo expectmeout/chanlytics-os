@@ -2033,6 +2033,11 @@ html.legacy-on .ix-dock .ix-why { position: relative; min-height: 0; }
 /* One fact about them after where it stands ("· Northwind Media"): it gives way, its words ending in an ellipsis. */
 .ix-th-fact { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
 .ix-th-fact-words { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* Above a phone a door beside the head says their visit or their work: the fact under the name does not say it again. */
+@media (width > 720px) {
+  .ix-th-head:has(.ix-th-visit-door) .ix-th-fact[data-of="visit"],
+  .ix-th-head:has(.ix-th-works) .ix-th-fact[data-of="works"] { display: none; }
+}
 .ix-th-sep { flex: none; }
 /* The wire in a glyph and its word, said there where the person's rail stands beside the thread (it says who they are). */
 .ix-th-on { display: none; align-items: center; gap: 6px; }

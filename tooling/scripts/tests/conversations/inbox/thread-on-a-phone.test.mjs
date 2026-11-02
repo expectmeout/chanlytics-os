@@ -190,7 +190,7 @@ const SIGNED =
   "needs you test\n\nRuben Segura\nFounder, RJ Capital\n[image: RJ Capital] <https://rjcapital.io>\n" +
   "rjcapital.io  |  ruben@rjcapital.io\n3495 US-1, Princeton, NJ 08540";
 
-test("their signature is one quiet line under their words, and the whole of it on a press", () => {
+test("their signature is one quiet fold under their words, and the whole of it on a press", () => {
   const dto = conv([
     msg({ channel: "email", body: SIGNED, meta: { email: { subject: "test need you", from_name: "Ruben Segura" } } }),
   ]);
@@ -200,7 +200,8 @@ test("their signature is one quiet line under their words, and the whole of it o
   assert.ok(!textOf(body).includes("[image:"), "REGRESSION: Gmail's picture stand-in was drawn as their words");
   const sig = one(shut, byTestId("tl-msg-sig"));
   assert.ok(sig, "REGRESSION: the signature was drawn as part of what they wrote");
-  assert.equal(textOf(sig).trim(), "Ruben Segura · Founder, RJ Capital · rjcapital.io");
+  // A fold named for what it holds, beside the others under the words (the thread canvas, 1 Nov 2026).
+  assert.equal(textOf(sig).trim(), "Signature");
   assert.equal(sig.props["aria-expanded"], false);
   assert.equal(one(shut, byTestId("tl-msg-sig-full")), undefined, "shut, the card is one line");
 
@@ -246,9 +247,9 @@ test("a long email is folded to its first lines with the way to the rest, and a 
   assert.equal(body.props["data-folded"], "", "folded to its first lines");
   assert.ok(!textOf(body).includes("Market Street"), "REGRESSION: the tool's address read as her words");
   const whole = one(shut, byTestId("tl-email-whole"));
-  assert.equal(textOf(whole).trim(), "Show the whole email");
+  assert.equal(textOf(whole).trim(), "Show whole email");
   const foot = one(shut, byTestId("tl-msg-footer-toggle"));
-  assert.equal(textOf(foot).trim(), "Footer and unsubscribe link");
+  assert.equal(textOf(foot).trim(), "Footer & unsubscribe link");
   assert.equal(one(shut, byTestId("tl-msg-footer")), undefined, "shut, the foot is one line");
 
   whole.props.onClick();

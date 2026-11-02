@@ -753,7 +753,12 @@ test("a thread's bubbles name their wire only when its words went by more than o
     stamps.every((s) => !textOf(s).includes("WhatsApp") && !find(s, (n) => n.props?.["aria-label"] === "WhatsApp")),
     `REGRESSION: "WhatsApp" on every bubble of a thread with one call: ${stamps.map(textOf).join(" | ")}`,
   );
-  assert.equal(textOf(find(tree, hasClass("ix-th-meta"))), "WhatsApp · Phone", "the header names both, once");
+  // The wire's round on the face says both, once, to a pointer and a screen reader (the thread canvas, 1 Nov 2026).
+  assert.equal(
+    find(tree, byTestId("ix-th-wire")).props["aria-label"],
+    "WhatsApp · Phone",
+    "the header names both, once",
+  );
 });
 
 test("every message carries its own id on the page, the call's card too, so the thread can open at one", () => {

@@ -789,7 +789,8 @@ a.chip:focus-visible {
 .more-item:has(> .more-glyph, > .face):not(:has(> .more-item-meta)) {
   grid-template-areas: "glyph label hint";
 }
-.more-item:has(> .more-glyph, > .face) > :is(.more-glyph, .face) {
+.more-item:has(> .more-glyph, > .face) > .more-glyph,
+.more-item:has(> .more-glyph, > .face) > .face {
   grid-area: glyph;
 }
 .more-item:has(> .more-glyph, > .face) > .more-item-label {

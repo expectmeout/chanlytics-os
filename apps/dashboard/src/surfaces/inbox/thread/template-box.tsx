@@ -330,11 +330,13 @@ const CHOICES_SHOWN = 4;
 
 /**
  * The messages this person can be sent, as choices on the box (the thread canvas, 1 Nov 2026): one press each, the one
- * chosen in the ink, the rest outlined. A person who can be sent more than the box shows chooses from the menu instead.
+ * chosen in the ink, the rest outlined. A person who can be sent more than the box shows, or for whom some were kept back,
+ * chooses from the menu instead, where what fits now is headed and why the rest are not offered is said once.
  */
 function templateChoices(have: TemplateChoice, choose: (at: number) => void) {
   const options = templateOptions(have);
-  if (options.length < 2 || options.length > CHOICES_SHOWN) return null;
+  if (options.length < 2 || options.length > CHOICES_SHOWN || have.choice?.hidden) return null;
+  if (options.some((o) => o.fits) && options.some((o) => !o.fits)) return null;
   return (
     <div className="ix-tpl-choices" role="radiogroup" aria-label={THREAD_PANE_WORDS.templateChoices}>
       {options.map((o, at) => (

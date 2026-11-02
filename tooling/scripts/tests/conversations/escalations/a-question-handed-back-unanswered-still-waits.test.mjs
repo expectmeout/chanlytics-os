@@ -282,7 +282,7 @@ test("the pane: Unanswered in the bar with her wait, and a dock with what the ho
   const standing = find(tree, byTestId("ix-th-standing"));
   const pill = find(standing, (n) => n.props?.kind === "tone");
   assert.deepEqual([pill?.props.value, pill?.props.label], ["warn", "Unanswered"], "the warning's amber, said once");
-  assert.equal(textOf(find(standing, hasClass("ix-th-standing-meta"))), "· waiting 26d");
+  assert.equal(textOf(find(standing, hasClass("ix-th-standing-meta"))), "26d", "her wait beside it, in the mono face");
   const dock = find(tree, byTestId("ix-unanswered"));
   assert.equal(textOf(find(dock, hasClass("notice-fact"))), "Asked for $150. · Closed Sep 21 without a reply");
   const call = find(dock, byTestId("ix-unanswered-call"));
@@ -330,7 +330,8 @@ test("the pane: a hand back that would leave her message with no answer asks fir
   globalThis.window.addEventListener("inbox:focus-composer", hear);
   try {
     let tree = again(draw);
-    button(find(tree, byTestId("ix-needs-you")), (n) => textOf(n).trim() === "Hand back").props.onClick();
+    // Hand back stands beside the reply box's Send, the box that answers the hold (the thread canvas, 1 Nov 2026).
+    find(tree, byTestId("ix-hand-back")).props.onClick();
     assert.deepEqual(decided, [], "REGRESSION: handed back at once, and the receptionist never came back to her");
     tree = again(draw);
     const ask = find(tree, byTestId("ix-hand-back-ask"));
@@ -339,12 +340,13 @@ test("the pane: a hand back that would leave her message with no answer asks fir
       "Daniela's message has no answer yet. · Handing back sends nothing, and the receptionist won't come back to it.",
     );
     assert.equal(find(tree, byTestId("ix-needs-you")), null, "the ask stands in the dock's place");
+    assert.equal(find(tree, byTestId("ix-hand-back")), null, "and the box's Hand back waits on its answer");
     button(ask, byTestId("ix-answer-first")).props.onClick();
     assert.deepEqual(focused, [{ threadId: needs.id }], "Answer first puts her in the reply box");
     tree = again(draw);
     assert.ok(find(tree, byTestId("ix-needs-you")), "and the dock is back");
 
-    button(find(tree, byTestId("ix-needs-you")), (n) => textOf(n).trim() === "Hand back").props.onClick();
+    find(tree, byTestId("ix-hand-back")).props.onClick();
     tree = again(draw);
     button(find(tree, byTestId("ix-hand-back-ask")), byTestId("ix-hand-back-anyway")).props.onClick();
     assert.deepEqual(decided, [[needs.id, "__HANDBACK__"]], "Hand back anyway hands it back");
@@ -365,7 +367,7 @@ test("the pane: a hand back that would leave her message with no answer asks fir
   const tree = again(() =>
     InboxThread({ thread: answered, channelLabels: labels, onDecide: (id, act) => went.push(act) }),
   );
-  button(find(tree, byTestId("ix-needs-you")), (n) => textOf(n).trim() === "Hand back").props.onClick();
+  find(tree, byTestId("ix-hand-back")).props.onClick();
   assert.deepEqual(went, ["__HANDBACK__"]);
   assert.equal(all(tree, byTestId("ix-hand-back-ask")).length, 0);
 });

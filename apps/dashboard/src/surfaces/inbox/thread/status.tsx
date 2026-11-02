@@ -351,6 +351,22 @@ const replyGoes = (thread: Thread): boolean =>
   thread.hasChat !== false &&
   !(thread.windowOpen === false && thread.primaryChannel === "instagram");
 
+/**
+ * Whether taking the thread without a word is More's to offer (header.tsx): a hold that asks for a reply, where the reply
+ * box can send one, so the dock offers no take-over (takeAct). Claiming it first still tells the team it is yours, and
+ * pauses the receptionist, before a word is written (to call them, say).
+ */
+export const takeInTheMenu = (thread: Thread): boolean =>
+  !!thread.real &&
+  thread.state === "escalated" &&
+  !thread.takenOver &&
+  !thread.claimedByOther &&
+  thread.holdAct !== "hand_back" &&
+  thread.holdAct !== "confirm" &&
+  !ixDockDials(thread) &&
+  thread.primaryChannel !== "phone" &&
+  replyGoes(thread);
+
 /** The whole of why it was held, and what the hold noted, a press away under the dock's line (contracts holdWordsOf). */
 function holdWhy(thread: Thread): ReactNode {
   if (!thread.real || !thread.holdWhy) return null;
@@ -393,10 +409,14 @@ function takeAct(p: DockProps, thread: Thread): ReactNode {
 
 /**
  * Whether the reply box under the dock answers this hold, with Hand back beside its Send (composerAside): a hold that asks
- * for a reply, on a real thread nobody has taken, where words can go. The dock then says the line alone.
+ * for a reply, on a real thread nobody has taken, where free words can go, in the box's drafted shape (an email, or the
+ * receptionist's draft kept for it: composer.tsx realComposer). A chat's one line, or an approved message's box past
+ * WhatsApp's window, draws nothing beside its Send, and Hand back stays on the dock's line.
  */
 const boxAnswers = (thread: Thread): boolean =>
   !!thread.real &&
+  thread.windowOpen !== false &&
+  (thread.primaryChannel === "email" || !!keptReplyNow(thread)) &&
   thread.state === "escalated" &&
   !!thread.escalationId &&
   thread.holdAct === "reply" &&
@@ -474,6 +494,7 @@ function needsYouState(p: DockProps, thread: Thread) {
           size="sm"
           onClick={guardedHandBack(p, handBack)}
           aria-label="Nothing needed — hand it back to the receptionist"
+          data-testid="ix-hand-back"
           {...gate("approve", "hand a conversation back")}
         >
           {THREAD_PANE_WORDS.handBack}
@@ -719,6 +740,8 @@ export const ThreadStatus = (props: StatusProps) => {
 interface Standing {
   pill: ReactElement;
   meta?: string | null;
+  /** What the bare wait means, on a hover ("waiting 40m"). */
+  title?: string;
   late?: boolean;
 }
 
@@ -747,11 +770,15 @@ const ixStanding = (thread: Thread, countdown: Countdown): Standing | null => {
         <StatePill kind="thread" value="theirs" lit label={heldPill("theirs", holderName(thread.assigneeUserId))} />
       ),
       meta: thread.waited || null,
+      title: thread.waited ? `waiting ${thread.waited}` : undefined,
     };
+  // Its wait beside it, amber past half an hour, as the row's is.
   if (thread.state === "escalated")
     return {
       pill: <StatePill kind="tone" value="accent" lit label={stateOf("thread", "escalated").label} />,
       meta: thread.waited || null,
+      title: thread.waited ? `waiting ${thread.waited}` : undefined,
+      late: (thread.waitingMin ?? 0) > 30,
     };
   // A draft counting down is where the thread stands: when it sends, as its own line under the bubble says it.
   if (thread.real && thread.veto && countdown.remaining != null && !thread.resolution)
@@ -794,7 +821,9 @@ export function whereItStands(
     <span className="ix-th-standing" data-testid="ix-th-standing">
       {standing.pill}
       {standing.meta && (
-        <span className={`ix-th-standing-meta tabular${standing.late ? " late" : ""}`}>{standing.meta}</span>
+        <span className={`ix-th-standing-meta tabular${standing.late ? " late" : ""}`} title={standing.title}>
+          {standing.meta}
+        </span>
       )}
     </span>
   );

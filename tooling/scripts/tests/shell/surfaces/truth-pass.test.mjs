@@ -51,9 +51,7 @@ test("the thread menu on a real workspace offers only verbs that act", () => {
   const gate = page.lastIndexOf("demoSession()", block);
   assert.ok(gate > 0 && block - gate < 120, "Block sender is behind the demo gate");
   assert.ok(
-    page.includes(
-      '{ label: "Receptionist settings", glyph: ixGlyph("shield"), onSelect: () => onOpenClient(thread.clientId) }',
-    ),
+    /label: W\.receptionistFor\(first\),[\s\S]{0,400}onSelect: \(\) => onOpenClient\(thread\.clientId\)/.test(page),
     "a real session is sent to the per-person mode instead",
   );
 });

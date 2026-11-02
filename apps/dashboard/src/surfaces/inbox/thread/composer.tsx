@@ -284,7 +284,8 @@ function signedLine(c: ComposerDraw) {
   const W = THREAD_PANE_WORDS;
   const signed = c.signed && c.text.trim() ? c.signed : null;
   const [rewriting, setRewriting] = c.rewrite;
-  const canRewrite = !!c.thread.conversationId;
+  // Rewrite is for words in the box: an empty box stays the one field.
+  const canRewrite = !!c.thread.conversationId && (!!c.drafted || !!c.text.trim());
   if (!signed && !canRewrite) return null;
   return (
     <div className="ix-composer-signed" data-testid="ix-composer-signed">

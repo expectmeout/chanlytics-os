@@ -163,6 +163,9 @@ test("the thread's menu: the conversation, then the person by their first name, 
   assert.ok(menu, "the thread has its menu");
   const shape = menuShape(menu);
   assert.deepEqual(shape, [
+    // Who it is about, at the sheet's head, their page a press away (the thread canvas, 1 Nov 2026).
+    "Rosa Díaz",
+    "|",
     "[This conversation]",
     // Taking it before a word is written, which the dock offered beside a Send that already answers and takes it.
     "I'll answer this",
@@ -172,14 +175,16 @@ test("the thread's menu: the conversation, then the person by their first name, 
     "Mark as unread",
     "|",
     "[Rosa]",
-    "Open profile",
-    "Receptionist settings",
+    "Receptionist for Rosa",
     "|",
-    "[File]",
+    "[Deal and file]",
     "Export transcript",
   ]);
-  // On a phone the menu is the kit's sheet, headed by who it is about, with the kit's one Close.
-  assert.equal(menu.props.head.title, "Rosa Díaz");
+  const head = itemsIn(menu)[0];
+  assert.ok(head.hint && textOf(head.hint).includes("Profile"), "their page, named at the row's end");
+  // On a phone the menu is the kit's sheet, its first row who it is about, their face and their page a press away.
+  assert.equal(menu.props.head, undefined, "the row is its head: a title over it said the name twice");
+  assert.equal(itemsIn(menu)[0].label, "Rosa Díaz");
   const take = itemsIn(menu).find((it) => it.label === "I'll answer this");
   assert.equal(take.meta, "The receptionist pauses, and your team sees you have it", "what taking it does");
   const taken = [];
@@ -194,11 +199,12 @@ test("the thread's menu: the conversation, then the person by their first name, 
   assert.deepEqual(taken, ["th-c1"], "it takes the thread");
   assert.equal(menu.props.label, "More for the conversation with Rosa Díaz");
   assert.equal(
-    itemsIn(menu).find((it) => it.label === "Snooze").hint,
-    "until tomorrow 10:00",
-    "what Snooze will do, set to its right",
+    itemsIn(menu).find((it) => it.label === "Snooze").meta,
+    "Until tomorrow, 10:00 AM",
+    "what Snooze will do, on its second line",
   );
-  assert.equal(menu.props.trigger.props.variant, "quiet", "REGRESSION: a boxed … beside the name");
+  // A round of its own at the head's right, on the inset's ground (the thread canvas): a boxed … stood beside the name.
+  assert.equal(menu.props.trigger.props.variant, "soft");
 });
 
 test("a group with nothing in it takes no divider with it", () => {
@@ -284,15 +290,18 @@ test("the wires the conversation is on are glyphs after the name, said once in w
     "WhatsApp · Phone",
     "both wires, the chat's first",
   );
-  assert.equal(
-    all(wire(toInboxThreadVM(conv({ messages: [m("m1", 40), call] }), asked, ZONE, NOW)), (n) => n.props?.name).length,
-    2,
-    "a glyph each",
+  // On the face's corner, the wire the thread is on (the thread canvas, 1 Nov 2026): the chat's glyph, both in words.
+  assert.deepEqual(
+    all(wire(toInboxThreadVM(conv({ messages: [m("m1", 40), call] }), asked, ZONE, NOW)), (n) => n.props?.name).map(
+      (n) => n.props.name,
+    ),
+    ["chat"],
+    "one glyph, the chat's",
   );
   assert.ok(!/\+1|no name/.test(head(toInboxThreadVM(conv(), asked, ZONE, NOW))));
-  // A thread that stands nowhere worth a word (answered, owed nothing) says its wires in words under the name instead.
+  // Beside where it stands, the wire in a glyph and its word, for a desk whose rail drops the face (inbox.css .ix-th-on).
   const quietVm = toInboxThreadVM(conv({ state: "open" }), null, ZONE, NOW);
-  assert.equal(textOf(find(draw(quietVm), hasClass("ix-th-meta"))), "WhatsApp");
+  assert.equal(textOf(find(draw(quietVm), byTestId("ix-th-on"))), "·WhatsApp");
 });
 
 /** A visit as People's row carries it (contracts visitLineOf): the chip draws its day, its time and how it stands. */
@@ -313,34 +322,35 @@ const visitLine = (day, time, state = null) => ({
 });
 const PAST = { text: "Past", tone: "past", pill: "plain" };
 
-test("beside the wires, the person's next visit from People -- or their last -- as one quiet chip; nothing without one, and the wires' line is untouched", () => {
-  // The header said only the channel; who this is (a visit ahead, a visit behind) was a page away on People. The
-  // chip is People's own visit line (nextVisitLine, lastVisitLine), never a repeat of the band below the conversation.
+test("after where it stands, the one fact People's row says of them: the next visit, else the last and how it went; nothing without one, nor another person's", () => {
+  // The header said only the channel; who this is (a visit ahead, a visit behind) was a page away on People. Now the line
+  // under the name says one fact of their row after where the thread stands (the thread canvas, 1 Nov 2026: "Needs you
+  // 2h · Northwind Media"), never a repeat of the band below the conversation.
   const vm = toInboxThreadVM(conv(), asked, ZONE, NOW);
-  const chip = (tree) => find(tree, hasClass("ix-th-visit"));
+  const fact = (tree) => find(tree, byTestId("ix-th-fact"));
+  const factOf = (tree) => textOf(find(fact(tree), hasClass("ix-th-fact-words")));
   const person = (over) => ({ id: "k1", nextVisitLine: null, lastVisitLine: null, ...over });
   try {
     peopleAre({
       rows: [person({ nextVisitLine: visitLine("Tue, Sep 8", "2:00 – 5:00 PM") })],
     });
     let tree = draw(vm);
-    assert.equal(textOf(chip(tree)).trim(), "Tue, Sep 8 · 2:00 – 5:00 PM", "a visit ahead: its day and time");
-    assert.ok(chip(tree).props.className.split(" ").includes("ahead"), "marked as ahead");
+    assert.equal(factOf(tree), "Next appointment Tue, Sep 8 2:00 – 5:00 PM", "a visit ahead: its day and time");
+    const sub = find(tree, byTestId("ix-th-sub"));
     assert.match(
-      textOf(find(find(tree, byTestId("ix-th-sub")), byTestId("ix-th-standing"))),
+      textOf(find(sub, byTestId("ix-th-standing"))),
       /^Needs you/,
-      "the line says where it stands, then the chip",
+      "the line says where it stands, then the fact",
     );
+    assert.ok(find(sub, byTestId("ix-th-fact")), "in the same line");
     peopleAre({
       rows: [person({ lastVisitLine: visitLine("Thu, Aug 20", "10:00 AM – 12:00 PM", PAST) })],
     });
-    tree = draw(vm);
     assert.equal(
-      textOf(chip(tree)).trim(),
-      "Last · Thu, Aug 20 · Past",
-      "nothing ahead: the last visit, as People says it, and that it has ended with nobody saying what became of it",
+      factOf(draw(vm)),
+      "Last appointment Thu, Aug 20",
+      "nothing ahead: the last visit, ended with nobody saying what became of it",
     );
-    assert.ok(!chip(tree).props.className.split(" ").includes("ahead"));
     peopleAre({
       rows: [
         person({
@@ -348,18 +358,18 @@ test("beside the wires, the person's next visit from People -- or their last -- 
         }),
       ],
     });
-    assert.equal(textOf(chip(draw(vm))).trim(), "Last · Thu, Aug 20 · Kept", "a member's word on it, in place of Past");
+    assert.equal(factOf(draw(vm)), "Appointment kept Thu, Aug 20", "a member's word on it");
     peopleAre({ rows: [person()] });
-    assert.ok(!chip(draw(vm)), "no visit either way: no chip");
+    assert.equal(fact(draw(vm)), undefined, "no visit either way, and nothing else known: no fact");
     peopleAre({
       rows: [person({ id: "somebody-else", nextVisitLine: visitLine("Tue, Sep 8", "2:00 – 5:00 PM") })],
     });
-    assert.ok(!chip(draw(vm)), "another person's visit is not this one's");
+    assert.equal(fact(draw(vm)), undefined, "another person's visit is not this one's");
   } finally {
     peopleAre(undefined);
   }
-  assert.ok(!chip(draw(vm)), "People not read yet: no chip");
-  // Drawn before People landed, it hears People's surface, so it is drawn again and shows the chip then.
+  assert.equal(fact(draw(vm)), undefined, "People not read yet: no fact");
+  // Drawn before People landed, it hears People's surface, so it is drawn again and shows the fact then.
   draw(vm);
   quiet();
   surfaceLanded("people");
@@ -384,17 +394,18 @@ test("where they work is a door to the business's sheet beside the head on a des
     assert.match(textOf(door), /Works at\s+Bloom & Vow Bridal/);
     const head = find(tree, byTestId("ix-th-person"));
     if (head) assert.equal(find(head, byTestId("ix-th-works-door")), undefined, "beside the link to their page");
-    // On a phone the name's trail says it ("· Bloom & Vow Bridal"): words under the name said it again, cut to "Works
-    // at…" beside where the thread stands (the thread canvas, 1 Nov 2026).
-    assert.match(textOf(find(tree, byTestId("ix-th-business"))), /Bloom & Vow Bridal/);
-    assert.equal(find(tree, byTestId("ix-th-works-at")), undefined, "said once");
-    // A stand-in's name is the business's already; a business removed has no sheet, and is said as words everywhere.
+    // On a phone the line under the name says it, as its one fact where no deal or visit is known (the thread canvas,
+    // 1 Nov 2026: "Needs you 2h · Northwind Media"); a desk hides that line's fact, so it is said once beside the head.
+    assert.equal(textOf(find(find(tree, byTestId("ix-th-fact")), hasClass("ix-th-fact-words"))), "Bloom & Vow Bridal");
+    // A stand-in's name is the business's already; a business removed has no sheet, and no name to say.
     peopleAre({ rows: [person({ standIn: true })] });
-    assert.equal(find(draw(vm), byTestId("ix-th-works-door")), undefined);
+    tree = draw(vm);
+    assert.equal(find(tree, byTestId("ix-th-works-door")), undefined);
+    assert.equal(find(tree, byTestId("ix-th-fact")), undefined, "a stand-in's business is their name");
     peopleAre({ rows: [person({ worksAt: { leadId: "l1", name: null, gone: true } })] });
     tree = draw(vm);
     assert.equal(find(tree, byTestId("ix-th-works-door")), undefined);
-    assert.ok(!hasClass("ix-th-works-said")(find(tree, byTestId("ix-th-works-at"))));
+    assert.equal(find(tree, byTestId("ix-th-fact")), undefined);
   } finally {
     peopleAre(undefined);
   }
@@ -451,11 +462,11 @@ test("the header's menu is More: a glyph on an inset round a thumb finds, its na
 test("Needs you: the pill its row wears and how long they have waited, under the name; the reason's one line, its why a press away, and Hand back by the reply box whose Send is the answer -- no white slab", () => {
   const tree = draw(toInboxThreadVM(conv(), asked, ZONE, NOW));
   const standing = find(tree, byTestId("ix-th-standing"));
-  assert.ok(
-    find(standing, (n) => n.props?.kind === "thread" && n.props?.value === "escalated"),
-    "the row's own pill, under the name",
-  );
-  assert.equal(textOf(find(standing, hasClass("ix-th-standing-meta"))), "· waiting 40m");
+  // Lit in the coral with the wait beside it in the mono face (the thread canvas, 1 Nov 2026).
+  const pill = find(standing, (n) => n.props?.kind === "tone" && n.props?.label === "Needs you");
+  assert.ok(pill, "Needs you, under the name");
+  assert.deepEqual([pill.props.value, pill.props.lit], ["accent", true]);
+  assert.equal(textOf(find(standing, hasClass("ix-th-standing-meta"))), "40m");
   const needs = find(tree, byTestId("ix-needs-you"));
   assert.ok(needs, "the dock over the reply box (the phone canvas, B1)");
   assert.equal(
@@ -560,14 +571,18 @@ test("the line under the name says where the conversation stands; the template b
     assert.equal(find(tree, byTestId("ix-th-bar")), undefined, "no bar of its own under the header");
     // Under the name, in the header a thread opens on (the thread canvas, 1 Nov 2026).
     const sub = find(tree, byTestId("ix-th-sub"));
-    assert.match(textOf(find(sub, byTestId("ix-th-standing"))), /^Needs you· waiting 40m$/);
+    assert.match(textOf(find(sub, byTestId("ix-th-standing"))), /^Needs you40m$/);
     assert.equal(find(sub, byTestId("ix-th-window")), undefined, "the person's door holds no press");
-    // One quiet fact at the head of the template box, a lock and its words, that opens why on a press (the phone
-    // canvas, A1): a dot in the warning's amber, "Window closed" and an underlined "Why?" made the bar 64px.
+    // One line at the head of the template box, a lock, what is owed and the clause after it, and Why? (the thread
+    // canvas, 1 Nov 2026): a dot in the warning's amber, "Window closed" and an underlined "Why?" made a bar 64px.
     const bar = find(tree, byTestId("ix-th-closed"));
     assert.ok(bar, "the box's head");
-    const shut = find(bar, (n) => n.type === "button" && byTestId("ix-th-window")(n));
-    assert.equal(textOf(shut).trim(), "Chat closed");
+    assert.equal(
+      textOf(find(bar, hasClass("ix-closed-words"))),
+      "Chat window closed — only an approved template can reach Rosa now.",
+    );
+    const shut = find(bar, (n) => n.type === "button" && byTestId("ix-th-window-toggle")(n));
+    assert.equal(textOf(shut).trim(), "Why?");
     assert.equal(shut.props["aria-expanded"], false);
     assert.equal(find(bar, byTestId("ix-th-window-why")), undefined, "why, not until it is asked");
     shut.props.onClick();
@@ -642,7 +657,7 @@ test("a reply that didn't send: the row's pill in the bar, and what it means on 
         hasClass("ix-th-standing-meta"),
       ),
     );
-  assert.match(meta(failed), /^· \d{1,2}:\d{2} [AP]M$/, "today: the time");
+  assert.match(meta(failed), /^\d{1,2}:\d{2} [AP]M$/, "today: the time");
   const lastWeek = conv({
     state: "open",
     messages: [
@@ -660,7 +675,7 @@ test("a reply that didn't send: the row's pill in the bar, and what it means on 
   assert.ok(find(bubble, byTestId("tl-again-send")) && find(bubble, byTestId("tl-again-edit")));
 });
 
-test("a draft still waiting to go out is the thread's state: the bar says nothing over the countdown", () => {
+test("a draft still waiting to go out is the thread's state: the head says when it sends, never 'no reply yet'", () => {
   const draft = m("m3", 0.5, {
     direction: "outbound",
     sender: "ai",
@@ -672,16 +687,16 @@ test("a draft still waiting to go out is the thread's state: the bar says nothin
   const tree = draw(toInboxThreadVM(conv({ state: "open", messages: [m("m1", 2), draft] }), null, ZONE, NOW), {
     veto: 72,
   });
-  assert.equal(
-    find(tree, byTestId("ix-th-standing")),
-    undefined,
-    "REGRESSION: 'no reply yet' over 'Auto-sends in 72s'",
-  );
+  // "Sends in 1:12" lit in the amber (the thread canvas, 1 Nov 2026): it said "no reply yet" over "Auto-sends in 72s".
+  const standing = find(tree, byTestId("ix-th-standing"));
+  assert.equal(textOf(standing), "Sends in 1:12");
+  assert.equal(find(standing, (n) => n.props?.kind === "tone").props.value, "warn");
+  assert.ok(!textOf(tree).includes("no reply yet"), "REGRESSION: 'no reply yet' over 'Auto-sends in 72s'");
 });
 
-test("the chip beside the wires says the deal before the visit: a client, a proposal waiting, else the visit", () => {
-  // People's row carries the deal (0004): its brief is the chip where it says more than a visit ahead -- a client,
-  // a proposal waiting. A pass or an end has no brief, so the visit stands. One chip, never two.
+test("the fact under the name says the deal before the visit: a client, a proposal waiting, else the visit", () => {
+  // People's row carries the deal (0004): its brief is the fact where it says more than a visit ahead -- a client, a
+  // proposal waiting. A pass or an end has no brief, so the visit stands. One fact, never two.
   const vm = toInboxThreadVM(conv(), asked, ZONE, NOW);
   const rowWith = (person) => ({
     id: "k1",
@@ -690,28 +705,25 @@ test("the chip beside the wires says the deal before the visit: a client, a prop
     deal: null,
     ...person,
   });
-  const drawWith = (row) => {
+  const factWith = (row) => {
     peopleAre({ rows: [row] });
-    return draw(vm);
+    const tree = draw(vm);
+    // (A part drawn inside another is walked twice, as its child and as what it drew: one element is one fact.)
+    assert.equal(new Set(all(tree, byTestId("ix-th-fact"))).size, 1, "one fact");
+    return textOf(find(find(tree, byTestId("ix-th-fact")), hasClass("ix-th-fact-words")));
   };
   try {
-    let tree = drawWith(rowWith({}));
-    assert.equal(textOf(find(tree, byTestId("ix-th-visit"))).trim(), "Tue, Sep 8 · 2:00 PM");
-    assert.equal(find(tree, byTestId("ix-th-deal")), undefined, "no deal: the visit alone");
-    tree = drawWith(rowWith({ deal: { stage: "won", brief: "Client · Ad management" } }));
-    assert.equal(textOf(find(tree, byTestId("ix-th-deal"))).trim(), "Client · Ad management");
-    assert.ok(hasClass("ahead")(find(tree, byTestId("ix-th-deal"))), "a client is marked as a visit ahead is");
-    assert.equal(find(tree, byTestId("ix-th-visit")), undefined, "one chip: the deal took the visit's place");
-    tree = drawWith(rowWith({ deal: { stage: "proposed", brief: "Proposal out · 6 d" } }));
-    assert.equal(textOf(find(tree, byTestId("ix-th-deal"))).trim(), "Proposal out · 6 d");
-    assert.ok(!hasClass("ahead")(find(tree, byTestId("ix-th-deal"))), "a proposal waiting is quiet");
-    tree = drawWith(rowWith({ deal: { stage: "lost", brief: null } }));
+    assert.equal(factWith(rowWith({})), "Next appointment Tue, Sep 8 2:00 PM", "no deal: the visit alone");
     assert.equal(
-      textOf(find(tree, byTestId("ix-th-visit"))).trim(),
-      "Tue, Sep 8 · 2:00 PM",
+      factWith(rowWith({ deal: { stage: "won", brief: "Client · Ad management" } })),
+      "Client · Ad management",
+    );
+    assert.equal(factWith(rowWith({ deal: { stage: "proposed", brief: "Proposal out · 6 d" } })), "Proposal out · 6 d");
+    assert.equal(
+      factWith(rowWith({ deal: { stage: "lost", brief: null } })),
+      "Next appointment Tue, Sep 8 2:00 PM",
       "a pass says nothing here",
     );
-    assert.equal(find(tree, byTestId("ix-th-deal")), undefined);
   } finally {
     peopleAre(undefined);
   }
@@ -720,7 +732,7 @@ test("the chip beside the wires says the deal before the visit: a client, a prop
 test("REGRESSION (S9-7): their visit is a door to the visit beside the head on a desk -- under the name it opened the person, as the head does", () => {
   const vm = toInboxThreadVM(conv(), asked, ZONE, NOW);
   const door = (tree) => find(tree, byTestId("ix-th-visit-door"));
-  const said = (tree) => find(tree, hasClass("ix-th-visit-said"));
+  const said = (tree) => find(find(tree, byTestId("ix-th-fact")), hasClass("ix-th-fact-words"));
   const withVisit = (to) => {
     peopleAre({
       rows: [
@@ -738,14 +750,16 @@ test("REGRESSION (S9-7): their visit is a door to the visit beside the head on a
     assert.ok(hasClass("ahead")(door(tree)));
     // Its tip says the workspace's word for one (visitWordHere), never "visit" written in.
     assert.equal(door(tree).props.title, "Open their appointment");
-    // The chip under the name stays, for a phone, whose head has no room beside it; a desk hides it, so the visit is said once.
-    assert.ok(said(tree), "the words under the name are the phone's");
-    assert.equal(textOf(said(tree)).trim(), "Tue, Sep 8 · 2:00 PM");
+    // The fact under the name says it for a phone, whose head has no room beside it; a desk hides it, so it is said once.
+    assert.equal(textOf(said(tree)), "Next appointment Tue, Sep 8 2:00 PM", "the words under the name are the phone's");
     // A visit with no page of its own (a line People could not tie to a visit) is words alone, wherever it is drawn.
     tree = withVisit(null);
     assert.equal(door(tree), undefined, "no visit to open: no door");
-    assert.equal(said(tree), undefined, "and the words under the name are the only ones, on a desk too");
-    assert.ok(find(tree, hasClass("ix-th-visit")));
+    assert.equal(
+      textOf(said(tree)),
+      "Next appointment Tue, Sep 8 2:00 PM",
+      "and the words under the name, on a desk too",
+    );
     // A demo's thread has no visit to open.
     globalThis.window.__DEMO_MODE = true;
     assert.equal(door(withVisit("calendar/visit:v1")), undefined, "a demo opens no visit");
@@ -935,9 +949,12 @@ test("Actions carry the deal's moves as a group of their own, by the stage of th
       .find((it) => it.label === label)
       .onSelect();
   try {
-    // No deal: a proposal to start, in a group of its own after the person's.
+    // No deal: a proposal to start, at the head of the deal's and the file's group after the person's (the thread
+    // canvas, 1 Nov 2026).
     people(null);
     assert.deepEqual(shape(draw(vm)), [
+      "Rosa Díaz",
+      "|",
       "[This conversation]",
       "I'll answer this",
       "Snooze",
@@ -945,13 +962,10 @@ test("Actions carry the deal's moves as a group of their own, by the stage of th
       "Mark as unread",
       "|",
       "[Rosa]",
-      "Open profile",
-      "Receptionist settings",
+      "Receptionist for Rosa",
       "|",
-      "[Deal]",
+      "[Deal and file]",
       "Start a proposal",
-      "|",
-      "[File]",
       "Export transcript",
     ]);
     assert.equal(itemsOf(draw(vm)).find((it) => it.label === "Start a proposal").glyph.props.name, "deal");
@@ -966,7 +980,7 @@ test("Actions carry the deal's moves as a group of their own, by the stage of th
     assert.deepEqual(order, ["actions", "sheet"]);
     // A proposal out (with no link to send on People's row here): its moves, each on this deal.
     people({ id: "d1", stage: "proposed", proposal: null });
-    assert.deepEqual(shape(draw(vm)).slice(11, 14), ["Mark as client", "Mark as passed", "Edit proposal"]);
+    assert.deepEqual(shape(draw(vm)).slice(12, 15), ["Mark as client", "Mark as passed", "Edit proposal"]);
     for (const [label, mode] of [
       ["Mark as client", "won"],
       ["Mark as passed", "lost"],
@@ -978,7 +992,7 @@ test("Actions carry the deal's moves as a group of their own, by the stage of th
       assert.deepEqual(order, ["actions", "sheet"], label);
     }
     people({ id: "d1", stage: "won" });
-    assert.deepEqual(shape(draw(vm)).slice(11, 12), ["End the engagement"]);
+    assert.deepEqual(shape(draw(vm)).slice(12, 13), ["End the engagement"]);
     press("End the engagement");
     assert.deepEqual(opened.at(-1), { personId: "k1", mode: "ended", dealId: "d1" });
     people({ id: "d1", stage: "lost" });
@@ -1032,7 +1046,7 @@ test("an owner reading a person's email thread may say they are not a person fro
   const itemsOf = (vm) => itemsIn(find(draw(vm, { onOpenClient: (id) => opened.push(id) }), (n) => n.type === Menu));
   try {
     globalThis.window.mayAtLeast = (rung) => rung === "owner";
-    const item = itemsOf(email).find((it) => it.label === "Not a person…");
+    const item = itemsOf(email).find((it) => it.label === "Not a customer…");
     assert.ok(item, "offered beside the person's other acts");
     assert.equal(item.tone, "danger");
     item.onSelect();
@@ -1044,11 +1058,11 @@ test("an owner reading a person's email thread may say they are not a person fro
     assert.equal(takeCarriedNotAPerson("k9"), true);
     assert.equal(takeCarriedNotAPerson("k9"), false);
     assert.ok(
-      !itemsOf(toInboxThreadVM(conv(), asked, ZONE, NOW)).some((it) => it.label === "Not a person…"),
+      !itemsOf(toInboxThreadVM(conv(), asked, ZONE, NOW)).some((it) => it.label === "Not a customer…"),
       "a WhatsApp thread: not a mail sender",
     );
     globalThis.window.mayAtLeast = () => false;
-    assert.ok(!itemsOf(email).some((it) => it.label === "Not a person…"), "only an owner deletes a person");
+    assert.ok(!itemsOf(email).some((it) => it.label === "Not a customer…"), "only an owner deletes a person");
   } finally {
     globalThis.window.mayAtLeast = was.may;
     globalThis.sessionStorage = was.store;
@@ -1089,12 +1103,13 @@ test("an owner's first email from someone asks under the conversation whether it
     peopleAre({ rows: [row()] });
     const line = ask(email());
     assert.ok(line, "the line under the conversation");
+    // In the canvas's words (1 Nov 2026), and its act the one the header's sheet offers.
     assert.equal(
       textOf(find(line, hasClass("ix-first-email-words"))),
-      "First email from Maya. A newsletter, a notice or a pitch?",
+      "First message from Maya. Not someone you serve?",
     );
     const act = find(line, byTestId("ix-first-email-act"));
-    assert.equal(textOf(act).trim(), "Not a person…", "the header's act, in its words");
+    assert.equal(textOf(act).trim(), "Not a customer", "the header's act, in its words");
     act.props.onClick();
     assert.deepEqual(opened, ["k9"], "their page, with the question asked");
     assert.deepEqual([...kept.values()], ["k9"]);
@@ -1136,7 +1151,8 @@ test("the reply box says whose its words are while they are the receptionist's d
     const tree = draw(vm);
     const box = find(tree, (n) => n.type === "textarea" && hasClass("ix-composer-text")(n));
     assert.equal(box.props.value, "Hi Rosa, Friday at 3 works.", "the box holds the draft");
-    assert.equal(textOf(find(tree, byTestId("ix-composer-drafted"))).trim(), "Drafted by the receptionist");
+    const drafted = find(tree, byTestId("ix-composer-drafted"));
+    assert.equal(textOf(find(drafted, hasClass("ix-composer-drafted-words"))).trim(), "Drafted by the receptionist");
     box.props.onChange({ target: { value: "Hi Rosa, Friday at 3 works for us." } });
     const changed = again(() => InboxThread({ thread: vm, channelLabels: labels, onArchive: () => {} }));
     assert.equal(find(changed, byTestId("ix-composer-drafted")), undefined, "changed, the words are the member's");
@@ -1221,11 +1237,13 @@ test("beside a real thread on a desk, who they are in People's words: their busi
   );
 });
 
-test("where a thread was held for a person is a quiet mark between the words, its reason a clause -- the dock says what is owed", () => {
+test("where a thread was held for a person is a quiet mark between the words, its spark and its time -- the dock says what is owed", () => {
   const tree = draw(toInboxThreadVM(conv(), asked, ZONE, NOW));
   const mark = find(tree, byTestId("tl-held"));
   assert.ok(mark, "the mark");
-  assert.match(textOf(mark), /^Held for you — asked for a person/);
+  // "Held for you · 9:20 AM" (the thread canvas, 1 Nov 2026): why it was held is the dock's line, and the mark's title.
+  assert.match(textOf(mark), /^Held for you· \d{1,2}:\d{2} [AP]M$/);
+  assert.match(mark.props.title, /asked for a person/);
   assert.ok(!textOf(tree).includes("Flagged for a human"), "REGRESSION: the flag's label, said over the dock's");
 });
 
@@ -1295,7 +1313,7 @@ test("an email thread whose address stopped says why in the reply box before any
   // The same thread with an address that works: the box is the ordinary one, naming the channel.
   const fine = draw(toInboxThreadVM(emailConv(), null, ZONE, NOW));
   assert.equal(find(fine, byTestId("ix-composer-email-stopped")), undefined);
-  assert.equal(find(fine, hasClass("ix-composer-text")).props.placeholder, "Email to Rosa Díaz…");
+  assert.equal(find(fine, hasClass("ix-composer-text")).props.placeholder, "Email to Rosa…");
 });
 
 test("a stopped address holds only the replies that would go by email: a thread on WhatsApp keeps its box", () => {

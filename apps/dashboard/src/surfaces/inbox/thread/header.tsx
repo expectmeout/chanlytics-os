@@ -16,7 +16,7 @@ import {
   proposalLinkOf,
   proposalMessage,
 } from "@chanlytics/contracts";
-import { MAILBOX_SENDERS_WORDS, shortName, THREAD_PANE_WORDS } from "@chanlytics/contracts";
+import { HOLD_ACT_WORDS, MAILBOX_SENDERS_WORDS, shortName, THREAD_PANE_WORDS } from "@chanlytics/contracts";
 import type { DealVM, PersonNextStepVM, PersonRowVM, VisitLineVM } from "@chanlytics/contracts";
 import { useState, type ReactNode } from "react";
 import { Icon } from "../../kit/icon/icon";
@@ -42,7 +42,7 @@ import type { Thread } from "../types";
 import { ixBandCallBack } from "./band";
 import { channelIconOf } from "./timeline";
 import { IxWho } from "./who";
-import { whereItStands, type Countdown } from "./status";
+import { takeInTheMenu, whereItStands, type Countdown } from "./status";
 import { NameOffer } from "../../people/person/name-offer";
 import { mayAtLeast } from "../../legacy-verbs";
 import { Button } from "../../kit/button/button";
@@ -322,11 +322,23 @@ interface HeaderActs {
 }
 
 function actionsMenu(thread: Thread, dealActs: MenuItem[], acts: HeaderActs, facts: HeaderFacts) {
-  const { onSnooze, onMarkUnread, onOpenClient, onArchive } = acts;
+  const { onSnooze, onTakeOver, onMarkUnread, onOpenClient, onArchive } = acts;
   const snoozed = thread.state === "snoozed";
-  // Taking it before a word is written left with the dock's "I'll answer this": the reply box's Send answers and takes it
-  // (core reply: takeControl), and a teammate's claim is said where they answer (the thread canvas, 1 Nov 2026).
   const conversation: MenuItem[] = [
+    // Taking it before a word is written (takeInTheMenu): the dock's "I'll answer this" stood beside a reply box whose
+    // Send already answers and takes it (core reply: takeControl), so it is here, for a member claiming it first.
+    ...(takeInTheMenu(thread) && HOLD_ACT_WORDS.reply.take
+      ? [
+          {
+            label: HOLD_ACT_WORDS.reply.take,
+            meta: THREAD_PANE_WORDS.takeMeta,
+            glyph: ixGlyph("users"),
+            square: true,
+            onSelect: () => onTakeOver(thread.id),
+            gate: gate("approve", "take over a conversation"),
+          },
+        ]
+      : []),
     // A snoozed thread wakes from its status line ("Wake now"); the header's Snooze button read "Wakes …", disabled.
     ...(snoozed
       ? []
@@ -371,7 +383,7 @@ function actionsMenu(thread: Thread, dealActs: MenuItem[], acts: HeaderActs, fac
       ? [
           {
             label: W.receptionistFor(first),
-            ...(row ? { meta: row.receptionist.label } : {}),
+            ...(row?.receptionist?.label ? { meta: row.receptionist.label } : {}),
             glyph: ixGlyph("shield"),
             square: true,
             hint: <Icon name="chevron" size={13} />,
@@ -407,7 +419,7 @@ function actionsMenu(thread: Thread, dealActs: MenuItem[], acts: HeaderActs, fac
     ? [
         {
           label: thread.who,
-          meta: W.personLine(row ? row.email : null, row ? row.firstContact.label : null) || undefined,
+          meta: W.personLine(row?.email ?? null, row?.firstContact?.label ?? null) || undefined,
           glyph: <Face person={{ name: thread.who, initials: thread.avatar }} size="xl" hue={faceTileOf(thread.who)} />,
           hint: (
             <span className="ix-more-profile">
@@ -537,11 +549,11 @@ function headerSub(thread: Thread, channelLabels: Record<string, string>, facts:
     <div className="ix-th-sub" data-testid="ix-th-sub">
       {standing ?? <span className="ix-th-meta">{wires}</span>}
       {fact && (
-        <span className="ix-th-fact" data-testid="ix-th-fact">
+        <span className="ix-th-fact" data-of={fact.of} data-testid="ix-th-fact">
           <span className="ix-th-sep" aria-hidden="true">
             ·
           </span>
-          <span className="ix-th-fact-words">{fact}</span>
+          <span className="ix-th-fact-words">{fact.words}</span>
         </span>
       )}
       {standing && wire && (

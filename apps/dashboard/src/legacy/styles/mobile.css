@@ -1124,8 +1124,8 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     flex: 1 0 auto;
     overflow: visible;
   }
-  /* The head is a bar of the raised ground at the screen's top (the thread canvas, 1 Nov 2026), the frame's top over it in
-     the same ground up through the phone's own bar, with no fade under it: the hairline under the head is the edge. */
+  /* The head is a bar of the raised ground at the screen's top (the thread canvas, 1 Nov 2026), under the frame's top with
+     no fade between them: the hairline under the head is the edge. */
   :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane > .ix-th-head {
     position: sticky;
     top: calc(var(--frame-top-at) + var(--frame-top, 0px));
@@ -1133,9 +1133,6 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
   }
   .main:has(> .main-scroll > :is(.inbox, .conversations)[data-takeover]) > .frame-top {
     --frame-top-fade: 0px;
-  }
-  .main:has(> .main-scroll > :is(.inbox, .conversations)[data-takeover]) > .frame-top::before {
-    background: var(--bg-raised);
   }
   :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane > .ix-th-foot {
     position: sticky;

@@ -285,7 +285,8 @@ test("the pane: the dock sits under what they wrote, with the reason's own line,
     !buttonsOf(take).some((b) => b.includes("I'll answer this")),
     "the reply box's Send is the answer, and takes it (the thread canvas, 1 Nov 2026)",
   );
-  assert.ok(buttonsOf(take).includes("Hand back"), "and the way out");
+  // Hand back stands beside the reply box's Send, the box that answers the hold (the thread canvas, 1 Nov 2026).
+  assert.ok(find(tree, byTestId("ix-hand-back")), "and the way out");
   // What they asked is the bubble right above the dock (the phone canvas, B1): it was quoted again over the acts.
   assert.ok(
     all(tree, hasClass("tl-msg")).some((b) => textOf(b).includes("Can I move my appointment to Friday?")),
@@ -325,9 +326,10 @@ test("the countdown's tip says what stops a real draft -- Edit, Hold, or startin
     NOW,
   );
   assert.ok(vm.veto, "a draft counting down to send");
-  const msg = find(paneOf(vm), hasClass("ix-veto-msg"));
+  // The draft is drawn once, as the next bubble, its line over it saying when it sends (the thread canvas, 1 Nov 2026).
+  const says = find(paneOf(vm), byTestId("ix-held-says"));
   assert.equal(
-    msg.props["data-tip"],
-    "This draft sends itself at zero. Edit, Hold or starting to type a reply stops it.",
+    says.props.title,
+    "This draft sends itself at zero. Edit, Hold or starting to type a reply stops it; Send now lets it go.",
   );
 });

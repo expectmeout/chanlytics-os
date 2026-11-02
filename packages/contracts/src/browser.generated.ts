@@ -150,7 +150,7 @@ export { ABANDONED_MS, abandonedCall, callAttemptWords, DISCONNECTION_LABELS, mi
 export { callEndedWords, spokenDuration, toCallVM, unansweredCallTodo } from "./conversations/call-vm";
 export { CONVERSATION_MOVES, conversationMoveAllowed, conversationPatch } from "./conversations/conversation-moves";
 export { toConversationVM } from "./conversations/conversation-vm";
-export { ESCALATION_ACTS, ESCALATION_REASON_LABELS, ESCALATION_REASON_SHORT, ESCALATION_SUMMARIES, dockLineOf, HAND_BACK_REASONS, HOLD_ACT_WORDS, holdActOf, holdWaits, OPEN_HOLDS_READ_MAX, reasonLabelOf, reasonShort, reasonSummaryOf, WAITING_REASONS, waitsOnAPerson } from "./conversations/escalations";
+export { dockLineOf, ESCALATION_ACTS, ESCALATION_REASON_LABELS, ESCALATION_REASON_SHORT, ESCALATION_SUMMARIES, HAND_BACK_REASONS, HOLD_ACT_WORDS, holdActOf, holdWaits, OPEN_HOLDS_READ_MAX, reasonLabelOf, reasonShort, reasonSummaryOf, WAITING_REASONS, waitsOnAPerson } from "./conversations/escalations";
 export { REFERRAL_ID_MAX } from "./conversations/first-touch";
 export { HANDLED_OUTCOMES } from "./conversations/handled";
 export { conversationWaitsOnYou, countdownClock, HELD_BY_ID_MAX, heldDraftWaits, heldThreadIds, snoozedThreadWords, theyWroteLast, THREAD_PANE_WORDS, threadStanding, threadsWaitingOnYou, threadWaitsOf, toInboxThreadVM } from "./conversations/inbox-thread";
