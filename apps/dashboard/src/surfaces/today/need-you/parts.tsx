@@ -17,8 +17,8 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import {
-  MAILBOX_SENDERS_WORDS,
   NEED_YOU_WORDS as W,
+  NOT_A_PERSON_WORDS,
   type CallBrief,
   type NotNowChoice,
   type TodayQueueRowVM,
@@ -547,8 +547,8 @@ export function NotNow({
               {
                 items: [
                   {
-                    label: MAILBOX_SENDERS_WORDS.act,
-                    meta: MAILBOX_SENDERS_WORDS.actHint,
+                    label: NOT_A_PERSON_WORDS.act,
+                    meta: NOT_A_PERSON_WORDS.actHint,
                     glyph: <Icon name="ban" size={13} />,
                     tone: "danger" as const,
                     onSelect: letGo,
