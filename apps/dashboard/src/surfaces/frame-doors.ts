@@ -128,7 +128,7 @@ export function openAsk(): void {
 
 /**
  * Open Ask on a question: the Line asks it, or with `mode` "compose" leaves it in the field to finish; `thread` opens that
- * conversation as it is; `about` is the scope chip it opens with. It opens Ask, then hands it `ask:seed` (ask-real.jsx
+ * conversation as it is; `about` is the scope chip it opens with. It opens Ask, then hands it `ask:seed` (surfaces/ask/line/
  * useArSeedKeys). A demo session's seeded palette reads the same event, with its canned answer, links and actions.
  */
 export function askAbout(about: AskAbout = {}): void {

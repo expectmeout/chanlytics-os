@@ -826,8 +826,8 @@ test("REGRESSION: an Ask card's undo expires -- it was offered forever, and a se
   assert.equal(askUndoOpen("reply", null, T, T, null), false);
 });
 
-await import("../../../../apps/dashboard/src/legacy/pages/ask-text.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/ask-turn.jsx");
+const { askText } = await import("../../../../apps/dashboard/src/surfaces/ask/words.ts");
+const { AskCard } = await import("../../../../apps/dashboard/src/surfaces/ask/card.tsx");
 
 test("REGRESSION: a reopened card whose undo has expired offers none, and undoing a new playbook asks first -- it deleted the playbook in one click", async () => {
   const { askUndoOpen } = await import("@chanlytics/contracts");
@@ -842,7 +842,7 @@ test("REGRESSION: a reopened card whose undo has expired offers none, and undoin
     commit: async () => ({ ok: true, receipt: "", undo: null }),
   };
   globalThis.window.canDo = () => true;
-  const t = globalThis.window.askText("en");
+  const t = askText("en");
   const buttons = (tree) => {
     const out = [];
     walk(tree, (n) => {
@@ -871,7 +871,7 @@ test("REGRESSION: a reopened card whose undo has expired offers none, and undoin
   frames.begin();
   // A send's undo says Undo, its words its title (the spec 2026-09-27-ask-chat-on-a-phone, D16): neither may stand.
   assert.ok(
-    !buttons(globalThis.window.AskCard({ p: old, messageId: "x", t, onNav() {} })).some(
+    !buttons(AskCard({ p: old, messageId: "x", t, onNav() {} })).some(
       (b) =>
         textOf(b) === t.undo ||
         textOf(b).includes("Cancel within") ||
@@ -897,13 +897,13 @@ test("REGRESSION: a reopened card whose undo has expired offers none, and undoin
   };
   cells = [];
   frames.begin();
-  let tree = globalThis.window.AskCard({ p: made, messageId: "x", t, onNav() {} });
+  let tree = AskCard({ p: made, messageId: "x", t, onNav() {} });
   const undoButton = buttons(tree).find((b) => textOf(b).includes("Delete it"));
   assert.ok(undoButton, "a fresh undo is offered");
   await undoButton.props.onClick();
   assert.deepEqual(undone, [], "REGRESSION: one click deleted the playbook");
   frames.begin();
-  tree = globalThis.window.AskCard({ p: made, messageId: "x", t, onNav() {} });
+  tree = AskCard({ p: made, messageId: "x", t, onNav() {} });
   let yes = null;
   walk(tree, (n) => {
     if (!yes && n.props?.["data-testid"] === "ask-card-undo-yes") yes = n;
@@ -941,10 +941,10 @@ test("a deal card wears the deal word and Open goes to the person's page: a kind
     undo: null,
   };
   for (const lang of ["en", "es"]) {
-    const t = globalThis.window.askText(lang);
+    const t = askText(lang);
     cells = [];
     frames.begin();
-    const tree = globalThis.window.AskCard({ p, messageId: "x", t, onNav: (to) => went.push(to) });
+    const tree = AskCard({ p, messageId: "x", t, onNav: (to) => went.push(to) });
     let kind = null;
     walk(tree, (n) => {
       if (!kind && n.props?.className === "ask-card-kind") kind = n;
@@ -956,7 +956,7 @@ test("a deal card wears the deal word and Open goes to the person's page: a kind
     open.props.onClick();
   }
   assert.deepEqual(went, ["clients/c-21", "clients/c-21"], "Open lands on the person's page, where the deal is");
-  assert.notEqual(globalThis.window.askText("es").kDeal, "deal", "the Spanish card says it in Spanish");
+  assert.notEqual(askText("es").kDeal, "deal", "the Spanish card says it in Spanish");
 });
 
 /* -------------------- Ask: a failure says what failed -------------------- */
@@ -964,7 +964,7 @@ test("a deal card wears the deal word and Open goes to the person's page: a kind
 test("REGRESSION: Ask's failures say what failed -- a failed read said 'Thread deleted', a failed delete and a failed copy said the calendar could not be read", async () => {
   const { openingsAnswer } = await import("@chanlytics/contracts");
   for (const lang of ["en", "es"]) {
-    const t = globalThis.window.askText(lang);
+    const t = askText(lang);
     // The calendar's own sentence is the quick answer's now (contracts ask-answer.ts).
     const calendar = openingsAnswer({ state: "unavailable", days: [] }, lang).say.headline;
     for (const k of ["threadUnreadable", "deleteFailed", "copyFailed"]) {

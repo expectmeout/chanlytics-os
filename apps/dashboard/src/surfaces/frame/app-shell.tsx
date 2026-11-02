@@ -126,8 +126,6 @@ export function ChanlyticsApp({
   const { demoGated } = gate;
   const { navigate, backToPeople, backFrom } = useShellNavigate(setRoute);
   const openAsk = useCallback(() => setAskOpen(true), []);
-  // The phone's ✦ is Ask's face too (components/ask-face.jsx), drawn on the button's coral; the sparkle where it is absent.
-  const PhoneFace = window.AskFace || null;
 
   // The doors every page uses (surfaces/frame-doors.ts), filled before the pages under this draw: the frame's own move,
   // its Ask, and a person's Back to the People view they were opened from. The bridge hands the frame the filler as
@@ -197,7 +195,6 @@ export function ChanlyticsApp({
     inboxNeeds,
     navigate,
     onPlace,
-    PhoneFace,
     page,
     param,
     ...drawn,

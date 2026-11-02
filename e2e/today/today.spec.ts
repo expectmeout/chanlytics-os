@@ -130,7 +130,7 @@ test.describe("Today on a real workspace", () => {
       expect(r.doors).toContain("Ask why");
     }
     await page.getByTestId(`today-leak-ask-${rows[0].id}`).click();
-    // The shell's Ask palette (ask-real.jsx, testid ask-real as ask.spec and phone.spec read it) opens on the row's own question.
+    // The shell's Ask palette (surfaces/ask/line/, testid ask-real as ask.spec and phone.spec read it) opens on the row's own question.
     const ask = page.getByTestId("ask-real");
     await expect(ask).toBeVisible();
     await expect(ask).toContainText(rows[0].text.slice(0, 40), { timeout: 15_000 });

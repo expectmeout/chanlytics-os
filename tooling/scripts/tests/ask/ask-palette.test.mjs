@@ -7,7 +7,7 @@
  * - A conversation was deleted by a hover × with no question and no Undo, and no key reached the × (N5).
  * - ⌘K "calendar" offered only to ask about it: the jump list stopped at the pages that were real before the
  *   Calendar, Lists, Campaigns, Setup, Billing and Activity shipped (N18).
- * Run against ask-real.jsx and its parts on a stub React whose effects run after their component returns, as React's
+ * Run against the Line (surfaces/ask/) and its parts on a stub React whose effects run after their component returns, as React's
  * do, over the bridge's real palette, quick answers and speech and a recorded stand-in for the Ask routes.
  */
 import { test } from "node:test";
@@ -64,7 +64,7 @@ globalThis.document = {
 };
 /** The window's listeners: events really travel here, because when the palette listens is what N3 is about. */
 const heard = new Map();
-// A turn in flight keeps its clock on an interval (ask-turn.jsx useAskElapsed), which the stub never clears.
+// A turn in flight keeps its clock on an interval (surfaces/ask/home.tsx useAskElapsed), which the stub never clears.
 unrefIntervals();
 globalThis.window = {
   location: {
@@ -132,7 +132,6 @@ const effect = (fn, deps) => {
   const f = frames[frames.length - 1];
   f.effects.push({ k: slot(), fn, deps });
 };
-globalThis.Icon = "Icon";
 globalThis.React = {
   Fragment: "Fragment",
   createElement: (type, p, ...kids) => {
@@ -206,17 +205,29 @@ Object.assign(globalThis.window, {
   usePPToast: () => [null, (m) => flashed.push(m)],
   CHANLY: { nav() {}, R: {}, address: await legacyAddress() },
 });
-await import("../../../../apps/dashboard/src/legacy/pages/ask-text.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/ask-hooks.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/ask-home.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/ask-turn.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/ask-real.jsx");
-// Ask's face in the line (components/ask-face.jsx): drawn in every case; it moves only where a case installs the bridge.
-await import("../../../../apps/dashboard/src/legacy/components/ask-face.jsx");
-// What the Line draws by name and publishes as it loads (legacy-bridge/ask/line-globals.ts): the one recogniser
-// (surfaces/kit/talk) as window.useHoldToTalk, the answer's charts, and a lead search's card on the rail, the finder's own
-// plan card (surfaces/leads/finder/plan-card.tsx, hookless).
-await import("../../../../apps/dashboard/src/legacy-bridge/ask/line-globals.ts");
+// The Line and its parts (surfaces/ask/), by their modules. Ask's face in the line (kit/face/ask-face.tsx) is drawn in every
+// case; it moves only where a case installs the bridge.
+const { askText } = await import("../../../../apps/dashboard/src/surfaces/ask/words.ts");
+const hookKit = await import("../../../../apps/dashboard/src/surfaces/ask/hooks.ts");
+const AskHooks = {
+  ...hookKit,
+  pinNow: hookKit.ahPinNow,
+  pinTop: hookKit.ahPinTop,
+  latestShown: hookKit.ahLatestShown,
+  slide: hookKit.ahSlide,
+  slideFrom: hookKit.ahSlideFrom,
+  panelKeys: hookKit.ahPanelKeys,
+  openOver: hookKit.AH_OPEN_OVER,
+};
+const AskHome = await import("../../../../apps/dashboard/src/surfaces/ask/home.tsx");
+const AskAnswerKit = {
+  ...(await import("../../../../apps/dashboard/src/surfaces/ask/turn.tsx")),
+  ...(await import("../../../../apps/dashboard/src/surfaces/ask/card.tsx")),
+  ...(await import("../../../../apps/dashboard/src/surfaces/ask/card-parts.tsx")),
+};
+const { AskReal } = await import("../../../../apps/dashboard/src/surfaces/ask/line/line.tsx");
+const hookParts = await import("../../../../apps/dashboard/src/surfaces/ask/line/under.ts");
+const { AskDisc } = await import("../../../../apps/dashboard/src/surfaces/kit/face/ask-face.tsx");
 const { askPalette, quickAnswer, surfaceFor } =
   await import("../../../../apps/dashboard/src/legacy-bridge/ask/palette.ts");
 const { askSpeech } = await import("../../../../apps/dashboard/src/legacy-bridge/ask/speech.ts");
@@ -226,6 +237,8 @@ const { askFollowUps, FOLLOW_UPS_EVENT } =
 const { askColumn } = await import("../../../../apps/dashboard/src/legacy-bridge/ask/column.ts");
 const { askApi } = await import("../../../../apps/dashboard/src/legacy-bridge/ask/api.ts");
 
+/** The kit's glyph, as a page draws it: a test reads its name. */
+const isIcon = (n) => n.type?.name === "Icon";
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
   if (Array.isArray(n)) {
@@ -317,8 +330,8 @@ const later = async (C, props) => {
 
 /* ------------------------------ the palette ------------------------------ */
 
-// The Line itself (ask-real.jsx), as the frame's AskBar draws it once its chunk is in (legacy-bridge/ask/line.tsx).
-const Palette = (props) => globalThis.window.AskLineReal(props);
+// The Line itself, as the frame's AskBar draws it once its chunk is in (legacy-bridge/ask/line.tsx).
+const Palette = (props) => AskReal(props);
 const OPEN = { open: true, onClose() {} };
 const CLOSED = { open: false, onClose() {} };
 /** The shell's open landing: the palette drawn open, and what it asked for on the way. */
@@ -674,11 +687,7 @@ test("the Line at rest: Right now is Today's queue, then questions about the pag
       "1 needs you",
       "1 search waiting",
     ]);
-    assert.equal(
-      globalThis.window.askText("en").searchWaiting(2),
-      "2 searches waiting",
-      "the pill counts several the same way",
-    );
+    assert.equal(askText("en").searchWaiting(2), "2 searches waiting", "the pill counts several the same way");
     assert.equal(textOf(byTestId(tree, "ask-row-brief")), "Brief me");
     assert.ok(textOf(tree).includes("Ask about Today"), "questions about the page, under its name");
     assert.equal(all(tree, (n) => n.props?.["data-testid"] === "ask-row-sug").length, 3, "three questions, as chips");
@@ -1634,7 +1643,7 @@ test("Space held on an empty line talks; a tap does nothing; after words, Space 
   let hold = null;
   let empty = true;
   const Probe = () => {
-    hold = globalThis.window.AskHooks.useHoldSpace({ empty: () => empty, talk });
+    hold = AskHooks.useHoldSpace({ empty: () => empty, talk });
     return null;
   };
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -2278,11 +2287,7 @@ test("on a phone the three lead the newest answer: large while Ask reads with wh
       ["ask-read done", "ask-read now"],
       "the newest live, the earlier done (D12)",
     );
-    assert.equal(
-      inputOf(tree).props.placeholder,
-      globalThis.window.askText("en").follow,
-      "the field says Follow up (D13)",
-    );
+    assert.equal(inputOf(tree).props.placeholder, askText("en").follow, "the field says Follow up (D13)");
     assert.equal(textOf(byTestId(tree, "ask-q")), "who wrote today?", "the question is the bubble over them");
     assert.equal(byClass(hero(tree), "ask-turn-q").length, 0, "not a line under the three");
     say();
@@ -2826,8 +2831,8 @@ test("Read aloud speaks the answer's say in Ask's one voice: the button says it 
 });
 
 test("a reply's card draws the message as the bubble it will be, the undo's words for what follows, and Not now apart; after Send its line leads with the clock and says Undo until its window closes (D16)", () => {
-  const { AskCard } = globalThis.window.AskAnswerKit;
-  const t = globalThis.window.askText("en");
+  const { AskCard } = AskAnswerKit;
+  const t = askText("en");
   const A = globalThis.window.__ask;
   const reply = {
     id: "p1",
@@ -2845,7 +2850,7 @@ test("a reply's card draws the message as the bubble it will be, the undo's word
   try {
     let tree = render(AskCard, { p: reply, messageId: "x", t, onNav() {} });
     const head = byClass(tree, "ask-card-head")[0];
-    assert.equal(find(head, (n) => n.type === "Icon").props.name, "chat", "the kind's mark, in its tile");
+    assert.equal(find(head, isIcon).props.name, "chat", "the kind's mark, in its tile");
     assert.ok(
       byClass(tree, "ask-card-change")[0].props.className.split(" ").includes("bubble"),
       "the message as a bubble",
@@ -2894,9 +2899,9 @@ test("a reply's card draws the message as the bubble it will be, the undo's word
 });
 
 test("the reads say Thinking before the first and a repeat once, at its newest; a send's clock stands where its window is, and its end takes the ring and the Undo with it (D12, D16)", () => {
-  const { AskCard } = globalThis.window.AskAnswerKit;
-  const { AskReads } = globalThis.window.AskHome;
-  const t = globalThis.window.askText("en");
+  const { AskCard } = AskAnswerKit;
+  const { AskReads } = AskHome;
+  const t = askText("en");
   const readsOf = (traces) => byClass(render(AskReads, { traces, t }), "ask-read");
   assert.deepEqual(
     readsOf([]).map((n) => [textOf(n), n.props.className]),
@@ -2953,7 +2958,7 @@ test("the reads say Thinking before the first and a repeat once, at its newest; 
 });
 
 test("the thread's arithmetic: the newest question stands a breath under the thread's top edge, the first at the very top; Latest is offered once the newest question is below what the thread shows (D5, D7)", () => {
-  const H = globalThis.window.AskHooks;
+  const H = AskHooks;
   assert.equal(H.pinTop(14), 0, "the first question: the thread's own top");
   assert.equal(H.pinTop(620), 606, "a later one, 14px under the edge");
   assert.equal(H.latestShown({ qTop: 900, scrollTop: 0, clientHeight: 600 }), true, "scrolled up: below");
@@ -3031,7 +3036,7 @@ test("a question spoken where the agent's session cannot come up (no microphone 
 });
 
 test("the Line's recogniser listens in the Line's language: Spanish where the Line speaks it, the browser's own elsewhere", () => {
-  const H = globalThis.window.AskHooks;
+  const H = AskHooks;
   const langs = [];
   globalThis.window.SpeechRecognition = class {
     start() {
@@ -3231,7 +3236,7 @@ test("a spoken question asks Ask's voice to say it is working, once, in the ques
   const s = speechStub();
   const { recs, hears, down } = holdWorld();
   const waits = [];
-  // The beat after a lift in which a click on the button is the lift's own and swallowed (ask-real.jsx AR_LIFT_MS,
+  // The beat after a lift in which a click on the button is the lift's own and swallowed (line/place.ts AR_LIFT_MS,
   // 400 ms) is held here and passed by hand (`aBeat`): a loaded machine re-renders slower than the beat, and the Stop
   // pressed below as the lift's click must land inside it, as a finger's does (11 Oct 2026: it missed it, three runs).
   const LIFT_MS = 400;
@@ -3517,7 +3522,7 @@ test("the phone's three listen to a press held a beat; a shorter press, or one t
   const talk = { start: () => said.push("start"), stop: () => said.push("stop") };
   let press3 = null;
   const Probe = () => {
-    press3 = globalThis.window.AskHooks.useHoldPress({ talk, onHold: () => said.push("buzz") });
+    press3 = AskHooks.useHoldPress({ talk, onHold: () => said.push("buzz") });
     return null;
   };
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -3849,7 +3854,7 @@ test("Earlier finds a conversation by the words typed and Enter opens it; with n
 /* ------------------------------ N18 ------------------------------ */
 
 test("a row of every kind an answer names draws its kind's mark, from the one map the Line's scope reads too: a run is marked as the broadcast it is (PR 4.2)", () => {
-  const { AskAnswer, askKindGlyph } = globalThis.window.AskAnswerKit;
+  const { AskAnswer, askKindGlyph } = AskAnswerKit;
   const marks = {
     thread: "chat",
     conversation: "chat",
@@ -3887,9 +3892,7 @@ test("a row of every kind an answer names draws its kind's mark, from the one ma
   };
   const tree = render(AskAnswer, { answer, cardOpen: {}, cards: [], t: {}, onNav() {}, onFollow() {} });
   assert.deepEqual(
-    all(tree, (n) => n.props?.["data-testid"] === "ask-item-mark").map(
-      (m) => find(m, (n) => n.type === "Icon").props.name,
-    ),
+    all(tree, (n) => n.props?.["data-testid"] === "ask-item-mark").map((m) => find(m, isIcon).props.name),
     Object.values(marks),
     "each row its kind's mark",
   );
@@ -3904,7 +3907,7 @@ test("a row of every kind an answer names draws its kind's mark, from the one ma
 });
 
 test("a person's note and a person's details (PR 4.6) are drawn as their own kinds: each its word in the Line's English and Spanish and its own mark, over its title and the summary that says who reads it or what changes", () => {
-  const { AskCard } = globalThis.window.AskAnswerKit;
+  const { AskCard } = AskAnswerKit;
   const cards = [
     {
       id: "p1",
@@ -3929,18 +3932,18 @@ test("a person's note and a person's details (PR 4.6) are drawn as their own kin
   const marks = ["edit", "user"];
   for (const lang of ["en", "es"])
     cards.forEach((p, i) => {
-      const tree = render(AskCard, { p, t: globalThis.window.askText(lang), onNav() {} });
+      const tree = render(AskCard, { p, t: askText(lang), onNav() {} });
       assert.equal(byTestId(tree, "ask-card").props["data-kind"], p.kind);
       const head = byClass(tree, "ask-card-head")[0];
       assert.equal(textOf(byClass(head, "ask-card-kind")[0]), words[lang][i], `${p.kind} in ${lang}: its word`);
-      assert.equal(find(head, (n) => n.type === "Icon").props.name, marks[i], `${p.kind}: its mark, not the inbox's`);
+      assert.equal(find(head, isIcon).props.name, marks[i], `${p.kind}: its mark, not the inbox's`);
       assert.ok(textOf(head).startsWith(p.title), `${p.kind}: its title`);
       assert.equal(textOf(byClass(tree, "ask-card-summary")[0]), p.summary, `${p.kind}: its summary`);
     });
 });
 
 test("a list and a playbook's run waiting for a person (PR 4.7) are drawn as their own kinds: each its word in the Line's English and Spanish and the mark its row carries in an answer, over its title and the summary that says its rule and who it holds, or who the run reaches and when it goes", () => {
-  const { AskCard, askKindGlyph } = globalThis.window.AskAnswerKit;
+  const { AskCard, askKindGlyph } = AskAnswerKit;
   const RUN = "88888888-8888-4888-8888-888888888881";
   const cards = [
     {
@@ -3974,22 +3977,18 @@ test("a list and a playbook's run waiting for a person (PR 4.7) are drawn as the
   assert.deepEqual(marks, ["filter", "wave"]);
   for (const lang of ["en", "es"])
     cards.forEach((p, i) => {
-      const tree = render(AskCard, { p, t: globalThis.window.askText(lang), onNav() {} });
+      const tree = render(AskCard, { p, t: askText(lang), onNav() {} });
       assert.equal(byTestId(tree, "ask-card").props["data-kind"], p.kind);
       const head = byClass(tree, "ask-card-head")[0];
       assert.equal(textOf(byClass(head, "ask-card-kind")[0]), words[lang][i], `${p.kind} in ${lang}: its word`);
-      assert.equal(
-        find(head, (n) => n.type === "Icon").props.name,
-        marks[i],
-        `${p.kind}: its row's mark, not the inbox's`,
-      );
+      assert.equal(find(head, isIcon).props.name, marks[i], `${p.kind}: its row's mark, not the inbox's`);
       assert.ok(textOf(head).startsWith(p.title), `${p.kind}: its title`);
       assert.equal(textOf(byClass(tree, "ask-card-summary")[0]), p.summary, `${p.kind}: its summary`);
     });
 });
 
 test("a message the card writes (the marketing manager, §5.2) is drawn whole: its word in the Line's English and Spanish and a template's mark, each version under its channel's word as the person reached on it reads it, and when each goes and who it reaches under them", () => {
-  const { AskCard, askKindGlyph } = globalThis.window.AskAnswerKit;
+  const { AskCard, askKindGlyph } = AskAnswerKit;
   const said = [
     {
       channel: "whatsapp",
@@ -4025,11 +4024,11 @@ test("a message the card writes (the marketing manager, §5.2) is drawn whole: i
     ["en", "message"],
     ["es", "mensaje"],
   ]) {
-    const tree = render(AskCard, { p, t: globalThis.window.askText(lang), onNav() {} });
+    const tree = render(AskCard, { p, t: askText(lang), onNav() {} });
     assert.equal(byTestId(tree, "ask-card").props["data-kind"], "message");
     const head = byClass(tree, "ask-card-head")[0];
     assert.equal(textOf(byClass(head, "ask-card-kind")[0]), word, `${lang}: its word`);
-    assert.equal(find(head, (n) => n.type === "Icon").props.name, askKindGlyph("template"), "a template's mark");
+    assert.equal(find(head, isIcon).props.name, askKindGlyph("template"), "a template's mark");
     assert.ok(textOf(head).startsWith(p.title));
     // Every version whole, under its channel's word, in the card's said block; the summary's quotes are the model's.
     const versions = byTestId(tree, "ask-card-versions");
@@ -4047,7 +4046,7 @@ test("a message the card writes (the marketing manager, §5.2) is drawn whole: i
     assert.equal(textOf(byClass(tree, "ask-card-foot")[0]), follows, "when each goes and who it reaches, under them");
   }
   // A message card from before its versions were carried draws its summary, as every card does.
-  const bare = render(AskCard, { p: { ...p, payload: {} }, t: globalThis.window.askText("en"), onNav() {} });
+  const bare = render(AskCard, { p: { ...p, payload: {} }, t: askText("en"), onNav() {} });
   assert.equal(textOf(byClass(bare, "ask-card-summary")[0]), p.summary);
 });
 
@@ -4245,8 +4244,8 @@ test("on Campaigns the field asks what should go out, and when (the moment spec,
 test("a campaign card opens in the composer on its moment before Approve, and says so (the moment spec, A7)", () => {
   // The card's Open is contracts' cardOpenRoute, which reads the playbook spec's own `open`, through the bridge.
   ask([]);
-  const { AskCard } = globalThis.window.AskAnswerKit;
-  const t = globalThis.window.askText("en");
+  const { AskCard } = AskAnswerKit;
+  const t = askText("en");
   const card = {
     id: "p1",
     kind: "playbook",
@@ -4262,12 +4261,12 @@ test("a campaign card opens in the composer on its moment before Approve, and sa
   assert.ok(open, "the card's Open, in New sequence's words");
   open.props.onClick();
   assert.deepEqual(went, ["campaigns/sequences/new:moment:quiet_30"]);
-  assert.equal(globalThis.window.askText("es").openNew, "Abrir en Nueva secuencia");
-  assert.equal(globalThis.window.askText("es").describeCampaigns, "Describe qué debe salir, y cuándo");
+  assert.equal(askText("es").openNew, "Abrir en Nueva secuencia");
+  assert.equal(askText("es").describeCampaigns, "Describe qué debe salir, y cuándo");
 });
 
 test("a campaign card says campaign, never playbook (the moment spec, D19): its kind's word in English and Spanish, and the question before its undo deletes it", () => {
-  const { AskCard } = globalThis.window.AskAnswerKit;
+  const { AskCard } = AskAnswerKit;
   const A = globalThis.window.__ask;
   const card = {
     id: "p1",
@@ -4282,7 +4281,7 @@ test("a campaign card says campaign, never playbook (the moment spec, D19): its 
     ["en", "campaign"],
     ["es", "campaña"],
   ]) {
-    const tree = render(AskCard, { p: card, messageId: "x", t: globalThis.window.askText(lang), onNav() {} });
+    const tree = render(AskCard, { p: card, messageId: "x", t: askText(lang), onNav() {} });
     const head = byClass(tree, "ask-card-head")[0];
     assert.equal(textOf(byClass(head, "ask-card-kind")[0]), word, `its word in ${lang}`);
   }
@@ -4302,7 +4301,7 @@ test("a campaign card says campaign, never playbook (the moment spec, D19): its 
       ["en", "The campaign and its schedule go", "Yes, delete it"],
       ["es", "La campaña y su horario se borran", "Sí, borrarla"],
     ]) {
-      const props = { p: made, messageId: "x", t: globalThis.window.askText(lang), onNav() {} };
+      const props = { p: made, messageId: "x", t: askText(lang), onNav() {} };
       let tree = render(AskCard, props);
       press(byClass(tree, "ask-card-undo")[0]);
       tree = settle(AskCard, props);
@@ -4490,7 +4489,7 @@ test("on a phone the field in use composes: the rows go, their fold kept closed,
 /* ------------------------------ the phone's ✦: the disc, and the dot it does not draw ------------------------------ */
 
 test("the disc reads no usage and draws no dot: nothing in the app sets a standing, so a standing the stub once set is not a fact", () => {
-  const Disc = (props) => globalThis.window.AskDisc(props);
+  const Disc = (props) => AskDisc(props);
   const drawn = () => byTestId(render(Disc, { testId: "b" }), "b");
   try {
     delete globalThis.window.__USAGE;
@@ -4800,7 +4799,7 @@ const planProps = (cards, over = {}) => ({
   cardOpen: {},
   cards,
   messageId: PLAN_MSG,
-  t: globalThis.window.askText("en"),
+  t: askText("en"),
   onNav() {},
   onFollow() {},
   ...over,
@@ -4856,7 +4855,7 @@ const waitsOf = (tree) => stepsOf(tree).map((s) => textOf(byTestId(s, "ask-card-
 
 test("a plan's cards draw as one group in step order where its first card stood, each under its head (Step 1 of 6), one press above them counting the steps that send nothing, and each send held until the steps it waits for are made (spec §5.8)", () => {
   const calls = planBridge();
-  const AskAnswer = globalThis.window.AskAnswerKit.AskAnswer;
+  const AskAnswer = AskAnswerKit.AskAnswer;
   const reply = {
     id: "p-r",
     kind: "reply",
@@ -4917,11 +4916,11 @@ test("a plan's cards draw as one group in step order where its first card stood,
   }
 });
 
-test("the group's own words are the Line's, in the Line's language (ask-text.jsx): Spanish on a Spanish Line, on an English one the words it said before, word for word; a card's own words (a refusal's) stay as every card's do", () => {
+test("the group's own words are the Line's, in the Line's language (surfaces/ask/words.ts): Spanish on a Spanish Line, on an English one the words it said before, word for word; a card's own words (a refusal's) stay as every card's do", () => {
   const calls = planBridge();
-  const AskAnswer = globalThis.window.AskAnswerKit.AskAnswer;
+  const AskAnswer = AskAnswerKit.AskAnswer;
   const chrome = (lang, cards) => {
-    const tree = render(AskAnswer, planProps(cards, { t: globalThis.window.askText(lang) }));
+    const tree = render(AskAnswer, planProps(cards, { t: askText(lang) }));
     return {
       heads: stepsOf(tree).map((s) => textOf(find(s, (n) => classOf(n).includes("ask-step-n")))),
       press: textOf(byTestId(tree, "ask-plan-approve")) || null,
@@ -4978,7 +4977,7 @@ test("the group's own words are the Line's, in the Line's language (ask-text.jsx
 
 test("REGRESSION: a send waits for every step it waits for, one at a time, and goes once they are made; its own press hands the bridge the turn's cards as they stand, so its tokens are filled (ruling 2, spec §5.4)", async () => {
   const calls = planBridge();
-  const AskAnswer = globalThis.window.AskAnswerKit.AskAnswer;
+  const AskAnswer = AskAnswerKit.AskAnswer;
   try {
     // Step 1, the message, was approved on its own: what it made is on its outcome.
     const props = planProps([approved(SIX[0], MADE_MESSAGE), ...SIX.slice(1)]);
@@ -5062,7 +5061,7 @@ test("the group's one press approves the steps that send nothing through commitP
       return run;
     },
   });
-  const AskAnswer = globalThis.window.AskAnswerKit.AskAnswer;
+  const AskAnswer = AskAnswerKit.AskAnswer;
   const reply = { ...SIX[0], id: "p-r", kind: "reply", title: "Reply to Nora", plan: undefined, payload: {} };
   try {
     const props = planProps([reply, ...SIX]);
@@ -5143,7 +5142,7 @@ test("REGRESSION (fix round 1): the group holds every card of its plan until eac
         }),
       ),
   });
-  const AskAnswer = globalThis.window.AskAnswerKit.AskAnswer;
+  const AskAnswer = AskAnswerKit.AskAnswer;
   const pressable = (tree) => {
     const plan = byTestId(tree, "ask-plan");
     const approve = all(plan, (n) => n.props?.["data-testid"] === "ask-card-approve");
@@ -5206,7 +5205,7 @@ test("two plans in one turn are two groups: each one's press is handed its own c
     }),
   );
   const calls = planBridge();
-  const AskAnswer = globalThis.window.AskAnswerKit.AskAnswer;
+  const AskAnswer = AskAnswerKit.AskAnswer;
   try {
     const props = planProps([...SIX, ...other]);
     let tree = render(AskAnswer, props);
@@ -5256,16 +5255,13 @@ test("a stop is said on the step it stopped at in the plan's own words, never wr
       };
     },
   });
-  const AskAnswer = globalThis.window.AskAnswerKit.AskAnswer;
+  const AskAnswer = AskAnswerKit.AskAnswer;
   try {
     const props = planProps(SIX);
     let tree = render(AskAnswer, props);
     press(byTestId(tree, "ask-plan-approve"));
     tree = await later(AskAnswer, props);
-    assert.equal(
-      textOf(byClass(stepCard(tree, 2), "ask-card-receipt")[0]),
-      `${stopped}${globalThis.window.askText("en").tryAgain}`,
-    );
+    assert.equal(textOf(byClass(stepCard(tree, 2), "ask-card-receipt")[0]), `${stopped}${askText("en").tryAgain}`);
     assert.ok(byTestId(stepCard(tree, 3), "ask-card-approve"), "step 3 is pressable on its own");
     assert.equal(textOf(byTestId(tree, "ask-plan-approve")), "Approve the 2 silent steps");
     assert.deepEqual(waitsOf(tree).slice(3), ["Waits for step 2", "Waits for step 2", "Waits for step 2"]);
@@ -5297,7 +5293,7 @@ test("the group's press waits while any card of the plan is busy, and is not dra
       return { ok: true, receipt: "Filed", undo: null, made: ownMade(p) };
     },
   });
-  const AskAnswer = globalThis.window.AskAnswerKit.AskAnswer;
+  const AskAnswer = AskAnswerKit.AskAnswer;
   try {
     const props = planProps(SIX);
     let tree = render(AskAnswer, props);
@@ -5431,7 +5427,7 @@ test("REGRESSION (ruling 3): what the group's press made survives a reload, thro
       }
     },
   });
-  const AskAnswer = globalThis.window.AskAnswerKit.AskAnswer;
+  const AskAnswer = AskAnswerKit.AskAnswer;
   try {
     let tree = render(AskAnswer, planProps(SIX));
     press(byTestId(tree, "ask-plan-approve"));
@@ -5547,8 +5543,8 @@ test("the newest answer offers no next question the conversation already asked o
 });
 
 test("a long think says how long it has run: from its fourth second the newest read carries the seconds", () => {
-  const { AskReads } = globalThis.window.AskHome;
-  const t = globalThis.window.askText("en");
+  const { AskReads } = AskHome;
+  const t = askText("en");
   const reads = (ago) => {
     cells = new Map();
     return draw(AskReads, { traces: ["Reading the inbox…"], since: ago === null ? null : Date.now() - ago, t });
@@ -5559,9 +5555,9 @@ test("a long think says how long it has run: from its fourth second the newest r
 });
 
 test("a figure's source is its value's tooltip, and Copy and Read aloud say their words beside their glyphs", () => {
-  const { AskAnswer } = globalThis.window.AskAnswerKit;
-  const { AskActs } = globalThis.window.AskHome;
-  const t = globalThis.window.askText("en");
+  const { AskAnswer } = AskAnswerKit;
+  const { AskActs } = AskHome;
+  const t = askText("en");
   const answer = {
     v: 2,
     form: "structured",
@@ -5594,8 +5590,8 @@ test("a figure's source is its value's tooltip, and Copy and Read aloud say thei
 
 test("an answer's formatting is drawn from its blocks: a heading, steps with points nested under them, a table whose number column is set right, bold as strong; never as markup", async () => {
   ask([]);
-  const { AskAnswer } = globalThis.window.AskAnswerKit;
-  const t = globalThis.window.askText("en");
+  const { AskAnswer } = AskAnswerKit;
+  const t = askText("en");
   const answer = {
     v: 2,
     form: "structured",
@@ -5674,8 +5670,8 @@ test("a campaign's card draws its sheet (the answer canvas, C1): what holds it f
     sheet,
     undo: null,
   };
-  const { AskCard } = globalThis.window.AskAnswerKit;
-  const tree = render(AskCard, { p, t: globalThis.window.askText("en"), onNav() {} });
+  const { AskCard } = AskAnswerKit;
+  const tree = render(AskCard, { p, t: askText("en"), onNav() {} });
   const drawn = byTestId(tree, "ask-card-sheet");
   assert.ok(drawn, "the sheet, in the card's change");
   assert.deepEqual(byClass(drawn, "ask-spec-hold").map(textOf), sheet.holds, "the holds first");
@@ -5689,7 +5685,7 @@ test("a campaign's card draws its sheet (the answer canvas, C1): what holds it f
     false,
     "the summary is not drawn beside its sheet",
   );
-  const bare = render(AskCard, { p: { ...p, sheet: undefined }, t: globalThis.window.askText("en"), onNav() {} });
+  const bare = render(AskCard, { p: { ...p, sheet: undefined }, t: askText("en"), onNav() {} });
   assert.ok(!byTestId(bare, "ask-card-sheet"), "no sheet drawn");
   assert.ok(
     byClass(bare, "ask-card-summary").some((n) => textOf(n) === p.summary),
@@ -5698,7 +5694,7 @@ test("a campaign's card draws its sheet (the answer canvas, C1): what holds it f
 });
 
 test("a card of the one thing to fix before a campaign reaches anyone (the 30 Oct 2026 review, item 6) is drawn as its own kind: its word in English and Spanish, its mark, its line, and its door in Approve's place, which opens where it is fixed", () => {
-  const { AskCard } = globalThis.window.AskAnswerKit;
+  const { AskCard } = AskAnswerKit;
   const p = {
     id: "p-f",
     kind: "fix",
@@ -5713,10 +5709,10 @@ test("a card of the one thing to fix before a campaign reaches anyone (the 30 Oc
   const words = { en: "to fix first", es: "por arreglar antes" };
   for (const lang of ["en", "es"]) {
     const went = [];
-    const tree = render(AskCard, { p, t: globalThis.window.askText(lang), onNav: (to) => went.push(to) });
+    const tree = render(AskCard, { p, t: askText(lang), onNav: (to) => went.push(to) });
     const head = byClass(tree, "ask-card-head")[0];
     assert.equal(textOf(byClass(head, "ask-card-kind")[0]), words[lang], `its word in ${lang}`);
-    assert.equal(find(head, (n) => n.type === "Icon").props.name, "alert", "its mark");
+    assert.equal(find(head, isIcon).props.name, "alert", "its mark");
     assert.equal(textOf(byClass(tree, "ask-card-summary")[0]), p.line, "its one line");
     assert.equal(byTestId(tree, "ask-card-approve"), null, "REGRESSION: Approve on a card with nothing to approve");
     const door = byTestId(tree, "ask-card-door");
@@ -5724,4 +5720,88 @@ test("a card of the one thing to fix before a campaign reaches anyone (the 30 Oc
     press(door);
     assert.deepEqual(went, ["admin/integrations"], "its door opens where it is fixed");
   }
+});
+
+/* ------------------------------ what the source pins said, run ------------------------------ */
+
+test("the Line is its own dialog: the field in it, the frame's door opens it, and nothing seeded stands in it", async () => {
+  ask([]);
+  render(Palette, CLOSED);
+  const tree = await opens();
+  assert.ok(byTestId(tree, "ask-real"), "the Line");
+  assert.equal(byTestId(tree, "ask-input").type, "textarea", "its one field");
+  assert.doesNotMatch(textOf(tree), /Aisha|Jordan|Lena|Drifting VIP|revenue pacing/, "nothing seeded in the real Line");
+});
+
+test("a card drawn again reads back what became of it: its receipt, and no second Approve", () => {
+  const { AskCard } = AskAnswerKit;
+  const p = {
+    id: "p1",
+    kind: "reply",
+    title: "Reply to Rosa",
+    summary: "On the way",
+    payload: {},
+    undo: "Take it back",
+    outcome: { state: "done", receipt: "Sent to Rosa", atMs: Date.now(), undo: null },
+  };
+  const tree = render(AskCard, { p, t: askText("en"), onNav() {} });
+  assert.match(byTestId(tree, "ask-card").props.className, /\bdone\b/, "the card is as it was left");
+  assert.equal(byTestId(tree, "ask-card-approve"), null, "a card that went offers no second send");
+  assert.match(textOf(tree), /Sent to Rosa/);
+  const fresh = render(AskCard, { p: { ...p, outcome: undefined }, t: askText("en"), onNav() {} });
+  assert.ok(byTestId(fresh, "ask-card-approve"), "a card with no outcome is one to approve");
+});
+
+test("a compose row lands in the input for the person to finish, never asked; a row with a question is asked", () => {
+  const { arActivate } = hookParts;
+  const said = [];
+  const activate = arActivate({
+    openThread() {},
+    nav() {},
+    setQuery: (q) => said.push(["field", q]),
+    inputRef: { current: null },
+    submit: (q) => said.push(["asked", q]),
+  });
+  activate({ type: "act", compose: true, q: "Hold every reply for" });
+  assert.deepEqual(said, [["field", "Hold every reply for"]]);
+  activate({ type: "sug", q: "Who needs me?" });
+  assert.deepEqual(said.at(-1), ["asked", "Who needs me?"]);
+});
+
+test("a question asked again resumes its thread, not a twin, even before the list has landed", async () => {
+  const TWIN = { ...TH(1), title: "Where did we leave it?" };
+  const calls = ask([TWIN]);
+  let land;
+  const list = new Promise((r) => (land = r));
+  globalThis.window.__ask.threads = () => list;
+  globalThis.window.__ask.send = async (input, on) => {
+    calls.inputs.push(input);
+    on({ t: "final", message: said("m-1", "Answer.") });
+  };
+  render(Palette, CLOSED);
+  let tree = await opens();
+  typed(tree, "where did we leave it?");
+  tree = await later(Palette, OPEN);
+  keyed(tree, "Enter");
+  await later(Palette, OPEN);
+  assert.equal(calls.inputs.length, 0, "the question waits for the list, whose reading is on its way");
+  land([TWIN]);
+  await later(Palette, OPEN);
+  await until(() => calls.inputs.length === 1, "the question goes once the list lands");
+  assert.deepEqual(calls.opened, [TWIN.id], "its thread opened");
+  assert.equal(calls.inputs[0].threadId, TWIN.id, "and the question joined it");
+});
+
+test("a send's card carries its mark and its word: a broadcast the wave, a campaign the bolt", () => {
+  const { AskCard } = AskAnswerKit;
+  const head = (kind, lang) => {
+    const p = { id: "p1", kind, title: "T", summary: "S", payload: {}, undo: null };
+    return byClass(render(AskCard, { p, t: askText(lang), onNav() {} }), "ask-card-head")[0];
+  };
+  const word = (kind, lang) => textOf(byClass(head(kind, lang), "ask-card-kind")[0]);
+  assert.equal(find(head("broadcast", "en"), isIcon).props.name, "wave");
+  assert.equal(word("broadcast", "en"), "broadcast");
+  assert.equal(find(head("playbook", "en"), isIcon).props.name, "bolt");
+  assert.equal(word("playbook", "en"), "campaign");
+  assert.equal(word("playbook", "es"), "campaña");
 });

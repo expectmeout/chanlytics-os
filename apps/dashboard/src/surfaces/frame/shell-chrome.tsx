@@ -9,6 +9,7 @@
 import { Component } from "react";
 import type { ComponentType, ErrorInfo, PointerEvent, ReactNode } from "react";
 import { AskLine } from "@/legacy-bridge/ask/line";
+import { AskDisc, AskFace } from "../kit/face/ask-face";
 import { REPORT_WORDS } from "@chanlytics/contracts";
 import { Button } from "../kit/button/button";
 import { FailedRead } from "../kit/empty/empty";
@@ -226,7 +227,6 @@ interface ChromeAt {
   inboxNeeds: number;
   navigate: (to: string) => void;
   onPlace: () => void;
-  PhoneFace: ComponentType<{ className?: string; ground?: string; side?: number; testId?: string }> | null;
   page: string;
   param: string | null;
   views?: SurfaceViews | null;
@@ -381,12 +381,9 @@ const phoneTabs = (s: ChromeAt) =>
     />
   );
 
-/** Ask's ✦ on a phone: the disc (ask-face.jsx AskDisc) and the three over it on the same surface. */
+/** Ask's ✦ on a phone: the disc (kit/face/ask-face.tsx AskDisc) and the three over it on the same surface. */
 const phoneAsk = (s: ChromeAt) => {
   if (s.askOpen || s.navOpen) return false;
-  const Glyph = frameGlyph();
-  const Disc = fromWindow<ComponentType<{ testId?: string }> | null>("AskDisc", null);
-  const PhoneFace = s.PhoneFace;
   return (
     <button
       type="button"
@@ -397,12 +394,8 @@ const phoneAsk = (s: ChromeAt) => {
       title="Ask Chanlytics"
       data-testid="phone-ask"
     >
-      {Disc ? <Disc testId="phone-ask-disc" /> : null}
-      {PhoneFace ? (
-        <PhoneFace className="phone-ask-face" ground="raised" side={14} testId="phone-ask-face" />
-      ) : (
-        <Glyph name="sparkle" size={20} />
-      )}
+      <AskDisc testId="phone-ask-disc" />
+      <AskFace className="phone-ask-face" ground="raised" side={14} testId="phone-ask-face" />
     </button>
   );
 };

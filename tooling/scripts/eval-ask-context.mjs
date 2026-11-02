@@ -267,7 +267,7 @@ const isObject = (v) => !!v && typeof v === "object" && !Array.isArray(v);
 
 /**
  * A page as a warm reads it: everything but its focus, which the palette takes from the words as the question goes
- * and never warms for -- it warms as the Line opens and as its route changes (ask-real.jsx).
+ * and never warms for -- it warms as the Line opens and as its route changes (surfaces/ask/line/).
  */
 const warmedAs = (spec) =>
   spec
@@ -1005,7 +1005,7 @@ function lost(note, now, why) {
 }
 
 /**
- * Turn 1's card, approved between the turns as the Line approves it (ask-turn.jsx approveWith; legacy-bridge/ask/
+ * Turn 1's card, approved between the turns as the Line approves it (surfaces/ask/turn.tsx approveWith; legacy-bridge/ask/
  * commit.ts commitProposal), for `then.between: "approve"`. Only a settings card whose change is add_note: one note
  * more in the receptionist's profile, the smallest change there is to put back, which no other case reads. The
  * settings read (the tab's `__SETTINGS`), the card's own commit (proposalSpec("settings").commit) sent as the Line

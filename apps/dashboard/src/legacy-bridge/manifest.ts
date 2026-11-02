@@ -16,11 +16,8 @@
  */
 import "./seed-globals";
 
-// The three as the top bar's Ask button and the Line's face (the top bar is surfaces/frame/topbar/topbar.tsx, which reads it by name).
-import "@/legacy/components/ask-face.jsx";
-
-// Ask's Line (the five pages/ask-*.jsx) is a chunk of its own, fetched once the frame is idle or the Line is first opened
-// (ask/line.tsx, published as the shell's AskBar by seed-globals).
+// Ask's Line is TSX and a chunk of its own (surfaces/ask/), fetched once the frame is idle or the Line is first opened
+// (ask/line.tsx, published as the shell's AskBar by seed-globals); its face is the kit's, which the frame imports.
 // People is TSX (surfaces/people): its list, its Leads scope, the Pipeline and a person's page; the parts the shell still
 // draws by name are published by seed-globals from people-globals.ts before any of these loads.
 

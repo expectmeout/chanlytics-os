@@ -1,29 +1,49 @@
-/* global React */
-// The three, following Ask's mood (legacy-bridge/mascot mood.ts, window.__mascot.mood). The top bar's Ask button, the
-// Line and the phone's ✦ draw it; whoever runs a turn says the mood, so there is one AI with one face wherever it is.
-// The squares are the largest that keep everything the three do inside the canvas (fitSide).
-// `tone="accent"` draws them on a coral ground in that ground's own foreground (colour.ts `Tone`); `ground="raised"`
-// draws them on the cards' surface (--bg-raised), so the fades down the stack are toward the surface they sit on, not
-// the page behind it (the phone's ✦). With no bridge (a test, a harness without its bundle) it is an empty canvas.
-const useAfRef = React.useRef;
-const useAfEffect = React.useEffect;
+/**
+ * The three, following Ask's mood (legacy-bridge/mascot mood.ts). The top bar's Ask button, the Line and the phone's ✦ draw
+ * it; whoever runs a turn says the mood, so there is one AI with one face wherever it is. The squares are the largest that
+ * keep everything the three do inside the canvas (fitSide).
+ * `tone="accent"` draws them on a coral ground in that ground's own foreground (colour.ts `Tone`); `ground="raised"` draws
+ * them on the cards' surface (--bg-raised), so the fades down the stack are toward the surface they sit on, not the page
+ * behind it (the phone's ✦). With no bridge (a test, a harness without its bundle) it is an empty canvas.
+ */
+import { useEffect, useRef } from "react";
+import type { Mascot } from "@/legacy-bridge/mascot";
+import type { MountOptions } from "@/legacy-bridge/mascot/driver";
+import { windowObject } from "../../legacy-verbs";
 
 /** The page's tokens as the driver reads them, with the ground the three sit on in place of the page. */
-const groundTokens = (ground) => () => {
+const groundTokens = (ground: string) => () => {
   const cs = window.getComputedStyle(document.documentElement);
-  const v = (n) => cs.getPropertyValue(n).trim() || null;
-  return { bg: v(ground === "raised" ? "--bg-raised" : "--bg"), ink: v("--ink"), accent: v("--accent"), accentFg: v("--accent-fg") };
+  const v = (n: string) => cs.getPropertyValue(n).trim() || null;
+  return {
+    bg: v(ground === "raised" ? "--bg-raised" : "--bg"),
+    ink: v("--ink"),
+    accent: v("--accent"),
+    accentFg: v("--accent-fg"),
+  };
 };
 
 // `side` sets one tile in CSS px instead of fitting the whole of what the three do into the canvas (driver.ts
 // MountOptions.side): the phone's ✦ draws them larger than the fit would, its ring just reaching the rim.
-const AskFace = ({ className, tone = "page", ground = "page", side, testId }) => {
-  const ref = useAfRef(null);
-  useAfEffect(() => {
-    const M = window.__mascot;
+export const AskFace = ({
+  className,
+  tone = "page",
+  ground = "page",
+  side,
+  testId,
+}: {
+  className?: string;
+  tone?: MountOptions["tone"];
+  ground?: string;
+  side?: number;
+  testId?: string;
+}) => {
+  const ref = useRef(null);
+  useEffect(() => {
+    const M = windowObject<Mascot>("__mascot");
     const canvas = ref.current;
     if (!M || !canvas) return undefined;
-    const opts = { tone };
+    const opts: MountOptions = { tone };
     if (side) opts.side = side;
     if (ground === "raised") opts.env = { tokens: groundTokens(ground) };
     const m = M.mount(canvas, opts);
@@ -33,6 +53,7 @@ const AskFace = ({ className, tone = "page", ground = "page", side, testId }) =>
       stop();
       m.destroy();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- a face is mounted once: its tone, ground and side are what it was drawn with
   }, []);
   return <canvas ref={ref} className={className} aria-hidden="true" data-testid={testId} />;
 };
@@ -46,6 +67,6 @@ const AskFace = ({ className, tone = "page", ground = "page", side, testId }) =>
 // sent by none) is not a fact the database supports. When a member-readable read of the day's budget lands, it feeds
 // `data-usage` (ok | warned | over) on this span through the seam; the dot's rules in ask.css wait for it. What needs you is
 // the three's own colour (legacy-bridge/arrival.ts).
-const AskDisc = ({ testId }) => <span className="ask-disc" aria-hidden="true" data-testid={testId} />;
-
-Object.assign(window, { AskFace, AskDisc });
+export const AskDisc = ({ testId }: { testId?: string }) => (
+  <span className="ask-disc" aria-hidden="true" data-testid={testId} />
+);

@@ -412,17 +412,17 @@ mounted across a move. Every page reads its data through one seam, in `apps/dash
 
 It began as a design mockup, a single-page shell of classic scripts imported in a fixed order and talking through
 `window`, and was made real one surface at a time; then each surface left it in the order decision 0015 gives, and the
-frame after them. `apps/dashboard/src/legacy` keeps what has not left: Ask's Line, its five pages
-(`apps/dashboard/src/legacy/pages/ask-*.jsx`, a chunk of their own that
-`apps/dashboard/src/legacy-bridge/ask/line-code.ts` loads) and its face
-(`apps/dashboard/src/legacy/components/ask-face.jsx`, which `apps/dashboard/src/legacy-bridge/manifest.ts` loads); the
-stylesheets (`apps/dashboard/src/legacy/styles/*.css`, `apps/dashboard/src/legacy/styles/tokens.css` among them); the
-standalone mockup (`apps/dashboard/src/legacy/Chanlytics.html`) and its stand-ins for what the bridge publishes
-(`apps/dashboard/src/legacy/data/bridge-stubs.jsx`); and the tree's own conventions
-(`apps/dashboard/src/legacy/CLAUDE.md`). Ask's pages and its face still read names that the bridge, the frame
-(`apps/dashboard/src/surfaces/frame/frame-globals.ts`) and the overrides publish on `window`,
-`apps/dashboard/src/legacy-bridge/seed-globals.ts` and `apps/dashboard/src/legacy-bridge/ask/line-globals.ts` among
-them. Nothing new goes in the tree, whose files the `legacy-files` measure counts; every
+frame after them, and Ask's Line last: TSX in `apps/dashboard/src/surfaces/ask/`, a chunk of its own that
+`apps/dashboard/src/legacy-bridge/ask/line.tsx` fetches, and its face in the kit
+(`apps/dashboard/src/surfaces/kit/face/ask-face.tsx`), which the frame imports. `apps/dashboard/src/legacy` keeps what
+has not left: the stylesheets (`apps/dashboard/src/legacy/styles/*.css`, `apps/dashboard/src/legacy/styles/tokens.css`
+among them); the standalone mockup (`apps/dashboard/src/legacy/Chanlytics.html`) and its stand-ins for what the bridge
+publishes (`apps/dashboard/src/legacy/data/bridge-stubs.jsx`); and the tree's own conventions
+(`apps/dashboard/src/legacy/CLAUDE.md`). A surface still asks the shell for a few names that the bridge, the frame
+(`apps/dashboard/src/surfaces/frame/frame-globals.ts`) and the overrides publish on `window`, through
+`apps/dashboard/src/surfaces/legacy-verbs.ts` and its own `shell.ts`
+(`apps/dashboard/src/surfaces/ask/shell.ts`, Ask's). Nothing new goes in the tree, whose files the `legacy-files`
+measure counts; every
 `window.__*` name still read or written is counted by the `window-globals` measure, and every
 site that publishes on `window` (`window.x =`, `Object.assign(window, …)`) by
 the `window-publishers` measure. Each of the three may only fall (`docs/debt.md`). Two things
@@ -730,10 +730,10 @@ appointment as a first-class record (0002): built in part, the record with its
 writers, the board, a member's word on a visit and the readers beside the
 calendar feed, and the receptionist's request (0061); a row linked to a person
 by `contact_id` alone is found by that person, as the board finds it. Assignment for a team (0003): decided, not built.
-The shell leaving surface by surface (0015): every surface but Ask has left it,
-and the frame after them (#1748); Ask's Line (step 12) and the rest of the tree
-(step 13: the manifest, `apps/dashboard/src/legacy-bridge/seed-globals.ts`, the
-mockup) are to come. A deal as a
+The shell leaving surface by surface (0015): every surface has left it, the frame
+(#1748) and Ask's Line (step 12) the last; the rest of the tree (step 13: the
+manifest, `apps/dashboard/src/legacy-bridge/seed-globals.ts`, the mockup) is to
+come. A deal as a
 record (0004) is built, steps 1 to 4; step 5's items are notes of their own.
 Smaller and known: the shell's own route names and the API's old nouns
 (`docs/glossary.md` lists them), and `contracts` carrying view models that

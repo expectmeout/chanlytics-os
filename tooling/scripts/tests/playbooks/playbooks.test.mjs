@@ -588,8 +588,7 @@ test("Ask knows playbooks: read as the page shows them, proposed as a card, comm
   // The card commits through POST playbooks and is undone by DELETE playbooks/[id]: executed in ask-commit.test.mjs
   // ("a broadcast and a playbook", "an undo names the decision it reverses"), from the playbook's spec (contracts
   // ask-proposals/campaigns.ts).
-  const turn = readCode("apps/dashboard/src/legacy/pages/ask-turn.jsx");
-  assert.ok(turn.includes("playbook: t.kPlaybook") && turn.includes('playbook: "bolt"'));
+  // Its card's mark and word: executed in ask-palette.test.mjs ("a send's card carries its mark and its word").
   assert.equal(
     cardOpenRoute({ kind: "playbook", payload: {} }),
     "campaigns/sequences",

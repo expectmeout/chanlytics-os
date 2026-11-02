@@ -1053,8 +1053,7 @@ test("Ask: a broadcast is read (campaigns.audiences) and proposed (propose_campa
     ACT_TOOLS.find((t) => t.name === "propose_sequence").description.includes("never propose a send to nobody"),
     "a broadcast to nobody is never proposed",
   );
-  assert.ok(readCode("apps/dashboard/src/legacy/pages/ask-turn.jsx").includes('broadcast: "wave"'));
-  assert.ok(readCode("apps/dashboard/src/legacy/pages/ask-text.jsx").includes('kBroadcast: "broadcast"'));
+  // Its card's mark and word: executed in ask-palette.test.mjs ("a send's card carries its mark and its word").
   const s = buildAskSuggestions({
     lang: "en",
     surface: "other",

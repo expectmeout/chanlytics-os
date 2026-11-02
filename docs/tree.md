@@ -87,9 +87,7 @@ apps/dashboard/src/legacy-bridge/
   surfaces/
   verbs/
 apps/dashboard/src/legacy/
-  components/
   data/
-  pages/
 apps/mobile/src/
   app/
   shell/

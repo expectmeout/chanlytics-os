@@ -1,10 +1,67 @@
-/* global React, Icon */
-// The rows under the three (ask-real.jsx; the Stage, spec 4.3, 5.2): at rest, Right now with Brief me, the follow-ups
-// Ask kept that came due, and three questions about the page as chips; while typing, the words as a question, the jumps and the questions that match;
-// Earlier (the head's, or ⌘J), every conversation. Pure of state: buildLineRows turns what the bridge
-// holds into rows, AskRows draws them as one listbox. No key symbol is drawn (the Line, D17). Published as window.AskHome.
+/**
+ * The rows under the three (line/line.tsx; the Stage, spec 4.3, 5.2): at rest, Right now with Brief me, the follow-ups Ask
+ * kept that came due, and three questions about the page as chips; while typing, the words as a question, the jumps and the
+ * questions that match; Earlier (the head's, or ⌘J), every conversation. Pure of state: buildLineRows turns what the bridge
+ * holds into rows, AskRows draws them as one listbox. No key symbol is drawn (the Line, D17).
+ */
+import { Fragment, useEffect, useState } from "react";
+import type {
+  AskAnswer,
+  AskBreakdown as Breakdown,
+  AskLanguage,
+  AskScope,
+  AskSurface,
+  AskThreadVM,
+} from "@chanlytics/contracts";
+import type { AskApi } from "@/legacy-bridge/ask";
+import type { LegacyFlash } from "../legacy-verbs";
+import { BarList } from "../kit/charts/bar";
+import { SegmentBar } from "../kit/charts/card";
+import { LineChart } from "../kit/charts/line";
+import { Icon } from "../kit/icon/icon";
+import type { useAskSpeech } from "./hooks";
+import type { LineWords } from "./words";
 
-const ahAgo = (ms) => {
+/** A chart of numbers the turn read. */
+type Chart = NonNullable<AskAnswer["show"]["chart"]>;
+
+/** A row of the Line: what it says, and what taking it does (a route, words to ask or to finish, a thread to open). */
+export interface LineRow {
+  type: string;
+  label: string;
+  sub?: string;
+  meta?: string;
+  q?: string;
+  to?: string;
+  th?: AskThreadVM;
+  compose?: boolean;
+  following?: string;
+  people?: number;
+  runs?: number;
+  searches?: number;
+}
+
+/** The rows under one label. */
+export interface LineSection {
+  key: string;
+  label?: string;
+  items: LineRow[];
+  note?: string | null;
+}
+
+/** What the rows are built from. */
+interface LineRowsAsk {
+  A: AskApi;
+  t: LineWords;
+  lang: AskLanguage;
+  query: string;
+  surface: AskSurface;
+  scope: AskScope | null;
+  threads: AskThreadVM[];
+  view: string;
+}
+
+const ahAgo = (ms: number) => {
   if (!ms) return "";
   const s = Math.max(0, (Date.now() - ms) / 1000);
   if (s < 90) return "just now";
@@ -14,45 +71,74 @@ const ahAgo = (ms) => {
 };
 
 // Every row carries what activating it does: a route, words to ask, words to finish on the line, or a thread to open.
-const buildLineRows = ({ A, t, lang, query, surface, scope, threads, view }) => {
+export const buildLineRows = ({ A, t, lang, query, surface, scope, threads, view }: LineRowsAsk): LineSection[] => {
   const q = query.trim();
   // A conversation is one 36px line: its question, and its time at the right (spec 4.3).
-  const thread = (th) => ({ type: "thread", label: th.title, meta: ahAgo(th.lastAtMs), th });
+  const thread = (th: AskThreadVM): LineRow => ({ type: "thread", label: th.title, meta: ahAgo(th.lastAtMs), th });
   // Earlier: every conversation, or the ones whose question has the words typed.
   if (view === "earlier") {
     const list = q ? threads.filter((th) => th.title.toLowerCase().includes(q.toLowerCase())) : threads;
     return [{ key: "earlier", label: t.earlier, items: list.map(thread) }];
   }
   if (q) {
-    const sections = [{ key: "ask", items: [{ type: "ask", label: q, q }] }];
+    const sections: LineSection[] = [{ key: "ask", items: [{ type: "ask", label: q, q }] }];
     const jumps = A.jump(q);
     if (jumps.length)
-      sections.push({ key: "jump", label: t.jump, items: jumps.map((j) => ({ type: "jump", label: j.label, sub: j.sub, meta: t.kind[j.kind] || "", to: j.to })) });
-    const hits = A.suggestions(surface, scope, lang).filter((s) => (s.label || s.q).toLowerCase().includes(q.toLowerCase()) && s.q !== q);
+      sections.push({
+        key: "jump",
+        label: t.jump,
+        items: jumps.map((j) => ({ type: "jump", label: j.label, sub: j.sub, meta: t.kind[j.kind] || "", to: j.to })),
+      });
+    const hits = A.suggestions(surface, scope, lang).filter(
+      (s) => (s.label || s.q).toLowerCase().includes(q.toLowerCase()) && s.q !== q,
+    );
     if (hits.length)
       sections.push({
         key: "match",
-        items: hits.map((s) => ({ type: s.kind === "act" ? "act" : "sug", label: s.label || s.q, q: s.q, compose: s.compose, meta: s.kind === "act" ? t.tagCard : undefined })),
+        items: hits.map((s) => ({
+          type: s.kind === "act" ? "act" : "sug",
+          label: s.label || s.q,
+          q: s.q,
+          compose: s.compose,
+          meta: s.kind === "act" ? t.tagCard : undefined,
+        })),
       });
     // The words as a question are a row only beside somewhere to jump or a question that matches, where Enter has to say
     // which it means; alone they only said the field again, under it.
     return sections.length > 1 ? sections : [];
   }
   // At rest: Right now is the first row, and ↵ on the empty line asks who needs you (the quick answer). The counts its
-  // sentence was built from are the hero's pills, under the three (ask-real.jsx); Earlier is the head's (spec 5.2).
-  const parts = A.rightNowParts ? A.rightNowParts(lang) : { sentence: A.rightNow(lang), people: 0, runs: 0, searches: 0 };
-  const sections = [
+  // sentence was built from are the hero's pills, under the three (line/draw.tsx); Earlier is the head's (spec 5.2).
+  const parts = A.rightNowParts
+    ? A.rightNowParts(lang)
+    : { sentence: A.rightNow(lang), people: 0, runs: 0, searches: 0 };
+  const sections: LineSection[] = [
     {
       key: "now",
-      items: [{ type: "now", label: parts.sentence, q: t.needsQ, people: parts.people, runs: parts.runs, searches: parts.searches }],
+      items: [
+        {
+          type: "now",
+          label: parts.sentence,
+          q: t.needsQ,
+          people: parts.people,
+          runs: parts.runs,
+          searches: parts.searches,
+        },
+      ],
     },
   ];
   // What Ask said it would come back to, come due (legacy-bridge/ask/follow-ups.ts): its own line, and pressed, what it
   // said it would ask itself then, which clears it (the route's `following`).
   const due = A.followUpsDue ? A.followUpsDue() : [];
   if (due.length)
-    sections.push({ key: "follow", label: t.followUpsDue, items: due.map((f) => ({ type: "follow", label: f.said, q: f.prompt, following: f.id })) });
-  const asks = A.suggestions(surface, scope, lang).filter((s) => s.kind !== "act" && s.q !== t.needsQ).slice(0, 3);
+    sections.push({
+      key: "follow",
+      label: t.followUpsDue,
+      items: due.map((f) => ({ type: "follow", label: f.said, q: f.prompt, following: f.id })),
+    });
+  const asks = A.suggestions(surface, scope, lang)
+    .filter((s) => s.kind !== "act" && s.q !== t.needsQ)
+    .slice(0, 3);
   // On Leads the consent rule stands under the section's chips (spec F3), one dim line; nowhere else has a note.
   if (asks.length)
     sections.push({
@@ -65,30 +151,68 @@ const buildLineRows = ({ A, t, lang, query, surface, scope, threads, view }) => 
 };
 
 // The flat list the keys walk, in the order the rows are drawn.
-const flatRows = (sections) => sections.flatMap((sec) => sec.items);
+export const flatRows = (sections: LineSection[]) => sections.flatMap((sec) => sec.items);
 
 // A question, an act and the door to every conversation are chips; the rest are rows.
-const ahChip = (it) => it.type === "sug" || it.type === "act";
+const ahChip = (it: LineRow) => it.type === "sug" || it.type === "act";
 
 // The standing pills: who needs you, the runs and the searches waiting. They are the hero's, under the three, so they
 // stay while a phone's field is in use (the Stage's 5.9).
-const AskNowPills = ({ people, runs, searches, t }) => (
+export const AskNowPills = ({
+  people,
+  runs,
+  searches,
+  t,
+}: {
+  people: number;
+  runs: number;
+  searches: number;
+  t: LineWords;
+}) => (
   <span className="ask-now-pills">
-    {people ? <span className="pill pill-warn" data-testid="ask-pill">{t.needYou(people)}</span> : null}
-    {runs ? <span className="pill pill-warn" data-testid="ask-pill">{t.runsWaiting(runs)}</span> : null}
-    {searches ? <span className="pill pill-warn" data-testid="ask-pill">{t.searchWaiting(searches)}</span> : null}
+    {people ? (
+      <span className="pill pill-warn" data-testid="ask-pill">
+        {t.needYou(people)}
+      </span>
+    ) : null}
+    {runs ? (
+      <span className="pill pill-warn" data-testid="ask-pill">
+        {t.runsWaiting(runs)}
+      </span>
+    ) : null}
+    {searches ? (
+      <span className="pill pill-warn" data-testid="ask-pill">
+        {t.searchWaiting(searches)}
+      </span>
+    ) : null}
   </span>
 );
 
 // Right now is one option: its pills, its sentence and Brief me (a span dressed as the kit's button: one row, one door,
 // Enter or a press anywhere on it asks; a second option would be the same question twice). A section's chips sit in a
 // wrap under its rows, so Earlier is its rows, then the chip for the rest.
-const AskRows = ({ sections, sel, setSel, onActivate, onDelete, t, empty }) => {
+export const AskRows = ({
+  sections,
+  sel,
+  setSel,
+  onActivate,
+  onDelete,
+  t,
+  empty,
+}: {
+  sections: LineSection[];
+  sel: number;
+  setSel: (i: number) => void;
+  onActivate: (it: LineRow) => void;
+  onDelete: (th: AskThreadVM) => void;
+  t: LineWords;
+  empty?: string | null;
+}) => {
   const selIdx = sel;
   const flat = flatRows(sections);
   if (!flat.length) return <div className="ask-rows-empty">{empty || t.nothing}</div>;
   let at = 0;
-  const draw = (it) => {
+  const draw = (it: LineRow) => {
     const i = at++;
     const sel = i === selIdx;
     const shared = {
@@ -105,7 +229,11 @@ const AskRows = ({ sections, sel, setSel, onActivate, onDelete, t, empty }) => {
       return (
         <div key={i} {...shared} className={`ask-row now${waiting ? " waiting" : ""}${sel ? " sel" : ""}`}>
           <span className="ask-row-label">{it.label}</span>
-          {waiting ? <span className="btn btn-sm ask-now-brief" data-testid="ask-row-brief">{t.briefMe}</span> : null}
+          {waiting ? (
+            <span className="btn btn-sm ask-now-brief" data-testid="ask-row-brief">
+              {t.briefMe}
+            </span>
+          ) : null}
         </div>
       );
     }
@@ -127,7 +255,18 @@ const AskRows = ({ sections, sel, setSel, onActivate, onDelete, t, empty }) => {
         </span>
         {it.meta ? <span className="ask-row-meta">{it.meta}</span> : null}
         {it.type === "thread" ? (
-          <button type="button" className="ask-row-del" tabIndex={-1} aria-label={t.deleteThread} title={t.deleteThread} onClick={(e) => { e.stopPropagation(); onDelete(it.th); }} data-testid="ask-row-del">
+          <button
+            type="button"
+            className="ask-row-del"
+            tabIndex={-1}
+            aria-label={t.deleteThread}
+            title={t.deleteThread}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (it.th) onDelete(it.th);
+            }}
+            data-testid="ask-row-del"
+          >
             <Icon name="x" size={10} />
           </button>
         ) : null}
@@ -136,8 +275,8 @@ const AskRows = ({ sections, sel, setSel, onActivate, onDelete, t, empty }) => {
   };
   // A section's items in runs, in the order the keys walk them: rows as they are, each run of chips in one wrap. A
   // section that holds rows (Earlier, the jumps) is a `list`: its label keeps their left edge, not the home's centre.
-  const runs = (items) =>
-    items.reduce((out, it) => {
+  const runs = (items: LineRow[]) =>
+    items.reduce<Array<{ chip: boolean; items: LineRow[] }>>((out, it) => {
       const chip = ahChip(it);
       const last = out[out.length - 1];
       if (last && last.chip === chip) last.items.push(it);
@@ -147,18 +286,30 @@ const AskRows = ({ sections, sel, setSel, onActivate, onDelete, t, empty }) => {
   return (
     <div className="ask-rows" role="listbox" id="ask-rows" aria-label={t.rowsLabel}>
       {sections.map((sec) => (
-        <div key={sec.key} className={`ask-rows-sec${sec.items.some((it) => it.type !== "now" && !ahChip(it)) ? " list" : ""}`} role="presentation">
-          {sec.label ? <div className="ask-rows-label" role="presentation">{sec.label}</div> : null}
+        <div
+          key={sec.key}
+          className={`ask-rows-sec${sec.items.some((it) => it.type !== "now" && !ahChip(it)) ? " list" : ""}`}
+          role="presentation"
+        >
+          {sec.label ? (
+            <div className="ask-rows-label" role="presentation">
+              {sec.label}
+            </div>
+          ) : null}
           {runs(sec.items).map((run, k) =>
             run.chip ? (
               <div key={`c${k}`} className="ask-chips" role="presentation">
                 {run.items.map(draw)}
               </div>
             ) : (
-              <React.Fragment key={`r${k}`}>{run.items.map(draw)}</React.Fragment>
+              <Fragment key={`r${k}`}>{run.items.map(draw)}</Fragment>
             ),
           )}
-          {sec.note ? <p className="ask-rows-note" data-testid="ask-rows-note">{sec.note}</p> : null}
+          {sec.note ? (
+            <p className="ask-rows-note" data-testid="ask-rows-note">
+              {sec.note}
+            </p>
+          ) : null}
         </div>
       ))}
     </div>
@@ -166,10 +317,6 @@ const AskRows = ({ sections, sel, setSel, onActivate, onDelete, t, empty }) => {
 };
 
 /* -------------------------------------------- what stands around an answer */
-
-const useHomeState = React.useState;
-const useHomeEffect = React.useEffect;
-
 // What Ask has read, under the three while it reads (D12): the turn's last reads (the Line keeps three, live.traces),
 // a read again said once where it was last, the earlier dim after a small square, the newest live after the reading
 // dot; "Thinking…" before the first. From the fourth second the newest line says how long the turn has run (`since`,
@@ -177,9 +324,9 @@ const useHomeEffect = React.useEffect;
 // seconds of "Thinking…" alone).
 const ASK_ELAPSED_FROM_S = 4;
 const ASK_ELAPSED_TICK_MS = 1000;
-const useAskElapsed = (since) => {
-  const [now, setNow] = useHomeState(() => Date.now());
-  useHomeEffect(() => {
+const useAskElapsed = (since: number | null) => {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
     if (!since) return undefined;
     const tick = setInterval(() => setNow(Date.now()), ASK_ELAPSED_TICK_MS);
     return () => clearInterval(tick);
@@ -187,7 +334,7 @@ const useAskElapsed = (since) => {
   const s = since ? Math.floor((now - since) / 1000) : 0;
   return s >= ASK_ELAPSED_FROM_S ? `${s}s` : "";
 };
-const AskReads = ({ traces, since = null, t }) => {
+export const AskReads = ({ traces, since = null, t }: { traces: string[]; since?: number | null; t: LineWords }) => {
   const reads = traces.filter((r, k) => traces.lastIndexOf(r) === k);
   const shown = reads.length ? reads : [t.thinking];
   const elapsed = useAskElapsed(since);
@@ -199,7 +346,11 @@ const AskReads = ({ traces, since = null, t }) => {
           <p key={r} className={`ask-read ${now ? "now" : "done"}`}>
             <span className={now ? "ask-reading-dot" : "ask-read-tile"} aria-hidden="true" />
             {r}
-            {now && elapsed ? <span className="ask-read-time" aria-hidden="true" data-testid="ask-read-time">{elapsed}</span> : null}
+            {now && elapsed ? (
+              <span className="ask-read-time" aria-hidden="true" data-testid="ask-read-time">
+                {elapsed}
+              </span>
+            ) : null}
           </p>
         );
       })}
@@ -211,12 +362,24 @@ const AskReads = ({ traces, since = null, t }) => {
 // a phone under the newest answer, never under an earlier one and never while one is written. `words` are the
 // answer's say, its headline then its detail, then its list a line an entry with its marks (contracts answerText): what
 // Copy takes. `spoken` are the same written for the ear, the list an entry a sentence (contracts answerSpoken): what
-// Read aloud speaks in Ask's one voice (the one-way speech, legacy-bridge/ask/speech.ts through AskHooks.useAskSpeech;
+// Read aloud speaks in Ask's one voice (the one-way speech, legacy-bridge/ask/speech.ts through hooks.ts useAskSpeech;
 // docs/superpowers/specs/2026-10-03-ask-spoken-design.md, §3.5 as amended 4 Oct 2026); the figures and rows are
 // drawn, never read. Nobody speaks back: a follow-up is typed, or said with the mic held. Between the press and the first word
 // the button says it is getting the voice, and a press then stops the wait; where the clip could not be made the
 // button says why, in the server's words.
-const AskActs = ({ words, spoken, speech, flash, t }) => {
+export const AskActs = ({
+  words,
+  spoken,
+  speech,
+  flash,
+  t,
+}: {
+  words: string;
+  spoken: string;
+  speech: ReturnType<typeof useAskSpeech>;
+  flash: (flash: LegacyFlash) => void;
+  t: LineWords;
+}) => {
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(words);
@@ -228,7 +391,7 @@ const AskActs = ({ words, spoken, speech, flash, t }) => {
   const reading = speech.speakingId === "line";
   const loading = speech.loading === "line";
   const read = () => {
-    speech.toggle(spoken || words, "answer").then((why) => {
+    void speech.toggle(spoken || words, "answer").then((why) => {
       if (why !== null) flash({ tone: "danger", msg: <>{why || t.readFailed}</> });
     });
   };
@@ -236,9 +399,18 @@ const AskActs = ({ words, spoken, speech, flash, t }) => {
   // Each says its word beside its glyph on a desk, where two bare glyphs were missed (ask.css `.ask-act-word`).
   return (
     <span className="ask-acts" data-testid="ask-acts">
-      <button type="button" className="ask-line-btn quiet" onClick={copy} aria-label={t.copy} title={t.copy} data-testid="ask-copy">
+      <button
+        type="button"
+        className="ask-line-btn quiet"
+        onClick={copy}
+        aria-label={t.copy}
+        title={t.copy}
+        data-testid="ask-copy"
+      >
         <Icon name="copy" size={14} />
-        <span className="ask-act-word" aria-hidden="true">{t.copyWord}</span>
+        <span className="ask-act-word" aria-hidden="true">
+          {t.copyWord}
+        </span>
       </button>
       {speech.canSpeak ? (
         <button
@@ -252,7 +424,9 @@ const AskActs = ({ words, spoken, speech, flash, t }) => {
           data-testid="ask-read"
         >
           <Icon name={reading ? "pause" : "headphones"} size={14} />
-          <span className="ask-act-word" aria-hidden="true">{word}</span>
+          <span className="ask-act-word" aria-hidden="true">
+            {word}
+          </span>
         </button>
       ) : null}
     </span>
@@ -261,20 +435,19 @@ const AskActs = ({ words, spoken, speech, flash, t }) => {
 
 // A chart of numbers the turn read (contracts AskChart): a line for one count over time, bars for a few things compared,
 // on the chart kit's own parts and its validated palette (kit-globals LineChart, BarList), with where it was read from.
-const AskChart = ({ c, t, onNav }) => {
-  const W = window;
+export const AskChart = ({ c, t, onNav }: { c: Chart; t: LineWords; onNav: (to: string) => void }) => {
   const plot =
-    c.kind === "line" && W.LineChart ? (
-      <W.LineChart
+    c.kind === "line" ? (
+      <LineChart
         data={c.points.map((p) => ({ label: p.label, short: p.label, v: p.value }))}
         keys={[{ key: "v", fill: true }]}
         config={{ v: { label: c.label, color: "var(--chart-1)" } }}
         height={140}
         ariaLabel={c.label}
       />
-    ) : W.BarList ? (
-      <W.BarList rows={c.points.map((p, i) => ({ id: String(i), label: p.label, value: p.value }))} />
-    ) : null;
+    ) : (
+      <BarList rows={c.points.map((p, i) => ({ id: String(i), label: p.label, value: p.value }))} />
+    );
   return (
     <div className="ask-chart" data-testid="ask-chart" data-kind={c.kind}>
       <span className="ask-chart-title">{c.label}</span>
@@ -282,7 +455,9 @@ const AskChart = ({ c, t, onNav }) => {
       <span className="ask-breakdown-from">
         {t.from} {c.source.label}
         {c.source.door ? (
-          <button type="button" className="ask-receipt-door" onClick={() => onNav(c.source.to)}>{t.open}</button>
+          <button type="button" className="ask-receipt-door" onClick={() => onNav(c.source.to)}>
+            {t.open}
+          </button>
         ) : null}
       </span>
     </div>
@@ -292,9 +467,8 @@ const AskChart = ({ c, t, onNav }) => {
 // One whole in its parts, on the chart kit's bar (chart-core.jsx SegmentBar), coloured as Reports colours who answered:
 // the parts in the kit's blues in order, the one marked for attention in the warn status with its icon.
 const AT_PART_COLORS = ["var(--chart-1)", "var(--chart-1-soft)", "var(--chart-ramp-2)", "var(--chart-ramp-1)"];
-const AskBreakdown = ({ b, t, onNav }) => {
-  const SegmentBar = window.SegmentBar;
-  const config = {};
+export const AskBreakdown = ({ b, t, onNav }: { b: Breakdown; t: LineWords; onNav: (to: string) => void }) => {
+  const config: Record<string, { label: string; color: string; icon?: string }> = {};
   let n = 0;
   const rows = b.parts.map((p, k) => {
     const key = `p${k}`;
@@ -306,17 +480,17 @@ const AskBreakdown = ({ b, t, onNav }) => {
   const title = `${b.total} ${b.label}`;
   return (
     <div className="ask-breakdown" data-testid="ask-breakdown">
-      {SegmentBar ? <SegmentBar title={title} rows={rows} config={config} small /> : <span className="ask-breakdown-title">{title}</span>}
+      <SegmentBar title={title} rows={rows} config={config} small />
       {b.source ? (
         <span className="ask-breakdown-from">
           {t.from} {b.source.label}
           {b.source.door ? (
-            <button type="button" className="ask-receipt-door" onClick={() => onNav(b.source.to)}>{t.open}</button>
+            <button type="button" className="ask-receipt-door" onClick={() => b.source && onNav(b.source.to)}>
+              {t.open}
+            </button>
           ) : null}
         </span>
       ) : null}
     </div>
   );
 };
-
-window.AskHome = { buildLineRows, AskRows, flatRows, AskNowPills, ahAgo, AskReads, AskActs, AskBreakdown, AskChart };

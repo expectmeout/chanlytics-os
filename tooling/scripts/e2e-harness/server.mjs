@@ -32,7 +32,7 @@ import {
   frameGlobalsBundle,
   frameAppBundle,
   kitGlobalsBundle,
-  askLineGlobalsBundle,
+  askLineBundle,
   legacyDocument,
   mascotBundle,
   peopleGlobalsHarnessBundle,
@@ -268,8 +268,8 @@ export async function startHarness({ name = "nightly", port = 0, now = Date.now(
         send(res, 200, TYPES[".js"], await peopleGlobalsHarnessBundle());
         return;
       }
-      if (p === "/data/ask-line-globals.js") {
-        send(res, 200, TYPES[".js"], await askLineGlobalsBundle());
+      if (p === "/data/ask-line.js") {
+        send(res, 200, TYPES[".js"], await askLineBundle());
         return;
       }
       if (p === "/data/mascot.js") {

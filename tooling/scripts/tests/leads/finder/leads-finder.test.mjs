@@ -13,6 +13,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  SEARCH_CARD_REPLACED,
+  searchCardView,
   LEAD_QUESTION_WAIT_LINE,
   LEAD_ROUND_ENDINGS,
   LeadSearchPlanSchema,
@@ -72,7 +74,6 @@ const { leadStrip, LEAD_ROUND_MAKERS } =
   await import("../../../../../apps/dashboard/src/surfaces/leads/finder/strip.ts");
 const { leadAnswerPlan, leadFinderApprove } =
   await import("../../../../../apps/dashboard/src/surfaces/leads/finder/amend.ts");
-const { ASK_LINE_GLOBALS } = await import("../../../../../apps/dashboard/src/legacy-bridge/ask/line-globals.ts");
 // The real glyphs, the kit's (surfaces/kit/icon): the page imports it, so a page's icon draws as it does there.
 const { Icon } = await import("../../../../../apps/dashboard/src/surfaces/kit/icon/icon.tsx");
 
@@ -750,7 +751,7 @@ test("near the month's limit the card offers what is left and says when the lead
   assert.equal(byTestId(drawCard(st), "plan-covers"), null, "nothing to say when nothing binds");
 });
 
-test("Ask draws a search's card from contracts' rules, published with the Line (legacy-bridge/ask/line-globals.ts): its rows to read and its one press, never the finder's pickers (Ruben, 23 Oct 2026: a change is said to Ask)", () => {
+test("Ask draws a search's card from contracts' rules (surfaces/ask/card.tsx): its rows to read and its one press, never the finder's pickers (Ruben, 23 Oct 2026: a change is said to Ask)", () => {
   const card = {
     id: "p-1",
     kind: "lead_search",
@@ -760,11 +761,10 @@ test("Ask draws a search's card from contracts' rules, published with the Line (
     needs: "partner",
     undo: "Stop the search",
   };
-  const v = ASK_LINE_GLOBALS.LeadCards.view(card);
+  const v = searchCardView(card);
   assert.equal(v.sheet.rows.find((r) => r.label === "Where").value, "Austin, TX, about 25 km around");
   assert.equal(v.press.label, "Find 200 leads");
-  assert.equal(typeof ASK_LINE_GLOBALS.LeadCards.landed, "function", "and the turns once an answer lands");
-  assert.equal(ASK_LINE_GLOBALS.LeadCards.replaced, "Changed below.");
+  assert.equal(SEARCH_CARD_REPLACED, "Changed below.");
 });
 
 /* --------------------------------------------------- Task 10: the strip */

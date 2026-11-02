@@ -1,11 +1,10 @@
 # 0015 · The shell leaves, one surface at a time
 
-**Status:** Accepted by Ruben, 28 Sep 2026. Built: steps 1 to 11 of the order, the address and every surface but Ask
-(each has its _Built_ section below, the last of them Settings' frame on 4 October 2026), and the first half of step 13,
-the frame: TSX in `apps/dashboard/src/surfaces/frame/` since #1748 (20 October 2026, wave 2a of
-`docs/plans/2026-10-19-one-system.md`, which refines steps 12 and 13), the demo surfaces' mockups gone before it (#1695,
-17 October 2026). Step 12 (Ask's Line, `apps/dashboard/src/legacy/pages/ask-*.jsx`) and the rest of step 13 (the
-manifest, `seed-globals.ts`, `Chanlytics.html`, then the tree) to come. Ruben left the open questions to be settled by analysis (27 September); the
+**Status:** Accepted by Ruben, 28 Sep 2026. Built: steps 1 to 12 of the order, the address and every surface (each has
+its _Built_ section below, the last of them Ask's Line, 2 November 2026), and the first half of step 13, the frame: TSX
+in `apps/dashboard/src/surfaces/frame/` since #1748 (20 October 2026, wave 2a of `docs/plans/2026-10-19-one-system.md`,
+which refines steps 12 and 13), the demo surfaces' mockups gone before it (#1695, 17 October 2026). The rest of step 13
+(the manifest, `seed-globals.ts`, `Chanlytics.html`, then the tree) to come. Ruben left the open questions to be settled by analysis (27 September); the
 answers close the note, and he accepted it with one amendment, which follows them. Written against commit `519724e9c` (main, 27 September 2026, after the organization
 program merged in #1161), and every file and line below was read at it. Where this note and the code
 disagree, the code wins. It is the exit the plan `docs/plans/2026-09-26-organization-and-code-health.md` asks for
@@ -866,3 +865,33 @@ elsewhere (`admin/setup`, the first run) draws nothing while the frame takes the
   panes on both sides: every tab (and a route that names none) for an owner and for a viewer, the back office and the rail
   for a platform admin, Business broken, with no receptionist and with no settings read, a tab pressed, AI memory's door,
   and the leave guard over an unsaved fold, kept and then left. 32 states, no difference.
+
+## Built: Ask's Line, step 12 (2 November 2026, branch `ask/leaves-the-legacy-tree`)
+
+`legacy/pages/ask-{real,turn,home,hooks,text}.jsx` and `legacy/components/ask-face.jsx` are gone, with nothing of their
+behaviour changed. The Line is TSX in `surfaces/ask/`: `words.ts`, `hooks.ts`, `home.tsx`, an answer in `turn.tsx`,
+`answer-words.tsx`, `card.tsx` and `card-parts.tsx`, and the Line itself in `line/`, the 1,027-line page cut along the
+seams it already had (`line.tsx`, `state.ts`, `hooks.tsx`, `acts.tsx`, `turns.tsx`, `under.ts`, `draw.tsx`, `place.ts`, with
+the bag every part reads typed in `types.ts`). The face is the kit's (`surfaces/kit/face/ask-face.tsx`, as the one-system plan's
+step 4 said), which the frame imports.
+
+- **Imports, not the window.** `window.AskHome`, `window.AskHooks`, `window.AskAnswerKit`, `window.askText`, `window.AskLineReal`,
+  `W.LineChart` and the rest are imports; `legacy-bridge/ask/line-code.ts` and `line-globals.ts` went, and the frame's door
+  fetches `surfaces/ask/line/line.tsx`. What Ask asks of the bridge and the frame goes through `legacy-verbs.ts` (`askCalls()`
+  for `window.__ask`, as Today reads it) and `surfaces/ask/shell.ts`, which say each name once, as every surface's do.
+- **Still a chunk.** `tooling/scripts/tests/ask/ask-line-chunk.test.mjs` walks the static imports from the frame's entry and
+  fails a module of `surfaces/ask/` it reaches. The Line's door and `window.__ask` stay in the frame, as they did; the
+  one-system plan's steps 4 and 5 (the mascot after the first paint, Ask's install as a door) were left for pull requests
+  of their own, so this one moves no byte's timing.
+- **The checks hold it.** Typecheck, Prettier, the full lint and the function limits read the folder; it joins `KIT_PENDING`
+  for its raw controls until its kit step. Each of the page's dependency warnings was read, none was a bug, and each carries
+  its reason on its line. A function past four parameters takes an object now (`atRecord`, `atUndoOpen`, `arBeginTurn`).
+- **Tests.** `ask-palette.test.mjs` runs over the TSX with its cases as they were, and five new cases run what `ask.test.mjs`,
+  `broadcasts.test.mjs` and `playbooks.test.mjs` pinned as source text. The mockup draws the Line from a bundle of its own
+  (`data/ask-line.js`). `repo/hook-aliases-are-linted.test.mjs` and the lint's alias pattern went with the last alias.
+- **Proof.** A throwaway recorder ran the palette test's worlds over HEAD's JSX and over the TSX: 81,505 draws in 103 cases,
+  379 distinct trees, no difference but the clocks and the `AskFace` prop `AskListen` no longer takes, since it imports it. The
+  production build, behind `dev-tools/ask-rig.mjs` (scripted turns, nothing written), was then walked at 1280 and at 375:
+  answers, a card approved and its receipt, Stop, the three steps of Esc, Earlier, a delete asked first, a press outside, a
+  conversation resumed, focus, and on a phone the takeover, the field composing and Back. The route's JavaScript moved 465 B
+  gzipped against main's reading (755,380 to 755,845, under its 1 KB line), and no page's moved.

@@ -68,7 +68,7 @@ export interface AskBreakdown {
 export interface AskOpen {
   to: string;
   label: string;
-  /** Opened 250ms after the answer lands (ask-real.jsx), when the person asked to open, show or see it. */
+  /** Opened 250ms after the answer lands (surfaces/ask/line/), when the person asked to open, show or see it. */
   now: boolean;
 }
 /** How a list is marked: a bullet, a number (steps, an order), or nothing, one entry to a line. */

@@ -348,7 +348,7 @@ test("a second turn is asked in the first's thread: its page the case's, its own
   assert.deepEqual(
     [own.context, own.surface, own.warm],
     [focus, "people", false],
-    "a focus the words name warms nothing: the palette warms as its route changes (ask-real.jsx)",
+    "a focus the words name warms nothing: the palette warms as its route changes (surfaces/ask/line/)",
   );
   const moved = { ...PEOPLE_PAGE, route: "clients/<row:2>" };
   assert.equal(

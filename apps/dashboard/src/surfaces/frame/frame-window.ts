@@ -37,8 +37,6 @@ declare global {
     __BILLING_ACCOUNT?: SurfaceValues["billing"];
     /** Ask, wired to the workspace (legacy-bridge/ask.ts): the follow-ups that came due, which the top bar marks. */
     __ask?: { followUpsDue?: () => readonly unknown[] };
-    /** Ask's face, the three (components/ask-face.jsx), which the top bar's Ask button draws. */
-    AskFace?: ComponentType<{ className?: string; testId?: string }>;
     /** The demo's seeded leads (the mockup's; nothing in the app fills it). */
     LEADS?: ReadonlyArray<{ stage?: string }>;
     /** Calls going on and the last few, with the heartbeat rule (surfaces/live/surface.ts), for the Live tab's pulse. */

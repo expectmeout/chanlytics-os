@@ -1383,22 +1383,13 @@ test("the entry points are real everywhere: no Soon tag, ⌘K and the button ope
   const shell = readCode("apps/dashboard/src/surfaces/frame/app-shell.tsx");
   assert.ok(shell.includes("appAsk: openAsk"), "the frame publishes the door the pages open the palette by");
   assert.ok(!shell.includes("Ask stubbed outside demo"));
-  // The seeded palette went with the mockup's pages (17 Oct 2026): the AskBar is the Line (ask-real.jsx) everywhere, and
+  // The seeded palette went with the mockup's pages (17 Oct 2026): the AskBar is the Line (surfaces/ask/) everywhere, and
   // the door into Ask is the bridge's (surfaces/frame-doors.ts).
   assert.equal(existsSync("apps/dashboard/src/legacy/demo/pages/dashboard-a-ask.jsx"), false, "no seeded palette");
-  const real = readCode("apps/dashboard/src/legacy/pages/ask-real.jsx");
-  assert.ok(real.includes('data-testid="ask-real"') && real.includes('data-testid="ask-input"'));
   // A real workspace's AskBar is the frame's door to the Line (ask/line.tsx, published by seed-globals.ts), with no seeded
-  // file to choose it: the Line is ask-real.jsx's, under its own name.
-  assert.ok(real.includes("window.AskLineReal = AskReal;"), "the Line is ask-real.jsx's");
-  // A quick answer never spends a model turn: executed in ask-palette.test.mjs ("the Line at rest").
-  assert.ok(!/Aisha|Jordan|Lena|Drifting VIP|revenue pacing/.test(real), "nothing seeded in the real palette");
-  // The Line is a chunk of its own (ask/line-code.ts), fetched by the frame's ask/line.tsx: the frame's manifest carries
-  // none of it (the loadability review, 19 Oct 2026).
-  const line = readCode("apps/dashboard/src/legacy-bridge/ask/line-code.ts");
-  for (const part of ["ask-text", "ask-hooks", "ask-turn", "ask-home", "ask-real"])
-    assert.ok(line.includes(`import "@/legacy/pages/${part}.jsx";`), part);
-  assert.ok(line.indexOf("ask-real.jsx") > line.indexOf("ask-home.jsx"), "the shell loads after its parts");
+  // file to choose it, and the Line is its own dialog with nothing seeded in it: executed in ask-palette.test.mjs ("the Line
+  // is its own dialog"). A quick answer never spends a model turn: there too ("the Line at rest").
+  // The Line is a chunk of its own, fetched by the frame's ask/line.tsx: the imports are walked in ask-line-chunk.test.mjs.
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installAsk();"));
   assert.ok(readCode("packages/contracts/src/index.ts").includes('export * from "./ask";'));
   const wr = readCode("apps/dashboard/src/server/with-route.ts");
@@ -1502,13 +1493,11 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
   // undo through the cancel window -- was pinned here as commit.ts's text. It is each kind's spec now, and it runs:
   // ask-commit.test.mjs, "every kind, committed and undone" and the case per kind, over the typed client; and
   // ask-specs.test.mjs holds every route a spec names to the app's routes and to the card's role.
-  const ui = readCode("apps/dashboard/src/legacy/pages/ask-turn.jsx");
-  assert.ok(ui.includes('data-testid="ask-card"') && ui.includes('data-testid="ask-card-approve"'));
   // The card checks the role gate before Approve (the route re-checks): executed in ask-palette.test.mjs, "a card's
   // Approve is gated by the shell's rule".
   // What became of the card is kept on the turn (A.outcome, the outcome route): executed in ask-palette.test.mjs, "a card
   // approved records what its commit made with its outcome" and, through the real route, "REGRESSION (ruling 3)".
-  assert.ok(ui.includes('p.outcome ? p.outcome.state : "idle"'), "a thread reads back with the card's outcome");
+  // A thread reads back with the card's outcome: executed in ask-palette.test.mjs ("a card drawn again reads back").
   const thread = readCode("apps/dashboard/src/surfaces/inbox/thread/composer.tsx");
   assert.ok(thread.includes("if (words) setText(words);"), "Edit in the composer lands the words in the composer");
 });
@@ -1706,11 +1695,7 @@ test("the cards to finish: an operator is offered cards to finish, a viewer none
     canAct: true,
   });
   assert.ok(es.some((s) => s.kind === "act" && /Retén cada respuesta/.test(s.q)));
-  const ui = readCode("apps/dashboard/src/legacy/pages/ask-real.jsx");
-  assert.ok(
-    ui.includes("if (it.compose) { setQuery(it.q);"),
-    "a compose row lands in the input for the person to finish",
-  );
+  // A compose row lands in the input for the person to finish: executed in ask-palette.test.mjs ("a compose row").
   assert.ok(
     readCode("apps/dashboard/src/legacy-bridge/ask/palette.ts").includes(
       "canAct: !!ROLE_PERMS[w.__ME?.role as keyof typeof ROLE_PERMS]?.approve,",
@@ -1743,12 +1728,8 @@ test("the Open button says where it goes, a repeated question is the same thread
   assert.equal(sameQuestion("Who wrote today?", "who wrote today"), true);
   assert.equal(sameQuestion("Who wrote today?", "Who called today?"), false);
   assert.equal(sameQuestion("", ""), false);
-  const shell = readCode("apps/dashboard/src/legacy/pages/ask-real.jsx");
-  assert.ok(
-    shell.includes("const list = await (threadsReady.current || Promise.resolve(threads));") &&
-      shell.includes("const twin = list.find((th) => A.sameQuestion(th.title, q));"),
-    "a repeated question resumes its thread instead of opening a twin, even before the list has landed",
-  );
+  // A repeated question resumes its thread instead of opening a twin, even before the list has landed: executed in
+  // ask-palette.test.mjs ("a question asked again").
   // Copy, read aloud and Clear are the line's, once an answer is on it: executed in ask-palette.test.mjs.
   // The bridge is four modules composed into one object; the shell reaches nothing else.
   for (const f of ["api", "commit", "speech", "palette"])
