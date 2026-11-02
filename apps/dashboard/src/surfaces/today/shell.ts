@@ -15,10 +15,10 @@ import type { BellApi } from "@/legacy-bridge/notifications";
 import type { PageClock } from "@/legacy-bridge/zone";
 import { surfaceHook } from "@/legacy-bridge/surface-status";
 import type { SurfaceNames } from "@/legacy-bridge/surface-status";
-import { askAbout, canDo, holdStill } from "../legacy-verbs";
+import { askAbout, canDo, holdStill, mayAtLeast } from "../legacy-verbs";
 import { fn, object, type Flash } from "../shell-doors";
 
-export { askAbout, canDo, holdStill };
+export { askAbout, canDo, holdStill, mayAtLeast };
 
 /* The role gate and the toast are the doors every surface shares (shell-doors.ts). */
 export { gate, useToast } from "../shell-doors";

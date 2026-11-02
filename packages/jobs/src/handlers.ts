@@ -15,6 +15,7 @@ import {
   EVENT_SUBSCRIBERS,
   type EventSubscriber,
   isBookingTool,
+  senderVerdictOf,
 } from "@chanlytics/contracts";
 import {
   classifyReceived,
@@ -43,6 +44,7 @@ import {
   mailboxById,
   liveMailboxByAddress,
   mailboxConnectionOf,
+  mailboxSenderVerdicts,
   markProcessed,
   reachOutReplyOf,
   sentEmailWithMessageId,
@@ -309,6 +311,9 @@ async function emailIngest(ctx: JobContext, job: ClaimedJob): Promise<void> {
         }
         return false;
       },
+      // What the workspace said of the sender (00483), as a connected mailbox's sorting reads it: "Not a person" holds
+      // on this road too.
+      senderSaid: async (tenantId, address) => senderVerdictOf(await mailboxSenderVerdicts(db, tenantId), address),
       now: Date.now,
     },
     { payload: job.payload },

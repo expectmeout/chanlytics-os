@@ -72,15 +72,34 @@
 .today-queue[data-phone] .ny-group-head {
   padding: 0 6px 8px;
 }
-.dash-a-v2 .today-queue[data-phone] .ny-pane > .cl-attn-row {
+/* A row in a pane, wherever it stands in it: a group's, or one of To do's or Ask found's opened under its line. */
+.dash-a-v2 .today-queue[data-phone] .ny-pane .cl-attn-row {
   position: relative;
   padding: 13px 16px 13px 14px;
   border-top: 0;
 }
-.dash-a-v2 .today-queue[data-phone] .ny-pane > .cl-attn-row:has(> .cl-attn-work) {
+/* A row worked in place, as the canvas's card sets it (Up next; an idea or a to-do opened under its line): the face beside
+   the name on the first line, and their words, Ask's and the presses under them across the row, where they stood a face's
+   width in with a column of nothing under the face (his phone, 2 Nov 2026). */
+.dash-a-v2 .today-queue[data-phone] .ny-pane .cl-attn-row:has(> .cl-attn-work) {
   padding: 16px 16px 14px 14px;
 }
-.today-queue[data-phone] .ny-pane > * + .cl-attn-row::before {
+.dash-a-v2 .today-queue[data-phone] .ny-pane .cl-attn-row:has(> .cl-attn-work) > :first-child {
+  position: absolute;
+  top: 16px;
+  left: 14px;
+}
+.dash-a-v2 .today-queue[data-phone] .ny-pane .cl-attn-row:has(> .cl-attn-work) > :is(.cl-attn-body, .cl-attn-work) {
+  grid-column: 1 / -1;
+}
+.dash-a-v2 .today-queue[data-phone] .ny-pane .cl-attn-row:has(> .cl-attn-work) .cl-attn-name {
+  align-items: center;
+  min-height: 36px;
+  padding-left: 48px;
+}
+/* A hairline between two rows from where the words begin, and over the first row a line opens. */
+.today-queue[data-phone] .ny-pane .cl-attn-row + .cl-attn-row::before,
+.today-queue[data-phone] .ny-more > .tq-list > .cl-attn-row:first-child::before {
   content: "";
   position: absolute;
   top: 0;
@@ -88,6 +107,11 @@
   left: 62px;
   height: 1px;
   background: var(--line);
+}
+/* Over a row worked in place the hairline starts where its words do, at the pane's own padding. */
+.today-queue[data-phone] .ny-pane .cl-attn-row:has(> .cl-attn-work)::before,
+.today-queue[data-phone] .ny-more > .tq-list > .cl-attn-row:first-child:has(> .cl-attn-work)::before {
+  left: 14px;
 }
 /* To do and Ask found, a row each in their pane: the glyph a tile, the name over what it holds, how many, the chevron. */
 .today-queue[data-phone] .ny-foot-lines {

@@ -167,6 +167,27 @@ test("a claim decides how LITTLE is done: an automatic reply and an automated em
   );
 });
 
+test("what the workspace said of the sender comes before what the email claims: Not a person is not taken in again, a person is asked of", async () => {
+  const left = world({ senderSaid: "automated" });
+  assert.equal(await run(left), "left_as_said", "REGRESSION: the person the owner deleted was made again, in Need you");
+  assert.deepEqual(
+    left.ops(),
+    ["mailbox", "fetch", "ours", "readByMailbox", "erasedBefore", "senderSaid", "received"],
+    "nothing kept, nobody asked; the address is still heard from",
+  );
+  assert.deepEqual(
+    left.call("senderSaid"),
+    ["senderSaid", T, "ana@example.com"],
+    "in the spelling a person is kept in",
+  );
+  const person = world({ senderSaid: "person", fetch: email({ claim: "automated" }) });
+  assert.equal(await run(person), "kept_for_a_person", "asked of, whatever it claims");
+  assert.deepEqual(person.call("escalate"), ["escalate", T, "c1", "email_review", EMAIL_REVIEW_WORDS.automated]);
+  const echo = world({ senderSaid: "person", fetch: email({ claim: "auto_reply" }) });
+  assert.equal(await run(echo), "kept_quietly", "an automatic reply asks nobody, whoever sent it");
+  assert.equal(await run(world({ senderSaid: null })), "kept_for_a_person", "nothing said: the claim decides");
+});
+
 test("a booking tool's notice is read into an appointment, never kept as a thread: only from a proved sender, only the tool the workspace named, and a forward by hand only from a member; anything else is the automated email it looks like", async () => {
   const notice = (over = {}) =>
     email({

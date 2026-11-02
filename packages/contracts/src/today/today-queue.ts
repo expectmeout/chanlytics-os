@@ -1,7 +1,8 @@
 /**
  * Today's queue: everything that asks for a person (a handoff, a call-back, a closing window, a call worth an
- * ear, a search waiting on its owner) in one row grammar, longest wait first. The facts are today-facts.ts's; the
- * calls worth an ear are today-rows.ts's.
+ * ear, a search waiting on its owner) in one row grammar, in Need you's order (need-you-groups.ts needYouOrder: a near
+ * clock, then what each is worth, the longest wait among equals). The facts are today-facts.ts's; the calls worth an
+ * ear are today-rows.ts's.
  */
 import { addressOf } from "../activity/record-address";
 import { HOLD_ACT_WORDS, holdActOf, reasonLabelOf, reasonShort } from "../conversations/escalations";
@@ -13,7 +14,7 @@ import type { ConversationDto } from "../conversations/thread-dto";
 import { waWindow } from "../config/policy";
 import { leadQuestionRoute, type LeadSearchDto } from "../leads/leads";
 import { previewSaidOf, previewTriedWords, type PreviewTriedDto } from "../previews/preview-tried";
-import { clockIsNear } from "../need-you/need-you-groups";
+import { needYouOrder } from "../need-you/need-you-groups";
 import { NEED_YOU_WORDS } from "../need-you/need-you-words";
 import { MIN_MS, HOUR_MS } from "../shared/time";
 import { tzClock } from "./today-clock";
@@ -23,6 +24,9 @@ import type { TodayCallRowVM, TodayQueueEmptyVM, TodayQueueRowVM, TodayVM } from
 
 /** Six rows on Today; the rest is a count for the Inbox link. */
 const TODAY_QUEUE_MAX = 6;
+
+/** The reasons of a hold that is someone asking to book: a time they picked by text (0061), or an ask for one. */
+const BOOKING_REASONS: ReadonlySet<string> = new Set(["booking_request", "booking_reply"]);
 
 /** The kinds of row that are a person waiting on one; a search and a call worth a listen wait elsewhere and are said apart. */
 const PEOPLE_KINDS: ReadonlySet<TodayQueueRowVM["kind"]> = new Set(["handoff", "callback", "window", "reply"]);
@@ -222,6 +226,8 @@ function handoffOf(r: EscalationRecord, f: TodayFacts): TodayQueueRowVM {
     waitedMs: r.waitedMs,
     act: holdActOf(e.reason),
     clock_ms: windowLeftMs(r.conv, f.now),
+    // Someone asking to book, a time they picked or an ask for one: worth the most of anyone waiting (needYouOrder).
+    ...(BOOKING_REASONS.has(e.reason) ? { booking: true } : {}),
   };
 }
 
@@ -377,15 +383,11 @@ export function todayQueue(f: TodayFacts, callRows: TodayCallRowVM[], empty: Tod
   }
   // The leads who tried their preview, newest first, after everyone waiting (decision 0079).
   for (const t of f.previewsTried) queueAll.push(triedRow(t, f));
-  // A clock near enough first, the nearest before the rest (a reply that goes on its own in seconds, then a window that
-  // shuts within two hours): a window that shuts cannot be answered later, and an old wait still can. Then the longest
-  // wait first, a window by how soon it closes, a call worth an ear last (need-you-groups.ts says what each is).
-  queueAll.sort((a, b) => {
-    const near = Number(clockIsNear(b)) - Number(clockIsNear(a));
-    if (near) return near;
-    if (clockIsNear(a)) return (a.clock_ms ?? 0) - (b.clock_ms ?? 0);
-    return b.waitedMs - a.waitedMs;
-  });
+  // Need you's order (need-you-groups.ts needYouOrder), before the six are cut: a clock near enough first (a reply that
+  // goes on its own in seconds, then a window that shuts within two hours), since a window that shuts cannot be answered
+  // later and an old wait still can; then the waits under a week by what each is worth, a booking first, the longest
+  // wait among equals. Sorted by the longest wait alone, a week's old mail took the six and the new asks were a count.
+  queueAll.sort(needYouOrder);
   const countOf = (...kinds: TodayQueueRowVM["kind"][]) => queueAll.filter((r) => kinds.includes(r.kind)).length;
   const needN = countOf("handoff", "callback");
   const winN = countOf("window");

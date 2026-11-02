@@ -5,11 +5,17 @@
  * until a time on the business's clock, and their next message brings it back sooner (00005); Wake undoes it.
  */
 import { useMemo, useState, type ReactNode } from "react";
-import { NEED_YOU_WORDS as W, THREAD_CHANNEL_WORDS, notNowChoices, type TodayQueueRowVM } from "@chanlytics/contracts";
+import {
+  NEED_YOU_WORDS as W,
+  THREAD_CHANNEL_WORDS,
+  addressOf,
+  notNowChoices,
+  type TodayQueueRowVM,
+} from "@chanlytics/contracts";
 import { commitVerb, undoVerb } from "@/legacy-bridge/verbs/commit";
-import { carryReply } from "../../inbox/carried-reply";
+import { carryNotAPerson, carryReply } from "../../inbox/carried-reply";
 import { Button } from "../../kit";
-import { appNavigate, gate } from "../shell";
+import { appNavigate, gate, mayAtLeast } from "../shell";
 import { useDraft, type DraftWant } from "./drafts";
 import { Acts, Done, Going, Note, NotNow, Words, Writing, whoseWords, type WorkProps } from "./parts";
 import { clearSend, sendWords, undoSend, useSend } from "./sends";
@@ -66,6 +72,21 @@ export function useNotNow(p: WorkProps, setSnoozed: (s: Snoozed) => void) {
   const closes = row.writes?.window_closes;
   const caption = [W.backSooner(row.who), closes ? W.windowCloses(closes) : ""].filter(Boolean).join(" ");
   return { choices, choose, busy, caption, fresh: () => setAt(Date.now()) };
+}
+
+/**
+ * Not a person, on an email's row (decision 0080): a program's mail taken for a person is let go where the owner meets it,
+ * and the sorting is taught (its address, or its domain, said to be automated, so its mail stays in the mailbox from now
+ * on). It deletes them, so it opens their page with Not a person asked, the typed name and all (00483), as the thread's
+ * Actions do. The owner's alone, on a row whose person is known; null on any other.
+ */
+function notAPersonOf(row: TodayQueueRowVM, wire: string): (() => void) | null {
+  const id = row.person_id;
+  if (!id || wire !== THREAD_CHANNEL_WORDS.email || !mayAtLeast("owner")) return null;
+  return () => {
+    carryNotAPerson(id);
+    appNavigate(addressOf({ kind: "person", id }));
+  };
 }
 
 /** Why a send was refused, and the address an email reply waits on a yes to, where the door asked. */
@@ -203,6 +224,7 @@ export function ReplyWork(p: WorkProps & { what?: string; by?: string; start?: R
         onOpen={notNow.fresh}
         onChoose={(i) => void notNow.choose(i)}
         busy={notNow.busy}
+        letGo={notAPersonOf(row, wire)}
       />
     ) : null;
   const writeIt = (

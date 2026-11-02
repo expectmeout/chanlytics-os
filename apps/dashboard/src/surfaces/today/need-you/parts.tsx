@@ -16,7 +16,13 @@ import {
   type RefObject,
 } from "react";
 import { createPortal } from "react-dom";
-import { NEED_YOU_WORDS as W, type CallBrief, type NotNowChoice, type TodayQueueRowVM } from "@chanlytics/contracts";
+import {
+  NEED_YOU_WORDS as W,
+  NOT_A_PERSON_WORDS,
+  type CallBrief,
+  type NotNowChoice,
+  type TodayQueueRowVM,
+} from "@chanlytics/contracts";
 import { Button, Field, Menu, Meter, Panel } from "../../kit";
 import { Icon } from "../../kit/icon/icon";
 import { editorBox, focusAsDrawn } from "../../legacy-verbs";
@@ -506,6 +512,7 @@ export function NotNow({
   onOpen,
   onChoose,
   busy,
+  letGo,
 }: {
   who: string;
   label?: string;
@@ -514,6 +521,11 @@ export function NotNow({
   onOpen?: () => void;
   onChoose: (i: number) => void;
   busy?: boolean;
+  /**
+   * Not a person, under the times, where the row may be a program's mail and the member may say so (reply-work.tsx
+   * notAPersonOf): never now, rather than not now. Absent everywhere else.
+   */
+  letGo?: (() => void) | null;
 }) {
   return (
     <Menu
@@ -530,6 +542,21 @@ export function NotNow({
           items: choices.map((c, i) => ({ label: c.label, hint: c.when, onSelect: () => onChoose(i) })),
           ...(caption ? { caption } : {}),
         },
+        ...(letGo
+          ? [
+              {
+                items: [
+                  {
+                    label: NOT_A_PERSON_WORDS.act,
+                    meta: NOT_A_PERSON_WORDS.actHint,
+                    glyph: <Icon name="ban" size={13} />,
+                    tone: "danger" as const,
+                    onSelect: letGo,
+                  },
+                ],
+              },
+            ]
+          : []),
       ]}
     />
   );

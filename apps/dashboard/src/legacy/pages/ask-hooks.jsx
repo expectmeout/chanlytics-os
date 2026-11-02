@@ -381,8 +381,33 @@ const ahPanelKeys = (e, escape) => {
   escape();
 };
 
+// What stands open over the page and holds Esc while it does. A desk's panel is none of these: it is `complementary`.
+const AH_OPEN_OVER = '[role="dialog"], [role="alertdialog"], [role="menu"], .pop-place';
+
+// The panel keeps its own keys, so an Esc the window hears on a desk was pressed beside it. It is Ask's wherever focus is,
+// unless the page has a use for it: a peek, the plan panel, the pile and a selection take it and say so (spec F7), a field
+// keeps its own, as the page's keys leave it, but for the bar's line, Ask's own door, which says so when it has words to
+// empty; and a sheet or a menu closes itself and says nothing, often before the window hears the key, so what stands
+// open is read as the key goes down, ahead of every listener.
+const useAskEscBeside = (on) => {
+  const free = useAhRef(false);
+  useAhEffect(() => {
+    if (!on || typeof document === "undefined") return undefined;
+    const read = (e) => {
+      if (e.key !== "Escape") return;
+      const from = e.target && e.target.nodeType === 1 ? e.target : document.activeElement;
+      const field = window.__chrome && window.__chrome.typing(from) && !(from.closest && from.closest(".tb-line"));
+      free.current = !field && !document.querySelector(AH_OPEN_OVER);
+    };
+    window.addEventListener("keydown", read, true);
+    return () => window.removeEventListener("keydown", read, true);
+  }, [on, free]);
+  return free;
+};
+
 window.AskHooks = {
   useAskTalk, useHoldSpace, useHoldPress, useAskFocus, useAskSpeech, useAskWarm, useAskPin, useAskLatest, useAskGrow,
-  useAskBack, useAskPressAway, useAskAway, useAskGiveBack, useAskScrollCues,
+  useAskBack, useAskPressAway, useAskAway, useAskGiveBack, useAskScrollCues, useAskEscBeside,
   pinNow: ahPinNow, pinTop: ahPinTop, latestShown: ahLatestShown, slide: ahSlide, slideFrom: ahSlideFrom, panelKeys: ahPanelKeys,
+  openOver: AH_OPEN_OVER,
 };
