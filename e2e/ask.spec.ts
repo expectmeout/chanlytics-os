@@ -156,7 +156,7 @@ test.describe("Ask on a real workspace", () => {
     test.setTimeout(120_000);
     const ws = await activeWorkspace(page);
     const res = await page.request.post(scoped("/api/v1/ask", ws), {
-      data: { text: "invite ask-e2e-card@example.com as a viewer", thread_id: null, scope: null, surface: "settings" },
+      data: { text: "add a note on Robin Example: prefers mornings", thread_id: null, scope: null, surface: "people" },
       ...fromTheApp,
       timeout: 90_000,
     });
@@ -168,23 +168,20 @@ test.describe("Ask on a real workspace", () => {
     const final = lines.find((l) => l.t === "final");
     expect(final).toBeTruthy();
     if (!final.message.failed) {
-      const invite = final.message.proposals.find((p: { kind: string }) => p.kind === "invite");
-      expect(invite, "an invite card").toBeTruthy();
-      expect(invite.needs).toBe("owner");
-      expect(invite.payload.email).toBe("ask-e2e-card@example.com");
-      expect(final.message.text).not.toMatch(/\bI (have )?(sent|invited)\b/i);
-      // Dismissing is recorded on the turn; approving would send a real email.
-      const out = await page.request.post(
-        scoped(`/api/v1/ask/messages/${final.message.id}/proposals/${invite.id}`, ws),
-        {
-          data: { state: "dismissed", receipt: "Not now", atMs: Date.now() },
-          ...fromTheApp,
-        },
-      );
+      const note = final.message.proposals.find((p: { kind: string }) => p.kind === "note");
+      expect(note, "a note card").toBeTruthy();
+      expect(note.title).toBe("Note on Robin Example");
+      expect(note.payload.body).toMatch(/morning/i);
+      expect(final.message.text).not.toMatch(/\bI (have )?(added|saved|noted)\b/i);
+      // Dismissing is recorded on the turn; approving would write the note.
+      const out = await page.request.post(scoped(`/api/v1/ask/messages/${final.message.id}/proposals/${note.id}`, ws), {
+        data: { state: "dismissed", receipt: "Not now", atMs: Date.now() },
+        ...fromTheApp,
+      });
       expect(out.status()).toBe(200);
       const back = await apiGet(page, `/api/v1/ask/threads/${lines[0].id}`);
       const { data } = await back.json();
-      const stored = data.messages[1].proposals.find((p: { id: string }) => p.id === invite.id);
+      const stored = data.messages[1].proposals.find((p: { id: string }) => p.id === note.id);
       expect(stored.outcome.state).toBe("dismissed");
     }
     await page.request.delete(scoped(`/api/v1/ask/threads/${lines[0].id}`, ws), fromTheApp);
