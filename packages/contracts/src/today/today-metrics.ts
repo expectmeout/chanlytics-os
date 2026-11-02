@@ -41,6 +41,35 @@ export function emailWires(email: EmailSetupDto | null | undefined): MetricsChan
     : [];
 }
 
+/** One visit booked in the window, as the figure's receipt says it: who, when, and what for. */
+export interface TodayBookedDto {
+  /** The appointment's id on the record, which the receipt's door opens on its day. */
+  id: string;
+  start: string;
+  end: string;
+  all_day: boolean;
+  /** The zone the visit is kept in. */
+  timezone: string;
+  /** The name the booking states, else the person it is linked to; null for nobody named, and for an erased person. */
+  who: string | null;
+  service: string | null;
+}
+
+/** What was booked in the window: how many, the first few of them, and whether a booking can arrive here at all. */
+export interface TodayBookingsDto {
+  booked: number;
+  /** The soonest first, at most TODAY_BOOKED_SHOWN. */
+  visits: TodayBookedDto[];
+  /**
+   * A booking can arrive in this workspace: the record holds a visit a booking's source brought (the owner's calendar, a
+   * booking tool, its email). False where none ever has, so a zero says a calendar is to be linked, never that nobody booked.
+   */
+  arrive: boolean;
+}
+
+/** The most booked visits the answer carries: the receipt names three and counts the rest. */
+export const TODAY_BOOKED_SHOWN = 10;
+
 export interface MetricsSummaryDto {
   workspace: { name: string; timezone: string; status: string };
   channels: MetricsChannelDto[];
@@ -60,6 +89,13 @@ export interface MetricsSummaryDto {
    * reply waited a hold, and the sentences then say the median.
    */
   reply_hold?: ReplyHoldDto;
+  /**
+   * What was booked in a one-day window (Today's), which its figures lead with (decision 0076, as amended 2 Nov 2026): the
+   * customers' bookings that arrived, by the bell's own rule (notices/visit-news.ts bookingArriving), each still standing and
+   * each once. Counted by the server (server/metrics/bookings.ts) beside the function. Absent from an older server's answer
+   * and from a longer window, null where its read failed: the figures are then the four they were.
+   */
+  bookings?: TodayBookingsDto | null;
   window: { days: number; since: string; since_local: string; now_local: string };
   now: {
     escalations_open: number;

@@ -24,6 +24,7 @@ import type { JobNews } from "../today/notifications";
 import { visitRoute } from "../calendar/appointment-key";
 import { visitDateKey, visitLine } from "../calendar/calendar-people";
 import type { FreedTimeOffer } from "../calendar/visit/freed-time";
+import { MIN_MS } from "../shared/time";
 import { plural } from "../shared/words";
 
 /** The changes of the record that are a booking arriving: a visit added, and a proposed one confirmed. */
@@ -47,7 +48,9 @@ export const VISIT_CHANGES_TOLD = {
 
 /** The sources a customer's booking comes by. A member's own entry (`person`) is the owner's, not news. */
 export type BookingVia = "booking_email" | "booking_tool" | "calendar_feed";
-const ARRIVES_BY: ReadonlySet<string> = new Set<BookingVia>(["booking_email", "booking_tool", "calendar_feed"]);
+/** The sources a customer's booking comes by, each once: the record's reads ask for these (db bookedVisitsOf). */
+export const BOOKING_VIAS: readonly BookingVia[] = ["booking_email", "booking_tool", "calendar_feed"];
+const ARRIVES_BY: ReadonlySet<string> = new Set<BookingVia>(BOOKING_VIAS);
 
 /**
  * How many visits one read of the owner's calendar may add before it is not news. The hourly sweep keeps every entry the
@@ -154,6 +157,25 @@ export interface BookedVisit {
   who: string | null;
   service: string | null;
   via: BookingVia;
+}
+
+/** How near two sightings' starts stand to be one visit: its tool's notice and the calendar's copy of it. */
+const ONE_VISIT_MS = 30 * MIN_MS;
+
+/**
+ * The visits booked, each once: a booking seen twice (its tool's email, then the calendar's copy, or the other way round)
+ * is one visit, by the same person named, starting within half an hour. The feed marks the copy it sees after the booking
+ * (`twin`); this catches the copy seen first. A visit linked to nobody cannot be matched, and stands. The soonest first.
+ */
+export function bookedOnce(visits: readonly BookedVisit[]): BookedVisit[] {
+  const sorted = [...visits].sort((a, b) => Date.parse(a.start) - Date.parse(b.start) || a.id.localeCompare(b.id));
+  return sorted.filter(
+    (v, i) =>
+      !v.who ||
+      !sorted
+        .slice(0, i)
+        .some((o) => o.who === v.who && Math.abs(Date.parse(o.start) - Date.parse(v.start)) <= ONE_VISIT_MS),
+  );
 }
 
 const VIA_WORDS: Readonly<Record<BookingVia, string>> = {

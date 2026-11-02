@@ -18,6 +18,7 @@ import {
   sameVisitOnRecord,
   sightingStands,
   type BookedVisit,
+  BOOKING_VIAS,
   type BookingVia,
   type MemberJoined,
   type OptOutPerson,
@@ -424,7 +425,7 @@ export async function eventTold(db: Db, p: { tenantId: string; eventId: string }
 }
 
 /** The sources a customer's booking comes by (contracts bookingArriving): a member's own entry (`person`) is not one. */
-const BOOKING_SOURCES: readonly BookingVia[] = ["booking_email", "booking_tool", "calendar_feed"];
+const BOOKING_SOURCES = BOOKING_VIAS;
 
 /**
  * The visits of the record among `ids` that are booked and still ahead of `nowMs`, as the record says them now, and who

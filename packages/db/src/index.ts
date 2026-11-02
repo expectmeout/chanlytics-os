@@ -125,6 +125,7 @@ export type {
   EarlierVisitRow,
   VisitOriginRow,
 } from "./repositories/calendar/appointments";
+export { bookingsCanArrive, visitChangesSince } from "./repositories/calendar/arrivals";
 export {
   appointmentNoticeById,
   appointmentNoticeOf,

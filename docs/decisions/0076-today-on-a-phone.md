@@ -121,3 +121,18 @@ week before those past it; then what each is worth, someone asking to book (a ti
 `booking`) before a call back, before a lead's reply to a reach-out, before the rest; the longest wait among equals. Sorted
 by the longest wait alone, a week's old mail took the six and the new asks were a count at the foot. An email's row says
 Not a person under Not now's times, the owner's, as the thread's Actions do (decision 0080).
+
+Outcomes before activity (2 Nov 2026, the same read's items 3 and 4):
+
+- **A row is let go from the row.** Under Not now's times a hold's row (a handoff, a reach-out's reply read) says Mark done:
+  its thread goes back to the receptionist (the thread verb `hand_back`, as Mark all done does), the row says so in its
+  place with Undo, and a new message from them brings them back. Before, a row left only by Mark all done, once a week
+  old. Not a person stands under it on an email's row, the owner's.
+- **The figures lead with what was booked.** The four are booked, customer messages, answered by the receptionist and
+  calls; new people gives up its seat, since a booking is the outcome a new person leads to, and People and Reports
+  count them. Booked is the bell's own rule over the day (contracts `bookingArriving`: a visit added or confirmed by the
+  owner's calendar, a booking tool or its email, never the owner's own entry or a calendar's first read), each still
+  booked and each once (`bookedOnce`), counted by the server beside `metrics_summary` (`server/metrics/bookings.ts`), so
+  the page, Ask's Today and the bell agree. Its clause is the soonest, its receipt who booked for when, opening the
+  soonest on its day; a zero on a workspace no booking has ever reached asks for a calendar link instead of saying nobody
+  booked. A read that says nothing of bookings (an older server, a read that failed) keeps the four as they were.

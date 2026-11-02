@@ -89,6 +89,33 @@ function notAPersonOf(row: TodayQueueRowVM, wire: string): (() => void) | null {
   };
 }
 
+/**
+ * Mark done on one row (2 Nov 2026: a row was let go only by Mark all done, once a week old): the hold resolved and the
+ * thread the receptionist's again (core handBack, as Mark all done and a call back's Reached do), so it answers them if
+ * they write; Undo takes the thread over again (the verb's own inverse). A hold's row alone, a handoff or a reach-out's
+ * reply read: a closing window and a reply counting down hold nothing to give back.
+ */
+function useMarkDone(p: WorkProps) {
+  const { row, flash, keep } = p;
+  const [done, setDone] = useRowState<Record<string, unknown> | null>(row.id, "markedDone", null);
+  const may = p.may && !!row.conversationId && (row.kind === "handoff" || row.kind === "reply");
+  const mark = async () => {
+    if (!row.conversationId) return;
+    // Kept before the door is asked: its refresh drops the hold from the read, and the row must stay to say so.
+    keep(row);
+    const r = await commitVerb("thread_verb", { verb: "hand_back", conversation_id: row.conversationId, who: row.who });
+    if (!r.ok) return flash({ tone: "danger", msg: <>{r.message}</> });
+    setDone(r.undo ?? {});
+  };
+  const undo = async () => {
+    if (!done) return;
+    const r = await undoVerb("thread_verb", done);
+    if (!r.ok) flash({ tone: "danger", msg: <>{r.message}</> });
+    else setDone(null);
+  };
+  return { done: done !== null, mark: may ? () => void mark() : null, undo: () => void undo() };
+}
+
 /** Why a send was refused, and the address an email reply waits on a yes to, where the door asked. */
 interface Refused {
   message: string;
@@ -127,6 +154,7 @@ export function ReplyWork(p: WorkProps & { what?: string; by?: string; start?: R
   const { draft, written, words } = useWords(row, mine, may);
   const { s: send, seconds, share } = useSend(row.id);
   const notNow = useNotNow(p, setSnoozed);
+  const marked = useMarkDone(p);
   const closed = row.writes?.window_open === false;
 
   const sendIt = async () => {
@@ -195,6 +223,8 @@ export function ReplyWork(p: WorkProps & { what?: string; by?: string; start?: R
         act={{ label: W.wake, onPress: () => void wake() }}
       />
     );
+  if (marked.done)
+    return <Done words={W.oldDone.done(1)} detail={W.oldDone.detail} act={{ label: W.undo, onPress: marked.undo }} />;
 
   const sendButton = (
     <Button
@@ -213,20 +243,7 @@ export function ReplyWork(p: WorkProps & { what?: string; by?: string; start?: R
     if (send) clearSend(row.id);
   };
   // Not now stays at the left while the words are typed: the presses do not move as they begin.
-  const start =
-    p.start !== undefined ? (
-      p.start
-    ) : row.conversationId && may ? (
-      <NotNow
-        who={row.who}
-        choices={notNow.choices}
-        caption={notNow.caption}
-        onOpen={notNow.fresh}
-        onChoose={(i) => void notNow.choose(i)}
-        busy={notNow.busy}
-        letGo={notAPersonOf(row, wire)}
-      />
-    ) : null;
+  const start = p.start !== undefined ? p.start : notNowOf(p, notNow, marked.mark, wire);
   const writeIt = (
     <Button
       variant={main}
@@ -259,6 +276,32 @@ export function ReplyWork(p: WorkProps & { what?: string; by?: string; start?: R
       {!may ? <Note>{W.viewer}</Note> : null}
       <Acts foot={p.foot} start={start} end={replyEnd(sendEnd, p.read, row.who, !!words && may && !closed)} />
     </>
+  );
+}
+
+/**
+ * Not now at a reply's left, with Mark done and Not a person under its times where each is the member's; none where
+ * the row has no thread or the member presses nothing. Called, not drawn.
+ */
+function notNowOf(
+  p: WorkProps,
+  notNow: ReturnType<typeof useNotNow>,
+  markDone: (() => void) | null,
+  wire: string,
+): ReactNode {
+  const { row } = p;
+  if (!row.conversationId || !p.may) return null;
+  return (
+    <NotNow
+      who={row.who}
+      choices={notNow.choices}
+      caption={notNow.caption}
+      onOpen={notNow.fresh}
+      onChoose={(i) => void notNow.choose(i)}
+      busy={notNow.busy}
+      markDone={markDone}
+      letGo={notAPersonOf(row, wire)}
+    />
   );
 }
 

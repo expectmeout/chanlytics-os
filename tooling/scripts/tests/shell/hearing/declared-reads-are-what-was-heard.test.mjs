@@ -103,7 +103,8 @@ const HEARD_BEFORE = {
   inbox: ["messages", "conversations", "escalations", "contacts"],
   // And the calls its Calls tab draws, not a transcript turn (X3-2).
   conversations: ["messages", "conversations", "escalations", "contacts", "calls"],
-  // And the mailbox its email chip draws (R6: W-channel-team-plus-3).
+  // And the mailbox its email chip draws (R6: W-channel-team-plus-3), and the visits its booked figure counts (decision
+  // 0076, as amended 2 Nov 2026).
   today: [
     "messages",
     "conversations",
@@ -115,6 +116,7 @@ const HEARD_BEFORE = {
     "mailboxes",
     "billing_accounts",
     "contacts",
+    "appointments",
   ],
   people: [
     "messages",
