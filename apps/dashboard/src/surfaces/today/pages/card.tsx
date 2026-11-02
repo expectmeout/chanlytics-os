@@ -32,17 +32,18 @@ interface FigureProps {
   i: number;
   open: TodayFigureId | null;
   setOpen: (id: TodayFigureId | null) => void;
-  /** On a phone, the figure's short name in one row of four (decision 0076); its clause is under the press. */
-  phone: boolean;
 }
 
-const TodayFigure = ({ f, i, open, setOpen, phone }: FigureProps) => {
+// Each figure by its short name, on a desk's head as in a phone's row of four (decision 0076; the 10/10 read, 2 Nov 2026:
+// "answered by the receptionist" made its cell three times "booked"'s); the whole name is its title, and its clause and
+// receipt say the rest when it is pressed.
+const TodayFigure = ({ f, i, open, setOpen }: FigureProps) => {
   const has = !!f.receipt;
   const on = has && open === f.id;
   const body = (
     <>
       <span className="tc-fig-n tabular">{f.value}</span>
-      <span className="tc-fig-w">{phone ? TODAY_PHONE_WORDS.figure[f.id] : f.label}</span>
+      <span className="tc-fig-w">{TODAY_PHONE_WORDS.figure[f.id]}</span>
       <span className="tc-fig-m">{f.meta}</span>
     </>
   );
@@ -50,6 +51,7 @@ const TodayFigure = ({ f, i, open, setOpen, phone }: FigureProps) => {
     <div
       className={`tc-fig${on ? " open" : ""}`}
       onMouseEnter={has ? () => setOpen(f.id) : undefined}
+      title={f.label}
       data-testid={`today-figure-${f.id}`}
       data-i={i}
     >
@@ -111,12 +113,7 @@ const TodayReceipt = ({ f, i, last, nav }: ReceiptProps) => {
  */
 function figuresRow(
   figures: TodayFigureVM[],
-  {
-    open,
-    setOpen,
-    nav,
-    phone,
-  }: { open: TodayFigureId | null; setOpen: (id: TodayFigureId | null) => void; nav: Nav; phone: boolean },
+  { open, setOpen, nav }: { open: TodayFigureId | null; setOpen: (id: TodayFigureId | null) => void; nav: Nav },
 ) {
   return (
     <div
@@ -128,7 +125,7 @@ function figuresRow(
       }}
     >
       {figures.map((f, i) => (
-        <TodayFigure key={f.id} f={f} i={i} open={open} setOpen={setOpen} phone={phone} />
+        <TodayFigure key={f.id} f={f} i={i} open={open} setOpen={setOpen} />
       ))}
       {figures.map((f, i) =>
         open === f.id && hasReceipt(f) ? (
@@ -175,11 +172,7 @@ export const TodayHeadFigures = () => {
   const vm = surfaceValue("today");
   const figures = vm ? dayTileFigures(vm) : null;
   if (!figures) return null;
-  return (
-    <div className="today-head-figs">
-      {figuresRow(figures, { open, setOpen, nav: (to) => appNavigate(to), phone: false })}
-    </div>
-  );
+  return <div className="today-head-figs">{figuresRow(figures, { open, setOpen, nav: (to) => appNavigate(to) })}</div>;
 };
 
 export const TodayCard = () => {
@@ -207,7 +200,7 @@ export const TodayCard = () => {
           </span>
         )}
       </div>
-      {figures && figuresRow(figures, { open, setOpen, nav, phone: true })}
+      {figures && figuresRow(figures, { open, setOpen, nav })}
       <LeakLines />
       <WeekLine />
     </section>

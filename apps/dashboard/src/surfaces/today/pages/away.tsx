@@ -165,7 +165,7 @@ export const TodayAway = () => {
     );
   };
   return (
-    <section className="tsec ta" data-testid="today-away">
+    <section className="tsec ta" data-testid="today-away" data-empty={empty ? true : undefined}>
       <div className="tsec-head">
         <span className="tsec-title">While you were away</span>
         <span className={`tq-count ${total ? "" : "calm"}`}>{total}</span>

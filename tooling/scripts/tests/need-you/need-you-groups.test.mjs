@@ -7,8 +7,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  ANSWER_WITHIN_HOURS_DEFAULT,
   DAY_MS,
   HOUR_MS,
+  answerWithinHoursOf,
+  answerWithinMsOf,
+  hardLimitsWords,
   MIN_MS,
   NEED_YOU_CLOCK_MS,
   NEED_YOU_OLD_MS,
@@ -136,4 +140,31 @@ test("how long a row has waited, in the few words beside its name: amber past a 
   assert.deepEqual(needYouWaitOf(row("s", "step", { when: "today" }), goes), { words: "today", long: false });
   assert.equal(needYouWaitOf(row("x", "call", { when: "" }), goes), null, "nothing to say there");
   assert.ok(NEED_YOU_OLD_MS > DAY_MS, "a week is past a day");
+});
+
+test("the amber is the business's own target: a wait past what the owner set, a day where it set none", () => {
+  // What a stored target may be: a whole number of hours from 1 to 168, as PUT policies takes it; else the day.
+  for (const [stored, hours] of [
+    [undefined, 24],
+    [null, 24],
+    [0, 24],
+    [1.5, 24],
+    [1, 1],
+    [4, 4],
+    [168, 168],
+    [169, 24],
+    ["4", 24],
+  ]) {
+    assert.equal(answerWithinHoursOf({ answer_within_hours: stored }), hours, String(stored));
+    assert.equal(hardLimitsWords({ answer_within_hours: stored }).withinHours, hours, "the Autonomy dial says it");
+  }
+  assert.equal(ANSWER_WITHIN_HOURS_DEFAULT * HOUR_MS, DAY_MS, "a day, as Need you said before an owner could set one");
+  const three = row("h", "handoff", { when: "waited 3h", waitedMs: 3 * HOUR_MS });
+  assert.equal(needYouWaitOf(three, "Goes", answerWithinMsOf({})).long, false, "three hours is no day");
+  assert.equal(
+    needYouWaitOf(three, "Goes", answerWithinMsOf({ answer_within_hours: 2 })).long,
+    true,
+    "REGRESSION: past the two hours the business promised, and said in the ink of what waits on you",
+  );
+  assert.equal(needYouWaitOf(three, "Goes", answerWithinMsOf({ answer_within_hours: 4 })).long, false);
 });

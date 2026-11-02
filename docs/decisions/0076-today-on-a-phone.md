@@ -113,7 +113,8 @@ A parity pass the same day (Ruben's phone: "too much fixed empty space within th
 Listen stands beside the bell on a phone and beside the greeting on a desk (the kit head's `beside`), not at the
 sentence's end; the cuts are chips; on a phone Need you has no pane of its own, each group's name standing over a pane of
 its own and To do and Ask found one pane of two rows; Up next's draft is on the inset's ground with Edit beside Send, and
-a row's note mark stands after its name rather than on a line of its own; a tap no longer leaves a row lit.
+a row's note mark stands after its name rather than on a line of its own (since replaced by its words: below); a tap no
+longer leaves a row lit.
 
 Ranked by value (2 Nov 2026, after the 7 in 10 read of Today against the field): Need you's one order (contracts
 `needYouOrder`) is the queue's before its six are cut, and Up next is its first. A near clock first; then the waits under a
@@ -136,3 +137,20 @@ Outcomes before activity (2 Nov 2026, the same read's items 3 and 4):
   the page, Ask's Today and the bell agree. Its clause is the soonest, its receipt who booked for when, opening the
   soonest on its day; a zero on a workspace no booking has ever reached asks for a calendar link instead of saying nobody
   booked. A read that says nothing of bookings (an older server, a read that failed) keeps the four as they were.
+
+The 10/10 read's polish (2 Nov 2026):
+
+- **Amber is the business's own target.** Settings › Autonomy says "Answer people within" (the reply policy's
+  `answer_within_hours`, 1 to 168, a day by default, contracts `answerWithinHoursOf`); a wait past it is the amber on
+  Need you's rows, read from the settings read the page borrows. It meant "past a day" for every business.
+- **No sentence is cut.** What a run or a search says (what to do, never a person's words) wraps whole; on a phone its
+  verb stands beside its name so the sentence has the row's width; the day card's note has a line of its own on a phone.
+- **Nothing promised that cannot go.** The head counts Ask's drafts only for rows whose words can be sent: a reply
+  outside WhatsApp's window, whose one press is a template, is not said as drafted.
+- **Fewer controls over little.** The chips stand over four rows or more; Need you's name has no heading margins of its
+  own, so Up next sits under it.
+- **Why in words.** An open row says why it was handed over beside the name ("asked for a person"); the mark that held
+  it went, and a short row draws none.
+- **Even figures.** A desk's head says the four by their short names, as a phone does, the whole name its title.
+- **No tall empty card.** While you were away, when nothing happened, keeps its own height instead of stretching to the
+  work's foot.

@@ -228,6 +228,8 @@ function handoffOf(r: EscalationRecord, f: TodayFacts): TodayQueueRowVM {
     clock_ms: windowLeftMs(r.conv, f.now),
     // Someone asking to book, a time they picked or an ask for one: worth the most of anyone waiting (needYouOrder).
     ...(BOOKING_REASONS.has(e.reason) ? { booking: true } : {}),
+    // Why it was handed over, in a few words, for the open card's name line.
+    ...(reasonShort(e.reason) ? { why: reasonShort(e.reason) } : {}),
   };
 }
 
