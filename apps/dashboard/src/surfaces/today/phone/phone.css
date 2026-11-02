@@ -85,7 +85,7 @@
   padding: 16px 16px 14px 14px;
 }
 .dash-a-v2 .today-queue[data-phone] .ny-pane .cl-attn-row:has(> .cl-attn-work) > .cl-attn-pic,
-.dash-a-v2 .today-queue[data-phone] .ny-pane .cl-attn-row:has(> .cl-attn-work) > .cl-attn-avatar {
+.dash-a-v2 .today-queue[data-phone] .ny-pane .cl-attn-row:has(> .cl-attn-work) > div:first-child {
   position: absolute;
   top: 16px;
   left: 14px;
