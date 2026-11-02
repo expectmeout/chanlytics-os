@@ -19,7 +19,6 @@ import {
   answerRuns,
   answerSpoken,
   answerText,
-  cardsInPlans,
   planGroupOf,
   type AskAnswer,
   type AskProposal,
@@ -69,7 +68,6 @@ export type AskApi = ReturnType<typeof askPalette> &
     /** Approve a plan's steps that send nothing together (commit.ts commitPlan), what each became read from its cards. */
     commitPlan(cards: readonly AskProposal[]): Promise<PlanRun>;
     /** A turn's cards with each plan's together, and a plan's group as the Line draws it: contracts'. */
-    cardsInPlans: typeof cardsInPlans;
     planGroupOf: typeof planGroupOf;
     /** Undo a committed card, where the verb has one. */
     undo(p: AskProposal, outcome: AskProposalOutcome): Promise<UndoResult>;
@@ -214,7 +212,6 @@ export function installAsk(win: Window = window, storage: Storage | null = safeS
     ...followUps,
     commit: (p, cards = []) => keptOrCleared([p], commitCard(win, p, cards)),
     commitPlan: (cards) => keptOrCleared(cards, commitPlan(win, cards)),
-    cardsInPlans,
     planGroupOf,
     undo: (p, o) => keptOrCleared([p], undoProposal(win, p, o)),
     editReply: (p) => editReply(win, p),

@@ -1,6 +1,8 @@
-import { test, expect } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
+import { test, expect, type Page, type Route } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
 import { atRoute, routeOf } from "./address";
+import { motionSettled } from "./signals";
 import { activeWorkspace, scoped, apiGet } from "./workspace";
 import { WAITING_QUESTION, WAITING_SEARCH_NAME, refuseAnswers, waitingSearch } from "./waiting-search";
 
@@ -407,3 +409,325 @@ test.describe("Ask on a phone", () => {
     await expect(ask.getByTestId("ask-input")).toHaveValue("how did the");
   });
 });
+
+/**
+ * A turn of Ask answered in the page, so a spec can draw every state of an answer with no model behind it: the question
+ * goes nowhere and spends nothing (e2e/session.ts refuses the doors that would), and every other write is held here too,
+ * so a card pressed changes nothing in the workspace. The page, the bridge and the reads are real.
+ *
+ * The three cards are campaigns as `playbook-card.ts` makes them: the same sheet, with what holds them apart, the rows
+ * that are aside, and a line each.
+ */
+
+/** What holds all three: WhatsApp's review, on every campaign whose message has a WhatsApp version not yet on file. */
+const WHATSAPP_REVIEW =
+  "WhatsApp waits: its WhatsApp version goes to WhatsApp for review when you approve, and that cannot be taken back. Its runs hold those people until WhatsApp approves it.";
+
+const campaign = (n: number, title: string, line: string, moment: string, runs: string, reaches: string) => ({
+  id: `e2e-card-${n}`,
+  kind: "playbook",
+  needs: "operator",
+  title: `Campaign: ${title}`,
+  summary: `${moment} · ${runs} · ${reaches} · each run waits for you on Today.`,
+  line,
+  payload: { trigger: "quiet_30", name: title, channels: ["whatsapp"] },
+  undo: "Pause it",
+  made_at: new Date().toISOString(),
+  sheet: {
+    holds: [WHATSAPP_REVIEW],
+    rows: [
+      { label: "Moment", value: moment },
+      { label: "Runs", value: runs },
+      { label: "Reaches", value: reaches },
+      { label: "Goes by", value: "On WhatsApp" },
+      { label: "Sends", value: "Each run waits for you on Today", aside: true },
+    ],
+  },
+});
+
+/** The first card's facts: what goes out, when, to whom and by what channel, each to be seen before its Approve. */
+const FIRST_CARD_SAYS = ["The day before an appointment", "Daily, 10:00 AM", "6 people tomorrow", "On WhatsApp"];
+const NEXT = ["Change the reminder's hour?", "Why the reminder first?"];
+
+/** The turn: the answer says the warning again, as a model may, and offers two next questions. */
+function threeCards() {
+  const headline = "Nobody hears from you around an appointment yet, so three campaigns would cover the gaps.";
+  const detail = [
+    "The day before: a reminder, which cuts no-shows the most",
+    "The day after: a thank-you with your review link",
+    "After 30 quiet days: a win-back with your booking link",
+    WHATSAPP_REVIEW,
+    "Approve the reminder first: it is the one that pays back fastest.",
+  ].join("\n");
+  const at = Date.now();
+  return {
+    headline,
+    detail,
+    message: {
+      id: `e2e-m${at}`,
+      role: "assistant",
+      text: `${headline}\n${detail}`,
+      at: new Date(at).toISOString(),
+      atMs: at,
+      citations: [],
+      followups: NEXT,
+      navigate: null,
+      proposals: [
+        campaign(
+          1,
+          "Reminder",
+          "Reminds tomorrow's 6 appointments, 10:00 AM, by WhatsApp",
+          FIRST_CARD_SAYS[0],
+          FIRST_CARD_SAYS[1],
+          FIRST_CARD_SAYS[2],
+        ),
+        campaign(
+          2,
+          "Thank-you",
+          "Follows up with everyone the day after their appointment, 11:00 AM, by WhatsApp",
+          "The day after an appointment",
+          "Daily, 11:00 AM",
+          "Nobody today",
+        ),
+        campaign(
+          3,
+          "Win-back",
+          "Invites back 14 people quiet for 30 days, 10:00 AM, by WhatsApp",
+          "Nothing heard in 30 days",
+          "Daily, 10:00 AM, up to 25",
+          "14 people today",
+        ),
+      ],
+      language: "en",
+      ungrounded: false,
+      tools: [],
+      latencyMs: 1,
+      rounds: 1,
+      failed: false,
+      answer: {
+        v: 2,
+        form: "structured",
+        say: { headline, detail },
+        show: { figures: [], items: [], breakdown: null },
+        do: { open: null, next: NEXT },
+        language: "en",
+      },
+    },
+  };
+}
+
+/** Every write the page tries answered here with an empty ok: a card's press, its outcome, a warm, a morning, and the boot's invitations, which it reads as nobody seated. */
+async function holdWrites(page: Page): Promise<void> {
+  await page.route(/\/api\/v1\//, (route: Route) => {
+    if (route.request().method() === "GET") return route.fallback();
+    const data = route.request().url().includes("/me/invitations/accept") ? { joined: [] } : {};
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, data }) });
+  });
+}
+
+/** The next question answered with the three cards, as the turn's stream sends one. */
+async function answerWithThreeCards(page: Page): Promise<void> {
+  await page.route(/\/api\/v1\/ask(\?|$)/, async (route: Route) => {
+    if (route.request().method() !== "POST") return route.fallback();
+    const turn = threeCards();
+    const lines = [
+      { t: "thread", id: "e2e-thread", title: "set up a campaign" },
+      { t: "say", headline: turn.headline, detail: turn.detail },
+      { t: "final", message: turn.message },
+    ];
+    await route.fulfill({
+      status: 200,
+      contentType: "application/x-ndjson; charset=utf-8",
+      body: lines.map((l) => JSON.stringify(l)).join("\n") + "\n",
+    });
+  });
+}
+
+/** The next question dropped on its way, as a lost connection drops it: a failed turn. */
+async function dropTheTurn(page: Page): Promise<void> {
+  await page.route(/\/api\/v1\/ask(\?|$)/, (route: Route) =>
+    route.request().method() === "POST" ? route.abort() : route.fallback(),
+  );
+}
+
+/** Asks the Line, typed, once its field is there. */
+async function askLine(page: Page, question: string): Promise<void> {
+  const field = page.getByTestId("ask-input");
+  await expect(field).toBeVisible();
+  await field.fill(question);
+  await field.press("Enter");
+}
+
+/**
+ * A turn of cards (decision 0088), on a desk and a phone, answered in the page (answerWithThreeCards, above): no model behind it and
+ * no write leaves it, so it runs on every nightly. The first Approve stands on the first screen, what it depends on above
+ * it, and each warning is said once; a press lands somewhere a keyboard and a screen reader can follow; and axe finds
+ * nothing serious in any state.
+ *
+ * Axe says "incomplete", not a pass, for the contrast of words on Ask's glass: it cannot read the ground through a
+ * backdrop filter. The words of a card turn were sampled by hand on 2 Nov 2026 (the decision says how).
+ */
+/** The device preferences' key (contracts DEVICE_PREFS_STORAGE), restated: a spec compiles apart from the package. */
+const DEVICE_PREFS = "chanlytics-os-prefs";
+/** Serious or critical findings in Ask, as lines a failure reads. Anything less is a report, not a gate. */
+async function scanAsk(page: Page, state: string) {
+  await expect(page.getByTestId("ask-real")).toBeVisible();
+  await motionSettled(page); // a part fading in is read at the contrast it has so far
+  const found = await new AxeBuilder({ page }).include("[data-testid='ask-real']").analyze();
+  expect(
+    found.violations
+      .filter((v) => v.impact === "serious" || v.impact === "critical")
+      .map((v) => `${v.impact} ${v.id}: ${v.help} (${v.nodes.length}: ${v.nodes[0]?.target.join(" ")})`),
+    state,
+  ).toEqual([]);
+}
+
+for (const view of [
+  { name: "a desk", use: { viewport: { width: 1280, height: 800 } } },
+  { name: "a phone", use: { viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true } },
+]) {
+  test.describe(`A turn of cards on ${view.name}`, () => {
+    test.skip(!HAVE_SESSION, WHY_SKIPPED);
+    test.use(view.use);
+    const phone = !!view.use.viewport && view.use.viewport.width < 721;
+    const openAsk = async (page: Page) => {
+      await page.goto("/#/today");
+      await page.waitForLoadState("networkidle");
+      if (phone) await page.getByTestId("phone-ask").tap();
+      else await page.getByTestId("tb-ask").click();
+      await expect(page.getByTestId("ask-real")).toBeVisible();
+    };
+    test.beforeEach(async ({ page }) => {
+      await signIn(page);
+      await holdWrites(page);
+    });
+
+    test("the first Approve is on the first screen with what it depends on, one card open, and the warning all three share said once above them", async ({
+      page,
+    }) => {
+      await answerWithThreeCards(page);
+      await openAsk(page);
+      await askLine(page, "set up a campaign");
+      const ask = page.getByTestId("ask-real");
+      const approve = ask.getByTestId("ask-card-approve");
+      await expect(approve, "one card stands open").toHaveCount(1);
+      await motionSettled(page); // the three still shrinking stand the answer lower
+      const body = (await ask.locator(".ask-line-body").boundingBox())!;
+      const box = (await approve.boundingBox())!;
+      expect(box.y + box.height, "the press clears the field, unscrolled").toBeLessThanOrEqual(body.y + body.height);
+
+      const cards = ask.getByTestId("ask-card");
+      await expect(cards).toHaveCount(3);
+      for (const says of FIRST_CARD_SAYS) await expect(cards.first()).toContainText(says);
+      await expect(cards.nth(1), "a card not reached says its line").toContainText("Follows up with everyone");
+      await expect(cards.nth(1), "and offers no press").not.toContainText("Approve");
+
+      await expect(ask.getByText(WHATSAPP_REVIEW), "said once, the answer's own line and the cards' gone").toHaveCount(
+        1,
+      );
+      const alike = ask.getByTestId("ask-holds-alike");
+      await expect(alike).toContainText("All 3.");
+      const warned = (await alike.boundingBox())!;
+      expect(warned.y + warned.height, "and read before the press").toBeLessThanOrEqual(box.y);
+
+      const next = ask.getByTestId("ask-next").first();
+      await next.scrollIntoViewIfNeeded();
+      const asked = (await next.boundingBox())!;
+      const last = (await cards.last().boundingBox())!;
+      expect(asked.y, "the next questions stand under the cards").toBeGreaterThanOrEqual(last.y + last.height);
+
+      // The sheet keeps what no press turns on behind Details, and gives it back.
+      await expect(cards.first()).not.toContainText("Each run waits for you on Today");
+      await ask.getByTestId("ask-card-details").click();
+      await expect(cards.first()).toContainText("Each run waits for you on Today");
+
+      // A press decides the card and opens the next; the warning stands while one still waits.
+      await approve.click();
+      await expect(cards.first().locator(".ask-card-receipt")).toBeVisible();
+      await expect(cards.nth(1)).toContainText("Daily, 11:00 AM");
+      await expect(ask.getByTestId("ask-card-approve")).toHaveCount(1);
+      await expect(alike).toBeVisible();
+
+      // Any card opens by its head, and the one open folds.
+      await cards.nth(2).getByTestId("ask-card-fold").click();
+      await expect(cards.nth(2)).toContainText("Daily, 10:00 AM, up to 25");
+      await expect(cards.nth(1)).not.toContainText("Daily, 11:00 AM");
+    });
+
+    test("a press lands on what became of the card, which is announced; Not now and Try again land too", async ({
+      page,
+    }) => {
+      await answerWithThreeCards(page);
+      await openAsk(page);
+      await askLine(page, "set up a campaign");
+      const ask = page.getByTestId("ask-real");
+      const cards = ask.getByTestId("ask-card");
+      await ask.getByTestId("ask-card-approve").click();
+      const receipt = cards.first().locator(".ask-card-receipt");
+      await expect(receipt, "not the page's body, and not the field").toBeFocused();
+      await expect(cards.first().getByRole("status")).toContainText("Reminder");
+      // The outcome is noted on the conversation a beat later, which brings the field's focus back on a desk: not here.
+      await expect(page.locator(".ask-card-receipt")).toHaveCount(1);
+      await expect(receipt).toBeFocused();
+
+      await cards.nth(1).getByRole("button", { name: "Not now" }).click();
+      await expect(cards.nth(1).locator(".ask-card-receipt")).toBeFocused();
+
+      // A press refused says why where the press stood, and Try again gives Approve back, with the focus.
+      await page.route(/\/api\/v1\/playbooks/, (route) =>
+        route.fulfill({
+          status: 422,
+          contentType: "application/json",
+          body: JSON.stringify({
+            ok: false,
+            error: { code: "invalid", message: "That campaign needs a message first." },
+          }),
+        }),
+      );
+      await ask.getByTestId("ask-card-approve").click();
+      await expect(cards.nth(2).locator(".ask-card-receipt")).toBeFocused();
+      await cards.nth(2).getByRole("button", { name: "Try again" }).click();
+      await expect(cards.nth(2).getByTestId("ask-card-approve")).toBeFocused();
+    });
+
+    test("axe finds nothing serious, in either theme: at rest, a thread, a card, a receipt, a failed turn", async ({
+      page,
+    }) => {
+      test.setTimeout(120_000);
+      for (const theme of ["dark", "light"]) {
+        await page.addInitScript(
+          ([key, t]) => localStorage.setItem(key, JSON.stringify({ theme: t })),
+          [DEVICE_PREFS, theme],
+        );
+        await openAsk(page);
+        await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+        await scanAsk(page, `${theme}, at rest`);
+        await answerWithThreeCards(page);
+        await askLine(page, "set up a campaign");
+        const ask = page.getByTestId("ask-real");
+        await expect(ask.getByTestId("ask-card-approve")).toBeVisible();
+        await scanAsk(page, `${theme}, a thread with its cards`);
+        await ask.getByTestId("ask-card-details").click();
+        await scanAsk(page, `${theme}, a card with its details`);
+        await ask.getByTestId("ask-card-approve").click();
+        await expect(ask.locator(".ask-card-receipt")).toBeVisible();
+        await scanAsk(page, `${theme}, a receipt`);
+        await page.unroute(/\/api\/v1\/ask(\?|$)/);
+        await dropTheTurn(page);
+        await askLine(page, "and the next one?");
+        await expect(ask.getByTestId("ask-retry")).toBeVisible();
+        await scanAsk(page, `${theme}, a failed turn`);
+        await page.unroute(/\/api\/v1\/ask(\?|$)/);
+      }
+    });
+
+    test("a failed turn offers Try again, and neither Copy nor Read aloud", async ({ page }) => {
+      await dropTheTurn(page);
+      await openAsk(page);
+      await askLine(page, "who needs a word?");
+      const ask = page.getByTestId("ask-real");
+      await expect(ask.getByTestId("ask-retry")).toBeVisible();
+      await expect(ask.getByTestId("ask-acts")).toHaveCount(0);
+    });
+  });
+}

@@ -158,5 +158,16 @@ export {
 export type { AskCitation, AskCitationKind, AskReadSet, AskRowRef } from "./citations";
 export { PLAN_WORDS, planOf } from "./plan";
 export type { PlanIntent, PlanStep, PlanWorld } from "./plan";
-export { cardsInPlans, planGroupOf, planMadeOf, planWaits, resolveSteps, STEP_TOKEN, stepToken } from "./plan-steps";
+export {
+  cardsTogether,
+  holdsAlike,
+  openCardOf,
+  planGroupOf,
+  planMadeOf,
+  planWaits,
+  resolveSteps,
+  STEP_TOKEN,
+  stepToken,
+  wordsLessHolds,
+} from "./plan-steps";
 export type { PlanMade } from "./plan-steps";

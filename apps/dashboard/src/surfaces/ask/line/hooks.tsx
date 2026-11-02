@@ -301,7 +301,14 @@ export const useArFocus = ({
   // On a desk, once the member works in the page (focus left the panel) the field leaves them there as answers land,
   // until they come back to the panel (../hooks.ts useAskAway).
   useAskAway(open && !phone, dialogRef, away);
-  useAskFocus(inputRef, open && !doomed && field, [open, live, active, doomed, view, quick], () => !away.current);
+  // A press on a card leaves focus on what became of it (AskCard), which the card's outcome must not take away.
+  const onCard = () => !!document.activeElement?.closest?.(".ask-card");
+  useAskFocus(
+    inputRef,
+    open && !doomed && field,
+    [open, live, active, doomed, view, quick],
+    () => !away.current && !onCard(),
+  );
   useAskFocus(dialogRef, open && !field, [open]);
   // A phone's takeover keeps Tab inside it; a desk's panel lets Tab go on to the page, and as it closes gives focus back
   // to what had it before it opened, unless the member has put it somewhere since (../hooks.ts useAskGiveBack).

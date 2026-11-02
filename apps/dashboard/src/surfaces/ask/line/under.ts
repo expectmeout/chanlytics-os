@@ -42,6 +42,8 @@ export const arUnder = ({
   const moves = drawn ? answerMoves(drawn.answer) : [];
   const [words, spoken] = drawn ? [A.answerCopy(drawn.answer), A.answerSpoken(drawn.answer)] : ["", ""];
   const th = arThreadOf({ view, active, quick, showRows, composing, talk, live, latest });
+  // An answer with cards keeps its next questions in the thread, under them: over the field they stood on the card.
+  const nextInThread = !!(answerMsg && answerMsg.proposals && answerMsg.proposals.length);
   return {
     latest,
     folded,
@@ -55,6 +57,7 @@ export const arUnder = ({
     moves,
     words,
     spoken,
+    nextInThread,
     ...th,
   };
 };

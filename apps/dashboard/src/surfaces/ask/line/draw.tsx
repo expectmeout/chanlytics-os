@@ -363,8 +363,10 @@ const arStage = ({
 // The middle is one scroller (spec 5.1, 5.5): on the home, the hero and the rows; in a conversation, the thread (the
 // spec 2026-09-27-ask-chat-on-a-phone, D1): every earlier turn in full, then the newest question, the three and its
 // answer (`ask-now`, one element throughout, so the three are never drawn afresh), with Copy and Read aloud under it
-// once it is whole (D14). At rest, while it listens at home and while a phone's field is in use there, what it holds
-// stands centred (`rest`, `composing`; spec 5.2, 5.9); a thread dims under the three come forward (`dim`, D4).
+// once it is whole (D14), never under a turn that failed, which has nothing worth keeping, and an answer with cards has
+// its next questions there too (`nextInThread`). At rest, while it listens at home and while a phone's field is in use
+// there, what it holds stands centred (`rest`, `composing`; spec 5.2, 5.9); a thread dims under the three come forward
+// (`dim`, D4).
 const arMiddle = ({
   thread,
   listen,
@@ -376,6 +378,9 @@ const arMiddle = ({
   folded,
   nowQ,
   drawn,
+  answerMsg,
+  nextInThread,
+  move,
   words,
   spoken,
   speech,
@@ -406,13 +411,16 @@ const arMiddle = ({
       {thread && nowQ ? <AskQuestion text={nowQ} now /> : null}
       {hero}
       {body}
-      {thread && drawn ? <AskActs words={words} spoken={spoken} speech={speech} flash={flash} t={t} /> : null}
+      {thread && drawn && nextInThread ? <AskNextRow answer={drawn.answer} sel={move} onFollow={submit} /> : null}
+      {thread && drawn && !(answerMsg && answerMsg.failed) ? (
+        <AskActs words={words} spoken={spoken} speech={speech} flash={flash} t={t} />
+      ) : null}
     </div>
   </div>
 );
 
 // Over the field in a conversation: the three come forward to listen (D4), the newest answer's next questions
-// (D6), and Latest once its question is out of sight, over them (D7).
+// (D6), unless its cards keep them in the thread, and Latest once its question is out of sight, over them (D7).
 const arOverField = ({
   thread,
   listen,
@@ -420,6 +428,7 @@ const arOverField = ({
   talk,
   live,
   drawn,
+  nextInThread,
   move,
   query,
   t,
@@ -428,7 +437,7 @@ const arOverField = ({
   bodyRef,
 }: Line) => {
   const nextRow =
-    thread && !composing && !talk.listening && !live && drawn && drawn.answer.do.next.length ? (
+    thread && !composing && !talk.listening && !live && drawn && !nextInThread && drawn.answer.do.next.length ? (
       <AskNextRow answer={drawn.answer} sel={move} onFollow={submit} />
     ) : null;
   // While an answer is on its way its next questions' room is held, so the thread does not jump up as they arrive.
