@@ -3,6 +3,7 @@
  * mapping that builds it is inbox-thread.ts.
  */
 import type { ReplyWhyVM } from "../config/brain";
+import type { BookingRequestCardVM } from "../calendar/visit/booking-request";
 import type { HoldAct } from "./escalations";
 import type { MediaVM } from "./message-media";
 import type { ThreadChannel } from "./thread-channel";
@@ -148,6 +149,8 @@ export interface InboxThreadVM {
   holdLine?: string;
   holdWhy?: string;
   holdNote?: string;
+  /** The booking a request hold asks to confirm, as its card draws it (contracts bookingRequestCardOf). */
+  request?: BookingRequestCardVM;
   lastAt: string;
   lastAtFull: string;
   /** Absolute times, epoch ms, for anything that must not drift with the
@@ -198,6 +201,8 @@ export interface InboxThreadVM {
         signature?: { line: string; full: string };
         /** What an email carried that is not shown: files whose names alone were kept, words past the bound (emailLeftOutOf). */
         leftOut?: string;
+        /** How many files an email came with whose names alone were kept (emailFilesLeftOf): counted on a fold of their own. */
+        filesLeft?: number;
         /** The attachment, when the message is one. */
         media?: MediaVM;
         /** Why the receptionist said it, when the row remembers. */

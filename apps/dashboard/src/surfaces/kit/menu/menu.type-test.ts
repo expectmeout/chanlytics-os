@@ -84,6 +84,14 @@ function _menuTakes(
     ],
   });
   Menu({ trigger, groups: [{ items: [{ label: "Copy number", glyph, onSelect: act }] }] });
+  // A glyph on its square, and the red one where the act destroys (the thread's More).
+  Menu({
+    trigger,
+    groups: [
+      { items: [{ label: "Snooze", glyph, square: true, meta: "Until tomorrow, 10:00 AM", onSelect: act }] },
+      { items: [{ label: "Not a customer…", glyph, square: "danger", tone: "danger", onSelect: act }] },
+    ],
+  });
   // A heading over a group, a second line, a word at the end, a door, the danger item, one off as the page runs, and
   // a set to choose one of; hung from its control's start, named where its control's words do not, with the ref.
   Menu({

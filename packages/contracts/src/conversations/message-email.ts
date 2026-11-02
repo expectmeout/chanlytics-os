@@ -46,6 +46,15 @@ export function emailLeftOutOf(meta: unknown): string | null {
   return said.length ? said.join(" ") : null;
 }
 
+/** How many files an email came with whose names alone were kept (the intake keeps no file): 0 where none, or no email. */
+export function emailFilesLeftOf(meta: unknown): number {
+  const email = (meta as { email?: { attachments?: unknown; more_attachments?: unknown } } | null)?.email;
+  if (!email) return 0;
+  const files = Array.isArray(email.attachments) ? email.attachments.length : 0;
+  const unnamed = typeof email.more_attachments === "number" && email.more_attachments > 0 ? email.more_attachments : 0;
+  return files + unnamed;
+}
+
 /** Windows-1252's bytes 0x80 to 0x9F, by the character each is drawn as: where UTF-8 read as 1252 shows "â€™" for "’". */
 const CP1252_CODES = [
   0x80, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0x88, 0x89, 0x8a, 0x8b, 0x8c, 0x8e, 0x91, 0x92, 0x93, 0x94, 0x95, 0x96,

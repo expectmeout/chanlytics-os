@@ -683,11 +683,29 @@ export function toPersonRowVM(
 
 /** One fact of a person beside their thread (threadPersonFactsOf): what it is, and what People's row says of it. */
 export interface ThreadPersonFact {
-  key: "receptionist" | "first" | "last" | "history" | "visit" | "deal" | "step" | "consent";
+  /** Its key; "waiting" and "why" are the thread's own, which the rail puts at its head while the thread needs you. */
+  key: "waiting" | "why" | "receptionist" | "first" | "last" | "history" | "visit" | "deal" | "step" | "consent";
   label: string;
   value: string;
   /** Nothing there yet, said in the dim ink: a zero is shown, never left out. */
   none?: boolean;
+}
+
+/**
+ * The one fact a thread's head says after where it stands (the thread canvas, 1 Nov 2026: "Needs you 2h · Northwind
+ * Media", "Handled · Visit kept Thu"): their deal, else their next visit, else their last and how it went, else where
+ * they work, else where they came from. Null where their row says none of these: a head says nothing it cannot read.
+ */
+export function threadHeadFactOf(row: PersonRowVM, word: AppointmentWord): string | null {
+  if (row.deal && row.deal.brief) return row.deal.brief;
+  const W = appointmentWords(word);
+  const ahead = row.nextVisitLine;
+  if (ahead) return `${W.next} ${ahead.day}${ahead.time ? ` ${ahead.time}` : ""}`;
+  const behind = row.lastVisitLine;
+  if (behind)
+    return behind.state ? `${W.Title} ${behind.state.text.toLowerCase()} ${behind.day}` : `${W.last} ${behind.day}`;
+  if (row.worksAt && !row.worksAt.gone && !row.standIn && row.worksAt.name) return row.worksAt.name;
+  return row.cameFrom ? row.cameFrom.label : null;
 }
 
 /**

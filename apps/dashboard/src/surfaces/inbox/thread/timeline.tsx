@@ -97,34 +97,6 @@ const TlMsgSig = ({ signature }: { signature: { line: string; full: string } }) 
   );
 };
 
-/**
- * What an email carried that is not its words, folded under them as its signature is: a list's foot and the chain it
- * quoted, each a line of its own that opens on a press (the thread canvas, 1 Nov 2026: "548 Market Street … stop
- * receiving these emails" read as the sender's words). `testid` names the opened words, and `<testid>-toggle` the press.
- */
-const TlFold = ({ label, text, testid }: { label: string; text: string; testid: string }) => {
-  const [open, setOpen] = useState(false);
-  return (
-    <>
-      <button
-        type="button"
-        className={`tl-msg-sig${open ? " open" : ""}`}
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-        data-testid={`${testid}-toggle`}
-      >
-        <span className="tl-msg-sig-line">{label}</span>
-        <Icon name="chevron-down" size={11} className="tl-msg-sig-turn" />
-      </button>
-      {open && (
-        <div className="tl-msg-sig-full" data-testid={testid}>
-          <Linked text={text} />
-        </div>
-      )}
-    </>
-  );
-};
-
 const TlMsgBody = ({
   text,
   quoted,
@@ -246,11 +218,12 @@ export const TimelineEntry = ({
   // (contracts' "Held for you — wrote by email"). The dock under the conversation says what is owed; the mark said it too,
   // with a dot and the reason's details quoted, printed under the dock's glass on a phone (the thread canvas, 1 Nov 2026).
   if (entry.type === "event" && thread.real && entry.kind === "flag") {
+    // "Held for you · 10:31 AM": the spark, the words and the time; why it was held is the dock's line, and a pointer's.
     return (
-      <div className="tl-event tl-held" data-testid="tl-held">
-        <Icon name="sparkle" size={11} className="tl-held-spark" />
-        <span className="tl-event-text">{entry.body}</span>
-        <span className="tl-event-time tabular">{entry.at}</span>
+      <div className="tl-event tl-held" title={entry.body} data-testid="tl-held">
+        <Icon name="spark" size={12} className="tl-held-spark" />
+        <span className="tl-event-text">{THREAD_PANE_WORDS.heldForYou}</span>
+        <span className="tl-event-time tabular">· {entry.at}</span>
       </div>
     );
   }
@@ -422,7 +395,7 @@ function bubbleCorner(
   const time = entry.time || entry.at;
   const inner = (
     <>
-      {receptionist && <Icon name="sparkle" size={11} className="tl-stamp-spark" />}
+      {receptionist && <Icon name="spark" size={10} className="tl-stamp-spark" />}
       {author && <span className="tl-stamp-words">{author}</span>}
       {wire && (
         <span role="img" aria-label={channelLabels[entry.channel]} title={channelLabels[entry.channel]}>
@@ -538,15 +511,94 @@ function emailFrom(entry: MsgEntry, thread: Thread): string {
   return entry.agentName || thread.agent.name;
 }
 
-/** What an email carried under its words, each folded: its signature, a list's foot, the chain it quoted. */
-function emailFolds(entry: MsgEntry) {
+/** One of an email's folds: what it is called, the words it holds, and the test id of those words (`<id>-toggle` its press). */
+interface EmailFold {
+  key: string;
+  label: string;
+  text: string;
+  testid: string;
+  toggle: string;
+}
+
+/**
+ * What an email carried under its words (the thread canvas, 1 Nov 2026): its signature, a list's foot and the chain it
+ * quoted, each a soft fold on one row under a hairline, its words under the row on a press, and the files it came with,
+ * counted on a fold of their own that says why on a pointer. A name that is an id is never printed (emailLeftOutOf).
+ */
+function EmailFolds({ entry }: { entry: MsgEntry }) {
   const W = THREAD_PANE_WORDS;
-  if (!entry.signature && !entry.footer && !entry.quoted) return null;
+  const [open, setOpen] = useState<string | null>(null);
+  const folds: EmailFold[] = [
+    ...(entry.signature
+      ? [
+          {
+            key: "sig",
+            label: W.emailSignature,
+            text: entry.signature.full,
+            testid: "tl-msg-sig-full",
+            toggle: "tl-msg-sig",
+          },
+        ]
+      : []),
+    ...(entry.footer
+      ? [
+          {
+            key: "foot",
+            label: W.emailFooter,
+            text: entry.footer,
+            testid: "tl-msg-footer",
+            toggle: "tl-msg-footer-toggle",
+          },
+        ]
+      : []),
+    ...(entry.quoted
+      ? [
+          {
+            key: "quote",
+            label: W.emailEarlier,
+            text: entry.quoted,
+            testid: "tl-msg-quote",
+            toggle: "tl-msg-quote-toggle",
+          },
+        ]
+      : []),
+  ];
+  const files = entry.filesLeft ?? 0;
+  if (!folds.length && !files) return null;
+  const shown = folds.find((f) => f.key === open) ?? null;
   return (
     <div className="tl-email-folds" data-testid="tl-email-folds">
-      {entry.signature && <TlMsgSig signature={entry.signature} />}
-      {entry.footer && <TlFold label={W.emailFooter} text={entry.footer} testid="tl-msg-footer" />}
-      {entry.quoted && <TlFold label={W.emailEarlier} text={entry.quoted} testid="tl-msg-quote" />}
+      <div className="tl-email-fold-row">
+        {folds.map((f) => (
+          <Button
+            key={f.key}
+            variant="soft"
+            size="sm"
+            className="tl-email-fold"
+            aria-expanded={open === f.key}
+            onClick={() => setOpen(open === f.key ? null : f.key)}
+            data-testid={f.toggle}
+          >
+            {f.label}
+            <Icon name="chevron-down" size={11} className="tl-email-fold-turn" />
+          </Button>
+        ))}
+        {files > 0 && (
+          <span
+            className="tl-email-files"
+            title={entry.leftOut ? `${W.filesNotKeptWhy} ${entry.leftOut}` : W.filesNotKeptWhy}
+            data-testid="tl-msg-left-out"
+          >
+            <Icon name="clip" size={12} />
+            {W.filesNotKept(files)}
+          </span>
+        )}
+      </div>
+      {shown && (
+        <div className="tl-email-fold-words" data-testid={shown.testid}>
+          <Linked text={shown.text} />
+        </div>
+      )}
     </div>
   );
 }
@@ -575,6 +627,7 @@ function emailEntry(
         <div className="tl-email-head">
           <span className="tl-email-from" data-testid="tl-email-from">
             {emailFrom(entry, thread)}
+            {entry.from === "client" && <span className="tl-email-to"> {W.emailToYou}</span>}
           </span>
           {bubbleCorner(p, named, why, true)}
         </div>
@@ -599,9 +652,10 @@ function emailEntry(
             <Icon name={shown ? "chevron-up" : "chevron-down"} size={11} />
           </Button>
         )}
-        {emailFolds(entry)}
+        <EmailFolds entry={entry} />
         {entry.media && <TlMedia media={entry.media} />}
-        {entry.leftOut && (
+        {/* What was left out that is not a file (words past the bound): a line of its own, as it was. */}
+        {entry.leftOut && !entry.filesLeft && (
           <div className="tl-msg-note" data-testid="tl-msg-left-out">
             <Icon name="info" size={11} /> {entry.leftOut}
           </div>

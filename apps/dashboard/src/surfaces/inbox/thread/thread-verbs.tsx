@@ -8,9 +8,9 @@ import type { ReactNode } from "react";
 import { FOCUS_COMPOSER_MS } from "../constants";
 import { ixDraftKey } from "../rules";
 import { canDo, type Flash } from "../shell";
-import { OWN_VERBS, VW_STORE } from "../store";
+import { OWN_VERBS, VW_STORE, type VetoState } from "../store";
 import type { RealThread } from "../types";
-import { cancelSend, inboxVerb, type InboxVerb } from "../verbs";
+import { cancelSend, inboxVerb, sendHeldNow, type InboxVerb } from "../verbs";
 
 /** What a verb carries: the words, the moment, the chosen template, the address a reply was told to go to. */
 type Payload = Parameters<typeof inboxVerb>[2];
@@ -27,6 +27,22 @@ function receiptOf(data: unknown): { messageId: string | undefined; cancelableUn
     messageId: typeof id === "string" ? id : undefined,
     cancelableUntil: typeof until === "string" ? until : undefined,
   };
+}
+
+/**
+ * A real draft let go now (Send now): its send job brought to the ledger's next tick, the draft reading as going at once,
+ * and back as it was, with why, where the server refused (sent, claimed or withdrawn meanwhile).
+ */
+function letGo(t: RealThread, st: VetoState, bump: () => void, flash: (flash: Flash) => void) {
+  if (st.held || st.going || !t.veto) return;
+  st.going = true; // optimistic: it reads as going now
+  bump();
+  void sendHeldNow(t.veto.messageId as string).then((r) => {
+    if (r.ok) return;
+    st.going = false;
+    bump();
+    flash({ tone: "danger", msg: <>{r.message}</> });
+  });
 }
 
 // ---- The two verbs of a real thread ----
@@ -131,6 +147,8 @@ export const threadVerbs = (flash: (flash: Flash) => void) => {
    *           its countdown under it (the thread canvas, 1 Nov 2026)
    *   type  — the first keystroke means the operator is taking this one, so
    *           the draft is withdrawn ONCE rather than racing the timer
+   *   send_now — let it go now: its send job brought to the ledger's next
+   *           tick, and the draft reads as going until the send reaches the tab
    *
    * `bump` draws the countdown again, wherever it is shown.
    */
@@ -138,6 +156,7 @@ export const threadVerbs = (flash: (flash: Flash) => void) => {
     if (!canDo("approve")) return;
     const heldKey = ixDraftKey(t);
     const st = VW_STORE.state[heldKey] || (VW_STORE.state[heldKey] = {});
+    if (act === "send_now") return letGo(t, st, bump, flash);
     if (act === "edit") {
       const words = t.veto ? t.veto.draft : "";
       window.setTimeout(

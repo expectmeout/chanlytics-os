@@ -71,6 +71,14 @@ export interface EscalationPorts {
   record: ThreadPorts["record"];
 }
 
+export interface SendNowPorts {
+  /**
+   * The send job of a message still queued and claimed by no run brought to now, and the approve decision as the
+   * member's, in one write: null when there was nothing to bring forward, and then nothing was written.
+   */
+  sendNow(tenantId: TenantId, messageId: string): Promise<{ decision_id: string } | null>;
+}
+
 export interface CancelSendPorts {
   /**
    * The message withdrawn with its send job and the cancel_send decision as the member's, in one write, only while it

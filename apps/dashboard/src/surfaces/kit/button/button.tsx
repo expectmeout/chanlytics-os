@@ -27,6 +27,9 @@ const buttonClasses = variants({
       plain: "btn-plain",
       danger: "btn-danger",
       glass: "btn-glass",
+      outline: "btn-outline",
+      soft: "btn-soft",
+      ink: "btn-ink",
     },
     tone: { danger: "danger" },
   },
@@ -35,9 +38,12 @@ const buttonClasses = variants({
 
 /**
  * Its kinds. `glass` is the control layer's glass (a phone's head circles beside the page's one coral, canvas A): the
- * fill, sheen, depth and rim the capsules of the frame wear.
+ * fill, sheen, depth and rim the capsules of the frame wear. The thread canvas's three (1 Nov 2026): `outline`, the
+ * quiet act beside a coral one on a raised ground (Hand back, Can't do it, Call), the raised ground and a stronger
+ * hairline; `soft`, a fold or a small tool inside a card (Signature, Rewrite, More), the inset's fill and no edge; and
+ * `ink`, the one act that is not the coral where the coral would say too much (Send now, a picked template).
  */
-type ButtonKind = "secondary" | "primary" | "quiet" | "plain" | "danger" | "glass";
+type ButtonKind = "secondary" | "primary" | "quiet" | "plain" | "danger" | "glass" | "outline" | "soft" | "ink";
 
 /**
  * Its kind, and the tone of its words. Any kind may be chosen as the page runs (Confirm's Yes is danger or the

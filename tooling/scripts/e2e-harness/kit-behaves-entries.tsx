@@ -179,6 +179,20 @@ function MenuKit() {
                 meta: "Goes the day before, at the time they booked",
                 onSelect: () => setSaid("Send a reminder"),
               },
+              {
+                label: "Snooze",
+                glyph: glyph("pause", 16),
+                square: true,
+                meta: "Until tomorrow, 10:00 AM",
+                onSelect: () => setSaid("Snooze"),
+              },
+              {
+                label: "Not a customer…",
+                glyph: glyph("x", 16),
+                square: "danger",
+                tone: "danger",
+                onSelect: () => setSaid("Not a customer"),
+              },
             ],
           },
           {

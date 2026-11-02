@@ -234,9 +234,9 @@ test("a template's words as she will read them: her name and the business's fact
   const said = { ...note, body_preview: "Hi {{1}}, a quick note from {{2}}: {{3}} Write back here." };
   assert.deepEqual(inboxTemplateParts(said, facts), [
     { words: "Hi " },
-    { words: "Rosa" },
+    { words: "Rosa", filled: true },
     { words: ", a quick note from " },
-    { words: "Marisa's" },
+    { words: "Marisa's", filled: true },
     { words: ": " },
     { blank: "The note" },
     { words: " Write back here." },
@@ -254,7 +254,13 @@ test("a template's words as she will read them: her name and the business's fact
   );
   assert.deepEqual(
     inboxTemplateParts({ ...note, body_preview: "Hi {{1}}, a quick note." }, facts),
-    [{ words: "Hi " }, { words: "Rosa" }, { words: ", a quick note." }, { words: " " }, { blank: "The note" }],
+    [
+      { words: "Hi " },
+      { words: "Rosa", filled: true },
+      { words: ", a quick note." },
+      { words: " " },
+      { blank: "The note" },
+    ],
     "a preview read before its slots were: the blank goes after the words, so the box always has somewhere to write",
   );
   assert.deepEqual(inboxTemplateParts({ ...note, body_preview: null }, facts), [{ blank: "The note" }]);

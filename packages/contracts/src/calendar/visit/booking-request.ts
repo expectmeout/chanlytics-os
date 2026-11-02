@@ -5,6 +5,7 @@
  * booking_request_open). The owner answers with Booked it or Can't. Every sentence a request is said in is here. Pure.
  */
 import type { Opening } from "../availability";
+import { visitRoute } from "../appointment-key";
 import { clockInZone, dayInZone, localToUtcMs } from "../zone-math";
 import { MIN_MS, dateFormat } from "../../shared/time";
 
@@ -134,6 +135,14 @@ export const BOOKING_REQUEST_WORDS = {
     `You're booked for ${when}${service ? ` for ${articled(service)}` : ""}.`,
   booked_it: "Booked it",
   cant_it: "Can't",
+  /** The Inbox's request card (the thread canvas, 1 Nov 2026): its two answers, what they do, and the time it holds. */
+  cant_do_it: "Can't do it",
+  card_foot:
+    "Booked it writes their confirmation into the box for you to send. Can't do it leaves the box to offer another time.",
+  holds: "Open on your calendar",
+  lapsed: "No longer held on your calendar",
+  day: "Day",
+  dayDoor: (day: string) => `See ${day} on the calendar`,
   /** The board's word for a request, and its sheet's foot. */
   requested: "Requested",
   foot: "Requested by text · Booked it or Can't",
@@ -148,6 +157,54 @@ export const BOOKING_REQUEST_WORDS = {
     cant: (who: string) => `${who} is waiting on your reply`,
   },
 } as const;
+
+/** A booking request as the Inbox's card draws it (the thread canvas, 1 Nov 2026). */
+export interface BookingRequestCardVM {
+  id: string;
+  /** Its day on a tile, by the business's clock: "THU" over "6". */
+  weekday: string;
+  date: string;
+  /** Its day in words, for the door to it and a screen reader: "Thursday, November 6". */
+  dayLong: string;
+  /** Its hours: "3:00 – 4:00 PM". */
+  hours: string;
+  service: string | null;
+  /** Whether it still takes its time on the calendar (it expires an hour before the slot, or a day after it was asked). */
+  holds: boolean;
+  /** Its day on the Calendar, its panel over it. */
+  to: string;
+}
+
+/** "3:00 – 4:00 PM", "11:30 AM – 12:30 PM": a slot's hours on the business's clock, the shared half of the day said once. */
+function hoursOf(startMs: number, endMs: number, tz: string): string {
+  const time = dateFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" });
+  const start = time.format(new Date(startMs));
+  const end = time.format(new Date(endMs));
+  const half = (t: string) => t.slice(-2);
+  return half(start) === half(end) ? `${start.slice(0, -3)} – ${end}` : `${start} – ${end}`;
+}
+
+/** A request as the card draws it, from the row its hold carries (EscalationDto.request), on the business's clock. */
+export function bookingRequestCardOf(
+  r: { id: string; starts_at: string; ends_at: string; service: string | null; expires_at: string | null },
+  tz: string,
+  nowMs: number,
+): BookingRequestCardVM {
+  const startMs = Date.parse(r.starts_at);
+  const endMs = Date.parse(r.ends_at);
+  const at = new Date(startMs);
+  const key = dayInZone(tz, startMs).key;
+  return {
+    id: r.id,
+    weekday: dateFormat("en-US", { timeZone: tz, weekday: "short" }).format(at).toUpperCase(),
+    date: dateFormat("en-US", { timeZone: tz, day: "numeric" }).format(at),
+    dayLong: dateFormat("en-US", { timeZone: tz, weekday: "long", month: "long", day: "numeric" }).format(at),
+    hours: hoursOf(startMs, endMs, tz),
+    service: r.service && r.service.trim() ? r.service.trim() : null,
+    holds: !r.expires_at || Date.parse(r.expires_at) > nowMs,
+    to: visitRoute(r.id, key),
+  };
+}
 
 /** What the answer door refuses, in a sentence for the member who pressed (00443 booking_request_answer). */
 export const BOOKING_REQUEST_REFUSALS = {

@@ -9,10 +9,13 @@
 import { useState, type ReactElement, type ReactNode } from "react";
 import {
   BOOKING_REQUEST_WORDS,
+  countdownClock,
+  dockLineOf,
   HOLD_ACT_WORDS,
   heldPill,
   shortName,
   snoozedThreadWords,
+  stateOf,
   THREAD_PANE_WORDS,
 } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
@@ -24,8 +27,10 @@ import type { Thread, TimelineEntry as TlEntry } from "../types";
 import { ixDockDials } from "./band";
 import { hasVeto, SteerBox, VetoBar } from "./veto";
 import { IxWhy } from "./send-words";
+import { keptReplyNow } from "./kept-draft";
 import { Button } from "../../kit/button/button";
 import { LinkButton } from "../../kit/link-button/link-button";
+import { routeDoor } from "../../legacy-verbs";
 
 /** The other side's move while you read: who did what, and the entries it left behind. */
 export interface Stale {
@@ -47,6 +52,12 @@ export interface StatusProps {
   onVetoAct: (threadId: string, act: string) => void;
   /** Archive, which asks first (thread.tsx): "No reply needed" on a thread left unanswered. None where it cannot be done. */
   onArchive?: (() => void) | null;
+  /**
+   * Which thread's hand back is being asked about, held by the pane (thread.tsx), where the reply box's Hand back asks
+   * it too (composerAside); the band keeps its own where it is not given.
+   */
+  asking?: string | null;
+  setAsking?: (threadId: string | null) => void;
 }
 
 /** The thread whose hand back is being asked about (Hand back when what they wrote has no answer), and how to ask or let go. */
@@ -55,7 +66,7 @@ interface HandBackAsk {
   setAsking: (threadId: string | null) => void;
 }
 
-type DockProps = StatusProps & HandBackAsk;
+type DockProps = Omit<StatusProps, "asking" | "setAsking"> & HandBackAsk;
 
 // What a real thread asks of you, said one way whatever the state: the dock over the reply box (the phone canvas, B1),
 // the kit's notice. The one line of what is owed, one fact the page does not already show after it in the dim ink (never
@@ -209,6 +220,64 @@ function requestActsOf(thread: Thread, onDecide: StatusProps["onDecide"]) {
 }
 
 /**
+ * The booking they asked for, as a card under the dock's line (the thread canvas, 1 Nov 2026): its day on a tile, its
+ * hours and service, whether it still holds its time on the calendar, the door to that day, then Can't do it and Booked
+ * it a thumb tall, half the width each, and what each does. Booked it drafts the confirmation into the box below; Can't
+ * leaves the thread waiting on a reply (decision 0061).
+ */
+function RequestCard({ thread, onDecide }: { thread: Thread; onDecide: StatusProps["onDecide"] }) {
+  const W = BOOKING_REQUEST_WORDS;
+  const r = thread.real ? thread.request : undefined;
+  if (!r) return null;
+  return (
+    <div className="ix-request" data-testid="ix-request">
+      <div className="ix-request-when">
+        <span className="ix-request-day" role="img" aria-label={r.dayLong}>
+          <span className="ix-request-weekday">{r.weekday}</span>
+          <span className="ix-request-date">{r.date}</span>
+        </span>
+        <span className="ix-request-said">
+          <span className="ix-request-hours" data-testid="ix-request-hours">
+            {r.hours}
+            {r.service ? <span className="ix-request-service"> · {r.service}</span> : null}
+          </span>
+          <span className={`ix-request-holds${r.holds ? "" : " lapsed"}`} data-testid="ix-request-holds">
+            <Icon name={r.holds ? "check" : "clock"} size={12} />
+            {r.holds ? W.holds : W.lapsed}
+          </span>
+        </span>
+        <LinkButton className="ix-request-door" {...routeDoor(r.to)} title={W.dayDoor(r.dayLong)}>
+          {W.day}
+          <Icon name="chevron" size={12} />
+        </LinkButton>
+      </div>
+      <div className="ix-request-acts">
+        <Button
+          variant="outline"
+          size="touch"
+          onClick={() => onDecide(thread.id, "__CANT__")}
+          data-testid="ix-request-cant"
+          {...gate("approve", W.gate)}
+        >
+          {W.cant_do_it}
+        </Button>
+        <Button
+          variant="primary"
+          size="touch"
+          onClick={() => onDecide(thread.id, "__BOOKED__")}
+          data-testid="ix-request-booked"
+          {...gate("approve", W.gate)}
+        >
+          <Icon name="check" size={15} />
+          {W.booked_it}
+        </Button>
+      </div>
+      <p className="ix-request-foot">{W.card_foot}</p>
+    </div>
+  );
+}
+
+/**
  * Whether what they wrote is still waiting on an answer: of the words exchanged, theirs are the newest (a draft held, a
  * note, a call, our words that never reached them are not an answer). A hand back then sends them nothing, and the
  * receptionist never comes back to a message it held (Daniela Reyes, 20 Sep 2026), so the hand back asks first.
@@ -298,22 +367,6 @@ function holdWhy(thread: Thread): ReactNode {
   );
 }
 
-/**
- * Whether taking the thread without a word is More's to offer (header.tsx): a hold that asks for a reply, where the reply
- * box can send one, so the dock offers no take-over (takeAct). Claiming it first still tells the team it is yours, and
- * pauses the receptionist, before a word is written.
- */
-export const takeInTheMenu = (thread: Thread): boolean =>
-  !!thread.real &&
-  thread.state === "escalated" &&
-  !thread.takenOver &&
-  !thread.claimedByOther &&
-  thread.holdAct !== "hand_back" &&
-  thread.holdAct !== "confirm" &&
-  !ixDockDials(thread) &&
-  thread.primaryChannel !== "phone" &&
-  replyGoes(thread);
-
 /** The lead act of a hold that asks for a person: a call back, or taking it where no reply can go; none where one can. */
 function takeAct(p: DockProps, thread: Thread): ReactNode {
   const { onTakeOver } = p;
@@ -339,51 +392,114 @@ function takeAct(p: DockProps, thread: Thread): ReactNode {
 }
 
 /**
- * A real thread that needs you: the one line of what is owed (contracts reasonLineOf), its whole why a press away, and
- * what to do about it beside the reply box under it. The dock said the reason's sentence, up to forty words, over a
- * flag in the conversation that said it again, and offered "I'll answer this" beside a reply box whose Send already
- * answers and takes the thread (the thread canvas, 1 Nov 2026).
+ * Whether the reply box under the dock answers this hold, with Hand back beside its Send (composerAside): a hold that asks
+ * for a reply, on a real thread nobody has taken, where words can go. The dock then says the line alone.
+ */
+const boxAnswers = (thread: Thread): boolean =>
+  !!thread.real &&
+  thread.state === "escalated" &&
+  !!thread.escalationId &&
+  thread.holdAct === "reply" &&
+  !thread.takenOver &&
+  !thread.claimedByOther &&
+  !ixDockDials(thread) &&
+  thread.primaryChannel !== "phone" &&
+  replyGoes(thread);
+
+/** Hand back, as the quiet act beside a coral one: outlined, a thumb tall, its glyph the way back. */
+function handBackButton(p: DockProps, go: () => void) {
+  return (
+    <Button
+      variant="outline"
+      size="touch"
+      onClick={guardedHandBack(p, go)}
+      aria-label="Nothing needed — hand it back to the receptionist"
+      data-testid="ix-hand-back"
+      {...gate("approve", "hand a conversation back")}
+    >
+      <Icon name="undo" size={15} />
+      {THREAD_PANE_WORDS.handBack}
+    </Button>
+  );
+}
+
+/**
+ * What the reply box draws beside its Send, from the thread's state (the thread canvas, 1 Nov 2026: "Hand back" at the
+ * left, "Send email" at the right, under the draft): Hand back, where the box answers the hold. The pane holds which
+ * thread's hand back is asked about (thread.tsx), so the dock's question and this press are one.
+ */
+export function composerAside(p: StatusProps): ReactNode {
+  const { thread, onDecide, asking = null, setAsking = () => undefined } = p;
+  if (!boxAnswers(thread) || asking === thread.id) return null;
+  return handBackButton({ ...p, asking, setAsking }, () => onDecide(thread.id, "__HANDBACK__"));
+}
+
+/** The dock's one line, as the canvas draws it: a dot in the coral, what is owed at 600, the clause after it muted. */
+function dockLine({ lead, rest }: { lead: string; rest: string | null }) {
+  return (
+    <span className="ix-dock-line">
+      <span className="ix-dock-dot" aria-hidden="true" />
+      <b>{lead}</b>
+      {rest ? <span className="ix-dock-rest"> — {rest}</span> : null}
+    </span>
+  );
+}
+
+/**
+ * A real thread that needs you: the one line of what is owed (contracts reasonLineOf; "Check the draft" where the
+ * receptionist drafted its reply into the box), its whole why a press away where the box holds no draft to say it, and
+ * what to do about it. Where the reply box under it answers the hold, Hand back stands beside the box's Send
+ * (composerAside) and the dock is its line alone (the thread canvas, 1 Nov 2026).
  */
 function needsYouState(p: DockProps, thread: Thread) {
   const { onDecide } = p;
   const handBack = () => onDecide(thread.id, "__HANDBACK__");
   if (p.asking === thread.id) return handBackAsk(p, handBack);
-  const line = (thread.real && thread.holdLine) || thread.summary;
-  return (
+  const drafted = boxAnswers(thread) && !!keptReplyNow(thread);
+  const said = dockLineOf((thread.real && thread.holdLine) || thread.summary);
+  const line = drafted ? { lead: THREAD_PANE_WORDS.checkDraft, rest: said.rest } : said;
+  const label = line.rest ? `${line.lead} — ${line.rest}` : line.lead;
+  // A request its card draws (RequestCard) answers there; one whose time the hold does not carry keeps its two words.
+  const card = thread.holdAct === "confirm" && thread.real && !!thread.request;
+  const acts = card ? null : thread.holdAct === "confirm" ? (
+    requestActsOf(thread, onDecide)
+  ) : (
+    <>
+      {/* A hold nothing may be sent for (its reason's act is to hand back, escalations.ts HOLD_ACT_WORDS) offers no
+            reply to write: Hand back is the thread's own verb. */}
+      {takeAct(p, thread)}
+      {thread.escalationId && !boxAnswers(thread) && (
+        <Button
+          variant="quiet"
+          size="sm"
+          onClick={guardedHandBack(p, handBack)}
+          aria-label="Nothing needed — hand it back to the receptionist"
+          {...gate("approve", "hand a conversation back")}
+        >
+          {THREAD_PANE_WORDS.handBack}
+        </Button>
+      )}
+    </>
+  );
+  const dock = (
     <Dock
       testid="ix-needs-you"
-      label={line}
-      // The reason's own line, never one line for every reason: a held message was not "already answered", and a call
-      // back is not a reply. What they asked is the conversation right above it.
-      fact={line}
-      source={holdWhy(thread)}
-      // One row, its acts beside the line, as a thread you have says it: the acts stood under the line, a thumb tall,
-      // with the reply box under them (the thread canvas, 1 Nov 2026).
+      label={label}
+      fact={dockLine(line)}
+      // Why it was held, a press away, where the box holds no draft whose own Why this? says what it read, and no card says
+      // what was asked.
+      source={drafted || card ? null : holdWhy(thread)}
       line
-      acts={
-        thread.holdAct === "confirm" ? (
-          requestActsOf(thread, onDecide)
-        ) : (
-          <>
-            {/* A hold nothing may be sent for (its reason's act is to hand back, escalations.ts HOLD_ACT_WORDS) offers no
-              reply to write: Hand back is the thread's own verb. */}
-            {takeAct(p, thread)}
-            {/* Two words on the screen, the whole sentence for a screen reader: it was a sentence wearing a button. */}
-            {thread.escalationId && (
-              <Button
-                variant="quiet"
-                size="sm"
-                onClick={guardedHandBack(p, handBack)}
-                aria-label="Nothing needed — hand it back to the receptionist"
-                {...gate("approve", "hand a conversation back")}
-              >
-                Hand back
-              </Button>
-            )}
-          </>
-        )
-      }
+      acts={acts}
     />
+  );
+  return card ? (
+    <>
+      {dock}
+      <RequestCard thread={thread} onDecide={onDecide} />
+    </>
+  ) : (
+    dock
   );
 }
 
@@ -568,9 +684,14 @@ function steerStatus(p: StatusProps) {
  * ("Reply to take it from …", composer.tsx), the one thing left to know.
  */
 export const ThreadStatus = (props: StatusProps) => {
-  // Which thread's hand back is being asked about: kept by its id, so it never shows over another thread.
-  const [asking, setAsking] = useState<string | null>(null);
-  const p: DockProps = { ...props, asking, setAsking };
+  // Which thread's hand back is being asked about: kept by its id, so it never shows over another thread. The pane's
+  // where it holds it (thread.tsx), since the reply box's Hand back asks it too; the band's own otherwise.
+  const [own, setOwn] = useState<string | null>(null);
+  const p: DockProps = {
+    ...props,
+    asking: props.setAsking ? (props.asking ?? null) : own,
+    setAsking: props.setAsking ?? setOwn,
+  };
   return (
     <>
       {staleBar(p)}
@@ -594,59 +715,86 @@ export const ThreadStatus = (props: StatusProps) => {
 // window, shut, is the template box's to say (ChatClosed, template-box.tsx): the line under the name is the person's
 // link, and a press inside a link is not one. Nothing when there is nothing to say: the header says the wires instead.
 
-/** Where a thread stands: the pill its row wears with how long they have waited, or a quiet thread's one sentence. */
+/** Where a thread stands: the pill its row wears, lit on its tone, with how long they have waited in the mono face. */
 interface Standing {
   pill: ReactElement;
   meta?: string | null;
   late?: boolean;
 }
 
-const ixStanding = (thread: Thread): Standing | null => {
+/** A draft counting down to send, as the head's state says it: the seconds left (none once held) and whether you are away. */
+export interface Countdown {
+  remaining: number | null;
+  paused: boolean;
+}
+
+/**
+ * Where a thread stands, lit (the thread canvas, 1 Nov 2026): a hold is "Needs you" in the coral with the wait beside it
+ * ("2h"); a draft counting down "Sends in 0:42" in the amber with its clock; a thread nothing waits on "Handled" in the
+ * green with its tick; a snooze, a thread somebody has, and a reply that did not send, in their own tones.
+ */
+const ixStanding = (thread: Thread, countdown: Countdown): Standing | null => {
+  const W = THREAD_PANE_WORDS;
   if (thread.state === "snoozed")
     return {
-      pill: <StatePill kind="thread" value="snoozed" />,
+      pill: <StatePill kind="thread" value="snoozed" lit />,
       meta: `back ${thread.wake || "tomorrow 10:00"}`,
     };
-  if (thread.takenOver) return { pill: <StatePill kind="thread" value="yours" /> };
-  const waiting = thread.waited ? `waiting ${thread.waited}` : null;
+  if (thread.takenOver) return { pill: <StatePill kind="thread" value="yours" lit /> };
   if (thread.claimedByOther)
     return {
-      pill: <StatePill kind="thread" value="theirs" label={heldPill("theirs", holderName(thread.assigneeUserId))} />,
-      meta: waiting,
+      pill: (
+        <StatePill kind="thread" value="theirs" lit label={heldPill("theirs", holderName(thread.assigneeUserId))} />
+      ),
+      meta: thread.waited || null,
     };
-  // Amber past half an hour, as the row's pill is.
   if (thread.state === "escalated")
     return {
-      pill: <StatePill kind="thread" value="escalated" />,
-      meta: waiting,
-      late: (thread.waitingMin ?? 0) > 30,
+      pill: <StatePill kind="tone" value="accent" lit label={stateOf("thread", "escalated").label} />,
+      meta: thread.waited || null,
+    };
+  // A draft counting down is where the thread stands: when it sends, as its own line under the bubble says it.
+  if (thread.real && thread.veto && countdown.remaining != null && !thread.resolution)
+    return {
+      pill: (
+        <StatePill
+          kind="tone"
+          value="warn"
+          lit
+          glyph={<Icon name="clock" size={11} />}
+          label={
+            <>
+              {W.sendsIn} <span className="tabular">{countdownClock(countdown.remaining)}</span>
+            </>
+          }
+        />
+      ),
     };
   if (thread.state !== "done" || thread.resolution) return null;
-  if (thread.archived) return { pill: <StatePill kind="thread" value="archived" label="Archived" /> };
-  // A draft still waiting to go out is the thread's state, said by its countdown: "They wrote last — no reply yet"
-  // sat over "Auto-sends in 72s", one saying nothing was coming and the other that it was about to.
-  if (!thread.lastWord || thread.veto) return null;
+  if (thread.archived) return { pill: <StatePill kind="thread" value="archived" label="Archived" lit /> };
+  if (thread.veto) return null;
   // A reply that didn't send, or what they wrote held and closed with nothing sent (contracts unansweredOf), wears the
-  // row's own pill and, beside it, when the words that didn't send were written, or how long they have waited. A quiet
-  // thread says nothing here: the conversation shows who had the last word, and a sentence for the ordinary state stood
-  // over every thread (the phone canvas, A1).
-  if (!thread.lastWord.short) return null;
-  return {
-    pill: <StatePill kind="tone" value={thread.lastWord.tone} label={thread.lastWord.short} />,
-    // The tone says it once, in the pill: the time beside it is the dim ink.
-    meta: thread.unanswered ? `waiting ${thread.unanswered.waited}` : thread.lastWord.at || null,
-  };
+  // row's own pill and, beside it, how long they have waited. Every other thread nothing waits on is handled.
+  if (thread.lastWord && thread.lastWord.short)
+    return {
+      pill: <StatePill kind="tone" value={thread.lastWord.tone} lit label={thread.lastWord.short} />,
+      meta: thread.unanswered ? thread.unanswered.waited : thread.lastWord.at || null,
+    };
+  return { pill: <StatePill kind="tone" value="ok" lit glyph={<Icon name="check" size={11} />} label={W.handled} /> };
 };
 
 /** Where a real thread stands, as the header's second line says it; null where it stands nowhere worth a word. */
-export function whereItStands(thread: Thread): ReactElement | null {
-  const standing = ixStanding(thread);
+export function whereItStands(
+  thread: Thread,
+  countdown: Countdown = { remaining: null, paused: false },
+): ReactElement | null {
+  const standing = ixStanding(thread, countdown);
   if (!standing) return null;
   return (
     <span className="ix-th-standing" data-testid="ix-th-standing">
       {standing.pill}
       {standing.meta && (
-        <span className={`ix-th-standing-meta tabular${standing.late ? " late" : ""}`}>· {standing.meta}</span>
+        <span className={`ix-th-standing-meta tabular${standing.late ? " late" : ""}`}>{standing.meta}</span>
       )}
     </span>
   );
@@ -657,23 +805,28 @@ export function whereItStands(thread: Thread): ReactElement | null {
  * one send left (template-box.tsx). A DM's says why in Instagram's words. It stood at the end of the bar under the header,
  * away from the box it explains.
  */
-export function ChatClosed({ dm }: { dm: boolean }) {
+export function ChatClosed({ dm, who }: { dm: boolean; who: string }) {
   const [open, setOpen] = useState(false);
   const W = THREAD_PANE_WORDS;
   return (
     <>
-      <Button
-        variant="quiet"
-        size="text"
-        className="ix-th-window"
-        aria-expanded={open}
-        onClick={() => setOpen(!open)}
-        data-testid="ix-th-window"
-      >
-        <Icon name="lock" size={12} />
-        {W.chatClosed}
-        <Icon name="info" size={12} />
-      </Button>
+      <div className="ix-closed-line" data-testid="ix-th-window">
+        <Icon name="lock" size={14} className="ix-closed-lock" />
+        <span className="ix-closed-words">
+          <b>{W.chatClosedLead}</b>
+          <span className="ix-dock-rest"> — {W.chatClosedRest(shortName(who))}</span>
+        </span>
+        <Button
+          variant="quiet"
+          size="text"
+          className="ix-closed-why ix-press"
+          aria-expanded={open}
+          onClick={() => setOpen(!open)}
+          data-testid="ix-th-window-toggle"
+        >
+          {W.why}
+        </Button>
+      </div>
       {open && (
         <span className="ix-why-said" data-testid="ix-th-window-why">
           {dm ? W.dmClosedWhy : W.chatClosedWhy}

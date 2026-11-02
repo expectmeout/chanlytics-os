@@ -17,10 +17,18 @@ import {
   takeIdempotencyKey,
   takeOverThread,
   callBackMessage,
+  sendQueuedNow,
   memberWithdrawMessage,
   type Json,
 } from "@chanlytics/db";
-import type { CancelSendPorts, EscalationPorts, ReplyPorts, ReplyReceipt, ThreadPorts } from "@chanlytics/core";
+import type {
+  CancelSendPorts,
+  EscalationPorts,
+  ReplyPorts,
+  ReplyReceipt,
+  SendNowPorts,
+  ThreadPorts,
+} from "@chanlytics/core";
 import { conversationPatch } from "@chanlytics/contracts";
 import { dbRefusal, type RouteContext } from "../with-route";
 import { cancelPendingAiReply, pauseMsFor, recordDecision, replyChannelOf, resolveOpenEscalation } from "../verbs";
@@ -145,6 +153,28 @@ export function cancelSendPorts(ctx: RouteContext): CancelSendPorts {
       if (!done) return null;
       if (done.undoDropped)
         log.error("decision_undo_of_unknown", { undo_of: ctx.undoOf, verb: "cancel_send", subject: "message" });
+      return { decision_id: done.decisionId };
+    },
+  };
+}
+
+export function sendNowPorts(ctx: RouteContext): SendNowPorts {
+  return {
+    // One door on the member's own session (00503 message_send_now): the send job brought to now and the approve line,
+    // only while the row is queued and no run has claimed it. Null is the verb's "already on its way". The undo link it
+    // dropped is logged as recordDecision logs it.
+    sendNow: async (tenantId, id) => {
+      const done = await sendQueuedNow(ctx.supabase, {
+        tenantId,
+        messageId: id,
+        via: ctx.via ?? null,
+        undoOf: ctx.undoOf ?? null,
+      }).catch((e: { code?: string | null; message: string }) => {
+        throw dbRefusal(e);
+      });
+      if (!done) return null;
+      if (done.undoDropped)
+        log.error("decision_undo_of_unknown", { undo_of: ctx.undoOf, verb: "approve", subject: "message" });
       return { decision_id: done.decisionId };
     },
   };

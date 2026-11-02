@@ -212,7 +212,7 @@ export {
   PERSON_MODES,
 } from "./person-receptionist";
 export type { HolderNames, OwnModesDto, PersonMode, PersonReceptionist, ReceptionistTone } from "./person-receptionist";
-export { cameFromOf, threadPersonFactsOf, toPersonRowVM, visitLineForDto } from "./person-row";
+export { cameFromOf, threadHeadFactOf, threadPersonFactsOf, toPersonRowVM, visitLineForDto } from "./person-row";
 export type { PersonRowVM, ThreadPersonFact } from "./person-row";
 export { ago } from "./person-row-facts";
 export type { PersonFirstContact, PersonLastContact } from "./person-row-facts";

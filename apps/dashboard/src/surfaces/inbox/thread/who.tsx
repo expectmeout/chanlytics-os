@@ -12,7 +12,7 @@
  * person has it.
  */
 import type { ReactNode } from "react";
-import { Face } from "../../kit/face/face";
+import { Face, faceTileOf } from "../../kit/face/face";
 import { hasRouteDoor, routeDoor } from "../shell";
 
 interface IxWhoProps {
@@ -22,12 +22,41 @@ interface IxWhoProps {
   avatar: string;
   photo?: string | null;
   priority?: string | null;
+  /** The face in their own hue (the thread's head; contracts' name picks it), where it is the house's grey. */
+  hued?: boolean;
+  /** What stands on the face's edge: the wire the conversation is on (header.tsx wireBadge). */
+  badge?: ReactNode;
   children?: ReactNode;
 }
 
-export const IxWho = ({ to = null, go = null, who, avatar, photo = null, priority = null, children }: IxWhoProps) => {
-  const face = (
-    <Face person={{ name: who, initials: avatar }} size="lg" photo={photo ?? undefined} priority={priority} />
+export const IxWho = ({
+  to = null,
+  go = null,
+  who,
+  avatar,
+  photo = null,
+  priority = null,
+  hued = false,
+  badge = null,
+  children,
+}: IxWhoProps) => {
+  const drawn = (
+    <Face
+      person={{ name: who, initials: avatar }}
+      size="lg"
+      photo={photo ?? undefined}
+      priority={priority}
+      {...(hued ? { hue: faceTileOf(who), className: "ix-th-who-round" } : {})}
+    />
+  );
+  // A badge stands on the face's edge, outside the circle that clips its picture: the two in a box of their own.
+  const face = badge ? (
+    <span className="ix-th-pic">
+      {drawn}
+      {badge}
+    </span>
+  ) : (
+    drawn
   );
   if (!to || !hasRouteDoor())
     return (

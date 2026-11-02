@@ -13676,6 +13676,52 @@ COMMENT ON FUNCTION public.message_moment(p_meta jsonb, p_channel_ts timestamp w
 
 
 --
+-- Name: message_send_now(uuid, uuid, text, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.message_send_now(p_tenant_id uuid, p_message_id uuid, p_via text DEFAULT NULL::text, p_undo_of uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_jobs integer;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  -- An owner or an operator, or a partner on a session that showed its second factor: who may commit a change here.
+  if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  -- The job that would send it, brought to now while its message is queued and claimed by no run: a row on its way is
+  -- left to its run, and one withdrawn has no job left to bring.
+  with due as (
+    update public.jobs j
+       set due_at = least(j.due_at, now()), updated_at = now()
+      from public.messages m
+     where m.tenant_id = p_tenant_id and m.id = p_message_id
+       and m.status = 'queued' and m.sending_at is null
+       and j.tenant_id = p_tenant_id and j.kind = 'outbound_send' and j.state = 'scheduled'
+       and j.payload ->> 'message_id' = m.id::text
+    returning j.id
+  )
+  select count(*) into v_jobs from due;
+  if v_jobs = 0 then
+    return null;
+  end if;
+  -- The ledger's line as the member's own: they approved these words to go.
+  return public.member_decision(p_tenant_id, 'message', p_message_id, 'approve', '{}'::jsonb, p_via, p_undo_of);
+end $$;
+
+
+--
+-- Name: FUNCTION message_send_now(p_tenant_id uuid, p_message_id uuid, p_via text, p_undo_of uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.message_send_now(p_tenant_id uuid, p_message_id uuid, p_via text, p_undo_of uuid) IS 'A member lets a held reply go now (00503): the outbound_send job of a message still queued and claimed by no run brought to now, and the approve decision on the message as the member''s own, in one transaction. Null when there was nothing to bring forward (sent, claimed, withdrawn, gone), with nothing written. Returns decision_id and undo_dropped.';
+
+
+--
 -- Name: message_stamp_handled(uuid, uuid, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -47540,6 +47586,15 @@ GRANT ALL ON FUNCTION public.message_keep_cost(p_tenant_id uuid, p_external_id t
 REVOKE ALL ON FUNCTION public.message_moment(p_meta jsonb, p_channel_ts timestamp with time zone, p_created_at timestamp with time zone, p_type text, p_status text, OUT at timestamp with time zone, OUT spoken boolean, OUT moved_in boolean) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.message_moment(p_meta jsonb, p_channel_ts timestamp with time zone, p_created_at timestamp with time zone, p_type text, p_status text, OUT at timestamp with time zone, OUT spoken boolean, OUT moved_in boolean) TO authenticated;
 GRANT ALL ON FUNCTION public.message_moment(p_meta jsonb, p_channel_ts timestamp with time zone, p_created_at timestamp with time zone, p_type text, p_status text, OUT at timestamp with time zone, OUT spoken boolean, OUT moved_in boolean) TO service_role;
+
+
+--
+-- Name: FUNCTION message_send_now(p_tenant_id uuid, p_message_id uuid, p_via text, p_undo_of uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.message_send_now(p_tenant_id uuid, p_message_id uuid, p_via text, p_undo_of uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.message_send_now(p_tenant_id uuid, p_message_id uuid, p_via text, p_undo_of uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.message_send_now(p_tenant_id uuid, p_message_id uuid, p_via text, p_undo_of uuid) TO service_role;
 
 
 --

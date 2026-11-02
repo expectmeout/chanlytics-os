@@ -240,6 +240,7 @@ export const ROUTE_KEYS = [
   "POST mailboxes",
   "POST me/invitations/accept",
   "POST messages/[id]/cancel-send",
+  "POST messages/[id]/send-now",
   "POST messages/[id]/steer",
   "POST notifications/test",
   "POST partner",

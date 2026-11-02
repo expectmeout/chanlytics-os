@@ -237,6 +237,7 @@ export const ROUTES = {
   "POST mailboxes": { method: "POST", path: "/api/v1/mailboxes" },
   "POST me/invitations/accept": { method: "POST", path: "/api/v1/me/invitations/accept" },
   "POST messages/[id]/cancel-send": { method: "POST", path: "/api/v1/messages/[id]/cancel-send" },
+  "POST messages/[id]/send-now": { method: "POST", path: "/api/v1/messages/[id]/send-now" },
   "POST messages/[id]/steer": { method: "POST", path: "/api/v1/messages/[id]/steer" },
   "POST notifications/test": { method: "POST", path: "/api/v1/notifications/test" },
   "POST partner": { method: "POST", path: "/api/v1/partner" },
@@ -582,6 +583,7 @@ export type Routes = {
   "POST mailboxes": typeof import("../../app/api/v1/mailboxes/route").POST;
   "POST me/invitations/accept": typeof import("../../app/api/v1/me/invitations/accept/route").POST;
   "POST messages/[id]/cancel-send": typeof import("../../app/api/v1/messages/[id]/cancel-send/route").POST;
+  "POST messages/[id]/send-now": typeof import("../../app/api/v1/messages/[id]/send-now/route").POST;
   "POST messages/[id]/steer": typeof import("../../app/api/v1/messages/[id]/steer/route").POST;
   "POST notifications/test": typeof import("../../app/api/v1/notifications/test/route").POST;
   "POST partner": typeof import("../../app/api/v1/partner/route").POST;

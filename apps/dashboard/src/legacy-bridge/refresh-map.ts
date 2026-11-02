@@ -297,6 +297,7 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST escalations/[id]/resolve": thread,
   "POST messages/[id]/steer": thread,
   "POST messages/[id]/cancel-send": thread,
+  "POST messages/[id]/send-now": thread,
   // People.
   "DELETE contacts/[id]": erased,
   // Not a person (00483): their address or domain said to be automated, which moves nothing on screen (their next email stays

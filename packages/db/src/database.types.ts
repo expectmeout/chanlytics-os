@@ -8852,6 +8852,15 @@ export type Database = {
         }
         Returns: Record<string, unknown>
       }
+      message_send_now: {
+        Args: {
+          p_message_id: string
+          p_tenant_id: string
+          p_undo_of?: string
+          p_via?: string
+        }
+        Returns: Json
+      }
       message_stamp_handled: {
         Args: {
           p_handled: string

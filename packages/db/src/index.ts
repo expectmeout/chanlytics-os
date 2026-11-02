@@ -110,6 +110,7 @@ export {
   notedOver,
   openBookingRequest,
   openRequestOfThread,
+  openRequestsOfThreads,
   reachOutBookedFrom,
   recordOver,
   syncFeedAppointments,
@@ -123,6 +124,7 @@ export type {
   AppointmentSync,
   AppointmentUpdate,
   EarlierVisitRow,
+  OpenRequestRow,
   VisitOriginRow,
 } from "./repositories/calendar/appointments";
 export {
@@ -398,6 +400,7 @@ export {
   openEscalation,
   readLiveHold,
   releaseControl,
+  sendQueuedNow,
   takeOverThread,
   withdrawAiDrafts,
   withdrawQueued,
