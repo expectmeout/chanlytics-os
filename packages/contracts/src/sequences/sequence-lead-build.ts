@@ -37,6 +37,16 @@ import { slotMentions } from "../templates/slot-sets";
 import { SEQUENCE_MODE_LABEL } from "./sequence";
 import { SCHEDULE_WORDS } from "./sequence-schedule";
 
+/** How much an owner may say of what should change in an email, as Change it with Ask holds a draft's instruction. */
+export const LEAD_REWRITE_CHANGE_MAX = 280;
+
+/** What POST sequences/:id/rewrite answers: the email written again, for the sheet's box, and what it left out. */
+export interface LeadRewriteDto {
+  subject: string | null;
+  body: string;
+  cannot: string | null;
+}
+
 /** The record's words for a sequence to leads, said once. */
 export const LEAD_BUILD_WORDS = {
   /** The Start row: who joins, then the line under it. */
@@ -71,7 +81,14 @@ export const LEAD_BUILD_WORDS = {
   inThread: "It answers the email before it, in the same thread: no subject.",
   insert: "Insert",
   askRewrites: "Ask rewrites it",
-  askPrompt: (place: number, name: string) => `Rewrite step ${place} of “${name}”: `,
+  rewriteChange: "What should change?",
+  rewriteGo: "Rewrite",
+  rewriteGoing: "Rewriting…",
+  rewriteUndo: "Undo",
+  rewriteLong: `At most ${LEAD_REWRITE_CHANGE_MAX} characters.`,
+  rewriteBroke: "That rewrite broke a cold email rule, so your email stayed as it was. Say it another way.",
+  rewriteLostOpening: "That rewrite dropped the opening, so your email stayed as it was. Try again.",
+  rewriteFailed: "Ask couldn’t rewrite it just now. Try again.",
   preview: "Preview",
   holdsOne: "A value that can’t be filled holds that one email for you.",
   aboutThem: "About them",

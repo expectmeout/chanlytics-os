@@ -1086,8 +1086,10 @@ chain end with a call or a note for the team.
   memory (a line learned from an email the owner pasted is `learned`, 00493) and the first emails of the last three started
   sequences to leads (`server/sequences/draft.ts`, `server/sequences/voice.ts`), each with what Ask drafted for it (kept
   as `as_drafted` in its `make_sequence` decision: New and Leads' "A draft by Ask" send it), its search and its first
-  email's counts (decision 0078 step 2). On a morning after the member edited a cold email since yesterday, and only then,
-  Ask's morning reads them (the sequences read's `edited`) and may propose a `learned` line about how they write, a card
+  email's counts (decision 0078 step 2). Ask rewrites it, on a step's sheet, asks what should change and writes the email
+  again under the same rules and from the same reads (`POST sequences/:id/rewrite`, `server/sequences/rewrite.ts`): the
+  words stand in the box as if typed, with Undo, what a rule kept out is said, and only the chain's own save keeps them.
+  On a morning after the member edited a cold email since yesterday, and only then, Ask's morning reads them (the sequences read's `edited`) and may propose a `learned` line about how they write, a card
   that waits for their press (titled "Remember this?"). Each morning is told what every member's mornings offered in the
   last fourteen days, and Today leaves out a card set aside or approved within a week; what Ask noticed from the
   sequences and their batches, with no model, stands first in Ask found (decision 0087). A business whose domain a person in People

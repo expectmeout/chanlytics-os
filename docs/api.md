@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-342 handlers in 55 domains.
+343 handlers in 55 domains.
 
 ## activity
 
@@ -2587,6 +2587,16 @@ Reads; for a member of the row's own workspace; counts against the `aggregate` r
 Writes; for a member of the row's own workspace, operator or above; counts against the `playbook` rate; spends nothing.
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/sequences/[id]/return/route.ts`).
+
+### `POST /api/v1/sequences/[id]/rewrite`
+
+Writes; for a member of the row's own workspace, operator or above; counts against the `ask` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `subject` | string or null | yes |  |
+| `body` | string | yes | at most 1200 characters |
+| `change` | string | yes | at least 1 characters; at most 280 characters |
 
 ### `POST /api/v1/sequences/[id]/steps`
 

@@ -110,6 +110,9 @@ export interface DraftExample {
   numbers?: { written: number; wrote_back: number; said_no: number } | null;
 }
 
+/** What the model is told of what a business offers and how its owner writes: a draft's, and a rewrite's (rewrite.ts). */
+export type OwnerKnown = Pick<DraftKnown, "goal" | "about" | "services" | "tone" | "memory" | "examples">;
+
 /** What a draft is judged against: the business, what it offers and holds, and what already runs. */
 export interface DraftKnown {
   business: string;
@@ -245,7 +248,7 @@ function peopleMessage(a: NewDraftAnswerStep, first: boolean, known: DraftKnown,
  * A lead's email: kept where it holds as every email must, and a first one with no link (the check says so), else left for
  * the owner to write.
  */
-function leadEmail(a: NewDraftAnswerStep, first: boolean): NewEmail {
+export function leadEmail(a: Pick<NewDraftAnswerStep, "subject" | "body">, first: boolean): NewEmail {
   const w = { subject: first ? cleanWords(a.subject) || null : null, body: cleanWords(a.body) };
   const holds =
     validateReachOutWords(w, first).length === 0 &&

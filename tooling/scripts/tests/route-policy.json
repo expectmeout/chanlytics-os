@@ -2136,6 +2136,13 @@
       "rate": "ask",
       "spend": false
     },
+    "POST sequences/[id]/rewrite": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "ask",
+      "spend": false
+    },
     "POST sequences/voice": {
       "kind": "write",
       "scope": "workspace",

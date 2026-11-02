@@ -720,6 +720,7 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "POST reach-outs/preview": "a preview of a reach-out's email",
   "POST segments/draft": "a draft of a list's rule",
   "POST sequences/draft": "a draft of a new sequence, shown in the pane that asked; nothing is made until it is kept",
+  "POST sequences/[id]/rewrite": "an email's words written again, handed back to the step's sheet; its save keeps them",
   "POST templates/draft": "a draft of a template's words",
   "POST templates/versions/rewrite":
     "a version's words written again, handed back to the editor; only its Save keeps them",

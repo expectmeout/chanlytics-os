@@ -2,11 +2,11 @@
  * A step of a sequence to leads, written in its sheet (the lead-to-sequence canvas's boards C and D: the draft is the
  * record): its subject (the first email's; a later one answers in its thread), its email in the box every email is written
  * in (templates/slots/words-field.tsx: each value a chip by its name), Insert with each value as it stands for the lead
- * previewed (insert.tsx), Ask rewrites it, and Preview as a real lead (preview.tsx), whose foot sends the step as that lead
- * gets it to your own inbox. A later step says how long it waits, and may be taken out; a call or a note says what to do.
- * Every change is saved a moment after it (use-chain.ts); Done saves what waits and closes.
+ * previewed (insert.tsx), Ask rewrites it as you say (rewrite.tsx), and Preview as a real lead (preview.tsx), whose foot
+ * sends the step as that lead gets it to your own inbox. A later step says how long it waits, and may be taken out; a call
+ * or a note says what to do. Every change is saved a moment after it (use-chain.ts); Done saves what waits and closes.
  */
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import {
   LEAD_BUILD_WORDS as W,
   REACH_OUT_SLOT_SET,
@@ -17,7 +17,6 @@ import {
   reachOutRemoveStep,
   reachOutSetHandWords,
   scheduleDays,
-  sequenceRoute,
   type ReachOutDraftStep,
   type SequenceRecordDto,
 } from "@chanlytics/contracts";
@@ -25,9 +24,8 @@ import { Button } from "../../../kit/button/button";
 import { Field } from "../../../kit/field/field";
 import { Icon } from "../../../kit/icon/icon";
 import { Picker } from "../../../kit/picker/picker";
-import { sheetsSettled } from "../../../kit/sheet/back";
 import { Sheet } from "../../../kit/sheet/sheet";
-import { askAbout, gate, type LegacyFlash } from "../../../legacy-verbs";
+import { gate, type LegacyFlash } from "../../../legacy-verbs";
 import { cmChevron, cmNumbers } from "../../parts/picks";
 import { useSlotSeats } from "../../templates/slots/slot-seats";
 import { tplOwn } from "../../templates/words";
@@ -44,6 +42,7 @@ import {
   workspaceOf,
   type PreviewLead,
 } from "./reads";
+import { LeadRewrite, useLeadRewrite } from "./rewrite";
 import type { LeadChain } from "./use-chain";
 
 type Flash = (f: LegacyFlash) => void;
@@ -53,25 +52,30 @@ const stepDaysOf = (steps: readonly ReachOutDraftStep[]) =>
   scheduleDays(steps.map((s, i) => ({ place: i + 1, after_days: i === 0 ? null : s.after_days })));
 
 interface WriteProps {
+  sequenceId: string;
   lc: LeadChain;
   place: number;
   step: ReachOutDraftStep;
   lead: PreviewLead | null;
   flash: Flash;
   onPreview: () => void;
-  /** Ask rewrites it: the sheet saves and closes, so Ask has the screen. */
-  onAsk: () => void;
 }
 
 /** An email being written: its subject or the thread it answers, its words, Insert, Ask rewrites it, Preview. */
-function EmailWrite({ lc, place, step, lead, flash, onPreview, onAsk }: WriteProps) {
+function EmailWrite({ sequenceId, lc, place, step, lead, flash, onPreview }: WriteProps) {
   const i = place - 1;
   const set = (patch: Partial<ReachOutDraftStep>) =>
     lc.edit((d) => ({ ...d, steps: d.steps.map((s, j) => (j === i ? { ...s, ...patch } : s)) }));
   const subject = i === 0 ? (step.subject ?? "") : "";
   const seats = useSlotSeats({ subject, body: step.body }, (to, words) => set({ [to]: words }));
-  const box = { slots: REACH_OUT_SLOT_SET, readOnly: false, seats };
+  // A rewrite's words in the boxes as if typed: each drawn again with them, as the editor puts its own (seats.put).
+  const rewrite = useLeadRewrite(sequenceId, { subject: i === 0 ? subject : null, body: step.body }, (w) => {
+    if (i === 0) seats.put("subject", { text: w.subject ?? "", caret: (w.subject ?? "").length });
+    seats.put("body", { text: w.body, caret: w.body.length });
+  });
+  const box = { slots: REACH_OUT_SLOT_SET, readOnly: rewrite.asking, seats };
   const [inserting, setInserting] = useState(false);
+  const [rewriting, setRewriting] = useState(false);
   const row = useLeadRow(lead?.id ?? null);
   const slotLead = row ? cardLeadOf(row) : lead ? null : exampleCardLead();
   return (
@@ -107,13 +111,19 @@ function EmailWrite({ lc, place, step, lead, flash, onPreview, onAsk }: WritePro
         >
           <Icon name="plus" size={12} /> {W.insert}
         </Button>
-        <Button size="sm" onClick={onAsk} data-testid="ld-ask-rewrite">
+        <Button
+          size="sm"
+          aria-expanded={rewriting}
+          onClick={() => setRewriting((on) => !on)}
+          data-testid="ld-ask-rewrite"
+        >
           <Icon name="sparkle" size={12} /> {W.askRewrites}
         </Button>
         <Button size="sm" onClick={onPreview} data-testid="ld-preview-open">
           {W.preview}
         </Button>
       </div>
+      {rewriting ? <LeadRewrite r={rewrite} /> : null}
       <p className="ld-note">{W.holdsOne}</p>
       {inserting ? (
         <LeadInsert
@@ -223,14 +233,6 @@ interface LeadStepSheetProps {
 export function LeadStepSheet({ open, place, rec, lc, flash, onClose }: LeadStepSheetProps) {
   const [previewing, setPreviewing] = useState(false);
   const [at, setAt] = useState(0);
-  // Ask rewrites it: asked once the sheet has closed and its step back has landed, so Ask stands over the record.
-  const askAfter = useRef<(() => void) | null>(null);
-  useEffect(() => {
-    if (open || !askAfter.current) return;
-    const ask = askAfter.current;
-    askAfter.current = null;
-    void sheetsSettled().then(ask);
-  }, [open]);
   const leads = usePreviewLeads(rec);
   const step = place ? (lc.draft.steps[place - 1] ?? null) : null;
   const lead = leads[Math.min(at, Math.max(0, leads.length - 1))] ?? null;
@@ -295,6 +297,7 @@ export function LeadStepSheet({ open, place, rec, lc, flash, onClose }: LeadStep
             />
           ) : (
             <EmailWrite
+              sequenceId={rec.sequence.id}
               lc={lc}
               place={place}
               step={step}
@@ -303,15 +306,6 @@ export function LeadStepSheet({ open, place, rec, lc, flash, onClose }: LeadStep
               onPreview={() => {
                 void lc.flush();
                 setPreviewing(true);
-              }}
-              onAsk={() => {
-                askAfter.current = () =>
-                  askAbout({
-                    about: { kind: "page", id: sequenceRoute(rec.sequence.id), label: rec.sequence.name },
-                    prompt: W.askPrompt(place, rec.sequence.name),
-                    mode: "compose",
-                  });
-                close();
               }}
             />
           )}

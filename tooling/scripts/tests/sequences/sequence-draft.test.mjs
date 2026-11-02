@@ -24,6 +24,10 @@
  * as data, into up to three lines about how they write, each kept in Ask's memory as `learned` through its one door; what
  * the model says that is no such line is never kept; memory full says so. And the line New says under a draft written
  * with them.
+ *
+ * And an email to leads written again as its owner says (POST sequences/:id/rewrite, 2 Nov 2026): the model is told the
+ * email as it stands, what they want changed and a draft's own rules, with how they write; what comes back is words for
+ * the sheet's box, never saved here, and only as every email must hold, its opening kept; what it left out is said.
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
@@ -36,10 +40,13 @@ const { draftFrom, examplesOf } = await import("../../../../apps/dashboard/src/s
 const { draftKept } = await import("../../../../apps/dashboard/src/server/sequences/draft-judge.ts");
 const M = await import("../../../../apps/dashboard/src/surfaces/campaigns/sequences/new/new-model.ts");
 const { onceChannelsOf, leadFirstOf } = await import("../../../../apps/dashboard/src/server/sequences/new-make.ts");
-const { NEW_MAKE_BODY, LEAD_FIRST_BODY, VOICE_BODY } =
+const { NEW_MAKE_BODY, LEAD_FIRST_BODY, REWRITE_BODY, VOICE_BODY } =
   await import("../../../../apps/dashboard/src/server/sequences/bodies.ts");
 const { learnVoice } = await import("../../../../apps/dashboard/src/server/sequences/voice.ts");
+const { rewriteFrom } = await import("../../../../apps/dashboard/src/server/sequences/rewrite.ts");
 const {
+  LEAD_BUILD_WORDS,
+  LEAD_REWRITE_CHANGE_MAX,
   NEW_WORDS,
   NEW_WORDS_MAX,
   VOICE_WORDS,
@@ -1175,4 +1182,105 @@ test("their preview (decision 0079): a workspace that makes previews is told it 
   assert.match(ours, /only link/);
   await draftFrom(KNOWN, LINE, { tenantId: "t1", userId: "u1" });
   assert.doesNotMatch(String(calls[calls.length - 1].request.system), /their preview/);
+});
+
+/* -------------------------------- an email written again, as its owner says -------------------------------- */
+
+const WHO = { tenantId: "t1", userId: "u1" };
+const FIRST = { subject: "Missed calls", body: "{{opening}}\n\nWe answer every call. Worth a look?\n\n{{your name}}" };
+const REWRITTEN = { subject: "Your phones", body: "{{opening}}\n\nWe pick up every call. Worth a look?", cannot: "" };
+
+test("a rewrite is told the email as it stands, what the owner wants changed and a draft's own rules, the email as data", async () => {
+  answerWith(REWRITTEN);
+  await rewriteFrom(
+    {
+      ...KNOWN,
+      about: "We answer the phone for local shops.",
+      memory: [{ text: "In cold emails: short, no greeting.", source: "learned" }],
+    },
+    { ...FIRST, change: "Sound less formal and drop the sign-off" },
+    WHO,
+  );
+  assert.equal(calls.length, 1);
+  assert.deepEqual([calls[0].purpose, calls[0].request.output_config.format.type], ["sequence_draft", "json_schema"]);
+  const told = String(calls[0].request.messages[0].content);
+  const system = String(calls[0].request.system);
+  assert.match(told, /Sound less formal and drop the sign-off/);
+  assert.match(told, /<record>\nSubject: Missed calls\n\{\{opening\}\}\n\nWe answer every call/, "its words are data");
+  assert.match(told, /Harbor Studio/);
+  assert.match(told, /<record>We answer the phone for local shops\.<\/record>/);
+  assert.match(told, /<record>In cold emails: short, no greeting\.<\/record>/);
+  // The same rules a draft is written under: a rewrite is no way round them.
+  assert.match(system, /the same words for every business/);
+  assert.match(system, /how busy it is/);
+  assert.match(system, /No link, price or exclamation mark in the first/);
+  assert.match(system, /Never a price, a discount or a date/);
+});
+
+test("a rewrite comes back as words for the box, and what it left out is said", async () => {
+  answerWith(REWRITTEN);
+  assert.deepEqual(await rewriteFrom(KNOWN, { ...FIRST, change: "Warmer" }, WHO), {
+    subject: "Your phones",
+    body: "{{opening}}\n\nWe pick up every call. Worth a look?",
+    cannot: null,
+  });
+  answerWith({ ...REWRITTEN, subject: "", cannot: "Left out: “mention our $99 plan”. A first email names no price." });
+  const out = await rewriteFrom(KNOWN, { ...FIRST, change: "Mention our $99 plan" }, WHO);
+  assert.equal(out.subject, "Missed calls", "a subject it left empty stays as it was");
+  assert.equal(out.cannot, "Left out: “mention our $99 plan”. A first email names no price.");
+});
+
+test("a later email stays in its thread, with no subject whatever the model says", async () => {
+  answerWith({ subject: "Following up", body: "Still happy to show you.\n\n{{your name}}", cannot: "" });
+  const out = await rewriteFrom(
+    KNOWN,
+    { subject: null, body: "Just checking.\n\n{{your name}}", change: "Shorter" },
+    WHO,
+  );
+  assert.deepEqual([out.subject, out.body], [null, "Still happy to show you.\n\n{{your name}}"]);
+  assert.match(String(calls[0].request.messages[0].content), /in the same thread/);
+});
+
+test("words that break a cold email's rules are refused in words, never handed back", async () => {
+  for (const [said, why] of [
+    [{ ...REWRITTEN, body: "{{opening}}\n\nSee https://example.com" }, "a link in a first email"],
+    [{ ...REWRITTEN, body: "{{opening}}\n\nOnly $99 a month." }, "a price"],
+    [{ ...REWRITTEN, body: "{{opening}}\n\nHi {{first_name}}" }, "a slot that is none"],
+    [{ ...REWRITTEN, body: "" }, "no words"],
+  ]) {
+    answerWith(said);
+    await assert.rejects(
+      rewriteFrom(KNOWN, { ...FIRST, change: "Sharper" }, WHO),
+      (e) => e.status === 422 && e.message === LEAD_BUILD_WORDS.rewriteBroke,
+      why,
+    );
+  }
+  // Where the model said why it wrote nothing, that is what is said.
+  answerWith({ subject: "", body: "", cannot: "Left out: “add a link”. A first email has no link." });
+  await assert.rejects(
+    rewriteFrom(KNOWN, { ...FIRST, change: "Add a link" }, WHO),
+    (e) => e.status === 422 && e.message === "Left out: “add a link”. A first email has no link.",
+  );
+});
+
+test("a first email keeps its opening: words that lost it are refused", async () => {
+  answerWith({ ...REWRITTEN, body: "We pick up every call. Worth a look?" });
+  await assert.rejects(
+    rewriteFrom(KNOWN, { ...FIRST, change: "Shorter" }, WHO),
+    (e) => e.status === 422 && e.message === LEAD_BUILD_WORDS.rewriteLostOpening,
+  );
+});
+
+test("an email still to write is written from what the owner says", async () => {
+  answerWith({ subject: "Your phones", body: "{{opening}}\n\nWorth a look?", cannot: "" });
+  const out = await rewriteFrom(KNOWN, { subject: "", body: "", change: "Offer a week free of answered calls" }, WHO);
+  assert.equal(out.body, "{{opening}}\n\nWorth a look?");
+});
+
+test("what the owner wants changed is asked for, within its bound; the door takes nothing else", () => {
+  const good = { subject: null, body: "Just checking.", change: "Shorter" };
+  assert.equal(REWRITE_BODY.safeParse(good).success, true);
+  assert.equal(REWRITE_BODY.safeParse({ ...good, change: "   " }).success, false);
+  assert.equal(REWRITE_BODY.safeParse({ ...good, change: "x".repeat(LEAD_REWRITE_CHANGE_MAX + 1) }).success, false);
+  assert.equal(REWRITE_BODY.safeParse({ ...good, place: 2 }).success, false);
 });

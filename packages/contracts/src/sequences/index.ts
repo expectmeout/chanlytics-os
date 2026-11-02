@@ -140,6 +140,7 @@ export {
 export type { HeldAnswer, HeldChoice, MarkedOpening } from "./sequence-held";
 export {
   LEAD_BUILD_WORDS,
+  LEAD_REWRITE_CHANGE_MAX,
   leadBuildStepsOf,
   leadDraftChainOf,
   leadDraftDockOf,
@@ -165,6 +166,7 @@ export type {
   LeadInsertRowVM,
   LeadMailboxRowVM,
   LeadPaceChoice,
+  LeadRewriteDto,
 } from "./sequence-lead-build";
 export {
   batchOkSendsNothing,
