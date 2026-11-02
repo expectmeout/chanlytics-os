@@ -1615,6 +1615,32 @@ test("needs (a case's workspace): a case needing what EVAL_WORKSPACE_HAS does no
   }
 });
 
+test("MUST_NEVER=1 asks the must-never cases alone, the weekly run's, and says so when a set holds none", () => {
+  const one = (id, must_never) => ({ id, text: id, surface: "today", expect: { no_write: true }, must_never });
+  const list = (cases) => {
+    const file = path.join(os.tmpdir(), `eval-ask-must-never-${process.pid}.json`);
+    writeFileSync(file, JSON.stringify(cases));
+    try {
+      return spawnSync(process.execPath, ["tooling/scripts/eval-ask.mjs", "--list", file], {
+        cwd: ROOT,
+        env: { ...process.env, MUST_NEVER: "1" },
+        encoding: "utf8",
+      });
+    } finally {
+      rmSync(file, { force: true });
+    }
+  };
+  const run = list([one("a", true), one("b", false), one("c", true)]);
+  assert.equal(run.status, 0, run.stderr);
+  assert.match(run.stdout, /^a · today · must-never$/m);
+  assert.match(run.stdout, /^c · today · must-never$/m);
+  assert.doesNotMatch(run.stdout, /^b · today/m);
+  assert.match(run.stdout, /^2 cases, 2 turns /m);
+  const none = list([one("b", false)]);
+  assert.equal(none.status, 2);
+  assert.match(none.stderr, /no cases match ONLY\/SURFACE\/MUST_NEVER/);
+});
+
 /** The nightly's workspace as its seed leaves it (e2e-workspace.mjs), in the cases' tokens, before the Win-back's seed. */
 const NIGHTLY = ["no_calendar", "no_offers_channel", "no_offers_yes"];
 

@@ -280,6 +280,38 @@ test("a tree checked locally skips lint, hygiene, the tests and the typecheck, n
   );
 });
 
+test("Ask's real turns run weekly and small: the must-never cases once, never across the nightly, no model key held, a refused run said apart", () => {
+  const y = workflow("ask-weekly.yml").replace(/^\s*#.*$/gm, "");
+  assert.match(y, /cron: "23 1 \* \* 0"/, "early on a Sunday");
+  assert.ok(y.includes("workflow_dispatch:"), "and by hand");
+  assert.ok(y.includes("group: nightly-e2e") && y.includes("cancel-in-progress: false"), "never beside the nightly");
+  assert.ok(y.includes("vars.ASK_WEEKLY != 'off' || github.event_name == 'workflow_dispatch'"), "one word stops it");
+  assert.ok(
+    !/ANTHROPIC|_KEY: \$\{\{ secrets\.(?!E2E_)/.test(y),
+    "no model key: the turns go through production's door",
+  );
+
+  const workspace = y.indexOf("e2e-workspace.mjs --apply");
+  const specs = y.indexOf("pnpm e2e e2e/ask.spec.ts --retries=1");
+  const evals = y.indexOf("node --import tsx tooling/scripts/eval-ask.mjs");
+  assert.ok(workspace > 0 && workspace < specs && specs < evals, "the workspace first, then the page, then the evals");
+  assert.ok(y.includes('E2E_PAID_MODEL: "1"'), "the specs that spend");
+  assert.ok(y.includes('MUST_NEVER: "1"') && !/\bREPS:/.test(y) && !/\bONLY:/.test(y), "every must-never case, once");
+  assert.ok(y.includes("E2E_BASE_URL: https://app.chanlytics.com"), "against production, not the script's default");
+  assert.ok(y.includes("steps.specs.outcome != 'skipped'"), "a workspace never put right spends nothing");
+
+  const say = y.slice(y.indexOf("- name: Say so, where a person will see it"));
+  assert.ok(
+    say.startsWith("- name: Say so, where a person will see it\n        if: ${{ always() }}"),
+    "even a broken run",
+  );
+  assert.ok(say.indexOf("STOPPED:") < say.indexOf("could not run"), "a refused run is not a miss");
+  assert.ok(say.includes(`--title "Ask's weekly turns could not run"`));
+  assert.ok(say.includes(`--title "Ask's weekly turns missed a line"`));
+  assert.ok(say.includes(`--match "Ask's weekly turns"`) && say.includes('--assignee "$OWNER"'));
+  assert.ok(say.includes("--state green"), "a week that holds closes it");
+});
+
 test("the replay runs every database suite on main, and on a pull request the ones its changes name", () => {
   const y = workflow("database.yml");
   assert.ok(
