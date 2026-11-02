@@ -6,7 +6,7 @@
  * Conversations joins calls and keeps all of them. Two nav items over one dataset asked an owner who could not
  * tell them apart to check both, every time.
  *
- * The nav loses Conversations; the SurfaceTabs strip gains Needs you · Conversations · Live, the pattern that
+ * The nav loses Conversations; the SurfaceTabs strip gains Inbox · Conversations · Live, the pattern that
  * already carries Campaigns' three tabs. Every route is unchanged, and so is every read.
  *
  * The pages are drawn LOADED, on a stub React -- lint and the build never run this tree.
@@ -203,7 +203,7 @@ test("the other merged surfaces keep their own item", () => {
 
 test("the Inbox strip offers the three views, and says which one you are on", () => {
   win.INBOX_DATA = { THREADS: [] };
-  const labels = ["Needs you", "Conversations", "Live"];
+  const labels = ["Inbox", "Conversations", "Live"];
   assert.deepEqual(
     strip("inbox").map((t) => t.label),
     labels,
@@ -212,7 +212,7 @@ test("the Inbox strip offers the three views, and says which one you are on", ()
     strip("inbox")
       .filter((t) => t.active)
       .map((t) => t.label),
-    ["Needs you"],
+    ["Inbox"],
   );
   assert.deepEqual(
     strip("conversations")

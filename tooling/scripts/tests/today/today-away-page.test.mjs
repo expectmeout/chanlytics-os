@@ -75,7 +75,7 @@ test("the head is the bell's badge and the foot accounts for the rest", () => {
   const head = byClass(tree, "tq-count");
   assert.equal(textOf(head).trim(), String(unreadCount(rows)), "the card's head and the bell's badge are one number");
   assert.equal(textOf(head).trim(), "3");
-  assert.equal(textOf(byClass(tree, "tq-foot")).trim(), "2 more in the bell, already in the queue above");
+  assert.equal(textOf(byClass(tree, "tq-foot")).trim(), "2 more in your notifications, already in Need you");
 });
 
 test('REGRESSION: empty because the queue above has everything -- no green check, no "All caught up."', () => {
@@ -87,7 +87,7 @@ test('REGRESSION: empty because the queue above has everything -- no green check
     !textOf(line).includes("All caught up"),
     "REGRESSION: four unread rows and the card congratulated the owner",
   );
-  assert.ok(textOf(line).includes("Everything new is already in the queue above."));
+  assert.ok(textOf(line).includes("Everything new is already in Need you."));
   const icon = find(line, (n) => n.type === Icon);
   assert.equal(icon.props.name, "arrow-up", "no check mark over unread work");
   assert.equal(textOf(byClass(tree, "tq-count")).trim(), "4", "the head does not read 0 while the bell reads 4");
@@ -159,7 +159,7 @@ test("a search waiting in the queue is not said again by the bell's question row
   );
   assert.deepEqual(titles, [other.title, "1 new rating on Google"], "the queued search is said once, up in the queue");
   assert.equal(textOf(byClass(tree, "tq-count")).trim(), "3", "the head is still the bell's badge");
-  assert.equal(textOf(byClass(tree, "tq-foot")).trim(), "1 more in the bell, already in the queue above");
+  assert.equal(textOf(byClass(tree, "tq-foot")).trim(), "1 more in your notifications, already in Need you");
 });
 
 // Decision 0009: any list is a door on Today, pinned by the member (memberships.views.today.pins).

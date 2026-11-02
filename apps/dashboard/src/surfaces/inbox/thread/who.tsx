@@ -15,9 +15,16 @@
  * edge, and the line under the name, where the conversation stands and the one fact People's row says of them.
  */
 import type { ReactElement, ReactNode } from "react";
-import { countdownClock, heldPill, stateOf, THREAD_PANE_WORDS, threadHeadFactOf } from "@chanlytics/contracts";
+import {
+  countdownClock,
+  heldPill,
+  stateOf,
+  THREAD_PANE_WORDS,
+  threadHeadFactOf,
+  waitedSaid,
+} from "@chanlytics/contracts";
 import type { PersonRowVM } from "@chanlytics/contracts";
-import { Face, faceTileOf } from "../../kit/face/face";
+import { Face, faceHueOf } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
 import { StatePill } from "../../kit/pill/state-pill";
 import { holderName } from "../../holder-names";
@@ -57,7 +64,7 @@ export const IxWho = ({
       size="lg"
       photo={photo ?? undefined}
       priority={priority}
-      {...(hued ? { hue: faceTileOf(who), className: "ix-th-who-round" } : {})}
+      {...(hued ? { hue: faceHueOf(who), className: "ix-th-who-round" } : {})}
     />
   );
   // A badge stands on the face's edge, outside the circle that clips its picture: the two in a box of their own.
@@ -124,7 +131,7 @@ const ixStanding = (thread: Thread, countdown: Countdown): Standing | null => {
         <StatePill kind="thread" value="theirs" lit label={heldPill("theirs", holderName(thread.assigneeUserId))} />
       ),
       meta: thread.waited || null,
-      title: thread.waited ? `waiting ${thread.waited}` : undefined,
+      title: thread.waited ? waitedSaid(thread.waited) : undefined,
     };
   // Its wait beside it in the quiet mono ink (the canvas's "2h"): the coral pill is the one signal, and the number says
   // how long.
@@ -132,7 +139,7 @@ const ixStanding = (thread: Thread, countdown: Countdown): Standing | null => {
     return {
       pill: <StatePill kind="tone" value="accent" lit label={stateOf("thread", "escalated").label} />,
       meta: thread.waited || null,
-      title: thread.waited ? `waiting ${thread.waited}` : undefined,
+      title: thread.waited ? waitedSaid(thread.waited) : undefined,
     };
   // A draft counting down is where the thread stands: when it sends, as its own line under the bubble says it.
   if (thread.real && thread.veto && countdown.remaining != null && !thread.resolution)
@@ -172,10 +179,16 @@ function whereItStands(thread: Thread, countdown: Countdown = { remaining: null,
     <span className="ix-th-standing" data-testid="ix-th-standing">
       {standing.pill}
       {standing.meta && (
-        <span className="ix-th-standing-meta tabular" title={standing.title}>
+        <span
+          className="ix-th-standing-meta tabular"
+          title={standing.title}
+          aria-hidden={standing.title ? true : undefined}
+        >
           {standing.meta}
         </span>
       )}
+      {/* The bare wait, said whole to a screen reader ("Waiting 2h"), where the eye has the pill beside the figure. */}
+      {standing.meta && standing.title && <span className="ix-wait-said">{standing.title}</span>}
     </span>
   );
 }
@@ -237,7 +250,7 @@ export function headerSub(
             ·
           </span>
           <Icon name={wire} size={12} />
-          {wires}
+          <span className="ix-th-fact-words">{wires}</span>
         </span>
       )}
     </div>

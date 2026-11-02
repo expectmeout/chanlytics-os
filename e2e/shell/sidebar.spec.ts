@@ -110,7 +110,7 @@ test.describe("sidebar on a real workspace", () => {
     }
 
     for (const [hash, tab] of [
-      ["/#/inbox", "Needs you"],
+      ["/#/inbox", "Inbox"],
       ["/#/conversations", "Conversations"],
       ["/#/live", "Live"],
     ] as const) {

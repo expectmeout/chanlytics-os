@@ -33,6 +33,14 @@ export function formatWaited(ms: number): string {
   return waitedLabel(ms);
 }
 
+/**
+ * The bare wait as it is said to a screen reader and on a hover: "Waiting 2h". The row and the thread's head draw the
+ * figure alone, in the mono face, beside a pill that says why; read alone it was "2 h", a length of nothing.
+ */
+export function waitedSaid(waited: string): string {
+  return `Waiting ${waited}`;
+}
+
 /** How long since a moment, in the wait's one family. */
 export function waitedSince(sinceMs: number, nowMs: number): string {
   return formatWaited(Math.max(0, nowMs - sinceMs));

@@ -48,7 +48,9 @@ function usePeekAddress(f: PeekFacts, peekId: string | null, open: (id: string) 
     peek: string | null | undefined;
     asked: string | null;
     pushed: boolean;
-  }>({ view: undefined, peek: undefined, asked: null, pushed: false });
+    /** The person the address asked for, until the page holds them: no write-back undoes them meanwhile. */
+    opening: string | null;
+  }>({ view: undefined, peek: undefined, asked: null, pushed: false, opening: null });
   useEffect(() => {
     // A phone opens the person's page instead (usePeoplePeek): the address is not the peek's there.
     if (phone) return;
@@ -57,7 +59,7 @@ function usePeekAddress(f: PeekFacts, peekId: string | null, open: (id: string) 
     // Asked before whether the address moved: the list is held hidden under the person's page (people-route.tsx), so the
     // address it comes back to is the one it last saw, and only its effects running again say it is back.
     if (addrPeek && personDeletedHere(addrPeek)) {
-      Object.assign(a, { view: viewRoute, peek: null, asked: null, pushed: false });
+      Object.assign(a, { view: viewRoute, peek: null, asked: null, pushed: false, opening: null });
       if (peekId) close();
       nav(viewRoute, { replace: true });
       return;
@@ -69,12 +71,24 @@ function usePeekAddress(f: PeekFacts, peekId: string | null, open: (id: string) 
       if (!addrPeek) a.pushed = false;
       // The person the address names takes the cursor too, or the cursor this tab kept would walk the peek off them.
       if (peekId !== addrPeek) {
-        if (addrPeek) open(addrPeek);
-        else close();
+        if (addrPeek) {
+          a.opening = addrPeek;
+          open(addrPeek);
+        } else close();
       }
       return;
     }
-    if (peekId === addrPeek) return;
+    if (peekId === addrPeek) {
+      a.opening = null;
+      return;
+    }
+    // The person the address just asked for, not held yet: the page is on its way to them, and the address stands. React's
+    // effects, run twice in development, ran this again over the draw before they landed, and wrote the address over
+    // without them. The view's place ran again first, so the cursor is said again, which `open` does with the peek.
+    if (!peekId && addrPeek && a.opening === addrPeek) {
+      open(addrPeek);
+      return;
+    }
     const want = peopleRoute({ view, peek: peekId });
     // Said once: the shell follows a push in its next draw, and every draw until then finds the address as it was.
     if (a.asked === want) return;

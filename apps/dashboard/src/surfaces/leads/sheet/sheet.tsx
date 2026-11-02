@@ -503,14 +503,12 @@ function dockOf(d: SheetDraw, desk: boolean) {
   }
   const dock = facts.dock;
   if (!dock) return null;
-  const keys = !desk ? null : pile && pile.on ? "pile" : p.deck ? "rows" : null;
   return (
     <SheetDock
       dock={dock}
       busy={busy}
       onRun={(s: LeadSheetSlotVM) => d.run && !s.off && void runSheetAct(s, d.run)}
       onPick={() => sheet.put({ step: "picker", full: true })}
-      keys={keys}
       phone={!desk}
       toSend={
         dock.toSend ? <SheetToSend vm={vm} flash={p.flash} moved={d.moved} place={facts.place} tz={p.tz} /> : null
