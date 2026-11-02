@@ -38,13 +38,13 @@ test("why rounds missed the cache (the Phase 6 plan, D2): each reason the API ga
   assert.deepEqual(missTally([]), []);
 });
 
-test("the nightly's verdict on Ask's day (the Phase 6 plan, D4): a forced miss crosses the cache line and names the most-given reason, a slow day crosses the first-text line, too few turns judge nothing, and a day on its lines holds", async () => {
+test("the nightly's verdict on Ask's day (the Phase 6 plan, D4): a forced miss crosses the cache line and names the most-given reason, a slow day crosses the first-Say line, too few turns judge nothing, and a day on its lines holds", async () => {
   const { askDayVerdict, ASK_DAY_LINES } = await import("../../ask-stats.mjs");
-  assert.deepEqual(ASK_DAY_LINES, { minTurns: 10, cacheHit: 0.5, firstTextMs: 6_000 });
+  assert.deepEqual(ASK_DAY_LINES, { minTurns: 10, cacheHit: 0.5, firstSayMs: 6_000 });
   const missed = askDayVerdict({
     turns: 16,
     cacheHit: 0.04,
-    firstTextMs: 3_400,
+    firstSayMs: 3_400,
     misses: [
       { reason: "tools_changed", rounds: 21 },
       { reason: "pending", rounds: 2 },
@@ -55,26 +55,68 @@ test("the nightly's verdict on Ask's day (the Phase 6 plan, D4): a forced miss c
     missed.line,
     "Ask's day crossed a line: median cache hit 4%, under 50%, over 16 turns. The most-given cache miss: tools_changed (21 rounds).",
   );
-  const slow = askDayVerdict({ turns: 12, cacheHit: 0.8, firstTextMs: 7_250 });
+  const slow = askDayVerdict({ turns: 12, cacheHit: 0.8, firstSayMs: 7_250 });
   assert.equal(slow.ok, false);
-  assert.equal(slow.line, "Ask's day crossed a line: median first text 7250 ms, over 6000 ms, over 12 turns.");
-  const both = askDayVerdict({ turns: 12, cacheHit: 0.3, firstTextMs: 9_000 });
-  assert.match(both.line, /median cache hit 30%, under 50%; median first text 9000 ms, over 6000 ms/);
-  assert.deepEqual(askDayVerdict({ turns: 9, cacheHit: 0, firstTextMs: 60_000 }), {
+  assert.equal(slow.line, "Ask's day crossed a line: median first Say 7250 ms, over 6000 ms, over 12 turns.");
+  const both = askDayVerdict({ turns: 12, cacheHit: 0.3, firstSayMs: 9_000 });
+  assert.match(both.line, /median cache hit 30%, under 50%; median first Say 9000 ms, over 6000 ms/);
+  assert.deepEqual(askDayVerdict({ turns: 9, cacheHit: 0, firstSayMs: 60_000 }), {
     ok: true,
-    line: "Ask's day: 9 answered turns, under the 10 a median needs; nothing judged.",
+    line: "Ask's day: 9 turns a person watched, under the 10 a median needs; nothing judged.",
   });
-  const held = askDayVerdict({ turns: 16, cacheHit: 0.5, firstTextMs: 6_000 });
+  const held = askDayVerdict({ turns: 16, cacheHit: 0.5, firstSayMs: 6_000 });
   assert.equal(held.ok, true, "on the line is not over it");
   assert.equal(
     held.line,
-    "Ask's day holds its lines: 16 turns, median cache hit 50% (line 50%), median first text 6000 ms (line 6000 ms).",
+    "Ask's day holds its lines: 16 turns, median cache hit 50% (line 50%), median first Say 6000 ms (line 6000 ms).",
   );
   assert.equal(
-    askDayVerdict({ turns: 16, cacheHit: null, firstTextMs: null }).ok,
+    askDayVerdict({ turns: 16, cacheHit: null, firstSayMs: null }).ok,
     true,
     "nothing measured crosses nothing",
   );
+});
+
+test("a turn nobody watched is no one's wait: the morning's, by its key, or from before the key by what only a morning leaves (no page and no time the palette was open); a spoken turn was listened to", async () => {
+  const { watchedTurn } = await import("../../ask-stats.mjs");
+  assert.equal(watchedTurn({ morning: true, warm: "hit", opened_ms: 900 }), false, "the key decides");
+  assert.equal(watchedTurn({ morning: false, warm: "none", opened_ms: null }), true, "the key decides");
+  assert.equal(
+    watchedTurn({ warm: "none", opened_ms: null, spoken: false }),
+    false,
+    "stored before the key: a morning",
+  );
+  assert.equal(
+    watchedTurn({ warm: "none", opened_ms: null, spoken: true }),
+    true,
+    "stored before the key: a voice turn",
+  );
+  assert.equal(watchedTurn({ warm: "miss", opened_ms: null }), true, "a page came with it");
+  assert.equal(watchedTurn({ warm: "none", opened_ms: 1200 }), true, "the palette was open");
+});
+
+test("first Say by rounds (ask-day.mjs): one round, two, and three or more, each with its first Say, its final and how long the first Say stood before the final; a band with no turn says none, and a turn with no first Say counts toward its band alone", async () => {
+  const { roundBands } = await import("../../ask-stats.mjs");
+  const bands = roundBands([
+    { rounds: 1, first_say_ms: 2_300, final_ms: 3_700 },
+    { rounds: 3, first_say_ms: 10_400, final_ms: 10_401 },
+    { rounds: 4, first_say_ms: 2_500, final_ms: 12_500 },
+    { rounds: 5, first_say_ms: null, final_ms: 9_000 },
+  ]);
+  assert.deepEqual(
+    bands.map((b) => [b.band, b.n]),
+    [
+      ["1 round", 1],
+      ["2 rounds", 0],
+      ["3+ rounds", 3],
+    ],
+  );
+  assert.deepEqual(bands[0].say, { n: 1, median: 2_300, p90: 2_300 });
+  assert.deepEqual(bands[1].say, { n: 0, median: null, p90: null });
+  assert.deepEqual(bands[2].say, { n: 2, median: 10_400, p90: 10_400 });
+  assert.equal(bands[2].final.median, 10_401);
+  assert.equal(bands[2].held.median, 10_000, "the gap of each turn with a first Say, its median taken");
+  assert.equal(bands[1].held.median, null);
 });
 
 test("a turn's stream (eval-ask.mjs): the previews it showed, when the first came and how long the last waited, and how the last met the final -- the same, a prefix, or a jump -- with the previews that leaked JSON and the line breaks the final lost", () => {

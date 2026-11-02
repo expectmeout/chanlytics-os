@@ -95,7 +95,7 @@
  */
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { ASK_TOKENS_DAY, BUILTIN_LISTS, cardOpenRoute, oneDoor, priceOf } from "@chanlytics/contracts";
-import { spread, wilson, pct, streamOf, streamSummary } from "./ask-stats.mjs";
+import { pct, roundBands, spread, streamOf, streamSummary, wilson } from "./ask-stats.mjs";
 import { askSpoken, spokenFails } from "./eval-ask-spoken.mjs";
 import { usedAny } from "../evals/rename-ask-tools.mjs";
 import {
@@ -980,6 +980,14 @@ console.log(
     ` · line breaks lost at the final ${streamed.lines_lost} · Show drawn while writing ${streamed.show_streamed}` +
     ` · answered through the answer tool ${streamed.via.tool}, as text ${streamed.via.text}, none ${streamed.via.none}` +
     (streamed.via.unread ? ` (${streamed.via.unread} shapes unread)` : ""),
+);
+console.log(
+  roundBands(answered.flatMap((r) => (r.shape ? [r.shape] : [])))
+    .map(
+      (b) =>
+        `  first Say, ${b.band}: ${b.n} turns · median ${b.say.median ?? "—"} ms, p90 ${b.say.p90 ?? "—"} · final ${b.final.median ?? "—"} ms`,
+    )
+    .join("\n"),
 );
 for (const [model, m] of Object.entries(usage.byModel))
   console.log(

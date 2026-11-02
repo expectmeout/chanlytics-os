@@ -50,6 +50,11 @@ export interface AskTurnShape {
   /** The person was listening, not reading (the voice door, spec 2026-10-03 §3.4): the day's numbers read by mode. */
   spoken: boolean;
   /**
+   * The morning's turn (decision 0070): it runs after the response has gone, so no one reads it as it comes and its
+   * times are no one's wait. A turn stored before it has no such key.
+   */
+  morning: boolean;
+  /**
    * The page's context as the turn read it (the Phase 2 plan, PR 2.4): the rows its blocks carried, after the server
    * read every id again and the caps (null when the tab sent none, or the build failed); every block's characters;
    * whether the warm's build was kept on this instance (hit), built now (miss), failed, or no context came (none); and

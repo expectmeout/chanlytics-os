@@ -239,6 +239,9 @@ export function crossPagePlan(text: string, surface: string | null, view: string
   else if (WROTE.test(q)) add("inbox", { action: "list", filter: "recent" });
   // On Today, the day's own read, after what the question named: it fills the cap's room (the speed plan, A1).
   if (surface === "today") add("today", {});
+  // On Leads, the searches a plan reads first: the page has read them and says only their count, and every watched
+  // search of the fortnight to 2 Nov 2026 paid a round for them, the turn's cache answering in 3 ms.
+  if (surface === "leads") add("leads", { action: "searches" });
   return out.slice(0, CROSS_PAGE_MAX);
 }
 
