@@ -132,13 +132,17 @@ declare global {
   }
 }
 
-/** The reply row's dials: the hold window, the confidence dial, the day's budget, the reply cap and the pause (S6). */
+/**
+ * The reply row's dials: the hold window, the confidence dial, the day's budget, the reply cap, the pause (S6) and how
+ * long people may wait on the team before Today says it in the amber.
+ */
 export interface PolicyDials {
   replyDelayMs?: number;
   minConfidence?: number;
   maxTokensDay?: number;
   maxRepliesDay?: number;
   pauseHours?: number;
+  answerWithinHours?: number;
 }
 
 type PolicyDialsBody = Omit<Input<"PUT policies">, "class" | "mode">;
@@ -155,6 +159,7 @@ function dialsOnTheWire(d: PolicyDials): PolicyDialsBody {
   if (d.maxTokensDay !== undefined) wire.max_llm_tokens_day = d.maxTokensDay;
   if (d.maxRepliesDay !== undefined) wire.max_replies_day = d.maxRepliesDay;
   if (d.pauseHours !== undefined) wire.pause_hours = d.pauseHours;
+  if (d.answerWithinHours !== undefined) wire.answer_within_hours = d.answerWithinHours;
   return wire;
 }
 

@@ -105,7 +105,9 @@ function useDraftsAhead(wants: readonly DraftWant[], may: boolean) {
  * draw; the head says nothing of it once the queue goes.
  */
 function useHeadSay(open: readonly TodayQueueRowVM[], may: boolean) {
-  const counts = useDraftCounts(draftWantsOf(open), may);
+  // A reply outside WhatsApp's window goes only as a template: Ask's words for it are not said as ready (the 10/10 read,
+  // 2 Nov 2026: "Ask drafted a reply" over a card whose one press was Choose a template).
+  const counts = useDraftCounts(draftWantsOf(open.filter((r) => r.writes?.window_open !== false)), may);
   const held = open.find((r) => r.kind === "held") ?? null;
   const shuts = open.find((r) => clockIsNear(r) && r.writes?.window_closes) ?? null;
   const line = needYouSay({
@@ -119,6 +121,9 @@ function useHeadSay(open: readonly TodayQueueRowVM[], may: boolean) {
   useLayoutEffect(() => () => tellHeadSay(null), []);
 }
 
+/** The fewest rows the strip stands over: four, where one row more than a glance takes in asks to be cut. */
+const CUTS_FROM = 4;
+
 /** What the strip may cut Need you to: everything, or what asks one thing of you. */
 type Cut = "all" | NeedYouVerb;
 
@@ -129,7 +134,10 @@ type Cut = "all" | NeedYouVerb;
  */
 function cutTabs(counts: Record<NeedYouVerb, number>): SubTab[] | null {
   const verbs = (["reply", "call", "approve"] as const).filter((v) => counts[v] > 0);
-  if (verbs.length < 2) return null;
+  // A strip over a list that fits the eye is a step that cuts nothing (the 10/10 read, 2 Nov 2026: three chips over two
+  // rows): it stands where two verbs ask and there are more rows than a glance takes in.
+  const rows = counts.reply + counts.call + counts.approve;
+  if (verbs.length < 2 || rows < CUTS_FROM) return null;
   return [
     { id: "all", label: NEED_YOU_WORDS.filter.all, testid: "today-cut-all" },
     ...verbs.map((v) => ({ id: v, label: NEED_YOU_WORDS.filter[v], count: counts[v], testid: `today-cut-${v}` })),
@@ -395,7 +403,7 @@ function useCoralTold(holds: boolean) {
 const TodayQueue = ({ vm }: { vm: TodayVM }) => {
   // The runs (Sent's), Ask's morning and Google's reviews move the parts at the queue's foot; the replies to a reach-out
   // move a row read as that reply's (contracts withReplies). Today owns those reads, so this redraws and reads nothing.
-  useMoved(["broadcasts", "people", "calendar", "reach_out_replies", "ask_morning", "google"]);
+  useMoved(["broadcasts", "people", "calendar", "reach_out_replies", "ask_morning", "google", "settings"]);
   // What needs you, by its parts, as the badge counts them: null until the Inbox has been read (redrawn when a part moves).
   const live = useNeedsYouParts();
   const [toastNode, ppFlash] = useToast();

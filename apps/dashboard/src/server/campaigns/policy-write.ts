@@ -54,6 +54,7 @@ const DIAL_WORDS = {
   max_llm_tokens_day: "The token budget is a whole number from 1,000 to 5,000,000, or 0 to turn it off.",
   max_replies_day: "The reply cap is a whole number from 1 to 200.",
   pause_hours: "The pause is a whole number of hours from 1 to 168.",
+  answer_within_hours: "The time to answer people is a whole number of hours from 1 to 168.",
 } as const;
 
 /**
@@ -97,6 +98,7 @@ export const PolicyChange = z.preprocess(
     max_llm_tokens_day: z.number({ error: DIAL_WORDS.max_llm_tokens_day }).optional(),
     max_replies_day: z.number({ error: DIAL_WORDS.max_replies_day }).optional(),
     pause_hours: z.number({ error: DIAL_WORDS.pause_hours }).optional(),
+    answer_within_hours: z.number({ error: DIAL_WORDS.answer_within_hours }).optional(),
   }),
 );
 
@@ -129,6 +131,7 @@ export async function changePolicy(ctx: RouteContext, input: z.infer<typeof Poli
     input.max_llm_tokens_day,
     input.max_replies_day,
     input.pause_hours,
+    input.answer_within_hours,
   ];
   const current = (await listPolicies(ctx.supabase, member.tenantId)).find((p) => p.class === cls);
   if (mode === "" && dials.some((d) => d !== undefined)) {
@@ -190,6 +193,15 @@ export async function changePolicy(ctx: RouteContext, input: z.infer<typeof Poli
     if (!Number.isInteger(h) || h < 1 || h > 168) throw new AppError("validation", DIAL_WORDS.pause_hours);
     if (cls !== "reply") throw new AppError("validation", "The pause only applies to the reply policy.");
     limits.pause_hours = h;
+  }
+  // How long someone handed to the team may wait before Today says it in the amber: the owner's own target, in the
+  // pause's range (contracts answerWithinHoursOf).
+  if (input.answer_within_hours !== undefined) {
+    const h = input.answer_within_hours;
+    if (!Number.isInteger(h) || h < 1 || h > 168) throw new AppError("validation", DIAL_WORDS.answer_within_hours);
+    if (cls !== "reply")
+      throw new AppError("validation", "The time to answer people only applies to the reply policy.");
+    limits.answer_within_hours = h;
   }
   try {
     const row = await setPolicyMode(ctx.supabase, member.tenantId, cls, mode, limits);
