@@ -48,7 +48,9 @@ export const VISIT_CHANGES_TOLD = {
 
 /** The sources a customer's booking comes by. A member's own entry (`person`) is the owner's, not news. */
 export type BookingVia = "booking_email" | "booking_tool" | "calendar_feed";
-const ARRIVES_BY: ReadonlySet<string> = new Set<BookingVia>(["booking_email", "booking_tool", "calendar_feed"]);
+/** The sources a customer's booking comes by, each once: the record's reads ask for these (db bookedVisitsOf). */
+export const BOOKING_VIAS: readonly BookingVia[] = ["booking_email", "booking_tool", "calendar_feed"];
+const ARRIVES_BY: ReadonlySet<string> = new Set<BookingVia>(BOOKING_VIAS);
 
 /**
  * How many visits one read of the owner's calendar may add before it is not news. The hourly sweep keeps every entry the

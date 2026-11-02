@@ -58,7 +58,7 @@ export const todayOverride: SurfaceOverride = {
     omit: [
       {
         tables: ["appointment_notices"],
-        why: "the booked figure is the visits on the record; a booking email held for a look is the bell's alone",
+        why: "the booked figure reads the bookings on the record; a booking email held for a look is the bell's alone",
       },
       {
         tables: ["leads", "lead_searches", "lead_search_members"],

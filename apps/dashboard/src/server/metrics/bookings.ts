@@ -28,7 +28,7 @@ type Db = SupabaseClient<Database>;
 const CHANGES_LOOKBACK_MS = 26 * HOUR_MS;
 
 /** What is read beside the function: the visits' changes of the last 26 hours, and whether a booking can arrive here. */
-export interface BookingsLately {
+interface BookingsLately {
   changes: Awaited<ReturnType<typeof visitChangesSince>>;
   arrive: boolean;
 }

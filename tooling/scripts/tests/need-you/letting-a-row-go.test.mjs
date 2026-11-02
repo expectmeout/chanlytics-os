@@ -12,7 +12,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { MAILBOX_SENDERS_WORDS, NEED_YOU_WORDS, addressOf } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, all, settle, textOf } from "../_legacy-react.mjs";
+import { installLegacyReact, fresh, again, all, textOf } from "../_legacy-react.mjs";
+import { until } from "../shared/_until.mjs";
 
 installLegacyReact({ __DEMO_MODE: false, __surfaceState: () => "live", __surfaceFailed: () => false });
 Object.assign(globalThis, {
@@ -114,13 +115,17 @@ test("Mark done gives a hold back to the receptionist from its row, says so in i
   );
   asked.length = 0;
   done.onSelect();
-  await settle();
-  await settle();
-  assert.ok(asked.includes("POST /api/v1/conversations/cv-1/hand-back"), asked.join(", "));
-  const after = again(() =>
-    ReplyWork({ row, main: "primary", may: true, tz: "America/New_York", flash: () => {}, keep: () => {} }),
-  );
-  const said = all(after, (n) => n.props?.className === "ny-done")[0];
+  await until(() => asked.includes("POST /api/v1/conversations/cv-1/hand-back"), "the thread handed back");
+  /** The row's work as it is drawn now, and what it says of itself where it says it is done. */
+  const saidNow = () =>
+    all(
+      again(() =>
+        ReplyWork({ row, main: "primary", may: true, tz: "America/New_York", flash: () => {}, keep: () => {} }),
+      ),
+      (n) => n.props?.className === "ny-done",
+    )[0];
+  await until(() => !!saidNow(), "the row saying what became of it");
+  const said = saidNow();
   assert.ok(said, "the row says what became of it, in its place");
   assert.match(textOf(said), new RegExp(NEED_YOU_WORDS.oldDone.done(1)));
   const undo = all(said, (n) => n.props?.className === "ny-done-act")[0];

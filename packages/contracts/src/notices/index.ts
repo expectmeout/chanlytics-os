@@ -18,6 +18,7 @@ export { noticeMailHtml } from "./notice-mail";
 export type { NoticeMail } from "./notice-mail";
 export {
   bookedOnce,
+  BOOKING_VIAS,
   bookingArriving,
   bookingChanged,
   CATCH_UP_VISITS,

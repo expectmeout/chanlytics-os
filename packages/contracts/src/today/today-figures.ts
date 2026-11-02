@@ -155,7 +155,7 @@ export function figuresOf(
 ): TodayFigureVM[] | null {
   const p = m.period;
   const live = m.now;
-  if (p.messages_in + p.calls + p.new_contacts + (m.bookings?.booked ?? 0) === 0) return null;
+  if (nothingCounted(m)) return null;
   const windowMs = new Date(m.window.since).getTime();
   const fresh = (x: { created_at: string; meta: Record<string, unknown> | null }) =>
     x.meta?.backfill !== true && new Date(x.created_at).getTime() >= windowMs;
@@ -342,10 +342,21 @@ export function figuresOf(
           }
         : null,
   };
-  // What was booked leads where the day's read says it; where it says nothing, new people keep the fourth seat.
-  return m.bookings
-    ? [bookedFigure(m.bookings, now), messages, answered, calls]
-    : [messages, answered, calls, newPeople];
+  return fourOf(m.bookings, now, [messages, answered, calls], newPeople);
+}
+
+/** Nothing at all counted on the day: no message, call, new person or booking. */
+const nothingCounted = (m: MetricsSummaryDto): boolean =>
+  m.period.messages_in + m.period.calls + m.period.new_contacts + (m.bookings?.booked ?? 0) === 0;
+
+/** The day's four: what was booked leads where the day's read says it; where it says nothing, new people keep the fourth seat. */
+function fourOf(
+  bookings: TodayBookingsDto | null | undefined,
+  now: Date,
+  three: readonly TodayFigureVM[],
+  newPeople: TodayFigureVM,
+): TodayFigureVM[] {
+  return bookings ? [bookedFigure(bookings, now), ...three] : [...three, newPeople];
 }
 
 /**
@@ -373,7 +384,11 @@ export function quietFigures(
     { id: "answered", label: "answered by the receptionist", value: 0, meta: "nothing to answer yet", receipt: null },
     { id: "calls", label: "calls", value: 0, meta: "none yet", receipt: null },
   ];
-  return bookings
-    ? [bookedFigure(bookings, now), ...zeros]
-    : [...zeros, { id: "new", label: "new people", value: 0, meta: "nobody new yet", receipt: null }];
+  return fourOf(bookings, now, zeros, {
+    id: "new",
+    label: "new people",
+    value: 0,
+    meta: "nobody new yet",
+    receipt: null,
+  });
 }
