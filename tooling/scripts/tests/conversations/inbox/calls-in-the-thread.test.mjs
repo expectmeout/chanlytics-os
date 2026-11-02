@@ -719,6 +719,14 @@ test("a thread opens where a call or an email began when it is the newest thing 
     NOW,
   );
   assert.equal(opensAt(mailed), "m3");
+  // Only while it is the newest thing said: a message after it, and the thread opens at its newest, as ever.
+  const answered = toInboxThreadVM(
+    conv([note(), m("m3", 30, { channel: "email", meta: { email: { subject: "Saturday" } } }), m("m4", 20)]),
+    null,
+    ZONE,
+    NOW,
+  );
+  assert.equal(opensAt(answered), null);
 });
 
 test("the line being said is kept in view without moving the thread under the reader: one under the player comes out just below it", () => {
