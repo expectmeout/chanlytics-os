@@ -3532,7 +3532,7 @@ test("the proposal builders run against the database in memory: each kind is a c
   assert.deepEqual(
     [noted.proposal.title, noted.proposal.summary, noted.proposal.payload.change],
     [
-      "Remember this",
+      "Holiday hours note",
       "Note for the receptionist: “Holiday hours”, until 2026-12-31 — “Open 10 to 2 this week.”",
       ending,
     ],

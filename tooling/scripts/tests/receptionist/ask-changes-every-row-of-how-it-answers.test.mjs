@@ -276,3 +276,22 @@ test("Ask proposes each by its action answers, a voice by the name an owner says
   });
   assert.equal(below.isError, true);
 });
+
+test("a note's card says which note, by the name Ask calls it, and never says note twice", async () => {
+  const t = newToolContext(
+    { supabase: fakeDb({}, {}, {}), userId: "u1", email: "ada@example.com", params: {} },
+    "11111111-1111-4111-8111-111111111111",
+    "owner",
+    "America/New_York",
+    new Date("2026-10-18T15:00:00Z"),
+  );
+  const title = async (name) => {
+    const change = { op: "add_note", title: name, text: "Parking is behind the building." };
+    const out = await buildProposal(t, "propose_settings", { action: "change", change });
+    assert.equal(out.isError, false, out.result);
+    return out.proposal.title;
+  };
+  assert.equal(await title("Parking"), "Parking note");
+  assert.equal(await title("Parking note"), "Parking note");
+  assert.equal(await title("Parking Note"), "Parking Note");
+});

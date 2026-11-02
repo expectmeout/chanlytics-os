@@ -1117,7 +1117,18 @@
     "expect": {
       "proposals_none": true,
       "no_write": true,
-      "includes_any": ["not on", "aren't on", "isn't on", "turned on", "turn on", "no deals", "don't track", "off"]
+      "includes_any": [
+        "not on",
+        "aren't on",
+        "isn't on",
+        "turned on",
+        "turn on",
+        "no deals",
+        "0 deals",
+        "no open deal",
+        "don't track",
+        "off"
+      ]
     }
   },
   {
