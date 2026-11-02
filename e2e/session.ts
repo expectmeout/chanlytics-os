@@ -147,9 +147,32 @@ export async function sessionCookies(base: URL): Promise<SessionCookie[]> {
   }));
 }
 
+/**
+ * The doors that ask the model for Ask: a turn, the morning Today asks for as its owner arrives (decision 0070), and the
+ * warm that words typed on the Line send ahead of a question (server/ask/warm.ts). `POST ask/warm` reads the page and
+ * `POST ask/quick` keeps an answer no model wrote, so neither is one.
+ */
+const ASKS_THE_MODEL = /\/api\/v1\/ask(\/morning|\/warm\/model)?(\?|$)/;
+
+/**
+ * A run spends on Ask only when told to (E2E_PAID_MODEL, or E2E_PAID_LEADS, Find leads being Ask). A spec's paid test
+ * skips by itself, but the page asks too: on the nightly's workspace that was a morning, three warms and Today's Ask why
+ * every run, about $1.15 a day on the balance the receptionist answers with (2 Nov 2026). So they are stopped here,
+ * before they leave the browser, as the Line's "Network error" and a morning not read: Today draws none and asks again
+ * on the next arrival. A spec's own route comes first (page.route over the context's), so `refuseAnswers` still counts.
+ * A spec that needs a real morning runs with E2E_PAID_MODEL=1 and skips without it, as ask.spec.ts's do.
+ */
+async function stopModelTurns(page: Page): Promise<void> {
+  if (process.env.E2E_PAID_MODEL === "1" || process.env.E2E_PAID_LEADS === "1") return;
+  await page
+    .context()
+    .route(ASKS_THE_MODEL, (route) => (route.request().method() === "POST" ? route.abort() : route.fallback()));
+}
+
 /** Put a real session in the browser. */
 export async function signIn(page: Page): Promise<void> {
   const base = new URL(process.env.E2E_BASE_URL ?? "https://app.chanlytics.com");
+  await stopModelTurns(page);
   await page.context().addCookies(await sessionCookies(base));
 }
 
