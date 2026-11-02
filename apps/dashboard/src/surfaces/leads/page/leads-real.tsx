@@ -8,6 +8,7 @@
 import { useEffect } from "react";
 import { BAR_LINE_WORDS, leadBand, leadRail, leadsStanding, type LeadRowVM } from "@chanlytics/contracts";
 import { navigate } from "../../legacy-verbs";
+import { useRecordsAhead } from "../../campaigns/sequences/use-record";
 import { useSwapMotion } from "../../kit/motion/use-swap-motion";
 import { TABLE_BODIES } from "../../kit/table/data-table";
 import { useDataTable } from "../../kit/table/use-data-table";
@@ -25,6 +26,7 @@ import type { ScopeView } from "../../people/scope-view";
 import { useLeadPileView } from "../pile/page-pile";
 import { useBulkAdd } from "../scope/bulk-add";
 import { useLeadPile } from "../pile/use-pile";
+import { reachLead } from "../sheet/reach";
 import { useLeadAim } from "../sheet/use-aim";
 import { leadActs, type LeadActs } from "./acts";
 import { useLeadPeek, useLeadPeekAddress, type LeadsNav } from "./peek-hooks";
@@ -106,6 +108,8 @@ function useLeadsView({ leadsRoute, onNavigate }: { leadsRoute: string | null; o
   // Where Add goes, for the lead sheet and the pile alike (sheet/use-aim.ts: one choice per search, the door's answers kept
   // by lead). The pile walks the rows in the order the page has them (To decide is the pile): nothing moves under it.
   const aim = useLeadAim({ searches: leads.searches, searchId: leadView.searchId });
+  // Those sequences read ahead, so a lead's sheet opens on a record the tab holds and not on the wait for one.
+  useRecordsAhead((aim.targets ?? []).map((t) => t.id));
   const pile = useLeadPile({ flash: plFlash, aim });
   const order = { sortBy, sortDir };
   const read = useLeadsRead({ leadView, viewRoute, ...order, plFlash, chips, words: controls.table.words });
@@ -168,6 +172,7 @@ function useLeadsView({ leadsRoute, onNavigate }: { leadsRoute: string | null; o
     peekMode,
     armed,
     setArmed,
+    reach: (id) => reachLead(aim, id),
   });
   useLeadPeekAddress({
     leadView,

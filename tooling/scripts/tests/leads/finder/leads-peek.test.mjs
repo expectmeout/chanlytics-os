@@ -97,6 +97,11 @@ globalThis.document = {
 // The wire, answering the one read the sheet makes by itself: the lead's story (GET reach-outs/leads?lead=). A lead no
 // reach-out wrote to has no timeline, and the Activity tab draws no block for it.
 const wired = [];
+// What a test turns on: the place read and the add door refusing, and the sequences the list reads.
+let placeFails = false;
+let doorRefuses = false;
+let sequencesListed = [];
+const READ_REFUSED = { ok: false, error: { code: "internal", message: "It did not answer." } };
 const json = (status, body) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 globalThis.window = {
@@ -117,8 +122,12 @@ globalThis.window = {
     wired.push(String(url));
     if (/^\/api\/v1\/reach-outs\/leads\?/.test(String(url)))
       return json(200, { ok: true, data: { lines: null, chain: null, timeline: null } });
-    if (/^\/api\/v1\/leads\/[^/]+\/place\?/.test(String(url))) return json(200, { ok: true, data: null });
-    if (/^\/api\/v1\/sequences\?/.test(String(url))) return json(200, { ok: true, data: { sequences: [] } });
+    if (/^\/api\/v1\/leads\/[^/]+\/place\?/.test(String(url)))
+      return placeFails ? json(500, READ_REFUSED) : json(200, { ok: true, data: null });
+    if (/^\/api\/v1\/sequences\?/.test(String(url)))
+      return json(200, { ok: true, data: { sequences: sequencesListed } });
+    if (/^\/api\/v1\/sequences\/[^/]+\/leads\/check\?/.test(String(url)))
+      return doorRefuses ? json(500, READ_REFUSED) : json(200, { ok: true, data: { leads: [] } });
     return json(404, {
       ok: false,
       error: { code: "not_found", message: "The sheet asked for something this test did not expect." },
@@ -148,6 +157,8 @@ const { Menu } = await import("../../../../../apps/dashboard/src/surfaces/kit/me
 const { SubTabs } = await import("../../../../../apps/dashboard/src/surfaces/kit/sub-tabs/sub-tabs.tsx");
 // The sheet and what the page leans on, from where they live (surfaces/leads, decision 0015).
 const { LeadSheet } = await import("../../../../../apps/dashboard/src/surfaces/leads/sheet/sheet.tsx");
+const { sequenceVerbs } = await import("../../../../../apps/dashboard/src/surfaces/campaigns/sequences/verbs.ts");
+const { useLeadAim } = await import("../../../../../apps/dashboard/src/surfaces/leads/sheet/use-aim.ts");
 const { LeadPeekActions } = await import("../../../../../apps/dashboard/src/surfaces/leads/peek/acts.tsx");
 const { LeadLightbox } = await import("../../../../../apps/dashboard/src/surfaces/leads/peek/lightbox.tsx");
 const { leadPeekEscape, leadPeekFollows, leadPeekFocus, leadArmOnReturn, leadPhotoWarm } =
@@ -385,14 +396,17 @@ const courierOf = (over = {}) => {
 };
 
 /** What the sheet asks of the sequences Add goes to: none yet, so it asks nothing (sheet/use-aim.ts). */
-const aimOf = () => ({
+const aimOf = (over = {}) => ({
   targets: [],
+  reading: false,
   target: null,
   load: async () => {},
   check: async () => {},
   checkOf: () => undefined,
+  checking: () => false,
   choose() {},
   reset() {},
+  ...over,
 });
 
 /** The page's own state, the way LeadsReal holds it: peekMode, armed and draft beside peekId. */
@@ -484,6 +498,80 @@ const roleIs = (role) => {
 };
 /** More's item by its words: the kit's Menu. */
 const menuItem = async (P, label) => kitItem(P.draw().tree, "peek-more", label);
+
+/* ==================================================== the one draw ==== */
+
+// Where this lead stands, read: the sheet the rest of this file draws is the one whose reads are in.
+await sequenceVerbs.place(LEAD);
+
+const readsLand = async () => {
+  for (let i = 0; i < 6; i += 1) await new Promise((go) => setImmediate(go));
+};
+const saysReading = (tree) => byTestId(tree, "lead-sheet-reading") !== null;
+/** What only a read can say: drawn before it lands, these are a guess the next read takes back. */
+const GUESSES = ["lead-sheet-word", "lead-sheet-quick", "lead-sheet-sec-sequence", "lead-sheet-dock"];
+
+test("the sheet draws once: who they are, and nothing a read could take back until the reads are in", async () => {
+  reset();
+  const P = page({ vm: vmOf({ id: "5e000000-0000-4000-8000-000000000222" }) });
+  const first = P.draw().tree;
+  assert.equal(textOf(byTestId(first, "peek-name")), "Travis Heights Coaching Co.", "who they are is true whatever");
+  assert.equal(saysReading(first), true, "and it says it is reading, after a beat");
+  for (const id of GUESSES) assert.equal(byTestId(first, id), null, `no ${id} while their place is out`);
+  await readsLand();
+  const whole = P.draw().tree;
+  assert.equal(saysReading(whole), false);
+  for (const id of GUESSES.slice(0, 3)) assert.ok(byTestId(whole, id), `${id}, all of it at once`);
+});
+
+test("the sequences and the add door hold it too, and only for this lead", () => {
+  reset();
+  const held = (aim) => saysReading(page().draw({ aim: aimOf(aim) }).tree);
+  assert.equal(held({}), false, "nothing out: it draws");
+  assert.equal(held({ reading: true }), true, "the sequences Add could go to are being read");
+  assert.equal(held({ checking: (id) => id === LEAD }), true, "the add door owes an answer for this lead");
+  assert.equal(held({ checking: (id) => id !== LEAD }), false, "another lead's answer holds nothing here");
+});
+
+test("a place that could not be read says so, with Retry, and never a guess at where they stand", async () => {
+  reset();
+  placeFails = true;
+  const P = page({ vm: vmOf({ id: "5e000000-0000-4000-8000-000000000333" }) });
+  P.draw();
+  await readsLand();
+  placeFails = false;
+  const { tree } = P.draw();
+  assert.equal(saysReading(tree), false, "a failed read is not a read still out: it holds nothing for ever");
+  assert.ok(byTestId(tree, "lead-sheet-unread"), "it says what failed");
+  assert.ok(byTestId(tree, "lead-sheet-unread-retry"), "with the way to try again");
+  for (const id of GUESSES) assert.equal(byTestId(tree, id), null, `no ${id}: nothing it could not know`);
+});
+
+test("the add door owes an answer until it gives one or cannot, and asking again keeps what it said", async () => {
+  reset();
+  const ROOT = "5e000000-0000-4000-8000-0000000000aa";
+  sequencesListed = [
+    { id: ROOT, name: "Trainers", starts: "leads", state: "on", created_at: NOW.toISOString(), first: null },
+  ];
+  await sequenceVerbs.list();
+  const aimNow = () => {
+    frames.begin();
+    return useLeadAim({ searches: [{ id: SEARCH_ID, adds_to: ROOT }], searchId: SEARCH_ID });
+  };
+  const owes = () => aimNow().checking(LEAD);
+  assert.equal(owes(), true, "a lead the door has not answered for");
+  await aimNow().check([LEAD]);
+  assert.equal(owes(), false, "answered");
+  assert.equal(aimNow().checkOf(LEAD), null, "it would go");
+  aimNow().reset();
+  assert.equal(owes(), false, "asked again, what it said stands: a card on screen does not go with it");
+  doorRefuses = true;
+  const other = "5e000000-0000-4000-8000-000000000444";
+  assert.equal(aimNow().checking(other), true);
+  await aimNow().check([other]);
+  doorRefuses = false;
+  assert.equal(aimNow().checking(other), false, "no answer is coming: the sheet does not wait on one for ever");
+});
 
 /* =================================================== the one scroll ==== */
 

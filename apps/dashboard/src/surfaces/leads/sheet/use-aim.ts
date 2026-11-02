@@ -65,6 +65,8 @@ function checksWith(was: AimChecks | null, rootId: string, asked: readonly strin
  */
 function useAimChecks(rootId: string | null) {
   const [checks, setChecks] = useState<AimChecks | null>(null);
+  // The leads the door gave no answer for: nothing is coming, so the sheet does not wait on one.
+  const [unanswered, setUnanswered] = useState<ReadonlySet<string>>(new Set());
   const asked = useRef(new Set<string>());
   const check = async (ids: readonly string[]) => {
     if (!rootId) return;
@@ -73,15 +75,22 @@ function useAimChecks(rootId: string | null) {
     for (const id of ask) asked.current.add(`${rootId}:${id}`);
     const r = await reachOuts.checkAdd(rootId, ask);
     if (r.ok) setChecks((was) => checksWith(was, rootId, ask, r.data));
-    else for (const id of ask) asked.current.delete(`${rootId}:${id}`);
+    else {
+      for (const id of ask) asked.current.delete(`${rootId}:${id}`);
+      setUnanswered((was) => new Set([...was, ...ask.map((id) => `${rootId}:${id}`)]));
+    }
   };
   const checkOf = (leadId: string): LeadCardCheck | undefined =>
     rootId && checks && checks.rootId === rootId ? checks.by.get(leadId) : undefined;
+  /** The door's answer for this lead is still to come. */
+  const checking = (leadId: string) =>
+    !!rootId && checkOf(leadId) === undefined && !unanswered.has(`${rootId}:${leadId}`);
+  /** Ask again: what the door said stands until it says otherwise, so a card on screen does not go with it. */
   const reset = () => {
     asked.current.clear();
-    setChecks(null);
+    setUnanswered(new Set());
   };
-  return { check, checkOf, reset };
+  return { check, checkOf, checking, reset };
 }
 
 export function useLeadAim({ searches, searchId }: { searches: readonly LeadSearchDto[]; searchId: string | null }) {
@@ -112,12 +121,15 @@ export function useLeadAim({ searches, searchId }: { searches: readonly LeadSear
   };
 
   return {
-    /** The sequences to leads Add can go to; null until the list is read. */
+    /** The sequences to leads Add can go to; null until the list is read, and where it could not be. */
     targets: rows,
+    /** The list, or the pick's record, is still being read: what the sheet offers may yet change. */
+    reading: list.state === "reading" || (!!row && rec.state === "reading"),
     target,
     choose,
     check: checks.check,
     checkOf: checks.checkOf,
+    checking: checks.checking,
     reset: checks.reset,
   };
 }

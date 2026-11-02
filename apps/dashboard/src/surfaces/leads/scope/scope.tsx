@@ -31,6 +31,7 @@ import { LeadStrip } from "../finder/strip-view";
 import { LeadMap } from "../map/map";
 import { LeadPeekActions } from "../peek/acts";
 import { LeadLightbox } from "../peek/lightbox";
+import { leadRowReach } from "../sheet/reach";
 import { LeadSheet } from "../sheet/sheet";
 import { peekVMFor } from "../surface";
 import type { LeadsScopeProps } from "../page/props";
@@ -472,7 +473,7 @@ const mainOf = (p: P, phone: boolean, railRows: ReactElement, sections: Sections
           name. A phone's head holds New search past the first day (phone-bar.tsx LeadsNewSearch), and its bar Import; a
           desk's first day holds no act beside the page's own door, and keeps the door for a list under it. */}
       {phone && !p.firstDay && !p.newSearch && phoneBarOf(p)}
-      <div className="cl-main-scroll pl-main" ref={p.scrollRef} data-sheet={sheetMarkOf(p)}>
+      <div className="cl-main-scroll pl-main" ref={p.scrollRef} data-sheet={sheetMarkOf(p)} {...leadRowReach(p.aim)}>
         {phone || p.firstDay ? <LeadsHead act={headActOf(p, phone)} /> : deskTopOf(p)}
         {p.newSearch ? (
           newSearchOf(p, phone)

@@ -60,13 +60,15 @@ interface SheetInputs {
   vm: LeadPeekVM;
   tz: string;
   aim: LeadAim;
-  /** Their place (GET leads/:id/place), and whether it has been read: none is told apart from not yet. */
-  place: { read: boolean; place: SequencePlaceDto | null };
+  /** Their place (GET leads/:id/place), whether it has been read, and why it could not be: none is told apart from not yet. */
+  place: { read: boolean; failed: string | null; place: SequencePlaceDto | null };
   /**
    * The record of the sequence the rail draws (its steps and words): the one their place stands in, else the pick's. Null
    * while it is read.
    */
   railRecord: SequenceRecordDto | null;
+  /** That record is still being read. */
+  railReading: boolean;
   /** How many an OK sends in their batch (the record's count), where it is known. */
   batch?: number;
   pile: SheetPileFacts | null;
@@ -97,6 +99,10 @@ export interface SheetMail {
 }
 
 export interface SheetFacts {
+  /** A read that could change what the sheet says is still out: who they are and nothing more, until it lands. */
+  reading: boolean;
+  /** Why their place could not be read: the sheet says that, never a guess at where they stand. */
+  unread: string | null;
   card: LeadCardFacts;
   check: LeadCardCheck | undefined;
   state: LeadSheetState;
@@ -313,27 +319,41 @@ function mailOf(p: { now: LeadNowVM; i: SheetInputs; card: LeadCardFacts; rail: 
   return null;
 }
 
+/**
+ * Whether a read that decides what the sheet says is still out: their place, the record of the sequence the Sequence line
+ * draws and, for a lead no sequence has, the sequences Add could go to and the add door's answer. All of them land before
+ * the sheet says anything of its own, so it draws once, as it is, and never a guess the next read takes back.
+ */
+function sheetStillReading(i: SheetInputs, state: LeadSheetState): boolean {
+  if (i.place.failed !== null) return false;
+  if (!i.place.read || i.railReading) return true;
+  if (i.place.place || state === "closed") return false;
+  return i.aim.reading || i.aim.checking(i.vm.id);
+}
+
 /** The sheet's facts, from the page's reads. */
 export function sheetFactsOf(i: SheetInputs, nowMs: number): SheetFacts {
   const c = cardStateOf(i);
   const pick = i.aim.target;
   const place = i.place.place;
   const elsewhere = elsewhereOf(i, c.check);
-  // Still reading: their place, or the sequences Add could go to, for a lead not closed. Nothing is offered the reads
-  // could take back.
-  const reading = !i.place.read || (i.aim.targets === null && !place && c.state !== "closed");
-  const dock = leadDockOf({
-    state: c.state,
-    place,
-    pick: pick ? { id: pick.rootId, name: pick.name, state: pick.row.state } : null,
-    blocked: c.blocked,
-    elsewhere,
-    canCall: c.lead.canCall,
-    canLater: !!(i.row && i.row.searchId),
-    closed: c.closed,
-    reading,
-    batch: i.batch,
-  });
+  const reading = sheetStillReading(i, c.state);
+  const unread = i.place.failed;
+  // Nothing is offered that a read could take back, and nothing where their place could not be read.
+  const held = reading || unread !== null;
+  const dock = held
+    ? null
+    : leadDockOf({
+        state: c.state,
+        place,
+        pick: pick ? { id: pick.rootId, name: pick.name, state: pick.row.state } : null,
+        blocked: c.blocked,
+        elsewhere,
+        canCall: c.lead.canCall,
+        canLater: !!(i.row && i.row.searchId),
+        closed: c.closed,
+        batch: i.batch,
+      });
   const verdict = leadVerdictOf(i.vm);
   const checks = leadSheetChecksLineOf(i.vm);
   const email = leadSheetEmailLineOf(i.vm);
@@ -360,6 +380,8 @@ export function sheetFactsOf(i: SheetInputs, nowMs: number): SheetFacts {
   });
   const history = leadHistoryOf({ vm: i.vm, place, tz: i.tz, nowMs });
   return {
+    reading,
+    unread,
     card: c.card,
     check: c.check,
     state: c.state,
