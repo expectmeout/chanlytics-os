@@ -323,6 +323,45 @@ test.describe("Leads on a real workspace", () => {
     await expect(ask).toBeHidden();
   });
 
+  test("an Esc pressed beside Ask closes what the page has open first, then Ask: one thing a press", async ({
+    page,
+  }) => {
+    const ask = page.getByTestId("ask-line");
+    const focusGoes = () => page.evaluate(() => (document.activeElement as HTMLElement).blur());
+    const focusLeavesAsk = async () => {
+      await expect(page.getByTestId("ask-input")).toBeFocused();
+      await focusGoes();
+    };
+    await page.goto("/#/clients/leads");
+    await page.waitForLoadState("networkidle");
+    // A peek: the page's own listener takes the key, and says so.
+    await page.keyboard.press("j");
+    await expect(page.locator(".cl-table tbody tr.focused")).toHaveCount(1);
+    await page.keyboard.press("Enter");
+    const peek = page.getByTestId("lead-peek");
+    await expect(peek).toBeVisible();
+    await page.keyboard.press("f");
+    await focusLeavesAsk();
+    await page.keyboard.press("Escape");
+    await expect(peek).toHaveCount(0);
+    await expect(ask).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(ask).toBeHidden();
+    // A menu: the kit's closes itself and says nothing, gone before the window hears the key.
+    await page.keyboard.press("Control+k");
+    await focusLeavesAsk();
+    await page.getByRole("button", { name: "Columns" }).focus();
+    await page.keyboard.press("Enter");
+    const menu = page.locator('[role="menu"]');
+    await expect(menu).toBeVisible();
+    await focusGoes();
+    await page.keyboard.press("Escape");
+    await expect(menu).toHaveCount(0);
+    await expect(ask).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(ask).toBeHidden();
+  });
+
   test("at a phone's width the switch, the list and search are one bar and the first lead is on the first screen", async ({
     page,
   }) => {
