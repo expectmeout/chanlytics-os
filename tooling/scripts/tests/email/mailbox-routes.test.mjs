@@ -276,6 +276,12 @@ test("Today counts the workspace's email line beside the routing rows, and only 
   const summary = {
     workspace: { name: "Best Movers", timezone: "America/New_York", status: "active" },
     channels: [{ kind: "voice", status: "active", number: "+13055550123" }],
+    window: {
+      days: 1,
+      since: "2026-09-18T04:00:00+00:00",
+      since_local: "2026-09-18T00:00:00",
+      now_local: "2026-09-18T11:00:00",
+    },
   };
   const rpcs = { metrics_summary: () => summary };
   const withBox = fakeDb({ memberships: [membership(A, "owner", "a")], mailboxes: [row(A)] }, {}, rpcs);
@@ -289,9 +295,11 @@ test("Today counts the workspace's email line beside the routing rows, and only 
     "REGRESSION: Today said '1 of 1 line connected' on a workspace with two",
   );
   assert.equal(m.linesRead, undefined, "every line was read");
-  // The line is one row: Today asks nothing of how the workspace sends (its own domains, the edge's switch for them).
+  // The line is one row: Today asks nothing of how the workspace sends (its own domains, the edge's switch for them). The
+  // day's bookings are read beside it (server/metrics/bookings.ts), from the record's own two tables.
+  const BOOKINGS_READ = new Set(["events", "appointments"]);
   assert.deepEqual(
-    [...new Set(withBox.seen.filter((q) => q.table).map((q) => q.table))],
+    [...new Set(withBox.seen.filter((q) => q.table && !BOOKINGS_READ.has(q.table)).map((q) => q.table))],
     ["mailboxes"],
     "REGRESSION: every read of Today from a workspace with a mailbox read its sending domains and asked the edge too",
   );

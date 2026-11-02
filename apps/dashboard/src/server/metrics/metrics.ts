@@ -8,13 +8,15 @@
  * (`reply_hold`: the one rule's count of the replies that went out as the hold ended, later, and with none), because the function
  * answers the median and the median of a held reply is the hold. The replies are the function's own (`replies`, 00359: the rows it
  * read to count who answered), where it answers them; a database the migration has not reached is asked `first_replies` for them
- * after it, as every read of Today was asked beside it. Both readers of the function come through this one door, so the page's
- * Today and Ask's Today count the same lines and say the same speed.
+ * after it, as every read of Today was asked beside it. What was booked that day is counted beside the function too (bookings.ts),
+ * which the day's figures lead with. Both readers of the function come through this one door, so the page's Today and Ask's
+ * Today count the same lines, say the same speed and the same bookings.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { HOUR_MS, emailWires, holdOf, replyHoldDtoOf, type MetricsSummaryDto } from "@chanlytics/contracts";
 import { firstReplies, type Database } from "@chanlytics/db";
 import { emailLineFor } from "../connections/email";
+import { bookedSince, bookingsLately } from "./bookings";
 import { log } from "@/server/log";
 
 /** The window the day's replies are read over: Today's one day. A longer window carries none (a period's replies are Reports', report_series). */
@@ -75,7 +77,8 @@ export async function metricsSummaryFor(
 ): Promise<MetricsSummaryDto | null> {
   // Together, not waterfalled: one indexed row must not sit behind three
   // plpgsql aggregates on Today's wall clock.
-  const [res, email] = await Promise.all([
+  const day = days === REPLIES_WINDOW_DAYS;
+  const [res, email, lately] = await Promise.all([
     supabase.rpc("metrics_summary", { p_tenant_id: tenantId, p_days: days }),
     // A mailbox that cannot be read is a line that cannot be counted, which is
     // its own state (callsRead is the same shape), never a blank Today and
@@ -84,6 +87,8 @@ export async function metricsSummaryFor(
       log.error("today_email_line_read_failed", { error: e });
       return null;
     }),
+    // What was booked today, which the day's figures lead with (bookings.ts): a longer window carries none.
+    day ? bookingsLately(supabase, tenantId) : Promise.resolve(undefined),
   ]);
   if (res.error) throw new Error(res.error.message);
   // The function's answer, less the day's replies it carries for this server alone (00359): they are counted here and
@@ -94,10 +99,13 @@ export async function metricsSummaryFor(
   // A day's replies are the function's own rows where it answers them. Asked of first_replies only where it does not (a
   // dashboard deployed before its migration: either order works), and then after the function, which is the wait every
   // read of Today had beside it.
-  const recent =
-    days !== REPLIES_WINDOW_DAYS ? null : (repliesOf(carried) ?? (await recentReplies(supabase, tenantId)));
+  const [recent, bookings] = await Promise.all([
+    !day ? null : (repliesOf(carried) ?? recentReplies(supabase, tenantId)),
+    lately === undefined ? undefined : lately && bookedSince(supabase, tenantId, lately, answered.window.since),
+  ]);
   const hold = recent === null ? undefined : holdSummary(recent, answered.window.since);
-  const dto = hold === undefined ? answered : { ...answered, reply_hold: hold };
+  const held = hold === undefined ? answered : { ...answered, reply_hold: hold };
+  const dto = bookings === undefined ? held : { ...held, bookings };
   if (email === null) return { ...dto, linesRead: false };
   const wires = emailWires(email);
   // Untouched where there is no email line: a deployment without the channel

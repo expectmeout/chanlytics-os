@@ -621,6 +621,7 @@ export type { MemberAlertsRow } from "./repositories/notices/member-alerts";
 export {
   askCardsTold,
   bookedVisitsOf,
+  bookingsCanArrive,
   closeMendedNotices,
   eventTold,
   feedAdditionsWith,
@@ -639,6 +640,7 @@ export {
   reviewsNamed,
   twinTold,
   unreadOfReaders,
+  visitChangesSince,
 } from "./repositories/notices/notifications";
 export type { KeptNotice } from "./repositories/notices/notifications";
 export {

@@ -270,7 +270,7 @@ export { CALENDAR_UNREADABLE_TOLD_AFTER_MS, CALENDAR_UNREADABLE_WORDS, GOOGLE_SY
 export { holdNotice } from "./notices/hold-notice";
 export { memberJoinedBy, memberJoinedNotice, memberLeftBy, memberLeftNotice } from "./notices/member-news";
 export { noticeMailHtml } from "./notices/notice-mail";
-export { bookingArriving, bookingChanged, CATCH_UP_VISITS, feedAdditionIsBooking, VISIT_CHANGES_TOLD, visitChangeNews, visitNews } from "./notices/visit-news";
+export { bookedOnce, bookingArriving, bookingChanged, CATCH_UP_VISITS, feedAdditionIsBooking, VISIT_CHANGES_TOLD, visitChangeNews, visitNews } from "./notices/visit-news";
 export { consultFirstOf, peopleVisitsOf, personLikeOf, poolListContext, poolRowOf, poolRowsOf, withVisitsOf } from "./people/audience-pool";
 export { dealFill, dealSheetFill, noteFill, noteSheetFill, SAY_IT_DEAL_JSON_SCHEMA, SAY_IT_MAX, SAY_IT_NOTE_JSON_SCHEMA, SAY_IT_VERBS, SAY_IT_WORDS, sayItFilled } from "./people/doors/say-it";
 export { confirmPageWords, looksMadeUp, maskAddress, SIGNUP_ASK_LIMITS, SIGNUP_CONFIRM_MS, SIGNUP_CONFIRM_SOURCE, signupAddressKey, signupAskLine, signupAskOf, signupAskRefusal, signupConfirmEmail, signupConfirmEmailHtml } from "./people/doors/signup-confirm";
@@ -472,7 +472,7 @@ export { durationLabel, TODAY_DAY_MAX, todayDay, todayDayBar, todayDayNext, toda
 export { QUOTE_MAX } from "./today/today-facts";
 export { todayProof } from "./today/today-figures";
 export { TODAY_LEAK_MAX, todayLeaks } from "./today/today-leaks";
-export { emailWires } from "./today/today-metrics";
+export { emailWires, TODAY_BOOKED_SHOWN } from "./today/today-metrics";
 export { todayPeriodLine } from "./today/today-period";
 export { isHoldRow, isPersonRow, namesAPerson } from "./today/today-queue";
 export { NO_REPLY_AFTER_MS } from "./today/today-rows";
