@@ -1566,10 +1566,16 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     const withoutBuys =
       pool || NAMES[old] === "report" || NAMES[old] === "workspace.settings" ? drop(dealt, "tenants.select") : dealt;
     const withOneDealRead = NAMES[old] === "sequences.moments" ? drop(withoutBuys, "deals.select") : withoutBuys;
+    // 2 Nov 2026 (decision 0076, as amended: the figures lead with what was booked): the day's metrics read the visits'
+    // changes of the last day and whether a booking can arrive here (server/metrics/bookings.ts), beside the function:
+    // one `events` read and one `appointments` read more. Its bytes are unchanged: this world's function names no day, so
+    // its answer carries no bookings, and Ask's Today says what it said.
+    const withBookings =
+      old === "get_today" ? [...withOneDealRead, "events.select", "appointments.select"] : withOneDealRead;
     const reads =
       NAMES[old] === "report"
-        ? withCampaignReads(withPeopleReads(withReceptionistReads(withReviewReads(withOneDealRead))))
-        : withOneDealRead;
+        ? withCampaignReads(withPeopleReads(withReceptionistReads(withReviewReads(withBookings))))
+        : withBookings;
     const [gotResult, wantResult] = withoutStoredWords(
       old,
       ...(NAMES[old] === "sequences.moments"
