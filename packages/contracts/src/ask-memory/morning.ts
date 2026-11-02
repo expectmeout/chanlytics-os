@@ -17,10 +17,11 @@ export const ASK_MORNING_CARDS_MAX = 3;
  * cards. The leads' ideas are named so the tool search finds them; the answer's language is the member's, said to the
  * turn apart from these words. Since decision 0071 the people waiting are Today's rows, each with its reply or its call's
  * brief drafted there, so the morning makes no card that only answers or rings one of them (its card stood under their
- * row, saying it twice), says how the day stands rather than what it made, and words each card as its act and its why.
+ * row, saying it twice), says how the day stands rather than what it made, and words each card as its act and its why. A
+ * batch waiting for an OK is the same (2 Nov 2026): Your OK holds its row, and the run tool refuses a morning its card.
  */
 const MORNING_HEAD =
-  "Good morning. Look at my day: what is due, what happened since yesterday, what you remember about the business, and the lead finder's ideas if Leads has any. The people waiting on me already have their replies or call briefs drafted on Today, so make no card that only answers or calls back someone who is waiting.";
+  "Good morning. Look at my day: what is due, what happened since yesterday, what you remember about the business, and the lead finder's ideas if Leads has any. The people waiting on me already have their replies or call briefs drafted on Today, and the batches waiting for my OK are under Your OK there, so make no card that only answers or calls back someone who is waiting, or that approves or skips a batch.";
 const MORNING_TAIL =
   "Give me at most three other things worth doing first, each as a card I can approve: its title the act in a few words, its line why it comes first, without repeating the name. Begin with one sentence on how the day stands, never about the cards you made. If nothing else is worth doing, say so in one sentence and make no card.";
 export const ASK_MORNING_QUESTION = `${MORNING_HEAD} ${MORNING_TAIL}`;

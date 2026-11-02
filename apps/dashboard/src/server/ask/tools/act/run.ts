@@ -10,6 +10,7 @@ import {
   clockTime,
   fmtDay,
   heldByCheckWords,
+  isAskMorningQuestion,
   isReachOutRun,
   localDate,
   nextOpenMoment,
@@ -42,6 +43,13 @@ const HELD_FROM = "sequences with action sequence, waiting_on_you";
 
 /** A broadcast that is neither a playbook's run nor a one-off of its own: nothing here waits on a person for it. */
 const NOT_A_RUN = "that broadcast is not a playbook's run: only a playbook's run waits for a person to approve or skip";
+
+/**
+ * A run waiting for a person, carded by a morning: Your OK on Today already holds its row, so the card would say it twice
+ * and spend one of the morning's three on what the page says (decision 0071, amended 2 Nov 2026).
+ */
+const ON_TODAY =
+  "that run already waits under Your OK on Today, so a morning makes no card of it: leave it there and look for something else worth doing first";
 
 /**
  * A one-off's send cancelled (its record's Cancel this send, asked first): its sequence's row read by its batch's id (a
@@ -114,6 +122,7 @@ async function proposeRun(
   // The run is a row the answer may cite, opened where its sheet is.
   noteRows(t.read, read.rows);
   const run = read.data.broadcast;
+  if (run.state === "pending_approval" && isAskMorningQuestion(t.question)) return refuse(ON_TODAY);
   // A batch to leads is cold email, each email checked before it goes: approved or skipped as its sequence's page does it
   // (decision 0060: Ask runs every sequence; the record's notice presses the same route), the card saying what the check
   // has done so far, as People lays it out.

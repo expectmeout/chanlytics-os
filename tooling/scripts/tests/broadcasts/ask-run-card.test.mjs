@@ -10,7 +10,15 @@ import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { PROPOSAL_SPECS, SEQUENCE_ACT_WHY, SEQUENCE_FLOW_WORDS, localDate, runDayPassed } from "@chanlytics/contracts";
+import {
+  ASK_MORNING_EDITED_QUESTION,
+  ASK_MORNING_QUESTION,
+  PROPOSAL_SPECS,
+  SEQUENCE_ACT_WHY,
+  SEQUENCE_FLOW_WORDS,
+  localDate,
+  runDayPassed,
+} from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -192,9 +200,10 @@ const ONE_OFFS = [
 const RPCS = { sequence_overview: (a) => ONE_OFFS.filter((r) => r.id === a.p_sequence_id) };
 
 /** One call the model makes, through the registry, over a fresh world: what it came to, what it read, the read set. */
-async function runCall(input, { role = "operator", now = NOW } = {}) {
+async function runCall(input, { role = "operator", now = NOW, question } = {}) {
   const supabase = fakeDb(world(role), {}, RPCS);
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, role, TZ, now);
+  t.question = question;
   const out = await buildProposal(t, "propose_sequence", { action: "batch", ...input });
   const p = out.proposal;
   return {
@@ -438,6 +447,44 @@ test("propose_campaign.run over the database in memory, from a table: each refus
     [viewer.got, viewer.reads],
     [{ error: "propose_sequence: action batch is an owner's, a partner's or an operator's" }, []],
   );
+});
+
+/**
+ * A run waiting for a person is a row of Your OK on Today already, so a morning makes no card of it (decision 0071,
+ * amended 2 Nov 2026): its slot is for what the page does not say, and a batch to leads is never approved from a row.
+ */
+const ON_TODAY = {
+  error:
+    "that run already waits under Your OK on Today, so a morning makes no card of it: leave it there and look for something else worth doing first",
+};
+
+test("a morning makes no card of a run waiting for a person, whichever way it would go, in either of its questions: Your OK already holds it", async () => {
+  const waiting = [
+    ["a batch to leads", { broadcast_id: REACH, verb: "approve" }],
+    ["a batch to leads, skipped", { broadcast_id: REACH, verb: "skip" }],
+    ["a batch whose every email the check held", { broadcast_id: HELD, verb: "approve" }],
+    ["a playbook's run", { broadcast_id: RUN, verb: "approve" }],
+    ["a playbook's run, skipped", { broadcast_id: RUN, verb: "skip" }],
+    ["a run past its day", { broadcast_id: OLD, verb: "skip" }],
+  ];
+  for (const question of [ASK_MORNING_QUESTION, ASK_MORNING_EDITED_QUESTION])
+    for (const [what, input] of waiting) {
+      const r = await runCall(input, { question });
+      assert.deepEqual(r.got, ON_TODAY, what);
+      assert.equal(r.isError, true, what);
+    }
+});
+
+test("a member who asks for a waiting run still gets its card, and a morning may still cancel a one-off, which waits in no row", async () => {
+  const asked = await runCall({ broadcast_id: REACH, verb: "approve" }, { question: "Approve the dentists batch" });
+  assert.equal(asked.got.title, "Approve the batch: Dentists in Austin · step 1");
+  const oneOff = await runCall({ broadcast_id: MINE, verb: "skip" }, { question: ASK_MORNING_QUESTION });
+  assert.equal(oneOff.got.title, "Cancel October offer");
+});
+
+test("the morning's question says the batches waiting for an OK are on Today, in both its forms, so the model spends no slot on one", () => {
+  for (const question of [ASK_MORNING_QUESTION, ASK_MORNING_EDITED_QUESTION])
+    assert.match(question, /the batches waiting for my OK/);
 });
 
 const envelope = (data) =>

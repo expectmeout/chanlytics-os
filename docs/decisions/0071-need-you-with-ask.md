@@ -87,3 +87,12 @@ page and queue suites, Ask's ideas as rows, and Going today with the runs alone.
 
 - Whether any member who acts may move a teammate's step's day, as any may mark it done (a door of its own).
 - Drafts for the rows past the card: only the rows drawn are drafted.
+
+## Amended 2 November 2026 · A batch waiting stays in Your OK
+
+Item 1 kept the morning from saying a person's row twice and left the runs out, so a morning could card "Approve the
+batch": a row Your OK already held, one of its three spent on what the page says, and an Approve on a batch to leads from
+a row, which `waitingRunOffer` refuses every other row. The morning's question now leaves the batches waiting for an OK
+to Today, and `propose_sequence` refuses a morning's turn a card of any run waiting for a person. A member who asks for
+one in their own words still gets its card (decision 0060), and a morning may still cancel a one-off, which waits in no
+row.
