@@ -71,6 +71,16 @@ const AUT_PAUSE: readonly Step[] = [
   ["24h", 24],
   ["3d", 72],
 ];
+// How long someone handed to the team may wait before Today says it in the amber (contracts answerWithinHoursOf): the
+// business's own promise, a day until it says another. Steps inside what the route accepts (1 to 168 hours).
+const AUT_WITHIN: readonly Step[] = [
+  ["1h", 1],
+  ["2h", 2],
+  ["4h", 4],
+  ["8h", 8],
+  ["24h", 24],
+  ["2d", 48],
+];
 
 const withStep = (steps: readonly Step[], value: number, label: string): readonly Step[] =>
   steps.some((s) => s[1] === value) ? steps : [...steps, [label, value] as const].sort((a, b) => a[1] - b[1]);
@@ -81,7 +91,7 @@ const stepWords = (steps: readonly Step[]) => steps.map((s) => s[0]);
 
 /** What a save says it did, in the words the row above it uses: one dial at a time, or the class's mode. */
 function savedWords(r: UiRow, mode: string | undefined, d: PolicyDials, budget: BudgetDial): ReactNode {
-  const { replyDelayMs, minConfidence, maxTokensDay, maxRepliesDay, pauseHours } = d;
+  const { replyDelayMs, minConfidence, maxTokensDay, maxRepliesDay, pauseHours, answerWithinHours } = d;
   if (replyDelayMs !== undefined)
     return (
       <>
@@ -112,6 +122,13 @@ function savedWords(r: UiRow, mode: string | undefined, d: PolicyDials, budget: 
       <>
         <b>Stays out after a person steps in</b> → {wordOf(AUT_PAUSE, pauseHours, `${pauseHours}h`)} — from the next
         time someone steps in
+      </>
+    );
+  if (answerWithinHours !== undefined)
+    return (
+      <>
+        <b>Answer people within</b> → {wordOf(AUT_WITHIN, answerWithinHours, `${answerWithinHours}h`)} — Today holds
+        every wait to it now
       </>
     );
   // The confirmation says what will happen, in the words the heading just used.
@@ -230,6 +247,7 @@ export const PaneAutonomyReal = ({ flash, row = null }: { flash: (f: LegacyFlash
   const hard = hardLimitsWords(limits);
   const capSteps = withStep(AUT_CAP, hard.cap, String(hard.cap));
   const pauseSteps = withStep(AUT_PAUSE, hard.hours, `${hard.hours}h`);
+  const withinSteps = withStep(AUT_WITHIN, hard.withinHours, `${hard.withinHours}h`);
   const budget = Number(limits.max_llm_tokens_day) || 0;
   // The budget's dial, a stored cap off its steps among them, each said in the replies it buys here.
   const budgetAt = budgetDial(
@@ -319,6 +337,14 @@ export const PaneAutonomyReal = ({ flash, row = null }: { flash: (f: LegacyFlash
             value: wordOf(pauseSteps, hard.hours, `${hard.hours}h`),
             save: (v: number) => ({ pauseHours: v }),
             testid: "aut-pause",
+          },
+          {
+            label: "Answer people within",
+            hint: hard.within,
+            steps: withinSteps,
+            value: wordOf(withinSteps, hard.withinHours, `${hard.withinHours}h`),
+            save: (v: number) => ({ answerWithinHours: v }),
+            testid: "aut-answer-within",
           },
           {
             // Said in replies at this workspace's own size of reply, kept in tokens (contracts budgetDial; the

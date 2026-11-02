@@ -113,17 +113,20 @@ const windowClockOf = (when: string): string => when.replace(/^closes /, "").spl
 
 /**
  * How long a row has waited, or when its clock runs out, in the few words beside its name: "3h", "6d", "closes 11:52 AM";
- * `long` where it should be seen (the amber ink): a wait past a day, or a clock near enough to put the row first. A reply
+ * `long` where it should be seen (the amber ink): a wait past the business's own target (a day where it set none), or a
+ * clock near enough to put the row first. A reply
  * your receptionist sends on its own says so, since its seconds are its row's to count. Null where the row has nothing to
  * say there.
  */
 export function needYouWaitOf(
   r: Pick<TodayQueueRowVM, "kind" | "when" | "waitedMs" | "clock_ms">,
   goesAlone: string,
+  /** The business's own target for answering (config answerWithinMsOf): a wait past it is the amber; a day by default. */
+  withinMs: number = DAY_MS,
 ): { words: string; long: boolean } | null {
   if (r.kind === "held") return { words: goesAlone, long: true };
   if (r.kind === "window") return { words: `closes ${windowClockOf(r.when)}`, long: clockIsNear(r) };
   if (!r.when) return null;
   if (!r.when.startsWith("waited ")) return { words: r.when, long: false };
-  return { words: r.when.slice("waited ".length), long: r.waitedMs >= DAY_MS || clockIsNear(r) };
+  return { words: r.when.slice("waited ".length), long: r.waitedMs >= withinMs || clockIsNear(r) };
 }

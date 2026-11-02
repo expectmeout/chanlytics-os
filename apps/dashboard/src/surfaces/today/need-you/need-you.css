@@ -8,7 +8,7 @@
 /* The chips that cut Need you (the kit's SubTabs as chips; the canvas of 1 Nov 2026): under the head on a desk, at the
    rows' edge; under the page's head on a phone, where Need you has no pane of its own (phone.css). */
 .ny-cuts {
-  margin: 2px 0 6px;
+  margin: var(--space-2) 0 6px;
 }
 @media (max-width: 720px) {
   .ny-cuts {
@@ -88,6 +88,12 @@
   color: var(--ink-muted);
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+/* What a run or a search says is what to do, never their words: it wraps whole, where a quote is cut at its line (the 10/10
+   read, 2 Nov 2026: "3 people. Waits for your O…" said nothing). */
+.today-queue .cl-attn-row:not(:has(> .cl-attn-work)) .cl-attn-sentence:not(.quoted) {
+  white-space: normal;
+  text-overflow: clip;
 }
 .today-queue .cl-attn-row:not(:has(> .cl-attn-work)) .cl-attn-who {
   grid-area: who;
@@ -170,6 +176,23 @@
   .today-queue .cl-attn-row:not(:has(> .cl-attn-work)) > .cl-attn-acts > button:not(:last-child) {
     display: none;
   }
+  /* A row that says no wait (a run, a search) keeps its verb beside its name, so what it says has the row's width. */
+  .dash-a-v2 .today-queue .cl-attn-row:not(:has(> .cl-attn-work)):not(:has(.cl-attn-wait)) {
+    grid-template-areas:
+      "face who acts"
+      "face said said";
+  }
+}
+/* Why an open row was handed to you, beside the name in the dim ink ("asked for a person"), on a desk and a phone alike. */
+.dash-a-v2 .today-queue .cl-attn-row:has(> .cl-attn-work) .cl-attn-meta {
+  display: inline;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-regular);
+  color: var(--ink-dim);
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 /* The wire's glyph before what they want, in the dim ink. */
 .today-queue .cl-attn-via {

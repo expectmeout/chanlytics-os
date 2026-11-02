@@ -1377,7 +1377,9 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 .dash-a-v2-glass > .dash-a-v2-work { grid-column: span 8; gap: 14px; }
 .dash-a-v2-glass > .dash-a-v2-side { grid-column: span 4; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 /* The side's last pane reaches the work's bottom edge (E3's right column fills its row). */
-.dash-a-v2-glass > .dash-a-v2-side > :last-child { flex: 1 1 auto; }
+/* The side's last pane reaches the work's foot, but for one that says nothing happened: an "All caught up" in a tall
+   empty card read as a missing list (the 10/10 read, 2 Nov 2026), and the page's own ground is quieter than a white box. */
+.dash-a-v2-glass > .dash-a-v2-side > :last-child:not([data-empty]) { flex: 1 1 auto; }
 /* The bottom row: Worth a look over the work's width, the pinned lists over the side's; one alone takes the row. */
 .dash-a-v2-bottom { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 14px; align-items: stretch; }
 .dash-a-v2-bottom > :only-child { grid-column: 1 / -1; }
@@ -1433,6 +1435,9 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   padding: 18px 0 8px;
 }
 .dash-a-v2 .today-queue .tq-head > .tq-open { margin-left: auto; }
+/* The name's own heading margins went with the strip under it: with no strip (a queue a glance takes in), Up next stood
+   56px under the name (the 10/10 read, 2 Nov 2026). The strip keeps its room in need-you.css. */
+.dash-a-v2 .today-queue .tq-title { margin: 0; }
 
 /* Need you's rows as the canvas draws them (the redesign of 1 Nov 2026): the face in a disc beside who and the words, the
    work of a row opened under its words across the row. A row drawn short is one line on its own grid (need-you.css). */

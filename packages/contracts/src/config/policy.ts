@@ -556,6 +556,29 @@ export function pauseHoursOf(limits: { pause_hours?: unknown } | null | undefine
     : PAUSE_HOURS_DEFAULT;
 }
 
+/**
+ * How long a person may wait on the team before Today's Need you says their wait in the amber: the owner's own target
+ * (Autonomy's "Answer people within", the reply policy's `answer_within_hours`), and a day where none is set, which is what
+ * Need you said for everyone before an owner could (the 10/10 read, 2 Nov 2026: amber meant "past a day", whatever the
+ * business promised). Whole hours inside the pause's own range; anything else is the day.
+ */
+export const ANSWER_WITHIN_HOURS_DEFAULT = 24;
+
+/** The owner's target in whole hours, read as pauseHoursOf reads the pause: a stored whole number in range, else a day. */
+export function answerWithinHoursOf(limits: { answer_within_hours?: unknown } | null | undefined): number {
+  const stored = limits?.answer_within_hours;
+  return typeof stored === "number" &&
+    Number.isInteger(stored) &&
+    stored >= PAUSE_HOURS_MIN &&
+    stored <= PAUSE_HOURS_MAX
+    ? stored
+    : ANSWER_WITHIN_HOURS_DEFAULT;
+}
+
+/** The same target in ms, for a wait to be held to. */
+export const answerWithinMsOf = (limits: { answer_within_hours?: unknown } | null | undefined): number =>
+  answerWithinHoursOf(limits) * HOUR_MS;
+
 /** The same pause in ms, for a `paused_until`. */
 export function pauseMsOf(limits: { pause_hours?: unknown } | null | undefined): number {
   return pauseHoursOf(limits) * HOUR_MS;
@@ -568,12 +591,16 @@ export function pauseMsOf(limits: { pause_hours?: unknown } | null | undefined):
  * says what it does and what its default is, and the value a dial shows is the
  * stored one, or the default when nothing is stored.
  */
-export function hardLimitsWords(limits: { max_replies_day?: unknown; pause_hours?: unknown } | null | undefined): {
+export function hardLimitsWords(
+  limits: { max_replies_day?: unknown; pause_hours?: unknown; answer_within_hours?: unknown } | null | undefined,
+): {
   sub: string;
   replies: string;
   pause: string;
+  within: string;
   cap: number;
   hours: number;
+  withinHours: number;
 } {
   const stored = (v: unknown): number | null => {
     const n = Number(v);
@@ -583,8 +610,10 @@ export function hardLimitsWords(limits: { max_replies_day?: unknown; pause_hours
     sub: "The first two never change; the rest are yours to set",
     replies: `How many it sends before it stops and asks for you. ${REPLY_CAP_DEFAULT} is the default.`,
     pause: `Counted from Take over, a reply sent from the Inbox or the WhatsApp Business app, or a handoff to you. ${PAUSE_HOURS_DEFAULT} hours is the default.`,
+    within: `Someone handed to you who has waited longer shows in amber on Today. ${ANSWER_WITHIN_HOURS_DEFAULT} hours is the default.`,
     cap: stored(limits?.max_replies_day) ?? REPLY_CAP_DEFAULT,
     hours: pauseHoursOf(limits),
+    withinHours: answerWithinHoursOf(limits),
   };
 }
 

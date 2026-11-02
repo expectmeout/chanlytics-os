@@ -538,7 +538,7 @@ test("the wiring: one row component for People and Today, the queue in the comma
     "vm.queue.rows",
     // A reach-out's reply read redraws the queue: it is that reply's row (the wiring's second audit, W-campaign-run-template-reachout-7).
     // Ask's morning and Google's reviews do too: Ask found and To do are lines of it (decision 0071).
-    'useMoved(["broadcasts", "people", "calendar", "reach_out_replies", "ask_morning", "google"])',
+    'useMoved(["broadcasts", "people", "calendar", "reach_out_replies", "ask_morning", "google", "settings"])',
   ])
     assert.ok(queue.includes(s), s);
   assert.ok(
@@ -819,14 +819,24 @@ test("Need you cuts its rows by what each asks of you, says no count of its own,
   assert.equal(four.queue.rows.length, 4);
   const head = rowsDrawn(four);
   assert.equal(byTestId(head.tree, "today-queue-count"), null, "the queue says no count of its own: the head says it");
-  // The strip: All, with no figure (a window is a row the badge does not count), then each verb with rows: the handoff and
-  // the closing window are replies, the call back a call.
-  const strip = find(head.tree, (n) => n.type === SubTabs).props;
+  // Three rows a glance takes in: no strip to cut them (the 10/10 read, 2 Nov 2026: three chips over two rows).
+  assert.equal(
+    find(head.tree, (n) => n.type === SubTabs),
+    null,
+    "no strip over three rows",
+  );
+  // Two people more: the strip, All with no figure (a window is a row the badge does not count), then each verb with
+  // rows: the handoffs and the closing window are replies, the call back a call.
+  const more = crowd(2);
+  const cut = rowsDrawn(
+    toTodayVM(metrics(), [...conversations, ...more.people], [...escalations, ...more.asking], calls, NOW),
+  );
+  const strip = find(cut.tree, (n) => n.type === SubTabs).props;
   assert.deepEqual(
     strip.tabs.map((t) => [t.label, t.count ?? null]),
     [
       ["All", null],
-      ["Reply", 2],
+      ["Reply", 4],
       ["Call", 1],
     ],
   );
