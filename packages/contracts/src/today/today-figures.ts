@@ -1,8 +1,12 @@
 /**
- * The day's four figures (customer messages, answered by the receptionist, calls, new people), each with its
- * clause and its receipt, and the proof the lines are listening. The words they are said in live here too;
- * the list join and the seconds phrase are today-bands.ts's.
+ * The day's four figures, each with its clause and its receipt, and the proof the lines are listening: what was booked,
+ * customer messages, answered by the receptionist, and calls (decision 0076, as amended 2 Nov 2026: the figures measured
+ * activity, and a receptionist's day is measured by what it booked); new people where the day's read says nothing of
+ * bookings (an older server, a read that failed). The words they are said in live here too; the list join and the
+ * seconds phrase are today-bands.ts's.
  */
+import { visitRoute } from "../calendar/appointment-key";
+import { visitDateKey, visitDay, visitStartTime, visitTime } from "../calendar/calendar-people";
 import { reachedVoicemail, type CallDto } from "../conversations/call-dto";
 import { toCallVM } from "../conversations/call-vm";
 import { reasonWhy, type EscalationDto } from "../conversations/escalations";
@@ -10,10 +14,11 @@ import { isPersonsWords } from "../conversations/message-author";
 import { threadChannelWords } from "../conversations/thread-channel";
 import { contactName } from "../conversations/thread-contact";
 import type { ConversationDto } from "../conversations/thread-dto";
+import { BOOKED_NEEDS_A_LINK, CALENDAR_SETTING_ROUTE } from "../setup/calendar-source";
 import { capitalize, plural } from "../shared/words";
 import { andList, secondsPhrase, speedClause } from "./today-bands";
 import { tzClock, tzDayAndTime } from "./today-clock";
-import { todayReplySpeed, type MetricsSummaryDto } from "./today-metrics";
+import { todayReplySpeed, type MetricsSummaryDto, type TodayBookedDto, type TodayBookingsDto } from "./today-metrics";
 import type { TodayFigureVM } from "./today-vm";
 
 /** "once", "twice", "3 times". */
@@ -53,6 +58,56 @@ function replyGapSeconds(live: { last_inbound_at: string | null; last_outbound_a
   if (!live.last_outbound_at || !live.last_inbound_at) return null;
   const gap = Math.round((new Date(live.last_outbound_at).getTime() - new Date(live.last_inbound_at).getTime()) / 1000);
   return gap > 0 && gap < 3600 ? gap : null;
+}
+
+/** How many booked visits the receipt names before it counts the rest. */
+const BOOKED_NAMED = 3;
+
+/** A booked visit's day inside a sentence: "today", "tomorrow", "Sat, Sep 19" (the calendar's own word leads a line). */
+const bookedDay = (v: TodayBookedDto, nowMs: number): string => {
+  const day = visitDay(v.start, v.timezone, nowMs);
+  return day === "Today" || day === "Tomorrow" ? day.toLowerCase() : day;
+};
+
+/** When a booked visit begins, by its own zone, for the figure's clause: "tomorrow · 10:00 AM", "Sat, Sep 19 · all day". */
+const bookedStart = (v: TodayBookedDto, nowMs: number): string =>
+  `${bookedDay(v, nowMs)} · ${visitStartTime(v, v.timezone)}`;
+
+/** One booked visit in the receipt's words: who, for when ("tomorrow · 10:00 – 11:00 AM"). */
+const bookedLine = (v: TodayBookedDto, nowMs: number): string =>
+  `${v.who ?? "Someone"} for ${bookedDay(v, nowMs)} · ${visitTime(v, v.timezone)}`;
+
+/**
+ * What was booked today, the figure the day leads with: how many, the soonest of them as its clause, and who booked for
+ * when as its receipt, opening the soonest on its day. A zero where no booking can arrive (nothing on the record ever came
+ * by a calendar or a booking tool) says a calendar is to be linked, and where to: a zero is never "nobody booked" on a
+ * workspace that could not have seen one.
+ */
+function bookedFigure(b: TodayBookingsDto, now: Date): TodayFigureVM {
+  const nowMs = now.getTime();
+  const first = b.visits[0];
+  if (!b.booked || !first)
+    return {
+      id: "booked",
+      label: "booked",
+      value: 0,
+      meta: b.arrive ? "none yet today" : "no calendar linked",
+      receipt: b.arrive
+        ? null
+        : { text: BOOKED_NEEDS_A_LINK, door: { label: "Hours & booking", to: CALENDAR_SETTING_ROUTE } },
+    };
+  const named = b.visits.slice(0, BOOKED_NAMED).map((v) => bookedLine(v, nowMs));
+  const rest = b.booked - named.length;
+  return {
+    id: "booked",
+    label: "booked",
+    value: b.booked,
+    meta: b.booked === 1 ? `for ${bookedStart(first, nowMs)}` : `the soonest ${bookedStart(first, nowMs)}`,
+    receipt: {
+      text: `${andList(rest > 0 ? [...named, `${rest} more`] : named)}.`,
+      door: { label: "Open the Calendar", to: visitRoute(first.id, visitDateKey(first.start, first.timezone)) },
+    },
+  };
 }
 
 /**
@@ -100,7 +155,7 @@ export function figuresOf(
 ): TodayFigureVM[] | null {
   const p = m.period;
   const live = m.now;
-  if (p.messages_in + p.calls + p.new_contacts === 0) return null;
+  if (nothingCounted(m)) return null;
   const windowMs = new Date(m.window.since).getTime();
   const fresh = (x: { created_at: string; meta: Record<string, unknown> | null }) =>
     x.meta?.backfill !== true && new Date(x.created_at).getTime() >= windowMs;
@@ -287,7 +342,21 @@ export function figuresOf(
           }
         : null,
   };
-  return [messages, answered, calls, newPeople];
+  return fourOf(m.bookings, now, [messages, answered, calls], newPeople);
+}
+
+/** Nothing at all counted on the day: no message, call, new person or booking. */
+const nothingCounted = (m: MetricsSummaryDto): boolean =>
+  m.period.messages_in + m.period.calls + m.period.new_contacts + (m.bookings?.booked ?? 0) === 0;
+
+/** The day's four: what was booked leads where the day's read says it; where it says nothing, new people keep the fourth seat. */
+function fourOf(
+  bookings: TodayBookingsDto | null | undefined,
+  now: Date,
+  three: readonly TodayFigureVM[],
+  newPeople: TodayFigureVM,
+): TodayFigureVM[] {
+  return bookings ? [bookedFigure(bookings, now), ...three] : [...three, newPeople];
 }
 
 /**
@@ -300,9 +369,11 @@ export function quietFigures(
   live: { last_inbound_at: string | null; last_outbound_at: string | null },
   tz: string,
   now: Date,
+  /** What was booked, where the day's read says it: it leads, as on any day. */
+  bookings?: TodayBookingsDto | null,
 ): TodayFigureVM[] {
   const lastIn = tzDayAndTime(live.last_inbound_at, tz, now);
-  return [
+  const zeros: TodayFigureVM[] = [
     {
       id: "messages",
       label: "customer messages",
@@ -312,6 +383,12 @@ export function quietFigures(
     },
     { id: "answered", label: "answered by the receptionist", value: 0, meta: "nothing to answer yet", receipt: null },
     { id: "calls", label: "calls", value: 0, meta: "none yet", receipt: null },
-    { id: "new", label: "new people", value: 0, meta: "nobody new yet", receipt: null },
   ];
+  return fourOf(bookings, now, zeros, {
+    id: "new",
+    label: "new people",
+    value: 0,
+    meta: "nobody new yet",
+    receipt: null,
+  });
 }

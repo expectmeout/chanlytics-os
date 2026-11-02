@@ -371,7 +371,7 @@ export const TODAY_PHONE_WORDS = {
    * Each of the day's four figures by its short name, for a phone's one row of numbers (0076): the figure's own label is a
    * desk's ("answered by the receptionist"), and its clause and receipt say the rest when it is pressed.
    */
-  figure: { messages: "messages", answered: "answered", calls: "calls", new: "new people" },
+  figure: { booked: "booked", messages: "messages", answered: "answered", calls: "calls", new: "new people" },
   worth: "Worth a look",
   /** The day's figures on a phone, with Worth a look and the week under them: the card's name. */
   soFar: "Today so far",

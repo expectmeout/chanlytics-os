@@ -46,6 +46,8 @@ const SUMMARY = {
   now: {},
   period: { messages_in: 4, median_reply_seconds_ai: 62 },
 };
+/** What a one-day answer adds beside the function on a workspace whose record holds no visit (server/metrics/bookings.ts). */
+const DAY = { ...SUMMARY, bookings: { booked: 0, visits: [], arrive: false } };
 /** A workspace's database: the metrics function, and `first_replies` where the world models it (or fails where it is a function). */
 const world = (answer) =>
   fakeDb(
@@ -122,7 +124,7 @@ test("the day's replies are the function's own where it answers them: counted on
   // A day nobody was answered on, and a day no reply waited a hold: the function's answer, less the list, and no second read.
   for (const replies of [[], [{ asked_at: "2026-09-18T16:00:00+00:00", s: 7, hold: 0 }]]) {
     const quiet = carrying(replies);
-    assert.deepEqual(await metricsSummaryFor(quiet, A, 1), SUMMARY);
+    assert.deepEqual(await metricsSummaryFor(quiet, A, 1), DAY);
     assert.equal(quiet.seen.filter((q) => q.rpc === "first_replies").length, 0);
   }
   // A row that is not a reply is left out, never counted as one nobody waited for.
@@ -145,6 +147,7 @@ test("a longer window's answer carries no replies (null), and none are asked for
   const db = carrying(null, { window: { ...SUMMARY.window, days: 7 } });
   const m = await metricsSummaryFor(db, A, 7);
   assert.equal(m.reply_hold, undefined);
+  assert.equal(m.bookings, undefined, "nor bookings: Today's figure is the day's");
   assert.equal(m.replies, undefined);
   assert.equal(db.seen.filter((q) => q.rpc === "first_replies").length, 0);
 });
@@ -180,7 +183,7 @@ test("a day on which no reply waited a hold sends no summary: the function's ans
   const db = world(() => [row({ ai_hold_s: 0 }), row({ ai_hold_s: null, asked_at: "2026-09-18T16:00:00.000+00:00" })]);
   const m = await metricsSummaryFor(db, A, 1);
   assert.equal(m.reply_hold, undefined);
-  assert.deepEqual(m, SUMMARY, "byte for byte what the function answered");
+  assert.deepEqual(m, DAY, "byte for byte what the function answered, and the day's bookings beside it");
 });
 
 test("a longer window reads no replies: the period's are Reports' (report_series), and the answer is the function's alone", async () => {

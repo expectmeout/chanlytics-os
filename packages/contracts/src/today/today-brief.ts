@@ -139,7 +139,7 @@ export function toTodayVM(
       calls: null,
       callsRead: f.callsRead,
       queue: { rows: [], more: 0, more_people: 0, calls: 0, searches: 0, windows: 0, parts: [], empty },
-      quiet: { ...todayQuietDay(f, proof), figures: quietFigures(f.live, f.tz, now) },
+      quiet: { ...todayQuietDay(f, proof), figures: quietFigures(f.live, f.tz, now, m.bookings) },
     };
   }
 
@@ -166,7 +166,7 @@ export function toTodayVM(
     },
     figures,
     // Nothing to count while someone waits (the reference workspace's own state): Glass draws the tile's four zeros.
-    zero_figures: figures ? null : quietFigures(f.live, f.tz, now),
+    zero_figures: figures ? null : quietFigures(f.live, f.tz, now, m.bookings),
     proof,
     noReply,
     callsRead: f.callsRead,

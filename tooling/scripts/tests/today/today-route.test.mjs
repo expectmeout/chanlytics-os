@@ -77,7 +77,12 @@ test("the day comes back composed, in the page's words, with the figures and the
   assert.ok(vm.standing.headline, "a headline");
   assert.equal(vm.standing.lines.down, false);
   assert.ok(Array.isArray(vm.figures) && vm.figures.length === 4, "the four figures on a day with traffic");
-  assert.equal(vm.figures[0].value, 3, "customer messages");
+  assert.deepEqual(
+    vm.figures.map((f) => f.id),
+    ["booked", "messages", "answered", "calls"],
+    "what was booked leads: the day's read says it (server/metrics/bookings.ts)",
+  );
+  assert.equal(vm.figures.find((f) => f.id === "messages").value, 3, "customer messages");
   assert.equal(vm.callsRead, true);
   assert.deepEqual(vm.queue.rows, []);
 });

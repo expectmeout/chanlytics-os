@@ -179,7 +179,7 @@ export interface TodayQueueEmptyVM {
   testid: string;
 }
 
-export type TodayFigureId = "messages" | "answered" | "calls" | "new";
+export type TodayFigureId = "booked" | "messages" | "answered" | "calls" | "new";
 
 /**
  * One of the day's four figures: the number, its word, the clause always drawn under it, and the why behind it with

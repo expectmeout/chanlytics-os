@@ -50,10 +50,16 @@ export const todayOverride: SurfaceOverride = {
   // transaction as the workspace's status (00382), so it stands for the pause. They change a few times a month.
   // And the person each row of the queue names (contacts, 0047): a teammate's rename, their address, a yes or a stop. A few a
   // day. Its other configuration, the hours the settings hold, it does not draw: the five reads below name none.
+  // And the visits: the day's figures lead with what was booked (server/metrics/bookings.ts), so a booking that arrives, or
+  // one cancelled, is read again for. The calendar's hourly sweep writes in one transaction, which the debounce takes once.
   ...declareReads("today", {
-    reads: ["conversation", "hold", "call", "lead", "channel", "billing", "person"],
+    reads: ["conversation", "hold", "call", "lead", "channel", "billing", "person", "visit"],
     fresh: "live",
     omit: [
+      {
+        tables: ["appointment_notices"],
+        why: "the booked figure reads the bookings on the record; a booking email held for a look is the bell's alone",
+      },
       {
         tables: ["leads", "lead_searches", "lead_search_members"],
         why: "the queue draws a search waiting on you, which its round says (a stop to ask, its answer); the leads it found and the people it kept are not in it",

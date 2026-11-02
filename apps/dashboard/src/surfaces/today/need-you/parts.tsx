@@ -512,6 +512,7 @@ export function NotNow({
   onOpen,
   onChoose,
   busy,
+  markDone,
   letGo,
 }: {
   who: string;
@@ -522,8 +523,13 @@ export function NotNow({
   onChoose: (i: number) => void;
   busy?: boolean;
   /**
-   * Not a person, under the times, where the row may be a program's mail and the member may say so (reply-work.tsx
-   * notAPersonOf): never now, rather than not now. Absent everywhere else.
+   * Mark done, under the times, where the row is a hold the receptionist can have back (reply-work.tsx useMarkDone): it
+   * leaves Need you now, whatever its age, as Mark all done lets a week's go. Absent everywhere else.
+   */
+  markDone?: (() => void) | null;
+  /**
+   * Not a person, last, where the row may be a program's mail and the member may say so (reply-work.tsx notAPersonOf):
+   * never now, rather than not now. Absent everywhere else.
    */
   letGo?: (() => void) | null;
 }) {
@@ -542,6 +548,20 @@ export function NotNow({
           items: choices.map((c, i) => ({ label: c.label, hint: c.when, onSelect: () => onChoose(i) })),
           ...(caption ? { caption } : {}),
         },
+        ...(markDone
+          ? [
+              {
+                items: [
+                  {
+                    label: W.oldDone.yes,
+                    meta: W.oldDone.detail,
+                    glyph: <Icon name="check" size={13} />,
+                    onSelect: markDone,
+                  },
+                ],
+              },
+            ]
+          : []),
         ...(letGo
           ? [
               {
