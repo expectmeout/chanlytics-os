@@ -1437,6 +1437,7 @@ button.ld-slot-btn { cursor: pointer; }
    when nothing needs you. A sibling of the card, held still while it turns. */
 .lw-dock { display: flex; align-items: center; gap: 6px; min-height: 56px; padding: 6px; border-radius: var(--radius-3xl); background: var(--surface-control-fill); box-shadow: var(--surface-control-depth); }
 .lw-dock-b { flex: none; justify-content: center; height: 44px; touch-action: manipulation; }
+.lw-dock .lw-dock-b { padding: 0 16px; font-size: var(--text-base); font-weight: var(--weight-semibold); }
 .lw-dock-b.is-wide { flex: 1 1 auto; }
 .lw-dock-w { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lw-reading { padding: 14px var(--lw-gut) 0; }
@@ -1444,7 +1445,10 @@ button.ld-slot-btn { cursor: pointer; }
 .lw-dock-go, .lw-split { flex: 1 1 auto; display: flex; min-width: 0; }
 .lw-split { gap: 2px; }
 .lw-dock-go > .lw-dock-b, .lw-split > .lw-dock-b { flex: 1 1 auto; min-width: 0; }
-.lw-split-more { flex: none; width: 36px; height: 44px; padding: 0; }
+.lw-dock .lw-split-more { flex: none; width: 36px; height: 44px; padding: 0; border-radius: var(--radius-sm) var(--radius-full) var(--radius-full) var(--radius-sm); }
+.lw-phone .lw-dock .lw-split-more { padding: 0; }
+/* A press and its caret, joined: one pill cut in two. */
+.lw-dock .lw-split > .lw-dock-b { padding-right: 10px; border-radius: var(--radius-full) var(--radius-sm) var(--radius-sm) var(--radius-full); }
 .lw-dock-send { flex: 1; min-width: 0; }
 .lw-dock-send .ro-send { padding: 0; border: 0; }
 .lw-dock[data-busy] { opacity: 0.8; }
@@ -1458,7 +1462,6 @@ button.ld-slot-btn { cursor: pointer; }
    foot's are (19 Oct 2026; the foot's own button rule would take them to 36 otherwise). */
 .lw-phone .lw-dock, .lw-phone .lw-dock-ask { margin: -6px -6px -6px -16px; background: none; box-shadow: none; }
 .lw-phone .lw-dock .lw-dock-b, .lw-phone .lw-dock .lw-x { height: var(--control-h-touch); }
-.lw-phone .lw-dock .lw-dock-b { font-size: var(--text-base); }
 .lw-phone .lw-dock .lw-x { width: var(--control-h-touch); }
 /* Something under way: a small ring turning, standing still under reduced motion. */
 .lw-spin { flex: none; width: 12px; height: 12px; border: 2px solid var(--line-strong); border-top-color: var(--accent); border-radius: var(--radius-circle); animation: lw-spin 0.9s linear infinite; }
@@ -1486,11 +1489,18 @@ button.ld-slot-btn { cursor: pointer; }
 .lw-end-n { margin: 0; font-size: var(--text-base); line-height: var(--leading-normal); color: var(--ink-muted); }
 
 /* Who: one face, one name, one line. The state is the card's word, so nothing beside the name cuts it. */
-.lw { --lw-gut: 18px; }
-.lw-phone { --lw-gut: 16px; }
+.lw { --lw-gut: 18px; --rec-row-h: 40px; --rec-row-k: 72px; }
+/* On a phone: the type a step up (tokens.css), its rows a thumb's, the rest higher than the kit's so the first line stands
+   over the foot at half, and solid, since the rows read through the kit's glass behind words this size. */
+.lw.lw-phone {
+  --lw-gut: 16px; --rec-row-h: 46px; --rec-row-k: 78px; --sheet-rest: 200px;
+  --text-xs: var(--sheet-phone-xs); --text-sm: var(--sheet-phone-sm); --text-base: var(--sheet-phone-base); --text-xl: var(--sheet-phone-xl);
+  background: var(--surface-pane-solid); -webkit-backdrop-filter: none; backdrop-filter: none;
+}
 .lw-id { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 0 14px 0 var(--lw-gut); }
 .lw-phone .lw-id { padding-right: var(--lw-gut); }
 .lw-id-ini { width: 40px; height: 40px; display: grid; place-items: center; border-radius: var(--radius-tile); background: var(--surface-inset-fill); box-shadow: var(--surface-inset-ring); color: var(--ink-muted); font-size: var(--text-sm); font-weight: var(--weight-semibold); }
+.lw-id > button:first-child::after { content: ""; position: absolute; inset: -2px; }
 .lw-id-words { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .lw-name { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--text-xl); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-tight); line-height: var(--leading-tight); color: var(--ink); }
 .lw-name-go { padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-xl); font-weight: var(--weight-semibold); text-align: left; cursor: pointer; }
@@ -1501,6 +1511,16 @@ button.ld-slot-btn { cursor: pointer; }
 /* The doors out, and More at the row's end. */
 .lw-doors { display: flex; align-items: center; gap: 6px; margin: 10px var(--lw-gut) 0; }
 .lw-doors-sp { flex: 1; }
+.lw-doors .lw-door { position: relative; height: 30px; padding: 0 11px 0 9px; gap: 5px; font-size: var(--text-sm); }
+.lw-doors .lw-door-more { padding: 0 9px 0 11px; color: var(--ink-muted); }
+.lw-doors .lw-door::after { content: ""; position: absolute; inset: -7px 0; }
+/* The tile and the doors keep their sizes one class past the shell's touch floor (legacy.css html.legacy-on): their hit
+   areas, a margin of nothing round each, are the thumb's 44px. */
+@media (pointer: coarse) {
+  html.legacy-on .lw-doors .lw-door, html.legacy-on .lw-id > button:first-child { min-width: 0; min-height: 0; }
+  /* A row's tile is held at 44 with !important (above); the sheet's is the row's own column of 40. */
+  html.legacy-on .lw-id > button:first-child { width: 40px !important; height: 40px !important; }
+}
 
 /* The one card: a step's box on the record, with its amber edge where it needs you. */
 .lw-now { display: flex; flex-direction: column; gap: 7px; margin: 12px calc(var(--lw-gut) - 4px) 0; padding: 12px 14px 13px; border: 1px solid var(--line); border-radius: var(--radius-xl); background: var(--surface-pane-fill); }
@@ -1524,14 +1544,18 @@ button.ld-slot-btn { cursor: pointer; }
 /* The email on the card, as it goes: only the line written for them is marked, since it is what a person reads. */
 .lw-now-mail { display: flex; flex-direction: column; gap: 4px; padding-top: 9px; border-top: 1px solid var(--line); }
 .lw-now-to { margin: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--text-xs); color: var(--ink-dim); }
-.lw-now-subj { margin: 0; font-size: var(--text-base); font-weight: var(--weight-semibold); line-height: var(--leading-snug); color: var(--ink); overflow-wrap: anywhere; }
+.lw-now-subj { margin: 0; font-size: var(--text-base); font-weight: var(--weight-semibold); line-height: var(--leading-normal); color: var(--ink); overflow-wrap: anywhere; }
 .lw-now-body { display: flex; flex-direction: column; gap: 6px; font-size: var(--text-base); line-height: var(--leading-normal); color: var(--ink-muted); overflow-wrap: anywhere; }
 .lw-now-body p { margin: 0; }
 .lw-now-body.is-clipped { max-height: 7.1em; overflow: hidden; -webkit-mask-image: linear-gradient(#000 72%, transparent); mask-image: linear-gradient(#000 72%, transparent); }
-.lw-now-body.is-clipped.is-tall { max-height: 9em; }
+.lw-phone .lw-now-body.is-clipped { max-height: 6em; }
+.lw-now-body.is-clipped.is-tall, .lw-phone .lw-now-body.is-clipped.is-tall { max-height: 9em; }
 .lw-opening { padding: 1px 3px; border-radius: var(--radius-xs); background: var(--selected-fill); color: var(--ink); -webkit-box-decoration-break: clone; box-decoration-break: clone; }
 .lw-refused { padding: 1px 3px; border-radius: var(--radius-xs); background: var(--warn-soft); color: var(--warn-ink); -webkit-box-decoration-break: clone; box-decoration-break: clone; }
 .lw-now-acts { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 3px; font-size: var(--text-sm); }
+/* The sheet's links, underlined in a quiet line: words that act, set among other words. */
+.lw .lw-link { font-size: inherit; font-weight: var(--weight-medium); color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; white-space: nowrap; }
+.lw .lw-link.q { color: var(--ink-muted); }
 
 /* The five lines: the same five, in the same order, each saying its answer closed. */
 .lw-lines { display: flex; flex-direction: column; margin-top: 8px; padding: 0 var(--lw-gut) 8px; animation: lw-rise var(--duration-base) var(--ease-out) both; }
@@ -1556,7 +1580,7 @@ button.ld-slot-btn { cursor: pointer; }
 .lw-rr-s.lw-amber { color: var(--warn-ink); }
 .lw-rr-a { display: inline-flex; gap: 2px; }
 .lw-kvs { display: flex; flex-direction: column; gap: 6px; }
-.lw-kv { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: var(--space-2); align-items: baseline; font-size: var(--text-sm); line-height: var(--leading-snug); }
+.lw-kv { display: grid; grid-template-columns: var(--rec-row-k) minmax(0, 1fr); gap: var(--space-2); align-items: baseline; font-size: var(--text-sm); line-height: var(--leading-snug); }
 .lw-kv-k { color: var(--ink-dim); }
 .lw-kv-v { min-width: 0; color: var(--ink); overflow-wrap: anywhere; }
 .lw-kv-more { display: block; margin-top: 2px; }
@@ -1579,7 +1603,7 @@ button.ld-slot-btn { cursor: pointer; }
 
 /* History: when, and what happened. */
 .lw-found { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
-.lw-found-i { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: var(--space-2); align-items: baseline; font-size: var(--text-sm); line-height: var(--leading-snug); color: var(--ink); }
+.lw-found-i { display: grid; grid-template-columns: var(--rec-row-k) minmax(0, 1fr); gap: var(--space-2); align-items: baseline; font-size: var(--text-sm); line-height: var(--leading-snug); color: var(--ink); }
 
 /* A step's heading and its quiet line (the picker, New). */
 .lw-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 14px 0 8px; font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--ink-muted); }

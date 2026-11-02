@@ -2585,7 +2585,8 @@ a.more-item {
   padding: 0;
 }
 /* A row of a list of properties (`look="row"`, the lead sheet's five lines): no inset, a hairline between rows, its label
-   in the row's own column and its answer beside it in ink, a 44px press on a phone. */
+   in the row's own column and its answer beside it in ink, its chevron down and turning over as it opens. A list sets
+   its rows' height and label column by --rec-row-h and --rec-row-k. */
 .rec-disclosure[data-look="row"] {
   border-radius: 0;
   background: none;
@@ -2595,12 +2596,18 @@ a.more-item {
   border-top: 1px solid var(--line);
 }
 .rec-disclosure[data-look="row"] .rec-disclosure-press {
-  min-height: 40px;
+  min-height: var(--rec-row-h, 44px);
   padding: 0;
   gap: var(--space-2);
 }
+.rec-disclosure[data-look="row"] .rec-disclosure-press > svg {
+  rotate: 90deg;
+}
+.rec-disclosure[data-look="row"][data-open="true"] .rec-disclosure-press > svg {
+  rotate: 270deg;
+}
 .rec-disclosure[data-look="row"] .rec-disclosure-label {
-  flex: 0 0 72px;
+  flex: 0 0 var(--rec-row-k, 72px);
   color: var(--ink-dim);
 }
 .rec-disclosure-value {

@@ -93,6 +93,7 @@ export function SheetDoors(p: { vm: LeadPeekVM; callDoor: boolean; onCall: () =>
         <Button
           variant="secondary"
           size="sm"
+          className="lw-door"
           href={site.href}
           target="_blank"
           rel="noopener noreferrer"
@@ -106,6 +107,7 @@ export function SheetDoors(p: { vm: LeadPeekVM; callDoor: boolean; onCall: () =>
         <Button
           variant="secondary"
           size="sm"
+          className="lw-door"
           onClick={p.onCall}
           aria-keyshortcuts="C"
           data-testid="lead-sheet-call"
@@ -119,6 +121,7 @@ export function SheetDoors(p: { vm: LeadPeekVM; callDoor: boolean; onCall: () =>
         <Button
           variant="secondary"
           size="sm"
+          className="lw-door"
           href={maps.href}
           target="_blank"
           rel="noopener noreferrer"
@@ -196,11 +199,12 @@ function SheetEmail(p: { mail: SheetMail; whole: boolean; onWhole: () => void; o
         {emailParagraphs(mail.body).map((para, at) => mailParagraph(mail, para, at))}
       </div>
       <div className="lw-now-acts">
-        <LinkButton onClick={p.onWhole} data-testid="lead-sheet-read-all">
+        <LinkButton className="lw-link" onClick={p.onWhole} data-testid="lead-sheet-read-all">
           {p.whole ? W.mail.less : W.mail.readAll}
         </LinkButton>
         {p.onRewrite ? (
           <LinkButton
+            className="lw-link q"
             onClick={p.onRewrite}
             data-testid="lead-sheet-rewrite"
             {...gate("approve", "rewrite the opening")}

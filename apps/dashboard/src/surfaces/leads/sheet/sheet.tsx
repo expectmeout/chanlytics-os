@@ -183,7 +183,13 @@ function sheetMoreOf(d: SheetDraw) {
       <Menu
         label={W.moreOf}
         trigger={
-          <Button variant="secondary" size="sm" aria-label={W.moreOf} data-testid="peek-more">
+          <Button
+            variant="secondary"
+            size="sm"
+            className="lw-door lw-door-more"
+            aria-label={W.moreOf}
+            data-testid="peek-more"
+          >
             {W.more}
             <Icon name="chevron-down" size={11} />
           </Button>
@@ -596,17 +602,23 @@ function sheetBodyOf(d: SheetDraw, desk: boolean) {
   );
 }
 
-/** The foot: the dock and the pile's line. None at all where neither has anything to say. */
+/**
+ * The foot: the dock and the pile's line. None at all where neither has anything to say, an empty line above all: a
+ * phone's foot is a capsule with or without words in it. The line then waits in the body (sayingInBody).
+ */
 function footOf(d: SheetDraw, desk: boolean) {
   const dock = dockOf(d, desk);
-  const said = d.p.pile ? sheetSaidOf(d.p.pile) : null;
-  return dock || said ? (
+  const pile = d.p.pile;
+  return dock || (pile && pile.pile.said) ? (
     <>
       {dock}
-      {said}
+      {sheetSaidOf(pile)}
     </>
   ) : null;
 }
+
+/** With no foot, the pile's live region in the body, taking no room: a region has to be there before it speaks. */
+const sayingInBody = (d: SheetDraw, foot: unknown) => (foot ? null : sheetSaidOf(d.p.pile));
 
 /** On a desk: a panel beside the rows, one scroll, the dock at its foot. */
 function deskOf(d: SheetDraw) {
@@ -622,6 +634,7 @@ function deskOf(d: SheetDraw) {
       <div className="lw-scroll" key={d.vm ? d.vm.id : "end"} data-testid="peek-body">
         {asksOf(d)}
         {sheetBodyOf(d, true)}
+        {sayingInBody(d, foot)}
       </div>
       {foot ? <div className="lw-foot">{foot}</div> : null}
     </aside>
@@ -641,6 +654,7 @@ function phoneOf(d: SheetDraw) {
       : {};
   // A line opened raises the sheet; let down to half, what was open shuts.
   const raised = !!vm && (sheet.ui.full || sheet.ui.step !== "card" || d.line.open !== null);
+  const foot = footOf(d, false);
   const onRest = (at: "half" | "full") => {
     sheet.put({ full: at === "full" });
     if (at === "half" && d.line.open) d.line.turn(d.line.open);
@@ -657,7 +671,7 @@ function phoneOf(d: SheetDraw) {
         onRest,
         turn: { up: W.raise, down: W.lower },
       }}
-      foot={footOf(d, false)}
+      foot={foot}
       className="lw lw-phone"
       testid="lead-peek"
     >
@@ -667,6 +681,7 @@ function phoneOf(d: SheetDraw) {
         <div className="lw-body" key={vm ? vm.id : "end"} {...swipe}>
           {asksOf(d)}
           {sheetBodyOf(d, false)}
+          {sayingInBody(d, foot)}
         </div>
       </div>
     </Sheet>

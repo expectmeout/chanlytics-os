@@ -333,6 +333,12 @@
   --text-hero: 26px;
   /* The day's figures (E3): a step under the page's name, which keeps the scale's 36. Read by Today's card alone. */
   --text-figure: 34px;
+  /* The lead sheet's steps on a phone, one up from the page's (the canvas "Lead sheet, redesigned", 1 Nov 2026): the sheet
+     is read at a thumb's length, over the rows. leads.css lays them over the scale inside .lw-phone. */
+  --sheet-phone-xs: 12.5px;
+  --sheet-phone-sm: 13.5px;
+  --sheet-phone-base: 15px;
+  --sheet-phone-xl: 18px;
   /* A face drawn as a tile (the run-to-leads canvas's businesses): a rounded square in one of four hues, its initials
      white over it, a hairline of light inside its edge. The same in both themes: a tile is its own ground. */
   --tile-a: linear-gradient(140deg, lab(52% 30 40), lab(34% 24 26));

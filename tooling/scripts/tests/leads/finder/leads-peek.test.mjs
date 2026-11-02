@@ -102,6 +102,8 @@ const wired = [];
 let placeFails = false;
 let doorRefuses = false;
 let sequencesListed = [];
+const placed = {};
+let recorded = null;
 const READ_REFUSED = { ok: false, error: { code: "internal", message: "It did not answer." } };
 const json = (status, body) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -124,9 +126,13 @@ globalThis.window = {
     if (/^\/api\/v1\/reach-outs\/leads\?/.test(String(url)))
       return json(200, { ok: true, data: { lines: null, chain: null, timeline: null } });
     if (/^\/api\/v1\/leads\/[^/]+\/place\?/.test(String(url)))
-      return placeFails ? json(500, READ_REFUSED) : json(200, { ok: true, data: null });
+      return placeFails
+        ? json(500, READ_REFUSED)
+        : json(200, { ok: true, data: placed[String(url).split("/")[4]] ?? null });
     if (/^\/api\/v1\/sequences\?/.test(String(url)))
       return json(200, { ok: true, data: { sequences: sequencesListed } });
+    if (recorded && String(url).includes(`/sequences/${recorded.sequence.id}?`))
+      return json(200, { ok: true, data: recorded });
     if (/^\/api\/v1\/sequences\/[^/]+\/leads\/check\?/.test(String(url)))
       return doorRefuses ? json(500, READ_REFUSED) : json(200, { ok: true, data: { leads: [] } });
     return json(404, {
@@ -568,6 +574,42 @@ test("the add door owes an answer until it gives one or cannot, and asking again
   await aimNow().check([other]);
   doorRefuses = false;
   assert.equal(aimNow().checking(other), false, "no answer is coming: the sheet does not wait on one for ever");
+});
+
+test("a lead that needs nothing has no foot, in a pile too: its line waits in the body, and the foot comes back to say it", async () => {
+  reset();
+  const IN = "5e000000-0000-4000-8000-000000000555";
+  const ROOT = "5e000000-0000-4000-8000-0000000000bb";
+  recorded = { sequence: { id: ROOT, name: "Trainers", state: "on", needs: { batches: [] } }, steps: [], chain: null };
+  await sequenceVerbs.record(ROOT);
+  placed[IN] = {
+    sequence: { id: ROOT, name: "Trainers", state: "on" },
+    place: { group: "in", place: 2, at: NOW.toISOString(), why: null, send_id: null, batch_id: null },
+    sends: [],
+    reads_replies: true,
+    owner_sends: false,
+  };
+  const P = page({ vm: vmOf({ id: IN }) });
+  const pileWith = (said) => ({
+    pile: { on: true, said, canUndo: false, busy: false, undoWords: "", skip() {}, act() {} },
+    facts: { later: 0 },
+    progress: { words: "3 of 12", share: 0.25 },
+    searchName: "Trainers",
+    bulk: null,
+    next: null,
+    end: { rows: [], primary: null },
+  });
+  const inPile = (said, more = {}) => P.draw({ pile: pileWith(said), ...more }).tree;
+  await until(() => !saysReading(inPile(null)), "their place and its record landing");
+  const foot = (tree) => all(tree, (n) => n.props?.className === "lw-foot");
+  const desk = inPile(null);
+  assert.equal(foot(desk).length, 0, "nothing needs you: no foot");
+  assert.ok(byTestId(desk, "lead-pile-said"), "the live region is there before it speaks");
+  assert.ok(byTestId(inPile("Added Pearl Nail Bar"), "lead-pile-said"));
+  assert.equal(foot(inPile("Added Pearl Nail Bar")).length, 1, "and the foot comes back to say what a press did");
+  const phone = inPile(null, { phone: true });
+  assert.equal(phone.props.foot, null, "on a phone a foot is a capsule, words or none: so none");
+  assert.ok(byTestId(phone, "lead-pile-said"));
 });
 
 /* =================================================== the one scroll ==== */
