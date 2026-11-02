@@ -21,6 +21,7 @@ import { stateOf } from "../../../../../packages/contracts/src/shell/tone.ts";
 import { LEAD_WORDS, leadDraftFooter, toLeadPeekVM } from "../../../../../packages/contracts/src/leads/leads.ts";
 import { LEAD_DOCK_WORDS } from "../../../../../packages/contracts/src/leads/sheet/lead-sheet-dock.ts";
 import { hookFrames } from "../../_hook-frames.mjs";
+import { keysDrawn } from "../../_keys.mjs";
 import { kitPages, useStubHooks } from "../../_legacy-react.mjs";
 import { until } from "../../shared/_until.mjs";
 
@@ -668,6 +669,32 @@ test("the dock for a lead to decide on: Not a fit, then Add to a sequence, which
   assert.equal(textOf(add).includes(LEAD_DOCK_WORDS.addToOne), true, "nothing picked: Add to a sequence");
   await press(add);
   assert.ok(byTestId(P.draw().tree, "lead-sheet-picker"), "the picker, a step of the same sheet");
+});
+
+test("the dock draws no key, in a pile or out of one: the keys are the shortcuts sheet's, and a press still names its own", async () => {
+  reset();
+  const P = page();
+  await until(() => !saysReading(P.draw().tree), "their place landing");
+  const pile = {
+    pile: { on: true, said: null, canUndo: false, busy: false, undoWords: "", skip() {}, act() {} },
+    facts: { later: 0 },
+    progress: { words: "3 of 12", share: 0.25 },
+    searchName: "Trainers",
+    bulk: null,
+    next: null,
+    end: { rows: [], primary: null },
+  };
+  const walked = P.draw({ deck: { onPrev() {}, onNext() {} } }).tree;
+  const piled = P.draw({ pile }).tree;
+  for (const tree of [walked, piled]) {
+    assert.ok(byTestId(tree, "lead-sheet-dock"), "a dock to look under");
+    assert.deepEqual(keysDrawn(tree), []);
+    assert.equal(
+      byTestId(tree, "lead-sheet-not_a_fit").props["aria-keyshortcuts"],
+      "N",
+      "a screen reader still hears it",
+    );
+  }
 });
 
 test("a Needs review lead says so and offers Keep and Leave out; one left out says what stopped and offers Put back", async () => {
