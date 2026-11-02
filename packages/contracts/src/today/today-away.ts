@@ -152,7 +152,7 @@ const AWAY_EMPTY_CLEAR = "All caught up.";
  * -- a congratulation over four unread things, and the plainest untrue
  * sentence on the page.
  */
-const AWAY_EMPTY_QUEUED = "Everything new is already in the queue above.";
+const AWAY_EMPTY_QUEUED = "Everything new is already in Need you.";
 
 /**
  * The foot.
@@ -170,11 +170,9 @@ const AWAY_EMPTY_QUEUED = "Everything new is already in the queue above.";
  */
 function awayFoot(more: number, queued: number, drew: boolean): string | null {
   if (more <= 0 || !drew) return null;
-  const head = `${more} more in the bell`;
+  const head = `${more} more in your notifications`;
   if (queued <= 0) return head;
-  return queued === more
-    ? `${head}, already in the queue above`
-    : `${head}, ${queued} of them already in the queue above`;
+  return queued === more ? `${head}, already in Need you` : `${head}, ${queued} of them already in Need you`;
 }
 
 /**

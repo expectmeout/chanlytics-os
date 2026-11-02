@@ -279,7 +279,7 @@ test("REGRESSION: a yes to offers with no number to send one to is not 'nobody h
   // Nobody said yes to offers: the sentence the nightly pins, and the door to the QR, where that yes is got.
   const none = reach(three);
   assert.equal(none.text, "3 people have said yes to messages, but nobody has said yes to offers.");
-  assert.equal(none.math, "a send reaches only the second yes · 0 can receive one");
+  assert.equal(none.math, "an offer needs its own yes · 0 can receive one");
   assert.deepEqual(none.also, { label: "Get their yes to offers", to: GET_YES_ROUTE });
 
   // Ana wrote in by email and said yes to both there: nobody can be sent an offer still, and it is not for want of a
@@ -665,7 +665,7 @@ test("the head is the bell's own number, and the head, the rows and the foot add
   assert.equal(out.total, onScreen + out.more, "head = what is drawn + what the foot says");
   assert.equal(
     out.foot,
-    "2 more in the bell, already in the queue above",
+    "2 more in your notifications, already in Need you",
     "true of the bell, because both rows are in it",
   );
   assert.equal(out.empty, null);
@@ -687,7 +687,7 @@ test('REGRESSION: a card empty only because the queue above has everything does 
   assert.deepEqual(out.groups, [], "none of them is said twice on one page");
   assert.equal(out.total, 4, "REGRESSION: the head read 0 and the badge two inches away read 4");
   assert.equal(out.queued, 4);
-  assert.deepEqual(out.empty, { icon: "arrow-up", text: "Everything new is already in the queue above." });
+  assert.deepEqual(out.empty, { icon: "arrow-up", text: "Everything new is already in Need you." });
   assert.ok(!out.empty.text.includes("caught up"), "four things are unread: there is nothing to congratulate");
   assert.equal(out.foot, null, "the head has said 4 and the line above says where they are: a number is said once");
 });
@@ -702,7 +702,7 @@ test("under the cap and already in the queue are two different absences, and the
   assert.equal(out.total, 9);
   assert.equal(out.queued, 2);
   assert.equal(out.more, 4, "two left under the cap and two the queue above already holds");
-  assert.equal(out.foot, "4 more in the bell, 2 of them already in the queue above");
+  assert.equal(out.foot, "4 more in your notifications, 2 of them already in Need you");
   assert.equal(
     /(\d+) more/.exec(out.foot)[1],
     "4",
@@ -837,7 +837,7 @@ test("the dedupe covers all four queue kinds: a closing window's thread, a call 
   );
   assert.equal(out.total, 6, "and still counted on the head, because it is still in the bell");
   assert.equal(out.queued, 5);
-  assert.equal(out.foot, "5 more in the bell, already in the queue above");
+  assert.equal(out.foot, "5 more in your notifications, already in Need you");
   const strings = todayAwayGrouped(rows, ["cv-1"], 5);
   assert.deepEqual(
     strings.groups.map((g) => g.row.id),

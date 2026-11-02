@@ -451,7 +451,7 @@ test("the header's menu is More: a glyph on an inset round a thumb finds, its na
   assert.equal(trigger.props.title, "More");
   assert.equal(trigger.props["aria-label"], "More for the conversation with Rosa Díaz", "what it opens, to a reader");
   assert.ok(
-    find(trigger, (n) => n.props?.name === "more"),
+    find(trigger, (n) => n.props?.name === "chevron-down"),
     "the glyph",
   );
   assert.equal(textOf(trigger).trim(), "", "no word beside it");
