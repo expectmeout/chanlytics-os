@@ -65,7 +65,7 @@ function railHead(agentId: string) {
       <Menu
         trigger={
           <Button iconOnly size="sm" aria-label="More" title="More">
-            <Icon name="more" size={13} />
+            <Icon name="chevron-down" size={13} />
           </Button>
         }
         groups={[

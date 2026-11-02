@@ -155,6 +155,15 @@ export function stepDays(nowMs: number, tz: string): StepDayChoice[] {
 }
 
 /**
+ * The step sheet's days (the compact sheet's canvas, P5): the picker's own with Friday the one weekday named, so a Monday
+ * offers what a Wednesday does and Pick a day stays in sight on the sheet's one line; any other day is a press of it.
+ */
+export function stepSheetDays(nowMs: number, tz: string): StepDayChoice[] {
+  const unnamed = WEEKDAYS.map((d) => d.slice(0, 3)).filter((d) => d !== WEEKDAYS[5].slice(0, 3));
+  return stepDays(nowMs, tz).filter((c) => !unnamed.includes(c.label));
+}
+
+/**
  * A call's days to call back (0052's call): Tomorrow, this week's Friday where it comes after tomorrow, else next week,
  * and Pick a day. Three, from the picker's own (stepDays), so a call back is a press and fits a phone.
  */

@@ -451,7 +451,7 @@ test("the header's menu is More: a glyph on an inset round a thumb finds, its na
   assert.equal(trigger.props.title, "More");
   assert.equal(trigger.props["aria-label"], "More for the conversation with Rosa Díaz", "what it opens, to a reader");
   assert.ok(
-    find(trigger, (n) => n.props?.name === "more"),
+    find(trigger, (n) => n.props?.name === "chevron-down"),
     "the glyph",
   );
   assert.equal(textOf(trigger).trim(), "", "no word beside it");
@@ -571,7 +571,7 @@ test("the line under the name says where the conversation stands; the template b
     assert.equal(find(tree, byTestId("ix-th-bar")), undefined, "no bar of its own under the header");
     // Under the name, in the header a thread opens on (the thread canvas, 1 Nov 2026).
     const sub = find(tree, byTestId("ix-th-sub"));
-    assert.match(textOf(find(sub, byTestId("ix-th-standing"))), /^Needs you40m$/);
+    assert.match(textOf(find(sub, byTestId("ix-th-standing"))), /^Needs you40mWaiting 40m$/);
     assert.equal(find(sub, byTestId("ix-th-window")), undefined, "the person's door holds no press");
     // One line at the head of the template box, a lock, what is owed and the clause after it, and Why? (the thread
     // canvas, 1 Nov 2026): a dot in the warning's amber, "Window closed" and an underlined "Why?" made a bar 64px.

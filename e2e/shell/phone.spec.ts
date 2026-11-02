@@ -1144,13 +1144,13 @@ test.describe("Phone shell on a real workspace", () => {
     const inbox = page.locator(".stabs.stabs-inbox .stabs-tab.active");
     await page.goto("/#/inbox");
     await page.waitForLoadState("networkidle");
-    await expect(inbox).toHaveText(/^Needs you/);
+    await expect(inbox).toHaveText(/^Inbox/);
     await swipe(300, 90);
     await expect(page).toHaveURL(atRoute(/^conversations/));
     await expect(inbox).toHaveText(/^Conversations/);
     await swipe(90, 300);
     await expect(page).toHaveURL(atRoute(/^inbox/));
-    await expect(inbox).toHaveText(/^Needs you/);
+    await expect(inbox).toHaveText(/^Inbox/);
     await swipe(90, 300);
     await page.waitForTimeout(800);
     await expect(page, "nothing before the first tab").toHaveURL(atRoute(/^inbox$/));

@@ -49,8 +49,6 @@ export const LEAD_DOCK_WORDS = {
   writing: "Waits for its opening to be written",
   theyWrote: "They wrote back…",
   answer: "Answer",
-  /** The desk's keys under the dock: in a pile, each act's key, ⇧A the picker, J and K, Z undo. */
-  keys: { notFit: "not a fit", later: "later", add: "add", choose: "choose", move: "move", undo: "undo" },
 } as const;
 
 const D = LEAD_DOCK_WORDS;

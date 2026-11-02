@@ -163,18 +163,25 @@ export const useLeadChipsAddress = ({
   // between the write and the address that follows it is not a Back.
   const seen = useRef<string | null>(null);
   const sent = useRef<string | null>(null);
+  // The table as the address found it, until it has drawn what the address gave it: no write-back undoes that meanwhile.
+  const found = useRef<string | null>(null);
   useEffect(() => {
     if (inAddress !== seen.current) {
       seen.current = inAddress;
       const ours = sent.current === inAddress;
       sent.current = null;
       if (!ours && inAddress !== inTable) {
+        found.current = inTable;
         narrow.setChip(leadView.chips.excluded_by ?? null);
         narrow.setFitChip(leadView.chips.fit ?? null);
         narrow.setReach(leadView.chips.reach ?? NO_REACH);
       }
       return;
     }
+    // The chips the address just gave the table, not drawn yet: the address stands. React's effects, run twice in
+    // development, ran this again over the same draw, and wrote the address from the table as it was.
+    if (found.current === inTable) return;
+    found.current = null;
     if (inTable === inAddress || sent.current === inTable) return;
     sent.current = inTable;
     const { searchId, list, cls } = leadView;

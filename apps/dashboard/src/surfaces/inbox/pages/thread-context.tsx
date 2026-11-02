@@ -8,7 +8,7 @@
  */
 import { addressOf, threadPersonFactsOf, WORKS_AT_WORDS, type ThreadPersonFact } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
-import { Face, faceTileOf } from "../../kit/face/face";
+import { Face, faceHueOf } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
 import { routeDoor } from "../../legacy-verbs";
 import { personOnThread, useThreadPersonMoved } from "../../people/want-person";
@@ -95,7 +95,7 @@ export const ThreadContext = ({
         <Face
           person={{ name: thread.who, initials: thread.avatar }}
           size="xl"
-          hue={faceTileOf(thread.who)}
+          hue={faceHueOf(thread.who)}
           className="ix-context-round"
         />
         <div className="ix-context-name">{thread.who}</div>

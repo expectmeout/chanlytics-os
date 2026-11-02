@@ -7,7 +7,7 @@
  * with, the days it offers, and the body the notes route takes; the page composes (surfaces/people/step-sheet).
  */
 import { NOTE_LINE_MAX, NOTE_MAX, NOTE_REFUSALS, type PersonNoteTeamDto, type PersonNoteVM } from "./person-notes";
-import { stepDays, type StepDayChoice } from "./steps";
+import { composerDays, stepSheetDays, type StepDayChoice } from "./steps";
 import { isRealDate } from "../config/workspace-config/config-rules";
 
 /** Every word the sheet says. */
@@ -160,9 +160,11 @@ export function stepSheetFor(
   const kind = (note ? !note.step : ask.note === true) ? "note" : "step";
   const dealId = note ? note.dealId : (ask.dealId ?? null);
   const service = dealId ? ((p.deals ?? []).find((d) => d.id === dealId)?.service ?? null) : null;
-  const stepChoices = stepDays(nowMs, tz);
+  // Five at most, so they hold the sheet's one line: a note's No day comes before the notes composer's own four.
   const days =
-    kind === "note" ? [{ key: NO_DAY, label: W.when.none, title: W.when.none }, ...stepChoices] : stepChoices;
+    kind === "note"
+      ? [{ key: NO_DAY, label: W.when.none, title: W.when.none }, ...composerDays(nowMs, tz)]
+      : stepSheetDays(nowMs, tz);
   return {
     mode,
     kind,

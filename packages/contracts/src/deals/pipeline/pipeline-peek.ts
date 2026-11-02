@@ -36,6 +36,11 @@ export interface PipelinePeekVM {
    * deal yet. Where it stands is the steps' and the stand's to say, under it.
    */
   sub: string;
+  /**
+   * The deal by its name alone ("Growth plan"), a phone's head: its row stands lit right above the sheet, saying the value.
+   * A desk's table gives that column way beside the peek, so a desk's head says all of `sub`.
+   */
+  named: string;
   /** The group the row is drawn in, which says what its sheet offers. */
   group: PipelineGroupKey;
   facts: PipelinePeekFact[];
@@ -65,6 +70,7 @@ export function pipelinePeekOf(
   const onCard = !!n?.dealId && known.some((d) => d.id === n.dealId && dealIsOpen(d));
   if (n && !onCard) facts.push({ id: "step", words: `${PIPELINE_WORDS.columns.next} · ${n.words} · ${n.when}` });
   const deal = [row.service, row.value].filter(Boolean).join(" · ");
+  const sub = deal || (group === "consultations" ? DEAL_CARD_WORDS.consultation : GROUP_WORDS[group]);
   return {
     id: row.id,
     dealId: row.deal?.id ?? null,
@@ -72,7 +78,8 @@ export function pipelinePeekOf(
     initials: p.initials,
     numeric: isIdentifierName(row.name),
     stopped: p.stopped,
-    sub: deal || (group === "consultations" ? DEAL_CARD_WORDS.consultation : GROUP_WORDS[group]),
+    sub,
+    named: row.service || sub,
     group,
     facts,
   };
@@ -94,6 +101,13 @@ export interface PipelineSheetVM {
   card: DealCardVM | null;
   /** Where a row without a card stands, in its chip's words and tone: a consultation, a pass or an end. */
   stand: PipelineChip | null;
+  /** What wants a look, a state in its tone: the card's flags, or the row's stand. */
+  flags: DealCardVM["flags"];
+  /**
+   * The same on a phone, whose row stands lit right above the sheet: what its chip and its days say is left to it. A desk's
+   * table gives its days way beside the peek, so a desk's says them.
+   */
+  phoneFlags: DealCardVM["flags"];
   /**
    * "Did Sol say yes?": asked while a proposal waits with nothing back and Follow up leads, its two answers the yes and
    * the pass, which the caret then does not offer again.
@@ -137,6 +151,12 @@ function closedStand(d: DealVM, chip: PipelineChip | null, tz: string, nowMs: nu
   return { words: d.reason ? `${when} · ${d.reason.words}` : when, tone: chip.tone };
 }
 
+/** What wants a look, on a desk and on a phone (PipelineSheetVM): the row's own chip is the row's, and so is what it carries. */
+function flagsOf(row: PipelineRowVM, card: DealCardVM | null, stand: PipelineChip | null) {
+  const flags: DealCardVM["flags"] = card ? card.flags : stand ? [stand] : [];
+  return { flags, phoneFlags: flags.filter((f) => f !== row.chip && !f.rowSays) };
+}
+
 /**
  * The row's own deal as the sheet says it. Before the person is read (`p` null) it is the row's steps and its chip, and
  * no act: the acts are the card's, which reads them. A proposal out or a client is the card of that deal (dealCardsOf,
@@ -156,6 +176,7 @@ export function pipelineSheetOf(row: PipelineRowVM, p: DealPerson | null, nowMs:
     const another: PipelineSheetAct = { act: { ...act("propose"), label: DEAL_CARD_WORDS.another }, dealId: null };
     return {
       ...base,
+      ...flagsOf(row, card, null),
       card,
       stand: null,
       ask: asks ? { question: PIPELINE_WORDS.sheet.ask(shortName(row.name)), yes: act("won"), no: act("lost") } : null,
@@ -174,12 +195,13 @@ export function pipelineSheetOf(row: PipelineRowVM, p: DealPerson | null, nowMs:
   const ahead = !d && row.track[0]?.key === "consultation" && row.track[0].at === "current";
   const over = !d && held && row.chip ? { words: PIPELINE_WORDS.sheet.noProposal, tone: row.chip.tone } : null;
   const stand = ahead ? null : (over ?? (d && !dealIsOpen(d) ? closedStand(d, row.chip, tz, nowMs) : row.chip));
+  const said = { ...base, ...flagsOf(row, null, stand), card: null, stand, ask: null };
   // Not read yet, or an open deal their read does not hold (it moved meanwhile): the row's words, and no act to press.
-  if (!p || (d && dealIsOpen(d))) return { ...base, card: null, stand, ask: null, lead: null, more: [] };
+  if (!p || (d && dealIsOpen(d))) return { ...said, lead: null, more: [] };
   // A pass is proposed again (the same deal, back to a proposal); an end, a consultation or a deal not read starts one.
   const lead: PipelineSheetAct =
     d && d.stage === "lost"
       ? { act: act("again"), dealId: d.id }
       : { act: act("propose", { service: consulted }), dealId: null };
-  return { ...base, card: null, stand, ask: null, lead, more: [] };
+  return { ...said, lead, more: [] };
 }

@@ -33,6 +33,8 @@ const {
   dealSheetMessage,
   dealSheetRefusal,
   pickCurrentDeal,
+  pipelinePeekOf,
+  pipelineSheetOf,
   proposalFollowUp,
   proposalMessage,
   toPersonVM,
@@ -719,7 +721,7 @@ test("the card says each open deal once: its steps, its link and whether it went
   ).cards;
   assert.equal(keptCard.steps[0].word, "Kept");
   assert.deepEqual(card.link, { url: LINK, host: "docs.example.com" });
-  assert.deepEqual(card.facts, ["Sent Sep 19 on WhatsApp", "Valid until Sep 30"]);
+  assert.deepEqual(card.facts, ["Sent on WhatsApp", "Valid until Sep 30"], "the day is the step's, over it");
   assert.deepEqual(card.flags, [], "they wrote back since, and the day has not passed: nothing wants a look");
   assert.deepEqual(acts([card.next]), [["won", "Mark as client", "won"]]);
   assert.deepEqual(acts(card.more), [
@@ -764,8 +766,8 @@ test("the card says each open deal once: its steps, its link and whether it went
     NOW,
     ZONE,
   ).cards;
-  assert.equal(card.facts[0], "Sent Sep 14 by email");
-  assert.deepEqual(card.flags, [{ words: "Nothing back in 9 days", tone: "warn" }]);
+  assert.equal(card.facts[0], "Sent by email");
+  assert.deepEqual(card.flags, [{ words: "Nothing back in 9 days", tone: "warn", rowSays: true }]);
   assert.equal(card.next.id, "follow-up");
 
   // Recorded without a link: said, and the link is what to add; nothing went, so nothing is waited on (canvas A: "Nothing
@@ -776,7 +778,7 @@ test("the card says each open deal once: its steps, its link and whether it went
     ZONE,
   ).cards;
   assert.deepEqual([card.link, card.facts[0], card.next.id], [null, "No link yet", "edit"]);
-  assert.deepEqual(card.flags, [{ words: "Nothing back in 9 days", tone: "warn" }]);
+  assert.deepEqual(card.flags, [{ words: "Nothing back in 9 days", tone: "warn", rowSays: true }]);
   assert.deepEqual(
     card.more.map((a) => a.id),
     ["won", "lost"],
@@ -911,6 +913,53 @@ test("the card says each open deal once: its steps, its link and whether it went
   );
 });
 
+test("a proposal sent the day its step says is said once, on the step; sent another day, the fact keeps its own", () => {
+  const sentOn = (ago) => dealCardsOf(person({ deals: [dealDto()], messages: [sentMsg(ago)] }), NOW, ZONE).cards[0];
+  const same = sentOn(9 * D);
+  assert.equal(same.steps.find((s) => s.key === "proposal").day, "Sep 14");
+  assert.equal(same.facts[0], "Sent on WhatsApp");
+  assert.equal(sentOn(7 * D).facts[0], "Sent Sep 16 on WhatsApp");
+});
+
+test("a phone's sheet leaves the row what its chip and days say, lit right above it; a desk's, whose table gave them way, says them", () => {
+  const waiting = (dto) => ({
+    deals: [dealDto(dto)],
+    rowOver: { last_inbound_at: at(12 * D), latest_wa_inbound_at: null, message_channels: ["email"] },
+    messages: [msg("m1", 12 * D, { channel: "email" }), sentMsg(9 * D, { channel: "email" })],
+  });
+  const p = person(waiting());
+  const row = {
+    id: "p1",
+    name: "Daniela Reyes",
+    service: "Ad management",
+    value: "$1,200",
+    person: { initials: "DR", stopped: false, nextVisit: null, deal: null },
+    deal: { id: "d1", stage: "proposed" },
+    track: [],
+    next: null,
+    chip: { words: "Nothing back", tone: "warn" },
+  };
+  const peek = pipelinePeekOf(row, "proposals");
+  assert.deepEqual([peek.sub, peek.named], ["Ad management · $1,200", "Ad management"]);
+  assert.equal(pipelinePeekOf({ ...row, service: null }, "proposals").named, "$1,200", "no service: what names it");
+
+  const read = pipelineSheetOf(row, p, NOW, ZONE);
+  assert.deepEqual(
+    read.flags.map((f) => f.words),
+    ["Nothing back in 9 days"],
+  );
+  assert.deepEqual(read.phoneFlags, [], "the row's chip and its 9 d say it");
+
+  // A day that passed says what the row's chip does not, so a phone's sheet keeps it.
+  const dated = pipelineSheetOf(row, person(waiting({ valid_until: "2026-09-20" })), NOW, ZONE).phoneFlags;
+  assert.equal(dated.length, 1);
+  assert.match(dated[0].words, /Sep 20/);
+
+  // Before the person is read the stand is the row's own chip: a desk's, never said twice on a phone.
+  const early = pipelineSheetOf(row, null, NOW, ZONE);
+  assert.deepEqual([early.flags, early.phoneFlags], [[row.chip], []]);
+});
+
 test("where the proposal follow-up has them in hand (0006), the card says the day its run goes and leads with no nudge of its own; had it, or on another deal, the card says what it said", () => {
   // By email, nothing back since it went: the card's own nudge, until the follow-up has them.
   const quiet = (
@@ -926,15 +975,15 @@ test("where the proposal follow-up has them in hand (0006), the card says the da
   });
   const will = { kind: "will", atMs: NOW + 3 * H, asks: true };
   let [card] = dealCardsOf(quiet(will), NOW, ZONE).cards;
-  assert.deepEqual(card.flags, [{ words: "Follow-up to approve today", tone: "info" }]);
+  assert.deepEqual(card.flags, [{ words: "Follow-up to approve today", tone: "info", rowSays: true }]);
   assert.equal(card.next.id, "won", "the run follows up: a nudge of the card's own would be a second");
   assert.ok(![card.next, ...card.more].some((a) => a.id === "follow-up"));
   assert.equal(dealNextAct(quiet(will), NOW).id, "won");
   [card] = dealCardsOf(quiet({ ...will, asks: false, atMs: NOW + D }), NOW, ZONE).cards;
-  assert.deepEqual(card.flags, [{ words: "Follow-up tomorrow", tone: "info" }], "auto: it goes");
+  assert.deepEqual(card.flags, [{ words: "Follow-up tomorrow", tone: "info", rowSays: true }], "auto: it goes");
   // Had theirs, and still nothing back: the card's own, as before.
   [card] = dealCardsOf(quiet({ kind: "had", atMs: NOW - 2 * D }), NOW, ZONE).cards;
-  assert.deepEqual(card.flags, [{ words: "Nothing back in 9 days", tone: "warn" }]);
+  assert.deepEqual(card.flags, [{ words: "Nothing back in 9 days", tone: "warn", rowSays: true }]);
   assert.equal(card.next.id, "follow-up");
   // Their row's standing is their current deal's: an older proposal beside it keeps its own words.
   const SEO = "https://docs.example.com/p/dani-seo";
@@ -948,8 +997,8 @@ test("where the proposal follow-up has them in hand (0006), the card says the da
   });
   assert.equal(both.deal.id, "d1", "their current deal: the newest proposal, as their row's");
   assert.deepEqual(Object.fromEntries(dealCardsOf(both, NOW, ZONE).cards.map((c) => [c.title, c.flags])), {
-    "Ad management": [{ words: "Follow-up to approve today", tone: "info" }],
-    SEO: [{ words: "Nothing back in 12 days", tone: "warn" }],
+    "Ad management": [{ words: "Follow-up to approve today", tone: "info", rowSays: true }],
+    SEO: [{ words: "Nothing back in 12 days", tone: "warn", rowSays: true }],
   });
 });
 
@@ -1446,13 +1495,17 @@ test("a proposal's card says the workspace's pace once it has one, and waits by 
     messages: [msg("m1", 12 * D, { channel: "email" }), sentMsg(9 * D, { channel: "email" })],
   };
   let [card] = dealCardsOf(person(nine), NOW, ZONE).cards;
-  assert.deepEqual(card.flags, [{ words: "Nothing back in 9 days", tone: "warn" }], "no pace: past a week");
+  assert.deepEqual(
+    card.flags,
+    [{ words: "Nothing back in 9 days", tone: "warn", rowSays: true }],
+    "no pace: past a week",
+  );
   assert.equal(card.next.id, "follow-up");
   const paced = person({ ...nine, deal_pace: { median_days: 12, yeses: 6 } });
   assert.equal(paced.dealPace.words, "Usually 12 days to a yes", "read with the person");
   [card] = dealCardsOf(paced, NOW, ZONE).cards;
   // The pace is the card's own line now, out of the facts (canvas A: a deal row says it beside the steps).
-  assert.deepEqual(card.facts, ["Sent Sep 14 by email"]);
+  assert.deepEqual(card.facts, ["Sent by email"]);
   assert.equal(card.pace, "Usually 12 days to a yes");
   assert.deepEqual(card.flags, [], "within the pace and a fifth: not waiting on anyone yet");
   assert.equal(card.next.id, "won", "and the follow-up waits for it");
