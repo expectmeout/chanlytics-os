@@ -236,8 +236,10 @@ const HEARD_BEFORE = {
   reach_out_replies: ["sequence_replies", "mailboxes", "mailbox_connections"],
   partner: [],
   alerts: [],
-  // Ask's morning for the member and what Ask remembers (decision 0070): no record the feed carries; read where drawn.
-  ask_morning: [],
+  // What Ask noticed, and the cards about a batch (decision 0087): the batches and the sequences, on Today. The morning
+  // itself is the member's own, which the feed never tells.
+  ask_morning: ["sequence_batches", "sequences", "sequence_steps"],
+  // What Ask remembers (decision 0070): no record the feed carries; read where drawn.
   ask_memory: [],
   // The drafts Ask kept for Need you's rows, read with Today's first reads (decision 0071): written and read by the rows.
   reply_drafts: [],
@@ -324,6 +326,8 @@ const HEARD_BEFORE = {
  * wherever the tab was. A surface not named here heard every table everywhere.
  */
 const ON_ITS_PAGE_BEFORE = {
+  // What Ask noticed and the cards about a batch: heard on Today, the page that draws them (decision 0087).
+  ask_morning: ["sequence_batches", "sequences", "sequence_steps"],
   people: [
     "messages",
     "conversations",

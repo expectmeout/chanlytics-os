@@ -113,7 +113,7 @@ async function aroundMorning(
       },
     ),
   ]);
-  const seen = ideasWithResults(offered, read.sequences);
+  const seen = ideasWithResults(offered, read.runs);
   const rested = restedOf(views[ASK_FOUND_VIEW]);
   const findings = await findingCards(ctx, member, { ...clock, nowMs }, read, rested);
   return { seen, beside: { findings, rested, lately: latelyRows(seen, clock.day) } };

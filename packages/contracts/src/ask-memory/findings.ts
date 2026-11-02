@@ -6,7 +6,6 @@
  *
  * Pure: the server reads the sequences and their batches, and the tests read the same fold.
  */
-import type { SequenceRowDto } from "../sequences/sequence-dto";
 import { sequenceRoute } from "../sequences/sequence-address";
 import type { BroadcastCounts, BroadcastState } from "../broadcasts/broadcasts";
 import { plural } from "../shared/words";
@@ -25,9 +24,13 @@ const FELL_BEFORE = 3;
 const FELL_UNDER = 0.5;
 
 /** A sequence as the fold reads it. */
-type FindingSequence = Pick<SequenceRowDto, "id" | "name" | "state" | "mode"> & {
+interface FindingSequence {
+  id: string;
+  name: string;
+  state: string;
+  mode: string | null;
   first: { id: string } | null;
-};
+}
 
 /** A batch as the fold reads it. */
 interface FindingRun {

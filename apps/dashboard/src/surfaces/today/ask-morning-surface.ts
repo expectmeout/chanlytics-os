@@ -1,6 +1,7 @@
 /**
  * Ask's morning for this member (decision 0070; contracts ask-memory/morning.ts): what Ask would do first today, as Today
- * draws it as rows of Need you (decision 0071). Read where Today is drawn (ROUTE_DRAWS names it), and again when what it holds has aged.
+ * draws it as rows of Need you (decision 0071), with what Ask noticed from the sequences and their batches (decision 0087).
+ * Read where Today is drawn (ROUTE_DRAWS names it), again when what it holds has aged, and as those records move on Today.
  *
  * The morning is asked for as the member arrives: a read that finds none due for a member who may have one asks for it
  * (POST ask/morning), as the Leads page asks for its ideas once its read says they are due. The day is claimed once a
@@ -9,7 +10,7 @@
  */
 import type { AskLanguage, AskMorningDto } from "@chanlytics/contracts";
 import { api, read } from "@/legacy-bridge/api";
-import { ON_DEMAND_STALE_MIN, readAged, type SurfaceOverride } from "@/legacy-bridge/surface-data";
+import { readAged, type SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { declareReads } from "@/legacy-bridge/surface-registry";
 import { setSurfaceValue, surfaceValue } from "../surface-values";
 
@@ -28,9 +29,10 @@ export const askMorningOverride: SurfaceOverride = {
   onDemand: true,
   isStale: () => readAged(surfaceValue("ask_morning")?.fetchedAt),
   events: ["surface:ask_morning"],
-  // The member's own morning: no record of the workspace's, so the feed tells it nothing. Read where Today is drawn, and
-  // again when what it holds has aged, while Ask writes it (Need you's own wait) and after a card is pressed.
-  ...declareReads("ask_morning", { reads: [], fresh: { aged: ON_DEMAND_STALE_MIN } }),
+  // A batch decided on another page or a sequence's mode changed moves what Ask noticed and the cards it stands over, so
+  // they are heard on Today. The morning itself is the member's own, which the feed never tells: it is read where Today is
+  // drawn, again when what it holds has aged, while Ask writes it (Need you's own wait) and after a card is pressed.
+  ...declareReads("ask_morning", { reads: ["send", "campaign"], fresh: "its-page" }),
   apply: async () => {
     const got = await read("GET ask/morning");
     let dto = got.morning;

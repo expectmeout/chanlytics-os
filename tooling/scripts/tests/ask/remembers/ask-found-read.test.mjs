@@ -73,6 +73,8 @@ function world(cards, theirs = []) {
         content: { proposals: theirs },
       },
     ],
+    sequences: [],
+    sequence_steps: [],
     sequence_batches: [
       { id: OPEN_BATCH, tenant_id: A, state: "scheduled" },
       { id: DONE_BATCH, tenant_id: A, state: "sent" },

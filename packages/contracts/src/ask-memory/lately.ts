@@ -7,7 +7,7 @@
  * Pure: the server reads the mornings, and the tests read the same fold.
  */
 import type { AskProposal, AskProposalOutcome } from "../ask/ask";
-import type { SequenceRowDto } from "../sequences/sequence-dto";
+import type { BroadcastCounts } from "../broadcasts/broadcasts";
 
 /** How long an idea set aside rests: a week, as every "not now" Today offers (setup-put-off.ts). */
 export const ASK_IDEA_REST_DAYS = 7;
@@ -77,15 +77,20 @@ export function dayAfterDays(day: string, n: number): string {
   return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
 }
 
-/** What each idea approved earned so far, where what it made is a sequence that has sent. */
-export function ideasWithResults(
-  seen: readonly AskIdeaSeen[],
-  sequences: readonly Pick<SequenceRowDto, "id" | "last">[],
-): AskIdeaSeen[] {
-  const byId = new Map(sequences.map((s) => [s.id, s]));
+/** A batch as what came of an idea reads it. */
+interface ResultRun {
+  sequence_id: string;
+  created_at: string;
+  counts: Pick<BroadcastCounts, "sent" | "replied">;
+}
+
+/** What each idea approved earned so far, where what it made is a sequence with a batch that has sent. */
+export function ideasWithResults(seen: readonly AskIdeaSeen[], runs: readonly ResultRun[]): AskIdeaSeen[] {
+  const sent = runs.filter((r) => r.counts.sent > 0).sort((a, b) => b.created_at.localeCompare(a.created_at));
   return seen.map((s) => {
-    const last = s.state === "done" && s.made ? byId.get(s.made.id)?.last : null;
-    return last ? { ...s, result: `Last batch: ${last.sent} sent, ${last.replied} replied` } : s;
+    const made = s.state === "done" ? s.made : null;
+    const last = made ? sent.find((r) => r.sequence_id === made.id) : undefined;
+    return last ? { ...s, result: `Last batch: ${last.counts.sent} sent, ${last.counts.replied} replied` } : s;
   });
 }
 

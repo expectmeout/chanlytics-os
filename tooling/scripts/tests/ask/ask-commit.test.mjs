@@ -1032,6 +1032,18 @@ test("the server's refusal is the card's answer, in the server's words", async (
   );
 });
 
+test("a refusal that says the card's subject has moved on is marked so, and any other is the server's answer untouched", async () => {
+  for (const [status, code] of [
+    [409, "conflict"],
+    [404, "not_found"],
+  ]) {
+    const t = tab(() => refusal(status, code, "It moved on."));
+    const r = await commitProposal(t.win, card("reply", { conversation_id: C1, text: "x", who: "Rosa" }), t.client);
+    assert.equal(r.ok, false);
+    assert.equal(r.moved, true, String(status));
+  }
+});
+
 test("REGRESSION: edit in the composer leaves the words as the thread's reply draft, which its box opens with, and hands them to a box already open on that thread -- sent by event 400 ms after a second navigation, an Inbox that mounted later lost them", () => {
   const t = tab();
   const kept = new Map();

@@ -48,11 +48,16 @@ found its subject gone was offered again. The owner saw nothing of what an appro
 - **Database:** no migration. `askMorningsSince` reads across members on the service client, a morning's rows being their
   member's under RLS: titles and outcomes only, and they reach only that workspace's members' turns.
 - **Dashboard:** `server/ask/companion/findings.ts` beside `morning.ts`; `GET ask/morning` answers the new fields, so no new
-  route; `withHeld` counts a batch waiting for an OK; `surfaces/today/need-you` draws them.
+  route; `withHeld` counts a batch waiting for an OK; `surfaces/today/need-you` draws them. The `ask_morning` surface was the
+  member's alone and heard nothing; it now draws the workspace's records, so it hears `send` and `campaign` on Today, and a
+  batch decided elsewhere or a mode changed leaves it at once. What the feed does not tell it is argued in
+  `reads-not-heard.json` beside the surfaces that read the same rows.
 
 ## Risks
 
-- `GET ask/morning` now reads the sequences and the recent batches on each read for a member who acts.
+- `GET ask/morning` now reads the running sequences and the recent batches on each read for a member who acts, and is read
+  again on Today when a batch or a sequence moves. `sequencesAtAGlance` keeps that read to what the fold needs, rather than
+  `sequence_overview`'s counts, lists and searches.
 - A title set aside hides only that title: a model that words the same idea afresh is held by what it is told, not by a
   rule. Most titles are built by the server from what they act on.
 - The thresholds (three batches, ten emails, under half) are judgement, and no customer has run on them yet.

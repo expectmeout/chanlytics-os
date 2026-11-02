@@ -143,7 +143,11 @@ test("what came of an idea approved is what its sequence earned, else what the p
     { day: "2026-10-29", mine: true, proposals: [card("Find gyms", { state: "done", receipt: "Found 40" })] },
     { day: "2026-10-28", mine: true, proposals: [card("Not this", { state: "dismissed", receipt: "Let go" })] },
   ]);
-  const earned = ideasWithResults(seen, [{ id: "seq-1", last: { id: "b", at: "x", sent: 20, replied: 3 } }]);
+  const earned = ideasWithResults(seen, [
+    batch("10-20", 40, 9),
+    batch("10-30", 20, 3),
+    batch("10-31", 0, 0, "scheduled"),
+  ]);
   assert.deepEqual(latelyRows(earned, TODAY), [
     { title: "Start it", said: "Last batch: 20 sent, 3 replied" },
     { title: "Find gyms", said: "Found 40" },

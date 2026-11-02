@@ -10,9 +10,8 @@ import {
   type AskMorningCard,
   type AskRested,
   type BroadcastDto,
-  type SequenceRowDto,
 } from "@chanlytics/contracts";
-import { sequenceOverview } from "@chanlytics/db";
+import { sequencesAtAGlance, type SequenceGlance } from "@chanlytics/db";
 import type { RouteContext } from "../../with-route";
 import type { Member } from "../../route";
 import { listBroadcasts } from "../../campaigns/broadcasts";
@@ -27,7 +26,7 @@ import { buildProposal, newToolContext } from "../tools";
 
 /** The sequences and their batches, read once for what Ask noticed and for what came of its ideas. */
 export interface SequencesRead {
-  sequences: SequenceRowDto[];
+  sequences: SequenceGlance[];
   runs: BroadcastDto[];
 }
 
@@ -35,7 +34,7 @@ export interface SequencesRead {
 export async function sequencesAndRuns(ctx: RouteContext, tenantId: string): Promise<SequencesRead> {
   try {
     const [sequences, { broadcasts }] = await Promise.all([
-      sequenceOverview(ctx.supabase, tenantId),
+      sequencesAtAGlance(ctx.supabase, tenantId),
       listBroadcasts(ctx, tenantId),
     ]);
     return { sequences, runs: broadcasts };

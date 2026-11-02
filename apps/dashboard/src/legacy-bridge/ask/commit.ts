@@ -111,8 +111,10 @@ export async function commitProposal(
   const r = await walkVerb(card, { win, client, key, via: "ask" });
   // A door's refusal is the card's answer whole: the kind of no beside the server's own sentence (refusals-in-our-words);
   // the walk's own (nothing sent) is its words. A 404 or a 409 says what the card is about has moved on.
-  if (!r.ok)
-    return saidHere(r) ? { ok: false, message: r.message } : { ...r, moved: r.status === 404 || r.status === 409 };
+  if (!r.ok) {
+    if (saidHere(r)) return { ok: false, message: r.message };
+    return r.status === 404 || r.status === 409 ? { ...r, moved: true } : r;
+  }
   return { ok: true, receipt: r.receipt, undo: r.undo, made: r.made ? { kind: card.kind, id: r.made } : null };
 }
 

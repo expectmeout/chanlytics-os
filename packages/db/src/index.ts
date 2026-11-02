@@ -292,12 +292,14 @@ export {
   sequenceReached,
   sequenceRecordFacts,
   sequenceRow,
+  sequencesAtAGlance,
   sequencesOfPerson,
   sequenceStepsOf,
   setChainSource,
   setSequenceStepWords,
   takeOutOfSequence,
 } from "./repositories/campaigns/sequences";
+export type { SequenceGlance } from "./repositories/campaigns/sequences";
 export type { PeopleHandItem, SequenceDoorAnswer, SequenceMoveAnswer } from "./repositories/campaigns/sequences";
 export { confirmationEmailOf, signupAskFacts } from "./repositories/campaigns/signup-confirms";
 export {
