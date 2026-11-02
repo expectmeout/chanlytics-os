@@ -240,6 +240,30 @@ export async function steerDraft(messageId: string, text: string): Promise<VerbR
   return api()("POST messages/[id]/steer", { params: { id: messageId }, body: { text }, once: true });
 }
 
+/**
+ * The receptionist's draft for a thread's box written again as the member asks (the thread canvas's Rewrite, 1 Nov 2026):
+ * the one call Need you's drafts make (POST conversations/[id]/draft), with the member's words. Nothing is sent by it; the
+ * new words come back for the box, and the drafts read with Today's are read again behind it.
+ */
+export async function rewriteReplyDraft(
+  conversationId: string,
+  instruction: string,
+): Promise<{ ok: true; words: string } | { ok: false; message: string }> {
+  const r = await api()("POST conversations/[id]/draft", {
+    params: { id: conversationId },
+    body: { kind: "reply", instruction },
+    refresh: "behind",
+    keepsReads: true,
+  }).catch(() => null);
+  if (r && r.ok) return { ok: true, words: r.data.words.text };
+  return { ok: false, message: (r && !r.ok && r.message) || "It could not be written again." };
+}
+
+/** A held reply let go now (Send now): its send job brought to the ledger's next tick. */
+export async function sendHeldNow(messageId: string): Promise<VerbResult> {
+  return api()("POST messages/[id]/send-now", { params: { id: messageId } });
+}
+
 /** The honest undo: cancel a queued send inside its grace window. */
 export async function cancelSend(messageId: string): Promise<VerbResult> {
   return api()("POST messages/[id]/cancel-send", { params: { id: messageId } });

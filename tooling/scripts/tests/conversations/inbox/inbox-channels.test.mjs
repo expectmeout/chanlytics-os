@@ -245,8 +245,9 @@ test("the wiring: the page branches on the channel and reads the reason's senten
   // A caller with no WhatsApp thread, waiting on a call back: the page draws the reason's sentence and the call, and no reply box.
   fresh();
   const phone = InboxThread({ thread: toInboxThreadVM(conv(), callback, ZONE, NOW), channelLabels: labels });
+  // Needs you, lit in the coral on its ground with the wait beside it (the thread canvas, 1 Nov 2026).
   assert.ok(
-    find(phone, (n) => n.type === StatePill && n.props.kind === "thread" && n.props.value === "escalated"),
+    find(phone, (n) => n.type === StatePill && n.props.lit && n.props.kind === "tone" && n.props.value === "accent"),
     "the escalated pill",
   );
   assert.ok(said(phone).includes(callback.details), "the reason's own sentence (thread.summary)");

@@ -219,9 +219,13 @@ test("the list: a wait reads as days, and a teammate's thread says whose it is i
   const tree = listOf([waiting, theirs]);
 
   const rosaRow = rowOf(tree, "Rosa Díaz");
-  const wait = find(rosaRow, hasClass("ix-wait"));
-  assert.equal(textOf(wait), "waiting 8d", "REGRESSION: it read waiting 10869m");
-  assert.ok(wait.props.className.includes("warn"), "past thirty minutes the wait is amber");
+  const wait = find(rosaRow, hasClass("ix-thread-wait"));
+  assert.equal(textOf(wait), "8d", "REGRESSION: it read waiting 10869m");
+  assert.equal(wait.props.title, "waiting 8d", "what the bare figure is, on a hover");
+  // The wait is the figure alone in the mono face; what it asks of you is the coral line under her words (the thread
+  // canvas's list, 1 Nov 2026), so no second tone stands beside it.
+  assert.ok(!wait.props.className.includes("warn"), "no amber beside the coral");
+  assert.equal(textOf(find(rosaRow, byTestId("thread-todo"))), "Reply");
   assert.equal(
     find(rosaRow, byTestId("thread-state")),
     null,
@@ -233,8 +237,9 @@ test("the list: a wait reads as days, and a teammate's thread says whose it is i
   assert.equal(find(ninaRow, byTestId("thread-state")), null, "REGRESSION: a teammate's thread said Needs you");
   assert.equal(textOf(find(ninaRow, byTestId("thread-theirs"))), "Ana García has it");
   assert.ok(!hasClass("unread")(ninaRow), "and one the read says nothing new of carries no dot");
-  const ninaWait = find(ninaRow, hasClass("ix-wait"));
+  const ninaWait = find(ninaRow, hasClass("ix-thread-wait"));
   assert.ok(ninaWait && !ninaWait.props.className.includes("warn"), "its wait is not amber: it is not waiting on you");
+  assert.equal(find(ninaRow, byTestId("thread-todo")), null, "and asks nothing of you");
 
   globalThis.window.__TEAM = null;
   assert.equal(
@@ -285,7 +290,8 @@ test("the pane: the dock sits under what they wrote, with the reason's own line,
     !buttonsOf(take).some((b) => b.includes("I'll answer this")),
     "the reply box's Send is the answer, and takes it (the thread canvas, 1 Nov 2026)",
   );
-  assert.ok(buttonsOf(take).includes("Hand back"), "and the way out");
+  // Hand back stands beside the reply box's Send, the box that answers the hold (the thread canvas, 1 Nov 2026).
+  assert.ok(find(tree, byTestId("ix-hand-back")), "and the way out");
   // What they asked is the bubble right above the dock (the phone canvas, B1): it was quoted again over the acts.
   assert.ok(
     all(tree, hasClass("tl-msg")).some((b) => textOf(b).includes("Can I move my appointment to Friday?")),
@@ -325,9 +331,10 @@ test("the countdown's tip says what stops a real draft -- Edit, Hold, or startin
     NOW,
   );
   assert.ok(vm.veto, "a draft counting down to send");
-  const msg = find(paneOf(vm), hasClass("ix-veto-msg"));
+  // The draft is drawn once, as the next bubble, its line over it saying when it sends (the thread canvas, 1 Nov 2026).
+  const says = find(paneOf(vm), byTestId("ix-held-says"));
   assert.equal(
-    msg.props["data-tip"],
-    "This draft sends itself at zero. Edit, Hold or starting to type a reply stops it.",
+    says.props.title,
+    "This draft sends itself at zero. Edit, Hold or starting to type a reply stops it; Send now lets it go.",
   );
 });

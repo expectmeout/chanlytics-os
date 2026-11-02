@@ -504,6 +504,7 @@
     "00499_a_mailbox_brings_its_own_history.sql": "99053e92fc7931b3a74b4154efb7e739d3c1539aacf9dae7aaae1927724889f4",
     "00500_the_leads_read_takes_the_page_s_filters.sql": "8052c2974811464cdf2de3f10180e8e4f46ad11cb9aeef76855d3eae331dfcb8",
     "00501_a_stopped_erasure_finishes.sql": "6bb9bed2b8523bb7ca1b7e2b6150169c637ad7d4f82580e0de5cdd3a77159ad5",
-    "00502_a_lead_put_back_gets_its_first_email.sql": "194d2762ef44d3865c0e195e7e98cb15cdaf742a6b60f05cf511aa984ead1097"
+    "00502_a_lead_put_back_gets_its_first_email.sql": "194d2762ef44d3865c0e195e7e98cb15cdaf742a6b60f05cf511aa984ead1097",
+    "00503_a_held_reply_goes_now_on_a_member_s_word.sql": "d146d35b50cabf0036dc908583c0ec44738c34288bab59f800cfb407fc7816f8"
   }
 }

@@ -33,10 +33,13 @@ function _faceTakes(
     Holds<Exactly<FaceProps["mark"], string | undefined>>,
     Holds<Exactly<FaceProps["pick"], "choose" | "chosen" | undefined>>,
     Holds<Exactly<FaceProps["tile"], "a" | "b" | "c" | "d" | undefined>>,
+    Holds<Exactly<FaceProps["hue"], "a" | "b" | "c" | "d" | undefined>>,
   ];
   Face({ initials: "AR" });
   // A business on a run's screen: a tile in its hue.
   Face({ person: { name: "Luma Aesthetics" }, tile: "d" });
+  // A person in a thread's head: a circle in their hue.
+  Face({ person: { name: "Maya Chen" }, size: "lg", hue: "a" });
   Face({ initials: "AR", photo: "https://example.com/aisha.jpg", ref: span, className: "pl-face" });
   Face({ glyph });
   Face({ glyph, photo: "https://example.com/logo.png" });

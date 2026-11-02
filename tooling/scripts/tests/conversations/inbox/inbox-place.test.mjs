@@ -676,7 +676,11 @@ test("a reply half-written is kept for its thread in this tab: another thread, o
           accept = r;
         }),
     });
-    find(tree, (n) => n.type === "button" && n.props?.onClick && /Send/.test(textOf(n))).props.onClick();
+    // A chat's Send is the round with its arrow, its word its name.
+    find(
+      tree,
+      (n) => n.type === "button" && n.props?.onClick && /Send/.test(n.props["aria-label"] ?? textOf(n)),
+    ).props.onClick();
     accept(true);
     await settle();
     assert.equal(globalThis.window.__tabMemory.draft("reply", "th-rosa"), null, "a reply the server took is no draft");

@@ -24,8 +24,8 @@ import {
   shortName,
   THREAD_PANE_WORDS,
 } from "@chanlytics/contracts";
-import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
+import { LinkButton } from "../../kit/link-button/link-button";
 import { mayAtLeast } from "../../legacy-verbs";
 import { personOnThread, useThreadPersonMoved } from "../../people/want-person";
 import { carryNotAPerson } from "../carried-reply";
@@ -42,12 +42,12 @@ import { ApprovalCard, ContextStrip, hasVerdict, NarrativeSummary, VerdictCard, 
 import { Composer } from "./composer";
 import type { OnSend } from "./send-words";
 import { ThreadHeader } from "./header";
-import { ThreadStatus, type Stale, type StatusProps } from "./status";
+import { composerAside, ThreadStatus, type Stale, type StatusProps } from "./status";
 import { useEarlierAsScrolled } from "./earlier";
 import { threadEnd, threadScroller, threadShown } from "./scroller";
 import { isDocumentScroller, shownHeight } from "../../kit/motion/page-scroll";
 import { TimelineEntry } from "./timeline";
-import { hasVeto, SteerBox, VetoBar } from "./veto";
+import { hasVeto, HeldDraft } from "./veto";
 
 // The newest thing said in a thread: its last message, written or a call. A flag after it is not something said.
 const ixNewestSaid = (timeline: TlEntry[] | null | undefined) => {
@@ -325,7 +325,14 @@ function timelineRows(p: Held, thread: Thread, at: RowsAt) {
           {entry.day}
         </span>
       ) : null;
-    const held = heldId && entry.type === "msg" && entry.messageId === heldId ? heldDraftRow(p, thread, i) : null;
+    // A real draft counting down is drawn once, as the next bubble with its countdown and its acts (HeldDraft).
+    const held =
+      heldId && entry.type === "msg" && entry.messageId === heldId ? heldDraftRow(p, thread, entry.body) : null;
+    // An owner's first email from someone, asked beside what it wrote (FirstEmailAsk).
+    const ask =
+      thread.real && i === firstEmail && !thread.partial ? (
+        <FirstEmailAsk key="first-email" thread={thread} onOpenClient={p.onOpenClient} />
+      ) : null;
     const row = (
       <TimelineEntry
         key={i}
@@ -340,26 +347,26 @@ function timelineRows(p: Held, thread: Thread, at: RowsAt) {
         arrived={!!thread.real && i >= seenAt}
       />
     );
-    return [day, row, held].filter((n): n is NonNullable<typeof n> => !!n);
+    return [day, held ?? row, ask].filter((n): n is NonNullable<typeof n> => !!n);
   });
   // A thread drawn whole is its rows and nothing else, as it always was.
   if (from <= 0) return rows;
   return [<div key="ix-earlier" className="ix-timeline-more" ref={moreRef} aria-hidden="true" />, ...rows];
 }
 
-/**
- * A real draft counting down, under its own bubble (the thread canvas, 1 Nov 2026): when it sends and the controls that
- * stop it, then the line that has the receptionist write it again. They stood in the foot, under a reply box filled with
- * the same words, so the draft was on the screen twice and its controls away from it.
- */
-function heldDraftRow(p: Held, thread: Thread, i: number) {
-  const { veto, vetoPaused, onVetoAct, onTakeOver } = p;
+/** A real draft counting down, as the next bubble with when it sends and what stops it (veto.tsx HeldDraft). */
+function heldDraftRow(p: Held, thread: Thread, text: string) {
+  const { veto, vetoPaused, onVetoAct } = p;
   if (!hasVeto(thread)) return null;
   return (
-    <div key={`held-${i}`} className="ix-held-draft" data-testid="ix-held-draft">
-      <VetoBar thread={thread} remaining={veto} paused={vetoPaused} onAct={onVetoAct} onTakeOver={onTakeOver} />
-      {veto != null && thread.veto.messageId ? <SteerBox messageId={thread.veto.messageId} /> : null}
-    </div>
+    <HeldDraft
+      key={`held-${thread.veto.messageId ?? ""}`}
+      thread={thread}
+      text={text}
+      remaining={veto}
+      paused={vetoPaused}
+      onAct={onVetoAct}
+    />
   );
 }
 
@@ -395,17 +402,16 @@ function scrollBody(
       ) : (
         <div className="ix-timeline">{timelineRows(p, thread, rowsAt)}</div>
       )}
-      {thread.real && !thread.partial && <FirstEmailAsk thread={thread} onOpenClient={p.onOpenClient} />}
     </div>
   );
 }
 
 /**
- * An owner's first email from someone, under the conversation (decision 0080): a newsletter, a notice or a pitch the
- * intake took for a person is said not to be one here, beside what it wrote, with the same act the header's More holds
- * (its page opens with Not a person asked, the typed name and all). It was the fourth item of a menu, owner-only and
- * nowhere near the email that needed it (the thread canvas, 1 Nov 2026). Only where nothing says they are someone the
- * business serves: their first conversation, no deal and no visit, as People's row says; never in a demo.
+ * An owner's first email from someone, right under it (decision 0080): a newsletter, a notice or a pitch the intake took
+ * for a person is said not to be someone the business serves here, beside what it wrote, with the act the header's More
+ * holds (its page opens with Not a person asked, the typed name and all). It was the fourth item of a menu, owner-only
+ * and nowhere near the email that needed it (the thread canvas, 1 Nov 2026). Only where nothing says they are someone
+ * the business serves: their first conversation, no deal and no visit, as People's row says; never in a demo.
  */
 function FirstEmailAsk({ thread, onOpenClient }: { thread: RealThread; onOpenClient: (id: string) => void }) {
   usePeopleMoved(); // drawn again when People's rows land
@@ -416,11 +422,11 @@ function FirstEmailAsk({ thread, onOpenClient }: { thread: RealThread; onOpenCli
   if (!mayAtLeast("owner") || row.threads > 1 || row.deal || row.nextVisitLine || row.lastVisitLine) return null;
   return (
     <div className="ix-first-email" data-testid="ix-first-email">
-      <Icon name="user" size={14} className="ix-first-email-glyph" />
+      <Icon name="user" size={16} className="ix-first-email-glyph" />
       <span className="ix-first-email-words">{THREAD_PANE_WORDS.firstEmail(shortName(thread.who))}</span>
-      <Button
-        variant="quiet"
-        size="sm"
+      <LinkButton
+        size="inherit"
+        className="ix-first-email-act"
         title={MAILBOX_SENDERS_WORDS.actHint}
         onClick={() => {
           carryNotAPerson(clientId);
@@ -428,8 +434,8 @@ function FirstEmailAsk({ thread, onOpenClient }: { thread: RealThread; onOpenCli
         }}
         data-testid="ix-first-email-act"
       >
-        {MAILBOX_SENDERS_WORDS.act}
-      </Button>
+        {THREAD_PANE_WORDS.notACustomer}
+      </LinkButton>
     </div>
   );
 }
@@ -455,8 +461,8 @@ function approvalBox(p: Held, thread: Thread, decided: boolean) {
   );
 }
 
-/** The thread's own reply box. */
-function replyBox(p: Held, thread: Thread, decided: boolean) {
+/** The thread's own reply box, and what it draws beside its Send (status.tsx composerAside: Hand back). */
+function replyBox(p: Held, thread: Thread, decided: boolean, aside: ReactNode) {
   const { onSend, onVetoAct } = p;
   const replies = repliesDoor();
   return (
@@ -469,6 +475,7 @@ function replyBox(p: Held, thread: Thread, decided: boolean) {
         reply={thread.veto ? (thread.real ? "" : thread.veto.draft) : replies ? replies.draftOf(thread.id) : ""}
         onType={thread.veto ? () => onVetoAct(thread.id, "type") : null}
         onSend={onSend}
+        aside={aside}
       />
     )
   );
@@ -481,6 +488,8 @@ export const InboxThread = (props: InboxThreadProps) => {
     held;
   // Archive asks first: it closes the customer's request. Above the early return, so the hooks keep their order.
   const [askArchive, setAskArchive] = useState(false);
+  // Which thread's hand back is being asked about: the dock's question and the reply box's Hand back are one (status.tsx).
+  const [asking, setAsking] = useState<string | null>(null);
   // A real thread opens at its newest message and stays with it as messages arrive, unless you have scrolled up to
   // read: it opened at the oldest, and on a phone the words you were answering were two scrolls down. Above the early
   // return, so the hooks keep their order.
@@ -532,6 +541,8 @@ export const InboxThread = (props: InboxThreadProps) => {
     onVetoAct,
     // "No reply needed" on a thread left unanswered is the archive, which asks first.
     onArchive: thread.real && held.onArchive ? () => setAskArchive(true) : null,
+    asking,
+    setAsking,
   };
   if (!waiting && seenRef.current.id !== thread.id) seenRef.current = { id: thread.id, n: thread.timeline.length };
   const seenAt = Math.max(seenRef.current.n, thread.timeline.length - 3);
@@ -542,6 +553,7 @@ export const InboxThread = (props: InboxThreadProps) => {
       <ThreadHeader
         thread={thread}
         channelLabels={channelLabels}
+        countdown={{ remaining: veto, paused: vetoPaused }}
         onOpenClient={onOpenClient}
         onSnooze={onSnooze}
         onTakeOver={onTakeOver}
@@ -574,7 +586,7 @@ export const InboxThread = (props: InboxThreadProps) => {
             24h window. A reply to a reach-out, read, draws its strip above it, and the receptionist's draft seeds it
             (reply-strip.tsx). */}
         <ReplyStrip thread={thread} />
-        {replyBox(held, thread, decided)}
+        {replyBox(held, thread, decided, composerAside(statusProps))}
       </div>
     </div>
   );

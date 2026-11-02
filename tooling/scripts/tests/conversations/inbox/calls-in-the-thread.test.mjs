@@ -327,12 +327,16 @@ const wire = (tree, el) => {
 const spoken = (tree) => all(tree, byTestId("tl-spoken"));
 const words = (n) => textOf(find(n, hasClass("tl-msg-body")));
 
-test("a call is part of its conversation: where it began, its lines as the thread's own bubbles, where it ended -- not a card", () => {
+test("a call is part of its conversation: what it was on one card, its lines as the thread's own bubbles, where it ended", () => {
   calls(toCallVM(callDto(), ZONE, NOW));
   const tree = draw(emily());
   const call = cardOf(tree);
   assert.ok(call, "the call");
-  assert.equal(all(tree, hasClass("tl-call-card")).length, 0, "REGRESSION: a card on the conversation, not part of it");
+  assert.equal(all(tree, hasClass("tl-call-card")).length, 0, "REGRESSION: the 420px card its transcript hid behind");
+  // What it was, summary first (the thread canvas, 1 Nov 2026); its lines are not on the card but the thread's.
+  const gist = find(call, hasClass("tl-call-gist"));
+  assert.ok(gist && find(gist, byTestId("tl-call-start")), "the card heads the call");
+  assert.equal(find(gist, byTestId("tl-spoken")), undefined, "and its lines stand under it, in the thread");
   const start = find(call, byTestId("tl-call-start"));
   assert.deepEqual(
     [textOf(find(start, hasClass("tl-call-kind"))), textOf(find(start, hasClass("tl-call-length")))],
@@ -341,7 +345,7 @@ test("a call is part of its conversation: where it began, its lines as the threa
   assert.equal(
     textOf(find(start, byTestId("tl-call-outcome"))),
     stateLabel("call", "callback"),
-    "the card says how the call ended, in the pill Live and Conversations draw it with",
+    "the card says how the call ended, in the words Live and Conversations say it with",
   );
   const lines = spoken(call);
   assert.deepEqual(
@@ -374,7 +378,6 @@ test("a call is part of its conversation: where it began, its lines as the threa
     "Recording saved",
     "What happened on this call",
     "the voice provider's own read",
-    "Transcript",
   ]) {
     assert.ok(!textOf(call).includes(gone), `REGRESSION: "${gone}"`);
   }
@@ -394,8 +397,12 @@ test("a call the conversation moved on from folds to what it was about, and open
     textOf(find(call, hasClass("tl-call-about"))),
     "Wants to book a bridal trial on October 3 for herself and two bridesmaids",
   );
+  // The canvas's Transcript, at the end of the recording's row, how many lines it opens said to a screen reader.
   const more = find(call, byTestId("tl-call-open"));
-  assert.equal(textOf(more), "Show the call · 2 lines");
+  assert.deepEqual(
+    [textOf(more), more.props["aria-label"], more.props["aria-expanded"]],
+    ["Transcript", "Transcript, 2 lines", false],
+  );
   more.props.onClick();
   call = cardOf(again(vm));
   assert.equal(spoken(call).length, 2, "and open on a tap");
@@ -753,7 +760,12 @@ test("a thread's bubbles name their wire only when its words went by more than o
     stamps.every((s) => !textOf(s).includes("WhatsApp") && !find(s, (n) => n.props?.["aria-label"] === "WhatsApp")),
     `REGRESSION: "WhatsApp" on every bubble of a thread with one call: ${stamps.map(textOf).join(" | ")}`,
   );
-  assert.equal(textOf(find(tree, hasClass("ix-th-meta"))), "WhatsApp · Phone", "the header names both, once");
+  // The wire's round on the face says both, once, to a pointer and a screen reader (the thread canvas, 1 Nov 2026).
+  assert.equal(
+    find(tree, byTestId("ix-th-wire")).props["aria-label"],
+    "WhatsApp · Phone",
+    "the header names both, once",
+  );
 });
 
 test("every message carries its own id on the page, the call's card too, so the thread can open at one", () => {

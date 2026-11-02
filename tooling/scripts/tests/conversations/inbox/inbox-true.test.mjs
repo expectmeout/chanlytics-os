@@ -349,8 +349,8 @@ test("the pane: a quiet thread's state is the row's pill, in its tone; the reply
   assert.deepEqual([pill?.props.value, pill?.props.label], ["danger", "Didn't send"], "in the tone of what it says");
   assert.equal(
     textOf(find(standing, hasClass("ix-th-standing-meta"))),
-    "· 9:31 AM",
-    "and when the words that didn't send were written, in the dim ink",
+    "9:31 AM",
+    "and when the words that didn't send were written, in the dim ink beside it",
   );
   assert.ok(
     !textOf(tree).includes("no one asked for you"),
@@ -381,12 +381,16 @@ test("the pane: a quiet thread's state is the row's pill, in its tone; the reply
     ["Inbound call", "3 min", "asked about a bridal trial"],
   );
 
-  // Answered, nothing owed: no bar at all. Who had the last word is the conversation's last bubble, right there; a
-  // sentence for the ordinary state stood over every thread.
+  // Answered, nothing owed: the head says Handled, in the ok tone, and nothing more (the thread canvas, 1 Nov 2026). Who
+  // had the last word is the conversation's last bubble, right there; a sentence for the ordinary state stood over
+  // every thread.
   const answered = paneOf(
     vmOf(quiet([wrote("m1", "Open Sunday?", 30), ours("m2", "ai", "Closed Sundays.", 29, "read")])),
   );
-  assert.equal(find(answered, byTestId("ix-th-standing")), undefined, "nothing to say, so nothing said");
+  const handled = find(answered, byTestId("ix-th-standing"));
+  const handledPill = find(handled, (n) => n.props?.kind === "tone");
+  assert.deepEqual([handledPill?.props.value, handledPill?.props.label], ["ok", "Handled"], "the one word for it");
+  assert.equal(find(handled, hasClass("ix-th-standing-meta")), undefined, "and nothing beside it");
   assert.ok(!textOf(answered).includes("no one asked for you"));
 });
 

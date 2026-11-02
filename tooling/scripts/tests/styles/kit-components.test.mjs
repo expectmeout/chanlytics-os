@@ -401,6 +401,13 @@ const BUTTONS = {
     h(Button, { iconOnly: true, size: "touch", variant: "quiet", "aria-label": "Call" }, glyph()),
     h(Button, { iconOnly: true, size: "touch", variant: "quiet", "aria-label": "More" }, glyph()),
   ],
+  // The thread canvas's three: the quiet act beside the coral one, a fold in a card, the act in ink.
+  "btn-thread": () => [
+    h(Button, { size: "touch", variant: "outline" }, glyph(), "Hand back"),
+    h(Button, { size: "sm", variant: "soft", "aria-expanded": false }, "Signature", glyph()),
+    h(Button, { iconOnly: true, size: "touch", variant: "soft", "aria-label": "More" }, glyph()),
+    h(Button, { size: "lg", variant: "ink" }, "Send now"),
+  ],
   // A walk's ‹ ›: the chevron, the first one turned (kit.css .icon-turned).
   "btn-icon-turned": () => [
     h(
@@ -557,6 +564,7 @@ const FACES = {
   face: () => [h(Face, { initials: "AR" }), h(Face, { initials: "SO" })],
   "face-glyph": () => h(Face, { glyph: glyph() }),
   "face-tile": () => ["a", "b", "c", "d"].map((t) => h(Face, { initials: "LA", tile: t })),
+  "face-hue": () => ["a", "b", "c", "d"].map((t) => h(Face, { initials: "MC", size: "lg", hue: t })),
   "face-photo": () => h(Face, { initials: "AR", photo: PHOTO }),
   "face-sm": () => [h(Face, { initials: "AR", size: "sm" }), h(Face, { initials: "AR", size: "sm", photo: PHOTO })],
   "face-lg": () => [h(Face, { initials: "AR", size: "lg" }), h(Face, { initials: "AR", size: "lg", photo: PHOTO })],

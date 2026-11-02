@@ -627,6 +627,7 @@ export const useInboxVeto = (ix: InboxState & InboxMoves) => {
     if (t && t.real) {
       if (!t.veto) return null;
       if (ixHeld(VW.state, t)) return null; // withdrawn, by the draft's own record — no countdown
+      if (VW.state[ixDraftKey(t)]?.going) return 0; // let go now: going, until the send reaches the tab
       // A real draft always has its deadline (the view model gives it): without one the countdown is not a number.
       return Math.max(0, Math.ceil(((t.veto.endsAtMs ?? NaN) - Date.now()) / 1000));
     }

@@ -134,6 +134,8 @@ export interface MsgEntry {
   footer?: string;
   signature?: { line: string; full: string };
   leftOut?: string;
+  /** How many files an email came with whose names alone were kept (contracts emailFilesLeftOf). */
+  filesLeft?: number;
   media?: MediaVM;
   why?: ReplyWhyVM;
   byYou?: boolean;

@@ -38,6 +38,12 @@ const faceClasses = variants({
       c: "face-tile face-tile-c",
       d: "face-tile face-tile-d",
     },
+    hue: {
+      a: "face-hue face-hue-a",
+      b: "face-hue face-hue-b",
+      c: "face-hue face-hue-c",
+      d: "face-hue face-hue-d",
+    },
   },
 });
 
@@ -86,6 +92,8 @@ export type FaceProps = FaceHolds & {
   pick?: "choose" | "chosen";
   /** Drawn as a tile, a rounded square in one of four hues (a business on a run's screen), where it is a circle. */
   tile?: FaceTile;
+  /** A person's circle in one of four soft hues, its initials in the hue's ink (the thread's head; faceTileOf picks it). */
+  hue?: FaceTile;
 } & FaceSpan;
 
 /** A picture that does not load stands aside, and the initials under it show again, as People's row does. */
@@ -121,11 +129,15 @@ export function Face({
   priority,
   pick,
   tile,
+  hue,
   className,
   ...span
 }: FaceProps) {
   const held = heldOf({ initials, glyph, person });
-  const classes = cx(faceClasses({ holds: held.glyph === undefined ? "initials" : "glyph", size, tile }), className);
+  const classes = cx(
+    faceClasses({ holds: held.glyph === undefined ? "initials" : "glyph", size, tile, hue }),
+    className,
+  );
   return (
     <span
       {...(held.nameless ? { title: NO_NAME_YET } : {})}
