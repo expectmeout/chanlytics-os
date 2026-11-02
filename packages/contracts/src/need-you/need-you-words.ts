@@ -117,6 +117,8 @@ export const NEED_YOU_WORDS = {
     title: "Ask found",
     ideas: (n: number, first: string) => (n === 1 ? first : `${n} ideas`),
     calls: (n: number) => (n === 1 ? "a call worth a listen" : `${n} calls worth a listen`),
+    /** Over what came of the ideas approved lately, under the ideas still open. */
+    cameOf: "What came of it",
   },
   /**
    * A call's notes, for the member on the call and never sent: its head, then each part on a key column. "Find out", not
@@ -178,10 +180,14 @@ export const NEED_YOU_WORDS = {
   /** An idea of Ask's morning: its tag, its presses, and Details, which a new campaign's rules fold behind. */
   idea: {
     tag: "Ask's idea",
+    /** What Ask noticed from the workspace's own facts (decision 0087): no idea of a model's, so it says so. */
+    noticed: "Ask noticed",
     notToday: "Not today",
     openInAsk: "Open in Ask",
     approve: "Approve",
     gone: "Not today",
+    /** A press refused because what the idea was about has moved on: nothing more to do here. */
+    moved: "Already changed",
     details: "Details",
   },
   /**

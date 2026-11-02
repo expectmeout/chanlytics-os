@@ -44,6 +44,8 @@ export const PAGE_HEARS: Readonly<Record<string, Readonly<Record<string, PageCel
     reach_out_replies: true,
     setup: true,
     today_pins: true,
+    // What Ask noticed, and the cards about a batch: a batch or a sequence that moved (decision 0087).
+    ask_morning: true,
     people: ["person"],
   },
   inbox: { inbox: true },

@@ -2,14 +2,19 @@
  * Need you's parts around its rows (the redesign of 1 Nov 2026): each group under its own small head (Up next, Waiting on
  * you, Your OK, Over a week; contracts need-you-groups.ts), the old ones let go at once with Mark all done, asked first;
  * and at its foot, a line each that opens in place, To do (your own: the steps due, yesterday's visits to mark, the reviews
- * to answer) and Ask found (Ask's ideas from its morning, a call worth a listen, a lead who tried their preview). Neither
+ * to answer) and Ask found (what Ask noticed, its ideas from its morning, a call worth a listen, a lead who tried their
+ * preview). Neither
  * line is in the count of who needs you, and each says what it holds before it is opened, so the page stays a summary.
  */
 import { useEffect, useId, useState, type ReactNode } from "react";
 import {
+  ASK_FOUND_VIEW,
   NEED_YOU_WORDS as W,
+  restedWith,
   type AppointmentWord,
+  type AskLately,
   type AskMorningCard,
+  type AskRested,
   type TodayQueueRowVM,
 } from "@chanlytics/contracts";
 import { refreshSurfaces } from "@/legacy-bridge/surface-runner";
@@ -18,6 +23,7 @@ import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
 import { Panel } from "../../kit/panel/panel";
+import { saveView } from "../../people/people-detail";
 import { surfaceValue } from "../../surface-values";
 import { useSurface } from "../../use-surface";
 import { askMorningOverride } from "../ask-morning-surface";
@@ -251,11 +257,30 @@ function useMorningWait(writing: boolean) {
   }, [writing]);
 }
 
+/** What came of the ideas approved lately, under those still open: nothing to press, and nothing the count holds. */
+function CameOf({ rows }: { rows: readonly AskLately[] }) {
+  if (!rows.length) return null;
+  return (
+    <div className="ny-came" data-testid="today-found-came">
+      <span className="ny-group-title">{W.found.cameOf}</span>
+      <dl className="ny-idea-rows">
+        {rows.map((r) => (
+          <div key={r.title}>
+            <dt>{r.title}</dt>
+            <dd>{r.said}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
 /**
- * Ask found, as a line at Need you's foot that opens in place: Ask's ideas from its morning (decision 0071; each with its
- * Approve, Open in Ask and Not today, idea-work.tsx), the calls worth a listen and the leads who tried their preview (the
- * queue's rows of no work, each with its one door). An idea approved or set aside leaves the morning's next read: it is
- * kept in its place for the visit. Never in the count of who needs you, never the coral.
+ * Ask found, as a line at Need you's foot that opens in place: what Ask noticed from the workspace's own facts (decision
+ * 0087), first, then its ideas from its morning (decision 0071; each with its Approve, Open in Ask and Not today,
+ * idea-work.tsx), the calls worth a listen and the leads who tried their preview (the queue's rows of no work, each with
+ * its one door). An idea approved or set aside leaves the next read: it is kept in its place for the visit. Never in the
+ * count of who needs you, never the coral.
  */
 export function AskFoundLine({
   found,
@@ -271,9 +296,11 @@ export function AskFoundLine({
   useMoved(["ask_morning"]);
   const [kept, setKept] = useState<readonly AskMorningCard[]>([]);
   const [open, setOpen] = useState(false);
+  // The rests pressed this visit: a second before the next read writes over the first's, not the read's.
+  const [rests, setRests] = useState<AskRested | null>(null);
   const morning = surfaceValue("ask_morning")?.dto ?? null;
   useMorningWait(morning?.state === "writing");
-  const read = morning?.offered ? morning.cards : [];
+  const read = morning?.offered ? [...(morning.findings ?? []), ...morning.cards] : [];
   const ideas = [...kept, ...read.filter((c) => !kept.some((k) => k.id === c.id))];
   const tried = found.filter((r) => r.kind === "tried").length;
   const count = ideas.length + calls + tried;
@@ -292,6 +319,13 @@ export function AskFoundLine({
     kept: new Set([...ctx.kept, ...kept.map((k) => k.id)]),
     keepIdea: (card) => setKept((was) => (was.some((k) => k.id === card.id) ? was : [...was, card])),
     keepReview: () => undefined,
+    restFinding: async (card) => {
+      if (!morning) return;
+      const rested = restedWith(rests ?? morning.rested ?? {}, card.id, morning.day);
+      setRests(rested);
+      const r = await saveView(ASK_FOUND_VIEW, { rested });
+      if (!r.ok) ctx.flash({ tone: "danger", msg: <>{r.message}</> });
+    },
   };
   return (
     <div className="ny-more" data-testid="today-found-line">
@@ -308,6 +342,7 @@ export function AskFoundLine({
         <div className="tq-list" data-testid="today-ask-found">
           {ideaRows(ideas, { messageId: morning?.message_id ?? null, threadId: morning?.thread_id ?? null }, extras)}
           {needYouRows(found, extras)}
+          <CameOf rows={morning?.lately ?? []} />
         </div>
       ) : null}
     </div>

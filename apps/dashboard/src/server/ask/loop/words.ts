@@ -37,6 +37,7 @@ export function wordsBlock(
     spoken: input.spoken ?? false,
     column: input.column ?? null,
     style: input.style ?? "",
+    lately: input.lately ?? "",
     above: aboveRoleWords(input.role),
   };
   // The search card waiting in this thread for its press, said whole as find would take its plan (contracts

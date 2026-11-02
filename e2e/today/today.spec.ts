@@ -37,6 +37,7 @@ test.describe("Today on a real workspace", () => {
       expect((await row.locator(".cl-attn-sentence").innerText()).trim().length).toBeGreaterThan(0);
       const id = (await row.getAttribute("data-testid")) ?? "";
       if (id === "queue-idea") await expect(row.locator(".cl-attn-meta")).toHaveText("Ask's idea");
+      else if (id === "queue-finding") await expect(row.locator(".cl-attn-meta")).toHaveText("Ask noticed");
       else if (WAITING.includes(id)) {
         await expect(row.locator(".cl-attn-wait")).toHaveCount(1);
         await expect(row.locator(".cl-attn-status")).toHaveCount(0);

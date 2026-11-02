@@ -134,7 +134,7 @@ export type { MetricsChannelDto, MetricsSummaryDto, TodayBookedDto, TodayBooking
 export { todayPeriodLine } from "./today-period";
 export { isHoldRow, isPersonRow, namesAPerson } from "./today-queue";
 export { NO_REPLY_AFTER_MS } from "./today-rows";
-export { todayLateRunsSub, todayRunApproved, todayRunsSub, todayRunWords } from "./today-runs";
+export { batchFactsOf, todayLateRunsSub, todayRunApproved, todayRunsSub, todayRunWords } from "./today-runs";
 export type { RunLike, TodayRunWordsVM } from "./today-runs";
 export { todaySteps, todayStepsSub, withSteps } from "./today-steps";
 export type { TodayStepsVM, TodayStepVM } from "./today-steps";

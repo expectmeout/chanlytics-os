@@ -237,6 +237,34 @@ export async function sequenceOverview(db: Db, tenantId: string, sequenceId?: st
   return withReadyCounts(db, tenantId, readerRowsOf<SequenceRowDto>(data));
 }
 
+/** A sequence running now, as what Ask notices reads it (decision 0087). */
+export interface SequenceGlance {
+  id: string;
+  name: string;
+  state: string;
+  mode: string | null;
+  first: { id: string } | null;
+}
+
+/**
+ * The sequences running now and each one's first step, under the caller's row security: all a fold over their batches needs,
+ * without the counts, lists and searches sequence_overview joins for the Sequences list. A read that fails throws.
+ */
+export async function sequencesAtAGlance(db: Db, tenantId: string): Promise<SequenceGlance[]> {
+  const [sequences, steps] = await Promise.all([
+    db.from("sequences").select("id, name, state, mode").eq("tenant_id", tenantId).eq("state", "on"),
+    db.from("sequence_steps").select("id, sequence_id, place").eq("tenant_id", tenantId).order("place"),
+  ]);
+  if (sequences.error) throw new Error(`cannot read the sequences: ${sequences.error.message}`);
+  if (steps.error) throw new Error(`cannot read their steps: ${steps.error.message}`);
+  const first = new Map<string, string>();
+  for (const step of steps.data ?? []) if (!first.has(step.sequence_id)) first.set(step.sequence_id, step.id);
+  return (sequences.data ?? []).map((s) => {
+    const id = first.get(s.id);
+    return { ...s, first: id ? { id } : null };
+  });
+}
+
 /**
  * The sequence a part of it belongs to, by the part's id: a batch's (a run's address, broadcasts/run:<id>) or a step's.
  * An address that names a part opens its sequence, which then names its own. Null where no part of this workspace has

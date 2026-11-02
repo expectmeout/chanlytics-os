@@ -38,6 +38,46 @@ export interface RunLike {
   offered?: string | null;
 }
 
+/**
+ * What a batch to leads waiting for an OK can say for itself, off the runs the page holds: when its first email goes, and
+ * what the sequence's last batch earned. Either is null where the page has no true word for it.
+ */
+export interface BatchFacts {
+  /** "today 10:40 AM": null once that time has passed, since the clock plans its sends again after an OK. */
+  firstGoes: string | null;
+  /** Null before its first batch has sent, or where that batch is older than the runs the page holds. */
+  last: { sent: number; replied: number } | null;
+}
+
+/** A run as batchFactsOf reads it, the waiting one and those beside it. */
+type BatchRun = Pick<RunLike, "counts" | "when"> & {
+  id: string;
+  sequence_id: string;
+  scheduled_for: string;
+  started_at: string | null;
+  created_at: string;
+};
+
+/** A batch's facts: the newest other batch of its sequence that sent anything is its last. */
+export function batchFactsOf(run: BatchRun, runs: readonly BatchRun[], nowMs: number): BatchFacts {
+  const [last] = runs
+    .filter((r) => r.id !== run.id && r.sequence_id === run.sequence_id && r.counts.sent > 0)
+    .sort((a, b) => (b.started_at ?? b.created_at).localeCompare(a.started_at ?? a.created_at));
+  return {
+    firstGoes: Date.parse(run.scheduled_for) > nowMs ? run.when : null,
+    last: last ? { sent: last.counts.sent, replied: last.counts.replied } : null,
+  };
+}
+
+/**
+ * A batch's facts as its row says them: "Waits for your OK; the first goes today 10:40 AM. Last batch: 20 sent, 3 replied."
+ * It says your OK either way, since a phone draws no state line under it: with no time to name, how its wait ends says it.
+ */
+function batchSaid(f: BatchFacts, ends: string): string {
+  const waits = f.firstGoes ? `Waits for your OK; the first goes ${f.firstGoes}.` : `${ends}.`;
+  return f.last ? `${waits} Last batch: ${f.last.sent} sent, ${f.last.replied} replied.` : waits;
+}
+
 export interface TodayRunWordsVM {
   /** "3 people" */
   people: string;
@@ -68,9 +108,9 @@ export interface TodayRunWordsVM {
  * them (dashboard-a-command.jsx, dashboard-a-brief.jsx); the rule that a number's sentence lives in contracts was
  * stated in this file's own header and enforced next door on Reports. The page keeps deciding WHICH rows wait, are
  * scheduled or went out today; it composes none of their words. The words are sentences now ("3 people. Nothing
- * sends until you say so."), where the page had a middle dot and no capital.
+ * sends until you say so."), where the page had a middle dot and no capital. `facts` is a batch's own row's alone.
  */
-export function todayRunWords(r: RunLike): TodayRunWordsVM {
+export function todayRunWords(r: RunLike, facts?: BatchFacts): TodayRunWordsVM {
   // A reach-out's run writes to businesses a search found, not to people the workspace knows (Reach out Part 5, PR 8).
   const reach = isReachOutRun(r.audience);
   const one = r.recipient_count === 1;
@@ -90,7 +130,7 @@ export function todayRunWords(r: RunLike): TodayRunWordsVM {
   // A freed time's run says the time first, and why these people (0082): they asked and never booked.
   const waiting = r.offered
     ? `${capitalize(r.offered)} opened. ${people} asked this month and never booked. ${ends}.`
-    : `${people}. ${ends}.`;
+    : `${people}. ${facts ? batchSaid(facts, ends) : `${ends}.`}`;
   const took = typeof r.counts.took === "number" ? `, ${r.counts.took} took it` : "";
   return {
     people,

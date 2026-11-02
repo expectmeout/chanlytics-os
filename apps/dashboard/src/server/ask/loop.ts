@@ -150,6 +150,8 @@ export interface TurnInput {
   column?: AskColumn | null;
   /** How they like answers, their own note (contracts answerStyleOf): said in the turn's words; "" or none, nothing. */
   style?: string;
+  /** What the mornings offered lately (contracts latelySaid): said in a morning's words; "" or none, nothing. */
+  lately?: string;
   /** How long after the thread's previous turn this question came; null on a thread's first. */
   sinceLastMs?: number | null;
   /**

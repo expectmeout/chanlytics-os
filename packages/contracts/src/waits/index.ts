@@ -20,6 +20,7 @@ export type { WaitRowOf } from "./wait-rows";
 export { heldReplyNotice, WAIT_ACT_WORDS, WAIT_KINDS, WAIT_RULES, waitEndsWords, waitRuleOf } from "./wait-rules";
 export type { WaitKind, WaitRule } from "./wait-rules";
 export {
+  batchHeldEmails,
   needsYouCount,
   runDecidedOnItsPage,
   runDraftedEmails,

@@ -68,6 +68,20 @@ test("REGRESSION (D12): past fifty broadcasts the list says more exist -- the pa
   assert.equal(few.more, false);
 });
 
+test("a batch to leads waiting for an OK says how many emails the check holds, a zero too, and no other run is counted", async () => {
+  const reachOut = { kind: "reach_out", root_id: "r1", label: "Movers" };
+  const held = (id, batch_id) => ({ id, tenant_id: TID, batch_id, broadcast_id: batch_id, state: "held" });
+  const tables = world(3);
+  tables.broadcasts[0] = { ...tables.broadcasts[0], state: "pending_approval", audience: reachOut };
+  tables.broadcasts[1] = { ...tables.broadcasts[1], state: "pending_approval", audience: reachOut };
+  tables.sequence_sends = [held("s1", "b000"), held("s2", "b000")];
+  const { broadcasts } = await listBroadcasts({ supabase: fakeDb(tables) }, TID);
+  const byId = new Map(broadcasts.map((b) => [b.id, b]));
+  assert.equal(byId.get("b000").held, 2);
+  assert.equal(byId.get("b001").held, 0, "one with none held says so");
+  assert.equal(byId.get("b002").held, undefined, "a run that has gone is not counted");
+});
+
 /* ------------------------- a run's people, past a thousand ------------------------- */
 
 /** PostgREST's `api.max_rows` (supabase/config.toml), which the double keeps by default: a select answers at most a thousand rows, and says nothing. */

@@ -263,6 +263,31 @@ export async function waitingRunsOf(db: Db, tenantId: string): Promise<WaitingRu
   return [...(pending.data ?? []), ...holding].sort((a, b) => b.created_at.localeCompare(a.created_at));
 }
 
+/** The state of each of these batches, by id, on the session's client: what a card about one is checked against. */
+export async function batchStatesOf(db: Db, tenantId: string, ids: readonly string[]): Promise<Map<string, string>> {
+  if (ids.length === 0) return new Map();
+  const { data, error } = await db
+    .from("sequence_batches")
+    .select("id, state")
+    .eq("tenant_id", tenantId)
+    .in("id", [...ids]);
+  if (error) throw new Error(`cannot read the batches' states: ${error.message}`);
+  return new Map((data ?? []).map((b) => [b.id, b.state]));
+}
+
+/** Which of these sends the check still holds, on the session's client: what a card about one is checked against. */
+export async function heldSendsOf(db: Db, tenantId: string, ids: readonly string[]): Promise<Set<string>> {
+  if (ids.length === 0) return new Set();
+  const { data, error } = await db
+    .from("sequence_sends")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("state", "held")
+    .in("id", [...ids]);
+  if (error) throw new Error(`cannot read the held sends: ${error.message}`);
+  return new Set((data ?? []).map((s) => s.id));
+}
+
 /** A run set to go, as Going today reads it (decision 0064): when it goes, and what names it. */
 export interface GoingRunRow {
   id: string;

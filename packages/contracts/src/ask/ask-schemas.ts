@@ -43,6 +43,8 @@ export const AskProposalOutcomeSchema = z.object({
     .object({ kind: z.string().min(1).max(40), id: z.string().min(1).max(120) })
     .nullable()
     .catch(null),
+  // A press refused because what the card is about moved on (AskProposalOutcome.moved): it is not offered again.
+  moved: z.boolean().optional().catch(undefined),
 });
 
 /** A calendar day, YYYY-MM-DD: a closure's first and last, and a note's last. Its shape alone; the save judges the rest. */

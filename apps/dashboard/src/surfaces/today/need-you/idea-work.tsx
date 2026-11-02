@@ -51,6 +51,8 @@ export function IdeaWork(
     threadId: string | null;
     keep: () => void;
     nav: (to: string) => void;
+    /** Sets the idea aside where no turn holds it (what Ask noticed, decision 0087); else Not today is kept on its turn. */
+    rest?: () => Promise<void> | undefined;
   },
 ) {
   const { card, messageId, threadId, main, flash } = p;
@@ -71,8 +73,16 @@ export function IdeaWork(
     const atMs = Date.now();
     setBusy(false);
     if (!r.ok) {
-      void keptOnTurn(messageId, card, { state: "failed", receipt: r.message, atMs, undo: null });
+      void keptOnTurn(messageId, card, {
+        state: "failed",
+        receipt: r.message,
+        atMs,
+        undo: null,
+        ...(r.moved ? { moved: true } : {}),
+      });
       flash({ tone: "danger", msg: <>{r.message}</> });
+      // What it was about has moved on, so no second press could do it: the row says so and takes no more.
+      if (r.moved) setSaid({ words: W.idea.moved, tone: "rest", undo: null });
       return;
     }
     setSaid({ words: r.receipt, tone: "ok", undo: r.undo ?? null });
@@ -95,6 +105,10 @@ export function IdeaWork(
     if (busy) return;
     p.keep();
     setSaid({ words: W.idea.gone, tone: "rest", undo: null });
+    if (p.rest) {
+      await p.rest();
+      return;
+    }
     await keptOnTurn(messageId, card, {
       state: "dismissed",
       receipt: ASK_MORNING_WORDS.dismissed,

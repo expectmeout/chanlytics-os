@@ -48,7 +48,7 @@ import { isRefusal, saidHere, specOf, undoVerb, walkVerb } from "../verbs/commit
 /** What a commit did: its receipt, what its undo keeps, and the id it made that a later step of a plan names, or null. */
 export type CommitResult =
   | { ok: true; receipt: string; undo: Record<string, unknown> | null; made: { kind: string; id: string } | null }
-  | { ok: false; message: string };
+  | { ok: false; message: string; moved?: boolean };
 
 /** What an undo did: its receipt, and nothing further to undo or to name. */
 export type UndoResult = { ok: true; receipt: string; undo: null } | { ok: false; message: string };
@@ -110,8 +110,11 @@ export async function commitProposal(
   const key = card.plan ? stepKey(card.plan) : card.id;
   const r = await walkVerb(card, { win, client, key, via: "ask" });
   // A door's refusal is the card's answer whole: the kind of no beside the server's own sentence (refusals-in-our-words);
-  // the walk's own (nothing sent) is its words.
-  if (!r.ok) return saidHere(r) ? { ok: false, message: r.message } : r;
+  // the walk's own (nothing sent) is its words. A 404 or a 409 says what the card is about has moved on.
+  if (!r.ok) {
+    if (saidHere(r)) return { ok: false, message: r.message };
+    return r.status === 404 || r.status === 409 ? { ...r, moved: true } : r;
+  }
   return { ok: true, receipt: r.receipt, undo: r.undo, made: r.made ? { kind: card.kind, id: r.made } : null };
 }
 

@@ -711,3 +711,99 @@ test("while someone waits on you, what is left to set up stands under the queue,
   setSurfaceValue("today", { ...quiet, needsYou: { ...quiet.needsYou, count: 3, holds: 3, sends: 0 } });
   assert.deepEqual(work(), ["AgentCommand", "today-setting-up"], "the queue counts them");
 });
+
+/** A batch to leads waiting for an OK, as the broadcasts surface holds it, or one beside it. */
+const leadBatch = (over = {}) => ({
+  id: "b-lead",
+  state: "pending_approval",
+  sequence_id: "seq-1",
+  playbook_id: null,
+  name: "Movers nearby",
+  audience: { kind: "reach_out", label: "Movers nearby" },
+  recipient_count: 17,
+  held: 2,
+  scheduled_for: new Date(Date.now() + 3_600_000).toISOString(),
+  when: "today 6:00 PM",
+  started_at: null,
+  created_at: "2026-09-06T10:00:00Z",
+  counts: { sent: 0, replied: 0 },
+  ...over,
+});
+
+test("a batch to leads says when it goes and what the last earned, offers no Approve, and its Decide opens the emails an OK does not send", () => {
+  globalThis.window.__BROADCASTS = {
+    rows: [
+      leadBatch(),
+      leadBatch({
+        id: "b-old",
+        state: "sent",
+        held: 0,
+        started_at: "2026-09-01T10:00:00Z",
+        counts: { sent: 20, replied: 3 },
+      }),
+    ],
+  };
+  try {
+    const row = find(
+      mountQueue(toTodayVM(metrics(), [], [], [], NOW)),
+      (n) => n.props?.["data-testid"] === "brief-run-row",
+    );
+    assert.ok(row, "the batch is a row");
+    const said = textOf(row);
+    assert.match(
+      said,
+      /17 businesses. Waits for your OK; the first goes today 6:00 PM. Last batch: 20 sent, 3 replied./,
+    );
+    assert.deepEqual(buttonsSaying(row, "Approve"), [], "a batch to leads is never approved from a row");
+    went.length = 0;
+    buttonsSaying(row, "Decide 2")[0].props.onClick();
+    assert.deepEqual(went, ["campaigns/sequences/seq-1/people"]);
+  } finally {
+    globalThis.window.__BROADCASTS = undefined;
+  }
+});
+
+test("Ask found opens on what Ask noticed, tagged as no idea of a model's, and says what came of an idea approved", () => {
+  const noticed = {
+    id: "finding-fell-seq-1",
+    kind: "fix",
+    needs: "operator",
+    title: "Replies fell on Movers nearby",
+    summary: "1 of 20 replied.",
+    line: "1 of 20 replied.",
+    payload: { door: "Look at it", to: "campaigns/sequences/seq-1" },
+    undo: null,
+  };
+  setSurfaceValue("ask_morning", {
+    fetchedAt: Date.now(),
+    dto: {
+      day: "2026-09-06",
+      state: "quiet",
+      offered: true,
+      thread_id: null,
+      message_id: null,
+      headline: "",
+      detail: "",
+      cards: [],
+      findings: [noticed],
+      rested: {},
+      lately: [{ title: "Find gyms", said: "Found 40 gyms" }],
+    },
+  });
+  try {
+    const tree = mountQueue(toTodayVM(metrics(), [], [], [], NOW));
+    find(tree, (n) => n.props?.["data-testid"] === "today-found-open").props.onClick();
+    const open = again(() => AgentCommand());
+    const row = find(open, (n) => n.props?.["data-testid"] === "queue-finding");
+    assert.ok(row, "what Ask noticed is a row of its own");
+    assert.match(textOf(row), /Ask noticed/);
+    assert.equal(buttonsSaying(row, "Look at it").length, 1, "its door, never an Approve");
+    assert.equal(buttonsSaying(row, "Approve").length, 0);
+    assert.match(
+      textOf(find(open, (n) => n.props?.["data-testid"] === "today-found-came")),
+      /Find gyms.*Found 40 gyms/,
+    );
+  } finally {
+    setSurfaceValue("ask_morning", undefined);
+  }
+});

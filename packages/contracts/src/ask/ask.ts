@@ -365,6 +365,11 @@ export interface AskProposalOutcome {
    * it made nothing a token names.
    */
   made?: { kind: string; id: string } | null;
+  /**
+   * A press the door refused because what the card is about has moved on (its 404 or 409): failed, and never offered
+   * again, since no second press can do what the first could not. Absent on any other outcome.
+   */
+  moved?: boolean;
 }
 
 /** How long a committed card's undo stays open, for every verb whose route sets no window of its own (askUndoOpen). */
