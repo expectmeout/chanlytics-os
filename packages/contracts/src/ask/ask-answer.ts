@@ -10,11 +10,13 @@ import {
   answerChart,
   answerDoors,
   answerText,
+  chartSaid,
   cleanAnswer,
   firstSentence,
   navigateLabel,
   opensWithBlock,
   sameQuestion,
+  storedChart,
   type AskChart,
   firstJsonValue,
 } from "./answer-text";
@@ -105,7 +107,8 @@ export const ASK_ANSWER_CAPS = {
   figures: 4,
   items: 5,
   parts: 4,
-  points: 12,
+  points: 31,
+  series: 3,
   entries: 25,
   entry: 240,
   next: 2,
@@ -125,7 +128,9 @@ const noList = (): AskList => ({ style: "bullets", entries: [] });
 
 /** An answer as it was stored, whole: one stored before the list part has none, and reads as having no list. */
 export function storedAnswer(a: AskAnswer): AskAnswer {
-  return a.show.list ? a : { ...a, show: { ...a.show, list: noList() } };
+  const c = a.show.chart;
+  if (a.show.list && (!c || c.series)) return a;
+  return { ...a, show: { ...a.show, ...(c ? { chart: storedChart(c) } : {}), list: a.show.list ?? noList() } };
 }
 
 /** `t`, at most n characters: a longer one ends on a whole word, with an ellipsis. */
@@ -136,11 +141,7 @@ const cutAt = (t: string, n: number) => {
   return `${(space > n / 2 ? cut.slice(0, space) : cut).trimEnd()}…`;
 };
 
-/**
- * One line of words in at most n characters; a longer one ends on a whole word, with an ellipsis. Every part of an
- * answer but the detail is cut by it, and so is every part of an earlier answer's line in a cold turn's history
- * (server/ask/prompt.ts).
- */
+/** One line of words, cut by cutAt: every part of an answer but the detail, and an earlier one's in a cold history. */
 export const clip = (s: string | null | undefined, n: number) => cutAt((s ?? "").replace(/\s+/g, " ").trim(), n);
 
 /**
@@ -695,7 +696,7 @@ export function answerWords(a: AskAnswer): string {
           ...a.show.breakdown.parts.flatMap((p) => [p.label, String(p.value)]),
         ]
       : []),
-    ...(a.show.chart ? [a.show.chart.label, ...a.show.chart.points.flatMap((p) => [p.label, String(p.value)])] : []),
+    ...(a.show.chart ? chartSaid(a.show.chart) : []),
     ...a.show.list.entries,
   ]
     .filter(Boolean)

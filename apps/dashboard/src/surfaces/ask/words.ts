@@ -19,6 +19,9 @@ const ASK_TEXT = {
     copied: "Copied",
     open: "Open",
     from: "From",
+    // The first column of a chart's table: a point in time, or a thing compared.
+    chartWhen: "When",
+    chartName: "Name",
     needsQ: "Who needs me right now?",
     // On Leads (spec F3): the field's placeholder, the section's label and the consent rule under its chips.
     describeLeads: "Describe the businesses you want",
@@ -149,6 +152,8 @@ const ASK_TEXT = {
     copied: "Copiado",
     open: "Abrir",
     from: "De",
+    chartWhen: "Cuándo",
+    chartName: "Nombre",
     needsQ: "¿Quién me necesita ahora?",
     describeLeads: "Describe los negocios que quieres",
     describeCampaigns: "Describe qué debe salir, y cuándo",

@@ -26,6 +26,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
 import { QUIET } from "../reports/people/_people-world.mjs";
 import { QUIET as CAMPAIGNS_QUIET } from "../reports/campaigns/_campaign-world.mjs";
+import { withoutWholeDays } from "./charts/_whole-days.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -1325,7 +1326,7 @@ test("every old tool's call, made by its new name and action, answers the bytes 
       continue;
     }
     const call = renamed(old, input);
-    const got = withoutPersonState(old, await answer(call.name, call.input, role));
+    const got = withoutWholeDays(NAMES[old], withoutPersonState(old, await answer(call.name, call.input, role)));
     // 2 Oct 2026: a moment no longer offered for a new playbook (contracts MOMENTS_RETIRED) is not one of the tool's
     // triggers: the schema refuses it, naming the ones that are, before anything is read (the check refuses it in the
     // moment's own words if it gets that far, which core-campaigns.test.mjs runs).
@@ -1394,9 +1395,8 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     const needs = act && call.input.action ? PROPOSAL_SPECS[act.kind].needs : null;
     if (needs && !roleAtLeast(role, needs))
       result = JSON.stringify({ error: `${call.name}: action ${call.input.action} is ${WHOSE[needs]}` });
-    // The threads' messages are one call since 00258: the conversations reader read the table a page at a time, and
-    // reads each thread's newest through newest_messages. The old tools that read through it made that read, and no
-    // other of the table: the one change to the reads, with the bytes unchanged.
+    // The threads' messages are one call since 00258 (newest_messages): the old tools that read through the conversations
+    // reader made that read, and no other of the table: the one change to the reads, with the bytes unchanged.
     const reads00 = THROUGH_THE_HUNDRED.has(old)
       ? want.reads.map((r) => (r === "messages.select" ? "rpc:newest_messages" : r))
       : want.reads;
