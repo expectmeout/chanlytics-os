@@ -35,6 +35,7 @@ const L = "../../../../apps/dashboard/src/legacy";
 const S = "../../../../apps/dashboard/src/surfaces";
 const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
 const { sequenceVerbs } = await import(`${S}/campaigns/sequences/verbs.ts`);
+const { reachOuts } = await import(`${S}/campaigns/reach-out/surface.ts`);
 const { Sheet } = await import(`${S}/kit/sheet/sheet.tsx`);
 const { EmailAs } = await import(`${S}/campaigns/sequences/place/email-as.tsx`);
 const { useLeadChain } = await import(`${S}/campaigns/sequences/leads/use-chain.ts`);
@@ -255,19 +256,18 @@ const rewriteAnswers = (data) => {
   const saves = answer;
   answer = (call) => (call[1] === `sequences/${SEQ}/rewrite` ? { ok: true, data } : saves(call));
 };
-/** The rewrite's answer held back until the function this returns is called, for one test. */
-const holdRewrite = (t) => {
-  let release;
-  const held = new Promise((r) => (release = r));
-  const wired = W.fetch;
-  W.fetch = async (url, init) => {
-    if (String(url).endsWith("/rewrite")) await held;
-    return wired(url, init);
-  };
+/**
+ * The rewrite's answer in the test's hands, for one test: it lands when the function this returns is called, so what stands
+ * while it is out never rests on how long a response takes to read, which Node 22 and Node 24 do not agree on.
+ */
+const rewriteHeld = (t, data) => {
+  const { promise, resolve } = Promise.withResolvers();
+  const asked = reachOuts.rewrite;
+  reachOuts.rewrite = () => promise;
   t.after(() => {
-    W.fetch = wired;
+    reachOuts.rewrite = asked;
   });
-  return release;
+  return () => resolve({ ok: true, status: 200, data });
 };
 
 test("Ask rewrites it asks what should change in the sheet, the email in sight: the words go to the rewrite, and the answer stands in the box", async () => {
@@ -362,14 +362,13 @@ test("the email is not typed into while it is written again, and an empty line a
   assert.equal(wire.filter(([, p]) => p === `sequences/${SEQ}/rewrite`).length, 0);
 
   byTestId(tree, "ld-rewrite-change").props.onValueChange("Warmer");
-  rewriteAnswers({ subject: "Hi", body: "{{opening}}\n\nHello.", cannot: null });
-  const release = holdRewrite(t);
+  const land = rewriteHeld(t, { subject: "Hi", body: "{{opening}}\n\nHello.", cannot: null });
   press(byTestId(sheetOf(drawStep(1)), "ld-rewrite-go"));
   await settle();
   const busy = sheetOf(drawStep(1));
   assert.equal(byTestId(busy, "ld-body").props.readOnly, true);
   assert.equal(byTestId(busy, "ld-rewrite-go").props["aria-busy"], true);
-  release();
+  land();
   await until(() => {
     drawStep(1);
     return lc.draft.steps[0].body === "{{opening}}\n\nHello.";
@@ -378,19 +377,15 @@ test("the email is not typed into while it is written again, and an empty line a
 
 test("a sheet closed while it is written leaves the email alone", async (t) => {
   const tree = askToChange(1, "Warmer");
-  rewriteAnswers({ subject: "Hi", body: "{{opening}}\n\nHello.", cannot: null });
-  const release = holdRewrite(t);
+  const land = rewriteHeld(t, { subject: "Hi", body: "{{opening}}\n\nHello.", cannot: null });
   press(byTestId(tree, "ld-rewrite-go"));
-  const closedSheet = () => again(() => W.React.createElement(Build, { rec: REC, place: null, onClose: () => {} }));
-  // The stub lets a part go on the draw after the one that left it out: the answer lands once it has gone.
-  closedSheet();
-  closedSheet();
-  release();
-  await until(() => wire.some(([, p]) => p === `sequences/${SEQ}/rewrite`), "the rewrite was answered");
+  const edits = [];
+  lc.edit = (change) => edits.push(change);
+  // The sheet gone, as React lets it go: a part the stub simply stops drawing keeps its cells and runs no cleanup.
+  unmount();
+  land();
   await settle();
-  await settle();
-  closedSheet();
-  assert.equal(lc.draft.steps[0].body, "{{opening}}\n\n{{your name}}");
+  assert.deepEqual(edits, [], "the answer has nowhere to land");
 });
 
 /* ---------------------------------------------------------------- the preview */
