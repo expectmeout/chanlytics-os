@@ -33,6 +33,7 @@ import {
   cardOpenRoute,
   emptyReadSet,
   groundCitations,
+  isTypingTarget,
   normalizeAnswer,
   LeadSearchPlanSchema,
   leadQuestionRoute,
@@ -2031,6 +2032,113 @@ test("a desk's panel keeps the keys pressed in it, lets the shell's chords by, a
   key("Escape");
   assert.equal(closed, 1, "Esc closes it");
   await closes();
+});
+
+/** The Line open, and how many times it was closed. */
+const lineCounted = async () => {
+  ask([]);
+  globalThis.window.__chrome = { typing: (t) => isTypingTarget(t?.tagName, !!t?.isContentEditable) };
+  const line = { closed: 0 };
+  const props = { open: true, onClose: () => (line.closed += 1) };
+  render(Palette, props);
+  line.tree = await later(Palette, props);
+  line.again = () => later(Palette, props);
+  line.redraw = () => draw(Palette, props);
+  return line;
+};
+/** Where a key was pressed in the page: a row, unless a case says otherwise. */
+const inPage = (over = {}) => ({ nodeType: 1, tagName: "TR", ...over });
+/** An Esc pressed outside the panel: the window hears it, from where it was pressed. */
+const escBeside = (target = inPage(), took = false) =>
+  globalThis.window.dispatchEvent({ ...pressOf("Escape"), type: "keydown", target, defaultPrevented: took });
+
+test("a desk's Ask closes on an Esc pressed in the page beside it: focus on a row, or on nothing yet", async () => {
+  const line = await lineCounted();
+  escBeside();
+  assert.equal(line.closed, 1, "focus on a row in the page");
+  escBeside(inPage({ tagName: "BODY" }));
+  assert.equal(line.closed, 2, "the moment after F opened it, before focus reached the field (the nightly's race)");
+  await closes();
+});
+
+test("what the page has open takes an Esc before a desk's Ask does, one press at a time", async () => {
+  const line = await lineCounted();
+  escBeside(inPage(), true);
+  assert.equal(line.closed, 0, "the page took it: a peek, the plan panel, the pile, a selection (spec F7)");
+  escBeside(inPage({ tagName: "INPUT" }));
+  assert.equal(line.closed, 0, "a field in the page keeps its own Esc");
+  const found = globalThis.document.querySelector;
+  globalThis.document.querySelector = () => ({});
+  try {
+    escBeside();
+    assert.equal(line.closed, 0, "a sheet or a menu open over the page");
+  } finally {
+    globalThis.document.querySelector = found;
+  }
+  escBeside();
+  assert.equal(line.closed, 1, "with all of that gone, the next Esc is Ask's");
+  await closes();
+});
+
+test("the bar's search line is Ask's own door, not a field of the page's: empty, its Esc closes Ask", async () => {
+  const line = await lineCounted();
+  const barLine = inPage({ tagName: "INPUT", closest: (s) => (s === ".tb-line" ? {} : null) });
+  escBeside(barLine, true);
+  assert.equal(line.closed, 0, "with words in it, the first Esc empties it (its own, topbar.tsx)");
+  escBeside(barLine);
+  assert.equal(line.closed, 1, "with none, there is nothing of the line's to do");
+  await closes();
+});
+
+test("a menu that closes itself on Esc and says nothing keeps that press from Ask, gone before the window hears it", async () => {
+  const line = await lineCounted();
+  const found = globalThis.document.querySelector;
+  let menu = {};
+  globalThis.document.querySelector = () => menu;
+  const shut = () => (menu = null);
+  globalThis.window.addEventListener("keydown", shut);
+  // Ask's own listener goes back on after every draw, so now it hears the key after the menu has gone.
+  line.redraw();
+  try {
+    escBeside();
+    assert.equal(menu, null, "the menu closed itself");
+    assert.equal(line.closed, 0, "and that press was the menu's alone");
+    escBeside();
+    assert.equal(line.closed, 1, "the next one is Ask's");
+  } finally {
+    globalThis.window.removeEventListener("keydown", shut);
+    globalThis.document.querySelector = found;
+  }
+  await closes();
+});
+
+test("an Esc from the page walks Ask as one in its field does: out of Earlier first, then closed", async () => {
+  const line = await lineCounted();
+  cmdJ();
+  line.tree = await line.again();
+  escBeside();
+  await line.again();
+  assert.equal(line.closed, 0, "Earlier steps back to the rows");
+  escBeside();
+  assert.equal(line.closed, 1, "then Ask closes");
+  await closes();
+});
+
+test("a phone's takeover covers the page, so every Esc the window hears is still Ask's", async () => {
+  const mm = globalThis.window.matchMedia;
+  globalThis.window.matchMedia = (q) => ({
+    matches: q === "(max-width: 720px)",
+    addEventListener() {},
+    removeEventListener() {},
+  });
+  try {
+    const line = await lineCounted();
+    escBeside(inPage({ tagName: "INPUT" }));
+    assert.equal(line.closed, 1);
+    await closes();
+  } finally {
+    globalThis.window.matchMedia = mm;
+  }
 });
 
 test("on a touch screen wider than a phone (a tablet at 800px) no field focuses by itself: the Line opens with focus on the dialog, so no keyboard rises until a tap on the field asks for it (Ruben's rule; legacy-verbs focusAsDrawn)", async () => {
