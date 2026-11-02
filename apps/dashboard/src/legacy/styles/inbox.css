@@ -1004,6 +1004,9 @@ a.ix-th-who:active { opacity: 0.72; }
 .tl-msg-body {
   max-width: 100%;
   white-space: pre-line;
+  /* A word with no place to break (a reference, a run of digits, an address spelled out) breaks where it must, and never
+     sets the body's width: a body is as wide as its bubble allows, and no wider. */
+  overflow-wrap: anywhere;
 }
 .tl-msg.client .tl-msg-body {
   color: var(--ink);
@@ -3382,7 +3385,12 @@ html.legacy-on :is(.ix-held-acts, .ix-steer, .ix-composer-drafted, .ix-composer-
   background: var(--bubble-us-bg);
   box-shadow: none;
 }
+/* The words take the card's width, as every part of it does: a body sized to its words was as wide as its longest link,
+   a link that will not wrap and is only cut to the width it is given (.tl-msg-link), so each line ran on past the card
+   and was cut at its edge, the link folded out of sight included ("A conversation was handed to a human 2 hours ago and
+   is", 2 Nov 2026). Stretched, the body is the card's width and the link ends in its ellipsis. */
 .ix-thread-pane .tl-msg.tl-email .tl-msg-body {
+  align-self: stretch;
   padding: 0;
   border: 0;
   border-radius: 0;
