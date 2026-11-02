@@ -275,7 +275,7 @@ test("REGRESSION: a draft waiting to go out is the thread's one state -- 'They w
   assert.equal(find(standing, (n) => n.props?.kind === "tone")?.props.value, "warn");
 });
 
-test("Needs you has one signal: the pill its row wears, and its wait, amber past thirty minutes -- a red flag in a red-outlined card", () => {
+test("Needs you has one signal: the pill lit in the coral, its wait beside it in the quiet ink -- a red flag in a red-outlined card", () => {
   const signal = (min) => {
     const pane = paneOf(vmOf(chat(), asked(min)));
     const standing = find(pane, byTestId("ix-th-standing"));
@@ -288,10 +288,9 @@ test("Needs you has one signal: the pill its row wears, and its wait, amber past
   const late = signal(40);
   assert.deepEqual([late.pill, late.flag], [true, false], "REGRESSION: a red flag");
   assert.equal(textOf(late.wait), "40m");
-  assert.ok(late.wait.props.className.split(" ").includes("late"), "amber past thirty minutes");
-  const soon = signal(12);
-  assert.equal(textOf(soon.wait), "12m");
-  assert.ok(!soon.wait.props.className.split(" ").includes("late"), "and not before");
+  // The number says how long; a second tone beside the coral was a second signal (the thread canvas, 1 Nov 2026).
+  assert.equal(late.wait.props.className, "ix-th-standing-meta tabular", "the wait in the quiet ink");
+  assert.equal(textOf(signal(12).wait), "12m");
 });
 
 /* ------------------------------ the conversation ------------------------------ */

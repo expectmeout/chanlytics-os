@@ -742,7 +742,6 @@ interface Standing {
   meta?: string | null;
   /** What the bare wait means, on a hover ("waiting 40m"). */
   title?: string;
-  late?: boolean;
 }
 
 /** A draft counting down to send, as the head's state says it: the seconds left (none once held) and whether you are away. */
@@ -772,13 +771,13 @@ const ixStanding = (thread: Thread, countdown: Countdown): Standing | null => {
       meta: thread.waited || null,
       title: thread.waited ? `waiting ${thread.waited}` : undefined,
     };
-  // Its wait beside it, amber past half an hour, as the row's is.
+  // Its wait beside it in the quiet mono ink (the canvas's "2h"): the coral pill is the one signal, and the number says
+  // how long.
   if (thread.state === "escalated")
     return {
       pill: <StatePill kind="tone" value="accent" lit label={stateOf("thread", "escalated").label} />,
       meta: thread.waited || null,
       title: thread.waited ? `waiting ${thread.waited}` : undefined,
-      late: (thread.waitingMin ?? 0) > 30,
     };
   // A draft counting down is where the thread stands: when it sends, as its own line under the bubble says it.
   if (thread.real && thread.veto && countdown.remaining != null && !thread.resolution)
@@ -821,7 +820,7 @@ export function whereItStands(
     <span className="ix-th-standing" data-testid="ix-th-standing">
       {standing.pill}
       {standing.meta && (
-        <span className={`ix-th-standing-meta tabular${standing.late ? " late" : ""}`} title={standing.title}>
+        <span className="ix-th-standing-meta tabular" title={standing.title}>
           {standing.meta}
         </span>
       )}

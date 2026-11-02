@@ -2023,8 +2023,6 @@ html.legacy-on .ix-dock .ix-why { position: relative; min-height: 0; }
 /* Where it stands, lit on its tone (StatePill lit), and the wait beside it in the mono face. */
 .ix-th-standing { flex: none; display: inline-flex; align-items: center; gap: 6px; }
 .ix-th-standing-meta { white-space: nowrap; font-family: var(--font-mono); font-size: var(--text-xs); }
-/* As the row's pill does: amber once they have waited past half an hour. */
-.ix-th-standing-meta.late { color: var(--warn-ink); }
 .ix-th-closed .ix-why-said { flex-basis: 100%; margin-top: 0; line-height: 1.4; }
 /* Beside the wires, who this is: the next visit ahead, or the last one behind them, in People's words. The wires keep
    their words; the chip is what gives way when the line is short (it squeezed "Phone" out on a 375px phone). */
