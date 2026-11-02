@@ -101,6 +101,7 @@ test("Today hears the channel, the line and the billing account its chips and it
     "mailboxes", // the email chip, drawn where a mailbox exists (the wiring's second audit)
     "billing_accounts",
     "contacts", // the person each row of the queue names (the-pages-hear-the-silent-records)
+    "appointments", // what was booked, which the day's figures lead with (decision 0076, as amended 2 Nov 2026)
   ]);
   for (const table of LINE_TABLES) {
     assert.equal(wantsRefresh(todayOverride, table), true, `${table} is wanted`);

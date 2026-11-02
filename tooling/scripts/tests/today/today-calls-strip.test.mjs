@@ -226,6 +226,7 @@ test("Today repaints when a call starts or ends, not on every transcript turn", 
     "mailboxes", // the email chip, drawn where a mailbox exists
     "billing_accounts",
     "contacts",
+    "appointments", // what was booked, which the day's figures lead with
   ]);
   // The rule itself, as the runner applies it: Today's own override (surfaces/today/surface.ts), run, not read. A turn
   // keeps status ongoing; a start or an end does not.
