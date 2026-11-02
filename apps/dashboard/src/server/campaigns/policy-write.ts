@@ -117,6 +117,22 @@ function policyWas(row: { mode: string; limits: unknown } | undefined): {
   return { mode: row?.mode ?? null, min_confidence: confidence };
 }
 
+/** The reply row's whole-number dials: each one's range, and what a class other than the reply row is told of it. */
+const WHOLE_DIALS = [
+  { key: "max_replies_day", min: 1, max: 200, only: "The reply cap only applies to the reply policy." },
+  { key: "pause_hours", min: 1, max: 168, only: "The pause only applies to the reply policy." },
+  { key: "answer_within_hours", min: 1, max: 168, only: "The time to answer people only applies to the reply policy." },
+] as const;
+
+/** A whole-number dial's value as it may be kept: in its range, on the reply row alone; undefined where none was given. */
+function wholeDial(cls: string, value: number | undefined, dial: (typeof WHOLE_DIALS)[number]): number | undefined {
+  if (value === undefined) return undefined;
+  if (!Number.isInteger(value) || value < dial.min || value > dial.max)
+    throw new AppError("validation", DIAL_WORDS[dial.key]);
+  if (cls !== "reply") throw new AppError("validation", dial.only);
+  return value;
+}
+
 export async function changePolicy(ctx: RouteContext, input: z.infer<typeof PolicyChange>, member: Member) {
   const cls = input.class;
   if (!(POLICY_CLASSES as readonly string[]).includes(cls)) throw new AppError("validation", "Unknown policy class.");
@@ -177,31 +193,13 @@ export async function changePolicy(ctx: RouteContext, input: z.infer<typeof Poli
     if (cls !== "reply") throw new AppError("validation", "The token budget only applies to the reply policy.");
     limits.max_llm_tokens_day = Math.round(t);
   }
-  // The two hard limits Chanlytics used to set for a workspace, now the
-  // owner's (S6): automatic replies to one person in 24 hours before the
-  // receptionist stops and asks, and the hours it stays out of a conversation
-  // once a person steps in. Whole numbers inside what PolicyLimitsSchema
-  // allows; same boundary rule as the others.
-  if (input.max_replies_day !== undefined) {
-    const n = input.max_replies_day;
-    if (!Number.isInteger(n) || n < 1 || n > 200) throw new AppError("validation", DIAL_WORDS.max_replies_day);
-    if (cls !== "reply") throw new AppError("validation", "The reply cap only applies to the reply policy.");
-    limits.max_replies_day = n;
-  }
-  if (input.pause_hours !== undefined) {
-    const h = input.pause_hours;
-    if (!Number.isInteger(h) || h < 1 || h > 168) throw new AppError("validation", DIAL_WORDS.pause_hours);
-    if (cls !== "reply") throw new AppError("validation", "The pause only applies to the reply policy.");
-    limits.pause_hours = h;
-  }
-  // How long someone handed to the team may wait before Today says it in the amber: the owner's own target, in the
-  // pause's range (contracts answerWithinHoursOf).
-  if (input.answer_within_hours !== undefined) {
-    const h = input.answer_within_hours;
-    if (!Number.isInteger(h) || h < 1 || h > 168) throw new AppError("validation", DIAL_WORDS.answer_within_hours);
-    if (cls !== "reply")
-      throw new AppError("validation", "The time to answer people only applies to the reply policy.");
-    limits.answer_within_hours = h;
+  // The two hard limits Chanlytics used to set for a workspace, now the owner's (S6): automatic replies to one person in
+  // 24 hours before the receptionist stops and asks, and the hours it stays out of a conversation once a person steps
+  // in; and how long someone handed to the team may wait before Today says it in the amber (contracts
+  // answerWithinHoursOf). Whole numbers inside what PolicyLimitsSchema allows; same boundary rule as the others.
+  for (const dial of WHOLE_DIALS) {
+    const n = wholeDial(cls, input[dial.key], dial);
+    if (n !== undefined) limits[dial.key] = n;
   }
   try {
     const row = await setPolicyMode(ctx.supabase, member.tenantId, cls, mode, limits);
