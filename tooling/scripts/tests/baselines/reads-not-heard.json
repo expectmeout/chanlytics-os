@@ -1029,6 +1029,32 @@
           "POST ask/memory"
         ]
       }
+    },
+    {
+      "kind": "over-read",
+      "why": "A booking request's time, laid on its hold by GET escalations (readers/escalations.ts withRequests; the thread canvas's request card, 1 Nov 2026). The row moves only with its hold: Booked it and Can't answer the row and resolve or change the hold in one transaction (00443 booking_request_answer), and a new request opens its hold with it (booking_request_open), so the escalation these pages hear carries the read. Its expiry is the clock's, said by the card from the row as read.",
+      "reads": {
+        "conversations": [
+          "appointments"
+        ],
+        "inbox": [
+          "appointments"
+        ],
+        "today": [
+          "appointments"
+        ]
+      },
+      "heardWith": {
+        "conversations": [
+          "escalations"
+        ],
+        "inbox": [
+          "escalations"
+        ],
+        "today": [
+          "escalations"
+        ]
+      }
     }
   ]
 }

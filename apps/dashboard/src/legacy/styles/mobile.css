@@ -1109,7 +1109,7 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     --held-foot: max(var(--bar-foot), var(--foot-clear, 0px));
   }
 
-  /* An open thread: the conversation as long as what was said, its capsule 10px under the top, its foot (what it needs
+  /* An open thread: the conversation as long as what was said, its head at the top of the screen, its foot (what it needs
      from you, the reply box; thread.tsx .ix-th-foot) over the screen's foot. */
   .main-scroll.pane > :is(.inbox, .conversations)[data-takeover] {
     overflow: visible;
@@ -1124,13 +1124,15 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     flex: 1 0 auto;
     overflow: visible;
   }
+  /* The head is a bar of the raised ground at the screen's top (the thread canvas, 1 Nov 2026), under the frame's top with
+     no fade between them: the hairline under the head is the edge. */
   :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane > .ix-th-head {
     position: sticky;
-    top: calc(var(--frame-top-at) + var(--frame-top, 0px) + 10px);
+    top: calc(var(--frame-top-at) + var(--frame-top, 0px));
     z-index: 3;
   }
   .main:has(> .main-scroll > :is(.inbox, .conversations)[data-takeover]) > .frame-top {
-    --frame-top-fade: 10px;
+    --frame-top-fade: 0px;
   }
   :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane > .ix-th-foot {
     position: sticky;
@@ -1138,34 +1140,37 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     z-index: 3;
     display: flex;
     flex-direction: column;
-    /* One solid card, 8px from the sides as the header's capsule is at the top: the conversation passed under the dock's
-       glass, and a line of it printed through the dock's own words (the thread canvas, 1 Nov 2026). */
-    margin-inline: 8px;
-    border-radius: var(--radius-3xl);
-    background: var(--surface-pane-solid);
-    box-shadow: var(--surface-pane-depth);
+    gap: 6px;
+    /* The raised ground across the screen at its foot, a hairline over it (the thread canvas, 1 Nov 2026): the reply box
+       alone, as a chat's foot is. The conversation ends above it, so no word of it prints under the reply. */
+    padding: 10px 12px 16px;
+    border-top: 1px solid var(--line);
+    background: var(--bg-raised);
   }
-  /* What the thread needs from you sits on the card's own ground, not a second inset inside it. */
-  :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane > .ix-th-foot > .ix-th-status > .ix-dock {
-    padding: 0;
-    background: none;
-    box-shadow: none;
+  /* Down to the screen's own foot: the ground goes on under the room kept clear of the browser's bar. */
+  :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane > .ix-th-foot::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    right: 0;
+    left: 0;
+    height: var(--held-foot);
+    background: var(--bg-raised);
   }
-  /* What the thread needs from you is as tall as what it says, as the rest of the page is. On a desk it may take half
-     the pane and scroll inside it (inbox.css); in the foot that half was half of the foot, the state and the reply box
-     together, so a state taller than the reply box was cut under its own lower edge with its acts out of reach (Ruben,
-     22 Oct 2026: "I'll answer this" and "Hand back" cut in half). */
+  /* Asking something of you (the dock over the reply box), it is the sheet: its top corners round, lifted off the words. */
+  :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane > .ix-th-foot:has(> .ix-th-status:not(:empty), > .ix-th-closed) {
+    gap: 10px;
+    padding: 14px 14px 16px;
+    border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+    box-shadow: var(--shadow-dock);
+  }
+  /* What the thread needs from you is as tall as what it says, as the rest of the page is. On a desk it may take part of
+     the pane and scroll inside it (inbox.css); a state taller than the reply box was cut under its own lower edge with its
+     acts out of reach (Ruben, 22 Oct 2026: "I'll answer this" and "Hand back" cut in half). */
   :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane > .ix-th-foot > .ix-th-status {
     max-height: none;
     overflow: visible;
-  }
-  /* Inside the card, its parts on its ground: no hairline over what it needs from you, and the reply box clear of the
-     card's lower edge. */
-  :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane > .ix-th-foot > .ix-th-status {
     border-top: 0;
-  }
-  :is(.inbox, .conversations)[data-takeover] .ix-th-foot > .ix-composer.ix-composer-row {
-    margin-bottom: 12px;
   }
 
   /* The Calendar: its days as long as they are (the agenda's list, a month of dots and its day, the board at its hours),
@@ -1292,7 +1297,6 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
   }
 
   /* The capsules a page passes under, their blur on a layer of their own. */
-  :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane > .ix-th-head::before,
   .main-scroll.pane > .cm-split[data-open] > .cm-pane > :is(.cm-pane-head, .cm-pane-foot)::before,
   .main-scroll.pane > .live-monitor[data-takeover] :is(.lm-head, .lm-whisper-row)::before {
     content: "";

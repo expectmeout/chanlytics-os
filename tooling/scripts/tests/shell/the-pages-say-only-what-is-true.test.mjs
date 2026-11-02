@@ -587,10 +587,11 @@ const { Composer } = await import(`${SRC}/surfaces/inbox/thread/composer.tsx`);
 
 test("REGRESSION: a real thread's composer offers no Save draft -- it flashed 'Draft saved' and kept nothing", () => {
   assert.equal(typeof Composer, "function", "the composer can be drawn on its own");
+  // What each says: its words, or its name where it is a glyph alone (a chat's Send, the coral round: the thread canvas).
   const buttons = (tree) => {
     const out = [];
     walk(tree, (n) => {
-      if (n.type === "button") out.push(textOf(n));
+      if (n.type === "button") out.push(textOf(n).trim() || String(n.props?.["aria-label"] ?? ""));
     });
     return out;
   };

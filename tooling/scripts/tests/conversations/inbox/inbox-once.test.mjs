@@ -170,16 +170,23 @@ test("REGRESSION: a real thread's header names its channel once and keeps Snooze
   // the glyph after the name, its word said to a reader, and the line under the name says where the thread stands.
   assert.equal(find(head, byTestId("ix-th-wire")).props["aria-label"], "WhatsApp");
   assert.equal(find(head, hasClass("ix-channel-chip")), null, "REGRESSION: a chip said WhatsApp again");
-  assert.equal(textOf(head).split("WhatsApp").length - 1, 0, `the channel is the glyph's, not words: ${textOf(head)}`);
+  // In words only where the person's rail stands beside the thread on a wide desk, where the face is not drawn (the
+  // thread canvas's desk; inbox.css .with-context): the glyph's words, once, and nowhere else in the head.
+  const onWire = find(head, byTestId("ix-th-on"));
+  const rest = textOf(head).replace(onWire ? textOf(onWire) : "", "");
+  assert.equal(rest.split("WhatsApp").length - 1, 0, `the channel is the glyph's, not words: ${textOf(head)}`);
+  // A desk's Snooze and Archive stand beside More (the thread canvas), the same acts as its sheet's on a phone; the profile
+  // is the head's own door and More's first row, and a call back is the dock's.
   assert.equal(
-    find(head, (n) => (n.type === "button" || n.type === "a") && /Snooze|Open profile|Call back/.test(textOf(n))),
+    find(head, (n) => (n.type === "button" || n.type === "a") && /Open profile|Call back/.test(textOf(n))),
     null,
-    "REGRESSION: Snooze and Open profile beside the menu",
+    "REGRESSION: Open profile beside the menu",
   );
+  assert.ok(find(head, byTestId("ix-th-snooze")), "a desk's Snooze, beside More");
   const items = itemsIn(menuOf(head))
     .map((it) => it.label)
     .filter(Boolean);
-  for (const label of ["Open profile", "Snooze"])
+  for (const label of [vm.who, "Snooze"])
     assert.ok(items.includes(label), `${label} is in the menu: ${items.join(", ")}`);
 
   // Snoozed, it wakes from its status line: no Snooze in the menu, and no "Wakes …" button in the header.
@@ -292,9 +299,11 @@ test("REGRESSION: a call back is offered once whoever looks, its to-do said once
   assert.equal(find(find(yours, byTestId("ix-th-status")), byTestId("ix-take-ask")), null);
 });
 
-test("on a phone, Back is the arrow alone: the top bar says Inbox over it, and '← Inbox' said it again", () => {
+test("on a phone, Back is the chevron alone: the top bar says Inbox over it, and '← Inbox' said it again", () => {
   const back = find(paneOf(vmOf(chat(), asked()), { onBack() {} }), byTestId("ix-back"));
-  assert.deepEqual([textOf(back).trim(), back.props["aria-label"]], ["←", "Back to the list"]);
+  // The canvas's chevron, the right one turned (kit.css .icon-turned), named for a screen reader.
+  assert.deepEqual([textOf(back).trim(), back.props["aria-label"]], ["", "Back to the list"]);
+  assert.ok(find(back, (n) => n.props?.name === "chevron" && /icon-turned/.test(n.props?.className ?? "")));
 });
 
 /* --------------------------------- the list --------------------------------- */
@@ -437,7 +446,7 @@ test("an email in the thread is drawn as one: its subject said once over the fir
   assert.equal(textOf(find(emailBubble, byTestId("tl-msg-subject"))).trim(), "Quote for Saturday", "said once");
   assert.equal(textOf(pane).split("Quote for Saturday").length - 1, 1, "and only there");
   assert.ok(hasClass("tl-email")(emailBubble), "an email is drawn as one");
-  assert.equal(textOf(find(emailBubble, byTestId("tl-email-from"))), vm.who, "who it is from, at its head");
+  assert.equal(textOf(find(emailBubble, byTestId("tl-email-from"))), `${vm.who} to you`, "who it is from, at its head");
   assert.equal(find(chatBubble, byTestId("tl-msg-subject")), null, "a subject is an email's");
   assert.ok(!hasClass("tl-email")(chatBubble), "a WhatsApp message stays a bubble");
   // A bubble names its wire, in its corner, where it came another way than the thread's own (the reply box's, which is
@@ -497,7 +506,10 @@ test("an email in the thread is drawn as one: its subject said once over the fir
   const withFile = paneOf(vmOf(chat({ contact: ana, last_wa_inbound_at: null, messages: [attached] })), {
     channelLabels: { email: "Email" },
   });
-  assert.equal(textOf(find(withFile, byTestId("tl-msg-left-out"))).trim(), "1 attachment was not kept: floorplan.pdf.");
+  // Counted on a fold of its own under the words, its name and why on a pointer (the thread canvas, 1 Nov 2026).
+  const leftOut = find(withFile, byTestId("tl-msg-left-out"));
+  assert.equal(textOf(leftOut).trim(), "1 file not kept");
+  assert.match(leftOut.props.title, /1 attachment was not kept: floorplan\.pdf\./);
   // They wrote last by email, so that is where a reply goes, and the reply box says so: no window, no templates.
   const box = find(pane, (n) => n.type === "textarea" && hasClass("ix-composer-text")(n));
   assert.equal(

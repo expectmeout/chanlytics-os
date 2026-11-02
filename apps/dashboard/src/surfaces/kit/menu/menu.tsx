@@ -46,8 +46,18 @@ const itemClasses = variants({
 /** An item whose second line is a sentence says it under its words, where beside them it squeezed them to nothing. */
 const itemShape = (meta: ReactNode) => (longWords(meta) ? "two" : undefined);
 
-/** What an item says: its words, which typing finds, a glyph before them, and a second line or a word at its end. */
-type MenuWords = { label: string; glyph?: ReactElement; meta?: ReactNode; hint?: ReactNode };
+/**
+ * What an item says: its words, which typing finds, a glyph before them, and a second line or a word at its end. A glyph
+ * on its square (`square`: the thread's More, the thread canvas) stands on a round-cornered square of the ground, red on
+ * its soft ground where the act destroys, its words and their second line stacked beside it.
+ */
+type MenuWords = {
+  label: string;
+  glyph?: ReactElement;
+  meta?: ReactNode;
+  hint?: ReactNode;
+  square?: boolean | "danger";
+};
 
 /**
  * What an item says on hover (`title`), and the honesty gate's props where a role may not press it (`gate`:
@@ -140,11 +150,17 @@ export type MenuProps = {
   ref?: Ref<HTMLDivElement>;
 };
 
-/** What an item holds, in the house's order: its glyph, its words, its second line, its word at the end. */
-function itemContent({ label, glyph, meta, hint }: MenuWords) {
+/** What an item holds, in the house's order: its glyph (on its square where it has one), its words, its second line, its word at the end. */
+function itemContent({ label, glyph, meta, hint, square }: MenuWords) {
   return (
     <>
-      {glyph}
+      {glyph && square ? (
+        <span className={cx("more-glyph", square === "danger" ? "more-glyph-danger" : "")} aria-hidden="true">
+          {glyph}
+        </span>
+      ) : (
+        glyph
+      )}
       <span className="more-item-label">{label}</span>
       {meta ? <span className="more-item-meta">{meta}</span> : null}
       {hint ? <span className="more-item-hint">{hint}</span> : null}

@@ -121,6 +121,8 @@ export interface VetoState {
   frozen?: number;
   held?: boolean;
   sent?: boolean;
+  /** A real draft let go now (Send now): it reads as going until the send reaches the tab. */
+  going?: boolean;
   /** A real draft's reads at zero: how many, and when the last was (thread-pane.tsx `ixReadAgain`). */
   tries?: number;
   lastTry?: number;

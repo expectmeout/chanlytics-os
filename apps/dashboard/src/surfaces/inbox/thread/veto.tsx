@@ -3,7 +3,9 @@
  * the one line that has the receptionist write the waiting draft again.
  */
 import { useState } from "react";
+import { countdownClock, THREAD_PANE_WORDS } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
+import { Meter } from "../../kit/meter/meter";
 import { PolicyChip } from "../../kit/policy-chip/policy-chip";
 import { gate, useToast } from "../shell";
 import { trustRateFor } from "./shell-thread";
@@ -34,7 +36,7 @@ export const SteerBox = ({ messageId }: { messageId: string }) => {
   };
   return (
     <div className="ix-steer" data-testid="steer-box">
-      <Icon name="sparkle" size={12} />
+      <Icon name="spark" size={13} className="ix-steer-spark" />
       <input
         className="ix-steer-input"
         value={text}
@@ -42,13 +44,20 @@ export const SteerBox = ({ messageId }: { messageId: string }) => {
         onKeyDown={(e) => {
           if (e.key === "Enter") void send();
         }}
-        placeholder="Tell it what to change — “mention Saturday is full”, “shorter, in Spanish”"
+        placeholder={THREAD_PANE_WORDS.rewriteAsk}
         maxLength={500}
         disabled={busy}
         aria-label="Instruction for the rewrite"
       />
-      <Button size="sm" onClick={send} disabled={busy || !text.trim()} {...gate("approve")}>
-        {busy ? "Rewriting…" : "Rewrite"}
+      <Button
+        variant="soft"
+        size="sm"
+        className="ix-press"
+        onClick={send}
+        disabled={busy || !text.trim()}
+        {...gate("approve")}
+      >
+        {busy ? THREAD_PANE_WORDS.rewriting : THREAD_PANE_WORDS.rewrite}
       </Button>
       {toastNode}
     </div>
@@ -152,3 +161,112 @@ export const VetoBar = ({
     </Button>
   </div>
 );
+
+/** What a real draft's own line says: when it sends, or that it is paused, going, or held. */
+function heldSays(remaining: number | null | undefined, paused: boolean) {
+  const W = THREAD_PANE_WORDS;
+  if (remaining == null) return <>{W.heldStopped}</>;
+  const clock = <span className="tabular">{countdownClock(remaining)}</span>;
+  if (paused)
+    return (
+      <>
+        {W.notSentYet} · {clock} · {W.heldPaused}
+      </>
+    );
+  if (remaining === 0) return <>{W.sendingNow}</>;
+  return (
+    <>
+      {W.notSentYet} · {W.sendsInLower} {clock}
+    </>
+  );
+}
+
+interface HeldDraftProps {
+  thread: VetoThread;
+  /** The draft's words, as its row holds them. */
+  text: string;
+  remaining: number | null | undefined;
+  paused?: boolean;
+  onAct?: (threadId: string, act: string) => void;
+}
+
+/**
+ * A real draft counting down to send, drawn once, as the next bubble (the thread canvas, 1 Nov 2026): over it when it
+ * sends, in the amber; the bubble dashed in the amber; a meter of the time left; then Edit, Hold and Send now at its
+ * right, and the line that has the receptionist write it again. It was the bubble with "Not sent yet" under it, a box of
+ * its own saying "Auto-sends in 48s" with Take over, and the line, three blocks for one draft.
+ */
+export function HeldDraft({ thread, text, remaining, paused = false, onAct = () => {} }: HeldDraftProps) {
+  const W = THREAD_PANE_WORDS;
+  const going = remaining != null;
+  const whole = Math.max(1, thread.veto.window);
+  const left = going ? Math.min(whole, Math.max(0, remaining)) : 0;
+  return (
+    <div
+      className="ix-held-draft"
+      data-mid={thread.veto.messageId}
+      data-paused={paused || undefined}
+      data-testid="ix-held-draft"
+    >
+      <div className="ix-held-says" role="timer" title={W.heldTip} data-testid="ix-held-says">
+        <Icon name="spark" size={11} />
+        {heldSays(remaining, paused)}
+      </div>
+      {/* What a screen reader hears: the hold and the send, not a number every second (I3). */}
+      <span className="ix-veto-said" role="status">
+        {remaining == null ? "Held — this draft will not send." : remaining === 0 && !paused ? "Sending now." : ""}
+      </span>
+      <div className="ix-held-words" data-testid="ix-held-words">
+        {text}
+      </div>
+      {going && (
+        <Meter
+          size="sm"
+          className="ix-held-time"
+          parts={[
+            { share: left, tone: "warn" },
+            { share: whole - left, tone: "ground" },
+          ]}
+          aria-label={W.untilSends(countdownClock(left))}
+        />
+      )}
+      {going && (
+        <div className="ix-held-acts">
+          <Button
+            variant="quiet"
+            size="lg"
+            onClick={() => onAct(thread.id, "edit")}
+            className="ix-press"
+            data-testid="ix-held-edit"
+            {...gate("approve")}
+          >
+            {W.edit}
+          </Button>
+          <Button
+            variant="outline"
+            size="lg"
+            onClick={() => onAct(thread.id, "hold")}
+            className="ix-press"
+            data-testid="ix-held-hold"
+            {...gate("approve")}
+          >
+            <Icon name="pause" size={13} />
+            {W.hold}
+          </Button>
+          <Button
+            variant="ink"
+            size="lg"
+            disabled={remaining === 0}
+            onClick={() => onAct(thread.id, "send_now")}
+            className="ix-press"
+            data-testid="ix-held-send-now"
+            {...gate("approve")}
+          >
+            {W.sendNow}
+          </Button>
+        </div>
+      )}
+      {going && thread.veto.messageId ? <SteerBox messageId={thread.veto.messageId} /> : null}
+    </div>
+  );
+}

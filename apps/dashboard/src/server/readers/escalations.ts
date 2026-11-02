@@ -1,6 +1,39 @@
 import "server-only";
 import { HAND_BACK_REASONS, OPEN_HOLDS_READ_MAX, type EscalationDto } from "@chanlytics/contracts";
+import { openRequestsOfThreads } from "@chanlytics/db";
 import { stamp, type Reader } from "./index";
+
+/**
+ * The booking each open booking_request hold asks to confirm (decision 0061), laid on its hold: the request card's day,
+ * hours and service (the thread canvas, 1 Nov 2026). A thread's newest open request is its own; a hold whose request was
+ * answered elsewhere since keeps none, and says its line alone.
+ */
+async function withRequests(
+  rc: Parameters<(typeof escalations)["read"]>[0],
+  rows: Array<EscalationDto & { conversation_id: string }>,
+): Promise<Array<EscalationDto & { conversation_id: string }>> {
+  const asking = rows.filter((e) => e.reason === "booking_request" && e.state === "open").map((e) => e.conversation_id);
+  if (!asking.length) return rows;
+  const requests = await openRequestsOfThreads(rc.ctx.supabase, rc.tenantId, asking);
+  const byThread = new Map<string, (typeof requests)[number]>();
+  for (const r of requests)
+    if (r.conversation_id && !byThread.has(r.conversation_id)) byThread.set(r.conversation_id, r);
+  return rows.map((e) => {
+    const r = e.reason === "booking_request" ? byThread.get(e.conversation_id) : undefined;
+    return r
+      ? {
+          ...e,
+          request: {
+            id: r.id,
+            starts_at: r.starts_at,
+            ends_at: r.ends_at,
+            service: r.service ?? null,
+            expires_at: r.expires_at ?? null,
+          },
+        }
+      : e;
+  });
+}
 
 /**
  * GET escalations, as the route answers it: the workspace's escalations in one state (the route's default is open),
@@ -44,6 +77,6 @@ export const escalations: Reader<
     ]
       .sort((a, b) => b.created_at.localeCompare(a.created_at))
       .map((e) => ({ ...e, state: e.state as EscalationDto["state"] }));
-    return { data: { escalations }, rows: [], stamp: stamp() };
+    return { data: { escalations: await withRequests(rc, escalations) }, rows: [], stamp: stamp() };
   },
 };

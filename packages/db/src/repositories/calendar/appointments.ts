@@ -223,6 +223,34 @@ export async function openRequestOfThread(db: Db, conversationId: string): Promi
   return data ?? null;
 }
 
+/** A request the receptionist took, as a thread's hold says its time (the Inbox's request card). */
+export type OpenRequestRow = Pick<
+  AppointmentRow,
+  "id" | "conversation_id" | "starts_at" | "ends_at" | "service" | "expires_at" | "created_at"
+>;
+
+/**
+ * The requests nobody has answered in these threads (00443, decision 0061), as the caller may see them: what the Inbox's
+ * hold draws its time from beside Booked it and Can't. Newest first, so a thread's first is its own.
+ */
+export async function openRequestsOfThreads(
+  db: Db,
+  tenantId: string,
+  conversationIds: readonly string[],
+): Promise<OpenRequestRow[]> {
+  if (!conversationIds.length) return [];
+  const { data, error } = await db
+    .from("appointments")
+    .select("id, conversation_id, starts_at, ends_at, service, expires_at, created_at")
+    .eq("tenant_id", tenantId)
+    .in("conversation_id", [...conversationIds])
+    .eq("source", "receptionist")
+    .eq("status", "proposed")
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(`open_requests_of_threads: ${error.message}`);
+  return data ?? [];
+}
+
 /* ------------------------------------------------------------------ the board */
 
 /**

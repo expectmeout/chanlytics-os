@@ -16,6 +16,20 @@ export interface EscalationDto {
   details: string | null;
   state: "open" | "resolved";
   created_at: string;
+  /**
+   * The booking a `booking_request` hold asks to confirm (decision 0061): the request's row, its slot, its service and
+   * when it stops holding the slot. Absent on every other hold, and from a server a deploy behind.
+   */
+  request?: BookingRequestDto | null;
+}
+
+/** A booking the receptionist asked for, as its hold carries it (the appointments row 00443 opened). */
+export interface BookingRequestDto {
+  id: string;
+  starts_at: string;
+  ends_at: string;
+  service: string | null;
+  expires_at: string | null;
 }
 
 // These labels headline a row on Today, where there is no thread open beside
@@ -207,7 +221,7 @@ const ESCALATION_LINES: Record<EscalationReason, string> = {
   paused: "The workspace is paused — nothing has been sent",
   carriers: "Texting isn't approved for this line yet — nothing has been sent",
   email_review: "They wrote by email — nothing has been sent",
-  booking_request: "Confirm the time they picked — they're waiting to hear",
+  booking_request: "Confirm the time — they're waiting to hear",
   booking_reply: "They asked to book — reply with a time that works",
   wrote_while_held: "They wrote while your team had the thread — nothing has been sent",
 };
@@ -215,6 +229,15 @@ const ESCALATION_LINES: Record<EscalationReason, string> = {
 /** The dock's line for a reason, or the reason's label for one the set does not know. */
 export function reasonLineOf(reason: string): string {
   return (ESCALATION_LINES as Record<string, string>)[reason] ?? reasonLabelOf(reason);
+}
+
+/**
+ * A dock's line as the thread canvas draws it (1 Nov 2026): what is owed in the ink at 600, and the clause after its dash
+ * in the muted ink ("Check the draft — nothing has been sent"). A line with no clause is all lead.
+ */
+export function dockLineOf(line: string): { lead: string; rest: string | null } {
+  const at = line.indexOf(" — ");
+  return at < 0 ? { lead: line, rest: null } : { lead: line.slice(0, at), rest: line.slice(at + 3) };
 }
 
 /**

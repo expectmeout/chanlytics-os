@@ -29,7 +29,10 @@ function _buttonTakes(
     // Its props are the type the kit names for them, and its kinds, sizes and tone its map's, each optional.
     Holds<Exactly<ComponentProps<typeof Button>, ButtonProps>>,
     Holds<
-      Exactly<ButtonProps["variant"], "primary" | "secondary" | "quiet" | "plain" | "danger" | "glass" | undefined>
+      Exactly<
+        ButtonProps["variant"],
+        "primary" | "secondary" | "quiet" | "plain" | "danger" | "glass" | "outline" | "soft" | "ink" | undefined
+      >
     >,
     Holds<Exactly<ButtonProps["size"], "sm" | "md" | "lg" | "text" | "touch" | undefined>>,
     Holds<Exactly<ButtonProps["tone"], "danger" | undefined>>,
@@ -40,6 +43,10 @@ function _buttonTakes(
   Button({ tone: "danger", children: "Stop" });
   Button({ iconOnly: true, "aria-label": "More", children: glyph });
   Button({ iconOnly: true, size: "touch", variant: "glass", "aria-label": "Call", children: glyph });
+  // The thread canvas's: the quiet act beside the coral, a fold in a card, and the act in ink.
+  Button({ size: "touch", variant: "outline", children: [glyph, "Hand back"] });
+  Button({ size: "sm", variant: "soft", children: ["Signature", glyph] });
+  Button({ size: "lg", variant: "ink", children: "Send now" });
   Button({ type: "submit", ref: button, onClick: () => undefined, children: "Save" });
   // A door: a link, with a link's ref, in any kind and either form.
   Button({ href: "/w/studio/#/clients", ref: link, children: "Open People" });

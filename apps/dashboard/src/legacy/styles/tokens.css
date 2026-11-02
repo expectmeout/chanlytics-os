@@ -199,6 +199,8 @@
                0 4px 12px -4px oklch(0.2 0.01 260 / 0.08);
   --shadow-lg: 0 4px 12px -2px oklch(0.2 0.01 260 / 0.08),
                0 12px 32px -8px oklch(0.2 0.01 260 / 0.1);
+  /* What stands at the foot of a pane over what scrolls under it (the thread's dock, the thread canvas): a soft lift upward. */
+  --shadow-dock: 0 -10px 30px oklch(0.2 0.02 280 / 0.07);
 
   --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
 }
@@ -220,6 +222,7 @@
                0 4px 12px -4px oklch(0.1 0.025 280 / 0.5);
   --shadow-lg: 0 4px 12px -2px oklch(0.1 0.025 280 / 0.5),
                0 12px 32px -8px oklch(0.1 0.025 280 / 0.6);
+  --shadow-dock: 0 -10px 30px oklch(0.1 0.025 280 / 0.45);
 
   --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
 
@@ -341,6 +344,8 @@
   --text-decision: 44px;
   /* An email as it is read on a run's screen, a step over the sheet's 13.5 so it reads as the email. */
   --text-mail: 14.5px;
+  /* What was said in a conversation, as the thread canvas sets it (1 Nov 2026): a bubble's words and an email's. */
+  --text-read: 15px;
   /* The canvases track sans text a touch tighter than nothing; Classic tighter still. */
   --tracking-normal: -0.003em;
   /* A person's face on a row: a well of the ground's lilac grey, as an inset is, on a white card. */
@@ -402,6 +407,16 @@
   --ok-soft: oklch(0.571 0.12 155 / 0.12);
   --danger-ink: oklch(0.45 0.17 27);
   --info-ink: oklch(0.43 0.1 235);
+  /* A person's face in their hue (kit.css .face-hue-*; the thread canvas, 1 Nov 2026): four soft circles, lilac, sea,
+     sky and sand, each with its ink at 4.5:1 or better. */
+  --face-hue-a: oklch(0.928 0.026 293);
+  --face-hue-a-ink: oklch(0.42 0.1 287);
+  --face-hue-b: oklch(0.935 0.02 178);
+  --face-hue-b-ink: oklch(0.42 0.06 178);
+  --face-hue-c: oklch(0.93 0.02 256);
+  --face-hue-c-ink: oklch(0.42 0.08 256);
+  --face-hue-d: oklch(0.93 0.03 66);
+  --face-hue-d-ink: oklch(0.44 0.08 56);
 
   /* The page: its ground, and the light, three soft pools where the canvases put them, each its tint (a desk's layers
      paint one each, components.css .pg-light). */
@@ -642,6 +657,14 @@
      4.8 there. Blue's are Classic's, set again over the light side's. */
   --danger-ink: oklch(0.74 0.15 27);
   --info-ink: oklch(0.72 0.12 235);
+  --face-hue-a: oklch(0.34 0.05 293);
+  --face-hue-a-ink: oklch(0.88 0.06 293);
+  --face-hue-b: oklch(0.34 0.04 178);
+  --face-hue-b-ink: oklch(0.88 0.05 178);
+  --face-hue-c: oklch(0.34 0.045 256);
+  --face-hue-c-ink: oklch(0.88 0.05 256);
+  --face-hue-d: oklch(0.34 0.045 66);
+  --face-hue-d-ink: oklch(0.88 0.06 66);
 
   --pool-a-tint: oklch(0.737 0.103 267 / 0.2);
   --pool-b-tint: oklch(0.955 0.026 55 / 0.05);

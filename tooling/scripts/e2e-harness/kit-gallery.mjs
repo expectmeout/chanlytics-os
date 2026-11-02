@@ -817,6 +817,12 @@ const kitMenu = () =>
     tone: " more-item-two",
     after: `<span class="more-item-meta">Goes the day before, at the time they booked</span>`,
   }) +
+  `<button type="button" aria-disabled="false" role="menuitem" tabindex="-1" class="more-item">` +
+  `<span class="more-glyph" aria-hidden="true">${icon("pause", 16)}</span>` +
+  `<span class="more-item-label">Snooze</span><span class="more-item-meta">Until tomorrow, 10:00 AM</span></button>` +
+  `<button type="button" aria-disabled="false" role="menuitem" tabindex="-1" class="more-item danger">` +
+  `<span class="more-glyph more-glyph-danger" aria-hidden="true">${icon("x", 16)}</span>` +
+  `<span class="more-item-label">Not a customer…</span></button>` +
   `</div>` +
   `<div class="more-divider" role="separator" aria-orientation="horizontal"></div>` +
   `<a role="menuitem" tabindex="-1" href="#kit" class="more-item">${icon("user", 13)}` +
@@ -1428,6 +1434,15 @@ export const FAMILIES = [
           `<button type="button" class="btn btn-icon btn-touch btn-ghost" aria-label="More">${icon("more", 18)}</button>`,
       },
       {
+        // The thread canvas's three (1 Nov 2026): the quiet act beside the coral one, a fold in a card, the act in ink.
+        id: "btn-thread",
+        html:
+          `<button type="button" class="btn btn-touch btn-outline">${icon("refresh", 14)}Hand back</button> ` +
+          `<button type="button" class="btn btn-sm btn-soft" aria-expanded="false">Signature${icon("chevron-down", 10)}</button> ` +
+          `<button type="button" class="btn btn-icon btn-touch btn-soft" aria-label="More">${icon("more", 18)}</button> ` +
+          `<button type="button" class="btn btn-lg btn-ink">Send now</button>`,
+      },
+      {
         // A left chevron is the right one turned (kit.css .icon-turned): a walk's ‹ › between two people.
         id: "btn-icon-turned",
         html:
@@ -1475,6 +1490,15 @@ export const FAMILIES = [
         html: `<span class="pill pill-accent" data-tone="accent"><span class="live-dot" style="width: 5px; height: 5px;"></span>On a call</span>`,
       },
       { id: "pill-glyph", html: `<span class="pill pill-ok" data-tone="ok">${icon("check", 11)}Sent</span>` },
+      {
+        // A head's one state lit on its tone's ground (StatePill lit; the thread canvas, 1 Nov 2026).
+        id: "pill-lit",
+        html:
+          `<div class="gx-row"><span class="pill pill-accent pill-lit" data-tone="accent">Needs you</span>` +
+          `<span class="pill pill-warn pill-lit" data-tone="warn">${icon("pause", 11)}Sends in 0:42</span>` +
+          `<span class="pill pill-ok pill-lit" data-tone="ok">${icon("check", 11)}Handled</span>` +
+          `<span class="pill pill-lit" data-tone="plain">Archived</span></div>`,
+      },
       { id: "pill-dot", html: `<span class="pill pill-ok" data-tone="ok"><span class="dot"></span>Confirmed</span>` },
       {
         id: "pill-fit",
@@ -2629,6 +2653,15 @@ export const FAMILIES = [
           `<div class="gx-row">` +
           ["a", "b", "c", "d"]
             .map((t) => `<span class="face face-tile face-tile-${t}" aria-hidden="true"><span>LA</span></span>`)
+            .join("") +
+          `</div>`,
+      },
+      {
+        id: "face-hue",
+        html:
+          `<div class="gx-row">` +
+          ["a", "b", "c", "d"]
+            .map((t) => `<span class="face face-lg face-hue face-hue-${t}" aria-hidden="true"><span>MC</span></span>`)
             .join("") +
           `</div>`,
       },

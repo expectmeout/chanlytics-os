@@ -16,6 +16,7 @@ export type { ConversationMoveName, ConversationPatch } from "./conversation-mov
 export { toConversationVM } from "./conversation-vm";
 export type { ConversationMessageVM, ConversationVM } from "./conversation-vm";
 export {
+  dockLineOf,
   ESCALATION_ACTS,
   ESCALATION_REASON_LABELS,
   ESCALATION_REASON_SHORT,
@@ -31,12 +32,13 @@ export {
   WAITING_REASONS,
   waitsOnAPerson,
 } from "./escalations";
-export type { EscalationDto, HoldAct, OpenHold } from "./escalations";
+export type { BookingRequestDto, EscalationDto, HoldAct, OpenHold } from "./escalations";
 export { REFERRAL_ID_MAX } from "./first-touch";
 export { HANDLED_OUTCOMES } from "./handled";
 export type { Handled } from "./handled";
 export {
   conversationWaitsOnYou,
+  countdownClock,
   HELD_BY_ID_MAX,
   heldDraftWaits,
   heldThreadIds,

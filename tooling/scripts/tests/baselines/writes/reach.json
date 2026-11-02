@@ -486,9 +486,12 @@
       "missing": {
         "broadcasts": "broadcasts, clients/get-yes, inbox, today",
         "calendar_runs": "calendar",
+        "conversations": "conversations, inbox",
+        "inbox": "inbox",
         "person": "clients/person",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "setup": "admin/integrations, start, today",
+        "today": "today",
         "today_pins": "today"
       }
     },

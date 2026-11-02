@@ -16,6 +16,7 @@ import { shortTime, bubbleTime, inboxThreadClock, waitedSince, type ThreadMoment
 import { clockDate, clockHistoryDay, clockTime } from "../shared/clock";
 import { mediaVM } from "./message-media";
 import {
+  emailFilesLeftOf,
   emailLeftOutOf,
   emailFromNameOf,
   emailPartsOf,
@@ -24,6 +25,7 @@ import {
   emailSubjectsOf,
 } from "./message-email";
 import { replyLeftAsOf } from "../reach-out/reach-out-reply-words";
+import { bookingRequestCardOf } from "../calendar/visit/booking-request";
 import {
   sentFactsOf,
   reachedCustomer,
@@ -206,6 +208,13 @@ export const THREAD_PANE_WORDS = {
   chatClosed: "Chat closed",
   chatClosedWhy:
     "A day after their last message, WhatsApp delivers only an approved message. Sending one reopens the chat.",
+  /** The closed chat's line at the dock's head (the thread canvas, 1 Nov 2026), and its press for why. */
+  chatClosedLead: "Chat window closed",
+  chatClosedRest: (first: string) => `only an approved template can reach ${first} now.`,
+  why: "Why?",
+  /** The template box: its choices' name to a screen reader, its send, and the call beside it. */
+  templateChoices: "Template",
+  sendTemplate: "Send template",
   /** Instagram's window, shut: a business may not write at all, and has no approved message to write with. */
   dmClosedWhy: "A day after their last message, Instagram lets you reply only once they write again.",
   /** The dock's acts on a thread left unanswered (THREAD_PANE_WORDS.unanswered). "No reply needed" archives it. */
@@ -241,12 +250,74 @@ export const THREAD_PANE_WORDS = {
    * An email in the conversation, drawn as one (the thread canvas, 1 Nov 2026): a long one folded to its first lines
    * with the way to the rest, and what is not its words folded under them, each its own press.
    */
-  emailWhole: "Show the whole email",
+  emailWhole: "Show whole email",
   emailLess: "Show less",
-  emailFooter: "Footer and unsubscribe link",
+  emailSignature: "Signature",
+  emailFooter: "Footer & unsubscribe link",
   emailEarlier: "Earlier in the thread",
-  /** An owner's first email from someone: the way to say it is not a person writing, beside the conversation. */
-  firstEmail: (first: string) => `First email from ${first}. A newsletter, a notice or a pitch?`,
+  /** Who an email of theirs went to, after their name at its head ("Maya Chen to you"). */
+  emailToYou: "to you",
+  /** The files an email came with, whose names alone were kept: counted on a fold of their own, why on a pointer. */
+  filesNotKept: (n: number) => (n === 1 ? "1 file not kept" : `${n} files not kept`),
+  filesNotKeptWhy: "Files in emails aren't kept. Ask them to send it another way if you need it.",
+  /** An owner's first message from someone: the way to say it is not someone the business serves, beside it. */
+  firstEmail: (first: string) => `First message from ${first}. Not someone you serve?`,
+  notACustomer: "Not a customer",
+  /** The quiet mark where the receptionist held the thread for a person, with its time (the reason is the dock's). */
+  heldForYou: "Held for you",
+  /** A head's state while a draft counts down to send ("Sends in 0:42"), and the draft's own line over it. */
+  sendsIn: "Sends in",
+  notSentYet: "Not sent yet",
+  sendsInLower: "sends in",
+  sendNow: "Send now",
+  /** The draft's line while it does not count: paused while you are away, going, or held. */
+  heldPaused: "paused while you're away",
+  sendingNow: "Sending now…",
+  heldStopped: "Held — it won't send",
+  hold: "Hold",
+  /** What its meter says to a screen reader, as it says the time left. */
+  untilSends: (clock: string) => `${clock} until it sends`,
+  /** The tip on the draft's line: what stops it. */
+  heldTip: "This draft sends itself at zero. Edit, Hold or starting to type a reply stops it; Send now lets it go.",
+  /** Under the reply box while a draft counts down: what typing does to it. */
+  typingHolds: "Typing here holds the draft.",
+  /** A head's state on a thread nothing waits on. */
+  handled: "Handled",
+  /** A draft's two tools: why it says what it says, and the receptionist writing it again as you ask. */
+  whyThis: "Why this?",
+  rewrite: "Rewrite",
+  rewriting: "Rewriting…",
+  rewriteAsk: "Tell it what to change…",
+  rewriteLabel: "Tell the receptionist what to change",
+  rewritten: "Rewritten — check it before you send",
+  /** The reply box's send, said for its wire: an email's words, a chat's arrow alone. */
+  sendEmail: "Send email",
+  send: "Send",
+  handBack: "Hand back",
+  /**
+   * A kept draft's Why this? (the thread canvas): the rule every kept draft is written by (contracts replyDraftAbout), and
+   * what it read. Never a reason the model gave: a kept draft keeps none.
+   */
+  draftWhy:
+    "Answers what they wrote last, from your business's facts. Where a fact is missing, it says you'll get back to them today.",
+  draftUsed: (email: boolean, signed: boolean) =>
+    `Used: ${[email ? "their email" : "their message", "your facts", ...(signed ? ["your signature"] : [])].join(" · ")}`,
+  /** The dock's lead over a hold whose reply the receptionist drafted: what is owed is a look at its words. */
+  checkDraft: "Check the draft",
+  /** More's head: who it is about, how to reach them and when they first wrote, and the way to their page. */
+  personLine: (reach: string | null, first: string | null) =>
+    [reach, first ? `first wrote ${first.toLowerCase()}` : null].filter(Boolean).join(" · "),
+  profile: "Profile",
+  /** More's acts on the person: their receptionist, and the one that says they are no customer (decision 0080). */
+  receptionistFor: (first: string) => `Receptionist for ${first}`,
+  notACustomerAct: "Not a customer…",
+  notACustomerMeta: "Their mail stays in your mailbox; they leave People",
+  groupDealFile: "Deal and file",
+  /** The conversation's own acts, as More and a desk's head say them. */
+  snooze: "Snooze",
+  snoozeMeta: "Until tomorrow, 10:00 AM",
+  archive: "Archive",
+  archiveMeta: "Closes it. A new message brings it back.",
   /** Taking a thread before a word is written, from More: what it does, under its words. */
   takeMeta: "The receptionist pauses, and your team sees you have it",
   /** Over the reply box's words while they are the receptionist's draft, unchanged: whose they are. */
@@ -320,6 +391,7 @@ function bubbleWordsOf(
   body: string;
   subject?: string;
   leftOut?: string;
+  filesLeft?: number;
   quoted?: string;
   footer?: string;
   signature?: { line: string; full: string };
@@ -328,16 +400,24 @@ function bubbleWordsOf(
   const parts = emailPartsOf(messageText(m), emailFromNameOf(m));
   const subject = changed.get(m.id);
   const leftOut = emailLeftOutOf(m.meta) ?? replyLeftAsOf(m.meta);
+  const filesLeft = emailFilesLeftOf(m.meta);
   // Theirs is found in their words; ours is what the mailbox signed it with, kept as it left (00487).
   const signed = parts.signature ?? emailSignedWithOf(m);
   return {
     body: parts.said,
     ...(subject ? { subject } : {}),
     ...(leftOut ? { leftOut } : {}),
+    ...(filesLeft ? { filesLeft } : {}),
     ...(parts.quoted ? { quoted: parts.quoted } : {}),
     ...(parts.footer ? { footer: parts.footer } : {}),
     ...(signed ? { signature: { line: emailSignatureLine(signed), full: signed } } : {}),
   };
+}
+
+/** A draft's seconds left as a clock says them (the head's "Sends in 0:42", the draft's own line): minutes and seconds. */
+export function countdownClock(seconds: number): string {
+  const s = Math.max(0, Math.round(seconds));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
 /** What the thread's emails are about, for its head; nothing on a thread with no email subject. */
@@ -516,7 +596,7 @@ export function toInboxThreadVM(
           : lastWord
             ? lastWord.text
             : "The receptionist answered this on its own. Nothing is owed.",
-    ...holdWordsOf(escalation, claimedByOther),
+    ...holdWordsOf(escalation, claimedByOther, tz, now.getTime()),
     ...moments,
     ...inboxThreadClock(moments, tz, now.getTime()),
     // The dot is the reader's own (standing.ts isUnseen, 00349; inbox-thread-vm.ts says what it meant before).
@@ -532,13 +612,15 @@ export function toInboxThreadVM(
  * What the dock says of an open hold: its one line (escalations.ts reasonLineOf), and under its Why? the reason's whole
  * sentence and what the hold noted (the cause of a failed send, the words of a flag by hand). An email's hold notes what
  * the email claimed to be (core email-ingest EMAIL_REVIEW_WORDS), the reason's sentence said for that email, so it is said
- * in its place. A call back's details are its to-do, which is the line. Nothing with no hold, or on a thread a teammate
- * has: its reply box says what a reply does.
+ * in its place. A call back's details are its to-do, which is the line. A request's hold carries its booking's card.
+ * Nothing with no hold, or on a thread a teammate has: its reply box says what a reply does.
  */
 function holdWordsOf(
   escalation: EscalationDto | null,
   claimedByOther: boolean,
-): Pick<InboxThreadVM, "holdLine" | "holdWhy" | "holdNote"> {
+  tz: string,
+  nowMs: number,
+): Pick<InboxThreadVM, "holdLine" | "holdWhy" | "holdNote" | "request"> {
   if (!escalation || claimedByOther) return {};
   const details = escalation.details?.trim() || "";
   const sentence = reasonSummaryOf(escalation.reason);
@@ -549,6 +631,10 @@ function holdWordsOf(
     holdLine: reasonLineOf(escalation.reason),
     holdWhy: sentence,
     ...(details && details !== sentence ? { holdNote: clipAtWord(details, 240) } : {}),
+    // The booking a request hold asks to confirm, as its card draws it (the thread canvas, 1 Nov 2026).
+    ...(escalation.reason === "booking_request" && escalation.request
+      ? { request: bookingRequestCardOf(escalation.request, tz, nowMs) }
+      : {}),
   };
 }
 

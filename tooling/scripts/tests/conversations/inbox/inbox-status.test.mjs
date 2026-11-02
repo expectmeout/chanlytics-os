@@ -158,7 +158,19 @@ const rowsOf = (pane) =>
     .flatMap((k) =>
       classOf(k) === "ix-th-foot" ? [k.props.children].flat(Infinity).filter((f) => f && typeof f === "object") : [k],
     )
-    .map((k) => classOf(k).split(" ")[0])
+    // A box drawn as a fragment (the slim reply box and the hint under it) is the row its first part draws.
+    .map(
+      (k) =>
+        (
+          classOf(k) ||
+          [k.rendered?.props?.children]
+            .flat(Infinity)
+            .filter((f) => f && typeof f === "object")
+            .map(classOf)
+            .find(Boolean) ||
+          ""
+        ).split(" ")[0],
+    )
     .filter(Boolean);
 
 /* --------------------------------- the pane --------------------------------- */
@@ -182,11 +194,15 @@ test("REGRESSION: on a real thread what it needs from you sits under the convers
   assert.ok(take, "what Needs you asks is by the reply box");
   assert.match(textOf(take), /^They asked for a person — a holding message went out/);
   assert.doesNotMatch(textOf(take), /I'll answer this/, "the reply box under it answers, and takes it");
-  // Its name and its wait are the bar's, under the header (the thread state bar).
+  // Its name and its wait are the head's, under the name (the thread canvas, 1 Nov 2026): "Needs you" lit, then "40m".
   const standing = find(pane, byTestId("ix-th-standing"));
-  assert.match(textOf(standing), /Needs you/);
-  assert.match(textOf(standing), /waiting 40m/);
-  assert.ok(!textOf(take).includes("waiting 40m"), "said once");
+  assert.equal(textOf(standing), "Needs you40m");
+  assert.equal(
+    find(standing, hasClass("ix-th-standing-meta")).props.title,
+    "waiting 40m",
+    "the wait, named on a hover",
+  );
+  assert.ok(!/40m/.test(textOf(take)), "said once");
 });
 
 test("every state of a real thread is named in the bar under the header, and what it asks is said by the reply box: yours, a teammate's, snoozed, archived, and who had the last word", () => {
@@ -201,22 +217,22 @@ test("every state of a real thread is named in the bar under the header, and wha
     theirs: [
       chat({ paused_until: later, assignee_user_id: "u-ana", assignee_is_me: false }),
       asked(),
-      /has it· waiting 40m$/,
+      /has it40m$/,
       /^$/,
     ],
     snoozed: [
       chat({ state: "snoozed", snooze_until: later, paused_until: later }),
       null,
-      /^Snoozed· back /,
+      /^Snoozedback /,
       /Hidden from your queue/,
     ],
     archived: [chat({ state: "archived" }), null, /^Archived$/, /Their request is closed/],
-    // Answered and nothing owed: no bar and no dock (the phone canvas, A1). Who had the last word is the conversation's
-    // own last bubble; a sentence for the ordinary state stood over every thread.
+    // Answered and nothing owed: Handled in the head and no dock (the thread canvas, 1 Nov 2026). Who had the last word
+    // is the conversation's own last bubble; a sentence for the ordinary state stood over every thread.
     lastWord: [
       chat({ state: "open", messages: [wrote("m1", "Open Sunday?", 30), ours("m2", "Closed Sundays.", 29)] }),
       null,
-      /^$/,
+      /^Handled$/,
       /^$/,
     ],
   };
@@ -243,7 +259,7 @@ test("REGRESSION: a draft waiting to go out is the thread's one state -- 'They w
   // Under the draft's own bubble, in the conversation (the thread canvas, 1 Nov 2026): it stood by a reply box filled
   // with the same words, so the draft was on the screen twice.
   const held = find(find(pane, hasClass("ix-th-scroll")), byTestId("ix-held-draft"));
-  assert.match(textOf(find(held, hasClass("ix-veto"))), /Auto-sends in 72s/, "the countdown is under the draft");
+  assert.match(textOf(find(held, byTestId("ix-held-says"))), /sends in 1:12/, "the countdown is over the draft");
   assert.equal(find(status, hasClass("ix-veto")), undefined, "said once");
   const box = find(pane, (n) => n.type === "textarea" && hasClass("ix-composer-text")(n));
   assert.equal(box.props.value, "", "the box holds the member's own words, not the draft again");
@@ -253,26 +269,28 @@ test("REGRESSION: a draft waiting to go out is the thread's one state -- 'They w
     "REGRESSION: 'no reply yet' over a reply about to send",
   );
   assert.ok(!textOf(status).includes("no reply yet"));
-  assert.equal(find(pane, byTestId("ix-th-standing")), undefined, "and the bar under the header says nothing either");
+  // The head says it as the thread's one state, in the amber, with its clock (the thread canvas, 1 Nov 2026).
+  const standing = find(pane, byTestId("ix-th-standing"));
+  assert.equal(textOf(standing), "Sends in 1:12");
+  assert.equal(find(standing, (n) => n.props?.kind === "tone")?.props.value, "warn");
 });
 
-test("Needs you has one signal: the pill its row wears, and its wait, amber past thirty minutes -- a red flag in a red-outlined card", () => {
+test("Needs you has one signal: the pill lit in the coral, its wait beside it in the quiet ink -- a red flag in a red-outlined card", () => {
   const signal = (min) => {
     const pane = paneOf(vmOf(chat(), asked(min)));
     const standing = find(pane, byTestId("ix-th-standing"));
     return {
-      pill: !!find(standing, (n) => n.props?.kind === "thread" && n.props?.value === "escalated"),
+      pill: !!find(standing, (n) => n.props?.kind === "tone" && n.props?.label === "Needs you"),
       flag: !!find(pane, (n) => n.type === Icon && n.props?.name === "flag"),
       wait: find(standing, hasClass("ix-th-standing-meta")),
     };
   };
   const late = signal(40);
   assert.deepEqual([late.pill, late.flag], [true, false], "REGRESSION: a red flag");
-  assert.equal(textOf(late.wait), "· waiting 40m");
-  assert.ok(late.wait.props.className.split(" ").includes("late"), "amber past thirty minutes");
-  const soon = signal(12);
-  assert.equal(textOf(soon.wait), "· waiting 12m");
-  assert.ok(!soon.wait.props.className.split(" ").includes("late"), "and not before");
+  assert.equal(textOf(late.wait), "40m");
+  // The number says how long; a second tone beside the coral was a second signal (the thread canvas, 1 Nov 2026).
+  assert.equal(late.wait.props.className, "ix-th-standing-meta tabular", "the wait in the quiet ink");
+  assert.equal(textOf(signal(12).wait), "12m");
 });
 
 /* ------------------------------ the conversation ------------------------------ */
@@ -312,11 +330,11 @@ test("REGRESSION: a real bubble says its time and what became of it in its own c
   );
   assert.ok(!stamps.some((st) => textOf(st).includes("WhatsApp")), "one channel: the time alone");
   assert.ok(
-    find(stamps[1], (n) => n.type === Icon && n.props?.name === "sparkle"),
+    find(stamps[1], (n) => n.type === Icon && n.props?.name === "spark"),
     "the receptionist's words wear its spark, where 'by WhatsApp Receptionist' was",
   );
   assert.equal(
-    find(stamps[0], (n) => n.type === Icon && n.props?.name === "sparkle"),
+    find(stamps[0], (n) => n.type === Icon && n.props?.name === "spark"),
     undefined,
     "and theirs do not",
   );
@@ -356,7 +374,7 @@ test("words that did not reach them say so on their own bubble, whatever follows
 test("REGRESSION: a real thread's reply box is one line with Send beside it, naming the channel it goes out on -- a three-line field over a line repeating the channel and the name", () => {
   fresh();
   const box = InboxComposer({ thread: vmOf(chat({ state: "open" })), reply: "", onSend() {} });
-  assert.ok(box.props.className.split(" ").includes("ix-composer-row"));
+  assert.ok(find(box, hasClass("ix-composer-row")), "the one row");
   assert.equal(
     find(box, hasClass("ix-composer-foot")),
     undefined,
@@ -365,7 +383,8 @@ test("REGRESSION: a real thread's reply box is one line with Send beside it, nam
   const field = find(box, (n) => n.type === "textarea");
   assert.deepEqual(
     [field.props.rows, field.props.placeholder, field.props["aria-label"]],
-    [1, "WhatsApp to Rosa Díaz…", "Reply to Rosa Díaz"],
+    // Their first name in the box, as the canvas has it; their whole name is its name.
+    [1, "WhatsApp to Rosa…", "Reply to Rosa Díaz"],
   );
   assert.ok(find(box, hasClass("ix-composer-send")), "Send beside it");
 });
@@ -492,7 +511,10 @@ test("what an email from the box is signed with is read for its thread once the 
 test("REGRESSION: the reply box and a seeded approval draw no key -- Send said ⌘↵ and the card's foot A, D and E, beside the ? sheet that lists them", () => {
   fresh();
   const box = InboxComposer({ thread: vmOf(chat({ state: "open" })), reply: "", onSend() {} });
-  assert.equal(textOf(find(box, hasClass("ix-composer-send"))), "Send");
+  // A chat's Send is the round with its arrow: its word is its name, and no key is drawn beside it.
+  const send = find(box, hasClass("ix-composer-send"));
+  assert.equal(send.props["aria-label"], "Send");
+  assert.equal(textOf(send), "");
   assert.deepEqual(keysDrawn(box), []);
   const seeded = {
     id: "t-seed",
