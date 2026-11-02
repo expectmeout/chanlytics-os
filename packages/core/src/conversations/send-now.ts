@@ -6,7 +6,7 @@ import type { SendNowPorts } from "./ports";
  * goes at the ledger's next tick rather than at the window's end. Only a message still queued: one already on its way,
  * sent or withdrawn has nothing to bring forward, and says so.
  */
-export async function sendNow(
+export async function releaseHeldReply(
   ports: SendNowPorts,
   cmd: { msg: { id: string; tenant_id: TenantId; status: string } },
 ): Promise<{ status: "sending"; decision_id: string }> {

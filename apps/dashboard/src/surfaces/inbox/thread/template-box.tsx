@@ -488,3 +488,39 @@ export const TemplateComposer = ({
   );
   return withLead(lead, capsule);
 };
+
+/**
+ * WhatsApp's window, shut: a lock and its words, that open why on a press, at the head of the template box that is the
+ * one send left (template-box.tsx). A DM's says why in Instagram's words. It stood at the end of the bar under the header,
+ * away from the box it explains.
+ */
+export function ChatClosed({ dm, who }: { dm: boolean; who: string }) {
+  const [open, setOpen] = useState(false);
+  const W = THREAD_PANE_WORDS;
+  return (
+    <>
+      <div className="ix-closed-line" data-testid="ix-th-window">
+        <Icon name="lock" size={14} className="ix-closed-lock" />
+        <span className="ix-closed-words">
+          <b>{W.chatClosedLead}</b>
+          <span className="ix-dock-rest"> — {W.chatClosedRest(shortName(who))}</span>
+        </span>
+        <Button
+          variant="quiet"
+          size="text"
+          className="ix-closed-why ix-press"
+          aria-expanded={open}
+          onClick={() => setOpen(!open)}
+          data-testid="ix-th-window-toggle"
+        >
+          {W.why}
+        </Button>
+      </div>
+      {open && (
+        <span className="ix-why-said" data-testid="ix-th-window-why">
+          {dm ? W.dmClosedWhy : W.chatClosedWhy}
+        </span>
+      )}
+    </>
+  );
+}

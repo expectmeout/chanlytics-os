@@ -178,7 +178,7 @@ test(
     const ctx = { supabase: await session(operator), userId: operator.id, email: operator.email, via: null };
     const msg = { id: draft.messageId, tenant_id: t, status: "queued" };
 
-    const done = await core.sendNow(ports.sendNowPorts(ctx), { msg });
+    const done = await core.releaseHeldReply(ports.sendNowPorts(ctx), { msg });
     assert.equal(done.status, "sending");
     assert.match(done.decision_id, /^[0-9a-f-]{36}$/);
     assert.deepEqual(await jobOf(draft), { now: true, state: "scheduled" }, "its job is due now, for the tick to send");
@@ -197,13 +197,13 @@ test(
     // A reply its run has claimed is on its way: nothing to bring forward, and no line.
     const flying = await held(conv, { sending_at: new Date().toISOString() });
     await assert.rejects(
-      core.sendNow(ports.sendNowPorts(ctx), { msg: { id: flying.messageId, tenant_id: t, status: "queued" } }),
+      core.releaseHeldReply(ports.sendNowPorts(ctx), { msg: { id: flying.messageId, tenant_id: t, status: "queued" } }),
       (e) => e.code === "conflict",
     );
     assert.deepEqual(await jobOf(flying), { now: false, state: "scheduled" });
     // One already sent is refused before the door is asked.
     await assert.rejects(
-      core.sendNow(ports.sendNowPorts(ctx), { msg: { id: other.messageId, tenant_id: t, status: "sent" } }),
+      core.releaseHeldReply(ports.sendNowPorts(ctx), { msg: { id: other.messageId, tenant_id: t, status: "sent" } }),
       (e) => e.code === "conflict",
     );
     assert.equal((await ledger(t)).length, 1, "a Send now that moved nothing wrote nothing");

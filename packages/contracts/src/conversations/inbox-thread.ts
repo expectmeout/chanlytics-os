@@ -596,11 +596,7 @@ export function toInboxThreadVM(
           : lastWord
             ? lastWord.text
             : "The receptionist answered this on its own. Nothing is owed.",
-    ...holdWordsOf(escalation, claimedByOther),
-    // The booking a request hold asks to confirm, as its card draws it (the thread canvas, 1 Nov 2026).
-    ...(escalation && escalation.reason === "booking_request" && escalation.request
-      ? { request: bookingRequestCardOf(escalation.request, tz, now.getTime()) }
-      : {}),
+    ...holdWordsOf(escalation, claimedByOther, tz, now.getTime()),
     ...moments,
     ...inboxThreadClock(moments, tz, now.getTime()),
     // The dot is the reader's own (standing.ts isUnseen, 00349; inbox-thread-vm.ts says what it meant before).
@@ -616,13 +612,15 @@ export function toInboxThreadVM(
  * What the dock says of an open hold: its one line (escalations.ts reasonLineOf), and under its Why? the reason's whole
  * sentence and what the hold noted (the cause of a failed send, the words of a flag by hand). An email's hold notes what
  * the email claimed to be (core email-ingest EMAIL_REVIEW_WORDS), the reason's sentence said for that email, so it is said
- * in its place. A call back's details are its to-do, which is the line. Nothing with no hold, or on a thread a teammate
- * has: its reply box says what a reply does.
+ * in its place. A call back's details are its to-do, which is the line. A request's hold carries its booking's card.
+ * Nothing with no hold, or on a thread a teammate has: its reply box says what a reply does.
  */
 function holdWordsOf(
   escalation: EscalationDto | null,
   claimedByOther: boolean,
-): Pick<InboxThreadVM, "holdLine" | "holdWhy" | "holdNote"> {
+  tz: string,
+  nowMs: number,
+): Pick<InboxThreadVM, "holdLine" | "holdWhy" | "holdNote" | "request"> {
   if (!escalation || claimedByOther) return {};
   const details = escalation.details?.trim() || "";
   const sentence = reasonSummaryOf(escalation.reason);
@@ -633,6 +631,10 @@ function holdWordsOf(
     holdLine: reasonLineOf(escalation.reason),
     holdWhy: sentence,
     ...(details && details !== sentence ? { holdNote: clipAtWord(details, 240) } : {}),
+    // The booking a request hold asks to confirm, as its card draws it (the thread canvas, 1 Nov 2026).
+    ...(escalation.reason === "booking_request" && escalation.request
+      ? { request: bookingRequestCardOf(escalation.request, tz, nowMs) }
+      : {}),
   };
 }
 

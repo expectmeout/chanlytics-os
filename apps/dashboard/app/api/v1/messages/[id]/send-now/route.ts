@@ -1,5 +1,5 @@
 import { AppError, asTenantId } from "@chanlytics/contracts";
-import { sendNow } from "@chanlytics/core";
+import { releaseHeldReply } from "@chanlytics/core";
 import { write, row } from "@/server/route";
 import { requireUuid } from "@/server/request-guards";
 import { sendNowPorts } from "@/server/ports/core-ports";
@@ -22,5 +22,5 @@ export const POST = write({
   scope: theMessage,
   role: "operator",
   rate: "thread_state",
-  handle: ({ ctx, row: msg }) => sendNow(sendNowPorts(ctx), { msg }),
+  handle: ({ ctx, row: msg }) => releaseHeldReply(sendNowPorts(ctx), { msg }),
 });

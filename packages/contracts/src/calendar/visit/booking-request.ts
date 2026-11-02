@@ -176,7 +176,7 @@ export interface BookingRequestCardVM {
 }
 
 /** "3:00 – 4:00 PM", "11:30 AM – 12:30 PM": a slot's hours on the business's clock, the shared half of the day said once. */
-function hoursOf(startMs: number, endMs: number, tz: string): string {
+function requestHoursOf(startMs: number, endMs: number, tz: string): string {
   const time = dateFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" });
   const start = time.format(new Date(startMs));
   const end = time.format(new Date(endMs));
@@ -199,7 +199,7 @@ export function bookingRequestCardOf(
     weekday: dateFormat("en-US", { timeZone: tz, weekday: "short" }).format(at).toUpperCase(),
     date: dateFormat("en-US", { timeZone: tz, day: "numeric" }).format(at),
     dayLong: dateFormat("en-US", { timeZone: tz, weekday: "long", month: "long", day: "numeric" }).format(at),
-    hours: hoursOf(startMs, endMs, tz),
+    hours: requestHoursOf(startMs, endMs, tz),
     service: r.service && r.service.trim() ? r.service.trim() : null,
     holds: !r.expires_at || Date.parse(r.expires_at) > nowMs,
     to: visitRoute(r.id, key),

@@ -20,8 +20,7 @@ import { detailField } from "./shell-thread";
 import { holderName } from "../../holder-names";
 import { ixBandCallBack } from "./band";
 import { growWithWords, isPromise, type OnSend } from "./send-words";
-import { TemplateComposer } from "./template-box";
-import { ChatClosed } from "./status";
+import { ChatClosed, TemplateComposer } from "./template-box";
 import { Button } from "../../kit/button/button";
 
 type SetText = Dispatch<SetStateAction<string>>;

@@ -33,7 +33,7 @@ function receiptOf(data: unknown): { messageId: string | undefined; cancelableUn
  * A real draft let go now (Send now): its send job brought to the ledger's next tick, the draft reading as going at once,
  * and back as it was, with why, where the server refused (sent, claimed or withdrawn meanwhile).
  */
-function letGo(t: RealThread, st: VetoState, bump: () => void, flash: (flash: Flash) => void) {
+function letHeldDraftGo(t: RealThread, st: VetoState, bump: () => void, flash: (flash: Flash) => void) {
   if (st.held || st.going || !t.veto) return;
   st.going = true; // optimistic: it reads as going now
   bump();
@@ -156,7 +156,7 @@ export const threadVerbs = (flash: (flash: Flash) => void) => {
     if (!canDo("approve")) return;
     const heldKey = ixDraftKey(t);
     const st = VW_STORE.state[heldKey] || (VW_STORE.state[heldKey] = {});
-    if (act === "send_now") return letGo(t, st, bump, flash);
+    if (act === "send_now") return letHeldDraftGo(t, st, bump, flash);
     if (act === "edit") {
       const words = t.veto ? t.veto.draft : "";
       window.setTimeout(

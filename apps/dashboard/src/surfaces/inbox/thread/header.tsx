@@ -11,7 +11,6 @@ import {
   adRoute,
   appointmentWords,
   fromAdWords,
-  threadHeadFactOf,
   linkHost,
   proposalLinkOf,
   proposalMessage,
@@ -41,8 +40,8 @@ import { dealKit, hasHref, hrefOf, personNotes, usePeopleMoved } from "./shell-t
 import type { Thread } from "../types";
 import { ixBandCallBack } from "./band";
 import { channelIconOf } from "./timeline";
-import { IxWho } from "./who";
-import { takeInTheMenu, whereItStands, type Countdown } from "./status";
+import { headerSub, IxWho, wireBadge, type Countdown } from "./who";
+import { takeInTheMenu } from "./status";
 import { NameOffer } from "../../people/person/name-offer";
 import { mayAtLeast } from "../../legacy-verbs";
 import { Button } from "../../kit/button/button";
@@ -126,30 +125,6 @@ const ixDownload = (href: string) => {
   a.click();
   a.remove();
 };
-
-// The line under the name says the wires the conversation is on, once: "WhatsApp", "Phone · WhatsApp". It spent itself
-// on "+1 (917) 555-0114" and "no name saved" -- the number is on their profile, one tap away in the menu.
-const ixWires = (thread: Thread, labels: Record<string, string>) => {
-  const ws = (thread.channels && thread.channels.length ? thread.channels : [thread.primaryChannel]).filter(Boolean);
-  return [...new Set(ws.map((c) => labels[c] || c))].join(" · ");
-};
-
-/**
- * The wire the conversation is on, as a glyph on the face's edge (the thread canvas, 1 Nov 2026: a round of the raised
- * ground at its corner), its words for a pointer and a screen reader: every wire the thread has used ("Phone · WhatsApp"),
- * the newest one's glyph. It stood as glyphs after the name, and the line under the name says where the thread stands.
- */
-function wireBadge(thread: Thread, labels: Record<string, string>) {
-  const ws = (thread.channels && thread.channels.length ? thread.channels : [thread.primaryChannel]).filter(Boolean);
-  const glyph = thread.primaryChannel ? channelIconOf(thread.primaryChannel) : ws[0] ? channelIconOf(ws[0]) : null;
-  if (!glyph) return null;
-  const said = ixWires(thread, labels);
-  return (
-    <span className="ix-th-wire" role="img" aria-label={said} title={said} data-testid="ix-th-wire">
-      <Icon name={glyph} size={11} />
-    </span>
-  );
-}
 
 /**
  * A menu's groups, each under its heading where it has one: the kit's menu draws a line between each two, so a group
@@ -534,41 +509,6 @@ function visitDoor(facts: HeaderFacts) {
   );
 }
 
-/**
- * The line under the name (the thread canvas, 1 Nov 2026): where it stands, as the row's pill lit on its tone with the
- * wait beside it, then one fact about them (contracts threadHeadFactOf: their deal, a visit, where they work, where they
- * came from). A desk with the person's rail beside the thread says the wire there instead, in a glyph and its word: the
- * rail says who they are. A thread that stands nowhere says its wires.
- */
-function headerSub(thread: Thread, channelLabels: Record<string, string>, facts: HeaderFacts, countdown: Countdown) {
-  const standing = thread.real ? whereItStands(thread, countdown) : null;
-  const fact = thread.real && facts.person ? threadHeadFactOf(facts.person, visitWordHere()) : null;
-  const wires = thread.real ? ixWires(thread, channelLabels || {}) : thread.whoMeta;
-  const wire = thread.real && thread.primaryChannel ? channelIconOf(thread.primaryChannel) : null;
-  return (
-    <div className="ix-th-sub" data-testid="ix-th-sub">
-      {standing ?? <span className="ix-th-meta">{wires}</span>}
-      {fact && (
-        <span className="ix-th-fact" data-of={fact.of} data-testid="ix-th-fact">
-          <span className="ix-th-sep" aria-hidden="true">
-            ·
-          </span>
-          <span className="ix-th-fact-words">{fact.words}</span>
-        </span>
-      )}
-      {standing && wire && (
-        <span className="ix-th-on" data-testid="ix-th-on">
-          <span className="ix-th-sep" aria-hidden="true">
-            ·
-          </span>
-          <Icon name={wire} size={12} />
-          {wires}
-        </span>
-      )}
-    </div>
-  );
-}
-
 interface ThreadHeaderProps {
   thread: Thread;
   channelLabels: Record<string, string>;
@@ -664,7 +604,7 @@ function headerMain(props: ThreadHeaderProps, facts: HeaderFacts, alsoLeads: Rea
         badge={thread.real ? wireBadge(thread, channelLabels || {}) : null}
       >
         {headerName(thread, personTo)}
-        {headerSub(thread, channelLabels, facts, props.countdown ?? { remaining: null, paused: false })}
+        {headerSub(thread, channelLabels, facts.person, props.countdown ?? { remaining: null, paused: false })}
       </IxWho>
       {thread.real && !demoSession() ? visitDoor(facts) : null}
       {alsoLeads}

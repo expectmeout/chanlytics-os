@@ -1,27 +1,22 @@
 /**
- * What a thread needs from you, one state at a time, and where the conversation stands (moved from
- * pages/inbox-thread.jsx, decision 0015): the status band, the sentence-and-acts a state says, the bar under the header
- * and the customer's own words beside a decision.
+ * What a thread needs from you, one state at a time (moved from pages/inbox-thread.jsx, decision 0015): the status band,
+ * the sentence-and-acts a state says and the customer's own words beside a decision. Where the conversation stands, under
+ * the name, is the head's (who.tsx); the closed chat's line heads the template box (template-box.tsx).
  *
  * The band is a function per state, called by `ThreadStatus` and not drawn as a component of its own, so the tree is
  * the tree it was.
  */
-import { useState, type ReactElement, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   BOOKING_REQUEST_WORDS,
-  countdownClock,
   dockLineOf,
   HOLD_ACT_WORDS,
-  heldPill,
   shortName,
   snoozedThreadWords,
-  stateOf,
   THREAD_PANE_WORDS,
 } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
-import { StatePill } from "../../kit/pill/state-pill";
 import { Notice } from "../../kit/notice/notice";
-import { holderName } from "../../holder-names";
 import { gate, navigate } from "../shell";
 import type { Thread, TimelineEntry as TlEntry } from "../types";
 import { ixDockDials } from "./band";
@@ -728,138 +723,3 @@ export const ThreadStatus = (props: StatusProps) => {
     </>
   );
 };
-
-// =============== WHERE IT STANDS — the header's second line ===============
-// What the thread's row in the list wears (StatePill -- one vocabulary for both) and how long they have waited, said
-// under the name in the header (header.tsx), where the wires were (the thread canvas, 1 Nov 2026). It was a bar of its
-// own under the header, a row of the phone's height for one pill, over the dock that said the reason again. WhatsApp's
-// window, shut, is the template box's to say (ChatClosed, template-box.tsx): the line under the name is the person's
-// link, and a press inside a link is not one. Nothing when there is nothing to say: the header says the wires instead.
-
-/** Where a thread stands: the pill its row wears, lit on its tone, with how long they have waited in the mono face. */
-interface Standing {
-  pill: ReactElement;
-  meta?: string | null;
-  /** What the bare wait means, on a hover ("waiting 40m"). */
-  title?: string;
-}
-
-/** A draft counting down to send, as the head's state says it: the seconds left (none once held) and whether you are away. */
-export interface Countdown {
-  remaining: number | null;
-  paused: boolean;
-}
-
-/**
- * Where a thread stands, lit (the thread canvas, 1 Nov 2026): a hold is "Needs you" in the coral with the wait beside it
- * ("2h"); a draft counting down "Sends in 0:42" in the amber with its clock; a thread nothing waits on "Handled" in the
- * green with its tick; a snooze, a thread somebody has, and a reply that did not send, in their own tones.
- */
-const ixStanding = (thread: Thread, countdown: Countdown): Standing | null => {
-  const W = THREAD_PANE_WORDS;
-  if (thread.state === "snoozed")
-    return {
-      pill: <StatePill kind="thread" value="snoozed" lit />,
-      meta: `back ${thread.wake || "tomorrow 10:00"}`,
-    };
-  if (thread.takenOver) return { pill: <StatePill kind="thread" value="yours" lit /> };
-  if (thread.claimedByOther)
-    return {
-      pill: (
-        <StatePill kind="thread" value="theirs" lit label={heldPill("theirs", holderName(thread.assigneeUserId))} />
-      ),
-      meta: thread.waited || null,
-      title: thread.waited ? `waiting ${thread.waited}` : undefined,
-    };
-  // Its wait beside it in the quiet mono ink (the canvas's "2h"): the coral pill is the one signal, and the number says
-  // how long.
-  if (thread.state === "escalated")
-    return {
-      pill: <StatePill kind="tone" value="accent" lit label={stateOf("thread", "escalated").label} />,
-      meta: thread.waited || null,
-      title: thread.waited ? `waiting ${thread.waited}` : undefined,
-    };
-  // A draft counting down is where the thread stands: when it sends, as its own line under the bubble says it.
-  if (thread.real && thread.veto && countdown.remaining != null && !thread.resolution)
-    return {
-      pill: (
-        <StatePill
-          kind="tone"
-          value="warn"
-          lit
-          glyph={<Icon name="clock" size={11} />}
-          label={
-            <>
-              {W.sendsIn} <span className="tabular">{countdownClock(countdown.remaining)}</span>
-            </>
-          }
-        />
-      ),
-    };
-  if (thread.state !== "done" || thread.resolution) return null;
-  if (thread.archived) return { pill: <StatePill kind="thread" value="archived" label="Archived" lit /> };
-  if (thread.veto) return null;
-  // A reply that didn't send, or what they wrote held and closed with nothing sent (contracts unansweredOf), wears the
-  // row's own pill and, beside it, how long they have waited. Every other thread nothing waits on is handled.
-  if (thread.lastWord && thread.lastWord.short)
-    return {
-      pill: <StatePill kind="tone" value={thread.lastWord.tone} lit label={thread.lastWord.short} />,
-      meta: thread.unanswered ? thread.unanswered.waited : thread.lastWord.at || null,
-    };
-  return { pill: <StatePill kind="tone" value="ok" lit glyph={<Icon name="check" size={11} />} label={W.handled} /> };
-};
-
-/** Where a real thread stands, as the header's second line says it; null where it stands nowhere worth a word. */
-export function whereItStands(
-  thread: Thread,
-  countdown: Countdown = { remaining: null, paused: false },
-): ReactElement | null {
-  const standing = ixStanding(thread, countdown);
-  if (!standing) return null;
-  return (
-    <span className="ix-th-standing" data-testid="ix-th-standing">
-      {standing.pill}
-      {standing.meta && (
-        <span className="ix-th-standing-meta tabular" title={standing.title}>
-          {standing.meta}
-        </span>
-      )}
-    </span>
-  );
-}
-
-/**
- * WhatsApp's window, shut: a lock and its words, that open why on a press, at the head of the template box that is the
- * one send left (template-box.tsx). A DM's says why in Instagram's words. It stood at the end of the bar under the header,
- * away from the box it explains.
- */
-export function ChatClosed({ dm, who }: { dm: boolean; who: string }) {
-  const [open, setOpen] = useState(false);
-  const W = THREAD_PANE_WORDS;
-  return (
-    <>
-      <div className="ix-closed-line" data-testid="ix-th-window">
-        <Icon name="lock" size={14} className="ix-closed-lock" />
-        <span className="ix-closed-words">
-          <b>{W.chatClosedLead}</b>
-          <span className="ix-dock-rest"> — {W.chatClosedRest(shortName(who))}</span>
-        </span>
-        <Button
-          variant="quiet"
-          size="text"
-          className="ix-closed-why ix-press"
-          aria-expanded={open}
-          onClick={() => setOpen(!open)}
-          data-testid="ix-th-window-toggle"
-        >
-          {W.why}
-        </Button>
-      </div>
-      {open && (
-        <span className="ix-why-said" data-testid="ix-th-window-why">
-          {dm ? W.dmClosedWhy : W.chatClosedWhy}
-        </span>
-      )}
-    </>
-  );
-}
