@@ -3,20 +3,14 @@
  * still while the card turns, each press saying what it does; the card above it says why. For a lead to decide on, Not a
  * fit and Later as round glyphs, then Add to the pick with ▾ beside it (the picker); while a sequence has them, what needs
  * you there, the way out of it quiet beside the one primary, and the other answers under its caret. No dock at all where
- * nothing needs you (contracts leadDockOf): the sheet draws no foot. On a desk the keys are said under it: N, L, A, ⇧A, J
- * and K, and Z in a pile; C calls, never A. On a phone, with no keys to say, each glyph carries its word under it, and
- * the primary takes the room left, its words cut short before ▾ is ever pushed off.
+ * nothing needs you (contracts leadDockOf): the sheet draws no foot. Its keys are the shortcuts sheet's to say, never
+ * drawn here. On a phone each glyph carries its word under it, and the primary takes the room left, its words cut short
+ * before ▾ is ever pushed off.
  *
  * Hookless.
  */
 import type { ReactNode } from "react";
-import {
-  LEAD_DOCK_WORDS as D,
-  LEAD_PILE_UNDO_KEY,
-  dockSlotsOf,
-  type LeadSheetDockVM,
-  type LeadSheetSlotVM,
-} from "@chanlytics/contracts";
+import { LEAD_DOCK_WORDS as D, type LeadSheetDockVM, type LeadSheetSlotVM } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { Menu } from "../../kit/menu/menu";
@@ -51,8 +45,6 @@ interface DockProps {
   onRun: (s: LeadSheetSlotVM) => void;
   /** ▾ beside Add: the picker. */
   onPick: () => void;
-  /** The keys a desk says under the dock: a pile's, the rows' (J and K), or none on a phone. */
-  keys: "pile" | "rows" | null;
   /** On a phone: the glyphs say their words under them. */
   phone: boolean;
   /** Their email handed over: the row every To send draws, drawn by the sheet. */
@@ -147,8 +139,8 @@ function primaryOf(s: LeadSheetSlotVM, p: DockProps) {
 }
 
 /**
- * A glyph before the acts (Not a fit, Later): on a desk a round one named by its words, which its hover says, its key
- * named; on a phone its word under it.
+ * A glyph before the acts (Not a fit, Later): on a desk a round one named by its words, which its hover says; on a phone
+ * its word under it.
  */
 const glyphOf = (p: DockProps, act: "not_a_fit" | "later") => {
   const label = act === "later" ? D.later : D.notFit;
@@ -174,58 +166,18 @@ const glyphOf = (p: DockProps, act: "not_a_fit" | "later") => {
   );
 };
 
-/** The keys under the dock on a desk: in a pile, each act's key, ⇧A, J and K, and Undo; out of one, J and K. */
-const keysOf = (p: DockProps) => {
-  if (!p.keys) return null;
-  const K = D.keys;
-  const said =
-    p.keys === "pile"
-      ? [
-          ...(p.dock.x ? [{ keys: ["n"], words: K.notFit }] : []),
-          ...(p.dock.later ? [{ keys: ["l"], words: K.later }] : []),
-          ...dockSlotsOf(p.dock)
-            .filter((s) => s.key)
-            .map((s) => ({ keys: [s.key ?? ""], words: s.act === "add" ? K.add : s.label.toLowerCase() })),
-          ...(p.dock.primary && p.dock.primary.split ? [{ keys: ["⇧a"], words: K.choose }] : []),
-          { keys: ["j", "k"], words: K.move },
-          { keys: [LEAD_PILE_UNDO_KEY], words: K.undo },
-        ]
-      : [{ keys: ["j", "k"], words: K.move }];
-  return (
-    <p className="lw-keys" aria-hidden="true" data-testid="lead-sheet-keys">
-      {said.map((k) => (
-        <span key={k.words}>
-          {k.keys.map((key) => (
-            <kbd key={key} className="lw-kbd">
-              {key.toUpperCase()}
-            </kbd>
-          ))}
-          {k.words}
-        </span>
-      ))}
-    </p>
-  );
-};
-
 /** The dock: the round glyphs where the lead is to decide on, its quieter presses, and the one primary. */
 export const SheetDock = (p: DockProps) => {
   const d = p.dock;
   // A single way back and nothing else takes the dock's width.
   const wide = !d.primary && !d.x && d.others.length === 1;
   return (
-    <>
-      <div
-        className={`lw-dock${d.x ? " x" : ""}`}
-        data-busy={p.busy ? "true" : undefined}
-        data-testid="lead-sheet-dock"
-      >
-        {d.x ? glyphOf(p, "not_a_fit") : null}
-        {d.later ? glyphOf(p, "later") : null}
-        {d.toSend ? p.toSend : null}
-        {d.others.map((s) => otherOf(s, wide, p))}
-        {d.primary ? primaryOf(d.primary, p) : null}
-      </div>
-      {keysOf(p)}
-    </>
+    <div className={`lw-dock${d.x ? " x" : ""}`} data-busy={p.busy ? "true" : undefined} data-testid="lead-sheet-dock">
+      {d.x ? glyphOf(p, "not_a_fit") : null}
+      {d.later ? glyphOf(p, "later") : null}
+      {d.toSend ? p.toSend : null}
+      {d.others.map((s) => otherOf(s, wide, p))}
+      {d.primary ? primaryOf(d.primary, p) : null}
+    </div>
   );
 };
