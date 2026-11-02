@@ -3,8 +3,8 @@
  * the pills, the one time, what was said, and what is under it. Plain functions returning JSX, called by the list, so the
  * row has the nodes it always had.
  */
-import { heldPill, holdToDoOf } from "@chanlytics/contracts";
-import { Face, faceTileOf } from "../../kit/face/face";
+import { heldPill, holdToDoOf, waitedSaid } from "@chanlytics/contracts";
+import { Face, faceHueOf } from "../../kit/face/face";
 import { RowGap } from "../../kit/rows/row-gap";
 import { useShownRows, type ShownRows } from "../../kit/rows/shown-rows";
 import { Icon } from "../../kit/icon/icon";
@@ -66,10 +66,14 @@ function rowTime(t: Thread, sending: number | null) {
   // 2026): what the row asks of you is said in the coral under it, so the wait is no second signal.
   if (t.state === "escalated" && waitingMin > 0) {
     const waited = t.waited || `${waitingMin}m`;
+    // The figure for the eye, and the whole of it for a screen reader, which read "2h" alone as nothing.
     return (
-      <span className="ix-thread-time ix-thread-wait tabular" title={`waiting ${waited}`}>
-        {waited}
-      </span>
+      <>
+        <span className="ix-thread-time ix-thread-wait tabular" title={waitedSaid(waited)} aria-hidden="true">
+          {waited}
+        </span>
+        <span className="ix-wait-said">{waitedSaid(waited)}</span>
+      </>
     );
   }
   if (t.state === "snoozed" && t.wake) {
@@ -287,7 +291,7 @@ function threadRow(L: ListCtx, t: Thread, i: number, place?: { measure: (el: Ele
         <Face
           person={{ name: t.who, initials: t.avatar }}
           priority={t.priority}
-          hue={faceTileOf(t.who)}
+          hue={faceHueOf(t.who)}
           className="ix-thread-pic"
         />
         {rowWire(words.wire)}

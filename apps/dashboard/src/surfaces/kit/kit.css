@@ -5485,7 +5485,7 @@ a.list-row {
   background: var(--tile-d);
 }
 /* A person's face in their hue (the thread canvas, 1 Nov 2026: the thread's head, its sheet and the rail beside it): the
-   circle in one of four soft hues, the initials in its ink, picked by the name (face.tsx faceTileOf), so a person wears
+   circle in one of six soft hues, the initials in its ink, picked by the name (face.tsx faceHueOf), so a person wears
    one hue wherever these draw them. */
 .face-hue {
   box-shadow: none;
@@ -5505,6 +5505,14 @@ a.list-row {
 .face-hue-d {
   background: var(--face-hue-d);
   color: var(--face-hue-d-ink);
+}
+.face-hue-e {
+  background: var(--face-hue-e);
+  color: var(--face-hue-e-ink);
+}
+.face-hue-f {
+  background: var(--face-hue-f);
+  color: var(--face-hue-f-ink);
 }
 
 /* ---- What pops over the page (every canvas's popover) ----

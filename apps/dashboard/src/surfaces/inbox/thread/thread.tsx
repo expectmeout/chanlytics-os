@@ -57,14 +57,17 @@ const ixNewestSaid = (timeline: TlEntry[] | null | undefined) => {
 };
 
 // Where a real thread opens: at the message it was opened at (a call, from Conversations), or where a call began when a
-// call is the newest thing said -- its lines are below it, and play is the next thing to press -- else at its newest
-// message (null).
+// call is the newest thing said -- its lines are below it, and play is the next thing to press -- or where an email
+// begins when an email is -- it is read from its sender and its subject, and opened at its foot it showed the middle of a
+// long one under the head (the real app at 1440, 2 Nov 2026) -- else at its newest message (null). One that fits the
+// pane shows whole either way: the scroller stops at the conversation's end.
+const OPENS_AT_ITS_TOP: ReadonlySet<string> = new Set(["phone", "email"]);
 export const ixOpensAt = (thread: Thread | null | undefined, focusMessageId: string | null = null) => {
   if (focusMessageId) return focusMessageId;
   const tl = (thread && thread.timeline) || [];
   const i = ixNewestSaid(tl);
   const at = tl[i];
-  return thread && thread.real && i >= 0 && at && at.type === "msg" && at.channel === "phone" && at.messageId
+  return thread && thread.real && i >= 0 && at && at.type === "msg" && OPENS_AT_ITS_TOP.has(at.channel) && at.messageId
     ? at.messageId
     : null;
 };
@@ -193,27 +196,40 @@ interface EndRefs {
 
 /**
  * A real thread opens at its newest message and stays with it as messages arrive, unless you have scrolled up to read.
- * Opened at a message -- a call, from Conversations -- or at the start of a call that is the newest thing said, it
- * opens there instead (ixOpensAt), once the pane has a size to scroll. The thread is read when the effect runs, which
- * is when it first arrives, not when the pane first drew. The conversation `el` scrolls itself on a desk, and the window
- * scrolls it on a phone (scroller.ts). Answers what lets it go.
+ * Opened at a message -- a call, from Conversations -- or at the start of a call or an email that is the newest thing
+ * said, it opens there instead (ixOpensAt), once the pane has a size to scroll. The thread is read when the effect runs,
+ * which is when it first arrives, not when the pane first drew. The conversation `el` scrolls itself on a desk, and the
+ * window scrolls it on a phone (scroller.ts). Answers what lets it go.
  */
 function followTheEnd(el: HTMLElement, refs: EndRefs) {
   const box = threadScroller(el);
   const windowScrolls = isDocumentScroller(box);
-  let aim = ixOpensAt(refs.thread.current, refs.focus.current);
-  if (aim) refs.stuck.current = false;
+  // The entry it opens at is held at the top while the pane settles, until the reader moves the thread themselves: the
+  // thread's own read lands a beat after it opens and draws the day's divider over it, and the browser's scroll anchoring
+  // kept the entry where it stood, the divider cut off above it.
+  let held = ixOpensAt(refs.thread.current, refs.focus.current);
+  if (held) refs.stuck.current = false;
+  const holdAt = (mid: string): boolean => {
+    const at = el.querySelector(`[data-mid="${mid}"]`);
+    if (!at) return false;
+    // The day it was said with it, where the day's divider stands right above it.
+    const before = at.previousElementSibling;
+    const from = before && before.classList.contains("tl-day") ? before : at;
+    let by = from.getBoundingClientRect().top - threadShown(el, box).top - 16;
+    // Where the window scrolls it and the list stands above it (768, between a phone and a desk), the thread comes to the
+    // screen's top too, as it does opened at its end: opened at an email it moved 30px, the list still over it.
+    const pane = windowScrolls ? el.closest(".ix-thread-pane") : null;
+    if (pane) by = Math.max(by, pane.getBoundingClientRect().top);
+    box.scrollTop += by;
+    return true;
+  };
   const toEnd = () => {
     // Off the screen (not shown yet, or taken away with its observer not yet let go), it moves nothing: on a phone its box
     // is the window, and the list the thread went back to was pushed to its foot.
     if (!el.isConnected || !el.clientHeight) return;
-    if (aim) {
-      const at = el.querySelector(`[data-mid="${aim}"]`);
-      aim = null;
-      if (at) {
-        box.scrollTop += at.getBoundingClientRect().top - threadShown(el, box).top - 16;
-        return;
-      }
+    if (held) {
+      if (holdAt(held)) return;
+      held = null;
       refs.stuck.current = true; // not in this thread after all: its newest, as ever
     }
     if (refs.stuck.current) box.scrollTop = threadEnd(box);
@@ -221,9 +237,14 @@ function followTheEnd(el: HTMLElement, refs: EndRefs) {
   const onScroll = () => {
     refs.stuck.current = box.scrollHeight - box.scrollTop - shownHeight(box) < 40;
   };
+  const letGo = () => {
+    held = null;
+  };
   toEnd();
   const heard: EventTarget = windowScrolls ? window : el;
   heard.addEventListener("scroll", onScroll, { passive: true });
+  const moved = ["wheel", "touchstart", "pointerdown", "keydown"];
+  for (const kind of moved) heard.addEventListener(kind, letGo, { passive: true });
   // Shown (a phone opens the pane after it mounts) or grown (a photo lands): back to the end, if you were there. Where the
   // window scrolls it, the pane grows round it too: its foot, standing over the screen's foot (mobile.css).
   const seen = typeof ResizeObserver === "function" ? new ResizeObserver(toEnd) : null;
@@ -234,6 +255,7 @@ function followTheEnd(el: HTMLElement, refs: EndRefs) {
   }
   return () => {
     heard.removeEventListener("scroll", onScroll);
+    for (const kind of moved) heard.removeEventListener(kind, letGo);
     if (seen) seen.disconnect();
   };
 }

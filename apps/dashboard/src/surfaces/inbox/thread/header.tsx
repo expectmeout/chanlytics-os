@@ -21,7 +21,7 @@ import { useState, type ReactNode } from "react";
 import { Icon } from "../../kit/icon/icon";
 import { Menu, type MenuGroup, type MenuItem } from "../../kit/menu/menu";
 import { StoppedMark } from "../../kit/pill/stopped-mark";
-import { Face, faceTileOf } from "../../kit/face/face";
+import { Face, faceHueOf } from "../../kit/face/face";
 import { askAbout, refreshSurface, routeDoor } from "../../legacy-verbs";
 import { ROUTES } from "../constants";
 import { carryNotAPerson } from "../carried-reply";
@@ -395,7 +395,7 @@ function actionsMenu(thread: Thread, dealActs: MenuItem[], acts: HeaderActs, fac
         {
           label: thread.who,
           meta: W.personLine(row?.email ?? null, row?.firstContact?.label ?? null) || undefined,
-          glyph: <Face person={{ name: thread.who, initials: thread.avatar }} size="xl" hue={faceTileOf(thread.who)} />,
+          glyph: <Face person={{ name: thread.who, initials: thread.avatar }} size="xl" hue={faceHueOf(thread.who)} />,
           hint: (
             <span className="ix-more-profile">
               {W.profile}
@@ -640,11 +640,13 @@ function deskActs(thread: Thread, onSnooze: (threadId: string) => void, onArchiv
           size="lg"
           className="ix-th-desk-act"
           onClick={() => onSnooze(thread.id)}
+          aria-label={THREAD_PANE_WORDS.snooze}
+          title={THREAD_PANE_WORDS.snoozeMeta}
           data-testid="ix-th-snooze"
           {...gate("approve", "snooze a conversation")}
         >
           <Icon name="clock" size={14} />
-          {THREAD_PANE_WORDS.snooze}
+          <span className="ix-th-desk-act-words">{THREAD_PANE_WORDS.snooze}</span>
         </Button>
       )}
       {onArchive && !thread.archived && (
@@ -653,11 +655,13 @@ function deskActs(thread: Thread, onSnooze: (threadId: string) => void, onArchiv
           size="lg"
           className="ix-th-desk-act"
           onClick={onArchive}
+          aria-label={THREAD_PANE_WORDS.archive}
+          title={THREAD_PANE_WORDS.archiveMeta}
           data-testid="ix-th-archive"
           {...gate("approve", "archive a conversation")}
         >
           <Icon name="archive" size={14} />
-          {THREAD_PANE_WORDS.archive}
+          <span className="ix-th-desk-act-words">{THREAD_PANE_WORDS.archive}</span>
         </Button>
       )}
     </>
@@ -710,10 +714,10 @@ export const ThreadHeader = (props: ThreadHeaderProps) => {
               <Icon name="phone" size={12} /> Call back
             </Button>
           )}
-        {/* More, a glyph on an inset round a thumb finds (the thread canvas, 1 Nov 2026): "Actions" and its chevron
-            took a third of the header on a phone, beside a name cut short. Its menu says what to do with the
-            conversation, the person, the deal and the file, each under its heading; on a phone it is the kit's sheet,
-            headed by who it is about. */}
+        {/* More, a caret on an inset round a thumb finds (the thread canvas, 1 Nov 2026; a caret, never three dots):
+            "Actions" and its chevron took a third of the header on a phone, beside a name cut short. Its menu says what
+            to do with the conversation, the person, the deal and the file, each under its heading; on a phone it is the
+            kit's sheet, headed by who it is about. */}
         {deskActs(thread, onSnooze, onArchive)}
         <Menu
           trigger={
@@ -726,7 +730,7 @@ export const ThreadHeader = (props: ThreadHeaderProps) => {
               aria-label={THREAD_PANE_WORDS.moreFor(thread.who)}
               data-testid="ix-th-more"
             >
-              <Icon name="more" size={18} />
+              <Icon name="chevron-down" size={18} />
             </Button>
           }
           label={THREAD_PANE_WORDS.moreFor(thread.who)}

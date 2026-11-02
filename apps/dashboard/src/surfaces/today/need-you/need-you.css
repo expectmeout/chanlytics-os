@@ -150,7 +150,7 @@
 }
 @media (min-width: 721px) {
   .dash-a-v2 .today-queue .cl-attn-row:not(:has(> .cl-attn-work)) {
-    grid-template-columns: 34px minmax(7rem, 12rem) minmax(0, 1fr) auto auto;
+    grid-template-columns: 34px minmax(7rem, min(30%, 18rem)) minmax(0, 1fr) auto auto;
     grid-template-areas: "face who said wait acts";
     align-items: center;
     column-gap: 14px;

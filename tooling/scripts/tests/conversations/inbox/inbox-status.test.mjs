@@ -196,12 +196,12 @@ test("REGRESSION: on a real thread what it needs from you sits under the convers
   assert.doesNotMatch(textOf(take), /I'll answer this/, "the reply box under it answers, and takes it");
   // Its name and its wait are the head's, under the name (the thread canvas, 1 Nov 2026): "Needs you" lit, then "40m".
   const standing = find(pane, byTestId("ix-th-standing"));
-  assert.equal(textOf(standing), "Needs you40m");
-  assert.equal(
-    find(standing, hasClass("ix-th-standing-meta")).props.title,
-    "waiting 40m",
-    "the wait, named on a hover",
-  );
+  assert.equal(textOf(standing), "Needs you40mWaiting 40m");
+  const meta = find(standing, hasClass("ix-th-standing-meta"));
+  assert.equal(meta.props.title, "Waiting 40m", "the wait, named on a hover");
+  // The figure is the eye's; a screen reader is told the whole of it, where "40m" alone read as a length of nothing.
+  assert.equal(meta.props["aria-hidden"], true);
+  assert.equal(textOf(find(standing, hasClass("ix-wait-said"))), "Waiting 40m");
   assert.ok(!/40m/.test(textOf(take)), "said once");
 });
 
@@ -217,7 +217,7 @@ test("every state of a real thread is named in the bar under the header, and wha
     theirs: [
       chat({ paused_until: later, assignee_user_id: "u-ana", assignee_is_me: false }),
       asked(),
-      /has it40m$/,
+      /has it40mWaiting 40m$/,
       /^$/,
     ],
     snoozed: [

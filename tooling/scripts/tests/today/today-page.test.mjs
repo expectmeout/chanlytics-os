@@ -1022,7 +1022,7 @@ test("a waiting run whose day has passed is opened from the queue, never approve
   );
 });
 
-test("every person is a row of their group, the run waiting for a word in Your OK after them; the foot counts only what is cut", () => {
+test("every person is a row of their group, the run waiting for a word in To decide after them; the foot counts only what is cut", () => {
   clear();
   // Four people waiting, all under a week: the first is Up next, the other three wait on you.
   const vm = busy();
@@ -1044,7 +1044,7 @@ test("every person is a row of their group, the run waiting for a word in Your O
     [true, true, true, true, false],
     "the people first",
   );
-  assert.equal(rows[4].props["data-testid"], "brief-run-row", "then the run waiting for a word, in Your OK");
+  assert.equal(rows[4].props["data-testid"], "brief-run-row", "then the run waiting for a word, in To decide");
   const count = (id) => textOf(find(byTestId(queue, id), (n) => classes(n).includes("ny-group-n")));
   assert.deepEqual(
     all(byTestId(queue, "today-group-next"), (n) => classes(n).includes("cl-attn-who")).map(textOf),
@@ -1569,7 +1569,7 @@ test("while you were away: drawn wherever the bell is, deduped over every queue 
   assert.equal(textOf(find(tree, (n) => classes(n).includes("tq-count"))).trim(), "5", "the bell's own number");
   assert.match(
     textOf(find(tree, (n) => classes(n).includes("tq-foot"))),
-    /4 more in the bell, already in the queue above/,
+    /4 more in your notifications, already in Need you/,
   );
   assert.ok(buttons(tree, "Mark all read").length === 1);
   W.__DEMO_MODE = false;

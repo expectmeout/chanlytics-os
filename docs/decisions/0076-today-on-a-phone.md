@@ -98,7 +98,7 @@ cluttered on a phone, and the page under them said things twice. What changed, o
   down or how many need you in the badge's number, then what Ask prepared and the one thing that cannot wait
   (`needYouSay`), with Listen at its end. The phone's second headline (`todayPhoneHead`) and Listen's seat at the
   greeting's right went.
-- **Need you** is in groups (contracts `needYouGroupsOf`): Up next, Waiting on you, Your OK, and Over a week with Mark all
+- **Need you** is in groups (contracts `needYouGroupsOf`): Up next, Waiting on you, To decide, and Over a week with Mark all
   done (each handed back to the receptionist, asked first, one Undo). A strip of the kit's `SubTabs` cuts them by what each
   asks (Reply, Call, Approve) where two or more do. A person waiting has no state line: who, how long, the wire it came by
   and their words. To do and Ask found are a line each at Need you's foot that opens in place, on a desk too.
