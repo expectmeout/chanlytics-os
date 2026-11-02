@@ -264,6 +264,8 @@ export const THREAD_PANE_WORDS = {
   /** An owner's first message from someone: the way to say it is not someone the business serves, beside it. */
   firstEmail: (first: string) => `First message from ${first}. Not someone you serve?`,
   notACustomer: "Not a customer",
+  /** The dock's lead where the receptionist's draft found what they wrote was not a customer's: what it is follows. */
+  pitchLead: "Not someone you serve?",
   /** The quiet mark where the receptionist held the thread for a person, with its time (the reason is the dock's). */
   heldForYou: "Held for you",
   /** A head's state while a draft counts down to send ("Sends in 0:42"), and the draft's own line over it. */
@@ -391,6 +393,7 @@ function bubbleWordsOf(
 ): {
   body: string;
   subject?: string;
+  fromName?: string;
   leftOut?: string;
   filesLeft?: number;
   quoted?: string;
@@ -398,7 +401,8 @@ function bubbleWordsOf(
   signature?: { line: string; full: string };
 } {
   if (m.channel !== "email") return { body: messageText(m) };
-  const parts = emailPartsOf(messageText(m), emailFromNameOf(m));
+  const fromName = emailFromNameOf(m);
+  const parts = emailPartsOf(messageText(m), fromName);
   const subject = changed.get(m.id);
   const leftOut = emailLeftOutOf(m.meta) ?? replyLeftAsOf(m.meta);
   const filesLeft = emailFilesLeftOf(m.meta);
@@ -407,6 +411,7 @@ function bubbleWordsOf(
   return {
     body: parts.said,
     ...(subject ? { subject } : {}),
+    ...(fromName ? { fromName } : {}),
     ...(leftOut ? { leftOut } : {}),
     ...(filesLeft ? { filesLeft } : {}),
     ...(parts.quoted ? { quoted: parts.quoted } : {}),

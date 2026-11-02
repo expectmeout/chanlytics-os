@@ -342,6 +342,8 @@ export const HOLD_ACT_WORDS: Record<HoldAct, { cta: string; take: string | null;
 
 /** Where the receptionist drafted the reply a hold asks for: what is owed is a look at its words (the dock says so too). */
 export const DRAFTED_TODO = "Check the draft";
+/** What a row asks where its kept draft found they were not a customer (a sales pitch, a vendor, a newsletter). */
+export const PITCH_TODO = "Not a customer?";
 
 /**
  * What a hold asks of you, as the Inbox's row says it under what they said (the thread canvas's list, 1 Nov 2026: "Check

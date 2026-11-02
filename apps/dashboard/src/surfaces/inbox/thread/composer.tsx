@@ -505,6 +505,10 @@ function realComposer(c: ComposerDraw) {
       <div className="ix-composer-draft">
         {draftedLine(c)}
         {field}
+        {/* Folded on a phone (thread.tsx foldAsRead), the caret that says it opens: a press anywhere on the box opens it. */}
+        <span className="ix-composer-unfold" aria-hidden="true">
+          <Icon name="chevron-up" size={14} />
+        </span>
         {signedLine(c)}
         {c.rewrite[0] ? <RewriteLine c={c} /> : null}
       </div>
