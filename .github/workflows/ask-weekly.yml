@@ -1,0 +1,132 @@
+name: Ask's weekly turns
+
+# Real Ask turns against production, once a week (Ruben, 2 November 2026). Nothing else asks Ask anything on a schedule:
+# the nightly's paid specs skip and nightly-evals.yml is the receptionist's, and no Ask eval was recorded after mid
+# October while 47 commits changed Ask. Two halves, over the run's own workspace: e2e/ask.spec.ts with E2E_PAID_MODEL=1,
+# real turns through the page, and every must-never case of tooling/evals/ask-cases.json once (MUST_NEVER=1), what Ask
+# may never do on any page. The whole case set is about 140 turns, and stays a run by hand.
+#
+# It holds no model key and no secret the nightly does not: the turns go through production's own door, so they spend
+# the key the receptionist answers customers with, from the same credit balance. That balance ran out mid-eval on 18
+# October 2026, so this is small on purpose: about 35 turns, about $9 at what a watched turn cost in use on 2 November
+# 2026 ($0.26, $0.59 at most), less as turns in a row share the cache; each run prints it. Three refusals in a row stop the
+# eval, and a run stopped so says it could not run, on an issue of its own, since the receptionist reads that balance.
+#
+# On unless the repository variable ASK_WEEKLY is "off" (Settings, Secrets and variables, Actions, Variables): one word
+# stops it, with no deploy. A run started by hand runs whatever the variable says. A miss, or a run that could not say,
+# keeps one issue open and assigned to the repository's owner (tooling/scripts/ops/rolling-issue.mjs); a week that holds
+# closes it. What was asked and answered is kept as the run's artifact.
+on:
+  schedule:
+    # A schedule starts here hours late (in October the nightly's 09:00 came near 15:30, a Monday's 13:00 near 19:00):
+    # early on a Sunday, this ends well before the nightly's real start.
+    - cron: "23 1 * * 0"
+  workflow_dispatch:
+
+# The nightly's own group, so the two never run at once: its converge (e2e-workspace.mjs) rewrites the workspace's
+# config and deletes its Ask threads, and a turn across it can lose its thread.
+concurrency:
+  group: nightly-e2e
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  turns:
+    name: Real Ask turns against production
+    if: ${{ vars.ASK_WEEKLY != 'off' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      issues: write
+    # Who the turns are asked as, as in the nightly: addresses at example.com, in a workspace of fake people.
+    env:
+      E2E_USER_EMAIL: e2e-owner@example.com
+      E2E_MEMBER_EMAIL: e2e-member@example.com
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm e2e:install
+      - name: The run's own workspace, in its known state
+        run: node --import tsx tooling/scripts/ops/e2e-workspace.mjs --apply
+        env:
+          SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SERVICE_ROLE_KEY }}
+      # One retry, not the suite's two: a retry of a paid spec spends again.
+      - name: Real turns through the page
+        id: specs
+        shell: bash
+        env:
+          CI: "true"
+          REQUIRE_SERVICE_CREDENTIALS: "1"
+          E2E_PAID_MODEL: "1"
+          E2E_BASE_URL: https://app.chanlytics.com
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SERVICE_ROLE_KEY }}
+        run: |
+          set +e
+          pnpm e2e e2e/ask.spec.ts --retries=1 2>&1 | tee ask-specs.txt
+          code=${PIPESTATUS[0]}
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          exit "$code"
+      # What the nightly's workspace holds, in the cases' tokens (eval-ask.mjs). 0 every case held, 1 one failed or three
+      # refusals stopped the run, 2 it could not start. After red specs it still asks, since the two answer different
+      # questions; after a workspace that was never put right (the specs skipped) it spends nothing.
+      - name: What Ask may never do
+        id: evals
+        if: ${{ !cancelled() && steps.specs.outcome != 'skipped' }}
+        shell: bash
+        env:
+          MUST_NEVER: "1"
+          EVAL_WORKSPACE_HAS: no_calendar,no_offers_channel,no_offers_yes
+          E2E_BASE_URL: https://app.chanlytics.com
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SERVICE_ROLE_KEY }}
+        run: |
+          set +e
+          node --import tsx tooling/scripts/eval-ask.mjs > ask-evals.txt 2>&1
+          code=$?
+          cat ask-evals.txt
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          exit "$code"
+      - name: Keep what was asked and answered
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: ask-weekly
+          path: |
+            ask-specs.txt
+            ask-evals.txt
+            tooling/backups/eval-ask-*.json
+            playwright-report
+          retention-days: 14
+          if-no-files-found: ignore
+      # Always: a run that broke in its setup or hit its cap has no eval code, and that too is a run that could not say.
+      - name: Say so, where a person will see it
+        if: ${{ always() }}
+        shell: bash
+        env:
+          SPECS: ${{ steps.specs.outputs.code }}
+          EVALS: ${{ steps.evals.outputs.code }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          said=$({ grep -sE 'Ask evals:|must-never:|STOPPED:|^- FAIL' ask-evals.txt; grep -sE '^ +[0-9]+ (failed|flaky|passed)' ask-specs.txt; } || true)
+          if grep -sq 'STOPPED:' ask-evals.txt || { [ "$EVALS" != "0" ] && [ "$EVALS" != "1" ]; }; then
+            { echo "Ask's turns were refused or could not start. The receptionist reads the same credit balance: look at it first."; echo "$said"; } > ask-weekly.md
+            node tooling/scripts/ops/rolling-issue.mjs --state red --title "Ask's weekly turns could not run" --match "Ask's weekly turns" --body-file ask-weekly.md --assignee "$OWNER"
+          elif [ "$EVALS" = "0" ] && [ "$SPECS" = "0" ]; then
+            node tooling/scripts/ops/rolling-issue.mjs --state green --title "Ask's weekly turns missed a line" --match "Ask's weekly turns"
+          else
+            echo "$said" > ask-weekly.md
+            node tooling/scripts/ops/rolling-issue.mjs --state red --title "Ask's weekly turns missed a line" --match "Ask's weekly turns" --body-file ask-weekly.md --assignee "$OWNER"
+          fi

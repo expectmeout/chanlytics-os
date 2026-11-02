@@ -87,7 +87,8 @@
  * judge adds the spoken rules: no id, no route, no bracketed tag, an early comma in a long headline. A second turn is
  * not spoken (its page and scope are the typed Line's), so --spoken runs the first turns alone.
  *
- * REPS runs every case that many times (the gate runs three: spec 5.10). SURFACE keeps one surface's cases. The run
+ * REPS runs every case that many times (the gate runs three: spec 5.10). SURFACE keeps one surface's cases, MUST_NEVER=1
+ * the must-never cases (the weekly run's, .github/workflows/ask-weekly.yml). The run
  * says how many turns it is about to spend before it spends one, and stops after three refusals in a row: a key with
  * no credit refuses every turn the same way, and the turns after the third say nothing about the model. `--list`
  * says the same and stops there: every case and its second turn, their pages, the turns (a case of two turns is two)
@@ -146,6 +147,7 @@ const file = process.argv.slice(2).find((a) => !a.startsWith("--")) || "tooling/
 const ONLY = process.env.ONLY ? new Set(process.env.ONLY.split(",")) : null;
 const REPS = Math.max(1, Math.round(Number(process.env.REPS) || 1));
 const SURFACE = process.env.SURFACE || null;
+const MUST_NEVER = process.env.MUST_NEVER === "1";
 /** What the run's workspace holds, comma-separated, in a case's `needs` words: a case needing anything else is skipped. */
 const HAS = (process.env.EVAL_WORKSPACE_HAS ?? "").match(/[a-z_]+/g) ?? [];
 /** The baseline cost of one turn (spec §9): what the announcement multiplies before a turn is spent. */
@@ -526,9 +528,10 @@ export function judge(c, r) {
 const matched = JSON.parse(readFileSync(file, "utf8"))
   .map((c) => ({ ...c, surface: c.surface ?? c.context?.surface ?? "today" }))
   .filter((c) => !ONLY || ONLY.has(c.id))
-  .filter((c) => !SURFACE || c.surface === SURFACE);
+  .filter((c) => !SURFACE || c.surface === SURFACE)
+  .filter((c) => !MUST_NEVER || c.must_never === true);
 if (!matched.length) {
-  console.error("no cases match ONLY/SURFACE");
+  console.error("no cases match ONLY/SURFACE/MUST_NEVER");
   await quit(2);
 }
 // A page the eval cannot build is said before anything is read or spent.

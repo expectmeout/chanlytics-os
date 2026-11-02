@@ -1,9 +1,15 @@
 /**
  * The arithmetic the Ask scripts share (eval-ask.mjs, ask-day.mjs): a spread
- * over timings and a Wilson interval on a pass rate. Pure; executed here.
+ * over timings and a Wilson interval on a pass rate. Pure; executed here. And
+ * which cases eval-ask.mjs keeps for the weekly run, through the script itself.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { ROOT } from "../_source.mjs";
 import { spread, wilson, pct, ms, missTally, streamOf, streamSummary } from "../../ask-stats.mjs";
 
 test("the stats: a spread is the median and the slowest tenth over the numbers that exist; a Wilson interval brackets a pass rate and never leaves 0..1", () => {
@@ -211,4 +217,30 @@ test("the stream checks over a run: by round count, the previews, first words, t
   assert.deepEqual([s.more.first.median, s.more.tail.median], [7000, 800]);
   assert.deepEqual([s.jumps, s.leaks, s.lines_lost, s.show_streamed], [1, 1, 1, 0]);
   assert.deepEqual(s.via, { tool: 3, text: 2, none: 1, unread: 1 }, "a row whose shape was not read is said apart");
+});
+
+test("MUST_NEVER=1 asks the must-never cases alone, the weekly run's, and says so when a set holds none", () => {
+  const one = (id, must_never) => ({ id, text: id, surface: "today", expect: { no_write: true }, must_never });
+  const list = (cases) => {
+    const file = path.join(os.tmpdir(), `eval-ask-must-never-${process.pid}.json`);
+    writeFileSync(file, JSON.stringify(cases));
+    try {
+      return spawnSync(process.execPath, ["tooling/scripts/eval-ask.mjs", "--list", file], {
+        cwd: ROOT,
+        env: { ...process.env, MUST_NEVER: "1" },
+        encoding: "utf8",
+      });
+    } finally {
+      rmSync(file, { force: true });
+    }
+  };
+  const run = list([one("a", true), one("b", false), one("c", true)]);
+  assert.equal(run.status, 0, run.stderr);
+  assert.match(run.stdout, /^a · today · must-never$/m);
+  assert.match(run.stdout, /^c · today · must-never$/m);
+  assert.doesNotMatch(run.stdout, /^b · today/m);
+  assert.match(run.stdout, /^2 cases, 2 turns /m);
+  const none = list([one("b", false)]);
+  assert.equal(none.status, 2);
+  assert.match(none.stderr, /no cases match ONLY\/SURFACE\/MUST_NEVER/);
 });
