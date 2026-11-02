@@ -43,7 +43,7 @@ export const PIPELINE_WORDS = {
   show: "Show",
   hide: "Hide",
   /** Where there is nobody in any group. */
-  empty: { title: "No deals yet.", body: "Proposals you start show here, with what they come to." },
+  empty: { title: "No deals yet.", body: "Proposals you start show here." },
   /** The two ways to see it on a desk, and what a screen reader calls the switch. A phone has the list alone. */
   views: { label: "Show as", list: "List", board: "Board" },
   /**
