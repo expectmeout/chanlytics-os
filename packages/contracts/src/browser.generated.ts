@@ -254,7 +254,7 @@ export { CALL_ACTIVITY_NAME, CALL_ACTIVITY_ROLES, CALL_ACTIVITY_STALE_MS, callAc
 export { todayWidgetSnapshot } from "./mobile/today-widget";
 export { parseTodayWidgetSnapshot } from "./mobile/widget";
 export { clockIsNear, NEED_YOU_CLOCK_MS, NEED_YOU_OLD_MS, needYouGroupsOf, needYouVerbOf, needYouWaitOf } from "./need-you/need-you-groups";
-export { NEED_YOU_WORDS, NOT_A_PERSON_WORDS, needYouSay, notNowChoices, sendCountdown } from "./need-you/need-you-words";
+export { NEED_YOU_WORDS, needYouSay, NOT_A_PERSON_WORDS, notNowChoices, sendCountdown } from "./need-you/need-you-words";
 export { draftHasWords, draftIsCurrent, REPLY_DRAFT_KINDS, REPLY_DRAFTS_IDS_MAX, REPLY_DRAFTS_NEWEST_MAX, replyDraftAbout } from "./need-you/reply-drafts";
 export { approvedWordsFor, NEW_CONVERSATION_WORDS, newConversationOf, planNoteOf, writeWayWords, writeWireName } from "./new-conversation/new-conversation-words";
 export { DRAFT_ABOUT_MAX, DRAFT_ANSWER_MAX, DRAFT_ASKS_MAX, DRAFT_HOWS, DRAFT_TONES, PERSON_DRAFT_JSON_SCHEMA, PLAN_NOTE_MAX } from "./new-conversation/person-draft";
