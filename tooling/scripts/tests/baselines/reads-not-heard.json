@@ -1039,9 +1039,6 @@
         ],
         "inbox": [
           "appointments"
-        ],
-        "today": [
-          "appointments"
         ]
       },
       "heardWith": {
@@ -1049,9 +1046,6 @@
           "escalations"
         ],
         "inbox": [
-          "escalations"
-        ],
-        "today": [
           "escalations"
         ]
       }
