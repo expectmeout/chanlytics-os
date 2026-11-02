@@ -25,7 +25,7 @@ import { buildProposal, newToolContext } from "../tools";
  */
 
 /** The sequences and their batches, read once for what Ask noticed and for what came of its ideas. */
-export interface SequencesRead {
+interface SequencesRead {
   sequences: SequenceGlance[];
   runs: BroadcastDto[];
 }

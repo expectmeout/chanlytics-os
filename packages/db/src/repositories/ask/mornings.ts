@@ -70,7 +70,7 @@ export async function askMorningOf(
 }
 
 /** A morning of the workspace, with the cards its first answer left. */
-export interface AskMorningSeen {
+interface AskMorningSeen {
   user_id: string;
   day: string;
   proposals: Json | null;

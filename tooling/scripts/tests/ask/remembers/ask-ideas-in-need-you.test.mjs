@@ -9,6 +9,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { NEED_YOU_WORDS } from "@chanlytics/contracts";
 import { installLegacyReact, fresh, again, all, textOf, press, kitPages, settle } from "../../_legacy-react.mjs";
+import { until } from "../../shared/_until.mjs";
 
 installLegacyReact({ __DEMO_MODE: false, __surfaceState: () => "live", __surfaceFailed: () => false });
 Object.assign(globalThis.window, kitPages);
@@ -283,7 +284,7 @@ test("a press refused because what the idea was about moved on says so, keeps th
   const tree = alone({});
   void press(pressOf(tree, 0, NEED_YOU_WORDS.idea.approve));
   commits[0].land({ ok: false, message: "This run is not waiting for approval.", moved: true });
-  await settle();
+  await until(() => outcomes.length === 1, "what became of it, kept on its turn");
   assert.deepEqual(
     outcomes.map((o) => [o.pid, o.state, o.moved]),
     [["p-1", "failed", true]],
@@ -302,7 +303,6 @@ test("what Ask noticed is set aside by its own rest, and no turn is told of it",
     },
   });
   await press(pressOf(tree, 0, NEED_YOU_WORDS.idea.notToday));
-  await settle();
-  assert.equal(rests, 1);
+  await until(() => rests === 1, "the rest asked for");
   assert.deepEqual(outcomes, []);
 });

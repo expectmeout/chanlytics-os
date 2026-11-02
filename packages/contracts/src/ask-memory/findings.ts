@@ -77,7 +77,7 @@ const finishedOf = (runs: readonly FindingRun[], id: string): FindingRun[] =>
     .filter((r) => r.sequence_id === id && (r.state === "sent" || r.state === "canceled"))
     .sort((a, b) => b.created_at.localeCompare(a.created_at));
 
-const sumOf = (runs: readonly FindingRun[]): Earned => ({
+const earnedOver = (runs: readonly FindingRun[]): Earned => ({
   sent: runs.reduce((n, r) => n + r.counts.sent, 0),
   replied: runs.reduce((n, r) => n + r.counts.replied, 0),
 });
@@ -99,8 +99,8 @@ export function askFindingsOf(sequences: readonly FindingSequence[], runs: reado
     const sent = done.filter((r) => r.state === "sent");
     const [lastSent, ...rest] = sent;
     if (newest?.state === "sent" && lastSent) {
-      const last = sumOf([lastSent]);
-      const before = sumOf(rest.slice(0, FELL_BEFORE));
+      const last = earnedOver([lastSent]);
+      const before = earnedOver(rest.slice(0, FELL_BEFORE));
       if (repliesFell(last, before))
         fell.push({ key: `fell-${s.id}`, kind: "replies_fell", sequenceId: s.id, name: s.name, last, before });
     }

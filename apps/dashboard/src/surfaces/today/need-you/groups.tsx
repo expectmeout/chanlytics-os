@@ -17,13 +17,13 @@ import {
   type AskRested,
   type TodayQueueRowVM,
 } from "@chanlytics/contracts";
-import { api } from "@/legacy-bridge/api";
 import { refreshSurfaces } from "@/legacy-bridge/surface-runner";
 import { commitVerb, undoVerb } from "@/legacy-bridge/verbs/commit";
 import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
 import { Panel } from "../../kit/panel/panel";
+import { saveView } from "../../people/people-detail";
 import { surfaceValue } from "../../surface-values";
 import { useSurface } from "../../use-surface";
 import { askMorningOverride } from "../ask-morning-surface";
@@ -323,11 +323,7 @@ export function AskFoundLine({
       if (!morning) return;
       const rested = restedWith(rests ?? morning.rested ?? {}, card.id, morning.day);
       setRests(rested);
-      const r = await api()("PUT views/[page]", {
-        params: { page: ASK_FOUND_VIEW },
-        body: { view: { rested } },
-        refresh: false,
-      });
+      const r = await saveView(ASK_FOUND_VIEW, { rested });
       if (!r.ok) ctx.flash({ tone: "danger", msg: <>{r.message}</> });
     },
   };
