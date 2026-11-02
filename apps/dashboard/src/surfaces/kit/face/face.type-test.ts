@@ -33,7 +33,7 @@ function _faceTakes(
     Holds<Exactly<FaceProps["mark"], string | undefined>>,
     Holds<Exactly<FaceProps["pick"], "choose" | "chosen" | undefined>>,
     Holds<Exactly<FaceProps["tile"], "a" | "b" | "c" | "d" | undefined>>,
-    Holds<Exactly<FaceProps["hue"], "a" | "b" | "c" | "d" | undefined>>,
+    Holds<Exactly<FaceProps["hue"], "a" | "b" | "c" | "d" | "e" | "f" | undefined>>,
   ];
   Face({ initials: "AR" });
   // A business on a run's screen: a tile in its hue.

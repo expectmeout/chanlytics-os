@@ -43,6 +43,8 @@ const faceClasses = variants({
       b: "face-hue face-hue-b",
       c: "face-hue face-hue-c",
       d: "face-hue face-hue-d",
+      e: "face-hue face-hue-e",
+      f: "face-hue face-hue-f",
     },
   },
 });
@@ -55,6 +57,24 @@ export function faceTileOf(name: string): FaceTile {
   let n = 0;
   for (const ch of name) n = (n + ch.charCodeAt(0)) % 4;
   return (["a", "b", "c", "d"] as const)[n] ?? "a";
+}
+
+/** The six soft hues a person's circle is drawn in. */
+export type FaceHue = "a" | "b" | "c" | "d" | "e" | "f";
+const FACE_HUES: readonly FaceHue[] = ["a", "b", "c", "d", "e", "f"];
+
+/**
+ * The hue a person's circle is drawn in: the same name, however it is cased, the same hue on every row and head that draws
+ * them. Six hues and the name hashed whole (FNV-1a), where four and the sum of its letters made one row in four the hue
+ * of the row above it, and names of one length and letters alike fell together.
+ */
+export function faceHueOf(name: string): FaceHue {
+  let h = 0x811c9dc5;
+  for (const ch of name.trim().toLowerCase()) {
+    h ^= ch.codePointAt(0) ?? 0;
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return FACE_HUES[h % FACE_HUES.length] ?? "a";
 }
 
 /**
@@ -92,8 +112,8 @@ export type FaceProps = FaceHolds & {
   pick?: "choose" | "chosen";
   /** Drawn as a tile, a rounded square in one of four hues (a business on a run's screen), where it is a circle. */
   tile?: FaceTile;
-  /** A person's circle in one of four soft hues, its initials in the hue's ink (the thread's head; faceTileOf picks it). */
-  hue?: FaceTile;
+  /** A person's circle in one of six soft hues, its initials in the hue's ink (the thread's head; faceHueOf picks it). */
+  hue?: FaceHue;
 } & FaceSpan;
 
 /** A picture that does not load stands aside, and the initials under it show again, as People's row does. */
