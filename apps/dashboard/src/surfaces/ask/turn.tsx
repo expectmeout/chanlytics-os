@@ -6,6 +6,7 @@
  * per place); this file only draws.
  */
 import { useState } from "react";
+import { cardsTogether, wordsLessHolds } from "@chanlytics/contracts";
 import type {
   AskAnswer as Answer,
   AskFigure as Figure,
@@ -19,7 +20,7 @@ import type { AskApi } from "@/legacy-bridge/ask";
 import { AskFace } from "../kit/face/ask-face";
 import { Icon } from "../kit/icon/icon";
 import { AskWords, AskListPart } from "./answer-words";
-import { AskCard, AskPlan } from "./card";
+import { AskCards, AskPlan } from "./card";
 import { askKindGlyph } from "./card-parts";
 import { AskBreakdown, AskChart } from "./home";
 import type { DrawnAnswer, FoldedTurn, LineMove, LineTurn, LiveSay } from "./line/types";
@@ -217,8 +218,8 @@ const AskShow = ({
 // again, Open as the kit's button, the next questions as chips). `walk`: this
 // is the answer the keys walk, whose moves carry the ids the line points at (answerMoves' order) and `sel` is the one
 // they stand on; a folded answer has none. `next`: whether the next questions are drawn in the answer: a phone's thread
-// draws the newest answer's over its field (AskNextRow) and an earlier answer's nowhere (the spec
-// 2026-09-27-ask-chat-on-a-phone, D6).
+// draws the newest answer's over its field (AskNextRow), or under its cards where it has any, and an earlier answer's
+// nowhere (the spec 2026-09-27-ask-chat-on-a-phone, D6, as decision 0088 amends it).
 export const AskAnswer = ({
   answer,
   cardOpen,
@@ -243,9 +244,10 @@ export const AskAnswer = ({
   sel?: number;
   next?: boolean;
 }) => {
-  const A = askCalls();
   const a = answer;
   const nexts = next ? a.do.next : [];
+  // What holds a card waiting is the card's to say, read before its press: the answer does not say it again.
+  const detail = wordsLessHolds(a.say.detail, cards || []);
   const listed = !!(a.show.list && a.show.list.entries.length);
   const hasShow =
     a.show.figures.length > 0 || a.show.items.length > 0 || !!a.show.breakdown || !!a.show.chart || listed;
@@ -262,8 +264,8 @@ export const AskAnswer = ({
       <div className="ask-part say" data-testid="ask-say">
         <div className="ask-say">
           {a.say.headline ? <p className="ask-headline">{a.say.headline}</p> : null}
-          {a.say.detail ? (
-            <AskWords text={a.say.detail} className={a.say.headline ? "ask-detail" : "ask-prose"} onNav={onNav} />
+          {detail ? (
+            <AskWords text={detail} className={a.say.headline ? "ask-detail" : "ask-prose"} onNav={onNav} />
           ) : null}
         </div>
       </div>
@@ -271,12 +273,12 @@ export const AskAnswer = ({
       {hasDo ? (
         <div className="ask-part do" data-testid="ask-do">
           <div className="ask-do">
-            {/* A plan's cards are one group, where its first card stood (contracts cardsInPlans); every other card on its own. */}
-            {(A && A.cardsInPlans ? A.cardsInPlans(cards || []) : (cards || []).map((card) => ({ card }))).map((it) =>
-              "plan" in it ? (
+            {/* A plan's cards are one group, where its first card stood, and the cards of no plan beside each other another (contracts cardsTogether). */}
+            {cardsTogether(cards || []).map((g) =>
+              "plan" in g ? (
                 <AskPlan
-                  key={`plan:${it.plan[0].plan?.id}`}
-                  cards={it.plan}
+                  key={`plan:${g.plan[0].plan?.id}`}
+                  cards={g.plan}
                   messageId={messageId}
                   t={t}
                   onNav={onNav}
@@ -285,15 +287,15 @@ export const AskAnswer = ({
                   cardOpen={cardOpen}
                 />
               ) : (
-                <AskCard
-                  key={it.card.id}
-                  p={it.card}
+                <AskCards
+                  key={g.cards.at(0)?.id}
+                  cards={g.cards}
                   messageId={messageId}
                   t={t}
                   onNav={onNav}
                   onOutcome={onOutcome}
                   onEdit={onEdit}
-                  hideOpen={!!cardOpen && cardOpen[it.card.id] === false}
+                  cardOpen={cardOpen}
                 />
               ),
             )}

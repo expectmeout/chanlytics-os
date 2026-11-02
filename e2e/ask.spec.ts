@@ -1,6 +1,9 @@
-import { test, expect } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
+import { test, expect, type Page } from "@playwright/test";
+import { askLine, answerWithThreeCards, dropTheTurn, FIRST_CARD_SAYS, holdWrites, WHATSAPP_REVIEW } from "./ask-turn";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
 import { atRoute, routeOf } from "./address";
+import { motionSettled } from "./signals";
 import { activeWorkspace, scoped, apiGet } from "./workspace";
 import { WAITING_QUESTION, WAITING_SEARCH_NAME, refuseAnswers, waitingSearch } from "./waiting-search";
 
@@ -407,3 +410,177 @@ test.describe("Ask on a phone", () => {
     await expect(ask.getByTestId("ask-input")).toHaveValue("how did the");
   });
 });
+
+/**
+ * A turn of cards (decision 0088), on a desk and a phone, answered in the page (e2e/ask-turn.ts): no model behind it and
+ * no write leaves it, so it runs on every nightly. The first Approve stands on the first screen, what it depends on above
+ * it, and each warning is said once; a press lands somewhere a keyboard and a screen reader can follow; and axe finds
+ * nothing serious in any state.
+ *
+ * Axe says "incomplete", not a pass, for the contrast of words on Ask's glass: it cannot read the ground through a
+ * backdrop filter. The words of a card turn were sampled by hand on 2 Nov 2026 (the decision says how).
+ */
+/** The device preferences' key (contracts DEVICE_PREFS_STORAGE), restated: a spec compiles apart from the package. */
+const DEVICE_PREFS = "chanlytics-os-prefs";
+/** Serious or critical findings in Ask, as lines a failure reads. Anything less is a report, not a gate. */
+async function scanAsk(page: Page, state: string) {
+  await expect(page.getByTestId("ask-real")).toBeVisible();
+  await motionSettled(page); // a part fading in is read at the contrast it has so far
+  const found = await new AxeBuilder({ page }).include("[data-testid='ask-real']").analyze();
+  expect(
+    found.violations
+      .filter((v) => v.impact === "serious" || v.impact === "critical")
+      .map((v) => `${v.impact} ${v.id}: ${v.help} (${v.nodes.length}: ${v.nodes[0]?.target.join(" ")})`),
+    state,
+  ).toEqual([]);
+}
+
+for (const view of [
+  { name: "a desk", use: { viewport: { width: 1280, height: 800 } } },
+  { name: "a phone", use: { viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true } },
+]) {
+  test.describe(`A turn of cards on ${view.name}`, () => {
+    test.skip(!HAVE_SESSION, WHY_SKIPPED);
+    test.use(view.use);
+    const phone = !!view.use.viewport && view.use.viewport.width < 721;
+    const openAsk = async (page: Page) => {
+      await page.goto("/#/today");
+      await page.waitForLoadState("networkidle");
+      if (phone) await page.getByTestId("phone-ask").tap();
+      else await page.getByTestId("tb-ask").click();
+      await expect(page.getByTestId("ask-real")).toBeVisible();
+    };
+    test.beforeEach(async ({ page }) => {
+      await signIn(page);
+      await holdWrites(page);
+    });
+
+    test("the first Approve is on the first screen with what it depends on, one card open, and the warning all three share said once above them", async ({
+      page,
+    }) => {
+      await answerWithThreeCards(page);
+      await openAsk(page);
+      await askLine(page, "set up a campaign");
+      const ask = page.getByTestId("ask-real");
+      const approve = ask.getByTestId("ask-card-approve");
+      await expect(approve, "one card stands open").toHaveCount(1);
+      await motionSettled(page); // the three still shrinking stand the answer lower
+      const body = (await ask.locator(".ask-line-body").boundingBox())!;
+      const box = (await approve.boundingBox())!;
+      expect(box.y + box.height, "the press clears the field, unscrolled").toBeLessThanOrEqual(body.y + body.height);
+
+      const cards = ask.getByTestId("ask-card");
+      await expect(cards).toHaveCount(3);
+      for (const says of FIRST_CARD_SAYS) await expect(cards.first()).toContainText(says);
+      await expect(cards.nth(1), "a card not reached says its line").toContainText("Follows up with everyone");
+      await expect(cards.nth(1), "and offers no press").not.toContainText("Approve");
+
+      await expect(ask.getByText(WHATSAPP_REVIEW), "said once, the answer's own line and the cards' gone").toHaveCount(
+        1,
+      );
+      const alike = ask.getByTestId("ask-holds-alike");
+      await expect(alike).toContainText("All 3.");
+      const warned = (await alike.boundingBox())!;
+      expect(warned.y + warned.height, "and read before the press").toBeLessThanOrEqual(box.y);
+
+      const next = ask.getByTestId("ask-next").first();
+      await next.scrollIntoViewIfNeeded();
+      const asked = (await next.boundingBox())!;
+      const last = (await cards.last().boundingBox())!;
+      expect(asked.y, "the next questions stand under the cards").toBeGreaterThanOrEqual(last.y + last.height);
+
+      // The sheet keeps what no press turns on behind Details, and gives it back.
+      await expect(cards.first()).not.toContainText("Each run waits for you on Today");
+      await ask.getByTestId("ask-card-details").click();
+      await expect(cards.first()).toContainText("Each run waits for you on Today");
+
+      // A press decides the card and opens the next; the warning stands while one still waits.
+      await approve.click();
+      await expect(cards.first().locator(".ask-card-receipt")).toBeVisible();
+      await expect(cards.nth(1)).toContainText("Daily, 11:00 AM");
+      await expect(ask.getByTestId("ask-card-approve")).toHaveCount(1);
+      await expect(alike).toBeVisible();
+
+      // Any card opens by its head, and the one open folds.
+      await cards.nth(2).getByTestId("ask-card-fold").click();
+      await expect(cards.nth(2)).toContainText("Daily, 10:00 AM, up to 25");
+      await expect(cards.nth(1)).not.toContainText("Daily, 11:00 AM");
+    });
+
+    test("a press lands on what became of the card, which is announced; Not now and Try again land too", async ({
+      page,
+    }) => {
+      await answerWithThreeCards(page);
+      await openAsk(page);
+      await askLine(page, "set up a campaign");
+      const ask = page.getByTestId("ask-real");
+      const cards = ask.getByTestId("ask-card");
+      await ask.getByTestId("ask-card-approve").click();
+      const receipt = cards.first().locator(".ask-card-receipt");
+      await expect(receipt, "not the page's body, and not the field").toBeFocused();
+      await expect(cards.first().getByRole("status")).toContainText("Reminder");
+      // The outcome is noted on the conversation a beat later, which brings the field's focus back on a desk: not here.
+      await expect(page.locator(".ask-card-receipt")).toHaveCount(1);
+      await expect(receipt).toBeFocused();
+
+      await cards.nth(1).getByRole("button", { name: "Not now" }).click();
+      await expect(cards.nth(1).locator(".ask-card-receipt")).toBeFocused();
+
+      // A press refused says why where the press stood, and Try again gives Approve back, with the focus.
+      await page.route(/\/api\/v1\/playbooks/, (route) =>
+        route.fulfill({
+          status: 422,
+          contentType: "application/json",
+          body: JSON.stringify({
+            ok: false,
+            error: { code: "invalid", message: "That campaign needs a message first." },
+          }),
+        }),
+      );
+      await ask.getByTestId("ask-card-approve").click();
+      await expect(cards.nth(2).locator(".ask-card-receipt")).toBeFocused();
+      await cards.nth(2).getByRole("button", { name: "Try again" }).click();
+      await expect(cards.nth(2).getByTestId("ask-card-approve")).toBeFocused();
+    });
+
+    test("axe finds nothing serious, in either theme: at rest, a thread, a card, a receipt, a failed turn", async ({
+      page,
+    }) => {
+      test.setTimeout(120_000);
+      for (const theme of ["dark", "light"]) {
+        await page.addInitScript(
+          ([key, t]) => localStorage.setItem(key, JSON.stringify({ theme: t })),
+          [DEVICE_PREFS, theme],
+        );
+        await openAsk(page);
+        await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+        await scanAsk(page, `${theme}, at rest`);
+        await answerWithThreeCards(page);
+        await askLine(page, "set up a campaign");
+        const ask = page.getByTestId("ask-real");
+        await expect(ask.getByTestId("ask-card-approve")).toBeVisible();
+        await scanAsk(page, `${theme}, a thread with its cards`);
+        await ask.getByTestId("ask-card-details").click();
+        await scanAsk(page, `${theme}, a card with its details`);
+        await ask.getByTestId("ask-card-approve").click();
+        await expect(ask.locator(".ask-card-receipt")).toBeVisible();
+        await scanAsk(page, `${theme}, a receipt`);
+        await page.unroute(/\/api\/v1\/ask(\?|$)/);
+        await dropTheTurn(page);
+        await askLine(page, "and the next one?");
+        await expect(ask.getByTestId("ask-retry")).toBeVisible();
+        await scanAsk(page, `${theme}, a failed turn`);
+        await page.unroute(/\/api\/v1\/ask(\?|$)/);
+      }
+    });
+
+    test("a failed turn offers Try again, and neither Copy nor Read aloud", async ({ page }) => {
+      await dropTheTurn(page);
+      await openAsk(page);
+      await askLine(page, "who needs a word?");
+      const ask = page.getByTestId("ask-real");
+      await expect(ask.getByTestId("ask-retry")).toBeVisible();
+      await expect(ask.getByTestId("ask-acts")).toHaveCount(0);
+    });
+  });
+}

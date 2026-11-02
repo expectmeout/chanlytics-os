@@ -24,6 +24,7 @@ for (const k of ["DIAG_KEY", "VERCEL_ENV", "EDGE_URL"]) delete process.env[k];
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { buildProposal, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
+const { campaignSheet } = await import(at("apps/dashboard/src/server/ask/tools/act/playbook-card.ts"));
 const {
   LIBRARY_STARTER_WORDS,
   PLAYBOOK_CARD_REFUSALS,
@@ -520,4 +521,26 @@ test("the action can name the moment's starter to file at Approve: the day after
   assert.match(said(wrong), /^That starter is not one /);
   const both = await propose({ trigger: "visited", starter: REVIEW.key, template_id: REMINDER }, world).made;
   assert.equal(said(both), PLAYBOOK_CARD_REFUSALS.starterOrMessage);
+});
+
+test("what no press turns on is aside (decision 0088): how later batches go and what else they hear, never what goes out, to whom, when or how", () => {
+  const sheet = campaignSheet({
+    where: "On the list",
+    runs: "Daily 10:00 AM",
+    breath: "One message a week",
+    end: "Until Nov 30",
+    goes: "On WhatsApp",
+    reaches: "6 people",
+    sends: "Each batch waits for your OK",
+    message: "Adds the starter first",
+    waiting: [],
+  });
+  assert.deepEqual(
+    sheet.rows.filter((r) => r.aside).map((r) => r.label),
+    ["Other messages", "Sends"],
+  );
+  assert.deepEqual(
+    sheet.rows.filter((r) => !r.aside).map((r) => r.label),
+    ["Where", "Runs", "Last day", "Goes", "Reaches", "Message"],
+  );
 });

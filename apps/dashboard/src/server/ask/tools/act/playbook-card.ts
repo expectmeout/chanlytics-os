@@ -348,7 +348,8 @@ export const holdsOf = (...said: string[]): string[] =>
 /**
  * A new campaign's card as a sheet (contracts AskCardSheet), from the pieces its summary is made of, by each of its
  * makers: where it runs, when, its week's breath and its last day, how it goes, who it reaches, how it sends, and its
- * message; what holds it from sending apart, read first. A piece that is empty is no row.
+ * message; what holds it from sending apart, read first. A piece that is empty is no row. Its week's breath and how its
+ * later batches go are aside: the first batch waits for an OK whatever the mode, so no press turns on them.
  */
 export function campaignSheet(p: {
   where: string;
@@ -366,14 +367,14 @@ export function campaignSheet(p: {
     // One fact, its parts by commas: "Daily 10:00 AM, up to 25, once per person".
     { label: "Runs", value: p.runs.replaceAll(" · ", ", ") },
     // An appointment's message is not held back by the others they hear around it, in the owner's words.
-    { label: "Other messages", value: p.breath },
+    { label: "Other messages", value: p.breath, aside: true },
     { label: "Last day", value: p.end },
     { label: "Goes", value: p.goes },
     { label: "Reaches", value: p.reaches },
-    { label: "Sends", value: p.sends },
+    { label: "Sends", value: p.sends, aside: true },
     { label: "Message", value: p.message },
   ]
-    .map((r) => ({ label: r.label, value: sheetWords(r.value) }))
+    .map((r) => ({ ...r, value: sheetWords(r.value) }))
     .filter((r) => r.value);
   return { holds: holdsOf(...p.waiting), rows };
 }

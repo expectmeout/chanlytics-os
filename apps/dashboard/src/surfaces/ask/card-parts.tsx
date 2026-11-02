@@ -2,7 +2,7 @@
  * A card's parts, as the Line draws them (the spec 2026-09-27-ask-chat-on-a-phone, D16): who or what it touches, the change
  * as it will land, what follows, then one act. AskCard (card.tsx) holds its state and its verbs.
  */
-import { useState } from "react";
+import { useState, type RefObject } from "react";
 import type { AskCardSheet, AskProposal, AskProposalOutcome } from "@chanlytics/contracts";
 import { PROPOSAL_GATE } from "@chanlytics/contracts/page-specs";
 import { SEARCH_CARD_REPLACED } from "@chanlytics/contracts";
@@ -103,8 +103,17 @@ const AT_CARD_ICONS: Record<string, string> = {
   fix: "alert",
 };
 
-// The card's head: the kind's mark in its tile, the title, and the kind's word under it.
-export const AskCardHead = ({ p, t }: { p: AskProposal; t: LineWords }) => {
+/** A card of a group's way to open: whether it stands open, and the press that opens or folds it. */
+export interface CardFold {
+  open: boolean;
+  toggle: () => void;
+}
+
+// The card's head: the kind's mark in its tile, the title, and the kind's word under it. In a group of cards it is the
+// press that opens the card and folds it (`fold`, one element either way, so the press keeps its focus), and the kind's
+// word gives way: a card not reached says its one line there (AskProposal.line, else its summary, cut to two lines: a
+// folded card has no Approve, so nothing is pressed on those words), and the one open is the title alone.
+export const AskCardHead = ({ p, t, fold = null }: { p: AskProposal; t: LineWords; fold?: CardFold | null }) => {
   const KIND: Record<string, string> = {
     reply: t.kReply,
     steer: t.kSteer,
@@ -167,35 +176,69 @@ export const AskCardHead = ({ p, t }: { p: AskProposal; t: LineWords }) => {
     memory_forget: t.kMemory,
     fix: t.kFix,
   };
+  const mark = (
+    <span className="ask-card-mark">
+      <Icon name={AT_CARD_ICONS[p.kind] || "inbox"} size={15} />
+    </span>
+  );
+  const kind = <span className="ask-card-kind">{KIND[p.kind] || p.kind}</span>;
+  if (!fold)
+    return (
+      <div className="ask-card-head">
+        {mark}
+        <span className="ask-card-name">
+          <span className="ask-card-title">{p.title}</span>
+          {kind}
+        </span>
+      </div>
+    );
   return (
-    <div className="ask-card-head">
-      <span className="ask-card-mark">
-        <Icon name={AT_CARD_ICONS[p.kind] || "inbox"} size={15} />
-      </span>
+    <button
+      type="button"
+      className="ask-card-head ask-fold"
+      aria-expanded={fold.open}
+      onClick={fold.toggle}
+      data-testid="ask-card-fold"
+    >
+      {mark}
       <span className="ask-card-name">
         <span className="ask-card-title">{p.title}</span>
-        <span className="ask-card-kind">{KIND[p.kind] || p.kind}</span>
+        {fold.open ? null : <span className="ask-fold-line">{p.line || p.summary}</span>}
       </span>
-    </div>
+      <Icon name="chevron" size={12} className="ask-fold-chev" />
+    </button>
   );
 };
 
 // A card's change as a sheet (contracts AskCardSheet): what holds it first, in the warn tone, then a row a fact on a
-// key column, the way an owner checks a campaign before they press it (the answer canvas, C1).
-export const AskSheet = ({ sheet }: { sheet: AskCardSheet }) => (
+// key column, the way an owner checks a campaign before they press it (the answer canvas, C1). `alike` is what its
+// group says once over the cards (contracts holdsAlike), and a row `aside` waits for Details (`more`).
+export const AskSheet = ({
+  sheet,
+  alike = [],
+  more = false,
+}: {
+  sheet: AskCardSheet;
+  alike?: readonly string[];
+  more?: boolean;
+}) => (
   <div className="ask-spec" data-testid="ask-card-sheet">
-    {(sheet.holds || []).map((h, i) => (
-      <p key={i} className="ask-spec-hold">
-        {h}
-      </p>
-    ))}
-    <dl className="ask-spec-rows">
-      {sheet.rows.map((r) => (
-        <div key={r.label} className="ask-spec-row">
-          <dt>{r.label}</dt>
-          <dd>{r.value}</dd>
-        </div>
+    {(sheet.holds || [])
+      .filter((h) => !alike.includes(h))
+      .map((h, i) => (
+        <p key={i} className="ask-spec-hold">
+          {h}
+        </p>
       ))}
+    <dl className="ask-spec-rows">
+      {sheet.rows
+        .filter((r) => more || !r.aside)
+        .map((r) => (
+          <div key={r.label} className="ask-spec-row">
+            <dt>{r.label}</dt>
+            <dd>{r.value}</dd>
+          </div>
+        ))}
     </dl>
   </div>
 );
@@ -213,7 +256,19 @@ interface CardVersion {
   words: string;
 }
 
-export const AskCardChange = ({ p, t, idle }: { p: AskProposal; t: LineWords; idle: boolean }) => {
+export const AskCardChange = ({
+  p,
+  t,
+  idle,
+  alike,
+  more,
+}: {
+  p: AskProposal;
+  t: LineWords;
+  idle: boolean;
+  alike?: readonly string[];
+  more?: boolean;
+}) => {
   const pl = p.payload || {};
   const reply = p.kind === "reply";
   const shut = pl.window_open === false;
@@ -232,7 +287,7 @@ export const AskCardChange = ({ p, t, idle }: { p: AskProposal; t: LineWords; id
             ))}
           </div>
         ) : p.sheet && p.sheet.rows && p.sheet.rows.length ? (
-          <AskSheet sheet={p.sheet} />
+          <AskSheet sheet={p.sheet} alike={alike} more={more} />
         ) : (
           <p className="ask-card-summary">{p.kind === "fix" && p.line ? p.line : p.summary}</p>
         )}
@@ -251,7 +306,9 @@ export const AskCardChange = ({ p, t, idle }: { p: AskProposal; t: LineWords; id
 // the card still sees Approve, hears why at the control, and a press does nothing. The route re-checks. A plan's send
 // that waits for a step not made yet says so in the kit's state pill in Approve's place (`waits`, contracts planGroupOf).
 // A card of the one thing to fix before a campaign can reach anyone commits nothing: its door, named by the card, stands
-// in Approve's place and opens where it is fixed (the 30 Oct 2026 review, item 6).
+// in Approve's place and opens where it is fixed (the 30 Oct 2026 review, item 6). While a press runs Approve says so and
+// keeps its focus: `disabled` would drop it on the page, and the press itself is held by the card (`held`). Details
+// opens what the sheet keeps aside (`more`), where it has any, and Open waits behind it there: three acts fit a phone's row.
 export const AskCardActs = ({
   p,
   t,
@@ -262,6 +319,9 @@ export const AskCardActs = ({
   onDismiss,
   onNav,
   press = null,
+  more,
+  onMore,
+  approveRef,
 }: {
   p: AskProposal;
   t: LineWords;
@@ -272,11 +332,15 @@ export const AskCardActs = ({
   onDismiss: () => void;
   onNav: (to: string) => void;
   press?: { label: string; disabled: boolean } | null;
+  more?: boolean;
+  onMore?: () => void;
+  approveRef?: RefObject<HTMLButtonElement | null>;
 }) => {
   const A = askCalls();
   const pl = p.payload || {};
   const gateKey = PROPOSAL_GATE[p.kind] || "approve";
   const openRoute = A && A.cardOpenRoute ? A.cardOpenRoute(p) : null;
+  const aside = !!(onMore && p.sheet && p.sheet.rows.some((r) => r.aside));
   if (p.kind === "fix")
     return (
       <div className="ask-card-actions">
@@ -299,9 +363,12 @@ export const AskCardActs = ({
       ) : null}
       {waits ? null : (
         <button
-          className="btn btn-primary btn-sm"
+          ref={approveRef}
+          className="btn btn-primary btn-sm ask-press"
           onClick={onApprove}
-          disabled={busy || !!(press && press.disabled)}
+          disabled={!!(press && press.disabled)}
+          aria-disabled={busy || undefined}
+          aria-busy={busy || undefined}
           data-testid="ask-card-approve"
           {...gate(gateKey, "approve this card")}
         >
@@ -319,9 +386,14 @@ export const AskCardActs = ({
           {t.editComposer}
         </button>
       ) : null}
-      {openRoute && !hideOpen ? (
+      {openRoute && !hideOpen && (more || !aside) ? (
         <button className="btn btn-ghost btn-sm" onClick={() => onNav(openRoute)}>
           {/^campaigns\/sequences\/new(:|$)/.test(openRoute) ? t.openNew : t.openIt}
+        </button>
+      ) : null}
+      {aside ? (
+        <button className="btn btn-ghost btn-sm" onClick={onMore} aria-expanded={!!more} data-testid="ask-card-details">
+          {t.details}
         </button>
       ) : null}
       <button className="btn btn-ghost btn-sm ask-card-not-now" onClick={onDismiss} disabled={busy}>
@@ -364,6 +436,7 @@ const AskRing = ({ from, until, onDone }: { from: number; until: number; onDone:
 // After the act, one line on the sunken ground: what happened, and the undo the verb has while it is still true (`open`,
 // contracts askUndoOpen). A send that can still be taken back leads with its clock and says Undo, its own words the
 // button's title; the ring's end takes the Undo with it. Undoing a new playbook deletes it, so that undo asks first.
+// Focus lands on it after a press (`landRef`, AskCard), since what was pressed has gone.
 export const AskCardReceipt = ({
   p,
   t,
@@ -376,6 +449,7 @@ export const AskCardReceipt = ({
   busy,
   onUndo,
   onRetry,
+  landRef,
 }: {
   p: AskProposal;
   t: LineWords;
@@ -388,6 +462,7 @@ export const AskCardReceipt = ({
   busy: boolean;
   onUndo: () => Promise<void>;
   onRetry: () => void;
+  landRef?: RefObject<HTMLDivElement | null>;
 }) => {
   const [armed, setArmed] = useState(false);
   const [ended, setEnded] = useState(false);
@@ -400,7 +475,7 @@ export const AskCardReceipt = ({
     setArmed(false);
   };
   return (
-    <div className="ask-card-receipt">
+    <div className="ask-card-receipt ask-landing" ref={landRef} tabIndex={-1}>
       {clock ? (
         <AskRing from={doneAt} until={until} onDone={() => setEnded(true)} />
       ) : (
@@ -423,7 +498,7 @@ export const AskCardReceipt = ({
         <button
           className="btn btn-ghost btn-sm ask-card-undo"
           onClick={p.kind === "playbook" ? () => setArmed(true) : onUndo}
-          disabled={busy}
+          aria-disabled={busy || undefined}
           title={clock ? (p.undo ?? undefined) : undefined}
         >
           {clock ? t.undo : p.undo}

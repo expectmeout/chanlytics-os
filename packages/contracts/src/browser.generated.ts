@@ -57,7 +57,7 @@ export { buildAskSuggestions } from "./ask/ask-suggestions";
 export { rightNowCounts, rightNowLine } from "./ask/ask-waiting";
 export { ASK_CITATION_KINDS, ASK_PAGE_ROUTES, ASK_ROW_WORDS, citationRoute, emptyReadSet, groundCitations, noteRows } from "./ask/citations";
 export { PLAN_WORDS, planOf } from "./ask/plan";
-export { cardsInPlans, planGroupOf, planMadeOf, planWaits, resolveSteps, STEP_TOKEN, stepToken } from "./ask/plan-steps";
+export { cardsTogether, holdsAlike, openCardOf, planGroupOf, planMadeOf, planWaits, resolveSteps, STEP_TOKEN, stepToken, wordsLessHolds } from "./ask/plan-steps";
 export { AUDIENCE_KINDS, audienceMembers, audiencePreview, audienceTrigger, CONSENT_LIST_IDS, eligibleFor, enrolFor, EVERYONE_HINT, EVERYONE_LABEL, heldWords, saidYesOnAny, UNKNOWN_AUDIENCE_WORDS } from "./broadcasts/broadcast-audience";
 export { BROADCAST_FAILURE_WORDS, BROADCAST_FAILURES, broadcastFailureWords } from "./broadcasts/broadcast-failure-words";
 export { BROADCAST_FAILURE_FIX, broadcastFailureFix, emailRunStop, playbookRunNext, stoppedRunFix, wireFailure } from "./broadcasts/broadcast-failures";

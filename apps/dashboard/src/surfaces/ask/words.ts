@@ -85,6 +85,9 @@ const ASK_TEXT = {
     approve: "Approve",
     send: "Send",
     notNow: "Not now",
+    // What a card keeps behind a press, and whose warning a group's line is (card.tsx AskHoldsAlike).
+    details: "Details",
+    holdsAll: (n: number) => (n === 2 ? "Both." : `All ${n}.`),
     whereFrom: "Where these come from",
     // A search card a newer one replaced (contracts SEARCH_CARD_REPLACED): the change said to Ask made it again below.
     changedBelow: "Changed below",
@@ -210,6 +213,8 @@ const ASK_TEXT = {
     approve: "Aprobar",
     send: "Enviar",
     notNow: "Ahora no",
+    details: "Detalles",
+    holdsAll: (n: number) => (n === 2 ? "Las dos." : `Las ${n}.`),
     whereFrom: "De dónde salen",
     changedBelow: "Cambiada abajo",
     undo: "Deshacer",

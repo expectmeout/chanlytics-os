@@ -202,6 +202,7 @@ export interface Line extends LineState {
   moves: LineMove[];
   words: string;
   spoken: string;
+  nextInThread: boolean;
   thread: boolean;
   listen: boolean;
   nowQ: string;

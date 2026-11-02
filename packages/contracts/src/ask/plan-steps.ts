@@ -93,9 +93,7 @@ export function planWaits(
  * A turn's cards as the Line draws them: each plan's cards together, where its first card stands, and every other card on
  * its own and in its place. The order within a plan is planGroupOf's.
  */
-export function cardsInPlans<P extends Pick<AskProposal, "plan">>(
-  cards: readonly P[],
-): ({ card: P } | { plan: P[] })[] {
+function cardsInPlans<P extends Pick<AskProposal, "plan">>(cards: readonly P[]): ({ card: P } | { plan: P[] })[] {
   const out: ({ card: P } | { plan: P[] })[] = [];
   const plans = new Map<string, P[]>();
   for (const p of cards) {
@@ -110,6 +108,79 @@ export function cardsInPlans<P extends Pick<AskProposal, "plan">>(
     }
   }
   return out;
+}
+
+/**
+ * A turn's cards as groups: a plan, or the cards of no plan that stand side by side. Each group opens one card at a time
+ * (openCardOf) and says once what holds them all (holdsAlike).
+ */
+export function cardsTogether<P extends Pick<AskProposal, "plan">>(
+  cards: readonly P[],
+): ({ cards: P[] } | { plan: P[] })[] {
+  const out: ({ cards: P[] } | { plan: P[] })[] = [];
+  for (const it of cardsInPlans(cards)) {
+    const last = out.at(-1);
+    if ("plan" in it) out.push(it);
+    else if (last && "cards" in last) last.cards.push(it.card);
+    else out.push({ cards: [it.card] });
+  }
+  return out;
+}
+
+/** Whether a card asks nothing more of the person: it was decided, or a press found its subject gone (`moved`). A press refused otherwise waits to be tried again. */
+const cardSettled = (p: Pick<AskProposal, "outcome">): boolean =>
+  !!p.outcome && (p.outcome.state !== "failed" || !!p.outcome.moved);
+
+/**
+ * The card of a group that stands open: the first with nothing pressed yet, a plan's by its step. A refused press keeps
+ * its refusal and its Try again where it stands, and the next card opens, so one step refused stops no other. Null once
+ * every card has its outcome.
+ */
+export function openCardOf<P extends Pick<AskProposal, "id" | "plan" | "outcome">>(cards: readonly P[]): string | null {
+  const ordered = [...cards].sort((a, b) => (a.plan?.step ?? 0) - (b.plan?.step ?? 0));
+  return ordered.find((p) => !p.outcome)?.id ?? null;
+}
+
+const cardHolds = (p: Pick<AskProposal, "sheet">): readonly string[] => p.sheet?.holds ?? [];
+
+/**
+ * What holds every card of a group alike, said once over them, while one still waits: three campaigns on one WhatsApp
+ * review said it three times. A hold only some of them have stays on those cards.
+ */
+export function holdsAlike<P extends Pick<AskProposal, "sheet" | "outcome">>(cards: readonly P[]): string[] {
+  const first = cards.at(0);
+  if (!first || cards.length < 2 || cards.every(cardSettled)) return [];
+  return cardHolds(first).filter((h) => cards.every((p) => cardHolds(p).includes(h)));
+}
+
+/** A line of the answer's words reduced to what it says: no mark of a quote, a callout, a list or bold. */
+const lineSays = (line: string): string =>
+  line
+    .replace(/^\s*(?:>\s*)*(?:\[!(?:WARNING|NOTE)\]\s*)?(?:[-*]\s+|\d+\.\s+)?/i, "")
+    .replaceAll("**", "")
+    .replace(/[.\s]+$/, "")
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+/** A callout's own line, its words on the lines after. */
+const CALLOUT_ALONE = /^\s*>\s*\[!(?:WARNING|NOTE)\]\s*$/i;
+
+/**
+ * The answer's words less any line that only says again what holds a card still waiting: the card says it, where it is
+ * read before the press. Words of the answer's own are kept, however close, and the whole answer stays what Copy and Read
+ * aloud take.
+ */
+export function wordsLessHolds<P extends Pick<AskProposal, "sheet" | "outcome">>(
+  words: string,
+  cards: readonly P[],
+): string {
+  const held = new Set(cards.filter((p) => !cardSettled(p)).flatMap((p) => cardHolds(p).map(lineSays)));
+  if (!held.size) return words;
+  const kept = words.split("\n").filter((l) => !held.has(lineSays(l)));
+  return kept
+    .filter((l, k) => !CALLOUT_ALONE.test(l) || /^\s*>\s*\S/.test(kept[k + 1] ?? ""))
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 /** A plan's card as the Line holds it, its outcome as it stands: what its group is drawn from. */

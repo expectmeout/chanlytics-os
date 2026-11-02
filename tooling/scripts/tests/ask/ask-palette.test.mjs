@@ -4812,14 +4812,13 @@ const approved = (p, made = null) => ({
 /** What a card commits to, by its kind, on a press of its own. */
 const ownMade = (p) => (p.kind === "message" ? MADE_MESSAGE : null);
 /**
- * The bridge as installAsk publishes the plan's parts (legacy-bridge/ask.ts): contracts' cardsInPlans and planGroupOf,
+ * The bridge as installAsk publishes the plan's parts (legacy-bridge/ask.ts): contracts' planGroupOf,
  * a recorded commit of one card and of a plan's silent steps, and the outcome route.
  */
 const planBridge = (over = {}) => {
   const calls = { commit: [], plan: [], outcomes: [] };
   const was = globalThis.window.__ask;
   globalThis.window.__ask = {
-    cardsInPlans: PC.cardsInPlans,
     planGroupOf: PC.planGroupOf,
     cardOpenRoute,
     undoOpen: () => false,
@@ -4876,22 +4875,18 @@ test("a plan's cards draw as one group in step order where its first card stood,
       "the plan's cards together, in step order, where its first card stood; the rest in their places",
     );
     const heads = stepsOf(tree).map((s) => find(s, (n) => classOf(n).includes("ask-step-n")));
-    assert.deepEqual(heads.map(textOf), [
-      "Step 1 of 6",
-      "Step 2 of 6",
-      "Step 3 of 6",
-      "Step 4 of 6",
-      "Step 5 of 6",
-      "Step 6 of 6",
-    ]);
+    assert.deepEqual(
+      heads.map((h) => textOf(byClass(h, "rec-hint")[0])),
+      ["Step 1 of 6", "Step 2 of 6", "Step 3 of 6", "Step 4 of 6", "Step 5 of 6", "Step 6 of 6"],
+    );
     assert.ok(
       heads.every((h) => byClass(h, "rec-hint").length === 1),
       "the head's words are the kit's quiet text (.rec-hint), never a class of the page's own",
     );
     const group = byTestId(tree, "ask-plan-approve");
     assert.equal(textOf(group), "Approve the 3 silent steps");
-    assert.deepEqual(classOf(group), ["btn", "btn-primary", "btn-sm"], "the kit's button");
-    assert.equal(group.props.disabled, false);
+    assert.deepEqual(classOf(group), ["btn", "btn-primary", "btn-sm", "ask-press"], "the kit's button");
+    assert.equal(group.props["aria-disabled"], undefined);
     // Each send waits for the first step it waits for, in the kit's state pill, in place of its Approve.
     assert.deepEqual(waitsOf(tree), [null, null, null, "Waits for step 1", "Waits for step 1", "Waits for step 1"]);
     assert.ok(
@@ -4901,8 +4896,8 @@ test("a plan's cards draw as one group in step order where its first card stood,
     );
     assert.deepEqual(
       stepsOf(tree).map((s) => !!byTestId(s, "ask-card-approve")),
-      [true, true, true, false, false, false],
-      "a step that sends nothing is pressable on its own; a send is not, yet",
+      [true, false, false, false, false, false],
+      "the first step stands open, pressable on its own; the rest are folded (decision 0088)",
     );
     // WhatsApp reviews the message step 1 writes before the send by WhatsApp can go: said before the press, in static
     // words; the send by email alone, and the campaign by email, say nothing of it.
@@ -4922,7 +4917,7 @@ test("the group's own words are the Line's, in the Line's language (surfaces/ask
   const chrome = (lang, cards) => {
     const tree = render(AskAnswer, planProps(cards, { t: askText(lang) }));
     return {
-      heads: stepsOf(tree).map((s) => textOf(find(s, (n) => classOf(n).includes("ask-step-n")))),
+      heads: stepsOf(tree).map((s) => textOf(byClass(s, "rec-hint")[0])),
       press: textOf(byTestId(tree, "ask-plan-approve")) || null,
       waits: waitsOf(tree),
       notes: stepsOf(tree).map((s) => textOf(byTestId(s, "ask-step-note")) || null),
@@ -4995,13 +4990,8 @@ test("REGRESSION: a send waits for every step it waits for, one at a time, and g
     tree = await later(AskAnswer, props);
     assert.deepEqual(waitsOf(tree), [null, null, null, null, null, null], "every step it waits for is made");
     assert.equal(byTestId(tree, "ask-plan-approve"), null, "no step that sends nothing is left to approve");
-    assert.deepEqual(
-      stepsOf(tree)
-        .slice(3)
-        .map((s) => textOf(byTestId(s, "ask-card-approve"))),
-      ["Approve", "Approve", "Approve"],
-    );
-
+    press(byTestId(stepCard(tree, 5), "ask-card-fold"));
+    tree = await later(AskAnswer, props);
     press(byTestId(stepCard(tree, 5), "ask-card-approve"));
     tree = await later(AskAnswer, props);
     const sent = calls.commit.at(-1);
@@ -5074,12 +5064,12 @@ test("the group's one press approves the steps that send nothing through commitP
       "one press, handed this plan's cards and no other card of the turn",
     );
     const busy = byTestId(tree, "ask-plan-approve");
-    assert.equal(busy.props.disabled, true, "pressed once, it waits");
+    assert.equal(busy.props["aria-disabled"], true, "pressed once, it waits, and keeps its focus");
     assert.equal(textOf(busy), "Working…");
     assert.deepEqual(
-      [1, 2, 3].map((n) => byTestId(stepCard(tree, n), "ask-card-approve").props.disabled),
-      [true, true, true],
-      "the steps it approves are not pressed again meanwhile",
+      [1, 2, 3].map((n) => byTestId(stepCard(tree, n), "ask-card-approve")?.props["aria-disabled"]),
+      [true, undefined, undefined],
+      "the step open is not pressed again meanwhile, and the others draw no press",
     );
     release();
     tree = await later(AskAnswer, props);
@@ -5148,8 +5138,8 @@ test("REGRESSION (fix round 1): the group holds every card of its plan until eac
     const approve = all(plan, (n) => n.props?.["data-testid"] === "ask-card-approve");
     const undo = byClass(plan, "ask-card-undo");
     return {
-      approve: approve.map((b) => !b.props.disabled),
-      undo: undo.map((b) => !b.props.disabled),
+      approve: approve.map((b) => !b.props["aria-disabled"]),
+      undo: undo.map((b) => !b.props["aria-disabled"]),
       approve$: approve,
       undo$: undo,
     };
@@ -5163,10 +5153,7 @@ test("REGRESSION (fix round 1): the group holds every card of its plan until eac
     const during = pressable(tree);
     assert.deepEqual(
       [during.approve, during.undo],
-      [
-        [false, false, false],
-        [false, false, false],
-      ],
+      [[false], [false, false, false]],
       "REGRESSION: a send's Approve or a step's Undo was pressable while the group's outcomes were on their way",
     );
     // A press in that window does nothing: no send, no undo, nothing recorded beside the group's.
@@ -5186,11 +5173,8 @@ test("REGRESSION (fix round 1): the group holds every card of its plan until eac
     const after = pressable(tree);
     assert.deepEqual(
       [after.approve, after.undo],
-      [
-        [true, true, true],
-        [true, true, true],
-      ],
-      "once every outcome is kept, each send and each Undo is the person's again",
+      [[true], [true, true, true]],
+      "once every outcome is kept, the send open and each Undo are the person's again",
     );
   } finally {
     calls.restore();
@@ -5299,10 +5283,10 @@ test("the group's press waits while any card of the plan is busy, and is not dra
     let tree = render(AskAnswer, props);
     press(byTestId(stepCard(tree, 1), "ask-card-approve"));
     tree = await later(AskAnswer, props);
-    assert.equal(byTestId(tree, "ask-plan-approve").props.disabled, true, "a card of the plan is busy");
+    assert.equal(byTestId(tree, "ask-plan-approve").props["aria-disabled"], true, "a card of the plan is busy");
     release();
     tree = await later(AskAnswer, props);
-    assert.equal(byTestId(tree, "ask-plan-approve").props.disabled, false);
+    assert.equal(byTestId(tree, "ask-plan-approve").props["aria-disabled"], undefined);
     assert.equal(textOf(byTestId(tree, "ask-plan-approve")), "Approve the 2 silent steps");
 
     const journey = [1, 2, 3].map((n) =>
@@ -5326,8 +5310,8 @@ test("the group's press waits while any card of the plan is busy, and is not dra
       ]),
       [
         ["Step 1 of 3", true],
-        ["Step 2 of 3", true],
-        ["Step 3 of 3", true],
+        ["Step 2 of 3", false],
+        ["Step 3 of 3", false],
       ],
     );
   } finally {
@@ -5447,13 +5431,16 @@ test("REGRESSION (ruling 3): what the group's press made survives a reload, thro
     );
     assert.deepEqual(PC.planMadeOf(PLAN_ID, kept), ran.made, "the press's made, read back from the turn");
     assert.deepEqual(ran.made[1], MADE_MESSAGE);
-    tree = render(AskAnswer, planProps(kept));
+    const back = planProps(kept);
+    tree = render(AskAnswer, back);
     assert.equal(byTestId(tree, "ask-plan-approve"), null, "nothing is offered twice after a reload");
     assert.deepEqual(
       [1, 2, 3].map((n) => !!byClass(stepCard(tree, n), "ask-card-receipt")[0]),
       [true, true, true],
     );
     assert.deepEqual(waitsOf(tree), [null, null, null, null, null, null]);
+    press(byTestId(stepCard(tree, 5), "ask-card-fold"));
+    tree = await later(AskAnswer, back);
     press(byTestId(stepCard(tree, 5), "ask-card-approve"));
     await until(() => sent.length === 4, "the send went");
     assert.equal(sent[3].key, "POST /api/v1/broadcasts");

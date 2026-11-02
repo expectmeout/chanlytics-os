@@ -281,7 +281,7 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 .ask-spec-hold { margin: 0; font-size: var(--text-sm); line-height: 1.45; color: var(--warn-ink); }
 .ask-spec-rows { display: grid; gap: 6px; margin: 0; }
 .ask-spec-row { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 10px; align-items: baseline; }
-.ask-spec-row dt { font-size: var(--text-xs); line-height: 1.45; color: var(--ink-dim); }
+.ask-spec-row dt { font-size: var(--text-xs); line-height: 1.45; color: var(--ink-muted); }
 .ask-spec-row dd { margin: 0; font-size: var(--text-sm); line-height: 1.45; color: var(--ink); overflow-wrap: anywhere; }
 .ask-card-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .ask-card-not-now { margin-left: auto; }
@@ -295,6 +295,27 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
    what is left of it (surfaces/ask/turn.tsx sets both). Under reduced motion it holds still as long (the block at the end), so
    its end still takes the Undo. */
 .ask-card-ring { flex: none; color: var(--ink-muted); }
+/* What became of a card, where focus lands after a press (surfaces/ask/card.tsx): always in the card, so what fills it is
+   announced; empty it takes back the card's gap. Approve while its press runs, dimmed as the kit's button that cannot be
+   pressed, keeping the focus a disabled button would drop. */
+.ask-told:empty { margin-top: -10px; }
+.ask-landing:focus { outline: none; }
+.ask-landing:focus-visible { box-shadow: var(--focus-ring); }
+.ask-press[aria-busy="true"] { opacity: 0.6; cursor: default; }
+/* Cards side by side (surfaces/ask/card.tsx AskCards, and a plan's steps): one open, the rest folded to their head, what
+   they share said once over them. The head is the press: a folded card's whole face, with the card's own padding. */
+.ask-together { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.ask-alike { display: grid; gap: 4px; padding: 0 2px; }
+.ask-fold { grid-template-columns: 32px minmax(0, 1fr) 12px; width: 100%; padding: 0; border: 0; border-radius: var(--radius-md); background: transparent; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.ask-fold:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.ask-fold-chev { color: var(--ink-faint); rotate: 90deg; transition: rotate var(--duration-fast) var(--ease-out); }
+.ask-fold[aria-expanded="true"] .ask-fold-chev { rotate: -90deg; }
+.ask-fold-line { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-size: var(--text-sm); line-height: 1.4; color: var(--ink-dim); }
+.ask-shut { padding: 0; }
+.ask-shut .ask-fold { padding: 11px 12px 11px 14px; border-radius: inherit; }
+/* Why a step folded cannot go yet is said on it too, on the head's left edge. */
+.ask-shut > p { margin-top: -10px; padding: 0 12px 11px 57px; }
+@media (hover: hover) { .ask-shut .ask-fold:hover { background: var(--bg-hover); } }
 .ask-ring-track, .ask-ring-arc { fill: none; stroke: currentColor; stroke-width: 1.6; }
 .ask-ring-track { opacity: .2; }
 .ask-ring-arc { stroke-dasharray: 40.84; stroke-linecap: round; animation: ask-ring linear forwards; }
@@ -368,7 +389,7 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 .ask-row.now.sel { background: transparent; }
 .ask-chips { justify-content: center; }
 .ask-rows-note { text-align: center; }
-.ask-turn { padding: 12px 16px 16px; }
+.ask-turn { padding: 8px 16px 16px; }
 /* Right now on a desk, where the keys stand as Ask opens (Enter asks it): its Brief me wears the kit button's hover, or
    with nothing waiting, the row itself a soft ground. A phone has no keys to stand anywhere. */
 @media (min-width: 721px) {
@@ -382,7 +403,7 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 /* The middle is the newest question's offsetParent, so it can stand it at its top (surfaces/ask/hooks.ts useAskPin, D5); the
    newest turn is at least the middle's height, so its answer grows down into the room under the question. */
 .ask-line-body { position: relative; }
-.ask-line-body.thread .ask-now { display: flex; flex-direction: column; min-height: 100%; padding-top: 14px; }
+.ask-line-body.thread .ask-now { display: flex; flex-direction: column; min-height: 100%; padding-top: 8px; }
 .ask-thread-turn { display: flex; flex-direction: column; padding-top: 14px; }
 /* Your words (D2): at the right, in the Inbox's own sent bubble; the answers are open. */
 .ask-q { align-self: flex-end; max-width: 80%; margin: 0 16px 0 56px; padding: 10px 14px; border-radius: var(--radius-2xl) var(--radius-2xl) var(--radius-sm) var(--radius-2xl); border: 1px solid var(--bubble-us-line); background: var(--bubble-us-bg); font-size: 15px; line-height: 1.45; color: var(--ink); overflow-wrap: anywhere; white-space: pre-line; }
@@ -393,7 +414,7 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 .ask-hero-stage { transition: height 200ms var(--ease-out), width 200ms var(--ease-out); }
 .ask-hero.thinking { padding: 12px 16px 0; gap: 18px; }
 .ask-hero.thinking .ask-hero-stage { height: min(190px, 28dvh); }
-.ask-hero.sig { align-items: flex-start; padding: 12px 16px 0; }
+.ask-hero.sig { align-items: flex-start; padding: 8px 16px 0; }
 .ask-hero.sig .ask-hero-stage { width: 34px; height: 28px; }
 /* The answer, lighter (D8): no rail, a 17px headline, the detail in ink, its rows bordered, each figure one line. */
 .ask-answer { gap: 16px; }
@@ -441,6 +462,8 @@ button.ask-tile-value { text-decoration: underline dotted; text-decoration-color
   .ask-next-row > * { max-width: 100%; }
   .ask-next-row > * > span:first-child { overflow: hidden; }
 }
+/* An answer with cards keeps them in the thread, under its cards and on the answer's edge: over the field they stood on the card. */
+.ask-now > .ask-next-row { order: 0; padding: 0 16px 14px; }
 /* The three come forward over the field to listen (D4); the thread dims under them and its own face hides. */
 .ask-listen { order: 8; flex: none; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 16px 0; animation: wash-in 160ms var(--ease-out) both; }
 .ask-listen-stage { display: block; width: 100%; height: min(116px, 16dvh); }
@@ -568,6 +591,7 @@ button.ask-tile-value { text-decoration: underline dotted; text-decoration-color
   /* A card a thumb can act on (D16): the words and the line a size up, and its acts the house's on a phone: 44px
      capsules worded at the base step, as every sheet's foot and question are (19 Oct 2026: 8px corners and 14px words). */
   .ask-card-title, .ask-card-summary { font-size: var(--text-md); }
+  .ask-spec-rows { gap: 4px; }
   .ask-card-actions .btn { height: var(--control-h-touch); padding: 0 16px; font-size: var(--text-base); border-radius: var(--control-radius); }
   .ask-card-actions .ask-card-not-now { padding: 0 10px; }
   .ask-card-receipt { min-height: 44px; padding: 6px 6px 6px 12px; font-size: var(--text-base); }
@@ -618,7 +642,7 @@ button.ask-tile-value { text-decoration: underline dotted; text-decoration-color
   .ask-cursor, .ask-reading-dot, .ask-part.show, .ask-part.do, .ask-modal.ask-line, .ask-send .icon, .ask-listen, .ask-latest, .ask-read, .ask-next-row, .ask-now > .ask-acts { animation: none; }
   /* The take-back ring holds still for as long, so its end still comes, and takes the Undo with it. */
   .ask-ring-arc { animation-name: ask-ring-still; }
-  .ask-send, .ask-hero-stage, .ask-modal.ask-line, .ask-rows-fold, .ask-line-body.thread > * { transition: none; }
+  .ask-send, .ask-hero-stage, .ask-modal.ask-line, .ask-rows-fold, .ask-line-body.thread > *, .ask-fold-chev { transition: none; }
   .ask-line-body .ask-rows { animation: none; }
 }
 /* ---- Ask's window, in Glass (the plan's step 5.4; the control layer's glass, as every pop is) ----

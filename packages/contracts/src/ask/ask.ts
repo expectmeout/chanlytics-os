@@ -329,11 +329,13 @@ export interface AskProposal {
  * A card's change as a sheet (the answer canvas, C1, from the 13 Oct 2026 plan's decision 4; a campaign's card was one
  * 678-character sentence): what holds it from sending, read first, then a row a fact in the order an owner checks them
  * (where, when, who it reaches, how it goes, how it sends, its message). Made from the values its summary is made of,
- * which stays its words for copy, reading aloud and a card stored before it.
+ * which stays its words for copy, reading aloud and a card stored before it. A row `aside` is a fact no press turns on
+ * (how later batches go, what else they hear that week): the Line keeps it behind Details. What goes out, to whom, when
+ * and by what channel is never aside, nor is what holds it.
  */
 export interface AskCardSheet {
   holds: string[];
-  rows: Array<{ label: string; value: string }>;
+  rows: Array<{ label: string; value: string; aside?: boolean }>;
 }
 
 /**
