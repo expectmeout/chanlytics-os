@@ -6,8 +6,10 @@
  * draw follows the address, and React's StrictMode check, which the app runs in development, runs every effect of a new
  * tree a second time over the SAME draw, before the state the first run set is drawn. That second run found the page
  * without the lead the address had just asked for, took it for the page having closed it, and wrote the address over.
+ * The chips did the same (page/reads.ts useLeadChipsAddress): `:f-strong` gave the table its fit, and the second run,
+ * finding the table not drawn with it yet, wrote the address from the table and left the two saying different things.
  *
- * Run against the page's three hooks that hold the lead, the rows' place, the peek and its address, in the order
+ * Run against the page's hooks that hold the address, the chips, the rows' place, the peek and its address, in the order
  * LeadsReal calls them (page/leads-real.tsx useLeadsView), in a component drawn by hand. leads-honest.test.mjs draws the
  * whole page, and its effects run once; this draws the commit as React makes it: the draw, every effect after it, in the
  * StrictMode check every effect again over that same draw, and only then what they set.
@@ -39,6 +41,7 @@ globalThis.document = globalThis.window.document;
 
 const react = fromDashboard("react");
 const { useLeadPeek, useLeadPeekAddress } = fromDashboard("../surfaces/leads/page/peek-hooks.ts");
+const { leadChipsOf, leadNarrowings, useLeadChipsAddress } = fromDashboard("../surfaces/leads/page/reads.ts");
 const { leadsViewAt } = fromDashboard("../surfaces/leads/page/state.ts");
 const { usePlPlace } = fromDashboard("../surfaces/people/hooks/use-place.ts");
 const { placeSave } = fromDashboard("../surfaces/people/shell-verbs.ts");
@@ -69,7 +72,8 @@ const controls = {
 /**
  * Leads' page as far as its lead goes, at an address, drawn by hand. `strict`: React's StrictMode check, on a new tree.
  * `nav` moves the address as the shell does, and the next draw has it. `peek`, what the page holds open now; `close`, the
- * page closing it, as Esc and the sheet's Close do.
+ * page closing it, as Esc and the sheet's Close do; `chips`, what the table narrows by, its own filters as the kit's table
+ * keeps them (kit/table/state.ts); `fit`, the band's fit picked.
  */
 const leadsAt = (route, { strict = false, rows = ROWS } = {}) => {
   const cells = [];
@@ -78,8 +82,9 @@ const leadsAt = (route, { strict = false, rows = ROWS } = {}) => {
   const navs = [];
   const backs = [];
   let moved = true;
-  let shown = { peekId: null, cursor: null };
+  let shown = { peekId: null, cursor: null, chips: {} };
   let setPeekId = null;
+  let setFit = null;
   const draw = () => {
     let i = 0;
     let e = 0;
@@ -108,8 +113,20 @@ const leadsAt = (route, { strict = false, rows = ROWS } = {}) => {
     const [peekMode, setPeekMode] = react.useState("info");
     const [armed, setArmed] = react.useState(null);
     const [, setDraft] = react.useState(null);
+    const [filters, setFilters] = react.useState({});
+    const narrow = leadNarrowings({
+      filterOf: (id) => filters[id] ?? null,
+      setFilter: (id, value) => setFilters((f) => ({ ...f, [id]: value })),
+    });
     setPeekId = setPeek;
+    setFit = narrow.setFitChip;
+    const nav = (to, opts) => {
+      navs.push([to.replace(`s-${SEARCH}`, "s-S"), opts?.replace ? "replace" : "push"]);
+      at.route = to;
+      moved = true;
+    };
     const ids = at.rows.map((r) => r.id);
+    useLeadChipsAddress({ leadView, addrPeek, narrow, nav });
     const place = usePlPlace({
       controls,
       page: "leads",
@@ -142,13 +159,9 @@ const leadsAt = (route, { strict = false, rows = ROWS } = {}) => {
       setPeekMode,
       setArmed,
       setDraft,
-      nav: (to, opts) => {
-        navs.push([to.replace(`s-${SEARCH}`, "s-S"), opts?.replace ? "replace" : "push"]);
-        at.route = to;
-        moved = true;
-      },
+      nav,
     });
-    shown = { peekId, cursor: place.cursor };
+    shown = { peekId, cursor: place.cursor, chips: leadChipsOf(narrow) };
   };
   /** Every effect due, in the order the hooks declared them, as React runs them after a draw. */
   const commit = () => {
@@ -185,8 +198,20 @@ const leadsAt = (route, { strict = false, rows = ROWS } = {}) => {
     get cursor() {
       return shown.cursor;
     },
+    get chips() {
+      return shown.chips;
+    },
     get route() {
       return at.route;
+    },
+    fit(fit) {
+      setFit(fit);
+      settle();
+    },
+    go(to) {
+      at.route = to;
+      moved = true;
+      settle();
     },
     land(next) {
       at.rows = next;
@@ -266,5 +291,58 @@ for (const [name, strict] of [
     page.open(UA);
     assert.deepEqual(page.navs, [[`clients/leads:s-S:p-${UA}`, "push"]]);
     assert.equal(page.peek, UA);
+  });
+
+  test(`a link with a chip narrows the table and leaves the address as it said, however ${name}`, () => {
+    fresh();
+    const route = `clients/leads:s-${SEARCH}:f-strong`;
+    const page = leadsAt(route, { strict });
+    assert.deepEqual(page.chips, { fit: "strong" }, "the table takes the address's chip");
+    assert.deepEqual(page.navs, [], "and nothing is written back over the address");
+    assert.equal(page.route, route);
+  });
+
+  test(`a link to a lead keeps every chip it names, however ${name}`, () => {
+    fresh();
+    const route = `clients/leads:s-${SEARCH}:f-strong:r-email:r-phone:p-${UB}`;
+    const page = leadsAt(route, { strict });
+    assert.deepEqual(page.chips, { fit: "strong", reach: ["email", "phone"] });
+    assert.equal(page.peek, UB);
+    assert.deepEqual(page.navs, []);
+    assert.equal(page.route, route);
+  });
+
+  test(`a chip picked after a link still writes the address in place, however ${name}`, () => {
+    fresh();
+    const page = leadsAt(`clients/leads:s-${SEARCH}:f-strong`, { strict });
+    page.fit("look");
+    assert.deepEqual(page.navs, [["clients/leads:s-S:f-look", "replace"]], "the page moved, so it says so");
+    page.fit(null);
+    assert.deepEqual(page.navs.at(-1), ["clients/leads:s-S", "replace"]);
+    assert.deepEqual(page.chips, {});
+  });
+
+  test(`a chip taken off after a link goes back to the table it found, however ${name}`, () => {
+    fresh();
+    const page = leadsAt(`clients/leads:s-${SEARCH}:f-strong`, { strict });
+    page.fit(null);
+    assert.deepEqual(page.navs, [["clients/leads:s-S", "replace"]], "the table as the address found it is not held");
+    assert.deepEqual(page.chips, {});
+  });
+
+  test(`an address that moved gives the table its chips and says nothing back, however ${name}`, () => {
+    fresh();
+    const page = leadsAt(`clients/leads:s-${SEARCH}:f-strong`, { strict });
+    page.go(`clients/leads:s-${SEARCH}:f-look`);
+    assert.deepEqual(page.chips, { fit: "look" });
+    assert.deepEqual(page.navs, []);
+  });
+
+  test(`a lead opened under a chip keeps the chip in its address, however ${name}`, () => {
+    fresh();
+    const page = leadsAt(`clients/leads:s-${SEARCH}:f-strong`, { strict });
+    page.open(UA);
+    assert.deepEqual(page.navs, [[`clients/leads:s-S:f-strong:p-${UA}`, "push"]]);
+    assert.deepEqual(page.chips, { fit: "strong" });
   });
 }
