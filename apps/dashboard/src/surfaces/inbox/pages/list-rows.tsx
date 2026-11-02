@@ -3,8 +3,8 @@
  * the pills, the one time, what was said, and what is under it. Plain functions returning JSX, called by the list, so the
  * row has the nodes it always had.
  */
-import { heldPill } from "@chanlytics/contracts";
-import { Face } from "../../kit/face/face";
+import { heldPill, holdToDoOf } from "@chanlytics/contracts";
+import { Face, faceTileOf } from "../../kit/face/face";
 import { RowGap } from "../../kit/rows/row-gap";
 import { useShownRows, type ShownRows } from "../../kit/rows/shown-rows";
 import { Icon } from "../../kit/icon/icon";
@@ -15,6 +15,7 @@ import { CONF } from "../constants";
 import type { ListCtx } from "./inbox-list";
 import { pickBox } from "./pick";
 import { ReplyChip } from "../thread/reply-strip";
+import { keptReplyNow } from "../thread/kept-draft";
 import { channelIconOf } from "../thread/timeline";
 import { inboxData } from "../store";
 import { threadUnread } from "../../seen";
@@ -30,15 +31,19 @@ import type { Thread } from "../types";
  */
 function rowSaidOn(t: Thread): { text: string; wire: string } {
   if (!t.real) return { text: t.preview, wire: t.primaryChannel };
-  if (t.ask && t.ask.text) return { text: t.ask.text, wire: t.ask.channel };
-  return { text: t.preview, wire: t.previewChannel ?? t.primaryChannel };
+  const said = t.ask && t.ask.text ? { text: t.ask.text, wire: t.ask.channel } : null;
+  const wire = said ? said.wire : (t.previewChannel ?? t.primaryChannel);
+  // An email is said by what it is about, as a mailbox's row says it (the thread canvas's list, 1 Nov 2026): its first
+  // lines were a greeting and the sender's name.
+  if (wire === "email" && t.emailSubject) return { text: t.emailSubject, wire };
+  return said ?? { text: t.preview, wire };
 }
 
 /** The wire a row's words came on, worn by the face as a badge at its foot (inbox.css .ix-thread-wire), named for a screen reader. */
 function rowWire(wire: string) {
   return (
     <span className="ix-thread-wire" role="img" aria-label={inboxData().CHANNEL_LABELS[wire] || wire}>
-      <Icon name={channelIconOf(wire)} size={9} />
+      <Icon name={channelIconOf(wire)} size={10} />
     </span>
   );
 }
@@ -57,12 +62,13 @@ function rowTime(t: Thread, sending: number | null) {
       </span>
     );
   }
+  // How long they have waited, the bare figure in the mono face at the row's right (the thread canvas's list, 1 Nov
+  // 2026): what the row asks of you is said in the coral under it, so the wait is no second signal.
   if (t.state === "escalated" && waitingMin > 0) {
+    const waited = t.waited || `${waitingMin}m`;
     return (
-      <span
-        className={`pill ix-wait tabular ${waitingMin > 30 && (t.real ? t.needsYou : !t.claimedByOther) ? "pill-warn" : ""}`}
-      >
-        waiting {t.waited || `${waitingMin}m`}
+      <span className="ix-thread-time ix-thread-wait tabular" title={`waiting ${waited}`}>
+        {waited}
       </span>
     );
   }
@@ -179,12 +185,32 @@ function rowLine1(L: ListCtx, t: Thread) {
   );
 }
 
-/** A row's body: the line of who, the subject, what you chose, the words and the foot. */
+/**
+ * What a row asks of you, its last line in the coral (the thread canvas's list, 1 Nov 2026): the hold's act ("Call back",
+ * "Confirm a time"), and "Check the draft" where the receptionist drafted the reply; only on a thread that needs you. It
+ * stood over their words as the reason's label, a sentence over a sentence. A flagged thread you or a teammate have says
+ * the reason there instead, quietly: the pill beside the name says whose it is.
+ */
+function rowToDo(t: Thread) {
+  if (!t.real) return null;
+  const todo = t.needsYou && t.state === "escalated" ? holdToDoOf(t.holdAct, !!keptReplyNow(t)) : null;
+  if (todo)
+    return (
+      <div className="ix-thread-todo" data-testid="thread-todo">
+        {todo}
+      </div>
+    );
+  // A flagged thread someone has: why it was flagged, in the quiet ink, where the to-do would stand.
+  return t.subject ? <div className="ix-thread-subject">{t.subject}</div> : null;
+}
+
+/** A row's body: the line of who, what you chose, the words, what it asks of you and the foot. */
 function rowBody(L: ListCtx, t: Thread, words: { text: string }) {
   return (
     <div className="ix-thread-body">
       {rowLine1(L, t)}
-      {t.subject && <div className="ix-thread-subject">{t.subject}</div>}
+      {/* A seeded thread's reason stands over its words, as the demo wrote it; a real one says what to do under them. */}
+      {!t.real && t.subject && <div className="ix-thread-subject">{t.subject}</div>}
       {t.resolution && (
         <div className={`ix-thread-resolution ${t.resolution.declined ? "declined" : ""}`}>
           <Icon name={t.resolution.declined ? "x" : "check"} size={10} />
@@ -196,6 +222,7 @@ function rowBody(L: ListCtx, t: Thread, words: { text: string }) {
           <span className="ix-thread-preview">{words.text}</span>
         </div>
       )}
+      {rowToDo(t)}
       {rowFoot(L, t)}
     </div>
   );
@@ -257,7 +284,12 @@ function threadRow(L: ListCtx, t: Thread, i: number, place?: { measure: (el: Ele
 
       {/* The one face (the kit's, by contracts' personFaceOf), with the wire of the words as a badge at its foot. */}
       <span className="ix-thread-lead">
-        <Face person={{ name: t.who, initials: t.avatar }} priority={t.priority} className="ix-thread-pic" />
+        <Face
+          person={{ name: t.who, initials: t.avatar }}
+          priority={t.priority}
+          hue={faceTileOf(t.who)}
+          className="ix-thread-pic"
+        />
         {rowWire(words.wire)}
       </span>
 

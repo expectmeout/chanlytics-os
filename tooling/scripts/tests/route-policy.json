@@ -1290,6 +1290,13 @@
       "rate": "thread_state",
       "spend": false
     },
+    "POST messages/[id]/send-now": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "thread_state",
+      "spend": false
+    },
     "GET messages/[id]/media": {
       "kind": "read",
       "scope": "workspace",

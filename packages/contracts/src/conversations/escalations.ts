@@ -16,6 +16,20 @@ export interface EscalationDto {
   details: string | null;
   state: "open" | "resolved";
   created_at: string;
+  /**
+   * The booking a `booking_request` hold asks to confirm (decision 0061): the request's row, its slot, its service and
+   * when it stops holding the slot. Absent on every other hold, and from a server a deploy behind.
+   */
+  request?: BookingRequestDto | null;
+}
+
+/** A booking the receptionist asked for, as its hold carries it (the appointments row 00443 opened). */
+export interface BookingRequestDto {
+  id: string;
+  starts_at: string;
+  ends_at: string;
+  service: string | null;
+  expires_at: string | null;
 }
 
 // These labels headline a row on Today, where there is no thread open beside
@@ -207,7 +221,7 @@ const ESCALATION_LINES: Record<EscalationReason, string> = {
   paused: "The workspace is paused — nothing has been sent",
   carriers: "Texting isn't approved for this line yet — nothing has been sent",
   email_review: "They wrote by email — nothing has been sent",
-  booking_request: "Confirm the time they picked — they're waiting to hear",
+  booking_request: "Confirm the time — they're waiting to hear",
   booking_reply: "They asked to book — reply with a time that works",
   wrote_while_held: "They wrote while your team had the thread — nothing has been sent",
 };
@@ -215,6 +229,15 @@ const ESCALATION_LINES: Record<EscalationReason, string> = {
 /** The dock's line for a reason, or the reason's label for one the set does not know. */
 export function reasonLineOf(reason: string): string {
   return (ESCALATION_LINES as Record<string, string>)[reason] ?? reasonLabelOf(reason);
+}
+
+/**
+ * A dock's line as the thread canvas draws it (1 Nov 2026): what is owed in the ink at 600, and the clause after its dash
+ * in the muted ink ("Check the draft — nothing has been sent"). A line with no clause is all lead.
+ */
+export function dockLineOf(line: string): { lead: string; rest: string | null } {
+  const at = line.indexOf(" — ");
+  return at < 0 ? { lead: line, rest: null } : { lead: line.slice(0, at), rest: line.slice(at + 3) };
 }
 
 /**
@@ -309,10 +332,23 @@ export function holdWaits(hold: OpenHold): boolean {
  * the act is to hand back: Done and Hand back are the thread's, and no reply is offered), and the clause a notice ends
  * with. One set of words for all three, as the reason has one set for its label.
  */
-export const HOLD_ACT_WORDS: Record<HoldAct, { cta: string; take: string | null; notice: string }> = {
-  reply: { cta: "Open and reply", take: "I'll answer this", notice: "Reply from the Inbox." },
-  call_back: { cta: "Open the call", take: "Call back", notice: "Call them back." },
-  hand_back: { cta: "Open the thread", take: null, notice: "Nothing can be sent to them." },
+export const HOLD_ACT_WORDS: Record<HoldAct, { cta: string; take: string | null; notice: string; todo: string }> = {
+  reply: { cta: "Open and reply", take: "I'll answer this", notice: "Reply from the Inbox.", todo: "Reply" },
+  call_back: { cta: "Open the call", take: "Call back", notice: "Call them back.", todo: "Call back" },
+  hand_back: { cta: "Open the thread", take: null, notice: "Nothing can be sent to them.", todo: "Hand it back" },
   // A booking request (decision 0061): Booked it confirms it; Can't is its second button, and leaves the thread to a reply.
-  confirm: { cta: "Booked it", take: "Booked it", notice: "Confirm it or say you can't." },
+  confirm: { cta: "Booked it", take: "Booked it", notice: "Confirm it or say you can't.", todo: "Confirm a time" },
 };
+
+/** Where the receptionist drafted the reply a hold asks for: what is owed is a look at its words (the dock says so too). */
+export const DRAFTED_TODO = "Check the draft";
+
+/**
+ * What a hold asks of you, as the Inbox's row says it under what they said (the thread canvas's list, 1 Nov 2026: "Check
+ * the draft", "Confirm a time", "Call back"), in the coral: the act's own word, and a look at the draft where the reply box
+ * holds one the receptionist wrote. Nothing with no hold to act on.
+ */
+export function holdToDoOf(act: HoldAct | null | undefined, drafted: boolean): string | null {
+  if (!act) return null;
+  return act === "reply" && drafted ? DRAFTED_TODO : HOLD_ACT_WORDS[act].todo;
+}

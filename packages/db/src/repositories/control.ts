@@ -310,6 +310,29 @@ export async function callBackMessage(
   return { decisionId: id, undoDropped: data.undo_dropped === true };
 }
 
+/**
+ * A member lets a held reply go now, on their own session (00503 message_send_now): the send job of a message still queued
+ * and claimed by no run brought to now, and the approve decision on it as theirs, in one transaction. Null when there was
+ * nothing to bring forward (sent, claimed by its run, withdrawn, gone), and then nothing was written; a refusal throws as
+ * it came.
+ */
+export async function sendQueuedNow(
+  db: Db,
+  p: { tenantId: string; messageId: string; via: string | null; undoOf: string | null },
+): Promise<CalledBack | null> {
+  const { data, error } = await db.rpc("message_send_now", {
+    p_tenant_id: p.tenantId,
+    p_message_id: p.messageId,
+    ...(p.via ? { p_via: p.via } : {}),
+    ...(p.undoOf ? { p_undo_of: p.undoOf } : {}),
+  });
+  if (error) throw error;
+  if (data === null || typeof data !== "object" || Array.isArray(data)) return null;
+  const id = data.decision_id;
+  if (typeof id !== "string") throw new Error("message_send_now: the door answered without its decision");
+  return { decisionId: id, undoDropped: data.undo_dropped === true };
+}
+
 /* -------------------------------------------------------------------- a thread handed to a person (00388) -- */
 
 /**

@@ -22,6 +22,10 @@ interface StatePillProps {
   label?: ReactNode;
   /** On a desk, gives way to a name in a line both share: shrinks first, its words end in an ellipsis (kit.css .pill-fit). */
   fit?: boolean;
+  /** Lit on its tone's ground, a capsule (kit.css .pill-lit): a head's one state, its wait beside it (the thread's). */
+  lit?: boolean;
+  /** A glyph where the dot would be (a reply's clock, a tick): the Icon, at 11px. */
+  glyph?: ReactNode;
   className?: string;
   title?: string | null;
   tip?: string | null;
@@ -33,6 +37,8 @@ export function StatePill({
   value,
   label = null,
   fit = false,
+  lit = false,
+  glyph = null,
   className = "",
   title = null,
   tip = null,
@@ -42,14 +48,15 @@ export function StatePill({
   const tone = said.tone;
   return (
     <span
-      className={`pill${tone === "plain" ? "" : ` pill-${tone}`}${fit ? " pill-fit" : ""}${className ? ` ${className}` : ""}`}
+      className={`pill${tone === "plain" ? "" : ` pill-${tone}`}${fit ? " pill-fit" : ""}${lit ? " pill-lit" : ""}${className ? ` ${className}` : ""}`}
       data-state={value}
       data-tone={tone}
       title={title || undefined}
       data-tip={tip || undefined}
       data-testid={testid || undefined}
     >
-      {tone === "accent" && <span className="live-dot" style={{ width: 5, height: 5 }} />}
+      {tone === "accent" && !lit && <span className="live-dot" style={{ width: 5, height: 5 }} />}
+      {glyph}
       {label ?? said.label}
     </span>
   );

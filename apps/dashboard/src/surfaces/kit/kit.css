@@ -756,6 +756,61 @@ a.chip:focus-visible {
 .more-item-two > .icon ~ .more-item-meta {
   padding-left: 27px;
 }
+/* A glyph on its square (the Menu's `square`; the thread canvas's sheet, 1 Nov 2026): a round-cornered square of the
+   ground, red on its soft ground where the act destroys, the item's words and their second line stacked beside it and its
+   word at the row's end. A face at an item's head (who a menu is about) stands the same way, its name at 600. */
+.more-glyph {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-tile);
+  background: var(--secondary-fill);
+  color: var(--ink);
+}
+.more-glyph > .icon {
+  color: currentColor;
+}
+.more-glyph-danger {
+  background: var(--danger-soft);
+  color: var(--danger-ink);
+}
+.more-item:has(> .more-glyph, > .face) {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "glyph label hint"
+    "glyph meta hint";
+  column-gap: 12px;
+  row-gap: 1px;
+  align-content: center;
+  align-items: center;
+}
+.more-item:has(> .more-glyph, > .face):not(:has(> .more-item-meta)) {
+  grid-template-areas: "glyph label hint";
+}
+.more-item:has(> .more-glyph, > .face) > .more-glyph,
+.more-item:has(> .more-glyph, > .face) > .face {
+  grid-area: glyph;
+}
+.more-item:has(> .more-glyph, > .face) > .more-item-label {
+  grid-area: label;
+  align-self: end;
+}
+.more-item:has(> .more-glyph, > .face):not(:has(> .more-item-meta)) > .more-item-label {
+  align-self: center;
+}
+.more-item:has(> .more-glyph, > .face) > .more-item-meta {
+  grid-area: meta;
+  align-self: start;
+  padding-left: 0;
+}
+.more-item:has(> .more-glyph, > .face) > .more-item-hint {
+  grid-area: hint;
+}
+.more-item:has(> .face) > .more-item-label {
+  font-weight: var(--weight-semibold);
+}
 /* A set whose options say a line under their words (the Menu's choose with `sub`: the Inbox's templates, each with what
    it says). Two lines an option, each cut with "…": its name with a word about its kind after it ("Sample"), and the line
    in the dim ink under it; the tick at its end, and the one chosen the pick's lilac, as a chosen chip or segment is. Beside
@@ -1076,6 +1131,10 @@ a.more-item {
   :is(.pop-place > .more-menu, .more-menu[data-sheet]) .more-item .icon {
     width: 18px;
     height: 18px;
+  }
+  /* An item whose glyph stands on its square keeps its two lines together beside it (the item's gap is its columns'). */
+  :is(.pop-place > .more-menu, .more-menu[data-sheet]) .more-item:has(> .more-glyph, > .face) {
+    row-gap: 1px;
   }
   /* What a choice does, under its words (a sentence beside them goes under: MoreMenu's on a phone, the kit Menu's at
      every width), at a size a phone reads, the row a thumb's height round both lines. */
@@ -4923,6 +4982,68 @@ a.list-row {
 .btn-danger {
   box-shadow: none;
 }
+/* The thread canvas's three kinds (1 Nov 2026; button.tsx). The quiet act beside the coral one on a raised ground (Hand
+   back, Can't do it, Call): the raised ground and the stronger hairline, no inset depth. */
+.btn-outline {
+  background: var(--bg-raised);
+  border-color: var(--line-strong);
+  box-shadow: none;
+  color: var(--ink);
+}
+.btn-outline .icon {
+  color: var(--ink);
+}
+@media (hover: hover) {
+  .btn-outline:hover {
+    background: var(--bg-hover);
+    border-color: var(--line-strong);
+  }
+}
+.btn-outline:active {
+  background: var(--bg-active);
+}
+/* A fold or a small tool inside a card (an email's Signature, a draft's Rewrite, a head's More): the inset's fill, no
+   edge, the muted ink, which lifts to the ink under a pointer. */
+.btn-soft {
+  background: var(--secondary-fill);
+  border-color: transparent;
+  box-shadow: none;
+  color: var(--ink-muted);
+}
+@media (hover: hover) {
+  .btn-soft:hover {
+    background: var(--bg-hover);
+    border-color: transparent;
+    color: var(--ink);
+  }
+}
+.btn-soft:active,
+.btn-soft[aria-expanded="true"] {
+  background: var(--bg-active);
+  color: var(--ink);
+}
+/* The act in ink (Send now, a template picked): the ink's ground and the raised ground's words, at 600. */
+.btn-ink {
+  background: var(--ink);
+  border-color: var(--ink);
+  box-shadow: none;
+  font-weight: var(--weight-semibold);
+  color: var(--bg-raised);
+}
+.btn-ink .icon {
+  color: var(--bg-raised);
+}
+@media (hover: hover) {
+  .btn-ink:hover {
+    background: var(--ink);
+    border-color: var(--ink);
+    opacity: 0.86;
+  }
+}
+.btn-ink:active {
+  background: var(--ink);
+  opacity: 0.76;
+}
 /* A press drawn as text: an area of a page's words that is one press (Campaigns' moment card, whose caps, figure and
    unit narrow the ledger), not a control's label. No gap of a button's between its parts, a text's weight and tracking
    and never a control's, its height its words', which wrap: a button's gap made the card 12 to 18px taller, and its
@@ -5351,6 +5472,28 @@ a.list-row {
 }
 .face-tile-d {
   background: var(--tile-d);
+}
+/* A person's face in their hue (the thread canvas, 1 Nov 2026: the thread's head, its sheet and the rail beside it): the
+   circle in one of four soft hues, the initials in its ink, picked by the name (face.tsx faceTileOf), so a person wears
+   one hue wherever these draw them. */
+.face-hue {
+  box-shadow: none;
+}
+.face-hue-a {
+  background: var(--face-hue-a);
+  color: var(--face-hue-a-ink);
+}
+.face-hue-b {
+  background: var(--face-hue-b);
+  color: var(--face-hue-b-ink);
+}
+.face-hue-c {
+  background: var(--face-hue-c);
+  color: var(--face-hue-c-ink);
+}
+.face-hue-d {
+  background: var(--face-hue-d);
+  color: var(--face-hue-d-ink);
 }
 
 /* ---- What pops over the page (every canvas's popover) ----
@@ -6480,6 +6623,54 @@ textarea.rec-input,
   .pill-fit::before {
     margin-block: calc((1lh - 6px) / 2);
   }
+}
+/* A state lit on its tone's ground (the thread canvas, 1 Nov 2026; StatePill `lit`): where a head says one state and its
+   wait beside it, the state is a capsule of its tone's soft ground in its ink, the dot in the tone itself; a glyph in it
+   (the clock of a reply counting down, the tick of one handled) stands where the dot would. */
+.pill.pill-lit {
+  height: var(--chip-h);
+  gap: 5px;
+  padding: 0 8px;
+  border-radius: var(--radius-full);
+  background: var(--selected-fill);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--ink-muted);
+}
+.pill-lit > .live-dot {
+  display: none;
+}
+.pill-lit.pill-accent {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+.pill-lit.pill-accent::before {
+  display: block;
+  background: var(--accent);
+}
+.pill-lit.pill-warn {
+  background: var(--warn-soft);
+  color: var(--warn-ink);
+}
+.pill-lit.pill-warn::before {
+  background: var(--warn);
+}
+.pill-lit.pill-ok {
+  background: var(--ok-soft);
+  color: var(--ok-ink);
+}
+.pill-lit.pill-info {
+  background: var(--info-soft);
+  color: var(--info-ink);
+}
+.pill-lit.pill-danger {
+  background: var(--danger-soft);
+  color: var(--danger-ink);
+}
+.pill-lit > .icon {
+  flex: none;
+  width: 11px;
+  height: 11px;
 }
 
 /* ---------- Figure: a number, what it counts, the period before beside it, one line under ----------

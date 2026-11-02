@@ -2,6 +2,7 @@
 export {
   ABANDONED_MS,
   abandonedCall,
+  CALL_TRANSCRIPT,
   callAttemptWords,
   DISCONNECTION_LABELS,
   missedCall,
@@ -16,6 +17,8 @@ export type { ConversationMoveName, ConversationPatch } from "./conversation-mov
 export { toConversationVM } from "./conversation-vm";
 export type { ConversationMessageVM, ConversationVM } from "./conversation-vm";
 export {
+  dockLineOf,
+  DRAFTED_TODO,
   ESCALATION_ACTS,
   ESCALATION_REASON_LABELS,
   ESCALATION_REASON_SHORT,
@@ -23,6 +26,7 @@ export {
   HAND_BACK_REASONS,
   HOLD_ACT_WORDS,
   holdActOf,
+  holdToDoOf,
   holdWaits,
   OPEN_HOLDS_READ_MAX,
   reasonLabelOf,
@@ -31,12 +35,13 @@ export {
   WAITING_REASONS,
   waitsOnAPerson,
 } from "./escalations";
-export type { EscalationDto, HoldAct, OpenHold } from "./escalations";
+export type { BookingRequestDto, EscalationDto, HoldAct, OpenHold } from "./escalations";
 export { REFERRAL_ID_MAX } from "./first-touch";
 export { HANDLED_OUTCOMES } from "./handled";
 export type { Handled } from "./handled";
 export {
   conversationWaitsOnYou,
+  countdownClock,
   HELD_BY_ID_MAX,
   heldDraftWaits,
   heldThreadIds,
@@ -84,6 +89,7 @@ export {
   INBOX_BUCKET_WORDS,
   inboxBucketWord,
   isUnseen,
+  NEEDS_YOU_LIST_END,
   NEEDS_YOU_WORD,
   readingOf,
   replyWaitsOnYou,

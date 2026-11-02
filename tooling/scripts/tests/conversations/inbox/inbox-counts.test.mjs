@@ -591,7 +591,7 @@ test("the bulk snooze's Undo says they are back in the Inbox -- a snooze lets go
 
 /* --------------------------------- the list --------------------------------- */
 
-test("each row says whose it is -- nothing more where the bucket already says Needs you, 'You have it', 'Ana García has it' -- and waits in amber only when the wait is on you", () => {
+test("each row says whose it is -- nothing more where the bucket already says Needs you, 'You have it', 'Ana García has it' -- and asks something of you only where the wait is on you", () => {
   globalThis.window.__TEAM = TEAM;
   try {
     fresh();
@@ -603,11 +603,18 @@ test("each row says whose it is -- nothing more where the bucket already says Ne
     assert.deepEqual(pills(row("Rosa Díaz")), [], "REGRESSION: 'NEEDS YOU' on every row of the Needs you bucket");
     assert.deepEqual(pills(row("Nina Park")), ["You have it"], "REGRESSION: a thread you own read NEEDS YOU");
     assert.deepEqual(pills(row("Ada Lovelace")), ["Ana García has it"]);
-    const amber = (who) => hasClass("pill-warn")(find(row(who), hasClass("ix-wait")));
+    // What waits on you is said once, in the coral under their words (the thread canvas's list, 1 Nov 2026); a thread
+    // you or a teammate have asks nothing, and every wait is the bare figure.
+    const todo = (who) => textOf(byTestId(row(who), "thread-todo") ?? "");
     assert.deepEqual(
-      [amber("Rosa Díaz"), amber("Nina Park"), amber("Ada Lovelace")],
-      [true, false, false],
+      [todo("Rosa Díaz"), todo("Nina Park"), todo("Ada Lovelace")],
+      ["Reply", "", ""],
       "REGRESSION: a thread you have waited in amber as if it were waiting on you",
+    );
+    assert.equal(
+      find(tree, (n) => hasClass("ix-thread-wait")(n) && hasClass("pill-warn")(n)),
+      null,
+      "no amber wait",
     );
     assert.equal(
       find(tree, hasClass("ix-list-head")),

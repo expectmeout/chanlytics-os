@@ -312,11 +312,48 @@ function templateSentence(
             rows={1}
             data-testid="ix-tpl-blank"
           />
+        ) : part.filled ? (
+          // What is written for this person: their name, the business's, its link (the canvas's lit words).
+          <span key={`slot-${i}`} className="ix-tpl-slot">
+            {part.words}
+          </span>
         ) : (
           <span key={`words-${i}`}>{part.words}</span>
         ),
       )}
     </p>
+  );
+}
+
+/** At most this many messages are offered as choices on the box itself (the canvas's three); more open as the menu. */
+const CHOICES_SHOWN = 4;
+
+/**
+ * The messages this person can be sent, as choices on the box (the thread canvas, 1 Nov 2026): one press each, the one
+ * chosen in the ink, the rest outlined. A person who can be sent more than the box shows, or for whom some were kept back,
+ * chooses from the menu instead, where what fits now is headed and why the rest are not offered is said once.
+ */
+function templateChoices(have: TemplateChoice, choose: (at: number) => void) {
+  const options = templateOptions(have);
+  if (options.length < 2 || options.length > CHOICES_SHOWN || have.choice?.hidden) return null;
+  if (options.some((o) => o.fits) && options.some((o) => !o.fits)) return null;
+  return (
+    <div className="ix-tpl-choices" role="radiogroup" aria-label={THREAD_PANE_WORDS.templateChoices}>
+      {options.map((o, at) => (
+        <Button
+          key={o.template.name}
+          variant={at === have.chosenAt ? "ink" : "outline"}
+          size="lg"
+          role="radio"
+          aria-checked={at === have.chosenAt}
+          className="ix-tpl-choice ix-press"
+          onClick={() => choose(at)}
+          data-testid="ix-tpl-choice"
+        >
+          {o.label}
+        </Button>
+      ))}
+    </div>
   );
 }
 
@@ -332,12 +369,15 @@ export const TemplateComposer = ({
   real = false,
   thread = null,
   lead = null,
+  aside = null,
 }: {
   onSend?: OnSend;
   threadId: string;
   real?: boolean;
   thread?: Thread | null;
   lead?: ReactNode;
+  /** What stands beside Send, at the box's left (a closed chat's Call). */
+  aside?: ReactNode;
 }) => {
   const [sending, setSending] = useState(false);
   // The workspace's OWN approved templates, published by the seam. The button
@@ -400,19 +440,18 @@ export const TemplateComposer = ({
   }
 
   const facts = factsFor(thread);
-  const more = templateMenu(
-    have,
-    (at) => {
-      setPicked(at);
-      setWords("");
-    },
-    facts,
-  );
+  const choose = (at: number) => {
+    setPicked(at);
+    setWords("");
+  };
+  const more = templateMenu(have, choose, facts);
+  const choices = templateChoices(have, choose);
   const shown = chosenTitle || (chosen ? chosen.name : "Booking link");
   const parts = chosen ? inboxTemplateParts(chosen, facts) : [];
   const send = (
     <Button
       variant="primary"
+      size="touch"
       className="ix-composer-send"
       onClick={fire}
       disabled={sending || (!!blank && !said)}
@@ -423,24 +462,65 @@ export const TemplateComposer = ({
       }
       {...gate("approve")}
     >
-      {sending ? "Sending…" : "Send"}
+      {sending ? "Sending…" : THREAD_PANE_WORDS.sendTemplate}
+      <Icon name="arrow-up" size={16} />
     </Button>
   );
+  // The choices (or the menu where there are more), the sentence as they will read it on the inset's ground, then the call
+  // beside the send (the thread canvas, 1 Nov 2026).
   const capsule = (
-    <div className="ix-composer ix-composer-row ix-composer-tpl" data-testid="ix-composer-tpl">
-      <div className="ix-tpl-head">
-        {templatePick(shown, more, facts.firstName ?? thread?.who ?? "")}
-        <span className="ix-tpl-note">{THREAD_PANE_WORDS.reopens}</span>
-      </div>
-      <div className="ix-tpl-foot">
-        {parts.length ? (
-          templateSentence(parts, { words, write: setWords, ref: blankRef })
-        ) : (
-          <span className="ix-tpl-fill" />
-        )}
+    <div className="ix-composer ix-composer-row ix-composer-tpl" data-shape="tpl" data-testid="ix-composer-tpl">
+      {choices ?? (
+        <div className="ix-tpl-head">
+          {templatePick(shown, more, facts.firstName ?? thread?.who ?? "")}
+          <span className="ix-tpl-note">{THREAD_PANE_WORDS.reopens}</span>
+        </div>
+      )}
+      {parts.length ? (
+        <div className="ix-tpl-said">{templateSentence(parts, { words, write: setWords, ref: blankRef })}</div>
+      ) : null}
+      <div className="ix-composer-acts">
+        {aside}
+        <span className="ix-composer-gap" />
         {send}
       </div>
     </div>
   );
   return withLead(lead, capsule);
 };
+
+/**
+ * WhatsApp's window, shut: a lock and its words, that open why on a press, at the head of the template box that is the
+ * one send left (template-box.tsx). A DM's says why in Instagram's words. It stood at the end of the bar under the header,
+ * away from the box it explains.
+ */
+export function ChatClosed({ dm, who }: { dm: boolean; who: string }) {
+  const [open, setOpen] = useState(false);
+  const W = THREAD_PANE_WORDS;
+  return (
+    <>
+      <div className="ix-closed-line" data-testid="ix-th-window">
+        <Icon name="lock" size={14} className="ix-closed-lock" />
+        <span className="ix-closed-words">
+          <b>{W.chatClosedLead}</b>
+          <span className="ix-dock-rest"> — {W.chatClosedRest(shortName(who))}</span>
+        </span>
+        <Button
+          variant="quiet"
+          size="text"
+          className="ix-closed-why ix-press"
+          aria-expanded={open}
+          onClick={() => setOpen(!open)}
+          data-testid="ix-th-window-toggle"
+        >
+          {W.why}
+        </Button>
+      </div>
+      {open && (
+        <span className="ix-why-said" data-testid="ix-th-window-why">
+          {dm ? W.dmClosedWhy : W.chatClosedWhy}
+        </span>
+      )}
+    </>
+  );
+}

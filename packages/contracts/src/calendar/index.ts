@@ -234,6 +234,8 @@ export {
   BOOKING_REQUEST_REFUSALS,
   BOOKING_REQUEST_SCHEMA_FIELDS,
   BOOKING_REQUEST_WORDS,
+  bookingRequestCardOf,
+  type BookingRequestCardVM,
   type BookingRequestFields,
   bookingRequestRefusalOf,
   type BookingRequestTerms,

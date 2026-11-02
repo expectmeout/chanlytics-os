@@ -168,6 +168,9 @@ export function callAttemptWords(direction: "inbound" | "outbound"): string {
   return missedCall({ missed: true, direction }) ? "Missed call" : "Call didn't connect";
 }
 
+/** The press on a call's card that shows what was said, line by line, as the thread's own bubbles (the thread canvas). */
+export const CALL_TRANSCRIPT = "Transcript";
+
 /**
  * How a call ended, in the one word each outcome of the ladder has (callOutcomeFor): the pill on Live, on Conversations'
  * row and on the thread's call card, and the line a person's History says it with. A call simply handled was "Ended" on

@@ -302,7 +302,9 @@ export function inboxBlankOf(t: { name: string; language?: string | null; variab
 }
 
 /** A part of a template's words as the reply box draws them: the template's own words, or its blank, by its label. */
-export type TemplatePart = { words: string; blank?: undefined } | { blank: string; words?: undefined };
+/** A part of a template's words: its own words, a slot filled for this person (`filled`), or the blank the member writes. */
+export type TemplatePart =
+  { words: string; filled?: true; blank?: undefined } | { blank: string; words?: undefined; filled?: undefined };
 
 /**
  * A template's words as this person would read them, in parts: each slot filled the way the reply route fills it (their
@@ -336,7 +338,7 @@ export function inboxTemplateParts(
             : s.kind === "text" && s.value
               ? s.value
               : null;
-    valueAt.set(pos, blank && i === blank.at ? { blank: blank.label } : { words: words ?? `[${label}]` });
+    valueAt.set(pos, blank && i === blank.at ? { blank: blank.label } : { words: words ?? `[${label}]`, filled: true });
   });
   const parts: TemplatePart[] = [];
   let last = 0;

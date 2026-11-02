@@ -186,15 +186,16 @@ test("a thread you have says so on one line, with why it was flagged and the way
 
 test("the countdown is a timer; past its deadline a real draft says it is sending, not 'Auto-sends in 0s'; a hold is said to a screen reader", () => {
   const vm = vmOf(chat({ state: "open", messages: [wrote("m1", "Can I move my appointment to Friday?", 2), draft] }));
-  const bar = (remaining) => find(paneOf(vm, { veto: remaining }), hasClass("ix-veto"));
+  // The draft is drawn once, as the next bubble, with what it is doing over it (the thread canvas, 1 Nov 2026).
+  const bar = (remaining) => find(paneOf(vm, { veto: remaining }), byTestId("ix-held-draft"));
   const said = (b) => textOf(find(b, (n) => n.props?.role === "status"));
   const counting = bar(42);
-  assert.equal(find(counting, hasClass("ix-veto-msg")).props.role, "timer");
-  assert.match(textOf(counting), /Auto-sends in 42s/);
+  assert.equal(find(counting, byTestId("ix-held-says")).props.role, "timer");
+  assert.match(textOf(counting), /Not sent yet · sends in 0:42/);
   assert.equal(said(counting), "", "a number that changes every second is not read aloud");
   const zero = bar(0);
   assert.match(textOf(zero), /Sending now…/, "REGRESSION: 'Auto-sends in 0s' until something else moved");
-  assert.ok(!/in 0s/.test(textOf(zero)));
+  assert.ok(!/in 0:00/.test(textOf(zero)));
   assert.equal(said(zero), "Sending now.");
   assert.equal(said(bar(null)), "Held — this draft will not send.");
 });

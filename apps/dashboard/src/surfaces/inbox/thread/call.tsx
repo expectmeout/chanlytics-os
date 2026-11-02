@@ -11,9 +11,10 @@
  * tree it was; its hooks stay in `ThreadCall`, in the order they were.
  */
 import { useEffect, useRef, useState, type CSSProperties, type RefObject, type SyntheticEvent } from "react";
-import { callAttemptWords, callNoteLines, mmss } from "@chanlytics/contracts";
+import { CALL_TRANSCRIPT, callAttemptWords, callNoteLines, mmss, stateOf } from "@chanlytics/contracts";
+import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
-import { StatePill } from "../../kit/pill/state-pill";
+import { Meter } from "../../kit/meter/meter";
 import { CallReview } from "../../settings/business/rehearse/review";
 import { canDo, demoSession } from "../shell";
 import { hasHref, hrefOf } from "./shell-thread";
@@ -354,28 +355,17 @@ function callListenBar(c: CallDraw) {
   );
 }
 
-/** The quiet line where the call began: its play button or its glyph, what it was, how long, and when. */
+/**
+ * The call's head, as the thread canvas draws it (the Closed board, 1 Nov 2026): the phone on a tile, what it was and how
+ * long over how it ended, and when, at the right. It was a quiet line across the thread with its play in it.
+ */
 function callMark(c: CallDraw) {
-  const { src, listening, length, kind, lines, facts, at, player, outcome } = c;
+  const { length, kind, lines, facts, at, outcome } = c;
   return (
-    <div className="tl-call-mark" data-testid="tl-call-start">
-      {src && !listening ? (
-        <button
-          type="button"
-          className="tl-call-play"
-          onClick={player.listen}
-          aria-label={`Listen to the call${length ? `, ${length}` : ""}`}
-          data-testid="tl-call-play"
-        >
-          <Icon name="play" size={10} />
-        </button>
-      ) : (
-        <span className="tl-call-glyph" aria-hidden="true">
-          <Icon name="phone" size={11} />
-        </span>
-      )}
-      {/* What it was, then when, set apart by space rather than a dot: on a narrow phone the when takes its own line,
-            and a dot began it. */}
+    <div className="tl-call-top" data-testid="tl-call-start">
+      <span className="tl-call-glyph" aria-hidden="true">
+        <Icon name="phone" size={16} />
+      </span>
       <span className="tl-call-words">
         <span className="tl-call-what">
           <span className="tl-call-kind">{kind}</span>
@@ -383,10 +373,71 @@ function callMark(c: CallDraw) {
           {/* A call with no lines says how it went on its one line: "Missed call · No answer". */}
           {!lines && facts.length > 0 && <span className="tl-call-facts">{facts.join(" · ")}</span>}
         </span>
-        {/* How it ended, in the pill Live and Conversations draw it with (contracts callOutcomeFor): the card said nothing of it. */}
-        {outcome && <StatePill kind="call" value={outcome} testid="tl-call-outcome" />}
-        <span className="tl-call-at tabular">{at}</span>
+        {/* How it ended, in the words Live and Conversations say it in (contracts callOutcomeFor). */}
+        {outcome && (
+          <span className="tl-call-how" data-testid="tl-call-outcome">
+            {stateOf("call", outcome).label}
+          </span>
+        )}
       </span>
+      <span className="tl-call-at tabular">{at}</span>
+    </div>
+  );
+}
+
+/**
+ * Under what it was about: the recording, a round to play it with its run and its length, and the transcript a press away
+ * (the thread canvas's call, 1 Nov 2026). While it plays the slim player floats at the top of the thread too, so a long
+ * call's lines can be read and followed under it. Nothing where there is neither a recording nor a line.
+ */
+function callPlayRow(c: CallDraw) {
+  const { src, listening, lines, owed, open, setOpen, pos, dur, length, player } = c;
+  const count = lines ? lines.length : owed;
+  if (!src && count === 0) return null;
+  const whole = dur || 0;
+  return (
+    <div className="tl-call-run">
+      {/* While it plays, the player floating over the thread is the one play; the run here shows how far it has gone. */}
+      {src && !listening && (
+        <button
+          type="button"
+          className="tl-call-play"
+          onClick={player.listen}
+          aria-label={`Listen to the call${length ? `, ${length}` : ""}`}
+          data-testid="tl-call-play"
+        >
+          <Icon name="play" size={13} />
+        </button>
+      )}
+      {src && (
+        <Meter
+          size="sm"
+          className="tl-call-track"
+          parts={
+            whole
+              ? [
+                  { share: Math.min(pos, whole), tone: "ink" },
+                  { share: Math.max(0, whole - pos), tone: "ground" },
+                ]
+              : [{ share: 1, tone: "ground" }]
+          }
+          aria-label={whole ? `${tlClock(pos)} of ${tlClock(whole)}` : "Not played yet"}
+        />
+      )}
+      {src && whole > 0 && <span className="tl-call-dur tabular">{tlClock(whole)}</span>}
+      {count > 0 && (
+        <Button
+          variant="quiet"
+          size="text"
+          className="tl-call-open ix-press"
+          aria-expanded={open}
+          aria-label={`Transcript, ${count} ${count === 1 ? "line" : "lines"}`}
+          onClick={() => setOpen(!open)}
+          data-testid="tl-call-open"
+        >
+          {CALL_TRANSCRIPT}
+        </Button>
+      )}
     </div>
   );
 }
@@ -454,12 +505,11 @@ function notedLines(c: CallDraw) {
 
 /** The call's lines, and the quiet line where it ended, once it is opened. */
 function callOpened(c: CallDraw) {
-  const { lines, open, turnsRef, facts, file, noted, reviewId } = c;
+  const { lines, open, turnsRef, facts, file, reviewId } = c;
   return (
     lines &&
     open && (
       <>
-        {noted.length > 0 && <div className="tl-call-folded">{notedLines(c)}</div>}
         <div className="tl-call-turns" ref={turnsRef} data-testid="tl-call-lines">
           {lines.map((line, i) => callLine(c, line, i))}
         </div>
@@ -481,30 +531,6 @@ function callOpened(c: CallDraw) {
           </div>
         )}
       </>
-    )
-  );
-}
-
-/** A call with lines, folded: what it was about, and the press that shows them. */
-function callFolded(c: CallDraw) {
-  const { lines, owed, open, about, setOpen } = c;
-  const count = lines ? lines.length : owed;
-  return (
-    count > 0 &&
-    !open && (
-      <div className="tl-call-folded">
-        {about && <span className="tl-call-about">{about}</span>}
-        {notedLines(c)}
-        <button
-          type="button"
-          className="tl-call-open"
-          aria-expanded="false"
-          onClick={() => setOpen(true)}
-          data-testid="tl-call-open"
-        >
-          Show the call · {count} {count === 1 ? "line" : "lines"}
-        </button>
-      </div>
     )
   );
 }
@@ -592,11 +618,15 @@ export const ThreadCall = ({
     >
       {callAudio(c)}
       {callListenBar(c)}
-      {callMark(c)}
+      {/* The call, summary first (the thread canvas, 1 Nov 2026): its head, what it was about and what it left, then the
+          recording and the transcript. Its lines open under it as the thread's own bubbles. */}
+      <div className="tl-call-gist">
+        {callMark(c)}
+        {words.about && <p className="tl-call-about">{words.about}</p>}
+        {words.noted.length > 0 && <div className="tl-call-noted">{notedLines(c)}</div>}
+        {callPlayRow(c)}
+      </div>
       {callOpened(c)}
-      {callFolded(c)}
-      {!lines && !owed && words.about && <div className="tl-call-about">{words.about}</div>}
-      {!lines && !owed && words.noted.length > 0 && <div className="tl-call-folded">{notedLines(c)}</div>}
     </div>
   );
 };

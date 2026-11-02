@@ -234,9 +234,9 @@ test("a template's words as she will read them: her name and the business's fact
   const said = { ...note, body_preview: "Hi {{1}}, a quick note from {{2}}: {{3}} Write back here." };
   assert.deepEqual(inboxTemplateParts(said, facts), [
     { words: "Hi " },
-    { words: "Rosa" },
+    { words: "Rosa", filled: true },
     { words: ", a quick note from " },
-    { words: "Marisa's" },
+    { words: "Marisa's", filled: true },
     { words: ": " },
     { blank: "The note" },
     { words: " Write back here." },
@@ -254,7 +254,13 @@ test("a template's words as she will read them: her name and the business's fact
   );
   assert.deepEqual(
     inboxTemplateParts({ ...note, body_preview: "Hi {{1}}, a quick note." }, facts),
-    [{ words: "Hi " }, { words: "Rosa" }, { words: ", a quick note." }, { words: " " }, { blank: "The note" }],
+    [
+      { words: "Hi " },
+      { words: "Rosa", filled: true },
+      { words: ", a quick note." },
+      { words: " " },
+      { blank: "The note" },
+    ],
     "a preview read before its slots were: the blank goes after the words, so the box always has somewhere to write",
   );
   assert.deepEqual(inboxTemplateParts({ ...note, body_preview: null }, facts), [{ blank: "The note" }]);
@@ -526,12 +532,16 @@ test("the template send is the reply box's capsule: the message it will send at 
   );
   // What fits first: a note answers whatever they asked ("How did it go" stood first under a price question, I4).
   assert.equal(nameOf(tree), "A quick note", "REGRESSION: 'Send booking link', whichever template was picked");
-  assert.ok(buttonsOf(tree).includes("Send"), "the reply box's own Send, at the capsule's foot");
+  assert.ok(buttonsOf(tree).includes("Send template"), "the reply box's own Send, at the capsule's foot");
   assert.ok(find(tree, hasClass("ix-composer-row")), "the same capsule the reply box is, not a box of its own");
   assert.equal(textOf(find(tree, hasClass("ix-tpl-note"))), "Reopens the chat", "what sending it does");
   // Why the rest are not offered is one tap away, in the menu on its name, never a sentence under the reply box or a link.
   assert.equal(find(tree, byTestId("ix-tpl-hidden")), undefined);
-  assert.ok(!buttonsOf(tree).includes("Why?"), "the menu says it: no second control for it");
+  // (The window's own Why? heads the box, ChatClosed: that one says why only a template sends.)
+  assert.ok(
+    !buttonsOf(find(tree, byTestId("ix-composer-tpl"))).includes("Why?"),
+    "the menu says it: no second control for it",
+  );
   assert.deepEqual(
     shape(menuIn(tree)),
     [
@@ -585,18 +595,31 @@ test("the template send is the reply box's capsule: the message it will send at 
   assert.equal(menuIn(tree), undefined, "one message and nothing held back: the send alone");
   assert.equal(find(tree, byTestId("ix-tpl-blank")), undefined, "and a message with no blank asks for no words");
 
+  // Two to four messages of one kind and none held back: each a press on the box itself, the chosen one in the ink (the
+  // thread canvas, 1 Nov 2026). The menu is for more than the box shows, or for what fits now and why the rest are not.
   setTemplates([booking, saveEs]);
   tree = composerOf(closed);
+  const choicesOf = (t) =>
+    findAll(t, (n) => n.type === "button" && n.props?.["data-testid"] === "ix-tpl-choice").map((n) => [
+      textOf(n).trim(),
+      n.props["aria-checked"],
+    ]);
+  assert.equal(menuIn(tree), undefined, "the choices are the picker: no menu over them");
   assert.deepEqual(
-    shape(menuIn(tree)),
-    ["(Booking link, Save our number)"],
-    "REGRESSION: booking_link · en_US; the menu lists messages, not languages",
+    choicesOf(tree),
+    [
+      ["Booking link", true],
+      ["Save our number", false],
+    ],
+    "REGRESSION: booking_link · en_US; the box offers messages, not languages",
   );
-  assert.equal(nameOf(tree), "Booking link", "REGRESSION: 'Send template', which said nothing of what it sends");
-  const set = menuIn(tree).props.groups[0].choose;
-  set.onChoose(set.options[1].value);
+  find(tree, (n) => n.type === "button" && textOf(n).trim() === "Save our number").props.onClick();
   tree = again(() => InboxComposer({ thread: closed, reply: "", onSend() {} }));
-  assert.equal(nameOf(tree), "Save our number", "the chosen message is the one the capsule names, and Send sends");
+  assert.deepEqual(
+    choicesOf(tree).find(([, on]) => on),
+    ["Save our number", true],
+    "the chosen message is the one the box marks, and Send sends it",
+  );
 
   const twoBlanks = tpl("two_notes", {
     variables: valued("Dani", "Luna Studio", "we're open late.", "and on Sundays."),
@@ -608,7 +631,7 @@ test("the template send is the reply box's capsule: the message it will send at 
     /^No approved message can go to Rosa Díaz yet\.\s*Why\?$/,
     "eight words, with the counts behind them",
   );
-  find(tree, (n) => n.type === "button" && textOf(n).trim() === "Why?").props.onClick();
+  find(find(tree, hasClass("ix-tpl-none")), (n) => n.type === "button" && textOf(n).trim() === "Why?").props.onClick();
   tree = again(() => InboxComposer({ thread: closed, reply: "", onSend() {} }));
   assert.equal(
     textOf(find(tree, byTestId("ix-tpl-hidden"))),
@@ -761,6 +784,9 @@ test("an email from the box says what it is signed with once it has words, and C
   tree = composerOf(email);
   find(tree, hasClass("ix-composer-text")).props.onChange({ target: { value: "Friday works." } });
   tree = again(() => InboxComposer({ thread: email, reply: "", onSend() {} }));
-  assert.equal(find(tree, byTestId("ix-composer-signed")), undefined, "none signs it: no line");
+  const unsigned = find(tree, byTestId("ix-composer-signed"));
+  assert.equal(textOf(find(unsigned, byTestId("ix-composer-signed-words"))), "", "none signs it: nothing said of it");
+  assert.ok(!textOf(unsigned).includes("Change"), "and no way to change what is not there");
+  assert.ok(find(unsigned, byTestId("ix-composer-rewrite")), "Rewrite stands alone under the words");
   setSurfaceValue("reply_drafts", undefined);
 });
