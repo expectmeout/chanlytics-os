@@ -373,6 +373,7 @@ function WordsPart(p: {
     );
   if (draft?.state === "writing") return <Writing />;
   if (draft?.state === "asks") return <Note>{W.asks(draft.question)}</Note>;
+  if (draft?.state === "pitch") return <Note>{W.pitch(draft.what)}</Note>;
   if (draft?.state === "failed") return <Note>{draft.why}</Note>;
   return null;
 }

@@ -193,6 +193,8 @@ export interface InboxThreadVM {
         body: string;
         /** An email's subject line, where it changes from the thread's (emailSubjectsOf); absent on every other wire. */
         subject?: string;
+        /** The name an email of theirs says it is from (its From header), where it gives one: the card's sender. */
+        fromName?: string;
         /** The chain an email quoted back at us, when it did: kept, and shown on a tap. */
         quoted?: string;
         /** What a list or a sales tool put at the foot of an email of theirs, folded under its words (emailPartsOf). */

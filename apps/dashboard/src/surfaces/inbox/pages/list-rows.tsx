@@ -3,7 +3,7 @@
  * the pills, the one time, what was said, and what is under it. Plain functions returning JSX, called by the list, so the
  * row has the nodes it always had.
  */
-import { heldPill, holdToDoOf, waitedSaid } from "@chanlytics/contracts";
+import { heldPill, holdToDoOf, personFaceOf, PITCH_TODO, waitedSaid } from "@chanlytics/contracts";
 import { Face, faceHueOf } from "../../kit/face/face";
 import { RowGap } from "../../kit/rows/row-gap";
 import { useShownRows, type ShownRows } from "../../kit/rows/shown-rows";
@@ -15,7 +15,7 @@ import { CONF } from "../constants";
 import type { ListCtx } from "./inbox-list";
 import { pickBox } from "./pick";
 import { ReplyChip } from "../thread/reply-strip";
-import { keptReplyNow } from "../thread/kept-draft";
+import { keptPitchNow, keptReplyNow } from "../thread/kept-draft";
 import { channelIconOf } from "../thread/timeline";
 import { inboxData } from "../store";
 import { threadUnread } from "../../seen";
@@ -39,8 +39,12 @@ function rowSaidOn(t: Thread): { text: string; wire: string } {
   return said ?? { text: t.preview, wire };
 }
 
-/** The wire a row's words came on, worn by the face as a badge at its foot (inbox.css .ix-thread-wire), named for a screen reader. */
-function rowWire(wire: string) {
+/**
+ * The wire a row's words came on, worn by the face as a badge at its foot (inbox.css .ix-thread-wire), named for a screen
+ * reader; none where the face is that wire's glyph already (someone known by their address alone, by email).
+ */
+function rowWire(wire: string, who: string) {
+  if (personFaceOf(who).glyph === channelIconOf(wire)) return null;
   return (
     <span className="ix-thread-wire" role="img" aria-label={inboxData().CHANNEL_LABELS[wire] || wire}>
       <Icon name={channelIconOf(wire)} size={10} />
@@ -197,7 +201,13 @@ function rowLine1(L: ListCtx, t: Thread) {
  */
 function rowToDo(t: Thread) {
   if (!t.real) return null;
-  const todo = t.needsYou && t.state === "escalated" ? holdToDoOf(t.holdAct, !!keptReplyNow(t)) : null;
+  // A pitch the receptionist's draft named for what it is asks whether they are a customer at all, before any reply.
+  const todo =
+    t.needsYou && t.state === "escalated"
+      ? keptPitchNow(t)
+        ? PITCH_TODO
+        : holdToDoOf(t.holdAct, !!keptReplyNow(t))
+      : null;
   if (todo)
     return (
       <div className="ix-thread-todo" data-testid="thread-todo">
@@ -294,7 +304,7 @@ function threadRow(L: ListCtx, t: Thread, i: number, place?: { measure: (el: Ele
           hue={faceHueOf(t.who)}
           className="ix-thread-pic"
         />
-        {rowWire(words.wire)}
+        {rowWire(words.wire, t.who)}
       </span>
 
       {rowBody(L, t, words)}

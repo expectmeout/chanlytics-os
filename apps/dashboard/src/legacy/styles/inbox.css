@@ -2988,6 +2988,45 @@ html.legacy-on .ix-dock .ix-why { position: relative; min-height: 0; }
 .ix-composer.ix-composer-row[data-shape="box"] .ix-composer-text:focus {
   box-shadow: none;
 }
+/* That it opens, folded (below): a caret at the box's corner, the words kept clear of it. */
+.ix-composer-unfold {
+  display: none;
+}
+/* On a phone the box stands over the conversation (mobile.css): open, its words take a third of the screen at most, where
+   they took two fifths with the acts and the lines about the draft on top. Folded as the conversation is read
+   (thread.tsx foldAsRead), it is what is owed over two lines of the words: the lines about the draft and the acts put
+   away until the box is pressed or typed into, when it opens where it stands. */
+@media (max-width: 720px) {
+  .ix-composer.ix-composer-row[data-shape="box"] .ix-composer-text {
+    max-height: 30vh;
+  }
+  .ix-th-foot[data-folded]
+    :is(
+      .ix-composer-drafted,
+      .ix-composer-why-said,
+      .ix-composer-signed,
+      .ix-composer-rewrite-line,
+      .ix-composer-acts
+    ) {
+    display: none;
+  }
+  .ix-th-foot[data-folded] .ix-composer-draft {
+    position: relative;
+  }
+  .ix-th-foot[data-folded] .ix-composer.ix-composer-row[data-shape="box"] .ix-composer-text {
+    max-height: calc(1.45em * 2);
+    padding-right: 24px;
+    overflow: hidden;
+  }
+  .ix-th-foot[data-folded] .ix-composer-unfold {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    display: grid;
+    color: var(--ink-muted);
+    pointer-events: none;
+  }
+}
 .ix-composer-drafted {
   display: flex;
   align-items: center;

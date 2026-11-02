@@ -41,6 +41,7 @@ function keptWordsOf(d: PersonDraftDto): Json {
       ? { opening: d.brief.opening, points: [...d.brief.points], avoid: [...d.brief.avoid], ask: d.brief.ask }
       : null,
     asks: questionsOf(d.asks),
+    ...(d.pitch ? { pitch: d.pitch } : {}),
   };
 }
 
@@ -62,6 +63,7 @@ function wordsFrom(w: Json): ReplyDraftWords {
         }
       : null,
     asks: strings(o.asks),
+    ...(typeof o.pitch === "string" && o.pitch.trim() ? { pitch: o.pitch } : {}),
   };
 }
 
@@ -135,6 +137,7 @@ export async function draftForThread(
   const wire = kind === "reply" ? await replyChannelOf(ctx, conv) : undefined;
   const drafted = await draftForPerson(readerContext(ctx, member), conv.contact_id, {
     how: kind === "brief" ? "call" : "message",
+    answering: kind === "reply",
     ...(wire ? { wire } : {}),
     about: replyDraftAbout(
       kind,
