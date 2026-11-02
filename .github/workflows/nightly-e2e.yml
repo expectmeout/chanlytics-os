@@ -227,8 +227,10 @@ jobs:
           # skips and says why, since no example.com address can receive the code.
           # Adding the secret is the owner's call.
           E2E_SIGNUP_EMAIL: ${{ secrets.E2E_SIGNUP_EMAIL }}
-          # E2E_PAID_MODEL is not set: the five Ask tests that run a real model
-          # turn skip and say so. Set it to "1" on a run that should spend.
+          # E2E_PAID_MODEL is not set: the Ask tests that run a real model turn
+          # skip and say so, and what a page would ask by itself (a turn, Today's
+          # morning, the Line's warm) stops at the sign-in (e2e/session.ts). Set
+          # it to "1" on a run that should spend.
       # The credential-free half alone, by hand: no key of any kind in the
       # environment, so every signed-in spec skips and says why, and nothing
       # the run touches can write.

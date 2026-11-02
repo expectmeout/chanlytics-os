@@ -268,9 +268,11 @@ Writes that would reach a person, such as consent, erasure, invitations, role
 changes, lists, and autonomy or notification settings, are intercepted and
 answered by the spec itself.
 
-Two kinds of test skip unless asked for, and each says why. The five Ask tests
-that run a real model turn cost money, so they need `E2E_PAID_MODEL=1`. The
-sign-up probe needs `E2E_SIGNUP_EMAIL`, a real inbox its code can reach.
+Two kinds of test skip unless asked for, and each says why. The Ask tests that
+run a real model turn cost money, so they need `E2E_PAID_MODEL=1`; without it
+the sign-in also stops what a page would ask by itself, a turn, Today's morning
+and the Line's warm (`e2e/session.ts`). The sign-up probe needs
+`E2E_SIGNUP_EMAIL`, a real inbox its code can reach.
 
 ## Operational levers
 

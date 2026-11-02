@@ -132,6 +132,7 @@ test.describe("Today on a real workspace", () => {
     }
     await page.getByTestId(`today-leak-ask-${rows[0].id}`).click();
     // The shell's Ask palette (surfaces/ask/line/, testid ask-real as ask.spec and phone.spec read it) opens on the row's own question.
+    // The turn it sends stops at the sign-in unless the run may spend (session.ts), and the Line keeps the question.
     const ask = page.getByTestId("ask-real");
     await expect(ask).toBeVisible();
     await expect(ask).toContainText(rows[0].text.slice(0, 40), { timeout: 15_000 });
