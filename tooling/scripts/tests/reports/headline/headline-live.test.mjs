@@ -88,8 +88,9 @@ test("Today owns the headline it draws: its own page reads it, and no other page
   for (const table of ["messages", "conversations", "escalations", "person_notes", "deals"])
     assert.equal(ownsTable("people", table, "today"), false, `not People's ${table} on Today`);
   // Of everything Today draws, exactly these: a surface added to Today's draws is not owned unless it is named here. The pinned
-  // lists' counts are Today's own read (R10).
+  // lists' counts are Today's own read (R10), and Ask's morning hears the batches and sequences it draws here (decision 0087).
   assert.deepEqual(ROUTE_DRAWS.today.filter((key) => ownsTheScreen(key, "today")).sort(), [
+    "ask_morning",
     "people",
     "reach_out_replies",
     "reports_headline",
