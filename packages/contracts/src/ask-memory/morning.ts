@@ -8,6 +8,8 @@
  * Pure: the route, the page and the tests read the same question, limits and words.
  */
 import type { AskProposal } from "../ask/ask";
+import type { AskRested } from "./findings";
+import type { AskLately } from "./lately";
 
 /** How many of the morning's cards Today shows: Ask is asked for three at most. */
 export const ASK_MORNING_CARDS_MAX = 3;
@@ -58,6 +60,12 @@ export interface AskMorningDto {
   detail: string;
   /** The cards still waiting, fresh, at most ASK_MORNING_CARDS_MAX. */
   cards: AskMorningCard[];
+  /** What Ask noticed from the workspace's own facts (decision 0087), the most worth acting on first; absent from a server before it. */
+  findings?: AskMorningCard[];
+  /** This member's rests of what it noticed, which a new rest is written over; absent from a server before it. */
+  rested?: AskRested;
+  /** What came of the ideas approved lately; absent from a server before it. */
+  lately?: AskLately[];
 }
 
 /**

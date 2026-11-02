@@ -47,7 +47,7 @@ function door() {
       }),
     outcome: (messageId, pid, o) =>
       new Promise((land) => {
-        outcomes.push({ messageId, pid, state: o.state, land: () => land(true) });
+        outcomes.push({ messageId, pid, state: o.state, moved: o.moved, land: () => land(true) });
       }),
   };
   return { commits, outcomes };
@@ -259,4 +259,50 @@ test("a fix idea's act is its door, never Approve: pressed, it opens where the t
   assert.deepEqual(went, ["clients/get-yes"], "the door opens where it is fixed");
   assert.deepEqual([commits.length, outcomes.length], [0, 0], "nothing is committed or recorded");
   assert.ok(pressOf(tree, 0, NEED_YOU_WORDS.idea.notToday), "Not today stands");
+});
+
+/** One idea alone, for what its props change. */
+const one = (props) =>
+  W.React.createElement(IdeaWork, {
+    card: CARDS[0],
+    messageId: MESSAGE,
+    threadId: THREAD,
+    main: "primary",
+    flash: (m) => flashes.push(m),
+    keep: () => {},
+    ...props,
+  });
+const alone = (props) => {
+  clearRowStates();
+  fresh();
+  return one(props);
+};
+
+test("a press refused because what the idea was about moved on says so, keeps that on its turn, and asks for no second press", async () => {
+  const { commits, outcomes } = door();
+  const tree = alone({});
+  void press(pressOf(tree, 0, NEED_YOU_WORDS.idea.approve));
+  commits[0].land({ ok: false, message: "This run is not waiting for approval.", moved: true });
+  await settle();
+  assert.deepEqual(
+    outcomes.map((o) => [o.pid, o.state, o.moved]),
+    [["p-1", "failed", true]],
+  );
+  const after = again(() => one({}));
+  assert.equal(pressOf(after, 0, NEED_YOU_WORDS.idea.approve), undefined, "no Approve left to press");
+});
+
+test("what Ask noticed is set aside by its own rest, and no turn is told of it", async () => {
+  const { outcomes } = door();
+  let rests = 0;
+  const tree = alone({
+    messageId: null,
+    rest: async () => {
+      rests += 1;
+    },
+  });
+  await press(pressOf(tree, 0, NEED_YOU_WORDS.idea.notToday));
+  await settle();
+  assert.equal(rests, 1);
+  assert.deepEqual(outcomes, []);
 });

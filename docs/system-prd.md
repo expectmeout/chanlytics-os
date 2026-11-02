@@ -1088,7 +1088,9 @@ chain end with a call or a note for the team.
   as `as_drafted` in its `make_sequence` decision: New and Leads' "A draft by Ask" send it), its search and its first
   email's counts (decision 0078 step 2). On a morning after the member edited a cold email since yesterday, and only then,
   Ask's morning reads them (the sequences read's `edited`) and may propose a `learned` line about how they write, a card
-  that waits for their press (titled "Remember this?"). A business whose domain a person in People
+  that waits for their press (titled "Remember this?"). Each morning is told what every member's mornings offered in the
+  last fourteen days, and Today leaves out a card set aside or approved within a week; what Ask noticed from the
+  sequences and their batches, with no model, stands first in Ask found (decision 0087). A business whose domain a person in People
   writes from, or that reads like a chain, is held first. A held send (`held`, with its reason and detail) waits for its
   owner and keeps its run open; fourteen days from its planning it is given up (`kept_waiting`). A send its owner
   included past a hold carries `included_for`: past a business hold (a customer's domain, a chain, a language, abroad)

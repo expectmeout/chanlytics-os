@@ -317,8 +317,9 @@ export interface BroadcastDto {
   sequence_id: string;
   counts: BroadcastCounts;
   /**
-   * A reach-out's run that is going: how many of its emails the check holds for its owner's say. Absent on any other run,
-   * and where it could not be counted (the wiring's second audit, W-campaign-run-template-reachout-4).
+   * A reach-out's run that is going or waiting for an OK: how many of its emails the check holds for its owner's say.
+   * Absent on any other run, and where it could not be counted (the wiring's second audit,
+   * W-campaign-run-template-reachout-4).
    */
   held?: number;
   /** And how many are handed to its owner to send from their inbox (00429), counted as held is. */

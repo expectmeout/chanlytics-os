@@ -16,11 +16,15 @@ import {
   TO_SEND_ALL_WORDS,
   TO_SEND_ROUTE,
   WAIT_ROW_WORDS,
+  batchFactsOf,
+  batchHeldEmails,
+  isReachOutRun,
   runApproveWords,
   runDraftedEmails,
   runHeldEmails,
   runRoute,
   runTitleOf,
+  sequenceRoute,
   todayRunWords,
   waitRowsOf,
   type BroadcastVM,
@@ -30,7 +34,15 @@ import { bcLateWords, bcOpensOnItsSheet } from "../campaigns/broadcasts/when-wor
 import { AttnRow } from "../kit/attention/attn-row";
 import { gatedProps } from "../legacy-verbs";
 import { gate } from "../shell-doors";
-import { campaignsPaused, runActsOf, runsPending, type RunActs, type RunsActing, type Say } from "./run-acts";
+import {
+  broadcastsRead,
+  campaignsPaused,
+  runActsOf,
+  runsPending,
+  type RunActs,
+  type RunsActing,
+  type Say,
+} from "./run-acts";
 
 /** Move to a route: the frame's, which opens a run over a page that is no home of Campaigns' (rule C). */
 export type Nav = (to: string) => void;
@@ -115,7 +127,9 @@ function approvalsRow(first: BroadcastVM, runs: readonly BroadcastVM[], p: WaitR
 
 /** A run's own row: what it waits for, and Approve where an OK alone sends it, else Open, where its screen answers it. */
 function runRow(r: BroadcastVM, late: boolean, p: WaitRowsPorts, acts: RunActs): ReactElement {
-  const words = todayRunWords(r);
+  // A batch to leads says when its first email goes and what the last one earned, off the runs the page holds.
+  const batch = isReachOutRun(r.audience) && r.state === "pending_approval";
+  const words = todayRunWords(r, batch ? batchFactsOf(r, broadcastsRead()?.rows ?? [], Date.now()) : undefined);
   // A going run whose emails the check holds is answered on the run, where each held email is put back or skipped; one
   // whose emails are handed to you is sent from there, each from your own inbox (00429).
   const held = runHeldEmails(r) > 0 ? words.held : runDraftedEmails(r) > 0 ? words.drafted : null;
@@ -129,6 +143,9 @@ function runRow(r: BroadcastVM, late: boolean, p: WaitRowsPorts, acts: RunActs):
   const saidOnce = !!p.phone && said === words.waiting;
   const paused = campaignsPaused();
   const open = () => p.nav(homeOf(r));
+  // The emails an OK does not send, each decided on the sequence's People.
+  const undecided = batchHeldEmails(r);
+  const decide = () => p.nav(sequenceRoute(r.sequence_id, "people"));
   return (
     <AttnRow
       key={`run-${r.id}`}
@@ -153,7 +170,13 @@ function runRow(r: BroadcastVM, late: boolean, p: WaitRowsPorts, acts: RunActs):
               gate: paused ? gatedProps(CAMPAIGNS_PAUSED_WORDS) : gate("approve", "approve a run"),
             }
       }
-      also={opens ? null : { label: "See who's on it", onClick: open }}
+      also={
+        undecided
+          ? { label: WAIT_ROW_WORDS.decide(undecided), onClick: decide }
+          : opens
+            ? null
+            : { label: "See who's on it", onClick: open }
+      }
       onOpen={open}
       testid="brief-run-row"
     />

@@ -371,10 +371,10 @@ const queueEmpty = (vm: TodayVM) => (
   />
 );
 
-/** What Ask found holds: its morning's ideas, the calls worth a listen and the leads who tried, drawn or not. */
+/** What Ask found holds: what it noticed, its morning's ideas, the calls worth a listen and the leads who tried, drawn or not. */
 function foundCount(found: number, calls: number): number {
   const morning = surfaceValue("ask_morning")?.dto;
-  return (morning?.offered ? morning.cards.length : 0) + found + calls;
+  return (morning?.offered ? morning.cards.length + (morning.findings?.length ?? 0) : 0) + found + calls;
 }
 
 /**

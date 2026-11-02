@@ -290,8 +290,14 @@
 /* Ask found's ideas have no face (dashboard-a-v2.css gives faces to Need you's rows), so an idea's row is one column: its
    work goes under its words across it. Placed in the column a face would leave, it stood beside them, and the words had
    108px (the 30 Oct 2026 review, item 6). */
-[data-testid="today-ask-found"] [data-testid="queue-idea"] > .cl-attn-work {
+[data-testid="today-ask-found"] :is([data-testid="queue-idea"], [data-testid="queue-finding"]) > .cl-attn-work {
   grid-column: 1 / -1;
+}
+/* What came of the ideas approved lately, under those still open: quiet, and nothing to press. */
+.ny-came {
+  display: grid;
+  gap: var(--space-1);
+  padding-top: var(--space-2);
 }
 
 /* What the row prepared (the refined canvas, 31 Oct 2026; the 23 Oct canvas's .wr-draft and .wr-brief): words that go to

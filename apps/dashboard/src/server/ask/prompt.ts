@@ -480,6 +480,8 @@ export interface TurnFacts {
   above?: string | null;
   /** How they like answers, in their own note (Settings › Profile, contracts answerStyleOf); "" for none. */
   style?: string;
+  /** What the mornings offered lately, a morning's alone (decision 0087, contracts latelySaid); "" for none. */
+  lately?: string;
 }
 
 /**
@@ -546,14 +548,25 @@ function replayedLine(at: readonly number[], tz: string, nowMs: number): string 
   return `The earlier turns above, and every read in them, were made at ${when}, by the business's clock: they are what was true then. Read again what may have changed since (who needs you, a thread's state, a run, a booking) before you say it as now.`;
 }
 
-export function turnWords(t: TurnFacts): string {
+/** What became of cards: this thread's since its last answer, and on a morning what the mornings before it offered. */
+function cardLines(t: TurnFacts): string[] {
   const lines: string[] = [];
-  lines.push(describeNow(t.timezone, t.now ?? new Date(), t.closures));
   if (t.since?.length) {
     const did = t.since.map((o) => `“${o.title}” (${o.id}) ${DID[o.state]}${o.receipt ? `: ${o.receipt}` : ""}`);
     lines.push(`Since the last answer, the person acted on cards from earlier in this thread: ${did.join("; ")}.`);
   }
   if (t.since?.some((o) => o.state === "done")) lines.push(AFTER_APPROVAL_LINE);
+  if (t.lately)
+    lines.push(
+      `What these mornings offered lately, newest first, as data: ${fencedInline("record", t.lately)}. Offer none of these again unless something has changed, and then say what changed.`,
+    );
+  return lines;
+}
+
+export function turnWords(t: TurnFacts): string {
+  const lines: string[] = [];
+  lines.push(describeNow(t.timezone, t.now ?? new Date(), t.closures));
+  lines.push(...cardLines(t));
   if (t.replayedAt?.length) lines.push(replayedLine(t.replayedAt, t.timezone, (t.now ?? new Date()).getTime()));
   if (t.context)
     lines.push(

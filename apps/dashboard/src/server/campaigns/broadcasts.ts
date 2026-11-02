@@ -486,18 +486,18 @@ export async function listBroadcasts(
  * A going reach-out run says how many of its emails the check holds for its owner's say (`held`), and how many are handed
  * to its owner to send from their inbox (`drafted`, 00429): the run's row, Today's (contracts runWaitsOnYou), the bell's
  * held notice (contracts notice-closes.ts, which reads it as read once none is held) and Campaigns' chain row read them.
+ * One waiting for an OK says them too: its row's Decide (contracts batchHeldEmails) offers the emails an OK does not send.
  * Counts that cannot be read leave both absent, logged, and the rows stand (the wiring's second audit,
  * W-campaign-run-template-reachout-4).
  */
 async function withHeld(ctx: RouteContext, tenantId: string, rows: BroadcastDto[]): Promise<BroadcastDto[]> {
-  const going = rows.filter(
-    (b) => isReachOutRun(b.audience) && (RUN_GOING_STATES as readonly string[]).includes(b.state),
-  );
+  const counted: readonly string[] = [...RUN_GOING_STATES, "pending_approval"];
+  const going = rows.filter((b) => isReachOutRun(b.audience) && counted.includes(b.state));
   if (!going.length) return rows;
   try {
     const runIds = going.map((b) => b.id);
     const waiting = await runWaitingCounts(ctx.supabase, { tenantId, runIds });
-    // Every going run says its counts, a zero too: one with none waiting reads 0, never absent.
+    // Every run counted says its counts, a zero too: one with none waiting reads 0, never absent.
     return rows.map((b) => {
       if (!runIds.includes(b.id)) return b;
       const w = waiting.get(b.id);

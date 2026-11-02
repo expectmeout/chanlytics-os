@@ -6,6 +6,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  batchFactsOf,
+  batchHeldEmails,
   todayDay,
   todayBriefWords,
   TODAY_DAY_MAX,
@@ -518,4 +520,57 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
       css.includes("@media (max-width: 1180px) {\n  .dash-a-v2-core, .dash-a-v2-foot { grid-template-columns: 1fr; }"),
     "the pane's rules (.td-day*, .td-frame*, .td-step*) went with it; the page's grid stays",
   );
+});
+
+/** A batch as the page holds it, the waiting one or one beside it. */
+const batchRun = (id, over = {}) => ({
+  id,
+  sequence_id: "seq-1",
+  state: "sent",
+  scheduled_for: "2026-11-02T15:00:00.000Z",
+  when: "today 10:00 AM",
+  started_at: null,
+  created_at: "2026-10-20T15:00:00.000Z",
+  recipient_count: 17,
+  audience: { kind: "reach_out", root_id: "seq-1", label: "Agencies" },
+  counts: { sent: 0, replied: 0 },
+  ...over,
+});
+const BEFORE_IT = Date.parse("2026-11-02T14:00:00.000Z");
+
+test("a batch waiting for an OK says when its first email goes and what its last batch earned, and how its wait ends where it has neither", () => {
+  const waiting = batchRun("w", { state: "pending_approval" });
+  const older = batchRun("a", { started_at: "2026-10-01T15:00:00.000Z", counts: { sent: 40, replied: 1 } });
+  const newest = batchRun("b", { started_at: "2026-10-20T15:00:00.000Z", counts: { sent: 20, replied: 3 } });
+  const another = batchRun("c", {
+    sequence_id: "seq-2",
+    started_at: "2026-10-30T15:00:00.000Z",
+    counts: { sent: 9, replied: 9 },
+  });
+  const facts = batchFactsOf(
+    waiting,
+    [waiting, older, newest, another, batchRun("d", { sequence_id: "seq-1" })],
+    BEFORE_IT,
+  );
+  assert.deepEqual(facts, { firstGoes: "today 10:00 AM", last: { sent: 20, replied: 3 } });
+  assert.equal(
+    todayRunWords(waiting, facts).waiting.sentence,
+    "17 businesses. Waits for your OK; the first goes today 10:00 AM. Last batch: 20 sent, 3 replied.",
+  );
+  // Its time has passed: the clock plans its sends again after an OK, so it names no time.
+  const late = batchFactsOf(waiting, [waiting], Date.parse("2026-11-02T16:00:00.000Z"));
+  assert.deepEqual(late, { firstGoes: null, last: null });
+  // A time it cannot name still says your OK: a phone draws no state line under it.
+  assert.match(
+    todayRunWords(waiting, { firstGoes: null, last: { sent: 20, replied: 3 } }).waiting.sentence,
+    /Waits for your OK.*Last batch: 20 sent, 3 replied./,
+  );
+  assert.equal(todayRunWords(waiting, late).waiting.sentence, todayRunWords(waiting).waiting.sentence);
+});
+
+test("a batch waiting for an OK offers the emails an OK does not send, apart from a going run, and counts no second wait", () => {
+  assert.equal(batchHeldEmails({ state: "pending_approval", held: 2 }), 2);
+  assert.equal(batchHeldEmails({ state: "pending_approval", held: 0 }), 0);
+  assert.equal(batchHeldEmails({ state: "pending_approval" }), 0);
+  assert.equal(batchHeldEmails({ state: "sending", held: 2 }), 0);
 });

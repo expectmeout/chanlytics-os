@@ -81,6 +81,14 @@ export function runHeldEmails(run: Pick<WaitingRun, "state" | "held">): number {
   return going && typeof run.held === "number" && run.held > 0 ? run.held : 0;
 }
 
+/**
+ * How many of a batch's emails the check holds while the batch waits for an OK: an OK sends none of them, so each is
+ * decided on its own. Apart from runHeldEmails, since they are part of the wait already counted, never a second one.
+ */
+export function batchHeldEmails(run: Pick<WaitingRun, "state" | "held">): number {
+  return run.state === "pending_approval" && typeof run.held === "number" && run.held > 0 ? run.held : 0;
+}
+
 /** How many of a going run's emails wait for its owner to send them from their inbox (00429): none for a run not going. */
 export function runDraftedEmails(run: Pick<WaitingRun, "state" | "drafted">): number {
   const going = (RUN_GOING_STATES as readonly string[]).includes(run.state);

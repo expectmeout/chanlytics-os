@@ -71,6 +71,8 @@ export const WAIT_ROW_WORDS = {
    * where it goes (his look on a phone, 29 Oct 2026). Open stays the desk's, and a run too late to approve still opens.
    */
   review: "Review",
+  /** A batch waiting for an OK that holds emails an OK does not send: each is decided on the sequence's People. */
+  decide: (n: number) => `Decide ${n}`,
   approvals: {
     name: (n: number) => `${plural(n, "run waits", "runs wait")} for your OK`,
     meta: "Campaigns · ready",

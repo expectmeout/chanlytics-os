@@ -11,6 +11,7 @@ import type { ReactElement } from "react";
 import {
   NEED_YOU_WORDS as W,
   answerWithinMsOf,
+  isFindingCard,
   namesAPerson,
   needYouVerbOf,
   needYouWaitOf,
@@ -61,6 +62,8 @@ export interface NeedYouRowsCtx {
 export interface NeedYouExtrasCtx extends NeedYouRowsCtx {
   keepIdea: (card: AskMorningCard) => void;
   keepReview: (review: GoogleReviewDto) => void;
+  /** What Ask noticed, set aside for a while: no turn holds one, so its Not today is kept for the member. */
+  restFinding?: (card: AskMorningCard) => Promise<void>;
 }
 
 /**
@@ -197,23 +200,25 @@ export function ideaRows(
 ): ReactElement[] {
   return cards.map((card) => {
     const kind = actKindOf({ id: card.id }, c);
+    const noticed = isFindingCard(card);
     return (
       <AttnRow
         key={card.id}
         initials=""
         glyph="three"
         name={card.title}
-        meta={W.idea.tag}
+        meta={noticed ? W.idea.noticed : W.idea.tag}
         // A new campaign's one line (its rules are behind Details, idea-work.tsx); any other card's summary.
         sentence={card.line ?? card.summary}
         status={[]}
         tone=""
-        testid="queue-idea"
+        testid={noticed ? "queue-finding" : "queue-idea"}
         work={
           <IdeaWork
             card={card}
-            messageId={morning.messageId}
+            messageId={noticed ? null : morning.messageId}
             threadId={morning.threadId}
+            rest={noticed ? () => c.restFinding?.(card) : undefined}
             main={kind === "primary" ? "primary" : "secondary"}
             flash={c.flash}
             keep={() => c.keepIdea(card)}

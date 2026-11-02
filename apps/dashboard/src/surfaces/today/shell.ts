@@ -83,7 +83,7 @@ export function askSpeech(): AskSpeech | undefined {
 /** What a card's press commits, as Ask's door answers (legacy-bridge/ask/commit.ts CommitResult). */
 type AskCardCommit =
   | { ok: true; receipt: string; undo: Record<string, unknown> | null; made: { kind: string; id: string } | null }
-  | { ok: false; message: string };
+  | { ok: false; message: string; moved?: boolean };
 
 /** Ask's cards, pressed where the Line is not open (`window.__ask`): the verb walk a card commits by, and its outcome kept. */
 interface AskCardDoor {

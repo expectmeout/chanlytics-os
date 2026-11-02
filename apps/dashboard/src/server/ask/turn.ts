@@ -59,6 +59,8 @@ interface AskTurnAsk {
    * the page's language); otherwise the question's own (detectLanguage).
    */
   language?: AskLanguage;
+  /** What the mornings offered lately (decision 0087, contracts latelySaid): a morning's alone, said in the turn's words. */
+  lately?: string;
 }
 
 /** A line the turn's door sends: the thread first, then the turn's own events. */
@@ -261,6 +263,7 @@ export async function finishAskTurn(
     spoken: ask.spoken ?? false,
     column: ask.column ?? null,
     style,
+    lately: ask.lately ?? "",
     emit: (ev) => {
       if (ev.t === "say")
         said = ev.headline || ev.detail ? { headline: ev.headline ?? "", detail: ev.detail ?? "" } : null;
