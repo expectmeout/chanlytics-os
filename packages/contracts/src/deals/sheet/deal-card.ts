@@ -69,9 +69,10 @@ export interface DealCardVM {
   /**
    * What wants a look, each a state in its tone (the page draws a StatePill): the day it stood until, once it has
    * passed; "Nothing back in 8 days", once a proposal has waited past the workspace's pace, a week without one
-   * (waitingOnProposal).
+   * (waitingOnProposal). `rowSays`: the Pipeline's row says the same in its chip and its days, so a phone's deal sheet,
+   * under that row, leaves it to the row.
    */
-  flags: { words: string; tone: Tone }[];
+  flags: { words: string; tone: Tone; rowSays?: boolean }[];
   /** How long this workspace's proposals usually take ("Usually 9 days to a yes"), once five are decided; none for a client. */
   pace: string | null;
   /** The one act the card leads with (dealNextAct); null for a client. */
@@ -111,10 +112,19 @@ export interface PersonDealsVM {
   quiet: DealQuietVM | null;
 }
 
-/** "Sent Sep 15 on WhatsApp", "Sent Sep 15 by email", "Sent Sep 15 as a text". */
-function sentWords(sent: { at: string; via: string | null }, tz: string, nowMs: number): string {
+/**
+ * "Sent Sep 15 on WhatsApp", "Sent Sep 15 by email", "Sent Sep 15 as a text"; the day left to the proposal's step where
+ * that step says the same one over it ("Sent on WhatsApp").
+ */
+function sentWords(
+  sent: { at: string; via: string | null },
+  stepDay: string | null,
+  tz: string,
+  nowMs: number,
+): string {
   const at = Date.parse(sent.at);
-  const day = Number.isFinite(at) ? ` ${clockDate(at, tz, nowMs)}` : "";
+  const sentDay = Number.isFinite(at) ? clockDate(at, tz, nowMs) : null;
+  const day = sentDay && sentDay !== stepDay ? ` ${sentDay}` : "";
   const on =
     sent.via === "WhatsApp"
       ? " on WhatsApp"
@@ -219,17 +229,19 @@ function stepsOf(p: DealPerson, deal: DealVM, tz: string, nowMs: number, consult
 function cardOf(p: DealPerson, deal: DealVM, nowMs: number, tz: string, consultation: boolean): DealCardVM {
   const won = deal.stage === "won";
   const next = dealNextAct(p, nowMs, deal);
+  const steps = stepsOf(p, deal, tz, nowMs, consultation);
   const facts: string[] = [];
   const flags: DealCardVM["flags"] = [];
   if (!won) {
     const sent = sentOf(p, deal);
+    const stepDay = steps.find((s) => s.key === "proposal")?.day ?? null;
     facts.push(
       !deal.proposal
         ? DEAL_CARD_WORDS.noLink
         : deal.proposal.sending
           ? DEAL_CARD_WORDS.sending
           : sent
-            ? sentWords(sent, tz, nowMs)
+            ? sentWords(sent, stepDay, tz, nowMs)
             : DEAL_CARD_WORDS.notSent,
     );
     if (deal.validUntil && !deal.validUntil.lapsed) facts.push(deal.validUntil.words);
@@ -244,8 +256,8 @@ function cardOf(p: DealPerson, deal: DealVM, nowMs: number, tz: string, consulta
       const fu = followUpOn(p, deal);
       flags.push(
         fu?.kind === "will"
-          ? { words: followUpWords(fu, tz, nowMs), tone: "info" }
-          : { words: `Nothing back in ${deal.waitingDays ?? 0} days`, tone: "warn" },
+          ? { words: followUpWords(fu, tz, nowMs), tone: "info", rowSays: true }
+          : { words: `Nothing back in ${deal.waitingDays ?? 0} days`, tone: "warn", rowSays: true },
       );
     }
   }
@@ -256,7 +268,7 @@ function cardOf(p: DealPerson, deal: DealVM, nowMs: number, tz: string, consulta
     stage: won ? "won" : "proposed",
     title: deal.service ?? (won ? DEAL_CARD_WORDS.engagement : DEAL_CARD_WORDS.proposal),
     value: deal.amount,
-    steps: stepsOf(p, deal, tz, nowMs, consultation),
+    steps,
     link: !won && deal.proposal ? { url: deal.proposal.url, host: deal.proposal.host } : null,
     facts,
     flags,

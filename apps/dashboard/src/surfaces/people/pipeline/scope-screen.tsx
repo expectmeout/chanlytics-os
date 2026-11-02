@@ -311,6 +311,7 @@ function phoneBar(s: PipelineState) {
       onQ={setQ}
       searchRef={searchRef}
       searchLabel={PL_SEARCH_LABEL}
+      foldSearch
       testid="pipeline"
       title={pipeSelecting(s) ? (s.picked.length ? `${s.picked.length} selected` : "Select deals") : null}
       trailing={phoneBarWords(s)}

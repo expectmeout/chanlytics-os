@@ -2368,8 +2368,10 @@
 
 /* The phone's top (PeoplePhoneBar), under the frame's strip of views: the bar -- the list and the scope's own last
    control -- then the search, a row of its own: a capsule at rest that opens
-   into the field, at 16px, since a phone zooms into anything smaller. */
-.pp-top { flex: none; }
+   into the field, at 16px, since a phone zooms into anything smaller.
+   Over what comes under it: with the search folded the Pipeline's filters stand right there, and a filter's press area
+   reached up over the bar's own words, so a press low on Select moved the filter. */
+.pp-top { position: relative; z-index: 1; flex: none; }
 .pp-bar { display: flex; align-items: center; gap: 6px; padding: 8px 8px 6px 16px; flex: none; }
 /* The page's menu is taller than a menu's 340px on a touch screen (44px items): it takes the room the phone has. */
 .pp-bar .more-menu { max-height: min(520px, calc(100vh - 140px)); max-height: min(520px, calc(100dvh - 140px)); }
@@ -2387,6 +2389,10 @@
 .pp-bar .more-wrap { flex: none; }
 /* The search is the kit's (kit.css, "Search"); the bar places it, at the rows' 12px, 10px over the first. */
 .pp-lookup { flex: none; padding: 0 12px 10px; }
+/* A search at rest in its bar's glyph (phone-bar.tsx foldSearch): the field stays drawn, so a press or / can put the caret
+   in it, and it takes no room until it holds the caret, as Conversations' head does on a desk (conversations.css). */
+.pp-lookup-folded:not(:focus-within) { height: 0; padding: 0; overflow: hidden; }
+.pp-bar-find { align-self: center; }
 
 @media (max-width: 900px) {
   /* A list's own step, alone in its section on a phone: one card, on the gutter. */
@@ -2539,7 +2545,7 @@
      shown in ink at 600 and the others quieter. It stands where People's line does (.pl-standing, below: under the
      search, 6px over the rows, its words one line at the gutter): it stood 18px lower and 30px taller, its 30px
      losing to the touch floor's 44px (legacy-bridge/legacy.css), which loads after it (Ruben, 23 Oct 2026). */
-  .pipe-summary { display: flex; flex-direction: column; gap: 2px; padding: 0 16px 6px; }
+  .pipe-summary { display: flex; flex-direction: column; gap: 2px; padding: 4px 16px 6px; }
   .pipe-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 0 18px; }
   html.legacy-on .pipe-summary .pipe-filter { position: relative; gap: 6px; padding: 0; border: 0; height: auto; min-height: 0; line-height: var(--leading-normal); font-size: var(--text-sm); }
   /* A thumb's 44px press area over and under the words, which the line does not make room for. */

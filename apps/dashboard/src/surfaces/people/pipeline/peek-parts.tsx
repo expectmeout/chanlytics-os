@@ -48,13 +48,13 @@ export interface DealSheetCtx {
 const S = P.words.sheet;
 
 /**
- * Where the deal stands: its steps, then one line: what wants a look (the card's flags, a state in its tone) and the
- * plain facts beside it, whether it went and the day it stands until; or the row's stand where it has no card. The
- * workspace's pace is the Pipeline's waiting count's and their page's card's to say, not this line's.
+ * Where the deal stands: its steps, then one line: what wants a look (the sheet's flags, a state in its tone; a phone's
+ * leave what its row says, lit right above the sheet) and the plain facts beside it, whether it went and the day it
+ * stands until. The workspace's pace is the Pipeline's waiting count's and their page's card's to say, not this line's.
  */
 function DealStand({ c }: { c: DealSheetCtx }) {
-  const { card, stand, steps } = c.sheet;
-  const flags = card ? card.flags : stand ? [stand] : [];
+  const { card, steps } = c.sheet;
+  const flags = c.phone ? c.sheet.phoneFlags : c.sheet.flags;
   const facts = card ? card.facts : [];
   return (
     <div className="pipe-deal-stand" data-testid="pipeline-peek-stand">

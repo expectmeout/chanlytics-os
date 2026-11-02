@@ -176,7 +176,7 @@ function PhoneSheet(
       open={p.open}
       onClose={p.onClose}
       title={nameOf(vm)}
-      sub={<span data-testid="pipeline-peek-sub">{c.sheet.sub ?? vm.sub}</span>}
+      sub={<span data-testid="pipeline-peek-sub">{c.sheet.sub ?? vm.named}</span>}
       mark={<Face person={{ name: vm.name, initials: vm.initials }} size="lg" />}
       opens={toTheirPage(vm, p.onOpenPage)}
       close={{ label: P.words.peek.close, glyph: <Icon name="x" size={13} /> }}

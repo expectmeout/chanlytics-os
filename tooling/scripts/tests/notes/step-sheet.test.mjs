@@ -106,6 +106,19 @@ test("the sheet opens a new step on its deal, or a change to one of theirs with 
   assert.equal(edit.blocked, null);
 });
 
+test("the sheet's days hold its one line: a Monday offers what a Wednesday does, and a note's are five too", () => {
+  const monday = Date.parse("2026-09-21T15:00:00Z");
+  const person = { id: "p1", name: "Tove Lind", noteList: [noteVM("wed", { step: stepOn("2026-09-23") })] };
+  const labels = (ask) => stepSheetFor(person, ask, monday, ZONE).days.map((c) => c.label);
+  assert.deepEqual(labels({}), ["Today", "Tomorrow", "Fri", "Next week", "Pick a day"]);
+  assert.deepEqual(labels({ note: true }), ["No day", "Today", "Tomorrow", "Fri", "Pick a day"]);
+  // Any other day is a press of Pick a day: a step on the Wednesday opens with the date field on it.
+  const { day, picking } = stepSheetFor(person, { noteId: "wed" }, monday, ZONE).draft;
+  assert.deepEqual([day, picking], ["2026-09-23", true]);
+  // The composer's button still names a weekday it does not offer, as it did (stepDayName reads the picker's own).
+  assert.equal(contracts.stepDayName("2026-09-23", monday, ZONE), "Wed");
+});
+
 test("a new step on a deal opens filled from the act its card leads with: a send today, a follow-up tomorrow, any other empty", () => {
   const now = Date.parse("2026-09-24T15:00:00Z");
   const person = { id: "p1", name: "Tove Lind", deals: [{ id: "d1", service: "Website" }], noteList: [] };

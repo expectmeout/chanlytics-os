@@ -521,7 +521,7 @@ test("nobody to follow is an empty Pipeline, with its words for it", () => {
   // The page's own New proposal stands over the empty table, so the words say what will show, not where to start.
   assert.deepEqual(PIPELINE_WORDS.empty, {
     title: "No deals yet.",
-    body: "Proposals you start show here, with what they come to.",
+    body: "Proposals you start show here.",
   });
   assert.deepEqual(PIPELINE_WORDS.columns, {
     person: "Person",
@@ -1552,7 +1552,7 @@ test("with nobody to follow, the table says so in contracts' words", async () =>
   const tree = draw();
   assert.equal(byTestId(tree, "pipeline-summary"), null, "a line with nothing in it is not drawn");
   assert.match(textOf(tree), /No deals yet\./);
-  assert.match(textOf(tree), /Proposals you start show here, with what they come to\./);
+  assert.match(textOf(tree), /Proposals you start show here\./);
   assert.match(textOf(find(tree, (n) => n.props?.className === "dtable-foot")), /^0 deals/);
 });
 
@@ -1751,7 +1751,7 @@ test("on a phone: one bar with the view's list button and search, New proposal i
     // Beside three scopes a narrow phone has room for one word: the act says "New" with its mark, and the rest gives way.
     assert.equal(textOf(find(headAct, (n) => n.props?.className === "pg-act-keep")), "New");
     assert.equal(textOf(find(headAct, (n) => n.props?.className === "pg-act-rest")), " proposal");
-    assert.equal(byTestId(bar, "pipeline-phone-search").props["aria-label"], "Search names, numbers and emails");
+    assert.equal(byTestId(bar, "pipeline-phone-find").props["aria-label"], "Search names, numbers and emails");
     assert.ok(byTestId(tree, "pipeline-summary"));
     const card = find(tree, (n) => n.type === "tr" && n.props?.id === "person-wes");
     assert.match(card.props.className, /\bpl-card-row\b/);
