@@ -22,6 +22,7 @@ import { LEAD_WORDS, leadDraftFooter, toLeadPeekVM } from "../../../../../packag
 import { LEAD_DOCK_WORDS } from "../../../../../packages/contracts/src/leads/sheet/lead-sheet-dock.ts";
 import { hookFrames } from "../../_hook-frames.mjs";
 import { kitPages, useStubHooks } from "../../_legacy-react.mjs";
+import { until } from "../../shared/_until.mjs";
 
 let cells = [];
 // Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
@@ -504,9 +505,6 @@ const menuItem = async (P, label) => kitItem(P.draw().tree, "peek-more", label);
 // Where this lead stands, read: the sheet the rest of this file draws is the one whose reads are in.
 await sequenceVerbs.place(LEAD);
 
-const readsLand = async () => {
-  for (let i = 0; i < 6; i += 1) await new Promise((go) => setImmediate(go));
-};
 const saysReading = (tree) => byTestId(tree, "lead-sheet-reading") !== null;
 /** What only a read can say: drawn before it lands, these are a guess the next read takes back. */
 const GUESSES = ["lead-sheet-word", "lead-sheet-quick", "lead-sheet-sec-sequence", "lead-sheet-dock"];
@@ -518,7 +516,7 @@ test("the sheet draws once: who they are, and nothing a read could take back unt
   assert.equal(textOf(byTestId(first, "peek-name")), "Travis Heights Coaching Co.", "who they are is true whatever");
   assert.equal(saysReading(first), true, "and it says it is reading, after a beat");
   for (const id of GUESSES) assert.equal(byTestId(first, id), null, `no ${id} while their place is out`);
-  await readsLand();
+  await until(() => !saysReading(P.draw().tree), "the place read landing");
   const whole = P.draw().tree;
   assert.equal(saysReading(whole), false);
   for (const id of GUESSES.slice(0, 3)) assert.ok(byTestId(whole, id), `${id}, all of it at once`);
@@ -537,8 +535,7 @@ test("a place that could not be read says so, with Retry, and never a guess at w
   reset();
   placeFails = true;
   const P = page({ vm: vmOf({ id: "5e000000-0000-4000-8000-000000000333" }) });
-  P.draw();
-  await readsLand();
+  await until(() => !saysReading(P.draw().tree), "the place read failing");
   placeFails = false;
   const { tree } = P.draw();
   assert.equal(saysReading(tree), false, "a failed read is not a read still out: it holds nothing for ever");
