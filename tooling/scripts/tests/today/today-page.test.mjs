@@ -596,7 +596,8 @@ test("the figures: four in order, each with its clause; nothing said twice; the 
   assert.equal(textOf(heading), "Today so far", "a section with its own heading");
   assert.equal(card.props["aria-labelledby"], heading.props.id);
   // The card is a phone's (the redesign of 1 Nov 2026), its four by their short names in one row; a desk's four stand in
-  // the head beside the greeting (the page heads canvas, H1, 31 Oct 2026), each with its whole label and clause.
+  // the head beside the greeting (the page heads canvas, H1, 31 Oct 2026), by the same short names, each with its clause
+  // and its whole label as its title (the 10/10 read, 2 Nov 2026).
   const short = byTestId(card, "today-figures");
   assert.ok(short, "the card's one row of four");
   assert.ok(textOf(byTestId(short, "today-figure-answered")).includes("answered"), "a figure by its short name");
@@ -608,7 +609,10 @@ test("the figures: four in order, each with its clause; nothing said twice; the 
   );
   for (const [i, f] of vm.figures.entries()) {
     const said = textOf(figs[i]);
-    assert.ok(said.includes(String(f.value)) && said.includes(f.label) && said.includes(f.meta), `${f.id}: ${said}`);
+    assert.ok(
+      said.includes(String(f.value)) && said.includes(f.meta) && figs[i].props.title === f.label,
+      `${f.id}: ${said}`,
+    );
     assert.equal(byTestId(head, `today-receipt-${f.id}`), null, "a receipt waits for a hover, a focus or a tap");
   }
   assert.equal(

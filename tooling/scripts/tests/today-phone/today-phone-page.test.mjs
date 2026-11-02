@@ -52,6 +52,7 @@ const { TodayCard, TodayHeadFigures } = await import("../../../../apps/dashboard
 const { TodayWarnings } = await import("../../../../apps/dashboard/src/surfaces/today/phone/warnings.tsx");
 const { BriefBox } = await import("../../../../apps/dashboard/src/surfaces/today/need-you/parts.tsx");
 const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
+const { useHeadSay } = await import("../../../../apps/dashboard/src/surfaces/today/need-you/head-say.ts");
 
 /** Sofia asked for a person three hours ago, an hour before Ana: two handoffs, Sofia's the older. */
 const sofia = () =>
@@ -60,6 +61,11 @@ const sofia = () =>
   });
 const sofiaHeld = () => ({ ...escalation(), id: "e-s", conversation_id: "cv-s", created_at: "2026-09-18T17:01:00Z" });
 const twoWaiting = () => toTodayVM(metrics(), [sofia(), waiting()], [sofiaHeld(), escalation()], [], NOW);
+/** And Marco, who wrote at two: a third person waiting. */
+const marco = () => thread("cv-m", "Marco Bellini", [msg("m1", "Can we move to Thursday?", "2026-09-18T18:00:00Z")]);
+const marcoHeld = () => ({ ...escalation(), id: "e-m", conversation_id: "cv-m", created_at: "2026-09-18T18:01:00Z" });
+const threeWaiting = () =>
+  toTodayVM(metrics(), [sofia(), waiting(), marco()], [sofiaHeld(), escalation(), marcoHeld()], [], NOW);
 const nobodyWaiting = () => toTodayVM(metrics(), [], [], [], NOW);
 
 const set = (vm) => {
@@ -113,16 +119,56 @@ test("on a phone the day's four numbers are one row, each by its short name", ()
   const names = all(card, (n) => classes(n).includes("tc-fig-w")).map(textOf);
   assert.deepEqual(names, ["messages", "answered", "calls", "new people"]);
   phone = false;
-  // A desk's four stand in the frame's head beside the greeting (card.tsx TodayHeadFigures), by their long names; the
-  // card is a phone's alone (today-page.tsx).
+  // A desk's four stand in the frame's head beside the greeting (card.tsx TodayHeadFigures), by the same short names (the
+  // 10/10 read, 2 Nov 2026: "answered by the receptionist" made its cell three times another's), the whole name its title;
+  // the card is a phone's alone (today-page.tsx).
   const desk = draw(TodayHeadFigures);
+  assert.deepEqual(
+    all(desk, (n) => classes(n).includes("tc-fig-w")).map(textOf),
+    ["messages", "answered", "calls", "new people"],
+    "a desk says the short names too",
+  );
   assert.ok(
-    all(desk, (n) => classes(n).includes("tc-fig-w"))
-      .map(textOf)
+    all(desk, (n) => classes(n).includes("tc-fig"))
+      .map((n) => n.props.title)
       .includes("answered by the receptionist"),
-    "a desk keeps the long names",
+    "and the whole name is the figure's title",
   );
   phone = true;
+});
+
+test("Need you holds each wait to the business's own target, and the open card says why it was handed over in words", () => {
+  phone = true;
+  set(twoWaiting());
+  const waits = (tree) =>
+    all(tree, (n) => classes(n).includes("cl-attn-wait")).map((n) => [textOf(n), !!n.props["data-long"]]);
+  assert.deepEqual(waits(draw(AgentCommand)), [
+    ["3h", false],
+    ["2h", false],
+  ]);
+  // The owner says an hour (Settings › Autonomy, "Answer people within"): both have waited past it.
+  setSurfaceValue("settings", {
+    policies: { role: "owner", rows: [{ class: "reply", limits: { answer_within_hours: 1 } }] },
+  });
+  try {
+    assert.deepEqual(
+      waits(draw(AgentCommand)),
+      [
+        ["3h", true],
+        ["2h", true],
+      ],
+      "REGRESSION: the amber meant past a day, whatever the business promised",
+    );
+  } finally {
+    setSurfaceValue("settings", undefined);
+  }
+  const [card] = rowsOf(draw(AgentCommand), "handoff");
+  assert.equal(textOf(find(card, (n) => classes(n).includes("cl-attn-meta"))), "asked for a person");
+  assert.equal(
+    find(card, (n) => classes(n).includes("set-mark")),
+    null,
+    "REGRESSION: an unexplained mark beside the name",
+  );
 });
 
 test("on a phone one card holds Ask's work, the next is a row with its press, which opens the walk on it", () => {
@@ -379,29 +425,29 @@ test("on a phone each group of Need you is a pane of its own under its name, the
   phone = true;
 });
 
-test("the cuts over Need you are the kit's chips, the picked one All, on a desk and a phone", () => {
-  // Two verbs ask (a reply, an approval), so the cuts are drawn.
-  W.__BROADCASTS = {
-    rows: [
-      {
-        id: "b-wait",
-        name: "Win-back",
-        state: "pending_approval",
-        playbook_id: null,
-        audience: { kind: "segment", label: "Quiet" },
-        recipient_count: 3,
-        scheduled_for: new Date(Date.now() + 2 * 3_600_000).toISOString(),
-        started_at: null,
-        when: "today 6:00 PM",
-        counts: { sent: 0, replied: 0 },
-      },
-    ],
-  };
+test("the cuts over Need you are the kit's chips, the picked one All, on a desk and a phone, over a list worth cutting", () => {
+  // Two verbs ask (the replies, and a run's approval), so the cuts are drawn once there are four rows or more.
+  const run = (id) => ({
+    id,
+    name: `Win-back ${id}`,
+    state: "pending_approval",
+    playbook_id: null,
+    audience: { kind: "segment", label: "Quiet" },
+    recipient_count: 3,
+    scheduled_for: new Date(Date.now() + 2 * 3_600_000).toISOString(),
+    started_at: null,
+    when: "today 6:00 PM",
+    counts: { sent: 0, replied: 0 },
+  });
+  const stripOf = () => find(draw(AgentCommand), (n) => typeof n.type === "function" && n.type.name === "SubTabs");
   try {
     for (const width of [true, false]) {
       phone = width;
+      W.__BROADCASTS = { rows: [run("b-1")] };
       set(twoWaiting());
-      const strip = find(draw(AgentCommand), (n) => typeof n.type === "function" && n.type.name === "SubTabs");
+      assert.equal(stripOf(), null, "three rows a glance takes in: no strip to cut them (the 10/10 read, 2 Nov 2026)");
+      set(threeWaiting());
+      const strip = stripOf();
       assert.ok(strip, "the cuts");
       assert.equal(strip.props.look, "chips");
       assert.equal(strip.props.value, "all");
@@ -465,6 +511,45 @@ test("on a phone's card Ask's reply is read where it stands, and Edit beside Sen
       (n) => typeof n.type === "function" && n.type.name === "WalkSheet",
     );
     assert.equal(walk.props.at, first.id, "the walk, open on this row");
+  } finally {
+    setSurfaceValue("reply_drafts", undefined);
+  }
+});
+
+test("the head says Ask drafted a reply only where its words can go: never over a card whose one press is a template", () => {
+  phone = true;
+  /** One handoff on WhatsApp, its window open or shut, with Ask's reply kept for it; what the head is told of it. */
+  const headOver = (lastIn) => {
+    const t = thread("cv-t", "Tara Quinn", [msg("t1", "Is Saturday free?", lastIn)], {
+      state: "needs_human",
+      last_wa_inbound_at: lastIn,
+    });
+    const vm = toTodayVM(metrics(), [t], [{ ...escalation(), id: "e-t", conversation_id: "cv-t" }], [], NOW);
+    const row = vm.queue.rows[0];
+    setSurfaceValue("reply_drafts", {
+      complete: true,
+      fetchedAt: NOW.getTime(),
+      drafts: [
+        {
+          conversation_id: row.conversationId,
+          kind: "reply",
+          for_message_id: row.writes.for_message_id,
+          words: { text: "Saturday at ten is free.", subject: "", asks: [], brief: null },
+          made_at: NOW.toISOString(),
+        },
+      ],
+    });
+    set(vm);
+    draw(AgentCommand);
+    return again(() => useHeadSay());
+  };
+  try {
+    assert.match(String(headOver("2026-09-18T19:00:00Z")), /Ask drafted a reply/, "an open window: the words can go");
+    assert.doesNotMatch(
+      String(headOver("2026-09-16T19:00:00Z")),
+      /Ask drafted/,
+      "REGRESSION: the head said a reply was drafted over a card whose one press was Choose a template",
+    );
   } finally {
     setSurfaceValue("reply_drafts", undefined);
   }

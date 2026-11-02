@@ -703,6 +703,37 @@ test("the autonomy matrix: the workspace's own rows, read by every member; chang
   assert.ok(ev.every((e) => e.subject_type === "workspace" && e.subject_id === B && !("limits" in e.data)));
 });
 
+test("how long people may wait on you is the owner's to set, on the reply row, in whole hours, and Today holds each wait to it", async () => {
+  const tables = {
+    memberships: both("viewer", "operator"),
+    policies: [policy(B, "reply", "auto", { pause_hours: 4 }), policy(B, "booking", "auto")],
+  };
+  const set = await policies.PUT.run(send("PUT", { class: "reply", answer_within_hours: 2 }, inB), ctxFor(tables));
+  assert.deepEqual(
+    [set.policy.mode, set.policy.limits.answer_within_hours, set.policy.limits.pause_hours],
+    ["auto", 2, 4],
+    "the target set, the mode and the pause kept",
+  );
+  for (const bad of [0, 1.5, 169, "soon"])
+    await refused(
+      policies.PUT.run(send("PUT", { class: "reply", answer_within_hours: bad }, inB), ctxFor(tables)),
+      "validation",
+      400,
+      "The time to answer people is a whole number of hours from 1 to 168.",
+    );
+  await refused(
+    policies.PUT.run(send("PUT", { class: "booking", answer_within_hours: 2 }, inB), ctxFor(tables)),
+    "validation",
+    400,
+    "The time to answer people only applies to the reply policy.",
+  );
+  assert.deepEqual(
+    tables.events.filter((e) => e.kind === "policy.changed").map((e) => e.data.fields),
+    [["answer_within_hours"]],
+    "the change names the key it moved, never the value",
+  );
+});
+
 test("REGRESSION (S6): the reply cap and the pause are the owner's to set, through the same door as the other dials -- the route read neither", async () => {
   const tables = {
     memberships: both("viewer", "operator"),

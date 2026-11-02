@@ -128,9 +128,10 @@ const CUTS_FROM = 4;
 type Cut = "all" | NeedYouVerb;
 
 /**
- * The strip over the rows: All and each verb that has rows, where more than one does; nothing where one alone. All says no
- * figure: how many need you is the head's, the badge's number, and a window closing or a search is a row it does not
- * count, so a figure beside All read as a second answer to the head's question.
+ * The strip over the rows: All and each verb that has rows, where more than one does and there are CUTS_FROM rows or
+ * more; nothing where one verb alone asks, or the rows fit the eye. All says no figure: how many need you is the head's,
+ * the badge's number, and a window closing or a search is a row it does not count, so a figure beside All read as a
+ * second answer to the head's question.
  */
 function cutTabs(counts: Record<NeedYouVerb, number>): SubTab[] | null {
   const verbs = (["reply", "call", "approve"] as const).filter((v) => counts[v] > 0);
