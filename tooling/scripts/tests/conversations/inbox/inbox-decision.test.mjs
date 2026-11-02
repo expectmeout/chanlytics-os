@@ -219,9 +219,13 @@ test("the list: a wait reads as days, and a teammate's thread says whose it is i
   const tree = listOf([waiting, theirs]);
 
   const rosaRow = rowOf(tree, "Rosa Díaz");
-  const wait = find(rosaRow, hasClass("ix-wait"));
-  assert.equal(textOf(wait), "waiting 8d", "REGRESSION: it read waiting 10869m");
-  assert.ok(wait.props.className.includes("warn"), "past thirty minutes the wait is amber");
+  const wait = find(rosaRow, hasClass("ix-thread-wait"));
+  assert.equal(textOf(wait), "8d", "REGRESSION: it read waiting 10869m");
+  assert.equal(wait.props.title, "waiting 8d", "what the bare figure is, on a hover");
+  // The wait is the figure alone in the mono face; what it asks of you is the coral line under her words (the thread
+  // canvas's list, 1 Nov 2026), so no second tone stands beside it.
+  assert.ok(!wait.props.className.includes("warn"), "no amber beside the coral");
+  assert.equal(textOf(find(rosaRow, byTestId("thread-todo"))), "Reply");
   assert.equal(
     find(rosaRow, byTestId("thread-state")),
     null,
@@ -233,8 +237,9 @@ test("the list: a wait reads as days, and a teammate's thread says whose it is i
   assert.equal(find(ninaRow, byTestId("thread-state")), null, "REGRESSION: a teammate's thread said Needs you");
   assert.equal(textOf(find(ninaRow, byTestId("thread-theirs"))), "Ana García has it");
   assert.ok(!hasClass("unread")(ninaRow), "and one the read says nothing new of carries no dot");
-  const ninaWait = find(ninaRow, hasClass("ix-wait"));
+  const ninaWait = find(ninaRow, hasClass("ix-thread-wait"));
   assert.ok(ninaWait && !ninaWait.props.className.includes("warn"), "its wait is not amber: it is not waiting on you");
+  assert.equal(find(ninaRow, byTestId("thread-todo")), null, "and asks nothing of you");
 
   globalThis.window.__TEAM = null;
   assert.equal(

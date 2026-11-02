@@ -386,20 +386,23 @@ test("REGRESSION: a row says each thing once -- why a person is needed, what the
     };
     return {
       subject: one("ix-thread-subject"),
+      todo: one("ix-thread-todo"),
       words: one("ix-thread-preview"),
-      wait: one("ix-wait"),
-      time: one("ix-thread-time") !== null,
+      wait: one("ix-thread-wait") ?? one("ix-wait"),
+      time: one("ix-thread-time") !== null && one("ix-thread-wait") === null,
       foot: one("ix-thread-foot") !== null,
       text: textOf(row),
     };
   };
 
+  // Her words, then what it asks of you in the coral (the thread canvas's list, 1 Nov 2026), and the wait its one time.
   const rosaRow = said("Rosa Díaz");
   assert.deepEqual(
-    [rosaRow.subject, rosaRow.words, rosaRow.wait, rosaRow.time, rosaRow.foot],
-    ["Customer asked for a person", "Can I move my appointment to Friday?", "waiting 40m", false, false],
+    [rosaRow.subject, rosaRow.words, rosaRow.todo, rosaRow.wait, rosaRow.time, rosaRow.foot],
+    [null, "Can I move my appointment to Friday?", "Reply", "40m", false, false],
     "REGRESSION: the receptionist's 'Let me check with the team.' in place of her words, and a clock time beside the wait",
   );
+  assert.doesNotMatch(rosaRow.text, /\d:\d\d [AP]M/, "one time on the row");
   const ninaRow = said("Nina Park");
   assert.equal(ninaRow.subject, null, "a thread you have that nobody flagged has no reason line");
   assert.ok(
@@ -408,6 +411,7 @@ test("REGRESSION: a row says each thing once -- why a person is needed, what the
   );
   const adaRow = said("Ada Lovelace");
   assert.equal(adaRow.subject, "Customer asked for a person", "a teammate's row keeps the reason");
+  assert.equal(adaRow.todo, null, "and asks nothing of you: the thread is theirs");
   assert.ok(
     adaRow.text.includes("A teammate has it") && !adaRow.text.includes("is answering this"),
     `REGRESSION: "A teammate is answering this" under the pill that says so: ${adaRow.text}`,

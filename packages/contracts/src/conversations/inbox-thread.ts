@@ -39,6 +39,7 @@ import {
 } from "./message-words";
 import { messageVia, messageAuthor, messageWhy, lastWordLine, type MessageAuthor } from "./message-author";
 import {
+  DRAFTED_TODO,
   openHoldAct,
   reasonLabelOf,
   reasonLineOf,
@@ -303,7 +304,7 @@ export const THREAD_PANE_WORDS = {
   draftUsed: (email: boolean, signed: boolean) =>
     `Used: ${[email ? "their email" : "their message", "your facts", ...(signed ? ["your signature"] : [])].join(" · ")}`,
   /** The dock's lead over a hold whose reply the receptionist drafted: what is owed is a look at its words. */
-  checkDraft: "Check the draft",
+  checkDraft: DRAFTED_TODO,
   /** More's head: who it is about, how to reach them and when they first wrote, and the way to their page. */
   personLine: (reach: string | null, first: string | null) =>
     [reach, first ? `first wrote ${first.toLowerCase()}` : null].filter(Boolean).join(" · "),

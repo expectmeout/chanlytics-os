@@ -415,10 +415,12 @@ test("REGRESSION: a real thread that needs a person shows the one pill and how l
   assert.ok(pill, 'REGRESSION: the pill was gated on state === "needs"');
   assert.equal(pill.props.className, "pill pill-warn ix-state-pill");
   assert.equal(textOf(pill), "Needs you", 'one name for the state, not "Escalated" here and "Needs you" there');
-  const wait = byClass(tree, "ix-wait");
+  const wait = byClass(tree, "ix-thread-wait");
   assert.ok(wait, "REGRESSION: the wait chip was gated the same way");
-  assert.match(textOf(wait), /waiting \d+m/);
-  assert.ok(wait.props.className.includes("warn"), "past thirty minutes the wait is amber");
+  assert.match(textOf(wait), /^\d+m$/);
+  assert.match(wait.props.title, /^waiting \d+m$/, "the bare figure, named on a hover");
+  // What waits on you is the coral line under their words (the thread canvas's list, 1 Nov 2026), not a tone on the wait.
+  assert.equal(textOf(byTestId(tree, "thread-todo")), "Reply");
 });
 
 /* ------------------ the attention row, the same six -------------------- */

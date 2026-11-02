@@ -332,10 +332,23 @@ export function holdWaits(hold: OpenHold): boolean {
  * the act is to hand back: Done and Hand back are the thread's, and no reply is offered), and the clause a notice ends
  * with. One set of words for all three, as the reason has one set for its label.
  */
-export const HOLD_ACT_WORDS: Record<HoldAct, { cta: string; take: string | null; notice: string }> = {
-  reply: { cta: "Open and reply", take: "I'll answer this", notice: "Reply from the Inbox." },
-  call_back: { cta: "Open the call", take: "Call back", notice: "Call them back." },
-  hand_back: { cta: "Open the thread", take: null, notice: "Nothing can be sent to them." },
+export const HOLD_ACT_WORDS: Record<HoldAct, { cta: string; take: string | null; notice: string; todo: string }> = {
+  reply: { cta: "Open and reply", take: "I'll answer this", notice: "Reply from the Inbox.", todo: "Reply" },
+  call_back: { cta: "Open the call", take: "Call back", notice: "Call them back.", todo: "Call back" },
+  hand_back: { cta: "Open the thread", take: null, notice: "Nothing can be sent to them.", todo: "Hand it back" },
   // A booking request (decision 0061): Booked it confirms it; Can't is its second button, and leaves the thread to a reply.
-  confirm: { cta: "Booked it", take: "Booked it", notice: "Confirm it or say you can't." },
+  confirm: { cta: "Booked it", take: "Booked it", notice: "Confirm it or say you can't.", todo: "Confirm a time" },
 };
+
+/** Where the receptionist drafted the reply a hold asks for: what is owed is a look at its words (the dock says so too). */
+export const DRAFTED_TODO = "Check the draft";
+
+/**
+ * What a hold asks of you, as the Inbox's row says it under what they said (the thread canvas's list, 1 Nov 2026: "Check
+ * the draft", "Confirm a time", "Call back"), in the coral: the act's own word, and a look at the draft where the reply box
+ * holds one the receptionist wrote. Nothing with no hold to act on.
+ */
+export function holdToDoOf(act: HoldAct | null | undefined, drafted: boolean): string | null {
+  if (!act) return null;
+  return act === "reply" && drafted ? DRAFTED_TODO : HOLD_ACT_WORDS[act].todo;
+}

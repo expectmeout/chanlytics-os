@@ -264,6 +264,8 @@
 }
 .ix-thread-meta > .ix-name-pill::before { display: inline-block; margin-right: 6px; vertical-align: 1px; }
 .ix-thread-time { font-size: 10.5px; color: var(--ink-dim); }
+/* How long they have waited, the bare figure in the mono face (list-rows.tsx rowTime). */
+.ix-thread-wait { font-family: var(--font-mono); }
 /* A reply of its own on the way out: the one thing on a row that runs out, so it carries the accent and the dot. */
 .ix-sending { color: var(--accent-ink); background: var(--accent-soft); border-color: transparent; }
 .ix-sending .ix-veto-dot { width: 6px; height: 6px; }
@@ -316,6 +318,23 @@
   text-overflow: ellipsis;
   flex: 1;
   line-height: 1.35;
+}
+/* What a row asks of you, its last line in the coral (the thread canvas's list, list-rows.tsx rowToDo). */
+.ix-thread-todo {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--accent-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Under Needs you's last row, where nothing narrows the rows: that is everyone (inbox-list.tsx). */
+.ix-list-end {
+  margin: 0;
+  padding: 18px 10px;
+  text-align: center;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
 }
 .ix-thread-foot {
   display: flex;
@@ -1097,12 +1116,116 @@ html.legacy-on .tl-msg-quote-toggle { position: relative; min-height: 0; }
   overflow-wrap: anywhere;
 }
 
-/* A call, in its conversation (inbox-thread.jsx ThreadCall): a quiet line where it began, its lines as the thread's own
-   bubbles, a quiet line where it ended, and a slim player floating at the top while you listen. It was a 420px card on
-   the conversation, with its transcript behind a tap (#775), and before that a second screen in Conversations. */
+/* A call, in its conversation (thread/call.tsx ThreadCall; the thread canvas's call, 1 Nov 2026): one card, summary first --
+   the phone on a tile, what it was and how long over how it ended, and when; what it was about; what it left; then the
+   recording's round, its run and its length, and the transcript a press away. Its lines open under the card as the
+   thread's own bubbles, a quiet line where it ended under them, and a slim player floats at the top while you listen.
+   It was a quiet line across the thread with its play in it, the summary centred under. */
 .tl-call { display: flex; flex-direction: column; gap: 10px; }
+.tl-call-gist {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-bubble);
+  background: var(--bg-raised);
+}
+.tl-call-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.tl-call-glyph {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-tile);
+  background: var(--surface-inset-fill);
+  color: var(--ink);
+}
+.tl-call-words {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.tl-call-what {
+  font-size: var(--text-mail);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+.tl-call-what > span + span::before { content: "·"; margin: 0 5px; }
+.tl-call-length, .tl-call-at { white-space: nowrap; }
+.tl-call-how {
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+.tl-call-at {
+  flex: none;
+  align-self: flex-start;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.tl-call-about {
+  margin: 0;
+  font-size: var(--text-mail);
+  line-height: var(--leading-normal);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.tl-call-noted { display: flex; flex-direction: column; gap: 2px; }
+.tl-call-noted > .tl-call-about {
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+/* The recording: a round of the ink to play it, its run, its length in the mono face, and Transcript at the row's end. */
+.tl-call-run {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.tl-call-play {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--ink);
+  color: var(--bg-raised);
+  cursor: pointer;
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+.tl-call-play .icon { margin-left: 1px; } /* a triangle's weight sits to its left */
+@media (hover: hover) { .tl-call-play:hover { transform: scale(1.06); } }
+.tl-call-play:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+/* A finger's reach: 44px to press, 34px to see. */
+.tl-call-play::after { content: ""; position: absolute; inset: -5px; border-radius: var(--radius-full); }
+.tl-call-track { flex: 1 1 auto; min-width: 24px; }
+.tl-call-dur {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.tl-call-open {
+  flex: none;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--ink-muted);
+}
 
-/* Where it began and where it ended: a line across the thread, as a day's divider would be. */
+/* Where it ended: a line across the thread, as a day's divider would be. */
 .tl-call-mark {
   display: flex;
   align-items: center;
@@ -1113,32 +1236,7 @@ html.legacy-on .tl-msg-quote-toggle { position: relative; min-height: 0; }
   color: var(--ink-dim);
 }
 .tl-call-mark::before, .tl-call-mark::after { content: ""; flex: 1 1 16px; min-width: 16px; height: 1px; background: var(--line); }
-/* What it was, then when -- set apart by space, not a dot, so a narrow phone that puts the when on a line of its own
-   does not begin that line with a dot. */
-.tl-call-words { display: inline-flex; flex-wrap: wrap; justify-content: center; align-items: baseline; gap: 2px 14px; min-width: 0; text-align: center; }
-.tl-call-what > span + span::before { content: "·"; margin: 0 6px; }
-.tl-call-kind { font-weight: 550; color: var(--ink-muted); }
-.tl-call-length, .tl-call-at { white-space: nowrap; }
 .tl-call-ended { min-width: 0; text-align: center; }
-.tl-call-play, .tl-call-glyph {
-  position: relative;
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  padding: 0;
-  border: 0;
-  border-radius: var(--radius-full);
-  background: color-mix(in oklab, var(--ink) 7%, transparent);
-  color: var(--ink-muted);
-}
-.tl-call-play { color: var(--ink); cursor: pointer; transition: background var(--duration-fast) var(--ease-out), transform var(--duration-fast) var(--ease-out); }
-.tl-call-play .icon { margin-left: 1px; } /* a triangle's weight sits to its left */
-.tl-call-play:hover { background: color-mix(in oklab, var(--ink) 14%, transparent); transform: scale(1.06); }
-.tl-call-play:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-/* A finger's reach without a finger's size: 44px to press, 22px to see. */
-.tl-call-play::after { content: ""; position: absolute; inset: -11px; border-radius: var(--radius-full); }
 /* Under the end line, the call's acts in one centred row: the transcript's file and Review this call; a review the press
    brought takes the row's width under them. */
 .tl-call-acts { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 4px 16px; }
@@ -1146,26 +1244,6 @@ html.legacy-on .tl-msg-quote-toggle { position: relative; min-height: 0; }
 .tl-call-file { display: inline-flex; align-items: center; gap: 5px; flex: none; height: 22px; padding: 0 8px; border-radius: var(--radius-full); font-size: var(--text-xs); color: var(--ink-dim); text-decoration: none; }
 @media (hover: hover) { .tl-call-file:hover { color: var(--ink); background: color-mix(in oklab, var(--ink) 7%, transparent); } }
 .tl-call-file:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-
-/* A call the conversation moved on from, folded to what it was about. */
-.tl-call-folded { display: flex; flex-direction: column; align-items: center; gap: 2px; }
-.tl-call-about { max-width: min(100%, 520px); margin: 0 auto; font-size: var(--text-sm); line-height: 1.5; color: var(--ink-muted); text-align: center; overflow-wrap: anywhere; }
-.tl-call-open {
-  position: relative;
-  padding: 0;
-  border: 0;
-  background: none;
-  font: inherit;
-  font-size: 12px;
-  color: var(--ink-dim);
-  cursor: pointer;
-  text-decoration: underline;
-  text-decoration-color: color-mix(in oklab, currentColor 35%, transparent);
-  text-underline-offset: 2px;
-}
-@media (hover: hover) { .tl-call-open:hover { color: var(--ink); } }
-.tl-call-open::after { content: ""; position: absolute; inset: -12px -8px; }
-.tl-call-open:focus-visible { outline: none; border-radius: var(--radius-xs); box-shadow: var(--focus-ring); }
 
 /* Its lines are the thread's own bubbles. The line being said is outlined, never striped, and the rest step back. */
 .tl-call-turns { display: flex; flex-direction: column; gap: 10px; }
@@ -1261,18 +1339,19 @@ html.legacy-on .tl-listen-play, html.legacy-on .tl-listen-speed, html.legacy-on 
 }
 
 /* Opened at the call, from Conversations: a moment's light on where it began. */
-.tl-call.focus > .tl-call-mark .tl-call-words { border-radius: var(--radius-full); animation: tl-call-here 2.4s var(--ease-out) 0.2s both; }
+.tl-call.focus > .tl-call-gist { animation: tl-call-here 2.4s var(--ease-out) 0.2s both; }
 @keyframes tl-call-here {
-  from { background: color-mix(in oklab, var(--ink) 10%, transparent); box-shadow: 0 0 0 6px color-mix(in oklab, var(--ink) 10%, transparent); }
-  to { background: transparent; box-shadow: 0 0 0 6px transparent; }
+  from { box-shadow: 0 0 0 6px color-mix(in oklab, var(--ink) 10%, transparent); }
+  to { box-shadow: 0 0 0 6px transparent; }
 }
+
 
 /* A call still going, drawn alone (conversations.jsx CallPane): the line, and Live to hear it. */
 .tl-call-live-acts { display: flex; justify-content: center; }
 
 @media (prefers-reduced-motion: reduce) {
   .tl-call-play, .tl-msg.tl-spoken .tl-msg-body { transition: none; }
-  .tl-call.focus > .tl-call-mark .tl-call-words { animation: none; }
+  .tl-call.focus > .tl-call-gist { animation: none; }
 }
 
 /* System events */
@@ -2452,13 +2531,27 @@ html.legacy-on .ix-dock .ix-why { position: relative; min-height: 0; }
   color: var(--ink);
 }
 @media (width > 900px) {
-  /* The row as the canvas sets it: the face and the words, 12 between, on 12 10 12 12 of padding; the box for a
-     selection leaves the grid (below). */
+  /* The row as the thread canvas's list sets it (1 Nov 2026): the face at 38 in their hue with the wire on its edge, the
+     words 10 beside it, on 12 10 of padding at a 14 corner; the open row a card of the raised ground, ringed and lifted.
+     The box for a selection leaves the grid (below). */
   .ix-list .ix-thread {
-    grid-template-columns: 32px minmax(0, 1fr);
-    column-gap: 12px;
+    grid-template-columns: 38px minmax(0, 1fr);
+    column-gap: 10px;
     align-items: start;
-    padding: 12px 10px 12px 12px;
+    padding: 12px 10px;
+    border-radius: var(--radius-row);
+  }
+  .ix-list .ix-thread-pic {
+    width: 38px;
+    height: 38px;
+  }
+  .ix-list .ix-thread-wire {
+    width: 17px;
+    height: 17px;
+  }
+  .ix-list .ix-thread.active {
+    background: var(--bg-raised);
+    box-shadow: var(--surface-inset-ring), var(--shadow-md);
   }
   /* The face (the row's second child) is the kit's, which wears the canvases' avatar itself: its fill, its inset ring
      and the initials in ink (kit.css, "The canvases' avatar"). */
@@ -2473,9 +2566,9 @@ html.legacy-on .ix-dock .ix-why { position: relative; min-height: 0; }
     margin: 0;
   }
   .ix-thread-who {
-    flex: 1 1 auto;
+    flex: 0 1 auto;
     max-width: none;
-    font-size: var(--text-base);
+    font-size: var(--text-mail);
     font-weight: var(--weight-medium);
   }
   .ix-thread.unread .ix-thread-who {
@@ -2491,9 +2584,9 @@ html.legacy-on .ix-dock .ix-why { position: relative; min-height: 0; }
     margin: 0;
   }
   .ix-thread-preview {
-    font-size: var(--text-sm);
+    font-size: var(--text-base);
     line-height: 1.4;
-    color: var(--ink-dim);
+    color: var(--ink-muted);
   }
   .ix-thread-time {
     font-family: var(--font-mono);
@@ -3706,6 +3799,11 @@ html.legacy-on .tl-email-fold-row > .tl-email-fold {
     top: 20px;
     z-index: 1;
     opacity: 0;
+  }
+  /* Centred on the Inbox row's 38px face (12 10 of padding, above). */
+  .ix-list .ix-thread > .ix-thread-check {
+    left: 21px;
+    top: 23px;
   }
   .ix-thread:hover > .ix-thread-check,
   .ix-thread:focus-visible > .ix-thread-check,

@@ -146,11 +146,11 @@ export { privacyRequestOf, REQUEST_KIND_WORDS, REQUEST_KINDS, REQUEST_STEP_KEYS,
 export { askCode, askDoneOf, cameInOf, FIND_KINDS, FIND_LIMITS, findDigits, findGroups, inboxHomeUrl, inboxSearchUrl, pageWords, reportCode, reportOf, SETUP_ASK_WORDS, SUPPORT_KIND_WORDS, SUPPORT_TOPICS, SUPPORT_WORDS, supportClusters, supportPathOf, supportTopicOf } from "./console/support";
 export { playbookOf, setupAskMail, supportMeanwhile } from "./console/support-playbooks";
 export { answeredMedianMs, businessMsBetween, firstNameOfAddress, SUPPORT_KIND_FILTER_WORDS, SUPPORT_KIND_FILTERS, SUPPORT_PAGE, SUPPORT_READ_DAYS, SUPPORT_VIEW_WORDS, SUPPORT_VIEWS, SUPPORT_ZONE, supportDue, supportDueAt, supportPageOf, supportQueueOf, supportQuietWords, supportSentence, supportViewOf, supportWaitOf, supportWorkspaceOf } from "./console/support-queue";
-export { ABANDONED_MS, abandonedCall, callAttemptWords, DISCONNECTION_LABELS, missedCall, neverConnected, reachedVoicemail } from "./conversations/call-dto";
+export { ABANDONED_MS, abandonedCall, CALL_TRANSCRIPT, callAttemptWords, DISCONNECTION_LABELS, missedCall, neverConnected, reachedVoicemail } from "./conversations/call-dto";
 export { callEndedWords, spokenDuration, toCallVM, unansweredCallTodo } from "./conversations/call-vm";
 export { CONVERSATION_MOVES, conversationMoveAllowed, conversationPatch } from "./conversations/conversation-moves";
 export { toConversationVM } from "./conversations/conversation-vm";
-export { dockLineOf, ESCALATION_ACTS, ESCALATION_REASON_LABELS, ESCALATION_REASON_SHORT, ESCALATION_SUMMARIES, HAND_BACK_REASONS, HOLD_ACT_WORDS, holdActOf, holdWaits, OPEN_HOLDS_READ_MAX, reasonLabelOf, reasonShort, reasonSummaryOf, WAITING_REASONS, waitsOnAPerson } from "./conversations/escalations";
+export { dockLineOf, DRAFTED_TODO, ESCALATION_ACTS, ESCALATION_REASON_LABELS, ESCALATION_REASON_SHORT, ESCALATION_SUMMARIES, HAND_BACK_REASONS, HOLD_ACT_WORDS, holdActOf, holdToDoOf, holdWaits, OPEN_HOLDS_READ_MAX, reasonLabelOf, reasonShort, reasonSummaryOf, WAITING_REASONS, waitsOnAPerson } from "./conversations/escalations";
 export { REFERRAL_ID_MAX } from "./conversations/first-touch";
 export { HANDLED_OUTCOMES } from "./conversations/handled";
 export { conversationWaitsOnYou, countdownClock, HELD_BY_ID_MAX, heldDraftWaits, heldThreadIds, snoozedThreadWords, theyWroteLast, THREAD_PANE_WORDS, threadStanding, threadsWaitingOnYou, threadWaitsOf, toInboxThreadVM } from "./conversations/inbox-thread";
@@ -158,7 +158,7 @@ export { EMAIL_CLAIMS, isAutomatedSend, isPersonsWords, messageAuthor, messageVi
 export { emailLeftOutOf, emailPartsOf, emailPreviewOf, emailSignatureLine, emailSignedLine, emailSubjectsOf, repairMojibake, splitQuotedReply, tidyEmailWords } from "./conversations/message-email";
 export { mediaKind, mediaVM } from "./conversations/message-media";
 export { draftSendsAtMs, failureWordsOf, heldDraftOf, isHeldDraft, messageStatusLabel, messageText, messageWords, providerCodeOf, reachedCustomer, sendFailureWords } from "./conversations/message-words";
-export { HELD_WORDS, heldPill, INBOX_BUCKET_WORDS, inboxBucketWord, isUnseen, NEEDS_YOU_WORD, readingOf, replyWaitsOnYou, seenBy, standingOf, standingOfThread } from "./conversations/standing";
+export { HELD_WORDS, heldPill, INBOX_BUCKET_WORDS, inboxBucketWord, isUnseen, NEEDS_YOU_LIST_END, NEEDS_YOU_WORD, readingOf, replyWaitsOnYou, seenBy, standingOf, standingOfThread } from "./conversations/standing";
 export { agentFor, answerWireOf, isChatMessage, isFromTheirSide, isTheirOwnWords, lastWroteOn, THREAD_CHANNEL_WORDS, threadChannelOf, threadChannelWords, writtenChannelOf } from "./conversations/thread-channel";
 export { formatWaited, inboxThreadClock, shortTime } from "./conversations/thread-clock";
 export { contactMeta, contactName, emailStoppedWords, initialsOf, isEmailStopped, isIdentifierName, personFaceOf, shortName } from "./conversations/thread-contact";

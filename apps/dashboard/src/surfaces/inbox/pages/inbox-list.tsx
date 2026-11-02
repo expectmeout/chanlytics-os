@@ -15,7 +15,7 @@
  * of acts over it, its keys -- is pick.tsx, which Conversations draws too.
  */
 import { useCallback, useEffect, useState, type KeyboardEvent, type ReactNode } from "react";
-import { BAR_LINE_WORDS } from "@chanlytics/contracts";
+import { BAR_LINE_WORDS, NEEDS_YOU_LIST_END } from "@chanlytics/contracts";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { Search } from "../../kit/search/search";
@@ -315,6 +315,12 @@ export function InboxList(props: InboxListProps) {
           >
             {threadRows(L, shown)}
           </div>
+        )}
+        {/* Under Needs you's last row, where nothing narrows the rows: that is all of them (the thread canvas's list). */}
+        {visible.length > 0 && activeBucket === "escalated" && !searching && !activeView && (
+          <p className="ix-list-end" data-testid="inbox-list-end">
+            {NEEDS_YOU_LIST_END}
+          </p>
         )}
       </div>
     </div>

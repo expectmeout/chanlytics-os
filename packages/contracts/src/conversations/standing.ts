@@ -67,6 +67,9 @@ export const NEEDS_YOU_WORD = "Needs you";
  */
 export const INBOX_BUCKET_WORDS = { escalated: NEEDS_YOU_WORD, done: "Handled", snoozed: "Snoozed" } as const;
 
+/** Under the last of Needs you's rows, where nothing narrows them (the thread canvas's list, 1 Nov 2026). */
+export const NEEDS_YOU_LIST_END = "That's everyone who needs you.";
+
 /** The list a thread's state puts it in, in the tabs' words; null for a state no tab lists. */
 export function inboxBucketWord(state: string): string | null {
   return state === "escalated" || state === "done" || state === "snoozed" ? INBOX_BUCKET_WORDS[state] : null;
