@@ -40,32 +40,63 @@ export function missTally(shapes) {
 }
 
 /**
- * The nightly's lines for Ask's day (the Phase 6 plan, D4): alarms, not the spec's targets (a median cache hit of 80%,
- * first words in 2 s), which the day does not meet yet. At fewer answered turns than `minTurns` a median says nothing.
+ * Whether a person read this turn as it came. The morning's (AskTurnShape.morning, companion/morning.ts) runs after the
+ * response has gone and hears nothing it says, so its first Say is no one's wait: 25 of the 35 turns of the fortnight to
+ * 2 Nov 2026. A turn stored before the key is a morning by what only a morning leaves: no page, no time the palette was
+ * open, and no voice.
  */
-export const ASK_DAY_LINES = { minTurns: 10, cacheHit: 0.5, firstTextMs: 6_000 };
+export const watchedTurn = (s) => !(s.morning ?? (s.warm === "none" && s.opened_ms === null && !s.spoken));
+
+/**
+ * The turns by how many rounds they took, as ask-day.mjs prints them: each band's first Say, its final, and how long
+ * the first Say stood before the final, which is a turn's silence told from its streaming. A turn no Say reached counts
+ * toward its band and no spread of the first Say.
+ */
+export function roundBands(shapes) {
+  const band = (name, within) => {
+    const rs = shapes.filter((s) => within(s.rounds ?? 0));
+    const said = rs.filter((s) => typeof s.first_say_ms === "number");
+    return {
+      band: name,
+      n: rs.length,
+      say: spread(said.map((s) => s.first_say_ms)),
+      final: spread(rs.map((s) => s.final_ms)),
+      held: spread(said.map((s) => s.final_ms - s.first_say_ms)),
+    };
+  };
+  return [band("1 round", (r) => r === 1), band("2 rounds", (r) => r === 2), band("3+ rounds", (r) => r >= 3)];
+}
+
+/**
+ * The nightly's lines for Ask's day (the Phase 6 plan, D4): alarms, not the spec's targets (a median cache hit of 80%,
+ * first words in 2 s), which the day does not meet yet. First Say, not first text: with the answer tool on, a turn writes
+ * no text before it answers, so first text was measured on the few answers written as text and read 2.3 s while the
+ * person read at 7.7 s. At fewer watched turns than `minTurns` a median says nothing, and in the fortnight to 2 Nov 2026
+ * no day had ten: the line judges nothing until a day does.
+ */
+export const ASK_DAY_LINES = { minTurns: 10, cacheHit: 0.5, firstSayMs: 6_000 };
 
 /**
  * The day against its lines, in one sentence (the Phase 6 plan, D4): `ok` false when the median cache hit is under its
- * line or the median first text over its, and then the sentence names the most-given miss reason, where one was said.
+ * line or the median first Say over its, and then the sentence names the most-given miss reason, where one was said.
  * A median that could not be taken crosses nothing.
  */
-export function askDayVerdict({ turns, cacheHit, firstTextMs, misses = [] }, lines = ASK_DAY_LINES) {
+export function askDayVerdict({ turns, cacheHit, firstSayMs, misses = [] }, lines = ASK_DAY_LINES) {
   if (turns < lines.minTurns)
     return {
       ok: true,
-      line: `Ask's day: ${turns} answered turns, under the ${lines.minTurns} a median needs; nothing judged.`,
+      line: `Ask's day: ${turns} turns a person watched, under the ${lines.minTurns} a median needs; nothing judged.`,
     };
   const hit = cacheHit === null ? "no cache hit measured" : `median cache hit ${pct(cacheHit)}`;
-  const text = firstTextMs === null ? "no first text measured" : `median first text ${ms(firstTextMs)}`;
+  const say = firstSayMs === null ? "no first Say measured" : `median first Say ${ms(firstSayMs)}`;
   const crossed = [
     ...(cacheHit !== null && cacheHit < lines.cacheHit ? [`${hit}, under ${pct(lines.cacheHit)}`] : []),
-    ...(firstTextMs !== null && firstTextMs > lines.firstTextMs ? [`${text}, over ${ms(lines.firstTextMs)}`] : []),
+    ...(firstSayMs !== null && firstSayMs > lines.firstSayMs ? [`${say}, over ${ms(lines.firstSayMs)}`] : []),
   ];
   if (!crossed.length)
     return {
       ok: true,
-      line: `Ask's day holds its lines: ${turns} turns, ${hit} (line ${pct(lines.cacheHit)}), ${text} (line ${ms(lines.firstTextMs)}).`,
+      line: `Ask's day holds its lines: ${turns} turns, ${hit} (line ${pct(lines.cacheHit)}), ${say} (line ${ms(lines.firstSayMs)}).`,
     };
   const [top] = misses;
   const why = top ? ` The most-given cache miss: ${top.reason} (${top.rounds} rounds).` : "";

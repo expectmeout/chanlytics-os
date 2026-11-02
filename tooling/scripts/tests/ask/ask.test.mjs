@@ -2001,7 +2001,10 @@ test("the cross-page reads: what a question names plainly of another page is rea
   // Asked by voice on 5 Oct 2026, it took two more rounds and four searches to find: 14 s to the first word.
   const [cancel] = mod.crossPagePlan("Yeah check last week and see if anybody canceled an appointment", "leads");
   const canceled = (days) => `inbox ${JSON.stringify({ action: "search", words: cancel.input.words, days })}`;
-  assert.deepEqual(names("Yeah check last week and see if anybody canceled an appointment", "leads"), [canceled(14)]);
+  assert.deepEqual(names("Yeah check last week and see if anybody canceled an appointment", "leads"), [
+    canceled(14),
+    'leads {"action":"searches"}',
+  ]);
   assert.deepEqual(names("did anyone cancel today?", "today"), [canceled(1), "today {}"]);
   assert.deepEqual(names("who cancelled yesterday?"), [canceled(2)]);
   assert.deepEqual(names("any cancellations this month?", "calendar"), [canceled(30)]);
@@ -2228,6 +2231,23 @@ test("the rules know the plan and the message (the marketing manager's §5.7): a
   assert.ok(!campaign.description.includes("change its words"), "the tail");
   assert.ok(!campaign.description.includes("new words, the same message"), "action change");
   assert.ok(campaign.description.includes("new text in the same message, never a new message"), "action change");
+});
+
+test("on Leads the searches ride in with every question, after what it names and within the cap: the page holds only their count, a search's plan reads them first, and that read paid a round for rows the page had already loaded", async () => {
+  const mod = await import(
+    pathToFileURL(path.join(here, "../../../../apps/dashboard/src/server/ask/cross-page.ts")).href
+  );
+  const names = (q, surface) => mod.crossPagePlan(q, surface).map((r) => `${r.name} ${JSON.stringify(r.input)}`);
+  const searches = 'leads {"action":"searches"}';
+  assert.deepEqual(names("find me 100 dentists in Austin, TX", "leads"), [searches]);
+  assert.deepEqual(names("busca 50 plomeros en Miami", "leads"), [searches], "in any language: no words are read");
+  assert.deepEqual(names("Who has a proposal out?", "leads"), ['people {"action":"pipeline"}', searches]);
+  assert.deepEqual(
+    names("how did the week go, and what's on tomorrow", "leads").length,
+    mod.CROSS_PAGE_MAX,
+    "what the question names keeps the cap",
+  );
+  assert.deepEqual(names("find me 100 dentists in Austin, TX", "people"), [], "only on the page that holds them");
 });
 
 test("an offer asked for reads its journey and its Library before round 1, as a setup reads its two (the marketing manager's §5.7): on any page, Campaigns included, in either language; offer alone stays the audiences' word and deal the pipeline's; a question about how one did is none; within the cap a setup keeps its own two, and an offer's go before any other read", async () => {

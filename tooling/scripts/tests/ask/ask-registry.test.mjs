@@ -965,5 +965,68 @@ test("the lead search keeps its order: the owner check comes before the plan's o
     action: "find",
     looking_for: "local_businesses",
   });
-  assert.match(JSON.parse(flat.result).error, /^propose_lead_search: country Invalid input/);
+  assert.match(JSON.parse(flat.result).error, /^propose_lead_search: count Invalid input/);
+});
+
+test("a lead search needs no country said: the tool's words never ask for one, so the plan's own schema hears the US, and a place abroad is still refused in words, named or not", async () => {
+  const { LEAD_OUTSIDE_US_LINE } = await import("@chanlytics/contracts");
+  const { country: _, ...ask } = {
+    action: "find",
+    looking_for: "local_businesses",
+    country: "US",
+    count: 0,
+    who: "personal trainers",
+    who_one: "personal trainer",
+    category_key: "personal_trainer",
+    terms: ["personal trainers"],
+    region: "TX",
+    contact: "email",
+    criteria: [],
+    asked: "find me personal trainers in Texas",
+  };
+  const said = async (over) =>
+    JSON.parse((await buildProposal(contextFor("owner").t, "propose_lead_search", { ...ask, ...over })).result).error;
+  assert.equal(
+    await said({}),
+    "the plan is not complete: count Too small: expected number to be >=1",
+    "past the parse",
+  );
+  const abroad = { count: 100, city: "Toronto", region: "ON" };
+  assert.equal(await said(abroad), LEAD_OUTSIDE_US_LINE, "no country said, and no state of the US named");
+  assert.equal(await said({ ...abroad, country: "Canada" }), LEAD_OUTSIDE_US_LINE, "a country said is still read");
+});
+
+test("a lead search takes its place as the model packs it: a city and its state in one field is a whole place, the plan reads it, and a city with no state is still asked for one", async () => {
+  const supabase = fakeDb(
+    {
+      tenants: [{ id: A, name: "Harbor", timezone: "America/New_York" }],
+      contacts: [],
+      conversations: [],
+      templates: [],
+    },
+    {},
+    {
+      lead_list_counts: () => ({ all: 0, ready: 0, nurture: 0, converted: 0, said_no: 0, not_a_fit: 0 }),
+      lead_niche_prior: () => null,
+    },
+  );
+  const t = newToolContext({ supabase, userId: "u1", email: "ada@example.com", params: {} }, A, "owner", "UTC", NOW);
+  const ask = {
+    action: "find",
+    looking_for: "local_businesses",
+    count: 100,
+    who: "dentists",
+    who_one: "dentist",
+    category_key: "dentist",
+    terms: ["dentist"],
+    city: "Austin, TX",
+    contact: "phone",
+    criteria: [],
+    asked: "find me 100 dentists in Austin, TX",
+  };
+  const made = await buildProposal(t, "propose_lead_search", ask);
+  assert.equal(made.isError, false, made.result);
+  assert.equal(made.proposal.payload.plan.area.label, "Austin, TX");
+  const bare = await buildProposal(t, "propose_lead_search", { ...ask, city: "Austin" });
+  assert.match(JSON.parse(bare.result).error, /^the plan is not complete: region /);
 });
