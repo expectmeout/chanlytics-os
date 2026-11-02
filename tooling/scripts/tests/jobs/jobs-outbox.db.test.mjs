@@ -153,25 +153,17 @@ test("a claim takes what is due, leaves what is not, and holds it on a lease", {
 test("two claims at once never take the same row", { skip }, async () => {
   // Replies, two hours due, which is older than anything another suite leaves
   // lying in the queue: claim_due_jobs takes the first lane first and the
-  // oldest in it (0018), so the four slots these two claims have go to these
-  // four rows and not to somebody else's work.
-  const mine = await Promise.all([0, 1, 2, 3].map(() => insertJob({ kind: "push_send", due_at: ago(7200) })));
+  // oldest in it (0018), so both claims reach for these four rows and each has
+  // to pass over what the other holds. Whether all four go is not asked: a claim
+  // that starts once the other has landed finds this workspace running a reply
+  // and takes another workspace's first (00335), and that is the claim working.
+  await Promise.all([0, 1, 2, 3].map(() => insertJob({ kind: "push_send", due_at: ago(7200) })));
   const [a, b] = await Promise.all([claim(2), claim(2)]);
   assert.equal(a.error, null, a.error?.message);
   assert.equal(b.error, null, b.error?.message);
   const ids = [...a.data, ...b.data].map((r) => r.id);
   assert.equal(new Set(ids).size, ids.length, "SKIP LOCKED: no row claimed twice");
-  const got = ids.filter((id) => mine.includes(id));
-  assert.equal(new Set(got).size, got.length, "and none of this suite's four twice");
-  // Taken, every one of them: by these two claims, or by another suite's
-  // claim on the same queue, which fires it just the same.
-  const rows = await db.from("jobs").select("id, state").in("id", mine);
-  assert.equal(rows.error, null, rows.error?.message);
-  assert.deepEqual(
-    rows.data.map((r) => r.state).sort(),
-    ["fired", "fired", "fired", "fired"],
-    "and between them they took all four",
-  );
+  assert.deepEqual([a.data.length, b.data.length], [2, 2], "and each passed over what the other held and took two");
 });
 
 test("a lease that ran out is taken back with attempts + 1; a live one is left alone", { skip }, async () => {
