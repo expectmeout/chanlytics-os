@@ -6,7 +6,8 @@
  *   less its list and under the record's name; new steps take the ids the save gave them; the auto-add switch saves at
  *   once; a refused save says the door's words and stands failed.
  * - A step's sheet (step-sheet.tsx): the first step has no Take out and a later one says how long it waits; Take out
- *   closes the sheet and says so with Undo, which puts the step back where it stood, as new.
+ *   closes the sheet and says so with Undo, which puts the step back where it stood, as new. Ask rewrites it asks what
+ *   should change there, the email in sight, and the answer stands in the box as if typed, with Undo.
  * - Preview as a real lead (preview.tsx): nobody in it yet reads as the example business, said so, with the foot the send
  *   writes under it (why they hear from you, the business and its address), and none while the address is not set.
  * - Send me a test: what is typed is saved first, then the step goes to your own inbox as the lead previewed gets it.
@@ -34,6 +35,7 @@ const L = "../../../../apps/dashboard/src/legacy";
 const S = "../../../../apps/dashboard/src/surfaces";
 const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
 const { sequenceVerbs } = await import(`${S}/campaigns/sequences/verbs.ts`);
+const { reachOuts } = await import(`${S}/campaigns/reach-out/surface.ts`);
 const { Sheet } = await import(`${S}/kit/sheet/sheet.tsx`);
 const { EmailAs } = await import(`${S}/campaigns/sequences/place/email-as.tsx`);
 const { useLeadChain } = await import(`${S}/campaigns/sequences/leads/use-chain.ts`);
@@ -233,6 +235,157 @@ test("Take out closes the sheet and says so with Undo, which puts the step back 
     "back in its place with its words, saved as a new step",
   );
   await lc.flush();
+});
+
+const R = contracts.LEAD_BUILD_WORDS;
+/** The box of words a test id names: what it is drawn with, and where its caret opens once it has been drawn again. */
+const boxOf = (tree, id) => find(tree, (n) => n.props?.["data-testid"] === id && "value" in n.props).props;
+/** Ask rewrites it, pressed, and what should change said: the sheet as it then stands. */
+const askToChange = (place, change) => {
+  press(byTestId(sheetOf(drawStep(place)), "ld-ask-rewrite"));
+  byTestId(sheetOf(drawStep(place)), "ld-rewrite-change").props.onValueChange(change);
+  return sheetOf(drawStep(place));
+};
+/** The rewrite pressed, and the sheet once its answer has landed. */
+const rewriteAnswered = async (place, tree) => {
+  press(byTestId(tree, "ld-rewrite-go"));
+  await until(() => !byTestId(sheetOf(drawStep(place)), "ld-rewrite-go").props["aria-busy"], "the rewrite is answered");
+  return sheetOf(drawStep(place));
+};
+const rewriteAnswers = (data) => {
+  const saves = answer;
+  answer = (call) => (call[1] === `sequences/${SEQ}/rewrite` ? { ok: true, data } : saves(call));
+};
+/**
+ * The rewrite's answer in the test's hands, for one test: it lands when the function this returns is called, so what stands
+ * while it is out never rests on how long a response takes to read, which Node 22 and Node 24 do not agree on.
+ */
+const rewriteHeld = (t, data) => {
+  const { promise, resolve } = Promise.withResolvers();
+  const asked = reachOuts.rewrite;
+  reachOuts.rewrite = () => promise;
+  t.after(() => {
+    reachOuts.rewrite = asked;
+  });
+  return () => resolve({ ok: true, status: 200, data });
+};
+
+test("Ask rewrites it asks what should change in the sheet, the email in sight: the words go to the rewrite, and the answer stands in the box", async () => {
+  closed = 0;
+  assert.equal(byTestId(sheetOf(drawStep(1)), "ld-rewrite-change"), null, "asked only once pressed");
+  const tree = askToChange(1, "Shorter, and less formal");
+  assert.equal(closed, 0, "the sheet stays open");
+  assert.ok(byTestId(tree, "ld-body"), "the email stays on screen");
+  rewriteAnswers({ subject: "Your phones", body: "{{opening}}\n\nWorth a look?", cannot: null });
+  const after = await rewriteAnswered(1, tree);
+  assert.deepEqual(
+    wire.find(([, p]) => p === `sequences/${SEQ}/rewrite`),
+    [
+      "POST",
+      `sequences/${SEQ}/rewrite`,
+      {
+        subject: "A quick one for {{business}}",
+        body: "{{opening}}\n\n{{your name}}",
+        change: "Shorter, and less formal",
+      },
+    ],
+  );
+  assert.deepEqual(
+    [lc.draft.steps[0].subject, lc.draft.steps[0].body],
+    ["Your phones", "{{opening}}\n\nWorth a look?"],
+    "in the box, as if typed",
+  );
+  // REGRESSION: the box of words keeps what it drew until it is drawn again, so the saved words never showed in it.
+  assert.equal(boxOf(tree, "ld-body").caret, null, "a box as it first opened");
+  assert.deepEqual(
+    ["ld-subject", "ld-body"].map((id) => [boxOf(after, id).value, boxOf(after, id).caret]),
+    [
+      ["Your phones", "Your phones".length],
+      ["{{opening}}\n\nWorth a look?", "{{opening}}\n\nWorth a look?".length],
+    ],
+    "both boxes are drawn again with the new words",
+  );
+  assert.equal(byTestId(after, "ld-rewrite-change").props.value, "", "the line is ready for the next change");
+});
+
+test("a later email is rewritten with no subject, in its thread", async () => {
+  const tree = askToChange(2, "Warmer");
+  rewriteAnswers({ subject: null, body: "Still happy to help.", cannot: null });
+  await rewriteAnswered(2, tree);
+  assert.equal(wire.find(([, p]) => p === `sequences/${SEQ}/rewrite`)[2].subject, null);
+  assert.deepEqual([lc.draft.steps[1].subject, lc.draft.steps[1].body], [null, "Still happy to help."]);
+});
+
+test("Undo puts back the words a rewrite replaced, and goes once the owner types over them", async () => {
+  rewriteAnswers({ subject: "Your phones", body: "{{opening}}\n\nWorth a look?", cannot: null });
+  let after = await rewriteAnswered(1, askToChange(1, "Shorter"));
+  press(byTestId(after, "ld-rewrite-undo"));
+  after = sheetOf(drawStep(1));
+  assert.deepEqual(
+    [lc.draft.steps[0].subject, lc.draft.steps[0].body],
+    ["A quick one for {{business}}", "{{opening}}\n\n{{your name}}"],
+  );
+  assert.equal(byTestId(after, "ld-rewrite-undo"), null, "said once");
+
+  byTestId(after, "ld-rewrite-change").props.onValueChange("Shorter");
+  after = await rewriteAnswered(1, sheetOf(drawStep(1)));
+  assert.ok(byTestId(after, "ld-rewrite-undo"));
+  lc.edit((d) => ({ ...d, steps: d.steps.map((s, i) => (i === 0 ? { ...s, body: `${s.body} Typed.` } : s)) }));
+  assert.equal(byTestId(sheetOf(drawStep(1)), "ld-rewrite-undo"), null, "what they typed is never undone by it");
+});
+
+test("what a rewrite left out is said under the line", async () => {
+  rewriteAnswers({
+    subject: "Your phones",
+    body: "{{opening}}\n\nWorth a look?",
+    cannot: "Left out: “mention $99”. A first email names no price.",
+  });
+  const after = await rewriteAnswered(1, askToChange(1, "Mention $99"));
+  assert.match(textOf(byTestId(after, "ld-rewrite-left")), /Left out: “mention \$99”/);
+});
+
+test("a rewrite refused says the door's words on the line, and the email stays as it was", async () => {
+  const tree = askToChange(1, "Add a link");
+  const saves = answer;
+  answer = (call) =>
+    call[1] === `sequences/${SEQ}/rewrite` ? { ok: false, status: 422, message: R.rewriteBroke } : saves(call);
+  const after = await rewriteAnswered(1, tree);
+  assert.equal(byTestId(after, "ld-rewrite-change").props.value, "Add a link", "what they said is kept to change");
+  assert.equal(find(after, (n) => n.props?.problem === R.rewriteBroke) !== null, true);
+  assert.equal(lc.draft.steps[0].body, "{{opening}}\n\n{{your name}}");
+});
+
+test("the email is not typed into while it is written again, and an empty line asks nothing", async (t) => {
+  const tree = askToChange(1, "   ");
+  press(byTestId(tree, "ld-rewrite-go"));
+  await settle();
+  assert.equal(wire.filter(([, p]) => p === `sequences/${SEQ}/rewrite`).length, 0);
+
+  byTestId(tree, "ld-rewrite-change").props.onValueChange("Warmer");
+  const land = rewriteHeld(t, { subject: "Hi", body: "{{opening}}\n\nHello.", cannot: null });
+  press(byTestId(sheetOf(drawStep(1)), "ld-rewrite-go"));
+  await settle();
+  const busy = sheetOf(drawStep(1));
+  assert.equal(byTestId(busy, "ld-body").props.readOnly, true);
+  assert.equal(byTestId(busy, "ld-rewrite-go").props["aria-busy"], true);
+  land();
+  await until(() => {
+    drawStep(1);
+    return lc.draft.steps[0].body === "{{opening}}\n\nHello.";
+  }, "the rewrite lands");
+});
+
+test("a sheet closed while it is written leaves the email alone", async (t) => {
+  const tree = askToChange(1, "Warmer");
+  const land = rewriteHeld(t, { subject: "Hi", body: "{{opening}}\n\nHello.", cannot: null });
+  press(byTestId(tree, "ld-rewrite-go"));
+  const edits = [];
+  lc.edit = (change) => edits.push(change);
+  // The sheet gone, as React lets it go: a part the stub simply stops drawing keeps its cells and runs no cleanup.
+  unmount();
+  land();
+  await settle();
+  assert.deepEqual(edits, [], "the answer has nowhere to land");
 });
 
 /* ---------------------------------------------------------------- the preview */

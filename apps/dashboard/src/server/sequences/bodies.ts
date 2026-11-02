@@ -3,6 +3,8 @@ import { z } from "zod";
 import {
   CONSENT_CHANNELS,
   FOLLOW_UP_CONDITIONS,
+  LEAD_BUILD_WORDS,
+  LEAD_REWRITE_CHANGE_MAX,
   REACH_OUT_NAME_MAX,
   ReachOutChainSchema,
   ReachOutStepSchema,
@@ -208,6 +210,17 @@ const NEW_WHO = z.discriminatedUnion("kind", [
  * or the owner's in the draft, which Ask keeps), and the draft it rewrites when they say it again (`previous`, its name and
  * how many steps it had: what the model is told of it).
  */
+/** POST sequences/:id/rewrite: the email as it stands (a later one has no subject), and what its owner wants changed. */
+export const REWRITE_BODY = z.strictObject({
+  subject: z.string().max(REACH_OUT_SUBJECT_MAX).nullable(),
+  body: z.string().max(REACH_OUT_BODY_MAX),
+  change: z
+    .string()
+    .trim()
+    .min(1, LEAD_BUILD_WORDS.rewriteChange)
+    .max(LEAD_REWRITE_CHANGE_MAX, LEAD_BUILD_WORDS.rewriteLong),
+});
+
 /** POST sequences/voice (decision 0078): one email the owner wrote, whole, for Ask to read how they write. */
 export const VOICE_BODY = z.strictObject({
   text: z.string().trim().min(VOICE_PASTE_MIN, VOICE_WORDS.tooShort).max(VOICE_PASTE_MAX, VOICE_WORDS.tooLong),

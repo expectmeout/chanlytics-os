@@ -57,7 +57,7 @@ import { playbooks } from "../readers/playbooks";
 import { sequences } from "../readers/sequences";
 import { templates } from "../readers/templates";
 import { storedConfigOf } from "../workspace/config-row";
-import { draftKept, type DraftExample, type DraftKnown, type KnownMessage } from "./draft-judge";
+import { draftKept, type DraftExample, type DraftKnown, type KnownMessage, type OwnerKnown } from "./draft-judge";
 
 /** How much of a message's words the model is handed. */
 const BODY_CHARS = 280;
@@ -68,15 +68,20 @@ const EXAMPLES_MAX = 3;
 /** The services the drafter is told by name: enough to say what the business offers, never its whole list. */
 const SERVICES_SAID = 12;
 
+/** What a step to leads keeps to, said once: a draft is written under it, and an email written again (rewrite.ts). */
+export const LEAD_RULES = [
+  "A step to leads is an email in the business's own words, the same words for every business it goes to: `subject` on the first only; `body` at most 80 words on the first, starting with {{opening}} on a line of its own (one line about them, written for each business later from its record), and at most 50 on a later one, which answers in the same thread. The words themselves claim and suppose nothing about the business they go to, not how busy it is, its calls, what it has or what it wants: only the opening says anything about them. Use only {{opening}}, {{business}}, {{first name}}, {{city}}, {{your name}}, {{your business}}, and {{booking link}} after the first only. No link, price or exclamation mark in the first.",
+  "Write a step to leads in the owner's own voice: the first emails they started before (their length, greeting, how they open, ask and sign off) and the lines Ask remembers about how they write come first: where one shows what Ask drafted beside what they sent, what they changed is how they want it, and what wrote back is what worked, where it went to enough businesses to tell (a few sends say nothing either way); you never copy a sentence of them; where there is neither, plain and short. Say what the business offers as it says it itself, from what it does and its services, never more. You may say who the email goes to as the owner's own act (\"I'm writing to a few auto shops in {{city}}\"), never as a fact about the business.",
+  "Never a price, a discount or a date in any words you write.",
+];
+
 const RULES = [
   "You set up what a small business sends on its own, from what its owner says in a line.",
   "Choose `kind`: sequence (steps over days, each a wait after the one before) or once (one message, now or on a day).",
   "Choose `audience`: people (the business's own customers, in People) or leads (other businesses a search found, which never said yes to it: you only email them).",
   "Choose `who` by its key from the lists below: a moment or a list for a sequence to people; everyone or a list for a message sent once to people; a search for leads. Leave it empty when none fits, and say why in `cannot`.",
   "A step to people sends one of the business's messages by its key, with `texts` for its typed-words values in order; or, only where none of them fits, a new one in `write`: a short `title`, `offer` true for an offer, and its words for each channel it should go by: `whatsapp` and `text` short and plain, `email_subject` and `email_body`. Name only these values, in double braces: {{first name}}, {{business name}}, {{booking link}}, {{review link}}, and on a first step after a booking {{booked time}} and {{booked service}}. A text never carries an offer: leave `text` empty for one. Leave `message` empty when you write one, and every `write` field empty when you don't.",
-  "A step to leads is an email in the business's own words, the same words for every business it goes to: `subject` on the first only; `body` at most 80 words on the first, starting with {{opening}} on a line of its own (one line about them, written for each business later from its record), and at most 50 on a later one, which answers in the same thread. The words themselves claim and suppose nothing about the business they go to, not how busy it is, its calls, what it has or what it wants: only the opening says anything about them. Use only {{opening}}, {{business}}, {{first name}}, {{city}}, {{your name}}, {{your business}}, and {{booking link}} after the first only. No link, price or exclamation mark in the first.",
-  "Write a step to leads in the owner's own voice: the first emails they started before (their length, greeting, how they open, ask and sign off) and the lines Ask remembers about how they write come first: where one shows what Ask drafted beside what they sent, what they changed is how they want it, and what wrote back is what worked, where it went to enough businesses to tell (a few sends say nothing either way); you never copy a sentence of them; where there is neither, plain and short. Say what the business offers as it says it itself, from what it does and its services, never more. You may say who the email goes to as the owner's own act (\"I'm writing to a few auto shops in {{city}}\"), never as a fact about the business.",
-  "Never a price, a discount or a date in any words you write.",
+  ...LEAD_RULES,
   `A step after the first waits \`after_days\` after the one before: ${NEW_WAIT_DAYS.people.min} to ${NEW_WAIT_DAYS.people.max} for people, ${NEW_WAIT_DAYS.leads.min} to ${NEW_WAIT_DAYS.leads.max} for leads. To people it may go only if they have not booked since (no_booking) or not written back (no_reply); a lead stops on a reply on its own, so leave \`only_if\` empty for leads and on a first step.`,
   "A step may instead hand each person to the team: `does` call or note, with `words` saying what to do when they come up. Only when the owner asks for it, and only as the last step, never the first. A message step leaves `words` empty.",
   `Up to ${NEW_STEPS_MAX.people} steps to people and ${NEW_STEPS_MAX.leads} to leads, the first included. A message sent once is one step.`,
@@ -90,7 +95,7 @@ const RULES = [
  * The one rule a workspace that makes previews adds (decision 0079): {{their preview}} in a later step to leads, as that
  * email's only link. Nothing is said of it to any other workspace, whose sends would have none to fill it.
  */
-const PREVIEW_RULE =
+export const PREVIEW_RULE =
   'This business sets up each business it writes to a receptionist of their own to try: a step to leads after the first may name {{their preview}}, its link, once, as that email\'s only link (never with {{booking link}}), said as theirs to try ("I set one up for {{business}}. Try it: {{their preview}}"). Only for a search of businesses that take bookings, never an agency.';
 
 /** The messages a step may send now, each keyed for the model: offered, with a channel it can go by. */
@@ -144,17 +149,12 @@ function exampleSaid(e: DraftExample): string {
   return fenced("record", [...(head.length ? [head.join(" · ")] : []), ...pair].join("\n\n"));
 }
 
-/** What the model is told: the business, its moments, lists, searches and messages, the choices made, and the line. */
-function draftAsked(known: DraftKnown, ask: NewDraftAsk): string {
-  const count = (n: number | null) => (n === null ? "" : `, ${n} now`);
-  const lines = (title: string, rows: string[]) => (rows.length ? `${title}:\n${rows.join("\n")}` : `${title}: none.`);
-  const chosen = [
-    ask.kind ? `kind ${ask.kind}` : null,
-    ask.audience ? `audience ${ask.audience}` : null,
-    ask.who ? `who: ${ask.who.label}` : null,
-  ].filter(Boolean);
+/** A list the model is told, under its title. */
+const lines = (title: string, rows: string[]) => (rows.length ? `${title}:\n${rows.join("\n")}` : `${title}: none.`);
+
+/** What the model is told of what the business offers and how its owner writes, all as data: a draft's and a rewrite's. */
+export function ownerSaid(known: OwnerKnown): Array<string | null> {
   return [
-    `The business: ${known.business}. Its day and time now: ${known.localNow.replace("T", " ")}.`,
     known.goal
       ? `What it is working toward, which an email to leads offers: ${fencedInline("record", known.goal)}`
       : null,
@@ -173,6 +173,20 @@ function draftAsked(known: DraftKnown, ask: NewDraftAsk): string {
           known.examples.map(exampleSaid),
         )
       : null,
+  ];
+}
+
+/** What the model is told: the business, its moments, lists, searches and messages, the choices made, and the line. */
+function draftAsked(known: DraftKnown, ask: NewDraftAsk): string {
+  const count = (n: number | null) => (n === null ? "" : `, ${n} now`);
+  const chosen = [
+    ask.kind ? `kind ${ask.kind}` : null,
+    ask.audience ? `audience ${ask.audience}` : null,
+    ask.who ? `who: ${ask.who.label}` : null,
+  ].filter(Boolean);
+  return [
+    `The business: ${known.business}. Its day and time now: ${known.localNow.replace("T", " ")}.`,
+    ...ownerSaid(known),
     lines(
       "Moments a sequence to people may start on",
       known.moments.map((m) => `- ${m.key}: ${m.label} (${m.hint}${count(m.count)})`),
@@ -236,7 +250,7 @@ export async function draftFrom(
  * from Business, Ask's live memory, and its started first emails. Each read can fail alone, and the draft is drafted
  * without it.
  */
-async function ownerOf(
+export async function ownerOf(
   rc: ReaderContext,
   rows: ReadonlyArray<{ id: string; starts: string; state: string }>,
   config: { brain?: { profile?: { services?: ReadonlyArray<{ name: string }>; tone?: string } } } | null,
@@ -324,7 +338,7 @@ async function startedExamples(
 }
 
 /** A read the draft can do without: logged once, and the draft drafted from what was read. */
-async function orNull<T>(read: Promise<T>, what: string, tenantId: string): Promise<T | null> {
+export async function orNull<T>(read: Promise<T>, what: string, tenantId: string): Promise<T | null> {
   try {
     return await read;
   } catch (e) {

@@ -213,6 +213,9 @@ export const reachOuts = {
   /** A sequence to leads' chain, saved as its record writes it (00459 PUT sequences/:id/chain: every word checked). */
   saveChain: (sequenceId: string, body: Input<"PUT sequences/[id]/chain">) =>
     api()("PUT sequences/[id]/chain", { params: { id: sequenceId }, body }),
+  /** An email of a sequence to leads written again as its owner says: words handed back, never saved. */
+  rewrite: (sequenceId: string, body: Input<"POST sequences/[id]/rewrite">) =>
+    api()("POST sequences/[id]/rewrite", { params: { id: sequenceId }, body }),
   /** What adding these leads to a sequence would do, written nowhere (00459's add door, dry): each card's answer. */
   checkAdd: (sequenceId: string, leadIds: string[]) =>
     api()("POST sequences/[id]/leads/check", { params: { id: sequenceId }, body: { lead_ids: leadIds } }),
